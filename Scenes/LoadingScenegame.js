@@ -62,13 +62,17 @@ class LoadingScenegame extends Phaser.Scene {
     constructor() {
         super({ key: 'LoadingScenegame' });
 
-        this.elipeticiones = 0;
-
-        if (this.elipeticiones === 0) {
-            this.serverBase = 'http://127.0.0.1:3001';
-        } else {
-            this.serverBase = 'https://grasslandforest.xyz';
-        }
+        // FIX: "elipeticiones" se fijaba a 0 y se comprobaba "=== 0" en el
+        // mismo bloque, y nunca se incrementaba en ningún otro punto del
+        // archivo → la condición siempre era true y serverBase terminaba
+        // SIEMPRE en 127.0.0.1:3001, incluso en producción (de ahí el
+        // ERR_CONNECTION_REFUSED al pedir csrf-token y auth/me).
+        // Ahora se decide según el host real donde corre el juego.
+        const _host = window.location.hostname;
+        const _isLocal = _host === 'localhost' || _host === '127.0.0.1';
+        this.serverBase = _isLocal
+            ? 'http://127.0.0.1:8080'   // ajusta el puerto si tu server2.js local usa otro (ver PORT en tu .env)
+            : 'https://api.grasslandforest.com';
 
         this.playerName = null;
         this.address    = null;

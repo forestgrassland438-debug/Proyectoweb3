@@ -2074,24 +2074,23 @@ showNotification(message, type = 'info') {
     
     this.ii = 0;
 
-    this.elipeticiones = 0; 
+    // FIX: mismo bug que en LoadingScenegame.js — "elipeticiones" se fijaba
+    // a 0 y se comprobaba "=== 0" en el mismo bloque, así que esta rama
+    // SIEMPRE era la que se ejecutaba, también en producción. Esto no solo
+    // rompía auth/me: serverclient1 también alimenta el socket multijugador
+    // (io(SERVER,...)) y los enlaces de market/hub, así que todo eso también
+    // intentaba conectar a 127.0.0.1:3001 en el juego real.
+    const _host = window.location.hostname;
+    const _isLocal = _host === 'localhost' || _host === '127.0.0.1';
 
-    if (this.elipeticiones === 0) {
-        
-      this.serverclient = 'http://127.0.0.1:3001/api';
-      this.serverclient1 = 'http://127.0.0.1:3001';
-      
-      this.serverBase = 'http://127.0.0.1:3001';
-      //this.serverclient = 'https://bgrassland-production.up.railway.app';
-      
+    if (_isLocal) {
+      this.serverclient  = 'http://127.0.0.1:8080/api'; // ajusta el puerto si tu server2.js local usa otro
+      this.serverclient1 = 'http://127.0.0.1:8080';
+      this.serverBase    = 'http://127.0.0.1:8080';
     } else {
-        
-      //this.serverclient = 'http://192.168.100.221:3000';
-      this.serverclient = 'https://grasslandforest.xyz/api';
-      this.serverclient1 = 'https://grasslandforest.xyz';
-      
-            this.serverBase = 'https://grasslandforest.xyz';
-
+      this.serverclient  = 'https://api.grasslandforest.com/api';
+      this.serverclient1 = 'https://api.grasslandforest.com';
+      this.serverBase    = 'https://api.grasslandforest.com';
     }
 
     
