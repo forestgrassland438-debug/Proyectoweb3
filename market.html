@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Mercado · Grassland Forest</title>
+<meta name="description" content="Mercado P2P de Grassland Forest — compra y vende objetos con oro y plata.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-deep:#0f1f16;
+    --bg-panel:#16281d;
+    --bg-panel-2:#1c3123;
+    --line:rgba(234,241,230,.12);
+    --line-strong:rgba(234,241,230,.22);
+    --ink:#20301f;
+    --paper:#f4ead4;
+    --paper-2:#ece0c4;
+    --text:#eaf1e6;
+    --text-muted:#9db6a4;
+    --text-faint:#6f8b78;
+    --gold:#d9a441;
+    --gold-ink:#5a3d0d;
+    --silver:#b9c8cd;
+    --silver-ink:#33454a;
+    --accent:#e2703a;
+    --accent-2:#7fb069;
+    --danger:#d9534f;
+    --radius:14px;
+    --radius-sm:8px;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+    --font-display:'Press Start 2P', monospace;
+    --font-body:'Manrope', system-ui, -apple-system, sans-serif;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1100px 700px at 15% -10%, #17311f 0%, transparent 60%),
+      radial-gradient(900px 600px at 110% 10%, #1a3524 0%, transparent 55%),
+      var(--bg-deep);
+    color:var(--text);
+    font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased;
+    min-height:100%;
+    padding-bottom:76px; /* espacio para tab bar móvil */
+  }
+
+  ::selection{ background:var(--accent); color:#fff; }
+
+  a{ color:inherit; }
+  button{ font-family:inherit; }
+
+  /* ---------- Loading & auth gate ---------- */
+  .screen-center{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+  }
+  .loader-wrap{ display:flex; flex-direction:column; align-items:center; gap:18px; }
+  .loader-coin{
+    width:46px; height:46px; border-radius:50%;
+    border:4px solid var(--line-strong);
+    border-top-color:var(--gold);
+    animation:spin 0.9s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .loader-label{ font-family:var(--font-display); font-size:10px; letter-spacing:1px; color:var(--text-muted); }
+
+  .gate-card{
+    max-width:420px; width:100%;
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:36px 28px;
+    text-align:center;
+    box-shadow:var(--shadow);
+  }
+  .gate-icon{ width:64px; height:64px; margin:0 auto 18px; opacity:.9; }
+  .gate-card h1{
+    font-family:var(--font-display);
+    font-size:14px;
+    line-height:1.6;
+    margin:0 0 14px;
+    color:var(--paper);
+  }
+  .gate-card p{
+    color:var(--text-muted);
+    font-size:14.5px;
+    line-height:1.6;
+    margin:0 0 26px;
+  }
+  .btn-primary{
+    display:inline-flex; align-items:center; gap:8px;
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    padding:13px 22px;
+    border-radius:999px;
+    font-weight:700;
+    font-size:14.5px;
+    cursor:pointer;
+    text-decoration:none;
+    box-shadow:0 6px 16px rgba(226,112,58,.35);
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .btn-primary:hover{ transform:translateY(-1px); box-shadow:0 8px 20px rgba(226,112,58,.45); }
+  .btn-primary:active{ transform:translateY(0); }
+
+  /* ---------- App shell ---------- */
+  #app{ display:none; }
+  #app.ready{ display:block; }
+
+  .topbar{
+    position:sticky; top:0; z-index:20;
+    background:rgba(15,31,22,.92);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .topbar-inner{
+    max-width:1180px; margin:0 auto;
+    padding:14px 18px;
+    display:flex; align-items:center; gap:14px;
+    flex-wrap:wrap;
+  }
+  .brand{
+    display:flex; align-items:center; gap:10px;
+    text-decoration:none;
+    color:var(--text);
+    flex-shrink:0;
+  }
+  .brand-badge{
+    width:34px; height:34px; border-radius:9px;
+    background:linear-gradient(160deg, var(--accent-2), #4f8a4a);
+    display:flex; align-items:center; justify-content:center;
+    font-size:17px;
+  }
+  .brand-text{ display:flex; flex-direction:column; line-height:1.15; }
+  .brand-text b{ font-size:14.5px; }
+  .brand-text span{ font-size:11px; color:var(--text-muted); }
+
+  .wallet-strip{
+    margin-left:auto;
+    display:flex; align-items:center; gap:8px;
+    flex-wrap:wrap;
+  }
+  .chip{
+    display:flex; align-items:center; gap:7px;
+    background:var(--bg-panel-2);
+    border:1px solid var(--line);
+    padding:7px 12px 7px 8px;
+    border-radius:999px;
+    font-size:13px;
+    font-weight:700;
+    white-space:nowrap;
+  }
+  .chip.addr{
+    cursor:pointer;
+    font-family:'SFMono-Regular', Consolas, monospace;
+    font-weight:600;
+    color:var(--text-muted);
+    padding:7px 12px;
+  }
+  .chip.addr:hover{ border-color:var(--line-strong); color:var(--text); }
+  .coin-icon{
+    width:20px; height:20px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:10px; font-weight:800;
+    flex-shrink:0;
+  }
+  .coin-icon.oro{ background:radial-gradient(circle at 32% 30%, #f3cf7f, var(--gold) 70%); color:var(--gold-ink); }
+  .coin-icon.plata{ background:radial-gradient(circle at 32% 30%, #eef3f4, var(--silver) 70%); color:var(--silver-ink); }
+
+  .btn-ghost{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--text-muted);
+    padding:8px 14px;
+    border-radius:999px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px;
+    text-decoration:none;
+    transition:border-color .15s ease, color .15s ease;
+  }
+  .btn-ghost:hover{ border-color:var(--line-strong); color:var(--text); }
+
+  /* ---------- Tabs ---------- */
+  .tabs{
+    max-width:1180px; margin:0 auto;
+    padding:0 18px;
+    display:flex; gap:6px;
+  }
+  .tab-btn{
+    background:none; border:none; cursor:pointer;
+    color:var(--text-muted);
+    font-weight:700; font-size:13.5px;
+    padding:12px 14px 10px;
+    border-bottom:2px solid transparent;
+    display:flex; align-items:center; gap:7px;
+  }
+  .tab-btn.active{ color:var(--paper); border-bottom-color:var(--accent); }
+  .tab-btn .count{
+    background:var(--bg-panel-2); color:var(--text-muted);
+    font-size:11px; padding:1px 7px; border-radius:999px;
+  }
+  .tab-btn.active .count{ background:var(--accent); color:#fff; }
+
+  main{ max-width:1180px; margin:0 auto; padding:18px; }
+
+  /* ---------- Toolbar ---------- */
+  .toolbar{
+    display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+    margin-bottom:14px;
+  }
+  .search-box{
+    flex:1 1 220px; position:relative;
+  }
+  .search-box input{
+    width:100%;
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:999px;
+    color:var(--text);
+    padding:10px 16px 10px 38px;
+    font-size:14px;
+    font-family:var(--font-body);
+  }
+  .search-box input:focus{ outline:none; border-color:var(--accent); }
+  .search-box svg{ position:absolute; left:13px; top:50%; transform:translateY(-50%); opacity:.5; }
+  .search-box input::placeholder{ color:var(--text-faint); }
+
+  select.sortsel{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:10px 14px;
+    border-radius:999px;
+    font-size:13.5px;
+    cursor:pointer;
+  }
+
+  .chips-row{
+    display:flex; gap:8px; overflow-x:auto; padding-bottom:4px;
+    margin-bottom:16px;
+    scrollbar-width:none;
+  }
+  .chips-row::-webkit-scrollbar{ display:none; }
+  .cat-chip{
+    flex-shrink:0;
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    color:var(--text-muted);
+    padding:8px 15px;
+    border-radius:999px;
+    font-size:13px;
+    font-weight:700;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .cat-chip.active{ background:var(--accent-2); border-color:var(--accent-2); color:#123018; }
+
+  /* ---------- Grid & ticket cards ---------- */
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(2, 1fr);
+    gap:14px;
+  }
+  @media(min-width:560px){ .grid{ grid-template-columns:repeat(3,1fr); } }
+  @media(min-width:820px){ .grid{ grid-template-columns:repeat(4,1fr); } }
+  @media(min-width:1080px){ .grid{ grid-template-columns:repeat(5,1fr); } }
+
+  .ticket{
+    position:relative;
+    background:var(--paper);
+    color:var(--ink);
+    border-radius:10px;
+    padding:14px 12px 12px 20px;
+    box-shadow:0 6px 16px rgba(0,0,0,.28);
+    overflow:hidden;
+    display:flex; flex-direction:column;
+  }
+  .ticket::before{
+    content:'';
+    position:absolute; left:0; top:0; bottom:0; width:14px;
+    background-image:radial-gradient(circle 4.5px, var(--bg-deep) 4.5px, transparent 5px);
+    background-size:14px 17px;
+    background-repeat:repeat-y;
+    background-position:left center;
+  }
+  .ticket .stamp{
+    position:absolute; top:8px; right:-6px;
+    background:transparent;
+    border:1.5px dashed rgba(32,48,31,.55);
+    color:rgba(32,48,31,.72);
+    font-size:9px; font-weight:800; letter-spacing:.5px;
+    text-transform:uppercase;
+    padding:3px 10px;
+    border-radius:4px;
+    transform:rotate(7deg);
+  }
+  .ticket .icon-wrap{
+    width:100%; aspect-ratio:1/1;
+    background:var(--paper-2);
+    border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    margin-bottom:10px;
+    overflow:hidden;
+  }
+  .ticket .icon-wrap img{ width:62%; height:62%; object-fit:contain; image-rendering:pixelated; }
+  .ticket h3{
+    font-size:13px; margin:0 0 4px; line-height:1.3;
+    min-height:2.2em;
+  }
+  .ticket .qty-line{ font-size:11.5px; color:#5a6a52; margin-bottom:8px; }
+  .ticket .seller-line{ font-size:10.5px; color:#7a8a6f; margin-bottom:10px; }
+  .ticket .price-row{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-top:auto;
+    gap:6px;
+  }
+  .ticket .price{ display:flex; align-items:center; gap:6px; font-weight:800; font-size:14px; }
+  .ticket .buy-btn{
+    background:var(--ink); color:var(--paper);
+    border:none; padding:8px 12px; border-radius:999px;
+    font-size:11.5px; font-weight:800; cursor:pointer;
+    white-space:nowrap;
+  }
+  .ticket .buy-btn:hover{ background:#33482f; }
+  .ticket .mine-badge{
+    background:var(--accent); color:#fff;
+    font-size:10.5px; font-weight:800;
+    padding:7px 10px; border-radius:999px;
+  }
+
+  .item-icon-fallback{ font-size:26px; opacity:.55; }
+
+  /* ---------- Inventory card (Vender tab) ---------- */
+  .inv-card{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px;
+    display:flex; flex-direction:column;
+  }
+  .inv-card .icon-wrap{
+    width:100%; aspect-ratio:1/1;
+    background:var(--bg-panel-2);
+    border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    margin-bottom:9px;
+  }
+  .inv-card .icon-wrap img{ width:60%; height:60%; object-fit:contain; image-rendering:pixelated; }
+  .inv-card h3{ font-size:13px; margin:0 0 3px; color:var(--text); }
+  .inv-card .qty-line{ font-size:11.5px; color:var(--text-muted); margin-bottom:10px; }
+  .inv-card .sell-btn{
+    margin-top:auto;
+    background:var(--accent-2); color:#123018;
+    border:none; padding:8px 10px; border-radius:999px;
+    font-size:11.5px; font-weight:800; cursor:pointer;
+  }
+  .inv-card .sell-btn:hover{ filter:brightness(1.08); }
+
+  /* ---------- My listings ---------- */
+  .mylist-row{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px 14px;
+    display:flex; align-items:center; gap:12px;
+    margin-bottom:10px;
+  }
+  .mylist-row .icon-wrap{
+    width:46px; height:46px; flex-shrink:0;
+    background:var(--bg-panel-2); border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .mylist-row .icon-wrap img{ width:65%; height:65%; object-fit:contain; image-rendering:pixelated; }
+  .mylist-info{ flex:1; min-width:0; }
+  .mylist-info h3{ font-size:13.5px; margin:0 0 3px; }
+  .mylist-info .meta{ font-size:11.5px; color:var(--text-muted); }
+  .cancel-btn{
+    background:transparent; border:1px solid var(--danger); color:var(--danger);
+    padding:7px 13px; border-radius:999px; font-size:12px; font-weight:700; cursor:pointer;
+    flex-shrink:0;
+  }
+  .cancel-btn:hover{ background:rgba(217,83,79,.12); }
+
+  /* ---------- Empty states ---------- */
+  .empty{
+    text-align:center; padding:60px 20px; color:var(--text-muted);
+  }
+  .empty .glyph{ font-size:38px; margin-bottom:10px; opacity:.6; }
+  .empty h3{ color:var(--text); font-size:15px; margin:0 0 6px; }
+  .empty p{ font-size:13.5px; margin:0; }
+
+  /* ---------- Mobile tab bar ---------- */
+  .mobile-tabbar{ display:none; }
+  @media(max-width:719px){
+    .tabs{ display:none; }
+    .mobile-tabbar{
+      display:flex;
+      position:fixed; left:0; right:0; bottom:0; z-index:30;
+      background:rgba(15,31,22,.97);
+      backdrop-filter:blur(10px);
+      border-top:1px solid var(--line);
+      padding:8px 6px calc(8px + env(safe-area-inset-bottom));
+    }
+    .mobile-tabbar button{
+      flex:1; background:none; border:none; color:var(--text-muted);
+      display:flex; flex-direction:column; align-items:center; gap:3px;
+      font-size:10.5px; font-weight:700; cursor:pointer; padding:4px;
+    }
+    .mobile-tabbar button.active{ color:var(--accent-2); }
+    .mobile-tabbar .ico{ font-size:18px; }
+  }
+
+  /* ---------- Modal ---------- */
+  .modal-backdrop{
+    display:none;
+    position:fixed; inset:0; z-index:50;
+    background:rgba(6,13,9,.68);
+    align-items:flex-end;
+    justify-content:center;
+    padding:0;
+  }
+  .modal-backdrop.show{ display:flex; }
+  @media(min-width:640px){
+    .modal-backdrop{ align-items:center; padding:20px; }
+  }
+  .modal{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:18px 18px 0 0;
+    width:100%; max-width:440px;
+    max-height:88vh; overflow-y:auto;
+    padding:22px 20px calc(22px + env(safe-area-inset-bottom));
+    box-shadow:var(--shadow);
+  }
+  @media(min-width:640px){ .modal{ border-radius:16px; } }
+  .modal h2{ font-size:15px; margin:0 0 4px; }
+  .modal .sub{ font-size:12.5px; color:var(--text-muted); margin:0 0 18px; }
+  .modal-item{
+    display:flex; align-items:center; gap:12px;
+    background:var(--bg-panel-2);
+    border-radius:10px; padding:10px; margin-bottom:18px;
+  }
+  .modal-item img{ width:44px; height:44px; object-fit:contain; image-rendering:pixelated; }
+  .modal-item .name{ font-weight:700; font-size:14px; }
+  .modal-item .cat{ font-size:11.5px; color:var(--text-muted); text-transform:capitalize; }
+
+  .field{ margin-bottom:16px; }
+  .field label{ display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:7px; }
+  .field input[type=number]{
+    width:100%;
+    background:var(--bg-deep);
+    border:1px solid var(--line);
+    border-radius:10px;
+    color:var(--text);
+    padding:11px 13px;
+    font-size:15px;
+    font-family:var(--font-body);
+  }
+  .field input:focus{ outline:none; border-color:var(--accent); }
+  .field .hint{ font-size:11px; color:var(--text-faint); margin-top:5px; }
+
+  .currency-toggle{ display:flex; gap:8px; }
+  .currency-toggle button{
+    flex:1;
+    display:flex; align-items:center; justify-content:center; gap:7px;
+    background:var(--bg-deep);
+    border:1px solid var(--line);
+    color:var(--text-muted);
+    padding:10px; border-radius:10px;
+    font-weight:700; font-size:13px; cursor:pointer;
+  }
+  .currency-toggle button.active{ border-color:var(--accent); color:var(--text); background:var(--bg-panel-2); }
+
+  .qty-stepper{ display:flex; align-items:center; gap:10px; }
+  .qty-stepper button{
+    width:38px; height:38px; border-radius:10px;
+    background:var(--bg-deep); border:1px solid var(--line); color:var(--text);
+    font-size:17px; cursor:pointer; flex-shrink:0;
+  }
+  .qty-stepper input{ text-align:center; }
+
+  .total-box{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--bg-panel-2);
+    border-radius:10px; padding:12px 14px; margin-bottom:8px;
+  }
+  .total-box .label{ font-size:12.5px; color:var(--text-muted); }
+  .total-box .amount{ font-weight:800; font-size:16px; display:flex; align-items:center; gap:6px; }
+  .fee-note{ font-size:11px; color:var(--text-faint); margin:0 0 18px; }
+
+  .modal-actions{ display:flex; gap:10px; margin-top:6px; }
+  .modal-actions button{
+    flex:1; padding:13px; border-radius:999px; font-weight:800; font-size:13.5px; cursor:pointer; border:none;
+  }
+  .btn-cancel-modal{ background:transparent; border:1px solid var(--line) !important; color:var(--text-muted); }
+  .btn-confirm{ background:var(--accent); color:#fff; }
+  .btn-confirm:disabled{ opacity:.5; cursor:not-allowed; }
+  .form-error{ color:var(--danger); font-size:12.5px; margin:-8px 0 14px; display:none; }
+  .form-error.show{ display:block; }
+
+  /* ---------- Toasts ---------- */
+  .toast-stack{
+    position:fixed; z-index:70;
+    left:50%; transform:translateX(-50%);
+    bottom:88px;
+    display:flex; flex-direction:column; gap:8px;
+    width:calc(100% - 32px); max-width:380px;
+    pointer-events:none;
+  }
+  @media(min-width:720px){
+    .toast-stack{ left:auto; right:24px; bottom:24px; transform:none; }
+  }
+  .toast{
+    background:var(--paper); color:var(--ink);
+    border-radius:10px; padding:12px 14px;
+    font-size:13px; font-weight:600;
+    box-shadow:0 8px 20px rgba(0,0,0,.35);
+    display:flex; align-items:center; gap:9px;
+    animation:toastIn .25s ease;
+  }
+  .toast.err{ background:#f6d9d8; }
+  @keyframes toastIn{ from{ opacity:0; transform:translateY(8px);} to{ opacity:1; transform:translateY(0);} }
+
+  /* Purchase stamp */
+  .sold-stamp{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    pointer-events:none;
+  }
+  .sold-stamp span{
+    border:3px solid var(--danger); color:var(--danger);
+    font-family:var(--font-display); font-size:12px;
+    padding:8px 14px; border-radius:8px;
+    transform:rotate(-12deg) scale(0);
+    animation:stampIn .35s cubic-bezier(.2,1.4,.4,1) forwards;
+    background:rgba(244,234,212,.85);
+  }
+  @keyframes stampIn{ to{ transform:rotate(-12deg) scale(1); } }
+
+  .skeleton{
+    background:linear-gradient(90deg, var(--bg-panel) 25%, var(--bg-panel-2) 37%, var(--bg-panel) 63%);
+    background-size:400% 100%;
+    animation:shimmer 1.4s ease infinite;
+    border-radius:10px;
+  }
+  @keyframes shimmer{ 0%{background-position:100% 0;} 100%{background-position:0 0;} }
+</style>
+</head>
+<body>
+
+  <div id="loading" class="screen-center">
+    <div class="loader-wrap">
+      <div class="loader-coin"></div>
+      <div class="loader-label">CARGANDO MERCADO…</div>
+    </div>
+  </div>
+
+  <div id="gate" class="screen-center" style="display:none;">
+    <div class="gate-card">
+      <svg class="gate-icon" viewBox="0 0 64 64" fill="none">
+        <path d="M8 58V22l24-14 24 14v36" stroke="#e2703a" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M20 58V34h24v24" stroke="#eaf1e6" stroke-width="3" stroke-linejoin="round" opacity=".55"/>
+        <circle cx="36" cy="46" r="2.4" fill="#d9a441"/>
+      </svg>
+      <h1>ACCESO RESTRINGIDO</h1>
+      <p id="gate-msg">Debes iniciar sesión en Grassland Forest para entrar al mercado. Vuelve al juego, inicia sesión y abre el Mercado de nuevo desde el botón redondo de la tienda.</p>
+      <a class="btn-primary" id="gate-btn" href="#">🌾 Volver al juego</a>
+    </div>
+  </div>
+
+  <div id="app">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" id="back-link" href="#">
+          <div class="brand-badge">🧺</div>
+          <div class="brand-text">
+            <b>Mercado</b>
+            <span>Grassland Forest</span>
+          </div>
+        </a>
+
+        <div class="wallet-strip">
+          <div class="chip addr" id="addr-chip" title="Copiar dirección">👛 <span id="addr-text">0x…</span></div>
+          <div class="chip"><span class="coin-icon oro">G</span><span id="oro-amount">0</span></div>
+          <div class="chip"><span class="coin-icon plata">P</span><span id="plata-amount">0</span></div>
+        </div>
+      </div>
+
+      <nav class="tabs">
+        <button class="tab-btn active" data-tab="market">🏪 Mercado</button>
+        <button class="tab-btn" data-tab="sell">🎒 Mi inventario</button>
+        <button class="tab-btn" data-tab="mine">🧾 Mis publicaciones <span class="count" id="mine-count">0</span></button>
+      </nav>
+    </header>
+
+    <main>
+      <!-- MERCADO -->
+      <section id="tab-market">
+        <div class="toolbar">
+          <div class="search-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="text" id="search-input" placeholder="Buscar objetos…">
+          </div>
+          <select class="sortsel" id="sort-select">
+            <option value="">Más recientes</option>
+            <option value="price_asc">Precio: menor a mayor</option>
+            <option value="price_desc">Precio: mayor a menor</option>
+          </select>
+        </div>
+        <div class="chips-row" id="cat-chips"></div>
+        <div id="market-grid" class="grid"></div>
+      </section>
+
+      <!-- VENDER -->
+      <section id="tab-sell" style="display:none;">
+        <div class="chips-row" id="sell-hint" style="margin-bottom:0;">
+          <div style="color:var(--text-muted); font-size:13px; padding:6px 2px;">Elige un objeto de tu inventario y ponle precio para publicarlo en el mercado.</div>
+        </div>
+        <div id="sell-grid" class="grid" style="margin-top:14px;"></div>
+      </section>
+
+      <!-- MIS PUBLICACIONES -->
+      <section id="tab-mine" style="display:none;">
+        <div id="mine-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <nav class="mobile-tabbar">
+    <button class="active" data-tab="market"><span class="ico">🏪</span>Mercado</button>
+    <button data-tab="sell"><span class="ico">🎒</span>Inventario</button>
+    <button data-tab="mine"><span class="ico">🧾</span>Mío</button>
+  </nav>
+
+  <!-- SELL MODAL -->
+  <div class="modal-backdrop" id="sell-modal">
+    <div class="modal">
+      <h2>Publicar objeto</h2>
+      <p class="sub">Se retirará del juego mientras esté publicado. Si cancelas la publicación, vuelve a tu inventario.</p>
+      <div class="modal-item">
+        <img id="sell-item-icon" src="" alt="">
+        <div>
+          <div class="name" id="sell-item-name">—</div>
+          <div class="cat" id="sell-item-cat">—</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Cantidad a vender (tienes <span id="sell-max-qty">0</span>)</label>
+        <div class="qty-stepper">
+          <button type="button" id="sell-qty-minus">−</button>
+          <input type="number" id="sell-qty" min="1" value="1">
+          <button type="button" id="sell-qty-plus">+</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Precio por unidad</label>
+        <input type="number" id="sell-price" min="0.01" step="0.01" placeholder="Ej: 5">
+      </div>
+      <div class="field">
+        <label>Moneda</label>
+        <div class="currency-toggle">
+          <button type="button" class="active" data-currency="oro"><span class="coin-icon oro">G</span> Oro</button>
+          <button type="button" data-currency="plata"><span class="coin-icon plata">P</span> Plata</button>
+        </div>
+      </div>
+      <div class="total-box">
+        <span class="label">Total de la publicación</span>
+        <span class="amount" id="sell-total">0</span>
+      </div>
+      <p class="fee-note">Grassland Forest cobra 5% de comisión sobre el total al momento de la venta — recibirás el 95%.</p>
+      <div class="form-error" id="sell-error"></div>
+      <div class="modal-actions">
+        <button class="btn-cancel-modal" id="sell-cancel">Cancelar</button>
+        <button class="btn-confirm" id="sell-confirm">Publicar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BUY MODAL -->
+  <div class="modal-backdrop" id="buy-modal">
+    <div class="modal">
+      <h2>Comprar objeto</h2>
+      <p class="sub">Vendido por <span id="buy-seller">—</span></p>
+      <div class="modal-item">
+        <img id="buy-item-icon" src="" alt="">
+        <div>
+          <div class="name" id="buy-item-name">—</div>
+          <div class="cat" id="buy-item-cat">—</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Cantidad (disponibles: <span id="buy-max-qty">0</span>)</label>
+        <div class="qty-stepper">
+          <button type="button" id="buy-qty-minus">−</button>
+          <input type="number" id="buy-qty" min="1" value="1">
+          <button type="button" id="buy-qty-plus">+</button>
+        </div>
+      </div>
+      <div class="total-box">
+        <span class="label">Total a pagar</span>
+        <span class="amount" id="buy-total">0</span>
+      </div>
+      <div class="form-error" id="buy-error"></div>
+      <div class="modal-actions">
+        <button class="btn-cancel-modal" id="buy-cancel">Cancelar</button>
+        <button class="btn-confirm" id="buy-confirm">Confirmar compra</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-stack" id="toast-stack"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ══════════════════════════════════════════════════════════════════════
+  // CONFIGURACIÓN — ajusta esto según dónde despliegues el archivo
+  // ══════════════════════════════════════════════════════════════════════
+  const CONFIG = {
+    // '' = mismo origen que este archivo (recomendado: sirve market.html
+    // junto a game.html para que la cookie de sesión funcione sin configuración extra).
+    API_BASE: '',
+    // A dónde vuelve el botón "Volver al juego".
+    GAME_URL: '/game.html',
+    // Prefijo para los íconos de objetos (rutas devueltas por el catálogo,
+    // ej. "/Game/Source/piedra.png"). Vacío = mismo origen que este archivo.
+    ASSET_BASE: ''
+  };
+
+  const FALLBACK_ICON = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23888" stroke-width="1.6"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M3 7l3-4h12l3 4"/><path d="M3 7h18"/></svg>'
+  );
+
+  // ══════════════════════════════════════════════════════════════════════
+  // ESTADO
+  // ══════════════════════════════════════════════════════════════════════
+  const state = {
+    address: null,
+    playerName: null,
+    oro: 0,
+    plata: 0,
+    csrfToken: null,
+    catalog: {},
+    categories: [],
+    listings: [],
+    inventory: [],
+    myListings: [],
+    activeTab: 'market',
+    activeCategory: 'todos',
+    search: '',
+    sort: '',
+    sellCtx: null, // { slotId, itemId, name, icon, category, maxQty }
+    buyCtx: null   // { id, itemId, name, icon, category, pricePerUnit, currency, maxQty, ownerName }
+  };
+
+  // ══════════════════════════════════════════════════════════════════════
+  // API HELPERS
+  // ══════════════════════════════════════════════════════════════════════
+  async function rawFetch(path, opts){
+    const res = await fetch(CONFIG.API_BASE + path, Object.assign({
+      credentials: 'include',
+      headers: Object.assign({
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }, (opts && opts.headers) || {}, state.csrfToken ? {'X-CSRF-Token': state.csrfToken} : {})
+    }, opts || {}));
+    return res;
+  }
+
+  async function tryRefreshSession(){
+    try{
+      const res = await rawFetch('/api/auth/refresh', { method:'POST' });
+      if(!res.ok) return false;
+      const data = await res.json().catch(()=>({}));
+      if(data.csrfToken) state.csrfToken = data.csrfToken;
+      return true;
+    }catch(e){ return false; }
+  }
+
+  async function api(path, opts, _retried){
+    const res = await rawFetch(path, opts);
+    if(res.status === 401 && !_retried){
+      const refreshed = await tryRefreshSession();
+      if(refreshed) return api(path, opts, true);
+    }
+    if(res.status === 403 && !_retried){
+      // token csrf inválido/vencido — pedir uno nuevo y reintentar una vez
+      await fetchCsrfToken();
+      return api(path, opts, true);
+    }
+    return res;
+  }
+
+  async function fetchCsrfToken(){
+    try{
+      const res = await rawFetch('/api/auth/csrf-token');
+      if(res.ok){
+        const data = await res.json();
+        state.csrfToken = data.csrfToken;
+      }
+    }catch(e){ /* noop */ }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // FORMATEO
+  // ══════════════════════════════════════════════════════════════════════
+  function fmt(n){
+    return Number(n || 0).toLocaleString('es-ES', { maximumFractionDigits: 2 });
+  }
+  function truncAddr(a){
+    if(!a) return '0x…';
+    return a.slice(0,6) + '…' + a.slice(-4);
+  }
+  function iconUrl(path){
+    if(!path) return FALLBACK_ICON;
+    return CONFIG.ASSET_BASE + path;
+  }
+  function catLabel(catId){
+    const c = state.categories.find(c => c.id === catId);
+    return c ? c.label : catId;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // TOASTS
+  // ══════════════════════════════════════════════════════════════════════
+  function toast(msg, isError){
+    const stack = document.getElementById('toast-stack');
+    const el = document.createElement('div');
+    el.className = 'toast' + (isError ? ' err' : '');
+    el.innerHTML = (isError ? '⚠️ ' : '✅ ') + msg;
+    stack.appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; el.style.transition='opacity .25s'; setTimeout(()=>el.remove(), 260); }, 2600);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // AUTENTICACIÓN
+  // ══════════════════════════════════════════════════════════════════════
+  async function boot(){
+    document.getElementById('gate-btn').href = CONFIG.GAME_URL;
+    document.getElementById('back-link').href = CONFIG.GAME_URL;
+    document.getElementById('back-link').addEventListener('click', (e) => {
+      e.preventDefault();
+      window.location.href = CONFIG.GAME_URL;
+    });
+
+    let ok = await checkAuth();
+    if(!ok){
+      const refreshed = await tryRefreshSession();
+      if(refreshed) ok = await checkAuth();
+    }
+
+    if(!ok){
+      showGate();
+      return;
+    }
+
+    await fetchCsrfToken();
+    await loadEverything();
+    showApp();
+  }
+
+  async function checkAuth(){
+    try{
+      const res = await rawFetch('/api/auth/me');
+      if(!res.ok) return false;
+      const data = await res.json();
+      if(!data.authenticated) return false;
+      state.address = (data.address || '').toLowerCase();
+      state.playerName = data.playerName || state.address;
+      return true;
+    }catch(e){
+      return false;
+    }
+  }
+
+  function showGate(){
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('gate').style.display = 'flex';
+  }
+  function showApp(){
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('app').classList.add('ready');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // CARGA DE DATOS
+  // ══════════════════════════════════════════════════════════════════════
+  async function loadEverything(){
+    await Promise.all([loadCatalog(), loadAccount(), loadListings(), loadMyListings()]);
+    renderCategoryChips();
+    renderWallet();
+    renderMarket();
+    renderSell();
+    renderMine();
+  }
+
+  async function loadCatalog(){
+    const res = await api('/api/marketplace/catalog');
+    if(!res.ok) return;
+    const data = await res.json();
+    state.catalog = data.catalog || {};
+    state.categories = [{id:'todos', label:'Todos'}].concat(data.categories || []);
+  }
+
+  async function loadAccount(){
+    const res = await api('/api/marketplace/account');
+    if(!res.ok) return;
+    const data = await res.json();
+    state.address = data.address;
+    state.playerName = data.playerName;
+    state.oro = data.oro;
+    state.plata = data.plata;
+    state.inventory = data.inventory || [];
+  }
+
+  async function loadListings(){
+    const params = new URLSearchParams();
+    if(state.activeCategory && state.activeCategory !== 'todos') params.set('category', state.activeCategory);
+    if(state.search) params.set('search', state.search);
+    if(state.sort) params.set('sort', state.sort);
+    const res = await api('/api/marketplace/listings?' + params.toString());
+    if(!res.ok) return;
+    const data = await res.json();
+    state.listings = data.listings || [];
+  }
+
+  async function loadMyListings(){
+    const res = await api('/api/marketplace/my-listings');
+    if(!res.ok) return;
+    const data = await res.json();
+    state.myListings = data.listings || [];
+    document.getElementById('mine-count').textContent = state.myListings.length;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // RENDER — wallet
+  // ══════════════════════════════════════════════════════════════════════
+  function renderWallet(){
+    document.getElementById('addr-text').textContent = truncAddr(state.address);
+    document.getElementById('oro-amount').textContent = fmt(state.oro);
+    document.getElementById('plata-amount').textContent = fmt(state.plata);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // RENDER — categorías
+  // ══════════════════════════════════════════════════════════════════════
+  function renderCategoryChips(){
+    const wrap = document.getElementById('cat-chips');
+    wrap.innerHTML = '';
+    state.categories.forEach(cat => {
+      const btn = document.createElement('button');
+      btn.className = 'cat-chip' + (state.activeCategory === cat.id ? ' active' : '');
+      btn.textContent = cat.label;
+      btn.addEventListener('click', async () => {
+        state.activeCategory = cat.id;
+        renderCategoryChips();
+        await loadListings();
+        renderMarket();
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // RENDER — mercado
+  // ══════════════════════════════════════════════════════════════════════
+  function renderMarket(){
+    const grid = document.getElementById('market-grid');
+    grid.innerHTML = '';
+
+    if(state.listings.length === 0){
+      grid.style.display = 'block';
+      grid.innerHTML = emptyState('🧺', 'Aún no hay nada aquí', 'Sé el primero en publicar un objeto desde "Mi inventario".');
+      return;
+    }
+    grid.style.display = 'grid';
+
+    state.listings.forEach(l => {
+      const card = document.createElement('div');
+      card.className = 'ticket';
+      card.innerHTML = `
+        <div class="stamp">${catLabel(l.category)}</div>
+        <div class="icon-wrap"><img src="${iconUrl(l.icon)}" onerror="this.src='${FALLBACK_ICON}'" alt=""></div>
+        <h3>${escapeHtml(l.name)}</h3>
+        <div class="qty-line">Disponibles: ${l.qty}</div>
+        <div class="seller-line">Vende: ${escapeHtml(l.ownerName)}</div>
+        <div class="price-row">
+          <div class="price"><span class="coin-icon ${l.currency}">${l.currency === 'oro' ? 'G' : 'P'}</span>${fmt(l.pricePerUnit)}</div>
+          ${l.mine ? '<span class="mine-badge">Tuya</span>' : `<button class="buy-btn" data-id="${l.id}">Comprar</button>`}
+        </div>
+      `;
+      if(!l.mine){
+        card.querySelector('.buy-btn').addEventListener('click', () => openBuyModal(l));
+      }
+      grid.appendChild(card);
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // RENDER — vender (mi inventario)
+  // ══════════════════════════════════════════════════════════════════════
+  function renderSell(){
+    const grid = document.getElementById('sell-grid');
+    grid.innerHTML = '';
+
+    if(state.inventory.length === 0){
+      grid.style.display = 'block';
+      grid.innerHTML = emptyState('🎒', 'Tu inventario está vacío', 'Consigue objetos jugando y vuelve aquí para venderlos.');
+      return;
+    }
+    grid.style.display = 'grid';
+
+    state.inventory.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'inv-card';
+      card.innerHTML = `
+        <div class="icon-wrap"><img src="${iconUrl(item.icon)}" onerror="this.src='${FALLBACK_ICON}'" alt=""></div>
+        <h3>${escapeHtml(item.name)}</h3>
+        <div class="qty-line">Tienes: ${item.qty}</div>
+        <button class="sell-btn">Vender</button>
+      `;
+      card.querySelector('.sell-btn').addEventListener('click', () => openSellModal(item));
+      grid.appendChild(card);
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // RENDER — mis publicaciones
+  // ══════════════════════════════════════════════════════════════════════
+  function renderMine(){
+    const wrap = document.getElementById('mine-list');
+    wrap.innerHTML = '';
+
+    if(state.myListings.length === 0){
+      wrap.innerHTML = emptyState('🧾', 'No tienes publicaciones activas', 'Publica objetos desde la pestaña "Mi inventario".');
+      return;
+    }
+
+    state.myListings.forEach(l => {
+      const row = document.createElement('div');
+      row.className = 'mylist-row';
+      row.innerHTML = `
+        <div class="icon-wrap"><img src="${iconUrl(l.icon)}" onerror="this.src='${FALLBACK_ICON}'" alt=""></div>
+        <div class="mylist-info">
+          <h3>${escapeHtml(l.name)} × ${l.qty}</h3>
+          <div class="meta"><span class="coin-icon ${l.currency}" style="width:14px;height:14px;font-size:8px;">${l.currency==='oro'?'G':'P'}</span> ${fmt(l.pricePerUnit)} c/u · Total ${fmt(l.totalPrice)}</div>
+        </div>
+        <button class="cancel-btn" data-id="${l.id}">Cancelar</button>
+      `;
+      row.querySelector('.cancel-btn').addEventListener('click', () => cancelListing(l.id, row));
+      wrap.appendChild(row);
+    });
+  }
+
+  function emptyState(glyph, title, text){
+    return `<div class="empty"><div class="glyph">${glyph}</div><h3>${title}</h3><p>${text}</p></div>`;
+  }
+
+  function escapeHtml(str){
+    const d = document.createElement('div');
+    d.textContent = str == null ? '' : String(str);
+    return d.innerHTML;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // MODAL — vender
+  // ══════════════════════════════════════════════════════════════════════
+  let sellCurrency = 'oro';
+
+  function openSellModal(item){
+    state.sellCtx = item;
+    document.getElementById('sell-item-icon').src = iconUrl(item.icon);
+    document.getElementById('sell-item-icon').onerror = function(){ this.src = FALLBACK_ICON; };
+    document.getElementById('sell-item-name').textContent = item.name;
+    document.getElementById('sell-item-cat').textContent = catLabel(item.category);
+    document.getElementById('sell-max-qty').textContent = item.qty;
+    document.getElementById('sell-qty').value = 1;
+    document.getElementById('sell-qty').max = item.qty;
+    document.getElementById('sell-price').value = '';
+    document.getElementById('sell-error').classList.remove('show');
+    sellCurrency = 'oro';
+    document.querySelectorAll('#sell-modal .currency-toggle button').forEach(b => b.classList.toggle('active', b.dataset.currency === 'oro'));
+    updateSellTotal();
+    document.getElementById('sell-modal').classList.add('show');
+  }
+
+  function updateSellTotal(){
+    const qty = Number(document.getElementById('sell-qty').value) || 0;
+    const price = Number(document.getElementById('sell-price').value) || 0;
+    const total = qty * price;
+    document.getElementById('sell-total').innerHTML = `<span class="coin-icon ${sellCurrency}">${sellCurrency==='oro'?'G':'P'}</span>${fmt(total)}`;
+  }
+
+  document.getElementById('sell-qty-minus').addEventListener('click', () => stepQty('sell-qty', -1, updateSellTotal));
+  document.getElementById('sell-qty-plus').addEventListener('click', () => stepQty('sell-qty', 1, updateSellTotal));
+  document.getElementById('sell-qty').addEventListener('input', updateSellTotal);
+  document.getElementById('sell-price').addEventListener('input', updateSellTotal);
+  document.querySelectorAll('#sell-modal .currency-toggle button').forEach(b => {
+    b.addEventListener('click', () => {
+      sellCurrency = b.dataset.currency;
+      document.querySelectorAll('#sell-modal .currency-toggle button').forEach(x => x.classList.toggle('active', x === b));
+      updateSellTotal();
+    });
+  });
+  document.getElementById('sell-cancel').addEventListener('click', () => document.getElementById('sell-modal').classList.remove('show'));
+
+  document.getElementById('sell-confirm').addEventListener('click', async () => {
+    const item = state.sellCtx;
+    if(!item) return;
+    const qty = Math.floor(Number(document.getElementById('sell-qty').value));
+    const price = Number(document.getElementById('sell-price').value);
+    const errEl = document.getElementById('sell-error');
+    errEl.classList.remove('show');
+
+    if(!qty || qty < 1 || qty > item.qty){
+      errEl.textContent = 'Cantidad inválida.';
+      errEl.classList.add('show');
+      return;
+    }
+    if(!price || price <= 0){
+      errEl.textContent = 'Ingresa un precio válido.';
+      errEl.classList.add('show');
+      return;
+    }
+
+    const btn = document.getElementById('sell-confirm');
+    btn.disabled = true; btn.textContent = 'Publicando…';
+
+    try{
+      const res = await api('/api/marketplace/list', {
+        method: 'POST',
+        body: JSON.stringify({ slotId: item.slotId, itemId: item.itemId, qty, pricePerUnit: price, currency: sellCurrency })
+      });
+      const data = await res.json();
+      if(!res.ok){
+        errEl.textContent = data.message || 'No se pudo publicar el objeto.';
+        errEl.classList.add('show');
+        return;
+      }
+      state.inventory = data.inventory;
+      document.getElementById('sell-modal').classList.remove('show');
+      toast('Objeto publicado en el mercado');
+      renderSell();
+      await loadMyListings();
+      renderMine();
+      await loadListings();
+      renderMarket();
+    }catch(e){
+      errEl.textContent = 'Error de conexión. Intenta de nuevo.';
+      errEl.classList.add('show');
+    }finally{
+      btn.disabled = false; btn.textContent = 'Publicar';
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // MODAL — comprar
+  // ══════════════════════════════════════════════════════════════════════
+  function openBuyModal(listing){
+    state.buyCtx = listing;
+    document.getElementById('buy-item-icon').src = iconUrl(listing.icon);
+    document.getElementById('buy-item-icon').onerror = function(){ this.src = FALLBACK_ICON; };
+    document.getElementById('buy-item-name').textContent = listing.name;
+    document.getElementById('buy-item-cat').textContent = catLabel(listing.category);
+    document.getElementById('buy-seller').textContent = listing.ownerName;
+    document.getElementById('buy-max-qty').textContent = listing.qty;
+    document.getElementById('buy-qty').value = 1;
+    document.getElementById('buy-qty').max = listing.qty;
+    document.getElementById('buy-error').classList.remove('show');
+    updateBuyTotal();
+    document.getElementById('buy-modal').classList.add('show');
+  }
+
+  function updateBuyTotal(){
+    const l = state.buyCtx;
+    if(!l) return;
+    const qty = Number(document.getElementById('buy-qty').value) || 0;
+    const total = qty * l.pricePerUnit;
+    document.getElementById('buy-total').innerHTML = `<span class="coin-icon ${l.currency}">${l.currency==='oro'?'G':'P'}</span>${fmt(total)}`;
+  }
+
+  document.getElementById('buy-qty-minus').addEventListener('click', () => stepQty('buy-qty', -1, updateBuyTotal));
+  document.getElementById('buy-qty-plus').addEventListener('click', () => stepQty('buy-qty', 1, updateBuyTotal));
+  document.getElementById('buy-qty').addEventListener('input', updateBuyTotal);
+  document.getElementById('buy-cancel').addEventListener('click', () => document.getElementById('buy-modal').classList.remove('show'));
+
+  document.getElementById('buy-confirm').addEventListener('click', async () => {
+    const l = state.buyCtx;
+    if(!l) return;
+    const qty = Math.floor(Number(document.getElementById('buy-qty').value));
+    const errEl = document.getElementById('buy-error');
+    errEl.classList.remove('show');
+
+    if(!qty || qty < 1 || qty > l.qty){
+      errEl.textContent = 'Cantidad inválida.';
+      errEl.classList.add('show');
+      return;
+    }
+
+    const btn = document.getElementById('buy-confirm');
+    btn.disabled = true; btn.textContent = 'Comprando…';
+
+    try{
+      const res = await api('/api/marketplace/buy/' + l.id, {
+        method: 'POST',
+        body: JSON.stringify({ qty })
+      });
+      const data = await res.json();
+      if(!res.ok){
+        errEl.textContent = data.message || 'No se pudo completar la compra.';
+        errEl.classList.add('show');
+        return;
+      }
+      state.oro = data.oro;
+      state.plata = data.plata;
+      state.inventory = data.inventory;
+      document.getElementById('buy-modal').classList.remove('show');
+      renderWallet();
+      renderSell();
+      toast(`Compraste ${qty} × ${l.name}`);
+      await loadListings();
+      renderMarket();
+    }catch(e){
+      errEl.textContent = 'Error de conexión. Intenta de nuevo.';
+      errEl.classList.add('show');
+    }finally{
+      btn.disabled = false; btn.textContent = 'Confirmar compra';
+    }
+  });
+
+  function stepQty(inputId, delta, cb){
+    const input = document.getElementById(inputId);
+    const max = Number(input.max) || 9999;
+    let v = (Number(input.value) || 1) + delta;
+    v = Math.max(1, Math.min(max, v));
+    input.value = v;
+    cb();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // CANCELAR PUBLICACIÓN
+  // ══════════════════════════════════════════════════════════════════════
+  async function cancelListing(id, rowEl){
+    if(!window.confirm('¿Cancelar esta publicación? El objeto volverá a tu inventario.')) return;
+    try{
+      const res = await api('/api/marketplace/cancel/' + id, { method: 'POST' });
+      const data = await res.json();
+      if(!res.ok){
+        toast(data.message || 'No se pudo cancelar la publicación.', true);
+        return;
+      }
+      state.inventory = data.inventory;
+      toast('Publicación cancelada, objeto devuelto a tu inventario');
+      await loadMyListings();
+      renderMine();
+      renderSell();
+      await loadListings();
+      renderMarket();
+    }catch(e){
+      toast('Error de conexión.', true);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // TABS
+  // ══════════════════════════════════════════════════════════════════════
+  function switchTab(tab){
+    state.activeTab = tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.querySelectorAll('.mobile-tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.getElementById('tab-market').style.display = tab === 'market' ? 'block' : 'none';
+    document.getElementById('tab-sell').style.display = tab === 'sell' ? 'block' : 'none';
+    document.getElementById('tab-mine').style.display = tab === 'mine' ? 'block' : 'none';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  document.querySelectorAll('.tab-btn, .mobile-tabbar button').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // BÚSQUEDA / ORDEN
+  // ══════════════════════════════════════════════════════════════════════
+  let searchTimer = null;
+  document.getElementById('search-input').addEventListener('input', (e) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(async () => {
+      state.search = e.target.value.trim();
+      await loadListings();
+      renderMarket();
+    }, 300);
+  });
+  document.getElementById('sort-select').addEventListener('change', async (e) => {
+    state.sort = e.target.value;
+    await loadListings();
+    renderMarket();
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // COPIAR DIRECCIÓN
+  // ══════════════════════════════════════════════════════════════════════
+  document.getElementById('addr-chip').addEventListener('click', async () => {
+    if(!state.address) return;
+    try{
+      await navigator.clipboard.writeText(state.address);
+      toast('Dirección copiada');
+    }catch(e){ /* noop */ }
+  });
+
+  boot();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="google" content="notranslate" />
+  <meta http-equiv="Content-Language" content="en" />
+  <title>GRASSLAND FOREST</title>
+  <link rel="icon" href="favicon.png" type="image/png" />
+  <link rel="stylesheet" href="styless.css" />
+
+  <!-- ============================
+       CONTENT-SECURITY-POLICY (meta for testing / development)..
+       IMPORTANT: move this to HTTP response header in production (recommended).
+       This version allows local-dev HTTP/ws endpoints and permits the single inline
+       script whose SHA256 hash was observed in your console. It also keeps
+       your external CDNs allowed.
+
+       NOTES:
+       - For production, prefer HTTPS/WSS endpoints and serve CSP via HTTP header.
+       - Replace the local hosts (127.0.0.1:3001) with your production API domain and remove the sha256 or unsafe-inline.
+       - Consider using nonces generated server-side for truly safe inline scripts.
+  ============================ -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 base-uri 'self';
+                 object-src 'none';
+                 script-src 'self' https://cdn.jsdelivr.net https://cdn.socket.io https://cdnjs.cloudflare.com 'sha256-vvt4KWwuNr51XfE5m+hzeNEGhiOfZzG97ccfqGsPwvE=';
+                 connect-src 'self' https: http://127.0.0.1:3001 ws://127.0.0.1:3001 ws: wss:;
+                 img-src 'self' data: blob:;
+                 style-src 'self' 'unsafe-inline';
+                 font-src 'self' data:;
+                 media-src 'self' blob:;
+                 frame-src 'self';
+                 worker-src 'self' blob:;
+                 manifest-src 'self';
+                 form-action 'self';
+                 upgrade-insecure-requests;" />
+
+  <!-- Other security meta (prefer server headers in prod) -->
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <meta http-equiv="Permissions-Policy" content="geolocation=(), camera=(), microphone=(), payment=()" />
+
+  <!-- ============================
+       External libraries (defer). Remove or replace integrity placeholders with real SRI hashes in prod.
+       ============================ -->
+
+  <!-- Phaser (pinned) -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js" defer crossorigin="anonymous"></script>
+
+  <!-- Socket.IO client CDN (if you instead serve it from your backend, use /socket.io/socket.io.js over HTTPS) -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" defer crossorigin="anonymous"></script>
+
+  <!-- Ethers -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.10.0/ethers.umd.min.js" defer crossorigin="anonymous"></script>
+
+  <!-- rex virtual joystick -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser3-rex-plugins@1.60.0/dist/rexvirtualjoystickplugin.min.js" defer crossorigin="anonymous"></script>
+
+  <!-- ============================
+       Local scripts (all external, defer). No inline <script> blocks remain.
+       Ensure your server serves these files over HTTPS in production.
+       ============================ -->
+
+  <!-- missionspanel.js -->
+  <script src="./missionspanel.js" defer></script>
+
+  <!-- Scenes -->
+  <script src="./Scenes/MenuScene.js" defer></script>
+  <script src="./Scenes/LoadingSceneshop.js" defer></script>
+  <script src="./Scenes/tiendajuego.js" defer></script>
+  <script src="./Scenes/LoadingScenegame.js" defer></script>
+  <script src="./Scenes/GameScene.js" defer></script>
+  <script src="./Scenes/sacar_mapa.js" defer></script>
+
+  <!-- tienda marketplace p2p -->
+  <script src="./Scenes/ShopScene.js" defer></script>
+
+  <!-- utilities -->
+
+  <script src="./phaser-canvas-scaler.js" defer></script>
+  <script src="./phaser-rpg-perf.js" defer></script>
+  <script src="./Phaser-camera.js" defer></script>
+  <script src="./LoadingSystem.js" defer></script>
+
+  <!-- blockchain / transaction -->
+  <script src="./BlockchainManager.js" defer></script>
+  <script src="./TransactionHub.js" defer></script>
+  <script src="./SystemaTransaccion.js" defer></script>
+  <script src="./CraftingHub.js" defer></script>
+  <script src="./tienda_sistema.js" defer></script>
+  <script src="./phaser-relay-library.js" defer></script>
+  <script src="./hub.js" defer></script>
+
+
+  <script src="./register-scenes.js" defer></script>
+
+  <script src="./memory-fix.js" defer></script>
+  <script type="module" src="./CraftingHub.js" defer></script>
+
+  <script src="./NotificationHub.js" defer></script>
+
+  <!-- tileManager: if it uses import/export, keep module -->
+  <script type="module" src="lib/tileManager.js" defer></script>
+
+  <!-- preload critical asset -->
+  <link rel="preload" href="./Game/Source/cursor.png" as="image" />
+
+  <!-- main app bootstrap -->
+  <script src="app.js" defer></script>
+
+  <!-- ============================
+       END HEAD
+       ============================ -->
+</head>
+
+
+<body>
+
+  <!-- Note: I kept all your comments (not removed). The markup below is unchanged except to avoid inline JS. -->
+
+  <!-- <div id="container"></div>-->
+  <!--  <div id="message-container"></div>-->
+  <div id="hud-cursor"></div>
+
+  <!-- ───────────────────────────────────────────────────────── -->
+
+  <!-- ───────────────────────────────────────────────────────── -->
+  <!-- 2) Quick-slots: 7 casillas siempre visibles en bottom-center -->
+  <!-- Quick-slots bar + inventory shortcut (flex row so button sticks to the end) -->
+  <div id="quick-slots-bar" class="hidden" style="
+    position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
+    display:flex; align-items:center; gap:4px; z-index:100; pointer-events:none;
+  ">
+    <div id="quick-slots" style="position:static; transform:none; bottom:auto; left:auto; pointer-events:none;"></div>
+    <!-- Shortcut button: opens inventory — visible always, useful on mobile -->
+    <button id="inv-shortcut-btn" aria-label="Open inventory" title="Inventory" style="pointer-events:auto;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="7" width="20" height="15" rx="3" fill="rgba(140,170,255,0.18)" stroke="rgba(160,200,255,0.75)" stroke-width="1.5"/>
+        <path d="M8 7V5a4 4 0 018 0v2" stroke="rgba(160,200,255,0.85)" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="2" y1="13" x2="22" y2="13" stroke="rgba(160,200,255,0.40)" stroke-width="1"/>
+        <rect x="10" y="11" width="4" height="4" rx="1" fill="rgba(160,200,255,0.60)"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- ───────────────────────────────────────────────────────── -->
+  <!-- 3) Panel de Inventario (40 slots), oculto por defecto -->
+  <div id="inventory-panel">
+    <!-- Drag handle: only this strip triggers panel movement -->
+    <div class="inv-drag-handle">
+      <h2 class="letrainv">Inventory</h2>
+      <button class="cerrar-hud" aria-label="Close inventory">✕</button>
+    </div>
+    <div id="inventory-grid"></div>
+  </div>
+
+  <!-- ───────────────────────────────────────────────────────── -->
+  <!-- 4) Elemento “drag-item” que sigue al cursor cuando arrastras -->
+  <div id="drag-item" style="display: none; position: absolute; z-index: 10000; pointer-events: none;">
+    <img src="" alt="" style="max-width: 64px; max-height: 64px;" />
+    <span id="drag-count"
+      style="position: absolute; top: -5px; right: -5px; background: rgba(0,0,0,0.8); color: white; font-size: 11px; font-weight: bold; padding: 1px 4px; border-radius: 3px; min-width: 16px; text-align: center; border: 1px solid white;"></span>
+  </div>
+
+
+      <!-- Overlay de fondo -->
+    <div id="dashboard-overlay" class="dashboard-overlay">
+        <!-- Contenedor principal del dashboard -->
+        <div class="dashboard-container">
+            <!-- Cabecera con título y botón cerrar -->
+            <div class="dashboard-header">
+                <h2 class="dashboard-title">Profile Info</h2>
+                <button id="close-dashboard" class="close-btn">✕</button>
+            </div>
+
+            <!-- Contenido del dashboard -->
+            <div class="dashboard-content">
+                <!-- Sección Username -->
+                <div class="section">
+                    <h3 class="section-title">Username</h3>
+                    <div class="input-group">
+                        <input type="text" id="username-input" class="nick-input" value="world" maxlength="20">
+                        <button id="change-username" class="action-btn">Change</button>
+                    </div>
+                    <p class="info-text">You can change your username once every month.</p>
+                </div>
+
+                <!-- Sección Avatar -->
+                <div class="section">
+                    <h3 class="section-title">Avatar</h3>
+                    <div class="avatar-section">
+                        <div id="avatar-preview" class="avatar-preview">
+                            <span class="avatar-text">Avatar</span>
+                        </div>
+                        <div class="avatar-controls">
+                            <button id="upload-avatar" class="action-btn">Upload Image</button>
+                            <input type="file" id="avatar-file" accept="image/*" style="display: none;">
+                            <button id="random-avatar" class="secondary-btn">Random</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sección Skin -->
+                <div class="section">
+                    <h3 class="section-title">Skin</h3>
+                    <p class="info-text">Select a skin for your character.</p>
+                    <div class="skin-preview" id="skin-preview">
+                        <!-- Vista previa de skin -->
+                    </div>
+                </div>
+
+                <!-- Sección Idioma -->
+                <div class="section">
+                    <h3 class="section-title">Select Language</h3>
+                    <div class="languages-grid">
+                        <button class="language-btn" data-lang="1">English US</button>
+                        <button class="language-btn" data-lang="2">English Philippines</button>
+                        <button class="language-btn" data-lang="3">Spanish Latin America</button>
+                        <button class="language-btn" data-lang="4">Portuguese</button>
+                        <button class="language-btn" data-lang="5">Chinese</button>
+                        <button class="language-btn" data-lang="6">Korean</button>
+                    </div>
+                </div>
+
+                <!-- Botón Guardar -->
+                <div class="section">
+                    <button id="save-changes" class="save-btn">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+
+
+
+
+    <!-- Transaction Hub Panel -->
+<div id="tx-hub" class="tx-hub-hidden" data-draggable="true">
+  <div class="tx-hub-header">
+    <h2 class="tx-hub-title">📜 Transaction Log</h2>
+    <button id="tx-hub-close" class="tx-hub-close-btn" aria-label="Close">✕</button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tx-hub-tabs">
+    <button class="tx-tab active" data-tab="interaction">Interaction</button>
+    <button class="tx-tab" data-tab="items">Items</button>
+  </div>
+
+  <!-- Tab content -->
+  <div class="tx-tab-content active" id="tx-interaction">
+    <div class="tx-list" id="tx-list-interaction"></div>
+  </div>
+  <div class="tx-tab-content" id="tx-items">
+    <div class="tx-list" id="tx-list-items"></div>
+  </div>
+
+  <!-- Footer with sync status -->
+  <div class="tx-hub-footer">
+    <span id="tx-status-text">🔄 Synced</span>
+    <button id="tx-refresh" class="tx-refresh-btn">⟳</button>
+  </div>
+</div>
+
+
+
+
+    <!-- Add this inside the body of your index.html, after the Phaser canvas -->
+<!-- Add this inside the body of your index.html, after the Phaser canvas -->
+<div id="tienda-hub" class="tienda-hub-hidden">
+  <!-- Overlay for dark background -->
+  <div id="tienda-overlay" class="tienda-overlay-hidden"></div>
+
+  <!-- Main shop panel -->
+  <div class="tienda-panel">
+    <!-- Shop header -->
+    <div class="tienda-header">
+      <div class="tienda-title">
+        <h2><span class="tienda-icon">🏪</span> Johnny Johnson's Shop</h2>
+        <div class="tienda-saldo">
+          <span class="coin-balance">
+            <img src="./Game/Source/moneda de oro.png" alt="Gold coin" class="moneda-icon">
+            <span id="tienda-moneda">0</span> GL
+          </span>
+          <span class="coin-balance">
+            <img src="./Game/Source/moneda de plata.png" alt="Silver coin" class="moneda-icon">
+            <span id="tienda-moneda-plata">0</span> SL
+          </span>
+        </div>
+      </div>
+      <button id="cerrar-tienda" class="cerrar-tienda">×</button>
+    </div>
+
+    <!-- Search bar and filters -->
+    <div class="tienda-controls">
+      <div class="search-container">
+        <input type="text" id="tienda-search" placeholder="Search items..." class="tienda-search">
+        <span class="search-icon">🔍</span>
+      </div>
+      
+      <div class="tienda-filters">
+        <select id="tienda-categoria" class="tienda-select">
+          <option value="todas">All categories</option>
+          <option value="semillas">Seeds</option>
+          <option value="herramientas">Tools</option>
+          <option value="minerales">Minerals</option>
+          <option value="alimentos">Food</option>
+          <option value="equipo">Equipment</option>
+          <option value="especial">Special</option>
+        </select>
+        
+        <select id="tienda-tipo" class="tienda-select">
+          <option value="compra">Buy</option>
+          <option value="venta">Sell</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Main content -->
+    <div class="tienda-content">
+      <!-- Items list panel -->
+      <div class="items-panel">
+        <div class="items-grid" id="tienda-items"></div>
+        <div class="items-loading" id="tienda-loading">Loading items...</div>
+        <div class="items-empty" id="tienda-empty" style="display: none;">
+          No items found
+        </div>
+      </div>
+
+      <!-- Side details panel (PC only) - SIMPLIFIED -->
+      <div class="sidebar-panel pc-only">
+        <!-- Tabs -->
+        <div class="sidebar-tabs">
+          <button class="sidebar-tab active" data-tab="detalles">Details</button>
+          <button class="sidebar-tab" data-tab="historial">History</button>
+        </div>
+
+        <!-- Tab content with scroll -->
+        <div class="sidebar-content">
+          <!-- Details tab - IMAGE, NAME AND BUTTON ONLY -->
+          <div class="tab-content active" id="tab-detalles">
+            <div class="item-detail-simple" id="item-detail-simple">
+              <div class="detail-content-simple">
+                <div class="detail-header-simple">
+                  <img id="detail-img-simple" src="./Game/Source/moneda de oro.png" alt="Item" class="detail-image-simple">
+                  <div class="detail-title-simple">
+                    <h3 id="detail-name-simple">Select an item</h3>
+                    <div class="detail-price-simple" id="detail-price-simple">
+                      <img src="./Game/Source/moneda de oro.png" alt="GL" id="detail-price-icon-simple" class="moneda-icon">
+                      <span id="detail-price-value-simple">0</span> <span id="detail-price-label-simple">GL</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="detail-actions-simple">
+                  <button id="interact-button-pc" class="interact-btn-pc" disabled>
+                    <span class="action-icon">🔍</span> Interact
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- History tab -->
+          <div class="tab-content" id="tab-historial">
+            <div class="historial-container-pc">
+              <h4>Transaction History</h4>
+              <div class="historial-list-pc" id="historial-list-pc">
+                <div class="historial-empty-pc">
+                  No recent transactions
+                </div>
+              </div>
+              <button id="clear-historial-pc" class="clear-btn-pc">Clear History</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer with info -->
+    <div class="tienda-footer">
+      <div class="tienda-info">
+        <span id="tienda-total-items">0</span> items available
+        <span class="divider">•</span>
+        <span id="tienda-filtro">All items</span>
+      </div>
+      <div class="tienda-help">
+        <button id="tienda-help-btn" class="help-btn">?</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile modal - Item details -->
+  <div id="mobile-item-modal" class="mobile-modal hidden">
+    <div class="mobile-modal-content">
+      <div class="mobile-modal-header">
+        <h3 id="mobile-item-name">Item</h3>
+        <button id="close-mobile-modal" class="mobile-modal-close">×</button>
+      </div>
+      
+      <div class="mobile-modal-body">
+        <div class="mobile-item-image-container">
+          <img id="mobile-item-img" src="./Game/Source/moneda de oro.png" alt="Item" class="mobile-item-image">
+          <div class="mobile-item-price" id="mobile-item-price">
+            <img src="./Game/Source/moneda de oro.png" alt="Coin" class="moneda-icon">
+            <span id="mobile-item-price-value">0</span> GL
+          </div>
+        </div>
+        
+        <div class="mobile-item-info">
+          <p id="mobile-item-desc">Item description.</p>
+          
+          <div class="mobile-item-stats">
+            <div class="mobile-stat">
+              <span class="mobile-stat-label">Daily stock:</span>
+              <span class="mobile-stat-value" id="mobile-item-stock">∞</span>
+            </div>
+            <div class="mobile-stat">
+              <span class="mobile-stat-label">Available:</span>
+              <span class="mobile-stat-value" id="mobile-item-disponible">0</span>
+            </div>
+            <div class="mobile-stat">
+              <span class="mobile-stat-label">Fee:</span>
+              <span class="mobile-stat-value" id="mobile-item-comision">0%</span>
+            </div>
+          </div>
+          
+          <div class="mobile-quantity-controls">
+            <div class="mobile-quantity-title">Quantity:</div>
+            <div class="mobile-quantity-buttons">
+              <button id="mobile-quantity-down" class="mobile-quantity-btn">-</button>
+              <input type="number" id="mobile-quantity-input" value="1" min="1" max="99" class="mobile-quantity-input">
+              <button id="mobile-quantity-up" class="mobile-quantity-btn">+</button>
+            </div>
+          </div>
+          
+          <div class="mobile-action-section">
+            <div class="mobile-action-total" id="mobile-action-total">
+              Total: <img src="./Game/Source/moneda de oro.png" alt="Coin" class="moneda-icon"> 0 GL
+            </div>
+            <button id="mobile-action-button" class="mobile-action-btn" disabled>
+              <span class="mobile-action-icon">💰</span> <span id="mobile-action-text">Buy</span>
+            </button>
+            
+            <!-- HISTORY BUTTON FOR MOBILE -->
+            <div class="mobile-historial-btn-container">
+              <button id="mobile-historial-btn" class="mobile-historial-btn">
+                <span class="mobile-action-icon">📜</span> View History
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PC modal - Full item details -->
+  <div id="pc-item-modal" class="pc-modal hidden">
+    <div class="pc-modal-content">
+      <div class="pc-modal-header">
+        <div class="pc-modal-title">
+          <h3 id="pc-item-name">Item</h3>
+          <div class="pc-modal-price" id="pc-modal-price">
+            <img src="./Game/Source/moneda de oro.png" alt="Coin" class="moneda-icon">
+            <span id="pc-item-price-value">0</span> GL
+          </div>
+        </div>
+        <button id="close-pc-modal" class="pc-modal-close">×</button>
+      </div>
+      
+      <div class="pc-modal-body">
+        <div class="pc-modal-left">
+          <img id="pc-item-img" src="./Game/Source/moneda de oro.png" alt="Item" class="pc-item-image">
+          <div class="pc-item-category" id="pc-item-category">
+            <span class="category-label">Category:</span>
+            <span class="category-value" id="pc-category-value">-</span>
+          </div>
+        </div>
+        
+        <div class="pc-modal-right">
+          <div class="pc-item-description">
+            <h4>Description</h4>
+            <p id="pc-item-desc">Select an item to view its description.</p>
+          </div>
+          
+          <div class="pc-item-stats">
+            <h4>Information</h4>
+            <div class="pc-stat-row">
+              <div class="pc-stat">
+                <span class="pc-stat-label">Daily stock:</span>
+                <span class="pc-stat-value" id="pc-item-stock">∞</span>
+              </div>
+              <div class="pc-stat">
+                <span class="pc-stat-label">Available:</span>
+                <span class="pc-stat-value" id="pc-item-disponible">0</span>
+              </div>
+              <div class="pc-stat">
+                <span class="pc-stat-label">Fee:</span>
+                <span class="pc-stat-value" id="pc-item-comision">0%</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="pc-quantity-controls">
+            <div class="pc-quantity-title">Quantity:</div>
+            <div class="pc-quantity-buttons">
+              <button id="pc-quantity-down" class="pc-quantity-btn">-</button>
+              <input type="number" id="pc-quantity-input" value="1" min="1" max="99" class="pc-quantity-input">
+              <button id="pc-quantity-up" class="pc-quantity-btn">+</button>
+            </div>
+            <div class="pc-max-available" id="pc-max-available">
+              Maximum available: <span id="pc-max-value">1</span>
+            </div>
+          </div>
+          
+          <div class="pc-action-section">
+            <div class="pc-action-total" id="pc-action-total">
+              Total: <img src="./Game/Source/moneda de oro.png" alt="Coin" class="moneda-icon"> 0 GL
+            </div>
+            <button id="pc-action-button" class="pc-action-btn" disabled>
+              <span class="pc-action-icon">💰</span> <span id="pc-action-text">Buy</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile modal - Full history -->
+  <div id="mobile-historial-modal" class="mobile-modal hidden">
+    <div class="mobile-modal-content">
+      <div class="mobile-modal-header">
+        <h3>Transaction History</h3>
+        <button id="close-mobile-historial" class="mobile-modal-close">×</button>
+      </div>
+      
+      <div class="mobile-modal-body">
+        <div class="historial-container-mobile">
+          <div class="historial-list-mobile" id="historial-list-mobile">
+            <div class="historial-empty-mobile">
+              No recent transactions
+            </div>
+          </div>
+          <button id="clear-mobile-historial" class="clear-btn-mobile">Clear History</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help modal -->
+  <div id="tienda-help-modal" class="tienda-modal hidden">
+    <div class="modal-content">
+      <h3>Shop Help</h3>
+      <div class="help-sections">
+        <div class="help-section">
+          <h4>📱 On Mobile:</h4>
+          <ul>
+            <li><strong>Single tap:</strong> Select item</li>
+            <li><strong>Double tap:</strong> Open buy/sell panel</li>
+            <li><strong>Swipe:</strong> Browse items</li>
+            <li><strong>View History:</strong> Shows all transactions</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h4>💻 On PC:</h4>
+          <ul>
+            <li><strong>Left click:</strong> Select item</li>
+            <li><strong>Click Interact:</strong> Open transaction panel</li>
+            <li><strong>Mouse wheel:</strong> Scroll list and history</li>
+            <li><strong>Enter:</strong> Confirm transaction in panel</li>
+            <li><strong>WASD:</strong> Work normally while typing</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h4>⚙️ Features:</h4>
+          <ul>
+            <li><strong>Limits:</strong> Only apply to daily purchases</li>
+            <li><strong>Fee:</strong> Only applies to sales</li>
+            <li><strong>Search:</strong> Filter by name or category</li>
+            <li><strong>History:</strong> Saves your last 100 transactions</li>
+          </ul>
+        </div>
+      </div>
+      <button id="close-help" class="modal-close">Got it</button>
+    </div>
+  </div>
+</div>
+
+<!-- HUB DE BATALLAS -->
+<div id="battleHubOverlay" class="battle-hub-overlay hidden">
+  <div class="battle-hub-card" role="dialog" aria-modal="true" aria-labelledby="battleHubTitle">
+    
+    <button class="battle-hub-close" id="battleHubCloseBtn" aria-label="Cerrar menú">✕</button>
+
+    <div class="battle-hub-header">
+      <div class="battle-hub-icon" aria-hidden="true">
+        ⚔
+      </div>
+      <h2 id="battleHubTitle">battle of Pets</h2>
+      <p>Choose your combat mode</p>
+    </div>
+
+    <div class="battle-hub-actions">
+      <button id="battleHubAdventureBtn" class="battle-btn battle-btn-adventure">
+        <span class="btn-icon">⚔</span>
+        <span class="btn-text">
+          <strong>5 Daily Battles</strong>
+          <small>Complete the daily challenge</small>
+        </span>
+      </button>
+
+      <button id="battleHubPvpBtn" class="battle-btn battle-btn-pvp">
+        <span class="btn-icon">⚔</span>
+        <span class="btn-text">
+          <strong>PvP Multiplayer (Comming soon)</strong>
+          <small>Battles against players</small>
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
+  <!-- Missions panel -->
+  <div id="missions-panel" class="missions-panel hidden" role="dialog" aria-hidden="true">
+    <div class="missions-header">
+      <div class="missions-title-container">
+        <h2 id="missions-npc-title">Misiones Diarias</h2>
+        <div class="missions-meta">
+          <span id="missions-reset-time" class="reset-time">Reinicio en: 12 horas</span>
+          <span id="missions-progress" class="progress">Completadas: 0/0</span>
+        </div>
+      </div>
+      <button id="close-missions" class="close-button" aria-label="Cerrar misiones">×</button>
+    </div>
+
+    <div class="missions-content">
+      <div id="missions-list" class="missions-list">
+      </div>
+    </div>
+
+    <div class="missions-footer">
+      <button id="refresh-missions" class="refresh-button">
+        <span>🔄 update</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="missions-overlay" class="missions-overlay hidden"></div>
+
+  <!-- Perfil, Agua , vida y comida -->
+<!-- Perfil, Agua , vida y comida -->
+<div id="cajahub">
+  <div id="hub" class="hidden">
+    <div id="hub-image-container">
+      <div id="player-level-container">
+        <span id="player-level">Lv. 0</span>
+      </div>
+      <div id="hub-image">
+        <img id="player-image" src="" alt="Player" />
+      </div>
+    </div>
+    <div id="hub-info">
+      <div id="username">Username</div>
+      <div class="status-bar" id="health-bar">
+        <div class="status-fill" style="width: 100%; background-color: #e74c3c;"></div>
+        <span class="status-text">Vida 100%</span>
+      </div>
+      <div class="status-bar" id="water-bar">
+        <div class="status-fill" style="width: 100%; background-color: #3498db;"></div>
+        <span class="status-text">Agua 100%</span>
+      </div>
+      <div class="status-bar" id="food-bar">
+        <div class="status-fill" style="width: 100%; background-color: #f39c12;"></div>
+        <span class="status-text">Comida 100%</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Hub de Basura - Con selector de cantidad -->
+<div id="trash-hub" class="trash-hub-hidden" style="z-index: 10000;">
+  <div class="trash-hub-content">
+    <div class="trash-hub-header">
+      <h2 class="trash-hub-title">🗑️ Basura</h2>
+      <button id="trash-hub-close" class="trash-hub-close-btn">✕</button>
+    </div>
+    
+    <div class="trash-hub-info">
+      <p id="trash-instructions">Selecciona un item del inventario y luego haz clic en una casilla</p>
+    </div>
+    
+    <div class="trash-slots-container">
+      <div class="trash-slots-row">
+        <div class="trash-slot" data-slot="0"></div>
+        <div class="trash-slot" data-slot="1"></div>
+        <div class="trash-slot" data-slot="2"></div>
+      </div>
+      <div class="trash-slots-row">
+        <div class="trash-slot" data-slot="3"></div>
+        <div class="trash-slot" data-slot="4"></div>
+        <div class="trash-slot" data-slot="5"></div>
+      </div>
+    </div>
+    
+    <div class="trash-hub-footer">
+      <button id="trash-confirm-btn" class="trash-confirm-btn" disabled>🗑️ Eliminar Items</button>
+    </div>
+  </div>
+</div>
+
+<!-- Selector de cantidad -->
+<div id="trash-quantity-selector" class="trash-quantity-hidden" style="z-index: 10001;">
+  <div class="trash-quantity-content">
+    <h3 id="trash-quantity-title">Seleccionar cantidad</h3>
+    
+    <div class="trash-quantity-controls">
+      <button id="trash-quantity-minus" class="trash-quantity-btn minus">-</button>
+      <span id="trash-quantity-display" class="trash-quantity-display">1</span>
+      <button id="trash-quantity-plus" class="trash-quantity-btn plus">+</button>
+    </div>
+    
+    <div class="trash-quantity-range">
+      <input type="range" id="trash-quantity-slider" min="1" max="10" value="1" class="trash-quantity-slider">
+      <span id="trash-quantity-max" class="trash-quantity-max">Máx: 10</span>
+    </div>
+    
+    <div class="trash-quantity-buttons">
+      <button id="trash-quantity-cancel" class="trash-quantity-action-btn cancel">Cancelar</button>
+      <button id="trash-quantity-confirm" class="trash-quantity-action-btn confirm">Agregar</button>
+    </div>
+  </div>
+</div>
+
+  <!-- Crafting hub -->
+<!-- Inicia oculto por defecto -->
+<div id="crafting-hub" class="crafting-hub-hidden" role="dialog" aria-modal="true" aria-labelledby="crafting-title">
+  <div class="crafting-container" role="document">
+    <div class="crafting-header">
+      <h2 id="crafting-title" class="crafting-title">⚒️ Crafting Workshop</h2>
+      <div class="header-controls">
+        <button id="crafting-close" class="crafting-close-btn" aria-label="Cerrar panel de crafteo" data-crafting-close>✕</button>
+      </div>
+    </div>
+
+    <div class="crafting-main">
+      <aside class="crafting-sidebar" aria-label="Filtros y recetas">
+        <div class="crafting-filters">
+          <h3 class="filter-title">📁 Categories</h3>
+          <div class="filter-buttons" role="tablist" aria-label="Categorías de recetas">
+            <button class="filter-btn active" data-category="all" role="tab" aria-selected="true">All</button>
+            <button class="filter-btn" data-category="tools" role="tab">Axes</button>
+            <button class="filter-btn" data-category="consumables" role="tab">Pickaxes</button>
+            <button class="filter-btn" data-category="resources" role="tab">Extras</button>
+          </div>
+        </div>
+
+        <div class="crafting-search">
+          <label for="crafting-search-input" class="sr-only">Buscar receta</label>
+          <input type="text" id="crafting-search-input" placeholder="🔍 Search recipe..." class="search-input" autocomplete="off" inputmode="search">
+        </div>
+
+        <!-- LISTA: ahora flex:1 para estirarse -->
+        <div class="recipes-list" id="recipes-list" tabindex="0" aria-live="polite">
+          <div class="empty-state">Selecciona una categoría o busca recetas</div>
+        </div>
+      </aside>
+
+      <section class="crafting-details" aria-label="Detalles de crafteo">
+        <!-- En móvil este bloque se oculta y se usa overlay -->
+        <div class="recipe-details" id="recipe-details">
+          <div class="recipe-header">
+            <img src="./assets/default-item.png" alt="Ítem resultante" class="recipe-result-img" id="recipe-result-img">
+            <div class="recipe-info">
+              <h3 class="recipe-name" id="recipe-name">Selecciona una receta</h3>
+              <div class="recipe-meta">
+                <div class="recipe-level" id="recipe-level">
+                  <span class="level-icon" aria-hidden="true">⭐</span> Nivel: <strong id="required-level">0</strong>
+                </div>
+                <div class="recipe-category" id="recipe-category">
+                  Categoría: <span id="category-name">-</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="required-resources">
+            <h4>📦 Required resources:</h4>
+            <div class="resources-list" id="resources-list">
+              <div class="empty-state">Selecciona una receta para ver los recursos requeridos</div>
+            </div>
+
+            <div class="optional-resources hidden" id="optional-resources" aria-hidden="true">
+              <h4>🎯 Choose one of these:</h4>
+              <div class="optional-list" id="optional-list"></div>
+            </div>
+          </div>
+
+          <div class="crafting-quantity">
+            <h4>Quantity to craft:</h4>
+            <div class="quantity-controls">
+              <button id="decrease-qty" class="qty-btn" aria-label="Disminuir cantidad">-</button>
+              <input type="number" id="crafting-qty" value="1" min="1" max="99" class="qty-input" inputmode="numeric" aria-label="Cantidad a craftear">
+              <button id="increase-qty" class="qty-btn" aria-label="Incrementar cantidad">+</button>
+              <div class="max-possible" id="max-possible">Máx: <span id="max-craft">0</span></div>
+            </div>
+          </div>
+
+          <div class="crafting-actions">
+            <button id="craft-button" class="craft-btn" disabled aria-disabled="true">
+              <span class="craft-icon" aria-hidden="true">⚒️</span> Craft
+            </button>
+            <div class="crafting-feedback" id="crafting-feedback" role="status" aria-live="polite"></div>
+          </div>
+
+          <div class="player-inventory-preview" aria-label="Vista previa del inventario">
+            <h4>🎒 Your inventory</h4>
+            <div class="inventory-items" id="inventory-items" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="crafting-status" aria-hidden="false">
+      <div class="status-item">
+        <span class="status-label">Your level:</span>
+        <span class="status-value" id="player-levelx">0</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Recipes:</span>
+        <span class="status-value" id="available-recipes">0</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Category:</span>
+        <span class="status-value" id="current-category">All</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- OVERLAY para móviles - SOLO BOTÓN VOLVER, SIN X -->
+  <div id="recipe-overlay" class="recipe-overlay hidden" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="overlay-header">
+      <button id="overlay-back" class="overlay-back-btn" aria-label="Volver a la lista">← Volver</button>
+      <!-- Eliminado el botón de cerrar -->
+    </div>
+    <div id="overlay-content" class="overlay-content" tabindex="0"></div>
+  </div>
+</div>
+
+
+  <div id="sound-hub-panel" class="sound-hub-hidden" aria-hidden="true">
+  <div class="sound-hub-container">
+    <!-- Cabecera con título y botón de cerrar -->
+    <div class="sound-hub-header">
+      <h2 class="sound-hub-title">Audio Settings</h2>
+      <button id="sound-hub-close" class="sound-hub-close-btn" aria-label="Cerrar panel de sonido">
+        <span class="sound-hub-close-icon">✕</span>
+      </button>
+    </div>
+    
+    <!-- Contenido del panel -->
+    <div class="sound-hub-content">
+      <!-- Control de Música -->
+      <div class="sound-control-group">
+        <div class="sound-control-header">
+          <span class="sound-control-icon">♫</span>
+          <h3 class="sound-control-title">Music</h3>
+          <span id="music-percent" class="sound-percent">100%</span>
+        </div>
+        
+        <div class="sound-slider-container">
+          <input type="range" id="music-slider" class="sound-slider" 
+                 min="0" max="100" value="100" step="1" 
+                 aria-label="Control de volumen de música">
+          <div class="sound-slider-track">
+            <div id="music-slider-fill" class="sound-slider-fill"></div>
+          </div>
+        </div>
+        
+        <div class="sound-buttons-row">
+          <button id="music-test-btn" class="sound-test-btn">Test</button>
+          <button id="music-mute-btn" class="sound-mute-btn">Mute</button>
+        </div>
+      </div>
+      
+      <!-- Control de Efectos de Sonido -->
+      <div class="sound-control-group">
+        <div class="sound-control-header">
+          <span class="sound-control-icon">🔊</span>
+          <h3 class="sound-control-title">Sound Effects</h3>
+          <span id="sfx-percent" class="sound-percent">100%</span>
+        </div>
+        
+        <div class="sound-slider-container">
+          <input type="range" id="sfx-slider" class="sound-slider" 
+                 min="0" max="100" value="100" step="1" 
+                 aria-label="Control de volumen de efectos de sonido">
+          <div class="sound-slider-track">
+            <div id="sfx-slider-fill" class="sound-slider-fill"></div>
+          </div>
+        </div>
+        
+        <div class="sound-buttons-row">
+          <button id="sfx-test-btn" class="sound-test-btn">Test</button>
+          <button id="sfx-mute-btn" class="sound-mute-btn">Mute</button>
+        </div>
+      </div>
+      
+    </div>
+    
+    <!-- Pie del panel con botón de guardar -->
+    <div class="sound-hub-footer">
+      <button id="sound-save-btn" class="sound-save-btn">Save Settings</button>
+    </div>
+  </div>
+</div>
+
+  <!-- HUD / Shop / Auction / modal markup preserved exactly (no inline scripts) -->
+  <div id="game-hud" class="hud-hidden">
+
+    <div class="corner-box">
+      <!-- Contenedor izquierdo (con GL) -->
+      <div class="coin-stack left-stack">
+        <img src="./Game/Source/moneda de oro.png" alt="Moneda GL" class="main-img" />
+        <span class="info-text" id="info-text-left">0</span>
+      </div>
+
+      <!-- Contenedor derecho (sin GL) -->
+      <div class="coin-stack right-stack">
+        <img src="./Game/Source/moneda de plata.png" alt="Otra moneda" class="main-img" />
+        <span class="info-text" id="info-text-right">0</span>
+      </div>
+
+      <!-- Botón (se mantiene a la derecha) -->
+      <button class="inner-btn" tabindex="-1" id="toggle-hud-btn" aria-label="Toggle HUD">
+        <img src="./Game/Source/0.png" alt="Botón interno" />
+        <span class="label-badge quests-label">Hide</span>
+      </button>
+    </div>
+
+
+
+    <div class="round-buttons" id="round-buttons-container">
+      <button class="round-btn" tabindex="-1">
+        <img src="./Game/Source/1.png" alt="Botón 1" />
+        <span class="label-badge">Dashboard</span>
+      </button>
+      <button class="round-btn round-btn--mail" tabindex="-1" id="mail-btn">
+        <img src="./Game/Source/2.png" alt="Botón 2" />
+        <span class="label-badge">Mail</span>
+        <!-- Badge de notificación: se muestra/oculta y actualiza desde Phaser -->
+        <span class="notif-badge" id="mail-notif-badge" style="display:none">0</span>
+      </button>
+      <button class="round-btn" tabindex="-1">
+        <img src="./Game/Source/control.png" alt="Botón 3" />
+        <span class="label-badge">Control</span>
+      </button>
+      <button class="round-btn" tabindex="-1">
+        <img src="./Game/Source/5.png" alt="Botón 4" />
+        <span class="label-badge">Transactions</span>
+      </button>
+    </div>
+  </div>
+
+  <button id="open-chat-btn" class="chat-open-btn hidden" tabindex="0" aria-label="Abrir chat">
+    <img src="./Game/Source/chat.png" alt="Abrir Chat" />
+  </button>
+
+  <div id="chat-panel" class="chat-hidden">
+    <div class="chat-messages" id="chat-messages"></div>
+    <input type="text" id="chat-input" placeholder="Escribe tu mensaje..." />
+  </div>
+
+  <div class="hud-containerx2" id="hud-containerx2">
+    <img src="./Game/Source/Mochila2.png" class="hud-basex2" />
+    <img src="./Game/Source/tecla_i.png" class="hud-iconx2" />
+  </div>
+
+  <div id="game-ui-text">Coordinates : </div>
+
+  <div id="hudReputacion" class="hud-panel hidden">
+    <button id="cerrarReputacion" class="cerrar-hud">✕</button>
+    <h2>¡Reputación!</h2>
+    <div id="listaReputacion" class="lista-estadisticas"></div>
+  </div>
+
+  <div id="hudEstadisticas" class="hud-panel hidden">
+    <button id="cerrarEstadisticas" class="cerrar-hud">✕</button>
+    <h2>¡Estadísticas!</h2>
+    <div id="listaEstadisticas" class="lista-estadisticas"></div>
+  </div>
+
+  <div id="hudEstadisticas_1" class="hud-panel_1 hidden_1" role="dialog">
+    <button id="cerrarEstadisticas_1" class="cerrar-hud_1">✕</button>
+    <h2 class="hud-title_1">¡Libro de requerimientos!</h2>
+    <div class="hud-search_1">
+      <input id="searchInput_1" type="search" placeholder="Buscar apartado..." />
+    </div>
+    <div id="listaEstadisticas_1" class="lista-estadisticas_1"></div>
+    <div id="detalleEstadistica_1" class="detalle-estadistica_1 hidden_1" aria-live="polite">
+      <button id="volverLista_1" class="volver-btn_1">← Volver</button>
+      <div class="detalle-contenido_1">
+        <img id="detalleImg_1" src="" alt="" />
+        <h3 id="detalleNombre_1"></h3>
+        <ul id="detalleRequisitos_1"></ul>
+      </div>
+    </div>
+  </div>
+
+    <!-- Loading Overlay HTML - Puedes ponerlo al inicio del body -->
+  <div id="loading-overlay" style="display: none;">
+    <div class="loading-pixel" aria-hidden="true"></div>
+    <div class="loading-text">Cargando...</div>
+    <div class="loading-bar-container" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="loading-bar-fill"></div>
+    </div>
+    <!-- Botón de cancelar opcional -->
+    <!-- <button id="loading-cancel-btn" style="display: none; margin-top:14px; padding:8px 12px; border-radius:6px; background:#333; color:#fff; border:none">Cancelar</button> -->
+  </div>
+
+  <aside id="hub-panel_101" role="dialog" aria-hidden="true" aria-label="Panel de configuraciones">
+    <div class="header_101">
+      <div class="title_101">Configuraciones</div>
+    </div>
+
+    <div class="hub-row_101">
+      <label class="hub-label_101" for="character-name">Nombre de personaje</label>
+      <input id="character-name" type="text" placeholder="Escribe el nombre..." />
+      <div class="button-row">
+        <button id="apply-name" class="btn-primary">Aplicar</button>
+        <button id="close-panel" class="btn-ghost">Cerrar</button>
+      </div>
+    </div>
+
+    <div class="hub-row_101">
+      <label class="hub-label_101" for="language-select">Lenguaje</label>
+      <select id="language-select" aria-label="Seleccionar idioma">
+        <option value="en-US">English (United States)</option>
+        <option value="en-PH">English (Philippine / Tagalog)</option>
+        <option value="es-419">Español (Latinoamérica)</option>
+        <option value="pt-BR">Português (Brasil)</option>
+        <option value="zh-CN">Chinese (简体中文)</option>
+        <option value="ko-KR">Korean (한국어 Hangul)</option>
+      </select>
+    </div>
+
+    <div class="hub-row_101">
+      <div class="hub-label_101">Cuenta</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="logout-btn" class="btn-ghost">Cerrar sesión</button>
+        <div class="muted">Sesión activa</div>
+      </div>
+    </div>
+
+    <div class="hub-footer_101">
+      <div class="muted">Versión 1.0</div>
+      <div class="muted">&nbsp;</div>
+    </div>
+  </aside>
+
+
+
+
+</body>
+</html>
