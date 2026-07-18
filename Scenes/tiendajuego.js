@@ -392,23 +392,20 @@ showNotification(message, type = 'info') {
       this.load.image("player", "./Game/Sprites/derecha/run_1.png");
       this.myId = null;  // o ""
 
-      this.elipeticiones = 0; 
+      // FIX: mismo bug que en LoadingScenegame.js/GameScene.js — "elipeticiones"
+      // se fijaba a 0 y se comprobaba "=== 0" en el mismo bloque, así que esta
+      // rama SIEMPRE se ejecutaba, también en producción.
+      const _host = window.location.hostname;
+      const _isLocal = _host === 'localhost' || _host === '127.0.0.1';
 
-      if (this.elipeticiones === 0) {
-            
-      this.serverclient = 'http://127.0.0.1:3001/api';
-      this.serverclient1 = 'http://127.0.0.1:3001';
-      this.serverBase = 'http://127.0.0.1:3001';
-        //this.serverclient = 'https://bgrassland-production.up.railway.app';
-        
+      if (_isLocal) {
+        this.serverclient  = 'http://127.0.0.1:8080/api'; // ajusta el puerto si tu server2.js local usa otro
+        this.serverclient1 = 'http://127.0.0.1:8080';
+        this.serverBase    = 'http://127.0.0.1:8080';
       } else {
-          
-        //this.serverclient = 'http://192.168.100.221:3000';
-        this.serverclient = 'https://grasslandforest.xyz/api';
-        this.serverclient1 = 'https://grasslandforest.xyz';
-            this.serverBase = 'https://grasslandforest.xyz';
-
-
+        this.serverclient  = 'https://api.grasslandforest.com/api';
+        this.serverclient1 = 'https://api.grasslandforest.com';
+        this.serverBase    = 'https://api.grasslandforest.com';
       }
 
       this.zoom = false;
@@ -5309,7 +5306,7 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
     // Inicializar relayClient si hace falta
     if (!this.relayClient) {
       this.relayClient = new PhaserRelay({
-        apiBase: 'http://127.0.0.1:3001',
+        apiBase: this.serverBase,
         debug: true,
         forceLocalhostTo127: true
       });
@@ -5328,7 +5325,7 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
     // Auth
     const auth = await this.relayClient.checkAuth();
     if (!auth || !auth.success) {
-      this.relayClient.showError('❌ Debes estar autenticado. Visita http://127.0.0.1:3001/login', 5000);
+      this.relayClient.showError('❌ Debes estar autenticado. Por favor, inicia sesión de nuevo.', 5000);
       return;
     }
     console.log('🔑 Usuario autenticado:', auth.address);
@@ -5895,7 +5892,7 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
     // Inicializar relayClient si hace falta
     if (!this.relayClient) {
       this.relayClient = new PhaserRelay({
-        apiBase: 'http://127.0.0.1:3001',
+        apiBase: this.serverBase,
         debug: true,
         forceLocalhostTo127: true
       });
@@ -5909,7 +5906,7 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
     // Auth
     const auth = await this.relayClient.checkAuth();
     if (!auth || !auth.success) {
-      this.relayClient.showError('❌ Debes estar autenticado. Visita http://127.0.0.1:3001/login', 5000);
+      this.relayClient.showError('❌ Debes estar autenticado. Por favor, inicia sesión de nuevo.', 5000);
       return false;
     }
     console.log('🔑 Usuario autenticado:', auth.address);
@@ -6775,7 +6772,7 @@ async mergeItemsBlockchain(origin, destType, destIndex) {
   // Inicializar relayClient si es necesario
   if (!this.relayClient) {
     this.relayClient = new PhaserRelay({
-      apiBase: 'http://127.0.0.1:3001',
+      apiBase: this.serverBase,
       debug: true,
       forceLocalhostTo127: true
     });
