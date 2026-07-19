@@ -37,6 +37,28 @@
   // ── GUARD: solo ejecutar una vez ──────────────────────────────────────────
   if (root.__GF_BOOT_DONE__) return;
 
+  // ── GUARD: Phaser debe estar cargado ──────────────────────────────────────
+  //
+  //  ADVANCED_CONFIG (más abajo) referencia Phaser.AUTO, Phaser.Scale.*, etc.
+  //  en tiempo de evaluación del módulo. Si el CDN de Phaser no cargó (bloqueo
+  //  de red, CSP, offline), esas referencias lanzarían un ReferenceError
+  //  críptico y el IIFE abortaría antes de exponer startGame, dejando la
+  //  pantalla en negro sin ninguna pista del motivo. Verificamos primero y
+  //  fallamos con un mensaje claro sin marcar __GF_BOOT_DONE__ (así un
+  //  reintento posterior, si Phaser llega tarde, aún es posible).
+  if (typeof root.Phaser === 'undefined' || !root.Phaser) {
+    try {
+      (console.error || console.log).call(
+        console,
+        '[GF] Phaser no está disponible. El juego no puede arrancar. ' +
+        'Verifica que el <script> de Phaser cargó antes que app.js ' +
+        '(revisa la consola de red por bloqueos de CDN/CSP).'
+      );
+    } catch (e) {}
+    return;
+  }
+  var Phaser = root.Phaser;
+
   // ── POLYFILLS DE COLECCIONES ──────────────────────────────────────────────
   // Se instalan únicamente si el navegador carece de ellos.
   // No se tocan Map/Set/WeakMap nativos si ya existen.
@@ -449,18 +471,11 @@
       }
     },
 
-    plugins: {
-      global: [{
-        key:    'rexVirtualJoystick',
-        plugin: root.rexvirtualjoystickplugin,
-        start:  true
-      }],
-      scene: [{
-        key:     'rexVirtualJoystick',
-        plugin:  root.rexvirtualjoystickplugin,
-        mapping: 'joystick'
-      }]
-    },
+    // NOTA: los plugins NO se declaran aquí de forma estática. Antes se pasaba
+    // `plugin: root.rexvirtualjoystickplugin` en tiempo de carga; si el CDN del
+    // plugin no había cargado, Phaser recibía `plugin: undefined` y registraba
+    // warnings "Invalid Plugin" en cada arranque. Ahora se inyectan en
+    // createGame() solo cuando el plugin existe de verdad (ver más abajo).
 
     fps: { target: 60, forceSetTimeOut: false },
 
@@ -829,6 +844,16 @@
     config.render = Object.assign({}, ADVANCED_CONFIG.render);
     if (isMobile) {
       config.input = { activePointers: 5, touch: { capture: true } };
+    }
+
+    // Registrar el plugin de joystick SOLO si cargó realmente. Así evitamos
+    // pasar `plugin: undefined` a Phaser (que genera warnings "Invalid Plugin")
+    // y damos un aviso claro si el juego corre sin control táctil en móvil.
+    if (root.rexvirtualjoystickplugin) {
+      config.plugins = {
+        global: [{ key: 'rexVirtualJoystick', plugin: root.rexvirtualjoystickplugin, start: true }],
+        scene:  [{ key: 'rexVirtualJoystick', plugin: root.rexvirtualjoystickplugin, mapping: 'joystick' }]
+      };
     }
 
     // Primer intento: config.type ya es Phaser.AUTO (ver ADVANCED_CONFIG),
