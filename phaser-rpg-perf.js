@@ -1622,6 +1622,24 @@
     }
   }
 
+  // ── DETECCIÓN DE API DE PARTÍCULAS ────────────────────────────────────────
+  //
+  //  Phaser 3.60 eliminó ParticleEmitterManager y su método createEmitter().
+  //  A partir de 3.60, scene.add.particles(x, y, texture, config) devuelve
+  //  directamente un ParticleEmitter (que ES un GameObject).
+  //
+  //  index.html fija Phaser 3.90 → API nueva. Pero mantenemos soporte para la
+  //  API antigua (≤3.55) por si el motor se sirve desde otra versión, sin
+  //  asumir nada: se decide en runtime a partir de Phaser.VERSION.
+  //
+  const _particleApiIsLegacy = (function () {
+    try {
+      if (typeof Phaser === 'undefined' || !Phaser.VERSION) return false; // asumir moderno
+      var v = String(Phaser.VERSION).split('.').map(function (n) { return parseInt(n, 10) || 0; });
+      return v[0] < 3 || (v[0] === 3 && v[1] < 60);
+    } catch (e) { return false; }
+  })();
+
   // ── ENHANCED PARTICLE POOL ────────────────────────────────────────────────
   class EnhancedParticlePool {
     constructor(scene) {
@@ -1632,6 +1650,8 @@
       this.activeEmitters= new global.Set();
     }
 
+    // Solo relevante en la API antigua (≤3.55): devuelve un manager reutilizable.
+    // En 3.60+ no existen managers, así que este método no se usa.
     getManager(key, textureKey) {
       if (this.managers.has(key)) return this.managers.get(key);
       const mgr = this.scene.add.particles(textureKey || key);
@@ -1640,8 +1660,29 @@
     }
 
     createEmitter(key, cfg) {
-      const mgr = this.getManager(key, cfg.textureKey || key);
-      const em  = mgr.createEmitter(cfg);
+      cfg = cfg || {};
+      const textureKey = cfg.textureKey || key;
+      let em = null;
+
+      try {
+        if (_particleApiIsLegacy) {
+          // API antigua: manager + createEmitter(config)
+          const mgr = this.getManager(key, textureKey);
+          if (!mgr || typeof mgr.createEmitter !== 'function') {
+            if (DEBUG_MODE) console.warn('EnhancedParticlePool: manager sin createEmitter para', key);
+            return null;
+          }
+          em = mgr.createEmitter(cfg);
+        } else {
+          // Phaser 3.60+: add.particles(x, y, texture, config) devuelve el emitter
+          em = this.scene.add.particles(cfg.x || 0, cfg.y || 0, textureKey, cfg);
+        }
+      } catch (e) {
+        if (DEBUG_MODE) console.warn('EnhancedParticlePool.createEmitter error:', key, e);
+        return null;
+      }
+
+      if (!em) return null;
       if (!this.emitters.has(key)) this.emitters.set(key, []);
       this.emitters.get(key).push(em);
       this.configs.set(em, { ...cfg, key });
@@ -1682,7 +1723,9 @@
       let cleaned = 0;
       for (const [key, ems] of this.emitters) {
         const active = ems.filter(em => {
-          if (!em.on || this.activeEmitters.has(em)) return true;
+          // 'emitting' es la propiedad en Phaser 3.60+; 'on' en la API antigua.
+          const isEmitting = (typeof em.emitting === 'boolean') ? em.emitting : em.on;
+          if (isEmitting || this.activeEmitters.has(em)) return true;
           this.destroyEmitter(em); cleaned++;
           return false;
         });
