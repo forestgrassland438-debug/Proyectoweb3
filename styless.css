@@ -9882,3 +9882,56 @@ button:focus {
   letter-spacing:1px;
 }
 .skills-save-btn:hover { background:linear-gradient(135deg,#2290e8,#1060cc); }
+
+
+/* ==========================================================================
+   FIX MÓVIL — chat vs. 7 casillas (quick-slots)
+   --------------------------------------------------------------------------
+   En teléfonos la barra de 7 casillas (#quick-slots-bar) va centrada y ocupa
+   casi todo el ancho, mientras que el botón de chat (.chat-open-btn) estaba
+   fijo en la esquina inferior IZQUIERDA, en la misma fila -> tapaba las
+   primeras casillas ("no se ven, chocan con el chat").
+
+   La esquina inferior izquierda además la usa el joystick de movimiento.
+   Solución: dejar la barra de casillas pegada al fondo y mover el chat a la
+   esquina inferior DERECHA, en su propia fila (encima del botón de inventario
+   y lejos del joystick). Va al final del archivo para ganar en la cascada.
+   ========================================================================== */
+@media (max-width: 640px) {
+
+  /* Barra de 7 casillas: pegada al fondo y centrada, sin nada que la tape */
+  #quick-slots-bar {
+    bottom: 10px !important;
+  }
+
+  /* Botón de chat: sube a su propia fila en la esquina inferior DERECHA */
+  .chat-open-btn,
+  #open-chat-btn {
+    left: auto !important;
+    right: 10px !important;
+    bottom: 70px !important;
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  /* Panel de chat: abre por encima del botón, alineado a la derecha */
+  #chat-panel {
+    left: auto !important;
+    right: 10px !important;
+    bottom: 122px !important;
+    width: min(82vw, 300px) !important;
+  }
+}
+
+/* En teléfonos muy estrechos (<=360px) las 7 casillas se encogen un poco
+   más para que la barra completa entre sin recortarse en los bordes */
+@media (max-width: 360px) {
+  .quick-slot {
+    width: 34px !important;
+    height: 34px !important;
+  }
+  #inv-shortcut-btn {
+    width: 34px !important;
+    height: 34px !important;
+  }
+}
