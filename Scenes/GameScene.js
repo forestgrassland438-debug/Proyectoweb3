@@ -2222,6 +2222,10 @@ showNotification(message, type = 'info') {
     this.load.image('tronco_acostado_png', './Game/Objetos/tronco acostado.png');
     this.load.image('tronco_acostado_1png', './Game/Objetos/tronco_1.png');
     this.load.image('tronco_acostado_2png', './Game/Objetos/tronco_2.png');
+    // troncos que aparecen mientras el árbol está en respawn
+    this.load.image('tronco_arbusto_png', './Game/Objetos/tronco arbusto solo.png');
+    this.load.image('tronco_pinos_png', './Game/Objetos/tronco pinos.png');
+    this.load.image('tronco_arbol_seco_png', './Game/Objetos/tronco arbol seco terminado.png');
     this.load.image('pozo_png', './Game/Objetos/pozo.png');
 
     this.load.image('carbon_png', './Game/Objetos/carbon.png');
@@ -6201,6 +6205,40 @@ function getTreeTypeFromKey(key) {
 }
 
 // -----------------------------------------------------------------------------
+// TRONCOS: mientras el árbol está talado se muestra su tronco en el mismo sitio
+// -----------------------------------------------------------------------------
+const TREE_STUMP_TEXTURE = {
+  pinos:    'tronco_pinos_png',
+  arbustos: 'tronco_arbusto_png',
+  arbolx:   'tronco_arbol_seco_png'
+};
+
+this.treeStumps = this.treeStumps || {};
+
+const showTreeStump = (sprRef, treeKey) => {
+  const type = getTreeTypeFromKey(treeKey);
+  const texture = TREE_STUMP_TEXTURE[type];
+  if (!texture || !sprRef || this.treeStumps[treeKey]) return;
+
+  const stump = this.add.image(sprRef.x, sprRef.y, texture)
+    .setOrigin(sprRef.originX, sprRef.originY)
+    .setDepth(sprRef.depth);
+  this.treeStumps[treeKey] = stump;
+
+  sprRef.setVisible(false);
+};
+
+const hideTreeStump = (treeKey) => {
+  const stump = this.treeStumps[treeKey];
+  if (stump) {
+    stump.destroy();
+    delete this.treeStumps[treeKey];
+  }
+  const liveSpr = this[treeKey];
+  if (liveSpr && liveSpr.active) liveSpr.setVisible(true);
+};
+
+// -----------------------------------------------------------------------------
 // COOLDOWN HUMANO (600-900 ms + aleatoriedad ±150 ms)
 // -----------------------------------------------------------------------------
 const HUMAN_COOLDOWN = {
@@ -7178,6 +7216,8 @@ oreProps.forEach(prop => {
       // disparaban una tras otra. Al deshabilitar el sprite de inmediato,
       // ningún click posterior puede volver a entrar a este bloque.
       spr.disableInteractive();
+      // El árbol desaparece y se muestra su tronco hasta que termine el respawn
+      showTreeStump(spr, treeKey);
       if (this.oreTexts[treeKey]) {
         this.oreTexts[treeKey].destroy();
         if (this.oreTexts[treeKey].indicator) this.oreTexts[treeKey].indicator.destroy();
@@ -7217,12 +7257,14 @@ oreProps.forEach(prop => {
         const deforestSuccess = await updateDeforestationPercent(treeType, increment);
         if (!deforestSuccess) {
           this.notifications.show('Error al actualizar deforestación. No se bloqueó el árbol.', 'error');
+          hideTreeStump(treeKey);
           return;
         }
 
         const serverLockedUntil = await lockTree(treeKey, treeType);
         if (!serverLockedUntil) {
           this.notifications.show('Error al bloquear el árbol en el servidor.', 'error');
+          hideTreeStump(treeKey);
           return;
         }
 
@@ -7239,11 +7281,14 @@ oreProps.forEach(prop => {
                 liveSpr.setInteractive({ useHandCursor: false });
                 console.log(`🌲 Árbol ${key} desbloqueado automáticamente`);
               }
+              // Termina el respawn: quitar el tronco y volver a mostrar el árbol
+              hideTreeStump(key);
             }
           } catch (e) {
             // Si falla la consulta, desbloquear de todas formas
             const liveSpr = this[key];
             if (liveSpr && liveSpr.active) liveSpr.setInteractive({ useHandCursor: false });
+            hideTreeStump(key);
           }
         };
         if (remainingMs > 0) {
@@ -7256,6 +7301,7 @@ oreProps.forEach(prop => {
         // (el sprite ya fue deshabilitado al inicio del bloque, ver FIX arriba)
         setTimeout(() => {
           if (spr && spr.active) spr.setInteractive({ useHandCursor: false });
+          hideTreeStump(treeKey);
         }, 60000);
       }
     }
