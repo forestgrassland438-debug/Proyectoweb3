@@ -7,7 +7,7 @@
   <meta http-equiv="Content-Language" content="en" />
   <title>GRASSLAND FOREST</title>
   <link rel="icon" href="favicon.png" type="image/png" />
-  <link rel="stylesheet" href="styless.css" />
+  <link rel="stylesheet" href="styless.css?v=16.8-dashboard" />
 
   <!-- ============================
        CONTENT-SECURITY-POLICY (meta for testing / development)..
@@ -1165,22 +1165,41 @@
     <!-- <button id="loading-cancel-btn" style="display: none; margin-top:14px; padding:8px 12px; border-radius:6px; background:#333; color:#fff; border:none">Cancelar</button> -->
   </div>
 
-  <aside id="hub-panel_101" role="dialog" aria-hidden="true" aria-label="Panel de configuraciones">
-    <div class="header_101">
-      <div class="title_101">Configuraciones</div>
-    </div>
-
-    <div class="hub-row_101">
-      <label class="hub-label_101" for="character-name">Nombre de personaje</label>
-      <input id="character-name" type="text" placeholder="Escribe el nombre..." />
-      <div class="button-row">
-        <button id="apply-name" class="btn-primary">Aplicar</button>
-        <button id="close-panel" class="btn-ghost">Cerrar</button>
+  <!-- DASHBOARD rediseñado: perfil del jugador + mascota. Los nombres de
+       personaje y mascota nacen como "---" y solo pueden fijarse UNA vez
+       (regla aplicada también en el backend). Los ids originales
+       (character-name, apply-name, close-panel, logout-btn, language-select)
+       se conservan para no romper el código de las escenas. -->
+  <aside id="hub-panel_101" role="dialog" aria-hidden="true" aria-label="Dashboard del jugador">
+    <div class="header_101 dash-header_101">
+      <div class="dash-avatar_101" aria-hidden="true"><img src="./Game/Source/config.png" alt="" onerror="this.style.display='none'"></div>
+      <div class="dash-header-text_101">
+        <div class="title_101">DASHBOARD</div>
+        <div class="muted dash-subtitle_101">Perfil, mascota y preferencias</div>
       </div>
+      <button id="close-panel" class="dash-close_101" aria-label="Cerrar panel">✕</button>
     </div>
 
-    <div class="hub-row_101">
-      <label class="hub-label_101" for="language-select">Lenguaje</label>
+    <div class="hub-row_101 dash-card_101">
+      <label class="hub-label_101" for="character-name">👤 Nombre de personaje</label>
+      <div class="dash-input-row_101">
+        <input id="character-name" type="text" placeholder="Escribe el nombre..." autocomplete="off" />
+        <button id="apply-name" class="btn-primary dash-apply_101">Aplicar</button>
+      </div>
+      <div id="character-name-hint" class="dash-hint_101">⚠️ Solo puedes elegirlo UNA vez — piénsalo bien.</div>
+    </div>
+
+    <div class="hub-row_101 dash-card_101">
+      <label class="hub-label_101" for="pet-name">🐶 Nombre de la mascota</label>
+      <div class="dash-input-row_101">
+        <input id="pet-name" type="text" placeholder="Nombra a tu mascota..." autocomplete="off" />
+        <button id="apply-pet-name" class="btn-primary dash-apply_101">Aplicar</button>
+      </div>
+      <div id="pet-name-hint" class="dash-hint_101">⚠️ Solo puedes elegirlo UNA vez — piénsalo bien.</div>
+    </div>
+
+    <div class="hub-row_101 dash-card_101">
+      <label class="hub-label_101" for="language-select">🌐 Lenguaje</label>
       <select id="language-select" aria-label="Seleccionar idioma">
         <option value="en-US">English (United States)</option>
         <option value="en-PH">English (Philippine / Tagalog)</option>
@@ -1191,17 +1210,17 @@
       </select>
     </div>
 
-    <div class="hub-row_101">
-      <div class="hub-label_101">Cuenta</div>
-      <div style="display:flex;gap:8px;align-items:center">
+    <div class="hub-row_101 dash-card_101">
+      <div class="hub-label_101">🔐 Cuenta</div>
+      <div class="dash-account-row_101">
         <button id="logout-btn" class="btn-ghost">Cerrar sesión</button>
-        <div class="muted">Sesión activa</div>
+        <div class="muted"><span class="dash-session-dot_101"></span> Sesión activa</div>
       </div>
     </div>
 
     <div class="hub-footer_101">
+      <div class="muted">Grassland Forest</div>
       <div class="muted">Versión 1.0</div>
-      <div class="muted">&nbsp;</div>
     </div>
   </aside>
 
