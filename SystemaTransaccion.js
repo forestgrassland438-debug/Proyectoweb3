@@ -217,7 +217,9 @@ class TransactionSystem {
         }
 
         const contractInfo = this.allowedContracts[contract];
-        if (!contractInfo.functions.includes(functionName)) {
+        // FIX: si el backend devuelve un contrato sin lista de funciones,
+        // .includes sobre undefined lanzaba TypeError en vez de un error claro.
+        if (!Array.isArray(contractInfo.functions) || !contractInfo.functions.includes(functionName)) {
             return { valid: false, error: `Función no permitida: ${functionName}` };
         }
 
@@ -402,10 +404,18 @@ class TransactionSystem {
 
     connectSocket() {
         try {
+            // FIX: si el CDN de socket.io no cargó, window.io no existe.
+            // Antes lanzaba TypeError genérico; ahora avisa y sigue sin socket
+            // (el juego funciona igual, solo sin notificaciones en tiempo real).
+            if (typeof window.io !== 'function') {
+                console.warn('⚠️ socket.io no está disponible (CDN no cargó) — se continúa sin socket');
+                return;
+            }
+
             if (this.socket && this.socket.connected) {
                 this.socket.disconnect();
             }
-            
+
             const socketUrl = this.serverclient.replace('/api', '');
             this.socket = window.io(socketUrl, {
                 transports: ['websocket', 'polling']

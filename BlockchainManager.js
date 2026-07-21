@@ -90,11 +90,17 @@ class BlockchainManager {
      * Registrar contrato de forma simplificada
      */
     registerContract(contractId, contractConfig) {
+        if (!contractConfig || typeof contractConfig.address !== 'string' || !contractConfig.address) {
+            throw new Error(`registerContract: falta la dirección del contrato para "${contractId}"`);
+        }
+
+        // El spread va PRIMERO: si fuera al final, contractConfig.address
+        // (con mayúsculas) pisaría la versión normalizada en minúsculas.
         const contract = {
+            ...contractConfig,
             address: contractConfig.address.toLowerCase(),
             name: contractConfig.name || contractId,
-            functions: contractConfig.functions || {},
-            ...contractConfig
+            functions: contractConfig.functions || {}
         };
 
         this.contracts.set(contractId, contract);
@@ -291,9 +297,15 @@ class BlockchainManager {
 
     revertNonce() {
         if (!this.userNonce) return;
-        
+
         try {
             const currentNonce = BigInt('0x' + this.userNonce);
+            // Nunca bajar de 0: un nonce negativo ("-1" en hex) haría que el
+            // siguiente BigInt('0x-1') lanzara y dejara el nonce corrupto.
+            if (currentNonce <= 0n) {
+                this.userNonce = '0';
+                return;
+            }
             const revertedNonce = (currentNonce - 1n).toString(16);
             this.userNonce = revertedNonce.replace(/^0+/, '') || '0';
         } catch (error) {

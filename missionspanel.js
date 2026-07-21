@@ -10,9 +10,28 @@ class missionspanel {
     this.closeButton = document.getElementById('close-missions');
     this.refreshButton = document.getElementById('refresh-missions');
     
+    // FIX: si el HTML de la página no incluye el panel de misiones, no
+    // adjuntar listeners (antes lanzaba TypeError sobre null y rompía la
+    // inicialización de la escena que construía este panel).
+    if (!this.panel || !this.overlay || !this.closeButton || !this.refreshButton) {
+      console.warn('missionspanel: elementos del panel de misiones no encontrados en el DOM — panel desactivado');
+      this.disabled = true;
+      return;
+    }
+    this.disabled = false;
+
     this.initEvents();
   }
-  
+
+  // FIX SEGURIDAD: los textos de misión llegan del backend y se insertaban
+  // sin escapar dentro de innerHTML. Escapamos todo dato dinámico.
+  _esc(v) {
+    if (v === null || v === undefined) return '';
+    return String(v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  }
+
   initEvents() {
     this.closeButton.addEventListener('click', () => this.close());
     this.overlay.addEventListener('click', () => this.close());
@@ -27,8 +46,9 @@ class missionspanel {
   }
   
   async show(npcId) {
+    if (this.disabled) return;
     const loaded = await this.gameScene.loadDailyMissions(npcId);
-    
+
     if (loaded) {
       this.render();
       this.panel.classList.remove('hidden');
@@ -38,6 +58,7 @@ class missionspanel {
   }
   
   close() {
+    if (this.disabled) return;
     this.panel.classList.add('hidden');
     this.overlay.classList.add('hidden');
     
@@ -57,12 +78,17 @@ class missionspanel {
   }
   
   render() {
-    if (!this.gameScene.dailyMissionsData) return;
-    
+    if (this.disabled || !this.gameScene.dailyMissionsData) return;
+
     const lang = this.gameScene.languageMap[this.gameScene.lenguaje] || 'en-US';
-    const missions = this.gameScene.dailyMissionsData.missions;
-    const userProgress = this.gameScene.dailyMissionsData.userProgress;
-    const completedIds = new Set(userProgress.completedMissions.map(m => m.missionId));
+    // FIX: tolerar respuestas incompletas del backend — antes cualquier campo
+    // faltante (missions, userProgress, completedMissions) lanzaba TypeError.
+    const missions = Array.isArray(this.gameScene.dailyMissionsData.missions)
+      ? this.gameScene.dailyMissionsData.missions : [];
+    const userProgress = this.gameScene.dailyMissionsData.userProgress || {};
+    const completedIds = new Set(
+      (userProgress.completedMissions || []).map(m => m.missionId)
+    );
     
     // Actualizar título
     const npcName = this.gameScene.currentNpcMission === 'granjero' ? 
@@ -71,14 +97,15 @@ class missionspanel {
     
     this.npcTitle.textContent = `${npcName} - ${this.gameScene.lenguaje === 3 ? 'Misiones Diarias' : 'Daily Missions'}`;
     
-    // Actualizar tiempo y progreso
-    const hoursLeft = this.gameScene.dailyMissionsData.resetInfo.hoursUntilReset;
-    this.resetTime.textContent = this.gameScene.lenguaje === 3 ? 
+    // Actualizar tiempo y progreso (resetInfo puede faltar en la respuesta)
+    const hoursLeft = (this.gameScene.dailyMissionsData.resetInfo || {}).hoursUntilReset ?? '?';
+    this.resetTime.textContent = this.gameScene.lenguaje === 3 ?
       `Reinicio en: ${hoursLeft} horas` : `Reset in: ${hoursLeft} hours`;
-    
+
+    const completedCount = userProgress.completedCount ?? completedIds.size;
     this.progress.textContent = this.gameScene.lenguaje === 3 ?
-      `Completadas: ${userProgress.completedCount}/${missions.length}` :
-      `Completed: ${userProgress.completedCount}/${missions.length}`;
+      `Completadas: ${completedCount}/${missions.length}` :
+      `Completed: ${completedCount}/${missions.length}`;
     
     // Limpiar lista
     this.missionsList.innerHTML = '';
@@ -91,45 +118,52 @@ class missionspanel {
   }
   
   createMissionElement(mission, lang, isCompleted) {
-    const missionTexts = mission.texts[lang] || mission.texts['en-US'];
+    // FIX: mission.texts puede faltar — antes lanzaba TypeError y no se
+    // renderizaba ninguna misión.
+    const texts = mission.texts || {};
+    const missionTexts = texts[lang] || texts['en-US'] || { title: mission.missionId || '', description: '' };
     const isSpanish = this.gameScene.lenguaje === 3;
-    
+
     const card = document.createElement('div');
     card.className = `mission-card ${isCompleted ? 'completed' : ''}`;
-    
+
+    // FIX SEGURIDAD: todos los datos dinámicos pasan por _esc() antes de
+    // insertarse en innerHTML (venían del backend sin escapar).
+    const esc = (v) => this._esc(v);
+
     card.innerHTML = `
       <div class="mission-info">
-        <h3 class="mission-title">${missionTexts.title}</h3>
-        <p class="mission-description">${missionTexts.description}</p>
-        
+        <h3 class="mission-title">${esc(missionTexts.title)}</h3>
+        <p class="mission-description">${esc(missionTexts.description)}</p>
+
         <div class="mission-requirements">
           <div class="requirement-item">
-            <img src="./Game/Objetos/Itemmision/${mission.itemId}.png" alt="${mission.itemId}" class="item-icon">
-            <span class="item-amount">${mission.requiredAmount}x</span>
+            <img src="./Game/Objetos/Itemmision/${esc(mission.itemId)}.png" alt="${esc(mission.itemId)}" class="item-icon">
+            <span class="item-amount">${esc(mission.requiredAmount)}x</span>
           </div>
         </div>
       </div>
-      
+
       <div class="mission-actions">
         <div class="mission-rewards-container">
           <div class="mission-rewards">
             <div class="reward-item exp-reward-item">
               <img src="./Game/Source/exp_w.png" alt="EXP" class="item-icon">
-              <span class="exp-reward">+${mission.expReward} exp</span>
+              <span class="exp-reward">+${esc(mission.expReward)} exp</span>
             </div>
             ${mission.rewardItemId ? `
               <div class="reward-item item-reward-item">
-                <img src="./Game/Source/${mission.rewardItemId}.png" alt="${mission.rewardItemId}" class="item-icon"
+                <img src="./Game/Source/${esc(mission.rewardItemId)}.png" alt="${esc(mission.rewardItemId)}" class="item-icon"
                      onerror="this.src='./Game/Source/moneda.png'">
-                <span class="item-reward">${mission.rewardAmount || 1}+</span>
+                <span class="item-reward">${esc(mission.rewardAmount || 1)}+</span>
               </div>
             ` : ''}
           </div>
         </div>
-        
+
         <button class="complete-button ${isCompleted ? 'completed' : ''} ${isCompleted ? 'disabled' : ''}"
-                data-mission-id="${mission.missionId}">
-          ${isCompleted ? 
+                data-mission-id="${esc(mission.missionId)}">
+          ${isCompleted ?
             (isSpanish ? 'COMPLETADA' : 'COMPLETED') :
             (isSpanish ? 'COMPLETAR' : 'COMPLETE')
           }

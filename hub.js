@@ -29,15 +29,25 @@ class hub {
     
     // 🔧 NUEVO: URL base del backend (vacío = relativo al mismo origen)
     this.baseUrl = options.baseUrl || '';
-    
+
+    // FIX: si el HTML de esta página no incluye el panel #tx-hub, no podemos
+    // adjuntar listeners (this.closeBtn.addEventListener lanzaría TypeError y
+    // rompería el resto del script). Se desactiva el hub con un aviso claro.
+    if (!this.container || !this.closeBtn || !this.refreshBtn) {
+      console.warn('hub.js: elementos #tx-hub no encontrados en el DOM — hub de transacciones desactivado en esta página');
+      this.disabled = true;
+      return;
+    }
+    this.disabled = false;
+
     this.initEvents();
     this.loadFromBackend(); // load when hub opens
   }
-  
+
   initEvents() {
     // Close button
     this.closeBtn.addEventListener('click', () => this.hide());
-    
+
     // Tabs
     this.tabs.forEach(tab => {
       tab.addEventListener('click', () => {
@@ -45,17 +55,18 @@ class hub {
         this.switchTab(target);
       });
     });
-    
+
     // Refresh button
     this.refreshBtn.addEventListener('click', () => this.loadFromBackend());
-    
+
     // Make draggable (simple)
     this.makeDraggable(this.container);
   }
-  
+
   makeDraggable(el) {
     let offsetX, offsetY, mouseX, mouseY;
     const header = el.querySelector('.tx-hub-header');
+    if (!header) return; // FIX: sin cabecera no hay arrastre, pero tampoco crash
     header.addEventListener('mousedown', (e) => {
       offsetX = e.clientX - el.offsetLeft;
       offsetY = e.clientY - el.offsetTop;
@@ -111,6 +122,12 @@ class hub {
   addTransaction(category, data) {
     // category: 'interaction' or 'items'
     // data: { name, quantity, hash, status, hiddenData }
+    if (this.disabled) return;
+    // FIX: una categoría desconocida hacía crash en this.transactions[category].push
+    if (!this.transactions[category]) {
+      console.warn(`TransactionHub: categoría desconocida "${category}" (se esperaba 'interaction' o 'items')`);
+      return;
+    }
     if (!this.playerName) {
       console.warn('TransactionHub: No user set, cannot save');
       return;
@@ -278,6 +295,7 @@ class hub {
   
   // --- Backend integration (adapt to your API) ---
   async loadFromBackend() {
+    if (this.disabled) return;
     if (!this.playerName) {
       console.log('TransactionHub: No user, skipping load');
       return;
@@ -296,10 +314,15 @@ class hub {
       });
       if (!response.ok) throw new Error('Failed to load');
       const data = await response.json();
-      
-      // Assuming data is { interaction: [...], items: [...] }
-      this.transactions = data;
-      
+
+      // FIX: validar la forma de la respuesta. Antes se asignaba tal cual y
+      // si el backend devolvía otra estructura (array, error envuelto, campos
+      // faltantes), renderCategory() lanzaba en .forEach de undefined.
+      this.transactions = {
+        interaction: Array.isArray(data && data.interaction) ? data.interaction : [],
+        items:       Array.isArray(data && data.items)       ? data.items       : []
+      };
+
       this.renderCategory('interaction');
       this.renderCategory('items');
       this.statusSpan.innerText = '✅ Synced';
@@ -351,6 +374,12 @@ window.hub = new hub({
     //   window.game.scene.keys['GameScene'].retryTransaction(hiddenData);
     // }
   },
-  // 🔧 Especifica la URL base si el frontend está en un puerto diferente
-  baseUrl: 'http://127.0.0.1:3001'   // <-- AJUSTA ESTO SEGÚN TU CONFIGURACIÓN
+  // 🔧 URL base del backend:
+  // FIX: antes estaba fija en http://127.0.0.1:3001, lo que rompía las
+  // peticiones en producción (apuntaban al localhost del visitante).
+  // Ahora solo se usa el puerto 3001 cuando la página se sirve desde
+  // localhost (desarrollo); en cualquier otro host se usa el mismo origen.
+  baseUrl: (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? 'http://127.0.0.1:3001'
+    : ''
 });

@@ -97,7 +97,9 @@
   <script src="./register-scenes.js" defer></script>
 
   <script src="./memory-fix.js" defer></script>
-  <script type="module" src="./CraftingHub.js" defer></script>
+  <!-- CraftingHub.js ya se carga arriba como script clásico; la segunda carga
+       como type="module" ejecutaba el archivo completo dos veces (doble parse
+       y doble descarga). Eliminada. -->
 
   <script src="./NotificationHub.js" defer></script>
 

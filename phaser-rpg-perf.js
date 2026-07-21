@@ -1014,7 +1014,13 @@
       this.currentSettings = this.qualitySettings[this.currentTier];
       this.performanceHistory   = [];
       this.lastAdjustmentTime   = 0;
-      this.adjustmentCooldown   = 5000;
+      // FIX TITILEO: cooldown más largo (10 s) entre cambios de tier. Con 5 s
+      // el sistema podía subir y bajar de calidad repetidamente cuando el
+      // frame-time rondaba el umbral ("thrashing"), encendiendo y apagando
+      // partículas/sombras y cambiando el radio de chunks una y otra vez —
+      // visible como parpadeo. Ver también la banda de histéresis en
+      // _adjustSettings().
+      this.adjustmentCooldown   = 10000;
       this.enabled         = DEFAULTS.adaptiveEnabled;
       safeLog(`AdaptivePerformance: tier detectado: ${this.deviceTier}`);
     }
@@ -1084,25 +1090,32 @@
     }
 
     _getQualitySettings() {
+      // FIX TITILEO: el MODO DE RENDER (pixelArt/roundPixels/antialias) es
+      // IDÉNTICO en los tres tiers. Este es un juego pixel-art: cambiar
+      // pixelArt/antialias al vuelo cuando la calidad adaptativa sube o baja
+      // de tier reconfigura el filtrado de texturas del canvas y se ve como un
+      // parpadeo (arte nítido ↔ arte borroso, costuras de tiles brillando).
+      // Antes el tier 'high' usaba pixelArt:false + antialias:true, justo lo
+      // que produce shimmer en los bordes de los tiles al moverse. Ahora la
+      // calidad adaptativa SOLO ajusta parámetros que no tocan el render mode:
+      // radio de chunks, tamaño de pools, partículas, sombras y luces.
+      const RENDER_MODE = { pixelArt: true, roundPixels: true, antialias: false, preserveTextRendering: true };
       return {
-        low: {
-          pixelArt: true, roundPixels: true, antialias: false,
+        low: Object.assign({}, RENDER_MODE, {
           chunkRadius: 1, defaultPoolSize: 25,
           enableParticles: false, enableShadows: false,
-          textureQuality: 'low', maxLights: 0, preserveTextRendering: true
-        },
-        medium: {
-          pixelArt: true, roundPixels: true, antialias: false,
+          textureQuality: 'low', maxLights: 0
+        }),
+        medium: Object.assign({}, RENDER_MODE, {
           chunkRadius: 2, defaultPoolSize: 50,
           enableParticles: true, enableShadows: false,
-          textureQuality: 'medium', maxLights: 2, preserveTextRendering: true
-        },
-        high: {
-          pixelArt: false, roundPixels: false, antialias: true,
+          textureQuality: 'medium', maxLights: 2
+        }),
+        high: Object.assign({}, RENDER_MODE, {
           chunkRadius: 3, defaultPoolSize: 100,
           enableParticles: true, enableShadows: true,
-          textureQuality: 'high', maxLights: 8, preserveTextRendering: true
-        }
+          textureQuality: 'high', maxLights: 8
+        })
       };
     }
 
@@ -1121,10 +1134,21 @@
       const avgFrame= recent.reduce((s, f) => s + f.frameTime, 0) / recent.length;
       let newTier   = this.currentTier;
 
-      if (avgFrame > DEFAULTS.maxFrameTime) {
+      // FIX TITILEO: banda de histéresis. Para BAJAR de calidad el frame-time
+      // debe superar claramente maxFrameTime (con un margen), y para SUBIR
+      // debe estar claramente por debajo de minFrameTime. Sin esta banda, un
+      // avgFrame que oscila justo alrededor del umbral hacía subir y bajar de
+      // tier en cada evaluación (thrashing) — partículas/sombras
+      // encendiéndose y apagándose = parpadeo. La banda crea una zona muerta
+      // donde no se cambia nada.
+      const HYST = 3; // ms de margen a cada lado de la zona muerta
+      const downThreshold = DEFAULTS.maxFrameTime + HYST;
+      const upThreshold   = DEFAULTS.minFrameTime - HYST;
+
+      if (avgFrame > downThreshold) {
         if (this.currentTier === 'high')   newTier = 'medium';
         else if (this.currentTier === 'medium') newTier = 'low';
-      } else if (avgFrame < DEFAULTS.minFrameTime && this.currentTier !== this.deviceTier) {
+      } else if (avgFrame < upThreshold && this.currentTier !== this.deviceTier) {
         if (this.currentTier === 'low'    && this.deviceTier !== 'low')  newTier = 'medium';
         else if (this.currentTier === 'medium' && this.deviceTier === 'high') newTier = 'high';
       }
@@ -1722,7 +1746,12 @@
     cleanupInactiveEmitters() {
       let cleaned = 0;
       for (const [key, ems] of this.emitters) {
-        const active = ems.filter(em => {
+        // FIX: filtrar sobre una COPIA. destroyEmitter() hace splice sobre el
+        // array vivo; si se filtra ese mismo array, cada splice desplaza los
+        // índices y filter se salta el emitter siguiente — que quedaba fuera
+        // del array reconstruido sin ser destruido (huérfano en la escena =
+        // fuga de memoria y partículas fantasma).
+        const active = Array.from(ems).filter(em => {
           // 'emitting' es la propiedad en Phaser 3.60+; 'on' en la API antigua.
           const isEmitting = (typeof em.emitting === 'boolean') ? em.emitting : em.on;
           if (isEmitting || this.activeEmitters.has(em)) return true;
@@ -1735,7 +1764,10 @@
     }
 
     destroy() {
-      for (const ems of this.emitters.values()) ems.forEach(em => this.destroyEmitter(em));
+      // FIX: misma razón que en cleanupInactiveEmitters — iterar sobre copia
+      // porque destroyEmitter() muta el array original con splice (antes se
+      // saltaba uno de cada dos emitters y quedaban vivos tras destroy()).
+      for (const ems of this.emitters.values()) Array.from(ems).forEach(em => this.destroyEmitter(em));
       for (const m of this.managers.values()) { try { m.destroy(); } catch (e) {} }
       this.managers.clear(); this.emitters.clear(); this.configs.clear(); this.activeEmitters.clear();
     }
