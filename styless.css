@@ -9935,3 +9935,125 @@ button:focus {
     height: 34px !important;
   }
 }
+
+
+/* ==========================================================================
+   DASHBOARD PROFESIONAL (#hub-panel_101 rediseñado)
+   --------------------------------------------------------------------------
+   Rediseño del panel de configuraciones como "Dashboard" del jugador:
+   cabecera con avatar, tarjetas por sección, fila de input+botón, avisos de
+   "solo una vez" para los nombres de personaje y mascota, y estado bloqueado
+   cuando el nombre ya fue fijado. Va al final del archivo para ganar en la
+   cascada sobre los estilos base de _101.
+   ========================================================================== */
+
+#hub-panel_101 .dash-header_101 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(64, 160, 255, 0.25);
+}
+
+#hub-panel_101 .dash-avatar_101 {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(24, 90, 170, 0.55), rgba(10, 40, 90, 0.85));
+  border: 1px solid rgba(100, 180, 255, 0.35);
+  box-shadow: 0 0 12px rgba(64, 160, 255, 0.25), inset 0 0 8px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+#hub-panel_101 .dash-avatar_101 img {
+  width: 30px;
+  height: 30px;
+  image-rendering: pixelated;
+}
+
+#hub-panel_101 .dash-header-text_101 { flex: 1; min-width: 0; }
+#hub-panel_101 .dash-subtitle_101 { margin-top: 2px; }
+
+#hub-panel_101 .dash-close_101 {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(100, 180, 255, 0.30);
+  background: rgba(10, 40, 90, 0.55);
+  color: #a8d8ff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+#hub-panel_101 .dash-close_101:hover { background: rgba(200, 60, 60, 0.45); transform: scale(1.06); }
+
+#hub-panel_101 .dash-card_101 {
+  background: rgba(8, 28, 60, 0.55);
+  border: 1px solid rgba(64, 160, 255, 0.18);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  box-shadow: inset 0 1px 0 rgba(120, 200, 255, 0.08);
+}
+
+#hub-panel_101 .dash-input-row_101 {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+#hub-panel_101 .dash-input-row_101 input { flex: 1; min-width: 0; margin: 0; }
+#hub-panel_101 .dash-apply_101 { flex: 0 0 auto; white-space: nowrap; }
+
+#hub-panel_101 .dash-hint_101 {
+  margin-top: 7px;
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  color: rgba(255, 210, 120, 0.85);
+}
+
+/* Estado BLOQUEADO: nombre ya fijado (≠ '---') — no admite más cambios */
+#hub-panel_101 .dash-hint_101.dash-hint-locked_101 { color: rgba(120, 230, 160, 0.9); }
+
+#hub-panel_101 input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  border-style: dashed;
+}
+#hub-panel_101 .dash-apply_101:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+}
+
+#hub-panel_101 .dash-account-row_101 {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+#hub-panel_101 .dash-session-dot_101 {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #35d07f;
+  box-shadow: 0 0 6px rgba(53, 208, 127, 0.8);
+  margin-right: 4px;
+  animation: dashSessionPulse_101 2.2s infinite;
+}
+
+@keyframes dashSessionPulse_101 {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* En pantallas bajas el panel rediseñado puede crecer: permitir scroll */
+#hub-panel_101 { max-height: 88vh; overflow-y: auto; }

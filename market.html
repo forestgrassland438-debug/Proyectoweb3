@@ -730,9 +730,17 @@
   // CONFIGURACIÓN — ajusta esto según dónde despliegues el archivo
   // ══════════════════════════════════════════════════════════════════════
   const CONFIG = {
-    // '' = mismo origen que este archivo (recomendado: sirve market.html
-    // junto a game.html para que la cookie de sesión funcione sin configuración extra).
-    API_BASE: '',
+    // FIX "ACCESO RESTRINGIDO": market.html se sirve desde el dominio del
+    // JUEGO (game.grasslandforest.com), pero la API vive en
+    // api.grasslandforest.com. Con API_BASE:'' las llamadas /api/auth/me iban
+    // al dominio del juego (que no tiene API) → 404 → el market creía que no
+    // había sesión aunque el jugador estuviera jugando. En producción se
+    // apunta a la API real; los subdominios de grasslandforest.com son
+    // "same-site", así que la cookie httpOnly de sesión viaja igual con
+    // credentials:'include'. En local ('' = mismo origen) no cambia nada.
+    API_BASE: (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+      ? ''
+      : 'https://api.grasslandforest.com',
     // A dónde vuelve el botón "Volver al juego".
     GAME_URL: '/game.html',
     // Prefijo para los íconos de objetos (rutas devueltas por el catálogo,

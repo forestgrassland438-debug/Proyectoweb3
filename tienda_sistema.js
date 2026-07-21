@@ -80,11 +80,23 @@ class TiendaSistema {
                 if (this.scene) this.scene.moneda_plata = normalized;
                 if (this.scene) this.scene.monedaPlata = normalized;
                 if (this.scene) this.scene.playerMonedaPlata = normalized;
+                // FIX DESCUENTO REAL: window.playerStats es la fuente canónica
+                // (savegg y /api/save la priorizan sobre this.moneda). Sin esta
+                // línea, el descuento local se PERDÍA en el siguiente guardado.
+                if (window.playerStats) window.playerStats.plata = normalized;
+                // statsSync.set dispara la transacción blockchain real que
+                // descuenta la factura on-chain de plata (vía /api/stats/update).
+                if (this.scene && this.scene.statsSync) this.scene.statsSync.set('plata', normalized);
             } else {
                 this.playerMoneda = normalized;
                 if (this.scene) this.scene.moneda = normalized;
                 if (this.scene) this.scene.monto_moneda = normalized;
                 if (this.scene) this.scene.playerMoneda = normalized;
+                // FIX DESCUENTO REAL (ver nota arriba): sin actualizar
+                // window.playerStats.oro, /api/save restauraba el oro viejo.
+                if (window.playerStats) window.playerStats.oro = normalized;
+                // Transacción blockchain real del oro (factura on-chain).
+                if (this.scene && this.scene.statsSync) this.scene.statsSync.set('oro', normalized);
             }
         };
         this.formatCurrencyAmount = (amount, currency) => {
@@ -1764,75 +1776,98 @@ class TiendaSistema {
             remainingSilver: this.playerMonedaPlata
         };
 
-
-        // semillas 
-        
-        if (transactionInfo.itemId === "Semillax") {
-            await this.ejecutarDivision("bolsa zanahorias","Semillax",50,transactionInfo.quantity);
-        }
-        
-        if (transactionInfo.itemId === "Semillax1") {
-            await this.ejecutarDivision("bolsa de tomates","Semillax1",50,transactionInfo.quantity);
-        }
-
-        if (transactionInfo.itemId === "Semillax2") {
-            await this.ejecutarDivision("bolsa de trigo","Semillax2",50,transactionInfo.quantity);
-        }
-
-        if (transactionInfo.itemId === "Semillax3") {
-            await this.ejecutarDivision("bolsa de calabazas","Semillax3",50,transactionInfo.quantity);
-        }
-
-        // herramientas
-
-        
-        if (transactionInfo.itemId === "Regaderax") {
-            await this.ejecutarDivision("Regaderax","Regaderax",1,transactionInfo.quantity);
-        }
-        
-                
-        if (transactionInfo.itemId === "Tijerasx") {
-            await this.ejecutarDivision("Tijerasx","Tijerasx",1,transactionInfo.quantity);
-        }
-        
-
-        if (transactionInfo.itemId === "hacha_de_madera") {
-            await this.ejecutarDivision("hacha de madera","hacha_de_madera",5,transactionInfo.quantity);
-        }
-                
-
-        if (transactionInfo.itemId === "pico_de_madera") {
-            await this.ejecutarDivision("pico de madera","pico_de_madera",5,transactionInfo.quantity);
-        }
-        
-        
-        // comidas
-
-        
-        if (transactionInfo.itemId === "tomate_buena") {
-            await this.ejecutarDivision("tomate_buena","tomate_buena",20,transactionInfo.quantity);
-        }
-
-        if (transactionInfo.itemId === "zanahoria_buena") {
-            await this.ejecutarDivision("zanahoria_buena","zanahoria_buena",20,transactionInfo.quantity);
-        }
-
-        // pote con agua
-
-        if (transactionInfo.itemId === "balde_con_agua") {
-            await this.ejecutarDivision("balde_con_agua","balde_con_agua",5,transactionInfo.quantity);
-        }
-
-
-
+        // FIX UI NO BLOQUEANTE: antes se hacía `await ejecutarDivision(...)`
+        // aquí mismo, así que el modal quedaba trancado hasta que la
+        // transacción blockchain confirmara (minutos en el peor caso). Ahora
+        // la parte on-chain se ENCOLA en segundo plano (una compra tras otra,
+        // para no pisar nonces ni el lock interno) y el jugador queda libre
+        // para seguir comprando de inmediato. Si la transacción no confirma,
+        // _runOnchainPurchase reembolsa el dinero automáticamente.
+        this._enqueueOnchainPurchase(item, quantity, transactionInfo);
 
         console.log('🛒 SHOP TRANSACTION (PURCHASE)', transactionInfo);
-        
+
         this.addToHistorial('compra', item, quantity, totalCost);
         this.showTransactionAnimation('compra', item, quantity, totalCost);
-        
+
         try { this.scene?.queuedAction && this.scene.queuedAction({ type: 'forSpam2' }); } catch (err) { /* ignorar */ }
         console.log(`✅ Purchase recorded: ${quantity}x ${item.name} for ${totalCost} ${this.getCurrencyLabel(currency)}`);
+    }
+
+    // Tabla de seguimiento on-chain por producto: itemId → [ruta_tabla, límite de stack]
+    _getOnchainTableFor(itemId) {
+        const T = {
+            // semillas
+            Semillax:  ['bolsa zanahorias', 50],
+            Semillax1: ['bolsa de tomates', 50],
+            Semillax2: ['bolsa de trigo', 50],
+            Semillax3: ['bolsa de calabazas', 50],
+            // herramientas
+            Regaderax: ['Regaderax', 1],
+            Tijerasx:  ['Tijerasx', 1],
+            hacha_de_madera: ['hacha de madera', 5],
+            pico_de_madera:  ['pico de madera', 5],
+            // comidas
+            tomate_buena:    ['tomate_buena', 20],
+            zanahoria_buena: ['zanahoria_buena', 20],
+            // pote con agua
+            balde_con_agua:  ['balde_con_agua', 5]
+        };
+        return T[itemId] || null;
+    }
+
+    // Encola la parte blockchain de una compra. Las compras se procesan en
+    // serie (una promesa encadenada) pero SIN bloquear la interfaz.
+    _enqueueOnchainPurchase(item, quantity, transactionInfo) {
+        if (!this._purchaseQueue) this._purchaseQueue = Promise.resolve();
+        this._purchaseQueue = this._purchaseQueue
+            .then(() => this._runOnchainPurchase(item, quantity, transactionInfo))
+            .catch(err => console.error('❌ Error en cola de compras on-chain:', err));
+    }
+
+    async _runOnchainPurchase(item, quantity, transactionInfo) {
+        const mapping = this._getOnchainTableFor(item.id);
+        if (!mapping) return; // producto sin seguimiento on-chain
+
+        const [rutaTabla, limite] = mapping;
+        const before = this.getItemCountInInventory(item.id);
+
+        try {
+            await this.ejecutarDivision(rutaTabla, item.id, limite, quantity);
+        } catch (err) {
+            console.error(`❌ ejecutarDivision falló para ${item.id}:`, err);
+        }
+
+        // Verificar cuántas unidades se confirmaron realmente (mismo patrón
+        // que usa GameScene con las semillas: comparar inventario antes/después)
+        const after = this.getItemCountInInventory(item.id);
+        const added = Math.max(0, after - before);
+
+        if (added < quantity) {
+            // REEMBOLSO automático de lo no confirmado: el dinero solo se
+            // queda descontado si la transacción blockchain entregó el item.
+            const missing = quantity - added;
+            const refund = missing * (transactionInfo.unitPrice || item.buyPrice || 0);
+            const currency = transactionInfo.currency || this.getItemCurrency(item);
+
+            if (refund > 0) {
+                this.setBalanceByCurrency(currency, this.getBalanceByCurrency(currency) + refund);
+                this.updateMonedaDisplay?.();
+            }
+            if (item.limiteDiario > 0) {
+                this.dailyLimits[item.id] = Math.max(0, (this.dailyLimits[item.id] || 0) - missing);
+                this.saveDailyLimits();
+            }
+            this.showNotification?.(
+                `⚠️ ${missing}x ${item.name} no se confirmó on-chain. Se reembolsaron ${refund} ${this.getCurrencyLabel(currency)}`,
+                'error'
+            );
+            console.warn(`⚠️ Compra parcial: ${added}/${quantity} ${item.id} confirmados — reembolso ${refund}`);
+        } else {
+            console.log(`✅ Compra on-chain confirmada: ${quantity}x ${item.id}`);
+        }
+
+        this.updateMonedaDisplay?.();
     }
 
 
@@ -2056,7 +2091,7 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
     // Inicializar relayClient si hace falta
     if (!this.relayClient) {
       this.relayClient = new PhaserRelay({
-        apiBase: this.scene?.serverBase,
+        apiBase: 'http://127.0.0.1:3001',
         debug: true,
         forceLocalhostTo127: true
       });
@@ -2075,7 +2110,7 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
     // Auth
     const auth = await this.relayClient.checkAuth();
     if (!auth || !auth.success) {
-      this.relayClient.showError('❌ Debes estar autenticado. Por favor, inicia sesión de nuevo.', 5000);
+      this.relayClient.showError('❌ Debes estar autenticado. Visita http://127.0.0.1:3001/login', 5000);
       return;
     }
     console.log('🔑 Usuario autenticado:', auth.address);
@@ -2789,7 +2824,7 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
     // Inicializar relayClient si hace falta
     if (!this.relayClient) {
       this.relayClient = new PhaserRelay({
-        apiBase: this.scene?.serverBase,
+        apiBase: 'http://127.0.0.1:3001',
         debug: true,
         forceLocalhostTo127: true
       });
@@ -2803,7 +2838,7 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
     // Auth
     const auth = await this.relayClient.checkAuth();
     if (!auth || !auth.success) {
-      this.relayClient.showError('❌ Debes estar autenticado. Por favor, inicia sesión de nuevo.', 5000);
+      this.relayClient.showError('❌ Debes estar autenticado. Visita http://127.0.0.1:3001/login', 5000);
       return false;
     }
     console.log('🔑 Usuario autenticado:', auth.address);
