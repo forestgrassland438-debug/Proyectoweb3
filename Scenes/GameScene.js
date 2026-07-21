@@ -5441,17 +5441,19 @@ window.hub.onRetry = (hiddenData) => {
     }
 
     // Store Button — abre el Market en una pestaña nueva.
-    // IMPORTANTE: usa this.serverclient1 (mismo dominio que el juego/API) y NO
-    // un dominio distinto (ej. store.grasslandforest.com): la sesión se guarda
-    // en una cookie httpOnly atada al dominio del juego, así que el Market
-    // sólo puede leerla si vive en ese mismo origen (o en un subdominio con
-    // COOKIE_DOMAIN configurado en el backend). Si sirves market.html en otra
-    // parte, ajusta esta URL y configura COOKIE_DOMAIN en server2.js.
+    // FIX: antes se usaba this.serverclient1 (dominio de la API,
+    // api.grasslandforest.com) y el Market debe abrirse en el dominio del
+    // JUEGO (game.grasslandforest.com), donde vive market.html junto a
+    // index.html. Resolvemos la URL relativa a la página actual: en
+    // producción → https://game.grasslandforest.com/market.html y en
+    // desarrollo local → el mismo host/puerto que sirve el juego.
+    // (La cookie de sesión funciona entre subdominios vía COOKIE_DOMAIN
+    // =.grasslandforest.com en el backend.)
     const storeBtn = document.getElementById('store-btn');
     if (storeBtn) {
       storeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const marketUrl = `${this.serverclient1}/market.html`;
+        const marketUrl = new URL('market.html', window.location.href).href;
         window.open(marketUrl, '_blank');
       });
     }
@@ -8119,11 +8121,10 @@ handleMouseMovement(delta) {
         let dy = worldPoint.y - this.player.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
-        // Cerca → mantener animación según última dirección
+        // Cerca del cursor → no hay desplazamiento este frame. La animación
+        // NO se toca aquí: la "Decisión ÚNICA de animación" (más abajo en
+        // update, tras resolver colisiones) pondrá el idle que corresponda.
         if (distance < 2) {
-            if (this.lastDirection) {
-                this.player.anims.play(this.lastDirection, true);
-            }
             return;
         }
 
@@ -8146,23 +8147,14 @@ handleMouseMovement(delta) {
         this.player.x += dx * this.mouseMovement.speed * deltaInSeconds;
         this.player.y += dy * this.mouseMovement.speed * deltaInSeconds;
 
-        // Para movimiento con MOUSE solo existen las animaciones de
-        // izquierda/derecha (no hay "arriba"/"abajo" en este modo):
-        //   - "left"  cubre: izquierda, izquierda+arriba, izquierda+abajo
-        //   - "right" cubre: derecha, derecha+arriba, derecha+abajo
-        // Se elige según el signo de dx (componente horizontal hacia el
-        // cursor), sin importar el componente vertical. Si dx es
-        // exactamente 0 (movimiento puramente vertical, muy raro con
-        // mouse), se mantiene la última animación horizontal usada.
-        if (dx < 0) {
-            this.player.anims.play("left", true);
-            this.lastDirection = "left";
-        } else if (dx > 0) {
-            this.player.anims.play("right", true);
-            this.lastDirection = "right";
-        } else if (this.lastDirection === "left" || this.lastDirection === "right") {
-            this.player.anims.play(this.lastDirection, true);
-        }
+        // NOTA: aquí ya NO se llama a anims.play(). Antes este bloque
+        // reproducía una animación y el bloque de "Decisión ÚNICA" (que corre
+        // después de resolver colisiones) reproducía OTRA en el mismo frame;
+        // con play(key, true) dos claves distintas por frame reinician la
+        // animación en el frame 0 una y otra vez → se veía congelada al
+        // colisionar en diagonal con el mouse. La dirección hacia el cursor
+        // queda guardada en mouseMovement.directionX/Y y la decisión final
+        // (solo 'left'/'right' en modo mouse) se toma una única vez abajo.
 
         this.posicionplayerx = this.player.x;
         this.posicionplayery = this.player.y;
@@ -13456,27 +13448,41 @@ createTestBeep() {
 sendPlayerMovement() {
   if (!this.socket || !this.socket.connected || !this.player) return;
   
-  // Calcular si se está moviendo realmente
-  const isMoving = this.keys.left.isDown || this.keys.right.isDown || 
+  // Calcular si se está moviendo realmente (teclado O mouse)
+  const keyboardMoving = this.keys.left.isDown || this.keys.right.isDown ||
                    this.keys.up.isDown || this.keys.down.isDown ||
                    this.keys.leftArrow.isDown || this.keys.rightArrow.isDown ||
                    this.keys.upArrow.isDown || this.keys.downArrow.isDown;
-  
+
+  // FIX MULTIJUGADOR-MOUSE: el movimiento con mouse no toca el teclado, así
+  // que antes isMoving quedaba en false y se emitía direction:'stop' — los
+  // demás jugadores te veían deslizarte por el mapa SIN animación. Se
+  // considera "moviéndose con mouse" solo si el modo seguir-cursor está
+  // activo Y hubo desplazamiento real desde el último envío (así, si te
+  // quedas parado sobre el cursor con el click sostenido, se emite 'stop'
+  // y no apareces caminando en el sitio en las pantallas ajenas).
+  const mouseDisplaced = !this.lastSentPosition ||
+      Math.abs(this.player.x - this.lastSentPosition.x) >= 0.5 ||
+      Math.abs(this.player.y - this.lastSentPosition.y) >= 0.5;
+  const mouseMoving = !!(this.mouseMovement && this.mouseMovement.followCursorActive) && mouseDisplaced;
+
+  const isMoving = keyboardMoving || mouseMoving;
+
   // Solo enviar si hay cambios significativos
-  if (this.lastSentPosition && 
+  if (this.lastSentPosition &&
       Math.abs(this.player.x - this.lastSentPosition.x) < 0.5 &&
       Math.abs(this.player.y - this.lastSentPosition.y) < 0.5 &&
       this.lastMovingState === isMoving) {
     return;
   }
-  
+
   this.lastSentPosition = { x: this.player.x, y: this.player.y };
   this.lastMovingState = isMoving;
-  
+
   // Determinar dirección basada en movimiento real
   let currentDirection = this.lastDirection;
   let directionState = 'stop_right';
-  
+
   if (isMoving) {
     if (this.keys.left.isDown || this.keys.leftArrow.isDown) {
       currentDirection = 'left';
@@ -13484,11 +13490,19 @@ sendPlayerMovement() {
     } else if (this.keys.right.isDown || this.keys.rightArrow.isDown) {
       currentDirection = 'right';
       directionState = 'right';
+    } else if (mouseMoving && this.mouseMovement) {
+      // FIX MULTIJUGADOR-MOUSE: derivar la dirección del vector hacia el
+      // cursor. Con mouse solo existen 'left'/'right' (igual que la
+      // animación local): la componente horizontal decide el lado.
+      const mdx = this.mouseMovement.directionX || 0;
+      if (mdx < -0.001) { currentDirection = 'left'; directionState = 'left'; }
+      else if (mdx > 0.001) { currentDirection = 'right'; directionState = 'right'; }
+      else { directionState = (currentDirection === 'left') ? 'left' : 'right'; }
     } else {
       // Movimiento vertical - mantener dirección anterior
       directionState = currentDirection || 'right';
     }
-    
+
     // Actualizar lastDirection solo si hay movimiento horizontal
     if (directionState === 'left' || directionState === 'right') {
       this.lastDirection = directionState;
@@ -13611,6 +13625,18 @@ createOtherPlayer(playerInfo) {
 
 updateOtherPlayer(playerInfo) {
   const player = this.otherPlayers[playerInfo.id];
+
+  // FIX: este chequeo estaba DESPUÉS de usar player._chatText / player.sprite,
+  // así que un playerMoved de un jugador aún no creado lanzaba TypeError sobre
+  // undefined y el jugador jamás llegaba a crearse por esta vía.
+  if (!player) {
+    // Don't recreate a player that just left — stale playerMoved event
+    if (this._recentlyRemoved && this._recentlyRemoved[playerInfo.id]) return;
+    console.log(`⚠️ Jugador ${playerInfo.id} no encontrado, creando...`);
+    this.createOtherPlayer(playerInfo);
+    return;
+  }
+
   // Mover burbujas de chat/typing junto con el sprite
   if (player._chatText) {
     const sprH5 = player.sprite.displayHeight || 64;
@@ -13640,14 +13666,6 @@ updateOtherPlayer(playerInfo) {
     const dotsY = playerInfo.y - sprH7 * 0.5 - 26;
     player._typingContainer.setPosition(playerInfo.x, dotsY);
     player._typingContainer.setDepth(99998);
-  }
-
-  if (!player) {
-    // Don't recreate a player that just left — stale playerMoved event
-    if (this._recentlyRemoved && this._recentlyRemoved[playerInfo.id]) return;
-    console.log(`⚠️ Jugador ${playerInfo.id} no encontrado, creando...`);
-    this.createOtherPlayer(playerInfo);
-    return;
   }
 
   const x = Number(playerInfo.x) || 0;
@@ -19477,6 +19495,14 @@ if (dog.smoothOffsetX === undefined) dog.smoothOffsetX = 0;
 if (dog.smoothOffsetY === undefined) dog.smoothOffsetY = 20;
 if (dog.lastAnimState === undefined) dog.lastAnimState = 'idle';
 if (dog.isMoving === undefined) dog.isMoving = false;
+// FIX: facingLockUntil nunca se inicializaba; "now >= undefined" siempre es
+// false, así que la mirada del perro jamás se actualizaba con las teclas
+// izquierda/derecha. Con 0 el primer cambio de mirada funciona de inmediato.
+if (dog.facingLockUntil === undefined) dog.facingLockUntil = 0;
+// Lado de esquive preferido por la evasión anticipada (+1 / -1 / 0 = ninguno).
+// Se recuerda entre frames para rodear el obstáculo por un solo lado en vez
+// de zigzaguear.
+if (dog.avoidSide === undefined) dog.avoidSide = 0;
 
 const now = this.time.now;
 const FOLLOW_OFFSET = 70;
@@ -19669,10 +19695,79 @@ const resolveDogMove = (fromX, fromY, toX, toY) => {
   return { x: fromX, y: fromY };
 };
 
+// ── EVASIÓN ANTICIPADA (perro "inteligente") ──────────────────────────────
+// Antes el perro solo REACCIONABA al chocar: proponía el paso, colisionaba y
+// resolveDogMove buscaba por dónde salir — se veía cómo se pegaba al
+// obstáculo y luego se deslizaba. Ahora MIRA HACIA ADELANTE en la línea hacia
+// su objetivo: si detecta que el camino directo va a chocar en los próximos
+// pasos, desvía el objetivo hacia un costado (perpendicular al rumbo) ANTES
+// de tocar el obstáculo, y recuerda el lado elegido (dog.avoidSide) para
+// rodearlo por un solo lado sin zigzaguear. resolveDogMove queda como red de
+// seguridad final.
+const computeSteeredTarget = () => {
+  const dx = dog.targetX - dog.x;
+  const dy = dog.targetY - dog.y;
+  const dist = Math.hypot(dx, dy);
+
+  // Muy cerca del objetivo: no hay nada que anticipar
+  if (dist < 6) {
+    dog.avoidSide = 0;
+    return { x: dog.targetX, y: dog.targetY };
+  }
+
+  const nx = dx / dist;
+  const ny = dy / dist;
+
+  // Sondear el camino directo por delante del perro (sin pasarse del objetivo)
+  const LOOKAHEAD_STEPS = [14, 28, 42];
+  let blockedAt = -1;
+  for (const d of LOOKAHEAD_STEPS) {
+    if (d > dist + 8) break;
+    if (collidesAt(dog.x + nx * d, dog.y + ny * d)) { blockedAt = d; break; }
+  }
+
+  // Camino libre: seguir directo y olvidar el lado de esquive
+  if (blockedAt < 0) {
+    dog.avoidSide = 0;
+    return { x: dog.targetX, y: dog.targetY };
+  }
+
+  // Camino bloqueado más adelante: buscar un punto de desvío lateral.
+  // Perpendicular al rumbo (px,py); se prueba primero el lado ya elegido en
+  // frames anteriores para mantener un rodeo coherente.
+  const px = -ny;
+  const py = nx;
+  const sides = dog.avoidSide !== 0 ? [dog.avoidSide, -dog.avoidSide] : [1, -1];
+
+  for (const side of sides) {
+    for (const lateral of [26, 40, 54]) {
+      const cx = dog.x + nx * Math.min(blockedAt, 24) + px * lateral * side;
+      const cy = dog.y + ny * Math.min(blockedAt, 24) + py * lateral * side;
+
+      // El punto de desvío y el tramo intermedio hacia él deben estar libres
+      if (!collidesAt(cx, cy) &&
+          !collidesAt(dog.x + (cx - dog.x) * 0.5, dog.y + (cy - dog.y) * 0.5)) {
+        dog.avoidSide = side;
+        return { x: cx, y: cy };
+      }
+    }
+  }
+
+  // Ningún desvío lateral libre: dejar que resolveDogMove haga lo que pueda
+  dog.avoidSide = 0;
+  return { x: dog.targetX, y: dog.targetY };
+};
+
+const steerTarget = computeSteeredTarget();
+
 // Movimiento suave
 const DOG_LERP = 0.08;
-const proposedX = dog.x + (dog.targetX - dog.x) * DOG_LERP;
-const proposedY = dog.y + (dog.targetY - dog.y) * DOG_LERP;
+// Al esquivar (steerTarget ≠ target), un lerp sobre una distancia más corta
+// haría al perro más lento justo cuando necesita rodear; se compensa un poco.
+const isDetouring = (steerTarget.x !== dog.targetX || steerTarget.y !== dog.targetY);
+const effLerp = isDetouring ? Math.min(0.14, DOG_LERP * 1.75) : DOG_LERP;
+const proposedX = dog.x + (steerTarget.x - dog.x) * effLerp;
+const proposedY = dog.y + (steerTarget.y - dog.y) * effLerp;
 
 const moved = resolveDogMove(dog.x, dog.y, proposedX, proposedY);
 const prevDogX = dog.x;
@@ -19691,6 +19786,9 @@ if (dog.desiredFacing === 'left' || dog.desiredFacing === 'right') {
 } else if (Math.abs(dogDx) > 0.01) {
   dog.lastFacing = dogDx > 0 ? 'right' : 'left';
 }
+// FIX MULTIJUGADOR: sendPlayerMovement emite this.dog.direction, pero nunca
+// se actualizaba — los demás jugadores no veían hacia dónde mira tu perro.
+dog.direction = dog.lastFacing;
 
 // Animación estable: solo se reproduce si realmente está caminando
 const shouldAnimate = playerMoved || dogMoved || intentDir !== null;
@@ -19819,7 +19917,38 @@ if (dog.shadowContainer) {
       const movingX = Math.abs(finalDx) > EPS;
       const movingY = Math.abs(finalDy) > EPS;
 
-      if (!movingX && !movingY) {
+      const mouseActive = !!(this.mouseMovement && this.mouseMovement.followCursorActive);
+
+      if (mouseActive) {
+        // ── MODO MOUSE: solo existen 2 animaciones ──
+        //   · 'right' cubre: derecha, derecha+arriba y derecha+abajo
+        //   · 'left'  cubre: izquierda, izquierda+arriba e izquierda+abajo
+        // Las animaciones 'up'/'down' NUNCA se usan en este modo.
+        // La mirada sale de la INTENCIÓN hacia el cursor (directionX), no del
+        // desplazamiento real: así, si una colisión bloquea la horizontal
+        // pero se sigue avanzando en vertical (ej. choco a la derecha yendo
+        // derecha+arriba con el mouse), la animación 'right' sigue
+        // reproduciéndose en vez de quedarse detenida.
+        const mdx = this.mouseMovement.directionX || 0;
+        let facing;
+        if (mdx < -0.001) facing = 'left';
+        else if (mdx > 0.001) facing = 'right';
+        else facing = (this.lastDirection === 'left') ? 'left' : 'right';
+
+        if (movingX || movingY) {
+          this.lastDirection = facing;
+          const currentKey = this.player.anims.currentAnim?.key;
+          if (!this.player.anims.isPlaying || currentKey !== facing) {
+            this.player.anims.play(facing, true);
+          }
+        } else {
+          // Sin desplazamiento real (llegó al cursor o bloqueado en ambos
+          // ejes): idle mirando hacia el lado del cursor.
+          this.player.anims.stop();
+          this.lastDirection = facing;
+          this.player.setTexture(facing === 'left' ? 'player_left_1' : 'player_right_1');
+        }
+      } else if (!movingX && !movingY) {
         // Ni X ni Y se movieron realmente (input suelto, o bloqueado en ambos
         // ejes -ej. atascado contra una esquina/otro personaje-): mostrar idle.
         this.player.anims.stop();

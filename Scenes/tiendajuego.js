@@ -2765,11 +2765,12 @@ handleMouseMovement(delta) {
         let dy = worldPoint.y - this.player.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
-        // Cerca → mantener animación según última dirección
+        // Cerca → mantener animación según última dirección HORIZONTAL
+        // (en modo mouse solo existen 'left'/'right'; si lastDirection quedó
+        // en 'up'/'down' por el teclado, se usa 'right' por defecto)
         if (distance < 2) {
-            if (this.lastDirection) {
-                this.player.anims.play(this.lastDirection, true);
-            }
+            const horiz = (this.lastDirection === 'left') ? 'left' : 'right';
+            this.player.anims.play(horiz, true);
             return;
         }
 
@@ -2792,22 +2793,23 @@ handleMouseMovement(delta) {
         this.player.x += dx * this.mouseMovement.speed * deltaInSeconds;
         this.player.y += dy * this.mouseMovement.speed * deltaInSeconds;
 
-        // ✅ ANIMACIONES CORREGIDAS (MISMA ESTRUCTURA)
+        // Para movimiento con MOUSE solo existen 2 animaciones:
+        //   · 'right' cubre: derecha, derecha+arriba y derecha+abajo
+        //   · 'left'  cubre: izquierda, izquierda+arriba e izquierda+abajo
+        // Las animaciones 'up'/'down' NUNCA se usan en este modo (antes un
+        // movimiento casi vertical con el mouse las disparaba y se veían las
+        // 6 animaciones). El lado lo decide la componente horizontal hacia el
+        // cursor; si es 0 (vertical puro), se mantiene el último lado usado.
         if (dx < 0) {
             this.player.anims.play("left", true);
             this.lastDirection = "left";
-
         } else if (dx > 0) {
             this.player.anims.play("right", true);
             this.lastDirection = "right";
-
-        } else if (dy < 0) {
-            this.player.anims.play("up", true);
-            this.lastDirection = "up";
-
-        } else if (dy > 0) {
-            this.player.anims.play("down", true);
-            this.lastDirection = "down";
+        } else {
+            const horiz = (this.lastDirection === 'left') ? 'left' : 'right';
+            this.player.anims.play(horiz, true);
+            this.lastDirection = horiz;
         }
 
         this.posicionplayerx = this.player.x;
@@ -9142,6 +9144,12 @@ if (dog.smoothOffsetX === undefined) dog.smoothOffsetX = 0;
 if (dog.smoothOffsetY === undefined) dog.smoothOffsetY = 20;
 if (dog.lastAnimState === undefined) dog.lastAnimState = 'idle';
 if (dog.isMoving === undefined) dog.isMoving = false;
+// FIX: facingLockUntil nunca se inicializaba; "now >= undefined" siempre es
+// false, así que la mirada del perro jamás se actualizaba con las teclas
+// izquierda/derecha. Con 0 el primer cambio de mirada funciona de inmediato.
+if (dog.facingLockUntil === undefined) dog.facingLockUntil = 0;
+// Lado de esquive preferido por la evasión anticipada (+1 / -1 / 0 = ninguno)
+if (dog.avoidSide === undefined) dog.avoidSide = 0;
 
 const now = this.time.now;
 const FOLLOW_OFFSET = 70;
@@ -9334,10 +9342,65 @@ const resolveDogMove = (fromX, fromY, toX, toY) => {
   return { x: fromX, y: fromY };
 };
 
+// ── EVASIÓN ANTICIPADA (perro "inteligente") ──────────────────────────────
+// Igual que en GameScene: el perro sondea el camino directo hacia su objetivo
+// y, si va a chocar en los próximos pasos, desvía el rumbo hacia un costado
+// ANTES de tocar el obstáculo (recordando el lado con dog.avoidSide para no
+// zigzaguear). resolveDogMove queda como red de seguridad final.
+const computeSteeredTarget = () => {
+  const dx = dog.targetX - dog.x;
+  const dy = dog.targetY - dog.y;
+  const dist = Math.hypot(dx, dy);
+
+  if (dist < 6) {
+    dog.avoidSide = 0;
+    return { x: dog.targetX, y: dog.targetY };
+  }
+
+  const nx = dx / dist;
+  const ny = dy / dist;
+
+  const LOOKAHEAD_STEPS = [14, 28, 42];
+  let blockedAt = -1;
+  for (const d of LOOKAHEAD_STEPS) {
+    if (d > dist + 8) break;
+    if (collidesAt(dog.x + nx * d, dog.y + ny * d)) { blockedAt = d; break; }
+  }
+
+  if (blockedAt < 0) {
+    dog.avoidSide = 0;
+    return { x: dog.targetX, y: dog.targetY };
+  }
+
+  const px = -ny;
+  const py = nx;
+  const sides = dog.avoidSide !== 0 ? [dog.avoidSide, -dog.avoidSide] : [1, -1];
+
+  for (const side of sides) {
+    for (const lateral of [26, 40, 54]) {
+      const cx = dog.x + nx * Math.min(blockedAt, 24) + px * lateral * side;
+      const cy = dog.y + ny * Math.min(blockedAt, 24) + py * lateral * side;
+
+      if (!collidesAt(cx, cy) &&
+          !collidesAt(dog.x + (cx - dog.x) * 0.5, dog.y + (cy - dog.y) * 0.5)) {
+        dog.avoidSide = side;
+        return { x: cx, y: cy };
+      }
+    }
+  }
+
+  dog.avoidSide = 0;
+  return { x: dog.targetX, y: dog.targetY };
+};
+
+const steerTarget = computeSteeredTarget();
+
 // Movimiento suave
 const DOG_LERP = 0.08;
-const proposedX = dog.x + (dog.targetX - dog.x) * DOG_LERP;
-const proposedY = dog.y + (dog.targetY - dog.y) * DOG_LERP;
+const isDetouring = (steerTarget.x !== dog.targetX || steerTarget.y !== dog.targetY);
+const effLerp = isDetouring ? Math.min(0.14, DOG_LERP * 1.75) : DOG_LERP;
+const proposedX = dog.x + (steerTarget.x - dog.x) * effLerp;
+const proposedY = dog.y + (steerTarget.y - dog.y) * effLerp;
 
 const moved = resolveDogMove(dog.x, dog.y, proposedX, proposedY);
 const prevDogX = dog.x;
@@ -9356,6 +9419,9 @@ if (dog.desiredFacing === 'left' || dog.desiredFacing === 'right') {
 } else if (Math.abs(dogDx) > 0.01) {
   dog.lastFacing = dogDx > 0 ? 'right' : 'left';
 }
+// FIX MULTIJUGADOR: sendPlayerMovement emite this.dog.direction, pero nunca
+// se actualizaba — los demás jugadores no veían hacia dónde mira tu perro.
+dog.direction = dog.lastFacing;
 
 // Animación estable: solo se reproduce si realmente está caminando
 const shouldAnimate = playerMoved || dogMoved || intentDir !== null;
