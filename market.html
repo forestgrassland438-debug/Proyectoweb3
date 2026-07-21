@@ -9,28 +9,34 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
+  /* ==========================================================================
+     TEMA AZUL / CELESTE  (antes era verde)
+     Paleta oscura navy con acentos celeste y cian. Los "tickets" del mercado
+     pasan a un papel azul muy claro para contrastar sobre el fondo navy.
+     ========================================================================== */
   :root{
-    --bg-deep:#0f1f16;
-    --bg-panel:#16281d;
-    --bg-panel-2:#1c3123;
-    --line:rgba(234,241,230,.12);
-    --line-strong:rgba(234,241,230,.22);
-    --ink:#20301f;
-    --paper:#f4ead4;
-    --paper-2:#ece0c4;
-    --text:#eaf1e6;
-    --text-muted:#9db6a4;
-    --text-faint:#6f8b78;
-    --gold:#d9a441;
-    --gold-ink:#5a3d0d;
-    --silver:#b9c8cd;
-    --silver-ink:#33454a;
-    --accent:#e2703a;
-    --accent-2:#7fb069;
-    --danger:#d9534f;
+    --bg-deep:#0a1626;
+    --bg-panel:#112238;
+    --bg-panel-2:#1a3352;
+    --line:rgba(180,215,255,.12);
+    --line-strong:rgba(180,215,255,.24);
+    --ink:#123049;
+    --paper:#e9f2fc;
+    --paper-2:#d3e4f6;
+    --text:#e8f2ff;
+    --text-muted:#93b4d6;
+    --text-faint:#5f82a4;
+    --gold:#e0b64a;
+    --gold-ink:#4a3407;
+    --silver:#c2d4dd;
+    --silver-ink:#2b3d44;
+    --accent:#3fa9f5;       /* celeste principal (botones) */
+    --accent-ink:#062842;
+    --accent-2:#39cfe6;     /* cian secundario (categorías / vender) */
+    --danger:#ff6b6b;
     --radius:14px;
     --radius-sm:8px;
-    --shadow:0 10px 30px rgba(0,0,0,.35);
+    --shadow:0 10px 30px rgba(0,0,0,.45);
     --font-display:'Press Start 2P', monospace;
     --font-body:'Manrope', system-ui, -apple-system, sans-serif;
   }
@@ -40,8 +46,8 @@
   body{
     margin:0;
     background:
-      radial-gradient(1100px 700px at 15% -10%, #17311f 0%, transparent 60%),
-      radial-gradient(900px 600px at 110% 10%, #1a3524 0%, transparent 55%),
+      radial-gradient(1100px 700px at 15% -10%, #123a63 0%, transparent 60%),
+      radial-gradient(900px 600px at 110% 10%, #0e2c52 0%, transparent 55%),
       var(--bg-deep);
     color:var(--text);
     font-family:var(--font-body);
@@ -67,7 +73,7 @@
   .loader-coin{
     width:46px; height:46px; border-radius:50%;
     border:4px solid var(--line-strong);
-    border-top-color:var(--gold);
+    border-top-color:var(--accent);
     animation:spin 0.9s linear infinite;
   }
   @keyframes spin{ to{ transform:rotate(360deg); } }
@@ -88,7 +94,7 @@
     font-size:14px;
     line-height:1.6;
     margin:0 0 14px;
-    color:var(--paper);
+    color:#dcecff;
   }
   .gate-card p{
     color:var(--text-muted);
@@ -99,18 +105,18 @@
   .btn-primary{
     display:inline-flex; align-items:center; gap:8px;
     background:var(--accent);
-    color:#fff;
+    color:var(--accent-ink);
     border:none;
     padding:13px 22px;
     border-radius:999px;
-    font-weight:700;
+    font-weight:800;
     font-size:14.5px;
     cursor:pointer;
     text-decoration:none;
-    box-shadow:0 6px 16px rgba(226,112,58,.35);
+    box-shadow:0 6px 16px rgba(63,169,245,.35);
     transition:transform .15s ease, box-shadow .15s ease;
   }
-  .btn-primary:hover{ transform:translateY(-1px); box-shadow:0 8px 20px rgba(226,112,58,.45); }
+  .btn-primary:hover{ transform:translateY(-1px); box-shadow:0 8px 20px rgba(63,169,245,.5); }
   .btn-primary:active{ transform:translateY(0); }
 
   /* ---------- App shell ---------- */
@@ -119,7 +125,7 @@
 
   .topbar{
     position:sticky; top:0; z-index:20;
-    background:rgba(15,31,22,.92);
+    background:rgba(10,22,38,.92);
     backdrop-filter:blur(10px);
     border-bottom:1px solid var(--line);
   }
@@ -137,7 +143,7 @@
   }
   .brand-badge{
     width:34px; height:34px; border-radius:9px;
-    background:linear-gradient(160deg, var(--accent-2), #4f8a4a);
+    background:linear-gradient(160deg, var(--accent), #1f6fb0);
     display:flex; align-items:center; justify-content:center;
     font-size:17px;
   }
@@ -150,6 +156,24 @@
     display:flex; align-items:center; gap:8px;
     flex-wrap:wrap;
   }
+  /* Selector de idioma ES | EN */
+  .lang-switch{
+    display:flex; align-items:center;
+    background:var(--bg-panel-2);
+    border:1px solid var(--line);
+    border-radius:999px;
+    padding:3px;
+    gap:2px;
+  }
+  .lang-switch button{
+    background:none; border:none; cursor:pointer;
+    color:var(--text-muted);
+    font-size:12px; font-weight:800;
+    padding:5px 11px; border-radius:999px;
+    letter-spacing:.5px;
+  }
+  .lang-switch button.active{ background:var(--accent); color:var(--accent-ink); }
+
   .chip{
     display:flex; align-items:center; gap:7px;
     background:var(--bg-panel-2);
@@ -174,7 +198,7 @@
     font-size:10px; font-weight:800;
     flex-shrink:0;
   }
-  .coin-icon.oro{ background:radial-gradient(circle at 32% 30%, #f3cf7f, var(--gold) 70%); color:var(--gold-ink); }
+  .coin-icon.oro{ background:radial-gradient(circle at 32% 30%, #f7dd93, var(--gold) 70%); color:var(--gold-ink); }
   .coin-icon.plata{ background:radial-gradient(circle at 32% 30%, #eef3f4, var(--silver) 70%); color:var(--silver-ink); }
 
   .btn-ghost{
@@ -206,12 +230,12 @@
     border-bottom:2px solid transparent;
     display:flex; align-items:center; gap:7px;
   }
-  .tab-btn.active{ color:var(--paper); border-bottom-color:var(--accent); }
+  .tab-btn.active{ color:#dcecff; border-bottom-color:var(--accent); }
   .tab-btn .count{
     background:var(--bg-panel-2); color:var(--text-muted);
     font-size:11px; padding:1px 7px; border-radius:999px;
   }
-  .tab-btn.active .count{ background:var(--accent); color:#fff; }
+  .tab-btn.active .count{ background:var(--accent); color:var(--accent-ink); }
 
   main{ max-width:1180px; margin:0 auto; padding:18px; }
 
@@ -265,7 +289,7 @@
     cursor:pointer;
     white-space:nowrap;
   }
-  .cat-chip.active{ background:var(--accent-2); border-color:var(--accent-2); color:#123018; }
+  .cat-chip.active{ background:var(--accent-2); border-color:var(--accent-2); color:#07222a; }
 
   /* ---------- Grid & ticket cards ---------- */
   .grid{
@@ -283,7 +307,7 @@
     color:var(--ink);
     border-radius:10px;
     padding:14px 12px 12px 20px;
-    box-shadow:0 6px 16px rgba(0,0,0,.28);
+    box-shadow:0 6px 16px rgba(0,0,0,.32);
     overflow:hidden;
     display:flex; flex-direction:column;
   }
@@ -298,8 +322,8 @@
   .ticket .stamp{
     position:absolute; top:8px; right:-6px;
     background:transparent;
-    border:1.5px dashed rgba(32,48,31,.55);
-    color:rgba(32,48,31,.72);
+    border:1.5px dashed rgba(18,48,73,.5);
+    color:rgba(18,48,73,.72);
     font-size:9px; font-weight:800; letter-spacing:.5px;
     text-transform:uppercase;
     padding:3px 10px;
@@ -319,8 +343,8 @@
     font-size:13px; margin:0 0 4px; line-height:1.3;
     min-height:2.2em;
   }
-  .ticket .qty-line{ font-size:11.5px; color:#5a6a52; margin-bottom:8px; }
-  .ticket .seller-line{ font-size:10.5px; color:#7a8a6f; margin-bottom:10px; }
+  .ticket .qty-line{ font-size:11.5px; color:#456; margin-bottom:8px; }
+  .ticket .seller-line{ font-size:10.5px; color:#5c7a94; margin-bottom:10px; }
   .ticket .price-row{
     display:flex; align-items:center; justify-content:space-between;
     margin-top:auto;
@@ -333,9 +357,9 @@
     font-size:11.5px; font-weight:800; cursor:pointer;
     white-space:nowrap;
   }
-  .ticket .buy-btn:hover{ background:#33482f; }
+  .ticket .buy-btn:hover{ background:#1c4568; }
   .ticket .mine-badge{
-    background:var(--accent); color:#fff;
+    background:var(--accent); color:var(--accent-ink);
     font-size:10.5px; font-weight:800;
     padding:7px 10px; border-radius:999px;
   }
@@ -356,13 +380,20 @@
     border-radius:8px;
     display:flex; align-items:center; justify-content:center;
     margin-bottom:9px;
+    position:relative;
   }
   .inv-card .icon-wrap img{ width:60%; height:60%; object-fit:contain; image-rendering:pixelated; }
+  .inv-card .src-tag{
+    position:absolute; top:6px; left:6px;
+    background:var(--bg-deep); color:var(--text-muted);
+    font-size:9px; font-weight:800; letter-spacing:.4px;
+    padding:2px 6px; border-radius:6px; text-transform:uppercase;
+  }
   .inv-card h3{ font-size:13px; margin:0 0 3px; color:var(--text); }
   .inv-card .qty-line{ font-size:11.5px; color:var(--text-muted); margin-bottom:10px; }
   .inv-card .sell-btn{
     margin-top:auto;
-    background:var(--accent-2); color:#123018;
+    background:var(--accent-2); color:#07222a;
     border:none; padding:8px 10px; border-radius:999px;
     font-size:11.5px; font-weight:800; cursor:pointer;
   }
@@ -391,7 +422,40 @@
     padding:7px 13px; border-radius:999px; font-size:12px; font-weight:700; cursor:pointer;
     flex-shrink:0;
   }
-  .cancel-btn:hover{ background:rgba(217,83,79,.12); }
+  .cancel-btn:hover{ background:rgba(255,107,107,.12); }
+
+  /* ---------- History rows ---------- */
+  .hist-row{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-left:3px solid var(--line);
+    border-radius:10px;
+    padding:11px 14px;
+    display:flex; align-items:center; gap:12px;
+    margin-bottom:10px;
+  }
+  .hist-row.buy{ border-left-color:var(--accent); }
+  .hist-row.sell{ border-left-color:var(--accent-2); }
+  .hist-row .icon-wrap{
+    width:42px; height:42px; flex-shrink:0;
+    background:var(--bg-panel-2); border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .hist-row .icon-wrap img{ width:64%; height:64%; object-fit:contain; image-rendering:pixelated; }
+  .hist-info{ flex:1; min-width:0; }
+  .hist-info .line1{ font-size:13.5px; font-weight:700; margin-bottom:3px; display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+  .hist-badge{
+    font-size:9.5px; font-weight:800; letter-spacing:.4px; text-transform:uppercase;
+    padding:2px 8px; border-radius:999px;
+  }
+  .hist-badge.buy{ background:rgba(63,169,245,.16); color:#7cc6ff; }
+  .hist-badge.sell{ background:rgba(57,207,230,.16); color:#68e0f0; }
+  .hist-info .line2{ font-size:11.5px; color:var(--text-muted); }
+  .hist-amount{ text-align:right; flex-shrink:0; }
+  .hist-amount .amt{ font-weight:800; font-size:14px; display:flex; align-items:center; gap:5px; justify-content:flex-end; }
+  .hist-amount .amt.pos{ color:#5fd0a0; }
+  .hist-amount .amt.neg{ color:#ff9a8a; }
+  .hist-amount .when{ font-size:10.5px; color:var(--text-faint); margin-top:2px; }
 
   /* ---------- Empty states ---------- */
   .empty{
@@ -408,7 +472,7 @@
     .mobile-tabbar{
       display:flex;
       position:fixed; left:0; right:0; bottom:0; z-index:30;
-      background:rgba(15,31,22,.97);
+      background:rgba(10,22,38,.97);
       backdrop-filter:blur(10px);
       border-top:1px solid var(--line);
       padding:8px 6px calc(8px + env(safe-area-inset-bottom));
@@ -416,9 +480,9 @@
     .mobile-tabbar button{
       flex:1; background:none; border:none; color:var(--text-muted);
       display:flex; flex-direction:column; align-items:center; gap:3px;
-      font-size:10.5px; font-weight:700; cursor:pointer; padding:4px;
+      font-size:10px; font-weight:700; cursor:pointer; padding:4px;
     }
-    .mobile-tabbar button.active{ color:var(--accent-2); }
+    .mobile-tabbar button.active{ color:var(--accent); }
     .mobile-tabbar .ico{ font-size:18px; }
   }
 
@@ -426,7 +490,7 @@
   .modal-backdrop{
     display:none;
     position:fixed; inset:0; z-index:50;
-    background:rgba(6,13,9,.68);
+    background:rgba(4,10,18,.72);
     align-items:flex-end;
     justify-content:center;
     padding:0;
@@ -505,7 +569,7 @@
     flex:1; padding:13px; border-radius:999px; font-weight:800; font-size:13.5px; cursor:pointer; border:none;
   }
   .btn-cancel-modal{ background:transparent; border:1px solid var(--line) !important; color:var(--text-muted); }
-  .btn-confirm{ background:var(--accent); color:#fff; }
+  .btn-confirm{ background:var(--accent); color:var(--accent-ink); }
   .btn-confirm:disabled{ opacity:.5; cursor:not-allowed; }
   .form-error{ color:var(--danger); font-size:12.5px; margin:-8px 0 14px; display:none; }
   .form-error.show{ display:block; }
@@ -526,28 +590,12 @@
     background:var(--paper); color:var(--ink);
     border-radius:10px; padding:12px 14px;
     font-size:13px; font-weight:600;
-    box-shadow:0 8px 20px rgba(0,0,0,.35);
+    box-shadow:0 8px 20px rgba(0,0,0,.4);
     display:flex; align-items:center; gap:9px;
     animation:toastIn .25s ease;
   }
-  .toast.err{ background:#f6d9d8; }
+  .toast.err{ background:#ffdedb; }
   @keyframes toastIn{ from{ opacity:0; transform:translateY(8px);} to{ opacity:1; transform:translateY(0);} }
-
-  /* Purchase stamp */
-  .sold-stamp{
-    position:absolute; inset:0;
-    display:flex; align-items:center; justify-content:center;
-    pointer-events:none;
-  }
-  .sold-stamp span{
-    border:3px solid var(--danger); color:var(--danger);
-    font-family:var(--font-display); font-size:12px;
-    padding:8px 14px; border-radius:8px;
-    transform:rotate(-12deg) scale(0);
-    animation:stampIn .35s cubic-bezier(.2,1.4,.4,1) forwards;
-    background:rgba(244,234,212,.85);
-  }
-  @keyframes stampIn{ to{ transform:rotate(-12deg) scale(1); } }
 
   .skeleton{
     background:linear-gradient(90deg, var(--bg-panel) 25%, var(--bg-panel-2) 37%, var(--bg-panel) 63%);
@@ -563,20 +611,20 @@
   <div id="loading" class="screen-center">
     <div class="loader-wrap">
       <div class="loader-coin"></div>
-      <div class="loader-label">CARGANDO MERCADO…</div>
+      <div class="loader-label" data-i18n="loading">CARGANDO MERCADO…</div>
     </div>
   </div>
 
   <div id="gate" class="screen-center" style="display:none;">
     <div class="gate-card">
       <svg class="gate-icon" viewBox="0 0 64 64" fill="none">
-        <path d="M8 58V22l24-14 24 14v36" stroke="#e2703a" stroke-width="3" stroke-linejoin="round"/>
-        <path d="M20 58V34h24v24" stroke="#eaf1e6" stroke-width="3" stroke-linejoin="round" opacity=".55"/>
-        <circle cx="36" cy="46" r="2.4" fill="#d9a441"/>
+        <path d="M8 58V22l24-14 24 14v36" stroke="#3fa9f5" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M20 58V34h24v24" stroke="#e8f2ff" stroke-width="3" stroke-linejoin="round" opacity=".55"/>
+        <circle cx="36" cy="46" r="2.4" fill="#e0b64a"/>
       </svg>
-      <h1>ACCESO RESTRINGIDO</h1>
-      <p id="gate-msg">Debes iniciar sesión en Grassland Forest para entrar al mercado. Vuelve al juego, inicia sesión y abre el Mercado de nuevo desde el botón redondo de la tienda.</p>
-      <a class="btn-primary" id="gate-btn" href="#">🌾 Volver al juego</a>
+      <h1 data-i18n="gate_title">ACCESO RESTRINGIDO</h1>
+      <p id="gate-msg" data-i18n="gate_msg">Debes iniciar sesión en Grassland Forest para entrar al mercado. Vuelve al juego, inicia sesión y abre el Mercado de nuevo desde el botón redondo de la tienda.</p>
+      <a class="btn-primary" id="gate-btn" href="#" data-i18n="back_game">🌾 Volver al juego</a>
     </div>
   </div>
 
@@ -586,22 +634,27 @@
         <a class="brand" id="back-link" href="#">
           <div class="brand-badge">🧺</div>
           <div class="brand-text">
-            <b>Mercado</b>
+            <b data-i18n="brand_title">Mercado</b>
             <span>Grassland Forest</span>
           </div>
         </a>
 
         <div class="wallet-strip">
-          <div class="chip addr" id="addr-chip" title="Copiar dirección">👛 <span id="addr-text">0x…</span></div>
+          <div class="lang-switch" id="lang-switch">
+            <button data-lang="es">ES</button>
+            <button data-lang="en">EN</button>
+          </div>
+          <div class="chip addr" id="addr-chip" data-i18n-title="copy_addr" title="Copiar dirección">👛 <span id="addr-text">0x…</span></div>
           <div class="chip"><span class="coin-icon oro">G</span><span id="oro-amount">0</span></div>
           <div class="chip"><span class="coin-icon plata">P</span><span id="plata-amount">0</span></div>
         </div>
       </div>
 
       <nav class="tabs">
-        <button class="tab-btn active" data-tab="market">🏪 Mercado</button>
-        <button class="tab-btn" data-tab="sell">🎒 Mi inventario</button>
-        <button class="tab-btn" data-tab="mine">🧾 Mis publicaciones <span class="count" id="mine-count">0</span></button>
+        <button class="tab-btn active" data-tab="market" data-i18n="tab_market">🏪 Mercado</button>
+        <button class="tab-btn" data-tab="sell" data-i18n="tab_sell">🎒 Mi inventario</button>
+        <button class="tab-btn" data-tab="mine"><span data-i18n="tab_mine">🧾 Mis publicaciones</span> <span class="count" id="mine-count">0</span></button>
+        <button class="tab-btn" data-tab="history" data-i18n="tab_history">📜 Historial</button>
       </nav>
     </header>
 
@@ -611,12 +664,12 @@
         <div class="toolbar">
           <div class="search-box">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-            <input type="text" id="search-input" placeholder="Buscar objetos…">
+            <input type="text" id="search-input" data-i18n-ph="search_ph" placeholder="Buscar objetos…">
           </div>
           <select class="sortsel" id="sort-select">
-            <option value="">Más recientes</option>
-            <option value="price_asc">Precio: menor a mayor</option>
-            <option value="price_desc">Precio: mayor a menor</option>
+            <option value="" data-i18n="sort_recent">Más recientes</option>
+            <option value="price_asc" data-i18n="sort_price_asc">Precio: menor a mayor</option>
+            <option value="price_desc" data-i18n="sort_price_desc">Precio: mayor a menor</option>
           </select>
         </div>
         <div class="chips-row" id="cat-chips"></div>
@@ -626,7 +679,7 @@
       <!-- VENDER -->
       <section id="tab-sell" style="display:none;">
         <div class="chips-row" id="sell-hint" style="margin-bottom:0;">
-          <div style="color:var(--text-muted); font-size:13px; padding:6px 2px;">Elige un objeto de tu inventario y ponle precio para publicarlo en el mercado.</div>
+          <div style="color:var(--text-muted); font-size:13px; padding:6px 2px;" data-i18n="sell_hint">Elige un objeto de tu inventario y ponle precio para publicarlo en el mercado.</div>
         </div>
         <div id="sell-grid" class="grid" style="margin-top:14px;"></div>
       </section>
@@ -635,20 +688,26 @@
       <section id="tab-mine" style="display:none;">
         <div id="mine-list"></div>
       </section>
+
+      <!-- HISTORIAL -->
+      <section id="tab-history" style="display:none;">
+        <div id="history-list"></div>
+      </section>
     </main>
   </div>
 
   <nav class="mobile-tabbar">
-    <button class="active" data-tab="market"><span class="ico">🏪</span>Mercado</button>
-    <button data-tab="sell"><span class="ico">🎒</span>Inventario</button>
-    <button data-tab="mine"><span class="ico">🧾</span>Mío</button>
+    <button class="active" data-tab="market"><span class="ico">🏪</span><span data-i18n="m_market">Mercado</span></button>
+    <button data-tab="sell"><span class="ico">🎒</span><span data-i18n="m_sell">Inventario</span></button>
+    <button data-tab="mine"><span class="ico">🧾</span><span data-i18n="m_mine">Mío</span></button>
+    <button data-tab="history"><span class="ico">📜</span><span data-i18n="m_history">Historial</span></button>
   </nav>
 
   <!-- SELL MODAL -->
   <div class="modal-backdrop" id="sell-modal">
     <div class="modal">
-      <h2>Publicar objeto</h2>
-      <p class="sub">Se retirará del juego mientras esté publicado. Si cancelas la publicación, vuelve a tu inventario.</p>
+      <h2 data-i18n="sell_title">Publicar objeto</h2>
+      <p class="sub" data-i18n="sell_sub">Se retirará del juego mientras esté publicado. Si cancelas la publicación, vuelve a tu inventario.</p>
       <div class="modal-item">
         <img id="sell-item-icon" src="" alt="">
         <div>
@@ -657,7 +716,7 @@
         </div>
       </div>
       <div class="field">
-        <label>Cantidad a vender (tienes <span id="sell-max-qty">0</span>)</label>
+        <label><span data-i18n="sell_qty_label">Cantidad a vender</span> (<span data-i18n="you_have_lc">tienes</span> <span id="sell-max-qty">0</span>)</label>
         <div class="qty-stepper">
           <button type="button" id="sell-qty-minus">−</button>
           <input type="number" id="sell-qty" min="1" value="1">
@@ -665,25 +724,25 @@
         </div>
       </div>
       <div class="field">
-        <label>Precio por unidad</label>
-        <input type="number" id="sell-price" min="0.01" step="0.01" placeholder="Ej: 5">
+        <label data-i18n="sell_price_label">Precio por unidad</label>
+        <input type="number" id="sell-price" min="0.01" step="0.01" data-i18n-ph="sell_price_ph" placeholder="Ej: 5">
       </div>
       <div class="field">
-        <label>Moneda</label>
+        <label data-i18n="currency_label">Moneda</label>
         <div class="currency-toggle">
-          <button type="button" class="active" data-currency="oro"><span class="coin-icon oro">G</span> Oro</button>
-          <button type="button" data-currency="plata"><span class="coin-icon plata">P</span> Plata</button>
+          <button type="button" class="active" data-currency="oro"><span class="coin-icon oro">G</span> <span data-i18n="gold">Oro</span></button>
+          <button type="button" data-currency="plata"><span class="coin-icon plata">P</span> <span data-i18n="silver">Plata</span></button>
         </div>
       </div>
       <div class="total-box">
-        <span class="label">Total de la publicación</span>
+        <span class="label" data-i18n="sell_total_label">Total de la publicación</span>
         <span class="amount" id="sell-total">0</span>
       </div>
-      <p class="fee-note">Grassland Forest cobra 5% de comisión sobre el total al momento de la venta — recibirás el 95%.</p>
+      <p class="fee-note" data-i18n="fee_note">Grassland Forest cobra 5% de comisión sobre el total al momento de la venta — recibirás el 95%.</p>
       <div class="form-error" id="sell-error"></div>
       <div class="modal-actions">
-        <button class="btn-cancel-modal" id="sell-cancel">Cancelar</button>
-        <button class="btn-confirm" id="sell-confirm">Publicar</button>
+        <button class="btn-cancel-modal" id="sell-cancel" data-i18n="cancel">Cancelar</button>
+        <button class="btn-confirm" id="sell-confirm" data-i18n="publish">Publicar</button>
       </div>
     </div>
   </div>
@@ -691,8 +750,8 @@
   <!-- BUY MODAL -->
   <div class="modal-backdrop" id="buy-modal">
     <div class="modal">
-      <h2>Comprar objeto</h2>
-      <p class="sub">Vendido por <span id="buy-seller">—</span></p>
+      <h2 data-i18n="buy_title">Comprar objeto</h2>
+      <p class="sub"><span data-i18n="sold_by">Vendido por</span> <span id="buy-seller">—</span></p>
       <div class="modal-item">
         <img id="buy-item-icon" src="" alt="">
         <div>
@@ -701,7 +760,7 @@
         </div>
       </div>
       <div class="field">
-        <label>Cantidad (disponibles: <span id="buy-max-qty">0</span>)</label>
+        <label><span data-i18n="buy_qty_label">Cantidad</span> (<span data-i18n="available_lc">disponibles</span>: <span id="buy-max-qty">0</span>)</label>
         <div class="qty-stepper">
           <button type="button" id="buy-qty-minus">−</button>
           <input type="number" id="buy-qty" min="1" value="1">
@@ -709,13 +768,13 @@
         </div>
       </div>
       <div class="total-box">
-        <span class="label">Total a pagar</span>
+        <span class="label" data-i18n="buy_total_label">Total a pagar</span>
         <span class="amount" id="buy-total">0</span>
       </div>
       <div class="form-error" id="buy-error"></div>
       <div class="modal-actions">
-        <button class="btn-cancel-modal" id="buy-cancel">Cancelar</button>
-        <button class="btn-confirm" id="buy-confirm">Confirmar compra</button>
+        <button class="btn-cancel-modal" id="buy-cancel" data-i18n="cancel">Cancelar</button>
+        <button class="btn-confirm" id="buy-confirm" data-i18n="confirm_buy">Confirmar compra</button>
       </div>
     </div>
   </div>
@@ -727,24 +786,18 @@
   "use strict";
 
   // ══════════════════════════════════════════════════════════════════════
-  // CONFIGURACIÓN — ajusta esto según dónde despliegues el archivo
+  // CONFIGURACIÓN
   // ══════════════════════════════════════════════════════════════════════
   const CONFIG = {
-    // FIX "ACCESO RESTRINGIDO": market.html se sirve desde el dominio del
-    // JUEGO (game.grasslandforest.com), pero la API vive en
-    // api.grasslandforest.com. Con API_BASE:'' las llamadas /api/auth/me iban
-    // al dominio del juego (que no tiene API) → 404 → el market creía que no
-    // había sesión aunque el jugador estuviera jugando. En producción se
-    // apunta a la API real; los subdominios de grasslandforest.com son
-    // "same-site", así que la cookie httpOnly de sesión viaja igual con
-    // credentials:'include'. En local ('' = mismo origen) no cambia nada.
+    // market.html se sirve desde el dominio del JUEGO (game.grasslandforest.com)
+    // pero la API vive en api.grasslandforest.com. En producción apuntamos ahí;
+    // los subdominios de grasslandforest.com son "same-site", así que la cookie
+    // httpOnly de sesión viaja igual con credentials:'include'. En local ('' =
+    // mismo origen) no cambia nada.
     API_BASE: (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
       ? ''
       : 'https://api.grasslandforest.com',
-    // A dónde vuelve el botón "Volver al juego".
     GAME_URL: '/game.html',
-    // Prefijo para los íconos de objetos (rutas devueltas por el catálogo,
-    // ej. "/Game/Source/piedra.png"). Vacío = mismo origen que este archivo.
     ASSET_BASE: ''
   };
 
@@ -753,25 +806,157 @@
   );
 
   // ══════════════════════════════════════════════════════════════════════
+  // I18N — traducciones completas ES / EN
+  // ══════════════════════════════════════════════════════════════════════
+  const I18N = {
+    es: {
+      loading:'CARGANDO MERCADO…',
+      gate_title:'ACCESO RESTRINGIDO',
+      gate_msg:'Debes iniciar sesión en Grassland Forest para entrar al mercado. Vuelve al juego, inicia sesión y abre el Mercado de nuevo desde el botón redondo de la tienda.',
+      back_game:'🌾 Volver al juego',
+      brand_title:'Mercado',
+      copy_addr:'Copiar dirección',
+      tab_market:'🏪 Mercado', tab_sell:'🎒 Mi inventario', tab_mine:'🧾 Mis publicaciones', tab_history:'📜 Historial',
+      m_market:'Mercado', m_sell:'Inventario', m_mine:'Mío', m_history:'Historial',
+      search_ph:'Buscar objetos…',
+      sort_recent:'Más recientes', sort_price_asc:'Precio: menor a mayor', sort_price_desc:'Precio: mayor a menor',
+      cat_todos:'Todos', cat_semillas:'Semillas', cat_herramientas:'Herramientas', cat_minerales:'Minerales', cat_madera:'Madera', cat_cultivos:'Cultivos', cat_otros:'Otros',
+      sell_hint:'Elige un objeto de tu inventario y ponle precio para publicarlo en el mercado.',
+      market_empty_t:'Aún no hay nada aquí', market_empty_p:'Sé el primero en publicar un objeto desde "Mi inventario".',
+      sell_empty_t:'Tu inventario está vacío', sell_empty_p:'Consigue objetos jugando y vuelve aquí para venderlos.',
+      mine_empty_t:'No tienes publicaciones activas', mine_empty_p:'Publica objetos desde la pestaña "Mi inventario".',
+      hist_empty_t:'Sin movimientos todavía', hist_empty_p:'Aquí verás lo que compres y vendas en el mercado.',
+      available:'Disponibles: {n}', available_lc:'disponibles',
+      seller:'Vende: {name}', buy:'Comprar', mine_badge:'Tuya',
+      you_have:'Tienes: {n}', you_have_lc:'tienes', sell:'Vender', cancel:'Cancelar', publish:'Publicar',
+      each_total:'{price} c/u · Total {total}',
+      src_inv:'Inv', src_chest:'Rápido',
+      sell_title:'Publicar objeto',
+      sell_sub:'Se retirará del juego mientras esté publicado. Si cancelas la publicación, vuelve a tu inventario.',
+      sell_qty_label:'Cantidad a vender', sell_price_label:'Precio por unidad', sell_price_ph:'Ej: 5',
+      currency_label:'Moneda', gold:'Oro', silver:'Plata',
+      sell_total_label:'Total de la publicación',
+      fee_note:'Grassland Forest cobra 5% de comisión sobre el total al momento de la venta — recibirás el 95%.',
+      buy_title:'Comprar objeto', sold_by:'Vendido por', buy_qty_label:'Cantidad',
+      buy_total_label:'Total a pagar', confirm_buy:'Confirmar compra',
+      publishing:'Publicando…', buying:'Comprando…',
+      t_published:'Objeto publicado en el mercado', t_bought:'Compraste {n} × {name}',
+      t_cancelled:'Publicación cancelada, objeto devuelto a tu inventario', t_addr_copied:'Dirección copiada',
+      e_invalid_qty:'Cantidad inválida.', e_invalid_price:'Ingresa un precio válido.',
+      e_no_publish:'No se pudo publicar el objeto.', e_no_buy:'No se pudo completar la compra.',
+      e_no_cancel:'No se pudo cancelar la publicación.', e_conn:'Error de conexión. Intenta de nuevo.',
+      confirm_cancel:'¿Cancelar esta publicación? El objeto volverá a tu inventario.',
+      hist_bought:'Compraste', hist_sold:'Vendiste', hist_from:'a {name}', hist_to:'de {name}',
+      fee_lc:'comisión'
+    },
+    en: {
+      loading:'LOADING MARKET…',
+      gate_title:'ACCESS RESTRICTED',
+      gate_msg:'You must be logged into Grassland Forest to enter the market. Go back to the game, log in, and open the Market again from the round shop button.',
+      back_game:'🌾 Back to game',
+      brand_title:'Market',
+      copy_addr:'Copy address',
+      tab_market:'🏪 Market', tab_sell:'🎒 My inventory', tab_mine:'🧾 My listings', tab_history:'📜 History',
+      m_market:'Market', m_sell:'Inventory', m_mine:'Mine', m_history:'History',
+      search_ph:'Search items…',
+      sort_recent:'Newest', sort_price_asc:'Price: low to high', sort_price_desc:'Price: high to low',
+      cat_todos:'All', cat_semillas:'Seeds', cat_herramientas:'Tools', cat_minerales:'Minerals', cat_madera:'Wood', cat_cultivos:'Crops', cat_otros:'Other',
+      sell_hint:'Pick an item from your inventory and set a price to list it on the market.',
+      market_empty_t:'Nothing here yet', market_empty_p:'Be the first to list an item from "My inventory".',
+      sell_empty_t:'Your inventory is empty', sell_empty_p:'Get items by playing and come back here to sell them.',
+      mine_empty_t:'You have no active listings', mine_empty_p:'List items from the "My inventory" tab.',
+      hist_empty_t:'No activity yet', hist_empty_p:'Here you\'ll see what you buy and sell on the market.',
+      available:'Available: {n}', available_lc:'available',
+      seller:'Seller: {name}', buy:'Buy', mine_badge:'Yours',
+      you_have:'You have: {n}', you_have_lc:'you have', sell:'Sell', cancel:'Cancel', publish:'List',
+      each_total:'{price} ea · Total {total}',
+      src_inv:'Inv', src_chest:'Hotbar',
+      sell_title:'List item',
+      sell_sub:'It will be removed from the game while listed. If you cancel the listing, it returns to your inventory.',
+      sell_qty_label:'Quantity to sell', sell_price_label:'Price per unit', sell_price_ph:'e.g. 5',
+      currency_label:'Currency', gold:'Gold', silver:'Silver',
+      sell_total_label:'Listing total',
+      fee_note:'Grassland Forest charges a 5% fee on the total at sale time — you receive 95%.',
+      buy_title:'Buy item', sold_by:'Sold by', buy_qty_label:'Quantity',
+      buy_total_label:'Total to pay', confirm_buy:'Confirm purchase',
+      publishing:'Listing…', buying:'Buying…',
+      t_published:'Item listed on the market', t_bought:'You bought {n} × {name}',
+      t_cancelled:'Listing cancelled, item returned to your inventory', t_addr_copied:'Address copied',
+      e_invalid_qty:'Invalid quantity.', e_invalid_price:'Enter a valid price.',
+      e_no_publish:'Could not list the item.', e_no_buy:'Could not complete the purchase.',
+      e_no_cancel:'Could not cancel the listing.', e_conn:'Connection error. Try again.',
+      confirm_cancel:'Cancel this listing? The item will return to your inventory.',
+      hist_bought:'Bought', hist_sold:'Sold', hist_from:'from {name}', hist_to:'to {name}',
+      fee_lc:'fee'
+    }
+  };
+
+  // Nombres de ítem en inglés por itemId (fallback: el nombre en español del catálogo)
+  const ITEM_NAME_EN = {
+    Semillax:'Carrot Seeds', Semillax1:'Tomato Seeds', Semillax2:'Wheat Seeds', Semillax3:'Pumpkin Seeds',
+    Regaderax:'Watering Can', Tijerasx:'Scissors',
+    hacha_de_madera:'Wooden Axe', hacha_de_piedra:'Stone Axe', hacha_de_cobre:'Copper Axe', hacha_de_hierro:'Iron Axe',
+    pico_de_madera:'Wooden Pickaxe', pico_de_piedra:'Stone Pickaxe', pico_de_cobre:'Copper Pickaxe', pico_de_hierro:'Iron Pickaxe',
+    balde_vacio:'Empty Bucket', balde_con_agua:'Water Bucket',
+    mineral_piedra:'Stone', mineral_cobre:'Copper', mineral_hierro:'Iron',
+    palo:'Stick', tablon_de_madera:'Wooden Plank', madera_pinos:'Pine Wood', madera_con_hojas:'Leafy Wood', madera_seca:'Dry Wood',
+    zanahoria_buena:'Good Carrot', zanahoria_corta:'Carrot (sprout)', zanahoria_mala:'Rotten Carrot',
+    tomate_buena:'Good Tomato', tomate_corta:'Tomato (sprout)', tomate_mala:'Rotten Tomato',
+    trigo_buena:'Good Wheat', trigo_corta:'Wheat (sprout)', trigo_mala:'Rotten Wheat',
+    calabaza_buena:'Good Pumpkin', calabaza_corta:'Pumpkin (sprout)', calabaza_mala:'Rotten Pumpkin'
+  };
+
+  let LANG = (function(){
+    try { const s = localStorage.getItem('gf_market_lang'); if (s === 'es' || s === 'en') return s; } catch(e){}
+    return (navigator.language || 'es').toLowerCase().startsWith('en') ? 'en' : 'es';
+  })();
+
+  function t(key, vars){
+    let s = (I18N[LANG] && I18N[LANG][key]) || (I18N.es[key]) || key;
+    if (vars) for (const k in vars) s = s.replace('{'+k+'}', vars[k]);
+    return s;
+  }
+  // Nombre localizado de un ítem
+  function itemName(itemId, fallbackName){
+    if (LANG === 'en' && ITEM_NAME_EN[itemId]) return ITEM_NAME_EN[itemId];
+    return fallbackName || (state.catalog[itemId] && state.catalog[itemId].name) || itemId;
+  }
+  // Etiqueta localizada de una categoría
+  function catLabel(catId){
+    const key = 'cat_' + catId;
+    if (I18N[LANG] && I18N[LANG][key]) return I18N[LANG][key];
+    const c = state.categories.find(c => c.id === catId);
+    return c ? c.label : catId;
+  }
+
+  // Aplica el idioma a todo el DOM estático y re-renderiza lo dinámico
+  function applyLang(){
+    document.documentElement.lang = LANG;
+    document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
+    document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.setAttribute('placeholder', t(el.getAttribute('data-i18n-ph'))); });
+    document.querySelectorAll('[data-i18n-title]').forEach(el => { el.setAttribute('title', t(el.getAttribute('data-i18n-title'))); });
+    document.querySelectorAll('#lang-switch button').forEach(b => b.classList.toggle('active', b.dataset.lang === LANG));
+    // Re-render dinámico (si ya cargó)
+    if (state.address){
+      renderCategoryChips(); renderWallet(); renderMarket(); renderSell(); renderMine(); renderHistory();
+    }
+  }
+  function setLang(l){
+    if (l !== 'es' && l !== 'en') return;
+    LANG = l;
+    try { localStorage.setItem('gf_market_lang', l); } catch(e){}
+    applyLang();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
   // ESTADO
   // ══════════════════════════════════════════════════════════════════════
   const state = {
-    address: null,
-    playerName: null,
-    oro: 0,
-    plata: 0,
-    csrfToken: null,
-    catalog: {},
-    categories: [],
-    listings: [],
-    inventory: [],
-    myListings: [],
-    activeTab: 'market',
-    activeCategory: 'todos',
-    search: '',
-    sort: '',
-    sellCtx: null, // { slotId, itemId, name, icon, category, maxQty }
-    buyCtx: null   // { id, itemId, name, icon, category, pricePerUnit, currency, maxQty, ownerName }
+    address: null, playerName: null, oro: 0, plata: 0,
+    csrfToken: null, catalog: {}, categories: [],
+    listings: [], inventory: [], myListings: [], history: [],
+    activeTab: 'market', activeCategory: 'todos', search: '', sort: '',
+    sellCtx: null, buyCtx: null
   };
 
   // ══════════════════════════════════════════════════════════════════════
@@ -787,7 +972,6 @@
     }, opts || {}));
     return res;
   }
-
   async function tryRefreshSession(){
     try{
       const res = await rawFetch('/api/auth/refresh', { method:'POST' });
@@ -797,7 +981,6 @@
       return true;
     }catch(e){ return false; }
   }
-
   async function api(path, opts, _retried){
     const res = await rawFetch(path, opts);
     if(res.status === 401 && !_retried){
@@ -805,40 +988,35 @@
       if(refreshed) return api(path, opts, true);
     }
     if(res.status === 403 && !_retried){
-      // token csrf inválido/vencido — pedir uno nuevo y reintentar una vez
       await fetchCsrfToken();
       return api(path, opts, true);
     }
     return res;
   }
-
   async function fetchCsrfToken(){
     try{
       const res = await rawFetch('/api/auth/csrf-token');
-      if(res.ok){
-        const data = await res.json();
-        state.csrfToken = data.csrfToken;
-      }
-    }catch(e){ /* noop */ }
+      if(res.ok){ const data = await res.json(); state.csrfToken = data.csrfToken; }
+    }catch(e){}
   }
 
   // ══════════════════════════════════════════════════════════════════════
   // FORMATEO
   // ══════════════════════════════════════════════════════════════════════
   function fmt(n){
-    return Number(n || 0).toLocaleString('es-ES', { maximumFractionDigits: 2 });
+    return Number(n || 0).toLocaleString(LANG === 'en' ? 'en-US' : 'es-ES', { maximumFractionDigits: 2 });
   }
-  function truncAddr(a){
-    if(!a) return '0x…';
-    return a.slice(0,6) + '…' + a.slice(-4);
-  }
-  function iconUrl(path){
-    if(!path) return FALLBACK_ICON;
-    return CONFIG.ASSET_BASE + path;
-  }
-  function catLabel(catId){
-    const c = state.categories.find(c => c.id === catId);
-    return c ? c.label : catId;
+  function truncAddr(a){ if(!a) return '0x…'; return a.slice(0,6) + '…' + a.slice(-4); }
+  function iconUrl(path){ if(!path) return FALLBACK_ICON; return CONFIG.ASSET_BASE + path; }
+  function coinLetter(cur){ return cur === 'oro' ? 'G' : 'P'; }
+  function timeAgo(iso){
+    const d = new Date(iso); if(isNaN(d)) return '';
+    const s = Math.floor((Date.now() - d.getTime())/1000);
+    const rtf = { es:{s:'hace un momento',m:'hace {n} min',h:'hace {n} h',d:'hace {n} d'}, en:{s:'just now',m:'{n} min ago',h:'{n} h ago',d:'{n} d ago'} }[LANG];
+    if (s < 60) return rtf.s;
+    if (s < 3600) return rtf.m.replace('{n}', Math.floor(s/60));
+    if (s < 86400) return rtf.h.replace('{n}', Math.floor(s/3600));
+    return rtf.d.replace('{n}', Math.floor(s/86400));
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -848,7 +1026,7 @@
     const stack = document.getElementById('toast-stack');
     const el = document.createElement('div');
     el.className = 'toast' + (isError ? ' err' : '');
-    el.innerHTML = (isError ? '⚠️ ' : '✅ ') + msg;
+    el.textContent = (isError ? '⚠️ ' : '✅ ') + msg;
     stack.appendChild(el);
     setTimeout(() => { el.style.opacity = '0'; el.style.transition='opacity .25s'; setTimeout(()=>el.remove(), 260); }, 2600);
   }
@@ -859,27 +1037,18 @@
   async function boot(){
     document.getElementById('gate-btn').href = CONFIG.GAME_URL;
     document.getElementById('back-link').href = CONFIG.GAME_URL;
-    document.getElementById('back-link').addEventListener('click', (e) => {
-      e.preventDefault();
-      window.location.href = CONFIG.GAME_URL;
-    });
+    document.getElementById('back-link').addEventListener('click', (e) => { e.preventDefault(); window.location.href = CONFIG.GAME_URL; });
+    document.querySelectorAll('#lang-switch button').forEach(b => b.addEventListener('click', () => setLang(b.dataset.lang)));
+    applyLang(); // idioma inicial en la pantalla de carga/gate
 
     let ok = await checkAuth();
-    if(!ok){
-      const refreshed = await tryRefreshSession();
-      if(refreshed) ok = await checkAuth();
-    }
-
-    if(!ok){
-      showGate();
-      return;
-    }
+    if(!ok){ const refreshed = await tryRefreshSession(); if(refreshed) ok = await checkAuth(); }
+    if(!ok){ showGate(); return; }
 
     await fetchCsrfToken();
     await loadEverything();
     showApp();
   }
-
   async function checkAuth(){
     try{
       const res = await rawFetch('/api/auth/me');
@@ -889,32 +1058,18 @@
       state.address = (data.address || '').toLowerCase();
       state.playerName = data.playerName || state.address;
       return true;
-    }catch(e){
-      return false;
-    }
+    }catch(e){ return false; }
   }
-
-  function showGate(){
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('gate').style.display = 'flex';
-  }
-  function showApp(){
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('app').classList.add('ready');
-  }
+  function showGate(){ document.getElementById('loading').style.display = 'none'; document.getElementById('gate').style.display = 'flex'; }
+  function showApp(){ document.getElementById('loading').style.display = 'none'; document.getElementById('app').classList.add('ready'); }
 
   // ══════════════════════════════════════════════════════════════════════
   // CARGA DE DATOS
   // ══════════════════════════════════════════════════════════════════════
   async function loadEverything(){
-    await Promise.all([loadCatalog(), loadAccount(), loadListings(), loadMyListings()]);
-    renderCategoryChips();
-    renderWallet();
-    renderMarket();
-    renderSell();
-    renderMine();
+    await Promise.all([loadCatalog(), loadAccount(), loadListings(), loadMyListings(), loadHistory()]);
+    applyLang(); // ahora que hay datos, re-renderiza todo con el idioma actual
   }
-
   async function loadCatalog(){
     const res = await api('/api/marketplace/catalog');
     if(!res.ok) return;
@@ -922,18 +1077,14 @@
     state.catalog = data.catalog || {};
     state.categories = [{id:'todos', label:'Todos'}].concat(data.categories || []);
   }
-
   async function loadAccount(){
     const res = await api('/api/marketplace/account');
     if(!res.ok) return;
     const data = await res.json();
-    state.address = data.address;
-    state.playerName = data.playerName;
-    state.oro = data.oro;
-    state.plata = data.plata;
+    state.address = data.address; state.playerName = data.playerName;
+    state.oro = data.oro; state.plata = data.plata;
     state.inventory = data.inventory || [];
   }
-
   async function loadListings(){
     const params = new URLSearchParams();
     if(state.activeCategory && state.activeCategory !== 'todos') params.set('category', state.activeCategory);
@@ -944,7 +1095,6 @@
     const data = await res.json();
     state.listings = data.listings || [];
   }
-
   async function loadMyListings(){
     const res = await api('/api/marketplace/my-listings');
     if(!res.ok) return;
@@ -952,9 +1102,17 @@
     state.myListings = data.listings || [];
     document.getElementById('mine-count').textContent = state.myListings.length;
   }
+  async function loadHistory(){
+    try{
+      const res = await api('/api/marketplace/history');
+      if(!res.ok){ state.history = []; return; }
+      const data = await res.json();
+      state.history = data.history || [];
+    }catch(e){ state.history = []; }
+  }
 
   // ══════════════════════════════════════════════════════════════════════
-  // RENDER — wallet
+  // RENDER
   // ══════════════════════════════════════════════════════════════════════
   function renderWallet(){
     document.getElementById('addr-text').textContent = truncAddr(state.address);
@@ -962,16 +1120,13 @@
     document.getElementById('plata-amount').textContent = fmt(state.plata);
   }
 
-  // ══════════════════════════════════════════════════════════════════════
-  // RENDER — categorías
-  // ══════════════════════════════════════════════════════════════════════
   function renderCategoryChips(){
     const wrap = document.getElementById('cat-chips');
     wrap.innerHTML = '';
     state.categories.forEach(cat => {
       const btn = document.createElement('button');
       btn.className = 'cat-chip' + (state.activeCategory === cat.id ? ' active' : '');
-      btn.textContent = cat.label;
+      btn.textContent = catLabel(cat.id);
       btn.addEventListener('click', async () => {
         state.activeCategory = cat.id;
         renderCategoryChips();
@@ -982,117 +1137,130 @@
     });
   }
 
-  // ══════════════════════════════════════════════════════════════════════
-  // RENDER — mercado
-  // ══════════════════════════════════════════════════════════════════════
   function renderMarket(){
     const grid = document.getElementById('market-grid');
     grid.innerHTML = '';
-
     if(state.listings.length === 0){
       grid.style.display = 'block';
-      grid.innerHTML = emptyState('🧺', 'Aún no hay nada aquí', 'Sé el primero en publicar un objeto desde "Mi inventario".');
+      grid.innerHTML = emptyState('🧺', t('market_empty_t'), t('market_empty_p'));
       return;
     }
     grid.style.display = 'grid';
-
     state.listings.forEach(l => {
+      const nm = itemName(l.itemId, l.name);
       const card = document.createElement('div');
       card.className = 'ticket';
       card.innerHTML = `
-        <div class="stamp">${catLabel(l.category)}</div>
+        <div class="stamp">${escapeHtml(catLabel(l.category))}</div>
         <div class="icon-wrap"><img src="${iconUrl(l.icon)}" onerror="this.src='${FALLBACK_ICON}'" alt=""></div>
-        <h3>${escapeHtml(l.name)}</h3>
-        <div class="qty-line">Disponibles: ${l.qty}</div>
-        <div class="seller-line">Vende: ${escapeHtml(l.ownerName)}</div>
+        <h3>${escapeHtml(nm)}</h3>
+        <div class="qty-line">${t('available',{n:l.qty})}</div>
+        <div class="seller-line">${t('seller',{name:escapeHtml(l.ownerName)})}</div>
         <div class="price-row">
-          <div class="price"><span class="coin-icon ${l.currency}">${l.currency === 'oro' ? 'G' : 'P'}</span>${fmt(l.pricePerUnit)}</div>
-          ${l.mine ? '<span class="mine-badge">Tuya</span>' : `<button class="buy-btn" data-id="${l.id}">Comprar</button>`}
-        </div>
-      `;
-      if(!l.mine){
-        card.querySelector('.buy-btn').addEventListener('click', () => openBuyModal(l));
-      }
+          <div class="price"><span class="coin-icon ${l.currency}">${coinLetter(l.currency)}</span>${fmt(l.pricePerUnit)}</div>
+          ${l.mine ? `<span class="mine-badge">${t('mine_badge')}</span>` : `<button class="buy-btn" data-id="${l.id}">${t('buy')}</button>`}
+        </div>`;
+      if(!l.mine) card.querySelector('.buy-btn').addEventListener('click', () => openBuyModal(l));
       grid.appendChild(card);
     });
   }
 
-  // ══════════════════════════════════════════════════════════════════════
-  // RENDER — vender (mi inventario)
-  // ══════════════════════════════════════════════════════════════════════
   function renderSell(){
     const grid = document.getElementById('sell-grid');
     grid.innerHTML = '';
-
     if(state.inventory.length === 0){
       grid.style.display = 'block';
-      grid.innerHTML = emptyState('🎒', 'Tu inventario está vacío', 'Consigue objetos jugando y vuelve aquí para venderlos.');
+      grid.innerHTML = emptyState('🎒', t('sell_empty_t'), t('sell_empty_p'));
       return;
     }
     grid.style.display = 'grid';
-
     state.inventory.forEach(item => {
+      const nm = itemName(item.itemId, item.name);
+      // Etiqueta de origen: inventario principal vs barra rápida (chest)
+      const srcTag = item.source === 'chest' ? `<span class="src-tag">${t('src_chest')}</span>` : '';
       const card = document.createElement('div');
       card.className = 'inv-card';
       card.innerHTML = `
-        <div class="icon-wrap"><img src="${iconUrl(item.icon)}" onerror="this.src='${FALLBACK_ICON}'" alt=""></div>
-        <h3>${escapeHtml(item.name)}</h3>
-        <div class="qty-line">Tienes: ${item.qty}</div>
-        <button class="sell-btn">Vender</button>
-      `;
+        <div class="icon-wrap">${srcTag}<img src="${iconUrl(item.icon)}" onerror="this.src='${FALLBACK_ICON}'" alt=""></div>
+        <h3>${escapeHtml(nm)}</h3>
+        <div class="qty-line">${t('you_have',{n:item.qty})}</div>
+        <button class="sell-btn">${t('sell')}</button>`;
       card.querySelector('.sell-btn').addEventListener('click', () => openSellModal(item));
       grid.appendChild(card);
     });
   }
 
-  // ══════════════════════════════════════════════════════════════════════
-  // RENDER — mis publicaciones
-  // ══════════════════════════════════════════════════════════════════════
   function renderMine(){
     const wrap = document.getElementById('mine-list');
     wrap.innerHTML = '';
-
     if(state.myListings.length === 0){
-      wrap.innerHTML = emptyState('🧾', 'No tienes publicaciones activas', 'Publica objetos desde la pestaña "Mi inventario".');
+      wrap.innerHTML = emptyState('🧾', t('mine_empty_t'), t('mine_empty_p'));
       return;
     }
-
     state.myListings.forEach(l => {
+      const nm = itemName(l.itemId, l.name);
       const row = document.createElement('div');
       row.className = 'mylist-row';
       row.innerHTML = `
         <div class="icon-wrap"><img src="${iconUrl(l.icon)}" onerror="this.src='${FALLBACK_ICON}'" alt=""></div>
         <div class="mylist-info">
-          <h3>${escapeHtml(l.name)} × ${l.qty}</h3>
-          <div class="meta"><span class="coin-icon ${l.currency}" style="width:14px;height:14px;font-size:8px;">${l.currency==='oro'?'G':'P'}</span> ${fmt(l.pricePerUnit)} c/u · Total ${fmt(l.totalPrice)}</div>
+          <h3>${escapeHtml(nm)} × ${l.qty}</h3>
+          <div class="meta"><span class="coin-icon ${l.currency}" style="width:14px;height:14px;font-size:8px;">${coinLetter(l.currency)}</span> ${t('each_total',{price:fmt(l.pricePerUnit),total:fmt(l.totalPrice)})}</div>
         </div>
-        <button class="cancel-btn" data-id="${l.id}">Cancelar</button>
-      `;
+        <button class="cancel-btn" data-id="${l.id}">${t('cancel')}</button>`;
       row.querySelector('.cancel-btn').addEventListener('click', () => cancelListing(l.id, row));
       wrap.appendChild(row);
     });
   }
 
-  function emptyState(glyph, title, text){
-    return `<div class="empty"><div class="glyph">${glyph}</div><h3>${title}</h3><p>${text}</p></div>`;
+  function renderHistory(){
+    const wrap = document.getElementById('history-list');
+    wrap.innerHTML = '';
+    if(!state.history || state.history.length === 0){
+      wrap.innerHTML = emptyState('📜', t('hist_empty_t'), t('hist_empty_p'));
+      return;
+    }
+    state.history.forEach(h => {
+      const isBuy = h.type === 'buy';
+      const nm = itemName(h.itemId, h.name);
+      // Comprando pagas (negativo); vendiendo recibes el neto (positivo)
+      const net = isBuy ? -Number(h.total || 0) : Number(h.sellerReceives != null ? h.sellerReceives : (h.total || 0));
+      const counter = isBuy
+        ? t('hist_from',{name:escapeHtml(h.counterpartyName || '—')})
+        : t('hist_to',{name:escapeHtml(h.counterpartyName || '—')});
+      const row = document.createElement('div');
+      row.className = 'hist-row ' + (isBuy ? 'buy' : 'sell');
+      row.innerHTML = `
+        <div class="icon-wrap"><img src="${iconUrl(h.icon)}" onerror="this.src='${FALLBACK_ICON}'" alt=""></div>
+        <div class="hist-info">
+          <div class="line1">
+            <span class="hist-badge ${isBuy?'buy':'sell'}">${isBuy ? t('hist_bought') : t('hist_sold')}</span>
+            ${escapeHtml(nm)} × ${h.qty}
+          </div>
+          <div class="line2">${counter}</div>
+        </div>
+        <div class="hist-amount">
+          <div class="amt ${net>=0?'pos':'neg'}">${net>=0?'+':'−'}<span class="coin-icon ${h.currency}" style="width:14px;height:14px;font-size:8px;">${coinLetter(h.currency)}</span>${fmt(Math.abs(net))}</div>
+          <div class="when">${timeAgo(h.createdAt)}</div>
+        </div>`;
+      wrap.appendChild(row);
+    });
   }
 
-  function escapeHtml(str){
-    const d = document.createElement('div');
-    d.textContent = str == null ? '' : String(str);
-    return d.innerHTML;
+  function emptyState(glyph, title, text){
+    return `<div class="empty"><div class="glyph">${glyph}</div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(text)}</p></div>`;
   }
+  function escapeHtml(str){ const d = document.createElement('div'); d.textContent = str == null ? '' : String(str); return d.innerHTML; }
 
   // ══════════════════════════════════════════════════════════════════════
   // MODAL — vender
   // ══════════════════════════════════════════════════════════════════════
   let sellCurrency = 'oro';
-
   function openSellModal(item){
     state.sellCtx = item;
     document.getElementById('sell-item-icon').src = iconUrl(item.icon);
     document.getElementById('sell-item-icon').onerror = function(){ this.src = FALLBACK_ICON; };
-    document.getElementById('sell-item-name').textContent = item.name;
+    document.getElementById('sell-item-name').textContent = itemName(item.itemId, item.name);
     document.getElementById('sell-item-cat').textContent = catLabel(item.category);
     document.getElementById('sell-max-qty').textContent = item.qty;
     document.getElementById('sell-qty').value = 1;
@@ -1104,14 +1272,11 @@
     updateSellTotal();
     document.getElementById('sell-modal').classList.add('show');
   }
-
   function updateSellTotal(){
     const qty = Number(document.getElementById('sell-qty').value) || 0;
     const price = Number(document.getElementById('sell-price').value) || 0;
-    const total = qty * price;
-    document.getElementById('sell-total').innerHTML = `<span class="coin-icon ${sellCurrency}">${sellCurrency==='oro'?'G':'P'}</span>${fmt(total)}`;
+    document.getElementById('sell-total').innerHTML = `<span class="coin-icon ${sellCurrency}">${coinLetter(sellCurrency)}</span>${fmt(qty*price)}`;
   }
-
   document.getElementById('sell-qty-minus').addEventListener('click', () => stepQty('sell-qty', -1, updateSellTotal));
   document.getElementById('sell-qty-plus').addEventListener('click', () => stepQty('sell-qty', 1, updateSellTotal));
   document.getElementById('sell-qty').addEventListener('input', updateSellTotal);
@@ -1132,46 +1297,26 @@
     const price = Number(document.getElementById('sell-price').value);
     const errEl = document.getElementById('sell-error');
     errEl.classList.remove('show');
-
-    if(!qty || qty < 1 || qty > item.qty){
-      errEl.textContent = 'Cantidad inválida.';
-      errEl.classList.add('show');
-      return;
-    }
-    if(!price || price <= 0){
-      errEl.textContent = 'Ingresa un precio válido.';
-      errEl.classList.add('show');
-      return;
-    }
+    if(!qty || qty < 1 || qty > item.qty){ errEl.textContent = t('e_invalid_qty'); errEl.classList.add('show'); return; }
+    if(!price || price <= 0){ errEl.textContent = t('e_invalid_price'); errEl.classList.add('show'); return; }
 
     const btn = document.getElementById('sell-confirm');
-    btn.disabled = true; btn.textContent = 'Publicando…';
-
+    btn.disabled = true; btn.textContent = t('publishing');
     try{
       const res = await api('/api/marketplace/list', {
         method: 'POST',
-        body: JSON.stringify({ slotId: item.slotId, itemId: item.itemId, qty, pricePerUnit: price, currency: sellCurrency })
+        body: JSON.stringify({ slotId: item.slotId, itemId: item.itemId, source: item.source || 'inventory', qty, pricePerUnit: price, currency: sellCurrency })
       });
       const data = await res.json();
-      if(!res.ok){
-        errEl.textContent = data.message || 'No se pudo publicar el objeto.';
-        errEl.classList.add('show');
-        return;
-      }
-      state.inventory = data.inventory;
+      if(!res.ok){ errEl.textContent = translateApiError(data) || t('e_no_publish'); errEl.classList.add('show'); return; }
+      if(Array.isArray(data.inventory)) state.inventory = data.inventory;
       document.getElementById('sell-modal').classList.remove('show');
-      toast('Objeto publicado en el mercado');
+      toast(t('t_published'));
       renderSell();
-      await loadMyListings();
-      renderMine();
-      await loadListings();
-      renderMarket();
-    }catch(e){
-      errEl.textContent = 'Error de conexión. Intenta de nuevo.';
-      errEl.classList.add('show');
-    }finally{
-      btn.disabled = false; btn.textContent = 'Publicar';
-    }
+      await loadMyListings(); renderMine();
+      await loadListings(); renderMarket();
+    }catch(e){ errEl.textContent = t('e_conn'); errEl.classList.add('show'); }
+    finally{ btn.disabled = false; btn.textContent = t('publish'); }
   });
 
   // ══════════════════════════════════════════════════════════════════════
@@ -1181,7 +1326,7 @@
     state.buyCtx = listing;
     document.getElementById('buy-item-icon').src = iconUrl(listing.icon);
     document.getElementById('buy-item-icon').onerror = function(){ this.src = FALLBACK_ICON; };
-    document.getElementById('buy-item-name').textContent = listing.name;
+    document.getElementById('buy-item-name').textContent = itemName(listing.itemId, listing.name);
     document.getElementById('buy-item-cat').textContent = catLabel(listing.category);
     document.getElementById('buy-seller').textContent = listing.ownerName;
     document.getElementById('buy-max-qty').textContent = listing.qty;
@@ -1191,95 +1336,77 @@
     updateBuyTotal();
     document.getElementById('buy-modal').classList.add('show');
   }
-
   function updateBuyTotal(){
-    const l = state.buyCtx;
-    if(!l) return;
+    const l = state.buyCtx; if(!l) return;
     const qty = Number(document.getElementById('buy-qty').value) || 0;
-    const total = qty * l.pricePerUnit;
-    document.getElementById('buy-total').innerHTML = `<span class="coin-icon ${l.currency}">${l.currency==='oro'?'G':'P'}</span>${fmt(total)}`;
+    document.getElementById('buy-total').innerHTML = `<span class="coin-icon ${l.currency}">${coinLetter(l.currency)}</span>${fmt(qty*l.pricePerUnit)}`;
   }
-
   document.getElementById('buy-qty-minus').addEventListener('click', () => stepQty('buy-qty', -1, updateBuyTotal));
   document.getElementById('buy-qty-plus').addEventListener('click', () => stepQty('buy-qty', 1, updateBuyTotal));
   document.getElementById('buy-qty').addEventListener('input', updateBuyTotal);
   document.getElementById('buy-cancel').addEventListener('click', () => document.getElementById('buy-modal').classList.remove('show'));
 
   document.getElementById('buy-confirm').addEventListener('click', async () => {
-    const l = state.buyCtx;
-    if(!l) return;
+    const l = state.buyCtx; if(!l) return;
     const qty = Math.floor(Number(document.getElementById('buy-qty').value));
     const errEl = document.getElementById('buy-error');
     errEl.classList.remove('show');
-
-    if(!qty || qty < 1 || qty > l.qty){
-      errEl.textContent = 'Cantidad inválida.';
-      errEl.classList.add('show');
-      return;
-    }
+    if(!qty || qty < 1 || qty > l.qty){ errEl.textContent = t('e_invalid_qty'); errEl.classList.add('show'); return; }
 
     const btn = document.getElementById('buy-confirm');
-    btn.disabled = true; btn.textContent = 'Comprando…';
-
+    btn.disabled = true; btn.textContent = t('buying');
     try{
-      const res = await api('/api/marketplace/buy/' + l.id, {
-        method: 'POST',
-        body: JSON.stringify({ qty })
-      });
+      const res = await api('/api/marketplace/buy/' + l.id, { method: 'POST', body: JSON.stringify({ qty }) });
       const data = await res.json();
-      if(!res.ok){
-        errEl.textContent = data.message || 'No se pudo completar la compra.';
-        errEl.classList.add('show');
-        return;
-      }
-      state.oro = data.oro;
-      state.plata = data.plata;
-      state.inventory = data.inventory;
+      if(!res.ok){ errEl.textContent = translateApiError(data) || t('e_no_buy'); errEl.classList.add('show'); return; }
+      state.oro = data.oro; state.plata = data.plata;
+      if(Array.isArray(data.inventory)) state.inventory = data.inventory;
       document.getElementById('buy-modal').classList.remove('show');
-      renderWallet();
-      renderSell();
-      toast(`Compraste ${qty} × ${l.name}`);
-      await loadListings();
-      renderMarket();
-    }catch(e){
-      errEl.textContent = 'Error de conexión. Intenta de nuevo.';
-      errEl.classList.add('show');
-    }finally{
-      btn.disabled = false; btn.textContent = 'Confirmar compra';
-    }
+      renderWallet(); renderSell();
+      toast(t('t_bought',{n:qty, name:itemName(l.itemId, l.name)}));
+      await Promise.all([loadListings(), loadHistory()]);
+      renderMarket(); renderHistory();
+    }catch(e){ errEl.textContent = t('e_conn'); errEl.classList.add('show'); }
+    finally{ btn.disabled = false; btn.textContent = t('confirm_buy'); }
   });
+
+  // Traduce mensajes de error del backend a un texto amigable en el idioma actual
+  function translateApiError(data){
+    if(!data) return '';
+    const map = {
+      insufficient_funds: LANG==='en' ? "You don't have enough coins for this purchase" : 'No tienes suficientes monedas para esta compra',
+      inventory_full: LANG==='en' ? 'Your inventory is full' : 'Tu inventario está lleno',
+      insufficient_item_quantity: LANG==='en' ? "You don't have that quantity in that slot" : 'No tienes esa cantidad de ese objeto en ese espacio',
+      listing_changed: LANG==='en' ? 'That listing changed (someone bought first). Try again.' : 'Esa publicación cambió (alguien compró primero). Intenta de nuevo.',
+      listing_not_found: LANG==='en' ? 'That listing is no longer available' : 'Esa publicación ya no está disponible',
+      cannot_buy_own_listing: LANG==='en' ? "You can't buy your own listing" : 'No puedes comprar tu propia publicación'
+    };
+    if(data.error && map[data.error]) return map[data.error];
+    return data.message || '';
+  }
 
   function stepQty(inputId, delta, cb){
     const input = document.getElementById(inputId);
     const max = Number(input.max) || 9999;
     let v = (Number(input.value) || 1) + delta;
     v = Math.max(1, Math.min(max, v));
-    input.value = v;
-    cb();
+    input.value = v; cb();
   }
 
   // ══════════════════════════════════════════════════════════════════════
   // CANCELAR PUBLICACIÓN
   // ══════════════════════════════════════════════════════════════════════
   async function cancelListing(id, rowEl){
-    if(!window.confirm('¿Cancelar esta publicación? El objeto volverá a tu inventario.')) return;
+    if(!window.confirm(t('confirm_cancel'))) return;
     try{
       const res = await api('/api/marketplace/cancel/' + id, { method: 'POST' });
       const data = await res.json();
-      if(!res.ok){
-        toast(data.message || 'No se pudo cancelar la publicación.', true);
-        return;
-      }
-      state.inventory = data.inventory;
-      toast('Publicación cancelada, objeto devuelto a tu inventario');
-      await loadMyListings();
-      renderMine();
-      renderSell();
-      await loadListings();
-      renderMarket();
-    }catch(e){
-      toast('Error de conexión.', true);
-    }
+      if(!res.ok){ toast(translateApiError(data) || t('e_no_cancel'), true); return; }
+      if(Array.isArray(data.inventory)) state.inventory = data.inventory;
+      toast(t('t_cancelled'));
+      await loadMyListings(); renderMine(); renderSell();
+      await loadListings(); renderMarket();
+    }catch(e){ toast(t('e_conn'), true); }
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -1289,9 +1416,11 @@
     state.activeTab = tab;
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     document.querySelectorAll('.mobile-tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-    document.getElementById('tab-market').style.display = tab === 'market' ? 'block' : 'none';
-    document.getElementById('tab-sell').style.display = tab === 'sell' ? 'block' : 'none';
-    document.getElementById('tab-mine').style.display = tab === 'mine' ? 'block' : 'none';
+    document.getElementById('tab-market').style.display  = tab === 'market'  ? 'block' : 'none';
+    document.getElementById('tab-sell').style.display    = tab === 'sell'    ? 'block' : 'none';
+    document.getElementById('tab-mine').style.display    = tab === 'mine'    ? 'block' : 'none';
+    document.getElementById('tab-history').style.display = tab === 'history' ? 'block' : 'none';
+    if(tab === 'history'){ loadHistory().then(renderHistory); }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   document.querySelectorAll('.tab-btn, .mobile-tabbar button').forEach(btn => {
@@ -1306,14 +1435,12 @@
     clearTimeout(searchTimer);
     searchTimer = setTimeout(async () => {
       state.search = e.target.value.trim();
-      await loadListings();
-      renderMarket();
+      await loadListings(); renderMarket();
     }, 300);
   });
   document.getElementById('sort-select').addEventListener('change', async (e) => {
     state.sort = e.target.value;
-    await loadListings();
-    renderMarket();
+    await loadListings(); renderMarket();
   });
 
   // ══════════════════════════════════════════════════════════════════════
@@ -1321,10 +1448,7 @@
   // ══════════════════════════════════════════════════════════════════════
   document.getElementById('addr-chip').addEventListener('click', async () => {
     if(!state.address) return;
-    try{
-      await navigator.clipboard.writeText(state.address);
-      toast('Dirección copiada');
-    }catch(e){ /* noop */ }
+    try{ await navigator.clipboard.writeText(state.address); toast(t('t_addr_copied')); }catch(e){}
   });
 
   boot();

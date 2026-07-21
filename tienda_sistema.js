@@ -66,6 +66,19 @@ class TiendaSistema {
             this.filterItems = () => {};
         }
         
+        // Resuelve la URL base de la API igual que lo hacen las escenas:
+        // usa el serverBase ya calculado de la escena (local vs producción) y,
+        // si no existe, decide por el hostname actual. NUNCA hardcodea :3001,
+        // que era la causa del error "Debes estar autenticado" al comprar.
+        this._resolveApiBase = () => {
+            const fromScene = this.scene && (this.scene.serverBase || this.scene.serverclient1);
+            if (fromScene) return String(fromScene).replace(/\/api\/?$/, '');
+            const h = location.hostname;
+            return (h === 'localhost' || h === '127.0.0.1')
+                ? 'http://127.0.0.1:8080'
+                : 'https://api.grasslandforest.com';
+        };
+
         // Helpers de moneda
         this.getItemCurrency = (item) => (item?.currency === 'silver' ? 'silver' : 'gold');
         this.getCurrencyLabel = (currency) => (currency === 'silver' ? 'SL' : 'GL');
@@ -2091,7 +2104,12 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
     // Inicializar relayClient si hace falta
     if (!this.relayClient) {
       this.relayClient = new PhaserRelay({
-        apiBase: 'http://127.0.0.1:3001',
+        // FIX "Debes estar autenticado": antes apiBase estaba fijo en
+        // http://127.0.0.1:3001. En producción (game.grasslandforest.com) eso
+        // apunta al localhost del jugador → checkAuth() siempre fallaba y toda
+        // compra mostraba el error. Usamos el serverBase ya resuelto de la
+        // escena (local → 127.0.0.1:8080, prod → api.grasslandforest.com).
+        apiBase: this._resolveApiBase(),
         debug: true,
         forceLocalhostTo127: true
       });
@@ -2110,7 +2128,7 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
     // Auth
     const auth = await this.relayClient.checkAuth();
     if (!auth || !auth.success) {
-      this.relayClient.showError('❌ Debes estar autenticado. Visita http://127.0.0.1:3001/login', 5000);
+      this.relayClient.showError('❌ Debes estar autenticado. Vuelve al juego e inicia sesión.', 5000);
       return;
     }
     console.log('🔑 Usuario autenticado:', auth.address);
@@ -2824,7 +2842,8 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
     // Inicializar relayClient si hace falta
     if (!this.relayClient) {
       this.relayClient = new PhaserRelay({
-        apiBase: 'http://127.0.0.1:3001',
+        // FIX "Debes estar autenticado": ver nota en Additemblockchains.
+        apiBase: this._resolveApiBase(),
         debug: true,
         forceLocalhostTo127: true
       });
@@ -2838,7 +2857,7 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
     // Auth
     const auth = await this.relayClient.checkAuth();
     if (!auth || !auth.success) {
-      this.relayClient.showError('❌ Debes estar autenticado. Visita http://127.0.0.1:3001/login', 5000);
+      this.relayClient.showError('❌ Debes estar autenticado. Vuelve al juego e inicia sesión.', 5000);
       return false;
     }
     console.log('🔑 Usuario autenticado:', auth.address);
