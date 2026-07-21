@@ -5920,7 +5920,7 @@ const createTextStyle_Mine = (mineKey) => ({
 mineProps.forEach(prop => {
   const spr = this[prop];
   if (!spr) return;
-  spr.setInteractive({ useHandCursor: false });
+  this.enablePixelPerfectInput(spr);
  
   spr.on('pointerdown', async (pointer) => {
  
@@ -6041,10 +6041,27 @@ mineProps.forEach(prop => {
     // ── 7. Minado completado ──────────────────────────────────────────────
     if (s.progress >= s.required) {
       console.log(`✅ Minaste ${mineInfo.nombre}`);
+
+      // FIX (transacciones duplicadas al picar rápido, ej. "11/8"):
+      // Deshabilitar el sprite y limpiar el progreso AQUÍ MISMO, de forma
+      // SÍNCRONA, antes de cualquier "await". Antes esto se hacía después de
+      // esperar la transacción on-chain (_agregarFrutoOnChain), y mientras esa
+      // espera corría el mineral seguía interactivo: cada click de más volvía a
+      // entrar aquí (el contador seguía subiendo: 9/8, 10/8, 11/8) y encolaba
+      // otra transacción. Al terminar, se disparaban todas esas transacciones
+      // duplicadas una tras otra. Es el mismo arreglo que ya tenía la tala.
+      spr.disableInteractive();
+      if (this.mineTexts[mineKey]) {
+        this.mineTexts[mineKey].destroy();
+        if (this.mineTexts[mineKey].indicator) this.mineTexts[mineKey].indicator.destroy();
+        delete this.mineTexts[mineKey];
+      }
+      delete this.mineState[mineKey];
+
       this.playSFX('cortado_sound');
- 
+
       const rewards = getMultipleRewards_Mine(mineKey, pickName);
- 
+
       // Agregar ítems al inventario: ahora "lo que se mina es transacción",
       // igual que la madera de los árboles (antes era 100% off-chain vía
       // addItemWithCheck). Se reutiliza el mismo mecanismo ya construido
@@ -6056,15 +6073,8 @@ mineProps.forEach(prop => {
         await this._agregarFrutoOnChain(reward.id, reward.cantidad);
         this.nivel_exp = (this.nivel_exp || 0) + 50;
       }
- 
-      // Limpiar textos de progreso
-      if (this.mineTexts[mineKey]) {
-        this.mineTexts[mineKey].destroy();
-        if (this.mineTexts[mineKey].indicator) this.mineTexts[mineKey].indicator.destroy();
-        delete this.mineTexts[mineKey];
-      }
-      delete this.mineState[mineKey];
- 
+
+      // (los textos de progreso y el estado ya se limpiaron arriba, ver FIX)
       const rewardNames = rewards.map(r => `${r.cantidad}x ${r.id}`).join(', ');
       this.notifications.show(`Minaste ${mineInfo.nombre}!\nObtenido: ${rewardNames}`, "success", {
         customColor: mineInfo.colorNotificacion,
@@ -6082,18 +6092,22 @@ mineProps.forEach(prop => {
         const depletionSuccess = await updateDepletionPercent(mineralType, increment);
         if (!depletionSuccess) {
           this.notifications.show('Error al actualizar agotamiento. No se bloqueó la mina.', 'error');
+          // Si no se bloqueó en el servidor, devolver el mineral al jugador:
+          // si no, quedaría deshabilitado para siempre (ya no hay respawn que
+          // lo reactive, porque nunca se programó).
+          this.enablePixelPerfectInput(spr);
           return;
         }
- 
+
         const serverLockedUntil = await lockMine(mineKey, mineralType);
         if (!serverLockedUntil) {
           this.notifications.show('Error al bloquear la mina en el servidor.', 'error');
+          this.enablePixelPerfectInput(spr);
           return;
         }
- 
-        // Bloquear el sprite localmente SIN transparencia (igual que los árboles)
-        spr.disableInteractive();
- 
+
+        // (el sprite ya fue deshabilitado al inicio del bloque, ver FIX arriba)
+
         // Programar reactivación usando la fecha del servidor
         const remainingMs = serverLockedUntil.getTime() - Date.now();
         const unlockMineSprite = async (sprRef, key) => {
@@ -6102,14 +6116,14 @@ mineProps.forEach(prop => {
             if (!state.isLocked) {
               const liveSpr = this[key];
               if (liveSpr && liveSpr.active) {
-                liveSpr.setInteractive({ useHandCursor: false });
+                this.enablePixelPerfectInput(liveSpr);
                 console.log(`⛏️ Mina ${key} desbloqueada automáticamente`);
               }
             }
           } catch (e) {
             // Si falla la consulta, desbloquear de todas formas
             const liveSpr = this[key];
-            if (liveSpr && liveSpr.active) liveSpr.setInteractive({ useHandCursor: false });
+            if (liveSpr && liveSpr.active) this.enablePixelPerfectInput(liveSpr);
           }
         };
         if (remainingMs > 0) {
@@ -6119,9 +6133,9 @@ mineProps.forEach(prop => {
         }
       } else {
         // Mineral no clasificado: bloqueo local temporal sin transparencia
-        spr.disableInteractive();
+        // (el sprite ya fue deshabilitado al inicio del bloque, ver FIX arriba)
         setTimeout(() => {
-          if (spr && spr.active) spr.setInteractive({ useHandCursor: false });
+          if (spr && spr.active) this.enablePixelPerfectInput(spr);
         }, 60000);
       }
     }
@@ -6231,21 +6245,33 @@ const showTreeStump = (sprRef, treeKey) => {
     return;
   }
 
-  // Guardar la textura original para poder restaurar el árbol tras el respawn
-  this.treeStumps[treeKey] = sprRef.texture.key;
+  // Guardar textura y posición originales para restaurar el árbol tras el respawn
+  this.treeStumps[treeKey] = { texture: sprRef.texture.key, x: sprRef.x };
+
+  const treeWidth = sprRef.displayWidth;
 
   // setTexture conserva scaleX/scaleY, así que el tronco queda escalado igual
-  // que el árbol y apoyado en la misma base (origin 0,1).
+  // que el árbol y apoyado en la misma base (origin 0,1 = base del objeto).
   sprRef.setTexture(stumpTexture);
+
+  // El origin es (0,1): el sprite se ancla por su borde IZQUIERDO, no por el
+  // centro. Como el tronco es más angosto que el árbol, si no se corrige queda
+  // pegado a la izquierda del hueco que dejó el árbol. Se desplaza media
+  // diferencia para que el tronco quede centrado justo donde estaba el tronco
+  // del árbol en el tilemap.
+  sprRef.x += (treeWidth - sprRef.displayWidth) / 2;
 };
 
 const hideTreeStump = (treeKey) => {
-  const originalTexture = this.treeStumps[treeKey];
-  if (!originalTexture) return;
+  const original = this.treeStumps[treeKey];
+  if (!original) return;
   delete this.treeStumps[treeKey];
 
   const liveSpr = this[treeKey];
-  if (liveSpr && liveSpr.active) liveSpr.setTexture(originalTexture);
+  if (liveSpr && liveSpr.active) {
+    liveSpr.setTexture(original.texture);
+    liveSpr.x = original.x;
+  }
 };
 
 // -----------------------------------------------------------------------------
@@ -7084,7 +7110,7 @@ const createTextStyle_Ore = (oreKey) => {
 oreProps.forEach(prop => {
   const spr = this[prop];
   if (!spr) return;
-  spr.setInteractive({ useHandCursor: false });
+  this.enablePixelPerfectInput(spr);
 
   spr.on('pointerdown', async (pointer) => {
     const canvas = this.sys.canvas;
@@ -7288,7 +7314,7 @@ oreProps.forEach(prop => {
             if (!state.isLocked) {
               const liveSpr = this[key];
               if (liveSpr && liveSpr.active) {
-                liveSpr.setInteractive({ useHandCursor: false });
+                this.enablePixelPerfectInput(liveSpr);
                 console.log(`🌲 Árbol ${key} desbloqueado automáticamente`);
               }
               // Termina el respawn: quitar el tronco y volver a mostrar el árbol
@@ -7297,7 +7323,7 @@ oreProps.forEach(prop => {
           } catch (e) {
             // Si falla la consulta, desbloquear de todas formas
             const liveSpr = this[key];
-            if (liveSpr && liveSpr.active) liveSpr.setInteractive({ useHandCursor: false });
+            if (liveSpr && liveSpr.active) this.enablePixelPerfectInput(liveSpr);
             hideTreeStump(key);
           }
         };
@@ -7310,7 +7336,7 @@ oreProps.forEach(prop => {
         // Árbol no clasificado: bloqueo temporal local sin transparencia
         // (el sprite ya fue deshabilitado al inicio del bloque, ver FIX arriba)
         setTimeout(() => {
-          if (spr && spr.active) spr.setInteractive({ useHandCursor: false });
+          if (spr && spr.active) this.enablePixelPerfectInput(spr);
           hideTreeStump(treeKey);
         }, 60000);
       }
@@ -8048,7 +8074,7 @@ async loadMineLockStates() {
               if (!stillLocked) {
                 const liveSpr = this[key];
                 if (liveSpr && liveSpr.active) {
-                  liveSpr.setInteractive({ useHandCursor: false });
+                  this.enablePixelPerfectInput(liveSpr);
                   console.log(`⛏️ Mina ${key} desbloqueada automáticamente (al cargar)`);
                 }
               } else {
@@ -8057,7 +8083,7 @@ async loadMineLockStates() {
               }
             } catch (e) {
               const liveSpr = this[key];
-              if (liveSpr && liveSpr.active) liveSpr.setInteractive({ useHandCursor: false });
+              if (liveSpr && liveSpr.active) this.enablePixelPerfectInput(liveSpr);
             }
           }, ms);
         };
@@ -8097,7 +8123,7 @@ async loadTreeLockStates() {
               if (!stillLocked) {
                 const liveSpr = this[key];
                 if (liveSpr && liveSpr.active) {
-                  liveSpr.setInteractive({ useHandCursor: false });
+                  this.enablePixelPerfectInput(liveSpr);
                   console.log(`🌲 Árbol ${key} desbloqueado automáticamente (al cargar)`);
                 }
               } else {
@@ -8108,7 +8134,7 @@ async loadTreeLockStates() {
             } catch (e) {
               // Si falla la consulta, desbloquear de todas formas para no dejar árbol bloqueado para siempre
               const liveSpr = this[key];
-              if (liveSpr && liveSpr.active) liveSpr.setInteractive({ useHandCursor: false });
+              if (liveSpr && liveSpr.active) this.enablePixelPerfectInput(liveSpr);
             }
           }, ms);
         };
@@ -19257,6 +19283,22 @@ createOptimizedSprite(scene, obj, spriteKey, depthOffset = 0) {
   this.disableUnnecessaryUpdates(sprite);
   
   return sprite;
+}
+
+/**
+ * Activa el input de un árbol/mineral con hit-test PIXEL PERFECT.
+ *
+ * Antes se usaba setInteractive({ useHandCursor: false }), que crea un área de
+ * click RECTANGULAR del tamaño completo del sprite. Como los árboles y las
+ * piedras se solapan y Phaser sólo entrega el click al objeto interactivo que
+ * está más arriba, el rectángulo (casi todo transparente) de un árbol vecino se
+ * comía los clicks del centro del objeto de abajo: solo respondían las esquinas
+ * que sobresalían de ese rectángulo. Con pixel perfect, un píxel transparente ya
+ * no captura el click y éste llega al objeto que de verdad se ve bajo el cursor.
+ */
+enablePixelPerfectInput(sprite) {
+  if (!sprite || !sprite.active) return;
+  sprite.setInteractive(this.input.makePixelPerfect(1));
 }
 
 /**
