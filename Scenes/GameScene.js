@@ -7920,6 +7920,21 @@ this.dog.shadowContainer = this.add.container(this.dog.x, this.dog.y + 22, [this
 // Reproducir animación inicial
 this.dog.sprite.play('perro_right');
 
+// ── Etiqueta con el NOMBRE de la mascota (dashboard → nombre único) ──────
+// Solo se muestra cuando el jugador ya fijó un nombre (≠ '---'). Se
+// reposiciona cada frame en el update del perro, igual que el nombre del
+// jugador (usuariox).
+if (!this.petName) this.petName = window.globalPetName || '---';
+this.dogNameText = this.add.text(this.dog.x, this.dog.y - 30, '', {
+  fontFamily: '"PressStart2P"',
+  fontSize: '8px',
+  color: '#ffe9a8',
+  resolution: 4,
+  stroke: '#000000',
+  strokeThickness: 4
+}).setOrigin(0.5, 1).setDepth(this.player.y + 9).setVisible(false);
+if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
+
 // ── Synchronously apply saved pet state BEFORE the async _loadPetData call ──
 // This prevents a 1-frame flash of the dog when returning from tiendajuego
 if (window.globalPetData) {
@@ -7927,6 +7942,7 @@ if (window.globalPetData) {
   if (this.petData.equipped === false || this.petData.visible === false) {
     this.dog.sprite.setVisible(false);
     this.dog.shadowContainer.setVisible(false);
+    if (this.dogNameText) this.dogNameText.setVisible(false);
   }
 }
 
@@ -8408,6 +8424,48 @@ countItemInAllStorage(itemId) {
 
 
 
+// ── Helpers del sistema de nombre único (personaje y mascota) ────────────
+// Un nombre está "fijado" cuando ya no es el placeholder '---'. Fijado una
+// vez, no admite más cambios (el backend aplica la misma regla en /api/save).
+_isNameSet(v) {
+    return typeof v === 'string' && v.trim() !== '' && v.trim() !== '---';
+}
+
+// Refresca el estado visual (bloqueado/editable) de las dos filas de nombre
+// del dashboard según los valores actuales.
+_refreshNameLockUI() {
+    const lockRow = (input, btn, hintId, value, etiqueta) => {
+        const hint = document.getElementById(hintId);
+        const locked = this._isNameSet(value);
+        if (input) {
+            input.disabled = locked;
+            input.value = locked ? value : '';
+        }
+        if (btn) btn.disabled = locked;
+        if (hint) {
+            hint.textContent = locked
+                ? `🔒 ${etiqueta} fijado: "${value}" — definitivo`
+                : '⚠️ Solo puedes elegirlo UNA vez — piénsalo bien.';
+            hint.classList.toggle('dash-hint-locked_101', locked);
+        }
+    };
+
+    lockRow(this.settingsNameInput, this.settingsApplyBtn, 'character-name-hint', this.Username, 'Nombre de personaje');
+    lockRow(this.settingsPetInput, this.settingsApplyPetBtn, 'pet-name-hint', this.petName, 'Nombre de mascota');
+
+    // Compatibilidad con el panel de tiendajuego (usa window._acttov como lock)
+    window._acttov = this._isNameSet(this.Username) ? 1 : 0;
+}
+
+// Sincroniza la etiqueta de nombre que flota sobre el perro con this.petName.
+_updateDogNameLabel() {
+    if (!this.dogNameText) return;
+    const named = this._isNameSet(this.petName);
+    this.dogNameText.setText(named ? this.petName : '');
+    const dogVisible = !!(this.dog && this.dog.sprite && this.dog.sprite.visible);
+    this.dogNameText.setVisible(named && dogVisible);
+}
+
 setupSettingsPanel() {
     // Referencias a elementos del panel
     this.settingsPanel = document.getElementById('hub-panel_101');
@@ -8416,16 +8474,20 @@ setupSettingsPanel() {
     this.settingsLogoutBtn = document.getElementById('logout-btn');
     this.settingsNameInput = document.getElementById('character-name');
     this.settingsLangSelect = document.getElementById('language-select');
-    
+    // Fila nueva del dashboard: nombre de la mascota
+    this.settingsPetInput = document.getElementById('pet-name');
+    this.settingsApplyPetBtn = document.getElementById('apply-pet-name');
+
     if (!this.settingsPanel) {
         console.warn('⚠️ No se encontró el panel de configuraciones');
         return;
     }
-    
+
     console.log('✅ Panel de configuraciones configurado');
-    
+
     // Configurar límite de caracteres
     this.settingsNameInput.setAttribute('maxlength', '10');
+    if (this.settingsPetInput) this.settingsPetInput.setAttribute('maxlength', '10');
     
     // Función para sanitizar nombre
     const sanitizeName = (raw) => {
@@ -8498,29 +8560,123 @@ setupSettingsPanel() {
         }
     });
     
-    // Botón aplicar nombre
-    this.settingsApplyBtn.addEventListener('click', () => {
-        const rawName = this.settingsNameInput.value;
-        const name = sanitizeName(rawName);
-        
-        if (name === "") {
-            console.log("No has puesto un nombre");
+    // Botón aplicar nombre de PERSONAJE — se puede fijar UNA sola vez.
+    // Se usa .onclick (no addEventListener) para que las recreaciones de la
+    // escena no acumulen handlers duplicados sobre el mismo botón del DOM.
+    this.settingsApplyBtn.onclick = () => {
+        // Regla de nombre único: si ya está fijado, no se admiten cambios
+        if (this._isNameSet(this.Username)) {
+            this._refreshNameLockUI();
+            if (this.notifications) this.notifications.show('El nombre de personaje ya fue fijado y no puede cambiarse.', 'error');
             return;
         }
-        
-        console.log('Nombre aplicado:', name);
-        
-        // Actualizar en el juego
-        this.Username = name;
-        
-        // Actualizar en la interfaz
-        if (this.actualizarNombreUsuario1) {
-            this.actualizarNombreUsuario1(name);
+
+        const rawName = this.settingsNameInput.value;
+        const name = sanitizeName(rawName);
+
+        if (name === "" || name === "---") {
+            console.log("No has puesto un nombre válido");
+            return;
         }
-        
+
+        // Confirmación: el cambio es definitivo
+        const ok = window.confirm(`¿Fijar el nombre de personaje como "${name}"?\n\nEsta decisión es DEFINITIVA: no podrás cambiarlo después.`);
+        if (!ok) return;
+
+        console.log('Nombre aplicado (definitivo):', name);
+
+        // El DOM del dashboard persiste entre escenas: aplicar sobre la
+        // escena ACTIVA (GameScene o tiendajuego), no sobre una destruida.
+        let sc = this;
+        try {
+            const keys = window.game && window.game.scene && window.game.scene.keys;
+            if (keys) {
+                if (keys['GameScene'] && keys['GameScene'].scene.isActive()) sc = keys['GameScene'];
+                else if (keys['tiendajuego'] && keys['tiendajuego'].scene.isActive()) sc = keys['tiendajuego'];
+            }
+        } catch (e) { /* usar this como fallback */ }
+
+        // Actualizar en el juego
+        sc.Username = name;
+        this.Username = name;
+
+        // Actualizar en la interfaz + guardar en servidor (queuedAction → savegg)
+        try {
+            if (typeof sc.actualizarNombreUsuario1 === 'function') sc.actualizarNombreUsuario1(name);
+            else if (typeof sc.queuedAction === 'function') sc.queuedAction({ type: 'forSpam2' });
+        } catch (e) { console.warn('No se pudo actualizar/guardar el nombre:', e); }
+
+        this._refreshNameLockUI();
+        if (this.notifications) this.notifications.show(`✅ Nombre fijado: ${name}`, 'success');
+
         // Cerrar panel
         this.hideSettingsPanel();
-    });
+    };
+
+    // Botón aplicar nombre de MASCOTA — también se fija UNA sola vez.
+    if (this.settingsApplyPetBtn && this.settingsPetInput) {
+        // Mismos guards de teclado que el input de personaje
+        this.settingsPetInput.addEventListener('input', (e) => {
+            const clean = sanitizeName(e.target.value);
+            if (e.target.value !== clean) e.target.value = clean;
+        });
+        this.settingsPetInput.addEventListener('focus', () => {
+            if (this.keys) {
+                ['left','right','up','down','leftArrow','rightArrow','upArrow','downArrow']
+                  .forEach(k => { if (this.keys[k]) this.keys[k].enabled = false; });
+            }
+            this.input.keyboard.enabled = false;
+        });
+        this.settingsPetInput.addEventListener('keydown', (e) => {
+            e.stopPropagation();
+            if (e.key === 'Escape') this.hideSettingsPanel();
+        });
+        this.settingsPetInput.addEventListener('keyup', (e) => e.stopPropagation());
+
+        this.settingsApplyPetBtn.onclick = () => {
+            if (this._isNameSet(this.petName)) {
+                this._refreshNameLockUI();
+                if (this.notifications) this.notifications.show('El nombre de la mascota ya fue fijado y no puede cambiarse.', 'error');
+                return;
+            }
+
+            const name = sanitizeName(this.settingsPetInput.value);
+            if (name === "" || name === "---") {
+                console.log("No has puesto un nombre de mascota válido");
+                return;
+            }
+
+            const ok = window.confirm(`¿Fijar el nombre de tu mascota como "${name}"?\n\nEsta decisión es DEFINITIVA: no podrás cambiarlo después.`);
+            if (!ok) return;
+
+            console.log('Nombre de mascota aplicado (definitivo):', name);
+
+            // El DOM del dashboard persiste entre escenas, pero la escena que
+            // cableó este botón puede estar destruida (GameScene ↔ tienda).
+            // Resolver la escena ACTIVA para aplicar y guardar el nombre.
+            let sc = this;
+            try {
+                const keys = window.game && window.game.scene && window.game.scene.keys;
+                if (keys) {
+                    if (keys['GameScene'] && keys['GameScene'].scene.isActive()) sc = keys['GameScene'];
+                    else if (keys['tiendajuego'] && keys['tiendajuego'].scene.isActive()) sc = keys['tiendajuego'];
+                }
+            } catch (e) { /* usar this como fallback */ }
+
+            sc.petName = name;
+            this.petName = name;
+            window.globalPetName = name; // compartido entre escenas
+
+            // Actualizar la etiqueta sobre el perro y guardar en servidor
+            if (typeof sc._updateDogNameLabel === 'function') sc._updateDogNameLabel();
+            try {
+                if (typeof sc.queuedAction === 'function') sc.queuedAction({ type: 'forSpam2' });
+            } catch (e) { console.warn('No se pudo encolar el guardado del nombre de mascota:', e); }
+
+            this._refreshNameLockUI();
+            if (this.notifications) this.notifications.show(`✅ Tu mascota ahora se llama ${name}`, 'success');
+        };
+    }
     
     // Botón cerrar panel
     this.settingsCloseBtn.addEventListener('click', () => {
@@ -8612,15 +8768,20 @@ showSettingsPanel() {
         this.input.keyboard.enabled = false;
         
         
-        // Actualizar campo de nombre
-        if (this.settingsNameInput && this.Username) {
-            this.settingsNameInput.value = this.Username;
-            // Enfocar el input automáticamente
-            setTimeout(() => {
+        // Actualizar campos de nombre (personaje y mascota) con su estado de
+        // bloqueo: si un nombre ya fue fijado (≠ '---'), el input queda
+        // deshabilitado y el aviso pasa a "definitivo".
+        this._refreshNameLockUI();
+
+        // Enfocar el primer input editable
+        setTimeout(() => {
+            if (this.settingsNameInput && !this.settingsNameInput.disabled) {
                 this.settingsNameInput.focus();
-            }, 100);
-        }
-        
+            } else if (this.settingsPetInput && !this.settingsPetInput.disabled) {
+                this.settingsPetInput.focus();
+            }
+        }, 100);
+
         console.log('⚙️ Panel de configuraciones abierto');
         console.log('⌨️ Controles de teclado desactivados para escritura');
     }
@@ -10100,7 +10261,10 @@ initWaterCollectionSystem() {
     nextAvailableTime: null
   };
   
-  // Crear texto para mostrar información
+  // Crear texto para mostrar información.
+  // FIX: antes el cartel seguía al puntero (scrollFactor 0 + posición del
+  // mouse). Ahora vive en coordenadas de MUNDO, anclado ARRIBA del pozo
+  // (origin 0.5,1 = la base del texto apoya sobre el borde superior del pozo).
   this.waterCollectionInfo = this.add.text(0, 0, '', {
     fontFamily: '"PressStart2P"',
     fontSize: '12px',
@@ -10110,9 +10274,9 @@ initWaterCollectionSystem() {
     align: 'center',
     lineSpacing: 5
   })
-  .setDepth(1000)
-  .setVisible(false)
-  .setScrollFactor(0); // Fijo en la pantalla
+  .setOrigin(0.5, 1)
+  .setDepth(99999)
+  .setVisible(false);
   
   // Crear borde amarillo cuando el mouse está sobre el pozo
   this.waterWellBorder = this.add.graphics();
@@ -10150,24 +10314,20 @@ initWaterCollectionSystem() {
   
   // Actualizar estado inicial
   this.updateWaterCollectionStatus();
-  
-  // Actualizar información del mouse en tiempo real
-  this.sprite_pozoxd2.on('pointermove', (pointer) => {
-    if (this.waterCollectionInfo.visible) {
-      this.updateWaterCollectionInfoPosition(pointer);
-    }
-  });
-  
+
+  // NOTA: ya no hay listener de pointermove — el cartel queda FIJO arriba
+  // del pozo (no sigue al mouse).
+
   console.log('✅ Sistema de recolección de agua inicializado');
 }
 
 /**
- * Muestra la información de recolección
+ * Muestra la información de recolección (anclada arriba del pozo)
  */
 showWaterCollectionInfo(pointer) {
   this.updateWaterCollectionStatus().then(() => {
     this.updateWaterCollectionInfoText();
-    this.updateWaterCollectionInfoPosition(pointer);
+    this.updateWaterCollectionInfoPosition();
     this.waterCollectionInfo.setVisible(true);
   });
 }
@@ -10206,20 +10366,15 @@ updateWaterCollectionInfoText() {
 }
 
 /**
- * Actualiza la posición del texto
+ * Actualiza la posición del texto: SIEMPRE centrado arriba del pozo
+ * (coordenadas de mundo — ya no depende del puntero).
  */
-updateWaterCollectionInfoPosition(pointer) {
-  const x = pointer.x + 15;
-  const y = pointer.y + 15;
-  
-  // Ajustar para que no salga de la pantalla
-  const camera = this.cameras.main;
-  const maxX = camera.scrollX + camera.width - this.waterCollectionInfo.width;
-  const maxY = camera.scrollY + camera.height - this.waterCollectionInfo.height;
-  
+updateWaterCollectionInfoPosition() {
+  if (!this.sprite_pozoxd2 || !this.waterCollectionInfo) return;
+  const bounds = this.sprite_pozoxd2.getBounds();
   this.waterCollectionInfo.setPosition(
-    Math.min(x, maxX),
-    Math.min(y, maxY)
+    bounds.centerX,
+    bounds.top - 8
   );
 }
 
@@ -10407,22 +10562,74 @@ async handleWaterCollectionClick(pointer) {
     console.log('✅ Resultado de recolección de agua:', result);
     
     if (result.success) {
-      // Remover balde vacío usando tu función existente
-      const removed = this.removeItemSmart('balde_vacio', 1);
-      
-      if (!removed) {
-        this.notifications.show("Error al remover balde vacío", "error");
-        return;
-      }
-      
-      // Agregar balde con agua usando tu función existente
-      const added = this.addItemWithCheck('balde_con_agua', 1);
-      
-      if (!added) {
-        // Si no hay espacio, devolver el balde
-        this.addItemWithCheck('balde_vacio', 1);
-        this.notifications.show("No hay espacio en el inventario", "error");
-        return;
+      // ── RECOLECCIÓN ON-CHAIN ────────────────────────────────────────────
+      // El backend ya validó el cooldown/límite diario. Ahora el intercambio
+      // de baldes se hace con transacciones blockchain REALES (igual que las
+      // semillas y la basura):
+      //   TX 1: quitar 1 balde vacío   (ejecutarDivisionRemove → decrease/delete invoice)
+      //   TX 2: agregar 1 balde con agua (ejecutarDivision → merge/createInvoice)
+      // El éxito de cada una se verifica comparando el inventario antes y
+      // después (el patrón usado en el resto del juego, porque esas rutinas
+      // no siempre propagan un booleano confiable).
+      const defVacio = this.ItemDefinitions ? this.ItemDefinitions['balde_vacio'] : null;
+      const defAgua  = this.ItemDefinitions ? this.ItemDefinitions['balde_con_agua'] : null;
+
+      if (defVacio && defVacio.tipo && defAgua && defAgua.tipo && this.relayClient) {
+        this.notifications.show("💧 Enviando transacción del balde vacío...", "info");
+
+        // TX 1: quitar el balde vacío
+        const vaciosAntes = this.contarItemEnInventario('balde_vacio');
+        try {
+          await this.ejecutarDivisionRemove(defVacio.tipo, 'balde_vacio', defVacio.maxStack || 5, 1);
+        } catch (err) {
+          console.error('❌ Error en transacción de quitar balde vacío:', err);
+        }
+        const vaciosDespues = this.contarItemEnInventario('balde_vacio');
+
+        if (vaciosAntes - vaciosDespues < 1) {
+          this.notifications.show("❌ No se confirmó la transacción del balde vacío. Intenta de nuevo.", "error");
+          return;
+        }
+
+        // TX 2: agregar el balde con agua
+        this.notifications.show("💧 Enviando transacción del balde con agua...", "info");
+        const aguaAntes = this.contarItemEnInventario('balde_con_agua');
+        try {
+          await this.ejecutarDivision(defAgua.tipo, 'balde_con_agua', defAgua.maxStack || 5, 1);
+        } catch (err) {
+          console.error('❌ Error en transacción de agregar balde con agua:', err);
+        }
+        const aguaDespues = this.contarItemEnInventario('balde_con_agua');
+
+        if (aguaDespues - aguaAntes < 1) {
+          // Compensar: devolver el balde vacío (también on-chain) para no
+          // dejar al jugador sin nada.
+          this.notifications.show("⚠️ No se confirmó el balde con agua — devolviendo el balde vacío...", "error");
+          try {
+            await this.ejecutarDivision(defVacio.tipo, 'balde_vacio', defVacio.maxStack || 5, 1);
+          } catch (err) {
+            console.error('❌ Error devolviendo balde vacío:', err);
+          }
+          return;
+        }
+      } else {
+        // Fallback sin seguimiento on-chain (definiciones o relay no disponibles):
+        // comportamiento local anterior.
+        const removed = this.removeItemSmart('balde_vacio', 1);
+
+        if (!removed) {
+          this.notifications.show("Error al remover balde vacío", "error");
+          return;
+        }
+
+        const added = this.addItemWithCheck('balde_con_agua', 1);
+
+        if (!added) {
+          // Si no hay espacio, devolver el balde
+          this.addItemWithCheck('balde_vacio', 1);
+          this.notifications.show("No hay espacio en el inventario", "error");
+          return;
+        }
       }
       
       // Actualizar estado local
@@ -15505,32 +15712,65 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
     return new Promise(r => setTimeout(r, ms));
   }
 
-  // Reintentos: enviar acción y esperar confirmación
+  // Reintentos: enviar acción y esperar confirmación.
+  // FIX "reintentar pero la transacción SÍ fue exitosa": la versión anterior,
+  // cuando la ESPERA de confirmación fallaba (típicamente un timeout del
+  // poller a los 60 s), REENVIABA la transacción completa — duplicando la
+  // operación on-chain — y si el último intento también expiraba devolvía
+  // success:false, así que el registro la marcaba 'reverted' aunque la tx
+  // original se confirmara segundos después. Ahora: si el envío ya fue
+  // aceptado, NUNCA se reenvía; solo se re-espera la MISMA transactionId con
+  // un timeout más generoso (120 s por intento).
   async function _sendAndWaitWithRetries(relayClient, contractAddress, accionObj, maxAttempts = 3) {
+    let pendingTransactionId = null; // guardamos el id si ya se envió
+
+    const isTimeoutError = (val) => {
+      const msg = (typeof val === 'string' ? val : val?.error || val?.message || '').toLowerCase();
+      return msg.includes('timeout');
+    };
+
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const sendResult = await relayClient.accion(contractAddress, accionObj);
-        if (!sendResult || !sendResult.success) {
-          console.warn(`Attempt ${attempt}: sendResult no exitoso`, sendResult);
-          if (attempt === maxAttempts) return { success: false, error: sendResult?.error || 'sendFailed' };
-          await sleep(800 * attempt);
-          continue;
+        let transactionId = pendingTransactionId;
+
+        // Solo enviamos la tx si aún no tenemos un transactionId pendiente
+        if (!transactionId) {
+          const sendResult = await relayClient.accion(contractAddress, accionObj);
+          if (!sendResult || !sendResult.success) {
+            console.warn(`Attempt ${attempt}: sendResult no exitoso`, sendResult);
+            if (attempt === maxAttempts) return { success: false, error: sendResult?.error || 'sendFailed' };
+            await sleep(800 * attempt);
+            continue;
+          }
+          transactionId = sendResult.transactionId;
+          pendingTransactionId = transactionId; // guardar por si hay timeout
+        } else {
+          console.warn(`Attempt ${attempt}: re-esperando tx existente ${transactionId} (no se reenvía)`);
         }
 
-        // esperar confirmación
-        const final = await relayClient.waitForTransaction(sendResult.transactionId, { interval: 3000 });
+        // Esperar confirmación con timeout explícito de 2 minutos
+        const final = await relayClient.waitForTransaction(transactionId, {
+          interval: 3000,
+          timeout: 120000
+        });
+
         if (final && final.success) {
-          return { success: true, txHash: final.txHash, transactionId: sendResult.transactionId };
+          pendingTransactionId = null;
+          return { success: true, txHash: final.txHash, transactionId };
         } else {
-          console.warn(`Attempt ${attempt}: confirmación fallida`, final);
+          const timedOut = isTimeoutError(final);
+          console.warn(`Attempt ${attempt}: confirmación fallida (${timedOut ? 'timeout — reintentando misma tx' : 'error'})`, final);
           if (attempt === maxAttempts) return { success: false, error: final?.error || 'confirmFailed' };
-          await sleep(800 * attempt);
+          if (!timedOut) pendingTransactionId = null;
+          await sleep(timedOut ? 2000 : 800 * attempt);
           continue;
         }
       } catch (err) {
+        const timedOut = isTimeoutError(err);
         console.error(`Attempt ${attempt} error:`, err);
         if (attempt === maxAttempts) return { success: false, error: err.message || String(err) };
-        await sleep(800 * attempt);
+        if (!timedOut) pendingTransactionId = null;
+        await sleep(timedOut ? 2000 : 800 * attempt);
       }
     }
     return { success: false, error: 'unknown' };
@@ -18166,11 +18406,16 @@ async loadPlayerData() {
     const playerProps = [
       'posicionplayerx', 'posicionplayery',
       'speed', 'mundo', 'nivel', 'nivel_exp',
-      'misiones', 'Username', 'lenguaje'
+      'misiones', 'Username', 'lenguaje', 'petName'
     ];
     playerProps.forEach(prop => {
       if (data[prop] !== undefined && data[prop] !== null) this[prop] = data[prop];
     });
+
+    // Nombre de mascota: '---' = aún sin fijar (regla de nombre único)
+    if (!this.petName) this.petName = '---';
+    window.globalPetName = this.petName;
+    if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
 
     // Stats del contrato tienen prioridad sobre DB
     if (window.playerStats) {
@@ -18357,12 +18602,13 @@ async renderInventoryAfterLoad() {
             mundo: this.mundo, 
             moneda: (window.playerStats && typeof window.playerStats.oro === 'number') ? window.playerStats.oro : this.moneda,
             moneda_plata: (window.playerStats && typeof window.playerStats.plata === 'number') ? window.playerStats.plata : this.moneda_plata,
-            Username: this.Username, 
+            Username: this.Username,
+            petName: this.petName || window.globalPetName || '---',
             misiones: this.misiones,
-            inventory: inventoryData, 
+            inventory: inventoryData,
             chest: chestData
         };
-        
+
         console.log('📤 Payload para guardar:', {
             playerName: this.playerName,
             moneda: this.moneda,
@@ -18818,6 +19064,58 @@ getTileManagersMemoryStatus(scene) {
  * VERSIÓN FINAL PERFECTA - Rápida, compatible, sin errores
  * Mantiene .setDepth(), .setAlpha(), y toda la funcionalidad original
  */
+// ── Y-SORT PROFESIONAL DE EDIFICIOS ──────────────────────────────────────
+// Antes cada capa de edificios usaba un offset de profundidad A MANO
+// (-40, -48, -148...): si el número no coincidía con la altura visual de la
+// puerta/pared de ESA casa, el jugador desaparecía detrás del techo al pasar
+// por delante. Este método calcula la línea de oclusión REAL de cada
+// edificio a partir de su rectángulo de colisión (la pared sólida que el
+// jugador no puede atravesar): si los pies del jugador están por debajo del
+// borde inferior de esa pared, está DELANTE (se dibuja encima); si están por
+// encima, está DETRÁS (la casa lo tapa). Auto-calibrado, sin números mágicos.
+// Se llama una sola vez desde update() cuando las colisiones ya existen.
+calibrateBuildingDepths() {
+  const arrays = [this.collisionRectangles, this.collisionRectangles1, this.collisionRectangles2]
+    .filter(a => Array.isArray(a) && a.length);
+  if (!arrays.length || !this.children) return 0;
+
+  let calibrated = 0;
+  this.children.each(child => {
+    try {
+      if (!child || typeof child.getData !== 'function' || !child.getData('isBuilding')) return;
+      if (!child.getBounds) return;
+      const b = child.getBounds();
+
+      // Buscar la pared frontal: el rectángulo de colisión que se superpone
+      // horizontalmente con el edificio y cuyo borde inferior cae dentro de
+      // su cuerpo. Si hay varios, gana el más bajo (la pared más cercana al
+      // frente).
+      let frontLine = null;
+      for (const arr of arrays) {
+        for (const r of arr) {
+          if (!r || typeof r.width !== 'number') continue;
+          const overlapW = Math.min(b.right, r.right) - Math.max(b.x, r.x);
+          if (overlapW < Math.min(r.width, b.width) * 0.5) continue;
+          const rBottom = r.y + r.height;
+          if (rBottom < b.y + b.height * 0.15) continue;   // muy arriba (techo/otra cosa)
+          if (rBottom > b.y + b.height + 4) continue;      // por debajo del edificio
+          if (frontLine === null || rBottom > frontLine) frontLine = rBottom;
+        }
+      }
+
+      if (frontLine !== null) {
+        child.setDepth(frontLine - 1);
+        calibrated++;
+      }
+    } catch (e) { /* edificio sin bounds válidos: conservar su depth manual */ }
+  });
+
+  if (calibrated > 0) {
+    console.log(`🏠 Y-sort profesional: ${calibrated} edificios calibrados con su línea de colisión real`);
+  }
+  return calibrated;
+}
+
 createImagesFromObjectLayer(scene, map, objectLayerName, nameMapping, depthOffset = 0) {
   // 1. Obtener capa de objetos
   const objectLayer = map.getObjectLayer(objectLayerName);
@@ -18884,13 +19182,20 @@ createOptimizedSprite(scene, obj, spriteKey, depthOffset = 0) {
     .setActive(true)
     .setVisible(true)
     .setDepth(obj.y + depthOffset);
-  
+
   // 2. Aplicar configuraciones de Tiled
   this.applyTiledProperties(sprite, obj);
-  
+
   // 3. Marcar como optimizable
   sprite.setData('optimized', true);
   sprite.setData('static', true); // Marcar como estático para Phaser
+
+  // Y-SORT PROFESIONAL: las capas que pasan depthOffset ≠ 0 son edificios
+  // (casas, molino, herrería...). Se marcan para que calibrateBuildingDepths()
+  // reemplace el offset manual por la LÍNEA REAL de su pared frontal (el
+  // borde inferior de su rectángulo de colisión) cuando las colisiones del
+  // mapa ya estén cargadas. Ver calibrateBuildingDepths().
+  sprite.setData('isBuilding', depthOffset !== 0);
   
   // 4. Desactivar actualizaciones innecesarias (CRÍTICO para rendimiento)
   this.disableUnnecessaryUpdates(sprite);
@@ -19465,6 +19770,16 @@ getPlayerIntentDirection() {
         this.cleanInactivePlayers();
     }
 
+    // Y-SORT PROFESIONAL (one-shot): cuando las colisiones del mapa ya están
+    // cargadas, calibrar la profundidad de los edificios con su línea real de
+    // pared. Se ejecuta una única vez por vida de la escena.
+    if (!this._buildingDepthsCalibrated &&
+        ((Array.isArray(this.collisionRectangles) && this.collisionRectangles.length) ||
+         (Array.isArray(this.collisionRectangles1) && this.collisionRectangles1.length))) {
+      this._buildingDepthsCalibrated = true;
+      this.calibrateBuildingDepths();
+    }
+
     // Obtener las coordenadas en el mapa
     const mapX = Math.floor(this.player.x / this.map.tileWidth); // Coordenada X en tiles
     const mapY = Math.floor(this.player.y / this.map.tileHeight); // Coordenada Y en tiles
@@ -19477,6 +19792,7 @@ const player = this.player;
 if (this.petData && this.petData.equipped === false) {
   if (dog && dog.sprite && dog.sprite.visible) dog.sprite.setVisible(false);
   if (dog && dog.shadowContainer && dog.shadowContainer.visible) dog.shadowContainer.setVisible(false);
+  if (this.dogNameText && this.dogNameText.visible) this.dogNameText.setVisible(false);
   // Skip rest of update for this frame
 } else {
 
@@ -19831,6 +20147,18 @@ dog.sprite.setDepth(dogFeetY);
 if (dog.shadowContainer) {
   dog.shadowContainer.setPosition(dog.x, dog.y + 22);
   dog.shadowContainer.setDepth(dogFeetY - 1);
+}
+
+// Etiqueta del nombre de la mascota: sigue al perro, arriba de su cabeza
+if (this.dogNameText) {
+  const named = this._isNameSet && this._isNameSet(this.petName);
+  if (named && dog.sprite.visible) {
+    this.dogNameText.setVisible(true);
+    this.dogNameText.setPosition(dog.x, dog.y - dog.sprite.displayHeight * 0.5 - 4);
+    this.dogNameText.setDepth(dogFeetY + 1);
+  } else {
+    this.dogNameText.setVisible(false);
+  }
 }
 
 } // end petData.equipped else block

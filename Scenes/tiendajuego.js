@@ -1920,6 +1920,26 @@ this.anims.create({
     // ---------- BOTÓN 0 (Dashboard)
     this.onRoundBtnDashboard = () => {
         console.log("dashboard clicked");
+
+        // Refrescar el estado de bloqueo de los nombres (regla "una sola vez")
+        // antes de abrir. El nombre de personaje lo bloquea el hubPanel vía
+        // window._acttov; aquí se refleja además el de la mascota.
+        const petVal = this.petName || window.globalPetName || '---';
+        const petLocked = typeof petVal === 'string' && petVal.trim() !== '' && petVal !== '---';
+        const petInput = document.getElementById('pet-name');
+        const petBtn = document.getElementById('apply-pet-name');
+        const petHint = document.getElementById('pet-name-hint');
+        if (petInput) { petInput.disabled = petLocked; petInput.value = petLocked ? petVal : ''; }
+        if (petBtn) petBtn.disabled = petLocked;
+        if (petHint) {
+            petHint.textContent = petLocked
+                ? `🔒 Nombre de mascota fijado: "${petVal}" — definitivo`
+                : '⚠️ Solo puedes elegirlo UNA vez — piénsalo bien.';
+            petHint.classList.toggle('dash-hint-locked_101', petLocked);
+        }
+        const nameInput = document.getElementById('character-name');
+        if (nameInput && window._acttov === 1) nameInput.value = this.Username || '';
+
         window.hubPanel.show();
     };
 
@@ -2039,8 +2059,13 @@ this.anims.create({
     this.roundButtons[5]?.addEventListener('click', this.onRoundBtnSkills);
 
     // ---------- BOTÓN 6 (Store) — same as GameScene
+    // FIX: antes abría https://store.grasslandforest.com (dominio que no sirve
+    // el market). El Market vive junto a game.html en el dominio del juego, así
+    // que se resuelve relativo a la página actual: en producción →
+    // https://game.grasslandforest.com/market.html y en local el mismo host.
     this.onRoundBtnStore = () => {
-      window.open('https://store.grasslandforest.com', '_blank');
+      const marketUrl = new URL('market.html', window.location.href).href;
+      window.open(marketUrl, '_blank');
     };
     this.roundButtons[6]?.addEventListener('click', this.onRoundBtnStore);
 
@@ -2672,11 +2697,24 @@ this.dog.shadowContainer = this.add.container(this.dog.x, this.dog.y + 22, [this
 // Reproducir animación inicial
 this.dog.sprite.play('perro_right');
 
+// ── Etiqueta con el NOMBRE de la mascota (regla de nombre único) ─────────
+if (!this.petName) this.petName = window.globalPetName || '---';
+this.dogNameText = this.add.text(this.dog.x, this.dog.y - 30, '', {
+  fontFamily: '"PressStart2P"',
+  fontSize: '8px',
+  color: '#ffe9a8',
+  resolution: 4,
+  stroke: '#000000',
+  strokeThickness: 4
+}).setOrigin(0.5, 1).setDepth(this.player.y + 9).setVisible(false);
+if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
+
 // ── Restore pet removal state that was set before this scene loaded ──
 if (window.globalPetData && window.globalPetData.equipped === false) {
   this.petData = window.globalPetData;
   this.dog.sprite.setVisible(false);
   this.dog.shadowContainer.setVisible(false);
+  if (this.dogNameText) this.dogNameText.setVisible(false);
 } else {
   // Sync globalPetData from current state for future scene switches
   if (!this.petData) this.petData = { type: 'perro', visible: true, equipped: true };
@@ -2765,12 +2803,10 @@ handleMouseMovement(delta) {
         let dy = worldPoint.y - this.player.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
-        // Cerca → mantener animación según última dirección HORIZONTAL
-        // (en modo mouse solo existen 'left'/'right'; si lastDirection quedó
-        // en 'up'/'down' por el teclado, se usa 'right' por defecto)
+        // Cerca del cursor → no hay desplazamiento este frame. La animación
+        // NO se toca aquí: la "Decisión ÚNICA de animación" (más abajo en
+        // update, tras resolver colisiones) pondrá el idle que corresponda.
         if (distance < 2) {
-            const horiz = (this.lastDirection === 'left') ? 'left' : 'right';
-            this.player.anims.play(horiz, true);
             return;
         }
 
@@ -2793,24 +2829,12 @@ handleMouseMovement(delta) {
         this.player.x += dx * this.mouseMovement.speed * deltaInSeconds;
         this.player.y += dy * this.mouseMovement.speed * deltaInSeconds;
 
-        // Para movimiento con MOUSE solo existen 2 animaciones:
-        //   · 'right' cubre: derecha, derecha+arriba y derecha+abajo
-        //   · 'left'  cubre: izquierda, izquierda+arriba e izquierda+abajo
-        // Las animaciones 'up'/'down' NUNCA se usan en este modo (antes un
-        // movimiento casi vertical con el mouse las disparaba y se veían las
-        // 6 animaciones). El lado lo decide la componente horizontal hacia el
-        // cursor; si es 0 (vertical puro), se mantiene el último lado usado.
-        if (dx < 0) {
-            this.player.anims.play("left", true);
-            this.lastDirection = "left";
-        } else if (dx > 0) {
-            this.player.anims.play("right", true);
-            this.lastDirection = "right";
-        } else {
-            const horiz = (this.lastDirection === 'left') ? 'left' : 'right';
-            this.player.anims.play(horiz, true);
-            this.lastDirection = horiz;
-        }
+        // NOTA (paridad con GameScene): aquí ya NO se llama a anims.play().
+        // La dirección hacia el cursor queda en mouseMovement.directionX/Y y
+        // la "Decisión ÚNICA de animación" (tras resolver colisiones) aplica
+        // la regla de modo mouse: solo 'left'/'right' — 'right' cubre derecha,
+        // derecha+arriba y derecha+abajo; 'left' sus equivalentes. Así también
+        // se evita el congelamiento al colisionar en diagonal.
 
         this.posicionplayerx = this.player.x;
         this.posicionplayery = this.player.y;
@@ -5217,31 +5241,59 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
   }
 
   // Reintentos: enviar acción y esperar confirmación
+  // FIX "reintentar pero la transacción SÍ fue exitosa": si el envío ya fue
+  // aceptado NUNCA se reenvía (antes se duplicaba la operación on-chain); solo
+  // se re-espera la MISMA transactionId con timeout de 120 s por intento.
   async function _sendAndWaitWithRetries(relayClient, contractAddress, accionObj, maxAttempts = 3) {
+    let pendingTransactionId = null; // guardamos el id si ya se envió
+
+    const isTimeoutError = (val) => {
+      const msg = (typeof val === 'string' ? val : val?.error || val?.message || '').toLowerCase();
+      return msg.includes('timeout');
+    };
+
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const sendResult = await relayClient.accion(contractAddress, accionObj);
-        if (!sendResult || !sendResult.success) {
-          console.warn(`Attempt ${attempt}: sendResult no exitoso`, sendResult);
-          if (attempt === maxAttempts) return { success: false, error: sendResult?.error || 'sendFailed' };
-          await sleep(800 * attempt);
-          continue;
+        let transactionId = pendingTransactionId;
+
+        // Solo enviamos la tx si aún no tenemos un transactionId pendiente
+        if (!transactionId) {
+          const sendResult = await relayClient.accion(contractAddress, accionObj);
+          if (!sendResult || !sendResult.success) {
+            console.warn(`Attempt ${attempt}: sendResult no exitoso`, sendResult);
+            if (attempt === maxAttempts) return { success: false, error: sendResult?.error || 'sendFailed' };
+            await sleep(800 * attempt);
+            continue;
+          }
+          transactionId = sendResult.transactionId;
+          pendingTransactionId = transactionId; // guardar por si hay timeout
+        } else {
+          console.warn(`Attempt ${attempt}: re-esperando tx existente ${transactionId} (no se reenvía)`);
         }
 
-        // esperar confirmación
-        const final = await relayClient.waitForTransaction(sendResult.transactionId, { interval: 3000 });
+        // Esperar confirmación con timeout explícito de 2 minutos
+        const final = await relayClient.waitForTransaction(transactionId, {
+          interval: 3000,
+          timeout: 120000
+        });
+
         if (final && final.success) {
-          return { success: true, txHash: final.txHash, transactionId: sendResult.transactionId };
+          pendingTransactionId = null;
+          return { success: true, txHash: final.txHash, transactionId };
         } else {
-          console.warn(`Attempt ${attempt}: confirmación fallida`, final);
+          const timedOut = isTimeoutError(final);
+          console.warn(`Attempt ${attempt}: confirmación fallida (${timedOut ? 'timeout — reintentando misma tx' : 'error'})`, final);
           if (attempt === maxAttempts) return { success: false, error: final?.error || 'confirmFailed' };
-          await sleep(800 * attempt);
+          if (!timedOut) pendingTransactionId = null;
+          await sleep(timedOut ? 2000 : 800 * attempt);
           continue;
         }
       } catch (err) {
+        const timedOut = isTimeoutError(err);
         console.error(`Attempt ${attempt} error:`, err);
         if (attempt === maxAttempts) return { success: false, error: err.message || String(err) };
-        await sleep(800 * attempt);
+        if (!timedOut) pendingTransactionId = null;
+        await sleep(timedOut ? 2000 : 800 * attempt);
       }
     }
     return { success: false, error: 'unknown' };
@@ -7966,9 +8018,57 @@ createImagesFromObjectLayer(scene, map, objectLayerName, nameMapping, depthOffse
       image.flipY = true;
     }
 
+    // Y-SORT PROFESIONAL: los objetos con offset manual ≠ 0 (mesas, estantes,
+    // estructuras altas) se marcan para que calibrateBuildingDepths() ajuste
+    // su profundidad con la línea real de su colisión (ver ese método).
+    image.setData('isBuilding', typeof depthOffset === 'number' && depthOffset !== 0);
+
     // Asignar la imagen a la propiedad de la escena
     scene[targetProp] = image;
   });
+}
+
+// ── Y-SORT PROFESIONAL (paridad con GameScene) ───────────────────────────
+// Reemplaza los offsets manuales de profundidad por la línea de oclusión
+// REAL de cada estructura: el borde inferior del rectángulo de colisión que
+// la representa. Pies del jugador por debajo de esa línea → jugador delante;
+// por encima → jugador detrás. Sin números mágicos por objeto.
+calibrateBuildingDepths() {
+  const arrays = [this.collisionRectangles, this.collisionRectangles1, this.collisionRectangles2]
+    .filter(a => Array.isArray(a) && a.length);
+  if (!arrays.length || !this.children) return 0;
+
+  let calibrated = 0;
+  this.children.each(child => {
+    try {
+      if (!child || typeof child.getData !== 'function' || !child.getData('isBuilding')) return;
+      if (!child.getBounds) return;
+      const b = child.getBounds();
+
+      let frontLine = null;
+      for (const arr of arrays) {
+        for (const r of arr) {
+          if (!r || typeof r.width !== 'number') continue;
+          const overlapW = Math.min(b.right, r.right) - Math.max(b.x, r.x);
+          if (overlapW < Math.min(r.width, b.width) * 0.5) continue;
+          const rBottom = r.y + r.height;
+          if (rBottom < b.y + b.height * 0.15) continue;
+          if (rBottom > b.y + b.height + 4) continue;
+          if (frontLine === null || rBottom > frontLine) frontLine = rBottom;
+        }
+      }
+
+      if (frontLine !== null) {
+        child.setDepth(frontLine - 1);
+        calibrated++;
+      }
+    } catch (e) { /* sin bounds válidos: conservar depth manual */ }
+  });
+
+  if (calibrated > 0) {
+    console.log(`🏠 Y-sort profesional (tienda): ${calibrated} estructuras calibradas`);
+  }
+  return calibrated;
 }
 
 
@@ -8109,7 +8209,7 @@ async loadPlayerData() {
     const playerProps = [
       'posicionplayerx', 'posicionplayery',
       'speed', 'mundo', 'nivel', 'nivel_exp',
-      'misiones', 'Username', 'lenguaje'
+      'misiones', 'Username', 'lenguaje', 'petName'
     ];
 
     playerProps.forEach(prop => {
@@ -8117,6 +8217,12 @@ async loadPlayerData() {
         this[prop] = data[prop];
       }
     });
+
+    // Nombre de mascota compartido entre escenas ('---' = aún sin fijar)
+    if (!this.petName) this.petName = window.globalPetName || '---';
+    window.globalPetName = this.petName;
+    // Lock del panel de nombre (window._acttov) según la regla de nombre único
+    window._acttov = (typeof this.Username === 'string' && this.Username.trim() !== '' && this.Username !== '---') ? 1 : 0;
 
     // Stats del contrato tienen prioridad sobre DB
     if (window.playerStats) {
@@ -8267,9 +8373,10 @@ async renderInventoryAfterLoad() {
             mundo: this.mundo, 
             moneda: (window.playerStats && typeof window.playerStats.oro === 'number') ? window.playerStats.oro : this.moneda,
             moneda_plata: (window.playerStats && typeof window.playerStats.plata === 'number') ? window.playerStats.plata : this.moneda_plata,
-            Username: this.Username, 
+            Username: this.Username,
+            petName: this.petName || window.globalPetName || '---',
             misiones: this.misiones,
-            inventory: inventoryData, 
+            inventory: inventoryData,
             chest: chestData
         };
         
@@ -9055,47 +9162,13 @@ actualizarBarraComida(porcentaje) {
         const deltaInSeconds = delta / 1000;
         this.player.x += dx * this.speed * deltaInSeconds;
         this.player.y += dy * this.speed * deltaInSeconds;
-        
-        // Manejo de animaciones
-        const isMoving = dx !== 0 || dy !== 0;
-        
-        if (!isMoving) {
-            this.player.anims.stop();
-            
-            if (this.lastDirection === "left") {
-                this.player.setTexture('player_left_1');
-            } else if (this.lastDirection === "right") {
-                this.player.setTexture("player_right_1");
-            } else if (this.lastDirection === "up") {
-                this.player.setTexture("player_up_1");
-            } else if (this.lastDirection === "down") {
-                this.player.setTexture("player_down_1");
-            }
-        } else {
-        if (dx < 0) {
-            this.player.anims.play("left", true);
-            this.lastDirection = "left";
 
-        } else if (dx > 0) {
-            this.player.anims.play("right", true);
-            this.lastDirection = "right";
-
-        } else if (dy < 0) {
-            this.player.anims.play("up", true);
-            this.lastDirection = "up";
-
-        } else if (dy > 0) {
-            this.player.anims.play("down", true);
-            this.lastDirection = "down";
-
-        } else if (dy !== 0) {
-            // fallback (por si no tienes animaciones up/down)
-            if (this.lastDirection === "left" || this.lastDirection === "right") {
-                this.player.anims.play(this.lastDirection, true);
-            }
-        }
-
-        }
+        // NOTA (paridad con GameScene): la animación YA NO se decide aquí con
+        // el input crudo. Antes este bloque llamaba a anims.play() y, más
+        // abajo, la restauración por colisión volvía a tocar la animación en
+        // el mismo frame → conflictos y congelamientos. Ahora la animación se
+        // decide UNA sola vez, después de resolver colisiones por eje (ver
+        // "Decisión ÚNICA de animación" más abajo).
     }
     
     // Enviar movimiento del jugador (si es que tienes multiplayer)
@@ -9109,6 +9182,14 @@ actualizarBarraComida(porcentaje) {
     const playerFeetY = this.player.y + this.player.displayHeight * 0.5;
     this.player.setDepth(playerFeetY);
     if (this.usuariox) this.usuariox.setDepth(playerFeetY + 1);
+
+    // Y-SORT PROFESIONAL (one-shot): calibrar estructuras cuando las
+    // colisiones del mapa de la tienda ya estén cargadas.
+    if (!this._buildingDepthsCalibrated &&
+        Array.isArray(this.collisionRectangles2) && this.collisionRectangles2.length) {
+      this._buildingDepthsCalibrated = true;
+      this.calibrateBuildingDepths();
+    }
     
     // Limpiar jugadores inactivos
     if (typeof this.cleanInactivePlayers === 'function') {
@@ -9129,6 +9210,7 @@ if (!dog || !dog.sprite || !player) return;
 if (this.petData && this.petData.equipped === false) {
   if (dog.sprite && dog.sprite.visible) dog.sprite.setVisible(false);
   if (dog.shadowContainer && dog.shadowContainer.visible) dog.shadowContainer.setVisible(false);
+  if (this.dogNameText && this.dogNameText.visible) this.dogNameText.setVisible(false);
 } else {
 
 if (this.prevPlayerX === undefined) this.prevPlayerX = player.x;
@@ -9466,6 +9548,18 @@ if (dog.shadowContainer) {
   dog.shadowContainer.setDepth(dogFeetY - 1);
 }
 
+// Etiqueta del nombre de la mascota: sigue al perro, arriba de su cabeza
+if (this.dogNameText) {
+  const named = this._isNameSet && this._isNameSet(this.petName);
+  if (named && dog.sprite.visible) {
+    this.dogNameText.setVisible(true);
+    this.dogNameText.setPosition(dog.x, dog.y - dog.sprite.displayHeight * 0.5 - 4);
+    this.dogNameText.setDepth(dogFeetY + 1);
+  } else {
+    this.dogNameText.setVisible(false);
+  }
+}
+
 } // end petData.equipped else block
 
 
@@ -9506,14 +9600,102 @@ if (dog.shadowContainer) {
 
       */
 
-      this.collisionRectangles2.forEach(rect => {
-        if (Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, rect)) {
-          console.log("¡Colisión detectada!");
-          this.player.x = this.previousPosition.x;
-          this.player.y = this.previousPosition.y;
-          this.player.anims.stop();
+      // ── COLISIÓN POR EJE + DECISIÓN ÚNICA DE ANIMACIÓN (paridad GameScene) ──
+      // Antes: si el hitbox tocaba una pared se restauraba la posición COMPLETA
+      // (X e Y) y se hacía anims.stop() — el jugador quedaba clavado sin
+      // deslizarse y sin animación. Ahora se prueba cada eje por separado: si
+      // solo la X está bloqueada, la Y sigue avanzando (deslizamiento a lo
+      // largo de la pared) y viceversa — el mismo mecanismo que GameScene,
+      // válido para teclado y mouse.
+      {
+        const playerHitbox = (x, y) => new Phaser.Geom.Rectangle(x - 15, y + 25, 30, 15);
+
+        const collidesWithAny = (rect, rectArray) => {
+          if (!Array.isArray(rectArray)) return false;
+          return rectArray.some(obstacle =>
+            obstacle && Phaser.Geom.Intersects.RectangleToRectangle(rect, obstacle)
+          );
+        };
+
+        const prevX = this.previousPosition?.x ?? this.player.x;
+        const prevY = this.previousPosition?.y ?? this.player.y;
+
+        const nextX = this.player.x;
+        const nextY = this.player.y;
+
+        // Probar colisión solo en X
+        const rectX = playerHitbox(nextX, prevY);
+        if (collidesWithAny(rectX, this.collisionRectangles2)) {
+          this.player.x = prevX;
         }
-      });
+
+        // Probar colisión solo en Y
+        const rectY = playerHitbox(this.player.x, nextY);
+        if (collidesWithAny(rectY, this.collisionRectangles2)) {
+          this.player.y = prevY;
+        }
+
+        // Sincronizar hitbox visual y posición persistida con la posición corregida
+        this.playerRect.setTo(this.player.x - 15, this.player.y + 25, 30, 15);
+        this.posicionplayerx = this.player.x;
+        this.posicionplayery = this.player.y;
+
+        // ===== Decisión ÚNICA de animación del jugador para este frame =====
+        // Igual que GameScene: se usa el desplazamiento REAL ya corregido.
+        const finalDx = this.player.x - prevX;
+        const finalDy = this.player.y - prevY;
+        const EPS = 0.05;
+        const movingX = Math.abs(finalDx) > EPS;
+        const movingY = Math.abs(finalDy) > EPS;
+
+        const mouseActive = !!(this.mouseMovement && this.mouseMovement.followCursorActive);
+
+        if (mouseActive) {
+          // MODO MOUSE: solo 'left'/'right'. 'right' cubre derecha,
+          // derecha+arriba y derecha+abajo; 'left' sus equivalentes. La mirada
+          // sale de la INTENCIÓN hacia el cursor, así la animación sigue viva
+          // aunque una colisión bloquee la horizontal (ej. derecha+arriba
+          // contra una pared a la derecha).
+          const mdx = this.mouseMovement.directionX || 0;
+          let facing;
+          if (mdx < -0.001) facing = 'left';
+          else if (mdx > 0.001) facing = 'right';
+          else facing = (this.lastDirection === 'left') ? 'left' : 'right';
+
+          if (movingX || movingY) {
+            this.lastDirection = facing;
+            const currentKey = this.player.anims.currentAnim?.key;
+            if (!this.player.anims.isPlaying || currentKey !== facing) {
+              this.player.anims.play(facing, true);
+            }
+          } else {
+            this.player.anims.stop();
+            this.lastDirection = facing;
+            this.player.setTexture(facing === 'left' ? 'player_left_1' : 'player_right_1');
+          }
+        } else if (!movingX && !movingY) {
+          // Sin movimiento real: idle según última dirección
+          this.player.anims.stop();
+          if (this.lastDirection === "left") {
+            this.player.setTexture('player_left_1');
+          } else if (this.lastDirection === "right") {
+            this.player.setTexture('player_right_1');
+          } else if (this.lastDirection === "up") {
+            this.player.setTexture('player_up_1');
+          } else if (this.lastDirection === "down") {
+            this.player.setTexture('player_down_1');
+          }
+        } else {
+          // TECLADO: prioridad horizontal usando el eje que REALMENTE se movió
+          const animKey = movingX ? (finalDx < 0 ? 'left' : 'right')
+                                   : (finalDy < 0 ? 'up' : 'down');
+          this.lastDirection = animKey;
+          const currentKey = this.player.anims.currentAnim?.key;
+          if (!this.player.anims.isPlaying || currentKey !== animKey) {
+            this.player.anims.play(animKey, true);
+          }
+        }
+      }
 
         
       this.collisionRectangles1.forEach(rect1 => {
@@ -9841,6 +10023,19 @@ if (dog.shadowContainer) {
     } finally {
       this._statsReady = savedReady;
     }
+  }
+
+  // ── Nombre único de la mascota (compartido con GameScene) ────────────────
+  _isNameSet(v) {
+    return typeof v === 'string' && v.trim() !== '' && v.trim() !== '---';
+  }
+
+  _updateDogNameLabel() {
+    if (!this.dogNameText) return;
+    const named = this._isNameSet(this.petName);
+    this.dogNameText.setText(named ? this.petName : '');
+    const dogVisible = !!(this.dog && this.dog.sprite && this.dog.sprite.visible);
+    this.dogNameText.setVisible(named && dogVisible);
   }
 
   _syncMonedas() {
