@@ -6213,29 +6213,39 @@ const TREE_STUMP_TEXTURE = {
   arbolx:   'tronco_arbol_seco_png'
 };
 
+// Se intercambia la TEXTURA del propio sprite del árbol en vez de ocultarlo y
+// añadir otra imagen encima. Motivo: enableAutoCullingForLayer() recorre estos
+// sprites en cada frame y les hace setVisible(), así que ocultar el árbol no
+// funciona (se vuelve a mostrar solo). Además, reutilizar el mismo sprite
+// conserva la posición exacta de Tiled (origin 0,1 = la base del objeto),
+// el depth del Y-sorting y la escala aplicada por applyTiledProperties, con lo
+// que el tronco sale del tamaño proporcional al árbol, no del tamaño crudo del png.
 this.treeStumps = this.treeStumps || {};
 
 const showTreeStump = (sprRef, treeKey) => {
   const type = getTreeTypeFromKey(treeKey);
-  const texture = TREE_STUMP_TEXTURE[type];
-  if (!texture || !sprRef || this.treeStumps[treeKey]) return;
+  const stumpTexture = TREE_STUMP_TEXTURE[type];
+  if (!stumpTexture || !sprRef || this.treeStumps[treeKey]) return;
+  if (!this.textures.exists(stumpTexture)) {
+    console.warn(`No existe la textura del tronco '${stumpTexture}'`);
+    return;
+  }
 
-  const stump = this.add.image(sprRef.x, sprRef.y, texture)
-    .setOrigin(sprRef.originX, sprRef.originY)
-    .setDepth(sprRef.depth);
-  this.treeStumps[treeKey] = stump;
+  // Guardar la textura original para poder restaurar el árbol tras el respawn
+  this.treeStumps[treeKey] = sprRef.texture.key;
 
-  sprRef.setVisible(false);
+  // setTexture conserva scaleX/scaleY, así que el tronco queda escalado igual
+  // que el árbol y apoyado en la misma base (origin 0,1).
+  sprRef.setTexture(stumpTexture);
 };
 
 const hideTreeStump = (treeKey) => {
-  const stump = this.treeStumps[treeKey];
-  if (stump) {
-    stump.destroy();
-    delete this.treeStumps[treeKey];
-  }
+  const originalTexture = this.treeStumps[treeKey];
+  if (!originalTexture) return;
+  delete this.treeStumps[treeKey];
+
   const liveSpr = this[treeKey];
-  if (liveSpr && liveSpr.active) liveSpr.setVisible(true);
+  if (liveSpr && liveSpr.active) liveSpr.setTexture(originalTexture);
 };
 
 // -----------------------------------------------------------------------------
