@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Grassland Forest — Misiones diarias</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #121c2f;
+    --panel-2: #17233a;
+    --line: #26344f;
+    --text: #e8f0ff;
+    --muted: #93a7c6;
+    --accent: #4f9dff;
+    --ok: #3fbf72;
+    --warn: #f0b429;
+    --err: #e4655f;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: linear-gradient(180deg, #0e1729, #0b1220);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  header h1 { margin: 0; font-size: 18px; letter-spacing: .3px; }
+  header .sp { flex: 1; }
+
+  main { padding: 18px; max-width: 1180px; margin: 0 auto; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 18px;
+  }
+
+  .card h2 { margin: 0 0 12px; font-size: 15px; color: #cfe0ff; }
+
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 5px; min-width: 150px; flex: 1; }
+  .field label { font-size: 12px; color: var(--muted); }
+
+  input, select, textarea, button {
+    font: inherit;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 9px 11px;
+    width: 100%;
+  }
+
+  textarea { resize: vertical; min-height: 62px; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  button {
+    cursor: pointer;
+    width: auto;
+    white-space: nowrap;
+    transition: filter .15s ease;
+  }
+  button:hover { filter: brightness(1.18); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #04101f; font-weight: 600; }
+  button.ok      { background: var(--ok);     border-color: var(--ok);     color: #04160c; font-weight: 600; }
+  button.danger  { background: transparent;   border-color: var(--err);    color: var(--err); }
+  button.ghost   { background: transparent; }
+
+  .mission {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 14px;
+    background: var(--panel-2);
+  }
+
+  .mission-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+
+  .mission-head .tag {
+    background: rgba(79, 157, 255, .16);
+    border: 1px solid rgba(79, 157, 255, .35);
+    color: #b9d6ff;
+    border-radius: 999px;
+    padding: 3px 11px;
+    font-size: 12px;
+  }
+
+  .langs { margin-top: 10px; }
+  .langs summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 4px 0; }
+  .lang-block { border-top: 1px dashed var(--line); padding-top: 10px; margin-top: 8px; }
+  .lang-block h4 { margin: 0 0 8px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+
+  .days { display: flex; gap: 8px; flex-wrap: wrap; }
+  .day-chip {
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .day-chip:hover { border-color: var(--accent); }
+
+  #estado {
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 14px;
+    display: none;
+    margin-bottom: 14px;
+  }
+  #estado.show { display: block; }
+  #estado.ok   { background: rgba(63,191,114,.14); border: 1px solid var(--ok); }
+  #estado.err  { background: rgba(228,101,95,.14); border: 1px solid var(--err); }
+  #estado.info { background: rgba(79,157,255,.14); border: 1px solid var(--accent); }
+
+  .hint { color: var(--muted); font-size: 12.5px; margin: 6px 0 0; }
+
+  .token-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .token-row input { flex: 1; min-width: 220px; }
+
+  @media (max-width: 620px) {
+    main { padding: 12px; }
+    .card { padding: 12px; border-radius: 11px; }
+    .field { min-width: 100%; }
+    header h1 { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📜 Misiones diarias</h1>
+  <span class="sp"></span>
+  <span id="apiLabel" class="hint"></span>
+</header>
+
+<main>
+  <div id="estado"></div>
+
+  <!-- ===================== ACCESO ===================== -->
+  <section class="card">
+    <h2>1 · Acceso de administrador</h2>
+    <div class="token-row">
+      <input id="token" type="password" placeholder="Token de administrador (JWT con role admin)" autocomplete="off">
+      <button class="ghost" id="btnVerToken" type="button">👁 Ver</button>
+      <button class="primary" id="btnProbar" type="button">Comprobar acceso</button>
+    </div>
+    <p class="hint">
+      El token se guarda solo en memoria: al cerrar o recargar la pestaña se olvida.
+      Nunca se escribe en localStorage ni en la URL.
+    </p>
+  </section>
+
+  <!-- ===================== DÍA ===================== -->
+  <section class="card">
+    <h2>2 · NPC y día</h2>
+    <div class="row">
+      <div class="field">
+        <label for="npc">NPC</label>
+        <select id="npc">
+          <option value="granjero">granjero</option>
+          <option value="guardian">guardian</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="dia">Día (UTC)</label>
+        <input id="dia" type="date">
+      </div>
+      <div class="field">
+        <label for="reset">Hora de reinicio (UTC, 0-23)</label>
+        <input id="reset" type="number" min="0" max="23" value="0">
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <label>&nbsp;</label>
+        <button class="ghost" id="btnCargar" type="button">Cargar ese día</button>
+      </div>
+    </div>
+    <p class="hint">Los días ya cargados de este NPC aparecen abajo; púlsalos para editarlos.</p>
+    <div class="days" id="diasCargados"></div>
+  </section>
+
+  <!-- ===================== MISIONES ===================== -->
+  <section class="card">
+    <h2>3 · Misiones del día</h2>
+    <div id="misiones"></div>
+    <div class="row" style="margin-top:6px">
+      <button class="ghost" id="btnAgregar" type="button">＋ Añadir misión</button>
+      <span class="sp" style="flex:1"></span>
+      <button class="ok" id="btnGuardar" type="button">💾 Guardar en el juego</button>
+    </div>
+    <p class="hint">
+      Se reemplazan TODAS las misiones de ese NPC y día. El juego las lee al abrir
+      el panel de misiones, así que se reflejan sin tocar nada más.
+    </p>
+  </section>
+
+  <!-- ===================== COPIAR / BORRAR ===================== -->
+  <section class="card">
+    <h2>4 · Repetir o borrar</h2>
+    <div class="row">
+      <div class="field">
+        <label for="copiaDesde">Copiar desde el día</label>
+        <input id="copiaDesde" type="date">
+      </div>
+      <div class="field">
+        <label for="copiaHasta">Pegar a partir del día</label>
+        <input id="copiaHasta" type="date">
+      </div>
+      <div class="field">
+        <label for="copiaDias">Cuántos días seguidos</label>
+        <input id="copiaDias" type="number" min="1" max="30" value="7">
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <label>&nbsp;</label>
+        <button class="ghost" id="btnCopiar" type="button">Copiar</button>
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <label>&nbsp;</label>
+        <button class="danger" id="btnBorrar" type="button">Borrar el día mostrado</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------------------------------------------------------------------------
+  // Configuración
+  // ---------------------------------------------------------------------------
+  // Mismo criterio que el juego: en local se habla con el backend local, en
+  // producción con la API pública.
+  var API = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? 'http://127.0.0.1:3001'
+    : 'https://api.grasslandforest.com';
+
+  var IDIOMAS = [
+    { code: 'en-US',  nombre: 'Inglés (obligatorio)' },
+    { code: 'es-419', nombre: 'Español' },
+    { code: 'en-PH',  nombre: 'Inglés filipino' },
+    { code: 'pt-BR',  nombre: 'Portugués' },
+    { code: 'zh-CN',  nombre: 'Chino' },
+    { code: 'ko-KR',  nombre: 'Coreano' }
+  ];
+
+  var token = '';           // solo en memoria, nunca en localStorage
+  var contador = 0;
+
+  var $ = function (id) { return document.getElementById(id); };
+  document.getElementById('apiLabel').textContent = API;
+
+  function aviso(msg, tipo) {
+    var el = $('estado');
+    el.textContent = msg;
+    el.className = 'show ' + (tipo || 'info');
+    if (tipo === 'ok') setTimeout(function () { el.className = ''; }, 4000);
+  }
+
+  // Toda inserción de texto se hace con textContent / value: nada de innerHTML
+  // con datos del servidor, así un texto de misión no puede inyectar HTML.
+  function crear(tag, props, hijos) {
+    var el = document.createElement(tag);
+    Object.keys(props || {}).forEach(function (k) {
+      if (k === 'class') el.className = props[k];
+      else if (k === 'text') el.textContent = props[k];
+      else if (k in el) el[k] = props[k];
+      else el.setAttribute(k, props[k]);
+    });
+    (hijos || []).forEach(function (h) { if (h) el.appendChild(h); });
+    return el;
+  }
+
+  function campo(etiqueta, input) {
+    return crear('div', { class: 'field' }, [
+      crear('label', { text: etiqueta }),
+      input
+    ]);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Bloque de una misión
+  // ---------------------------------------------------------------------------
+  function bloqueMision(datos) {
+    datos = datos || {};
+    contador++;
+    var idBloque = 'm' + contador;
+
+    var inId     = crear('input', { type: 'text',   value: datos.missionId || ('mision_' + contador), maxLength: 60 });
+    var inItem   = crear('input', { type: 'text',   value: datos.itemId || '', placeholder: 'ej. madera_pinos', maxLength: 60 });
+    var inCant   = crear('input', { type: 'number', value: datos.requiredAmount || 5, min: 1, max: 9999 });
+    var inExp    = crear('input', { type: 'number', value: datos.expReward || 50, min: 0, max: 100000 });
+    var inPremio = crear('input', { type: 'text',   value: datos.rewardItemId || '', placeholder: 'opcional, ej. mineral_piedra', maxLength: 60 });
+    var inPremioC= crear('input', { type: 'number', value: datos.rewardAmount || 1, min: 1, max: 9999 });
+
+    var bloquesIdioma = IDIOMAS.map(function (l) {
+      var t = (datos.texts && datos.texts[l.code]) || {};
+      var titulo = crear('input',    { type: 'text', value: t.title || '', maxLength: 80 });
+      var desc   = crear('textarea', { maxLength: 300 });
+      desc.value = t.description || '';
+      var itemN  = crear('input',    { type: 'text', value: t.itemName || '', maxLength: 80 });
+      var premioN= crear('input',    { type: 'text', value: t.rewardName || '', maxLength: 80 });
+
+      var div = crear('div', { class: 'lang-block' }, [
+        crear('h4', { text: l.nombre + ' — ' + l.code }),
+        crear('div', { class: 'row' }, [
+          campo('Título', titulo),
+          campo('Nombre del ítem pedido', itemN),
+          campo('Nombre de la recompensa', premioN)
+        ]),
+        crear('div', { class: 'row' }, [campo('Descripción', desc)])
+      ]);
+
+      div._leer = function () {
+        return {
+          code: l.code,
+          title: titulo.value,
+          description: desc.value,
+          itemName: itemN.value,
+          rewardName: premioN.value
+        };
+      };
+      return div;
+    });
+
+    var detalles = crear('details', { class: 'langs' },
+      [crear('summary', { text: '🌍 Textos por idioma (despliega para editar)' })].concat(bloquesIdioma));
+
+    var btnBorrar = crear('button', { class: 'danger', type: 'button', text: '✕ Quitar' });
+
+    var bloque = crear('div', { class: 'mission', id: idBloque }, [
+      crear('div', { class: 'mission-head' }, [
+        crear('span', { class: 'tag', text: 'Misión' }),
+        crear('span', { class: 'sp', style: 'flex:1' }),
+        btnBorrar
+      ]),
+      crear('div', { class: 'row' }, [
+        campo('ID interno', inId),
+        campo('Ítem que debe entregar', inItem),
+        campo('Cantidad', inCant),
+        campo('EXP', inExp)
+      ]),
+      crear('div', { class: 'row' }, [
+        campo('Ítem de recompensa (opcional)', inPremio),
+        campo('Cantidad de recompensa', inPremioC)
+      ]),
+      detalles
+    ]);
+
+    btnBorrar.addEventListener('click', function () { bloque.remove(); });
+
+    bloque._leer = function () {
+      var textos = {};
+      bloquesIdioma.forEach(function (b) {
+        var t = b._leer();
+        textos[t.code] = {
+          title: t.title,
+          description: t.description,
+          itemName: t.itemName,
+          rewardName: t.rewardName
+        };
+      });
+      var salida = {
+        missionId: inId.value.trim(),
+        itemId: inItem.value.trim(),
+        requiredAmount: parseInt(inCant.value, 10) || 1,
+        expReward: parseInt(inExp.value, 10) || 0,
+        texts: textos
+      };
+      if (inPremio.value.trim()) {
+        salida.rewardItemId = inPremio.value.trim();
+        salida.rewardAmount = parseInt(inPremioC.value, 10) || 1;
+      }
+      return salida;
+    };
+
+    return bloque;
+  }
+
+  function agregarMision(datos) {
+    $('misiones').appendChild(bloqueMision(datos));
+  }
+
+  function limpiarMisiones() {
+    $('misiones').textContent = '';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Llamadas al backend
+  // ---------------------------------------------------------------------------
+  function pedir(ruta, opciones) {
+    opciones = opciones || {};
+    opciones.headers = Object.assign({
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + token
+    }, opciones.headers || {});
+    return fetch(API + ruta, opciones).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (data) {
+        if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+        return data;
+      });
+    });
+  }
+
+  function cargarDias() {
+    var cont = $('diasCargados');
+    cont.textContent = '';
+    if (!token) return;
+
+    pedir('/api/admin/missions/days/' + $('npc').value)
+      .then(function (d) {
+        (d.days || []).forEach(function (x) {
+          var chip = crear('button', {
+            class: 'day-chip', type: 'button',
+            text: x.day + ' · ' + x.count + ' misión(es)'
+          });
+          chip.addEventListener('click', function () {
+            $('dia').value = x.day;
+            cargarDia();
+          });
+          cont.appendChild(chip);
+        });
+        if (!(d.days || []).length) {
+          cont.appendChild(crear('span', { class: 'hint', text: 'Todavía no hay días cargados para este NPC.' }));
+        }
+      })
+      .catch(function (e) { aviso('No se pudieron leer los días: ' + e.message, 'err'); });
+  }
+
+  function cargarDia() {
+    if (!token) return aviso('Primero pon el token de administrador.', 'err');
+    var npc = $('npc').value, dia = $('dia').value;
+    if (!dia) return aviso('Elige un día.', 'err');
+
+    pedir('/api/admin/missions/daily/' + npc + '/' + dia)
+      .then(function (d) {
+        limpiarMisiones();
+        if (d.found && d.mission) {
+          $('reset').value = d.mission.dailyResetHour || 0;
+          (d.mission.missions || []).forEach(agregarMision);
+          aviso('Cargadas ' + (d.mission.missions || []).length + ' misión(es) de ' + dia + '.', 'ok');
+        } else {
+          agregarMision();
+          aviso('Ese día no tiene misiones todavía: empieza una nueva.', 'info');
+        }
+      })
+      .catch(function (e) { aviso('Error cargando: ' + e.message, 'err'); });
+  }
+
+  function guardar() {
+    if (!token) return aviso('Primero pon el token de administrador.', 'err');
+    var dia = $('dia').value;
+    if (!dia) return aviso('Elige un día.', 'err');
+
+    var bloques = Array.prototype.slice.call(document.querySelectorAll('#misiones .mission'));
+    if (!bloques.length) return aviso('Añade al menos una misión.', 'err');
+
+    var misiones = bloques.map(function (b) { return b._leer(); });
+
+    var sinItem = misiones.filter(function (m) { return !m.itemId; });
+    if (sinItem.length) return aviso('Hay ' + sinItem.length + ' misión(es) sin ítem.', 'err');
+
+    pedir('/api/admin/missions/daily', {
+      method: 'PUT',
+      body: JSON.stringify({
+        npcId: $('npc').value,
+        day: dia,
+        dailyResetHour: parseInt($('reset').value, 10) || 0,
+        missions: misiones
+      })
+    })
+      .then(function (d) {
+        aviso('✅ Guardado: ' + d.count + ' misión(es) para ' + d.npcId + ' el ' + d.day + '.', 'ok');
+        cargarDias();
+      })
+      .catch(function (e) { aviso('No se pudo guardar: ' + e.message, 'err'); });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Eventos
+  // ---------------------------------------------------------------------------
+  $('btnVerToken').addEventListener('click', function () {
+    var i = $('token');
+    i.type = i.type === 'password' ? 'text' : 'password';
+  });
+
+  $('btnProbar').addEventListener('click', function () {
+    token = $('token').value.trim();
+    if (!token) return aviso('Pega tu token de administrador.', 'err');
+    pedir('/api/admin/missions/days/' + $('npc').value)
+      .then(function () { aviso('Acceso correcto.', 'ok'); cargarDias(); })
+      .catch(function (e) { token = ''; aviso('Token rechazado: ' + e.message, 'err'); });
+  });
+
+  $('btnCargar').addEventListener('click', cargarDia);
+  $('btnAgregar').addEventListener('click', function () { agregarMision(); });
+  $('btnGuardar').addEventListener('click', guardar);
+  $('npc').addEventListener('change', cargarDias);
+
+  $('btnCopiar').addEventListener('click', function () {
+    if (!token) return aviso('Primero pon el token.', 'err');
+    pedir('/api/admin/missions/copy', {
+      method: 'POST',
+      body: JSON.stringify({
+        npcId: $('npc').value,
+        fromDay: $('copiaDesde').value,
+        toDay: $('copiaHasta').value,
+        repeatDays: parseInt($('copiaDias').value, 10) || 1
+      })
+    })
+      .then(function (d) { aviso('Copiado a: ' + d.days.join(', '), 'ok'); cargarDias(); })
+      .catch(function (e) { aviso('No se pudo copiar: ' + e.message, 'err'); });
+  });
+
+  $('btnBorrar').addEventListener('click', function () {
+    if (!token) return aviso('Primero pon el token.', 'err');
+    var dia = $('dia').value;
+    if (!dia) return aviso('Elige el día a borrar.', 'err');
+    if (!confirm('¿Borrar las misiones de ' + $('npc').value + ' del ' + dia + '?')) return;
+
+    pedir('/api/admin/missions/daily/' + $('npc').value + '/' + dia, { method: 'DELETE' })
+      .then(function () { limpiarMisiones(); aviso('Día borrado.', 'ok'); cargarDias(); })
+      .catch(function (e) { aviso('No se pudo borrar: ' + e.message, 'err'); });
+  });
+
+  // Arranque: hoy por defecto y una misión en blanco
+  var hoy = new Date().toISOString().slice(0, 10);
+  $('dia').value = hoy;
+  $('copiaDesde').value = hoy;
+  $('copiaHasta').value = hoy;
+  agregarMision();
+})();
+</script>
+</body>
+</html>
