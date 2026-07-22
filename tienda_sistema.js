@@ -1894,16 +1894,18 @@ async ejecutarDivision(ruta_tabla, producto, limitacion, cantidad) {
   // Validaciones rápidas
   if (limitacion <= 0 || cantidad <= 0) return;
 
-  // Evita llamadas concurrentes si ya hay una en progreso
-  if (this._transactionInProgress) {
-    console.warn('Ya hay una transacción en progreso — cancelar nueva petición.');
-    return;
-  }
+  // FIX (comprar varias cosas y que solo se haga UNA transacción):
+  // antes, si ya había una transacción en curso la petición se DESCARTABA
+  // (return sin hacer nada), así que la segunda compra en adelante nunca
+  // llegaba a la blockchain: _runOnchainPurchase veía que no se agregó nada
+  // y reembolsaba. Ahora se ENCOLA, igual que ejecutarDivision() de
+  // GameScene: cada compra espera a que termine la anterior y se ejecuta,
+  // en orden. Ninguna se pierde.
+  this._addItemQueue = (this._addItemQueue || Promise.resolve())
+    .then(() => this.Additemblockchains(ruta_tabla, producto, cantidad))
+    .catch(err => console.error('❌ Error procesando compra en cola:', err));
 
-  // Llamada única a Additemblockchains con la cantidad total.
-  // El simulador (simulateAddItem) se encargará de distribuir la cantidad
-  // respetando el límite por stack (que se asume conocido por el producto o ruta_tabla).
-  await this.Additemblockchains(ruta_tabla, producto, cantidad);
+  return this._addItemQueue;
 }
 
 // ------------------------------------------------------------------
@@ -1939,11 +1941,17 @@ unlockAllSlots() {
 // FUNCIÓN PRINCIPAL ADDITEMBLOCKCHAINS (sin cambios, pero se incluye completa)
 // ------------------------------------------------------------------
 async Additemblockchains(ruta_tabla, producto, cantidad) {
-  // Evitar llamadas concurrentes
-  if (this._transactionInProgress) {
-    console.warn('Transacción ya en progreso. Ignorando nueva petición.');
+  // Bandera EXCLUSIVA de "agregar item por blockchain". Antes se usaba
+  // this._transactionInProgress, que también lo tocan el drag&drop del
+  // inventario y ejecutarDivisionRemove (ventas): si cualquiera de esos lo
+  // dejaba en true, TODAS las compras siguientes se descartaban en silencio.
+  // Además ya no hace falta descartar nada: ejecutarDivision() encola, así
+  // que aquí nunca hay dos a la vez; el flag queda solo como red de seguridad.
+  if (this._addItemBlockchainBusy) {
+    console.warn('Transacción de agregar item ya en progreso. Ignorando nueva petición.');
     return;
   }
+  this._addItemBlockchainBusy = true;
   this._transactionInProgress = true;
 
   // Helpers locales (autocontenidos para no depender de funciones externas)
@@ -2418,6 +2426,7 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
       console.warn('unlockAllSlotsLocal fallo en finally:', e);
     }
     this._transactionInProgress = false;
+    this._addItemBlockchainBusy = false;
   }
 }
 
@@ -2656,31 +2665,50 @@ async verificarRompimiento(itemRef) {
 async ejecutarDivisionRemove(ruta_tabla, producto, limitacion, cantidad) {
     if (limitacion <= 0 || cantidad <= 0) return;
 
-    if (this._transactionInProgress) {
-        console.warn('Ya hay una transacción en progreso — cancelar nueva petición.');
+    // Mismo criterio que ejecutarDivision: se ENCOLA en vez de descartar, para
+    // que vender varias cosas seguidas no pierda ninguna transacción.
+    this._removeItemQueue = (this._removeItemQueue || Promise.resolve())
+        .then(() => this._ejecutarDivisionRemoveInterno(ruta_tabla, producto, limitacion, cantidad))
+        .catch(err => console.error('❌ Error procesando venta en cola:', err));
+
+    return this._removeItemQueue;
+}
+
+async _ejecutarDivisionRemoveInterno(ruta_tabla, producto, limitacion, cantidad) {
+    if (limitacion <= 0 || cantidad <= 0) return;
+
+    if (this._removeItemBlockchainBusy) {
+        console.warn('Transacción de eliminar item ya en progreso. Ignorando nueva petición.');
         return;
     }
+    this._removeItemBlockchainBusy = true;
 
-    // ── Si hay un item en el cursor, devolverlo a su casilla de origen antes de proceder ──
-    if (this.STATE?.selectedItem?.isGhost) {
-        const cursorItem = this.STATE.selectedItem;
-        const slotArr  = cursorItem.originType === 'inv' ? this.STATE.slots      : this.STATE.quickSlots;
-        const ghostArr = cursorItem.originType === 'inv' ? this.STATE.ghostSlots.inv : this.STATE.ghostSlots.quick;
+    try {
+        // ── Si hay un item en el cursor, devolverlo a su casilla de origen antes de proceder ──
+        if (this.STATE?.selectedItem?.isGhost) {
+            const cursorItem = this.STATE.selectedItem;
+            const slotArr  = cursorItem.originType === 'inv' ? this.STATE.slots      : this.STATE.quickSlots;
+            const ghostArr = cursorItem.originType === 'inv' ? this.STATE.ghostSlots.inv : this.STATE.ghostSlots.quick;
 
-        slotArr[cursorItem.originIndex] = {
-            id:    cursorItem.id,
-            count: cursorItem.count,
-            idx:   cursorItem.idx  ?? null,
-            idm:   cursorItem.idm  ?? null
-        };
-        ghostArr[cursorItem.originIndex] = null;
-        this.STATE.selectedItem = null;
-        this.stopDrag && this.stopDrag();
-        this.renderSlot(cursorItem.originIndex);
-        console.log(`↩️ Item "${cursorItem.id}" devuelto a ${cursorItem.originType}[${cursorItem.originIndex}] antes de eliminar`);
+            slotArr[cursorItem.originIndex] = {
+                id:    cursorItem.id,
+                count: cursorItem.count,
+                idx:   cursorItem.idx  ?? null,
+                idm:   cursorItem.idm  ?? null
+            };
+            ghostArr[cursorItem.originIndex] = null;
+            this.STATE.selectedItem = null;
+            this.stopDrag && this.stopDrag();
+            this.renderSlot(cursorItem.originIndex);
+            console.log(`↩️ Item "${cursorItem.id}" devuelto a ${cursorItem.originType}[${cursorItem.originIndex}] antes de eliminar`);
+        }
+
+        await this.RemoveItemBlockchains(ruta_tabla, producto, cantidad);
+    } finally {
+        // Sin este finally la bandera se quedaba en true y toda venta
+        // posterior se descartaba en silencio.
+        this._removeItemBlockchainBusy = false;
     }
-
-    await this.RemoveItemBlockchains(ruta_tabla, producto, cantidad);
 }
 
 // ---------------------------------
