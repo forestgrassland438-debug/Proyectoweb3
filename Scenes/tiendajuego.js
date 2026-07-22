@@ -1489,13 +1489,30 @@ this.anims.create({
 
       
 
-(function(){
+(function initHubPanel(){
   const panel = document.getElementById('hub-panel_101');
   const applyBtn = document.getElementById('apply-name');
   const closePanelBtn = document.getElementById('close-panel');
   const logoutBtn = document.getElementById('logout-btn');
   const nameInput = document.getElementById('character-name');
   const langSelect = document.getElementById('language-select');
+
+  // Si el DOM del dashboard todavía no está montado, ANTES esto reventaba en la
+  // línea siguiente (nameInput.setAttribute sobre null): el panel se quedaba
+  // sin cablear y el jugador nunca podía fijar su nombre. Ahora se reintenta.
+  if (!panel || !applyBtn || !closePanelBtn || !logoutBtn || !nameInput || !langSelect) {
+    window.__hubPanelTries = (window.__hubPanelTries || 0) + 1;
+    console.warn(`⚠️ Dashboard aún no disponible para hubPanel (intento ${window.__hubPanelTries})`);
+    if (window.__hubPanelTries <= 20) {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initHubPanel, { once: true });
+      } else {
+        setTimeout(initHubPanel, 500);
+      }
+    }
+    return;
+  }
+  window.__hubPanelTries = 0;
 
   // Limitar por HTML (UX)
   nameInput.setAttribute('maxlength', '10');
@@ -1683,48 +1700,79 @@ this.anims.create({
      ----------------------- */
 
   // Botones
+  //
+  // FIX (en la tienda no se podía fijar el nombre): la condición estaba al
+  // revés. El código solo aplicaba el nombre si `name === "---"`, cosa
+  // IMPOSIBLE porque sanitizeName() borra todo lo que no sea letra (el '-' se
+  // va), así que SIEMPRE caía en el else: "usted no puede cambiar el nombre",
+  // bloqueaba el input con setActtov(1) y lo vaciaba. Además, cuando el nombre
+  // salía vacío del saneado, el único aviso era un console.log, así que el
+  // botón parecía roto. Ahora aplica de verdad, con la misma regla de "una
+  // sola vez" y con avisos visibles.
   applyBtn.addEventListener('click', ()=>{
-    if(nameInput.hasAttribute('disabled')) return;
+    if(nameInput.hasAttribute('disabled') || nameInput.disabled) return;
+
+    const scene = phaserScene || resolvePhaserScene();
+    const notify = (msg, tipo) => {
+      try { scene && scene.notifications && scene.notifications.show(msg, tipo); } catch(e) {}
+      const hint = document.getElementById('character-name-hint');
+      if (hint && tipo === 'error') hint.textContent = `⚠️ ${msg}`;
+    };
+
+    // Regla de nombre único: si ya está fijado, no se admiten cambios
+    const actual = scene && typeof scene.Username === 'string' ? scene.Username : '';
+    if (actual.trim() !== '' && actual !== '---') {
+      window.hubPanel.setActtov(1);
+      notify('Your character name is already set and cannot be changed.', 'error');
+      return;
+    }
 
     const rawName = nameInput.value;             // valor tal cual del input
     const name = sanitizeName(rawName);         // valor limpio y seguro
 
-    if (name === "") {
-      console.log("No has puesto un nombre, no es posible aplicar");
+    if (name === "" || name === "---") {
+      notify(
+        String(rawName || '').trim() === ''
+          ? 'Write a name first.'
+          : 'Only letters are allowed in the name (no numbers, spaces or symbols).',
+        'error'
+      );
+      console.log("No has puesto un nombre válido:", rawName);
       return;
-    } else {
-
-      if (name === "---") {
-
-        // Se asigna el nombre sanitizado (máx 10 letras)
-      console.log('Nombre aplicado:', name);
-
-      // Intentar usar phaserScene si ya está; si no, resolver automáticamente
-      let sceneToUse = phaserScene || resolvePhaserScene();
-
-      if (sceneToUse) {
-        try {
-          // Asignación segura en la escena
-          sceneToUse.Username = name;
-        } catch (err) {
-          console.warn('No se pudo asignar phaserScene.Username:', err);
-        }
-      } else {
-        // fallback: usar callback del init si lo tienes
-        if (typeof options.onApplyName === 'function') {
-          try { options.onApplyName(name); } catch (e) { console.warn('onApplyName callback error', e); }
-        } else {
-          console.warn('phaserScene no está inicializada y no existe onApplyName. Llama window.hubPanel.init(this) desde tu escena create() para enlazarla.');
-        }
-        
-      }
-      } else {
-        window.hubPanel.setActtov(1);
-        console.log("usted no puede cambiar el nombre")
-        clearNameInput();
-
-      }
     }
+
+    // Confirmación: el cambio es definitivo (si el navegador tiene los
+    // diálogos bloqueados, confirm() devuelve false sin preguntar; en ese caso
+    // se continúa en vez de abandonar en silencio).
+    let ok = true;
+    if (typeof window.confirm === 'function') {
+      try {
+        ok = window.confirm(`¿Fijar el nombre de personaje como "${name}"?\n\nEsta decisión es DEFINITIVA: no podrás cambiarlo después.`);
+      } catch (e) { ok = true; }
+    }
+    if (!ok) return;
+
+    // Avisar al handler compartido del dashboard (el que cableó GameScene sobre
+    // el mismo botón) de que este clic ya está atendido, para no pedir DOS
+    // confirmaciones seguidas.
+    window.__nameApplyHandledAt = Date.now();
+
+    console.log('Nombre aplicado (definitivo):', name);
+
+    if (scene) {
+      try {
+        scene.Username = name;
+        if (typeof scene.actualizarNombreUsuario1 === 'function') scene.actualizarNombreUsuario1(name);
+        else if (typeof scene.queuedAction === 'function') scene.queuedAction({ type: 'forSpam2' });
+      } catch (err) {
+        console.warn('No se pudo asignar/guardar Username en la escena:', err);
+      }
+    } else {
+      console.warn('phaserScene no está inicializada; se usará onApplyName si existe.');
+    }
+
+    window.hubPanel.setActtov(1); // queda bloqueado: ya está fijado
+    notify(`✅ Name set: ${name}`, 'success');
 
     // también notificar callback (si aplica)
     if(typeof options.onApplyName === 'function'){
@@ -3158,7 +3206,10 @@ sendPlayerMovement() {
     dogX: this.dog.x,
     dogY: this.dog.y,
     dogDirection: this.dog.direction,  // 'left' o 'right'
-    dogEquipped: !(this.petData && this.petData.equipped === false) // false = dog removed
+    dogEquipped: !(this.petData && this.petData.equipped === false), // false = dog removed
+    // El nombre de la mascota no se enviaba nunca, por eso los demás jugadores
+    // veían tu perro sin etiqueta. El servidor reenvía el payload tal cual.
+    dogName: this._isNameSet && this._isNameSet(this.petName) ? this.petName : ''
   });
 }
 
@@ -3186,6 +3237,7 @@ clearOtherPlayers() {
     if (player.dog) {
       if (player.dog.sprite) player.dog.sprite.destroy();
       if (player.dog.shadowContainer) player.dog.shadowContainer.destroy();
+      if (player.dog.nameText) player.dog.nameText.destroy();
     }
   });
 
@@ -3253,6 +3305,23 @@ createOtherPlayer(playerInfo) {
     (playerInfo.dogY ?? playerInfo.y + 20) + 22,
     [dogShadowG]
   );
+
+  // Etiqueta con el nombre de la mascota remota (antes no existía: el perro
+  // propio sí tenía nombre, los de los demás salían sin nada).
+  remotePlayer.dog.nameText = this.add.text(
+    playerInfo.dogX ?? playerInfo.x + 40,
+    (playerInfo.dogY ?? playerInfo.y + 20) - 30,
+    playerInfo.dogName || '',
+    {
+      fontFamily: '"PressStart2P"',
+      fontSize: '8px',
+      color: '#ffffff',
+      resolution: 4,
+      stroke: '#000000',
+      strokeThickness: 5,
+    }
+  ).setOrigin(0.5, 1);
+  remotePlayer.dog.nameText.setVisible(!!playerInfo.dogName);
 }
 
 
@@ -3383,6 +3452,24 @@ updateOtherPlayer(playerInfo) {
     if (player.dog.shadowContainer) {
       player.dog.shadowContainer.setDepth(remoteDogFeetY - 1);
     }
+
+    // Nombre de la mascota remota: se crea también aquí por si el jugador ya
+    // existía antes de este cambio, y se mantiene pegado sobre el perro.
+    const dogName = playerInfo.dogName || '';
+    if (!player.dog.nameText) {
+      player.dog.nameText = this.add.text(dogX, dogY - 30, dogName, {
+        fontFamily: '"PressStart2P"',
+        fontSize: '8px',
+        color: '#ffffff',
+        resolution: 4,
+        stroke: '#000000',
+        strokeThickness: 5,
+      }).setOrigin(0.5, 1);
+    }
+    player.dog.nameText.setText(dogName);
+    player.dog.nameText.setPosition(dogX, dogY - player.dog.sprite.displayHeight * 0.5 - 4);
+    player.dog.nameText.setDepth(remoteDogFeetY + 1);
+    player.dog.nameText.setVisible(!!dogName);
   }
 
   player.lastUpdate = Date.now();
@@ -3398,6 +3485,7 @@ removeOtherPlayer(playerId) {
   if (player.dog) {
     if (player.dog.sprite) player.dog.sprite.destroy();
     if (player.dog.shadowContainer) player.dog.shadowContainer.destroy();
+    if (player.dog.nameText) player.dog.nameText.destroy();
   }
 
   delete this.otherPlayers[playerId];
@@ -5150,16 +5238,15 @@ async ejecutarDivision(ruta_tabla, producto, limitacion, cantidad) {
   // Validaciones rápidas
   if (limitacion <= 0 || cantidad <= 0) return;
 
-  // Evita llamadas concurrentes si ya hay una en progreso
-  if (this._transactionInProgress) {
-    console.warn('Ya hay una transacción en progreso — cancelar nueva petición.');
-    return;
-  }
+  // FIX (varias compras seguidas y solo se hacía UNA transacción): antes, si
+  // ya había una transacción en curso, la petición se DESCARTABA. Ahora se
+  // ENCOLA, igual que en GameScene y en tienda_sistema: cada una espera a la
+  // anterior y se ejecuta en orden, sin perder ninguna.
+  this._addItemQueue = (this._addItemQueue || Promise.resolve())
+    .then(() => this.Additemblockchains(ruta_tabla, producto, cantidad))
+    .catch(err => console.error('❌ Error procesando ejecutarDivision en cola:', err));
 
-  // Llamada única a Additemblockchains con la cantidad total.
-  // El simulador (simulateAddItem) se encargará de distribuir la cantidad
-  // respetando el límite por stack (que se asume conocido por el producto o ruta_tabla).
-  await this.Additemblockchains(ruta_tabla, producto, cantidad);
+  return this._addItemQueue;
 }
 
 // ------------------------------------------------------------------
@@ -5195,11 +5282,14 @@ unlockAllSlots() {
 // FUNCIÓN PRINCIPAL ADDITEMBLOCKCHAINS (sin cambios, pero se incluye completa)
 // ------------------------------------------------------------------
 async Additemblockchains(ruta_tabla, producto, cantidad) {
-  // Evitar llamadas concurrentes
-  if (this._transactionInProgress) {
-    console.warn('Transacción ya en progreso. Ignorando nueva petición.');
+  // Bandera EXCLUSIVA de "agregar item por blockchain": _transactionInProgress
+  // también lo tocan el drag&drop del inventario y las ventas, y si alguno lo
+  // dejaba en true, TODAS las adiciones siguientes se descartaban en silencio.
+  if (this._addItemBlockchainBusy) {
+    console.warn('Transacción de agregar item ya en progreso. Ignorando nueva petición.');
     return;
   }
+  this._addItemBlockchainBusy = true;
   this._transactionInProgress = true;
 
   // Helpers locales (autocontenidos para no depender de funciones externas)
@@ -5669,6 +5759,7 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
       console.warn('unlockAllSlotsLocal fallo en finally:', e);
     }
     this._transactionInProgress = false;
+    this._addItemBlockchainBusy = false;
   }
 }
 
@@ -5759,31 +5850,48 @@ async verificarRompimiento(itemRef) {
 async ejecutarDivisionRemove(ruta_tabla, producto, limitacion, cantidad) {
     if (limitacion <= 0 || cantidad <= 0) return;
 
-    if (this._transactionInProgress) {
-        console.warn('Ya hay una transacción en progreso — cancelar nueva petición.');
+    // Mismo criterio que ejecutarDivision: se ENCOLA en vez de descartar, para
+    // no perder ninguna venta/consumo cuando se hacen varios seguidos.
+    this._removeItemQueue = (this._removeItemQueue || Promise.resolve())
+        .then(() => this._ejecutarDivisionRemoveInterno(ruta_tabla, producto, limitacion, cantidad))
+        .catch(err => console.error('❌ Error procesando ejecutarDivisionRemove en cola:', err));
+
+    return this._removeItemQueue;
+}
+
+async _ejecutarDivisionRemoveInterno(ruta_tabla, producto, limitacion, cantidad) {
+    if (limitacion <= 0 || cantidad <= 0) return;
+
+    if (this._removeItemBlockchainBusy) {
+        console.warn('Transacción de eliminar item ya en progreso. Ignorando nueva petición.');
         return;
     }
+    this._removeItemBlockchainBusy = true;
 
-    // ── Si hay un item en el cursor, devolverlo a su casilla de origen antes de proceder ──
-    if (this.STATE?.selectedItem?.isGhost) {
-        const cursorItem = this.STATE.selectedItem;
-        const slotArr  = cursorItem.originType === 'inv' ? this.STATE.slots          : this.STATE.quickSlots;
-        const ghostArr = cursorItem.originType === 'inv' ? this.STATE.ghostSlots.inv : this.STATE.ghostSlots.quick;
+    try {
+        // ── Si hay un item en el cursor, devolverlo a su casilla de origen antes de proceder ──
+        if (this.STATE?.selectedItem?.isGhost) {
+            const cursorItem = this.STATE.selectedItem;
+            const slotArr  = cursorItem.originType === 'inv' ? this.STATE.slots          : this.STATE.quickSlots;
+            const ghostArr = cursorItem.originType === 'inv' ? this.STATE.ghostSlots.inv : this.STATE.ghostSlots.quick;
 
-        slotArr[cursorItem.originIndex] = {
-            id:    cursorItem.id,
-            count: cursorItem.count,
-            idx:   cursorItem.idx  ?? null,
-            idm:   cursorItem.idm  ?? null
-        };
-        ghostArr[cursorItem.originIndex] = null;
-        this.STATE.selectedItem = null;
-        this.stopDrag && this.stopDrag();
-        this.renderSlot(cursorItem.originIndex);
-        console.log(`↩️ Item "${cursorItem.id}" devuelto a ${cursorItem.originType}[${cursorItem.originIndex}] antes de eliminar`);
+            slotArr[cursorItem.originIndex] = {
+                id:    cursorItem.id,
+                count: cursorItem.count,
+                idx:   cursorItem.idx  ?? null,
+                idm:   cursorItem.idm  ?? null
+            };
+            ghostArr[cursorItem.originIndex] = null;
+            this.STATE.selectedItem = null;
+            this.stopDrag && this.stopDrag();
+            this.renderSlot(cursorItem.originIndex);
+            console.log(`↩️ Item "${cursorItem.id}" devuelto a ${cursorItem.originType}[${cursorItem.originIndex}] antes de eliminar`);
+        }
+
+        await this.RemoveItemBlockchains(ruta_tabla, producto, cantidad);
+    } finally {
+        this._removeItemBlockchainBusy = false;
     }
-
-    await this.RemoveItemBlockchains(ruta_tabla, producto, cantidad);
 }
 
 

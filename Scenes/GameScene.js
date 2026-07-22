@@ -8555,10 +8555,19 @@ setupSettingsPanel() {
     this.settingsPetInput = document.getElementById('pet-name');
     this.settingsApplyPetBtn = document.getElementById('apply-pet-name');
 
-    if (!this.settingsPanel) {
-        console.warn('⚠️ No se encontró el panel de configuraciones');
+    if (!this.settingsPanel || !this.settingsApplyBtn || !this.settingsNameInput) {
+        // Si el DOM del dashboard todavía no está montado, ANTES se abandonaba
+        // para siempre: el botón "Aplicar" se quedaba sin handler y el jugador
+        // nunca podía fijar su nombre (uno de los motivos por los que a algunos
+        // les fallaba al entrar por primera vez). Ahora se reintenta.
+        this._settingsSetupTries = (this._settingsSetupTries || 0) + 1;
+        console.warn(`⚠️ Panel de configuraciones aún no disponible (intento ${this._settingsSetupTries})`);
+        if (this._settingsSetupTries <= 20) {
+            setTimeout(() => this.setupSettingsPanel(), 500);
+        }
         return;
     }
+    this._settingsSetupTries = 0;
 
     console.log('✅ Panel de configuraciones configurado');
 
@@ -8641,6 +8650,11 @@ setupSettingsPanel() {
     // Se usa .onclick (no addEventListener) para que las recreaciones de la
     // escena no acumulen handlers duplicados sobre el mismo botón del DOM.
     this.settingsApplyBtn.onclick = () => {
+        // El mismo botón del dashboard también lo escucha el hubPanel de
+        // tiendajuego. Si aquel ya atendió este clic (fija el nombre y guarda),
+        // aquí no hay que hacer nada: si no, saldrían DOS confirmaciones.
+        if (window.__nameApplyHandledAt && (Date.now() - window.__nameApplyHandledAt) < 2000) return;
+
         // Regla de nombre único: si ya está fijado, no se admiten cambios
         if (this._isNameSet(this.Username)) {
             this._refreshNameLockUI();
@@ -8652,12 +8666,34 @@ setupSettingsPanel() {
         const name = sanitizeName(rawName);
 
         if (name === "" || name === "---") {
-            console.log("No has puesto un nombre válido");
+            // Antes esto solo hacía console.log: el jugador pulsaba "Aplicar" y
+            // no pasaba absolutamente nada, así que parecía que el botón estaba
+            // roto. Pasa mucho con nombres escritos con números o símbolos,
+            // porque el saneado (igual en cliente y servidor) solo admite
+            // letras.
+            const msg = String(rawName || '').trim() === ''
+                ? 'Write a name first.'
+                : 'Only letters are allowed in the name (no numbers, spaces or symbols).';
+            if (this.notifications) this.notifications.show(msg, 'error');
+            const hint = document.getElementById('character-name-hint');
+            if (hint) hint.textContent = `⚠️ ${msg}`;
+            console.log("No has puesto un nombre válido:", rawName);
             return;
         }
 
-        // Confirmación: el cambio es definitivo
-        const ok = window.confirm(`¿Fijar el nombre de personaje como "${name}"?\n\nEsta decisión es DEFINITIVA: no podrás cambiarlo después.`);
+        // Confirmación: el cambio es definitivo. Si el navegador tiene los
+        // diálogos bloqueados, confirm() devuelve false sin preguntar nada y el
+        // jugador se quedaba sin poder fijar el nombre; en ese caso se sigue
+        // adelante en vez de abandonar en silencio.
+        let ok = true;
+        if (typeof window.confirm === 'function') {
+            try {
+                ok = window.confirm(`¿Fijar el nombre de personaje como "${name}"?\n\nEsta decisión es DEFINITIVA: no podrás cambiarlo después.`);
+            } catch (e) {
+                console.warn('confirm() no disponible, continuando:', e);
+                ok = true;
+            }
+        }
         if (!ok) return;
 
         console.log('Nombre aplicado (definitivo):', name);
@@ -8717,13 +8753,29 @@ setupSettingsPanel() {
                 return;
             }
 
-            const name = sanitizeName(this.settingsPetInput.value);
+            const rawPet = this.settingsPetInput.value;
+            const name = sanitizeName(rawPet);
             if (name === "" || name === "---") {
-                console.log("No has puesto un nombre de mascota válido");
+                // Mismo motivo que en el nombre de personaje: antes fallaba en silencio.
+                const msg = String(rawPet || '').trim() === ''
+                    ? 'Write a pet name first.'
+                    : 'Only letters are allowed in the pet name (no numbers, spaces or symbols).';
+                if (this.notifications) this.notifications.show(msg, 'error');
+                const hintPet = document.getElementById('pet-name-hint');
+                if (hintPet) hintPet.textContent = `⚠️ ${msg}`;
+                console.log("No has puesto un nombre de mascota válido:", rawPet);
                 return;
             }
 
-            const ok = window.confirm(`¿Fijar el nombre de tu mascota como "${name}"?\n\nEsta decisión es DEFINITIVA: no podrás cambiarlo después.`);
+            let ok = true;
+            if (typeof window.confirm === 'function') {
+                try {
+                    ok = window.confirm(`¿Fijar el nombre de tu mascota como "${name}"?\n\nEsta decisión es DEFINITIVA: no podrás cambiarlo después.`);
+                } catch (e) {
+                    console.warn('confirm() no disponible, continuando:', e);
+                    ok = true;
+                }
+            }
             if (!ok) return;
 
             console.log('Nombre de mascota aplicado (definitivo):', name);
@@ -10651,7 +10703,14 @@ async handleWaterCollectionClick(pointer) {
       const defVacio = this.ItemDefinitions ? this.ItemDefinitions['balde_vacio'] : null;
       const defAgua  = this.ItemDefinitions ? this.ItemDefinitions['balde_con_agua'] : null;
 
-      if (defVacio && defVacio.tipo && defAgua && defAgua.tipo && this.relayClient) {
+      // FIX (el pozo no mandaba ninguna transacción): antes esta condición
+      // exigía además `this.relayClient`, pero el relay se crea de forma
+      // PEREZOSA dentro de Additemblockchains/RemoveItemBlockchains. Si el
+      // jugador usaba el pozo antes de hacer cualquier otra transacción,
+      // this.relayClient todavía era undefined y el pozo se iba en silencio al
+      // fallback local: el balde cambiaba en el inventario pero no había ni
+      // transacción de quitar el balde vacío ni de dar el balde con agua.
+      if (defVacio && defVacio.tipo && defAgua && defAgua.tipo) {
         this.notifications.show("💧 Enviando transacción del balde vacío...", "info");
 
         // TX 1: quitar el balde vacío
@@ -13808,7 +13867,12 @@ sendPlayerMovement() {
     dogX: this.dog.x,
     dogY: this.dog.y,
     dogDirection: this.dog.direction,  // 'left' o 'right'
-    dogEquipped: !(this.petData && this.petData.equipped === false) // false = dog removed
+    dogEquipped: !(this.petData && this.petData.equipped === false), // false = dog removed
+    // El nombre de la mascota no se enviaba nunca, por eso los demás jugadores
+    // veían tu perro sin etiqueta. El servidor reenvía el payload tal cual
+    // (socket.on('playerMove') hace spread de data), así que no hay que tocar
+    // el backend.
+    dogName: this._isNameSet && this._isNameSet(this.petName) ? this.petName : ''
   });
 }
 
@@ -13905,6 +13969,24 @@ createOtherPlayer(playerInfo) {
     (playerInfo.dogY ?? playerInfo.y + 20) + 22,
     [dogShadowG]
   );
+
+  // Etiqueta con el nombre de la mascota (mismo estilo que la del jugador,
+  // un punto más pequeña). Antes no existía: el perro propio sí tenía nombre
+  // (this.dogNameText) pero los perros de los demás salían sin nada.
+  remotePlayer.dog.nameText = this.add.text(
+    playerInfo.dogX ?? playerInfo.x + 40,
+    (playerInfo.dogY ?? playerInfo.y + 20) - 30,
+    playerInfo.dogName || '',
+    {
+      fontFamily: '"PressStart2P"',
+      fontSize: '8px',
+      color: '#ffffff',
+      resolution: 4,
+      stroke: '#000000',
+      strokeThickness: 5,
+    }
+  ).setOrigin(0.5, 1);
+  remotePlayer.dog.nameText.setVisible(!!playerInfo.dogName);
 }
 
 updateOtherPlayer(playerInfo) {
@@ -14014,6 +14096,7 @@ updateOtherPlayer(playerInfo) {
     if (!dogEquipped) {
       if (player.dog.sprite) player.dog.sprite.setVisible(false);
       if (player.dog.shadowContainer) player.dog.shadowContainer.setVisible(false);
+      if (player.dog.nameText) player.dog.nameText.setVisible(false);
       // Skip dog update
     } else {
       // Make sure dog is visible again if it was hidden before
@@ -14068,6 +14151,24 @@ updateOtherPlayer(playerInfo) {
     if (player.dog.shadowContainer) {
       player.dog.shadowContainer.setDepth(remoteDogFeetY - 1);
     }
+
+    // Nombre de la mascota remota: se crea si el jugador ya existía de antes
+    // (sesiones anteriores a este cambio) y se mantiene pegado sobre el perro.
+    const dogName = playerInfo.dogName || '';
+    if (!player.dog.nameText) {
+      player.dog.nameText = this.add.text(dogX, dogY - 30, dogName, {
+        fontFamily: '"PressStart2P"',
+        fontSize: '8px',
+        color: '#ffffff',
+        resolution: 4,
+        stroke: '#000000',
+        strokeThickness: 5,
+      }).setOrigin(0.5, 1);
+    }
+    player.dog.nameText.setText(dogName);
+    player.dog.nameText.setPosition(dogX, dogY - player.dog.sprite.displayHeight * 0.5 - 4);
+    player.dog.nameText.setDepth(remoteDogFeetY + 1);
+    player.dog.nameText.setVisible(!!dogName);
     } // end dogEquipped else block
   }
 
@@ -14086,6 +14187,7 @@ removeOtherPlayer(playerId) {
   if (player.dog) {
     if (player.dog.sprite) player.dog.sprite.destroy();
     if (player.dog.shadowContainer) player.dog.shadowContainer.destroy();
+    if (player.dog.nameText) player.dog.nameText.destroy();
   }
 
   delete this.otherPlayers[playerId];
@@ -15176,6 +15278,7 @@ shutdown() {
   Object.values(this.otherPlayers).forEach(p => {
     if (p.sprite) p.sprite.destroy();
     if (p.nameText) p.nameText.destroy();
+    if (p.dog?.nameText) p.dog.nameText.destroy();
   });
   this.otherPlayers = {};
   
