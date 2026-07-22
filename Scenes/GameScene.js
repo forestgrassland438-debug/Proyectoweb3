@@ -6051,6 +6051,9 @@ mineProps.forEach(prop => {
       // otra transacción. Al terminar, se disparaban todas esas transacciones
       // duplicadas una tras otra. Es el mismo arreglo que ya tenía la tala.
       spr.disableInteractive();
+      // El mineral picado desaparece y se le quita SU colisión (solo los
+      // rectángulos que caen dentro de él), hasta que termine el respawn.
+      this.hideMinedMineral(mineKey);
       if (this.mineTexts[mineKey]) {
         this.mineTexts[mineKey].destroy();
         if (this.mineTexts[mineKey].indicator) this.mineTexts[mineKey].indicator.destroy();
@@ -6095,6 +6098,7 @@ mineProps.forEach(prop => {
           // Si no se bloqueó en el servidor, devolver el mineral al jugador:
           // si no, quedaría deshabilitado para siempre (ya no hay respawn que
           // lo reactive, porque nunca se programó).
+          this.showMinedMineral(mineKey);
           this.enablePixelPerfectInput(spr);
           return;
         }
@@ -6102,6 +6106,7 @@ mineProps.forEach(prop => {
         const serverLockedUntil = await lockMine(mineKey, mineralType);
         if (!serverLockedUntil) {
           this.notifications.show('Error al bloquear la mina en el servidor.', 'error');
+          this.showMinedMineral(mineKey);
           this.enablePixelPerfectInput(spr);
           return;
         }
@@ -6119,11 +6124,14 @@ mineProps.forEach(prop => {
                 this.enablePixelPerfectInput(liveSpr);
                 console.log(`⛏️ Mina ${key} desbloqueada automáticamente`);
               }
+              // Vuelve el mineral y su colisión
+              this.showMinedMineral(key);
             }
           } catch (e) {
             // Si falla la consulta, desbloquear de todas formas
             const liveSpr = this[key];
             if (liveSpr && liveSpr.active) this.enablePixelPerfectInput(liveSpr);
+            this.showMinedMineral(key);
           }
         };
         if (remainingMs > 0) {
@@ -6136,6 +6144,7 @@ mineProps.forEach(prop => {
         // (el sprite ya fue deshabilitado al inicio del bloque, ver FIX arriba)
         setTimeout(() => {
           if (spr && spr.active) this.enablePixelPerfectInput(spr);
+          this.showMinedMineral(mineKey);
         }, 60000);
       }
     }
@@ -6218,61 +6227,10 @@ function getTreeTypeFromKey(key) {
   return null;
 }
 
-// -----------------------------------------------------------------------------
-// TRONCOS: mientras el árbol está talado se muestra su tronco en el mismo sitio
-// -----------------------------------------------------------------------------
-const TREE_STUMP_TEXTURE = {
-  pinos:    'tronco_pinos_png',
-  arbustos: 'tronco_arbusto_png',
-  arbolx:   'tronco_arbol_seco_png'
-};
-
-// Se intercambia la TEXTURA del propio sprite del árbol en vez de ocultarlo y
-// añadir otra imagen encima. Motivo: enableAutoCullingForLayer() recorre estos
-// sprites en cada frame y les hace setVisible(), así que ocultar el árbol no
-// funciona (se vuelve a mostrar solo). Además, reutilizar el mismo sprite
-// conserva la posición exacta de Tiled (origin 0,1 = la base del objeto),
-// el depth del Y-sorting y la escala aplicada por applyTiledProperties, con lo
-// que el tronco sale del tamaño proporcional al árbol, no del tamaño crudo del png.
-this.treeStumps = this.treeStumps || {};
-
-const showTreeStump = (sprRef, treeKey) => {
-  const type = getTreeTypeFromKey(treeKey);
-  const stumpTexture = TREE_STUMP_TEXTURE[type];
-  if (!stumpTexture || !sprRef || this.treeStumps[treeKey]) return;
-  if (!this.textures.exists(stumpTexture)) {
-    console.warn(`No existe la textura del tronco '${stumpTexture}'`);
-    return;
-  }
-
-  // Guardar textura y posición originales para restaurar el árbol tras el respawn
-  this.treeStumps[treeKey] = { texture: sprRef.texture.key, x: sprRef.x };
-
-  const treeWidth = sprRef.displayWidth;
-
-  // setTexture conserva scaleX/scaleY, así que el tronco queda escalado igual
-  // que el árbol y apoyado en la misma base (origin 0,1 = base del objeto).
-  sprRef.setTexture(stumpTexture);
-
-  // El origin es (0,1): el sprite se ancla por su borde IZQUIERDO, no por el
-  // centro. Como el tronco es más angosto que el árbol, si no se corrige queda
-  // pegado a la izquierda del hueco que dejó el árbol. Se desplaza media
-  // diferencia para que el tronco quede centrado justo donde estaba el tronco
-  // del árbol en el tilemap.
-  sprRef.x += (treeWidth - sprRef.displayWidth) / 2;
-};
-
-const hideTreeStump = (treeKey) => {
-  const original = this.treeStumps[treeKey];
-  if (!original) return;
-  delete this.treeStumps[treeKey];
-
-  const liveSpr = this[treeKey];
-  if (liveSpr && liveSpr.active) {
-    liveSpr.setTexture(original.texture);
-    liveSpr.x = original.x;
-  }
-};
+// Los troncos viven en métodos de la escena (showTreeStump / hideTreeStump)
+// para que loadTreeLockStates() también pueda ponerlos al recargar la página.
+const showTreeStump = (sprRef, treeKey) => this.showTreeStump(treeKey);
+const hideTreeStump = (treeKey) => this.hideTreeStump(treeKey);
 
 // -----------------------------------------------------------------------------
 // COOLDOWN HUMANO (600-900 ms + aleatoriedad ±150 ms)
@@ -7122,25 +7080,36 @@ oreProps.forEach(prop => {
       return;
     }
 
-    // ---------- 1. Validar hacha ----------
+    const treeKey = prop;
+    const treeType = getTreeTypeFromKey(treeKey);
+
+    // ---------- 1. Verificar bloqueo global ----------
+    // Va ANTES de validar el hacha: si lo que se está picando es un tronco, lo
+    // útil es saber cuánto falta para el respawn, no que "necesitas un hacha".
+    const { isLocked, lockedUntil } = await getTreeLockState(treeKey);
+    if (isLocked) {
+      if (lockedUntil) {
+        const restante = this.formatRespawnRemaining(lockedUntil.getTime() - Date.now());
+        this.notifications.show(
+          `This tree was chopped down. It will grow back in ${restante}`,
+          "warning",
+          { icon: '🌱' }
+        );
+      } else {
+        this.notifications.show('This tree was chopped down and has not grown back yet', "warning");
+      }
+      return;
+    }
+
+    // ---------- 2. Validar hacha ----------
     if (!isPickSelected_Ore()) {
       this.notifications.show("You need an axe to chop", "error");
       return;
     }
     const pickName = getSelectedPickName_Ore();
-    const treeKey = prop;
-    const treeType = getTreeTypeFromKey(treeKey);
     if (!isValidAxeForTree(pickName, treeKey)) {
       const required = TREE_TYPE_CONFIG[treeType]?.requiredAxe || 'another axe';
       this.notifications.show(`This tree requires ${required}`, "error");
-      return;
-    }
-
-    // ---------- 2. Verificar bloqueo global ----------
-    const { isLocked, lockedUntil } = await getTreeLockState(treeKey);
-    if (isLocked) {
-      const unlockTime = lockedUntil ? lockedUntil.toLocaleTimeString() : 'indefinitely';
-      this.notifications.show(`This tree is depleted until ${unlockTime}`, "warning");
       return;
     }
 
@@ -7304,7 +7273,11 @@ oreProps.forEach(prop => {
           return;
         }
 
-        // (el sprite ya fue deshabilitado al inicio del bloque, ver FIX arriba)
+        // El árbol ya está bloqueado en el SERVIDOR, así que se vuelve a hacer
+        // clickeable: a partir de aquí el paso 2 corta cualquier intento y
+        // avisa cuánto falta para el respawn. (Durante los awaits anteriores
+        // seguía deshabilitado, que es lo que evita las transacciones dobles.)
+        this.enablePixelPerfectInput(spr);
 
         // Programar la reactivación usando la fecha del servidor
         const remainingMs = serverLockedUntil.getTime() - Date.now();
@@ -8062,6 +8035,9 @@ async loadMineLockStates() {
       const lockedUntil = new Date(lock.lockedUntil);
       if (lockedUntil > new Date()) {
         spr.disableInteractive();
+        // Al recargar, un mineral todavía en respawn sigue oculto y sin su
+        // colisión (igual que los troncos de los árboles).
+        this.hideMinedMineral(lock.mineKey);
         const remaining = lockedUntil.getTime() - Date.now();
         const scheduleUnlock = (sprRef, key, ms) => {
           setTimeout(async () => {
@@ -8077,6 +8053,7 @@ async loadMineLockStates() {
                   this.enablePixelPerfectInput(liveSpr);
                   console.log(`⛏️ Mina ${key} desbloqueada automáticamente (al cargar)`);
                 }
+                this.showMinedMineral(key);
               } else {
                 const newRemaining = new Date(data.lockedUntil).getTime() - Date.now();
                 if (newRemaining > 0) scheduleUnlock(sprRef, key, newRemaining);
@@ -8084,6 +8061,7 @@ async loadMineLockStates() {
             } catch (e) {
               const liveSpr = this[key];
               if (liveSpr && liveSpr.active) this.enablePixelPerfectInput(liveSpr);
+              this.showMinedMineral(key);
             }
           }, ms);
         };
@@ -8108,8 +8086,14 @@ async loadTreeLockStates() {
       if (!spr) return;
       const lockedUntil = new Date(lock.lockedUntil);
       if (lockedUntil > new Date()) {
-        // Bloquear interacción SIN poner transparente
-        spr.disableInteractive();
+        // Al recargar la página, un árbol todavía en respawn debe verse como
+        // TRONCO, no como árbol entero: el estado visual se reconstruye desde
+        // los bloqueos que devuelve el servidor.
+        this.showTreeStump(lock.treeKey);
+
+        // Se deja clickeable a propósito: al picarlo, el handler de tala
+        // consulta el bloqueo y avisa cuánto falta para el respawn.
+        this.enablePixelPerfectInput(spr);
         const remaining = lockedUntil.getTime() - Date.now();
         // Programar desbloqueo automático sin necesidad de recargar
         const scheduleUnlock = (sprRef, key, ms) => {
@@ -8126,6 +8110,7 @@ async loadTreeLockStates() {
                   this.enablePixelPerfectInput(liveSpr);
                   console.log(`🌲 Árbol ${key} desbloqueado automáticamente (al cargar)`);
                 }
+                this.hideTreeStump(key); // termina el respawn: vuelve el árbol
               } else {
                 // Todavía bloqueado, reprogramar con el tiempo restante real
                 const newRemaining = new Date(data.lockedUntil).getTime() - Date.now();
@@ -19299,6 +19284,131 @@ createOptimizedSprite(scene, obj, spriteKey, depthOffset = 0) {
 enablePixelPerfectInput(sprite) {
   if (!sprite || !sprite.active) return;
   sprite.setInteractive(this.input.makePixelPerfect(1));
+}
+
+// =============================================================================
+// TRONCOS DE LOS ÁRBOLES TALADOS
+// =============================================================================
+// Mientras el árbol está en respawn se muestra su tronco EN EL MISMO SPRITE:
+// se intercambia la textura en vez de ocultar el árbol y añadir otra imagen
+// encima. Motivos:
+//   - enableAutoCullingForLayer() recorre estos sprites cada frame y les hace
+//     setVisible(), así que ocultar el árbol no funciona (se re-muestra solo).
+//   - reutilizar el sprite conserva la posición de Tiled, el depth del Y-sort
+//     y la escala de applyTiledProperties, así que el tronco sale del tamaño
+//     proporcional al árbol y no del tamaño crudo del png.
+// Son métodos de la escena (y no closures dentro de create()) porque
+// loadTreeLockStates() también los necesita al recargar la página.
+TREE_STUMP_TEXTURES = {
+  pinos:    'tronco_pinos_png',
+  arbustos: 'tronco_arbusto_png',
+  arbolx:   'tronco_arbol_seco_png'
+};
+
+getTreeTypeFromSpriteKey(key) {
+  if (typeof key !== 'string') return null;
+  if (key.startsWith('sprite_pinos')) return 'pinos';
+  if (key.startsWith('sprite_arbustos')) return 'arbustos';
+  if (key.startsWith('sprite_arbolx')) return 'arbolx';
+  return null;
+}
+
+showTreeStump(treeKey) {
+  this.treeStumps = this.treeStumps || {};
+  const spr = this[treeKey];
+  const type = this.getTreeTypeFromSpriteKey(treeKey);
+  const stumpTexture = this.TREE_STUMP_TEXTURES[type];
+  if (!spr || !stumpTexture || this.treeStumps[treeKey]) return;
+  if (!this.textures.exists(stumpTexture)) {
+    console.warn(`No existe la textura del tronco '${stumpTexture}'`);
+    return;
+  }
+
+  // Guardar textura y posición originales para restaurar el árbol tras el respawn
+  this.treeStumps[treeKey] = { texture: spr.texture.key, x: spr.x };
+
+  const treeWidth = spr.displayWidth;
+  spr.setTexture(stumpTexture); // setTexture conserva scaleX/scaleY
+
+  // El origin es (0,1): el sprite se ancla por su borde IZQUIERDO. Como el
+  // tronco es más angosto que el árbol, sin esta corrección quedaría pegado a
+  // la izquierda del hueco. Se centra en el mismo sitio del tilemap.
+  spr.x += (treeWidth - spr.displayWidth) / 2;
+}
+
+hideTreeStump(treeKey) {
+  this.treeStumps = this.treeStumps || {};
+  const original = this.treeStumps[treeKey];
+  if (!original) return;
+  delete this.treeStumps[treeKey];
+
+  const spr = this[treeKey];
+  if (spr && spr.active) {
+    spr.setTexture(original.texture);
+    spr.x = original.x;
+  }
+}
+
+// =============================================================================
+// MINERALES PICADOS: desaparecen y se les quita SU colisión
+// =============================================================================
+// Se usa alpha 0 en vez de setVisible(false) porque el culling automático
+// (enableAutoCullingForLayer) reescribe .visible en cada frame, pero no toca
+// el alpha.
+//
+// La colisión: el mapa no tiene una colisión "por mineral" identificable por
+// nombre, solo la lista de rectángulos de la capa 'area_colision_general'
+// (this.collisionRectangles). Para no borrar la colisión equivocada, SOLO se
+// quitan los rectángulos que quedan COMPLETAMENTE DENTRO del recuadro del
+// mineral picado; un muro o una casa que apenas se cruce con él no cumple esa
+// condición y no se toca. Si ninguno cumple, no se quita nada (fallo seguro).
+// Nunca se tocan collisionRectangles1 / 2 (entradas de tienda y batalla).
+hideMinedMineral(mineKey) {
+  this.minedMinerals = this.minedMinerals || {};
+  const spr = this[mineKey];
+  if (!spr || this.minedMinerals[mineKey]) return;
+
+  const b = spr.getBounds();
+  const zona = new Phaser.Geom.Rectangle(b.x - 8, b.y - 8, b.width + 16, b.height + 16);
+
+  const quitados = [];
+  if (Array.isArray(this.collisionRectangles)) {
+    // Recorrido hacia atrás + splice: se MUTA el array original en vez de
+    // reasignarlo, porque otras partes (helpers del perro, update del jugador)
+    // guardan una referencia directa a él.
+    for (let i = this.collisionRectangles.length - 1; i >= 0; i--) {
+      const rect = this.collisionRectangles[i];
+      if (Phaser.Geom.Rectangle.ContainsRect(zona, rect)) {
+        quitados.push(rect);
+        this.collisionRectangles.splice(i, 1);
+      }
+    }
+  }
+
+  this.minedMinerals[mineKey] = quitados;
+  spr.setAlpha(0);
+  console.log(`⛏️ ${mineKey} oculto; colisiones retiradas: ${quitados.length}`);
+}
+
+showMinedMineral(mineKey) {
+  this.minedMinerals = this.minedMinerals || {};
+  const quitados = this.minedMinerals[mineKey];
+  if (!quitados) return;
+  delete this.minedMinerals[mineKey];
+
+  if (Array.isArray(this.collisionRectangles)) {
+    quitados.forEach(rect => this.collisionRectangles.push(rect));
+  }
+  const spr = this[mineKey];
+  if (spr && spr.active) spr.setAlpha(1);
+}
+
+// Tiempo restante de respawn en inglés: "4m 32s" / "45s"
+formatRespawnRemaining(ms) {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const min = Math.floor(total / 60);
+  const seg = total % 60;
+  return min > 0 ? `${min}m ${seg}s` : `${seg}s`;
 }
 
 /**
