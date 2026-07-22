@@ -15324,14 +15324,21 @@ shutdown() {
     this.cleanupScene();
     
     // Asegurar que la cámara se detenga
-    if (this.cameras.main) {
+    if (this.cameras && this.cameras.main) {
         this.cameras.main.stopFollow();
         this.cameras.main.fadeOut(0);
     }
-    
-    // Detener física
-    this.physics.world.pause();
-    
+
+    // Detener física.
+    // FIX: cleanupScene() (justo arriba) ya desmonta sistemas de la escena, así
+    // que al llegar aquí this.physics / this.physics.world pueden ser null y
+    // esto lanzaba "Cannot read properties of null (reading 'pause')" — otra
+    // vez en mitad del shutdown, dejando la transición de escena a medias y el
+    // juego congelado. Se comprueba antes de tocarlo.
+    if (this.physics && this.physics.world && typeof this.physics.world.pause === 'function') {
+        this.physics.world.pause();
+    }
+
     console.log('✅ GameScene apagada correctamente');
 
 

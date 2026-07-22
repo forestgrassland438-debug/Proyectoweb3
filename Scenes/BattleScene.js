@@ -57,32 +57,34 @@ class BattleScene extends Phaser.Scene {
     this.avisoHorizontal();
 
     this.socket = window.globalSocket;
-    if (!this.socket || !this.socket.connected) {
+    if (!this.socket) {
       this.mostrarEstado('No connection to the server.', true);
       this.time.delayedCall(2500, () => this.volverAlMapa());
       return;
     }
 
-    this.registrarSocket();
-
-    if (this.modo === 'bot') {
-      this.mostrarEstado('Preparing your daily battle…', true);
-      this.socket.emit('battle:bot');
+    // Al salir del mapa, cleanupScene() de GameScene hace socket.disconnect()
+    // sobre ESTE MISMO socket global. Así que aquí normalmente llega
+    // desconectado y hay que levantarlo otra vez antes de pedir batalla.
+    if (this.socket.connected) {
+      this.arrancarBusqueda();
     } else {
-      this.socket.emit('battle:queue');
-      // Contador visible mientras se espera rival, para que nunca parezca
-      // que el juego se quedó colgado.
-      this._segundosBuscando = 0;
-      this._timerBusqueda = this.time.addEvent({
-        delay: 1000, loop: true,
-        callback: () => {
-          if (this.estado !== 'buscando') return;
-          this._segundosBuscando++;
-          this.mostrarEstado(
-            `Searching for an opponent…  ${this._segundosBuscando}s\n\nYou can leave with the button below.`,
-            true
-          );
-        }
+      this.mostrarEstado('Connecting to the server…', true);
+      this.socket.connect();
+
+      const alConectar = () => {
+        if (this._conexionTimeout) { this._conexionTimeout.remove(); this._conexionTimeout = null; }
+        this.arrancarBusqueda();
+      };
+      this.socket.once('connect', alConectar);
+
+      // Si en 10s no hay conexión, se vuelve al mapa en vez de dejar la
+      // pantalla parada sin explicación.
+      this._conexionTimeout = this.time.delayedCall(10000, () => {
+        if (this.estado !== 'buscando' || this.matchId) return;
+        this.socket.off('connect', alConectar);
+        this.mostrarEstado('Could not reach the server.\nBack to the map…', true);
+        this.time.delayedCall(2000, () => this.volverAlMapa());
       });
     }
 
@@ -108,6 +110,37 @@ class BattleScene extends Phaser.Scene {
         })
         .catch(() => {});
     }
+  }
+
+  // Pide batalla (contra bot o contra jugador) una vez el socket está vivo
+  arrancarBusqueda() {
+    if (this._buscandoIniciado) return;
+    this._buscandoIniciado = true;
+
+    this.registrarSocket();
+
+    if (this.modo === 'bot') {
+      this.mostrarEstado('Preparing your daily battle…', true);
+      this.socket.emit('battle:bot');
+      return;
+    }
+
+    this.socket.emit('battle:queue');
+
+    // Contador visible mientras se espera rival, para que nunca parezca que el
+    // juego se quedó colgado.
+    this._segundosBuscando = 0;
+    this._timerBusqueda = this.time.addEvent({
+      delay: 1000, loop: true,
+      callback: () => {
+        if (this.estado !== 'buscando') return;
+        this._segundosBuscando++;
+        this.mostrarEstado(
+          `Searching for an opponent…  ${this._segundosBuscando}s\n\nYou can leave with the button below.`,
+          true
+        );
+      }
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -375,10 +408,10 @@ class BattleScene extends Phaser.Scene {
   }
 
   rendirse() {
-    if (this.estado === 'combate' && this.socket) {
+    if (this.estado === 'combate' && this.socket && this.socket.connected) {
       this.socket.emit('battle:forfeit');
     } else {
-      if (this.socket) this.socket.emit('battle:leaveQueue');
+      if (this.socket && this.socket.connected) this.socket.emit('battle:leaveQueue');
       this.volverAlMapa();
     }
   }
@@ -435,11 +468,20 @@ class BattleScene extends Phaser.Scene {
 
   limpiar() {
     if (this._timerBusqueda) { this._timerBusqueda.remove(); this._timerBusqueda = null; }
+    if (this._conexionTimeout) { this._conexionTimeout.remove(); this._conexionTimeout = null; }
     try {
       if (this.socket) {
         this._listeners.forEach(([ev, fn]) => this.socket.off(ev, fn));
         this._listeners = [];
-        if (this.estado === 'buscando') this.socket.emit('battle:leaveQueue');
+        if (this.estado === 'buscando' && this.socket.connected) this.socket.emit('battle:leaveQueue');
+
+        // Se deja el socket EXACTAMENTE como lo deja la tienda al salir del
+        // mapa: desconectado. Así, al volver, GameScene.initSocket() ve que no
+        // está conectado y crea uno nuevo con todos sus manejadores globales.
+        // Si lo dejáramos conectado, lo reutilizaría "pelado" (cleanupScene ya
+        // le había hecho removeAllListeners) y se perderían esos eventos.
+        this.socket.removeAllListeners();
+        this.socket.disconnect();
       }
     } catch (e) { /* sin ruido al salir */ }
 
