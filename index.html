@@ -72,6 +72,7 @@
   <script src="./Scenes/tiendajuego.js" defer></script>
   <script src="./Scenes/LoadingScenegame.js" defer></script>
   <script src="./Scenes/GameScene.js" defer></script>
+  <script src="./Scenes/BattleScene.js" defer></script>
   <script src="./Scenes/sacar_mapa.js" defer></script>
 
   <!-- tienda marketplace p2p -->
@@ -618,11 +619,54 @@
       <button id="battleHubPvpBtn" class="battle-btn battle-btn-pvp">
         <span class="btn-icon">⚔</span>
         <span class="btn-text">
-          <strong>PvP Multiplayer (Comming soon)</strong>
-          <small>Battles against players</small>
+          <strong>Battle in P2P</strong>
+          <small>Turn-based battle against another player</small>
+        </span>
+      </button>
+
+      <button id="battleHubRankingBtn" class="battle-btn battle-btn-ranking">
+        <span class="btn-icon">🏆</span>
+        <span class="btn-text">
+          <strong>Ranking</strong>
+          <small>Season points table</small>
         </span>
       </button>
     </div>
+  </div>
+</div>
+
+  
+<!-- ===== Tabla de clasificación de batallas P2P (se abre desde el cartel) ===== -->
+<div id="battleRankOverlay" class="battle-rank-overlay hidden">
+  <div class="battle-rank-card" role="dialog" aria-modal="true" aria-labelledby="battleRankTitle">
+    <div class="battle-rank-head">
+      <h2 id="battleRankTitle">🏆 Pet Battle Ranking</h2>
+      <button class="battle-rank-close" id="battleRankCloseBtn" aria-label="Close">✕</button>
+    </div>
+    <p id="battleRankSeason" class="battle-rank-season"></p>
+    <div class="battle-rank-scroll">
+      <table class="battle-rank-table">
+        <thead>
+          <tr>
+            <th>#</th><th>Player</th><th>Pet</th><th>Wallet</th>
+            <th>Pts</th><th>W/L</th><th>Streak</th>
+          </tr>
+        </thead>
+        <tbody id="battleRankBody"></tbody>
+      </table>
+    </div>
+    <div class="battle-rank-foot">
+      <span id="battleRankMe"></span>
+      <button id="battleRankRefreshBtn" class="battle-rank-refresh">🔄 Refresh</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Aviso de girar el teléfono durante la batalla ===== -->
+<div id="battleRotateNotice" class="battle-rotate-notice hidden">
+  <div class="battle-rotate-inner">
+    <div class="battle-rotate-icon">📱↻</div>
+    <p>Rotate your phone to landscape to play the battle comfortably.</p>
   </div>
 </div>
 

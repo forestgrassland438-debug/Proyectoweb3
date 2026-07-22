@@ -1395,6 +1395,19 @@ body{margin:0;font-family:"Press Start 2P",monospace,Arial;background:transparen
   cursor:not-allowed;
 }
 
+/* Bloqueado por nivel o por falta de recursos: se ve igual que deshabilitado
+   pero SIGUE siendo clickeable, para que al pulsarlo se avise del motivo
+   (un botón disabled no emite click y no avisaba de nada). */
+.craft-btn.craft-blocked{
+  opacity:0.55;
+  cursor:not-allowed;
+}
+
+.craft-btn.craft-blocked:hover{
+  transform:none;
+  box-shadow:none;
+}
+
 .crafting-feedback{
   min-height:24px;
   margin-top:12px;
@@ -10057,3 +10070,183 @@ button:focus {
 
 /* En pantallas bajas el panel rediseñado puede crecer: permitir scroll */
 #hub-panel_101 { max-height: 88vh; overflow-y: auto; }
+
+/* ==========================================================================
+   BATALLAS P2P — botón de ranking, tabla de clasificación y aviso de girar
+   el teléfono. Pensado para PC y para cualquier móvil (la tabla hace scroll
+   horizontal en pantallas estrechas en vez de romper el diseño).
+   ========================================================================== */
+
+.battle-btn-ranking {
+  --battle-accent: #f0b429;
+}
+
+/* ---------- Tabla de clasificación ---------- */
+.battle-rank-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1002;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(1, 8, 18, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 12px;
+}
+
+.battle-rank-card {
+  width: min(96vw, 860px);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  padding: 18px 16px 14px;
+  background: linear-gradient(180deg, rgba(12, 24, 43, 0.98), rgba(7, 16, 31, 0.97));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  color: #eaf2ff;
+}
+
+.battle-rank-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.battle-rank-head h2 {
+  margin: 0;
+  font-size: clamp(15px, 3.6vw, 22px);
+  letter-spacing: 0.5px;
+}
+
+.battle-rank-close {
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #eaf2ff;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.battle-rank-close:hover { background: rgba(255, 255, 255, 0.18); }
+
+.battle-rank-season {
+  margin: 6px 0 12px;
+  font-size: clamp(11px, 2.6vw, 13px);
+  color: #9fb6d6;
+}
+
+/* El scroll propio evita que la página entera se desplace en móvil */
+.battle-rank-scroll {
+  flex: 1;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.battle-rank-table {
+  width: 100%;
+  min-width: 620px;          /* en móvil se desplaza en horizontal */
+  border-collapse: collapse;
+  font-size: clamp(11px, 2.4vw, 14px);
+}
+
+.battle-rank-table thead th {
+  position: sticky;
+  top: 0;
+  background: rgba(18, 34, 58, 0.98);
+  padding: 10px 8px;
+  text-align: left;
+  font-weight: 600;
+  color: #b9cded;
+  white-space: nowrap;
+}
+
+.battle-rank-table td {
+  padding: 9px 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  white-space: nowrap;
+}
+
+.battle-rank-table tbody tr:nth-child(odd) { background: rgba(255, 255, 255, 0.025); }
+.battle-rank-table tbody tr.rank-self {
+  background: rgba(240, 180, 41, 0.16);
+  box-shadow: inset 3px 0 0 #f0b429;
+}
+
+.battle-rank-table .rank-pos { font-weight: 700; color: #f0b429; width: 46px; }
+.battle-rank-table .rank-addr { font-family: monospace; color: #9fb6d6; }
+.battle-rank-table .rank-num { text-align: right; }
+.battle-rank-table .rank-loading {
+  padding: 24px 10px;
+  text-align: center;
+  color: #9fb6d6;
+  white-space: normal;
+}
+
+.battle-rank-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 12px;
+  font-size: clamp(11px, 2.4vw, 13px);
+  color: #cfe0f7;
+  flex-wrap: wrap;
+}
+
+.battle-rank-refresh {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #eaf2ff;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: inherit;
+}
+
+.battle-rank-refresh:hover { background: rgba(255, 255, 255, 0.14); }
+
+@media (max-width: 480px) {
+  .battle-rank-card { padding: 14px 10px 10px; border-radius: 14px; }
+  .battle-rank-foot { flex-direction: column; align-items: stretch; text-align: center; }
+  .battle-rank-refresh { width: 100%; }
+}
+
+/* ---------- Aviso: gira el teléfono ---------- */
+.battle-rotate-notice {
+  position: fixed;
+  inset: 0;
+  z-index: 1003;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 8, 16, 0.92);
+  color: #eaf2ff;
+  text-align: center;
+  padding: 24px;
+}
+
+.battle-rotate-inner { max-width: 320px; }
+
+.battle-rotate-icon {
+  font-size: 54px;
+  margin-bottom: 14px;
+  animation: battle-rotate-pulse 1.6s ease-in-out infinite;
+}
+
+.battle-rotate-notice p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+@keyframes battle-rotate-pulse {
+  0%, 100% { transform: rotate(0deg); opacity: 1; }
+  50%      { transform: rotate(90deg); opacity: 0.75; }
+}
