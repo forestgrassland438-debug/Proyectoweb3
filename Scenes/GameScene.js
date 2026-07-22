@@ -15307,7 +15307,14 @@ shutdown() {
   // No desconectar el socket global, solo salir de la sala
 
 
-    cleanupWaterSystem();
+    // FIX (el juego se quedaba congelado al cambiar de escena):
+    // cleanupWaterSystem() NO existe en ninguna parte del proyecto — era una
+    // llamada huérfana. Lanzaba "ReferenceError: cleanupWaterSystem is not
+    // defined" justo aquí, en mitad del shutdown, así que TODO lo que venía
+    // después (cleanupScene, parar cámara y física) no llegaba a ejecutarse y
+    // la transición de escena moría a medias: pantalla congelada y sin hub.
+    // Se llama solo si algún día llega a existir.
+    if (typeof cleanupWaterSystem === 'function') cleanupWaterSystem();
 
     console.log('🔄 APAGANDO GAMESCENE');
     this.cleanupScene();
@@ -19599,7 +19606,8 @@ openBattleHub() {
     });
 
     document.getElementById('battleHubAdventureBtn')?.addEventListener('click', () => {
-      this.notifications?.show('Daily battles are coming soon', 'info');
+      this.closeBattleHub();
+      this.startPvpBattle('bot');
     });
 
     document.getElementById('battleHubRankingBtn')?.addEventListener('click', () => {
@@ -19610,6 +19618,28 @@ openBattleHub() {
 
   overlay.classList.remove('hidden');
   if (this.input && this.input.keyboard) this.input.keyboard.enabled = false;
+
+  // Cuántas batallas diarias le quedan hoy (lo dice el servidor, no el navegador)
+  const sub = document.querySelector('#battleHubAdventureBtn .btn-text small');
+  if (sub) sub.textContent = 'Checking your daily battles…';
+  if (this.socket && this.socket.connected) {
+    // El flag va en el SOCKET (que es global y sobrevive a los reinicios de la
+    // escena), no en la escena: si no, cada recreación de GameScene añadiría
+    // otro listener sobre el mismo socket y se acumularían.
+    if (!this.socket._battleDailyWired) {
+      this.socket._battleDailyWired = true;
+      this.socket.on('battle:daily', (d) => {
+        const s = document.querySelector('#battleHubAdventureBtn .btn-text small');
+        if (!s) return;
+        s.textContent = d.remaining > 0
+          ? `${d.remaining} of ${d.max} left today · next: round ${d.nextRound}`
+          : 'Done for today — come back tomorrow';
+      });
+    }
+    this.socket.emit('battle:dailyStatus');
+  } else if (sub) {
+    sub.textContent = 'Complete the daily challenge';
+  }
 }
 
 closeBattleHub() {
@@ -19617,13 +19647,20 @@ closeBattleHub() {
   if (this.input && this.input.keyboard) this.input.keyboard.enabled = true;
 }
 
-// Arranca la escena de batalla P2P llevándose lo que hace falta para volver
-startPvpBattle() {
+// Arranca la escena de batalla llevándose lo que hace falta para volver.
+// modo: 'pvp' (contra otro jugador) o 'bot' (una de las 5 batallas diarias)
+startPvpBattle(modo = 'pvp') {
   try {
     this.savegg && this.savegg();
   } catch (e) { /* el guardado no debe impedir la batalla */ }
 
+  if (!this.scene.manager.keys['BattleScene']) {
+    this.notifications?.show('Battle scene is not available.', 'error');
+    return;
+  }
+
   this.scene.start('BattleScene', {
+    modo,
     playerName: this.Username || '---',
     petName: this.petName || window.globalPetName || '---',
     address: this.currentAccount || '',

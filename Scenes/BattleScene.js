@@ -27,6 +27,7 @@ class BattleScene extends Phaser.Scene {
     };
     this.serverBase = (data && data.serverBase) || '';
     this.volverA = (data && data.volverA) || 'LoadingScenegame';
+    this.modo = (data && data.modo) === 'bot' ? 'bot' : 'pvp';
 
     this.estado = 'buscando';   // buscando | combate | fin
     this.matchId = null;
@@ -63,7 +64,27 @@ class BattleScene extends Phaser.Scene {
     }
 
     this.registrarSocket();
-    this.socket.emit('battle:queue');
+
+    if (this.modo === 'bot') {
+      this.mostrarEstado('Preparing your daily battle…', true);
+      this.socket.emit('battle:bot');
+    } else {
+      this.socket.emit('battle:queue');
+      // Contador visible mientras se espera rival, para que nunca parezca
+      // que el juego se quedó colgado.
+      this._segundosBuscando = 0;
+      this._timerBusqueda = this.time.addEvent({
+        delay: 1000, loop: true,
+        callback: () => {
+          if (this.estado !== 'buscando') return;
+          this._segundosBuscando++;
+          this.mostrarEstado(
+            `Searching for an opponent…  ${this._segundosBuscando}s\n\nYou can leave with the button below.`,
+            true
+          );
+        }
+      });
+    }
 
     this.scale.on('resize', this.onResize, this);
     this.events.once('shutdown', () => this.limpiar());
@@ -257,8 +278,13 @@ class BattleScene extends Phaser.Scene {
       this.estado = 'combate';
       this.yo = d.you;
       this.rival = d.rival;
+      if (this._timerBusqueda) { this._timerBusqueda.remove(); this._timerBusqueda = null; }
       this.pintarJugadores();
-      this.mostrarEstado(`${d.you.petName}  VS  ${d.rival.petName}`, true);
+
+      const cabecera = d.mode === 'bot'
+        ? `DAILY BATTLE ${d.round}/5\n${d.you.petName}  VS  ${d.rival.petName}`
+        : `${d.you.petName}  VS  ${d.rival.petName}`;
+      this.mostrarEstado(cabecera, true);
     });
 
     this.on('battle:turnStart', (d) => {
@@ -297,17 +323,26 @@ class BattleScene extends Phaser.Scene {
         : d.result === 'lose' ? '💀 YOU LOSE'
         : '🤝 DRAW';
       const motivo = d.reason === 'forfeit' ? '\n(the rival left the battle)' : '';
-      this.mostrarEstado(`${titulo}\n+${d.pointsEarned} points${motivo}\n\nBack to the map…`, true);
+      const diarias = d.daily
+        ? `\nDaily battles: ${d.daily.done}/${d.daily.max}`
+        : '';
+      this.mostrarEstado(
+        `${titulo}\n+${d.pointsEarned} points${motivo}${diarias}\n\nBack to the map…`,
+        true
+      );
 
       this.time.delayedCall(3500, () => this.volverAlMapa());
     });
 
     this.on('battle:error', (d) => {
-      const msg = d && d.error === 'not_authenticated'
-        ? 'You must be logged in to battle.'
-        : 'Could not start the battle.';
+      let msg = 'Could not start the battle.';
+      if (d && d.error === 'not_authenticated') msg = 'You must be logged in to battle.';
+      else if (d && d.error === 'already_in_battle') msg = 'You are already in a battle.';
+      else if (d && d.error === 'daily_limit') {
+        msg = `You already played your ${d.daily ? d.daily.max : 5} daily battles.\nCome back tomorrow!`;
+      }
       this.mostrarEstado(msg, true);
-      this.time.delayedCall(2500, () => this.volverAlMapa());
+      this.time.delayedCall(3000, () => this.volverAlMapa());
     });
   }
 
@@ -379,6 +414,7 @@ class BattleScene extends Phaser.Scene {
   }
 
   limpiar() {
+    if (this._timerBusqueda) { this._timerBusqueda.remove(); this._timerBusqueda = null; }
     try {
       if (this.socket) {
         this._listeners.forEach(([ev, fn]) => this.socket.off(ev, fn));
