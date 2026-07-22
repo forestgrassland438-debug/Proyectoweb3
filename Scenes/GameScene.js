@@ -4375,8 +4375,10 @@ this.createImagesFromObjectLayer(this, this.map, 'Lamparas', imageMappingpostes,
       },
       
       Cartel_notificacion1: {
-        spriteKey: 'carteleraxd', 
-        targetProp: 'sprite_carteleraxd2',  
+        spriteKey: 'carteleraxd',
+        targetProp: 'sprite_carteleraxd2',
+        // El cartel abre la tabla de clasificación de las batallas P2P
+        onClick: () => { this.openBattleLeaderboard(); },
       },
       escalera1: {
         spriteKey: 'escalera_png', 
@@ -7231,17 +7233,37 @@ oreProps.forEach(prop => {
       delete this.oreMineState[treeKey];
 
       this.playSFX('cortado_sound');
-      await this.ejecutarDivision("madera pinos","madera_pinos",50,1);
 
       // Otorgar experiencia por talar (mismo criterio que ya usa la minería)
       this.nivel_exp = (this.nivel_exp || 0) + 50;
 
       const rewards = getMultipleRewards_Ore(treeKey, pickName);
 
-      // Agregar ítems usando ejecutarDivision
+      // FIX (todos los árboles daban madera de pino): antes había una llamada
+      // FIJA `ejecutarDivision("madera pinos","madera_pinos",50,1)` y el bucle
+      // que agregaba la recompensa real estaba comentado. Da igual qué árbol
+      // talaras: la transacción siempre era de madera_pinos.
+      //
+      // oreRewards YA tiene el item correcto por sprite:
+      //   sprite_pinos*    → madera_pinos     (madera_oscura.png)
+      //   sprite_arbolx*   → madera_seca      (madera seca.png)
+      //   sprite_arbustos* → madera_con_hojas (madera de hoja.png)
+      // Ahora se manda una transacción por cada recompensa, usando la tabla
+      // (tipo) y el maxStack que el propio item declara en ItemDefinitions.
       for (const reward of rewards) {
-        // Ajusta "madera" según tu tabla/contrato real, y 5 como límite por transacción
-        //await this.ejecutarDivision(reward.id, "madera", 5, reward.cantidad);
+        const defMadera = this.ItemDefinitions ? this.ItemDefinitions[reward.id] : null;
+        if (defMadera && defMadera.tipo) {
+          await this.ejecutarDivision(
+            defMadera.tipo,
+            reward.id,
+            defMadera.maxStack || 50,
+            reward.cantidad
+          );
+        } else {
+          // Sin seguimiento on-chain: respaldo local para no perder el item
+          console.warn(`Sin ItemDefinitions.tipo para '${reward.id}', se agrega off-chain`);
+          this.addItemWithCheck(reward.id, reward.cantidad);
+        }
       }
 
       const rewardNames = rewards.map(r => `${r.cantidad}x ${r.id}`).join(', ');
@@ -19532,6 +19554,170 @@ showMinedMineral(mineKey) {
   if (spr && spr.active) spr.setAlpha(1);
 }
 
+// =============================================================================
+// BATALLAS P2P DE MASCOTAS: entrada, hub y tabla de clasificación
+// =============================================================================
+
+// Se llama desde update(): si el jugador pisa 'area_entrada_batalla'
+// (this.collisionRectangles2) se abre el hub de batalla. Se usa un flag para
+// abrirlo UNA vez por entrada, no en cada frame que esté encima.
+checkBattleEntrance() {
+  if (!Array.isArray(this.collisionRectangles2) || !this.player) return;
+
+  const px = this.player.x;
+  const py = this.player.y;
+  const dentro = this.collisionRectangles2.some(rect =>
+    Phaser.Geom.Rectangle.Contains(rect, px, py)
+  );
+
+  if (dentro && !this._enZonaBatalla) {
+    this._enZonaBatalla = true;
+    this.openBattleHub();
+  } else if (!dentro && this._enZonaBatalla) {
+    this._enZonaBatalla = false;
+  }
+}
+
+openBattleHub() {
+  const overlay = document.getElementById('battleHubOverlay');
+  if (!overlay) {
+    console.warn('⚠️ No se encontró #battleHubOverlay en el DOM');
+    return;
+  }
+
+  // Cablear una sola vez (el DOM sobrevive a los cambios de escena)
+  if (!overlay._wired) {
+    overlay._wired = true;
+
+    const cerrar = () => this.closeBattleHub();
+    document.getElementById('battleHubCloseBtn')?.addEventListener('click', cerrar);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cerrar(); });
+
+    document.getElementById('battleHubPvpBtn')?.addEventListener('click', () => {
+      this.closeBattleHub();
+      this.startPvpBattle();
+    });
+
+    document.getElementById('battleHubAdventureBtn')?.addEventListener('click', () => {
+      this.notifications?.show('Daily battles are coming soon', 'info');
+    });
+
+    document.getElementById('battleHubRankingBtn')?.addEventListener('click', () => {
+      this.closeBattleHub();
+      this.openBattleLeaderboard();
+    });
+  }
+
+  overlay.classList.remove('hidden');
+  if (this.input && this.input.keyboard) this.input.keyboard.enabled = false;
+}
+
+closeBattleHub() {
+  document.getElementById('battleHubOverlay')?.classList.add('hidden');
+  if (this.input && this.input.keyboard) this.input.keyboard.enabled = true;
+}
+
+// Arranca la escena de batalla P2P llevándose lo que hace falta para volver
+startPvpBattle() {
+  try {
+    this.savegg && this.savegg();
+  } catch (e) { /* el guardado no debe impedir la batalla */ }
+
+  this.scene.start('BattleScene', {
+    playerName: this.Username || '---',
+    petName: this.petName || window.globalPetName || '---',
+    address: this.currentAccount || '',
+    nivel: this.nivel || 1,
+    serverBase: this.serverBase,
+    volverA: 'LoadingScenegame'
+  });
+}
+
+// -----------------------------------------------------------------------------
+// TABLA DE CLASIFICACIÓN (todo viene del backend; nada se guarda en el navegador)
+// -----------------------------------------------------------------------------
+async openBattleLeaderboard() {
+  const overlay = document.getElementById('battleRankOverlay');
+  if (!overlay) {
+    console.warn('⚠️ No se encontró #battleRankOverlay en el DOM');
+    return;
+  }
+
+  if (!overlay._wired) {
+    overlay._wired = true;
+    document.getElementById('battleRankCloseBtn')?.addEventListener('click', () => this.closeBattleLeaderboard());
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) this.closeBattleLeaderboard(); });
+    document.getElementById('battleRankRefreshBtn')?.addEventListener('click', () => this.openBattleLeaderboard());
+  }
+
+  overlay.classList.remove('hidden');
+  if (this.input && this.input.keyboard) this.input.keyboard.enabled = false;
+
+  const cuerpo = document.getElementById('battleRankBody');
+  const meta = document.getElementById('battleRankSeason');
+  const miFila = document.getElementById('battleRankMe');
+  if (cuerpo) cuerpo.innerHTML = '<tr><td colspan="7" class="rank-loading">Loading…</td></tr>';
+
+  try {
+    const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/battle/leaderboard?limit=50`, { method: 'GET' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    if (meta) {
+      const dias = Math.floor(data.season.msRemaining / 86400000);
+      const horas = Math.floor((data.season.msRemaining % 86400000) / 3600000);
+      meta.textContent = `Season ${data.season.number} · resets in ${dias}d ${horas}h · min ${data.minBattlesForRanking} battles to rank`;
+    }
+
+    if (cuerpo) {
+      if (!data.rows.length) {
+        cuerpo.innerHTML = '<tr><td colspan="7" class="rank-loading">No ranked players yet this season.</td></tr>';
+      } else {
+        cuerpo.innerHTML = data.rows.map(r => `
+          <tr${data.me && r.playerName === data.me.playerName ? ' class="rank-self"' : ''}>
+            <td class="rank-pos">${r.rank}</td>
+            <td class="rank-name">${this._escapeRankHtml(r.playerName)}</td>
+            <td class="rank-pet">${this._escapeRankHtml(r.petName)}</td>
+            <td class="rank-addr">${this._escapeRankHtml(this._shortAddr(r.address))}</td>
+            <td class="rank-num">${r.points}</td>
+            <td class="rank-num">${r.wins}/${r.losses}</td>
+            <td class="rank-num">${r.bestStreak}</td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    if (miFila) {
+      if (data.me) {
+        miFila.textContent = data.me.rank
+          ? `You: #${data.me.rank} · ${data.me.points} pts · ${data.me.wins}W ${data.me.losses}L`
+          : `You: ${data.me.points} pts · ${data.me.missingBattles} more battle(s) to enter the ranking`;
+      } else {
+        miFila.textContent = '';
+      }
+    }
+  } catch (e) {
+    console.error('❌ Error cargando la clasificación:', e);
+    if (cuerpo) cuerpo.innerHTML = '<tr><td colspan="7" class="rank-loading">Could not load the leaderboard.</td></tr>';
+  }
+}
+
+closeBattleLeaderboard() {
+  document.getElementById('battleRankOverlay')?.classList.add('hidden');
+  if (this.input && this.input.keyboard) this.input.keyboard.enabled = true;
+}
+
+_shortAddr(addr) {
+  if (!addr || typeof addr !== 'string' || addr.length < 10) return '—';
+  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+}
+
+_escapeRankHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
 // Tiempo restante de respawn en inglés: "4m 32s" / "45s"
 formatRespawnRemaining(ms) {
   const total = Math.max(0, Math.ceil(ms / 1000));
@@ -19996,6 +20182,9 @@ getPlayerIntentDirection() {
     if (this.tileManagerMapa) {
       this.tileManagerMapa.updateVisible(this.cameras.main);
     }
+
+    // Zona 'area_entrada_batalla': abre el hub de batallas P2P al pisarla
+    this.checkBattleEntrance();
 
 
     if (this.ii === 1) {
