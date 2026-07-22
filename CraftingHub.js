@@ -460,19 +460,28 @@ class CraftingSystem {
     if(this.craftingQuantity>max) this._setQuantityNoRecalc(max>0?max:1);
   }
 
+  // El botón NO se deshabilita por falta de nivel o de recursos: un botón
+  // disabled no emite el evento click, así que al pulsarlo no pasaba
+  // absolutamente nada y el jugador no recibía ningún aviso. Ahora se marca
+  // como bloqueado (clase craft-blocked) pero sigue siendo clickeable, y
+  // craftItem() explica el motivo por feedback + notificación.
   updateCraftButton() {
     const cb=document.getElementById('craft-button');
     const fb=document.getElementById('crafting-feedback');
     if(!cb||!fb) return;
+    cb.classList.remove('craft-blocked');
     if(!this.selectedRecipe){cb.disabled=true;fb.textContent='';fb.className='crafting-feedback';return;}
+    cb.disabled=false;
     if(this.playerLevel<this.selectedRecipe.level){
-      cb.disabled=true;fb.textContent=`❌ You need level ${this.selectedRecipe.level} (you have ${this.playerLevel})`;
+      cb.classList.add('craft-blocked');
+      fb.textContent=`❌ You need level ${this.selectedRecipe.level} (you have ${this.playerLevel})`;
       fb.className='crafting-feedback feedback-error';return;
     }
     if(!this.hasResources(this.selectedRecipe)){
-      cb.disabled=true;fb.textContent='❌ Resources missing';fb.className='crafting-feedback feedback-error';return;
+      cb.classList.add('craft-blocked');
+      fb.textContent='❌ Resources missing';fb.className='crafting-feedback feedback-error';return;
     }
-    cb.disabled=false;fb.textContent='✅ Ready to craft';fb.className='crafting-feedback feedback-success';
+    fb.textContent='✅ Ready to craft';fb.className='crafting-feedback feedback-success';
   }
 
   hasResources(recipe) {
@@ -494,55 +503,94 @@ class CraftingSystem {
     return true;
   }
 
-  // FIX 7: anti-double-craft con try/finally
+  // COLA DE CRAFTEO: antes, si ya había un crafteo en curso (this._crafting),
+  // el click se DESCARTABA (return sin hacer nada), así que al craftear varios
+  // objetos seguidos solo salía el primero. Ahora cada click se ENCOLA: se
+  // guarda una foto de lo pedido (receta, cantidad y opción elegida EN ESE
+  // momento, porque el jugador puede cambiar de receta mientras se procesa) y
+  // los crafteos se ejecutan uno tras otro, en orden. Mismo criterio que la
+  // cola de transacciones de ejecutarDivision() en GameScene.
   async craftItem() {
-    if(this._crafting) return;
-    if(!this.selectedRecipe){this.showFeedback('No hay receta seleccionada','error');return;}
-    if(this.playerLevel<this.selectedRecipe.level){
-      this.showFeedback(`You need level ${this.selectedRecipe.level} (you have ${this.playerLevel})`,'error');return;
+    if(!this.selectedRecipe){this.showFeedback('No recipe selected','error');return;}
+
+    const peticion={
+      recipe:this.selectedRecipe,
+      quantity:this.craftingQuantity,
+      optional:this.selectedOptional
+    };
+
+    this._craftPending=(this._craftPending||0)+1;
+    if(this._craftPending>1){
+      this.showFeedback(`⏳ Queued (${this._craftPending} pending)`,'info');
     }
-    if(!this.hasResources(this.selectedRecipe)){this.showFeedback('Not enough resources','error');return;}
-    const quantity=this.craftingQuantity;
-    const resultQty=(this.selectedRecipe.resultQuantity||1)*quantity;
-    if(!this.canAddItemToInventory(this.selectedRecipe.resultItem,resultQty)){
+
+    this._craftQueue=(this._craftQueue||Promise.resolve())
+      .then(()=>this._craftItemInterno(peticion))
+      .catch(err=>console.error('❌ Error procesando crafteo en cola:',err))
+      .finally(()=>{this._craftPending=Math.max(0,(this._craftPending||1)-1);});
+
+    return this._craftQueue;
+  }
+
+  // FIX 7: anti-double-craft con try/finally
+  async _craftItemInterno({recipe,quantity,optional}) {
+    if(!recipe) return;
+    // El nivel puede haber cambiado mientras esta petición esperaba en la cola
+    this.updatePlayerLevelFromScene();
+    if(this.playerLevel<recipe.level){
+      this.showFeedback(`You need level ${recipe.level} (you have ${this.playerLevel})`,'error');return;
+    }
+    const resultQty=(recipe.resultQuantity||1)*quantity;
+    if(!this.canAddItemToInventory(recipe.resultItem,resultQty)){
       this.showFeedback('❌ Not enough space in inventory','error');return;
     }
     this._crafting=true;
     try {
-      const isOR=this.selectedRecipe.optionalResources?.length&&(!this.selectedRecipe.resources?.length);
+      const isOR=recipe.optionalResources?.length&&(!recipe.resources?.length);
       if(isOR){
-        if(this.selectedOptional===null||this.selectedOptional===undefined){
-          const group=this.selectedRecipe.optionalResources[0]||[];
+        const group=recipe.optionalResources[0]||[];
+        if(optional===null||optional===undefined){
           let found=false;
           for(let i=0;i<group.length;i++){
-            if(this.countPlayerItem(group[i].itemId)>=group[i].quantity){this.selectedOptional=i;found=true;break;}
+            if(this.countPlayerItem(group[i].itemId)>=group[i].quantity){optional=i;found=true;break;}
           }
-          if(!found){this.showFeedback('No hay recursos para ninguna opción','error');return;}
+          if(!found){this.showFeedback('Not enough resources for any option','error');return;}
         }
-        const opt=this.selectedRecipe.optionalResources[0][this.selectedOptional];
+        const opt=group[optional];
         const total=opt.quantity*quantity;
         if(this.countPlayerItem(opt.itemId)<total){
-          this.showFeedback(`No hay suficiente ${opt.name} (necesitas ${total})`, 'error');return;
+          this.showFeedback(`Not enough ${opt.name} (you need ${total}, you have ${this.countPlayerItem(opt.itemId)})`,'error');return;
         }
-        if(!(await this.removePlayerItem(opt.itemId,total))){this.showFeedback('Error al consumir recursos','error');return;}
+        if(!(await this.removePlayerItem(opt.itemId,total))){this.showFeedback('Error consuming resources','error');return;}
       } else {
-        for(const resource of (this.selectedRecipe.resources||[])){
+        // Se comprueba TODO antes de consumir nada: si falta un material no se
+        // gasta ninguno de los otros.
+        for(const resource of (recipe.resources||[])){
           const total=resource.quantity*quantity;
           if(this.countPlayerItem(resource.itemId)<total){
-            this.showFeedback(`No hay suficiente ${resource.name} (necesitas ${total})`,'error');return;
+            this.showFeedback(`Not enough ${resource.name} (you need ${total}, you have ${this.countPlayerItem(resource.itemId)})`,'error');return;
           }
-          if(!(await this.removePlayerItem(resource.itemId,total))){this.showFeedback('Error al consumir recursos','error');return;}
         }
-        if(this.selectedRecipe.optionalResources?.length&&this.selectedOptional!==null){
-          const opt=this.selectedRecipe.optionalResources[0]?.[this.selectedOptional];
+        if(recipe.optionalResources?.length&&optional!==null&&optional!==undefined){
+          const opt=recipe.optionalResources[0]?.[optional];
+          if(opt&&this.countPlayerItem(opt.itemId)<opt.quantity*quantity){
+            this.showFeedback(`Not enough ${opt.name} (you need ${opt.quantity*quantity})`,'error');return;
+          }
+        }
+
+        for(const resource of (recipe.resources||[])){
+          const total=resource.quantity*quantity;
+          if(!(await this.removePlayerItem(resource.itemId,total))){this.showFeedback('Error consuming resources','error');return;}
+        }
+        if(recipe.optionalResources?.length&&optional!==null&&optional!==undefined){
+          const opt=recipe.optionalResources[0]?.[optional];
           if(opt){
             const total=opt.quantity*quantity;
-            if(this.countPlayerItem(opt.itemId)<total){this.showFeedback(`No hay suficiente ${opt.name}`,'error');return;}
-            if(!(await this.removePlayerItem(opt.itemId,total))){this.showFeedback('Error al consumir recurso opcional','error');return;}
+            if(!(await this.removePlayerItem(opt.itemId,total))){this.showFeedback('Error consuming optional resource','error');return;}
           }
         }
       }
-      if(!(await this.addPlayerItem(this.selectedRecipe.resultItem,resultQty))){
+      if(!(await this.addPlayerItem(recipe.resultItem,resultQty))){
         this.showFeedback('❌ Inventory full','error');return;
       }
 
@@ -551,12 +599,12 @@ class CraftingSystem {
         this.scene.nivel_exp=(this.scene.nivel_exp||0)+30;
       }
 
-      this.showFeedback(`¡Crafteaste ${quantity} ${this.selectedRecipe.name}(s)!`,'success');
+      this.showFeedback(`You crafted ${quantity} ${recipe.name}(s)!`,'success');
       this.updateRequiredResources(); this.updateOptionalResources();
       this.calculateMaxCraftable(); this.updateCraftButton();
       this.updateInventoryPreview(); this.updateRecipesList();
       const ov=document.getElementById('recipe-overlay');
-      if(ov&&!ov.classList.contains('hidden')){
+      if(ov&&!ov.classList.contains('hidden')&&this.selectedRecipe){
         this.updateOverlayResourcesDisplay(this.selectedRecipe);
         this.updateOverlayMaxCraftable(this.selectedRecipe);
         this.updateOverlayCraftButton(this.selectedRecipe);
@@ -567,11 +615,19 @@ class CraftingSystem {
     } finally { this._crafting=false; }
   }
 
+  // El texto de #crafting-feedback es fácil de no ver (queda dentro del panel y
+  // se borra a los 3s), así que los avisos importantes salen TAMBIÉN como
+  // notificación del juego. Es lo que faltaba, por ejemplo, al intentar
+  // craftear sin recursos suficientes.
   showFeedback(message,type) {
     const fb=document.getElementById('crafting-feedback');
-    if(!fb) return;
-    fb.textContent=message; fb.className=`crafting-feedback feedback-${type}`;
-    setTimeout(()=>{if(fb.textContent===message)fb.textContent='';},3000);
+    if(fb){
+      fb.textContent=message; fb.className=`crafting-feedback feedback-${type}`;
+      setTimeout(()=>{if(fb.textContent===message)fb.textContent='';},3000);
+    }
+    try{
+      this.scene?.notifications?.show(message, type==='info'?'info':type);
+    }catch(e){ console.warn('No se pudo mostrar la notificación de crafteo:',e); }
   }
 
   countPlayerItem(itemId) {
@@ -805,8 +861,35 @@ class CraftingSystem {
     hub.classList.add('crafting-hub-visible');
     this.updateInventoryPreview(); this.updateRecipesList(); this.updatePlayerLevelDisplay();
     this.hideDetailsPanel(); this.disablePhaserInput(); this._releaseAllKeys(); this._attachDocumentKeyCapture();
+    this._startLevelWatch();
     setTimeout(()=>{const s=document.getElementById('crafting-search-input');if(s){s.focus();s.select();}},100);
     console.log(`🔨 Panel ABIERTO — Nivel: ${this.playerLevel}`);
+  }
+
+  // El nivel solo se leía al abrir el panel, así que si el jugador subía de
+  // nivel con el crafting abierto seguía viendo el nivel viejo (y las recetas
+  // bloqueadas) hasta cerrarlo y volverlo a abrir. Mientras el panel está
+  // abierto se relee cada segundo; updatePlayerLevelFromScene() solo repinta
+  // cuando el nivel cambió de verdad, así que no cuesta nada.
+  _startLevelWatch() {
+    this._stopLevelWatch();
+    this._levelWatchTimer=setInterval(()=>{
+      if(!this.isVisible()){this._stopLevelWatch();return;}
+      if(this.updatePlayerLevelFromScene()){
+        // Refrescar también el detalle y el overlay abiertos
+        if(this.selectedRecipe){this.calculateMaxCraftable();this.updateCraftButton();}
+        const ov=document.getElementById('recipe-overlay');
+        if(ov&&!ov.classList.contains('hidden')&&this.selectedRecipe){
+          this.updateOverlayMaxCraftable(this.selectedRecipe);
+          this.updateOverlayCraftButton(this.selectedRecipe);
+        }
+        console.log(`🔨 Nivel actualizado en caliente: ${this.playerLevel}`);
+      }
+    },1000);
+  }
+
+  _stopLevelWatch() {
+    if(this._levelWatchTimer){clearInterval(this._levelWatchTimer);this._levelWatchTimer=null;}
   }
 
   // FIX 8: resetear cantidad al cerrar
@@ -815,6 +898,7 @@ class CraftingSystem {
     if(!hub) return;
     hub.classList.add('crafting-hub-hidden');
     hub.classList.remove('crafting-hub-visible');
+    this._stopLevelWatch();
     this._detachDocumentKeyCapture(); this.enablePhaserInput(); this._releaseAllKeys();
     const s=document.getElementById('crafting-search-input');
     if(s){s.value='';s.blur();}
@@ -1086,14 +1170,18 @@ class CraftingSystem {
     const cb=content.querySelector('#overlay-craft-button');
     const fb=content.querySelector('#overlay-crafting-feedback');
     if(!cb||!fb) return;
+    // Mismo criterio que updateCraftButton(): bloqueado pero clickeable, para
+    // que el jugador reciba el aviso del motivo al pulsarlo.
+    cb.disabled=false; cb.classList.remove('craft-blocked');
     if(this.playerLevel<recipe.level){
-      cb.disabled=true;fb.textContent=`❌ You need level ${recipe.level} (you have ${this.playerLevel})`;
+      cb.classList.add('craft-blocked');
+      fb.textContent=`❌ You need level ${recipe.level} (you have ${this.playerLevel})`;
       fb.className='crafting-feedback feedback-error';return;
     }
     if(recipe.optionalResources?.length&&(!recipe.resources?.length)){
-      if(this.selectedOptional===null){cb.disabled=true;fb.textContent='❌ Please select a resource';fb.className='crafting-feedback feedback-error';return;}
+      if(this.selectedOptional===null){cb.classList.add('craft-blocked');fb.textContent='❌ Please select a resource';fb.className='crafting-feedback feedback-error';return;}
       const opt=recipe.optionalResources[0]?.[this.selectedOptional];
-      if(!opt||this.countPlayerItem(opt.itemId)<opt.quantity){cb.disabled=true;fb.textContent='❌ Not enough resources';fb.className='crafting-feedback feedback-error';return;}
+      if(!opt||this.countPlayerItem(opt.itemId)<opt.quantity){cb.classList.add('craft-blocked');fb.textContent='❌ Not enough resources';fb.className='crafting-feedback feedback-error';return;}
     } else {
       const allOk=(recipe.resources||[]).every(r=>this.countPlayerItem(r.itemId)>=r.quantity);
       let optOk=true;
@@ -1101,9 +1189,9 @@ class CraftingSystem {
         const opt=recipe.optionalResources[0]?.[this.selectedOptional];
         if(opt&&this.countPlayerItem(opt.itemId)<opt.quantity) optOk=false;
       }
-      if(!allOk||!optOk){cb.disabled=true;fb.textContent='❌ Not enough resources';fb.className='crafting-feedback feedback-error';return;}
+      if(!allOk||!optOk){cb.classList.add('craft-blocked');fb.textContent='❌ Not enough resources';fb.className='crafting-feedback feedback-error';return;}
     }
-    cb.disabled=false;fb.textContent='✅ Ready to craft';fb.className='crafting-feedback feedback-success';
+    fb.textContent='✅ Ready to craft';fb.className='crafting-feedback feedback-success';
   }
 
   closeOverlay(){
