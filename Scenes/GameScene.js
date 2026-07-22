@@ -6050,7 +6050,7 @@ mineProps.forEach(prop => {
       // entrar aquí (el contador seguía subiendo: 9/8, 10/8, 11/8) y encolaba
       // otra transacción. Al terminar, se disparaban todas esas transacciones
       // duplicadas una tras otra. Es el mismo arreglo que ya tenía la tala.
-      spr.disableInteractive();
+      this.disableSpriteInput(spr);
       // El mineral picado desaparece y se le quita SU colisión (solo los
       // rectángulos que caen dentro de él), hasta que termine el respawn.
       this.hideMinedMineral(mineKey);
@@ -7220,7 +7220,7 @@ oreProps.forEach(prop => {
       // que ya estaba en curso, todas esas llamadas duplicadas se
       // disparaban una tras otra. Al deshabilitar el sprite de inmediato,
       // ningún click posterior puede volver a entrar a este bloque.
-      spr.disableInteractive();
+      this.disableSpriteInput(spr);
       // El árbol desaparece y se muestra su tronco hasta que termine el respawn
       showTreeStump(spr, treeKey);
       if (this.oreTexts[treeKey]) {
@@ -7883,6 +7883,16 @@ this.input.on('pointerdown', (pointer) => {
                              pointer.event.target.tagName === 'container' ||
                              canvas.contains(pointer.event.target);
         
+        // Red de seguridad: en vez de fiarse solo de la bandera cursorOverUI
+        // (que depende de que Phaser emita 'gameobjectout', cosa que NO pasa si
+        // el objeto bajo el cursor deja de ser interactivo o se oculta), se
+        // recalcula en el momento del clic con un hit-test real. Es un solo
+        // test por clic, no por frame.
+        try {
+            const bajoElCursor = this.input.hitTestPointer(pointer) || [];
+            this.mouseMovement.cursorOverUI = bajoElCursor.length > 0;
+        } catch (e) { /* si el hit-test falla, se conserva la bandera anterior */ }
+
         if (isCanvasClick && !this.mouseMovement.cursorOverUI) {
             const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
             const distance = Phaser.Math.Distance.Between(
@@ -8034,7 +8044,7 @@ async loadMineLockStates() {
       if (!spr) return;
       const lockedUntil = new Date(lock.lockedUntil);
       if (lockedUntil > new Date()) {
-        spr.disableInteractive();
+        this.disableSpriteInput(spr);
         // Al recargar, un mineral todavía en respawn sigue oculto y sin su
         // colisión (igual que los troncos de los árboles).
         this.hideMinedMineral(lock.mineKey);
@@ -19284,6 +19294,22 @@ createOptimizedSprite(scene, obj, spriteKey, depthOffset = 0) {
 enablePixelPerfectInput(sprite) {
   if (!sprite || !sprite.active) return;
   sprite.setInteractive(this.input.makePixelPerfect(1));
+}
+
+/**
+ * Quita el input de un árbol/mineral SIN dejar colgado el movimiento del ratón.
+ *
+ * mouseMovement.cursorOverUI se pone en true con 'gameobjectover' y solo se
+ * limpia con 'gameobjectout'. Al talar/minar, el cursor está justo encima del
+ * sprite y acto seguido se le quita el input: Phaser ya no emite 'gameobjectout'
+ * para ese objeto, así que la bandera se quedaba pegada en true y el movimiento
+ * por clic dejaba de responder — parecía que el juego se congelaba "hasta que
+ * terminara la transacción" (en realidad se destrababa al pasar por encima de
+ * otro objeto interactivo y salir). Aquí se limpia a mano.
+ */
+disableSpriteInput(sprite) {
+  if (sprite && sprite.input) sprite.disableInteractive();
+  if (this.mouseMovement) this.mouseMovement.cursorOverUI = false;
 }
 
 // =============================================================================
