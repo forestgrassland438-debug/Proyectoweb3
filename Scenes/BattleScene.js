@@ -88,6 +88,26 @@ class BattleScene extends Phaser.Scene {
 
     this.scale.on('resize', this.onResize, this);
     this.events.once('shutdown', () => this.limpiar());
+
+    // Phaser cachea la imagen de cada Text al crearlo: si la fuente pixel aún
+    // no había cargado, quedaría dibujado con la de reemplazo. Se repinta en
+    // cuanto 'PressStart2P' esté disponible.
+    if (document.fonts && typeof document.fonts.load === 'function') {
+      Promise.all([
+        document.fonts.load('10px "PressStart2P"'),
+        document.fonts.load('11px "PressStart2P"'),
+        document.fonts.load('14px "PressStart2P"')
+      ])
+        .then(() => document.fonts.ready)
+        .then(() => {
+          this.children.each(obj => {
+            if (obj && obj.type === 'Text' && typeof obj.updateText === 'function') {
+              try { obj.updateText(); } catch (e) { /* destruido */ }
+            }
+          });
+        })
+        .catch(() => {});
+    }
   }
 
   // ---------------------------------------------------------------------------

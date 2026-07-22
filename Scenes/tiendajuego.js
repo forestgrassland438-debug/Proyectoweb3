@@ -2518,6 +2518,10 @@ this.actualizarTemporizadoresDesdeStorage();
       // Configurar eventos de la escena
       this.setupSceneEvents();
 
+      // Repintar los nombres cuando la fuente pixel esté cargada de verdad
+      // (mismo problema que en GameScene: Phaser cachea el texto ya dibujado)
+      this.refrescarTextosConFuente();
+
 
 
     // Controles básicos
@@ -10134,6 +10138,35 @@ if (this.dogNameText) {
   }
 
   // ── Nombre único de la mascota (compartido con GameScene) ────────────────
+  // Repinta los textos cuando la fuente 'PressStart2P' ya está cargada.
+  // Phaser cachea la imagen del texto al crearlo: si la fuente aún no estaba
+  // lista, el nombre queda dibujado con la fuente de reemplazo hasta recargar.
+  refrescarTextosConFuente() {
+    if (!document.fonts || typeof document.fonts.load !== 'function') return;
+
+    const repintar = () => {
+      if (!this.children) return;
+      this.children.each(obj => {
+        if (obj && obj.type === 'Text' && typeof obj.updateText === 'function') {
+          try { obj.updateText(); } catch (e) { /* objeto destruido */ }
+        }
+      });
+    };
+
+    Promise.all([
+      document.fonts.load('8px "PressStart2P"'),
+      document.fonts.load('9px "PressStart2P"'),
+      document.fonts.load('12px "PressStart2P"'),
+      document.fonts.load('14px "PressStart2P"')
+    ])
+      .then(() => document.fonts.ready)
+      .then(() => {
+        repintar();
+        this.time && this.time.delayedCall(400, repintar);
+      })
+      .catch(err => console.warn('No se pudo esperar a la fuente pixel:', err));
+  }
+
   _isNameSet(v) {
     return typeof v === 'string' && v.trim() !== '' && v.trim() !== '---';
   }

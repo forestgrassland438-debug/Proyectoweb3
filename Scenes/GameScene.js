@@ -8048,6 +8048,10 @@ if (window.globalPetData) {
 this.loadTreeLockStates();
 this.loadMineLockStates();
 
+// Repintar los nombres (jugador, NPCs, mascota) cuando la fuente pixel esté
+// realmente cargada — ver refrescarTextosConFuente()
+this.refrescarTextosConFuente();
+
 
 }
 
@@ -19429,6 +19433,49 @@ enablePixelPerfectInput(sprite) {
 }
 
 /**
+ * Repinta todos los textos cuando la fuente pixel ya está cargada.
+ *
+ * Phaser dibuja cada Text UNA vez sobre un canvas y cachea esa imagen. Si el
+ * objeto se crea antes de que el navegador termine de cargar 'PressStart2P'
+ * (@font-face de styless.css), se rasteriza con la fuente de reemplazo y esa
+ * imagen mal dibujada se queda ahí: es el nombre del NPC / del jugador / de la
+ * mascota que a veces sale ilegible y que "se arregla solo" al recargar,
+ * porque en la segunda carga la fuente ya está en la caché del navegador.
+ *
+ * Aquí se espera a document.fonts y se fuerza a redibujar (updateText) todos
+ * los textos ya creados. Es barato y solo ocurre una vez por arranque.
+ */
+refrescarTextosConFuente() {
+  if (!document.fonts || typeof document.fonts.load !== 'function') return;
+
+  const repintar = () => {
+    if (!this.children) return;
+    this.children.each(obj => {
+      if (obj && obj.type === 'Text' && typeof obj.updateText === 'function') {
+        try { obj.updateText(); } catch (e) { /* objeto ya destruido */ }
+      }
+    });
+  };
+
+  // Se piden los tamaños que realmente usa el juego: document.fonts.load()
+  // resuelve cuando ESA combinación está disponible de verdad.
+  Promise.all([
+    document.fonts.load('8px "PressStart2P"'),
+    document.fonts.load('9px "PressStart2P"'),
+    document.fonts.load('12px "PressStart2P"'),
+    document.fonts.load('14px "PressStart2P"')
+  ])
+    .then(() => document.fonts.ready)
+    .then(() => {
+      repintar();
+      // Segunda pasada por si algún texto se creó justo en ese instante
+      this.time && this.time.delayedCall(400, repintar);
+      console.log('🔤 Textos repintados con la fuente pixel ya cargada');
+    })
+    .catch(err => console.warn('No se pudo esperar a la fuente pixel:', err));
+}
+
+/**
  * Quita el input de un árbol/mineral SIN dejar colgado el movimiento del ratón.
  *
  * mouseMovement.cursorOverUI se pone en true con 'gameobjectover' y solo se
@@ -19654,8 +19701,26 @@ startPvpBattle(modo = 'pvp') {
     this.savegg && this.savegg();
   } catch (e) { /* el guardado no debe impedir la batalla */ }
 
+  // La escena de batalla la registra app.js/register-scenes.js al arrancar.
+  // Si por lo que sea no llegó a registrarse (orden de carga, caché del
+  // navegador con la lista de escenas vieja…), se registra aquí mismo a partir
+  // de la clase global en vez de dejar al jugador con un "no disponible".
   if (!this.scene.manager.keys['BattleScene']) {
-    this.notifications?.show('Battle scene is not available.', 'error');
+    if (typeof window.BattleScene === 'function') {
+      try {
+        this.scene.manager.add('BattleScene', window.BattleScene, false);
+        console.log('🛠️ BattleScene registrada sobre la marcha');
+      } catch (e) {
+        console.error('No se pudo registrar BattleScene:', e);
+      }
+    }
+  }
+
+  if (!this.scene.manager.keys['BattleScene']) {
+    this.notifications?.show(
+      'Battle scene is not loaded. Reload the page (Ctrl+F5); if it persists, Scenes/BattleScene.js is missing on the server.',
+      'error'
+    );
     return;
   }
 
