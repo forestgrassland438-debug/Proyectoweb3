@@ -7,7 +7,7 @@
   <meta http-equiv="Content-Language" content="en" />
   <title>GRASSLAND FOREST</title>
   <link rel="icon" href="favicon.png" type="image/png" />
-  <link rel="stylesheet" href="styless.css?v=16.8-battle" />
+  <link rel="stylesheet" href="styless.css?v=16.8-battle2" />
 
   <!-- ============================
        CONTENT-SECURITY-POLICY (meta for testing / development)..
@@ -640,44 +640,67 @@
 <!-- ===== Interfaz de la batalla de mascotas (HTML/CSS, adaptable) ===== -->
 <div id="battleUI" class="battle-ui hidden">
 
-  <!-- Marcadores de los dos luchadores -->
-  <div class="bf-fighters">
+  <!-- ===== Barra superior: marcadores + turno con temporizador ===== -->
+  <div class="bf-topbar">
     <div class="bf-card bf-you">
-      <div class="bf-top">
-        <span class="bf-name" id="bfYouName">—</span>
-        <span class="bf-lvl" id="bfYouLvl"></span>
+      <div class="bf-portrait" id="bfYouPortrait">🐾</div>
+      <div class="bf-cardbody">
+        <div class="bf-top">
+          <span class="bf-name" id="bfYouName">—</span>
+          <span class="bf-lvl" id="bfYouLvl"></span>
+        </div>
+        <div class="bf-sub"><span id="bfYouPlayer"></span> <span class="bf-addr" id="bfYouAddr"></span></div>
+        <div class="bf-hpbar"><i id="bfYouHp" style="width:100%"></i><b class="bf-shieldbar" id="bfYouShieldBar"></b></div>
+        <div class="bf-hptext"><span id="bfYouHpTxt">—</span><span class="bf-shield" id="bfYouShield"></span></div>
       </div>
-      <div class="bf-sub"><span id="bfYouPlayer"></span> <span class="bf-addr" id="bfYouAddr"></span></div>
-      <div class="bf-hpbar"><i id="bfYouHp" style="width:100%"></i></div>
-      <div class="bf-hptext"><span id="bfYouHpTxt">—</span><span class="bf-shield" id="bfYouShield"></span></div>
     </div>
 
-    <div class="bf-vs" id="bfTurnLabel">VS</div>
+    <div class="bf-turnbox">
+      <div class="bf-turnlabel" id="bfTurnLabel">VS</div>
+      <div class="bf-timer" id="bfTimer"><i id="bfTimerFill"></i></div>
+      <div class="bf-timertext" id="bfTimerText"></div>
+    </div>
 
     <div class="bf-card bf-rival">
-      <div class="bf-top">
-        <span class="bf-lvl" id="bfRivalLvl"></span>
-        <span class="bf-name" id="bfRivalName">—</span>
+      <div class="bf-cardbody bf-rightbody">
+        <div class="bf-top">
+          <span class="bf-lvl" id="bfRivalLvl"></span>
+          <span class="bf-name" id="bfRivalName">—</span>
+        </div>
+        <div class="bf-sub"><span class="bf-addr" id="bfRivalAddr"></span> <span id="bfRivalPlayer"></span></div>
+        <div class="bf-hpbar bf-hpbar-rival"><i id="bfRivalHp" style="width:100%"></i><b class="bf-shieldbar" id="bfRivalShieldBar"></b></div>
+        <div class="bf-hptext bf-right"><span class="bf-shield" id="bfRivalShield"></span><span id="bfRivalHpTxt">—</span></div>
       </div>
-      <div class="bf-sub"><span class="bf-addr" id="bfRivalAddr"></span> <span id="bfRivalPlayer"></span></div>
-      <div class="bf-hpbar bf-hpbar-rival"><i id="bfRivalHp" style="width:100%"></i></div>
-      <div class="bf-hptext bf-right"><span class="bf-shield" id="bfRivalShield"></span><span id="bfRivalHpTxt">—</span></div>
+      <div class="bf-portrait bf-portrait-rival" id="bfRivalPortrait">🐾</div>
     </div>
   </div>
 
-  <!-- Mensajes de estado y registro del combate -->
-  <div class="bf-center">
-    <div class="bf-status" id="bfStatus">Searching for an opponent…</div>
-    <div class="bf-log" id="bfLog"></div>
+  <!-- ===== Estado grande (buscando, resultado…) ===== -->
+  <div class="bf-status" id="bfStatus">Searching for an opponent…</div>
+
+  <!-- ===== Reveal de cartas jugadas (aparece unos segundos y se va) ===== -->
+  <div class="bf-reveal hidden" id="bfReveal">
+    <div class="bf-reveal-side bf-reveal-you"><div class="bf-reveal-label">YOU</div><div class="bf-reveal-cards" id="bfRevealYou"></div></div>
+    <div class="bf-reveal-vs">⚔</div>
+    <div class="bf-reveal-side bf-reveal-rival"><div class="bf-reveal-label">RIVAL</div><div class="bf-reveal-cards" id="bfRevealRival"></div></div>
   </div>
 
-  <!-- Mano de cartas + energía -->
+  <!-- ===== Capa de números flotantes de daño/cura ===== -->
+  <div class="bf-floaters" id="bfFloaters"></div>
+
+  <!-- ===== Parte inferior: energía (a un lado) + mano de cartas ===== -->
   <div class="bf-bottom">
-    <div class="bf-energy" id="bfEnergy" aria-label="Energy"></div>
+    <div class="bf-energywrap">
+      <div class="bf-energy-title">ENERGY</div>
+      <div class="bf-energy" id="bfEnergy" aria-label="Energy"></div>
+      <div class="bf-energy-count" id="bfEnergyCount">3 / 3</div>
+    </div>
+
     <div class="bf-hand" id="bfHand"></div>
+
     <div class="bf-actions">
       <button id="bfEndTurn" class="bf-btn bf-btn-main" disabled>End turn</button>
-      <button id="bfLeave" class="bf-btn bf-btn-ghost">Leave battle</button>
+      <button id="bfLeave" class="bf-btn bf-btn-ghost">Leave</button>
     </div>
   </div>
 </div>
