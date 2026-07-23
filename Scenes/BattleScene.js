@@ -156,29 +156,40 @@ class BattleScene extends Phaser.Scene {
 
     this.el = {
       status: document.getElementById('bfStatus'),
-      log: document.getElementById('bfLog'),
       turno: document.getElementById('bfTurnLabel'),
+      timer: document.getElementById('bfTimer'),
+      timerFill: document.getElementById('bfTimerFill'),
+      timerText: document.getElementById('bfTimerText'),
       hand: document.getElementById('bfHand'),
       energy: document.getElementById('bfEnergy'),
+      energyCount: document.getElementById('bfEnergyCount'),
       endTurn: document.getElementById('bfEndTurn'),
       leave: document.getElementById('bfLeave'),
+      reveal: document.getElementById('bfReveal'),
+      revealYou: document.getElementById('bfRevealYou'),
+      revealRival: document.getElementById('bfRevealRival'),
+      floaters: document.getElementById('bfFloaters'),
       you: {
         name: document.getElementById('bfYouName'),
         lvl: document.getElementById('bfYouLvl'),
         player: document.getElementById('bfYouPlayer'),
         addr: document.getElementById('bfYouAddr'),
+        portrait: document.getElementById('bfYouPortrait'),
         hp: document.getElementById('bfYouHp'),
         hpTxt: document.getElementById('bfYouHpTxt'),
-        shield: document.getElementById('bfYouShield')
+        shield: document.getElementById('bfYouShield'),
+        shieldBar: document.getElementById('bfYouShieldBar')
       },
       rival: {
         name: document.getElementById('bfRivalName'),
         lvl: document.getElementById('bfRivalLvl'),
         player: document.getElementById('bfRivalPlayer'),
         addr: document.getElementById('bfRivalAddr'),
+        portrait: document.getElementById('bfRivalPortrait'),
         hp: document.getElementById('bfRivalHp'),
         hpTxt: document.getElementById('bfRivalHpTxt'),
-        shield: document.getElementById('bfRivalShield')
+        shield: document.getElementById('bfRivalShield'),
+        shieldBar: document.getElementById('bfRivalShieldBar')
       }
     };
 
@@ -195,6 +206,7 @@ class BattleScene extends Phaser.Scene {
     this.el.endTurn = recablear(this.el.endTurn, () => this.jugarTurno());
     this.el.leave = recablear(this.el.leave, () => this.rendirse());
 
+    if (this.el.reveal) this.el.reveal.classList.add('hidden');
     this.limpiarMano();
     this.pintarEnergia(0);
   }
@@ -203,14 +215,36 @@ class BattleScene extends Phaser.Scene {
     if (this.el && this.el.status) this.el.status.textContent = txt;
   }
 
-  logTexto(txt) {
-    if (this.el && this.el.log) this.el.log.textContent = txt || '';
-  }
-
   limpiarMano() {
     if (this.el && this.el.hand) this.el.hand.textContent = '';
     this.seleccion = [];
     if (this.el && this.el.endTurn) this.el.endTurn.disabled = true;
+  }
+
+  // ---- Temporizador de turno (barra + segundos, debajo del número de turno) ----
+  iniciarTemporizador(ms) {
+    this.detenerTemporizador();
+    if (!this.el || !this.el.timer) return;
+    const total = Math.max(1000, ms || 20000);
+    this._turnDeadline = Date.now() + total;
+
+    const tick = () => {
+      const restante = Math.max(0, this._turnDeadline - Date.now());
+      const frac = restante / total;
+      if (this.el.timerFill) this.el.timerFill.style.width = (frac * 100) + '%';
+      if (this.el.timerText) this.el.timerText.textContent = Math.ceil(restante / 1000) + 's';
+      if (this.el.timer) this.el.timer.classList.toggle('low', frac < 0.25);
+      if (restante <= 0) this.detenerTemporizador();
+    };
+    tick();
+    this._timerTurno = this.time.addEvent({ delay: 200, loop: true, callback: tick });
+  }
+
+  detenerTemporizador() {
+    if (this._timerTurno) { this._timerTurno.remove(); this._timerTurno = null; }
+    if (this.el && this.el.timerText) this.el.timerText.textContent = '';
+    if (this.el && this.el.timerFill) this.el.timerFill.style.width = '0%';
+    if (this.el && this.el.timer) this.el.timer.classList.remove('low');
   }
 
   pintarEnergia(gastada) {
@@ -221,10 +255,45 @@ class BattleScene extends Phaser.Scene {
       if (i < this.energiaMax - gastada) pip.className = 'on';
       this.el.energy.appendChild(pip);
     }
+    if (this.el.energyCount) this.el.energyCount.textContent = `${this.energiaMax - gastada} / ${this.energiaMax}`;
   }
 
   energiaGastada() {
     return this.seleccion.reduce((t, i) => t + (this.mano[i] ? this.mano[i].cost : 0), 0);
+  }
+
+  // Construye una carta del DOM a partir de los datos del servidor
+  _crearCartaDOM(carta) {
+    const btn = document.createElement('button');
+    btn.className = 'bf-cardbtn';
+    btn.type = 'button';
+    btn.dataset.type = carta.type || 'attack';
+
+    const coste = document.createElement('span');
+    coste.className = 'c-cost';
+    coste.textContent = carta.cost;
+
+    const emoji = document.createElement('span');
+    emoji.className = 'c-emoji';
+    emoji.textContent = carta.emoji || '⚔';
+
+    const nombre = document.createElement('span');
+    nombre.className = 'c-name';
+    nombre.textContent = carta.name;
+
+    // Valores reales calculados por el servidor (según el ataque de la mascota)
+    const stats = document.createElement('span');
+    stats.className = 'c-stats';
+    if (carta.dmg) { const s = document.createElement('span'); s.className = 's-dmg'; s.textContent = `⚔ ${carta.dmg}`; stats.appendChild(s); }
+    if (carta.shield) { const s = document.createElement('span'); s.className = 's-shield'; s.textContent = `🛡 ${carta.shield}`; stats.appendChild(s); }
+    if (carta.heal) { const s = document.createElement('span'); s.className = 's-heal'; s.textContent = `💚 ${carta.heal}`; stats.appendChild(s); }
+
+    const desc = document.createElement('span');
+    desc.className = 'c-desc';
+    desc.textContent = carta.desc || '';
+
+    btn.append(coste, emoji, nombre, stats, desc);
+    return btn;
   }
 
   pintarMano() {
@@ -232,27 +301,8 @@ class BattleScene extends Phaser.Scene {
     this.el.hand.textContent = '';
 
     this.mano.forEach((carta, i) => {
-      const btn = document.createElement('button');
-      btn.className = 'bf-cardbtn';
-      btn.type = 'button';
-
-      const emoji = document.createElement('span');
-      emoji.className = 'c-emoji';
-      emoji.textContent = carta.emoji || '⚔';
-
-      const nombre = document.createElement('span');
-      nombre.className = 'c-name';
-      nombre.textContent = carta.name;
-
-      const desc = document.createElement('span');
-      desc.className = 'c-desc';
-      desc.textContent = carta.desc || '';
-
-      const coste = document.createElement('span');
-      coste.className = 'c-cost';
-      coste.textContent = '⚡ ' + carta.cost;
-
-      btn.append(emoji, nombre, desc, coste);
+      const btn = this._crearCartaDOM(carta);
+      btn.style.animationDelay = (i * 60) + 'ms';
       btn.addEventListener('click', () => this.alternarCarta(i, btn));
       this.el.hand.appendChild(btn);
     });
@@ -299,6 +349,7 @@ class BattleScene extends Phaser.Scene {
       destino.lvl.textContent = `(Lv.${datos.level})`;
       destino.player.textContent = datos.playerName || '';
       destino.addr.textContent = datos.addressShort || (datos.isBot ? 'BOT' : '');
+      if (destino.portrait) destino.portrait.textContent = datos.isBot ? '🤖' : '🐾';
       const p = Math.max(0, Math.min(1, datos.hp / datos.maxHp));
       destino.hp.style.width = (p * 100) + '%';
       destino.hpTxt.textContent = `${datos.hp}/${datos.maxHp} HP`;
@@ -310,8 +361,66 @@ class BattleScene extends Phaser.Scene {
 
   mostrarEscudos(tuyo, rival) {
     if (!this.el) return;
-    this.el.you.shield.textContent = tuyo > 0 ? `🛡️ ${tuyo}` : '';
-    this.el.rival.shield.textContent = rival > 0 ? `🛡️ ${rival}` : '';
+    const pinta = (destino, datos, escudo) => {
+      destino.shield.textContent = escudo > 0 ? `🛡️ ${escudo}` : '';
+      if (destino.shieldBar && datos) {
+        const frac = Math.max(0, Math.min(1, escudo / datos.maxHp));
+        destino.shieldBar.style.width = (frac * 100) + '%';
+      }
+    };
+    pinta(this.el.you, this.yo, tuyo);
+    pinta(this.el.rival, this.rival, rival);
+  }
+
+  // Muestra las cartas jugadas por ambos, en el centro, y se va sola en ~2.2s
+  mostrarReveal(tusCartas, cartasRival) {
+    if (!this.el || !this.el.reveal) return;
+    const llenar = (cont, cartas) => {
+      if (!cont) return;
+      cont.textContent = '';
+      if (!cartas || !cartas.length) {
+        const mini = document.createElement('div');
+        mini.className = 'bf-mini';
+        mini.innerHTML = '<div class="m-emoji">💤</div><div class="m-name">Pass</div>';
+        cont.appendChild(mini);
+        return;
+      }
+      cartas.forEach((c, i) => {
+        const mini = document.createElement('div');
+        mini.className = 'bf-mini';
+        mini.style.animationDelay = (i * 90) + 'ms';
+        const e = document.createElement('div'); e.className = 'm-emoji'; e.textContent = c.emoji || '⚔';
+        const n = document.createElement('div'); n.className = 'm-name'; n.textContent = c.name || '';
+        mini.append(e, n);
+        cont.appendChild(mini);
+      });
+    };
+    llenar(this.el.revealYou, tusCartas);
+    llenar(this.el.revealRival, cartasRival);
+
+    this.el.reveal.classList.remove('hidden', 'out');
+    // forzar reinicio de la animación de entrada
+    void this.el.reveal.offsetWidth;
+
+    if (this._revealTimer) this._revealTimer.remove();
+    this._revealTimer = this.time.delayedCall(2200, () => {
+      if (!this.el || !this.el.reveal) return;
+      this.el.reveal.classList.add('out');
+      this.time.delayedCall(350, () => { if (this.el && this.el.reveal) this.el.reveal.classList.add('hidden'); });
+    });
+  }
+
+  // Número flotante (daño/cura/escudo) sobre la mascota indicada
+  flotarNumero(texto, clase, lado) {
+    if (!this.el || !this.el.floaters) return;
+    const f = document.createElement('div');
+    f.className = 'bf-float ' + (clase || 'dmg');
+    f.textContent = texto;
+    // 'you' a la izquierda-abajo, 'rival' a la derecha-abajo (donde están las mascotas)
+    f.style.left = (lado === 'rival' ? 72 : 24) + '%';
+    f.style.top = '58%';
+    this.el.floaters.appendChild(f);
+    this.time.delayedCall(1150, () => f.remove());
   }
 
   // Aviso para móviles en vertical: se pide girar el teléfono
@@ -397,6 +506,7 @@ class BattleScene extends Phaser.Scene {
       this.pintarMano();
       this.estadoTexto('Choose your cards');
       if (this.el && this.el.turno) this.el.turno.textContent = `TURN ${d.turn}`;
+      this.iniciarTemporizador(d.msToChoose);
     });
 
     this.on('battle:rivalReady', () => {
@@ -407,20 +517,29 @@ class BattleScene extends Phaser.Scene {
       this.yo = d.you;
       this.rival = d.rival;
       this.puedeJugar = false;
+      this.detenerTemporizador();
       this.limpiarMano();
+
+      // Reveal de lo que jugó cada uno (aparece en el centro y se va solo)
+      this.mostrarReveal(d.yourCards, d.rivalCards);
+
+      // Actualizar barras y escudos
       this.pintarLuchadores();
       this.mostrarEscudos(d.shieldYou || 0, d.shieldRival || 0);
-      this.logTexto(d.log || '');
-      this.estadoTexto(
-        (d.damageToRival ? `You hit for ${d.damageToRival}` : 'No damage dealt') +
-        (d.damageToYou ? ` · You took ${d.damageToYou}` : '')
-      );
+      this.estadoTexto(d.log || '');
+
+      // Números flotantes + sacudón de la mascota golpeada
+      if (d.damageToRival > 0) this.flotarNumero(`-${d.damageToRival}`, 'dmg', 'rival');
+      if (d.damageToYou > 0) this.flotarNumero(`-${d.damageToYou}`, 'dmg', 'you');
+      if (d.healYou > 0) this.flotarNumero(`+${d.healYou}`, 'heal', 'you');
+      if (d.shieldYou > 0) this.flotarNumero(`🛡 ${d.shieldYou}`, 'shield', 'you');
       this.animarGolpe(d.damageToRival > 0, d.damageToYou > 0);
     });
 
     this.on('battle:end', (d) => {
       this.estado = 'fin';
       this.puedeJugar = false;
+      this.detenerTemporizador();
       this.limpiarMano();
       this.yo = d.you;
       this.rival = d.rival;
@@ -451,6 +570,7 @@ class BattleScene extends Phaser.Scene {
   jugarTurno() {
     if (!this.puedeJugar || this.estado !== 'combate') return;
     this.puedeJugar = false;
+    this.detenerTemporizador();
     this.socket.emit('battle:action', { cards: this.seleccion.slice() });
     this.refrescarMano();
     this.estadoTexto('Waiting for the rival…');
@@ -499,6 +619,10 @@ class BattleScene extends Phaser.Scene {
   limpiar() {
     if (this._timerBusqueda) { this._timerBusqueda.remove(); this._timerBusqueda = null; }
     if (this._conexionTimeout) { this._conexionTimeout.remove(); this._conexionTimeout = null; }
+    if (this._revealTimer) { this._revealTimer.remove(); this._revealTimer = null; }
+    this.detenerTemporizador();
+    if (this.el && this.el.floaters) this.el.floaters.textContent = '';
+    if (this.el && this.el.reveal) this.el.reveal.classList.add('hidden');
 
     try {
       if (this.socket) {

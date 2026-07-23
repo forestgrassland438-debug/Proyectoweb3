@@ -19995,23 +19995,31 @@ enableAutoCullingForLayer(scene, layerName) {
   // El manejador se guarda para poder quitarlo en cleanupScene sin recurrir a
   // removeAllListeners() (que rompía los listeners internos de Phaser).
   const alActualizar = () => {
+    // FIX (pantalla negra al volver de la batalla): si el grupo, la cámara o
+    // el reloj ya no existen (escena a medio recrear o apagándose), NO se debe
+    // lanzar una excepción aquí: al ser un listener de 'update', un throw corta
+    // TODO el update() de ese frame —incluido el streaming de tiles del
+    // TileManager— y el mapa se queda en negro. Se sale en silencio.
+    if (!scene || !scene.time || !scene.cameras || !scene.cameras.main) return;
+    if (!group || !group.children || typeof group.children.iterate !== 'function') return;
+
     const now = scene.time.now;
     if (now - lastCheck < CHECK_INTERVAL) return;
     lastCheck = now;
-    
+
     const camera = scene.cameras.main;
     const bounds = camera.getBounds();
     const padding = 200;
-    
+
     const expandedBounds = {
       x: bounds.x - padding,
       y: bounds.y - padding,
       width: bounds.width + padding * 2,
       height: bounds.height + padding * 2
     };
-    
+
     group.children.iterate(sprite => {
-      if (sprite.active) {
+      if (sprite && sprite.active) {
         const spriteBounds = sprite.getBounds();
         const isVisible = (
           spriteBounds.x < expandedBounds.x + expandedBounds.width &&
