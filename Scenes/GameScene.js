@@ -20785,8 +20785,13 @@ const shouldAnimate = playerMoved || dogMoved || intentDir !== null;
 if (shouldAnimate && (dogMoved || playerMoved || intentDir)) {
   const animKey = (dog.lastFacing === 'left') ? 'perro_left' : 'perro_right';
 
-  // Solo reinicia si cambió la animación
-  if (!dog.sprite.anims.isPlaying || dog.sprite.anims.currentAnim?.key !== animKey) {
+  // Solo reinicia si cambió la animación.
+  // FIX (pantalla negra al volver de la batalla): al reiniciar la escena el
+  // perro puede estar a medio recrear y dog.sprite.anims llegar undefined. El
+  // acceso a .isPlaying lanzaba un TypeError EN CADA FRAME dentro de update(),
+  // y como update() se cortaba ahí, todo lo que venía después (incluido el
+  // seguimiento de cámara) dejaba de ejecutarse y el mapa se veía en negro.
+  if (dog.sprite.anims && (!dog.sprite.anims.isPlaying || dog.sprite.anims.currentAnim?.key !== animKey)) {
     if (this.anims.exists(animKey)) {
       dog.sprite.play(animKey, true);
     } else {
@@ -20799,8 +20804,8 @@ if (shouldAnimate && (dogMoved || playerMoved || intentDir)) {
   dog.isMoving = true;
   dog.lastAnimState = animKey;
 } else {
-  if (dog.isMoving || dog.sprite.anims.isPlaying) {
-    dog.sprite.anims.stop();
+  if (dog.isMoving || (dog.sprite.anims && dog.sprite.anims.isPlaying)) {
+    if (dog.sprite.anims) dog.sprite.anims.stop();
   }
 
   dog.sprite.setTexture(
