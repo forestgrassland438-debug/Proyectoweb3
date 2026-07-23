@@ -10260,6 +10260,10 @@ button:focus {
 /* Mientras se está en la batalla, el HUD del mapa NO debe verse. Antes se
    quedaba encima (tarjeta de nivel, monedas, botones redondos, hotbar…). */
 body.in-battle #game-hud,
+body.in-battle #cajahub,
+body.in-battle #hub,
+body.in-battle #round-buttons-container,
+body.in-battle .round-buttons,
 body.in-battle #quick-slots-bar,
 body.in-battle #chat-panel,
 body.in-battle #local-chat-bubble,
