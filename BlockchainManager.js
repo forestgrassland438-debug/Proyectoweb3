@@ -26,7 +26,7 @@
 class BlockchainManager {
     constructor(scene) {
         this.scene = scene;
-        this.currentNetwork = 'somnia';
+        this.currentNetwork = 'litvm';
         this.contracts = new Map();
         this.currentAccount = null;
         this.userNonce = null;

@@ -33,7 +33,7 @@ class TransactionHub {
                 width: 320,
                 animationDuration: 500,
                 visibleDuration: 10000,
-                explorerBase: 'https://shannon-explorer.somnia.network/tx/',
+                explorerBase: 'https://liteforge.explorer.caldera.xyz/tx/',
                 debug: false
             };
             this.config = Object.assign({}, defaults, options);

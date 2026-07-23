@@ -90,10 +90,10 @@ class TransactionSystem {
         } catch (error) {
             console.warn('⚠️ No se pudo cargar configuración del servidor:', error.message);
             this.config = {
-                rpcUrl: "https://dream-rpc.somnia.network",
-                chainId: 50312,
-                explorerUrl: "https://shannon-explorer.somnia.network",
-                networkName: "Somnia Testnet",
+                rpcUrl: "https://liteforge.rpc.caldera.xyz/http",
+                chainId: 4441,
+                explorerUrl: "https://liteforge.explorer.caldera.xyz",
+                networkName: "LitVM Testnet",
                 relayerAddress: null
             };
             return this.config;
