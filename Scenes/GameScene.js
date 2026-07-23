@@ -14227,28 +14227,40 @@ removeOtherPlayer(playerId) {
 }
 
     setupSceneEvents() {
+      // Los manejadores se guardan en this._sceneEventHandlers para poder
+      // quitarlos UNO A UNO al limpiar la escena. Antes se hacía
+      // events.removeAllListeners(), que también borraba los listeners
+      // internos de Phaser (física, input, reloj, plugins…) y dejaba la
+      // escena inservible al volver a entrar. Ver cleanupScene().
+      this._sceneEventHandlers = this._sceneEventHandlers || [];
+
+      const registrar = (evento, fn) => {
+        this.events.on(evento, fn);
+        this._sceneEventHandlers.push([evento, fn]);
+      };
+
       // Evento cuando la escena entra en pausa (al cambiar a otra escena)
-      this.events.on('pause', () => {
+      registrar('pause', () => {
         console.log('⏸️ Escena game pausada');
         this.leaveRoom();
       });
-      
+
       // Evento cuando la escena se reanuda
-      this.events.on('resume', () => {
+      registrar('resume', () => {
         console.log('▶️ Escena game reanudada');
         this.time.delayedCall(300, () => {
           this.initSocket();
         });
       });
-      
+
       // Evento cuando la escena se duerme (Scene Manager)
-      this.events.on('sleep', () => {
+      registrar('sleep', () => {
         console.log('💤 Escena game dormida');
         this.cleanupBeforeTransition();
       });
-      
+
       // Evento cuando la escena se despierta
-      this.events.on('wake', () => {
+      registrar('wake', () => {
         console.log('🌅 Escena game despierta');
         this.time.delayedCall(300, () => {
           this.initSocket();
@@ -14256,15 +14268,15 @@ removeOtherPlayer(playerId) {
         // Refrescar stats desde el backend al volver de otra escena
         this._refreshStatsFromChain().catch(e => console.warn('refreshStats error:', e));
       });
-      
+
       // Evento shutdown - se llama cuando la escena es detenida
-      this.events.on('shutdown', () => {
+      registrar('shutdown', () => {
         console.log('🔌 Escena game shutdown');
         this.performCleanup();
       });
-      
+
       // Evento destroy - se llama cuando la escena es destruida
-      this.events.on('destroy', () => {
+      registrar('destroy', () => {
         console.log('💥 Escena game destroy');
         this.performCleanup();
       });
@@ -15060,9 +15072,29 @@ cleanupScene() {
         this.input.off('wheel');
     }
     
-    // 8. LIMPIAR EVENTOS DE ESCENA
+    // 8. LIMPIAR EVENTOS DE ESCENA (SOLO LOS NUESTROS)
+    //
+    // FIX (al volver de la batalla, GameScene reventaba en preload con
+    // "Cannot read properties of null (reading 'sprite')" en
+    // this.physics.add.sprite): aquí se hacía this.events.removeAllListeners(),
+    // que NO borra solo nuestros listeners — borra también los que Phaser
+    // registra en el emisor de la escena para sus propios sistemas y plugins
+    // (Arcade Physics, InputPlugin, Clock, UpdateList…). Sin ellos, al volver
+    // a arrancar la escena los plugins nunca se re-inicializan: this.physics
+    // se queda a medias (physics.add === null) y el preload muere.
+    //
+    // Ahora se quitan uno a uno los manejadores que registramos nosotros
+    // (setupSceneEvents y el culling automático), dejando intacto lo de Phaser.
     if (this.events) {
-        this.events.removeAllListeners();
+        (this._sceneEventHandlers || []).forEach(([evento, fn]) => {
+            try { this.events.off(evento, fn); } catch (e) { /* ya no existía */ }
+        });
+        this._sceneEventHandlers = [];
+
+        (this._cullingHandlers || []).forEach(fn => {
+            try { this.events.off('update', fn); } catch (e) { /* ya no existía */ }
+        });
+        this._cullingHandlers = [];
     }
     
     // 9. LIMPIAR LISTENERS DEL DOM
@@ -19960,7 +19992,9 @@ enableAutoCullingForLayer(scene, layerName) {
   let lastCheck = 0;
   const CHECK_INTERVAL = 16.6; // ms
   
-  scene.events.on('update', () => {
+  // El manejador se guarda para poder quitarlo en cleanupScene sin recurrir a
+  // removeAllListeners() (que rompía los listeners internos de Phaser).
+  const alActualizar = () => {
     const now = scene.time.now;
     if (now - lastCheck < CHECK_INTERVAL) return;
     lastCheck = now;
@@ -19989,7 +20023,11 @@ enableAutoCullingForLayer(scene, layerName) {
         sprite.setVisible(isVisible);
       }
     });
-  });
+  };
+
+  scene.events.on('update', alActualizar);
+  scene._cullingHandlers = scene._cullingHandlers || [];
+  scene._cullingHandlers.push(alActualizar);
 }
 
 

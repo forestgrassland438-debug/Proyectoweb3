@@ -2648,10 +2648,23 @@ this.mouseMovement = {
 this.input.on('pointerdown', (pointer) => {
     if (pointer.button === 0) {
         const canvas = this.sys.canvas;
-        const isCanvasClick = pointer.event.target === canvas || 
+        const isCanvasClick = pointer.event.target === canvas ||
                              pointer.event.target.tagName === 'container' ||
                              canvas.contains(pointer.event.target);
-        
+
+        // Red de seguridad (sobre todo en MÓVIL): cursorOverUI se pone en true
+        // con 'gameobjectover' / 'mouseover', pero en pantallas táctiles esos
+        // eventos NO tienen su 'out' correspondiente al levantar el dedo, así
+        // que la bandera se quedaba pegada en true tras comprar o al cerrar la
+        // tienda y el movimiento por toque dejaba de responder. Aquí se
+        // recalcula con un hit-test REAL en el momento del toque, así que aunque
+        // la bandera estuviera mal, el movimiento no se bloquea. Es un solo test
+        // por toque, no por frame.
+        try {
+            const bajoElCursor = this.input.hitTestPointer(pointer) || [];
+            this.mouseMovement.cursorOverUI = bajoElCursor.length > 0;
+        } catch (e) { /* si el hit-test falla, se conserva la bandera anterior */ }
+
         if (isCanvasClick && !this.mouseMovement.cursorOverUI) {
             const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
             const distance = Phaser.Math.Distance.Between(
