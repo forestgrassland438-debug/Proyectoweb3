@@ -7,7 +7,7 @@
   <meta http-equiv="Content-Language" content="en" />
   <title>GRASSLAND FOREST</title>
   <link rel="icon" href="favicon.png" type="image/png" />
-  <link rel="stylesheet" href="styless.css?v=16.8-dashboard" />
+  <link rel="stylesheet" href="styless.css?v=16.8-battle" />
 
   <!-- ============================
        CONTENT-SECURITY-POLICY (meta for testing / development)..
@@ -636,7 +636,53 @@
 </div>
 
   
-<!-- ===== Tabla de clasificación de batallas P2P (se abre desde el cartel) ===== -->
+
+<!-- ===== Interfaz de la batalla de mascotas (HTML/CSS, adaptable) ===== -->
+<div id="battleUI" class="battle-ui hidden">
+
+  <!-- Marcadores de los dos luchadores -->
+  <div class="bf-fighters">
+    <div class="bf-card bf-you">
+      <div class="bf-top">
+        <span class="bf-name" id="bfYouName">—</span>
+        <span class="bf-lvl" id="bfYouLvl"></span>
+      </div>
+      <div class="bf-sub"><span id="bfYouPlayer"></span> <span class="bf-addr" id="bfYouAddr"></span></div>
+      <div class="bf-hpbar"><i id="bfYouHp" style="width:100%"></i></div>
+      <div class="bf-hptext"><span id="bfYouHpTxt">—</span><span class="bf-shield" id="bfYouShield"></span></div>
+    </div>
+
+    <div class="bf-vs" id="bfTurnLabel">VS</div>
+
+    <div class="bf-card bf-rival">
+      <div class="bf-top">
+        <span class="bf-lvl" id="bfRivalLvl"></span>
+        <span class="bf-name" id="bfRivalName">—</span>
+      </div>
+      <div class="bf-sub"><span class="bf-addr" id="bfRivalAddr"></span> <span id="bfRivalPlayer"></span></div>
+      <div class="bf-hpbar bf-hpbar-rival"><i id="bfRivalHp" style="width:100%"></i></div>
+      <div class="bf-hptext bf-right"><span class="bf-shield" id="bfRivalShield"></span><span id="bfRivalHpTxt">—</span></div>
+    </div>
+  </div>
+
+  <!-- Mensajes de estado y registro del combate -->
+  <div class="bf-center">
+    <div class="bf-status" id="bfStatus">Searching for an opponent…</div>
+    <div class="bf-log" id="bfLog"></div>
+  </div>
+
+  <!-- Mano de cartas + energía -->
+  <div class="bf-bottom">
+    <div class="bf-energy" id="bfEnergy" aria-label="Energy"></div>
+    <div class="bf-hand" id="bfHand"></div>
+    <div class="bf-actions">
+      <button id="bfEndTurn" class="bf-btn bf-btn-main" disabled>End turn</button>
+      <button id="bfLeave" class="bf-btn bf-btn-ghost">Leave battle</button>
+    </div>
+  </div>
+</div>
+
+  <!-- ===== Tabla de clasificación de batallas P2P (se abre desde el cartel) ===== -->
 <div id="battleRankOverlay" class="battle-rank-overlay hidden">
   <div class="battle-rank-card" role="dialog" aria-modal="true" aria-labelledby="battleRankTitle">
     <div class="battle-rank-head">

@@ -1269,10 +1269,21 @@ class TiendaSistema {
         document.getElementById('tienda-overlay')?.classList.add('tienda-overlay-hidden');
         
         document.getElementById('tienda-search')?.blur();
-        
+
+        // Al cerrar la tienda hay que soltar la bandera cursorOverUI de la
+        // escena: en móvil, el toque que abrió/usó la tienda la dejó en true y
+        // sin un 'out' táctil que la limpie, así que el jugador no podía volver
+        // a moverse. (La red de seguridad del pointerdown también lo cubre, pero
+        // esto lo deja resuelto de inmediato, sin esperar al primer toque.)
+        try {
+            if (this.scene && this.scene.mouseMovement) {
+                this.scene.mouseMovement.cursorOverUI = false;
+            }
+        } catch (err) { /* no crítico */ }
+
         this.isOpen = false;
         this.selectedItem = null;
-        
+
         console.log('🏪 Tienda cerrada');
     }
     
