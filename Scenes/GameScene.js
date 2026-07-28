@@ -11096,6 +11096,7 @@ setupCropSocketEvents() {
   this.socket.on('harvestSuccess', (data) => {
     console.log('🎉 Cosechado en:', data.plotId, 'Recompensa:', data.rewards);
     this.resetPlot(data.plotId);
+    this._onTutorialCut(); // tutorial: cuenta cortes/cosechas (paso 1)
 
     // Si este resultado pertenece a un lote de corte en curso, resolver esa
     // promesa específica (el fruto se agrega después, agrupado on-chain,
@@ -11135,6 +11136,7 @@ setupCropSocketEvents() {
   this.socket.on('cutSuccess', (data) => {
     console.log('✂️ Cortado en:', data.plotId, 'Recompensa:', data.rewards, 'Es muerto:', data.isDead, 'En progreso:', data.wasInProgress);
     this.resetPlot(data.plotId);
+    this._onTutorialCut(); // tutorial: cuenta cortes/cosechas (paso 1)
 
     const resolver = this._corteResolvers?.get(data.plotId);
     if (resolver) {
@@ -11236,6 +11238,13 @@ handlePlotClick(plotId, pointer) {
 }
 
 calcularPosibilidad(requisitos, jugador) {
+  // DISEÑO (pedido del usuario 2026-07-28): en las parcelas se puede sembrar
+  // CUALQUIER semilla sin necesidad de niveles ni experiencia en habilidades.
+  // Por eso la posibilidad de éxito al sembrar es siempre 100%, sin importar
+  // agricultura/fuerza/nivel del jugador ni los requisitos del cultivo.
+  return "100.00";
+
+  // eslint-disable-next-line no-unreachable
   let sumaRequisitos = 0;
   let sumaCumplimiento = 0;
 
@@ -18741,9 +18750,9 @@ async loadPlayerData() {
     // Renderizar slots inmediatamente
     this.renderInventoryAfterLoad();
 
-    // Tutorial de bienvenida para jugadores nuevos (GamePlayer.tutorial === 0).
-    // Se lanza aquí porque `this.tutorial` acaba de llegar del backend.
-    this.startWelcomeTutorial();
+    // Tutorial (jugadores nuevos). Se lanza aquí porque `this.tutorial` acaba
+    // de llegar del backend; startWorldTutorial() decide la fase según el paso.
+    this.startWorldTutorial();
 
     return data;
 
@@ -18791,52 +18800,158 @@ async renderInventoryAfterLoad() {
 }
 
 // ============================================================================
-// TUTORIAL DE BIENVENIDA (jugadores nuevos: GamePlayer.tutorial === 0)
-// Muestra un mensaje de bienvenida y dibuja un camino en el suelo — esquivando
-// las colisiones del mapa — desde el jugador hasta la entrada de la tienda.
-// Cuando el jugador entra a la tienda, la escena cambia y el tutorial continúa
-// en tiendajuego.js (camino al NPC + completar tutorial).
-// El pathfinding (A* sobre this.collisionRectangles) y los helpers de dibujo
+// TUTORIAL (jugadores nuevos) — MÁQUINA DE ESTADOS multi-escena.
+// El campo persistido GamePlayer.tutorial es el número de PASO:
+//   0 = bienvenida + ir a la tienda (mundo)  → compra en la tienda (tiendajuego)
+//   1 = ya compró+confirmó → salir de la tienda → guiar a las parcelas + sembrar
+//   2 = ya cortó 4 cultivos → guiar a Lord Digby (fin del tutorial por ahora)
+//   3 = tutorial terminado.   undefined/otro = jugador viejo → no se fuerza.
+// TODOS los textos del tutorial van SIEMPRE en inglés (pedido del usuario).
+// El pathfinding (A* sobre rectángulos de colisión) y los helpers de dibujo
 // están duplicados en tiendajuego.js a propósito (cada escena es autónoma).
 // ============================================================================
-startWelcomeTutorial() {
-  if (this._welcomeTutorialStarted) return;
-  // tutorial === 0  → jugador nuevo, mostrar tutorial.
-  // undefined/otro  → jugador viejo (campo inexistente en BD), NO forzarlo.
-  if (this.tutorial !== 0) return;
+startWorldTutorial() {
+  const step = this.tutorial;
+  if (step !== 0 && step !== 1 && step !== 2) return;   // fuera del tutorial
+  if (this._worldTutorialStartedFor === step) return;    // esa fase ya arrancó
 
   // Esperar a que existan el jugador, las colisiones y la entrada de la tienda.
   if (!this.player ||
       !Array.isArray(this.collisionRectangles) ||
       !Array.isArray(this.collisionRectangles1) ||
       this.collisionRectangles1.length === 0) {
-    this.time.delayedCall(600, () => this.startWelcomeTutorial());
+    this.time.delayedCall(600, () => this.startWorldTutorial());
     return;
   }
 
-  this._welcomeTutorialStarted = true;
-
-  const esp = this.lenguaje === 3;
-  this._showTutorialBanner(esp
-    ? 'Bienvenido a Grassland Forest. Es un placer para nosotros que te unas a esta aventura. Te daremos un tutorial para que aprendas a participar. Empezaremos llevándote a la tienda…'
-    : 'Welcome to Grassland Forest. We are delighted that you join this adventure. We will give you a tutorial so you can learn to take part. We will start by taking you to the shop…');
-
-  // Objetivo: centro de la entrada de la tienda.
-  const r = this.collisionRectangles1[0];
-  this._tutorialTargetX = r.x + r.width  / 2;
-  this._tutorialTargetY = r.y + r.height / 2;
-  // En el mundo, esquivar solo las colisiones generales (no la propia entrada).
+  this._worldTutorialStartedFor = step;
+  // En el mundo, esquivar solo las colisiones generales (no las entradas).
   this._tutorialObstacles = this.collisionRectangles;
 
-  this._drawTutorialPathToTarget();
+  if (step === 0) {
+    this._showTutorialBanner('Welcome to Grassland Forest! We are delighted that you join this adventure. We will give you a tutorial so you learn how to take part. We will start by taking you to the shop…');
+    const r = this.collisionRectangles1[0];
+    this._setTutorialTarget(r.x + r.width / 2, r.y + r.height / 2);
+    this._ensureTutorialPathTimer();
+  } else if (step === 1) {
+    this._startWorldPlantPhase();
+  } else if (step === 2) {
+    this._startWorldDigbyPhase();
+  }
+}
 
-  // Redibuja el camino a medida que el jugador avanza.
+// Fija un nuevo objetivo del camino y fuerza el redibujo inmediato.
+_setTutorialTarget(x, y) {
+  this._tutorialTargetX = x;
+  this._tutorialTargetY = y;
+  this._lastPathX = null;
+  this._drawTutorialPathToTarget();
+}
+
+// Crea (una vez) el timer que redibuja el camino y registra la limpieza.
+_ensureTutorialPathTimer() {
+  if (this._tutorialPathTimer) return;
   this._tutorialPathTimer = this.time.addEvent({
     delay: 500, loop: true, callback: () => this._drawTutorialPathToTarget()
   });
-
   this.events.once('shutdown', () => this._cleanupTutorial());
   this.events.once('destroy',  () => this._cleanupTutorial());
+}
+
+// Paso 1 (mundo): instrucciones de siembra + camino a la parcela más cercana.
+_startWorldPlantPhase() {
+  this._tutorialCutCount = 0;
+  this._showTutorialBanner('Here you will learn to farm. First place the seeds in the plots, then water them with the watering can, and finally cut them with the pruning shears.');
+  this._aimAtNearestPlot();
+  this._ensureTutorialPathTimer();
+}
+
+// Apunta el camino a la parcela más cercana; reintenta si aún no hay parcelas.
+_aimAtNearestPlot() {
+  const plot = this._nearestPlotCenter();
+  if (plot) { this._setTutorialTarget(plot.x, plot.y); return; }
+  this.time.delayedCall(600, () => this._aimAtNearestPlot());
+}
+
+// Centro de la parcela de siembra más cercana al jugador (this.plotImages).
+_nearestPlotCenter() {
+  if (!this.plotImages || this.plotImages.size === 0) return null;
+  const px = this.player ? this.player.x : 0;
+  const py = this.player ? this.player.y : 0;
+  let best = null, bestD = Infinity;
+  this.plotImages.forEach(img => {
+    const d = Math.hypot(img.x - px, img.y - py);
+    if (d < bestD) { bestD = d; best = { x: img.x, y: img.y }; }
+  });
+  return best;
+}
+
+// Paso 2 (mundo): guiar a Lord Digby (NPC en 2290,2283).
+_startWorldDigbyPhase() {
+  this._showTutorialBanner('Now go and give the seeds to the NPC Lord Digby. That is the end of the tutorial for now, until we expand it further.');
+  this._setTutorialTarget(2290, 2283);
+  this._ensureTutorialPathTimer();
+}
+
+// Cuenta cada corte/cosecha durante la fase de siembra del tutorial (paso 1).
+// A los 4 cortes, avanza al paso 2 (guiar a Lord Digby).
+_onTutorialCut() {
+  if (this.tutorial !== 1) return;
+  this._tutorialCutCount = (this._tutorialCutCount || 0) + 1;
+  if (this._tutorialCutCount >= 4) {
+    this.tutorial = 2;
+    this._worldTutorialStartedFor = null; // permite arrancar la fase Digby
+    try { if (typeof this.savegg === 'function') this.savegg(); } catch (e) {}
+    this.startWorldTutorial();
+  }
+}
+
+// Fin del tutorial: al llegar a Lord Digby en el paso 2.
+_completeTutorialFinal() {
+  if (this._tutorialFinished) return;
+  this._tutorialFinished = true;
+  this.tutorial = 3;
+  try { if (typeof this.savegg === 'function') this.savegg(); } catch (e) {}
+  this._cleanupTutorial();
+  this._showTutorialBanner('Tutorial complete! Enjoy Grassland Forest.');
+  this.time.delayedCall(6000, () => this._hideTutorialBanner());
+}
+
+// Diálogo de confirmación (✓/✗) reutilizando la posición del banner.
+_showTutorialConfirm(text, onYes, onNo) {
+  this._hideTutorialBanner();
+  const el = document.createElement('div');
+  el.id = 'gf-tutorial-banner';
+  el.style.cssText = [
+    'position:fixed', 'left:50%', 'transform:translateX(-50%)',
+    'width:min(92vw,760px)', 'box-sizing:border-box',
+    'background:rgba(11,61,46,0.96)', 'border:3px solid #ffd23f', 'border-radius:14px',
+    'padding:14px 18px', 'z-index:99999', 'color:#fff',
+    'font-family:Arial,sans-serif', 'font-size:clamp(13px,3.6vw,18px)', 'line-height:1.35',
+    'text-align:center', 'box-shadow:0 6px 24px rgba(0,0,0,0.45)',
+    'max-height:46vh', 'overflow:auto', 'pointer-events:auto'
+  ].join(';');
+  const msg = document.createElement('div');
+  msg.textContent = text;
+  msg.style.marginBottom = '12px';
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:12px;justify-content:center;flex-wrap:wrap;';
+  const yes = document.createElement('button');
+  yes.textContent = '✓ Yes';
+  yes.style.cssText = 'background:#2e7d32;color:#fff;border:none;border-radius:8px;padding:8px 20px;font-size:clamp(13px,3.4vw,16px);font-weight:bold;cursor:pointer;';
+  const no = document.createElement('button');
+  no.textContent = '✗ No';
+  no.style.cssText = 'background:#b23b3b;color:#fff;border:none;border-radius:8px;padding:8px 20px;font-size:clamp(13px,3.4vw,16px);font-weight:bold;cursor:pointer;';
+  yes.addEventListener('click', () => { this._hideTutorialBanner(); if (onYes) onYes(); });
+  no.addEventListener('click',  () => { this._hideTutorialBanner(); if (onNo)  onNo();  });
+  row.appendChild(yes); row.appendChild(no);
+  el.appendChild(msg); el.appendChild(row);
+  document.body.appendChild(el);
+  this._tutorialBannerEl = el;
+  this._tutorialBannerReposition = () => this._positionTutorialBanner();
+  this._positionTutorialBanner();
+  window.addEventListener('resize', this._tutorialBannerReposition);
+  this._tutorialBannerRepoTimer = setInterval(this._tutorialBannerReposition, 700);
 }
 
 // Recalcula (si el jugador se movió lo suficiente) y redibuja el camino.
@@ -18844,10 +18959,11 @@ _drawTutorialPathToTarget() {
   if (!this.player) return;
   const px = this.player.x, py = this.player.y;
 
-  // Al llegar cerca del objetivo, dejar de dibujar (en el mundo, entrar a la
-  // tienda cambia de escena y limpia todo automáticamente).
+  // Al llegar cerca del objetivo, dejar de dibujar. En el paso 2 (Lord Digby),
+  // llegar cerca del NPC completa el tutorial.
   if (Math.hypot(px - this._tutorialTargetX, py - this._tutorialTargetY) < 80) {
     this._clearTutorialPath();
+    if (this.tutorial === 2) this._completeTutorialFinal();
     return;
   }
 
@@ -19018,30 +19134,66 @@ _clearTutorialPath() {
   if (this._tutorialPathGfx) { this._tutorialPathGfx.destroy(); this._tutorialPathGfx = null; }
 }
 
+// Banner de tutorial como overlay DOM (responsive a cualquier móvil) colocado
+// JUSTO ENCIMA de las 7 casillas rápidas (#quick-slots-bar). Usa unidades
+// relativas (vw + clamp) para adaptarse a todo tamaño de pantalla.
 _showTutorialBanner(text) {
   this._hideTutorialBanner();
-  const cam = this.cameras.main;
-  const w = Math.min(760, cam.width - 40);
-  const h = 116;
-  const c = this.add.container(cam.width / 2, 92).setScrollFactor(0).setDepth(1000000);
-  const bg = this.add.graphics();
-  bg.fillStyle(0x0b3d2e, 0.94);
-  bg.fillRoundedRect(-w / 2, -h / 2, w, h, 14);
-  bg.lineStyle(3, 0xffd23f, 1);
-  bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 14);
-  const txt = this.add.text(0, 0, text, {
-    fontFamily: 'Arial, sans-serif', fontSize: '18px', color: '#ffffff',
-    align: 'center', wordWrap: { width: w - 44 }
-  }).setOrigin(0.5);
-  const close = this.add.text(w / 2 - 20, -h / 2 + 16, '✕', {
-    fontFamily: 'Arial, sans-serif', fontSize: '20px', color: '#ffd23f'
-  }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-  close.on('pointerdown', () => this._hideTutorialBanner());
-  c.add([bg, txt, close]);
-  this._tutorialBanner = c;
+  const el = document.createElement('div');
+  el.id = 'gf-tutorial-banner';
+  el.style.cssText = [
+    'position:fixed', 'left:50%', 'transform:translateX(-50%)',
+    'width:min(92vw,760px)', 'box-sizing:border-box',
+    'background:rgba(11,61,46,0.94)', 'border:3px solid #ffd23f', 'border-radius:14px',
+    'padding:14px 46px 14px 18px', 'z-index:99999', 'color:#fff',
+    'font-family:Arial,sans-serif', 'font-size:clamp(13px,3.6vw,18px)', 'line-height:1.35',
+    'text-align:center', 'box-shadow:0 6px 24px rgba(0,0,0,0.45)',
+    'max-height:40vh', 'overflow:auto', 'pointer-events:auto'
+  ].join(';');
+  const msg = document.createElement('span');
+  msg.textContent = text;
+  const close = document.createElement('button');
+  close.textContent = '✕';
+  close.setAttribute('aria-label', 'Close');
+  close.style.cssText = [
+    'position:absolute', 'top:6px', 'right:10px', 'background:transparent',
+    'border:none', 'color:#ffd23f', 'font-size:20px', 'line-height:1',
+    'cursor:pointer', 'padding:4px'
+  ].join(';');
+  close.addEventListener('click', () => this._hideTutorialBanner());
+  el.appendChild(msg);
+  el.appendChild(close);
+  document.body.appendChild(el);
+  this._tutorialBannerEl = el;
+
+  this._tutorialBannerReposition = () => this._positionTutorialBanner();
+  this._positionTutorialBanner();
+  window.addEventListener('resize', this._tutorialBannerReposition);
+  // Reposicionar periódicamente por si la barra de casillas aparece/cambia.
+  this._tutorialBannerRepoTimer = setInterval(this._tutorialBannerReposition, 700);
+}
+
+// Coloca el banner encima de #quick-slots-bar; si no está visible, cerca del pie.
+_positionTutorialBanner() {
+  const el = this._tutorialBannerEl;
+  if (!el) return;
+  const bar = document.getElementById('quick-slots-bar');
+  let bottom = 96;
+  if (bar && bar.offsetParent !== null && !bar.classList.contains('hidden')) {
+    const rect = bar.getBoundingClientRect();
+    if (rect.height > 0) bottom = Math.max(12, window.innerHeight - rect.top + 12);
+  }
+  el.style.bottom = bottom + 'px';
 }
 
 _hideTutorialBanner() {
+  if (this._tutorialBannerReposition) {
+    window.removeEventListener('resize', this._tutorialBannerReposition);
+    this._tutorialBannerReposition = null;
+  }
+  if (this._tutorialBannerRepoTimer) { clearInterval(this._tutorialBannerRepoTimer); this._tutorialBannerRepoTimer = null; }
+  if (this._tutorialBannerEl) { this._tutorialBannerEl.remove(); this._tutorialBannerEl = null; }
+  // Limpieza defensiva por si quedara un banner de la versión Phaser anterior.
   if (this._tutorialBanner) { this._tutorialBanner.destroy(); this._tutorialBanner = null; }
 }
 

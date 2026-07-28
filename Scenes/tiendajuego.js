@@ -2329,9 +2329,8 @@ boton3.on("pointerdown", () => {
     if (window.tiendaSistema) {
         window.tiendaSistema.open();
     }
-
-    // Completar el tutorial de bienvenida al abrir la tienda por primera vez.
-    if (typeof this._completeShopTutorial === 'function') this._completeShopTutorial();
+    // NOTA: el tutorial NO se completa al abrir la tienda. La confirmación de
+    // compra (✓/✗) aparece al CERRAR la tienda, vía _onShopClosed().
 });
 
 
@@ -8438,58 +8437,121 @@ async renderInventoryAfterLoad() {
 }
 
 // ============================================================================
-// TUTORIAL DE BIENVENIDA — Paso 2 (dentro de la tienda)
-// Muestra un mensaje y dibuja un camino, esquivando el mobiliario, desde el
-// jugador hasta el NPC principal de la tienda. Al hacer clic en el NPC se marca
-// el tutorial como completado (tutorial = 1) y se guarda en el backend.
-// Los helpers de pathfinding/dibujo están duplicados desde GameScene.js a
-// propósito (cada escena es autónoma).
+// TUTORIAL — pasos dentro de la tienda (ver máquina de estados en GameScene.js).
+//   tutorial === 0 → fase de COMPRA: mensaje + lista de compra, camino al NPC.
+//                    Al CERRAR la tienda se pregunta (✓/✗) si compró los ítems.
+//   tutorial === 1 → fase de SALIDA: guiar a la puerta para volver al mundo.
+// Todos los textos en inglés. Helpers de pathfinding/dibujo duplicados de
+// GameScene.js a propósito (cada escena es autónoma).
 // ============================================================================
 startShopTutorial() {
-  if (this._shopTutorialStarted) return;
-  if (this.tutorial !== 0) return; // solo si aún no completó el tutorial
+  const step = this.tutorial;
+  if (step !== 0 && step !== 1) return;
+  if (this._shopTutorialStartedFor === step) return;
 
   if (!this.player || !Array.isArray(this.collisionRectangles2)) {
     this.time.delayedCall(600, () => this.startShopTutorial());
     return;
   }
 
-  this._shopTutorialStarted = true;
-
-  const esp = this.lenguaje === 3;
-  this._showTutorialBanner(esp
-    ? 'Estamos en la tienda principal de Grassland Forest. Si das clic al NPC podrás abrir la tienda y allí podrás comprar y vender.'
-    : 'We are in the main shop of Grassland Forest. If you click the NPC you can open the shop, where you can buy and sell.');
-
-  // Objetivo: justo enfrente del NPC principal (boton3, en 685,1435).
-  this._tutorialTargetX = 685;
-  this._tutorialTargetY = 1520;
+  this._shopTutorialStartedFor = step;
   // Esquivar mobiliario ('colisiones') + colisiones generales si existen.
   this._tutorialObstacles = [
     ...(Array.isArray(this.collisionRectangles) ? this.collisionRectangles : []),
     ...(Array.isArray(this.collisionRectangles2) ? this.collisionRectangles2 : [])
   ];
 
+  if (step === 0) {
+    // Fase de compra: mensaje + lista, camino al NPC (frente a boton3 685,1435).
+    this._showStoreBuyMessage();
+    this._setTutorialTarget(685, 1520);
+    this._ensureTutorialPathTimer();
+  } else if (step === 1) {
+    // Fase de salida: guiar a la puerta de salida (collisionRectangles1).
+    this._showTutorialBanner('Great! Now leave the shop through the door to continue.');
+    const door = (Array.isArray(this.collisionRectangles1) && this.collisionRectangles1[0]) || null;
+    if (door) this._setTutorialTarget(door.x + door.width / 2, door.y + door.height / 2);
+    this._ensureTutorialPathTimer();
+  }
+}
+
+// Mensaje 1 de la tienda (con la lista de compra). Reutilizado si el jugador
+// responde ✗ en la confirmación.
+_showStoreBuyMessage() {
+  this._showTutorialBanner('We are in the main shop of Grassland Forest, likewise inside the shop. If you click the NPC you can open the shop, where you can buy and sell. Go and buy a watering can, some pruning shears and 4 bags of carrot seeds.');
+}
+
+// Llamado desde tienda_sistema.close(): al cerrar la tienda durante la fase de
+// compra, preguntar (✓/✗) si el jugador compró los ítems.
+_onShopClosed() {
+  if (this.tutorial !== 0) return;
+  this._showTutorialConfirm(
+    'Did you buy the watering can, the pruning shears and the 4 bags of carrot seeds? So we can continue with the next part of the tutorial!',
+    () => { // ✓ Sí
+      this.tutorial = 1;
+      this._shopTutorialStartedFor = null;
+      try { if (typeof this.savegg === 'function') this.savegg(); } catch (e) {}
+      this.startShopTutorial(); // arranca la fase de salida
+    },
+    () => { // ✗ No → repetir el mensaje 1
+      this._showStoreBuyMessage();
+    }
+  );
+}
+
+// Fija un nuevo objetivo del camino y fuerza el redibujo inmediato.
+_setTutorialTarget(x, y) {
+  this._tutorialTargetX = x;
+  this._tutorialTargetY = y;
+  this._lastPathX = null;
   this._drawTutorialPathToTarget();
+}
+
+// Crea (una vez) el timer que redibuja el camino y registra la limpieza.
+_ensureTutorialPathTimer() {
+  if (this._tutorialPathTimer) return;
   this._tutorialPathTimer = this.time.addEvent({
     delay: 500, loop: true, callback: () => this._drawTutorialPathToTarget()
   });
-
   this.events.once('shutdown', () => this._cleanupTutorial());
   this.events.once('destroy',  () => this._cleanupTutorial());
 }
 
-// Llamado desde el clic al NPC de la tienda (boton3): completa el tutorial.
-_completeShopTutorial() {
-  if (this.tutorial === 1) return;
-  this.tutorial = 1;
-  this._cleanupTutorial();
-  const esp = this.lenguaje === 3;
-  this._showTutorialBanner(esp
-    ? '¡Tutorial completado! Ya sabes cómo comprar y vender. ¡Disfruta la aventura!'
-    : 'Tutorial complete! You now know how to buy and sell. Enjoy the adventure!');
-  this.time.delayedCall(6000, () => this._hideTutorialBanner());
-  try { if (typeof this.savegg === 'function') this.savegg(); } catch (e) { console.warn('No se pudo guardar el tutorial:', e); }
+// Diálogo de confirmación (✓/✗) reutilizando la posición del banner.
+_showTutorialConfirm(text, onYes, onNo) {
+  this._hideTutorialBanner();
+  const el = document.createElement('div');
+  el.id = 'gf-tutorial-banner';
+  el.style.cssText = [
+    'position:fixed', 'left:50%', 'transform:translateX(-50%)',
+    'width:min(92vw,760px)', 'box-sizing:border-box',
+    'background:rgba(11,61,46,0.96)', 'border:3px solid #ffd23f', 'border-radius:14px',
+    'padding:14px 18px', 'z-index:99999', 'color:#fff',
+    'font-family:Arial,sans-serif', 'font-size:clamp(13px,3.6vw,18px)', 'line-height:1.35',
+    'text-align:center', 'box-shadow:0 6px 24px rgba(0,0,0,0.45)',
+    'max-height:46vh', 'overflow:auto', 'pointer-events:auto'
+  ].join(';');
+  const msg = document.createElement('div');
+  msg.textContent = text;
+  msg.style.marginBottom = '12px';
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:12px;justify-content:center;flex-wrap:wrap;';
+  const yes = document.createElement('button');
+  yes.textContent = '✓ Yes';
+  yes.style.cssText = 'background:#2e7d32;color:#fff;border:none;border-radius:8px;padding:8px 20px;font-size:clamp(13px,3.4vw,16px);font-weight:bold;cursor:pointer;';
+  const no = document.createElement('button');
+  no.textContent = '✗ No';
+  no.style.cssText = 'background:#b23b3b;color:#fff;border:none;border-radius:8px;padding:8px 20px;font-size:clamp(13px,3.4vw,16px);font-weight:bold;cursor:pointer;';
+  yes.addEventListener('click', () => { this._hideTutorialBanner(); if (onYes) onYes(); });
+  no.addEventListener('click',  () => { this._hideTutorialBanner(); if (onNo)  onNo();  });
+  row.appendChild(yes); row.appendChild(no);
+  el.appendChild(msg); el.appendChild(row);
+  document.body.appendChild(el);
+  this._tutorialBannerEl = el;
+  this._tutorialBannerReposition = () => this._positionTutorialBanner();
+  this._positionTutorialBanner();
+  window.addEventListener('resize', this._tutorialBannerReposition);
+  this._tutorialBannerRepoTimer = setInterval(this._tutorialBannerReposition, 700);
 }
 
 _drawTutorialPathToTarget() {
@@ -8664,30 +8726,66 @@ _clearTutorialPath() {
   if (this._tutorialPathGfx) { this._tutorialPathGfx.destroy(); this._tutorialPathGfx = null; }
 }
 
+// Banner de tutorial como overlay DOM (responsive a cualquier móvil) colocado
+// JUSTO ENCIMA de las 7 casillas rápidas (#quick-slots-bar). Usa unidades
+// relativas (vw + clamp) para adaptarse a todo tamaño de pantalla.
 _showTutorialBanner(text) {
   this._hideTutorialBanner();
-  const cam = this.cameras.main;
-  const w = Math.min(760, cam.width - 40);
-  const h = 116;
-  const c = this.add.container(cam.width / 2, 92).setScrollFactor(0).setDepth(1000000);
-  const bg = this.add.graphics();
-  bg.fillStyle(0x0b3d2e, 0.94);
-  bg.fillRoundedRect(-w / 2, -h / 2, w, h, 14);
-  bg.lineStyle(3, 0xffd23f, 1);
-  bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 14);
-  const txt = this.add.text(0, 0, text, {
-    fontFamily: 'Arial, sans-serif', fontSize: '18px', color: '#ffffff',
-    align: 'center', wordWrap: { width: w - 44 }
-  }).setOrigin(0.5);
-  const close = this.add.text(w / 2 - 20, -h / 2 + 16, '✕', {
-    fontFamily: 'Arial, sans-serif', fontSize: '20px', color: '#ffd23f'
-  }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-  close.on('pointerdown', () => this._hideTutorialBanner());
-  c.add([bg, txt, close]);
-  this._tutorialBanner = c;
+  const el = document.createElement('div');
+  el.id = 'gf-tutorial-banner';
+  el.style.cssText = [
+    'position:fixed', 'left:50%', 'transform:translateX(-50%)',
+    'width:min(92vw,760px)', 'box-sizing:border-box',
+    'background:rgba(11,61,46,0.94)', 'border:3px solid #ffd23f', 'border-radius:14px',
+    'padding:14px 46px 14px 18px', 'z-index:99999', 'color:#fff',
+    'font-family:Arial,sans-serif', 'font-size:clamp(13px,3.6vw,18px)', 'line-height:1.35',
+    'text-align:center', 'box-shadow:0 6px 24px rgba(0,0,0,0.45)',
+    'max-height:40vh', 'overflow:auto', 'pointer-events:auto'
+  ].join(';');
+  const msg = document.createElement('span');
+  msg.textContent = text;
+  const close = document.createElement('button');
+  close.textContent = '✕';
+  close.setAttribute('aria-label', 'Close');
+  close.style.cssText = [
+    'position:absolute', 'top:6px', 'right:10px', 'background:transparent',
+    'border:none', 'color:#ffd23f', 'font-size:20px', 'line-height:1',
+    'cursor:pointer', 'padding:4px'
+  ].join(';');
+  close.addEventListener('click', () => this._hideTutorialBanner());
+  el.appendChild(msg);
+  el.appendChild(close);
+  document.body.appendChild(el);
+  this._tutorialBannerEl = el;
+
+  this._tutorialBannerReposition = () => this._positionTutorialBanner();
+  this._positionTutorialBanner();
+  window.addEventListener('resize', this._tutorialBannerReposition);
+  // Reposicionar periódicamente por si la barra de casillas aparece/cambia.
+  this._tutorialBannerRepoTimer = setInterval(this._tutorialBannerReposition, 700);
+}
+
+// Coloca el banner encima de #quick-slots-bar; si no está visible, cerca del pie.
+_positionTutorialBanner() {
+  const el = this._tutorialBannerEl;
+  if (!el) return;
+  const bar = document.getElementById('quick-slots-bar');
+  let bottom = 96;
+  if (bar && bar.offsetParent !== null && !bar.classList.contains('hidden')) {
+    const rect = bar.getBoundingClientRect();
+    if (rect.height > 0) bottom = Math.max(12, window.innerHeight - rect.top + 12);
+  }
+  el.style.bottom = bottom + 'px';
 }
 
 _hideTutorialBanner() {
+  if (this._tutorialBannerReposition) {
+    window.removeEventListener('resize', this._tutorialBannerReposition);
+    this._tutorialBannerReposition = null;
+  }
+  if (this._tutorialBannerRepoTimer) { clearInterval(this._tutorialBannerRepoTimer); this._tutorialBannerRepoTimer = null; }
+  if (this._tutorialBannerEl) { this._tutorialBannerEl.remove(); this._tutorialBannerEl = null; }
+  // Limpieza defensiva por si quedara un banner de la versión Phaser anterior.
   if (this._tutorialBanner) { this._tutorialBanner.destroy(); this._tutorialBanner = null; }
 }
 
