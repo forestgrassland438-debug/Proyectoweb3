@@ -2321,14 +2321,17 @@ this.anims.create({
 // 2) Listener para el clic/tap en Phaser
 boton3.on("pointerdown", () => {
     console.log("Abriendo tienda de Johnny Johnson...");
-    
+
     // FIX: llamar siempre a initTienda (ahora actualiza la escena si ya existe)
     initTienda(this);
-    
+
     // Abrir tienda
     if (window.tiendaSistema) {
         window.tiendaSistema.open();
     }
+
+    // Completar el tutorial de bienvenida al abrir la tienda por primera vez.
+    if (typeof this._completeShopTutorial === 'function') this._completeShopTutorial();
 });
 
 
@@ -8334,7 +8337,7 @@ async loadPlayerData() {
     const playerProps = [
       'posicionplayerx', 'posicionplayery',
       'speed', 'mundo', 'nivel', 'nivel_exp',
-      'misiones', 'Username', 'lenguaje', 'petName'
+      'misiones', 'Username', 'lenguaje', 'petName', 'tutorial'
     ];
 
     playerProps.forEach(prop => {
@@ -8380,13 +8383,16 @@ async loadPlayerData() {
     }
 
     console.log('✅ Datos del jugador cargados exitosamente');
-    
+
     // Renderizar slots inmediatamente
     this.renderInventoryAfterLoad();
 
-    
+    // Paso 2 del tutorial: si el jugador aún no lo completó (tutorial === 0),
+    // marcar el camino hasta el NPC de la tienda.
+    this.startShopTutorial();
+
     return data;
-    
+
   } catch (error) {
     console.error('❌ Error de red al cargar datos del jugador:', error);
     return null;
@@ -8429,6 +8435,266 @@ async renderInventoryAfterLoad() {
   console.log('🖼️ Renderizando slots del inventario...');
   for (let i = 0; i < 40; i++) this.renderSlot(i);
   for (let i = 0; i < 7; i++) this.renderSlot(i);
+}
+
+// ============================================================================
+// TUTORIAL DE BIENVENIDA — Paso 2 (dentro de la tienda)
+// Muestra un mensaje y dibuja un camino, esquivando el mobiliario, desde el
+// jugador hasta el NPC principal de la tienda. Al hacer clic en el NPC se marca
+// el tutorial como completado (tutorial = 1) y se guarda en el backend.
+// Los helpers de pathfinding/dibujo están duplicados desde GameScene.js a
+// propósito (cada escena es autónoma).
+// ============================================================================
+startShopTutorial() {
+  if (this._shopTutorialStarted) return;
+  if (this.tutorial !== 0) return; // solo si aún no completó el tutorial
+
+  if (!this.player || !Array.isArray(this.collisionRectangles2)) {
+    this.time.delayedCall(600, () => this.startShopTutorial());
+    return;
+  }
+
+  this._shopTutorialStarted = true;
+
+  const esp = this.lenguaje === 3;
+  this._showTutorialBanner(esp
+    ? 'Estamos en la tienda principal de Grassland Forest. Si das clic al NPC podrás abrir la tienda y allí podrás comprar y vender.'
+    : 'We are in the main shop of Grassland Forest. If you click the NPC you can open the shop, where you can buy and sell.');
+
+  // Objetivo: justo enfrente del NPC principal (boton3, en 685,1435).
+  this._tutorialTargetX = 685;
+  this._tutorialTargetY = 1520;
+  // Esquivar mobiliario ('colisiones') + colisiones generales si existen.
+  this._tutorialObstacles = [
+    ...(Array.isArray(this.collisionRectangles) ? this.collisionRectangles : []),
+    ...(Array.isArray(this.collisionRectangles2) ? this.collisionRectangles2 : [])
+  ];
+
+  this._drawTutorialPathToTarget();
+  this._tutorialPathTimer = this.time.addEvent({
+    delay: 500, loop: true, callback: () => this._drawTutorialPathToTarget()
+  });
+
+  this.events.once('shutdown', () => this._cleanupTutorial());
+  this.events.once('destroy',  () => this._cleanupTutorial());
+}
+
+// Llamado desde el clic al NPC de la tienda (boton3): completa el tutorial.
+_completeShopTutorial() {
+  if (this.tutorial === 1) return;
+  this.tutorial = 1;
+  this._cleanupTutorial();
+  const esp = this.lenguaje === 3;
+  this._showTutorialBanner(esp
+    ? '¡Tutorial completado! Ya sabes cómo comprar y vender. ¡Disfruta la aventura!'
+    : 'Tutorial complete! You now know how to buy and sell. Enjoy the adventure!');
+  this.time.delayedCall(6000, () => this._hideTutorialBanner());
+  try { if (typeof this.savegg === 'function') this.savegg(); } catch (e) { console.warn('No se pudo guardar el tutorial:', e); }
+}
+
+_drawTutorialPathToTarget() {
+  if (!this.player) return;
+  const px = this.player.x, py = this.player.y;
+
+  if (Math.hypot(px - this._tutorialTargetX, py - this._tutorialTargetY) < 80) {
+    this._clearTutorialPath();
+    return;
+  }
+  if (this._tutorialPathGfx && this._lastPathX != null &&
+      Math.hypot(px - this._lastPathX, py - this._lastPathY) < 40) return;
+  this._lastPathX = px; this._lastPathY = py;
+
+  const obstacles = this._tutorialObstacles || this.collisionRectangles2;
+  let path = this._computeTutorialPath(px, py, this._tutorialTargetX, this._tutorialTargetY, obstacles);
+  this._clearTutorialPath();
+  if (!path || path.length < 2) {
+    path = [{ x: px, y: py }, { x: this._tutorialTargetX, y: this._tutorialTargetY }];
+  }
+  this._renderTutorialPath(path);
+}
+
+_computeTutorialPath(sx, sy, gx, gy, obstacles) {
+  const CELL = 32, PAD = 22, MARGIN = 360;
+  const worldW = this.map ? this.map.widthInPixels  : 100000;
+  const worldH = this.map ? this.map.heightInPixels : 100000;
+
+  const minX = Math.max(0, Math.min(sx, gx) - MARGIN);
+  const minY = Math.max(0, Math.min(sy, gy) - MARGIN);
+  const maxX = Math.min(worldW, Math.max(sx, gx) + MARGIN);
+  const maxY = Math.min(worldH, Math.max(sy, gy) + MARGIN);
+
+  const cols = Math.ceil((maxX - minX) / CELL);
+  const rows = Math.ceil((maxY - minY) / CELL);
+  if (cols <= 1 || rows <= 1 || cols * rows > 24000) return null;
+
+  const rects = Array.isArray(obstacles) ? obstacles : [];
+  const blocked = (cx, cy) => {
+    const wx = minX + cx * CELL + CELL / 2;
+    const wy = minY + cy * CELL + CELL / 2;
+    for (let i = 0; i < rects.length; i++) {
+      const r = rects[i];
+      if (wx >= r.x - PAD && wx <= r.x + r.width + PAD &&
+          wy >= r.y - PAD && wy <= r.y + r.height + PAD) return true;
+    }
+    return false;
+  };
+  const toCell = (wx, wy) => ({
+    cx: Math.max(0, Math.min(cols - 1, Math.floor((wx - minX) / CELL))),
+    cy: Math.max(0, Math.min(rows - 1, Math.floor((wy - minY) / CELL)))
+  });
+  const nearestFree = (c) => {
+    if (!blocked(c.cx, c.cy)) return c;
+    for (let rad = 1; rad < 14; rad++) {
+      for (let ox = -rad; ox <= rad; ox++) {
+        for (let oy = -rad; oy <= rad; oy++) {
+          const nx = c.cx + ox, ny = c.cy + oy;
+          if (nx >= 0 && ny >= 0 && nx < cols && ny < rows && !blocked(nx, ny)) return { cx: nx, cy: ny };
+        }
+      }
+    }
+    return c;
+  };
+
+  const start = nearestFree(toCell(sx, sy));
+  const goal  = nearestFree(toCell(gx, gy));
+  const idx = (cx, cy) => cy * cols + cx;
+  const gScore = new Float64Array(cols * rows).fill(Infinity);
+  const came   = new Int32Array(cols * rows).fill(-1);
+  const open   = new Map();
+  const h = (cx, cy) => Math.hypot(cx - goal.cx, cy - goal.cy);
+  gScore[idx(start.cx, start.cy)] = 0;
+  open.set(idx(start.cx, start.cy), h(start.cx, start.cy));
+
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  let found = false, guard = 0;
+  while (open.size && guard++ < 24000) {
+    let cur = -1, best = Infinity;
+    for (const [k, f] of open) { if (f < best) { best = f; cur = k; } }
+    open.delete(cur);
+    const ccx = cur % cols, ccy = (cur - ccx) / cols;
+    if (ccx === goal.cx && ccy === goal.cy) { found = true; break; }
+    for (const [dx, dy] of dirs) {
+      const nx = ccx + dx, ny = ccy + dy;
+      if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+      if (blocked(nx, ny)) continue;
+      if (dx !== 0 && dy !== 0 && (blocked(ccx + dx, ccy) || blocked(ccx, ccy + dy))) continue;
+      const step = (dx !== 0 && dy !== 0) ? 1.4142 : 1;
+      const ni = idx(nx, ny);
+      const tentative = gScore[cur] + step;
+      if (tentative < gScore[ni]) {
+        gScore[ni] = tentative;
+        came[ni] = cur;
+        open.set(ni, tentative + h(nx, ny));
+      }
+    }
+  }
+  if (!found) return null;
+
+  const cells = [];
+  let ci = idx(goal.cx, goal.cy);
+  while (ci !== -1) { const cx = ci % cols, cy = (ci - cx) / cols; cells.push({ cx, cy }); ci = came[ci]; }
+  cells.reverse();
+
+  const pts = cells.map(c => ({ x: minX + c.cx * CELL + CELL / 2, y: minY + c.cy * CELL + CELL / 2 }));
+  if (pts.length) { pts[0] = { x: sx, y: sy }; pts[pts.length - 1] = { x: gx, y: gy }; }
+  return this._simplifyTutorialPath(pts, rects, PAD);
+}
+
+_simplifyTutorialPath(pts, rects, pad) {
+  if (!pts || pts.length <= 2) return pts;
+  const clear = (a, b) => {
+    const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 12));
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
+      for (const r of rects) {
+        if (x >= r.x - pad && x <= r.x + r.width + pad &&
+            y >= r.y - pad && y <= r.y + r.height + pad) return false;
+      }
+    }
+    return true;
+  };
+  const out = [pts[0]];
+  let i = 0;
+  while (i < pts.length - 1) {
+    let j = pts.length - 1;
+    while (j > i + 1 && !clear(pts[i], pts[j])) j--;
+    out.push(pts[j]);
+    i = j;
+  }
+  return out;
+}
+
+_renderTutorialPath(points) {
+  if (!points || points.length < 2) return;
+  const g = this.add.graphics();
+  g.setDepth((this.player && this.player.depth ? this.player.depth : 1) - 1);
+  g.lineStyle(6, 0xffd23f, 0.95);
+  for (let i = 0; i < points.length - 1; i++) {
+    this._dashTutorialLine(g, points[i].x, points[i].y, points[i + 1].x, points[i + 1].y, 18, 12);
+  }
+  const end = points[points.length - 1];
+  g.fillStyle(0xffd23f, 0.95);
+  g.fillCircle(end.x, end.y, 11);
+  g.lineStyle(3, 0x7a4b00, 1);
+  g.strokeCircle(end.x, end.y, 11);
+  this._tutorialPathGfx = g;
+  this._tutorialPathTween = this.tweens.add({
+    targets: g, alpha: { from: 0.5, to: 1 }, duration: 650, yoyo: true, repeat: -1
+  });
+}
+
+_dashTutorialLine(g, x1, y1, x2, y2, dash, gap) {
+  const dxt = x2 - x1, dyt = y2 - y1;
+  const len = Math.hypot(dxt, dyt);
+  if (len === 0) return;
+  const ux = dxt / len, uy = dyt / len;
+  let d = 0;
+  while (d < len) {
+    const s = d, e = Math.min(d + dash, len);
+    g.beginPath();
+    g.moveTo(x1 + ux * s, y1 + uy * s);
+    g.lineTo(x1 + ux * e, y1 + uy * e);
+    g.strokePath();
+    d += dash + gap;
+  }
+}
+
+_clearTutorialPath() {
+  if (this._tutorialPathTween) { this._tutorialPathTween.stop(); this._tutorialPathTween = null; }
+  if (this._tutorialPathGfx) { this._tutorialPathGfx.destroy(); this._tutorialPathGfx = null; }
+}
+
+_showTutorialBanner(text) {
+  this._hideTutorialBanner();
+  const cam = this.cameras.main;
+  const w = Math.min(760, cam.width - 40);
+  const h = 116;
+  const c = this.add.container(cam.width / 2, 92).setScrollFactor(0).setDepth(1000000);
+  const bg = this.add.graphics();
+  bg.fillStyle(0x0b3d2e, 0.94);
+  bg.fillRoundedRect(-w / 2, -h / 2, w, h, 14);
+  bg.lineStyle(3, 0xffd23f, 1);
+  bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 14);
+  const txt = this.add.text(0, 0, text, {
+    fontFamily: 'Arial, sans-serif', fontSize: '18px', color: '#ffffff',
+    align: 'center', wordWrap: { width: w - 44 }
+  }).setOrigin(0.5);
+  const close = this.add.text(w / 2 - 20, -h / 2 + 16, '✕', {
+    fontFamily: 'Arial, sans-serif', fontSize: '20px', color: '#ffd23f'
+  }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+  close.on('pointerdown', () => this._hideTutorialBanner());
+  c.add([bg, txt, close]);
+  this._tutorialBanner = c;
+}
+
+_hideTutorialBanner() {
+  if (this._tutorialBanner) { this._tutorialBanner.destroy(); this._tutorialBanner = null; }
+}
+
+_cleanupTutorial() {
+  this._clearTutorialPath();
+  if (this._tutorialPathTimer) { this._tutorialPathTimer.remove(false); this._tutorialPathTimer = null; }
+  this._hideTutorialBanner();
 }
 
 // 4) Save game state
@@ -8501,6 +8767,7 @@ async renderInventoryAfterLoad() {
             Username: this.Username,
             petName: this.petName || window.globalPetName || '---',
             misiones: this.misiones,
+            tutorial: this.tutorial,
             inventory: inventoryData,
             chest: chestData
         };
