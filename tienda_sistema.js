@@ -206,6 +206,7 @@ class TiendaSistema {
                     categoria: 'semillas',
                     comision: 5,
                     limiteDiario: 0,
+                    nivelRequerido: 3,
                     descripcion: 'Seed used to grow tomatoes. Growth time: 8 minutes.'
                 },
                 {
@@ -218,6 +219,7 @@ class TiendaSistema {
                     categoria: 'semillas',
                     comision: 5,
                     limiteDiario: 0,
+                    nivelRequerido: 5,
                     descripcion: 'Seed used to grow wheat. Growth time: 3 minutes.'
                 },
                 {
@@ -230,6 +232,7 @@ class TiendaSistema {
                     categoria: 'semillas',
                     comision: 5,
                     limiteDiario: 0,
+                    nivelRequerido: 6,
                     descripcion: 'Seed used to grow pumpkins. Growth time: 10 minutes.'
                 }
             ],
@@ -1285,6 +1288,14 @@ class TiendaSistema {
         this.selectedItem = null;
 
         console.log('🏪 Tienda cerrada');
+
+        // Tutorial: avisar a la escena que la tienda se cerró (muestra la
+        // confirmación ✓/✗ si el jugador está en la fase de compra del tutorial).
+        try {
+            if (this.scene && typeof this.scene._onShopClosed === 'function') {
+                this.scene._onShopClosed();
+            }
+        } catch (err) { /* no crítico */ }
     }
     
     // Abrir modal móvil
@@ -1462,6 +1473,20 @@ class TiendaSistema {
         }, 300);
     }
     
+    // Nivel actual del jugador (desde la escena). 0 si no está disponible.
+    _playerLevel() {
+        const n = this.scene && this.scene.nivel;
+        return (typeof n === 'number' && !isNaN(n)) ? n : 0;
+    }
+
+    // Un ítem está bloqueado por nivel solo al COMPRAR, si define nivelRequerido
+    // y el jugador aún no lo alcanza (tomate=3, trigo=5, calabaza=6).
+    _isLockedByLevel(item) {
+        return this.transactionType === 'compra'
+            && item && item.nivelRequerido > 0
+            && this._playerLevel() < item.nivelRequerido;
+    }
+
     // Crear tarjeta de item (muestra precio según tipo de transacción)
     createItemCard(item) {
         const card = document.createElement('div');
@@ -1512,7 +1537,20 @@ class TiendaSistema {
         card.appendChild(img);
         card.appendChild(name);
         card.appendChild(price);
-        
+
+        // Bloqueo por nivel: se ve el ítem pero en gris con candado y 'Lv. N'.
+        if (this._isLockedByLevel(item)) {
+            card.classList.add('locked-by-level');
+            card.style.position = 'relative';
+            card.style.opacity = '0.78';
+            img.style.filter = 'grayscale(1) brightness(0.6)';
+            const lock = document.createElement('div');
+            lock.className = 'item-lock-badge';
+            lock.textContent = `🔒 Lv. ${item.nivelRequerido}`;
+            lock.style.cssText = 'position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.78);color:#ffd23f;font-size:11px;font-weight:bold;padding:2px 6px;border-radius:6px;pointer-events:none;z-index:2;';
+            card.appendChild(lock);
+        }
+
         if (this.isMobile) {
             // móvil: toque manejado globalmente
         } else {
@@ -1521,7 +1559,7 @@ class TiendaSistema {
                 this.selectItem(item.id);
             });
         }
-        
+
         return card;
     }
     
@@ -1541,7 +1579,18 @@ class TiendaSistema {
         }
         
         if (!selectedItemData) return;
-        
+
+        // Bloqueo por nivel: no se puede seleccionar/comprar hasta alcanzar el nivel.
+        if (this._isLockedByLevel(selectedItemData)) {
+            const msg = `Requires level ${selectedItemData.nivelRequerido} to buy ${selectedItemData.name}.`;
+            if (this.scene && this.scene.notifications && typeof this.scene.notifications.show === 'function') {
+                this.scene.notifications.show(msg, 'error');
+            } else {
+                console.warn('🔒 ' + msg);
+            }
+            return;
+        }
+
         const card = document.querySelector(`.item-card[data-item-id="${itemId}"]`);
         if (card) card.classList.add('selected');
         
