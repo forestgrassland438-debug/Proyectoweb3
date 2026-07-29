@@ -675,6 +675,42 @@ class LoadingScenegame extends Phaser.Scene {
      * Actualiza window.playerStats con los valores canónicos del contrato.
      * No-bloqueante: si falla, continúa con los valores cargados desde BD.
      */
+    /**
+     * Limpia el "cache" del usuario en la BD ANTES de sincronizar con la
+     * blockchain. Resetea inventario/cofre/oro/plata/vitales y borra las
+     * siembras (el backend conserva mundo/posición/nombres/nivel/habilidades/
+     * misiones/tutorial). También vacía el STATE local para que la sync parta
+     * de cero. No-bloqueante: si falla, continúa (la sync corregirá igual).
+     */
+    async resetCacheBeforeSync() {
+        try {
+            if (this.playerName && this.isAuthenticated) {
+                const res = await this.fetchWithTokenRetry(
+                    `${this.serverBase}/api/cache/reset/${encodeURIComponent(this.playerName)}`,
+                    { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' } }
+                );
+                if (res && res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    console.log(`🧹 [cache-reset] Cache limpiado. Siembras borradas: ${data.cropsDeleted ?? '?'}`);
+                } else {
+                    console.warn('⚠️ [cache-reset] El backend no confirmó el reset:', res ? res.status : 'sin respuesta');
+                }
+            }
+        } catch (e) {
+            console.warn('⚠️ [cache-reset] Error limpiando cache (continuo igual):', e.message || e);
+        }
+
+        // Vaciar el STATE local para que la sincronización repueble desde cero.
+        try {
+            if (this.STATE) {
+                if (Array.isArray(this.STATE.slots)) this.STATE.slots.fill(null);
+                if (Array.isArray(this.STATE.quickSlots)) this.STATE.quickSlots.fill(null);
+            }
+            this.moneda = 0;
+            this.moneda_plata = 0;
+        } catch (e) { /* no crítico */ }
+    }
+
     async syncStatsWithBlockchain() {
         if (!this.address || !this.isAuthenticated || !this.playerName) {
             console.warn('⚠️ [stats-sync] Saltando: usuario no autenticado');
@@ -1509,6 +1545,15 @@ class LoadingScenegame extends Phaser.Scene {
         this.loadingSystem.textElement.textContent = 'Loading player data...';
 
         await this.loadPlayerData();
+
+        // ── 1.5. LIMPIAR EL CACHE DEL USUARIO ANTES DE SINCRONIZAR ───────────
+        //      Resetea en BD inventario/cofre/oro/plata/vitales y borra las
+        //      siembras (conserva mundo/posición/nombres/nivel/habilidades/
+        //      misiones/tutorial), y limpia el STATE local, para que la
+        //      sincronización con la blockchain deje TODO fresco desde el contrato.
+        this.loadingSystem.update(0.35);
+        this.loadingSystem.textElement.textContent = 'Cleaning cache...';
+        await this.resetCacheBeforeSync();
 
         // ── 2. Sincronizar inventario contra blockchain ──────────────────────
         //      No-bloqueante: si falla, el juego continúa con datos de BD.

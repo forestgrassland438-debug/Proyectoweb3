@@ -8446,7 +8446,8 @@ async renderInventoryAfterLoad() {
 // ============================================================================
 startShopTutorial() {
   const step = this.tutorial;
-  if (step !== 0 && step !== 1) return;
+  // 0 = compra inicial (semillas+herramientas), 1 = salir, 3 = comprar hacha.
+  if (step !== 0 && step !== 1 && step !== 3) return;
   if (this._shopTutorialStartedFor === step) return;
 
   if (!this.player || !Array.isArray(this.collisionRectangles2)) {
@@ -8467,12 +8468,22 @@ startShopTutorial() {
     this._setTutorialTarget(685, 1520);
     this._ensureTutorialPathTimer();
   } else if (step === 1) {
-    // Fase de salida: guiar a la puerta de salida (collisionRectangles1).
-    this._showTutorialBanner('Great! Now leave the shop through the door to continue.');
-    const door = (Array.isArray(this.collisionRectangles1) && this.collisionRectangles1[0]) || null;
-    if (door) this._setTutorialTarget(door.x + door.width / 2, door.y + door.height / 2);
+    // Fase de salida (tras comprar semillas/herramientas).
+    this._guideToExit();
+  } else if (step === 3) {
+    // Fase de compra del hacha de madera: mensaje + camino al NPC.
+    this._showTutorialBanner('Now go and buy a wood axe. Click the NPC to open the shop.');
+    this._setTutorialTarget(685, 1520);
     this._ensureTutorialPathTimer();
   }
+}
+
+// Guía al jugador hasta la puerta de salida de la tienda.
+_guideToExit() {
+  this._showTutorialBanner('Great! Now leave the shop through the door to continue.');
+  const door = (Array.isArray(this.collisionRectangles1) && this.collisionRectangles1[0]) || null;
+  if (door) this._setTutorialTarget(door.x + door.width / 2, door.y + door.height / 2);
+  this._ensureTutorialPathTimer();
 }
 
 // Mensaje 1 de la tienda (con la lista de compra). Reutilizado si el jugador
@@ -8484,19 +8495,25 @@ _showStoreBuyMessage() {
 // Llamado desde tienda_sistema.close(): al cerrar la tienda durante la fase de
 // compra, preguntar (✓/✗) si el jugador compró los ítems.
 _onShopClosed() {
-  if (this.tutorial !== 0) return;
-  this._showTutorialConfirm(
-    'Did you buy the watering can, the pruning shears and the 4 bags of carrot seeds? So we can continue with the next part of the tutorial!',
-    () => { // ✓ Sí
-      this.tutorial = 1;
-      this._shopTutorialStartedFor = null;
-      try { if (typeof this.savegg === 'function') this.savegg(); } catch (e) {}
-      this.startShopTutorial(); // arranca la fase de salida
-    },
-    () => { // ✗ No → repetir el mensaje 1
-      this._showStoreBuyMessage();
-    }
-  );
+  if (this.tutorial === 0) {
+    // Confirmar la compra inicial (semillas + herramientas).
+    this._showTutorialConfirm(
+      'Did you buy the watering can, the pruning shears and the 4 bags of carrot seeds? So we can continue with the next part of the tutorial!',
+      () => { // ✓ Sí → salir de la tienda
+        this.tutorial = 1;
+        this._shopTutorialStartedFor = null;
+        try { if (typeof this.savegg === 'function') this.savegg(); } catch (e) {}
+        this._guideToExit();
+      },
+      () => { this._showStoreBuyMessage(); } // ✗ No → repetir el mensaje 1
+    );
+  } else if (this.tutorial === 3) {
+    // Compró el hacha de madera: pasar al paso 4 (cortar pinos) y guiar a la salida.
+    this.tutorial = 4;
+    this._shopTutorialStartedFor = null;
+    try { if (typeof this.savegg === 'function') this.savegg(); } catch (e) {}
+    this._guideToExit();
+  }
 }
 
 // Fija un nuevo objetivo del camino y fuerza el redibujo inmediato.

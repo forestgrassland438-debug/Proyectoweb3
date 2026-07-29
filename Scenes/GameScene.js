@@ -6215,10 +6215,15 @@ console.log('📊 Tipos de mineral:', Object.keys(MINE_TYPE_CONFIG));
 // -----------------------------------------------------------------------------
 // CONFIGURACIÓN DE TIPOS DE ÁRBOL Y HACHAS REQUERIDAS
 // -----------------------------------------------------------------------------
+// Reglas de hacha por tipo de árbol (pedido del usuario 2026-07-28):
+//  - pinos     → CUALQUIER hacha sirve.
+//  - arbustos  → todas las hachas MENOS la de madera.
+//  - arbolx (árbol seco) → todas MENOS la de madera y la de piedra.
+// Se expresa como lista de hachas EXCLUIDAS (ver isValidAxeForTree).
 const TREE_TYPE_CONFIG = {
-  pinos:     { requiredAxe: 'hacha_de_madera', baseRespawn: 300, percentIncrement: 1, respawnMultiplier: 0 },
-  arbustos:  { requiredAxe: 'hacha_de_piedra',  baseRespawn: 300, percentIncrement: 1, respawnMultiplier: 0 },
-  arbolx:    { requiredAxe: 'hacha_de_hierro',  baseRespawn: 300, percentIncrement: 1, respawnMultiplier: 0 }
+  pinos:     { excludedAxes: [],                                  baseRespawn: 300, percentIncrement: 1, respawnMultiplier: 0 },
+  arbustos:  { excludedAxes: ['hacha_de_madera'],                 baseRespawn: 300, percentIncrement: 1, respawnMultiplier: 0 },
+  arbolx:    { excludedAxes: ['hacha_de_madera', 'hacha_de_piedra'], baseRespawn: 300, percentIncrement: 1, respawnMultiplier: 0 }
 };
 
 // Mapeo de sprites a tipos
@@ -6376,9 +6381,11 @@ this.lastTreeClick = this.lastTreeClick || {};
 function isValidAxeForTree(pickName, treeKey) {
   const treeType = getTreeTypeFromKey(treeKey);
   if (!treeType) return true;
-  const required = TREE_TYPE_CONFIG[treeType]?.requiredAxe;
-  if (!required) return true;
-  return pickName === required;
+  // Para talar SIEMPRE hace falta un HACHA (no un pico), pase lo que pase.
+  if (!/^hacha_de_/.test(String(pickName || ''))) return false;
+  // Rechazar solo las hachas EXCLUIDAS para ese tipo de árbol.
+  const excluded = TREE_TYPE_CONFIG[treeType]?.excludedAxes || [];
+  return !excluded.includes(pickName);
 }
 
 // -----------------------------------------------------------------------------
@@ -7110,8 +7117,18 @@ oreProps.forEach(prop => {
     }
     const pickName = getSelectedPickName_Ore();
     if (!isValidAxeForTree(pickName, treeKey)) {
-      const required = TREE_TYPE_CONFIG[treeType]?.requiredAxe || 'another axe';
-      this.notifications.show(`This tree requires ${required}`, "error");
+      const excluded = TREE_TYPE_CONFIG[treeType]?.excludedAxes || [];
+      const AXE_LABELS = { hacha_de_madera: 'wood', hacha_de_piedra: 'stone', hacha_de_cobre: 'copper', hacha_de_hierro: 'iron' };
+      let msg;
+      if (!/^hacha_de_/.test(String(pickName || ''))) {
+        msg = 'You need an axe to chop this tree';
+      } else if (excluded.length) {
+        const banned = excluded.map(a => AXE_LABELS[a] || a).join(' or ');
+        msg = `This tree can't be chopped with a ${banned} axe`;
+      } else {
+        msg = "You can't chop this tree with that axe";
+      }
+      this.notifications.show(msg, "error");
       return;
     }
 
@@ -7233,6 +7250,10 @@ oreProps.forEach(prop => {
       delete this.oreMineState[treeKey];
 
       this.playSFX('cortado_sound');
+
+      // Tutorial (paso 4): contar pinos cortados (ya con el sprite deshabilitado,
+      // para que al reapuntar el camino se elija el SIGUIENTE pino, no éste).
+      this._onTutorialPineCut && this._onTutorialPineCut(treeType);
 
       // Otorgar experiencia por talar (mismo criterio que ya usa la minería)
       this.nivel_exp = (this.nivel_exp || 0) + 50;
@@ -10813,7 +10834,10 @@ async handleWaterCollectionClick(pointer) {
       }
       
       this.notifications.show(message, "success");
-      
+
+      // Tutorial (paso 7): obtener agua con el balde termina el tutorial.
+      this._onTutorialWaterCollected && this._onTutorialWaterCollected();
+
       // Actualizar información mostrada (si tienes esta función)
       if (typeof this.updateWaterCollectionInfoText === 'function') {
         this.updateWaterCollectionInfoText();
@@ -18812,7 +18836,7 @@ async renderInventoryAfterLoad() {
 // ============================================================================
 startWorldTutorial() {
   const step = this.tutorial;
-  if (step !== 0 && step !== 1 && step !== 2) return;   // fuera del tutorial
+  if (!(step >= 0 && step <= 7)) return;                 // fuera del tutorial (8 = terminado)
   if (this._worldTutorialStartedFor === step) return;    // esa fase ya arrancó
 
   // Esperar a que existan el jugador, las colisiones y la entrada de la tienda.
@@ -18828,15 +18852,43 @@ startWorldTutorial() {
   // En el mundo, esquivar solo las colisiones generales (no las entradas).
   this._tutorialObstacles = this.collisionRectangles;
 
+  const storeEntrance = () => {
+    const r = this.collisionRectangles1[0];
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  };
+
   if (step === 0) {
     this._showTutorialBanner('Welcome to Grassland Forest! We are delighted that you join this adventure. We will give you a tutorial so you learn how to take part. We will start by taking you to the shop…');
-    const r = this.collisionRectangles1[0];
-    this._setTutorialTarget(r.x + r.width / 2, r.y + r.height / 2);
+    const e = storeEntrance();
+    this._setTutorialTarget(e.x, e.y);
     this._ensureTutorialPathTimer();
   } else if (step === 1) {
     this._startWorldPlantPhase();
   } else if (step === 2) {
     this._startWorldDigbyPhase();
+  } else if (step === 3) {
+    // Volver a la tienda a comprar un hacha de madera.
+    this._showTutorialBanner('Now go and buy a wood axe.');
+    const e = storeEntrance();
+    this._setTutorialTarget(e.x, e.y);
+    this._ensureTutorialPathTimer();
+  } else if (step === 4) {
+    this._startWorldPinePhase();
+  } else if (step === 5) {
+    // Entregar la madera a Lord Digby.
+    this._showTutorialBanner('Now go and give the wood to Lord Digby.');
+    this._setTutorialTarget(2290, 2283);
+    this._ensureTutorialPathTimer();
+  } else if (step === 6) {
+    // Ir al Crafteador Jack a craftear un empty bucket.
+    this._showTutorialBanner('Now we must craft an empty bucket. To do that, click the crafter Jack.');
+    this._setTutorialTarget(3296, 1950);
+    this._ensureTutorialPathTimer();
+  } else if (step === 7) {
+    // Ir a la fuente y usar el empty bucket para obtener agua.
+    this._showTutorialBanner('Take your empty bucket and use it against the water fountain to get water.');
+    this._aimAtWell();
+    this._ensureTutorialPathTimer();
   }
 }
 
@@ -18886,11 +18938,19 @@ _nearestPlotCenter() {
   return best;
 }
 
-// Paso 2 (mundo): guiar a Lord Digby (NPC en 2290,2283).
+// Paso 2 (mundo): guiar a Lord Digby (NPC en 2290,2283) para ENTREGAR semillas.
 _startWorldDigbyPhase() {
-  this._showTutorialBanner('Now go and give the seeds to the NPC Lord Digby. That is the end of the tutorial for now, until we expand it further.');
+  this._showTutorialBanner('Now go and give the seeds to Lord Digby.');
   this._setTutorialTarget(2290, 2283);
   this._ensureTutorialPathTimer();
+}
+
+// Avanza el tutorial al paso n: persiste y arranca esa fase.
+_advanceTutorial(n) {
+  this.tutorial = n;
+  this._worldTutorialStartedFor = null;
+  try { if (typeof this.savegg === 'function') this.savegg(); } catch (e) {}
+  this.startWorldTutorial();
 }
 
 // Cuenta cada corte/cosecha durante la fase de siembra del tutorial (paso 1).
@@ -18898,23 +18958,79 @@ _startWorldDigbyPhase() {
 _onTutorialCut() {
   if (this.tutorial !== 1) return;
   this._tutorialCutCount = (this._tutorialCutCount || 0) + 1;
-  if (this._tutorialCutCount >= 4) {
-    this.tutorial = 2;
-    this._worldTutorialStartedFor = null; // permite arrancar la fase Digby
-    try { if (typeof this.savegg === 'function') this.savegg(); } catch (e) {}
-    this.startWorldTutorial();
-  }
+  if (this._tutorialCutCount >= 4) this._advanceTutorial(2);
 }
 
-// Fin del tutorial: al llegar a Lord Digby en el paso 2.
-_completeTutorialFinal() {
+// Paso 4 (mundo): cortar 4 pinos con el hacha.
+_startWorldPinePhase() {
+  this._tutorialPineCount = 0;
+  this._showTutorialBanner('You must cut the pine. Cut 4 pines with your wood axe.');
+  this._aimAtNearestPine();
+  this._ensureTutorialPathTimer();
+}
+
+_aimAtNearestPine() {
+  const pine = this._nearestPineCenter();
+  if (pine) { this._setTutorialTarget(pine.x, pine.y); return; }
+  this.time.delayedCall(600, () => this._aimAtNearestPine());
+}
+
+// Pino (sprite_pinos1..45) VIVO más cercano al jugador.
+_nearestPineCenter() {
+  const px = this.player ? this.player.x : 0;
+  const py = this.player ? this.player.y : 0;
+  let best = null, bestD = Infinity;
+  for (let i = 1; i <= 45; i++) {
+    const spr = this['sprite_pinos' + i];
+    if (!spr || typeof spr.x !== 'number') continue;
+    if (spr.input && spr.input.enabled === false) continue; // ya talado
+    const d = Math.hypot(spr.x - px, spr.y - py);
+    if (d < bestD) { bestD = d; best = { x: spr.x, y: spr.y }; }
+  }
+  return best;
+}
+
+// Apunta el camino a la fuente/pozo (this.sprite_pozoxd2).
+_aimAtWell() {
+  const well = this.sprite_pozoxd2;
+  if (well && typeof well.x === 'number') { this._setTutorialTarget(well.x, well.y); return; }
+  this.time.delayedCall(600, () => this._aimAtWell());
+}
+
+// Cuenta pinos cortados durante el paso 4; a los 4 → paso 5 (dar madera a Digby).
+_onTutorialPineCut(treeType) {
+  if (this.tutorial !== 4 || treeType !== 'pinos') return;
+  this._tutorialPineCount = (this._tutorialPineCount || 0) + 1;
+  if (this._tutorialPineCount < 4) this._aimAtNearestPine(); // reapuntar al siguiente
+  else this._advanceTutorial(5);
+}
+
+// Al cerrar el crafting hub durante el paso 6: confirmar (✓/✗) el empty bucket.
+_onCraftingClosed() {
+  if (this.tutorial !== 6) return;
+  this._showTutorialConfirm(
+    'Did you craft the empty bucket? (x1)',
+    () => { this._advanceTutorial(7); },                                        // ✓
+    () => { this._showTutorialBanner('Craft the empty bucket. Click the crafter Jack.'); } // ✗
+  );
+}
+
+// Al recolectar agua (obtener balde_con_agua) durante el paso 7: fin del tutorial.
+_onTutorialWaterCollected() {
+  if (this.tutorial !== 7) return;
+  this._finishTutorial();
+}
+
+// Fin del tutorial (paso 8 = terminado).
+_finishTutorial() {
   if (this._tutorialFinished) return;
   this._tutorialFinished = true;
-  this.tutorial = 3;
+  this.tutorial = 8;
+  this._worldTutorialStartedFor = 8;
   try { if (typeof this.savegg === 'function') this.savegg(); } catch (e) {}
   this._cleanupTutorial();
-  this._showTutorialBanner('Tutorial complete! Enjoy Grassland Forest.');
-  this.time.delayedCall(6000, () => this._hideTutorialBanner());
+  this._showTutorialBanner('You have finished the tutorial!');
+  this.time.delayedCall(7000, () => this._hideTutorialBanner());
 }
 
 // Diálogo de confirmación (✓/✗) reutilizando la posición del banner.
@@ -18959,11 +19075,12 @@ _drawTutorialPathToTarget() {
   if (!this.player) return;
   const px = this.player.x, py = this.player.y;
 
-  // Al llegar cerca del objetivo, dejar de dibujar. En el paso 2 (Lord Digby),
-  // llegar cerca del NPC completa el tutorial.
+  // Al llegar cerca del objetivo, dejar de dibujar. Llegar a Lord Digby avanza:
+  // paso 2 (semillas entregadas → comprar hacha) y paso 5 (madera entregada → ir a Jack).
   if (Math.hypot(px - this._tutorialTargetX, py - this._tutorialTargetY) < 80) {
     this._clearTutorialPath();
-    if (this.tutorial === 2) this._completeTutorialFinal();
+    if (this.tutorial === 2) this._advanceTutorial(3);
+    else if (this.tutorial === 5) this._advanceTutorial(6);
     return;
   }
 
