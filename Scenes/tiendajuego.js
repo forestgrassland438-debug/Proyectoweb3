@@ -8520,15 +8520,18 @@ _onShopClosed() {
 _setTutorialTarget(x, y) {
   this._tutorialTargetX = x;
   this._tutorialTargetY = y;
-  this._lastPathX = null;
+  this._tutorialPath = null;        // fuerza recomputo del A* en el próximo dibujo
+  this._pathForTargetX = null;
   this._drawTutorialPathToTarget();
 }
 
 // Crea (una vez) el timer que redibuja el camino y registra la limpieza.
+// El redibujo es BARATO (recorta el camino cacheado); el A* se recomputa muy de
+// vez en cuando (ver _drawTutorialPathToTarget), así que no traba el juego.
 _ensureTutorialPathTimer() {
   if (this._tutorialPathTimer) return;
   this._tutorialPathTimer = this.time.addEvent({
-    delay: 500, loop: true, callback: () => this._drawTutorialPathToTarget()
+    delay: 250, loop: true, callback: () => this._drawTutorialPathToTarget()
   });
   this.events.once('shutdown', () => this._cleanupTutorial());
   this.events.once('destroy',  () => this._cleanupTutorial());
@@ -8574,26 +8577,93 @@ _showTutorialConfirm(text, onYes, onNo) {
 _drawTutorialPathToTarget() {
   if (!this.player) return;
   const px = this.player.x, py = this.player.y;
+  const tx = this._tutorialTargetX, ty = this._tutorialTargetY;
+  if (tx == null || ty == null) return;
 
-  if (Math.hypot(px - this._tutorialTargetX, py - this._tutorialTargetY) < 80) {
+  if (Math.hypot(px - tx, py - ty) < 80) {
     this._clearTutorialPath();
     return;
   }
-  if (this._tutorialPathGfx && this._lastPathX != null &&
-      Math.hypot(px - this._lastPathX, py - this._lastPathY) < 40) return;
-  this._lastPathX = px; this._lastPathY = py;
 
-  const obstacles = this._tutorialObstacles || this.collisionRectangles2;
-  let path = this._computeTutorialPath(px, py, this._tutorialTargetX, this._tutorialTargetY, obstacles);
-  this._clearTutorialPath();
-  if (!path || path.length < 2) {
-    path = [{ x: px, y: py }, { x: this._tutorialTargetX, y: this._tutorialTargetY }];
+  // CLAVE ANTI-STUTTER: el A* NO se recomputa cada frame. Solo cuando hace
+  // falta (cambió el objetivo, no hay camino, el jugador se desvió, o venció el
+  // tiempo). Caminar por el camino solo REDIBUJA (barato), sin trabar el juego.
+  const now = (this.time && this.time.now) ? this.time.now : Date.now();
+  const targetMoved = this._pathForTargetX !== tx || this._pathForTargetY !== ty;
+  const strayed = !this._tutorialPath || this._distPointToPath(px, py, this._tutorialPath) > 140;
+  const stale = !this._lastPathComputeAt || (now - this._lastPathComputeAt) > 6000;
+
+  if (targetMoved || strayed || stale) {
+    const obstacles = this._tutorialObstacles || this.collisionRectangles2;
+    const path = this._computeTutorialPath(px, py, tx, ty, obstacles);
+    this._tutorialPath = (path && path.length >= 2) ? path : [{ x: px, y: py }, { x: tx, y: ty }];
+    this._pathForTargetX = tx; this._pathForTargetY = ty;
+    this._lastPathComputeAt = now;
   }
-  this._renderTutorialPath(path);
+
+  this._renderTrimmedPath(px, py, this._tutorialPath);
+}
+
+// Distancia (punto→segmentos) del jugador al camino cacheado. Detecta desvío.
+_distPointToPath(px, py, path) {
+  let best = Infinity;
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i], b = path[i + 1];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 ? ((px - a.x) * dx + (py - a.y) * dy) / len2 : 0;
+    if (t < 0) t = 0; else if (t > 1) t = 1;
+    const cx = a.x + t * dx, cy = a.y + t * dy;
+    const d = Math.hypot(px - cx, py - cy);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+// Redibuja el camino recortado desde el jugador, REUSANDO un solo graphics.
+_renderTrimmedPath(px, py, path) {
+  if (!path || path.length < 2) { this._clearTutorialPath(); return; }
+  let bestI = 0, bestPt = path[0], bestD = Infinity;
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i], b = path[i + 1];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 ? ((px - a.x) * dx + (py - a.y) * dy) / len2 : 0;
+    if (t < 0) t = 0; else if (t > 1) t = 1;
+    const cx = a.x + t * dx, cy = a.y + t * dy;
+    const d = Math.hypot(px - cx, py - cy);
+    if (d < bestD) { bestD = d; bestI = i; bestPt = { x: cx, y: cy }; }
+  }
+  const pts = [{ x: px, y: py }, bestPt];
+  for (let i = bestI + 1; i < path.length; i++) pts.push(path[i]);
+
+  const g = this._ensureTutorialPathGfx();
+  g.clear();
+  g.lineStyle(6, 0xffd23f, 0.95);
+  for (let i = 0; i < pts.length - 1; i++) {
+    this._dashTutorialLine(g, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, 18, 12);
+  }
+  const end = pts[pts.length - 1];
+  g.fillStyle(0xffd23f, 0.95);
+  g.fillCircle(end.x, end.y, 11);
+  g.lineStyle(3, 0x7a4b00, 1);
+  g.strokeCircle(end.x, end.y, 11);
+}
+
+// Crea (una vez) el graphics del camino y su tween de pulso, y lo reutiliza.
+_ensureTutorialPathGfx() {
+  if (!this._tutorialPathGfx || !this._tutorialPathGfx.scene) {
+    this._tutorialPathGfx = this.add.graphics();
+    this._tutorialPathGfx.setDepth((this.player && this.player.depth ? this.player.depth : 1) - 1);
+    this._tutorialPathTween = this.tweens.add({
+      targets: this._tutorialPathGfx, alpha: { from: 0.5, to: 1 }, duration: 650, yoyo: true, repeat: -1
+    });
+  }
+  return this._tutorialPathGfx;
 }
 
 _computeTutorialPath(sx, sy, gx, gy, obstacles) {
-  const CELL = 32, PAD = 22, MARGIN = 360;
+  const CELL = 32, PAD = 22, MARGIN = 320;
   const worldW = this.map ? this.map.widthInPixels  : 100000;
   const worldH = this.map ? this.map.heightInPixels : 100000;
 
@@ -8604,7 +8674,7 @@ _computeTutorialPath(sx, sy, gx, gy, obstacles) {
 
   const cols = Math.ceil((maxX - minX) / CELL);
   const rows = Math.ceil((maxY - minY) / CELL);
-  if (cols <= 1 || rows <= 1 || cols * rows > 24000) return null;
+  if (cols <= 1 || rows <= 1 || cols * rows > 40000) return null;
 
   const rects = Array.isArray(obstacles) ? obstacles : [];
   const blocked = (cx, cy) => {
@@ -8637,40 +8707,78 @@ _computeTutorialPath(sx, sy, gx, gy, obstacles) {
   const start = nearestFree(toCell(sx, sy));
   const goal  = nearestFree(toCell(gx, gy));
   const idx = (cx, cy) => cy * cols + cx;
-  const gScore = new Float64Array(cols * rows).fill(Infinity);
-  const came   = new Int32Array(cols * rows).fill(-1);
-  const open   = new Map();
+  const N = cols * rows;
+  const gScore = new Float64Array(N).fill(Infinity);
+  const came   = new Int32Array(N).fill(-1);
+  const closed = new Uint8Array(N);
   const h = (cx, cy) => Math.hypot(cx - goal.cx, cy - goal.cy);
-  gScore[idx(start.cx, start.cy)] = 0;
-  open.set(idx(start.cx, start.cy), h(start.cx, start.cy));
+
+  // Min-heap binario (pares f/cellIndex) para O(log n) por extracción.
+  const heapF = [], heapI = [];
+  const hpush = (f, i) => {
+    heapF.push(f); heapI.push(i);
+    let c = heapF.length - 1;
+    while (c > 0) {
+      const p = (c - 1) >> 1;
+      if (heapF[p] <= heapF[c]) break;
+      const tf = heapF[p]; heapF[p] = heapF[c]; heapF[c] = tf;
+      const ti = heapI[p]; heapI[p] = heapI[c]; heapI[c] = ti;
+      c = p;
+    }
+  };
+  const hpop = () => {
+    const topI = heapI[0];
+    const lastF = heapF.pop(), lastI = heapI.pop();
+    if (heapF.length > 0) {
+      heapF[0] = lastF; heapI[0] = lastI;
+      let p = 0; const m = heapF.length;
+      for (;;) {
+        const l = 2 * p + 1, r = 2 * p + 2; let s = p;
+        if (l < m && heapF[l] < heapF[s]) s = l;
+        if (r < m && heapF[r] < heapF[s]) s = r;
+        if (s === p) break;
+        const tf = heapF[p]; heapF[p] = heapF[s]; heapF[s] = tf;
+        const ti = heapI[p]; heapI[p] = heapI[s]; heapI[s] = ti;
+        p = s;
+      }
+    }
+    return topI;
+  };
+
+  const startIdx = idx(start.cx, start.cy);
+  const goalIdx  = idx(goal.cx, goal.cy);
+  gScore[startIdx] = 0;
+  hpush(h(start.cx, start.cy), startIdx);
 
   const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
   let found = false, guard = 0;
-  while (open.size && guard++ < 24000) {
-    let cur = -1, best = Infinity;
-    for (const [k, f] of open) { if (f < best) { best = f; cur = k; } }
-    open.delete(cur);
+  while (heapF.length && guard++ < 60000) {
+    const cur = hpop();
+    if (closed[cur]) continue;
+    closed[cur] = 1;
+    if (cur === goalIdx) { found = true; break; }
     const ccx = cur % cols, ccy = (cur - ccx) / cols;
-    if (ccx === goal.cx && ccy === goal.cy) { found = true; break; }
-    for (const [dx, dy] of dirs) {
+    for (let d = 0; d < dirs.length; d++) {
+      const dx = dirs[d][0], dy = dirs[d][1];
       const nx = ccx + dx, ny = ccy + dy;
       if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
       if (blocked(nx, ny)) continue;
       if (dx !== 0 && dy !== 0 && (blocked(ccx + dx, ccy) || blocked(ccx, ccy + dy))) continue;
+      const ni = ny * cols + nx;
+      if (closed[ni]) continue;
       const step = (dx !== 0 && dy !== 0) ? 1.4142 : 1;
-      const ni = idx(nx, ny);
       const tentative = gScore[cur] + step;
       if (tentative < gScore[ni]) {
         gScore[ni] = tentative;
         came[ni] = cur;
-        open.set(ni, tentative + h(nx, ny));
+        hpush(tentative + h(nx, ny), ni);
       }
     }
   }
   if (!found) return null;
 
   const cells = [];
-  let ci = idx(goal.cx, goal.cy);
+  let ci = goalIdx;
   while (ci !== -1) { const cx = ci % cols, cy = (ci - cx) / cols; cells.push({ cx, cy }); ci = came[ci]; }
   cells.reverse();
 
@@ -8701,25 +8809,6 @@ _simplifyTutorialPath(pts, rects, pad) {
     i = j;
   }
   return out;
-}
-
-_renderTutorialPath(points) {
-  if (!points || points.length < 2) return;
-  const g = this.add.graphics();
-  g.setDepth((this.player && this.player.depth ? this.player.depth : 1) - 1);
-  g.lineStyle(6, 0xffd23f, 0.95);
-  for (let i = 0; i < points.length - 1; i++) {
-    this._dashTutorialLine(g, points[i].x, points[i].y, points[i + 1].x, points[i + 1].y, 18, 12);
-  }
-  const end = points[points.length - 1];
-  g.fillStyle(0xffd23f, 0.95);
-  g.fillCircle(end.x, end.y, 11);
-  g.lineStyle(3, 0x7a4b00, 1);
-  g.strokeCircle(end.x, end.y, 11);
-  this._tutorialPathGfx = g;
-  this._tutorialPathTween = this.tweens.add({
-    targets: g, alpha: { from: 0.5, to: 1 }, duration: 650, yoyo: true, repeat: -1
-  });
 }
 
 _dashTutorialLine(g, x1, y1, x2, y2, dash, gap) {
