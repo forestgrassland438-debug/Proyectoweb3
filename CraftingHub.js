@@ -896,6 +896,8 @@ class CraftingSystem {
   hide() {
     const hub=document.getElementById('crafting-hub');
     if(!hub) return;
+    // ¿Estaba realmente abierto? (para no disparar el confirm del tutorial en vano)
+    const wasVisible = !hub.classList.contains('crafting-hub-hidden');
     hub.classList.add('crafting-hub-hidden');
     hub.classList.remove('crafting-hub-visible');
     this._stopLevelWatch();
@@ -907,6 +909,14 @@ class CraftingSystem {
     this._lastClickTime=0; this._lastClickedRecipe=null; this._crafting=false;
     this.closeOverlay(); this.hideDetailsPanel();
     console.log('🔨 Panel CERRADO');
+
+    // Tutorial (paso 6): al cerrar el crafteo (si estaba abierto), preguntar si
+    // el jugador crafteó el empty bucket.
+    try {
+      if (wasVisible && this.scene && typeof this.scene._onCraftingClosed === 'function') {
+        this.scene._onCraftingClosed();
+      }
+    } catch (e) { /* no crítico */ }
   }
 
   isVisible() {
