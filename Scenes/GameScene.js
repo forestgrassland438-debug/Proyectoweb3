@@ -2889,74 +2889,13 @@ this.player.on('pointerdown', (pointer) => {
     // Verificar si hay un ítem seleccionado en el inventario
     if (this.STATE && this.STATE.selectedItem) {
         const selectedId = String(this.STATE.selectedItem.id || '').toLowerCase();
-        
-        // Si el ítem seleccionado es una zanahoria_buena o tomate_buena
-        if (selectedId === 'zanahoria_buena' || selectedId === 'tomate_buena' || selectedId === 'balde_con_agua') {
-            console.log('Comiste ' + selectedId);
-            
-            // Opcional: aquí podrías agregar lógica adicional
-            // como eliminar el ítem del inventario, recuperar vida, etc.
-            
-            // Por ejemplo, si quieres eliminar el ítem después de comerlo:
-            // this.removeSelectedItemFromInventory();
-            
-            // O recuperar un poco de comida:
-            // this.actualizarBarraComida(this.comidaPorcentaje + 10);
-            if (selectedId == "balde_con_agua") {
-
-              const datar = this.aguaPorcentaje + 20;
-                
-              this.actualizarBarraAgua(datar);
-              this.removeItemSmart('balde_con_agua', 1);
-               this.queuedAction({ type: 'forSpam2'}); 
-              
-            }
-
-            if (selectedId == "zanahoria_buena") {
-
-              const datar = this.comidaPorcentaje + 2;
-                
-              
-              this.actualizarBarraComida(datar);
-              this.removeItemSmart('zanahoria_buena', 1);
-               this.queuedAction({ type: 'forSpam2'}); 
-              
-            }
-
-            
-            if (selectedId == "tomate_buena") {
-
-              const datar = this.comidaPorcentaje + 5;
-                
-              
-              this.actualizarBarraComida(datar);
-              this.removeItemSmart('tomate_buena', 1);
-               this.queuedAction({ type: 'forSpam2'}); 
-              
-            }
-           
-            if (selectedId == "trigo_buena") {
-
-              const datar = this.comidaPorcentaje + 5;
-                
-              
-              this.actualizarBarraComida(datar);
-              this.removeItemSmart('trigo_buena', 1);
-               this.queuedAction({ type: 'forSpam2'}); 
-              
-            }
-           
-            if (selectedId == "calabaza_buena") {
-
-              const datar = this.comidaPorcentaje + 5;
-                
-              
-              this.actualizarBarraComida(datar);
-              this.removeItemSmart('calabaza_buena', 1);
-               this.queuedAction({ type: 'forSpam2'}); 
-              
-            }
-
+        // Consumibles que se "usan" haciendo clic en el propio personaje:
+        // comida (suma comida) y balde con agua (suma agua). Se consumen con
+        // TRANSACCIÓN on-chain (ejecutarDivisionRemove) y el buff se persiste
+        // vía statsSync dentro de actualizarBarraComida/Agua.
+        const consumibles = ['zanahoria_buena', 'tomate_buena', 'trigo_buena', 'calabaza_buena', 'balde_con_agua'];
+        if (consumibles.includes(selectedId)) {
+            this._consumeItemOnPlayer(selectedId);
         }
     }
 });
@@ -5735,11 +5674,10 @@ this.lastMineClick = this.lastMineClick || {};
 // 6. VALIDACIÓN DE PICO POR TIPO DE MINERAL
 // =============================================================================
 function isValidPickForMineral(pickName, mineKey) {
-  const mineralType = getMineralTypeFromKey(mineKey);
-  if (!mineralType) return true;
-  const required = MINE_TYPE_CONFIG[mineralType]?.requiredPick;
-  if (!required) return true;
-  return pickName === required;
+  // TODOS los picos pueden minar CUALQUIER mineral. Los picos bajos rinden peor:
+  // más golpes (getPickClickRange_Mine) y menos probabilidad de obtener el
+  // mineral (getMultipleRewards_Mine). Solo se exige que sea un PICO.
+  return /^pico_de_/.test(String(pickName || ''));
 }
  
 // =============================================================================
@@ -5884,6 +5822,7 @@ const getMultipleRewards_Mine = (mineKey, pickName) => {
   const obtained = [];
   let bonusMultiplier = 1.0;
   switch (pickName) {
+    case 'pico_de_madera': bonusMultiplier = 0.6;  break; // pico bajo: menos probabilidad
     case 'pico_de_piedra': bonusMultiplier = 1.1;  break;
     case 'pico_de_cobre':  bonusMultiplier = 1.25; break;
     case 'pico_de_hierro': bonusMultiplier = 1.5;  break;
@@ -5897,7 +5836,9 @@ const getMultipleRewards_Mine = (mineKey, pickName) => {
       obtained.push({ id: reward.id, cantidad });
     }
   }
-  if (obtained.length === 0 && rewards.length > 0) {
+  // Drop garantizado SOLO con picos NO penalizados. Con pico de madera
+  // (multiplier < 1) la mina PUEDE quedar sin recompensa (menos probabilidad).
+  if (obtained.length === 0 && rewards.length > 0 && bonusMultiplier >= 1.0) {
     obtained.push({ id: rewards[0].id, cantidad: rewards[0].cantidad });
   }
   return obtained;
@@ -6080,11 +6021,16 @@ mineProps.forEach(prop => {
       }
 
       // (los textos de progreso y el estado ya se limpiaron arriba, ver FIX)
-      const rewardNames = rewards.map(r => `${r.cantidad}x ${r.id}`).join(', ');
-      this.notifications.show(`Minaste ${mineInfo.nombre}!\nObtenido: ${rewardNames}`, "success", {
-        customColor: mineInfo.colorNotificacion,
-        icon: '⛏️'
-      });
+      if (rewards.length === 0) {
+        // Con pico de madera (o bajo) a veces no cae mineral.
+        this.notifications.show(`Mined ${mineInfo.nombre}! But you got no ore this time.`, "warning", { icon: '⛏️' });
+      } else {
+        const rewardNames = rewards.map(r => `${r.cantidad}x ${r.id}`).join(', ');
+        this.notifications.show(`Minaste ${mineInfo.nombre}!\nObtenido: ${rewardNames}`, "success", {
+          customColor: mineInfo.colorNotificacion,
+          icon: '⛏️'
+        });
+      }
  
       // ── 8. Desgastar el pico ──────────────────────────────────────────
       if (this.STATE.selectedItem && this.STATE.selectedItem.idx) {
@@ -6242,9 +6188,10 @@ const hideTreeStump = (treeKey) => this.hideTreeStump(treeKey);
 // -----------------------------------------------------------------------------
 // COOLDOWN HUMANO (600-900 ms + aleatoriedad ±150 ms)
 // -----------------------------------------------------------------------------
+// Cooldown humano de TALA a la mitad (antes 600-900 ms) → tala más ágil.
 const HUMAN_COOLDOWN = {
-  min: 600,
-  max: 900,
+  min: 300,
+  max: 450,
   getRandom() {
     return Phaser.Math.Between(this.min, this.max);
   }
@@ -6379,13 +6326,10 @@ this.lastTreeClick = this.lastTreeClick || {};
 // VALIDACIÓN DE HACHA POR TIPO DE ÁRBOL
 // -----------------------------------------------------------------------------
 function isValidAxeForTree(pickName, treeKey) {
-  const treeType = getTreeTypeFromKey(treeKey);
-  if (!treeType) return true;
-  // Para talar SIEMPRE hace falta un HACHA (no un pico), pase lo que pase.
-  if (!/^hacha_de_/.test(String(pickName || ''))) return false;
-  // Rechazar solo las hachas EXCLUIDAS para ese tipo de árbol.
-  const excluded = TREE_TYPE_CONFIG[treeType]?.excludedAxes || [];
-  return !excluded.includes(pickName);
+  // TODAS las hachas pueden talar CUALQUIER árbol. Las hachas bajas (madera)
+  // rinden peor: más golpes (getPickClickRange_Ore) y menos probabilidad de
+  // obtener madera (getMultipleRewards_Ore). Solo se exige que sea un HACHA.
+  return /^hacha_de_/.test(String(pickName || ''));
 }
 
 // -----------------------------------------------------------------------------
@@ -7020,6 +6964,7 @@ const getMultipleRewards_Ore = (oreKey, pickName) => {
   const obtainedRewards = [];
   let bonusMultiplier = 1.0;
   switch (pickName) {
+    case 'hacha_de_madera': bonusMultiplier = 0.6; break; // hacha baja: menos probabilidad de obtener madera
     case 'hacha_de_piedra': bonusMultiplier = 1.1; break;
     case 'hacha_de_cobre':  bonusMultiplier = 1.25; break;
     case 'hacha_de_hierro':  bonusMultiplier = 1.5; break;
@@ -7033,7 +6978,9 @@ const getMultipleRewards_Ore = (oreKey, pickName) => {
       obtainedRewards.push({ id: reward.id, cantidad });
     }
   }
-  if (obtainedRewards.length === 0 && rewards.length > 0) {
+  // Drop garantizado SOLO con hachas NO penalizadas. Con el hacha de madera
+  // (multiplier < 1) la tala PUEDE quedar sin madera (menos probabilidad).
+  if (obtainedRewards.length === 0 && rewards.length > 0 && bonusMultiplier >= 1.0) {
     obtainedRewards.push({ id: rewards[0].id, cantidad: rewards[0].cantidad });
   }
   return obtainedRewards;
@@ -7117,18 +7064,8 @@ oreProps.forEach(prop => {
     }
     const pickName = getSelectedPickName_Ore();
     if (!isValidAxeForTree(pickName, treeKey)) {
-      const excluded = TREE_TYPE_CONFIG[treeType]?.excludedAxes || [];
-      const AXE_LABELS = { hacha_de_madera: 'wood', hacha_de_piedra: 'stone', hacha_de_cobre: 'copper', hacha_de_hierro: 'iron' };
-      let msg;
-      if (!/^hacha_de_/.test(String(pickName || ''))) {
-        msg = 'You need an axe to chop this tree';
-      } else if (excluded.length) {
-        const banned = excluded.map(a => AXE_LABELS[a] || a).join(' or ');
-        msg = `This tree can't be chopped with a ${banned} axe`;
-      } else {
-        msg = "You can't chop this tree with that axe";
-      }
-      this.notifications.show(msg, "error");
+      // Todas las hachas sirven; el único caso inválido es no tener un hacha.
+      this.notifications.show('You need an axe to chop this tree', "error");
       return;
     }
 
@@ -7287,11 +7224,16 @@ oreProps.forEach(prop => {
         }
       }
 
-      const rewardNames = rewards.map(r => `${r.cantidad}x ${r.id}`).join(', ');
-      this.notifications.show(`Chopped ${oreInfo.nombre}!\nObtained: ${rewardNames}`, "success", {
-        customColor: oreInfo.colorNotificacion,
-        icon: '🪓'
-      });
+      if (rewards.length === 0) {
+        // Con hacha de madera (o baja) a veces no cae madera.
+        this.notifications.show(`Chopped ${oreInfo.nombre}! But you got no wood this time.`, "warning", { icon: '🪓' });
+      } else {
+        const rewardNames = rewards.map(r => `${r.cantidad}x ${r.id}`).join(', ');
+        this.notifications.show(`Chopped ${oreInfo.nombre}!\nObtained: ${rewardNames}`, "success", {
+          customColor: oreInfo.colorNotificacion,
+          icon: '🪓'
+        });
+      }
 
       // ---------- 8. Desgastar la herramienta usada ----------
       // ---------- 8. Desgastar herramienta seleccionada ----------
@@ -20223,6 +20165,57 @@ refrescarTextosConFuente() {
 disableSpriteInput(sprite) {
   if (sprite && sprite.input) sprite.disableInteractive();
   if (this.mouseMovement) this.mouseMovement.cursorOverUI = false;
+}
+
+// Consumir un ítem al hacer clic en el propio personaje (comer comida / usar el
+// balde con agua). Quita 1 unidad ON-CHAIN (ejecutarDivisionRemove, igual que
+// misiones/basura) y, solo si la transacción confirma el descuento, suma la
+// comida/agua (tope 100), que se persiste on-chain vía statsSync dentro de
+// actualizarBarraComida/Agua. Antes solo se quitaba localmente y no había
+// transacción de descuento ni de buff.
+async _consumeItemOnPlayer(itemId) {
+  const FOOD  = { zanahoria_buena: 2, tomate_buena: 5, trigo_buena: 5, calabaza_buena: 5 };
+  const WATER = { balde_con_agua: 20 };
+  const isWater = WATER[itemId] != null;
+  const gain = isWater ? WATER[itemId] : (FOOD[itemId] || 0);
+  if (!gain) return;
+
+  if (this._consumingItem) return; // evita doble clic mientras la tx está en curso
+  this._consumingItem = true;
+  try {
+    const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
+
+    // 1) Quitar 1 unidad. Si el ítem tiene seguimiento on-chain (tipo), se manda
+    //    la transacción real y se verifica el descuento comparando antes/después.
+    if (def && def.tipo) {
+      const antes = this.contarItemEnInventario(itemId);
+      try {
+        await this.ejecutarDivisionRemove(def.tipo, itemId, def.maxStack || 50, 1);
+      } catch (e) {
+        console.error('❌ Error consumiendo on-chain:', e);
+        this.notifications.show(this.lenguaje === 3 ? 'Error al consumir el ítem' : 'Error consuming the item', 'error');
+        return;
+      }
+      const despues = this.contarItemEnInventario(itemId);
+      if (antes - despues < 1) {
+        this.notifications.show(this.lenguaje === 3 ? 'No se confirmó el consumo del ítem' : 'Item consumption was not confirmed', 'error');
+        return;
+      }
+    } else {
+      const ok = await this.removeItemSmart(itemId, 1);
+      if (!ok) return;
+    }
+
+    // 2) Sumar el buff (tope 100). actualizarBarra* persiste vía statsSync.
+    if (isWater) {
+      this.actualizarBarraAgua(Math.min(100, (this.aguaPorcentaje || 0) + gain));
+    } else {
+      this.actualizarBarraComida(Math.min(100, (this.comidaPorcentaje || 0) + gain));
+    }
+    this.queuedAction && this.queuedAction({ type: 'forSpam2' });
+  } finally {
+    this._consumingItem = false;
+  }
 }
 
 // =============================================================================
