@@ -19137,7 +19137,7 @@ _drawTutorialPathToTarget() {
   const now = (this.time && this.time.now) ? this.time.now : Date.now();
   const targetMoved = this._pathForTargetX !== tx || this._pathForTargetY !== ty;
   const strayed = !this._tutorialPath || this._distPointToPath(px, py, this._tutorialPath) > 140;
-  const stale = !this._lastPathComputeAt || (now - this._lastPathComputeAt) > 6000;
+  const stale = !this._lastPathComputeAt || (now - this._lastPathComputeAt) > 1500;
 
   if (targetMoved || strayed || stale) {
     const obstacles = this._tutorialObstacles || this.collisionRectangles;
@@ -19241,10 +19241,13 @@ _computeTutorialPath(sx, sy, gx, gy, obstacles) {
   const rows = Math.ceil((maxY - minY) / CELL);
   if (cols <= 1 || rows <= 1) return null;
 
-  // Objetivo recortado a la ventana (deja 1 celda de margen). Si el objetivo ya
-  // está dentro, gxc/gyc == gx/gy.
-  const gxc = Math.max(minX + CELL, Math.min(maxX - CELL, gx));
-  const gyc = Math.max(minY + CELL, Math.min(maxY - CELL, gy));
+  // Si el objetivo está FUERA de la ventana (lejos), NO hacer A*. Un A* hacia el
+  // borde de la ventanita produce rutas locales que apuntan a lugares
+  // equivocados ("marca a donde no hay que ir") y hace zigzag al recalcular.
+  // Devolvemos null → el llamador dibuja una LÍNEA DIRECTA que apunta bien hacia
+  // el objetivo. Cuando el jugador se acerca y el objetivo ENTRA en la ventana,
+  // se activa el A* preciso que esquiva colisiones para el tramo final.
+  if (gx < minX || gx > maxX || gy < minY || gy > maxY) return null;
 
   // Solo las colisiones que tocan la ventana (recorta cientos de rects a pocos).
   const allRects = Array.isArray(obstacles) ? obstacles : [];
@@ -19279,7 +19282,7 @@ _computeTutorialPath(sx, sy, gx, gy, obstacles) {
   };
 
   const start = nearestFree(toCell(sx, sy));
-  const goal  = nearestFree(toCell(gxc, gyc));
+  const goal  = nearestFree(toCell(gx, gy));
   const idx = (cx, cy) => cy * cols + cx;
   const N = cols * rows;
   const gScore = new Float64Array(N).fill(Infinity);
@@ -19357,10 +19360,9 @@ _computeTutorialPath(sx, sy, gx, gy, obstacles) {
   cells.reverse();
 
   const pts = cells.map(c => ({ x: minX + c.cx * CELL + CELL / 2, y: minY + c.cy * CELL + CELL / 2 }));
-  // Extremos exactos: inicio = jugador; fin = objetivo RECORTADO (gxc/gyc). Si el
-  // objetivo estaba fuera de la ventana, el camino termina en el borde en su
-  // dirección, no en el objetivo lejano (evita una línea recta cruzándolo todo).
-  if (pts.length) { pts[0] = { x: sx, y: sy }; pts[pts.length - 1] = { x: gxc, y: gyc }; }
+  // Extremos exactos: inicio = jugador; fin = objetivo real (ya está dentro de la
+  // ventana, porque si estaba fuera devolvimos null más arriba).
+  if (pts.length) { pts[0] = { x: sx, y: sy }; pts[pts.length - 1] = { x: gx, y: gy }; }
   return this._simplifyTutorialPath(pts, rects, PAD);
 }
 

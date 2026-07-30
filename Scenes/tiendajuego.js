@@ -8592,7 +8592,7 @@ _drawTutorialPathToTarget() {
   const now = (this.time && this.time.now) ? this.time.now : Date.now();
   const targetMoved = this._pathForTargetX !== tx || this._pathForTargetY !== ty;
   const strayed = !this._tutorialPath || this._distPointToPath(px, py, this._tutorialPath) > 140;
-  const stale = !this._lastPathComputeAt || (now - this._lastPathComputeAt) > 6000;
+  const stale = !this._lastPathComputeAt || (now - this._lastPathComputeAt) > 1500;
 
   if (targetMoved || strayed || stale) {
     const obstacles = this._tutorialObstacles || this.collisionRectangles2;
@@ -8683,9 +8683,9 @@ _computeTutorialPath(sx, sy, gx, gy, obstacles) {
   const rows = Math.ceil((maxY - minY) / CELL);
   if (cols <= 1 || rows <= 1) return null;
 
-  // Objetivo recortado a la ventana (1 celda de margen).
-  const gxc = Math.max(minX + CELL, Math.min(maxX - CELL, gx));
-  const gyc = Math.max(minY + CELL, Math.min(maxY - CELL, gy));
+  // Si el objetivo está FUERA de la ventana (lejos), NO hacer A* → línea directa
+  // (evita rutas locales engañosas hacia el borde). A* preciso al acercarse.
+  if (gx < minX || gx > maxX || gy < minY || gy > maxY) return null;
 
   // Solo las colisiones que tocan la ventana.
   const allRects = Array.isArray(obstacles) ? obstacles : [];
@@ -8720,7 +8720,7 @@ _computeTutorialPath(sx, sy, gx, gy, obstacles) {
   };
 
   const start = nearestFree(toCell(sx, sy));
-  const goal  = nearestFree(toCell(gxc, gyc));
+  const goal  = nearestFree(toCell(gx, gy));
   const idx = (cx, cy) => cy * cols + cx;
   const N = cols * rows;
   const gScore = new Float64Array(N).fill(Infinity);
@@ -8798,7 +8798,7 @@ _computeTutorialPath(sx, sy, gx, gy, obstacles) {
   cells.reverse();
 
   const pts = cells.map(c => ({ x: minX + c.cx * CELL + CELL / 2, y: minY + c.cy * CELL + CELL / 2 }));
-  if (pts.length) { pts[0] = { x: sx, y: sy }; pts[pts.length - 1] = { x: gxc, y: gyc }; }
+  if (pts.length) { pts[0] = { x: sx, y: sy }; pts[pts.length - 1] = { x: gx, y: gy }; }
   return this._simplifyTutorialPath(pts, rects, PAD);
 }
 
