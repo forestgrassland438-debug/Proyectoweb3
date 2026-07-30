@@ -8517,9 +8517,10 @@ _onShopClosed() {
 }
 
 // Fija un nuevo objetivo del camino y fuerza el redibujo inmediato.
-_setTutorialTarget(x, y) {
+_setTutorialTarget(x, y, depth) {
   this._tutorialTargetX = x;
   this._tutorialTargetY = y;
+  this._tutorialTargetDepth = (typeof depth === 'number') ? depth : null;
   this._tutorialPath = null;        // fuerza recomputo del A* en el próximo dibujo
   this._pathForTargetX = null;
   this._drawTutorialPathToTarget();
@@ -8638,6 +8639,9 @@ _renderTrimmedPath(px, py, path) {
   for (let i = bestI + 1; i < path.length; i++) pts.push(path[i]);
 
   const g = this._ensureTutorialPathGfx();
+  g.setDepth(this._tutorialTargetDepth != null
+    ? this._tutorialTargetDepth + 1
+    : ((this.player && this.player.depth ? this.player.depth : 1) - 1));
   g.clear();
   g.lineStyle(6, 0xffd23f, 0.95);
   for (let i = 0; i < pts.length - 1; i++) {
@@ -8663,20 +8667,31 @@ _ensureTutorialPathGfx() {
 }
 
 _computeTutorialPath(sx, sy, gx, gy, obstacles) {
-  const CELL = 32, PAD = 22, MARGIN = 320;
+  const CELL = 32, PAD = 22;
   const worldW = this.map ? this.map.widthInPixels  : 100000;
   const worldH = this.map ? this.map.heightInPixels : 100000;
 
-  const minX = Math.max(0, Math.min(sx, gx) - MARGIN);
-  const minY = Math.max(0, Math.min(sy, gy) - MARGIN);
-  const maxX = Math.min(worldW, Math.max(sx, gx) + MARGIN);
-  const maxY = Math.min(worldH, Math.max(sy, gy) + MARGIN);
+  // Ventana FIJA centrada en el jugador → grilla pequeña y CONSTANTE, sin
+  // importar la distancia al objetivo (evita tirones al estar lejos).
+  const WIN = 640;
+  const minX = Math.max(0, sx - WIN);
+  const minY = Math.max(0, sy - WIN);
+  const maxX = Math.min(worldW, sx + WIN);
+  const maxY = Math.min(worldH, sy + WIN);
 
   const cols = Math.ceil((maxX - minX) / CELL);
   const rows = Math.ceil((maxY - minY) / CELL);
-  if (cols <= 1 || rows <= 1 || cols * rows > 40000) return null;
+  if (cols <= 1 || rows <= 1) return null;
 
-  const rects = Array.isArray(obstacles) ? obstacles : [];
+  // Objetivo recortado a la ventana (1 celda de margen).
+  const gxc = Math.max(minX + CELL, Math.min(maxX - CELL, gx));
+  const gyc = Math.max(minY + CELL, Math.min(maxY - CELL, gy));
+
+  // Solo las colisiones que tocan la ventana.
+  const allRects = Array.isArray(obstacles) ? obstacles : [];
+  const rects = allRects.filter(r =>
+    r.x <= maxX + PAD && r.x + r.width >= minX - PAD &&
+    r.y <= maxY + PAD && r.y + r.height >= minY - PAD);
   const blocked = (cx, cy) => {
     const wx = minX + cx * CELL + CELL / 2;
     const wy = minY + cy * CELL + CELL / 2;
@@ -8705,7 +8720,7 @@ _computeTutorialPath(sx, sy, gx, gy, obstacles) {
   };
 
   const start = nearestFree(toCell(sx, sy));
-  const goal  = nearestFree(toCell(gx, gy));
+  const goal  = nearestFree(toCell(gxc, gyc));
   const idx = (cx, cy) => cy * cols + cx;
   const N = cols * rows;
   const gScore = new Float64Array(N).fill(Infinity);
@@ -8783,7 +8798,7 @@ _computeTutorialPath(sx, sy, gx, gy, obstacles) {
   cells.reverse();
 
   const pts = cells.map(c => ({ x: minX + c.cx * CELL + CELL / 2, y: minY + c.cy * CELL + CELL / 2 }));
-  if (pts.length) { pts[0] = { x: sx, y: sy }; pts[pts.length - 1] = { x: gx, y: gy }; }
+  if (pts.length) { pts[0] = { x: sx, y: sy }; pts[pts.length - 1] = { x: gxc, y: gyc }; }
   return this._simplifyTutorialPath(pts, rects, PAD);
 }
 

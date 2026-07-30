@@ -18875,14 +18875,14 @@ startWorldTutorial() {
   } else if (step === 4) {
     this._startWorldPinePhase();
   } else if (step === 5) {
-    // Entregar la madera a Lord Digby.
+    // Entregar la madera a Lord Digby (sprite real, no el texto del nombre).
     this._showTutorialBanner('Now go and give the wood to Lord Digby.');
-    this._setTutorialTarget(2290, 2283);
+    this._aimAtSprite('sprite_npc5', 2290, 2283);
     this._ensureTutorialPathTimer();
   } else if (step === 6) {
-    // Ir al Crafteador Jack a craftear un empty bucket.
+    // Ir al Crafteador Jack (sprite_npc2) a craftear un empty bucket.
     this._showTutorialBanner('Now we must craft an empty bucket. To do that, click the crafter Jack.');
-    this._setTutorialTarget(3296, 1950);
+    this._aimAtSprite('sprite_npc2', 3296, 1950);
     this._ensureTutorialPathTimer();
   } else if (step === 7) {
     // Ir a la fuente y usar el empty bucket para obtener agua.
@@ -18893,12 +18893,38 @@ startWorldTutorial() {
 }
 
 // Fija un nuevo objetivo del camino y fuerza el redibujo inmediato.
-_setTutorialTarget(x, y) {
+// `depth` (opcional) = depth del objeto objetivo; el marcador se dibuja en
+// depth+1 para quedar JUSTO ENCIMA de ese objeto (p. ej. el árbol) sin usar
+// valores enormes.
+_setTutorialTarget(x, y, depth) {
   this._tutorialTargetX = x;
   this._tutorialTargetY = y;
+  this._tutorialTargetDepth = (typeof depth === 'number') ? depth : null;
   this._tutorialPath = null;        // fuerza recomputo del A* en el próximo dibujo
   this._pathForTargetX = null;
   this._drawTutorialPathToTarget();
+}
+
+// Objetivo a partir de un sprite: base (centro-inferior) + su depth, para que el
+// camino apunte al cuerpo del objeto y el marcador quede encima de él.
+_spriteTarget(spr) {
+  let x = spr.x, y = spr.y;
+  try { const b = spr.getBounds(); x = b.centerX; y = b.bottom - 12; } catch (e) {}
+  const depth = (typeof spr.depth === 'number') ? spr.depth : null;
+  return { x, y, depth };
+}
+
+// Apunta el camino a un sprite de la escena (por su propiedad). Reintenta si el
+// sprite aún no existe; usa fallback si se da (coords del texto del nombre).
+_aimAtSprite(spriteKey, fallbackX, fallbackY) {
+  const spr = this[spriteKey];
+  if (spr && typeof spr.x === 'number') {
+    const t = this._spriteTarget(spr);
+    this._setTutorialTarget(t.x, t.y, t.depth);
+    return;
+  }
+  if (fallbackX != null) { this._setTutorialTarget(fallbackX, fallbackY); return; }
+  this.time.delayedCall(600, () => this._aimAtSprite(spriteKey, fallbackX, fallbackY));
 }
 
 // Crea (una vez) el timer que redibuja el camino y registra la limpieza.
@@ -18942,10 +18968,10 @@ _nearestPlotCenter() {
   return best;
 }
 
-// Paso 2 (mundo): guiar a Lord Digby (NPC en 2290,2283) para ENTREGAR semillas.
+// Paso 2 (mundo): guiar a Lord Digby (sprite_npc5) para ENTREGAR semillas.
 _startWorldDigbyPhase() {
   this._showTutorialBanner('Now go and give the seeds to Lord Digby.');
-  this._setTutorialTarget(2290, 2283);
+  this._aimAtSprite('sprite_npc5', 2290, 2283);
   this._ensureTutorialPathTimer();
 }
 
@@ -18975,36 +19001,43 @@ _startWorldPinePhase() {
 
 _aimAtNearestPine() {
   const pine = this._nearestPineCenter();
-  if (pine) { this._setTutorialTarget(pine.x, pine.y); return; }
+  if (pine) { this._setTutorialTarget(pine.x, pine.y, pine.depth); return; }
   this.time.delayedCall(600, () => this._aimAtNearestPine());
 }
 
-// Pino (sprite_pinos1..45) VIVO más cercano al jugador. El objetivo apunta a la
-// BASE del árbol (no al centro del sprite), para que el marcador quede en el
-// suelo —donde el jugador se para a talar— y no flotando en la copa.
+// Pino (sprite_pinos1..45) DISPONIBLE más cercano al jugador. Salta los que
+// están TALADOS / en respawn (marcados en this.treeStumps o con input ya
+// deshabilitado → spr.input === null tras disableInteractive). El objetivo va a
+// la BASE del árbol y trae su depth (el marcador se dibuja en depth+1, encima).
 _nearestPineCenter() {
   const px = this.player ? this.player.x : 0;
   const py = this.player ? this.player.y : 0;
+  const stumps = this.treeStumps || {};
   let best = null, bestD = Infinity;
   for (let i = 1; i <= 45; i++) {
-    const spr = this['sprite_pinos' + i];
+    const key = 'sprite_pinos' + i;
+    const spr = this[key];
     if (!spr || typeof spr.x !== 'number') continue;
-    if (spr.input && spr.input.enabled === false) continue; // ya talado
+    if (stumps[key]) continue;   // árbol talado / en respawn
+    if (!spr.input) continue;    // interactividad quitada (disableInteractive) = no disponible
     const d = Math.hypot(spr.x - px, spr.y - py);
     if (d < bestD) {
       bestD = d;
-      let baseX = spr.x, baseY = spr.y;
-      try { const b = spr.getBounds(); baseX = b.centerX; baseY = b.bottom - 12; } catch (e) {}
-      best = { x: baseX, y: baseY };
+      const t = this._spriteTarget(spr);
+      best = { x: t.x, y: t.y, depth: t.depth };
     }
   }
   return best;
 }
 
-// Apunta el camino a la fuente/pozo (this.sprite_pozoxd2).
+// Apunta el camino a la fuente/pozo (this.sprite_pozoxd2), a su base + depth.
 _aimAtWell() {
   const well = this.sprite_pozoxd2;
-  if (well && typeof well.x === 'number') { this._setTutorialTarget(well.x, well.y); return; }
+  if (well && typeof well.x === 'number') {
+    const t = this._spriteTarget(well);
+    this._setTutorialTarget(t.x, t.y, t.depth);
+    return;
+  }
   this.time.delayedCall(600, () => this._aimAtWell());
 }
 
@@ -19154,6 +19187,12 @@ _renderTrimmedPath(px, py, path) {
   for (let i = bestI + 1; i < path.length; i++) pts.push(path[i]);
 
   const g = this._ensureTutorialPathGfx();
+  // Depth: JUSTO ENCIMA del objeto objetivo (árbol/NPC/pozo) → marcador visible
+  // sobre él, sin usar valores enormes. Si no hay depth de objetivo, debajo del
+  // jugador como antes.
+  g.setDepth(this._tutorialTargetDepth != null
+    ? this._tutorialTargetDepth + 1
+    : ((this.player && this.player.depth ? this.player.depth : 3) - 1));
   g.clear();
   g.lineStyle(6, 0xffd23f, 0.95);
   for (let i = 0; i < pts.length - 1; i++) {
@@ -19182,20 +19221,36 @@ _ensureTutorialPathGfx() {
 // binario (O(log n) por extracción) para que el recálculo puntual sea rápido y
 // no genere tirones.
 _computeTutorialPath(sx, sy, gx, gy, obstacles) {
-  const CELL = 32, PAD = 22, MARGIN = 320;
+  const CELL = 32, PAD = 22;
   const worldW = this.map ? this.map.widthInPixels  : 100000;
   const worldH = this.map ? this.map.heightInPixels : 100000;
 
-  const minX = Math.max(0, Math.min(sx, gx) - MARGIN);
-  const minY = Math.max(0, Math.min(sy, gy) - MARGIN);
-  const maxX = Math.min(worldW, Math.max(sx, gx) + MARGIN);
-  const maxY = Math.min(worldH, Math.max(sy, gy) + MARGIN);
+  // Ventana FIJA centrada en el JUGADOR → el A* trabaja siempre sobre una grilla
+  // pequeña y CONSTANTE, sin importar lo lejos que esté el objetivo. Esto es lo
+  // que elimina los tirones cuando el objetivo está muy lejos (antes la grilla
+  // crecía con la distancia). Si el objetivo cae fuera de la ventana, se recorta
+  // a su borde en la dirección correcta; al avanzar el jugador la ventana lo
+  // sigue y el camino continúa.
+  const WIN = 640; // medio-lado en px (grilla ~41x41 celdas ≈ 1700, constante)
+  const minX = Math.max(0, sx - WIN);
+  const minY = Math.max(0, sy - WIN);
+  const maxX = Math.min(worldW, sx + WIN);
+  const maxY = Math.min(worldH, sy + WIN);
 
   const cols = Math.ceil((maxX - minX) / CELL);
   const rows = Math.ceil((maxY - minY) / CELL);
-  if (cols <= 1 || rows <= 1 || cols * rows > 40000) return null;
+  if (cols <= 1 || rows <= 1) return null;
 
-  const rects = Array.isArray(obstacles) ? obstacles : [];
+  // Objetivo recortado a la ventana (deja 1 celda de margen). Si el objetivo ya
+  // está dentro, gxc/gyc == gx/gy.
+  const gxc = Math.max(minX + CELL, Math.min(maxX - CELL, gx));
+  const gyc = Math.max(minY + CELL, Math.min(maxY - CELL, gy));
+
+  // Solo las colisiones que tocan la ventana (recorta cientos de rects a pocos).
+  const allRects = Array.isArray(obstacles) ? obstacles : [];
+  const rects = allRects.filter(r =>
+    r.x <= maxX + PAD && r.x + r.width >= minX - PAD &&
+    r.y <= maxY + PAD && r.y + r.height >= minY - PAD);
   const blocked = (cx, cy) => {
     const wx = minX + cx * CELL + CELL / 2;
     const wy = minY + cy * CELL + CELL / 2;
@@ -19224,7 +19279,7 @@ _computeTutorialPath(sx, sy, gx, gy, obstacles) {
   };
 
   const start = nearestFree(toCell(sx, sy));
-  const goal  = nearestFree(toCell(gx, gy));
+  const goal  = nearestFree(toCell(gxc, gyc));
   const idx = (cx, cy) => cy * cols + cx;
   const N = cols * rows;
   const gScore = new Float64Array(N).fill(Infinity);
@@ -19302,7 +19357,10 @@ _computeTutorialPath(sx, sy, gx, gy, obstacles) {
   cells.reverse();
 
   const pts = cells.map(c => ({ x: minX + c.cx * CELL + CELL / 2, y: minY + c.cy * CELL + CELL / 2 }));
-  if (pts.length) { pts[0] = { x: sx, y: sy }; pts[pts.length - 1] = { x: gx, y: gy }; }
+  // Extremos exactos: inicio = jugador; fin = objetivo RECORTADO (gxc/gyc). Si el
+  // objetivo estaba fuera de la ventana, el camino termina en el borde en su
+  // dirección, no en el objetivo lejano (evita una línea recta cruzándolo todo).
+  if (pts.length) { pts[0] = { x: sx, y: sy }; pts[pts.length - 1] = { x: gxc, y: gyc }; }
   return this._simplifyTutorialPath(pts, rects, PAD);
 }
 
