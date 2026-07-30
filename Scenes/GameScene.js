@@ -27,6 +27,11 @@ class GameScene extends Phaser.Scene {
       this.statsSync = null; // StatsSync para sincronización con el contrato
       this._statsReady = false; // true solo después de cargar stats del contrato
 
+      // Anti-trampa de recolección: si es true, talar/minar pide la recompensa
+      // al SERVIDOR (/api/gather/claim) en vez de acuñarla el cliente. Déjalo en
+      // false hasta desplegar el backend con GATHER_ENFORCE y probar en staging.
+      this.GATHER_SERVER = false;
+
         this.playerName = null;
         this.address = null;
         this.csrfToken = null;
@@ -2889,14 +2894,10 @@ this.player.on('pointerdown', (pointer) => {
     // Verificar si hay un ítem seleccionado en el inventario
     if (this.STATE && this.STATE.selectedItem) {
         const selectedId = String(this.STATE.selectedItem.id || '').toLowerCase();
-        // Consumibles que se "usan" haciendo clic en el propio personaje:
-        // comida (suma comida) y balde con agua (suma agua). Se consumen con
-        // TRANSACCIÓN on-chain (ejecutarDivisionRemove) y el buff se persiste
-        // vía statsSync dentro de actualizarBarraComida/Agua.
-        const consumibles = ['zanahoria_buena', 'tomate_buena', 'trigo_buena', 'calabaza_buena', 'balde_con_agua'];
-        if (consumibles.includes(selectedId)) {
-            this._consumeItemOnPlayer(selectedId);
-        }
+        // Consumir el ítem seleccionado al hacer clic en el personaje. El propio
+        // método decide si es consumible (comida/agua); si no lo es, no hace nada.
+        // Descuenta el ítem con TRANSACCIÓN on-chain y persiste el buff vía statsSync.
+        this._consumeItemOnPlayer(selectedId);
     }
 });
 
@@ -6006,18 +6007,20 @@ mineProps.forEach(prop => {
 
       this.playSFX('cortado_sound');
 
-      const rewards = getMultipleRewards_Mine(mineKey, pickName);
-
-      // Agregar ítems al inventario: ahora "lo que se mina es transacción",
-      // igual que la madera de los árboles (antes era 100% off-chain vía
-      // addItemWithCheck). Se reutiliza el mismo mecanismo ya construido
-      // para las cosechas (_agregarFrutoOnChain): si el item tiene "tipo"
-      // definido en ItemDefinitions se manda la transacción real; si no lo
-      // tiene (ej. "carbon", que hoy no tiene entrada en ItemDefinitions),
-      // se agrega off-chain como respaldo para no perderlo.
-      for (const reward of rewards) {
-        await this._agregarFrutoOnChain(reward.id, reward.cantidad);
-        this.nivel_exp = (this.nivel_exp || 0) + 50;
+      // GATHER_SERVER (anti-trampa): si está activo, el SERVIDOR valida el nodo,
+      // lo bloquea, decide y ACUÑA la recompensa. Apagado (default): flujo cliente.
+      let rewards;
+      if (this.GATHER_SERVER) {
+        rewards = await this._gatherClaim(mineKey, pickName);
+        this.nivel_exp = (this.nivel_exp || 0) + (rewards.length ? 50 : 0);
+      } else {
+        rewards = getMultipleRewards_Mine(mineKey, pickName);
+        // "lo que se mina es transacción": _agregarFrutoOnChain manda la tx real
+        // si el item tiene tipo; si no (ej. carbon), lo agrega off-chain.
+        for (const reward of rewards) {
+          await this._agregarFrutoOnChain(reward.id, reward.cantidad);
+          this.nivel_exp = (this.nivel_exp || 0) + 50;
+        }
       }
 
       // (los textos de progreso y el estado ya se limpiaron arriba, ver FIX)
@@ -7039,6 +7042,17 @@ oreProps.forEach(prop => {
     const treeKey = prop;
     const treeType = getTreeTypeFromKey(treeKey);
 
+    // ---------- 0. Guard SÍNCRONO anti-doble-disparo ----------
+    // Los clicks rapidísimos disparaban varios handlers que se solapaban en sus
+    // `await` (getTreeLockState) y hacían "buguear" el contador (p. ej. 1/6 → 1/8).
+    // Este candado rechaza, de forma síncrona y ANTES de cualquier await, los
+    // clicks al mismo árbol demasiado seguidos (120ms). No cambia el cooldown de
+    // juego (300-450ms), solo impide el solapamiento.
+    const _nowGuard = Date.now();
+    this._treeClickGuard = this._treeClickGuard || {};
+    if (_nowGuard - (this._treeClickGuard[treeKey] || 0) < 120) return;
+    this._treeClickGuard[treeKey] = _nowGuard;
+
     // ---------- 1. Verificar bloqueo global ----------
     // Va ANTES de validar el hacha: si lo que se está picando es un tronco, lo
     // útil es saber cuánto falta para el respawn, no que "necesitas un hacha".
@@ -7195,32 +7209,24 @@ oreProps.forEach(prop => {
       // Otorgar experiencia por talar (mismo criterio que ya usa la minería)
       this.nivel_exp = (this.nivel_exp || 0) + 50;
 
-      const rewards = getMultipleRewards_Ore(treeKey, pickName);
-
-      // FIX (todos los árboles daban madera de pino): antes había una llamada
-      // FIJA `ejecutarDivision("madera pinos","madera_pinos",50,1)` y el bucle
-      // que agregaba la recompensa real estaba comentado. Da igual qué árbol
-      // talaras: la transacción siempre era de madera_pinos.
-      //
-      // oreRewards YA tiene el item correcto por sprite:
-      //   sprite_pinos*    → madera_pinos     (madera_oscura.png)
-      //   sprite_arbolx*   → madera_seca      (madera seca.png)
-      //   sprite_arbustos* → madera_con_hojas (madera de hoja.png)
-      // Ahora se manda una transacción por cada recompensa, usando la tabla
-      // (tipo) y el maxStack que el propio item declara en ItemDefinitions.
-      for (const reward of rewards) {
-        const defMadera = this.ItemDefinitions ? this.ItemDefinitions[reward.id] : null;
-        if (defMadera && defMadera.tipo) {
-          await this.ejecutarDivision(
-            defMadera.tipo,
-            reward.id,
-            defMadera.maxStack || 50,
-            reward.cantidad
-          );
-        } else {
-          // Sin seguimiento on-chain: respaldo local para no perder el item
-          console.warn(`Sin ItemDefinitions.tipo para '${reward.id}', se agrega off-chain`);
-          this.addItemWithCheck(reward.id, reward.cantidad);
+      // GATHER_SERVER (anti-trampa): si está activo, el SERVIDOR valida el nodo,
+      // lo bloquea, decide y ACUÑA la recompensa (el cliente no acuña). Si está
+      // apagado (default), se mantiene el flujo cliente de siempre.
+      let rewards;
+      if (this.GATHER_SERVER) {
+        rewards = await this._gatherClaim(treeKey, pickName);
+      } else {
+        // oreRewards ya tiene el item correcto por sprite (madera_pinos/seca/con_hojas).
+        // Se manda una transacción por recompensa (tipo + maxStack de ItemDefinitions).
+        rewards = getMultipleRewards_Ore(treeKey, pickName);
+        for (const reward of rewards) {
+          const defMadera = this.ItemDefinitions ? this.ItemDefinitions[reward.id] : null;
+          if (defMadera && defMadera.tipo) {
+            await this.ejecutarDivision(defMadera.tipo, reward.id, defMadera.maxStack || 50, reward.cantidad);
+          } else {
+            console.warn(`Sin ItemDefinitions.tipo para '${reward.id}', se agrega off-chain`);
+            this.addItemWithCheck(reward.id, reward.cantidad);
+          }
         }
       }
 
@@ -20167,6 +20173,31 @@ disableSpriteInput(sprite) {
   if (this.mouseMovement) this.mouseMovement.cursorOverUI = false;
 }
 
+// Anti-trampa de recolección: pide al SERVIDOR que valide el nodo, lo bloquee,
+// decida y ACUÑE la recompensa de talar/minar. Devuelve [{id,cantidad}] (el
+// item ya está acuñado on-chain por el servidor; se refleja local para la UI) o
+// [] si no cayó nada / falló.
+async _gatherClaim(nodeKey, toolId) {
+  try {
+    const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/gather/claim`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeKey, toolId })
+    });
+    if (!res || !res.ok) return [];
+    const data = await res.json();
+    if (data && data.reward && data.reward.tipo && data.reward.quantity > 0) {
+      // Reflejar local el item que el servidor ya acuñó on-chain (no re-acuñar).
+      this.addItemWithCheck(data.reward.tipo, data.reward.quantity);
+      return [{ id: data.reward.tipo, cantidad: data.reward.quantity }];
+    }
+    return [];
+  } catch (e) {
+    console.error('❌ gather claim error:', e);
+    return [];
+  }
+}
+
 // Consumir un ítem al hacer clic en el propio personaje (comer comida / usar el
 // balde con agua). Quita 1 unidad ON-CHAIN (ejecutarDivisionRemove, igual que
 // misiones/basura) y, solo si la transacción confirma el descuento, suma la
@@ -20174,7 +20205,11 @@ disableSpriteInput(sprite) {
 // actualizarBarraComida/Agua. Antes solo se quitaba localmente y no había
 // transacción de descuento ni de buff.
 async _consumeItemOnPlayer(itemId) {
-  const FOOD  = { zanahoria_buena: 2, tomate_buena: 5, trigo_buena: 5, calabaza_buena: 5 };
+  // Cosechas buenas y podridas (dan menos) + el balde con agua.
+  const FOOD  = {
+    zanahoria_buena: 2, tomate_buena: 5, trigo_buena: 5, calabaza_buena: 5,
+    zanahoria_mala: 1, tomate_mala: 2, trigo_mala: 2, calabaza_mala: 2
+  };
   const WATER = { balde_con_agua: 20 };
   const isWater = WATER[itemId] != null;
   const gain = isWater ? WATER[itemId] : (FOOD[itemId] || 0);

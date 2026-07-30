@@ -716,58 +716,11 @@ this.player.on('pointerdown', (pointer) => {
         return;
     }
 
-    // Verificar si hay un ítem seleccionado en el inventario
+    // Consumir el ítem seleccionado al hacer clic en el personaje (comida/agua).
+    // Descuenta el ítem con TRANSACCIÓN on-chain y persiste el buff vía statsSync.
     if (this.STATE && this.STATE.selectedItem) {
         const selectedId = String(this.STATE.selectedItem.id || '').toLowerCase();
-        
-        // Si el ítem seleccionado es una zanahoria_buena o tomate_buena
-        if (selectedId === 'zanahoria_buena' || selectedId === 'tomate_buena' || selectedId === 'balde_con_agua') {
-            console.log('Comiste ' + selectedId);
-            
-            // Opcional: aquí podrías agregar lógica adicional
-            // como eliminar el ítem del inventario, recuperar vida, etc.
-            
-            // Por ejemplo, si quieres eliminar el ítem después de comerlo:
-            // this.removeSelectedItemFromInventory();
-            
-            // O recuperar un poco de comida:
-            // this.actualizarBarraComida(this.comidaPorcentaje + 10);
-            if (selectedId == "balde_con_agua") {
-
-              const datar = this.aguaPorcentaje + 20;
-                
-              this.actualizarBarraAgua(datar);
-              this.removeItemSmart('balde_con_agua', 1);
-               this.queuedAction({ type: 'forSpam2'}); 
-              
-            }
-
-            if (selectedId == "zanahoria_buena") {
-
-              const datar = this.comidaPorcentaje + 2;
-                
-              
-              this.actualizarBarraComida(datar);
-              this.removeItemSmart('zanahoria_buena', 1);
-               this.queuedAction({ type: 'forSpam2'}); 
-              
-            }
-
-            
-            if (selectedId == "tomate_buena") {
-
-              const datar = this.comidaPorcentaje + 5;
-                
-              
-              this.actualizarBarraComida(datar);
-              this.removeItemSmart('tomate_buena', 1);
-               this.queuedAction({ type: 'forSpam2'}); 
-              
-            }
-
-
-
-        }
+        this._consumeItemOnPlayer(selectedId);
     }
 });
 
@@ -9568,6 +9521,66 @@ actualizarBarraVida(porcentaje) {
   }
   
   this.queuedAction({ type: 'forSpam2'});
+}
+
+// Consumir un ítem al hacer clic en el personaje (comer cosecha / usar balde con
+// agua). Quita 1 unidad ON-CHAIN (ejecutarDivisionRemove) verificando el
+// descuento por conteo, y solo entonces suma comida/agua (tope 100), que
+// persiste on-chain vía statsSync dentro de actualizarBarraComida/Agua.
+async _consumeItemOnPlayer(itemId) {
+  const FOOD  = {
+    zanahoria_buena: 2, tomate_buena: 5, trigo_buena: 5, calabaza_buena: 5,
+    zanahoria_mala: 1, tomate_mala: 2, trigo_mala: 2, calabaza_mala: 2
+  };
+  const WATER = { balde_con_agua: 20 };
+  const isWater = WATER[itemId] != null;
+  const gain = isWater ? WATER[itemId] : (FOOD[itemId] || 0);
+  if (!gain) return;
+
+  if (this._consumingItem) return;
+  this._consumingItem = true;
+  try {
+    const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
+
+    // Contar el ítem en el inventario local (esta escena no tiene contarItemEnInventario).
+    const countItem = (id) => {
+      let n = 0;
+      const all = [
+        ...(this.STATE && Array.isArray(this.STATE.slots) ? this.STATE.slots : []),
+        ...(this.STATE && Array.isArray(this.STATE.quickSlots) ? this.STATE.quickSlots : [])
+      ];
+      for (const s of all) if (s && s.id === id) n += (s.count || 0);
+      return n;
+    };
+
+    if (def && def.tipo) {
+      const antes = countItem(itemId);
+      try {
+        await this.ejecutarDivisionRemove(def.tipo, itemId, def.maxStack || 50, 1);
+      } catch (e) {
+        console.error('❌ Error consumiendo on-chain:', e);
+        if (this.notifications) this.notifications.show(this.lenguaje === 3 ? 'Error al consumir el ítem' : 'Error consuming the item', 'error');
+        return;
+      }
+      const despues = countItem(itemId);
+      if (antes - despues < 1) {
+        if (this.notifications) this.notifications.show(this.lenguaje === 3 ? 'No se confirmó el consumo del ítem' : 'Item consumption was not confirmed', 'error');
+        return;
+      }
+    } else {
+      const ok = await this.removeItemSmart(itemId, 1);
+      if (!ok) return;
+    }
+
+    if (isWater) {
+      this.actualizarBarraAgua(Math.min(100, (this.aguaPorcentaje || 0) + gain));
+    } else {
+      this.actualizarBarraComida(Math.min(100, (this.comidaPorcentaje || 0) + gain));
+    }
+    this.queuedAction && this.queuedAction({ type: 'forSpam2' });
+  } finally {
+    this._consumingItem = false;
+  }
 }
 
 actualizarBarraAgua(porcentaje) {
