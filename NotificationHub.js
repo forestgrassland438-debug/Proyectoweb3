@@ -299,7 +299,10 @@ class NotificationHub {
 
             this.isInitialized = true;
             this._hubElement = hub;
-            
+
+            // Botón flotante ⚙️/🔔 para abrir el panel de control (una sola vez global).
+            this._ensureSettingsButton();
+
             if (this._debug) {
                 console.log('NotificationHub: Inicializado');
             }
@@ -333,9 +336,13 @@ class NotificationHub {
             if (this.config.pixelArtMode) {
                 // Diseño PIXEL ART RPG MEJORADO
                 css = `
-                    /* Importar fuente pixel art RPG */
-                    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-                    
+                    /* La fuente pixel art se carga en LOCAL desde styless.css
+                       (@font-face 'PressStart2P' → ./fonts/PressStart2P-*).
+                       El @import a fonts.googleapis.com que había aquí lo
+                       bloqueaba la CSP del juego ("style-src 'self'"), así que
+                       solo servía para ensuciar la consola con un error en
+                       cada arranque. */
+
                     #notification-hub { 
                         position: fixed; 
                         ${positionCSS}
@@ -760,6 +767,17 @@ class NotificationHub {
     show(message = 'Notificación', type = 'info', options = {}) {
         try {
             this.initialize();
+
+            // Historial para el panel de control (se guarda SIEMPRE, aunque el
+            // tipo esté oculto).
+            this._history = this._history || [];
+            this._history.unshift({ message: String(message), type, at: Date.now() });
+            if (this._history.length > 60) this._history.length = 60;
+
+            // Filtro por tipo (panel de control): si el jugador desactivó este
+            // tipo, no se muestra (pero sí queda en el historial).
+            this._enabledTypes = this._enabledTypes || { success: true, error: true, warning: true, info: true };
+            if (this._enabledTypes[type] === false) return null;
 
             // Validar y mezclar opciones
             const defaultOptions = {
@@ -1202,6 +1220,102 @@ class NotificationHub {
         
         const instance = NotificationHub.getInstance('rpg', rpgOptions);
         return instance.show(message, type, { duration: 4000, ...options });
+    }
+
+    // ─── PANEL DE CONTROL DE NOTIFICACIONES ──────────────────────────────────
+    // Nota: las preferencias son POR SESIÓN (no se guardan en localStorage,
+    // pedido del usuario de no usar storage). Se reinician al recargar.
+    setTypeEnabled(type, on) {
+        this._enabledTypes = this._enabledTypes || { success: true, error: true, warning: true, info: true };
+        this._enabledTypes[type] = !!on;
+    }
+    getHistory() { return (this._history || []).slice(); }
+    setPosition(pos) {
+        const valid = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+        if (valid.indexOf(pos) === -1) return;
+        this.config.position = pos;
+        if (this._hubElement) {
+            const s = this._hubElement.style;
+            s.left = s.right = s.top = s.bottom = 'auto';
+            if (pos === 'top-right')          { s.right = '1%'; s.top = '28%'; }
+            else if (pos === 'bottom-right')  { s.right = '1%'; s.bottom = '1%'; }
+            else if (pos === 'bottom-left')   { s.left = '1%'; s.bottom = '1%'; }
+            else                              { s.left = '1%'; s.top = '28%'; }
+        }
+    }
+
+    // Crea (una sola vez, global) un botón flotante ⚙️ que abre el panel.
+    _ensureSettingsButton() {
+        try {
+            if (typeof document === 'undefined' || !document.body) return;
+            if (window.__gfNotifSettingsBound) return;
+            window.__gfNotifSettingsBound = true;
+            const btn = document.createElement('button');
+            btn.id = 'gf-notif-settings-btn';
+            btn.title = 'Notification settings';
+            btn.textContent = '🔔';
+            btn.style.cssText = 'position:fixed;left:14px;bottom:70px;z-index:99998;width:40px;height:40px;border-radius:50%;border:2px solid #ffd23f;background:rgba(11,61,46,0.94);color:#fff;font-size:18px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.4);';
+            btn.addEventListener('click', () => this.openSettingsPanel());
+            document.body.appendChild(btn);
+        } catch (e) { /* no crítico */ }
+    }
+
+    openSettingsPanel() {
+        try {
+            const existing = document.getElementById('gf-notif-panel');
+            if (existing) { existing.remove(); return; } // toggle
+            this._enabledTypes = this._enabledTypes || { success: true, error: true, warning: true, info: true };
+
+            const el = document.createElement('div');
+            el.id = 'gf-notif-panel';
+            el.style.cssText = 'position:fixed;left:14px;bottom:120px;z-index:99999;width:min(92vw,340px);max-height:70vh;overflow:auto;background:rgba(11,61,46,0.97);border:3px solid #ffd23f;border-radius:14px;color:#fff;font-family:Arial,sans-serif;font-size:14px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.5);';
+
+            const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const TYPES = [['success', 'Success'], ['error', 'Errors'], ['warning', 'Warnings'], ['info', 'Info']];
+            let typesHtml = '';
+            for (const [t, label] of TYPES) {
+                const on = this._enabledTypes[t] !== false;
+                typesHtml += `<label style="display:flex;align-items:center;gap:8px;margin:4px 0;cursor:pointer;">
+                    <input type="checkbox" data-type="${t}" ${on ? 'checked' : ''}/> Show ${label}
+                </label>`;
+            }
+            const POS = [['top-left', 'Top left'], ['top-right', 'Top right'], ['bottom-left', 'Bottom left'], ['bottom-right', 'Bottom right']];
+            let posHtml = '';
+            for (const [p, label] of POS) posHtml += `<option value="${p}" ${this.config.position === p ? 'selected' : ''}>${label}</option>`;
+
+            const hist = this.getHistory().slice(0, 30);
+            const COLORS = { success: '#6fcf97', error: '#ff8a8a', warning: '#ffd23f', info: '#8cb0ff' };
+            let histHtml = hist.length ? '' : '<div style="color:#9fb6d6;">No notifications yet.</div>';
+            for (const h of hist) {
+                const time = new Date(h.at).toLocaleTimeString();
+                histHtml += `<div style="border-bottom:1px solid rgba(255,255,255,.08);padding:5px 0;">
+                    <span style="color:${COLORS[h.type] || '#fff'};font-weight:bold;">●</span>
+                    <span style="color:#9fb6d6;font-size:11px;">${time}</span><br>${esc(h.message)}
+                </div>`;
+            }
+
+            el.innerHTML = `
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <b>🔔 Notifications</b>
+                    <button id="gf-notif-close" style="background:transparent;border:none;color:#ffd23f;font-size:20px;cursor:pointer;">✕</button>
+                </div>
+                <div style="margin-bottom:10px;">${typesHtml}</div>
+                <label style="display:block;margin-bottom:6px;color:#cfe0ff;">Position</label>
+                <select id="gf-notif-pos" style="width:100%;padding:8px;border-radius:8px;background:#0e1626;color:#fff;border:1px solid #2c3d5e;margin-bottom:12px;">${posHtml}</select>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <b style="font-size:13px;">History</b>
+                    <button id="gf-notif-clearhist" style="background:#1b2740;border:1px solid #2c3d5e;color:#fff;border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer;">Clear</button>
+                </div>
+                <div style="max-height:34vh;overflow:auto;">${histHtml}</div>`;
+
+            document.body.appendChild(el);
+            el.querySelector('#gf-notif-close').addEventListener('click', () => el.remove());
+            el.querySelectorAll('input[type=checkbox][data-type]').forEach(cb => {
+                cb.addEventListener('change', () => this.setTypeEnabled(cb.getAttribute('data-type'), cb.checked));
+            });
+            el.querySelector('#gf-notif-pos').addEventListener('change', (e) => this.setPosition(e.target.value));
+            el.querySelector('#gf-notif-clearhist').addEventListener('click', () => { this._history = []; this.openSettingsPanel(); this.openSettingsPanel(); });
+        } catch (e) { console.warn('No se pudo abrir el panel de notificaciones:', e); }
     }
 }
 

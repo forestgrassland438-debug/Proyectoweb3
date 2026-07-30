@@ -545,6 +545,10 @@ class CraftingSystem {
       this.showFeedback('❌ Not enough space in inventory','error');return;
     }
     this._crafting=true;
+    // Aviso (en inglés) de que el crafteo empezó: la parte on-chain (consumir
+    // materiales / agregar el resultado) es asíncrona y puede tardar, así que
+    // sin esto el jugador cree que el botón no hizo nada.
+    this.showFeedback(`⏳ Crafting ${quantity} ${recipe.name}…`, 'info');
     try {
       const isOR=recipe.optionalResources?.length&&(!recipe.resources?.length);
       if(isOR){
