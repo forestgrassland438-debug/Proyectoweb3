@@ -4887,8 +4887,14 @@ this.anims.create({
         };
 
         // 🎯 VALORES EXACTOS PRE-DEFINIDOS (evita cálculos con decimales)
-        this.zoomValues = [0.5, 1.0, 1.5, 2.0];
-        this.currentZoomIndex = 2.0; // Empieza en 2.0 (índice 6)
+        // FIX COSTURAS/LÍNEAS ENTRE TILES: solo zooms ENTEROS. Con pixel art, un
+        // zoom fraccionario (0.5 / 1.5) hace que el borde de cada tile caiga a
+        // medio píxel: el rasterizador redondea distinto en tiles contiguos y
+        // aparecen líneas/costuras (y "hormigueo" al moverse). Con 1x y 2x cada
+        // píxel de textura mapea a un número entero de píxeles de pantalla.
+        // (tiendajuego ya usaba [1.0, 2.0] por lo mismo.)
+        this.zoomValues = [1.0, 2.0];
+        this.currentZoomIndex = 1; // 2.0x
 
         // Aplicar zoom inicial EXACTO
         this.cameras.main.zoom = this.zoomValues[this.currentZoomIndex];
@@ -19823,9 +19829,16 @@ createImagesFromObjectLayer1(scene, map, objectLayerName, nameMapping) {
           basePath: carpeta,
           supportsWebP: scene.game.device.features.webP,
           preferredLOD: 'hd',
-          marginTiles: 2,
-          maxConcurrentLoads: 2, // REDUCIDO para menos carga concurrente
-          maxLoadedTiles: 20,   // REDUCIDO para menos memoria
+          // FIX PARPADEO/POP-IN DE TILES: con marginTiles 2 y solo 2 cargas
+          // simultáneas, al moverte los chunks (imágenes de 1024px) llegaban
+          // TARDE: se veía el hueco y luego aparecía el tile de golpe. Con un
+          // anillo de precarga más ancho (3) y más descargas en paralelo (4),
+          // el tile ya está listo antes de entrar en cuadro.
+          marginTiles: 3,
+          maxConcurrentLoads: 4,
+          // NOTA: maxLoadedTiles NO lo usa tileManager.js (opción inerte); la
+          // memoria se controla con el rango de descarga + histéresis.
+          maxLoadedTiles: 20,
           depth: -1,
           debug: false // Mantener en false para producción
         });
@@ -20783,10 +20796,24 @@ enableAutoCullingForLayer(scene, layerName) {
     scene[groupKey] = group;
   }
   
-  // Configurar culling automático
+  // ── Culling automático (reescrito: causaba stutter y repintado) ───────────
+  // Antes: (1) comparaba contra camera.getBounds(), que son los límites del
+  // MAPA (setBounds(0,0,mapW,mapH)) y no lo que se ve → el resultado era
+  // SIEMPRE visible, o sea no culleaba nada; (2) recorría TODOS los sprites de
+  // las 6 capas CADA frame llamando getBounds() en cada uno (matriz + objeto
+  // nuevo por sprite y frame = basura de GC y tirones); y (3) llamaba
+  // setVisible() en cada sprite cada frame aunque el valor no cambiara, lo que
+  // marca el objeto como "sucio" y fuerza repintado constante.
+  //
+  // Ahora: se compara contra camera.worldView (lo realmente visible) con un
+  // margen amplio (sin pop-in), se cachea el rectángulo de cada sprite (son
+  // imágenes estáticas), se salta el barrido si la cámara casi no se movió y
+  // solo se escribe setVisible() cuando el valor CAMBIA.
   let lastCheck = 0;
-  const CHECK_INTERVAL = 16.6; // ms
-  
+  const CHECK_INTERVAL = 100; // ms (antes 16.6 = cada frame)
+  const CULL_PAD = 512;       // margen generoso: el objeto ya está dibujado antes de entrar en cuadro
+  let lastCamX = null, lastCamY = null;
+
   // El manejador se guarda para poder quitarlo en cleanupScene sin recurrir a
   // removeAllListeners() (que rompía los listeners internos de Phaser).
   const alActualizar = () => {
@@ -20803,28 +20830,36 @@ enableAutoCullingForLayer(scene, layerName) {
     lastCheck = now;
 
     const camera = scene.cameras.main;
-    const bounds = camera.getBounds();
-    const padding = 200;
+    const view = camera.worldView;
+    if (!view || view.width === 0) return;
 
-    const expandedBounds = {
-      x: bounds.x - padding,
-      y: bounds.y - padding,
-      width: bounds.width + padding * 2,
-      height: bounds.height + padding * 2
-    };
+    // Si la cámara apenas se movió, no hay nada que recalcular.
+    if (lastCamX !== null &&
+        Math.abs(view.x - lastCamX) < 16 && Math.abs(view.y - lastCamY) < 16) return;
+    lastCamX = view.x; lastCamY = view.y;
+
+    const left   = view.x - CULL_PAD;
+    const right  = view.x + view.width  + CULL_PAD;
+    const top    = view.y - CULL_PAD;
+    const bottom = view.y + view.height + CULL_PAD;
 
     group.children.iterate(sprite => {
-      if (sprite && sprite.active) {
-        const spriteBounds = sprite.getBounds();
-        const isVisible = (
-          spriteBounds.x < expandedBounds.x + expandedBounds.width &&
-          spriteBounds.x + spriteBounds.width > expandedBounds.x &&
-          spriteBounds.y < expandedBounds.y + expandedBounds.height &&
-          spriteBounds.y + spriteBounds.height > expandedBounds.y
-        );
-        
-        sprite.setVisible(isVisible);
+      if (!sprite || !sprite.active) return;
+
+      // Rect cacheado (las imágenes de estas capas son estáticas). Se recalcula
+      // solo si el sprite se movió (p. ej. showTreeStump recoloca el tronco).
+      let r = sprite._cullRect;
+      if (!r || r.sx !== sprite.x || r.sy !== sprite.y) {
+        const b = sprite.getBounds();
+        r = sprite._cullRect = {
+          sx: sprite.x, sy: sprite.y,
+          x: b.x, y: b.y, r: b.x + b.width, b: b.y + b.height
+        };
       }
+
+      const isVisible = (r.x < right && r.r > left && r.y < bottom && r.b > top);
+      // Solo escribir cuando cambia: evita marcar el objeto sucio cada frame.
+      if (sprite.visible !== isVisible) sprite.setVisible(isVisible);
     });
   };
 
