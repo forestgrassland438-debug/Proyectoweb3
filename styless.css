@@ -10516,3 +10516,20 @@ body.in-battle #notification-hub { display: none !important; }
   .bf-cardbtn .c-desc { display: none; }
   .bf-portrait { display: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FIX MÓVIL — ZOOM AUTOMÁTICO AL ABRIR EL TECLADO
+   iOS Safari IGNORA `user-scalable=no` del viewport y hace zoom a la pantalla
+   cuando el campo enfocado tiene una fuente MENOR a 16px. #chat-input estaba en
+   13px (y 14px en la media query), por eso al abrir el chat se acercaba todo.
+   Con 16px el navegador ya no necesita hacer zoom al abrir el teclado.
+   Solo se aplica a punteros táctiles: en PC el diseño queda igual.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (pointer: coarse) {
+  #chat-input,
+  .search-input, .search-field, .recipe-search,
+  input[type="text"], input[type="number"], input[type="search"],
+  input[type="password"], textarea, select {
+    font-size: 16px !important;
+  }
+}

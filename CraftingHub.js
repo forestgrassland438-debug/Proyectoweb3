@@ -549,6 +549,9 @@ class CraftingSystem {
     // materiales / agregar el resultado) es asíncrona y puede tardar, así que
     // sin esto el jugador cree que el botón no hizo nada.
     this.showFeedback(`⏳ Crafting ${quantity} ${recipe.name}…`, 'info');
+    // Botón en ESPERA mientras dura el crafteo (antes seguía activo y se podía
+    // volver a pulsar, encolando crafteos sin querer).
+    this._setCraftButtonBusy(true);
     try {
       const isOR=recipe.optionalResources?.length&&(!recipe.resources?.length);
       if(isOR){
@@ -616,7 +619,35 @@ class CraftingSystem {
       if(this.scene?.updateInventoryDisplay) this.scene.updateInventoryDisplay();
       this.savePlayerData();
       console.log('✅ Crafteo completado');
-    } finally { this._crafting=false; }
+    } finally { this._crafting=false; this._setCraftButtonBusy(false); }
+  }
+
+  // Pone (o quita) el estado de ESPERA en los botones de craftear: se
+  // deshabilitan y muestran "⏳ Crafting…" mientras la transacción está en curso.
+  _setCraftButtonBusy(busy) {
+    try {
+      ['craft-button', 'overlay-craft-button'].forEach(id => {
+        const b = document.getElementById(id);
+        if (!b) return;
+        if (busy) {
+          if (b.dataset.prevLabel === undefined) b.dataset.prevLabel = b.textContent || '';
+          b.disabled = true;
+          b.style.opacity = '0.6';
+          b.style.cursor = 'wait';
+          b.textContent = '⏳ Crafting…';
+        } else {
+          b.disabled = false;
+          b.style.opacity = '';
+          b.style.cursor = '';
+          if (b.dataset.prevLabel !== undefined) {
+            b.textContent = b.dataset.prevLabel;
+            delete b.dataset.prevLabel;
+          }
+        }
+      });
+    } catch (e) { /* no crítico */ }
+    // Tras terminar, dejar que la lógica normal recalcule el estado del botón.
+    if (!busy) { try { this.updateCraftButton && this.updateCraftButton(); } catch (e) {} }
   }
 
   // El texto de #crafting-feedback es fácil de no ver (queda dentro del panel y
