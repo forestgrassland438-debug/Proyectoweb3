@@ -20198,55 +20198,127 @@ async _gatherClaim(nodeKey, toolId) {
   }
 }
 
-// Consumir un ítem al hacer clic en el propio personaje (comer comida / usar el
-// balde con agua). Quita 1 unidad ON-CHAIN (ejecutarDivisionRemove, igual que
-// misiones/basura) y, solo si la transacción confirma el descuento, suma la
-// comida/agua (tope 100), que se persiste on-chain vía statsSync dentro de
-// actualizarBarraComida/Agua. Antes solo se quitaba localmente y no había
-// transacción de descuento ni de buff.
-async _consumeItemOnPlayer(itemId) {
-  // Cosechas buenas y podridas (dan menos) + el balde con agua.
-  const FOOD  = {
-    zanahoria_buena: 2, tomate_buena: 5, trigo_buena: 5, calabaza_buena: 5,
-    zanahoria_mala: 1, tomate_mala: 2, trigo_mala: 2, calabaza_mala: 2
-  };
-  const WATER = { balde_con_agua: 20 };
-  const isWater = WATER[itemId] != null;
-  const gain = isWater ? WATER[itemId] : (FOOD[itemId] || 0);
-  if (!gain) return;
+// ─── CONSUMIBLES (comer/beber haciendo clic en el personaje) ─────────────────
+// Cosechas buenas y podridas (dan menos) + el balde con agua.
+CONSUMABLES_FOOD = {
+  zanahoria_buena: 2, tomate_buena: 5, trigo_buena: 5, calabaza_buena: 5,
+  zanahoria_mala: 1, tomate_mala: 2, trigo_mala: 2, calabaza_mala: 2
+};
+CONSUMABLES_WATER = { balde_con_agua: 20 };
 
-  if (this._consumingItem) return; // evita doble clic mientras la tx está en curso
+// Devuelve { isWater, gain } si el ítem es consumible, o null.
+_consumableInfo(itemId) {
+  const isWater = this.CONSUMABLES_WATER[itemId] != null;
+  const gain = isWater ? this.CONSUMABLES_WATER[itemId] : (this.CONSUMABLES_FOOD[itemId] || 0);
+  return gain ? { isWater, gain } : null;
+}
+
+// Clic en el personaje con un consumible: abre el panel de cantidad.
+_consumeItemOnPlayer(itemId) {
+  const info = this._consumableInfo(itemId);
+  if (!info) return;
+  if (this._consumingItem) return;
+  const available = this.contarItemEnInventario(itemId);
+  if (available <= 0) return;
+  this._openConsumePanel(itemId, info, available);
+}
+
+// Panel (DOM, responsive PC + móvil) para elegir CUÁNTAS unidades consumir.
+// Todo se consume en UNA sola transacción (no una por unidad).
+_openConsumePanel(itemId, info, available) {
+  const old = document.getElementById('gf-consume-modal');
+  if (old) old.remove();
+
+  const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
+  const name = (typeof this.getItemDisplayName === 'function' ? this.getItemDisplayName(itemId) : itemId) || itemId;
+  const img = def && def.src ? def.src : '';
+  const unit = info.isWater ? 'Water' : 'Food';
+  const max = Math.max(1, available);
+  let qty = 1;
+
+  const ov = document.createElement('div');
+  ov.id = 'gf-consume-modal';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;';
+
+  const card = document.createElement('div');
+  card.style.cssText = 'width:min(92vw,380px);box-sizing:border-box;background:rgba(11,61,46,.98);border:3px solid #ffd23f;border-radius:16px;color:#fff;font-family:Arial,sans-serif;padding:18px;box-shadow:0 10px 40px rgba(0,0,0,.6);text-align:center;';
+  card.innerHTML =
+    '<div style="font-size:clamp(15px,4vw,19px);font-weight:bold;margin-bottom:10px;">How many do you want to consume?</div>' +
+    (img ? '<img src="' + img + '" alt="" style="width:64px;height:64px;object-fit:contain;image-rendering:pixelated;margin-bottom:6px;">' : '') +
+    '<div style="font-size:clamp(13px,3.6vw,16px);margin-bottom:2px;">' + name + '</div>' +
+    '<div style="color:#bcd6c9;font-size:clamp(11px,3vw,13px);margin-bottom:12px;">+' + info.gain + ' ' + unit + ' each  ·  Available: ' + available + '</div>' +
+    '<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px;">' +
+      '<button id="gfc-minus" style="width:48px;height:48px;font-size:24px;border-radius:12px;border:none;background:#1b3d31;color:#fff;cursor:pointer;">−</button>' +
+      '<input id="gfc-qty" type="number" inputmode="numeric" min="1" max="' + max + '" value="1" style="width:84px;height:48px;text-align:center;font-size:20px;font-weight:bold;border-radius:12px;border:2px solid #ffd23f;background:#0b2b22;color:#fff;">' +
+      '<button id="gfc-plus" style="width:48px;height:48px;font-size:24px;border-radius:12px;border:none;background:#1b3d31;color:#fff;cursor:pointer;">+</button>' +
+      '<button id="gfc-max" style="height:48px;padding:0 14px;font-size:14px;border-radius:12px;border:none;background:#2b5c4a;color:#fff;cursor:pointer;">Max</button>' +
+    '</div>' +
+    '<div id="gfc-total" style="color:#ffd23f;font-size:clamp(12px,3.2vw,15px);margin-bottom:14px;"></div>' +
+    '<div style="display:flex;gap:12px;justify-content:center;">' +
+      '<button id="gfc-ok" style="flex:1;min-height:48px;font-size:16px;font-weight:bold;border:none;border-radius:12px;background:#2e7d32;color:#fff;cursor:pointer;">✓ Consume</button>' +
+      '<button id="gfc-no" style="flex:1;min-height:48px;font-size:16px;font-weight:bold;border:none;border-radius:12px;background:#b23b3b;color:#fff;cursor:pointer;">✗ Cancel</button>' +
+    '</div>';
+
+  ov.appendChild(card);
+  document.body.appendChild(ov);
+
+  const $ = (id) => card.querySelector('#' + id);
+  const input = $('gfc-qty');
+  const totalEl = $('gfc-total');
+  const refresh = () => {
+    qty = Math.max(1, Math.min(max, parseInt(input.value, 10) || 1));
+    input.value = qty;
+    totalEl.textContent = 'Total: +' + (info.gain * qty) + ' ' + unit + '  (uses ' + qty + ')';
+  };
+  const close = () => { ov.remove(); };
+
+  $('gfc-minus').onclick = () => { input.value = qty - 1; refresh(); };
+  $('gfc-plus').onclick  = () => { input.value = qty + 1; refresh(); };
+  $('gfc-max').onclick   = () => { input.value = max; refresh(); };
+  input.oninput = refresh;
+  $('gfc-no').onclick = close;
+  ov.onclick = (e) => { if (e.target === ov) close(); };
+  $('gfc-ok').onclick = () => { close(); this._doConsume(itemId, qty, info); };
+  refresh();
+}
+
+// Consume `qty` unidades en UNA sola transacción on-chain y suma el buff total.
+async _doConsume(itemId, qty, info) {
+  if (this._consumingItem) return;
   this._consumingItem = true;
   try {
     const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
+    let consumed = qty;
 
-    // 1) Quitar 1 unidad. Si el ítem tiene seguimiento on-chain (tipo), se manda
-    //    la transacción real y se verifica el descuento comparando antes/después.
     if (def && def.tipo) {
       const antes = this.contarItemEnInventario(itemId);
       try {
-        await this.ejecutarDivisionRemove(def.tipo, itemId, def.maxStack || 50, 1);
+        // UNA sola transacción con la cantidad completa.
+        await this.ejecutarDivisionRemove(def.tipo, itemId, def.maxStack || 50, qty);
       } catch (e) {
         console.error('❌ Error consumiendo on-chain:', e);
-        this.notifications.show(this.lenguaje === 3 ? 'Error al consumir el ítem' : 'Error consuming the item', 'error');
+        this.notifications.show('Error consuming the item', 'error');
         return;
       }
       const despues = this.contarItemEnInventario(itemId);
-      if (antes - despues < 1) {
-        this.notifications.show(this.lenguaje === 3 ? 'No se confirmó el consumo del ítem' : 'Item consumption was not confirmed', 'error');
+      consumed = Math.max(0, antes - despues);
+      if (consumed < 1) {
+        this.notifications.show('Item consumption was not confirmed', 'error');
         return;
       }
     } else {
-      const ok = await this.removeItemSmart(itemId, 1);
+      const ok = await this.removeItemSmart(itemId, qty);
       if (!ok) return;
     }
 
-    // 2) Sumar el buff (tope 100). actualizarBarra* persiste vía statsSync.
-    if (isWater) {
-      this.actualizarBarraAgua(Math.min(100, (this.aguaPorcentaje || 0) + gain));
+    // Buff por lo REALMENTE consumido (tope 100). Persiste vía statsSync.
+    const total = info.gain * consumed;
+    if (info.isWater) {
+      this.actualizarBarraAgua(Math.min(100, (this.aguaPorcentaje || 0) + total));
     } else {
-      this.actualizarBarraComida(Math.min(100, (this.comidaPorcentaje || 0) + gain));
+      this.actualizarBarraComida(Math.min(100, (this.comidaPorcentaje || 0) + total));
     }
+    this.notifications.show('Consumed ' + consumed + ' · +' + total + ' ' + (info.isWater ? 'Water' : 'Food'), 'success');
     this.queuedAction && this.queuedAction({ type: 'forSpam2' });
   } finally {
     this._consumingItem = false;
@@ -21513,6 +21585,11 @@ dog.direction = dog.lastFacing;
 // Animación estable: solo se reproduce si realmente está caminando
 const shouldAnimate = playerMoved || dogMoved || intentDir !== null;
 
+// GUARD: si dog.sprite se destruyó/no existe, saltar TODO el render del perro
+// (antes solo se guardaba dog.sprite.anims, pero dog.sprite undefined también
+// crasheaba en setPosition/setTexture cada frame → escena congelada).
+if (dog.sprite) {
+
 if (shouldAnimate && (dogMoved || playerMoved || intentDir)) {
   const animKey = (dog.lastFacing === 'left') ? 'perro_left' : 'perro_right';
 
@@ -21569,6 +21646,8 @@ if (this.dogNameText) {
     this.dogNameText.setVisible(false);
   }
 }
+
+} // cierre del GUARD if (dog.sprite)
 
 } // end petData.equipped else block
 

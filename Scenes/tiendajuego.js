@@ -850,7 +850,10 @@ this.player.on('pointerdown', (pointer) => {
 
         // 🎯 VALORES EXACTOS PRE-DEFINIDOS (evita cálculos con decimales)
         this.zoomValues = [1.0, 2.0];
-        this.currentZoomIndex = 2.0; // Empieza en 2.0 (índice 6)
+        // FIX: era 2.0 → índice FUERA de rango en [1.0, 2.0] (solo 0 y 1) →
+        // this.zoomValues[2] === undefined → cámara.zoom = NaN → pantalla negra.
+        // El índice de 2.0x en este array es 1.
+        this.currentZoomIndex = 1; // 2.0x
 
         
 
@@ -9523,60 +9526,133 @@ actualizarBarraVida(porcentaje) {
   this.queuedAction({ type: 'forSpam2'});
 }
 
-// Consumir un ítem al hacer clic en el personaje (comer cosecha / usar balde con
-// agua). Quita 1 unidad ON-CHAIN (ejecutarDivisionRemove) verificando el
-// descuento por conteo, y solo entonces suma comida/agua (tope 100), que
-// persiste on-chain vía statsSync dentro de actualizarBarraComida/Agua.
-async _consumeItemOnPlayer(itemId) {
-  const FOOD  = {
-    zanahoria_buena: 2, tomate_buena: 5, trigo_buena: 5, calabaza_buena: 5,
-    zanahoria_mala: 1, tomate_mala: 2, trigo_mala: 2, calabaza_mala: 2
-  };
-  const WATER = { balde_con_agua: 20 };
-  const isWater = WATER[itemId] != null;
-  const gain = isWater ? WATER[itemId] : (FOOD[itemId] || 0);
-  if (!gain) return;
+// ─── CONSUMIBLES (comer/beber haciendo clic en el personaje) ─────────────────
+// Mismo comportamiento que en GameScene: panel de cantidad + UNA sola
+// transacción on-chain para todas las unidades elegidas.
+CONSUMABLES_FOOD = {
+  zanahoria_buena: 2, tomate_buena: 5, trigo_buena: 5, calabaza_buena: 5,
+  zanahoria_mala: 1, tomate_mala: 2, trigo_mala: 2, calabaza_mala: 2
+};
+CONSUMABLES_WATER = { balde_con_agua: 20 };
 
+_consumableInfo(itemId) {
+  const isWater = this.CONSUMABLES_WATER[itemId] != null;
+  const gain = isWater ? this.CONSUMABLES_WATER[itemId] : (this.CONSUMABLES_FOOD[itemId] || 0);
+  return gain ? { isWater, gain } : null;
+}
+
+// Esta escena no tiene contarItemEnInventario: se cuenta desde STATE.
+_countItemLocal(id) {
+  let n = 0;
+  const all = [
+    ...(this.STATE && Array.isArray(this.STATE.slots) ? this.STATE.slots : []),
+    ...(this.STATE && Array.isArray(this.STATE.quickSlots) ? this.STATE.quickSlots : [])
+  ];
+  for (const s of all) if (s && s.id === id) n += (s.count || 0);
+  return n;
+}
+
+_consumeItemOnPlayer(itemId) {
+  const info = this._consumableInfo(itemId);
+  if (!info) return;
+  if (this._consumingItem) return;
+  const available = this._countItemLocal(itemId);
+  if (available <= 0) return;
+  this._openConsumePanel(itemId, info, available);
+}
+
+// Panel (DOM, responsive PC + móvil) para elegir CUÁNTAS unidades consumir.
+_openConsumePanel(itemId, info, available) {
+  const old = document.getElementById('gf-consume-modal');
+  if (old) old.remove();
+
+  const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
+  const name = (typeof this.getItemDisplayName === 'function' ? this.getItemDisplayName(itemId) : itemId) || itemId;
+  const img = def && def.src ? def.src : '';
+  const unit = info.isWater ? 'Water' : 'Food';
+  const max = Math.max(1, available);
+  let qty = 1;
+
+  const ov = document.createElement('div');
+  ov.id = 'gf-consume-modal';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;';
+
+  const card = document.createElement('div');
+  card.style.cssText = 'width:min(92vw,380px);box-sizing:border-box;background:rgba(11,61,46,.98);border:3px solid #ffd23f;border-radius:16px;color:#fff;font-family:Arial,sans-serif;padding:18px;box-shadow:0 10px 40px rgba(0,0,0,.6);text-align:center;';
+  card.innerHTML =
+    '<div style="font-size:clamp(15px,4vw,19px);font-weight:bold;margin-bottom:10px;">How many do you want to consume?</div>' +
+    (img ? '<img src="' + img + '" alt="" style="width:64px;height:64px;object-fit:contain;image-rendering:pixelated;margin-bottom:6px;">' : '') +
+    '<div style="font-size:clamp(13px,3.6vw,16px);margin-bottom:2px;">' + name + '</div>' +
+    '<div style="color:#bcd6c9;font-size:clamp(11px,3vw,13px);margin-bottom:12px;">+' + info.gain + ' ' + unit + ' each  ·  Available: ' + available + '</div>' +
+    '<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px;">' +
+      '<button id="gfc-minus" style="width:48px;height:48px;font-size:24px;border-radius:12px;border:none;background:#1b3d31;color:#fff;cursor:pointer;">−</button>' +
+      '<input id="gfc-qty" type="number" inputmode="numeric" min="1" max="' + max + '" value="1" style="width:84px;height:48px;text-align:center;font-size:20px;font-weight:bold;border-radius:12px;border:2px solid #ffd23f;background:#0b2b22;color:#fff;">' +
+      '<button id="gfc-plus" style="width:48px;height:48px;font-size:24px;border-radius:12px;border:none;background:#1b3d31;color:#fff;cursor:pointer;">+</button>' +
+      '<button id="gfc-max" style="height:48px;padding:0 14px;font-size:14px;border-radius:12px;border:none;background:#2b5c4a;color:#fff;cursor:pointer;">Max</button>' +
+    '</div>' +
+    '<div id="gfc-total" style="color:#ffd23f;font-size:clamp(12px,3.2vw,15px);margin-bottom:14px;"></div>' +
+    '<div style="display:flex;gap:12px;justify-content:center;">' +
+      '<button id="gfc-ok" style="flex:1;min-height:48px;font-size:16px;font-weight:bold;border:none;border-radius:12px;background:#2e7d32;color:#fff;cursor:pointer;">✓ Consume</button>' +
+      '<button id="gfc-no" style="flex:1;min-height:48px;font-size:16px;font-weight:bold;border:none;border-radius:12px;background:#b23b3b;color:#fff;cursor:pointer;">✗ Cancel</button>' +
+    '</div>';
+
+  ov.appendChild(card);
+  document.body.appendChild(ov);
+
+  const input = card.querySelector('#gfc-qty');
+  const totalEl = card.querySelector('#gfc-total');
+  const refresh = () => {
+    qty = Math.max(1, Math.min(max, parseInt(input.value, 10) || 1));
+    input.value = qty;
+    totalEl.textContent = 'Total: +' + (info.gain * qty) + ' ' + unit + '  (uses ' + qty + ')';
+  };
+  const close = () => { ov.remove(); };
+
+  card.querySelector('#gfc-minus').onclick = () => { input.value = qty - 1; refresh(); };
+  card.querySelector('#gfc-plus').onclick  = () => { input.value = qty + 1; refresh(); };
+  card.querySelector('#gfc-max').onclick   = () => { input.value = max; refresh(); };
+  input.oninput = refresh;
+  card.querySelector('#gfc-no').onclick = close;
+  ov.onclick = (e) => { if (e.target === ov) close(); };
+  card.querySelector('#gfc-ok').onclick = () => { close(); this._doConsume(itemId, qty, info); };
+  refresh();
+}
+
+// Consume `qty` unidades en UNA sola transacción on-chain y suma el buff total.
+async _doConsume(itemId, qty, info) {
   if (this._consumingItem) return;
   this._consumingItem = true;
   try {
     const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
-
-    // Contar el ítem en el inventario local (esta escena no tiene contarItemEnInventario).
-    const countItem = (id) => {
-      let n = 0;
-      const all = [
-        ...(this.STATE && Array.isArray(this.STATE.slots) ? this.STATE.slots : []),
-        ...(this.STATE && Array.isArray(this.STATE.quickSlots) ? this.STATE.quickSlots : [])
-      ];
-      for (const s of all) if (s && s.id === id) n += (s.count || 0);
-      return n;
-    };
+    let consumed = qty;
 
     if (def && def.tipo) {
-      const antes = countItem(itemId);
+      const antes = this._countItemLocal(itemId);
       try {
-        await this.ejecutarDivisionRemove(def.tipo, itemId, def.maxStack || 50, 1);
+        await this.ejecutarDivisionRemove(def.tipo, itemId, def.maxStack || 50, qty);
       } catch (e) {
         console.error('❌ Error consumiendo on-chain:', e);
-        if (this.notifications) this.notifications.show(this.lenguaje === 3 ? 'Error al consumir el ítem' : 'Error consuming the item', 'error');
+        if (this.notifications) this.notifications.show('Error consuming the item', 'error');
         return;
       }
-      const despues = countItem(itemId);
-      if (antes - despues < 1) {
-        if (this.notifications) this.notifications.show(this.lenguaje === 3 ? 'No se confirmó el consumo del ítem' : 'Item consumption was not confirmed', 'error');
+      const despues = this._countItemLocal(itemId);
+      consumed = Math.max(0, antes - despues);
+      if (consumed < 1) {
+        if (this.notifications) this.notifications.show('Item consumption was not confirmed', 'error');
         return;
       }
     } else {
-      const ok = await this.removeItemSmart(itemId, 1);
+      const ok = await this.removeItemSmart(itemId, qty);
       if (!ok) return;
     }
 
-    if (isWater) {
-      this.actualizarBarraAgua(Math.min(100, (this.aguaPorcentaje || 0) + gain));
+    const total = info.gain * consumed;
+    if (info.isWater) {
+      this.actualizarBarraAgua(Math.min(100, (this.aguaPorcentaje || 0) + total));
     } else {
-      this.actualizarBarraComida(Math.min(100, (this.comidaPorcentaje || 0) + gain));
+      this.actualizarBarraComida(Math.min(100, (this.comidaPorcentaje || 0) + total));
     }
+    if (this.notifications) this.notifications.show('Consumed ' + consumed + ' · +' + total + ' ' + (info.isWater ? 'Water' : 'Food'), 'success');
     this.queuedAction && this.queuedAction({ type: 'forSpam2' });
   } finally {
     this._consumingItem = false;
@@ -10132,6 +10208,12 @@ dog.direction = dog.lastFacing;
 // Animación estable: solo se reproduce si realmente está caminando
 const shouldAnimate = playerMoved || dogMoved || intentDir !== null;
 
+// GUARD: si el sprite del perro se destruyó/no se creó (p.ej. tras mucho rato
+// o al recrear la escena), NO intentar animarlo/posicionarlo. Sin esto,
+// `dog.sprite.anims.isPlaying` lanzaba "Cannot read properties of undefined"
+// cada frame y CONGELABA la escena (síntoma: "no carga").
+if (dog.sprite && dog.sprite.anims) {
+
 if (shouldAnimate && (dogMoved || playerMoved || intentDir)) {
   const animKey = (dog.lastFacing === 'left') ? 'perro_left' : 'perro_right';
 
@@ -10183,6 +10265,8 @@ if (this.dogNameText) {
     this.dogNameText.setVisible(false);
   }
 }
+
+} // cierre del GUARD if (dog.sprite && dog.sprite.anims)
 
 } // end petData.equipped else block
 
