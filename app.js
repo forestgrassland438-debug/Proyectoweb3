@@ -511,7 +511,13 @@
 
     chunkSizeTiles:      16,
     chunkRadius:         2,
-    cullPadding:         48,
+    // FIX PARPADEO: 48px era MUY justo. El culling ocultaba/mostraba objetos
+    // (casas, árboles, imágenes) justo en el borde de la pantalla y, como la
+    // cámara sigue al jugador con lerp (oscila fracciones de píxel), un mismo
+    // objeto se apagaba y encendía en frames consecutivos → parpadeo visible.
+    // Con un margen amplio el objeto ya está dibujado mucho antes de entrar en
+    // cuadro y solo se oculta bien lejos, sin pop-in.
+    cullPadding:         512,
     defaultPoolSize:     100,
     maxRenderTextureSize:4096,
 
@@ -642,7 +648,7 @@
     //  Prioridad 2: búsqueda directa en window por nombre conocido (solo dev)
     //
     var scenes = [];
-    var knownNames = ['LoadingScenegame', 'GameScene', 'tiendajuego', 'LoadingSceneshop'];
+    var knownNames = ['LoadingScenegame', 'GameScene', 'tiendajuego', 'LoadingSceneshop', 'BattleScene'];
 
     // Fuente 1: registro seguro de register-scenes.js
     if (root.__secureSceneRegistry instanceof root.Map) {

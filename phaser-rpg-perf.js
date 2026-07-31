@@ -285,7 +285,10 @@
   const DEFAULTS = {
     chunkSizeTiles:   32,
     chunkRadius:       2,
-    cullPadding:      64,
+    // FIX PARPADEO: margen amplio de culling (antes 64px). Con un margen corto,
+    // los objetos se ocultaban/mostraban justo en el borde de la cámara y, con
+    // el seguimiento suavizado (lerp), parpadeaban al moverse.
+    cullPadding:      512,
     defaultPoolSize:  50,
     maxRenderTextureSize: 8192,
 
