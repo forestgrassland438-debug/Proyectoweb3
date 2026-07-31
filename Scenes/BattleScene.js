@@ -43,6 +43,12 @@ class BattleScene extends Phaser.Scene {
     this.puedeJugar = false;
     this._listeners = [];
     this._buscandoIniciado = false;
+
+    // FIX (la 2ª batalla se quedaba pegada en "Back to the map…"):
+    // Phaser REUTILIZA la instancia de la escena, así que `_volviendo` seguía
+    // en true desde la batalla anterior y `volverAlMapa()` hacía `return` sin
+    // volver nunca al mapa. Hay que resetearlo en cada init().
+    this._volviendo = false;
   }
 
   preload() {

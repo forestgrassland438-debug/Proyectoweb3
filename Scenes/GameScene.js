@@ -4893,8 +4893,11 @@ this.anims.create({
         // aparecen líneas/costuras (y "hormigueo" al moverse). Con 1x y 2x cada
         // píxel de textura mapea a un número entero de píxeles de pantalla.
         // (tiendajuego ya usaba [1.0, 2.0] por lo mismo.)
-        this.zoomValues = [1.0, 2.0];
-        this.currentZoomIndex = 1; // 2.0x
+        // 0.5 y 2.0 son múltiplos/divisores EXACTOS de 1 (cada píxel de textura
+        // cae en un número entero de píxeles de pantalla) → no generan costuras.
+        // 1.5x SÍ las generaba (borde de tile a medio píxel), por eso no vuelve.
+        this.zoomValues = [0.5, 1.0, 2.0];
+        this.currentZoomIndex = 2; // 2.0x
 
         // Aplicar zoom inicial EXACTO
         this.cameras.main.zoom = this.zoomValues[this.currentZoomIndex];
@@ -4905,6 +4908,9 @@ this.anims.create({
         console.log(`📊 Zoom configurado: ${this.zoomValues[this.currentZoomIndex]}x`);
         console.log(`📊 Zoom real de cámara: ${this.cameras.main.zoom}x`);
         console.log(`🎯 Valores disponibles: [${this.zoomValues.join(', ')}]`);
+
+        // Zoom con DOS DEDOS (móvil) sobre el mapa.
+        this._setupPinchZoom();
 
         // 🖱️ CONTROL CON RUEDA DEL MOUSE - USANDO VALORES EXACTOS
         this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY) => {
@@ -8847,22 +8853,12 @@ setupSettingsPanel() {
         
     });
     
-    // Botón cerrar sesión
+    // Botón cerrar sesión — antes solo recargaba la página: la sesión del
+    // backend y la wallet seguían conectadas. Ahora cierra TODO y va al login.
     this.settingsLogoutBtn.addEventListener('click', () => {
-        console.log('🔐 Cerrando sesión...');
-        
-        // Detener auto-refresh
-        if (this.stopAutoRefresh) {
-            this.stopAutoRefresh();
-        }
-        
-        // Limpiar datos
+        if (this.stopAutoRefresh) this.stopAutoRefresh();
         this.Username = null;
-        
-        // Recargar página
-        setTimeout(() => {
-            window.location.reload();
-        }, 1000);
+        this._doFullLogout();
     });
     
     // Tecla Esc para cerrar (usando capture para atrapar primero)
@@ -20209,6 +20205,75 @@ async _gatherClaim(nodeKey, toolId) {
     console.error('❌ gather claim error:', e);
     return [];
   }
+}
+
+// Zoom con DOS DEDOS sobre el MAPA (móvil). Los listeners van en el canvas del
+// juego, así que un gesto que empieza sobre el HUD/paneles (que son DOM encima
+// del canvas) NO hace zoom. Se mueve entre los niveles permitidos (0.5/1/2) en
+// vez de un zoom continuo, para no reintroducir zooms fraccionarios (causaban
+// las costuras entre tiles). preventDefault en touchmove evita además que el
+// navegador haga SU propio zoom de página.
+_setupPinchZoom() {
+  const canvas = this.sys && this.sys.game && this.sys.game.canvas;
+  if (!canvas || this._pinchBound) return;
+  this._pinchBound = true;
+
+  const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  let startDist = 0;
+
+  const onStart = (e) => { if (e.touches && e.touches.length === 2) startDist = dist(e.touches); };
+  const onMove = (e) => {
+    if (!e.touches || e.touches.length !== 2 || !startDist) return;
+    e.preventDefault();
+    const ratio = dist(e.touches) / startDist;
+    if (ratio > 1.25)      { this.preciseZoomIn && this.preciseZoomIn();  startDist = dist(e.touches); }
+    else if (ratio < 0.80) { this.preciseZoomOut && this.preciseZoomOut(); startDist = dist(e.touches); }
+  };
+  const onEnd = (e) => { if (!e.touches || e.touches.length < 2) startDist = 0; };
+
+  canvas.addEventListener('touchstart', onStart, { passive: true });
+  canvas.addEventListener('touchmove',  onMove,  { passive: false });
+  canvas.addEventListener('touchend',   onEnd,   { passive: true });
+  canvas.addEventListener('touchcancel', onEnd,  { passive: true });
+
+  this.events.once('shutdown', () => {
+    try {
+      canvas.removeEventListener('touchstart', onStart);
+      canvas.removeEventListener('touchmove', onMove);
+      canvas.removeEventListener('touchend', onEnd);
+      canvas.removeEventListener('touchcancel', onEnd);
+    } catch (e) { /* no crítico */ }
+    this._pinchBound = false;
+  });
+}
+
+// Cierre de sesión COMPLETO: cierra la sesión en el backend, DESCONECTA la
+// wallet, corta el socket, limpia rastros locales y manda al login.
+async _doFullLogout() {
+  console.log('🔐 Cerrando sesión completa…');
+
+  // 1) Sesión del backend (logout exige CSRF: se toma de la cookie viva).
+  try {
+    const m = document.cookie.match(/(?:^|;\s*)csrf-token=([^;]*)/);
+    const csrf = m ? decodeURIComponent(m[1]) : null;
+    await fetch(`${this.serverBase}/api/auth/logout`, {
+      method: 'POST', credentials: 'include', mode: 'cors',
+      headers: csrf ? { 'X-CSRF-Token': csrf } : {}
+    });
+  } catch (e) { console.warn('⚠️ logout backend falló:', e); }
+
+  // 2) Desconectar la WALLET (revocar el permiso de cuentas del sitio).
+  try {
+    const p = window.ethereum;
+    if (p && p.request) await p.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] });
+  } catch (e) { /* proveedor sin soporte: no es crítico */ }
+
+  // 3) Cortar socket y limpiar cualquier rastro local.
+  try { if (this.socket) this.socket.disconnect(); } catch (e) {}
+  try { sessionStorage.clear(); localStorage.removeItem('game_session_data'); } catch (e) {}
+
+  // 4) Al login.
+  window.location.href = window.GF_LOGIN_URL || 'https://app.grasslandforest.com/';
 }
 
 // ─── CONSUMIBLES (comer/beber haciendo clic en el personaje) ─────────────────
