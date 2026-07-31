@@ -1843,12 +1843,25 @@ showNotification(message, type = 'info') {
                 
                 const response = await fetch(url, fetchOptions);
                 lastResponse = response;
-                
+
                 // Si es éxito, retornar la respuesta
                 if (response.ok) {
                     return response;
                 }
-                
+
+                // 403 de CONTROL DE ACCESO (baneado / fuera de whitelist): el
+                // backend ahora lo aplica en cada petición, así que si a alguien
+                // lo banean mientras juega —o entra directo con la sesión
+                // guardada— hay que sacarlo del juego aquí.
+                if (response.status === 403) {
+                    let body = {};
+                    try { body = await response.clone().json(); } catch (e) {}
+                    if (body.error === 'banned' || body.error === 'not_whitelisted') {
+                        this._handleAccessDenied(body);
+                        return response;
+                    }
+                }
+
                 // Si es error 401 (no autorizado), intentar refresh
                 if (response.status === 401) {
                     console.log(`🔐 Error 401 detectado, intentando refresh...`);
@@ -4911,6 +4924,9 @@ this.anims.create({
 
         // Zoom con DOS DEDOS (móvil) sobre el mapa.
         this._setupPinchZoom();
+
+        // Clic en las monedas del HUD → hub de compra/cambio de moneda.
+        this._setupCurrencyHub();
 
         // 🖱️ CONTROL CON RUEDA DEL MOUSE - USANDO VALORES EXACTOS
         this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY) => {
@@ -8541,11 +8557,19 @@ _refreshNameLockUI() {
     window._acttov = this._isNameSet(this.Username) ? 1 : 0;
 }
 
+// Etiqueta que se muestra sobre el perro: nombre + NIVEL de la mascota.
+// El nivel sube con las batallas (lo calcula el backend en cada combate y viaja
+// en /api/load como `petLevel`).
+_dogLabelText(petName, petLevel) {
+  const lvl = Math.max(1, Number(petLevel) || 1);
+  return `${petName} (Lv.${lvl})`;
+}
+
 // Sincroniza la etiqueta de nombre que flota sobre el perro con this.petName.
 _updateDogNameLabel() {
     if (!this.dogNameText) return;
     const named = this._isNameSet(this.petName);
-    this.dogNameText.setText(named ? this.petName : '');
+    this.dogNameText.setText(named ? this._dogLabelText(this.petName, this.petLevel) : '');
     const dogVisible = !!(this.dog && this.dog.sprite && this.dog.sprite.visible);
     this.dogNameText.setVisible(named && dogVisible);
 }
@@ -13881,7 +13905,9 @@ sendPlayerMovement() {
     // veían tu perro sin etiqueta. El servidor reenvía el payload tal cual
     // (socket.on('playerMove') hace spread de data), así que no hay que tocar
     // el backend.
-    dogName: this._isNameSet && this._isNameSet(this.petName) ? this.petName : ''
+    dogName: this._isNameSet && this._isNameSet(this.petName) ? this.petName : '',
+    // Nivel de la mascota: así los demás jugadores lo ven junto al nombre.
+    petLevel: Math.max(1, Number(this.petLevel) || 1)
   });
 }
 
@@ -13985,7 +14011,7 @@ createOtherPlayer(playerInfo) {
   remotePlayer.dog.nameText = this.add.text(
     playerInfo.dogX ?? playerInfo.x + 40,
     (playerInfo.dogY ?? playerInfo.y + 20) - 30,
-    playerInfo.dogName || '',
+    playerInfo.dogName ? this._dogLabelText(playerInfo.dogName, playerInfo.petLevel) : '',
     {
       fontFamily: '"PressStart2P"',
       fontSize: '8px',
@@ -14174,7 +14200,8 @@ updateOtherPlayer(playerInfo) {
         strokeThickness: 5,
       }).setOrigin(0.5, 1);
     }
-    player.dog.nameText.setText(dogName);
+    // Nombre + NIVEL de la mascota remota.
+    player.dog.nameText.setText(dogName ? this._dogLabelText(dogName, playerInfo.petLevel) : '');
     player.dog.nameText.setPosition(dogX, dogY - player.dog.sprite.displayHeight * 0.5 - 4);
     player.dog.nameText.setDepth(remoteDogFeetY + 1);
     player.dog.nameText.setVisible(!!dogName);
@@ -18641,11 +18668,12 @@ async loadPlayerData() {
     const playerProps = [
       'posicionplayerx', 'posicionplayery',
       'speed', 'mundo', 'nivel', 'nivel_exp',
-      'misiones', 'Username', 'lenguaje', 'petName', 'tutorial'
+      'misiones', 'Username', 'lenguaje', 'petName', 'tutorial', 'petLevel'
     ];
     playerProps.forEach(prop => {
       if (data[prop] !== undefined && data[prop] !== null) this[prop] = data[prop];
     });
+    if (!this.petLevel || this.petLevel < 1) this.petLevel = 1;
 
     // Nombre de mascota: '---' = aún sin fijar (regla de nombre único)
     if (!this.petName) this.petName = '---';
@@ -20207,6 +20235,273 @@ async _gatherClaim(nodeKey, toolId) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// HUB DE MONEDA — se abre al hacer clic en la moneda de oro o de plata del HUD.
+// Dos pestañas: comprar oro con USDT y cambiar 1000 plata ⇄ 1 oro.
+// Responsive (PC y móvil). Todos los textos en inglés.
+// ═══════════════════════════════════════════════════════════════════════════
+SILVER_PER_GOLD = 1000;
+
+GOLD_PACKAGES = [
+  { gold: 1,   usdt: 1  },
+  { gold: 10,  usdt: 9  },
+  { gold: 100, usdt: 90 }
+];
+
+// Enlaza el clic de las monedas del HUD con el hub. Se llama una vez por escena.
+_setupCurrencyHub() {
+  try {
+    if (this._currencyHubBound) return;
+    const left  = document.querySelector('.corner-box .left-stack');
+    const right = document.querySelector('.corner-box .right-stack');
+    if (!left && !right) return;   // HUD aún no montado
+    this._currencyHubBound = true;
+    if (left)  { left.style.cursor  = 'pointer'; left.addEventListener('click',  () => this._openCurrencyHub('buy')); }
+    if (right) { right.style.cursor = 'pointer'; right.addEventListener('click', () => this._openCurrencyHub('exchange')); }
+  } catch (e) { /* no crítico */ }
+}
+
+// Red legible a partir del chainId de la wallet conectada.
+async _walletInfo() {
+  const out = { address: this.address || window.currentAddress || '—', network: 'Unknown network' };
+  try {
+    const p = window.ethereum;
+    if (p && p.request) {
+      const accs = await p.request({ method: 'eth_accounts' });
+      if (accs && accs[0]) out.address = accs[0];
+      const cid = await p.request({ method: 'eth_chainId' });
+      const id  = parseInt(cid, 16);
+      const NAMES = { 1: 'Ethereum Mainnet', 56: 'BNB Smart Chain', 137: 'Polygon', 4441: 'LitVM LiteForge' };
+      out.network = `${NAMES[id] || 'Chain'} (id ${id})`;
+    }
+  } catch (e) { /* wallet no disponible */ }
+  return out;
+}
+
+async _openCurrencyHub(tab) {
+  const old = document.getElementById('gf-currency-modal');
+  if (old) old.remove();
+
+  const w = await this._walletInfo();
+  const oro   = Math.floor(Number(this.moneda) || 0);
+  const plata = Math.floor(Number(this.moneda_plata) || 0);
+  const maxExchange = Math.floor(plata / this.SILVER_PER_GOLD);
+
+  const ov = document.createElement('div');
+  ov.id = 'gf-currency-modal';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;';
+
+  const pkgs = this.GOLD_PACKAGES.map((p, i) =>
+    `<div class="gfc-pkg" data-i="${i}" style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#0b2b22;border:2px solid #2b5c4a;border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
+       <div style="display:flex;align-items:center;gap:8px;">
+         <img src="./Game/Source/moneda de oro.png" alt="" style="width:26px;height:26px;image-rendering:pixelated;">
+         <b style="font-size:clamp(14px,3.8vw,17px);">${p.gold} Gold</b>
+       </div>
+       <div style="text-align:right;">
+         <div style="color:#ffd23f;font-weight:bold;">${p.usdt} USDT</div>
+         ${p.gold > 1 ? `<div style="color:#8fd9b6;font-size:11px;">save ${p.gold - p.usdt} USDT</div>` : '<div style="color:#7f96b5;font-size:11px;">1 = 1$</div>'}
+       </div>
+     </div>`).join('');
+
+  const card = document.createElement('div');
+  card.style.cssText = 'width:min(94vw,420px);max-height:88vh;overflow:auto;box-sizing:border-box;background:rgba(11,61,46,.98);border:3px solid #ffd23f;border-radius:16px;color:#fff;font-family:Arial,sans-serif;padding:18px;box-shadow:0 10px 40px rgba(0,0,0,.6);';
+  card.innerHTML =
+    `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+       <b style="font-size:clamp(15px,4vw,19px);">💰 Currency</b>
+       <button id="gfc-x" style="background:transparent;border:none;color:#ffd23f;font-size:22px;cursor:pointer;">✕</button>
+     </div>
+     <div style="display:flex;gap:8px;margin-bottom:12px;">
+       <button id="gfc-tab-buy" style="flex:1;min-height:42px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;">Buy Gold</button>
+       <button id="gfc-tab-exc" style="flex:1;min-height:42px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;">Exchange</button>
+     </div>
+
+     <div id="gfc-buy">
+       <div style="color:#bcd6c9;font-size:12px;margin-bottom:8px;">Pay with <b>USDT</b>. Choose a package:</div>
+       ${pkgs}
+       <div style="background:#08211a;border:1px solid #24503f;border-radius:10px;padding:10px;font-size:12px;line-height:1.5;">
+         <div style="color:#8fb8ff;">Connected wallet</div>
+         <div style="font-family:monospace;word-break:break-all;">${w.address}</div>
+         <div style="color:#8fb8ff;margin-top:6px;">Network</div>
+         <div>${w.network}</div>
+       </div>
+       <div id="gfc-buy-msg" style="margin-top:10px;font-size:12px;color:#ffd23f;"></div>
+     </div>
+
+     <div id="gfc-exc" style="display:none;">
+       <div style="text-align:center;margin-bottom:10px;font-size:clamp(13px,3.6vw,16px);">
+         <b>${this.SILVER_PER_GOLD} Silver = 1 Gold</b>
+       </div>
+       <div style="display:flex;justify-content:space-around;background:#08211a;border:1px solid #24503f;border-radius:10px;padding:10px;margin-bottom:12px;font-size:13px;">
+         <div>🥇 Gold: <b>${oro}</b></div>
+         <div>🥈 Silver: <b>${plata}</b></div>
+       </div>
+       <label style="font-size:12px;color:#bcd6c9;">How much Gold do you want? (max ${maxExchange})</label>
+       <div style="display:flex;align-items:center;gap:10px;margin:8px 0 12px;">
+         <button id="gfc-e-minus" style="width:44px;height:44px;font-size:22px;border:none;border-radius:10px;background:#1b3d31;color:#fff;cursor:pointer;">−</button>
+         <input id="gfc-e-qty" type="number" inputmode="numeric" min="1" max="${Math.max(1, maxExchange)}" value="1"
+                style="flex:1;height:44px;text-align:center;font-size:18px;font-weight:bold;border-radius:10px;border:2px solid #ffd23f;background:#0b2b22;color:#fff;">
+         <button id="gfc-e-plus" style="width:44px;height:44px;font-size:22px;border:none;border-radius:10px;background:#1b3d31;color:#fff;cursor:pointer;">+</button>
+       </div>
+       <div id="gfc-e-cost" style="text-align:center;color:#ffd23f;margin-bottom:12px;font-size:13px;"></div>
+       <button id="gfc-e-go" style="width:100%;min-height:48px;border:none;border-radius:12px;background:#2e7d32;color:#fff;font-weight:bold;font-size:16px;cursor:pointer;">✓ Exchange</button>
+       <div id="gfc-e-msg" style="margin-top:10px;font-size:12px;text-align:center;"></div>
+     </div>`;
+
+  ov.appendChild(card);
+  document.body.appendChild(ov);
+
+  const $ = (id) => card.querySelector('#' + id);
+  const close = () => ov.remove();
+  $('gfc-x').onclick = close;
+  ov.onclick = (e) => { if (e.target === ov) close(); };
+
+  // Pestañas
+  const paint = (which) => {
+    const on  = 'background:#ffd23f;color:#20160a;';
+    const off = 'background:#1b3d31;color:#fff;';
+    $('gfc-tab-buy').style.cssText = 'flex:1;min-height:42px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;' + (which === 'buy' ? on : off);
+    $('gfc-tab-exc').style.cssText = 'flex:1;min-height:42px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;' + (which === 'exchange' ? on : off);
+    $('gfc-buy').style.display = which === 'buy' ? 'block' : 'none';
+    $('gfc-exc').style.display = which === 'exchange' ? 'block' : 'none';
+  };
+  $('gfc-tab-buy').onclick = () => paint('buy');
+  $('gfc-tab-exc').onclick = () => paint('exchange');
+  paint(tab === 'exchange' ? 'exchange' : 'buy');
+
+  // ── Compra con USDT ──────────────────────────────────────────────────────
+  card.querySelectorAll('.gfc-pkg').forEach(el => {
+    el.onclick = () => {
+      const p = this.GOLD_PACKAGES[Number(el.getAttribute('data-i'))];
+      const treasury = window.GF_TREASURY_ADDRESS;
+      const msg = $('gfc-buy-msg');
+      if (!treasury) {
+        // Sin dirección de tesorería configurada NO se finge una compra.
+        msg.innerHTML = `⚠️ Purchases are not enabled yet: the treasury address is not configured.<br>` +
+                        `Selected: <b>${p.gold} Gold for ${p.usdt} USDT</b>.`;
+        return;
+      }
+      msg.innerHTML = `Send <b>${p.usdt} USDT</b> to:<br><span style="font-family:monospace;word-break:break-all;">${treasury}</span><br>` +
+                      `Your gold is credited after the payment is confirmed on-chain.`;
+    };
+  });
+
+  // ── Cambio de moneda ─────────────────────────────────────────────────────
+  const qtyEl = $('gfc-e-qty'), costEl = $('gfc-e-cost'), msgEl = $('gfc-e-msg');
+  const refresh = () => {
+    let q = Math.max(1, Math.min(Math.max(1, maxExchange), parseInt(qtyEl.value, 10) || 1));
+    qtyEl.value = q;
+    costEl.textContent = `Cost: ${q * this.SILVER_PER_GOLD} Silver  →  you get ${q} Gold`;
+  };
+  $('gfc-e-minus').onclick = () => { qtyEl.value = (parseInt(qtyEl.value, 10) || 1) - 1; refresh(); };
+  $('gfc-e-plus').onclick  = () => { qtyEl.value = (parseInt(qtyEl.value, 10) || 1) + 1; refresh(); };
+  qtyEl.oninput = refresh;
+  refresh();
+
+  $('gfc-e-go').onclick = async () => {
+    const q = parseInt(qtyEl.value, 10) || 1;
+    if (maxExchange < 1) { msgEl.style.color = '#ff8a8a'; msgEl.textContent = 'Not enough Silver.'; return; }
+    $('gfc-e-go').disabled = true;
+    $('gfc-e-go').textContent = '⏳ Exchanging…';
+    msgEl.style.color = '#ffd23f';
+    msgEl.textContent = 'Sending transaction…';
+    const ok = await this._exchangeCurrency('silverToGold', q);
+    if (ok) { msgEl.style.color = '#6fcf97'; msgEl.textContent = `Done! +${q} Gold`; setTimeout(close, 1200); }
+    else    { msgEl.style.color = '#ff8a8a'; msgEl.textContent = 'Exchange failed. Try again.'; }
+    $('gfc-e-go').disabled = false;
+    $('gfc-e-go').textContent = '✓ Exchange';
+  };
+}
+
+// Pide al SERVIDOR el cambio de moneda (él valida el saldo y mueve las facturas).
+async _exchangeCurrency(direction, amount) {
+  try {
+    const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/currency/exchange`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ direction, amount })
+    });
+    if (!res || !res.ok) {
+      const e = res ? await res.json().catch(() => ({})) : {};
+      console.warn('❌ exchange falló:', e);
+      this.notifications && this.notifications.show(`Exchange failed: ${e.error || 'error'}`, 'error');
+      return false;
+    }
+    const data = await res.json();
+    if (data.stats) {
+      this.moneda       = data.stats.oro;
+      this.moneda_plata = data.stats.plata;
+      if (window.playerStats) { window.playerStats.oro = data.stats.oro; window.playerStats.plata = data.stats.plata; }
+      const l = document.getElementById('info-text-left');
+      const r = document.getElementById('info-text-right');
+      if (l) l.textContent = `${this.moneda}`;
+      if (r) r.textContent = `${this.moneda_plata}`;
+    }
+    this.notifications && this.notifications.show(`Exchanged ${amount * this.SILVER_PER_GOLD} Silver → ${amount} Gold`, 'success');
+    return true;
+  } catch (e) {
+    console.error('❌ exchange error:', e);
+    return false;
+  }
+}
+
+// Acceso denegado por el control de whitelist/baneos (puerta_login.html).
+// Muestra el motivo EN INGLÉS y saca al jugador al login. Se dispara aunque la
+// sesión ya estuviera iniciada, porque el backend valida el acceso en cada
+// petición (antes solo se comprobaba al hacer login y bastaba con entrar
+// directo al juego con la cookie guardada para saltarse el baneo).
+_handleAccessDenied(body) {
+  if (this._accessDeniedShown) return;
+  this._accessDeniedShown = true;
+
+  let msg;
+  if (body && body.error === 'banned') {
+    const when = body.date ? new Date(body.date).toLocaleString('en-US') : 'unknown date';
+    const why  = body.reason && String(body.reason).trim() ? body.reason : 'No reason provided';
+    msg = `You are banned since ${when}.\nReason: ${why}`;
+  } else {
+    msg = 'You are not on the whitelist.\nAccess is currently restricted.';
+  }
+
+  try { this.notifications && this.notifications.show(msg, 'error', { duration: 6000 }); } catch (e) {}
+  console.warn('⛔ Acceso denegado:', msg);
+
+  // Cerrar sesión completa y volver al login (con el motivo a la vista).
+  setTimeout(() => {
+    try { this._doFullLogout(); }
+    catch (e) { window.location.href = window.GF_LOGIN_URL || 'https://app.grasslandforest.com/?logout=1'; }
+  }, 4000);
+}
+
+// Y-SORT DE JUGADORES REMOTOS Y SUS PERROS
+// -----------------------------------------------------------------------------
+// FIX ("paso por encima del perro de otros jugadores"): la profundidad de los
+// remotos SOLO se recalculaba dentro de updateOtherPlayer(), es decir cuando
+// llegaba un paquete de movimiento. Si el otro jugador estaba QUIETO no llegaban
+// paquetes, su perro conservaba un depth viejo (o el de creación) y tu personaje
+// —que sí se reordena cada frame— quedaba siempre delante. Ahora los remotos se
+// reordenan por la línea de sus pies en cada frame, igual que el jugador local.
+_refreshRemoteDepths() {
+  const players = this.otherPlayers;
+  if (!players) return;
+  for (const id in players) {
+    const p = players[id];
+    if (!p) continue;
+
+    if (p.sprite && p.sprite.active) {
+      const feet = p.sprite.y + p.sprite.displayHeight * 0.5;
+      p.sprite.setDepth(feet);
+      if (p.nameText) p.nameText.setDepth(feet + 1);
+    }
+
+    if (p.dog && p.dog.sprite && p.dog.sprite.active) {
+      const dogFeet = p.dog.sprite.y + p.dog.sprite.displayHeight * 0.5;
+      p.dog.sprite.setDepth(dogFeet);
+      if (p.dog.shadowContainer) p.dog.shadowContainer.setDepth(dogFeet - 1);
+      if (p.dog.nameText) p.dog.nameText.setDepth(dogFeet + 1);
+    }
+  }
+}
+
 // Zoom con DOS DEDOS sobre el MAPA (móvil). Los listeners van en el canvas del
 // juego, así que un gesto que empieza sobre el HUD/paneles (que son DOM encima
 // del canvas) NO hace zoom. Se mueve entre los niveles permitidos (0.5/1/2) en
@@ -20272,8 +20567,12 @@ async _doFullLogout() {
   try { if (this.socket) this.socket.disconnect(); } catch (e) {}
   try { sessionStorage.clear(); localStorage.removeItem('game_session_data'); } catch (e) {}
 
-  // 4) Al login.
-  window.location.href = window.GF_LOGIN_URL || 'https://app.grasslandforest.com/';
+  // 4) Al login. Se va con ?logout=1 porque el permiso de MetaMask es POR
+  //    ORIGEN: revocarlo aquí (game.grasslandforest.com) NO lo revoca en el
+  //    login (app.grasslandforest.com). El login ve ese parámetro y revoca
+  //    también en su propio origen, así la wallet queda desconectada de verdad.
+  const _login = window.GF_LOGIN_URL || 'https://app.grasslandforest.com/';
+  window.location.href = _login + (_login.indexOf('?') >= 0 ? '&' : '?') + 'logout=1';
 }
 
 // ─── CONSUMIBLES (comer/beber haciendo clic en el personaje) ─────────────────
@@ -21340,6 +21639,9 @@ getPlayerIntentDirection() {
     const playerFeetY = this.player.y + this.player.displayHeight * 0.5;
     this.player.setDepth(playerFeetY);
     if (this.usuariox) this.usuariox.setDepth(playerFeetY + 1);
+
+    // Y-sort de los jugadores REMOTOS y sus perros (cada frame).
+    this._refreshRemoteDepths();
     
     // Limpiar jugadores inactivos
     if (typeof this.cleanInactivePlayers === 'function') {
@@ -22536,20 +22838,17 @@ if (this.dogNameText) {
           <span style="font-size:11px;color:#40a0ff;">⚔️ SKILLS</span>
           <button id="skills-close" style="background:none;border:none;color:#c8e8ff;font-size:16px;cursor:pointer;line-height:1;">✕</button>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:9px;">
-          <div>❤️ Vitality: <b id="sk-vitality" style="color:#40a0ff;">1</b></div>
-          <div>⚔️ Strength: <b id="sk-strength" style="color:#40a0ff;">1</b></div>
-          <div>🏃 Agility: <b id="sk-agility" style="color:#40a0ff;">1</b></div>
-          <div>🌿 Farming: <b id="sk-farming" style="color:#40a0ff;">1</b></div>
-          <div>⛏️ Mining: <b id="sk-mining" style="color:#40a0ff;">1</b></div>
-          <div>🌊 Fishing: <b id="sk-fishing" style="color:#40a0ff;">1</b></div>
-          <div>🍳 Cooking: <b id="sk-cooking" style="color:#40a0ff;">1</b></div>
-          <div>🌲 Woodcutting: <b id="sk-woodcutting" style="color:#40a0ff;">1</b></div>
+        <div style="border-bottom:1px solid #1e3a5f;padding-bottom:8px;margin-bottom:8px;font-size:9px;">
+          ⭐ Level: <b id="sk-level" style="color:#ffd23f;">1</b>
+          <span id="sk-level-exp" style="color:#7f96b5;margin-left:6px;">0 EXP</span>
         </div>
-        <div style="border-top:1px solid #1e3a5f;padding-top:8px;margin-top:4px;">
-          <div style="font-size:8px;color:#40a0ff;margin-bottom:6px;">🏅 BADGES</div>
-          <div id="skills-badges-list" style="display:flex;flex-wrap:wrap;gap:8px;max-height:160px;overflow-y:auto;"></div>
-          <div id="skills-badges-empty" style="font-size:7px;color:#405070;display:none;text-align:center;padding:8px;">No badges yet</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:9px;">
+          <div>🌿 Farming: <b id="sk-farming" style="color:#40a0ff;">1</b><br><span id="sk-farming-exp" style="color:#7f96b5;font-size:8px;">0 EXP</span></div>
+          <div>⛏️ Mining: <b id="sk-mining" style="color:#40a0ff;">1</b><br><span id="sk-mining-exp" style="color:#7f96b5;font-size:8px;">0 EXP</span></div>
+          <div>🌲 Woodcutting: <b id="sk-woodcutting" style="color:#40a0ff;">1</b><br><span id="sk-woodcutting-exp" style="color:#7f96b5;font-size:8px;">0 EXP</span></div>
+          <div>🌊 Fishing: <b id="sk-fishing" style="color:#40a0ff;">1</b><br><span id="sk-fishing-exp" style="color:#7f96b5;font-size:8px;">0 EXP</span></div>
+          <div>🍳 Cooking: <b id="sk-cooking" style="color:#40a0ff;">1</b><br><span id="sk-cooking-exp" style="color:#7f96b5;font-size:8px;">0 EXP</span></div>
+          <div>💪 Strength: <b id="sk-strength" style="color:#40a0ff;">1</b><br><span id="sk-strength-exp" style="color:#7f96b5;font-size:8px;">0 EXP</span></div>
         </div>
       `;
       document.body.appendChild(panel);
@@ -22700,69 +22999,74 @@ if (this.dogNameText) {
     panel.style.display = 'none';
   }
 
+  // SKILLS REALES del juego (las que existen en GamePlayer y suben con su exp).
+  // Se quitaron "vitality" y "agility": no eran habilidades reales — vitality
+  // repetía el nivel y agility se inventaba a partir de la velocidad.
   _getSkillsFromScene() {
     return {
-      vitality:    this.nivel      || 1,
-      strength:    this.fuerza     || 1,
-      agility:     Math.floor((this.speed || 240) / 60) || 1,
-      farming:     this.agricultura || 1,
-      mining:      this.mineria    || 1,
-      fishing:     this.pesca      || 1,
-      cooking:     this.cocina     || 1,
-      woodcutting: this.deforestacion || 1,
+      level:       this.nivel          || 1,
+      farming:     this.agricultura    || 1,
+      mining:      this.mineria        || 1,
+      fishing:     this.pesca          || 1,
+      cooking:     this.cocina         || 1,
+      woodcutting: this.deforestacion  || 1,
+      strength:    this.fuerza         || 1,
+      // Experiencia de cada una (se muestra integrada junto al nivel).
+      exp: {
+        level:       this.nivel_exp          || 0,
+        farming:     this.agricultura_exp    || 0,
+        mining:      this.mineria_exp        || 0,
+        fishing:     this.pesca_exp          || 0,
+        cooking:     this.cocina_exp         || 0,
+        woodcutting: this.deforestacion_exp  || 0,
+        strength:    this.fuerza_exp         || 0
+      }
     };
   }
 
   async _loadSkillsData() {
     if (!this.playerName) return;
+    // Ya NO se piden insignias: la sección se eliminó del panel.
     try {
-      const [skillsRes, badgesRes] = await Promise.all([
-        fetch(`${this.serverBase}/api/skills/${encodeURIComponent(this.playerName)}`, { credentials:'include' }),
-        fetch(`${this.serverBase}/api/badges/${encodeURIComponent(this.playerName)}`, { credentials:'include' }).catch(()=>null)
-      ]);
+      const skillsRes = await fetch(
+        `${this.serverBase}/api/skills/${encodeURIComponent(this.playerName)}`,
+        { credentials: 'include' }
+      );
       let skills = this._getSkillsFromScene();
-      if (skillsRes.ok) {
+      if (skillsRes && skillsRes.ok) {
         const data = await skillsRes.json();
-        skills = { ...skills, ...(data.skills || {}) };
+        // La exp local manda salvo que el backend mande la suya.
+        const remote = data.skills || {};
+        skills = { ...skills, ...remote, exp: { ...(skills.exp || {}), ...(remote.exp || {}) } };
       }
-      const badges = (badgesRes && badgesRes.ok) ? (await badgesRes.json()).badges || [] : [];
-      this._renderSkillsPanel(skills, badges);
+      this._renderSkillsPanel(skills);
     } catch (_) {
-      this._renderSkillsPanel(this._getSkillsFromScene(), []);
+      this._renderSkillsPanel(this._getSkillsFromScene());
     }
   }
 
-  _renderSkillsPanel(skills, badges = []) {
+  _renderSkillsPanel(skills) {
+    // Nivel + skills REALES, cada una con su experiencia integrada.
     const statMap = {
-      vitality: 'sk-vitality', strength: 'sk-strength', agility: 'sk-agility',
-      farming: 'sk-farming', mining: 'sk-mining', fishing: 'sk-fishing',
-      cooking: 'sk-cooking', woodcutting: 'sk-woodcutting'
+      level: 'sk-level', farming: 'sk-farming', mining: 'sk-mining',
+      fishing: 'sk-fishing', cooking: 'sk-cooking',
+      woodcutting: 'sk-woodcutting', strength: 'sk-strength'
     };
+    const exp = (skills && skills.exp) || {};
+
     Object.entries(statMap).forEach(([key, elId]) => {
       const el = document.getElementById(elId);
       if (el) el.textContent = skills[key] || 1;
+
+      const expEl = document.getElementById(elId + '-exp');
+      if (expEl) expEl.textContent = `${Math.floor(Number(exp[key]) || 0)} EXP`;
     });
 
-    // Badges section
-    const badgeList = document.getElementById('skills-badges-list');
-    const badgeEmpty = document.getElementById('skills-badges-empty');
-    if (badgeList) {
-      if (!badges || badges.length === 0) {
-        badgeList.innerHTML = '';
-        if (badgeEmpty) badgeEmpty.style.display = 'block';
-      } else {
-        if (badgeEmpty) badgeEmpty.style.display = 'none';
-        badgeList.innerHTML = badges.map(b => `
-          <div title="${b.name || ''}" style="display:flex;flex-direction:column;align-items:center;gap:4px;width:56px;">
-            <img src="${b.image || ''}" alt="${b.name || ''}" style="width:40px;height:40px;object-fit:contain;border:1px solid #1e3a5f;border-radius:6px;background:#0a1422;" onerror="this.style.display='none'"/>
-            <span style="font-size:5px;color:#c8e8ff;text-align:center;word-break:break-word;">${b.name || ''}</span>
-          </div>
-        `).join('');
-      }
-    }
-
+    // FIX: aquí había `this._pendingSkillPoints = points;` con `points` sin
+    // declarar en este ámbito → ReferenceError que abortaba TODO el render del
+    // panel (por eso los valores no se actualizaban).
     this._pendingSkills = skills;
-    this._pendingSkillPoints = points;
+    this._pendingSkillPoints = 0;
   }
 
   async _saveSkillsData() {

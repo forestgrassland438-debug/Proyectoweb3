@@ -891,6 +891,9 @@ this.player.on('pointerdown', (pointer) => {
         // Zoom con DOS DEDOS (móvil) sobre el mapa.
         this._setupPinchZoom();
 
+        // Clic en las monedas del HUD → hub de compra/cambio de moneda.
+        this._setupCurrencyHub();
+
         // 🖱️ CONTROL CON RUEDA DEL MOUSE - USANDO VALORES EXACTOS
         this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY) => {
             console.log("✅ Rueda - DeltaY:", deltaY);
@@ -8301,7 +8304,7 @@ async loadPlayerData() {
     const playerProps = [
       'posicionplayerx', 'posicionplayery',
       'speed', 'mundo', 'nivel', 'nivel_exp',
-      'misiones', 'Username', 'lenguaje', 'petName', 'tutorial'
+      'misiones', 'Username', 'lenguaje', 'petName', 'tutorial', 'petLevel'
     ];
 
     playerProps.forEach(prop => {
@@ -9035,12 +9038,22 @@ _cleanupTutorial() {
                 
                 const response = await fetch(url, fetchOptions);
                 lastResponse = response;
-                
+
                 // Si es éxito, retornar la respuesta
                 if (response.ok) {
                     return response;
                 }
-                
+
+                // 403 de CONTROL DE ACCESO (baneado / fuera de whitelist).
+                if (response.status === 403) {
+                    let body = {};
+                    try { body = await response.clone().json(); } catch (e) {}
+                    if (body.error === 'banned' || body.error === 'not_whitelisted') {
+                        this._handleAccessDenied(body);
+                        return response;
+                    }
+                }
+
                 // Si es error 401 (no autorizado), intentar refresh
                 if (response.status === 401) {
                     console.log(`🔐 Error 401 detectado, intentando refresh...`);
@@ -9535,6 +9548,216 @@ actualizarBarraVida(porcentaje) {
   this.queuedAction({ type: 'forSpam2'});
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// HUB DE MONEDA (mismo que GameScene): compra de oro con USDT + cambio
+// 1000 plata ⇄ 1 oro. Se abre al hacer clic en las monedas del HUD.
+// ═══════════════════════════════════════════════════════════════════════════
+SILVER_PER_GOLD = 1000;
+GOLD_PACKAGES = [ { gold: 1, usdt: 1 }, { gold: 10, usdt: 9 }, { gold: 100, usdt: 90 } ];
+
+_setupCurrencyHub() {
+  try {
+    if (this._currencyHubBound) return;
+    const left  = document.querySelector('.corner-box .left-stack');
+    const right = document.querySelector('.corner-box .right-stack');
+    if (!left && !right) return;
+    this._currencyHubBound = true;
+    if (left)  { left.style.cursor  = 'pointer'; left.addEventListener('click',  () => this._openCurrencyHub('buy')); }
+    if (right) { right.style.cursor = 'pointer'; right.addEventListener('click', () => this._openCurrencyHub('exchange')); }
+  } catch (e) { /* no crítico */ }
+}
+
+async _walletInfo() {
+  const out = { address: this.address || window.currentAddress || '—', network: 'Unknown network' };
+  try {
+    const p = window.ethereum;
+    if (p && p.request) {
+      const accs = await p.request({ method: 'eth_accounts' });
+      if (accs && accs[0]) out.address = accs[0];
+      const cid = await p.request({ method: 'eth_chainId' });
+      const id  = parseInt(cid, 16);
+      const NAMES = { 1: 'Ethereum Mainnet', 56: 'BNB Smart Chain', 137: 'Polygon', 4441: 'LitVM LiteForge' };
+      out.network = `${NAMES[id] || 'Chain'} (id ${id})`;
+    }
+  } catch (e) {}
+  return out;
+}
+
+async _openCurrencyHub(tab) {
+  const old = document.getElementById('gf-currency-modal');
+  if (old) old.remove();
+
+  const w = await this._walletInfo();
+  const oro   = Math.floor(Number(this.moneda) || 0);
+  const plata = Math.floor(Number(this.moneda_plata) || 0);
+  const maxExchange = Math.floor(plata / this.SILVER_PER_GOLD);
+
+  const ov = document.createElement('div');
+  ov.id = 'gf-currency-modal';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;';
+
+  const pkgs = this.GOLD_PACKAGES.map((p, i) =>
+    `<div class="gfc-pkg" data-i="${i}" style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#0b2b22;border:2px solid #2b5c4a;border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
+       <div style="display:flex;align-items:center;gap:8px;">
+         <img src="./Game/Source/moneda de oro.png" alt="" style="width:26px;height:26px;image-rendering:pixelated;">
+         <b style="font-size:clamp(14px,3.8vw,17px);">${p.gold} Gold</b>
+       </div>
+       <div style="text-align:right;">
+         <div style="color:#ffd23f;font-weight:bold;">${p.usdt} USDT</div>
+         ${p.gold > 1 ? `<div style="color:#8fd9b6;font-size:11px;">save ${p.gold - p.usdt} USDT</div>` : '<div style="color:#7f96b5;font-size:11px;">1 = 1$</div>'}
+       </div>
+     </div>`).join('');
+
+  const card = document.createElement('div');
+  card.style.cssText = 'width:min(94vw,420px);max-height:88vh;overflow:auto;box-sizing:border-box;background:rgba(11,61,46,.98);border:3px solid #ffd23f;border-radius:16px;color:#fff;font-family:Arial,sans-serif;padding:18px;box-shadow:0 10px 40px rgba(0,0,0,.6);';
+  card.innerHTML =
+    `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+       <b style="font-size:clamp(15px,4vw,19px);">💰 Currency</b>
+       <button id="gfc-x" style="background:transparent;border:none;color:#ffd23f;font-size:22px;cursor:pointer;">✕</button>
+     </div>
+     <div style="display:flex;gap:8px;margin-bottom:12px;">
+       <button id="gfc-tab-buy" style="flex:1;min-height:42px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;">Buy Gold</button>
+       <button id="gfc-tab-exc" style="flex:1;min-height:42px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;">Exchange</button>
+     </div>
+     <div id="gfc-buy">
+       <div style="color:#bcd6c9;font-size:12px;margin-bottom:8px;">Pay with <b>USDT</b>. Choose a package:</div>
+       ${pkgs}
+       <div style="background:#08211a;border:1px solid #24503f;border-radius:10px;padding:10px;font-size:12px;line-height:1.5;">
+         <div style="color:#8fb8ff;">Connected wallet</div>
+         <div style="font-family:monospace;word-break:break-all;">${w.address}</div>
+         <div style="color:#8fb8ff;margin-top:6px;">Network</div>
+         <div>${w.network}</div>
+       </div>
+       <div id="gfc-buy-msg" style="margin-top:10px;font-size:12px;color:#ffd23f;"></div>
+     </div>
+     <div id="gfc-exc" style="display:none;">
+       <div style="text-align:center;margin-bottom:10px;font-size:clamp(13px,3.6vw,16px);"><b>${this.SILVER_PER_GOLD} Silver = 1 Gold</b></div>
+       <div style="display:flex;justify-content:space-around;background:#08211a;border:1px solid #24503f;border-radius:10px;padding:10px;margin-bottom:12px;font-size:13px;">
+         <div>🥇 Gold: <b>${oro}</b></div><div>🥈 Silver: <b>${plata}</b></div>
+       </div>
+       <label style="font-size:12px;color:#bcd6c9;">How much Gold do you want? (max ${maxExchange})</label>
+       <div style="display:flex;align-items:center;gap:10px;margin:8px 0 12px;">
+         <button id="gfc-e-minus" style="width:44px;height:44px;font-size:22px;border:none;border-radius:10px;background:#1b3d31;color:#fff;cursor:pointer;">−</button>
+         <input id="gfc-e-qty" type="number" inputmode="numeric" min="1" max="${Math.max(1, maxExchange)}" value="1"
+                style="flex:1;height:44px;text-align:center;font-size:18px;font-weight:bold;border-radius:10px;border:2px solid #ffd23f;background:#0b2b22;color:#fff;">
+         <button id="gfc-e-plus" style="width:44px;height:44px;font-size:22px;border:none;border-radius:10px;background:#1b3d31;color:#fff;cursor:pointer;">+</button>
+       </div>
+       <div id="gfc-e-cost" style="text-align:center;color:#ffd23f;margin-bottom:12px;font-size:13px;"></div>
+       <button id="gfc-e-go" style="width:100%;min-height:48px;border:none;border-radius:12px;background:#2e7d32;color:#fff;font-weight:bold;font-size:16px;cursor:pointer;">✓ Exchange</button>
+       <div id="gfc-e-msg" style="margin-top:10px;font-size:12px;text-align:center;"></div>
+     </div>`;
+
+  ov.appendChild(card);
+  document.body.appendChild(ov);
+
+  const $ = (id) => card.querySelector('#' + id);
+  const close = () => ov.remove();
+  $('gfc-x').onclick = close;
+  ov.onclick = (e) => { if (e.target === ov) close(); };
+
+  const paint = (which) => {
+    const on = 'background:#ffd23f;color:#20160a;', off = 'background:#1b3d31;color:#fff;';
+    $('gfc-tab-buy').style.cssText = 'flex:1;min-height:42px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;' + (which === 'buy' ? on : off);
+    $('gfc-tab-exc').style.cssText = 'flex:1;min-height:42px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;' + (which === 'exchange' ? on : off);
+    $('gfc-buy').style.display = which === 'buy' ? 'block' : 'none';
+    $('gfc-exc').style.display = which === 'exchange' ? 'block' : 'none';
+  };
+  $('gfc-tab-buy').onclick = () => paint('buy');
+  $('gfc-tab-exc').onclick = () => paint('exchange');
+  paint(tab === 'exchange' ? 'exchange' : 'buy');
+
+  card.querySelectorAll('.gfc-pkg').forEach(el => {
+    el.onclick = () => {
+      const p = this.GOLD_PACKAGES[Number(el.getAttribute('data-i'))];
+      const treasury = window.GF_TREASURY_ADDRESS;
+      const msg = $('gfc-buy-msg');
+      if (!treasury) {
+        msg.innerHTML = `⚠️ Purchases are not enabled yet: the treasury address is not configured.<br>Selected: <b>${p.gold} Gold for ${p.usdt} USDT</b>.`;
+        return;
+      }
+      msg.innerHTML = `Send <b>${p.usdt} USDT</b> to:<br><span style="font-family:monospace;word-break:break-all;">${treasury}</span><br>Your gold is credited after the payment is confirmed on-chain.`;
+    };
+  });
+
+  const qtyEl = $('gfc-e-qty'), costEl = $('gfc-e-cost'), msgEl = $('gfc-e-msg');
+  const refresh = () => {
+    let q = Math.max(1, Math.min(Math.max(1, maxExchange), parseInt(qtyEl.value, 10) || 1));
+    qtyEl.value = q;
+    costEl.textContent = `Cost: ${q * this.SILVER_PER_GOLD} Silver  →  you get ${q} Gold`;
+  };
+  $('gfc-e-minus').onclick = () => { qtyEl.value = (parseInt(qtyEl.value, 10) || 1) - 1; refresh(); };
+  $('gfc-e-plus').onclick  = () => { qtyEl.value = (parseInt(qtyEl.value, 10) || 1) + 1; refresh(); };
+  qtyEl.oninput = refresh;
+  refresh();
+
+  $('gfc-e-go').onclick = async () => {
+    const q = parseInt(qtyEl.value, 10) || 1;
+    if (maxExchange < 1) { msgEl.style.color = '#ff8a8a'; msgEl.textContent = 'Not enough Silver.'; return; }
+    $('gfc-e-go').disabled = true; $('gfc-e-go').textContent = '⏳ Exchanging…';
+    msgEl.style.color = '#ffd23f'; msgEl.textContent = 'Sending transaction…';
+    const ok = await this._exchangeCurrency('silverToGold', q);
+    if (ok) { msgEl.style.color = '#6fcf97'; msgEl.textContent = `Done! +${q} Gold`; setTimeout(close, 1200); }
+    else    { msgEl.style.color = '#ff8a8a'; msgEl.textContent = 'Exchange failed. Try again.'; }
+    $('gfc-e-go').disabled = false; $('gfc-e-go').textContent = '✓ Exchange';
+  };
+}
+
+async _exchangeCurrency(direction, amount) {
+  try {
+    const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/currency/exchange`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ direction, amount })
+    });
+    if (!res || !res.ok) {
+      const e = res ? await res.json().catch(() => ({})) : {};
+      console.warn('❌ exchange falló:', e);
+      this.notifications && this.notifications.show(`Exchange failed: ${e.error || 'error'}`, 'error');
+      return false;
+    }
+    const data = await res.json();
+    if (data.stats) {
+      this.moneda       = data.stats.oro;
+      this.moneda_plata = data.stats.plata;
+      if (window.playerStats) { window.playerStats.oro = data.stats.oro; window.playerStats.plata = data.stats.plata; }
+      const l = document.getElementById('info-text-left');
+      const r = document.getElementById('info-text-right');
+      if (l) l.textContent = `${this.moneda}`;
+      if (r) r.textContent = `${this.moneda_plata}`;
+    }
+    this.notifications && this.notifications.show(`Exchanged ${amount * this.SILVER_PER_GOLD} Silver → ${amount} Gold`, 'success');
+    return true;
+  } catch (e) {
+    console.error('❌ exchange error:', e);
+    return false;
+  }
+}
+
+// Acceso denegado por el control de whitelist/baneos (puerta_login.html).
+// El backend valida el acceso en CADA petición, así que esto también salta si
+// el jugador entró directo con la sesión guardada o si lo banean jugando.
+_handleAccessDenied(body) {
+  if (this._accessDeniedShown) return;
+  this._accessDeniedShown = true;
+
+  let msg;
+  if (body && body.error === 'banned') {
+    const when = body.date ? new Date(body.date).toLocaleString('en-US') : 'unknown date';
+    const why  = body.reason && String(body.reason).trim() ? body.reason : 'No reason provided';
+    msg = `You are banned since ${when}.\nReason: ${why}`;
+  } else {
+    msg = 'You are not on the whitelist.\nAccess is currently restricted.';
+  }
+
+  try { this.notifications && this.notifications.show(msg, 'error', { duration: 6000 }); } catch (e) {}
+  console.warn('⛔ Acceso denegado:', msg);
+
+  setTimeout(() => {
+    try { this._doFullLogout(); }
+    catch (e) { window.location.href = window.GF_LOGIN_URL || 'https://app.grasslandforest.com/?logout=1'; }
+  }, 4000);
+}
+
 // Zoom con DOS DEDOS sobre el mapa (móvil). Los listeners van en el canvas, así
 // que los gestos que empiezan sobre el HUD (DOM) no hacen zoom. Se mueve entre
 // los niveles permitidos para no reintroducir zooms fraccionarios (costuras).
@@ -9599,8 +9822,10 @@ async _doFullLogout() {
   try { if (this.socket) this.socket.disconnect(); } catch (e) {}
   try { sessionStorage.clear(); localStorage.removeItem('game_session_data'); } catch (e) {}
 
-  // 4) Al login.
-  window.location.href = window.GF_LOGIN_URL || 'https://app.grasslandforest.com/';
+  // 4) Al login (con ?logout=1: el permiso de MetaMask es POR ORIGEN, así que
+  //    el login debe revocarlo también en el suyo — ver GameScene).
+  const _login = window.GF_LOGIN_URL || 'https://app.grasslandforest.com/';
+  window.location.href = _login + (_login.indexOf('?') >= 0 ? '&' : '?') + 'logout=1';
 }
 
 // ─── CONSUMIBLES (comer/beber haciendo clic en el personaje) ─────────────────
