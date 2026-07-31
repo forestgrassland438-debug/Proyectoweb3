@@ -920,24 +920,53 @@
       <button id="skills-close" class="skills-close-btn">✕</button>
     </div>
     <div class="skills-body">
-      <!-- Primary Stats -->
+      <!-- SKILLS REALES DEL JUEGO (ver game.html). Sin "Vitality"/"Agility"
+           (no eran habilidades reales) y sin la sección de insignias. -->
       <div class="skills-section">
-        <div class="skills-section-title">📊 Character Stats</div>
-        <div class="skills-stats-grid" id="skills-stats-grid">
-          <div class="skill-stat-row"><span class="skill-stat-icon">❤️</span><span class="skill-stat-name">Vitality</span><span class="skill-stat-val" id="sk-vitality">1</span></div>
-          <div class="skill-stat-row"><span class="skill-stat-icon">⚔️</span><span class="skill-stat-name">Strength</span><span class="skill-stat-val" id="sk-strength">1</span></div>
-          <div class="skill-stat-row"><span class="skill-stat-icon">🏃</span><span class="skill-stat-name">Agility</span><span class="skill-stat-val" id="sk-agility">1</span></div>
-          <div class="skill-stat-row"><span class="skill-stat-icon">🌿</span><span class="skill-stat-name">Farming</span><span class="skill-stat-val" id="sk-farming">1</span></div>
-          <div class="skill-stat-row"><span class="skill-stat-icon">⛏️</span><span class="skill-stat-name">Mining</span><span class="skill-stat-val" id="sk-mining">1</span></div>
-          <div class="skill-stat-row"><span class="skill-stat-icon">🌊</span><span class="skill-stat-name">Fishing</span><span class="skill-stat-val" id="sk-fishing">1</span></div>
-          <div class="skill-stat-row"><span class="skill-stat-icon">🍳</span><span class="skill-stat-name">Cooking</span><span class="skill-stat-val" id="sk-cooking">1</span></div>
-          <div class="skill-stat-row"><span class="skill-stat-icon">🌲</span><span class="skill-stat-name">Woodcutting</span><span class="skill-stat-val" id="sk-woodcutting">1</span></div>
+        <div class="skills-section-title">📊 Player level</div>
+        <div class="skills-stats-grid">
+          <div class="skill-stat-row">
+            <span class="skill-stat-icon">⭐</span><span class="skill-stat-name">Level</span>
+            <span class="skill-stat-val" id="sk-level">1</span>
+            <span class="skill-stat-exp" id="sk-level-exp" style="opacity:.75;font-size:.85em;margin-left:6px;">0 EXP</span>
+          </div>
         </div>
       </div>
-      <!-- Badges -->
+
       <div class="skills-section">
-        <div class="skills-section-title">🏅 Badges</div>
-        <div class="skills-upgrade-list" id="skills-upgrade-list"></div>
+        <div class="skills-section-title">🛠️ Skills</div>
+        <div class="skills-stats-grid" id="skills-stats-grid">
+          <div class="skill-stat-row">
+            <span class="skill-stat-icon">🌿</span><span class="skill-stat-name">Farming</span>
+            <span class="skill-stat-val" id="sk-farming">1</span>
+            <span class="skill-stat-exp" id="sk-farming-exp" style="opacity:.75;font-size:.85em;margin-left:6px;">0 EXP</span>
+          </div>
+          <div class="skill-stat-row">
+            <span class="skill-stat-icon">⛏️</span><span class="skill-stat-name">Mining</span>
+            <span class="skill-stat-val" id="sk-mining">1</span>
+            <span class="skill-stat-exp" id="sk-mining-exp" style="opacity:.75;font-size:.85em;margin-left:6px;">0 EXP</span>
+          </div>
+          <div class="skill-stat-row">
+            <span class="skill-stat-icon">🌲</span><span class="skill-stat-name">Woodcutting</span>
+            <span class="skill-stat-val" id="sk-woodcutting">1</span>
+            <span class="skill-stat-exp" id="sk-woodcutting-exp" style="opacity:.75;font-size:.85em;margin-left:6px;">0 EXP</span>
+          </div>
+          <div class="skill-stat-row">
+            <span class="skill-stat-icon">🌊</span><span class="skill-stat-name">Fishing</span>
+            <span class="skill-stat-val" id="sk-fishing">1</span>
+            <span class="skill-stat-exp" id="sk-fishing-exp" style="opacity:.75;font-size:.85em;margin-left:6px;">0 EXP</span>
+          </div>
+          <div class="skill-stat-row">
+            <span class="skill-stat-icon">🍳</span><span class="skill-stat-name">Cooking</span>
+            <span class="skill-stat-val" id="sk-cooking">1</span>
+            <span class="skill-stat-exp" id="sk-cooking-exp" style="opacity:.75;font-size:.85em;margin-left:6px;">0 EXP</span>
+          </div>
+          <div class="skill-stat-row">
+            <span class="skill-stat-icon">💪</span><span class="skill-stat-name">Strength</span>
+            <span class="skill-stat-val" id="sk-strength">1</span>
+            <span class="skill-stat-exp" id="sk-strength-exp" style="opacity:.75;font-size:.85em;margin-left:6px;">0 EXP</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1288,31 +1317,31 @@
       <div class="dash-avatar_101" aria-hidden="true"><img src="./Game/Source/config.png" alt="" onerror="this.style.display='none'"></div>
       <div class="dash-header-text_101">
         <div class="title_101">DASHBOARD</div>
-        <div class="muted dash-subtitle_101">Perfil, mascota y preferencias</div>
+        <div class="muted dash-subtitle_101">Profile, pet and preferences</div>
       </div>
-      <button id="close-panel" class="dash-close_101" aria-label="Cerrar panel">✕</button>
+      <button id="close-panel" class="dash-close_101" aria-label="Close panel">✕</button>
     </div>
 
     <div class="hub-row_101 dash-card_101">
-      <label class="hub-label_101" for="character-name">👤 Nombre de personaje</label>
+      <label class="hub-label_101" for="character-name">👤 Character name</label>
       <div class="dash-input-row_101">
-        <input id="character-name" type="text" placeholder="Escribe el nombre..." autocomplete="off" />
-        <button id="apply-name" class="btn-primary dash-apply_101">Aplicar</button>
+        <input id="character-name" type="text" placeholder="Type your name..." autocomplete="off" />
+        <button id="apply-name" class="btn-primary dash-apply_101">Apply</button>
       </div>
-      <div id="character-name-hint" class="dash-hint_101">⚠️ Solo puedes elegirlo UNA vez — piénsalo bien.</div>
+      <div id="character-name-hint" class="dash-hint_101">⚠️ You can only choose it ONCE — think carefully.</div>
     </div>
 
     <div class="hub-row_101 dash-card_101">
-      <label class="hub-label_101" for="pet-name">🐶 Nombre de la mascota</label>
+      <label class="hub-label_101" for="pet-name">🐶 Pet name</label>
       <div class="dash-input-row_101">
-        <input id="pet-name" type="text" placeholder="Nombra a tu mascota..." autocomplete="off" />
-        <button id="apply-pet-name" class="btn-primary dash-apply_101">Aplicar</button>
+        <input id="pet-name" type="text" placeholder="Name your pet..." autocomplete="off" />
+        <button id="apply-pet-name" class="btn-primary dash-apply_101">Apply</button>
       </div>
-      <div id="pet-name-hint" class="dash-hint_101">⚠️ Solo puedes elegirlo UNA vez — piénsalo bien.</div>
+      <div id="pet-name-hint" class="dash-hint_101">⚠️ You can only choose it ONCE — think carefully.</div>
     </div>
 
     <div class="hub-row_101 dash-card_101">
-      <label class="hub-label_101" for="language-select">🌐 Lenguaje</label>
+      <label class="hub-label_101" for="language-select">🌐 Language</label>
       <select id="language-select" aria-label="Seleccionar idioma">
         <option value="en-US">English (United States)</option>
         <option value="en-PH">English (Philippine / Tagalog)</option>
@@ -1324,16 +1353,16 @@
     </div>
 
     <div class="hub-row_101 dash-card_101">
-      <div class="hub-label_101">🔐 Cuenta</div>
+      <div class="hub-label_101">🔐 Account</div>
       <div class="dash-account-row_101">
-        <button id="logout-btn" class="btn-ghost">Cerrar sesión</button>
-        <div class="muted"><span class="dash-session-dot_101"></span> Sesión activa</div>
+        <button id="logout-btn" class="btn-ghost">Log out</button>
+        <div class="muted"><span class="dash-session-dot_101"></span> Session active</div>
       </div>
     </div>
 
     <div class="hub-footer_101">
       <div class="muted">Grassland Forest</div>
-      <div class="muted">Versión 1.0</div>
+      <div class="muted">Version 1.0</div>
     </div>
   </aside>
 

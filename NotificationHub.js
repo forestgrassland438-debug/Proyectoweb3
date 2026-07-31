@@ -1244,19 +1244,41 @@ class NotificationHub {
         }
     }
 
-    // Crea (una sola vez, global) un botón flotante ⚙️ que abre el panel.
-    _ensureSettingsButton() {
+    // Inserta la campana 🔔 como UN BOTÓN MÁS del HUD (#round-buttons-container).
+    // Así hereda el estilo/tamaño responsivo de .round-btn (PC y móvil), se
+    // OCULTA solo mientras el mapa carga (el juego pone .hud-hidden → display:none
+    // en #game-hud) y REAPARECE al entrar a la escena nueva, sin código extra.
+    // Antes era un botón flotante fijo abajo-izquierda: quedaba fuera del HUD y
+    // tapado por el botón de chat.
+    _ensureSettingsButton(attempt) {
         try {
             if (typeof document === 'undefined' || !document.body) return;
-            if (window.__gfNotifSettingsBound) return;
-            window.__gfNotifSettingsBound = true;
+
+            // Limpieza del botón FLOTANTE de la versión anterior (quedaba
+            // abajo-izquierda, tapado por el chat, y NO se ocultaba al cargar).
+            const legacy = document.getElementById('gf-notif-settings-btn');
+            if (legacy) legacy.remove();
+
+            if (document.getElementById('gf-notif-btn')) return; // ya está
+
+            const container = document.getElementById('round-buttons-container');
+            if (!container) {
+                // El HUD todavía no existe: reintentar un rato (sin bloquear).
+                const n = (attempt || 0) + 1;
+                if (n <= 20) setTimeout(() => this._ensureSettingsButton(n), 500);
+                return;
+            }
+
             const btn = document.createElement('button');
-            btn.id = 'gf-notif-settings-btn';
-            btn.title = 'Notification settings';
-            btn.textContent = '🔔';
-            btn.style.cssText = 'position:fixed;left:14px;bottom:70px;z-index:99998;width:40px;height:40px;border-radius:50%;border:2px solid #ffd23f;background:rgba(11,61,46,0.94);color:#fff;font-size:18px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.4);';
-            btn.addEventListener('click', () => this.openSettingsPanel());
-            document.body.appendChild(btn);
+            btn.id = 'gf-notif-btn';
+            btn.className = 'round-btn';
+            btn.setAttribute('tabindex', '-1');
+            btn.setAttribute('aria-label', 'Notifications');
+            btn.innerHTML =
+                '<span style="font-size:20px;display:flex;align-items:center;justify-content:center;width:100%;height:100%">🔔</span>' +
+                '<span class="label-badge">Notifications</span>';
+            btn.addEventListener('click', (e) => { e.preventDefault(); this.openSettingsPanel(); });
+            container.appendChild(btn);
         } catch (e) { /* no crítico */ }
     }
 
@@ -1268,7 +1290,13 @@ class NotificationHub {
 
             const el = document.createElement('div');
             el.id = 'gf-notif-panel';
-            el.style.cssText = 'position:fixed;left:14px;bottom:120px;z-index:99999;width:min(92vw,340px);max-height:70vh;overflow:auto;background:rgba(11,61,46,0.97);border:3px solid #ffd23f;border-radius:14px;color:#fff;font-family:Arial,sans-serif;font-size:14px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.5);';
+            // Anclado arriba-derecha bajo la columna del HUD en pantallas grandes;
+            // en móvil (<=760px) se centra y ocupa casi todo el ancho.
+            const isSmall = (window.innerWidth || 1024) <= 760;
+            const posCSS = isSmall
+                ? 'left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,360px);'
+                : 'right:86px;top:120px;width:340px;';
+            el.style.cssText = 'position:fixed;' + posCSS + 'z-index:99999;max-height:70vh;overflow:auto;background:rgba(11,61,46,0.97);border:3px solid #ffd23f;border-radius:14px;color:#fff;font-family:Arial,sans-serif;font-size:14px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.5);';
 
             const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
             const TYPES = [['success', 'Success'], ['error', 'Errors'], ['warning', 'Warnings'], ['info', 'Info']];
@@ -1308,13 +1336,20 @@ class NotificationHub {
                 </div>
                 <div style="max-height:34vh;overflow:auto;">${histHtml}</div>`;
 
-            document.body.appendChild(el);
+            // Dentro de #game-hud para que se oculte junto con el HUD mientras el
+            // mapa carga (el juego le pone .hud-hidden → display:none).
+            const hudHost = document.getElementById('game-hud') || document.body;
+            hudHost.appendChild(el);
             el.querySelector('#gf-notif-close').addEventListener('click', () => el.remove());
             el.querySelectorAll('input[type=checkbox][data-type]').forEach(cb => {
                 cb.addEventListener('change', () => this.setTypeEnabled(cb.getAttribute('data-type'), cb.checked));
             });
             el.querySelector('#gf-notif-pos').addEventListener('change', (e) => this.setPosition(e.target.value));
-            el.querySelector('#gf-notif-clearhist').addEventListener('click', () => { this._history = []; this.openSettingsPanel(); this.openSettingsPanel(); });
+            el.querySelector('#gf-notif-clearhist').addEventListener('click', () => {
+                this._history = [];
+                el.remove();              // cerrar y volver a abrir ya vacío
+                this.openSettingsPanel();
+            });
         } catch (e) { console.warn('No se pudo abrir el panel de notificaciones:', e); }
     }
 }
