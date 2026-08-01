@@ -107,7 +107,7 @@ async loadMissionsData() {
     
     // Añadir token CSRF si está disponible (aunque GET normalmente no lo requiere)
     if (this.csrfToken) {
-      headers['X-CSRF-Token'] = this.csrfToken;
+      headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
     }
     
     const res = await fetch(`${this.serverBase}/api/missions/${encodeURIComponent(this.playerName)}`, {
@@ -196,7 +196,7 @@ async updateMissionsData(updateData) {
     
     // Añadir token CSRF si está disponible
     if (this.csrfToken) {
-      headers['X-CSRF-Token'] = this.csrfToken;
+      headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
     }
     
     const res = await fetch(`${this.serverBase}/api/missions/${encodeURIComponent(this.playerName)}/update`, {
@@ -220,7 +220,7 @@ async updateMissionsData(updateData) {
         console.log('🔄 Error CSRF, obteniendo nuevo token...');
         await this.getCSRFToken();
         if (this.csrfToken) {
-          headers['X-CSRF-Token'] = this.csrfToken;
+          headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
           
           // Reintentar
           const retryRes = await fetch(`${this.serverBase}/api/missions/${encodeURIComponent(this.playerName)}/update`, {
@@ -319,7 +319,7 @@ showNotification(message, type = 'info') {
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json',
-                    'X-CSRF-Token': this.csrfToken || ''
+                    'X-CSRF-Token': window.getCsrfToken(this.csrfToken)
                 }
             });
 
@@ -3133,7 +3133,11 @@ handleMouseMovement(delta) {
         username: this.Username || '---',
         lastScene: 'tiendajuego', // IMPORTANTE: Identificar la escena actual
         x: this.player ? this.player.x : 200,
-        y: this.player ? this.player.y : 300
+        y: this.player ? this.player.y : 300,
+        // Niveles ya en el JOIN, para que un jugador quieto se vea con nivel.
+        nivel:    Math.max(0, Number(this.nivel) || 0),
+        petLevel: Math.max(1, Number(this.petLevel) || 1),
+        dogName:  this._isNameSet && this._isNameSet(this.petName) ? this.petName : ''
       });
     }
 
@@ -3999,7 +4003,7 @@ removeOtherPlayer(playerId) {
     try {
       await fetch(`${base}/api/mail/${encodeURIComponent(this.Username)}/read-all`, {
         method:'POST', credentials:'include',
-        headers:{'Content-Type':'application/json','X-CSRF-Token':window.csrfToken||''}
+        headers:{'Content-Type':'application/json','X-CSRF-Token':window.getCsrfToken()}
       });
       this._fetchMails();
     } catch(_) {}
@@ -4010,7 +4014,7 @@ removeOtherPlayer(playerId) {
     try {
       await fetch(`${base}/api/mail/${encodeURIComponent(this.Username)}/clear`, {
         method:'DELETE', credentials:'include',
-        headers:{'Content-Type':'application/json','X-CSRF-Token':window.csrfToken||''}
+        headers:{'Content-Type':'application/json','X-CSRF-Token':window.getCsrfToken()}
       });
       this._fetchMails();
     } catch(_) {}
@@ -4022,7 +4026,7 @@ removeOtherPlayer(playerId) {
     try {
       await fetch(`${base}/api/mail/${encodeURIComponent(this.Username)}/${encodeURIComponent(mailId)}`, {
         method:'DELETE', credentials:'include',
-        headers:{'Content-Type':'application/json','X-CSRF-Token':window.csrfToken||''}
+        headers:{'Content-Type':'application/json','X-CSRF-Token':window.getCsrfToken()}
       });
       this._fetchMails();
     } catch(_) {}
@@ -5807,7 +5811,7 @@ async verificarRompimiento(itemRef) {
     // 2) Registrar el descuento en backend
     await this.fetchWithTokenRetry(`${this.serverBase}/api/tool/uses/decrease`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrfToken || '' },
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) },
       body: JSON.stringify({ invoiceId: itemRef.idx, maxUsos: toolDef.usos })
     });
 
@@ -5834,7 +5838,7 @@ async verificarRompimiento(itemRef) {
       try {
         await this.fetchWithTokenRetry(`${this.serverBase}/api/tool/uses/${itemRef.idx}`, {
           method: 'DELETE',
-          headers: { 'X-CSRF-Token': this.csrfToken || '' }
+          headers: { 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) }
         });
       } catch (delErr) {
         console.warn('⚠️ No se pudo borrar registro de usos tras rompimiento:', delErr);
@@ -6920,7 +6924,7 @@ async mergeItemsBlockchain(origin, destType, destIndex) {
     const cdRes = await this.fetchWithTokenRetry(
       `${this.serverBase}/api/merge/cooldown/check`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrfToken || '' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) },
         body: JSON.stringify({ pairKey })
       }
     );
@@ -7051,7 +7055,7 @@ async mergeItemsBlockchain(origin, destType, destIndex) {
         const pairKey = [origin.idx, destItem.idx].sort().join('_');
         await this.fetchWithTokenRetry(`${this.serverBase}/api/merge/cooldown/set`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrfToken || '' },
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) },
           body: JSON.stringify({ pairKey, cooldownMinutes: 7 })
         });
         console.log(`⏱️ Cooldown de merge registrado para par ${pairKey} (7 min)`);
@@ -9047,9 +9051,14 @@ _cleanupTutorial() {
             }
         };
         
-        // Añadir token CSRF si está disponible
-        if (this.csrfToken && !fetchOptions.headers['X-CSRF-Token']) {
-            fetchOptions.headers['X-CSRF-Token'] = this.csrfToken;
+        // Añadir token CSRF. La condición miraba this.csrfToken, así que si la
+        // copia guardada estaba vacía no se mandaba cabecera aunque la cookie
+        // sí existiera. Ahora decide el valor VIVO.
+        {
+            const _csrf = window.getCsrfToken(this.csrfToken);
+            if (_csrf && !fetchOptions.headers['X-CSRF-Token']) {
+                fetchOptions.headers['X-CSRF-Token'] = _csrf;
+            }
         }
         
         let retries = 0;
@@ -9105,7 +9114,7 @@ _cleanupTutorial() {
                         
                         if (refreshSuccess) {
                             // Actualizar headers con nuevo token CSRF
-                            fetchOptions.headers['X-CSRF-Token'] = this.csrfToken;
+                            fetchOptions.headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
                             retries++;
                             
                             // Esperar antes de reintentar
@@ -9130,7 +9139,7 @@ _cleanupTutorial() {
                         await this.getCSRFToken();
                         
                         if (this.csrfToken) {
-                            fetchOptions.headers['X-CSRF-Token'] = this.csrfToken;
+                            fetchOptions.headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
                             retries++;
                             
                             // Esperar antes de reintentar
@@ -9873,6 +9882,10 @@ async _doFullLogout() {
 // ─── CONSUMIBLES (comer/beber haciendo clic en el personaje) ─────────────────
 // Mismo comportamiento que en GameScene: panel de cantidad + UNA sola
 // transacción on-chain para todas las unidades elegidas.
+// Tope de las barras vitales: porcentajes ENTEROS de 0 a 100 (VITAL_MAX en
+// server2.js).
+VITAL_MAX_CLIENT = 100;
+
 CONSUMABLES_FOOD = {
   zanahoria_buena: 2, tomate_buena: 5, trigo_buena: 5, calabaza_buena: 5,
   zanahoria_mala: 1, tomate_mala: 2, trigo_mala: 2, calabaza_mala: 2
@@ -9914,7 +9927,23 @@ _openConsumePanel(itemId, info, available) {
   const name = (typeof this.getItemDisplayName === 'function' ? this.getItemDisplayName(itemId) : itemId) || itemId;
   const img = def && def.src ? def.src : '';
   const unit = info.isWater ? 'Water' : 'Food';
-  const max = Math.max(1, available);
+
+  // Mismo tope real que en GameScene: agua y comida son porcentajes ENTEROS de
+  // 0 a 100, así que el máximo son las unidades que de verdad caben, no todo lo
+  // que haya en el inventario (lo que sobra se perdería).
+  const actual = Math.round(Number(info.isWater ? this.aguaPorcentaje : this.comidaPorcentaje) || 0);
+  const falta  = Math.max(0, this.VITAL_MAX_CLIENT - actual);
+  if (falta <= 0) {
+    if (this.notifications && this.notifications.show) {
+      this.notifications.show(
+        (info.isWater ? 'Water' : 'Food') + ' is already full (' + this.VITAL_MAX_CLIENT + '%)',
+        'warning'
+      );
+    }
+    return;
+  }
+  const maxUtiles = Math.ceil(falta / info.gain);
+  const max = Math.max(1, Math.min(available, maxUtiles));
   let qty = 1;
 
   const ov = document.createElement('div');
@@ -9946,9 +9975,14 @@ _openConsumePanel(itemId, info, available) {
   const input = card.querySelector('#gfc-qty');
   const totalEl = card.querySelector('#gfc-total');
   const refresh = () => {
-    qty = Math.max(1, Math.min(max, parseInt(input.value, 10) || 1));
+    // Entero siempre: el teclado del móvil deja meter ',', '.' o '1e5' en un
+    // input type=number, y parseInt sobre eso daba cantidades absurdas.
+    const limpio = String(input.value).replace(/[^0-9]/g, '');
+    qty = Math.max(1, Math.min(max, parseInt(limpio, 10) || 1));
     input.value = qty;
-    totalEl.textContent = 'Total: +' + (info.gain * qty) + ' ' + unit + '  (uses ' + qty + ')';
+    const ganado = Math.min(this.VITAL_MAX_CLIENT - actual, info.gain * qty);
+    totalEl.textContent = 'Total: +' + ganado + ' ' + unit +
+      '  →  ' + (actual + ganado) + '/' + this.VITAL_MAX_CLIENT + '%  (uses ' + qty + ')';
   };
   const close = () => { ov.remove(); };
 
@@ -11265,7 +11299,7 @@ if (this.dogNameText) {
       const base = this.serverclient1 || '';
       await fetch(`${base}/api/notifications/${encodeURIComponent(this.Username)}`, {
         method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.csrfToken || '' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken() },
         body: JSON.stringify({ notifications: this._notifList.slice(0, 50) })
       });
     } catch (_) {}

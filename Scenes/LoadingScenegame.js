@@ -461,7 +461,7 @@ class LoadingScenegame extends Phaser.Scene {
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'X-CSRF-Token': this.csrfToken || ''
+                'X-CSRF-Token': window.getCsrfToken(this.csrfToken)
             }
         };
 
@@ -502,7 +502,7 @@ class LoadingScenegame extends Phaser.Scene {
                     if (isTokenError && retries < maxRetries) {
                         const refreshSuccess = await this.refreshAuthToken();
                         if (refreshSuccess) {
-                            fetchOptions.headers['X-CSRF-Token'] = this.csrfToken;
+                            fetchOptions.headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
                             retries++;
                             await new Promise(resolve => setTimeout(resolve, 1000 * retries));
                             continue;
@@ -519,7 +519,7 @@ class LoadingScenegame extends Phaser.Scene {
                     if (retries < maxRetries) {
                         await this.getCSRFToken();
                         if (this.csrfToken) {
-                            fetchOptions.headers['X-CSRF-Token'] = this.csrfToken;
+                            fetchOptions.headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
                             retries++;
                             await new Promise(resolve => setTimeout(resolve, 1000 * retries));
                             continue;
@@ -1857,6 +1857,40 @@ class LoadingScenegame extends Phaser.Scene {
 
 
 // =============================================================================
+// TOKEN CSRF — la COOKIE es la fuente de verdad
+// =============================================================================
+// El backend usa double-submit: compara la cabecera X-CSRF-Token con la cookie
+// `csrf-token`, y esa cookie se emite con httpOnly:false justamente para que
+// el navegador la pueda leer.
+//
+// El problema que resuelve esto: el servidor REGENERA la cookie csrf en cada
+// /api/auth/refresh (ver server2.js). Y hay tres sitios que refrescan por su
+// cuenta — GameScene, tiendajuego y phaser-relay-library —, cada uno con su
+// propia copia guardada del token. En cuanto uno refrescaba (por ejemplo la
+// librería del relay al enviar una transacción de comer o beber), la cookie
+// cambiaba y las copias de los otros dos quedaban obsoletas: a partir de ahí
+// todos sus POST se iban en 403 `csrf_token_invalid`, en silencio.
+//
+// Eso es exactamente lo que se veía en el log del servidor justo después de una
+// transacción del relay:
+//     ❌ CSRF attempt ... Path: /api/stats/<addr>/update Method: POST
+// y por eso el agua y la comida dejaban de guardarse.
+//
+// Leyendo SIEMPRE la cookie en el momento del envío, da igual cuántas veces
+// rote el token ni quién lo rote.
+window.getCsrfToken = function getCsrfToken(fallback) {
+    try {
+        const m = document.cookie.match(/(?:^|;\s*)csrf-token=([^;]+)/);
+        if (m && m[1]) {
+            const t = decodeURIComponent(m[1]);
+            window.csrfToken = t;   // se mantiene al día para el resto del código
+            return t;
+        }
+    } catch (_) {}
+    return fallback || window.csrfToken || '';
+};
+
+// =============================================================================
 // StatsSync — utilitaria para GameScene y tiendajuego
 // Permite actualizar stats en el contrato con bajo costo (debounced 1.5s).
 // Usa increase/decreaseInvoiceQuantity según la diferencia.
@@ -1931,10 +1965,12 @@ class StatsSync {
         this._pending  = {};
 
         try {
-            // Usar window.csrfToken (el cookie es httpOnly y no accesible por JS)
-            const csrfToken = window.csrfToken
-                || (this.scene && this.scene.csrfToken)
-                || '';
+            // La cookie csrf NO es httpOnly: se lee en el momento del envío.
+            // El valor guardado en window.csrfToken queda obsoleto en cuanto
+            // cualquier otra parte del cliente refresca la sesión.
+            const csrfToken = window.getCsrfToken(
+                (this.scene && this.scene.csrfToken) || ''
+            );
 
             if (!csrfToken) {
                 console.warn('⚠️ StatsSync: sin CSRF token, reintentando más tarde');
