@@ -9555,15 +9555,22 @@ actualizarBarraVida(porcentaje) {
 SILVER_PER_GOLD = 1000;
 GOLD_PACKAGES = [ { gold: 1, usdt: 1 }, { gold: 10, usdt: 9 }, { gold: 100, usdt: 90 } ];
 
+// Las monedas del HUD son DOM de game.html y sobreviven al cambio de escena.
+// GameScene engancha estas mismas dos cajas, así que el candado tiene que vivir
+// en el elemento y no en la escena: si no, ir y volver de la tienda acumulaba
+// listeners y un clic abría el panel varias veces. Mismo criterio que en
+// GameScene._setupCurrencyHub.
 _setupCurrencyHub() {
   try {
-    if (this._currencyHubBound) return;
-    const left  = document.querySelector('.corner-box .left-stack');
-    const right = document.querySelector('.corner-box .right-stack');
-    if (!left && !right) return;
-    this._currencyHubBound = true;
-    if (left)  { left.style.cursor  = 'pointer'; left.addEventListener('click',  () => this._openCurrencyHub('buy')); }
-    if (right) { right.style.cursor = 'pointer'; right.addEventListener('click', () => this._openCurrencyHub('exchange')); }
+    const bind = (el, tab) => {
+      if (!el) return;
+      el.style.cursor = 'pointer';
+      if (el._gfCurrencyHandler) el.removeEventListener('click', el._gfCurrencyHandler);
+      el._gfCurrencyHandler = () => this._openCurrencyHub(tab);
+      el.addEventListener('click', el._gfCurrencyHandler);
+    };
+    bind(document.querySelector('.corner-box .left-stack'),  'buy');
+    bind(document.querySelector('.corner-box .right-stack'), 'exchange');
   } catch (e) { /* no crítico */ }
 }
 
@@ -9583,7 +9590,19 @@ async _walletInfo() {
   return out;
 }
 
+// Candado de reentrada: el método espera a _walletInfo() antes de crear el
+// modal, así que dos llamadas seguidas insertaban dos modales encima.
 async _openCurrencyHub(tab) {
+  if (this._currencyHubOpening) return;
+  this._currencyHubOpening = true;
+  try {
+    await this._buildCurrencyHub(tab);
+  } finally {
+    this._currencyHubOpening = false;
+  }
+}
+
+async _buildCurrencyHub(tab) {
   const old = document.getElementById('gf-currency-modal');
   if (old) old.remove();
 

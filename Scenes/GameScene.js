@@ -4925,6 +4925,10 @@ this.anims.create({
         // Zoom con DOS DEDOS (móvil) sobre el mapa.
         this._setupPinchZoom();
 
+        // Guardián del zoom: lo restaura tras cada resize del viewport (teclado
+        // del móvil al abrir el chat, giro de pantalla).
+        this._setupZoomKeeper();
+
         // Clic en las monedas del HUD → hub de compra/cambio de moneda.
         this._setupCurrencyHub();
 
@@ -8050,6 +8054,10 @@ if (window.globalPetData) {
 // Al final del create(), después de configurar los eventos de los árboles
 this.loadTreeLockStates();
 this.loadMineLockStates();
+// …y quedar a la escucha de lo que talen o piquen los DEMÁS jugadores.
+// Se espera al socket igual que initCropSystem: al final de create() todavía
+// puede no estar conectado, y sin esta espera los listeners no se enlazaban.
+this.waitForSocket(() => this.setupResourceLockSocket(), 20);
 
 // Repintar los nombres (jugador, NPCs, mascota) cuando la fuente pixel esté
 // realmente cargada — ver refrescarTextosConFuente()
@@ -8060,6 +8068,93 @@ this.refrescarTextosConFuente();
 
 
 
+
+// =============================================================================
+// ÁRBOLES Y MINERALES DE LOS DEMÁS JUGADORES (tiempo real)
+// =============================================================================
+// El estado del mapa (qué árbol está talado, qué mineral picado) se leía UNA
+// sola vez, al entrar a la escena, con loadTreeLockStates/loadMineLockStates.
+// Por eso, si otro jugador talaba un árbol mientras vos ya estabas dentro, vos
+// seguías viendo el árbol entero durante todo el respawn y solo aparecía el
+// tronco si recargabas la página.
+//
+// El servidor ahora emite 'treeLocked' / 'mineLocked' a todos al bloquear el
+// recurso (ver /api/tree/lock y /api/mine/lock en server2.js). Aquí se aplica
+// el mismo efecto visual que ya se usaba al cargar, y se programa la vuelta del
+// recurso con el lockedUntil que manda el servidor.
+setupResourceLockSocket() {
+  if (!this.socket || this._resourceLockSocketBound) return;
+  this._resourceLockSocketBound = true;
+
+  // Los bloqueos permanentes (deforestación al 100%: lockedUntil año 3000) no
+  // se reprograman. Un delayedCall con esa distancia desborda y se dispararía
+  // de inmediato, devolviendo el árbol que debía quedarse talado.
+  const MAX_ESPERA = 24 * 60 * 60 * 1000;
+  const restaurarEn = (ms, fn) => {
+    if (!(ms > 0) || ms > MAX_ESPERA) return;
+    this.time.delayedCall(ms, fn);
+  };
+
+  this.socket.on('treeLocked', ({ treeKey, lockedUntil }) => {
+    try {
+      const spr = this[treeKey];
+      if (!spr) return;
+      const hasta = new Date(lockedUntil).getTime();
+      if (!(hasta > Date.now())) return;
+      console.log(`🌲 Otro jugador taló ${treeKey}`);
+      this.showTreeStump(treeKey);
+      restaurarEn(hasta - Date.now(), () => {
+        this.hideTreeStump(treeKey);
+        const live = this[treeKey];
+        if (live && live.active) this.enablePixelPerfectInput(live);
+      });
+    } catch (e) { console.warn('treeLocked:', e.message || e); }
+  });
+
+  // El backend recalcula el nivel de la mascota al terminar cada batalla.
+  // Antes solo se leía en /api/load, así que tu propio perro seguía mostrando
+  // el nivel viejo hasta que recargabas la página.
+  this.socket.on('petLevelUpdate', ({ petLevel }) => {
+    const n = Math.max(1, Number(petLevel) || 1);
+    if (this.petLevel === n) return;
+    this.petLevel = n;
+    console.log(`🐶 Nivel de la mascota actualizado: ${n}`);
+    if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
+  });
+
+  this.socket.on('mineLocked', ({ mineKey, lockedUntil }) => {
+    try {
+      const spr = this[mineKey];
+      if (!spr) return;
+      const hasta = new Date(lockedUntil).getTime();
+      if (!(hasta > Date.now())) return;
+      console.log(`⛏️ Otro jugador picó ${mineKey}`);
+      // Mismo criterio que loadMineLockStates: el mineral picado no se puede
+      // volver a picar hasta que reaparezca (los árboles sí siguen clickeables
+      // a propósito, para poder avisar cuánto falta para el respawn).
+      this.disableSpriteInput(spr);
+      this.hideMinedMineral(mineKey);
+      restaurarEn(hasta - Date.now(), () => {
+        this.showMinedMineral(mineKey);
+        const live = this[mineKey];
+        if (live && live.active) this.enablePixelPerfectInput(live);
+      });
+    } catch (e) { console.warn('mineLocked:', e.message || e); }
+  });
+
+  // Al salir de la escena hay que soltar los listeners: si no, al volver se
+  // acumulan y cada tala se aplicaría varias veces.
+  const soltar = () => {
+    try {
+      this.socket.off('treeLocked');
+      this.socket.off('mineLocked');
+      this.socket.off('petLevelUpdate');
+    } catch (_) {}
+    this._resourceLockSocketBound = false;
+  };
+  this.events.once('shutdown', soltar);
+  this.events.once('destroy',  soltar);
+}
 
 async loadMineLockStates() {
   try {
@@ -8566,18 +8661,32 @@ _refreshNameLockUI() {
 // Etiqueta que se muestra sobre el perro: nombre + NIVEL de la mascota.
 // El nivel sube con las batallas (lo calcula el backend en cada combate y viaja
 // en /api/load como `petLevel`).
+//
+// IMPORTANTE: el nivel se muestra AUNQUE la mascota todavía no tenga nombre.
+// Antes la etiqueta entera se ocultaba mientras petName siguiera en '---', y
+// como casi nadie le pone nombre al perro nada más entrar, el nivel no se veía
+// nunca: ni el propio ni el de los demás jugadores. Sin nombre se muestra solo
+// "Lv.N".
 _dogLabelText(petName, petLevel) {
   const lvl = Math.max(1, Number(petLevel) || 1);
-  return `${petName} (Lv.${lvl})`;
+  return this._isNameSet(petName) ? `${petName} (Lv.${lvl})` : `Lv.${lvl}`;
 }
 
-// Sincroniza la etiqueta de nombre que flota sobre el perro con this.petName.
+// Etiqueta del jugador (propio o remoto): nombre + nivel del PERSONAJE.
+// El nivel viaja en playerMove; si aún no llegó, se muestra solo el nombre en
+// vez de inventar un "Lv.0" que no significa nada.
+_playerLabelText(nombre, nivel) {
+  const n = Number(nivel);
+  const etiqueta = nombre || 'Jugador';
+  return Number.isFinite(n) ? `${etiqueta} (Lv.${Math.max(0, Math.floor(n))})` : etiqueta;
+}
+
+// Sincroniza la etiqueta que flota sobre el perro (nombre y/o nivel).
 _updateDogNameLabel() {
     if (!this.dogNameText) return;
-    const named = this._isNameSet(this.petName);
-    this.dogNameText.setText(named ? this._dogLabelText(this.petName, this.petLevel) : '');
+    this.dogNameText.setText(this._dogLabelText(this.petName, this.petLevel));
     const dogVisible = !!(this.dog && this.dog.sprite && this.dog.sprite.visible);
-    this.dogNameText.setVisible(named && dogVisible);
+    this.dogNameText.setVisible(dogVisible);
 }
 
 setupSettingsPanel() {
@@ -13502,23 +13611,107 @@ createTestBeep() {
 
 
 
+    // ── ZOOM: un solo punto de aplicación ────────────────────────────────────
+    //
+    // Antes cada función de zoom lanzaba su propio tween sobre cam.zoom sin
+    // cancelar el anterior. Dos tweens solapados se peleaban por la misma
+    // propiedad y el valor final era el del que terminara último, así que
+    // `currentZoomIndex` (lo que el jugador pidió) y `cam.zoom` (lo que se ve)
+    // se separaban. En el móvil eso salta con el chat: abrir el teclado dispara
+    // un resize del viewport, el juego reflota y el zoom se queda en el valor a
+    // medias del tween en vuelo — de ahí el "quería volver a 0.5 y me lo dejó
+    // en 1 o 2".
+    //
+    // Ahora: se guarda el índice deseado, se mata cualquier tween de zoom en
+    // vuelo y al terminar se fija el valor EXACTO. Y `_reapplyZoom()` vuelve a
+    // poner ese valor después de cada resize.
+    _applyZoomIndex(index, duration = 300) {
+        if (index < 0 || index >= this.zoomValues.length) return;
+        this.currentZoomIndex = index;
+        const newZoom = this.zoomValues[index];
+        const cam = this.cameras && this.cameras.main;
+        if (!cam) return;
+
+        // Matar el tween anterior: sin esto los dos animan cam.zoom a la vez.
+        if (this._zoomTween) { this._zoomTween.stop(); this._zoomTween = null; }
+
+        if (!duration) { cam.setZoom(newZoom); return; }
+
+        this._zoomTween = this.tweens.add({
+            targets: cam,
+            zoom: newZoom,
+            duration: duration,
+            ease: 'Cubic.easeOut',
+            onComplete: () => {
+                this._zoomTween = null;
+                // Valor exacto: el tween puede dejar 0.4999999 y con pixel art
+                // eso reintroduce las costuras entre tiles.
+                cam.setZoom(this.zoomValues[this.currentZoomIndex]);
+            }
+        });
+    }
+
+    /**
+     * Vuelve a poner el zoom que el jugador tenía elegido, sin animación.
+     * Se llama después de un resize del viewport (teclado del móvil al abrir el
+     * chat, giro de pantalla, barra de direcciones que aparece y desaparece).
+     */
+    _reapplyZoom() {
+        const cam = this.cameras && this.cameras.main;
+        if (!cam || !this.zoomValues) return;
+        const deseado = this.zoomValues[this.currentZoomIndex];
+        if (typeof deseado !== 'number') return;
+        if (this._zoomTween) { this._zoomTween.stop(); this._zoomTween = null; }
+        if (cam.zoom !== deseado) {
+            console.log(`🔁 Restaurando zoom a ${deseado}x (estaba en ${cam.zoom}x)`);
+            cam.setZoom(deseado);
+        }
+    }
+
+    /**
+     * Escucha los cambios de tamaño del viewport para restaurar el zoom.
+     * En móvil el evento que importa es visualViewport.resize: es el que dispara
+     * el teclado al abrirse y cerrarse. window.resize no siempre llega.
+     */
+    _setupZoomKeeper() {
+        if (this._zoomKeeperBound) return;
+        this._zoomKeeperBound = true;
+
+        let t = null;
+        this._onViewportChange = () => {
+            clearTimeout(t);
+            // Se espera a que el navegador termine de reflotar: el resize del
+            // teclado llega en varios pasos y restaurar antes de tiempo no sirve.
+            t = setTimeout(() => this._reapplyZoom(), 250);
+        };
+
+        window.addEventListener('resize', this._onViewportChange);
+        window.addEventListener('orientationchange', this._onViewportChange);
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', this._onViewportChange);
+        }
+
+        // Al cerrar el chat en el móvil el teclado se va: mismo tratamiento.
+        this.events.once('shutdown', () => this._teardownZoomKeeper());
+        this.events.once('destroy',  () => this._teardownZoomKeeper());
+    }
+
+    _teardownZoomKeeper() {
+        if (!this._onViewportChange) return;
+        window.removeEventListener('resize', this._onViewportChange);
+        window.removeEventListener('orientationchange', this._onViewportChange);
+        if (window.visualViewport) {
+            window.visualViewport.removeEventListener('resize', this._onViewportChange);
+        }
+        this._onViewportChange = null;
+        this._zoomKeeperBound  = false;
+    }
+
     // 🔍 ZOOM IN PRECISO - Usando valores predefinidos
     preciseZoomIn(duration = 300) {
         if (this.currentZoomIndex < this.zoomValues.length - 1) {
-            this.currentZoomIndex++;
-            const newZoom = this.zoomValues[this.currentZoomIndex];
-            
-            console.log(`🔍 Zoom In: ${this.zoomValues[this.currentZoomIndex - 1]} → ${newZoom}`);
-            
-            this.tweens.add({
-                targets: this.cameras.main,
-                zoom: newZoom,
-                duration: duration,
-                ease: 'Cubic.easeOut',
-                onComplete: () => {
-                    console.log(`✅ Zoom In: ${this.cameras.main.zoom}x`);
-                }
-            });
+            console.log(`🔍 Zoom In: ${this.zoomValues[this.currentZoomIndex]} → ${this.zoomValues[this.currentZoomIndex + 1]}`);
+            this._applyZoomIndex(this.currentZoomIndex + 1, duration);
         } else {
             console.log("ℹ️ Límite máximo alcanzado (2.0x)");
         }
@@ -13527,20 +13720,8 @@ createTestBeep() {
     // 🔍 ZOOM OUT PRECISO - Usando valores predefinidos
     preciseZoomOut(duration = 300) {
         if (this.currentZoomIndex > 0) {
-            this.currentZoomIndex--;
-            const newZoom = this.zoomValues[this.currentZoomIndex];
-            
-            console.log(`🔍 Zoom Out: ${this.zoomValues[this.currentZoomIndex + 1]} → ${newZoom}`);
-            
-            this.tweens.add({
-                targets: this.cameras.main,
-                zoom: newZoom,
-                duration: duration,
-                ease: 'Cubic.easeOut',
-                onComplete: () => {
-                    console.log(`✅ Zoom Out: ${this.cameras.main.zoom}x`);
-                }
-            });
+            console.log(`🔍 Zoom Out: ${this.zoomValues[this.currentZoomIndex]} → ${this.zoomValues[this.currentZoomIndex - 1]}`);
+            this._applyZoomIndex(this.currentZoomIndex - 1, duration);
         } else {
             console.log("ℹ️ Límite mínimo alcanzado (0.5x)");
         }
@@ -13549,23 +13730,9 @@ createTestBeep() {
     // 🎯 ZOOM A VALOR ESPECÍFICO EXACTO
     preciseZoomTo(targetZoom, duration = 400) {
         const targetIndex = this.zoomValues.findIndex(z => z === targetZoom);
-        
         if (targetIndex !== -1 && targetIndex !== this.currentZoomIndex) {
-            const oldZoom = this.zoomValues[this.currentZoomIndex];
-            this.currentZoomIndex = targetIndex;
-            const newZoom = this.zoomValues[this.currentZoomIndex];
-            
-            console.log(`🎯 Zoom To: ${oldZoom} → ${newZoom}`);
-            
-            this.tweens.add({
-                targets: this.cameras.main,
-                zoom: newZoom,
-                duration: duration,
-                ease: 'Cubic.easeOut',
-                onComplete: () => {
-                    console.log(`✅ Zoom To: ${this.cameras.main.zoom}x`);
-                }
-            });
+            console.log(`🎯 Zoom To: ${this.zoomValues[this.currentZoomIndex]} → ${targetZoom}`);
+            this._applyZoomIndex(targetIndex, duration);
         }
     }
 
@@ -13584,8 +13751,9 @@ createTestBeep() {
     // 🔧 MÉTODO PARA CAMBIAR EL ZOOM ACTUAL (útil para sincronizar)
     setCurrentZoomIndex(index) {
         if (index >= 0 && index < this.zoomValues.length) {
-            this.currentZoomIndex = index;
-            this.cameras.main.zoom = this.zoomValues[this.currentZoomIndex];
+            // Sin animación, pero por el mismo camino que el resto: así también
+            // mata cualquier tween en vuelo y no se queda un valor a medias.
+            this._applyZoomIndex(index, 0);
             console.log(`🔧 Zoom actual establecido a: ${this.zoomValues[this.currentZoomIndex]}x`);
         }
     }
@@ -13913,7 +14081,10 @@ sendPlayerMovement() {
     // el backend.
     dogName: this._isNameSet && this._isNameSet(this.petName) ? this.petName : '',
     // Nivel de la mascota: así los demás jugadores lo ven junto al nombre.
-    petLevel: Math.max(1, Number(this.petLevel) || 1)
+    petLevel: Math.max(1, Number(this.petLevel) || 1),
+    // Nivel del PERSONAJE. No se enviaba nunca, y por eso la etiqueta de los
+    // demás jugadores solo mostraba el nombre: su nivel no llegaba al cliente.
+    nivel: Math.max(0, Number(this.nivel) || 0)
   });
 }
 
@@ -13964,7 +14135,7 @@ createOtherPlayer(playerInfo) {
   const nameText = this.add.text(
     playerInfo.x,
     playerInfo.y - sprite.height / 2 - 30,
-    playerInfo.username || 'Player',
+    this._playerLabelText(playerInfo.username, playerInfo.nivel),
     {
       fontFamily: '"PressStart2P"',
       fontSize: '9px',
@@ -13981,6 +14152,7 @@ createOtherPlayer(playerInfo) {
     sprite,
     nameText,
     _displayName: playerInfo.username || 'Player',
+    _nivel: typeof playerInfo.nivel === 'number' ? playerInfo.nivel : undefined,
     _lastChatMsg: null,
     _prevChatMsg: null,
     lastUpdate: Date.now(),
@@ -14017,7 +14189,7 @@ createOtherPlayer(playerInfo) {
   remotePlayer.dog.nameText = this.add.text(
     playerInfo.dogX ?? playerInfo.x + 40,
     (playerInfo.dogY ?? playerInfo.y + 20) - 30,
-    playerInfo.dogName ? this._dogLabelText(playerInfo.dogName, playerInfo.petLevel) : '',
+    this._dogLabelText(playerInfo.dogName, playerInfo.petLevel),
     {
       fontFamily: '"PressStart2P"',
       fontSize: '8px',
@@ -14027,7 +14199,8 @@ createOtherPlayer(playerInfo) {
       strokeThickness: 5,
     }
   ).setOrigin(0.5, 1);
-  remotePlayer.dog.nameText.setVisible(!!playerInfo.dogName);
+  remotePlayer.dog._petLevel = playerInfo.petLevel;
+  remotePlayer.dog.nameText.setVisible(true);
 }
 
 updateOtherPlayer(playerInfo) {
@@ -14120,7 +14293,13 @@ updateOtherPlayer(playerInfo) {
     if (player.nameText) {
       player.nameText.setPosition(x, y - 60);
       player.nameText.setDepth(remoteFeetY + 1);
-      player.nameText.setText(playerInfo.usernamex || playerInfo.username || 'Jugador');
+      // Nombre + NIVEL del jugador remoto. El nivel llega en playerMove; si el
+      // jugador todavía no ha mandado ninguno (acaba de entrar), se guarda el
+      // último conocido para no hacer parpadear la etiqueta.
+      if (typeof playerInfo.nivel === 'number') player._nivel = playerInfo.nivel;
+      player.nameText.setText(
+        this._playerLabelText(playerInfo.usernamex || playerInfo.username || 'Jugador', player._nivel)
+      );
     }
 
     if (!player.dog) {
@@ -14206,11 +14385,14 @@ updateOtherPlayer(playerInfo) {
         strokeThickness: 5,
       }).setOrigin(0.5, 1);
     }
-    // Nombre + NIVEL de la mascota remota.
-    player.dog.nameText.setText(dogName ? this._dogLabelText(dogName, playerInfo.petLevel) : '');
+    // Nombre + NIVEL de la mascota remota. El nivel se muestra aunque el perro
+    // no tenga nombre todavía (antes se ocultaba la etiqueta entera y por eso
+    // no se veía ningún nivel de mascota).
+    if (typeof playerInfo.petLevel === 'number') player.dog._petLevel = playerInfo.petLevel;
+    player.dog.nameText.setText(this._dogLabelText(dogName, player.dog._petLevel));
     player.dog.nameText.setPosition(dogX, dogY - player.dog.sprite.displayHeight * 0.5 - 4);
     player.dog.nameText.setDepth(remoteDogFeetY + 1);
-    player.dog.nameText.setVisible(!!dogName);
+    player.dog.nameText.setVisible(true);
     } // end dogEquipped else block
   }
 
@@ -14529,10 +14711,20 @@ removeOtherPlayer(playerId) {
     // When chat input is focused: disable game movement
     this.chatInput.addEventListener('focus', () => {
       this._chatInputFocused = true;
+      // Se apunta el zoom elegido ANTES de que el teclado del móvil reflote el
+      // viewport, para poder devolverlo tal cual al cerrarse.
+      if (this.cameras && this.cameras.main) this._zoomBeforeKeyboard = this.currentZoomIndex;
     });
     // When chat loses focus: re-enable game movement
     this.chatInput.addEventListener('blur', () => {
       this._chatInputFocused = false;
+      // El teclado se va y el viewport vuelve a su tamaño: restaurar el zoom.
+      // El visualViewport tarda un poco en estabilizarse, de ahí los dos pases.
+      if (typeof this._zoomBeforeKeyboard === 'number' && this._applyZoomIndex) {
+        const idx = this._zoomBeforeKeyboard;
+        setTimeout(() => this._applyZoomIndex(idx, 0), 60);
+        setTimeout(() => this._applyZoomIndex(idx, 0), 350);
+      }
     });
 
     // Clicking the game canvas while chat is open should blur chat input
@@ -20254,16 +20446,30 @@ GOLD_PACKAGES = [
   { gold: 100, usdt: 90 }
 ];
 
-// Enlaza el clic de las monedas del HUD con el hub. Se llama una vez por escena.
+// Enlaza el clic de las monedas del HUD con el hub.
+//
+// OJO: las monedas del HUD son elementos del DOM de game.html, NO de la escena.
+// Sobreviven a los cambios de escena. Antes esto se protegía con un flag de
+// instancia (`this._currencyHubBound`), pero GameScene y tiendajuego enganchan
+// las MISMAS dos cajas, cada una con su propio flag: al ir y volver de la
+// tienda los listeners se iban acumulando sobre el mismo elemento y un solo clic
+// abría el panel varias veces.
+//
+// Ahora el candado vive en el propio elemento: se guarda el handler en él y se
+// quita el anterior antes de poner el nuevo. Pase lo que pase con las escenas,
+// cada caja tiene exactamente UN listener, y siempre el de la escena más
+// reciente.
 _setupCurrencyHub() {
   try {
-    if (this._currencyHubBound) return;
-    const left  = document.querySelector('.corner-box .left-stack');
-    const right = document.querySelector('.corner-box .right-stack');
-    if (!left && !right) return;   // HUD aún no montado
-    this._currencyHubBound = true;
-    if (left)  { left.style.cursor  = 'pointer'; left.addEventListener('click',  () => this._openCurrencyHub('buy')); }
-    if (right) { right.style.cursor = 'pointer'; right.addEventListener('click', () => this._openCurrencyHub('exchange')); }
+    const bind = (el, tab) => {
+      if (!el) return;
+      el.style.cursor = 'pointer';
+      if (el._gfCurrencyHandler) el.removeEventListener('click', el._gfCurrencyHandler);
+      el._gfCurrencyHandler = () => this._openCurrencyHub(tab);
+      el.addEventListener('click', el._gfCurrencyHandler);
+    };
+    bind(document.querySelector('.corner-box .left-stack'),  'buy');
+    bind(document.querySelector('.corner-box .right-stack'), 'exchange');
   } catch (e) { /* no crítico */ }
 }
 
@@ -20285,6 +20491,20 @@ async _walletInfo() {
 }
 
 async _openCurrencyHub(tab) {
+  // Candado de reentrada. Este método es async y espera a _walletInfo() ANTES
+  // de crear el modal, así que dos llamadas seguidas (doble toque en el móvil,
+  // o un listener duplicado) pasaban las dos por el `old.remove()` cuando
+  // todavía no había nada que quitar y luego insertaban dos modales encima.
+  if (this._currencyHubOpening) return;
+  this._currencyHubOpening = true;
+  try {
+    await this._buildCurrencyHub(tab);
+  } finally {
+    this._currencyHubOpening = false;
+  }
+}
+
+async _buildCurrencyHub(tab) {
   const old = document.getElementById('gf-currency-modal');
   if (old) old.remove();
 
