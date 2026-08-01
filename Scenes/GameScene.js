@@ -7741,6 +7741,12 @@ this.time.addEvent({
       }
     }
 
+    // La exp tiene su propia factura en el contrato (tabla `exp`), igual que
+    // oro y plata. La exp se gana en muchos sitios distintos, así que en vez de
+    // avisar en cada uno se comprueba aquí y solo se manda cuando cambió — si
+    // se llamara a set() en cada tick de 400 ms el debounce nunca dispararía.
+    this._syncExp();
+
   }
 });
 
@@ -22764,11 +22770,20 @@ if (this.dogNameText) {
       if (typeof ps.comida === 'number') this.comidaPorcentaje = ps.comida;
       if (typeof ps.oro    === 'number') this.moneda           = ps.oro;
       if (typeof ps.plata  === 'number') this.moneda_plata     = ps.plata;
+      // Solo se adopta la exp del contrato si su factura ya existe; si no,
+      // manda el valor local y el backend lo usará como semilla.
+      if (typeof ps.exp === 'number' && ps.invoiceIds && ps.invoiceIds.exp) {
+        this.nivel_exp = ps.exp;
+      }
       console.log('📊 Stats cargados desde window.playerStats:', {
         vida: this.vidaPorcentaje, agua: this.aguaPorcentaje,
         comida: this.comidaPorcentaje, oro: this.moneda, plata: this.moneda_plata,
+        exp: this.nivel_exp,
       });
     }
+    // Punto de partida de la exp: sin esto el primer tick mandaría un update
+    // aunque nada hubiera cambiado.
+    this._lastExpSynced = Math.max(0, Math.round(Number(this.nivel_exp) || 0));
     this._statsReady = true; // Ahora sí se permite sincronizar al contrato
 
     // Actualizar visualmente las barras con los valores cargados del contrato
@@ -22801,6 +22816,20 @@ if (this.dogNameText) {
     this.statsSync.set('plata', this.moneda_plata || 0);
   }
 
+  /**
+   * Manda la experiencia a su factura del contrato, pero solo cuando cambió.
+   * Se llama desde el tick de 400 ms del sistema de niveles, así que cubre
+   * todos los sitios donde se suma exp sin tener que tocarlos uno a uno.
+   */
+  _syncExp() {
+    if (!this.statsSync || !this._statsReady) return;
+    const exp = Math.max(0, Math.round(Number(this.nivel_exp) || 0));
+    if (this._lastExpSynced === exp) return;
+    this._lastExpSynced = exp;
+    if (window.playerStats) window.playerStats.exp = exp;
+    this.statsSync.set('exp', exp);
+  }
+
   async _refreshStatsFromChain() {
     if (!this.statsSync) return;
     await this.statsSync.forceRefresh();
@@ -22810,6 +22839,10 @@ if (this.dogNameText) {
       this.comidaPorcentaje = window.playerStats.comida;
       this.moneda           = window.playerStats.oro;
       this.moneda_plata     = window.playerStats.plata;
+      if (typeof window.playerStats.exp === 'number') {
+        this.nivel_exp       = window.playerStats.exp;
+        this._lastExpSynced  = this.nivel_exp;
+      }
       this.actualizarBarraVida(this.vidaPorcentaje);
       this.actualizarBarraAgua(this.aguaPorcentaje);
       this.actualizarBarraComida(this.comidaPorcentaje);

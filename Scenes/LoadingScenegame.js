@@ -649,6 +649,7 @@ class LoadingScenegame extends Phaser.Scene {
                     comida: this.comidaPorcentaje || 0,
                     oro:    this.moneda         || 0,
                     plata:  this.moneda_plata   || 0,
+                    exp:    this.nivel_exp      || 0,
                     invoiceIds: {}
                 };
                 console.log('📊 window.playerStats inicializado (primera vez, desde BD):', window.playerStats);
@@ -713,6 +714,12 @@ class LoadingScenegame extends Phaser.Scene {
             // oro/plata: usar el valor del contrato siempre (0 si no hay factura)
             this.moneda       = typeof stats.oro   === 'number' ? stats.oro   : 0;
             this.moneda_plata = typeof stats.plata === 'number' ? stats.plata : 0;
+            // exp: tiene su propia tabla en el contrato, igual que oro y plata.
+            // Solo se pisa el valor local cuando la factura de exp ya existe;
+            // si todavía no se creó, el backend la sembrará con este valor.
+            if (typeof stats.exp === 'number' && stats.invoiceIds && stats.invoiceIds.exp) {
+                this.nivel_exp = stats.exp;
+            }
 
             // Actualizar window.playerStats con valores canónicos del contrato
             window.playerStats = {
@@ -721,8 +728,12 @@ class LoadingScenegame extends Phaser.Scene {
                 comida:     this.comidaPorcentaje,
                 oro:        this.moneda,       // ya es 0 si no hay factura
                 plata:      this.moneda_plata, // ya es 0 si no hay factura
+                exp:        this.nivel_exp || 0,
                 invoiceIds: stats.invoiceIds || {}
             };
+            if (data.pending && data.pending.length) {
+                console.warn('⏳ [stats-sync] Sin factura todavía:', data.pending.join(', '));
+            }
             // Actualizar display de monedas inmediatamente
             const elLeft  = document.getElementById('info-text-left');
             const elRight = document.getElementById('info-text-right');
@@ -1864,7 +1875,10 @@ class StatsSync {
 
     /** Lee el valor actual de un stat desde window.playerStats */
     get(stat) {
-        const DEFAULTS = { vida: 100000, agua: 100000, comida: 100000, oro: 0, plata: 0 };
+        // La escala de las vitales es 0..100 (las barras pintan `${valor}%` sin
+        // dividir). El 100000 de antes era el default viejo y, si se usaba,
+        // mandaba al backend un valor imposible.
+        const DEFAULTS = { vida: 100, agua: 100, comida: 100, oro: 0, plata: 0, exp: 0 };
         return (window.playerStats && window.playerStats[stat] !== undefined)
             ? window.playerStats[stat]
             : (DEFAULTS[stat] ?? 0);
@@ -1872,16 +1886,20 @@ class StatsSync {
 
     /**
      * Establece el valor de un stat localmente y encola actualización al backend.
-     * @param {string}  stat      - 'vida'|'agua'|'comida'|'oro'|'plata'
+     * @param {string}  stat      - 'vida'|'agua'|'comida'|'oro'|'plata'|'exp'
      * @param {number}  value     - nuevo valor
      * @param {boolean} immediate - si true, envía sin esperar debounce
      */
     set(stat, value, immediate = false) {
-        const VALID = ['vida', 'agua', 'comida', 'oro', 'plata'];
+        const VALID = ['vida', 'agua', 'comida', 'oro', 'plata', 'exp'];
         if (!VALID.includes(stat)) return;
 
-        const rounded = Math.round(Math.max(0, value));
-        if (!window.playerStats) window.playerStats = { vida: 100000, agua: 100000, comida: 100000, oro: 0, plata: 0, invoiceIds: {} };
+        const VITALES = ['vida', 'agua', 'comida'];
+        let rounded = Math.round(Math.max(0, value));
+        // Las vitales son un porcentaje: nunca más de 100.
+        if (VITALES.includes(stat)) rounded = Math.min(100, rounded);
+
+        if (!window.playerStats) window.playerStats = { vida: 100, agua: 100, comida: 100, oro: 0, plata: 0, exp: 0, invoiceIds: {} };
         window.playerStats[stat] = rounded;
         this._pending[stat] = rounded;
 
@@ -1941,6 +1959,15 @@ class StatsSync {
                 if (data.stats && data.stats.invoiceIds && window.playerStats) {
                     window.playerStats.invoiceIds = { ...window.playerStats.invoiceIds, ...data.stats.invoiceIds };
                 }
+                // El backend responde con lo que quedó REALMENTE en la factura.
+                // Si una TX falló, ese valor no es el que pedimos, y hay que
+                // hacerle caso ya: antes la barra seguía mostrando el valor
+                // pedido y el jugador solo descubría el verdadero al recargar
+                // la página ("recargué 30 de agua y volvió a 12").
+                if (data.errors && data.errors.length) {
+                    console.warn('⚠️ El contrato rechazó parte del update:', data.errors);
+                }
+                this._adoptServerStats(data.stats);
                 console.log('✅ Stats actualizados en contrato:', toSend);
             } else {
                 // Re-encolar para reintentar
@@ -1956,6 +1983,39 @@ class StatsSync {
         }
     }
 
+    /**
+     * Copia a la escena los valores canónicos que devolvió el backend.
+     * Un stat con un cambio local más nuevo todavía en cola NO se pisa.
+     */
+    _adoptServerStats(serverStats) {
+        if (!serverStats || !window.playerStats) return;
+        const CAMPOS = {
+            vida:   'vidaPorcentaje',
+            agua:   'aguaPorcentaje',
+            comida: 'comidaPorcentaje',
+            oro:    'moneda',
+            plata:  'moneda_plata',
+            exp:    'nivel_exp',
+        };
+        let corregido = false;
+        for (const [stat, prop] of Object.entries(CAMPOS)) {
+            const valor = serverStats[stat];
+            if (typeof valor !== 'number') continue;
+            if (this._pending[stat] !== undefined) continue; // hay algo más nuevo en cola
+            if (window.playerStats[stat] !== valor) corregido = true;
+            window.playerStats[stat] = valor;
+            if (this.scene) this.scene[prop] = valor;
+            // Realinear el testigo de exp de la escena, si no volvería a
+            // mandar el valor viejo en el siguiente tick.
+            if (stat === 'exp' && this.scene && this.scene._lastExpSynced !== undefined) {
+                this.scene._lastExpSynced = valor;
+            }
+        }
+        if (corregido && this.scene && typeof this.scene._refreshBarrasUI === 'function') {
+            this.scene._refreshBarrasUI();
+        }
+    }
+
     /** Fuerza la lectura de stats desde el backend (llama /api/stats/:playerName) */
     async forceRefresh() {
         const playerName = window.currentPlayer;
@@ -1968,7 +2028,7 @@ class StatsSync {
             if (res.ok) {
                 const data = await res.json();
                 if (data.stats && window.playerStats) {
-                    ['vida','agua','comida','oro','plata'].forEach(s => {
+                    ['vida','agua','comida','oro','plata','exp'].forEach(s => {
                         if (data.stats[s] !== undefined) window.playerStats[s] = Number(data.stats[s]);
                     });
                     if (data.stats.invoiceIds) window.playerStats.invoiceIds = data.stats.invoiceIds;

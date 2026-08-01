@@ -11012,9 +11012,14 @@ if (this.dogNameText) {
       if (typeof ps.comida === 'number') this.comidaPorcentaje = ps.comida;
       if (typeof ps.oro    === 'number') this.moneda           = ps.oro;
       if (typeof ps.plata  === 'number') this.moneda_plata     = ps.plata;
+      // exp: su factura en el contrato manda, igual que oro y plata.
+      if (typeof ps.exp === 'number' && ps.invoiceIds && ps.invoiceIds.exp) {
+        this.nivel_exp = ps.exp;
+      }
       console.log('📊 Stats cargados en tiendajuego:', {
         vida: this.vidaPorcentaje, agua: this.aguaPorcentaje,
         comida: this.comidaPorcentaje, oro: this.moneda, plata: this.moneda_plata,
+        exp: this.nivel_exp,
       });
     }
     this._statsReady = true;
