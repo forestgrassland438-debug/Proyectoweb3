@@ -158,7 +158,11 @@
     { name: 'LoadingScenegame', required: true  },
     { name: 'GameScene',        required: true  },
     { name: 'tiendajuego',      required: true  },
-    { name: 'LoadingSceneshop', required: true  }
+    { name: 'LoadingSceneshop', required: true  },
+    // Batallas P2P de mascotas. required:false para que, si el archivo no
+    // llegara a cargar, el juego siga arrancando en vez de avisar de escena
+    // requerida faltante.
+    { name: 'BattleScene',      required: false }
   ];
 
   // Nombres adicionales que se auto-detectan en modo debug
