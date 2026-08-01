@@ -757,7 +757,7 @@ async loadMissionsData() {
     
     // Añadir token CSRF si está disponible (aunque GET normalmente no lo requiere)
     if (this.csrfToken) {
-      headers['X-CSRF-Token'] = this.csrfToken;
+      headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
     }
     
     const res = await fetch(`${this.serverBase}/api/missions/${encodeURIComponent(this.playerName)}`, {
@@ -845,7 +845,7 @@ async updateMissionsData(updateData) {
     
     // Añadir token CSRF si está disponible
     if (this.csrfToken) {
-      headers['X-CSRF-Token'] = this.csrfToken;
+      headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
     }
     
     const res = await fetch(`${this.serverBase}/api/missions/${encodeURIComponent(this.playerName)}/update`, {
@@ -869,7 +869,7 @@ async updateMissionsData(updateData) {
         console.log('🔄 Error CSRF, obteniendo nuevo token...');
         await this.getCSRFToken();
         if (this.csrfToken) {
-          headers['X-CSRF-Token'] = this.csrfToken;
+          headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
           
           // Reintentar
           const retryRes = await fetch(`${this.serverBase}/api/missions/${encodeURIComponent(this.playerName)}/update`, {
@@ -967,7 +967,7 @@ async loadDailyMissions(npcId) {
     
     // Añadir token CSRF si está disponible (aunque GET no lo requiere normalmente)
     if (this.csrfToken) {
-      headers['X-CSRF-Token'] = this.csrfToken;
+      headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
     }
     
     const res = await fetch(`${this.serverBase}/api/missions/daily/${npcId}/${today}`, {
@@ -1413,7 +1413,7 @@ async completeMission(missionId) {
     const headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'X-CSRF-Token': this.csrfToken
+      'X-CSRF-Token': window.getCsrfToken(this.csrfToken)
     };
     
     const requestBody = {
@@ -1829,9 +1829,14 @@ showNotification(message, type = 'info') {
             }
         };
         
-        // Añadir token CSRF si está disponible
-        if (this.csrfToken && !fetchOptions.headers['X-CSRF-Token']) {
-            fetchOptions.headers['X-CSRF-Token'] = this.csrfToken;
+        // Añadir token CSRF. La condición miraba this.csrfToken, así que si la
+        // copia guardada estaba vacía no se mandaba cabecera aunque la cookie
+        // sí existiera. Ahora decide el valor VIVO.
+        {
+            const _csrf = window.getCsrfToken(this.csrfToken);
+            if (_csrf && !fetchOptions.headers['X-CSRF-Token']) {
+                fetchOptions.headers['X-CSRF-Token'] = _csrf;
+            }
         }
         
         let retries = 0;
@@ -1891,7 +1896,7 @@ showNotification(message, type = 'info') {
                         
                         if (refreshSuccess) {
                             // Actualizar headers con nuevo token CSRF
-                            fetchOptions.headers['X-CSRF-Token'] = this.csrfToken;
+                            fetchOptions.headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
                             retries++;
                             
                             // Esperar antes de reintentar
@@ -1926,7 +1931,7 @@ showNotification(message, type = 'info') {
                         await this.getCSRFToken();
                         
                         if (this.csrfToken) {
-                            fetchOptions.headers['X-CSRF-Token'] = this.csrfToken;
+                            fetchOptions.headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
                             retries++;
                             
                             // Esperar antes de reintentar
@@ -2567,6 +2572,16 @@ shutdown() {
 
 
   async create() {
+    // ── Candados de la puerta de la tienda ───────────────────────────────────
+    // Phaser REUTILIZA la instancia de la escena, así que estos dos hay que
+    // reiniciarlos a mano en cada entrada:
+    //   _cambiandoEscena queda en true tras la transición anterior; si no se
+    //   limpia, la puerta no volvería a funcionar nunca.
+    //   _puertaArmada arranca en false a propósito: apareces encima de la
+    //   puerta al volver de la tienda y no debe dispararse hasta que te apartes.
+    this._cambiandoEscena = false;
+    this._puertaArmada    = false;
+
     // Re-apply custom cursor once the scene is fully created (some browsers reset it)
     this.time.delayedCall(400, () => {
       if (this.input && this.input.setDefaultCursor) {
@@ -8664,14 +8679,28 @@ _isNameSet(v) {
 // Refresca el estado visual (bloqueado/editable) de las dos filas de nombre
 // del dashboard según los valores actuales.
 _refreshNameLockUI() {
-    const lockRow = (input, btn, hintId, value, etiqueta) => {
-        const hint = document.getElementById(hintId);
+    // Se busca el elemento VIVO por id en vez de usar la referencia guardada:
+    // this.settingsNameInput puede apuntar a un nodo que ya fue sustituido, y
+    // entonces se bloqueaba/desbloqueaba un input que no está en la pantalla
+    // mientras el visible se quedaba como estuviera (normalmente, deshabilitado).
+    const lockRow = (inputId, btnId, hintId, value, etiqueta) => {
+        const input = document.getElementById(inputId);
+        const btn   = document.getElementById(btnId);
+        const hint  = document.getElementById(hintId);
         const locked = this._isNameSet(value);
         if (input) {
             input.disabled = locked;
+            // removeAttribute además de la propiedad: si el nodo venía de un
+            // cloneNode con el atributo puesto, hay que quitarlo de verdad.
+            if (locked) input.setAttribute('disabled', 'disabled');
+            else        input.removeAttribute('disabled');
             input.value = locked ? value : '';
         }
-        if (btn) btn.disabled = locked;
+        if (btn) {
+            btn.disabled = locked;
+            if (locked) btn.setAttribute('disabled', 'disabled');
+            else        btn.removeAttribute('disabled');
+        }
         if (hint) {
             hint.textContent = locked
                 ? `🔒 ${etiqueta} fijado: "${value}" — definitivo`
@@ -8680,8 +8709,8 @@ _refreshNameLockUI() {
         }
     };
 
-    lockRow(this.settingsNameInput, this.settingsApplyBtn, 'character-name-hint', this.Username, 'Nombre de personaje');
-    lockRow(this.settingsPetInput, this.settingsApplyPetBtn, 'pet-name-hint', this.petName, 'Nombre de mascota');
+    lockRow('character-name', 'apply-name', 'character-name-hint', this.Username, 'Nombre de personaje');
+    lockRow('pet-name', 'apply-pet-name', 'pet-name-hint', this.petName, 'Nombre de mascota');
 
     // Compatibilidad con el panel de tiendajuego (usa window._acttov como lock)
     window._acttov = this._isNameSet(this.Username) ? 1 : 0;
@@ -8743,6 +8772,18 @@ setupSettingsPanel() {
         return;
     }
     this._settingsSetupTries = 0;
+
+    // Los campos del dashboard son DOM persistente de game.html y ya no se
+    // clonan al salir de la escena, así que hay que asegurarse de enganchar sus
+    // listeners UNA sola vez: si no, cada entrada a GameScene añadiría otro
+    // handler de 'input'/'keydown' sobre el mismo campo.
+    // El estado visual (bloqueado/editable) SÍ se refresca siempre, más abajo.
+    if (this.settingsNameInput._gfDashBound) {
+        console.log('✅ Panel de configuraciones ya enganchado — solo se refresca');
+        this._refreshNameLockUI();
+        return;
+    }
+    this.settingsNameInput._gfDashBound = true;
 
     console.log('✅ Panel de configuraciones configurado');
 
@@ -9041,6 +9082,13 @@ setupSettingsPanel() {
 
 // Método para mostrar panel
 showSettingsPanel() {
+    // Si el panel no estaba cacheado (setupSettingsPanel corrió antes de que el
+    // HUD existiera y aún no había reintentado), se busca ahora en vez de no
+    // hacer nada: sin esto el botón del dashboard simplemente no respondía.
+    if (!this.settingsPanel) {
+        this.settingsPanel = document.getElementById('hub-panel_101');
+        if (this.settingsPanel) this.setupSettingsPanel();
+    }
     if (this.settingsPanel) {
         this.settingsPanel.classList.add('visible');
         this.settingsPanel.setAttribute('aria-hidden', 'false');
@@ -10703,7 +10751,7 @@ async updateWaterCollectionStatus() {
     
     // Añadir token CSRF si está disponible
     if (this.csrfToken) {
-      headers['X-CSRF-Token'] = this.csrfToken;
+      headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
     }
     
     const res = await fetch(`${this.serverBase}/api/water/status/${encodeURIComponent(this.playerName)}`, {
@@ -10812,7 +10860,7 @@ async handleWaterCollectionClick(pointer) {
     const headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'X-CSRF-Token': this.csrfToken
+      'X-CSRF-Token': window.getCsrfToken(this.csrfToken)
     };
     
     console.log('📤 Enviando petición para recolectar agua...');
@@ -11326,13 +11374,19 @@ setupCropSocketEvents() {
 }
 
 handlePlotClick(plotId, pointer) {
+  const cropData = this.cropData.get(plotId);
+
   if (!this.STATE.selectedItem) {
-    this._showSaveSuccessBanner('You need to plant a seed', false, true);
+    // Sin nada en la mano NO significa "hay que sembrar": la parcela puede
+    // estar ya sembrada, regada y creciendo. Antes este aviso era
+    // incondicional, así que tocando repetidamente una parcela en crecimiento
+    // salía "You need to plant a seed" una y otra vez aunque estuviera
+    // sembrada. Ahora se informa del estado REAL.
+    this._avisarEstadoParcela(plotId, cropData);
     return;
   }
-  
+
   const selectedItem = this.STATE.selectedItem;
-  const cropData = this.cropData.get(plotId);
   
   if (this.cropTypes[selectedItem.id]) {
     if (!cropData) {
@@ -11376,6 +11430,49 @@ handlePlotClick(plotId, pointer) {
     } else {
       this.stageCut(plotId);
     }
+  }
+}
+
+/**
+ * Avisa del estado real de una parcela cuando se toca SIN nada en la mano.
+ * Lleva un antirrebote por parcela: el jugador toca repetidamente (sobre todo
+ * con el dedo en el móvil) y si no, se llenaría la pantalla del mismo aviso.
+ */
+_avisarEstadoParcela(plotId, cropData) {
+  const ahora = Date.now();
+  this._avisoParcelaEn = this._avisoParcelaEn || {};
+  if (ahora - (this._avisoParcelaEn[plotId] || 0) < 1500) return;
+  this._avisoParcelaEn[plotId] = ahora;
+
+  // Parcela realmente vacía: el aviso de siempre sí tiene sentido.
+  if (!cropData) {
+    this._showSaveSuccessBanner('You need to plant a seed', false, true);
+    return;
+  }
+
+  if (cropData.isDead) {
+    this.notifications.show('This crop died — hold the scissors to clear it', 'warning');
+    return;
+  }
+
+  if (!cropData.isWatered) {
+    this.notifications.show('This crop needs water — hold the watering can', 'warning');
+    return;
+  }
+
+  const restante = Math.max(
+    0,
+    (Number(cropData.growthDuration) || 0) - (Number(cropData.currentGrowthTime) || 0)
+  );
+  if (restante > 0) {
+    const min = Math.floor(restante / 60);
+    const seg = Math.floor(restante % 60);
+    this.notifications.show(
+      `Growing — ready in ${min}:${String(seg).padStart(2, '0')}`,
+      'info'
+    );
+  } else {
+    this.notifications.show('Ready! Hold the scissors to harvest', 'success');
   }
 }
 
@@ -14019,7 +14116,12 @@ createTestBeep() {
         username: this.Username || '---',
         lastScene: 'GameScene', // IMPORTANTE: Identificar la escena actual
         x: this.player ? this.player.x : 200,
-        y: this.player ? this.player.y : 300
+        y: this.player ? this.player.y : 300,
+        // Niveles ya en el JOIN: si el jugador entra y no se mueve, playerMove
+        // nunca se emite y los demás lo verían sin nivel indefinidamente.
+        nivel:    Math.max(0, Number(this.nivel) || 0),
+        petLevel: Math.max(1, Number(this.petLevel) || 1),
+        dogName:  this._isNameSet && this._isNameSet(this.petName) ? this.petName : ''
       });
     }
 
@@ -15457,12 +15559,24 @@ cleanupTexturesAndMaps() {
 }
 
 cleanupDomListeners() {
+    // Los campos del DASHBOARD ya NO se clonan.
+    //
+    // Antes esta lista incluía 'character-name', 'apply-name' y
+    // 'language-select'. Clonar un input copia también sus ATRIBUTOS, y
+    // `input.disabled = true` se refleja como atributo: si el nombre ya estaba
+    // fijado cuando se clonó, la copia nacía deshabilitada. Encima
+    // this.settingsNameInput seguía apuntando al nodo VIEJO, ya suelto del
+    // documento, así que _refreshNameLockUI escribía sobre un elemento que ya
+    // no se veía y nunca podía volver a habilitar el visible. De ahí el "a
+    // veces no me deja escribir ni aplicar" tras haber pasado por la tienda.
+    //
+    // Ahora esos campos se enganchan una sola vez (ver setupSettingsPanel), así
+    // que no hace falta destruir el nodo para evitar listeners repetidos.
     const domElements = [
-        'apply-name', 'close-panel', 'logout-btn', 'character-name',
-        'language-select', 'btn-close', 'inner-btn', 'cerrarReputacion',
-        'cerrarEstadisticas'
+        'close-panel', 'logout-btn', 'btn-close', 'inner-btn',
+        'cerrarReputacion', 'cerrarEstadisticas'
     ];
-    
+
     domElements.forEach(id => {
         const element = document.getElementById(id);
         if (element && element.parentNode) {
@@ -17017,7 +17131,7 @@ async mergeItemsBlockchain(origin, destType, destIndex) {
     const cdRes = await this.fetchWithTokenRetry(
       `${this.serverBase}/api/merge/cooldown/check`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrfToken || '' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) },
         body: JSON.stringify({ pairKey })
       }
     );
@@ -17158,7 +17272,7 @@ async mergeItemsBlockchain(origin, destType, destIndex) {
         const pairKey = [origin.idx, destItem.idx].sort().join('_');
         await this.fetchWithTokenRetry(`${this.serverBase}/api/merge/cooldown/set`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrfToken || '' },
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) },
           body: JSON.stringify({ pairKey, cooldownMinutes: 7 })
         });
         console.log(`⏱️ Cooldown de merge registrado para par ${pairKey} (7 min)`);
@@ -17428,8 +17542,14 @@ startDrag(src, x, y, count = 1) {
   dragDiv.style.left = (x - halfW) + 'px';
   dragDiv.style.top  = (y - halfH) + 'px';
 
-  // SOLO mover, NO agregar el evento de click
-  document.addEventListener('mousemove', this.onMouseMove.bind(this));
+  // SOLO mover, NO agregar el evento de click.
+  // OJO: .bind() devuelve una función NUEVA cada vez, así que el
+  // removeEventListener de stopDrag nunca encontraba la que se había puesto y
+  // cada arrastre dejaba un listener de mousemove more en el documento para
+  // siempre. Se guarda UNA sola referencia y se reutiliza.
+  if (!this._onMouseMoveBound) this._onMouseMoveBound = this.onMouseMove.bind(this);
+  document.removeEventListener('mousemove', this._onMouseMoveBound);
+  document.addEventListener('mousemove', this._onMouseMoveBound);
 }
 
 updateDragCount(count) {
@@ -17482,12 +17602,42 @@ stopDrag() {
     dragCount.style.display = 'none';
   }
   
-  // Solo remover el evento de mousemove
-  document.removeEventListener('mousemove', this.onMouseMove.bind(this));
-  
+  // Solo remover el evento de mousemove (la MISMA referencia que se registró)
+  if (this._onMouseMoveBound) {
+    document.removeEventListener('mousemove', this._onMouseMoveBound);
+  }
+
   document.querySelectorAll('.inv-slot, .quick-slot').forEach(d => {
     d.classList.remove('highlight');
   });
+}
+
+// ── Soltar lo que el jugador lleve "en la mano" ──────────────────────────────
+// Se llama ANTES de cambiar de escena. El div #drag-item vive en game.html y
+// sobrevive al cambio, así que si te ibas a la tienda con un ítem agarrado, el
+// ítem seguía pegado al cursor en la escena nueva —que ya no sabe nada de él— y
+// su casilla de origen quedaba vacía. Esto devuelve el ítem a su sitio y limpia
+// el rastro visual.
+_cancelarArrastre() {
+  try {
+    // clearSelectedItem devuelve el fantasma a su casilla y llama a stopDrag.
+    if (typeof this.clearSelectedItem === 'function') this.clearSelectedItem();
+  } catch (e) { console.warn('cancelarArrastre:', e.message || e); }
+
+  // Aunque no hubiera selectedItem (o clearSelectedItem fallara), el div del
+  // arrastre tiene que quedar oculto sí o sí: es DOM compartido entre escenas.
+  try {
+    if (typeof this.stopDrag === 'function') this.stopDrag();
+    const dragDiv = document.getElementById('drag-item');
+    if (dragDiv) {
+      dragDiv.style.display = 'none';
+      dragDiv.style.left = '-100px';
+      dragDiv.style.top  = '-100px';
+    }
+    const dragCount = document.getElementById('drag-count');
+    if (dragCount) { dragCount.textContent = ''; dragCount.style.display = 'none'; }
+    if (this.STATE) this.STATE.selectedItem = null;
+  } catch (_) {}
 }
 
 onMouseMove(e) {
@@ -17692,7 +17842,7 @@ async verificarRompimiento(itemRef) {
     // 2) Registrar el descuento en backend
     await this.fetchWithTokenRetry(`${this.serverBase}/api/tool/uses/decrease`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrfToken || '' },
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) },
       body: JSON.stringify({ invoiceId: itemRef.idx, maxUsos: toolDef.usos })
     });
 
@@ -17719,7 +17869,7 @@ async verificarRompimiento(itemRef) {
       try {
         await this.fetchWithTokenRetry(`${this.serverBase}/api/tool/uses/${itemRef.idx}`, {
           method: 'DELETE',
-          headers: { 'X-CSRF-Token': this.csrfToken || '' }
+          headers: { 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) }
         });
       } catch (delErr) {
         console.warn('⚠️ No se pudo borrar registro de usos tras rompimiento:', delErr);
@@ -20890,6 +21040,10 @@ async _doFullLogout() {
 }
 
 // ─── CONSUMIBLES (comer/beber haciendo clic en el personaje) ─────────────────
+// Tope de las barras vitales. Vida, agua y comida son porcentajes ENTEROS de
+// 0 a 100 — el mismo tope que aplica el backend (VITAL_MAX en server2.js).
+VITAL_MAX_CLIENT = 100;
+
 // Cosechas buenas y podridas (dan menos) + el balde con agua.
 CONSUMABLES_FOOD = {
   zanahoria_buena: 2, tomate_buena: 5, trigo_buena: 5, calabaza_buena: 5,
@@ -20924,7 +21078,23 @@ _openConsumePanel(itemId, info, available) {
   const name = (typeof this.getItemDisplayName === 'function' ? this.getItemDisplayName(itemId) : itemId) || itemId;
   const img = def && def.src ? def.src : '';
   const unit = info.isWater ? 'Water' : 'Food';
-  const max = Math.max(1, available);
+
+  // TOPE REAL: agua, comida y vida son porcentajes ENTEROS de 0 a 100. El
+  // máximo no puede ser "todo lo que tengas en el inventario": antes, con el
+  // agua en 33 y 10 baldes (20 cada uno), el panel dejaba consumir los 10 — la
+  // barra se quedaba en 100 igual y los 7 baldes sobrantes se perdían.
+  // Ahora el tope son las unidades que de verdad caben.
+  const actual = Math.round(Number(info.isWater ? this.aguaPorcentaje : this.comidaPorcentaje) || 0);
+  const falta  = Math.max(0, this.VITAL_MAX_CLIENT - actual);
+  if (falta <= 0) {
+    this.notifications.show(
+      (info.isWater ? 'Water' : 'Food') + ' is already full (' + this.VITAL_MAX_CLIENT + '%)',
+      'warning'
+    );
+    return;
+  }
+  const maxUtiles = Math.ceil(falta / info.gain);          // unidades para llenar
+  const max = Math.max(1, Math.min(available, maxUtiles));
   let qty = 1;
 
   const ov = document.createElement('div');
@@ -20937,7 +21107,8 @@ _openConsumePanel(itemId, info, available) {
     '<div style="font-size:clamp(15px,4vw,19px);font-weight:bold;margin-bottom:10px;">How many do you want to consume?</div>' +
     (img ? '<img src="' + img + '" alt="" style="width:64px;height:64px;object-fit:contain;image-rendering:pixelated;margin-bottom:6px;">' : '') +
     '<div style="font-size:clamp(13px,3.6vw,16px);margin-bottom:2px;">' + name + '</div>' +
-    '<div style="color:#bcd6c9;font-size:clamp(11px,3vw,13px);margin-bottom:12px;">+' + info.gain + ' ' + unit + ' each  ·  Available: ' + available + '</div>' +
+    '<div style="color:#bcd6c9;font-size:clamp(11px,3vw,13px);margin-bottom:12px;">+' + info.gain + ' ' + unit + ' each  ·  Available: ' + available +
+      '<br>' + unit + ': ' + actual + '/' + this.VITAL_MAX_CLIENT + '%  ·  max useful: ' + max + '</div>' +
     '<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px;">' +
       '<button id="gfc-minus" style="width:48px;height:48px;font-size:24px;border-radius:12px;border:none;background:#1b3d31;color:#fff;cursor:pointer;">−</button>' +
       '<input id="gfc-qty" type="number" inputmode="numeric" min="1" max="' + max + '" value="1" style="width:84px;height:48px;text-align:center;font-size:20px;font-weight:bold;border-radius:12px;border:2px solid #ffd23f;background:#0b2b22;color:#fff;">' +
@@ -20957,9 +21128,17 @@ _openConsumePanel(itemId, info, available) {
   const input = $('gfc-qty');
   const totalEl = $('gfc-total');
   const refresh = () => {
-    qty = Math.max(1, Math.min(max, parseInt(input.value, 10) || 1));
+    // Entero siempre: se quita cualquier cosa que no sea dígito (el input
+    // type=number deja escribir '1e5', ',' o '.' según el teclado del móvil, y
+    // parseInt sobre eso daba cantidades absurdas).
+    const limpio = String(input.value).replace(/[^0-9]/g, '');
+    qty = Math.max(1, Math.min(max, parseInt(limpio, 10) || 1));
     input.value = qty;
-    totalEl.textContent = 'Total: +' + (info.gain * qty) + ' ' + unit + '  (uses ' + qty + ')';
+    // El total que se muestra es el que REALMENTE se va a ganar, ya recortado
+    // al tope de 100. Así el jugador ve que pasarse no sirve de nada.
+    const ganado = Math.min(this.VITAL_MAX_CLIENT - actual, info.gain * qty);
+    totalEl.textContent = 'Total: +' + ganado + ' ' + unit +
+      '  →  ' + (actual + ganado) + '/' + this.VITAL_MAX_CLIENT + '%  (uses ' + qty + ')';
   };
   const close = () => { ov.remove(); };
 
@@ -22512,9 +22691,32 @@ if (this.dogNameText) {
     }
 
 
+    // ── PUERTA DE LA TIENDA ──────────────────────────────────────────────────
+    // Esto se evalúa en CADA frame, así que necesita dos candados:
+    //
+    //  • _puertaArmada: la puerta no dispara hasta que el jugador haya SALIDO
+    //    de su rectángulo al menos una vez. Al volver de la tienda apareces en
+    //    (1552,1531), que cae sobre la zona de la puerta, así que el primer
+    //    frame de GameScene te mandaba de vuelta a la tienda al instante — el
+    //    "salgo de tiendajuego y me regresa a tiendajuego". Empieza desarmada.
+    //
+    //  • _cambiandoEscena: scene.stop() y scene.start() no surten efecto hasta
+    //    el final del paso actual, así que sin esto el mismo forEach (o el
+    //    frame siguiente) podía lanzar la transición dos veces.
+    const _tocandoPuerta = this.collisionRectangles1.some(r =>
+      r && Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, r));
+    if (!_tocandoPuerta) this._puertaArmada = true;
+
     this.collisionRectangles1.forEach(rect1 => {
-      if (Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, rect1)) {
+      if (_tocandoPuerta && this._puertaArmada && !this._cambiandoEscena &&
+          Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, rect1)) {
         console.log("¡Colisión detectada!");
+        this._puertaArmada   = false;
+        this._cambiandoEscena = true;
+        // Soltar el ítem que se llevara en la mano ANTES de irse: el div del
+        // arrastre es DOM compartido y se quedaría pegado al cursor en la
+        // escena nueva, con su casilla de origen vacía.
+        this._cancelarArrastre();
         this.player.anims.stop();
 
         this.inicio = 1;
@@ -23305,7 +23507,7 @@ if (this.dogNameText) {
     try {
       await fetch(`${this.serverBase}/api/mail/${encodeURIComponent(this.playerName)}/read-all`, {
         method:'POST', credentials:'include',
-        headers:{'Content-Type':'application/json','X-CSRF-Token':window.csrfToken||''}
+        headers:{'Content-Type':'application/json','X-CSRF-Token':window.getCsrfToken()}
       });
       this._fetchMails();
     } catch(_) {}
@@ -23316,7 +23518,7 @@ if (this.dogNameText) {
     try {
       await fetch(`${this.serverBase}/api/mail/${encodeURIComponent(this.playerName)}/clear`, {
         method:'DELETE', credentials:'include',
-        headers:{'Content-Type':'application/json','X-CSRF-Token':window.csrfToken||''}
+        headers:{'Content-Type':'application/json','X-CSRF-Token':window.getCsrfToken()}
       });
       this._fetchMails();
     } catch(_) {}
@@ -23327,7 +23529,7 @@ if (this.dogNameText) {
     try {
       await fetch(`${this.serverBase}/api/mail/${encodeURIComponent(this.playerName)}/${encodeURIComponent(mailId)}`, {
         method:'DELETE', credentials:'include',
-        headers:{'Content-Type':'application/json','X-CSRF-Token':window.csrfToken||''}
+        headers:{'Content-Type':'application/json','X-CSRF-Token':window.getCsrfToken()}
       });
       this._fetchMails();
     } catch(_) {}
@@ -23416,7 +23618,7 @@ if (this.dogNameText) {
     try {
       await fetch(`${this.serverBase}/api/skills/${encodeURIComponent(this.playerName)}`, {
         method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.csrfToken || '' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken() },
         body: JSON.stringify({ skills: this._pendingSkills, skillPoints: this._pendingSkillPoints || 0 })
       });
       // Show prominent center-screen success banner
@@ -23596,7 +23798,7 @@ if (this.dogNameText) {
     try {
       await fetch(`${this.serverBase}/api/pet/${encodeURIComponent(this.playerName)}`, {
         method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.csrfToken || '' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken() },
         body: JSON.stringify({ pet: this.petData })
       });
     } catch (_) {}
@@ -23695,7 +23897,7 @@ if (this.dogNameText) {
     const payload = { oreItem, coalItem, playerName: this.playerName, timestamp: Date.now() };
     fetch(`${this.serverBase}/api/furnace/${encodeURIComponent(this.playerName)}`, {
       method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.csrfToken || '' },
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken() },
       body: JSON.stringify(payload)
     }).then(r => r.ok && console.log('✅ Furnace state saved'))
       .catch(e => console.warn('Furnace save error:', e));
@@ -23837,7 +24039,7 @@ if (this.dogNameText) {
     try {
       await fetch(`${this.serverBase}/api/notifications/${encodeURIComponent(this.playerName)}`, {
         method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.csrfToken || '' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken() },
         body: JSON.stringify({ notifications: this._notifList.slice(0, 50) })
       });
     } catch (_) {}

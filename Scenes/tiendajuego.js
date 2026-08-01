@@ -607,6 +607,13 @@ showNotification(message, type = 'info') {
   
     async create() {
 
+    // ── Candados de la puerta de salida ─────────────────────────────────────
+    // Phaser reutiliza la instancia de la escena: sin reiniciarlos, la puerta
+    // dejaría de funcionar tras la primera salida. _puertaArmada arranca en
+    // false porque apareces justo encima de la puerta al entrar a la tienda.
+    this._cambiandoEscena = false;
+    this._puertaArmada    = false;
+
     // ── Aplicar stats del contrato INMEDIATAMENTE al inicio ──────────────────
     if (window.playerStats) {
       if (typeof window.playerStats.oro    === 'number') this.moneda           = window.playerStats.oro;
@@ -7313,8 +7320,13 @@ startDrag(src, x, y, count = 1) {
   dragDiv.style.left = (x - halfW) + 'px';
   dragDiv.style.top  = (y - halfH) + 'px';
 
-  // SOLO mover, NO agregar el evento de click
-  document.addEventListener('mousemove', this.onMouseMove.bind(this));
+  // SOLO mover, NO agregar el evento de click.
+  // .bind() devuelve una función NUEVA cada vez, así que el removeEventListener
+  // de stopDrag nunca encontraba la registrada y cada arrastre dejaba un
+  // listener de mousemove de más en el documento. Se guarda UNA referencia.
+  if (!this._onMouseMoveBound) this._onMouseMoveBound = this.onMouseMove.bind(this);
+  document.removeEventListener('mousemove', this._onMouseMoveBound);
+  document.addEventListener('mousemove', this._onMouseMoveBound);
 }
 
 updateDragCount(count) {
@@ -7368,8 +7380,10 @@ stopDrag() {
     dragCount.style.display = 'none';
   }
   
-  // Solo remover el evento de mousemove
-  document.removeEventListener('mousemove', this.onMouseMove.bind(this));
+  // Solo remover el evento de mousemove (la MISMA referencia que se registró)
+  if (this._onMouseMoveBound) {
+    document.removeEventListener('mousemove', this._onMouseMoveBound);
+  }
   
   document.querySelectorAll('.inv-slot, .quick-slot').forEach(d => {
     d.classList.remove('highlight');
@@ -7394,6 +7408,30 @@ clearSelectedItem() {
     this.STATE.selectedItem = null;
     this.renderSlot(origin.originIndex);
   }
+}
+
+// ── Soltar lo que el jugador lleve "en la mano" ──────────────────────────────
+// Se llama ANTES de cambiar de escena. El div #drag-item vive en game.html y
+// sobrevive al cambio, así que si salías de la tienda con un ítem agarrado, el
+// ítem seguía pegado al cursor en la escena nueva —que no sabe nada de él— y su
+// casilla de origen quedaba vacía. Mismo método que en GameScene.
+_cancelarArrastre() {
+  try {
+    if (typeof this.clearSelectedItem === 'function') this.clearSelectedItem();
+  } catch (e) { console.warn('cancelarArrastre:', e.message || e); }
+
+  try {
+    if (typeof this.stopDrag === 'function') this.stopDrag();
+    const dragDiv = document.getElementById('drag-item');
+    if (dragDiv) {
+      dragDiv.style.display = 'none';
+      dragDiv.style.left = '-100px';
+      dragDiv.style.top  = '-100px';
+    }
+    const dragCount = document.getElementById('drag-count');
+    if (dragCount) { dragCount.textContent = ''; dragCount.style.display = 'none'; }
+    if (this.STATE) this.STATE.selectedItem = null;
+  } catch (_) {}
 }
 
 
@@ -10785,12 +10823,28 @@ if (this.dogNameText) {
       }
 
         
+      // ── PUERTA DE SALIDA ───────────────────────────────────────────────────
+      // Mismos dos candados que en GameScene:
+      //  • _puertaArmada: no dispara hasta haber SALIDO del rectángulo de la
+      //    puerta. Al entrar a la tienda apareces en (1041,1778), encima de la
+      //    puerta, así que sin esto el primer frame te devolvía al mundo.
+      //  • _cambiandoEscena: scene.stop()/start() no surten efecto hasta el
+      //    final del paso, así que la transición podía lanzarse dos veces.
+      const _tocandoPuerta = this.collisionRectangles1.some(r =>
+        r && Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, r));
+      if (!_tocandoPuerta) this._puertaArmada = true;
+
       this.collisionRectangles1.forEach(rect1 => {
-        if (Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, rect1)) {
+        if (_tocandoPuerta && this._puertaArmada && !this._cambiandoEscena &&
+            Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, rect1)) {
           console.log("¡Colisión detectada!");
+          this._puertaArmada    = false;
+          this._cambiandoEscena = true;
+          // Soltar el ítem que se llevara en la mano ANTES de irse.
+          this._cancelarArrastre();
           this.player.anims.stop();
-          
-          
+
+
 
           this.inicio = 1;
 
