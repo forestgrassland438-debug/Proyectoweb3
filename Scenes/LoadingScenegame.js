@@ -2005,18 +2005,43 @@ class StatsSync {
                 }
                 this._adoptServerStats(data.stats);
                 console.log('✅ Stats actualizados en contrato:', toSend);
+                this._reintentos = 0;
             } else {
                 // Re-encolar para reintentar
                 Object.assign(this._pending, toSend);
-                console.warn('⚠️ Stats update falló, reintentando...');
+                console.warn(`⚠️ Stats update falló (${res.status}), se reintentará`);
+                this._programarReintento();
             }
         } catch (e) {
             Object.assign(this._pending, toSend);
             console.warn('⚠️ StatsSync error:', e.message || e);
+            this._programarReintento();
         } finally {
             this._updating = false;
             if (window[lockKey]) window[lockKey] = false;
         }
+    }
+
+    /**
+     * Reintenta un envío fallido por su cuenta, con espera creciente.
+     *
+     * Antes lo pendiente se re-encolaba y ahí se quedaba: no se volvía a
+     * intentar hasta que el jugador hiciera OTRO cambio de stats. Si el nodo
+     * estaba caído (o saltaba un 403), el agua, la comida, el oro o la exp de
+     * ese momento no llegaban nunca a la cadena y se perdían al recargar.
+     */
+    _programarReintento() {
+        if (!Object.keys(this._pending).length) return;
+        this._reintentos = (this._reintentos || 0) + 1;
+        if (this._reintentos > 6) {
+            console.warn('⚠️ StatsSync: demasiados reintentos, se deja para el próximo cambio');
+            this._reintentos = 0;
+            return;
+        }
+        const espera = Math.min(2000 * Math.pow(2, this._reintentos - 1), 30000);
+        console.log(`🔁 StatsSync: reintento ${this._reintentos} en ${espera}ms`);
+        clearTimeout(this._retryTimer);
+        this._retryTimer = setTimeout(() => this._flush(), espera);
     }
 
     /**

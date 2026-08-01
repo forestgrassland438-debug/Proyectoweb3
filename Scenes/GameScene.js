@@ -917,27 +917,24 @@ async openMissionsPanel(npcId) {
   console.log(`🎯 Abriendo panel de misiones para NPC: ${npcId}`);
   this.currentNpcMission = npcId;
   
-  // Primero cargar las misiones diarias
+  // El panel se abre SIEMPRE y él mismo se encarga de cargar las misiones.
+  // Antes se cargaban aquí y solo se abría si la respuesta traía success:true,
+  // así que hablarle a un NPC sin misiones para hoy no hacía nada de nada.
+  // Ahora, si no hay misiones, el panel abre igual con su mensaje.
+  if (this.missionsPanel && typeof this.missionsPanel.show === 'function') {
+    await this.missionsPanel.show(npcId);
+    return;
+  }
+
+  // Sin panel montado (el HTML de misiones no está en esta página): al menos
+  // se avisa por notificación.
+  console.warn('⚠️ No hay panel de misiones en el DOM');
   const missionsData = await this.loadDailyMissions(npcId);
-  
-  if (missionsData && missionsData.success) {
-    // Aquí podrías mostrar el panel de misiones
-    // Por ejemplo: await this.missionsPanel.show(npcId, missionsData);
-    console.log(`📋 Misiones cargadas para ${npcId}:`, missionsData.missions.length);
-    
-    // Si tienes un panel de misiones, actívalo aquí
-    if (this.missionsPanel && typeof this.missionsPanel.show === 'function') {
-      await this.missionsPanel.show(npcId, missionsData);
-    }
-  } else {
-    console.error('❌ No se pudieron cargar las misiones para', npcId);
-    
-    // Mostrar error al usuario según idioma
-    if (this.lenguaje === 3) { // español
-      this.showNotification('Error cargando misiones. Intenta más tarde.', 'error');
-    } else if (this.lenguaje === 1) { // inglés
-      this.showNotification('Error loading missions. Try again later.', 'error');
-    }
+  if (!missionsData || !missionsData.success) {
+    this.showNotification(
+      this.lenguaje === 3 ? 'No hay misiones disponibles ahora.' : 'No missions available right now.',
+      'info'
+    );
   }
 }
 

@@ -636,6 +636,14 @@ class BattleScene extends Phaser.Scene {
         this._listeners = [];
         if (this.estado === 'buscando' && this.socket.connected) this.socket.emit('battle:leaveQueue');
 
+        // Avisar SIEMPRE que se abandona la batalla, no solo si se estaba
+        // buscando rival. El servidor guarda un candado por socket mientras
+        // dura el combate; si se sale sin avisar, ese candado se quedaba puesto
+        // y el siguiente intento respondía 'already_in_battle' — el jugador no
+        // podía volver a entrar. (El servidor también lo suelta al
+        // desconectar, esto es el aviso limpio y llega antes.)
+        if (this.socket.connected) this.socket.emit('battle:leave');
+
         // Se deja el socket como lo deja la tienda al salir del mapa:
         // desconectado. Así GameScene.initSocket() crea uno nuevo con todos sus
         // manejadores globales (cleanupScene ya le hizo removeAllListeners).
