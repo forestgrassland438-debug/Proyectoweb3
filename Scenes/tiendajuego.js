@@ -3073,6 +3073,19 @@ handleMouseMovement(delta) {
           handler: (error) => {
             this.appendSystemMessage(error.msg || 'Error en chat');
           }
+        },
+
+        // El backend recalcula el nivel de la mascota al terminar cada batalla.
+        // Sin esto, el perro seguiría mostrando el nivel viejo en la tienda
+        // hasta recargar la página.
+        {
+          event: 'petLevelUpdate',
+          handler: ({ petLevel }) => {
+            const n = Math.max(1, Number(petLevel) || 1);
+            if (this.petLevel === n) return;
+            this.petLevel = n;
+            if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
+          }
         }
       ];
       
@@ -3196,7 +3209,11 @@ sendPlayerMovement() {
     dogEquipped: !(this.petData && this.petData.equipped === false), // false = dog removed
     // El nombre de la mascota no se enviaba nunca, por eso los demás jugadores
     // veían tu perro sin etiqueta. El servidor reenvía el payload tal cual.
-    dogName: this._isNameSet && this._isNameSet(this.petName) ? this.petName : ''
+    dogName: this._isNameSet && this._isNameSet(this.petName) ? this.petName : '',
+    // Nivel de la mascota y del personaje. En la tienda no se enviaba ninguno
+    // de los dos, así que los demás jugadores salían sin nivel.
+    petLevel: Math.max(1, Number(this.petLevel) || 1),
+    nivel: Math.max(0, Number(this.nivel) || 0)
   });
 }
 
@@ -3298,7 +3315,7 @@ createOtherPlayer(playerInfo) {
   remotePlayer.dog.nameText = this.add.text(
     playerInfo.dogX ?? playerInfo.x + 40,
     (playerInfo.dogY ?? playerInfo.y + 20) - 30,
-    playerInfo.dogName || '',
+    this._dogLabelText(playerInfo.dogName, playerInfo.petLevel),
     {
       fontFamily: '"PressStart2P"',
       fontSize: '8px',
@@ -3308,7 +3325,8 @@ createOtherPlayer(playerInfo) {
       strokeThickness: 5,
     }
   ).setOrigin(0.5, 1);
-  remotePlayer.dog.nameText.setVisible(!!playerInfo.dogName);
+  remotePlayer.dog._petLevel = playerInfo.petLevel;
+  remotePlayer.dog.nameText.setVisible(true);
 }
 
 
@@ -3379,7 +3397,10 @@ updateOtherPlayer(playerInfo) {
     if (player.nameText) {
       player.nameText.setPosition(x, y - 60);
       player.nameText.setDepth(remoteFeetY + 1);
-      player.nameText.setText(playerInfo.usernamex || playerInfo.username || 'Jugador');
+      if (typeof playerInfo.nivel === 'number') player._nivel = playerInfo.nivel;
+      player.nameText.setText(
+        this._playerLabelText(playerInfo.usernamex || playerInfo.username || 'Jugador', player._nivel)
+      );
     }
 
     if (!player.dog) {
@@ -3453,10 +3474,12 @@ updateOtherPlayer(playerInfo) {
         strokeThickness: 5,
       }).setOrigin(0.5, 1);
     }
-    player.dog.nameText.setText(dogName);
+    // Nombre + NIVEL, y visible aunque el perro aún no tenga nombre.
+    if (typeof playerInfo.petLevel === 'number') player.dog._petLevel = playerInfo.petLevel;
+    player.dog.nameText.setText(this._dogLabelText(dogName, player.dog._petLevel));
     player.dog.nameText.setPosition(dogX, dogY - player.dog.sprite.displayHeight * 0.5 - 4);
     player.dog.nameText.setDepth(remoteDogFeetY + 1);
-    player.dog.nameText.setVisible(!!dogName);
+    player.dog.nameText.setVisible(true);
   }
 
   player.lastUpdate = Date.now();
@@ -10575,10 +10598,11 @@ if (dog.shadowContainer) {
   dog.shadowContainer.setDepth(dogFeetY - 1);
 }
 
-// Etiqueta del nombre de la mascota: sigue al perro, arriba de su cabeza
+// Etiqueta de la mascota (nombre y/o nivel): sigue al perro, sobre su cabeza.
+// Se muestra siempre que el perro esté visible: antes se exigía que la mascota
+// tuviera nombre, y sin nombre no se veía tampoco el nivel.
 if (this.dogNameText) {
-  const named = this._isNameSet && this._isNameSet(this.petName);
-  if (named && dog.sprite.visible) {
+  if (dog.sprite.visible) {
     this.dogNameText.setVisible(true);
     this.dogNameText.setPosition(dog.x, dog.y - dog.sprite.displayHeight * 0.5 - 4);
     this.dogNameText.setDepth(dogFeetY + 1);
@@ -11093,12 +11117,27 @@ if (this.dogNameText) {
     return typeof v === 'string' && v.trim() !== '' && v.trim() !== '---';
   }
 
+  // Etiqueta del perro: nombre + NIVEL. En la tienda solo se mostraba el
+  // nombre — el nivel no aparecía por ningún lado, ni el propio ni el de los
+  // demás jugadores. Mismas reglas que en GameScene: si la mascota todavía no
+  // tiene nombre se muestra solo "Lv.N".
+  _dogLabelText(petName, petLevel) {
+    const lvl = Math.max(1, Number(petLevel) || 1);
+    return this._isNameSet(petName) ? `${petName} (Lv.${lvl})` : `Lv.${lvl}`;
+  }
+
+  // Etiqueta del jugador: nombre + nivel del personaje.
+  _playerLabelText(nombre, nivel) {
+    const n = Number(nivel);
+    const etiqueta = nombre || 'Jugador';
+    return Number.isFinite(n) ? `${etiqueta} (Lv.${Math.max(0, Math.floor(n))})` : etiqueta;
+  }
+
   _updateDogNameLabel() {
     if (!this.dogNameText) return;
-    const named = this._isNameSet(this.petName);
-    this.dogNameText.setText(named ? this.petName : '');
+    this.dogNameText.setText(this._dogLabelText(this.petName, this.petLevel));
     const dogVisible = !!(this.dog && this.dog.sprite && this.dog.sprite.visible);
-    this.dogNameText.setVisible(named && dogVisible);
+    this.dogNameText.setVisible(dogVisible);
   }
 
   _syncMonedas() {

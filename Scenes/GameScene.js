@@ -5148,14 +5148,11 @@ if (_staleMailbox) _staleMailbox.style.display = 'none';
 // Cargar notificaciones desde el servidor
 this._loadNotifications();
 
-// Botón mail abre el panel de notificaciones
-const mailBtn = document.getElementById('mail-btn');
-if (mailBtn) {
-  mailBtn.onclick = (e) => {
-    e.stopPropagation();
-    this._openNotifPanel();
-  };
-}
+// La campana se engancha más abajo, junto al resto de botones redondos, con
+// _bindDomClick. Antes se hacía aquí con `mailBtn.onclick = ...` Y otra vez
+// abajo con addEventListener sobre roundButtons[1]: eran dos enganches al mismo
+// botón, así que un clic abría el panel dos veces y marcaba las notificaciones
+// como leídas dos veces.
 
 // Cerrar panel
 const notifClose = document.getElementById('notif-close');
@@ -5302,8 +5299,9 @@ this.npcx5.setDepth(9);
         this.showSettingsPanel(); // Usa el método de la clase
     };
 
-    // ---------- BOTÓN 1 (Mail)
-    this.onRoundBtnMail = () => {
+    // ---------- BOTÓN 1 (Mail / campana de notificaciones)
+    this.onRoundBtnMail = (e) => {
+        if (e && e.stopPropagation) e.stopPropagation();
         console.log("Mail clicked");
         this._openNotifPanel();
     };
@@ -5398,25 +5396,21 @@ window.hub.onRetry = (hiddenData) => {
     */
 
     // ASIGNAR LISTENERS
-    this.roundButtons[0]?.addEventListener('click', this.onRoundBtnDashboard);
+    // Todos van por _bindDomClick: el HUD es DOM persistente y un
+    // addEventListener suelto se acumularía en cada entrada a la escena.
+    this._bindDomClick(this.roundButtons[0], 'dashboard', this.onRoundBtnDashboard);
 
     // NFT Button
-    const nftBtn = document.getElementById('nft-btn');
-    if (nftBtn) {
-      nftBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.openNFTPanel();
-      });
-    }
+    this._bindDomClick(document.getElementById('nft-btn'), 'nft', (e) => {
+      e.stopPropagation();
+      this.openNFTPanel();
+    });
 
     // Skills Button
-    const skillsBtn = document.getElementById('skills-btn');
-    if (skillsBtn) {
-      skillsBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.openSkillsPanel();
-      });
-    }
+    this._bindDomClick(document.getElementById('skills-btn'), 'skills', (e) => {
+      e.stopPropagation();
+      this.openSkillsPanel();
+    });
 
     // Store Button — abre el Market en una pestaña nueva.
     // FIX: antes se usaba this.serverclient1 (dominio de la API,
@@ -5427,17 +5421,20 @@ window.hub.onRetry = (hiddenData) => {
     // desarrollo local → el mismo host/puerto que sirve el juego.
     // (La cookie de sesión funciona entre subdominios vía COOKIE_DOMAIN
     // =.grasslandforest.com en el backend.)
-    const storeBtn = document.getElementById('store-btn');
-    if (storeBtn) {
-      storeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const marketUrl = new URL('market.html', window.location.href).href;
-        window.open(marketUrl, '_blank');
-      });
-    }
-    this.roundButtons[1]?.addEventListener('click', this.onRoundBtnMail);
-    this.roundButtons[2]?.addEventListener('click', this.onRoundBtnStats);
-    this.roundButtons[3]?.addEventListener('click', this.onRoundBtnReputation);
+    this._bindDomClick(document.getElementById('store-btn'), 'store', (e) => {
+      e.stopPropagation();
+      const marketUrl = new URL('market.html', window.location.href).href;
+      window.open(marketUrl, '_blank');
+    });
+
+    // La CAMPANA se engancha por su id (#mail-btn) y no por el índice 1 de
+    // this.roundButtons: ese índice depende del orden del HTML y de que la
+    // NodeList siga apuntando a los nodos vivos. Por id es siempre el botón
+    // correcto, exista o no el resto del HUD.
+    this._bindDomClick(document.getElementById('mail-btn'), 'mail', this.onRoundBtnMail);
+
+    this._bindDomClick(this.roundButtons[2], 'stats', this.onRoundBtnStats);
+    this._bindDomClick(this.roundButtons[3], 'reputation', this.onRoundBtnReputation);
     /*
     this.roundButtons[4]?.addEventListener('click', this.onRoundBtnHudStats);
 
@@ -7090,6 +7087,12 @@ oreProps.forEach(prop => {
     // útil es saber cuánto falta para el respawn, no que "necesitas un hacha".
     const { isLocked, lockedUntil } = await getTreeLockState(treeKey);
     if (isLocked) {
+      // Red de seguridad por si el aviso 'treeLocked' no llegó (desconexión
+      // momentánea, o el árbol lo taló alguien mientras cargábamos): al
+      // descubrir aquí que está bloqueado se pone el tronco y se limpia el
+      // progreso local, en vez de dejar el árbol entero con un contador colgado.
+      this._abortLocalProgress(treeKey, { tipo: 'tree' });
+      this.showTreeStump(treeKey);
       if (lockedUntil) {
         const restante = this.formatRespawnRemaining(lockedUntil.getTime() - Date.now());
         this.notifications.show(
@@ -8082,6 +8085,27 @@ this.refrescarTextosConFuente();
 // recurso (ver /api/tree/lock y /api/mine/lock en server2.js). Aquí se aplica
 // el mismo efecto visual que ya se usaba al cargar, y se programa la vuelta del
 // recurso con el lockedUntil que manda el servidor.
+/**
+ * Cancela el progreso LOCAL sobre un recurso que ya tumbó otro jugador.
+ *
+ * El caso: vas 3/6 golpes en un árbol y otro jugador lo termina. El recurso ya
+ * está bloqueado en el servidor, pero en tu pantalla se quedaba el contador
+ * "3/6" flotando para siempre y `oreMineState` conservaba los 3 golpes, así que
+ * cuando el árbol reaparecía seguías desde 3 en vez de empezar de cero. Esto
+ * limpia las tres cosas: el texto de progreso, su indicador y el estado.
+ */
+_abortLocalProgress(key, { tipo = 'tree' } = {}) {
+  const textos = tipo === 'mine' ? this.mineTexts : this.oreTexts;
+  const estado = tipo === 'mine' ? this.mineState : this.oreMineState;
+
+  if (textos && textos[key]) {
+    if (textos[key].indicator) textos[key].indicator.destroy();
+    textos[key].destroy();
+    delete textos[key];
+  }
+  if (estado && estado[key]) delete estado[key];
+}
+
 setupResourceLockSocket() {
   if (!this.socket || this._resourceLockSocketBound) return;
   this._resourceLockSocketBound = true;
@@ -8102,6 +8126,10 @@ setupResourceLockSocket() {
       const hasta = new Date(lockedUntil).getTime();
       if (!(hasta > Date.now())) return;
       console.log(`🌲 Otro jugador taló ${treeKey}`);
+      // Si yo estaba a medio talar ese árbol, mi progreso ya no vale: se borra
+      // el contador de la pantalla y el estado, para no quedarme con un "3/6"
+      // colgado ni reanudar desde ahí cuando el árbol vuelva.
+      this._abortLocalProgress(treeKey, { tipo: 'tree' });
       this.showTreeStump(treeKey);
       restaurarEn(hasta - Date.now(), () => {
         this.hideTreeStump(treeKey);
@@ -8129,6 +8157,7 @@ setupResourceLockSocket() {
       const hasta = new Date(lockedUntil).getTime();
       if (!(hasta > Date.now())) return;
       console.log(`⛏️ Otro jugador picó ${mineKey}`);
+      this._abortLocalProgress(mineKey, { tipo: 'mine' });
       // Mismo criterio que loadMineLockStates: el mineral picado no se puede
       // volver a picar hasta que reaparezca (los árboles sí siguen clickeables
       // a propósito, para poder avisar cuánto falta para el respawn).
@@ -15442,13 +15471,49 @@ cleanupDomListeners() {
         }
     });
 
-    const roundButtons = document.querySelectorAll('.round-btn');
-    roundButtons.forEach((btn, index) => {
-        if (btn && btn.parentNode) {
-            const newBtn = btn.cloneNode(true);
-            btn.parentNode.replaceChild(newBtn, btn);
-        }
+    // Los BOTONES REDONDOS ya NO se clonan.
+    //
+    // Antes esto hacía cloneNode + replaceChild sobre cada .round-btn para
+    // "limpiar" sus listeners. Efectos que tenía:
+    //   • el nodo del DOM quedaba reemplazado por una copia SIN listeners, y de
+    //     paso se llevaba por delante los de #nft-btn, #skills-btn, #store-btn
+    //     y #mail-btn (la campana), que se enganchan por id;
+    //   • this.roundButtons seguía apuntando a los nodos VIEJOS, ya sueltos del
+    //     documento, así que los removeEventListener del cleanup no quitaban
+    //     nada y los re-enganches posteriores iban al elemento equivocado.
+    // Resultado: la campana abría o no según por dónde hubieras pasado antes.
+    //
+    // Ahora los listeners se enganchan con _bindDomClick, que guarda el handler
+    // en el propio elemento y quita el anterior antes de poner el nuevo. Nunca
+    // se duplican, así que no hace falta destruir el nodo para limpiarlos.
+    this._unbindAllDomClicks();
+}
+
+// ── Enganche de clicks del DOM, idempotente ─────────────────────────────────
+// El HUD (botones redondos, campana, tienda…) es DOM de game.html y sobrevive
+// al cambio de escena, así que un addEventListener suelto se acumula cada vez
+// que se vuelve a entrar. Esto guarda el handler EN el elemento y quita el
+// anterior antes de poner el nuevo: siempre queda exactamente uno.
+_bindDomClick(el, key, handler) {
+    if (!el) return;
+    this._domClickBindings = this._domClickBindings || [];
+    const prop = `_gfClick_${key}`;
+    if (el[prop]) el.removeEventListener('click', el[prop]);
+    el[prop] = handler;
+    el.addEventListener('click', handler);
+    this._domClickBindings.push({ el, prop });
+}
+
+_unbindAllDomClicks() {
+    (this._domClickBindings || []).forEach(({ el, prop }) => {
+        try {
+            if (el && el[prop]) {
+                el.removeEventListener('click', el[prop]);
+                delete el[prop];
+            }
+        } catch (_) {}
     });
+    this._domClickBindings = [];
 }
 
 cleanupSystems() {
@@ -20106,15 +20171,32 @@ createImagesFromObjectLayer1(scene, map, objectLayerName, nameMapping) {
   });
 
   // ⚡ MEJORA: Limpieza global al cambiar de escena
-  if (scene.scene && scene.scene.manager) {
+  //
+  // OJO: sceneManager es un objeto ÚNICO de todo el juego, compartido por todas
+  // las escenas. Envolver sus métodos aquí sin ninguna protección significaba
+  // envolverlos OTRA VEZ cada vez que se entraba a GameScene: los envoltorios se
+  // apilaban unos sobre otros y cada uno se quedaba con una referencia viva a
+  // aquella escena y a todos sus TileManagers, que ya no se podían liberar.
+  // Ir y volver de la tienda unas cuantas veces dejaba media docena de escenas
+  // enteras retenidas en memoria — en un teléfono eso son pausas del recolector
+  // de basura y tirones de frames cada vez peores según avanza la partida.
+  // Con la marca `_gfTileCleanupPatched` se envuelve UNA sola vez.
+  if (scene.scene && scene.scene.manager && !scene.scene.manager._gfTileCleanupPatched) {
     const sceneManager = scene.scene.manager;
-    
+    sceneManager._gfTileCleanupPatched = true;
+
+    // La escena a limpiar se lee en el momento desde el registro, en vez de
+    // quedar capturada en el closure: así el envoltorio no retiene ninguna
+    // escena concreta.
+    sceneManager._gfTileCleanupScene = scene;
+
     // Interceptar el cambio de escena para limpiar
     const originalStart = sceneManager.start.bind(sceneManager);
     sceneManager.start = function(key, data) {
-      console.log(`🔄 Cambiando de escena - limpiando TileManagers`);
-      if (scene._tileManagers) {
-        scene._tileManagers.forEach(tm => {
+      const sc = sceneManager._gfTileCleanupScene;
+      if (sc && sc._tileManagers) {
+        console.log(`🔄 Cambiando de escena - limpiando TileManagers`);
+        sc._tileManagers.forEach(tm => {
           try {
             if (tm.emergencyCleanup && typeof tm.emergencyCleanup === 'function') {
               tm.emergencyCleanup();
@@ -20129,22 +20211,28 @@ createImagesFromObjectLayer1(scene, map, objectLayerName, nameMapping) {
 
     const originalStop = sceneManager.stop.bind(sceneManager);
     sceneManager.stop = function(key) {
-      if (key === scene.scene.key) {
+      const sc = sceneManager._gfTileCleanupScene;
+      if (sc && sc.scene && key === sc.scene.key && sc._tileManagers) {
         console.log(`🛑 Deteniendo escena - limpiando TileManagers`);
-        if (scene._tileManagers) {
-          scene._tileManagers.forEach(tm => {
-            try {
-              if (tm.destroy && typeof tm.destroy === 'function') {
-                tm.destroy();
-              }
-            } catch (e) {
-              console.error('Error destruyendo al detener escena:', e);
+        sc._tileManagers.forEach(tm => {
+          try {
+            if (tm.destroy && typeof tm.destroy === 'function') {
+              tm.destroy();
             }
-          });
-        }
+          } catch (e) {
+            console.error('Error destruyendo al detener escena:', e);
+          }
+        });
+        // Soltar la referencia: si no, la última escena detenida se quedaría
+        // retenida por el gestor para siempre.
+        sceneManager._gfTileCleanupScene = null;
       }
       return originalStop(key);
     };
+  } else if (scene.scene && scene.scene.manager) {
+    // Ya estaba envuelto por una entrada anterior: solo se apunta la escena
+    // actual como la que hay que limpiar.
+    scene.scene.manager._gfTileCleanupScene = scene;
   }
 }
 
@@ -22263,10 +22351,12 @@ if (dog.shadowContainer) {
   dog.shadowContainer.setDepth(dogFeetY - 1);
 }
 
-// Etiqueta del nombre de la mascota: sigue al perro, arriba de su cabeza
+// Etiqueta de la mascota (nombre y/o nivel): sigue al perro, sobre su cabeza.
+// Este bloque corre en cada frame, así que la condición de aquí manda sobre lo
+// que ponga _updateDogNameLabel: si exigiera nombre, el nivel de una mascota
+// sin nombrar volvería a ocultarse en el frame siguiente.
 if (this.dogNameText) {
-  const named = this._isNameSet && this._isNameSet(this.petName);
-  if (named && dog.sprite.visible) {
+  if (dog.sprite.visible) {
     this.dogNameText.setVisible(true);
     this.dogNameText.setPosition(dog.x, dog.y - dog.sprite.displayHeight * 0.5 - 4);
     this.dogNameText.setDepth(dogFeetY + 1);
@@ -22560,14 +22650,13 @@ if (this.dogNameText) {
 
 
 
-                // Botones Redondos Cierres 
-              if (this.roundButtons) {
-                  this.roundButtons[0]?.removeEventListener('click', this.onRoundBtnDashboard);
-                  this.roundButtons[1]?.removeEventListener('click', this.onRoundBtnMail);
-                  this.roundButtons[2]?.removeEventListener('click', this.onRoundBtnStats);
-                  this.roundButtons[3]?.removeEventListener('click', this.onRoundBtnReputation);
-                  this.roundButtons[4]?.removeEventListener('click', this.onRoundBtnHudStats);
-              }
+                // Botones Redondos Cierres
+              // Los quita _unbindAllDomClicks, que sabe exactamente qué handler
+              // se puso en cada elemento. Los removeEventListener por índice que
+              // había aquí no quitaban nada: para cuando corrían, este método
+              // ya había clonado los botones y this.roundButtons apuntaba a los
+              // nodos viejos, sueltos del documento.
+              this._unbindAllDomClicks();
 
               document.getElementById('cerrarReputacion')
                   ?.removeEventListener('click', this.onCloseReputation);
@@ -23636,18 +23725,33 @@ if (this.dogNameText) {
     // Hide the old mailbox panel if it leaked into view
     const oldMailbox = document.getElementById('_mail-panel-root');
     if (oldMailbox) oldMailbox.style.display = 'none';
-    if (this._notifPanel) {
-      this._notifPanel.classList.add('notif-panel-visible');
-      this._notifPanel.style.display = 'flex';
-      this._markAllNotifRead();
-    }
+
+    // Se busca el panel EN EL MOMENTO en vez de usar this._notifPanel, que se
+    // capturaba una sola vez en create(). Si el DOM del HUD todavía no estaba
+    // montado en ese instante, aquella referencia quedaba en null para siempre
+    // y la campana no hacía absolutamente nada.
+    const panel = document.getElementById('notif-panel') || this._notifPanel;
+    if (!panel) { console.warn('⚠️ No se encontró #notif-panel'); return; }
+    this._notifPanel = panel;
+
+    // Hay que QUITAR la clase de ocultar, no solo añadir la de mostrar:
+    // .notif-panel-hidden y .notif-panel-visible llevan las dos `!important`,
+    // así que con ambas puestas sólo gana la que esté más abajo en el css. Eso
+    // funcionaba de casualidad y se rompía en cuanto cambiaba el orden de las
+    // reglas. Además hay que limpiar el display:none en línea que deja
+    // _closeNotifPanel.
+    panel.classList.remove('notif-panel-hidden');
+    panel.classList.add('notif-panel-visible');
+    panel.style.display = 'flex';
+    this._markAllNotifRead();
   }
 
   _closeNotifPanel() {
-    if (this._notifPanel) {
-      this._notifPanel.classList.remove('notif-panel-visible');
-      this._notifPanel.style.display = 'none';
-    }
+    const panel = document.getElementById('notif-panel') || this._notifPanel;
+    if (!panel) return;
+    panel.classList.remove('notif-panel-visible');
+    panel.classList.add('notif-panel-hidden');
+    panel.style.display = 'none';
   }
 
   _addNotification(msg, icon = '🔔', save = true) {
