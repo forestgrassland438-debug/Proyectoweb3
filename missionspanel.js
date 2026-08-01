@@ -47,14 +47,21 @@ class missionspanel {
   
   async show(npcId) {
     if (this.disabled) return;
-    const loaded = await this.gameScene.loadDailyMissions(npcId);
 
-    if (loaded) {
-      this.render();
-      this.panel.classList.remove('hidden');
-      this.overlay.classList.remove('hidden');
-      
+    // El panel se abre SIEMPRE. Antes solo se abría si loadDailyMissions
+    // devolvía algo, así que cuando el NPC no tenía misiones para hoy (o la
+    // carga fallaba) al jugador no le pasaba absolutamente nada al hablarle:
+    // ni panel, ni aviso. Ahora abre y, si no hay nada, lo dice.
+    let loaded = null;
+    try {
+      loaded = await this.gameScene.loadDailyMissions(npcId);
+    } catch (e) {
+      console.warn('missionspanel: fallo cargando misiones:', e && e.message);
     }
+
+    this.render(!loaded);
+    this.panel.classList.remove('hidden');
+    this.overlay.classList.remove('hidden');
   }
   
   close() {
@@ -77,8 +84,19 @@ class missionspanel {
     }
   }
   
-  render() {
-    if (this.disabled || !this.gameScene.dailyMissionsData) return;
+  /**
+   * @param {boolean} fallóLaCarga  true si loadDailyMissions no devolvió nada.
+   *        Se sigue pintando el panel, con el mensaje de "sin misiones".
+   */
+  render(fallóLaCarga = false) {
+    if (this.disabled) return;
+
+    // Sin datos (no hay misiones hoy, o la carga falló): se pinta el panel
+    // vacío con su mensaje en vez de dejarlo en blanco o no abrirlo.
+    if (!this.gameScene.dailyMissionsData) {
+      this._renderVacio(fallóLaCarga);
+      return;
+    }
 
     const lang = this.gameScene.languageMap[this.gameScene.lenguaje] || 'en-US';
     // FIX: tolerar respuestas incompletas del backend — antes cualquier campo
@@ -109,12 +127,53 @@ class missionspanel {
     
     // Limpiar lista
     this.missionsList.innerHTML = '';
-    
+
+    // La respuesta puede venir bien pero con la lista vacía (el NPC no tiene
+    // misiones para hoy, o ya se completaron todas): también hay que decirlo.
+    if (!missions.length) {
+      this.missionsList.appendChild(this._mensajeVacio(
+        completedCount > 0
+          ? 'All done for today! Come back tomorrow for new missions.'
+          : 'No missions available right now. Check back later.'
+      ));
+      return;
+    }
+
     // Renderizar cada misión
     missions.forEach(mission => {
       const missionElement = this.createMissionElement(mission, lang, completedIds.has(mission.missionId));
       this.missionsList.appendChild(missionElement);
     });
+  }
+
+  /** Tarjeta de aviso para cuando no hay nada que listar. Siempre en inglés. */
+  _mensajeVacio(texto) {
+    const box = document.createElement('div');
+    box.className = 'mission-card mission-empty';
+    box.style.cssText =
+      'text-align:center;padding:26px 18px;opacity:.85;line-height:1.5;';
+    box.innerHTML =
+      '<div style="font-size:34px;margin-bottom:10px;">📜</div>' +
+      '<div style="font-size:15px;font-weight:bold;margin-bottom:6px;">No missions</div>' +
+      '<div style="font-size:13px;">' + this._esc(texto) + '</div>';
+    return box;
+  }
+
+  /** Panel abierto pero sin datos ningunos. */
+  _renderVacio(fallóLaCarga) {
+    const esNpcGranjero = this.gameScene.currentNpcMission === 'granjero';
+    const npcName = esNpcGranjero ? 'Farmer Joe' : 'Guardian Rurik';
+    if (this.npcTitle)  this.npcTitle.textContent  = `${npcName} - Daily Missions`;
+    if (this.resetTime) this.resetTime.textContent = '';
+    if (this.progress)  this.progress.textContent  = 'Completed: 0/0';
+    if (this.missionsList) {
+      this.missionsList.innerHTML = '';
+      this.missionsList.appendChild(this._mensajeVacio(
+        fallóLaCarga
+          ? "Couldn't load the missions right now. Try the refresh button."
+          : 'No missions available right now. Check back later.'
+      ));
+    }
   }
   
   createMissionElement(mission, lang, isCompleted) {

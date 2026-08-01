@@ -99,7 +99,12 @@ class TiendaSistema {
                 if (window.playerStats) window.playerStats.plata = normalized;
                 // statsSync.set dispara la transacción blockchain real que
                 // descuenta la factura on-chain de plata (vía /api/stats/update).
-                if (this.scene && this.scene.statsSync) this.scene.statsSync.set('plata', normalized);
+                // immediate=true: el cobro sale YA, sin esperar el debounce de
+                // 1,5 s. Con el retraso, si el jugador salía de la tienda justo
+                // después de comprar, el cobro se quedaba en la cola y no
+                // llegaba nunca a la cadena — parecía que la compra fuera solo
+                // del backend.
+                if (this.scene && this.scene.statsSync) this.scene.statsSync.set('plata', normalized, true);
             } else {
                 this.playerMoneda = normalized;
                 if (this.scene) this.scene.moneda = normalized;
@@ -109,7 +114,9 @@ class TiendaSistema {
                 // window.playerStats.oro, /api/save restauraba el oro viejo.
                 if (window.playerStats) window.playerStats.oro = normalized;
                 // Transacción blockchain real del oro (factura on-chain).
-                if (this.scene && this.scene.statsSync) this.scene.statsSync.set('oro', normalized);
+                // immediate=true por el mismo motivo que la plata: sin esto el
+                // cobro esperaba 1,5 s y se perdía si el jugador salía antes.
+                if (this.scene && this.scene.statsSync) this.scene.statsSync.set('oro', normalized, true);
             }
         };
         this.formatCurrencyAmount = (amount, currency) => {
@@ -1374,7 +1381,7 @@ class TiendaSistema {
                     credentials: 'include',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-CSRF-Token': scene.csrfToken || ''
+                        'X-CSRF-Token': window.getCsrfToken(scene.csrfToken)
                     }
                 });
                 
@@ -2672,7 +2679,7 @@ async verificarRompimiento(itemRef) {
     // 2) Registrar el descuento en backend
     await this.fetchWithTokenRetry(`${this.serverBase}/api/tool/uses/decrease`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrfToken || '' },
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) },
       body: JSON.stringify({ invoiceId: itemRef.idx, maxUsos: toolDef.usos })
     });
 
@@ -2699,7 +2706,7 @@ async verificarRompimiento(itemRef) {
       try {
         await this.fetchWithTokenRetry(`${this.serverBase}/api/tool/uses/${itemRef.idx}`, {
           method: 'DELETE',
-          headers: { 'X-CSRF-Token': this.csrfToken || '' }
+          headers: { 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) }
         });
       } catch (delErr) {
         console.warn('⚠️ No se pudo borrar registro de usos tras rompimiento:', delErr);
