@@ -1122,8 +1122,30 @@
       };
     }
 
+    // Frame por encima del cual la medida NO se considera una señal de calidad
+    // del dispositivo, sino un parón: rAF estrangulado por el navegador
+    // (pestaña de fondo, teléfono quieto con la CPU bajada de frecuencia), una
+    // pausa del recolector de basura o un tirón puntual. 200 ms = 5 fps.
+    static get STALL_FRAME_MS() { return 200; }
+
     recordFrameMetrics(frameTime, memoryUsage = 0) {
       if (!this.enabled) return;
+
+      // Los parones no entran en el historial, y además lo VACÍAN: las medidas
+      // anteriores describen un estado que ya no es el actual.
+      //
+      // Sin esto, dejar el personaje quieto un buen rato en el móvil bastaba
+      // para hundir la calidad: el navegador baja el ritmo de refresco, se
+      // acumulan 30 frames "lentísimos" que no tienen nada que ver con lo que
+      // el móvil puede dar, la calidad adaptativa lo lee como "este aparato no
+      // da más" y baja de tier. Al volver a moverte, el juego ya arrancaba
+      // degradado.
+      if (!(frameTime > 0) || frameTime > AdaptivePerformanceManager.STALL_FRAME_MS) {
+        this.performanceHistory.length = 0;
+        this.lastAdjustmentTime = Date.now();  // margen antes de volver a decidir
+        return;
+      }
+
       this.performanceHistory.push({ frameTime, memoryUsage, timestamp: Date.now() });
       if (this.performanceHistory.length > 60) this.performanceHistory.shift();
       if (Date.now() - this.lastAdjustmentTime > this.adjustmentCooldown) {
@@ -1145,8 +1167,21 @@
       // encendiéndose y apagándose = parpadeo. La banda crea una zona muerta
       // donde no se cambia nada.
       const HYST = 3; // ms de margen a cada lado de la zona muerta
-      const downThreshold = DEFAULTS.maxFrameTime + HYST;
-      const upThreshold   = DEFAULTS.minFrameTime - HYST;
+      const downThreshold = DEFAULTS.maxFrameTime + HYST;   // 36 ms (~28 fps)
+
+      // Umbral para SUBIR de calidad.
+      //
+      // Antes era `minFrameTime - HYST` = 16 - 3 = 13 ms, o sea que para
+      // recuperar calidad el juego tenía que sostener MÁS de 76 fps. Con la
+      // sincronía vertical a 60 fps el frame-time nunca baja de ~16.7 ms, así
+      // que ese umbral era IMPOSIBLE de alcanzar: la calidad podía bajar pero
+      // no volvía a subir jamás. Una vez degradado, seguía degradado el resto
+      // de la sesión aunque el móvil fuera perfectamente capaz.
+      //
+      // Ahora se pide ir claramente holgado (por debajo de 20 ms ≈ 50 fps
+      // sostenidos), que sí es alcanzable a 60 fps, y sigue quedando una zona
+      // muerta amplia (20–36 ms) donde no se toca nada.
+      const upThreshold   = DEFAULTS.maxFrameTime - 13;     // 20 ms (~50 fps)
 
       if (avgFrame > downThreshold) {
         if (this.currentTier === 'high')   newTier = 'medium';
