@@ -8091,8 +8091,12 @@ removeItemWithCheck(itemId, count) {
                 console.error('Error durante logout:', e);
             }
             
-            // Redirigir al login
-            window.location.href = '../Grassland_Forest_Game/index.html';
+            // Redirigir al login REAL (app.grasslandforest.com). Antes apuntaba a
+            // '../Grassland_Forest_Game/index.html', una ruta relativa que en
+            // producción caía en game.grasslandforest.com/Grassland_Forest_Game/
+            // index.html — una página que no es el login. Se usa la misma
+            // constante que ya emplea el resto del código para salir.
+            window.location.href = window.GF_LOGIN_URL || 'https://app.grasslandforest.com/';
         };
 
         // Ensamblar todo

@@ -1840,7 +1840,10 @@ class LoadingScenegame extends Phaser.Scene {
             } catch (e) {
                 console.error('Error durante logout:', e);
             }
-            window.location.href = '../Grassland_Forest_Game/index.html';
+            // Login REAL. La ruta relativa anterior acababa en
+            // game.grasslandforest.com/Grassland_Forest_Game/index.html, que no
+            // es el login. Misma constante que usa el resto del código.
+            window.location.href = window.GF_LOGIN_URL || 'https://app.grasslandforest.com/';
         };
 
         contentBox.appendChild(icon);
