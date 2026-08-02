@@ -168,13 +168,13 @@
   <section class="card">
     <h2>1 · Acceso de administrador</h2>
     <div class="token-row">
-      <input id="token" type="password" placeholder="Token de administrador (JWT con role admin)" autocomplete="off">
-      <button class="ghost" id="btnVerToken" type="button">👁 Ver</button>
-      <button class="primary" id="btnProbar" type="button">Comprobar acceso</button>
+      <button class="primary" id="btnConectar" type="button">Conectar cartera de administrador</button>
+      <span id="adminInfo" class="hint"></span>
     </div>
     <p class="hint">
-      El token se guarda solo en memoria: al cerrar o recargar la pestaña se olvida.
-      Nunca se escribe en localStorage ni en la URL.
+      Ya no hace falta pegar ningún token: se entra firmando un mensaje con la
+      cartera de administrador, igual que en el panel de jugadores. La firma no
+      autoriza ninguna transacción, solo demuestra que la cartera es tuya.
     </p>
   </section>
 
@@ -271,7 +271,12 @@
     { code: 'ko-KR',  nombre: 'Coreano' }
   ];
 
-  var token = '';           // solo en memoria, nunca en localStorage
+  var APP_NAME = 'Grassland Forest';
+  // Antes esto era un JWT de admin que había que pegar a mano. Ahora el acceso
+  // va por CARTERA: se firma un mensaje, el backend deja la cookie de sesión y
+  // adminAuth comprueba que esa dirección sea administradora.
+  var adminOk = false;      // ¿la cartera conectada es admin?
+  var csrf = null;
   var contador = 0;
 
   var $ = function (id) { return document.getElementById(id); };
@@ -415,24 +420,129 @@
   // ---------------------------------------------------------------------------
   // Llamadas al backend
   // ---------------------------------------------------------------------------
+  function leerCookie(nombre) {
+    var m = document.cookie.match(new RegExp('(?:^|;\\s*)' +
+      nombre.replace(/[.$?*|{}()[\]\\/+^]/g, '\\$&') + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+  function b64(s) { try { return btoa(unescape(encodeURIComponent(s))); } catch (e) { return btoa(String(s)); } }
+
+  // Las llamadas van con la COOKIE de sesión (credentials: 'include') y el
+  // token CSRF leído en el momento, no con una cabecera Authorization.
   function pedir(ruta, opciones) {
     opciones = opciones || {};
-    opciones.headers = Object.assign({
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + token
-    }, opciones.headers || {});
+    opciones.credentials = 'include';
+    opciones.mode = 'cors';
+    var t = leerCookie('csrf-token') || csrf;
+    opciones.headers = Object.assign(
+      { 'Content-Type': 'application/json' },
+      t ? { 'X-CSRF-Token': t } : {},
+      opciones.headers || {}
+    );
     return fetch(API + ruta, opciones).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (data) {
-        if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+        if (!r.ok) {
+          var e = new Error(data.message || data.error || ('HTTP ' + r.status));
+          e.code = data.error; e.status = r.status;
+          throw e;
+        }
         return data;
       });
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Entrada con cartera de administrador
+  // ---------------------------------------------------------------------------
+  function getProvider() {
+    if (window.ethereum && window.ethereum.providers) {
+      var mm = window.ethereum.providers.find(function (p) { return p.isMetaMask; });
+      if (mm) return mm;
+    }
+    return window.ethereum || null;
+  }
+
+  function conectarAdmin() {
+    var provider = getProvider();
+    if (!provider) { aviso('No se detectó MetaMask. Instálalo para continuar.', 'err'); return; }
+
+    var cuenta = null;
+    aviso('Conectando cartera…', 'info');
+
+    provider.request({ method: 'eth_requestAccounts' })
+      .then(function (cuentas) {
+        cuenta = cuentas && cuentas[0];
+        if (!cuenta) throw new Error('No elegiste ninguna cuenta');
+        return fetch(API + '/api/auth/csrf-token', { credentials: 'include', mode: 'cors' });
+      })
+      .then(function (r) { return r.json().catch(function () { return {}; }); })
+      .then(function (d) {
+        csrf = leerCookie('csrf-token') || d.csrfToken || null;
+        aviso('Pidiendo nonce…', 'info');
+        return fetch(API + '/api/auth/nonce?address=' + encodeURIComponent(cuenta.toLowerCase()),
+                     { credentials: 'include', mode: 'cors' });
+      })
+      .then(function (r) {
+        if (!r.ok) throw new Error('No se pudo obtener el nonce');
+        return r.json();
+      })
+      .then(function (d) {
+        var tk = d.nonce + ':' + Math.floor(Date.now() / 1000);
+        var mensaje = 'Signing in to ' + APP_NAME + ': ' + b64(tk);
+        aviso('Firma el mensaje en tu cartera…', 'info');
+        return provider.request({ method: 'personal_sign', params: [mensaje, cuenta] })
+          .then(function (firma) {
+            var cab = { 'Content-Type': 'application/json' };
+            var t = leerCookie('csrf-token') || csrf;
+            if (t) cab['X-CSRF-Token'] = t;
+            return fetch(API + '/api/auth/login', {
+              method: 'POST', credentials: 'include', mode: 'cors', headers: cab,
+              body: JSON.stringify({
+                address: cuenta.toLowerCase(), signature: firma, token: tk, message: mensaje
+              })
+            });
+          });
+      })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (d) {
+          if (!r.ok) throw new Error(d.message || d.error || ('HTTP ' + r.status));
+          if (d.csrfToken) csrf = d.csrfToken;
+          return d;
+        });
+      })
+      .then(comprobarAdmin)
+      .catch(function (e) { aviso('No se pudo entrar: ' + e.message, 'err'); });
+  }
+
+  // `silencioso` = sondeo del arranque: si aún no hay sesión, no es un error.
+  function comprobarAdmin(silencioso) {
+    return pedir('/api/admin/whoami')
+      .then(function (d) {
+        adminOk = true;
+        $('adminInfo').textContent = '✅ Admin: ' +
+          (d.address ? d.address.slice(0, 6) + '…' + d.address.slice(-4) : 'sesión válida');
+        aviso('Acceso correcto.', 'ok');
+        cargarDias();
+      })
+      .catch(function (e) {
+        adminOk = false;
+        .textContent = '';
+        if (silencioso) throw e;
+        if (e.code === 'not_admin') {
+          aviso('Esa cartera no es administradora. Añádela a ADMIN_ADDRESSES o dale admin en el contrato.', 'err');
+        } else if (e.status === 401) {
+          aviso('Conecta la cartera de administrador para empezar.', 'info');
+        } else {
+          aviso('No se pudo comprobar el acceso: ' + e.message, 'err');
+        }
+        throw e;
+      });
+  }
+
   function cargarDias() {
     var cont = $('diasCargados');
     cont.textContent = '';
-    if (!token) return;
+    if (!adminOk) return;
 
     pedir('/api/admin/missions/days/' + $('npc').value)
       .then(function (d) {
@@ -455,7 +565,7 @@
   }
 
   function cargarDia() {
-    if (!token) return aviso('Primero pon el token de administrador.', 'err');
+    if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
     var npc = $('npc').value, dia = $('dia').value;
     if (!dia) return aviso('Elige un día.', 'err');
 
@@ -475,7 +585,7 @@
   }
 
   function guardar() {
-    if (!token) return aviso('Primero pon el token de administrador.', 'err');
+    if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
     var dia = $('dia').value;
     if (!dia) return aviso('Elige un día.', 'err');
 
@@ -506,18 +616,7 @@
   // ---------------------------------------------------------------------------
   // Eventos
   // ---------------------------------------------------------------------------
-  $('btnVerToken').addEventListener('click', function () {
-    var i = $('token');
-    i.type = i.type === 'password' ? 'text' : 'password';
-  });
-
-  $('btnProbar').addEventListener('click', function () {
-    token = $('token').value.trim();
-    if (!token) return aviso('Pega tu token de administrador.', 'err');
-    pedir('/api/admin/missions/days/' + $('npc').value)
-      .then(function () { aviso('Acceso correcto.', 'ok'); cargarDias(); })
-      .catch(function (e) { token = ''; aviso('Token rechazado: ' + e.message, 'err'); });
-  });
+  $('btnConectar').addEventListener('click', conectarAdmin);
 
   $('btnCargar').addEventListener('click', cargarDia);
   $('btnAgregar').addEventListener('click', function () { agregarMision(); });
@@ -525,7 +624,7 @@
   $('npc').addEventListener('change', cargarDias);
 
   $('btnCopiar').addEventListener('click', function () {
-    if (!token) return aviso('Primero pon el token.', 'err');
+    if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
     pedir('/api/admin/missions/copy', {
       method: 'POST',
       body: JSON.stringify({
@@ -540,7 +639,7 @@
   });
 
   $('btnBorrar').addEventListener('click', function () {
-    if (!token) return aviso('Primero pon el token.', 'err');
+    if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
     var dia = $('dia').value;
     if (!dia) return aviso('Elige el día a borrar.', 'err');
     if (!confirm('¿Borrar las misiones de ' + $('npc').value + ' del ' + dia + '?')) return;
@@ -556,6 +655,10 @@
   $('copiaDesde').value = hoy;
   $('copiaHasta').value = hoy;
   agregarMision();
+
+  // Si ya había una sesión de admin abierta (por ejemplo se venía de admin.html),
+  // se entra directo sin volver a firmar.
+  comprobarAdmin(true).catch(function () {});
 })();
 </script>
 </body>

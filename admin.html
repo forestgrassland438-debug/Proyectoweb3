@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Registro de guardabosques · Grassland Forest</title>
+<style>
+/* ===========================================================================
+   REGISTRO DE GUARDABOSQUES — panel de administración de jugadores
+   ---------------------------------------------------------------------------
+   Concepto: el libro de registro de un puesto forestal. Fondo de noche en el
+   bosque, acento de musgo, ámbar de farol para lo que exige atención y arcilla
+   para lo irreversible. Las cifras y las direcciones van en monoespaciada
+   porque aquí se comparan en columna, no se leen en prosa.
+   =========================================================================== */
+:root {
+  --ink:        #0E1512;   /* negro con sesgo verde, no negro puro */
+  --surface:    #16211C;
+  --surface-2:  #1C2A23;
+  --line:       #26382E;
+  --text:       #E6EDE7;
+  --text-dim:   #8A9C90;
+  --moss:       #7FB069;   /* acento: musgo, desaturado */
+  --moss-soft:  rgba(127,176,105,.14);
+  --lantern:    #E0A458;   /* atención */
+  --lantern-soft: rgba(224,164,88,.14);
+  --clay:       #C05746;   /* destructivo */
+  --clay-soft:  rgba(192,87,70,.14);
+  --radius: 10px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="light"], html:not([data-theme="dark"]) {
+  /* por defecto oscuro; el claro se activa abajo */
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --ink: #F1EFE4; --surface: #FBFAF4; --surface-2: #F4F2E7;
+    --line: #DCD8C6; --text: #1B2620; --text-dim: #5F6E64;
+    --moss: #4E7A3C; --moss-soft: rgba(78,122,60,.12);
+    --lantern: #9A6516; --lantern-soft: rgba(154,101,22,.12);
+    --clay: #97392A; --clay-soft: rgba(151,57,42,.10);
+  }
+}
+:root[data-theme="light"] {
+  --ink: #F1EFE4; --surface: #FBFAF4; --surface-2: #F4F2E7;
+  --line: #DCD8C6; --text: #1B2620; --text-dim: #5F6E64;
+  --moss: #4E7A3C; --moss-soft: rgba(78,122,60,.12);
+  --lantern: #9A6516; --lantern-soft: rgba(154,101,22,.12);
+  --clay: #97392A; --clay-soft: rgba(151,57,42,.10);
+}
+:root[data-theme="dark"] {
+  --ink: #0E1512; --surface: #16211C; --surface-2: #1C2A23;
+  --line: #26382E; --text: #E6EDE7; --text-dim: #8A9C90;
+  --moss: #7FB069; --moss-soft: rgba(127,176,105,.14);
+  --lantern: #E0A458; --lantern-soft: rgba(224,164,88,.14);
+  --clay: #C05746; --clay-soft: rgba(192,87,70,.14);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--ink); color: var(--text);
+  font-family: var(--sans); font-size: 15px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { margin: 0; text-wrap: balance; font-weight: 650; letter-spacing: -.01em; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--moss); outline-offset: 2px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.dim  { color: var(--text-dim); }
+
+/* ── Cabecera ────────────────────────────────────────────────────────────── */
+header.top {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 14px 22px; border-bottom: 1px solid var(--line);
+  background: var(--surface); position: sticky; top: 0; z-index: 20;
+}
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+.brand h1 { font-size: 16px; }
+.brand .sub {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--text-dim);
+}
+.wallet-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 11px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface-2); font-family: var(--mono); font-size: 12.5px;
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--moss); flex: none; }
+.dot.off { background: var(--text-dim); }
+
+.btn {
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--text);
+  padding: 8px 14px; border-radius: var(--radius); font-size: 14px;
+  transition: border-color .15s, background .15s;
+}
+.btn:hover { border-color: var(--moss); }
+.btn-primary { background: var(--moss); color: var(--ink); border-color: var(--moss); font-weight: 600; }
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-danger { background: var(--clay-soft); border-color: var(--clay); color: var(--clay); font-weight: 600; }
+.btn-danger:hover { background: var(--clay); color: #fff; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-sm { padding: 5px 10px; font-size: 13px; }
+
+/* ── Puerta de entrada ───────────────────────────────────────────────────── */
+.gate {
+  min-height: 72vh; display: grid; place-items: center; padding: 40px 20px;
+}
+.gate-card {
+  width: min(100%, 460px); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 14px; padding: 34px 30px; text-align: center;
+}
+.gate-card h2 { font-size: 21px; margin-bottom: 8px; }
+.gate-card p { color: var(--text-dim); font-size: 14px; margin: 0 0 22px; }
+.gate-mark { font-size: 40px; line-height: 1; margin-bottom: 16px; }
+
+/* ── Contenido ───────────────────────────────────────────────────────────── */
+main { padding: 22px; max-width: 1400px; margin: 0 auto; }
+section { margin-bottom: 26px; }
+.section-head {
+  display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;
+}
+.section-head h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .11em; color: var(--text-dim); }
+
+/* KPIs */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr)); gap: 12px; }
+.kpi {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.kpi .label {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim);
+  display: block; margin-bottom: 6px;
+}
+.kpi .value { font-family: var(--mono); font-size: 25px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.kpi .value.accent { color: var(--moss); }
+
+/* Buscador */
+.search-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.search-bar input[type="search"] {
+  flex: 1; min-width: 240px; padding: 10px 13px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.search-bar input[type="search"]::placeholder { color: var(--text-dim); }
+
+/* Tabla */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 940px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim);
+  font-weight: 600; background: var(--surface-2); position: sticky; top: 0;
+}
+tbody tr { transition: background .12s; }
+tbody tr:hover { background: var(--moss-soft); cursor: pointer; }
+tbody tr:last-child td { border-bottom: none; }
+td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
+.name-cell { display: flex; flex-direction: column; gap: 1px; }
+.name-cell .primary { font-weight: 600; }
+.name-cell .secondary { font-size: 12px; color: var(--text-dim); }
+
+.pill {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: .02em;
+  background: var(--moss-soft); color: var(--moss); border: 1px solid transparent;
+}
+.pill.warn { background: var(--lantern-soft); color: var(--lantern); }
+.pill.mute { background: transparent; color: var(--text-dim); border-color: var(--line); }
+
+.pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 12px; }
+
+/* ── Ficha del jugador (panel lateral) ───────────────────────────────────── */
+.drawer-bg {
+  position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 40;
+  opacity: 0; pointer-events: none; transition: opacity .18s;
+}
+.drawer-bg.open { opacity: 1; pointer-events: auto; }
+.drawer {
+  position: fixed; top: 0; right: 0; height: 100%; width: min(560px, 100%);
+  background: var(--surface); border-left: 1px solid var(--line); z-index: 41;
+  transform: translateX(100%); transition: transform .22s ease;
+  display: flex; flex-direction: column;
+}
+.drawer.open { transform: none; }
+.drawer-head {
+  padding: 18px 22px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: flex-start; gap: 12px;
+}
+.drawer-head h2 { font-size: 18px; }
+.drawer-body { padding: 20px 22px; overflow-y: auto; flex: 1; }
+.drawer-body h3 {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .11em; color: var(--text-dim);
+  margin: 22px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line);
+}
+.drawer-body h3:first-child { margin-top: 0; }
+
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+.fact .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; color: var(--text-dim); }
+.fact .v { font-family: var(--mono); font-size: 15px; font-variant-numeric: tabular-nums; }
+
+.field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.field label {
+  display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 4px;
+  text-transform: uppercase; letter-spacing: .07em;
+}
+.field input, .field select {
+  width: 100%; padding: 8px 10px; background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 8px;
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+}
+.field input:focus { border-color: var(--moss); }
+.field.changed input { border-color: var(--lantern); background: var(--lantern-soft); }
+
+.note {
+  border-left: 3px solid var(--lantern); background: var(--lantern-soft);
+  padding: 10px 13px; border-radius: 0 8px 8px 0; font-size: 13px; margin-bottom: 14px;
+}
+.note.danger { border-left-color: var(--clay); background: var(--clay-soft); }
+
+.danger-zone {
+  border: 1px solid var(--clay); border-radius: var(--radius);
+  padding: 16px; margin-top: 26px; background: var(--clay-soft);
+}
+.danger-zone h3 { color: var(--clay); border-bottom-color: var(--clay); margin-top: 0; }
+.danger-zone input {
+  width: 100%; padding: 8px 10px; margin: 8px 0 10px; font-family: var(--mono);
+  background: var(--surface); border: 1px solid var(--clay); border-radius: 8px;
+}
+
+.drawer-foot {
+  padding: 14px 22px; border-top: 1px solid var(--line);
+  display: flex; gap: 10px; justify-content: flex-end; background: var(--surface-2);
+}
+
+/* Avisos */
+#toast {
+  position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(20px);
+  background: var(--surface-2); border: 1px solid var(--line); border-left: 3px solid var(--moss);
+  color: var(--text); padding: 11px 18px; border-radius: 8px; z-index: 60;
+  opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+  max-width: min(90vw, 520px); font-size: 14px;
+}
+#toast.show { opacity: 1; transform: translateX(-50%); }
+#toast.err { border-left-color: var(--clay); }
+#toast.warn { border-left-color: var(--lantern); }
+
+.empty { padding: 40px 20px; text-align: center; color: var(--text-dim); }
+.hidden { display: none !important; }
+
+@media (max-width: 640px) {
+  main { padding: 14px; }
+  header.top { padding: 12px 14px; }
+  .kpi .value { font-size: 21px; }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <h1>Registro de guardabosques</h1>
+    <span class="sub">Grassland Forest</span>
+  </div>
+  <span class="wallet-chip" id="walletChip"><span class="dot off"></span><span id="walletText">Sin conectar</span></span>
+  <button class="btn btn-sm" id="themeBtn" title="Cambiar tema">Tema</button>
+  <button class="btn btn-sm hidden" id="reloadBtn">Actualizar</button>
+</header>
+
+<!-- Puerta: conectar cartera admin -->
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <div class="gate-mark">🌲</div>
+    <h2>Solo guardabosques</h2>
+    <p>Conecta la cartera de administrador para abrir el registro de jugadores.
+       Se te pedirá firmar un mensaje; no autoriza ninguna transacción.</p>
+    <button class="btn btn-primary" id="connectBtn">Conectar cartera</button>
+  </div>
+</div>
+
+<!-- Panel -->
+<main id="panel" class="hidden">
+  <section>
+    <div class="section-head"><h2>Resumen</h2></div>
+    <div class="kpis" id="kpis"></div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Jugadores</h2>
+      <span class="dim" id="resultInfo"></span>
+    </div>
+    <div class="search-bar">
+      <input type="search" id="q" placeholder="Buscar por dirección de cartera o nombre del personaje…" autocomplete="off">
+      <button class="btn" id="searchBtn">Buscar</button>
+      <button class="btn" id="clearBtn">Limpiar</button>
+    </div>
+    <div class="table-wrap" style="margin-top:12px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Jugador</th><th>Cartera</th><th style="text-align:right">Nivel</th>
+            <th style="text-align:right">Oro</th><th style="text-align:right">Plata</th>
+            <th>Antigüedad</th><th>Tiempo jugado</th><th>Última vez</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div class="pager">
+      <button class="btn btn-sm" id="prevBtn">‹ Anterior</button>
+      <span class="dim mono" id="pageInfo">—</span>
+      <button class="btn btn-sm" id="nextBtn">Siguiente ›</button>
+    </div>
+  </section>
+</main>
+
+<div class="drawer-bg" id="drawerBg"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <div style="flex:1">
+      <h2 id="dName">—</h2>
+      <div class="mono dim" id="dAddr" style="font-size:12.5px"></div>
+    </div>
+    <button class="btn btn-sm" id="closeDrawer">Cerrar</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+  <div class="drawer-foot">
+    <button class="btn" id="revertBtn">Descartar</button>
+    <button class="btn btn-primary" id="saveBtn">Guardar cambios</button>
+  </div>
+</aside>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── Configuración ────────────────────────────────────────────────────────
+  var API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? 'http://127.0.0.1:3001'
+    : 'https://api.grasslandforest.com';
+  var APP_NAME = 'Grassland Forest';
+
+  function api(p) { return API_BASE.replace(/\/$/, '') + p; }
+  function $(id) { return document.getElementById(id); }
+  function esc(v) {
+    return String(v === null || v === undefined ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  }
+  function readCookie(name) {
+    var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + name.replace(/[.$?*|{}()[\]\\/+^]/g, '\\$&') + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+  function b64(s) { try { return btoa(unescape(encodeURIComponent(s))); } catch (e) { return btoa(String(s)); } }
+  function corto(a) { return a ? a.slice(0, 6) + '…' + a.slice(-4) : '—'; }
+  function fecha(v) {
+    if (!v) return '—';
+    var d = new Date(v);
+    return isNaN(d) ? '—' : d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  var state = { csrf: null, address: null, page: 1, q: '', actual: null, cambios: {} };
+
+  // ── Avisos ───────────────────────────────────────────────────────────────
+  var toastTimer = null;
+  function aviso(msg, tipo) {
+    var t = $('toast');
+    t.textContent = msg;
+    t.className = 'show' + (tipo ? ' ' + tipo : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.className = ''; }, 4200);
+  }
+
+  // ── Tema ─────────────────────────────────────────────────────────────────
+  $('themeBtn').addEventListener('click', function () {
+    var root = document.documentElement;
+    var actual = root.getAttribute('data-theme');
+    if (!actual) {
+      actual = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    root.setAttribute('data-theme', actual === 'dark' ? 'light' : 'dark');
+  });
+
+  // ── Peticiones ───────────────────────────────────────────────────────────
+  function pedir(ruta, opciones) {
+    opciones = opciones || {};
+    opciones.credentials = 'include';
+    opciones.mode = 'cors';
+    var csrf = readCookie('csrf-token') || state.csrf;
+    opciones.headers = Object.assign(
+      { 'Content-Type': 'application/json' },
+      csrf ? { 'X-CSRF-Token': csrf } : {},
+      opciones.headers || {}
+    );
+    return fetch(api(ruta), opciones).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (d) {
+        if (!r.ok) {
+          var e = new Error(d.message || d.error || ('HTTP ' + r.status));
+          e.status = r.status; e.code = d.error;
+          throw e;
+        }
+        return d;
+      });
+    });
+  }
+
+  // ── Entrada con cartera admin ────────────────────────────────────────────
+  function getProvider() {
+    if (window.ethereum && window.ethereum.providers) {
+      var mm = window.ethereum.providers.find(function (p) { return p.isMetaMask; });
+      if (mm) return mm;
+    }
+    return window.ethereum || null;
+  }
+
+  async function getCsrf() {
+    try {
+      var r = await fetch(api('/api/auth/csrf-token'), { credentials: 'include', mode: 'cors' });
+      var d = await r.json();
+      state.csrf = readCookie('csrf-token') || d.csrfToken || null;
+    } catch (e) { /* se intenta igual */ }
+    return state.csrf;
+  }
+
+  async function conectar() {
+    var provider = getProvider();
+    if (!provider) { aviso('No se detectó MetaMask. Instálalo para continuar.', 'err'); return; }
+
+    $('connectBtn').disabled = true;
+    try {
+      aviso('Conectando cartera…');
+      var cuentas = await provider.request({ method: 'eth_requestAccounts' });
+      var cuenta = cuentas && cuentas[0];
+      if (!cuenta) { aviso('No elegiste ninguna cuenta.', 'err'); return; }
+
+      await getCsrf();
+
+      aviso('Pidiendo nonce…');
+      var nr = await fetch(api('/api/auth/nonce?address=' + encodeURIComponent(cuenta.toLowerCase())),
+                           { credentials: 'include', mode: 'cors' });
+      if (!nr.ok) { aviso('No se pudo obtener el nonce.', 'err'); return; }
+      var nonce = (await nr.json()).nonce;
+
+      var token = nonce + ':' + Math.floor(Date.now() / 1000);
+      var mensaje = 'Signing in to ' + APP_NAME + ': ' + b64(token);
+
+      aviso('Firma el mensaje en tu cartera…');
+      var firma = await provider.request({ method: 'personal_sign', params: [mensaje, cuenta] });
+
+      var cabeceras = { 'Content-Type': 'application/json' };
+      var csrf = readCookie('csrf-token') || state.csrf;
+      if (csrf) cabeceras['X-CSRF-Token'] = csrf;
+
+      var lr = await fetch(api('/api/auth/login'), {
+        method: 'POST', credentials: 'include', mode: 'cors', headers: cabeceras,
+        body: JSON.stringify({ address: cuenta.toLowerCase(), signature: firma, token: token, message: mensaje })
+      });
+      if (!lr.ok) {
+        var err = {}; try { err = await lr.json(); } catch (e) {}
+        aviso('Entrada rechazada: ' + (err.message || err.error || lr.status), 'err');
+        return;
+      }
+      var ld = {}; try { ld = await lr.json(); } catch (e) {}
+      if (ld.csrfToken) state.csrf = ld.csrfToken;
+
+      state.address = cuenta.toLowerCase();
+      await comprobarAdmin();
+    } catch (e) {
+      aviso('No se pudo entrar: ' + (e.message || e), 'err');
+    } finally {
+      $('connectBtn').disabled = false;
+    }
+  }
+
+  // `silencioso` = es el sondeo del arranque, no una acción del usuario. Ahí no
+  // se avisa de nada: que no haya sesión todavía es lo normal, no un error.
+  async function comprobarAdmin(silencioso) {
+    try {
+      var d = await pedir('/api/admin/whoami');
+      state.address = d.address || state.address;
+      $('walletChip').innerHTML = '<span class="dot"></span><span>' + esc(corto(state.address)) + '</span>';
+      $('gate').classList.add('hidden');
+      $('panel').classList.remove('hidden');
+      $('reloadBtn').classList.remove('hidden');
+      await Promise.all([cargarResumen(), cargarJugadores()]);
+    } catch (e) {
+      if (silencioso) return;
+      if (e.code === 'not_admin') {
+        aviso('Esa cartera no es administradora. Añádela a ADMIN_ADDRESSES o dale admin en el contrato.', 'err');
+      } else if (e.status === 401) {
+        aviso('Conecta la cartera de administrador para entrar.', 'warn');
+      } else {
+        aviso('No se pudo comprobar el acceso: ' + (e.message || e), 'err');
+      }
+    }
+  }
+
+  // ── Resumen ──────────────────────────────────────────────────────────────
+  async function cargarResumen() {
+    try {
+      var d = await pedir('/api/admin/overview');
+      var kpis = [
+        { label: 'Cuentas totales', value: d.totalCuentas, accent: true },
+        { label: 'Nuevas (24 h)',   value: d.nuevas24h },
+        { label: 'Nuevas (7 días)', value: d.nuevas7d },
+        { label: 'Activos (24 h)',  value: d.activos24h },
+        { label: 'Conectados ahora',value: d.conectados },
+        { label: 'Tiempo jugado total', value: d.tiempoTotal, texto: true }
+      ];
+      $('kpis').innerHTML = kpis.map(function (k) {
+        return '<div class="kpi"><span class="label">' + esc(k.label) + '</span>' +
+               '<div class="value' + (k.accent ? ' accent' : '') + '"' +
+               (k.texto ? ' style="font-size:19px"' : '') + '>' + esc(k.value) + '</div></div>';
+      }).join('');
+    } catch (e) {
+      $('kpis').innerHTML = '<div class="empty">No se pudo cargar el resumen: ' + esc(e.message) + '</div>';
+    }
+  }
+
+  // ── Lista de jugadores ───────────────────────────────────────────────────
+  async function cargarJugadores() {
+    var tbody = $('rows');
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">Cargando…</td></tr>';
+    try {
+      var d = await pedir('/api/admin/players?page=' + state.page +
+                          '&limit=25&q=' + encodeURIComponent(state.q));
+      if (!d.players.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty">' +
+          (state.q ? 'Ningún jugador coincide con «' + esc(state.q) + '».' : 'Todavía no hay jugadores.') +
+          '</td></tr>';
+      } else {
+        tbody.innerHTML = d.players.map(function (p) {
+          return '<tr data-player="' + esc(p.playerName) + '">' +
+            '<td><div class="name-cell">' +
+              '<span class="primary">' + esc(p.username && p.username !== '---' ? p.username : p.playerName) + '</span>' +
+              '<span class="secondary">🐶 ' + esc(p.petName) + ' · Lv.' + esc(p.petLevel) + '</span>' +
+            '</div></td>' +
+            '<td class="addr">' + esc(corto(p.address)) + '</td>' +
+            '<td class="num">' + esc(p.nivel) + '</td>' +
+            '<td class="num">' + esc(p.oro) + '</td>' +
+            '<td class="num">' + esc(p.plata) + '</td>' +
+            '<td class="mono dim" style="font-size:13px">' + esc(p.antiguedad) + '</td>' +
+            '<td class="mono" style="font-size:13px">' +
+              (p.jugadoSegundos > 0 ? esc(p.jugado) : '<span class="pill mute">sin datos</span>') + '</td>' +
+            '<td class="mono dim" style="font-size:12.5px">' + esc(fecha(p.ultimaVez)) + '</td>' +
+          '</tr>';
+        }).join('');
+        Array.prototype.forEach.call(tbody.querySelectorAll('tr[data-player]'), function (tr) {
+          tr.addEventListener('click', function () { abrirFicha(tr.getAttribute('data-player')); });
+        });
+      }
+      $('resultInfo').textContent = state.q
+        ? d.total + ' de ' + d.totalGlobal + ' cuentas coinciden'
+        : d.totalGlobal + ' cuentas en total';
+      $('pageInfo').textContent = 'Página ' + d.page + ' de ' + Math.max(1, d.pages);
+      $('prevBtn').disabled = d.page <= 1;
+      $('nextBtn').disabled = d.page >= d.pages;
+    } catch (e) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">Error: ' + esc(e.message) + '</td></tr>';
+    }
+  }
+
+  // ── Ficha del jugador ────────────────────────────────────────────────────
+  var CAMPOS_SEGUROS = [
+    ['Username', 'Nombre'], ['petName', 'Mascota'], ['nivel', 'Nivel'], ['nivel_exp', 'Exp'],
+    ['petLevel', 'Nivel mascota'], ['mundo', 'Mundo'], ['lenguaje', 'Idioma'], ['tutorial', 'Tutorial'],
+    ['posicionplayerx', 'Pos X'], ['posicionplayery', 'Pos Y'], ['speed', 'Velocidad'], ['misiones', 'Misiones'],
+    ['mineria', 'Minería'], ['mineria_exp', 'Minería exp'], ['pesca', 'Pesca'], ['pesca_exp', 'Pesca exp'],
+    ['cocina', 'Cocina'], ['cocina_exp', 'Cocina exp'], ['deforestacion', 'Tala'], ['deforestacion_exp', 'Tala exp'],
+    ['fuerza', 'Fuerza'], ['fuerza_exp', 'Fuerza exp'], ['agricultura', 'Agricultura'], ['agricultura_exp', 'Agricultura exp']
+  ];
+  var CAMPOS_ONCHAIN = [
+    ['vida', 'Vida %'], ['agua', 'Agua %'], ['comida', 'Comida %'],
+    ['oro', 'Oro'], ['plata', 'Plata'], ['exp', 'Exp on-chain']
+  ];
+
+  async function abrirFicha(playerName) {
+    state.cambios = {};
+    $('drawer').classList.add('open');
+    $('drawerBg').classList.add('open');
+    $('drawer').setAttribute('aria-hidden', 'false');
+    $('drawerBody').innerHTML = '<div class="empty">Cargando ficha…</div>';
+    try {
+      var d = await pedir('/api/admin/players/' + encodeURIComponent(playerName));
+      state.actual = d;
+      pintarFicha(d);
+    } catch (e) {
+      $('drawerBody').innerHTML = '<div class="empty">No se pudo abrir: ' + esc(e.message) + '</div>';
+    }
+  }
+
+  function pintarFicha(d) {
+    var p = d.player, r = d.resumen, s = d.stats || {};
+    $('dName').textContent = (p.Username && p.Username !== '---') ? p.Username : p.playerName;
+    $('dAddr').textContent = p.address || 'sin cartera';
+
+    function campo(clave, etiqueta, valor, grupo) {
+      return '<div class="field" data-campo="' + esc(clave) + '"><label>' + esc(etiqueta) + '</label>' +
+             '<input data-k="' + esc(clave) + '" data-grupo="' + grupo + '" value="' + esc(valor) + '"></div>';
+    }
+
+    var html = '';
+
+    html += '<h3>Cuenta</h3><div class="facts">' +
+      '<div class="fact"><div class="k">Alta</div><div class="v">' + esc(fecha(r.creadoEn)) + '</div></div>' +
+      '<div class="fact"><div class="k">Antigüedad</div><div class="v">' + esc(r.antiguedad) + '</div></div>' +
+      '<div class="fact"><div class="k">Tiempo jugado</div><div class="v">' +
+        (r.jugadoSegundos > 0 ? esc(r.jugado) : '<span class="pill mute">sin datos</span>') + '</div></div>' +
+      '<div class="fact"><div class="k">Sesiones</div><div class="v">' + esc(r.sesiones) + '</div></div>' +
+      '<div class="fact"><div class="k">Inicios de sesión</div><div class="v">' + esc(r.loginCount) + '</div></div>' +
+      '<div class="fact"><div class="k">Última vez</div><div class="v" style="font-size:13px">' + esc(fecha(r.ultimaVez)) + '</div></div>' +
+      '<div class="fact"><div class="k">Inventario</div><div class="v">' + esc(d.inventarioCount) + '</div></div>' +
+      '<div class="fact"><div class="k">Cofre</div><div class="v">' + esc(d.cofreCount) + '</div></div>' +
+      '</div>';
+
+    if (!r.jugadoSegundos) {
+      html += '<div class="note" style="margin-top:14px">El tiempo jugado se empezó a medir con esta versión. ' +
+              'Las partidas anteriores no quedaron registradas y no se pueden recuperar.</div>';
+    }
+
+    html += '<h3>Datos del personaje</h3><div class="field-grid">';
+    CAMPOS_SEGUROS.forEach(function (c) { html += campo(c[0], c[1], p[c[0]] !== undefined ? p[c[0]] : '', 'seguro'); });
+    html += '</div>';
+
+    html += '<h3>Facturas del contrato <span class="pill warn">on-chain</span></h3>';
+    html += '<div class="note">Estos valores son facturas del contrato. Al guardarlos se envía una ' +
+            'transacción real a la blockchain: la factura se mueve de verdad, no solo la base de datos.</div>';
+    if (!d.stats) {
+      html += '<div class="note danger">Este jugador todavía no tiene facturas. Tiene que entrar al juego una ' +
+              'vez para que se creen antes de poder editarlas.</div>';
+    } else {
+      html += '<div class="field-grid">';
+      CAMPOS_ONCHAIN.forEach(function (c) { html += campo(c[0], c[1], s[c[0]] !== undefined ? s[c[0]] : 0, 'onchain'); });
+      html += '</div>';
+    }
+
+    html += '<div class="danger-zone"><h3>Eliminar la cuenta</h3>' +
+      '<p style="margin:0 0 4px;font-size:13.5px">Borra al jugador de la base de datos: personaje, inventario, ' +
+      'estadísticas, habilidades, misiones y acceso. <strong>No se puede deshacer.</strong></p>' +
+      '<p class="dim" style="margin:0;font-size:12.5px">Las facturas del contrato NO se borran: siguen en la ' +
+      'blockchain a nombre de esa dirección.</p>' +
+      '<input id="confirmDelete" placeholder="Escribe «' + esc(p.playerName) + '» para confirmar" autocomplete="off">' +
+      '<button class="btn btn-danger" id="deleteBtn" disabled>Eliminar definitivamente</button></div>';
+
+    $('drawerBody').innerHTML = html;
+
+    Array.prototype.forEach.call($('drawerBody').querySelectorAll('input[data-k]'), function (inp) {
+      var original = inp.value;
+      inp.addEventListener('input', function () {
+        var cambiado = inp.value !== original;
+        inp.closest('.field').classList.toggle('changed', cambiado);
+        if (cambiado) state.cambios[inp.getAttribute('data-k')] = inp.value;
+        else delete state.cambios[inp.getAttribute('data-k')];
+      });
+    });
+
+    var conf = $('confirmDelete'), del = $('deleteBtn');
+    conf.addEventListener('input', function () { del.disabled = conf.value !== p.playerName; });
+    del.addEventListener('click', function () { eliminar(p.playerName, conf.value); });
+  }
+
+  async function guardar() {
+    if (!state.actual) return;
+    var claves = Object.keys(state.cambios);
+    if (!claves.length) { aviso('No hay nada que guardar.', 'warn'); return; }
+
+    var tocaOnchain = claves.some(function (k) {
+      return CAMPOS_ONCHAIN.some(function (c) { return c[0] === k; });
+    });
+    if (tocaOnchain && !confirm('Algunos campos son facturas del contrato. Guardar enviará transacciones reales a la blockchain.\n\n¿Continuar?')) return;
+
+    $('saveBtn').disabled = true;
+    try {
+      var d = await pedir('/api/admin/players/' + encodeURIComponent(state.actual.player.playerName), {
+        method: 'PATCH',
+        body: JSON.stringify({ cambios: state.cambios })
+      });
+      if (d.errores && d.errores.length) {
+        aviso('Guardado parcial. Fallaron: ' + d.errores.map(function (x) { return x.campo; }).join(', '), 'warn');
+      } else {
+        aviso('Guardado: ' + d.aplicados.map(function (a) { return a.campo; }).join(', '));
+      }
+      await abrirFicha(state.actual.player.playerName);
+      cargarJugadores();
+    } catch (e) {
+      aviso('No se pudo guardar: ' + e.message, 'err');
+    } finally {
+      $('saveBtn').disabled = false;
+    }
+  }
+
+  async function eliminar(playerName, confirmar) {
+    if (!confirm('Vas a ELIMINAR la cuenta «' + playerName + '». Esto no se puede deshacer.\n\n¿Seguro?')) return;
+    try {
+      var d = await pedir('/api/admin/players/' + encodeURIComponent(playerName), {
+        method: 'DELETE',
+        body: JSON.stringify({ confirmar: confirmar })
+      });
+      aviso('Cuenta «' + playerName + '» eliminada.');
+      cerrarFicha();
+      cargarJugadores();
+      cargarResumen();
+    } catch (e) {
+      aviso('No se pudo eliminar: ' + e.message, 'err');
+    }
+  }
+
+  function cerrarFicha() {
+    $('drawer').classList.remove('open');
+    $('drawerBg').classList.remove('open');
+    $('drawer').setAttribute('aria-hidden', 'true');
+    state.actual = null; state.cambios = {};
+  }
+
+  // ── Eventos ──────────────────────────────────────────────────────────────
+  $('connectBtn').addEventListener('click', conectar);
+  $('closeDrawer').addEventListener('click', cerrarFicha);
+  $('drawerBg').addEventListener('click', cerrarFicha);
+  $('revertBtn').addEventListener('click', function () {
+    if (state.actual) abrirFicha(state.actual.player.playerName);
+  });
+  $('saveBtn').addEventListener('click', guardar);
+  $('reloadBtn').addEventListener('click', function () { cargarResumen(); cargarJugadores(); });
+  $('searchBtn').addEventListener('click', function () { state.q = $('q').value.trim(); state.page = 1; cargarJugadores(); });
+  $('clearBtn').addEventListener('click', function () { $('q').value = ''; state.q = ''; state.page = 1; cargarJugadores(); });
+  $('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('searchBtn').click(); });
+  $('prevBtn').addEventListener('click', function () { if (state.page > 1) { state.page--; cargarJugadores(); } });
+  $('nextBtn').addEventListener('click', function () { state.page++; cargarJugadores(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrarFicha(); });
+
+  // Si ya había sesión de admin abierta, se entra directo sin volver a firmar.
+  comprobarAdmin(true).catch(function () {});
+})();
+</script>
+</body>
+</html>
