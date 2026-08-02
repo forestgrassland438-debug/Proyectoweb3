@@ -923,6 +923,8 @@ async openMissionsPanel(npcId) {
   // Ahora, si no hay misiones, el panel abre igual con su mensaje.
   if (this.missionsPanel && typeof this.missionsPanel.show === 'function') {
     await this.missionsPanel.show(npcId);
+    // Tutorial (paso 9, el último): ver el panel del granjero lo termina.
+    this._onTutorialMissionsOpened && this._onTutorialMissionsOpened(npcId);
     return;
   }
 
@@ -8143,6 +8145,11 @@ setupResourceLockSocket() {
       // colgado ni reanudar desde ahí cuando el árbol vuelva.
       this._abortLocalProgress(treeKey, { tipo: 'tree' });
       this.showTreeStump(treeKey);
+      // Si el tutorial estaba señalando JUSTO ese árbol, se reapunta al
+      // siguiente pino disponible. Antes el marcador se quedaba clavado en un
+      // tocón que ya no se podía talar, porque solo se reapuntaba cuando lo
+      // cortabas TÚ, no cuando se lo llevaba otro jugador.
+      if (this.tutorial === 4) this._aimAtNearestPine && this._aimAtNearestPine();
       restaurarEn(hasta - Date.now(), () => {
         this.hideTreeStump(treeKey);
         const live = this[treeKey];
@@ -19224,7 +19231,12 @@ async renderInventoryAfterLoad() {
 // ============================================================================
 startWorldTutorial() {
   const step = this.tutorial;
-  if (!(step >= 0 && step <= 7)) return;                 // fuera del tutorial (8 = terminado)
+  // Pasos del tutorial: 0..7 (los de siempre) y luego 20 y 21 (comer/beber y
+  // el granjero Joe). Se saltan del 7 al 20 A PROPÓSITO: el 8 ya significaba
+  // "terminado" para todos los jugadores que existen, y reutilizarlo los habría
+  // devuelto al tutorial. Con estos números, quien ya lo acabó sigue fuera.
+  const EN_TUTORIAL = (step >= 0 && step <= 7) || step === 20 || step === 21;
+  if (!EN_TUTORIAL) return;
   if (this._worldTutorialStartedFor === step) return;    // esa fase ya arrancó
 
   // Esperar a que existan el jugador, las colisiones y la entrada de la tienda.
@@ -19277,7 +19289,60 @@ startWorldTutorial() {
     this._showTutorialBanner('Take your empty bucket and use it against the water fountain to get water.');
     this._aimAtWell();
     this._ensureTutorialPathTimer();
+  } else if (step === 20) {
+    // Enseñar a comer y beber (el agua ya la tiene del paso anterior).
+    this._startConsumePhase();
+  } else if (step === 21) {
+    // Último paso: el granjero Joe y el panel de misiones.
+    this._startFarmerJoePhase();
   }
+}
+
+// ── Paso 20: comer y beber ────────────────────────────────────────────────────────────────────────────────────────────────────
+// El jugador acaba de llenar el balde en la fuente, así que ya tiene con qué
+// probar. Se explica y se pregunta si lo entendió: con ✗ se da la instrucción
+// concreta y se queda esperando a que lo haga de verdad.
+_startConsumePhase() {
+  // Este paso no lleva a ningún sitio: se hace sobre el propio personaje, así
+  // que se borra el camino que venía marcado hacia la fuente y se para el
+  // temporizador que lo redibuja (si no, lo volvería a pintar al frame
+  // siguiente hacia el último objetivo).
+  if (this._tutorialPathTimer) { this._tutorialPathTimer.remove(false); this._tutorialPathTimer = null; }
+  this._clearTutorialPath && this._clearTutorialPath();
+  this._showTutorialConfirm(
+    'Now we will teach you how to eat and drink. Take the water bucket and give it to your character — that will raise your water. If you do the same with a harvest, it will raise your food. Press ✓ if you did it, or ✗ if you did not understand how.',
+    () => {
+      // Dice que ya sabe: se pasa al granjero Joe.
+      this._advanceTutorial(21);
+    },
+    () => {
+      // No lo entendió: instrucción concreta y se espera a que consuma algo.
+      this._showTutorialBanner('Pick up a water bucket or a food harvest with the cursor and click on your character.');
+    }
+  );
+}
+
+// Lo llama _doConsume cuando el jugador REALMENTE come o bebe algo.
+// Sirve tanto si dijo que sí como si dijo que no: en cuanto lo hace, se avanza.
+_onTutorialConsumed() {
+  if (this.tutorial !== 20) return;
+  this._hideTutorialBanner();
+  this._advanceTutorial(21);
+}
+
+// ── Paso 21: el granjero Joe y las misiones ─────────────────────────────────────────────────────────────────
+_startFarmerJoePhase() {
+  this._showTutorialBanner('Well done! Last step: go to Farmer Joe. If you click on him you will see the missions panel.');
+  // Mismo NPC que abre el panel de misiones del granjero.
+  this._aimAtSprite('sprite_npc1', 2620, 2120);
+  this._ensureTutorialPathTimer();
+}
+
+// Al abrir el panel de misiones del granjero durante el paso 21: fin.
+_onTutorialMissionsOpened(npcId) {
+  if (this.tutorial !== 21) return;
+  if (npcId && npcId !== 'granjero') return;
+  this._finishTutorial();
 }
 
 // Fija un nuevo objetivo del camino y fuerza el redibujo inmediato.
@@ -19447,18 +19512,19 @@ _onCraftingClosed() {
   );
 }
 
-// Al recolectar agua (obtener balde_con_agua) durante el paso 7: fin del tutorial.
+// Al recolectar agua (obtener balde_con_agua) durante el paso 7: ya no termina
+// el tutorial, ahora pasa a enseñar a comer y beber (paso 8).
 _onTutorialWaterCollected() {
   if (this.tutorial !== 7) return;
-  this._finishTutorial();
+  this._advanceTutorial(20);
 }
 
-// Fin del tutorial (paso 8 = terminado).
+// Fin del tutorial (paso 22 = terminado).
 _finishTutorial() {
   if (this._tutorialFinished) return;
   this._tutorialFinished = true;
-  this.tutorial = 8;
-  this._worldTutorialStartedFor = 8;
+  this.tutorial = 22;
+  this._worldTutorialStartedFor = 22;
   try { if (typeof this.savegg === 'function') this.savegg(); } catch (e) {}
   this._cleanupTutorial();
   this._showTutorialBanner('You have finished the tutorial!');
@@ -21187,6 +21253,8 @@ async _doConsume(itemId, qty, info) {
     }
     this.notifications.show('Consumed ' + consumed + ' · +' + total + ' ' + (info.isWater ? 'Water' : 'Food'), 'success');
     this.queuedAction && this.queuedAction({ type: 'forSpam2' });
+    // Tutorial (paso 8): en cuanto come o bebe de verdad, se pasa al granjero.
+    this._onTutorialConsumed && this._onTutorialConsumed();
   } finally {
     this._consumingItem = false;
   }
@@ -22017,6 +22085,17 @@ getPlayerIntentDirection() {
       if (b && b.style.display !== 'none') this._positionLocalBubble(b);
     }
     if (!this.keys) return;
+
+    // GUARD DE RECONSTRUCCIÓN DE ESCENA.
+    // create() es async y Phaser REUTILIZA la instancia de la escena: al volver
+    // de una batalla, update() empieza a correr mientras create() todavía está
+    // esperando, con los sprites de la sesión anterior YA destruidos. Como
+    // Phaser no pone a null las referencias al destruir (solo les quita
+    // `scene`), this.player seguía siendo un objeto y todo el update reventaba
+    // frame tras frame — la pantalla se quedaba en negro.
+    // Mientras el jugador no esté vivo, no hay nada que actualizar.
+    if (!this.player || !this.player.scene) return;
+
     // Actualizar tiles visibles cada frame
     if (this.tileManagerMapa) {
       this.tileManagerMapa.updateVisible(this.cameras.main);
@@ -22477,10 +22556,15 @@ dog.direction = dog.lastFacing;
 // Animación estable: solo se reproduce si realmente está caminando
 const shouldAnimate = playerMoved || dogMoved || intentDir !== null;
 
-// GUARD: si dog.sprite se destruyó/no existe, saltar TODO el render del perro
-// (antes solo se guardaba dog.sprite.anims, pero dog.sprite undefined también
-// crasheaba en setPosition/setTexture cada frame → escena congelada).
-if (dog.sprite) {
+// GUARD: si dog.sprite se destruyó/no existe, saltar TODO el render del perro.
+//
+// OJO con la condición: `if (dog.sprite)` NO basta. Phaser, al destruir un
+// objeto, NO pone la referencia a null: solo le quita `scene` y `sys`. Así que
+// el sprite muerto sigue siendo un objeto (truthy), pasaba el guard y reventaba
+// dentro de setTexture con "Cannot read properties of undefined (reading 'sys')"
+// en CADA frame — la escena se quedaba en negro al volver de una batalla.
+// `sprite.scene` es lo que de verdad distingue un sprite vivo de uno destruido.
+if (dog.sprite && dog.sprite.scene) {
 
 if (shouldAnimate && (dogMoved || playerMoved || intentDir)) {
   const animKey = (dog.lastFacing === 'left') ? 'perro_left' : 'perro_right';

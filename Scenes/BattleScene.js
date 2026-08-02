@@ -487,6 +487,16 @@ class BattleScene extends Phaser.Scene {
     });
 
     this.on('battle:matched', (d) => {
+      // El modo tiene que coincidir con el que se pidió. Si se entró por
+      // "Battle in P2P" y llega una partida contra bot (o al revés), se ignora
+      // y se sigue esperando rival: antes se aceptaba cualquier emparejamiento
+      // y el jugador acababa peleando contra la máquina sin haberlo pedido.
+      const modoRecibido = d.mode === 'bot' ? 'bot' : 'pvp';
+      if (modoRecibido !== this.modo) {
+        console.warn(`⚠️ Se ignora un emparejamiento '${modoRecibido}' porque se pidió '${this.modo}'`);
+        return;
+      }
+
       this.matchId = d.matchId;
       this.estado = 'combate';
       this.yo = d.you;
