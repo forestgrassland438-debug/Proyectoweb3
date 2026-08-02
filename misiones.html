@@ -526,7 +526,7 @@
       })
       .catch(function (e) {
         adminOk = false;
-        .textContent = '';
+        $('adminInfo').textContent = '';
         if (silencioso) throw e;
         if (e.code === 'not_admin') {
           aviso('Esa cartera no es administradora. Añádela a ADMIN_ADDRESSES o dale admin en el contrato.', 'err');
