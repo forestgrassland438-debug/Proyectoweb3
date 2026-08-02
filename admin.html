@@ -429,6 +429,32 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
     return state.csrf;
   }
 
+  // Un ciclo completo: pedir nonce → firmar → login. Devuelve la respuesta.
+  async function cicloDeEntrada(provider, cuenta) {
+    aviso('Pidiendo nonce…');
+    var nr = await fetch(api('/api/auth/nonce?address=' + encodeURIComponent(cuenta.toLowerCase())),
+                         { credentials: 'include', mode: 'cors' });
+    if (!nr.ok) throw new Error('No se pudo obtener el nonce');
+    var nonce = (await nr.json()).nonce;
+
+    var token = nonce + ':' + Math.floor(Date.now() / 1000);
+    var mensaje = 'Signing in to ' + APP_NAME + ': ' + b64(token);
+
+    aviso('Firma el mensaje en tu cartera…');
+    var firma = await provider.request({ method: 'personal_sign', params: [mensaje, cuenta] });
+
+    var cabeceras = { 'Content-Type': 'application/json' };
+    var csrf = readCookie('csrf-token') || state.csrf;
+    if (csrf) cabeceras['X-CSRF-Token'] = csrf;
+
+    var lr = await fetch(api('/api/auth/login'), {
+      method: 'POST', credentials: 'include', mode: 'cors', headers: cabeceras,
+      body: JSON.stringify({ address: cuenta.toLowerCase(), signature: firma, token: token, message: mensaje })
+    });
+    var cuerpo = {}; try { cuerpo = await lr.json(); } catch (e) {}
+    return { ok: lr.ok, status: lr.status, cuerpo: cuerpo };
+  }
+
   async function conectar() {
     var provider = getProvider();
     if (!provider) { aviso('No se detectó MetaMask. Instálalo para continuar.', 'err'); return; }
@@ -442,33 +468,25 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
 
       await getCsrf();
 
-      aviso('Pidiendo nonce…');
-      var nr = await fetch(api('/api/auth/nonce?address=' + encodeURIComponent(cuenta.toLowerCase())),
-                           { credentials: 'include', mode: 'cors' });
-      if (!nr.ok) { aviso('No se pudo obtener el nonce.', 'err'); return; }
-      var nonce = (await nr.json()).nonce;
+      var r = await cicloDeEntrada(provider, cuenta);
 
-      var token = nonce + ':' + Math.floor(Date.now() / 1000);
-      var mensaje = 'Signing in to ' + APP_NAME + ': ' + b64(token);
+      // El servidor GUARDA un solo nonce por dirección y lo BORRA al usarlo,
+      // pero lo reutiliza durante 10 minutos mientras no se gaste. Con esta
+      // página y misiones.html abiertas a la vez, las dos piden el mismo nonce
+      // y la que entra segunda se encuentra con que ya no existe
+      // ("nonce no encontrado"). Se repite el ciclo UNA vez: la segunda
+      // petición ya recibe un nonce nuevo.
+      var textoError = String((r.cuerpo && (r.cuerpo.message || r.cuerpo.error)) || '');
+      if (!r.ok && /nonce/i.test(textoError)) {
+        aviso('El nonce ya se había usado; pidiendo uno nuevo…', 'warn');
+        r = await cicloDeEntrada(provider, cuenta);
+      }
 
-      aviso('Firma el mensaje en tu cartera…');
-      var firma = await provider.request({ method: 'personal_sign', params: [mensaje, cuenta] });
-
-      var cabeceras = { 'Content-Type': 'application/json' };
-      var csrf = readCookie('csrf-token') || state.csrf;
-      if (csrf) cabeceras['X-CSRF-Token'] = csrf;
-
-      var lr = await fetch(api('/api/auth/login'), {
-        method: 'POST', credentials: 'include', mode: 'cors', headers: cabeceras,
-        body: JSON.stringify({ address: cuenta.toLowerCase(), signature: firma, token: token, message: mensaje })
-      });
-      if (!lr.ok) {
-        var err = {}; try { err = await lr.json(); } catch (e) {}
-        aviso('Entrada rechazada: ' + (err.message || err.error || lr.status), 'err');
+      if (!r.ok) {
+        aviso('Entrada rechazada: ' + ((r.cuerpo && (r.cuerpo.message || r.cuerpo.error)) || r.status), 'err');
         return;
       }
-      var ld = {}; try { ld = await lr.json(); } catch (e) {}
-      if (ld.csrfToken) state.csrf = ld.csrfToken;
+      if (r.cuerpo && r.cuerpo.csrfToken) state.csrf = r.cuerpo.csrfToken;
 
       state.address = cuenta.toLowerCase();
       await comprobarAdmin();

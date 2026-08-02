@@ -462,26 +462,11 @@
     return window.ethereum || null;
   }
 
-  function conectarAdmin() {
-    var provider = getProvider();
-    if (!provider) { aviso('No se detectó MetaMask. Instálalo para continuar.', 'err'); return; }
-
-    var cuenta = null;
-    aviso('Conectando cartera…', 'info');
-
-    provider.request({ method: 'eth_requestAccounts' })
-      .then(function (cuentas) {
-        cuenta = cuentas && cuentas[0];
-        if (!cuenta) throw new Error('No elegiste ninguna cuenta');
-        return fetch(API + '/api/auth/csrf-token', { credentials: 'include', mode: 'cors' });
-      })
-      .then(function (r) { return r.json().catch(function () { return {}; }); })
-      .then(function (d) {
-        csrf = leerCookie('csrf-token') || d.csrfToken || null;
-        aviso('Pidiendo nonce…', 'info');
-        return fetch(API + '/api/auth/nonce?address=' + encodeURIComponent(cuenta.toLowerCase()),
-                     { credentials: 'include', mode: 'cors' });
-      })
+  // Un ciclo completo: pedir nonce → firmar → login. Devuelve {ok, cuerpo}.
+  function cicloDeEntrada(provider, cuenta) {
+    aviso('Pidiendo nonce…', 'info');
+    return fetch(API + '/api/auth/nonce?address=' + encodeURIComponent(cuenta.toLowerCase()),
+                 { credentials: 'include', mode: 'cors' })
       .then(function (r) {
         if (!r.ok) throw new Error('No se pudo obtener el nonce');
         return r.json();
@@ -504,11 +489,45 @@
           });
       })
       .then(function (r) {
-        return r.json().catch(function () { return {}; }).then(function (d) {
-          if (!r.ok) throw new Error(d.message || d.error || ('HTTP ' + r.status));
-          if (d.csrfToken) csrf = d.csrfToken;
-          return d;
-        });
+        return r.json().catch(function () { return {}; })
+          .then(function (d) { return { ok: r.ok, status: r.status, cuerpo: d }; });
+      });
+  }
+
+  function conectarAdmin() {
+    var provider = getProvider();
+    if (!provider) { aviso('No se detectó MetaMask. Instálalo para continuar.', 'err'); return; }
+
+    var cuenta = null;
+    aviso('Conectando cartera…', 'info');
+
+    provider.request({ method: 'eth_requestAccounts' })
+      .then(function (cuentas) {
+        cuenta = cuentas && cuentas[0];
+        if (!cuenta) throw new Error('No elegiste ninguna cuenta');
+        return fetch(API + '/api/auth/csrf-token', { credentials: 'include', mode: 'cors' });
+      })
+      .then(function (r) { return r.json().catch(function () { return {}; }); })
+      .then(function (d) {
+        csrf = leerCookie('csrf-token') || d.csrfToken || null;
+        return cicloDeEntrada(provider, cuenta);
+      })
+      .then(function (r) {
+        // El servidor guarda UN nonce por dirección, lo reutiliza 10 minutos y
+        // lo BORRA al usarlo. Con esta página y admin.html abiertas a la vez,
+        // las dos piden el mismo y la segunda se encuentra con que ya no
+        // existe ("nonce no encontrado"). Se repite el ciclo una vez.
+        var txt = String((r.cuerpo && (r.cuerpo.message || r.cuerpo.error)) || '');
+        if (!r.ok && /nonce/i.test(txt)) {
+          aviso('El nonce ya se había usado; pidiendo uno nuevo…', 'info');
+          return cicloDeEntrada(provider, cuenta);
+        }
+        return r;
+      })
+      .then(function (r) {
+        if (!r.ok) throw new Error((r.cuerpo && (r.cuerpo.message || r.cuerpo.error)) || ('HTTP ' + r.status));
+        if (r.cuerpo && r.cuerpo.csrfToken) csrf = r.cuerpo.csrfToken;
+        return r.cuerpo;
       })
       .then(comprobarAdmin)
       .catch(function (e) { aviso('No se pudo entrar: ' + e.message, 'err'); });
