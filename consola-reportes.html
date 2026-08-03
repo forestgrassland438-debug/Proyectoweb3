@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Consola de reportes · Grassland Forest</title>
+<style>
+/* ===========================================================================
+   CONSOLA DE REPORTES — moderación de jugadores
+   ---------------------------------------------------------------------------
+   Se entra CON LA CARTERA DE ADMINISTRADOR: la misma sesión (nonce + firma)
+   que ya usan admin.html y misiones.html, así que el backend no la bloquea
+   siempre que esa dirección esté en ADMIN_ADDRESSES o sea isAdmin() en el
+   contrato. No hay tokens que pegar a mano.
+
+   Paleta: guardia nocturna. Fondo carbón azulado, acero para la estructura,
+   ámbar para lo que pide atención y granate para lo irreversible. Las
+   direcciones y las horas van en monoespaciada porque aquí se comparan en
+   columna.
+
+   Diseño en dos paneles: a la izquierda la lista de reportes (con filtros y
+   buscador), a la derecha el expediente del acusado con todos sus datos y los
+   botones de acción. En teléfono los dos paneles se apilan y el expediente se
+   abre como una hoja a pantalla completa.
+   =========================================================================== */
+:root{
+  --ink:#0B0F17;
+  --surface:#131A26;
+  --surface-2:#18212F;
+  --surface-3:#1E2938;
+  --line:#27344a;
+  --text:#E5EBF5;
+  --text-dim:#8D9BB3;
+  --steel:#5B8DEF;
+  --steel-soft:rgba(91,141,239,.14);
+  --amber:#E0A458;
+  --amber-soft:rgba(224,164,88,.14);
+  --garnet:#CF5B5B;
+  --garnet-soft:rgba(207,91,91,.14);
+  --green:#5BC98B;
+  --green-soft:rgba(91,201,139,.14);
+  --radius:11px;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;}
+body{
+  background:radial-gradient(1200px 600px at 15% -10%,#17202f 0%,var(--ink) 60%);
+  color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--steel);}
+code,.mono{font-family:var(--mono);font-size:.86em;}
+
+/* ── Cabecera ───────────────────────────────────────────────────────────── */
+header{
+  position:sticky;top:0;z-index:30;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding:14px 20px;background:rgba(11,15,23,.92);backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);
+}
+header h1{margin:0;font-size:17px;font-weight:650;letter-spacing:.2px;}
+header .sub{color:var(--text-dim);font-size:12px;}
+.spacer{flex:1;}
+.badge{
+  display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:20px;
+  font-size:12px;border:1px solid var(--line);background:var(--surface-2);color:var(--text-dim);
+}
+.badge.on{color:var(--green);border-color:rgba(91,201,139,.4);background:var(--green-soft);}
+.badge .dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
+
+button{font-family:inherit;font-size:14px;cursor:pointer;}
+.btn{
+  border:1px solid var(--line);background:var(--surface-2);color:var(--text);
+  padding:9px 15px;border-radius:9px;transition:background .15s,border-color .15s,transform .1s;
+}
+.btn:hover:not(:disabled){background:var(--surface-3);border-color:#38496a;}
+.btn:active:not(:disabled){transform:translateY(1px);}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+.btn.primary{background:var(--steel-soft);border-color:rgba(91,141,239,.45);color:#cfe0ff;}
+.btn.warn{background:var(--amber-soft);border-color:rgba(224,164,88,.45);color:#ffdcae;}
+.btn.danger{background:var(--garnet-soft);border-color:rgba(207,91,91,.45);color:#ffcfcf;}
+.btn.ghost{background:none;}
+.btn.sm{padding:6px 11px;font-size:13px;}
+
+/* ── Portada de conexión ────────────────────────────────────────────────── */
+#gate{
+  min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;
+}
+#gate .card{
+  max-width:460px;width:100%;background:var(--surface);border:1px solid var(--line);
+  border-radius:16px;padding:32px;text-align:center;
+}
+#gate h2{margin:0 0 10px;font-size:21px;}
+#gate p{color:var(--text-dim);font-size:14px;margin:0 0 22px;}
+#gate .lock{font-size:42px;margin-bottom:12px;}
+
+/* ── Estructura ─────────────────────────────────────────────────────────── */
+#app{display:none;}
+#app.ready{display:block;}
+.wrap{max-width:1500px;margin:0 auto;padding:18px 20px 60px;}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px;}
+.stat{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px 16px;cursor:pointer;transition:border-color .15s,background .15s;
+}
+.stat:hover{border-color:#38496a;}
+.stat.active{border-color:var(--steel);background:var(--steel-soft);}
+.stat .n{font-size:26px;font-weight:650;font-family:var(--mono);line-height:1.15;}
+.stat .l{font-size:12px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.6px;}
+.stat.p .n{color:var(--amber);}
+.stat.w .n{color:#cfe0ff;}
+.stat.b .n{color:var(--garnet);}
+.stat.d .n{color:var(--text-dim);}
+
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;}
+.toolbar input[type=search]{
+  flex:1;min-width:200px;background:var(--surface);border:1px solid var(--line);color:var(--text);
+  padding:10px 13px;border-radius:9px;font-family:inherit;font-size:14px;outline:none;
+}
+.toolbar input[type=search]:focus{border-color:var(--steel);}
+
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:18px;align-items:start;}
+
+/* ── Lista de reportes ──────────────────────────────────────────────────── */
+.list{display:flex;flex-direction:column;gap:10px;}
+.rep{
+  background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--line);
+  border-radius:var(--radius);padding:13px 15px;cursor:pointer;transition:border-color .15s,background .15s;
+}
+.rep:hover{background:var(--surface-2);}
+.rep.sel{border-color:var(--steel);border-left-color:var(--steel);background:var(--steel-soft);}
+.rep.s-pending{border-left-color:var(--amber);}
+.rep.s-warned{border-left-color:var(--steel);}
+.rep.s-banned{border-left-color:var(--garnet);}
+.rep.s-dismissed{border-left-color:#3a465f;opacity:.72;}
+.rep-top{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;}
+.rep-target{font-weight:650;font-size:15px;}
+.rep-reason{font-size:12px;color:var(--amber);text-transform:uppercase;letter-spacing:.5px;}
+.rep-meta{font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-top:5px;word-break:break-word;}
+.rep-det{font-size:13px;color:#bcc7db;margin-top:7px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;border:1px solid var(--line);
+  background:var(--surface-2);color:var(--text-dim);}
+.tag.pending{color:var(--amber);border-color:rgba(224,164,88,.4);}
+.tag.warned{color:#cfe0ff;border-color:rgba(91,141,239,.4);}
+.tag.banned{color:var(--garnet);border-color:rgba(207,91,91,.4);}
+.tag.repeat{color:#ffcfcf;border-color:rgba(207,91,91,.4);background:var(--garnet-soft);}
+
+.empty{padding:44px 20px;text-align:center;color:var(--text-dim);
+  border:1px dashed var(--line);border-radius:var(--radius);}
+.pager{display:flex;gap:9px;justify-content:center;align-items:center;margin-top:16px;
+  font-size:13px;color:var(--text-dim);}
+
+/* ── Expediente ─────────────────────────────────────────────────────────── */
+.file{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  position:sticky;top:78px;max-height:calc(100vh - 100px);overflow:auto;
+}
+.file-h{padding:16px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;
+  background:var(--surface);z-index:2;display:flex;align-items:center;gap:10px;}
+.file-h h2{margin:0;font-size:16px;flex:1;}
+.file-b{padding:16px 18px;display:flex;flex-direction:column;gap:18px;}
+.sec-title{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--text-dim);
+  border-bottom:1px solid var(--line);padding-bottom:7px;margin-bottom:10px;}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px 18px;}
+.kv{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:4px 0;
+  border-bottom:1px dotted rgba(39,52,74,.7);}
+.kv .k{color:var(--text-dim);flex:0 0 auto;}
+.kv .v{font-family:var(--mono);font-size:12.5px;text-align:right;word-break:break-all;}
+.reasonbox{background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:13px 15px;}
+.reasonbox .why{font-size:12px;color:var(--amber);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;}
+.reasonbox .txt{font-size:14px;white-space:pre-wrap;word-break:break-word;}
+.hist{display:flex;flex-direction:column;gap:7px;}
+.hist-row{display:flex;gap:10px;align-items:baseline;font-size:12.5px;
+  padding:7px 10px;background:var(--surface-2);border-radius:8px;}
+.hist-row .h-when{font-family:var(--mono);color:var(--text-dim);font-size:11.5px;}
+.actions{display:flex;gap:10px;flex-wrap:wrap;padding-top:4px;}
+.actions .btn{flex:1;min-width:150px;}
+.field{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-dim);}
+.field textarea,.field input{
+  font-family:inherit;font-size:14px;color:var(--text);background:var(--surface-2);
+  border:1px solid var(--line);border-radius:9px;padding:11px;outline:none;resize:vertical;
+}
+.field textarea:focus,.field input:focus{border-color:var(--steel);}
+.field textarea{min-height:96px;}
+.note{font-size:12px;color:var(--text-dim);line-height:1.7;}
+
+/* ── Aviso flotante ─────────────────────────────────────────────────────── */
+#toast{
+  position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(140%);
+  background:var(--surface-3);border:1px solid var(--line);border-radius:10px;
+  padding:12px 20px;font-size:14px;max-width:92vw;text-align:center;
+  transition:transform .25s ease;z-index:200;box-shadow:0 12px 34px rgba(0,0,0,.5);
+}
+#toast.show{transform:translateX(-50%) translateY(0);}
+#toast.ok{border-color:rgba(91,201,139,.5);color:#cbf3dd;}
+#toast.err{border-color:rgba(207,91,91,.5);color:#ffd3d3;}
+#toast.warn{border-color:rgba(224,164,88,.5);color:#ffe4c2;}
+
+/* ── Teléfono ───────────────────────────────────────────────────────────── */
+@media (max-width:980px){
+  .cols{grid-template-columns:1fr;}
+  .file{
+    position:fixed;inset:0;z-index:100;max-height:none;border-radius:0;
+    display:none;overflow:auto;
+  }
+  .file.open{display:block;}
+  .file-h{padding:14px 16px;}
+  #file-close{display:inline-flex !important;}
+}
+@media (min-width:981px){ #file-close{display:none !important;} }
+@media (max-width:560px){
+  .wrap{padding:14px 13px 50px;}
+  header{padding:11px 14px;}
+  header h1{font-size:15px;}
+  .stat .n{font-size:22px;}
+  .actions .btn{min-width:100%;}
+  .kv{flex-direction:column;gap:1px;}
+  .kv .v{text-align:left;}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Portada: conectar cartera de administrador ────────────────────────── -->
+<div id="gate">
+  <div class="card">
+    <div class="lock">🛡️</div>
+    <h2>Consola de reportes</h2>
+    <p>Conecta la cartera de administrador para ver los reportes de jugadores,
+       revisar la información de cada cuenta y aplicar sanciones.</p>
+    <button class="btn primary" id="connectBtn">Conectar cartera</button>
+    <p class="note" id="gateMsg" style="margin-top:16px;"></p>
+  </div>
+</div>
+
+<!-- ── Aplicación ────────────────────────────────────────────────────────── -->
+<div id="app">
+  <header>
+    <h1>🛡️ Consola de reportes</h1>
+    <span class="sub" id="apiLabel"></span>
+    <span class="spacer"></span>
+    <span class="badge on" id="adminBadge"><span class="dot"></span><span id="adminAddr">—</span></span>
+    <button class="btn sm" id="reloadBtn">↻ Actualizar</button>
+  </header>
+
+  <div class="wrap">
+    <!-- Resumen + filtro rápido por estado -->
+    <div class="stats" id="stats">
+      <div class="stat p active" data-status=""><div class="n" id="n-all">0</div><div class="l">Todos</div></div>
+      <div class="stat p" data-status="pending"><div class="n" id="n-pending">0</div><div class="l">Pendientes</div></div>
+      <div class="stat w" data-status="warned"><div class="n" id="n-warned">0</div><div class="l">Advertidos</div></div>
+      <div class="stat b" data-status="banned"><div class="n" id="n-banned">0</div><div class="l">Baneados</div></div>
+      <div class="stat d" data-status="dismissed"><div class="n" id="n-dismissed">0</div><div class="l">Descartados</div></div>
+    </div>
+
+    <div class="toolbar">
+      <input type="search" id="q" placeholder="Buscar por jugador, cartera, motivo o detalle…" autocomplete="off">
+      <button class="btn" id="searchBtn">Buscar</button>
+      <button class="btn ghost" id="clearBtn">Limpiar</button>
+    </div>
+
+    <div class="cols">
+      <div>
+        <div class="list" id="list"></div>
+        <div class="pager" id="pager"></div>
+      </div>
+
+      <aside class="file" id="file">
+        <div class="file-h">
+          <h2 id="file-title">Expediente</h2>
+          <button class="btn sm ghost" id="file-close" style="display:none;">Cerrar</button>
+        </div>
+        <div class="file-b" id="file-body">
+          <div class="empty">Elige un reporte de la lista para ver el expediente completo.</div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── Configuración ────────────────────────────────────────────────────────
+  var API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? 'http://127.0.0.1:3001'
+    : 'https://api.grasslandforest.com';
+  var APP_NAME = 'Grassland Forest';
+
+  function api(p){ return API_BASE.replace(/\/$/, '') + p; }
+  function $(id){ return document.getElementById(id); }
+  function readCookie(name){
+    var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + name.replace(/[.$?*|{}()[\]\\/+^]/g,'\\$&') + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+  function b64(s){ try { return btoa(unescape(encodeURIComponent(s))); } catch(e){ return btoa(String(s)); } }
+  function corto(a){ return a ? a.slice(0,6) + '…' + a.slice(-4) : '—'; }
+  function fecha(v){
+    if(!v) return '—';
+    var d = new Date(v);
+    return isNaN(d) ? '—' : d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  }
+  function haceCuanto(v){
+    if(!v) return '';
+    var s = Math.floor((Date.now() - new Date(v).getTime())/1000);
+    if(s < 60) return 'hace un momento';
+    if(s < 3600) return 'hace ' + Math.floor(s/60) + ' min';
+    if(s < 86400) return 'hace ' + Math.floor(s/3600) + ' h';
+    return 'hace ' + Math.floor(s/86400) + ' d';
+  }
+
+  // Todo el texto que viene del servidor se inserta con textContent, nunca con
+  // innerHTML: así un detalle de reporte no puede inyectar HTML en la consola.
+  function el(tag, props, hijos){
+    var e = document.createElement(tag);
+    Object.keys(props || {}).forEach(function(k){
+      if(k === 'class') e.className = props[k];
+      else if(k === 'text') e.textContent = props[k];
+      else if(k in e) e[k] = props[k];
+      else e.setAttribute(k, props[k]);
+    });
+    (hijos || []).forEach(function(h){ if(h) e.appendChild(h); });
+    return e;
+  }
+  function kv(k, v){
+    return el('div', {class:'kv'}, [
+      el('span', {class:'k', text:k}),
+      el('span', {class:'v', text:(v === null || v === undefined || v === '') ? '—' : String(v)})
+    ]);
+  }
+
+  var MOTIVOS = {
+    botting:'Bot / automatización',
+    cheating:'Trampas / exploits',
+    harassment:'Acoso o abuso',
+    scam:'Estafa o fraude',
+    spam:'Spam / inundar el chat',
+    inappropriate_name:'Nombre inapropiado',
+    exploit_abuse:'Abuso de un fallo del juego',
+    other:'Otro'
+  };
+  var ESTADOS = { pending:'Pendiente', warned:'Advertido', banned:'Baneado', dismissed:'Descartado' };
+
+  var state = { csrf:null, address:null, status:'', q:'', page:1, pages:1, reports:[], sel:null };
+
+  // ── Aviso flotante ───────────────────────────────────────────────────────
+  var toastTimer = null;
+  function aviso(msg, tipo){
+    var t = $('toast');
+    t.textContent = msg;
+    t.className = 'show' + (tipo ? ' ' + tipo : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.className = ''; }, 4200);
+  }
+
+  // ── Peticiones ───────────────────────────────────────────────────────────
+  function pedir(ruta, opciones){
+    opciones = opciones || {};
+    opciones.credentials = 'include';
+    opciones.mode = 'cors';
+    var csrf = readCookie('csrf-token') || state.csrf;
+    opciones.headers = Object.assign(
+      {'Content-Type':'application/json'},
+      csrf ? {'X-CSRF-Token':csrf} : {},
+      opciones.headers || {}
+    );
+    return fetch(api(ruta), opciones).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(d){
+        if(!r.ok){
+          var e = new Error(d.message || d.error || ('HTTP ' + r.status));
+          e.status = r.status; e.code = d.error;
+          throw e;
+        }
+        return d;
+      });
+    });
+  }
+
+  // ── Entrada con cartera de administrador ─────────────────────────────────
+  // Mismo mecanismo que admin.html y misiones.html: nonce → firma → login.
+  // El backend reconoce la sesión como admin si la dirección está en
+  // ADMIN_ADDRESSES o si isAdmin() del contrato la aprueba, así que NO hay que
+  // saltarse nada: simplemente se entra con la cartera correcta.
+  function getProvider(){
+    if(window.ethereum && window.ethereum.providers){
+      var mm = window.ethereum.providers.find(function(p){ return p.isMetaMask; });
+      if(mm) return mm;
+    }
+    return window.ethereum || null;
+  }
+
+  async function getCsrf(){
+    try{
+      var r = await fetch(api('/api/auth/csrf-token'), {credentials:'include', mode:'cors'});
+      var d = await r.json();
+      state.csrf = readCookie('csrf-token') || d.csrfToken || null;
+    }catch(e){ /* se intenta igual */ }
+    return state.csrf;
+  }
+
+  async function cicloDeEntrada(provider, cuenta){
+    $('gateMsg').textContent = 'Pidiendo nonce…';
+    var nr = await fetch(api('/api/auth/nonce?address=' + encodeURIComponent(cuenta.toLowerCase())),
+                         {credentials:'include', mode:'cors'});
+    if(!nr.ok) throw new Error('No se pudo obtener el nonce');
+    var nonce = (await nr.json()).nonce;
+
+    var token = nonce + ':' + Math.floor(Date.now()/1000);
+    var mensaje = 'Signing in to ' + APP_NAME + ': ' + b64(token);
+
+    $('gateMsg').textContent = 'Firma el mensaje en tu cartera…';
+    var firma = await provider.request({method:'personal_sign', params:[mensaje, cuenta]});
+
+    var cabeceras = {'Content-Type':'application/json'};
+    var csrf = readCookie('csrf-token') || state.csrf;
+    if(csrf) cabeceras['X-CSRF-Token'] = csrf;
+
+    var lr = await fetch(api('/api/auth/login'), {
+      method:'POST', credentials:'include', mode:'cors', headers:cabeceras,
+      body: JSON.stringify({address:cuenta.toLowerCase(), signature:firma, token:token, message:mensaje})
+    });
+    var cuerpo = {}; try{ cuerpo = await lr.json(); }catch(e){}
+    return {ok:lr.ok, status:lr.status, cuerpo:cuerpo};
+  }
+
+  async function conectar(){
+    var provider = getProvider();
+    if(!provider){ $('gateMsg').textContent = 'No se detectó MetaMask. Instálalo para continuar.'; return; }
+
+    $('connectBtn').disabled = true;
+    try{
+      $('gateMsg').textContent = 'Conectando cartera…';
+      var cuentas = await provider.request({method:'eth_requestAccounts'});
+      var cuenta = cuentas && cuentas[0];
+      if(!cuenta){ $('gateMsg').textContent = 'No elegiste ninguna cuenta.'; return; }
+
+      await getCsrf();
+      var r = await cicloDeEntrada(provider, cuenta);
+
+      // El nonce es de un solo uso: si otra pestaña de administración lo gastó,
+      // se repite el ciclo UNA vez con un nonce nuevo (mismo apaño que admin.html).
+      var textoError = String((r.cuerpo && (r.cuerpo.message || r.cuerpo.error)) || '');
+      if(!r.ok && /nonce/i.test(textoError)){
+        $('gateMsg').textContent = 'El nonce ya se había usado; pidiendo uno nuevo…';
+        r = await cicloDeEntrada(provider, cuenta);
+      }
+
+      if(!r.ok){
+        $('gateMsg').textContent = 'Entrada rechazada: ' + ((r.cuerpo && (r.cuerpo.message || r.cuerpo.error)) || r.status);
+        return;
+      }
+      if(r.cuerpo && r.cuerpo.csrfToken) state.csrf = r.cuerpo.csrfToken;
+
+      state.address = cuenta.toLowerCase();
+      await comprobarAdmin(false);
+    }catch(e){
+      $('gateMsg').textContent = 'No se pudo entrar: ' + (e.message || e);
+    }finally{
+      $('connectBtn').disabled = false;
+    }
+  }
+
+  // `silencioso` = sondeo del arranque (por si ya había sesión abierta).
+  async function comprobarAdmin(silencioso){
+    try{
+      var d = await pedir('/api/admin/whoami');
+      state.address = (d && d.address) || state.address;
+      $('adminAddr').textContent = corto(state.address);
+      $('apiLabel').textContent = API_BASE;
+      $('gate').style.display = 'none';
+      $('app').classList.add('ready');
+      await cargar();
+    }catch(e){
+      if(!silencioso){
+        $('gateMsg').textContent = e.code === 'not_admin'
+          ? 'Esa cartera NO es administradora. Entra con una que esté autorizada.'
+          : ('No se pudo verificar el acceso: ' + (e.message || e));
+      }
+    }
+  }
+
+  // ── Carga y pintado de la lista ──────────────────────────────────────────
+  async function cargar(){
+    var params = new URLSearchParams();
+    if(state.status) params.set('status', state.status);
+    if(state.q) params.set('q', state.q);
+    params.set('page', String(state.page));
+    params.set('limit', '25');
+
+    try{
+      var d = await pedir('/api/admin/reports?' + params.toString());
+      state.reports = d.reports || [];
+      state.pages = d.pages || 1;
+      pintarResumen(d.resumen || {}, d.total || 0);
+      pintarLista();
+      pintarPaginador(d.page || 1, d.pages || 1, d.total || 0);
+    }catch(e){
+      aviso('No se pudieron cargar los reportes: ' + (e.message || e), 'err');
+    }
+  }
+
+  function pintarResumen(r, total){
+    var suma = (r.pending||0) + (r.warned||0) + (r.banned||0) + (r.dismissed||0);
+    $('n-all').textContent       = state.status ? total : (suma || total);
+    $('n-pending').textContent   = r.pending || 0;
+    $('n-warned').textContent    = r.warned || 0;
+    $('n-banned').textContent    = r.banned || 0;
+    $('n-dismissed').textContent = r.dismissed || 0;
+  }
+
+  function pintarLista(){
+    var lista = $('list');
+    lista.textContent = '';
+
+    if(!state.reports.length){
+      lista.appendChild(el('div', {class:'empty', text:
+        state.q || state.status ? 'Ningún reporte coincide con el filtro.' : 'No hay reportes todavía. Buena señal.'}));
+      return;
+    }
+
+    state.reports.forEach(function(rep){
+      var card = el('div', {class:'rep s-' + rep.status + (state.sel && state.sel.id === rep.id ? ' sel' : '')});
+
+      var top = el('div', {class:'rep-top'}, [
+        el('span', {class:'rep-target', text: rep.targetName || corto(rep.targetAddress)}),
+        el('span', {class:'rep-reason', text: MOTIVOS[rep.reason] || rep.reason}),
+        el('span', {class:'tag ' + rep.status, text: ESTADOS[rep.status] || rep.status})
+      ]);
+      if(rep.isBanned) top.appendChild(el('span', {class:'tag banned', text:'⛔ baneado'}));
+      if(rep.totalReportsAgainstTarget > 1){
+        top.appendChild(el('span', {class:'tag repeat', text:'×' + rep.totalReportsAgainstTarget + ' reportes'}));
+      }
+      card.appendChild(top);
+
+      card.appendChild(el('div', {class:'rep-meta',
+        text: corto(rep.targetAddress) + '  ·  reportado por ' + (rep.reporterName || corto(rep.reporterAddress)) +
+              '  ·  ' + fecha(rep.createdAt) + ' (' + haceCuanto(rep.createdAt) + ')'}));
+
+      if(rep.details) card.appendChild(el('div', {class:'rep-det', text: rep.details}));
+
+      card.addEventListener('click', function(){ abrirExpediente(rep.id); });
+      lista.appendChild(card);
+    });
+  }
+
+  function pintarPaginador(page, pages, total){
+    var p = $('pager');
+    p.textContent = '';
+    if(pages <= 1){
+      if(total) p.appendChild(el('span', {text: total + ' reporte(s)'}));
+      return;
+    }
+    var prev = el('button', {class:'btn sm', text:'‹ Anterior', disabled: page <= 1});
+    prev.addEventListener('click', function(){ state.page = Math.max(1, page - 1); cargar(); });
+    var sig = el('button', {class:'btn sm', text:'Siguiente ›', disabled: page >= pages});
+    sig.addEventListener('click', function(){ state.page = Math.min(pages, page + 1); cargar(); });
+    p.appendChild(prev);
+    p.appendChild(el('span', {text:'Página ' + page + ' de ' + pages + ' · ' + total + ' reporte(s)'}));
+    p.appendChild(sig);
+  }
+
+  // ── Expediente del acusado ───────────────────────────────────────────────
+  async function abrirExpediente(id){
+    var cuerpo = $('file-body');
+    cuerpo.textContent = '';
+    cuerpo.appendChild(el('div', {class:'empty', text:'Cargando expediente…'}));
+    $('file').classList.add('open');
+
+    try{
+      var d = await pedir('/api/admin/reports/' + encodeURIComponent(id));
+      state.sel = d.report;
+      pintarLista();          // resalta el elegido en la lista
+      pintarExpediente(d);
+    }catch(e){
+      cuerpo.textContent = '';
+      cuerpo.appendChild(el('div', {class:'empty', text:'No se pudo cargar: ' + (e.message || e)}));
+    }
+  }
+
+  function pintarExpediente(d){
+    var rep = d.report || {};
+    var perfil = d.profile || null;
+    var cuerpo = $('file-body');
+    cuerpo.textContent = '';
+
+    $('file-title').textContent = 'Expediente · ' + (rep.targetName || corto(rep.targetAddress));
+
+    // ── 1. Por qué fue reportado ──────────────────────────────────────────
+    var bloqueMotivo = el('div', {}, [
+      el('div', {class:'sec-title', text:'Por qué fue reportado'}),
+      el('div', {class:'reasonbox'}, [
+        el('div', {class:'why', text: MOTIVOS[rep.reason] || rep.reason}),
+        el('div', {class:'txt', text: rep.details || 'El jugador que reportó no escribió detalles.'})
+      ])
+    ]);
+    var meta = el('div', {class:'grid2', style:'margin-top:10px;'}, [
+      kv('Reportado por', (rep.reporterName || '—') + ' (' + corto(rep.reporterAddress) + ')'),
+      kv('Fecha del reporte', fecha(rep.createdAt)),
+      kv('Estado', ESTADOS[rep.status] || rep.status),
+      kv('Dónde', (rep.scene || '—') + (rep.posX || rep.posY ? '  x:' + rep.posX + ' y:' + rep.posY : '')),
+      kv('Atendido por', rep.adminAddress ? corto(rep.adminAddress) : '—'),
+      kv('Atendido el', rep.handledAt ? fecha(rep.handledAt) : '—')
+    ]);
+    bloqueMotivo.appendChild(meta);
+    if(rep.adminNote){
+      bloqueMotivo.appendChild(el('div', {class:'note', style:'margin-top:8px;',
+        text:'Nota del administrador: ' + rep.adminNote}));
+    }
+    cuerpo.appendChild(bloqueMotivo);
+
+    // ── 2. Información del jugador acusado ────────────────────────────────
+    var bloquePerfil = el('div', {}, [el('div', {class:'sec-title', text:'Información del jugador'})]);
+    if(perfil){
+      bloquePerfil.appendChild(el('div', {class:'grid2'}, [
+        kv('Nombre de usuario', perfil.username && perfil.username !== '---' ? perfil.username : perfil.playerName),
+        kv('Cuenta', perfil.playerName),
+        kv('Cartera', perfil.address),
+        kv('Conectado ahora', perfil.online ? 'Sí' : 'No'),
+        kv('Nivel', 'Lv. ' + (perfil.nivel || 0) + '  (' + (perfil.exp || 0) + ' exp)'),
+        kv('Mascota', (perfil.petName || '---') + ' — Lv. ' + (perfil.petLevel || 1)),
+        kv('Cuenta creada', fecha(perfil.creadoEn)),
+        kv('Antigüedad', perfil.antiguedad),
+        kv('Tiempo jugado', perfil.jugado),
+        kv('Sesiones', perfil.sesiones),
+        kv('Última vez', fecha(perfil.ultimaVez)),
+        kv('Entradas', perfil.loginCount),
+        kv('Oro / Plata', (perfil.oro || 0) + ' GL · ' + (perfil.plata || 0) + ' SL')
+      ]));
+
+      var skills = perfil.skills && typeof perfil.skills === 'object' ? perfil.skills : {};
+      var clavesSkill = Object.keys(skills).filter(function(k){ return typeof skills[k] === 'number'; });
+      if(clavesSkill.length){
+        var caja = el('div', {class:'grid2', style:'margin-top:10px;'});
+        clavesSkill.forEach(function(k){
+          var bonito = k.replace(/_/g,' ').replace(/\b\w/g, function(m){ return m.toUpperCase(); });
+          caja.appendChild(kv(bonito, skills[k]));
+        });
+        bloquePerfil.appendChild(el('div', {class:'note', style:'margin-top:12px;', text:'Habilidades'}));
+        bloquePerfil.appendChild(caja);
+      }
+    }else{
+      bloquePerfil.appendChild(el('div', {class:'note',
+        text:'Esta cartera no tiene ficha de jugador guardada (' + corto(rep.targetAddress) + ').'}));
+    }
+    cuerpo.appendChild(bloquePerfil);
+
+    // ── 3. Historial de reportes contra este jugador ──────────────────────
+    if(Array.isArray(d.history) && d.history.length){
+      var hist = el('div', {}, [el('div', {class:'sec-title',
+        text:'Historial · ' + d.history.length + ' reporte(s) contra esta cuenta'})]);
+      var lista = el('div', {class:'hist'});
+      d.history.forEach(function(h){
+        lista.appendChild(el('div', {class:'hist-row'}, [
+          el('span', {class:'tag ' + h.status, text: ESTADOS[h.status] || h.status}),
+          el('span', {text: MOTIVOS[h.reason] || h.reason}),
+          el('span', {class:'h-when', text: haceCuanto(h.createdAt) + ' · ' + (h.reporterName || '—')})
+        ]));
+      });
+      hist.appendChild(lista);
+      cuerpo.appendChild(hist);
+    }
+
+    // ── 4. Verificadores recibidos (señal de bot) ─────────────────────────
+    if(Array.isArray(d.verifiers) && d.verifiers.length){
+      var ver = el('div', {}, [el('div', {class:'sec-title', text:'Verificadores recibidos'})]);
+      var lv = el('div', {class:'hist'});
+      d.verifiers.forEach(function(v){
+        var estado = v.status === 'passed' ? '✅ pasó'
+                   : v.status === 'failed' ? '❌ falló'
+                   : v.status === 'expired' ? '⌛ expiró' : '📨 enviado';
+        lv.appendChild(el('div', {class:'hist-row'}, [
+          el('span', {text: estado}),
+          el('span', {class:'mono', text: v.question + (v.given ? '  →  ' + v.given : '')}),
+          el('span', {class:'h-when', text: haceCuanto(v.createdAt) + ' · de ' + (v.from || '—')})
+        ]));
+      });
+      ver.appendChild(lv);
+      cuerpo.appendChild(ver);
+    }
+
+    // ── 5. Acciones ───────────────────────────────────────────────────────
+    var acc = el('div', {}, [el('div', {class:'sec-title', text:'Acciones'})]);
+
+    var campoMensaje = el('label', {class:'field'}, [
+      el('span', {text:'Mensaje de la advertencia (se envía al buzón del juego y, si hay correo configurado, también por email)'}),
+      el('textarea', {id:'warnBody',
+        placeholder:'Tu cuenta fue reportada por ' + (MOTIVOS[rep.reason] || rep.reason) +
+                    '. Si vuelve a ocurrir, la cuenta será bloqueada.'})
+    ]);
+    var campoNota = el('label', {class:'field', style:'margin-top:10px;'}, [
+      el('span', {text:'Nota interna (solo la ven los administradores)'}),
+      el('input', {type:'text', id:'adminNote', maxLength:'300', placeholder:'Opcional'})
+    ]);
+    acc.appendChild(campoMensaje);
+    acc.appendChild(campoNota);
+
+    var botones = el('div', {class:'actions', style:'margin-top:14px;'});
+
+    var bWarn = el('button', {class:'btn warn', text:'⚠️ Enviar advertencia'});
+    bWarn.addEventListener('click', function(){ accionar(rep.id, 'warn', bWarn); });
+
+    var bBan = el('button', {class:'btn danger', text: d.isBanned ? '⛔ Ya está baneado' : '⛔ Banear cuenta'});
+    bBan.disabled = !!d.isBanned;
+    bBan.addEventListener('click', function(){
+      if(!window.confirm('¿Banear a ' + (rep.targetName || corto(rep.targetAddress)) +
+                         '? Se le expulsa al momento y no podrá volver a entrar.')) return;
+      accionar(rep.id, 'ban', bBan);
+    });
+
+    botones.appendChild(bWarn);
+    botones.appendChild(bBan);
+
+    if(d.isBanned){
+      var bUnban = el('button', {class:'btn', text:'↩︎ Quitar el baneo'});
+      bUnban.addEventListener('click', function(){ accionar(rep.id, 'unban', bUnban); });
+      botones.appendChild(bUnban);
+    }
+
+    var bQuitar = el('button', {class:'btn ghost', text:'✕ Quitar de la lista (sin sanción)'});
+    bQuitar.addEventListener('click', function(){ accionar(rep.id, 'dismiss', bQuitar); });
+    botones.appendChild(bQuitar);
+
+    var bBorrar = el('button', {class:'btn ghost', text:'🗑 Borrar el reporte para siempre'});
+    bBorrar.addEventListener('click', function(){
+      if(!window.confirm('Esto borra el reporte de la base de datos y no se puede deshacer. ¿Seguir?')) return;
+      accionar(rep.id, 'purge', bBorrar);
+    });
+    botones.appendChild(bBorrar);
+
+    acc.appendChild(botones);
+    acc.appendChild(el('div', {class:'note', style:'margin-top:10px;',
+      text:'"Quitar de la lista" marca el reporte como descartado y deja el rastro para futuras revisiones. ' +
+           '"Borrar para siempre" lo elimina de verdad.'}));
+    cuerpo.appendChild(acc);
+  }
+
+  // ── Ejecutar una acción de moderación ────────────────────────────────────
+  async function accionar(id, tipo, boton){
+    var textoOriginal = boton.textContent;
+    boton.disabled = true;
+    boton.textContent = 'Procesando…';
+
+    var nota = ($('adminNote') && $('adminNote').value) || '';
+    var mensaje = ($('warnBody') && ($('warnBody').value || $('warnBody').placeholder)) || '';
+
+    try{
+      var d;
+      if(tipo === 'warn'){
+        d = await pedir('/api/admin/reports/' + encodeURIComponent(id) + '/warn', {
+          method:'POST', body: JSON.stringify({body: mensaje, note: nota})
+        });
+        var correo = d.email || {};
+        aviso(correo.sent
+          ? 'Advertencia enviada al buzón y al correo ' + correo.to
+          : 'Advertencia enviada al buzón del juego' +
+            (correo.reason === 'smtp_not_configured' ? ' (no hay servidor de correo configurado)'
+             : correo.reason === 'player_has_no_email' ? ' (ese jugador no tiene correo guardado)' : ''),
+          'ok');
+      }else if(tipo === 'ban'){
+        await pedir('/api/admin/reports/' + encodeURIComponent(id) + '/ban', {
+          method:'POST', body: JSON.stringify({note: nota})
+        });
+        aviso('Cuenta baneada y expulsada del juego', 'ok');
+      }else if(tipo === 'unban'){
+        await pedir('/api/admin/reports/' + encodeURIComponent(id) + '/unban', {method:'POST'});
+        aviso('Baneo retirado', 'ok');
+      }else if(tipo === 'dismiss'){
+        await pedir('/api/admin/reports/' + encodeURIComponent(id), {
+          method:'DELETE', body: JSON.stringify({note: nota})
+        });
+        aviso('Reporte descartado (sin sanción)', 'ok');
+      }else if(tipo === 'purge'){
+        await pedir('/api/admin/reports/' + encodeURIComponent(id) + '?purge=1', {method:'DELETE'});
+        aviso('Reporte borrado', 'ok');
+        state.sel = null;
+        $('file-body').textContent = '';
+        $('file-body').appendChild(el('div', {class:'empty', text:'Elige un reporte de la lista para ver el expediente completo.'}));
+        $('file').classList.remove('open');
+        await cargar();
+        return;
+      }
+
+      await cargar();
+      await abrirExpediente(id);
+    }catch(e){
+      aviso('No se pudo completar: ' + (e.message || e), 'err');
+      boton.disabled = false;
+      boton.textContent = textoOriginal;
+    }
+  }
+
+  // ── Eventos de la interfaz ───────────────────────────────────────────────
+  $('connectBtn').addEventListener('click', conectar);
+  $('reloadBtn').addEventListener('click', function(){ cargar(); });
+
+  $('searchBtn').addEventListener('click', function(){
+    state.q = $('q').value.trim();
+    state.page = 1;
+    cargar();
+  });
+  $('q').addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ state.q = $('q').value.trim(); state.page = 1; cargar(); }
+  });
+  $('clearBtn').addEventListener('click', function(){
+    $('q').value = ''; state.q = ''; state.status = ''; state.page = 1;
+    document.querySelectorAll('.stat').forEach(function(s){ s.classList.toggle('active', s.dataset.status === ''); });
+    cargar();
+  });
+
+  document.querySelectorAll('.stat').forEach(function(s){
+    s.addEventListener('click', function(){
+      document.querySelectorAll('.stat').forEach(function(x){ x.classList.remove('active'); });
+      s.classList.add('active');
+      state.status = s.dataset.status || '';
+      state.page = 1;
+      cargar();
+    });
+  });
+
+  $('file-close').addEventListener('click', function(){ $('file').classList.remove('open'); });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape') $('file').classList.remove('open');
+  });
+
+  // Si ya había sesión de admin abierta (por ejemplo se venía de admin.html),
+  // se entra directo sin pedir la firma otra vez.
+  $('apiLabel').textContent = API_BASE;
+  comprobarAdmin(true);
+})();
+</script>
+</body>
+</html>

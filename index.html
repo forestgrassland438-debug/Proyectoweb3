@@ -7,7 +7,8 @@
   <meta http-equiv="Content-Language" content="en" />
   <title>GRASSLAND FOREST</title>
   <link rel="icon" href="favicon.png" type="image/png" />
-  <link rel="stylesheet" href="styless.css?v=16.8-battle2" />
+  <!-- v17: rediseño del panel de misiones + altura real del viewport en móvil -->
+  <link rel="stylesheet" href="styless.css?v=17.0-missions-viewport" />
 
   <!-- ============================
        CONTENT-SECURITY-POLICY (meta for testing / development)..
@@ -109,6 +110,11 @@
 
   <!-- preload critical asset -->
   <link rel="preload" href="./Game/Source/cursor.png" as="image" />
+
+  <!-- Altura real del viewport en móvil (el juego salía en una franja arriba y
+       el resto negro). Debe ir ANTES de app.js para publicar --app-height
+       antes de que se cree el lienzo. No toca el zoom de la cámara. -->
+  <script src="./viewport-fix.js" defer></script>
 
   <!-- main app bootstrap -->
   <script src="app.js" defer></script>

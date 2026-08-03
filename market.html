@@ -847,7 +847,11 @@
       e_no_cancel:'No se pudo cancelar la publicación.', e_conn:'Error de conexión. Intenta de nuevo.',
       confirm_cancel:'¿Cancelar esta publicación? El objeto volverá a tu inventario.',
       hist_bought:'Compraste', hist_sold:'Vendiste', hist_from:'a {name}', hist_to:'de {name}',
-      fee_lc:'comisión'
+      fee_lc:'comisión',
+      chain_working:'Registrando en la blockchain…',
+      chain_ok:'Confirmado en la blockchain',
+      chain_fail:'La operación se guardó, pero la transacción de blockchain quedó pendiente. Se reintentará.',
+      chain_retry:'Reintentando la transacción pendiente…'
     },
     en: {
       loading:'LOADING MARKET…',
@@ -887,7 +891,11 @@
       e_no_cancel:'Could not cancel the listing.', e_conn:'Connection error. Try again.',
       confirm_cancel:'Cancel this listing? The item will return to your inventory.',
       hist_bought:'Bought', hist_sold:'Sold', hist_from:'from {name}', hist_to:'to {name}',
-      fee_lc:'fee'
+      fee_lc:'fee',
+      chain_working:'Writing the blockchain transaction…',
+      chain_ok:'Confirmed on the blockchain',
+      chain_fail:'Saved, but the blockchain transaction is still pending. It will be retried.',
+      chain_retry:'Retrying the pending blockchain transaction…'
     }
   };
 
@@ -1001,6 +1009,126 @@
   }
 
   // ══════════════════════════════════════════════════════════════════════
+  // LIQUIDACIÓN EN BLOCKCHAIN                                (2026-08-03)
+  // ----------------------------------------------------------------------
+  // Antes, publicar / comprar / cancelar aquí solo tocaba el backend: los
+  // ítems NO se movían de verdad en la cadena, así que el mercado no
+  // manipulaba las facturas del contrato.
+  //
+  // Ahora, en cuanto la operación de base de datos sale bien, se llama a
+  // /api/marketplace/onchain/settle con una de estas tres operaciones:
+  //
+  //   escrow  → al PUBLICAR: quema en cadena las unidades del vendedor.
+  //   deliver → al COMPRAR: acuña esas unidades al comprador.
+  //   refund  → al CANCELAR: devuelve al vendedor lo que quedó en depósito.
+  //
+  // El servidor lleva el libro por publicación y NUNCA entrega más de lo que
+  // se depositó, así que ni un cliente manipulado puede crear ítems.
+  // Si la transacción falla (la red está caída, por ejemplo), la operación
+  // queda anotada como PENDIENTE en el navegador y se reintenta sola al
+  // volver a abrir el mercado — sin bloquear al jugador.
+  // ══════════════════════════════════════════════════════════════════════
+  const PENDING_KEY = 'gf_market_onchain_pending';
+
+  function readPending(){
+    try { const v = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); return Array.isArray(v) ? v : []; }
+    catch(e){ return []; }
+  }
+  function writePending(list){
+    try { localStorage.setItem(PENDING_KEY, JSON.stringify(list.slice(-40))); } catch(e){}
+  }
+  function addPending(job){
+    const list = readPending();
+    const clave = `${job.op}:${job.listingId}:${job.itemId}:${job.qty}`;
+    if (list.some(j => `${j.op}:${j.listingId}:${j.itemId}:${j.qty}` === clave)) return;
+    list.push(Object.assign({ at: Date.now() }, job));
+    writePending(list);
+  }
+  function removePending(job){
+    const clave = `${job.op}:${job.listingId}:${job.itemId}:${job.qty}`;
+    writePending(readPending().filter(j => `${j.op}:${j.listingId}:${j.itemId}:${j.qty}` !== clave));
+  }
+
+  /**
+   * Manda una operación de liquidación al servidor.
+   * @returns {Promise<boolean>} true si quedó confirmada en la cadena.
+   */
+  async function settleOnchain(op, listingId, itemId, qty, opciones){
+    const silencioso = !!(opciones && opciones.silent);
+    const job = { op, listingId: String(listingId || ''), itemId, qty: Number(qty) || 0 };
+    if (!job.listingId || !job.itemId || job.qty < 1) return false;
+
+    if (!silencioso) toast(t('chain_working'));
+    try{
+      const res = await api('/api/marketplace/onchain/settle', {
+        method: 'POST',
+        body: JSON.stringify(job)
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.ok){
+        removePending(job);
+        // onchain:false = ese ítem no tiene representación en el contrato,
+        // así que no hay nada que mover y tampoco es un fallo.
+        if (data.onchain && !silencioso) toast(t('chain_ok'));
+        return true;
+      }
+
+      // Errores definitivos: reintentar no arregla nada, así que no se guardan.
+      const definitivos = ['listing_not_found','not_listing_owner','item_mismatch',
+                           'escrow_exceeds_listing','not_escrow_owner','nothing_in_escrow','exceeds_escrow'];
+      if (definitivos.includes(data.error)){
+        removePending(job);
+        console.warn('Liquidación on-chain rechazada:', data.error, job);
+        return false;
+      }
+
+      addPending(job);
+      if (!silencioso) toast(t('chain_fail'), true);
+      return false;
+    }catch(e){
+      addPending(job);
+      if (!silencioso) toast(t('chain_fail'), true);
+      return false;
+    }
+  }
+
+  /** Reintenta en segundo plano lo que quedó pendiente de sesiones anteriores. */
+  async function retryPendingSettlements(){
+    const list = readPending();
+    if (!list.length) return;
+    console.log(`⛓️ Reintentando ${list.length} liquidación(es) pendiente(s)`);
+    for (const job of list){
+      await settleOnchain(job.op, job.listingId, job.itemId, job.qty, { silent: true });
+    }
+  }
+
+  /**
+   * Saca el id de la publicación recién creada de la respuesta del backend.
+   * El formato exacto puede variar según la versión de marketplace-routes, así
+   * que se prueban las formas conocidas y, como último recurso, se busca la
+   * publicación por sus datos en "mis publicaciones".
+   */
+  async function resolveNewListingId(data, item, qty, price){
+    const directo = (data && (
+      (data.listing && (data.listing.id || data.listing._id)) ||
+      data.listingId || data.id || data._id
+    ));
+    if (directo) return String(directo);
+
+    try{
+      await loadMyListings();
+      const candidatas = (state.myListings || []).filter(l =>
+        l.itemId === item.itemId && Number(l.qty) === Number(qty) && Number(l.pricePerUnit) === Number(price));
+      if (candidatas.length){
+        candidatas.sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
+        return String(candidatas[0].id);
+      }
+    }catch(e){}
+    return null;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
   // FORMATEO
   // ══════════════════════════════════════════════════════════════════════
   function fmt(n){
@@ -1048,6 +1176,10 @@
     await fetchCsrfToken();
     await loadEverything();
     showApp();
+
+    // Liquidaciones que quedaron a medias en otra sesión (red caída, pestaña
+    // cerrada a mitad…). Se reintentan en segundo plano, sin molestar.
+    retryPendingSettlements();
   }
   async function checkAuth(){
     try{
@@ -1312,6 +1444,12 @@
       if(Array.isArray(data.inventory)) state.inventory = data.inventory;
       document.getElementById('sell-modal').classList.remove('show');
       toast(t('t_published'));
+
+      // LIQUIDACIÓN ON-CHAIN: el ítem sale de verdad de la cartera del
+      // vendedor (se quema en el contrato) y queda en depósito del mercado.
+      const nuevoId = await resolveNewListingId(data, item, qty, price);
+      if (nuevoId) await settleOnchain('escrow', nuevoId, item.itemId, qty);
+
       renderSell();
       await loadMyListings(); renderMine();
       await loadListings(); renderMarket();
@@ -1364,6 +1502,10 @@
       document.getElementById('buy-modal').classList.remove('show');
       renderWallet(); renderSell();
       toast(t('t_bought',{n:qty, name:itemName(l.itemId, l.name)}));
+
+      // LIQUIDACIÓN ON-CHAIN: se acuñan al comprador las unidades que el
+      // vendedor dejó en depósito al publicar.
+      await settleOnchain('deliver', l.id, l.itemId, qty);
       await Promise.all([loadListings(), loadHistory()]);
       renderMarket(); renderHistory();
     }catch(e){ errEl.textContent = t('e_conn'); errEl.classList.add('show'); }
@@ -1398,12 +1540,21 @@
   // ══════════════════════════════════════════════════════════════════════
   async function cancelListing(id, rowEl){
     if(!window.confirm(t('confirm_cancel'))) return;
+    // Se guarda ANTES de cancelar: después de la llamada la publicación ya no
+    // existe y no se sabría cuántas unidades hay que devolver on-chain.
+    const publicacion = (state.myListings || []).find(l => String(l.id) === String(id)) || null;
     try{
       const res = await api('/api/marketplace/cancel/' + id, { method: 'POST' });
       const data = await res.json();
       if(!res.ok){ toast(translateApiError(data) || t('e_no_cancel'), true); return; }
       if(Array.isArray(data.inventory)) state.inventory = data.inventory;
       toast(t('t_cancelled'));
+
+      // LIQUIDACIÓN ON-CHAIN: lo que quedaba en depósito vuelve al vendedor.
+      if (publicacion) {
+        await settleOnchain('refund', id, publicacion.itemId, publicacion.qty);
+      }
+
       await loadMyListings(); renderMine(); renderSell();
       await loadListings(); renderMarket();
     }catch(e){ toast(t('e_conn'), true); }

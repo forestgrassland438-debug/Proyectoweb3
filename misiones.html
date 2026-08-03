@@ -333,12 +333,20 @@
       var itemN  = crear('input',    { type: 'text', value: t.itemName || '', maxLength: 80 });
       var premioN= crear('input',    { type: 'text', value: t.rewardName || '', maxLength: 80 });
 
+      // Los dos campos de nombre son los que ve el JUGADOR en el panel del
+      // juego. Si se dejan vacíos, el servidor genera uno legible a partir
+      // del identificador ("madera_tronco" → "Madera Tronco"), así que en el
+      // panel NUNCA aparece el id crudo. Aquí se muestra ese mismo texto como
+      // sugerencia para que se vea de antemano cómo va a quedar.
+      itemN.placeholder   = 'Se verá así en el panel (ej. Madera Tronco)';
+      premioN.placeholder = 'Se verá así en el panel (ej. Mineral de Hierro)';
+
       var div = crear('div', { class: 'lang-block' }, [
         crear('h4', { text: l.nombre + ' — ' + l.code }),
         crear('div', { class: 'row' }, [
           campo('Título', titulo),
-          campo('Nombre del ítem pedido', itemN),
-          campo('Nombre de la recompensa', premioN)
+          campo('Nombre visible del ítem pedido', itemN),
+          campo('Nombre visible de la recompensa', premioN)
         ]),
         crear('div', { class: 'row' }, [campo('Descripción', desc)])
       ]);
