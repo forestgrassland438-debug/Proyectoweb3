@@ -2741,6 +2741,12 @@ this.dog.sprite.play('perro_right');
 
 // ── Etiqueta con el NOMBRE de la mascota (regla de nombre único) ─────────
 if (!this.petName) this.petName = window.globalPetName || '---';
+// El nivel del perro viaja entre escenas por window.globalPetLevel: así la
+// etiqueta ya nace con el nivel correcto en vez de con un "Lv.1" que luego
+// había que corregir (y que antes no se corregía nunca).
+if (!this.petLevel || this.petLevel < 1) {
+  this.petLevel = Math.max(1, Number(window.globalPetLevel) || 1);
+}
 this.dogNameText = this.add.text(this.dog.x, this.dog.y - 30, '', {
   fontFamily: '"PressStart2P"',
   fontSize: '8px',
@@ -3089,6 +3095,7 @@ handleMouseMovement(delta) {
           event: 'petLevelUpdate',
           handler: ({ petLevel }) => {
             const n = Math.max(1, Number(petLevel) || 1);
+            window.globalPetLevel = n;
             if (this.petLevel === n) return;
             this.petLevel = n;
             if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
@@ -8385,6 +8392,27 @@ async loadPlayerData() {
     // Nombre de mascota compartido entre escenas ('---' = aún sin fijar)
     if (!this.petName) this.petName = window.globalPetName || '---';
     window.globalPetName = this.petName;
+
+    // FIX NIVEL DEL PERRO EN LA TIENDA (2026-08-03)
+    // ---------------------------------------------------------------------
+    // En GameScene el perro salía en su nivel real (p. ej. Lv.4) pero al
+    // entrar a la tienda volvía a "Lv.1". Dos motivos, los dos aquí:
+    //   1. La etiqueta del perro se crea en el `create()` de la tienda, ANTES
+    //      de que llegue /api/load, y nadie la volvía a pintar después. Este
+    //      es el único sitio donde ya se tiene el petLevel de la base de
+    //      datos, así que se refresca aquí (GameScene ya lo hacía; a la
+    //      tienda se le había olvidado).
+    //   2. Si /api/load tarda o no trae petLevel, se usa el último nivel
+    //      conocido de la otra escena (window.globalPetLevel) en vez de dar
+    //      por hecho que es 1.
+    const nivelPerroCargado = Number(data.petLevel);
+    if (Number.isFinite(nivelPerroCargado) && nivelPerroCargado >= 1) {
+      this.petLevel = nivelPerroCargado;
+    } else if (!this.petLevel || this.petLevel < 1) {
+      this.petLevel = Math.max(1, Number(window.globalPetLevel) || 1);
+    }
+    window.globalPetLevel = this.petLevel;
+    if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
     // Lock del panel de nombre (window._acttov) según la regla de nombre único
     window._acttov = (typeof this.Username === 'string' && this.Username.trim() !== '' && this.Username !== '---') ? 1 : 0;
 

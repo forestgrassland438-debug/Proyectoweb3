@@ -1017,6 +1017,93 @@ async loadDailyMissions(npcId) {
   }
 }
 
+// ============================================================================
+// APOYO AL PANEL DE MISIONES  (2026-08-03)
+// ----------------------------------------------------------------------------
+// El panel necesita dos cosas que antes no existían:
+//   • el id REAL del inventario que corresponde al itemId de la misión
+//     (las misiones se escriben con nombres sueltos como "zanahoria" o
+//     "carrot", pero el inventario guarda "zanahoria_buena"),
+//   • cuántas unidades lleva ya el jugador, para pintar la barra de progreso.
+// Se usa el MISMO mapeo y el MISMO criterio flexible que
+// checkMissionRequirements, para que lo que muestra el panel y lo que valida
+// el botón "Complete" no puedan discrepar.
+// ============================================================================
+
+MISSION_ITEM_MAP = {
+  'zanahoria': 'zanahoria_buena', 'carrot': 'zanahoria_buena',
+  'tomate': 'tomate_buena',       'tomato': 'tomate_buena',
+  'trigo': 'trigo_buena',         'wheat': 'trigo_buena',
+  'calabaza': 'calabaza_buena',   'pumpkin': 'calabaza_buena',
+  'piedra': 'mineral_piedra',     'stone': 'mineral_piedra',
+  'cobre': 'mineral_cobre',       'copper': 'mineral_cobre',
+  'hierro': 'mineral_hierro',     'iron': 'mineral_hierro',
+  'carbon': 'carbon',             'coal': 'carbon',
+  'madera': 'madera',             'wood': 'madera',
+  'moneda': 'moneda',             'coin': 'moneda'
+};
+
+/** itemId de la misión → id que realmente existe en el inventario. */
+resolveMissionItemId(missionItemId) {
+  const raw = String(missionItemId || '');
+  return this.MISSION_ITEM_MAP[raw] || this.MISSION_ITEM_MAP[raw.toLowerCase()] || raw;
+}
+
+/** Cuántas unidades del ítem pedido por una misión lleva ya el jugador. */
+getMissionItemCount(missionItemId) {
+  const objetivo = String(this.resolveMissionItemId(missionItemId)).toLowerCase().trim();
+  if (!objetivo) return 0;
+
+  let total = 0;
+  const contar = (arr) => {
+    if (!Array.isArray(arr)) return;
+    arr.forEach(slot => {
+      if (!slot || !slot.id) return;
+      const id = String(slot.id).toLowerCase().trim();
+      // Mismo criterio flexible que checkMissionRequirements.
+      const coincide = id === objetivo ||
+                       id.includes(objetivo) ||
+                       objetivo.includes(id) ||
+                       id === `${objetivo}_buena`;
+      if (coincide) total += parseInt(slot.count || slot.quantity || 0, 10) || 0;
+    });
+  };
+
+  contar(this.STATE?.slots);
+  contar(this.STATE?.quickSlots);
+  contar(this.STATE?.chestSlots);
+  contar(this.casillas);
+  contar(this.casillasExtra);
+  return total;
+}
+
+/**
+ * Ruta de imagen EXACTA de un ítem, para que el panel de misiones no muestre
+ * iconos rotos ni genéricos. Se prefiere siempre la ruta declarada en
+ * ItemDefinitions (la misma que usa el inventario), y solo si el ítem no está
+ * ahí se prueban las carpetas de misiones y de recursos.
+ * @returns {string[]} rutas a probar en orden
+ */
+getMissionItemImageCandidates(itemId) {
+  const rutas = [];
+  const real = this.resolveMissionItemId(itemId);
+
+  const deDefiniciones = (id) => {
+    const def = this.ItemDefinitions ? this.ItemDefinitions[id] : null;
+    if (def && def.src) rutas.push(def.src);
+  };
+  deDefiniciones(real);
+  if (real !== itemId) deDefiniciones(itemId);
+
+  rutas.push(`./Game/Objetos/Itemmision/${real}.png`);
+  if (real !== itemId) rutas.push(`./Game/Objetos/Itemmision/${itemId}.png`);
+  rutas.push(`./Game/Source/${real}.png`);
+  if (real !== itemId) rutas.push(`./Game/Source/${itemId}.png`);
+  rutas.push('./Game/Source/moneda.png');
+
+  return [...new Set(rutas)];
+}
+
 // Modifica el método checkMissionRequirements para agregar más logs de depuración:
 // Método para verificar si el jugador tiene los items para una misión - VERSIÓN COMPLETA Y DEPURADA
 // Método para verificar si el jugador tiene los items para una misión - VERSIÓN USANDO STATE
@@ -5575,11 +5662,13 @@ this.input.mouse.disableContextMenu();
 // =============================================================================
 // 1. CONFIGURACIÓN DE TIPOS DE MINERAL (debe coincidir con el backend)
 // =============================================================================
+// RESPAWN (2026-08-03): bajado de 300 s a 60 s. Debe coincidir con
+// MINERAL_TYPE_CONFIG del backend (server2.js), que es quien manda de verdad.
 const MINE_TYPE_CONFIG = {
-  piedra: { requiredPick: 'pico_de_madera', baseRespawn: 300, percentIncrement: 1, respawnMultiplier: 0 },
-  cobre:  { requiredPick: 'pico_de_piedra', baseRespawn: 300, percentIncrement: 1, respawnMultiplier: 0 },
-  hierro: { requiredPick: 'pico_de_cobre',  baseRespawn: 300, percentIncrement: 1, respawnMultiplier: 0 },
-  carbon: { requiredPick: 'pico_de_hierro', baseRespawn: 300, percentIncrement: 1, respawnMultiplier: 0 }
+  piedra: { requiredPick: 'pico_de_madera', baseRespawn: 60, percentIncrement: 1, respawnMultiplier: 0 },
+  cobre:  { requiredPick: 'pico_de_piedra', baseRespawn: 60, percentIncrement: 1, respawnMultiplier: 0 },
+  hierro: { requiredPick: 'pico_de_cobre',  baseRespawn: 60, percentIncrement: 1, respawnMultiplier: 0 },
+  carbon: { requiredPick: 'pico_de_hierro', baseRespawn: 60, percentIncrement: 1, respawnMultiplier: 0 }
 };
  
 // =============================================================================
@@ -5874,16 +5963,15 @@ const getMultipleRewards_Mine = (mineKey, pickName) => {
   for (const reward of rewards) {
     const adjustedProb = Math.min(100, reward.probabilidad * bonusMultiplier);
     if (Phaser.Math.Between(1, 100) <= adjustedProb) {
-      let cantidad = reward.cantidad;
-      if (pickName === 'pico_de_cobre'  && Phaser.Math.Between(1, 100) <= 20) cantidad += 1;
-      else if (pickName === 'pico_de_hierro' && Phaser.Math.Between(1, 100) <= 40) cantidad += 1;
-      obtained.push({ id: reward.id, cantidad });
+      // BOTÍN 1-3 POR SUERTE (igual que la tala): cada mineral picado da
+      // entre 1 y 3 unidades, y el pico inclina la suerte hacia 2 o 3.
+      obtained.push({ id: reward.id, cantidad: this.rollGatherAmount(pickName) });
     }
   }
   // Drop garantizado SOLO con picos NO penalizados. Con pico de madera
   // (multiplier < 1) la mina PUEDE quedar sin recompensa (menos probabilidad).
   if (obtained.length === 0 && rewards.length > 0 && bonusMultiplier >= 1.0) {
-    obtained.push({ id: rewards[0].id, cantidad: rewards[0].cantidad });
+    obtained.push({ id: rewards[0].id, cantidad: this.rollGatherAmount(pickName) });
   }
   return obtained;
 };
@@ -6071,8 +6159,8 @@ mineProps.forEach(prop => {
         // Con pico de madera (o bajo) a veces no cae mineral.
         this.notifications.show(`Mined ${mineInfo.nombre}! But you got no ore this time.`, "warning", { icon: '⛏️' });
       } else {
-        const rewardNames = rewards.map(r => `${r.cantidad}x ${r.id}`).join(', ');
-        this.notifications.show(`Minaste ${mineInfo.nombre}!\nObtenido: ${rewardNames}`, "success", {
+        const rewardNames = rewards.map(r => `${r.cantidad}x ${this._getFruitDisplayNameEN(r.id)}`).join(', ');
+        this.notifications.show(`Mined ${mineInfo.nombre}!\nObtained: ${rewardNames}`, "success", {
           customColor: mineInfo.colorNotificacion,
           icon: '⛏️'
         });
@@ -6212,10 +6300,13 @@ console.log('📊 Tipos de mineral:', Object.keys(MINE_TYPE_CONFIG));
 //  - arbustos  → todas las hachas MENOS la de madera.
 //  - arbolx (árbol seco) → todas MENOS la de madera y la de piedra.
 // Se expresa como lista de hachas EXCLUIDAS (ver isValidAxeForTree).
+// RESPAWN (2026-08-03): bajado de 300 s a 60 s, igual que TREE_TYPE_CONFIG del
+// backend (server2.js). El servidor es el que decide la fecha real; esto es
+// solo la copia local de la configuración.
 const TREE_TYPE_CONFIG = {
-  pinos:     { excludedAxes: [],                                  baseRespawn: 300, percentIncrement: 1, respawnMultiplier: 0 },
-  arbustos:  { excludedAxes: ['hacha_de_madera'],                 baseRespawn: 300, percentIncrement: 1, respawnMultiplier: 0 },
-  arbolx:    { excludedAxes: ['hacha_de_madera', 'hacha_de_piedra'], baseRespawn: 300, percentIncrement: 1, respawnMultiplier: 0 }
+  pinos:     { excludedAxes: [],                                  baseRespawn: 60, percentIncrement: 1, respawnMultiplier: 0 },
+  arbustos:  { excludedAxes: ['hacha_de_madera'],                 baseRespawn: 60, percentIncrement: 1, respawnMultiplier: 0 },
+  arbolx:    { excludedAxes: ['hacha_de_madera', 'hacha_de_piedra'], baseRespawn: 60, percentIncrement: 1, respawnMultiplier: 0 }
 };
 
 // Mapeo de sprites a tipos
@@ -7018,16 +7109,16 @@ const getMultipleRewards_Ore = (oreKey, pickName) => {
   for (const reward of rewards) {
     const adjustedProb = Math.min(100, reward.probabilidad * bonusMultiplier);
     if (Phaser.Math.Between(1, 100) <= adjustedProb) {
-      let cantidad = reward.cantidad;
-      if (pickName === 'hacha_de_cobre' && Phaser.Math.Between(1, 100) <= 20) cantidad += 1;
-      else if (pickName === 'hacha_de_hierro' && Phaser.Math.Between(1, 100) <= 40) cantidad += 1;
-      obtainedRewards.push({ id: reward.id, cantidad });
+      // BOTÍN 1-3 POR SUERTE: cada árbol talado da entre 1 y 3 troncos. El
+      // hacha inclina la suerte (mejor hacha = más probabilidad de 2 o 3),
+      // pero el rango sigue siendo 1..3 con cualquiera de ellas.
+      obtainedRewards.push({ id: reward.id, cantidad: this.rollGatherAmount(pickName) });
     }
   }
   // Drop garantizado SOLO con hachas NO penalizadas. Con el hacha de madera
   // (multiplier < 1) la tala PUEDE quedar sin madera (menos probabilidad).
   if (obtainedRewards.length === 0 && rewards.length > 0 && bonusMultiplier >= 1.0) {
-    obtainedRewards.push({ id: rewards[0].id, cantidad: rewards[0].cantidad });
+    obtainedRewards.push({ id: rewards[0].id, cantidad: this.rollGatherAmount(pickName) });
   }
   return obtainedRewards;
 };
@@ -7283,7 +7374,7 @@ oreProps.forEach(prop => {
         // Con hacha de madera (o baja) a veces no cae madera.
         this.notifications.show(`Chopped ${oreInfo.nombre}! But you got no wood this time.`, "warning", { icon: '🪓' });
       } else {
-        const rewardNames = rewards.map(r => `${r.cantidad}x ${r.id}`).join(', ');
+        const rewardNames = rewards.map(r => `${r.cantidad}x ${this._getFruitDisplayNameEN(r.id)}`).join(', ');
         this.notifications.show(`Chopped ${oreInfo.nombre}!\nObtained: ${rewardNames}`, "success", {
           customColor: oreInfo.colorNotificacion,
           icon: '🪓'
@@ -8163,6 +8254,9 @@ setupResourceLockSocket() {
   // el nivel viejo hasta que recargabas la página.
   this.socket.on('petLevelUpdate', ({ petLevel }) => {
     const n = Math.max(1, Number(petLevel) || 1);
+    // Compartido con la tienda: sin esto, al cambiar de escena el perro volvía
+    // a mostrarse en Lv.1 hasta que /api/load respondiera (o nunca).
+    window.globalPetLevel = n;
     if (this.petLevel === n) return;
     this.petLevel = n;
     console.log(`🐶 Nivel de la mascota actualizado: ${n}`);
@@ -8190,6 +8284,10 @@ setupResourceLockSocket() {
     } catch (e) { console.warn('mineLocked:', e.message || e); }
   });
 
+  // Verificadores, advertencias y baneos (submenú de clic derecho sobre otro
+  // jugador). Se engancha aquí porque es donde el socket ya está listo.
+  this._registrarEventosModeracion();
+
   // Al salir de la escena hay que soltar los listeners: si no, al volver se
   // acumulan y cada tala se aplicaría varias veces.
   const soltar = () => {
@@ -8197,8 +8295,14 @@ setupResourceLockSocket() {
       this.socket.off('treeLocked');
       this.socket.off('mineLocked');
       this.socket.off('petLevelUpdate');
+      this.socket.off('verifierChallenge');
+      this.socket.off('verifierResult');
+      this.socket.off('moderationWarning');
+      this.socket.off('accountBanned');
     } catch (_) {}
+    this._eventosModeracionListos = false;
     this._resourceLockSocketBound = false;
+    this._cerrarMenuJugador();
   };
   this.events.once('shutdown', soltar);
   this.events.once('destroy',  soltar);
@@ -11419,6 +11523,17 @@ handlePlotClick(plotId, pointer) {
       this.notifications.show("Este cultivo ya está regado", "error");
     }
   }
+  // RIEGO CON BALDE (2026-08-03): además de la regadera, ahora también se
+  // puede regar con el balde con agua. Un balde rinde para DOS parcelas.
+  else if (selectedItem.id === 'balde_con_agua') {
+    if (cropData && !cropData.isWatered) {
+      this.waterCropWithBucket(plotId);
+    } else if (!cropData) {
+      this.notifications.show("There's no crop to water here", "error");
+    } else {
+      this.notifications.show("This crop is already watered", "error");
+    }
+  }
   else if (selectedItem.id === 'Tijerasx') {
     if (!cropData) {
       this.notifications.show("No hay cultivo para cortar", "error");
@@ -11662,14 +11777,41 @@ stageSeed(plotId, seedType) {
   }
 
   // Verificar que alcance el agua/comida para todos los cuadros en cola
-  // (se descuentan realmente al confirmar, aquí solo se valida)
+  // (se descuentan realmente al confirmar, aquí solo se valida).
+  //
+  // FIX (2026-08-03): antes salía un escueto "Not enough resources to plant N
+  // seed(s)" que no decía QUÉ faltaba ni CUÁNTAS semillas sí se podían poner,
+  // así que parecía un fallo del juego al intentar sembrar la segunda o la
+  // tercera. Ahora se calcula el máximo real y se explica exactamente lo que
+  // falta. Además, los costes se leen con valores por defecto: si la config
+  // del cultivo llega incompleta del servidor, `undefined * n` daba NaN y la
+  // comprobación se saltaba sin avisar.
+  const costoAgua   = Number(cropConfig.waterCost);
+  const costoComida = Number(cropConfig.foodCost);
+  const cAgua   = Number.isFinite(costoAgua)   && costoAgua   > 0 ? costoAgua   : 0;
+  const cComida = Number.isFinite(costoComida) && costoComida > 0 ? costoComida : 0;
+
+  const agua   = Number(this.aguaPorcentaje)   || 0;
+  const comida = Number(this.comidaPorcentaje) || 0;
+
   const cantidadFutura = this.pendingPlantings.size + 1;
-  if (
-    this.aguaPorcentaje < cropConfig.waterCost * cantidadFutura ||
-    this.comidaPorcentaje < cropConfig.foodCost * cantidadFutura
-  ) {
+  const maxPorAgua   = cAgua   > 0 ? Math.floor(agua   / cAgua)   : Infinity;
+  const maxPorComida = cComida > 0 ? Math.floor(comida / cComida) : Infinity;
+  const maxPosible   = Math.min(maxPorAgua, maxPorComida);
+
+  if (cantidadFutura > maxPosible) {
+    const faltas = [];
+    if (cAgua   > 0 && agua   < cAgua   * cantidadFutura) {
+      faltas.push(`${Math.ceil(cAgua * cantidadFutura - agua)} more water`);
+    }
+    if (cComida > 0 && comida < cComida * cantidadFutura) {
+      faltas.push(`${Math.ceil(cComida * cantidadFutura - comida)} more food`);
+    }
+    const detalle = faltas.length ? ` — you need ${faltas.join(' and ')}` : '';
     this.notifications.show(
-      `Not enough resources to plant ${cantidadFutura} seed(s)`,
+      maxPosible > 0
+        ? `You can only plant ${maxPosible} seed(s) right now${detalle}. Eat or drink to plant more.`
+        : `You don't have enough water/food to plant${detalle}. Eat or drink first.`,
       "error"
     );
     return;
@@ -12076,10 +12218,29 @@ async _procesarLoteSiembra(lote) {
   const aSembrar = plotIds.slice(0, descontadas);
   const sobrantes = plotIds.slice(descontadas);
 
+  // FIX (2026-08-03): el agua/comida se descuenta AQUÍ, de una vez y por todo
+  // el lote confirmado, y luego se siembra sin volver a comprobar. Antes cada
+  // plantSeed() revisaba las barras por su cuenta: si mientras la transacción
+  // estaba en curso el jugador gastaba agua (talando, por ejemplo), esos
+  // cuadros ya no se sembraban... pero la semilla YA se había descontado
+  // on-chain. Es decir, se perdían semillas de verdad. Con el descuento hecho
+  // aquí, lo que se pagó en blockchain siempre se siembra.
+  const cfgLote = this.cropTypes[seedType] || {};
+  const cAgua   = Number(cfgLote.waterCost) > 0 ? Number(cfgLote.waterCost) : 0;
+  const cComida = Number(cfgLote.foodCost)  > 0 ? Number(cfgLote.foodCost)  : 0;
+  if (aSembrar.length > 0 && (cAgua > 0 || cComida > 0)) {
+    if (cAgua > 0) {
+      this.actualizarBarraAgua(Math.max(0, (Number(this.aguaPorcentaje) || 0) - cAgua * aSembrar.length));
+    }
+    if (cComida > 0) {
+      this.actualizarBarraComida(Math.max(0, (Number(this.comidaPorcentaje) || 0) - cComida * aSembrar.length));
+    }
+  }
+
   for (const plotId of aSembrar) {
     this.marcarCuadroPendiente(plotId, false);
     this._plotsEnVuelo.delete(plotId);
-    this.plantSeed(plotId, seedType);
+    this.plantSeed(plotId, seedType, { recursosYaDescontados: true });
   }
 
   if (sobrantes.length > 0) {
@@ -12148,7 +12309,14 @@ cancelSiembraPendiente() {
   }
 }
 
-plantSeed(plotId, seedType) {
+/**
+ * @param {object} [opciones]
+ * @param {boolean} [opciones.recursosYaDescontados]  true cuando el lote ya
+ *        pagó el agua/comida de todos sus cuadros en _procesarLoteSiembra.
+ *        En ese caso NO se vuelve a cobrar ni a comprobar: la semilla ya se
+ *        descontó en blockchain y tiene que sembrarse sí o sí.
+ */
+plantSeed(plotId, seedType, opciones = {}) {
   const cropConfig = this.cropTypes[seedType];
   if (!cropConfig) {
     this.notifications.show("Tipo de semilla no válido", "error");
@@ -12175,10 +12343,16 @@ plantSeed(plotId, seedType) {
   console.log(`🌱 Recompensa progreso: ${cropConfig.rewards.progress_quantity} ${cropConfig.rewards.progress_reward}`);
   console.log(`💀 Recompensa muerta: ${cropConfig.rewards.deadQuantity} ${cropConfig.rewards.deadReward}`);
 
-  if (this.aguaPorcentaje >= cropConfig.waterCost && this.comidaPorcentaje >= cropConfig.foodCost) {
-    this.actualizarBarraAgua(this.aguaPorcentaje - cropConfig.waterCost);
-    this.actualizarBarraComida(this.comidaPorcentaje - cropConfig.foodCost);
-    
+  const alcanzan =
+    opciones.recursosYaDescontados === true ||
+    (this.aguaPorcentaje >= cropConfig.waterCost && this.comidaPorcentaje >= cropConfig.foodCost);
+
+  if (alcanzan) {
+    if (opciones.recursosYaDescontados !== true) {
+      this.actualizarBarraAgua(this.aguaPorcentaje - cropConfig.waterCost);
+      this.actualizarBarraComida(this.comidaPorcentaje - cropConfig.foodCost);
+    }
+
     this.socket.emit('plantSeed', {
       userId: this.currentAccount,
       plotId: plotId,
@@ -12216,7 +12390,7 @@ async waterCrop(plotId) {
 
   if (this.aguaPorcentaje >= cropConfig.wateringCost) {
     this.actualizarBarraAgua(this.aguaPorcentaje - cropConfig.wateringCost);
-    
+
     this.socket.emit('waterCrop', {
       userId: this.currentAccount,
       plotId: plotId
@@ -12230,6 +12404,148 @@ async waterCrop(plotId) {
   } else {
     this.notifications.show(`Necesitas ${cropConfig.wateringCost} de agua para regar`, "error");
   }
+}
+
+// ============================================================================
+// RIEGO CON BALDE DE AGUA  (2026-08-03)
+// ----------------------------------------------------------------------------
+// Pedido: "también quiero que funcione con el balde de agua, solo que por un
+// balde podrás regar dos parcelas".
+//
+// Cómo funciona, y por qué así:
+//   El balde se gasta ENTERO en el PRIMER riego — se quita `balde_con_agua`
+//   con una transacción real y se devuelve `balde_vacio` (igual que hace el
+//   pozo, pero al revés). En ese momento queda guardado un "riego pendiente"
+//   que sirve para la SEGUNDA parcela.
+//   Se hace así, y no gastando medio balde por parcela, porque el inventario
+//   on-chain no admite medias unidades: si se esperara al segundo riego para
+//   descontar, un cierre de sesión en medio dejaría al jugador con un balde
+//   lleno que ya usó. El crédito pendiente se guarda por cuenta, así que
+//   sobrevive a recargas y a los viajes a la tienda.
+//   El agua sale del balde, no del jugador: regar así NO baja la barra de agua.
+// ============================================================================
+
+_bucketWaterKey() {
+  return `gf_bucket_water_${String(this.currentAccount || 'anon').toLowerCase()}`;
+}
+
+_getBucketWaterCredit() {
+  try {
+    const v = parseInt(localStorage.getItem(this._bucketWaterKey()) || '0', 10);
+    return Math.max(0, Number.isFinite(v) ? v : 0);
+  } catch (_) {
+    return Math.max(0, this._bucketWaterCreditMem || 0);
+  }
+}
+
+_setBucketWaterCredit(n) {
+  const v = Math.max(0, Number(n) || 0);
+  this._bucketWaterCreditMem = v;
+  try { localStorage.setItem(this._bucketWaterKey(), String(v)); } catch (_) {}
+}
+
+/** Cuántas parcelas riega un balde lleno. */
+get BUCKET_PLOTS_PER_FILL() { return 2; }
+
+async waterCropWithBucket(plotId) {
+  const cropData = this.cropData.get(plotId);
+  if (!cropData) return;
+
+  const cropConfig = this.cropTypes[cropData.cropType] || cropData.cropConfig;
+  if (!cropConfig) return;
+
+  // Candado: sin esto, dos toques rápidos en dos parcelas podían mandar dos
+  // transacciones del mismo balde a la vez.
+  if (this._riegoBaldeEnCurso) {
+    this.notifications.show('The bucket is already being used, please wait', 'warning');
+    return;
+  }
+
+  // ── Caso 1: queda un riego pendiente del balde anterior ──────────────
+  if (this._getBucketWaterCredit() > 0) {
+    this._setBucketWaterCredit(this._getBucketWaterCredit() - 1);
+    this._regarParcelaConBalde(plotId);
+    const quedan = this._getBucketWaterCredit();
+    this.notifications.show(
+      quedan > 0
+        ? `Watered with the bucket — ${quedan} plot(s) left in it`
+        : 'Watered with the bucket — the bucket is empty now',
+      'success',
+      { icon: '💧' }
+    );
+    return;
+  }
+
+  // ── Caso 2: hay que abrir un balde nuevo ─────────────────────────────
+  const disponibles = this.contarItemEnInventario('balde_con_agua');
+  if (disponibles < 1) {
+    this.notifications.show("You don't have a full bucket. Fill it at the well.", 'error');
+    return;
+  }
+
+  const defAgua  = this.ItemDefinitions ? this.ItemDefinitions['balde_con_agua'] : null;
+  const defVacio = this.ItemDefinitions ? this.ItemDefinitions['balde_vacio'] : null;
+
+  this._riegoBaldeEnCurso = true;
+  try {
+    if (defAgua && defAgua.tipo && defVacio && defVacio.tipo) {
+      this.notifications.show('💧 Sending the bucket transaction...', 'info');
+
+      // TX 1: quitar el balde con agua (y comprobar de verdad que se quitó,
+      // comparando el inventario antes y después — el valor de retorno de
+      // ejecutarDivisionRemove no es fiable, ver nota en _procesarLoteSiembra).
+      const antes = this.contarItemEnInventario('balde_con_agua');
+      try {
+        await this.ejecutarDivisionRemove(defAgua.tipo, 'balde_con_agua', defAgua.maxStack || 5, 1);
+      } catch (err) {
+        console.error('❌ Error quitando el balde con agua:', err);
+      }
+      const despues = this.contarItemEnInventario('balde_con_agua');
+      if (despues >= antes) {
+        this.notifications.show("The bucket transaction wasn't confirmed. Try again.", 'error');
+        return;
+      }
+
+      // TX 2: devolver el balde vacío. Si esta falla, el jugador se queda sin
+      // el balde vacío pero SÍ con sus dos riegos: se avisa con claridad.
+      try {
+        await this.ejecutarDivision(defVacio.tipo, 'balde_vacio', defVacio.maxStack || 5, 1);
+      } catch (err) {
+        console.error('❌ Error devolviendo el balde vacío:', err);
+        this.notifications.show(
+          "The empty bucket couldn't be returned on-chain. Talk to support if it doesn't show up.",
+          'warning'
+        );
+      }
+    } else {
+      // Sin definición on-chain: intercambio local (caso de respaldo).
+      if (!this.removeItemSmart('balde_con_agua', 1)) {
+        this.notifications.show('Could not use the bucket', 'error');
+        return;
+      }
+      this.addItemWithCheck('balde_vacio', 1);
+    }
+
+    // El balde ya se gastó: este riego + los que queden guardados.
+    this._setBucketWaterCredit(this.BUCKET_PLOTS_PER_FILL - 1);
+    this._regarParcelaConBalde(plotId);
+    this.notifications.show(
+      `Watered with the bucket — ${this._getBucketWaterCredit()} plot(s) left in it`,
+      'success',
+      { icon: '💧' }
+    );
+  } finally {
+    this._riegoBaldeEnCurso = false;
+  }
+}
+
+/** Riega la parcela sin tocar la barra de agua (el agua viene del balde). */
+_regarParcelaConBalde(plotId) {
+  this.socket.emit('waterCrop', {
+    userId: this.currentAccount,
+    plotId: plotId
+  });
+  this.nivel_exp = (this.nivel_exp || 0) + 5;
 }
 
 // ============================================================================
@@ -12255,9 +12571,19 @@ _getFruitDisplayNameEN(itemId) {
     trigo_buena: 'Good Wheat', trigo_corta: 'Unripe Wheat', trigo_mala: 'Rotten Wheat',
     calabaza_buena: 'Good Pumpkin', calabaza_corta: 'Unripe Pumpkin', calabaza_mala: 'Rotten Pumpkin',
     // Minerales (reutilizado también por la minería on-chain, ver _agregarFrutoOnChain)
-    mineral_piedra: 'Stone', mineral_cobre: 'Copper Ore', mineral_hierro: 'Iron Ore', carbon: 'Coal'
+    mineral_piedra: 'Stone', mineral_cobre: 'Copper Ore', mineral_hierro: 'Iron Ore', carbon: 'Coal',
+    // Maderas: se añadieron al pasar la tala a botín 1-3, para que el aviso
+    // diga "3x Pine Log" en vez del identificador crudo "3x madera_pinos".
+    madera_pinos: 'Pine Log', madera_seca: 'Dry Log', madera_con_hojas: 'Leafy Log'
   };
-  return nombres[itemId] || itemId;
+  if (nombres[itemId]) return nombres[itemId];
+  // Cualquier otro id se muestra legible ("madera_tronco" → "Madera Tronco")
+  // en vez de tal cual.
+  return String(itemId || '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\p{L}/gu, c => c.toUpperCase());
 }
 
 // Marca (o desmarca) visualmente un cuadro como "pendiente de corte"
@@ -14288,6 +14614,10 @@ createOtherPlayer(playerInfo) {
     nameText,
     _displayName: playerInfo.username || 'Player',
     _nivel: typeof playerInfo.nivel === 'number' ? playerInfo.nivel : undefined,
+    // Identidad que manda el SERVIDOR (no el cliente): con ella el submenú
+    // de clic derecho sabe a qué cuenta apuntan Profile / Verifier / Report.
+    _address: playerInfo.address || null,
+    _playerName: playerInfo.playerName || null,
     _lastChatMsg: null,
     _prevChatMsg: null,
     lastUpdate: Date.now(),
@@ -14296,6 +14626,10 @@ createOtherPlayer(playerInfo) {
   };
 
   const remotePlayer = this.otherPlayers[playerInfo.id];
+
+  // SUBMENÚ DE JUGADOR (2026-08-03): clic derecho sobre otro personaje abre
+  // Profile / Send verifier / Report para ESE jugador en concreto.
+  this._habilitarMenuJugador(playerInfo.id, sprite);
 
   remotePlayer.dog = {
     sprite: this.add.sprite(
@@ -14363,6 +14697,10 @@ updateOtherPlayer(playerInfo) {
   }
   // Update display name if it changed
   if (playerInfo.username) player._displayName = playerInfo.username;
+  // La identidad puede llegar más tarde que el primer paquete (por ejemplo si
+  // el socket todavía no había resuelto su playerName al entrar a la sala).
+  if (playerInfo.address)    player._address = playerInfo.address;
+  if (playerInfo.playerName) player._playerName = playerInfo.playerName;
   // Keep name always on top and updated position
   if (player.nameText) {
     const sprH6 = player.sprite.displayHeight || 64;
@@ -19090,7 +19428,11 @@ async loadPlayerData() {
     playerProps.forEach(prop => {
       if (data[prop] !== undefined && data[prop] !== null) this[prop] = data[prop];
     });
-    if (!this.petLevel || this.petLevel < 1) this.petLevel = 1;
+    if (!this.petLevel || this.petLevel < 1) {
+      this.petLevel = Math.max(1, Number(window.globalPetLevel) || 1);
+    }
+    // El nivel del perro viaja a la tienda por aquí (ver tiendajuego.js).
+    window.globalPetLevel = this.petLevel;
 
     // Nombre de mascota: '---' = aún sin fijar (regla de nombre único)
     if (!this.petName) this.petName = '---';
@@ -21599,6 +21941,582 @@ formatRespawnRemaining(ms) {
   const min = Math.floor(total / 60);
   const seg = total % 60;
   return min > 0 ? `${min}m ${seg}s` : `${seg}s`;
+}
+
+/**
+ * BOTÍN 1-3 POR SUERTE (2026-08-03).
+ * Cuánto se obtiene al terminar de talar un árbol o picar un mineral: siempre
+ * entre 1 y 3 unidades. La herramienta NO cambia el rango, solo la suerte
+ * (con hacha/pico de hierro es mucho más fácil que salgan 3).
+ * Debe coincidir con rollGatherAmount() del backend (server2.js) para que el
+ * modo servidor-autoritativo (GATHER_SERVER) dé exactamente lo mismo.
+ *
+ * @param {string} toolName  'hacha_de_hierro', 'pico_de_cobre', ...
+ * @returns {number} 1, 2 o 3
+ */
+rollGatherAmount(toolName) {
+  const t = String(toolName || '').toLowerCase();
+  // [prob de 1, prob de 2, prob de 3]
+  let pesos = [0.70, 0.25, 0.05];
+  if (t.includes('_madera'))      pesos = [0.70, 0.25, 0.05];
+  else if (t.includes('_piedra')) pesos = [0.55, 0.33, 0.12];
+  else if (t.includes('_cobre'))  pesos = [0.42, 0.38, 0.20];
+  else if (t.includes('_hierro')) pesos = [0.30, 0.40, 0.30];
+
+  const r = Math.random();
+  if (r < pesos[0]) return 1;
+  if (r < pesos[0] + pesos[1]) return 2;
+  return 3;
+}
+
+// ============================================================================
+// SUBMENÚ DE JUGADOR — clic derecho sobre otro personaje       (2026-08-03)
+// ----------------------------------------------------------------------------
+// Abre un menú propio de ESE jugador con tres opciones, en inglés:
+//   • Profile        → ficha con cartera, tiempo jugado, fecha de creación,
+//                      nombre de usuario, skills y más.
+//   • Send verifier  → le manda una comprobación rápida de que hay una persona
+//                      al teclado; el resultado queda registrado para los
+//                      administradores (consola-reportes.html).
+//   • Report         → formulario de denuncia con motivo y detalles.
+//
+// En teléfono no hay clic derecho, así que la misma acción se abre con una
+// pulsación larga (600 ms) sobre el personaje.
+// Todo el menú es HTML plano encima del canvas: así se ve nítido y se puede
+// usar con dedo o con ratón sin depender del zoom de la cámara.
+// ============================================================================
+
+_asegurarEstilosMenuJugador() {
+  if (document.getElementById('gf-player-menu-styles')) return;
+  const st = document.createElement('style');
+  st.id = 'gf-player-menu-styles';
+  st.textContent = `
+    .gf-pm-menu{position:fixed;z-index:100000;min-width:196px;background:linear-gradient(160deg,#161a2e 0%,#101427 100%);
+      border:2px solid #4a5aa8;border-radius:12px;padding:8px;box-shadow:0 12px 34px rgba(0,0,0,.6);
+      font-family:'PressStart2P',monospace;color:#e8ecff;display:none;}
+    .gf-pm-menu.show{display:block;animation:gfPmIn .12s ease-out;}
+    @keyframes gfPmIn{from{opacity:0;transform:translateY(-6px) scale(.97)}to{opacity:1;transform:none}}
+    .gf-pm-head{font-size:9px;color:#9fb0ff;padding:6px 8px 9px;border-bottom:1px solid #2b3358;
+      margin-bottom:6px;word-break:break-word;line-height:1.5;}
+    .gf-pm-item{display:flex;align-items:center;gap:9px;width:100%;background:none;border:none;
+      color:#e8ecff;font-family:inherit;font-size:10px;text-align:left;padding:10px 9px;border-radius:8px;
+      cursor:pointer;transition:background .12s,transform .12s;}
+    .gf-pm-item:hover{background:#28305a;transform:translateX(2px);}
+    .gf-pm-item.danger{color:#ff9a9a;}
+    .gf-pm-item.danger:hover{background:#4a1f27;}
+    .gf-pm-ico{font-size:13px;line-height:1;}
+
+    .gf-modal-back{position:fixed;inset:0;background:rgba(4,6,16,.78);z-index:100001;display:flex;
+      align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px);}
+    .gf-modal{width:min(560px,100%);max-height:88vh;overflow:auto;background:linear-gradient(160deg,#161a2e,#0e1223);
+      border:2px solid #4a5aa8;border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.7);
+      font-family:'PressStart2P',monospace;color:#e8ecff;}
+    .gf-modal-h{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:2px solid #2b3358;
+      position:sticky;top:0;background:#161a2e;border-radius:14px 14px 0 0;}
+    .gf-modal-h h3{margin:0;font-size:12px;flex:1;line-height:1.5;}
+    .gf-modal-x{background:none;border:none;color:#ff6b6b;font-size:20px;cursor:pointer;line-height:1;padding:0 4px;}
+    .gf-modal-b{padding:16px 18px;display:flex;flex-direction:column;gap:12px;}
+    .gf-row{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;
+      font-size:9px;line-height:1.7;border-bottom:1px dashed #262d4f;padding-bottom:8px;}
+    .gf-row span:first-child{color:#8fa0e8;flex:0 0 42%;}
+    .gf-row span:last-child{text-align:right;word-break:break-word;flex:1;}
+    .gf-chips{display:flex;flex-wrap:wrap;gap:7px;}
+    .gf-chip{background:#212949;border:1px solid #39447a;border-radius:20px;padding:6px 11px;font-size:8px;color:#cdd6ff;}
+    .gf-modal-f{padding:14px 18px;border-top:2px solid #2b3358;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;}
+    .gf-btn{font-family:inherit;font-size:10px;padding:11px 18px;border-radius:10px;cursor:pointer;
+      border:2px solid #5a6ac0;background:linear-gradient(140deg,#39448a,#2a3168);color:#fff;transition:filter .15s;}
+    .gf-btn:hover{filter:brightness(1.25);}
+    .gf-btn.ghost{background:none;border-color:#39447a;color:#a9b4e6;}
+    .gf-btn.danger{border-color:#a04a55;background:linear-gradient(140deg,#7d2b36,#5a1e27);}
+    .gf-btn:disabled{opacity:.5;cursor:not-allowed;filter:none;}
+    .gf-field{display:flex;flex-direction:column;gap:7px;font-size:9px;color:#8fa0e8;}
+    .gf-field select,.gf-field textarea,.gf-field input{font-family:inherit;font-size:10px;color:#e8ecff;
+      background:#0d1122;border:2px solid #333c6c;border-radius:9px;padding:11px;outline:none;}
+    .gf-field textarea{min-height:92px;resize:vertical;line-height:1.6;}
+    .gf-note{font-size:8px;color:#8f9ac4;line-height:1.7;}
+    @media (max-width:600px){
+      .gf-modal-h h3{font-size:10px;}
+      .gf-row{font-size:8px;flex-direction:column;gap:2px;}
+      .gf-row span:last-child{text-align:left;}
+      .gf-btn{flex:1;min-width:120px;}
+    }
+  `;
+  document.head.appendChild(st);
+}
+
+/** Clave con la que el backend puede identificar a ese jugador. */
+_claveJugadorRemoto(playerId) {
+  const p = this.otherPlayers && this.otherPlayers[playerId];
+  if (!p) return null;
+  return p._address || p._playerName || p._displayName || null;
+}
+
+_habilitarMenuJugador(playerId, sprite) {
+  if (!sprite) return;
+  try { sprite.setInteractive({ useHandCursor: true }); } catch (_) { return; }
+
+  sprite.on('pointerdown', (pointer) => {
+    // Ratón: botón derecho abre el menú directamente.
+    if (pointer && typeof pointer.rightButtonDown === 'function' && pointer.rightButtonDown()) {
+      this._abrirMenuJugador(playerId, pointer);
+      return;
+    }
+    // Táctil: pulsación larga (600 ms) sin mover el dedo.
+    if (pointer && pointer.wasTouch) {
+      const x0 = pointer.x, y0 = pointer.y;
+      this._pmLongPress = setTimeout(() => {
+        const actual = this.input.activePointer;
+        const movido = actual ? (Math.abs(actual.x - x0) + Math.abs(actual.y - y0)) > 24 : false;
+        if (!movido) this._abrirMenuJugador(playerId, { event: { clientX: x0, clientY: y0 } });
+      }, 600);
+    }
+  });
+
+  const cancelarLongPress = () => {
+    if (this._pmLongPress) { clearTimeout(this._pmLongPress); this._pmLongPress = null; }
+  };
+  sprite.on('pointerup', cancelarLongPress);
+  sprite.on('pointerout', cancelarLongPress);
+  sprite.on('pointermove', cancelarLongPress);
+}
+
+_abrirMenuJugador(playerId, pointer) {
+  const jugador = this.otherPlayers && this.otherPlayers[playerId];
+  if (!jugador) return;
+
+  this._asegurarEstilosMenuJugador();
+  this._cerrarMenuJugador();
+
+  const nombre = jugador._displayName || 'Player';
+  const menu = document.createElement('div');
+  menu.className = 'gf-pm-menu';
+  menu.id = 'gf-player-menu';
+
+  const head = document.createElement('div');
+  head.className = 'gf-pm-head';
+  head.textContent = nombre;
+  menu.appendChild(head);
+
+  const opciones = [
+    { icono: '👤', texto: 'Profile',       accion: () => this._mostrarPerfilJugador(playerId) },
+    { icono: '🛡️', texto: 'Send verifier', accion: () => this._enviarVerificador(playerId) },
+    { icono: '🚩', texto: 'Report',        accion: () => this._abrirReporteJugador(playerId), peligro: true }
+  ];
+
+  opciones.forEach(op => {
+    const b = document.createElement('button');
+    b.className = 'gf-pm-item' + (op.peligro ? ' danger' : '');
+    b.type = 'button';
+    const i = document.createElement('span');
+    i.className = 'gf-pm-ico';
+    i.textContent = op.icono;
+    const t = document.createElement('span');
+    t.textContent = op.texto;
+    b.appendChild(i); b.appendChild(t);
+    b.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      this._cerrarMenuJugador();
+      op.accion();
+    });
+    menu.appendChild(b);
+  });
+
+  document.body.appendChild(menu);
+  menu.classList.add('show');
+
+  // Colocarlo junto al puntero, sin salirse de la pantalla.
+  const ev = pointer && pointer.event ? pointer.event : null;
+  const px = ev && typeof ev.clientX === 'number' ? ev.clientX : window.innerWidth / 2;
+  const py = ev && typeof ev.clientY === 'number' ? ev.clientY : window.innerHeight / 2;
+  const r = menu.getBoundingClientRect();
+  menu.style.left = Math.max(8, Math.min(px, window.innerWidth  - r.width  - 8)) + 'px';
+  menu.style.top  = Math.max(8, Math.min(py, window.innerHeight - r.height - 8)) + 'px';
+
+  // Cerrar al tocar fuera o con ESC.
+  this._pmCerrarFuera = (e) => { if (!menu.contains(e.target)) this._cerrarMenuJugador(); };
+  this._pmCerrarEsc = (e) => { if (e.key === 'Escape') this._cerrarMenuJugador(); };
+  setTimeout(() => {
+    document.addEventListener('pointerdown', this._pmCerrarFuera, true);
+    document.addEventListener('keydown', this._pmCerrarEsc);
+  }, 0);
+}
+
+_cerrarMenuJugador() {
+  const m = document.getElementById('gf-player-menu');
+  if (m) m.remove();
+  if (this._pmCerrarFuera) {
+    document.removeEventListener('pointerdown', this._pmCerrarFuera, true);
+    this._pmCerrarFuera = null;
+  }
+  if (this._pmCerrarEsc) {
+    document.removeEventListener('keydown', this._pmCerrarEsc);
+    this._pmCerrarEsc = null;
+  }
+}
+
+/** Ventana genérica reutilizada por perfil, reporte y verificador. */
+_crearModal(titulo, { cuerpo, botones } = {}) {
+  this._asegurarEstilosMenuJugador();
+
+  const back = document.createElement('div');
+  back.className = 'gf-modal-back';
+
+  const modal = document.createElement('div');
+  modal.className = 'gf-modal';
+
+  const head = document.createElement('div');
+  head.className = 'gf-modal-h';
+  const h = document.createElement('h3');
+  h.textContent = titulo;
+  const x = document.createElement('button');
+  x.className = 'gf-modal-x';
+  x.type = 'button';
+  x.textContent = '×';
+  x.addEventListener('click', () => back.remove());
+  head.appendChild(h); head.appendChild(x);
+
+  const body = document.createElement('div');
+  body.className = 'gf-modal-b';
+  if (cuerpo) body.appendChild(cuerpo);
+
+  modal.appendChild(head);
+  modal.appendChild(body);
+
+  if (Array.isArray(botones) && botones.length) {
+    const pie = document.createElement('div');
+    pie.className = 'gf-modal-f';
+    botones.forEach(b => {
+      const btn = document.createElement('button');
+      btn.className = 'gf-btn' + (b.clase ? ' ' + b.clase : '');
+      btn.type = 'button';
+      btn.textContent = b.texto;
+      btn.addEventListener('click', () => b.accion(back, btn));
+      pie.appendChild(btn);
+    });
+    modal.appendChild(pie);
+  }
+
+  back.appendChild(modal);
+  back.addEventListener('click', (e) => { if (e.target === back) back.remove(); });
+  document.body.appendChild(back);
+  return { back, body };
+}
+
+_filaPerfil(etiqueta, valor) {
+  const fila = document.createElement('div');
+  fila.className = 'gf-row';
+  const a = document.createElement('span'); a.textContent = etiqueta;
+  const b = document.createElement('span'); b.textContent = (valor === null || valor === undefined || valor === '') ? '—' : String(valor);
+  fila.appendChild(a); fila.appendChild(b);
+  return fila;
+}
+
+async _mostrarPerfilJugador(playerId) {
+  const clave = this._claveJugadorRemoto(playerId);
+  const jugador = this.otherPlayers && this.otherPlayers[playerId];
+  const nombre = (jugador && jugador._displayName) || 'Player';
+
+  const contenedor = document.createElement('div');
+  const cargando = document.createElement('div');
+  cargando.className = 'gf-note';
+  cargando.textContent = 'Loading profile…';
+  contenedor.appendChild(cargando);
+
+  const { back } = this._crearModal(`Profile — ${nombre}`, {
+    cuerpo: contenedor,
+    botones: [{ texto: 'Close', clase: 'ghost', accion: (b) => b.remove() }]
+  });
+
+  if (!clave) {
+    cargando.textContent = "This player's account could not be identified.";
+    return;
+  }
+
+  try {
+    const res = await this.fetchWithTokenRetry(
+      `${this.serverBase}/api/player/profile/${encodeURIComponent(clave)}`,
+      { method: 'GET' }
+    );
+    if (!res.ok) {
+      cargando.textContent = res.status === 404
+        ? 'That player has no public profile yet.'
+        : 'Profile is not available right now.';
+      return;
+    }
+    const data = await res.json();
+    const p = data.profile || {};
+    if (!back.isConnected) return;
+
+    contenedor.textContent = '';
+    contenedor.appendChild(this._filaPerfil('Username',      p.username && p.username !== '---' ? p.username : p.playerName));
+    contenedor.appendChild(this._filaPerfil('Account',       p.playerName));
+    contenedor.appendChild(this._filaPerfil('Wallet',        p.address || '—'));
+    contenedor.appendChild(this._filaPerfil('Status',        p.online ? '🟢 Online' : '⚪ Offline'));
+    contenedor.appendChild(this._filaPerfil('Level',         `Lv. ${p.nivel || 0} (${p.exp || 0} exp)`));
+    contenedor.appendChild(this._filaPerfil('Pet',           `${p.petName || '---'} — Lv. ${p.petLevel || 1}`));
+    contenedor.appendChild(this._filaPerfil('Play time',     p.jugado || '—'));
+    contenedor.appendChild(this._filaPerfil('Sessions',      p.sesiones || 0));
+    contenedor.appendChild(this._filaPerfil('Account created', p.creadoEn ? new Date(p.creadoEn).toLocaleString() : '—'));
+    contenedor.appendChild(this._filaPerfil('Account age',   p.antiguedad || '—'));
+    contenedor.appendChild(this._filaPerfil('Last seen',     p.ultimaVez ? new Date(p.ultimaVez).toLocaleString() : '—'));
+    contenedor.appendChild(this._filaPerfil('Gold / Silver', `${p.oro || 0} GL · ${p.plata || 0} SL`));
+
+    const skills = p.skills && typeof p.skills === 'object' ? p.skills : {};
+    const clavesSkill = Object.keys(skills).filter(k => typeof skills[k] === 'number');
+    const tituloSkills = document.createElement('div');
+    tituloSkills.className = 'gf-note';
+    tituloSkills.style.marginTop = '6px';
+    tituloSkills.textContent = clavesSkill.length ? 'Skills' : 'Skills — none recorded yet';
+    contenedor.appendChild(tituloSkills);
+
+    if (clavesSkill.length) {
+      const chips = document.createElement('div');
+      chips.className = 'gf-chips';
+      clavesSkill.forEach(k => {
+        const c = document.createElement('span');
+        c.className = 'gf-chip';
+        const bonito = k.replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase());
+        c.textContent = `${bonito}: ${skills[k]}`;
+        chips.appendChild(c);
+      });
+      contenedor.appendChild(chips);
+    }
+  } catch (e) {
+    console.warn('No se pudo cargar el perfil:', e);
+    cargando.textContent = 'Connection error while loading the profile.';
+  }
+}
+
+async _enviarVerificador(playerId) {
+  const clave = this._claveJugadorRemoto(playerId);
+  const jugador = this.otherPlayers && this.otherPlayers[playerId];
+  const nombre = (jugador && jugador._displayName) || 'that player';
+  if (!clave) {
+    this.notifications.show("That player's account could not be identified", 'error');
+    return;
+  }
+
+  try {
+    const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/verifier/send`, {
+      method: 'POST',
+      body: JSON.stringify({ target: clave })
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      const mensajes = {
+        verifier_cooldown: `You can send another verifier in ${data.secondsRemaining || 60}s`,
+        player_not_found: 'That player has no account on record',
+        cannot_verify_yourself: "You can't send a verifier to yourself"
+      };
+      this.notifications.show(mensajes[data.error] || 'The verifier could not be sent', 'error');
+      return;
+    }
+
+    this.notifications.show(
+      data.delivered
+        ? `Verifier sent to ${nombre} — you'll be told if they pass it`
+        : `Verifier registered — ${nombre} is offline right now`,
+      'success',
+      { icon: '🛡️' }
+    );
+  } catch (e) {
+    console.warn('Error enviando verificador:', e);
+    this.notifications.show('Connection error while sending the verifier', 'error');
+  }
+}
+
+_abrirReporteJugador(playerId) {
+  const clave = this._claveJugadorRemoto(playerId);
+  const jugador = this.otherPlayers && this.otherPlayers[playerId];
+  const nombre = (jugador && jugador._displayName) || 'Player';
+  if (!clave) {
+    this.notifications.show("That player's account could not be identified", 'error');
+    return;
+  }
+
+  const cuerpo = document.createElement('div');
+  cuerpo.style.cssText = 'display:flex;flex-direction:column;gap:14px;';
+
+  const campoMotivo = document.createElement('label');
+  campoMotivo.className = 'gf-field';
+  campoMotivo.appendChild(Object.assign(document.createElement('span'), { textContent: 'Reason' }));
+  const select = document.createElement('select');
+  [
+    ['botting', 'Botting / automation'],
+    ['cheating', 'Cheating / exploiting'],
+    ['harassment', 'Harassment or abuse'],
+    ['scam', 'Scam or fraud'],
+    ['spam', 'Spam / chat flooding'],
+    ['inappropriate_name', 'Inappropriate name'],
+    ['exploit_abuse', 'Abusing a game bug'],
+    ['other', 'Other']
+  ].forEach(([v, t]) => {
+    const o = document.createElement('option');
+    o.value = v; o.textContent = t;
+    select.appendChild(o);
+  });
+  campoMotivo.appendChild(select);
+
+  const campoDetalle = document.createElement('label');
+  campoDetalle.className = 'gf-field';
+  campoDetalle.appendChild(Object.assign(document.createElement('span'), { textContent: 'Details (optional)' }));
+  const textarea = document.createElement('textarea');
+  textarea.maxLength = 1000;
+  textarea.placeholder = 'What happened? Where and when?';
+  campoDetalle.appendChild(textarea);
+
+  const nota = document.createElement('div');
+  nota.className = 'gf-note';
+  nota.textContent = 'Your report goes to the moderation team along with your name, the reported player and your position on the map. False reports may be penalised.';
+
+  cuerpo.appendChild(campoMotivo);
+  cuerpo.appendChild(campoDetalle);
+  cuerpo.appendChild(nota);
+
+  this._crearModal(`Report — ${nombre}`, {
+    cuerpo,
+    botones: [
+      { texto: 'Cancel', clase: 'ghost', accion: (back) => back.remove() },
+      {
+        texto: 'Send report',
+        clase: 'danger',
+        accion: async (back, btn) => {
+          btn.disabled = true;
+          btn.textContent = 'Sending…';
+          try {
+            const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/reports`, {
+              method: 'POST',
+              body: JSON.stringify({
+                target: clave,
+                reason: select.value,
+                details: textarea.value,
+                scene: 'GameScene',
+                x: Math.round(this.player ? this.player.x : 0),
+                y: Math.round(this.player ? this.player.y : 0)
+              })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              const mensajes = {
+                report_cooldown: 'You already reported that player recently',
+                cannot_report_yourself: "You can't report yourself",
+                player_not_found: 'That player has no account on record'
+              };
+              this.notifications.show(mensajes[data.error] || 'The report could not be sent', 'error');
+              btn.disabled = false;
+              btn.textContent = 'Send report';
+              return;
+            }
+            back.remove();
+            this.notifications.show('Report sent to the moderation team', 'success', { icon: '🚩' });
+          } catch (e) {
+            console.warn('Error enviando reporte:', e);
+            this.notifications.show('Connection error while sending the report', 'error');
+            btn.disabled = false;
+            btn.textContent = 'Send report';
+          }
+        }
+      }
+    ]
+  });
+}
+
+/**
+ * Escucha por socket lo que llega del sistema de verificadores y de la
+ * moderación. Se llama una sola vez al preparar los eventos de la escena.
+ */
+_registrarEventosModeracion() {
+  if (!this.socket || this._eventosModeracionListos) return;
+  this._eventosModeracionListos = true;
+
+  // Alguien me mandó un verificador: hay que contestarlo.
+  this.socket.on('verifierChallenge', (data) => {
+    if (!data || !data.id) return;
+    const cuerpo = document.createElement('div');
+    cuerpo.style.cssText = 'display:flex;flex-direction:column;gap:14px;';
+
+    const aviso = document.createElement('div');
+    aviso.className = 'gf-note';
+    aviso.textContent = `${data.from || 'A player'} sent you a verifier to confirm there's a real person playing. Answer it to keep your account clear.`;
+
+    const campo = document.createElement('label');
+    campo.className = 'gf-field';
+    campo.appendChild(Object.assign(document.createElement('span'), { textContent: data.question || '?' }));
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.inputMode = 'numeric';
+    input.autocomplete = 'off';
+    campo.appendChild(input);
+
+    cuerpo.appendChild(aviso);
+    cuerpo.appendChild(campo);
+
+    this._crearModal('Verifier', {
+      cuerpo,
+      botones: [{
+        texto: 'Answer',
+        accion: async (back, btn) => {
+          btn.disabled = true;
+          try {
+            const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/verifier/answer`, {
+              method: 'POST',
+              body: JSON.stringify({ id: data.id, answer: input.value })
+            });
+            const r = await res.json().catch(() => ({}));
+            back.remove();
+            this.notifications.show(
+              r.status === 'passed' ? 'Verifier passed ✅' : 'Verifier failed ❌',
+              r.status === 'passed' ? 'success' : 'error'
+            );
+          } catch (_) {
+            btn.disabled = false;
+            this.notifications.show('Could not send the answer', 'error');
+          }
+        }
+      }]
+    });
+    setTimeout(() => input.focus(), 60);
+  });
+
+  // Resultado del verificador que YO mandé.
+  this.socket.on('verifierResult', (data) => {
+    if (!data) return;
+    const textos = {
+      passed: `${data.player || 'The player'} passed the verifier ✅`,
+      failed: `${data.player || 'The player'} failed the verifier ❌`,
+      expired: `${data.player || 'The player'} let the verifier expire ⌛`
+    };
+    this.notifications.show(textos[data.status] || 'Verifier answered', data.status === 'passed' ? 'success' : 'warning');
+  });
+
+  // Advertencia de un administrador.
+  this.socket.on('moderationWarning', (data) => {
+    const cuerpo = document.createElement('div');
+    const p = document.createElement('div');
+    p.className = 'gf-note';
+    p.style.fontSize = '10px';
+    p.textContent = (data && data.body) || 'You received a warning from the moderation team.';
+    cuerpo.appendChild(p);
+    this._crearModal((data && data.subject) || 'Official warning', {
+      cuerpo,
+      botones: [{ texto: 'I understand', accion: (back) => back.remove() }]
+    });
+  });
+
+  // Baneo: el servidor ya cierra el socket, aquí solo se explica por qué.
+  this.socket.on('accountBanned', (data) => {
+    const cuerpo = document.createElement('div');
+    const p = document.createElement('div');
+    p.className = 'gf-note';
+    p.style.fontSize = '10px';
+    p.textContent = `This account has been banned. Reason: ${(data && data.reason) || 'rule violation'}.`;
+    cuerpo.appendChild(p);
+    this._crearModal('Account banned', {
+      cuerpo,
+      botones: [{ texto: 'Close', clase: 'danger', accion: () => { window.location.reload(); } }]
+    });
+  });
 }
 
 /**
