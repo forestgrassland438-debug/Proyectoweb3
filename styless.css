@@ -10533,3 +10533,291 @@ body.in-battle #notification-hub { display: none !important; }
     font-size: 16px !important;
   }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PANEL DE MISIONES — REDISEÑO PC + TELÉFONO                     (2026-08-03)
+   ---------------------------------------------------------------------------
+   Reemplaza el aspecto del panel de misiones sin tocar las reglas antiguas
+   (van más arriba en este mismo archivo; estas ganan por orden de cascada).
+   Lo que aporta: cabecera con barra de avance, tarjetas con progreso real
+   "3 / 5", estados visuales (lista para entregar / a medias / completada) y
+   un maquetado que se reordena solo en pantallas estrechas.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.missions-panel {
+  width: min(920px, 94vw);
+  max-width: none;
+  /* dvh evita que en el móvil el panel quede cortado por la barra del
+     navegador; vh se queda como respaldo para navegadores viejos. */
+  max-height: 86vh;
+  max-height: 86dvh;
+  background: linear-gradient(160deg, #171c33 0%, #0e1327 60%, #0b0f20 100%);
+  border: 3px solid #3d4a86;
+  border-radius: 18px;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, .75);
+}
+
+.missions-header {
+  padding: 18px 20px 14px;
+  background: linear-gradient(180deg, rgba(46, 56, 106, .95), rgba(30, 37, 74, .95));
+  border-bottom: 2px solid #47539a;
+  gap: 12px;
+}
+
+#missions-npc-title {
+  font-size: 15px;
+  margin-bottom: 12px;
+  letter-spacing: .5px;
+}
+
+.missions-meta {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+
+.reset-time, .progress { font-size: 10px; }
+
+.missions-header-bar {
+  position: relative;
+  flex: 1 1 160px;
+  min-width: 120px;
+  height: 9px;
+  background: rgba(9, 12, 26, .85);
+  border: 1px solid #3c4886;
+  border-radius: 20px;
+  overflow: hidden;
+}
+.missions-header-bar > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #58e08a, #9dfcb8);
+  border-radius: 20px;
+  transition: width .35s ease;
+}
+
+.missions-content { padding: 18px; }
+.missions-list { gap: 14px; }
+
+.mission-card {
+  position: relative;
+  background: linear-gradient(150deg, rgba(41, 49, 92, .95), rgba(28, 34, 66, .95));
+  border: 2px solid #46529b;
+  border-radius: 16px;
+  padding: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(178px, auto);
+  gap: 18px;
+  align-items: center;
+}
+
+/* Lista para entregar: se resalta para que salte a la vista. */
+.mission-card.ready {
+  border-color: #6fe39a;
+  box-shadow: 0 0 0 1px rgba(111, 227, 154, .35), 0 8px 24px rgba(20, 90, 50, .35);
+}
+.mission-card.ready::before {
+  content: '★';
+  position: absolute;
+  top: 10px; right: 14px;
+  color: #8dffb6;
+  font-size: 12px;
+}
+
+.mission-card.completed {
+  background: linear-gradient(150deg, rgba(30, 66, 44, .9), rgba(22, 48, 33, .9));
+  border-color: #4c9b68;
+  opacity: .82;
+}
+
+.mission-title { font-size: 13px; line-height: 1.55; }
+.mission-description { font-size: 10px; line-height: 1.7; color: #b9c2e8; }
+
+.mission-requirements { margin-top: 4px; }
+
+.requirement-item {
+  gap: 12px;
+  align-items: center;
+  background: rgba(11, 15, 31, .55);
+  border: 1px solid #333e78;
+  border-radius: 12px;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.requirement-item .item-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .6));
+}
+
+.requirement-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.requirement-name {
+  font-size: 10px;
+  color: #ffffff;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+.item-amount { font-size: 11px; color: #ffd873; }
+.item-amount.ok { color: #8dffb6; }
+
+.requirement-bar {
+  height: 7px;
+  background: rgba(6, 9, 20, .9);
+  border: 1px solid #333e78;
+  border-radius: 20px;
+  overflow: hidden;
+}
+.requirement-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #5a8bff, #8fd0ff);
+  border-radius: 20px;
+  transition: width .35s ease;
+}
+.mission-card.ready .requirement-bar > span {
+  background: linear-gradient(90deg, #48d183, #9dfcb8);
+}
+
+.mission-actions { gap: 10px; align-items: stretch; }
+
+.mission-rewards {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 7px;
+  margin-top: 0;
+}
+
+.reward-item {
+  gap: 8px;
+  background: rgba(11, 15, 31, .55);
+  border: 1px solid #333e78;
+  border-radius: 10px;
+  padding: 7px 10px;
+}
+.reward-item .item-icon { width: 26px; height: 26px; }
+.exp-reward { font-size: 10px; color: #ffe066; }
+.item-reward { font-size: 9px; color: #c8d2ff; line-height: 1.5; word-break: break-word; }
+
+.complete-button { font-size: 11px; padding: 13px 18px; width: 100%; min-width: 0; }
+.complete-button.ready {
+  background: linear-gradient(135deg, #2f9c5c 0%, #1f7a45 100%);
+  border-color: #79ecab;
+}
+.complete-button.ready:hover:not(.disabled) {
+  background: linear-gradient(135deg, #3ec478 0%, #2b9c5c 100%);
+}
+
+.mission-hint {
+  font-size: 8px;
+  color: #9aa5d6;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.mission-empty {
+  display: block;
+  text-align: center;
+  padding: 30px 20px;
+}
+.mission-empty-ico { font-size: 36px; margin-bottom: 10px; }
+.mission-empty-title { font-size: 13px; margin-bottom: 8px; }
+.mission-empty-text { font-size: 10px; color: #b9c2e8; line-height: 1.7; }
+
+.missions-footer { padding: 13px 18px; }
+.refresh-button.loading { opacity: .6; cursor: wait; }
+
+/* ── Teléfonos ───────────────────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .missions-panel {
+    width: 96vw;
+    max-height: 90vh;
+    max-height: 90dvh;
+    border-radius: 14px;
+  }
+  .missions-header { padding: 14px 14px 12px; }
+  #missions-npc-title { font-size: 12px; margin-bottom: 10px; }
+  .reset-time, .progress { font-size: 9px; }
+  .missions-header-bar { flex-basis: 100%; }
+  .missions-content { padding: 12px; }
+  .missions-list { gap: 12px; }
+
+  .mission-card {
+    grid-template-columns: 1fr;
+    padding: 14px;
+    gap: 14px;
+  }
+  .mission-title { font-size: 11px; }
+  .mission-description { font-size: 9px; }
+  .requirement-item .item-icon { width: 36px; height: 36px; flex-basis: 36px; }
+  .mission-rewards { flex-direction: row; flex-wrap: wrap; }
+  .reward-item { flex: 1 1 46%; }
+  .complete-button { font-size: 10px; padding: 14px 12px; }
+  .mission-actions { margin-top: 0; }
+}
+
+@media (max-width: 400px) {
+  #missions-npc-title { font-size: 10px; }
+  .mission-title { font-size: 10px; }
+  .reward-item { flex-basis: 100%; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ALTURA REAL DEL VIEWPORT EN MÓVIL                              (2026-08-03)
+   ---------------------------------------------------------------------------
+   En el teléfono el juego se dibujaba en una franja de la parte de arriba y el
+   resto quedaba en negro: el lienzo se creaba con la altura que había ANTES de
+   que el navegador escondiera su barra de direcciones, y ya no se volvía a
+   ajustar. `100vh` tampoco sirve, porque en móvil incluye la barra.
+   viewport-fix.js publica la altura REAL en --app-height y aquí se usa.
+   NO cambia ningún zoom de cámara: solo el tamaño del lienzo y del contenedor.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root { --app-height: 100vh; }
+
+html, body {
+  height: var(--app-height);
+  min-height: var(--app-height);
+  overscroll-behavior: none;
+}
+
+#container {
+  width: 100vw !important;
+  width: 100dvw !important;
+  height: var(--app-height) !important;
+  overflow: hidden;
+  position: relative;
+  touch-action: none;
+}
+
+#container > canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  image-rendering: pixelated;
+}
+
+/* Superficies a pantalla completa: en móvil `100vh` mide MÁS que lo que se ve
+   (incluye la barra del navegador), así que el pie de la tienda y de los
+   paneles quedaba fuera de la pantalla. Se pasan a la altura real. */
+.dashboard-overlay,
+.missions-overlay,
+#loading-overlay {
+  height: var(--app-height) !important;
+}
+
+@media (max-width: 768px) {
+  .tienda-panel { height: var(--app-height) !important; }
+}

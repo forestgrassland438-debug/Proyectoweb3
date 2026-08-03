@@ -1837,7 +1837,12 @@ class TiendaSistema {
         }
         
         this.setBalanceByCurrency(currency, balance - totalCost);
-        
+        // VERIFICACIÓN DEL COBRO (2026-08-03): comprobar que al jugador se le
+        // descontó EXACTAMENTE el precio. Si el saldo no cuadra (porque algún
+        // eslabón de setBalanceByCurrency no llegó a aplicarse), se corrige
+        // aquí mismo antes de seguir con la compra.
+        this._verificarMovimientoMonedas(currency, balance, -totalCost, `Compra de ${quantity}x ${item.name}`);
+
         if (item.limiteDiario > 0) {
             this.dailyLimits[item.id] = (this.dailyLimits[item.id] || 0) + quantity;
             this.saveDailyLimits();
@@ -1931,7 +1936,11 @@ class TiendaSistema {
             const currency = transactionInfo.currency || this.getItemCurrency(item);
 
             if (refund > 0) {
-                this.setBalanceByCurrency(currency, this.getBalanceByCurrency(currency) + refund);
+                const saldoAntesReembolso = Math.floor(Number(this.getBalanceByCurrency(currency)) || 0);
+                this.setBalanceByCurrency(currency, saldoAntesReembolso + refund);
+                // El reembolso también se verifica: es dinero que se devuelve
+                // y tiene que aparecer de verdad, no solo en pantalla.
+                this._verificarMovimientoMonedas(currency, saldoAntesReembolso, refund, `Reembolso de ${missing}x ${item.name}`);
                 this.updateMonedaDisplay?.();
             }
             if (item.limiteDiario > 0) {
@@ -3693,23 +3702,109 @@ renderSlot(index) {
 
 
     
+    // ------------------------------------------------------------------
+    // VERIFICACIÓN DEL COBRO / PAGO  (2026-08-03)
+    // ------------------------------------------------------------------
+    // Pedido: "quiero que siempre verifiques en la tienda después de comprar
+    // o vender, para que realmente se haya cobrado o dado el dinero según el
+    // precio".
+    //
+    // setBalanceByCurrency() escribe el saldo en varios sitios a la vez
+    // (this.playerMoneda, la escena, window.playerStats y statsSync, que es
+    // quien manda la transacción real). Si cualquiera de esos pasos se pierde,
+    // el jugador veía el precio descontado en pantalla pero su oro real seguía
+    // igual — o al revés, cobraba dos veces.
+    //
+    // Esta comprobación mira el saldo ANTES y DESPUÉS y exige que la
+    // diferencia sea EXACTAMENTE el precio. Si no cuadra, lo corrige dejando
+    // el saldo esperado y avisa en consola y en pantalla.
+    //
+    // @param {'gold'|'silver'} currency
+    // @param {number} saldoAntes    saldo justo antes del movimiento
+    // @param {number} delta         negativo si se cobra, positivo si se paga
+    // @returns {boolean} true si el movimiento cuadró a la primera
+    _verificarMovimientoMonedas(currency, saldoAntes, delta, etiqueta) {
+        const esperado = Math.max(0, Math.floor(saldoAntes + delta));
+        const real = Math.floor(Number(this.getBalanceByCurrency(currency)) || 0);
+
+        if (real === esperado) {
+            console.log(`💰 ${etiqueta}: saldo verificado (${saldoAntes} → ${real} ${this.getCurrencyLabel(currency)})`);
+            return true;
+        }
+
+        console.error(
+            `❌ ${etiqueta}: el saldo NO cuadra. Esperado ${esperado}, encontrado ${real} ` +
+            `(${this.getCurrencyLabel(currency)}). Se corrige al valor esperado.`
+        );
+        // Reaplicar el valor correcto: esto vuelve a disparar statsSync, que es
+        // el que manda la transacción real de monedas.
+        this.setBalanceByCurrency(currency, esperado);
+
+        const reintento = Math.floor(Number(this.getBalanceByCurrency(currency)) || 0);
+        if (reintento !== esperado) {
+            this.showNotification?.(
+                `⚠️ Your ${this.getCurrencyLabel(currency)} balance could not be verified. Reopen the shop before trading again.`,
+                'error'
+            );
+            return false;
+        }
+        this.updateMonedaDisplay?.();
+        return true;
+    }
+
     // Procesar venta usando sellPrice
     async processSale(item, quantity) {
         // La tienda no altera el inventario: solo registra la interacción y aplica el cálculo económico.
         const currency = this.getItemCurrency(item);
-        const grossPrice = item.sellPrice * quantity;
-        const commission = Math.max(0, Math.ceil(grossPrice * ((Number(item.comision) || 0) / 100)));
+        const unitGross = Number(item.sellPrice) || 0;
+        const comisionPct = Number(item.comision) || 0;
+
+        // ORDEN CORREGIDO (2026-08-03): antes se PAGABA primero y luego se
+        // intentaba quitar el ítem en blockchain. Si esa transacción fallaba,
+        // el jugador se quedaba con el dinero Y con el ítem. Ahora primero se
+        // quita el ítem, se comprueba cuántas unidades salieron de verdad
+        // (comparando el inventario antes y después) y solo se paga por esas.
+        const cantidadAntes = this.getItemCountInInventory(item.id);
+
+        const tabla = this._getOnchainTableFor(item.id);
+        if (tabla) {
+            const [, limite] = tabla;
+            try {
+                await this.ejecutarDivisionRemove.call(this, 'slots', item.id, limite, quantity);
+            } catch (err) {
+                console.error(`❌ Error quitando ${item.id} en la venta:`, err);
+            }
+        }
+
+        const cantidadDespues = this.getItemCountInInventory(item.id);
+        const vendidas = tabla
+            ? Math.max(0, cantidadAntes - cantidadDespues)
+            : quantity; // ítem sin representación on-chain: se confía en la cantidad pedida
+
+        if (vendidas <= 0) {
+            this.showNotification?.(
+                `⚠️ The sale of ${item.name} was not confirmed on-chain. Nothing was charged or paid.`,
+                'error'
+            );
+            console.warn(`⚠️ Venta no confirmada: 0/${quantity} ${item.id}`);
+            return;
+        }
+
+        const grossPrice = unitGross * vendidas;
+        const commission = Math.max(0, Math.ceil(grossPrice * (comisionPct / 100)));
         const finalPrice = Math.max(0, grossPrice - commission);
-        const currentBalance = this.getBalanceByCurrency(currency);
-        
-        this.setBalanceByCurrency(currency, currentBalance + finalPrice);
-        
+
+        const saldoAntes = Math.floor(Number(this.getBalanceByCurrency(currency)) || 0);
+        this.setBalanceByCurrency(currency, saldoAntes + finalPrice);
+        // VERIFICACIÓN: el dinero tiene que haberse abonado exactamente.
+        this._verificarMovimientoMonedas(currency, saldoAntes, finalPrice, `Venta de ${vendidas}x ${item.name}`);
+
         const transactionInfo = {
             type: 'venta',
             itemId: item.id,
             itemName: item.name,
-            quantity,
-            unitPrice: item.sellPrice,
+            quantity: vendidas,
+            unitPrice: unitGross,
             totalGain: finalPrice,
             grossPrice,
             fee: commission,
@@ -3719,69 +3814,18 @@ renderSlot(index) {
         };
         console.log('🛒 SHOP TRANSACTION (SALE)', transactionInfo);
 
-
-        // semillas 
-        
-        if (transactionInfo.itemId === "Semillax") {
-            await this.ejecutarDivisionRemove.call(this, 'slots', "Semillax", 50, transactionInfo.quantity);
-        }
-        
-        if (transactionInfo.itemId === "Semillax1") {
-            await this.ejecutarDivisionRemove.call(this, 'slots', "Semillax1", 50, transactionInfo.quantity);
+        if (vendidas < quantity) {
+            this.showNotification?.(
+                `⚠️ Only ${vendidas} of ${quantity} ${item.name} were confirmed on-chain. You were paid for ${vendidas}.`,
+                'error'
+            );
         }
 
-        if (transactionInfo.itemId === "Semillax2") {
-            await this.ejecutarDivisionRemove.call(this, 'slots', "Semillax2", 50, transactionInfo.quantity);
-        }
+        this.addToHistorial('venta', item, vendidas, finalPrice);
+        this.showTransactionAnimation('venta', item, vendidas, finalPrice, commission);
 
-        if (transactionInfo.itemId === "Semillax3") {
-            await this.ejecutarDivisionRemove.call(this, 'slots', "Semillax3", 50, transactionInfo.quantity);
-        }
-
-        // herramientas
-
-        if (transactionInfo.itemId === "Regaderax") {
-            await this.ejecutarDivisionRemove.call(this, 'slots', "Regaderax", 1, transactionInfo.quantity);
-        }
-
-        if (transactionInfo.itemId === "Tijerasx") {
-            await this.ejecutarDivisionRemove.call(this, 'slots', "Tijerasx", 1, transactionInfo.quantity);
-        }
-
-        if (transactionInfo.itemId === "hacha_de_madera") {
-            await this.ejecutarDivisionRemove.call(this, 'slots', "hacha_de_madera", 5, transactionInfo.quantity);
-        }
-
-        if (transactionInfo.itemId === "pico_de_madera") {
-            await this.ejecutarDivisionRemove.call(this, 'slots', "pico_de_madera", 5, transactionInfo.quantity);
-        }
-
-        // comidas
-
-        if (transactionInfo.itemId === "tomate_buena") {
-            await this.ejecutarDivisionRemove.call(this, 'slots', "tomate_buena", 20, transactionInfo.quantity);
-        }
-
-        if (transactionInfo.itemId === "zanahoria_buena") {
-            await this.ejecutarDivisionRemove.call(this, 'slots', "zanahoria_buena", 20, transactionInfo.quantity);
-        }
-
-        // pote con agua
-
-        if (transactionInfo.itemId === "balde_con_agua") {
-            await this.ejecutarDivisionRemove.call(this, 'slots', "balde_con_agua", 5, transactionInfo.quantity);
-        }
-
-
-
-
-
-        
-        this.addToHistorial('venta', item, quantity, finalPrice);
-        this.showTransactionAnimation('venta', item, quantity, finalPrice, commission);
-        
         try { this.scene?.queuedAction && this.scene.queuedAction({ type: 'forSpam2' }); } catch (err) { /* ignorar */ }
-        console.log(`✅ Sale recorded: ${quantity}x ${item.name} for ${finalPrice} ${this.getCurrencyLabel(currency)} (fee: ${commission} ${this.getCurrencyLabel(currency)})`);
+        console.log(`✅ Sale recorded: ${vendidas}x ${item.name} for ${finalPrice} ${this.getCurrencyLabel(currency)} (fee: ${commission} ${this.getCurrencyLabel(currency)})`);
     }
     
     // Mostrar animación de transacción
