@@ -11162,9 +11162,10 @@ html, body {
   text-align: center;
 }
 @media (max-width: 768px) {
-  #siembra-hub { bottom: 92px !important; }
+  /* Riego y siembra comparten sitio a propósito: sus colas nunca están activas
+     a la vez (o llevas semilla en la mano, o llevas la regadera/el balde). */
+  #siembra-hub, #riego-hub { bottom: 92px !important; }
   #corte-hub   { bottom: 170px !important; }
-  #riego-hub   { bottom: 248px !important; }
   #siembra-hub, #corte-hub, #riego-hub { padding: 10px 14px !important; }
   #siembra-hub button, #corte-hub button, #riego-hub button {
     width: 52px !important; height: 52px !important;

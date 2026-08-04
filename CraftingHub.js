@@ -340,11 +340,39 @@ class CraftingSystem {
         </div>
       </div>`;
     el.addEventListener('click', (e)=>{e.preventDefault();this.handleRecipeClick(recipe.id);});
-    el.addEventListener('dblclick',(e)=>{e.preventDefault();e.stopPropagation();this.openRecipeDetails(recipe.id);});
+    // El doble clic solo tiene sentido en PC: en móvil un toque ya abre la
+    // ficha (ver handleRecipeClick), y dejar este listener haría que el
+    // segundo toque la volviera a abrir encima de sí misma.
+    el.addEventListener('dblclick',(e)=>{
+      if(window.innerWidth<=900) return;
+      e.preventDefault();e.stopPropagation();this.openRecipeDetails(recipe.id);
+    });
     return el;
   }
 
+  // SELECCIÓN DE RECETA  (móvil arreglado el 2026-08-05)
+  // ---------------------------------------------------------------------------
+  // En pantallas anchas hay panel de detalles al lado, así que un clic
+  // selecciona y un doble clic abre la ficha completa.
+  //
+  // En el teléfono NO hay panel lateral: selectRecipe() sale sin hacer nada
+  // (`if(window.innerWidth<=900) return`), así que un toque simple no producía
+  // ningún efecto visible y había que acertar un DOBLE TOQUE dentro de 300 ms
+  // para que se abriera la ficha. Con el dedo eso casi nunca sale a la primera:
+  // era el "tengo que darle dos toques lentos". Ahora, en móvil, UN solo toque
+  // selecciona y abre la ficha directamente.
   handleRecipeClick(recipeId) {
+    const esMovil = window.innerWidth <= 900;
+
+    if (esMovil) {
+      this._lastClickTime = Date.now();
+      this._lastClickedRecipe = recipeId;
+      // openRecipeDetails ya marca la receta como activa y, en móvil, abre la
+      // ficha a pantalla completa. No hace falta llamar antes a selectRecipe.
+      this.openRecipeDetails(recipeId);
+      return;
+    }
+
     const now=Date.now();
     const isDbl=(now-this._lastClickTime<300)&&(this._lastClickedRecipe===recipeId);
     this._lastClickTime=now; this._lastClickedRecipe=recipeId;
