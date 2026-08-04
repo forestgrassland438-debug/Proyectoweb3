@@ -10921,3 +10921,252 @@ html, body {
   .craft-queue-chip { font-size: 8px; }
   .recipe-item { min-width: 100px; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHAT — EMOJIS                                                (2026-08-05)
+   ---------------------------------------------------------------------------
+   El chat no tenía forma de meter emojis desde el PC (en el móvil sí, con el
+   teclado del sistema). Se añade un botón junto al campo de texto que abre un
+   selector por categorías. Los emojis viajan como texto normal por el socket,
+   así que los ven tanto quien escribe como el resto de jugadores.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.chat-input-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  border-top: 1px solid #00ff00;
+  padding-top: 4px;
+}
+.chat-input-row #chat-input {
+  flex: 1;
+  min-width: 0;
+  border-top: none;
+  padding-top: 6px;
+}
+.chat-emoji-btn {
+  flex: 0 0 auto;
+  width: 36px;
+  background: rgba(0, 255, 0, .08);
+  border: 1px solid rgba(0, 255, 0, .45);
+  border-radius: 8px;
+  color: #00ff00;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .15s, transform .1s;
+}
+.chat-emoji-btn:hover { background: rgba(0, 255, 0, .2); }
+.chat-emoji-btn:active { transform: translateY(1px); }
+.chat-emoji-btn.open { background: rgba(0, 255, 0, .28); }
+
+.chat-emoji-picker {
+  margin-top: 6px;
+  border: 1px solid rgba(0, 255, 0, .45);
+  border-radius: 10px;
+  background: rgba(0, 12, 0, .96);
+  padding: 8px;
+  max-height: 190px;
+  overflow-y: auto;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .6);
+}
+.chat-emoji-picker.hidden { display: none; }
+.chat-emoji-cat {
+  font-size: 10px;
+  color: rgba(0, 255, 0, .65);
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  margin: 6px 2px 4px;
+}
+.chat-emoji-cat:first-child { margin-top: 0; }
+.chat-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+  gap: 2px;
+}
+.chat-emoji-grid button {
+  background: none;
+  border: none;
+  border-radius: 7px;
+  font-size: 20px;
+  line-height: 1;
+  padding: 5px 0;
+  cursor: pointer;
+  transition: background .12s, transform .1s;
+}
+.chat-emoji-grid button:hover { background: rgba(0, 255, 0, .16); transform: scale(1.15); }
+
+/* Los emojis se ven bien aunque la fuente del chat sea monoespaciada. */
+.chat-line, .player-chat-bubble {
+  font-family: 'Courier New', monospace, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+}
+
+/* En el teléfono el selector no debe comerse toda la pantalla. */
+@media (max-width: 768px) {
+  .chat-emoji-picker { max-height: 150px; }
+  .chat-emoji-grid { grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); }
+  .chat-emoji-grid button { font-size: 22px; padding: 7px 0; }
+  .chat-emoji-btn { width: 42px; font-size: 19px; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CRAFTEO — REDISEÑO                                           (2026-08-05)
+   ---------------------------------------------------------------------------
+   El panel seguía viéndose igual que siempre: morado plano, tarjetas sin
+   jerarquía y todo del mismo peso visual. Esto lo rehace manteniendo la
+   identidad morada del taller (no se cambia de color, se cambia el acabado):
+   fondo con profundidad, materiales que se leen de un vistazo (verde = lo
+   tienes, ámbar = te falta), botón de craftear con peso propio y una
+   disposición que en el teléfono se ordena en una sola columna.
+
+   Va al final del archivo a propósito: pisa por cascada las reglas antiguas
+   sin tener que borrarlas, así nada de lo que ya funcionaba se rompe.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --cr-ink:      #120726;
+  --cr-panel:    #1c0f38;
+  --cr-panel-2:  #251448;
+  --cr-line:     #4a2a8c;
+  --cr-line-soft:#38206b;
+  --cr-violet:   #8b5cf6;
+  --cr-violet-2: #a78bfa;
+  --cr-magenta:  #ff6ec7;
+  --cr-ok:       #4ade80;
+  --cr-warn:     #fbbf24;
+  --cr-txt:      #f3ecff;
+  --cr-txt-dim:  #b9a6e0;
+}
+
+.crafting-container {
+  background:
+    radial-gradient(900px 380px at 12% -12%, rgba(139, 92, 246, .22), transparent 60%),
+    linear-gradient(180deg, var(--cr-panel) 0%, var(--cr-ink) 100%);
+  border: 2px solid var(--cr-line);
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .65), inset 0 1px 0 rgba(255, 255, 255, .06);
+  color: var(--cr-txt);
+}
+
+.crafting-header {
+  background: linear-gradient(90deg, rgba(139, 92, 246, .35), rgba(255, 110, 199, .18));
+  border-bottom: 2px solid var(--cr-line);
+  border-radius: 16px 16px 0 0;
+}
+
+/* ── Lista de recetas ──────────────────────────────────────────────────── */
+.recipe-item {
+  background: linear-gradient(150deg, var(--cr-panel-2), rgba(18, 7, 38, .9));
+  border: 1px solid var(--cr-line-soft);
+  border-radius: 13px;
+  transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.recipe-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--cr-violet);
+  box-shadow: 0 8px 20px rgba(139, 92, 246, .28);
+}
+.recipe-item.selected,
+.recipe-item.active {
+  border-color: var(--cr-magenta);
+  box-shadow: 0 0 0 1px rgba(255, 110, 199, .45), 0 8px 22px rgba(255, 110, 199, .22);
+  background: linear-gradient(150deg, rgba(74, 42, 140, .95), rgba(28, 15, 56, .95));
+}
+.recipe-item.locked { opacity: .45; filter: grayscale(.5); }
+
+/* ── Materiales: verde si lo tienes, ámbar si te falta ─────────────────── */
+.resource-item,
+.optional-item {
+  background: rgba(10, 4, 24, .55);
+  border: 1px solid var(--cr-line-soft);
+  border-left: 3px solid var(--cr-line-soft);
+  border-radius: 11px;
+  padding: 9px 11px;
+  transition: border-color .15s ease, background .15s ease;
+}
+.resource-item.has-enough  { border-left-color: var(--cr-ok); }
+.resource-item.not-enough  { border-left-color: var(--cr-warn); }
+.resource-item.has-enough .resource-amount { color: var(--cr-ok); }
+.resource-item.not-enough .resource-amount { color: var(--cr-warn); }
+.optional-item:hover { border-color: var(--cr-violet); background: rgba(139, 92, 246, .12); }
+.optional-item.selected {
+  border-color: var(--cr-magenta);
+  background: rgba(255, 110, 199, .14);
+}
+.resource-name   { color: var(--cr-txt); }
+.resource-amount { font-weight: 700; }
+.resource-img    { image-rendering: pixelated; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .55)); }
+
+/* ── Acciones ──────────────────────────────────────────────────────────── */
+.crafting-actions {
+  background: rgba(10, 4, 24, .45);
+  border: 1px solid var(--cr-line-soft);
+  border-radius: 13px;
+  padding: 12px;
+}
+.craft-btn,
+#craft-button,
+#overlay-craft-button {
+  background: linear-gradient(135deg, var(--cr-violet) 0%, #6d28d9 100%);
+  border: 2px solid var(--cr-violet-2);
+  border-radius: 12px;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: .4px;
+  box-shadow: 0 6px 16px rgba(109, 40, 217, .38);
+  transition: filter .15s ease, transform .1s ease, box-shadow .15s ease;
+}
+.craft-btn:not(:disabled):hover,
+#craft-button:not(:disabled):hover,
+#overlay-craft-button:not(:disabled):hover {
+  filter: brightness(1.18);
+  box-shadow: 0 8px 22px rgba(139, 92, 246, .5);
+}
+.craft-btn:not(:disabled):active { transform: translateY(1px); }
+.craft-btn:disabled { filter: grayscale(.6); opacity: .5; box-shadow: none; }
+
+.crafting-feedback { margin-top: 10px; border-radius: 9px; line-height: 1.6; }
+
+/* ── Barra de estado inferior ──────────────────────────────────────────── */
+.crafting-status {
+  background: rgba(10, 4, 24, .6);
+  border-top: 1px solid var(--cr-line-soft);
+}
+.status-label { color: var(--cr-txt-dim); }
+.status-value { color: var(--cr-violet-2); font-weight: 700; }
+
+/* ── Barra de desplazamiento a juego con el panel ──────────────────────── */
+.recipes-list::-webkit-scrollbar,
+.crafting-content::-webkit-scrollbar { width: 8px; }
+.recipes-list::-webkit-scrollbar-thumb,
+.crafting-content::-webkit-scrollbar-thumb {
+  background: var(--cr-line); border-radius: 6px;
+}
+.recipes-list::-webkit-scrollbar-track,
+.crafting-content::-webkit-scrollbar-track { background: rgba(0, 0, 0, .3); }
+
+/* ── Teléfono ──────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .crafting-container { border-radius: 14px; }
+  .crafting-header    { border-radius: 12px 12px 0 0; }
+  .recipe-item        { border-radius: 11px; }
+  .resource-item, .optional-item { padding: 11px; }
+  .crafting-actions   { padding: 10px; position: sticky; bottom: 0; z-index: 3; }
+}
+
+/* Los tres hubs de confirmación (siembra ✔/✖, corte y riego) comparten sitio en
+   la parte de abajo. En el teléfono se apilan sin chocar con los quick-slots. */
+#siembra-hub, #corte-hub, #riego-hub {
+  max-width: 92vw;
+  text-align: center;
+}
+@media (max-width: 768px) {
+  #siembra-hub { bottom: 92px !important; }
+  #corte-hub   { bottom: 170px !important; }
+  #riego-hub   { bottom: 248px !important; }
+  #siembra-hub, #corte-hub, #riego-hub { padding: 10px 14px !important; }
+  #siembra-hub button, #corte-hub button, #riego-hub button {
+    width: 52px !important; height: 52px !important;
+  }
+}

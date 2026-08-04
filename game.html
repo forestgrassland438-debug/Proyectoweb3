@@ -2,12 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <!-- interactive-widget=overlays-content: al abrirse el teclado del móvil, éste
+       se dibuja ENCIMA en vez de reducir el viewport. Sin esto el navegador
+       encogía la página al enfocar el chat o el crafting, el lienzo se
+       redimensionaba y al cerrarse el teclado volvía a crecer: eso es el "zoom"
+       y los fallos de repintado que se veían en el teléfono. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=overlays-content" />
   <meta name="google" content="notranslate" />
   <meta http-equiv="Content-Language" content="en" />
   <title>GRASSLAND FOREST</title>
   <link rel="icon" href="favicon.png" type="image/png" />
-  <link rel="stylesheet" href="styless.css" />
+  <!-- v17: rediseño del panel de misiones + altura real del viewport en móvil -->
+  <link rel="stylesheet" href="styless.css?v=17.1" />
 
   <!-- ============================
        CONTENT-SECURITY-POLICY (meta for testing / development)..
@@ -64,51 +70,60 @@
        ============================ -->
 
   <!-- missionspanel.js -->
-  <script src="./missionspanel.js" defer></script>
+  <script src="./missionspanel.js?v=17.1" defer></script>
 
   <!-- Scenes -->
-  <script src="./Scenes/MenuScene.js" defer></script>
-  <script src="./Scenes/LoadingSceneshop.js" defer></script>
-  <script src="./Scenes/tiendajuego.js" defer></script>
-  <script src="./Scenes/LoadingScenegame.js" defer></script>
-  <script src="./Scenes/GameScene.js" defer></script>
-  <script src="./Scenes/sacar_mapa.js" defer></script>
+  <script src="./Scenes/MenuScene.js?v=17.1" defer></script>
+  <script src="./Scenes/LoadingSceneshop.js?v=17.1" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=17.1" defer></script>
+  <script src="./Scenes/LoadingScenegame.js?v=17.1" defer></script>
+  <script src="./Scenes/GameScene.js?v=17.1" defer></script>
+  <script src="./Scenes/sacar_mapa.js?v=17.1" defer></script>
 
   <!-- tienda marketplace p2p -->
-  <script src="./Scenes/ShopScene.js" defer></script>
+  <script src="./Scenes/ShopScene.js?v=17.1" defer></script>
 
   <!-- utilities -->
 
-  <script src="./phaser-canvas-scaler.js" defer></script>
-  <script src="./phaser-rpg-perf.js" defer></script>
-  <script src="./Phaser-camera.js" defer></script>
-  <script src="./LoadingSystem.js" defer></script>
+  <script src="./phaser-canvas-scaler.js?v=17.1" defer></script>
+  <script src="./phaser-rpg-perf.js?v=17.1" defer></script>
+  <script src="./Phaser-camera.js?v=17.1" defer></script>
+  <script src="./LoadingSystem.js?v=17.1" defer></script>
 
   <!-- blockchain / transaction -->
-  <script src="./BlockchainManager.js" defer></script>
-  <script src="./TransactionHub.js" defer></script>
-  <script src="./SystemaTransaccion.js" defer></script>
-  <script src="./CraftingHub.js" defer></script>
-  <script src="./tienda_sistema.js" defer></script>
-  <script src="./phaser-relay-library.js" defer></script>
-  <script src="./hub.js" defer></script>
+  <script src="./BlockchainManager.js?v=17.1" defer></script>
+  <script src="./TransactionHub.js?v=17.1" defer></script>
+  <script src="./SystemaTransaccion.js?v=17.1" defer></script>
+  <script src="./CraftingHub.js?v=17.1" defer></script>
+  <script src="./tienda_sistema.js?v=17.1" defer></script>
+  <script src="./phaser-relay-library.js?v=17.1" defer></script>
+  <script src="./hub.js?v=17.1" defer></script>
 
 
-  <script src="./register-scenes.js" defer></script>
+  <script src="./register-scenes.js?v=17.1" defer></script>
 
-  <script src="./memory-fix.js" defer></script>
-  <script type="module" src="./CraftingHub.js" defer></script>
+  <script src="./memory-fix.js?v=17.1" defer></script>
+  <script type="module" src="./CraftingHub.js?v=17.1" defer></script>
 
-  <script src="./NotificationHub.js" defer></script>
+  <script src="./NotificationHub.js?v=17.1" defer></script>
 
   <!-- tileManager: if it uses import/export, keep module -->
-  <script type="module" src="lib/tileManager.js" defer></script>
+  <script type="module" src="lib/tileManager.js?v=17.1" defer></script>
 
   <!-- preload critical asset -->
   <link rel="preload" href="./Game/Source/cursor.png" as="image" />
 
+  <!-- Contador global de transacciones on-chain en vuelo. Debe cargarse ANTES
+       que las escenas para que ninguna transacción se quede sin registrar. -->
+  <script src="./tx-gate.js?v=17.1" defer></script>
+
+  <!-- Altura real del viewport en móvil (el juego salía en una franja arriba y
+       el resto negro). Debe ir ANTES de app.js para publicar --app-height
+       antes de que se cree el lienzo. No toca el zoom de la cámara. -->
+  <script src="./viewport-fix.js?v=17.1" defer></script>
+
   <!-- main app bootstrap -->
-  <script src="app.js" defer></script>
+  <script src="app.js?v=17.1" defer></script>
 
   <!-- ============================
        END HEAD
@@ -942,10 +957,12 @@
             <div class="crafting-feedback" id="crafting-feedback" role="status" aria-live="polite"></div>
           </div>
 
-          <div class="player-inventory-preview" aria-label="Vista previa del inventario">
-            <h4>🎒 Your inventory</h4>
-            <div class="inventory-items" id="inventory-items" aria-live="polite"></div>
-          </div>
+          <!-- La "vista previa del inventario" (🎒) se quitó el 2026-08-05:
+               solo repetía, sin nombres ni contexto, los mismos materiales que
+               la lista de arriba ya muestra como "tienes/necesitas". Ocupaba
+               sitio debajo del botón de craftear y no aportaba nada.
+               updateInventoryPreview() sigue existiendo y sale sin hacer nada
+               si no encuentra su contenedor, así que no hay que tocar el JS. -->
         </div>
       </section>
     </div>
@@ -1111,7 +1128,13 @@
 
   <div id="chat-panel" class="chat-hidden">
     <div class="chat-messages" id="chat-messages"></div>
-    <input type="text" id="chat-input" placeholder="Escribe tu mensaje..." maxlength="100" autocomplete="off" />
+    <!-- Fila de escritura: campo + botón de emojis. El selector se rellena
+         desde GameScene (_montarSelectorEmojis) para no meter JS en línea. -->
+    <div class="chat-input-row">
+      <input type="text" id="chat-input" placeholder="Write your message..." maxlength="140" autocomplete="off" />
+      <button type="button" id="chat-emoji-btn" class="chat-emoji-btn" aria-label="Emojis" title="Emojis">&#128512;</button>
+    </div>
+    <div id="chat-emoji-picker" class="chat-emoji-picker hidden" role="dialog" aria-label="Emoji picker"></div>
   </div>
   <!-- Burbuja de chat del jugador local (se posiciona via JS sobre el sprite) -->
   <div id="local-chat-bubble" class="player-chat-bubble" style="display:none;"></div>
