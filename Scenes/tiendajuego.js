@@ -3783,7 +3783,9 @@ removeOtherPlayer(playerId) {
 
     this.openBtn.addEventListener('click', () => toggleChat());
     this.openBtn.addEventListener('keyup', (e) => { if (e.key === 'Enter') toggleChat(); });
-    
+
+    // Selector de emojis, igual que en GameScene.
+    this._montarSelectorEmojis();
 
     this.chatInput.addEventListener('keydown', (e) => {
       e.stopPropagation();
@@ -3849,6 +3851,8 @@ removeOtherPlayer(playerId) {
 
     // emitir y limpiar input
     this.socket.emit('chatMessage', payload);
+    // Al enviar se cierra el selector de emojis, si estaba abierto.
+    if (typeof this._cerrarSelectorEmojis === 'function') this._cerrarSelectorEmojis();
     this._isTyping = false;
     clearTimeout(this._typingTimer);
     if (this.socket && this.socket.connected)
@@ -4077,12 +4081,116 @@ removeOtherPlayer(playerId) {
     setTimeout(() => { if (banner.parentNode) banner.remove(); }, 2600);
   }
 
+  /**
+   * Deshace el escapado HTML del servidor (ver la copia gemela de GameScene).
+   * Sin esto el chat mostraba literalmente "&#039;" en vez de un apóstrofo.
+   * Los emojis no se ven afectados: escapeHtml solo cambia & < > " '.
+   */
+  _montarSelectorEmojis() {
+    const boton = document.getElementById('chat-emoji-btn');
+    const panel = document.getElementById('chat-emoji-picker');
+    if (!boton || !panel || !this.chatInput) return;
+
+    const CATEGORIAS = [
+      { nombre: 'Faces', lista: ['😀','😄','😁','😆','😅','🤣','😂','🙂','😉','😊','😍','🥰','😘','😜','🤪','🤔','🤨','😐','😴','😎','🥳','😏','😢','😭','😤','😡','🥺','😱','🤯','🤗','🤝','🙏'] },
+      { nombre: 'Gestures', lista: ['👍','👎','👌','✌️','🤞','🤙','👋','💪','🫶','👏','🙌','🤛','🤜','✊','☝️','🖐️'] },
+      { nombre: 'Game', lista: ['⚔️','🛡️','🏹','🪓','⛏️','🎣','🧪','💎','🪵','🪨','🔥','💧','⚡','🌟','✨','🏆','🥇','🎁','💰','🪙','🗝️','🧭','🗺️','⏳'] },
+      { nombre: 'Farm', lista: ['🌱','🌿','🍀','🌳','🌲','🌾','🥕','🍅','🎃','🌽','🍎','🍇','🐄','🐔','🐷','🐶','🐱','🐝','🦋','☀️','🌧️','❄️','🌈','🌙'] },
+      { nombre: 'Chat', lista: ['❤️','💔','💯','✅','❌','❓','❗','💬','👀','🎉','🤝','🚀','⭐','🔔','📦','🛒'] }
+    ];
+
+    // Rejilla (se construye una sola vez)
+    if (!panel.dataset.gfListo) {
+      panel.dataset.gfListo = '1';
+      CATEGORIAS.forEach(cat => {
+        const titulo = document.createElement('div');
+        titulo.className = 'chat-emoji-cat';
+        titulo.textContent = cat.nombre;
+        panel.appendChild(titulo);
+
+        const rejilla = document.createElement('div');
+        rejilla.className = 'chat-emoji-grid';
+        cat.lista.forEach(emoji => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = emoji;
+          b.title = emoji;
+          // pointerdown + preventDefault: así el campo de texto NO pierde el
+          // foco y el cursor se queda donde estaba.
+          b.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this._insertarEmojiEnChat(emoji);
+          });
+          rejilla.appendChild(b);
+        });
+        panel.appendChild(rejilla);
+      });
+    }
+
+    const abrirCerrar = (forzar) => {
+      const abierto = (typeof forzar === 'boolean') ? forzar : panel.classList.contains('hidden');
+      panel.classList.toggle('hidden', !abierto);
+      boton.classList.toggle('open', abierto);
+      if (abierto) {
+        // En el móvil, abrir la rejilla con el teclado subido deja el chat sin
+        // sitio: se baja el teclado y se deja la rejilla a la vista.
+        try { this.chatInput.blur(); } catch (_) {}
+        panel.scrollTop = 0;
+      }
+    };
+
+    if (!boton.dataset.gfListo) {
+      boton.dataset.gfListo = '1';
+      boton.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); abrirCerrar(); });
+      // Cerrar al tocar fuera del chat.
+      document.addEventListener('pointerdown', (e) => {
+        if (panel.classList.contains('hidden')) return;
+        if (panel.contains(e.target) || boton.contains(e.target)) return;
+        abrirCerrar(false);
+      });
+    }
+
+    this._cerrarSelectorEmojis = () => abrirCerrar(false);
+  }
+
+  /** Mete el emoji donde esté el cursor del campo de chat. */
+  _insertarEmojiEnChat(emoji) {
+    const input = this.chatInput;
+    if (!input) return;
+
+    const max = parseInt(input.getAttribute('maxlength'), 10) || 140;
+    const ini = (typeof input.selectionStart === 'number') ? input.selectionStart : input.value.length;
+    const fin = (typeof input.selectionEnd === 'number') ? input.selectionEnd : input.value.length;
+
+    const nuevo = (input.value.slice(0, ini) + emoji + input.value.slice(fin));
+    if (nuevo.length > max) {
+      this.notifications && this.notifications.show('Message is too long', 'warning');
+      return;
+    }
+    input.value = nuevo;
+
+    // Dejar el cursor detrás del emoji (los emojis ocupan 2 unidades o más).
+    const pos = ini + emoji.length;
+    try { input.focus(); input.setSelectionRange(pos, pos); } catch (_) {}
+  }
+
+  _desescaparChat(texto) {
+    return String(texto == null ? '' : texto)
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#0?39;/g, "'")
+      .replace(/&#x27;/gi, "'")
+      .replace(/&amp;/g, '&');
+  }
+
   appendMessage(m , playerInfo) {
     // Acepta undefined y lo maneja defensivamente
     const msg = m || {};
     // Si el servidor no escapó, aquí usamos textContent para evitar HTML inyectado.
-    const name = msg.playerName || '---';
-    const text = msg.text || '';
+    const name = this._desescaparChat(msg.playerName || '---');
+    const text = this._desescaparChat(msg.text || '');
     const ts = msg.ts ? new Date(msg.ts) : new Date();
 
     // Crear elementos sin usar innerHTML
@@ -4090,7 +4198,7 @@ removeOtherPlayer(playerId) {
     line.className = 'chat-line';
 
     const strong = document.createElement('strong');
-    strong.textContent = name + ((this.socket && msg.id === this.socket.id) ? ' (tú):' : ':');
+    strong.textContent = name + ((this.socket && msg.id === this.socket.id) ? ' (you):' : ':');
     strong.style.color = '#b3ffb3';
 
     const textNode = document.createTextNode(' ' + text);

@@ -8297,6 +8297,8 @@ setupResourceLockSocket() {
   // Verificadores, advertencias y baneos (submenú de clic derecho sobre otro
   // jugador). Se engancha aquí porque es donde el socket ya está listo.
   this._registrarEventosModeracion();
+  // Detector de respaldo del doble toque sobre otros jugadores.
+  this._activarDeteccionToqueJugadores();
 
   // Al salir de la escena hay que soltar los listeners: si no, al volver se
   // acumulan y cada tala se aplicaría varias veces.
@@ -14703,7 +14705,7 @@ createTestBeep() {
             this.appendMessage(message);
             // Mostrar burbuja sobre el personaje remoto
             if (message && message.id && message.id !== (this.socket && this.socket.id)) {
-              this._showRemoteChatBubble(message.id, message.text || '');
+              this._showRemoteChatBubble(message.id, this._desescaparChat(message.text || ''));
             }
           }
         },
@@ -14931,7 +14933,10 @@ createOtherPlayer(playerInfo) {
     }
   );
   nameText.setOrigin(0.5, 1);
-  nameText.setDepth(99999); // Always on top of everything
+  // Ordenada por la línea de los pies (como el sprite), NO en 99999: así queda
+  // por debajo de los carteles de los NPC (NPC_LABEL_DEPTH = 90000) y el
+  // jugador remoto pasa por detrás de ellos, igual que el jugador local.
+  nameText.setDepth(playerInfo.y + sprite.displayHeight * 0.5 + 1);
 
   this.otherPlayers[playerInfo.id] = {
     sprite,
@@ -15025,11 +15030,17 @@ updateOtherPlayer(playerInfo) {
   // el socket todavía no había resuelto su playerName al entrar a la sala).
   if (playerInfo.address)    player._address = playerInfo.address;
   if (playerInfo.playerName) player._playerName = playerInfo.playerName;
-  // Keep name always on top and updated position
+  // Keep name updated position.
+  // PROFUNDIDAD (2026-08-05): antes esto ponía 99999, es decir por ENCIMA de
+  // todo — incluidos los carteles de los NPC. Como este bloque corre en cada
+  // paquete de movimiento, pisaba al reordenado por pies de
+  // _refreshRemoteDepths() y la etiqueta de los demás jugadores tapaba los
+  // carteles morados. Ahora se ordena por la línea de sus pies, igual que el
+  // sprite, así que queda siempre por debajo de NPC_LABEL_DEPTH.
   if (player.nameText) {
     const sprH6 = player.sprite.displayHeight || 64;
     player.nameText.setPosition(playerInfo.x, playerInfo.y - sprH6 * 0.5 - 14);
-    player.nameText.setDepth(99999);
+    player.nameText.setDepth(playerInfo.y + sprH6 * 0.5 + 1);
   }
   // Move new chat/typing containers
   if (player._chatContainer) {
@@ -15490,7 +15501,10 @@ removeOtherPlayer(playerId) {
 
     this.openBtn.addEventListener('click', () => toggleChat());
     this.openBtn.addEventListener('keyup', (e) => { if (e.key === 'Enter') toggleChat(); });
-    
+
+    // Selector de emojis (botón junto al campo de texto).
+    this._montarSelectorEmojis();
+
 
     this.chatInput.addEventListener('keydown', (e) => {
       e.stopPropagation();
@@ -15576,7 +15590,7 @@ removeOtherPlayer(playerId) {
     // rate limit cliente
     const now = Date.now();
     if (now - this._lastChatSent < this._chatRateLimitMs) {
-      this.appendSystemMessage('Por favor espera un momento antes de enviar otro mensaje.');
+      this.appendSystemMessage('Please wait a moment before sending another message.');
       return;
     }
     this._lastChatSent = now;
@@ -15588,12 +15602,14 @@ removeOtherPlayer(playerId) {
     };
 
     if (!this.socket || !this.socket.connected) {
-      this.appendSystemMessage('No conectado al servidor de chat.');
+      this.appendSystemMessage('Not connected to the chat server.');
       return;
     }
 
     // emitir y limpiar input
     this.socket.emit('chatMessage', payload);
+    // Al enviar se cierra el selector de emojis, si estaba abierto.
+    if (typeof this._cerrarSelectorEmojis === 'function') this._cerrarSelectorEmojis();
     this._isTyping = false;
     clearTimeout(this._typingTimer);
     if (this.socket && this.socket.connected)
@@ -15709,12 +15725,139 @@ removeOtherPlayer(playerId) {
   // -----------------------------
   // Append messages (DOM safe)
   // -----------------------------
+  // ═════════════════════════════════════════════════════════════════════════
+  // SELECTOR DE EMOJIS DEL CHAT                                  (2026-08-05)
+  // -------------------------------------------------------------------------
+  // En el teléfono el teclado del sistema ya trae emojis, pero en el PC no
+  // había forma de meterlos. Este botón abre una rejilla por categorías e
+  // inserta el emoji en la posición del cursor.
+  //
+  // Los emojis NO necesitan nada especial para viajar: el servidor solo escapa
+  // & < > " ' (escapeHtml), así que pasan intactos por el socket y los ve tanto
+  // quien escribe como el resto de jugadores de la sala.
+  //
+  // El DOM del chat sobrevive a los cambios de escena, así que el enganche se
+  // hace UNA sola vez por elemento (bandera en el propio nodo): si no, al ir y
+  // volver de la tienda se acumularían listeners y un clic abriría/cerraría el
+  // panel varias veces.
+  // ═════════════════════════════════════════════════════════════════════════
+  _montarSelectorEmojis() {
+    const boton = document.getElementById('chat-emoji-btn');
+    const panel = document.getElementById('chat-emoji-picker');
+    if (!boton || !panel || !this.chatInput) return;
+
+    const CATEGORIAS = [
+      { nombre: 'Faces', lista: ['😀','😄','😁','😆','😅','🤣','😂','🙂','😉','😊','😍','🥰','😘','😜','🤪','🤔','🤨','😐','😴','😎','🥳','😏','😢','😭','😤','😡','🥺','😱','🤯','🤗','🤝','🙏'] },
+      { nombre: 'Gestures', lista: ['👍','👎','👌','✌️','🤞','🤙','👋','💪','🫶','👏','🙌','🤛','🤜','✊','☝️','🖐️'] },
+      { nombre: 'Game', lista: ['⚔️','🛡️','🏹','🪓','⛏️','🎣','🧪','💎','🪵','🪨','🔥','💧','⚡','🌟','✨','🏆','🥇','🎁','💰','🪙','🗝️','🧭','🗺️','⏳'] },
+      { nombre: 'Farm', lista: ['🌱','🌿','🍀','🌳','🌲','🌾','🥕','🍅','🎃','🌽','🍎','🍇','🐄','🐔','🐷','🐶','🐱','🐝','🦋','☀️','🌧️','❄️','🌈','🌙'] },
+      { nombre: 'Chat', lista: ['❤️','💔','💯','✅','❌','❓','❗','💬','👀','🎉','🤝','🚀','⭐','🔔','📦','🛒'] }
+    ];
+
+    // Rejilla (se construye una sola vez)
+    if (!panel.dataset.gfListo) {
+      panel.dataset.gfListo = '1';
+      CATEGORIAS.forEach(cat => {
+        const titulo = document.createElement('div');
+        titulo.className = 'chat-emoji-cat';
+        titulo.textContent = cat.nombre;
+        panel.appendChild(titulo);
+
+        const rejilla = document.createElement('div');
+        rejilla.className = 'chat-emoji-grid';
+        cat.lista.forEach(emoji => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = emoji;
+          b.title = emoji;
+          // pointerdown + preventDefault: así el campo de texto NO pierde el
+          // foco y el cursor se queda donde estaba.
+          b.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this._insertarEmojiEnChat(emoji);
+          });
+          rejilla.appendChild(b);
+        });
+        panel.appendChild(rejilla);
+      });
+    }
+
+    const abrirCerrar = (forzar) => {
+      const abierto = (typeof forzar === 'boolean') ? forzar : panel.classList.contains('hidden');
+      panel.classList.toggle('hidden', !abierto);
+      boton.classList.toggle('open', abierto);
+      if (abierto) {
+        // En el móvil, abrir la rejilla con el teclado subido deja el chat sin
+        // sitio: se baja el teclado y se deja la rejilla a la vista.
+        try { this.chatInput.blur(); } catch (_) {}
+        panel.scrollTop = 0;
+      }
+    };
+
+    if (!boton.dataset.gfListo) {
+      boton.dataset.gfListo = '1';
+      boton.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); abrirCerrar(); });
+      // Cerrar al tocar fuera del chat.
+      document.addEventListener('pointerdown', (e) => {
+        if (panel.classList.contains('hidden')) return;
+        if (panel.contains(e.target) || boton.contains(e.target)) return;
+        abrirCerrar(false);
+      });
+    }
+
+    this._cerrarSelectorEmojis = () => abrirCerrar(false);
+  }
+
+  /** Mete el emoji donde esté el cursor del campo de chat. */
+  _insertarEmojiEnChat(emoji) {
+    const input = this.chatInput;
+    if (!input) return;
+
+    const max = parseInt(input.getAttribute('maxlength'), 10) || 140;
+    const ini = (typeof input.selectionStart === 'number') ? input.selectionStart : input.value.length;
+    const fin = (typeof input.selectionEnd === 'number') ? input.selectionEnd : input.value.length;
+
+    const nuevo = (input.value.slice(0, ini) + emoji + input.value.slice(fin));
+    if (nuevo.length > max) {
+      this.notifications && this.notifications.show('Message is too long', 'warning');
+      return;
+    }
+    input.value = nuevo;
+
+    // Dejar el cursor detrás del emoji (los emojis ocupan 2 unidades o más).
+    const pos = ini + emoji.length;
+    try { input.focus(); input.setSelectionRange(pos, pos); } catch (_) {}
+  }
+
+  /**
+   * Deshace el escapado HTML que aplica el servidor.
+   *
+   * El backend pasa cada mensaje por escapeHtml() antes de repartirlo, así que
+   * llega con `&amp;`, `&#039;`… Aquí el texto se pinta con textContent (que ya
+   * es seguro por sí mismo), y sin deshacer ese escapado el jugador veía
+   * literalmente "&#039;" en vez de un apóstrofo. Los emojis nunca se tocan:
+   * escapeHtml solo cambia & < > " ', así que viajan intactos.
+   *
+   * Se hace con un reemplazo explícito y NO con innerHTML: interpretar HTML
+   * aquí reabriría justo el agujero que el escapado del servidor cierra.
+   */
+  _desescaparChat(texto) {
+    return String(texto == null ? '' : texto)
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#0?39;/g, "'")
+      .replace(/&#x27;/gi, "'")
+      .replace(/&amp;/g, '&');   // el último, si no se re-expandirían los demás
+  }
+
   appendMessage(m , playerInfo) {
     // Acepta undefined y lo maneja defensivamente
     const msg = m || {};
     // Si el servidor no escapó, aquí usamos textContent para evitar HTML inyectado.
-    const name = msg.playerName || '---';
-    const text = msg.text || '';
+    const name = this._desescaparChat(msg.playerName || '---');
+    const text = this._desescaparChat(msg.text || '');
     const ts = msg.ts ? new Date(msg.ts) : new Date();
 
     // Crear elementos sin usar innerHTML
@@ -15722,7 +15865,7 @@ removeOtherPlayer(playerId) {
     line.className = 'chat-line';
 
     const strong = document.createElement('strong');
-    strong.textContent = name + ((this.socket && msg.id === this.socket.id) ? ' (tú):' : ':');
+    strong.textContent = name + ((this.socket && msg.id === this.socket.id) ? ' (you):' : ':');
     strong.style.color = '#b3ffb3';
 
     const textNode = document.createTextNode(' ' + text);
@@ -22409,6 +22552,27 @@ _escapeRankHtml(s) {
   ));
 }
 
+/**
+ * PROFUNDIDAD DE LOS CARTELES DE LOS NPC
+ * ---------------------------------------------------------------------------
+ * El jugador, su mascota y los demás jugadores se ordenan por la línea de sus
+ * pies (`y + alto/2`), que en este mapa vale unos pocos miles. Poniendo los
+ * carteles muy por encima de eso, TODOS pasan por detrás de ellos.
+ *
+ * Se aplica en un método propio (y no solo al crearlos) porque los carteles se
+ * reescriben con setText() cada vez que cambia el idioma, y así basta con
+ * volver a llamar aquí para tener la certeza de que la profundidad sigue bien
+ * puesta pase lo que pase.
+ */
+get NPC_LABEL_DEPTH() { return 90000; }
+
+_fijarProfundidadNpcs() {
+  ['npcx', 'npcx1', 'npcx2', 'npcx3', 'npcx4', 'npcx5'].forEach(clave => {
+    const t = this[clave];
+    if (t && typeof t.setDepth === 'function') t.setDepth(this.NPC_LABEL_DEPTH);
+  });
+}
+
 // Tiempo restante de respawn en inglés: "4m 32s" / "45s"
 formatRespawnRemaining(ms) {
   const total = Math.max(0, Math.ceil(ms / 1000));
@@ -22461,9 +22625,14 @@ rollGatherAmount(toolName) {
 // ============================================================================
 
 _asegurarEstilosMenuJugador() {
-  if (document.getElementById('gf-player-menu-styles')) return;
+  // El id lleva versión: la hoja se inyecta una sola vez y sobrevive a los
+  // cambios de escena, así que sin versionarlo una hoja vieja (sin las reglas
+  // de la cuenta atrás) bloqueaba para siempre la inyección de la nueva.
+  const ID = 'gf-player-menu-styles-v2';
+  if (document.getElementById(ID)) return;
+  document.querySelectorAll('style[id^="gf-player-menu-styles"]').forEach(el => el.remove());
   const st = document.createElement('style');
-  st.id = 'gf-player-menu-styles';
+  st.id = ID;
   st.textContent = `
     .gf-pm-menu{position:fixed;z-index:100000;min-width:196px;background:linear-gradient(160deg,#161a2e 0%,#101427 100%);
       border:2px solid #4a5aa8;border-radius:12px;padding:8px;box-shadow:0 12px 34px rgba(0,0,0,.6);
@@ -22544,63 +22713,123 @@ _habilitarMenuJugador(playerId, sprite) {
   const DOBLE_TOQUE_MS = 420;
   const DOBLE_TOQUE_PX = 40;
 
-  sprite.on('pointerdown', (pointer) => {
-    // ── Ratón: el botón derecho abre el menú directamente ────────────────
-    if (pointer && typeof pointer.rightButtonDown === 'function' && pointer.rightButtonDown()) {
-      this._abrirMenuJugador(playerId, pointer);
-      return;
+  // Área de toque generosa: el sprite del personaje es estrecho y con el dedo
+  // se falla mucho. Se amplía 18 px por lado sin mover el dibujo.
+  try {
+    const w = sprite.width || 32, h = sprite.height || 48;
+    sprite.input.hitArea = new Phaser.Geom.Rectangle(-18, -18, w + 36, h + 36);
+  } catch (_) { /* si no se puede ampliar, se queda el área normal */ }
+
+  sprite.on('pointerdown', (pointer) => this._procesarToqueJugador(playerId, pointer));
+}
+
+/**
+ * Decide qué hacer al tocar/pulsar sobre otro jugador.
+ *
+ *  • Ratón: el botón derecho abre el menú directamente.
+ *  • Táctil (y clic izquierdo): DOS TOQUES seguidos sobre el mismo personaje.
+ *    En el móvil no hay clic derecho, y la pulsación larga chocaba con el
+ *    movimiento del personaje (mantener pulsado es caminar), así que casi
+ *    nunca llegaba a abrirse. El doble toque es un gesto claro y no interfiere.
+ *
+ * Está en un método aparte —y no dentro del handler del sprite— porque lo
+ * llaman DOS caminos: el input del propio sprite y el detector de respaldo de
+ * la escena (_activarDeteccionToqueJugadores). Con uno solo de los dos el menú
+ * no llegaba a abrirse si algo se colaba por encima del sprite.
+ */
+_procesarToqueJugador(playerId, pointer) {
+  const DOBLE_TOQUE_MS = 600;   // margen amplio: con el dedo se tarda más
+  const DOBLE_TOQUE_PX = 70;    // el personaje puede moverse entre los dos toques
+
+  if (!this.otherPlayers || !this.otherPlayers[playerId]) return;
+
+  // Anti-rebote: el sprite y el detector de la escena pueden avisar del MISMO
+  // toque. Sin esto, un solo toque contaría como dos y el menú se abriría al
+  // primer contacto.
+  const ahora = Date.now();
+  if (this._pmUltimoEvento && (ahora - this._pmUltimoEvento) < 60) return;
+  this._pmUltimoEvento = ahora;
+
+  // ── Ratón: el botón derecho abre el menú directamente ──────────────────
+  if (pointer && typeof pointer.rightButtonDown === 'function' && pointer.rightButtonDown()) {
+    this._abrirMenuJugador(playerId, pointer);
+    return;
+  }
+
+  const esTactil = !!(pointer && (pointer.wasTouch || pointer.pointerType === 'touch'));
+  const x = pointer ? pointer.x : 0;
+  const y = pointer ? pointer.y : 0;
+
+  this._pmUltimoToque = this._pmUltimoToque || {};
+  const previo = this._pmUltimoToque[playerId];
+
+  const esDoble = previo &&
+    (ahora - previo.t) < DOBLE_TOQUE_MS &&
+    (Math.abs(x - previo.x) + Math.abs(y - previo.y)) < DOBLE_TOQUE_PX;
+
+  if (esDoble) {
+    this._pmUltimoToque[playerId] = null;
+    const ev = (pointer && pointer.event) ? pointer.event : { clientX: x, clientY: y };
+    this._abrirMenuJugador(playerId, { event: ev });
+    return;
+  }
+
+  this._pmUltimoToque[playerId] = { t: ahora, x, y };
+
+  // Pista solo en táctil: en PC el clic derecho ya es evidente y un aviso en
+  // cada clic sería ruido.
+  if (esTactil) {
+    const jugador = this.otherPlayers[playerId];
+    const nombre = (jugador && jugador._displayName) || 'this player';
+    if (!this._pmPistaMostradaEn || (ahora - this._pmPistaMostradaEn) > 5000) {
+      this._pmPistaMostradaEn = ahora;
+      this.notifications && this.notifications.show(
+        `Tap ${nombre} again to open the player menu`, 'info', { icon: '👆' }
+      );
+    }
+  }
+}
+
+/**
+ * Detector de respaldo a nivel de ESCENA.
+ *
+ * El input del sprite puede no llegar a dispararse: basta con que otro objeto
+ * interactivo quede por encima, con que el plugin del joystick se coma el
+ * evento en el móvil, o con que el sprite se recree en un paquete de
+ * movimiento. Este detector mira, en cada toque, si el punto cayó sobre algún
+ * jugador remoto y llama al mismo método. Un solo cálculo por toque.
+ */
+_activarDeteccionToqueJugadores() {
+  if (this._pmDeteccionEscenaLista) return;
+  this._pmDeteccionEscenaLista = true;
+
+  this.input.on('pointerdown', (pointer) => {
+    if (!this.otherPlayers) return;
+    // Si el menú ya está abierto, este toque es para el menú, no para abrirlo.
+    if (document.getElementById('gf-player-menu')) return;
+
+    let mundo;
+    try { mundo = this.cameras.main.getWorldPoint(pointer.x, pointer.y); }
+    catch (_) { return; }
+
+    let elegido = null;
+    let mejorDistancia = Infinity;
+
+    for (const id in this.otherPlayers) {
+      const p = this.otherPlayers[id];
+      if (!p || !p.sprite || !p.sprite.active || !p.sprite.visible) continue;
+
+      const anchoMitad = (p.sprite.displayWidth  || 32) * 0.5 + 18;
+      const altoMitad   = (p.sprite.displayHeight || 64) * 0.5 + 18;
+      const dx = Math.abs(mundo.x - p.sprite.x);
+      const dy = Math.abs(mundo.y - p.sprite.y);
+      if (dx > anchoMitad || dy > altoMitad) continue;
+
+      const d = dx + dy;
+      if (d < mejorDistancia) { mejorDistancia = d; elegido = id; }
     }
 
-    // ── TELÉFONO: DOBLE TOQUE (2026-08-04) ───────────────────────────────
-    // En el móvil no hay clic derecho. Antes se usaba una pulsación LARGA,
-    // pero con el dedo eso choca con el movimiento del personaje (mantener
-    // pulsado es caminar) y casi nunca llegaba a abrirse. Ahora son DOS
-    // TOQUES seguidos sobre el mismo personaje, que es un gesto claro y no
-    // interfiere con nada. También vale con el botón izquierdo del ratón.
-    const esTactil = !!(pointer && (pointer.wasTouch || pointer.pointerType === 'touch'));
-    const x = pointer ? pointer.x : 0;
-    const y = pointer ? pointer.y : 0;
-    const ahora = Date.now();
-
-    this._pmUltimoToque = this._pmUltimoToque || {};
-    const previo = this._pmUltimoToque[playerId];
-
-    const esDoble = previo &&
-      (ahora - previo.t) < DOBLE_TOQUE_MS &&
-      (Math.abs(x - previo.x) + Math.abs(y - previo.y)) < DOBLE_TOQUE_PX;
-
-    if (esDoble) {
-      this._pmUltimoToque[playerId] = null;
-      // Cancelar el aviso de "toca otra vez" si estaba en pantalla.
-      if (this._pmPistaTimer) { clearTimeout(this._pmPistaTimer); this._pmPistaTimer = null; }
-      const ev = (pointer && pointer.event) ? pointer.event : { clientX: x, clientY: y };
-      this._abrirMenuJugador(playerId, { event: ev });
-      return;
-    }
-
-    this._pmUltimoToque[playerId] = { t: ahora, x, y };
-
-    // Solo en táctil se da la pista: en PC el clic derecho ya es evidente y
-    // un aviso en cada clic sería ruido.
-    if (esTactil) {
-      const jugador = this.otherPlayers && this.otherPlayers[playerId];
-      const nombre = (jugador && jugador._displayName) || 'this player';
-      if (this._pmPistaTimer) clearTimeout(this._pmPistaTimer);
-      this._pmPistaTimer = setTimeout(() => {
-        this._pmPistaTimer = null;
-        // Si a estas alturas sigue sin haber segundo toque, se olvida.
-        const p = this._pmUltimoToque[playerId];
-        if (p && (Date.now() - p.t) >= DOBLE_TOQUE_MS) this._pmUltimoToque[playerId] = null;
-      }, DOBLE_TOQUE_MS + 60);
-
-      // Aviso breve, con antirrebote para que no se repita en cada toque.
-      if (!this._pmPistaMostradaEn || (ahora - this._pmPistaMostradaEn) > 6000) {
-        this._pmPistaMostradaEn = ahora;
-        this.notifications && this.notifications.show(
-          `Tap ${nombre} again to open the player menu`, 'info', { icon: '👆' }
-        );
-      }
-    }
+    if (elegido) this._procesarToqueJugador(elegido, pointer);
   });
 }
 
@@ -22978,15 +23207,30 @@ _registrarEventosModeracion() {
       `${fallosParaSuspender} failed or ignored verifiers = ${diasSuspension}-day account suspension.`;
 
     // ── Cuenta atrás: número grande + barra que se vacía ─────────────────
+    // Los estilos van TAMBIÉN en línea, no solo por clase: la ventana es lo
+    // único que le dice al jugador cuánto le queda, y si por lo que sea la
+    // hoja inyectada no llegó a aplicarse, el reloj tiene que verse igual.
     const relojCaja = document.createElement('div');
     relojCaja.className = 'gf-countdown';
+    relojCaja.style.cssText =
+      'display:flex;flex-direction:column;gap:8px;align-items:center;' +
+      'background:#0d1122;border:2px solid #333c6c;border-radius:12px;padding:14px;';
+
     const relojNum = document.createElement('div');
     relojNum.className = 'gf-countdown-num';
+    relojNum.style.cssText = 'font-size:26px;color:#8fd0ff;letter-spacing:1px;font-family:inherit;';
     relojNum.textContent = `${segundosTotales}s`;
+
     const relojBarra = document.createElement('div');
     relojBarra.className = 'gf-countdown-bar';
+    relojBarra.style.cssText =
+      'width:100%;height:9px;background:#070a16;border-radius:20px;overflow:hidden;';
+
     const relojRelleno = document.createElement('span');
-    relojRelleno.style.width = '100%';
+    relojRelleno.style.cssText =
+      'display:block;height:100%;width:100%;border-radius:20px;' +
+      'background:linear-gradient(90deg,#5a8bff,#8fd0ff);transition:width .1s linear;';
+
     relojBarra.appendChild(relojRelleno);
     relojCaja.appendChild(relojNum);
     relojCaja.appendChild(relojBarra);
@@ -23054,12 +23298,25 @@ _registrarEventosModeracion() {
 
     // La cuenta atrás refresca 10 veces por segundo para que la barra se vea
     // suave, pero el número solo cambia cuando cambia el segundo.
+    // El título de la ventana también lleva los segundos: si el jugador tiene
+    // la ventana medio tapada por el teclado del móvil, sigue viendo el tiempo.
+    const tituloEl = back.querySelector('.gf-modal-h h3');
+
     tickId = setInterval(() => {
       const restanteMs = finaliza - Date.now();
       const restanteS = Math.max(0, Math.ceil(restanteMs / 1000));
       relojNum.textContent = `${restanteS}s`;
       relojRelleno.style.width = Math.max(0, (restanteMs / (segundosTotales * 1000)) * 100) + '%';
-      relojCaja.classList.toggle('urgent', restanteS <= 5);
+      if (tituloEl) tituloEl.textContent = `Verifier — ${restanteS}s left`;
+
+      const urgente = restanteS <= 5;
+      relojCaja.classList.toggle('urgent', urgente);
+      // Los colores de urgencia también en línea, por si la hoja no aplicó.
+      relojNum.style.color = urgente ? '#ff9a9a' : '#8fd0ff';
+      relojCaja.style.borderColor = urgente ? '#a04a55' : '#333c6c';
+      relojRelleno.style.background = urgente
+        ? 'linear-gradient(90deg,#d1483f,#ff9a9a)'
+        : 'linear-gradient(90deg,#5a8bff,#8fd0ff)';
 
       if (restanteMs <= 0) {
         clearInterval(tickId);
@@ -24705,6 +24962,7 @@ if (this.dogNameText) {
       this.npcx3.setText('Alchemist Colin');
       this.npcx4.setText('Guardian Rurik');
       this.npcx5.setText('Lord Digby');
+      this._fijarProfundidadNpcs();
 
       cambiarTodosLosTitulos({
           inventario: 'Inventory',
@@ -24738,6 +24996,7 @@ if (this.dogNameText) {
       this.npcx3.setText('Alchemist Colin');
       this.npcx4.setText('Guardian Rurik');
       this.npcx5.setText('Lord Digby');
+      this._fijarProfundidadNpcs();
 
       cambiarTodosLosTitulos({
           inventario: 'Inventory',
@@ -24770,6 +25029,7 @@ if (this.dogNameText) {
       this.npcx3.setText('Alquimista Colin');
       this.npcx4.setText('Guardián Rurik');
       this.npcx5.setText('Señor Digby');
+      this._fijarProfundidadNpcs();
 
       cambiarTodosLosTitulos({
           inventario: 'Inventario',
@@ -24803,6 +25063,7 @@ if (this.dogNameText) {
       this.npcx3.setText('Alquimista Colin');
       this.npcx4.setText('Guardião Rurik');
       this.npcx5.setText('Lorde Digby');
+      this._fijarProfundidadNpcs();
 
       cambiarTodosLosTitulos({
           inventario: 'Inventário',
@@ -24836,6 +25097,7 @@ if (this.dogNameText) {
       this.npcx3.setText('炼金师科林');
       this.npcx4.setText('守护者鲁里克');
       this.npcx5.setText('迪比勋爵');
+      this._fijarProfundidadNpcs();
 
       cambiarTodosLosTitulos({
           inventario: '库存',
@@ -24868,6 +25130,7 @@ if (this.dogNameText) {
       this.npcx3.setText('연금술사 코린');
       this.npcx4.setText('수호자 루릭');
       this.npcx5.setText('로드 디그비');
+      this._fijarProfundidadNpcs();
 
       cambiarTodosLosTitulos({
           inventario: '인벤토리',
