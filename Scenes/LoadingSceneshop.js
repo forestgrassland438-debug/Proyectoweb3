@@ -39,13 +39,53 @@ class LoadingSceneshop extends Phaser.Scene {
     }
 
     
+/**
+ * Espera a que terminen las transacciones on-chain que siguen en vuelo.
+ *
+ * Caso real: el jugador tala un árbol y, sin esperar, cruza la puerta de la
+ * tienda. GameScene se destruye con su transacción a medias y al volver la
+ * madera no estaba. El contador vive en `window.GFTxGate` (tx-gate.js), fuera
+ * de las escenas, así que sobrevive a esa destrucción y aquí se puede esperar.
+ *
+ * Tiene tope de 90 s: si se agota, se entra a la tienda igualmente. Vale más
+ * una transacción rezagada que una pantalla de carga eterna.
+ */
+async _esperarTransaccionesPendientes() {
+  const gate = window.GFTxGate;
+  if (!gate || typeof gate.whenIdle !== 'function') return;
+  if (gate.pending() === 0) return;
+
+  console.log(`⏳ ${gate.pending()} transacción(es) en vuelo — esperando antes de entrar a la tienda`);
+
+  const texto = this.loadingSystem && this.loadingSystem.textElement;
+  const resultado = await gate.whenIdle({
+    timeout: 90000,
+    onTick: (n, etiquetas) => {
+      if (!texto) return;
+      texto.textContent = n === 1
+        ? `Finishing 1 pending transaction… (${etiquetas[0] || ''})`
+        : `Finishing ${n} pending transactions…`;
+    }
+  });
+
+  if (!resultado.idle) {
+    console.warn('⚠️ Se entró a la tienda con transacciones aún pendientes:', gate.labels());
+  } else {
+    console.log(`✅ Transacciones terminadas en ${resultado.waitedMs} ms`);
+  }
+}
+
 async loadResources() {
   // Mostrar loading con mensaje inicial
-  this.loadingSystem.show({ 
-    message: 'Loading resources...', 
-    initialProgress: 0 
+  this.loadingSystem.show({
+    message: 'Loading resources...',
+    initialProgress: 0
   });
-  
+
+  // Antes de nada: terminar lo que quedó en vuelo en GameScene (una tala, un
+  // crafteo, una siembra…). Si no, la tienda cargaría un inventario incompleto.
+  await this._esperarTransaccionesPendientes();
+
   // Simular carga con tiempo controlado
   const steps = 10; // 10 pasos
   const stepDelay = 250; // 250ms por paso = 2.5 segundos total

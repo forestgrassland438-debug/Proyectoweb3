@@ -1324,11 +1324,14 @@ this.player.on('pointerdown', (pointer) => {
         
     this.npcx = this.add.text(685, 1370, 'Johnny Johnson', textStyle);
     this.npcx.setOrigin(0.5);
-    this.npcx.setDepth(9);
+    // Igual que en GameScene: los carteles de los NPC van por encima del
+    // jugador y de su mascota (cuya profundidad es la línea de los pies, del
+    // orden de miles), para que el personaje pase por DETRÁS del cartel.
+    this.npcx.setDepth(90000);
 
     this.npcx1 = this.add.text(770, 580, 'Franklin Vesh', textStyle);
     this.npcx1.setOrigin(0.5);
-    this.npcx1.setDepth(9);
+    this.npcx1.setDepth(90000);
 
 
 
@@ -1487,7 +1490,7 @@ this.anims.create({
   window.__hubPanelTries = 0;
 
   // Limitar por HTML (UX)
-  nameInput.setAttribute('maxlength', '10');
+  nameInput.setAttribute('maxlength', '15');
 
   let phaserScene = null;
   let options = {
@@ -1569,7 +1572,11 @@ this.anims.create({
      Sanitización y límites
      ----------------------- */
 
-  // Función de sanitización: permite solo letras (unicode), elimina tags y recorta a 10 chars.
+  // NOMBRES: LETRAS + NÚMEROS, HASTA 15 CARACTERES (2026-08-04).
+  // Antes solo admitía letras y 10 caracteres. El mismo criterio está en
+  // GameScene.js y en el servidor; si divergieran, el servidor recortaría el
+  // nombre y el jugador acabaría con uno distinto al que escribió.
+  const NAME_MAX = 15;
   function sanitizeName(raw) {
     if (!raw) return '';
     // normalizar compuestos (ñ, acentos)
@@ -1578,17 +1585,15 @@ this.anims.create({
     // eliminar etiquetas HTML (por si alguien intenta inyectar "<script>...")
     s = s.replace(/<[^>]*>/g, '');
 
-    // intentar usar Unicode property \p{L} (letras)
+    // mantener letras unicode Y dígitos; fuera espacios y símbolos
     try {
-      // mantiene SOLO letras unicode (incluye acentos, ñ, caracteres no latinos)
-      s = s.replace(/[^\p{L}]/gu, '');
+      s = s.replace(/[^\p{L}\p{Nd}]/gu, '');
     } catch (e) {
-      // fallback: permitir letras latinas y acentos comunes y ñ (no cubre TODO unicode)
-      s = s.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñÜü]/g, '');
+      // fallback para navegadores sin propiedades unicode en regex
+      s = s.replace(/[^A-Za-z0-9ÁÉÍÓÚáéíóúÑñÜü]/g, '');
     }
 
-    // recortar a 10 caracteres
-    return s.slice(0, 10);
+    return s.slice(0, NAME_MAX);
   }
 
   // Evitar que al escribir se inserten caracteres no permitidos y forzar maxlength
@@ -1598,8 +1603,8 @@ this.anims.create({
       // reemplaza el valor (esto evita caracteres inválidos en tiempo real)
       e.target.value = clean;
     }
-    // (maxlength ya impide >10, pero nos aseguramos)
-    if (e.target.value.length > 10) e.target.value = e.target.value.slice(0, 10);
+    // (maxlength ya lo impide, pero nos aseguramos)
+    if (e.target.value.length > NAME_MAX) e.target.value = e.target.value.slice(0, NAME_MAX);
   });
 
   // Sanitizar pegado (paste) para prevenir inyección por paste
@@ -1610,7 +1615,7 @@ this.anims.create({
     // insertar manualmente en la posición del cursor
     const start = nameInput.selectionStart || 0;
     const end = nameInput.selectionEnd || 0;
-    const newVal = (nameInput.value.slice(0, start) + clean + nameInput.value.slice(end)).slice(0, 10);
+    const newVal = (nameInput.value.slice(0, start) + clean + nameInput.value.slice(end)).slice(0, NAME_MAX);
     nameInput.value = newVal;
     // colocar cursor justo después del texto pegado
     const newPos = Math.min(10, start + clean.length);
@@ -1706,7 +1711,7 @@ this.anims.create({
       notify(
         String(rawName || '').trim() === ''
           ? 'Write a name first.'
-          : 'Only letters are allowed in the name (no numbers, spaces or symbols).',
+          : 'Only letters and numbers are allowed (no spaces or symbols).',
         'error'
       );
       console.log("No has puesto un nombre válido:", rawName);
@@ -4253,7 +4258,7 @@ saveAudioSettings() {
     
   } catch (error) {
     console.error('❌ Error guardando configuración de audio:', error);
-    this.showNotification('Error guardando configuración', 'error');
+    this.showNotification('Error saving settings', 'error');
   }
 }
 
@@ -5843,7 +5848,7 @@ async verificarRompimiento(itemRef) {
       }
 
       console.log(`💀 Objeto "${itemRef.id}" en casilla ${slotTipo}[${slotRoto}] se rompió (idx=${itemRef.idx})`);
-      this.notifications.show(`Tu ${itemRef.id} se rompió!`, 'error');
+      this.notifications.show(`Your ${itemRef.id} broke!`, 'error');
 
       // ── Quitar 1 del stack en blockchain + local ──
       await this.ejecutarDivisionRemove.call(this, 'slots', itemRef.id, toolDef.maxStack || 5, 1);
@@ -6907,7 +6912,7 @@ async mergeItemsBlockchain(origin, destType, destIndex) {
   }
   if (!origin.idx || !destItem.idx) {
     console.error('❌ Faltan idx en origen o destino. No se puede realizar merge blockchain.');
-    this.showNotification('Error: falta invoiceId en algún item', 'error');
+    this.showNotification('Error: an item is missing its invoiceId', 'error');
     return false;
   }
 
@@ -6920,7 +6925,7 @@ async mergeItemsBlockchain(origin, destType, destIndex) {
   const espacioDestino = maxStack - destItem.count;
   if (espacioDestino <= 0) {
     console.log('ℹ️ Destino ya está lleno, no se puede transferir');
-    this.showNotification('El destino ya está lleno', 'warning');
+    this.showNotification('That slot is already full', 'warning');
     return false;
   }
 
@@ -7029,7 +7034,7 @@ async mergeItemsBlockchain(origin, destType, destIndex) {
       }
       if (!destSlotInfo) {
         console.error('❌ No se encontró el slot destino con idx', destItem.idx, 'en el inventario. ¡Inconsistencia!');
-        this.showNotification('Error: destino desaparecido, recarga la página', 'error');
+        this.showNotification('Error: the target slot vanished, please reload the page', 'error');
         return true;
       }
 

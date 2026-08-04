@@ -1008,7 +1008,7 @@ async loadDailyMissions(npcId) {
     
     // Mostrar error al usuario
     if (this.lenguaje === 3) { // español
-      this.showNotification('Error cargando misiones. Intenta más tarde.', 'error');
+      this.showNotification('Error loading missions. Try again later.', 'error');
     } else if (this.lenguaje === 1) { // inglés
       this.showNotification('Error loading missions. Try again later.', 'error');
     }
@@ -1378,14 +1378,14 @@ async completeMission(missionId) {
     // 1. Verificar autenticación
     if (!this.playerName || !this.isAuthenticated) {
       console.error('❌ ERROR: No autenticado');
-      this.showNotification('No estás autenticado. Inicia sesión nuevamente.', 'error');
+      this.showNotification('You are not signed in. Please sign in again.', 'error');
       return null;
     }
     
     // 2. Verificar datos de misiones
     if (!this.dailyMissionsData || !this.dailyMissionsData.missions) {
       console.error('❌ ERROR: No hay datos de misiones cargados');
-      this.showNotification('Error cargando datos de misión', 'error');
+      this.showNotification('Error loading mission data', 'error');
       return null;
     }
     
@@ -1393,7 +1393,7 @@ async completeMission(missionId) {
     const mission = this.dailyMissionsData.missions.find(m => m.missionId === missionId);
     if (!mission) {
       console.error(`❌ ERROR: Misión ${missionId} no encontrada`);
-      this.showNotification('Misión no encontrada', 'error');
+      this.showNotification('Mission not found', 'error');
       return null;
     }
     
@@ -1458,7 +1458,7 @@ async completeMission(missionId) {
     // Asegurarse de que removeItemSmart existe y funciona
     if (typeof this.removeItemSmart !== 'function') {
       console.error('❌ ERROR: removeItemSmart no es una función');
-      this.showNotification('Error interno del juego', 'error');
+      this.showNotification('Internal game error', 'error');
       return null;
     }
     
@@ -1466,7 +1466,7 @@ async completeMission(missionId) {
     
     if (!removed) {
       console.error(`❌ ERROR: removeItemSmart devolvió false`);
-      this.showNotification(`Error al eliminar items del inventario`, 'error');
+      this.showNotification(`Error removing items from your inventory`, 'error');
       return null;
     }
     
@@ -1490,7 +1490,7 @@ async completeMission(missionId) {
       await this.getCSRFToken();
       if (!this.csrfToken) {
         console.error('❌ ERROR: No se pudo obtener token CSRF');
-        this.showNotification('Error de seguridad. Intenta nuevamente.', 'error');
+        this.showNotification('Security error. Please try again.', 'error');
         return null;
       }
     }
@@ -5330,25 +5330,35 @@ const textStyle = {
 
 // Creación de textos con estilo profesional
 
+// PROFUNDIDAD DE LOS CARTELES DE LOS NPC (2026-08-04)
+// ---------------------------------------------------------------------------
+// Estaban en depth 9. La profundidad del jugador y de su perro se calcula con
+// la línea de sus pies (`y + alto/2`), que en este mapa vale miles, así que el
+// personaje SIEMPRE pasaba por delante del cartel morado y lo tapaba.
+// Con este valor los carteles quedan por encima del jugador y de la mascota
+// (que nunca superan unos pocos miles) pero por debajo de las etiquetas de los
+// jugadores remotos (99999) y de la interfaz, así que nada más cambia de orden.
+const NPC_LABEL_DEPTH = 90000;
+
 this.npcx1 = this.add.text(1829, 3288, 'Granjero Joe', textStyle);
 this.npcx1.setOrigin(0.5);
-this.npcx1.setDepth(9);
+this.npcx1.setDepth(NPC_LABEL_DEPTH);
 
 this.npcx2 = this.add.text(3296, 1950, 'Crafteador Jack', textStyle);
 this.npcx2.setOrigin(0.5);
-this.npcx2.setDepth(9);
+this.npcx2.setDepth(NPC_LABEL_DEPTH);
 
 this.npcx3 = this.add.text(2374, 1515, 'Alquimista Colin', textStyle);
 this.npcx3.setOrigin(0.5);
-this.npcx3.setDepth(9);
+this.npcx3.setDepth(NPC_LABEL_DEPTH);
 
 this.npcx4 = this.add.text(3002, 855, 'Guardian Rurik', textStyle);
 this.npcx4.setOrigin(0.5);
-this.npcx4.setDepth(9);
+this.npcx4.setDepth(NPC_LABEL_DEPTH);
 
 this.npcx5 = this.add.text(2290, 2283, 'Lord Digby', textStyle);
 this.npcx5.setOrigin(0.5);
-this.npcx5.setDepth(9);
+this.npcx5.setDepth(NPC_LABEL_DEPTH);
 
 
     this.onInnerBtnClick = (e) => {
@@ -5640,7 +5650,7 @@ this.input.mouse.disableContextMenu();
       this.notifications.show("⛏️ You need a pickaxe to mine", "error");
 
       } else if (this.lenguaje === 2) {
-      this.notifications.show("⛏️ Necesitas un pico para minar", "error");
+      this.notifications.show("⛏️ You need a pickaxe to mine", "error");
         
       }
 */
@@ -5742,7 +5752,7 @@ const updateDepletionPercent = async (mineralType, increment) => {
     }
   } catch (e) {
     console.error('Error actualizando agotamiento:', e);
-    this.notifications?.show('Error al actualizar agotamiento', 'error');
+    this.notifications?.show('Could not update depletion', 'error');
     return false;
   }
 };
@@ -5787,7 +5797,7 @@ const lockMine = async (mineKey, mineralType) => {
     return data.success === true ? new Date(data.lockedUntil) : null;
   } catch (e) {
     console.error(`Error locking mine ${mineKey}:`, e);
-    this.notifications?.show('Error al bloquear la mina en el servidor', 'error');
+    this.notifications?.show('Could not lock the ore on the server', 'error');
     return null;
   }
 };
@@ -6011,7 +6021,7 @@ mineProps.forEach(prop => {
  
     // ── 1. Validar pico ───────────────────────────────────────────────────
     if (!isPickSelected_Mine()) {
-      this.notifications.show("Necesitas un pico para minar", "error");
+      this.notifications.show("You need a pickaxe to mine", "error");
       return;
     }
     const pickName  = getSelectedPickName_Mine();
@@ -6020,7 +6030,7 @@ mineProps.forEach(prop => {
  
     if (!isValidPickForMineral(pickName, mineKey)) {
       const required = MINE_TYPE_CONFIG[mineralType]?.requiredPick || 'mejor pico';
-      this.notifications.show(`Este mineral requiere ${required}`, "error");
+      this.notifications.show(`This ore requires ${required}`, "error");
       return;
     }
  
@@ -6028,7 +6038,7 @@ mineProps.forEach(prop => {
     const { isLocked, lockedUntil } = await getMineLockState(mineKey);
     if (isLocked) {
       const unlockTime = lockedUntil ? lockedUntil.toLocaleTimeString() : 'indefinidamente';
-      this.notifications.show(`Esta mina está agotada hasta ${unlockTime}`, "warning");
+      this.notifications.show(`This ore is depleted until ${unlockTime}`, "warning");
       return;
     }
  
@@ -6044,7 +6054,7 @@ mineProps.forEach(prop => {
  
     // ── 4. Recursos ───────────────────────────────────────────────────────
     if (this.aguaPorcentaje < 1 || this.comidaPorcentaje < 1) {
-      this.notifications.show("No tienes suficiente Agua o Comida para minar", "error");
+      this.notifications.show("Not enough Water or Food to mine", "error");
       return;
     }
  
@@ -6176,7 +6186,7 @@ mineProps.forEach(prop => {
         const increment = MINE_TYPE_CONFIG[mineralType]?.percentIncrement || 1;
         const depletionSuccess = await updateDepletionPercent(mineralType, increment);
         if (!depletionSuccess) {
-          this.notifications.show('Error al actualizar agotamiento. No se bloqueó la mina.', 'error');
+          this.notifications.show('Could not update depletion. The ore was not locked.', 'error');
           // Si no se bloqueó en el servidor, devolver el mineral al jugador:
           // si no, quedaría deshabilitado para siempre (ya no hay respawn que
           // lo reactive, porque nunca se programó).
@@ -6187,7 +6197,7 @@ mineProps.forEach(prop => {
 
         const serverLockedUntil = await lockMine(mineKey, mineralType);
         if (!serverLockedUntil) {
-          this.notifications.show('Error al bloquear la mina en el servidor.', 'error');
+          this.notifications.show('Could not lock the ore on the server.', 'error');
           this.showMinedMineral(mineKey);
           this.enablePixelPerfectInput(spr);
           return;
@@ -6401,7 +6411,7 @@ const updateDeforestationPercent = async (treeType, increment) => {
     }
   } catch (e) {
     console.error('Error updating deforestation:', e);
-    this.notifications?.show('Error al actualizar deforestación', 'error');
+    this.notifications?.show('Could not update deforestation', 'error');
     return false;
   }
 };
@@ -6443,7 +6453,7 @@ const lockTree = async (treeKey, treeType) => {
     return data.success === true ? new Date(data.lockedUntil) : null;
   } catch (e) {
     console.error(`Error locking tree ${treeKey}:`, e);
-    this.notifications?.show('Error al bloquear el árbol en el servidor', 'error');
+    this.notifications?.show('Could not lock the tree on the server', 'error');
     return null;
   }
 };
@@ -7392,14 +7402,14 @@ oreProps.forEach(prop => {
         const increment = TREE_TYPE_CONFIG[treeType]?.percentIncrement || 1;
         const deforestSuccess = await updateDeforestationPercent(treeType, increment);
         if (!deforestSuccess) {
-          this.notifications.show('Error al actualizar deforestación. No se bloqueó el árbol.', 'error');
+          this.notifications.show('Could not update deforestation. The tree was not locked.', 'error');
           hideTreeStump(treeKey);
           return;
         }
 
         const serverLockedUntil = await lockTree(treeKey, treeType);
         if (!serverLockedUntil) {
-          this.notifications.show('Error al bloquear el árbol en el servidor.', 'error');
+          this.notifications.show('Could not lock the tree on the server.', 'error');
           hideTreeStump(treeKey);
           return;
         }
@@ -8297,8 +8307,10 @@ setupResourceLockSocket() {
       this.socket.off('petLevelUpdate');
       this.socket.off('verifierChallenge');
       this.socket.off('verifierResult');
+      this.socket.off('verifierTimeout');
       this.socket.off('moderationWarning');
       this.socket.off('accountBanned');
+      this.socket.off('accountSuspended');
     } catch (_) {}
     this._eventosModeracionListos = false;
     this._resourceLockSocketBound = false;
@@ -8895,23 +8907,32 @@ setupSettingsPanel() {
 
     console.log('✅ Panel de configuraciones configurado');
 
-    // Configurar límite de caracteres
-    this.settingsNameInput.setAttribute('maxlength', '10');
-    if (this.settingsPetInput) this.settingsPetInput.setAttribute('maxlength', '10');
-    
+    // NOMBRES: LETRAS + NÚMEROS, HASTA 15 CARACTERES (2026-08-04)
+    // ------------------------------------------------------------------
+    // Antes eran 10 caracteres y SOLO letras, así que al escribir "Ana99"
+    // el campo se comía los dígitos y luego el botón "Aplicar" avisaba de
+    // que el nombre no era válido. Ahora se admiten letras y dígitos, y el
+    // límite sube a 15. Siguen fuera espacios, símbolos y etiquetas HTML
+    // (que es lo que evita nombres raros e inyección). El mismo criterio
+    // está en tiendajuego.js y en el servidor: si divergen, el servidor
+    // recortaría el nombre y el jugador vería otro distinto al que puso.
+    const NAME_MAX = 15;
+    this.settingsNameInput.setAttribute('maxlength', String(NAME_MAX));
+    if (this.settingsPetInput) this.settingsPetInput.setAttribute('maxlength', String(NAME_MAX));
+
     // Función para sanitizar nombre
     const sanitizeName = (raw) => {
         if (!raw) return '';
         let s = String(raw).normalize('NFC').trim();
         s = s.replace(/<[^>]*>/g, '');
-        
+
         try {
-            s = s.replace(/[^\p{L}]/gu, '');
+            s = s.replace(/[^\p{L}\p{Nd}]/gu, '');   // letras + dígitos
         } catch (e) {
-            s = s.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñÜü]/g, '');
+            s = s.replace(/[^A-Za-z0-9ÁÉÍÓÚáéíóúÑñÜü]/g, '');
         }
-        
-        return s.slice(0, 10);
+
+        return s.slice(0, NAME_MAX);
     };
     
     // Evento para input de nombre
@@ -8982,7 +9003,7 @@ setupSettingsPanel() {
         // Regla de nombre único: si ya está fijado, no se admiten cambios
         if (this._isNameSet(this.Username)) {
             this._refreshNameLockUI();
-            if (this.notifications) this.notifications.show('El nombre de personaje ya fue fijado y no puede cambiarse.', 'error');
+            if (this.notifications) this.notifications.show('The character name is already set and cannot be changed.', 'error');
             return;
         }
 
@@ -8997,7 +9018,7 @@ setupSettingsPanel() {
             // letras.
             const msg = String(rawName || '').trim() === ''
                 ? 'Write a name first.'
-                : 'Only letters are allowed in the name (no numbers, spaces or symbols).';
+                : 'Only letters and numbers are allowed (no spaces or symbols).';
             if (this.notifications) this.notifications.show(msg, 'error');
             const hint = document.getElementById('character-name-hint');
             if (hint) hint.textContent = `⚠️ ${msg}`;
@@ -9044,7 +9065,7 @@ setupSettingsPanel() {
         } catch (e) { console.warn('No se pudo actualizar/guardar el nombre:', e); }
 
         this._refreshNameLockUI();
-        if (this.notifications) this.notifications.show(`✅ Nombre fijado: ${name}`, 'success');
+        if (this.notifications) this.notifications.show(`✅ Name set: ${name}`, 'success');
 
         // Cerrar panel
         this.hideSettingsPanel();
@@ -9083,7 +9104,7 @@ setupSettingsPanel() {
                 // Mismo motivo que en el nombre de personaje: antes fallaba en silencio.
                 const msg = String(rawPet || '').trim() === ''
                     ? 'Write a pet name first.'
-                    : 'Only letters are allowed in the pet name (no numbers, spaces or symbols).';
+                    : 'Only letters and numbers are allowed in the pet name (no spaces or symbols).';
                 if (this.notifications) this.notifications.show(msg, 'error');
                 const hintPet = document.getElementById('pet-name-hint');
                 if (hintPet) hintPet.textContent = `⚠️ ${msg}`;
@@ -9618,7 +9639,7 @@ slot.addEventListener('click', (e) => {
   
   // Verificar si el slot ya tiene un item
   if (slot.classList.contains('has-item')) {
-    this.showNotification('Este slot ya tiene un item', 'warning');
+    this.showNotification('That slot already has an item', 'warning');
     return;
   }
   
@@ -9646,7 +9667,7 @@ slot.addEventListener('click', (e) => {
     console.log(`🔍 Buscando item con ID: ${itemId}`);
     
     if (!itemId) {
-      this.showNotification('Error: ID de item no válido', 'error');
+      this.showNotification('Error: invalid item id', 'error');
       return;
     }
     
@@ -9675,7 +9696,7 @@ slot.addEventListener('click', (e) => {
     
     // Mostrar mensaje según idioma
     if (this.lenguaje === 3) {
-      this.showNotification('Selecciona un item del inventario primero', 'warning');
+      this.showNotification('Select an item from your inventory first', 'warning');
     } else {
       this.showNotification('Select an item from inventory first', 'warning');
     }
@@ -9733,7 +9754,7 @@ tryAlternativeItemSearch(slotIndex, itemId) {
   
   // Si llegamos aquí, no se encontró
   if (this.lenguaje === 3) {
-    this.showNotification(`El item "${itemId}" no está en tu inventario`, 'error');
+    this.showNotification(`"${itemId}" is not in your inventory`, 'error');
   } else {
     this.showNotification(`Item "${itemId}" is not in your inventory`, 'error');
   }
@@ -10010,7 +10031,7 @@ addItemToTrashSlot(slotIndex, itemData) {
   
   // Verificar si ya existe en este slot
   if (this.trashItems.has(slotIndex)) {
-    this.showNotification('Este slot ya tiene un item', 'warning');
+    this.showNotification('That slot already has an item', 'warning');
     return;
   }
   
@@ -10173,7 +10194,7 @@ async confirmTrashItems() {
   const itemsToDelete = Array.from(this.trashItems.values());
   
   if (itemsToDelete.length === 0) {
-    this.showNotification('No hay items para eliminar', 'warning');
+    this.showNotification('There are no items to delete', 'warning');
     return;
   }
   
@@ -10916,13 +10937,13 @@ async handleWaterCollectionClick(pointer) {
   
   // Verificar balde vacío seleccionado
   if (!this.STATE || !this.STATE.selectedItem || this.STATE.selectedItem.id !== 'balde_vacio') {
-    this.notifications.show("Selecciona un balde vacío primero", "error");
+    this.notifications.show("Select an empty bucket first", "error");
     return;
   }
   
   // Verificar cantidad
   if (!this.STATE.selectedItem.count || this.STATE.selectedItem.count < 1) {
-    this.notifications.show("No tienes baldes vacíos", "error");
+    this.notifications.show("You have no empty buckets", "error");
     return;
   }
   
@@ -10934,9 +10955,9 @@ async handleWaterCollectionClick(pointer) {
         "error"
       );
     } else if (this.waterCollectionState.isDailyLimitReached) {
-      this.notifications.show("Límite diario alcanzado. Vuelve mañana.", "error");
+      this.notifications.show("Daily limit reached. Come back tomorrow.", "error");
     } else {
-      this.notifications.show("No puedes recolectar ahora", "error");
+      this.notifications.show("You cannot collect water right now", "error");
     }
     return;
   }
@@ -10945,7 +10966,7 @@ async handleWaterCollectionClick(pointer) {
     // 1. Verificar autenticación
     if (!this.playerName || !this.isAuthenticated) {
       console.error('❌ No autenticado para recolectar agua');
-      this.notifications.show('No estás autenticado. Inicia sesión nuevamente.', 'error');
+      this.notifications.show('You are not signed in. Please sign in again.', 'error');
       return;
     }
     
@@ -10954,7 +10975,7 @@ async handleWaterCollectionClick(pointer) {
       await this.getCSRFToken();
       if (!this.csrfToken) {
         console.error('❌ No se pudo obtener token CSRF para recolectar agua');
-        this.notifications.show('Error de seguridad. Intenta nuevamente.', 'error');
+        this.notifications.show('Security error. Please try again.', 'error');
         return;
       }
     }
@@ -11032,7 +11053,7 @@ async handleWaterCollectionClick(pointer) {
       // fallback local: el balde cambiaba en el inventario pero no había ni
       // transacción de quitar el balde vacío ni de dar el balde con agua.
       if (defVacio && defVacio.tipo && defAgua && defAgua.tipo) {
-        this.notifications.show("💧 Enviando transacción del balde vacío...", "info");
+        this.notifications.show("💧 Sending the empty bucket transaction…", "info");
 
         // TX 1: quitar el balde vacío
         const vaciosAntes = this.contarItemEnInventario('balde_vacio');
@@ -11044,12 +11065,12 @@ async handleWaterCollectionClick(pointer) {
         const vaciosDespues = this.contarItemEnInventario('balde_vacio');
 
         if (vaciosAntes - vaciosDespues < 1) {
-          this.notifications.show("❌ No se confirmó la transacción del balde vacío. Intenta de nuevo.", "error");
+          this.notifications.show("❌ The empty bucket transaction was not confirmed. Try again.", "error");
           return;
         }
 
         // TX 2: agregar el balde con agua
-        this.notifications.show("💧 Enviando transacción del balde con agua...", "info");
+        this.notifications.show("💧 Sending the full bucket transaction…", "info");
         const aguaAntes = this.contarItemEnInventario('balde_con_agua');
         try {
           await this.ejecutarDivision(defAgua.tipo, 'balde_con_agua', defAgua.maxStack || 5, 1);
@@ -11061,7 +11082,7 @@ async handleWaterCollectionClick(pointer) {
         if (aguaDespues - aguaAntes < 1) {
           // Compensar: devolver el balde vacío (también on-chain) para no
           // dejar al jugador sin nada.
-          this.notifications.show("⚠️ No se confirmó el balde con agua — devolviendo el balde vacío...", "error");
+          this.notifications.show("⚠️ The full bucket was not confirmed — returning the empty bucket…", "error");
           try {
             await this.ejecutarDivision(defVacio.tipo, 'balde_vacio', defVacio.maxStack || 5, 1);
           } catch (err) {
@@ -11075,7 +11096,7 @@ async handleWaterCollectionClick(pointer) {
         const removed = this.removeItemSmart('balde_vacio', 1);
 
         if (!removed) {
-          this.notifications.show("Error al remover balde vacío", "error");
+          this.notifications.show("Could not remove the empty bucket", "error");
           return;
         }
 
@@ -11084,7 +11105,7 @@ async handleWaterCollectionClick(pointer) {
         if (!added) {
           // Si no hay espacio, devolver el balde
           this.addItemWithCheck('balde_vacio', 1);
-          this.notifications.show("No hay espacio en el inventario", "error");
+          this.notifications.show("No space left in your inventory", "error");
           return;
         }
       }
@@ -11200,6 +11221,16 @@ initCropSystem() {
 
   const hubCorteViejo = document.getElementById('corte-hub');
   if (hubCorteViejo) hubCorteViejo.remove();
+
+  // === Cola de RIEGO pendiente (regadera y balde comparten hub) ===
+  // Mismo motivo que los otros dos: el hub es HTML plano en document.body, así
+  // que sobrevive a que GameScene se destruya al ir a la tienda y hay que
+  // borrarlo para que se regenere enlazado a la instancia actual.
+  this.pendingWaters = new Map();
+  this.pendingWaterLabels = new Map();
+  this._watersEnVuelo = new Set();
+  const hubRiegoViejo = document.getElementById('riego-hub');
+  if (hubRiegoViejo) hubRiegoViejo.remove();
 
   this.initPlots();
   this.setupCropSocketEvents();
@@ -11414,10 +11445,10 @@ setupCropSocketEvents() {
     // flujo de lotes, pero se deja por seguridad).
     if (data.rewards && data.rewards.item && data.rewards.quantity) {
       this.addItemWithCheck(data.rewards.item, data.rewards.quantity);
-      this.notifications.show(`¡Cosechado! Obtuviste ${data.rewards.quantity} ${data.rewards.item}`, "success");
+      this.notifications.show(`Harvested! You got ${data.rewards.quantity}x ${this._getFruitDisplayNameEN(data.rewards.item)}`, "success");
     } else {
       console.error('❌ ERROR: Recompensas undefined en harvestSuccess');
-      this.notifications.show('¡Cosechado! Pero hubo un error con las recompensas', "warning");
+      this.notifications.show('Harvested! But there was a problem with the rewards', "warning");
     }
   });
   
@@ -11452,15 +11483,15 @@ setupCropSocketEvents() {
       this.addItemWithCheck(data.rewards.item, data.rewards.quantity);
       
       if (data.isDead) {
-        this.notifications.show(`¡Árbol muerto cortado! Obtuviste ${data.rewards.quantity} ${data.rewards.item}`, "warning");
+        this.notifications.show(`Dead crop cleared! You got ${data.rewards.quantity}x ${this._getFruitDisplayNameEN(data.rewards.item)}`, "warning");
       } else if (data.wasInProgress) {
-        this.notifications.show(`¡Cortado en progreso! Obtuviste ${data.rewards.quantity} ${data.rewards.item}`, "info");
+        this.notifications.show(`Cut early! You got ${data.rewards.quantity}x ${this._getFruitDisplayNameEN(data.rewards.item)}`, "info");
       } else {
-        this.notifications.show(`Cortado! Obtuviste ${data.rewards.quantity} ${data.rewards.item}`, "info");
+        this.notifications.show(`Cut! You got ${data.rewards.quantity}x ${this._getFruitDisplayNameEN(data.rewards.item)}`, "info");
       }
     } else {
       console.error('❌ ERROR: Recompensas undefined en cutSuccess:', data);
-      this.notifications.show('¡Cortado! Pero hubo un error con las recompensas', "warning");
+      this.notifications.show('Cut! But there was a problem with the rewards', "warning");
     }
   });
   
@@ -11514,29 +11545,29 @@ handlePlotClick(plotId, pointer) {
       this.notifications.show("This plot already has a crop", "error");
     }
   }
-  else if (selectedItem.id === 'Regaderax') {
-    if (cropData && !cropData.isWatered) {
-      this.waterCrop(plotId);
-    } else if (!cropData) {
-      this.notifications.show("No hay cultivo para regar", "error");
-    } else {
-      this.notifications.show("Este cultivo ya está regado", "error");
-    }
-  }
-  // RIEGO CON BALDE (2026-08-03): además de la regadera, ahora también se
-  // puede regar con el balde con agua. Un balde rinde para DOS parcelas.
-  else if (selectedItem.id === 'balde_con_agua') {
-    if (cropData && !cropData.isWatered) {
-      this.waterCropWithBucket(plotId);
-    } else if (!cropData) {
+  // RIEGO (2026-08-04): la regadera y el balde con agua funcionan EXACTAMENTE
+  // igual, y como la siembra: se van marcando las parcelas que se quieren
+  // regar y aparece el hub con ✔ / ✖ para confirmar o cancelar todo el lote.
+  // Antes la regadera regaba de golpe con cada clic y el balde iba por su
+  // cuenta; ahora los dos comparten la misma cola.
+  else if (selectedItem.id === 'Regaderax' || selectedItem.id === 'balde_con_agua') {
+    const herramienta = selectedItem.id === 'Regaderax' ? 'can' : 'bucket';
+    if (!cropData) {
       this.notifications.show("There's no crop to water here", "error");
-    } else {
+    } else if (cropData.isWatered) {
       this.notifications.show("This crop is already watered", "error");
+    } else if (this._watersEnVuelo && this._watersEnVuelo.has(plotId)) {
+      this.notifications.show("This plot is already being processed, please wait", "warning");
+    } else if (this.pendingWaters && this.pendingWaters.has(plotId)) {
+      // Segundo clic sobre una parcela ya marcada = quitarla de la cola
+      this.unstageWater(plotId);
+    } else {
+      this.stageWater(plotId, herramienta);
     }
   }
   else if (selectedItem.id === 'Tijerasx') {
     if (!cropData) {
-      this.notifications.show("No hay cultivo para cortar", "error");
+      this.notifications.show("There is no crop to cut here", "error");
       return;
     }
     if (this._cutsEnVuelo.has(plotId)) {
@@ -12319,7 +12350,7 @@ cancelSiembraPendiente() {
 plantSeed(plotId, seedType, opciones = {}) {
   const cropConfig = this.cropTypes[seedType];
   if (!cropConfig) {
-    this.notifications.show("Tipo de semilla no válido", "error");
+    this.notifications.show("Invalid seed type", "error");
     return;
   }
 
@@ -12375,12 +12406,20 @@ plantSeed(plotId, seedType, opciones = {}) {
     
   } else {
     this.notifications.show(
-      `No tienes suficientes recursos. Necesitas: ${cropConfig.waterCost} agua y ${cropConfig.foodCost} comida`, 
+      `Not enough resources. You need ${cropConfig.waterCost} water and ${cropConfig.foodCost} food`, 
       "error"
     );
   }
 }
 
+/**
+ * Riego de UNA sola parcela con la regadera.
+ *
+ * Desde 2026-08-04 el flujo normal ya no pasa por aquí: la regadera y el balde
+ * usan la cola con ✔/✖ (stageWater → confirmRiegoPendiente). Este método se
+ * conserva porque sigue siendo la forma más corta de regar una parcela suelta
+ * desde código (tutorial, pruebas) sin montar un lote.
+ */
 async waterCrop(plotId) {
   const cropData = this.cropData.get(plotId);
   if (!cropData) return;
@@ -12402,27 +12441,23 @@ async waterCrop(plotId) {
       await this.verificarRompimiento(this.STATE.selectedItem);
     }
   } else {
-    this.notifications.show(`Necesitas ${cropConfig.wateringCost} de agua para regar`, "error");
+    this.notifications.show(`You need ${cropConfig.wateringCost} water to water this crop`, "error");
   }
 }
 
 // ============================================================================
-// RIEGO CON BALDE DE AGUA  (2026-08-03)
+// CRÉDITO DEL BALDE DE AGUA  (2026-08-03, revisado el 2026-08-04)
 // ----------------------------------------------------------------------------
-// Pedido: "también quiero que funcione con el balde de agua, solo que por un
-// balde podrás regar dos parcelas".
+// Un balde con agua rinde para DOS parcelas. El balde se gasta ENTERO en el
+// momento (sale `balde_con_agua`, entra `balde_vacio` con transacciones reales)
+// y lo que sobra queda anotado aquí como "riegos pendientes".
 //
-// Cómo funciona, y por qué así:
-//   El balde se gasta ENTERO en el PRIMER riego — se quita `balde_con_agua`
-//   con una transacción real y se devuelve `balde_vacio` (igual que hace el
-//   pozo, pero al revés). En ese momento queda guardado un "riego pendiente"
-//   que sirve para la SEGUNDA parcela.
-//   Se hace así, y no gastando medio balde por parcela, porque el inventario
-//   on-chain no admite medias unidades: si se esperara al segundo riego para
-//   descontar, un cierre de sesión en medio dejaría al jugador con un balde
-//   lleno que ya usó. El crédito pendiente se guarda por cuenta, así que
-//   sobrevive a recargas y a los viajes a la tienda.
-//   El agua sale del balde, no del jugador: regar así NO baja la barra de agua.
+// Se hace así, y no gastando medio balde por parcela, porque el inventario
+// on-chain no admite medias unidades: si se esperara al segundo riego para
+// descontar, cerrar sesión en medio dejaría al jugador con un balde lleno que
+// ya había usado. El crédito se guarda POR CUENTA, así que sobrevive a las
+// recargas y a los viajes a la tienda.
+// El agua sale del balde, no del jugador: regar así NO baja la barra de agua.
 // ============================================================================
 
 _bucketWaterKey() {
@@ -12447,105 +12482,394 @@ _setBucketWaterCredit(n) {
 /** Cuántas parcelas riega un balde lleno. */
 get BUCKET_PLOTS_PER_FILL() { return 2; }
 
-async waterCropWithBucket(plotId) {
+// ── COLA DE RIEGO CON ✔ / ✖ ─────────────────────────────────────────────
+// Igual que la siembra y el corte: se marcan las parcelas que se quieren
+// regar y aparece un hub flotante para confirmarlas todas de una vez.
+// Funciona con la REGADERA y con el BALDE CON AGUA exactamente igual; lo
+// único que cambia es de dónde sale el agua:
+//   • Regadera → gasta la barra de agua del jugador y desgasta la herramienta.
+//   • Balde    → un balde riega DOS parcelas y se convierte en balde vacío,
+//                sin tocar la barra de agua del jugador.
+
+_asegurarEstructurasRiego() {
+  if (!this.pendingWaters)      this.pendingWaters = new Map();      // plotId → 'can' | 'bucket'
+  if (!this.pendingWaterLabels) this.pendingWaterLabels = new Map();
+  if (!this._watersEnVuelo)     this._watersEnVuelo = new Set();
+}
+
+/** Marca (o desmarca) una parcela como "pendiente de riego": azul + 💧 */
+marcarCuadroPendienteRiego(plotId, activo) {
+  this._asegurarEstructurasRiego();
+  const imagen = this.plotImages.get(plotId);
+  if (!imagen) return;
+
+  if (activo) {
+    imagen.setTint(0x66b3ff);
+    if (!this.pendingWaterLabels.has(plotId)) {
+      const label = this.add.text(imagen.x, imagen.y - 40, '💧', {
+        fontFamily: '"PressStart2P"',
+        fontSize: '14px',
+        color: '#bfe9ff',
+        backgroundColor: '#000000AA',
+        padding: { x: 6, y: 4 },
+        align: 'center'
+      }).setOrigin(0.5).setDepth(11);
+      this.pendingWaterLabels.set(plotId, label);
+    }
+  } else {
+    imagen.clearTint();
+    if (this.pendingWaterLabels.has(plotId)) {
+      this.pendingWaterLabels.get(plotId).destroy();
+      this.pendingWaterLabels.delete(plotId);
+    }
+  }
+}
+
+stageWater(plotId, herramienta) {
+  this._asegurarEstructurasRiego();
+
+  // Una sola herramienta activa por lote: mezclar regadera y balde en la
+  // misma cola haría imposible saber qué se cobra a cada parcela.
+  if (this.pendingWaters.size > 0) {
+    const activa = this.pendingWaters.values().next().value;
+    if (activa !== herramienta) {
+      this.notifications.show(
+        'Finish or cancel the current watering before switching tools',
+        'error'
+      );
+      return;
+    }
+  }
+
+  // No dejar encolar más de lo que se puede pagar.
+  const futuras = this.pendingWaters.size + 1;
+  if (herramienta === 'bucket') {
+    const disponibles = this._baldesDisponiblesParaRiego();
+    if (futuras > disponibles) {
+      this.notifications.show(
+        disponibles > 0
+          ? `Your buckets only cover ${disponibles} plot(s). Fill more at the well.`
+          : "You don't have a full bucket. Fill it at the well.",
+        'error'
+      );
+      return;
+    }
+  } else {
+    const coste = this._costeRiegoParcela(plotId) * futuras;
+    if ((Number(this.aguaPorcentaje) || 0) < coste) {
+      const maximo = Math.floor((Number(this.aguaPorcentaje) || 0) / Math.max(0.01, this._costeRiegoParcela(plotId)));
+      this.notifications.show(
+        maximo > 0
+          ? `You can only water ${maximo} plot(s) with the water you have. Drink to water more.`
+          : "You don't have enough water. Drink or refill first.",
+        'error'
+      );
+      return;
+    }
+  }
+
+  this.pendingWaters.set(plotId, herramienta);
+  this.marcarCuadroPendienteRiego(plotId, true);
+  this.showRiegoHub();
+}
+
+unstageWater(plotId) {
+  this._asegurarEstructurasRiego();
+  this.pendingWaters.delete(plotId);
+  this.marcarCuadroPendienteRiego(plotId, false);
+  if (this.pendingWaters.size === 0) this.hideRiegoHub();
+  else this.updateRiegoHub();
+}
+
+/** Coste de agua de una parcela (según su cultivo). */
+_costeRiegoParcela(plotId) {
   const cropData = this.cropData.get(plotId);
-  if (!cropData) return;
+  const cfg = cropData ? (this.cropTypes[cropData.cropType] || cropData.cropConfig) : null;
+  const c = Number(cfg && cfg.wateringCost);
+  return Number.isFinite(c) && c > 0 ? c : 0.5;
+}
 
-  const cropConfig = this.cropTypes[cropData.cropType] || cropData.cropConfig;
-  if (!cropConfig) return;
+/** Cuántas parcelas puedo regar con los baldes que tengo + el crédito guardado. */
+_baldesDisponiblesParaRiego() {
+  const enInventario = this.contarItemEnInventario('balde_con_agua');
+  return this._getBucketWaterCredit() + enInventario * this.BUCKET_PLOTS_PER_FILL;
+}
 
-  // Candado: sin esto, dos toques rápidos en dos parcelas podían mandar dos
-  // transacciones del mismo balde a la vez.
-  if (this._riegoBaldeEnCurso) {
-    this.notifications.show('The bucket is already being used, please wait', 'warning');
+// ── Hub flotante del riego ─────────────────────────────────────────────
+// Se coloca a 196 px del borde para que no se encime con el de siembra
+// (24 px) ni con el de corte (110 px) si los tres estuvieran a la vez.
+ensureRiegoHubDOM() {
+  const existentes = document.querySelectorAll('#riego-hub');
+  if (existentes.length > 1) existentes.forEach(el => el.remove());
+
+  let hub = document.getElementById('riego-hub');
+
+  if (!hub) {
+    hub = document.createElement('div');
+    hub.id = 'riego-hub';
+    hub.style.cssText = `
+      position: fixed;
+      bottom: 196px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(20,20,20,0.92);
+      border: 2px solid #4aa3ff;
+      border-radius: 12px;
+      padding: 12px 18px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      z-index: 9999;
+      font-family: "PressStart2P", monospace;
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+      pointer-events: auto;
+    `;
+    hub.style.setProperty('display', 'none', 'important');
+
+    const label = document.createElement('div');
+    label.id = 'riego-hub-label';
+    label.style.cssText = 'font-size: 10px; text-align:center; line-height:1.6;';
+    label.textContent = 'Plots ready to water: 0';
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; gap:14px;';
+
+    const btnCheck = document.createElement('button');
+    btnCheck.id = 'riego-hub-confirm';
+    btnCheck.textContent = '✔';
+    btnCheck.title = 'Confirm watering';
+    btnCheck.style.cssText = `
+      width: 46px; height: 46px; border-radius: 50%; border: none;
+      background: #1565c0; color: #fff; font-size: 20px; cursor: pointer;
+    `;
+
+    const btnX = document.createElement('button');
+    btnX.id = 'riego-hub-cancel';
+    btnX.textContent = '✖';
+    btnX.title = 'Cancel watering';
+    btnX.style.cssText = `
+      width: 46px; height: 46px; border-radius: 50%; border: none;
+      background: #c62828; color: #fff; font-size: 20px; cursor: pointer;
+    `;
+
+    row.appendChild(btnCheck);
+    row.appendChild(btnX);
+    hub.appendChild(label);
+    hub.appendChild(row);
+    document.body.appendChild(hub);
+  }
+
+  // Mismo cuidado que en los otros hubs: los botones se reconectan a la
+  // instancia ACTUAL de la escena cada vez, porque el hub es DOM plano y
+  // sobrevive a que GameScene se destruya al ir a la tienda.
+  const c = document.getElementById('riego-hub-confirm');
+  const x = document.getElementById('riego-hub-cancel');
+  if (c) c.onclick = () => this.confirmRiegoPendiente();
+  if (x) x.onclick = () => this.cancelRiegoPendiente();
+}
+
+showRiegoHub() {
+  this.ensureRiegoHubDOM();
+  document.querySelectorAll('#riego-hub').forEach(h => h.style.setProperty('display', 'flex', 'important'));
+  this.updateRiegoHub();
+}
+
+hideRiegoHub() {
+  document.querySelectorAll('#riego-hub').forEach(h => h.style.setProperty('display', 'none', 'important'));
+}
+
+updateRiegoHub() {
+  const label = document.getElementById('riego-hub-label');
+  if (!label) return;
+  this._asegurarEstructurasRiego();
+
+  const n = this.pendingWaters.size;
+  const herramienta = n > 0 ? this.pendingWaters.values().next().value : null;
+
+  if (herramienta === 'bucket') {
+    const baldes = Math.ceil(Math.max(0, n - this._getBucketWaterCredit()) / this.BUCKET_PLOTS_PER_FILL);
+    label.textContent = `Bucket: ${n} plot(s) ready — uses ${baldes} bucket(s)`;
+  } else if (herramienta === 'can') {
+    let coste = 0;
+    for (const plotId of this.pendingWaters.keys()) coste += this._costeRiegoParcela(plotId);
+    label.textContent = `Watering can: ${n} plot(s) ready — costs ${coste.toFixed(1)} water`;
+  } else {
+    label.textContent = 'Plots ready to water: 0';
+  }
+}
+
+cancelRiegoPendiente() {
+  this._asegurarEstructurasRiego();
+  for (const plotId of this.pendingWaters.keys()) this.marcarCuadroPendienteRiego(plotId, false);
+  this.pendingWaters.clear();
+  this.hideRiegoHub();
+}
+
+/** ✔ Confirmar: riega todas las parcelas marcadas. */
+async confirmRiegoPendiente() {
+  this._asegurarEstructurasRiego();
+  if (this.pendingWaters.size === 0) return;
+  if (this._riegoEnCurso) {
+    this.notifications.show('The watering is already being processed, please wait', 'warning');
     return;
   }
 
-  // ── Caso 1: queda un riego pendiente del balde anterior ──────────────
-  if (this._getBucketWaterCredit() > 0) {
-    this._setBucketWaterCredit(this._getBucketWaterCredit() - 1);
-    this._regarParcelaConBalde(plotId);
-    const quedan = this._getBucketWaterCredit();
-    this.notifications.show(
-      quedan > 0
-        ? `Watered with the bucket — ${quedan} plot(s) left in it`
-        : 'Watered with the bucket — the bucket is empty now',
-      'success',
-      { icon: '💧' }
-    );
-    return;
+  const entradas = Array.from(this.pendingWaters.entries());
+  const herramienta = entradas[0][1];
+  const plotIds = entradas.map(([id]) => id);
+
+  // Se saca de la cola ya mismo y se marcan como "en vuelo" para que no se
+  // puedan volver a tocar hasta que se resuelvan (el tinte azul se mantiene).
+  this.pendingWaters.clear();
+  this.hideRiegoHub();
+  plotIds.forEach(id => this._watersEnVuelo.add(id));
+
+  this._riegoEnCurso = true;
+  try {
+    const regadas = herramienta === 'bucket'
+      ? await this._regarLoteConBaldes(plotIds)
+      : await this._regarLoteConRegadera(plotIds);
+
+    // Las que no se pudieron regar vuelven a quedar libres.
+    plotIds.forEach(id => {
+      this.marcarCuadroPendienteRiego(id, false);
+      this._watersEnVuelo.delete(id);
+    });
+
+    if (regadas > 0) {
+      this.nivel_exp = (this.nivel_exp || 0) + 5 * regadas;
+      this.notifications.show(
+        `Watered ${regadas} plot(s)`,
+        'success',
+        { icon: '💧' }
+      );
+    }
+  } finally {
+    this._riegoEnCurso = false;
+  }
+}
+
+/** Riega con la regadera: gasta la barra de agua y desgasta la herramienta. */
+async _regarLoteConRegadera(plotIds) {
+  let regadas = 0;
+  let agua = Number(this.aguaPorcentaje) || 0;
+
+  for (const plotId of plotIds) {
+    const coste = this._costeRiegoParcela(plotId);
+    if (agua < coste) {
+      this.notifications.show(
+        `Ran out of water after ${regadas} plot(s). Drink and try the rest again.`,
+        'warning'
+      );
+      break;
+    }
+    agua -= coste;
+    this.actualizarBarraAgua(agua);
+    this.socket.emit('waterCrop', { userId: this.currentAccount, plotId });
+    regadas++;
   }
 
-  // ── Caso 2: hay que abrir un balde nuevo ─────────────────────────────
-  const disponibles = this.contarItemEnInventario('balde_con_agua');
-  if (disponibles < 1) {
-    this.notifications.show("You don't have a full bucket. Fill it at the well.", 'error');
-    return;
+  // La regadera se desgasta UNA vez por lote confirmado (mismo mecanismo de
+  // "usos" → rotura → transacción on-chain que usan hachas y picos).
+  if (regadas > 0 && this.STATE.selectedItem && this.STATE.selectedItem.idx) {
+    await this.verificarRompimiento(this.STATE.selectedItem);
   }
+  return regadas;
+}
+
+/**
+ * Riega con baldes: cada balde cubre DOS parcelas.
+ *
+ * El balde se gasta ENTERO (sale `balde_con_agua` y entra `balde_vacio` con
+ * transacciones reales) y lo que sobra queda como crédito guardado por cuenta,
+ * así que sobrevive a recargas y a los viajes a la tienda. Se hace así porque
+ * el inventario on-chain no admite medias unidades: si se esperara al segundo
+ * riego para descontar, cerrar sesión en medio dejaría un balde lleno ya usado.
+ */
+async _regarLoteConBaldes(plotIds) {
+  const necesarias = plotIds.length;
+  const credito = this._getBucketWaterCredit();
+  const baldesNecesarios = Math.ceil(Math.max(0, necesarias - credito) / this.BUCKET_PLOTS_PER_FILL);
 
   const defAgua  = this.ItemDefinitions ? this.ItemDefinitions['balde_con_agua'] : null;
   const defVacio = this.ItemDefinitions ? this.ItemDefinitions['balde_vacio'] : null;
 
-  this._riegoBaldeEnCurso = true;
-  try {
-    if (defAgua && defAgua.tipo && defVacio && defVacio.tipo) {
-      this.notifications.show('💧 Sending the bucket transaction...', 'info');
+  let cargasDisponibles = credito;
 
-      // TX 1: quitar el balde con agua (y comprobar de verdad que se quitó,
-      // comparando el inventario antes y después — el valor de retorno de
-      // ejecutarDivisionRemove no es fiable, ver nota en _procesarLoteSiembra).
+  if (baldesNecesarios > 0) {
+    if (this.contarItemEnInventario('balde_con_agua') < baldesNecesarios) {
+      this.notifications.show("You don't have enough full buckets for those plots.", 'error');
+      return 0;
+    }
+
+    if (defAgua && defAgua.tipo && defVacio && defVacio.tipo) {
+      this.notifications.show(
+        `💧 Sending the transaction for ${baldesNecesarios} bucket(s)…`, 'info'
+      );
+
+      // TX 1: quitar los baldes llenos. El éxito se comprueba comparando el
+      // inventario antes y después: ejecutarDivisionRemove no devuelve un
+      // booleano fiable (ver la nota de _procesarLoteSiembra).
       const antes = this.contarItemEnInventario('balde_con_agua');
       try {
-        await this.ejecutarDivisionRemove(defAgua.tipo, 'balde_con_agua', defAgua.maxStack || 5, 1);
+        await this.ejecutarDivisionRemove(defAgua.tipo, 'balde_con_agua', defAgua.maxStack || 5, baldesNecesarios);
       } catch (err) {
-        console.error('❌ Error quitando el balde con agua:', err);
+        console.error('❌ Error quitando los baldes con agua:', err);
       }
       const despues = this.contarItemEnInventario('balde_con_agua');
-      if (despues >= antes) {
+      const gastados = Math.max(0, antes - despues);
+
+      if (gastados <= 0) {
         this.notifications.show("The bucket transaction wasn't confirmed. Try again.", 'error');
-        return;
+        return 0;
       }
 
-      // TX 2: devolver el balde vacío. Si esta falla, el jugador se queda sin
-      // el balde vacío pero SÍ con sus dos riegos: se avisa con claridad.
+      // TX 2: devolver los baldes vacíos. Si falla, el jugador conserva sus
+      // riegos igualmente; solo se avisa de que el envase no volvió.
       try {
-        await this.ejecutarDivision(defVacio.tipo, 'balde_vacio', defVacio.maxStack || 5, 1);
+        await this.ejecutarDivision(defVacio.tipo, 'balde_vacio', defVacio.maxStack || 5, gastados);
       } catch (err) {
-        console.error('❌ Error devolviendo el balde vacío:', err);
+        console.error('❌ Error devolviendo los baldes vacíos:', err);
         this.notifications.show(
-          "The empty bucket couldn't be returned on-chain. Talk to support if it doesn't show up.",
+          "The empty buckets couldn't be returned on-chain. Contact support if they don't show up.",
           'warning'
         );
       }
+
+      cargasDisponibles += gastados * this.BUCKET_PLOTS_PER_FILL;
     } else {
       // Sin definición on-chain: intercambio local (caso de respaldo).
-      if (!this.removeItemSmart('balde_con_agua', 1)) {
-        this.notifications.show('Could not use the bucket', 'error');
-        return;
+      if (!this.removeItemSmart('balde_con_agua', baldesNecesarios)) {
+        this.notifications.show('Could not use the buckets', 'error');
+        return 0;
       }
-      this.addItemWithCheck('balde_vacio', 1);
+      this.addItemWithCheck('balde_vacio', baldesNecesarios);
+      cargasDisponibles += baldesNecesarios * this.BUCKET_PLOTS_PER_FILL;
     }
-
-    // El balde ya se gastó: este riego + los que queden guardados.
-    this._setBucketWaterCredit(this.BUCKET_PLOTS_PER_FILL - 1);
-    this._regarParcelaConBalde(plotId);
-    this.notifications.show(
-      `Watered with the bucket — ${this._getBucketWaterCredit()} plot(s) left in it`,
-      'success',
-      { icon: '💧' }
-    );
-  } finally {
-    this._riegoBaldeEnCurso = false;
   }
-}
 
-/** Riega la parcela sin tocar la barra de agua (el agua viene del balde). */
-_regarParcelaConBalde(plotId) {
-  this.socket.emit('waterCrop', {
-    userId: this.currentAccount,
-    plotId: plotId
-  });
-  this.nivel_exp = (this.nivel_exp || 0) + 5;
+  // Regar tantas parcelas como cargas se hayan conseguido.
+  let regadas = 0;
+  for (const plotId of plotIds) {
+    if (cargasDisponibles <= 0) break;
+    cargasDisponibles--;
+    // El agua sale del balde: la barra del jugador NO se toca.
+    this.socket.emit('waterCrop', { userId: this.currentAccount, plotId });
+    regadas++;
+  }
+
+  // Lo que sobre del último balde se guarda para la próxima vez.
+  this._setBucketWaterCredit(Math.max(0, cargasDisponibles));
+
+  if (regadas < plotIds.length) {
+    this.notifications.show(
+      `Only ${regadas} of ${plotIds.length} plot(s) could be watered. Fill more buckets at the well.`,
+      'warning'
+    );
+  }
+  return regadas;
 }
 
 // ============================================================================
@@ -13483,7 +13807,7 @@ saveAudioSettings() {
     
   } catch (error) {
     console.error('❌ Error guardando configuración de audio:', error);
-    this.showNotification('Error guardando configuración', 'error');
+    this.showNotification('Error saving settings', 'error');
     return false;
   }
 }
@@ -16603,9 +16927,18 @@ async ejecutarDivision(ruta_tabla, producto, limitacion, cantidad) {
   // Validaciones rápidas
   if (limitacion <= 0 || cantidad <= 0) return;
 
+  // TxGate (2026-08-04): se anota como trabajo pendiente en un contador que
+  // vive en `window`, fuera de la escena. Así, si el jugador se va a la tienda
+  // con esta transacción todavía en vuelo, la pantalla de carga la espera en
+  // vez de destruir la escena y dejarla a medias. Ver tx-gate.js.
+  const finTx = (window.GFTxGate && window.GFTxGate.begin)
+    ? window.GFTxGate.begin(`Adding ${cantidad}x ${producto}`)
+    : null;
+
   this._addItemQueue = (this._addItemQueue || Promise.resolve())
     .then(() => this.Additemblockchains(ruta_tabla, producto, cantidad))
-    .catch(err => console.error('❌ Error procesando ejecutarDivision en cola:', err));
+    .catch(err => console.error('❌ Error procesando ejecutarDivision en cola:', err))
+    .finally(() => { if (finTx) finTx(); });
 
   return this._addItemQueue;
 }
@@ -17572,7 +17905,7 @@ async mergeItemsBlockchain(origin, destType, destIndex) {
       if (!destSlotInfo) {
         console.error('❌ No se encontró el slot destino con idx', destItem.idx, 'en el inventario. ¡Inconsistencia!');
         // No podemos actualizar destino, pero la transacción ya se hizo. Mostrar error.
-        this.showNotification('Error: destino desaparecido, recarga la página', 'error');
+        this.showNotification('Error: the target slot vanished, please reload the page', 'error');
         return true; // La transacción fue exitosa, pero la UI está desincronizada.
       }
 
@@ -18202,7 +18535,7 @@ async verificarRompimiento(itemRef) {
       }
 
       console.log(`💀 Objeto "${itemRef.id}" en casilla ${slotTipo}[${slotRoto}] se rompió (idx=${itemRef.idx})`);
-      this.notifications.show(`Tu ${itemRef.id} se rompió!`, 'error');
+      this.notifications.show(`Your ${itemRef.id} broke!`, 'error');
 
       // ── Quitar 1 del stack en blockchain + local ──
       await this.ejecutarDivisionRemove.call(this, 'slots', itemRef.id, toolDef.maxStack || 5, 1);
@@ -18241,9 +18574,16 @@ async verificarRompimiento(itemRef) {
 async ejecutarDivisionRemove(ruta_tabla, producto, limitacion, cantidad) {
     if (limitacion <= 0 || cantidad <= 0) return;
 
+    // TxGate: igual que ejecutarDivision — el trabajo se anota fuera de la
+    // escena para que un cambio de escena no lo deje huérfano (ver tx-gate.js).
+    const finTx = (window.GFTxGate && window.GFTxGate.begin)
+        ? window.GFTxGate.begin(`Removing ${cantidad}x ${producto}`)
+        : null;
+
     this._removeItemQueue = (this._removeItemQueue || Promise.resolve())
         .then(() => this._ejecutarDivisionRemoveInterno(ruta_tabla, producto, limitacion, cantidad))
-        .catch(err => console.error('❌ Error procesando ejecutarDivisionRemove en cola:', err));
+        .catch(err => console.error('❌ Error procesando ejecutarDivisionRemove en cola:', err))
+        .finally(() => { if (finTx) finTx(); });
 
     return this._removeItemQueue;
 }
@@ -21087,11 +21427,20 @@ async _gatherClaim(nodeKey, toolId) {
 // ═══════════════════════════════════════════════════════════════════════════
 SILVER_PER_GOLD = 1000;
 
+// PAQUETES DE COMPRA DE DINERO (2026-08-04)
+// ---------------------------------------------------------------------------
+// Precio 1 a 1: 1 = 1 $, 10 = 10 $, 100 = 100 $ (antes había descuento por
+// volumen: 10 costaba 9 y 100 costaba 90).
+// Cada paquete tiene su PROPIO tope de 3 compras al día: gastadas las 3 de 1 $,
+// todavía quedan las 3 de 10 $ y las 3 de 100 $ hasta mañana. El contador lo
+// lleva el SERVIDOR (CurrencyPurchase en server2.js), nunca el navegador, así
+// que no se puede reiniciar recargando la página ni cambiando la hora.
 GOLD_PACKAGES = [
-  { gold: 1,   usdt: 1  },
-  { gold: 10,  usdt: 9  },
-  { gold: 100, usdt: 90 }
+  { gold: 1,   usdt: 1,   pack: 1   },
+  { gold: 10,  usdt: 10,  pack: 10  },
+  { gold: 100, usdt: 100, pack: 100 }
 ];
+CURRENCY_PACK_DAILY_LIMIT = 3;
 
 // Enlaza el clic de las monedas del HUD con el hub.
 //
@@ -21164,15 +21513,20 @@ async _buildCurrencyHub(tab) {
   ov.id = 'gf-currency-modal';
   ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;';
 
+  // Cada paquete muestra su propio contador diario ("2/3 left today"), que se
+  // rellena en cuanto responde el servidor (ver _refrescarLimitesDeCompra).
   const pkgs = this.GOLD_PACKAGES.map((p, i) =>
-    `<div class="gfc-pkg" data-i="${i}" style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#0b2b22;border:2px solid #2b5c4a;border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
+    `<div class="gfc-pkg" data-i="${i}" data-pack="${p.pack}" style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#0b2b22;border:2px solid #2b5c4a;border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
        <div style="display:flex;align-items:center;gap:8px;">
          <img src="./Game/Source/moneda de oro.png" alt="" style="width:26px;height:26px;image-rendering:pixelated;">
-         <b style="font-size:clamp(14px,3.8vw,17px);">${p.gold} Gold</b>
+         <div>
+           <b style="font-size:clamp(14px,3.8vw,17px);">${p.gold} Gold</b>
+           <div class="gfc-left" data-pack="${p.pack}" style="color:#8fb8ff;font-size:11px;">checking…</div>
+         </div>
        </div>
        <div style="text-align:right;">
-         <div style="color:#ffd23f;font-weight:bold;">${p.usdt} USDT</div>
-         ${p.gold > 1 ? `<div style="color:#8fd9b6;font-size:11px;">save ${p.gold - p.usdt} USDT</div>` : '<div style="color:#7f96b5;font-size:11px;">1 = 1$</div>'}
+         <div style="color:#ffd23f;font-weight:bold;">$${p.usdt}</div>
+         <div style="color:#7f96b5;font-size:11px;">${p.gold} = $${p.usdt}</div>
        </div>
      </div>`).join('');
 
@@ -21189,7 +21543,10 @@ async _buildCurrencyHub(tab) {
      </div>
 
      <div id="gfc-buy">
-       <div style="color:#bcd6c9;font-size:12px;margin-bottom:8px;">Pay with <b>USDT</b>. Choose a package:</div>
+       <div style="color:#bcd6c9;font-size:12px;margin-bottom:8px;line-height:1.5;">
+         Choose a package — <b>1 Gold = $1</b>.<br>
+         <span style="color:#8fb8ff;">Each package can be bought up to ${this.CURRENCY_PACK_DAILY_LIMIT} times per day, counted separately.</span>
+       </div>
        ${pkgs}
        <div style="background:#08211a;border:1px solid #24503f;border-radius:10px;padding:10px;font-size:12px;line-height:1.5;">
          <div style="color:#8fb8ff;">Connected wallet</div>
@@ -21241,22 +21598,14 @@ async _buildCurrencyHub(tab) {
   $('gfc-tab-exc').onclick = () => paint('exchange');
   paint(tab === 'exchange' ? 'exchange' : 'buy');
 
-  // ── Compra con USDT ──────────────────────────────────────────────────────
+  // ── Compra de dinero ─────────────────────────────────────────────────────
+  // El tope de 3 compras al día POR PAQUETE lo lleva el servidor. Aquí solo se
+  // enseña cuántas quedan y se manda la petición; si el servidor dice que no
+  // quedan, se avisa con la hora a la que se reinicia el contador.
   card.querySelectorAll('.gfc-pkg').forEach(el => {
-    el.onclick = () => {
-      const p = this.GOLD_PACKAGES[Number(el.getAttribute('data-i'))];
-      const treasury = window.GF_TREASURY_ADDRESS;
-      const msg = $('gfc-buy-msg');
-      if (!treasury) {
-        // Sin dirección de tesorería configurada NO se finge una compra.
-        msg.innerHTML = `⚠️ Purchases are not enabled yet: the treasury address is not configured.<br>` +
-                        `Selected: <b>${p.gold} Gold for ${p.usdt} USDT</b>.`;
-        return;
-      }
-      msg.innerHTML = `Send <b>${p.usdt} USDT</b> to:<br><span style="font-family:monospace;word-break:break-all;">${treasury}</span><br>` +
-                      `Your gold is credited after the payment is confirmed on-chain.`;
-    };
+    el.onclick = () => this._comprarPaqueteDeDinero(Number(el.getAttribute('data-i')), card);
   });
+  this._refrescarLimitesDeCompra(card);
 
   // ── Cambio de moneda ─────────────────────────────────────────────────────
   const qtyEl = $('gfc-e-qty'), costEl = $('gfc-e-cost'), msgEl = $('gfc-e-msg');
@@ -21283,6 +21632,123 @@ async _buildCurrencyHub(tab) {
     $('gfc-e-go').disabled = false;
     $('gfc-e-go').textContent = '✓ Exchange';
   };
+}
+
+// ============================================================================
+// COMPRA DE DINERO CON TOPE DIARIO  (2026-08-04)
+// ----------------------------------------------------------------------------
+// 1 = 1 $, 10 = 10 $, 100 = 100 $. Cada paquete se puede comprar 3 veces al
+// día, y los tres contadores son independientes: agotadas las 3 compras de 1 $,
+// se pueden seguir comprando las de 10 $ y las de 100 $.
+//
+// El contador lo lleva el SERVIDOR (/api/currency/purchase). Aquí solo se
+// muestra lo que queda y se pide la compra: recargar la página o cambiar la
+// hora del teléfono no reinicia nada.
+// ============================================================================
+
+/** Pinta "N/3 left today" en cada paquete. */
+async _refrescarLimitesDeCompra(card) {
+  const pintar = (pack, texto, agotado) => {
+    const el = card.querySelector(`.gfc-left[data-pack="${pack}"]`);
+    if (!el) return;
+    el.textContent = texto;
+    el.style.color = agotado ? '#ff8a8a' : '#8fd9b6';
+    const fila = card.querySelector(`.gfc-pkg[data-pack="${pack}"]`);
+    if (fila) {
+      fila.style.opacity = agotado ? '0.55' : '';
+      fila.style.cursor = agotado ? 'not-allowed' : 'pointer';
+    }
+  };
+
+  try {
+    const res = await this.fetchWithTokenRetry(
+      `${this.serverBase}/api/currency/purchase/limits`, { method: 'GET' }
+    );
+    if (!res || !res.ok) throw new Error('limits_failed');
+    const data = await res.json();
+    this._limitesCompra = data;
+
+    (data.packs || []).forEach(p => {
+      pintar(
+        p.pack,
+        p.remaining > 0
+          ? `${p.remaining} of ${data.limit} left today`
+          : 'Sold out today',
+        p.remaining <= 0
+      );
+    });
+  } catch (e) {
+    console.warn('No se pudieron leer los topes de compra:', e);
+    this.GOLD_PACKAGES.forEach(p => pintar(p.pack, `up to ${this.CURRENCY_PACK_DAILY_LIMIT} per day`, false));
+  }
+}
+
+async _comprarPaqueteDeDinero(indice, card) {
+  const p = this.GOLD_PACKAGES[indice];
+  if (!p) return;
+
+  const msg = document.getElementById('gfc-buy-msg');
+  const fila = card.querySelector(`.gfc-pkg[data-pack="${p.pack}"]`);
+
+  // Comprobación local rápida para no mandar una petición condenada al fallo.
+  const estado = (this._limitesCompra && this._limitesCompra.packs || [])
+    .find(x => Number(x.pack) === Number(p.pack));
+  if (estado && estado.remaining <= 0) {
+    if (msg) {
+      msg.style.color = '#ff8a8a';
+      msg.textContent = `You already bought the $${p.usdt} pack ${this.CURRENCY_PACK_DAILY_LIMIT} times today. It resets at midnight UTC.`;
+    }
+    return;
+  }
+
+  if (this._comprandoDinero) return;
+  this._comprandoDinero = true;
+  if (fila) fila.style.pointerEvents = 'none';
+  if (msg) { msg.style.color = '#ffd23f'; msg.textContent = `Buying ${p.gold} Gold for $${p.usdt}…`; }
+
+  try {
+    const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/currency/purchase`, {
+      method: 'POST',
+      body: JSON.stringify({ pack: p.pack })
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      const cuando = data.resetsAt ? new Date(data.resetsAt).toLocaleString() : 'midnight UTC';
+      const mensajes = {
+        daily_pack_limit_reached: `You already bought the $${p.usdt} pack ${this.CURRENCY_PACK_DAILY_LIMIT} times today. It resets at ${cuando}.`,
+        credit_failed: 'The payment could not be credited. Nothing was charged — try again in a moment.',
+        invalid_pack: 'That package is not available.'
+      };
+      if (msg) { msg.style.color = '#ff8a8a'; msg.textContent = mensajes[data.error] || 'The purchase could not be completed.'; }
+      this._limitesCompra = data && data.packs ? data : this._limitesCompra;
+      await this._refrescarLimitesDeCompra(card);
+      return;
+    }
+
+    // Saldo nuevo (el servidor ya movió la factura on-chain).
+    this.moneda = (Number(this.moneda) || 0) + p.gold;
+    if (window.playerStats) window.playerStats.oro = this.moneda;
+    const izq = document.getElementById('info-text-left');
+    if (izq) izq.textContent = `${this.moneda}`;
+
+    this._limitesCompra = data;
+    await this._refrescarLimitesDeCompra(card);
+
+    const restantes = (data.packs || []).find(x => Number(x.pack) === Number(p.pack));
+    if (msg) {
+      msg.style.color = '#6fcf97';
+      msg.textContent = `Done! +${p.gold} Gold` +
+        (restantes ? ` — ${restantes.remaining} purchase(s) of this pack left today` : '');
+    }
+    this.notifications && this.notifications.show(`Purchased ${p.gold} Gold for $${p.usdt}`, 'success', { icon: '💰' });
+  } catch (e) {
+    console.error('❌ Error comprando dinero:', e);
+    if (msg) { msg.style.color = '#ff8a8a'; msg.textContent = 'Connection error. Nothing was charged.'; }
+  } finally {
+    this._comprandoDinero = false;
+    if (fila) fila.style.pointerEvents = '';
+  }
 }
 
 // Pide al SERVIDOR el cambio de moneda (él valida el saldo y mueve las facturas).
@@ -21331,6 +21797,14 @@ _handleAccessDenied(body) {
     const when = body.date ? new Date(body.date).toLocaleString('en-US') : 'unknown date';
     const why  = body.reason && String(body.reason).trim() ? body.reason : 'No reason provided';
     msg = `You are banned since ${when}.\nReason: ${why}`;
+  } else if (body && body.error === 'suspended') {
+    // Suspensión temporal (3 verificadores fallidos = 3 días, o puesta por un
+    // administrador). A diferencia del baneo, ésta caduca sola, así que lo
+    // importante es decir CUÁNDO se puede volver a entrar.
+    const hasta = body.until || body.date;
+    const cuando = hasta ? new Date(hasta).toLocaleString('en-US') : 'an unknown date';
+    const why = body.reason && String(body.reason).trim() ? body.reason : 'failed verifiers';
+    msg = `Your account is temporarily suspended.\nReason: ${why}\nYou can play again on ${cuando}.`;
   } else {
     msg = 'You are not on the whitelist.\nAccess is currently restricted.';
   }
@@ -22034,6 +22508,17 @@ _asegurarEstilosMenuJugador() {
       background:#0d1122;border:2px solid #333c6c;border-radius:9px;padding:11px;outline:none;}
     .gf-field textarea{min-height:92px;resize:vertical;line-height:1.6;}
     .gf-note{font-size:8px;color:#8f9ac4;line-height:1.7;}
+
+    /* Cuenta atrás del verificador (15 s) */
+    .gf-countdown{display:flex;flex-direction:column;gap:8px;align-items:center;
+      background:#0d1122;border:2px solid #333c6c;border-radius:12px;padding:14px;}
+    .gf-countdown-num{font-size:26px;color:#8fd0ff;letter-spacing:1px;}
+    .gf-countdown-bar{width:100%;height:9px;background:#070a16;border-radius:20px;overflow:hidden;}
+    .gf-countdown-bar > span{display:block;height:100%;background:linear-gradient(90deg,#5a8bff,#8fd0ff);
+      border-radius:20px;transition:width .1s linear;}
+    .gf-countdown.urgent{border-color:#a04a55;}
+    .gf-countdown.urgent .gf-countdown-num{color:#ff9a9a;}
+    .gf-countdown.urgent .gf-countdown-bar > span{background:linear-gradient(90deg,#d1483f,#ff9a9a);}
     @media (max-width:600px){
       .gf-modal-h h3{font-size:10px;}
       .gf-row{font-size:8px;flex-direction:column;gap:2px;}
@@ -22055,29 +22540,68 @@ _habilitarMenuJugador(playerId, sprite) {
   if (!sprite) return;
   try { sprite.setInteractive({ useHandCursor: true }); } catch (_) { return; }
 
+  // Ventana del doble toque y cuánto se puede mover el dedo entre los dos.
+  const DOBLE_TOQUE_MS = 420;
+  const DOBLE_TOQUE_PX = 40;
+
   sprite.on('pointerdown', (pointer) => {
-    // Ratón: botón derecho abre el menú directamente.
+    // ── Ratón: el botón derecho abre el menú directamente ────────────────
     if (pointer && typeof pointer.rightButtonDown === 'function' && pointer.rightButtonDown()) {
       this._abrirMenuJugador(playerId, pointer);
       return;
     }
-    // Táctil: pulsación larga (600 ms) sin mover el dedo.
-    if (pointer && pointer.wasTouch) {
-      const x0 = pointer.x, y0 = pointer.y;
-      this._pmLongPress = setTimeout(() => {
-        const actual = this.input.activePointer;
-        const movido = actual ? (Math.abs(actual.x - x0) + Math.abs(actual.y - y0)) > 24 : false;
-        if (!movido) this._abrirMenuJugador(playerId, { event: { clientX: x0, clientY: y0 } });
-      }, 600);
+
+    // ── TELÉFONO: DOBLE TOQUE (2026-08-04) ───────────────────────────────
+    // En el móvil no hay clic derecho. Antes se usaba una pulsación LARGA,
+    // pero con el dedo eso choca con el movimiento del personaje (mantener
+    // pulsado es caminar) y casi nunca llegaba a abrirse. Ahora son DOS
+    // TOQUES seguidos sobre el mismo personaje, que es un gesto claro y no
+    // interfiere con nada. También vale con el botón izquierdo del ratón.
+    const esTactil = !!(pointer && (pointer.wasTouch || pointer.pointerType === 'touch'));
+    const x = pointer ? pointer.x : 0;
+    const y = pointer ? pointer.y : 0;
+    const ahora = Date.now();
+
+    this._pmUltimoToque = this._pmUltimoToque || {};
+    const previo = this._pmUltimoToque[playerId];
+
+    const esDoble = previo &&
+      (ahora - previo.t) < DOBLE_TOQUE_MS &&
+      (Math.abs(x - previo.x) + Math.abs(y - previo.y)) < DOBLE_TOQUE_PX;
+
+    if (esDoble) {
+      this._pmUltimoToque[playerId] = null;
+      // Cancelar el aviso de "toca otra vez" si estaba en pantalla.
+      if (this._pmPistaTimer) { clearTimeout(this._pmPistaTimer); this._pmPistaTimer = null; }
+      const ev = (pointer && pointer.event) ? pointer.event : { clientX: x, clientY: y };
+      this._abrirMenuJugador(playerId, { event: ev });
+      return;
+    }
+
+    this._pmUltimoToque[playerId] = { t: ahora, x, y };
+
+    // Solo en táctil se da la pista: en PC el clic derecho ya es evidente y
+    // un aviso en cada clic sería ruido.
+    if (esTactil) {
+      const jugador = this.otherPlayers && this.otherPlayers[playerId];
+      const nombre = (jugador && jugador._displayName) || 'this player';
+      if (this._pmPistaTimer) clearTimeout(this._pmPistaTimer);
+      this._pmPistaTimer = setTimeout(() => {
+        this._pmPistaTimer = null;
+        // Si a estas alturas sigue sin haber segundo toque, se olvida.
+        const p = this._pmUltimoToque[playerId];
+        if (p && (Date.now() - p.t) >= DOBLE_TOQUE_MS) this._pmUltimoToque[playerId] = null;
+      }, DOBLE_TOQUE_MS + 60);
+
+      // Aviso breve, con antirrebote para que no se repita en cada toque.
+      if (!this._pmPistaMostradaEn || (ahora - this._pmPistaMostradaEn) > 6000) {
+        this._pmPistaMostradaEn = ahora;
+        this.notifications && this.notifications.show(
+          `Tap ${nombre} again to open the player menu`, 'info', { icon: '👆' }
+        );
+      }
     }
   });
-
-  const cancelarLongPress = () => {
-    if (this._pmLongPress) { clearTimeout(this._pmLongPress); this._pmLongPress = null; }
-  };
-  sprite.on('pointerup', cancelarLongPress);
-  sprite.on('pointerout', cancelarLongPress);
-  sprite.on('pointermove', cancelarLongPress);
 }
 
 _abrirMenuJugador(playerId, pointer) {
@@ -22307,15 +22831,17 @@ async _enviarVerificador(playerId) {
       const mensajes = {
         verifier_cooldown: `You can send another verifier in ${data.secondsRemaining || 60}s`,
         player_not_found: 'That player has no account on record',
-        cannot_verify_yourself: "You can't send a verifier to yourself"
+        cannot_verify_yourself: "You can't send a verifier to yourself",
+        verifier_already_pending: `${nombre} already has a verifier waiting to be answered`
       };
       this.notifications.show(mensajes[data.error] || 'The verifier could not be sent', 'error');
       return;
     }
 
+    const segundos = Number(data.seconds) || 15;
     this.notifications.show(
       data.delivered
-        ? `Verifier sent to ${nombre} — you'll be told if they pass it`
+        ? `Verifier sent to ${nombre} — they have ${segundos}s to answer`
         : `Verifier registered — ${nombre} is offline right now`,
       'success',
       { icon: '🛡️' }
@@ -22430,53 +22956,163 @@ _registrarEventosModeracion() {
   if (!this.socket || this._eventosModeracionListos) return;
   this._eventosModeracionListos = true;
 
-  // Alguien me mandó un verificador: hay que contestarlo.
+  // Alguien me mandó un verificador: hay que contestarlo ANTES DE QUE ACABE
+  // LA CUENTA ATRÁS (15 s por defecto, lo dice el servidor en `expiresIn`).
+  // Dejarlo pasar cuenta como fallo, igual que contestar mal, y tres fallos
+  // son 3 días de suspensión — por eso la ventana avisa de las dos cosas.
   this.socket.on('verifierChallenge', (data) => {
     if (!data || !data.id) return;
+
+    const segundosTotales = Math.max(5, Number(data.expiresIn) || 15);
+    const fallosParaSuspender = Number(data.failsToSuspend) || 3;
+    const diasSuspension = Number(data.suspendDays) || 3;
+
     const cuerpo = document.createElement('div');
     cuerpo.style.cssText = 'display:flex;flex-direction:column;gap:14px;';
 
     const aviso = document.createElement('div');
     aviso.className = 'gf-note';
-    aviso.textContent = `${data.from || 'A player'} sent you a verifier to confirm there's a real person playing. Answer it to keep your account clear.`;
+    aviso.textContent =
+      `${data.from || 'A player'} sent you a verifier to confirm a real person is playing. ` +
+      `Answer within ${segundosTotales} seconds. ` +
+      `${fallosParaSuspender} failed or ignored verifiers = ${diasSuspension}-day account suspension.`;
+
+    // ── Cuenta atrás: número grande + barra que se vacía ─────────────────
+    const relojCaja = document.createElement('div');
+    relojCaja.className = 'gf-countdown';
+    const relojNum = document.createElement('div');
+    relojNum.className = 'gf-countdown-num';
+    relojNum.textContent = `${segundosTotales}s`;
+    const relojBarra = document.createElement('div');
+    relojBarra.className = 'gf-countdown-bar';
+    const relojRelleno = document.createElement('span');
+    relojRelleno.style.width = '100%';
+    relojBarra.appendChild(relojRelleno);
+    relojCaja.appendChild(relojNum);
+    relojCaja.appendChild(relojBarra);
 
     const campo = document.createElement('label');
     campo.className = 'gf-field';
     campo.appendChild(Object.assign(document.createElement('span'), { textContent: data.question || '?' }));
     const input = document.createElement('input');
     input.type = 'text';
-    input.inputMode = 'numeric';
+    input.inputMode = 'numeric';       // teclado numérico en el teléfono
+    input.pattern = '[0-9]*';
     input.autocomplete = 'off';
+    input.maxLength = 4;
     campo.appendChild(input);
 
     cuerpo.appendChild(aviso);
+    cuerpo.appendChild(relojCaja);
     cuerpo.appendChild(campo);
 
-    this._crearModal('Verifier', {
+    let enviado = false;
+    let tickId = null;
+    const finaliza = Date.now() + segundosTotales * 1000;
+
+    const enviar = async (back, btn) => {
+      if (enviado) return;
+      enviado = true;
+      if (tickId) { clearInterval(tickId); tickId = null; }
+      if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+      try {
+        const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/verifier/answer`, {
+          method: 'POST',
+          body: JSON.stringify({ id: data.id, answer: input.value })
+        });
+        const r = await res.json().catch(() => ({}));
+        if (back && back.isConnected) back.remove();
+
+        if (r.status === 'passed') {
+          this.notifications.show('Verifier passed ✅', 'success');
+        } else if (r.suspended) {
+          this.notifications.show(
+            `Verifier failed ❌ — your account has been suspended for ${diasSuspension} days`,
+            'error'
+          );
+        } else {
+          const restantes = Math.max(0, fallosParaSuspender - (Number(r.fails) || 0));
+          this.notifications.show(
+            `Verifier failed ❌ — ${restantes} more failure(s) will suspend your account`,
+            'error'
+          );
+        }
+      } catch (_) {
+        enviado = false;
+        if (btn) { btn.disabled = false; btn.textContent = 'Answer'; }
+        this.notifications.show('Could not send the answer', 'error');
+      }
+    };
+
+    const { back } = this._crearModal('Verifier', {
       cuerpo,
       botones: [{
         texto: 'Answer',
-        accion: async (back, btn) => {
-          btn.disabled = true;
-          try {
-            const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/verifier/answer`, {
-              method: 'POST',
-              body: JSON.stringify({ id: data.id, answer: input.value })
-            });
-            const r = await res.json().catch(() => ({}));
-            back.remove();
-            this.notifications.show(
-              r.status === 'passed' ? 'Verifier passed ✅' : 'Verifier failed ❌',
-              r.status === 'passed' ? 'success' : 'error'
-            );
-          } catch (_) {
-            btn.disabled = false;
-            this.notifications.show('Could not send the answer', 'error');
-          }
-        }
+        accion: (b, btn) => enviar(b, btn)
       }]
     });
-    setTimeout(() => input.focus(), 60);
+
+    // La cuenta atrás refresca 10 veces por segundo para que la barra se vea
+    // suave, pero el número solo cambia cuando cambia el segundo.
+    tickId = setInterval(() => {
+      const restanteMs = finaliza - Date.now();
+      const restanteS = Math.max(0, Math.ceil(restanteMs / 1000));
+      relojNum.textContent = `${restanteS}s`;
+      relojRelleno.style.width = Math.max(0, (restanteMs / (segundosTotales * 1000)) * 100) + '%';
+      relojCaja.classList.toggle('urgent', restanteS <= 5);
+
+      if (restanteMs <= 0) {
+        clearInterval(tickId);
+        tickId = null;
+        if (enviado) return;
+        // Se manda igualmente lo que haya escrito: el servidor lo marcará
+        // como fuera de plazo y el jugador ve el resultado real, en vez de
+        // quedarse con una ventana muerta en pantalla.
+        enviar(back, null);
+      }
+    }, 100);
+
+    // Si la ventana se cierra a mano, se para el reloj (el servidor lo dará
+    // por vencido igualmente cuando acabe el plazo).
+    const observador = setInterval(() => {
+      if (!back.isConnected) {
+        clearInterval(observador);
+        if (tickId) { clearInterval(tickId); tickId = null; }
+      }
+    }, 500);
+
+    // Enter envía, cómodo en PC.
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') enviar(back, null); });
+    setTimeout(() => { try { input.focus(); } catch (_) {} }, 60);
+  });
+
+  // El plazo se acabó sin contestar: el servidor ya lo contó como fallo.
+  this.socket.on('verifierTimeout', (data) => {
+    if (!data) return;
+    if (data.suspended) return; // ya llega 'accountSuspended' con el detalle
+    const restantes = Math.max(0, (Number(data.failsToSuspend) || 3) - (Number(data.fails) || 0));
+    this.notifications.show(
+      `You ran out of time on a verifier ⌛ — ${restantes} more failure(s) will suspend your account`,
+      'warning'
+    );
+  });
+
+  // Suspensión temporal: el servidor ya cerró el socket.
+  this.socket.on('accountSuspended', (data) => {
+    const cuerpo = document.createElement('div');
+    const p = document.createElement('div');
+    p.className = 'gf-note';
+    p.style.fontSize = '10px';
+    const hasta = data && data.until ? new Date(data.until) : null;
+    p.textContent =
+      `Your account has been suspended for ${(data && data.days) || 3} day(s). ` +
+      `Reason: ${(data && data.reason) || 'failed verifiers'}.` +
+      (hasta && !isNaN(hasta) ? ` You can play again on ${hasta.toLocaleString()}.` : '');
+    cuerpo.appendChild(p);
+    this._crearModal('Account suspended', {
+      cuerpo,
+      botones: [{ texto: 'Close', clase: 'danger', accion: () => { window.location.reload(); } }]
+    });
   });
 
   // Resultado del verificador que YO mandé.

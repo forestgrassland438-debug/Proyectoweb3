@@ -1514,8 +1514,17 @@ class LoadingScenegame extends Phaser.Scene {
 
         console.log('🎮 Player name disponible:', this.playerName);
 
-        // ── 1. Cargar datos del jugador desde la BD ─────────────────────────
+        // ── 0. ESPERAR A LAS TRANSACCIONES EN VUELO ─────────────────────────
+        // Si el jugador acaba de comprar algo en la tienda y salió corriendo,
+        // esa transacción sigue viva en el contador global (tx-gate.js) aunque
+        // la escena de la tienda ya se haya destruido. Cargar los datos del
+        // jugador AHORA leería un inventario que todavía no incluye la compra,
+        // y todo lo que viene después (sync con blockchain, guardado) partiría
+        // de datos viejos. Así que primero se espera a que no quede nada.
         this.loadingSystem.show({ message: 'Loading player data...', initialProgress: 0 });
+        await this._esperarTransaccionesPendientes();
+
+        // ── 1. Cargar datos del jugador desde la BD ─────────────────────────
         this.loadingSystem.update(0.2);
         this.loadingSystem.textElement.textContent = 'Loading player data...';
 
@@ -1553,6 +1562,43 @@ class LoadingScenegame extends Phaser.Scene {
         this.intervalId = setInterval(() => this.checkTransition(), 2000);
 
         this.setupActivityTracking();
+    }
+
+    /**
+     * Espera a que terminen las transacciones on-chain que quedaron en vuelo
+     * al cambiar de escena (compras de la tienda, tala, crafteo, siembra…).
+     *
+     * El contador vive en `window.GFTxGate` (tx-gate.js), fuera de las escenas,
+     * precisamente porque la escena que lanzó la transacción ya no existe.
+     *
+     * NUNCA deja al jugador atrapado: si pasan 90 segundos se sigue igualmente
+     * y se avisa por consola. Es preferible entrar al juego con una
+     * transacción rezagada que quedarse en una pantalla de carga eterna.
+     */
+    async _esperarTransaccionesPendientes() {
+        const gate = window.GFTxGate;
+        if (!gate || typeof gate.whenIdle !== 'function') return;
+        if (gate.pending() === 0) return;
+
+        console.log(`⏳ ${gate.pending()} transacción(es) en vuelo — esperando antes de cargar`);
+
+        const texto = this.loadingSystem && this.loadingSystem.textElement;
+        const resultado = await gate.whenIdle({
+            timeout: 90000,
+            onTick: (n, etiquetas) => {
+                if (!texto) return;
+                texto.textContent = n === 1
+                    ? `Finishing 1 pending transaction… (${etiquetas[0] || ''})`
+                    : `Finishing ${n} pending transactions…`;
+            }
+        });
+
+        if (texto) texto.textContent = 'Loading player data...';
+        if (!resultado.idle) {
+            console.warn('⚠️ Se entró al juego con transacciones aún pendientes:', gate.labels());
+        } else {
+            console.log(`✅ Transacciones terminadas en ${resultado.waitedMs} ms`);
+        }
     }
 
     async loadResources() {
