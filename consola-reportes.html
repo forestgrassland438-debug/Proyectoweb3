@@ -152,6 +152,18 @@ button{font-family:inherit;font-size:14px;cursor:pointer;}
 
 .empty{padding:44px 20px;text-align:center;color:var(--text-dim);
   border:1px dashed var(--line);border-radius:var(--radius);}
+
+/* Bloque de suspensiones temporales */
+.susp-box{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:12px 15px;margin-bottom:16px;}
+.susp-box summary{cursor:pointer;font-size:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.susp-box summary::-webkit-details-marker{color:var(--text-dim);}
+.susp-box .dim{color:var(--text-dim);font-size:12px;}
+.susp-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12.5px;
+  padding:9px 11px;background:var(--surface-2);border-radius:8px;}
+.susp-row .who{font-weight:600;}
+.susp-row .when{font-family:var(--mono);color:var(--text-dim);font-size:11.5px;}
+.susp-row .spacer{flex:1;}
 .pager{display:flex;gap:9px;justify-content:center;align-items:center;margin-top:16px;
   font-size:13px;color:var(--text-dim);}
 
@@ -257,6 +269,16 @@ button{font-family:inherit;font-size:14px;cursor:pointer;}
       <div class="stat b" data-status="banned"><div class="n" id="n-banned">0</div><div class="l">Baneados</div></div>
       <div class="stat d" data-status="dismissed"><div class="n" id="n-dismissed">0</div><div class="l">Descartados</div></div>
     </div>
+
+    <!-- Suspensiones temporales: las automáticas por verificadores fallidos y
+         las que pone un administrador a mano. Caducan solas. -->
+    <details class="susp-box" id="suspBox">
+      <summary>
+        ⏱️ Suspensiones activas <span class="tag" id="susp-count">0</span>
+        <span class="dim" id="susp-rules"></span>
+      </summary>
+      <div id="susp-list" class="hist" style="margin-top:12px;"></div>
+    </details>
 
     <div class="toolbar">
       <input type="search" id="q" placeholder="Buscar por jugador, cartera, motivo o detalle…" autocomplete="off">
@@ -487,8 +509,65 @@ button{font-family:inherit;font-size:14px;cursor:pointer;}
     }
   }
 
+  // ── Suspensiones temporales ──────────────────────────────────────────────
+  // Se llenan solas: 3 verificadores fallidos (o ignorados durante los 15 s de
+  // la cuenta atrás) = 3 días de suspensión. También se pueden poner a mano
+  // desde el expediente. Caducan por sí solas, no hay que levantarlas.
+  async function cargarSuspensiones(){
+    try{
+      var d = await pedir('/api/admin/suspensions?active=1');
+      var lista = d.suspensions || [];
+      var reglas = d.rules || {};
+
+      $('susp-count').textContent = lista.length;
+      $('susp-rules').textContent =
+        'Regla automática: ' + (reglas.failsToSuspend || 3) + ' verificadores fallidos (' +
+        (reglas.seconds || 15) + ' s para contestar cada uno) = ' +
+        (reglas.suspendDays || 3) + ' días de suspensión.';
+
+      var cont = $('susp-list');
+      cont.textContent = '';
+
+      if(!lista.length){
+        cont.appendChild(el('div', {class:'empty', text:'No hay ninguna cuenta suspendida ahora mismo.'}));
+        return;
+      }
+
+      lista.forEach(function(s){
+        var fila = el('div', {class:'susp-row'}, [
+          el('span', {class:'who', text: (s.playerName && s.playerName !== '---') ? s.playerName : corto(s.address)}),
+          el('span', {class:'tag ' + (s.source === 'verifier' ? 'pending' : 'warned'),
+                      text: s.source === 'verifier' ? 'automática' : 'manual'}),
+          el('span', {text: s.reason || '—'}),
+          el('span', {class:'spacer'}),
+          el('span', {class:'when', text: 'hasta ' + fecha(s.until)})
+        ]);
+        var btn = el('button', {class:'btn sm', text:'Levantar'});
+        btn.addEventListener('click', function(){ levantarSuspension(s.id, btn); });
+        fila.appendChild(btn);
+        cont.appendChild(fila);
+      });
+    }catch(e){
+      $('susp-rules').textContent = 'No se pudieron cargar las suspensiones: ' + (e.message || e);
+    }
+  }
+
+  async function levantarSuspension(id, boton){
+    if(!window.confirm('¿Levantar esta suspensión? La cuenta podrá entrar de inmediato.')) return;
+    boton.disabled = true;
+    try{
+      await pedir('/api/admin/suspensions/' + encodeURIComponent(id) + '/lift', {method:'POST'});
+      aviso('Suspensión levantada', 'ok');
+      await cargarSuspensiones();
+    }catch(e){
+      aviso('No se pudo levantar: ' + (e.message || e), 'err');
+      boton.disabled = false;
+    }
+  }
+
   // ── Carga y pintado de la lista ──────────────────────────────────────────
   async function cargar(){
+    cargarSuspensiones();
     var params = new URLSearchParams();
     if(state.status) params.set('status', state.status);
     if(state.q) params.set('q', state.q);
@@ -707,6 +786,22 @@ button{font-family:inherit;font-size:14px;cursor:pointer;}
     var bWarn = el('button', {class:'btn warn', text:'⚠️ Enviar advertencia'});
     bWarn.addEventListener('click', function(){ accionar(rep.id, 'warn', bWarn); });
 
+    // Suspensión temporal: la misma sanción que aplica el sistema por 3
+    // verificadores fallidos, pero puesta a mano. Caduca sola.
+    var campoDias = el('label', {class:'field', style:'margin-top:10px;max-width:220px;'}, [
+      el('span', {text:'Días de suspensión'}),
+      el('input', {type:'number', id:'suspDays', min:'1', max:'365', value:'3'})
+    ]);
+    acc.appendChild(campoDias);
+
+    var bSusp = el('button', {class:'btn warn', text:'⏱️ Suspender temporalmente'});
+    bSusp.addEventListener('click', function(){
+      var dias = parseInt(($('suspDays') && $('suspDays').value) || '3', 10) || 3;
+      if(!window.confirm('¿Suspender a ' + (rep.targetName || corto(rep.targetAddress)) +
+                         ' durante ' + dias + ' día(s)? Se le expulsa al momento y podrá volver al terminar.')) return;
+      accionar(rep.id, 'suspend', bSusp);
+    });
+
     var bBan = el('button', {class:'btn danger', text: d.isBanned ? '⛔ Ya está baneado' : '⛔ Banear cuenta'});
     bBan.disabled = !!d.isBanned;
     bBan.addEventListener('click', function(){
@@ -716,6 +811,7 @@ button{font-family:inherit;font-size:14px;cursor:pointer;}
     });
 
     botones.appendChild(bWarn);
+    botones.appendChild(bSusp);
     botones.appendChild(bBan);
 
     if(d.isBanned){
@@ -769,6 +865,13 @@ button{font-family:inherit;font-size:14px;cursor:pointer;}
           method:'POST', body: JSON.stringify({note: nota})
         });
         aviso('Cuenta baneada y expulsada del juego', 'ok');
+      }else if(tipo === 'suspend'){
+        var dias = parseInt(($('suspDays') && $('suspDays').value) || '3', 10) || 3;
+        var r = await pedir('/api/admin/reports/' + encodeURIComponent(id) + '/suspend', {
+          method:'POST', body: JSON.stringify({days: dias, reason: nota})
+        });
+        aviso('Cuenta suspendida ' + dias + ' día(s) — hasta ' + fecha(r.until), 'ok');
+        await cargarSuspensiones();
       }else if(tipo === 'unban'){
         await pedir('/api/admin/reports/' + encodeURIComponent(id) + '/unban', {method:'POST'});
         aviso('Baneo retirado', 'ok');

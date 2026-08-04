@@ -519,17 +519,100 @@ class CraftingSystem {
       optional:this.selectedOptional
     };
 
+    // RESERVA DE MATERIALES DE LA COLA (2026-08-04)
+    // -----------------------------------------------------------------------
+    // Al poder encolar sin esperar, dos peticiones seguidas veían el MISMO
+    // inventario y las dos creían tener materiales de sobra; la segunda
+    // fallaba a mitad de camino cuando la primera ya se los había gastado.
+    // Aquí se lleva la cuenta de lo que la cola tiene comprometido y se
+    // rechaza de entrada lo que no alcanza, antes de tocar nada.
+    this._reservado = this._reservado || {};
+    const necesitaDeLaCola = (itemId) => this._reservado[itemId] || 0;
+
+    const faltante = this._materialQueFalta(peticion, necesitaDeLaCola);
+    if (faltante) {
+      this.showFeedback(
+        `Not enough ${faltante.name} for the queue (you need ${faltante.need}, you have ${faltante.have} free)`,
+        'error'
+      );
+      return;
+    }
+
+    // Anotar lo que este crafteo va a consumir.
+    this._aplicarReserva(peticion, +1);
+
     this._craftPending=(this._craftPending||0)+1;
     if(this._craftPending>1){
       this.showFeedback(`⏳ Queued (${this._craftPending} pending)`,'info');
     }
+    this._setCraftButtonBusy(true);
+
+    // TxGate: el crafteo también cuenta como transacción en vuelo, así que si
+    // el jugador se va a la tienda con un crafteo pendiente, la pantalla de
+    // carga lo espera en vez de destruir la escena a medias (ver tx-gate.js).
+    const finTx = (window.GFTxGate && window.GFTxGate.begin)
+      ? window.GFTxGate.begin(`Crafting ${peticion.quantity}x ${peticion.recipe.name}`)
+      : null;
 
     this._craftQueue=(this._craftQueue||Promise.resolve())
       .then(()=>this._craftItemInterno(peticion))
       .catch(err=>console.error('❌ Error procesando crafteo en cola:',err))
-      .finally(()=>{this._craftPending=Math.max(0,(this._craftPending||1)-1);});
+      .finally(()=>{
+        if (finTx) finTx();
+        this._aplicarReserva(peticion, -1);
+        this._craftPending=Math.max(0,(this._craftPending||1)-1);
+        this._setCraftButtonBusy(this._craftPending>0);
+      });
 
     return this._craftQueue;
+  }
+
+  /** Materiales que consume una petición: [{itemId, name, quantity}, …] */
+  _materialesDe({recipe,quantity,optional}) {
+    const lista=[];
+    const isOR=recipe.optionalResources?.length&&(!recipe.resources?.length);
+    if(isOR){
+      const group=recipe.optionalResources[0]||[];
+      let idx=optional;
+      if(idx===null||idx===undefined){
+        for(let i=0;i<group.length;i++){
+          if(this.countPlayerItem(group[i].itemId)>=group[i].quantity){idx=i;break;}
+        }
+      }
+      const opt=group[idx];
+      if(opt) lista.push({itemId:opt.itemId,name:opt.name||opt.itemId,quantity:opt.quantity*quantity});
+      return lista;
+    }
+    for(const r of (recipe.resources||[])){
+      lista.push({itemId:r.itemId,name:r.name||r.itemId,quantity:r.quantity*quantity});
+    }
+    if(recipe.optionalResources?.length&&optional!==null&&optional!==undefined){
+      const opt=recipe.optionalResources[0]?.[optional];
+      if(opt) lista.push({itemId:opt.itemId,name:opt.name||opt.itemId,quantity:opt.quantity*quantity});
+    }
+    return lista;
+  }
+
+  /** ¿Falta algún material contando lo ya comprometido por la cola? */
+  _materialQueFalta(peticion, reservadoDe) {
+    for(const m of this._materialesDe(peticion)){
+      const libres=this.countPlayerItem(m.itemId)-reservadoDe(m.itemId);
+      if(libres<m.quantity){
+        return {name:m.name,need:m.quantity,have:Math.max(0,libres)};
+      }
+    }
+    return null;
+  }
+
+  /** Suma (+1) o resta (-1) esta petición del contador de reservas. */
+  _aplicarReserva(peticion, signo) {
+    this._reservado = this._reservado || {};
+    for(const m of this._materialesDe(peticion)){
+      const actual = this._reservado[m.itemId] || 0;
+      const nuevo = actual + signo * m.quantity;
+      if(nuevo>0) this._reservado[m.itemId]=nuevo;
+      else delete this._reservado[m.itemId];
+    }
   }
 
   // FIX 7: anti-double-craft con try/finally
@@ -549,9 +632,26 @@ class CraftingSystem {
     // materiales / agregar el resultado) es asíncrona y puede tardar, así que
     // sin esto el jugador cree que el botón no hizo nada.
     this.showFeedback(`⏳ Crafting ${quantity} ${recipe.name}…`, 'info');
-    // Botón en ESPERA mientras dura el crafteo (antes seguía activo y se podía
-    // volver a pulsar, encolando crafteos sin querer).
     this._setCraftButtonBusy(true);
+
+    // DOBLE VERIFICACIÓN (2026-08-04) — FOTO ANTES
+    // -------------------------------------------------------------------
+    // Se guarda cuánto había de cada material y del resultado ANTES de tocar
+    // nada. Al final se compara: cada material tiene que haber BAJADO lo que
+    // tocaba y el resultado tiene que haber SUBIDO. Si el resultado no llega,
+    // se devuelven los materiales. Así no puede pasar ni que se cobren
+    // materiales sin entregar el objeto ni que se entregue sin cobrar.
+    const contarReal = (id) => (
+      this.scene && typeof this.scene.contarItemEnInventario === 'function'
+        ? this.scene.contarItemEnInventario(id)
+        : this.countPlayerItem(id)
+    );
+    const materialesPrevistos = this._materialesDe({recipe,quantity,optional});
+    const antesMateriales = {};
+    materialesPrevistos.forEach(m => { antesMateriales[m.itemId] = contarReal(m.itemId); });
+    const antesResultado = contarReal(recipe.resultItem);
+    let materialesConsumidos = [];
+
     try {
       const isOR=recipe.optionalResources?.length&&(!recipe.resources?.length);
       if(isOR){
@@ -569,6 +669,7 @@ class CraftingSystem {
           this.showFeedback(`Not enough ${opt.name} (you need ${total}, you have ${this.countPlayerItem(opt.itemId)})`,'error');return;
         }
         if(!(await this.removePlayerItem(opt.itemId,total))){this.showFeedback('Error consuming resources','error');return;}
+        materialesConsumidos.push({itemId:opt.itemId,quantity:total,name:opt.name||opt.itemId});
       } else {
         // Se comprueba TODO antes de consumir nada: si falta un material no se
         // gasta ninguno de los otros.
@@ -588,17 +689,59 @@ class CraftingSystem {
         for(const resource of (recipe.resources||[])){
           const total=resource.quantity*quantity;
           if(!(await this.removePlayerItem(resource.itemId,total))){this.showFeedback('Error consuming resources','error');return;}
+          materialesConsumidos.push({itemId:resource.itemId,quantity:total,name:resource.name||resource.itemId});
         }
         if(recipe.optionalResources?.length&&optional!==null&&optional!==undefined){
           const opt=recipe.optionalResources[0]?.[optional];
           if(opt){
             const total=opt.quantity*quantity;
             if(!(await this.removePlayerItem(opt.itemId,total))){this.showFeedback('Error consuming optional resource','error');return;}
+            materialesConsumidos.push({itemId:opt.itemId,quantity:total,name:opt.name||opt.itemId});
           }
         }
       }
+
+      // ── VERIFICACIÓN 1: ¿se descontaron de verdad los materiales? ──────
+      // removePlayerItem ya compara antes/después por su cuenta, pero aquí se
+      // vuelve a mirar sobre el inventario COMPLETO. Si algún material no bajó,
+      // el crafteo se aborta ANTES de entregar nada y se devuelve lo que sí se
+      // hubiera consumido: es preferible cancelar a regalar el objeto.
+      const noDescontados = materialesConsumidos.filter(m =>
+        (antesMateriales[m.itemId] - contarReal(m.itemId)) < m.quantity
+      );
+      if (noDescontados.length > 0) {
+        console.error('❌ Crafteo abortado: materiales sin descontar', noDescontados);
+        await this._devolverMateriales(materialesConsumidos.filter(m => !noDescontados.includes(m)));
+        this.showFeedback(
+          `Craft cancelled: ${noDescontados[0].name} could not be consumed. Nothing was lost.`,
+          'error'
+        );
+        return;
+      }
+
       if(!(await this.addPlayerItem(recipe.resultItem,resultQty))){
-        this.showFeedback('❌ Inventory full','error');return;
+        // Los materiales YA se gastaron: hay que devolverlos.
+        await this._devolverMateriales(materialesConsumidos);
+        this.showFeedback('❌ Inventory full — your materials were returned','error');
+        return;
+      }
+
+      // ── VERIFICACIÓN 2: ¿llegó de verdad el objeto crafteado? ──────────
+      const recibidas = contarReal(recipe.resultItem) - antesResultado;
+      if (recibidas < resultQty) {
+        console.error(`❌ Crafteo sin entregar: ${recibidas}/${resultQty} ${recipe.resultItem}`);
+        if (recibidas <= 0) {
+          await this._devolverMateriales(materialesConsumidos);
+          this.showFeedback(
+            `Craft failed: ${recipe.name} was not delivered. Your materials were returned.`,
+            'error'
+          );
+          return;
+        }
+        this.showFeedback(
+          `Only ${recibidas} of ${resultQty} ${recipe.name} were confirmed.`,
+          'warning'
+        );
       }
 
       // Otorgar experiencia por craftear (mismo criterio que minería/tala/siembra)
@@ -619,24 +762,61 @@ class CraftingSystem {
       if(this.scene?.updateInventoryDisplay) this.scene.updateInventoryDisplay();
       this.savePlayerData();
       console.log('✅ Crafteo completado');
-    } finally { this._crafting=false; this._setCraftButtonBusy(false); }
+    } finally {
+      this._crafting=false;
+      // El estado del botón depende de si QUEDA cola, no de este crafteo.
+      this._setCraftButtonBusy((this._craftPending||0) > 1);
+    }
   }
 
-  // Pone (o quita) el estado de ESPERA en los botones de craftear: se
-  // deshabilitan y muestran "⏳ Crafting…" mientras la transacción está en curso.
+  /**
+   * Devuelve materiales al jugador cuando un crafteo se aborta a mitad.
+   * Se usa en los dos puntos de verificación: si algo no cuadra, el jugador
+   * NUNCA se queda sin sus materiales y sin el objeto.
+   */
+  async _devolverMateriales(materiales) {
+    if (!Array.isArray(materiales) || !materiales.length) return;
+    for (const m of materiales) {
+      try {
+        await this.addPlayerItem(m.itemId, m.quantity);
+        console.log(`↩︎ Devuelto al jugador: ${m.quantity}x ${m.itemId}`);
+      } catch (e) {
+        console.error(`❌ No se pudo devolver ${m.quantity}x ${m.itemId}:`, e);
+      }
+    }
+  }
+
+  // BOTÓN DE CRAFTEO SIEMPRE DISPONIBLE  (2026-08-04)
+  // ---------------------------------------------------------------------------
+  // Antes, mientras un crafteo estaba en curso el botón se DESHABILITABA, así
+  // que había que esperar a que la transacción terminara para poder pedir otra
+  // cosa distinta. Ahora el botón se queda activo: los crafteos se van
+  // apilando en la cola (this._craftQueue) y se ejecutan en orden, uno tras
+  // otro. Lo único que cambia es el aspecto: mientras hay trabajo pendiente el
+  // botón se pinta como "cola" y dice cuántos hay esperando.
+  //
+  // Lo que SÍ se sigue impidiendo es encolar algo que no se puede pagar: eso lo
+  // comprueba craftItem() antes de meterlo en la cola, contando además lo que
+  // ya han reservado los crafteos que siguen esperando su turno.
   _setCraftButtonBusy(busy) {
     try {
+      const pendientes = this._craftPending || 0;
       ['craft-button', 'overlay-craft-button'].forEach(id => {
         const b = document.getElementById(id);
         if (!b) return;
-        if (busy) {
+
+        // El botón NUNCA se deshabilita por estar ocupado; solo lo hace
+        // updateCraftButton() cuando de verdad no se puede craftear.
+        if (busy || pendientes > 0) {
           if (b.dataset.prevLabel === undefined) b.dataset.prevLabel = b.textContent || '';
-          b.disabled = true;
-          b.style.opacity = '0.6';
-          b.style.cursor = 'wait';
-          b.textContent = '⏳ Crafting…';
+          b.classList.add('craft-queued');
+          b.style.cursor = 'pointer';
+          b.style.opacity = '';
+          b.textContent = pendientes > 1
+            ? `⏳ ${pendientes} in queue · Craft more`
+            : '⏳ Crafting… · Craft more';
         } else {
-          b.disabled = false;
+          b.classList.remove('craft-queued');
           b.style.opacity = '';
           b.style.cursor = '';
           if (b.dataset.prevLabel !== undefined) {
@@ -645,9 +825,33 @@ class CraftingSystem {
           }
         }
       });
+      this._pintarColaCrafteo(pendientes);
     } catch (e) { /* no crítico */ }
-    // Tras terminar, dejar que la lógica normal recalcule el estado del botón.
-    if (!busy) { try { this.updateCraftButton && this.updateCraftButton(); } catch (e) {} }
+    // Al quedarse sin cola, la lógica normal recalcula el estado del botón.
+    if (!busy && !(this._craftPending > 0)) {
+      try { this.updateCraftButton && this.updateCraftButton(); } catch (e) {}
+    }
+  }
+
+  /**
+   * Contador flotante de la cola de crafteo. Se ve en PC y en teléfono, y
+   * desaparece solo cuando no queda nada pendiente.
+   */
+  _pintarColaCrafteo(pendientes) {
+    let caja = document.getElementById('craft-queue-chip');
+    if (!pendientes || pendientes <= 0) {
+      if (caja) caja.remove();
+      return;
+    }
+    if (!caja) {
+      caja = document.createElement('div');
+      caja.id = 'craft-queue-chip';
+      caja.className = 'craft-queue-chip';
+      document.body.appendChild(caja);
+    }
+    caja.textContent = pendientes === 1
+      ? '⚒️ 1 craft in progress'
+      : `⚒️ ${pendientes} crafts queued`;
   }
 
   // El texto de #crafting-feedback es fácil de no ver (queda dentro del panel y

@@ -2,7 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <!-- interactive-widget=overlays-content: al abrirse el teclado del móvil, éste
+       se dibuja ENCIMA en vez de reducir el viewport. Sin esto el navegador
+       encogía la página al enfocar el chat o el crafting, el lienzo se
+       redimensionaba y al cerrarse el teclado volvía a crecer: eso es el "zoom"
+       y los fallos de repintado que se veían en el teléfono. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=overlays-content" />
   <meta name="google" content="notranslate" />
   <meta http-equiv="Content-Language" content="en" />
   <title>GRASSLAND FOREST</title>
@@ -110,6 +115,10 @@
 
   <!-- preload critical asset -->
   <link rel="preload" href="./Game/Source/cursor.png" as="image" />
+
+  <!-- Contador global de transacciones on-chain en vuelo. Debe cargarse ANTES
+       que las escenas para que ninguna transacción se quede sin registrar. -->
+  <script src="./tx-gate.js" defer></script>
 
   <!-- Altura real del viewport en móvil (el juego salía en una franja arriba y
        el resto negro). Debe ir ANTES de app.js para publicar --app-height

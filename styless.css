@@ -10821,3 +10821,103 @@ html, body {
 @media (max-width: 768px) {
   .tienda-panel { height: var(--app-height) !important; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CRAFTEO — COLA VISIBLE Y ACABADO MÁS CUIDADO             (2026-08-04)
+   ---------------------------------------------------------------------------
+   El botón de craftear ya NO se bloquea mientras hay una transacción en curso:
+   los crafteos se apilan en una cola y se ejecutan en orden, así que se puede
+   pedir otro objeto distinto sin esperar. Estas reglas dan el aviso visual de
+   ese estado y afinan el panel para teléfono.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Botón en estado "hay cola": sigue pulsable, pero se nota que hay trabajo. */
+.craft-btn.craft-queued,
+#craft-button.craft-queued,
+#overlay-craft-button.craft-queued {
+  background: linear-gradient(135deg, #6d4c1f 0%, #4a340f 100%) !important;
+  border-color: #e0a458 !important;
+  color: #ffe9c2 !important;
+  position: relative;
+  animation: craftQueuePulse 1.6s ease-in-out infinite;
+}
+@keyframes craftQueuePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(224, 164, 88, .45); }
+  50%      { box-shadow: 0 0 0 7px rgba(224, 164, 88, 0); }
+}
+
+/* Contador flotante de la cola: se ve en PC y en móvil, y no tapa el juego. */
+.craft-queue-chip {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 10050;
+  background: linear-gradient(140deg, rgba(32, 24, 10, .96), rgba(20, 15, 6, .96));
+  border: 2px solid #e0a458;
+  border-radius: 22px;
+  padding: 9px 18px;
+  font-family: 'PressStart2P', monospace;
+  font-size: 10px;
+  color: #ffe9c2;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, .6);
+  pointer-events: none;
+  white-space: nowrap;
+  max-width: 92vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Panel de crafteo: acabado un poco más fino y consistente con el resto. */
+.crafting-container {
+  border-radius: 16px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .55);
+}
+.recipe-item {
+  border-radius: 12px;
+  transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease;
+}
+.recipe-item:hover { transform: translateY(-2px); }
+.craft-btn {
+  border-radius: 12px;
+  transition: filter .15s ease, transform .1s ease;
+}
+.craft-btn:not(:disabled):hover { filter: brightness(1.18); }
+.craft-btn:not(:disabled):active { transform: translateY(1px); }
+.crafting-feedback { line-height: 1.6; }
+
+/* ── Crafteo en teléfono ─────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .craft-queue-chip { font-size: 9px; padding: 8px 14px; bottom: 14px; }
+
+  /* Botones grandes: en móvil se falla mucho el toque con los de 32-36 px. */
+  .craft-btn,
+  #craft-button,
+  #overlay-craft-button {
+    min-height: 48px;
+    font-size: 12px;
+    width: 100%;
+  }
+  .qty-btn, .quantity-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* El panel usa la altura REAL de la pantalla (ver --app-height): antes con
+     100vh el botón de craftear quedaba debajo de la barra del navegador. */
+  .crafting-container {
+    max-height: calc(var(--app-height) - 24px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .recipe-overlay-content {
+    max-height: calc(var(--app-height) - 40px);
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 420px) {
+  .craft-queue-chip { font-size: 8px; }
+  .recipe-item { min-width: 100px; }
+}

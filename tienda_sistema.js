@@ -1948,7 +1948,7 @@ class TiendaSistema {
                 this.saveDailyLimits();
             }
             this.showNotification?.(
-                `⚠️ ${missing}x ${item.name} no se confirmó on-chain. Se reembolsaron ${refund} ${this.getCurrencyLabel(currency)}`,
+                `⚠️ ${missing}x ${item.name} could not be confirmed on-chain. ${refund} ${this.getCurrencyLabel(currency)} refunded`,
                 'error'
             );
             console.warn(`⚠️ Compra parcial: ${added}/${quantity} ${item.id} confirmados — reembolso ${refund}`);
@@ -1977,9 +1977,18 @@ async ejecutarDivision(ruta_tabla, producto, limitacion, cantidad) {
   // y reembolsaba. Ahora se ENCOLA, igual que ejecutarDivision() de
   // GameScene: cada compra espera a que termine la anterior y se ejecuta,
   // en orden. Ninguna se pierde.
+  // TxGate (2026-08-04): la compra queda anotada en el contador global de
+  // transacciones en vuelo. Si el jugador compra y sale corriendo de la tienda,
+  // LoadingScenegame espera a que esta transacción termine antes de entrar al
+  // mundo, en vez de destruir la escena con la compra a medias. Ver tx-gate.js.
+  const finTx = (window.GFTxGate && window.GFTxGate.begin)
+    ? window.GFTxGate.begin(`Shop purchase: ${cantidad}x ${producto}`)
+    : null;
+
   this._addItemQueue = (this._addItemQueue || Promise.resolve())
     .then(() => this.Additemblockchains(ruta_tabla, producto, cantidad))
-    .catch(err => console.error('❌ Error procesando compra en cola:', err));
+    .catch(err => console.error('❌ Error procesando compra en cola:', err))
+    .finally(() => { if (finTx) finTx(); });
 
   return this._addItemQueue;
 }
@@ -2706,7 +2715,7 @@ async verificarRompimiento(itemRef) {
       }
 
       console.log(`💀 Objeto "${itemRef.id}" en casilla ${slotTipo}[${slotRoto}] se rompió (idx=${itemRef.idx})`);
-      this.notifications.show(`Tu ${itemRef.id} se rompió!`, 'error');
+      this.notifications.show(`Your ${itemRef.id} broke!`, 'error');
 
       // ── Quitar 1 del stack en blockchain + local ──
       await this.ejecutarDivisionRemove.call(this, 'slots', itemRef.id, toolDef.maxStack || 5, 1);
@@ -2743,9 +2752,16 @@ async ejecutarDivisionRemove(ruta_tabla, producto, limitacion, cantidad) {
 
     // Mismo criterio que ejecutarDivision: se ENCOLA en vez de descartar, para
     // que vender varias cosas seguidas no pierda ninguna transacción.
+    // TxGate: y se anota fuera de la escena para que salir de la tienda no la
+    // deje huérfana (ver tx-gate.js).
+    const finTx = (window.GFTxGate && window.GFTxGate.begin)
+        ? window.GFTxGate.begin(`Shop sale: ${cantidad}x ${producto}`)
+        : null;
+
     this._removeItemQueue = (this._removeItemQueue || Promise.resolve())
         .then(() => this._ejecutarDivisionRemoveInterno(ruta_tabla, producto, limitacion, cantidad))
-        .catch(err => console.error('❌ Error procesando venta en cola:', err));
+        .catch(err => console.error('❌ Error procesando venta en cola:', err))
+        .finally(() => { if (finTx) finTx(); });
 
     return this._removeItemQueue;
 }

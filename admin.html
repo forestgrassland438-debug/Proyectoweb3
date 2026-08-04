@@ -252,10 +252,59 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
 .empty { padding: 40px 20px; text-align: center; color: var(--text-dim); }
 .hidden { display: none !important; }
 
+/* ── Formularios de configuración (siembra y clasificación) ──────────────── */
+.cfg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+  margin-top: 4px;
+}
+.cfg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  font-size: 13px;
+}
+.cfg-field > span { color: var(--text); font-weight: 600; }
+.cfg-field input[type="number"],
+.cfg-field input[type="text"] {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--mono, inherit);
+  font-size: 14px;
+  padding: 9px 11px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+.cfg-field input:focus { border-color: var(--moss); }
+.cfg-field small { font-size: 11.5px; line-height: 1.5; }
+.cfg-field.cfg-check {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+}
+.cfg-field.cfg-check input[type="checkbox"] {
+  width: 18px; height: 18px; accent-color: var(--moss); cursor: pointer; flex: 0 0 auto;
+}
+.cfg-field.cfg-check > span { flex: 1; }
+.cfg-field.cfg-check small { flex-basis: 100%; }
+.cfg-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+
 @media (max-width: 640px) {
   main { padding: 14px; }
   header.top { padding: 12px 14px; }
   .kpi .value { font-size: 21px; }
+  .cfg-grid { grid-template-columns: 1fr; }
+  .cfg-actions .btn { flex: 1; min-width: 140px; }
 }
 </style>
 </head>
@@ -315,6 +364,112 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
       <button class="btn btn-sm" id="prevBtn">‹ Anterior</button>
       <span class="dim mono" id="pageInfo">—</span>
       <button class="btn btn-sm" id="nextBtn">Siguiente ›</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       CONFIGURACIÓN DE LA SIEMBRA
+       Antes la dificultad no existía: el cliente mandaba siempre 100 % y el
+       servidor lo recortaba a 95 %. Ahora manda esto, y el cliente ni pinta.
+       ══════════════════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="section-head">
+      <h2>🌱 Siembra</h2>
+      <span class="dim" id="farmInfo"></span>
+    </div>
+
+    <div class="cfg-grid">
+      <label class="cfg-field">
+        <span>Probabilidad de éxito global (%)</span>
+        <input type="number" id="farmSuccess" min="1" max="100" step="1">
+        <small class="dim">Con 20 %, 8 de cada 10 cultivos se echan a perder al madurar.</small>
+      </label>
+
+      <label class="cfg-field">
+        <span>Multiplicador del tiempo de crecimiento</span>
+        <input type="number" id="farmGrowth" min="0.1" max="10" step="0.1">
+        <small class="dim">1 = normal · 2 = tarda el doble · 0.5 = la mitad.</small>
+      </label>
+
+      <label class="cfg-field">
+        <span>Multiplicador del coste de agua</span>
+        <input type="number" id="farmWater" min="0" max="10" step="0.1">
+      </label>
+
+      <label class="cfg-field">
+        <span>Multiplicador del coste de comida</span>
+        <input type="number" id="farmFood" min="0" max="10" step="0.1">
+      </label>
+
+      <label class="cfg-field cfg-check">
+        <input type="checkbox" id="farmDeath">
+        <span>Los cultivos pueden morir</span>
+        <small class="dim">Si se desactiva, todo madura bien pase lo que pase.</small>
+      </label>
+    </div>
+
+    <div class="section-head" style="margin-top:18px;">
+      <h3 style="margin:0;font-size:15px;">Dificultad por semilla</h3>
+      <span class="dim">Vacío = usa la probabilidad global</span>
+    </div>
+    <div class="cfg-grid" id="farmPerSeed"></div>
+
+    <div class="cfg-actions">
+      <button class="btn btn-primary" id="farmSaveBtn">Guardar siembra</button>
+      <button class="btn" id="farmReloadBtn">Recargar</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       CONFIGURACIÓN DE LA TABLA DE CLASIFICACIÓN
+       ══════════════════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="section-head">
+      <h2>🏆 Tabla de clasificación</h2>
+      <span class="dim" id="lbInfo"></span>
+    </div>
+
+    <div class="cfg-grid">
+      <label class="cfg-field cfg-check">
+        <input type="checkbox" id="lbEnabled">
+        <span>Tabla activa</span>
+        <small class="dim">Desactivada, el juego muestra un aviso en vez del ranking.</small>
+      </label>
+
+      <label class="cfg-field">
+        <span>Jugadores en la tabla</span>
+        <input type="number" id="lbTopSize" min="3" max="100" step="1">
+      </label>
+
+      <label class="cfg-field">
+        <span>Batallas mínimas para aparecer</span>
+        <input type="number" id="lbMinBattles" min="0" max="1000" step="1">
+      </label>
+
+      <label class="cfg-field">
+        <span>Nombre de la temporada (opcional)</span>
+        <input type="text" id="lbSeasonLabel" maxlength="60" placeholder="ej. Temporada del Bosque">
+      </label>
+
+      <label class="cfg-field cfg-check">
+        <input type="checkbox" id="lbHideBanned">
+        <span>Ocultar cuentas baneadas</span>
+      </label>
+
+      <label class="cfg-field cfg-check">
+        <input type="checkbox" id="lbHideSuspended">
+        <span>Ocultar cuentas suspendidas</span>
+      </label>
+
+      <label class="cfg-field cfg-check">
+        <input type="checkbox" id="lbHideBots">
+        <span>Ocultar bots de entrenamiento</span>
+      </label>
+    </div>
+
+    <div class="cfg-actions">
+      <button class="btn btn-primary" id="lbSaveBtn">Guardar clasificación</button>
+      <button class="btn" id="lbReloadBtn">Recargar</button>
     </div>
   </section>
 </main>
@@ -507,7 +662,12 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
       $('gate').classList.add('hidden');
       $('panel').classList.remove('hidden');
       $('reloadBtn').classList.remove('hidden');
-      await Promise.all([cargarResumen(), cargarJugadores()]);
+      await Promise.all([
+        cargarResumen(),
+        cargarJugadores(),
+        cargarConfigSiembra(),
+        cargarConfigClasificacion()
+      ]);
     } catch (e) {
       if (silencioso) return;
       if (e.code === 'not_admin') {
@@ -737,7 +897,134 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
     state.actual = null; state.cambios = {};
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // CONFIGURACIÓN DE LA SIEMBRA
+  // -----------------------------------------------------------------------
+  // Hasta ahora la dificultad de la siembra no se podía tocar: el cliente
+  // mandaba siempre 100 % y el servidor lo recortaba a 95 %. Con esto la
+  // decide el backend (FarmingConfig) y se edita desde aquí.
+  // ═══════════════════════════════════════════════════════════════════════
+  var semillasConocidas = [];
+
+  // Nombres legibles de las semillas del juego (el backend devuelve los ids).
+  var NOMBRE_SEMILLA = {
+    Semillax:  'Zanahoria',
+    Semillax1: 'Tomate',
+    Semillax2: 'Trigo',
+    Semillax3: 'Calabaza'
+  };
+
+  async function cargarConfigSiembra() {
+    try {
+      var d = await pedir('/api/admin/farming-config');
+      var c = d.config || {};
+      semillasConocidas = d.seeds || [];
+
+      $('farmSuccess').value = c.successChance != null ? c.successChance : 95;
+      $('farmGrowth').value  = c.growthMultiplier != null ? c.growthMultiplier : 1;
+      $('farmWater').value   = c.waterCostMultiplier != null ? c.waterCostMultiplier : 1;
+      $('farmFood').value    = c.foodCostMultiplier != null ? c.foodCostMultiplier : 1;
+      $('farmDeath').checked = c.deathEnabled !== false;
+
+      var perSeed = c.perSeed || {};
+      $('farmPerSeed').innerHTML = semillasConocidas.map(function (id) {
+        var etiqueta = NOMBRE_SEMILLA[id] ? (NOMBRE_SEMILLA[id] + ' (' + id + ')') : id;
+        var valor = perSeed[id] != null ? perSeed[id] : '';
+        return '<label class="cfg-field">' +
+                 '<span>' + esc(etiqueta) + '</span>' +
+                 '<input type="number" min="1" max="100" step="1" data-seed="' + esc(id) + '" ' +
+                        'value="' + esc(valor) + '" placeholder="global">' +
+               '</label>';
+      }).join('') || '<div class="empty">El servidor no informó de ninguna semilla.</div>';
+
+      $('farmInfo').textContent = c.updatedAt
+        ? 'Última edición: ' + fecha(c.updatedAt) + (c.updatedBy ? ' · ' + corto(c.updatedBy) : '')
+        : 'Valores por defecto';
+    } catch (e) {
+      $('farmInfo').textContent = 'No se pudo cargar: ' + (e.message || e);
+    }
+  }
+
+  async function guardarConfigSiembra() {
+    var perSeed = {};
+    Array.prototype.forEach.call($('farmPerSeed').querySelectorAll('input[data-seed]'), function (inp) {
+      var v = inp.value.trim();
+      if (v !== '') perSeed[inp.getAttribute('data-seed')] = Number(v);
+    });
+
+    $('farmSaveBtn').disabled = true;
+    try {
+      await pedir('/api/admin/farming-config', {
+        method: 'PUT',
+        body: JSON.stringify({
+          successChance: Number($('farmSuccess').value),
+          growthMultiplier: Number($('farmGrowth').value),
+          waterCostMultiplier: Number($('farmWater').value),
+          foodCostMultiplier: Number($('farmFood').value),
+          deathEnabled: $('farmDeath').checked,
+          perSeed: perSeed
+        })
+      });
+      aviso('Configuración de siembra guardada', 'ok');
+      await cargarConfigSiembra();
+    } catch (e) {
+      aviso('No se pudo guardar: ' + (e.message || e), 'err');
+    } finally {
+      $('farmSaveBtn').disabled = false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // CONFIGURACIÓN DE LA TABLA DE CLASIFICACIÓN
+  // ═══════════════════════════════════════════════════════════════════════
+  async function cargarConfigClasificacion() {
+    try {
+      var d = await pedir('/api/admin/leaderboard-config');
+      var c = d.config || {};
+      $('lbEnabled').checked       = c.enabled !== false;
+      $('lbTopSize').value         = c.topSize != null ? c.topSize : 20;
+      $('lbMinBattles').value      = c.minBattles != null ? c.minBattles : 0;
+      $('lbSeasonLabel').value     = c.seasonLabel || '';
+      $('lbHideBanned').checked    = c.hideBanned !== false;
+      $('lbHideSuspended').checked = c.hideSuspended !== false;
+      $('lbHideBots').checked      = c.hideBots !== false;
+
+      $('lbInfo').textContent = (d.excludedCount || 0) + ' cuenta(s) excluida(s) ahora mismo' +
+        (c.updatedAt ? ' · última edición ' + fecha(c.updatedAt) : '');
+    } catch (e) {
+      $('lbInfo').textContent = 'No se pudo cargar: ' + (e.message || e);
+    }
+  }
+
+  async function guardarConfigClasificacion() {
+    $('lbSaveBtn').disabled = true;
+    try {
+      await pedir('/api/admin/leaderboard-config', {
+        method: 'PUT',
+        body: JSON.stringify({
+          enabled: $('lbEnabled').checked,
+          topSize: Number($('lbTopSize').value),
+          minBattles: Number($('lbMinBattles').value),
+          seasonLabel: $('lbSeasonLabel').value,
+          hideBanned: $('lbHideBanned').checked,
+          hideSuspended: $('lbHideSuspended').checked,
+          hideBots: $('lbHideBots').checked
+        })
+      });
+      aviso('Configuración de clasificación guardada', 'ok');
+      await cargarConfigClasificacion();
+    } catch (e) {
+      aviso('No se pudo guardar: ' + (e.message || e), 'err');
+    } finally {
+      $('lbSaveBtn').disabled = false;
+    }
+  }
+
   // ── Eventos ──────────────────────────────────────────────────────────────
+  $('farmSaveBtn').addEventListener('click', guardarConfigSiembra);
+  $('farmReloadBtn').addEventListener('click', cargarConfigSiembra);
+  $('lbSaveBtn').addEventListener('click', guardarConfigClasificacion);
+  $('lbReloadBtn').addEventListener('click', cargarConfigClasificacion);
   $('connectBtn').addEventListener('click', conectar);
   $('closeDrawer').addEventListener('click', cerrarFicha);
   $('drawerBg').addEventListener('click', cerrarFicha);
@@ -745,7 +1032,10 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
     if (state.actual) abrirFicha(state.actual.player.playerName);
   });
   $('saveBtn').addEventListener('click', guardar);
-  $('reloadBtn').addEventListener('click', function () { cargarResumen(); cargarJugadores(); });
+  $('reloadBtn').addEventListener('click', function () {
+    cargarResumen(); cargarJugadores();
+    cargarConfigSiembra(); cargarConfigClasificacion();
+  });
   $('searchBtn').addEventListener('click', function () { state.q = $('q').value.trim(); state.page = 1; cargarJugadores(); });
   $('clearBtn').addEventListener('click', function () { $('q').value = ''; state.q = ''; state.page = 1; cargarJugadores(); });
   $('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('searchBtn').click(); });

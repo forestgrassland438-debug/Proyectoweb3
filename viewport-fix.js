@@ -35,12 +35,46 @@
   var reentrando = false;
   var temporizador = null;
 
+  // ── TECLADO EN PANTALLA ───────────────────────────────────────────────────
+  // Cuando se abre el teclado del móvil (al enfocar el chat, el buscador del
+  // crafting, el nombre del personaje…), visualViewport.height se desploma.
+  // Si se hiciera caso a esa medida, el lienzo del juego se encogería y al
+  // cerrarse el teclado volvería a crecer: eso es exactamente el "zoom" y los
+  // fallos de repintado que se veían en el teléfono.
+  //
+  // Por eso se guarda la última altura ESTABLE (sin teclado) y, mientras haya
+  // un campo de texto enfocado o la altura se haya desplomado, se sigue usando
+  // esa altura estable y NO se avisa al juego de ningún cambio de tamaño.
+  var alturaEstable = 0;
+  var ultimoAncho = 0;
+
+  function hayCampoEnfocado() {
+    var a = doc.activeElement;
+    if (!a) return false;
+    var tag = (a.tagName || '').toUpperCase();
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || a.isContentEditable === true;
+  }
+
+  /** ¿La medida actual está distorsionada por el teclado? */
+  function tecladoAbierto() {
+    var h = vv && vv.height ? vv.height : global.innerHeight;
+    // Un teclado se come fácilmente un tercio de la pantalla. Por debajo del
+    // 80 % de la altura estable se da por seguro que está abierto.
+    var desplomada = alturaEstable > 0 && h < alturaEstable * 0.8;
+    return desplomada || (hayCampoEnfocado() && desplomada);
+  }
+
   function alturaReal() {
     // visualViewport.height es lo que de verdad se ve (descuenta la barra del
-    // navegador y el teclado). innerHeight es el respaldo para navegadores que
-    // no lo tienen.
-    var h = vv && vv.height ? vv.height : global.innerHeight;
-    return Math.max(240, Math.round(h || 0));
+    // navegador). innerHeight es el respaldo para navegadores que no lo tienen.
+    var h = Math.max(240, Math.round((vv && vv.height ? vv.height : global.innerHeight) || 0));
+
+    // Con el teclado abierto se conserva la última altura estable: el juego no
+    // debe encogerse por escribir en el chat.
+    if (alturaEstable > 0 && h < alturaEstable * 0.8) return alturaEstable;
+
+    alturaEstable = h;
+    return h;
   }
 
   function anchoReal() {
@@ -108,6 +142,9 @@
     if (temporizador) clearTimeout(temporizador);
     temporizador = setTimeout(function () {
       temporizador = null;
+      // Con el teclado abierto NO se avisa al juego: redimensionar el lienzo
+      // mientras se escribe es lo que provocaba el zoom y el repintado roto.
+      if (tecladoAbierto()) { aplicar(); return; }
       actualizar(true);
     }, 90);
   }
@@ -121,9 +158,18 @@
   }
   global.addEventListener('resize', function () {
     if (reentrando) return;   // es el nuestro
+    // Un cambio de ANCHO nunca lo provoca el teclado: es un giro de pantalla o
+    // una ventana redimensionada, así que la referencia estable debe soltarse.
+    var anchoAhora = anchoReal();
+    if (ultimoAncho && Math.abs(anchoAhora - ultimoAncho) > 2) alturaEstable = 0;
+    ultimoAncho = anchoAhora;
     aplicar();                // el tamaño se corrige, pero sin relanzar el evento
   });
   global.addEventListener('orientationchange', function () {
+    // IMPORTANTE: al girar, la altura cambia de verdad (en apaisado es mucho
+    // menor). Sin borrar la referencia estable, el filtro anti-teclado la
+    // confundiría con un teclado abierto y se quedaría con la altura vertical.
+    alturaEstable = 0;
     // El navegador tarda un poco en dar las medidas definitivas al girar.
     setTimeout(actualizarConRetardo, 120);
     setTimeout(actualizarConRetardo, 420);
@@ -132,6 +178,46 @@
   doc.addEventListener('visibilitychange', function () {
     if (!doc.hidden) actualizarConRetardo();
   });
+
+  // ── Teclado: enfocar y desenfocar campos ──────────────────────────────────
+  // Al ENFOCAR no se toca nada (el lienzo se queda como está). Al DESENFOCAR
+  // se espera a que el teclado termine de cerrarse y se vuelve a medir, que es
+  // cuando la altura recupera su valor real.
+  doc.addEventListener('focusin', function (e) {
+    var t = e.target;
+    if (!t) return;
+    var tag = (t.tagName || '').toUpperCase();
+    if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT' && !t.isContentEditable) return;
+    // iOS a veces desplaza la página al abrir el teclado y eso se ve como
+    // zoom. Se devuelve al origen sin tocar el tamaño del lienzo.
+    setTimeout(function () {
+      try { global.scrollTo(0, 0); } catch (err) {}
+    }, 50);
+  }, true);
+
+  doc.addEventListener('focusout', function () {
+    // 250 ms: lo que tarda la animación de cierre del teclado.
+    setTimeout(function () {
+      try { global.scrollTo(0, 0); } catch (err) {}
+      actualizarConRetardo();
+    }, 250);
+  }, true);
+
+  // Gesto de pellizco (pinch-zoom) sobre el juego: se corta. `user-scalable=no`
+  // lo ignoran algunos navegadores, así que se bloquea también aquí.
+  doc.addEventListener('touchmove', function (e) {
+    if (e.touches && e.touches.length > 1) e.preventDefault();
+  }, { passive: false });
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
+    doc.addEventListener(ev, function (e) { e.preventDefault(); });
+  });
+  // Doble toque rápido = zoom en iOS. Se anula sin romper el toque simple.
+  var ultimoToque = 0;
+  doc.addEventListener('touchend', function (e) {
+    var ahora = Date.now();
+    if (ahora - ultimoToque < 320 && e.cancelable) e.preventDefault();
+    ultimoToque = ahora;
+  }, { passive: false });
 
   // Primera medida lo antes posible.
   aplicar();
