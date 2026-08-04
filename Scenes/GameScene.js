@@ -6027,13 +6027,19 @@ mineProps.forEach(prop => {
     const pickName  = getSelectedPickName_Mine();
     const mineKey   = prop;
     const mineralType = getMineralTypeFromKey(mineKey);
- 
+
     if (!isValidPickForMineral(pickName, mineKey)) {
       const required = MINE_TYPE_CONFIG[mineralType]?.requiredPick || 'mejor pico';
       this.notifications.show(`This ore requires ${required}`, "error");
       return;
     }
- 
+
+    // RECURSOS, ANTES DEL await (mismo arreglo que en la tala, ver la nota
+    // larga allí): sin esto, un clic podía colarse con el último punto de
+    // comida mientras el siguiente ya avisaba de que no quedaba, y el jugador
+    // veía el contador subir Y el aviso a la vez.
+    if (!this._hayRecursosParaTrabajar('mine')) return;
+
     // ── 2. Verificar bloqueo global (backend) ─────────────────────────────
     const { isLocked, lockedUntil } = await getMineLockState(mineKey);
     if (isLocked) {
@@ -6052,11 +6058,8 @@ mineProps.forEach(prop => {
     }
     this.lastMineClick[mineKey] = now;
  
-    // ── 4. Recursos ───────────────────────────────────────────────────────
-    if (this.aguaPorcentaje < 1 || this.comidaPorcentaje < 1) {
-      this.notifications.show("Not enough Water or Food to mine", "error");
-      return;
-    }
+    // ── 4. Recursos (segunda comprobación, tras el await) ─────────────────
+    if (!this._hayRecursosParaTrabajar('mine')) return;
  
     // ── 5. Inicializar / actualizar progreso local ─────────────────────────
     const mineInfo = mineRewards[mineKey] || { nombre: "Mineral", colorNotificacion: "#ffffff" };
@@ -7186,6 +7189,25 @@ oreProps.forEach(prop => {
     const treeKey = prop;
     const treeType = getTreeTypeFromKey(treeKey);
 
+    // ---------- 0-bis. RECURSOS, ANTES DE NADA ----------
+    // BUG (2026-08-05): con 0 de comida el contador seguía subiendo (1/7, 2/7…)
+    // Y a la vez salía el aviso de que faltaba comida. Motivo: la comprobación
+    // estaba DESPUÉS del `await getTreeLockState()`. Entre el clic y la
+    // respuesta del servidor pasan cientos de milisegundos, y la comida se
+    // regenera sola; así que un clic entraba con 1 de comida (avanzaba el
+    // contador y la dejaba en 0) y el siguiente, ya en cola, se encontraba con
+    // 0 y avisaba. Los dos efectos se veían casi a la vez.
+    //
+    // Comprobándolo aquí, de forma SÍNCRONA y antes de cualquier espera, el
+    // clic sin recursos no llega ni a consultar al servidor: o avanza, o
+    // avisa, nunca las dos cosas.
+    //
+    // Excepción: si lo que se está tocando es un TRONCO (árbol ya talado y en
+    // respawn), interesa más el aviso de "vuelve a crecer en X" que el de los
+    // recursos, así que se deja pasar para que el paso 1 dé ese mensaje.
+    const _esTronco = !!(this.treeStumps && this.treeStumps[treeKey]);
+    if (!_esTronco && !this._hayRecursosParaTrabajar('chop')) return;
+
     // ---------- 0. Guard SÍNCRONO anti-doble-disparo ----------
     // Los clicks rapidísimos disparaban varios handlers que se solapaban en sus
     // `await` (getTreeLockState) y hacían "buguear" el contador (p. ej. 1/6 → 1/8).
@@ -7243,11 +7265,10 @@ oreProps.forEach(prop => {
     }
     this.lastTreeClick[treeKey] = now;
 
-    // ---------- 4. Recursos ----------
-    if (this.aguaPorcentaje < 1 || this.comidaPorcentaje < 1) {
-      this.notifications.show("Not enough Water or Food to chop", "error");
-      return;
-    }
+    // ---------- 4. Recursos (segunda comprobación) ----------
+    // Se repite tras el await por si el agua o la comida bajaron mientras el
+    // servidor respondía (otra acción en curso, el desgaste por caminar…).
+    if (!this._hayRecursosParaTrabajar('chop')) return;
 
     // ---------- 5. Inicializar/actualizar progreso ----------
     const oreInfo = oreRewards[treeKey] || { nombre: "Tree", colorNotificacion: "#ffffff" };
@@ -12448,17 +12469,18 @@ async waterCrop(plotId) {
 }
 
 // ============================================================================
-// CRÉDITO DEL BALDE DE AGUA  (2026-08-03, revisado el 2026-08-04)
+// BALDE DE AGUA  (2026-08-03, simplificado el 2026-08-05)
 // ----------------------------------------------------------------------------
-// Un balde con agua rinde para DOS parcelas. El balde se gasta ENTERO en el
-// momento (sale `balde_con_agua`, entra `balde_vacio` con transacciones reales)
-// y lo que sobra queda anotado aquí como "riegos pendientes".
+// Un balde con agua riega DOS parcelas. Se gasta ENTERO en el momento de
+// confirmar: sale `balde_con_agua` y entra `balde_vacio`, las dos con
+// transacciones reales. Cada confirmación paga sus propios baldes:
+//   1 parcela → 1 balde · 2 → 1 · 3 → 2 · 4 → 2 …
 //
-// Se hace así, y no gastando medio balde por parcela, porque el inventario
-// on-chain no admite medias unidades: si se esperara al segundo riego para
-// descontar, cerrar sesión en medio dejaría al jugador con un balde lleno que
-// ya había usado. El crédito se guarda POR CUENTA, así que sobrevive a las
-// recargas y a los viajes a la tienda.
+// Antes se guardaba el medio balde sobrante para el siguiente riego. Sonaba
+// bien, pero producía algo desconcertante: regabas UNA parcela y no se te
+// descontaba nada (estabas gastando el resto de un balde de hace rato). Ahora
+// el sobrante se pierde con el balde, que es lo que el jugador espera.
+//
 // El agua sale del balde, no del jugador: regar así NO baja la barra de agua.
 // ============================================================================
 
@@ -12466,6 +12488,11 @@ _bucketWaterKey() {
   return `gf_bucket_water_${String(this.currentAccount || 'anon').toLowerCase()}`;
 }
 
+/**
+ * Riegos sueltos que quedaran guardados de la versión anterior. Ya no se
+ * generan nuevos, pero se sigue leyendo para poder LIMPIARLOS: si no, un
+ * jugador con crédito viejo en su navegador seguiría regando gratis.
+ */
 _getBucketWaterCredit() {
   try {
     const v = parseInt(localStorage.getItem(this._bucketWaterKey()) || '0', 10);
@@ -12478,7 +12505,10 @@ _getBucketWaterCredit() {
 _setBucketWaterCredit(n) {
   const v = Math.max(0, Number(n) || 0);
   this._bucketWaterCreditMem = v;
-  try { localStorage.setItem(this._bucketWaterKey(), String(v)); } catch (_) {}
+  try {
+    if (v > 0) localStorage.setItem(this._bucketWaterKey(), String(v));
+    else localStorage.removeItem(this._bucketWaterKey());
+  } catch (_) {}
 }
 
 /** Cuántas parcelas riega un balde lleno. */
@@ -12591,15 +12621,17 @@ _costeRiegoParcela(plotId) {
   return Number.isFinite(c) && c > 0 ? c : 0.5;
 }
 
-/** Cuántas parcelas puedo regar con los baldes que tengo + el crédito guardado. */
+/** Cuántas parcelas puedo regar con los baldes llenos que tengo (2 por balde). */
 _baldesDisponiblesParaRiego() {
-  const enInventario = this.contarItemEnInventario('balde_con_agua');
-  return this._getBucketWaterCredit() + enInventario * this.BUCKET_PLOTS_PER_FILL;
+  return this.contarItemEnInventario('balde_con_agua') * this.BUCKET_PLOTS_PER_FILL;
 }
 
 // ── Hub flotante del riego ─────────────────────────────────────────────
-// Se coloca a 196 px del borde para que no se encime con el de siembra
-// (24 px) ni con el de corte (110 px) si los tres estuvieran a la vez.
+// MISMA POSICIÓN QUE EL DE SIEMBRA (2026-08-05): antes estaba a 196 px del
+// borde para no encimarse con los otros dos, pero eso lo dejaba en mitad de
+// la pantalla. Como sembrar y regar son acciones distintas (o tienes una
+// semilla en la mano o tienes la regadera), sus colas nunca están activas a
+// la vez, así que pueden compartir el mismo sitio: abajo del todo, 24 px.
 ensureRiegoHubDOM() {
   const existentes = document.querySelectorAll('#riego-hub');
   if (existentes.length > 1) existentes.forEach(el => el.remove());
@@ -12611,7 +12643,7 @@ ensureRiegoHubDOM() {
     hub.id = 'riego-hub';
     hub.style.cssText = `
       position: fixed;
-      bottom: 196px;
+      bottom: 24px;
       left: 50%;
       transform: translateX(-50%);
       background: rgba(20,20,20,0.92);
@@ -12691,7 +12723,7 @@ updateRiegoHub() {
   const herramienta = n > 0 ? this.pendingWaters.values().next().value : null;
 
   if (herramienta === 'bucket') {
-    const baldes = Math.ceil(Math.max(0, n - this._getBucketWaterCredit()) / this.BUCKET_PLOTS_PER_FILL);
+    const baldes = Math.ceil(n / this.BUCKET_PLOTS_PER_FILL);
     label.textContent = `Bucket: ${n} plot(s) ready — uses ${baldes} bucket(s)`;
   } else if (herramienta === 'can') {
     let coste = 0;
@@ -12792,13 +12824,20 @@ async _regarLoteConRegadera(plotIds) {
  */
 async _regarLoteConBaldes(plotIds) {
   const necesarias = plotIds.length;
-  const credito = this._getBucketWaterCredit();
-  const baldesNecesarios = Math.ceil(Math.max(0, necesarias - credito) / this.BUCKET_PLOTS_PER_FILL);
+
+  // CADA LOTE PAGA SUS PROPIOS BALDES (2026-08-05)
+  // -------------------------------------------------------------------------
+  // Antes se guardaba el "medio balde" sobrante de un riego para el siguiente.
+  // Efecto raro: regabas UNA parcela y no se te descontaba nada, porque estabas
+  // gastando el resto de un balde de hace rato. Ahora cada confirmación calcula
+  // lo suyo y siempre cobra:  1 parcela → 1 balde ·  2 parcelas → 1 balde ·
+  // 3 parcelas → 2 baldes ·  4 parcelas → 2 baldes.
+  const baldesNecesarios = Math.ceil(necesarias / this.BUCKET_PLOTS_PER_FILL);
 
   const defAgua  = this.ItemDefinitions ? this.ItemDefinitions['balde_con_agua'] : null;
   const defVacio = this.ItemDefinitions ? this.ItemDefinitions['balde_vacio'] : null;
 
-  let cargasDisponibles = credito;
+  let cargasDisponibles = 0;
 
   if (baldesNecesarios > 0) {
     if (this.contarItemEnInventario('balde_con_agua') < baldesNecesarios) {
@@ -12862,8 +12901,10 @@ async _regarLoteConBaldes(plotIds) {
     regadas++;
   }
 
-  // Lo que sobre del último balde se guarda para la próxima vez.
-  this._setBucketWaterCredit(Math.max(0, cargasDisponibles));
+  // El sobrante del último balde NO se guarda: el balde se gastó entero en
+  // este riego. Guardarlo era lo que hacía que un riego suelto pareciera
+  // gratis (ver la nota del cálculo de baldesNecesarios).
+  this._setBucketWaterCredit(0);
 
   if (regadas < plotIds.length) {
     this.notifications.show(
@@ -22550,6 +22591,48 @@ _escapeRankHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
   ));
+}
+
+/**
+ * ¿Hay agua y comida suficientes para dar un golpe de hacha o de pico?
+ *
+ * Cada golpe cuesta 1 de agua y 1 de comida, así que hacen falta AMBOS. Se
+ * comprueba en dos momentos: nada más tocar el nodo (antes de consultar al
+ * servidor) y otra vez justo antes de consumir. Ese doble control es lo que
+ * evita el fallo de que el contador subiera a la vez que salía el aviso de
+ * "no tienes agua o comida": entre el clic y la respuesta del servidor pasan
+ * cientos de milisegundos y la comida se regenera sola, así que sin la
+ * comprobación previa un clic entraba con el último punto y el siguiente,
+ * ya encolado, se encontraba sin nada.
+ *
+ * El aviso lleva antirrebote: al picar rápido salían diez avisos idénticos
+ * apilados en pantalla.
+ *
+ * @param {'chop'|'mine'} tarea  solo cambia el texto del aviso
+ * @returns {boolean} true si se puede trabajar
+ */
+_hayRecursosParaTrabajar(tarea) {
+  const agua   = Number(this.aguaPorcentaje);
+  const comida = Number(this.comidaPorcentaje);
+
+  // Un valor no numérico (stats aún sin cargar) cuenta como "no hay": es
+  // preferible bloquear un golpe que dejar pasar uno sin poder cobrarlo.
+  const suficiente = Number.isFinite(agua) && Number.isFinite(comida) &&
+                     agua >= 1 && comida >= 1;
+  if (suficiente) return true;
+
+  const ahora = Date.now();
+  if (!this._avisoRecursosEn || (ahora - this._avisoRecursosEn) > 2500) {
+    this._avisoRecursosEn = ahora;
+    const falta = [];
+    if (!Number.isFinite(agua)   || agua   < 1) falta.push('Water');
+    if (!Number.isFinite(comida) || comida < 1) falta.push('Food');
+    this.notifications.show(
+      `Not enough ${falta.join(' and ')} to ${tarea === 'mine' ? 'mine' : 'chop'}`,
+      'error'
+    );
+  }
+  return false;
 }
 
 /**
