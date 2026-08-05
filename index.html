@@ -120,6 +120,12 @@
        que las escenas para que ninguna transacción se quede sin registrar. -->
   <script src="./tx-gate.js?v=17.2" defer></script>
 
+  <!-- GF Wallet SDK — wallet embebida para quien entró con Google/Facebook/Apple.
+       Va después de ethers (lo necesita para firmar) y su arranque solo instala
+       window.ethereum si NO hay MetaMask: con extensión instalada, manda ella. -->
+  <script src="./gf-wallet-sdk/gf-wallet.js?v=17.2" defer></script>
+  <script src="./gf-wallet-boot.js?v=17.2" defer></script>
+
   <!-- Altura real del viewport en móvil (el juego salía en una franja arriba y
        el resto negro). Debe ir ANTES de app.js para publicar --app-height
        antes de que se cree el lienzo. No toca el zoom de la cámara. -->

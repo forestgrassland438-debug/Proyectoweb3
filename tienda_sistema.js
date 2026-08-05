@@ -1402,19 +1402,45 @@ class TiendaSistema {
     }
     
     // Filtrar items
+    //
+    // ITEMS DUPLICADOS EN LA TIENDA (arreglado 2026-08-05)
+    // ---------------------------------------------------------------------
+    // La rejilla se VACIABA al instante pero se RELLENABA 300 ms después,
+    // dentro de un setTimeout. Si en esos 300 ms se llamaba otra vez a
+    // filterItems() —y pasa constantemente: al abrir la tienda, al cambiar de
+    // Buy a Sell, al terminar una compra, o al aparecer el teclado del móvil,
+    // que dispara el `resize`— ocurría esto:
+    //
+    //    llamada A: vacía la rejilla ······ (300 ms) ······ mete 11 tarjetas
+    //    llamada B: vacía la rejilla ············ (300 ms) ··· mete 11 MÁS
+    //
+    // El vaciado de B pasaba ANTES de que A pintara, así que las dos tandas
+    // acababan en la rejilla: 22 tarjetas con el contador diciendo "11 items
+    // available". Por eso "a veces se multiplican y a veces no": dependía de
+    // si las dos llamadas caían dentro de la misma ventana de 300 ms.
+    //
+    // ARREGLO: cada llamada se queda con un número de turno. El temporizador
+    // anterior se cancela, y el que llega a pintar comprueba que sigue siendo
+    // el último y vacía la rejilla JUSTO ANTES de rellenarla. Así nunca puede
+    // haber dos tandas dentro.
     filterItems() {
         const itemsContainer = document.getElementById('tienda-items');
         const loadingElement = document.getElementById('tienda-loading');
         const emptyElement = document.getElementById('tienda-empty');
         const totalItemsElement = document.getElementById('tienda-total-items');
         const filtroElement = document.getElementById('tienda-filtro');
-        
+
         if (!itemsContainer) return;
-        
+
+        // Turno de este render y cancelación del pintado anterior.
+        this._renderToken = (this._renderToken || 0) + 1;
+        const miTurno = this._renderToken;
+        clearTimeout(this._renderTimer);
+
         if (loadingElement) loadingElement.style.display = 'flex';
         if (emptyElement) emptyElement.style.display = 'none';
         itemsContainer.innerHTML = '';
-        
+
         let allItems = [];
         if (this.currentCategory === 'todas') {
             Object.values(this.itemsTienda).forEach(category => {
@@ -1463,19 +1489,27 @@ class TiendaSistema {
         
         if (filtroElement) filtroElement.textContent = filtroTexto;
         
-        setTimeout(() => {
+        this._renderTimer = setTimeout(() => {
+            // Llegó otro filterItems() mientras esperábamos: este pintado ya no
+            // vale y NO debe añadir sus tarjetas encima de las del nuevo.
+            if (miTurno !== this._renderToken) return;
+
             if (loadingElement) loadingElement.style.display = 'none';
-            
+
             if (totalItems === 0) {
+                itemsContainer.innerHTML = '';
                 if (emptyElement) emptyElement.style.display = 'flex';
                 return;
             }
-            
+
+            // Vaciar AQUÍ, pegado al relleno: es lo que garantiza que la
+            // rejilla contiene exactamente una tanda de tarjetas.
+            itemsContainer.innerHTML = '';
             allItems.forEach(item => {
                 const itemCard = this.createItemCard(item);
                 itemsContainer.appendChild(itemCard);
             });
-            
+
             this.setupItemTouchEvents();
         }, 300);
     }
