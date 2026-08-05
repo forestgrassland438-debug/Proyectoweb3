@@ -11302,6 +11302,62 @@ if (this.dogNameText) {
 
     // Actualizar visualmente las barras con los valores cargados del contrato
     this._refreshBarrasUI();
+
+    // Regeneración pasiva (+1/min): la lleva el servidor en modo fantasma, esto
+    // solo refresca las barras mientras se está dentro de la tienda.
+    this._iniciarRegeneracionVitales();
+  }
+
+  /**
+   * Copia de _iniciarRegeneracionVitales de GameScene: la tienda es una escena
+   * aparte con su propio HUD, así que también necesita su tick para que las
+   * barras suban mientras el jugador está dentro. Solo se ADOPTA lo que sube.
+   */
+  _iniciarRegeneracionVitales() {
+    if (this._regenVitalesTimer) return;
+
+    this._regenVitalesTimer = setInterval(async () => {
+      try {
+        if (!this.playerName || !this.isAuthenticated) return;
+        if (document.hidden) return;
+
+        const res = await fetch(
+          `${this.serverBase}/api/stats/${encodeURIComponent(this.playerName)}`,
+          { method: 'GET', credentials: 'include' }
+        );
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const s = data && data.stats;
+        if (!s) return;
+
+        let subio = false;
+        const aplicar = (clave, prop) => {
+          const valor = Number(s[clave]);
+          if (!Number.isFinite(valor)) return;
+          if (valor > (Number(this[prop]) || 0)) { this[prop] = valor; subio = true; }
+        };
+        aplicar('vida',   'vidaPorcentaje');
+        aplicar('agua',   'aguaPorcentaje');
+        aplicar('comida', 'comidaPorcentaje');
+
+        if (subio) {
+          if (window.playerStats) {
+            window.playerStats.vida   = this.vidaPorcentaje;
+            window.playerStats.agua   = this.aguaPorcentaje;
+            window.playerStats.comida = this.comidaPorcentaje;
+          }
+          this._refreshBarrasUI();
+        }
+      } catch (e) { /* un minuto perdido no importa */ }
+    }, 60000);
+
+    const apagar = () => {
+      clearInterval(this._regenVitalesTimer);
+      this._regenVitalesTimer = null;
+    };
+    this.events.once('shutdown', apagar);
+    this.events.once('destroy', apagar);
   }
 
   _refreshBarrasUI() {

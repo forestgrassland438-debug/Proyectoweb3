@@ -1030,6 +1030,11 @@ async loadDailyMissions(npcId) {
 // el botón "Complete" no puedan discrepar.
 // ============================================================================
 
+// Debe ser IDÉNTICO a MISSION_ITEM_ALIASES de server2.js: el panel dice si se
+// puede entregar y el servidor decide si se entrega de verdad; si los dos mapas
+// no coinciden, el botón se pone verde y luego el backend responde que faltan
+// materiales. 'madera' apuntaba a 'madera', que NO es ningún ítem del juego
+// (las maderas son madera_pinos / madera_seca / madera_con_hojas).
 MISSION_ITEM_MAP = {
   'zanahoria': 'zanahoria_buena', 'carrot': 'zanahoria_buena',
   'tomate': 'tomate_buena',       'tomato': 'tomate_buena',
@@ -1039,8 +1044,7 @@ MISSION_ITEM_MAP = {
   'cobre': 'mineral_cobre',       'copper': 'mineral_cobre',
   'hierro': 'mineral_hierro',     'iron': 'mineral_hierro',
   'carbon': 'carbon',             'coal': 'carbon',
-  'madera': 'madera',             'wood': 'madera',
-  'moneda': 'moneda',             'coin': 'moneda'
+  'madera': 'madera_pinos',       'wood': 'madera_pinos'
 };
 
 /** itemId de la misión → id que realmente existe en el inventario. */
@@ -1060,12 +1064,12 @@ getMissionItemCount(missionItemId) {
     arr.forEach(slot => {
       if (!slot || !slot.id) return;
       const id = String(slot.id).toLowerCase().trim();
-      // Mismo criterio flexible que checkMissionRequirements.
-      const coincide = id === objetivo ||
-                       id.includes(objetivo) ||
-                       objetivo.includes(id) ||
-                       id === `${objetivo}_buena`;
-      if (coincide) total += parseInt(slot.count || slot.quantity || 0, 10) || 0;
+      // COINCIDENCIA EXACTA (2026-08-05). Antes valía cualquier parecido
+      // (`includes` en los dos sentidos), así que el panel podía contar
+      // 'madera_seca' para una misión de 'madera_pinos' y poner el botón en
+      // "HAND IN"… para que luego el servidor, que quema el tipo EXACTO en la
+      // cadena, respondiera que faltaban materiales.
+      if (id === objetivo) total += parseInt(slot.count || slot.quantity || 0, 10) || 0;
     });
   };
 
@@ -1133,131 +1137,16 @@ async checkMissionRequirements(missionId) {
     
     console.log(`📝 Misión encontrada: ${mission.itemId}, cantidad requerida: ${mission.requiredAmount}`);
     
-    // Mapear nombres de items de misión a nombres de inventario
-    const itemNameMap = {
-      'zanahoria': 'zanahoria_buena',
-      'tomate': 'tomate_buena', 
-      'trigo': 'trigo_buena',
-      'calabaza': 'calabaza_buena',
-      'piedra': 'mineral_piedra',
-      'cobre': 'mineral_cobre',
-      'hierro': 'mineral_hierro',
-      'carbon': 'carbon',
-      'madera': 'madera',
-      'moneda': 'moneda',
-      'carrot': 'zanahoria_buena',  // ¡IMPORTANTE! Si la misión usa "carrot" en inglés
-      'tomato': 'tomate_buena',
-      'wheat': 'trigo_buena',
-      'pumpkin': 'calabaza_buena',
-      'stone': 'mineral_piedra',
-      'copper': 'mineral_cobre',
-      'iron': 'mineral_hierro',
-      'coal': 'carbon',
-      'wood': 'madera',
-      'coin': 'moneda'
-    };
-    
-    const inventoryItemName = itemNameMap[mission.itemId] || mission.itemId;
+    // CONTEO ÚNICO (2026-08-05). Antes esta función tenía su PROPIO mapa de
+    // nombres y su propia búsqueda "flexible", distintos de los que usa el
+    // panel (getMissionItemCount) y de los del servidor. Con tres criterios
+    // diferentes, el botón podía decir "HAND IN" con el panel contando una
+    // cosa y el backend contando otra. Ahora los tres cuentan igual: mismo
+    // mapa (MISSION_ITEM_MAP) y coincidencia EXACTA de id.
+    const inventoryItemName = this.resolveMissionItemId(mission.itemId);
+    const totalQuantity = this.getMissionItemCount(mission.itemId);
     console.log(`🔄 Mapeo de item: ${mission.itemId} -> ${inventoryItemName}`);
-    
-    // Variable para almacenar la cantidad total encontrada
-    let totalQuantity = 0;
-    
-    // ===============================
-    // BUSCAR EN TODOS LOS ALMACENAMIENTOS
-    // ===============================
-    
-    // 1. Buscar en INVENTARIO PRINCIPAL (this.STATE.slots)
-    console.log(`🔍 Buscando en inventario principal (slots)...`);
-    if (this.STATE && this.STATE.slots && Array.isArray(this.STATE.slots)) {
-      for (let i = 0; i < this.STATE.slots.length; i++) {
-        const slot = this.STATE.slots[i];
-        if (!slot || !slot.id) continue;
-        
-        const slotItemId = String(slot.id).toLowerCase().trim();
-        const targetItemId = inventoryItemName.toLowerCase().trim();
-        
-        // Comparación flexible (incluye, comienza con, etc.)
-        if (slotItemId === targetItemId || 
-            slotItemId.includes(targetItemId) || 
-            targetItemId.includes(slotItemId) ||
-            slotItemId === `${targetItemId}_buena`) {
-          
-          const quantity = parseInt(slot.count || slot.quantity || 0);
-          totalQuantity += quantity;
-          console.log(`  ✅ Slot ${i}: "${slotItemId}" x${quantity} -> Total: ${totalQuantity}`);
-        }
-      }
-    } else {
-      console.warn('⚠️ this.STATE.slots no disponible');
-    }
-    
-    // 2. Buscar en COFRE (this.STATE.quickSlots)
-    console.log(`🔍 Buscando en cofre (quickSlots)...`);
-    if (this.STATE && this.STATE.quickSlots && Array.isArray(this.STATE.quickSlots)) {
-      for (let i = 0; i < this.STATE.quickSlots.length; i++) {
-        const slot = this.STATE.quickSlots[i];
-        if (!slot || !slot.id) continue;
-        
-        const slotItemId = String(slot.id).toLowerCase().trim();
-        const targetItemId = inventoryItemName.toLowerCase().trim();
-        
-        // Comparación flexible
-        if (slotItemId === targetItemId || 
-            slotItemId.includes(targetItemId) || 
-            targetItemId.includes(slotItemId) ||
-            slotItemId === `${targetItemId}_buena`) {
-          
-          const quantity = parseInt(slot.count || slot.quantity || slot.amount || 0);
-          totalQuantity += quantity;
-          console.log(`  ✅ Cofre slot ${i}: "${slotItemId}" x${quantity} -> Total: ${totalQuantity}`);
-        }
-      }
-    } else {
-      console.warn('⚠️ this.STATE.quickSlots no disponible');
-    }
-    
-    // 3. Buscar en OTROS ALMACENAMIENTOS (si existen)
-    if (this.STATE && this.STATE.chestSlots && Array.isArray(this.STATE.chestSlots)) {
-      console.log(`🔍 Buscando en chestSlots...`);
-      for (let i = 0; i < this.STATE.chestSlots.length; i++) {
-        const slot = this.STATE.chestSlots[i];
-        if (!slot || !slot.id) continue;
-        
-        const slotItemId = String(slot.id).toLowerCase().trim();
-        const targetItemId = inventoryItemName.toLowerCase().trim();
-        
-        if (slotItemId === targetItemId || 
-            slotItemId.includes(targetItemId) || 
-            targetItemId.includes(slotItemId)) {
-          
-          const quantity = parseInt(slot.count || slot.quantity || 0);
-          totalQuantity += quantity;
-          console.log(`  ✅ Chest slot ${i}: "${slotItemId}" x${quantity} -> Total: ${totalQuantity}`);
-        }
-      }
-    }
-    
-    // 4. Buscar en INVENTARIO DEL PERSONAJE (si existe)
-    if (this.player && this.player.inventory && Array.isArray(this.player.inventory)) {
-      console.log(`🔍 Buscando en inventario del personaje...`);
-      for (const item of this.player.inventory) {
-        if (!item || !item.id) continue;
-        
-        const slotItemId = String(item.id).toLowerCase().trim();
-        const targetItemId = inventoryItemName.toLowerCase().trim();
-        
-        if (slotItemId === targetItemId || 
-            slotItemId.includes(targetItemId) || 
-            targetItemId.includes(slotItemId)) {
-          
-          const quantity = parseInt(item.quantity || item.count || 0);
-          totalQuantity += quantity;
-          console.log(`  ✅ Inventario item: "${slotItemId}" x${quantity} -> Total: ${totalQuantity}`);
-        }
-      }
-    }
-    
+
     const hasRequiredAmount = totalQuantity >= mission.requiredAmount;
     
     console.log(`📊 Verificación final: ${totalQuantity} / ${mission.requiredAmount} ${inventoryItemName} -> ${hasRequiredAmount ? '✅ CUMPLE' : '❌ NO CUMPLE'}`);
@@ -1433,56 +1322,30 @@ async completeMission(missionId) {
     }
     
     console.log('✅ REQUISITOS CUMPLIDOS');
-    
-    // 5. Mapear nombre del item para eliminar (USANDO EL MISMO MAPEO QUE checkMissionRequirements)
-    const itemMapForRemoval = {
-      'zanahoria': 'zanahoria_buena', 'carrot': 'zanahoria_buena',
-      'tomate': 'tomate_buena', 'tomato': 'tomate_buena',
-      'trigo': 'trigo_buena', 'wheat': 'trigo_buena',
-      'calabaza': 'calabaza_buena', 'pumpkin': 'calabaza_buena',
-      'piedra': 'mineral_piedra', 'stone': 'mineral_piedra',
-      'cobre': 'mineral_cobre', 'copper': 'mineral_cobre',
-      'hierro': 'mineral_hierro', 'iron': 'mineral_hierro',
-      'carbon': 'carbon', 'coal': 'carbon',
-      'madera': 'madera', 'wood': 'madera',
-      'moneda': 'moneda', 'coin': 'moneda'
-    };
-    
-    const inventoryItemName = itemMapForRemoval[mission.itemId] || mission.itemId;
-    
-    // 6. Eliminar items del inventario LOCAL usando removeItemSmart
-    console.log(`\n🗑️ ELIMINANDO ITEMS LOCALMENTE CON removeItemSmart...`);
-    console.log(`- Item: ${inventoryItemName}`);
-    console.log(`- Cantidad: ${mission.requiredAmount}`);
-    
-    // Asegurarse de que removeItemSmart existe y funciona
-    if (typeof this.removeItemSmart !== 'function') {
-      console.error('❌ ERROR: removeItemSmart no es una función');
-      this.showNotification('Internal game error', 'error');
-      return null;
-    }
-    
-    const removed = this.removeItemSmart(inventoryItemName, mission.requiredAmount);
-    
-    if (!removed) {
-      console.error(`❌ ERROR: removeItemSmart devolvió false`);
-      this.showNotification(`Error removing items from your inventory`, 'error');
-      return null;
-    }
-    
-    console.log('✅ ITEMS ELIMINADOS LOCALMENTE CON ÉXITO');
-    
-    // 7. GUARDAR ESTADO ACTUALIZADO EN EL SERVIDOR (IMPORTANTE)
-    console.log('\n💾 GUARDANDO ESTADO ACTUALIZADO EN SERVIDOR...');
+
+    // 5-7. ENTREGA SERVIDOR-AUTORITATIVA                        (2026-08-05)
+    // -------------------------------------------------------------------
+    // ANTES: aquí se quitaban los ítems del inventario con removeItemSmart y
+    // se guardaba con savegg() ANTES de avisar al servidor. Como la ruta de
+    // completar ni siquiera existía en el backend, la petición fallaba después
+    // y el jugador se quedaba sin los materiales y sin recompensa (5/5 → 1/5 y
+    // "Error completing mission").
+    //
+    // AHORA: no se toca nada por nuestra cuenta. Se manda el inventario tal
+    // como está (para que el servidor mire lo mismo que ve el jugador) y es el
+    // SERVIDOR quien comprueba, quema en la cadena y paga. Al terminar se
+    // recarga el inventario desde el servidor, así lo que se ve es exactamente
+    // lo que quedó guardado.
+    console.log('\n💾 SINCRONIZANDO INVENTARIO ANTES DE ENTREGAR...');
     try {
-      await this.savegg(); // Esto debería sincronizar el inventario con el servidor
-      console.log('✅ Estado guardado en servidor');
+      await this.savegg();
+      console.log('✅ Inventario sincronizado con el servidor');
     } catch (saveError) {
-      console.error('❌ Error al guardar estado:', saveError);
-      // Continuar de todos modos, pero mostrar advertencia
-      this.showNotification('Advertencia: Estado no guardado completamente', 'warning');
+      console.error('❌ No se pudo sincronizar el inventario antes de entregar:', saveError);
+      this.showNotification('Could not sync your inventory. Please try again.', 'error');
+      return null;
     }
-    
+
     // 8. Enviar petición al servidor para completar misión
     console.log('\n📤 ENVIANDO PETICIÓN PARA COMPLETAR MISIÓN...');
     
@@ -1541,30 +1404,49 @@ async completeMission(missionId) {
         return null;
       }
       
-      // Si es error 400 de "no tienes items", significa que el servidor no vio los items eliminados
-      if (res?.status === 400 && errorMessage.includes('No tienes los items')) {
-        console.error('⚠️ El servidor no detectó los items eliminados');
-        console.error('⚠️ Posible problema de sincronización');
-        
-        // Mostrar error específico
-        this.showNotification(errorMessage, 'error');
-        
-        // Intentar recargar datos del jugador para sincronizar
+      // El servidor no vio los materiales: se recarga el inventario real para
+      // que el panel deje de prometer una entrega que no se puede hacer.
+      if (res?.status === 400) {
+        this.showNotification(
+          `You don't have the required items for this mission`,
+          'error'
+        );
         await this.loadPlayerData();
+        this.renderAllSlots && this.renderAllSlots();
         return null;
       }
-      
+
+      // Ya estaba entregada (doble clic, o dos pestañas abiertas).
+      if (res?.status === 409) {
+        this.showNotification('That mission was already handed in', 'warning');
+        await this.loadDailyMissions(this.currentNpcMission);
+        return null;
+      }
+
+      // La quema on-chain no se confirmó: NO se ha entregado nada. Se recarga
+      // el inventario para reflejar exactamente lo que quedó guardado.
+      if (res?.status === 502) {
+        this.showNotification('The blockchain transaction was not confirmed. Nothing was taken — try again.', 'error');
+        await this.loadPlayerData();
+        this.renderAllSlots && this.renderAllSlots();
+        return null;
+      }
+
       throw new Error(`Error completando misión: ${res?.status || 'No status'} - ${errorMessage}`);
     }
 
     const result = await res.json();
     console.log('✅ RESPUESTA DEL SERVIDOR:', result);
-    
-    // 9. Procesar respuesta exitosa
+
+    // 9. El servidor ya movió inventario, experiencia y recompensa: se recarga
+    //    todo desde ahí en vez de adivinarlo en el cliente.
+    await this.loadPlayerData();
+    this.renderAllSlots && this.renderAllSlots();
+
     this.handleMissionCompletionSuccess(result, missionId);
-    
+
     return result;
-    
+
   } catch (error) {
     console.error('❌ ERROR CRÍTICO en completeMission:', error);
     console.error('Stack trace:', error.stack);
@@ -1621,36 +1503,39 @@ async updatePlayerDataAfterMission(missionId) {
 // Método auxiliar para manejar el éxito de completar misión
 handleMissionCompletionSuccess(result, missionId) {
   console.log(`✅ Misión ${missionId} completada exitosamente`);
-  
-  // Actualizar estadísticas locales
-  if (result.rewards && result.rewards.exp) {
-    this.nivel_exp += result.rewards.exp;
-    console.log(`📈 Experiencia ganada: +${result.rewards.exp} EXP`);
-  }
-  
-  // Actualizar monedas si hay recompensa de monedas
-  if (result.rewards && result.rewards.item && result.rewards.item.id === 'moneda') {
-    this.moneda += result.rewards.item.amount || 0;
-    console.log(`💰 Monedas ganadas: +${result.rewards.item.amount}`);
-  }
-  
+
+  // OJO: la experiencia y la recompensa YA las aplicó el servidor (y
+  // loadPlayerData() acaba de traerlas). Sumarlas otra vez aquí duplicaba la
+  // exp de cada misión, así que aquí solo se AVISA de lo que llegó.
+  const premios   = result.rewards || {};
+  const exp       = Number(premios.exp || 0);
+  const premioItm = premios.item && premios.item.amount > 0 ? premios.item : null;
+
+  // El testigo de exp se realinea para que el tick de niveles no reenvíe un
+  // valor viejo al contrato.
+  this._lastExpSynced = Math.max(0, Math.round(Number(this.nivel_exp) || 0));
+
   // Mostrar notificación de éxito
   let notificationText = '';
-  
+
   if (this.lenguaje === 3) { // español
-    notificationText = `¡Misión completada! +${result.rewards.exp} EXP`;
-    if (result.rewards.item) {
-      notificationText += ` y ${result.rewards.item.amount} ${this.getItemName(result.rewards.item.id, 'es-419')}`;
+    notificationText = `¡Misión completada! +${exp} EXP`;
+    if (premioItm) {
+      notificationText += ` y ${premioItm.amount} ${this.getItemName(premioItm.id, 'es-419')}`;
     }
   } else { // inglés por defecto
-    notificationText = `Mission completed! +${result.rewards.exp} EXP`;
-    if (result.rewards.item) {
-      notificationText += ` and ${result.rewards.item.amount} ${this.getItemName(result.rewards.item.id, 'en-US')}`;
+    notificationText = `Mission completed! +${exp} EXP`;
+    if (premioItm) {
+      notificationText += ` and ${premioItm.amount} ${this.getItemName(premioItm.id, 'en-US')}`;
     }
   }
-  
+
   this.showNotification(notificationText, 'success');
-  
+
+  if (Array.isArray(result.warnings) && result.warnings.includes('inventory_full')) {
+    this.showNotification('Your inventory was full — part of the reward could not be stored.', 'warning');
+  }
+
   // Actualizar datos de misiones locales
   if (this.dailyMissionsData && this.dailyMissionsData.userProgress) {
     this.dailyMissionsData.userProgress.completedCount = result.completedCount || 0;
@@ -6060,7 +5945,21 @@ mineProps.forEach(prop => {
  
     // ── 4. Recursos (segunda comprobación, tras el await) ─────────────────
     if (!this._hayRecursosParaTrabajar('mine')) return;
- 
+
+    // ── 4-bis. COBRO DE VITALES, ANTES QUE NADA ───────────────────────────
+    // Mismo criterio que la tala: la transacción del conteo del jugador va
+    // primero y se espera. Si no se puede pagar, el clic no cuenta para nada.
+    if (this._cobrandoVitales) return;
+    this._cobrandoVitales = true;
+    let _pagadoMina = false;
+    try {
+      _pagadoMina = await this._consumirVitales({ agua: 1, comida: 1 }, 'mine');
+    } finally {
+      this._cobrandoVitales = false;
+    }
+    if (!_pagadoMina) return;
+    if (!spr.active) return;
+
     // ── 5. Inicializar / actualizar progreso local ─────────────────────────
     const mineInfo = mineRewards[mineKey] || { nombre: "Mineral", colorNotificacion: "#ffffff" };
     if (!this.mineState[mineKey]) {
@@ -6100,9 +5999,8 @@ mineProps.forEach(prop => {
       }
     }
  
-    // ── 6. Consumir recursos y avanzar progreso ───────────────────────────
-    this.actualizarBarraAgua(this.aguaPorcentaje - 1);
-    this.actualizarBarraComida(this.comidaPorcentaje - 1);
+    // ── 6. Avanzar progreso ───────────────────────────────────────────────
+    // El agua y la comida ya se cobraron y confirmaron en el paso 4-bis.
     this.mineState[mineKey].progress++;
     const s = this.mineState[mineKey];
     console.log(`⛏️ ${mineInfo.nombre}: click ${s.progress}/${s.required} (con ${s.pickUsed})`);
@@ -7270,6 +7168,29 @@ oreProps.forEach(prop => {
     // servidor respondía (otra acción en curso, el desgaste por caminar…).
     if (!this._hayRecursosParaTrabajar('chop')) return;
 
+    // ---------- 4-bis. COBRO DE VITALES, ANTES QUE NADA ----------
+    // Se paga 1 de agua y 1 de comida EN LA CADENA y se ESPERA la confirmación.
+    // Si el servidor dice que no alcanza (o la transacción no se confirma), el
+    // clic no cuenta: ni sube el contador, ni suena el hacha, ni se acuña nada.
+    //
+    // Esto es lo que cierra de raíz el fallo de "no tengo agua ni comida pero
+    // el árbol va por 2/7": antes el descuento era local y diferido, así que el
+    // aviso y el avance podían salir a la vez y al final el árbol caía gratis.
+    // El candado evita además que dos clics seguidos abran dos cobros.
+    if (this._cobrandoVitales) return;
+    this._cobrandoVitales = true;
+    let _pagado = false;
+    try {
+      _pagado = await this._consumirVitales({ agua: 1, comida: 1 }, 'chop');
+    } finally {
+      this._cobrandoVitales = false;
+    }
+    if (!_pagado) return;
+
+    // Mientras se cobraba pudo talarlo otro jugador (o completarse el árbol):
+    // se comprueba que el sprite sigue vivo antes de seguir.
+    if (!spr.active) return;
+
     // ---------- 5. Inicializar/actualizar progreso ----------
     const oreInfo = oreRewards[treeKey] || { nombre: "Tree", colorNotificacion: "#ffffff" };
     if (!this.oreMineState[treeKey]) {
@@ -7309,9 +7230,9 @@ oreProps.forEach(prop => {
       }
     }
 
-    // ---------- 6. Consumir recursos y avanzar progreso ----------
-    this.actualizarBarraAgua(this.aguaPorcentaje - 1);
-    this.actualizarBarraComida(this.comidaPorcentaje - 1);
+    // ---------- 6. Avanzar progreso ----------
+    // El agua y la comida ya se cobraron (y se confirmaron) en el paso 4-bis:
+    // aquí ya no se toca ninguna barra, o se descontaría dos veces.
     this.oreMineState[treeKey].progress++;
     const s = this.oreMineState[treeKey];
     console.log(`Chop ${oreInfo.nombre}: click ${s.progress}/${s.required} (using ${s.pickUsed})`);
@@ -7550,6 +7471,12 @@ console.log('📊 Tree types:', Object.keys(TREE_TYPE_CONFIG));
           mineral_piedra: { src: "./Game/Source/piedra.png", maxStack: 20 , tipo: "mineral_piedra", usos: null },
           mineral_cobre: { src: "./Game/Source/cobre.png", maxStack: 20 , tipo: "mineral_cobre", usos: null },
           mineral_hierro: { src: "./Game/Source/hierro.png", maxStack: 20 , tipo: "mineral_hierro", usos: null },
+          // FALTABA (2026-08-05): el carbón se podía picar (mineRewards lo da
+          // como botín de las rocas de carbón) pero no estaba definido aquí.
+          // Sin definición no tiene `tipo`, así que nunca se acuñaba en la
+          // cadena y se guardaba sin IDX/Manualid… que es justo lo que
+          // /api/save descarta. Resultado: el carbón desaparecía al guardar.
+          carbon: { src: "./Game/Objetos/carbon.png", maxStack: 20 , tipo: "carbon", usos: null },
 
           palo: { src: "./Game/Source/palo.png", maxStack: 20 , tipo: "palo", usos: null},
           tablon_de_madera: { src: "./Game/Source/madera.png", maxStack: 20 , tipo: "tablon_de_madera", usos: null},
@@ -10969,12 +10896,40 @@ async handleWaterCollectionClick(pointer) {
     this.notifications.show("You have no empty buckets", "error");
     return;
   }
-  
+
+  // ── COMPROBACIONES ANTES DE APUNTAR NADA          (2026-08-05) ──────────
+  // El pozo apunta la recolección en el servidor ANTES de mover los baldes.
+  // Si luego resulta que no hay sitio para el balde lleno (o que el balde
+  // vacío no se puede sacar del inventario), el jugador se quedaba sin turno
+  // y con el mensaje de "falló la transacción". Ahora eso se mira ANTES.
+  const _vaciosDisponibles = this.contarItemEnInventario('balde_vacio');
+  if (_vaciosDisponibles < 1) {
+    this.notifications.show("You have no empty buckets", "error");
+    return;
+  }
+  try {
+    const sitio = this.simulateAddItem('balde_con_agua', 1);
+    // Si el balde vacío que se va a gastar era el último de su casilla, esa
+    // casilla se libera durante el intercambio y sí habrá sitio: por eso no se
+    // bloquea en ese caso (si no, el jugador con el inventario justo no podría
+    // usar el pozo nunca).
+    const liberaCasilla = Number(this.STATE.selectedItem.count || 0) === 1;
+    if (sitio && sitio.remaining > 0 && !liberaCasilla) {
+      this.notifications.show("No space left for the full bucket. Free a slot first.", "error");
+      return;
+    }
+  } catch (e) {
+    console.warn('⚠️ No se pudo comprobar el sitio para el balde con agua:', e && e.message);
+  }
+
+  // Evita que dos clics seguidos al pozo abran dos recolecciones.
+  if (this._pozoEnCurso) return;
+
   // Verificar estado (si tienes un sistema de cooldown)
   if (this.waterCollectionState && !this.waterCollectionState.canCollect) {
     if (this.waterCollectionState.remainingMinutes > 0) {
       this.notifications.show(
-        `Espera ${this.waterCollectionState.remainingMinutes} minutos`, 
+        `Espera ${this.waterCollectionState.remainingMinutes} minutos`,
         "error"
       );
     } else if (this.waterCollectionState.isDailyLimitReached) {
@@ -10984,7 +10939,13 @@ async handleWaterCollectionClick(pointer) {
     }
     return;
   }
-  
+
+  // El candado se pone JUSTO antes del try, que es quien lo suelta en su
+  // `finally`. Si se pusiera más arriba, cualquier `return` de las
+  // comprobaciones lo dejaría cerrado para siempre y el pozo quedaría muerto
+  // hasta recargar la partida.
+  this._pozoEnCurso = true;
+
   try {
     // 1. Verificar autenticación
     if (!this.playerName || !this.isAuthenticated) {
@@ -11089,6 +11050,10 @@ async handleWaterCollectionClick(pointer) {
 
         if (vaciosAntes - vaciosDespues < 1) {
           this.notifications.show("❌ The empty bucket transaction was not confirmed. Try again.", "error");
+          // El turno del pozo se DEVUELVE: la recolección ya estaba apuntada en
+          // el servidor, y sin esto el jugador perdía una de las 5 del día (y
+          // los 10 minutos de espera) por una transacción que nunca ocurrió.
+          await this._devolverRecoleccionAgua();
           return;
         }
 
@@ -11104,13 +11069,14 @@ async handleWaterCollectionClick(pointer) {
 
         if (aguaDespues - aguaAntes < 1) {
           // Compensar: devolver el balde vacío (también on-chain) para no
-          // dejar al jugador sin nada.
+          // dejar al jugador sin nada, y devolver también el turno del pozo.
           this.notifications.show("⚠️ The full bucket was not confirmed — returning the empty bucket…", "error");
           try {
             await this.ejecutarDivision(defVacio.tipo, 'balde_vacio', defVacio.maxStack || 5, 1);
           } catch (err) {
             console.error('❌ Error devolviendo balde vacío:', err);
           }
+          await this._devolverRecoleccionAgua();
           return;
         }
       } else {
@@ -11120,6 +11086,7 @@ async handleWaterCollectionClick(pointer) {
 
         if (!removed) {
           this.notifications.show("Could not remove the empty bucket", "error");
+          await this._devolverRecoleccionAgua();
           return;
         }
 
@@ -11129,10 +11096,11 @@ async handleWaterCollectionClick(pointer) {
           // Si no hay espacio, devolver el balde
           this.addItemWithCheck('balde_vacio', 1);
           this.notifications.show("No space left in your inventory", "error");
+          await this._devolverRecoleccionAgua();
           return;
         }
       }
-      
+
       // Actualizar estado local
       this.waterCollectionState = {
         canCollect: false,
@@ -11167,10 +11135,54 @@ async handleWaterCollectionClick(pointer) {
     } else {
       throw new Error(result.error || 'Error en el servidor');
     }
-    
+
   } catch (error) {
     console.error('❌ Error recolectando agua:', error);
     this.notifications.show(error.message, "error");
+  } finally {
+    // Sea cual sea el final, el pozo vuelve a admitir clics.
+    this._pozoEnCurso = false;
+  }
+}
+
+/**
+ * Devuelve al servidor la recolección del pozo que quedó a medias.
+ *
+ * El pozo apunta primero (para que no se pueda sacar agua diez veces seguidas)
+ * y mueve los baldes después. Cuando esas transacciones no se confirman, esto
+ * deshace el apunte: el jugador conserva su turno y sus 5 recolecciones del
+ * día. Sin esto, cada transacción fallida le costaba un turno.
+ */
+async _devolverRecoleccionAgua() {
+  try {
+    if (!this.playerName) return;
+    if (!this.csrfToken) await this.getCSRFToken();
+
+    const res = await this.fetchWithTokenRetry(
+      `${this.serverBase}/api/water/collect/refund`,
+      { method: 'POST', body: JSON.stringify({ playerName: this.playerName }) },
+      1
+    );
+
+    if (res && res.ok) {
+      // El turno vuelve a estar disponible ahora mismo.
+      this.waterCollectionState = {
+        canCollect: true,
+        remainingMinutes: 0,
+        collectionCycle: this.waterCollectionState?.collectionCycle || 0,
+        collectionsToday: this.waterCollectionState?.collectionsToday || 0,
+        isDailyLimitReached: false,
+        nextAvailableTime: null
+      };
+      if (typeof this.updateWaterCollectionInfoText === 'function') {
+        this.updateWaterCollectionInfoText();
+      }
+      console.log('💧 Turno del pozo devuelto');
+    } else {
+      console.warn('⚠️ No se pudo devolver el turno del pozo:', res && res.status);
+    }
+  } catch (e) {
+    console.warn('⚠️ Error devolviendo el turno del pozo:', e && e.message);
   }
 }
 
@@ -12215,6 +12227,30 @@ async _procesarLoteSiembra(lote) {
     return;
   }
 
+  // ── AGUA Y COMIDA PRIMERO ──────────────────────────────────────────────
+  // La transacción del conteo del jugador va ANTES que la de las semillas
+  // (2026-08-05). Si no se puede pagar, no se descuenta ninguna semilla y los
+  // cuadros vuelven a quedar libres: antes se cobraba DESPUÉS y solo en local,
+  // así que se podía sembrar con las barras a cero.
+  const cfgCoste = this.cropTypes[seedType] || {};
+  const costeAgua   = (Number(cfgCoste.waterCost) > 0 ? Number(cfgCoste.waterCost) : 0) * cantidadTotal;
+  const costeComida = (Number(cfgCoste.foodCost)  > 0 ? Number(cfgCoste.foodCost)  : 0) * cantidadTotal;
+
+  if (costeAgua > 0 || costeComida > 0) {
+    const pagado = await this._consumirVitales(
+      { agua: Math.ceil(costeAgua), comida: Math.ceil(costeComida) },
+      'plant'
+    );
+    if (!pagado) {
+      plotIds.forEach(plotId => {
+        this.marcarCuadroPendiente(plotId, false);
+        this._plotsEnVuelo.delete(plotId);
+      });
+      liberarLote();
+      return;
+    }
+  }
+
   this.notifications.show(
     `Sending transaction to deduct ${cantidadTotal} ${nombreSemilla}...`,
     "info"
@@ -12257,6 +12293,11 @@ async _procesarLoteSiembra(lote) {
       `Could not confirm the planting transaction for ${nombreSemilla}. Select the seed and try planting those plots again.`,
       "error"
     );
+    // No se sembró nada, así que se devuelve TODO el agua y la comida que se
+    // cobró por adelantado: cobrar por una siembra que no ocurrió sería
+    // exactamente el mismo tipo de fallo que se está arreglando en las misiones.
+    if (costeAgua > 0)   this.actualizarBarraAgua(Math.min(100, (Number(this.aguaPorcentaje)   || 0) + Math.ceil(costeAgua)));
+    if (costeComida > 0) this.actualizarBarraComida(Math.min(100, (Number(this.comidaPorcentaje) || 0) + Math.ceil(costeComida)));
     plotIds.forEach(plotId => {
       this.marcarCuadroPendiente(plotId, false);
       this._plotsEnVuelo.delete(plotId);
@@ -12272,23 +12313,22 @@ async _procesarLoteSiembra(lote) {
   const aSembrar = plotIds.slice(0, descontadas);
   const sobrantes = plotIds.slice(descontadas);
 
-  // FIX (2026-08-03): el agua/comida se descuenta AQUÍ, de una vez y por todo
-  // el lote confirmado, y luego se siembra sin volver a comprobar. Antes cada
-  // plantSeed() revisaba las barras por su cuenta: si mientras la transacción
-  // estaba en curso el jugador gastaba agua (talando, por ejemplo), esos
-  // cuadros ya no se sembraban... pero la semilla YA se había descontado
-  // on-chain. Es decir, se perdían semillas de verdad. Con el descuento hecho
-  // aquí, lo que se pagó en blockchain siempre se siembra.
-  const cfgLote = this.cropTypes[seedType] || {};
-  const cAgua   = Number(cfgLote.waterCost) > 0 ? Number(cfgLote.waterCost) : 0;
-  const cComida = Number(cfgLote.foodCost)  > 0 ? Number(cfgLote.foodCost)  : 0;
-  if (aSembrar.length > 0 && (cAgua > 0 || cComida > 0)) {
-    if (cAgua > 0) {
-      this.actualizarBarraAgua(Math.max(0, (Number(this.aguaPorcentaje) || 0) - cAgua * aSembrar.length));
-    }
-    if (cComida > 0) {
-      this.actualizarBarraComida(Math.max(0, (Number(this.comidaPorcentaje) || 0) - cComida * aSembrar.length));
-    }
+  // El agua y la comida YA se pagaron arriba (antes de tocar las semillas), así
+  // que aquí solo se siembra. plantSeed recibe `recursosYaDescontados` para que
+  // tampoco vuelva a comprobar las barras: lo que se pagó en blockchain siempre
+  // se siembra, aunque mientras tanto el jugador se haya quedado sin agua
+  // talando (ese era el fallo de perder semillas de 2026-08-03).
+  //
+  // NOTA sobre el cobro de más: se cobra por los cuadros PEDIDOS y se siembran
+  // los CONFIRMADOS. Si la transacción de semillas descuenta menos de lo
+  // pedido, se devuelve la diferencia de agua/comida para no cobrar de más.
+  if (sobrantes.length > 0 && (costeAgua > 0 || costeComida > 0)) {
+    const porCuadroAgua   = costeAgua   / cantidadTotal;
+    const porCuadroComida = costeComida / cantidadTotal;
+    const devolverAgua   = Math.floor(porCuadroAgua   * sobrantes.length);
+    const devolverComida = Math.floor(porCuadroComida * sobrantes.length);
+    if (devolverAgua > 0)   this.actualizarBarraAgua(Math.min(100, (Number(this.aguaPorcentaje)   || 0) + devolverAgua));
+    if (devolverComida > 0) this.actualizarBarraComida(Math.min(100, (Number(this.comidaPorcentaje) || 0) + devolverComida));
   }
 
   for (const plotId of aSembrar) {
@@ -12370,7 +12410,7 @@ cancelSiembraPendiente() {
  *        En ese caso NO se vuelve a cobrar ni a comprobar: la semilla ya se
  *        descontó en blockchain y tiene que sembrarse sí o sí.
  */
-plantSeed(plotId, seedType, opciones = {}) {
+async plantSeed(plotId, seedType, opciones = {}) {
   const cropConfig = this.cropTypes[seedType];
   if (!cropConfig) {
     this.notifications.show("Invalid seed type", "error");
@@ -12397,16 +12437,18 @@ plantSeed(plotId, seedType, opciones = {}) {
   console.log(`🌱 Recompensa progreso: ${cropConfig.rewards.progress_quantity} ${cropConfig.rewards.progress_reward}`);
   console.log(`💀 Recompensa muerta: ${cropConfig.rewards.deadQuantity} ${cropConfig.rewards.deadReward}`);
 
-  const alcanzan =
-    opciones.recursosYaDescontados === true ||
-    (this.aguaPorcentaje >= cropConfig.waterCost && this.comidaPorcentaje >= cropConfig.foodCost);
+  // Camino suelto (tutorial / código): el cobro del agua y la comida va PRIMERO
+  // y contra el servidor. El camino normal (lotes con ✔) ya pagó antes de tocar
+  // las semillas y llega con `recursosYaDescontados`.
+  let alcanzan = true;
+  if (opciones.recursosYaDescontados !== true) {
+    alcanzan = await this._consumirVitales(
+      { agua: Math.ceil(Number(cropConfig.waterCost) || 0), comida: Math.ceil(Number(cropConfig.foodCost) || 0) },
+      'plant'
+    );
+  }
 
   if (alcanzan) {
-    if (opciones.recursosYaDescontados !== true) {
-      this.actualizarBarraAgua(this.aguaPorcentaje - cropConfig.waterCost);
-      this.actualizarBarraComida(this.comidaPorcentaje - cropConfig.foodCost);
-    }
-
     this.socket.emit('plantSeed', {
       userId: this.currentAccount,
       plotId: plotId,
@@ -12450,9 +12492,10 @@ async waterCrop(plotId) {
   const cropConfig = this.cropTypes[cropData.cropType] || cropData.cropConfig;
   if (!cropConfig) return;
 
-  if (this.aguaPorcentaje >= cropConfig.wateringCost) {
-    this.actualizarBarraAgua(this.aguaPorcentaje - cropConfig.wateringCost);
-
+  // El agua del jugador se cobra PRIMERO (transacción confirmada) y solo
+  // después se riega y se desgasta la regadera.
+  const coste = Math.ceil(Number(cropConfig.wateringCost) || 0);
+  if (await this._consumirVitales({ agua: coste }, 'water')) {
     this.socket.emit('waterCrop', {
       userId: this.currentAccount,
       plotId: plotId
@@ -22636,6 +22679,195 @@ _hayRecursosParaTrabajar(tarea) {
 }
 
 /**
+ * COBRO DE VITALES ANTES QUE NADA                               (2026-08-05)
+ * ---------------------------------------------------------------------------
+ * Manda al servidor el gasto de vida/agua/comida de una acción y ESPERA su
+ * respuesta. Solo si devuelve `true` la acción puede continuar con sus propias
+ * transacciones (talar, minar, comprar, craftear, interactuar…). Es el orden
+ * que pidió el juego: primero se cobra el conteo del jugador, después va lo
+ * demás.
+ *
+ * Lo que se espera es el COBRO, no la blockchain. El servidor descuenta al
+ * momento en su base de datos (que es quien manda) y agrupa la escritura en la
+ * factura: UNA transacción por barra cada minuto, por muchos golpes que se den.
+ * Mandar una transacción por golpe eran 14 por árbol y una espera absurda.
+ * Como la deuda queda apuntada en el servidor, recargar el navegador no la
+ * borra.
+ *
+ * Por qué el servidor y no statsSync: statsSync agrupa los cambios y los manda
+ * 1,5 s más tarde sin que nadie espere el resultado. Con eso, un clic sin
+ * recursos avanzaba igual el contador del árbol (el "1/7, 2/7…" saliendo a la
+ * vez que el aviso de que faltaba comida). Aquí decide el servidor: si no hay
+ * saldo responde 409 y el clic no cuenta.
+ *
+ * Además cae de pie: si el backend no está disponible se hace el descuento
+ * local de siempre, para no dejar el juego bloqueado por un fallo de red.
+ *
+ * @param {{vida?:number, agua?:number, comida?:number}} costos
+ * @param {string} motivo  solo para el registro del servidor
+ * @returns {Promise<boolean>} true si se cobró y se puede seguir
+ */
+async _consumirVitales(costos, motivo = 'action') {
+  const limpio = {};
+  ['vida', 'agua', 'comida'].forEach(k => {
+    const n = Math.round(Number(costos && costos[k]) || 0);
+    if (n > 0) limpio[k] = n;
+  });
+  if (!Object.keys(limpio).length) return true;
+
+  // Comprobación local previa: evita ir al servidor cuando ya se sabe que no
+  // alcanza (y da el aviso al instante, sin esperar la red).
+  const local = { vida: this.vidaPorcentaje, agua: this.aguaPorcentaje, comida: this.comidaPorcentaje };
+  const faltaLocal = Object.keys(limpio).filter(k => {
+    const v = Number(local[k]);
+    return !Number.isFinite(v) || v < limpio[k];
+  });
+  if (faltaLocal.length) {
+    this._avisarFaltanVitales(faltaLocal);
+    return false;
+  }
+
+  if (!this.playerName || !this.isAuthenticated) return false;
+
+  try {
+    if (!this.csrfToken) await this.getCSRFToken();
+
+    const res = await this.fetchWithTokenRetry(
+      `${this.serverBase}/api/stats/${encodeURIComponent(this.playerName)}/consume`,
+      { method: 'POST', body: JSON.stringify({ costs: limpio, reason: motivo }) },
+      1
+    );
+
+    if (res && res.ok) {
+      const data = await res.json().catch(() => null);
+      if (data && data.stats) this._adoptarVitalesDelServidor(data.stats);
+      return true;
+    }
+
+    // 409 = no alcanza. El servidor manda: se pintan sus valores y se avisa.
+    if (res && res.status === 409) {
+      const data = await res.json().catch(() => null);
+      if (data && data.stats) this._adoptarVitalesDelServidor(data.stats);
+      this._avisarFaltanVitales((data && data.missing) || Object.keys(limpio));
+      return false;
+    }
+
+    // 502 = la transacción de la factura no se confirmó. No se sigue: si se
+    // siguiera, el jugador conseguiría el recurso sin pagarlo.
+    if (res && res.status === 502) {
+      const data = await res.json().catch(() => null);
+      if (data && data.stats) this._adoptarVitalesDelServidor(data.stats);
+      this.notifications.show('The transaction was not confirmed. Try again in a moment.', 'error');
+      return false;
+    }
+
+    console.warn('⚠️ /consume respondió', res && res.status, '— se descuenta en local');
+  } catch (e) {
+    console.warn('⚠️ No se pudo cobrar las vitales en el servidor:', e && e.message);
+  }
+
+  // Respaldo sin red: descuento local de siempre (statsSync lo reintentará).
+  if (limpio.vida   > 0) this.actualizarBarraVida(Math.max(0, (Number(this.vidaPorcentaje)   || 0) - limpio.vida));
+  if (limpio.agua   > 0) this.actualizarBarraAgua(Math.max(0, (Number(this.aguaPorcentaje)   || 0) - limpio.agua));
+  if (limpio.comida > 0) this.actualizarBarraComida(Math.max(0, (Number(this.comidaPorcentaje) || 0) - limpio.comida));
+  return true;
+}
+
+/** Aviso antirrebote de "te falta X" (el mismo criterio que _hayRecursosParaTrabajar). */
+_avisarFaltanVitales(faltan) {
+  const ahora = Date.now();
+  if (this._avisoRecursosEn && (ahora - this._avisoRecursosEn) < 2500) return;
+  this._avisoRecursosEn = ahora;
+  const nombres = { vida: 'Life', agua: 'Water', comida: 'Food' };
+  const lista = (faltan || []).map(k => nombres[k] || k);
+  this.notifications.show(`Not enough ${lista.join(' and ')}`, 'error');
+}
+
+/**
+ * Copia a la escena las vitales que devolvió el servidor SIN volver a
+ * mandarlas al contrato (_refreshBarrasUI corta el sync). Es lo que evita el
+ * doble descuento: el servidor ya cobró, el cliente solo pinta.
+ */
+_adoptarVitalesDelServidor(stats) {
+  if (!stats) return;
+  if (typeof stats.vida   === 'number') this.vidaPorcentaje   = stats.vida;
+  if (typeof stats.agua   === 'number') this.aguaPorcentaje   = stats.agua;
+  if (typeof stats.comida === 'number') this.comidaPorcentaje = stats.comida;
+  if (window.playerStats) {
+    if (typeof stats.vida   === 'number') window.playerStats.vida   = stats.vida;
+    if (typeof stats.agua   === 'number') window.playerStats.agua   = stats.agua;
+    if (typeof stats.comida === 'number') window.playerStats.comida = stats.comida;
+  }
+  this._refreshBarrasUI();
+}
+
+/**
+ * REGENERACIÓN PASIVA: +1 de vida, agua y comida por minuto.    (2026-08-05)
+ * ---------------------------------------------------------------------------
+ * La subida la lleva el SERVIDOR en "modo fantasma" (solo base de datos, sin
+ * transacciones), así que sigue corriendo con el juego cerrado. Aquí solo se
+ * pregunta el valor una vez por minuto para que las barras se muevan solas
+ * mientras se juega.
+ *
+ * Solo se ADOPTA lo que sube: si el servidor viene por debajo (porque un gasto
+ * local todavía no ha llegado a él) no se toca nada, para no "resucitar"
+ * recursos que el jugador acaba de gastar.
+ */
+_iniciarRegeneracionVitales() {
+  if (this._regenVitalesTimer) return;
+  const UN_MINUTO = 60000;
+
+  this._regenVitalesTimer = setInterval(async () => {
+    try {
+      if (!this.playerName || !this.isAuthenticated) return;
+      if (document.hidden) return; // pestaña en segundo plano: el servidor sigue sumando igual
+
+      const res = await fetch(
+        `${this.serverBase}/api/stats/${encodeURIComponent(this.playerName)}`,
+        { method: 'GET', credentials: 'include' }
+      );
+      if (!res.ok) return;
+
+      const data = await res.json();
+      const s = data && data.stats;
+      if (!s) return;
+
+      let subio = false;
+      const aplicar = (clave, prop) => {
+        const valor = Number(s[clave]);
+        if (!Number.isFinite(valor)) return;
+        if (valor > (Number(this[prop]) || 0)) { this[prop] = valor; subio = true; }
+      };
+      aplicar('vida',   'vidaPorcentaje');
+      aplicar('agua',   'aguaPorcentaje');
+      aplicar('comida', 'comidaPorcentaje');
+
+      if (subio) {
+        if (window.playerStats) {
+          window.playerStats.vida   = this.vidaPorcentaje;
+          window.playerStats.agua   = this.aguaPorcentaje;
+          window.playerStats.comida = this.comidaPorcentaje;
+        }
+        this._refreshBarrasUI();
+      }
+    } catch (e) {
+      // Un minuto perdido no importa: al siguiente se vuelve a preguntar.
+    }
+  }, UN_MINUTO);
+
+  // El temporizador vive fuera de Phaser, así que hay que apagarlo a mano al
+  // cerrar la escena o quedaría corriendo (y pidiendo stats) para siempre.
+  this.events.once('shutdown', () => {
+    clearInterval(this._regenVitalesTimer);
+    this._regenVitalesTimer = null;
+  });
+  this.events.once('destroy', () => {
+    clearInterval(this._regenVitalesTimer);
+    this._regenVitalesTimer = null;
+  });
+}
+
+/**
  * PROFUNDIDAD DE LOS CARTELES DE LOS NPC
  * ---------------------------------------------------------------------------
  * El jugador, su mascota y los demás jugadores se ordenan por la línea de sus
@@ -25284,6 +25516,10 @@ if (this.dogNameText) {
 
     // Actualizar visualmente las barras con los valores cargados del contrato
     this._refreshBarrasUI();
+
+    // Regeneración pasiva (+1 por minuto). El servidor la lleva en modo
+    // fantasma aunque el juego esté cerrado; esto solo refresca las barras.
+    this._iniciarRegeneracionVitales();
   }
 
   /**
