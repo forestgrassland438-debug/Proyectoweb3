@@ -9789,19 +9789,52 @@ _setupCurrencyHub() {
   } catch (e) { /* no crítico */ }
 }
 
+/**
+ * Qué cartera se enseña en el hub de moneda. Copia del criterio de GameScene:
+ * manda la dirección de la SESIÓN (la wallet embebida si el jugador entró con
+ * Google/Facebook/Apple), no la que tenga abierta la extensión del navegador.
+ * Enseñar la de MetaMask a alguien que entró con Google es enseñarle una
+ * cartera que no tiene nada de su partida.
+ */
 async _walletInfo() {
-  const out = { address: this.address || window.currentAddress || '—', network: 'Unknown network' };
+  const NAMES = { 1: 'Ethereum Mainnet', 56: 'BNB Smart Chain', 137: 'Polygon', 4441: 'LitVM LiteForge' };
+  const esAddress = (v) => typeof v === 'string' && /^0x[0-9a-fA-F]{40}$/.test(v);
+
+  let embebida = null;
+  try {
+    if (window.gfWallet && typeof window.gfWallet.getAddress === 'function') {
+      embebida = window.gfWallet.getAddress();
+    }
+  } catch (e) {}
+
+  const deSesion = [this.address, this.playerName, window.currentAddress].find(esAddress) || null;
+
+  const out = {
+    address: embebida || deSesion || '—',
+    network: embebida ? 'LitVM LiteForge (id 4441)' : 'Unknown network',
+    embedded: !!embebida,
+    warning: null
+  };
+
   try {
     const p = window.ethereum;
     if (p && p.request) {
-      const accs = await p.request({ method: 'eth_accounts' });
-      if (accs && accs[0]) out.address = accs[0];
       const cid = await p.request({ method: 'eth_chainId' });
       const id  = parseInt(cid, 16);
-      const NAMES = { 1: 'Ethereum Mainnet', 56: 'BNB Smart Chain', 137: 'Polygon', 4441: 'LitVM LiteForge' };
-      out.network = `${NAMES[id] || 'Chain'} (id ${id})`;
+      if (Number.isFinite(id)) out.network = `${NAMES[id] || 'Chain'} (id ${id})`;
+
+      const accs = await p.request({ method: 'eth_accounts' });
+      const inyectada = accs && accs[0];
+      if (!out.address || out.address === '—') {
+        if (esAddress(inyectada)) out.address = inyectada;
+      } else if (esAddress(inyectada) && inyectada.toLowerCase() !== String(out.address).toLowerCase()) {
+        out.warning = 'Your browser wallet has a different account open ' +
+                      `(${inyectada.slice(0, 6)}…${inyectada.slice(-4)}). ` +
+                      'Your game funds belong to the account shown above.';
+      }
     }
   } catch (e) {}
+
   return out;
 }
 
@@ -9824,7 +9857,8 @@ async _buildCurrencyHub(tab) {
   const w = await this._walletInfo();
   const oro   = Math.floor(Number(this.moneda) || 0);
   const plata = Math.floor(Number(this.moneda_plata) || 0);
-  const maxExchange = Math.floor(plata / this.SILVER_PER_GOLD);
+  // El tope depende de la dirección del cambio y se recalcula en vivo
+  // (topeActual), para poder encadenar cambios sin cerrar el hub.
 
   const ov = document.createElement('div');
   ov.id = 'gf-currency-modal';
@@ -9857,22 +9891,27 @@ async _buildCurrencyHub(tab) {
        <div style="color:#bcd6c9;font-size:12px;margin-bottom:8px;">Pay with <b>USDT</b>. Choose a package:</div>
        ${pkgs}
        <div style="background:#08211a;border:1px solid #24503f;border-radius:10px;padding:10px;font-size:12px;line-height:1.5;">
-         <div style="color:#8fb8ff;">Connected wallet</div>
+         <div style="color:#8fb8ff;">Your game wallet${w.embedded ? ' <span style="color:#6fcf97;">· built-in</span>' : ''}</div>
          <div style="font-family:monospace;word-break:break-all;">${w.address}</div>
          <div style="color:#8fb8ff;margin-top:6px;">Network</div>
          <div>${w.network}</div>
+         ${w.warning ? `<div style="margin-top:8px;color:#ffb86b;line-height:1.5;">⚠️ ${w.warning}</div>` : ''}
        </div>
        <div id="gfc-buy-msg" style="margin-top:10px;font-size:12px;color:#ffd23f;"></div>
      </div>
      <div id="gfc-exc" style="display:none;">
        <div style="text-align:center;margin-bottom:10px;font-size:clamp(13px,3.6vw,16px);"><b>${this.SILVER_PER_GOLD} Silver = 1 Gold</b></div>
        <div style="display:flex;justify-content:space-around;background:#08211a;border:1px solid #24503f;border-radius:10px;padding:10px;margin-bottom:12px;font-size:13px;">
-         <div>🥇 Gold: <b>${oro}</b></div><div>🥈 Silver: <b>${plata}</b></div>
+         <div>🥇 Gold: <b id="gfc-e-oro">${oro}</b></div><div>🥈 Silver: <b id="gfc-e-plata">${plata}</b></div>
        </div>
-       <label style="font-size:12px;color:#bcd6c9;">How much Gold do you want? (max ${maxExchange})</label>
+       <div style="display:flex;gap:8px;margin-bottom:10px;">
+         <button id="gfc-dir-s2g" style="flex:1;min-height:40px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;font-size:12px;">🥈 → 🥇 Silver to Gold</button>
+         <button id="gfc-dir-g2s" style="flex:1;min-height:40px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;font-size:12px;">🥇 → 🥈 Gold to Silver</button>
+       </div>
+       <label id="gfc-e-label" style="font-size:12px;color:#bcd6c9;"></label>
        <div style="display:flex;align-items:center;gap:10px;margin:8px 0 12px;">
          <button id="gfc-e-minus" style="width:44px;height:44px;font-size:22px;border:none;border-radius:10px;background:#1b3d31;color:#fff;cursor:pointer;">−</button>
-         <input id="gfc-e-qty" type="number" inputmode="numeric" min="1" max="${Math.max(1, maxExchange)}" value="1"
+         <input id="gfc-e-qty" type="number" inputmode="numeric" min="1" value="1"
                 style="flex:1;height:44px;text-align:center;font-size:18px;font-weight:bold;border-radius:10px;border:2px solid #ffd23f;background:#0b2b22;color:#fff;">
          <button id="gfc-e-plus" style="width:44px;height:44px;font-size:22px;border:none;border-radius:10px;background:#1b3d31;color:#fff;cursor:pointer;">+</button>
        </div>
@@ -9913,25 +9952,98 @@ async _buildCurrencyHub(tab) {
     };
   });
 
+  // Cambio en las DOS direcciones. La cantidad se cuenta siempre en ORO (la
+  // unidad grande): en plata→oro es lo que se recibe, en oro→plata lo que se
+  // entrega. Así el ± vale 1 en los dos sentidos.
   const qtyEl = $('gfc-e-qty'), costEl = $('gfc-e-cost'), msgEl = $('gfc-e-msg');
-  const refresh = () => {
-    let q = Math.max(1, Math.min(Math.max(1, maxExchange), parseInt(qtyEl.value, 10) || 1));
-    qtyEl.value = q;
-    costEl.textContent = `Cost: ${q * this.SILVER_PER_GOLD} Silver  →  you get ${q} Gold`;
+  const lblEl = $('gfc-e-label');
+  const oroEl = $('gfc-e-oro'), plataEl = $('gfc-e-plata');
+
+  let direccion = 'silverToGold';
+
+  const saldos = () => ({
+    oro:   Math.floor(Number(this.moneda) || 0),
+    plata: Math.floor(Number(this.moneda_plata) || 0)
+  });
+  const topeActual = () => {
+    const s = saldos();
+    return direccion === 'silverToGold' ? Math.floor(s.plata / this.SILVER_PER_GOLD) : s.oro;
   };
+
+  const pintarDireccion = () => {
+    const on = 'background:#ffd23f;color:#20160a;', off = 'background:#1b3d31;color:#fff;';
+    const base = 'flex:1;min-height:40px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;font-size:12px;';
+    $('gfc-dir-s2g').style.cssText = base + (direccion === 'silverToGold' ? on : off);
+    $('gfc-dir-g2s').style.cssText = base + (direccion === 'goldToSilver' ? on : off);
+  };
+
+  const refresh = () => {
+    const tope = topeActual();
+    const s = saldos();
+    oroEl.textContent = s.oro;
+    plataEl.textContent = s.plata;
+    qtyEl.max = Math.max(1, tope);
+    let q = Math.max(1, Math.min(Math.max(1, tope), parseInt(qtyEl.value, 10) || 1));
+    qtyEl.value = q;
+
+    if (direccion === 'silverToGold') {
+      lblEl.textContent = `How much Gold do you want? (max ${tope})`;
+      costEl.textContent = `Cost: ${q * this.SILVER_PER_GOLD} Silver  →  you get ${q} Gold`;
+    } else {
+      lblEl.textContent = `How much Gold do you want to convert? (max ${tope})`;
+      costEl.textContent = `Cost: ${q} Gold  →  you get ${q * this.SILVER_PER_GOLD} Silver`;
+    }
+
+    $('gfc-e-go').disabled = tope < 1;
+    $('gfc-e-go').style.opacity = tope < 1 ? '.55' : '1';
+    if (tope < 1) {
+      msgEl.style.color = '#ff8a8a';
+      msgEl.textContent = direccion === 'silverToGold'
+        ? `You need at least ${this.SILVER_PER_GOLD} Silver.` : 'You need at least 1 Gold.';
+    } else if (msgEl.dataset.sticky !== '1') {
+      msgEl.textContent = '';
+    }
+  };
+
+  const cambiarDireccion = (d) => {
+    direccion = d;
+    msgEl.dataset.sticky = '0';
+    msgEl.textContent = '';
+    qtyEl.value = 1;
+    pintarDireccion();
+    refresh();
+  };
+  $('gfc-dir-s2g').onclick = () => cambiarDireccion('silverToGold');
+  $('gfc-dir-g2s').onclick = () => cambiarDireccion('goldToSilver');
+
   $('gfc-e-minus').onclick = () => { qtyEl.value = (parseInt(qtyEl.value, 10) || 1) - 1; refresh(); };
   $('gfc-e-plus').onclick  = () => { qtyEl.value = (parseInt(qtyEl.value, 10) || 1) + 1; refresh(); };
   qtyEl.oninput = refresh;
+  pintarDireccion();
   refresh();
 
   $('gfc-e-go').onclick = async () => {
-    const q = parseInt(qtyEl.value, 10) || 1;
-    if (maxExchange < 1) { msgEl.style.color = '#ff8a8a'; msgEl.textContent = 'Not enough Silver.'; return; }
+    const tope = topeActual();
+    if (tope < 1) return;
+    const q = Math.max(1, Math.min(tope, parseInt(qtyEl.value, 10) || 1));
+
     $('gfc-e-go').disabled = true; $('gfc-e-go').textContent = '⏳ Exchanging…';
+    msgEl.dataset.sticky = '1';
     msgEl.style.color = '#ffd23f'; msgEl.textContent = 'Sending transaction…';
-    const ok = await this._exchangeCurrency('silverToGold', q);
-    if (ok) { msgEl.style.color = '#6fcf97'; msgEl.textContent = `Done! +${q} Gold`; setTimeout(close, 1200); }
-    else    { msgEl.style.color = '#ff8a8a'; msgEl.textContent = 'Exchange failed. Try again.'; }
+
+    const ok = await this._exchangeCurrency(direccion, q);
+
+    if (ok) {
+      msgEl.style.color = '#6fcf97';
+      msgEl.textContent = direccion === 'silverToGold'
+        ? `Done! +${q} Gold` : `Done! +${q * this.SILVER_PER_GOLD} Silver`;
+      qtyEl.value = 1;
+      setTimeout(() => { msgEl.dataset.sticky = '0'; refresh(); }, 1500);
+      refresh();
+      msgEl.dataset.sticky = '1';
+    } else {
+      msgEl.style.color = '#ff8a8a'; msgEl.textContent = 'Exchange failed. Try again.';
+    }
     $('gfc-e-go').disabled = false; $('gfc-e-go').textContent = '✓ Exchange';
   };
 }
@@ -9959,7 +10071,12 @@ async _exchangeCurrency(direction, amount) {
       if (l) l.textContent = `${this.moneda}`;
       if (r) r.textContent = `${this.moneda_plata}`;
     }
-    this.notifications && this.notifications.show(`Exchanged ${amount * this.SILVER_PER_GOLD} Silver → ${amount} Gold`, 'success');
+    // El aviso lee en el sentido REAL del cambio (antes decía siempre
+    // "Silver → Gold" aunque se estuviera fundiendo oro en plata).
+    const resumen = direction === 'goldToSilver'
+      ? `Exchanged ${amount} Gold → ${amount * this.SILVER_PER_GOLD} Silver`
+      : `Exchanged ${amount * this.SILVER_PER_GOLD} Silver → ${amount} Gold`;
+    this.notifications && this.notifications.show(resumen, 'success');
     return true;
   } catch (e) {
     console.error('❌ exchange error:', e);
