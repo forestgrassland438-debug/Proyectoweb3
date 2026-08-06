@@ -125,6 +125,9 @@
        window.ethereum si NO hay MetaMask: con extensión instalada, manda ella. -->
   <script src="./gf-wallet-sdk/gf-wallet.js?v=17.2" defer></script>
   <script src="./gf-wallet-boot.js?v=17.2" defer></script>
+  <!-- Panel de cartera del dashboard. Va aparte de las escenas porque el
+       dashboard es DOM de la pagina, compartido por GameScene y tiendajuego. -->
+  <script src="./gf-wallet-dashboard.js?v=17.2" defer></script>
 
   <!-- Altura real del viewport en móvil (el juego salía en una franja arriba y
        el resto negro). Debe ir ANTES de app.js para publicar --app-height
@@ -1283,6 +1286,9 @@
     <div class="chat-input-row">
       <input type="text" id="chat-input" placeholder="Write your message..." maxlength="140" autocomplete="off" />
       <button type="button" id="chat-emoji-btn" class="chat-emoji-btn" aria-label="Emojis" title="Emojis">&#128512;</button>
+      <!-- Botón de enviar: en el móvil no siempre hay una tecla Enter cómoda, y
+           sin él la única forma de mandar el mensaje era el teclado. -->
+      <button type="button" id="chat-send-btn" class="chat-send-btn" aria-label="Send message" title="Send">Send</button>
     </div>
     <div id="chat-emoji-picker" class="chat-emoji-picker hidden" role="dialog" aria-label="Emoji picker"></div>
   </div>
@@ -1351,6 +1357,16 @@
       <button id="close-panel" class="dash-close_101" aria-label="Close panel">✕</button>
     </div>
 
+        <!-- CATEGORÍAS DEL DASHBOARD  (2026-08-05)
+         Antes todo iba en una sola columna y no cabía nada más. Ahora hay dos
+         pestañas: lo de siempre en "General" y la cartera aparte, que necesita
+         mucho más espacio (saldo, envíos, actividad, ajustes de seguridad). -->
+    <div class="hub-cats_101" role="tablist">
+      <button type="button" class="hub-cat_101 active" data-cat="general" role="tab">⚙️ General</button>
+      <button type="button" class="hub-cat_101" data-cat="wallet" role="tab">👛 Wallet</button>
+    </div>
+
+    <div id="gfw-cat-general">
     <div class="hub-row_101 dash-card_101">
       <label class="hub-label_101" for="character-name">👤 Character name</label>
       <div class="dash-input-row_101">
@@ -1393,7 +1409,18 @@
       <div class="muted">Grassland Forest</div>
       <div class="muted">Version 1.0</div>
     </div>
-  </aside>
+      </div><!-- /gfw-cat-general -->
+
+    <!-- ── CATEGORÍA: WALLET ──────────────────────────────────────────────
+         La rellena gf-wallet-boot.js. Se deja vacía a propósito para que el
+         dashboard siga funcionando aunque el SDK no llegue a cargar. -->
+    <div id="gfw-cat-wallet" style="display:none;">
+      <div id="gfw-wallet-body">
+        <div class="hub-row_101"><div class="muted">Loading wallet…</div></div>
+      </div>
+    </div>
+
+</aside>
 
 
 

@@ -11171,3 +11171,156 @@ html, body {
     width: 52px !important; height: 52px !important;
   }
 }
+
+/* =========================================================================
+   CHAT — BOTÓN DE ENVIAR  (2026-08-05)
+   -------------------------------------------------------------------------
+   Va junto al de emojis. En el móvil no siempre hay una tecla Enter cómoda
+   (según el teclado sale "ir", "buscar" o un salto de línea), así que sin
+   este botón mandar un mensaje dependía del teclado que tuviera cada uno.
+   ========================================================================= */
+.chat-send-btn {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 12px;
+  margin-left: 4px;
+  border: 1px solid rgba(0, 255, 0, .45);
+  border-radius: 8px;
+  background: rgba(0, 255, 0, .14);
+  color: #9dff9d;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: .03em;
+  cursor: pointer;
+  transition: background .12s, transform .12s;
+  /* Sin esto, un toque rápido dos veces seguidas dispara el zoom por
+     doble toque del navegador en vez de mandar dos mensajes. */
+  touch-action: manipulation;
+}
+.chat-send-btn:hover  { background: rgba(0, 255, 0, .24); }
+.chat-send-btn:active { transform: translateY(1px); }
+.chat-send-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+@media (max-width: 600px) {
+  .chat-send-btn { min-height: 38px; padding: 0 14px; font-size: 13px; }
+}
+
+/* =========================================================================
+   ZOOM POR DOBLE TOQUE — DESACTIVADO EN TODA LA INTERFAZ  (2026-08-05)
+   -------------------------------------------------------------------------
+   Síntoma: tocabas cualquier cosa (una casilla, un botón, el lienzo, el
+   chat) y la página hacía zoom sola.
+   Causa: el navegador espera ~300 ms tras un toque por si viene un segundo
+   y, si llega, hace "doble toque para ampliar". `user-scalable=no` del
+   viewport NO lo evita: Safari lo ignora desde iOS 10, y en Android solo
+   afecta al pellizco, no al doble toque.
+   `touch-action: manipulation` sí lo desactiva de verdad — y de paso quita
+   el retardo de 300 ms, así que los toques responden antes.
+   El pellizco a dos dedos del juego sigue funcionando: lo gestiona
+   _setupPinchZoom sobre el lienzo, que usa sus propios listeners.
+   ========================================================================= */
+html, body { touch-action: manipulation; }
+
+button, .btn, a, input, select, textarea, label,
+canvas,
+.inv-slot, .quick-slot, .item-card, .gfc-pkg,
+.hud-containerx2, .chat-open-btn, .chat-input-row,
+.mission-card, .complete-button, .sidebar-tab, .tab-btn {
+  touch-action: manipulation;
+}
+
+/* =========================================================================
+   DASHBOARD — CATEGORÍAS Y PANEL DE CARTERA                    (2026-08-05)
+   -------------------------------------------------------------------------
+   El dashboard tenía todo en una columna y ya no cabía nada más. Se parte en
+   dos pestañas ("General" y "Wallet") para que cada una respire.
+   ========================================================================= */
+.hub-cats_101 {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px 0;
+  margin-bottom: 4px;
+}
+.hub-cat_101 {
+  flex: 1;
+  min-height: 40px;
+  border: 1px solid rgba(120, 150, 220, .35);
+  border-radius: 10px;
+  background: rgba(20, 30, 60, .5);
+  color: #a9b4e6;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  touch-action: manipulation;
+}
+.hub-cat_101:hover  { background: rgba(40, 60, 110, .6); }
+.hub-cat_101.active { background: linear-gradient(140deg, #3b56c9, #2a3a8f); color: #fff; border-color: #5a6ac0; }
+
+/* ── Contenido de la cartera ─────────────────────────────────────────── */
+.gfw-w-card {
+  background: rgba(10, 18, 38, .6);
+  border: 1px solid rgba(120, 150, 220, .28);
+  border-radius: 12px;
+  padding: 12px;
+  margin: 10px 14px;
+}
+.gfw-w-label { font-size: 11px; color: #8fa0e8; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 5px; }
+.gfw-w-addr {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px; color: #e7ecff; word-break: break-all; line-height: 1.6;
+}
+.gfw-w-balance { font-size: 26px; font-weight: 800; color: #fff; line-height: 1.2; }
+.gfw-w-balance small { font-size: 13px; color: #8fa0e8; font-weight: 600; }
+.gfw-w-fiat { font-size: 12px; color: #7c88b8; margin-top: 2px; }
+.gfw-w-net {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11.5px; color: #6fcf97; margin-top: 8px;
+}
+.gfw-w-net::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #6fcf97; }
+
+.gfw-w-actions { display: flex; gap: 8px; margin: 10px 14px; }
+.gfw-w-btn {
+  flex: 1; min-height: 42px; border-radius: 10px; border: none;
+  font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  background: linear-gradient(140deg, #3b56c9, #2a3a8f); color: #fff;
+  touch-action: manipulation;
+}
+.gfw-w-btn.ghost { background: transparent; border: 1px solid rgba(120, 150, 220, .4); color: #a9b4e6; }
+.gfw-w-btn.danger { background: linear-gradient(140deg, #7d2b36, #5a1e27); }
+.gfw-w-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.gfw-w-input {
+  width: 100%; box-sizing: border-box; min-height: 42px; padding: 10px 12px;
+  border-radius: 10px; border: 1px solid rgba(120, 150, 220, .35);
+  background: rgba(5, 10, 25, .7); color: #e7ecff;
+  font-family: inherit; font-size: 16px; /* 16px: por debajo, iOS hace zoom */
+  margin-bottom: 8px;
+}
+.gfw-w-input:focus { outline: none; border-color: #5a8bff; }
+
+.gfw-w-act { display: flex; align-items: center; gap: 9px; padding: 8px 0; border-bottom: 1px solid rgba(120,150,220,.14); font-size: 12px; }
+.gfw-w-act:last-child { border-bottom: none; }
+.gfw-w-act .dir { font-size: 15px; flex: 0 0 auto; }
+.gfw-w-act .who { flex: 1; min-width: 0; font-family: ui-monospace, monospace; font-size: 11px; color: #a9b4e6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gfw-w-act .amt { font-weight: 700; }
+.gfw-w-act .amt.in  { color: #6fcf97; }
+.gfw-w-act .amt.out { color: #ff9a9a; }
+
+.gfw-w-secret {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px; word-break: break-all; line-height: 1.7;
+  background: #070b18; border: 1px dashed #3a4680; border-radius: 10px;
+  padding: 12px; color: #8fd0ff; user-select: all;
+}
+.gfw-w-warn {
+  background: rgba(240, 168, 104, .1); border: 1px solid rgba(240, 168, 104, .35);
+  border-radius: 10px; padding: 10px; margin: 10px 14px;
+  font-size: 12px; line-height: 1.6; color: #f0a868;
+}
+.gfw-w-msg { margin: 0 14px 10px; font-size: 12px; line-height: 1.6; }
+.gfw-w-msg.err { color: #ff9a9a; }
+.gfw-w-msg.ok  { color: #6fcf97; }
+.gfw-w-sub { font-size: 11.5px; color: #7c88b8; line-height: 1.6; margin: 6px 14px 10px; }

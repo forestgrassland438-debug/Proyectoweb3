@@ -604,6 +604,111 @@
     border-radius:10px;
   }
   @keyframes shimmer{ 0%{background-position:100% 0;} 100%{background-position:0 0;} }
+
+  /* Historial: publicación y retirada. No mueven dinero, así que van en un
+     tono apagado para que no compitan con las compras y ventas reales. */
+  .hist-row.list  .hist-badge.list,
+  .hist-row.cancel .hist-badge.cancel{
+    background:rgba(148,163,184,.16); color:#94a3b8; border:1px solid rgba(148,163,184,.35);
+  }
+  .hist-row.cancel .hist-badge.cancel{ color:#f0a868; border-color:rgba(240,168,104,.4); background:rgba(240,168,104,.12); }
+  .hist-amount .amt.neutral{ color:var(--text-muted); font-weight:600; }
+
+  /* ── Lotes limitados, ofertas y perfiles ─────────────────────────────── */
+  .chip-btn{
+    padding:8px 14px; border-radius:999px; border:1px solid var(--line);
+    background:transparent; color:var(--text-muted); font:inherit; font-size:13px;
+    cursor:pointer; touch-action:manipulation;
+  }
+  .chip-btn.active{ background:rgba(96,165,250,.16); border-color:rgba(96,165,250,.5); color:#dbeafe; }
+
+  .ticket.limited{ border-color:rgba(232,200,122,.55); }
+  .ticket .limited-flag{
+    position:absolute; top:10px; right:10px; z-index:2;
+    background:linear-gradient(135deg,#c9a84c,#e8c87a); color:#20160a;
+    font-size:10px; font-weight:800; letter-spacing:.04em;
+    padding:3px 8px; border-radius:999px; text-transform:uppercase;
+  }
+  .limited-timer{ font-size:12px; color:#e8c87a; font-variant-numeric:tabular-nums; }
+  .limited-bar{ height:6px; border-radius:999px; background:rgba(255,255,255,.08); overflow:hidden; margin:6px 0 2px; }
+  .limited-bar > span{ display:block; height:100%; background:linear-gradient(90deg,#c9a84c,#e8c87a); }
+  .ticket.sold-out{ opacity:.55; }
+
+  .admin-box{
+    border:1px dashed rgba(232,200,122,.5); border-radius:14px; padding:14px;
+    margin-bottom:16px; background:rgba(232,200,122,.05);
+  }
+  .admin-box h3{ margin:0 0 4px; font-size:15px; color:#e8c87a; }
+  .admin-box .admin-sub{ color:var(--text-muted); font-size:12px; margin:0 0 12px; line-height:1.5; }
+  .admin-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
+  .admin-grid label{ display:block; font-size:11px; color:var(--text-muted); margin-bottom:4px; }
+  .admin-grid input, .admin-grid select{
+    width:100%; box-sizing:border-box; padding:9px 10px; border-radius:9px;
+    border:1px solid var(--line); background:rgba(0,0,0,.25); color:var(--text);
+    font:inherit; font-size:14px;
+  }
+
+  .offer-row{
+    display:flex; align-items:center; gap:12px; padding:12px;
+    border:1px solid var(--line); border-radius:12px; margin-bottom:10px; flex-wrap:wrap;
+  }
+  .offer-row .icon-wrap{ width:44px; height:44px; flex:0 0 auto; }
+  .offer-row .icon-wrap img{ width:100%; height:100%; object-fit:contain; }
+  .offer-main{ flex:1 1 180px; min-width:0; }
+  .offer-main .l1{ font-weight:700; }
+  .offer-main .l2{ color:var(--text-muted); font-size:12.5px; margin-top:2px; line-height:1.5; }
+  .offer-msg{ font-style:italic; color:#a5b4fc; }
+  .offer-actions{ display:flex; gap:8px; flex:0 0 auto; }
+  .offer-actions button{
+    padding:9px 14px; border-radius:9px; border:none; font:inherit; font-size:13px;
+    font-weight:700; cursor:pointer; touch-action:manipulation;
+  }
+  .btn-accept{ background:#2e7d32; color:#fff; }
+  .btn-reject{ background:transparent; border:1px solid rgba(255,107,107,.5) !important; color:#ff8a8a; }
+  .offer-status{ font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; padding:3px 9px; border-radius:999px; }
+  .offer-status.pending  { background:rgba(96,165,250,.16); color:#93c5fd; }
+  .offer-status.accepted { background:rgba(46,125,50,.2);   color:#86efac; }
+  .offer-status.rejected,
+  .offer-status.cancelled,
+  .offer-status.expired  { background:rgba(148,163,184,.16); color:#94a3b8; }
+
+  /* Nombre del vendedor: se puede tocar para ver su ficha. */
+  .seller-link{
+    background:none; border:none; padding:0; font:inherit; color:#93c5fd;
+    text-decoration:underline; text-underline-offset:2px; cursor:pointer;
+    touch-action:manipulation;
+  }
+  .seller-link:hover{ color:#dbeafe; }
+
+  .profile-modal{ max-width:520px; }
+  .prof-head{ display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap; }
+  .prof-avatar{
+    width:48px; height:48px; border-radius:12px; flex:0 0 auto;
+    background:linear-gradient(135deg,#3b56c9,#1e293b);
+    display:flex; align-items:center; justify-content:center; font-size:22px;
+  }
+  .prof-name{ font-size:17px; font-weight:800; }
+  .prof-addr{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11.5px; color:var(--text-muted); word-break:break-all; }
+  .prof-stats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(88px,1fr)); gap:8px; margin:12px 0; }
+  .prof-stat{ background:rgba(255,255,255,.04); border-radius:10px; padding:8px; text-align:center; }
+  .prof-stat b{ display:block; font-size:16px; }
+  .prof-stat span{ font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; }
+  .prof-items{ max-height:240px; overflow:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(74px,1fr)); gap:8px; }
+  .prof-item{ background:rgba(255,255,255,.04); border-radius:10px; padding:7px; text-align:center; }
+  .prof-item img{ width:30px; height:30px; object-fit:contain; }
+  .prof-item .pi-q{ font-size:12px; font-weight:700; }
+  .prof-item .pi-n{ font-size:9.5px; color:var(--text-muted); line-height:1.3; word-break:break-word; }
+  .prof-loading{ color:var(--text-muted); text-align:center; padding:22px; }
+
+  .tabbar-dot{
+    display:inline-block; width:8px; height:8px; border-radius:50%;
+    background:#ff6b6b; margin-left:4px; vertical-align:top;
+  }
+
+  @media (max-width:640px){
+    .offer-actions{ width:100%; }
+    .offer-actions button{ flex:1; }
+  }
 </style>
 </head>
 <body>
@@ -653,7 +758,9 @@
       <nav class="tabs">
         <button class="tab-btn active" data-tab="market" data-i18n="tab_market">🏪 Mercado</button>
         <button class="tab-btn" data-tab="sell" data-i18n="tab_sell">🎒 Mi inventario</button>
+        <button class="tab-btn" data-tab="limited" data-i18n="tab_limited">⏳ Limitados</button>
         <button class="tab-btn" data-tab="mine"><span data-i18n="tab_mine">🧾 Mis publicaciones</span> <span class="count" id="mine-count">0</span></button>
+        <button class="tab-btn" data-tab="offers"><span data-i18n="tab_offers">📩 Ofertas</span> <span class="count" id="offers-count">0</span></button>
         <button class="tab-btn" data-tab="history" data-i18n="tab_history">📜 Historial</button>
       </nav>
     </header>
@@ -689,6 +796,21 @@
         <div id="mine-list"></div>
       </section>
 
+      <!-- LIMITADOS -->
+      <section id="tab-limited" style="display:none;">
+        <div id="admin-limited-box" style="display:none;"></div>
+        <div id="limited-grid" class="grid"></div>
+      </section>
+
+      <!-- OFERTAS -->
+      <section id="tab-offers" style="display:none;">
+        <div class="chips-row" id="offers-switch" style="margin-bottom:12px;">
+          <button class="chip-btn active" data-off="received" data-i18n="off_received">Recibidas</button>
+          <button class="chip-btn" data-off="sent" data-i18n="off_sent">Enviadas</button>
+        </div>
+        <div id="offers-list"></div>
+      </section>
+
       <!-- HISTORIAL -->
       <section id="tab-history" style="display:none;">
         <div id="history-list"></div>
@@ -699,7 +821,9 @@
   <nav class="mobile-tabbar">
     <button class="active" data-tab="market"><span class="ico">🏪</span><span data-i18n="m_market">Mercado</span></button>
     <button data-tab="sell"><span class="ico">🎒</span><span data-i18n="m_sell">Inventario</span></button>
+    <button data-tab="limited"><span class="ico">⏳</span><span data-i18n="m_limited">Limitados</span></button>
     <button data-tab="mine"><span class="ico">🧾</span><span data-i18n="m_mine">Mío</span></button>
+    <button data-tab="offers"><span class="ico">📩</span><span data-i18n="m_offers">Ofertas</span><span class="tabbar-dot" id="offers-dot" hidden></span></button>
     <button data-tab="history"><span class="ico">📜</span><span data-i18n="m_history">Historial</span></button>
   </nav>
 
@@ -779,6 +903,37 @@
     </div>
   </div>
 
+  <!-- ── MODAL: HACER UNA OFERTA ─────────────────────────────────────── -->
+  <div class="modal-back" id="offer-modal">
+    <div class="modal">
+      <h2 data-i18n="offer_title">Hacer una oferta</h2>
+      <p class="sub" data-i18n="offer_sub">El dinero se retiene hasta que el vendedor responda. Si rechaza o caduca, se te devuelve entero.</p>
+      <div class="modal-item" id="offer-item"></div>
+      <label data-i18n="qty">Cantidad</label>
+      <input type="number" id="offer-qty" min="1" value="1">
+      <label data-i18n="offer_price">Tu precio por unidad</label>
+      <input type="number" id="offer-price" min="0" step="0.01" value="1">
+      <label data-i18n="offer_msg">Mensaje (opcional)</label>
+      <input type="text" id="offer-message" maxlength="140" placeholder="…">
+      <div class="modal-total" id="offer-total"></div>
+      <div class="modal-actions">
+        <button class="btn-cancel-modal" id="offer-cancel" data-i18n="cancel">Cancelar</button>
+        <button class="btn-primary" id="offer-confirm" data-i18n="offer_send">Enviar oferta</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MODAL: PERFIL PÚBLICO ───────────────────────────────────────── -->
+  <div class="modal-back" id="profile-modal">
+    <div class="modal profile-modal">
+      <h2 data-i18n="prof_title">Perfil del jugador</h2>
+      <div id="profile-body"><div class="prof-loading" data-i18n="loading">Cargando…</div></div>
+      <div class="modal-actions">
+        <button class="btn-cancel-modal" id="profile-close" data-i18n="close">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast-stack" id="toast-stack"></div>
 
 <script>
@@ -817,6 +972,31 @@
       brand_title:'Mercado',
       copy_addr:'Copiar dirección',
       tab_market:'🏪 Mercado', tab_sell:'🎒 Mi inventario', tab_mine:'🧾 Mis publicaciones', tab_history:'📜 Historial',
+      tab_limited:'⏳ Limitados', tab_offers:'📩 Ofertas', m_limited:'Limitados', m_offers:'Ofertas',
+      off_received:'Recibidas', off_sent:'Enviadas',
+      offer:'Ofertar', offer_title:'Hacer una oferta',
+      offer_sub:'El dinero se retiene hasta que el vendedor responda. Si rechaza o caduca, se te devuelve entero.',
+      offer_price:'Tu precio por unidad', offer_msg:'Mensaje (opcional)', offer_send:'Enviar oferta',
+      offer_total:'Se retendrán: {n}', offer_ask:'Pide {n} por unidad',
+      offer_sent_ok:'Oferta enviada', offer_accepted:'Oferta aceptada', offer_rejected:'Oferta rechazada',
+      offer_cancelled:'Oferta retirada', offer_expires:'caduca en {t}',
+      accept:'Aceptar', reject:'Rechazar', withdraw:'Retirar',
+      st_pending:'Pendiente', st_accepted:'Aceptada', st_rejected:'Rechazada',
+      st_cancelled:'Retirada', st_expired:'Caducada',
+      off_empty_t:'Sin ofertas', off_empty_p:'Aquí aparecerán las ofertas cuando lleguen.',
+      off_from:'de {name}', off_for:'para {name}', off_gone:'la publicación ya no existe',
+      lim_empty_t:'Nada limitado ahora mismo', lim_empty_p:'Vuelve pronto: los lotes especiales duran poco.',
+      lim_left:'Quedan {n} de {total}', lim_ends:'Termina en {t}', lim_ended:'Terminado',
+      lim_soldout:'Agotado', lim_yours:'Ya llevas {n}', lim_max:'Máx. {n} por jugador',
+      lim_bought:'¡Comprado!', lim_badge:'Limitado',
+      adm_title:'Panel de administración', adm_sub:'Crea un lote limitado. Solo tú, con tu cartera de administrador, puedes hacerlo.',
+      adm_item:'Objeto', adm_qty:'Cantidad', adm_price:'Precio', adm_cur:'Moneda',
+      adm_hours:'Duración (horas)', adm_perplayer:'Máx. por jugador (0 = sin tope)', adm_note:'Nota',
+      adm_create:'Crear lote', adm_created:'Lote creado', adm_del:'Eliminar', adm_off:'Apagar', adm_on:'Encender',
+      adm_confirm_del:'¿Eliminar este lote limitado?',
+      prof_title:'Perfil del jugador', prof_items:'Objetos que posee', prof_none:'No tiene objetos visibles',
+      prof_level:'Nivel', prof_missions:'Misiones', prof_pet:'Mascota', prof_total:'Objetos',
+      close:'Cerrar', loading:'Cargando…',
       m_market:'Mercado', m_sell:'Inventario', m_mine:'Mío', m_history:'Historial',
       search_ph:'Buscar objetos…',
       sort_recent:'Más recientes', sort_price_asc:'Precio: menor a mayor', sort_price_desc:'Precio: mayor a menor',
@@ -847,6 +1027,8 @@
       e_no_cancel:'No se pudo cancelar la publicación.', e_conn:'Error de conexión. Intenta de nuevo.',
       confirm_cancel:'¿Cancelar esta publicación? El objeto volverá a tu inventario.',
       hist_bought:'Compraste', hist_sold:'Vendiste', hist_from:'a {name}', hist_to:'de {name}',
+      hist_listed:'Publicaste', hist_cancelled:'Retiraste',
+      hist_listed_sub:'puesto a la venta por {price} c/u', hist_cancelled_sub:'volvió a tu inventario',
       fee_lc:'comisión',
       chain_working:'Registrando en la blockchain…',
       chain_ok:'Confirmado en la blockchain',
@@ -861,6 +1043,31 @@
       brand_title:'Market',
       copy_addr:'Copy address',
       tab_market:'🏪 Market', tab_sell:'🎒 My inventory', tab_mine:'🧾 My listings', tab_history:'📜 History',
+      tab_limited:'⏳ Limited', tab_offers:'📩 Offers', m_limited:'Limited', m_offers:'Offers',
+      off_received:'Received', off_sent:'Sent',
+      offer:'Offer', offer_title:'Make an offer',
+      offer_sub:'The money is held until the seller replies. If they decline or it expires, you get it all back.',
+      offer_price:'Your price per unit', offer_msg:'Message (optional)', offer_send:'Send offer',
+      offer_total:'On hold: {n}', offer_ask:'Asking {n} per unit',
+      offer_sent_ok:'Offer sent', offer_accepted:'Offer accepted', offer_rejected:'Offer declined',
+      offer_cancelled:'Offer withdrawn', offer_expires:'expires in {t}',
+      accept:'Accept', reject:'Decline', withdraw:'Withdraw',
+      st_pending:'Pending', st_accepted:'Accepted', st_rejected:'Declined',
+      st_cancelled:'Withdrawn', st_expired:'Expired',
+      off_empty_t:'No offers', off_empty_p:'Offers will show up here when they arrive.',
+      off_from:'from {name}', off_for:'for {name}', off_gone:'that listing is gone',
+      lim_empty_t:'Nothing limited right now', lim_empty_p:'Check back soon — special drops do not last long.',
+      lim_left:'{n} of {total} left', lim_ends:'Ends in {t}', lim_ended:'Ended',
+      lim_soldout:'Sold out', lim_yours:'You have {n}', lim_max:'Max {n} per player',
+      lim_bought:'Purchased!', lim_badge:'Limited',
+      adm_title:'Admin panel', adm_sub:'Create a limited drop. Only you, with your admin wallet, can do this.',
+      adm_item:'Item', adm_qty:'Quantity', adm_price:'Price', adm_cur:'Currency',
+      adm_hours:'Duration (hours)', adm_perplayer:'Max per player (0 = no cap)', adm_note:'Note',
+      adm_create:'Create drop', adm_created:'Drop created', adm_del:'Delete', adm_off:'Disable', adm_on:'Enable',
+      adm_confirm_del:'Delete this limited drop?',
+      prof_title:'Player profile', prof_items:'Items they own', prof_none:'No visible items',
+      prof_level:'Level', prof_missions:'Missions', prof_pet:'Pet', prof_total:'Items',
+      close:'Close', loading:'Loading…',
       m_market:'Market', m_sell:'Inventory', m_mine:'Mine', m_history:'History',
       search_ph:'Search items…',
       sort_recent:'Newest', sort_price_asc:'Price: low to high', sort_price_desc:'Price: high to low',
@@ -891,6 +1098,8 @@
       e_no_cancel:'Could not cancel the listing.', e_conn:'Connection error. Try again.',
       confirm_cancel:'Cancel this listing? The item will return to your inventory.',
       hist_bought:'Bought', hist_sold:'Sold', hist_from:'from {name}', hist_to:'to {name}',
+      hist_listed:'Listed', hist_cancelled:'Withdrawn',
+      hist_listed_sub:'listed at {price} each', hist_cancelled_sub:'returned to your inventory',
       fee_lc:'fee',
       chain_working:'Writing the blockchain transaction…',
       chain_ok:'Confirmed on the blockchain',
@@ -947,6 +1156,7 @@
     // Re-render dinámico (si ya cargó)
     if (state.address){
       renderCategoryChips(); renderWallet(); renderMarket(); renderSell(); renderMine(); renderHistory();
+      renderLimited(); renderOffers();
     }
   }
   function setLang(l){
@@ -963,8 +1173,10 @@
     address: null, playerName: null, oro: 0, plata: 0,
     csrfToken: null, catalog: {}, categories: [],
     listings: [], inventory: [], myListings: [], history: [],
+    limited: [], offersReceived: [], offersSent: [], isAdmin: false,
     activeTab: 'market', activeCategory: 'todos', search: '', sort: '',
-    sellCtx: null, buyCtx: null
+    offersView: 'received',
+    sellCtx: null, buyCtx: null, offerCtx: null
   };
 
   // ══════════════════════════════════════════════════════════════════════
@@ -1287,12 +1499,18 @@
         <div class="icon-wrap"><img src="${iconUrl(l.icon)}" onerror="this.src='${FALLBACK_ICON}'" alt=""></div>
         <h3>${escapeHtml(nm)}</h3>
         <div class="qty-line">${t('available',{n:l.qty})}</div>
-        <div class="seller-line">${t('seller',{name:escapeHtml(l.ownerName)})}</div>
+        <div class="seller-line">${t('seller',{name:`<button class="seller-link" data-owner="${escapeHtml(l.owner || l.ownerName)}">${escapeHtml(nombreVisible(l.ownerName, l.owner))}</button>`})}</div>
         <div class="price-row">
           <div class="price"><span class="coin-icon ${l.currency}">${coinLetter(l.currency)}</span>${fmt(l.pricePerUnit)}</div>
           ${l.mine ? `<span class="mine-badge">${t('mine_badge')}</span>` : `<button class="buy-btn" data-id="${l.id}">${t('buy')}</button>`}
-        </div>`;
-      if(!l.mine) card.querySelector('.buy-btn').addEventListener('click', () => openBuyModal(l));
+        </div>
+        ${l.mine ? '' : `<button class="offer-link-btn chip-btn" style="width:100%;margin-top:8px;" data-id="${l.id}">${t('offer')}</button>`}`;
+      if(!l.mine){
+        card.querySelector('.buy-btn').addEventListener('click', () => openBuyModal(l));
+        card.querySelector('.offer-link-btn').addEventListener('click', () => openOfferModal(l));
+      }
+      const enlacePerfil = card.querySelector('.seller-link');
+      if (enlacePerfil) enlacePerfil.addEventListener('click', () => openProfile(enlacePerfil.dataset.owner));
       grid.appendChild(card);
     });
   }
@@ -1353,26 +1571,52 @@
       return;
     }
     state.history.forEach(h => {
-      const isBuy = h.type === 'buy';
       const nm = itemName(h.itemId, h.name);
-      // Comprando pagas (negativo); vendiendo recibes el neto (positivo)
-      const net = isBuy ? -Number(h.total || 0) : Number(h.sellerReceives != null ? h.sellerReceives : (h.total || 0));
-      const counter = isBuy
-        ? t('hist_from',{name:escapeHtml(h.counterpartyName || '—')})
-        : t('hist_to',{name:escapeHtml(h.counterpartyName || '—')});
+
+      // CUATRO tipos de evento (antes solo 'buy' y 'sell', y todo lo que no
+      // fuera 'buy' se pintaba como VENDIDO — por eso una publicación
+      // cancelada podía leerse como una venta).
+      //   buy    → compré      (pago, importe negativo)
+      //   sell   → me compraron (cobro, importe positivo)
+      //   list   → publiqué     (no mueve dinero)
+      //   cancel → retiré       (no mueve dinero)
+      const tipo = h.type === 'buy' || h.type === 'sell' || h.type === 'list' || h.type === 'cancel'
+        ? h.type : 'sell';
+      const mueveDinero = (tipo === 'buy' || tipo === 'sell');
+
+      const net = tipo === 'buy'
+        ? -Number(h.total || 0)
+        : (tipo === 'sell' ? Number(h.sellerReceives != null ? h.sellerReceives : (h.total || 0)) : 0);
+
+      const ETIQUETA = {
+        buy:    t('hist_bought'),
+        sell:   t('hist_sold'),
+        list:   t('hist_listed'),
+        cancel: t('hist_cancelled')
+      };
+
+      // Solo las compras/ventas tienen contraparte; publicar y cancelar no.
+      let counter = '';
+      if (tipo === 'buy')       counter = t('hist_from', { name: escapeHtml(h.counterpartyName || '—') });
+      else if (tipo === 'sell') counter = t('hist_to',   { name: escapeHtml(h.counterpartyName || '—') });
+      else if (tipo === 'list') counter = t('hist_listed_sub', { price: fmt(h.pricePerUnit || 0) });
+      else                      counter = t('hist_cancelled_sub');
+
       const row = document.createElement('div');
-      row.className = 'hist-row ' + (isBuy ? 'buy' : 'sell');
+      row.className = 'hist-row ' + tipo;
       row.innerHTML = `
         <div class="icon-wrap"><img src="${iconUrl(h.icon)}" onerror="this.src='${FALLBACK_ICON}'" alt=""></div>
         <div class="hist-info">
           <div class="line1">
-            <span class="hist-badge ${isBuy?'buy':'sell'}">${isBuy ? t('hist_bought') : t('hist_sold')}</span>
+            <span class="hist-badge ${tipo}">${ETIQUETA[tipo]}</span>
             ${escapeHtml(nm)} × ${h.qty}
           </div>
           <div class="line2">${counter}</div>
         </div>
         <div class="hist-amount">
-          <div class="amt ${net>=0?'pos':'neg'}">${net>=0?'+':'−'}<span class="coin-icon ${h.currency}" style="width:14px;height:14px;font-size:8px;">${coinLetter(h.currency)}</span>${fmt(Math.abs(net))}</div>
+          ${mueveDinero
+            ? `<div class="amt ${net>=0?'pos':'neg'}">${net>=0?'+':'−'}<span class="coin-icon ${h.currency}" style="width:14px;height:14px;font-size:8px;">${coinLetter(h.currency)}</span>${fmt(Math.abs(net))}</div>`
+            : `<div class="amt neutral">—</div>`}
           <div class="when">${timeAgo(h.createdAt)}</div>
         </div>`;
       wrap.appendChild(row);
@@ -1571,7 +1815,11 @@
     document.getElementById('tab-sell').style.display    = tab === 'sell'    ? 'block' : 'none';
     document.getElementById('tab-mine').style.display    = tab === 'mine'    ? 'block' : 'none';
     document.getElementById('tab-history').style.display = tab === 'history' ? 'block' : 'none';
+    document.getElementById('tab-limited').style.display = tab === 'limited' ? 'block' : 'none';
+    document.getElementById('tab-offers').style.display  = tab === 'offers'  ? 'block' : 'none';
     if(tab === 'history'){ loadHistory().then(renderHistory); }
+    if(tab === 'limited'){ loadLimited().then(renderLimited); }
+    if(tab === 'offers'){  loadOffers().then(renderOffers); }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   document.querySelectorAll('.tab-btn, .mobile-tabbar button').forEach(btn => {
@@ -1601,6 +1849,428 @@
     if(!state.address) return;
     try{ await navigator.clipboard.writeText(state.address); toast(t('t_addr_copied')); }catch(e){}
   });
+
+
+  // ══════════════════════════════════════════════════════════════════════
+  // NOMBRE VISIBLE DE UN JUGADOR
+  // ----------------------------------------------------------------------
+  // En este juego `playerName` ES la dirección de la cartera mientras el
+  // jugador no se ponga un nombre. Enseñar 42 caracteres de hexadecimal en
+  // cada publicación no dice nada a nadie, así que se acorta — pero el nombre
+  // de verdad, cuando existe, se enseña entero.
+  // ══════════════════════════════════════════════════════════════════════
+  function nombreVisible(nombre, direccion){
+    const n = String(nombre || '').trim();
+    if (n && !/^0x[0-9a-fA-F]{40}$/.test(n) && n !== '---') return n;
+    const a = String(direccion || n || '');
+    return a.length > 12 ? a.slice(0, 6) + '…' + a.slice(-4) : (a || '—');
+  }
+
+  function tiempoRestante(ms){
+    if (ms <= 0) return '0m';
+    const min = Math.floor(ms / 60000);
+    const h = Math.floor(min / 60);
+    const d = Math.floor(h / 24);
+    if (d > 0) return d + 'd ' + (h % 24) + 'h';
+    if (h > 0) return h + 'h ' + (min % 60) + 'm';
+    return min + 'm';
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // PERFIL PÚBLICO
+  // ══════════════════════════════════════════════════════════════════════
+  async function openProfile(clave){
+    if (!clave) return;
+    const modal = document.getElementById('profile-modal');
+    const body  = document.getElementById('profile-body');
+    body.innerHTML = `<div class="prof-loading">${escapeHtml(t('loading'))}</div>`;
+    modal.classList.add('show');
+
+    try{
+      const res = await api('/api/marketplace/profile/' + encodeURIComponent(clave));
+      if(!res.ok){
+        body.innerHTML = `<div class="prof-loading">${escapeHtml(t('e_conn'))}</div>`;
+        return;
+      }
+      const data = await res.json();
+      const pr = data.profile || {};
+      const items = data.items || [];
+
+      const skills = pr.skills || {};
+      const filaSkills = Object.keys(skills).map(k =>
+        `<div class="prof-stat"><b>${skills[k] || 0}</b><span>${escapeHtml(k)}</span></div>`
+      ).join('');
+
+      body.innerHTML = `
+        <div class="prof-head">
+          <div class="prof-avatar">🧑‍🌾</div>
+          <div style="min-width:0;flex:1;">
+            <div class="prof-name">${escapeHtml(pr.username || nombreVisible(pr.playerName, pr.address))}</div>
+            <div class="prof-addr">${escapeHtml(pr.address || pr.playerName || '')}</div>
+          </div>
+        </div>
+
+        <div class="prof-stats">
+          <div class="prof-stat"><b>${pr.level || 0}</b><span>${escapeHtml(t('prof_level'))}</span></div>
+          <div class="prof-stat"><b>${pr.missions || 0}</b><span>${escapeHtml(t('prof_missions'))}</span></div>
+          <div class="prof-stat"><b>${pr.petLevel || 1}</b><span>${escapeHtml(t('prof_pet'))}</span></div>
+          <div class="prof-stat"><b>${pr.itemCount || 0}</b><span>${escapeHtml(t('prof_total'))}</span></div>
+        </div>
+
+        <div class="prof-stats">${filaSkills}</div>
+
+        <label style="display:block;margin:14px 0 8px;color:var(--text-muted);font-size:12px;">
+          ${escapeHtml(t('prof_items'))}
+        </label>
+        ${items.length === 0
+          ? `<div class="prof-loading">${escapeHtml(t('prof_none'))}</div>`
+          : `<div class="prof-items">` + items.map(i => `
+              <div class="prof-item">
+                <img src="${iconUrl(i.icon)}" onerror="this.src='${FALLBACK_ICON}'" alt="">
+                <div class="pi-q">×${i.qty}</div>
+                <div class="pi-n">${escapeHtml(itemName(i.itemId, i.name))}</div>
+              </div>`).join('') + `</div>`}
+      `;
+    }catch(e){
+      body.innerHTML = `<div class="prof-loading">${escapeHtml(t('e_conn'))}</div>`;
+    }
+  }
+  document.getElementById('profile-close').addEventListener('click',
+    () => document.getElementById('profile-modal').classList.remove('show'));
+  document.getElementById('profile-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'profile-modal') e.currentTarget.classList.remove('show');
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // OFERTAS
+  // ══════════════════════════════════════════════════════════════════════
+  function openOfferModal(l){
+    state.offerCtx = l;
+    const nm = itemName(l.itemId, l.name);
+    document.getElementById('offer-item').innerHTML = `
+      <img src="${iconUrl(l.icon)}" onerror="this.src='${FALLBACK_ICON}'" alt="">
+      <div>
+        <div style="font-weight:700;">${escapeHtml(nm)}</div>
+        <div style="color:var(--text-muted);font-size:12.5px;">
+          ${escapeHtml(t('offer_ask', { n: fmt(l.pricePerUnit) + ' ' + (l.currency === 'oro' ? 'GL' : 'SL') }))}
+        </div>
+      </div>`;
+
+    const qty = document.getElementById('offer-qty');
+    const price = document.getElementById('offer-price');
+    qty.max = l.qty; qty.value = 1;
+    // Se propone un 10 % por debajo del precio pedido: es el punto de partida
+    // natural de una negociación y evita que la gente "ofrezca" lo mismo.
+    price.value = Math.max(0.01, Math.round(l.pricePerUnit * 0.9 * 100) / 100);
+    document.getElementById('offer-message').value = '';
+    actualizarTotalOferta();
+    document.getElementById('offer-modal').classList.add('show');
+  }
+
+  function actualizarTotalOferta(){
+    const l = state.offerCtx; if(!l) return;
+    const q = Math.max(1, Math.min(l.qty, parseInt(document.getElementById('offer-qty').value, 10) || 1));
+    const pr = Math.max(0, Number(document.getElementById('offer-price').value) || 0);
+    document.getElementById('offer-qty').value = q;
+    document.getElementById('offer-total').innerHTML =
+      escapeHtml(t('offer_total', { n: '' })) +
+      ` <b><span class="coin-icon ${l.currency}">${coinLetter(l.currency)}</span>${fmt(Math.round(q * pr * 100) / 100)}</b>`;
+  }
+  document.getElementById('offer-qty').addEventListener('input', actualizarTotalOferta);
+  document.getElementById('offer-price').addEventListener('input', actualizarTotalOferta);
+  document.getElementById('offer-cancel').addEventListener('click',
+    () => document.getElementById('offer-modal').classList.remove('show'));
+
+  document.getElementById('offer-confirm').addEventListener('click', async () => {
+    const l = state.offerCtx; if(!l) return;
+    const btn = document.getElementById('offer-confirm');
+    const q = Math.max(1, Math.min(l.qty, parseInt(document.getElementById('offer-qty').value, 10) || 1));
+    const pr = Math.max(0.01, Number(document.getElementById('offer-price').value) || 0);
+    const message = document.getElementById('offer-message').value;
+
+    btn.disabled = true;
+    try{
+      const res = await api('/api/marketplace/offer/' + l.id, {
+        method: 'POST',
+        body: JSON.stringify({ qty: q, pricePerUnit: pr, message })
+      });
+      const data = await res.json();
+      if(!res.ok){ toast(translateApiError(data) || t('e_conn'), true); return; }
+
+      if(typeof data.oro === 'number')   state.oro = data.oro;
+      if(typeof data.plata === 'number') state.plata = data.plata;
+      renderWallet();
+      document.getElementById('offer-modal').classList.remove('show');
+      toast(t('offer_sent_ok'));
+      await loadOffers(); renderOffers();
+    }catch(e){ toast(t('e_conn'), true); }
+    finally{ btn.disabled = false; }
+  });
+
+  async function loadOffers(){
+    try{
+      const res = await api('/api/marketplace/offers');
+      if(!res.ok){ state.offersReceived = []; state.offersSent = []; return; }
+      const data = await res.json();
+      state.offersReceived = data.received || [];
+      state.offersSent = data.sent || [];
+      // Aviso visual de ofertas pendientes por responder.
+      const n = data.pendingReceived || 0;
+      const cnt = document.getElementById('offers-count');
+      if(cnt) cnt.textContent = n;
+      const dot = document.getElementById('offers-dot');
+      if(dot) dot.hidden = n === 0;
+    }catch(e){ state.offersReceived = []; state.offersSent = []; }
+  }
+
+  function renderOffers(){
+    const wrap = document.getElementById('offers-list');
+    if(!wrap) return;
+    const recibidas = state.offersView === 'received';
+    const lista = recibidas ? state.offersReceived : state.offersSent;
+    wrap.innerHTML = '';
+
+    if(!lista || lista.length === 0){
+      wrap.innerHTML = emptyState('📩', t('off_empty_t'), t('off_empty_p'));
+      return;
+    }
+
+    lista.forEach(o => {
+      const nm = itemName(o.itemId, o.name);
+      const pendiente = o.status === 'pending';
+      const otro = recibidas
+        ? t('off_from', { name: escapeHtml(nombreVisible(o.buyerName, o.buyer)) })
+        : t('off_for',  { name: escapeHtml(nombreVisible(o.sellerName, o.seller)) });
+
+      const row = document.createElement('div');
+      row.className = 'offer-row';
+      row.innerHTML = `
+        <div class="icon-wrap"><img src="${iconUrl(o.icon)}" onerror="this.src='${FALLBACK_ICON}'" alt=""></div>
+        <div class="offer-main">
+          <div class="l1">${escapeHtml(nm)} × ${o.qty}
+            <span class="offer-status ${o.status}">${escapeHtml(t('st_' + o.status))}</span>
+          </div>
+          <div class="l2">
+            <span class="coin-icon ${o.currency}">${coinLetter(o.currency)}</span>${fmt(o.pricePerUnit)} c/u
+            &nbsp;·&nbsp; ${otro}
+            ${o.askPricePerUnit != null ? `&nbsp;·&nbsp; ${escapeHtml(t('offer_ask', { n: fmt(o.askPricePerUnit) }))}` : ''}
+            ${o.listingGone ? `&nbsp;·&nbsp; <span style="color:#f0a868;">${escapeHtml(t('off_gone'))}</span>` : ''}
+            ${pendiente ? `&nbsp;·&nbsp; ${escapeHtml(t('offer_expires', { t: tiempoRestante(new Date(o.expiresAt) - Date.now()) }))}` : ''}
+          </div>
+          ${o.message ? `<div class="l2 offer-msg">“${escapeHtml(o.message)}”</div>` : ''}
+        </div>
+        <div class="offer-actions"></div>`;
+
+      const acciones = row.querySelector('.offer-actions');
+      if(pendiente && recibidas && !o.listingGone){
+        const acc = document.createElement('button');
+        acc.className = 'btn-accept'; acc.textContent = t('accept');
+        acc.addEventListener('click', () => resolverOferta(o.id, 'accept', acc));
+        const rej = document.createElement('button');
+        rej.className = 'btn-reject'; rej.textContent = t('reject');
+        rej.addEventListener('click', () => resolverOferta(o.id, 'reject', rej));
+        acciones.appendChild(acc); acciones.appendChild(rej);
+      } else if(pendiente && !recibidas){
+        const can = document.createElement('button');
+        can.className = 'btn-reject'; can.textContent = t('withdraw');
+        can.addEventListener('click', () => resolverOferta(o.id, 'cancel', can));
+        acciones.appendChild(can);
+      }
+
+      wrap.appendChild(row);
+    });
+  }
+
+  async function resolverOferta(id, accion, btn){
+    if(btn) btn.disabled = true;
+    try{
+      const res = await api('/api/marketplace/offer/' + id + '/' + accion, { method: 'POST' });
+      const data = await res.json();
+      if(!res.ok){ toast(translateApiError(data) || t('e_conn'), true); return; }
+
+      if(typeof data.oro === 'number')   state.oro = data.oro;
+      if(typeof data.plata === 'number') state.plata = data.plata;
+      renderWallet();
+
+      toast(accion === 'accept' ? t('offer_accepted')
+          : accion === 'reject' ? t('offer_rejected')
+          : t('offer_cancelled'));
+
+      await loadOffers(); renderOffers();
+      await loadMyListings(); renderMine();
+      await loadListings(); renderMarket();
+      await loadAccount(); renderWallet(); renderSell();
+    }catch(e){ toast(t('e_conn'), true); }
+    finally{ if(btn) btn.disabled = false; }
+  }
+
+  document.querySelectorAll('#offers-switch .chip-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      state.offersView = b.dataset.off;
+      document.querySelectorAll('#offers-switch .chip-btn')
+        .forEach(x => x.classList.toggle('active', x === b));
+      renderOffers();
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // LOTES LIMITADOS
+  // ══════════════════════════════════════════════════════════════════════
+  async function loadLimited(){
+    try{
+      const res = await api('/api/marketplace/limited');
+      if(!res.ok){ state.limited = []; return; }
+      const data = await res.json();
+      state.limited = data.limited || [];
+      state.isAdmin = !!data.isAdmin;
+    }catch(e){ state.limited = []; }
+  }
+
+  function renderLimited(){
+    const grid = document.getElementById('limited-grid');
+    if(!grid) return;
+    renderAdminBox();
+
+    grid.innerHTML = '';
+    if(!state.limited || state.limited.length === 0){
+      grid.style.display = 'block';
+      grid.innerHTML = emptyState('⏳', t('lim_empty_t'), t('lim_empty_p'));
+      return;
+    }
+    grid.style.display = 'grid';
+
+    state.limited.forEach(d => {
+      const nm = itemName(d.itemId, d.name);
+      const pct = d.qty > 0 ? Math.round((d.remaining / d.qty) * 100) : 0;
+      const card = document.createElement('div');
+      card.className = 'ticket limited' + (d.soldOut || d.ended ? ' sold-out' : '');
+      card.innerHTML = `
+        <div class="limited-flag">${escapeHtml(t('lim_badge'))}</div>
+        <div class="icon-wrap"><img src="${iconUrl(d.icon)}" onerror="this.src='${FALLBACK_ICON}'" alt=""></div>
+        <h3>${escapeHtml(nm)}</h3>
+        <div class="qty-line">${escapeHtml(t('lim_left', { n: d.remaining, total: d.qty }))}</div>
+        <div class="limited-bar"><span style="width:${pct}%"></span></div>
+        <div class="limited-timer">${d.ended ? escapeHtml(t('lim_ended')) : escapeHtml(t('lim_ends', { t: tiempoRestante(d.msLeft) }))}</div>
+        ${d.perPlayerLimit > 0 ? `<div class="qty-line">${escapeHtml(t('lim_max', { n: d.perPlayerLimit }))} · ${escapeHtml(t('lim_yours', { n: d.boughtByMe || 0 }))}</div>` : ''}
+        ${d.note ? `<div class="qty-line" style="font-style:italic;">${escapeHtml(d.note)}</div>` : ''}
+        <div class="price-row">
+          <div class="price"><span class="coin-icon ${d.currency}">${coinLetter(d.currency)}</span>${fmt(d.pricePerUnit)}</div>
+          ${d.live ? `<button class="buy-btn" data-id="${d.id}">${t('buy')}</button>`
+                   : `<span class="mine-badge">${d.soldOut ? t('lim_soldout') : t('lim_ended')}</span>`}
+        </div>
+        ${state.isAdmin ? `<div class="offer-actions" style="margin-top:10px;">
+             <button class="chip-btn" data-adm="toggle" data-id="${d.id}">${d.active ? t('adm_off') : t('adm_on')}</button>
+             <button class="btn-reject" data-adm="del" data-id="${d.id}">${t('adm_del')}</button>
+           </div>` : ''}`;
+
+      const comprar = card.querySelector('.buy-btn');
+      if(comprar) comprar.addEventListener('click', () => comprarLimitado(d, comprar));
+
+      card.querySelectorAll('[data-adm]').forEach(b => {
+        b.addEventListener('click', () => accionAdmin(b.dataset.adm, b.dataset.id, d));
+      });
+
+      grid.appendChild(card);
+    });
+  }
+
+  async function comprarLimitado(d, btn){
+    const max = d.perPlayerLimit > 0
+      ? Math.min(d.remaining, d.perPlayerLimit - (d.boughtByMe || 0))
+      : d.remaining;
+    if(max < 1){ toast(t('lim_max', { n: d.perPlayerLimit }), true); return; }
+
+    const pedido = window.prompt(t('qty') + ' (1 - ' + max + ')', '1');
+    if(pedido === null) return;
+    const qty = Math.max(1, Math.min(max, parseInt(pedido, 10) || 1));
+
+    btn.disabled = true;
+    try{
+      const res = await api('/api/marketplace/limited/' + d.id + '/buy', {
+        method: 'POST', body: JSON.stringify({ qty })
+      });
+      const data = await res.json();
+      if(!res.ok){ toast(translateApiError(data) || t('e_conn'), true); return; }
+
+      if(typeof data.oro === 'number')   state.oro = data.oro;
+      if(typeof data.plata === 'number') state.plata = data.plata;
+      if(Array.isArray(data.inventory))  state.inventory = data.inventory;
+      renderWallet(); renderSell();
+      toast(t('lim_bought'));
+      await loadLimited(); renderLimited();
+    }catch(e){ toast(t('e_conn'), true); }
+    finally{ btn.disabled = false; }
+  }
+
+  // ── Panel de administración (solo si el servidor dice que soy admin) ───
+  function renderAdminBox(){
+    const box = document.getElementById('admin-limited-box');
+    if(!box) return;
+    if(!state.isAdmin){ box.style.display = 'none'; box.innerHTML = ''; return; }
+    if(box.dataset.built === '1'){ box.style.display = 'block'; return; }
+
+    const opciones = Object.keys(state.catalog || {})
+      .map(id => `<option value="${escapeHtml(id)}">${escapeHtml(itemName(id, (state.catalog[id] || {}).name))}</option>`)
+      .join('');
+
+    box.className = 'admin-box';
+    box.style.display = 'block';
+    box.dataset.built = '1';
+    box.innerHTML = `
+      <h3>${escapeHtml(t('adm_title'))}</h3>
+      <p class="admin-sub">${escapeHtml(t('adm_sub'))}</p>
+      <div class="admin-grid">
+        <div><label>${escapeHtml(t('adm_item'))}</label><select id="adm-item">${opciones}</select></div>
+        <div><label>${escapeHtml(t('adm_qty'))}</label><input type="number" id="adm-qty" min="1" value="10"></div>
+        <div><label>${escapeHtml(t('adm_price'))}</label><input type="number" id="adm-price" min="0.01" step="0.01" value="100"></div>
+        <div><label>${escapeHtml(t('adm_cur'))}</label>
+          <select id="adm-cur"><option value="oro">Gold</option><option value="plata">Silver</option></select></div>
+        <div><label>${escapeHtml(t('adm_hours'))}</label><input type="number" id="adm-hours" min="1" value="24"></div>
+        <div><label>${escapeHtml(t('adm_perplayer'))}</label><input type="number" id="adm-perplayer" min="0" value="0"></div>
+        <div style="grid-column:1/-1;"><label>${escapeHtml(t('adm_note'))}</label><input type="text" id="adm-note" maxlength="160"></div>
+      </div>
+      <button class="btn-primary" id="adm-create" style="margin-top:12px;width:100%;">${escapeHtml(t('adm_create'))}</button>`;
+
+    document.getElementById('adm-create').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      try{
+        const res = await api('/api/marketplace/limited', {
+          method: 'POST',
+          body: JSON.stringify({
+            itemId: document.getElementById('adm-item').value,
+            qty: parseInt(document.getElementById('adm-qty').value, 10) || 1,
+            pricePerUnit: Number(document.getElementById('adm-price').value) || 1,
+            currency: document.getElementById('adm-cur').value,
+            hours: parseInt(document.getElementById('adm-hours').value, 10) || 24,
+            perPlayerLimit: parseInt(document.getElementById('adm-perplayer').value, 10) || 0,
+            note: document.getElementById('adm-note').value
+          })
+        });
+        const data = await res.json();
+        if(!res.ok){ toast(translateApiError(data) || t('e_conn'), true); return; }
+        toast(t('adm_created'));
+        await loadLimited(); renderLimited();
+      }catch(err){ toast(t('e_conn'), true); }
+      finally{ btn.disabled = false; }
+    });
+  }
+
+  async function accionAdmin(accion, id, d){
+    try{
+      if(accion === 'del'){
+        if(!window.confirm(t('adm_confirm_del'))) return;
+        const res = await api('/api/marketplace/limited/' + id, { method: 'DELETE' });
+        if(!res.ok){ toast(t('e_conn'), true); return; }
+      } else if(accion === 'toggle'){
+        const res = await api('/api/marketplace/limited/' + id, {
+          method: 'PATCH', body: JSON.stringify({ active: !d.active })
+        });
+        if(!res.ok){ toast(t('e_conn'), true); return; }
+      }
+      await loadLimited(); renderLimited();
+    }catch(e){ toast(t('e_conn'), true); }
+  }
 
   boot();
 })();

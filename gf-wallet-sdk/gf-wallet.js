@@ -1067,6 +1067,249 @@
       return await this._signer.signTypedData(dominio, tipos, typed.message);
     },
 
+    // ── Saldo, red y actividad ───────────────────────────────────────────
+
+    /** Saldo nativo (zkLTC) en la red del juego. */
+    getBalance: async function () {
+      const addr = this._address;
+      if (!addr) throw err('La wallet está bloqueada', 'locked');
+      const r = await fetch(_cfg.rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBalance', params: [addr, 'latest'] })
+      });
+      const j = await r.json();
+      if (j.error) throw err(j.error.message || 'error RPC', 'rpc_error');
+      const E = getEthers();
+      const wei = BigInt(j.result);
+      return {
+        wei: wei.toString(),
+        formatted: E.formatEther(wei),
+        symbol: _cfg.nativeCurrency.symbol,
+        chainId: _cfg.chainId,
+        chainName: _cfg.chainName
+      };
+    },
+
+    /**
+     * Últimos movimientos de la cartera, leídos del explorador de la red.
+     *
+     * Los exploradores de Caldera son Blockscout, que expone una API estilo
+     * Etherscan. Si no responde (o cambia), se devuelve una lista vacía con el
+     * motivo en vez de reventar: el panel debe abrirse igual.
+     */
+    getActivity: async function (limite) {
+      const addr = this._address;
+      if (!addr) return { txs: [], error: 'locked' };
+      const url = _cfg.explorerUrl.replace(/\/$/, '') +
+        '/api?module=account&action=txlist&sort=desc&page=1&offset=' + (limite || 15) +
+        '&address=' + addr;
+      try {
+        const r = await fetch(url, { headers: { Accept: 'application/json' } });
+        if (!r.ok) return { txs: [], error: 'explorer_http_' + r.status };
+        const j = await r.json();
+        const filas = Array.isArray(j.result) ? j.result : [];
+        const E = getEthers();
+        return {
+          txs: filas.map(function (tx) {
+            const entrante = String(tx.to || '').toLowerCase() === addr.toLowerCase();
+            let valor = '0';
+            try { valor = E.formatEther(BigInt(tx.value || '0')); } catch (e) {}
+            return {
+              hash: tx.hash,
+              from: tx.from,
+              to: tx.to,
+              value: valor,
+              incoming: entrante,
+              timestamp: Number(tx.timeStamp || 0) * 1000,
+              ok: tx.isError !== '1',
+              url: _cfg.explorerUrl.replace(/\/$/, '') + '/tx/' + tx.hash
+            };
+          }),
+          error: null
+        };
+      } catch (e) {
+        return { txs: [], error: e.message || 'network' };
+      }
+    },
+
+    // ── Código de recuperación ⇄ clave personal ──────────────────────────
+    //
+    // El jugador puede cambiar el código largo por una CLAVE suya, más corta y
+    // fácil de recordar, para confirmar envíos y ver su clave privada.
+    //
+    // Cómo se guarda: la clave NO sustituye al código, lo ENVUELVE. Se cifra el
+    // código con una llave derivada de la clave (PBKDF2, 310 000 vueltas) y se
+    // guarda ese sobre en el servidor. Consecuencias:
+    //   · con la clave se saca el código (y con el código, la privada),
+    //   · el servidor no puede abrir el sobre: no conoce la clave,
+    //   · y no hace falta guardar la clave en ningún sitio, ni cifrada.
+
+    /** ¿Esta cuenta ya tiene clave personal configurada? */
+    hasPassphrase: async function () {
+      if (!this._ticket) return false;
+      try {
+        const d = await apiFetch('/api/wallet/passphrase?ticket=' + encodeURIComponent(this._ticket));
+        return !!(d && d.exists);
+      } catch (e) { return false; }
+    },
+
+    /**
+     * CÓDIGO → CLAVE. Comprueba que el código es el bueno (descifrando la
+     * clave privada con él) y guarda el sobre con la clave elegida.
+     */
+    setPassphrase: async function (codigo, clave) {
+      if (!this._ticket) throw err('Primero inicia sesión con tu proveedor', 'no_ticket');
+      if (!clave || String(clave).length < 6) {
+        throw err('La clave tiene que tener al menos 6 caracteres', 'weak_passphrase');
+      }
+
+      // 1. Validar el código de verdad: si no abre la bóveda, no vale.
+      const priv = await this._clavePrivadaDesdeCodigo(codigo);
+      wipe(priv);
+
+      // 2. Envolver el código con la clave.
+      const salt = randomBytes(16);
+      const llave = await keyFromRecoveryCode(clave, salt);   // mismo KDF, otra entrada
+      const sobre = await aesGcmEncrypt(llave, utf8(String(codigo).trim()), 'gf-wallet-pass:' + this._walletId);
+      wipe(llave);
+
+      await apiFetch('/api/wallet/passphrase', {
+        method: 'POST',
+        body: { ticket: this._ticket, salt: bytesToB64(salt), iv: sobre.iv, ct: sobre.ct }
+      });
+      return true;
+    },
+
+    /** CLAVE → CÓDIGO. Devuelve el código de recuperación original. */
+    revealCodeWithPassphrase: async function (clave) {
+      if (!this._ticket) throw err('Primero inicia sesión con tu proveedor', 'no_ticket');
+      const d = await apiFetch('/api/wallet/passphrase?ticket=' + encodeURIComponent(this._ticket) + '&reveal=1');
+      if (!d || !d.ct) throw err('Esta cuenta no tiene clave personal configurada', 'no_passphrase');
+
+      const llave = await keyFromRecoveryCode(clave, b64ToBytes(d.salt));
+      let bytes;
+      try {
+        bytes = await aesGcmDecrypt(llave, d, 'gf-wallet-pass:' + this._walletId);
+      } catch (e) {
+        throw err('Clave incorrecta', 'bad_passphrase');
+      } finally { wipe(llave); }
+
+      return new TextDecoder().decode(bytes);
+    },
+
+    /** Quita la clave personal (se vuelve a usar solo el código). */
+    removePassphrase: async function (claveActual) {
+      await this.revealCodeWithPassphrase(claveActual);   // exige demostrar que la sabe
+      await apiFetch('/api/wallet/passphrase', {
+        method: 'DELETE', body: { ticket: this._ticket }
+      });
+      return true;
+    },
+
+    /** Reconstruye la clave privada a partir del código de recuperación. */
+    _clavePrivadaDesdeCodigo: async function (codigo) {
+      const datos = await apiFetch('/api/wallet/vault?ticket=' + encodeURIComponent(this._ticket) + '&recovery=1');
+      if (!datos.recovery) throw err('Esta cuenta no tiene copia de recuperación', 'no_recovery');
+
+      const llave = await keyFromRecoveryCode(codigo, b64ToBytes(datos.recovery.salt));
+      let priv;
+      try {
+        priv = await aesGcmDecrypt(llave, datos.recovery, 'gf-wallet-recovery:' + this._walletId);
+      } catch (e) {
+        throw err('Código de recuperación incorrecto', 'bad_recovery_code');
+      } finally { wipe(llave); }
+      return priv;
+    },
+
+    /**
+     * Comprueba el secreto que el jugador escribió, sea la clave personal o el
+     * código, y devuelve cuál era. Es la puerta común de "ver la privada" y
+     * "enviar dinero".
+     */
+    _verificarSecreto: async function (secreto) {
+      const limpio = String(secreto || '').trim();
+      if (!limpio) throw err('Escribe tu clave o tu código', 'no_secret');
+
+      // Primero se prueba como CLAVE personal (es lo que usará casi todo el
+      // mundo); si no hay clave configurada o no encaja, se prueba como código.
+      try {
+        const codigo = await this.revealCodeWithPassphrase(limpio);
+        return { ok: true, codigo, via: 'passphrase' };
+      } catch (e) {
+        if (e.code !== 'no_passphrase' && e.code !== 'bad_passphrase') throw e;
+      }
+      const priv = await this._clavePrivadaDesdeCodigo(limpio);
+      wipe(priv);
+      return { ok: true, codigo: limpio, via: 'code' };
+    },
+
+    // ── Ver la clave privada ─────────────────────────────────────────────
+
+    /**
+     * Devuelve la clave privada en hexadecimal, previa comprobación del
+     * secreto. NO hay frase semilla que enseñar: esta wallet nace de 32 bytes
+     * aleatorios, no de un BIP-39, así que lo que existe de verdad es la clave
+     * privada. Decirlo así es más honesto que inventar 12 palabras.
+     */
+    exportPrivateKey: async function (secreto) {
+      const v = await this._verificarSecreto(secreto);
+      const priv = await this._clavePrivadaDesdeCodigo(v.codigo);
+      const hex = '0x' + bytesToHex(priv);
+      wipe(priv);
+      return { privateKey: hex, address: this._address, hasMnemonic: false };
+    },
+
+    // ── Enviar fondos ────────────────────────────────────────────────────
+
+    /**
+     * Manda zkLTC nativo a otra dirección. Exige el secreto SIEMPRE: es la
+     * única operación del juego que puede sacar valor de la cuenta, así que no
+     * se apoya solo en "la wallet está desbloqueada".
+     *
+     * Firma y difunde la transacción contra el RPC directamente; no pasa por
+     * el proveedor EIP-1193 (donde eth_sendTransaction sigue bloqueado para
+     * que ningún script de la página pueda mover fondos por su cuenta).
+     */
+    sendNative: async function (destino, cantidad, secreto) {
+      const E = getEthers();
+      if (!E.isAddress(destino)) throw err('La dirección de destino no es válida', 'bad_address');
+
+      const valor = E.parseEther(String(cantidad));
+      if (valor <= 0n) throw err('La cantidad tiene que ser mayor que cero', 'bad_amount');
+
+      // 1. Puerta de seguridad.
+      const v = await this._verificarSecreto(secreto);
+
+      // 2. Se reconstruye la clave SOLO para esta transacción.
+      const priv = await this._clavePrivadaDesdeCodigo(v.codigo);
+      let firmante;
+      try {
+        const proveedor = new E.JsonRpcProvider(_cfg.rpcUrl, {
+          chainId: _cfg.chainId, name: _cfg.chainName
+        });
+        firmante = new E.Wallet('0x' + bytesToHex(priv), proveedor);
+
+        if (firmante.address.toLowerCase() !== String(this._address).toLowerCase()) {
+          throw err('La clave no corresponde a esta cuenta', 'vault_mismatch');
+        }
+
+        const saldo = await proveedor.getBalance(firmante.address);
+        if (saldo <= valor) {
+          throw err('No tienes saldo suficiente (recuerda dejar algo para el gas)', 'insufficient_funds');
+        }
+
+        const tx = await firmante.sendTransaction({ to: destino, value: valor });
+        return {
+          hash: tx.hash,
+          url: _cfg.explorerUrl.replace(/\/$/, '') + '/tx/' + tx.hash,
+          wait: () => tx.wait()
+        };
+      } finally {
+        wipe(priv);
+      }
+    },
+
     // ── Entrar al juego (firma invisible) ────────────────────────────────
 
     /**
