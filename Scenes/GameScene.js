@@ -11378,6 +11378,13 @@ setupCropSocketEvents() {
   });
   
   this.socket.on('plantSuccess', (data) => {
+    // El cuadro se sembró: ya no hay semilla pendiente de devolver.
+    try {
+      if (this._semillaPagadaPorCuadro && data && data.plotId != null) {
+        this._semillaPagadaPorCuadro.delete(data.plotId);
+      }
+    } catch (e) {}
+
     console.log('✅ Plantación exitosa en:', data.plotId);
     this.updatePlotVisual(data.plotId, data.crop);
   });
@@ -11385,6 +11392,21 @@ setupCropSocketEvents() {
   this.socket.on('plantError', (data) => {
     console.error('❌ Error al plantar:', data.error);
     this.notifications.show(data.error, "error");
+
+    // DEVOLUCIÓN DE LA SEMILLA (2026-08-05). Si ese cuadro ya había pagado su
+    // semilla en la cadena, hay que devolvérsela: el servidor dijo que no
+    // después del cobro, así que el jugador no puede quedarse sin ella.
+    try {
+      const plotId = data && data.plotId;
+      const mapa = this._semillaPagadaPorCuadro;
+      if (plotId != null && mapa && mapa.has(plotId)) {
+        const seedType = mapa.get(plotId);
+        mapa.delete(plotId);
+        this._devolverSemilla(seedType);
+      }
+    } catch (e) {
+      console.warn('⚠️ No se pudo devolver la semilla:', e && e.message);
+    }
   });
   
   this.socket.on('cropWatered', (data) => {
@@ -11888,6 +11910,59 @@ stageSeed(plotId, seedType) {
   this.showSiembraHub();
 }
 
+/**
+ * Pregunta al servidor si la siembra va a ser aceptada, SIN efectos
+ * secundarios. Se usa antes de quemar la semilla en la cadena.
+ *
+ * Si el servidor no contesta (versión antigua sin 'plantCheck', socket caído),
+ * se deja pasar: esto es una ayuda para no perder semillas, no la validación
+ * de verdad — esa sigue estando en el propio 'plantSeed' del servidor.
+ */
+_puedeSembrarEnServidor(plotId) {
+  return new Promise((resolve) => {
+    if (!this.socket || !this.socket.connected) return resolve({ ok: true });
+
+    let contestado = false;
+    const reloj = setTimeout(() => {
+      if (!contestado) { contestado = true; resolve({ ok: true }); }
+    }, 4000);
+
+    try {
+      this.socket.emit('plantCheck',
+        { userId: this.currentAccount, plotId },
+        (r) => {
+          if (contestado) return;
+          contestado = true;
+          clearTimeout(reloj);
+          resolve(r && typeof r.ok === 'boolean' ? r : { ok: true });
+        }
+      );
+    } catch (e) {
+      if (!contestado) { contestado = true; clearTimeout(reloj); resolve({ ok: true }); }
+    }
+  });
+}
+
+/**
+ * Devuelve al inventario (y a la cadena) una semilla que se quemó pero que al
+ * final no se sembró.
+ */
+async _devolverSemilla(seedType) {
+  const def = this.ItemDefinitions ? this.ItemDefinitions[seedType] : null;
+  const nombre = this._getSeedDisplayNameEN ? this._getSeedDisplayNameEN(seedType) : seedType;
+  try {
+    if (def && def.tipo) {
+      await this.ejecutarDivision(def.tipo, seedType, def.maxStack || 50, 1);
+    } else {
+      this.addItemWithCheck(seedType, 1);
+    }
+    this.notifications.show(`Your ${nombre} was returned — the plot could not be planted.`, 'warning');
+  } catch (e) {
+    console.error('❌ Error devolviendo la semilla:', e);
+    this.notifications.show(`Could not return your ${nombre}. Contact support if it does not come back.`, 'error');
+  }
+}
+
 // Saca un cuadro de la cola de siembra pendiente
 unstageSeed(plotId) {
   this.pendingPlantings.delete(plotId);
@@ -12251,6 +12326,26 @@ async _procesarLoteSiembra(lote) {
     }
   }
 
+  // ── ¿ME VA A DEJAR EL SERVIDOR? ────────────────────────────────────────
+  // Se pregunta ANTES de quemar nada. El servidor puede rechazar la siembra
+  // por el bloqueo antispam o porque el cuadro ya no está libre, y hasta ahora
+  // ese "no" llegaba DESPUÉS de haber descontado la semilla en la cadena: la
+  // semilla se perdía y no se sembraba nada. Preguntar primero cuesta un viaje
+  // de ida y vuelta y evita justo eso.
+  const permiso = await this._puedeSembrarEnServidor(plotIds[0]);
+  if (!permiso.ok) {
+    this.notifications.show(permiso.error || 'Planting is not available right now', 'error');
+    // Se devuelve el agua y la comida cobradas por adelantado.
+    if (costeAgua > 0)   this.actualizarBarraAgua(Math.min(100, (Number(this.aguaPorcentaje)   || 0) + Math.ceil(costeAgua)));
+    if (costeComida > 0) this.actualizarBarraComida(Math.min(100, (Number(this.comidaPorcentaje) || 0) + Math.ceil(costeComida)));
+    plotIds.forEach(plotId => {
+      this.marcarCuadroPendiente(plotId, false);
+      this._plotsEnVuelo.delete(plotId);
+    });
+    liberarLote();
+    return;
+  }
+
   this.notifications.show(
     `Sending transaction to deduct ${cantidadTotal} ${nombreSemilla}...`,
     "info"
@@ -12331,9 +12426,15 @@ async _procesarLoteSiembra(lote) {
     if (devolverComida > 0) this.actualizarBarraComida(Math.min(100, (Number(this.comidaPorcentaje) || 0) + devolverComida));
   }
 
+  // Se apunta qué semilla pagó cada cuadro. Si el servidor rechaza la siembra
+  // (plantError) después de haberla quemado, este registro es lo que permite
+  // devolvérsela al jugador en vez de dejársela perdida.
+  this._semillaPagadaPorCuadro = this._semillaPagadaPorCuadro || new Map();
+
   for (const plotId of aSembrar) {
     this.marcarCuadroPendiente(plotId, false);
     this._plotsEnVuelo.delete(plotId);
+    this._semillaPagadaPorCuadro.set(plotId, seedType);
     this.plantSeed(plotId, seedType, { recursosYaDescontados: true });
   }
 
@@ -15603,6 +15704,32 @@ removeOtherPlayer(playerId) {
       }
     });
 
+    // ── Botón de ENVIAR ────────────────────────────────────────────────────
+    // Mismo camino que la tecla Enter. Se usa `pointerdown` con
+    // preventDefault para que el campo NO pierda el foco al pulsarlo: si lo
+    // perdiera, en el móvil se cerraría el teclado en cada mensaje.
+    const botonEnviar = document.getElementById('chat-send-btn');
+    if (botonEnviar && !botonEnviar._gfBound) {
+      botonEnviar._gfBound = true;
+
+      const enviar = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        this._sendChatFromInput();
+        try { this.chatInput.focus(); } catch (_) {}
+      };
+      botonEnviar.addEventListener('pointerdown', enviar);
+      // Respaldo para navegadores sin eventos de puntero.
+      botonEnviar.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
+
+      // Se apaga mientras no haya nada escrito, para que se vea que no hace nada.
+      const refrescarBotonEnviar = () => {
+        botonEnviar.disabled = !(this.chatInput.value || '').trim();
+      };
+      this.chatInput.addEventListener('input', refrescarBotonEnviar);
+      refrescarBotonEnviar();
+      this._refrescarBotonEnviarChat = refrescarBotonEnviar;
+    }
+
     // When chat input is focused: disable game movement
     this.chatInput.addEventListener('focus', () => {
       this._chatInputFocused = true;
@@ -15669,7 +15796,12 @@ removeOtherPlayer(playerId) {
   _sendChatFromInput() {
     if (!this.chatInput) return;
     const text = this.chatInput.value.trim();
-    if (!text) return;
+    // El botón de enviar se apaga solo cuando el campo queda vacío; hay que
+    // repintarlo también aquí, porque este método vacía el campo sin que se
+    // dispare ningún evento 'input'.
+    const _refrescar = () => { try { this._refrescarBotonEnviarChat && this._refrescarBotonEnviarChat(); } catch (_) {} };
+    if (!text) { _refrescar(); return; }
+    setTimeout(_refrescar, 0);
 
     // rate limit cliente
     const now = Date.now();
