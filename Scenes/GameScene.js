@@ -17929,9 +17929,7 @@ renderSlot(index) {
     } else {
       const itemObj = this.STATE.slots[index];
       if (itemObj) {
-        const img = document.createElement("img");
-        img.src = this.ItemDefinitions[itemObj.id].src;
-        img.alt = itemObj.id;
+        const img = this._crearIconoDeItem(itemObj.id);
         invDiv.appendChild(img);
         if (itemObj.count > 1) {
           const span = document.createElement("span");
@@ -17958,9 +17956,7 @@ renderSlot(index) {
     } else {
       const itemObj = this.STATE.quickSlots[index];
       if (itemObj) {
-        const img = document.createElement("img");
-        img.src = this.ItemDefinitions[itemObj.id].src;
-        img.alt = itemObj.id;
+        const img = this._crearIconoDeItem(itemObj.id);
         quickDiv.appendChild(img);
         if (itemObj.count > 1) {
           const span = document.createElement("span");
@@ -18333,6 +18329,78 @@ async mergeItemsBlockchain(origin, destType, destIndex) {
  * Renderiza todos los slots del inventario y del cofre (quick slots)
  * para reflejar el estado actual en la interfaz.
  */
+/**
+ * Icono de un ítem para las casillas.
+ *
+ * Antes era `img.src = this.ItemDefinitions[id].src` a pelo. Si un ítem no
+ * estaba en ItemDefinitions (le pasó al carbón), eso lanzaba un TypeError que
+ * abortaba renderSlot A MEDIAS: la casilla se quedaba sin imagen y, según
+ * dónde reventara, las siguientes tampoco se pintaban.
+ *
+ * Ahora una definición ausente solo deja un hueco, y si la imagen no llega a
+ * cargar se reintenta una vez (basta con que el navegador haya descartado el
+ * mapa de bits al tener la pestaña en segundo plano).
+ */
+_crearIconoDeItem(itemId) {
+  const img = document.createElement('img');
+  img.alt = itemId;
+  img.decoding = 'async';
+
+  const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
+  if (!def || !def.src) {
+    console.warn(`⚠️ '${itemId}' no está en ItemDefinitions: la casilla se pinta sin icono`);
+    img.style.visibility = 'hidden';
+    return img;
+  }
+
+  img.dataset.gfSrc = def.src;
+  img.onerror = () => {
+    // Un solo reintento con cache-buster; si tampoco, se deja el hueco en vez
+    // de quedarse con el icono roto del navegador.
+    if (img.dataset.gfRetry === '1') { img.onerror = null; img.style.visibility = 'hidden'; return; }
+    img.dataset.gfRetry = '1';
+    img.src = def.src + (def.src.indexOf('?') >= 0 ? '&' : '?') + 'r=' + Date.now();
+  };
+  img.src = def.src;
+  return img;
+}
+
+/**
+ * REPINTAR LAS CASILLAS AL VOLVER                              (2026-08-05)
+ * ---------------------------------------------------------------------------
+ * Síntoma: te ibas al mercado o a otra pestaña del navegador, volvías, y las 7
+ * casillas rápidas mostraban las cantidades ("x4") pero SIN imagen.
+ *
+ * Con la pestaña en segundo plano el navegador libera los mapas de bits
+ * decodificados; al volver, un <img> que en ese momento no estaba en el árbol
+ * visible puede quedarse en blanco y no recargarse solo. Repintar las casillas
+ * al recuperar el foco lo resuelve de raíz y no cuesta nada: renderAllSlots es
+ * idempotente (reconstruye a partir de STATE, no acumula nada).
+ */
+_repintarCasillasAlVolver() {
+  if (this._repintadoCasillasBound) return;
+  this._repintadoCasillasBound = true;
+
+  const repintar = () => {
+    if (document.hidden) return;
+    try { this.renderAllSlots && this.renderAllSlots(); }
+    catch (e) { console.warn('⚠️ No se pudieron repintar las casillas:', e && e.message); }
+  };
+
+  document.addEventListener('visibilitychange', repintar);
+  window.addEventListener('focus', repintar);
+  window.addEventListener('pageshow', repintar);   // volver con el botón atrás
+
+  const soltar = () => {
+    document.removeEventListener('visibilitychange', repintar);
+    window.removeEventListener('focus', repintar);
+    window.removeEventListener('pageshow', repintar);
+    this._repintadoCasillasBound = false;
+  };
+  this.events.once('shutdown', soltar);
+  this.events.once('destroy', soltar);
+}
+
 renderAllSlots() {
   // Actualizar slots del inventario (40)
   for (let i = 0; i < this.STATE.slots.length; i++) {
@@ -21952,6 +22020,17 @@ async _buildCurrencyHub(tab) {
      </div>
 
      <div id="gfc-buy">
+       <!-- REGALO SEMANAL (2026-08-05). Red de seguridad para que nadie se
+            quede sin dinero: 2000 de oro o 1000 de plata, uno cada 7 días y
+            contados por separado. El contador lo lleva el SERVIDOR. -->
+       <div style="background:#08211a;border:1px solid #24503f;border-radius:10px;padding:10px;margin-bottom:12px;">
+         <div style="color:#8fb8ff;font-size:12px;margin-bottom:8px;">Free every 7 days</div>
+         <div style="display:flex;gap:8px;">
+           <button id="gfc-gift-gold" style="flex:1;min-height:44px;border:none;border-radius:10px;background:#7a5c12;color:#fff;font-weight:bold;cursor:pointer;font-size:13px;">Get Gold</button>
+           <button id="gfc-gift-silver" style="flex:1;min-height:44px;border:none;border-radius:10px;background:#4a5563;color:#fff;font-weight:bold;cursor:pointer;font-size:13px;">Get Silver</button>
+         </div>
+         <div id="gfc-gift-msg" style="margin-top:8px;font-size:11.5px;color:#8fb8ff;line-height:1.5;"></div>
+       </div>
        <div style="color:#bcd6c9;font-size:12px;margin-bottom:8px;line-height:1.5;">
          Choose a package — <b>1 Gold = $1</b>.<br>
          <span style="color:#8fb8ff;">Each package can be bought up to ${this.CURRENCY_PACK_DAILY_LIMIT} times per day, counted separately.</span>
@@ -22024,6 +22103,9 @@ async _buildCurrencyHub(tab) {
     el.onclick = () => this._comprarPaqueteDeDinero(Number(el.getAttribute('data-i')), card);
   });
   this._refrescarLimitesDeCompra(card);
+
+  // ── Regalo semanal ───────────────────────────────────────────────────────
+  this._montarRegaloSemanal(card);
 
   // ── Cambio de moneda, en las DOS direcciones ─────────────────────────────
   // `cantidad` siempre se cuenta en ORO (es la unidad grande): en plata→oro es
@@ -22254,6 +22336,112 @@ async _comprarPaqueteDeDinero(indice, card) {
 }
 
 // Pide al SERVIDOR el cambio de moneda (él valida el saldo y mueve las facturas).
+/**
+ * Botones "Get Gold" / "Get Silver" del hub de moneda.
+ *
+ * Cada uno se puede reclamar una vez cada 7 días y van por separado. El
+ * contador lo lleva el SERVIDOR (colección weekly_gifts), así que recargar la
+ * página o cambiar la hora del teléfono no lo reinicia.
+ */
+async _montarRegaloSemanal(card) {
+  const $ = (id) => card.querySelector('#' + id);
+  const oroBtn   = $('gfc-gift-gold');
+  const plataBtn = $('gfc-gift-silver');
+  const msg      = $('gfc-gift-msg');
+  if (!oroBtn || !plataBtn) return;
+
+  const restante = (ms) => {
+    const h = Math.floor(ms / 3600000);
+    if (h >= 24) return Math.floor(h / 24) + 'd ' + (h % 24) + 'h';
+    if (h >= 1)  return h + 'h';
+    return Math.max(1, Math.floor(ms / 60000)) + 'm';
+  };
+
+  const pintar = (datos) => {
+    const g = (datos && datos.gifts) || {};
+    [['gold', oroBtn, 'Gold'], ['silver', plataBtn, 'Silver']].forEach(([k, btn, etiqueta]) => {
+      const d = g[k];
+      if (!d) { btn.disabled = true; btn.textContent = 'Get ' + etiqueta; return; }
+      if (d.available) {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.textContent = `Get ${d.amount} ${etiqueta}`;
+      } else {
+        btn.disabled = true;
+        btn.style.opacity = '.55';
+        btn.textContent = `${etiqueta} in ${restante(d.msLeft)}`;
+      }
+    });
+  };
+
+  try {
+    const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/currency/weekly`, { method: 'GET' }, 1);
+    if (res && res.ok) pintar(await res.json());
+    else { oroBtn.disabled = true; plataBtn.disabled = true; }
+  } catch (e) {
+    oroBtn.disabled = true; plataBtn.disabled = true;
+  }
+
+  const reclamar = async (kind, btn) => {
+    btn.disabled = true;
+    const textoAntes = btn.textContent;
+    btn.textContent = 'Claiming…';
+    msg.style.color = '#8fb8ff';
+    msg.textContent = '';
+    try {
+      const res = await this.fetchWithTokenRetry(
+        `${this.serverBase}/api/currency/weekly/claim`,
+        { method: 'POST', body: JSON.stringify({ kind }) },
+        1
+      );
+      const data = await res.json().catch(() => ({}));
+
+      if (!res || !res.ok) {
+        msg.style.color = '#ff8a8a';
+        msg.textContent = data.error === 'already_claimed'
+          ? `Already claimed — come back in ${restante(data.msLeft || 0)}.`
+          : 'Could not claim right now. Try again later.';
+        btn.textContent = textoAntes;
+        return;
+      }
+
+      // Se adoptan los saldos que devuelve el servidor (es la fuente buena).
+      if (data.stats) {
+        if (typeof data.stats.oro   === 'number') this.moneda       = data.stats.oro;
+        if (typeof data.stats.plata === 'number') this.moneda_plata = data.stats.plata;
+        if (window.playerStats) {
+          window.playerStats.oro   = this.moneda;
+          window.playerStats.plata = this.moneda_plata;
+        }
+        const l = document.getElementById('info-text-left');
+        const r = document.getElementById('info-text-right');
+        if (l) l.textContent = `${this.moneda}`;
+        if (r) r.textContent = `${this.moneda_plata}`;
+      }
+
+      msg.style.color = '#6fcf97';
+      msg.textContent = `+${data.amount} ${kind === 'gold' ? 'Gold' : 'Silver'} added.`;
+      this.notifications && this.notifications.show(
+        `+${data.amount} ${kind === 'gold' ? 'Gold' : 'Silver'} (weekly gift)`, 'success');
+
+      // Refrescar los dos contadores y los saldos del hub.
+      const res2 = await this.fetchWithTokenRetry(`${this.serverBase}/api/currency/weekly`, { method: 'GET' }, 1);
+      if (res2 && res2.ok) pintar(await res2.json());
+      const oroEl = card.querySelector('#gfc-e-oro'), plataEl = card.querySelector('#gfc-e-plata');
+      if (oroEl)   oroEl.textContent   = Math.floor(Number(this.moneda) || 0);
+      if (plataEl) plataEl.textContent = Math.floor(Number(this.moneda_plata) || 0);
+    } catch (e) {
+      msg.style.color = '#ff8a8a';
+      msg.textContent = 'Connection error. Try again.';
+      btn.textContent = textoAntes;
+      btn.disabled = false;
+    }
+  };
+
+  oroBtn.onclick   = () => reclamar('gold', oroBtn);
+  plataBtn.onclick = () => reclamar('silver', plataBtn);
+}
+
 async _exchangeCurrency(direction, amount) {
   try {
     const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/currency/exchange`, {
@@ -25800,6 +25988,9 @@ if (this.dogNameText) {
     // Regeneración pasiva (+1 por minuto). El servidor la lleva en modo
     // fantasma aunque el juego esté cerrado; esto solo refresca las barras.
     this._iniciarRegeneracionVitales();
+
+    // Repintar las casillas al volver de otra pestaña o del mercado.
+    this._repintarCasillasAlVolver();
   }
 
   /**

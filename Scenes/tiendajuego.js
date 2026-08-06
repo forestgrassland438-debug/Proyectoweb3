@@ -9888,6 +9888,17 @@ async _buildCurrencyHub(tab) {
        <button id="gfc-tab-exc" style="flex:1;min-height:42px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;">Exchange</button>
      </div>
      <div id="gfc-buy">
+       <!-- REGALO SEMANAL (2026-08-05). Red de seguridad para que nadie se
+            quede sin dinero: 2000 de oro o 1000 de plata, uno cada 7 días y
+            contados por separado. El contador lo lleva el SERVIDOR. -->
+       <div style="background:#08211a;border:1px solid #24503f;border-radius:10px;padding:10px;margin-bottom:12px;">
+         <div style="color:#8fb8ff;font-size:12px;margin-bottom:8px;">Free every 7 days</div>
+         <div style="display:flex;gap:8px;">
+           <button id="gfc-gift-gold" style="flex:1;min-height:44px;border:none;border-radius:10px;background:#7a5c12;color:#fff;font-weight:bold;cursor:pointer;font-size:13px;">Get Gold</button>
+           <button id="gfc-gift-silver" style="flex:1;min-height:44px;border:none;border-radius:10px;background:#4a5563;color:#fff;font-weight:bold;cursor:pointer;font-size:13px;">Get Silver</button>
+         </div>
+         <div id="gfc-gift-msg" style="margin-top:8px;font-size:11.5px;color:#8fb8ff;line-height:1.5;"></div>
+       </div>
        <div style="color:#bcd6c9;font-size:12px;margin-bottom:8px;">Pay with <b>USDT</b>. Choose a package:</div>
        ${pkgs}
        <div style="background:#08211a;border:1px solid #24503f;border-radius:10px;padding:10px;font-size:12px;line-height:1.5;">
@@ -9951,6 +9962,9 @@ async _buildCurrencyHub(tab) {
       msg.innerHTML = `Send <b>${p.usdt} USDT</b> to:<br><span style="font-family:monospace;word-break:break-all;">${treasury}</span><br>Your gold is credited after the payment is confirmed on-chain.`;
     };
   });
+
+  // ── Regalo semanal ───────────────────────────────────────────────────────
+  this._montarRegaloSemanal(card);
 
   // Cambio en las DOS direcciones. La cantidad se cuenta siempre en ORO (la
   // unidad grande): en plata→oro es lo que se recibe, en oro→plata lo que se
@@ -10046,6 +10060,112 @@ async _buildCurrencyHub(tab) {
     }
     $('gfc-e-go').disabled = false; $('gfc-e-go').textContent = '✓ Exchange';
   };
+}
+
+/**
+ * Botones "Get Gold" / "Get Silver" del hub de moneda.
+ *
+ * Cada uno se puede reclamar una vez cada 7 días y van por separado. El
+ * contador lo lleva el SERVIDOR (colección weekly_gifts), así que recargar la
+ * página o cambiar la hora del teléfono no lo reinicia.
+ */
+async _montarRegaloSemanal(card) {
+  const $ = (id) => card.querySelector('#' + id);
+  const oroBtn   = $('gfc-gift-gold');
+  const plataBtn = $('gfc-gift-silver');
+  const msg      = $('gfc-gift-msg');
+  if (!oroBtn || !plataBtn) return;
+
+  const restante = (ms) => {
+    const h = Math.floor(ms / 3600000);
+    if (h >= 24) return Math.floor(h / 24) + 'd ' + (h % 24) + 'h';
+    if (h >= 1)  return h + 'h';
+    return Math.max(1, Math.floor(ms / 60000)) + 'm';
+  };
+
+  const pintar = (datos) => {
+    const g = (datos && datos.gifts) || {};
+    [['gold', oroBtn, 'Gold'], ['silver', plataBtn, 'Silver']].forEach(([k, btn, etiqueta]) => {
+      const d = g[k];
+      if (!d) { btn.disabled = true; btn.textContent = 'Get ' + etiqueta; return; }
+      if (d.available) {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.textContent = `Get ${d.amount} ${etiqueta}`;
+      } else {
+        btn.disabled = true;
+        btn.style.opacity = '.55';
+        btn.textContent = `${etiqueta} in ${restante(d.msLeft)}`;
+      }
+    });
+  };
+
+  try {
+    const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/currency/weekly`, { method: 'GET' }, 1);
+    if (res && res.ok) pintar(await res.json());
+    else { oroBtn.disabled = true; plataBtn.disabled = true; }
+  } catch (e) {
+    oroBtn.disabled = true; plataBtn.disabled = true;
+  }
+
+  const reclamar = async (kind, btn) => {
+    btn.disabled = true;
+    const textoAntes = btn.textContent;
+    btn.textContent = 'Claiming…';
+    msg.style.color = '#8fb8ff';
+    msg.textContent = '';
+    try {
+      const res = await this.fetchWithTokenRetry(
+        `${this.serverBase}/api/currency/weekly/claim`,
+        { method: 'POST', body: JSON.stringify({ kind }) },
+        1
+      );
+      const data = await res.json().catch(() => ({}));
+
+      if (!res || !res.ok) {
+        msg.style.color = '#ff8a8a';
+        msg.textContent = data.error === 'already_claimed'
+          ? `Already claimed — come back in ${restante(data.msLeft || 0)}.`
+          : 'Could not claim right now. Try again later.';
+        btn.textContent = textoAntes;
+        return;
+      }
+
+      // Se adoptan los saldos que devuelve el servidor (es la fuente buena).
+      if (data.stats) {
+        if (typeof data.stats.oro   === 'number') this.moneda       = data.stats.oro;
+        if (typeof data.stats.plata === 'number') this.moneda_plata = data.stats.plata;
+        if (window.playerStats) {
+          window.playerStats.oro   = this.moneda;
+          window.playerStats.plata = this.moneda_plata;
+        }
+        const l = document.getElementById('info-text-left');
+        const r = document.getElementById('info-text-right');
+        if (l) l.textContent = `${this.moneda}`;
+        if (r) r.textContent = `${this.moneda_plata}`;
+      }
+
+      msg.style.color = '#6fcf97';
+      msg.textContent = `+${data.amount} ${kind === 'gold' ? 'Gold' : 'Silver'} added.`;
+      this.notifications && this.notifications.show(
+        `+${data.amount} ${kind === 'gold' ? 'Gold' : 'Silver'} (weekly gift)`, 'success');
+
+      // Refrescar los dos contadores y los saldos del hub.
+      const res2 = await this.fetchWithTokenRetry(`${this.serverBase}/api/currency/weekly`, { method: 'GET' }, 1);
+      if (res2 && res2.ok) pintar(await res2.json());
+      const oroEl = card.querySelector('#gfc-e-oro'), plataEl = card.querySelector('#gfc-e-plata');
+      if (oroEl)   oroEl.textContent   = Math.floor(Number(this.moneda) || 0);
+      if (plataEl) plataEl.textContent = Math.floor(Number(this.moneda_plata) || 0);
+    } catch (e) {
+      msg.style.color = '#ff8a8a';
+      msg.textContent = 'Connection error. Try again.';
+      btn.textContent = textoAntes;
+      btn.disabled = false;
+    }
+  };
+
+  oroBtn.onclick   = () => reclamar('gold', oroBtn);
+  plataBtn.onclick = () => reclamar('silver', plataBtn);
 }
 
 async _exchangeCurrency(direction, amount) {
