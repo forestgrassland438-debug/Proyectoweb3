@@ -790,6 +790,10 @@
       var signer = new E.Wallet('0x' + bytesToHex(priv));
 
       // Partición XOR de un solo uso: mitad dispositivo + mitad servidor.
+      // El `deviceId` identifica a ESTE navegador dentro de la cuenta: el
+      // servidor guarda una mitad por dispositivo, así que vincular otro más
+      // adelante no invalida este.
+      var deviceId         = bytesToHex(randomBytes(16));
       var mitadDispositivo = randomBytes(32);
       var mitadServidor    = xorBytes(priv, mitadDispositivo);
 
@@ -809,6 +813,7 @@
         body: {
           ticket: this._ticket,
           address: signer.address,
+          deviceId: deviceId,
           serverShare: bytesToB64(mitadServidor),
           recovery: { salt: bytesToB64(recoverySalt), iv: recoveryBlob.iv, ct: recoveryBlob.ct },
           // Huella de la clave, para detectar mitades corruptas al reconstruir.
@@ -817,6 +822,7 @@
       });
 
       await deviceStore.put(this._walletId, {
+        deviceId: deviceId,
         share: bytesToB64(mitadDispositivo),
         address: signer.address,
         createdAt: Date.now()
@@ -837,7 +843,14 @@
       };
     },
 
-    /** Ya existe: se junta la mitad del dispositivo con la del servidor. */
+    /**
+     * Ya existe: se junta la mitad de ESTE dispositivo con la que el servidor
+     * guarda para ESTE dispositivo.
+     *
+     * Se pide siempre por `deviceId`. Antes se pedía "la" mitad del servidor,
+     * que era una sola para toda la cuenta: al vincular un segundo dispositivo
+     * se sobrescribía y el primero dejaba de poder reconstruir la clave.
+     */
     _abrirBoveda: async function (verificado) {
       var guardado = await deviceStore.get(this._walletId);
 
@@ -851,22 +864,62 @@
         };
       }
 
-      var datos = await apiFetch('/api/wallet/vault?ticket=' + encodeURIComponent(this._ticket));
+      var url = '/api/wallet/vault?ticket=' + encodeURIComponent(this._ticket);
+      // Las bóvedas creadas antes del arreglo no tienen deviceId guardado: se
+      // pide sin él y el servidor devuelve la mitad antigua para migrarla.
+      if (guardado.deviceId) url += '&deviceId=' + encodeURIComponent(guardado.deviceId);
+
+      var datos = await apiFetch(url);
+
+      if (!datos.serverShare) {
+        // El servidor no reconoce este dispositivo (se vinculó en otro sitio y
+        // aquí quedó una mitad huérfana). Se limpia y se pide el código.
+        log('el servidor no tiene mitad para este dispositivo → código de recuperación');
+        try { await deviceStore.del(this._walletId); } catch (e) {}
+        return {
+          address: datos.address || verificado.address || null,
+          isNew: false,
+          needsRecoveryCode: true
+        };
+      }
+
       var mitadServidor    = b64ToBytes(datos.serverShare);
       var mitadDispositivo = b64ToBytes(guardado.share);
       var priv = xorBytes(mitadDispositivo, mitadServidor);
       wipe(mitadServidor);
-      wipe(mitadDispositivo);
 
       var E = getEthers();
       var signer;
       try { signer = new E.Wallet('0x' + bytesToHex(priv)); }
-      catch (e) { wipe(priv); throw err('Las mitades de la clave no encajan', 'vault_corrupt'); }
+      catch (e) { wipe(priv); wipe(mitadDispositivo); throw err('Las mitades de la clave no encajan', 'vault_corrupt'); }
 
       if (datos.address && signer.address.toLowerCase() !== String(datos.address).toLowerCase()) {
         wipe(priv);
-        throw err('La clave reconstruida no coincide con la cuenta registrada', 'vault_mismatch');
+        wipe(mitadDispositivo);
+        // No es un error del jugador: es que este dispositivo perdió su pareja.
+        // Se limpia lo local y se le ofrece el camino del código, en vez de
+        // dejarlo con un mensaje sin salida.
+        try { await deviceStore.del(this._walletId); } catch (e) {}
+        return {
+          address: datos.address,
+          isNew: false,
+          needsRecoveryCode: true,
+          relinked: true
+        };
       }
+
+      // MIGRACIÓN: la bóveda venía del formato viejo (una sola mitad). Ahora
+      // que la clave está reconstruida, se vincula este dispositivo con su
+      // propio deviceId para que los siguientes no se pisen entre ellos.
+      if (datos.legacy || !guardado.deviceId) {
+        try {
+          await this._vincularEsteDispositivo(priv, signer.address);
+          log('bóveda migrada al formato por dispositivo');
+        } catch (e) {
+          log('no se pudo migrar la bóveda (no crítico):', e && e.message);
+        }
+      }
+      wipe(mitadDispositivo);
 
       this._aplicarClave(priv, signer);
       await deviceStore.putLast({ walletId: this._walletId, address: signer.address });
@@ -875,10 +928,42 @@
     },
 
     /**
+     * Reparte la clave para ESTE dispositivo y sube su mitad al servidor.
+     * No toca la de ningún otro dispositivo de la cuenta.
+     */
+    _vincularEsteDispositivo: async function (priv, address) {
+      var deviceId         = bytesToHex(randomBytes(16));
+      var mitadDispositivo = randomBytes(32);
+      var mitadServidor    = xorBytes(priv, mitadDispositivo);
+
+      await apiFetch('/api/wallet/vault/link', {
+        method: 'POST',
+        body: {
+          ticket: this._ticket,
+          deviceId: deviceId,
+          serverShare: bytesToB64(mitadServidor)
+        }
+      });
+
+      await deviceStore.put(this._walletId, {
+        deviceId: deviceId,
+        share: bytesToB64(mitadDispositivo),
+        address: address,
+        createdAt: Date.now()
+      });
+      await deviceStore.putLast({ walletId: this._walletId, address: address });
+
+      wipe(mitadServidor);
+      wipe(mitadDispositivo);
+      return deviceId;
+    },
+
+    /**
      * Entrar desde un dispositivo nuevo con el código de recuperación.
-     * Tras conseguirlo, se REPARTE de nuevo la clave: este dispositivo recibe
-     * una mitad nueva y el servidor la suya, así que el código no queda
-     * "gastado" pero tampoco se reutiliza ninguna mitad vieja.
+     *
+     * Al terminar, este dispositivo queda vinculado con SU PROPIA pareja de
+     * mitades. Los que ya estaban vinculados siguen entrando sin código: el
+     * servidor guarda una mitad por dispositivo, no una para toda la cuenta.
      */
     unlockWithRecoveryCode: async function (codigo) {
       if (!this._ticket) throw err('Primero inicia sesión con tu proveedor', 'no_ticket');
@@ -901,23 +986,9 @@
         throw err('El código no corresponde a esta cuenta', 'recovery_mismatch');
       }
 
-      // Reparto nuevo para este dispositivo.
-      var mitadDispositivo = randomBytes(32);
-      var mitadServidor    = xorBytes(priv, mitadDispositivo);
-
-      await apiFetch('/api/wallet/vault/rotate', {
-        method: 'POST',
-        body: { ticket: this._ticket, serverShare: bytesToB64(mitadServidor) }
-      });
-      await deviceStore.put(this._walletId, {
-        share: bytesToB64(mitadDispositivo),
-        address: signer.address,
-        createdAt: Date.now()
-      });
-      await deviceStore.putLast({ walletId: this._walletId, address: signer.address });
-
-      wipe(mitadServidor);
-      wipe(mitadDispositivo);
+      // Se vincula ESTE dispositivo con su propia pareja de mitades. Los demás
+      // dispositivos ya vinculados siguen funcionando: cada uno tiene la suya.
+      await this._vincularEsteDispositivo(priv, signer.address);
 
       this._aplicarClave(priv, signer);
       return { address: signer.address, isNew: false, needsRecoveryCode: false };
