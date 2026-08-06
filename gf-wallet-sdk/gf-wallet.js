@@ -1029,6 +1029,12 @@
       if (this.isUnlocked()) return { address: this._address };
       var ultimo = await deviceStore.getLast();
       if (!ultimo || !ultimo.walletId) {
+        // Este origen no tiene mitad de dispositivo (caso típico: el JUEGO,
+        // porque la mitad se guardó en el origen del LOGIN e IndexedDB no se
+        // comparte entre dominios). Se adopta la sesión: da dirección y
+        // ticket, aunque no la clave.
+        var adoptada = await this.adoptSession();
+        if (adoptada.embedded) return { address: adoptada.address, locked: true };
         throw err('No hay ninguna sesión guardada en este dispositivo. Inicia sesión otra vez.', 'no_session');
       }
       this._walletId = ultimo.walletId;
@@ -1036,6 +1042,65 @@
       var t = await apiFetch('/api/wallet/ticket', { method: 'POST', body: { walletId: this._walletId } });
       this._ticket = t.ticket;
       return await this._abrirBoveda({ address: ultimo.address });
+    },
+
+    /**
+     * ADOPTAR LA SESIÓN DESDE OTRO ORIGEN                      (2026-08-05)
+     * -----------------------------------------------------------------------
+     * El login vive en app.grasslandforest.com y el juego en
+     * game.grasslandforest.com. IndexedDB es POR ORIGEN, así que la mitad del
+     * dispositivo guardada al entrar NO existe en el juego: allí `unlock()`
+     * nunca podía abrir la bóveda y el panel acababa enseñando el mensaje de
+     * MetaMask a gente que había entrado con Google.
+     *
+     * Esto usa la cookie de sesión (compartida por COOKIE_DOMAIN) para saber
+     * QUIÉN es y qué dirección tiene, sin reconstruir la clave. Con eso ya
+     * funciona todo lo que no la necesita: saldo, red, actividad y recibir.
+     * Enviar o ver la clave privada siguen pidiendo el código/clave, que
+     * reconstruyen la clave sin depender del dispositivo.
+     *
+     * @returns {Promise<{embedded:boolean, address?:string, hasPassphrase?:boolean}>}
+     */
+    adoptSession: async function () {
+      var info;
+      try {
+        info = await apiFetch('/api/wallet/whoami');
+      } catch (e) {
+        log('whoami no disponible:', e && e.message);
+        return { embedded: false };
+      }
+      if (!info || !info.embedded) return { embedded: false };
+
+      this._walletId      = info.walletId;
+      this._address       = info.address;
+      this._hasPassphrase = !!info.hasPassphrase;
+
+      try { await this._asegurarTicket(); }
+      catch (e) { log('no se pudo obtener ticket:', e && e.message); }
+
+      if (this._provider) this._provider._emit('accountsChanged', [this._address]);
+      log('sesión adoptada (sin clave):', this._address);
+
+      return {
+        embedded: true,
+        address: this._address,
+        hasPassphrase: this._hasPassphrase,
+        unlocked: this.isUnlocked()
+      };
+    },
+
+    /**
+     * Consigue (o renueva) el permiso corto de bóveda usando la sesión del
+     * juego. Los tickets caducan a los 5 minutos, así que las operaciones que
+     * lo necesitan lo piden justo antes en vez de fiarse del que haya.
+     */
+    _asegurarTicket: async function () {
+      if (!this._walletId) throw err('No hay ninguna cuenta cargada', 'no_wallet');
+      var t = await apiFetch('/api/wallet/ticket', {
+        method: 'POST', body: { walletId: this._walletId }
+      });
+      this._ticket = t.ticket;
+      return this._ticket;
     },
 
     /** Cierra sesión y BORRA la mitad de este dispositivo. */
@@ -1147,6 +1212,7 @@
 
     /** ¿Esta cuenta ya tiene clave personal configurada? */
     hasPassphrase: async function () {
+      try { if (this._walletId) await this._asegurarTicket(); } catch (e) {}
       if (!this._ticket) return false;
       try {
         const d = await apiFetch('/api/wallet/passphrase?ticket=' + encodeURIComponent(this._ticket));
@@ -1159,6 +1225,7 @@
      * clave privada con él) y guarda el sobre con la clave elegida.
      */
     setPassphrase: async function (codigo, clave) {
+      try { if (this._walletId) await this._asegurarTicket(); } catch (e) {}
       if (!this._ticket) throw err('Primero inicia sesión con tu proveedor', 'no_ticket');
       if (!clave || String(clave).length < 6) {
         throw err('La clave tiene que tener al menos 6 caracteres', 'weak_passphrase');
@@ -1183,6 +1250,7 @@
 
     /** CLAVE → CÓDIGO. Devuelve el código de recuperación original. */
     revealCodeWithPassphrase: async function (clave) {
+      try { if (this._walletId) await this._asegurarTicket(); } catch (e) {}
       if (!this._ticket) throw err('Primero inicia sesión con tu proveedor', 'no_ticket');
       const d = await apiFetch('/api/wallet/passphrase?ticket=' + encodeURIComponent(this._ticket) + '&reveal=1');
       if (!d || !d.ct) throw err('Esta cuenta no tiene clave personal configurada', 'no_passphrase');
@@ -1209,6 +1277,8 @@
 
     /** Reconstruye la clave privada a partir del código de recuperación. */
     _clavePrivadaDesdeCodigo: async function (codigo) {
+      try { if (this._walletId) await this._asegurarTicket(); } catch (e) {}
+      if (!this._ticket) throw err('Primero inicia sesión con tu proveedor', 'no_ticket');
       const datos = await apiFetch('/api/wallet/vault?ticket=' + encodeURIComponent(this._ticket) + '&recovery=1');
       if (!datos.recovery) throw err('Esta cuenta no tiene copia de recuperación', 'no_recovery');
 

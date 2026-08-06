@@ -904,30 +904,47 @@
   </div>
 
   <!-- ── MODAL: HACER UNA OFERTA ─────────────────────────────────────── -->
-  <div class="modal-back" id="offer-modal">
+  <!-- OJO: la clase de los modales de este archivo es `modal-backdrop`
+       (con `.show` para abrirlos). Usar `modal-back` los dejaba SIN ninguna
+       regla de CSS, así que se pintaban siempre y en todas las pestañas. -->
+  <div class="modal-backdrop" id="offer-modal">
     <div class="modal">
       <h2 data-i18n="offer_title">Hacer una oferta</h2>
       <p class="sub" data-i18n="offer_sub">El dinero se retiene hasta que el vendedor responda. Si rechaza o caduca, se te devuelve entero.</p>
       <div class="modal-item" id="offer-item"></div>
-      <label data-i18n="qty">Cantidad</label>
-      <input type="number" id="offer-qty" min="1" value="1">
-      <label data-i18n="offer_price">Tu precio por unidad</label>
-      <input type="number" id="offer-price" min="0" step="0.01" value="1">
-      <label data-i18n="offer_msg">Mensaje (opcional)</label>
-      <input type="text" id="offer-message" maxlength="140" placeholder="…">
-      <div class="modal-total" id="offer-total"></div>
+      <div class="field">
+        <label data-i18n="qty">Cantidad</label>
+        <div class="qty-stepper">
+          <button type="button" id="offer-qty-minus">−</button>
+          <input type="number" id="offer-qty" min="1" value="1">
+          <button type="button" id="offer-qty-plus">+</button>
+        </div>
+      </div>
+      <div class="field">
+        <label data-i18n="offer_price">Tu precio por unidad</label>
+        <input type="number" id="offer-price" min="0" step="0.01" value="1">
+      </div>
+      <div class="field">
+        <label data-i18n="offer_msg">Mensaje (opcional)</label>
+        <input type="text" id="offer-message" maxlength="140" placeholder="...">
+      </div>
+      <div class="total-box">
+        <span class="label" data-i18n="offer_total_label">Se retendrán</span>
+        <span class="amount" id="offer-total">0</span>
+      </div>
+      <div class="form-error" id="offer-error"></div>
       <div class="modal-actions">
         <button class="btn-cancel-modal" id="offer-cancel" data-i18n="cancel">Cancelar</button>
-        <button class="btn-primary" id="offer-confirm" data-i18n="offer_send">Enviar oferta</button>
+        <button class="btn-confirm" id="offer-confirm" data-i18n="offer_send">Enviar oferta</button>
       </div>
     </div>
   </div>
 
   <!-- ── MODAL: PERFIL PÚBLICO ───────────────────────────────────────── -->
-  <div class="modal-back" id="profile-modal">
+  <div class="modal-backdrop" id="profile-modal">
     <div class="modal profile-modal">
       <h2 data-i18n="prof_title">Perfil del jugador</h2>
-      <div id="profile-body"><div class="prof-loading" data-i18n="loading">Cargando…</div></div>
+      <div id="profile-body"><div class="prof-loading" data-i18n="loading">Cargando...</div></div>
       <div class="modal-actions">
         <button class="btn-cancel-modal" id="profile-close" data-i18n="close">Cerrar</button>
       </div>
@@ -977,7 +994,7 @@
       offer:'Ofertar', offer_title:'Hacer una oferta',
       offer_sub:'El dinero se retiene hasta que el vendedor responda. Si rechaza o caduca, se te devuelve entero.',
       offer_price:'Tu precio por unidad', offer_msg:'Mensaje (opcional)', offer_send:'Enviar oferta',
-      offer_total:'Se retendrán: {n}', offer_ask:'Pide {n} por unidad',
+      offer_total:'Se retendrán: {n}', offer_total_label:'Se retendrán', offer_ask:'Pide {n} por unidad',
       offer_sent_ok:'Oferta enviada', offer_accepted:'Oferta aceptada', offer_rejected:'Oferta rechazada',
       offer_cancelled:'Oferta retirada', offer_expires:'caduca en {t}',
       accept:'Aceptar', reject:'Rechazar', withdraw:'Retirar',
@@ -1048,7 +1065,7 @@
       offer:'Offer', offer_title:'Make an offer',
       offer_sub:'The money is held until the seller replies. If they decline or it expires, you get it all back.',
       offer_price:'Your price per unit', offer_msg:'Message (optional)', offer_send:'Send offer',
-      offer_total:'On hold: {n}', offer_ask:'Asking {n} per unit',
+      offer_total:'On hold: {n}', offer_total_label:'On hold', offer_ask:'Asking {n} per unit',
       offer_sent_ok:'Offer sent', offer_accepted:'Offer accepted', offer_rejected:'Offer declined',
       offer_cancelled:'Offer withdrawn', offer_expires:'expires in {t}',
       accept:'Accept', reject:'Decline', withdraw:'Withdraw',
@@ -1973,9 +1990,18 @@
     const pr = Math.max(0, Number(document.getElementById('offer-price').value) || 0);
     document.getElementById('offer-qty').value = q;
     document.getElementById('offer-total').innerHTML =
-      escapeHtml(t('offer_total', { n: '' })) +
-      ` <b><span class="coin-icon ${l.currency}">${coinLetter(l.currency)}</span>${fmt(Math.round(q * pr * 100) / 100)}</b>`;
+      `<span class="coin-icon ${l.currency}">${coinLetter(l.currency)}</span>${fmt(Math.round(q * pr * 100) / 100)}`;
   }
+  document.getElementById('offer-qty-minus').addEventListener('click', () => {
+    const el = document.getElementById('offer-qty');
+    el.value = Math.max(1, (parseInt(el.value, 10) || 1) - 1);
+    actualizarTotalOferta();
+  });
+  document.getElementById('offer-qty-plus').addEventListener('click', () => {
+    const el = document.getElementById('offer-qty');
+    el.value = (parseInt(el.value, 10) || 1) + 1;
+    actualizarTotalOferta();
+  });
   document.getElementById('offer-qty').addEventListener('input', actualizarTotalOferta);
   document.getElementById('offer-price').addEventListener('input', actualizarTotalOferta);
   document.getElementById('offer-cancel').addEventListener('click',

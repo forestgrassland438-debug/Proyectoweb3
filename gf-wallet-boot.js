@@ -34,8 +34,13 @@
 
   function resolverApiBase() {
     // Mismo criterio que usan las escenas del juego.
-    if (window.serverBase) return window.serverBase;
-    if (window.GF_API_BASE) return window.GF_API_BASE;
+    //
+    // OJO con la cadena VACÍA: '' significa "mismo origen", que es una
+    // configuración válida y muy común. Comprobarlo con `if (window.serverBase)`
+    // la descartaba por ser un valor falsy y se acababa llamando a
+    // http://127.0.0.1:3001, que en ese montaje no existe.
+    if (typeof window.serverBase === 'string')  return window.serverBase;
+    if (typeof window.GF_API_BASE === 'string') return window.GF_API_BASE;
     var host = window.location.hostname;
     if (host === 'localhost' || host === '127.0.0.1') return 'http://127.0.0.1:3001';
     return 'https://api.grasslandforest.com';

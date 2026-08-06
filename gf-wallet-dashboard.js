@@ -45,13 +45,41 @@
     return Math.floor(s / 86400) + 'd';
   }
 
-  /** Devuelve la wallet embebida si el jugador entró con ella y está abierta. */
+  /**
+   * Devuelve la wallet embebida del jugador, esté abierta o no.
+   *
+   * OJO CON EL ORIGEN (arreglado 2026-08-05): la mitad del dispositivo se
+   * guarda en IndexedDB del LOGIN (app.grasslandforest.com), e IndexedDB no se
+   * comparte entre dominios. En el JUEGO (game.grasslandforest.com) esa mitad
+   * no existe, así que la wallet nunca llega a "abrirse" — y antes eso se
+   * confundía con "no tiene wallet embebida" y se enseñaba el mensaje de
+   * MetaMask a quien había entrado con Google.
+   *
+   * Basta con que tenga DIRECCIÓN: saldo, red, actividad y recibir funcionan
+   * sin la clave. Enviar o ver la clave privada la piden aparte (código/clave),
+   * y eso sí funciona desde cualquier origen.
+   */
   function walletEmbebida() {
     try {
       var w = window.gfWallet;
       if (w && typeof w.getAddress === 'function' && w.getAddress()) return w;
     } catch (e) {}
     return null;
+  }
+
+  /**
+   * Se asegura de que la wallet haya intentado adoptar la sesión antes de
+   * decidir qué pintar. Sin esto, abrir el dashboard demasiado pronto (antes de
+   * que termine /api/wallet/whoami) enseñaba el mensaje de MetaMask por error.
+   */
+  function prepararWallet() {
+    var w = window.gfWallet;
+    if (!w) return Promise.resolve(null);
+    if (typeof w.getAddress === 'function' && w.getAddress()) return Promise.resolve(w);
+    if (typeof w.adoptSession !== 'function') return Promise.resolve(null);
+    return w.adoptSession()
+      .then(function (r) { return (r && r.embedded) ? w : null; })
+      .catch(function () { return null; });
   }
 
   function mensaje(texto, clase) {
@@ -296,14 +324,17 @@
     if (!cuerpo || PINTADO) return;
     PINTADO = true;
 
-    var w = walletEmbebida();
-    try {
-      if (w) pintarIntegrada(cuerpo, w);
-      else   pintarMetaMask(cuerpo);
-    } catch (e) {
-      console.error('[gf-wallet-dashboard] error pintando la cartera:', e);
-      cuerpo.innerHTML = '<div class="gfw-w-card"><div class="gfw-w-sub">Could not load the wallet panel.</div></div>';
-    }
+    cuerpo.innerHTML = '<div class="gfw-w-card"><div class="gfw-w-sub">Loading wallet...</div></div>';
+
+    prepararWallet().then(function (w) {
+      try {
+        if (w) pintarIntegrada(cuerpo, w);
+        else   pintarMetaMask(cuerpo);
+      } catch (e) {
+        console.error('[gf-wallet-dashboard] error pintando la cartera:', e);
+        cuerpo.innerHTML = '<div class="gfw-w-card"><div class="gfw-w-sub">Could not load the wallet panel.</div></div>';
+      }
+    });
   }
 
   // ── Enlazado de las pestañas del dashboard ─────────────────────────────
