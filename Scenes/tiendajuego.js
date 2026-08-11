@@ -860,10 +860,20 @@ this.player.on('pointerdown', (pointer) => {
 
         // 🎯 VALORES EXACTOS PRE-DEFINIDOS (evita cálculos con decimales)
         this.zoomValues = [1.0, 2.0];
-        // FIX: era 2.0 → índice FUERA de rango en [1.0, 2.0] (solo 0 y 1) →
-        // this.zoomValues[2] === undefined → cámara.zoom = NaN → pantalla negra.
-        // El índice de 2.0x en este array es 1.
-        this.currentZoomIndex = 1; // 2.0x
+        // FIX (anterior): era 2.0 → índice FUERA de rango en [1.0, 2.0] (solo 0
+        // y 1) → this.zoomValues[2] === undefined → cámara.zoom = NaN →
+        // pantalla negra.
+        //
+        // FIX (ahora): el índice tiene que describir el zoom que la cámara
+        // TIENE de verdad, y la animación de entrada de arriba
+        // (`setZoom(2)` + `zoomTo(1, 2000)`) deja la cámara en 1.0x — el
+        // índice 0, no el 1. Con el índice mal, el zoom de la tienda quedaba
+        // inservible: la cámara estaba en 1.0x pero el juego creía estar en el
+        // máximo (2.0x), así que acercar no hacía nada ("límite máximo
+        // alcanzado") y alejar reaplicaba el 1.0x que ya había.
+        // Con el índice correcto, pellizcar y la rueda vuelven a funcionar y
+        // la vista de la tienda se ve exactamente igual que antes.
+        this.currentZoomIndex = 0; // 1.0x — el zoom en el que termina la entrada
 
         
 
@@ -885,9 +895,11 @@ this.player.on('pointerdown', (pointer) => {
 
 
 
-        // Aplicar zoom inicial EXACTO
-        this.cameras.main.zoom = this.zoomValues[this.currentZoomIndex];
-        console.log(`🎮 Zoom forzado a: ${this.cameras.main.zoom}x`);
+        // NOTA: aquí NO se toca `cameras.main.zoom`.
+        // FIX: esta línea asignaba el zoom mientras la animación de entrada
+        // (`zoomTo(1, 2000)`) seguía corriendo. Esa animación reescribe
+        // `cam.zoom` en cada frame, así que la asignación se perdía en
+        // silencio. La cámara ya termina en el valor correcto por sí sola.
 
         // 🎯 VERIFICACIÓN INICIAL
         console.log("=== CONFIGURACIÓN DE ZOOM PRECISO ===");

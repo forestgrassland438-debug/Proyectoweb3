@@ -4761,8 +4761,31 @@ this.anims.create({
       this.cameras.main.zoomTo(1, 2000);
       this.cameras.main.once('camerazoomcomplete', () => {
 
+        // ── FIN DE LA ANIMACIÓN DE ENTRADA ──────────────────────────────────
+        // FIX "AL ENTRAR AL MAPA Y HACER CLIC SE DA ZOOM":
+        // La animación de entrada termina la cámara en 1.0x, pero unas líneas
+        // más abajo se declara `currentZoomIndex = 2` (= 2.0x) como el zoom de
+        // juego. Esas dos cosas no coincidían: `cam.zoom` valía 1.0 y "el zoom
+        // que el jugador tiene elegido" valía 2.0.
+        //
+        // El guardián del zoom (_reapplyZoom) restaura el zoom elegido después
+        // de CADA cambio de tamaño del viewport. Como en el móvil eso pasa
+        // constantemente (barra del navegador que se esconde al tocar la
+        // pantalla, teclado del chat, apertura de paneles), el primer resize
+        // tras entrar al mapa saltaba de 1.0x a 2.0x de golpe. Eso es el "doy
+        // un clic y se da zoom" — no era el clic, era el resize que el clic
+        // provocaba, y ocurría en un momento impredecible.
+        //
+        // Ahora el zoom elegido se aplica AQUÍ, de forma suave y determinista,
+        // en cuanto termina la entrada. A partir de ese punto `cam.zoom` y
+        // `currentZoomIndex` coinciden y _reapplyZoom no tiene nada que
+        // corregir: ningún resize vuelve a mover la cámara sola.
+        if (this.zoomValues && typeof this.currentZoomIndex === 'number' && this._applyZoomIndex) {
+          this._applyZoomIndex(this.currentZoomIndex, 450);
+        }
+
         // mostrando botones de reputacion y estadisticas y mas
-        
+
         console.log('Zoom terminado después de 3 segundos');
 
         document.getElementById('game-hud').classList.remove('hud-hidden');
@@ -4898,9 +4921,15 @@ this.anims.create({
         this.zoomValues = [0.5, 1.0, 2.0];
         this.currentZoomIndex = 2; // 2.0x
 
-        // Aplicar zoom inicial EXACTO
-        this.cameras.main.zoom = this.zoomValues[this.currentZoomIndex];
-        console.log(`🎮 Zoom forzado a: ${this.cameras.main.zoom}x`);
+        // NOTA: aquí NO se toca `cameras.main.zoom`.
+        // FIX: antes había un `this.cameras.main.zoom = this.zoomValues[...]`
+        // en esta línea, pero se ejecuta mientras la animación de entrada
+        // (`zoomTo(1, 2000)`, unas líneas más arriba) sigue corriendo. Esa
+        // animación reescribe `cam.zoom` en cada frame, así que la asignación
+        // se perdía en silencio: la cámara acababa en 1.0x mientras el juego
+        // creía tenerla en 2.0x. De ahí el salto de zoom en el primer resize.
+        // El zoom elegido se aplica al terminar la entrada (ver el manejador
+        // de 'camerazoomcomplete' más arriba).
 
         // 🎯 VERIFICACIÓN INICIAL
         console.log("=== CONFIGURACIÓN DE ZOOM PRECISO ===");
@@ -14628,6 +14657,15 @@ createTestBeep() {
         if (!cam || !this.zoomValues) return;
         const deseado = this.zoomValues[this.currentZoomIndex];
         if (typeof deseado !== 'number') return;
+
+        // FIX: no pisar la animación de entrada. `zoomTo()` usa el efecto de
+        // zoom de la cámara (cam.zoomEffect), no un tween, así que
+        // _reapplyZoom no lo cancelaba: se peleaban frame a frame y el
+        // resultado era un parpadeo de zoom durante los 2 s de la entrada.
+        // Si el efecto está en marcha, se deja terminar (al acabar se aplica
+        // el zoom elegido desde 'camerazoomcomplete').
+        if (cam.zoomEffect && cam.zoomEffect.isRunning) return;
+
         if (this._zoomTween) { this._zoomTween.stop(); this._zoomTween = null; }
         if (cam.zoom !== deseado) {
             console.log(`🔁 Restaurando zoom a ${deseado}x (estaba en ${cam.zoom}x)`);
