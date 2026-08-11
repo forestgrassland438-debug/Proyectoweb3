@@ -1362,6 +1362,34 @@
   }
 
   // ── ADVANCED CULL MANAGER ─────────────────────────────────────────────────
+  /**
+   * Ocultación por FRUSTUM: tapa lo que se sale del rectángulo de la cámara.
+   *
+   * ── QUIÉN HACE QUÉ (2026-08-11) ──────────────────────────────────────────
+   * Este gestor estaba desconectado: se instanciaba en init() y registraba sus
+   * manejadores por frame, pero NADIE llamaba a cull.add(), así que trabajaba
+   * en vacío 60 veces por segundo. Ya no: _onUpdate sale de inmediato si no
+   * hay objetos registrados, y _updateVisibility dejó de resucitar objetos.
+   *
+   * En este proyecto el trabajo está repartido así, y conviene no mezclarlo:
+   *
+   *   • MAPA (terreno)          → lib/tileManager.js. Carga y descarga trozos
+   *                               de 2048 px alrededor de la cámara. Es el
+   *                               sistema de chunks de verdad, y está vivo.
+   *   • OBJETOS (árboles,       → gf-graphics-settings.js. Oculta por DISTANCIA
+   *     casas, imágenes)          al jugador, con la barra del panel de
+   *                               ajustes. Respeta la visibilidad propia de
+   *                               cada objeto (un árbol talado no reaparece).
+   *   • ESTE GESTOR             → disponible para quien quiera ocultación por
+   *                               frustum de sus propios objetos, vía
+   *                               cull.add(objeto). Duerme sin coste hasta
+   *                               entonces.
+   *
+   * IMPORTANTE si algún día se conecta a los objetos del mapa: NO lo enchufes
+   * a los mismos sprites que ya gestiona gf-graphics-settings.js. Dos sistemas
+   * escribiendo la misma propiedad `visible` se pisan entre ellos, que es
+   * justo la clase de fallo que provocaba los saltos de zoom de este proyecto.
+   */
   class AdvancedCullManager {
     constructor(scene, padding = 64) {
       this.scene         = scene;
@@ -1399,6 +1427,15 @@
 
     _onUpdate() {
       if (!this.enabled || !this.scene.cameras || !this.scene.cameras.main) return;
+
+      // SIN OBJETOS REGISTRADOS NO HAY NADA QUE HACER.
+      // Este manejador corre en CADA frame desde que se crea el gestor. Como
+      // en este proyecto nunca se llama a cull.add(), se estaba calculando el
+      // rectángulo de la cámara y construyendo un array vacío 60 veces por
+      // segundo, para nada. La comprobación va la PRIMERA, antes de tocar la
+      // cámara o reservar memoria.
+      if (this.targets.size === 0) return;
+
       const cam  = this.scene.cameras.main;
       const left = cam.worldView.x - this.padding;
       const right= cam.worldView.x + cam.worldView.width  + this.padding;
@@ -1446,11 +1483,43 @@
       }
     }
 
+    /**
+     * BUG LATENTE ARREGLADO: antes, al volver a entrar en cuadro, esto hacía
+     * `setVisible(true)` sin más. O sea que RESUCITABA cualquier objeto que el
+     * juego hubiera escondido a propósito: un árbol ya talado, una puerta
+     * cerrada, un objeto recogido. El fallo no se veía porque nadie llegó a
+     * llamar a cull.add(), pero habría aparecido en cuanto alguien conectara
+     * este gestor.
+     *
+     * Ahora se recuerda si la ocultación la hizo ESTE gestor (`ocultadoPorCull`)
+     * y qué visibilidad tenía el objeto justo antes. Al volver a entrar solo se
+     * restaura ese valor, nunca un `true` inventado. Lo que ya estaba invisible
+     * por decisión del juego, invisible se queda.
+     */
     _updateVisibility(data, visible) {
       if (data.lastState === visible) return;
-      if (data.target.setVisible) data.target.setVisible(visible);
-      if (data.target.body && data.target.body.enable !== undefined) data.target.body.enable = visible;
-      if (!visible && data.target.setActive) data.target.setActive(false);
+      const t = data.target;
+
+      if (visible) {
+        // Solo se restaura lo que escondimos nosotros.
+        if (data.ocultadoPorCull) {
+          data.ocultadoPorCull = false;
+          if (t.setVisible) t.setVisible(data.visiblePrevio !== false);
+          if (t.setActive)  t.setActive(data.activoPrevio !== false);
+          if (t.body && t.body.enable !== undefined) t.body.enable = data.visiblePrevio !== false;
+        }
+      } else {
+        // Se guarda el estado propio del objeto antes de taparlo.
+        if (!data.ocultadoPorCull) {
+          data.visiblePrevio = t.visible;
+          data.activoPrevio  = t.active;
+          data.ocultadoPorCull = true;
+          if (t.setVisible) t.setVisible(false);
+          if (t.setActive)  t.setActive(false);
+          if (t.body && t.body.enable !== undefined) t.body.enable = false;
+        }
+      }
+
       data.lastState = visible;
       this.stats.visibilityChanges++;
     }
@@ -1566,6 +1635,21 @@
   }
 
   // ── DYNAMIC CHUNK MANAGER ─────────────────────────────────────────────────
+  /**
+   * Carga y descarga de chunks alrededor del jugador.
+   *
+   * NO SE USA EN ESTE PROYECTO, y es a propósito: necesita un `provider` que
+   * dibuje el contenido de cada chunk (setProvider), y aquí ese trabajo ya lo
+   * hace lib/tileManager.js, que además sirve los trozos del mapa como
+   * imágenes con varios niveles de detalle (hd/md/low) y con histéresis de
+   * descarga. La barra de "Distancia de visión" del panel de ajustes actúa
+   * sobre ÉL (tileManager.setMargin), no sobre esta clase.
+   *
+   * Se conserva exportada porque la API pública la ofrece, pero no se
+   * instancia en ningún momento: no consume nada mientras nadie la cree.
+   * Si algún día se usa, recuerda darle setProvider() y setPlayer(), porque
+   * sin las dos cosas _update() sale sin hacer nada.
+   */
   class DynamicChunkManager {
     constructor(scene, map, options = {}) {
       this.scene    = scene;

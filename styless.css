@@ -11324,3 +11324,166 @@ canvas,
 .gfw-w-msg.err { color: #ff9a9a; }
 .gfw-w-msg.ok  { color: #6fcf97; }
 .gfw-w-sub { font-size: 11.5px; color: #7c88b8; line-height: 1.6; margin: 6px 14px 10px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PANEL DE CONFIGURACIONES — SCROLL REAL EN PC Y EN MÓVIL      (2026-08-11)
+   ---------------------------------------------------------------------------
+   El panel (#hub-panel_101) crecía hacia abajo sin límite y sin scroll: en
+   cuanto tenía más contenido que la pantalla, el final quedaba fuera y no
+   había forma de llegar a él — ni con la rueda ni arrastrando en el teléfono.
+   Con los ajustes de gráficos nuevos eso pasaba siempre.
+
+   Solución: el panel pasa a ser una columna flexible con altura máxima igual a
+   la pantalla REAL (--app-height, que publica viewport-fix.js; en móvil `100vh`
+   miente porque incluye la barra del navegador). La cabecera, las pestañas y el
+   pie se quedan fijos, y solo el contenido de cada categoría hace scroll.
+
+   `overscroll-behavior: contain` evita que al llegar al final del panel el
+   gesto siga y arrastre la página de detrás.
+   `-webkit-overflow-scrolling: touch` da el desplazamiento con inercia de iOS.
+   ═══════════════════════════════════════════════════════════════════════════ */
+#hub-panel_101 {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(var(--app-height, 100vh) - 24px);
+}
+
+#hub-panel_101 .header_101,
+#hub-panel_101 .hub-cats_101,
+#hub-panel_101 .hub-footer_101 {
+  flex: 0 0 auto;
+}
+
+/* Las dos categorías (General y Wallet). Solo una se ve a la vez, así que las
+   dos pueden ser el área desplazable sin estorbarse. */
+#hub-panel_101 > #gfw-cat-general,
+#hub-panel_101 > #gfw-cat-wallet {
+  flex: 1 1 auto;
+  min-height: 0;                 /* imprescindible: sin esto un hijo flex no encoge y el scroll no aparece */
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  /* El dedo tiene que poder desplazar verticalmente: `manipulation` (heredado
+     de la regla global) permite el paneo, pero se declara explícito para que
+     ningún ancestro con `touch-action:none` lo bloquee. */
+  touch-action: pan-y;
+  padding-right: 4px;            /* aire para que la barra no tape el contenido */
+}
+
+/* Barra de scroll discreta, a juego con el panel azul. */
+#hub-panel_101 > #gfw-cat-general::-webkit-scrollbar,
+#hub-panel_101 > #gfw-cat-wallet::-webkit-scrollbar { width: 8px; }
+#hub-panel_101 > #gfw-cat-general::-webkit-scrollbar-track,
+#hub-panel_101 > #gfw-cat-wallet::-webkit-scrollbar-track {
+  background: rgba(10, 30, 70, .45); border-radius: 8px;
+}
+#hub-panel_101 > #gfw-cat-general::-webkit-scrollbar-thumb,
+#hub-panel_101 > #gfw-cat-wallet::-webkit-scrollbar-thumb {
+  background: rgba(64, 160, 255, .45); border-radius: 8px;
+}
+#hub-panel_101 > #gfw-cat-general::-webkit-scrollbar-thumb:hover,
+#hub-panel_101 > #gfw-cat-wallet::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 190, 255, .65);
+}
+#hub-panel_101 > #gfw-cat-general,
+#hub-panel_101 > #gfw-cat-wallet {
+  scrollbar-width: thin;                              /* Firefox */
+  scrollbar-color: rgba(64,160,255,.45) rgba(10,30,70,.45);
+}
+
+/* En apaisado en el móvil sobra muy poca altura: se aprovecha casi toda. */
+@media (max-height: 520px) {
+  #hub-panel_101 { max-height: calc(var(--app-height, 100vh) - 8px); padding: 10px; }
+  #hub-panel_101 .header_101 { margin-bottom: 8px; padding-bottom: 8px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AJUSTES DE GRÁFICOS — CALIDAD Y DISTANCIA DE VISIÓN          (2026-08-11)
+   ---------------------------------------------------------------------------
+   Los inserta gf-graphics-settings.js justo encima del selector de idioma.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gf-gfx-help {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(140, 200, 255, .55);
+}
+
+.gf-gfx-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gf-gfx-value {
+  flex: 0 0 auto;
+  min-width: 42px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #a8d8ff;
+  background: rgba(0, 30, 70, .7);
+  border: 1px solid rgba(64, 160, 255, .35);
+  border-radius: 8px;
+  padding: 4px 6px;
+}
+
+/* La barra. Se estiliza a mano porque el control nativo no encaja con el panel
+   y, sobre todo, porque en el móvil el pulgar por defecto es demasiado pequeño
+   para acertarle con el dedo. */
+#gf-gfx-chunks {
+  flex: 1 1 auto;
+  min-width: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 26px;                 /* zona de toque cómoda; la pista se dibuja dentro */
+  background: transparent;
+  cursor: pointer;
+  /* El dedo sobre la barra debe MOVER LA BARRA, no desplazar el panel. */
+  touch-action: none;
+}
+
+#gf-gfx-chunks::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(64,160,255,.85), rgba(64,160,255,.25));
+  border: 1px solid rgba(64, 160, 255, .35);
+}
+#gf-gfx-chunks::-moz-range-track {
+  height: 6px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(64,160,255,.85), rgba(64,160,255,.25));
+  border: 1px solid rgba(64, 160, 255, .35);
+}
+
+#gf-gfx-chunks::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -8px;             /* centra el pulgar sobre la pista de 6px */
+  border-radius: 50%;
+  background: #a8d8ff;
+  border: 2px solid #2a6fd0;
+  box-shadow: 0 0 8px rgba(64, 160, 255, .6);
+}
+#gf-gfx-chunks::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #a8d8ff;
+  border: 2px solid #2a6fd0;
+  box-shadow: 0 0 8px rgba(64, 160, 255, .6);
+}
+
+#gf-gfx-chunks:focus { outline: none; }
+#gf-gfx-chunks:focus::-webkit-slider-thumb { box-shadow: 0 0 12px rgba(120, 200, 255, .9); }
+
+/* En pantallas táctiles el pulgar se agranda: con el dedo hace falta más área. */
+@media (pointer: coarse) {
+  #gf-gfx-chunks { height: 34px; }
+  #gf-gfx-chunks::-webkit-slider-thumb { width: 26px; height: 26px; margin-top: -11px; }
+  #gf-gfx-chunks::-moz-range-thumb     { width: 26px; height: 26px; }
+  .gf-gfx-value { min-width: 50px; font-size: 13px; padding: 6px 8px; }
+}

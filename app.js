@@ -914,6 +914,14 @@
     try {
       IsolationSystem.registerGame(game);
 
+      // Referencia global al juego.
+      // FIX: varios módulos ya la daban por hecha (CraftingHub.js usa
+      // `window.game?.scene?.keys?.GameScene` en debugCraftingSystem,
+      // updateCraftingLevel y getCraftingLevel) pero NADIE la publicaba, así
+      // que esas funciones siempre fallaban en silencio. Ahora existe, y de
+      // paso la usa el panel de gráficos para encontrar las escenas vivas.
+      try { root.game = game; } catch (e) {}
+
       // DIAGNÓSTICO: qué renderer quedó activo de verdad. Usa _nativeConsole
       // directo (no Logger) para que se vea SIEMPRE, incluso en producción:
       // un fallback silencioso a Canvas 2D (mucho más lento, sin GPU) es
@@ -1156,6 +1164,17 @@
         Logger.error('Error en resize:', e);
       }
     }
+  };
+
+  // Fuerza un recálculo del tamaño del juego aunque la pantalla no haya
+  // cambiado. Lo usa el panel de gráficos: al cambiar la calidad cambia el tope
+  // de resolución (GF_MAX_DPR) y hay que rehacer el tamaño interno aunque la
+  // ventana siga midiendo lo mismo.
+  root.gfResizeGame = function () {
+    try {
+      resizeManager.invalidate();
+      resizeManager.handle();
+    } catch (e) { Logger.warn('gfResizeGame falló:', e); }
   };
 
   // ── OVERLAY DE DEBUG ──────────────────────────────────────────────────────
