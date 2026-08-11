@@ -4776,12 +4776,16 @@ this.anims.create({
         // un clic y se da zoom" — no era el clic, era el resize que el clic
         // provocaba, y ocurría en un momento impredecible.
         //
-        // Ahora el zoom elegido se aplica AQUÍ, de forma suave y determinista,
-        // en cuanto termina la entrada. A partir de ese punto `cam.zoom` y
-        // `currentZoomIndex` coinciden y _reapplyZoom no tiene nada que
-        // corregir: ningún resize vuelve a mover la cámara sola.
+        // Ahora, al terminar la entrada, se fija el valor EXACTO del nivel de
+        // zoom elegido (`currentZoomIndex`, que vale 1.0x — el mismo visor con
+        // el que se venía de la tienda). Sin animación: la cámara ya está en
+        // ese valor, esto solo lo deja clavado, porque la animación puede
+        // dejarlo en 0.99999 y con pixel art eso reintroduce las costuras
+        // entre tiles. A partir de aquí `cam.zoom` y `currentZoomIndex`
+        // coinciden y _reapplyZoom no tiene nada que corregir: ningún resize
+        // vuelve a mover la cámara sola.
         if (this.zoomValues && typeof this.currentZoomIndex === 'number' && this._applyZoomIndex) {
-          this._applyZoomIndex(this.currentZoomIndex, 450);
+          this._applyZoomIndex(this.currentZoomIndex, 0);
         }
 
         // mostrando botones de reputacion y estadisticas y mas
@@ -4919,7 +4923,21 @@ this.anims.create({
         // cae en un número entero de píxeles de pantalla) → no generan costuras.
         // 1.5x SÍ las generaba (borde de tile a medio píxel), por eso no vuelve.
         this.zoomValues = [0.5, 1.0, 2.0];
-        this.currentZoomIndex = 2; // 2.0x
+
+        // FIX "AL VOLVER DE LA TIENDA SE DA UN ZOOM DE 2":
+        // La animación de entrada (`setZoom(2)` + `zoomTo(1, 2000)`, más
+        // arriba) aleja la cámara hasta 1.0x — el MISMO visor que usa
+        // tiendajuego. Pero aquí se declaraba el índice 2, o sea 2.0x, como
+        // "el zoom que el jugador tiene elegido". En cuanto terminaba de
+        // alejarse, el juego volvía a acercar a 2.0x de golpe.
+        //
+        // El índice tiene que describir el zoom en el que la cámara TERMINA de
+        // verdad: 1.0x, que es el índice 1.
+        //
+        // Los niveles siguen siendo los tres de siempre: el jugador puede
+        // alejar a 0.5x o acercar a 2.0x con la rueda o el pellizco igual que
+        // antes. Lo único que cambia es de dónde parte.
+        this.currentZoomIndex = 1; // 1.0x — el visor con el que se entra al mapa
 
         // NOTA: aquí NO se toca `cameras.main.zoom`.
         // FIX: antes había un `this.cameras.main.zoom = this.zoomValues[...]`
@@ -5982,7 +6000,7 @@ mineProps.forEach(prop => {
     this._cobrandoVitales = true;
     let _pagadoMina = false;
     try {
-      _pagadoMina = await this._consumirVitales({ agua: 1, comida: 1 }, 'mine');
+      _pagadoMina = await this._consumirVitales(this._costeDeGolpe(), 'mine');
     } finally {
       this._cobrandoVitales = false;
     }
@@ -7210,7 +7228,7 @@ oreProps.forEach(prop => {
     this._cobrandoVitales = true;
     let _pagado = false;
     try {
-      _pagado = await this._consumirVitales({ agua: 1, comida: 1 }, 'chop');
+      _pagado = await this._consumirVitales(this._costeDeGolpe(), 'chop');
     } finally {
       this._cobrandoVitales = false;
     }
@@ -8048,14 +8066,19 @@ this.input.on('gameobjectout', (pointer, gameObject) => {
 });
 
 // También verificar si el cursor está sobre elementos DOM (como el panel de crafting)
-document.addEventListener('mouseover', (e) => {
+// FIX FUGA: estos tres (mouseover, mouseout y el mouseup global de abajo) se
+// quedaban vivos para siempre. 'mouseover' y 'mouseout' disparan en CADA
+// elemento que pisa el cursor, así que con varias escenas acumuladas se
+// ejecutaban varias copias por movimiento, todas tocando `this.mouseMovement`
+// de escenas ya destruidas.
+this._onDOM(document, 'mouseover', (e) => {
     const uiElements = ['mission-hub', 'crafting-hub', 'dialogHub', 'hub-panel_101'];
     if (uiElements.some(id => e.target.closest(`#${id}`))) {
         this.mouseMovement.cursorOverUI = true;
     }
 });
 
-document.addEventListener('mouseout', (e) => {
+this._onDOM(document, 'mouseout', (e) => {
     const uiElements = ['mission-hub', 'crafting-hub', 'dialogHub', 'hub-panel_101'];
     if (uiElements.some(id => e.target.closest(`#${id}`))) {
         // Solo resetear si el cursor no está sobre otro elemento UI
@@ -8073,7 +8096,7 @@ this.input.on('pointerup', (pointer) => {
 });
 
 // Evento pointerup global (por si se suelta fuera del canvas)
-window.addEventListener('mouseup', (e) => {
+this._onDOM(window, 'mouseup', (e) => {
     if (e.button === 0) {
         this.stopMouseMovement();
     }
@@ -9179,7 +9202,9 @@ setupSettingsPanel() {
     });
     
     // Tecla Esc para cerrar (usando capture para atrapar primero)
-    document.addEventListener('keydown', (e) => {
+    // FIX FUGA: era un listener anónimo, imposible de quitar → se acumulaba
+    // uno por cada entrada a la escena.
+    this._onDOM(document, 'keydown', (e) => {
         if (e.key === 'Escape' && this.settingsPanel && this.settingsPanel.classList.contains('visible')) {
             e.stopPropagation();
             e.preventDefault();
@@ -9512,7 +9537,7 @@ setupTrashHubEvents() {
   }
   
   // Cerrar con Escape
-  document.addEventListener('keydown', (e) => {
+  this._onDOM(document, 'keydown', (e) => {   // FIX FUGA: era anónimo y no se quitaba
     if (e.key === 'Escape' && this.trashHubOpen) {
       this.closeTrashHub();
     }
@@ -14230,7 +14255,7 @@ setupSoundHubEvents() {
   }
   
   // Cerrar al presionar Escape
-  document.addEventListener('keydown', (e) => {
+  this._onDOM(document, 'keydown', (e) => {   // FIX FUGA: era anónimo y no se quitaba
     if (e.key === 'Escape' && this.isSoundHubVisible()) {
       this.hideSoundHub();
     }
@@ -16053,7 +16078,7 @@ removeOtherPlayer(playerId) {
       boton.dataset.gfListo = '1';
       boton.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); abrirCerrar(); });
       // Cerrar al tocar fuera del chat.
-      document.addEventListener('pointerdown', (e) => {
+      this._onDOM(document, 'pointerdown', (e) => {   // FIX FUGA: era anónimo y no se quitaba
         if (panel.classList.contains('hidden')) return;
         if (panel.contains(e.target) || boton.contains(e.target)) return;
         abrirCerrar(false);
@@ -17144,6 +17169,47 @@ highlightQuickSlot(index) {
 }
 
 
+/**
+ * Registra un listener de DOM que se suelta SOLO cuando la escena se apaga.
+ *
+ * FUGA QUE ESTO ARREGLA: la escena registraba listeners en `document` y
+ * `window` con funciones anónimas y no los quitaba nunca. Como el DOM de la
+ * página SOBREVIVE al cambio de escena (el HUD, los paneles y el chat son de
+ * la página, no de Phaser), cada viaje GameScene → tienda → GameScene dejaba
+ * otro juego de listeners vivos, cada uno con una closure que apunta a la
+ * escena MUERTA. Consecuencias:
+ *   • Fuga de memoria: la escena vieja nunca se puede recolectar, y con ella se
+ *     quedan sus sprites, texturas y el mapa entero.
+ *   • Coste de CPU creciente: 'mousemove' y 'touchmove' disparan en cada píxel
+ *     que se mueve el dedo o el ratón, así que tras cinco viajes a la tienda se
+ *     ejecutan cinco copias del mismo manejador, cuatro de ellas sobre objetos
+ *     destruidos (y soltando excepciones en silencio).
+ *
+ * Uso: this._onDOM(document, 'mousemove', fn) en vez de
+ *      document.addEventListener('mousemove', fn).
+ */
+_onDOM(target, type, handler, options) {
+  if (!target || !type || typeof handler !== 'function') return handler;
+
+  if (!this._domListeners) {
+    this._domListeners = [];
+    const soltarTodos = () => {
+      const lista = this._domListeners || [];
+      lista.forEach(function (r) {
+        try { r.t.removeEventListener(r.ty, r.h, r.o); } catch (e) { /* ya soltado */ }
+      });
+      this._domListeners = null;
+      if (lista.length) console.log(`🧹 ${lista.length} listeners de DOM soltados al apagar la escena`);
+    };
+    this.events.once('shutdown', soltarTodos);
+    this.events.once('destroy',  soltarTodos);
+  }
+
+  target.addEventListener(type, handler, options);
+  this._domListeners.push({ t: target, ty: type, h: handler, o: options });
+  return handler;
+}
+
 makeDraggable(element) {
   let isDragging = false;
   let offsetX = 0;
@@ -17172,18 +17238,22 @@ makeDraggable(element) {
   };
 
   // Eventos mouse
-  element.addEventListener('mousedown', (e) => {
+  // FIX FUGA: todos estos iban con addEventListener directo y no se quitaban
+  // nunca. `element` es DOM de la PÁGINA (el HUD sobrevive al cambio de
+  // escena), así que sus listeners también se acumulaban. Ahora van por
+  // _onDOM, que los suelta al apagar la escena.
+  this._onDOM(element, 'mousedown', (e) => {
     startDrag(e.clientX, e.clientY);
   });
 
-  document.addEventListener('mousemove', (e) => {
+  this._onDOM(document, 'mousemove', (e) => {
     drag(e.clientX, e.clientY);
   });
 
-  document.addEventListener('mouseup', endDrag);
+  this._onDOM(document, 'mouseup', endDrag);
 
   // Eventos touch
-  element.addEventListener('touchstart', (e) => {
+  this._onDOM(element, 'touchstart', (e) => {
     if (e.touches.length === 1) { // Solo un dedo
       const touch = e.touches[0];
       startDrag(touch.clientX, touch.clientY);
@@ -17191,7 +17261,7 @@ makeDraggable(element) {
     }
   }, { passive: false });
 
-  document.addEventListener('touchmove', (e) => {
+  this._onDOM(document, 'touchmove', (e) => {
     if (isDragging && e.touches.length === 1) {
       const touch = e.touches[0];
       drag(touch.clientX, touch.clientY);
@@ -17199,8 +17269,8 @@ makeDraggable(element) {
     }
   }, { passive: false });
 
-  document.addEventListener('touchend', endDrag);
-  document.addEventListener('touchcancel', endDrag);
+  this._onDOM(document, 'touchend', endDrag);
+  this._onDOM(document, 'touchcancel', endDrag);
 }
 
 
@@ -23213,6 +23283,24 @@ _hayRecursosParaTrabajar(tarea) {
  * @param {string} motivo  solo para el registro del servidor
  * @returns {Promise<boolean>} true si se cobró y se puede seguir
  */
+/**
+ * Coste en vitales de UN golpe de hacha o de pico.
+ *
+ * BALANCE (2026-08-11): antes cada golpe costaba 1 de agua Y 1 de comida.
+ * Con la regeneración pasiva bajada a 1 punto cada 3 minutos (20 por hora y
+ * barra), eso dejaba el ritmo sostenible en unos 20 golpes por hora — menos de
+ * tres árboles. Se gastaba mucho más de lo que se recupera.
+ *
+ * Ahora cada golpe cuesta UNA sola barra, alternando: agua, comida, agua,
+ * comida… El gasto total por golpe se reduce a la mitad (unos 5,6 árboles por
+ * hora sostenibles) y, al repartirse, ninguna de las dos barras se vacía antes
+ * que la otra, que es lo que dejaba al jugador bloqueado con la otra llena.
+ */
+_costeDeGolpe() {
+  this._golpesAlternos = (this._golpesAlternos || 0) + 1;
+  return (this._golpesAlternos % 2 === 1) ? { agua: 1 } : { comida: 1 };
+}
+
 async _consumirVitales(costos, motivo = 'action') {
   const limpio = {};
   ['vida', 'agua', 'comida'].forEach(k => {

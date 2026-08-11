@@ -2690,14 +2690,15 @@ this.input.on('gameobjectout', (pointer, gameObject) => {
 });
 
 // También verificar si el cursor está sobre elementos DOM (como el panel de crafting)
-document.addEventListener('mouseover', (e) => {
+// FIX FUGA: mouseover/mouseout/mouseup globales que no se quitaban nunca.
+this._onDOM(document, 'mouseover', (e) => {
     const uiElements = ['mission-hub', 'crafting-hub', 'dialogHub', 'hub-panel_101'];
     if (uiElements.some(id => e.target.closest(`#${id}`))) {
         this.mouseMovement.cursorOverUI = true;
     }
 });
 
-document.addEventListener('mouseout', (e) => {
+this._onDOM(document, 'mouseout', (e) => {
     const uiElements = ['mission-hub', 'crafting-hub', 'dialogHub', 'hub-panel_101'];
     if (uiElements.some(id => e.target.closest(`#${id}`))) {
         // Solo resetear si el cursor no está sobre otro elemento UI
@@ -2715,7 +2716,7 @@ this.input.on('pointerup', (pointer) => {
 });
 
 // Evento pointerup global (por si se suelta fuera del canvas)
-window.addEventListener('mouseup', (e) => {
+this._onDOM(window, 'mouseup', (e) => {
     if (e.button === 0) {
         this.stopMouseMovement();
     }
@@ -4156,7 +4157,7 @@ removeOtherPlayer(playerId) {
       boton.dataset.gfListo = '1';
       boton.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); abrirCerrar(); });
       // Cerrar al tocar fuera del chat.
-      document.addEventListener('pointerdown', (e) => {
+      this._onDOM(document, 'pointerdown', (e) => {   // FIX FUGA: era anónimo
         if (panel.classList.contains('hidden')) return;
         if (panel.contains(e.target) || boton.contains(e.target)) return;
         abrirCerrar(false);
@@ -4555,7 +4556,7 @@ setupSoundHubEvents() {
   }
   
   // Cerrar al presionar Escape
-  document.addEventListener('keydown', (e) => {
+  this._onDOM(document, 'keydown', (e) => {   // FIX FUGA: era anónimo
     if (e.key === 'Escape' && this.isSoundHubVisible()) {
       this.hideSoundHub();
     }
@@ -5134,6 +5135,35 @@ destroy() {
 
 
 
+/**
+ * Registra un listener de DOM que se suelta SOLO cuando la escena se apaga.
+ * Misma fuga y misma solución que en GameScene (ver el comentario largo allí):
+ * el DOM de la página sobrevive al cambio de escena, así que un
+ * addEventListener sin su removeEventListener deja la escena muerta viva para
+ * siempre y multiplica el trabajo por cada viaje entre mapa y tienda.
+ */
+_onDOM(target, type, handler, options) {
+  if (!target || !type || typeof handler !== 'function') return handler;
+
+  if (!this._domListeners) {
+    this._domListeners = [];
+    const soltarTodos = () => {
+      const lista = this._domListeners || [];
+      lista.forEach(function (r) {
+        try { r.t.removeEventListener(r.ty, r.h, r.o); } catch (e) { /* ya soltado */ }
+      });
+      this._domListeners = null;
+      if (lista.length) console.log(`🧹 ${lista.length} listeners de DOM soltados al apagar la tienda`);
+    };
+    this.events.once('shutdown', soltarTodos);
+    this.events.once('destroy',  soltarTodos);
+  }
+
+  target.addEventListener(type, handler, options);
+  this._domListeners.push({ t: target, ty: type, h: handler, o: options });
+  return handler;
+}
+
 makeDraggable(element) {
   let isDragging = false;
   let offsetX = 0;
@@ -5161,19 +5191,20 @@ makeDraggable(element) {
     document.body.style.userSelect = '';
   };
 
-  // Eventos mouse
-  element.addEventListener('mousedown', (e) => {
+  // Eventos mouse — FIX FUGA: iban con addEventListener directo y nunca se
+  // quitaban (mismo caso que en GameScene).
+  this._onDOM(element, 'mousedown', (e) => {
     startDrag(e.clientX, e.clientY);
   });
 
-  document.addEventListener('mousemove', (e) => {
+  this._onDOM(document, 'mousemove', (e) => {
     drag(e.clientX, e.clientY);
   });
 
-  document.addEventListener('mouseup', endDrag);
+  this._onDOM(document, 'mouseup', endDrag);
 
   // Eventos touch
-  element.addEventListener('touchstart', (e) => {
+  this._onDOM(element, 'touchstart', (e) => {
     if (e.touches.length === 1) { // Solo un dedo
       const touch = e.touches[0];
       startDrag(touch.clientX, touch.clientY);
@@ -5181,7 +5212,7 @@ makeDraggable(element) {
     }
   }, { passive: false });
 
-  document.addEventListener('touchmove', (e) => {
+  this._onDOM(document, 'touchmove', (e) => {
     if (isDragging && e.touches.length === 1) {
       const touch = e.touches[0];
       drag(touch.clientX, touch.clientY);
@@ -5189,8 +5220,8 @@ makeDraggable(element) {
     }
   }, { passive: false });
 
-  document.addEventListener('touchend', endDrag);
-  document.addEventListener('touchcancel', endDrag);
+  this._onDOM(document, 'touchend', endDrag);
+  this._onDOM(document, 'touchcancel', endDrag);
 }
 
 
