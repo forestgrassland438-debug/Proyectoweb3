@@ -61,7 +61,15 @@
     // Un teclado se come fácilmente un tercio de la pantalla. Por debajo del
     // 80 % de la altura estable se da por seguro que está abierto.
     var desplomada = alturaEstable > 0 && h < alturaEstable * 0.8;
-    return desplomada || (hayCampoEnfocado() && desplomada);
+    // FIX: antes era `desplomada || (hayCampoEnfocado() && desplomada)`, que
+    // es exactamente lo mismo que `desplomada` — la comprobación del campo
+    // enfocado no hacía nada. El comentario de arriba describe la intención
+    // real: mientras haya un campo de texto enfocado O la altura se haya
+    // desplomado, la medida no es de fiar y el juego no debe redimensionarse.
+    // Con `interactive-widget=overlays-content` (game.html) el teclado se
+    // dibuja ENCIMA y la altura casi no baja, así que la rama del campo
+    // enfocado es la única que detecta el caso en móviles modernos.
+    return desplomada || hayCampoEnfocado();
   }
 
   function alturaReal() {
@@ -115,6 +123,31 @@
    * en su manejador de 'resize'. Reutilizar ese camino evita duplicar lógica
    * (y evita romper el zoom, que se maneja en la cámara, no aquí).
    */
+  // Última medida que ya se le comunicó al juego. Sirve para no repetir el
+  // aviso cuando la pantalla mide exactamente lo mismo.
+  var avisadoW = 0;
+  var avisadoH = 0;
+
+  /**
+   * Avisa SOLO si la pantalla cambió de tamaño de verdad.
+   *
+   * FIX "SE DA ZOOM AL ENTRAR AL MAPA": el vigilante de abajo llama a esto
+   * cada 300 ms durante los primeros 12 s, y el manejador de 'load' otras 5
+   * veces. Cada aviso lanzaba un 'resize' que recorría toda la cadena del
+   * juego (redimensionar el lienzo, reaplicar nitidez, restaurar el zoom de
+   * cámara…) aunque la pantalla no se hubiera movido ni un píxel. Ese trabajo
+   * repetido, justo mientras el mapa principal está arrancando, es lo que se
+   * veía como tirones de zoom. Ahora un aviso solo sale si hay un cambio real.
+   */
+  function avisarSiCambio() {
+    var h = alturaReal();
+    var w = anchoReal();
+    if (Math.abs(w - avisadoW) <= 1 && Math.abs(h - avisadoH) <= 1) return;
+    avisadoW = w;
+    avisadoH = h;
+    avisarAlJuego();
+  }
+
   function avisarAlJuego() {
     if (reentrando) return;
     reentrando = true;
@@ -135,7 +168,7 @@
 
   function actualizar(avisar) {
     aplicar();
-    if (avisar !== false) avisarAlJuego();
+    if (avisar !== false) avisarSiCambio();
   }
 
   function actualizarConRetardo() {
@@ -235,7 +268,10 @@
     var container = doc.getElementById('container');
     var canvas = container && container.querySelector('canvas');
     aplicar();
-    if (canvas) avisarAlJuego();
+    // avisarSiCambio (no avisarAlJuego): mientras la pantalla mida lo mismo
+    // este vigilante no molesta al juego. Solo avisa cuando la barra del
+    // navegador se esconde de verdad y la pantalla útil crece.
+    if (canvas && !tecladoAbierto()) avisarSiCambio();
     // ~12 s de vigilancia: de sobra para la carga inicial en un móvil lento.
     if (intentos >= 40) clearInterval(vigilante);
   }, 300);
@@ -247,6 +283,14 @@
   });
 
   // Expuesto por si alguna escena necesita forzar el ajuste a mano
-  // (por ejemplo al volver de la tienda).
-  global.gfViewportFix = { update: function () { actualizar(true); }, height: alturaReal, width: anchoReal };
+  // (por ejemplo al volver de la tienda). `update()` avisa SIEMPRE, aunque la
+  // medida no haya cambiado: quien lo llama a mano es porque sabe que el juego
+  // necesita recalcular. El resto de disparos automáticos usan avisarSiCambio.
+  global.gfViewportFix = {
+    update: function () { aplicar(); avisadoW = 0; avisadoH = 0; avisarSiCambio(); },
+    height: alturaReal,
+    width:  anchoReal,
+    /** true si la medida actual está distorsionada por el teclado en pantalla. */
+    keyboardOpen: tecladoAbierto
+  };
 })(window);

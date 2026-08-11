@@ -1822,14 +1822,43 @@
 
   // ── ADVANCED PIXEL SCALER ─────────────────────────────────────────────────
   class AdvancedPixelScaler {
+    /**
+     * Ajusta la CALIDAD de render (pixel art, filtrado, suavizado). NO toca el
+     * TAMAÑO del juego.
+     *
+     * =====================================================================
+     * FIX ZOOM EN MÓVIL (causa raíz)
+     * ---------------------------------------------------------------------
+     * Antes esta función llamaba a `game.scale.resize(cssW * dpr, cssH * dpr)`,
+     * es decir, redimensionaba el juego a píxeles FÍSICOS del dispositivo.
+     * Al mismo tiempo, app.js (su gestor de resize) llamaba a
+     * `game.scale.resize(innerWidth, innerHeight)`, o sea a píxeles CSS.
+     *
+     * En un PC normal (devicePixelRatio = 1) ambos valores son idénticos y no
+     * se notaba nada. En un teléfono (dpr 2 ó 3) son 2x/3x distintos, así que
+     * en CADA evento `resize` los dos sistemas se peleaban: uno dejaba el
+     * mundo con el doble/triple de ancho visible y el otro lo devolvía. Eso es
+     * el "se da zoom" al abrir un panel, al abrir el chat (teclado = resize) o
+     * al hacer clic (la barra del navegador se esconde = resize).
+     *
+     * El tamaño del juego ahora tiene UN SOLO dueño: el gestor de resize de
+     * app.js. Aquí solo se aplican los ajustes de nitidez.
+     *
+     * `resizeGame: true` mantiene el comportamiento antiguo por si algún
+     * código externo dependía de él; nadie del juego lo usa.
+     * =====================================================================
+     */
     static applyPixelPerfect(game, opts = {}) {
       const options = Object.assign({
         pixelArt: true, roundPixels: true, antialias: false,
         crispScaling: true, integerScaling: true,
-        preserveDrawingBuffer: false, preserveTextRendering: true
+        preserveDrawingBuffer: false, preserveTextRendering: true,
+        resizeGame: false
       }, opts);
 
       try {
+        if (!game) return false;
+
         if (game.config) {
           game.config.pixelArt              = Boolean(options.pixelArt);
           game.config.roundPixels           = Boolean(options.roundPixels);
@@ -1837,40 +1866,55 @@
           game.config.preserveDrawingBuffer = Boolean(options.preserveDrawingBuffer);
         }
 
-        if (game.scale) {
+        // Renderer Canvas 2D (el respaldo cuando no hay WebGL): su propiedad
+        // `antialias` es la que decide `imageSmoothingEnabled` al redibujar.
+        // Sin esto el pixel art sale borroso en los equipos sin GPU, que son
+        // justo los que menos margen tienen.
+        if (game.renderer) {
+          try {
+            if (!game.renderer.gl) {
+              game.renderer.antialias = !options.pixelArt;
+              if (game.context) game.context.imageSmoothingEnabled = !options.pixelArt;
+            }
+          } catch (e) { /* renderer aún no listo: se reintenta en el próximo pase */ }
+        }
+
+        // TAMAÑO: deliberadamente NO se toca (ver comentario de arriba).
+        if (options.resizeGame && game.scale && typeof game.scale.resize === 'function') {
           const dpr  = Math.max(1, global.devicePixelRatio || 1);
           const cssW = Math.floor(global.innerWidth);
           const cssH = Math.floor(global.innerHeight);
+          const scale = (options.integerScaling && options.pixelArt)
+            ? Math.max(1, Math.floor(dpr))
+            : dpr;
+          game.scale.resize(Math.floor(cssW * scale), Math.floor(cssH * scale));
+        }
 
-          let physW = Math.floor(cssW * dpr);
-          let physH = Math.floor(cssH * dpr);
+        const canvas = game.canvas;
+        if (canvas) {
+          // '100%' en lugar de px fijos: así el lienzo siempre llena su
+          // contenedor sin importar en qué momento se ejecute el handler
+          // (DevTools abriéndose, barra del navegador escondiéndose…).
+          canvas.style.width  = '100%';
+          canvas.style.height = '100%';
+          // FIX NITIDEZ: antes `preserveTextRendering` (true por defecto) ponía
+          // 'auto', o sea suavizado activo en un juego de pixel art — se veía
+          // borroso en el móvil, y encima entraba en conflicto con app.js y
+          // viewport-fix.js, que ponen 'pixelated'. Ahora manda `pixelArt`.
+          canvas.style.imageRendering = options.pixelArt
+            ? 'pixelated'
+            : (options.preserveTextRendering ? 'auto' : 'crisp-edges');
+          canvas.style.transformOrigin = '0 0';
 
-          if (options.integerScaling && options.pixelArt) {
-            const scale = Math.max(1, Math.floor(dpr));
-            physW = cssW * scale;
-            physH = cssH * scale;
-          }
-
-          if (typeof game.scale.resize === 'function') game.scale.resize(physW, physH);
-
-          const canvas = game.canvas;
-          if (canvas) {
-            // FIX: usar '100%' en lugar de cssW+'px' / cssH+'px'.
-            // Con valores fijos en px el canvas queda aplastado cuando
-            // DevTools se abre/cierra porque el handler captura innerWidth
-            // en el momento del evento (viewport reducido) y luego ese
-            // valor en px nunca se actualiza. Con '100%' el canvas siempre
-            // llena su contenedor sin importar cuándo se ejecute el handler.
-            canvas.style.width  = '100%';
-            canvas.style.height = '100%';
-            canvas.style.imageRendering = options.preserveTextRendering ? 'auto'
-              : (options.pixelArt ? 'pixelated' : 'crisp-edges');
-            canvas.style.transformOrigin = '0 0';
+          // FIX FUGA: esto se ejecutaba en CADA resize y añadía un listener
+          // nuevo cada vez (cientos tras unos minutos de juego en el móvil).
+          if (!canvas.__gfNoContextMenu) {
+            canvas.__gfNoContextMenu = true;
             canvas.addEventListener('contextmenu', e => e.preventDefault());
           }
         }
 
-        safeLog('Pixel perfect aplicado — preserveTextRendering:', options.preserveTextRendering);
+        safeLog('Pixel perfect aplicado — pixelArt:', options.pixelArt);
         return true;
       } catch (e) {
         if (DEBUG_MODE) console.warn('AdvancedPixelScaler error:', e);
@@ -2171,37 +2215,31 @@
     }
 
     _setupResizeHandler() {
-      // FIX: Se separa la lógica de resize en una función interna
-      // para poder llamarla tanto en el handler inmediato como en el
-      // segundo disparo retrasado.
+      // Este handler ya NO cambia el tamaño del juego (lo hace app.js). Solo
+      // reaplica los ajustes de nitidez, que es lo que se pierde cuando el
+      // navegador recrea el back-buffer del lienzo al redimensionar.
+      //
+      // FIX: antes había un segundo disparo a 350 ms "para DevTools" que, al
+      // redimensionar el juego, provocaba un segundo salto de tamaño visible.
+      // Sin redimensionado ese disparo extra no aporta nada, así que se
+      // sustituye por un simple debounce: un solo pase cuando el navegador ya
+      // terminó de mover las medidas.
       const doResize = () => {
+        if (this._destroyed) return;
         try {
           AdvancedPixelScaler.applyPixelPerfect(this.game, {
             pixelArt: this.opt.pixelArt, roundPixels: this.opt.roundPixels,
             preserveTextRendering: this.opt.preserveTextRendering
           });
-          if (this.game.events) this.game.events.emit('perfResize');
+          if (this.game && this.game.events) this.game.events.emit('perfResize');
         } catch (e) { if (DEBUG_MODE) console.warn('Resize handler error:', e); }
       };
 
-      // FIX: segundo disparo a 350ms para capturar el tamaño estable
-      // tras el cierre de DevTools. Cuando DevTools se cierra Chrome
-      // dispara 'resize' mientras el panel aún se está moviendo; el
-      // primer disparo captura el viewport reducido. El segundo disparo
-      // garantiza que se usa el innerWidth/innerHeight definitivo.
-      let _devtoolsTimer = null;
-      const handler = throttle(() => {
-        doResize();
-        if (_devtoolsTimer) clearTimeout(_devtoolsTimer);
-        _devtoolsTimer = setTimeout(() => {
-          _devtoolsTimer = null;
-          doResize();
-        }, 350);
-      }, 100);
+      const handler = debounce(doResize, 160);
 
       if (typeof global !== 'undefined') {
-        global.addEventListener('resize',            handler);
-        global.addEventListener('orientationchange', handler);
+        global.addEventListener('resize',            handler, { passive: true });
+        global.addEventListener('orientationchange', handler, { passive: true });
         this._resizeHandler = handler;
       }
     }
@@ -2216,11 +2254,31 @@
       }
     }
 
+    /**
+     * Suelta los subsistemas atados a la escena anterior. Se usa al reinicializar
+     * en una escena nueva y desde destroy().
+     */
+    _releaseSceneSubsystems() {
+      ['chunkManager', 'pool', 'layerCache', 'cull', 'particles', 'textureCache'].forEach(k => {
+        const sub = this[k];
+        if (!sub) return;
+        try { if (typeof sub.destroy === 'function') sub.destroy(); } catch (e) {}
+        this[k] = null;
+      });
+    }
+
     _startPerformanceMonitoring() {
       if (!this.game || !this.game.events) {
         if (DEBUG_MODE) console.warn('Performance monitoring: game events no disponibles');
         return;
       }
+
+      // FIX: sin esto, cada init() añadía OTRO par de callbacks 'prestep' /
+      // 'poststep' que se ejecutan en cada frame. Tras varias entradas a la
+      // tienda había N mediciones por frame haciendo el mismo trabajo.
+      if (this._onPreStep)  { try { this.game.events.off('prestep',  this._onPreStep);  } catch (e) {} }
+      if (this._onPostStep) { try { this.game.events.off('poststep', this._onPostStep); } catch (e) {} }
+      if (this._memoryInterval) { clearInterval(this._memoryInterval); this._memoryInterval = null; }
 
       this._onPreStep = () => {
         this.performanceMonitor.startFrame();
@@ -2254,6 +2312,14 @@
 
       this.opt = Object.assign({}, this.opt, options);
       this.eventManager.setScene(this.scene);
+
+      // FIX: init() se llama una vez por escena (GameScene, tiendajuego, y otra
+      // vez cada vez que se vuelve a entrar). Antes se creaban subsistemas
+      // nuevos encima de los viejos sin destruirlos: los antiguos seguían
+      // apuntando a la escena ya muerta (pools, cachés de textura y emitters
+      // huérfanos = fuga de memoria). Ahora se sueltan los de la escena
+      // anterior antes de montar los de la nueva.
+      this._releaseSceneSubsystems();
 
       this.textureCache= new SmartTextureCache(this.scene, this.opt.textureCacheSizeMB);
       this.pool        = new PoolManager(this.scene);
@@ -2531,10 +2597,44 @@
   //
   //  Solo se exporta lo que el código del juego necesita legítimamente.
   //
+  // ── UNA SOLA INSTANCIA POR JUEGO ──────────────────────────────────────────
+  //
+  // FIX FUGA + THRASHING DE RESIZE:
+  //   `PhaserRPGPerf.create()` se llama desde app.js Y desde GameScene.create()
+  //   Y desde tiendajuego.create(). Como las escenas se recrean cada vez que se
+  //   entra/sale de la tienda, cada visita creaba una instancia NUEVA, y cada
+  //   instancia registra sus propios listeners globales de 'resize' y
+  //   'orientationchange' (ninguna escena llama a perf.destroy()).
+  //   Resultado: tras unas cuantas idas y venidas había N sistemas de
+  //   rendimiento vivos a la vez, N handlers de resize, N intervalos de
+  //   memoria y N monitores de frame — con la CPU y la RAM que eso cuesta en
+  //   un teléfono.
+  //
+  //   Ahora `create()` devuelve la instancia que ya existe para ese juego (y le
+  //   aplica las opciones nuevas). `init(scene)` sigue funcionando igual, así
+  //   que cada escena la reengancha a sí misma como siempre. Si la instancia
+  //   fue destruida, se crea una limpia.
+  const _perfByGame = new global.WeakMap();
+
+  function createPerf(game, opts) {
+    if (!game) return new PhaserRPGPerf(game, opts);
+
+    const existing = _perfByGame.get(game);
+    if (existing && !existing._destroyed) {
+      if (opts) Object.assign(existing.opt, opts);
+      safeLog('PhaserRPGPerf: reutilizando instancia existente para este juego');
+      return existing;
+    }
+
+    const inst = new PhaserRPGPerf(game, opts);
+    _perfByGame.set(game, inst);
+    return inst;
+  }
+
   try {
     Object.defineProperty(global, 'PhaserRPGPerf', {
       value: {
-        create:  (game, opts) => new PhaserRPGPerf(game, opts),
+        create:  (game, opts) => createPerf(game, opts),
         version: '2.2.2',
 
         // Clases principales (para instanciación avanzada)

@@ -437,10 +437,21 @@
   })();
 
   // ── CONFIGURACIÓN AVANZADA DE PHASER ─────────────────────────────────────
+  // Resolución interna con la que ARRANCA el juego.
+  // FIX PARPADEO DE ZOOM AL ARRANCAR: antes se creaba con el tamaño en píxeles
+  // CSS y, milisegundos después, el sistema de rendimiento lo reescalaba a
+  // píxeles físicos (×2 o ×3 en un teléfono). Ese salto se veía como un tirón
+  // de zoom durante la carga. Naciendo ya con la resolución definitiva no hay
+  // salto. El factor es el mismo que usa el gestor de resize (ver _gameSize).
+  var BOOT_DPR = Math.max(1, Math.min(
+    Math.floor(Math.max(1, root.devicePixelRatio || 1)),
+    Math.max(1, root.GF_MAX_DPR || Infinity)
+  ));
+
   var ADVANCED_CONFIG = {
     parent:          'container',
-    width:           Math.max(320, root.innerWidth),
-    height:          Math.max(240, root.innerHeight),
+    width:           Math.max(320, root.innerWidth)  * BOOT_DPR,
+    height:          Math.max(240, root.innerHeight) * BOOT_DPR,
     // FIX CRÍTICO: Phaser.WEBGL forzaba WebGL SIN fallback. Si el navegador
     // no podía crear el contexto (GPU en lista negra, límite de contextos
     // WebGL de la pestaña alcanzado, aceleración por hardware desactivada,
@@ -729,8 +740,14 @@
     if (document.getElementById('gf-perf-styles')) return; // idempotente
 
     var css = [
+      // --app-height / --app-width los publica viewport-fix.js con la medida
+      // REAL de la pantalla. En móvil `100vh` incluye la barra del navegador,
+      // así que usarlo dejaba el lienzo más alto que lo visible. Las unidades
+      // vh/vw quedan solo como respaldo para navegadores sin custom properties.
       'html,body,#container{',
-        'width:100vw;height:100vh;margin:0;padding:0;overflow:hidden;',
+        'width:100vw;width:var(--app-width,100vw);',
+        'height:100vh;height:var(--app-height,100vh);',
+        'margin:0;padding:0;overflow:hidden;',
         'background:#000;',
         'image-rendering:pixelated;image-rendering:crisp-edges;',
         '-webkit-font-smoothing:none;',
@@ -742,11 +759,16 @@
         '-webkit-tap-highlight-color:transparent;',
         'overscroll-behavior:none;',
       '}',
+      // El lienzo llena su CONTENEDOR, no el viewport: con 100vw/100vh el
+      // lienzo se desbordaba del contenedor en móvil (barra del navegador).
       'canvas{',
-        'display:block;width:100vw!important;height:100vh!important;',
+        'display:block;width:100%!important;height:100%!important;',
         'image-rendering:pixelated;outline:none;touch-action:none;',
       '}',
-      '*{-webkit-text-size-adjust:none;text-size-adjust:none;box-sizing:border-box;}',
+      // `text-size-adjust:100%` en vez de `none`: `none` desactiva el ajuste
+      // pero algunos WebKit lo interpretan como "puedes escalar el texto",
+      // que es justo lo que se quiere evitar. 100% lo bloquea de verdad.
+      '*{-webkit-text-size-adjust:100%;text-size-adjust:100%;box-sizing:border-box;}',
       '@media(max-width:768px){',
         'canvas{cursor:none;}',
         '.gf-joystick-area{',
@@ -1009,12 +1031,67 @@
   }
 
   // ── GESTOR DE RESIZE ──────────────────────────────────────────────────────
+  //
+  // ESTE ES EL ÚNICO SITIO DEL PROYECTO QUE CAMBIA EL TAMAÑO DEL JUEGO.
+  //
+  // FIX ZOOM EN MÓVIL: antes phaser-rpg-perf.js también llamaba a
+  // `game.scale.resize()`, pero con el tamaño en píxeles FÍSICOS
+  // (ancho × devicePixelRatio). En un teléfono con dpr 2 ó 3 los dos sistemas
+  // pedían tamaños 2x/3x distintos en cada evento 'resize' y el mundo saltaba
+  // hacia dentro y hacia fuera: eso era el "se da zoom" al abrir un panel, al
+  // abrir el chat (el teclado dispara un resize) o al hacer clic (la barra del
+  // navegador se esconde y dispara otro). Ese redimensionado se quitó de
+  // phaser-rpg-perf.js; aquí manda uno solo.
   var resizeManager = {
     _last:    0,
     _throttle:100,
     _pending: false,
-    // FIX: timer para el segundo disparo post-DevTools
-    _delayedTimer: null,
+    _lastW:   0,
+    _lastH:   0,
+
+    /**
+     * Tamaño REAL visible en píxeles CSS. En móvil `innerHeight` miente
+     * mientras la barra de direcciones aparece/desaparece; visualViewport sí
+     * dice la verdad. Si viewport-fix.js está cargado se usa su medida, que
+     * además congela la altura mientras el teclado está abierto (escribir en
+     * el chat NO debe redimensionar el juego).
+     */
+    _cssSize: function () {
+      var vf = root.gfViewportFix;
+      if (vf && Utils.isFunction(vf.width) && Utils.isFunction(vf.height)) {
+        return { w: Math.round(vf.width()), h: Math.round(vf.height()) };
+      }
+      var vv = root.visualViewport;
+      return {
+        w: Math.round((vv && vv.width)  || root.innerWidth),
+        h: Math.round((vv && vv.height) || root.innerHeight)
+      };
+    },
+
+    /**
+     * Tamaño INTERNO del juego (resolución de render).
+     *
+     * Es el tamaño CSS multiplicado por el devicePixelRatio redondeado hacia
+     * abajo, que es exactamente lo que el proyecto ha venido usando siempre
+     * (lo calculaba AdvancedPixelScaler dentro de phaser-rpg-perf.js). Se
+     * mantiene idéntico a propósito: es lo que define cuánto mundo se ve en
+     * pantalla, así que cambiarlo cambiaría el aspecto del juego en el móvil.
+     * Lo que se ha arreglado es que ahora lo calcula UN SOLO sitio.
+     *
+     * El factor entero (no el dpr con decimales) es lo correcto para pixel
+     * art: cada píxel de textura cae en un número entero de píxeles de
+     * pantalla y no aparecen costuras entre tiles.
+     *
+     * GF_MAX_DPR permite bajar el techo si hace falta rendimiento en móviles
+     * de gama baja (un dpr de 3 son 9 veces más píxeles que rellenar que uno
+     * de 1). Por defecto no limita nada para no cambiar cómo se ve hoy.
+     */
+    _gameSize: function (css) {
+      var dpr   = Math.max(1, root.devicePixelRatio || 1);
+      var techo = Math.max(1, root.GF_MAX_DPR || Infinity);
+      var factor= Math.max(1, Math.min(Math.floor(dpr), techo));
+      return { w: Math.floor(css.w * factor), h: Math.floor(css.h * factor) };
+    },
 
     handle: function () {
       var now = Date.now();
@@ -1026,66 +1103,50 @@
       this._perform();
     },
 
+    /** Fuerza el próximo _perform aunque el tamaño no haya cambiado. */
+    invalidate: function () { this._lastW = 0; this._lastH = 0; },
+
     _perform: function () {
       var self = this;
       try {
         var game      = IsolationSystem.getGame();
         var container = document.getElementById('container');
+        var canvas    = container ? container.querySelector('canvas') : null;
 
-        if (container) {
-          var canvas = container.querySelector('canvas');
-          if (canvas) {
-            // FIX: usar 100% en lugar de valores fijos en px para que
-            // el canvas siempre llene el contenedor sin importar cuándo
-            // se ejecute el handler (apertura/cierre de DevTools).
-            canvas.style.width  = '100%';
-            canvas.style.height = '100%';
-            canvas.style.imageRendering = 'pixelated';
-          }
+        var css  = this._cssSize();
+        var size = this._gameSize(css);
+
+        // FIX TORMENTA DE RESIZE: viewport-fix.js dispara un 'resize'
+        // sintético cada 300 ms durante los primeros 12 s (y otros más al
+        // cargar). Antes cada uno de ellos rehacía todo el redimensionado del
+        // juego aunque la pantalla midiera exactamente lo mismo — justo al
+        // entrar al mapa principal, que es cuando el jugador nota el tirón.
+        // Si el tamaño no cambió, no hay nada que hacer.
+        var cambiado = Math.abs(size.w - this._lastW) > 1 ||
+                       Math.abs(size.h - this._lastH) > 1;
+
+        if (cambiado && game && game.scale && Utils.isFunction(game.scale.resize)) {
+          this._lastW = size.w;
+          this._lastH = size.h;
+          game.scale.resize(size.w, size.h);
+          Logger.log('Juego redimensionado a', size.w + '×' + size.h,
+                     '(pantalla ' + css.w + '×' + css.h + ')');
         }
 
-        if (game && game.scale && Utils.isFunction(game.scale.resize)) {
-          game.scale.resize(root.innerWidth, root.innerHeight);
-
-          var perfInst = root.__perfInstance;
-          if (perfInst && Utils.isFunction(perfInst.applyPixelPerfect)) {
-            setTimeout(function () {
-              try {
-                perfInst.applyPixelPerfect({
-                  pixelArt: true, roundPixels: true, crispScaling: true
-                });
-              } catch (e) {}
-            }, 50);
-          }
+        // Los estilos del lienzo van DESPUÉS de game.scale.resize() a
+        // propósito: con `autoCenter: CENTER_BOTH` Phaser escribe él mismo
+        // `canvas.style.width/height` en px (el tamaño INTERNO, que en móvil
+        // es 2–3 veces el de la pantalla) y un margen de centrado. styless.css
+        // ya fuerza `#container > canvas { width:100% !important }`, así que
+        // esos px no llegan a verse, pero dejarlos escritos es pedir problemas
+        // el día que esa regla cambie. Se normaliza aquí y queda cerrado.
+        if (canvas) {
+          canvas.style.width  = '100%';
+          canvas.style.height = '100%';
+          canvas.style.marginLeft = '0px';
+          canvas.style.marginTop  = '0px';
+          canvas.style.imageRendering = 'pixelated';
         }
-
-        // FIX: segundo disparo a 350ms para capturar el tamaño final
-        // después de que DevTools termine de abrirse o cerrarse.
-        // El primer disparo usa el innerWidth del momento del evento
-        // (que puede ser el viewport reducido con DevTools abierto);
-        // el segundo disparo garantiza que usamos el tamaño estable.
-        if (self._delayedTimer) clearTimeout(self._delayedTimer);
-        self._delayedTimer = setTimeout(function () {
-          self._delayedTimer = null;
-          try {
-            var g2 = IsolationSystem.getGame();
-            var c2 = document.getElementById('container');
-            if (c2) {
-              var cv2 = c2.querySelector('canvas');
-              if (cv2) {
-                cv2.style.width  = '100%';
-                cv2.style.height = '100%';
-              }
-            }
-            if (g2 && g2.scale && Utils.isFunction(g2.scale.resize)) {
-              g2.scale.resize(root.innerWidth, root.innerHeight);
-              var pi2 = root.__perfInstance;
-              if (pi2 && Utils.isFunction(pi2.applyPixelPerfect)) {
-                pi2.applyPixelPerfect({ pixelArt: true, roundPixels: true, crispScaling: true });
-              }
-            }
-          } catch (e) {}
-        }, 350);
 
         if (this._pending) {
           this._pending = false;
