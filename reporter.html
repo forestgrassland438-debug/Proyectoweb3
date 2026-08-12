@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Grassland Forest — Error Reporter</title>
+<link rel="icon" href="favicon.png" type="image/png" />
+
+<!-- La CSP no permite scripts en línea: toda la lógica va en reporter.js -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               base-uri 'self';
+               object-src 'none';
+               script-src 'self' https://cdnjs.cloudflare.com;
+               connect-src 'self' https: http://127.0.0.1:8080;
+               img-src 'self' data:;
+               style-src 'self' 'unsafe-inline';
+               font-src 'self' data:;
+               form-action 'self';" />
+<meta http-equiv="X-Content-Type-Options" content="nosniff" />
+<meta name="referrer" content="strict-origin-when-cross-origin" />
+<meta name="robots" content="noindex, nofollow" />
+
+<style>
+  :root{
+    --bg:#070b14; --panel:#0e1626; --panel2:#131d31; --line:rgba(120,170,255,.16);
+    --line-hi:rgba(120,170,255,.4); --text:#e6eeff; --muted:#8ba0c6;
+    --accent:#4f8cff; --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:radial-gradient(1100px 500px at 50% -10%,rgba(60,110,200,.16),transparent 70%),var(--bg);
+    color:var(--text); font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    font-size:14px; line-height:1.5;
+  }
+  a{color:#8cb6ff}
+  .wrap{max-width:1280px;margin:0 auto;padding:20px 16px 60px}
+
+  header.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+  .brand{font-size:20px;font-weight:800;letter-spacing:.02em}
+  .brand span{color:var(--accent)}
+  .spacer{flex:1 1 auto}
+
+  .badge{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;
+    border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:12px;font-weight:700}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+  .dot.on{background:var(--ok);box-shadow:0 0 8px rgba(74,222,128,.8)}
+  .dot.off{background:var(--danger)}
+
+  button{font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;
+    border-radius:10px;border:1px solid transparent;padding:9px 15px;min-height:40px;
+    transition:filter .15s,transform .1s;touch-action:manipulation}
+  button:hover:not(:disabled){filter:brightness(1.15)}
+  button:active:not(:disabled){transform:translateY(1px)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .btn-primary{background:linear-gradient(160deg,#3b82f6,#1d4ed8);color:#fff;
+    box-shadow:0 5px 16px rgba(29,78,216,.4)}
+  .btn-ghost{background:rgba(255,255,255,.05);color:var(--text);border-color:var(--line-hi)}
+  .btn-danger{background:linear-gradient(160deg,#dc2626,#991b1b);color:#fff}
+
+  .card{background:linear-gradient(165deg,var(--panel2),var(--panel));
+    border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:0 8px 30px rgba(0,0,0,.45)}
+
+  /* ── Puerta de acceso ── */
+  #gate{display:grid;place-items:center;min-height:70vh;text-align:center}
+  #gate .card{padding:34px 30px;max-width:460px}
+  #gate h1{margin:0 0 8px;font-size:22px}
+  #gate p{color:var(--muted);margin:0 0 22px}
+  #gateMsg{margin-top:16px;font-size:13px;min-height:20px}
+  .err{color:var(--danger)} .ok{color:var(--ok)} .muted{color:var(--muted)}
+
+  /* ── Pestañas ── */
+  .tabs{display:flex;gap:8px;margin:18px 0 14px;flex-wrap:wrap}
+  .tab{background:rgba(255,255,255,.04);border:1px solid var(--line);color:var(--muted);
+    border-radius:10px;padding:9px 16px}
+  .tab.active{background:linear-gradient(160deg,#3b56c9,#2a3a8f);color:#fff;border-color:var(--line-hi)}
+
+  /* ── Métricas ── */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+  .stat{padding:13px 15px}
+  .stat .k{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:800}
+  .stat .v{font-size:24px;font-weight:800;margin-top:3px}
+  .stat .v.warn{color:var(--warn)} .stat .v.danger{color:var(--danger)}
+
+  /* ── Barra de herramientas ── */
+  .toolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  input[type=search],select{
+    background:rgba(0,20,50,.6);border:1px solid var(--line);color:var(--text);
+    border-radius:10px;padding:10px 12px;font-family:inherit;font-size:14px;min-height:40px}
+  input[type=search]{flex:1 1 240px;min-width:0}
+  input[type=search]:focus,select:focus{outline:none;border-color:var(--accent)}
+
+  /* ── Tabla ── */
+  .tablewrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--line)}
+  table{width:100%;border-collapse:collapse;min-width:820px}
+  th,td{padding:11px 13px;text-align:left;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:top}
+  th{background:rgba(0,0,0,.35);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--muted);font-weight:800;position:sticky;top:0;z-index:1}
+  tbody tr:hover{background:rgba(255,255,255,.03)}
+  td.msg{max-width:460px}
+  .msg-main{font-weight:600;word-break:break-word}
+  .msg-sub{color:var(--muted);font-size:11.5px;margin-top:3px;font-family:ui-monospace,Consolas,monospace;
+    word-break:break-all}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:10.5px;font-weight:800;
+    border:1px solid var(--line-hi);background:rgba(120,170,255,.12)}
+  .pill.count{background:rgba(251,191,36,.16);border-color:rgba(251,191,36,.45);color:var(--warn)}
+  .pill.count.hot{background:rgba(248,113,113,.18);border-color:rgba(248,113,113,.5);color:var(--danger)}
+  .when{white-space:nowrap;color:var(--muted);font-size:12px}
+  .rowbtn{padding:6px 11px;min-height:32px;font-size:12px}
+
+  details.stack{margin-top:7px}
+  details.stack summary{cursor:pointer;color:var(--accent);font-size:11.5px;font-weight:700}
+  details.stack pre{margin:7px 0 0;padding:10px;border-radius:8px;background:rgba(0,0,0,.5);
+    border:1px solid var(--line);font-size:11px;line-height:1.45;overflow-x:auto;
+    white-space:pre-wrap;word-break:break-word;color:#c8d8f5}
+
+  .empty{padding:44px 20px;text-align:center;color:var(--muted)}
+  .empty .big{font-size:40px;margin-bottom:10px}
+
+  footer.pager{display:flex;align-items:center;gap:10px;justify-content:center;margin-top:16px;color:var(--muted)}
+
+  #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(120%);
+    background:var(--panel2);border:1px solid var(--line-hi);border-radius:12px;
+    padding:12px 20px;font-weight:700;box-shadow:0 12px 40px rgba(0,0,0,.6);
+    transition:transform .25s ease;z-index:50;max-width:90vw;text-align:center}
+  #toast.show{transform:translateX(-50%) translateY(0)}
+  #toast.bad{border-color:rgba(248,113,113,.6);color:#ffc9c9}
+  #toast.good{border-color:rgba(74,222,128,.5);color:#c6ffd8}
+
+  .hidden{display:none !important}
+
+  @media (max-width:640px){
+    .wrap{padding:14px 10px 50px}
+    .brand{font-size:17px}
+    .stat .v{font-size:20px}
+    th,td{padding:9px 10px}
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ══ PUERTA: conectar cartera de administrador ══ -->
+  <section id="gate">
+    <div class="card">
+      <h1>🛡️ Error Reporter</h1>
+      <p>Admin access only. Connect the wallet registered as an administrator.</p>
+      <button id="btnConnect" class="btn-primary">Connect admin wallet</button>
+      <div id="gateMsg" class="muted">Checking your session…</div>
+    </div>
+  </section>
+
+  <!-- ══ PANEL ══ -->
+  <section id="panel" class="hidden">
+    <header class="top">
+      <div class="brand">Grassland <span>Reporter</span></div>
+      <div class="spacer"></div>
+      <div class="badge"><span id="whoDot" class="dot"></span><span id="whoAddr">—</span></div>
+      <button id="btnRefresh" class="btn-ghost">↻ Refresh</button>
+    </header>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="errors">🐞 Client errors</button>
+      <button class="tab" data-tab="relay">⛓️ Relay failures</button>
+    </div>
+
+    <!-- ── Errores del cliente ── -->
+    <div id="tab-errors">
+      <div class="stats">
+        <div class="stat card"><div class="k">Unique errors</div><div id="mUnique" class="v">—</div></div>
+        <div class="stat card"><div class="k">Total occurrences</div><div id="mOccur" class="v warn">—</div></div>
+        <div class="stat card"><div class="k">Error types</div><div id="mTypes" class="v">—</div></div>
+        <div class="stat card"><div class="k">Showing</div><div id="mShown" class="v">—</div></div>
+      </div>
+
+      <div class="toolbar">
+        <input id="q" type="search" placeholder="Search message, scene or file…" />
+        <select id="fType"><option value="">All types</option></select>
+        <button id="btnSearch" class="btn-ghost">Search</button>
+        <div class="spacer"></div>
+        <button id="btnWipe" class="btn-danger">🗑 Delete all</button>
+      </div>
+
+      <div class="tablewrap card">
+        <table>
+          <thead><tr>
+            <th style="width:90px">Type</th>
+            <th>Message</th>
+            <th style="width:120px">Scene</th>
+            <th style="width:70px">Count</th>
+            <th style="width:150px">Last seen</th>
+            <th style="width:80px"></th>
+          </tr></thead>
+          <tbody id="rowsErrors"></tbody>
+        </table>
+        <div id="emptyErrors" class="empty hidden">
+          <div class="big">✨</div><div>No client errors recorded. That is good news.</div>
+        </div>
+      </div>
+
+      <footer class="pager">
+        <button id="prevE" class="btn-ghost">← Previous</button>
+        <span id="pageE">—</span>
+        <button id="nextE" class="btn-ghost">Next →</button>
+      </footer>
+    </div>
+
+    <!-- ── Fallos de relay ── -->
+    <div id="tab-relay" class="hidden">
+      <div class="stats">
+        <div class="stat card"><div class="k">Abnormal failures</div><div id="mRelay" class="v danger">—</div></div>
+        <div class="stat card"><div class="k">Showing</div><div id="mRelayShown" class="v">—</div></div>
+      </div>
+
+      <p class="muted" style="margin:0 0 12px">
+        Contract reverts are excluded on purpose: a revert is the chain saying
+        <em>no</em> for a legitimate reason (no balance, no permission, a failed
+        requirement). What is listed here is the abnormal kind — node down,
+        nonce clashes, timeouts, gas problems — the ones worth investigating.
+      </p>
+
+      <div class="tablewrap card">
+        <table>
+          <thead><tr>
+            <th style="width:130px">Player</th>
+            <th style="width:190px">Contract · Function</th>
+            <th>Error</th>
+            <th style="width:70px">Retries</th>
+            <th style="width:150px">When</th>
+          </tr></thead>
+          <tbody id="rowsRelay"></tbody>
+        </table>
+        <div id="emptyRelay" class="empty hidden">
+          <div class="big">⛓️</div><div>No abnormal relay failures. The chain link is healthy.</div>
+        </div>
+      </div>
+
+      <footer class="pager">
+        <button id="prevR" class="btn-ghost">← Previous</button>
+        <span id="pageR">—</span>
+        <button id="nextR" class="btn-ghost">Next →</button>
+      </footer>
+    </div>
+  </section>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.10.0/ethers.umd.min.js" defer crossorigin="anonymous"></script>
+<script src="./reporter.js?v=17.3" defer></script>
+</body>
+</html>

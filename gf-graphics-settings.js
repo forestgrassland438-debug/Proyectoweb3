@@ -30,8 +30,9 @@
  *   • Baja  → texturas en 'low' (1252², dieciséis veces menos memoria de vídeo
  *             que 'hd'), resolución 1×, partículas apagadas.
  *
- * Todo se guarda en localStorage y se reaplica al entrar en cada escena, así
- * que sobrevive a cambiar de mapa, ir a la tienda y recargar la página.
+ * Los ajustes se guardan EN EL SERVIDOR (/api/graphics/:playerName), no en el
+ * navegador, y se reaplican al entrar en cada escena — así sobreviven a cambiar
+ * de mapa, ir a la tienda, recargar la página y hasta cambiar de dispositivo.
  *
  * NO toca el zoom de la cámara ni ningún mecanismo de juego.
  * =============================================================================
@@ -43,18 +44,34 @@
 
   // ── Constantes ─────────────────────────────────────────────────────────────
 
-  var CLAVE_GUARDADO = 'gf.graficos.v1';
+  // (Ya no hay clave de localStorage: la persistencia es del servidor.)
 
-  // Un "chunk" son 512 px de mundo. El mapa mide 5008 px, así que la escala
-  // útil va de 2 chunks (≈1 pantalla alrededor) a 16 (el mapa entero).
-  var CHUNK_PX  = 512;
+  // ── CALIBRACIÓN DE LA DISTANCIA ────────────────────────────────────────────
+  // FIX: antes un chunk eran 512 px, así que la distancia por defecto (12) daba
+  // un radio de 6144 px sobre un mapa que mide 5008 px: el radio cubría el mapa
+  // ENTERO y no se ocultaba nada nunca. Toda la escala útil quedaba aplastada
+  // en las dos o tres primeras muescas, y por eso "no quitaba bien" ni los
+  // árboles ni las casas.
+  //
+  // Con 320 px por chunk la escala queda repartida de verdad sobre el mapa:
+  //     2 chunks →   640 px (muy agresivo, se nota el pop-in)
+  //     6 chunks →  1920 px
+  //    10 chunks →  3200 px
+  //    16 chunks →  5120 px (más que el mapa entero = sin límite)
+  // Una pantalla a zoom 1 ve ~1280×720 px de mundo, o sea unos 735 px desde el
+  // centro a la esquina: por debajo de 3 chunks se empieza a ver el recorte, que
+  // es justo lo que se espera de una distancia de visión baja.
+  var CHUNK_PX  = 320;
   var CHUNK_MIN = 2;
   var CHUNK_MAX = 16;
 
+  // NOTA: las claves ('alta'/'media'/'baja') son internas y NO se traducen —
+  // viajan al servidor y son las que valida /api/graphics. Lo que se ve en
+  // pantalla es `etiqueta`, en inglés como el resto de la interfaz del juego.
   var CALIDADES = {
-    alta:  { lod: 'hd',  dpr: 0, particulas: true,  chunksSugeridos: 12, etiqueta: 'Alta' },
-    media: { lod: 'md',  dpr: 2, particulas: true,  chunksSugeridos: 8,  etiqueta: 'Media' },
-    baja:  { lod: 'low', dpr: 1, particulas: false, chunksSugeridos: 5,  etiqueta: 'Baja' }
+    alta:  { lod: 'hd',  dpr: 0, particulas: true,  chunksSugeridos: 12, etiqueta: 'High' },
+    media: { lod: 'md',  dpr: 2, particulas: true,  chunksSugeridos: 8,  etiqueta: 'Medium' },
+    baja:  { lod: 'low', dpr: 1, particulas: false, chunksSugeridos: 5,  etiqueta: 'Low' }
   };
 
   // dpr: 0 = sin tope. Ver _gameSize() en app.js, que lee global.GF_MAX_DPR.
@@ -63,21 +80,71 @@
 
   var ajustes = { calidad: 'alta', chunks: 12 };
 
-  function cargar() {
-    try {
-      var crudo = global.localStorage.getItem(CLAVE_GUARDADO);
-      if (!crudo) return;
-      var d = JSON.parse(crudo);
-      if (d && CALIDADES[d.calidad]) ajustes.calidad = d.calidad;
-      if (d && typeof d.chunks === 'number') {
-        ajustes.chunks = Math.min(CHUNK_MAX, Math.max(CHUNK_MIN, Math.round(d.chunks)));
-      }
-    } catch (e) { /* localStorage bloqueado: se usan los valores por defecto */ }
+  // ── PERSISTENCIA EN EL SERVIDOR ────────────────────────────────────────────
+  //
+  // Antes esto vivía en localStorage. Ahora NO se guarda nada en el navegador:
+  // los ajustes van y vienen de /api/graphics/:playerName, autenticado con la
+  // cookie de sesión. Aparte de cumplir el requisito, el jugador conserva su
+  // configuración al cambiar de navegador o de ordenador.
+  //
+  // Los datos de sesión (nombre y URL del backend) los publica la escena viva:
+  // no se duplica aquí la lógica de a qué servidor hablar.
+  function escenaConSesion() {
+    var escenas = escenasActivas();
+    for (var i = 0; i < escenas.length; i++) {
+      var e = escenas[i];
+      if (e && e.playerName && e.serverBase && e.isAuthenticated) return e;
+    }
+    return null;
   }
 
+  function leerCookie(nombre) {
+    var m = doc.cookie.match(new RegExp('(?:^|;\\s*)' + nombre + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
+  /** Trae los ajustes guardados. Si no hay sesión aún, no hace nada. */
+  function cargar() {
+    var esc = escenaConSesion();
+    if (!esc) return Promise.resolve(false);
+
+    return fetch(esc.serverBase + '/api/graphics/' + encodeURIComponent(esc.playerName),
+                 { credentials: 'include', mode: 'cors' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d || !d.ok) return false;
+        if (CALIDADES[d.calidad]) ajustes.calidad = d.calidad;
+        if (typeof d.chunks === 'number') {
+          ajustes.chunks = Math.min(CHUNK_MAX, Math.max(CHUNK_MIN, Math.round(d.chunks)));
+        }
+        return true;
+      })
+      .catch(function () { return false; });   // sin red: valores por defecto
+  }
+
+  /**
+   * Guarda en el SERVIDOR. No se escribe nada en el navegador.
+   *
+   * Si todavía no hay sesión (el jugador está en la pantalla de carga) no se
+   * pierde el ajuste: sigue vivo en memoria y se reintenta el guardado cuando
+   * la sesión aparezca — de eso se encarga `pendienteDeGuardar` en el bucle.
+   */
+  var pendienteDeGuardar = false;
+
   function guardar() {
-    try { global.localStorage.setItem(CLAVE_GUARDADO, JSON.stringify(ajustes)); }
-    catch (e) { /* modo privado: no se puede guardar, no es crítico */ }
+    var esc = escenaConSesion();
+    if (!esc) { pendienteDeGuardar = true; return Promise.resolve(false); }
+
+    var csrf = leerCookie('csrf-token');
+    var cabeceras = { 'Content-Type': 'application/json' };
+    if (csrf) cabeceras['X-CSRF-Token'] = csrf;
+
+    return fetch(esc.serverBase + '/api/graphics/' + encodeURIComponent(esc.playerName), {
+      method: 'POST', credentials: 'include', mode: 'cors', headers: cabeceras,
+      body: JSON.stringify({ calidad: ajustes.calidad, chunks: ajustes.chunks })
+    })
+      .then(function (r) { pendienteDeGuardar = !r.ok; return r.ok; })
+      .catch(function () { pendienteDeGuardar = true; return false; });
   }
 
   // ── Acceso al juego ────────────────────────────────────────────────────────
@@ -96,28 +163,66 @@
   // ── Aplicación: TERRENO ────────────────────────────────────────────────────
 
   /**
-   * El terreno viaja en tiles de 2048 px; la barra está en chunks de 512 px.
-   * Se convierte y se deja un mínimo de 1 para no dejar nunca el suelo vacío
-   * alrededor del jugador.
+   * El terreno viaja en tiles de 2048 px; la barra está en chunks de 320 px.
+   *
+   * FIX: antes esto tenía un `Math.max(1, ...)`, o sea que el margen nunca
+   * bajaba de 1 tile. Como el mapa es una rejilla de 3×3 tiles, un margen de 1
+   * ya carga TODO el mapa: el suelo no se descargaba jamás, hicieras lo que
+   * hicieras con la barra. Ahora el margen puede llegar a 0, que es cuando de
+   * verdad solo se cargan los tiles que toca la cámara.
    */
   function margenDeTiles(chunks, tileSize) {
     var px = chunks * CHUNK_PX;
-    return Math.max(1, Math.round(px / (tileSize || 2048)));
+    return Math.max(0, Math.round(px / (tileSize || 2048)));
   }
 
   function aplicarATerreno(escena) {
     var tms = escena._tileManagers;
-    if (!tms || !tms.length) return;
+    if (!tms || !tms.length) return false;
 
-    var lod = CALIDADES[ajustes.calidad].lod;
+    var lod    = CALIDADES[ajustes.calidad].lod;
+    var tocado = false;
 
     tms.forEach(function (tm) {
       if (!tm) return;
       try {
-        if (typeof tm.setLOD === 'function') tm.setLOD(lod);
-        if (typeof tm.setMargin === 'function') tm.setMargin(margenDeTiles(ajustes.chunks, tm.tileSize));
+        if (typeof tm.setLOD === 'function' && tm.chosenLOD !== lod) {
+          if (tm.setLOD(lod)) tocado = true;
+        }
+        if (typeof tm.setMargin === 'function') {
+          var m = margenDeTiles(ajustes.chunks, tm.tileSize);
+          if (tm.margin !== m && tm.setMargin(m)) tocado = true;
+        }
       } catch (e) { console.warn('⚠️ Gráficos: no se pudo ajustar un TileManager:', e); }
     });
+    return tocado;
+  }
+
+  /**
+   * ¿La escena tiene el terreno con los ajustes actuales?
+   *
+   * FIX DEL FALLO "SE PIERDE AL CAMBIAR DE ESCENA": cada vez que se pasa de
+   * tiendajuego a GameScene (o al revés) la escena nueva construye sus
+   * TileManagers desde cero, con los valores que trae escritos en el código
+   * (`marginTiles: 3`, `preferredLOD: 'hd'`). Los ajustes del jugador seguían
+   * guardados, pero nadie volvía a aplicarlos, así que el mapa nuevo salía
+   * siempre en calidad alta y a distancia máxima. Parecía que la configuración
+   * "no se guardaba"; en realidad no se REAPLICABA.
+   *
+   * Esta comprobación corre en el bucle y vuelve a poner los ajustes en cuanto
+   * detecta un TileManager que no los cumple, venga de donde venga.
+   */
+  function terrenoDesincronizado(escena) {
+    var tms = escena._tileManagers;
+    if (!tms || !tms.length) return false;
+    var lod = CALIDADES[ajustes.calidad].lod;
+    for (var i = 0; i < tms.length; i++) {
+      var tm = tms[i];
+      if (!tm) continue;
+      if (tm.chosenLOD !== lod) return true;
+      if (tm.margin !== margenDeTiles(ajustes.chunks, tm.tileSize)) return true;
+    }
+    return false;
   }
 
   // ── Aplicación: OBJETOS DEL MAPA ───────────────────────────────────────────
@@ -246,15 +351,43 @@
     });
   }
 
-  // Bucle de culling. Va aparte del bucle del juego a propósito: si esta
+  // Bucle de mantenimiento. Va aparte del bucle del juego a propósito: si esta
   // librería fallara, el juego sigue corriendo igual.
+  //
+  // Hace DOS cosas en cada vuelta:
+  //   1. Ocultar/mostrar objetos por distancia.
+  //   2. Vigilar que el terreno de la escena activa siga con los ajustes del
+  //      jugador. Esto es lo que arregla el "se pierde al cambiar de escena":
+  //      cuando GameScene o tiendajuego arrancan, crean TileManagers nuevos con
+  //      los valores del código y este vigilante los corrige en la siguiente
+  //      vuelta (220 ms), sin que el jugador tenga que abrir el panel.
   var bucle = null;
   function arrancarBucle() {
     if (bucle) return;
     bucle = global.setInterval(function () {
-      if (ajustes.chunks >= CHUNK_MAX) return;   // sin límite: nada que ocultar
+      // Si un guardado no pudo salir (aún sin sesión, o falló la red), se
+      // reintenta aquí en vez de perder el ajuste del jugador.
+      if (pendienteDeGuardar && escenaConSesion()) { pendienteDeGuardar = false; guardar(); }
+
       escenasActivas().forEach(function (esc) {
-        try { aplicarAObjetos(esc); } catch (e) {}
+        try {
+          // 1) Terreno: reaplicar si la escena lo trae con otros valores.
+          if (terrenoDesincronizado(esc)) {
+            aplicarATerreno(esc);
+            // La calidad también se reaplica: las partículas y el nivel de
+            // rendimiento son por escena, así que una escena recién creada los
+            // trae en sus valores por defecto.
+            aplicarCalidadGlobal();
+            // La escena es nueva: la lista de objetos cacheada ya no sirve.
+            esc._gfObjetosMapa   = null;
+            esc._gfObjetosCaducan = 0;
+            console.log('🎚️ Ajustes de gráficos reaplicados a la escena nueva');
+          }
+
+          // 2) Objetos: ocultar por distancia (o mostrarlo todo si está al máximo).
+          if (ajustes.chunks >= CHUNK_MAX) mostrarTodo(esc);
+          else aplicarAObjetos(esc);
+        } catch (e) { /* una escena a medio arrancar: se reintenta en la próxima vuelta */ }
       });
     }, 220);
   }
@@ -280,11 +413,11 @@
     var lblCal = doc.createElement('label');
     lblCal.className = 'hub-label_101';
     lblCal.setAttribute('for', 'gf-gfx-quality');
-    lblCal.textContent = 'Calidad gráfica';
+    lblCal.textContent = '🎨 Graphics quality';
 
     var selCal = doc.createElement('select');
     selCal.id = 'gf-gfx-quality';
-    selCal.setAttribute('aria-label', 'Seleccionar calidad gráfica');
+    selCal.setAttribute('aria-label', 'Select graphics quality');
     Object.keys(CALIDADES).forEach(function (k) {
       var op = doc.createElement('option');
       op.value = k;
@@ -308,7 +441,7 @@
     var lblDist = doc.createElement('label');
     lblDist.className = 'hub-label_101';
     lblDist.setAttribute('for', 'gf-gfx-chunks');
-    lblDist.textContent = 'Distancia de visión';
+    lblDist.textContent = '🌍 Render distance';
 
     var barraFila = doc.createElement('div');
     barraFila.className = 'gf-gfx-slider-row';
@@ -320,7 +453,7 @@
     barra.max  = String(CHUNK_MAX);
     barra.step = '1';
     barra.value= String(ajustes.chunks);
-    barra.setAttribute('aria-label', 'Distancia de visión en chunks');
+    barra.setAttribute('aria-label', 'Render distance in chunks');
 
     var valor = doc.createElement('span');
     valor.className = 'gf-gfx-value';
@@ -331,7 +464,7 @@
 
     var ayudaDist = doc.createElement('div');
     ayudaDist.className = 'gf-gfx-help';
-    ayudaDist.textContent = 'Menos distancia = más fluidez. Lo lejano deja de dibujarse.';
+    ayudaDist.textContent = 'Lower distance = smoother game. Far away things stop being drawn.';
 
     filaDist.appendChild(lblDist);
     filaDist.appendChild(barraFila);
@@ -344,14 +477,14 @@
     // — Eventos —
     function pintarValores() {
       valor.textContent = ajustes.chunks >= CHUNK_MAX
-        ? 'Máx'
+        ? 'Max'
         : String(ajustes.chunks);
       var cfg = CALIDADES[ajustes.calidad];
       ayudaCal.textContent = cfg.lod === 'hd'
-        ? 'Texturas al máximo detalle. Para equipos con buena tarjeta gráfica.'
+        ? 'Full detail textures. For devices with a good graphics card.'
         : cfg.lod === 'md'
-          ? 'Texturas a media resolución. Buen equilibrio en la mayoría de móviles.'
-          : 'Texturas ligeras y sin partículas. Para móviles de gama baja.';
+          ? 'Half resolution textures. Good balance on most phones.'
+          : 'Light textures, particles off. For low-end phones.';
     }
 
     selCal.addEventListener('change', function () {
@@ -378,6 +511,10 @@
       aplicarTodo();
     });
 
+    // Se expone para que la carga desde el servidor pueda repintar el panel
+    // con los valores reales cuando lleguen (la UI se monta antes que ellos).
+    global.__gfGfxPintar = pintarValores;
+
     pintarValores();
     return true;
   }
@@ -395,11 +532,36 @@
 
   // ── Arranque ───────────────────────────────────────────────────────────────
 
-  cargar();
+  // Los ajustes ya NO están en el navegador, así que al arrancar no se saben:
+  // hay que pedírselos al servidor, y para eso hace falta que el jugador ya
+  // tenga sesión. Como esta librería carga antes que la escena, se espera a que
+  // aparezca en vez de dar por perdida la carga.
+  var yaCargadoDelServidor = false;
+
+  function cargarCuandoHayaSesion() {
+    if (yaCargadoDelServidor) return;
+    cargar().then(function (ok) {
+      if (!ok) return;
+      yaCargadoDelServidor = true;
+      // Con los valores reales en la mano se repinta el panel y se aplica todo.
+      if (typeof global.__gfGfxPintar === 'function') global.__gfGfxPintar();
+      aplicarTodo();
+      console.log('🎚️ Ajustes de gráficos cargados del servidor:', JSON.stringify(ajustes));
+    });
+  }
 
   function iniciar() {
     intentarConstruirUI();
     arrancarBucle();
+
+    // Reintento de carga hasta que el jugador esté autenticado (o ~60 s).
+    var intentosCarga = 0;
+    var tCarga = global.setInterval(function () {
+      intentosCarga++;
+      cargarCuandoHayaSesion();
+      if (yaCargadoDelServidor || intentosCarga > 60) global.clearInterval(tCarga);
+    }, 1000);
+
     // Los TileManagers se crean unos segundos después de entrar en la escena;
     // se reaplica varias veces durante ese arranque.
     [500, 1500, 3000, 6000].forEach(function (ms) {
