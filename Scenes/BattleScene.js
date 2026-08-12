@@ -438,15 +438,39 @@ class BattleScene extends Phaser.Scene {
       || (navigator.maxTouchPoints || 0) > 1;
 
     const revisar = () => {
+      // FIX: se usaba `this.scene.isActive('BattleScene')`, pero esta función se
+      // llama desde create() y en ese momento la escena todavía está en estado
+      // CREATING, no RUNNING — así que isActive() devolvía FALSE y el aviso se
+      // ocultaba nada más entrar. Como después solo se revisaba en 'resize' y
+      // 'orientationchange', un jugador que YA entraba en vertical no disparaba
+      // ningún evento y el aviso no aparecía nunca. De ahí que "no salga el hub
+      // de rotar el teléfono".
+      //
+      // Ahora basta con que la escena no esté apagada: se comprueba contra la
+      // bandera propia, que se pone a true al terminar create() y a false en el
+      // shutdown.
       const vertical = window.innerHeight > window.innerWidth;
-      const activo = this.scene.isActive('BattleScene');
-      aviso.classList.toggle('hidden', !(esMovil && vertical && activo));
+      const viva     = this._escenaViva !== false;
+      aviso.classList.toggle('hidden', !(esMovil && vertical && viva));
     };
 
+    this._escenaViva = true;
     this._revisarOrientacion = revisar;
     window.addEventListener('resize', revisar);
     window.addEventListener('orientationchange', revisar);
+
+    // En el móvil la medida buena es visualViewport: al esconderse la barra del
+    // navegador cambia la altura sin que llegue un 'resize' de window.
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', revisar);
+    }
+
     revisar();
+    // Segunda pasada cuando la escena ya está en marcha de verdad, y una
+    // tercera por si el navegador tarda en dar las medidas definitivas al
+    // entrar en la batalla desde el mapa.
+    this.time.delayedCall(60,  revisar);
+    this.time.delayedCall(400, revisar);
   }
 
   // ---------------------------------------------------------------------------
@@ -665,11 +689,17 @@ class BattleScene extends Phaser.Scene {
     document.body.classList.remove('in-battle');
     if (this.ui) this.ui.classList.add('hidden');
 
+    // La escena se apaga: el aviso de rotar no debe seguir vivo sobre el mapa.
+    this._escenaViva = false;
     const aviso = document.getElementById('battleRotateNotice');
     if (aviso) aviso.classList.add('hidden');
     if (this._revisarOrientacion) {
       window.removeEventListener('resize', this._revisarOrientacion);
       window.removeEventListener('orientationchange', this._revisarOrientacion);
+      // FIX FUGA: este también se registraba y no se quitaba.
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', this._revisarOrientacion);
+      }
       this._revisarOrientacion = null;
     }
     this.scale.off('resize', this.onResize, this);

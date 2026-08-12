@@ -5164,6 +5164,48 @@ _onDOM(target, type, handler, options) {
   return handler;
 }
 
+/**
+ * Teletransporta la mascota junto al jugador, sin animación de recorrido.
+ *
+ * FIX "EL PERRO VIENE DE LEJOS AL ENTRAR": el perro se coloca en create() a
+ * `player.x + 40`, pero en ese momento el jugador todavía está en su posición
+ * provisional. La posición REAL llega después, cuando responde el servidor con
+ * los datos guardados, y ahí el jugador se teletransporta… dejando al perro
+ * donde estaba. Como el perro persigue al jugador, se le veía cruzar medio
+ * mapa corriendo hasta alcanzarlo.
+ *
+ * Aquí se le pone en el sitio de golpe. Se ajustan TAMBIÉN las posiciones
+ * previas y el objetivo: si solo se moviera el sprite, la lógica de
+ * seguimiento seguiría interpolando desde las coordenadas viejas y volvería a
+ * verse el arrastre.
+ */
+_pegarPerroAlJugador() {
+  const d = this.dog;
+  if (!d || !this.player) return;
+
+  const x = this.player.x + 40;   // mismo desfase que usa create()
+  const y = this.player.y + 20;
+
+  d.x = d.targetX = d.prevX = d.prevTargetX = x;
+  d.y = d.targetY = d.prevY = d.prevTargetY = y;
+  d.isMoving = false;
+
+  try {
+    if (d.sprite) d.sprite.setPosition(x, y);
+    if (d.shadowContainer) d.shadowContainer.setPosition(x, y + 22);
+    if (this.dogNameText) {
+      const alto = d.sprite ? d.sprite.displayHeight * 0.5 : 0;
+      this.dogNameText.setPosition(x, y - alto - 4);
+    }
+  } catch (e) { /* sprites aún sin crear: create() ya lo dejará bien */ }
+
+  // La referencia de movimiento del jugador también se reinicia: si no, el
+  // primer frame calcula un delta gigante (del punto viejo al nuevo) y el
+  // perro sale disparado en la dirección equivocada.
+  this.prevPlayerX = this.player.x;
+  this.prevPlayerY = this.player.y;
+}
+
 makeDraggable(element) {
   let isDragging = false;
   let offsetX = 0;
@@ -8591,6 +8633,8 @@ async loadPlayerData() {
     if (this.player) {
       this.player.setVisible(true);
       this.player.setPosition(this.posicionplayerx, this.posicionplayery);
+      // El perro tiene que ir CON el jugador, no detrás de él.
+      this._pegarPerroAlJugador();
     }
     
     // Re-aplicar window.playerStats — tiene prioridad sobre BD
@@ -9249,9 +9293,34 @@ _cleanupTutorial() {
             
             const resData = await resp.json().catch(() => ({}));
             console.log('✅ Datos guardados correctamente:', resData);
+
+            // Mismo aviso que en GameScene: el panel de configuraciones es DOM
+            // compartido, así que el nombre se puede fijar desde las dos escenas.
+            this._avisarNombresRechazados(resData);
         } catch (e) {
             console.error('❌ Error de red al guardar:', e);
         }
+    }
+
+    /** Ver el comentario equivalente en GameScene._avisarNombresRechazados. */
+    _avisarNombresRechazados(resData) {
+        const choques = resData && Array.isArray(resData.nameConflicts) ? resData.nameConflicts : null;
+        if (!choques || !choques.length) return;
+
+        choques.forEach(c => {
+            const texto = (c && c.message) || 'That name is already taken. Please choose a different one.';
+            try {
+                if (this.notifications && typeof this.notifications.show === 'function') {
+                    this.notifications.show(texto, 'error');
+                } else {
+                    console.warn('⚠️', texto);
+                }
+            } catch (e) { console.warn('⚠️', texto); }
+
+            const id = (c && c.field === 'petName') ? 'pet-name' : 'character-name';
+            const campo = document.getElementById(id);
+            if (campo) { campo.value = ''; campo.focus(); }
+        });
     }
 
 

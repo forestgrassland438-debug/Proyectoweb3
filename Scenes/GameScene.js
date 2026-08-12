@@ -136,13 +136,38 @@ this.prevPlayerY = undefined;
           console.warn('⚠️ Sistema de reporte de errores deshabilitado');
           return;
         }
-        
+
+        // ── GUARDIÁN DE EJECUCIÓN ÚNICA ─────────────────────────────────────
+        // Este init() envuelve console.error/warn/log/info y registra
+        // listeners globales de 'error' y 'unhandledrejection'. Si se ejecutara
+        // dos veces —y se ejecutaría, porque GameScene.create() corre otra vez
+        // cada vez que se vuelve del mapa a la tienda— pasarían dos cosas
+        // malas:
+        //
+        //   1. `this.originalConsoleError = console.error` guardaría la consola
+        //      YA ENVUELTA de la vez anterior. A la tercera vuelta cada
+        //      console.log atravesaría tres capas encadenadas, a la décima
+        //      diez. Es una degradación que crece sola y que además duplica
+        //      cada error enviado al servidor.
+        //   2. Los listeners de window se acumularían sin quitarse nunca.
+        //
+        // La marca vive en `window` a propósito: la instancia del reportero
+        // pertenece a la escena y la escena se recrea, así que una bandera de
+        // instancia no serviría de nada.
+        if (window.__gfErrorReporterActivo) {
+          // Ya está montado: solo se le apunta a la escena viva.
+          this.scene = scene;
+          this.serverUrl = scene.serverclient || this.serverUrl;
+          return;
+        }
+        window.__gfErrorReporterActivo = true;
+
         this.scene = scene;
         this.serverUrl = scene.serverclient || 'http://localhost:3000';
-        
+
         // Obtener token de autenticación
         this.loadAuthToken();
-        
+
         // Guardar referencias originales de console
         this.originalConsoleError = console.error;
         this.originalConsoleWarn = console.warn;
@@ -2087,7 +2112,26 @@ showNotification(message, type = 'info') {
       this.serverBase    = 'https://api.grasslandforest.com';
     }
 
-    
+    // ── REPORTE DE ERRORES: CONECTADO ────────────────────────────────────────
+    // El objeto `this.errorReporter` estaba definido entero más arriba (captura
+    // de console, de 'error' y de 'unhandledrejection', cola de envío, caché
+    // anti-duplicados…) pero su init() NO se llamaba desde ningún sitio: cero
+    // referencias en todo el archivo. Es decir, el sistema existía y no
+    // recogía nada, mientras el backend tenía /api/report-error y
+    // /api/admin/reports esperando datos que nunca llegaban.
+    //
+    // Se arranca AQUÍ y no antes porque necesita `this.serverclient`, que se
+    // acaba de resolver en las líneas de arriba. Y es seguro llamarlo en cada
+    // entrada a la escena: init() ahora tiene guardián de ejecución única, así
+    // que la segunda vez solo repunta la escena y no vuelve a envolver la
+    // consola (ver el comentario del guardián).
+    try {
+      this.errorReporter.init(this);
+    } catch (e) {
+      // Que el reportero falle nunca puede impedir que el juego arranque.
+      console.warn('⚠️ No se pudo iniciar el reporte de errores:', e);
+    }
+
     this.zoom = false;
     this.definirhorax = 0 ;
 
@@ -5272,15 +5316,23 @@ const textStyle = {
 // jugadores remotos (99999) y de la interfaz, así que nada más cambia de orden.
 const NPC_LABEL_DEPTH = 90000;
 
-this.npcx1 = this.add.text(1829, 3288, 'Granjero Joe', textStyle);
+// NOMBRES DE NPC: EL IDIOMA BASE ES EL INGLÉS               (2026-08-11)
+// Los cinco carteles se creaban en ESPAÑOL ('Granjero Joe', 'Crafteador
+// Jack'…). El juego sí traduce los nombres al cambiar de idioma, pero estos
+// son el valor de PARTIDA: hasta que el bloque de idioma corría, y para
+// cualquier jugador en inglés (que es el idioma por defecto), los carteles
+// salían en español. Ahora nacen en inglés, igual que el resto de la interfaz,
+// y las traducciones de los demás idiomas siguen funcionando exactamente igual
+// porque se aplican encima con setText().
+this.npcx1 = this.add.text(1829, 3288, 'Farmer Joe', textStyle);
 this.npcx1.setOrigin(0.5);
 this.npcx1.setDepth(NPC_LABEL_DEPTH);
 
-this.npcx2 = this.add.text(3296, 1950, 'Crafteador Jack', textStyle);
+this.npcx2 = this.add.text(3296, 1950, 'Crafter Jack', textStyle);
 this.npcx2.setOrigin(0.5);
 this.npcx2.setDepth(NPC_LABEL_DEPTH);
 
-this.npcx3 = this.add.text(2374, 1515, 'Alquimista Colin', textStyle);
+this.npcx3 = this.add.text(2374, 1515, 'Alchemist Colin', textStyle);
 this.npcx3.setOrigin(0.5);
 this.npcx3.setDepth(NPC_LABEL_DEPTH);
 
@@ -7915,8 +7967,27 @@ this.sprite_npc2.on('pointerout', () => {
   borde1.clear();
 });
 
-// Inicializar el sistema de crafteo REAL
-this.craftingSystem = new CraftingSystem(this);
+// Inicializar el sistema de crafteo REAL.
+//
+// FIX FUGA: antes esto hacía `new CraftingSystem(this)` en CADA entrada a
+// GameScene. El constructor registra listeners sobre DOM de la PÁGINA — entre
+// ellos un `document.addEventListener('keydown', …)` anónimo para la tecla
+// Escape — que no se quitan nunca. Al volver del mapa a la tienda y otra vez
+// al mapa, quedaban dos sistemas de crafteo vivos escuchando el teclado, luego
+// tres, luego cuatro: cada Escape ejecutaba N manejadores, todos menos el
+// último apuntando a escenas ya destruidas.
+//
+// Se reutiliza una única instancia y solo se le repunta la escena activa, que
+// es exactamente el patrón que ya usa initTienda() con window.tiendaSistema en
+// tienda_sistema.js y que aquí funciona igual: la clase lee el inventario a
+// través de `this.scene.STATE`, así que con cambiar la referencia queda al día.
+if (!window.__gfCraftingSystem) {
+  window.__gfCraftingSystem = new CraftingSystem(this);
+} else {
+  window.__gfCraftingSystem.scene = this;
+  try { window.__gfCraftingSystem.refreshPlayerLevel(); } catch (e) { /* no crítico */ }
+}
+this.craftingSystem = window.__gfCraftingSystem;
 
 // Evento al hacer clic en el NPC herrero
 this.sprite_npc2.on('pointerdown', (pointer) => {
@@ -12367,8 +12438,9 @@ async _procesarLoteSiembra(lote) {
 
   if (costeAgua > 0 || costeComida > 0) {
     const pagado = await this._consumirVitales(
-      { agua: Math.ceil(costeAgua), comida: Math.ceil(costeComida) },
-      'plant'
+      { agua: Math.ceil(costeAgua), comida: Math.ceil(costeComida) },   // estimación local
+      'plant',
+      { seedType: seedType, units: cantidadTotal }                      // lo que el servidor necesita
     );
     if (!pagado) {
       plotIds.forEach(plotId => {
@@ -12599,7 +12671,8 @@ async plantSeed(plotId, seedType, opciones = {}) {
   if (opciones.recursosYaDescontados !== true) {
     alcanzan = await this._consumirVitales(
       { agua: Math.ceil(Number(cropConfig.waterCost) || 0), comida: Math.ceil(Number(cropConfig.foodCost) || 0) },
-      'plant'
+      'plant',
+      { seedType: seedType, units: 1 }
     );
   }
 
@@ -12650,7 +12723,9 @@ async waterCrop(plotId) {
   // El agua del jugador se cobra PRIMERO (transacción confirmada) y solo
   // después se riega y se desgasta la regadera.
   const coste = Math.ceil(Number(cropConfig.wateringCost) || 0);
-  if (await this._consumirVitales({ agua: coste }, 'water')) {
+  // waterCrop solo recibe plotId: el tipo de cultivo sale de los datos de la
+  // parcela, no de un `seedType` suelto (aquí no existe).
+  if (await this._consumirVitales({ agua: coste }, 'water', { seedType: cropData.cropType })) {
     this.socket.emit('waterCrop', {
       userId: this.currentAccount,
       plotId: plotId
@@ -14703,7 +14778,49 @@ createTestBeep() {
      * En móvil el evento que importa es visualViewport.resize: es el que dispara
      * el teclado al abrirse y cerrarse. window.resize no siempre llega.
      */
-    _setupZoomKeeper() {
+    /**
+ * Teletransporta la mascota junto al jugador, sin animación de recorrido.
+ *
+ * FIX "EL PERRO VIENE DE LEJOS AL ENTRAR": el perro se coloca en create() a
+ * `player.x + 40`, pero en ese momento el jugador todavía está en su posición
+ * provisional. La posición REAL llega después, cuando responde el servidor con
+ * los datos guardados, y ahí el jugador se teletransporta… dejando al perro
+ * donde estaba. Como el perro persigue al jugador, se le veía cruzar medio
+ * mapa corriendo hasta alcanzarlo.
+ *
+ * Aquí se le pone en el sitio de golpe. Se ajustan TAMBIÉN las posiciones
+ * previas y el objetivo: si solo se moviera el sprite, la lógica de
+ * seguimiento seguiría interpolando desde las coordenadas viejas y volvería a
+ * verse el arrastre.
+ */
+_pegarPerroAlJugador() {
+  const d = this.dog;
+  if (!d || !this.player) return;
+
+  const x = this.player.x + 40;   // mismo desfase que usa create()
+  const y = this.player.y + 20;
+
+  d.x = d.targetX = d.prevX = d.prevTargetX = x;
+  d.y = d.targetY = d.prevY = d.prevTargetY = y;
+  d.isMoving = false;
+
+  try {
+    if (d.sprite) d.sprite.setPosition(x, y);
+    if (d.shadowContainer) d.shadowContainer.setPosition(x, y + 22);
+    if (this.dogNameText) {
+      const alto = d.sprite ? d.sprite.displayHeight * 0.5 : 0;
+      this.dogNameText.setPosition(x, y - alto - 4);
+    }
+  } catch (e) { /* sprites aún sin crear: create() ya lo dejará bien */ }
+
+  // La referencia de movimiento del jugador también se reinicia: si no, el
+  // primer frame calcula un delta gigante (del punto viejo al nuevo) y el
+  // perro sale disparado en la dirección equivocada.
+  this.prevPlayerX = this.player.x;
+  this.prevPlayerY = this.player.y;
+}
+
+_setupZoomKeeper() {
         if (this._zoomKeeperBound) return;
         this._zoomKeeperBound = true;
 
@@ -20340,6 +20457,8 @@ async loadPlayerData() {
     if (this.player) {
       this.player.setVisible(true);
       this.player.setPosition(this.posicionplayerx, this.posicionplayery);
+      // El perro tiene que ir CON el jugador, no detrás de él.
+      this._pegarPerroAlJugador();
 
       // FIX: el perro se crea en create() usando la posición POR DEFECTO del
       // jugador (this.posicionplayerx/y iniciales, ej. 2097,2359), pero
@@ -21265,9 +21384,43 @@ _cleanupTutorial() {
             
             const resData = await resp.json().catch(() => ({}));
             console.log('✅ Datos guardados correctamente:', resData);
+
+            // NOMBRE YA COGIDO: el servidor rechaza el nombre de personaje o de
+            // mascota si otro jugador ya lo tiene (comparación sin distinguir
+            // mayúsculas) y lo devuelve en `nameConflicts`. El texto viene ya
+            // redactado en inglés desde el servidor, así que aquí solo se
+            // muestra: no hay que traducir ni componer nada.
+            this._avisarNombresRechazados(resData);
         } catch (e) {
             console.error('❌ Error de red al guardar:', e);
         }
+    }
+
+    /**
+     * Enseña al jugador que el nombre que pidió ya estaba cogido.
+     *
+     * Se deja el campo del panel vacío para que pueda escribir otro sin tener
+     * que borrar a mano lo que puso, que es lo que haría cualquiera.
+     */
+    _avisarNombresRechazados(resData) {
+        const choques = resData && Array.isArray(resData.nameConflicts) ? resData.nameConflicts : null;
+        if (!choques || !choques.length) return;
+
+        choques.forEach(c => {
+            const texto = (c && c.message) || 'That name is already taken. Please choose a different one.';
+            try {
+                if (this.notifications && typeof this.notifications.show === 'function') {
+                    this.notifications.show(texto, 'error');
+                } else {
+                    console.warn('⚠️', texto);
+                }
+            } catch (e) { console.warn('⚠️', texto); }
+
+            // Vaciar el campo correspondiente del panel de configuraciones.
+            const id = (c && c.field === 'petName') ? 'pet-name' : 'character-name';
+            const campo = document.getElementById(id);
+            if (campo) { campo.value = ''; campo.focus(); }
+        });
     }
 
 
@@ -23301,7 +23454,19 @@ _costeDeGolpe() {
   return (this._golpesAlternos % 2 === 1) ? { agua: 1 } : { comida: 1 };
 }
 
-async _consumirVitales(costos, motivo = 'action') {
+/**
+ * @param {object} costos  ESTIMACIÓN LOCAL, solo para avisar antes de molestar
+ *                         al servidor. Ya NO se envía: desde 2026-08-11 el
+ *                         coste real lo decide el servidor a partir de
+ *                         `motivo` (ver costesDeAccion en server2.js). Antes
+ *                         viajaba en el cuerpo y un cliente modificado podía
+ *                         mandar `{agua: 0}` y trabajar gratis.
+ * @param {string} motivo  'chop' | 'mine' | 'plant' | 'water'
+ * @param {object} [extra] datos que el servidor necesita para calcular el
+ *                         coste: `seedType` y `units` al sembrar o regar.
+ * @returns {Promise<boolean>} true si se cobró y se puede seguir
+ */
+async _consumirVitales(costos, motivo = 'action', extra = null) {
   const limpio = {};
   ['vida', 'agua', 'comida'].forEach(k => {
     const n = Math.round(Number(costos && costos[k]) || 0);
@@ -23328,7 +23493,9 @@ async _consumirVitales(costos, motivo = 'action') {
 
     const res = await this.fetchWithTokenRetry(
       `${this.serverBase}/api/stats/${encodeURIComponent(this.playerName)}/consume`,
-      { method: 'POST', body: JSON.stringify({ costs: limpio, reason: motivo }) },
+      // Se manda la ACCIÓN, no el precio. `costs` ya no viaja: el servidor lo
+      // ignoraría de todas formas y dejarlo solo invitaría a manipularlo.
+      { method: 'POST', body: JSON.stringify(Object.assign({ reason: motivo }, extra || {})) },
       1
     );
 
