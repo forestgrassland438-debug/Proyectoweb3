@@ -54,25 +54,37 @@ class BattleScene extends Phaser.Scene {
   preload() {
     // Se prueban varias rutas: así vale tanto si guardas la imagen en
     // Game/Objetos como en assets o en Game/FONDO.
+    // FIX "NO SE VE EL FONDO DE BATALLA":
+    // La primera ruta que se probaba era './Game/Objetos/fondo_batalla.png',
+    // que NO existe. La imagen está en './assets/fondo_batalla.png'.
+    //
+    // Había un reintento por `loaderror` que cargaba la siguiente ruta y
+    // llamaba a `this.load.start()`, pero eso no funciona: el cargador ya está
+    // corriendo durante el preload y una llamada a start() mientras
+    // `isLoading` es true se ignora. Además create() se ejecuta en cuanto
+    // termina el preload original, así que aunque el reintento hubiera
+    // arrancado, `textures.exists('fondo_batalla')` seguiría siendo false al
+    // construir el escenario y siempre caía en el fondo de respaldo pintado
+    // con graphics. Resultado: el PNG no se veía nunca.
+    //
+    // Ahora se pide directamente la ruta buena. Las otras se quedan
+    // documentadas por si la imagen se mueve, pero ya no hacen falta.
     this._rutasFondo = [
+      './assets/fondo_batalla.png',       // ← la que existe de verdad
       './Game/Objetos/fondo_batalla.png',
-      './assets/fondo_batalla.png',
       './Game/FONDO/fondo_batalla.png'
     ];
     this.load.image('fondo_batalla', this._rutasFondo[0]);
 
-    this._intentoFondo = 0;
-    this.load.on('loaderror', (file) => {
+    // Si aun así fallara (fichero borrado, 404 del servidor), se marca para
+    // usar el fondo de respaldo en vez de dejar la pantalla vacía.
+    // `once` y no `on`: el LoaderPlugin es de la escena y la escena se
+    // reutiliza, así que con `on` se acumulaba un listener por batalla.
+    this._sinFondo = false;
+    this.load.once('loaderror', (file) => {
       if (!file || file.key !== 'fondo_batalla') return;
-      this._intentoFondo++;
-      if (this._intentoFondo < this._rutasFondo.length) {
-        // Reintentar con la siguiente ruta ANTES de que termine el preload
-        this.load.image('fondo_batalla', this._rutasFondo[this._intentoFondo]);
-        this.load.start();
-      } else {
-        console.warn('⚠️ No se encontró fondo_batalla.png en ninguna ruta; se usa el fondo de respaldo');
-        this._sinFondo = true;
-      }
+      console.warn('⚠️ No se pudo cargar assets/fondo_batalla.png; se usa el fondo de respaldo');
+      this._sinFondo = true;
     });
   }
 
@@ -481,11 +493,62 @@ class BattleScene extends Phaser.Scene {
     this._listeners.push([evento, manejador]);
   }
 
+  /**
+   * Vigila que la batalla llegue a empezar.
+   *
+   * Contra bot el plazo es corto (el servidor solo tiene que leer el contador
+   * diario y fabricar el rival). En P2P es largo porque hay que esperar a que
+   * aparezca otra persona en la cola, que puede tardar de verdad.
+   */
+  _armarVigilanteDeBusqueda() {
+    this._cancelarVigilanteDeBusqueda();
+
+    const esBot   = this.modo === 'bot';
+    const limite  = esBot ? 12000 : 90000;   // ms hasta rendirse
+    const reintento = Math.floor(limite / 2);
+
+    // Reintento a mitad de camino: si la petición se perdió (típico cuando el
+    // socket se reconecta justo después de emitir), esto la recupera sin que
+    // el jugador tenga que hacer nada.
+    this._reintentoBusqueda = this.time.delayedCall(reintento, () => {
+      if (this.matchId || this.estado !== 'buscando') return;
+      if (!this.socket || !this.socket.connected) return;
+      console.warn('⏳ La batalla no arrancó; se reintenta la petición');
+      this.socket.emit(esBot ? 'battle:bot' : 'battle:queue');
+    });
+
+    this._vigilanteBusqueda = this.time.delayedCall(limite, () => {
+      if (this.matchId || this.estado !== 'buscando') return;
+      this.estadoTexto(esBot
+        ? 'The battle could not be started.\nPlease try again in a moment.'
+        : 'No opponent found right now.\nTry again later or play a daily battle.');
+      this.time.delayedCall(2600, () => this.volverAlMapa());
+    });
+  }
+
+  _cancelarVigilanteDeBusqueda() {
+    if (this._reintentoBusqueda) { this._reintentoBusqueda.remove(); this._reintentoBusqueda = null; }
+    if (this._vigilanteBusqueda) { this._vigilanteBusqueda.remove(); this._vigilanteBusqueda = null; }
+  }
+
   arrancarBusqueda() {
     if (this._buscandoIniciado) return;
     this._buscandoIniciado = true;
 
     this.registrarSocket();
+
+    // ── VIGILANTE ANTI-CUELGUE ──────────────────────────────────────────────
+    // FIX "SE QUEDA ESPERANDO Y NUNCA PASA NADA": no había NINGÚN límite de
+    // tiempo. Se emitía la petición y, si la respuesta del servidor no llegaba
+    // —porque el socket se reconectó justo en medio, porque el servidor tardó
+    // más de la cuenta, o porque el emparejamiento se descartó— el jugador se
+    // quedaba mirando "Preparing your daily battle…" para siempre, sin batalla
+    // y sin forma de salir salvo recargar.
+    //
+    // Ahora se reintenta UNA vez a la mitad del plazo (cubre el caso más común,
+    // que la petición se pierda en una reconexión) y, si sigue sin haber
+    // batalla, se avisa y se vuelve al mapa en vez de dejarlo colgado.
+    this._armarVigilanteDeBusqueda();
 
     if (this.modo === 'bot') {
       this.estadoTexto('Preparing your daily battle…');
