@@ -2112,6 +2112,27 @@ showNotification(message, type = 'info') {
       this.serverBase    = 'https://api.grasslandforest.com';
     }
 
+    // ── LIMPIAR RESTOS DE UNA BATALLA ────────────────────────────────────────
+    // FIX "AL VOLVER DE LA BATALLA EL CHAT Y EL DASHBOARD NO ABREN":
+    // BattleScene marca <body class="in-battle">, y el CSS usa esa clase para
+    // ocultar con `display:none !important` el chat, el hub, las casillas
+    // rápidas, el inventario y el resto del HUD del mapa. La clase se quita en
+    // BattleScene.shutdown(), pero hay varias vías de salida de la batalla
+    // (rendirse, perder la conexión, el vigilante de tiempo, volver a mano) y
+    // basta con que una sola no pase por ahí para que la clase se quede pegada:
+    // los botones siguen existiendo y respondiendo, pero son invisibles, así
+    // que parece que "no abren" o que "abren y no cierran".
+    //
+    // Quitarla aquí es la red de seguridad: da igual cómo se saliera de la
+    // batalla, al pisar el mapa el HUD vuelve. Es idempotente y no cuesta nada.
+    try {
+      document.body.classList.remove('in-battle');
+      const uiBatalla = document.getElementById('battleUI');
+      if (uiBatalla) uiBatalla.classList.add('hidden');
+      const avisoGirar = document.getElementById('battleRotateNotice');
+      if (avisoGirar) avisoGirar.classList.add('hidden');
+    } catch (e) { /* no crítico */ }
+
     // ── REPORTE DE ERRORES: CONECTADO ────────────────────────────────────────
     // El objeto `this.errorReporter` estaba definido entero más arriba (captura
     // de console, de 'error' y de 'unhandledrejection', cola de envío, caché
@@ -8088,6 +8109,11 @@ this.mouseMovement = {
     cursorOverUI: false
 };
 
+// Un clic en el HUD (casillas rápidas, botones, paneles) NO debe llegar al
+// mundo: sin esto se cogía el ítem de la casilla y además se talaba el árbol
+// o se hablaba con el NPC que había detrás.
+this._bloquearClicsDeUIHaciaElJuego();
+
 // Configurar eventos del ratón - VERSIÓN CORREGIDA CON DETECCIÓN DE UI
 this.input.on('pointerdown', (pointer) => {
     if (pointer.button === 0) {
@@ -11609,6 +11635,11 @@ setupCropSocketEvents() {
     this.resetPlot(data.plotId);
     this._onTutorialCut(); // tutorial: cuenta cortes/cosechas (paso 1)
 
+    // EXPERIENCIA DE AGRICULTURA. Se da aquí, al confirmar el servidor la
+    // cosecha, y no al emitir harvestCrop: así una cosecha que el servidor
+    // rechace no regala experiencia. 25 por cosecha, igual que talar y minar.
+    this._sumarExpHabilidad('agricultura', 25);
+
     // Si este resultado pertenece a un lote de corte en curso, resolver esa
     // promesa específica (el fruto se agrega después, agrupado on-chain,
     // en _procesarLoteCorte / _agregarFrutoOnChain) en vez de agregarlo aquí.
@@ -14793,6 +14824,124 @@ createTestBeep() {
  * seguimiento seguiría interpolando desde las coordenadas viejas y volvería a
  * verse el arrastre.
  */
+/**
+ * Evita que un clic sobre la interfaz ATRAVIESE y llegue al mundo del juego.
+ *
+ * EL PROBLEMA
+ * -----------
+ * Al pulsar una casilla rápida encima de un árbol, una parcela o un NPC, se
+ * cogía el objeto de la casilla Y ADEMÁS se talaba el árbol / se tocaba la
+ * parcela / se hablaba con el NPC. El clic pasaba a través.
+ *
+ * POR QUÉ PASA
+ * ------------
+ * Phaser no escucha solo en el lienzo: también registra un manejador de
+ * `pointerdown` en `window` para poder seguir punteros que empiezan fuera del
+ * canvas. Un clic sobre un elemento del HUD (que es DOM encima del lienzo)
+ * burbujea hasta `window`, y ahí Phaser lo recoge, hace su prueba de impacto
+ * contra el mundo y dispara el `pointerdown` del árbol que hay debajo.
+ *
+ * POR QUÉ NO SE USA preventDefault()
+ * ----------------------------------
+ * Phaser ignora los eventos con `defaultPrevented`, así que llamar a
+ * preventDefault() lo arreglaría… y de paso ROMPERÍA el arrastre de ítems del
+ * inventario, que se apoya en los eventos `mousedown`/`touchstart` de
+ * compatibilidad que preventDefault suprime. No compensa.
+ *
+ * LA SOLUCIÓN
+ * -----------
+ * Se corta la propagación en `document`, en fase de burbuja. El recorrido de un
+ * evento es: objetivo → … → document → window. Los manejadores del PROPIO
+ * elemento (la casilla, el botón, el arrastre) ya se han ejecutado cuando
+ * llegamos aquí, así que siguen funcionando igual. Lo único que se queda sin
+ * recibirlo es `window`, que es exactamente donde escucha Phaser.
+ *
+ * Si el clic va al lienzo, no se toca nada: el juego funciona como siempre.
+ */
+_bloquearClicsDeUIHaciaElJuego() {
+  const canvas = this.sys && this.sys.game && this.sys.game.canvas;
+  if (!canvas || !this._onDOM) return;
+
+  const vieneDelJuego = (e) => {
+    const t = e.target;
+    if (!t) return true;
+    // El lienzo (o algo dentro de él) = clic legítimo en el mundo.
+    if (t === canvas || (canvas.contains && canvas.contains(t))) return true;
+    // El <body>/<html> aparecen cuando se pulsa una zona sin HUD encima.
+    if (t === document.body || t === document.documentElement) return true;
+    return false;
+  };
+
+  const cortar = (e) => {
+    if (vieneDelJuego(e)) return;
+    // Solo se impide que llegue a window (Phaser). Todo lo demás ya corrió.
+    e.stopPropagation();
+  };
+
+  ['pointerdown', 'mousedown', 'touchstart'].forEach((tipo) => {
+    this._onDOM(document, tipo, cortar);
+  });
+}
+
+/**
+ * Suma experiencia a una habilidad y la sube de nivel cuando toca.
+ *
+ * BUG QUE ESTO ARREGLA — "farming, mining y woodcutting no suben de nivel":
+ * `agricultura_exp`, `mineria_exp` y `deforestacion_exp` existían en el
+ * jugador, se guardaban en cada /api/save y se pintaban en el panel de
+ * habilidades… pero NADIE las incrementaba nunca. No había un solo `+=` en
+ * todo el proyecto. Se quedaban en 0 para siempre y por eso el nivel no subía.
+ *
+ * Aquí se les da la ganancia que les faltaba. Se llama desde las tres acciones
+ * que corresponden: talar, minar y cosechar.
+ *
+ * La curva es la MISMA que la del nivel general (EXP_BASE · 2^nivel) para que
+ * el panel de habilidades siga siendo coherente con lo que ya muestra.
+ *
+ * Solo se tocan las tres habilidades que el juego tiene implementadas. Pesca,
+ * cocina y fuerza se dejan intactas a propósito: todavía no tienen mecánica
+ * detrás y regalarles experiencia sería inventarse una progresión.
+ *
+ * @param {'agricultura'|'mineria'|'deforestacion'} clave
+ * @param {number} cantidad  experiencia ganada (por golpe o por recolección)
+ */
+_sumarExpHabilidad(clave, cantidad) {
+  const HABILIDADES = {
+    agricultura:  'Farming',
+    mineria:      'Mining',
+    deforestacion:'Woodcutting'
+  };
+  if (!HABILIDADES[clave]) return;
+
+  const exp = Math.max(0, Math.round(Number(cantidad) || 0));
+  if (exp <= 0) return;
+
+  const claveExp = clave + '_exp';
+  this[clave]    = Math.max(1, Math.round(Number(this[clave]) || 1));
+  this[claveExp] = Math.max(0, Math.round(Number(this[claveExp]) || 0)) + exp;
+
+  // Misma curva y mismo tope que el nivel general del jugador.
+  const EXP_BASE  = 200;
+  const MAX_LEVEL = 150;
+  let subio = false;
+
+  while (this[clave] < MAX_LEVEL) {
+    const necesaria = EXP_BASE * (2 ** this[clave]);
+    if (this[claveExp] >= necesaria) { this[clave]++; subio = true; }
+    else break;
+  }
+
+  if (subio) {
+    try { this.playSFX('level_up_sound'); } catch (e) {}
+    try {
+      if (typeof this.notifications?.show === 'function') {
+        this.notifications.show(`${HABILIDADES[clave]} level ${this[clave]}!`, 'success');
+      }
+    } catch (e) {}
+    console.log(`⭐ ${HABILIDADES[clave]} subió a nivel ${this[clave]} (exp ${this[claveExp]})`);
+  }
+}
+
 _pegarPerroAlJugador() {
   const d = this.dog;
   if (!d || !this.player) return;
@@ -16034,16 +16183,56 @@ removeOtherPlayer(playerId) {
     }
   }
 
+  /**
+   * Convierte un punto del MUNDO a píxeles CSS de la página.
+   *
+   * FIX "EN EL TELÉFONO NO APARECE LO QUE ENVÍO POR EL CHAT":
+   * el cálculo anterior daba las coordenadas en unidades INTERNAS del juego
+   * (this.scale.width/height) y las escribía tal cual en `style.left/top` de un
+   * elemento DOM, que se mide en píxeles CSS. En el PC coinciden porque el
+   * devicePixelRatio es 1; en un móvil el juego corre a 2× o 3× la resolución
+   * CSS, así que las coordenadas salían dos o tres veces más grandes y la
+   * burbuja se iba fuera de la pantalla. El mensaje SÍ se mostraba: estaba
+   * colocado donde no se ve.
+   *
+   * Aquí se divide por la relación real entre el tamaño interno del juego y el
+   * tamaño en pantalla del lienzo, y se suma la posición del propio lienzo.
+   * Así vale para cualquier dpr y para cualquier sitio donde esté el canvas.
+   */
+  _mundoAPantalla(mundoX, mundoY) {
+    const cam = this.cameras && this.cameras.main;
+    const canvas = this.sys && this.sys.game && this.sys.game.canvas;
+    if (!cam || !canvas) return null;
+
+    // Punto en unidades internas del juego.
+    const gx = (mundoX - cam.scrollX) * cam.zoom + (this.scale.width  * 0.5 * (1 - cam.zoom));
+    const gy = (mundoY - cam.scrollY) * cam.zoom + (this.scale.height * 0.5 * (1 - cam.zoom));
+
+    // …convertido a píxeles CSS de la página.
+    const rect = canvas.getBoundingClientRect();
+    const escalaX = this.scale.width  ? rect.width  / this.scale.width  : 1;
+    const escalaY = this.scale.height ? rect.height / this.scale.height : 1;
+
+    return {
+      x: rect.left + gx * escalaX,
+      y: rect.top  + gy * escalaY,
+      escalaX,
+      escalaY
+    };
+  }
+
   /** Posiciona la burbuja local sobre el sprite del jugador local */
   _positionLocalBubble(bubble) {
-    if (!this.player || !this.cameras || !this.cameras.main) return;
+    if (!this.player) return;
+    const p = this._mundoAPantalla(this.player.x, this.player.y);
+    if (!p) return;
+
     const cam = this.cameras.main;
-    const sx = (this.player.x - cam.scrollX) * cam.zoom + (this.scale.width  * 0.5 * (1 - cam.zoom));
-    const sy = (this.player.y - cam.scrollY) * cam.zoom + (this.scale.height * 0.5 * (1 - cam.zoom));
-    const sprH = (this.player.displayHeight || 64) * cam.zoom;
-    // Position above the player sprite + name (extra 44px for name)
-    bubble.style.left = sx + 'px';
-    bubble.style.top  = (sy - sprH * 0.5 - 54) + 'px';
+    // La altura del sprite también hay que pasarla a píxeles CSS.
+    const sprH = (this.player.displayHeight || 64) * cam.zoom * p.escalaY;
+
+    bubble.style.left = p.x + 'px';
+    bubble.style.top  = (p.y - sprH * 0.5 - 54) + 'px';
     bubble.style.transform = 'translateX(-50%)';
   }
 
@@ -20337,6 +20526,14 @@ async loadPlayerData() {
       return;
     }
     
+    // Momento en el que se pide la copia del inventario. Viaja luego en cada
+    // /api/save para que el servidor sepa si esta copia es anterior a una
+    // compra hecha en el market (ver `marketWriteAt` en server2.js). Se apunta
+    // ANTES de la petición: si el market escribe justo mientras esta carga está
+    // en vuelo, la marca queda "antigua" y el servidor protegerá el inventario,
+    // que es el lado seguro del error.
+    this._inventoryLoadedAt = new Date().toISOString();
+
     // Usar fetchWithTokenRetry que ya maneja tokens CSRF
     const response = await this.fetchWithTokenRetry(
       `${this.serverBase}/api/load/${encodeURIComponent(this.playerName)}`,
@@ -21314,10 +21511,14 @@ _cleanupTutorial() {
         this.moneda = Math.floor(_canonicalMoneda != null ? _canonicalMoneda : this.monto_moneda);
         
         const payload = {
-            posicionplayerx: this.posicionplayerx, 
+            // Cuándo se cargó esta copia del inventario. El servidor lo compara
+            // con la última escritura del market para no dejar que un guardado
+            // con datos viejos borre un ítem recién comprado.
+            inventoryLoadedAt: this._inventoryLoadedAt || null,
+            posicionplayerx: this.posicionplayerx,
             posicionplayery: this.posicionplayery,
-            vidaPorcentaje: this.vidaPorcentaje, 
-            aguaPorcentaje: this.aguaPorcentaje, 
+            vidaPorcentaje: this.vidaPorcentaje,
+            aguaPorcentaje: this.aguaPorcentaje,
             comidaPorcentaje: this.comidaPorcentaje,
             lenguaje: this.lenguaje, 
             nivel: this.nivel, 
@@ -21391,6 +21592,22 @@ _cleanupTutorial() {
             // redactado en inglés desde el servidor, así que aquí solo se
             // muestra: no hay que traducir ni componer nada.
             this._avisarNombresRechazados(resData);
+
+            // El servidor protegió el inventario porque el market escribió
+            // después de que se cargara esta copia (una compra). Hay que
+            // recargarlo: si no, el jugador seguiría jugando con la copia
+            // vieja y no vería lo que compró.
+            if (resData && resData.inventoryStale) {
+                console.warn('🛡️ El inventario estaba obsoleto (compra en el market) — recargando');
+                try {
+                    if (typeof this.notifications?.show === 'function') {
+                        this.notifications.show('Your marketplace purchase arrived. Refreshing your bag…', 'info');
+                    }
+                    await this.loadPlayerData();
+                } catch (err) {
+                    console.warn('⚠️ No se pudo recargar el inventario:', err);
+                }
+            }
         } catch (e) {
             console.error('❌ Error de red al guardar:', e);
         }
@@ -22099,6 +22316,15 @@ async _gatherClaim(nodeKey, toolId) {
     if (data && data.reward && data.reward.tipo && data.reward.quantity > 0) {
       // Reflejar local el item que el servidor ya acuñó on-chain (no re-acuñar).
       this.addItemWithCheck(data.reward.tipo, data.reward.quantity);
+
+      // EXPERIENCIA DE HABILIDAD. `nodeKey` distingue el tipo de nodo: los de
+      // mina empiezan por 'mina'/'mineral' y los árboles por 'arbol'. Se dan
+      // 25 de exp por recolección conseguida (no por golpe: el golpe ya cuesta
+      // vitales y lo que premia es completar el nodo).
+      const clave = String(nodeKey || '').toLowerCase();
+      const esMina = clave.includes('mina') || clave.includes('mineral') || clave.includes('piedra');
+      this._sumarExpHabilidad(esMina ? 'mineria' : 'deforestacion', 25);
+
       return [{ id: data.reward.tipo, cantidad: data.reward.quantity }];
     }
     return [];

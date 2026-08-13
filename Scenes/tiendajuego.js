@@ -2691,6 +2691,15 @@ this.input.on('gameobjectout', (pointer, gameObject) => {
 
 // También verificar si el cursor está sobre elementos DOM (como el panel de crafting)
 // FIX FUGA: mouseover/mouseout/mouseup globales que no se quitaban nunca.
+// Igual que en GameScene: el clic sobre el HUD no debe atravesar al mundo.
+this._bloquearClicsDeUIHaciaElJuego();
+
+// Restos de una batalla: `body.in-battle` oculta el HUD con
+// `display:none !important`. Si alguna vía de salida de BattleScene no pasó
+// por su shutdown, la clase se queda pegada y aquí los botones tampoco
+// abrirían. Ver el comentario largo en GameScene.
+try { document.body.classList.remove('in-battle'); } catch (e) {}
+
 this._onDOM(document, 'mouseover', (e) => {
     const uiElements = ['mission-hub', 'crafting-hub', 'dialogHub', 'hub-panel_101'];
     if (uiElements.some(id => e.target.closest(`#${id}`))) {
@@ -5179,6 +5188,65 @@ _onDOM(target, type, handler, options) {
  * seguimiento seguiría interpolando desde las coordenadas viejas y volvería a
  * verse el arrastre.
  */
+/**
+ * Evita que un clic sobre la interfaz ATRAVIESE y llegue al mundo del juego.
+ *
+ * EL PROBLEMA
+ * -----------
+ * Al pulsar una casilla rápida encima de un árbol, una parcela o un NPC, se
+ * cogía el objeto de la casilla Y ADEMÁS se talaba el árbol / se tocaba la
+ * parcela / se hablaba con el NPC. El clic pasaba a través.
+ *
+ * POR QUÉ PASA
+ * ------------
+ * Phaser no escucha solo en el lienzo: también registra un manejador de
+ * `pointerdown` en `window` para poder seguir punteros que empiezan fuera del
+ * canvas. Un clic sobre un elemento del HUD (que es DOM encima del lienzo)
+ * burbujea hasta `window`, y ahí Phaser lo recoge, hace su prueba de impacto
+ * contra el mundo y dispara el `pointerdown` del árbol que hay debajo.
+ *
+ * POR QUÉ NO SE USA preventDefault()
+ * ----------------------------------
+ * Phaser ignora los eventos con `defaultPrevented`, así que llamar a
+ * preventDefault() lo arreglaría… y de paso ROMPERÍA el arrastre de ítems del
+ * inventario, que se apoya en los eventos `mousedown`/`touchstart` de
+ * compatibilidad que preventDefault suprime. No compensa.
+ *
+ * LA SOLUCIÓN
+ * -----------
+ * Se corta la propagación en `document`, en fase de burbuja. El recorrido de un
+ * evento es: objetivo → … → document → window. Los manejadores del PROPIO
+ * elemento (la casilla, el botón, el arrastre) ya se han ejecutado cuando
+ * llegamos aquí, así que siguen funcionando igual. Lo único que se queda sin
+ * recibirlo es `window`, que es exactamente donde escucha Phaser.
+ *
+ * Si el clic va al lienzo, no se toca nada: el juego funciona como siempre.
+ */
+_bloquearClicsDeUIHaciaElJuego() {
+  const canvas = this.sys && this.sys.game && this.sys.game.canvas;
+  if (!canvas || !this._onDOM) return;
+
+  const vieneDelJuego = (e) => {
+    const t = e.target;
+    if (!t) return true;
+    // El lienzo (o algo dentro de él) = clic legítimo en el mundo.
+    if (t === canvas || (canvas.contains && canvas.contains(t))) return true;
+    // El <body>/<html> aparecen cuando se pulsa una zona sin HUD encima.
+    if (t === document.body || t === document.documentElement) return true;
+    return false;
+  };
+
+  const cortar = (e) => {
+    if (vieneDelJuego(e)) return;
+    // Solo se impide que llegue a window (Phaser). Todo lo demás ya corrió.
+    e.stopPropagation();
+  };
+
+  ['pointerdown', 'mousedown', 'touchstart'].forEach((tipo) => {
+    this._onDOM(document, tipo, cortar);
+  });
+}
+
 _pegarPerroAlJugador() {
   const d = this.dog;
   if (!d || !this.player) return;
