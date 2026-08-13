@@ -18,6 +18,12 @@
  * se usa; mientras tanto se dibuja un degradado de respaldo.
  */
 class BattleScene extends Phaser.Scene {
+  // Imagen de la mascota para los retratos del HUD. Es el mismo PNG que el
+  // juego usa para el perro en el mapa (ver GameScene: load.image
+  // 'perro_derecha_1'), así que no añade ninguna descarga nueva: el navegador
+  // ya lo tiene en caché cuando se entra en batalla desde el mapa.
+  static RETRATO_MASCOTA = './Game/Sprites/mascota/derecha/run_1.png';
+
   constructor() {
     super({ key: 'BattleScene' });
   }
@@ -367,7 +373,22 @@ class BattleScene extends Phaser.Scene {
       destino.lvl.textContent = `(Lv.${datos.level})`;
       destino.player.textContent = datos.playerName || '';
       destino.addr.textContent = datos.addressShort || (datos.isBot ? 'BOT' : '');
-      if (destino.portrait) destino.portrait.textContent = datos.isBot ? '🤖' : '🐾';
+
+      // RETRATO: el sprite REAL de la mascota, no un emoji.
+      // Antes esto ponía '🐾' (o '🤖' para el bot), así que el jugador no veía
+      // a su perro por ningún lado. Se usa la misma imagen que el juego ya
+      // carga para la mascota en el mapa, puesta como fondo del círculo para
+      // que se recorte solo y no deforme.
+      if (destino.portrait) {
+        destino.portrait.textContent = '';
+        destino.portrait.style.backgroundImage = `url('${BattleScene.RETRATO_MASCOTA}')`;
+        destino.portrait.style.backgroundSize = 'contain';
+        destino.portrait.style.backgroundRepeat = 'no-repeat';
+        destino.portrait.style.backgroundPosition = 'center';
+        // El bot se distingue con un borde distinto en vez de otro dibujo:
+        // sigue siendo un perro, solo que no es de nadie.
+        destino.portrait.classList.toggle('bf-portrait-bot', !!datos.isBot);
+      }
       const p = Math.max(0, Math.min(1, datos.hp / datos.maxHp));
       destino.hp.style.width = (p * 100) + '%';
       destino.hpTxt.textContent = `${datos.hp}/${datos.maxHp} HP`;
