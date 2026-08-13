@@ -11646,12 +11646,27 @@ canvas,
 .battle-ui .bf-hpbar-rival > i { background: linear-gradient(90deg, #ef4444, var(--bf-rival)); }
 .battle-ui .bf-hpbar > i.low   { background: linear-gradient(90deg, #f59e0b, #ef4444); }
 
+/* ARMADURA (escudo) — tiene que REFLEJAR la barra de vida.
+   La tarjeta del rival está espejada: su vida crece de derecha a izquierda
+   (.bf-hpbar-rival > i va anclado a la derecha), así que su escudo debe ir
+   pegado a la DERECHA. El tuyo, a la IZQUIERDA, igual que tu vida.
+
+   Estaba mal en las dos direcciones: el CSS antiguo anclaba el escudo SIEMPRE
+   a la derecha (por eso el tuyo salía del lado equivocado) y el rediseño lo
+   ancló SIEMPRE a la izquierda (por eso el del rival salía del lado
+   equivocado). Ahora cada uno sigue a su barra. */
 .battle-ui .bf-shieldbar {
-  position: absolute; inset: 0 auto 0 0;
+  position: absolute;
+  top: 0; bottom: 0;
+  left: 0; right: auto;          /* TÚ: pegado a la izquierda */
   height: 100%;
   background: repeating-linear-gradient(115deg,
               rgba(96,165,250,.85) 0 6px, rgba(96,165,250,.5) 6px 12px);
   transition: width .35s cubic-bezier(.3,.8,.4,1);
+}
+
+.battle-ui .bf-hpbar-rival .bf-shieldbar {
+  left: auto; right: 0;          /* RIVAL: pegado a la derecha */
 }
 
 .battle-ui .bf-hptext {

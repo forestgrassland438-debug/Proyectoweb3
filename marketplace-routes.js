@@ -285,6 +285,18 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
   }
 
   async function applyInsertPlan(address, itemId, ops) {
+    // Se marca que el MARKET ha tocado este inventario. /api/save lo consulta
+    // para no sobrescribir la compra con la copia vieja que tiene la pestaña
+    // del juego (ver el comentario de `marketWriteAt` en el esquema).
+    // Va ANTES de insertar: si el guardado del juego llegara justo en medio,
+    // es preferible que vea la marca de más y recargue, a que no la vea y
+    // borre el ítem.
+    try {
+      await GamePlayer.updateOne({ address }, { $set: { marketWriteAt: new Date() } }).exec();
+    } catch (e) {
+      console.warn('⚠️ market: no se pudo marcar marketWriteAt:', e.message);
+    }
+
     for (const op of ops) {
       if (op.type === 'inc') {
         await GamePlayer.updateOne(
