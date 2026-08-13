@@ -11523,6 +11523,11 @@ canvas,
 .battle-ui:not(.hidden) {
   position: fixed;
   inset: 0;
+  /* POR ENCIMA DEL LIENZO. Lo que hace que se vea el escenario de la batalla
+     NO es el z-index sino que el fondo sea TRANSPARENTE (ver abajo). Con 900
+     el lienzo de Phaser quedaba por delante —`#container` tiene `transform`
+     por el CSS de rendimiento, y eso crea su propio contexto de apilado— y las
+     cartas dejaban de recibir clics. */
   z-index: 1002;
   display: flex;
   flex-direction: column;
@@ -11533,13 +11538,32 @@ canvas,
            calc(var(--bf-gap) + env(safe-area-inset-bottom, 0px))
            calc(var(--bf-gap) + env(safe-area-inset-left, 0px));
   box-sizing: border-box;
+
+  /* FIX "NO SE VE fondo_batalla.png":
+     el rediseño puso aquí un fondo OPACO (dos degradados a color sólido). Este
+     div ocupa la pantalla entera por encima del lienzo de Phaser, así que
+     tapaba por completo el escenario que dibuja BattleScene — incluida la
+     imagen de fondo. El .battle-ui original no tenía fondo NINGUNO: es un HUD
+     transparente sobre el juego, y así debe seguir.
+     Solo se deja un velo muy suave arriba y abajo para que el texto blanco de
+     las tarjetas y del estado se lea sobre cualquier escenario. */
   background:
-    radial-gradient(1200px 600px at 50% -10%, rgba(60, 110, 200, .18), transparent 70%),
-    linear-gradient(180deg, var(--bf-bg-1) 0%, var(--bf-bg-0) 100%);
+    linear-gradient(180deg, rgba(4, 8, 18, .55) 0%, rgba(4, 8, 18, 0) 22%,
+                            rgba(4, 8, 18, 0) 62%, rgba(4, 8, 18, .62) 100%);
+
   color: var(--bf-text);
   font-family: var(--font-family_101, system-ui, sans-serif);
   overflow: hidden;
   overscroll-behavior: contain;
+
+  /* NO se pone `pointer-events: none` aquí a propósito.
+     El .battle-ui original lo llevaba porque era un HUD sobre un mapa donde el
+     jugador seguía necesitando pulsar el escenario. En la batalla no hay nada
+     que pulsar en el lienzo: todo se juega con las cartas y los botones, que
+     son DOM. Dejar el contenedor "atravesable" solo añade una vía para que un
+     control deje de responder si alguien olvida ponerle `auto`, sin ninguna
+     ventaja a cambio. El escenario se ve porque el fondo es TRANSPARENTE, que
+     es cosa distinta del pointer-events. */
 }
 
 /* ── BARRA SUPERIOR: los dos combatientes y el turno ──────────────────────── */
@@ -11880,4 +11904,19 @@ canvas,
   .battle-ui .bf-shieldbar,
   .battle-ui .bf-timer > i { transition: none; }
   .battle-rotate-icon { animation: none; }
+}
+
+/* El retrato lleva ahora el sprite de la mascota como imagen de fondo
+   (BattleScene.pintarLuchadores). Se le quita el relleno de emoji y se deja
+   respirar la imagen; `pixelated` porque el sprite es pixel art y con el
+   suavizado por defecto salía borroso al ampliarlo. */
+.battle-ui .bf-portrait {
+  background-color: rgba(0, 0, 0, .35);
+  image-rendering: pixelated;
+  overflow: hidden;
+}
+/* El rival controlado por la máquina se marca con el borde, no con otro dibujo. */
+.battle-ui .bf-portrait.bf-portrait-bot {
+  border-color: rgba(251, 191, 36, .75);
+  box-shadow: 0 0 10px rgba(251, 191, 36, .35);
 }
