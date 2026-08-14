@@ -32,6 +32,26 @@ class GameScene extends Phaser.Scene {
       // false hasta desplegar el backend con GATHER_ENFORCE y probar en staging.
       this.GATHER_SERVER = false;
 
+      // Tope de nivel del personaje y de cada habilidad (ver _expTotalParaNivel).
+      this.MAX_LEVEL_PERSONAJE = 150;
+
+      // HABILIDADES DEL JUGADOR (se cargan de /api/load y se guardan en /api/save).
+      //
+      // BUG QUE ESTO ARREGLA — "las skills no suben": estas propiedades NUNCA se
+      // inicializaban en GameScene. Valían `undefined`, así que:
+      //   • `savegg()` las mandaba como undefined → JSON.stringify las BORRA del
+      //     cuerpo → el servidor nunca recibía el progreso;
+      //   • el panel de habilidades leía `undefined || 1` y siempre pintaba 1.
+      // Solo suben agricultura, minería y deforestación (ver _sumarExpHabilidad).
+      // Pesca, cocina y fuerza se declaran para que se guarden y se carguen, pero
+      // NADIE les suma experiencia: todavía no tienen mecánica detrás.
+      this.agricultura       = 1;  this.agricultura_exp   = 0;
+      this.mineria           = 1;  this.mineria_exp       = 0;
+      this.deforestacion     = 1;  this.deforestacion_exp = 0;
+      this.pesca             = 1;  this.pesca_exp         = 0;
+      this.cocina            = 1;  this.cocina_exp        = 0;
+      this.fuerza            = 1;  this.fuerza_exp        = 0;
+
         this.playerName = null;
         this.address = null;
         this.csrfToken = null;
@@ -5392,8 +5412,14 @@ this.npcx5.setDepth(NPC_LABEL_DEPTH);
 
     this.innerBtn = document.querySelector('.inner-btn');
 
+    // _bindDomClick y no addEventListener: `this.onInnerBtnClick` es una función
+    // NUEVA en cada create(), así que un removeEventListener posterior nunca
+    // habría casado con ella y los manejadores se apilaban (un clic ocultaba y
+    // volvía a mostrar los botones redondos: parecía que el botón no hacía
+    // nada). _bindDomClick guarda el manejador en el propio elemento y quita el
+    // anterior antes de poner el nuevo.
     if (this.innerBtn) {
-        this.innerBtn.addEventListener('click', this.onInnerBtnClick);
+        this._bindDomClick(this.innerBtn, 'innerBtn', this.onInnerBtnClick);
     }
 
 
@@ -5585,6 +5611,21 @@ window.hub.onRetry = (hiddenData) => {
           window.open(new URL('market.html', window.location.href).href, '_blank');
         });
 
+        // El botón de mostrar/ocultar los botones redondos y el del chat también
+        // son DOM de la página: si se quedan sin manejador, el jugador ve los
+        // botones ahí, los pulsa y no pasa nada. Los dos van por vías
+        // idempotentes, así que reengancharlos aquí no duplica clics.
+        const innerBtn = document.querySelector('.inner-btn');
+        if (innerBtn && this.onInnerBtnClick) {
+          this._bindDomClick(innerBtn, 'innerBtn', this.onInnerBtnClick);
+        }
+        const chatBtn = document.getElementById('open-chat-btn');
+        if (chatBtn && this._toggleChat) {
+          chatBtn.style.removeProperty('display');
+          this._bindDomClick(chatBtn, 'chatToggle', () => this._toggleChat());
+        }
+        try { document.body.classList.remove('in-battle'); } catch (_) {}
+
         // Los botones de CERRAR de los paneles se asignan con `.onclick = …`
         // en create(). Esa función captura el `this` de la escena en la que se
         // creó; si la escena se recrea y create() no vuelve a pasar por ahí,
@@ -5605,8 +5646,24 @@ window.hub.onRetry = (hiddenData) => {
         console.log('🔌 Botones del HUD reenganchados');
       } catch (e) { console.warn('⚠️ No se pudo reenganchar el HUD:', e); }
     };
+    // `off` antes de `on`: create() puede correr varias veces sobre la MISMA
+    // instancia de escena (Phaser la reutiliza), y sin esto se acumulaba un
+    // manejador de 'wake'/'resume' por cada entrada al mapa.
+    if (this._reengancharHUDAnterior) {
+      this.events.off('wake',   this._reengancharHUDAnterior);
+      this.events.off('resume', this._reengancharHUDAnterior);
+    }
+    this._reengancharHUDAnterior = this._reengancharHUD;
     this.events.on('wake',   this._reengancharHUD);
     this.events.on('resume', this._reengancharHUD);
+
+    // Y se llama UNA VEZ aquí mismo. Es la red de seguridad del "después de la
+    // batalla no funciona ningún botón redondo": si algo más arriba de create()
+    // falla o llega tarde, este reenganche deja el HUD entero (botones redondos,
+    // campana, NFT, skills, tienda y los botones de CERRAR de los paneles)
+    // apuntando a la escena viva. Es idempotente, así que llamarlo de más no
+    // duplica nada.
+    try { this._reengancharHUD(); } catch (e) {}
     /*
     this.roundButtons[4]?.addEventListener('click', this.onRoundBtnHudStats);
 
@@ -5754,11 +5811,22 @@ function getMineralTypeFromKey(key) {
 }
  
 // =============================================================================
-// 3. COOLDOWN HUMANO (igual que en tala)
+// 3. COOLDOWN HUMANO (EXACTAMENTE EL MISMO QUE EN TALA)
 // =============================================================================
+// BUG QUE ESTO ARREGLA — "minar es mucho más lento que talar y el cooldown no
+// se parece":
+//
+// Decía "igual que en tala"… y no lo era. A la tala se le bajó el cooldown a la
+// mitad (300-450 ms) y a la minería se le olvidó: seguía en 600-900 ms, o sea
+// que el pico esperaba EL DOBLE que el hacha entre golpe y golpe. Sumado a que
+// cada mineral pedía más golpes que un árbol (ver getPickClickRange_Mine), picar
+// una piedra costaba en tiempo real casi el triple que talar un pino.
+//
+// Ahora son los MISMOS números que HUMAN_COOLDOWN (la tala), y si algún día se
+// cambia uno hay que cambiar el otro.
 const MINE_HUMAN_COOLDOWN = {
-  min: 600,
-  max: 900,
+  min: 300,
+  max: 450,
   getRandom() {
     return Phaser.Math.Between(this.min, this.max);
   }
@@ -5832,11 +5900,47 @@ const getMineLockState = async (mineKey) => {
     const lockedUntil = data.lockedUntil ? new Date(data.lockedUntil) : null;
     const now = new Date();
     const isLocked = lockedUntil ? lockedUntil > now : false;
+    this._recordarEstadoMina(mineKey, { lockedUntil, isLocked });
     return { lockedUntil, isLocked };
   } catch (e) {
     console.warn(`Could not get lock state for ${mineKey}:`, e);
     return { lockedUntil: null, isLocked: false };
   }
+};
+
+/**
+ * Igual que getMineLockState pero SIN ir al servidor si ya se preguntó hace
+ * nada.
+ *
+ * BUG QUE ESTO ARREGLA — la otra causa de "minar va lentísimo": cada clic sobre
+ * un mineral hacía un GET completo a /api/mine/state/... y se quedaba esperando
+ * la respuesta ANTES de mirar siquiera el cooldown. Con 150-300 ms de latencia
+ * (más en el móvil), el golpe no se registraba hasta que volvía el servidor, y
+ * los clics rápidos se apilaban unos detrás de otros. El pico se sentía pastoso
+ * comparado con el hacha aunque el cooldown fuera el mismo.
+ *
+ * El estado de un mineral solo cambia cuando alguien lo termina, y para eso ya
+ * está el aviso 'mineLocked' por socket, que llega solo y borra esta caché. Así
+ * que basta con recordar la última respuesta unos segundos: el primer golpe
+ * pregunta y los siguientes van directos.
+ */
+const getMineLockStateCached = async (mineKey) => {
+  const CACHE_MS = 4000;
+  this._mineLockCache = this._mineLockCache || {};
+  const guardado = this._mineLockCache[mineKey];
+  const ahora = Date.now();
+
+  if (guardado) {
+    // Un bloqueo conocido sigue valiendo hasta su fecha de vencimiento: ahí no
+    // hace falta caducidad ninguna, la fecha ya la lleva puesta.
+    if (guardado.isLocked && guardado.lockedUntil && guardado.lockedUntil.getTime() > ahora) {
+      return { lockedUntil: guardado.lockedUntil, isLocked: true };
+    }
+    if (!guardado.isLocked && (ahora - guardado.at) < CACHE_MS) {
+      return { lockedUntil: null, isLocked: false };
+    }
+  }
+  return await getMineLockState(mineKey);
 };
  
 /**
@@ -6008,16 +6112,22 @@ const isPickSelected_Mine = () => getSelectedPickName_Mine() !== null;
 const getPickClickRange_Mine = (pickName, mineKey) => {
   const baseDifficulty = mineRewards[mineKey]?.dificultadBase || 1.0;
   let baseRange;
+  // Rangos reducidos (antes 6-10 / 5-8 / 4-7 / 3-6 / 7-12), EXACTAMENTE los
+  // mismos que ya tenían las hachas en getPickClickRange_Ore. A la tala se le
+  // bajaron un ~35 % porque "era muy tardado", pero a la minería no se le tocó,
+  // así que picar un mineral pedía casi el doble de golpes que talar un árbol
+  // del mismo escalón. Es la otra mitad del "minar es muy lento" (la primera es
+  // el cooldown, ver MINE_HUMAN_COOLDOWN).
   switch (pickName) {
-    case 'pico_de_madera': baseRange = { min: 6, max: 10 }; break;
-    case 'pico_de_piedra': baseRange = { min: 5, max: 8  }; break;
-    case 'pico_de_cobre':  baseRange = { min: 4, max: 7  }; break;
-    case 'pico_de_hierro': baseRange = { min: 3, max: 6  }; break;
-    default:               baseRange = { min: 7, max: 12 };
+    case 'pico_de_madera': baseRange = { min: 4, max: 7 }; break;
+    case 'pico_de_piedra': baseRange = { min: 3, max: 5 }; break;
+    case 'pico_de_cobre':  baseRange = { min: 3, max: 4 }; break;
+    case 'pico_de_hierro': baseRange = { min: 2, max: 3 }; break;
+    default:               baseRange = { min: 4, max: 8 };
   }
   return {
     min: Math.max(1, Math.round(baseRange.min * baseDifficulty)),
-    max: Math.max(3, Math.round(baseRange.max * baseDifficulty))
+    max: Math.max(2, Math.round(baseRange.max * baseDifficulty))
   };
 };
  
@@ -6101,15 +6211,19 @@ mineProps.forEach(prop => {
     // veía el contador subir Y el aviso a la vez.
     if (!this._hayRecursosParaTrabajar('mine')) return;
 
-    // ── 2. Verificar bloqueo global (backend) ─────────────────────────────
-    const { isLocked, lockedUntil } = await getMineLockState(mineKey);
-    if (isLocked) {
-      const unlockTime = lockedUntil ? lockedUntil.toLocaleTimeString() : 'indefinidamente';
-      this.notifications.show(`This ore is depleted until ${unlockTime}`, "warning");
-      return;
-    }
- 
+    // ── 2. Guard SÍNCRONO anti-doble-disparo ──────────────────────────────
+    // La tala ya lo tenía y la minería no. Los clics rapidísimos abrían varios
+    // manejadores que se solapaban en sus `await` y el contador se volvía loco
+    // (9/8, 10/8, 11/8…). Va ANTES de cualquier espera, a propósito.
+    const _nowGuard = Date.now();
+    this._mineClickGuard = this._mineClickGuard || {};
+    if (_nowGuard - (this._mineClickGuard[mineKey] || 0) < 120) return;
+    this._mineClickGuard[mineKey] = _nowGuard;
+
     // ── 3. Cooldown humano ────────────────────────────────────────────────
+    // VA ANTES DE PREGUNTAR AL SERVIDOR, no después. Así un clic que igualmente
+    // se iba a descartar por cooldown no cuesta una petición de red ni se queda
+    // esperando: la sensación al picar es la misma que al talar.
     const now  = Date.now();
     const last = this.lastMineClick[mineKey] || 0;
     const cooldown = MINE_HUMAN_COOLDOWN.getRandom();
@@ -6118,11 +6232,24 @@ mineProps.forEach(prop => {
       return;
     }
     this.lastMineClick[mineKey] = now;
- 
-    // ── 4. Recursos (segunda comprobación, tras el await) ─────────────────
+
+    // ── 4. Verificar bloqueo global (backend, con caché corta) ────────────
+    const { isLocked, lockedUntil } = await getMineLockStateCached(mineKey);
+    if (isLocked) {
+      // Igual que en la tala: si el mineral ya lo picó otro, el progreso local
+      // no vale nada y hay que borrarlo, o al reaparecer el mineral se seguiría
+      // contando desde donde se quedó.
+      this._abortLocalProgress(mineKey, { tipo: 'mine' });
+      this.hideMinedMineral(mineKey);
+      const unlockTime = lockedUntil ? lockedUntil.toLocaleTimeString() : 'indefinidamente';
+      this.notifications.show(`This ore is depleted until ${unlockTime}`, "warning");
+      return;
+    }
+
+    // ── 5. Recursos (segunda comprobación, tras el await) ─────────────────
     if (!this._hayRecursosParaTrabajar('mine')) return;
 
-    // ── 4-bis. COBRO DE VITALES, ANTES QUE NADA ───────────────────────────
+    // ── 6. COBRO DE VITALES, ANTES QUE NADA ───────────────────────────────
     // Mismo criterio que la tala: la transacción del conteo del jugador va
     // primero y se espera. Si no se puede pagar, el clic no cuenta para nada.
     if (this._cobrandoVitales) return;
@@ -6227,17 +6354,31 @@ mineProps.forEach(prop => {
 
       // GATHER_SERVER (anti-trampa): si está activo, el SERVIDOR valida el nodo,
       // lo bloquea, decide y ACUÑA la recompensa. Apagado (default): flujo cliente.
+      // EXPERIENCIA POR PICAR. 50 de nivel y 25 de minería POR MINERAL COMPLETADO,
+      // exactamente igual que la tala.
+      //
+      // Dos arreglos aquí:
+      //   1. La experiencia de MINING no se daba nunca en el juego real. Solo se
+      //      sumaba dentro de _gatherClaim(), que únicamente corre con
+      //      `GATHER_SERVER` activado — y está apagado por defecto. Es la causa
+      //      principal de "la habilidad de minar no sube". Ahora se da aquí, que
+      //      es donde el mineral cae de verdad, así que vale en los dos modos.
+      //   2. El nivel_exp se sumaba DENTRO del bucle de recompensas: un mineral
+      //      que soltaba dos cosas (piedra + cobre) pagaba 100 y uno que soltaba
+      //      una pagaba 50, por el mismo trabajo. Ahora es 50 por mineral, se
+      //      lleve lo que se lleve, igual que un árbol.
+      this.nivel_exp = (this.nivel_exp || 0) + 50;
+      this._sumarExpHabilidad('mineria', 25);
+
       let rewards;
       if (this.GATHER_SERVER) {
         rewards = await this._gatherClaim(mineKey, pickName);
-        this.nivel_exp = (this.nivel_exp || 0) + (rewards.length ? 50 : 0);
       } else {
         rewards = getMultipleRewards_Mine(mineKey, pickName);
         // "lo que se mina es transacción": _agregarFrutoOnChain manda la tx real
         // si el item tiene tipo; si no (ej. carbon), lo agrega off-chain.
         for (const reward of rewards) {
           await this._agregarFrutoOnChain(reward.id, reward.cantidad);
-          this.nivel_exp = (this.nivel_exp || 0) + 50;
         }
       }
 
@@ -6267,6 +6408,7 @@ mineProps.forEach(prop => {
           // Si no se bloqueó en el servidor, devolver el mineral al jugador:
           // si no, quedaría deshabilitado para siempre (ya no hay respawn que
           // lo reactive, porque nunca se programó).
+          this._olvidarEstadoMina(mineKey);
           this.showMinedMineral(mineKey);
           this.enablePixelPerfectInput(spr);
           return;
@@ -6275,17 +6417,20 @@ mineProps.forEach(prop => {
         const serverLockedUntil = await lockMine(mineKey, mineralType);
         if (!serverLockedUntil) {
           this.notifications.show('Could not lock the ore on the server.', 'error');
+          this._olvidarEstadoMina(mineKey);
           this.showMinedMineral(mineKey);
           this.enablePixelPerfectInput(spr);
           return;
         }
 
         // (el sprite ya fue deshabilitado al inicio del bloque, ver FIX arriba)
+        this._recordarEstadoMina(mineKey, { lockedUntil: serverLockedUntil, isLocked: true });
 
         // Programar reactivación usando la fecha del servidor
         const remainingMs = serverLockedUntil.getTime() - Date.now();
         const unlockMineSprite = async (sprRef, key) => {
           try {
+            this._olvidarEstadoMina(key);
             const state = await getMineLockState(key);
             if (!state.isLocked) {
               const liveSpr = this[key];
@@ -6300,6 +6445,7 @@ mineProps.forEach(prop => {
             // Si falla la consulta, desbloquear de todas formas
             const liveSpr = this[key];
             if (liveSpr && liveSpr.active) this.enablePixelPerfectInput(liveSpr);
+            this._olvidarEstadoMina(key);
             this.showMinedMineral(key);
           }
         };
@@ -6313,6 +6459,7 @@ mineProps.forEach(prop => {
         // (el sprite ya fue deshabilitado al inicio del bloque, ver FIX arriba)
         setTimeout(() => {
           if (spr && spr.active) this.enablePixelPerfectInput(spr);
+          this._olvidarEstadoMina(mineKey);
           this.showMinedMineral(mineKey);
         }, 60000);
       }
@@ -6507,11 +6654,35 @@ const getTreeLockState = async (treeKey) => {
     const lockedUntil = data.lockedUntil ? new Date(data.lockedUntil) : null;
     const now = new Date();
     const isLocked = lockedUntil ? lockedUntil > now : false;
+    this._recordarEstadoArbol(treeKey, { lockedUntil, isLocked });
     return { lockedUntil, isLocked };
   } catch (e) {
     console.warn(`Could not get lock state for ${treeKey}:`, e);
     return { lockedUntil: null, isLocked: false };
   }
+};
+
+/**
+ * Estado del árbol sin pedir al servidor si ya se preguntó hace nada.
+ * Misma idea (y mismos motivos) que getMineLockStateCached: un GET por cada
+ * golpe de hacha metía la latencia de la red dentro del ritmo del juego. El
+ * aviso 'treeLocked' por socket mantiene la caché al día cuando lo tumba otro.
+ */
+const getTreeLockStateCached = async (treeKey) => {
+  const CACHE_MS = 4000;
+  this._treeLockCache = this._treeLockCache || {};
+  const guardado = this._treeLockCache[treeKey];
+  const ahora = Date.now();
+
+  if (guardado) {
+    if (guardado.isLocked && guardado.lockedUntil && guardado.lockedUntil.getTime() > ahora) {
+      return { lockedUntil: guardado.lockedUntil, isLocked: true };
+    }
+    if (!guardado.isLocked && (ahora - guardado.at) < CACHE_MS) {
+      return { lockedUntil: null, isLocked: false };
+    }
+  }
+  return await getTreeLockState(treeKey);
 };
 
 // 🔧 CORREGIDO: lockTree ya NO recibe lockedUntil, y devuelve la fecha del servidor
@@ -7296,7 +7467,9 @@ oreProps.forEach(prop => {
     // ---------- 1. Verificar bloqueo global ----------
     // Va ANTES de validar el hacha: si lo que se está picando es un tronco, lo
     // útil es saber cuánto falta para el respawn, no que "necesitas un hacha".
-    const { isLocked, lockedUntil } = await getTreeLockState(treeKey);
+    // Con caché corta: sin ella, cada golpe metía un viaje completo al servidor
+    // dentro del ritmo del hacha (ver getTreeLockStateCached).
+    const { isLocked, lockedUntil } = await getTreeLockStateCached(treeKey);
     if (isLocked) {
       // Red de seguridad por si el aviso 'treeLocked' no llegó (desconexión
       // momentánea, o el árbol lo taló alguien mientras cargábamos): al
@@ -7477,6 +7650,23 @@ oreProps.forEach(prop => {
       // Otorgar experiencia por talar (mismo criterio que ya usa la minería)
       this.nivel_exp = (this.nivel_exp || 0) + 50;
 
+      // ── EXPERIENCIA DE WOODCUTTING ───────────────────────────────────────
+      // BUG QUE ESTO ARREGLA — LA CAUSA PRINCIPAL DE "talar no sube de nivel":
+      //
+      // _sumarExpHabilidad() existía y estaba bien escrita, pero desde la tala y
+      // la minería SOLO se llamaba dentro de _gatherClaim()… y _gatherClaim()
+      // únicamente se ejecuta si `this.GATHER_SERVER` es true, que está
+      // apagado por defecto (ver el constructor: es el modo anti-trampa que
+      // todavía no se ha desplegado). O sea que en el juego REAL, tal y como se
+      // juega hoy, ningún árbol y ningún mineral daba jamás experiencia de
+      // habilidad. Solo la agricultura la daba, porque la suya se llama desde el
+      // 'harvestSuccess' del socket, que sí corre siempre.
+      //
+      // Ahora se da aquí, en el punto donde el árbol REALMENTE cae, así que
+      // cuenta en los dos modos y no puede duplicarse (_gatherClaim ya no la
+      // suma). Son 25 por árbol, igual que la cosecha.
+      this._sumarExpHabilidad('deforestacion', 25);
+
       // GATHER_SERVER (anti-trampa): si está activo, el SERVIDOR valida el nodo,
       // lo bloquea, decide y ACUÑA la recompensa (el cliente no acuña). Si está
       // apagado (default), se mantiene el flujo cliente de siempre.
@@ -7521,6 +7711,7 @@ oreProps.forEach(prop => {
         const deforestSuccess = await updateDeforestationPercent(treeType, increment);
         if (!deforestSuccess) {
           this.notifications.show('Could not update deforestation. The tree was not locked.', 'error');
+          this._olvidarEstadoArbol(treeKey);
           hideTreeStump(treeKey);
           return;
         }
@@ -7528,6 +7719,7 @@ oreProps.forEach(prop => {
         const serverLockedUntil = await lockTree(treeKey, treeType);
         if (!serverLockedUntil) {
           this.notifications.show('Could not lock the tree on the server.', 'error');
+          this._olvidarEstadoArbol(treeKey);
           hideTreeStump(treeKey);
           return;
         }
@@ -7536,12 +7728,14 @@ oreProps.forEach(prop => {
         // clickeable: a partir de aquí el paso 2 corta cualquier intento y
         // avisa cuánto falta para el respawn. (Durante los awaits anteriores
         // seguía deshabilitado, que es lo que evita las transacciones dobles.)
+        this._recordarEstadoArbol(treeKey, { lockedUntil: serverLockedUntil, isLocked: true });
         this.enablePixelPerfectInput(spr);
 
         // Programar la reactivación usando la fecha del servidor
         const remainingMs = serverLockedUntil.getTime() - Date.now();
         const unlockTreeSprite = async (sprRef, key) => {
           try {
+            this._olvidarEstadoArbol(key);
             const state = await getTreeLockState(key);
             if (!state.isLocked) {
               const liveSpr = this[key];
@@ -7556,6 +7750,7 @@ oreProps.forEach(prop => {
             // Si falla la consulta, desbloquear de todas formas
             const liveSpr = this[key];
             if (liveSpr && liveSpr.active) this.enablePixelPerfectInput(liveSpr);
+            this._olvidarEstadoArbol(key);
             hideTreeStump(key);
           }
         };
@@ -7569,6 +7764,7 @@ oreProps.forEach(prop => {
         // (el sprite ya fue deshabilitado al inicio del bloque, ver FIX arriba)
         setTimeout(() => {
           if (spr && spr.active) this.enablePixelPerfectInput(spr);
+          this._olvidarEstadoArbol(treeKey);
           hideTreeStump(treeKey);
         }, 60000);
       }
@@ -7971,12 +8167,12 @@ this.time.addEvent({
     // ======================
     // SISTEMA DE NIVELES
     // ======================
-
-    const EXP_BASE = 200;
-    const MAX_LEVEL = 150;
+    // La curva vive en _expTotalParaNivel() (ver más abajo). Aquí solo se
+    // comprueba si la experiencia acumulada ya alcanza el siguiente nivel.
+    const MAX_LEVEL = this.MAX_LEVEL_PERSONAJE;
 
     while (this.nivel < MAX_LEVEL) {
-      const expNecesaria = EXP_BASE * (2 ** this.nivel);
+      const expNecesaria = this._expTotalParaNivel(this.nivel + 1);
 
       if (this.nivel_exp >= expNecesaria) {
         this.nivel++;
@@ -8374,6 +8570,43 @@ _abortLocalProgress(key, { tipo = 'tree' } = {}) {
   if (estado && estado[key]) delete estado[key];
 }
 
+/**
+ * Apunta el último estado conocido de bloqueo de un mineral.
+ *
+ * Es lo que permite que picar no haga un viaje al servidor por CADA clic (ver
+ * getMineLockStateCached). Lo escriben la consulta al backend, el aviso
+ * 'mineLocked' de otro jugador y el bloqueo/desbloqueo propio, así que la caché
+ * siempre refleja lo último que se supo de verdad.
+ */
+_recordarEstadoMina(mineKey, { lockedUntil = null, isLocked = false } = {}) {
+  this._mineLockCache = this._mineLockCache || {};
+  this._mineLockCache[mineKey] = {
+    at: Date.now(),
+    isLocked: !!isLocked,
+    lockedUntil: lockedUntil ? new Date(lockedUntil) : null
+  };
+}
+
+/** Olvida el estado guardado de un mineral: el próximo clic vuelve a preguntar. */
+_olvidarEstadoMina(mineKey) {
+  if (this._mineLockCache) delete this._mineLockCache[mineKey];
+}
+
+/** Igual que _recordarEstadoMina, para los árboles. */
+_recordarEstadoArbol(treeKey, { lockedUntil = null, isLocked = false } = {}) {
+  this._treeLockCache = this._treeLockCache || {};
+  this._treeLockCache[treeKey] = {
+    at: Date.now(),
+    isLocked: !!isLocked,
+    lockedUntil: lockedUntil ? new Date(lockedUntil) : null
+  };
+}
+
+/** Olvida el estado guardado de un árbol. */
+_olvidarEstadoArbol(treeKey) {
+  if (this._treeLockCache) delete this._treeLockCache[treeKey];
+}
+
 setupResourceLockSocket() {
   if (!this.socket || this._resourceLockSocketBound) return;
   this._resourceLockSocketBound = true;
@@ -8394,6 +8627,7 @@ setupResourceLockSocket() {
       const hasta = new Date(lockedUntil).getTime();
       if (!(hasta > Date.now())) return;
       console.log(`🌲 Otro jugador taló ${treeKey}`);
+      this._recordarEstadoArbol(treeKey, { lockedUntil: new Date(hasta), isLocked: true });
       // Si yo estaba a medio talar ese árbol, mi progreso ya no vale: se borra
       // el contador de la pantalla y el estado, para no quedarme con un "3/6"
       // colgado ni reanudar desde ahí cuando el árbol vuelva.
@@ -8405,6 +8639,7 @@ setupResourceLockSocket() {
       // cortabas TÚ, no cuando se lo llevaba otro jugador.
       if (this.tutorial === 4) this._aimAtNearestPine && this._aimAtNearestPine();
       restaurarEn(hasta - Date.now(), () => {
+        this._olvidarEstadoArbol(treeKey);
         this.hideTreeStump(treeKey);
         const live = this[treeKey];
         if (live && live.active) this.enablePixelPerfectInput(live);
@@ -8433,6 +8668,9 @@ setupResourceLockSocket() {
       const hasta = new Date(lockedUntil).getTime();
       if (!(hasta > Date.now())) return;
       console.log(`⛏️ Otro jugador picó ${mineKey}`);
+      // La caché de estado tiene que enterarse, o los siguientes clics seguirían
+      // creyendo que el mineral está libre durante unos segundos.
+      this._recordarEstadoMina(mineKey, { lockedUntil: new Date(hasta), isLocked: true });
       this._abortLocalProgress(mineKey, { tipo: 'mine' });
       // Mismo criterio que loadMineLockStates: el mineral picado no se puede
       // volver a picar hasta que reaparezca (los árboles sí siguen clickeables
@@ -8440,6 +8678,7 @@ setupResourceLockSocket() {
       this.disableSpriteInput(spr);
       this.hideMinedMineral(mineKey);
       restaurarEn(hasta - Date.now(), () => {
+        this._olvidarEstadoMina(mineKey);
         this.showMinedMineral(mineKey);
         const live = this[mineKey];
         if (live && live.active) this.enablePixelPerfectInput(live);
@@ -9048,13 +9287,45 @@ setupSettingsPanel() {
     }
     this._settingsSetupTries = 0;
 
-    // Los campos del dashboard son DOM persistente de game.html y ya no se
-    // clonan al salir de la escena, así que hay que asegurarse de enganchar sus
-    // listeners UNA sola vez: si no, cada entrada a GameScene añadiría otro
-    // handler de 'input'/'keydown' sobre el mismo campo.
+    // ── BOTONES DEL DASHBOARD: SE REENGANCHAN SIEMPRE ────────────────────────
+    // BUG QUE ESTO ARREGLA — "salgo de la batalla, abro el dashboard y ya no
+    // puedo cerrarlo, ni en PC ni en el móvil":
+    //
+    // Al apagarse GameScene, cleanupDomListeners() reemplazaba #close-panel y
+    // #logout-btn por CLONES (cloneNode + replaceChild). Un clon no conserva los
+    // listeners, así que el botón de cerrar se quedaba mudo. Y al volver a
+    // entrar, este método salía por el `return` de abajo —porque el guardián
+    // mira #character-name, que NO se clona y por tanto sigue marcado— sin
+    // llegar nunca a reengancharlos. Resultado: el panel abría (su botón vive en
+    // los botones redondos, que sí se reenganchan) pero no cerraba jamás. Y con
+    // el panel abierto encima, tampoco se podía usar el resto del HUD: por eso
+    // "no se puede abrir nada después de la batalla".
+    //
+    // Estos tres van con `.onclick` en vez de addEventListener a propósito:
+    // asignar reemplaza, así que se puede llamar mil veces sin acumular
+    // manejadores. Y van ANTES del guardián, para que se ejecuten SIEMPRE.
+    this.settingsCloseBtn = document.getElementById('close-panel');
+    if (this.settingsCloseBtn) {
+        this.settingsCloseBtn.onclick = () => this.hideSettingsPanel();
+    }
+    if (this.settingsLogoutBtn) {
+        this.settingsLogoutBtn.onclick = () => {
+            if (this.stopAutoRefresh) this.stopAutoRefresh();
+            this.Username = null;
+            this._doFullLogout();
+        };
+    }
+    if (this.settingsLangSelect) {
+        this.settingsLangSelect.onchange = (event) => this._aplicarCambioDeIdioma(event.target.value);
+    }
+
+    // Los CAMPOS de texto del dashboard son DOM persistente de game.html y ya no
+    // se clonan al salir de la escena, así que sus listeners de
+    // 'input'/'keydown'/'focus' se enganchan UNA sola vez: si no, cada entrada a
+    // GameScene añadiría otro handler sobre el mismo campo.
     // El estado visual (bloqueado/editable) SÍ se refresca siempre, más abajo.
     if (this.settingsNameInput._gfDashBound) {
-        console.log('✅ Panel de configuraciones ya enganchado — solo se refresca');
+        console.log('✅ Campos del dashboard ya enganchados — botones reenganchados y estado refrescado');
         this._refreshNameLockUI();
         return;
     }
@@ -9307,53 +9578,10 @@ setupSettingsPanel() {
         };
     }
     
-    // Botón cerrar panel
-    this.settingsCloseBtn.addEventListener('click', () => {
-        this.hideSettingsPanel();
-    });
-    
-    // Selector de idioma
-    this.settingsLangSelect.addEventListener('change', (event) => {
-        const v = event.target.value;
-        
-        if (v === 'en-US') {
-            this.lenguaje = 1;
-            this.panelactualizacion = 1;
-            console.log('Idioma cambiado a inglés:', this.lenguaje);
-        } else if (v === 'en-PH') {
-            this.lenguaje = 2;
-            this.panelactualizacion = 1;
-            console.log('Idioma cambiado a inglés filipino:', this.lenguaje);
-        } else if (v === 'es-419') {
-            this.lenguaje = 3;
-            this.panelactualizacion = 1;
-            console.log('Idioma cambiado a español:', this.lenguaje);
-        } else if (v === 'pt-BR') {
-            this.lenguaje = 4;
-            this.panelactualizacion = 1;
-            console.log('Idioma cambiado a portugués:', this.lenguaje);
-        } else if (v === 'zh-CN') {
-            this.lenguaje = 5;
-            this.panelactualizacion = 1;
-            console.log('Idioma cambiado a chino:', this.lenguaje);
-        } else if (v === 'ko-KR') {
-            this.lenguaje = 6;
-            this.panelactualizacion = 1;
-            console.log('Idioma cambiado a coreano:', this.lenguaje);
-        }
-        
-        this.queuedAction({ type: 'forSpam2' });
-        
-    });
-    
-    // Botón cerrar sesión — antes solo recargaba la página: la sesión del
-    // backend y la wallet seguían conectadas. Ahora cierra TODO y va al login.
-    this.settingsLogoutBtn.addEventListener('click', () => {
-        if (this.stopAutoRefresh) this.stopAutoRefresh();
-        this.Username = null;
-        this._doFullLogout();
-    });
-    
+    // (El botón de cerrar, el de cerrar sesión y el selector de idioma se
+    //  enganchan arriba, FUERA del guardián, porque hay que rehacerlos en cada
+    //  entrada a la escena — ver la nota larga de ahí.)
+
     // Tecla Esc para cerrar (usando capture para atrapar primero)
     // FIX FUGA: era un listener anónimo, imposible de quitar → se acumulaba
     // uno por cada entrada a la escena.
@@ -9364,6 +9592,37 @@ setupSettingsPanel() {
             this.hideSettingsPanel();
         }
     }, true);
+}
+
+/** Cambio de idioma del dashboard (antes iba inline en el addEventListener). */
+_aplicarCambioDeIdioma(v) {
+    if (v === 'en-US') {
+        this.lenguaje = 1;
+        this.panelactualizacion = 1;
+        console.log('Idioma cambiado a inglés:', this.lenguaje);
+    } else if (v === 'en-PH') {
+        this.lenguaje = 2;
+        this.panelactualizacion = 1;
+        console.log('Idioma cambiado a inglés filipino:', this.lenguaje);
+    } else if (v === 'es-419') {
+        this.lenguaje = 3;
+        this.panelactualizacion = 1;
+        console.log('Idioma cambiado a español:', this.lenguaje);
+    } else if (v === 'pt-BR') {
+        this.lenguaje = 4;
+        this.panelactualizacion = 1;
+        console.log('Idioma cambiado a portugués:', this.lenguaje);
+    } else if (v === 'zh-CN') {
+        this.lenguaje = 5;
+        this.panelactualizacion = 1;
+        console.log('Idioma cambiado a chino:', this.lenguaje);
+    } else if (v === 'ko-KR') {
+        this.lenguaje = 6;
+        this.panelactualizacion = 1;
+        console.log('Idioma cambiado a coreano:', this.lenguaje);
+    }
+
+    try { this.queuedAction && this.queuedAction({ type: 'forSpam2' }); } catch (e) {}
 }
 
 // Método para mostrar panel
@@ -14963,6 +15222,56 @@ _bloquearClicsDeUIHaciaElJuego() {
 }
 
 /**
+ * EXPERIENCIA ACUMULADA NECESARIA PARA ALCANZAR EL NIVEL `n`.
+ *
+ * BUG QUE ESTO ARREGLA — "el personaje no pasa de nivel 4 a 5":
+ * ---------------------------------------------------------------------------
+ * La curva anterior era `200 · 2^nivel`, es decir, DOBLABA en cada nivel:
+ *
+ *      nivel 1 →    200      nivel 5 →     3.200
+ *      nivel 2 →    400      nivel 6 →     6.400
+ *      nivel 3 →    800      nivel 7 →    12.800
+ *      nivel 4 →  1.600      nivel 10 →  102.400
+ *                            nivel 20 →  104.857.600
+ *                            nivel 150 → 2,8 · 10^47   (imposible)
+ *
+ * Con 50 de exp por árbol o mineral, pasar de 4 a 5 pedía 32 nodos más que
+ * llegar al 4, de 5 a 6 otros 64… y a partir del 8 la progresión se muere.
+ * Por eso el juego "se atascaba" justo en el nivel 4: es el último escalón que
+ * todavía se puede subir en una sesión normal.
+ *
+ * La curva nueva es POLINÓMICA — `100·n² + 100·n` — que crece de forma
+ * constante en vez de doblarse:
+ *
+ *      nivel 5 →   3.000     nivel 20 →   42.000
+ *      nivel 10 →  11.000    nivel 50 →  255.000
+ *      nivel 15 →  24.000    nivel 150 → 2.265.000
+ *
+ * IMPORTANTE — NADIE BAJA DE NIVEL AL APLICAR ESTO. Se toma el MÍNIMO entre la
+ * curva vieja y la nueva. Hasta el nivel 4 la vieja es la más barata, así que
+ * los umbrales 200/400/800/1600 se conservan EXACTOS y ningún jugador pierde el
+ * nivel que ya tenía. A partir del 5 manda la nueva (3.000 en vez de 3.200) y
+ * la progresión sigue siendo posible hasta el tope.
+ *
+ * La misma función la usan el nivel del personaje y las habilidades, y está
+ * duplicada tal cual en tiendajuego.js (cada escena es autónoma, igual que el
+ * resto de helpers compartidos del proyecto). Si se cambia una, hay que
+ * cambiar la otra o el jugador vería un nivel distinto en el mundo y en la
+ * tienda.
+ *
+ * @param {number} n nivel que se quiere alcanzar (1 = primer nivel)
+ * @returns {number} experiencia TOTAL acumulada necesaria
+ */
+_expTotalParaNivel(n) {
+  const L = Math.max(1, Math.round(Number(n) || 1));
+  // Curva vieja. El exponente se limita para no trabajar con números absurdos:
+  // a partir del nivel 41 la nueva ya es varios órdenes más barata.
+  const vieja = 200 * Math.pow(2, Math.min(L - 1, 40));
+  const nueva = 100 * L * L + 100 * L;
+  return Math.min(vieja, nueva);
+}
+
+/**
  * Suma experiencia a una habilidad y la sube de nivel cuando toca.
  *
  * BUG QUE ESTO ARREGLA — "farming, mining y woodcutting no suben de nivel":
@@ -15000,12 +15309,11 @@ _sumarExpHabilidad(clave, cantidad) {
   this[claveExp] = Math.max(0, Math.round(Number(this[claveExp]) || 0)) + exp;
 
   // Misma curva y mismo tope que el nivel general del jugador.
-  const EXP_BASE  = 200;
-  const MAX_LEVEL = 150;
+  const MAX_LEVEL = this.MAX_LEVEL_PERSONAJE;
   let subio = false;
 
   while (this[clave] < MAX_LEVEL) {
-    const necesaria = EXP_BASE * (2 ** this[clave]);
+    const necesaria = this._expTotalParaNivel(this[clave] + 1);
     if (this[claveExp] >= necesaria) { this[clave]++; subio = true; }
     else break;
   }
@@ -15019,6 +15327,43 @@ _sumarExpHabilidad(clave, cantidad) {
     } catch (e) {}
     console.log(`⭐ ${HABILIDADES[clave]} subió a nivel ${this[clave]} (exp ${this[claveExp]})`);
   }
+
+  // PERSISTENCIA. Sin esto la experiencia solo vivía en memoria: bastaba con
+  // entrar a la tienda o recargar para que volviera a 0. `queuedAction` es el
+  // guardado agrupado que ya usa el resto del juego (no manda una petición por
+  // golpe), y además se empuja el espejo de /api/skills para que el panel y el
+  // backend cuenten lo mismo.
+  try { this.queuedAction && this.queuedAction({ type: 'forSpam2' }); } catch (e) {}
+  this._programarGuardadoSkills();
+}
+
+/**
+ * Guarda las habilidades en /api/skills, agrupando los cambios.
+ *
+ * Se llama en cada ganancia de experiencia, así que hay antirrebote: se manda
+ * como mucho una petición cada 8 segundos, no una por golpe de hacha.
+ */
+_programarGuardadoSkills() {
+  if (this._skillsSaveTimer) return;
+  this._skillsSaveTimer = setTimeout(() => {
+    this._skillsSaveTimer = null;
+    try {
+      this._pendingSkills = this._getSkillsFromScene();
+      this._guardarSkillsSilencioso();
+    } catch (e) { console.warn('No se pudieron guardar las habilidades:', e); }
+  }, 8000);
+}
+
+/** Igual que _saveSkillsData pero sin el cartel de "Skills saved" en pantalla. */
+async _guardarSkillsSilencioso() {
+  if (!this.playerName || !this._pendingSkills) return;
+  try {
+    await fetch(`${this.serverBase}/api/skills/${encodeURIComponent(this.playerName)}`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken() },
+      body: JSON.stringify({ skills: this._pendingSkills, skillPoints: 0 })
+    });
+  } catch (e) { /* el guardado bueno es /api/save; esto es solo el espejo */ }
 }
 
 _pegarPerroAlJugador() {
@@ -16081,19 +16426,64 @@ removeOtherPlayer(playerId) {
       return;
     }
 
-    // Asegurar botón visible (puede ser controlado por CSS)
-    this.openBtn.style.display = this.openBtn.style.display || 'flex';
+    // ── DEVOLVER EL BOTÓN Y EL PANEL AL ESTADO NORMAL ────────────────────────
+    // Antes esto era `this.openBtn.style.display = this.openBtn.style.display ||
+    // 'flex'`, que en la práctica NO hacía nada útil: al salir del mapa,
+    // hideHudElements() deja `style.display = 'none'` en el botón y en el panel,
+    // y 'none' es una cadena con contenido, así que el `||` se quedaba con ella.
+    // El botón volvía invisible (o inerte) y el chat "no abría". Se limpia el
+    // estilo en línea y se deja mandar al CSS, que es quien sabe cómo va.
+    this.openBtn.style.removeProperty('display');
+    this.chatPanel.style.removeProperty('display');
+    // Restos de una batalla: el CSS de `body.in-battle` esconde el chat entero.
+    try { document.body.classList.remove('in-battle'); } catch (_) {}
 
-    // Toggle panel
-    this._chatOpen = false;
+    // ── TOGGLE DEL CHAT ──────────────────────────────────────────────────────
+    // BUG QUE ESTO ARREGLA — "al salir de la batalla el chat ya no abre":
+    //
+    // El botón del chat vive en el HTML de la página, no en Phaser, así que
+    // SOBREVIVE al cambio de escena. Pero aquí se le colgaba el listener con un
+    // addEventListener y una función ANÓNIMA, que nadie quitaba nunca. Cada
+    // viaje de vuelta al mapa (tienda, batalla…) volvía a ejecutar create(), y
+    // con él este método, sumando OTRO listener sobre el mismo botón.
+    //
+    // Con dos manejadores enganchados, un solo clic llamaba a toggleChat() dos
+    // veces: abría y cerraba en el mismo clic. Desde fuera parece que el botón
+    // está roto. Con tres volvía a "funcionar", con cuatro otra vez muerto… de
+    // ahí que el fallo pareciera aleatorio y ligado a las batallas (que son un
+    // viaje de ida y vuelta más).
+    //
+    // _bindDomClick quita el manejador anterior antes de poner el nuevo, así que
+    // por muchas veces que se entre a la escena siempre hay exactamente uno.
+    //
+    // Y el estado no se da por supuesto: se LEE de la clase del panel. Poner
+    // `_chatOpen = false` a ciegas descuadraba el primer clic si el panel había
+    // quedado abierto de la sesión anterior.
+    this._chatOpen = !this.chatPanel.classList.contains('chat-hidden');
     const toggleChat = (force) => {
       this._chatOpen = (typeof force === 'boolean') ? force : !this._chatOpen;
       this.chatPanel.classList.toggle('chat-hidden', !this._chatOpen);
       if (this._chatOpen) this.chatInput.focus();
     };
+    this._toggleChat = toggleChat;
 
-    this.openBtn.addEventListener('click', () => toggleChat());
-    this.openBtn.addEventListener('keyup', (e) => { if (e.key === 'Enter') toggleChat(); });
+    this._bindDomClick(this.openBtn, 'chatToggle', () => toggleChat());
+
+    if (this.openBtn._gfChatKeyup) {
+      this.openBtn.removeEventListener('keyup', this.openBtn._gfChatKeyup);
+    }
+    this.openBtn._gfChatKeyup = (e) => { if (e.key === 'Enter') toggleChat(); };
+    this.openBtn.addEventListener('keyup', this.openBtn._gfChatKeyup);
+
+    // ── DE AQUÍ PARA ABAJO, UNA SOLA VEZ ─────────────────────────────────────
+    // Todo lo que queda son listeners sobre el CAMPO de texto y sobre el canvas,
+    // dos elementos que también sobreviven al cambio de escena. Sin este
+    // guardián se acumulaban igual que se acumulaba el del botón (ver arriba):
+    // tras un par de viajes al mapa, cada tecla emitía varios 'chatTyping' y
+    // cada Enter mandaba el mensaje repetido. El toggle de arriba SÍ se
+    // reengancha siempre, porque su manejador se reemplaza en vez de sumarse.
+    if (this.chatInput._gfChatBound) return;
+    this.chatInput._gfChatBound = true;
 
     // Selector de emojis (botón junto al campo de texto).
     this._montarSelectorEmojis();
@@ -16105,7 +16495,11 @@ removeOtherPlayer(playerId) {
         e.preventDefault();
         this._sendChatFromInput();
       } else if (e.key === 'Escape') {
-        toggleChat(false);
+        // Se llama por `this._toggleChat` y no por la variable capturada: este
+        // listener se engancha UNA vez y la escena puede volver a pasar por
+        // _setupChatDom() muchas veces. Usando la referencia viva siempre se
+        // ejecuta el toggle actual.
+        this._toggleChat && this._toggleChat(false);
         // Return focus to game canvas so movement works
         const gameCanvas = document.querySelector('canvas');
         if (gameCanvas) gameCanvas.focus();
@@ -16936,6 +17330,30 @@ cleanupScene() {
         this._cullingHandlers = [];
     }
     
+    // 8-ter. TUTORIAL: LA FASE HAY QUE VOLVER A MONTARLA AL REGRESAR
+    // `_worldTutorialStartedFor` es el "esta fase ya arrancó" que evita montar
+    // dos veces el mismo cartel. Pero Phaser REUTILIZA la instancia de la
+    // escena, así que sobrevivía al cambio de escena mientras que el cartel y el
+    // camino NO (se destruyen en _cleanupTutorial al apagar). Al volver de la
+    // tienda en el mismo paso, startWorldTutorial() se creía que ya estaba
+    // montado y salía sin hacer nada: el jugador se quedaba sin cartel y sin
+    // camino, como si el tutorial se hubiera "perdido". Reiniciándolo aquí, al
+    // volver se vuelve a montar la fase en la que estaba.
+    this._worldTutorialStartedFor = null;
+
+    // 8-bis. HABILIDADES: VOLCAR LO PENDIENTE ANTES DE IRSE
+    // _programarGuardadoSkills agrupa los envíos con 8 s de antirrebote. Si la
+    // escena se apaga en medio (ir a la tienda, entrar en batalla), ese envío se
+    // perdería y con él los últimos golpes de experiencia. Se manda ya.
+    if (this._skillsSaveTimer) {
+        clearTimeout(this._skillsSaveTimer);
+        this._skillsSaveTimer = null;
+        try {
+            this._pendingSkills = this._getSkillsFromScene();
+            this._guardarSkillsSilencioso();
+        } catch (e) { /* el guardado bueno es /api/save, esto es el espejo */ }
+    }
+
     // 9. LIMPIAR LISTENERS DEL DOM
     this.cleanupDomListeners();
     
@@ -17072,9 +17490,21 @@ cleanupDomListeners() {
     //
     // Ahora esos campos se enganchan una sola vez (ver setupSettingsPanel), así
     // que no hace falta destruir el nodo para evitar listeners repetidos.
+    // 'close-panel', 'logout-btn' e 'inner-btn' YA NO SE CLONAN.
+    //
+    // BUG QUE ESTO ARREGLA — "después de la batalla el dashboard abre pero no
+    // cierra": clonar un elemento devuelve una copia SIN listeners y la mete en
+    // el DOM en su lugar. Para #close-panel eso significaba dejar el botón de
+    // cerrar el dashboard completamente muerto, y para #inner-btn el de
+    // mostrar/ocultar los botones redondos. Reengancharlos dependía de que
+    // setupSettingsPanel() volviera a pasar por ahí… y no pasaba, porque su
+    // guardián de "ya enganchado" mira #character-name, que NO se clonaba.
+    //
+    // Ya no hace falta destruir el nodo: los tres se enganchan con `.onclick` o
+    // con _bindDomClick, que reemplazan el manejador anterior en vez de sumarse
+    // a él, así que nunca se duplican.
     const domElements = [
-        'close-panel', 'logout-btn', 'btn-close', 'inner-btn',
-        'cerrarReputacion', 'cerrarEstadisticas'
+        'btn-close', 'cerrarReputacion', 'cerrarEstadisticas'
     ];
 
     domElements.forEach(id => {
@@ -18506,10 +18936,27 @@ async handleSlotClick(type, index, clickX, clickY) {
 
   if (!this.STATE.selectedItem) {
     // SIN ÍTEM EN MANO → Crear fantasma sin eliminar del backend
+    //
+    // CANDADO ANTI-DUPLICADO: una herramienta que se está rompiendo AHORA MISMO
+    // no se puede coger. Ese era el hueco por el que se colaba el "hacha
+    // gratis": agarrarla entre el momento en que se rompía y el momento en que
+    // la transacción la quitaba dejaba la eliminación sin nada que borrar, pero
+    // el contador de usos se reseteaba igual. Ver verificarRompimiento().
+    const _candidato = (type === 'inv') ? this.STATE.slots[index] : this.STATE.quickSlots[index];
+    if (this._slotEstaRompiendose(_candidato)) {
+      console.log('🔒 Herramienta rompiéndose: no se puede coger todavía');
+      try {
+        this.notifications && this.notifications.show(
+          'That tool is breaking. Wait a moment.', 'warning'
+        );
+      } catch (_) {}
+      return;
+    }
+
     if (type === 'inv') {
       const slotItem = this.STATE.slots[index];
       if (!slotItem) return;
-      
+
       this.STATE.selectedItem = {
         id: slotItem.id,
         count: slotItem.count,
@@ -19448,6 +19895,34 @@ simulateAddItem(itemId, quantity = 1) {
  * @param {Object} itemRef  — objeto de slot o selectedItem con .id e .idx
  */
 async verificarRompimiento(itemRef) {
+  // ── CANDADO DE LA HERRAMIENTA MIENTRAS SE ROMPE ─────────────────────────
+  // EXPLOIT QUE ESTO CIERRA — "el hacha se rompe, la agarro antes de que se
+  // bloquee la casilla, falla la transacción y me queda el hacha gratis":
+  //
+  // Romper una herramienta son tres pasos con espera de red en medio (consultar
+  // usos → descontar → quitar 1 del stack on-chain). Durante esos cientos de
+  // milisegundos la casilla seguía viva, así que daba tiempo a coger el hacha
+  // con el cursor. Al hacerlo, la casilla se convertía en "fantasma" y el
+  // simulador de eliminación ya no encontraba la unidad que había que quitar:
+  // la transacción no borraba nada… pero el paso siguiente BORRABA IGUAL el
+  // registro de usos. Herramienta entera, contador a cero: gratis hasta que se
+  // volviera a romper. Y repetible tantas veces como se quisiera.
+  //
+  // Este candado se pone de forma SÍNCRONA, antes del primer await, y
+  // handleSlotClick lo respeta: mientras dure, esa herramienta no se puede
+  // coger. La ventana de la que vivía el truco deja de existir.
+  const idxBloqueado = itemRef && itemRef.idx ? Number(itemRef.idx) : null;
+  this._herramientasRompiendose = this._herramientasRompiendose || new Set();
+  if (idxBloqueado != null) {
+    // Si ya hay un rompimiento en curso para esta misma herramienta, no se
+    // encadena otro: sería descontar dos usos por un solo golpe.
+    if (this._herramientasRompiendose.has(idxBloqueado)) return;
+    this._herramientasRompiendose.add(idxBloqueado);
+    // Si el jugador YA la tenía en el cursor, se devuelve a su casilla ahora
+    // mismo: es la única forma de que la eliminación la encuentre después.
+    this._devolverHerramientaDelCursor(idxBloqueado);
+  }
+
   try {
     if (!itemRef || !itemRef.idx) return;
     const toolDef = this.ItemDefinitions[itemRef.id];
@@ -19484,17 +19959,48 @@ async verificarRompimiento(itemRef) {
       console.log(`💀 Objeto "${itemRef.id}" en casilla ${slotTipo}[${slotRoto}] se rompió (idx=${itemRef.idx})`);
       this.notifications.show(`Your ${itemRef.id} broke!`, 'error');
 
-      // ── Quitar 1 del stack en blockchain + local ──
-      await this.ejecutarDivisionRemove.call(this, 'slots', itemRef.id, toolDef.maxStack || 5, 1);
+      // Se deja el contador visual a 0 antes de la transacción: si el jugador
+      // mira el inventario mientras se procesa, ve la herramienta gastada, no
+      // una con usos que ya no tiene.
+      for (const s of [...this.STATE.slots, ...this.STATE.quickSlots]) {
+        if (s?.idx === itemRef.idx) s.usosRestantes = 0;
+      }
 
-      // ── Borrar el registro de usos para que las unidades restantes del stack empiecen frescos ──
-      try {
-        await this.fetchWithTokenRetry(`${this.serverBase}/api/tool/uses/${itemRef.idx}`, {
-          method: 'DELETE',
-          headers: { 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) }
-        });
-      } catch (delErr) {
-        console.warn('⚠️ No se pudo borrar registro de usos tras rompimiento:', delErr);
+      // ── Quitar 1 del stack en blockchain + local ──
+      // ejecutarDivisionRemove NO propaga si funcionó (es una cola con
+      // manejadores de error dentro), así que se comprueba a mano contando la
+      // herramienta antes y después. Es el mismo criterio que ya usan
+      // _agregarFrutoOnChain y el consumo de semillas.
+      const antes = this.contarItemEnInventario(itemRef.id);
+      await this.ejecutarDivisionRemove.call(this, 'slots', itemRef.id, toolDef.maxStack || 5, 1);
+      const despues = this.contarItemEnInventario(itemRef.id);
+      const seQuitoDeVerdad = despues < antes;
+
+      if (seQuitoDeVerdad) {
+        // ── Borrar el registro de usos para que las unidades restantes del stack empiecen frescos ──
+        try {
+          await this.fetchWithTokenRetry(`${this.serverBase}/api/tool/uses/${itemRef.idx}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) }
+          });
+        } catch (delErr) {
+          console.warn('⚠️ No se pudo borrar registro de usos tras rompimiento:', delErr);
+        }
+      } else {
+        // LA PARTE QUE FALTABA. Si la eliminación no llegó a quitar nada (la
+        // transacción revirtió, el nodo no respondió, la casilla ya no estaba…),
+        // el registro de usos NO se borra. Así la herramienta se queda en 0 usos
+        // y el próximo golpe vuelve a intentar quitarla, en vez de quedar como
+        // nueva. Antes se borraba siempre y ese era, literalmente, el hacha
+        // gratis.
+        console.warn(
+          `⚠️ No se pudo quitar "${itemRef.id}" (idx=${itemRef.idx}) del inventario: ` +
+          `se conserva el registro de usos en 0 para reintentarlo en el próximo uso`
+        );
+        this.notifications.show(
+          `Your ${itemRef.id} is broken. It will be removed as soon as the network confirms it.`,
+          'warning'
+        );
       }
 
     } else {
@@ -19508,7 +20014,48 @@ async verificarRompimiento(itemRef) {
     this.renderAllSlots();
   } catch (err) {
     console.warn('⚠️ Error en verificarRompimiento:', err);
+  } finally {
+    if (idxBloqueado != null && this._herramientasRompiendose) {
+      this._herramientasRompiendose.delete(idxBloqueado);
+    }
+    try { this.renderAllSlots(); } catch (_) {}
   }
+}
+
+/**
+ * ¿Esta casilla tiene una herramienta que se está rompiendo ahora mismo?
+ * Se usa para no dejar cogerla a mitad del proceso (ver verificarRompimiento).
+ */
+_slotEstaRompiendose(slot) {
+  if (!slot || slot.idx == null) return false;
+  return !!(this._herramientasRompiendose && this._herramientasRompiendose.has(Number(slot.idx)));
+}
+
+/**
+ * Devuelve a su casilla de origen la herramienta que el jugador tenga en el
+ * cursor, si es la que está a punto de romperse. Sin esto, el simulador de
+ * eliminación no la encontraría (en el cursor la casilla queda "fantasma") y la
+ * transacción de quitarla no borraría nada.
+ */
+_devolverHerramientaDelCursor(idx) {
+  const sel = this.STATE && this.STATE.selectedItem;
+  if (!sel || !sel.isGhost || Number(sel.idx) !== Number(idx)) return;
+
+  const slotArr  = sel.originType === 'inv' ? this.STATE.slots           : this.STATE.quickSlots;
+  const ghostArr = sel.originType === 'inv' ? this.STATE.ghostSlots.inv  : this.STATE.ghostSlots.quick;
+
+  slotArr[sel.originIndex] = {
+    id:    sel.id,
+    count: sel.count,
+    idx:   sel.idx ?? null,
+    idm:   sel.idm ?? null,
+    usosRestantes: 0
+  };
+  ghostArr[sel.originIndex] = null;
+  this.STATE.selectedItem = null;
+  try { this.stopDrag && this.stopDrag(); } catch (_) {}
+  try { this.renderSlot(sel.originIndex); } catch (_) {}
+  console.log(`↩️ "${sel.id}" devuelto a ${sel.originType}[${sel.originIndex}]: se está rompiendo`);
 }
 
 // ---------------------------
@@ -20718,11 +21265,35 @@ async loadPlayerData() {
     const playerProps = [
       'posicionplayerx', 'posicionplayery',
       'speed', 'mundo', 'nivel', 'nivel_exp',
-      'misiones', 'Username', 'lenguaje', 'petName', 'tutorial', 'petLevel'
+      // HABILIDADES — BUG QUE ESTO ARREGLA: "las skills no suben nunca".
+      // `savegg()` llevaba años MANDANDO estos doce campos… pero esta lista, que
+      // es la única que los copia de la respuesta de /api/load a la escena, NO
+      // los incluía. O sea: se guardaban bien y no se leían nunca. Cada vez que
+      // se entraba al mapa (arranque, vuelta de la tienda, vuelta de una
+      // batalla) las habilidades arrancaban de cero otra vez, y el siguiente
+      // guardado escribía esos ceros encima del progreso real.
+      'agricultura', 'agricultura_exp', 'mineria', 'mineria_exp',
+      'deforestacion', 'deforestacion_exp',
+      'pesca', 'pesca_exp', 'cocina', 'cocina_exp', 'fuerza', 'fuerza_exp',
+      // `tutorial` NO va en esta lista: se aplica aparte, unas líneas más abajo,
+      // porque su regla es distinta (nunca puede retroceder).
+      'misiones', 'Username', 'lenguaje', 'petName', 'petLevel'
     ];
     playerProps.forEach(prop => {
       if (data[prop] !== undefined && data[prop] !== null) this[prop] = data[prop];
     });
+
+    // Las habilidades empiezan en 1, no en 0 (el backend las crea con default 0
+    // y el panel pinta `|| 1`; sin esto, un jugador nuevo veía 1 en pantalla y
+    // guardaba 0, y la barra de progreso no cuadraba nunca).
+    ['agricultura', 'mineria', 'deforestacion', 'pesca', 'cocina', 'fuerza'].forEach(k => {
+      this[k] = Math.max(1, Math.round(Number(this[k]) || 1));
+      this[k + '_exp'] = Math.max(0, Math.round(Number(this[k + '_exp']) || 0));
+    });
+
+    // TUTORIAL: nunca retroceder (ver _tutorialMasAvanzado).
+    this._aplicarTutorialDeBD(data.tutorial);
+
     if (!this.petLevel || this.petLevel < 1) {
       this.petLevel = Math.max(1, Number(window.globalPetLevel) || 1);
     }
@@ -20868,6 +21439,47 @@ async renderInventoryAfterLoad() {
 // El pathfinding (A* sobre rectángulos de colisión) y los helpers de dibujo
 // están duplicados en tiendajuego.js a propósito (cada escena es autónoma).
 // ============================================================================
+/**
+ * EL TUTORIAL NUNCA RETROCEDE.
+ *
+ * BUG QUE ESTO ARREGLA — "entro a la tienda, salgo y el tutorial va para atrás":
+ * ---------------------------------------------------------------------------
+ * El paso vivía SOLO en `GamePlayer.tutorial`, y cada escena lo releía de
+ * /api/load al arrancar. El problema es que avanzar de paso (_advanceTutorial)
+ * llama a `savegg()` SIN esperar la respuesta, mientras que entrar en la tienda
+ * dispara su propio /api/load casi de inmediato. Si el GET de la tienda llegaba
+ * antes de que terminara el POST del mapa (que es lo normal: el POST lleva el
+ * inventario entero y tarda más), la tienda leía el paso ANTERIOR… y al salir
+ * lo volvía a guardar. El progreso del tutorial se perdía de verdad, no era
+ * solo un problema de pantalla. De ahí lo de "me dice que craftee un balde,
+ * entro a la tienda y al salir vuelve a un paso de antes".
+ *
+ * La escalera de pasos (0…7 → 20 → 21 → 22, y ≥8 = terminado para los jugadores
+ * antiguos) solo avanza, así que basta con quedarse SIEMPRE con el más
+ * adelantado entre lo que dice la base de datos y lo que ya sabía el navegador.
+ * `window.__gfTutorial` es lo que hace que ese conocimiento sobreviva al cambio
+ * de escena. El servidor aplica la misma regla en /api/save, por si el que va
+ * por delante es otro dispositivo.
+ */
+_aplicarTutorialDeBD(valorBD) {
+  const bd     = Number(valorBD);
+  const cache  = Number(window.__gfTutorial);
+  const actual = Number(this.tutorial);
+
+  const candidatos = [bd, cache, actual].filter(n => Number.isFinite(n) && n >= 0);
+  if (!candidatos.length) return;
+
+  this.tutorial = Math.max(...candidatos);
+  window.__gfTutorial = this.tutorial;
+}
+
+/** Fija el paso del tutorial y lo comparte con las demás escenas. */
+_setTutorialStep(n) {
+  const paso = Math.max(0, Math.round(Number(n) || 0));
+  this.tutorial = paso;
+  window.__gfTutorial = paso;
+}
+
 startWorldTutorial() {
   const step = this.tutorial;
   // Pasos del tutorial: 0..7 (los de siempre) y luego 20 y 21 (comer/beber y
@@ -21069,7 +21681,10 @@ _startWorldDigbyPhase() {
 
 // Avanza el tutorial al paso n: persiste y arranca esa fase.
 _advanceTutorial(n) {
-  this.tutorial = n;
+  // Nunca hacia atrás: si algo (una respuesta vieja de /api/load, una escena
+  // que arrancó tarde) intenta mandar al jugador a un paso anterior, se ignora.
+  if (Number(n) <= Number(this.tutorial)) return;
+  this._setTutorialStep(n);
   this._worldTutorialStartedFor = null;
   try { if (typeof this.savegg === 'function') this.savegg(); } catch (e) {}
   this.startWorldTutorial();
@@ -21162,7 +21777,7 @@ _onTutorialWaterCollected() {
 _finishTutorial() {
   if (this._tutorialFinished) return;
   this._tutorialFinished = true;
-  this.tutorial = 22;
+  this._setTutorialStep(22);
   this._worldTutorialStartedFor = 22;
   try { if (typeof this.savegg === 'function') this.savegg(); } catch (e) {}
   this._cleanupTutorial();
@@ -22423,13 +23038,11 @@ async _gatherClaim(nodeKey, toolId) {
       // Reflejar local el item que el servidor ya acuñó on-chain (no re-acuñar).
       this.addItemWithCheck(data.reward.tipo, data.reward.quantity);
 
-      // EXPERIENCIA DE HABILIDAD. `nodeKey` distingue el tipo de nodo: los de
-      // mina empiezan por 'mina'/'mineral' y los árboles por 'arbol'. Se dan
-      // 25 de exp por recolección conseguida (no por golpe: el golpe ya cuesta
-      // vitales y lo que premia es completar el nodo).
-      const clave = String(nodeKey || '').toLowerCase();
-      const esMina = clave.includes('mina') || clave.includes('mineral') || clave.includes('piedra');
-      this._sumarExpHabilidad(esMina ? 'mineria' : 'deforestacion', 25);
+      // (La experiencia de habilidad YA NO se suma aquí. Se movió al punto en
+      //  que el árbol o el mineral se completan, que es común a los dos modos:
+      //  este método solo corre con GATHER_SERVER activado, y estando apagado
+      //  —que es lo normal— talar y minar no daban experiencia de habilidad
+      //  NUNCA. Sumarla también aquí la contaría dos veces.)
 
       return [{ id: data.reward.tipo, cantidad: data.reward.quantity }];
     }
@@ -26899,6 +27512,38 @@ if (this.dogNameText) {
     };
   }
 
+  // Nombre en inglés del panel → propiedad de la escena. Solo estas seis son
+  // habilidades reales; `level` es el nivel del personaje y va aparte.
+  static get SKILL_PROP_MAP() {
+    return {
+      farming: 'agricultura', mining: 'mineria', fishing: 'pesca',
+      cooking: 'cocina', woodcutting: 'deforestacion', strength: 'fuerza'
+    };
+  }
+
+  /**
+   * Copia a la escena los valores de habilidad que vengan MÁS ALTOS que los que
+   * ya tiene. Nunca baja nada: las habilidades solo suben.
+   */
+  _adoptarSkills(skills) {
+    if (!skills) return;
+    const mapa = GameScene.SKILL_PROP_MAP;
+    const exp  = skills.exp || {};
+    Object.entries(mapa).forEach(([clave, prop]) => {
+      const nivel = Math.max(1, Math.round(Number(skills[clave]) || 1));
+      const xp    = Math.max(0, Math.round(Number(exp[clave]) || 0));
+      if (nivel > (Number(this[prop]) || 1))            this[prop] = nivel;
+      if (xp    > (Number(this[prop + '_exp']) || 0))   this[prop + '_exp'] = xp;
+    });
+    // Del personaje solo se adopta la EXPERIENCIA. El NIVEL no: lo calcula el
+    // bucle de niveles a partir de la experiencia (ver _expTotalParaNivel), y
+    // adoptarlo de aquí podría regalar un nivel que la exp todavía no paga —
+    // `_getSkillsFromScene` publica `this.nivel || 1`, así que un jugador de
+    // nivel 0 se vería subido a 1 sin haber ganado nada.
+    const expPersonaje = Math.max(0, Math.round(Number(exp.level) || 0));
+    if (expPersonaje > (Number(this.nivel_exp) || 0)) this.nivel_exp = expPersonaje;
+  }
+
   async _loadSkillsData() {
     if (!this.playerName) return;
     // Ya NO se piden insignias: la sección se eliminó del panel.
@@ -26910,9 +27555,35 @@ if (this.dogNameText) {
       let skills = this._getSkillsFromScene();
       if (skillsRes && skillsRes.ok) {
         const data = await skillsRes.json();
-        // La exp local manda salvo que el backend mande la suya.
         const remote = data.skills || {};
-        skills = { ...skills, ...remote, exp: { ...(skills.exp || {}), ...(remote.exp || {}) } };
+
+        // BUG QUE ESTO ARREGLA — "el panel de habilidades siempre muestra lo
+        // mismo aunque juegue": antes era
+        //     skills = { ...skills, ...remote, exp: { ...local, ...remote.exp } }
+        // o sea que lo REMOTO PISABA lo local. Y lo remoto es una FOTO vieja:
+        // /api/skills solo se escribía cuando el jugador pulsaba "Save" en el
+        // panel. Resultado: cada vez que se abría el panel, los niveles y la
+        // experiencia que se acababan de ganar se sustituían por la foto
+        // antigua — parecía que las habilidades no subían nunca.
+        //
+        // Las habilidades SOLO SUBEN, así que la regla correcta es quedarse con
+        // el mayor de los dos (misma convergencia que usa la exp del personaje
+        // en el servidor). Si otro dispositivo dejó un valor más alto, gana ese;
+        // si el que va por delante es este, no se pierde el progreso.
+        const mayor = (a, b) => Math.max(Number(a) || 0, Number(b) || 0);
+        const fusion = { exp: {} };
+        Object.keys(skills).forEach(k => {
+          if (k === 'exp') return;
+          fusion[k] = mayor(skills[k], remote[k]);
+        });
+        Object.keys(skills.exp || {}).forEach(k => {
+          fusion.exp[k] = mayor(skills.exp[k], (remote.exp || {})[k]);
+        });
+        skills = fusion;
+
+        // Si la foto remota iba por delante, se adopta en la escena para que el
+        // juego (y el próximo /api/save) sigan desde ahí.
+        this._adoptarSkills(skills);
       }
       this._renderSkillsPanel(skills);
     } catch (_) {
@@ -26945,13 +27616,19 @@ if (this.dogNameText) {
   }
 
   async _saveSkillsData() {
-    if (!this.playerName || !this._pendingSkills) return;
+    if (!this.playerName) return;
+    // Se manda SIEMPRE lo que hay en la escena en este momento, no la foto que
+    // se pintó al abrir el panel: entre abrirlo y pulsar "Save" el jugador pudo
+    // seguir talando y esos puntos se perdían.
+    this._pendingSkills = this._getSkillsFromScene();
     try {
       await fetch(`${this.serverBase}/api/skills/${encodeURIComponent(this.playerName)}`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken() },
         body: JSON.stringify({ skills: this._pendingSkills, skillPoints: this._pendingSkillPoints || 0 })
       });
+      // El guardado bueno (GamePlayer) va por /api/save: se encola también.
+      try { this.queuedAction && this.queuedAction({ type: 'forSpam2' }); } catch (_) {}
       // Show prominent center-screen success banner
       this._showSaveSuccessBanner('Skills saved successfully!');
       console.log('✅ Skills saved:', this._pendingSkills);

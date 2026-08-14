@@ -2593,12 +2593,13 @@ this.time.addEvent({
     // ======================
     // SISTEMA DE NIVELES
     // ======================
-
-    const EXP_BASE = 200;
+    // MISMA curva que GameScene (_expTotalParaNivel). Si las dos escenas usaran
+    // curvas distintas, el jugador vería un nivel en el mapa y otro en la
+    // tienda, y cada cambio de escena le subiría o le bajaría el nivel.
     const MAX_LEVEL = 150;
 
     while (this.nivel < MAX_LEVEL) {
-      const expNecesaria = EXP_BASE * (2 ** this.nivel);
+      const expNecesaria = this._expTotalParaNivel(this.nivel + 1);
 
       if (this.nivel_exp >= expNecesaria) {
         this.nivel++;
@@ -8712,7 +8713,16 @@ async loadPlayerData() {
     const playerProps = [
       'posicionplayerx', 'posicionplayery',
       'speed', 'mundo', 'nivel', 'nivel_exp',
-      'misiones', 'Username', 'lenguaje', 'petName', 'tutorial', 'petLevel'
+      // HABILIDADES: la tienda las MANDA en savegg() (mineria, pesca, cocina,
+      // deforestacion, fuerza, agricultura y sus _exp), así que también tiene
+      // que leerlas. Antes valían `undefined` aquí dentro y, aunque
+      // JSON.stringify las descartaba del cuerpo, cualquier lectura del panel
+      // dentro de la tienda mostraba 1. Leyéndolas, el jugador ve lo mismo en
+      // el mapa y en la tienda.
+      'agricultura', 'agricultura_exp', 'mineria', 'mineria_exp',
+      'deforestacion', 'deforestacion_exp',
+      'pesca', 'pesca_exp', 'cocina', 'cocina_exp', 'fuerza', 'fuerza_exp',
+      'misiones', 'Username', 'lenguaje', 'petName', 'petLevel'
     ];
 
     playerProps.forEach(prop => {
@@ -8720,6 +8730,11 @@ async loadPlayerData() {
         this[prop] = data[prop];
       }
     });
+
+    // TUTORIAL: aparte del resto, porque NUNCA puede retroceder.
+    // (`tutorial` se sacó de playerProps a propósito: la asignación directa era
+    // justo lo que hacía que la tienda pisara el paso con un valor viejo.)
+    this._aplicarTutorialDeBD(data.tutorial);
 
     // Nombre de mascota compartido entre escenas ('---' = aún sin fijar)
     if (!this.petName) this.petName = window.globalPetName || '---';
@@ -8843,6 +8858,48 @@ async renderInventoryAfterLoad() {
 // Todos los textos en inglés. Helpers de pathfinding/dibujo duplicados de
 // GameScene.js a propósito (cada escena es autónoma).
 // ============================================================================
+/**
+ * Experiencia ACUMULADA necesaria para alcanzar el nivel `n`.
+ * COPIA EXACTA de GameScene._expTotalParaNivel — ahí está la explicación larga
+ * del porqué (la curva vieja doblaba en cada nivel y el jugador se atascaba en
+ * el 4). Si se toca una, hay que tocar la otra.
+ */
+_expTotalParaNivel(n) {
+  const L = Math.max(1, Math.round(Number(n) || 1));
+  const vieja = 200 * Math.pow(2, Math.min(L - 1, 40));
+  const nueva = 100 * L * L + 100 * L;
+  return Math.min(vieja, nueva);
+}
+
+/**
+ * EL TUTORIAL NUNCA RETROCEDE (copia de GameScene._aplicarTutorialDeBD).
+ *
+ * Este es el lado de la TIENDA del fallo "entro a la tienda y el tutorial va
+ * para atrás": la tienda leía el paso de /api/load y, si el guardado del mapa
+ * todavía estaba en vuelo, se traía el paso anterior y lo volvía a guardar al
+ * salir. Quedándose con el más avanzado entre la BD y lo que ya sabía el
+ * navegador (window.__gfTutorial), eso no puede pasar.
+ */
+_aplicarTutorialDeBD(valorBD) {
+  const bd     = Number(valorBD);
+  const cache  = Number(window.__gfTutorial);
+  const actual = Number(this.tutorial);
+
+  const candidatos = [bd, cache, actual].filter(x => Number.isFinite(x) && x >= 0);
+  if (!candidatos.length) return;
+
+  this.tutorial = Math.max(...candidatos);
+  window.__gfTutorial = this.tutorial;
+}
+
+/** Fija el paso del tutorial y lo comparte con las demás escenas. */
+_setTutorialStep(n) {
+  const paso = Math.max(0, Math.round(Number(n) || 0));
+  if (paso < Number(this.tutorial || 0)) return;   // nunca hacia atrás
+  this.tutorial = paso;
+  window.__gfTutorial = paso;
+}
+
 startShopTutorial() {
   const step = this.tutorial;
   // 0 = compra inicial (semillas+herramientas), 1 = salir, 3 = comprar hacha.
@@ -8854,6 +8911,9 @@ startShopTutorial() {
     return;
   }
 
+  // (Mismo motivo que en GameScene: `_shopTutorialStartedFor` se reinicia al
+  //  apagar la escena — ver _cleanupTutorial — porque el cartel y el camino se
+  //  destruyen ahí y hay que volver a montarlos al regresar a la tienda.)
   this._shopTutorialStartedFor = step;
   // Esquivar mobiliario ('colisiones') + colisiones generales si existen.
   this._tutorialObstacles = [
@@ -8899,7 +8959,7 @@ _onShopClosed() {
     this._showTutorialConfirm(
       'Did you buy the watering can, the pruning shears and the 4 bags of carrot seeds? So we can continue with the next part of the tutorial!',
       () => { // ✓ Sí → salir de la tienda
-        this.tutorial = 1;
+        this._setTutorialStep(1);
         this._shopTutorialStartedFor = null;
         try { if (typeof this.savegg === 'function') this.savegg(); } catch (e) {}
         this._guideToExit();
@@ -8908,7 +8968,7 @@ _onShopClosed() {
     );
   } else if (this.tutorial === 3) {
     // Compró el hacha de madera: pasar al paso 4 (cortar pinos) y guiar a la salida.
-    this.tutorial = 4;
+    this._setTutorialStep(4);
     this._shopTutorialStartedFor = null;
     try { if (typeof this.savegg === 'function') this.savegg(); } catch (e) {}
     this._guideToExit();
@@ -9313,6 +9373,11 @@ _cleanupTutorial() {
   this._clearTutorialPath();
   if (this._tutorialPathTimer) { this._tutorialPathTimer.remove(false); this._tutorialPathTimer = null; }
   this._hideTutorialBanner();
+  // El cartel y el camino ya no existen, así que la fase tiene que poder
+  // volver a montarse. Phaser reutiliza la instancia de la escena, y sin esto
+  // `_shopTutorialStartedFor` seguía diciendo "ya arrancó" en la siguiente
+  // visita a la tienda: el jugador entraba y no veía ni el mensaje ni el camino.
+  this._shopTutorialStartedFor = null;
 }
 
 // 4) Save game state

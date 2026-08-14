@@ -618,11 +618,30 @@ class LoadingScenegame extends Phaser.Scene {
             }
 
             // Propiedades del jugador
+            // ── HABILIDADES: LEERLAS AQUÍ NO ES OPCIONAL ────────────────────
+            // BUG GRAVE QUE ESTO ARREGLA — "las skills nunca suben" / "vuelven
+            // a cero solas":
+            //
+            // Esta escena nace con `mineria = pesca = cocina = deforestacion =
+            // fuerza = agricultura = 0` (ver el constructor) y su savegg() manda
+            // ESOS CEROS en el cuerpo de /api/save. Como esta lista —la única
+            // que copia la respuesta de /api/load a la escena— no incluía las
+            // habilidades, los ceros nunca se sustituían por los valores reales.
+            //
+            // Y savegg() aquí no es un caso raro: se llama en cada arranque en
+            // el que la sincronización con la blockchain corrige o añade algún
+            // ítem (lo normal), y esta escena es además la que se atraviesa al
+            // VOLVER DE UNA BATALLA. Resultado: farming, mining y woodcutting se
+            // borraban solas cada dos por tres, por mucho que el jugador
+            // trabajara. Leyéndolas, el guardado devuelve lo que ya había.
             const playerProps = [
                 'posicionplayerx', 'posicionplayery',
                 'vidaPorcentaje', 'aguaPorcentaje', 'comidaPorcentaje',
                 'speed', 'mundo', 'moneda', 'moneda_plata',
-                'nivel', 'nivel_exp', 'misiones', 'Username', 'lenguaje'
+                'nivel', 'nivel_exp', 'misiones', 'Username', 'lenguaje',
+                'agricultura', 'agricultura_exp', 'mineria', 'mineria_exp',
+                'deforestacion', 'deforestacion_exp',
+                'pesca', 'pesca_exp', 'cocina', 'cocina_exp', 'fuerza', 'fuerza_exp'
             ];
 
             playerProps.forEach(prop => {
@@ -630,6 +649,12 @@ class LoadingScenegame extends Phaser.Scene {
                     this[prop] = data[prop];
                 }
             });
+
+            // Marca de que las habilidades YA vienen de la base de datos. savegg()
+            // solo las manda si esto es true: si por lo que sea se guardara antes
+            // de cargar, se dejan fuera del cuerpo en vez de escribir los ceros
+            // del constructor encima del progreso real.
+            this._skillsCargadas = true;
 
             if (this.player) {
                 this.player.setVisible(true);
@@ -1387,18 +1412,6 @@ class LoadingScenegame extends Phaser.Scene {
             lenguaje:        this.lenguaje,
             nivel:           this.nivel,
             nivel_exp:       this.nivel_exp,
-            mineria:         this.mineria,
-            mineria_exp:     this.mineria_exp,
-            pesca:           this.pesca,
-            pesca_exp:       this.pesca_exp,
-            cocina:          this.cocina,
-            cocina_exp:      this.cocina_exp,
-            deforestacion:   this.deforestacion,
-            deforestacion_exp: this.deforestacion_exp,
-            fuerza:          this.fuerza,
-            fuerza_exp:      this.fuerza_exp,
-            agricultura:     this.agricultura,
-            agricultura_exp: this.agricultura_exp,
             speed:           this.speed,
             mundo:           this.mundo,
             moneda:          this.moneda,
@@ -1408,6 +1421,26 @@ class LoadingScenegame extends Phaser.Scene {
             inventory:       inventoryData,
             chest:           chestData
         };
+
+        // HABILIDADES: solo se mandan si de verdad se cargaron de /api/load.
+        // Esta escena existe sobre todo para sincronizar el inventario con la
+        // blockchain; no toca ni una sola habilidad, así que mandarlas sin
+        // haberlas leído solo puede hacer daño (era exactamente lo que borraba
+        // farming/mining/woodcutting en cada arranque y al volver de batalla).
+        if (this._skillsCargadas) {
+            payload.mineria           = this.mineria;
+            payload.mineria_exp       = this.mineria_exp;
+            payload.pesca             = this.pesca;
+            payload.pesca_exp         = this.pesca_exp;
+            payload.cocina            = this.cocina;
+            payload.cocina_exp        = this.cocina_exp;
+            payload.deforestacion     = this.deforestacion;
+            payload.deforestacion_exp = this.deforestacion_exp;
+            payload.fuerza            = this.fuerza;
+            payload.fuerza_exp        = this.fuerza_exp;
+            payload.agricultura       = this.agricultura;
+            payload.agricultura_exp   = this.agricultura_exp;
+        }
 
         console.log('📤 Payload para guardar:', {
             playerName:     this.playerName,
