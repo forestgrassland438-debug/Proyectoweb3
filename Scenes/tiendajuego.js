@@ -3896,15 +3896,64 @@ removeOtherPlayer(playerId) {
       this._positionLocalBubble(bubble);
     } else { bubble.style.display = 'none'; bubble.innerHTML = ''; }
   }
+  /**
+   * Convierte un punto del MUNDO a píxeles CSS del viewport.
+   *
+   * Se usa `cam.worldView` (el rectángulo de mundo que la cámara ve de verdad)
+   * en vez de reconstruirlo con scrollX/zoom y medias pantallas: worldView ya
+   * tiene en cuenta el zoom, los límites del mapa y el centrado.
+   *
+   * Después se pasa de unidades INTERNAS del juego a píxeles CSS con la
+   * proporción real del lienzo. En móvil el juego corre a 2× o 3× la
+   * resolución CSS y, sin esta conversión, las coordenadas salían dos o tres
+   * veces más grandes: la burbuja se iba fuera de la pantalla. El mensaje sí
+   * se mostraba — estaba colocado donde no se ve.
+   */
+  _mundoAPantalla(mundoX, mundoY) {
+    const cam = this.cameras && this.cameras.main;
+    const canvas = this.sys && this.sys.game && this.sys.game.canvas;
+    if (!cam || !canvas) return null;
+
+    const gx = (mundoX - cam.worldView.x) * cam.zoom;
+    const gy = (mundoY - cam.worldView.y) * cam.zoom;
+
+    const rect = canvas.getBoundingClientRect();
+    const escalaX = this.scale.width  ? rect.width  / this.scale.width  : 1;
+    const escalaY = this.scale.height ? rect.height / this.scale.height : 1;
+
+    return { x: rect.left + gx * escalaX, y: rect.top + gy * escalaY, escalaX, escalaY };
+  }
+
   _positionLocalBubble(bubble) {
-    if (!this.player || !this.cameras || !this.cameras.main) return;
+    if (!this.player) return;
+    const p = this._mundoAPantalla(this.player.x, this.player.y);
+    if (!p) return;
+
     const cam = this.cameras.main;
-    const sx = (this.player.x - cam.scrollX) * cam.zoom + (this.scale.width  * 0.5 * (1 - cam.zoom));
-    const sy = (this.player.y - cam.scrollY) * cam.zoom + (this.scale.height * 0.5 * (1 - cam.zoom));
-    const sprH = (this.player.displayHeight || 64) * cam.zoom;
-    bubble.style.left = sx + 'px';
-    bubble.style.top  = (sy - sprH * 0.5 - 54) + 'px';
+    const sprH = (this.player.displayHeight || 64) * cam.zoom * p.escalaY;
+
+    // POSITION: FIXED, no absolute.
+    // El CSS de .player-chat-bubble la deja en `position:absolute` con
+    // `bottom:100%`, herencia de cuando colgaba del elemento del jugador.
+    // Absolute se resuelve contra el ancestro posicionado — y <body> lleva
+    // `transform: translateZ(0)` del CSS de rendimiento, lo que lo convierte en
+    // bloque contenedor. Como aquí se calculan coordenadas de VIEWPORT
+    // (getBoundingClientRect), lo correcto es fixed: así coinciden siempre,
+    // haya scroll o no. Y se anula `bottom` para que no compita con `top`.
+    bubble.style.position = 'fixed';
+    bubble.style.bottom = 'auto';
+    bubble.style.left = p.x + 'px';
+    bubble.style.top  = (p.y - sprH * 0.5 - 54) + 'px';
     bubble.style.transform = 'translateX(-50%)';
+
+    // El mensaje dura lo que diga `_burbujaHasta`. Se reafirma la visibilidad
+    // en cada frame porque hay varios sitios que apagan el HUD en bloque
+    // (cambios de escena, entrar y salir de la batalla, paneles) y si alguno
+    // pilla la burbuja abierta la dejaba oculta antes de tiempo: ése era el
+    // "solo se ve un segundo". Mientras no venza su plazo, vuelve a salir.
+    if (this._burbujaHasta && Date.now() < this._burbujaHasta) {
+      if (bubble.style.display === 'none') bubble.style.display = 'flex';
+    }
   }
   _showLocalChatBubble(text) {
     const bubble = document.getElementById('local-chat-bubble');
@@ -3912,9 +3961,16 @@ removeOtherPlayer(playerId) {
     const lines = text.split('\n').slice(-3).join('\n');
     bubble.innerHTML = `<div class="chat-bubble-msg own">${this._escHtml(lines)}</div>`;
     bubble.style.display = 'flex';
+    // Plazo hasta el que la burbuja debe seguir viéndose. Lo consulta
+    // _positionLocalBubble para reafirmarla si algo la apagó antes de tiempo.
+    this._burbujaHasta = Date.now() + 4000;
     this._positionLocalBubble(bubble);
     clearTimeout(this._localBubbleTimer);
-    this._localBubbleTimer = setTimeout(() => { bubble.style.display='none'; bubble.innerHTML=''; }, 4000);
+    this._localBubbleTimer = setTimeout(() => {
+      this._burbujaHasta = 0;
+      bubble.style.display = 'none';
+      bubble.innerHTML = '';
+    }, 4000);
   }
   _escHtml(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   _showRemoteChatBubble(playerId, text) {
@@ -5238,8 +5294,18 @@ _bloquearClicsDeUIHaciaElJuego() {
 
   const cortar = (e) => {
     if (vieneDelJuego(e)) return;
-    // Solo se impide que llegue a window (Phaser). Todo lo demás ya corrió.
-    e.stopPropagation();
+    // Ver el comentario largo en GameScene: stopPropagation llegaba tarde
+    // porque Phaser escucha en window con { capture: true }. Lo que funciona
+    // es apagar la entrada de la escena, que Phaser comprueba al empezar el
+    // siguiente paso del bucle — el paso que habría procesado este clic.
+    try {
+      if (this.input) this.input.enabled = false;
+      if (this._reactivarInput) this._reactivarInput.remove();
+      this._reactivarInput = this.time.delayedCall(140, () => {
+        this._reactivarInput = null;
+        if (this.input) this.input.enabled = true;
+      });
+    } catch (err) { if (this.input) this.input.enabled = true; }
   };
 
   ['pointerdown', 'mousedown', 'touchstart'].forEach((tipo) => {
@@ -10710,10 +10776,13 @@ actualizarBarraComida(porcentaje) {
     update(time, delta) {
       if (!this.keys) return;
 
-      // Reposicionar burbuja local sobre el sprite del jugador cada frame
+      // Reposicionar burbuja local sobre el sprite del jugador cada frame.
+      // Se entra también con la burbuja OCULTA si su plazo sigue vivo, para
+      // poder reafirmarla si algo apagó el HUD en bloque (ver GameScene).
       {
         const b = document.getElementById('local-chat-bubble');
-        if (b && b.style.display !== 'none') this._positionLocalBubble(b);
+        const plazoVivo = this._burbujaHasta && Date.now() < this._burbujaHasta;
+        if (b && (plazoVivo || b.style.display !== 'none')) this._positionLocalBubble(b);
       }
 
 

@@ -5551,6 +5551,62 @@ window.hub.onRetry = (hiddenData) => {
 
     this._bindDomClick(this.roundButtons[2], 'stats', this.onRoundBtnStats);
     this._bindDomClick(this.roundButtons[3], 'reputation', this.onRoundBtnReputation);
+
+    // ── REENGANCHE AL VOLVER DE OTRA ESCENA ──────────────────────────────
+    // FIX "AL SALIR DE LA BATALLA LOS BOTONES REDONDOS NO SIRVEN":
+    // el HUD es DOM de la página y sobrevive al cambio de escena, pero sus
+    // listeners NO: al apagarse GameScene se llama a _unbindAllDomClicks(),
+    // que los quita todos. Volverlos a poner depende de que create() se
+    // ejecute ENTERO al regresar — y create() es async y larguísimo, así que
+    // basta con que Phaser DESPIERTE la escena en vez de recrearla, o con que
+    // algo falle a mitad de create(), para que los botones se queden mudos:
+    // siguen ahí y siguen respondiendo al ratón, pero ya no tienen manejador.
+    // Ese es el "abren y no cierran" / "no abren".
+    //
+    // Aquí se reengancha en 'wake' y en 'resume', que son justo los caminos
+    // que NO pasan por create(). Es seguro llamarlo de más: _bindDomClick es
+    // idempotente — quita el manejador anterior antes de poner el nuevo, así
+    // que nunca se duplican los clics.
+    this._reengancharHUD = () => {
+      try {
+        this.roundButtons = document.querySelectorAll('.round-btn');
+        this._bindDomClick(this.roundButtons[0], 'dashboard', this.onRoundBtnDashboard);
+        this._bindDomClick(this.roundButtons[2], 'stats',      this.onRoundBtnStats);
+        this._bindDomClick(this.roundButtons[3], 'reputation', this.onRoundBtnReputation);
+        this._bindDomClick(document.getElementById('mail-btn'), 'mail', this.onRoundBtnMail);
+        this._bindDomClick(document.getElementById('nft-btn'), 'nft', (e) => {
+          e.stopPropagation(); this.openNFTPanel();
+        });
+        this._bindDomClick(document.getElementById('skills-btn'), 'skills', (e) => {
+          e.stopPropagation(); this.openSkillsPanel();
+        });
+        this._bindDomClick(document.getElementById('store-btn'), 'store', (e) => {
+          e.stopPropagation();
+          window.open(new URL('market.html', window.location.href).href, '_blank');
+        });
+
+        // Los botones de CERRAR de los paneles se asignan con `.onclick = …`
+        // en create(). Esa función captura el `this` de la escena en la que se
+        // creó; si la escena se recrea y create() no vuelve a pasar por ahí,
+        // el `onclick` viejo sigue puesto apuntando a una escena MUERTA: al
+        // pulsarlo lanza una excepción y el panel no se cierra. De ahí el
+        // "abren y no cierran". Se reasignan aquí con el `this` vivo.
+        const cerrar = [
+          ['notif-close',           () => this._closeNotifPanel()],
+          ['notif-mark-all-read',   () => this._markAllNotifRead()],
+          ['notif-clear-all',       () => this._clearAllNotif()],
+          ['close-panel',           () => this.hideSettingsPanel && this.hideSettingsPanel()]
+        ];
+        cerrar.forEach(([id, fn]) => {
+          const el = document.getElementById(id);
+          if (el) el.onclick = fn;
+        });
+
+        console.log('🔌 Botones del HUD reenganchados');
+      } catch (e) { console.warn('⚠️ No se pudo reenganchar el HUD:', e); }
+    };
+    this.events.on('wake',   this._reengancharHUD);
+    this.events.on('resume', this._reengancharHUD);
     /*
     this.roundButtons[4]?.addEventListener('click', this.onRoundBtnHudStats);
 
@@ -14874,8 +14930,31 @@ _bloquearClicsDeUIHaciaElJuego() {
 
   const cortar = (e) => {
     if (vieneDelJuego(e)) return;
-    // Solo se impide que llegue a window (Phaser). Todo lo demás ya corrió.
-    e.stopPropagation();
+    // POR QUÉ NO VALÍA stopPropagation():
+    // Phaser registra su manejador de pointerdown en `window` con
+    // { capture: true }. La captura recorre window → document → … → objetivo,
+    // así que Phaser recibe el evento ANTES que cualquier listener en burbuja.
+    // Cortar la propagación en document llegaba tarde: Phaser ya lo tenía.
+    // Ese fue el intento anterior y por eso el clic seguía atravesando.
+    //
+    // LO QUE SÍ FUNCIONA: apagar la entrada de la escena. Phaser no prueba el
+    // clic contra el mundo en el momento del evento DOM, sino en el siguiente
+    // paso del bucle del juego, y ese paso empieza comprobando
+    // `input.enabled`. Como un manejador DOM corre siempre antes que el
+    // próximo frame, apagarlo aquí hace que este clic no llegue a probarse
+    // nunca contra el mundo. No se toca el evento: la casilla, el arrastre y
+    // el click del botón siguen funcionando igual.
+    try {
+      if (this.input) this.input.enabled = false;
+      // Se reactiva con el reloj de la ESCENA (no setTimeout): así se garantiza
+      // que pasó al menos un paso del juego con la entrada apagada, que es
+      // justo el paso que habría procesado este clic.
+      if (this._reactivarInput) this._reactivarInput.remove();
+      this._reactivarInput = this.time.delayedCall(140, () => {
+        this._reactivarInput = null;
+        if (this.input) this.input.enabled = true;
+      });
+    } catch (err) { if (this.input) this.input.enabled = true; }
   };
 
   ['pointerdown', 'mousedown', 'touchstart'].forEach((tipo) => {
@@ -16204,9 +16283,13 @@ removeOtherPlayer(playerId) {
     const canvas = this.sys && this.sys.game && this.sys.game.canvas;
     if (!cam || !canvas) return null;
 
-    // Punto en unidades internas del juego.
-    const gx = (mundoX - cam.scrollX) * cam.zoom + (this.scale.width  * 0.5 * (1 - cam.zoom));
-    const gy = (mundoY - cam.scrollY) * cam.zoom + (this.scale.height * 0.5 * (1 - cam.zoom));
+    // Punto en unidades internas del juego. Se usa `worldView` — el rectángulo
+    // de mundo que la cámara ve de verdad — en vez de reconstruirlo con
+    // scrollX/zoom y medias pantallas: worldView ya tiene en cuenta el zoom,
+    // los límites del mapa y el centrado, así que no hay que replicar esa
+    // aritmética ni equivocarse con ella.
+    const gx = (mundoX - cam.worldView.x) * cam.zoom;
+    const gy = (mundoY - cam.worldView.y) * cam.zoom;
 
     // …convertido a píxeles CSS de la página.
     const rect = canvas.getBoundingClientRect();
@@ -16231,9 +16314,28 @@ removeOtherPlayer(playerId) {
     // La altura del sprite también hay que pasarla a píxeles CSS.
     const sprH = (this.player.displayHeight || 64) * cam.zoom * p.escalaY;
 
+    // POSITION: FIXED, no absolute.
+    // El CSS de .player-chat-bubble la deja en `position:absolute` con
+    // `bottom:100%`, herencia de cuando colgaba del elemento del jugador.
+    // Absolute se resuelve contra el ancestro posicionado — y <body> lleva
+    // `transform: translateZ(0)` del CSS de rendimiento, lo que lo convierte en
+    // bloque contenedor. Como aquí se calculan coordenadas de VIEWPORT
+    // (getBoundingClientRect), lo correcto es fixed: así coinciden siempre,
+    // haya scroll o no. Y se anula `bottom` para que no compita con `top`.
+    bubble.style.position = 'fixed';
+    bubble.style.bottom = 'auto';
     bubble.style.left = p.x + 'px';
     bubble.style.top  = (p.y - sprH * 0.5 - 54) + 'px';
     bubble.style.transform = 'translateX(-50%)';
+
+    // El mensaje dura lo que diga `_burbujaHasta`. Se reafirma la visibilidad
+    // en cada frame porque hay varios sitios que apagan el HUD en bloque
+    // (cambios de escena, entrar y salir de la batalla, paneles) y si alguno
+    // pilla la burbuja abierta la dejaba oculta antes de tiempo: ése era el
+    // "solo se ve un segundo". Mientras no venza su plazo, vuelve a salir.
+    if (this._burbujaHasta && Date.now() < this._burbujaHasta) {
+      if (bubble.style.display === 'none') bubble.style.display = 'flex';
+    }
   }
 
   /** Muestra un mensaje de chat sobre el jugador local durante 4s */
@@ -16244,9 +16346,13 @@ removeOtherPlayer(playerId) {
     const lines = text.split('\n').slice(-3).join('\n');
     bubble.innerHTML = `<div class="chat-bubble-msg own">${this._escHtml(lines)}</div>`;
     bubble.style.display = 'flex';
+    // Plazo hasta el que la burbuja debe seguir viéndose. Lo consulta
+    // _positionLocalBubble para reafirmarla si algo la apagó antes de tiempo.
+    this._burbujaHasta = Date.now() + 4000;
     this._positionLocalBubble(bubble);
     clearTimeout(this._localBubbleTimer);
     this._localBubbleTimer = setTimeout(() => {
+      this._burbujaHasta = 0;
       bubble.style.display = 'none';
       bubble.innerHTML = '';
     }, 4000);
@@ -25197,9 +25303,13 @@ getPlayerIntentDirection() {
 
   update(time, delta) {
     // Reposicionar burbuja local sobre el sprite del jugador
-    if (this._isTyping || (document.getElementById('local-chat-bubble') && document.getElementById('local-chat-bubble').style.display !== 'none')) {
+    // Se entra también cuando la burbuja está OCULTA pero su plazo sigue vivo:
+    // es lo que permite reafirmarla si algo apagó el HUD en bloque mientras
+    // había un mensaje en pantalla (ver _positionLocalBubble).
+    {
       const b = document.getElementById('local-chat-bubble');
-      if (b && b.style.display !== 'none') this._positionLocalBubble(b);
+      const plazoVivo = this._burbujaHasta && Date.now() < this._burbujaHasta;
+      if (b && (plazoVivo || b.style.display !== 'none')) this._positionLocalBubble(b);
     }
     if (!this.keys) return;
 
@@ -26562,8 +26672,18 @@ if (this.dogNameText) {
       this.moneda           = window.playerStats.oro;
       this.moneda_plata     = window.playerStats.plata;
       if (typeof window.playerStats.exp === 'number') {
-        this.nivel_exp       = window.playerStats.exp;
-        this._lastExpSynced  = this.nivel_exp;
+        // La experiencia solo SUBE: si la que hay en la cadena va por detrás de
+        // la local (porque la escritura on-chain está pendiente o falló), pisar
+        // la local con la de la cadena BORRA el progreso recién ganado. Esa era
+        // una de las vías por las que el nivel se quedaba clavado. Se conserva
+        // la mayor y se deja que _syncExp empuje la diferencia.
+        const expCadena = Math.max(0, Math.round(Number(window.playerStats.exp) || 0));
+        const expLocal  = Math.max(0, Math.round(Number(this.nivel_exp) || 0));
+        this.nivel_exp = Math.max(expCadena, expLocal);
+        // OJO: _lastExpSynced se pone al valor de la CADENA, no al nuevo. Si se
+        // igualara al valor local, _syncExp creería que ya está sincronizado y
+        // la diferencia no se enviaría nunca.
+        this._lastExpSynced = expCadena;
       }
       this.actualizarBarraVida(this.vidaPorcentaje);
       this.actualizarBarraAgua(this.aguaPorcentaje);
