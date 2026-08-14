@@ -3075,6 +3075,10 @@ body{margin:0;font-family:"Press Start 2P",monospace,Arial;background:transparen
   justify-content: center;
   transition: all var(--transition-speed) ease;
   user-select: none;
+  /* Mismo motivo que en .mobile-quantity-btn: el modal de PC también se usa en
+     tablets, y ahí el retraso del doble toque se nota igual. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .pc-quantity-btn:hover {
@@ -3602,6 +3606,14 @@ body{margin:0;font-family:"Press Start 2P",monospace,Arial;background:transparen
   justify-content: center;
   transition: all var(--transition-speed) ease;
   user-select: none;
+  /* SIN ESTO EL + Y EL − VAN LENTOS EN EL MÓVIL. El navegador se guarda cada
+     toque ~300 ms por si viene un segundo (doble toque = zoom) antes de mandar
+     el 'click'. `manipulation` le dice que en este botón no hay doble toque que
+     esperar, así que la pulsación se entrega al momento. El otro medio arreglo
+     está en tienda_sistema.js (_botonDeCantidad: pointerdown + repetición al
+     mantener pulsado). */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .mobile-quantity-btn:hover {

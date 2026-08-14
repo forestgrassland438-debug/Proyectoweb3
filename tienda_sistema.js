@@ -517,10 +517,10 @@ class TiendaSistema {
             this.openPcModal();
         });
         
-        // Controles de cantidad (PC Modal)
-        document.getElementById('pc-quantity-up')?.addEventListener('click', () => this.changePcModalQuantity(1));
-        document.getElementById('pc-quantity-down')?.addEventListener('click', () => this.changePcModalQuantity(-1));
-        
+        // Controles de cantidad (PC Modal) — con repetición al mantener pulsado.
+        this._botonDeCantidad('pc-quantity-up',   () => this.changePcModalQuantity(1));
+        this._botonDeCantidad('pc-quantity-down', () => this.changePcModalQuantity(-1));
+
         const pcQuantityInput = document.getElementById('pc-quantity-input');
         if (pcQuantityInput) {
             pcQuantityInput.addEventListener('input', (e) => {
@@ -545,10 +545,10 @@ class TiendaSistema {
         // Cerrar modal PC
         document.getElementById('close-pc-modal')?.addEventListener('click', () => this.closePcModal());
         
-        // Controles de cantidad (Móvil)
-        document.getElementById('mobile-quantity-up')?.addEventListener('click', () => this.changeMobileQuantity(1));
-        document.getElementById('mobile-quantity-down')?.addEventListener('click', () => this.changeMobileQuantity(-1));
-        
+        // Controles de cantidad (Móvil) — con repetición al mantener pulsado.
+        this._botonDeCantidad('mobile-quantity-up',   () => this.changeMobileQuantity(1));
+        this._botonDeCantidad('mobile-quantity-down', () => this.changeMobileQuantity(-1));
+
         const mobileQuantityInput = document.getElementById('mobile-quantity-input');
         if (mobileQuantityInput) {
             mobileQuantityInput.addEventListener('input', (e) => {
@@ -598,7 +598,107 @@ class TiendaSistema {
         // Eventos táctiles para móvil
         this.initMobileTouchEvents();
     }
-    
+
+    // =========================================================================
+    // BOTONES + / − DE CANTIDAD
+    // =========================================================================
+    /**
+     * Engancha un botón de cantidad para que responda AL INSTANTE y para que se
+     * pueda MANTENER PULSADO.
+     *
+     * BUG QUE ESTO ARREGLA — "en el teléfono el + y el − de la tienda van
+     * lentísimos":
+     *
+     *   1. Estaban enganchados a 'click'. En un móvil el navegador no dispara
+     *      'click' cuando levantas el dedo: espera a ver si viene un segundo
+     *      toque (doble toque para hacer zoom). Ese retraso —hasta ~300 ms— se
+     *      notaba en CADA pulsación, y encima se sumaba a que el modal de la
+     *      tienda no traía `touch-action` que lo desactivara.
+     *   2. No había repetición: para comprar 40 semillas había que dar 40
+     *      toques, cada uno con su retraso. Casi veinte segundos de dedo.
+     *
+     * Ahora se usa 'pointerdown', que llega en cuanto el dedo toca: la primera
+     * unidad entra sin ninguna espera. Y si se mantiene pulsado, la cantidad
+     * sigue subiendo sola: arranca despacio (400 ms de margen para que un toque
+     * normal siga siendo de uno en uno) y va ACELERANDO — 140 ms entre pasos,
+     * luego 70, luego 35— así que llegar a 99 son un par de segundos.
+     *
+     * `setPointerCapture` mantiene el botón activo aunque el dedo se mueva un
+     * poco, que en una pantalla táctil pasa siempre. El teclado (Enter/Espacio)
+     * y los lectores de pantalla siguen funcionando por el 'click' de respaldo.
+     */
+    _botonDeCantidad(elementId, accion) {
+        const boton = document.getElementById(elementId);
+        if (!boton || boton._gfRepeatBound) return;
+        boton._gfRepeatBound = true;
+
+        // Quita el retraso del doble toque también desde JS, por si el CSS del
+        // modal no llega a este botón.
+        boton.style.touchAction = 'manipulation';
+
+        const RETRASO_INICIAL = 400;   // ms antes de empezar a repetir
+        const PASOS = [140, 70, 35];   // intervalos: va acelerando
+        let timerInicio = null;
+        let timerRepe   = null;
+        let repeticiones = 0;
+        let pulsando = false;
+
+        const parar = () => {
+            pulsando = false;
+            repeticiones = 0;
+            if (timerInicio) { clearTimeout(timerInicio);  timerInicio = null; }
+            if (timerRepe)   { clearTimeout(timerRepe);    timerRepe   = null; }
+        };
+
+        const siguienteIntervalo = () => {
+            const i = Math.min(Math.floor(repeticiones / 6), PASOS.length - 1);
+            return PASOS[i];
+        };
+
+        const repetir = () => {
+            if (!pulsando) return;
+            accion();
+            repeticiones++;
+            timerRepe = setTimeout(repetir, siguienteIntervalo());
+        };
+
+        let ultimoPuntero = 0;   // cuándo atendió por última vez un pointerdown
+
+        const empezar = (e) => {
+            // Solo el botón principal / el dedo. Nada de menús contextuales.
+            if (e && e.button != null && e.button !== 0) return;
+            if (e) e.preventDefault();
+            if (boton.disabled) return;
+
+            parar();
+            ultimoPuntero = Date.now();
+            pulsando = true;
+            accion();                       // la primera, inmediata
+            try { if (e && e.pointerId != null) boton.setPointerCapture(e.pointerId); } catch (_) {}
+            timerInicio = setTimeout(repetir, RETRASO_INICIAL);
+        };
+
+        boton.addEventListener('pointerdown',   empezar);
+        boton.addEventListener('pointerup',     parar);
+        boton.addEventListener('pointercancel', parar);
+        boton.addEventListener('pointerleave',  parar);
+        boton.addEventListener('blur',          parar);
+        window.addEventListener('pointerup',    parar);
+
+        // Respaldo para el teclado (Enter/Espacio sobre el botón enfocado) y para
+        // navegadores sin eventos de puntero.
+        //
+        // El 'click' llega SIEMPRE detrás de un toque o de un clic de ratón, así
+        // que hay que distinguirlo del pulsado real o cada toque contaría dos
+        // veces. No sirve mirar `event.detail` (los navegadores móviles no se
+        // ponen de acuerdo en su valor para un toque): se mira si acaba de haber
+        // un pointerdown en este mismo botón. Si lo hubo, ya está atendido.
+        boton.addEventListener('click', () => {
+            if (Date.now() - ultimoPuntero < 1000) return;
+            accion();
+        });
+    }
+
     // Manejar cambio de tipo de transacción
     handleTransactionTypeChange(newType) {
         console.log(`🔄 Cambiando tipo de transacción de ${this.transactionType} a ${newType}`);
