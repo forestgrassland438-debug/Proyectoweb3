@@ -11947,3 +11947,766 @@ canvas,
   border-color: rgba(251, 191, 36, .75);
   box-shadow: 0 0 10px rgba(251, 191, 36, .35);
 }
+
+
+/* ==========================================================================
+   RENDIMIENTO DEL HUD SOBRE EL LIENZO DEL JUEGO
+   --------------------------------------------------------------------------
+   FALLO QUE ESTO ARREGLA — "abro el panel de los botones redondos o el de
+   vida/agua/comida y todo se pone lento; lo cierro y vuelve a ir rápido":
+
+   La culpa es de `backdrop-filter: blur(...)`. Suena a un efecto visual barato,
+   pero lo que le pide al navegador es esto, EN CADA FOTOGRAMA:
+
+     1. rasterizar todo lo que hay DETRÁS del elemento — o sea, el lienzo WebGL
+        con el juego entero dibujándose;
+     2. copiar esa zona a una textura aparte;
+     3. aplicarle un desenfoque gaussiano de 16-20 px de radio;
+     4. componerlo de vuelta encima.
+
+   Sobre una imagen estática eso se calcula una vez y se guarda. Sobre un juego
+   que redibuja 30-60 veces por segundo NO se puede guardar nada: hay que
+   repetir los cuatro pasos en cada fotograma. En un teléfono, un desenfoque de
+   pantalla completa cuesta más que dibujar la escena entera, así que el juego
+   se cae a la mitad de fotogramas en cuanto aparece un panel con este efecto.
+
+   Y no era un panel: `.round-btn` lo llevaba CADA BOTÓN REDONDO (siete zonas
+   desenfocadas a la vez), y encima con una animación `btn-shimmer ... infinite`
+   que obliga a rehacer el desenfoque continuamente aunque nadie toque nada.
+
+   En esta misma hoja hay comentarios de hace tiempo que ya avisaban del
+   problema ("Sin backdrop-filter: no pausa el juego en móvil/PC"), pero solo se
+   quitó de dos sitios.
+
+   LA SOLUCIÓN NO ES QUITAR EL ESTILO, ES CONSEGUIRLO GRATIS. Un cristal
+   esmerilado se ve prácticamente igual con un fondo translúcido algo más
+   opaco, y eso al navegador le cuesta CERO: es una capa de color plana. Abajo
+   se sustituye el desenfoque por opacidad en todo lo que flota sobre el lienzo,
+   conservando bordes, sombras y colores.
+
+   Se deja el desenfoque SOLO donde no hace daño: las pantallas modales que
+   ocupan todo (batalla, clasificación, tienda), porque ahí el juego queda
+   tapado del todo y el desenfoque se calcula una vez.
+   ========================================================================== */
+
+/* --- HUD permanente: nunca desenfocar, está siempre encima del juego ------ */
+#hub,
+#cajahub,
+#hubdia,
+#quick-slots,
+#quick-slots-bar,
+#inventory-panel,
+#player-level-container,
+.round-btn,
+.chat-open-btn,
+.corner-box,
+#game-hud .corner-box,
+.hud-panel,
+.hud-panel_1,
+#chat-panel {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Se compensa la pérdida del desenfoque subiendo la opacidad del fondo: el
+   aspecto de cristal se mantiene y el coste pasa a ser nulo. */
+#hub {
+  background: linear-gradient(160deg,
+    rgba(11, 14, 34, 0.93) 0%,
+    rgba(18, 23, 52, 0.93) 100%) !important;
+}
+
+.round-btn {
+  background: rgba(18, 23, 52, 0.88) !important;
+}
+
+#quick-slots-bar,
+#quick-slots {
+  background: rgba(12, 16, 38, 0.90) !important;
+}
+
+.chat-open-btn {
+  background: rgba(18, 23, 52, 0.90) !important;
+}
+
+#chat-panel {
+  background: linear-gradient(160deg,
+    rgba(10, 14, 32, 0.97) 0%,
+    rgba(16, 22, 50, 0.97) 100%) !important;
+}
+
+/* --- Animaciones infinitas sobre el lienzo -------------------------------- */
+/* Un `infinite` mantiene vivo el compositor del navegador para siempre: nunca
+   deja la pantalla en reposo, ni con el juego parado ni con el móvil en la
+   mano sin tocar nada. El brillo que recorre los botones y las casillas es
+   decorativo, así que se ejecuta solo cuando el jugador señala o pulsa. La
+   animación sigue existiendo; simplemente deja de correr sola las 24 horas. */
+.round-btn::before,
+.quick-slot::after {
+  animation: none !important;
+}
+
+.round-btn:hover::before,
+.round-btn:focus-visible::before,
+.quick-slot:hover::after {
+  animation: btn-shimmer 1.2s linear 1 !important;
+}
+
+/* La barra de vitales también late en bucle. Se conserva el latido de AVISO
+   (cuando una barra está en rojo, que es información útil) y se apaga el
+   decorativo. */
+#hub .bar-fill::after,
+#hub .stat-bar::after {
+  animation: none !important;
+}
+
+/* --- Cuando el juego está pausado o el panel es modal, el desenfoque sí vale */
+/* Estas pantallas tapan el juego por completo, así que el navegador calcula el
+   desenfoque una vez y lo reutiliza: ahí no hay coste por fotograma. */
+.battle-hub-overlay,
+.battle-rank-overlay,
+#tienda-overlay,
+.dashboard-overlay {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+
+/* ==========================================================================
+   CHAT POR ENCIMA DEL TECLADO DEL TELÉFONO
+   --------------------------------------------------------------------------
+   FALLO QUE ESTO ARREGLA — "en el móvil abro el chat y el campo queda DETRÁS
+   del teclado, no se ve lo que escribo":
+
+   El panel usa `position: fixed; bottom: …`, y `fixed` se mide contra el
+   VIEWPORT DE MAQUETACIÓN, que NO encoge cuando aparece el teclado. El teclado
+   se dibuja encima de la página y tapa la franja de abajo — que es justo donde
+   está el campo de escribir.
+
+   La variable `--gf-teclado` la publica el juego (ver _seguirTecladoMovil en
+   GameScene.js y tiendajuego.js) midiendo `window.visualViewport`, que sí
+   refleja lo que se ve de verdad: vale exactamente el alto que ocupa el teclado.
+
+   SE USA `transform`, NO `bottom`. Es importante: el chat y su botón tienen un
+   `bottom` distinto en cada tamaño de pantalla (20 px en PC, 10 px en móvil,
+   12 px en horizontal, 70 px en la disposición nueva…). Sobreescribir `bottom`
+   con un valor fijo los movería de sitio en todos esos casos. `transform` los
+   DESPLAZA desde donde ya estén, así que cada regla existente se respeta y lo
+   único que cambia es que suben lo que mide el teclado.
+
+   Sin teclado —o en PC, o en navegadores sin visualViewport— la variable vale
+   0px, el desplazamiento es cero y todo queda exactamente igual que antes.
+   ========================================================================== */
+
+:root { --gf-teclado: 0px; }
+
+/* El `!important` NO es decorativo, hace falta: #chat-panel lleva
+   `animation: chat-enter … both !important`, y una animación con
+   `fill-mode: both` deja clavado su último fotograma (`transform: translateY(0)`)
+   por encima de cualquier declaración normal. En la cascada de CSS, las
+   animaciones ganan a las reglas normales pero PIERDEN contra las marcadas como
+   importantes — que es justo lo que se necesita aquí. Sin esto el panel no se
+   movía ni un píxel (comprobado en el navegador antes de añadirlo). */
+#chat-panel,
+.chat-open-btn,
+#open-chat-btn {
+  transform: translateY(calc(-1 * var(--gf-teclado, 0px))) !important;
+  transition: transform 0.18s ease-out !important;
+  /* El desplazamiento se hace en la GPU y no obliga a recalcular la
+     maquetación de la página, así que no cuesta rendimiento. */
+  will-change: transform;
+}
+
+/* Con el teclado abierto la pantalla útil es la mitad: el historial se recorta
+   para que el campo de texto y las últimas líneas quepan siempre. Sin esto el
+   panel crecía hacia arriba y volvía a salirse por el otro lado. */
+html.gf-teclado-abierto #chat-panel {
+  max-height: min(38vh, 220px) !important;
+}
+
+/* El resto del HUD estorba mientras se escribe en el móvil: se aparta. */
+@media (max-width: 768px) {
+  html.gf-teclado-abierto #quick-slots-bar,
+  html.gf-teclado-abierto .round-buttons {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease-out;
+  }
+}
+
+
+/* ==========================================================================
+   PANTALLA DE CARGA
+   --------------------------------------------------------------------------
+   Rediseño completo de #loading-overlay.
+
+   CRITERIOS DE DISEÑO
+   ·  Jerarquía clara: una sola cifra manda (el porcentaje), el resto la
+      acompaña. Nada compite por la atención.
+   ·  Tipografía mixta. La fuente de píxeles se reserva para la MARCA, que es
+      donde aporta identidad; el resto usa la tipografía del sistema, que se
+      lee mejor a tamaño pequeño, carga al instante (importante en una pantalla
+      de carga) y es lo que le da el aire moderno en vez de retro.
+   ·  Profundidad por capas: focos de color desenfocados por gradiente, retícula
+      tenue, viñeta y una tarjeta con borde de luz. Sin adornos gratuitos.
+   ·  Comodidad: contraste alto pero sin blancos puros que deslumbren en el
+      móvil de noche, cuerpos de texto generosos y mucho aire.
+
+   CRITERIOS DE RENDIMIENTO (esto no es opcional: es una pantalla que aparece
+   mientras el juego está cargando, o sea en el peor momento posible)
+   ·  Solo se animan `transform` y `opacity`. Son las dos únicas propiedades
+      que el navegador resuelve en la GPU sin recalcular maquetación ni
+      repintar. Nada de animar `box-shadow`, `background-position`, `width`,
+      `filter` ni `top/left`.
+   ·  Cero `backdrop-filter`. Es lo que hundía el rendimiento del HUD (ver el
+      bloque de rendimiento más arriba) y aquí haría lo mismo.
+   ·  Los focos de color son `radial-gradient`, que ya nace suave: no hace
+      falta `filter: blur`, que sí cuesta rasterizado.
+   ·  Se respeta `prefers-reduced-motion`: quien lo pida no ve movimiento.
+
+   Se conservan las clases `.loading-text`, `.loading-bar-container` y
+   `.loading-bar-fill` porque son las que busca LoadingSystem.js.
+   ========================================================================== */
+
+#loading-overlay {
+  /* Paleta */
+  --gfl-fondo:      #070b16;
+  --gfl-tarjeta:    #0e1426;
+  --gfl-borde:      rgba(148, 178, 255, 0.14);
+  --gfl-texto:      #e8eeff;
+  --gfl-suave:      #93a3c8;
+  --gfl-tenue:      #5b6a92;
+  --gfl-acento:     #5eead4;
+  --gfl-acento-2:   #60a5fa;
+  --gfl-acento-3:   #a78bfa;
+  /* Progreso 0..1. Lo publica LoadingSystem._updateProgressBar, así que el
+     anillo y la barra van SIEMPRE sincronizados, lo llame quien lo llame. */
+  --gf-progreso: 0;
+
+  background: var(--gfl-fondo) !important;
+  background-image:
+    radial-gradient(ellipse 120% 80% at 50% -10%, rgba(96, 165, 250, 0.16), transparent 60%),
+    radial-gradient(ellipse 90% 70% at 50% 110%, rgba(94, 234, 212, 0.10), transparent 60%) !important;
+  color: var(--gfl-texto);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+               'Helvetica Neue', Arial, sans-serif !important;
+  /* OJO: `display` va SIN `!important`, y es deliberado.
+     LoadingSystem oculta la pantalla con `overlay.style.display = 'none'` (estilo
+     en línea). En la cascada de CSS, una declaración `!important` de la hoja
+     GANA a un estilo en línea normal — así que poner `display: flex !important`
+     aquí dejaría la pantalla de carga pegada para siempre, tapando el juego.
+     Comprobado en el navegador. El centrado sí puede llevar `!important` porque
+     nadie lo toca desde JavaScript. */
+  display: flex;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 24px;
+  box-sizing: border-box;
+  overflow: hidden;
+  /* El overlay es su propia capa de composición: aísla todo lo que pase aquí
+     dentro del resto de la página. */
+  isolation: isolate;
+}
+
+/* ── Ambiente ─────────────────────────────────────────────────────────────── */
+
+.gfl-ambiente {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Focos de color. Son gradientes radiales (suaves de nacimiento) que se
+   desplazan muy despacio. Al animar solo `transform` no cuesta repintado. */
+.gfl-orbe {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  opacity: 0.5;
+  will-change: transform;
+}
+
+.gfl-orbe-a {
+  width: 46vmax; height: 46vmax;
+  top: -16vmax; left: -12vmax;
+  background: radial-gradient(circle, rgba(94, 234, 212, 0.30) 0%, rgba(94, 234, 212, 0) 68%);
+  animation: gfl-deriva-a 26s ease-in-out infinite;
+}
+
+.gfl-orbe-b {
+  width: 40vmax; height: 40vmax;
+  bottom: -14vmax; right: -10vmax;
+  background: radial-gradient(circle, rgba(96, 165, 250, 0.32) 0%, rgba(96, 165, 250, 0) 68%);
+  animation: gfl-deriva-b 32s ease-in-out infinite;
+}
+
+.gfl-orbe-c {
+  width: 34vmax; height: 34vmax;
+  top: 24%; right: 6%;
+  background: radial-gradient(circle, rgba(167, 139, 250, 0.24) 0%, rgba(167, 139, 250, 0) 68%);
+  animation: gfl-deriva-c 38s ease-in-out infinite;
+}
+
+@keyframes gfl-deriva-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(6vmax, 4vmax, 0) scale(1.12); }
+}
+@keyframes gfl-deriva-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.06); }
+  50%      { transform: translate3d(-7vmax, -3vmax, 0) scale(1); }
+}
+@keyframes gfl-deriva-c {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(-4vmax, 6vmax, 0) scale(1.1); }
+}
+
+/* Retícula técnica de fondo. Estática: da textura sin costar nada. */
+.gfl-reticula {
+  position: absolute;
+  inset: -2px;
+  display: block;
+  background-image:
+    linear-gradient(to right,  rgba(148, 178, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 178, 255, 0.055) 1px, transparent 1px);
+  background-size: 56px 56px;
+  /* Se difumina hacia los bordes para que no parezca papel milimetrado. */
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, #000 30%, transparent 100%);
+          mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, #000 30%, transparent 100%);
+}
+
+/* Viñeta: oscurece las esquinas y empuja la mirada al centro. */
+.gfl-vineta {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background: radial-gradient(ellipse 75% 65% at 50% 50%, transparent 40%, rgba(4, 6, 14, 0.72) 100%);
+}
+
+/* ── Tarjeta ──────────────────────────────────────────────────────────────── */
+
+.gfl-tarjeta {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 620px);
+  padding: 28px 30px 22px;
+  box-sizing: border-box;
+  background: linear-gradient(168deg, rgba(20, 27, 48, 0.92) 0%, rgba(12, 17, 33, 0.94) 100%);
+  border: 1px solid var(--gfl-borde);
+  border-radius: 22px;
+  box-shadow:
+    0 32px 80px -20px rgba(0, 0, 0, 0.85),
+    0 2px 0 0 rgba(255, 255, 255, 0.05) inset,
+    0 -1px 0 0 rgba(0, 0, 0, 0.35) inset;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  animation: gfl-entra 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Filo de luz superior: la línea fina que separa una tarjeta "plana" de una
+   que parece tener material. */
+.gfl-tarjeta::before {
+  content: '';
+  position: absolute;
+  top: -1px; left: 12%; right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent, rgba(94, 234, 212, 0.55), rgba(167, 139, 250, 0.55), transparent);
+  pointer-events: none;
+}
+
+@keyframes gfl-entra {
+  from { opacity: 0; transform: translate3d(0, 14px, 0) scale(0.985); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+/* ── Cabecera ─────────────────────────────────────────────────────────────── */
+
+.gfl-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.gfl-logo {
+  position: relative;
+  flex: 0 0 auto;
+  width: 46px; height: 46px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #16233f, #0d1526);
+  border: 1px solid rgba(148, 178, 255, 0.18);
+  box-shadow:
+    0 6px 18px -6px rgba(94, 234, 212, 0.45),
+    0 1px 0 0 rgba(255, 255, 255, 0.07) inset;
+  display: grid;
+  place-items: center;
+}
+
+/* Brote dibujado con píxeles reales (bloques de 4 px con sombras duras). Es el
+   guiño al arte del juego: pequeño, nítido y en el sitio donde se espera un
+   logotipo — no invadiendo toda la pantalla. */
+.gfl-brote {
+  position: relative;
+  display: block;
+  width: 4px; height: 4px;
+  background: #7c5a3a;                       /* tallo (bloque base) */
+  image-rendering: pixelated;
+  /* Brote ASIMÉTRICO: una hoja abajo a la izquierda y otra más arriba a la
+     derecha. La versión simétrica anterior se leía como una cruz, no como una
+     planta — la asimetría es lo que hace que el ojo lo reconozca. */
+  box-shadow:
+     0    4px 0 0 #7c5a3a,                   /* tallo hacia abajo */
+     0   -4px 0 0 #5f8f4e,                   /* tallo hacia arriba, ya verde */
+    -4px  0   0 0 #34d399,                   /* hoja izquierda (baja) */
+    -8px  0   0 0 #34d399,
+    -8px -4px 0 0 #6ee7b7,
+     4px -4px 0 0 #34d399,                   /* hoja derecha (alta) */
+     8px -4px 0 0 #34d399,
+     8px -8px 0 0 #6ee7b7,
+     0   -8px 0 0 #a7f3d0;                   /* punta */
+  /* El dibujo ocupa de -8 a +12 en horizontal y de -8 a +8 en vertical desde el
+     bloque base, así que su centro real queda 2 px por encima del centro de la
+     casilla. Este desplazamiento lo compensa para que quede óptimamente
+     centrado dentro del logotipo. */
+  transform: translate(0, 2px);
+}
+
+.gfl-marca {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.gfl-marca-nombre {
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: var(--gfl-texto);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gfl-marca-sub {
+  font-style: normal;
+  font-size: 12.5px;
+  font-weight: 450;
+  letter-spacing: 0.01em;
+  color: var(--gfl-tenue);
+}
+
+/* Etiqueta de estado a la derecha. Cambia de color con data-estado. */
+.gfl-chip {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 11px;
+  border-radius: 999px;
+  color: var(--gfl-acento);
+  background: rgba(94, 234, 212, 0.10);
+  border: 1px solid rgba(94, 234, 212, 0.22);
+  white-space: nowrap;
+}
+
+.gfl-chip[data-estado="listo"] {
+  color: #86efac;
+  background: rgba(134, 239, 172, 0.12);
+  border-color: rgba(134, 239, 172, 0.28);
+}
+
+/* ── Cuerpo ───────────────────────────────────────────────────────────────── */
+
+.gfl-cuerpo {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+}
+
+/* — Anillo de progreso — */
+.gfl-medidor {
+  position: relative;
+  flex: 0 0 auto;
+  width: 124px; height: 124px;
+  display: grid;
+  place-items: center;
+}
+
+.gfl-anillo {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  transform: rotate(-90deg);            /* empieza arriba, como se espera */
+}
+
+.gfl-anillo circle {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.gfl-anillo-base { stroke: rgba(148, 178, 255, 0.10); }
+
+.gfl-anillo-valor {
+  stroke: url(#gflDegradado);
+  /* Circunferencia = 2·π·44 ≈ 276.46. El recorte se calcula desde la misma
+     variable que mueve la barra, así que nunca pueden discrepar. */
+  stroke-dasharray: 276.46;
+  stroke-dashoffset: calc(276.46 * (1 - var(--gf-progreso, 0)));
+  transition: stroke-dashoffset 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  filter: drop-shadow(0 0 6px rgba(96, 165, 250, 0.45));
+}
+
+.gfl-numero {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;   /* la cifra no "baila" al cambiar */
+}
+
+.gfl-numero b {
+  font-size: 34px;
+  font-weight: 680;
+  letter-spacing: -0.03em;
+  color: var(--gfl-texto);
+}
+
+.gfl-numero i {
+  font-style: normal;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gfl-tenue);
+}
+
+/* — Columna de estado — */
+.gfl-estado {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+#loading-overlay .loading-text {
+  margin: 0 !important;
+  font-family: inherit !important;
+  font-size: 14.5px !important;
+  font-weight: 550 !important;
+  line-height: 1.45 !important;
+  letter-spacing: -0.005em;
+  color: var(--gfl-texto) !important;
+  text-shadow: none !important;
+  min-height: 1.45em;
+}
+
+/* — Barra fina, secundaria al anillo — */
+#loading-overlay .loading-bar-container {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 6px;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: rgba(148, 178, 255, 0.10) !important;
+  box-shadow: none !important;
+  overflow: hidden;
+}
+
+#loading-overlay .loading-bar-fill {
+  height: 100% !important;
+  border-radius: 999px !important;
+  background: linear-gradient(90deg, var(--gfl-acento), var(--gfl-acento-2) 55%, var(--gfl-acento-3)) !important;
+  box-shadow: 0 0 12px -2px rgba(96, 165, 250, 0.7) !important;
+  transition: width 0.45s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Destello que recorre la barra. Se mueve con `transform`, no con
+   `background-position`: así no repinta en cada fotograma. */
+#loading-overlay .loading-bar-fill::after {
+  content: '' !important;
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+    transparent, rgba(255, 255, 255, 0.45), transparent);
+  transform: translate3d(-100%, 0, 0);
+  animation: gfl-destello 1.9s ease-in-out infinite !important;
+  will-change: transform;
+}
+
+@keyframes gfl-destello {
+  0%        { transform: translate3d(-100%, 0, 0); }
+  60%, 100% { transform: translate3d(220%, 0, 0); }
+}
+
+/* ── Pasos ────────────────────────────────────────────────────────────────── */
+
+.gf-load-pasos {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gf-load-pasos li {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  color: var(--gfl-tenue);
+  transition: color 0.3s ease;
+}
+
+.gf-load-pasos li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Punto de estado. El relleno y el halo se hacen con pseudo-elementos para
+   poder animarlos solo con transform/opacity. */
+.gf-load-pasos li::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: rgba(148, 178, 255, 0.18);
+  box-shadow: 0 0 0 3px rgba(148, 178, 255, 0.05);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.gf-load-pasos li[data-estado="activo"] {
+  color: var(--gfl-texto);
+  font-weight: 600;
+}
+
+.gf-load-pasos li[data-estado="activo"]::before {
+  background: var(--gfl-acento-2);
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.18);
+  animation: gfl-latido 1.6s ease-in-out infinite;
+}
+
+@keyframes gfl-latido {
+  0%, 100% { transform: scale(1);    opacity: 1; }
+  50%      { transform: scale(1.35); opacity: 0.75; }
+}
+
+.gf-load-pasos li[data-estado="hecho"] { color: var(--gfl-suave); }
+
+.gf-load-pasos li[data-estado="hecho"]::before {
+  background: var(--gfl-acento);
+  box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.14);
+}
+
+/* ── Consejo ──────────────────────────────────────────────────────────────── */
+
+.gf-load-tip {
+  margin: 0;
+  padding-top: 16px;
+  border-top: 1px solid rgba(148, 178, 255, 0.09);
+  font-size: 12px;
+  font-weight: 450;
+  line-height: 1.55;
+  color: var(--gfl-tenue);
+  min-height: 2.1em;
+}
+
+.gf-load-tip:empty { display: none; }
+
+/* ── Tablet y teléfono ────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  #loading-overlay { padding: 18px; }
+
+  .gfl-tarjeta {
+    padding: 22px 20px 18px;
+    border-radius: 20px;
+    gap: 18px;
+  }
+
+  /* El medidor pasa arriba y centrado: en vertical se lee mucho mejor que
+     una fila apretada. */
+  .gfl-cuerpo {
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .gfl-medidor { width: 108px; height: 108px; }
+  .gfl-numero b { font-size: 30px; }
+
+  .gfl-estado { width: 100%; text-align: center; }
+
+  #loading-overlay .loading-text { font-size: 13.5px !important; }
+
+  /* Dos columnas: cuatro pasos en fila no caben sin recortarse. */
+  .gf-load-pasos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 12px;
+    text-align: left;
+  }
+
+  .gfl-marca-nombre { font-size: 15.5px; }
+  .gfl-marca-sub    { font-size: 11.5px; }
+  .gfl-chip         { font-size: 9.5px; padding: 5px 9px; }
+  .gfl-logo         { width: 40px; height: 40px; border-radius: 12px; }
+  .gf-load-tip      { font-size: 11.5px; padding-top: 14px; }
+}
+
+@media (max-width: 380px) {
+  /* Móviles estrechos: la etiqueta de estado sobra, el texto ya lo dice. */
+  .gfl-chip { display: none; }
+  .gfl-medidor { width: 96px; height: 96px; }
+  .gfl-numero b { font-size: 27px; }
+}
+
+/* Móvil en horizontal: hay muy poca altura. Se compacta todo y el consejo
+   desaparece antes que la información útil.
+   440 px y no 480: un teléfono en horizontal mide entre 360 y 430 px de alto,
+   mientras que una ventana de portátil algo baja puede rondar los 460-480 — con
+   el umbral en 480 se le escondía el consejo a gente que sí tiene sitio. */
+@media (max-height: 440px) and (orientation: landscape) {
+  .gfl-tarjeta { padding: 16px 20px; gap: 14px; }
+  .gfl-cuerpo  { flex-direction: row; gap: 20px; }
+  .gfl-medidor { width: 84px; height: 84px; }
+  .gfl-numero b { font-size: 24px; }
+  .gf-load-tip { display: none; }
+  .gfl-estado  { text-align: left; }
+  .gf-load-pasos { display: flex; }
+}
+
+/* ── Accesibilidad y ahorro ───────────────────────────────────────────────── */
+
+/* Quien pide menos movimiento (ajuste del sistema, y también quien se marea con
+   las animaciones) recibe la misma pantalla, quieta. */
+@media (prefers-reduced-motion: reduce) {
+  .gfl-orbe,
+  .gfl-tarjeta,
+  #loading-overlay .loading-bar-fill::after,
+  .gf-load-pasos li[data-estado="activo"]::before {
+    animation: none !important;
+  }
+  .gfl-anillo-valor,
+  #loading-overlay .loading-bar-fill {
+    transition: none !important;
+  }
+}
+
+/* El cuadrado azul que daba vueltas de la versión anterior ya no se usa. */
+#loading-overlay .loading-pixel { display: none !important; }

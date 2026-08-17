@@ -1345,11 +1345,81 @@
   </div>
 
     <!-- Loading Overlay HTML - Puedes ponerlo al inicio del body -->
+  <!-- ══════════════════════════════════════════════════════════════════════
+       PANTALLA DE CARGA
+       ----------------------------------------------------------------------
+       Se conservan a propósito las clases `.loading-text`, `.loading-bar-fill`
+       y `.loading-bar-container`: son las que LoadingSystem.js busca con
+       querySelector para escribir el mensaje y mover el progreso. Todo lo demás
+       es nuevo y OPCIONAL — si algún día falta un elemento, LoadingSystem
+       sigue funcionando igual y la carga no se rompe.
+       ══════════════════════════════════════════════════════════════════════ -->
   <div id="loading-overlay" style="display: none;">
-    <div class="loading-pixel" aria-hidden="true"></div>
-    <div class="loading-text">Cargando...</div>
-    <div class="loading-bar-container" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-      <div class="loading-bar-fill"></div>
+
+    <!-- Ambiente: focos de color que se desplazan muy despacio y una retícula
+         tenue. Solo se animan `transform` y `opacity`, que el navegador resuelve
+         en la GPU sin repintar nada. -->
+    <div class="gfl-ambiente" aria-hidden="true">
+      <span class="gfl-orbe gfl-orbe-a"></span>
+      <span class="gfl-orbe gfl-orbe-b"></span>
+      <span class="gfl-orbe gfl-orbe-c"></span>
+      <span class="gfl-reticula"></span>
+      <span class="gfl-vineta"></span>
+    </div>
+
+    <div class="gfl-tarjeta" role="status" aria-live="polite">
+
+      <!-- Cabecera: marca -->
+      <header class="gfl-cabecera">
+        <span class="gfl-logo" aria-hidden="true">
+          <i class="gfl-brote"></i>
+        </span>
+        <span class="gfl-marca">
+          <b class="gfl-marca-nombre">Grassland Forest</b>
+          <i class="gfl-marca-sub">Preparing your world</i>
+        </span>
+        <span class="gfl-chip" id="gf-load-chip">Connecting</span>
+      </header>
+
+      <!-- Cuerpo: anillo de progreso + estado -->
+      <div class="gfl-cuerpo">
+
+        <div class="gfl-medidor">
+          <svg class="gfl-anillo" viewBox="0 0 100 100" aria-hidden="true">
+            <defs>
+              <linearGradient id="gflDegradado" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%"   stop-color="#5eead4"/>
+                <stop offset="50%"  stop-color="#60a5fa"/>
+                <stop offset="100%" stop-color="#a78bfa"/>
+              </linearGradient>
+            </defs>
+            <circle class="gfl-anillo-base" cx="50" cy="50" r="44"/>
+            <circle class="gfl-anillo-valor" cx="50" cy="50" r="44"/>
+          </svg>
+          <span class="gfl-numero">
+            <b id="gf-load-pct">0</b><i>%</i>
+          </span>
+        </div>
+
+        <div class="gfl-estado">
+          <p class="loading-text">Cargando...</p>
+
+          <div class="loading-bar-container" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="loading-bar-fill"></div>
+          </div>
+
+          <!-- Pasos. LoadingScenegame marca cada uno con
+               data-estado="pendiente|activo|hecho" según avanza. -->
+          <ol class="gf-load-pasos" id="gf-load-pasos">
+            <li data-paso="datos"      data-estado="pendiente"><span>Player data</span></li>
+            <li data-paso="blockchain" data-estado="pendiente"><span>Blockchain</span></li>
+            <li data-paso="stats"      data-estado="pendiente"><span>Stats</span></li>
+            <li data-paso="mundo"      data-estado="pendiente"><span>World</span></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="gf-load-tip" id="gf-load-tip"></footer>
     </div>
     <!-- Botón de cancelar opcional -->
     <!-- <button id="loading-cancel-btn" style="display: none; margin-top:14px; padding:8px 12px; border-radius:6px; background:#333; color:#fff; border:none">Cancelar</button> -->

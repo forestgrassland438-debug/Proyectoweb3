@@ -1555,33 +1555,38 @@ class LoadingScenegame extends Phaser.Scene {
         // y todo lo que viene después (sync con blockchain, guardado) partiría
         // de datos viejos. Así que primero se espera a que no quede nada.
         this.loadingSystem.show({ message: 'Loading player data...', initialProgress: 0 });
+        this._arrancarConsejosDeCarga();
+        this._paso('datos', 'activo', 'Loading player data...', 0.05);
         await this._esperarTransaccionesPendientes();
 
         // ── 1. Cargar datos del jugador desde la BD ─────────────────────────
-        this.loadingSystem.update(0.2);
-        this.loadingSystem.textElement.textContent = 'Loading player data...';
+        this._paso('datos', 'activo', 'Loading player data...', 0.2);
 
         await this.loadPlayerData();
+        this._paso('datos', 'hecho');
 
         // ── 2. Sincronizar inventario contra blockchain ──────────────────────
         //      RECONCILIACIÓN (no destructiva): la sync deja intactos los ítems
         //      cuyo (idx, manualId, cantidad) coincide con la blockchain, corrige
         //      las cantidades que difieran y ELIMINA de la BD lo que no exista
         //      on-chain. No se borra la siembra ni se vacía el cache.
-        this.loadingSystem.update(0.45);
-        this.loadingSystem.textElement.textContent = 'Syncing with blockchain...';
+        this._paso('blockchain', 'activo', 'Syncing with blockchain...', 0.45);
 
         // ── 3. Sincronizar stats vitales PRIMERO (antes del inventario)
         // Así oro/plata quedan en 0 antes de que el save del inventario los guarde.
-        this.loadingSystem.update(0.65);
-        this.loadingSystem.textElement.textContent = 'Syncing player stats...';
+        this._paso('stats', 'activo', 'Syncing player stats...', 0.62);
         await this.syncStatsWithBlockchain();
+        this._paso('stats', 'hecho');
 
         // ── Luego sincronizar inventario con blockchain ──
+        this._paso('blockchain', 'activo', 'Checking your items on-chain...', 0.75);
         await this.syncInventoryWithBlockchain();
+        this._paso('blockchain', 'hecho');
 
         // ── 4. Barra de progreso final ───────────────────────────────────────
+        this._paso('mundo', 'activo', 'Preparing the world...', 0.9);
         await this.loadResources();
+        this._paso('mundo', 'hecho', 'Ready!', 1);
 
         // ── 4. Fondo animado ─────────────────────────────────────────────────
         this.stars    = [];
@@ -1595,6 +1600,99 @@ class LoadingScenegame extends Phaser.Scene {
         this.intervalId = setInterval(() => this.checkTransition(), 2000);
 
         this.setupActivityTracking();
+    }
+
+    // =========================================================================
+    //  PANTALLA DE CARGA — ESTADO VISIBLE PARA EL JUGADOR
+    // -------------------------------------------------------------------------
+    //  Antes la carga era una barra y una frase. Como sincronizar con la cadena
+    //  puede tardar bastante, el jugador se quedaba mirando una barra parada sin
+    //  saber si el juego seguía vivo o se había colgado.
+    //
+    //  Ahora hay cuatro pasos visibles (datos, cadena, stats, mundo) que se van
+    //  marcando, un porcentaje en números y consejos que van rotando. Todo es
+    //  OPCIONAL: si algún elemento no existe en el HTML, estos métodos no hacen
+    //  nada y la carga funciona igual que siempre.
+    // =========================================================================
+
+    /**
+     * Marca un paso de la carga y, de paso, actualiza texto y barra.
+     *
+     * @param {string} clave    'datos' | 'blockchain' | 'stats' | 'mundo'
+     * @param {string} estado   'pendiente' | 'activo' | 'hecho'
+     * @param {string} [texto]  mensaje grande (si se omite, no se toca)
+     * @param {number} [avance] 0..1 para la barra (si se omite, no se toca)
+     */
+    _paso(clave, estado, texto, avance) {
+        try {
+            const li = document.querySelector(`#gf-load-pasos li[data-paso="${clave}"]`);
+            if (li) li.dataset.estado = estado;
+
+            if (typeof texto === 'string' && this.loadingSystem && this.loadingSystem.textElement) {
+                this.loadingSystem.textElement.textContent = texto;
+            }
+
+            // La cifra y el anillo NO se tocan aquí: los actualiza
+            // LoadingSystem._updateProgressBar, que es el único punto por el que
+            // pasa el progreso. Así no hay dos sitios que puedan discrepar.
+            if (typeof avance === 'number' && this.loadingSystem) {
+                this.loadingSystem.update(avance);
+            }
+
+            // Etiqueta de estado de la cabecera: da contexto de una ojeada.
+            const chip = document.getElementById('gf-load-chip');
+            if (chip) {
+                const ETIQUETAS = {
+                    datos:      'Account',
+                    blockchain: 'On-chain',
+                    stats:      'Syncing',
+                    mundo:      'World'
+                };
+                if (estado === 'activo' && ETIQUETAS[clave]) {
+                    chip.textContent = ETIQUETAS[clave];
+                    chip.removeAttribute('data-estado');
+                } else if (clave === 'mundo' && estado === 'hecho') {
+                    chip.textContent = 'Ready';
+                    chip.dataset.estado = 'listo';
+                }
+            }
+        } catch (e) { /* la carga nunca debe romperse por la decoración */ }
+    }
+
+    /**
+     * Consejos rotativos mientras se carga. Son texto plano y se escriben con
+     * textContent (nunca innerHTML), así que no hay forma de inyectar nada.
+     */
+    _arrancarConsejosDeCarga() {
+        const caja = document.getElementById('gf-load-tip');
+        if (!caja || this._consejosTimer) return;
+
+        const CONSEJOS = [
+            'TIP: Chop trees and mine ore to raise Woodcutting and Mining.',
+            'TIP: Watering your crops before they dry gives a better harvest.',
+            'TIP: Tools wear out. Keep a spare axe in your quick slots.',
+            'TIP: A better pickaxe needs fewer hits and drops more ore.',
+            'TIP: Water and food are spent on every swing — eat and drink often.',
+            'TIP: Lower the graphics quality if the game feels heavy on your phone.',
+            'TIP: Your pet levels up by battling. Five daily battles are waiting.',
+            'TIP: Everything you gather is a real on-chain transaction.'
+        ];
+
+        let i = Math.floor(Math.random() * CONSEJOS.length);
+        const pintar = () => {
+            caja.textContent = CONSEJOS[i % CONSEJOS.length];
+            i++;
+        };
+        pintar();
+        this._consejosTimer = setInterval(pintar, 4200);
+
+        // Se para al apagar la escena: si no, seguiría corriendo sobre un
+        // elemento oculto durante toda la partida (ver la auditoría de fugas).
+        const parar = () => {
+            if (this._consejosTimer) { clearInterval(this._consejosTimer); this._consejosTimer = null; }
+        };
+        this.events.once('shutdown', parar);
+        this.events.once('destroy',  parar);
     }
 
     /**

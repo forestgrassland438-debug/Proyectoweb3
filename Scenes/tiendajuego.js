@@ -2073,6 +2073,20 @@ this.anims.create({
     this.roundButtons[4]?.addEventListener('click', this.onRoundBtnNFT);
 
     // ---------- BOTÓN 5 (Skills)
+    //
+    // BUG QUE ESTO ARREGLA — "las skills funcionan en GameScene pero en la
+    // tienda no":
+    //
+    // Este manejador SOLO cambiaba clases de CSS para mostrar y ocultar el
+    // panel. No leía ni pintaba NADA. El panel #skills-panel es DOM compartido
+    // de la página, así que en la tienda enseñaba lo último que hubiera dejado
+    // GameScene o, si se entraba directo a la tienda, los valores en blanco del
+    // HTML: todo a 1 y 0 EXP. Parecía que en la tienda las habilidades se
+    // borraban.
+    //
+    // Ahora la tienda usa el MISMO camino de datos que el mapa
+    // (_cargarSkillsTienda → _pintarSkillsTienda), que ya funciona porque
+    // loadPlayerData carga las seis habilidades y sus _exp desde /api/load.
     this.onRoundBtnSkills = () => {
       console.log('skills clicked');
       const panel = document.getElementById('skills-panel');
@@ -2082,6 +2096,12 @@ this.anims.create({
         panel.classList.remove('skills-panel-hidden');
         panel.classList.add('skills-panel-visible');
         panel.style.display = 'flex';
+
+        // Pintar YA con lo que tiene la escena (respuesta instantánea) y
+        // refrescar después con lo que diga el servidor.
+        this._pintarSkillsTienda(this._skillsDeLaEscena());
+        this._cargarSkillsTienda();
+
         // Wire close button
         const closeBtn = document.getElementById('skills-close');
         if (closeBtn && !closeBtn._wired) {
@@ -2099,7 +2119,15 @@ this.anims.create({
         panel.style.display = 'none';
       }
     };
-    this.roundButtons[5]?.addEventListener('click', this.onRoundBtnSkills);
+    // Se engancha por ID (#skills-btn), igual que GameScene, y no por el índice
+    // 5 de roundButtons: ese índice depende del orden del HTML y de que la
+    // NodeList siga apuntando a los nodos vivos. Y con `.onclick` en vez de
+    // addEventListener, para que volver a entrar a la tienda no acumule
+    // manejadores (dos manejadores = abrir y cerrar en el mismo clic).
+    {
+      const btnSkills = document.getElementById('skills-btn') || this.roundButtons[5];
+      if (btnSkills) btnSkills.onclick = this.onRoundBtnSkills;
+    }
 
     // ---------- BOTÓN 6 (Store) — same as GameScene
     // FIX: antes abría https://store.grasslandforest.com (dominio que no sirve
@@ -3803,6 +3831,52 @@ removeOtherPlayer(playerId) {
   // -----------------------------
   // DOM / Chat UI helpers
   // -----------------------------
+  /**
+   * El chat por encima del teclado del móvil.
+   * COPIA de GameScene._seguirTecladoMovil — ahí está la explicación larga.
+   * En resumen: `position: fixed` se mide contra el viewport de maquetación,
+   * que no encoge con el teclado, así que el campo de escribir quedaba tapado.
+   * `visualViewport` sí da la zona realmente visible; la diferencia es el alto
+   * del teclado y se publica como la variable CSS `--gf-teclado`.
+   */
+  _seguirTecladoMovil() {
+    if (this._tecladoSeguidorPuesto) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    this._tecladoSeguidorPuesto = true;
+
+    const raiz = document.documentElement;
+
+    const medir = () => {
+      const tapado  = Math.max(0, Math.round(window.innerHeight - (vv.height + vv.offsetTop)));
+      const teclado = tapado > 80 ? tapado : 0;   // <80 px suele ser la barra del navegador
+      if (this._tecladoAlto === teclado) return;
+      this._tecladoAlto = teclado;
+      raiz.style.setProperty('--gf-teclado', teclado + 'px');
+      raiz.classList.toggle('gf-teclado-abierto', teclado > 0);
+      if (teclado > 0 && this.chatMessages) {
+        try { this.chatMessages.scrollTop = this.chatMessages.scrollHeight; } catch (_) {}
+      }
+    };
+
+    vv.addEventListener('resize', medir);
+    vv.addEventListener('scroll', medir);
+    medir();
+
+    const soltar = () => {
+      try {
+        vv.removeEventListener('resize', medir);
+        vv.removeEventListener('scroll', medir);
+      } catch (_) {}
+      raiz.style.setProperty('--gf-teclado', '0px');
+      raiz.classList.remove('gf-teclado-abierto');
+      this._tecladoSeguidorPuesto = false;
+      this._tecladoAlto = 0;
+    };
+    this.events.once('shutdown', soltar);
+    this.events.once('destroy',  soltar);
+  }
+
   _setupChatDom() {
     this.openBtn = document.getElementById('open-chat-btn');
     this.chatPanel = document.getElementById('chat-panel');
@@ -3815,19 +3889,35 @@ removeOtherPlayer(playerId) {
       return;
     }
 
-    // Asegurar botón visible (puede ser controlado por CSS)
-    this.openBtn.style.display = this.openBtn.style.display || 'flex';
+    this._seguirTecladoMovil();
 
-    // Toggle panel
-    this._chatOpen = false;
+    // Asegurar botón visible (puede ser controlado por CSS).
+    // Igual que en GameScene: hideHudElements() deja `display:none` en línea y
+    // el `||` se quedaba con esa cadena, así que el botón no volvía nunca.
+    this.openBtn.style.removeProperty('display');
+    this.chatPanel.style.removeProperty('display');
+
+    // Toggle panel. El estado se LEE de la clase real del panel en vez de darlo
+    // por false: si el chat quedó abierto al cambiar de escena, el primer clic
+    // hacía justo lo contrario de lo esperado.
+    this._chatOpen = !this.chatPanel.classList.contains('chat-hidden');
     const toggleChat = (force) => {
       this._chatOpen = (typeof force === 'boolean') ? force : !this._chatOpen;
       this.chatPanel.classList.toggle('chat-hidden', !this._chatOpen);
       if (this._chatOpen) this.chatInput.focus();
     };
+    this._toggleChat = toggleChat;
 
-    this.openBtn.addEventListener('click', () => toggleChat());
-    this.openBtn.addEventListener('keyup', (e) => { if (e.key === 'Enter') toggleChat(); });
+    // `.onclick` en vez de addEventListener: el botón es DOM de la página y
+    // sobrevive al cambio de escena, así que con addEventListener se acumulaba
+    // un manejador por cada entrada a la tienda (dos manejadores = abrir y
+    // cerrar en el mismo clic, o sea "el chat no abre").
+    this.openBtn.onclick = () => toggleChat();
+    if (this.openBtn._gfChatKeyup) {
+      this.openBtn.removeEventListener('keyup', this.openBtn._gfChatKeyup);
+    }
+    this.openBtn._gfChatKeyup = (e) => { if (e.key === 'Enter') toggleChat(); };
+    this.openBtn.addEventListener('keyup', this.openBtn._gfChatKeyup);
 
     // Selector de emojis, igual que en GameScene.
     this._montarSelectorEmojis();
@@ -8880,6 +8970,109 @@ async renderInventoryAfterLoad() {
 // Todos los textos en inglés. Helpers de pathfinding/dibujo duplicados de
 // GameScene.js a propósito (cada escena es autónoma).
 // ============================================================================
+// ============================================================================
+// PANEL DE HABILIDADES EN LA TIENDA
+// ----------------------------------------------------------------------------
+// Copia del camino de datos de GameScene (_getSkillsFromScene /
+// _renderSkillsPanel / _loadSkillsData). Cada escena es autónoma, igual que el
+// resto de helpers compartidos del proyecto; si se cambia uno hay que cambiar
+// el otro o el jugador vería números distintos en el mapa y en la tienda.
+// ============================================================================
+
+/** Las seis habilidades REALES + el nivel, tal y como están en esta escena. */
+_skillsDeLaEscena() {
+  return {
+    level:       this.nivel          || 1,
+    farming:     this.agricultura    || 1,
+    mining:      this.mineria        || 1,
+    fishing:     this.pesca          || 1,
+    cooking:     this.cocina         || 1,
+    woodcutting: this.deforestacion  || 1,
+    strength:    this.fuerza         || 1,
+    exp: {
+      level:       this.nivel_exp          || 0,
+      farming:     this.agricultura_exp    || 0,
+      mining:      this.mineria_exp        || 0,
+      fishing:     this.pesca_exp          || 0,
+      cooking:     this.cocina_exp         || 0,
+      woodcutting: this.deforestacion_exp  || 0,
+      strength:    this.fuerza_exp         || 0
+    }
+  };
+}
+
+/** Vuelca los valores en el panel #skills-panel (mismos ids que GameScene). */
+_pintarSkillsTienda(skills) {
+  const mapaIds = {
+    level: 'sk-level', farming: 'sk-farming', mining: 'sk-mining',
+    fishing: 'sk-fishing', cooking: 'sk-cooking',
+    woodcutting: 'sk-woodcutting', strength: 'sk-strength'
+  };
+  const exp = (skills && skills.exp) || {};
+
+  Object.entries(mapaIds).forEach(([clave, elId]) => {
+    const el = document.getElementById(elId);
+    if (el) el.textContent = skills[clave] || 1;
+
+    const expEl = document.getElementById(elId + '-exp');
+    if (expEl) expEl.textContent = `${Math.floor(Number(exp[clave]) || 0)} EXP`;
+  });
+}
+
+/**
+ * Pide las habilidades al servidor y se queda con el valor MÁS ALTO entre lo
+ * que sabe la escena y lo que devuelve /api/skills.
+ *
+ * Las habilidades solo suben, así que quedarse con el mayor es lo correcto: si
+ * el espejo del servidor va por detrás (es una foto que solo se escribe cada
+ * cierto tiempo) no borra el progreso, y si va por delante (otro dispositivo)
+ * se adopta. Es la misma regla que aplica GameScene.
+ */
+async _cargarSkillsTienda() {
+  const local = this._skillsDeLaEscena();
+  if (!this.playerName) { this._pintarSkillsTienda(local); return; }
+
+  try {
+    const res = await fetch(
+      `${this.serverBase}/api/skills/${encodeURIComponent(this.playerName)}`,
+      { credentials: 'include' }
+    );
+    if (!res || !res.ok) { this._pintarSkillsTienda(local); return; }
+
+    const datos  = await res.json();
+    const remoto = (datos && datos.skills) || {};
+    const mayor  = (a, b) => Math.max(Number(a) || 0, Number(b) || 0);
+
+    const fusion = { exp: {} };
+    Object.keys(local).forEach(k => {
+      if (k === 'exp') return;
+      fusion[k] = mayor(local[k], remoto[k]);
+    });
+    Object.keys(local.exp).forEach(k => {
+      fusion.exp[k] = mayor(local.exp[k], (remoto.exp || {})[k]);
+    });
+
+    // Si el servidor iba por delante se adopta en la escena, para que el
+    // siguiente /api/save de la tienda no vuelva a mandar el valor viejo.
+    const props = {
+      farming: 'agricultura', mining: 'mineria', fishing: 'pesca',
+      cooking: 'cocina', woodcutting: 'deforestacion', strength: 'fuerza'
+    };
+    Object.entries(props).forEach(([clave, prop]) => {
+      const nivel = Math.max(1, Math.round(Number(fusion[clave]) || 1));
+      const xp    = Math.max(0, Math.round(Number(fusion.exp[clave]) || 0));
+      if (nivel > (Number(this[prop]) || 1))          this[prop] = nivel;
+      if (xp    > (Number(this[prop + '_exp']) || 0)) this[prop + '_exp'] = xp;
+    });
+    const expNivel = Math.max(0, Math.round(Number(fusion.exp.level) || 0));
+    if (expNivel > (Number(this.nivel_exp) || 0)) this.nivel_exp = expNivel;
+
+    this._pintarSkillsTienda(fusion);
+  } catch (_) {
+    this._pintarSkillsTienda(local);
+  }
+}
+
 /**
  * ¿Choca la caja (x, y, w, h) con alguno de los rectángulos de `lista`?
  *
@@ -11722,8 +11915,14 @@ if (this.dogNameText) {
                   this.roundButtons[2]?.removeEventListener('click', this.onRoundBtnStats);
                   this.roundButtons[3]?.removeEventListener('click', this.onRoundBtnTransactions);
                   this.roundButtons[4]?.removeEventListener('click', this.onRoundBtnNFT);
-                  this.roundButtons[5]?.removeEventListener('click', this.onRoundBtnSkills);
                   this.roundButtons[6]?.removeEventListener('click', this.onRoundBtnStore);
+              }
+              // El de Skills ya no se engancha con addEventListener sino con
+              // `.onclick` sobre #skills-btn (ver arriba), así que se suelta
+              // poniéndolo a null. Un removeEventListener aquí no quitaría nada.
+              {
+                const btnSkills = document.getElementById('skills-btn') || (this.roundButtons && this.roundButtons[5]);
+                if (btnSkills && btnSkills.onclick === this.onRoundBtnSkills) btnSkills.onclick = null;
               }
 
               document.getElementById('cerrarReputacion')

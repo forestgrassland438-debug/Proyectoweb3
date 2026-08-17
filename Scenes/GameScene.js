@@ -5377,25 +5377,19 @@ const NPC_LABEL_DEPTH = 90000;
 // salían en español. Ahora nacen en inglés, igual que el resto de la interfaz,
 // y las traducciones de los demás idiomas siguen funcionando exactamente igual
 // porque se aplican encima con setText().
-this.npcx1 = this.add.text(1829, 3288, 'Farmer Joe', textStyle);
-this.npcx1.setOrigin(0.5);
-this.npcx1.setDepth(NPC_LABEL_DEPTH);
+// DISTANCIA DE VISIÓN: los carteles también entran en el recorte.
+// El recorte por distancia solo actúa sobre los objetos marcados como
+// 'optimized' (ver gf-graphics-settings.js). Estos cinco carteles se creaban
+// sueltos con add.text, así que al bajar la distancia de visión los NPC
+// desaparecían pero sus nombres seguían flotando sobre el vacío. Marcarlos
+// aquí es lo que hace que el recorte quite de verdad "todas las cosas".
+const _marcarCartel = (t) => { t.setOrigin(0.5); t.setDepth(NPC_LABEL_DEPTH); t.setData('optimized', true); return t; };
 
-this.npcx2 = this.add.text(3296, 1950, 'Crafter Jack', textStyle);
-this.npcx2.setOrigin(0.5);
-this.npcx2.setDepth(NPC_LABEL_DEPTH);
-
-this.npcx3 = this.add.text(2374, 1515, 'Alchemist Colin', textStyle);
-this.npcx3.setOrigin(0.5);
-this.npcx3.setDepth(NPC_LABEL_DEPTH);
-
-this.npcx4 = this.add.text(3002, 855, 'Guardian Rurik', textStyle);
-this.npcx4.setOrigin(0.5);
-this.npcx4.setDepth(NPC_LABEL_DEPTH);
-
-this.npcx5 = this.add.text(2290, 2283, 'Lord Digby', textStyle);
-this.npcx5.setOrigin(0.5);
-this.npcx5.setDepth(NPC_LABEL_DEPTH);
+this.npcx1 = _marcarCartel(this.add.text(1829, 3288, 'Farmer Joe', textStyle));
+this.npcx2 = _marcarCartel(this.add.text(3296, 1950, 'Crafter Jack', textStyle));
+this.npcx3 = _marcarCartel(this.add.text(2374, 1515, 'Alchemist Colin', textStyle));
+this.npcx4 = _marcarCartel(this.add.text(3002, 855, 'Guardian Rurik', textStyle));
+this.npcx5 = _marcarCartel(this.add.text(2290, 2283, 'Lord Digby', textStyle));
 
 
     this.onInnerBtnClick = (e) => {
@@ -11891,7 +11885,16 @@ initPlots() {
       imagen.setDisplaySize(obj.width, obj.height);
       imagen.setDepth(0);
       imagen.setInteractive({ useHandCursor: true });
-      
+
+      // DISTANCIA DE VISIÓN: las parcelas también tienen que desaparecer.
+      // El recorte por distancia (ver gf-graphics-settings.js) solo mira los
+      // objetos marcados como 'optimized', y las parcelas se crean aquí a mano,
+      // fuera de createOptimizedSprite. Por eso, al bajar la distancia de
+      // visión, los árboles y las casas se iban pero las 24 parcelas seguían
+      // dibujándose al otro lado del mapa — parte del "los chunks no quitan
+      // todas las cosas".
+      imagen.setData('optimized', true);
+
       this.plotImages.set(obj.name, imagen);
       
       const progressText = this.add.text(x, y - 40, '', {
@@ -16590,11 +16593,80 @@ removeOtherPlayer(playerId) {
   // -----------------------------
   // DOM / Chat UI helpers
   // -----------------------------
+  /**
+   * EL CHAT POR ENCIMA DEL TECLADO DEL TELÉFONO.
+   *
+   * FALLO QUE ESTO ARREGLA — "en el móvil abro el chat y el campo de texto se
+   * queda DETRÁS del teclado; no se ve lo que escribo":
+   *
+   * El panel está en `position: fixed; bottom: 122px`, y `fixed` se mide contra
+   * el VIEWPORT DE MAQUETACIÓN, que NO encoge cuando sale el teclado. El
+   * teclado se dibuja encima y tapa la parte de abajo de la pantalla — justo
+   * donde está el campo de escribir.
+   *
+   * La medida buena es `window.visualViewport`: es la única que sí refleja la
+   * zona que el usuario ve de verdad. La diferencia entre la altura de la
+   * ventana y la del viewport visual es, exactamente, lo que ocupa el teclado.
+   * Ese número se publica como variable CSS `--gf-teclado` y la hoja de estilos
+   * la suma al `bottom` del panel, así que el chat sube justo lo necesario.
+   *
+   * En navegadores sin visualViewport (o en PC) la variable vale 0 y no cambia
+   * absolutamente nada.
+   */
+  _seguirTecladoMovil() {
+    if (this._tecladoSeguidorPuesto) return;
+    const vv = window.visualViewport;
+    if (!vv) return;                       // PC o navegador antiguo: nada que hacer
+    this._tecladoSeguidorPuesto = true;
+
+    const raiz = document.documentElement;
+
+    const medir = () => {
+      // Alto que tapa el teclado = lo que "sobra" por debajo del viewport visual.
+      const tapado = Math.max(0, Math.round(window.innerHeight - (vv.height + vv.offsetTop)));
+      // Por debajo de 80 px casi siempre es la barra del navegador, no el
+      // teclado; tratarlo como teclado haría saltar el panel al desplazarse.
+      const teclado = tapado > 80 ? tapado : 0;
+
+      if (this._tecladoAlto === teclado) return;
+      this._tecladoAlto = teclado;
+      raiz.style.setProperty('--gf-teclado', teclado + 'px');
+      raiz.classList.toggle('gf-teclado-abierto', teclado > 0);
+
+      // Con el teclado abierto, asegurarse de que la última línea del chat y el
+      // campo siguen a la vista.
+      if (teclado > 0 && this.chatMessages) {
+        try { this.chatMessages.scrollTop = this.chatMessages.scrollHeight; } catch (_) {}
+      }
+    };
+
+    this._medirTeclado = medir;
+    vv.addEventListener('resize', medir);
+    vv.addEventListener('scroll', medir);
+    medir();
+
+    const soltar = () => {
+      try {
+        vv.removeEventListener('resize', medir);
+        vv.removeEventListener('scroll', medir);
+      } catch (_) {}
+      raiz.style.setProperty('--gf-teclado', '0px');
+      raiz.classList.remove('gf-teclado-abierto');
+      this._tecladoSeguidorPuesto = false;
+      this._tecladoAlto = 0;
+    };
+    this.events.once('shutdown', soltar);
+    this.events.once('destroy',  soltar);
+  }
+
   _setupChatDom() {
     this.openBtn = document.getElementById('open-chat-btn');
     this.chatPanel = document.getElementById('chat-panel');
     this.chatMessages = document.getElementById('chat-messages');
     this.chatInput = document.getElementById('chat-input');
+
+    // El chat tiene que subir cuando salga el teclado del móvil.
+    this._seguirTecladoMovil();
 
     // Validar que existan
     if (!this.openBtn || !this.chatPanel || !this.chatMessages || !this.chatInput) {
@@ -26449,9 +26521,19 @@ switch (desiredDir) {
 }
 
 // Suavizado del offset
+//
+// BUG QUE ESTO ARREGLA — "el perro no deja de correr su animación":
+// una interpolación así NUNCA llega al destino, solo se acerca cada vez más
+// (70 → 63 → 56,7 → …). El desplazamiento se hace minúsculo pero nunca es cero,
+// así que `dogMoved` seguía dando true durante uno o dos segundos después de
+// que el perro ya estuviera visualmente colocado, y la animación de correr
+// seguía puesta. Se remata a mano: por debajo de un cuarto de píxel se fija el
+// valor exacto y se acabó el movimiento.
 const OFFSET_LERP = 0.10;
 dog.smoothOffsetX += (targetOffsetX - dog.smoothOffsetX) * OFFSET_LERP;
 dog.smoothOffsetY += (targetOffsetY - dog.smoothOffsetY) * OFFSET_LERP;
+if (Math.abs(targetOffsetX - dog.smoothOffsetX) < 0.25) dog.smoothOffsetX = targetOffsetX;
+if (Math.abs(targetOffsetY - dog.smoothOffsetY) < 0.25) dog.smoothOffsetY = targetOffsetY;
 
 // Target final
 dog.targetX = player.x + dog.smoothOffsetX;
@@ -26622,8 +26704,41 @@ const DOG_LERP = 0.08;
 // haría al perro más lento justo cuando necesita rodear; se compensa un poco.
 const isDetouring = (steerTarget.x !== dog.targetX || steerTarget.y !== dog.targetY);
 const effLerp = isDetouring ? Math.min(0.14, DOG_LERP * 1.75) : DOG_LERP;
-const proposedX = dog.x + (steerTarget.x - dog.x) * effLerp;
-const proposedY = dog.y + (steerTarget.y - dog.y) * effLerp;
+
+// ── LLEGADA: EL PERRO SE PARA DE VERDAD ─────────────────────────────────────
+// El mismo problema que con el offset: `dog.x += (target - dog.x) * 0.08` se
+// acerca al objetivo pero no llega jamás. El perro quedaba avanzando fracciones
+// de píxel un buen rato, y como la animación se decidía por "¿se movió algo?",
+// seguía corriendo en el sitio hasta que el resto del sistema se estabilizaba —
+// que es justo lo que se notaba como "no para hasta que la cámara se queda
+// quieta".
+//
+// Ahora, cuando queda menos de un píxel y medio hasta el destino Y no hay
+// desvío en curso, se coloca EXACTO y se marca como llegado. A partir de ahí no
+// hay movimiento, así que no hay animación: se queda quieto donde toca.
+const faltaX = steerTarget.x - dog.x;
+const faltaY = steerTarget.y - dog.y;
+const distanciaAlObjetivo = Math.hypot(faltaX, faltaY);
+const LLEGADA = 1.5;   // píxeles
+
+let proposedX, proposedY;
+if (!isDetouring && distanciaAlObjetivo <= LLEGADA) {
+  proposedX = steerTarget.x;
+  proposedY = steerTarget.y;
+} else {
+  // PASO MÍNIMO EN EL ÚLTIMO TRAMO.
+  // Con solo la interpolación, cubrir los últimos 12 px costaba unos 30
+  // fotogramas (medio segundo) avanzando cada vez menos: se veía al perro
+  // "arrastrándose" al final de cada parada, animación de correr incluida.
+  // Poniendo un avance mínimo de 1,2 px por fotograma cuando ya está cerca, ese
+  // último tramo se resuelve en unos 10 fotogramas y la llegada se ve limpia.
+  // Lejos del objetivo no cambia nada: manda la interpolación de siempre.
+  let paso = distanciaAlObjetivo * effLerp;
+  if (distanciaAlObjetivo < 12 && paso < 1.2) paso = Math.min(1.2, distanciaAlObjetivo);
+  const k = paso / distanciaAlObjetivo;
+  proposedX = dog.x + faltaX * k;
+  proposedY = dog.y + faltaY * k;
+}
 
 const moved = resolveDogMove(dog.x, dog.y, proposedX, proposedY);
 const prevDogX = dog.x;
@@ -26634,7 +26749,14 @@ dog.y = moved.y;
 
 const dogDx = dog.x - prevDogX;
 const dogDy = dog.y - prevDogY;
-const dogMoved = Math.hypot(dogDx, dogDy) > 0.02;
+// Umbral de "se está moviendo" subido de 0,02 a 0,2 px por frame. A 0,02 un
+// desplazamiento diez veces más pequeño que un píxel ya contaba como caminar:
+// invisible en pantalla, pero suficiente para mantener la animación encendida.
+// Con 0,2 el perro solo se anima cuando de verdad se le ve avanzar.
+const dogMoved = Math.hypot(dogDx, dogDy) > 0.2;
+// ¿Ya está donde tiene que estar? Si es así no se anima, pase lo que pase con
+// la cámara o con los redondeos de la posición del jugador.
+const dogEnDestino = (distanciaAlObjetivo <= LLEGADA);
 
 // Mirada final del perro
 if (dog.desiredFacing === 'left' || dog.desiredFacing === 'right') {
@@ -26646,8 +26768,14 @@ if (dog.desiredFacing === 'left' || dog.desiredFacing === 'right') {
 // se actualizaba — los demás jugadores no veían hacia dónde mira tu perro.
 dog.direction = dog.lastFacing;
 
-// Animación estable: solo se reproduce si realmente está caminando
-const shouldAnimate = playerMoved || dogMoved || intentDir !== null;
+// Animación estable: solo se reproduce si realmente está caminando.
+//
+// La condición manda sobre todo lo demás: si el perro YA ESTÁ en su sitio, no
+// se anima. Antes bastaba con que el jugador se hubiera movido un pelo
+// (`playerMoved`) o con que el perro hubiera avanzado 0,02 px para dejar la
+// animación de correr puesta, aunque el perro estuviera visualmente parado
+// junto al jugador.
+const shouldAnimate = !dogEnDestino && (playerMoved || dogMoved || intentDir !== null);
 
 // GUARD: si dog.sprite se destruyó/no existe, saltar TODO el render del perro.
 //

@@ -163,14 +163,36 @@ class LoadingSystem {
   }
 
   _updateProgressBar(progress) {
-    if (!this.progressBar) return;
-
     const clamped = Math.max(0, Math.min(1, progress));
-    this.progressBar.style.width = `${clamped * 100}%`;
+
+    if (this.progressBar) {
+      this.progressBar.style.width = `${clamped * 100}%`;
+    }
 
     const barContainer = this.overlay && this.overlay.querySelector('.loading-bar-container');
     if (barContainer) {
       barContainer.setAttribute('aria-valuenow', String(Math.round(clamped * 100)));
+    }
+
+    // ── ANILLO Y CIFRA DE LA PANTALLA DE CARGA ───────────────────────────────
+    // Este método es el ÚNICO sitio por el que pasa el progreso, lo llame quien
+    // lo llame (show, update, showWithProgress…). Publicando aquí la variable
+    // `--gf-progreso`, el anillo del nuevo diseño y la barra no pueden
+    // desincronizarse nunca: los dos leen el mismo número.
+    //
+    // El anillo recorta su trazo con
+    //     stroke-dashoffset: calc(276.46 * (1 - var(--gf-progreso)))
+    // así que basta con un número sin unidades entre 0 y 1.
+    //
+    // Todo va entre comprobaciones: si el HTML no trae estos elementos (otra
+    // página, una versión anterior del index) la carga sigue funcionando igual.
+    if (this.overlay) {
+      try {
+        this.overlay.style.setProperty('--gf-progreso', String(clamped));
+
+        const cifra = this.overlay.querySelector('#gf-load-pct');
+        if (cifra) cifra.textContent = String(Math.round(clamped * 100));
+      } catch (e) { /* la carga nunca debe romperse por la decoración */ }
     }
   }
 
