@@ -2937,6 +2937,11 @@ shutdown() {
 
     });
 
+    // Rejilla espacial sobre los 325 rectángulos que se acaban de crear. Es lo
+    // que evita recorrerlos uno a uno en cada consulta de colisión (jugador y
+    // perro, decenas de veces por frame). Ver _reconstruirIndiceColisiones().
+    this._reconstruirIndiceColisiones();
+
 
 
     
@@ -2944,6 +2949,13 @@ shutdown() {
     this.graphics = this.add.graphics();
     // Dibujar un rectángulo solo con borde, sin fondo
     this.graphics.lineStyle(1, 0xff0000);
+    // El objeto es NUEVO, así que hay que volver a ocultarlo una vez desde
+    // update(). Phaser reutiliza la instancia de la escena y el flag sobrevive
+    // al cambio de escena, de ahí el reinicio explícito.
+    this._graphicsOcultado = false;
+    // Lo mismo con los carteles de los NPC: se recolocan una vez por vida de
+    // escena (ver update), pero los textos y los sprites se acaban de recrear.
+    this._npcLabelsColocados = false;
 
 
     
@@ -8590,6 +8602,129 @@ _recordarEstadoMina(mineKey, { lockedUntil = null, isLocked = false } = {}) {
 /** Olvida el estado guardado de un mineral: el próximo clic vuelve a preguntar. */
 _olvidarEstadoMina(mineKey) {
   if (this._mineLockCache) delete this._mineLockCache[mineKey];
+}
+
+// ============================================================================
+// ÍNDICE ESPACIAL DE COLISIONES  (rejilla uniforme)
+// ============================================================================
+// CUELLO DE BOTELLA QUE ESTO ARREGLA — es, con diferencia, lo que más CPU (y
+// por tanto batería) se comía en el móvil:
+//
+// El mapa tiene 324 rectángulos de colisión en 'area_colision_general' (+1 en
+// 'area_entrada_tienda'). Cada comprobación de colisión recorría LOS 325, uno
+// por uno. Eso no sería grave si se hiciera una vez por frame… pero no:
+//
+//   • El jugador hace 2 comprobaciones por frame (una por eje).
+//   • El PERRO hace muchísimas más. Su lógica de esquivar llama a collidesAt()
+//     hasta ~90 veces en un frame malo: 3 sondeos de anticipación, 12 de
+//     desvío lateral, 3 de resolución directa, 14 de "punto de escape" y hasta
+//     56 de empuje corto. Y eso ocurre justo cuando el perro está pegado a un
+//     obstáculo, que es lo más normal del mundo.
+//
+//   90 llamadas × 325 rectángulos ≈ 29.000 pruebas de intersección POR FRAME.
+//   A 60 fps son 1,7 MILLONES de pruebas por segundo. Encima, cada llamada
+//   creaba un `new Phaser.Geom.Rectangle` (≈5.400 objetos/segundo de basura
+//   para el recolector).
+//
+// La solución es la de siempre en motores 2D: una REJILLA. El mapa se parte en
+// celdas de 256 px y cada rectángulo se apunta en las celdas que toca. Para
+// saber si algo choca solo se miran los rectángulos de SUS celdas — típicamente
+// entre 0 y 6 en vez de 325. La misma consulta pasa a costar ~50 veces menos.
+//
+// La prueba de intersección es idéntica a Phaser.Geom.Intersects
+// .RectangleToRectangle (bordes que se tocan CUENTAN como colisión), así que el
+// comportamiento del juego no cambia ni un píxel: solo se llega a la misma
+// respuesta mucho más rápido.
+_reconstruirIndiceColisiones() {
+  const CELDA = 256;
+  const mapa = new Map();
+
+  const meter = (lista) => {
+    if (!Array.isArray(lista)) return;
+    for (let i = 0; i < lista.length; i++) {
+      const r = lista[i];
+      if (!r) continue;
+      const c0 = Math.floor(r.x / CELDA);
+      const c1 = Math.floor((r.x + r.width) / CELDA);
+      const f0 = Math.floor(r.y / CELDA);
+      const f1 = Math.floor((r.y + r.height) / CELDA);
+      for (let f = f0; f <= f1; f++) {
+        for (let c = c0; c <= c1; c++) {
+          // Clave numérica (más rápida que una cadena). El +1024 admite
+          // coordenadas negativas sin que dos celdas distintas colisionen.
+          const clave = (f + 1024) * 8192 + (c + 1024);
+          let cubo = mapa.get(clave);
+          if (!cubo) { cubo = []; mapa.set(clave, cubo); }
+          cubo.push(r);
+        }
+      }
+    }
+  };
+
+  meter(this.collisionRectangles);
+  meter(this.collisionRectangles1);
+
+  this._idxColision = { celda: CELDA, mapa };
+  this._idxColisionLargo =
+    (Array.isArray(this.collisionRectangles)  ? this.collisionRectangles.length  : 0) +
+    (Array.isArray(this.collisionRectangles1) ? this.collisionRectangles1.length : 0);
+  this._colisionesSucias = false;
+}
+
+/**
+ * Reconstruye el índice solo si hace falta. Se llama UNA vez por frame desde
+ * update(): así la comprobación de frescura no se paga en cada consulta.
+ *
+ * Los arrays de colisión se MUTAN en marcha (hideMinedMineral quita los
+ * rectángulos del mineral picado y showMinedMineral los devuelve), así que se
+ * vigilan dos cosas: la bandera explícita `_colisionesSucias` y el número total
+ * de rectángulos, por si algo más los toca sin avisar.
+ */
+_asegurarIndiceColisiones() {
+  const largo =
+    (Array.isArray(this.collisionRectangles)  ? this.collisionRectangles.length  : 0) +
+    (Array.isArray(this.collisionRectangles1) ? this.collisionRectangles1.length : 0);
+
+  if (!this._idxColision || this._colisionesSucias || this._idxColisionLargo !== largo) {
+    this._reconstruirIndiceColisiones();
+  }
+}
+
+/**
+ * ¿Choca este rectángulo con el escenario? (colisión general + entrada tienda)
+ * Sin reservar memoria y mirando solo las celdas que ocupa.
+ */
+_chocaConEscenario(x, y, w, h) {
+  const idx = this._idxColision;
+  if (!idx) return false;
+  if (w <= 0 || h <= 0) return false;
+
+  const CELDA = idx.celda;
+  const derecha = x + w;
+  const abajo   = y + h;
+
+  const c0 = Math.floor(x / CELDA);
+  const c1 = Math.floor(derecha / CELDA);
+  const f0 = Math.floor(y / CELDA);
+  const f1 = Math.floor(abajo / CELDA);
+
+  for (let f = f0; f <= f1; f++) {
+    for (let c = c0; c <= c1; c++) {
+      const cubo = idx.mapa.get((f + 1024) * 8192 + (c + 1024));
+      if (!cubo) continue;
+      for (let i = 0; i < cubo.length; i++) {
+        const o = cubo[i];
+        if (o.width <= 0 || o.height <= 0) continue;
+        // MISMA regla que Phaser.Geom.Intersects.RectangleToRectangle:
+        // los bordes que se tocan cuentan como colisión.
+        if (!(derecha < o.x || abajo < o.y ||
+              x > o.x + o.width || y > o.y + o.height)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
 }
 
 /** Igual que _recordarEstadoMina, para los árboles. */
@@ -14476,8 +14611,23 @@ saveAudioSettings() {
 
 // CORRECCIÓN: Configurar limpieza de efectos terminados
 setupAudioCleanup() {
-  // Limpiar efectos terminados periódicamente
-  setInterval(() => {
+  // FUGA QUE ESTO ARREGLA: este setInterval no se guardaba en ninguna variable
+  // y no se cancelaba NUNCA. Como setupAudioCleanup() se llama desde
+  // initAudioSystem() en cada create() de la escena, cada viaje al mapa (tienda,
+  // batalla, recarga de escena) dejaba OTRO intervalo vivo corriendo para
+  // siempre. Y cada uno mantiene una referencia (closure) a la escena de su
+  // generación, así que la escena vieja —con sus sprites, sus texturas y su
+  // mapa— nunca se podía liberar. Es una fuga de memoria que crece sin techo
+  // y, además, gasta CPU cada 5 s multiplicada por el número de viajes.
+  //
+  // Ahora se guarda el identificador, se cancela el anterior antes de crear uno
+  // nuevo y se cancela también al apagar la escena.
+  if (this._audioCleanupTimer) {
+    clearInterval(this._audioCleanupTimer);
+    this._audioCleanupTimer = null;
+  }
+
+  this._audioCleanupTimer = setInterval(() => {
     if (this.audioState && this.audioState.activeSFX) {
       const toRemove = [];
       this.audioState.activeSFX.forEach(sound => {
@@ -15751,7 +15901,33 @@ sendPlayerMovement() {
     return;
   }
 
-  this.lastSentPosition = { x: this.player.x, y: this.player.y };
+  // ── LÍMITE DE FRECUENCIA (BATERÍA) ────────────────────────────────────────
+  // Este método se llama desde update(), o sea 60 veces por segundo, y el único
+  // filtro que había era "¿te moviste medio píxel?". Caminando se avanzan ~4 px
+  // por frame, así que se emitía un paquete POR FRAME: 60 mensajes por segundo
+  // por jugador. En un teléfono eso mantiene la radio (wifi/4G) despierta todo
+  // el rato, que es de las cosas que más batería gastan — más incluso que
+  // dibujar. Y en el servidor multiplica por 60 el trabajo de retransmitir a
+  // todos los de la sala.
+  //
+  // 30 envíos por segundo son indistinguibles a la vista (8 px entre paquete y
+  // paquete a velocidad normal) y son la MITAD de tráfico. Los cambios de estado
+  // —empezar a andar, pararse, cambiar de dirección— NO se retrasan nunca: esos
+  // se mandan al instante, porque son los que se notarían.
+  const _ahoraEnvio = (this.time && this.time.now) ? this.time.now : Date.now();
+  const _cambioEstado = (this.lastMovingState !== isMoving);
+  if (!_cambioEstado && this._ultimoEnvioMov && (_ahoraEnvio - this._ultimoEnvioMov) < 33) {
+    return;
+  }
+  this._ultimoEnvioMov = _ahoraEnvio;
+
+  // Se reutiliza el objeto en vez de crear uno nuevo en cada envío.
+  if (this.lastSentPosition) {
+    this.lastSentPosition.x = this.player.x;
+    this.lastSentPosition.y = this.player.y;
+  } else {
+    this.lastSentPosition = { x: this.player.x, y: this.player.y };
+  }
   this.lastMovingState = isMoving;
 
   // Determinar dirección basada en movimiento real
@@ -17295,6 +17471,33 @@ cleanupScene() {
     if (this.time) {
         this.time.removeAllEvents();
     }
+
+    // 6-bis. INTERVALOS DE `window` (los que NO gestiona Phaser)
+    //
+    // FUGA QUE ESTO ARREGLA: `this.time.removeAllEvents()` solo mata los
+    // temporizadores del RELOJ DE LA ESCENA. Los creados con setInterval son de
+    // la PÁGINA y sobreviven al cambio de escena tan campantes: siguen
+    // disparándose sobre una escena muerta, impiden que el recolector libere esa
+    // escena entera (con su mapa, sus sprites y sus texturas) y gastan CPU —y
+    // batería— para nada. Al haber varios viajes mapa↔tienda↔batalla por
+    // partida, se iban acumulando uno encima de otro.
+    //
+    // Aquí se cierran todos de golpe, de forma tolerante a fallos: cualquiera
+    // que ya estuviera cancelado simplemente se ignora.
+    // NO se toca `autoRefreshInterval` a propósito: es el que renueva el token
+    // de sesión cada 4,5 minutos y tiene que seguir vivo mientras el jugador
+    // está en la tienda o en una batalla, o se quedaría sin sesión a mitad de
+    // partida. Además no tiene fuga: startAutoRefresh() cancela el anterior
+    // antes de crear el nuevo.
+    [
+      '_audioCleanupTimer',       // limpieza de efectos de sonido (cada 5 s)
+      '_regenVitalesTimer',       // regeneración de vida/agua/comida (cada 60 s)
+      '_tutorialBannerRepoTimer'  // reposición del cartel del tutorial (cada 700 ms)
+    ].forEach((clave) => {
+      try {
+        if (this[clave]) { clearInterval(this[clave]); this[clave] = null; }
+      } catch (_) { /* ya estaba cancelado */ }
+    });
     
     // 7. LIMPIAR LISTENERS DE INPUT
     if (this.input) {
@@ -22647,6 +22850,24 @@ createImagesFromObjectLayer1(scene, map, objectLayerName, nameMapping) {
           // anillo de precarga más ancho (3) y más descargas en paralelo (4),
           // el tile ya está listo antes de entrar en cuadro.
           marginTiles: 3,
+          // ── MEMORIA: MÁRGENES EN PÍXELES ──────────────────────────────────
+          // `marginTiles: 3` significaba 3 × 2048 = 6.144 px de anillo de
+          // precarga… sobre un mapa que mide 5.008 px de lado. O sea que el
+          // rango de carga SIEMPRE cubría el mapa entero y los 9 tiles estaban
+          // cargados desde el primer segundo: unos 151 MB de memoria de vídeo
+          // fijos, en el móvil también. El recorte por distancia no recortaba
+          // absolutamente nada.
+          //
+          // Estos dos valores mandan sobre marginTiles/unloadHysteresis (ver
+          // updateVisible en lib/tileManager.js):
+          //   • 900 px de precarga → el tile está listo bastante antes de
+          //     entrar en cuadro, así que no hay ni hueco ni pop-in.
+          //   • 400 px de colchón antes de descargar → absorbe de sobra el
+          //     temblor sub-píxel de la cámara, que es lo único que provocaba
+          //     el parpadeo que arregló la histéresis original.
+          // Con esto se pasa de 9 tiles fijos a los 4-6 que de verdad se ven.
+          marginPx: 900,
+          unloadPadPx: 400,
           maxConcurrentLoads: 4,
           // NOTA: maxLoadedTiles NO lo usa tileManager.js (opción inerte); la
           // memoria se controla con el rango de descarga + histéresis.
@@ -24081,6 +24302,9 @@ hideMinedMineral(mineKey) {
   }
 
   this.minedMinerals[mineKey] = quitados;
+  // El índice espacial de colisiones tiene que rehacerse: acaban de salir
+  // rectángulos del array (ver _asegurarIndiceColisiones).
+  this._colisionesSucias = true;
   spr.setAlpha(0);
   console.log(`⛏️ ${mineKey} oculto; colisiones retiradas: ${quitados.length}`);
 }
@@ -24094,6 +24318,8 @@ showMinedMineral(mineKey) {
   if (Array.isArray(this.collisionRectangles)) {
     quitados.forEach(rect => this.collisionRectangles.push(rect));
   }
+  // Vuelven los rectángulos: hay que rehacer el índice espacial.
+  this._colisionesSucias = true;
   const spr = this[mineKey];
   if (spr && spr.active) spr.setAlpha(1);
 }
@@ -25920,7 +26146,14 @@ getPlayerIntentDirection() {
     // es lo que permite reafirmarla si algo apagó el HUD en bloque mientras
     // había un mensaje en pantalla (ver _positionLocalBubble).
     {
-      const b = document.getElementById('local-chat-bubble');
+      // getElementById en CADA frame es una consulta al DOM 60 veces por
+      // segundo para un elemento que no cambia nunca. Se guarda la referencia
+      // y solo se vuelve a buscar si el nodo dejó de estar en el documento
+      // (isConnected), que es lo único que puede invalidarla.
+      let b = this._elBurbujaLocal;
+      if (!b || !b.isConnected) {
+        b = this._elBurbujaLocal = document.getElementById('local-chat-bubble');
+      }
       const plazoVivo = this._burbujaHasta && Date.now() < this._burbujaHasta;
       if (b && (plazoVivo || b.style.display !== 'none')) this._positionLocalBubble(b);
     }
@@ -25936,9 +26169,38 @@ getPlayerIntentDirection() {
     // Mientras el jugador no esté vivo, no hay nada que actualizar.
     if (!this.player || !this.player.scene) return;
 
-    // Actualizar tiles visibles cada frame
+    // Índice espacial de colisiones: se comprueba UNA vez por frame si sigue
+    // vigente (ver _asegurarIndiceColisiones). Todas las consultas de colisión
+    // del jugador y del perro que vienen después lo usan.
+    this._asegurarIndiceColisiones();
+
+    // Tiles visibles.
+    //
+    // CUELLO DE BOTELLA QUE ESTO ARREGLA: updateVisible() se llamaba en CADA
+    // frame. Por dentro recorre la rejilla de tiles, recorre el Map de tiles
+    // cargados y decide qué cargar y qué destruir — trabajo que solo tiene
+    // sentido cuando la cámara SE HA MOVIDO de verdad. Estando quieto (leyendo
+    // el chat, con un panel abierto, en el inventario) eran 60 recorridos por
+    // segundo para llegar siempre a la misma conclusión.
+    //
+    // Ahora solo se recalcula si la cámara se desplazó al menos medio tile, o
+    // si han pasado 500 ms desde la última vez (red de seguridad por si algo
+    // cambia el mapa sin mover la cámara). Un tile mide 2048 px: medio tile es
+    // muchísimo antes de que aparezca ningún hueco en pantalla.
     if (this.tileManagerMapa) {
-      this.tileManagerMapa.updateVisible(this.cameras.main);
+      const cam = this.cameras.main;
+      const ahoraTiles = this.time.now;
+      const umbral = (this.tileManagerMapa.tileSize || 1024) * 0.5;
+      const movidoX = Math.abs(cam.scrollX - (this._tilesScrollX ?? -1e9));
+      const movidoY = Math.abs(cam.scrollY - (this._tilesScrollY ?? -1e9));
+
+      if (movidoX > umbral || movidoY > umbral ||
+          !this._tilesRevisadoEn || (ahoraTiles - this._tilesRevisadoEn) > 500) {
+        this._tilesScrollX    = cam.scrollX;
+        this._tilesScrollY    = cam.scrollY;
+        this._tilesRevisadoEn = ahoraTiles;
+        this.tileManagerMapa.updateVisible(cam);
+      }
     }
 
     // Zona 'area_entrada_batalla': abre el hub de batallas P2P al pisarla
@@ -26195,26 +26457,17 @@ dog.smoothOffsetY += (targetOffsetY - dog.smoothOffsetY) * OFFSET_LERP;
 dog.targetX = player.x + dog.smoothOffsetX;
 dog.targetY = player.y + dog.smoothOffsetY;
 
-// Helper de colisiones del perro
-const collidesAt = (x, y) => {
-  const w = Math.max(18, (dog.sprite.displayWidth || 32) * 0.55);
-  const h = Math.max(14, (dog.sprite.displayHeight || 32) * 0.50);
-  const rect = new Phaser.Geom.Rectangle(x - w * 0.5, y - h * 0.5, w, h);
-
-  const arrays = [this.collisionRectangles, this.collisionRectangles1];
-
-  for (const arr of arrays) {
-    if (!Array.isArray(arr)) continue;
-    for (const obstacle of arr) {
-      if (!obstacle) continue;
-      if (Phaser.Geom.Intersects.RectangleToRectangle(rect, obstacle)) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-};
+// Helper de colisiones del perro.
+//
+// El tamaño de su caja no cambia dentro de un frame, así que se calcula UNA vez
+// aquí fuera en vez de en cada una de las ~90 llamadas. Y la consulta va contra
+// el índice espacial (_chocaConEscenario), que solo mira los rectángulos de las
+// celdas ocupadas en lugar de los 325 del mapa. Sin `new Rectangle`: cero basura
+// para el recolector. Ver la nota larga en _reconstruirIndiceColisiones().
+const _dogW = Math.max(18, (dog.sprite.displayWidth  || 32) * 0.55);
+const _dogH = Math.max(14, (dog.sprite.displayHeight || 32) * 0.50);
+const collidesAt = (x, y) =>
+  this._chocaConEscenario(x - _dogW * 0.5, y - _dogH * 0.5, _dogW, _dogH);
 
 // Busca un punto alternativo para rodear la colisión
 const findEscapePoint = (fromX, fromY, toX, toY) => {
@@ -26470,47 +26723,46 @@ if (this.dogNameText) {
 } // end petData.equipped else block
 
     // rectangulo de player
-
-    
-    // En el método create, crea el rectángulo del jugador:
-    this.playerRect = new Phaser.Geom.Rectangle(this.player.x - 15, this.player.y + 25, 30, 15);
-
-    // Actualiza la posición del rectángulo del jugador con base en la posición actual de this.player
+    //
+    // OPTIMIZACIÓN: antes esto hacía `new Phaser.Geom.Rectangle(...)` y JUSTO
+    // DESPUÉS un `setTo(...)` con los mismos valores — o sea, se creaba un
+    // objeto nuevo en cada frame para pisarlo en la línea siguiente. Ahora el
+    // rectángulo se crea UNA vez y solo se reposiciona.
+    if (!this.playerRect) {
+      this.playerRect = new Phaser.Geom.Rectangle(0, 0, 30, 15);
+    }
     this.playerRect.setTo(this.player.x - 15, this.player.y + 25, 30, 15);
 
-    // Limpia el graphics y redibuja el rectángulo del jugador
-    this.graphics.clear();
-    this.graphics.strokeRectShape(this.playerRect);
-    this.graphics.setVisible(false);
+    // El `graphics` rojo era de depuración: se limpiaba, se redibujaba y se
+    // ocultaba EN CADA FRAME. Un clear() + strokeRectShape() invalida el búfer
+    // del objeto y obliga a rehacer su geometría 60 veces por segundo… para algo
+    // que nunca se ve. Se oculta una sola vez y no se vuelve a tocar.
+    if (this.graphics && !this._graphicsOcultado) {
+      this._graphicsOcultado = true;
+      this.graphics.clear();
+      this.graphics.setVisible(false);
+    }
 
     // poniendo nombre de usuario
 
-    
+
     this.usuariox.setText(this.Username);
     this.usuariox.setPosition(this.player.x, this.player.y - 60);
     this.shadowContainer.setPosition(this.player.x, this.player.y + 45); // ajustar a los pies
-    
-
-    
 
 
-    // Comprueba la colisión entre el rectángulo del jugador y cada rectángulo de la capa de colisión.
-    // Asegúrate de que 'this.collisionRectangles' contiene cada rectángulo de la capa (por ejemplo, extraídos de Tiled)
 
+
+
+    // Comprueba la colisión entre el rectángulo del jugador y el escenario.
+    //
     // Reglas para colisión: se prueba por eje para que el jugador no quede trabado
     // al moverse lateralmente junto a árboles u otros obstáculos.
-    const playerHitbox = (x, y) => {
-      return new Phaser.Geom.Rectangle(x - 15, y + 25, 30, 15);
-    };
-
-    const collidesWithAny = (rect, rectArray) => {
-      if (!Array.isArray(rectArray)) return false;
-
-      return rectArray.some(obstacle => {
-        return obstacle && Phaser.Geom.Intersects.RectangleToRectangle(rect, obstacle);
-      });
-    };
-
+    //
+    // OPTIMIZACIÓN: ya no se crean rectángulos ni se recorren los 325 obstáculos
+    // del mapa con `.some()`. Se consulta el índice espacial, que mira solo las
+    // celdas que ocupa el jugador (ver _reconstruirIndiceColisiones). Mismo
+    // resultado, sin reservar memoria y con una fracción del trabajo.
     const prevX = this.previousPosition?.x ?? this.player.x;
     const prevY = this.previousPosition?.y ?? this.player.y;
 
@@ -26518,22 +26770,12 @@ if (this.dogNameText) {
     const nextY = this.player.y;
 
     // Probar colisión solo en X
-    const rectX = playerHitbox(nextX, prevY);
-    const blockedX =
-      collidesWithAny(rectX, this.collisionRectangles) ||
-      collidesWithAny(rectX, this.collisionRectangles1);
-
-    if (blockedX) {
+    if (this._chocaConEscenario(nextX - 15, prevY + 25, 30, 15)) {
       this.player.x = prevX;
     }
 
     // Probar colisión solo en Y
-    const rectY = playerHitbox(this.player.x, nextY);
-    const blockedY =
-      collidesWithAny(rectY, this.collisionRectangles) ||
-      collidesWithAny(rectY, this.collisionRectangles1);
-
-    if (blockedY) {
+    if (this._chocaConEscenario(this.player.x - 15, nextY + 25, 30, 15)) {
       this.player.y = prevY;
     }
 
@@ -26876,11 +27118,19 @@ if (this.dogNameText) {
     }
 
     */
-   this.npcx1.setPosition(this.sprite_npc1.x + 20, this.sprite_npc1.y - 120);
-   this.npcx2.setPosition(this.sprite_npc2.x + 20, this.sprite_npc2.y - 120);
-   this.npcx3.setPosition(this.sprite_npc3.x + 20, this.sprite_npc3.y - 120);
-   this.npcx4.setPosition(this.sprite_npc4.x + 20, this.sprite_npc4.y - 120);
-   this.npcx5.setPosition(this.sprite_npc5.x + 25, this.sprite_npc5.y - 120);
+   // CARTELES DE LOS NPC: se colocaban en CADA frame… sobre NPC que no se
+   // mueven nunca. Son 5 setPosition() por frame (300/s) que marcan los textos
+   // como "sucios" para el renderizador sin que nada haya cambiado. Se colocan
+   // una vez y listo; si algún día un NPC se moviera, basta con poner
+   // `this._npcLabelsColocados = false` para que se recoloquen.
+   if (!this._npcLabelsColocados) {
+     this._npcLabelsColocados = true;
+     this.npcx1.setPosition(this.sprite_npc1.x + 20, this.sprite_npc1.y - 120);
+     this.npcx2.setPosition(this.sprite_npc2.x + 20, this.sprite_npc2.y - 120);
+     this.npcx3.setPosition(this.sprite_npc3.x + 20, this.sprite_npc3.y - 120);
+     this.npcx4.setPosition(this.sprite_npc4.x + 20, this.sprite_npc4.y - 120);
+     this.npcx5.setPosition(this.sprite_npc5.x + 25, this.sprite_npc5.y - 120);
+   }
   
   
 

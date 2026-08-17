@@ -692,6 +692,9 @@ this.errorReporter = new PhaserErrorReporter(
 
       // En el método create, inicializa this.graphics
       this.graphics = this.add.graphics({ lineStyle: { width: 2, color: 0xff0000 }});
+      // Objeto nuevo: hay que volver a ocultarlo una vez desde update(). El flag
+      // sobrevive al cambio de escena porque Phaser reutiliza la instancia.
+      this._graphicsOcultado = false;
 
 
       // Configurar los límites del mundo
@@ -3199,14 +3202,33 @@ sendPlayerMovement() {
   const isMoving = keyboardMoving || mouseMoving;
   
   // Solo enviar si hay cambios significativos
-  if (this.lastSentPosition && 
+  if (this.lastSentPosition &&
       Math.abs(this.player.x - this.lastSentPosition.x) < 0.5 &&
       Math.abs(this.player.y - this.lastSentPosition.y) < 0.5 &&
       this.lastMovingState === isMoving) {
     return;
   }
-  
-  this.lastSentPosition = { x: this.player.x, y: this.player.y };
+
+  // LÍMITE DE FRECUENCIA (BATERÍA) — misma medida que en GameScene.
+  // Este método se llama desde update(), 60 veces por segundo, y caminando se
+  // avanzan ~4 px por frame: se emitía un paquete POR FRAME. Mantener la radio
+  // del teléfono despierta 60 veces por segundo es de lo que más batería gasta.
+  // A 30 envíos/s el movimiento se ve exactamente igual y el tráfico se parte
+  // por la mitad. Empezar a andar, pararse o cambiar de dirección siguen siendo
+  // instantáneos: solo se limita el goteo de posiciones intermedias.
+  const _ahoraEnvio = (this.time && this.time.now) ? this.time.now : Date.now();
+  const _cambioEstado = (this.lastMovingState !== isMoving);
+  if (!_cambioEstado && this._ultimoEnvioMov && (_ahoraEnvio - this._ultimoEnvioMov) < 33) {
+    return;
+  }
+  this._ultimoEnvioMov = _ahoraEnvio;
+
+  if (this.lastSentPosition) {
+    this.lastSentPosition.x = this.player.x;
+    this.lastSentPosition.y = this.player.y;
+  } else {
+    this.lastSentPosition = { x: this.player.x, y: this.player.y };
+  }
   this.lastMovingState = isMoving;
   
   // Determinar dirección basada en movimiento real
@@ -8859,6 +8881,34 @@ async renderInventoryAfterLoad() {
 // GameScene.js a propósito (cada escena es autónoma).
 // ============================================================================
 /**
+ * ¿Choca la caja (x, y, w, h) con alguno de los rectángulos de `lista`?
+ *
+ * Sustituye a los `new Phaser.Geom.Rectangle(...)` que se creaban dentro del
+ * bucle de juego (uno por cada comprobación del jugador y hasta ~90 por frame
+ * en la lógica del perro). En un móvil esa basura obliga al recolector a
+ * trabajar constantemente, y cada pasada del recolector es un pico de CPU —o
+ * sea, batería— y un micro-tirón en la imagen.
+ *
+ * La regla de intersección es EXACTAMENTE la de
+ * Phaser.Geom.Intersects.RectangleToRectangle (los bordes que se tocan cuentan
+ * como colisión), así que el juego se comporta igual que antes.
+ */
+_chocaConLista(x, y, w, h, lista) {
+  if (!Array.isArray(lista) || w <= 0 || h <= 0) return false;
+  const derecha = x + w;
+  const abajo   = y + h;
+  for (let i = 0; i < lista.length; i++) {
+    const o = lista[i];
+    if (!o || o.width <= 0 || o.height <= 0) continue;
+    if (!(derecha < o.x || abajo < o.y ||
+          x > o.x + o.width || y > o.y + o.height)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Experiencia ACUMULADA necesaria para alcanzar el nivel `n`.
  * COPIA EXACTA de GameScene._expTotalParaNivel — ahí está la explicación larga
  * del porqué (la curva vieja doblaba en cada nivel y el jugador se atascaba en
@@ -11133,26 +11183,18 @@ dog.smoothOffsetY += (targetOffsetY - dog.smoothOffsetY) * OFFSET_LERP;
 dog.targetX = player.x + dog.smoothOffsetX;
 dog.targetY = player.y + dog.smoothOffsetY;
 
-// Helper de colisiones del perro
-const collidesAt = (x, y) => {
-  const w = Math.max(18, (dog.sprite.displayWidth || 32) * 0.55);
-  const h = Math.max(14, (dog.sprite.displayHeight || 32) * 0.50);
-  const rect = new Phaser.Geom.Rectangle(x - w * 0.5, y - h * 0.5, w, h);
-
-  const arrays = [this.collisionRectangles, this.collisionRectangles1];
-
-  for (const arr of arrays) {
-    if (!Array.isArray(arr)) continue;
-    for (const obstacle of arr) {
-      if (!obstacle) continue;
-      if (Phaser.Geom.Intersects.RectangleToRectangle(rect, obstacle)) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-};
+// Helper de colisiones del perro.
+//
+// La lógica de esquive llama a esto hasta ~90 veces en un frame malo. Antes,
+// cada una de esas llamadas recalculaba el tamaño de la caja del perro Y creaba
+// un `new Phaser.Geom.Rectangle`. Ahora el tamaño se calcula una vez por frame y
+// la comprobación usa la caja de trabajo compartida: mismas colisiones, sin
+// reservar memoria (era una de las mayores fuentes de basura del bucle).
+const _dogW = Math.max(18, (dog.sprite.displayWidth  || 32) * 0.55);
+const _dogH = Math.max(14, (dog.sprite.displayHeight || 32) * 0.50);
+const collidesAt = (x, y) =>
+  this._chocaConLista(x - _dogW * 0.5, y - _dogH * 0.5, _dogW, _dogH, this.collisionRectangles) ||
+  this._chocaConLista(x - _dogW * 0.5, y - _dogH * 0.5, _dogW, _dogH, this.collisionRectangles1);
 
 // Busca un punto alternativo para rodear la colisión
 const findEscapePoint = (fromX, fromY, toX, toY) => {
@@ -11386,19 +11428,23 @@ if (this.dogNameText) {
 
 
       // rectangulo de player
-  
-      
-      // En el método create, crea el rectángulo del jugador:
-      this.playerRect = new Phaser.Geom.Rectangle(this.player.x - 15, this.player.y + 25, 30, 15);
-  
-      // Actualiza la posición del rectángulo del jugador con base en la posición actual de this.player
+      //
+      // OPTIMIZACIÓN (igual que en GameScene): el rectángulo se creaba con
+      // `new` en CADA frame y se pisaba con setTo() en la línea siguiente. Y el
+      // `graphics` rojo, que es de depuración y está siempre oculto, se
+      // limpiaba y redibujaba 60 veces por segundo para nada. Ahora el
+      // rectángulo se reutiliza y el graphics se apaga una sola vez.
+      if (!this.playerRect) {
+        this.playerRect = new Phaser.Geom.Rectangle(0, 0, 30, 15);
+      }
       this.playerRect.setTo(this.player.x - 15, this.player.y + 25, 30, 15);
-  
-      // Limpia el graphics y redibuja el rectángulo del jugador
-      this.graphics.clear();
-      this.graphics.strokeRectShape(this.playerRect);
-      this.graphics.setVisible(false);
-  
+
+      if (this.graphics && !this._graphicsOcultado) {
+        this._graphicsOcultado = true;
+        this.graphics.clear();
+        this.graphics.setVisible(false);
+      }
+
       // Comprueba la colisión entre el rectángulo del jugador y cada rectángulo de la capa de colisión.
       // Asegúrate de que 'this.collisionRectangles' contiene cada rectángulo de la capa (por ejemplo, extraídos de Tiled)
 
@@ -11429,15 +11475,8 @@ if (this.dogNameText) {
       // largo de la pared) y viceversa — el mismo mecanismo que GameScene,
       // válido para teclado y mouse.
       {
-        const playerHitbox = (x, y) => new Phaser.Geom.Rectangle(x - 15, y + 25, 30, 15);
-
-        const collidesWithAny = (rect, rectArray) => {
-          if (!Array.isArray(rectArray)) return false;
-          return rectArray.some(obstacle =>
-            obstacle && Phaser.Geom.Intersects.RectangleToRectangle(rect, obstacle)
-          );
-        };
-
+        // Sin `new` por frame: se usa la caja de trabajo compartida
+        // (_chocaConLista). Mismo resultado, cero basura para el recolector.
         const prevX = this.previousPosition?.x ?? this.player.x;
         const prevY = this.previousPosition?.y ?? this.player.y;
 
@@ -11445,14 +11484,12 @@ if (this.dogNameText) {
         const nextY = this.player.y;
 
         // Probar colisión solo en X
-        const rectX = playerHitbox(nextX, prevY);
-        if (collidesWithAny(rectX, this.collisionRectangles2)) {
+        if (this._chocaConLista(nextX - 15, prevY + 25, 30, 15, this.collisionRectangles2)) {
           this.player.x = prevX;
         }
 
         // Probar colisión solo en Y
-        const rectY = playerHitbox(this.player.x, nextY);
-        if (collidesWithAny(rectY, this.collisionRectangles2)) {
+        if (this._chocaConLista(this.player.x - 15, nextY + 25, 30, 15, this.collisionRectangles2)) {
           this.player.y = prevY;
         }
 

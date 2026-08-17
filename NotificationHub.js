@@ -257,8 +257,23 @@ class NotificationHub {
      * @private
      */
     _cleanupExpiredNotifications() {
+        // BATERÍA: sin nada que caducar, este temporizador se apaga solo.
+        //
+        // Antes se creaba en el constructor y latía cada segundo durante TODA la
+        // partida, hubiera notificaciones o no. Son 3.600 despertares del
+        // procesador por hora para recorrer un mapa casi siempre vacío: poca
+        // cosa por sí solo, pero es justo el tipo de latido que impide que el
+        // teléfono baje a su modo de bajo consumo entre fotograma y fotograma.
+        //
+        // Ahora se para en cuanto no queda nada pendiente. `show()` lo vuelve a
+        // arrancar (ver línea ~1127), así que no se pierde ninguna limpieza.
+        if (!this.notifications || this.notifications.size === 0) {
+            this._stopAutoCleanup();
+            return;
+        }
+
         const now = Date.now();
-        
+
         for (const [notificationId, notification] of this.notifications.entries()) {
             if (!notification.timer && notification.expiresAt && notification.expiresAt <= now) {
                 this._removeNotification(notificationId);
@@ -856,6 +871,12 @@ class NotificationHub {
 
             // Guardar en Map
             this.notifications.set(notificationId, notification);
+
+            // El barrido de caducadas se para solo cuando no queda nada (ver
+            // _cleanupExpiredNotifications, que es lo que evita un latido cada
+            // segundo durante toda la partida). Aquí vuelve a arrancar, porque a
+            // partir de ahora sí hay algo que vigilar.
+            if (this.config.autoCleanup) this._startAutoCleanup();
 
             // Registrar para detección de duplicados
             if (this.config.preventDuplicates) {

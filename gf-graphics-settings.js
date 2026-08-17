@@ -267,10 +267,32 @@
     var objs = escena._gfObjetosMapa;
     // La lista se recalcula de vez en cuando: los objetos se crean durante los
     // primeros segundos de la escena y algunos se destruyen al talarlos.
+    var listaRefrescada = false;
     if (!objs || escena._gfObjetosCaducan < Date.now()) {
       objs = escena._gfObjetosMapa = objetosDelMapa(escena);
       escena._gfObjetosCaducan = Date.now() + 4000;
+      listaRefrescada = true;
     }
+
+    // ── BATERÍA: NO RECALCULAR SI NADIE SE HA MOVIDO ────────────────────────
+    // Este barrido recorre TODOS los objetos del mapa (más de 400: pinos,
+    // arbustos, troncos, piedras, casas…) calculando distancias, y lo hacía
+    // 4,5 veces por segundo SIEMPRE — también con el jugador quieto leyendo el
+    // chat, con el inventario abierto o con el móvil en la mano sin tocar nada.
+    // Son ~1.800 iteraciones por segundo que impiden que el procesador entre en
+    // reposo, que es justo lo que alarga la batería en un teléfono.
+    //
+    // El resultado solo puede cambiar si la cámara se movió (o si la lista de
+    // objetos se acaba de rehacer, o si el jugador cambió la distancia de
+    // visión). Con el jugador parado, la comprobación cuesta dos restas.
+    var radioCambio = (escena._gfUltimoRadio !== radio);
+    var movidoX = Math.abs(cx - (escena._gfUltimoCx !== undefined ? escena._gfUltimoCx : -1e9));
+    var movidoY = Math.abs(cy - (escena._gfUltimoCy !== undefined ? escena._gfUltimoCy : -1e9));
+    if (!listaRefrescada && !radioCambio && movidoX < 48 && movidoY < 48) return;
+
+    escena._gfUltimoCx    = cx;
+    escena._gfUltimoCy    = cy;
+    escena._gfUltimoRadio = radio;
 
     for (var i = 0; i < objs.length; i++) {
       var o = objs[i];

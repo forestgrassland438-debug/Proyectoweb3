@@ -864,6 +864,43 @@
     }
 
     var config = Object.assign({}, ADVANCED_CONFIG);
+
+    // ── AHORRO DE BATERÍA: LÍMITE DE FOTOGRAMAS ───────────────────────────────
+    // CAUSA RAÍZ DEL "EN EL TELÉFONO SE GASTA LA BATERÍA MUY RÁPIDO":
+    //
+    // El juego corría SIEMPRE a 60 fps, también en el móvil. Cada fotograma
+    // significa: recorrer el bucle de update, recalcular colisiones, reordenar
+    // profundidades, y —lo más caro— que la GPU vuelva a componer y pintar la
+    // pantalla entera. En un teléfono, pasar de 60 a 30 fps recorta casi a la
+    // mitad el trabajo de CPU y GPU, y con él el calor y el consumo. En un juego
+    // de vista cenital con movimiento suave por interpolación, 30 fps se ven
+    // perfectamente bien: no es un shooter.
+    //
+    // `fps.limit` es la forma correcta de hacerlo en Phaser 3.60+: sigue usando
+    // requestAnimationFrame (que es lo que respeta el ritmo real de la pantalla
+    // y se duerme solo en segundo plano) y simplemente SALTA los fotogramas
+    // sobrantes. Nada que ver con forceSetTimeOut, que da un ritmo irregular.
+    //
+    // Se puede apagar en cualquier momento desde el juego (window.GFBateria) o
+    // desde el panel de gráficos; la elección se recuerda en el navegador. Por
+    // defecto se activa SOLO en móvil/equipos flojos: en un PC no hay motivo.
+    var ahorroGuardado = null;
+    try {
+      var v = root.localStorage && root.localStorage.getItem('gf_ahorro_bateria');
+      if (v === '1') ahorroGuardado = true;
+      else if (v === '0') ahorroGuardado = false;
+    } catch (e) { /* almacenamiento bloqueado: se usa el valor por defecto */ }
+
+    var ahorroActivo = (ahorroGuardado !== null) ? ahorroGuardado : (isMobile || isLowEnd);
+
+    config.fps = {
+      target:          60,
+      limit:           ahorroActivo ? 30 : 0,   // 0 = sin límite
+      forceSetTimeOut: false,
+      smoothStep:      true
+    };
+    root.GF_AHORRO_BATERIA = ahorroActivo;
+    Logger.log('Ahorro de batería (límite de 30 fps): ' + (ahorroActivo ? 'ACTIVADO' : 'desactivado'));
     // FIX: copia propia (no superficial) de render. Object.assign es shallow,
     // así que sin esto config.render sería la MISMA referencia que
     // ADVANCED_CONFIG.render — cualquier ajuste posterior (p. ej. el
@@ -940,6 +977,49 @@
       if (root.rexvirtualjoystickplugin) {
         try { game.registry.set('joystickConfig', PERF_OPTIONS.joystickConfig); } catch (e) {}
       }
+
+      // ── INTERRUPTOR DE AHORRO DE BATERÍA (en caliente) ─────────────────────
+      // Permite pasar de 30 a 60 fps y viceversa SIN recargar la página, y
+      // recuerda la elección para las siguientes sesiones. Se puede llamar
+      // desde la consola del juego o engancharlo a un botón del panel de
+      // gráficos:
+      //     GFBateria.activar()      → 30 fps (menos consumo)
+      //     GFBateria.desactivar()   → 60 fps
+      //     GFBateria.estado()       → true / false
+      //     GFBateria.fps()          → fotogramas por segundo reales
+      root.GFBateria = {
+        activar:    function () { return this.set(true); },
+        desactivar: function () { return this.set(false); },
+        estado:     function () { return !!root.GF_AHORRO_BATERIA; },
+        fps:        function () {
+          try { return Math.round(game.loop.actualFps); } catch (e) { return null; }
+        },
+        set: function (activar) {
+          activar = !!activar;
+          try {
+            var bucle = game.loop;
+            if (!bucle) return false;
+            // Propiedades internas de TimeStep (estables desde Phaser 3.60).
+            // Se tocan con cuidado: si esta versión no las tuviera, se avisa y
+            // no se rompe nada — el juego sigue al ritmo que llevaba.
+            if (typeof bucle._limitRate === 'undefined' &&
+                typeof bucle.hasFpsLimit === 'undefined') {
+              Logger.warn('Esta versión de Phaser no admite límite de fps en caliente');
+              return false;
+            }
+            bucle.hasFpsLimit = activar;
+            bucle._limitRate  = activar ? (1000 / 30) : 0;
+            bucle._limitCount = 0;
+            root.GF_AHORRO_BATERIA = activar;
+            try { root.localStorage.setItem('gf_ahorro_bateria', activar ? '1' : '0'); } catch (e) {}
+            Logger.log('Ahorro de batería: ' + (activar ? 'ACTIVADO (30 fps)' : 'desactivado (60 fps)'));
+            return true;
+          } catch (e) {
+            Logger.warn('No se pudo cambiar el ahorro de batería:', e);
+            return false;
+          }
+        }
+      };
 
       // Eventos de ciclo de vida del juego
       game.events.on('ready', function () {

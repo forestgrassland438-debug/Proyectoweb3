@@ -2381,8 +2381,17 @@
       this.game.events.on('prestep',  this._onPreStep);
       this.game.events.on('poststep', this._onPostStep);
 
-      if (performance && performance.memory) {
-        this._memoryInterval = setInterval(() => this.performanceMonitor.recordMemoryUsage(), 1000);
+      // MEDICIÓN DE MEMORIA: solo en depuración, y cada 5 s.
+      //
+      // Antes esto corría SIEMPRE y una vez por segundo, también en producción y
+      // también en el móvil. Es un temporizador que no se apaga nunca: despierta
+      // el procesador 3.600 veces por hora para apuntar un dato que en
+      // producción no lee nadie (los informes solo se piden desde el panel de
+      // depuración). En un teléfono, impedir que el procesador entre en reposo
+      // es de las cosas que más batería gastan en un juego que, además, ya está
+      // dibujando. Con DEBUG_MODE apagado ahora no se crea el temporizador.
+      if (DEBUG_MODE && performance && performance.memory) {
+        this._memoryInterval = setInterval(() => this.performanceMonitor.recordMemoryUsage(), 5000);
       }
     }
 
