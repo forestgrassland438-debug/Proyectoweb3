@@ -1554,13 +1554,21 @@ class LoadingScenegame extends Phaser.Scene {
         // jugador AHORA leería un inventario que todavía no incluye la compra,
         // y todo lo que viene después (sync con blockchain, guardado) partiría
         // de datos viejos. Así que primero se espera a que no quede nada.
-        this.loadingSystem.show({ message: 'Loading player data...', initialProgress: 0 });
+        // ── LOS MENSAJES SON PARA EL JUGADOR, NO PARA EL PROGRAMADOR ────────
+        // Antes se leía "Syncing with blockchain...", "Checking your items
+        // on-chain...", "Syncing player stats...". Eso es el nombre interno de
+        // lo que hace el código, y a quien está esperando para jugar no le dice
+        // nada: solo le recuerda que hay maquinaria complicada por detrás.
+        // Ahora se cuenta lo mismo en el idioma del juego — sigue siendo cierto
+        // (se están recuperando sus cosas, su granja, su mundo), pero se lee
+        // como parte de la partida.
+        this.loadingSystem.show({ message: 'Waking up the forest…', initialProgress: 0 });
         this._arrancarConsejosDeCarga();
-        this._paso('datos', 'activo', 'Loading player data...', 0.05);
+        this._paso('datos', 'activo', 'Waking up the forest…', 0.05);
         await this._esperarTransaccionesPendientes();
 
         // ── 1. Cargar datos del jugador desde la BD ─────────────────────────
-        this._paso('datos', 'activo', 'Loading player data...', 0.2);
+        this._paso('datos', 'activo', 'Finding your farm…', 0.2);
 
         await this.loadPlayerData();
         this._paso('datos', 'hecho');
@@ -1570,23 +1578,23 @@ class LoadingScenegame extends Phaser.Scene {
         //      cuyo (idx, manualId, cantidad) coincide con la blockchain, corrige
         //      las cantidades que difieran y ELIMINA de la BD lo que no exista
         //      on-chain. No se borra la siembra ni se vacía el cache.
-        this._paso('blockchain', 'activo', 'Syncing with blockchain...', 0.45);
+        this._paso('blockchain', 'activo', 'Opening your chest…', 0.45);
 
         // ── 3. Sincronizar stats vitales PRIMERO (antes del inventario)
         // Así oro/plata quedan en 0 antes de que el save del inventario los guarde.
-        this._paso('stats', 'activo', 'Syncing player stats...', 0.62);
+        this._paso('stats', 'activo', 'Counting your coins…', 0.62);
         await this.syncStatsWithBlockchain();
         this._paso('stats', 'hecho');
 
         // ── Luego sincronizar inventario con blockchain ──
-        this._paso('blockchain', 'activo', 'Checking your items on-chain...', 0.75);
+        this._paso('blockchain', 'activo', 'Dusting off your tools…', 0.75);
         await this.syncInventoryWithBlockchain();
         this._paso('blockchain', 'hecho');
 
         // ── 4. Barra de progreso final ───────────────────────────────────────
-        this._paso('mundo', 'activo', 'Preparing the world...', 0.9);
+        this._paso('mundo', 'activo', 'Growing the grass…', 0.9);
         await this.loadResources();
-        this._paso('mundo', 'hecho', 'Ready!', 1);
+        this._paso('mundo', 'hecho', 'Everything is ready. Have fun!', 1);
 
         // ── 4. Fondo animado ─────────────────────────────────────────────────
         this.stars    = [];
@@ -1625,36 +1633,16 @@ class LoadingScenegame extends Phaser.Scene {
      */
     _paso(clave, estado, texto, avance) {
         try {
-            const li = document.querySelector(`#gf-load-pasos li[data-paso="${clave}"]`);
-            if (li) li.dataset.estado = estado;
-
             if (typeof texto === 'string' && this.loadingSystem && this.loadingSystem.textElement) {
                 this.loadingSystem.textElement.textContent = texto;
             }
 
-            // La cifra y el anillo NO se tocan aquí: los actualiza
-            // LoadingSystem._updateProgressBar, que es el único punto por el que
-            // pasa el progreso. Así no hay dos sitios que puedan discrepar.
+            // El porcentaje y el crecimiento de la planta NO se tocan aquí: los
+            // mueve LoadingSystem._updateProgressBar, que es el único punto por
+            // el que pasa el progreso. Así el dibujo y el número no pueden
+            // desacompasarse.
             if (typeof avance === 'number' && this.loadingSystem) {
                 this.loadingSystem.update(avance);
-            }
-
-            // Etiqueta de estado de la cabecera: da contexto de una ojeada.
-            const chip = document.getElementById('gf-load-chip');
-            if (chip) {
-                const ETIQUETAS = {
-                    datos:      'Account',
-                    blockchain: 'On-chain',
-                    stats:      'Syncing',
-                    mundo:      'World'
-                };
-                if (estado === 'activo' && ETIQUETAS[clave]) {
-                    chip.textContent = ETIQUETAS[clave];
-                    chip.removeAttribute('data-estado');
-                } else if (clave === 'mundo' && estado === 'hecho') {
-                    chip.textContent = 'Ready';
-                    chip.dataset.estado = 'listo';
-                }
             }
         } catch (e) { /* la carga nunca debe romperse por la decoración */ }
     }
@@ -1667,15 +1655,20 @@ class LoadingScenegame extends Phaser.Scene {
         const caja = document.getElementById('gf-load-tip');
         if (!caja || this._consejosTimer) return;
 
+        // Consejos en el idioma del JUEGO. Nada de hablar de transacciones,
+        // sincronización ni cadenas: quien espera para jugar quiere saber cómo
+        // jugar mejor, no cómo está hecho el juego por dentro.
         const CONSEJOS = [
-            'TIP: Chop trees and mine ore to raise Woodcutting and Mining.',
-            'TIP: Watering your crops before they dry gives a better harvest.',
-            'TIP: Tools wear out. Keep a spare axe in your quick slots.',
-            'TIP: A better pickaxe needs fewer hits and drops more ore.',
-            'TIP: Water and food are spent on every swing — eat and drink often.',
-            'TIP: Lower the graphics quality if the game feels heavy on your phone.',
-            'TIP: Your pet levels up by battling. Five daily battles are waiting.',
-            'TIP: Everything you gather is a real on-chain transaction.'
+            'Chop trees and mine ore to raise your Woodcutting and Mining.',
+            'Water your crops before they dry out — a thirsty plant gives less.',
+            'Tools wear out. Always keep a spare axe in your quick slots.',
+            'A better pickaxe needs fewer swings and finds more ore.',
+            'Every swing costs water and food. Eat and drink often.',
+            'Your pet grows stronger with every battle. Five are waiting today.',
+            'Farmer Joe has new tasks for you every single day.',
+            'The game feeling heavy on your phone? Lower the graphics quality.',
+            'Prune your crops with the shears — bare hands ruin the harvest.',
+            'Coal only shows up in two rocks. Bring a good pickaxe.'
         ];
 
         let i = Math.floor(Math.random() * CONSEJOS.length);

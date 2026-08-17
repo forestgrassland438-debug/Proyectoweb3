@@ -174,25 +174,87 @@ class LoadingSystem {
       barContainer.setAttribute('aria-valuenow', String(Math.round(clamped * 100)));
     }
 
-    // ── ANILLO Y CIFRA DE LA PANTALLA DE CARGA ───────────────────────────────
+    // ── CIFRA Y PLANTA DE LA PANTALLA DE CARGA ───────────────────────────────
     // Este método es el ÚNICO sitio por el que pasa el progreso, lo llame quien
-    // lo llame (show, update, showWithProgress…). Publicando aquí la variable
-    // `--gf-progreso`, el anillo del nuevo diseño y la barra no pueden
-    // desincronizarse nunca: los dos leen el mismo número.
-    //
-    // El anillo recorta su trazo con
-    //     stroke-dashoffset: calc(276.46 * (1 - var(--gf-progreso)))
-    // así que basta con un número sin unidades entre 0 y 1.
+    // lo llame (show, update, showWithProgress…). Por eso la planta se hace
+    // crecer desde aquí: el dibujo y el número no pueden desincronizarse.
     //
     // Todo va entre comprobaciones: si el HTML no trae estos elementos (otra
     // página, una versión anterior del index) la carga sigue funcionando igual.
     if (this.overlay) {
       try {
+        // Se publica igualmente como variable CSS por si algún estilo quiere
+        // usarla para algo decorativo.
         this.overlay.style.setProperty('--gf-progreso', String(clamped));
 
         const cifra = this.overlay.querySelector('#gf-load-pct');
         if (cifra) cifra.textContent = String(Math.round(clamped * 100));
+
+        this._crecerPlanta(clamped);
       } catch (e) { /* la carga nunca debe romperse por la decoración */ }
+    }
+  }
+
+  /**
+   * Hace crecer la planta de la pantalla de carga según el progreso.
+   *
+   * POR QUÉ ESTO ESTÁ EN JAVASCRIPT Y NO EN CSS
+   * -------------------------------------------------------------------------
+   * La primera versión lo resolvía en CSS puro, con el tallo estirándose por
+   * `transform: scaleY(var(--gf-progreso))` y cada hoja apareciendo con
+   * `opacity: calc((var(--gf-progreso) - umbral) * k)`. Sobre el papel es más
+   * elegante… pero NO FUNCIONA, y se comprobó midiéndolo en el navegador:
+   *
+   *     variable CSS:  0  →  0.5  →  1     (cambia bien)
+   *     transform:     scaleY(0.62) siempre (se queda congelado)
+   *
+   * El motivo es que una propiedad personalizada SIN registrar se sustituye al
+   * calcular el valor, y cuando encima hay un `transition` declarado sobre esa
+   * propiedad, el navegador no vuelve a evaluarla al cambiar la variable. Se
+   * probó también registrándola con `@property` y el resultado fue el mismo.
+   * La planta se quedaba clavada en la primera pose y no crecía nunca.
+   *
+   * Escribiendo `transform` y `opacity` directamente en el elemento sí se
+   * dispara la transición, en todos los navegadores y sin depender de nada
+   * moderno. Los umbrales no se repiten aquí: se leen del atributo
+   * `data-umbral` de cada parte, que es donde está escrito en el HTML.
+   */
+  _crecerPlanta(progreso) {
+    const raiz = this.overlay;
+    if (!raiz) return;
+
+    const p = Math.max(0, Math.min(1, progreso));
+
+    // Tallo: crece desde la base.
+    const tallo = raiz.querySelector('.gfl-tallo');
+    if (tallo) tallo.style.transform = `scaleY(${p.toFixed(4)})`;
+
+    // Hojas, flor y destello: cada parte brota al pasar su umbral y termina de
+    // salir un 12 % de progreso más tarde, para que el brote se vea.
+    const RECORRIDO = 0.12;
+    const partes = raiz.querySelectorAll('[data-umbral]');
+
+    for (let i = 0; i < partes.length; i++) {
+      const parte  = partes[i];
+      const umbral = parseFloat(parte.dataset.umbral);
+      if (!isFinite(umbral)) continue;
+
+      // t = 0 antes del umbral, 1 cuando ya brotó del todo.
+      let t = (p - umbral) / RECORRIDO;
+      t = t < 0 ? 0 : (t > 1 ? 1 : t);
+
+      parte.style.opacity = t.toFixed(3);
+
+      // Crece desde pequeña hasta su tamaño; la flor además se endereza.
+      const escala = 0.35 + 0.65 * t;
+      if (parte.classList.contains('gfl-flor')) {
+        const giro = (1 - t) * -38;
+        parte.style.transform = `scale(${escala.toFixed(3)}) rotate(${giro.toFixed(1)}deg)`;
+      } else if (!parte.classList.contains('gfl-brillo')) {
+        // El destello tiene su propia animación en bucle: no se le toca el
+        // transform o se la pisaría.
+        parte.style.transform = `scale(${escala.toFixed(3)})`;
+      }
     }
   }
 

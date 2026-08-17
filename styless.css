@@ -12136,577 +12136,554 @@ html.gf-teclado-abierto #chat-panel {
 
 
 /* ==========================================================================
-   PANTALLA DE CARGA
+   PANTALLA DE CARGA — LA SEMILLA QUE CRECE
    --------------------------------------------------------------------------
-   Rediseño completo de #loading-overlay.
+   LA IDEA
+   El indicador de progreso no es una barra: es una PLANTA. A 0 % hay una
+   semilla enterrada y a 100 % está florecida. El tallo crece, las hojas van
+   brotando por parejas y la flor se abre al final. Encaja con un juego de
+   granja y hace que esperar se sienta como ver crecer algo, no como mirar un
+   porcentaje.
 
-   CRITERIOS DE DISEÑO
-   ·  Jerarquía clara: una sola cifra manda (el porcentaje), el resto la
-      acompaña. Nada compite por la atención.
-   ·  Tipografía mixta. La fuente de píxeles se reserva para la MARCA, que es
-      donde aporta identidad; el resto usa la tipografía del sistema, que se
-      lee mejor a tamaño pequeño, carga al instante (importante en una pantalla
-      de carga) y es lo que le da el aire moderno en vez de retro.
-   ·  Profundidad por capas: focos de color desenfocados por gradiente, retícula
-      tenue, viñeta y una tarjeta con borde de luz. Sin adornos gratuitos.
-   ·  Comodidad: contraste alto pero sin blancos puros que deslumbren en el
-      móvil de noche, cuerpos de texto generosos y mucho aire.
+   QUIÉN MUEVE QUÉ
+   El crecimiento lo escribe `LoadingSystem._crecerPlanta`, que es el mismo
+   sitio por el que pasa el porcentaje — así el dibujo y el número no pueden ir
+   desacompasados. Esta hoja define la FORMA y el MOVIMIENTO (colores, sombras,
+   estado de partida y curvas de transición); el JavaScript solo dice cuánto ha
+   crecido cada parte.
 
-   CRITERIOS DE RENDIMIENTO (esto no es opcional: es una pantalla que aparece
-   mientras el juego está cargando, o sea en el peor momento posible)
-   ·  Solo se animan `transform` y `opacity`. Son las dos únicas propiedades
-      que el navegador resuelve en la GPU sin recalcular maquetación ni
-      repintar. Nada de animar `box-shadow`, `background-position`, `width`,
-      `filter` ni `top/left`.
-   ·  Cero `backdrop-filter`. Es lo que hundía el rendimiento del HUD (ver el
-      bloque de rendimiento más arriba) y aquí haría lo mismo.
-   ·  Los focos de color son `radial-gradient`, que ya nace suave: no hace
-      falta `filter: blur`, que sí cuesta rasterizado.
-   ·  Se respeta `prefers-reduced-motion`: quien lo pida no ve movimiento.
+   Se intentó primero hacerlo aquí, en CSS puro, con `scaleY(var(--gf-progreso))`
+   y `opacity: calc((var(--gf-progreso) - umbral) * k)`. NO FUNCIONA: al cambiar
+   una propiedad personalizada sin registrar, con un `transition` declarado
+   encima, el navegador no vuelve a evaluar la propiedad que la usa — medido en
+   el navegador, el tallo se quedaba congelado en su primera pose mientras la
+   variable sí cambiaba. Registrarla con `@property` tampoco lo arregló. De ahí
+   el reparto actual. Los umbrales de cada parte están en el atributo
+   `data-umbral` del HTML.
+
+   CÓMO SE CONSIGUE QUE SE VEA PIXEL ART DE VERDAD
+   ·  Todo se mide en múltiplos de `--px` (la "unidad de píxel"), nunca en
+      valores sueltos. Al cambiar `--px` en el móvil, el dibujo entero escala
+      sin descuadrarse.
+   ·  Cero `border-radius` y cero degradados suaves. Los volúmenes se hacen con
+      bloques de color plano y sombras DURAS (sin desenfoque).
+   ·  Las animaciones van con `steps()`, no interpoladas: las cosas se mueven
+      de píxel en píxel, como un sprite, en vez de deslizarse.
+   ·  `image-rendering: pixelated` para que nada se suavice al escalar.
+
+   RENDIMIENTO — importa, porque esto sale mientras el juego carga
+   ·  Solo se animan `transform` y `opacity` (las dos que van por GPU sin
+      recalcular maquetación ni repintar).
+   ·  Cero `backdrop-filter` y cero `filter: blur` animados.
+   ·  Se respeta `prefers-reduced-motion`.
 
    Se conservan las clases `.loading-text`, `.loading-bar-container` y
-   `.loading-bar-fill` porque son las que busca LoadingSystem.js.
+   `.loading-bar-fill`: son las que busca LoadingSystem.js.
    ========================================================================== */
 
 #loading-overlay {
-  /* Paleta */
-  --gfl-fondo:      #070b16;
-  --gfl-tarjeta:    #0e1426;
-  --gfl-borde:      rgba(148, 178, 255, 0.14);
-  --gfl-texto:      #e8eeff;
-  --gfl-suave:      #93a3c8;
-  --gfl-tenue:      #5b6a92;
-  --gfl-acento:     #5eead4;
-  --gfl-acento-2:   #60a5fa;
-  --gfl-acento-3:   #a78bfa;
-  /* Progreso 0..1. Lo publica LoadingSystem._updateProgressBar, así que el
-     anillo y la barra van SIEMPRE sincronizados, lo llame quien lo llame. */
-  --gf-progreso: 0;
+  --px: 6px;                       /* unidad de píxel del dibujo */
+  --verde:      #4ade80;
+  --verde-osc:  #16a34a;
+  --verde-clar: #bbf7d0;
+  --tierra:     #4a3728;
+  --tierra-osc: #2b1f16;
+  --oro:        #fde047;
+  --rosa:       #f9a8d4;
+  --rosa-osc:   #ec4899;
+  --texto:      #e9eefb;
+  --texto-baja: #7c88a8;
+  --gf-progreso: 0;                /* lo publica LoadingSystem */
 
-  background: var(--gfl-fondo) !important;
+  /* Negro de verdad. Solo un halo muy tenue detrás de la planta para que la
+     escena no flote sobre la nada. */
+  background: #000 !important;
   background-image:
-    radial-gradient(ellipse 120% 80% at 50% -10%, rgba(96, 165, 250, 0.16), transparent 60%),
-    radial-gradient(ellipse 90% 70% at 50% 110%, rgba(94, 234, 212, 0.10), transparent 60%) !important;
-  color: var(--gfl-texto);
+    radial-gradient(ellipse 60% 45% at 50% 62%, rgba(74, 222, 128, 0.10), transparent 70%) !important;
+  color: var(--texto);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
                'Helvetica Neue', Arial, sans-serif !important;
-  /* OJO: `display` va SIN `!important`, y es deliberado.
-     LoadingSystem oculta la pantalla con `overlay.style.display = 'none'` (estilo
-     en línea). En la cascada de CSS, una declaración `!important` de la hoja
-     GANA a un estilo en línea normal — así que poner `display: flex !important`
-     aquí dejaría la pantalla de carga pegada para siempre, tapando el juego.
-     Comprobado en el navegador. El centrado sí puede llevar `!important` porque
-     nadie lo toca desde JavaScript. */
+
+  /* SIN `!important` en `display`: LoadingSystem oculta con estilo en línea
+     (`style.display='none'`) y una regla importante de la hoja lo anularía,
+     dejando la pantalla de carga pegada para siempre. */
   display: flex;
+  flex-direction: column;
   align-items: center !important;
   justify-content: center !important;
+  gap: calc(var(--px) * 5);
   padding: 24px;
   box-sizing: border-box;
   overflow: hidden;
-  /* El overlay es su propia capa de composición: aísla todo lo que pase aquí
-     dentro del resto de la página. */
+  image-rendering: pixelated;
   isolation: isolate;
 }
 
-/* ── Ambiente ─────────────────────────────────────────────────────────────── */
+/* ── Cielo ────────────────────────────────────────────────────────────────── */
 
-.gfl-ambiente {
+.gfl-cielo {
   position: absolute;
   inset: 0;
-  overflow: hidden;
   pointer-events: none;
   z-index: 0;
 }
 
-/* Focos de color. Son gradientes radiales (suaves de nacimiento) que se
-   desplazan muy despacio. Al animar solo `transform` no cuesta repintado. */
-.gfl-orbe {
+/* Estrellas: cuadraditos que parpadean a SALTOS (steps), no con desvanecido.
+   El desvanecido suave es lo que delata que algo no es pixel art. */
+.gfl-cielo i {
   position: absolute;
-  display: block;
-  border-radius: 50%;
-  opacity: 0.5;
-  will-change: transform;
+  left: var(--x);
+  top: var(--y);
+  width: 2px; height: 2px;
+  background: #cfe0ff;
+  opacity: 0.25;
+  animation: gfl-titila 4s steps(1) infinite;
+  animation-delay: var(--t);
 }
 
-.gfl-orbe-a {
-  width: 46vmax; height: 46vmax;
-  top: -16vmax; left: -12vmax;
-  background: radial-gradient(circle, rgba(94, 234, 212, 0.30) 0%, rgba(94, 234, 212, 0) 68%);
-  animation: gfl-deriva-a 26s ease-in-out infinite;
+.gfl-cielo i:nth-child(3n)   { width: 3px; height: 3px; background: #fff6d5; }
+.gfl-cielo i:nth-child(4n+1) { background: #a5c8ff; }
+
+@keyframes gfl-titila {
+  0%, 44%  { opacity: 0.22; transform: scale(1); }
+  45%, 64% { opacity: 0.95; transform: scale(1); }
+  65%,100% { opacity: 0.40; transform: scale(1); }
 }
 
-.gfl-orbe-b {
-  width: 40vmax; height: 40vmax;
-  bottom: -14vmax; right: -10vmax;
-  background: radial-gradient(circle, rgba(96, 165, 250, 0.32) 0%, rgba(96, 165, 250, 0) 68%);
-  animation: gfl-deriva-b 32s ease-in-out infinite;
-}
-
-.gfl-orbe-c {
-  width: 34vmax; height: 34vmax;
-  top: 24%; right: 6%;
-  background: radial-gradient(circle, rgba(167, 139, 250, 0.24) 0%, rgba(167, 139, 250, 0) 68%);
-  animation: gfl-deriva-c 38s ease-in-out infinite;
-}
-
-@keyframes gfl-deriva-a {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  50%      { transform: translate3d(6vmax, 4vmax, 0) scale(1.12); }
-}
-@keyframes gfl-deriva-b {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1.06); }
-  50%      { transform: translate3d(-7vmax, -3vmax, 0) scale(1); }
-}
-@keyframes gfl-deriva-c {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  50%      { transform: translate3d(-4vmax, 6vmax, 0) scale(1.1); }
-}
-
-/* Retícula técnica de fondo. Estática: da textura sin costar nada. */
-.gfl-reticula {
+/* Luna: un disco de píxeles con una muesca, arriba a la derecha. */
+.gfl-luna {
   position: absolute;
-  inset: -2px;
-  display: block;
-  background-image:
-    linear-gradient(to right,  rgba(148, 178, 255, 0.055) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(148, 178, 255, 0.055) 1px, transparent 1px);
-  background-size: 56px 56px;
-  /* Se difumina hacia los bordes para que no parezca papel milimetrado. */
-  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, #000 30%, transparent 100%);
-          mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, #000 30%, transparent 100%);
+  top: 9%; right: 11%;
+  width: calc(var(--px) * 4);
+  height: calc(var(--px) * 4);
+  background: #f4f1de;
+  opacity: 0.85;
+  box-shadow:
+    calc(var(--px) * -1) 0 0 0 #f4f1de,
+    calc(var(--px) *  1) 0 0 0 #f4f1de,
+    0 calc(var(--px) * -1) 0 0 #f4f1de,
+    0 calc(var(--px) *  1) 0 0 #f4f1de,
+    /* cráter */
+    calc(var(--px) * 0.5) calc(var(--px) * 0.5) 0 calc(var(--px) * -1.2) #ddd8bf;
 }
 
-/* Viñeta: oscurece las esquinas y empuja la mirada al centro. */
-.gfl-vineta {
-  position: absolute;
-  inset: 0;
-  display: block;
-  background: radial-gradient(ellipse 75% 65% at 50% 50%, transparent 40%, rgba(4, 6, 14, 0.72) 100%);
-}
+/* ── Escena ───────────────────────────────────────────────────────────────── */
 
-/* ── Tarjeta ──────────────────────────────────────────────────────────────── */
-
-.gfl-tarjeta {
+.gfl-escena {
   position: relative;
   z-index: 1;
-  width: min(100%, 620px);
-  padding: 28px 30px 22px;
-  box-sizing: border-box;
-  background: linear-gradient(168deg, rgba(20, 27, 48, 0.92) 0%, rgba(12, 17, 33, 0.94) 100%);
-  border: 1px solid var(--gfl-borde);
-  border-radius: 22px;
-  box-shadow:
-    0 32px 80px -20px rgba(0, 0, 0, 0.85),
-    0 2px 0 0 rgba(255, 255, 255, 0.05) inset,
-    0 -1px 0 0 rgba(0, 0, 0, 0.35) inset;
+  width: calc(var(--px) * 40);
+  height: calc(var(--px) * 30);
   display: flex;
-  flex-direction: column;
-  gap: 22px;
-  animation: gfl-entra 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  align-items: flex-end;
+  justify-content: center;
 }
 
-/* Filo de luz superior: la línea fina que separa una tarjeta "plana" de una
-   que parece tener material. */
-.gfl-tarjeta::before {
-  content: '';
+/* — Suelo — */
+.gfl-suelo {
   position: absolute;
-  top: -1px; left: 12%; right: 12%;
-  height: 1px;
-  background: linear-gradient(90deg,
-    transparent, rgba(94, 234, 212, 0.55), rgba(167, 139, 250, 0.55), transparent);
-  pointer-events: none;
-}
-
-@keyframes gfl-entra {
-  from { opacity: 0; transform: translate3d(0, 14px, 0) scale(0.985); }
-  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-}
-
-/* ── Cabecera ─────────────────────────────────────────────────────────────── */
-
-.gfl-cabecera {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.gfl-logo {
-  position: relative;
-  flex: 0 0 auto;
-  width: 46px; height: 46px;
-  border-radius: 14px;
-  background: linear-gradient(145deg, #16233f, #0d1526);
-  border: 1px solid rgba(148, 178, 255, 0.18);
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: calc(var(--px) * 26);
+  height: calc(var(--px) * 4);
+  background: var(--tierra);
+  /* Borde superior de tierra clara y base más oscura: dos bandas duras, que es
+     como se sombrea en pixel art (nada de degradados). */
   box-shadow:
-    0 6px 18px -6px rgba(94, 234, 212, 0.45),
-    0 1px 0 0 rgba(255, 255, 255, 0.07) inset;
-  display: grid;
-  place-items: center;
+    inset 0 var(--px) 0 0 #6b5140,
+    inset 0 calc(var(--px) * -1) 0 0 var(--tierra-osc);
 }
 
-/* Brote dibujado con píxeles reales (bloques de 4 px con sombras duras). Es el
-   guiño al arte del juego: pequeño, nítido y en el sitio donde se espera un
-   logotipo — no invadiendo toda la pantalla. */
-.gfl-brote {
-  position: relative;
+/* Matas de hierba asomando por la tierra. */
+.gfl-hierba {
+  position: absolute;
+  top: calc(var(--px) * -1);
+  width: var(--px);
+  height: var(--px);
+  background: var(--verde-osc);
+  box-shadow: 0 calc(var(--px) * -1) 0 0 var(--verde);
+  animation: gfl-brisa 3.2s steps(2) infinite;
+}
+.gfl-hierba-1 { left: calc(var(--px) * 2);  animation-delay: 0s; }
+.gfl-hierba-2 { left: calc(var(--px) * 6);  animation-delay: 0.8s; }
+.gfl-hierba-3 { right: calc(var(--px) * 6); animation-delay: 1.6s; }
+.gfl-hierba-4 { right: calc(var(--px) * 2); animation-delay: 2.4s; }
+
+@keyframes gfl-brisa {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(1px); }
+}
+
+/* — La planta — */
+.gfl-planta {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--px) * 3);
+  width: var(--px);
+  transform: translateX(-50%);
+}
+
+/* Tallo: crece con scaleY desde la base. `scaleY` va por GPU y no reflota la
+   página, a diferencia de animar `height`. */
+.gfl-tallo {
   display: block;
-  width: 4px; height: 4px;
-  background: #7c5a3a;                       /* tallo (bloque base) */
-  image-rendering: pixelated;
-  /* Brote ASIMÉTRICO: una hoja abajo a la izquierda y otra más arriba a la
-     derecha. La versión simétrica anterior se leía como una cruz, no como una
-     planta — la asimetría es lo que hace que el ojo lo reconozca. */
-  box-shadow:
-     0    4px 0 0 #7c5a3a,                   /* tallo hacia abajo */
-     0   -4px 0 0 #5f8f4e,                   /* tallo hacia arriba, ya verde */
-    -4px  0   0 0 #34d399,                   /* hoja izquierda (baja) */
-    -8px  0   0 0 #34d399,
-    -8px -4px 0 0 #6ee7b7,
-     4px -4px 0 0 #34d399,                   /* hoja derecha (alta) */
-     8px -4px 0 0 #34d399,
-     8px -8px 0 0 #6ee7b7,
-     0   -8px 0 0 #a7f3d0;                   /* punta */
-  /* El dibujo ocupa de -8 a +12 en horizontal y de -8 a +8 en vertical desde el
-     bloque base, así que su centro real queda 2 px por encima del centro de la
-     casilla. Este desplazamiento lo compensa para que quede óptimamente
-     centrado dentro del logotipo. */
-  transform: translate(0, 2px);
+  width: var(--px);
+  height: calc(var(--px) * 15);
+  background: var(--verde-osc);
+  box-shadow: inset calc(var(--px) * 0.34) 0 0 0 var(--verde);
+  transform-origin: bottom center;
+  /* El valor lo escribe LoadingSystem._crecerPlanta (ver allí por qué no puede
+     hacerse con var() en CSS). Aquí solo se define el estado de partida y la
+     forma de moverse. */
+  transform: scaleY(0);
+  transition: transform 0.6s cubic-bezier(0.34, 1.2, 0.64, 1);
 }
 
-.gfl-marca {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.gfl-marca-nombre {
-  font-size: 17px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  line-height: 1.15;
-  color: var(--gfl-texto);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.gfl-marca-sub {
-  font-style: normal;
-  font-size: 12.5px;
-  font-weight: 450;
-  letter-spacing: 0.01em;
-  color: var(--gfl-tenue);
-}
-
-/* Etiqueta de estado a la derecha. Cambia de color con data-estado. */
-.gfl-chip {
-  flex: 0 0 auto;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 6px 11px;
-  border-radius: 999px;
-  color: var(--gfl-acento);
-  background: rgba(94, 234, 212, 0.10);
-  border: 1px solid rgba(94, 234, 212, 0.22);
-  white-space: nowrap;
-}
-
-.gfl-chip[data-estado="listo"] {
-  color: #86efac;
-  background: rgba(134, 239, 172, 0.12);
-  border-color: rgba(134, 239, 172, 0.28);
-}
-
-/* ── Cuerpo ───────────────────────────────────────────────────────────────── */
-
-.gfl-cuerpo {
-  display: flex;
-  align-items: center;
-  gap: 26px;
-}
-
-/* — Anillo de progreso — */
-.gfl-medidor {
-  position: relative;
-  flex: 0 0 auto;
-  width: 124px; height: 124px;
-  display: grid;
-  place-items: center;
-}
-
-.gfl-anillo {
+/* Hojas. Cada una aparece al pasar su umbral de progreso.
+   `opacity: calc((p - umbral) * k)` da 0 por debajo del umbral y 1 poco
+   después — el navegador recorta lo que se sale de 0..1. Y el `scale` que lo
+   acompaña hace que broten con un pequeño golpe, no que se desvanezcan. */
+.gfl-hoja {
   position: absolute;
-  inset: 0;
-  width: 100%; height: 100%;
-  transform: rotate(-90deg);            /* empieza arriba, como se espera */
+  left: 0;
+  width: var(--px);
+  height: var(--px);
+  background: var(--verde);
+  transform-origin: 0 100%;
+  transition: opacity 0.35s steps(3), transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.gfl-anillo circle {
-  fill: none;
-  stroke-width: 6;
-  stroke-linecap: round;
+/* Hoja izquierda baja — brota al 22 % */
+.gfl-hoja-a {
+  bottom: calc(var(--px) * 3);
+  box-shadow:
+    calc(var(--px) * -1) 0 0 0 var(--verde),
+    calc(var(--px) * -2) 0 0 0 var(--verde-osc),
+    calc(var(--px) * -1) calc(var(--px) * -1) 0 0 var(--verde-clar);
+  opacity: 0;
+  transform: scale(0.35);
 }
 
-.gfl-anillo-base { stroke: rgba(148, 178, 255, 0.10); }
-
-.gfl-anillo-valor {
-  stroke: url(#gflDegradado);
-  /* Circunferencia = 2·π·44 ≈ 276.46. El recorte se calcula desde la misma
-     variable que mueve la barra, así que nunca pueden discrepar. */
-  stroke-dasharray: 276.46;
-  stroke-dashoffset: calc(276.46 * (1 - var(--gf-progreso, 0)));
-  transition: stroke-dashoffset 0.45s cubic-bezier(0.16, 1, 0.3, 1);
-  filter: drop-shadow(0 0 6px rgba(96, 165, 250, 0.45));
+/* Hoja derecha — brota al 38 % */
+.gfl-hoja-b {
+  bottom: calc(var(--px) * 6);
+  transform-origin: 100% 100%;
+  box-shadow:
+    calc(var(--px) *  1) 0 0 0 var(--verde),
+    calc(var(--px) *  2) 0 0 0 var(--verde-osc),
+    calc(var(--px) *  1) calc(var(--px) * -1) 0 0 var(--verde-clar);
+  opacity: 0;
+  transform: scale(0.35);
 }
 
-.gfl-numero {
+/* Hoja izquierda alta — brota al 55 % */
+.gfl-hoja-c {
+  bottom: calc(var(--px) * 9);
+  box-shadow:
+    calc(var(--px) * -1) 0 0 0 var(--verde),
+    calc(var(--px) * -2) calc(var(--px) * -1) 0 0 var(--verde),
+    calc(var(--px) * -1) calc(var(--px) * -1) 0 0 var(--verde-clar);
+  opacity: 0;
+  transform: scale(0.35);
+}
+
+/* Hoja derecha alta — brota al 70 % */
+.gfl-hoja-d {
+  bottom: calc(var(--px) * 12);
+  transform-origin: 100% 100%;
+  box-shadow:
+    calc(var(--px) *  1) 0 0 0 var(--verde),
+    calc(var(--px) *  2) calc(var(--px) * -1) 0 0 var(--verde),
+    calc(var(--px) *  1) calc(var(--px) * -1) 0 0 var(--verde-clar);
+  opacity: 0;
+  transform: scale(0.35);
+}
+
+/* Flor: se abre al 88 %. Cinco pétalos y un corazón dorado. */
+.gfl-flor {
+  position: absolute;
+  left: 0;
+  bottom: calc(var(--px) * 15);
+  width: var(--px);
+  height: var(--px);
+  background: var(--oro);
+  box-shadow:
+    calc(var(--px) * -1) 0 0 0 var(--rosa),
+    calc(var(--px) *  1) 0 0 0 var(--rosa),
+    0 calc(var(--px) * -1) 0 0 var(--rosa),
+    0 calc(var(--px) *  1) 0 0 var(--rosa),
+    calc(var(--px) * -1) calc(var(--px) * -1) 0 0 var(--rosa-osc),
+    calc(var(--px) *  1) calc(var(--px) * -1) 0 0 var(--rosa-osc),
+    calc(var(--px) * -2) 0 0 0 var(--rosa-osc),
+    calc(var(--px) *  2) 0 0 0 var(--rosa-osc);
+  transform-origin: center bottom;
+  opacity: 0;
+  transform: scale(0.35) rotate(-38deg);
+  transition: opacity 0.4s steps(3), transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Destello que corona la flor al terminar. */
+.gfl-brillo {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--px) * 17);
+  width: var(--px); height: var(--px);
+  margin-left: calc(var(--px) * -0.5);
+  background: #fffbe6;
+  opacity: 0;
+  box-shadow:
+    calc(var(--px) * -2) 0 0 calc(var(--px) * -0.35) #fffbe6,
+    calc(var(--px) *  2) 0 0 calc(var(--px) * -0.35) #fffbe6,
+    0 calc(var(--px) * -2) 0 calc(var(--px) * -0.35) #fffbe6,
+    0 calc(var(--px) *  2) 0 calc(var(--px) * -0.35) #fffbe6;
+  animation: gfl-chispea 1.1s steps(2) infinite;
+}
+
+@keyframes gfl-chispea {
+  0%, 100% { transform: scale(1)   rotate(0deg); }
+  50%      { transform: scale(1.6) rotate(45deg); }
+}
+
+/* — Luciérnagas — */
+.gfl-luciernaga {
+  position: absolute;
+  bottom: calc(var(--px) * 5);
+  left: 50%;
+  width: 3px; height: 3px;
+  background: #fff3a8;
+  box-shadow: 0 0 0 1px rgba(253, 224, 71, 0.22);
+  opacity: 0;
+  animation: gfl-vuela 9s steps(24) infinite;
+  animation-delay: var(--d);
+}
+
+@keyframes gfl-vuela {
+  0%   { opacity: 0;    transform: translate3d(var(--x), 0, 0); }
+  12%  { opacity: 0.95; }
+  50%  { opacity: 0.55; transform: translate3d(calc(var(--x) * 0.3), calc(var(--px) * -9), 0); }
+  78%  { opacity: 0.9;  transform: translate3d(calc(var(--x) * -0.6), calc(var(--px) * -14), 0); }
+  100% { opacity: 0;    transform: translate3d(calc(var(--x) * -1), calc(var(--px) * -20), 0); }
+}
+
+/* ── Panel inferior ───────────────────────────────────────────────────────── */
+
+.gfl-panel {
   position: relative;
-  display: flex;
-  align-items: baseline;
-  gap: 1px;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;   /* la cifra no "baila" al cambiar */
-}
-
-.gfl-numero b {
-  font-size: 34px;
-  font-weight: 680;
-  letter-spacing: -0.03em;
-  color: var(--gfl-texto);
-}
-
-.gfl-numero i {
-  font-style: normal;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--gfl-tenue);
-}
-
-/* — Columna de estado — */
-.gfl-estado {
-  flex: 1 1 auto;
-  min-width: 0;
+  z-index: 1;
+  width: min(100%, 440px);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  align-items: center;
+  gap: calc(var(--px) * 2.2);
+  text-align: center;
+}
+
+/* Título en la fuente de píxeles del juego. Sombra dura escalonada — el borde
+   "de cartel" de los juegos de 16 bits, que con desenfoque se perdería. */
+.gfl-titulo {
+  margin: 0;
+  font-family: 'PressStart2P', monospace;
+  font-size: clamp(15px, 4.2vw, 23px);
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: 1px;
+  color: #f2f7ff;
+  text-shadow: 0 3px 0 #123, 0 5px 0 rgba(0, 0, 0, 0.55);
+}
+
+.gfl-titulo span {
+  display: block;
+  color: var(--verde);
+  text-shadow: 0 3px 0 #04301b, 0 5px 0 rgba(0, 0, 0, 0.55);
 }
 
 #loading-overlay .loading-text {
   margin: 0 !important;
   font-family: inherit !important;
-  font-size: 14.5px !important;
-  font-weight: 550 !important;
-  line-height: 1.45 !important;
-  letter-spacing: -0.005em;
-  color: var(--gfl-texto) !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  line-height: 1.5 !important;
+  color: var(--texto-baja) !important;
   text-shadow: none !important;
-  min-height: 1.45em;
+  min-height: 1.5em;
 }
 
-/* — Barra fina, secundaria al anillo — */
+/* ── LA BARRA ─────────────────────────────────────────────────────────────── */
+
+.gfl-barra-fila {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--px) * 1.6);
+}
+
+/* Marco de la barra: bloques duros, nada redondeado. El doble borde se hace
+   con sombras sin desenfoque (el recuadro de menú retro de toda la vida). */
 #loading-overlay .loading-bar-container {
-  width: 100% !important;
+  position: relative;
+  flex: 1 1 auto;
+  width: auto !important;
   max-width: none !important;
   margin: 0 !important;
   padding: 0 !important;
-  height: 6px;
+  height: calc(var(--px) * 2.4);
   border: 0 !important;
-  border-radius: 999px !important;
-  background: rgba(148, 178, 255, 0.10) !important;
-  box-shadow: none !important;
-  overflow: hidden;
+  border-radius: 0 !important;
+  background: #0a1410 !important;
+  box-shadow:
+    0 0 0 2px #0b2e1f,
+    0 0 0 4px #061a12,
+    inset 0 2px 0 0 rgba(0, 0, 0, 0.55) !important;
+  overflow: visible;
 }
 
 #loading-overlay .loading-bar-fill {
-  height: 100% !important;
-  border-radius: 999px !important;
-  background: linear-gradient(90deg, var(--gfl-acento), var(--gfl-acento-2) 55%, var(--gfl-acento-3)) !important;
-  box-shadow: 0 0 12px -2px rgba(96, 165, 250, 0.7) !important;
-  transition: width 0.45s cubic-bezier(0.16, 1, 0.3, 1) !important;
   position: relative;
+  height: 100% !important;
+  border-radius: 0 !important;
+  /* Relleno por BANDAS duras: luz arriba, color medio, sombra abajo. Así es
+     como se sombrea una barra en pixel art. */
+  background: linear-gradient(180deg,
+    #86efac 0%,   #86efac 25%,
+    #4ade80 25%,  #4ade80 62%,
+    #16a34a 62%,  #16a34a 100%) !important;
+  box-shadow: none !important;
   overflow: hidden;
+  transition: width 0.45s cubic-bezier(0.34, 1.1, 0.64, 1) !important;
 }
 
-/* Destello que recorre la barra. Se mueve con `transform`, no con
-   `background-position`: así no repinta en cada fotograma. */
-#loading-overlay .loading-bar-fill::after {
-  content: '' !important;
+/* Franjas diagonales que recorren el relleno. Se mueven con `transform` sobre
+   un elemento más ancho que su caja — nunca animando `background-position`,
+   que obliga a repintar en cada fotograma. */
+.gfl-barra-brillo {
   position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg,
-    transparent, rgba(255, 255, 255, 0.45), transparent);
-  transform: translate3d(-100%, 0, 0);
-  animation: gfl-destello 1.9s ease-in-out infinite !important;
+  top: 0; left: 0; bottom: 0;
+  width: 200%;
+  background: repeating-linear-gradient(
+    -60deg,
+    rgba(255, 255, 255, 0.00) 0px,
+    rgba(255, 255, 255, 0.00) 6px,
+    rgba(255, 255, 255, 0.22) 6px,
+    rgba(255, 255, 255, 0.22) 12px);
+  animation: gfl-franjas 0.9s steps(6) infinite;
   will-change: transform;
 }
 
-@keyframes gfl-destello {
-  0%        { transform: translate3d(-100%, 0, 0); }
-  60%, 100% { transform: translate3d(220%, 0, 0); }
+@keyframes gfl-franjas {
+  0%   { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-24px, 0, 0); }
 }
 
-/* ── Pasos ────────────────────────────────────────────────────────────────── */
-
-.gf-load-pasos {
-  list-style: none;
-  margin: 2px 0 0;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+/* Punta viva del relleno: una columna clara que late. Es lo que hace que la
+   barra parezca "cargándose" y no solo un rectángulo que crece. */
+.gfl-barra-punta {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 2px;
+  background: #f0fff5;
+  animation: gfl-punta 0.6s steps(2) infinite;
 }
 
-.gf-load-pasos li {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 11.5px;
-  font-weight: 500;
-  letter-spacing: 0.005em;
-  color: var(--gfl-tenue);
-  transition: color 0.3s ease;
+@keyframes gfl-punta {
+  0%, 100% { opacity: 1;    transform: scaleX(1); }
+  50%      { opacity: 0.45; transform: scaleX(2); }
 }
 
-.gf-load-pasos li span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* Chispas que suben desde la barra. Dan vida sin tapar nada. */
+.gfl-barra-chispa {
+  position: absolute;
+  bottom: 100%;
+  width: 2px; height: 2px;
+  background: #bbf7d0;
+  opacity: 0;
+  animation: gfl-sube 2.4s steps(8) infinite;
+}
+.gfl-chispa-1 { left: 22%; animation-delay: 0s; }
+.gfl-chispa-2 { left: 54%; animation-delay: 0.9s; }
+.gfl-chispa-3 { left: 78%; animation-delay: 1.7s; }
+
+@keyframes gfl-sube {
+  0%       { opacity: 0;   transform: translate3d(0, 0, 0); }
+  15%      { opacity: 0.9; }
+  100%     { opacity: 0;   transform: translate3d(2px, calc(var(--px) * -3.5), 0); }
 }
 
-/* Punto de estado. El relleno y el halo se hacen con pseudo-elementos para
-   poder animarlos solo con transform/opacity. */
-.gf-load-pasos li::before {
-  content: '';
+/* Porcentaje, en la fuente del juego. */
+.gfl-pct {
   flex: 0 0 auto;
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: rgba(148, 178, 255, 0.18);
-  box-shadow: 0 0 0 3px rgba(148, 178, 255, 0.05);
-  transition: background 0.3s ease, box-shadow 0.3s ease;
+  min-width: 4.2em;
+  text-align: right;
+  font-family: 'PressStart2P', monospace;
+  font-size: clamp(9px, 2.6vw, 12px);
+  color: var(--verde);
+  text-shadow: 0 2px 0 #04301b;
 }
 
-.gf-load-pasos li[data-estado="activo"] {
-  color: var(--gfl-texto);
-  font-weight: 600;
-}
-
-.gf-load-pasos li[data-estado="activo"]::before {
-  background: var(--gfl-acento-2);
-  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.18);
-  animation: gfl-latido 1.6s ease-in-out infinite;
-}
-
-@keyframes gfl-latido {
-  0%, 100% { transform: scale(1);    opacity: 1; }
-  50%      { transform: scale(1.35); opacity: 0.75; }
-}
-
-.gf-load-pasos li[data-estado="hecho"] { color: var(--gfl-suave); }
-
-.gf-load-pasos li[data-estado="hecho"]::before {
-  background: var(--gfl-acento);
-  box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.14);
-}
+.gfl-pct b { font-weight: 400; }
 
 /* ── Consejo ──────────────────────────────────────────────────────────────── */
 
 .gf-load-tip {
   margin: 0;
-  padding-top: 16px;
-  border-top: 1px solid rgba(148, 178, 255, 0.09);
   font-size: 12px;
   font-weight: 450;
-  line-height: 1.55;
-  color: var(--gfl-tenue);
-  min-height: 2.1em;
+  line-height: 1.6;
+  color: #5a6685;
+  min-height: 2em;
+  max-width: 34em;
 }
 
 .gf-load-tip:empty { display: none; }
 
-/* ── Tablet y teléfono ────────────────────────────────────────────────────── */
+/* ── Teléfono ─────────────────────────────────────────────────────────────── */
 
 @media (max-width: 640px) {
-  #loading-overlay { padding: 18px; }
-
-  .gfl-tarjeta {
-    padding: 22px 20px 18px;
-    border-radius: 20px;
-    gap: 18px;
-  }
-
-  /* El medidor pasa arriba y centrado: en vertical se lee mucho mejor que
-     una fila apretada. */
-  .gfl-cuerpo {
-    flex-direction: column;
-    gap: 18px;
-  }
-
-  .gfl-medidor { width: 108px; height: 108px; }
-  .gfl-numero b { font-size: 30px; }
-
-  .gfl-estado { width: 100%; text-align: center; }
-
-  #loading-overlay .loading-text { font-size: 13.5px !important; }
-
-  /* Dos columnas: cuatro pasos en fila no caben sin recortarse. */
-  .gf-load-pasos {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px 12px;
-    text-align: left;
-  }
-
-  .gfl-marca-nombre { font-size: 15.5px; }
-  .gfl-marca-sub    { font-size: 11.5px; }
-  .gfl-chip         { font-size: 9.5px; padding: 5px 9px; }
-  .gfl-logo         { width: 40px; height: 40px; border-radius: 12px; }
-  .gf-load-tip      { font-size: 11.5px; padding-top: 14px; }
+  #loading-overlay { --px: 5px; padding: 20px; gap: calc(var(--px) * 4); }
+  .gfl-panel { gap: calc(var(--px) * 2); }
+  #loading-overlay .loading-text { font-size: 12.5px !important; }
+  .gf-load-tip { font-size: 11px; }
+  .gfl-luna { top: 7%; right: 8%; }
 }
 
-@media (max-width: 380px) {
-  /* Móviles estrechos: la etiqueta de estado sobra, el texto ya lo dice. */
-  .gfl-chip { display: none; }
-  .gfl-medidor { width: 96px; height: 96px; }
-  .gfl-numero b { font-size: 27px; }
+/* Solo para teléfonos DE VERDAD estrechos (iPhone SE 1ª gen y parecidos).
+   El corte estaba en 380 px, que se comía a la mitad de los teléfonos en uso
+   (375 px es el ancho de un iPhone normal): encogía el dibujo y escondía el
+   consejo aun sobrando sitio de sobra en vertical. */
+@media (max-width: 340px) {
+  #loading-overlay { --px: 4px; }
 }
 
-/* Móvil en horizontal: hay muy poca altura. Se compacta todo y el consejo
-   desaparece antes que la información útil.
-   440 px y no 480: un teléfono en horizontal mide entre 360 y 430 px de alto,
-   mientras que una ventana de portátil algo baja puede rondar los 460-480 — con
-   el umbral en 480 se le escondía el consejo a gente que sí tiene sitio. */
+/* Móvil en horizontal: poca altura. La escena se encoge, no desaparece — es lo
+   más bonito de la pantalla y quitarla la dejaría sosa. */
 @media (max-height: 440px) and (orientation: landscape) {
-  .gfl-tarjeta { padding: 16px 20px; gap: 14px; }
-  .gfl-cuerpo  { flex-direction: row; gap: 20px; }
-  .gfl-medidor { width: 84px; height: 84px; }
-  .gfl-numero b { font-size: 24px; }
+  #loading-overlay { --px: 4px; gap: calc(var(--px) * 3); }
+  .gfl-escena  { height: calc(var(--px) * 24); }
   .gf-load-tip { display: none; }
-  .gfl-estado  { text-align: left; }
-  .gf-load-pasos { display: flex; }
+  .gfl-titulo  { font-size: 14px; }
+  .gfl-titulo span { display: inline; margin-left: 0.5em; }
 }
 
-/* ── Accesibilidad y ahorro ───────────────────────────────────────────────── */
+/* ── Accesibilidad ────────────────────────────────────────────────────────── */
 
-/* Quien pide menos movimiento (ajuste del sistema, y también quien se marea con
-   las animaciones) recibe la misma pantalla, quieta. */
+/* Quien pide menos movimiento ve la misma escena, quieta. El crecimiento de la
+   planta se mantiene (es información, no adorno), pero sin rebote. */
 @media (prefers-reduced-motion: reduce) {
-  .gfl-orbe,
-  .gfl-tarjeta,
-  #loading-overlay .loading-bar-fill::after,
-  .gf-load-pasos li[data-estado="activo"]::before {
+  .gfl-cielo i,
+  .gfl-hierba,
+  .gfl-luciernaga,
+  .gfl-brillo,
+  .gfl-barra-brillo,
+  .gfl-barra-punta,
+  .gfl-barra-chispa {
     animation: none !important;
   }
-  .gfl-anillo-valor,
+  .gfl-luciernaga { opacity: 0.5; }
+  .gfl-tallo, .gfl-hoja, .gfl-flor,
   #loading-overlay .loading-bar-fill {
-    transition: none !important;
+    transition-timing-function: linear !important;
   }
 }
 
-/* El cuadrado azul que daba vueltas de la versión anterior ya no se usa. */
+/* El cuadrado azul giratorio de la versión original ya no se usa. */
 #loading-overlay .loading-pixel { display: none !important; }
