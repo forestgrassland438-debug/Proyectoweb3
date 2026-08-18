@@ -4997,8 +4997,30 @@ this.anims.create({
       // Coloca al jugador en su posición deseada antes de seguirlo
       this.player.setPosition(200, 300); // Cambiá por la posición inicial que quieras
 
-      // Inicia el follow, pero la cámara está aún en negro
-      this.cameras.main.startFollow(this.player, true, 0.05, 0.05);
+      // Inicia el follow, pero la cámara está aún en negro.
+      //
+      // EL LERP ERA 0.05: LA MITAD QUE EL DE Phaser-camera.js (0.1).
+      // Los dos sistemas configuran ESTA MISMA cámara y llamaban a startFollow
+      // con valores distintos, así que mandaba el que corriera después.
+      //
+      // Medido a 240 px/s (la velocidad del jugador), 180 fotogramas:
+      //
+      //      lerp    retraso de la cámara   fotogramas sin moverse al arrancar
+      //      0.05          76 px                        3 de 29
+      //      0.10          36 px                        1 de 29
+      //
+      // Con 0.05 la cámara se queda 76 px por detrás y sigue derivando casi un
+      // segundo después de soltar la tecla: el movimiento se siente pastoso
+      // aunque los fotogramas estén bien. Y como avanza en pasos más pequeños,
+      // el redondeo a píxel entero la deja congelada más a menudo, que es el
+      // escalonado que se percibe como "va a 30 fps".
+      //
+      // OJO: el 2º argumento de startFollow PISA cam.roundPixels (comprobado en
+      // Phaser 3.90; el setRoundPixels(true) de dos líneas más arriba no
+      // sobrevive). Se deja en `true` a propósito: pasarlo a false quita el
+      // último fotograma congelado, pero desactiva el redondeo de la cámara y
+      // ahí vuelven las costuras entre tiles que ya costó arreglar. No compensa.
+      this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
 
 
 

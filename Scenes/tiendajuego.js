@@ -823,7 +823,12 @@ this.player.on('pointerdown', (pointer) => {
       this.player.setPosition(200, 300); // Cambiá por la posición inicial que quieras
 
       // Inicia el follow, pero la cámara está aún en negro
-      this.cameras.main.startFollow(this.player, true, 0.05, 0.05);
+      // Mismo cambio que en GameScene (ver allí los números medidos): el lerp
+      // sube de 0.05 a 0.1, el mismo que usa Phaser-camera.js, para que la
+      // cámara no se quede 76 px por detrás del jugador. El redondeo se
+      // conserva (2º argumento en true) para no reintroducir las costuras
+      // entre tiles.
+      this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
 
       // Esperar a que la cámara termine de posicionarse (ajustá el delay si es muy rápido o lento)
       this.time.delayedCall(800, () => {

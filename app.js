@@ -598,9 +598,48 @@
         .test(navigator.userAgent);
     },
 
+    /**
+     * ¿Es un aparato de gama baja DE VERDAD?
+     *
+     * CAUSA RAÍZ DE "EL JUEGO VA COMO A 30 FPS EN MI PC":
+     * ---------------------------------------------------------------------
+     * Esto era antes:
+     *
+     *     return (navigator.hardwareConcurrency || 4) <= 4 ||
+     *            (navigator.deviceMemory       || 4) <= 4;
+     *
+     * y tenía dos fallos que se sumaban:
+     *
+     *  1. El `|| 4` convierte "el navegador no me lo dice" en "tiene 4", y
+     *     4 <= 4 es verdadero. O sea: DESCONOCIDO contaba como GAMA BAJA.
+     *     navigator.deviceMemory no existe en Firefox ni en Safari, y Brave lo
+     *     oculta por su protección antihuella (y además falsea
+     *     hardwareConcurrency, normalmente a 2). Resultado: en esos navegadores
+     *     TODOS los ordenadores salían "flojos", por potentes que fueran.
+     *
+     *  2. El `||` entre las dos señales: bastaba con que UNA diera bajo. Un PC
+     *     de 4 núcleos con 32 GB de RAM salía "flojo".
+     *
+     * Medido en un equipo con deviceMemory = 16 (16 GB): la función devolvía
+     * `true`. Y como más abajo `isMobile || isLowEnd` activa el límite de 30
+     * fps, ese PC se quedaba clavado a la mitad de fotogramas.
+     *
+     * Ahora: lo desconocido NO es gama baja, y hace falta evidencia positiva.
+     */
     isLowEnd: function () {
-      return (navigator.hardwareConcurrency || 4) <= 4 ||
-             (navigator.deviceMemory       || 4) <= 4;
+      var nucleos = navigator.hardwareConcurrency;
+      var memoria = navigator.deviceMemory;
+      var tieneNucleos = (typeof nucleos === 'number' && nucleos > 0);
+      var tieneMemoria = (typeof memoria === 'number' && memoria > 0);
+
+      // Sin un dato fiable de memoria no se supone nada: equipo normal.
+      if (!tieneMemoria) return false;
+
+      // 2 GB o menos sí es gama baja de verdad.
+      if (memoria <= 2) return true;
+
+      // 4 GB solo cuenta como flojo si además hay muy pocos núcleos.
+      return memoria <= 4 && tieneNucleos && nucleos <= 2;
     },
 
     createMobileJoystick: function (scene) {
@@ -859,8 +898,9 @@
       // de píxeles de pantalla, que es lo que importa aquí) y se pasa de 8,29 a
       // 3,69 megapíxeles: menos de la mitad del trabajo de GPU.
       //
-      // Solo se aplica en móvil/equipos flojos: en un PC no hay motivo, y así
-      // el juego se ve exactamente igual que hasta ahora en escritorio.
+      // SOLO EN MÓVIL DE VERDAD (userAgent), no por isLowEnd: la detección de
+      // "equipo flojo" no es fiable para esto y un PC mal clasificado se
+      // quedaría renderizando a menos resolución de la que puede.
       //
       // Son DOS variables a propósito:
       //   GF_MAX_DPR                → tope efectivo de ahora mismo; lo reescribe
@@ -869,10 +909,13 @@
       //                               superar (ver aplicarCalidadGlobal).
       // Sin el segundo, la calidad "Alta" —la de por defecto— volvía a poner el
       // tope en Infinity y el arreglo no servía de nada en el móvil.
-      root.GF_DPR_TECHO_DISPOSITIVO = 2;
-      if (!root.GF_MAX_DPR) root.GF_MAX_DPR = root.GF_DPR_TECHO_DISPOSITIVO;
+      if (isMobile) {
+        root.GF_DPR_TECHO_DISPOSITIVO = 2;
+        if (!root.GF_MAX_DPR) root.GF_MAX_DPR = root.GF_DPR_TECHO_DISPOSITIVO;
+      }
 
-      Logger.log('Optimizando para dispositivo móvil / bajo rendimiento (techo de densidad: ' + root.GF_DPR_TECHO_DISPOSITIVO + ')');
+      Logger.log('Optimizando para dispositivo móvil / bajo rendimiento' +
+                 (isMobile ? ' (techo de densidad: ' + root.GF_DPR_TECHO_DISPOSITIVO + ')' : ''));
     }
 
     // Reutilizar instancia existente de phaserScaler si ya existe
@@ -918,7 +961,19 @@
       else if (v === '0') ahorroGuardado = false;
     } catch (e) { /* almacenamiento bloqueado: se usa el valor por defecto */ }
 
-    var ahorroActivo = (ahorroGuardado !== null) ? ahorroGuardado : (isMobile || isLowEnd);
+    // POR DEFECTO SOLO EN MÓVIL, nunca en escritorio.
+    //
+    // Antes era `isMobile || isLowEnd`. Aparte de que isLowEnd daba falsos
+    // positivos (ver Utils.isLowEnd), meter aquí a los equipos "flojos" era un
+    // error de concepto: esto se llama AHORRO DE BATERÍA y un ordenador de
+    // sobremesa está enchufado. Y si un PC va justo, bajarle los fotogramas a la
+    // mitad es justo lo contrario de lo que quiere el jugador: para eso está la
+    // barra de calidad gráfica, que baja resolución y detalle SIN tocar la
+    // fluidez.
+    //
+    // El jugador puede activarlo cuando quiera con GFBateria.activar(), y esa
+    // elección manual (ahorroGuardado) manda sobre este valor por defecto.
+    var ahorroActivo = (ahorroGuardado !== null) ? ahorroGuardado : isMobile;
 
     config.fps = {
       target:          60,
