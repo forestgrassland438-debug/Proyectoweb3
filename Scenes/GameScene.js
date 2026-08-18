@@ -2578,19 +2578,34 @@ shutdown() {
   // 1. LIMPIAR TILEMANAGERS PRIMERO (esto libera ~144MB)
   const tileCleanup = this.cleanupTileManagers();
   
-  // 2. Limpiar texturas pesadas específicas
-  const heavyTextures = [
-    'tile_r0_c0', 'tile_r0_c1', 'tile_r0_c2',
-    'tile_r1_c0', 'tile_r1_c1', 'tile_r1_c2', 
-    'tile_r2_c0', 'tile_r2_c1', 'tile_r2_c2'
-  ];
-  
-  heavyTextures.forEach(textureKey => {
-    if (this.textures.exists(textureKey)) {
+  // 2. Limpiar texturas pesadas del terreno
+  //
+  // FUGA QUE ESTO ARREGLA: aquí había una lista fija —'tile_r0_c0', 'tile_r0_c1'…—
+  // que ya NO se corresponde con ninguna clave real. tileManager las nombra
+  // incluyendo el nivel de detalle:
+  //
+  //      `tile_${lod}_r${row}_c${col}`   →   'tile_hd_r0_c0'
+  //
+  // (ese cambio se hizo a propósito, porque antes bajar la calidad no recargaba
+  // nada al coincidir la clave). Como los nombres de la lista no existen,
+  // textures.exists() daba false nueve veces y NO se liberaba ni una: cada tile
+  // son 2048×2048×4 = 16 MB de memoria de vídeo, hasta 144 MB que se quedaban
+  // retenidos en cada salida de la escena. Y como el jugador puede cambiar la
+  // calidad, se podían llegar a acumular las versiones hd, md y low del MISMO
+  // tile a la vez.
+  //
+  // Ahora se barre por prefijo, así que sigue funcionando aunque cambien los
+  // niveles de detalle o el tamaño de la rejilla.
+  let _texturasTerreno = 0;
+  this.textures.getTextureKeys().forEach(textureKey => {
+    if (/^tile_/.test(textureKey)) {
       this.textures.remove(textureKey);
-      console.log(`🗑️ Textura pesada eliminada: ${textureKey}`);
+      _texturasTerreno++;
     }
   });
+  if (_texturasTerreno) {
+    console.log(`🗑️ Texturas de terreno liberadas: ${_texturasTerreno} (~${(_texturasTerreno * 16).toFixed(0)} MB)`);
+  }
 
   // 3. Limpiar socket
   if (this.socket) {
@@ -11925,6 +11940,33 @@ initPlots() {
 }
 
 setupCropSocketEvents() {
+  // ── FUGA DE MEMORIA QUE ESTO ARREGLA — "el juego iba rápido y se va
+  //    poniendo lento" ────────────────────────────────────────────────────────
+  //
+  // El socket NO pertenece a la escena: es window.globalSocket y sobrevive a los
+  // cambios de escena. Este método se ejecuta en cada create() de GameScene, o
+  // sea CADA VEZ que vuelves de la tienda o de una batalla, y volvía a suscribir
+  // los mismos once eventos sin quitar los anteriores.
+  //
+  // Resultado: tras cinco viajes al pueblo, un solo 'cropGrowth' del servidor
+  // disparaba CINCO manejadores, cada uno recorriendo el mapa de cultivos y
+  // repintando los mismos sprites. El coste crece sin parar mientras juegas y
+  // no se recupera hasta recargar la página — justo el patrón de "antes iba
+  // rápido". Las clausuras retenidas se llevaban además la escena vieja entera,
+  // impidiendo liberar sus texturas.
+  //
+  // initCropSystem() ya hacía esto para tres eventos; faltaban los otros diez.
+  // Se quitan TODOS los que se registran justo debajo, para que la lista se
+  // pueda leer de un vistazo junto a los .on() correspondientes.
+  [
+    'cropConfig', 'cropPlanted', 'cropWatered', 'cropGrowth',
+    'plantSuccess', 'plantError',
+    'waterSuccess', 'waterError',
+    'harvestSuccess', 'harvestError',
+    'cutSuccess', 'cutError',
+    'userCropsData'
+  ].forEach(evento => this.socket.off(evento));
+
   this.socket.on('cropConfig', (config) => {
     this.cropTypes = config;
     console.log('✅ Configuración de cultivos recibida:', this.cropTypes);
@@ -28074,88 +28116,22 @@ if (this.dogNameText) {
   // PERSONAJES SOULBOUND
   // =========================================================================
   //
-  // Pinta un botón redondo por cada carpeta que haya en
-  // Game/Sprites/Soulbound/ (personaje1, personaje2, …). No hay ninguna lista
-  // escrita a mano: gf-soulbound.js las descubre solo, así que crear
-  // "personaje3" con sus cinco subcarpetas basta para que aparezca aquí y se
-  // pueda equipar. Al pulsarlo, el jugador —y todo lo que use sus texturas—
-  // cambia al instante, sin recargar la página ni reiniciar la escena, y la
-  // elección queda guardada en el servidor.
+  // El pintado vive en gf-soulbound.js, NO aquí: el panel NFT es DOM compartido
+  // que abren esta escena y tiendajuego. Teniéndolo en un solo sitio, la tienda
+  // enseña lo mismo que el mapa y no se pueden desincronizar.
+  //
+  // Un botón por carpeta de Game/Sprites/Soulbound/. La lista se descubre sola,
+  // así que crear "personaje3" con sus cinco subcarpetas basta para que aparezca
+  // y se pueda equipar, sin tocar código.
 
-  async _renderSoulboundList() {
+  _renderSoulboundList() {
     const cont = document.getElementById('sb-list');
-    if (!cont) return;
-
-    const SB = window.GFSoulbound;
-    if (!SB) { cont.innerHTML = '<div class="sb-loading">Characters unavailable</div>'; return; }
-
-    let ids;
-    try { ids = await SB.descubrir(); }
-    catch (_) { ids = [SB.POR_DEFECTO]; }
-
-    // El panel pudo cerrarse mientras se descubría.
-    if (!document.body.contains(cont)) return;
-
-    cont.textContent = '';
-    ids.forEach((id) => {
-      // createElement + textContent en lugar de innerHTML: el id nunca se
-      // interpola como HTML (aunque GFSoulbound.idValido ya lo restringe a
-      // [A-Za-z0-9_-], no se confía en una sola barrera).
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'sb-char';
-      btn.title = id;
-      btn.setAttribute('aria-label', id);
-
-      const img = document.createElement('img');
-      img.src = SB.rutaPerfil(id);
-      img.alt = id;
-      btn.appendChild(img);
-
-      btn.onclick = () => this._equipSoulbound(id);
-      cont.appendChild(btn);
-    });
-
-    this._refreshSoulboundUI();
-  }
-
-  /** Marca cuál está equipado y actualiza el retrato grande del panel. */
-  _refreshSoulboundUI() {
-    const SB = window.GFSoulbound;
-    if (!SB) return;
-    const actual = SB.actual();
-
-    const cont = document.getElementById('sb-list');
-    if (cont) {
-      Array.from(cont.querySelectorAll('.sb-char')).forEach((b) => {
-        b.classList.toggle('sb-active', b.title === actual);
-      });
+    if (!window.GFSoulbound) {
+      if (cont) cont.textContent = 'Characters unavailable';
+      return;
     }
-    const img  = document.getElementById('sb-current-img');
-    const name = document.getElementById('sb-current-name');
-    if (img)  img.src = SB.rutaPerfil(actual);
-    if (name) name.textContent = actual;
+    window.GFSoulbound.montarPanel(this);
   }
-
-  async _equipSoulbound(id) {
-    const SB = window.GFSoulbound;
-    if (!SB || id === SB.actual()) return;
-
-    const cont = document.getElementById('sb-list');
-    // Bloquear la lista mientras se cargan las texturas: dos cambios a la vez
-    // se pisarían entre sí (ambos borran y vuelven a crear las mismas claves).
-    if (cont) cont.querySelectorAll('.sb-char').forEach(b => b.classList.add('sb-busy'));
-
-    try {
-      await SB.elegir(id, this);
-    } catch (e) {
-      console.warn('[Soulbound] no se pudo equipar', id, e);
-    } finally {
-      if (cont) cont.querySelectorAll('.sb-char').forEach(b => b.classList.remove('sb-busy'));
-      this._refreshSoulboundUI();
-    }
-  }
-
   _togglePetVisibility() {
     if (!this.petData) this.petData = { type: 'perro', visible: true, equipped: true };
     // Only allow toggling if pet is equipped

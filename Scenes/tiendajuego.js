@@ -2039,6 +2039,16 @@ this.anims.create({
         panel.classList.remove('nft-panel-hidden');
         panel.classList.add('nft-panel-visible');
         panel.style.display = 'flex';
+
+        // BUG QUE ESTO ARREGLA — "los NFT funcionan en el mapa pero en la
+        // tienda no": este manejador solo cambiaba clases de CSS. El panel
+        // #nft-panel es DOM COMPARTIDO de la página, así que la sección de
+        // personajes Soulbound se quedaba con el texto de marcador
+        // "Loading characters…" para siempre y el retrato en blanco — nadie
+        // la rellenaba nunca desde aquí. Es el mismo fallo que ya tuvieron
+        // las habilidades. Ahora la tienda usa el MISMO camino que GameScene.
+        if (window.GFSoulbound) window.GFSoulbound.montarPanel(this);
+
         // Setup close button
         const closeBtn = document.getElementById('nft-close');
         if (closeBtn && !closeBtn._wired) {
