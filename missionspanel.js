@@ -452,6 +452,34 @@ class missionspanel {
     premioExp.appendChild(spanExp);
     premios.appendChild(premioExp);
 
+    // ── MONEDAS DE RECOMPENSA ────────────────────────────────────────────
+    // El servidor ya sabía pagarlas (goldReward / silverReward) pero este
+    // panel solo pintaba el ítem, así que una misión que pagara en monedas se
+    // veía SIN recompensa. Van con el icono de moneda de verdad del juego,
+    // para que no se confundan con un objeto del inventario.
+    const monedas = [
+      { cantidad: mission.goldReward,   icono: './Game/Source/moneda de oro.png',
+        nombre: esEspanol ? 'Oro'   : 'Gold' },
+      { cantidad: mission.silverReward, icono: './Game/Source/moneda de plata.png',
+        nombre: esEspanol ? 'Plata' : 'Silver' }
+    ];
+    monedas.forEach((m) => {
+      const cantidad = Math.max(0, parseInt(m.cantidad, 10) || 0);
+      if (!cantidad) return;
+      const chip = document.createElement('div');
+      chip.className = 'reward-item coin-reward-item';
+      const img = document.createElement('img');
+      img.className = 'item-icon';
+      img.src = m.icono;
+      img.alt = m.nombre;
+      const span = document.createElement('span');
+      span.className = 'item-reward';
+      span.textContent = `+${cantidad} ${m.nombre}`;
+      chip.appendChild(img);
+      chip.appendChild(span);
+      premios.appendChild(chip);
+    });
+
     if (mission.rewardItemId) {
       const premioItem = document.createElement('div');
       premioItem.className = 'reward-item item-reward-item';

@@ -325,6 +325,19 @@
     var inPremio = crear('input', { type: 'text',   value: datos.rewardItemId || '', placeholder: 'opcional, ej. mineral_piedra', maxLength: 60 });
     var inPremioC= crear('input', { type: 'number', value: datos.rewardAmount || 1, min: 1, max: 9999 });
 
+    // ── RECOMPENSA EN MONEDAS ────────────────────────────────────────────────
+    // FALTABA: el servidor lleva desde el 11-08 aceptando goldReward y
+    // silverReward, pero este editor no tenía dónde escribirlos, así que era
+    // imposible crear una misión que pagara en monedas.
+    //
+    // Sin estos campos, la única casilla con pinta de "recompensa" era la de
+    // ÍTEM, y escribir ahí "plata" no daba plata: hacía que el juego buscara un
+    // objeto de inventario llamado "plata", que no existe. El panel enseñaba
+    // "+100 Plata" (es solo el texto del premio) pero al entregar la misión no
+    // se recibía nada. De ahí el "le puse plata y me dio algo que ya no es".
+    var inOro   = crear('input', { type: 'number', value: datos.goldReward   || 0, min: 0, max: 1000 });
+    var inPlata = crear('input', { type: 'number', value: datos.silverReward || 0, min: 0, max: 100000 });
+
     var bloquesIdioma = IDIOMAS.map(function (l) {
       var t = (datos.texts && datos.texts[l.code]) || {};
       var titulo = crear('input',    { type: 'text', value: t.title || '', maxLength: 80 });
@@ -384,6 +397,10 @@
         campo('Ítem de recompensa (opcional)', inPremio),
         campo('Cantidad de recompensa', inPremioC)
       ]),
+      crear('div', { class: 'row' }, [
+        campo('Oro de recompensa (0 = nada)', inOro),
+        campo('Plata de recompensa (0 = nada)', inPlata)
+      ]),
       detalles
     ]);
 
@@ -405,6 +422,11 @@
         itemId: inItem.value.trim(),
         requiredAmount: parseInt(inCant.value, 10) || 1,
         expReward: parseInt(inExp.value, 10) || 0,
+        // Monedas: siempre se mandan (0 incluido) para poder QUITAR una
+        // recompensa que se puso antes. Si solo se enviaran cuando son > 0, al
+        // bajar una a 0 el servidor conservaría el valor viejo.
+        goldReward:   Math.max(0, parseInt(inOro.value,   10) || 0),
+        silverReward: Math.max(0, parseInt(inPlata.value, 10) || 0),
         texts: textos
       };
       if (inPremio.value.trim()) {

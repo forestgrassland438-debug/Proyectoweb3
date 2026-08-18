@@ -15751,6 +15751,19 @@ _setupZoomKeeper() {
       
       this.socket = window.globalSocket;
       this.setupSceneSocketListeners();
+      // IDENTIFICARSE A UNO MISMO.
+      //
+      // BUG QUE ESTO ARREGLA: `this.myId` se ponía a null en tres sitios y NO
+      // SE LE ASIGNABA NUNCA el id del socket, así que se quedaba en null toda
+      // la partida. Todas las comprobaciones del tipo
+      //     if (playerInfo.id === this.myId) return;   // "soy yo, ignorar"
+      // eran inútiles: nunca daban verdadero. De momento no se nota porque el
+      // servidor ya te excluye de currentPlayers y usa socket.to(room) para no
+      // devolverte tus propios movimientos, pero cualquier paquete que sí te
+      // llegue (o un reenvío con io.to) te haría crear un DOBLE de ti mismo
+      // como si fuera otro jugador — con SU personaje y sus datos encima del
+      // tuyo. Con el id puesto, esa red de seguridad vuelve a funcionar.
+      this.myId = this.socket.id;
       
       // Unirse a la sala de la tienda solo si no estamos ya en ella
       if (this.currentRoom !== 'game') {
@@ -20416,9 +20429,20 @@ async verificarRompimiento(itemRef) {
       }
 
     } else {
-      // Actualizar usos restantes en el estado local (para la barra visual)
+      // Actualizar usos restantes en el estado local (para la barra visual).
+      //
+      // BUG QUE ESTO ARREGLA — "uso la herramienta y su barra no se gasta":
+      // aquí había un `break` que cortaba en la PRIMERA casilla que coincidía.
+      // El inventario y la barra rápida guardan objetos DISTINTOS para el mismo
+      // ítem (ver cómo se asigna this.STATE.quickSlots[...] = { … }), así que si
+      // se encontraba primero el del inventario, el de la barra rápida —que es
+      // justo el que el jugador está mirando— se quedaba con el valor viejo y
+      // parecía que la herramienta no se gastaba.
+      //
+      // El bloque de "se rompió", cuarenta líneas más arriba, ya recorría las
+      // dos listas sin cortar; esta rama se había quedado atrás.
       for (const s of [...this.STATE.slots, ...this.STATE.quickSlots]) {
-        if (s?.idx === itemRef.idx) { s.usosRestantes = usosNuevos; break; }
+        if (s?.idx === itemRef.idx) s.usosRestantes = usosNuevos;
       }
       console.log(`🪓 ${itemRef.id} usó 1 uso. Restantes: ${usosNuevos}/${toolDef.usos}`);
     }
@@ -26004,7 +26028,21 @@ enableAutoCullingForLayer(scene, layerName) {
   // solo se escribe setVisible() cuando el valor CAMBIA.
   let lastCheck = 0;
   const CHECK_INTERVAL = 100; // ms (antes 16.6 = cada frame)
-  const CULL_PAD = 512;       // margen generoso: el objeto ya está dibujado antes de entrar en cuadro
+
+  // ── DOS MÁRGENES, NO UNO (histéresis) ────────────────────────────────────
+  // PARPADEO QUE ESTO ARREGLA — "las cosas titilean, aparecen y se quitan otra
+  // vez": antes había UN solo margen, así que mostrar y ocultar usaban la
+  // MISMA línea. Un árbol o una casa que cayera justo encima de esa línea
+  // cambiaba de estado en cuanto la cámara se movía unos píxeles hacia un lado
+  // y volvía — que es exactamente lo que pasa al caminar de un lado a otro, o
+  // al oscilar la cámara con el lerp. Cada cambio marca el objeto como "sucio"
+  // y obliga a repintarlo, así que además de verse mal costaba fotogramas.
+  //
+  // Ahora se ENTRA con 512 px de margen y no se SALE hasta los 1024: entre
+  // ambos queda una banda muerta de 512 px que el vaivén no puede cruzar.
+  // Para que algo se oculte hay que alejarse de verdad.
+  const PAD_MOSTRAR = 512;
+  const PAD_OCULTAR = 1024;
   let lastCamX = null, lastCamY = null;
 
   // El manejador se guarda para poder quitarlo en cleanupScene sin recurrir a
@@ -26031,10 +26069,9 @@ enableAutoCullingForLayer(scene, layerName) {
         Math.abs(view.x - lastCamX) < 16 && Math.abs(view.y - lastCamY) < 16) return;
     lastCamX = view.x; lastCamY = view.y;
 
-    const left   = view.x - CULL_PAD;
-    const right  = view.x + view.width  + CULL_PAD;
-    const top    = view.y - CULL_PAD;
-    const bottom = view.y + view.height + CULL_PAD;
+    const dentro = (r, pad) =>
+      r.x < (view.x + view.width  + pad) && r.r > (view.x - pad) &&
+      r.y < (view.y + view.height + pad) && r.b > (view.y - pad);
 
     group.children.iterate(sprite => {
       if (!sprite || !sprite.active) return;
@@ -26050,9 +26087,33 @@ enableAutoCullingForLayer(scene, layerName) {
         };
       }
 
-      const isVisible = (r.x < right && r.r > left && r.y < bottom && r.b > top);
-      // Solo escribir cuando cambia: evita marcar el objeto sucio cada frame.
-      if (sprite.visible !== isVisible) sprite.setVisible(isVisible);
+      if (sprite._ocultadoPorCull) {
+        // Lo escondimos nosotros: se devuelve al entrar en el margen de MOSTRAR.
+        if (dentro(r, PAD_MOSTRAR)) {
+          sprite._ocultadoPorCull = false;
+          sprite.setVisible(true);
+        }
+        return;
+      }
+
+      // ── NO RESUCITAR LO QUE EL JUEGO ESCONDIÓ A PROPÓSITO ──────────────
+      // BUG QUE ESTO ARREGLA — "no quitan las cosas como se debe": antes esto
+      // escribía setVisible(isVisible) a secas, así que al entrar en cuadro
+      // ponía .visible = true SIN MIRAR quién lo había ocultado. Un árbol
+      // talado o un mineral picado volvía a aparecer solo con alejarse y
+      // volver. Por eso hubo que esconder los minerales con alpha 0 y cambiar
+      // la textura de los árboles en vez de ocultarlos: eran rodeos para
+      // esquivar este fallo.
+      //
+      // Ahora solo se toca lo que ocultó ESTE culling (marca
+      // `_ocultadoPorCull`). Si el sprite ya estaba invisible por decisión del
+      // juego, se queda invisible.
+      if (!sprite.visible) return;
+
+      if (!dentro(r, PAD_OCULTAR)) {
+        sprite._ocultadoPorCull = true;
+        sprite.setVisible(false);
+      }
     });
   };
 

@@ -1680,20 +1680,65 @@
     _chunkKey(cx, cy) { return `${cx},${cy}`; }
     worldToChunk(x, y) { return [Math.floor(x / this.chunkW), Math.floor(y / this.chunkH)]; }
 
+    /**
+     * DOS FALLOS QUE ESTO ARREGLA — "las cosas titilean, aparecen y se quitan
+     * otra vez" y los tirones que no venían de ninguna escena:
+     *
+     * 1) NO HABÍA HISTÉRESIS. Se cargaba y se descargaba con el MISMO radio,
+     *    así que el chunk del borde estaba justo en la frontera entre "hace
+     *    falta" y "fuera". Al caminar por esa línea —o simplemente al oscilar
+     *    el jugador fracciones de píxel— Math.floor(x / chunkW) saltaba entre
+     *    N y N+1 en fotogramas consecutivos, y con él la lista de chunks
+     *    necesarios. Resultado: el mismo chunk se destruía y se volvía a
+     *    construir una y otra vez. Eso es exactamente el parpadeo de casas y
+     *    árboles, y como descargar hace `container.destroy(true)` sobre TODOS
+     *    los objetos del chunk, cada rebote costaba un fotograma entero: los
+     *    tirones aleatorios al caminar.
+     *
+     *    Ahora se CARGA con el radio normal pero se DESCARGA solo a partir de
+     *    radio + 1. Entre los dos queda un anillo de un chunk de ancho que
+     *    absorbe el vaivén: para que algo se descargue hay que alejarse de
+     *    verdad, no rozar la frontera.
+     *
+     * 2) SE RECALCULABA EN CADA FOTOGRAMA. Este método está enganchado al
+     *    'update', o sea 60 veces por segundo: reservaba un Set nuevo, recorría
+     *    25 posiciones (radio 2) y además barría el Map entero de chunks
+     *    cargados… para llegar casi siempre a la misma conclusión, porque el
+     *    chunk del jugador solo cambia cada muchos segundos. Ahora solo se
+     *    rehace cuando el jugador CAMBIA de chunk, con un repaso de seguridad
+     *    cada 2 s por si algo se cargó por otra vía.
+     */
     _update() {
       if (!this.enabled || !this.playerRef) return;
-      const [cx, cy] = this.worldToChunk(this.playerRef.x, this.playerRef.y);
-      const needed   = new global.Set();
 
-      for (let dx = -this.opt.chunkRadius; dx <= this.opt.chunkRadius; dx++) {
-        for (let dy = -this.opt.chunkRadius; dy <= this.opt.chunkRadius; dy++) {
+      const [cx, cy] = this.worldToChunk(this.playerRef.x, this.playerRef.y);
+      const ahora = Date.now();
+
+      if (this._ultCx === cx && this._ultCy === cy &&
+          this._ultRevision && (ahora - this._ultRevision) < 2000) {
+        return;
+      }
+      this._ultCx = cx;
+      this._ultCy = cy;
+      this._ultRevision = ahora;
+
+      const radioCarga   = this.opt.chunkRadius;
+      const radioDescarga = radioCarga + 1;   // el anillo de histéresis
+
+      for (let dx = -radioCarga; dx <= radioCarga; dx++) {
+        for (let dy = -radioCarga; dy <= radioCarga; dy++) {
           const key = this._chunkKey(cx + dx, cy + dy);
-          needed.add(key);
           if (!this.loaded.has(key)) this.loadChunk(cx + dx, cy + dy);
         }
       }
-      for (const [key, rec] of this.loaded) {
-        if (!needed.has(key)) this.unloadChunk(rec.cx, rec.cy);
+
+      // Descargar por DISTANCIA, no por pertenencia a la lista de este
+      // fotograma: así el anillo intermedio sobrevive a los vaivenes.
+      for (const [, rec] of this.loaded) {
+        if (Math.abs(rec.cx - cx) > radioDescarga ||
+            Math.abs(rec.cy - cy) > radioDescarga) {
+          this.unloadChunk(rec.cx, rec.cy);
+        }
       }
     }
 

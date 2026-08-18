@@ -3025,6 +3025,19 @@ handleMouseMovement(delta) {
       
       this.socket = window.globalSocket;
       this.setupSceneSocketListeners();
+      // IDENTIFICARSE A UNO MISMO.
+      //
+      // BUG QUE ESTO ARREGLA: `this.myId` se ponía a null en tres sitios y NO
+      // SE LE ASIGNABA NUNCA el id del socket, así que se quedaba en null toda
+      // la partida. Todas las comprobaciones del tipo
+      //     if (playerInfo.id === this.myId) return;   // "soy yo, ignorar"
+      // eran inútiles: nunca daban verdadero. De momento no se nota porque el
+      // servidor ya te excluye de currentPlayers y usa socket.to(room) para no
+      // devolverte tus propios movimientos, pero cualquier paquete que sí te
+      // llegue (o un reenvío con io.to) te haría crear un DOBLE de ti mismo
+      // como si fuera otro jugador — con SU personaje y sus datos encima del
+      // tuyo. Con el id puesto, esa red de seguridad vuelve a funcionar.
+      this.myId = this.socket.id;
       
       // Unirse a la sala de la tienda solo si no estamos ya en ella
       if (this.currentRoom !== 'tienda') {
