@@ -1563,22 +1563,57 @@ handleMissionCompletionSuccess(result, missionId) {
   // Mostrar notificación de éxito
   let notificationText = '';
 
-  if (this.lenguaje === 3) { // español
-    notificationText = `¡Misión completada! +${exp} EXP`;
-    if (premioItm) {
-      notificationText += ` y ${premioItm.amount} ${this.getItemName(premioItm.id, 'es-419')}`;
-    }
-  } else { // inglés por defecto
-    notificationText = `Mission completed! +${exp} EXP`;
-    if (premioItm) {
-      notificationText += ` and ${premioItm.amount} ${this.getItemName(premioItm.id, 'en-US')}`;
-    }
+  // MONEDAS. El aviso no las nombraba, así que una misión que pagara en oro o
+  // plata parecía no dar nada aunque hubiera llegado. `gold`/`silver` son lo
+  // REALMENTE entregado por el servidor (ver la ruta de entrega).
+  const oro   = Number(premios.gold   || 0);
+  const plata = Number(premios.silver || 0);
+  const esEs  = (this.lenguaje === 3);
+
+  const partes = [];
+  if (exp > 0)   partes.push(`+${exp} EXP`);
+  if (oro > 0)   partes.push(`+${oro} ${esEs ? 'Oro' : 'Gold'}`);
+  if (plata > 0) partes.push(`+${plata} ${esEs ? 'Plata' : 'Silver'}`);
+  if (premioItm) {
+    partes.push(`+${premioItm.amount} ${this.getItemName(premioItm.id, esEs ? 'es-419' : 'en-US')}`);
   }
+
+  notificationText = esEs
+    ? (partes.length ? `¡Misión completada! ${partes.join(', ')}` : '¡Misión completada!')
+    : (partes.length ? `Mission completed! ${partes.join(', ')}`  : 'Mission completed!');
 
   this.showNotification(notificationText, 'success');
 
-  if (Array.isArray(result.warnings) && result.warnings.includes('inventory_full')) {
-    this.showNotification('Your inventory was full — part of the reward could not be stored.', 'warning');
+  // ── AVISAR DE LO QUE NO LLEGÓ ──────────────────────────────────────────
+  // Antes esto solo miraba 'inventory_full' y el resto de fallos se los
+  // callaba: el jugador entregaba los materiales, veía "misión completada" y
+  // no recibía nada, sin ninguna explicación. Ahora se compara lo prometido
+  // con lo entregado y se dice claramente qué falta y por qué.
+  const avisos = Array.isArray(result.warnings) ? result.warnings : [];
+  const faltaOro   = Number(premios.goldPrometido   || 0) - oro;
+  const faltaPlata = Number(premios.silverPrometido || 0) - plata;
+  const faltaItem  = !!(result.rewards && result.rewards.item === null && avisos.includes('reward_mint_failed'));
+
+  if (faltaOro > 0 || faltaPlata > 0 || faltaItem || avisos.includes('inventory_full')) {
+    let motivo;
+    if (avisos.includes('inventory_full')) {
+      motivo = esEs ? 'tu inventario estaba lleno'
+                    : 'your inventory was full';
+    } else if (avisos.includes('stats_missing')) {
+      motivo = esEs ? 'tus estadísticas aún no están creadas en el servidor'
+                    : 'your stats are not set up on the server yet';
+    } else if (avisos.some(a => /chain_failed|coins_failed|mint_failed/.test(a))) {
+      motivo = esEs ? 'la red rechazó la transacción'
+                    : 'the network rejected the transaction';
+    } else {
+      motivo = esEs ? 'hubo un problema al entregarla' : 'there was a problem delivering it';
+    }
+    this.showNotification(
+      esEs ? `⚠️ Parte de la recompensa no llegó: ${motivo}. Avisa al administrador.`
+           : `⚠️ Part of the reward did not arrive: ${motivo}. Please tell an admin.`,
+      'warning'
+    );
+    console.warn('[misiones] recompensa incompleta', { premios, avisos });
   }
 
   // Actualizar datos de misiones locales

@@ -151,6 +151,21 @@
     .field { min-width: 100%; }
     header h1 { font-size: 16px; }
   }
+
+  /* Historial de misiones */
+  .his-tabla { width:100%; border-collapse:collapse; font-size:13px; margin-top:6px; }
+  .his-tabla th, .his-tabla td {
+    text-align:left; padding:7px 9px; border-bottom:1px solid rgba(255,255,255,.08);
+    white-space:nowrap;
+  }
+  .his-tabla th {
+    font-size:11px; text-transform:uppercase; letter-spacing:.06em;
+    opacity:.65; font-weight:600;
+  }
+  .his-tabla tbody tr:hover { background:rgba(255,255,255,.04); }
+  .his-tabla td:nth-child(6) { font-weight:700; }   /* acumulado */
+  .his-tabla button { padding:4px 10px; font-size:12px; }
+  #historial { overflow-x:auto; }
 </style>
 </head>
 <body>
@@ -246,6 +261,35 @@
         <button class="danger" id="btnBorrar" type="button">Borrar el día mostrado</button>
       </div>
     </div>
+  </section>
+
+  <!-- ===================== HISTORIAL ===================== -->
+  <section class="card">
+    <h2>5 · Historial de misiones</h2>
+    <p class="hint">
+      Quién ha entregado más misiones. El <b>acumulado</b> es el contador de
+      toda la vida de la cuenta; los <b>registros</b> son las entregas guardadas
+      día a día, que son las que se borran al limpiar.
+    </p>
+    <div class="row">
+      <div class="field">
+        <label for="hisBuscar">Buscar (nombre, usuario o dirección)</label>
+        <input id="hisBuscar" type="text" placeholder="deja vacío para ver todos">
+      </div>
+      <div class="field">
+        <label for="hisLimite">Cuántos mostrar</label>
+        <input id="hisLimite" type="number" min="1" max="500" value="100">
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <label>&nbsp;</label>
+        <button class="ghost" id="btnHistorial" type="button">🔄 Cargar historial</button>
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <label>&nbsp;</label>
+        <button class="danger" id="btnHistorialTodo" type="button">🧹 Borrar TODO el historial</button>
+      </div>
+    </div>
+    <div id="historial" style="margin-top:14px"></div>
   </section>
 </main>
 
@@ -437,6 +481,129 @@
     };
 
     return bloque;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Historial de misiones
+  // ---------------------------------------------------------------------------
+  function fechaCorta(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso);
+    if (isNaN(d)) return '—';
+    // Se piden horas y minutos a la API de formato en vez de recortar la cadena
+    // a 5 caracteres: con horas de un solo dígito ("5:00:00") el recorte dejaba
+    // un "5:00:" con dos puntos colgando.
+    return d.toLocaleDateString() + ' ' +
+           d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function pintarHistorial(filas) {
+    var cont = $('historial');
+    cont.textContent = '';
+
+    if (!filas.length) {
+      cont.appendChild(crear('p', { class: 'hint', text: 'No hay jugadores que coincidan.' }));
+      return;
+    }
+
+    var tabla = crear('table', { class: 'his-tabla' });
+    var thead = crear('thead');
+    var trh = crear('tr');
+    ['#', 'Jugador', 'Usuario', 'Dirección', 'Nivel', 'Acumulado', 'Registros', 'Días', 'Última entrega', '']
+      .forEach(function (t) { trh.appendChild(crear('th', { text: t })); });
+    thead.appendChild(trh);
+    tabla.appendChild(thead);
+
+    var tbody = crear('tbody');
+    filas.forEach(function (f, i) {
+      var tr = crear('tr');
+      tr.appendChild(crear('td', { text: String(i + 1) }));
+      tr.appendChild(crear('td', { text: f.playerName }));
+      tr.appendChild(crear('td', { text: f.username || '—' }));
+
+      // La dirección entera no cabe: se muestra recortada y completa al pasar
+      // el ratón, para poder copiarla sin romper la tabla.
+      var tdDir = crear('td');
+      if (f.address) {
+        var sp = crear('span', { text: f.address.slice(0, 6) + '…' + f.address.slice(-4) });
+        sp.title = f.address;
+        tdDir.appendChild(sp);
+      } else { tdDir.textContent = '—'; }
+      tr.appendChild(tdDir);
+
+      tr.appendChild(crear('td', { text: String(f.nivel) }));
+      tr.appendChild(crear('td', { text: String(f.misiones) }));
+      tr.appendChild(crear('td', { text: String(f.entregasRegistradas) }));
+      tr.appendChild(crear('td', { text: String(f.diasConActividad) }));
+      tr.appendChild(crear('td', { text: fechaCorta(f.ultimaEntrega) }));
+
+      var tdBtn = crear('td');
+      var btn = crear('button', { class: 'danger', type: 'button', text: 'Limpiar' });
+      btn.addEventListener('click', function () { limpiarJugador(f.playerName, btn); });
+      tdBtn.appendChild(btn);
+      tr.appendChild(tdBtn);
+
+      tbody.appendChild(tr);
+    });
+    tabla.appendChild(tbody);
+    cont.appendChild(tabla);
+  }
+
+  function cargarHistorial() {
+    var q = '?limit=' + encodeURIComponent($('hisLimite').value || 100);
+    var b = ($('hisBuscar').value || '').trim();
+    if (b) q += '&search=' + encodeURIComponent(b);
+
+    aviso('Cargando historial…');
+    pedir('/api/admin/missions/history' + q)
+      .then(function (d) {
+        pintarHistorial(d.rows || []);
+        aviso('Historial cargado: ' + (d.total || 0) + ' jugadores.', 'ok');
+      })
+      .catch(function (e) { aviso('No se pudo cargar el historial: ' + e.message, 'error'); });
+  }
+
+  function limpiarJugador(playerName, btn) {
+    // Se avisa del efecto real: borrar el progreso de HOY le permite volver a
+    // entregar las misiones de hoy y cobrarlas otra vez.
+    if (!confirm(
+      'Vas a borrar el historial de misiones de "' + playerName + '".' + '\\n\\n' +
+      'Se pone su contador acumulado a 0 y se borran sus registros diarios.' + '\n' +
+      'OJO: al borrar el progreso de HOY, podrá volver a entregar las misiones ' +
+      'de hoy y cobrar la recompensa otra vez.' + '\n\n' + '¿Continuar?')) return;
+
+    if (btn) btn.disabled = true;
+    pedir('/api/admin/missions/history/' + encodeURIComponent(playerName), { method: 'DELETE' })
+      .then(function (d) {
+        aviso('Historial de ' + playerName + ' borrado (' + d.registrosBorrados + ' registros).', 'ok');
+        cargarHistorial();
+      })
+      .catch(function (e) {
+        aviso('No se pudo borrar: ' + e.message, 'error');
+        if (btn) btn.disabled = false;
+      });
+  }
+
+  function limpiarTodoElHistorial() {
+    if (!confirm(
+      'Vas a borrar el historial de misiones de TODOS los jugadores.' + '\n\n' +
+      'Se ponen a 0 todos los contadores y se borran todos los registros diarios.' + '\n' +
+      'OJO: todo el mundo podrá volver a entregar las misiones de hoy y cobrarlas ' +
+      'otra vez.' + '\n\n' + 'Esto no se puede deshacer. ¿Continuar?')) return;
+    if (prompt('Escribe BORRAR para confirmar:') !== 'BORRAR') {
+      aviso('Cancelado.', 'ok');
+      return;
+    }
+    pedir('/api/admin/missions/history', {
+      method: 'DELETE',
+      body: JSON.stringify({ confirm: 'BORRAR' })
+    })
+      .then(function (d) {
+        aviso('Historial completo borrado: ' + d.registrosBorrados + ' registros, ' +
+               d.contadoresReiniciados + ' contadores.', 'ok');
+        cargarHistorial();
+      })
+      .catch(function (e) { aviso('No se pudo borrar: ' + e.message, 'error'); });
   }
 
   function agregarMision(datos) {
@@ -671,6 +838,13 @@
   $('btnAgregar').addEventListener('click', function () { agregarMision(); });
   $('btnGuardar').addEventListener('click', guardar);
   $('npc').addEventListener('change', cargarDias);
+
+  $('btnHistorial').addEventListener('click', cargarHistorial);
+  $('btnHistorialTodo').addEventListener('click', limpiarTodoElHistorial);
+  // Enter en el buscador = cargar
+  $('hisBuscar').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') cargarHistorial();
+  });
 
   $('btnCopiar').addEventListener('click', function () {
     if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
