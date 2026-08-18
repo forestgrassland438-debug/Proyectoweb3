@@ -72,6 +72,10 @@
   <!-- missionspanel.js -->
   <script src="./missionspanel.js?v=17.3" defer></script>
 
+  <!-- Personajes Soulbound. Va ANTES de las escenas porque sus preload()
+       le piden las rutas de los sprites del jugador. -->
+  <script src="./gf-soulbound.js?v=17.3" defer></script>
+
   <!-- Scenes -->
   <script src="./Scenes/MenuScene.js?v=17.3" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=17.3" defer></script>
@@ -1034,6 +1038,23 @@
           <!-- populated by JS -->
         </div>
       </div>
+      <!-- Soulbound Characters -->
+      <div class="nft-section">
+        <div class="nft-section-title">🧬 Soulbound Character</div>
+        <div class="sb-current">
+          <div class="sb-current-art"><img id="sb-current-img" src="" alt="" /></div>
+          <div class="sb-current-info">
+            <div id="sb-current-name" class="sb-current-name">—</div>
+            <div class="sb-current-hint">Pick a character below. It is bound to your account.</div>
+          </div>
+        </div>
+        <!-- Botones redondos: los rellena _renderSoulboundList() con lo que
+             haya en Game/Sprites/Soulbound/ (no hay lista fija que mantener). -->
+        <div id="sb-list" class="sb-list">
+          <div class="sb-loading">Loading characters…</div>
+        </div>
+      </div>
+
       <!-- NFT Section placeholder -->
       <div class="nft-section">
         <div class="nft-section-title">💎 My NFTs</div>

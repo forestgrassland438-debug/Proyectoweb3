@@ -9833,6 +9833,47 @@ button:focus {
 }
 .nft-empty-state { font-size:11px; color:rgba(100,180,255,0.45); text-align:center; padding:20px 0; }
 
+/* ============================================================
+   SOULBOUND CHARACTERS  (panel NFT)
+   Botones redondos, uno por carpeta de Game/Sprites/Soulbound/.
+   La lista la pinta _renderSoulboundList() en GameScene.
+   ============================================================ */
+.sb-current { display:flex; gap:14px; align-items:center; margin-bottom:14px; }
+.sb-current-art {
+  width:76px; height:76px; border-radius:50%; flex-shrink:0; overflow:hidden;
+  background:rgba(0,20,50,0.60); border:2px solid rgba(64,160,255,0.35);
+  display:flex; align-items:center; justify-content:center;
+}
+.sb-current-art img {
+  width:100%; height:100%; object-fit:contain; image-rendering:pixelated;
+}
+.sb-current-info  { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.sb-current-name  { font-size:14px; color:#c8e8ff; font-weight:700; text-transform:capitalize; }
+.sb-current-hint  { font-size:10px; color:rgba(100,180,255,0.55); line-height:1.4; }
+
+.sb-list { display:flex; flex-wrap:wrap; gap:12px; }
+.sb-loading { font-size:11px; color:rgba(100,180,255,0.45); padding:8px 0; }
+
+.sb-char {
+  width:64px; height:64px; border-radius:50%; padding:0;
+  background:rgba(0,20,50,0.65); border:2px solid rgba(64,160,255,0.20);
+  cursor:pointer; overflow:hidden; position:relative;
+  display:flex; align-items:center; justify-content:center;
+  transition:border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+.sb-char img {
+  width:100%; height:100%; object-fit:contain; image-rendering:pixelated;
+  pointer-events:none;
+}
+.sb-char:hover      { border-color:rgba(64,160,255,0.65); box-shadow:0 0 10px rgba(30,100,220,0.35); transform:translateY(-2px); }
+.sb-char.sb-active  { border-color:#4fd18b; box-shadow:0 0 12px rgba(79,209,139,0.45); }
+.sb-char.sb-busy    { opacity:0.5; pointer-events:none; }
+/* Marca de "equipado" */
+.sb-char.sb-active::after {
+  content:'✓'; position:absolute; right:2px; bottom:0;
+  font-size:11px; color:#4fd18b; text-shadow:0 0 3px #000;
+}
+
 /* NFT round button */
 .round-btn--nft { position:relative; }
 
