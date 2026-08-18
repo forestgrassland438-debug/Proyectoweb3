@@ -3097,6 +3097,24 @@ handleMouseMovement(delta) {
           }
         },
         
+        // cambioSoulbound - Otro jugador se cambió de personaje estando quieto
+        // (si se mueve, el dato ya viaja dentro de playerMoved).
+        {
+          event: 'cambioSoulbound',
+          handler: (data) => {
+            if (!data || data.id === this.myId) return;
+            const p = this.otherPlayers[data.id];
+            const SB = window.GFSoulbound;
+            if (!p || !p.sprite || !SB || !SB.idValido(data.soulbound)) return;
+            p._soulbound = data.soulbound;
+            SB.asegurarPersonaje(this, data.soulbound).then((ok) => {
+              if (!ok || !p.sprite || !p.sprite.scene) return;
+              const mira = (p.lastDirection === 'left') ? 'left' : 'right';
+              p.sprite.setTexture(SB.texturaRemota(data.soulbound, mira));
+            });
+          }
+        },
+
         // playerLeft - Jugador abandonó la sala
         {
           event: 'playerLeft',
@@ -3210,7 +3228,9 @@ handleMouseMovement(delta) {
         // Niveles ya en el JOIN, para que un jugador quieto se vea con nivel.
         nivel:    Math.max(0, Number(this.nivel) || 0),
         petLevel: Math.max(1, Number(this.petLevel) || 1),
-        dogName:  this._isNameSet && this._isNameSet(this.petName) ? this.petName : ''
+        dogName:  this._isNameSet && this._isNameSet(this.petName) ? this.petName : '',
+        // Mi personaje Soulbound (ver la nota en GameScene.joinRoom).
+        soulbound: window.GFSoulbound ? window.GFSoulbound.actual() : null
       });
     }
 
@@ -3348,12 +3368,20 @@ clearOtherPlayers() {
 createOtherPlayer(playerInfo) {
   if (this.otherPlayers[playerInfo.id]) return;
 
-  const initialTexture =
+  // Cada jugador con SU personaje (mismo arreglo que en GameScene): las claves
+  // globales 'player_*' son las que cambia mi propio panel Soulbound, así que
+  // usarlas aquí hacía que todos se vieran con mi personaje.
+  const _sbRemoto = (window.GFSoulbound && window.GFSoulbound.idValido(playerInfo.soulbound))
+    ? playerInfo.soulbound : null;
+
+  const _miraIzquierda =
     (playerInfo.directionx === 'stop_left' ||
       (playerInfo.direction === 'stop' &&
-        (playerInfo.lastDirection === 'left' || playerInfo.direction === 'left')))
-      ? 'player_left_1'
-      : 'player_right_1';
+        (playerInfo.lastDirection === 'left' || playerInfo.direction === 'left')));
+
+  const initialTexture = window.GFSoulbound
+    ? window.GFSoulbound.texturaRemota(_sbRemoto, _miraIzquierda ? 'left' : 'right')
+    : (_miraIzquierda ? 'player_left_1' : 'player_right_1');
 
   const sprite = this.add.sprite(playerInfo.x, playerInfo.y, initialTexture);
   sprite.setScale(2);
@@ -3378,10 +3406,24 @@ createOtherPlayer(playerInfo) {
   this.otherPlayers[playerInfo.id] = {
     sprite,
     nameText,
+    // Personaje Soulbound de ESTE jugador.
+    _soulbound: _sbRemoto,
     lastUpdate: Date.now(),
     lastDirection: playerInfo.direction || 'right',
     dog: null
   };
+
+  // Traer sus sprites en segundo plano; hasta que lleguen se le ve con el
+  // personaje por defecto en lugar de con el mío.
+  if (_sbRemoto && window.GFSoulbound) {
+    window.GFSoulbound.asegurarPersonaje(this, _sbRemoto).then((ok) => {
+      if (!ok) return;
+      const p = this.otherPlayers[playerInfo.id];
+      if (!p || !p.sprite || !p.sprite.scene) return;
+      const mira = (p.lastDirection === 'left') ? 'left' : 'right';
+      p.sprite.setTexture(window.GFSoulbound.texturaRemota(_sbRemoto, mira));
+    });
+  }
 
   const remotePlayer = this.otherPlayers[playerInfo.id];
 
@@ -3470,19 +3512,35 @@ updateOtherPlayer(playerInfo) {
     const remoteFeetY = y + player.sprite.displayHeight * 0.5;
     player.sprite.setDepth(remoteFeetY);
 
+    // Personaje de ESTE jugador, no el mío (ver GameScene.updateOtherPlayer).
+    const _SB = window.GFSoulbound;
+    if (_SB && _SB.idValido(playerInfo.soulbound) && playerInfo.soulbound !== player._soulbound) {
+      player._soulbound = playerInfo.soulbound;
+      _SB.asegurarPersonaje(this, playerInfo.soulbound).then((ok) => {
+        if (!ok || !player.sprite || !player.sprite.scene) return;
+        const mira = (player.lastDirection === 'left') ? 'left' : 'right';
+        player.sprite.setTexture(_SB.texturaRemota(playerInfo.soulbound, mira));
+      });
+    }
+    const _sbId   = player._soulbound || null;
+    const _anim   = (dir) => _SB ? _SB.animRemota(_sbId, dir) : dir;
+    const _quieto = (dir) => _SB ? _SB.texturaRemota(_sbId, dir)
+                                 : (dir === 'left' ? 'player_left_1' : 'player_right_1');
+
     if (isMoving) {
-      if (this.anims.exists(direction)) {
-        player.sprite.anims.play(direction, true);
+      const claveAnim = _anim(direction);
+      if (this.anims.exists(claveAnim)) {
+        player.sprite.anims.play(claveAnim, true);
       } else {
-        player.sprite.setTexture(direction === 'left' ? 'player_left_1' : 'player_right_1');
+        player.sprite.setTexture(_quieto(direction === 'left' ? 'left' : 'right'));
       }
     } else {
       if (player.sprite.anims) player.sprite.anims.stop();
 
       if (directionx === 'stop_left' || (direction === 'stop' && player.lastDirection === 'left')) {
-        player.sprite.setTexture('player_left_1');
+        player.sprite.setTexture(_quieto('left'));
       } else {
-        player.sprite.setTexture('player_right_1');
+        player.sprite.setTexture(_quieto('right'));
       }
     }
 

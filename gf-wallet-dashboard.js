@@ -344,16 +344,30 @@
     if (!tabs.length) return;
     ENLAZADO = true;
 
-    var general = $('gfw-cat-general');
-    var cartera = $('gfw-cat-wallet');
+    // El conmutador es GENÉRICO: cada pestaña `data-cat="x"` muestra la sección
+    // `#gfw-cat-x` y esconde las demás. Antes estaban escritas a mano las dos
+    // que había (general y wallet), así que añadir una tercera —Channels— no
+    // habría hecho nada: se marcaba la pestaña pero no aparecía su contenido.
+    function seccionDe(cat) { return $('gfw-cat-' + cat); }
+
+    var categorias = Array.prototype.map.call(tabs, function (b) {
+      return b.getAttribute('data-cat');
+    });
 
     function abrir(cat) {
       Array.prototype.forEach.call(tabs, function (b) {
         b.classList.toggle('active', b.getAttribute('data-cat') === cat);
       });
-      if (general) general.style.display = (cat === 'general') ? '' : 'none';
-      if (cartera) cartera.style.display = (cat === 'wallet')  ? '' : 'none';
+      categorias.forEach(function (c) {
+        var sec = seccionDe(c);
+        if (sec) sec.style.display = (c === cat) ? '' : 'none';
+      });
       if (cat === 'wallet') pintar();
+      // La pestaña de canales la pinta su propio módulo, que es quien conoce
+      // el estado del socket.
+      if (cat === 'canales' && window.GFCanales && window.GFCanales.montarPanel) {
+        window.GFCanales.montarPanel();
+      }
     }
 
     Array.prototype.forEach.call(tabs, function (b) {

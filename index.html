@@ -76,6 +76,15 @@
        le piden las rutas de los sprites del jugador. -->
   <script src="./gf-soulbound.js?v=17.3" defer></script>
 
+  <!-- Canales (10 × 50 jugadores). El canal lo asigna el servidor al conectar
+       el socket, UNA sola vez por pestaña; este módulo solo lo recuerda y
+       pinta el panel del dashboard. -->
+  <script src="./gf-canales.js?v=17.3" defer></script>
+
+  <!-- Cazador de micro-parones. Inerte hasta que se le llama a mano desde la
+       consola con GFTirones.empezar(). No vigila nada por su cuenta. -->
+  <script src="./gf-tirones.js?v=17.3" defer></script>
+
   <!-- Scenes -->
   <script src="./Scenes/MenuScene.js?v=17.3" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=17.3" defer></script>
@@ -1468,6 +1477,28 @@
     <div class="hub-cats_101" role="tablist">
       <button type="button" class="hub-cat_101 active" data-cat="general" role="tab">⚙️ General</button>
       <button type="button" class="hub-cat_101" data-cat="wallet" role="tab">👛 Wallet</button>
+      <button type="button" class="hub-cat_101" data-cat="canales" role="tab">📡 Channels</button>
+    </div>
+
+    <!-- CANALES: 10 copias del mundo, 50 jugadores cada una. El canal lo asigna
+         el servidor al conectar (ver gf-canales.js); aquí solo se enseña y se
+         permite cambiarlo. -->
+    <div id="gfw-cat-canales" style="display:none">
+      <div class="hub-row_101 dash-card_101">
+        <div class="gfc-cabecera">
+          <div>
+            <div class="hub-label_101" style="margin:0">You are in</div>
+            <div id="gfc-actual" class="gfc-actual">Connecting…</div>
+          </div>
+          <button type="button" id="gfc-refrescar" class="btn-primary dash-apply_101">Refresh</button>
+        </div>
+        <div class="dash-hint_101">
+          Players only see each other, share chat and appear in the same ranking
+          when they are on the same channel.
+        </div>
+        <div id="gfc-msg" class="gfc-msg" style="display:none"></div>
+        <div id="gfc-lista" class="gfc-lista"></div>
+      </div>
     </div>
 
     <div id="gfw-cat-general">

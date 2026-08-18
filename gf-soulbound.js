@@ -471,11 +471,130 @@
       // El guardado en servidor va aparte: si la red falla, el jugador ya ve
       // su personaje y la elección sigue viva en el navegador.
       guardarEnServidor(id, esc);
+
+      // Avisar a los demás jugadores AHORA. Sin esto, si cambias de personaje
+      // quieto, los otros te seguirían viendo con el anterior hasta que dieras
+      // un paso (playerMove es lo que arrastra el dato el resto del tiempo).
+      try {
+        var sock = (esc && esc.socket) || global.globalSocket;
+        if (sock && sock.connected) sock.emit('cambioSoulbound', { soulbound: id });
+      } catch (e) {}
       try {
         global.dispatchEvent(new CustomEvent('gf-soulbound-cambiado', { detail: { id: id } }));
       } catch (e) {}
       return ok || cambio;
     });
+  }
+
+  // ── PERSONAJES DE LOS DEMÁS JUGADORES ────────────────────────────────────
+  //
+  // PROBLEMA QUE RESUELVE: todos los jugadores compartían las mismas claves de
+  // textura ('player_right_1'…). Como equipar un personaje sustituye esas
+  // texturas, al ponerte la chica TODOS los demás se veían con la chica, y si
+  // entraba alguien con otro personaje se le veía con el tuyo.
+  //
+  // Solución: el jugador LOCAL sigue usando las claves globales de siempre (no
+  // se toca nada de lo que ya funcionaba), y cada jugador remoto carga las
+  // suyas bajo un prefijo propio:
+  //
+  //      sb_personaje2_player_right_1 … sb_personaje2_player_down_7
+  //      animaciones: sb_personaje2_right / _left / _up / _down
+  //
+  // Se cargan una sola vez por personaje y se reutilizan para todos los
+  // jugadores que lleven ese mismo personaje.
+  var cargados   = {};   // id -> true cuando sus texturas y animaciones existen
+  var cargandose = {};   // id -> promesa en vuelo (evita cargas duplicadas)
+
+  /** Clave de textura de un personaje concreto. */
+  function texturaDe(id, carpeta, n) {
+    return 'sb_' + id + '_' + DIRECCIONES[carpeta] + '_' + n;
+  }
+  /** Clave de animación de un personaje concreto. 'right' | 'left' | 'up' | 'down' */
+  function animDe(id, direccion) {
+    return 'sb_' + id + '_' + direccion;
+  }
+  /** ¿Están ya listas las texturas y animaciones de este personaje? */
+  function listo(id) { return cargados[id] === true; }
+
+  /**
+   * Carga (si hace falta) las texturas y animaciones de un personaje para
+   * usarlas en jugadores remotos. Idempotente y a prueba de llamadas
+   * simultáneas: si ya se está cargando, devuelve la misma promesa.
+   */
+  function asegurarPersonaje(scene, id) {
+    if (!scene || !idValido(id)) return Promise.resolve(false);
+    if (cargados[id]) return Promise.resolve(true);
+    if (cargandose[id]) return cargandose[id];
+
+    cargandose[id] = new Promise(function (resolve) {
+      var pendientes = [];
+      try {
+        Object.keys(DIRECCIONES).forEach(function (carpeta) {
+          for (var i = 1; i <= FOTOGRAMAS; i++) {
+            var clave = texturaDe(id, carpeta, i);
+            if (!scene.textures.exists(clave)) {
+              scene.load.image(clave, ruta(carpeta, i, id));
+              pendientes.push(clave);
+            }
+          }
+        });
+      } catch (e) { cargandose[id] = null; return resolve(false); }
+
+      var rematar = function () {
+        try {
+          // Si falta alguna imagen no se registran animaciones a medias: el
+          // jugador remoto se queda con la textura de reserva y no desaparece.
+          var faltan = pendientes.filter(function (c) { return !scene.textures.exists(c); });
+          if (faltan.length) {
+            console.warn('[Soulbound] personaje remoto "' + id + '": faltan ' +
+                         faltan.length + ' imágenes; se usa el de reserva.');
+            cargandose[id] = null;
+            return resolve(false);
+          }
+          ANIMACIONES.forEach(function (a) {
+            var clave = animDe(id, a.key);
+            if (scene.anims.exists(clave)) return;
+            var frames = [];
+            for (var i = 1; i <= FOTOGRAMAS; i++) {
+              frames.push({ key: 'sb_' + id + '_' + a.prefijo + '_' + i });
+            }
+            scene.anims.create({ key: clave, frames: frames, frameRate: FRAME_RATE, repeat: -1 });
+          });
+          cargados[id] = true;
+          cargandose[id] = null;
+          resolve(true);
+        } catch (e) {
+          console.warn('[Soulbound] no se pudo preparar el personaje remoto ' + id, e);
+          cargandose[id] = null;
+          resolve(false);
+        }
+      };
+
+      if (!pendientes.length) return rematar();
+      scene.load.once('complete', rematar);
+      try { scene.load.start(); } catch (e) { cargandose[id] = null; resolve(false); }
+    });
+
+    return cargandose[id];
+  }
+
+  /**
+   * Textura quieta que debe llevar un sprite remoto mirando a `direccion`.
+   * Si el personaje aún no está cargado devuelve la clave global de siempre,
+   * así el jugador se ve (con el personaje por defecto) mientras llega el suyo.
+   */
+  function texturaRemota(id, direccion) {
+    var carpeta = (direccion === 'left') ? 'izquierda'
+                : (direccion === 'up')   ? 'arriba'
+                : (direccion === 'down') ? 'abajo' : 'derecha';
+    if (idValido(id) && listo(id)) return texturaDe(id, carpeta, 1);
+    return DIRECCIONES[carpeta] + '_1';
+  }
+
+  /** Igual, para la animación de caminar. */
+  function animRemota(id, direccion) {
+    if (idValido(id) && listo(id)) return animDe(id, direccion);
+    return direccion;
   }
 
   // ── Panel del jugador (sección Soulbound dentro del panel NFT) ───────────
@@ -569,6 +688,11 @@
     BASE:          BASE,
     montarPanel:   montarPanel,
     refrescarPanel: refrescarPanel,
+    // Personajes de jugadores remotos (cada uno con el suyo)
+    asegurarPersonaje: asegurarPersonaje,
+    texturaRemota:     texturaRemota,
+    animRemota:        animRemota,
+    personajeListo:    listo,
     POR_DEFECTO:   POR_DEFECTO,
     actual:        actual,
     fijar:         fijar,

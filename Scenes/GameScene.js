@@ -11355,15 +11355,21 @@ initWaterCollectionSystem() {
     await this.handleWaterCollectionClick(pointer);
   });
   
-  // Actualizar estado periódicamente (cada 30 segundos)
-  this.time.addEvent({
-    delay: 30000,
-    callback: this.updateWaterCollectionStatus.bind(this),
-    callbackScope: this,
-    loop: true
-  });
-  
-  // Actualizar estado inicial
+  // SONDEO PERIÓDICO RETIRADO.
+  //
+  // Aquí había un temporizador que llamaba a updateWaterCollectionStatus() cada
+  // 30 segundos durante TODA la partida: una petición al servidor, más leer la
+  // respuesta y repintar el cartel del pozo, para un pozo que el jugador puede
+  // no pisar en toda la sesión. Era el único trabajo recurrente de 30 s que
+  // había en la escena, justo el ritmo del tirón que se notaba al caminar.
+  //
+  // No hace falta: el estado ya se pide EN EL MOMENTO en que importa —
+  // showWaterCollectionInfo() lo consulta al acercarse al pozo, y el propio
+  // servidor vuelve a validar al recolectar, así que un dato viejo en pantalla
+  // no puede colar una recolección indebida.
+  //
+  // Se mantiene la consulta inicial, para que el cartel ya salga bien la
+  // primera vez que el jugador se acerque.
   this.updateWaterCollectionStatus();
 
   // NOTA: ya no hay listener de pointermove — el cartel queda FIJO arriba
@@ -15824,6 +15830,25 @@ _setupZoomKeeper() {
           }
         },
         
+        // cambioSoulbound - Otro jugador se cambió de personaje SIN moverse.
+        // Si se mueve, el dato ya llega dentro de playerMoved; esto cubre al
+        // que lo cambia estando quieto, que si no se vería con el anterior.
+        {
+          event: 'cambioSoulbound',
+          handler: (data) => {
+            if (!data || data.id === this.myId) return;
+            const p = this.otherPlayers[data.id];
+            const SB = window.GFSoulbound;
+            if (!p || !p.sprite || !SB || !SB.idValido(data.soulbound)) return;
+            p._soulbound = data.soulbound;
+            SB.asegurarPersonaje(this, data.soulbound).then((ok) => {
+              if (!ok || !p.sprite || !p.sprite.scene) return;
+              const mira = (p.lastDirection === 'left') ? 'left' : 'right';
+              p.sprite.setTexture(SB.texturaRemota(data.soulbound, mira));
+            });
+          }
+        },
+
         // playerLeft - Jugador abandonó la sala
         {
           event: 'playerLeft',
@@ -15930,7 +15955,11 @@ _setupZoomKeeper() {
         // nunca se emite y los demás lo verían sin nivel indefinidamente.
         nivel:    Math.max(0, Number(this.nivel) || 0),
         petLevel: Math.max(1, Number(this.petLevel) || 1),
-        dogName:  this._isNameSet && this._isNameSet(this.petName) ? this.petName : ''
+        dogName:  this._isNameSet && this._isNameSet(this.petName) ? this.petName : '',
+        // Mi personaje Soulbound, para que los demás me vean con el mío y no
+        // con el suyo. Va en el JOIN porque si entro y no me muevo nunca se
+        // emitiría un playerMove y me verían con el personaje por defecto.
+        soulbound: window.GFSoulbound ? window.GFSoulbound.actual() : null
       });
     }
 
@@ -16087,12 +16116,23 @@ clearOtherPlayers() {
 createOtherPlayer(playerInfo) {
   if (this.otherPlayers[playerInfo.id]) return;
 
-  const initialTexture =
+  // PERSONAJE PROPIO DE CADA JUGADOR.
+  // Antes todos compartían las claves globales 'player_*', que son las que
+  // cambia el panel Soulbound: al equipar otro personaje TODOS los jugadores
+  // de la pantalla cambiaban con él. Ahora cada uno usa las texturas de SU
+  // personaje (ver GFSoulbound.asegurarPersonaje). Mientras se cargan, se
+  // muestra el personaje por defecto en vez de dejar el hueco vacío.
+  const _sbRemoto = (window.GFSoulbound && window.GFSoulbound.idValido(playerInfo.soulbound))
+    ? playerInfo.soulbound : null;
+
+  const _miraIzquierda =
     (playerInfo.directionx === 'stop_left' ||
       (playerInfo.direction === 'stop' &&
-        (playerInfo.lastDirection === 'left' || playerInfo.direction === 'left')))
-      ? 'player_left_1'
-      : 'player_right_1';
+        (playerInfo.lastDirection === 'left' || playerInfo.direction === 'left')));
+
+  const initialTexture = window.GFSoulbound
+    ? window.GFSoulbound.texturaRemota(_sbRemoto, _miraIzquierda ? 'left' : 'right')
+    : (_miraIzquierda ? 'player_left_1' : 'player_right_1');
 
   const sprite = this.add.sprite(playerInfo.x, playerInfo.y, initialTexture);
   sprite.setScale(2);
@@ -16128,12 +16168,26 @@ createOtherPlayer(playerInfo) {
     _playerName: playerInfo.playerName || null,
     _lastChatMsg: null,
     _prevChatMsg: null,
+    // Personaje Soulbound de ESTE jugador (no el mío).
+    _soulbound: _sbRemoto,
     lastUpdate: Date.now(),
     lastDirection: playerInfo.direction || 'right',
     dog: null
   };
 
   const remotePlayer = this.otherPlayers[playerInfo.id];
+
+  // Traer sus sprites en segundo plano. Cuando lleguen se le cambia la textura
+  // en el sitio; hasta entonces se ve con el personaje por defecto.
+  if (_sbRemoto && window.GFSoulbound) {
+    window.GFSoulbound.asegurarPersonaje(this, _sbRemoto).then((ok) => {
+      if (!ok) return;
+      const p = this.otherPlayers[playerInfo.id];
+      if (!p || !p.sprite || !p.sprite.scene) return;   // se fue mientras cargaba
+      const mira = (p.lastDirection === 'left') ? 'left' : 'right';
+      p.sprite.setTexture(window.GFSoulbound.texturaRemota(_sbRemoto, mira));
+    });
+  }
 
   // SUBMENÚ DE JUGADOR (2026-08-03): clic derecho sobre otro personaje abre
   // Profile / Send verifier / Report para ESE jugador en concreto.
@@ -16257,19 +16311,40 @@ updateOtherPlayer(playerInfo) {
     const remoteFeetY = y + player.sprite.displayHeight * 0.5;
     player.sprite.setDepth(remoteFeetY);
 
+    // ── PERSONAJE DE ESTE JUGADOR, NO EL MÍO ─────────────────────────────
+    // Las claves 'right'/'player_left_1'… son las GLOBALES, que cambian cuando
+    // yo me pongo otro personaje. Aquí se usan las de su personaje; si aún no
+    // han terminado de cargar, GFSoulbound devuelve las globales para que se
+    // le siga viendo mientras tanto.
+    const _SB = window.GFSoulbound;
+    if (_SB && _SB.idValido(playerInfo.soulbound) && playerInfo.soulbound !== player._soulbound) {
+      // Se cambió de personaje en marcha: traer el nuevo y repintarlo.
+      player._soulbound = playerInfo.soulbound;
+      _SB.asegurarPersonaje(this, playerInfo.soulbound).then((ok) => {
+        if (!ok || !player.sprite || !player.sprite.scene) return;
+        const mira = (player.lastDirection === 'left') ? 'left' : 'right';
+        player.sprite.setTexture(_SB.texturaRemota(playerInfo.soulbound, mira));
+      });
+    }
+    const _sbId  = player._soulbound || null;
+    const _anim  = (dir) => _SB ? _SB.animRemota(_sbId, dir) : dir;
+    const _quieto = (dir) => _SB ? _SB.texturaRemota(_sbId, dir)
+                                 : (dir === 'left' ? 'player_left_1' : 'player_right_1');
+
     if (isMoving) {
-      if (this.anims.exists(direction)) {
-        player.sprite.anims.play(direction, true);
+      const claveAnim = _anim(direction);
+      if (this.anims.exists(claveAnim)) {
+        player.sprite.anims.play(claveAnim, true);
       } else {
-        player.sprite.setTexture(direction === 'left' ? 'player_left_1' : 'player_right_1');
+        player.sprite.setTexture(_quieto(direction === 'left' ? 'left' : 'right'));
       }
     } else {
       if (player.sprite.anims) player.sprite.anims.stop();
 
       if (directionx === 'stop_left' || (direction === 'stop' && player.lastDirection === 'left')) {
-        player.sprite.setTexture('player_left_1');
+        player.sprite.setTexture(_quieto('left'));
       } else {
-        player.sprite.setTexture('player_right_1');
+        player.sprite.setTexture(_quieto('right'));
       }
     }
 
