@@ -338,7 +338,17 @@
     // Resolución de render. app.js lee GF_MAX_DPR al calcular el tamaño interno
     // del juego; 0 significa "sin tope".
     var topeAnterior = global.GF_MAX_DPR;
-    global.GF_MAX_DPR = cfg.dpr > 0 ? cfg.dpr : Infinity;
+
+    // TECHO DEL DISPOSITIVO: en móvil, app.js publica GF_DPR_TECHO_DISPOSITIVO
+    // (ver createGame). Sin esto, la calidad "Alta" —que es la de por defecto—
+    // ponía el tope en Infinity y deshacía el límite de densidad justo en los
+    // aparatos que lo necesitan: el teléfono volvía a rellenar hasta nueve veces
+    // los píxeles necesarios en cada fotograma.
+    // En escritorio no existe ese techo, así que "Alta" sigue siendo sin tope y
+    // el juego se ve exactamente igual que antes.
+    var techoDispositivo = Math.max(1, global.GF_DPR_TECHO_DISPOSITIVO || Infinity);
+    var deseado = cfg.dpr > 0 ? cfg.dpr : Infinity;
+    global.GF_MAX_DPR = Math.min(deseado, techoDispositivo);
 
     if (topeAnterior !== global.GF_MAX_DPR && typeof global.gfResizeGame === 'function') {
       try { global.gfResizeGame(); } catch (e) {}

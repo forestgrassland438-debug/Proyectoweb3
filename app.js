@@ -845,7 +845,34 @@
       PERF_OPTIONS.joystickConfig.x      = 80;
       PERF_OPTIONS.joystickConfig.y      = root.innerHeight - 100;
       PERF_OPTIONS.joystickConfig.radius = 40;
-      Logger.log('Optimizando para dispositivo móvil / bajo rendimiento');
+
+      // ── TOPE DE RESOLUCIÓN INTERNA EN MÓVIL ────────────────────────────────
+      // CAUSA PRINCIPAL DE "EN EL TELÉFONO VA LENTO":
+      //
+      // _gameSize() multiplica el tamaño del lienzo por la densidad de píxeles
+      // del aparato. En un móvil con densidad 3 eso son NUEVE VECES los píxeles
+      // que hay que rellenar en cada fotograma: sobre un viewport de 1280×720,
+      // 8,29 megapíxeles en lugar de 0,92. Ninguna GPU de teléfono de gama
+      // media sostiene eso a 30 fps, y es también lo que lo calienta.
+      //
+      // Con tope 2 se sigue viendo nítido (el pixel art cae en un número entero
+      // de píxeles de pantalla, que es lo que importa aquí) y se pasa de 8,29 a
+      // 3,69 megapíxeles: menos de la mitad del trabajo de GPU.
+      //
+      // Solo se aplica en móvil/equipos flojos: en un PC no hay motivo, y así
+      // el juego se ve exactamente igual que hasta ahora en escritorio.
+      //
+      // Son DOS variables a propósito:
+      //   GF_MAX_DPR                → tope efectivo de ahora mismo; lo reescribe
+      //                               el panel de gráficos al cambiar la calidad.
+      //   GF_DPR_TECHO_DISPOSITIVO  → techo del aparato, que el panel NO puede
+      //                               superar (ver aplicarCalidadGlobal).
+      // Sin el segundo, la calidad "Alta" —la de por defecto— volvía a poner el
+      // tope en Infinity y el arreglo no servía de nada en el móvil.
+      root.GF_DPR_TECHO_DISPOSITIVO = 2;
+      if (!root.GF_MAX_DPR) root.GF_MAX_DPR = root.GF_DPR_TECHO_DISPOSITIVO;
+
+      Logger.log('Optimizando para dispositivo móvil / bajo rendimiento (techo de densidad: ' + root.GF_DPR_TECHO_DISPOSITIVO + ')');
     }
 
     // Reutilizar instancia existente de phaserScaler si ya existe

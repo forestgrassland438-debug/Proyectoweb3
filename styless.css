@@ -10020,6 +10020,11 @@ button:focus {
   padding-bottom: 14px;
   margin-bottom: 16px;
   border-bottom: 1px solid rgba(64, 160, 255, 0.25);
+  /* La regla .header_101 (más arriba) reserva 48px a la derecha porque en el
+     diseño ANTIGUO el botón de cerrar iba absoluto en la esquina. En esta
+     cabecera el botón es un hijo flex más, así que ese hueco solo desplazaba
+     todo hacia la izquierda. Ver también #close-panel, más abajo. */
+  padding-right: 0;
 }
 
 #hub-panel_101 .dash-avatar_101 {
@@ -10046,6 +10051,20 @@ button:focus {
 #hub-panel_101 .dash-subtitle_101 { margin-top: 2px; }
 
 #hub-panel_101 .dash-close_101 {
+  /* LA X ESTABA DESCOLOCADA (arriba del todo, fuera de la fila del título).
+     Causa: este mismo botón es #close-panel, y esa regla —escrita para el
+     diseño antiguo— lo saca del flujo con `position:absolute; top:12px;
+     right:12px`. Como `#close-panel` tiene MENOS especificidad que
+     `#hub-panel_101 .dash-close_101`, aquí ganaban el ancho y el alto de 30px
+     pero NO el posicionamiento, así que el botón quedaba clavado en la esquina
+     del panel mientras el resto de la cabecera se centraba con el avatar de
+     44px. Devolviéndolo al flujo vuelve a su sitio en la fila.
+     El padding se anula porque el tamaño ya lo fijan width/height. */
+  position: static;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
   width: 30px;
   height: 30px;

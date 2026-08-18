@@ -26,8 +26,9 @@
  * El juego se sirve como estático (GitHub Pages): no hay listado de directorios.
  * Se prueba a cargar Soulbound/personajeN/Perfil/Perfil.png con N = 1, 2, 3…
  * y se para tras 3 fallos seguidos (así un hueco —borrar personaje2 y dejar el
- * 3— no corta la búsqueda). El resultado se guarda en sessionStorage, así que
- * el sondeo ocurre una vez por pestaña.
+ * 3— no corta la búsqueda). Cuesta unos 55 ms y se hace una vez por carga de
+ * página: a propósito NO se guarda en el navegador, para que añadir una carpeta
+ * y recargar la muestre siempre (ver descubrir()).
  *
  * Si prefieres saltarte el sondeo, crea Game/Sprites/Soulbound/index.json:
  *     ["personaje1", "personaje2", "mi_personaje_raro"]
@@ -62,7 +63,6 @@
   var FRAME_RATE = 9;
 
   var LS_ELEGIDO = 'gf_soulbound_elegido';
-  var SS_LISTA   = 'gf_soulbound_lista';
 
   // ── Estado ────────────────────────────────────────────────────────────────
   var elegido     = null;    // id del personaje activo
@@ -77,14 +77,6 @@
   function escribirLS(clave, valor) {
     try { global.localStorage && global.localStorage.setItem(clave, valor); }
     catch (e) { /* almacenamiento bloqueado: se sigue con el valor en memoria */ }
-  }
-  function leerSS(clave) {
-    try { return global.sessionStorage && global.sessionStorage.getItem(clave); }
-    catch (e) { return null; }
-  }
-  function escribirSS(clave, valor) {
-    try { global.sessionStorage && global.sessionStorage.setItem(clave, valor); }
-    catch (e) {}
   }
 
   /**
@@ -145,19 +137,23 @@
 
   /**
    * Devuelve la lista de personajes disponibles: ['personaje1', 'personaje2', …]
-   * Se cachea en memoria y en sessionStorage (una vez por pestaña).
+   * Se cachea solo en memoria, durante esta carga de página.
    */
   function descubrir(forzar) {
+    // NO se guarda en sessionStorage a propósito.
+    //
+    // Se probó y era peor: el sondeo tarda ~55 ms y solo corre una vez por
+    // carga de página, pero sessionStorage sobrevive a los refrescos de la
+    // pestaña. Con la lista cacheada ahí, añadir "personaje3" y recargar NO lo
+    // mostraba —seguía leyendo la lista vieja—, que es justo lo contrario de lo
+    // que debe hacer esto. Y al revés: si se borraba una carpeta, el panel
+    // seguía pintando un botón roto.
+    //
+    // La caché en memoria (`lista`) ya evita repetir el sondeo dentro de una
+    // misma partida, que es lo único que hacía falta.
     if (!forzar) {
       if (lista) return Promise.resolve(lista);
       if (descubriendo) return descubriendo;
-      var cacheado = leerSS(SS_LISTA);
-      if (cacheado) {
-        try {
-          var arr = JSON.parse(cacheado);
-          if (Array.isArray(arr) && arr.length) { lista = arr; return Promise.resolve(lista); }
-        } catch (e) {}
-      }
     }
 
     descubriendo = manifiesto()
@@ -169,7 +165,6 @@
         // Nunca devolver vacío: si todo falla, al menos el personaje por
         // defecto, para que el panel no se quede en blanco.
         lista = (encontrados && encontrados.length) ? encontrados : [POR_DEFECTO];
-        escribirSS(SS_LISTA, JSON.stringify(lista));
         descubriendo = null;
         return lista;
       })
@@ -483,8 +478,97 @@
     });
   }
 
+  // ── Panel del jugador (sección Soulbound dentro del panel NFT) ───────────
+  //
+  // Vive aquí y no en las escenas porque el panel NFT es DOM COMPARTIDO de la
+  // página: lo abren tanto GameScene como tiendajuego. Cuando el código de
+  // pintarlo estaba solo en GameScene, en la tienda el panel se abría vacío y
+  // se quedaba en "Loading characters…" para siempre — el mismo fallo que ya
+  // había pasado con las habilidades. Con una única implementación, las dos
+  // escenas enseñan exactamente lo mismo y no se pueden desincronizar.
+  var montando = false;
+
+  /** Pinta los botones redondos y los deja funcionando. Idempotente. */
+  function montarPanel(scene) {
+    var cont = global.document.getElementById('sb-list');
+    if (!cont) return Promise.resolve(false);
+
+    return descubrir().catch(function () { return [POR_DEFECTO]; }).then(function (ids) {
+      if (!global.document.body.contains(cont)) return false;   // se cerró mientras tanto
+
+      cont.textContent = '';
+      ids.forEach(function (id) {
+        // createElement + textContent en vez de innerHTML: el id nunca se
+        // interpola como HTML (idValido ya lo limita a [A-Za-z0-9_-], pero no
+        // se confía en una sola barrera).
+        var btn = global.document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'sb-char';
+        btn.title = id;
+        btn.setAttribute('aria-label', id);
+
+        var img = global.document.createElement('img');
+        img.src = rutaPerfil(id);
+        img.alt = id;
+        // Si el retrato no carga, el personaje no está realmente disponible
+        // (carpeta a medias, archivo con otro nombre): se retira el botón en vez
+        // de dejar un círculo vacío que al pulsarlo dejaría al jugador sin
+        // sprites.
+        img.onerror = function () {
+          if (btn.parentNode) btn.parentNode.removeChild(btn);
+        };
+        btn.appendChild(img);
+
+        btn.onclick = function () { equiparDesdePanel(id, scene); };
+        cont.appendChild(btn);
+      });
+
+      refrescarPanel();
+      return true;
+    });
+  }
+
+  /** Marca el equipado y actualiza el retrato grande. */
+  function refrescarPanel() {
+    var doc = global.document;
+    var quien = actual();
+
+    var cont = doc.getElementById('sb-list');
+    if (cont) {
+      Array.prototype.forEach.call(cont.querySelectorAll('.sb-char'), function (b) {
+        if (b.title === quien) b.classList.add('sb-active');
+        else                   b.classList.remove('sb-active');
+      });
+    }
+    var img  = doc.getElementById('sb-current-img');
+    var name = doc.getElementById('sb-current-name');
+    if (img)  img.src = rutaPerfil(quien);
+    if (name) name.textContent = quien;
+  }
+
+  function equiparDesdePanel(id, scene) {
+    // Dos cambios a la vez se pisarían: ambos borran y recrean las mismas
+    // claves de textura.
+    if (montando || id === actual()) return;
+    montando = true;
+
+    var cont = global.document.getElementById('sb-list');
+    var botones = cont ? cont.querySelectorAll('.sb-char') : [];
+    Array.prototype.forEach.call(botones, function (b) { b.classList.add('sb-busy'); });
+
+    elegir(id, scene)
+      .catch(function (e) { console.warn('[Soulbound] no se pudo equipar ' + id, e); })
+      .then(function () {
+        montando = false;
+        Array.prototype.forEach.call(botones, function (b) { b.classList.remove('sb-busy'); });
+        refrescarPanel();
+      });
+  }
+
   global.GFSoulbound = {
     BASE:          BASE,
+    montarPanel:   montarPanel,
+    refrescarPanel: refrescarPanel,
     POR_DEFECTO:   POR_DEFECTO,
     actual:        actual,
     fijar:         fijar,
