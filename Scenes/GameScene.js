@@ -2106,7 +2106,10 @@ showNotification(message, type = 'info') {
 
 
     this.otherPlayers = {};
-    this.load.image("player", "./Game/Sprites/derecha/run_1.png");
+    // La textura 'player' la registra ahora GFSoulbound.precargar(), más abajo
+    // en este mismo preload, junto al resto de sprites del personaje. Cargarla
+    // aquí además duplicaba la clave (Phaser descarta la segunda con un aviso)
+    // y apuntaba a Game/Sprites/derecha, carpeta que ya no existe.
     this.myId = null;  // o ""
 
 
@@ -2335,43 +2338,30 @@ showNotification(message, type = 'info') {
 
     // Cargar Perfil
 
-    this.load.image('imagen_Perfil', './Game/Sprites/Perfil/Perfil.png');
-
-    // Cargar imágenes de cada dirección
-
-    this.load.image('player_right_1', './Game/Sprites/derecha/run_1.png');
-    this.load.image('player_right_2', './Game/Sprites/derecha/run_2.png');
-    this.load.image('player_right_3', './Game/Sprites/derecha/run_3.png');
-    this.load.image('player_right_4', './Game/Sprites/derecha/run_4.png');
-    this.load.image('player_right_5', './Game/Sprites/derecha/run_5.png');
-    this.load.image('player_right_6', './Game/Sprites/derecha/run_6.png');
-    this.load.image('player_right_7', './Game/Sprites/derecha/run_7.png');
-
-    this.load.image('player_left_1', './Game/Sprites/izquierda/run_1.png');
-    this.load.image('player_left_2', './Game/Sprites/izquierda/run_2.png');
-    this.load.image('player_left_3', './Game/Sprites/izquierda/run_3.png');
-    this.load.image('player_left_4', './Game/Sprites/izquierda/run_4.png');
-    this.load.image('player_left_5', './Game/Sprites/izquierda/run_5.png');
-    this.load.image('player_left_6', './Game/Sprites/izquierda/run_6.png');
-    this.load.image('player_left_7', './Game/Sprites/izquierda/run_7.png');
-
-
-    this.load.image('player_up_1', './Game/Sprites/arriba/run_1.png');
-    this.load.image('player_up_2', './Game/Sprites/arriba/run_2.png');
-    this.load.image('player_up_3', './Game/Sprites/arriba/run_3.png');
-    this.load.image('player_up_4', './Game/Sprites/arriba/run_4.png');
-    this.load.image('player_up_5', './Game/Sprites/arriba/run_5.png');
-    this.load.image('player_up_6', './Game/Sprites/arriba/run_6.png');
-    this.load.image('player_up_7', './Game/Sprites/arriba/run_7.png');
-
-    
-    this.load.image('player_down_1', './Game/Sprites/abajo/run_1.png');
-    this.load.image('player_down_2', './Game/Sprites/abajo/run_2.png');
-    this.load.image('player_down_3', './Game/Sprites/abajo/run_3.png');
-    this.load.image('player_down_4', './Game/Sprites/abajo/run_4.png');
-    this.load.image('player_down_5', './Game/Sprites/abajo/run_5.png');
-    this.load.image('player_down_6', './Game/Sprites/abajo/run_6.png');
-    this.load.image('player_down_7', './Game/Sprites/abajo/run_7.png');
+    // ── SPRITES DEL JUGADOR (SOULBOUND) ──────────────────────────────────────
+    // Antes aquí había 29 this.load.image(...) escritos a mano apuntando a
+    // Game/Sprites/{Perfil,derecha,izquierda,arriba,abajo}. Esas carpetas ya no
+    // existen: los sprites viven ahora en Game/Sprites/Soulbound/<personaje>/…
+    //
+    // gf-soulbound.js registra EXACTAMENTE las mismas claves de textura
+    // ('imagen_Perfil', 'player', 'player_right_1'…'player_down_7'), así que
+    // todo lo demás —animaciones, setTexture, jugadores remotos— sigue igual.
+    // Lo único que cambia es de qué carpeta salen los PNG, según el personaje
+    // que el jugador tenga equipado.
+    if (window.GFSoulbound) {
+      window.GFSoulbound.precargar(this);
+    } else {
+      // Red de seguridad por si el script no cargó: personaje por defecto.
+      const _sbBase = './Game/Sprites/Soulbound/personaje1';
+      this.load.image('imagen_Perfil', _sbBase + '/Perfil/Perfil.png');
+      this.load.image('player', _sbBase + '/derecha/run_1.png');
+      [['derecha','player_right'],['izquierda','player_left'],
+       ['arriba','player_up'],['abajo','player_down']].forEach(([carpeta, pref]) => {
+        for (let i = 1; i <= 7; i++) {
+          this.load.image(pref + '_' + i, _sbBase + '/' + carpeta + '/run_' + i + '.png');
+        }
+      });
+    }
 
     
 
@@ -4918,7 +4908,15 @@ this.anims.create({
 
         //document.getElementById('hub').classList.remove('hidden');
 
-        this.actualizarImagenJugador('./Game/Sprites/Perfil/Perfil.png');
+        // Retrato del HUD: sale de la carpeta del personaje equipado.
+        this.actualizarImagenJugador(
+          window.GFSoulbound ? window.GFSoulbound.rutaPerfil()
+                             : './Game/Sprites/Soulbound/personaje1/Perfil/Perfil.png'
+        );
+
+        // Traer del servidor el personaje guardado. Si en este dispositivo aún
+        // no se sabía cuál era, se aplica en caliente sin reiniciar la escena.
+        if (window.GFSoulbound) window.GFSoulbound.sincronizar(this);
 
         console.log("xd",this.currentAccount);
 
@@ -28051,6 +28049,7 @@ if (this.dogNameText) {
     panel.style.display = 'flex';
     this._setupNFTPanel();
     this._loadPetData();
+    this._renderSoulboundList();
   }
 
   closeNFTPanel() {
@@ -28069,6 +28068,92 @@ if (this.dogNameText) {
 
     const removeBtn = document.getElementById('nft-pet-remove');
     if (removeBtn) removeBtn.onclick = () => this._removePet();
+  }
+
+  // =========================================================================
+  // PERSONAJES SOULBOUND
+  // =========================================================================
+  //
+  // Pinta un botón redondo por cada carpeta que haya en
+  // Game/Sprites/Soulbound/ (personaje1, personaje2, …). No hay ninguna lista
+  // escrita a mano: gf-soulbound.js las descubre solo, así que crear
+  // "personaje3" con sus cinco subcarpetas basta para que aparezca aquí y se
+  // pueda equipar. Al pulsarlo, el jugador —y todo lo que use sus texturas—
+  // cambia al instante, sin recargar la página ni reiniciar la escena, y la
+  // elección queda guardada en el servidor.
+
+  async _renderSoulboundList() {
+    const cont = document.getElementById('sb-list');
+    if (!cont) return;
+
+    const SB = window.GFSoulbound;
+    if (!SB) { cont.innerHTML = '<div class="sb-loading">Characters unavailable</div>'; return; }
+
+    let ids;
+    try { ids = await SB.descubrir(); }
+    catch (_) { ids = [SB.POR_DEFECTO]; }
+
+    // El panel pudo cerrarse mientras se descubría.
+    if (!document.body.contains(cont)) return;
+
+    cont.textContent = '';
+    ids.forEach((id) => {
+      // createElement + textContent en lugar de innerHTML: el id nunca se
+      // interpola como HTML (aunque GFSoulbound.idValido ya lo restringe a
+      // [A-Za-z0-9_-], no se confía en una sola barrera).
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sb-char';
+      btn.title = id;
+      btn.setAttribute('aria-label', id);
+
+      const img = document.createElement('img');
+      img.src = SB.rutaPerfil(id);
+      img.alt = id;
+      btn.appendChild(img);
+
+      btn.onclick = () => this._equipSoulbound(id);
+      cont.appendChild(btn);
+    });
+
+    this._refreshSoulboundUI();
+  }
+
+  /** Marca cuál está equipado y actualiza el retrato grande del panel. */
+  _refreshSoulboundUI() {
+    const SB = window.GFSoulbound;
+    if (!SB) return;
+    const actual = SB.actual();
+
+    const cont = document.getElementById('sb-list');
+    if (cont) {
+      Array.from(cont.querySelectorAll('.sb-char')).forEach((b) => {
+        b.classList.toggle('sb-active', b.title === actual);
+      });
+    }
+    const img  = document.getElementById('sb-current-img');
+    const name = document.getElementById('sb-current-name');
+    if (img)  img.src = SB.rutaPerfil(actual);
+    if (name) name.textContent = actual;
+  }
+
+  async _equipSoulbound(id) {
+    const SB = window.GFSoulbound;
+    if (!SB || id === SB.actual()) return;
+
+    const cont = document.getElementById('sb-list');
+    // Bloquear la lista mientras se cargan las texturas: dos cambios a la vez
+    // se pisarían entre sí (ambos borran y vuelven a crear las mismas claves).
+    if (cont) cont.querySelectorAll('.sb-char').forEach(b => b.classList.add('sb-busy'));
+
+    try {
+      await SB.elegir(id, this);
+    } catch (e) {
+      console.warn('[Soulbound] no se pudo equipar', id, e);
+    } finally {
+      if (cont) cont.querySelectorAll('.sb-char').forEach(b => b.classList.remove('sb-busy'));
+      this._refreshSoulboundUI();
+    }
   }
 
   _togglePetVisibility() {

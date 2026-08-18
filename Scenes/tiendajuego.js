@@ -389,7 +389,8 @@ showNotification(message, type = 'info') {
 
         
       this.otherPlayers = {};
-      this.load.image("player", "./Game/Sprites/derecha/run_1.png");
+      // La textura 'player' la registra GFSoulbound.precargar() más abajo,
+      // junto al resto de sprites del personaje equipado.
       this.myId = null;  // o ""
 
       // FIX: mismo bug que en LoadingScenegame.js/GameScene.js — "elipeticiones"
@@ -428,43 +429,23 @@ showNotification(message, type = 'info') {
   
       // Cargar Perfil
   
-      this.load.image('imagen_Perfil', './Game/Sprites/Perfil/Perfil.png');
-  
-      // Cargar imágenes de cada dirección
-  
-      this.load.image('player_right_1', './Game/Sprites/derecha/run_1.png');
-      this.load.image('player_right_2', './Game/Sprites/derecha/run_2.png');
-      this.load.image('player_right_3', './Game/Sprites/derecha/run_3.png');
-      this.load.image('player_right_4', './Game/Sprites/derecha/run_4.png');
-      this.load.image('player_right_5', './Game/Sprites/derecha/run_5.png');
-      this.load.image('player_right_6', './Game/Sprites/derecha/run_6.png');
-      this.load.image('player_right_7', './Game/Sprites/derecha/run_7.png');
-  
-      this.load.image('player_left_1', './Game/Sprites/izquierda/run_1.png');
-      this.load.image('player_left_2', './Game/Sprites/izquierda/run_2.png');
-      this.load.image('player_left_3', './Game/Sprites/izquierda/run_3.png');
-      this.load.image('player_left_4', './Game/Sprites/izquierda/run_4.png');
-      this.load.image('player_left_5', './Game/Sprites/izquierda/run_5.png');
-      this.load.image('player_left_6', './Game/Sprites/izquierda/run_6.png');
-      this.load.image('player_left_7', './Game/Sprites/izquierda/run_7.png');
-
-      
-    this.load.image('player_up_1', './Game/Sprites/arriba/run_1.png');
-    this.load.image('player_up_2', './Game/Sprites/arriba/run_2.png');
-    this.load.image('player_up_3', './Game/Sprites/arriba/run_3.png');
-    this.load.image('player_up_4', './Game/Sprites/arriba/run_4.png');
-    this.load.image('player_up_5', './Game/Sprites/arriba/run_5.png');
-    this.load.image('player_up_6', './Game/Sprites/arriba/run_6.png');
-    this.load.image('player_up_7', './Game/Sprites/arriba/run_7.png');
-
-    
-    this.load.image('player_down_1', './Game/Sprites/abajo/run_1.png');
-    this.load.image('player_down_2', './Game/Sprites/abajo/run_2.png');
-    this.load.image('player_down_3', './Game/Sprites/abajo/run_3.png');
-    this.load.image('player_down_4', './Game/Sprites/abajo/run_4.png');
-    this.load.image('player_down_5', './Game/Sprites/abajo/run_5.png');
-    this.load.image('player_down_6', './Game/Sprites/abajo/run_6.png');
-    this.load.image('player_down_7', './Game/Sprites/abajo/run_7.png');
+      // ── SPRITES DEL JUGADOR (SOULBOUND) ────────────────────────────────────
+      // Mismo cambio que en GameScene.preload: las claves de textura son las
+      // de siempre, pero los PNG salen de Game/Sprites/Soulbound/<personaje>/.
+      // Así la tienda muestra el mismo personaje que el jugador lleva fuera.
+      if (window.GFSoulbound) {
+        window.GFSoulbound.precargar(this);
+      } else {
+        const _sbBase = './Game/Sprites/Soulbound/personaje1';
+        this.load.image('imagen_Perfil', _sbBase + '/Perfil/Perfil.png');
+        this.load.image('player', _sbBase + '/derecha/run_1.png');
+        [['derecha','player_right'],['izquierda','player_left'],
+         ['arriba','player_up'],['abajo','player_down']].forEach(([carpeta, pref]) => {
+          for (let i = 1; i <= 7; i++) {
+            this.load.image(pref + '_' + i, _sbBase + '/' + carpeta + '/run_' + i + '.png');
+          }
+        });
+      }
       
   
       // Recurso
@@ -790,7 +771,11 @@ this.player.on('pointerdown', (pointer) => {
 
 
 
-        this.actualizarImagenJugador('./Game/Sprites/Perfil/Perfil.png');
+        // Retrato del HUD: carpeta del personaje equipado.
+        this.actualizarImagenJugador(
+          window.GFSoulbound ? window.GFSoulbound.rutaPerfil()
+                             : './Game/Sprites/Soulbound/personaje1/Perfil/Perfil.png'
+        );
 
         this.actualizarNombreUsuario(`${this.currentAccount.slice(0, 6)}...${this.currentAccount.slice(-4)}`);
         this.actualizarBarraVida(this.vidaPorcentaje);
