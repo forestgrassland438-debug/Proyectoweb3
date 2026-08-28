@@ -42,7 +42,18 @@
   var ESPERA_ARBOL = [4000, 11000]; // cuánto se queda posado
   var ESPERA_SUELO = [3000, 7000];  // cuánto anda o come antes de decidir
 
-  var PROF_VUELO = 20000;           // volando, por encima de todo
+  /* Profundidad volando.
+   *
+   * TIENE QUE QUEDAR POR DEBAJO DE LA CAPA DE NOCHE, que gf-ciclo-dia.js pone
+   * a 9000. Estaba en 20000 y por eso de noche los pajaros volaban por encima
+   * del cuadro oscuro: se veian a plena luz recortados sobre el mundo oscuro.
+   *
+   * 8000 esta por encima de TODO el mundo (el y-sort llega como mucho a la
+   * altura del mapa, 5008, y el borde del mapa usa 1000) y por debajo de la
+   * noche, del chat (99998) y de los carteles de los NPC (90000). Si algun dia
+   * se cambia PROFUNDIDAD en gf-ciclo-dia.js, hay que mover esto con ella.
+   */
+  var PROF_VUELO = 8000;
 
   function log(scene) {
     if (!window.GF_CUERVO_DEBUG) return;

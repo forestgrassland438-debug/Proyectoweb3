@@ -39,7 +39,7 @@
   var PROFUNDIDAD   = 9000;            // por encima del mundo, debajo del HUD DOM
   var COLOR_NOCHE   = 0x24365f;        // azul de noche con el que se multiplica
   var ALFA_NOCHE    = 0.82;            // oscuridad máxima
-  var RADIO_POSTE   = 150;             // en píxeles de mundo
+  var RADIO_POSTE   = 240;             // en píxeles de mundo
   var RADIO_JUGADOR = 105;             // de sobra para cubrir al personaje
 
   // ---------------------------------------------------------------- utilidades
@@ -446,7 +446,7 @@
         .setBlendMode(Phaser.BlendModes.ADD)
         .setDepth((p.depth || 0) + 1)
         .setAlpha(0)
-        .setScale(1.45);
+        .setScale(2.1);          // crece con RADIO_POSTE, si no queda suelto
       st.resplandores.push(res);
     }
   }
