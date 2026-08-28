@@ -2192,6 +2192,7 @@ this.anims.create({
         this.ItemDefinitions = {
           Semillax: { src: "./Game/Objetos/Plantas/planta_zanahorias/item_saco.png", maxStack: 50, tipo: "bolsa zanahorias", usos: null },
           Semillax1: { src: "./Game/Objetos/Plantas/planta_tomates/semillas_tomate.png", maxStack: 50 , tipo: "bolsa de tomates", usos: null},
+          Semillax4: { src: "./Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png", maxStack: 50 , tipo: "bolsa_de_fresas", usos: null},
           
           Semillax2: { src: "./Game/Objetos/Plantas/planta_trigo/item_semilla_trigo.png", maxStack: 50 , tipo: "bolsa de trigo", usos: null},
           Semillax3: { src: "./Game/Objetos/Plantas/planta_calabaza/item_semilla_calabaza.png", maxStack: 50, tipo: "bolsa de calabazas", usos: null },
@@ -2230,6 +2231,9 @@ this.anims.create({
           tomate_buena: { src: "./Game/Objetos/Plantas/planta_tomates/item_tomate_bueno.png", maxStack: 20, tipo: "tomate_buena", usos: null },
           tomate_corta: { src: "./Game/Objetos/Plantas/planta_tomates/item_planta.png", maxStack: 20 , tipo: "tomate_corta", usos: null},
           tomate_mala: { src: "./Game/Objetos/Plantas/planta_tomates/item_tomate_malo.png", maxStack: 20 , tipo: "tomate_mala", usos: null},
+          fresa_buena: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_buena.png", maxStack: 20, tipo: "fresa_buena", usos: null },
+          fresa_corta: { src: "./Game/Objetos/Plantas/planta_fresa/item_planta.png", maxStack: 20 , tipo: "fresa_corta", usos: null},
+          fresa_mala: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_podrida.png", maxStack: 20 , tipo: "fresa_mala", usos: null},
 
           
 
@@ -10943,7 +10947,9 @@ VITAL_MAX_CLIENT = 100;
 
 CONSUMABLES_FOOD = {
   zanahoria_buena: 2, tomate_buena: 5, trigo_buena: 5, calabaza_buena: 5,
-  zanahoria_mala: 1, tomate_mala: 2, trigo_mala: 2, calabaza_mala: 2
+  fresa_buena: 5,
+  zanahoria_mala: 1, tomate_mala: 2, trigo_mala: 2, calabaza_mala: 2,
+  fresa_mala: 2
 };
 CONSUMABLES_WATER = { balde_con_agua: 20 };
 

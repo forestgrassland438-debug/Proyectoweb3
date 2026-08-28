@@ -137,6 +137,7 @@ class TiendaSistema {
           
           Semillax2: { src: "./Game/Objetos/Plantas/planta_trigo/item_semilla_trigo.png", maxStack: 50 , tipo: "bolsa de trigo", usos: null},
           Semillax3: { src: "./Game/Objetos/Plantas/planta_calabaza/item_semilla_calabaza.png", maxStack: 50, tipo: "bolsa de calabazas", usos: null },
+          Semillax4: { src: "./Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png", maxStack: 50, tipo: "bolsa_de_fresas", usos: null },
 
           Regaderax: { src: "./Game/Source/recurso2.png", maxStack: 1 , tipo: "Regaderax", usos: 20 },
           Tijerasx: { src: "./Game/Source/tijeras.png", maxStack: 1 , tipo: "Tijerasx", usos: 20 },
@@ -241,6 +242,19 @@ class TiendaSistema {
                     limiteDiario: 0,
                     nivelRequerido: 6,
                     descripcion: 'Seed used to grow pumpkins. Growth time: 10 minutes.'
+                },
+                {
+                    id: 'Semillax4',
+                    name: 'Strawberry Seed',
+                    image: './Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png',
+                    buyPrice: 20,
+                    sellPrice: 10,
+                    currency: 'silver',
+                    categoria: 'semillas',
+                    comision: 5,
+                    limiteDiario: 0,
+                    nivelRequerido: 3,
+                    descripcion: 'Seed used to grow strawberries. Growth time: 5 minutes.'
                 }
             ],
             
@@ -2021,6 +2035,7 @@ class TiendaSistema {
             Semillax1: ['bolsa de tomates', 50],
             Semillax2: ['bolsa de trigo', 50],
             Semillax3: ['bolsa de calabazas', 50],
+            Semillax4: ['bolsa_de_fresas', 50],
             // herramientas
             Regaderax: ['Regaderax', 1],
             Tijerasx:  ['Tijerasx', 1],

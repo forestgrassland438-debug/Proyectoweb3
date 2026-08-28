@@ -39,8 +39,8 @@
   var PROFUNDIDAD   = 9000;            // por encima del mundo, debajo del HUD DOM
   var COLOR_NOCHE   = 0x24365f;        // azul de noche con el que se multiplica
   var ALFA_NOCHE    = 0.82;            // oscuridad máxima
-  var RADIO_POSTE   = 78;              // en píxeles de mundo
-  var RADIO_JUGADOR = 62;
+  var RADIO_POSTE   = 150;             // en píxeles de mundo
+  var RADIO_JUGADOR = 105;             // de sobra para cubrir al personaje
 
   // ---------------------------------------------------------------- utilidades
   function log() {
@@ -221,9 +221,68 @@
   // ------------------------------------------------------------- reloj del HUD
   var elHora = null, elIcono = null, elCaja = null;
 
+  /* El reloj se crea aquí si el HTML no lo trae.
+
+     El marcado está en index.html, que es donde le corresponde estar, pero el
+     módulo no se apoya en ello: si una versión del index se queda atrás en un
+     despliegue, el reloj aparece igual. Si el marcado sí está, se reutiliza y
+     no se duplica nada. */
+  function asegurarHud() {
+    var caja = document.getElementById('hud-reloj');
+    if (caja && caja.isConnected) return caja;
+
+    var contenedor = document.querySelector('.corner-box');
+    if (!contenedor) return null;          // el HUD aún no existe
+
+    caja = document.createElement('div');
+    caja.className = 'clock-stack';
+    caja.id = 'hud-reloj';
+    caja.title = 'Hora del mundo';
+
+    var icono = document.createElement('span');
+    icono.className = 'clock-icon';
+    icono.id = 'hud-reloj-icono';
+    icono.textContent = '☀';
+
+    var hora = document.createElement('span');
+    hora.className = 'clock-time';
+    hora.id = 'hud-reloj-hora';
+    hora.textContent = '--:--';
+
+    caja.appendChild(icono);
+    caja.appendChild(hora);
+    // primero del contenedor = a la izquierda de la moneda de oro
+    contenedor.insertBefore(caja, contenedor.firstChild);
+    asegurarEstilo();
+    log('reloj creado por el módulo (el HTML no lo traía)');
+    return caja;
+  }
+
+  /* Estilo de respaldo, por si styless.css tampoco trae el del reloj. Va con
+     la misma especificidad, así que si la hoja del juego sí lo tiene, gana la
+     suya por ser posterior; y si no, al menos el reloj se ve bien. */
+  function asegurarEstilo() {
+    if (document.getElementById('gf-ciclo-estilo')) return;
+    var st = document.createElement('style');
+    st.id = 'gf-ciclo-estilo';
+    st.textContent =
+      '.clock-stack{display:flex;flex-direction:column;align-items:center;gap:2px;' +
+      'min-width:42px;padding:2px 6px 2px 2px;' +
+      'border-right:1px solid rgba(255,255,255,.12);user-select:none}' +
+      '.clock-stack .clock-icon{font-size:15px;line-height:1;color:#ffd97a;' +
+      'text-shadow:0 0 6px rgba(255,200,90,.55);transition:color .6s ease}' +
+      '.clock-stack .clock-time{color:#ffe9a8;font-size:12px;font-weight:700;' +
+      "font-family:'Segoe UI',sans-serif;text-shadow:0 1px 3px rgba(0,0,0,.7);" +
+      'white-space:nowrap;font-variant-numeric:tabular-nums;transition:color .6s ease}' +
+      '.clock-stack.es-noche .clock-icon{color:#cfe0ff;' +
+      'text-shadow:0 0 6px rgba(150,190,255,.55)}' +
+      '.clock-stack.es-noche .clock-time{color:#cfe0ff}';
+    document.head.appendChild(st);
+  }
+
   function pintarHud() {
     if (!elCaja || !elCaja.isConnected) {
-      elCaja  = document.getElementById('hud-reloj');
+      elCaja  = asegurarHud();
       elHora  = document.getElementById('hud-reloj-hora');
       elIcono = document.getElementById('hud-reloj-icono');
     }
@@ -258,8 +317,8 @@
     // El centro borra del todo y el borde no borra nada: así la luz se difumina
     // en vez de acabar en un círculo recortado.
     g.addColorStop(0.00, 'rgba(255,255,255,1)');
-    g.addColorStop(0.45, 'rgba(255,255,255,0.92)');
-    g.addColorStop(0.75, 'rgba(255,255,255,0.45)');
+    g.addColorStop(0.55, 'rgba(255,255,255,0.96)');
+    g.addColorStop(0.80, 'rgba(255,255,255,0.62)');
     g.addColorStop(1.00, 'rgba(255,255,255,0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, d, d);
@@ -340,6 +399,21 @@
      convertiría en otro mueble y además lo descolocaría.
      Lo que se hace es encender EL farol que ya está: un resplandor cálido
      sobre el cristal, más el hueco de luz que se recorta en la oscuridad. */
+  /* Donde esta el cristal del farol, en coordenadas de mundo.
+
+     OJO: los postes se crean con setOrigin(0, 1) — esquina inferior
+     izquierda —, asi que p.x NO es el centro y p.y NO es el medio: son el
+     borde izquierdo y la base. Usar getTopCenter() evita depender de eso.
+     Esta funcion la usan el resplandor del cristal Y el charco de luz, para
+     que no puedan descuadrarse otra vez. */
+  function puntoLampara(p) {
+    var alto = p.displayHeight || p.height || 96;
+    var tc = p.getTopCenter ? p.getTopCenter() : null;
+    var cx = tc ? tc.x : p.x + (p.displayWidth || p.width || 20) / 2;
+    var arriba = tc ? tc.y : p.y - alto;
+    return { x: cx, y: arriba + alto * 0.19 };
+  }
+
   function crearResplandores(st) {
     var scene = st.scene;
     if (!scene.textures.exists('gf_resplandor')) {
@@ -357,16 +431,12 @@
     for (var i = 0; i < st.postes.length; i++) {
       var p = st.postes[i];
       if (!p) continue;
-      // El cristal del farol está en la parte alta del sprite, a un 19% de su
-      // altura desde arriba; ahí es donde va el resplandor.
-      var alto = p.displayHeight || p.height || 96;
-      var gx = p.x;
-      var gy = (p.getTopCenter ? p.getTopCenter().y : p.y - alto / 2) + alto * 0.19;
-      var res = scene.add.image(gx, gy, 'gf_resplandor')
+      var pt = puntoLampara(p);
+      var res = scene.add.image(pt.x, pt.y, 'gf_resplandor')
         .setBlendMode(Phaser.BlendModes.ADD)
         .setDepth((p.depth || 0) + 1)
         .setAlpha(0)
-        .setScale(1.15);
+        .setScale(1.45);
       st.resplandores.push(res);
     }
   }
@@ -430,13 +500,17 @@
     var fuerza = clamp(o, 0, 1);
 
     if (st.jugador && st.jugador.active) {
-      recortarLuz(st, st.jugador.x, st.jugador.y - 8, RADIO_JUGADOR,
-                  vista, 0.92 * fuerza, 'gf_luz_jugador');
+      // Centrada en el sprite (getCenter no depende del origen) y subida un
+      // poco: el personaje se lee mejor con la luz a la altura del pecho.
+      var c = st.jugador.getCenter ? st.jugador.getCenter()
+                                   : { x: st.jugador.x, y: st.jugador.y };
+      recortarLuz(st, c.x, c.y - 6, RADIO_JUGADOR,
+                  vista, 0.96 * fuerza, 'gf_luz_jugador');
     }
 
     if (!st.encendidos) return;
 
-    var margen = RADIO_POSTE * 1.5;
+    var margen = RADIO_POSTE * 1.2;
     for (var i = 0; i < st.postes.length; i++) {
       var p = st.postes[i];
       if (!p || !p.active) continue;
@@ -444,9 +518,8 @@
       // sesenta luces de las que cincuenta caen fuera de la pantalla.
       if (p.x < vista.x - margen || p.x > vista.right + margen ||
           p.y < vista.y - margen || p.y > vista.bottom + margen) continue;
-      var altoLampara = (p.displayHeight || 0) * 0.34;
-      recortarLuz(st, p.x, p.y - altoLampara, RADIO_POSTE,
-                  vista, fuerza, 'gf_luz_poste');
+      var pt = puntoLampara(p);
+      recortarLuz(st, pt.x, pt.y, RADIO_POSTE, vista, fuerza, 'gf_luz_poste');
     }
   }
 

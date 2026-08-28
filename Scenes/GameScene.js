@@ -1085,6 +1085,7 @@ MISSION_ITEM_MAP = {
   'tomate': 'tomate_buena',       'tomato': 'tomate_buena',
   'trigo': 'trigo_buena',         'wheat': 'trigo_buena',
   'calabaza': 'calabaza_buena',   'pumpkin': 'calabaza_buena',
+  'fresa': 'fresa_buena',         'strawberry': 'fresa_buena',
   'piedra': 'mineral_piedra',     'stone': 'mineral_piedra',
   'cobre': 'mineral_cobre',       'copper': 'mineral_cobre',
   'hierro': 'mineral_hierro',     'iron': 'mineral_hierro',
@@ -1349,6 +1350,7 @@ async completeMission(missionId) {
         'tomate': 'tomates', 'tomato': 'tomates',
         'trigo': 'trigo', 'wheat': 'trigo',
         'calabaza': 'calabazas', 'pumpkin': 'calabazas',
+        'fresa': 'strawberries', 'strawberry': 'strawberries',
         'piedra': 'piedras', 'stone': 'piedras',
         'cobre': 'cobre', 'copper': 'cobre',
         'hierro': 'hierro', 'iron': 'hierro',
@@ -2472,6 +2474,13 @@ showNotification(message, type = 'info') {
     this.load.image('tierra_mojada_plant2_tomate', './Game/Objetos/Plantas/planta_tomates/3.png');
     this.load.image('tierra_mojada_plant3_tomate', './Game/Objetos/Plantas/planta_tomates/4.png');
     this.load.image('tierra_muerta_plant4_tomate', './Game/Objetos/Plantas/planta_tomates/5.png');
+    // Fresa. 1 = sembrada sin regar · 2 = regada · 3 = creciendo ·
+    // 4 = lista para cosechar · 5 = se murio.
+    this.load.image('tierra_seca_plant_fresa', './Game/Objetos/Plantas/planta_fresa/1.png');
+    this.load.image('tierra_mojada_plant_fresa', './Game/Objetos/Plantas/planta_fresa/2.png');
+    this.load.image('tierra_mojada_plant2_fresa', './Game/Objetos/Plantas/planta_fresa/3.png');
+    this.load.image('tierra_mojada_plant3_fresa', './Game/Objetos/Plantas/planta_fresa/4.png');
+    this.load.image('tierra_muerta_plant4_fresa', './Game/Objetos/Plantas/planta_fresa/5.png');
 
     this.load.image('tierra_seca_plant_trigo', './Game/Objetos/Plantas/planta_trigo/1.png');
     this.load.image('tierra_mojada_plant_trigo', './Game/Objetos/Plantas/planta_trigo/2.png');
@@ -7923,6 +7932,7 @@ console.log('📊 Tree types:', Object.keys(TREE_TYPE_CONFIG));
         this.ItemDefinitions = {
           Semillax: { src: "./Game/Objetos/Plantas/planta_zanahorias/item_saco.png", maxStack: 50, tipo: "bolsa zanahorias", usos: null },
           Semillax1: { src: "./Game/Objetos/Plantas/planta_tomates/semillas_tomate.png", maxStack: 50 , tipo: "bolsa de tomates", usos: null},
+          Semillax4: { src: "./Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png", maxStack: 50 , tipo: "bolsa_de_fresas", usos: null},
           
           Semillax2: { src: "./Game/Objetos/Plantas/planta_trigo/item_semilla_trigo.png", maxStack: 50 , tipo: "bolsa de trigo", usos: null},
           Semillax3: { src: "./Game/Objetos/Plantas/planta_calabaza/item_semilla_calabaza.png", maxStack: 50, tipo: "bolsa de calabazas", usos: null },
@@ -7967,6 +7977,9 @@ console.log('📊 Tree types:', Object.keys(TREE_TYPE_CONFIG));
           tomate_buena: { src: "./Game/Objetos/Plantas/planta_tomates/item_tomate_bueno.png", maxStack: 20, tipo: "tomate_buena", usos: null },
           tomate_corta: { src: "./Game/Objetos/Plantas/planta_tomates/item_planta.png", maxStack: 20 , tipo: "tomate_corta", usos: null},
           tomate_mala: { src: "./Game/Objetos/Plantas/planta_tomates/item_tomate_malo.png", maxStack: 20 , tipo: "tomate_mala", usos: null},
+          fresa_buena: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_buena.png", maxStack: 20, tipo: "fresa_buena", usos: null },
+          fresa_corta: { src: "./Game/Objetos/Plantas/planta_fresa/item_planta.png", maxStack: 20 , tipo: "fresa_corta", usos: null},
+          fresa_mala: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_podrida.png", maxStack: 20 , tipo: "fresa_mala", usos: null},
 
           
 
@@ -10968,6 +10981,7 @@ getItemDisplayName(itemId) {
     'Semillax1': 'Semilla de Tomate',
     'Semillax2': 'Semilla de Trigo',
     'Semillax3': 'Semilla de Calabaza',
+    'Semillax4': 'Strawberry Seed',
     'Regaderax': 'Regadera',
     'Tijerasx': 'Tijeras',
     'mineral_piedra': 'Piedra',
@@ -10994,6 +11008,9 @@ getItemDisplayName(itemId) {
     'tomate_buena': 'Tomate',
     'tomate_corta': 'Tomate Corto',
     'tomate_mala': 'Tomate Podrido',
+    'fresa_buena': 'Strawberry',
+    'fresa_corta': 'Unripe Strawberry',
+    'fresa_mala': 'Rotten Strawberry',
     'trigo_buena': 'Trigo',
     'trigo_corta': 'Trigo Corto',
     'trigo_mala': 'Trigo Podrido',
@@ -13811,6 +13828,7 @@ _getFruitDisplayNameEN(itemId) {
     tomate_buena: 'Good Tomato', tomate_corta: 'Unripe Tomato', tomate_mala: 'Rotten Tomato',
     trigo_buena: 'Good Wheat', trigo_corta: 'Unripe Wheat', trigo_mala: 'Rotten Wheat',
     calabaza_buena: 'Good Pumpkin', calabaza_corta: 'Unripe Pumpkin', calabaza_mala: 'Rotten Pumpkin',
+    fresa_buena: 'Good Strawberry', fresa_corta: 'Unripe Strawberry', fresa_mala: 'Rotten Strawberry',
     // Minerales (reutilizado también por la minería on-chain, ver _agregarFrutoOnChain)
     mineral_piedra: 'Stone', mineral_cobre: 'Copper Ore', mineral_hierro: 'Iron Ore', carbon: 'Coal',
     // Maderas: se añadieron al pasar la tala a botín 1-3, para que el aviso
@@ -24334,7 +24352,9 @@ VITAL_MAX_CLIENT = 100;
 // Cosechas buenas y podridas (dan menos) + el balde con agua.
 CONSUMABLES_FOOD = {
   zanahoria_buena: 2, tomate_buena: 5, trigo_buena: 5, calabaza_buena: 5,
-  zanahoria_mala: 1, tomate_mala: 2, trigo_mala: 2, calabaza_mala: 2
+  fresa_buena: 5,
+  zanahoria_mala: 1, tomate_mala: 2, trigo_mala: 2, calabaza_mala: 2,
+  fresa_mala: 2
 };
 CONSUMABLES_WATER = { balde_con_agua: 20 };
 
