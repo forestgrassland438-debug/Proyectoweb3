@@ -63,18 +63,26 @@
 
   function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
 
-  /* Tamaño y posición de la capa de noche.
+  /* Cómo se coloca la capa de noche para que tape la pantalla con cualquier zoom.
 
-     Va aparte para poder comprobarla sin navegador. setScrollFactor(0) evita
-     que la capa se desplace con la cámara, pero NO la libra del zoom: el juego
-     arranca con zoom 2, así que una capa del tamaño de la pantalla se pintaría
-     al doble y solo taparía un cuarto. Se hace del tamaño del área de mundo
-     visible (worldView = pantalla / zoom) y se centra: al aplicarle el zoom
-     vuelve a medir justo la pantalla, con cualquier zoom. */
-  function geometriaCapa(camAncho, camAlto, vistaAncho, vistaAlto) {
-    var w = Math.ceil(vistaAncho) + 2;
-    var h = Math.ceil(vistaAlto) + 2;
-    return { ancho: w, alto: h, x: camAncho / 2 - w / 2, y: camAlto / 2 - h / 2 };
+     Va aparte para poder comprobarla sin navegador (ver test_zoom_noche.js).
+
+     La capa se crea del tamaño de la pantalla y NO se redimensiona nunca: se
+     adapta con escala. Es a propósito — rt.setSize() en Phaser 3.60+ cambia el
+     tamaño de dibujo pero no la textura interna, así que al alejar el zoom la
+     capa se quedaba corta y solo tapaba parte de la pantalla.
+
+     Con scrollFactor 0 la cámara dibuja un punto en:
+         pantalla = (p - centro) * zoom + centro
+     Poniendo escala = 1/zoom y esquina = centro - mitad/zoom, el borde
+     izquierdo cae en 0 y el derecho en el ancho de la pantalla, siempre. */
+  function geometriaCapa(camAncho, camAlto, zoom) {
+    var z = zoom > 0 ? zoom : 1;
+    return {
+      escala: 1 / z,
+      x: camAncho / 2 - camAncho / (2 * z),
+      y: camAlto / 2 - camAlto / (2 * z)
+    };
   }
 
   // ------------------------------------------------------------------- estado
@@ -345,9 +353,11 @@
       texturaLuz(scene, 'gf_luz_poste', RADIO_POSTE);
       texturaLuz(scene, 'gf_luz_jugador', RADIO_JUGADOR);
 
-      st.rt = scene.add.renderTexture(0, 0,
-          Math.ceil(cam.worldView.width) + 2 || cam.width,
-          Math.ceil(cam.worldView.height) + 2 || cam.height)
+      // Del tamaño de la PANTALLA y para siempre: el zoom se resuelve con
+      // escala, no redimensionando (ver geometriaCapa).
+      st.anchoCam = cam.width;
+      st.altoCam = cam.height;
+      st.rt = scene.add.renderTexture(0, 0, cam.width, cam.height)
         .setOrigin(0, 0)
         .setScrollFactor(0)
         .setDepth(PROFUNDIDAD)
@@ -460,7 +470,7 @@
     var o = oscuridad(est);
     var scene = st.scene;
     var cam = scene.cameras.main;
-    if (!cam) return;
+    if (!cam || !st.rt) return;
 
     // Los faroles se encienden con la oscuridad, no de golpe: al atardecer van
     // subiendo igual que baja la luz. Se enciende un poco antes de que la
@@ -484,10 +494,16 @@
     var vista = cam.worldView;
     if (!vista || vista.width <= 0) return;
 
-    var geo = geometriaCapa(cam.width, cam.height, vista.width, vista.height);
-    if (st.rt.width !== geo.ancho || st.rt.height !== geo.alto) {
-      st.rt.setSize(geo.ancho, geo.alto);
+    // Si cambia el tamaño de la ventana hay que rehacer la capa: eso sí es un
+    // cambio de textura de verdad, pero pasa una vez al redimensionar, no por
+    // frame como pasaba con el zoom.
+    if (st.anchoCam !== cam.width || st.altoCam !== cam.height) {
+      if (!rehacerCapa(st, cam)) return;
     }
+
+    var z = cam.zoom > 0 ? cam.zoom : 1;
+    var geo = geometriaCapa(cam.width, cam.height, z);
+    st.rt.setScale(geo.escala);
     st.rt.setPosition(geo.x, geo.y);
 
     if (!st.rt.visible) st.rt.setVisible(true);
@@ -505,7 +521,7 @@
       var c = st.jugador.getCenter ? st.jugador.getCenter()
                                    : { x: st.jugador.x, y: st.jugador.y };
       recortarLuz(st, c.x, c.y - 6, RADIO_JUGADOR,
-                  vista, 0.96 * fuerza, 'gf_luz_jugador');
+                  vista, z, 0.96 * fuerza, 'gf_luz_jugador');
     }
 
     if (!st.encendidos) return;
@@ -519,20 +535,41 @@
       if (p.x < vista.x - margen || p.x > vista.right + margen ||
           p.y < vista.y - margen || p.y > vista.bottom + margen) continue;
       var pt = puntoLampara(p);
-      recortarLuz(st, pt.x, pt.y, RADIO_POSTE, vista, fuerza, 'gf_luz_poste');
+      recortarLuz(st, pt.x, pt.y, RADIO_POSTE, vista, z, fuerza, 'gf_luz_poste');
     }
   }
 
-  function recortarLuz(st, wx, wy, radio, vista, alfa, clave) {
-    // Dentro de la capa las coordenadas son las del mundo menos la esquina de
-    // la vista, así que el radio va en píxeles de mundo y la luz mide lo mismo
-    // con zoom 1 que con zoom 2: alumbra los mismos metros de terreno.
+  function recortarLuz(st, wx, wy, radio, vista, zoom, alfa, clave) {
+    /* La capa mide lo que la pantalla, así que dentro de ella se trabaja en
+       coordenadas de PANTALLA: el punto del mundo menos la esquina de la vista,
+       por el zoom. El radio va por el zoom por lo mismo — al alejarse se ve más
+       terreno, así que la farola ocupa menos pantalla pero sigue alumbrando los
+       mismos metros de suelo. */
     var pincel = st.pincel;
     if (pincel.texture.key !== clave) pincel.setTexture(clave);
-    pincel.setPosition(wx - vista.x, wy - vista.y);
-    pincel.setScale((radio * 2) / pincel.width);
+    pincel.setPosition((wx - vista.x) * zoom, (wy - vista.y) * zoom);
+    pincel.setScale((radio * 2 * zoom) / pincel.width);
     pincel.setAlpha(alfa);
     st.rt.erase(pincel);
+  }
+
+  /* Rehace la capa cuando cambia el tamaño de la ventana. */
+  function rehacerCapa(st, cam) {
+    try {
+      if (st.rt && st.rt.destroy) st.rt.destroy();
+      st.rt = st.scene.add.renderTexture(0, 0, cam.width, cam.height)
+        .setOrigin(0, 0)
+        .setScrollFactor(0)
+        .setDepth(PROFUNDIDAD)
+        .setBlendMode(Phaser.BlendModes.MULTIPLY);
+      st.anchoCam = cam.width;
+      st.altoCam = cam.height;
+      return true;
+    } catch (e) {
+      console.warn('[ciclo] no se pudo rehacer la capa de noche:', e);
+      st.rt = null;
+      return false;
+    }
   }
 
   function desmontarEscena(scene) {
