@@ -32,6 +32,7 @@
 
   var RUTA = './Game/Sprites/cuervo/';
   var CANTIDAD = 2;                 // cuervos a la vez
+  var ESCALA = 2;                   // igual que el jugador y el perro
 
   var DIST_SUSTO_SUELO = 110;       // en el suelo es más asustadizo
   var DIST_SUSTO_ARBOL = 62;        // posado aguanta más
@@ -159,6 +160,10 @@
 
     var spr = scene.add.sprite(inicio.x, inicio.y, CLAVES.quieto[0]);
     spr.setOrigin(0.5, 1);          // las patas en el punto de apoyo
+    // Escala del mundo, la misma que el jugador y el perro. Sin ella el cuervo
+    // (30x24) salia mas pequeno que una paloma (26x20 a x2), y un cuervo es
+    // mayor que una paloma. Para dejarlo como estaba, poner ESCALA = 1.
+    spr.setScale(ESCALA);
     spr.setDepth(inicio.y);
     // Sin cuerpo de física a propósito: así no puede colisionar con nada.
     if (spr.setPipeline) { /* nada: usa el pipeline por defecto */ }
@@ -183,11 +188,34 @@
     if (c.spr && c.spr.anims) c.spr.play('cuervo_' + nombre, true);
   }
 
+  /**
+   * Profundidad del cuervo posado en un arbol.
+   *
+   * EL FALLO QUE ARREGLA: los sprites del mapa se dibujan con
+   * depth = obj.y (createOptimizedSprite, setOrigin(0,1) -> obj.y es la BASE
+   * del arbol). Al cuervo se le ponia la profundidad del punto donde se posa,
+   * que esta en la COPA y por tanto es un numero MUCHO menor. Resultado: el
+   * cuervo quedaba por detras del arbol y solo se le veia asomar entre las
+   * hojas.
+   *
+   * Posado va delante de SU arbol (base + 1) y sigue quedando detras de
+   * cualquier cosa que este mas abajo en la pantalla, que es lo correcto.
+   */
+  function profundidadPosado(scene, c, punto) {
+    var spr = c.arbol ? scene[c.arbol] : null;
+    if (!spr) return punto.y;
+    var base = spr.depth;
+    if (typeof base !== 'number') {
+      try { base = spr.getBounds().bottom; } catch (e) { base = punto.y; }
+    }
+    return base + 1;
+  }
+
   function posarse(st, c, punto) {
     c.fase = 'posado';
     c.destino = null;
     c.spr.setPosition(punto.x, punto.y);
-    c.spr.setDepth(punto.y);
+    c.spr.setDepth(profundidadPosado(st.scene, c, punto));
     anim(c, 'quieto');
     c.hasta = st.scene.time.now + az(ESPERA_ARBOL[0], ESPERA_ARBOL[1]);
   }
@@ -393,7 +421,7 @@
     _interno: {
       posadero: posadero, arbolesDisponibles: arbolesDisponibles,
       parcelas: parcelas, actualizarCuervo: actualizarCuervo,
-      huir: huir, decidir: decidir
+      huir: huir, decidir: decidir, profundidadPosado: profundidadPosado
     }
   };
 })();

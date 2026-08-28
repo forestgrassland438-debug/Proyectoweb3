@@ -2489,6 +2489,11 @@ showNotification(message, type = 'info') {
     this.load.image('cuervo_vuela_2', './Game/Sprites/cuervo/cuervo_vuela_2.png');
     this.load.image('cuervo_vuela_3', './Game/Sprites/cuervo/cuervo_vuela_3.png');
     this.load.image('cuervo_vuela_4', './Game/Sprites/cuervo/cuervo_vuela_4.png');
+
+    // Fauna del mapa (zorros, vaca, cerdos, cocodrilo, serpientes, palomas
+    // y pájaros): 78 texturas. Las carga el propio módulo para no meter 78
+    // líneas aquí; la lista de assets es cosa suya, no de la escena.
+    if (window.GFAnimales) window.GFAnimales.precargar(this);
     // Fresa. 1 = sembrada sin regar · 2 = regada · 3 = creciendo ·
     // 4 = lista para cosechar · 5 = se murio.
     this.load.image('tierra_seca_plant_fresa', './Game/Objetos/Plantas/planta_fresa/1.png');
@@ -5021,6 +5026,12 @@ this.anims.create({
        nada ni tocan el estado del juego: solo decoran. Se desmontan solos
        en el shutdown de la escena. */
     if (window.GFCuervo) window.GFCuervo.montar(this);
+
+    /* Fauna del mapa. Como los cuervos: sprites SIN cuerpo de física, así
+       que no colisionan ni tocan el estado del juego. Los de tierra sí
+       esquivan las colisiones del mapa, usando el mismo índice espacial
+       que el jugador. Se desmontan solos en el shutdown de la escena. */
+    if (window.GFAnimales) window.GFAnimales.montar(this);
 
     console.log('game create ejecutándose');
 
