@@ -21879,6 +21879,10 @@ async loadPlayerData() {
 
     console.log('✅ Datos del jugador cargados exitosamente');
 
+    // A partir de aquí ya se puede guardar sin riesgo de pisar el inventario
+    // con uno vacío. Ver el cerrojo en savegg().
+    this._inventarioCargado = true;
+
     // Renderizar slots inmediatamente
     this.renderInventoryAfterLoad();
 
@@ -22700,6 +22704,25 @@ _cleanupTutorial() {
         if (!this.playerName || !this.isAuthenticated) {
             console.error('❌ No se puede guardar: falta playerName o autenticación');
             return;
+        }
+
+        /* CERROJO ANTI-BORRADO.
+           No se guarda hasta haber cargado el inventario al menos una vez.
+
+           Sin esto, si /api/load falla (red inestable, CORS, un 429...) y el
+           autoguardado salta antes del reintento, se escribe en la base de
+           datos el inventario que hay en memoria: VACIO. El reintento lee
+           entonces lo que acaba de escribir el guardado y el jugador se queda
+           sin objetos. Paso de verdad, con la secuencia:
+             load intento 1 → falla · guardado 200 · load intento 2 → 0 items
+
+           No se pierde nada: se pospone. El autoguardado vuelve a pasar en
+           cuanto los datos esten cargados. */
+        if (this._inventarioCargado !== true) {
+            console.warn('⏸️ Guardado pospuesto: el inventario todavía no se ha ' +
+                         'cargado. Se guardará cuando termine la carga (esto ' +
+                         'evita escribir un inventario vacío sobre el bueno).');
+            return false;
         }
 
         // Asegurarnos de tener token CSRF
