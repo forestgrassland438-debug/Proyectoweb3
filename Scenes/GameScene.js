@@ -2474,6 +2474,21 @@ showNotification(message, type = 'info') {
     this.load.image('tierra_mojada_plant2_tomate', './Game/Objetos/Plantas/planta_tomates/3.png');
     this.load.image('tierra_mojada_plant3_tomate', './Game/Objetos/Plantas/planta_tomates/4.png');
     this.load.image('tierra_muerta_plant4_tomate', './Game/Objetos/Plantas/planta_tomates/5.png');
+    // Cuervos. 13 fotogramas sueltos, todos de 30x24: el juego monta las
+    // animaciones con texturas independientes, no con hojas de sprites.
+    this.load.image('cuervo_quieto_1', './Game/Sprites/cuervo/cuervo_quieto_1.png');
+    this.load.image('cuervo_quieto_2', './Game/Sprites/cuervo/cuervo_quieto_2.png');
+    this.load.image('cuervo_camina_1', './Game/Sprites/cuervo/cuervo_camina_1.png');
+    this.load.image('cuervo_camina_2', './Game/Sprites/cuervo/cuervo_camina_2.png');
+    this.load.image('cuervo_camina_3', './Game/Sprites/cuervo/cuervo_camina_3.png');
+    this.load.image('cuervo_camina_4', './Game/Sprites/cuervo/cuervo_camina_4.png');
+    this.load.image('cuervo_come_1', './Game/Sprites/cuervo/cuervo_come_1.png');
+    this.load.image('cuervo_come_2', './Game/Sprites/cuervo/cuervo_come_2.png');
+    this.load.image('cuervo_come_3', './Game/Sprites/cuervo/cuervo_come_3.png');
+    this.load.image('cuervo_vuela_1', './Game/Sprites/cuervo/cuervo_vuela_1.png');
+    this.load.image('cuervo_vuela_2', './Game/Sprites/cuervo/cuervo_vuela_2.png');
+    this.load.image('cuervo_vuela_3', './Game/Sprites/cuervo/cuervo_vuela_3.png');
+    this.load.image('cuervo_vuela_4', './Game/Sprites/cuervo/cuervo_vuela_4.png');
     // Fresa. 1 = sembrada sin regar · 2 = regada · 3 = creciendo ·
     // 4 = lista para cosechar · 5 = se murio.
     this.load.image('tierra_seca_plant_fresa', './Game/Objetos/Plantas/planta_fresa/1.png');
@@ -5001,7 +5016,13 @@ this.anims.create({
 
 
 
-        console.log('game create ejecutándose');
+        /* Cuervos del mapa. Toda la lógica está en gf-cuervo.js; aquí solo se
+       monta. Son sprites sin cuerpo de física, así que no colisionan con
+       nada ni tocan el estado del juego: solo decoran. Se desmontan solos
+       en el shutdown de la escena. */
+    if (window.GFCuervo) window.GFCuervo.montar(this);
+
+    console.log('game create ejecutándose');
 
 
         // FIX: usar onclick en lugar de addEventListener para que no se acumulen
