@@ -5066,6 +5066,20 @@ this.anims.create({
                 
       });
 
+      // ── CICLO DÍA / NOCHE ───────────────────────────────────────────────
+      // Se monta aquí porque a esta altura ya existen el jugador y los postes
+      // (this.post_1..N), que es lo que necesita para colocar las luces.
+      // La hora la manda el backend; el módulo la pide al entrar y luego cada
+      // 30 minutos, y se desmonta solo en el shutdown de la escena.
+      try {
+        if (window.GFCiclo) {
+          window.GFCiclo.sincronizarSiHaceFalta('entrar en GameScene');
+          window.GFCiclo.montarEscena(this, { jugador: this.player });
+        }
+      } catch (e) {
+        console.warn('⚠️ ciclo día/noche no disponible:', e);
+      }
+
       // Guarda referencias si las usás más tarde
       this.cam = this.cameras.main;
       this.cam_ancho = this.cam.width;
