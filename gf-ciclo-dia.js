@@ -1,0 +1,520 @@
+/* ===========================================================================
+ * CICLO DÍA / NOCHE
+ *
+ * QUIÉN MANDA
+ *   La hora la da el backend (GET /api/world/time). El cliente NO la inventa
+ *   ni la cuenta desde cero: pide la hora, la ancla a un cronómetro monótono
+ *   (performance.now) y entre sincronizaciones la extrapola.
+ *
+ *   Se usa performance.now y no Date.now a propósito: performance.now cuenta
+ *   milisegundos desde que se abrió la página y no lo mueve cambiar la hora
+ *   del sistema operativo. Adelantar el reloj del PC no adelanta la noche.
+ *
+ * CUÁNDO SE SINCRONIZA
+ *   - al cargar la página
+ *   - cada 30 minutos
+ *   - al entrar en GameScene y en tiendajuego
+ *   - al volver a la pestaña, si la última sincronización ya tiene 30 minutos
+ *     (dormir el portátil puede congelar el cronómetro monótono)
+ *   Nada más. No hay sondeo por frame ni por segundo.
+ *
+ * QUÉ PINTA
+ *   - el reloj del HUD, a la izquierda de la moneda de oro
+ *   - la oscuridad de la noche sobre GameScene
+ *   - la luz de los postes y la del propio personaje, como huecos recortados
+ *     en esa oscuridad
+ *
+ * API PÚBLICA
+ *   GFCiclo.sincronizar()            fuerza una sincronización (devuelve Promise)
+ *   GFCiclo.estado()                 { esDia, fase, hora, minuto, horaTexto, ... }
+ *   GFCiclo.montarEscena(scene, op)  activa la noche en una escena de Phaser
+ *   GFCiclo.desmontarEscena(scene)   la quita (se llama sola en shutdown)
+ *   GFCiclo.alCambiarFase(fn)        avisa cuando amanece o anochece
+ * ======================================================================== */
+(function () {
+  'use strict';
+
+  var SYNC_MS       = 30 * 60 * 1000;  // cada media hora, como pide el encargo
+  var REINTENTO_MS  = 60 * 1000;       // si falla la petición
+  var PROFUNDIDAD   = 9000;            // por encima del mundo, debajo del HUD DOM
+  var COLOR_NOCHE   = 0x24365f;        // azul de noche con el que se multiplica
+  var ALFA_NOCHE    = 0.82;            // oscuridad máxima
+  var RADIO_POSTE   = 78;              // en píxeles de mundo
+  var RADIO_JUGADOR = 62;
+
+  // ---------------------------------------------------------------- utilidades
+  function log() {
+    if (!window.GF_CICLO_DEBUG) return;
+    var a = Array.prototype.slice.call(arguments);
+    a.unshift('[ciclo]');
+    console.log.apply(console, a);
+  }
+
+  function apiBase() {
+    // Mismo criterio que gf-wallet-boot.js. Ojo con la cadena vacía: '' es
+    // "mismo origen", que es válido, así que se comprueba el tipo y no si es
+    // un valor verdadero.
+    if (typeof window.serverBase === 'string')  return window.serverBase;
+    if (typeof window.GF_API_BASE === 'string') return window.GF_API_BASE;
+    var host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') return 'http://127.0.0.1:3001';
+    return 'https://api.grasslandforest.com';
+  }
+
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+
+  /* Tamaño y posición de la capa de noche.
+
+     Va aparte para poder comprobarla sin navegador. setScrollFactor(0) evita
+     que la capa se desplace con la cámara, pero NO la libra del zoom: el juego
+     arranca con zoom 2, así que una capa del tamaño de la pantalla se pintaría
+     al doble y solo taparía un cuarto. Se hace del tamaño del área de mundo
+     visible (worldView = pantalla / zoom) y se centra: al aplicarle el zoom
+     vuelve a medir justo la pantalla, con cualquier zoom. */
+  function geometriaCapa(camAncho, camAlto, vistaAncho, vistaAlto) {
+    var w = Math.ceil(vistaAncho) + 2;
+    var h = Math.ceil(vistaAlto) + 2;
+    return { ancho: w, alto: h, x: camAncho / 2 - w / 2, y: camAlto / 2 - h / 2 };
+  }
+
+  // ------------------------------------------------------------------- estado
+  var ancla = null;   // { servidorMs, monotonicoMs, epocaMs, cicloMs, diaMs, nocheMs }
+  var pidiendo = null;
+  var oyentes = [];
+  var faseAnterior = null;
+  var timerSync = null;
+  var timerHud = null;
+
+  function hayHora() { return ancla !== null; }
+
+  function ahoraMundo() {
+    if (!ancla) return null;
+    // El delta lo da el cronómetro monótono, no el reloj del sistema.
+    return ancla.servidorMs + (performance.now() - ancla.monotonicoMs);
+  }
+
+  /* Misma cuenta que estadoDelMundo() en server2.js. Se repite aquí para poder
+     extrapolar sin preguntar, pero los números (época, duraciones) siempre
+     vienen del servidor: si allí se cambia la duración del día, aquí cambia
+     sola en la siguiente sincronización. */
+  function estado() {
+    if (!ancla) return null;
+    var ahora = ahoraMundo();
+    var T = ancla.cicloMs, D = ancla.diaMs, N = ancla.nocheMs;
+    var t = (ahora - ancla.epocaMs) % T;
+    if (t < 0) t += T;
+
+    var esDia = t < D;
+    var minutos;
+    if (esDia) {
+      minutos = 360 + (t / D) * 720;
+    } else {
+      minutos = (1080 + ((t - D) / N) * 720) % 1440;
+    }
+    minutos = Math.floor(minutos) % 1440;
+    var hora = Math.floor(minutos / 60);
+    var minuto = minutos % 60;
+
+    return {
+      ahora: ahora,
+      esDia: esDia,
+      fase: esDia ? 'dia' : 'noche',
+      hora: hora,
+      minuto: minuto,
+      horaTexto: ('0' + hora).slice(-2) + ':' + ('0' + minuto).slice(-2),
+      minutosDelDia: minutos,
+      progresoCiclo: t / T,
+      msParaCambio: esDia ? (D - t) : (T - t)
+    };
+  }
+
+  /* Oscuridad de 0 a 1 según la hora del juego.
+
+     No salta de golpe en el instante del cambio de fase: hay dos horas de
+     juego de transición a cada lado (una hora real, porque 1 h de juego son
+     30 min reales), así que se ve anochecer y amanecer poco a poco.
+
+       05:00 → 07:00   amanece   1 → 0
+       07:00 → 17:00   día       0
+       17:00 → 19:00   anochece  0 → 1
+       19:00 → 05:00   noche     1                                           */
+  function oscuridad(est) {
+    if (!est) return 0;
+    var t = est.hora + est.minuto / 60;
+    if (t >= 7 && t < 17) return 0;
+    if (t >= 5 && t < 7)  return 1 - (t - 5) / 2;
+    if (t >= 17 && t < 19) return (t - 17) / 2;
+    return 1;
+  }
+
+  // ------------------------------------------------------------ sincronizar
+  function sincronizar(motivo) {
+    if (pidiendo) return pidiendo;
+    var url = apiBase().replace(/\/$/, '') + '/api/world/time';
+    var t0 = performance.now();
+
+    pidiendo = fetch(url, { method: 'GET', credentials: 'omit', cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (d) {
+        if (!d || d.ok !== true || typeof d.ahora !== 'number') {
+          throw new Error('respuesta inesperada');
+        }
+        var t1 = performance.now();
+        // La respuesta tardó (t1-t0). Se supone que la hora del servidor es de
+        // la mitad del viaje, que es la estimación estándar y deja el error en
+        // la mitad de la latencia.
+        ancla = {
+          servidorMs: d.ahora + (t1 - t0) / 2,
+          monotonicoMs: t1,
+          epocaMs: d.epocaMs,
+          cicloMs: d.cicloMs,
+          diaMs: d.diaMs,
+          nocheMs: d.nocheMs,
+          sincronizadoEn: t1
+        };
+        log('sincronizado (' + (motivo || 'periódico') + ')', d.horaTexto, d.fase,
+            'latencia', Math.round(t1 - t0) + 'ms');
+        pintarHud();
+        avisarFase();
+        pidiendo = null;
+        return estado();
+      })
+      .catch(function (e) {
+        pidiendo = null;
+        log('no se pudo sincronizar:', e && e.message);
+        // Si nunca hubo hora, se reintenta pronto; si ya había, se sigue
+        // extrapolando con la que hay y se espera al siguiente ciclo normal.
+        if (!ancla) setTimeout(function () { sincronizar('reintento'); }, REINTENTO_MS);
+        return null;
+      });
+
+    return pidiendo;
+  }
+
+  /* Sincroniza solo si la última ya está vieja. Es lo que llaman las escenas:
+     entrar y salir de la tienda diez veces seguidas no dispara diez peticiones. */
+  function sincronizarSiHaceFalta(motivo, maxEdadMs) {
+    var max = typeof maxEdadMs === 'number' ? maxEdadMs : SYNC_MS;
+    if (!ancla) return sincronizar(motivo);
+    if (performance.now() - ancla.sincronizadoEn >= max) return sincronizar(motivo);
+    log('sincronización omitida (' + motivo + '), la hora aún es fresca');
+    return Promise.resolve(estado());
+  }
+
+  function alCambiarFase(fn) {
+    if (typeof fn === 'function') oyentes.push(fn);
+  }
+
+  function avisarFase() {
+    var est = estado();
+    if (!est) return;
+    if (faseAnterior === est.fase) return;
+    faseAnterior = est.fase;
+    for (var i = 0; i < oyentes.length; i++) {
+      try { oyentes[i](est); } catch (e) { console.warn('[ciclo] oyente falló', e); }
+    }
+  }
+
+  // ------------------------------------------------------------- reloj del HUD
+  var elHora = null, elIcono = null, elCaja = null;
+
+  function pintarHud() {
+    if (!elCaja || !elCaja.isConnected) {
+      elCaja  = document.getElementById('hud-reloj');
+      elHora  = document.getElementById('hud-reloj-hora');
+      elIcono = document.getElementById('hud-reloj-icono');
+    }
+    if (!elCaja || !elHora) return;
+    var est = estado();
+    if (!est) {
+      elHora.textContent = '--:--';
+      return;
+    }
+    elHora.textContent = est.horaTexto;
+    if (elIcono) elIcono.textContent = est.esDia ? '☀' : '☾';
+    elCaja.classList.toggle('es-noche', !est.esDia);
+    elCaja.setAttribute('title',
+      est.esDia ? 'Anochece en ' + Math.round(est.msParaCambio / 60000) + ' min'
+                : 'Amanece en '  + Math.round(est.msParaCambio / 60000) + ' min');
+  }
+
+  // ============================================================================
+  // LA NOCHE EN LA ESCENA
+  //
+  // Se pinta una capa de oscuridad del tamaño de la cámara y se le RECORTAN
+  // los huecos de luz. No son manchas claras encima: es la propia oscuridad la
+  // que se borra donde hay una lámpara, que es lo que hace que se vea como luz
+  // y no como una pegatina.
+  // ============================================================================
+  function texturaLuz(scene, clave, radio) {
+    if (scene.textures.exists(clave)) return;
+    var d = radio * 2;
+    var canvas = scene.textures.createCanvas(clave, d, d);
+    var ctx = canvas.getContext();
+    var g = ctx.createRadialGradient(radio, radio, 0, radio, radio, radio);
+    // El centro borra del todo y el borde no borra nada: así la luz se difumina
+    // en vez de acabar en un círculo recortado.
+    g.addColorStop(0.00, 'rgba(255,255,255,1)');
+    g.addColorStop(0.45, 'rgba(255,255,255,0.92)');
+    g.addColorStop(0.75, 'rgba(255,255,255,0.45)');
+    g.addColorStop(1.00, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, d, d);
+    canvas.refresh();
+  }
+
+  function montarEscena(scene, opciones) {
+    if (!scene || !scene.add || !scene.cameras) return null;
+    if (scene.__gfCiclo) return scene.__gfCiclo;
+    opciones = opciones || {};
+
+    var cam = scene.cameras.main;
+    var st = {
+      scene: scene,
+      rt: null,
+      pincel: null,
+      postes: [],
+      resplandores: [],
+      jugador: null,
+      encendidos: false
+    };
+
+    try {
+      texturaLuz(scene, 'gf_luz_poste', RADIO_POSTE);
+      texturaLuz(scene, 'gf_luz_jugador', RADIO_JUGADOR);
+
+      st.rt = scene.add.renderTexture(0, 0,
+          Math.ceil(cam.worldView.width) + 2 || cam.width,
+          Math.ceil(cam.worldView.height) + 2 || cam.height)
+        .setOrigin(0, 0)
+        .setScrollFactor(0)
+        .setDepth(PROFUNDIDAD)
+        .setBlendMode(Phaser.BlendModes.MULTIPLY);
+      st.rt.setVisible(false);
+
+      // Pincel reutilizable: un solo objeto que se recoloca y se reescala para
+      // cada luz, en vez de crear uno por lámpara y por frame.
+      st.pincel = scene.make.image({ key: 'gf_luz_poste', add: false })
+        .setOrigin(0.5, 0.5);
+    } catch (e) {
+      console.warn('[ciclo] no se pudo crear la capa de noche:', e);
+      return null;
+    }
+
+    st.postes = recogerPostes(scene, opciones.postes);
+    st.jugador = opciones.jugador || scene.player || null;
+    crearResplandores(st);
+
+    scene.__gfCiclo = st;
+
+    st.onUpdate = function () { dibujarNoche(st); };
+    scene.events.on('update', st.onUpdate);
+    scene.events.once('shutdown', function () { desmontarEscena(scene); });
+    scene.events.once('destroy', function () { desmontarEscena(scene); });
+
+    log('noche montada en', scene.scene && scene.scene.key,
+        '·', st.postes.length, 'postes');
+    return st;
+  }
+
+  function recogerPostes(scene, lista) {
+    if (Array.isArray(lista) && lista.length) return lista.filter(Boolean);
+    // Los postes los crea createImagesFromObjectLayer con targetProp post_1..N,
+    // así que se recogen por nombre. Se mira bastante más allá de los que hay
+    // hoy para que añadir postes al mapa no obligue a tocar esto.
+    var out = [];
+    for (var i = 1; i <= 64; i++) {
+      var p = scene['post_' + i];
+      if (p && p.setTexture) out.push(p);
+    }
+    return out;
+  }
+
+  /* Los faroles NO se encienden cambiándoles la textura.
+     En Game/Objetos hay un 'poste encendido.png', pero no es la versión
+     encendida de 'poste.png': es otro objeto distinto (un poste de madera de
+     dos brazos, 63x96 frente a 20x96). Cambiarle la textura al farol lo
+     convertiría en otro mueble y además lo descolocaría.
+     Lo que se hace es encender EL farol que ya está: un resplandor cálido
+     sobre el cristal, más el hueco de luz que se recorta en la oscuridad. */
+  function crearResplandores(st) {
+    var scene = st.scene;
+    if (!scene.textures.exists('gf_resplandor')) {
+      var r = 26, d = r * 2;
+      var canvas = scene.textures.createCanvas('gf_resplandor', d, d);
+      var ctx = canvas.getContext();
+      var g = ctx.createRadialGradient(r, r, 0, r, r, r);
+      g.addColorStop(0.00, 'rgba(255,236,170,1)');
+      g.addColorStop(0.35, 'rgba(255,214,120,0.55)');
+      g.addColorStop(1.00, 'rgba(255,200,90,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, d, d);
+      canvas.refresh();
+    }
+    for (var i = 0; i < st.postes.length; i++) {
+      var p = st.postes[i];
+      if (!p) continue;
+      // El cristal del farol está en la parte alta del sprite, a un 19% de su
+      // altura desde arriba; ahí es donde va el resplandor.
+      var alto = p.displayHeight || p.height || 96;
+      var gx = p.x;
+      var gy = (p.getTopCenter ? p.getTopCenter().y : p.y - alto / 2) + alto * 0.19;
+      var res = scene.add.image(gx, gy, 'gf_resplandor')
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth((p.depth || 0) + 1)
+        .setAlpha(0)
+        .setScale(1.15);
+      st.resplandores.push(res);
+    }
+  }
+
+  function encenderPostes(st, intensidad) {
+    // intensidad 0..1; el parpadeo es leve y lento, lo justo para que no
+    // parezca una calcomanía pegada.
+    var parp = 1;
+    if (intensidad > 0) {
+      parp = 0.93 + 0.07 * Math.sin(st.scene.time.now / 320);
+    }
+    for (var i = 0; i < st.resplandores.length; i++) {
+      var res = st.resplandores[i];
+      if (res && res.active) res.setAlpha(clamp(intensidad * parp, 0, 1) * 0.85);
+    }
+    st.encendidos = intensidad > 0.05;
+  }
+
+  function dibujarNoche(st) {
+    var est = estado();
+    var o = oscuridad(est);
+    var scene = st.scene;
+    var cam = scene.cameras.main;
+    if (!cam) return;
+
+    // Los faroles se encienden con la oscuridad, no de golpe: al atardecer van
+    // subiendo igual que baja la luz. Se enciende un poco antes de que la
+    // oscuridad llegue al máximo, que es como se encienden de verdad.
+    encenderPostes(st, clamp(o * 1.35, 0, 1));
+
+    if (o <= 0.01) {
+      if (st.rt.visible) st.rt.setVisible(false);
+      return;
+    }
+
+    /* OJO CON EL ZOOM.
+       setScrollFactor(0) hace que la capa no se desplace con la cámara, pero
+       NO la libra del zoom: con el zoom 2 que usa el juego, una capa del
+       tamaño de la pantalla se dibujaría al doble y solo taparía un cuarto.
+       Por eso la capa se hace del tamaño del área de mundo que se ve
+       (worldView, que ya es pantalla/zoom) y se centra: al aplicarle el zoom
+       vuelve a medir exactamente la pantalla, sea cual sea el zoom.
+       De paso, dentro de la capa las coordenadas son las del mundo menos la
+       esquina de la vista, así que las luces se colocan sin más cuentas. */
+    var vista = cam.worldView;
+    if (!vista || vista.width <= 0) return;
+
+    var geo = geometriaCapa(cam.width, cam.height, vista.width, vista.height);
+    if (st.rt.width !== geo.ancho || st.rt.height !== geo.alto) {
+      st.rt.setSize(geo.ancho, geo.alto);
+    }
+    st.rt.setPosition(geo.x, geo.y);
+
+    if (!st.rt.visible) st.rt.setVisible(true);
+
+    st.rt.clear();
+    st.rt.fill(COLOR_NOCHE, ALFA_NOCHE * o);
+
+    // Cuanto más oscuro, más se nota la luz. Al atardecer las lámparas casi no
+    // recortan nada, que es como se ve de verdad.
+    var fuerza = clamp(o, 0, 1);
+
+    if (st.jugador && st.jugador.active) {
+      recortarLuz(st, st.jugador.x, st.jugador.y - 8, RADIO_JUGADOR,
+                  vista, 0.92 * fuerza, 'gf_luz_jugador');
+    }
+
+    if (!st.encendidos) return;
+
+    var margen = RADIO_POSTE * 1.5;
+    for (var i = 0; i < st.postes.length; i++) {
+      var p = st.postes[i];
+      if (!p || !p.active) continue;
+      // Solo las lámparas que se ven. En un mapa grande esto evita recortar
+      // sesenta luces de las que cincuenta caen fuera de la pantalla.
+      if (p.x < vista.x - margen || p.x > vista.right + margen ||
+          p.y < vista.y - margen || p.y > vista.bottom + margen) continue;
+      var altoLampara = (p.displayHeight || 0) * 0.34;
+      recortarLuz(st, p.x, p.y - altoLampara, RADIO_POSTE,
+                  vista, fuerza, 'gf_luz_poste');
+    }
+  }
+
+  function recortarLuz(st, wx, wy, radio, vista, alfa, clave) {
+    // Dentro de la capa las coordenadas son las del mundo menos la esquina de
+    // la vista, así que el radio va en píxeles de mundo y la luz mide lo mismo
+    // con zoom 1 que con zoom 2: alumbra los mismos metros de terreno.
+    var pincel = st.pincel;
+    if (pincel.texture.key !== clave) pincel.setTexture(clave);
+    pincel.setPosition(wx - vista.x, wy - vista.y);
+    pincel.setScale((radio * 2) / pincel.width);
+    pincel.setAlpha(alfa);
+    st.rt.erase(pincel);
+  }
+
+  function desmontarEscena(scene) {
+    var st = scene && scene.__gfCiclo;
+    if (!st) return;
+    try {
+      if (st.onUpdate) scene.events.off('update', st.onUpdate);
+      if (st.rt && st.rt.destroy) st.rt.destroy();
+      if (st.pincel && st.pincel.destroy) st.pincel.destroy();
+      for (var i = 0; i < st.resplandores.length; i++) {
+        if (st.resplandores[i] && st.resplandores[i].destroy) st.resplandores[i].destroy();
+      }
+    } catch (e) { /* la escena ya se estaba destruyendo */ }
+    st.rt = null; st.pincel = null; st.postes = []; st.resplandores = [];
+    scene.__gfCiclo = null;
+    log('noche desmontada de', scene.scene && scene.scene.key);
+  }
+
+  // --------------------------------------------------------------- arranque
+  function arrancar() {
+    sincronizar('arranque');
+
+    if (timerSync) clearInterval(timerSync);
+    timerSync = setInterval(function () { sincronizar('periódico'); }, SYNC_MS);
+
+    // El reloj del HUD se repinta cada segundo: es solo escribir un texto, y
+    // un minuto de juego dura 30 segundos reales, así que no hace falta más.
+    if (timerHud) clearInterval(timerHud);
+    timerHud = setInterval(function () { pintarHud(); avisarFase(); }, 1000);
+
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState !== 'visible') return;
+      // Dormir el equipo puede congelar el cronómetro monótono; al volver se
+      // comprueba, pero solo se pide hora si la que hay ya está vieja.
+      sincronizarSiHaceFalta('vuelta a la pestaña');
+    });
+  }
+
+  window.GFCiclo = {
+    sincronizar: sincronizar,
+    sincronizarSiHaceFalta: sincronizarSiHaceFalta,
+    estado: estado,
+    hayHora: hayHora,
+    oscuridad: function () { return oscuridad(estado()); },
+    montarEscena: montarEscena,
+    desmontarEscena: desmontarEscena,
+    alCambiarFase: alCambiarFase,
+    pintarHud: pintarHud,
+    SYNC_MS: SYNC_MS,
+    _geometriaCapa: geometriaCapa   // expuesta solo para las pruebas
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', arrancar);
+  } else {
+    arrancar();
+  }
+})();

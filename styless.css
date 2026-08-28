@@ -12847,3 +12847,45 @@ html.gf-teclado-abierto #chat-panel {
 
 /* El cuadrado azul giratorio de la versión original ya no se usa. */
 #loading-overlay .loading-pixel { display: none !important; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RELOJ DEL MUNDO (HUD)
+   Va dentro de .corner-box, delante de la moneda de oro. La hora la pone
+   gf-ciclo-dia.js con lo que responde el backend; aquí solo está el aspecto.
+   ═════════════════════════════════════════════════════════════════════════ */
+.clock-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 42px;
+  padding: 2px 6px 2px 2px;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  user-select: none;
+}
+
+.clock-stack .clock-icon {
+  font-size: 15px;
+  line-height: 1;
+  color: #ffd97a;
+  text-shadow: 0 0 6px rgba(255, 200, 90, 0.55);
+  transition: color .6s ease, text-shadow .6s ease;
+}
+
+.clock-stack .clock-time {
+  color: #ffe9a8;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'Segoe UI', sans-serif;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;   /* la hora no baila al cambiar de cifra */
+  transition: color .6s ease;
+}
+
+/* De noche el reloj se enfría, para que se note de un vistazo sin leer la hora */
+.clock-stack.es-noche .clock-icon {
+  color: #cfe0ff;
+  text-shadow: 0 0 6px rgba(150, 190, 255, 0.55);
+}
+.clock-stack.es-noche .clock-time { color: #cfe0ff; }
