@@ -595,6 +595,16 @@ showNotification(message, type = 'info') {
     this._cambiandoEscena = false;
     this._puertaArmada    = false;
 
+    // ── Reloj del mundo ─────────────────────────────────────────────────────
+    // La tienda es interior, así que no se oscurece; pero el reloj del HUD
+    // sigue a la vista, y al entrar se aprovecha para refrescar la hora si la
+    // última sincronización ya tiene media hora.
+    try {
+      if (window.GFCiclo) window.GFCiclo.sincronizarSiHaceFalta('entrar en tiendajuego');
+    } catch (e) {
+      console.warn('⚠️ ciclo día/noche no disponible:', e);
+    }
+
     // ── Aplicar stats del contrato INMEDIATAMENTE al inicio ──────────────────
     if (window.playerStats) {
       if (typeof window.playerStats.oro    === 'number') this.moneda           = window.playerStats.oro;

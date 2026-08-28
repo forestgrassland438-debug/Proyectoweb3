@@ -80,6 +80,7 @@
        el socket, UNA sola vez por pestaña; este módulo solo lo recuerda y
        pinta el panel del dashboard. -->
   <script src="./gf-canales.js?v=17.3" defer></script>
+  <script src="./gf-ciclo-dia.js?v=17.3" defer></script>
 
   <!-- Cazador de micro-parones. Inerte hasta que se le llama a mano desde la
        consola con GFTirones.empezar(). No vigila nada por su cuenta. -->
@@ -1261,6 +1262,13 @@
   <div id="game-hud" class="hud-hidden">
 
     <div class="corner-box">
+      <!-- Reloj del mundo. La hora la manda el backend (/api/world/time); aquí
+           solo se pinta. Ver gf-ciclo-dia.js. -->
+      <div class="clock-stack" id="hud-reloj" title="Hora del mundo">
+        <span class="clock-icon" id="hud-reloj-icono">☀</span>
+        <span class="clock-time" id="hud-reloj-hora">--:--</span>
+      </div>
+
       <!-- Contenedor izquierdo (con GL) -->
       <div class="coin-stack left-stack">
         <img src="./Game/Source/moneda de oro.png" alt="Moneda GL" class="main-img" />
