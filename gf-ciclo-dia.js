@@ -38,9 +38,9 @@
   var REINTENTO_MS  = 60 * 1000;       // si falla la petición
   var PROFUNDIDAD   = 9000;            // por encima del mundo, debajo del HUD DOM
   var COLOR_NOCHE   = 0x24365f;        // azul de noche con el que se multiplica
-  var ALFA_NOCHE    = 0.82;            // oscuridad máxima
-  var RADIO_POSTE   = 340;             // en píxeles de mundo
-  var RADIO_JUGADOR = 105;             // de sobra para cubrir al personaje
+  var ALFA_NOCHE    = 0.76;            // oscuridad máxima
+  var RADIO_POSTE   = 430;             // en píxeles de mundo
+  var RADIO_JUGADOR = 155;             // de sobra para cubrir al personaje
 
   // ---------------------------------------------------------------- utilidades
   function log() {
@@ -324,9 +324,12 @@
     var g = ctx.createRadialGradient(radio, radio, 0, radio, radio, radio);
     // El centro borra del todo y el borde no borra nada: así la luz se difumina
     // en vez de acabar en un círculo recortado.
+    // Núcleo iluminado más ancho y caída más tardía: la luz no solo llega más
+    // lejos, sino que ALUMBRA más dentro de su radio. Antes empezaba a apagarse
+    // al 55% y el borde del charco quedaba casi tan oscuro como la noche.
     g.addColorStop(0.00, 'rgba(255,255,255,1)');
-    g.addColorStop(0.55, 'rgba(255,255,255,0.96)');
-    g.addColorStop(0.80, 'rgba(255,255,255,0.62)');
+    g.addColorStop(0.66, 'rgba(255,255,255,0.98)');
+    g.addColorStop(0.86, 'rgba(255,255,255,0.72)');
     g.addColorStop(1.00, 'rgba(255,255,255,0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, d, d);

@@ -2494,6 +2494,8 @@ showNotification(message, type = 'info') {
     // y pájaros): 78 texturas. Las carga el propio módulo para no meter 78
     // líneas aquí; la lista de assets es cosa suya, no de la escena.
     if (window.GFAnimales) window.GFAnimales.precargar(this);
+    // Hojas y ráfagas del viento.
+    if (window.GFViento) window.GFViento.precargar(this);
     // Fresa. 1 = sembrada sin regar · 2 = regada · 3 = creciendo ·
     // 4 = lista para cosechar · 5 = se murio.
     this.load.image('tierra_seca_plant_fresa', './Game/Objetos/Plantas/planta_fresa/1.png');
@@ -5039,6 +5041,10 @@ this.anims.create({
     if (window.GFMascota) window.GFMascota.montar(this);
     if (window.GFMuerte) window.GFMuerte.montar(this);
     if (window.GFAlquimista) window.GFAlquimista.montar(this);
+    /* Viento: de vez en cuando se levanta una racha, cruzan hojas y los
+       árboles se mecen. Sprites sin física pegados a la cámara; a los
+       árboles solo les cambia la rotación y se la devuelve al parar. */
+    if (window.GFViento) window.GFViento.montar(this);
 
     console.log('game create ejecutándose');
 

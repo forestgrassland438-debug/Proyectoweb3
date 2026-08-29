@@ -66,7 +66,7 @@
     // El topo es el único con vida bajo tierra: además de andar y comer tiene
     // que cavar, asomarse y moverse como un bulto de tierra.
     topo:      { quieto: 2, camina: 4, come: 2, cava: 3, asoma: 2,
-                 monticulo: 2, hoyo: 1 }
+                 monticulo: 2, hoyo: 3 }
   };
 
   /* Fotogramas que tiene UNA especie y no todo su grupo.
@@ -74,9 +74,13 @@
      solo este último ataca: si el `ataque` estuviera en el grupo, el módulo
      buscaría vaca_ataque_1.png y no montaría la vaca por texturas que faltan. */
   var POSES_EXTRA = {
-    zorro: { ataque: 3 }, zorra: { ataque: 3 }, cocodrilo: { ataque: 3 },
+    // Los zorros se tumban a descansar (con la cabeza levantada: no duermen).
+    zorro: { ataque: 3, tumbado: 2 }, zorra: { ataque: 3, tumbado: 2 },
+    cocodrilo: { ataque: 3 },
     serpiente_verde: { ataque: 3 }, serpiente_coral: { ataque: 3 },
-    serpiente_vibora: { ataque: 3 }
+    serpiente_vibora: { ataque: 3 },
+    // Las aves se bañan en la fuente y duermen de noche en su rama.
+    paloma: { bana: 3, duerme: 2 }, pajaro: { bana: 3, duerme: 2 }
   };
 
   /** Todas las poses de una especie: las de su grupo más las suyas propias. */
@@ -93,7 +97,8 @@
 
   var RITMO = {
     quieto: 2, camina: 8, come: 5, repta: 9, vuela: 12,
-    ataque: 9, cava: 8, asoma: 2, monticulo: 4, hoyo: 1
+    ataque: 9, cava: 8, asoma: 2, monticulo: 4, hoyo: 1,
+    tumbado: 1.4, bana: 6, duerme: 0.8
   };
 
   /* Ficha de cada especie.
@@ -130,9 +135,9 @@
   };
 
   var ELENCO = [
-    ['zorro', 3], ['zorra', 1], ['vaca', 1], ['cerdo', 2], ['cocodrilo', 2],
+    ['zorro', 3], ['zorra', 1], ['vaca', 2], ['cerdo', 2], ['cocodrilo', 2],
     ['serpiente_verde', 2], ['serpiente_coral', 1], ['serpiente_vibora', 2],
-    ['topo', 3],
+    ['topo', 7],
     ['paloma', 4], ['pajaro', 5]
   ];
 
@@ -205,9 +210,16 @@
     return out;
   }
 
+  // Props que no son de ninguna especie.
+  var PROPS = ['nido_1', 'nido_2'];
+
   function precargar(scene) {
     if (!scene || !scene.load) return 0;
     var n = 0;
+    for (var q = 0; q < PROPS.length; q++) {
+      scene.load.image('gfa_' + PROPS[q], RUTA + PROPS[q] + '.png');
+      n++;
+    }
     for (var e in FICHA) {
       var fs = fotogramas(e);
       for (var i = 0; i < fs.length; i++) {
@@ -231,6 +243,10 @@
     var f = FICHA[especie];
     var poses = posesDe(especie);
     for (var p in poses) {
+      // El hoyo son tres IMÁGENES distintas para elegir al azar, no una
+      // animación de tres fotogramas: si se animara, el agujero parpadearía
+      // cambiando de tamaño solo.
+      if (p === 'hoyo') continue;
       var clave = 'gfa_' + especie + '_' + p;
       if (scene.anims.exists(clave)) continue;
       var frames = [];
@@ -367,20 +383,30 @@
 
     for (var k = 0; k < celdas.length && puntos.length < n; k++) {
       var cx = celdas[k][0] * anchoC, cy = celdas[k][1] * altoC;
-      for (var intento = 0; intento < 60; intento++) {
-        var x = cx + az(anchoC * 0.1, anchoC * 0.9);
-        var y = cy + az(altoC * 0.1, altoC * 0.9);
-        if (!libre(scene, plantilla, x, y)) continue;
-        if (jugador && Math.hypot(x - jugador.x, y - jugador.y) < 500) continue;
-        var pegado = false;
-        for (var q = 0; q < yaPuestos.length; q++) {
-          if (Math.hypot(x - yaPuestos[q].x, y - yaPuestos[q].y) <
-              SEPARACION_NACIMIENTO) { pegado = true; break; }
+      /* La separación exigida se va RELAJANDO igual que con los posaderos.
+         Con 31 animales en el mapa, exigir siempre 700 px hacía que los
+         últimos no encontraran sitio y sencillamente NO NACÍAN: al montar sin
+         árboles salían 6 aves de 9 en vez de las 9. */
+      var exigencias = [SEPARACION_NACIMIENTO, SEPARACION_NACIMIENTO / 2,
+                        SEPARACION_NACIMIENTO / 4, 60];
+      var puesto = false;
+      for (var ex = 0; ex < exigencias.length && !puesto; ex++) {
+        for (var intento = 0; intento < 60; intento++) {
+          var x = cx + az(anchoC * 0.1, anchoC * 0.9);
+          var y = cy + az(altoC * 0.1, altoC * 0.9);
+          if (!libre(scene, plantilla, x, y)) continue;
+          if (jugador && Math.hypot(x - jugador.x, y - jugador.y) < 500) continue;
+          var pegado = false;
+          for (var q = 0; q < yaPuestos.length; q++) {
+            if (Math.hypot(x - yaPuestos[q].x, y - yaPuestos[q].y) <
+                exigencias[ex]) { pegado = true; break; }
+          }
+          if (pegado) continue;
+          puntos.push({ x: x, y: y });
+          yaPuestos.push({ x: x, y: y });
+          puesto = true;
+          break;
         }
-        if (pegado) continue;
-        puntos.push({ x: x, y: y });
-        yaPuestos.push({ x: x, y: y });
-        break;
       }
     }
     return puntos;
@@ -445,12 +471,22 @@
   function poseEstatica(pose) { return pose === 'hoyo'; }
 
   // ------------------------------------------------------------ los de tierra
+  /** ¿Esta especie sabe tumbarse? (los zorros sí, y solo a descansar) */
+  function sabeTumbarse(a) { return !!posesDe(a.especie).tumbado; }
+
   function decidirTierra(st, a) {
     var r = Math.random();
     if (r < 0.55) {
       a.fase = 'pasea';
       a.rumbo = az(0, Math.PI * 2);
       anim(a, poseAndar(a));
+    } else if (r < 0.68 && sabeTumbarse(a)) {
+      // Descansa tumbado. NO duerme: el jugador lo pidió así, y por eso el
+      // sprite tiene el ojo abierto y las orejas de pie.
+      a.fase = 'tumbado';
+      anim(a, 'tumbado');
+      a.hasta = st.scene.time.now + az(6000, 16000);
+      return;
     } else if (r < 0.80 && sabeComer(a)) {
       a.fase = 'come';
       anim(a, 'come');
@@ -481,17 +517,23 @@
    * la velocidad media no cambia.
    */
   function moverTierra(st, a, dt, corriendo) {
-    var vel = corriendo ? (a.ficha.corre || a.ficha.vel * 2) : a.ficha.vel;
+    return moverTierraA(st, a, dt,
+                        corriendo ? (a.ficha.corre || a.ficha.vel * 2) : a.ficha.vel);
+  }
+
+  /** Igual, pero con una velocidad concreta (el topo bajo tierra la cambia). */
+  function moverTierraA(st, a, dt, vel) {
     var total = vel * dt;
     if (total <= 0) return;
     var trozos = Math.max(1, Math.ceil(total / PASO_MAX));
     for (var k = 0; k < trozos; k++) {
-      if (!unPaso(st, a, total / trozos, corriendo)) return;
+      if (!unPaso(st, a, total / trozos)) return;
     }
   }
 
-  /** Un tramo suelto. Devuelve false si se ha parado y no hay que seguir. */
-  function unPaso(st, a, paso, corriendo) {
+  /** Un tramo suelto. Devuelve false si se ha parado y no hay que seguir.
+      La velocidad ya viene metida en `paso`. */
+  function unPaso(st, a, paso) {
     var scene = st.scene;
     var elegido = rumboLibre(scene, a, a.rumbo, paso);
     if (elegido === null) {
@@ -605,6 +647,39 @@
     var sitios = posaderos(scene);
     var r = Math.random();
 
+    a.pareja = null;
+
+    // ── DE NOCHE SE DUERME ─────────────────────────────────────────────────
+    // Posada y de noche: se queda en la rama hasta que amanezca. Es lo que
+    // hace que el mapa de noche se sienta distinto y no un día oscuro.
+    if (esDeNoche() && a.fase === 'posado' && a.soporte) {
+      a.fase = 'duerme';
+      anim(a, 'duerme');
+      a.hasta = scene.time.now + az(8000, 16000);
+      if (Math.random() < PROB_NIDO) construirNido(st, a);
+      return;
+    }
+
+    // ── BAÑARSE EN LA FUENTE ───────────────────────────────────────────────
+    if (r < 0.14) {
+      var f = fuenteDe(scene);
+      if (f && (!p || Math.hypot(f.x - p.x, f.y - p.y) > a.ficha.huye * 1.3)) {
+        volarA(st, a, { x: f.x, y: f.y }, 'bana', null);
+        return;
+      }
+    }
+
+    // ── IRSE CON OTRA DE SU ESPECIE ────────────────────────────────────────
+    if (r < 0.30 && sitios.length) {
+      var otra = companiaDe(st, a);
+      if (otra) {
+        var juntas = elegir(lejosDe(sitios, p ? p.x : null, p ? p.y : null,
+                                    a.ficha.posado * 1.6));
+        irseJuntas(st, a, otra, juntas);
+        return;
+      }
+    }
+
     if (!sitios.length) {
       // Mapa sin árboles, postes ni casas: en vez de quedarse clavada en el
       // aire, el ave se queda haciendo vida de suelo.
@@ -688,8 +763,11 @@
           a.soporte = null;
           spr.setPosition(a.destino.x, a.destino.y);
           spr.setDepth(a.destino.y);
-          anim(a, a.alFinal === 'come' ? 'come' : 'camina');
-          a.hasta = ahora + az(ESPERA_SUELO_AVE[0], ESPERA_SUELO_AVE[1]);
+          anim(a, a.alFinal === 'come' ? 'come'
+                 : a.alFinal === 'bana' ? 'bana' : 'camina');
+          a.hasta = ahora + (a.alFinal === 'bana'
+                             ? az(ESPERA_BANO[0], ESPERA_BANO[1])
+                             : az(ESPERA_SUELO_AVE[0], ESPERA_SUELO_AVE[1]));
           a.rumbo = Math.random() < 0.5 ? -1 : 1;
         }
         return;
@@ -713,6 +791,9 @@
       huirAve(st, a);
       return;
     }
+
+    // Con pareja al lado, se giran el uno hacia el otro.
+    if (a.fase === 'posado' && a.mirarA) cortejar(a);
 
     if (a.fase === 'camina') {
       var nx = spr.x + a.rumbo * a.ficha.vel * dt;
@@ -756,6 +837,27 @@
     return { tipo: 'jugador', x: p.x, y: p.y };
   }
 
+  /**
+   * Parpadeo rojo al recibir un golpe de la mascota.
+   *
+   * Es lo único que hace visible la pelea: sin ningún efecto, el jugador ponía
+   * la mascota en modo ataque, el animal se acercaba, se retiraba a los pocos
+   * segundos y parecía que no había pasado nada.
+   */
+  function marcarGolpe(a) {
+    if (!a.spr || !a.spr.setTint) return;
+    a.spr.setTint(0xff7d6a);
+    a.tinteHasta = (a.spr.scene && a.spr.scene.time ? a.spr.scene.time.now : 0) + 160;
+  }
+
+  /** Quita el parpadeo pasado el rato. */
+  function limpiarGolpe(a, ahora) {
+    if (a.tinteHasta && ahora >= a.tinteHasta) {
+      a.tinteHasta = 0;
+      if (a.spr && a.spr.clearTint) a.spr.clearTint();
+    }
+  }
+
   /** El animal se lleva un revolcón y se larga un rato. */
   function retirarse(st, a) {
     var scene = st.scene;
@@ -796,7 +898,22 @@
     if (ahora - (a.ultimoZarpazo || 0) < CADENCIA_MASCOTA) return;
     a.ultimoZarpazo = ahora;
     a.golpes = (a.golpes || 0) + 1;
-    if (d.setFlipX) d.setFlipX(a.spr.x < d.x);
+
+    /* AL PERRO NO SE LE TOCA EL FLIP.
+
+       EL BUG QUE ARREGLA — "el perro se ve caminando de pa atrás":
+       aquí se hacía `d.setFlipX(...)` para que mirase al bicho. Pero GameScene
+       NO usa flipX con el perro: tiene dos animaciones distintas, 'perro_left'
+       y 'perro_right'. Al dejarle flipX en true, la animación correcta se
+       dibujaba espejada y el perro andaba de espaldas para siempre.
+
+       Se le quita el espejado por si alguien lo dejó puesto, y se le deja en
+       paz: de a dónde mira ya se encarga el juego. */
+    if (d.flipX) { try { d.setFlipX(false); } catch (e) {} }
+
+    // Golpe visible: el animal parpadea en rojo. Sin esto, "la mascota ataca"
+    // no se nota — que es justo lo que reportó el jugador.
+    marcarGolpe(a);
     if (a.golpes >= (a.ficha.aguante || 4)) retirarse(st, a);
   }
 
@@ -852,7 +969,13 @@
   function abrirHoyo(st, x, y) {
     var scene = st.scene;
     if (!scene.textures.exists('gfa_topo_hoyo_1')) return;
-    var h = scene.add.sprite(x, y, 'gfa_topo_hoyo_1');
+    /* Tres tamaños de agujero, elegidos al azar.
+       El jugador lo pidió expresamente: todos los hoyos salían idénticos y
+       cantaba que era el mismo sprite copiado. */
+    var cual = 1 + Math.floor(Math.random() * 3);
+    var clave = 'gfa_topo_hoyo_' + cual;
+    if (!scene.textures.exists(clave)) clave = 'gfa_topo_hoyo_1';
+    var h = scene.add.sprite(x, y, clave);
     h.setOrigin(0.5, 1);
     h.setScale(ESCALA);
     // Por debajo de todo lo que pisa el suelo: es un agujero, no un objeto.
@@ -887,9 +1010,12 @@
 
     switch (a.fase) {
       case 'bajo':
-        // el montículo avanza esquivando lo sólido, como cualquier otro
+        /* Bajo tierra va MÁS RÁPIDO que andando por fuera: es su terreno.
+           TOPO_VEL_BAJO existía y no se usaba — el montículo se arrastraba a la
+           misma velocidad que el topo caminando, que es justo lo que el jugador
+           notó como "no se mueve bien abajo". */
         a.rumbo += az(-0.6, 0.6) * dt;
-        moverTierra(st, a, dt, false);
+        moverTierraA(st, a, dt, TOPO_VEL_BAJO);
         if (ahora >= a.hasta) {
           a.fase = 'asoma';
           anim(a, 'asoma');
@@ -965,6 +1091,84 @@
     }
   }
 
+
+  // ======================================================= VIDA DE LAS AVES
+  var FUENTES = ['sprite_pozoxd2', 'sprite_fuente1', 'sprite_fuente'];
+  var ESPERA_BANO   = [4000, 9000];
+  var PROB_NIDO     = 0.30;     // al posarse, a veces se pone a construir
+  var DIST_PAREJA   = 520;      // hasta dónde busca compañía
+
+  /** La fuente del pueblo, si existe. Es donde se bañan. */
+  function fuenteDe(scene) {
+    for (var i = 0; i < FUENTES.length; i++) {
+      var f = scene[FUENTES[i]];
+      if (!f || f.active === false) continue;
+      var b;
+      try { b = f.getBounds(); } catch (e) { continue; }
+      // al borde del agua, no en el centro del pilón
+      return { x: b.centerX + az(-b.width * 0.25, b.width * 0.25),
+               y: b.bottom - 4, clave: FUENTES[i] };
+    }
+    return null;
+  }
+
+  function esDeNoche() {
+    var c = window.GFCiclo;
+    if (!c || !c.hayHora || !c.hayHora()) return false;
+    var e = c.estado();
+    return !!(e && e.esDia === false);
+  }
+
+  /** Otra ave de LA MISMA especie, posada y sin nada que hacer. */
+  function companiaDe(st, a) {
+    var cand = [];
+    for (var i = 0; i < st.animales.length; i++) {
+      var o = st.animales[i];
+      if (o === a || o.especie !== a.especie) continue;
+      if (o.fase !== 'posado' || o.pareja) continue;
+      if (Math.hypot(o.spr.x - a.spr.x, o.spr.y - a.spr.y) > DIST_PAREJA) continue;
+      cand.push(o);
+    }
+    return cand.length ? elegir(cand) : null;
+  }
+
+  /**
+   * Dos aves iguales se van juntas.
+   *
+   * Se emparejan de verdad: eligen UN posadero y las dos vuelan hacia él, una
+   * a cada lado. Mientras dura, se marcan como pareja para que ninguna se meta
+   * en otra cosa, y al llegar se quedan de cara la una a la otra.
+   */
+  function irseJuntas(st, a, otra, sitio) {
+    a.pareja = otra; otra.pareja = a;
+    volarA(st, a, { x: sitio.x - 7, y: sitio.y }, 'posado', sitio.clave);
+    volarA(st, otra, { x: sitio.x + 7, y: sitio.y }, 'posado', sitio.clave);
+    a.mirarA = otra; otra.mirarA = a;
+    log(st.scene, a.especie, 'se va con otra a', sitio.clave);
+  }
+
+  /** Al lado de su pareja: se giran el uno hacia el otro y se acicalan. */
+  function cortejar(a) {
+    if (!a.mirarA || !a.mirarA.spr || !a.mirarA.spr.active) { a.mirarA = null; return; }
+    a.spr.setFlipX(a.mirarA.spr.x < a.spr.x);
+  }
+
+  /** Construye un nido en la copa donde está posada. */
+  function construirNido(st, a) {
+    var scene = st.scene;
+    if (!scene.textures.exists('gfa_nido_1')) return;
+    if (st.nidos[a.soporte]) return;                  // ya hay uno en ese árbol
+    var conHuevos = Math.random() < 0.45;
+    var nido = scene.add.sprite(a.spr.x, a.spr.y + 2,
+                                conHuevos ? 'gfa_nido_2' : 'gfa_nido_1');
+    nido.setOrigin(0.5, 1);
+    nido.setScale(ESCALA);
+    // Justo por DEBAJO del ave, para que se vea posada dentro y no encima.
+    nido.setDepth((a.spr.depth || 0) - 1);
+    st.nidos[a.soporte] = nido;
+    log(scene, a.especie, 'construye nido en', a.soporte);
+  }
+
   // =============================================================== BUCLE
   function actualizar(st, ahora, delta) {
     var scene = st.scene;
@@ -1005,6 +1209,7 @@
         dt = Math.min(delta, 100) / 1000;
       }
 
+      limpiarGolpe(a, ahora);
       if (a.grupo === 'ave') actualizarAve(st, a, ahora, dt);
       else if (a.grupo === 'topo') actualizarTopo(st, a, ahora, dt);
       else actualizarTierra(st, a, ahora, dt);
@@ -1018,7 +1223,7 @@
     if (scene.__gfFauna) return scene.__gfFauna;      // ya montada
 
     var elenco = opciones.elenco || ELENCO;
-    var st = { scene: scene, animales: [], hoyos: [] };
+    var st = { scene: scene, animales: [], hoyos: [], nidos: {} };
     var puestos = [];
     var usados = {};
 
@@ -1117,6 +1322,8 @@
       if (st.hoyos[h].spr) st.hoyos[h].spr.destroy();
     }
     st.hoyos.length = 0;
+    for (var k in st.nidos) { if (st.nidos[k]) st.nidos[k].destroy(); }
+    st.nidos = {};
     scene.__gfFauna = null;
     log(scene, 'desmontada');
   }
@@ -1148,6 +1355,9 @@
       huirAve: huirAve, huirDe: huirDe, moverTierra: moverTierra,
       profundidadPosado: profundidadPosado, sitioEnPie: sitioEnPie,
       objetivoDe: objetivoDe, actualizarAgresivo: actualizarAgresivo,
+      fuenteDe: fuenteDe, esDeNoche: esDeNoche, companiaDe: companiaDe,
+      irseJuntas: irseJuntas, construirNido: construirNido,
+      sabeTumbarse: sabeTumbarse,
       actualizarTopo: actualizarTopo, mascotaPelea: mascotaPelea,
       retirarse: retirarse, morder: morder, abrirHoyo: abrirHoyo,
       posesDe: posesDe, POSES: POSES, POSES_EXTRA: POSES_EXTRA

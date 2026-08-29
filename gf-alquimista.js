@@ -233,7 +233,23 @@
     for (var i = 0; i < CASAS.length; i++) {
       var casa = scene[CASAS[i]];
       if (!casa || !casa.setInteractive) continue;
-      casa.setInteractive({ useHandCursor: true });
+      /* PIXEL PERFECT, como los árboles y las minas del juego.
+
+         POR QUÉ: Phaser entrega el clic SOLO al objeto interactivo que esté
+         más arriba. Con un área rectangular, cualquier árbol que se solape con
+         la esquina de la casa se comía el clic aunque ahí no se viera nada.
+         Con pixel perfect, un píxel transparente ya no captura, y el clic llega
+         a lo que de verdad se ve bajo el cursor. Es la misma razón por la que
+         el juego lo usa en enablePixelPerfectInput(). */
+      try {
+        if (scene.input && scene.input.makePixelPerfect) {
+          casa.setInteractive(scene.input.makePixelPerfect(1));
+        } else {
+          casa.setInteractive({ useHandCursor: true });
+        }
+      } catch (e) {
+        casa.setInteractive({ useHandCursor: true });
+      }
       st.casa = casa;
       st.onClic = function () { abrir(); };
       casa.on('pointerdown', st.onClic);
@@ -241,6 +257,53 @@
       return true;
     }
     return false;
+  }
+
+  // ---------------------------------------------------------- aviso de cerca
+  /* Un botón que aparece al acercarse a la casa.
+
+     POR QUÉ ADEMÁS DEL CLIC: el clic sobre el sprite depende de qué haya
+     encima y de acertarle a un píxel opaco, y el jugador reportó que no le
+     pasaba nada al pulsar. Este botón no depende de nada de eso, y en el móvil
+     es bastante más cómodo que buscar la puerta con el dedo. */
+  var DIST_AVISO = 190;
+
+  function botonCerca() {
+    var b = document.getElementById('gf-alq-cerca');
+    if (b) return b;
+    estilos();
+    if (!document.getElementById('gf-alq-cerca-css')) {
+      var css = document.createElement('style');
+      css.id = 'gf-alq-cerca-css';
+      css.textContent =
+        '#gf-alq-cerca{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);' +
+        'display:none;padding:11px 20px;border-radius:22px;border:2px solid #d8b45c;' +
+        'background:rgba(32,26,16,.92);color:#f4e6bd;font-size:15px;cursor:pointer;' +
+        'z-index:99997;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;' +
+        'box-shadow:0 6px 20px rgba(0,0,0,.5)}' +
+        '#gf-alq-cerca.visible{display:block}';
+      document.head.appendChild(css);
+    }
+    b = document.createElement('div');
+    b.id = 'gf-alq-cerca';
+    b.textContent = '⚗  Alchemist';
+    document.body.appendChild(b);
+    b.addEventListener('click', function () { abrir(); });
+    return b;
+  }
+
+  function revisarCercania(st) {
+    var scene = st.scene;
+    var p = scene.player;
+    var casa = st.casa;
+    if (!p || !casa) return;
+    var b;
+    try { b = casa.getBounds(); } catch (e) { return; }
+    var cx = b.centerX, cy = b.bottom;
+    var cerca = Math.hypot(p.x - cx, p.y - cy) < DIST_AVISO;
+    if (cerca === st.avisoVisible) return;
+    st.avisoVisible = cerca;
+    botonCerca().classList.toggle('visible', cerca);
   }
 
   function montar(scene) {
@@ -253,6 +316,7 @@
     st.onUpdate = function () {
       // La casa no existe en el primer frame; se reintenta hasta que aparezca.
       if (!st.enganchado) st.enganchado = engancharCasa(st);
+      else revisarCercania(st);
     };
     scene.events.on('update', st.onUpdate);
     st.onApagar = function () { desmontar(scene); };
@@ -270,6 +334,8 @@
       scene.events.off('destroy', st.onApagar);
     }
     if (st.casa && st.onClic && st.casa.off) st.casa.off('pointerdown', st.onClic);
+    var b = document.getElementById('gf-alq-cerca');
+    if (b) b.classList.remove('visible');
     cerrar();
     scene.__gfAlquimista = null;
     if (montado === st) montado = null;
@@ -278,6 +344,7 @@
   window.GFAlquimista = {
     montar: montar, desmontar: desmontar,
     abrir: abrir, cerrar: cerrar, refrescar: refrescar,
+    _revisarCercania: revisarCercania,
     comprar: comprar,
     _interno: { pintar: pintar, catalogo: function () { return catalogo; } }
   };

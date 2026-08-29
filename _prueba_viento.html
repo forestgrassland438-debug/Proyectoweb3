@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<!--
+  BANCO DE PRUEBAS DEL VIENTO — no forma parte del juego.
+
+  Monta gf-viento.js sobre una escena mínima (césped, árboles del juego y el
+  pozo) para poder VER las hojas, las ráfagas y el meneo de los árboles sin
+  tener que arrancar todo el juego ni el backend.
+
+  Se puede borrar cuando ya no haga falta: nada del juego lo referencia.
+-->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Viento — banco de pruebas</title>
+  <style>
+    html,body{margin:0;background:#1a1f18;overflow:hidden;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+    #hud{position:fixed;left:10px;top:10px;z-index:10;color:#dfe6d2;font-size:13px;
+      background:rgba(0,0,0,.55);padding:9px 12px;border-radius:8px;line-height:1.6}
+    #hud b{color:#a9d17a}
+    button{margin-right:6px;padding:5px 10px;border-radius:6px;border:1px solid #5a6a4a;
+      background:#2b3527;color:#dfe6d2;cursor:pointer}
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <b>Banco de pruebas del viento</b><br>
+    <span id="est">cargando…</span><br>
+    <button id="b1">Soplar</button>
+    <button id="b2">Parar</button>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+  <script src="./gf-viento.js"></script>
+  <script>
+  window.GF_VIENTO_DEBUG = true;
+
+  class Prueba extends Phaser.Scene {
+    preload() {
+      // Los árboles y el pozo de verdad del juego, para ver el meneo sobre el
+      // arte real y no sobre cuadrados de colores.
+      this.load.image('arbol', './Game/Objetos/arbol.png');
+      this.load.image('pino',  './Game/Objetos/pinos.png');
+      this.load.image('pozo',  './Game/Objetos/poste.png');
+      if (window.GFViento) window.GFViento.precargar(this);
+    }
+
+    create() {
+      const W = this.scale.width, H = this.scale.height;
+      // césped a franjas, para que se note el movimiento de las hojas
+      const g = this.add.graphics();
+      for (let y = 0; y < H; y += 8) {
+        g.fillStyle(y % 16 === 0 ? 0x3f5a34 : 0x466239, 1);
+        g.fillRect(0, y, W, 8);
+      }
+      g.setDepth(0);
+
+      /* Árboles con el MISMO origen que en el juego, (0,1): así el meneo los
+         inclina desde el pie, que es lo que hay que comprobar. */
+      const sitios = [[120, 520], [340, 560], [600, 540], [860, 580], [1080, 530]];
+      sitios.forEach((p, i) => {
+        const s = this.add.image(p[0], p[1], i % 2 ? 'arbol' : 'pino')
+          .setOrigin(0, 1).setDepth(p[1]);
+        this['sprite_arbolx' + (i + 1)] = s;
+      });
+      for (let i = 0; i < 4; i++) {
+        const s = this.add.image(200 + i * 260, 700, 'pino')
+          .setOrigin(0, 1).setDepth(700);
+        this['sprite_pinos' + (i + 1)] = s;
+      }
+
+      if (window.GFViento) window.GFViento.montar(this, { primeraEn: 800 });
+
+      document.getElementById('b1').onclick = () => window.GFViento.soplar(90000);
+      document.getElementById('b2').onclick = () => window.GFViento.parar();
+
+      this.time.addEvent({ delay: 200, loop: true, callback: () => {
+        const e = window.GFViento && window.GFViento.estado();
+        document.getElementById('est').textContent = e
+          ? ('soplando: ' + e.soplando + '  ·  fuerza: ' + e.fuerza +
+             '  ·  dirección: ' + (e.direccion > 0 ? '→' : '←') +
+             '  ·  hojas: ' + e.hojas + '  ·  árboles: ' + e.arboles)
+          : 'el módulo no se montó';
+      }});
+      window.__listo = true;
+    }
+  }
+
+  /* CANVAS y no AUTO: al recargar la pagina varias veces se acumulan contextos
+     WebGL y el navegador acaba tirando el que hay ("WebGL Context lost"). Para
+     un banco de pruebas de sprites 2D, canvas sobra y no se queda sin contexto. */
+  window.game = new Phaser.Game({
+    type: Phaser.CANVAS,
+    width: window.innerWidth, height: window.innerHeight,
+    backgroundColor: '#2c3a24',
+    scene: [Prueba],
+    render: { pixelArt: true, antialias: false }
+  });
+  </script>
+</body>
+</html>

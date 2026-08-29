@@ -153,7 +153,10 @@
   /** Copia a la escena y al HUD los valores que devolvió el servidor. */
   function refrescarHud(scene, st) {
     try {
-      if (typeof st.vida === 'number') {
+      // Mismo motivo que en el mordisco: asignar el número no repinta nada.
+      if (typeof scene._adoptarVitalesDelServidor === 'function') {
+        scene._adoptarVitalesDelServidor(st);
+      } else if (typeof st.vida === 'number') {
         scene.vidaPorcentaje = st.vida;
         if (window.playerStats) window.playerStats.vida = st.vida;
       }

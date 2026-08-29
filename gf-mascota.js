@@ -61,12 +61,39 @@
   }
 
   // ------------------------------------------------------------------- red
+  /**
+   * Dónde está el backend.
+   *
+   * EL FALLO QUE ARREGLA: en local el juego usa `http://127.0.0.1:8080`
+   * (GameScene se lo asigna a `this.serverBase`), pero aquí se caía al valor
+   * por defecto 3001 porque `window.serverBase` no lo pone nadie. En producción
+   * daba igual —las dos ramas acaban en api.grasslandforest.com— pero en
+   * desarrollo las peticiones de la mascota iban a un puerto donde no hay nada.
+   * Se salió a la luz al probarlo en el navegador.
+   *
+   * Ahora se mira primero la escena viva, que es quien lo sabe de verdad.
+   */
   function base() {
+    var esc = escenaDelJuego();
+    if (esc && typeof esc.serverBase === 'string') return esc.serverBase;
     if (typeof window.serverBase === 'string')  return window.serverBase;
     if (typeof window.GF_API_BASE === 'string') return window.GF_API_BASE;
     var h = window.location.hostname;
-    if (h === 'localhost' || h === '127.0.0.1') return 'http://127.0.0.1:3001';
+    if (h === 'localhost' || h === '127.0.0.1') return 'http://127.0.0.1:8080';
     return 'https://api.grasslandforest.com';
+  }
+
+  /** Cualquier escena viva del juego que tenga serverBase. */
+  function escenaDelJuego() {
+    var g = window.game || (window.phaserScaler && window.phaserScaler.game);
+    if (!g || !g.scene || !g.scene.getScenes) return null;
+    try {
+      var ss = g.scene.getScenes(true) || [];
+      for (var i = 0; i < ss.length; i++) {
+        if (ss[i] && typeof ss[i].serverBase === 'string') return ss[i];
+      }
+    } catch (e) {}
+    return null;
   }
 
   function cookie(nombre) {
@@ -194,10 +221,24 @@
         if (!r.ok || !r.datos) return null;
         var st = r.datos.stats;
         if (st && typeof st.vida === 'number') {
-          // Se refleja en la escena para que las barras del HUD no vayan
-          // retrasadas hasta el siguiente guardado.
-          if (typeof scene.vidaPorcentaje === 'number') scene.vidaPorcentaje = st.vida;
-          if (window.playerStats) window.playerStats.vida = st.vida;
+          /* EL BUG QUE ARREGLA — "me atacan y no me hacen daño, y de repente
+             paseando me lo hacen":
+
+             El daño SÍ se aplicaba, en el servidor, en el momento del mordisco.
+             Lo que no pasaba era repintar la barra: aquí solo se asignaba
+             `scene.vidaPorcentaje`, que es un número, y el HUD no se entera de
+             que cambió. La barra se quedaba igual hasta que cualquier otra cosa
+             (talar, minar, un guardado) la repintaba… y entonces bajaba de
+             golpe, como si el daño hubiera llegado tarde.
+
+             `_adoptarVitalesDelServidor` es el camino que ya usa el juego para
+             esto: copia las tres barras Y llama a _refreshBarrasUI(). */
+          if (typeof scene._adoptarVitalesDelServidor === 'function') {
+            scene._adoptarVitalesDelServidor(st);
+          } else {
+            if (typeof scene.vidaPorcentaje === 'number') scene.vidaPorcentaje = st.vida;
+            if (window.playerStats) window.playerStats.vida = st.vida;
+          }
           if (st.vida <= 0) declararMuerte();
         }
         return st;
