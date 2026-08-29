@@ -39,8 +39,17 @@
   var PROFUNDIDAD   = 9000;            // por encima del mundo, debajo del HUD DOM
   var COLOR_NOCHE   = 0x24365f;        // azul de noche con el que se multiplica
   var ALFA_NOCHE    = 0.76;            // oscuridad máxima
-  var RADIO_POSTE   = 560;             // en píxeles de mundo
-  var RADIO_JUGADOR = 180;             // de sobra para cubrir al personaje
+  /* LA FAROLA ALUMBRA MÁS; EL PERSONAJE, NO.
+
+     Van por separado a propósito. La luz del personaje es una ayuda para no
+     andar a ciegas, y si crece demasiado el mundo deja de tener noche: te
+     llevas el día puesto encima. La de las farolas es lo que da forma al
+     pueblo de noche, y esa sí se pidió más grande tres veces.
+
+     560 -> 700 en la farola (+25 % de radio, +56 % de charco) y 180 -> 150 en
+     el personaje, que es donde estaba antes de la subida anterior. */
+  var RADIO_POSTE   = 700;             // en píxeles de mundo
+  var RADIO_JUGADOR = 150;             // lo justo para cubrir al personaje
 
   /* SOBRANTE DE LA CAPA DE NOCHE.
 
@@ -475,7 +484,7 @@
         .setBlendMode(Phaser.BlendModes.ADD)
         .setDepth((p.depth || 0) + 1)
         .setAlpha(0)
-        .setScale(2.7);          // crece con RADIO_POSTE, si no queda suelto
+        .setScale(3.3);          // crece con RADIO_POSTE, si no queda suelto
       st.resplandores.push(res);
     }
   }

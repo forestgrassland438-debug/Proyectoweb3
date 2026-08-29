@@ -15858,12 +15858,27 @@ _setupZoomKeeper() {
         console.log("🌐 Creando nueva conexión socket global");
         
         const SERVER = this.serverclient1;
+        /* NO RENDIRSE NUNCA.
+
+           EL FALLO QUE ARREGLA: "me desconecto y nunca mas se reconecta, tengo
+           que actualizar la pagina para ver a mis amigos". Estaba en 10
+           intentos separados un segundo: cualquier corte de red de mas de diez
+           segundos —cambiar de wifi, el movil pasando a datos, el portatil
+           saliendo de suspension— agotaba los intentos y Socket.IO se rendia
+           PARA SIEMPRE. El socket quedaba muerto sin nada que lo levantara, y
+           la unica salida era recargar.
+
+           Ahora reintenta indefinidamente con espera creciente (0,8 s → 8 s)
+           y un poco de azar, que es lo que evita que mil clientes vuelvan a la
+           vez cuando el servidor se reinicia. */
         window.globalSocket = io(SERVER, {
           path: '/socket.io',
           transports: ['websocket', 'polling'],
           reconnection: true,
-          reconnectionAttempts: 10,
-          reconnectionDelay: 1000,
+          reconnectionAttempts: Infinity,
+          reconnectionDelay: 800,
+          reconnectionDelayMax: 8000,
+          randomizationFactor: 0.5,
           timeout: 20000,
           autoConnect: true,
           forceNew: false
@@ -15902,21 +15917,57 @@ _setupZoomKeeper() {
       if (socket._globalEventsSet) return;
       
       socket.on('connect', () => {
-        console.log('✅ Socket global conectado:', socket.id);
-        // Notificar a todas las escenas que el socket está conectado
-        if (window.activeScene && window.activeScene.onSocketReconnect) {
-          window.activeScene.onSocketReconnect();
-        }
+        var esReconexion = socket._huboConexion === true;
+        socket._huboConexion = true;
+        console.log((esReconexion ? '🔁 Socket global RECONECTADO: '
+                                  : '✅ Socket global conectado: ') + socket.id);
+        var esc = window.activeScene;
+        if (esc && esc.onSocketReconnect) esc.onSocketReconnect(esReconexion);
       });
-      
+
       socket.on('disconnect', (reason) => {
         console.log('❌ Socket global desconectado:', reason);
+        var esc = window.activeScene;
+        if (esc && esc.onSocketDisconnect) esc.onSocketDisconnect(reason);
+
+        /* 'io server disconnect' es la UNICA razon por la que Socket.IO no
+           reintenta solo: el servidor ha cerrado la conexion a proposito. Aun
+           asi hay que volver, porque en la practica eso pasa cuando el servidor
+           se reinicia y al rato vuelve a estar. */
+        if (reason === 'io server disconnect') {
+          setTimeout(function () { try { socket.connect(); } catch (e) {} }, 2000);
+        }
       });
-      
+
       socket.on('connect_error', (error) => {
-        console.error('🔌 Error de conexión socket:', error.message);
+        console.warn('🔌 Error de conexion socket:', error && error.message);
       });
-      
+
+      /* RED DE SEGURIDAD.
+
+         Con reintentos infinitos no deberia hacer falta, pero un socket puede
+         quedarse quieto: `disconnected` y con el motor de reintentos parado
+         (socket.active !== true). Pasa al volver de suspension en algunos
+         navegadores. Este vigilante lo levanta, y ademas reengancha cuando la
+         pestana vuelve a primer plano o cuando el sistema avisa de que hay red.
+
+         Cuesta una comprobacion cada cinco segundos. */
+      if (!socket._vigilante) {
+        var levantar = function () {
+          try {
+            if (socket.disconnected && socket.active !== true) {
+              console.log('🩺 socket parado: levantandolo a mano');
+              socket.connect();
+            }
+          } catch (e) {}
+        };
+        socket._vigilante = setInterval(levantar, 5000);
+        document.addEventListener('visibilitychange', function () {
+          if (!document.hidden) levantar();
+        });
+        window.addEventListener('online', levantar);
+      }
+
       socket._globalEventsSet = true;
     }
 
@@ -16767,10 +16818,48 @@ removeOtherPlayer(playerId) {
       }
     }
 
+    /** Aviso de que se ha caido la conexion: se lo dice al jugador. */
+    onSocketDisconnect(reason) {
+      this._socketCaido = true;
+      if (typeof this.appendSystemMessage === 'function') {
+        this.appendSystemMessage('Connection lost. Reconnecting…');
+      }
+    }
+
     // Método para manejar reconexión del socket
-    onSocketReconnect() {
-      console.log('🔁 Reconexión detectada, reuniéndose a sala...');
-      
+    onSocketReconnect(esReconexion) {
+      console.log('🔁 Reconexion detectada, reuniendose a sala...');
+
+      /* VOLVER A ENTRAR DE VERDAD.
+
+         EL FALLO QUE ARREGLA: al reconectar te quedabas conectado pero FUERA de
+         la sala — el mapa vacio, nadie te veia y el chat no llegaba. Dos
+         motivos, y hacian falta los dos:
+
+         1. joinRoom() se salta el envio si `currentRoom` es la misma y no ha
+            pasado el cooldown, y tras una reconexion ambas cosas son ciertas.
+            Se pone lastJoinTime a 0 para forzarlo.
+         2. El socket trae un id NUEVO y `myId` se quedaba con el viejo. Con el
+            id viejo, la comprobacion de "este soy yo" deja de valer y te podias
+            ver a ti mismo como si fueras otro jugador.
+
+         Y los jugadores que habia antes son fantasmas: sus ids ya no existen en
+         el servidor. Se borran para que el `currentPlayers` de la nueva entrada
+         los vuelva a crear con los ids buenos. */
+      if (esReconexion && this.scene.isActive()) {
+        this._socketCaido = false;
+        this.socket = window.globalSocket;
+        this.myId = this.socket.id;
+        if (typeof this.clearOtherPlayers === 'function') this.clearOtherPlayers();
+        this.lastJoinTime = 0;              // sin cooldown: hay que reentrar ya
+        this.setupSceneSocketListeners();
+        this.joinRoom(this.currentRoom || 'game');
+        if (typeof this.appendSystemMessage === 'function') {
+          this.appendSystemMessage('Reconnected.');
+        }
+        return;
+      }
+
       if (this.scene.isActive()) {
         this.time.delayedCall(1000, () => {
           this.initSocket();
@@ -17168,7 +17257,11 @@ removeOtherPlayer(playerId) {
     };
 
     if (!this.socket || !this.socket.connected) {
-      this.appendSystemMessage('Not connected to the chat server.');
+      // Se dice que se esta volviendo, no solo que no hay conexion: antes
+      // parecia que el que se habia caido era el servidor.
+      this.appendSystemMessage(this._socketCaido
+        ? 'Connection lost. Reconnecting… your message was not sent.'
+        : 'Not connected to the chat server.');
       return;
     }
 
@@ -26689,6 +26782,16 @@ getPlayerIntentDirection() {
         this._tilesRevisadoEn = ahoraTiles;
         this.tileManagerMapa.updateVisible(cam);
       }
+
+      /* Y CADA FOTOGRAMA se saca un poco de trabajo de las colas.
+
+         updateVisible() ya no crea ni destruye nada: solo apunta. Quien lo hace
+         es bombear(), de uno o dos por fotograma, y por eso el juego ya no da
+         el tirón al cruzar de zona. Cuando no hay nada pendiente cuesta dos
+         comprobaciones. */
+      if (typeof this.tileManagerMapa.bombear === 'function') {
+        this.tileManagerMapa.bombear();
+      }
     }
 
     // Zona 'area_entrada_batalla': abre el hub de batallas P2P al pisarla
@@ -26791,11 +26894,17 @@ getPlayerIntentDirection() {
         this.sendPlayerMovement();
     }
 
-    // Y-sorting: depth = posición de los PIES del jugador para comparar correctamente
-    // con los árboles que usan setOrigin(0,1) y tienen su depth en la base del tronco.
-    // El jugador usa origin (0.5, 0.5), por lo que player.y es el CENTRO.
-    // Los pies están en player.y + displayHeight/2.
-    const playerFeetY = this.player.y + this.player.displayHeight * 0.5;
+    /* Y-sorting: la profundidad del jugador son sus PIES, para poder comparar
+       con la línea de suelo de cada objeto (ver gf-profundidad.js).
+
+       Los pies NO son `y + displayHeight/2`: eso es el borde de abajo del
+       sprite, y el sprite del personaje trae varias filas transparentes ahí.
+       Con esa cuenta el jugador se ponía delante de las cosas antes de llegar.
+       GFProfundidad.piesDe() mide dónde acaba el dibujo de verdad; si el módulo
+       no está, se cae a la cuenta de siempre. */
+    const playerFeetY = (window.GFProfundidad && window.GFProfundidad.piesDe)
+      ? window.GFProfundidad.piesDe(this, this.player)
+      : this.player.y + this.player.displayHeight * 0.5;
     this.player.setDepth(playerFeetY);
     if (this.usuariox) this.usuariox.setDepth(playerFeetY + 1);
 
@@ -26814,7 +26923,16 @@ getPlayerIntentDirection() {
         ((Array.isArray(this.collisionRectangles) && this.collisionRectangles.length) ||
          (Array.isArray(this.collisionRectangles1) && this.collisionRectangles1.length))) {
       this._buildingDepthsCalibrated = true;
-      this.calibrateBuildingDepths();
+      /* gf-profundidad.js si está: calibra TODOS los objetos del mapa (la
+         fuente, el pozo, el molino, las piedras...) y no solo los edificios que
+         llevaban un número puesto a mano. Además mide los píxeles cuando no hay
+         colisión que consultar. calibrateBuildingDepths() se queda de respaldo
+         para cuando el módulo no esté cargado. */
+      if (window.GFProfundidad && window.GFProfundidad.montar) {
+        window.GFProfundidad.montar(this);
+      } else {
+        this.calibrateBuildingDepths();
+      }
     }
 
     // Obtener las coordenadas en el mapa

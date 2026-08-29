@@ -673,10 +673,13 @@
    * tejado) queda por DETRÁS del árbol o de la casa. Va delante de su soporte
    * y sigue quedando detrás de lo que esté más abajo en pantalla.
    */
+  /* El ave posada va en base + 2 y el nido en base + 1: así el ave se ve
+     DENTRO del nido y no detrás. */
   function profundidadPosado(scene, a, sitio) {
-    if (sitio && typeof sitio.base === 'number') return sitio.base + 1;
+    // +2 y no +1: el nido va en base+1, y el ave tiene que verse DENTRO de él.
+    if (sitio && typeof sitio.base === 'number') return sitio.base + 2;
     var spr = a.soporte ? scene[a.soporte] : null;
-    if (spr && typeof spr.depth === 'number') return spr.depth + 1;
+    if (spr && typeof spr.depth === 'number') return spr.depth + 2;
     return a.spr.y;
   }
 
@@ -720,13 +723,24 @@
     a.hasta = st.scene.time.now + az(ESPERA_POSADO[0], ESPERA_POSADO[1]);
   }
 
-  /** Mece con su rama a todo lo que esté posado en un árbol. */
+  /** Mece con su rama a todo lo que esté posado en un árbol: aves y nidos. */
   function mecerPosados(st) {
-    for (var i = 0; i < st.animales.length; i++) {
+    var i;
+    for (i = 0; i < st.animales.length; i++) {
       var a = st.animales[i];
       if (a.muerto || !a.soporte || a.posX == null) continue;
       if (a.fase !== 'posado' && !(a.durmiendo && a.grupo === 'ave')) continue;
       a.spr.x = a.posX + balanceoSoporte(st.scene, a.soporte, a.posY);
+    }
+    /* Y EL NIDO TAMBIÉN.
+
+       Estaba clavado mientras el árbol se meneaba y el ave se movía con él: el
+       ave se salía del nido con cada racha. El nido va atado a la misma rama,
+       así que se mece igual. */
+    for (var clave in st.nidos) {
+      var n = st.nidos[clave];
+      if (!n || !n.active || n.__x == null) continue;
+      n.x = n.__x + balanceoSoporte(st.scene, n.__soporte || clave, n.__y);
     }
   }
 
@@ -1425,17 +1439,53 @@
   }
 
   /** Construye un nido en la copa donde está posada. */
+  /** ¿Es un árbol? Solo ahí se hacen nidos. */
+  function esArbol(clave) {
+    return !!clave && (clave.indexOf('sprite_arbolx') === 0 ||
+                       clave.indexOf('sprite_pinos') === 0);
+  }
+
+  /**
+   * Un nido en la rama.
+   *
+   * TRES COSAS QUE ESTABAN MAL Y SE VEÍAN EN LA CAPTURA:
+   *
+   *   1. Se hacían nidos en las FAROLAS y en los tejados, porque valía
+   *      cualquier sitio donde el ave se posara. Un nido colgando de un farol
+   *      no se lee como nido, se lee como un fallo. Ahora solo en árboles.
+   *
+   *   2. El nido salía a la altura del ave y a su mismo ancho — 40 px contra
+   *      los 44 de la paloma — así que en vez de verse el ave DENTRO del nido
+   *      se veía un bulto gris tapándola. Ahora va más pequeño, un poco por
+   *      debajo, y el ave se dibuja por delante.
+   *
+   *   3. Se le ponía la profundidad UNA vez, copiada del ave. El ave se mueve y
+   *      cambia de profundidad; el nido se quedaba con la de aquel momento y
+   *      acababa por delante o por detrás de lo que no tocaba. Ahora la lleva
+   *      del ÁRBOL, que es lo que no se mueve.
+   */
   function construirNido(st, a) {
     var scene = st.scene;
     if (!scene.textures.exists('gfa_nido_1')) return;
+    if (!esArbol(a.soporte)) return;                  // ni farolas ni tejados
     if (st.nidos[a.soporte]) return;                  // ya hay uno en ese árbol
+
+    var arbol = scene[a.soporte];
+    var base = (arbol && typeof arbol.depth === 'number') ? arbol.depth : a.spr.y;
+
     var conHuevos = Math.random() < 0.45;
-    var nido = scene.add.sprite(a.spr.x, a.spr.y + 2,
+    var nido = scene.add.sprite(a.posX != null ? a.posX : a.spr.x,
+                                (a.posY != null ? a.posY : a.spr.y) + 3,
                                 conHuevos ? 'gfa_nido_2' : 'gfa_nido_1');
     nido.setOrigin(0.5, 1);
-    nido.setScale(ESCALA);
-    // Justo por DEBAJO del ave, para que se vea posada dentro y no encima.
-    nido.setDepth((a.spr.depth || 0) - 1);
+    // Más pequeño que el ave: un nido del mismo tamaño la tapa entera.
+    nido.setScale(ESCALA * 0.8);
+    // Por delante del árbol y por DETRÁS del ave (que va en base + 2).
+    nido.setDepth(base + 1);
+    // Dónde está de verdad, para poder mecerlo con la rama sin acumular.
+    nido.__x = nido.x;
+    nido.__y = nido.y;
+    nido.__soporte = a.soporte;
     st.nidos[a.soporte] = nido;
     log(scene, a.especie, 'construye nido en', a.soporte);
   }
@@ -1944,6 +1994,7 @@
       moverZzz: moverZzz, PROB_DORMILON: PROB_DORMILON, SIESTA_MS: SIESTA_MS,
       PROB_SIESTA: PROB_SIESTA, PROB_SIESTERO: PROB_SIESTERO,
       balanceoSoporte: balanceoSoporte, mecerPosados: mecerPosados,
+      esArbol: esArbol, construirNido: construirNido,
       sabeTumbarse: sabeTumbarse, danarAnimal: danarAnimal,
       crearSombra: crearSombra, actualizarSombra: actualizarSombra,
       floresYPiedras: floresYPiedras, actualizarMariposa: actualizarMariposa,

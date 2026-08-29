@@ -124,6 +124,46 @@
     return clave;
   }
 
+  /**
+   * Dos tiras de degradado blanco, una vertical y otra horizontal.
+   *
+   * POR QUÉ: el marco de la centella eran cuatro RECTÁNGULOS planos, y se veía
+   * lo que es: cuatro cuadrados blancos pegados a los bordes, con un corte
+   * recto donde acababan. Un resplandor no tiene borde; se apaga.
+   *
+   * Con una tira de blanco que va de opaco a transparente, estirada contra
+   * cada lado, el marco se desvanece hacia el centro y ya no se ve dónde
+   * termina. Dos texturas y no una para no tener que girar nada: girar un
+   * sprite obliga a cuadrar origen y medidas al revés y se presta a errores
+   * tontos de un píxel.
+   *
+   * El degradado no es lineal: cae rápido al principio y luego se arrastra
+   * (0.45 a la mitad del recorrido), que es como se apaga la luz de verdad.
+   */
+  function texturasBorde(scene) {
+    var hecho = true;
+    ['gfc_borde_v', 'gfc_borde_h'].forEach(function (clave) {
+      if (scene.textures.exists(clave)) return;
+      var vertical = (clave === 'gfc_borde_v');
+      var N = 64;
+      try {
+        var c = scene.textures.createCanvas(clave, vertical ? 1 : N, vertical ? N : 1);
+        var ctx = c.getContext();
+        var g = vertical ? ctx.createLinearGradient(0, 0, 0, N)
+                         : ctx.createLinearGradient(0, 0, N, 0);
+        g.addColorStop(0.00, 'rgba(255,255,255,1)');
+        g.addColorStop(0.18, 'rgba(255,255,255,0.86)');
+        g.addColorStop(0.50, 'rgba(255,255,255,0.45)');
+        g.addColorStop(0.78, 'rgba(255,255,255,0.14)');
+        g.addColorStop(1.00, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, vertical ? 1 : N, vertical ? N : 1);
+        c.refresh();
+      } catch (e) { hecho = false; }
+    });
+    return hecho;
+  }
+
   function lienzoRect(scene, x, y, w, h, color) {
     var r = scene.add.rectangle(x, y, w, h, color, 1);
     r.setScrollFactor(0);
@@ -600,23 +640,43 @@
   /** Pinta el marco blanco de los bordes de la pantalla. */
   function moverBorde(st, ahora, w, h, m) {
     var queda = st.bordeHasta - ahora;
+    var i, b;
     if (queda <= 0) {
-      for (var k = 0; k < st.bordes.length; k++) st.bordes[k].setAlpha(0);
+      for (i = 0; i < st.bordes.length; i++) st.bordes[i].setAlpha(0);
       return;
     }
     var a = Math.min(1, queda / 160) * st.bordeAlfa;
-    // grosor: la centella fuerte abre más el marco
-    var g = 26 + 46 * st.bordeAlfa;
-    var lados = [
-      [w / 2, m + g / 2, w, g],              // arriba
-      [w / 2, h - m - g / 2, w, g],          // abajo
-      [m + g / 2, h / 2, g, h],              // izquierda
-      [w - m - g / 2, h / 2, g, h]           // derecha
+    // Grosor: la centella fuerte abre más el marco. Se mide sobre la pantalla,
+    // no sobre el lienzo, o en pantallas anchas el marco se comería medio mapa.
+    var g = (h - m * 2) * (0.10 + 0.16 * st.bordeAlfa);
+
+    if (st.bordeSuave) {
+      /* Cada tira pegada a su lado y estirada hacia dentro. El origen ya está
+         puesto en el lado que toca, así que basta con colocar y estirar. */
+      var lados = [
+        [w / 2,     m,         w, g],      // arriba
+        [w / 2,     h - m,     w, g],      // abajo
+        [m,         h / 2,     g, h],      // izquierda
+        [w - m,     h / 2,     g, h]       // derecha
+      ];
+      for (i = 0; i < st.bordes.length; i++) {
+        b = st.bordes[i];
+        b.setPosition(lados[i][0], lados[i][1]);
+        b.setDisplaySize(lados[i][2], lados[i][3]);
+        b.setAlpha(a);
+      }
+      return;
+    }
+
+    // respaldo recto
+    var rectos = [
+      [w / 2, m + g / 2, w, g], [w / 2, h - m - g / 2, w, g],
+      [m + g / 2, h / 2, g, h], [w - m - g / 2, h / 2, g, h]
     ];
-    for (var i = 0; i < st.bordes.length; i++) {
-      var b = st.bordes[i], L = lados[i];
-      b.setPosition(L[0], L[1]);
-      if (b.setSize) b.setSize(L[2], L[3]);
+    for (i = 0; i < st.bordes.length; i++) {
+      b = st.bordes[i];
+      b.setPosition(rectos[i][0], rectos[i][1]);
+      if (b.setSize) b.setSize(rectos[i][2], rectos[i][3]);
       b.setAlpha(a);
     }
   }
@@ -854,9 +914,29 @@
     st.rayo.setScrollFactor(0).setOrigin(0.5, 0).setAlpha(0);
     if (st.capa) st.capa.add(st.rayo); else st.rayo.setDepth(PROF_RAYO);
 
-    // Marco blanco de los bordes, lo que enciende una centella.
+    /* Marco de los bordes, lo que enciende una centella. Cuatro tiras de
+       degradado, cada una anclada a su lado y desvaneciéndose hacia dentro.
+       El orden es arriba, abajo, izquierda, derecha — igual que en moverBorde. */
+    st.bordeSuave = texturasBorde(scene);
+    var lados = st.bordeSuave
+      ? [['gfc_borde_v', 0.5, 0, false, false],   // arriba
+         ['gfc_borde_v', 0.5, 1, false, true],    // abajo  (volteada)
+         ['gfc_borde_h', 0,   0.5, false, false], // izquierda
+         ['gfc_borde_h', 1,   0.5, true,  false]] // derecha (volteada)
+      : null;
     for (i = 0; i < 4; i++) {
-      var b = lienzoRect(scene, 0, 0, 10, 10, 0xffffff);
+      var b;
+      if (lados) {
+        b = scene.add.image(0, 0, lados[i][0]);
+        b.setOrigin(lados[i][1], lados[i][2]);
+        b.setFlipX(lados[i][3]);
+        b.setFlipY(lados[i][4]);
+        b.setScrollFactor(0);
+        b.setAlpha(0);
+      } else {
+        // Sin canvas de texturas: el marco recto de antes, que es mejor que nada.
+        b = lienzoRect(scene, 0, 0, 10, 10, 0xffffff);
+      }
       if (st.capa) st.capa.add(b); else b.setDepth(PROF_RAYO + 1);
       st.bordes.push(b);
     }
@@ -939,6 +1019,7 @@
       mandarAlViento: mandarAlViento, salpicar: salpicar, sacudir: sacudir,
       centella: centella, sitioDelRayo: sitioDelRayo, ESTACIONES: ESTACIONES,
       lienzoRect: lienzoRect, texturaBlanca: texturaBlanca,
+      texturasBorde: texturasBorde, moverBorde: moverBorde,
       MULTIPLICAR: MULTIPLICAR,
       filtroEstacion: filtroEstacion, moverCopos: moverCopos,
       RAYO_SEPARA: RAYO_SEPARA

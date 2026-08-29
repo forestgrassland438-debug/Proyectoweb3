@@ -41,6 +41,7 @@ const MARKET_FEE_BPS = 500; // 5.00% de comisión/royalty
 const ITEM_CATALOG = {
   Semillax:  { name: 'Semillas de Zanahoria', category: 'semillas', icon: '/Game/Objetos/Plantas/planta_zanahorias/item_saco.png', maxStack: 50 },
   Semillax1: { name: 'Semillas de Tomate',    category: 'semillas', icon: '/Game/Objetos/Plantas/planta_tomates/semillas_tomate.png', maxStack: 50 },
+  Semillax4: { name: 'Strawberry Seed',      category: 'semillas', icon: '/Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png', maxStack: 50 },
   Semillax2: { name: 'Semillas de Trigo',     category: 'semillas', icon: '/Game/Objetos/Plantas/planta_trigo/item_semilla_trigo.png', maxStack: 50 },
   Semillax3: { name: 'Semillas de Calabaza',  category: 'semillas', icon: '/Game/Objetos/Plantas/planta_calabaza/item_semilla_calabaza.png', maxStack: 50 },
 
@@ -77,6 +78,9 @@ const ITEM_CATALOG = {
   tomate_buena: { name: 'Tomate Bueno',   category: 'cultivos', icon: '/Game/Objetos/Plantas/planta_tomates/item_tomate_bueno.png', maxStack: 20 },
   tomate_corta: { name: 'Tomate (brote)', category: 'cultivos', icon: '/Game/Objetos/Plantas/planta_tomates/item_planta.png', maxStack: 20 },
   tomate_mala:  { name: 'Tomate Podrido', category: 'cultivos', icon: '/Game/Objetos/Plantas/planta_tomates/item_tomate_malo.png', maxStack: 20 },
+  fresa_buena:  { name: 'Good Strawberry',   category: 'cultivos', icon: '/Game/Objetos/Plantas/planta_fresa/item_fresa_buena.png', maxStack: 20 },
+  fresa_corta:  { name: 'Unripe Strawberry', category: 'cultivos', icon: '/Game/Objetos/Plantas/planta_fresa/item_planta.png', maxStack: 20 },
+  fresa_mala:   { name: 'Rotten Strawberry', category: 'cultivos', icon: '/Game/Objetos/Plantas/planta_fresa/item_fresa_podrida.png', maxStack: 20 },
 
   trigo_buena: { name: 'Trigo Bueno',   category: 'cultivos', icon: '/Game/Objetos/Plantas/planta_trigo/item_trigo_bueno.png', maxStack: 20 },
   trigo_corta: { name: 'Trigo (brote)', category: 'cultivos', icon: '/Game/Objetos/Plantas/planta_trigo/item_planta_trigo.png', maxStack: 20 },
