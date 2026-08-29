@@ -53,30 +53,34 @@
     return null;
   }
 
-  // ------------------------------------------------------------------ panel
+  // ------------------------------------------------------------------ botón
+  /* NADA DE PANEL A PANTALLA COMPLETA.
+
+     Antes había una cortina oscura con una tarjeta enorme en medio. El jugador
+     pidió lo contrario: siendo fantasma quiere poder MOVERSE y ver el mundo, y
+     un botón cómodo tanto en PC como en móvil. Así que es una píldora pequeña
+     abajo del todo, que no tapa nada y se pulsa igual con el dedo.  */
   function estilos() {
     if (document.getElementById('gf-muerte-css')) return;
     var css = document.createElement('style');
     css.id = 'gf-muerte-css';
     css.textContent = [
-      '#gf-death{position:fixed;inset:0;display:none;align-items:center;',
-      'justify-content:center;background:rgba(4,6,12,.78);z-index:100000;',
-      'font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}',
-      '#gf-death.abierto{display:flex}',
-      '#gf-death-card{background:#181a24;border:2px solid #40465c;border-radius:16px;',
-      'padding:26px 28px;min-width:280px;max-width:90vw;color:#e8e8f0;text-align:center;',
-      'box-shadow:0 16px 50px rgba(0,0,0,.6)}',
-      '#gf-death-card h2{margin:0 0 6px;font-size:26px;letter-spacing:1px;color:#dfe4f5}',
-      '#gf-death-card p{margin:0 0 18px;font-size:13px;color:#98a0b8;line-height:1.5}',
-      '#gf-death-btn{display:block;width:100%;padding:14px;border-radius:12px;',
-      'border:2px solid #5ec26a;background:#26402d;color:#eafbe9;font-size:17px;',
-      'font-weight:600;cursor:pointer}',
-      '#gf-death-btn:hover{background:#2f5039}',
-      '#gf-death-btn:disabled{opacity:.5;cursor:not-allowed}',
-      '#gf-death-precio{display:block;font-size:12px;font-weight:400;color:#b7d8bb;',
-      'margin-top:3px}',
-      '#gf-death-aviso{min-height:18px;margin:12px 0 0;font-size:12px;color:#e0b64a}',
-      '#gf-death-nota{margin-top:14px;font-size:11px;color:#6e768f}'
+      '#gf-death{position:fixed;left:50%;bottom:104px;transform:translateX(-50%);',
+      'display:none;z-index:100000;font-family:system-ui,-apple-system,Segoe UI,',
+      'Roboto,sans-serif;text-align:center;pointer-events:none}',
+      '#gf-death.abierto{display:block}',
+      '#gf-death-tag{display:block;font-size:11px;letter-spacing:2px;color:#cfd8ee;',
+      'text-shadow:0 1px 3px rgba(0,0,0,.9);margin:0 0 5px}',
+      // 44 px de alto: el mínimo que se pulsa cómodo con el dedo.
+      '#gf-death-btn{pointer-events:auto;min-height:44px;padding:9px 22px;',
+      'border-radius:24px;border:2px solid #7fe08d;background:rgba(22,42,28,.94);',
+      'color:#eafbe9;font-size:15px;font-weight:600;cursor:pointer;',
+      'box-shadow:0 6px 22px rgba(0,0,0,.55);white-space:nowrap}',
+      '#gf-death-btn:hover{background:rgba(32,60,40,.96)}',
+      '#gf-death-btn:disabled{opacity:.55;cursor:not-allowed}',
+      '#gf-death-precio{font-weight:400;color:#b7d8bb;margin-left:6px}',
+      '#gf-death-aviso{pointer-events:none;margin:6px 0 0;font-size:12px;',
+      'color:#f0c95e;text-shadow:0 1px 3px rgba(0,0,0,.9);min-height:15px}'
     ].join('');
     document.head.appendChild(css);
   }
@@ -89,17 +93,9 @@
     p.id = 'gf-death';
     // Todo el texto que ve el jugador va en INGLÉS.
     p.innerHTML =
-      '<div id="gf-death-card">' +
-        '<h2>You died</h2>' +
-        '<p>Your body is a ghost until you pay to come back.<br>' +
-           'Wild animals will leave you alone in the meantime.</p>' +
-        '<button id="gf-death-btn">Revive' +
-          '<span id="gf-death-precio">30 silver</span>' +
-        '</button>' +
-        '<p id="gf-death-aviso"></p>' +
-        '<p id="gf-death-nota">The price doubles with every death and resets 24 hours ' +
-           'after the first one.</p>' +
-      '</div>';
+      '<span id="gf-death-tag">YOU DIED</span>' +
+      '<button id="gf-death-btn">Revive<span id="gf-death-precio">30 silver</span></button>' +
+      '<p id="gf-death-aviso"></p>';
     document.body.appendChild(p);
     p.querySelector('#gf-death-btn').addEventListener('click', pagarRevivir);
     return p;
@@ -119,7 +115,7 @@
     var precio = document.getElementById('gf-death-precio');
     if (precio) {
       precio.textContent = e.reviveCost + ' silver' +
-        (e.deaths > 1 ? '  ·  death #' + e.deaths + ' today' : '');
+        (e.deaths > 1 ? ' · #' + e.deaths : '');
     }
   }
 
@@ -172,6 +168,48 @@
     } catch (e) { log('no se pudo refrescar el HUD:', e && e.message); }
   }
 
+  // ----------------------------------------------------- el mundo en gris
+  /* Siendo fantasma el mundo entero se ve en gris: las casas, los árboles,
+     todo. Es lo que hace que se note que estás muerto sin tapar la pantalla.
+
+     Se hace con el ColorMatrix de la CÁMARA (Phaser 3.60+), que tiñe todo lo
+     que se dibuja de una vez. Pintar cada sprite a mano sería imposible: hay
+     cientos, y algunos los crea el juego después.
+
+     postFX necesita WebGL. Si el juego va en canvas no existe, así que se cae
+     a una cortina gris suave — no desatura, pero apaga el mundo lo suficiente
+     para que se entienda. */
+  function grisear(scene, activar) {
+    var cam = scene.cameras && scene.cameras.main;
+    if (!cam) return;
+    try {
+      if (cam.postFX && typeof cam.postFX.addColorMatrix === 'function') {
+        if (activar) {
+          if (!montado.matriz) {
+            montado.matriz = cam.postFX.addColorMatrix();
+            montado.matriz.grayscale(1);
+          }
+        } else if (montado.matriz) {
+          cam.postFX.remove(montado.matriz);
+          montado.matriz = null;
+        }
+        return;
+      }
+    } catch (e) { /* sin postFX: se usa la cortina */ }
+
+    if (activar) {
+      if (!montado.cortina && scene.add.rectangle) {
+        montado.cortina = scene.add.rectangle(
+          cam.width / 2, cam.height / 2, cam.width, cam.height, 0x8a8f9c, 0.42);
+        montado.cortina.setScrollFactor(0);
+        montado.cortina.setDepth(8500);       // sobre el mundo, bajo el HUD
+      }
+    } else if (montado.cortina) {
+      montado.cortina.destroy();
+      montado.cortina = null;
+    }
+  }
+
   // --------------------------------------------------------- aspecto fantasma
   function aplicarVisual(fantasma) {
     if (!montado) return;
@@ -191,6 +229,7 @@
         if (s.clearTint && s !== (scene.dog && scene.dog.sprite)) s.clearTint();
       }
     }
+    grisear(scene, !!fantasma);
     montado.pintadoComoFantasma = !!fantasma;
   }
 
@@ -224,7 +263,8 @@
       return null;
     }
 
-    var st = { scene: scene, pintadoComoFantasma: false };
+    var st = { scene: scene, pintadoComoFantasma: false,
+               matriz: null, cortina: null };
     scene.__gfMuerte = st;
     montado = st;
 
@@ -253,6 +293,9 @@
       scene.events.off('shutdown', st.onApagar);
       scene.events.off('destroy', st.onApagar);
     }
+    // Quitar el gris antes de irse: si no, la escena siguiente nacería en
+    // blanco y negro sin que nadie sepa por qué.
+    try { grisear(scene, false); } catch (e) {}
     var p = document.getElementById('gf-death');
     if (p) p.classList.remove('abierto');
     scene.__gfMuerte = null;
@@ -264,6 +307,7 @@
     desmontar: desmontar,
     esFantasma: esFantasma,
     pintar: pintar,
-    _interno: { revisar: revisar, aplicarVisual: aplicarVisual, vidaActual: vidaActual }
+    _interno: { revisar: revisar, aplicarVisual: aplicarVisual,
+                vidaActual: vidaActual, grisear: grisear }
   };
 })();

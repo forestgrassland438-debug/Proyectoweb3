@@ -2496,6 +2496,8 @@ showNotification(message, type = 'info') {
     if (window.GFAnimales) window.GFAnimales.precargar(this);
     // Hojas y ráfagas del viento.
     if (window.GFViento) window.GFViento.precargar(this);
+    // Lluvia, relámpagos y truenos.
+    if (window.GFClima) window.GFClima.precargar(this);
     // Fresa. 1 = sembrada sin regar · 2 = regada · 3 = creciendo ·
     // 4 = lista para cosechar · 5 = se murio.
     this.load.image('tierra_seca_plant_fresa', './Game/Objetos/Plantas/planta_fresa/1.png');
@@ -5045,6 +5047,10 @@ this.anims.create({
        árboles se mecen. Sprites sin física pegados a la cámara; a los
        árboles solo les cambia la rotación y se la devuelve al parar. */
     if (window.GFViento) window.GFViento.montar(this);
+    /* Clima: pregunta al servidor qué tiempo hace, pinta la lluvia y los
+       truenos, y le dice al viento si debe soplar. Va DESPUÉS del viento
+       porque es quien lo manda. */
+    if (window.GFClima) window.GFClima.montar(this);
 
     console.log('game create ejecutándose');
 
@@ -16202,7 +16208,12 @@ sendPlayerMovement() {
     dogX: this.dog.x,
     dogY: this.dog.y,
     dogDirection: this.dog.direction,  // 'left' o 'right'
-    dogEquipped: !(this.petData && this.petData.equipped === false), // false = dog removed
+    /* dogEquipped también va en false con la MASCOTA MUERTA.
+       El jugador pidió que un perro muerto no lo vea nadie. Este campo ya
+       existía para cuando te quitas la mascota y el receptor ya sabe
+       ocultarla, así que se reaprovecha en vez de inventar otro. */
+    dogEquipped: !(this.petData && this.petData.equipped === false) &&
+                 !(window.GFMascota && window.GFMascota.viva && !window.GFMascota.viva()),
     // El nombre de la mascota no se enviaba nunca, por eso los demás jugadores
     // veían tu perro sin etiqueta. El servidor reenvía el payload tal cual
     // (socket.on('playerMove') hace spread de data), así que no hay que tocar
@@ -16212,7 +16223,12 @@ sendPlayerMovement() {
     petLevel: Math.max(1, Number(this.petLevel) || 1),
     // Nivel del PERSONAJE. No se enviaba nunca, y por eso la etiqueta de los
     // demás jugadores solo mostraba el nombre: su nivel no llegaba al cliente.
-    nivel: Math.max(0, Number(this.nivel) || 0)
+    nivel: Math.max(0, Number(this.nivel) || 0),
+    /* ¿Estoy muerto? Los demás me tienen que ver como un fantasma.
+       El servidor reenvía el payload tal cual (spread de data), así que basta
+       con añadir el campo aquí y leerlo al recibir. */
+    ghost: !!(window.GFMascota && window.GFMascota.estado &&
+              window.GFMascota.estado().ghost)
   });
 }
 
@@ -16504,6 +16520,20 @@ updateOtherPlayer(playerInfo) {
         direction: 'right',
         lastAnimState: 'idle'
       };
+    }
+
+    /* FANTASMA: un jugador muerto se ve translúcido y azulado, igual que se ve
+       uno mismo. Sin esto, alguien muerto se veía normal y no había forma de
+       saber que estaba esperando a revivir. */
+    const esFantasma = playerInfo.ghost === true;
+    if (player._fantasma !== esFantasma) {
+      player._fantasma = esFantasma;
+      const partes = [player.sprite, player.nameText].filter(Boolean);
+      for (const pz of partes) {
+        if (pz.setAlpha) pz.setAlpha(esFantasma ? 0.45 : 1);
+        if (esFantasma) { if (pz.setTint) pz.setTint(0x9fd8ff); }
+        else if (pz.clearTint) pz.clearTint();
+      }
     }
 
     // If the remote player removed their dog, hide it on our end

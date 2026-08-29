@@ -66,7 +66,10 @@
     // El topo es el único con vida bajo tierra: además de andar y comer tiene
     // que cavar, asomarse y moverse como un bulto de tierra.
     topo:      { quieto: 2, camina: 4, come: 2, cava: 3, asoma: 2,
-                 monticulo: 2, hoyo: 3 }
+                 monticulo: 2, hoyo: 3 },
+    // La mariposa se ve DESDE ARRIBA, no de perfil: de perfil, a 14 px, es una
+    // raya. Por eso no tiene poses de andar ni mira a un lado.
+    mariposa:  { vuela: 4, posa: 2 }
   };
 
   /* Fotogramas que tiene UNA especie y no todo su grupo.
@@ -98,7 +101,8 @@
   var RITMO = {
     quieto: 2, camina: 8, come: 5, repta: 9, vuela: 12,
     ataque: 9, cava: 8, asoma: 2, monticulo: 4, hoyo: 1,
-    tumbado: 1.4, bana: 6, duerme: 0.8
+    tumbado: 1.4, bana: 6, duerme: 0.8,
+    posa: 1.6
   };
 
   /* Ficha de cada especie.
@@ -113,23 +117,26 @@
        alcance   a qué distancia muerde
        dano      cuánto quita por mordisco
        cadencia  ms entre mordiscos
-       aguante   golpes que soporta de la mascota antes de retirarse       */
+       vida      puntos de vida; a 0 el animal muere y vuelve a los 5 min    */
   var FICHA = {
     zorro:            { grupo: 'tierra',    vel: 38, corre: 92, huye: 190, huella: [22, 10], ritmo: 1.15,
-                        agresivo: true, vista: 300, alcance: 44, dano: 5, cadencia: 1100, aguante: 5 },
+                        agresivo: true, vista: 300, alcance: 44, dano: 5, cadencia: 1100, vida: 40 },
     zorra:            { grupo: 'tierra',    vel: 40, corre: 96, huye: 200, huella: [22, 10], ritmo: 1.2,
-                        agresivo: true, vista: 310, alcance: 44, dano: 5, cadencia: 1000, aguante: 5 },
+                        agresivo: true, vista: 310, alcance: 44, dano: 5, cadencia: 1000, vida: 38 },
     vaca:             { grupo: 'tierra',    vel: 13, corre: 30, huye: 0,   huella: [34, 14], ritmo: 0.55 },
     cerdo:            { grupo: 'tierra',    vel: 19, corre: 44, huye: 105, huella: [26, 12], ritmo: 0.85 },
     cocodrilo:        { grupo: 'tierra',    vel: 11, corre: 38, huye: 0,   huella: [38, 10], ritmo: 0.6,
-                        agresivo: true, vista: 240, alcance: 56, dano: 9, cadencia: 1500, aguante: 8 },
+                        agresivo: true, vista: 240, alcance: 56, dano: 9, cadencia: 1500, vida: 75 },
     serpiente_verde:  { grupo: 'serpiente', vel: 26, corre: 60, huye: 150, huella: [18, 8],  ritmo: 1.0,
-                        agresivo: true, vista: 210, alcance: 36, dano: 4, cadencia: 900, aguante: 3 },
+                        agresivo: true, vista: 210, alcance: 36, dano: 4, cadencia: 900, vida: 26 },
     serpiente_coral:  { grupo: 'serpiente', vel: 24, corre: 56, huye: 150, huella: [18, 8],  ritmo: 1.0,
-                        agresivo: true, vista: 210, alcance: 36, dano: 6, cadencia: 950, aguante: 3 },
+                        agresivo: true, vista: 210, alcance: 36, dano: 6, cadencia: 950, vida: 26 },
     serpiente_vibora: { grupo: 'serpiente', vel: 22, corre: 52, huye: 150, huella: [18, 8],  ritmo: 0.95,
-                        agresivo: true, vista: 200, alcance: 36, dano: 5, cadencia: 1000, aguante: 3 },
+                        agresivo: true, vista: 200, alcance: 36, dano: 5, cadencia: 1000, vida: 24 },
     topo:             { grupo: 'topo',      vel: 16, corre: 34, huye: 130, huella: [20, 9],  ritmo: 1.0 },
+    mariposa_blanca:  { grupo: 'mariposa',  vel: 46, huye: 95, huella: [8, 5], ritmo: 1.6 },
+    mariposa_monarca: { grupo: 'mariposa',  vel: 42, huye: 95, huella: [8, 5], ritmo: 1.45 },
+    mariposa_azul:    { grupo: 'mariposa',  vel: 50, huye: 90, huella: [8, 5], ritmo: 1.7 },
     paloma:           { grupo: 'ave',       vel: 24, huye: 120, posado: 78, huella: [14, 8], ritmo: 1.0 },
     pajaro:           { grupo: 'ave',       vel: 28, huye: 110, posado: 66, huella: [12, 7], ritmo: 1.15 }
   };
@@ -138,6 +145,7 @@
     ['zorro', 3], ['zorra', 1], ['vaca', 2], ['cerdo', 2], ['cocodrilo', 2],
     ['serpiente_verde', 2], ['serpiente_coral', 1], ['serpiente_vibora', 2],
     ['topo', 7],
+    ['mariposa_blanca', 5], ['mariposa_monarca', 4], ['mariposa_azul', 4],
     ['paloma', 4], ['pajaro', 5]
   ];
 
@@ -154,7 +162,12 @@
   // ── PELEA ────────────────────────────────────────────────────────────────
   var ALCANCE_MASCOTA  = 62;        // hasta dónde alcanza el perro
   var CADENCIA_MASCOTA = 850;       // ms entre zarpazos del perro
-  var RETIRADA_MS      = [5000, 9000];  // cuánto se va el animal tras perder
+  var DANO_MASCOTA     = 12;        // lo que quita un zarpazo
+  // Se me habia quedado fuera al reordenar las constantes y `retirarse` la
+  // seguia usando: reventaba en cuanto la mascota malhería a algo.
+  var RETIRADA_MS      = [5000, 9000];  // cuánto se aparta el animal malherido
+  var RESPAWN_MS       = 5 * 60000; // 5 minutos, como pidió el jugador
+  var BARRA_VISIBLE_MS = 6000;      // la barra se esconde si deja de pelear
 
   // ── TOPO ─────────────────────────────────────────────────────────────────
   var TOPO_BAJO      = [6000, 14000];   // cuánto anda bajo tierra
@@ -418,6 +431,8 @@
     var f = FICHA[especie];
     var a = {
       especie: especie, grupo: f.grupo, ficha: f,
+      vida: f.vida || 30, vidaMax: f.vida || 30,
+      muerto: false, revivirEn: 0, barraHasta: 0,
       hw: f.huella[0], hh: f.huella[1],
       fase: 'quieto', rumbo: az(0, Math.PI * 2), hasta: 0,
       destino: null, alFinal: null, soporte: null, _anim: null,
@@ -431,9 +446,17 @@
     // Sin cuerpo de física a propósito: así no puede colisionar con nada.
     a.spr = spr;
 
+    // Las mariposas no llevan sombra: a 8 px de ancho, la elipse sería una
+    // mancha más grande que el bicho.
+    if (f.grupo !== 'mariposa') crearSombra(st, a);
+
     if (f.grupo === 'ave' && sitio) {
       a.soporte = sitio.clave;
       posarse(st, a, sitio);
+    } else if (f.grupo === 'mariposa') {
+      a.fase = 'revolotea';
+      anim(a, 'vuela');
+      a.hasta = scene.time.now + az(500, 2500);
     } else if (f.grupo === 'topo') {
       // Nace bajo tierra: al entrar al mapa solo se ven montículos moviéndose
       // y el jugador los descubre cuando se asoman.
@@ -480,7 +503,7 @@
       a.fase = 'pasea';
       a.rumbo = az(0, Math.PI * 2);
       anim(a, poseAndar(a));
-    } else if (r < 0.68 && sabeTumbarse(a)) {
+    } else if (r < 0.73 && sabeTumbarse(a)) {
       // Descansa tumbado. NO duerme: el jugador lo pidió así, y por eso el
       // sprite tiene el ojo abierto y las orejas de pie.
       a.fase = 'tumbado';
@@ -811,6 +834,141 @@
   }
 
 
+
+
+  // ============================================================== SOMBRAS
+  /* Una elipse oscura bajo cada bicho. Sin ella los animales parecen pegatinas
+     flotando sobre el césped: es lo que los ancla al suelo.
+
+     Va en `graphics`/`ellipse` y no en un sprite porque cambia de tamaño con
+     cada especie y no hace falta ninguna textura.  */
+  var SOMBRA_ALFA = 0.26;
+
+  function crearSombra(st, a) {
+    var scene = st.scene;
+    if (a.sombra || !scene.add.ellipse) return;
+    var ancho = Math.max(14, a.hw * 0.9);
+    a.sombra = scene.add.ellipse(a.spr.x, a.spr.y, ancho, ancho * 0.42,
+                                 0x000000, SOMBRA_ALFA);
+    // Justo por DEBAJO del animal: si fuera por encima, se le vería una mancha
+    // oscura encima del lomo.
+    a.sombra.setDepth(a.spr.y - 1);
+    a.sombraSuelo = a.spr.y;
+  }
+
+  function actualizarSombra(a) {
+    if (!a.sombra || a.muerto) return;
+    var volando = (a.fase === 'volando');
+    if (!volando) a.sombraSuelo = a.spr.y;    // recuerda dónde está el suelo
+
+    /* Volando, la sombra se queda ABAJO y se hace pequeña y tenue: es lo que da
+       la sensación de altura. Si subiera con el pájaro, la sombra iría por el
+       aire y no significaría nada. */
+    var y = volando ? a.sombraSuelo : a.spr.y;
+    a.sombra.setPosition(a.spr.x, y);
+    a.sombra.setDepth(y - 1);
+    a.sombra.setAlpha(volando ? SOMBRA_ALFA * 0.45 : SOMBRA_ALFA);
+    a.sombra.setScale(volando ? 0.6 : 1);
+    // Bajo tierra no hay sombra que valga: lo que se ve es un montón de tierra.
+    a.sombra.setVisible(a.fase !== 'bajo' && a.spr.visible !== false);
+  }
+
+  // ================================================ VIDA DE LOS ANIMALES
+  /** Barra de vida encima del animal. Se crea la primera vez que le pegan. */
+  function crearBarra(st, a) {
+    var scene = st.scene;
+    if (a.barraFondo || !scene.add.rectangle) return;
+    a.barraFondo = scene.add.rectangle(a.spr.x, a.spr.y, 34, 5, 0x1a1620)
+      .setOrigin(0.5, 1);
+    a.barraVida = scene.add.rectangle(a.spr.x - 16, a.spr.y, 32, 3, 0x5ec26a)
+      .setOrigin(0, 1);
+    if (a.barraFondo.setStrokeStyle) a.barraFondo.setStrokeStyle(1, 0x000000, 0.6);
+  }
+
+  function colorVida(pct) {
+    if (pct > 60) return 0x5ec26a;
+    if (pct > 30) return 0xe0b64a;
+    return 0xc7503f;
+  }
+
+  function actualizarBarraAnimal(a, ahora) {
+    if (!a.barraFondo) return;
+    // Se esconde sola si hace rato que no pelea: si no, el mapa se llena de
+    // barras de animales que ya nadie está tocando.
+    var visible = !a.muerto && a.barraHasta > ahora;
+    a.barraFondo.setVisible(visible);
+    a.barraVida.setVisible(visible);
+    if (!visible) return;
+    var alto = a.spr.displayHeight || 40;
+    var y = a.spr.y - alto - 6;
+    a.barraFondo.setPosition(a.spr.x, y);
+    a.barraFondo.setDepth(a.spr.y + 2);
+    a.barraVida.setPosition(a.spr.x - 16, y - 1);
+    a.barraVida.setDepth(a.spr.y + 3);
+    var pct = Math.max(0, a.vida) / a.vidaMax * 100;
+    a.barraVida.width = Math.max(0, 32 * pct / 100);
+    a.barraVida.fillColor = colorVida(pct);
+  }
+
+  /**
+   * El animal recibe daño.
+   *
+   * EL FALLO QUE ARREGLA: antes solo se contaban golpes y el animal se retiraba;
+   * no tenía vida, no salía barra y no moría nunca. El jugador veía que le
+   * pegaba y no pasaba nada visible.
+   */
+  function danarAnimal(st, a, cuanto) {
+    if (a.muerto) return;
+    var ahora = st.scene.time.now;
+    crearBarra(st, a);
+    a.vida = Math.max(0, a.vida - cuanto);
+    a.barraHasta = ahora + BARRA_VISIBLE_MS;
+    // parpadeo rojo, para que el golpe se vea
+    if (a.spr.setTint) a.spr.setTint(0xff7d6a);
+    a.tinteHasta = ahora + 160;
+    if (a.vida <= 0) morirAnimal(st, a, ahora);
+  }
+
+  /**
+   * El animal muere: desaparece del mapa y vuelve a los 5 minutos.
+   *
+   * No se destruye el sprite, se esconde: recrearlo costaría más y así el
+   * respawn es instantáneo. El animal deja de contar para todo lo demás
+   * mientras `muerto` esté puesto.
+   */
+  function morirAnimal(st, a, ahora) {
+    a.muerto = true;
+    a.fase = 'muerto';
+    a.objetivo = null;
+    a.revivirEn = ahora + RESPAWN_MS;
+    a.spr.setVisible(false);
+    if (a.barraFondo) { a.barraFondo.setVisible(false); a.barraVida.setVisible(false); }
+    if (a.sombra) a.sombra.setVisible(false);
+    log(st.scene, a.especie, 'ha muerto; vuelve en', RESPAWN_MS / 60000, 'min');
+  }
+
+  /** Vuelve a la vida, en OTRO sitio del mapa. */
+  function revivirAnimal(st, a) {
+    var scene = st.scene;
+    var puntos = repartir(scene, a, 1, []);
+    if (puntos.length) a.spr.setPosition(puntos[0].x, puntos[0].y);
+    a.muerto = false;
+    a.vida = a.vidaMax;
+    a.revivirEn = 0;
+    a.barraHasta = 0;
+    a.golpes = 0;
+    a.spr.setVisible(true);
+    if (a.spr.clearTint) a.spr.clearTint();
+    if (a.sombra) a.sombra.setVisible(true);
+    if (a.grupo === 'topo') {
+      a.fase = 'bajo'; anim(a, 'monticulo');
+      a.hasta = scene.time.now + az(TOPO_BAJO[0], TOPO_BAJO[1]);
+    } else {
+      decidirTierra(st, a);
+    }
+    log(scene, a.especie, 'ha vuelto');
+  }
+
   // =============================================================== PELEA
   /**
    * A quién va este animal.
@@ -835,19 +993,6 @@
     var p = scene.player;
     if (!p || jugadorFantasma()) return null;
     return { tipo: 'jugador', x: p.x, y: p.y };
-  }
-
-  /**
-   * Parpadeo rojo al recibir un golpe de la mascota.
-   *
-   * Es lo único que hace visible la pelea: sin ningún efecto, el jugador ponía
-   * la mascota en modo ataque, el animal se acercaba, se retiraba a los pocos
-   * segundos y parecía que no había pasado nada.
-   */
-  function marcarGolpe(a) {
-    if (!a.spr || !a.spr.setTint) return;
-    a.spr.setTint(0xff7d6a);
-    a.tinteHasta = (a.spr.scene && a.spr.scene.time ? a.spr.scene.time.now : 0) + 160;
   }
 
   /** Quita el parpadeo pasado el rato. */
@@ -892,12 +1037,26 @@
    */
   function mascotaPelea(st, a, ahora) {
     if (modoMascota() !== 'attack' || !mascotaViva()) return;
-    var d = st.scene.dog && st.scene.dog.sprite;
+    var scene = st.scene;
+    var d = scene.dog && scene.dog.sprite;
     if (!d || d.visible === false) return;
     if (Math.hypot(a.spr.x - d.x, a.spr.y - d.y) > ALCANCE_MASCOTA) return;
+
+    /* SOLO PEGA A LO QUE TIENE DELANTE.
+
+       EL FALLO QUE ARREGLA: si una serpiente le atacaba por la espalda, el
+       perro le respondía igual — "atacaba de espaldas", que es justo lo que el
+       jugador no quería. GameScene guarda hacia dónde mira en dog.lastFacing
+       ('left' / 'right'); si el bicho está del otro lado, el perro no llega y
+       el animal se lleva unos mordiscos gratis, que es lo justo. */
+    var mirando = (scene.dog.lastFacing === 'left') ? -1 : 1;
+    if ((a.spr.x - d.x) * mirando < 0) return;
+
     if (ahora - (a.ultimoZarpazo || 0) < CADENCIA_MASCOTA) return;
     a.ultimoZarpazo = ahora;
     a.golpes = (a.golpes || 0) + 1;
+    danarAnimal(st, a, DANO_MASCOTA);
+    if (a.muerto) return;
 
     /* AL PERRO NO SE LE TOCA EL FLIP.
 
@@ -913,8 +1072,8 @@
 
     // Golpe visible: el animal parpadea en rojo. Sin esto, "la mascota ataca"
     // no se nota — que es justo lo que reportó el jugador.
-    marcarGolpe(a);
-    if (a.golpes >= (a.ficha.aguante || 4)) retirarse(st, a);
+    // Malherido: se retira antes de morir del todo, como haría un animal.
+    if (a.vida <= a.vidaMax * 0.3) retirarse(st, a);
   }
 
   /**
@@ -1169,6 +1328,154 @@
     log(scene, a.especie, 'construye nido en', a.soporte);
   }
 
+
+  // =========================================================== MARIPOSAS
+  /* Dónde se posan. El jugador las quería en flores, arbustos, piedras y
+     troncos, que es exactamente donde se posan las de verdad. */
+  var FAMILIAS_MARIPOSA = [
+    ['sprite_flor_formado1_ect', 19], ['sprite_flor_formado2_ect', 20],
+    ['sprite_flor_formado3_ect', 19], ['sprite_flor_formado4_ect', 18],
+    ['sprite_arbustos_', 28], ['sprite_arbusto_ect', 18],
+    ['sprite_piedras_', 34]
+  ];
+  var MAR_ALTURA   = [0.20, 0.55];     // dónde se posa dentro del objeto
+  var MAR_POSADA   = [3000, 9000];
+  var MAR_VUELO    = [2500, 6000];
+  var MAR_RADIO    = 420;              // no cruzan medio mapa de un tirón
+
+  function floresYPiedras(scene) {
+    var out = [];
+    var i, f;
+    for (f = 0; f < FAMILIAS_MARIPOSA.length; f++) {
+      for (i = 1; i <= FAMILIAS_MARIPOSA[f][1]; i++) {
+        var clave = FAMILIAS_MARIPOSA[f][0] + i;
+        var spr = scene[clave];
+        if (!spr || spr.active === false) continue;
+        var b;
+        try { b = spr.getBounds(); } catch (e) { continue; }
+        if (!b || !isFinite(b.centerX)) continue;
+        out.push({ clave: clave,
+                   x: b.centerX + az(-b.width * 0.22, b.width * 0.22),
+                   y: b.top + b.height * az(MAR_ALTURA[0], MAR_ALTURA[1]),
+                   base: (typeof spr.depth === 'number') ? spr.depth : b.bottom });
+      }
+    }
+    // Los troncos llevan 'png' al final del nombre; van aparte para no
+    // ensuciar la tabla de arriba con el caso raro.
+    for (i = 1; i <= 17; i++) {
+      var t = scene['sprite_tronco_acostado_' + i + 'png'];
+      if (!t || t.active === false) continue;
+      var bt;
+      try { bt = t.getBounds(); } catch (e) { continue; }
+      out.push({ clave: 'sprite_tronco_acostado_' + i + 'png',
+                 x: bt.centerX + az(-bt.width * 0.3, bt.width * 0.3),
+                 y: bt.top + bt.height * 0.35,
+                 base: (typeof t.depth === 'number') ? t.depth : bt.bottom });
+    }
+    return out;
+  }
+
+  function decidirMariposa(st, m) {
+    var scene = st.scene;
+    var p = scene.player;
+    var sitios = floresYPiedras(scene);
+
+    // Solo de la zona: una mariposa no cruza el pueblo de punta a punta.
+    var cerca = [];
+    for (var i = 0; i < sitios.length; i++) {
+      if (Math.hypot(sitios[i].x - m.spr.x, sitios[i].y - m.spr.y) > MAR_RADIO) continue;
+      if (p && Math.hypot(sitios[i].x - p.x, sitios[i].y - p.y) < m.ficha.huye * 1.3) continue;
+      cerca.push(sitios[i]);
+    }
+    if (!cerca.length) {
+      // Sin nada donde posarse, sigue revoloteando por ahí.
+      m.fase = 'revolotea';
+      anim(m, 'vuela');
+      var limD = limites(scene);
+      m.destino = {
+        x: Math.min(limD.w - 30, Math.max(30, m.spr.x + az(-160, 160))),
+        y: Math.min(limD.h - 30, Math.max(30, m.spr.y + az(-120, 120)))
+      };
+      m.hasta = scene.time.now + az(MAR_VUELO[0], MAR_VUELO[1]);
+      return;
+    }
+    var s2 = elegir(cerca);
+    m.fase = 'revolotea';
+    anim(m, 'vuela');
+    m.destino = { x: s2.x, y: s2.y };
+    m.soporte = s2.clave;
+    m.baseSoporte = s2.base;
+    m.hasta = scene.time.now + az(MAR_VUELO[0], MAR_VUELO[1]);
+  }
+
+  /**
+   * Una mariposa NO vuela recto: da tumbos.
+   *
+   * Se avanza hacia el destino pero con un vaivén lateral fuerte, que es lo que
+   * hace que se lea como mariposa y no como un pájaro pequeño. Y no comprueba
+   * colisiones: vuela por encima de todo.
+   */
+  function actualizarMariposa(st, m, ahora, dt) {
+    var scene = st.scene;
+    var p = scene.player;
+
+    if (p && !jugadorFantasma() &&
+        Math.hypot(m.spr.x - p.x, m.spr.y - p.y) < m.ficha.huye) {
+      // Se espanta: sale revoloteando al lado contrario.
+      var ang = Math.atan2(m.spr.y - p.y, m.spr.x - p.x);
+      m.fase = 'revolotea';
+      anim(m, 'vuela');
+      m.soporte = null;
+      var limF = limites(scene);
+      m.destino = {
+        x: Math.min(limF.w - 30, Math.max(30, m.spr.x + Math.cos(ang) * 260)),
+        y: Math.min(limF.h - 30, Math.max(30, m.spr.y + Math.sin(ang) * 260))
+      };
+      m.hasta = ahora + az(MAR_VUELO[0], MAR_VUELO[1]);
+    }
+
+    if (m.fase === 'posada') {
+      // Posada va por delante de la flor, si no se pierde entre los pétalos.
+      m.spr.setDepth((m.baseSoporte || m.spr.y) + 2);
+      if (ahora >= m.hasta) decidirMariposa(st, m);
+      return;
+    }
+
+    var d = m.destino;
+    if (!d) { decidirMariposa(st, m); return; }
+    var dx = d.x - m.spr.x, dy = d.y - m.spr.y;
+    var dist = Math.hypot(dx, dy);
+    var paso = m.ficha.vel * dt;
+
+    if (dist < 5 || paso >= dist) {
+      m.spr.setPosition(d.x, d.y);
+      if (m.soporte) {
+        m.fase = 'posada';
+        anim(m, 'posa');
+        m.hasta = ahora + az(MAR_POSADA[0], MAR_POSADA[1]);
+      } else {
+        decidirMariposa(st, m);
+      }
+      return;
+    }
+
+    // vaivén: perpendicular al avance y con su propio ritmo
+    m.vaiven = (m.vaiven || 0) + dt * 7.5;
+    var px = -dy / dist, py = dx / dist;
+    var lat = Math.sin(m.vaiven) * 22 * dt;
+    /* Se quedan DENTRO del mapa. No comprueban colisiones —vuelan por encima
+       de todo— pero el borde del mundo sí es un límite: sin esto, con el
+       vaivén acababan saliéndose por el canto y desaparecían para siempre. */
+    var lim = limites(scene);
+    m.spr.x = Math.min(lim.w - 20, Math.max(20,
+              m.spr.x + (dx / dist) * paso + px * lat));
+    m.spr.y = Math.min(lim.h - 20, Math.max(20,
+              m.spr.y + (dy / dist) * paso + py * lat -
+              Math.cos(m.vaiven * 0.7) * 6 * dt));
+    m.spr.setDepth(m.spr.y + 40);      // por encima de la hierba y los arbustos
+    if (ahora >= m.hasta) decidirMariposa(st, m);
+  }
+
   // =============================================================== BUCLE
   function actualizar(st, ahora, delta) {
     var scene = st.scene;
@@ -1198,6 +1505,17 @@
       /* Los que están lejos de la cámara se actualizan a 5 Hz en vez de a 60.
          Siguen vivos y moviéndose, pero no se paga el coste de comprobar
          colisiones 60 veces por segundo por cada animal del mapa. */
+      /* MUERTO: solo cuenta el reloj del respawn, y se mira SIEMPRE.
+
+         Antes esto iba después del limitador de frecuencia, y como un animal
+         muerto suele estar lejos de la cámara, casi nunca le tocaba turno: el
+         respawn dependía de que el jugador anduviera cerca. Ahora vuelve a los
+         5 minutos esté donde esté. */
+      if (a.muerto) {
+        if (ahora >= a.revivirEn) revivirAnimal(st, a);
+        continue;
+      }
+
       var lejos = cam && Math.hypot(a.spr.x - cx, a.spr.y - cy) > CERCA_CAMARA;
       if (lejos) {
         a.lento += delta;
@@ -1210,7 +1528,11 @@
       }
 
       limpiarGolpe(a, ahora);
+      actualizarBarraAnimal(a, ahora);
+      actualizarSombra(a);
+
       if (a.grupo === 'ave') actualizarAve(st, a, ahora, dt);
+      else if (a.grupo === 'mariposa') actualizarMariposa(st, a, ahora, dt);
       else if (a.grupo === 'topo') actualizarTopo(st, a, ahora, dt);
       else actualizarTierra(st, a, ahora, dt);
     }
@@ -1315,7 +1637,11 @@
       scene.events.off('destroy', st.onApagar);
     }
     for (var i = 0; i < st.animales.length; i++) {
-      if (st.animales[i].spr) st.animales[i].spr.destroy();
+      var an = st.animales[i];
+      if (an.spr) an.spr.destroy();
+      if (an.barraFondo) an.barraFondo.destroy();
+      if (an.barraVida) an.barraVida.destroy();
+      if (an.sombra) an.sombra.destroy();
     }
     st.animales.length = 0;
     for (var h = 0; h < st.hoyos.length; h++) {
@@ -1357,7 +1683,13 @@
       objetivoDe: objetivoDe, actualizarAgresivo: actualizarAgresivo,
       fuenteDe: fuenteDe, esDeNoche: esDeNoche, companiaDe: companiaDe,
       irseJuntas: irseJuntas, construirNido: construirNido,
-      sabeTumbarse: sabeTumbarse,
+      sabeTumbarse: sabeTumbarse, danarAnimal: danarAnimal,
+      crearSombra: crearSombra, actualizarSombra: actualizarSombra,
+      floresYPiedras: floresYPiedras, actualizarMariposa: actualizarMariposa,
+      decidirMariposa: decidirMariposa,
+      morirAnimal: morirAnimal, revivirAnimal: revivirAnimal,
+      actualizarBarraAnimal: actualizarBarraAnimal, RESPAWN_MS: RESPAWN_MS,
+      DANO_MASCOTA: DANO_MASCOTA,
       actualizarTopo: actualizarTopo, mascotaPelea: mascotaPelea,
       retirarse: retirarse, morder: morder, abrirHoyo: abrirHoyo,
       posesDe: posesDe, POSES: POSES, POSES_EXTRA: POSES_EXTRA

@@ -27,8 +27,12 @@
 (function () {
   'use strict';
 
-  // Sprites de la casa de pociones. Se prueban por orden: el primero que exista.
-  var CASAS = ['sprite_p', 'sprite_casa_posiones', 'sprite_posiones'];
+  /* A QUÉ SE ENGANCHA.
+     Antes era la CASA de pociones, y el jugador tenía que acertar a un píxel
+     del edificio. Ahora es el NPC mago (sprite_npc5), igual que el granjero
+     (npc1) o el herrero (npc2) abren sus paneles: clic en el personaje y se
+     abre. sprite_p queda de respaldo por si en algún mapa faltara el NPC. */
+  var CASAS = ['sprite_npc5', 'sprite_p', 'sprite_casa_posiones'];
 
   var montado = null;
   var catalogo = null;
@@ -253,58 +257,35 @@
       st.casa = casa;
       st.onClic = function () { abrir(); };
       casa.on('pointerdown', st.onClic);
+
+      /* Borde amarillo al pasar por encima, igual que el granjero y el
+         herrero: así se ve que el personaje es pulsable. */
+      st.borde = scene.add.graphics();
+      st.borde.setDepth(1000);
+      st.onSobre = function () {
+        try {
+          var b = casa.getBounds();
+          st.borde.clear();
+          st.borde.lineStyle(3, 0xFFFF00, 1);
+          st.borde.strokeRect(b.x - 3, b.y - 3, b.width + 6, b.height + 6);
+        } catch (e) {}
+      };
+      st.onFuera = function () { if (st.borde) st.borde.clear(); };
+      casa.on('pointerover', st.onSobre);
+      casa.on('pointerout', st.onFuera);
+
       log('enganchado a', CASAS[i]);
       return true;
     }
     return false;
   }
 
-  // ---------------------------------------------------------- aviso de cerca
-  /* Un botón que aparece al acercarse a la casa.
+  /* EL BOTÓN DE PROXIMIDAD SE HA QUITADO.
 
-     POR QUÉ ADEMÁS DEL CLIC: el clic sobre el sprite depende de qué haya
-     encima y de acertarle a un píxel opaco, y el jugador reportó que no le
-     pasaba nada al pulsar. Este botón no depende de nada de eso, y en el móvil
-     es bastante más cómodo que buscar la puerta con el dedo. */
-  var DIST_AVISO = 190;
-
-  function botonCerca() {
-    var b = document.getElementById('gf-alq-cerca');
-    if (b) return b;
-    estilos();
-    if (!document.getElementById('gf-alq-cerca-css')) {
-      var css = document.createElement('style');
-      css.id = 'gf-alq-cerca-css';
-      css.textContent =
-        '#gf-alq-cerca{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);' +
-        'display:none;padding:11px 20px;border-radius:22px;border:2px solid #d8b45c;' +
-        'background:rgba(32,26,16,.92);color:#f4e6bd;font-size:15px;cursor:pointer;' +
-        'z-index:99997;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;' +
-        'box-shadow:0 6px 20px rgba(0,0,0,.5)}' +
-        '#gf-alq-cerca.visible{display:block}';
-      document.head.appendChild(css);
-    }
-    b = document.createElement('div');
-    b.id = 'gf-alq-cerca';
-    b.textContent = '⚗  Alchemist';
-    document.body.appendChild(b);
-    b.addEventListener('click', function () { abrir(); });
-    return b;
-  }
-
-  function revisarCercania(st) {
-    var scene = st.scene;
-    var p = scene.player;
-    var casa = st.casa;
-    if (!p || !casa) return;
-    var b;
-    try { b = casa.getBounds(); } catch (e) { return; }
-    var cx = b.centerX, cy = b.bottom;
-    var cerca = Math.hypot(p.x - cx, p.y - cy) < DIST_AVISO;
-    if (cerca === st.avisoVisible) return;
-    st.avisoVisible = cerca;
-    botonCerca().classList.toggle('visible', cerca);
-  }
+     Se puso como red de seguridad cuando el clic sobre la casa no funcionaba,
+     pero al jugador le resultaba molesto que apareciera solo con pasar cerca.
+     Enganchado al NPC mago, el clic va como el de cualquier otro NPC y el
+     botón sobra. */
 
   function montar(scene) {
     if (!scene || !scene.add) return null;
@@ -315,8 +296,8 @@
 
     st.onUpdate = function () {
       // La casa no existe en el primer frame; se reintenta hasta que aparezca.
+      // El NPC no existe en el primer frame; se reintenta hasta que aparezca.
       if (!st.enganchado) st.enganchado = engancharCasa(st);
-      else revisarCercania(st);
     };
     scene.events.on('update', st.onUpdate);
     st.onApagar = function () { desmontar(scene); };
@@ -333,9 +314,12 @@
       scene.events.off('shutdown', st.onApagar);
       scene.events.off('destroy', st.onApagar);
     }
-    if (st.casa && st.onClic && st.casa.off) st.casa.off('pointerdown', st.onClic);
-    var b = document.getElementById('gf-alq-cerca');
-    if (b) b.classList.remove('visible');
+    if (st.casa && st.casa.off) {
+      if (st.onClic)  st.casa.off('pointerdown', st.onClic);
+      if (st.onSobre) st.casa.off('pointerover', st.onSobre);
+      if (st.onFuera) st.casa.off('pointerout', st.onFuera);
+    }
+    if (st.borde) st.borde.destroy();
     cerrar();
     scene.__gfAlquimista = null;
     if (montado === st) montado = null;
@@ -344,7 +328,6 @@
   window.GFAlquimista = {
     montar: montar, desmontar: desmontar,
     abrir: abrir, cerrar: cerrar, refrescar: refrescar,
-    _revisarCercania: revisarCercania,
     comprar: comprar,
     _interno: { pintar: pintar, catalogo: function () { return catalogo; } }
   };

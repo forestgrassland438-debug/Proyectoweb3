@@ -179,6 +179,14 @@
                           : { x: scene.player ? scene.player.x : 0,
                               y: scene.player ? scene.player.y - 80 : 0 };
 
+    /* Sombra en el suelo. Volando se queda abajo, pequeña y tenue: es lo que
+       hace que se note que el pájaro está en alto y no pegado al césped. */
+    var sombra = null;
+    if (scene.add.ellipse) {
+      sombra = scene.add.ellipse(inicio.x, inicio.y, 18, 8, 0x000000, 0.26);
+      sombra.setDepth(inicio.y - 1);
+    }
+
     var spr = scene.add.sprite(inicio.x, inicio.y, CLAVES.quieto[0]);
     spr.setOrigin(0.5, 1);          // las patas en el punto de apoyo
     // Escala del mundo, la misma que el jugador y el perro. Sin ella el cuervo
@@ -199,6 +207,8 @@
       asustado: false
     };
     if (arbolIni) c.arbol = arbolIni.clave;
+    c.sombra = sombra;
+    c.sombraSuelo = inicio.y;
     c.hambriento = false;
     c.hambreEn = scene.time.now + az(HAMBRE_CADA[0], HAMBRE_CADA[1]);
     c.parcela = null;
@@ -360,19 +370,36 @@
       .then(function (r) {
         var res = r && r.datos && r.datos.resultado;
         log(st.scene, 'picoteó', clave, '→', res);
-        // Si se ha comido una cosecha, la parcela cambia de aspecto: se pide al
-        // juego que la repinte si sabe hacerlo.
-        if (res === 'comida' && typeof st.scene.refrescarCultivos === 'function') {
-          try { st.scene.refrescarCultivos(); } catch (e) {}
+        /* Se la ha comido: la parcela queda vacía. `resetPlot` es la MISMA
+           función que usa el juego al recoger o cortar, así que el cuadro
+           vuelve a tierra pelada igual que siempre.
+
+           Sin esto, el servidor borraba el cultivo pero en pantalla seguía
+           viéndose la planta hasta recargar. */
+        if (res === 'comida' && typeof st.scene.resetPlot === 'function') {
+          try { st.scene.resetPlot(clave); } catch (e) {}
         }
       })
       .catch(function () { /* sin red: ya se ha saciado igual */ });
+  }
+
+  /** La sombra sigue al cuervo por el suelo. */
+  function actualizarSombraCuervo(c) {
+    if (!c.sombra) return;
+    var alto = (c.fase === 'volando' || c.fase === 'posado');
+    if (!alto) c.sombraSuelo = c.spr.y;      // en el suelo, recuerda dónde
+    var y = alto ? c.sombraSuelo : c.spr.y;
+    c.sombra.setPosition(c.spr.x, y);
+    c.sombra.setDepth(y - 1);
+    c.sombra.setAlpha(alto ? 0.12 : 0.26);
+    c.sombra.setScale(alto ? 0.6 : 1);
   }
 
   function actualizarCuervo(st, c, dt) {
     var scene = st.scene;
     var spr = c.spr;
     if (!spr || !spr.active) return;
+    actualizarSombraCuervo(c);
     var ahora = scene.time.now;
     var p = scene.player;
 
@@ -479,6 +506,7 @@
       for (var i = 0; i < st.cuervos.length; i++) {
         var c = st.cuervos[i];
         if (c && c.spr && c.spr.destroy) c.spr.destroy();
+        if (c && c.sombra && c.sombra.destroy) c.sombra.destroy();
       }
     } catch (e) { /* al apagar la escena da igual */ }
     st.cuervos = [];

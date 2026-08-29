@@ -339,8 +339,14 @@
     st.barraVida.setVisible(visible && estado.health > 0);
     if (!visible) return;
 
+    /* La barra va por encima del CARTEL del nombre, no pegada al lomo.
+       Antes tapaba el nombre y el nivel de la mascota, que se dibujan justo
+       ahí (dogNameText, a -displayHeight*0.5 - 4). */
     var alto = (perro.displayHeight || 64);
-    var y = perro.y - alto * 0.5 - 14;
+    var y = perro.y - alto * 0.5 - 22;
+    if (scene.dogNameText && scene.dogNameText.visible) {
+      y = Math.min(y, scene.dogNameText.y - 12);
+    }
     st.barraFondo.setPosition(perro.x, y);
     st.barraFondo.setDepth(perro.depth + 2);
     st.barraVida.setPosition(perro.x - 19, y - 1);
@@ -348,14 +354,41 @@
     st.barraVida.width = Math.max(0, 38 * (estado.health / 100));
     st.barraVida.fillColor = colorVida(estado.health);
 
-    // Muerta: el perro se queda en gris y quieto, para que se vea que pasa algo.
-    if (!estado.alive) {
-      perro.setTint(0x555560);
-      if (perro.anims && perro.anims.pause) { try { perro.anims.pause(); } catch (e) {} }
-    } else if (st.tintado) {
-      perro.clearTint();
-    }
-    st.tintado = !estado.alive;
+  }
+
+  /**
+   * Muerta = NO SE VE.
+   *
+   * EL FALLO QUE ARREGLA: se quedaba tintada de gris siguiendo al jugador, y
+   * eso es peor que no ver nada — parecía un bug del juego, no una mascota
+   * caída. Además los demás jugadores tampoco deben ver perros muertos.
+   *
+   * Se le tocan sprite, sombra y cartel a la vez, y se le devuelve el color al
+   * revivirla por si algo la dejó tintada.
+   */
+  function aplicarVisibilidad(st) {
+    var scene = st.scene;
+    var perro = scene.dog && scene.dog.sprite;
+    if (!perro) return;
+    var viva = estado.alive;
+    if (st.vistaViva === viva) return;      // solo cuando cambia
+    st.vistaViva = viva;
+
+    perro.setVisible(viva);
+    if (viva && perro.clearTint) perro.clearTint();
+    if (scene.dog.shadowContainer) scene.dog.shadowContainer.setVisible(viva);
+    if (scene.dogNameText) scene.dogNameText.setVisible(viva);
+    if (st.barraFondo) st.barraFondo.setVisible(viva);
+    if (st.barraVida) st.barraVida.setVisible(viva);
+
+    // Que los demás dejen de verlo: el servidor ya sabe que está muerta, pero
+    // el socket manda la posición del perro en cada tic y hay que avisarle.
+    try {
+      if (scene.socket && scene.socket.connected) {
+        scene.socket.emit('petAlive', { alive: viva });
+      }
+    } catch (e) { /* sin socket: se verá al reconectar */ }
+    log('mascota', viva ? 'viva' : 'muerta', '→ visible:', viva);
   }
 
   // ------------------------------------------------------------------- menú
@@ -540,6 +573,7 @@
         if (engancharPerro(st)) crearBarra(st);
       }
       actualizarBarra(st);
+      aplicarVisibilidad(st);
     };
     scene.events.on('update', st.onUpdate);
 
@@ -567,6 +601,10 @@
     if (perro && st.onToque && perro.off) perro.off('pointerdown', st.onToque);
     if (st.barraFondo) st.barraFondo.destroy();
     if (st.barraVida) st.barraVida.destroy();
+    // Se le devuelve la visibilidad al perro: quien la vuelva a ocultar será el
+    // montaje siguiente si sigue muerta. Dejarla invisible aquí la perdía para
+    // siempre al cambiar de escena.
+    if (perro && perro.setVisible) perro.setVisible(true);
     scene.__gfMascota = null;
     cerrarMenu();
   }

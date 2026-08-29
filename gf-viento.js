@@ -225,10 +225,19 @@
     var cam = scene.cameras.main;
     var w = cam.width, h = cam.height;
 
-    if (!st.soplando) {
+    /* MANDA EL SERVIDOR.
+       Si gf-clima.js ha dicho algo (porque el backend lo dice), eso pesa sobre
+       el sorteo local: el clima es del MUNDO, no de cada navegador. Solo cuando
+       nadie manda —el módulo de clima no está cargado o el servidor no
+       responde— el viento se sortea solo, como antes. */
+    if (st.mandado !== null) {
+      if (st.mandado && !st.soplando) soplar(st, 24 * 60 * 60 * 1000);
+      if (!st.mandado && st.soplando) { parar(st); return; }
+    } else if (!st.soplando) {
       if (ahora >= st.proximaEn) soplar(st);
       return;
     }
+    if (!st.soplando) return;
 
     // Arrecia y amaina poco a poco: entrar de golpe se nota falso.
     var t = ahora - st.empiezaEn;
@@ -237,7 +246,8 @@
     if (t < ENTRA_MS) f = t / ENTRA_MS;
     if (queda < ENTRA_MS) f = Math.min(f, Math.max(0, queda / ENTRA_MS));
     // Rachas: la fuerza no es plana, va y viene.
-    st.fuerza = Math.max(0, f * (0.72 + 0.28 * Math.sin(ahora / 2300)));
+    st.fuerza = Math.max(0, f * (0.72 + 0.28 * Math.sin(ahora / 2300)) *
+                            (st.mandado !== null ? st.fuerzaMandada : 1));
 
     moverHojas(st, dt, w, h);
     moverRafagas(st, dt, w, h);
@@ -259,6 +269,8 @@
 
     var st = {
       scene: scene, hojas: [], rafagas: [], arboles: [],
+      // null = nadie manda, se sortea solo. true/false = lo dice el servidor.
+      mandado: null, fuerzaMandada: 1,
       soplando: false, fuerza: 0, dir: 1,
       empiezaEn: 0, acabaEn: 0,
       proximaEn: scene.time.now + (opciones.primeraEn != null
@@ -328,6 +340,20 @@
     montar: montar,
     desmontar: desmontar,
     /** Fuerza una racha ahora mismo, para verlo sin esperar. */
+    /** El clima manda: sopla o para, con la fuerza que le digan. */
+    forzar: function (activo, fuerza) {
+      var e = escenaViva();
+      if (!e || !e.__gfViento) return false;
+      var st = e.__gfViento;
+      st.mandado = !!activo;
+      st.fuerzaMandada = Math.max(0.2, Math.min(2, Number(fuerza) || 1));
+      return true;
+    },
+    /** Devuelve el mando al sorteo local. */
+    soltar: function () {
+      var e = escenaViva();
+      if (e && e.__gfViento) e.__gfViento.mandado = null;
+    },
     soplar: function (ms) {
       var e = escenaViva();
       if (e && e.__gfViento) soplar(e.__gfViento, ms);
