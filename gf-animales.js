@@ -62,11 +62,38 @@
   var POSES = {
     tierra:    { quieto: 2, camina: 4, come: 2 },
     serpiente: { quieto: 2, repta: 4 },
-    ave:       { quieto: 2, camina: 2, come: 2, vuela: 4 }
+    ave:       { quieto: 2, camina: 2, come: 2, vuela: 4 },
+    // El topo es el único con vida bajo tierra: además de andar y comer tiene
+    // que cavar, asomarse y moverse como un bulto de tierra.
+    topo:      { quieto: 2, camina: 4, come: 2, cava: 3, asoma: 2,
+                 monticulo: 2, hoyo: 1 }
   };
 
+  /* Fotogramas que tiene UNA especie y no todo su grupo.
+     La vaca y el cerdo son del grupo 'tierra' igual que el cocodrilo, pero
+     solo este último ataca: si el `ataque` estuviera en el grupo, el módulo
+     buscaría vaca_ataque_1.png y no montaría la vaca por texturas que faltan. */
+  var POSES_EXTRA = {
+    zorro: { ataque: 3 }, zorra: { ataque: 3 }, cocodrilo: { ataque: 3 },
+    serpiente_verde: { ataque: 3 }, serpiente_coral: { ataque: 3 },
+    serpiente_vibora: { ataque: 3 }
+  };
+
+  /** Todas las poses de una especie: las de su grupo más las suyas propias. */
+  function posesDe(especie) {
+    var f = FICHA[especie];
+    if (!f) return {};
+    var out = {};
+    var g = POSES[f.grupo] || {};
+    for (var k in g) out[k] = g[k];
+    var e = POSES_EXTRA[especie] || {};
+    for (var k2 in e) out[k2] = e[k2];
+    return out;
+  }
+
   var RITMO = {
-    quieto: 2, camina: 8, come: 5, repta: 9, vuela: 12
+    quieto: 2, camina: 8, come: 5, repta: 9, vuela: 12,
+    ataque: 9, cava: 8, asoma: 2, monticulo: 4, hoyo: 1
   };
 
   /* Ficha de cada especie.
@@ -75,22 +102,37 @@
        huella  [ancho, alto] de la caja que se comprueba contra las colisiones,
                a los pies del animal y ya en píxeles de mundo (con la escala)
        ritmo   multiplicador del frameRate, para que la vaca no patalee     */
+  /* Los campos de pelea (solo los agresivos los llevan):
+       agresivo  se fija en un objetivo y va a por él
+       vista     a qué distancia lo ve
+       alcance   a qué distancia muerde
+       dano      cuánto quita por mordisco
+       cadencia  ms entre mordiscos
+       aguante   golpes que soporta de la mascota antes de retirarse       */
   var FICHA = {
-    zorro:            { grupo: 'tierra',    vel: 38, corre: 92, huye: 190, huella: [22, 10], ritmo: 1.15 },
-    zorra:            { grupo: 'tierra',    vel: 40, corre: 96, huye: 200, huella: [22, 10], ritmo: 1.2 },
+    zorro:            { grupo: 'tierra',    vel: 38, corre: 92, huye: 190, huella: [22, 10], ritmo: 1.15,
+                        agresivo: true, vista: 300, alcance: 44, dano: 5, cadencia: 1100, aguante: 5 },
+    zorra:            { grupo: 'tierra',    vel: 40, corre: 96, huye: 200, huella: [22, 10], ritmo: 1.2,
+                        agresivo: true, vista: 310, alcance: 44, dano: 5, cadencia: 1000, aguante: 5 },
     vaca:             { grupo: 'tierra',    vel: 13, corre: 30, huye: 0,   huella: [34, 14], ritmo: 0.55 },
     cerdo:            { grupo: 'tierra',    vel: 19, corre: 44, huye: 105, huella: [26, 12], ritmo: 0.85 },
-    cocodrilo:        { grupo: 'tierra',    vel: 11, corre: 38, huye: 0,   huella: [38, 10], ritmo: 0.6 },
-    serpiente_verde:  { grupo: 'serpiente', vel: 26, corre: 60, huye: 150, huella: [18, 8],  ritmo: 1.0 },
-    serpiente_coral:  { grupo: 'serpiente', vel: 24, corre: 56, huye: 150, huella: [18, 8],  ritmo: 1.0 },
-    serpiente_vibora: { grupo: 'serpiente', vel: 22, corre: 52, huye: 150, huella: [18, 8],  ritmo: 0.95 },
+    cocodrilo:        { grupo: 'tierra',    vel: 11, corre: 38, huye: 0,   huella: [38, 10], ritmo: 0.6,
+                        agresivo: true, vista: 240, alcance: 56, dano: 9, cadencia: 1500, aguante: 8 },
+    serpiente_verde:  { grupo: 'serpiente', vel: 26, corre: 60, huye: 150, huella: [18, 8],  ritmo: 1.0,
+                        agresivo: true, vista: 210, alcance: 36, dano: 4, cadencia: 900, aguante: 3 },
+    serpiente_coral:  { grupo: 'serpiente', vel: 24, corre: 56, huye: 150, huella: [18, 8],  ritmo: 1.0,
+                        agresivo: true, vista: 210, alcance: 36, dano: 6, cadencia: 950, aguante: 3 },
+    serpiente_vibora: { grupo: 'serpiente', vel: 22, corre: 52, huye: 150, huella: [18, 8],  ritmo: 0.95,
+                        agresivo: true, vista: 200, alcance: 36, dano: 5, cadencia: 1000, aguante: 3 },
+    topo:             { grupo: 'topo',      vel: 16, corre: 34, huye: 130, huella: [20, 9],  ritmo: 1.0 },
     paloma:           { grupo: 'ave',       vel: 24, huye: 120, posado: 78, huella: [14, 8], ritmo: 1.0 },
     pajaro:           { grupo: 'ave',       vel: 28, huye: 110, posado: 66, huella: [12, 7], ritmo: 1.15 }
   };
 
   var ELENCO = [
-    ['zorro', 3], ['zorra', 1], ['vaca', 1], ['cerdo', 2], ['cocodrilo', 1],
+    ['zorro', 3], ['zorra', 1], ['vaca', 1], ['cerdo', 2], ['cocodrilo', 2],
     ['serpiente_verde', 2], ['serpiente_coral', 1], ['serpiente_vibora', 2],
+    ['topo', 3],
     ['paloma', 4], ['pajaro', 5]
   ];
 
@@ -104,6 +146,19 @@
   var CERCA_CAMARA = 1500;          // más lejos, se actualiza a menos ritmo
   var SEPARACION_NACIMIENTO = 700;  // px mínimos entre dos animales al nacer
 
+  // ── PELEA ────────────────────────────────────────────────────────────────
+  var ALCANCE_MASCOTA  = 62;        // hasta dónde alcanza el perro
+  var CADENCIA_MASCOTA = 850;       // ms entre zarpazos del perro
+  var RETIRADA_MS      = [5000, 9000];  // cuánto se va el animal tras perder
+
+  // ── TOPO ─────────────────────────────────────────────────────────────────
+  var TOPO_BAJO      = [6000, 14000];   // cuánto anda bajo tierra
+  var TOPO_ASOMA     = [1400, 2600];    // cuánto se queda asomado
+  var TOPO_CAVA_MS   = 900;             // lo que dura cavar
+  var TOPO_FUERA     = [4000, 9000];    // cuánto se queda fuera
+  var TOPO_VEL_BAJO  = 26;              // bajo tierra va más rápido
+  var HOYO_DURA_MS   = 25000;           // cuánto se queda el agujero
+
   /* Abanico de giros que se prueban cuando el camino de frente está cortado.
      Primero desvíos pequeños (bordear), y solo si nada sirve, la vuelta
      entera. En radianes. */
@@ -116,6 +171,21 @@
     console.log.apply(console, a);
   }
 
+  // ── QUÉ DICE EL MÓDULO DE LA MASCOTA ─────────────────────────────────────
+  // Se lee de window.GFMascota, que es quien habla con el servidor. Si ese
+  // módulo no está cargado, todo se comporta como en modo pasivo y sin mascota:
+  // los animales siguen siendo decoración y no pasa nada raro.
+  function modoMascota() {
+    return (window.GFMascota && window.GFMascota.modo) ? window.GFMascota.modo() : 'passive';
+  }
+  function mascotaViva() {
+    return !!(window.GFMascota && window.GFMascota.viva && window.GFMascota.viva());
+  }
+  function jugadorFantasma() {
+    var e = window.GFMascota && window.GFMascota.estado && window.GFMascota.estado();
+    return !!(e && e.ghost);
+  }
+
   function az(a, b) { return a + Math.random() * (b - a); }
   function elegir(l) { return l[Math.floor(Math.random() * l.length)]; }
 
@@ -123,7 +193,7 @@
   function fotogramas(especie) {
     var f = FICHA[especie];
     if (!f) return [];
-    var poses = POSES[f.grupo];
+    var poses = posesDe(especie);
     var out = [];
     for (var p in poses) {
       for (var i = 1; i <= poses[p]; i++) {
@@ -159,7 +229,7 @@
 
   function crearAnimaciones(scene, especie) {
     var f = FICHA[especie];
-    var poses = POSES[f.grupo];
+    var poses = posesDe(especie);
     for (var p in poses) {
       var clave = 'gfa_' + especie + '_' + p;
       if (scene.anims.exists(clave)) continue;
@@ -338,6 +408,12 @@
     if (f.grupo === 'ave' && sitio) {
       a.soporte = sitio.clave;
       posarse(st, a, sitio);
+    } else if (f.grupo === 'topo') {
+      // Nace bajo tierra: al entrar al mapa solo se ven montículos moviéndose
+      // y el jugador los descubre cuando se asoman.
+      a.fase = 'bajo';
+      anim(a, 'monticulo');
+      a.hasta = scene.time.now + az(TOPO_BAJO[0], TOPO_BAJO[1]);
     } else if (f.grupo === 'ave') {
       // Ave sin sitio donde posarse: empieza andando por el suelo. Ojo, no
       // vale llamar a decidirTierra: en las aves `rumbo` es -1 o +1 (a qué
@@ -363,7 +439,10 @@
   function poseAndar(a) { return a.grupo === 'serpiente' ? 'repta' : 'camina'; }
 
   /** ¿Esta especie sabe comer? Las serpientes no tienen esa animación. */
-  function sabeComer(a) { return POSES[a.grupo].come > 0; }
+  function sabeComer(a) { return !!posesDe(a.especie).come; }
+
+  /** El "hoyo" y el "montículo" son de una sola imagen: no se animan. */
+  function poseEstatica(pose) { return pose === 'hoyo'; }
 
   // ------------------------------------------------------------ los de tierra
   function decidirTierra(st, a) {
@@ -444,6 +523,10 @@
   function actualizarTierra(st, a, ahora, dt) {
     var scene = st.scene;
     var p = scene.player;
+
+    // Los agresivos primero: si tienen a quién morder, eso manda sobre pasear
+    // y sobre huir. Devuelve false cuando no ve a nadie y sigue su vida.
+    if (a.ficha.agresivo && actualizarAgresivo(st, a, ahora, dt)) return;
 
     if (a.ficha.huye > 0 && p && a.fase !== 'huye') {
       var d = Math.hypot(a.spr.x - p.x, a.spr.y - p.y);
@@ -646,6 +729,242 @@
     if (ahora >= a.hasta) decidirAve(st, a);
   }
 
+
+  // =============================================================== PELEA
+  /**
+   * A quién va este animal.
+   *
+   * LA REGLA QUE PIDIÓ EL JUGADOR: con la mascota en modo ATTACK el animal
+   * SOLO puede ir a por la mascota; únicamente cuando la mascota cae se fija
+   * en el personaje. En modo PASSIVE la mascota no pelea, así que para ellos
+   * es como si no estuviera y van directos al personaje.
+   *
+   * A un jugador que ya es fantasma no se le muerde: está muerto.
+   */
+  function objetivoDe(scene) {
+    if (modoMascota() === 'attack' && mascotaViva()) {
+      var d = scene.dog && scene.dog.sprite;
+      if (d && d.active !== false && d.visible !== false) {
+        return { tipo: 'mascota', x: d.x, y: d.y };
+      }
+      // Modo ataque pero sin perro a la vista: no se pasa al jugador, porque
+      // la regla es que primero va la mascota.
+      return null;
+    }
+    var p = scene.player;
+    if (!p || jugadorFantasma()) return null;
+    return { tipo: 'jugador', x: p.x, y: p.y };
+  }
+
+  /** El animal se lleva un revolcón y se larga un rato. */
+  function retirarse(st, a) {
+    var scene = st.scene;
+    var d = scene.dog && scene.dog.sprite;
+    a.fase = 'retirada';
+    a.objetivo = null;
+    a.golpes = 0;
+    a.rumbo = d ? Math.atan2(a.spr.y - d.y, a.spr.x - d.x) : az(0, Math.PI * 2);
+    anim(a, poseAndar(a));
+    a.hasta = scene.time.now + az(RETIRADA_MS[0], RETIRADA_MS[1]);
+    log(scene, a.especie, 'se retira');
+  }
+
+  /** Mordisco. A la mascota le quita vida; al jugador, vitales. */
+  function morder(st, a, obj) {
+    if (obj.tipo === 'mascota') {
+      if (window.GFMascota && window.GFMascota.golpear) {
+        window.GFMascota.golpear(a.ficha.dano);
+      }
+    } else if (window.GFMascota && window.GFMascota.morderAlJugador) {
+      window.GFMascota.morderAlJugador(st.scene);
+    }
+  }
+
+  /**
+   * La mascota devuelve los golpes.
+   *
+   * El perro NO cambia de trayectoria: lo mueve GameScene y meterse ahí sería
+   * pelearse con el juego. Lo que hace es golpear a lo que se le acerque
+   * estando en modo ataque, que visualmente es exactamente la pelea: el animal
+   * se lanza, el perro le responde y a los pocos golpes el animal se retira.
+   */
+  function mascotaPelea(st, a, ahora) {
+    if (modoMascota() !== 'attack' || !mascotaViva()) return;
+    var d = st.scene.dog && st.scene.dog.sprite;
+    if (!d || d.visible === false) return;
+    if (Math.hypot(a.spr.x - d.x, a.spr.y - d.y) > ALCANCE_MASCOTA) return;
+    if (ahora - (a.ultimoZarpazo || 0) < CADENCIA_MASCOTA) return;
+    a.ultimoZarpazo = ahora;
+    a.golpes = (a.golpes || 0) + 1;
+    if (d.setFlipX) d.setFlipX(a.spr.x < d.x);
+    if (a.golpes >= (a.ficha.aguante || 4)) retirarse(st, a);
+  }
+
+  /**
+   * Un frame de un animal agresivo.
+   * @returns {boolean} true si ya se ha ocupado de él y no hay que seguir con
+   *          la rutina normal de pasear.
+   */
+  function actualizarAgresivo(st, a, ahora, dt) {
+    var scene = st.scene;
+
+    if (a.fase === 'retirada') {
+      moverTierra(st, a, dt, true);
+      if (ahora >= a.hasta) decidirTierra(st, a);
+      return true;
+    }
+
+    var obj = objetivoDe(scene);
+    if (!obj) {
+      if (a.objetivo) { a.objetivo = null; decidirTierra(st, a); }
+      return false;
+    }
+
+    var dist = Math.hypot(a.spr.x - obj.x, a.spr.y - obj.y);
+    if (dist > a.ficha.vista) {
+      if (a.objetivo) { a.objetivo = null; decidirTierra(st, a); }
+      return false;                       // fuera de su vista: vida normal
+    }
+    a.objetivo = obj.tipo;
+    mascotaPelea(st, a, ahora);
+    if (a.fase === 'retirada') return true;
+
+    if (dist <= a.ficha.alcance) {
+      a.fase = 'ataca';
+      anim(a, 'ataque');
+      a.spr.setFlipX(obj.x < a.spr.x);
+      a.spr.setDepth(a.spr.y);
+      if (ahora - (a.ultimoMordisco || 0) >= a.ficha.cadencia) {
+        a.ultimoMordisco = ahora;
+        morder(st, a, obj);
+      }
+    } else {
+      a.fase = 'persigue';
+      anim(a, poseAndar(a));
+      a.rumbo = Math.atan2(obj.y - a.spr.y, obj.x - a.spr.x);
+      moverTierra(st, a, dt, true);
+    }
+    return true;
+  }
+
+  // ================================================================ TOPO
+  /** Deja un agujero en la tierra donde el topo se ha metido. */
+  function abrirHoyo(st, x, y) {
+    var scene = st.scene;
+    if (!scene.textures.exists('gfa_topo_hoyo_1')) return;
+    var h = scene.add.sprite(x, y, 'gfa_topo_hoyo_1');
+    h.setOrigin(0.5, 1);
+    h.setScale(ESCALA);
+    // Por debajo de todo lo que pisa el suelo: es un agujero, no un objeto.
+    h.setDepth(y - 2);
+    st.hoyos.push({ spr: h, hasta: scene.time.now + HOYO_DURA_MS });
+  }
+
+  function limpiarHoyos(st, ahora) {
+    for (var i = st.hoyos.length - 1; i >= 0; i--) {
+      if (ahora >= st.hoyos[i].hasta) {
+        if (st.hoyos[i].spr) st.hoyos[i].spr.destroy();
+        st.hoyos.splice(i, 1);
+      }
+    }
+  }
+
+  /**
+   * El topo.
+   *
+   * Ciclo: anda BAJO TIERRA (solo se ve el montículo moviéndose) → se ASOMA →
+   * CAVA para salir → vive fuera (anda, come, se para) → si te acercas, CAVA
+   * otra vez, deja el agujero y vuelve a meterse.
+   *
+   * Bajo tierra no se le puede morder ni asustar: es el único animal al que el
+   * jugador no alcanza, y por eso no comparte la rutina de los demás.
+   */
+  function actualizarTopo(st, a, ahora, dt) {
+    var scene = st.scene;
+    var p = scene.player;
+    var cerca = p && !jugadorFantasma() &&
+                Math.hypot(a.spr.x - p.x, a.spr.y - p.y) < a.ficha.huye;
+
+    switch (a.fase) {
+      case 'bajo':
+        // el montículo avanza esquivando lo sólido, como cualquier otro
+        a.rumbo += az(-0.6, 0.6) * dt;
+        moverTierra(st, a, dt, false);
+        if (ahora >= a.hasta) {
+          a.fase = 'asoma';
+          anim(a, 'asoma');
+          a.hasta = ahora + az(TOPO_ASOMA[0], TOPO_ASOMA[1]);
+        }
+        return;
+
+      case 'asoma':
+        // asomado se entera de todo: si hay alguien cerca, ni sale
+        if (cerca) { meterse(st, a, ahora, false); return; }
+        if (ahora >= a.hasta) {
+          a.fase = 'sale';
+          anim(a, 'cava');
+          a.hasta = ahora + TOPO_CAVA_MS;
+        }
+        return;
+
+      case 'sale':
+        if (ahora >= a.hasta) {
+          a.fase = 'quieto';
+          anim(a, 'quieto');
+          a.hasta = ahora + az(1200, 2600);
+          // Cuánto se queda fuera EN TOTAL.
+          //
+          // EL FALLO QUE ARREGLA: sin este reloj, al salir pasaba a la rutina
+          // normal de pasear/comer y `decidirTierra` la reiniciaba una y otra
+          // vez. El topo no volvía a meritarse jamás por su cuenta: solo si el
+          // jugador se le acercaba. En la simulación de 120 s salía y ya no
+          // cavaba nunca más.
+          a.fueraHasta = ahora + az(TOPO_FUERA[0], TOPO_FUERA[1]);
+        }
+        return;
+
+      case 'cava':
+        if (ahora >= a.hasta) {
+          abrirHoyo(st, a.spr.x, a.spr.y);
+          a.fase = 'bajo';
+          anim(a, 'monticulo');
+          a.rumbo = az(0, Math.PI * 2);
+          a.hasta = ahora + az(TOPO_BAJO[0], TOPO_BAJO[1]);
+        }
+        return;
+
+      default:
+        // fuera: pasea, come o descansa como los demás
+        if (cerca) { meterse(st, a, ahora, true); return; }
+        // se le acabó el rato de superficie: a cavar y para dentro
+        if (a.fueraHasta && ahora >= a.fueraHasta) {
+          a.fueraHasta = 0;
+          meterse(st, a, ahora, true);
+          return;
+        }
+        if (a.fase === 'pasea') {
+          moverTierra(st, a, dt, false);
+          a.rumbo += az(-0.5, 0.5) * dt;
+        }
+        if (ahora >= a.hasta) decidirTierra(st, a);
+        return;
+    }
+  }
+
+  /** Se mete bajo tierra. `cavando` = estaba fuera y tiene que escarbar. */
+  function meterse(st, a, ahora, cavando) {
+    if (cavando) {
+      a.fase = 'cava';
+      anim(a, 'cava');
+      a.hasta = ahora + TOPO_CAVA_MS;
+    } else {
+      a.fase = 'bajo';
+      anim(a, 'monticulo');
+      a.rumbo = az(0, Math.PI * 2);
+      a.hasta = ahora + az(TOPO_BAJO[0], TOPO_BAJO[1]);
+    }
+  }
+
   // =============================================================== BUCLE
   function actualizar(st, ahora, delta) {
     var scene = st.scene;
@@ -661,6 +980,8 @@
     if (typeof scene._asegurarIndiceColisiones === 'function') {
       try { scene._asegurarIndiceColisiones(); } catch (e) { /* da igual */ }
     }
+
+    limpiarHoyos(st, ahora);
 
     var dt = Math.min(delta, 100) / 1000;   // un tirón no los teletransporta
     var cam = scene.cameras && scene.cameras.main;
@@ -685,6 +1006,7 @@
       }
 
       if (a.grupo === 'ave') actualizarAve(st, a, ahora, dt);
+      else if (a.grupo === 'topo') actualizarTopo(st, a, ahora, dt);
       else actualizarTierra(st, a, ahora, dt);
     }
   }
@@ -696,7 +1018,7 @@
     if (scene.__gfFauna) return scene.__gfFauna;      // ya montada
 
     var elenco = opciones.elenco || ELENCO;
-    var st = { scene: scene, animales: [] };
+    var st = { scene: scene, animales: [], hoyos: [] };
     var puestos = [];
     var usados = {};
 
@@ -716,19 +1038,36 @@
         var sitios = posaderos(scene);
         for (var k = 0; k < cuantos; k++) {
           var sitio = null;
-          // se buscan posaderos separados entre sí, para no llenar un árbol
-          for (var intento = 0; intento < 40 && sitios.length; intento++) {
-            var cand = elegir(sitios);
-            if (usados[cand.clave]) continue;
-            var pegado = false;
-            for (var q = 0; q < puestos.length; q++) {
-              if (Math.hypot(cand.x - puestos[q].x, cand.y - puestos[q].y) <
-                  SEPARACION_NACIMIENTO) { pegado = true; break; }
+          /* Se busca un posadero libre y separado de los demás. La distancia
+             exigida se va RELAJANDO en vueltas sucesivas.
+
+             EL FALLO QUE ARREGLA: antes, si en 40 intentos no salía ninguno que
+             cumpliera los 700 px, se cogía uno cualquiera — incluido uno YA
+             OCUPADO. Dos aves acababan en el mismo punto exacto del mismo
+             árbol, una encima de otra y moviéndose igual. Con 9 aves y los
+             posaderos en racimos, pasaba de verdad. */
+          var exigencias = [SEPARACION_NACIMIENTO, SEPARACION_NACIMIENTO / 2,
+                            SEPARACION_NACIMIENTO / 4, 0];
+          for (var ex = 0; ex < exigencias.length && !sitio; ex++) {
+            for (var intento = 0; intento < 40 && sitios.length; intento++) {
+              var cand = elegir(sitios);
+              if (usados[cand.clave]) continue;      // nunca dos en el mismo
+              var pegado = false;
+              for (var q = 0; q < puestos.length; q++) {
+                if (Math.hypot(cand.x - puestos[q].x, cand.y - puestos[q].y) <
+                    exigencias[ex]) { pegado = true; break; }
+              }
+              if (pegado) continue;
+              sitio = cand; break;
             }
-            if (pegado) continue;
-            sitio = cand; break;
           }
-          if (!sitio && sitios.length) sitio = elegir(sitios);
+          // Ni un posadero libre en todo el mapa: se comparte, pero corrido a
+          // un lado para que no queden dos sprites calcados.
+          if (!sitio && sitios.length) {
+            var comp = elegir(sitios);
+            sitio = { clave: comp.clave, base: comp.base,
+                      x: comp.x + az(-14, 14), y: comp.y + az(-4, 4) };
+          }
           if (sitio) {
             usados[sitio.clave] = true;
             puestos.push({ x: sitio.x, y: sitio.y });
@@ -774,6 +1113,10 @@
       if (st.animales[i].spr) st.animales[i].spr.destroy();
     }
     st.animales.length = 0;
+    for (var h = 0; h < st.hoyos.length; h++) {
+      if (st.hoyos[h].spr) st.hoyos[h].spr.destroy();
+    }
+    st.hoyos.length = 0;
     scene.__gfFauna = null;
     log(scene, 'desmontada');
   }
@@ -804,7 +1147,10 @@
       decidirTierra: decidirTierra, decidirAve: decidirAve,
       huirAve: huirAve, huirDe: huirDe, moverTierra: moverTierra,
       profundidadPosado: profundidadPosado, sitioEnPie: sitioEnPie,
-      POSES: POSES
+      objetivoDe: objetivoDe, actualizarAgresivo: actualizarAgresivo,
+      actualizarTopo: actualizarTopo, mascotaPelea: mascotaPelea,
+      retirarse: retirarse, morder: morder, abrirHoyo: abrirHoyo,
+      posesDe: posesDe, POSES: POSES, POSES_EXTRA: POSES_EXTRA
     }
   };
 })();

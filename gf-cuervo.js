@@ -55,6 +55,14 @@
    */
   var PROF_VUELO = 8000;
 
+  // ── HAMBRE ───────────────────────────────────────────────────────────────
+  // Cada tanto al cuervo le entra hambre. Con hambre busca parcelas mucho mas
+  // a menudo, y si pica en una donde hay cultivo, avisa al SERVIDOR: si esta
+  // lista se la come, y si todavia esta creciendo la pisotea y la retrasa.
+  // Que pasa exactamente lo decide el backend, no este archivo.
+  var HAMBRE_CADA   = [90000, 200000];
+  var PICOTEO_MS    = 1600;      // lo que tarda en hincarle el pico
+
   function log(scene) {
     if (!window.GF_CUERVO_DEBUG) return;
     var a = Array.prototype.slice.call(arguments, 1);
@@ -135,11 +143,13 @@
   function parcelas(scene) {
     var out = [];
     if (!scene.plotImages || !scene.plotImages.forEach) return out;
-    scene.plotImages.forEach(function (img) {
+    // La clave del Map es el plotId ('field1'...), y hace falta para poder
+    // decirle al servidor EN QUE parcela ha picoteado.
+    scene.plotImages.forEach(function (img, clave) {
       if (!img || !img.active) return;
       var b;
       try { b = img.getBounds(); } catch (e) { return; }
-      out.push({ x: b.centerX, y: b.bottom - 6 });
+      out.push({ x: b.centerX, y: b.bottom - 6, clave: clave });
     });
     return out;
   }
@@ -189,6 +199,10 @@
       asustado: false
     };
     if (arbolIni) c.arbol = arbolIni.clave;
+    c.hambriento = false;
+    c.hambreEn = scene.time.now + az(HAMBRE_CADA[0], HAMBRE_CADA[1]);
+    c.parcela = null;
+    c.picoteoEn = 0;
     posarse(st, c, inicio);
     return c;
   }
@@ -270,10 +284,27 @@
     return !tocones[clave];
   }
 
+  /** ¿Le toca tener hambre ya? */
+  function tieneHambre(st, c) {
+    if (c.hambriento) return true;
+    if (st.scene.time.now >= (c.hambreEn || 0)) { c.hambriento = true; return true; }
+    return false;
+  }
+
+  function saciar(st, c) {
+    c.hambriento = false;
+    c.hambreEn = st.scene.time.now + az(HAMBRE_CADA[0], HAMBRE_CADA[1]);
+  }
+
   function decidir(st, c) {
     var scene = st.scene;
     var arboles = arbolesDisponibles(scene);
     var r = Math.random();
+
+    // Con hambre, la balanza se inclina hacia las parcelas: es lo único que le
+    // interesa. Sin hambre reparte 45% árbol · 30% suelo · 25% parcela.
+    var hambre = tieneHambre(st, c);
+    if (hambre && parcelas(scene).length) r = r * 0.35 + 0.65;
 
     // 45% cambiar de árbol · 30% bajar a caminar · 25% picotear una parcela
     if (r < 0.45 || !scene.player) {
@@ -301,7 +332,41 @@
     var pars = parcelas(scene);
     if (!pars.length) { c.hasta = scene.time.now + 2000; return; }
     var libres2 = lejosDelJugador(scene, pars, DIST_SUSTO_SUELO * 1.4);
-    volarA(st, c, elegir(libres2), 'come', null);
+    var elegida = elegir(libres2);
+    /* Solo se apunta la parcela SI TIENE HAMBRE.
+       EL FALLO QUE ARREGLA: `c.parcela` se ponía siempre que bajaba a una
+       parcela, y el picoteo avisa al servidor en cuanto hay parcela apuntada.
+       Resultado: un cuervo saciado, que baja a una parcela por gusto, se
+       comía la cosecha igual. Sin hambre puede picotear todo lo que quiera,
+       pero no toca el cultivo. */
+    c.parcela = hambre ? (elegida.clave || null) : null;
+    c.picoteoEn = 0;
+    volarA(st, c, elegida, 'come', null);
+  }
+
+  /**
+   * El cuervo hinca el pico en una parcela con cultivo.
+   *
+   * El resultado NO lo decide el navegador: se le dice al servidor en qué
+   * parcela ha picado y él mira en qué estado está el cultivo — si está listo
+   * se lo come, y si todavía está creciendo lo retrasa. Aquí solo se avisa.
+   */
+  function picotearParcela(st, c) {
+    if (!c.parcela || !window.GFMascota || !window.GFMascota.api) { saciar(st, c); return; }
+    var clave = c.parcela;
+    c.parcela = null;
+    saciar(st, c);
+    window.GFMascota.api('/api/crops/crow', { plotId: clave })
+      .then(function (r) {
+        var res = r && r.datos && r.datos.resultado;
+        log(st.scene, 'picoteó', clave, '→', res);
+        // Si se ha comido una cosecha, la parcela cambia de aspecto: se pide al
+        // juego que la repinte si sabe hacerlo.
+        if (res === 'comida' && typeof st.scene.refrescarCultivos === 'function') {
+          try { st.scene.refrescarCultivos(); } catch (e) {}
+        }
+      })
+      .catch(function () { /* sin red: ya se ha saciado igual */ });
   }
 
   function actualizarCuervo(st, c, dt) {
@@ -348,6 +413,13 @@
       log(scene, 'talaron', c.arbol, '→ se muda');
       huir(st, c);
       return;
+    }
+
+    if (c.fase === 'come' && c.parcela) {
+      // Un solo picotazo por visita, y solo tras un momento comiendo: así se
+      // ve la animación antes de que pase nada.
+      if (!c.picoteoEn) c.picoteoEn = ahora + PICOTEO_MS;
+      else if (ahora >= c.picoteoEn) { c.picoteoEn = 0; picotearParcela(st, c); }
     }
 
     if (c.fase === 'camina') {
@@ -432,7 +504,8 @@
     _interno: {
       posadero: posadero, arbolesDisponibles: arbolesDisponibles,
       parcelas: parcelas, actualizarCuervo: actualizarCuervo,
-      huir: huir, decidir: decidir, profundidadPosado: profundidadPosado
+      huir: huir, decidir: decidir, profundidadPosado: profundidadPosado,
+      tieneHambre: tieneHambre, saciar: saciar, picotearParcela: picotearParcela
     }
   };
 })();

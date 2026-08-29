@@ -5033,6 +5033,13 @@ this.anims.create({
        que el jugador. Se desmontan solos en el shutdown de la escena. */
     if (window.GFAnimales) window.GFAnimales.montar(this);
 
+    /* Mascota (barra de vida y menú de modo), muerte del jugador y el hub
+       del alquimista. GFMascota va primero: los otros dos usan su helper
+       de HTTP y su estado. */
+    if (window.GFMascota) window.GFMascota.montar(this);
+    if (window.GFMuerte) window.GFMuerte.montar(this);
+    if (window.GFAlquimista) window.GFAlquimista.montar(this);
+
     console.log('game create ejecutándose');
 
 
@@ -8010,6 +8017,12 @@ console.log('📊 Tree types:', Object.keys(TREE_TYPE_CONFIG));
           tomate_corta: { src: "./Game/Objetos/Plantas/planta_tomates/item_planta.png", maxStack: 20 , tipo: "tomate_corta", usos: null},
           tomate_mala: { src: "./Game/Objetos/Plantas/planta_tomates/item_tomate_malo.png", maxStack: 20 , tipo: "tomate_mala", usos: null},
           fresa_buena: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_buena.png", maxStack: 20, tipo: "fresa_buena", usos: null },
+
+          // Pociones del alquimista. Curan y reviven a la mascota; se usan
+          // desde su hub, no haciendo clic en el inventario.
+          pocion_mascota:        { src: "./Game/Objetos/pociones/pocion_mascota.png",        maxStack: 20, tipo: "pocion_mascota",        usos: null },
+          pocion_mascota_grande: { src: "./Game/Objetos/pociones/pocion_mascota_grande.png", maxStack: 10, tipo: "pocion_mascota_grande", usos: null },
+          elixir_revivir:        { src: "./Game/Objetos/pociones/elixir_revivir.png",        maxStack: 5,  tipo: "elixir_revivir",        usos: null },
           fresa_corta: { src: "./Game/Objetos/Plantas/planta_fresa/item_planta.png", maxStack: 20 , tipo: "fresa_corta", usos: null},
           fresa_mala: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_podrida.png", maxStack: 20 , tipo: "fresa_mala", usos: null},
 
@@ -13861,6 +13874,8 @@ _getFruitDisplayNameEN(itemId) {
     trigo_buena: 'Good Wheat', trigo_corta: 'Unripe Wheat', trigo_mala: 'Rotten Wheat',
     calabaza_buena: 'Good Pumpkin', calabaza_corta: 'Unripe Pumpkin', calabaza_mala: 'Rotten Pumpkin',
     fresa_buena: 'Good Strawberry', fresa_corta: 'Unripe Strawberry', fresa_mala: 'Rotten Strawberry',
+    pocion_mascota: 'Pet Potion', pocion_mascota_grande: 'Great Pet Potion',
+    elixir_revivir: 'Revival Elixir',
     // Minerales (reutilizado también por la minería on-chain, ver _agregarFrutoOnChain)
     mineral_piedra: 'Stone', mineral_cobre: 'Copper Ore', mineral_hierro: 'Iron Ore', carbon: 'Coal',
     // Maderas: se añadieron al pasar la tala a botín 1-3, para que el aviso

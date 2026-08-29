@@ -39,7 +39,7 @@
   var PROFUNDIDAD   = 9000;            // por encima del mundo, debajo del HUD DOM
   var COLOR_NOCHE   = 0x24365f;        // azul de noche con el que se multiplica
   var ALFA_NOCHE    = 0.82;            // oscuridad máxima
-  var RADIO_POSTE   = 240;             // en píxeles de mundo
+  var RADIO_POSTE   = 340;             // en píxeles de mundo
   var RADIO_JUGADOR = 105;             // de sobra para cubrir al personaje
 
   // ---------------------------------------------------------------- utilidades
