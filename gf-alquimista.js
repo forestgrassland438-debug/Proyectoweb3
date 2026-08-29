@@ -28,11 +28,17 @@
   'use strict';
 
   /* A QUÉ SE ENGANCHA.
-     Antes era la CASA de pociones, y el jugador tenía que acertar a un píxel
-     del edificio. Ahora es el NPC mago (sprite_npc5), igual que el granjero
-     (npc1) o el herrero (npc2) abren sus paneles: clic en el personaje y se
-     abre. sprite_p queda de respaldo por si en algún mapa faltara el NPC. */
-  var CASAS = ['sprite_npc5', 'sprite_p', 'sprite_casa_posiones'];
+
+     El ALQUIMISTA del pueblo es sprite_npc3 — el que lleva el cartel
+     "Alchemist Colin" y está plantado junto a la casa de pociones.
+
+     Estuvo colgado de sprite_npc5 por error: ese es Lord Digby, el mago del
+     tutorial, que ya tiene su papel entregando semillas. Abrir la botica al
+     hacerle clic era abrirla en el personaje equivocado y además pisaba lo
+     suyo.
+
+     sprite_p queda de respaldo por si en algún mapa faltara el NPC. */
+  var CASAS = ['sprite_npc3', 'sprite_p', 'sprite_casa_posiones'];
 
   var montado = null;
   var catalogo = null;

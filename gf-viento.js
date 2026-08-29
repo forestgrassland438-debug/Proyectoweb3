@@ -54,6 +54,37 @@
   var VEL_BASE = 190;           // px/s de la hoja con el viento al máximo
   var INCLINA  = 0.035;         // radianes que se mece un árbol
 
+  /* EL LIENZO DE PANTALLA, Y POR QUÉ NO BASTA setScrollFactor(0).
+
+     EL FALLO QUE ARREGLA: las hojas se colocaban en 0..cam.width con
+     scrollFactor 0 y se daba por hecho que eso era la pantalla. No lo es.
+     scrollFactor 0 libra del SCROLL, no del ZOOM: la cámara sigue dibujando
+
+         pantalla = (p - centro) · zoom + centro
+
+     Con el zoom a 0.5 ese rango se encogía a la mitad y las hojas quedaban
+     apelotonadas en el cuadrado del medio, con los bordes de la pantalla
+     vacíos. Justo lo que se veía al alejar la cámara.
+
+     Se arregla metiéndolo todo en un contenedor con escala 1/zoom colocado de
+     forma que su esquina caiga en (-MARGEN,-MARGEN) de la pantalla. Dentro se
+     sigue trabajando en píxeles de pantalla y no hay que tocar nada más.
+
+     El MARGEN es para que la sacudida del trueno no descubra el borde. */
+  var MARGEN = 96;
+
+  function lienzo(cam) {
+    var z = (cam && cam.zoom > 0) ? cam.zoom : 1;
+    var W = cam.width, H = cam.height;
+    return {
+      z: z, m: MARGEN,
+      w: W + MARGEN * 2, h: H + MARGEN * 2,
+      escala: 1 / z,
+      x: W / 2 - (W / 2 + MARGEN) / z,
+      y: H / 2 - (H / 2 + MARGEN) / z
+    };
+  }
+
   function log() {
     if (!window.GF_VIENTO_DEBUG) return;
     var a = Array.prototype.slice.call(arguments);
@@ -85,12 +116,14 @@
 
   // ------------------------------------------------------------------ hojas
   function nuevaHoja(st, dentro) {
-    var cam = st.scene.cameras.main;
-    var w = cam.width, h = cam.height;
+    var L = lienzo(st.scene.cameras.main);
+    var w = L.w, h = L.h;
     var s = st.scene.add.image(0, 0, 'gfv_' + elegir(HOJAS));
+    // scrollFactor va en el HIJO aunque esté dentro del contenedor: Phaser lo
+    // lee del hijo, no del padre, al montar la matriz de cámara.
     s.setScrollFactor(0);
-    s.setDepth(PROF_HOJAS);
     s.setScale(2);
+    if (st.capa) st.capa.add(s);
     var hoja = {
       spr: s,
       // Cada hoja lleva su propio ritmo de bamboleo: si todas ondularan igual
@@ -138,9 +171,10 @@
   function nuevaRafaga(st) {
     var s = st.scene.add.image(0, 0, 'gfv_' + elegir(RAFAGAS));
     s.setScrollFactor(0);
-    s.setDepth(PROF_RAFAGAS);
     s.setScale(az(1.6, 3.2));
     s.setAlpha(0);
+    // Después de las hojas: dentro de un contenedor manda el ORDEN, no depth.
+    if (st.capa) st.capa.add(s);
     return { spr: s, x: 0, y: 0, vel: az(1.5, 2.6), esperaHasta: 0 };
   }
 
@@ -223,7 +257,11 @@
     if (!scene || !scene.cameras || !scene.cameras.main) return;
     var dt = Math.min(delta, 100) / 1000;
     var cam = scene.cameras.main;
-    var w = cam.width, h = cam.height;
+    // Se recoloca cada frame: el zoom puede cambiar en cualquier momento y la
+    // ventana también.
+    var L = lienzo(cam);
+    var w = L.w, h = L.h;
+    if (st.capa) { st.capa.setPosition(L.x, L.y); st.capa.setScale(L.escala); }
 
     /* MANDA EL SERVIDOR.
        Si gf-clima.js ha dicho algo (porque el backend lo dice), eso pesa sobre
@@ -280,12 +318,21 @@
     scene.__gfViento = st;
     montado = st;
 
+    /* Un solo contenedor para hojas y ráfagas: una transformación por frame en
+       vez de treinta. Dentro manda el orden de inserción, no el depth. */
+    if (scene.add.container) {
+      st.capa = scene.add.container(0, 0);
+      st.capa.setScrollFactor(0);
+      st.capa.setDepth(PROF_HOJAS);
+    }
+
     var i;
     for (i = 0; i < N_HOJAS; i++)   st.hojas.push(nuevaHoja(st, true));
     for (i = 0; i < N_RAFAGAS; i++) st.rafagas.push(nuevaRafaga(st));
+    var L0 = lienzo(scene.cameras.main);
     for (i = 0; i < st.rafagas.length; i++) {
-      st.rafagas[i].x = az(-200, scene.cameras.main.width);
-      st.rafagas[i].y = az(20, scene.cameras.main.height - 20);
+      st.rafagas[i].x = az(-200, L0.w);
+      st.rafagas[i].y = az(20, L0.h - 20);
     }
 
     st.onUpdate = function (t, d) { actualizar(st, t, d); };
@@ -312,6 +359,8 @@
     for (i = 0; i < st.hojas.length; i++)   st.hojas[i].spr.destroy();
     for (i = 0; i < st.rafagas.length; i++) st.rafagas[i].spr.destroy();
     st.hojas.length = 0; st.rafagas.length = 0; st.arboles.length = 0;
+    if (st.capa && st.capa.destroy) st.capa.destroy();
+    st.capa = null;
     scene.__gfViento = null;
     if (montado === st) montado = null;
   }
@@ -364,6 +413,17 @@
       if (e && e.__gfViento) parar(e.__gfViento);
       return !!e;
     },
+    /* Dirección y fuerza AHORA, sin crear objetos.
+       Lo pide la lluvia en cada frame para inclinarse con el viento; estado()
+       fabrica un objeto nuevo cada vez y a 60 fps eso es basura para nada. */
+    vector: function (fuera) {
+      var st = (montado && montado.scene && montado.scene.__gfViento)
+               ? montado.scene.__gfViento : null;
+      fuera = fuera || {};
+      fuera.dir = st ? st.dir : 1;
+      fuera.fuerza = st ? st.fuerza : 0;
+      return fuera;
+    },
     estado: function () {
       var e = escenaViva();
       if (!e || !e.__gfViento) return null;
@@ -373,6 +433,7 @@
                arboles: st.arboles.length };
     },
     _interno: { actualizar: actualizar, soplarEn: soplar, pararEn: parar,
+                lienzo: lienzo, MARGEN: MARGEN,
                 arboles: arboles, mecerArboles: mecerArboles,
                 enderezarArboles: enderezarArboles }
   };

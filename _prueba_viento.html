@@ -1,88 +1,183 @@
 <!DOCTYPE html>
-<!--
-  BANCO DE PRUEBAS DEL VIENTO — no forma parte del juego.
-
-  Monta gf-viento.js sobre una escena mínima (césped, árboles del juego y el
-  pozo) para poder VER las hojas, las ráfagas y el meneo de los árboles sin
-  tener que arrancar todo el juego ni el backend.
-
-  Se puede borrar cuando ya no haga falta: nada del juego lo referencia.
--->
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <title>Viento — banco de pruebas</title>
+  <title>Banco de pruebas — viento, lluvia y noche</title>
   <style>
-    html,body{margin:0;background:#1a1f18;overflow:hidden;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+    html,body{margin:0;padding:0;background:#1a1f16;overflow:hidden}
+    canvas{display:block}
     #hud{position:fixed;left:10px;top:10px;z-index:10;color:#dfe6d2;font-size:13px;
-      background:rgba(0,0,0,.55);padding:9px 12px;border-radius:8px;line-height:1.6}
+         font-family:ui-monospace,Consolas,monospace;background:rgba(12,16,10,.72);
+         padding:9px 12px;border-radius:8px;line-height:1.7}
     #hud b{color:#a9d17a}
-    button{margin-right:6px;padding:5px 10px;border-radius:6px;border:1px solid #5a6a4a;
-      background:#2b3527;color:#dfe6d2;cursor:pointer}
+    button{margin-right:6px;margin-top:4px;padding:5px 10px;border-radius:6px;
+           border:1px solid #5a6a4a;background:#2c3a24;color:#dfe6d2;cursor:pointer}
+    button:hover{background:#3a4a2f}
+    .sep{color:#6d7a5e}
   </style>
 </head>
 <body>
   <div id="hud">
-    <b>Banco de pruebas del viento</b><br>
+    <b>Banco de pruebas</b><br>
     <span id="est">cargando…</span><br>
-    <button id="b1">Soplar</button>
-    <button id="b2">Parar</button>
+    <span id="est2"></span><br>
+    <button id="b1">Viento</button>
+    <button id="b2">Parar viento</button>
+    <button id="b3">Lluvia</button>
+    <button id="b4">Tormenta</button>
+    <button id="b5">Despejar</button>
+    <br>
+    <span class="sep">zoom:</span>
+    <button class="z" data-z="0.25">0.25</button>
+    <button class="z" data-z="0.5">0.5</button>
+    <button class="z" data-z="1">1</button>
+    <button class="z" data-z="2">2</button>
+    <button class="z" data-z="3">3</button>
+    <button id="bs">Temblar</button>
+    <button id="bn">Noche on/off</button>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+  <script>
+  /* El banco no tiene backend. Se le da una hora del mundo fija de MEDIANOCHE
+     para poder mirar la capa de noche: es lo que hay que comprobar cuando la
+     cámara tiembla con el trueno. */
+  (function () {
+    const real = window.fetch;
+    window.fetch = function (url, op) {
+      const u = String(url || '');
+      if (u.indexOf('/api/world/time') >= 0) {
+        const epoca = Date.UTC(2024, 0, 1);
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({
+          ok: true,
+          ahora: epoca + 7 * 3600e3,   // dentro de la franja de noche
+          epocaMs: epoca,
+          cicloMs: 9 * 3600e3,         // 6 h de día + 3 h de noche
+          diaMs: 6 * 3600e3,
+          nocheMs: 3 * 3600e3 }) });
+      }
+      return real ? real.apply(window, arguments)
+                  : Promise.reject(new Error('sin red'));
+    };
+  })();
+  </script>
+  <script src="./gf-ciclo-dia.js"></script>
   <script src="./gf-viento.js"></script>
+  <script src="./gf-clima.js"></script>
   <script>
   window.GF_VIENTO_DEBUG = true;
+  window.GF_CLIMA_DEBUG = true;
 
   class Prueba extends Phaser.Scene {
     preload() {
-      // Los árboles y el pozo de verdad del juego, para ver el meneo sobre el
+      // Los árboles y el poste de verdad del juego, para ver el meneo sobre el
       // arte real y no sobre cuadrados de colores.
       this.load.image('arbol', './Game/Objetos/arbol.png');
       this.load.image('pino',  './Game/Objetos/pinos.png');
-      this.load.image('pozo',  './Game/Objetos/poste.png');
+      this.load.image('poste', './Game/Objetos/poste.png');
       if (window.GFViento) window.GFViento.precargar(this);
+      if (window.GFClima) window.GFClima.precargar(this);
     }
 
     create() {
-      const W = this.scale.width, H = this.scale.height;
-      // césped a franjas, para que se note el movimiento de las hojas
+      /* MUNDO MÁS GRANDE QUE LA PANTALLA.
+         Con el zoom a 0.25 se ve cuatro veces más terreno; si el mundo midiera
+         lo que la pantalla, al alejarse solo se vería el fondo y no se notaría
+         si la lluvia tapa o no. */
+      const W = 3200, H = 2400;
       const g = this.add.graphics();
       for (let y = 0; y < H; y += 8) {
         g.fillStyle(y % 16 === 0 ? 0x3f5a34 : 0x466239, 1);
         g.fillRect(0, y, W, 8);
       }
       g.setDepth(0);
+      // rejilla para ver de un vistazo hasta dónde llega cada capa
+      g.lineStyle(2, 0x2a3a22, 1);
+      for (let x = 0; x <= W; x += 200) { g.moveTo(x, 0); g.lineTo(x, H); }
+      for (let y = 0; y <= H; y += 200) { g.moveTo(0, y); g.lineTo(W, y); }
+      g.strokePath();
 
       /* Árboles con el MISMO origen que en el juego, (0,1): así el meneo los
          inclina desde el pie, que es lo que hay que comprobar. */
-      const sitios = [[120, 520], [340, 560], [600, 540], [860, 580], [1080, 530]];
-      sitios.forEach((p, i) => {
-        const s = this.add.image(p[0], p[1], i % 2 ? 'arbol' : 'pino')
-          .setOrigin(0, 1).setDepth(p[1]);
-        this['sprite_arbolx' + (i + 1)] = s;
-      });
-      for (let i = 0; i < 4; i++) {
-        const s = this.add.image(200 + i * 260, 700, 'pino')
-          .setOrigin(0, 1).setDepth(700);
-        this['sprite_pinos' + (i + 1)] = s;
+      let n = 0;
+      for (let fy = 0; fy < 4; fy++) {
+        for (let fx = 0; fx < 6; fx++) {
+          const x = 180 + fx * 520, y = 480 + fy * 560;
+          const s = this.add.image(x, y, (n % 2) ? 'arbol' : 'pino')
+            .setOrigin(0, 1).setDepth(y);
+          this['sprite_arbolx' + (++n)] = s;
+        }
       }
 
-      if (window.GFViento) window.GFViento.montar(this, { primeraEn: 800 });
+      // Postes, para mirar los charcos de luz de noche.
+      this.postes = [];
+      for (let i = 0; i < 6; i++) {
+        const x = 400 + i * 460, y = 1200;
+        const p = this.add.image(x, y, 'poste').setOrigin(0, 1).setDepth(y);
+        this['post_' + (i + 1)] = p;
+        this.postes.push(p);
+      }
 
-      document.getElementById('b1').onclick = () => window.GFViento.soplar(90000);
-      document.getElementById('b2').onclick = () => window.GFViento.parar();
+      // Un "jugador" al que sigue la cámara, para que la luz del personaje
+      // tenga a quien seguir.
+      this.player = this.add.rectangle(1600, 1200, 24, 48, 0xd8c9a0)
+        .setOrigin(0.5, 1).setDepth(1200);
+      this.cameras.main.setBounds(0, 0, W, H);
+      this.cameras.main.startFollow(this.player, true, 1, 1);
+      this.cameras.main.setZoom(1);
+
+      // flechas para pasearse y comprobar que las capas siguen a la cámara
+      this.teclas = this.input.keyboard.createCursorKeys();
+
+      if (window.GFCiclo) window.GFCiclo.montarEscena(this, { postes: this.postes });
+      if (window.GFViento) window.GFViento.montar(this, { primeraEn: 800 });
+      // sinRed: en el banco no hay backend al que preguntar el tiempo.
+      if (window.GFClima) window.GFClima.montar(this, { sinRed: true });
+
+      const $ = id => document.getElementById(id);
+      $('b1').onclick = () => window.GFViento.soplar(900000);
+      $('b2').onclick = () => window.GFViento.parar();
+      $('b3').onclick = () => window.GFClima.probar('lluvia');
+      $('b4').onclick = () => window.GFClima.probar('tormenta');
+      $('b5').onclick = () => window.GFClima.probar('despejado');
+      $('bs').onclick = () => this.cameras.main.shake(600, 0.006);
+      $('bn').onclick = () => {
+        const st = this.__gfCiclo;
+        if (st && st.rt) st.rt.setVisible(!st.rt.visible);
+      };
+      document.querySelectorAll('button.z').forEach(b => {
+        b.onclick = () => this.cameras.main.setZoom(Number(b.dataset.z));
+      });
 
       this.time.addEvent({ delay: 200, loop: true, callback: () => {
         const e = window.GFViento && window.GFViento.estado();
-        document.getElementById('est').textContent = e
-          ? ('soplando: ' + e.soplando + '  ·  fuerza: ' + e.fuerza +
-             '  ·  dirección: ' + (e.direccion > 0 ? '→' : '←') +
-             '  ·  hojas: ' + e.hojas + '  ·  árboles: ' + e.arboles)
-          : 'el módulo no se montó';
+        const c = window.GFClima && window.GFClima.estado();
+        const st = this.__gfClima;
+        const cam = this.cameras.main;
+        $('est').textContent =
+          (e ? ('viento ' + (e.soplando ? '×' + e.fuerza : 'no') +
+                ' ' + (e.direccion > 0 ? '→' : '←') + '  ·  hojas ' + e.hojas) : '—') +
+          '   |   ' +
+          (c ? ('lluvia ' + (c.lluvia ? 'sí' : 'no') +
+                (st ? ' ×' + st.fuerzaLluvia.toFixed(2) : '') +
+                '  ·  truenos ' + (c.truenos ? 'sí' : 'no')) : '—');
+        $('est2').textContent =
+          'zoom ×' + cam.zoom +
+          (st ? ('  ·  inclinación ' + st.inclina.toFixed(2) +
+                 ' (' + (st.inclina > 0 ? 'a la derecha' : 'a la izquierda') + ')') : '') +
+          '  ·  oscuridad ' +
+          (window.GFCiclo ? window.GFCiclo.oscuridad().toFixed(2) : '—');
       }});
       window.__listo = true;
+    }
+
+    update(t, d) {
+      const v = 400 * (d / 1000), k = this.teclas;
+      if (!k) return;
+      if (k.left.isDown)  this.player.x -= v;
+      if (k.right.isDown) this.player.x += v;
+      if (k.up.isDown)    this.player.y -= v;
+      if (k.down.isDown)  this.player.y += v;
     }
   }
 

@@ -39,8 +39,23 @@
   var PROFUNDIDAD   = 9000;            // por encima del mundo, debajo del HUD DOM
   var COLOR_NOCHE   = 0x24365f;        // azul de noche con el que se multiplica
   var ALFA_NOCHE    = 0.76;            // oscuridad máxima
-  var RADIO_POSTE   = 430;             // en píxeles de mundo
-  var RADIO_JUGADOR = 155;             // de sobra para cubrir al personaje
+  var RADIO_POSTE   = 560;             // en píxeles de mundo
+  var RADIO_JUGADOR = 180;             // de sobra para cubrir al personaje
+
+  /* SOBRANTE DE LA CAPA DE NOCHE.
+
+     EL FALLO QUE ARREGLA: la capa medía EXACTAMENTE la pantalla. En cuanto la
+     cámara se movía sin que se moviera la capa —la sacudida del trueno, que es
+     una traslación de la propia cámara— asomaba el borde: una franja clara en
+     el lado hacia el que temblaba, y se veía perfectamente el recuadro.
+
+     Ahora la capa se hace más grande por los cuatro lados. Dentro de ella el
+     (0,0) ya no es la esquina de la pantalla sino la del sobrante, así que las
+     luces se pintan desplazadas ese mismo margen (ver recortarLuz).
+
+     96 px cubre de sobra: la sacudida más fuerte es 0.006 · ancho · zoom, unos
+     18 px con zoom 3 en una pantalla de 1024. */
+  var MARGEN_CAPA   = 96;
 
   // ---------------------------------------------------------------- utilidades
   function log() {
@@ -76,12 +91,20 @@
          pantalla = (p - centro) * zoom + centro
      Poniendo escala = 1/zoom y esquina = centro - mitad/zoom, el borde
      izquierdo cae en 0 y el derecho en el ancho de la pantalla, siempre. */
-  function geometriaCapa(camAncho, camAlto, zoom) {
+  function geometriaCapa(camAncho, camAlto, zoom, margen) {
     var z = zoom > 0 ? zoom : 1;
+    var m = (margen === undefined) ? MARGEN_CAPA : margen;
+    /* Con el sobrante, la esquina de la capa no cae en (0,0) de la pantalla
+       sino en (-m,-m), sea cual sea el zoom:
+           pantalla = (p - centro) * zoom + centro
+           p = centro - (centro + m) / zoom   =>   pantalla = -m           */
     return {
       escala: 1 / z,
-      x: camAncho / 2 - camAncho / (2 * z),
-      y: camAlto / 2 - camAlto / (2 * z)
+      x: camAncho / 2 - (camAncho / 2 + m) / z,
+      y: camAlto / 2 - (camAlto / 2 + m) / z,
+      margen: m,
+      ancho: camAncho + m * 2,
+      alto: camAlto + m * 2
     };
   }
 
@@ -328,8 +351,8 @@
     // lejos, sino que ALUMBRA más dentro de su radio. Antes empezaba a apagarse
     // al 55% y el borde del charco quedaba casi tan oscuro como la noche.
     g.addColorStop(0.00, 'rgba(255,255,255,1)');
-    g.addColorStop(0.66, 'rgba(255,255,255,0.98)');
-    g.addColorStop(0.86, 'rgba(255,255,255,0.72)');
+    g.addColorStop(0.74, 'rgba(255,255,255,1)');
+    g.addColorStop(0.90, 'rgba(255,255,255,0.82)');
     g.addColorStop(1.00, 'rgba(255,255,255,0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, d, d);
@@ -360,7 +383,10 @@
       // escala, no redimensionando (ver geometriaCapa).
       st.anchoCam = cam.width;
       st.altoCam = cam.height;
-      st.rt = scene.add.renderTexture(0, 0, cam.width, cam.height)
+      // Más grande que la pantalla: ver MARGEN_CAPA.
+      st.rt = scene.add.renderTexture(0, 0,
+                                      cam.width + MARGEN_CAPA * 2,
+                                      cam.height + MARGEN_CAPA * 2)
         .setOrigin(0, 0)
         .setScrollFactor(0)
         .setDepth(PROFUNDIDAD)
@@ -449,7 +475,7 @@
         .setBlendMode(Phaser.BlendModes.ADD)
         .setDepth((p.depth || 0) + 1)
         .setAlpha(0)
-        .setScale(2.1);          // crece con RADIO_POSTE, si no queda suelto
+        .setScale(2.7);          // crece con RADIO_POSTE, si no queda suelto
       st.resplandores.push(res);
     }
   }
@@ -508,6 +534,7 @@
     var geo = geometriaCapa(cam.width, cam.height, z);
     st.rt.setScale(geo.escala);
     st.rt.setPosition(geo.x, geo.y);
+    st.margen = geo.margen;
 
     if (!st.rt.visible) st.rt.setVisible(true);
 
@@ -549,8 +576,11 @@
        terreno, así que la farola ocupa menos pantalla pero sigue alumbrando los
        mismos metros de suelo. */
     var pincel = st.pincel;
+    var m = st.margen || 0;
     if (pincel.texture.key !== clave) pincel.setTexture(clave);
-    pincel.setPosition((wx - vista.x) * zoom, (wy - vista.y) * zoom);
+    // + margen: dentro de la capa el origen es la esquina del SOBRANTE, no la
+    // de la pantalla.
+    pincel.setPosition((wx - vista.x) * zoom + m, (wy - vista.y) * zoom + m);
     pincel.setScale((radio * 2 * zoom) / pincel.width);
     pincel.setAlpha(alfa);
     st.rt.erase(pincel);
@@ -560,7 +590,9 @@
   function rehacerCapa(st, cam) {
     try {
       if (st.rt && st.rt.destroy) st.rt.destroy();
-      st.rt = st.scene.add.renderTexture(0, 0, cam.width, cam.height)
+      st.rt = st.scene.add.renderTexture(0, 0,
+                                         cam.width + MARGEN_CAPA * 2,
+                                         cam.height + MARGEN_CAPA * 2)
         .setOrigin(0, 0)
         .setScrollFactor(0)
         .setDepth(PROFUNDIDAD)
