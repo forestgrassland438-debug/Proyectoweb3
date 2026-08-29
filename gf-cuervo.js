@@ -246,10 +246,38 @@
     return base + 1;
   }
 
+
+  /**
+   * CUÁNTO SE HA MOVIDO LA RAMA DONDE ESTÁ POSADA EL AVE.
+   *
+   * EL FALLO QUE ARREGLA: con viento, gf-viento mece los árboles girándolos, y
+   * el ave se quedaba clavada en el aire mientras su rama se iba de debajo. Se
+   * veía justo lo que dijo el jugador: "el árbol se mueve y el animal no".
+   *
+   * El árbol gira sobre su PIE (origen 0,1), así que un punto que está `alto`
+   * píxeles por encima del pie se desplaza en horizontal `alto · sen(giro)`.
+   * El desplazamiento vertical es alto·(1−cos), que con los 0,035 rad que mece
+   * el viento son seis centésimas de píxel: no se pone porque no se ve y
+   * costaría lo mismo que el que sí se ve.
+   *
+   * Devuelve 0 para cualquier soporte que no gire — tejados, postes, piedras.
+   */
+  function balanceoSoporte(scene, clave, y) {
+    if (!clave) return 0;
+    var spr = scene[clave];
+    if (!spr || typeof spr.rotation !== 'number' || !spr.rotation) return 0;
+    var alto = spr.y - y;               // el origen (0,1) hace que spr.y sea el pie
+    if (!(alto > 0)) return 0;
+    return Math.sin(spr.rotation) * alto;
+  }
+
   function posarse(st, c, punto) {
     c.fase = 'posado';
     c.destino = null;
     c.spr.setPosition(punto.x, punto.y);
+    // Dónde se posó de verdad; el balanceo del viento se suma a esto.
+    c.posX = punto.x;
+    c.posY = punto.y;
     c.spr.setDepth(profundidadPosado(st.scene, c, punto));
     anim(c, 'quieto');
     c.hasta = st.scene.time.now + az(ESPERA_ARBOL[0], ESPERA_ARBOL[1]);
@@ -402,6 +430,14 @@
     actualizarSombraCuervo(c);
     var ahora = scene.time.now;
     var p = scene.player;
+
+    /* Posado en un árbol: se mece CON la rama. Antes el árbol se meneaba con
+       el viento y el cuervo se quedaba clavado en el aire. Se suma sobre la
+       posición donde se posó (c.posX), nunca sobre la de este frame, para que
+       el desplazamiento no se acumule. */
+    if (c.fase === 'posado' && c.posX != null) {
+      spr.x = c.posX + balanceoSoporte(scene, c.arbol, c.posY);
+    }
 
     if (c.fase === 'volando') {
       var dx = c.destino.x - spr.x, dy = c.destino.y - spr.y;

@@ -24472,13 +24472,54 @@ _consumableInfo(itemId) {
 }
 
 // Clic en el personaje con un consumible: abre el panel de cantidad.
-_consumeItemOnPlayer(itemId) {
+async _consumeItemOnPlayer(itemId) {
   const info = this._consumableInfo(itemId);
   if (!info) return;
   if (this._consumingItem) return;
   const available = this.contarItemEnInventario(itemId);
   if (available <= 0) return;
+  /* SE PREGUNTA AL SERVIDOR ANTES DE ABRIR.
+
+     EL FALLO QUE ARREGLA: "estoy bajo de comida y me dice que estoy al 100 y
+     no me deja comer". El panel decidía con this.comidaPorcentaje, un número
+     de la escena que puede quedarse desfasado por arriba —empieza valiendo
+     10000, que es el centinela de "todavía no se ha cargado"— y con eso
+     `falta` salía negativa y el panel se negaba a abrir.
+
+     La barra la manda el servidor, así que se le pregunta a él. Si no
+     contesta se sigue adelante con lo que haya: quedarse sin comer porque la
+     red va mal sería peor que el fallo original. */
+  await this._refrescarVitalesDesdeServidor();
   this._openConsumePanel(itemId, info, available);
+}
+
+/** Trae las vitales del servidor y las adopta. No lanza nunca. */
+async _refrescarVitalesDesdeServidor() {
+  try {
+    if (!this.playerName || !this.isAuthenticated) return;
+    const res = await fetch(
+      `${this.serverBase}/api/stats/${encodeURIComponent(this.playerName)}`,
+      { method: 'GET', credentials: 'include' }
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && data.stats) this._adoptarVitalesDelServidor(data.stats);
+  } catch (e) {
+    // Sin red se tira con lo que haya en la escena; _vitalActual lo recorta.
+  }
+}
+
+/**
+ * El valor de una barra, recortado a 0..100.
+ *
+ * Los porcentajes de la escena arrancan en 10000 (centinela de "sin cargar") y
+ * algún camino puede dejarlos por encima de 100. Cualquier cosa fuera de rango
+ * se recorta aquí en vez de dejar que se propague a las cuentas del panel.
+ */
+_vitalActual(prop) {
+  const v = Math.round(Number(this[prop]));
+  if (!Number.isFinite(v)) return 0;
+  return Math.max(0, Math.min(this.VITAL_MAX_CLIENT, v));
 }
 
 // Panel (DOM, responsive PC + móvil) para elegir CUÁNTAS unidades consumir.
@@ -24497,11 +24538,13 @@ _openConsumePanel(itemId, info, available) {
   // agua en 33 y 10 baldes (20 cada uno), el panel dejaba consumir los 10 — la
   // barra se quedaba en 100 igual y los 7 baldes sobrantes se perdían.
   // Ahora el tope son las unidades que de verdad caben.
-  const actual = Math.round(Number(info.isWater ? this.aguaPorcentaje : this.comidaPorcentaje) || 0);
+  const actual = this._vitalActual(info.isWater ? 'aguaPorcentaje' : 'comidaPorcentaje');
   const falta  = Math.max(0, this.VITAL_MAX_CLIENT - actual);
   if (falta <= 0) {
+    // Se dice el valor REAL, no un 100 fijo: si algún día vuelve a
+    // descuadrarse, el propio aviso lo delata en vez de esconderlo.
     this.notifications.show(
-      (info.isWater ? 'Water' : 'Food') + ' is already full (' + this.VITAL_MAX_CLIENT + '%)',
+      (info.isWater ? 'Water' : 'Food') + ' is already full (' + actual + '%)',
       'warning'
     );
     return;
@@ -24599,7 +24642,7 @@ async _doConsume(itemId, qty, info) {
     if (info.isWater) {
       this.actualizarBarraAgua(Math.min(100, (this.aguaPorcentaje || 0) + total));
     } else {
-      this.actualizarBarraComida(Math.min(100, (this.comidaPorcentaje || 0) + total));
+      this.actualizarBarraComida(Math.min(100, this._vitalActual('comidaPorcentaje') + total));
     }
     this.notifications.show('Consumed ' + consumed + ' · +' + total + ' ' + (info.isWater ? 'Water' : 'Food'), 'success');
     this.queuedAction && this.queuedAction({ type: 'forSpam2' });

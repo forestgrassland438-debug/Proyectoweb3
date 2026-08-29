@@ -153,9 +153,17 @@
   var VEL_VUELO = 105;              // px/s volando
   var RADIO_VUELO = 700;            // no cruzan el mapa de punta a punta
   var MIRA = 26;                    // cuánto mira por delante del paso
-  var ESPERA_TIERRA = [3500, 11000];
-  var ESPERA_POSADO = [4500, 12000];
-  var ESPERA_SUELO_AVE = [3000, 7000];
+  /* CUÁNTO AGUANTAN QUIETOS.
+
+     Estaban muy cortos y se notaba: un ave se posaba, contaba hasta siete y ya
+     estaba volando otra vez. Con veinte bichos a la vez el mapa parecía un
+     hormiguero y no un campo. Un animal de verdad se pasa la mayor parte del
+     rato sin hacer nada; el movimiento vale porque es la excepción.
+
+     Los números están multiplicados por dos y medio largo. */
+  var ESPERA_TIERRA = [9000, 26000];
+  var ESPERA_POSADO = [12000, 34000];
+  var ESPERA_SUELO_AVE = [7000, 16000];
   var CERCA_CAMARA = 1500;          // más lejos, se actualiza a menos ritmo
   var SEPARACION_NACIMIENTO = 700;  // px mínimos entre dos animales al nacer
 
@@ -170,16 +178,52 @@
   var BARRA_VISIBLE_MS = 6000;      // la barra se esconde si deja de pelear
 
   // ── TOPO ─────────────────────────────────────────────────────────────────
-  var TOPO_BAJO      = [6000, 14000];   // cuánto anda bajo tierra
-  var TOPO_ASOMA     = [1400, 2600];    // cuánto se queda asomado
+  /* El topo cavaba cada pocos segundos y el prado acababa lleno de agujeros.
+     Ahora se pasa mucho más rato abajo y mucho más rato fuera: sale, come, da
+     una vuelta larga y vuelve a desaparecer. */
+  var TOPO_BAJO      = [16000, 42000];  // cuánto anda bajo tierra
+  var TOPO_ASOMA     = [2200, 4200];    // cuánto se queda asomado
   var TOPO_CAVA_MS   = 900;             // lo que dura cavar
-  var TOPO_FUERA     = [4000, 9000];    // cuánto se queda fuera
+  var TOPO_FUERA     = [14000, 32000];  // cuánto se queda fuera
   var TOPO_VEL_BAJO  = 26;              // bajo tierra va más rápido
   var HOYO_DURA_MS   = 25000;           // cuánto se queda el agujero
 
   /* Abanico de giros que se prueban cuando el camino de frente está cortado.
      Primero desvíos pequeños (bordear), y solo si nada sirve, la vuelta
      entera. En radianes. */
+  /* ─────────────────────────── EL SUEÑO ──────────────────────────────────
+
+     De noche casi todos duermen, con su Zzz encima. Casi: PROB_DORMILON deja
+     fuera a uno de cada cuatro, y ese se pasa la noche despierto. Sin esa
+     excepción el mundo nocturno se queda absolutamente parado y se ve muerto,
+     no dormido.
+
+     Y se despiertan: acercarse lo bastante, o llevarse un golpe, levanta al
+     animal. Un bicho que sigue roncando mientras le muerdes no se lee como
+     dormido, se lee como roto.
+
+     De día algunos echan una cabezada CORTA (SIESTA_MS, tres minutos como
+     mucho, que es lo que pidió el jugador). */
+  var ZZZ = ['zzz_1', 'zzz_2', 'zzz_3'];
+  var PROB_DORMILON  = 0.76;            // cuántos duermen de noche
+  var PROB_SIESTA    = 0.035;           // probabilidad de cabezada diurna
+  var PROB_SIESTERO  = 0.4;             // y solo algunos la echan
+  var SIESTA_MS      = [25000, 120000]; // nunca más de tres minutos
+
+  /* POR QUÉ TAN POCO.
+
+     Con 0,11 y cabezadas de hasta tres minutos, los animales se pasaban
+     DORMIDOS el 40 % del día: las aves ya no se bañaban en la fuente y el zorro
+     no llegaba a tumbarse. Una siesta que se ve casi la mitad del tiempo deja
+     de ser una siesta y se convierte en el estado normal.
+
+     Con 0,035 sobre el 40 % de los bichos sale en torno a un 4 % del día: se
+     ve de vez en cuando, que es lo que se pedía, y no le come el sitio a lo
+     demás que hacen. De noche es al revés y por eso PROB_DORMILON es 0,76. */
+  var ZZZ_CICLO      = 2100;            // lo que tarda una Z en subir y borrarse
+  var ZZZ_SUBE       = 20;              // px que sube
+  var DESPERTAR_MIN  = 70;              // radio mínimo para despertar a alguien
+
   var GIROS = [0, 0.38, -0.38, 0.8, -0.8, 1.35, -1.35, 2.0, -2.0, Math.PI];
 
   function log(scene) {
@@ -224,7 +268,7 @@
   }
 
   // Props que no son de ninguna especie.
-  var PROPS = ['nido_1', 'nido_2'];
+  var PROPS = ['nido_1', 'nido_2', 'zzz_1', 'zzz_2', 'zzz_3'];
 
   function precargar(scene) {
     if (!scene || !scene.load) return 0;
@@ -433,6 +477,16 @@
       especie: especie, grupo: f.grupo, ficha: f,
       vida: f.vida || 30, vidaMax: f.vida || 30,
       muerto: false, revivirEn: 0, barraHasta: 0,
+      /* Cada bicho con su carácter.
+
+         `dormilon`: uno de cada cuatro se pasa la noche despierto.
+         `miedo`: cuánto se asusta, de 0,25 (mansa, casi no huye) a 1,15. Antes
+         todos huían a la misma distancia exacta y se veía coreografiado: te
+         acercabas y salía disparada TODA la bandada a la vez. */
+      dormilon: Math.random() < PROB_DORMILON,
+      siestero: Math.random() < PROB_SIESTERO,
+      miedo: Math.random() < 0.2 ? az(0.25, 0.45) : az(0.75, 1.15),
+      durmiendo: false, despiertaEn: 0, zzz: null,
       hw: f.huella[0], hh: f.huella[1],
       fase: 'quieto', rumbo: az(0, Math.PI * 2), hasta: 0,
       destino: null, alFinal: null, soporte: null, _anim: null,
@@ -595,7 +649,8 @@
 
     if (a.ficha.huye > 0 && p && a.fase !== 'huye') {
       var d = Math.hypot(a.spr.x - p.x, a.spr.y - p.y);
-      if (d < a.ficha.huye) { huirDe(st, a, p.x, p.y); }
+      // × miedo: cada animal tiene el suyo, así no salen todos a la vez.
+      if (d < a.ficha.huye * a.miedo) { huirDe(st, a, p.x, p.y); }
     }
 
     if (a.fase === 'pasea') {
@@ -625,14 +680,54 @@
     return a.spr.y;
   }
 
+
+  /**
+   * CUÁNTO SE HA MOVIDO LA RAMA DONDE ESTÁ POSADA EL AVE.
+   *
+   * EL FALLO QUE ARREGLA: con viento, gf-viento mece los árboles girándolos, y
+   * el ave se quedaba clavada en el aire mientras su rama se iba de debajo. Se
+   * veía justo lo que dijo el jugador: "el árbol se mueve y el animal no".
+   *
+   * El árbol gira sobre su PIE (origen 0,1), así que un punto que está `alto`
+   * píxeles por encima del pie se desplaza en horizontal `alto · sen(giro)`.
+   * El desplazamiento vertical es alto·(1−cos), que con los 0,035 rad que mece
+   * el viento son seis centésimas de píxel: no se pone porque no se ve y
+   * costaría lo mismo que el que sí se ve.
+   *
+   * Devuelve 0 para cualquier soporte que no gire — tejados, postes, piedras.
+   */
+  function balanceoSoporte(scene, clave, y) {
+    if (!clave) return 0;
+    var spr = scene[clave];
+    if (!spr || typeof spr.rotation !== 'number' || !spr.rotation) return 0;
+    var alto = spr.y - y;               // el origen (0,1) hace que spr.y sea el pie
+    if (!(alto > 0)) return 0;
+    return Math.sin(spr.rotation) * alto;
+  }
+
   function posarse(st, a, sitio) {
     a.fase = 'posado';
     a.destino = null;
     a.soporte = sitio ? sitio.clave : a.soporte;
     if (sitio) a.spr.setPosition(sitio.x, sitio.y);
+    // Dónde se posó de verdad: el balanceo del viento se suma a ESTO, no a la
+    // posición de ahora, o el ave se iría acumulando desplazamiento y acabaría
+    // en la otra punta del mapa.
+    a.posX = a.spr.x;
+    a.posY = a.spr.y;
     a.spr.setDepth(profundidadPosado(st.scene, a, sitio));
     anim(a, 'quieto');
     a.hasta = st.scene.time.now + az(ESPERA_POSADO[0], ESPERA_POSADO[1]);
+  }
+
+  /** Mece con su rama a todo lo que esté posado en un árbol. */
+  function mecerPosados(st) {
+    for (var i = 0; i < st.animales.length; i++) {
+      var a = st.animales[i];
+      if (a.muerto || !a.soporte || a.posX == null) continue;
+      if (a.fase !== 'posado' && !(a.durmiendo && a.grupo === 'ave')) continue;
+      a.spr.x = a.posX + balanceoSoporte(st.scene, a.soporte, a.posY);
+    }
   }
 
   function volarA(st, a, destino, alFinal, soporte) {
@@ -672,14 +767,18 @@
 
     a.pareja = null;
 
-    // ── DE NOCHE SE DUERME ─────────────────────────────────────────────────
-    // Posada y de noche: se queda en la rama hasta que amanezca. Es lo que
-    // hace que el mapa de noche se sienta distinto y no un día oscuro.
+    /* DE NOCHE SE DUERME — pero de eso se encarga actualizarSuenio.
+
+       Aqui habia un camino propio para las aves: se ponian en fase 'duerme' y
+       ya. Al llegar el sueno general se quedaron DOS formas de dormir, y la
+       vieja no traia nada de lo nuevo: ni Zzz, ni despertarse al acercarte, ni
+       despertarse al amanecer. Un ave que cogia este camino se quedaba
+       dormida para siempre y sin senal ninguna.
+
+       Se deja solo el nido, que si es cosa del ave. */
     if (esDeNoche() && a.fase === 'posado' && a.soporte) {
-      a.fase = 'duerme';
-      anim(a, 'duerme');
-      a.hasta = scene.time.now + az(8000, 16000);
       if (Math.random() < PROB_NIDO) construirNido(st, a);
+      a.hasta = scene.time.now + az(2000, 5000);
       return;
     }
 
@@ -804,7 +903,10 @@
     // ---- posada o en el suelo: ¿se acerca el jugador? ----
     if (p) {
       var dist = Math.hypot(spr.x - p.x, spr.y - p.y);
-      var limite = (a.fase === 'posado') ? a.ficha.posado : a.ficha.huye;
+      /* × miedo. Una de cada cinco aves es MANSA (miedo 0,25-0,45) y te deja
+         acercarte casi hasta tocarla, que es lo que pidió el jugador: "que a
+         veces las aves no se asusten". Las demás siguen siendo ariscas. */
+      var limite = ((a.fase === 'posado') ? a.ficha.posado : a.ficha.huye) * a.miedo;
       if (dist < limite) { huirAve(st, a); return; }
     }
 
@@ -848,8 +950,15 @@
     var scene = st.scene;
     if (a.sombra || !scene.add.ellipse) return;
     var ancho = Math.max(14, a.hw * 0.9);
+    /* Relleno a tope y la opacidad con setAlpha.
+
+       El ultimo argumento de add.ellipse es el fillAlpha, no el alpha del
+       objeto, y Phaser dibuja con fillAlpha x alpha. Naciendo con 0,26 y
+       poniendole ademas setAlpha(0,26) en cada frame, la sombra se pintaba a
+       0,07: cuatro veces mas clara de lo que dice SOMBRA_ALFA. */
     a.sombra = scene.add.ellipse(a.spr.x, a.spr.y, ancho, ancho * 0.42,
-                                 0x000000, SOMBRA_ALFA);
+                                 0x000000, 1);
+    a.sombra.setAlpha(SOMBRA_ALFA);
     // Justo por DEBAJO del animal: si fuera por encima, se le vería una mancha
     // oscura encima del lomo.
     a.sombra.setDepth(a.spr.y - 1);
@@ -920,6 +1029,8 @@
   function danarAnimal(st, a, cuanto) {
     if (a.muerto) return;
     var ahora = st.scene.time.now;
+    // Un mordisco levanta a cualquiera.
+    if (a.durmiendo) despertar(st, a);
     crearBarra(st, a);
     a.vida = Math.max(0, a.vida - cuanto);
     a.barraHasta = ahora + BARRA_VISIBLE_MS;
@@ -939,6 +1050,7 @@
   function morirAnimal(st, a, ahora) {
     a.muerto = true;
     a.fase = 'muerto';
+    quitarZzz(a);
     a.objetivo = null;
     a.revivirEn = ahora + RESPAWN_MS;
     a.spr.setVisible(false);
@@ -1476,6 +1588,138 @@
     if (ahora >= m.hasta) decidirMariposa(st, m);
   }
 
+
+  // ═══════════════════════════════════════════════════════════ EL SUEÑO
+  /** Pose con la que se dibuja un animal dormido, la mejor que tenga. */
+  function poseDormido(a) {
+    var p = posesDe(a.especie);
+    if (p.duerme) return 'duerme';
+    if (p.tumbado) return 'tumbado';
+    if (p.posa) return 'posa';          // la mariposa, con las alas cerradas
+    if (p.monticulo && a.grupo === 'topo') return 'monticulo';
+    return 'quieto';
+  }
+
+  /** A qué distancia se despierta este animal. */
+  function radioDespertar(a) {
+    return Math.max(DESPERTAR_MIN, (a.ficha.huye || 0) * 0.75 * (a.miedo || 1));
+  }
+
+  /**
+   * Se duerme.
+   *
+   * `hasta` a null = duerme hasta que amanezca (o hasta que lo despierten);
+   * con un número, es una cabezada de día.
+   */
+  function dormirse(st, a, hasta) {
+    if (a.durmiendo || a.muerto) return;
+    a.durmiendo = true;
+    a.faseAntes = a.fase;
+    a.fase = 'duerme';
+    a.despiertaEn = hasta || 0;
+    anim(a, poseDormido(a));
+    // El ave que pasa la noche en su rama aprovecha para hacerse el nido.
+    if (!hasta && a.grupo === 'ave' && a.soporte && Math.random() < PROB_NIDO) {
+      construirNido(st, a);
+    }
+    crearZzz(st, a);
+    /* Se coloca YA, sin esperar al siguiente frame: si no, la primera Z
+       aparece un frame en el pie del animal y con profundidad 0 —o sea,
+       detras de todo— y se ve el salto. */
+    moverZzz(st, a, st.scene.time.now);
+    log(st.scene, a.especie, hasta ? 'echa una cabezada' : 'se duerme');
+  }
+
+  function despertar(st, a) {
+    if (!a.durmiendo) return;
+    a.durmiendo = false;
+    a.despiertaEn = 0;
+    quitarZzz(a);
+    // Vuelve a decidir en vez de retomar lo que hacía: al despertarse lo
+    // primero que hace un animal es mirar alrededor, no seguir comiendo.
+    if (a.grupo === 'ave') { a.fase = 'posado'; a.hasta = st.scene.time.now + az(400, 1400); }
+    else if (a.grupo === 'mariposa') { decidirMariposa(st, a); }
+    else if (a.grupo === 'topo') { a.fase = 'bajo'; anim(a, 'monticulo');
+                                   a.hasta = st.scene.time.now + az(TOPO_BAJO[0], TOPO_BAJO[1]); }
+    else { decidirTierra(st, a); }
+  }
+
+  /** La Z que flota encima del animal dormido. */
+  function crearZzz(st, a) {
+    if (a.zzz || !st.scene.textures.exists('gfa_' + ZZZ[0])) return;
+    // add.sprite y no add.image: es lo que usa todo el módulo (el animal, el
+    // hoyo del topo, el nido) y así la Z se comporta igual que el resto.
+    a.zzz = st.scene.add.sprite(a.spr.x, a.spr.y, 'gfa_' + ZZZ[0])
+      .setOrigin(0.5, 1).setScale(ESCALA).setAlpha(0);
+    a.zzzFase = az(0, ZZZ_CICLO);
+  }
+
+  function quitarZzz(a) {
+    if (!a.zzz) return;
+    a.zzz.destroy();
+    a.zzz = null;
+  }
+
+  /**
+   * Anima la Z: sube, crece y se borra, y vuelta a empezar.
+   *
+   * Una sola imagen por animal en vez de tres: con veinte bichos dormidos,
+   * sesenta sprites más para un adorno no salen a cuenta. Cambiando la textura
+   * según la altura se ve igual de bien.
+   */
+  function moverZzz(st, a, ahora) {
+    if (!a.zzz) { crearZzz(st, a); if (!a.zzz) return; }
+    var t = ((ahora + a.zzzFase) % ZZZ_CICLO) / ZZZ_CICLO;
+    var alto = (a.spr.displayHeight || 30);
+    a.zzz.setPosition(a.spr.x + 9, a.spr.y - alto - t * ZZZ_SUBE);
+    a.zzz.setTexture('gfa_' + ZZZ[Math.min(2, Math.floor(t * 3))]);
+    // entra rápido y se va despacio
+    a.zzz.setAlpha(t < 0.18 ? t / 0.18 : Math.max(0, 1 - (t - 0.18) / 0.82) * 0.95);
+    a.zzz.setDepth(a.spr.depth + 2);
+  }
+
+  /**
+   * ¿Duerme, sigue durmiendo o se despierta? Devuelve true si está dormido y
+   * el resto del bucle no tiene que tocarlo.
+   */
+  function actualizarSuenio(st, a, ahora) {
+    var scene = st.scene;
+    var p = scene.player;
+
+    if (a.durmiendo) {
+      // Lo despierta el jugador al acercarse...
+      if (p && !jugadorFantasma() &&
+          Math.hypot(a.spr.x - p.x, a.spr.y - p.y) < radioDespertar(a)) {
+        despertar(st, a); return false;
+      }
+      // ...que se acabe la cabezada...
+      if (a.despiertaEn && ahora >= a.despiertaEn) { despertar(st, a); return false; }
+      // ...o que amanezca.
+      if (!a.despiertaEn && !esDeNoche()) { despertar(st, a); return false; }
+      moverZzz(st, a, ahora);
+      return true;
+    }
+
+    // ¿Se echa a dormir? Solo cuando ha terminado lo que estuviera haciendo.
+    if (ahora < a.hasta) return false;
+
+    if (esDeNoche()) {
+      if (a.dormilon && !(a.grupo === 'ave' && a.fase === 'volando')) {
+        dormirse(st, a, null);
+        return true;
+      }
+      return false;
+    }
+
+    // De día, una cabezada corta y de vez en cuando.
+    if (a.siestero && a.fase !== 'volando' && a.fase !== 'huye' &&
+        !a.objetivo && Math.random() < PROB_SIESTA) {
+      dormirse(st, a, ahora + az(SIESTA_MS[0], SIESTA_MS[1]));
+      return true;
+    }
+    return false;
+  }
+
   // =============================================================== BUCLE
   function actualizar(st, ahora, delta) {
     var scene = st.scene;
@@ -1531,11 +1775,22 @@
       actualizarBarraAnimal(a, ahora);
       actualizarSombra(a);
 
+      // Dormido: ni se mueve ni ataca ni se asusta, solo suelta sus Z.
+      if (actualizarSuenio(st, a, ahora)) continue;
+
       if (a.grupo === 'ave') actualizarAve(st, a, ahora, dt);
       else if (a.grupo === 'mariposa') actualizarMariposa(st, a, ahora, dt);
       else if (a.grupo === 'topo') actualizarTopo(st, a, ahora, dt);
       else actualizarTierra(st, a, ahora, dt);
     }
+
+    /* El balanceo va AL FINAL y siempre, dormidas incluidas.
+
+       Y se suma sobre a.posX, la posición donde el ave se posó de verdad, no
+       sobre la de este frame: sumando sobre la de este frame el desplazamiento
+       se acumularía frame a frame y en medio minuto el ave estaría en la otra
+       punta del mapa. */
+    mecerPosados(st);
   }
 
   // ============================================================== MONTAJE
@@ -1639,6 +1894,7 @@
     for (var i = 0; i < st.animales.length; i++) {
       var an = st.animales[i];
       if (an.spr) an.spr.destroy();
+      if (an.zzz) an.zzz.destroy();
       if (an.barraFondo) an.barraFondo.destroy();
       if (an.barraVida) an.barraVida.destroy();
       if (an.sombra) an.sombra.destroy();
@@ -1683,6 +1939,11 @@
       objetivoDe: objetivoDe, actualizarAgresivo: actualizarAgresivo,
       fuenteDe: fuenteDe, esDeNoche: esDeNoche, companiaDe: companiaDe,
       irseJuntas: irseJuntas, construirNido: construirNido,
+      dormirse: dormirse, despertar: despertar, actualizarSuenio: actualizarSuenio,
+      poseDormido: poseDormido, radioDespertar: radioDespertar,
+      moverZzz: moverZzz, PROB_DORMILON: PROB_DORMILON, SIESTA_MS: SIESTA_MS,
+      PROB_SIESTA: PROB_SIESTA, PROB_SIESTERO: PROB_SIESTERO,
+      balanceoSoporte: balanceoSoporte, mecerPosados: mecerPosados,
       sabeTumbarse: sabeTumbarse, danarAnimal: danarAnimal,
       crearSombra: crearSombra, actualizarSombra: actualizarSombra,
       floresYPiedras: floresYPiedras, actualizarMariposa: actualizarMariposa,

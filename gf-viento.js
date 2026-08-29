@@ -51,6 +51,9 @@
   var PROF_HOJAS   = 7900;
   var PROF_RAFAGAS = 7950;
 
+  // El viento del mundo sopla siempre hacia el mismo lado: +1 = a la derecha.
+  var DIRECCION = 1;
+
   var VEL_BASE = 190;           // px/s de la hoja con el viento al máximo
   var INCLINA  = 0.035;         // radianes que se mece un árbol
 
@@ -234,7 +237,18 @@
   // ------------------------------------------------------------------ racha
   function soplar(st, ms) {
     st.soplando = true;
-    st.dir = Math.random() < 0.5 ? -1 : 1;
+    /* SIEMPRE DE IZQUIERDA A DERECHA.
+
+       Antes se sorteaba el lado en cada racha. Se veía mal: el mundo tiene un
+       solo viento y verlo cambiar de sentido cada pocos minutos —arrastrando
+       con él la lluvia y los árboles— parecía un fallo, no clima. En un pueblo
+       el viento dominante es uno y no gira. Se deja en poniente, que es lo que
+       pidió el jugador y además es lo natural de leer: el ojo sigue las hojas
+       en el mismo sentido en que lee.
+
+       La constante se queda como constante y no como número suelto por si algún
+       día se quiere una veleta de verdad; lo que ya no hay es azar. */
+    st.dir = DIRECCION;
     st.empiezaEn = st.scene.time.now;
     st.acabaEn = st.empiezaEn + (ms || az(DURACION[0], DURACION[1]));
     st.arboles = arboles(st.scene);
@@ -309,7 +323,7 @@
       scene: scene, hojas: [], rafagas: [], arboles: [],
       // null = nadie manda, se sortea solo. true/false = lo dice el servidor.
       mandado: null, fuerzaMandada: 1,
-      soplando: false, fuerza: 0, dir: 1,
+      soplando: false, fuerza: 0, dir: DIRECCION,
       empiezaEn: 0, acabaEn: 0,
       proximaEn: scene.time.now + (opciones.primeraEn != null
                                    ? opciones.primeraEn

@@ -26,6 +26,14 @@
     <button id="b3">Lluvia</button>
     <button id="b4">Tormenta</button>
     <button id="b5">Despejar</button>
+    <button id="b6">Nieve</button>
+    <button id="b7">Centella</button>
+    <br>
+    <span class="sep">estación:</span>
+    <button class="es" data-e="primavera">Primavera</button>
+    <button class="es" data-e="verano">Verano</button>
+    <button class="es" data-e="otono">Otoño</button>
+    <button class="es" data-e="invierno">Invierno</button>
     <br>
     <span class="sep">zoom:</span>
     <button class="z" data-z="0.25">0.25</button>
@@ -140,6 +148,11 @@
       $('b3').onclick = () => window.GFClima.probar('lluvia');
       $('b4').onclick = () => window.GFClima.probar('tormenta');
       $('b5').onclick = () => window.GFClima.probar('despejado');
+      $('b6').onclick = () => window.GFClima.probar('nieve');
+      $('b7').onclick = () => window.GFClima._interno.centella(this.__gfClima);
+      document.querySelectorAll('button.es').forEach(b => {
+        b.onclick = () => window.GFClima.probarEstacion(b.dataset.e);
+      });
       $('bs').onclick = () => this.cameras.main.shake(600, 0.006);
       $('bn').onclick = () => {
         const st = this.__gfCiclo;
@@ -166,7 +179,10 @@
           (st ? ('  ·  inclinación ' + st.inclina.toFixed(2) +
                  ' (' + (st.inclina > 0 ? 'a la derecha' : 'a la izquierda') + ')') : '') +
           '  ·  oscuridad ' +
-          (window.GFCiclo ? window.GFCiclo.oscuridad().toFixed(2) : '—');
+          (window.GFCiclo ? window.GFCiclo.oscuridad().toFixed(2) : '—') +
+          (st ? ('  ·  nieve ×' + st.fuerzaNieve.toFixed(2) +
+                 '  ·  estación ' + c.estacion +
+                 ' (filtro ' + st.filtro.alpha.toFixed(2) + ')') : '');
       }});
       window.__listo = true;
     }
@@ -185,7 +201,9 @@
      WebGL y el navegador acaba tirando el que hay ("WebGL Context lost"). Para
      un banco de pruebas de sprites 2D, canvas sobra y no se queda sin contexto. */
   window.game = new Phaser.Game({
-    type: Phaser.CANVAS,
+    // WEBGL como el juego de verdad: en CANVAS, Phaser no aplica el blend
+    // MULTIPLY a las figuras y el filtro de la estacion se veia plano.
+    type: Phaser.WEBGL,
     width: window.innerWidth, height: window.innerHeight,
     backgroundColor: '#2c3a24',
     scene: [Prueba],

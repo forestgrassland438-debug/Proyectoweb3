@@ -43,6 +43,16 @@
   .fila label{flex:1;min-width:190px}
   .fila label small{display:block;color:var(--tenue);font-size:12px;margin-top:2px}
   input[type=range]{width:190px;accent-color:var(--azul)}
+  .cola-fila{display:flex;align-items:center;gap:10px;padding:9px 11px;
+    border:1px solid var(--borde);border-radius:9px;margin-bottom:7px;
+    background:var(--panel2)}
+  .cola-fila b{min-width:96px}
+  .cola-fila .dur{color:var(--tenue);flex:1}
+  .cola-fila .num{width:24px;height:24px;border-radius:50%;background:var(--borde);
+    display:flex;align-items:center;justify-content:center;font-size:12px}
+  .cola-fila button{padding:4px 10px;font-size:12px}
+  .cola-vacia{color:var(--tenue);padding:8px 2px}
+  .acciones button.on{background:var(--azul);border-color:var(--azul);color:#fff}
   input[type=number]{width:88px;background:var(--panel2);border:1px solid var(--borde);
     color:var(--texto);border-radius:8px;padding:7px 9px;font-size:14px}
   .valor{min-width:52px;text-align:right;color:var(--ambar);font-variant-numeric:tabular-nums}
@@ -153,9 +163,32 @@
       <span class="valor" id="vLluviaFuerza">1.0</span>
     </div>
     <div class="fila">
-      <label>Truenos<small>Relámpagos que iluminan la pantalla y sacuden la cámara.
-        Solo se ven si está lloviendo.</small></label>
+      <label>Truenos<small>Rayos y centellas que iluminan la pantalla y sacuden la
+        cámara. Solo se ven si está lloviendo.</small></label>
       <div class="sw"><input type="checkbox" id="truenos"><span></span></div>
+    </div>
+    <div class="fila">
+      <label>Nieve<small>Copos que caen despacio y se posan en el suelo.</small></label>
+      <div class="sw"><input type="checkbox" id="nieve"><span></span></div>
+    </div>
+    <div class="fila">
+      <label>Fuerza de la nieve</label>
+      <input type="range" id="nieveFuerza" min="0.2" max="2" step="0.1">
+      <span class="valor" id="vNieveFuerza">1.0</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Estación del año</h2>
+    <p class="sub">Cambia el color de <b>todo</b> el mundo. En <b>automático</b>
+      sale del mes de verdad. El cambio no es de golpe: cruza en un par de
+      segundos.</p>
+    <div class="acciones" id="estaciones">
+      <button data-estacion="auto">Automático</button>
+      <button data-estacion="primavera">Primavera</button>
+      <button data-estacion="verano">Verano</button>
+      <button data-estacion="otono">Otoño</button>
+      <button data-estacion="invierno">Invierno</button>
     </div>
   </div>
 
@@ -174,26 +207,58 @@
       <span class="valor" id="vProbLluvia">15%</span>
     </div>
     <div class="fila">
-      <label>Cada cuánto se sortea<small>Minutos.</small></label>
-      <input type="number" id="minutosSorteo" min="1" max="240">
+      <label>Probabilidad de nieve<small>En cada sorteo.</small></label>
+      <input type="range" id="probNieve" min="0" max="1" step="0.05">
+      <span class="valor" id="vProbNieve">5%</span>
     </div>
     <div class="fila">
-      <label>Duración<small>Minutos: de cuánto a cuánto dura una racha.</small></label>
-      <input type="number" id="duracionMin" min="1" max="120">
+      <label>Cada cuánto se sortea<small>Minutos, de 1 a 1440 (un día).</small></label>
+      <input type="number" id="minutosSorteo" min="1" max="1440">
+    </div>
+    <div class="fila">
+      <label>Duración<small>Minutos: de cuánto a cuánto dura una racha.
+        Hasta 1440, que es un día entero.</small></label>
+      <input type="number" id="duracionMin" min="1" max="1440">
       <span style="color:var(--tenue)">a</span>
-      <input type="number" id="duracionMax" min="1" max="240">
+      <input type="number" id="duracionMax" min="1" max="1440">
     </div>
   </div>
 
   <div class="card">
-    <h2>Probar ahora</h2>
-    <p class="sub">Lanza algo <b>ya</b> sin tocar la configuración, para verlo en
-      el juego. Dura unos minutos y se pasa solo.</p>
+    <h2>Lanzar y programar</h2>
+    <p class="sub">Elige <b>qué</b> y <b>cuánto</b>. <b>Lanzar</b> lo pone ya
+      mismo; <b>Añadir a la cola</b> lo deja apuntado para cuando acabe lo que
+      haya en curso. Los minutos los pones tú: de 1 a 1440.</p>
+    <div class="fila">
+      <label>Qué</label>
+      <div class="acciones" id="tipos">
+        <button data-que="viento">Viento</button>
+        <button data-que="lluvia">Lluvia</button>
+        <button data-que="tormenta">Tormenta</button>
+        <button data-que="nieve">Nieve</button>
+        <button data-que="despejado">Despejar</button>
+      </div>
+    </div>
+    <div class="fila">
+      <label>Durante<small>Minutos.</small></label>
+      <input type="number" id="testMinutos" min="1" max="1440" value="20">
+      <span style="color:var(--tenue)">min</span>
+    </div>
     <div class="acciones">
-      <button data-test="viento">Viento</button>
-      <button data-test="lluvia">Lluvia</button>
-      <button data-test="tormenta">Tormenta</button>
-      <button data-test="despejado">Despejar</button>
+      <button class="primario" id="lanzar">Lanzar ahora</button>
+      <button id="encolar">Añadir a la cola</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Cola de climas</h2>
+    <p class="sub">Se van poniendo <b>uno detrás de otro</b> conforme acaba el
+      anterior. La cola manda sobre el sorteo automático: mientras haya algo
+      apuntado, el azar no pinta nada.</p>
+    <div id="cola"></div>
+    <div class="acciones">
+      <button id="saltar">Saltar al siguiente</button>
+      <button id="vaciar">Vaciar la cola</button>
     </div>
   </div>
 
@@ -232,7 +297,8 @@
   }
   function corto(a) { return a ? a.slice(0, 6) + '…' + a.slice(-4) : '—'; }
 
-  var state = { csrf: null, address: null, config: null };
+  // `que` es el tipo elegido en "Lanzar y programar".
+  var state = { csrf: null, address: null, config: null, que: 'lluvia' };
 
   var toastTimer = null;
   function aviso(msg, tipo) {
@@ -362,9 +428,12 @@
   }
 
   // ── Configuración del clima ──────────────────────────────────────────────
-  var CAMPOS_BOOL = ['activo', 'viento', 'lluvia', 'truenos'];
-  var CAMPOS_NUM  = ['vientoFuerza', 'lluviaFuerza', 'probViento', 'probLluvia',
+  var CAMPOS_BOOL = ['activo', 'viento', 'lluvia', 'truenos', 'nieve'];
+  var CAMPOS_NUM  = ['vientoFuerza', 'lluviaFuerza', 'nieveFuerza',
+                     'probViento', 'probLluvia', 'probNieve',
                      'minutosSorteo', 'duracionMin', 'duracionMax'];
+  var NOMBRES = { viento: 'Viento', lluvia: 'Lluvia', tormenta: 'Tormenta',
+                  nieve: 'Nieve', despejado: 'Despejado' };
 
   async function cargar() {
     var d = await pedir('/api/admin/weather');
@@ -378,6 +447,10 @@
     $('modoAuto').classList.toggle('on', c.modo === 'auto');
     $('modoManual').classList.toggle('on', c.modo === 'manual');
     state.modo = c.modo;
+    state.estacion = c.estacion || 'auto';
+    marcar('estaciones', 'estacion', state.estacion);
+    marcar('tipos', 'que', state.que);
+    pintarCola(c.cola || []);
     refrescarValores();
 
     var p = pub || {};
@@ -391,6 +464,43 @@
         new Date(p.hasta).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) : '');
   }
 
+  /** Marca cuál de un grupo de botones está elegido. */
+  function marcar(grupo, attr, valor) {
+    var g = $(grupo);
+    if (!g) return;
+    Array.prototype.forEach.call(g.querySelectorAll('button'), function (b) {
+      b.classList.toggle('on', b.getAttribute('data-' + attr) === valor);
+    });
+  }
+
+  /**
+   * La cola, con el orden en que van a entrar.
+   *
+   * Se pinta el número de orden a propósito: sin él, una lista de "Lluvia 20
+   * min / Lluvia 20 min" no dice cuál va antes, y el orden es justo lo que se
+   * está programando.
+   */
+  function pintarCola(cola) {
+    var c = $('cola');
+    if (!c) return;
+    if (!cola.length) {
+      c.innerHTML = '<div class="cola-vacia">Nada programado. ' +
+        'Lo que haya en curso seguirá su camino y luego manda el sorteo.</div>';
+      return;
+    }
+    c.innerHTML = cola.map(function (e, i) {
+      return '<div class="cola-fila">' +
+        '<span class="num">' + (i + 1) + '</span>' +
+        '<b>' + (NOMBRES[e.que] || e.que) + '</b>' +
+        '<span class="dur">' + e.minutos + ' min</span>' +
+        '<button data-quitar="' + e._id + '">Quitar</button>' +
+        '</div>';
+    }).join('');
+    Array.prototype.forEach.call(c.querySelectorAll('[data-quitar]'), function (b) {
+      b.addEventListener('click', function () { quitarDeCola(b.getAttribute('data-quitar')); });
+    });
+  }
+
   function pastilla(on, txt) {
     return '<span class="pastilla' + (on ? ' on' : '') + '">' + txt + '</span>';
   }
@@ -400,10 +510,12 @@
     $('vLluviaFuerza').textContent = Number($('lluviaFuerza').value).toFixed(1);
     $('vProbViento').textContent = Math.round($('probViento').value * 100) + '%';
     $('vProbLluvia').textContent = Math.round($('probLluvia').value * 100) + '%';
+    $('vNieveFuerza').textContent = Number($('nieveFuerza').value).toFixed(1);
+    $('vProbNieve').textContent = Math.round($('probNieve').value * 100) + '%';
   }
 
   function leerFormulario() {
-    var body = { modo: state.modo };
+    var body = { modo: state.modo, estacion: state.estacion || 'auto' };
     CAMPOS_BOOL.forEach(function (k) { body[k] = !!$(k).checked; });
     CAMPOS_NUM.forEach(function (k) { body[k] = Number($(k).value); });
     return body;
@@ -420,20 +532,67 @@
                           { method: 'POST', body: JSON.stringify(b) });
       state.config = d.config;
       pintar(d.config, d.publico);
-      aviso('Guardado. Los jugadores lo verán en unos minutos.', 'ok');
+      // El servidor lo empuja por socket: no hay que esperar a nada.
+      aviso('Guardado. Los jugadores ya lo están viendo.', 'ok');
     } catch (e) {
       aviso('No se pudo guardar: ' + (e.message || e), 'err');
     }
   }
 
-  async function probar(que) {
+  /** Los minutos que ha escrito el administrador, sin recortarlos a escondidas. */
+  function minutosPedidos() {
+    var n = parseInt(String($('testMinutos').value).replace(/[^0-9]/g, ''), 10);
+    if (!isFinite(n) || n < 1) return null;
+    if (n > 1440) return null;
+    return n;
+  }
+
+  async function lanzar() {
+    var min = minutosPedidos();
+    if (min === null) { aviso('Pon los minutos: de 1 a 1440.', 'err'); return; }
     try {
-      var d = await pedir('/api/admin/weather/test',
-                          { method: 'POST', body: JSON.stringify({ que: que, minutos: 4 }) });
+      await pedir('/api/admin/weather/test',
+                  { method: 'POST', body: JSON.stringify({ que: state.que, minutos: min }) });
       await cargar();
-      aviso('Lanzado: ' + que + '. Se pasa solo en unos minutos.', 'ok');
+      aviso('Lanzado: ' + (NOMBRES[state.que] || state.que) +
+            ' durante ' + min + ' min.', 'ok');
     } catch (e) {
       aviso('No se pudo lanzar: ' + (e.message || e), 'err');
+    }
+  }
+
+  async function encolar() {
+    var min = minutosPedidos();
+    if (min === null) { aviso('Pon los minutos: de 1 a 1440.', 'err'); return; }
+    try {
+      var d = await pedir('/api/admin/weather/queue',
+                          { method: 'POST', body: JSON.stringify({ que: state.que, minutos: min }) });
+      await cargar();
+      aviso('En cola: ' + (NOMBRES[state.que] || state.que) + ' ' + min + ' min. ' +
+            'Hay ' + (d.cola || []).length + ' esperando.', 'ok');
+    } catch (e) {
+      if (e.code === 'cola_llena') aviso('La cola está llena (40 como mucho).', 'err');
+      else aviso('No se pudo encolar: ' + (e.message || e), 'err');
+    }
+  }
+
+  async function quitarDeCola(id) {
+    try {
+      await pedir('/api/admin/weather/queue/' + encodeURIComponent(id), { method: 'DELETE' });
+      await cargar();
+      aviso('Quitado de la cola.', 'ok');
+    } catch (e) {
+      aviso('No se pudo quitar: ' + (e.message || e), 'err');
+    }
+  }
+
+  async function saltar() {
+    try {
+      await pedir('/api/admin/weather/queue/next', { method: 'POST' });
+      await cargar();
+      aviso('Se corta lo de ahora y entra el siguiente.', 'ok');
+    } catch (e) {
+      aviso('No se pudo saltar: ' + (e.message || e), 'err');
     }
   }
 
@@ -442,7 +601,8 @@
   $('reloadBtn').addEventListener('click', function () { cargar().catch(function () {}); });
   $('recargar').addEventListener('click', function () { cargar().catch(function () {}); });
   $('guardar').addEventListener('click', guardar);
-  ['vientoFuerza', 'lluviaFuerza', 'probViento', 'probLluvia'].forEach(function (k) {
+  ['vientoFuerza', 'lluviaFuerza', 'nieveFuerza',
+   'probViento', 'probLluvia', 'probNieve'].forEach(function (k) {
     $(k).addEventListener('input', refrescarValores);
   });
   ['modoAuto', 'modoManual'].forEach(function (id) {
@@ -452,9 +612,26 @@
       $('modoManual').classList.toggle('on', state.modo === 'manual');
     });
   });
-  Array.prototype.forEach.call(document.querySelectorAll('[data-test]'), function (b) {
-    b.addEventListener('click', function () { probar(b.getAttribute('data-test')); });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-que]'), function (b) {
+    b.addEventListener('click', function () {
+      state.que = b.getAttribute('data-que');
+      marcar('tipos', 'que', state.que);
+    });
   });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-estacion]'), function (b) {
+    b.addEventListener('click', function () {
+      state.estacion = b.getAttribute('data-estacion');
+      marcar('estaciones', 'estacion', state.estacion);
+    });
+  });
+  $('lanzar').addEventListener('click', lanzar);
+  $('encolar').addEventListener('click', encolar);
+  $('saltar').addEventListener('click', saltar);
+  $('vaciar').addEventListener('click', function () {
+    if (!confirm('¿Vaciar la cola entera?')) return;
+    quitarDeCola('all');
+  });
+  marcar('tipos', 'que', state.que);
 
   // Al abrir, se mira si ya hay sesión: en silencio, que no haberla es lo normal.
   comprobarAdmin(true);
