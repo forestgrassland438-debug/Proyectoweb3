@@ -858,10 +858,22 @@
     };
     scene.__gfProf = st;
 
-    st.onUpdate = function () {
-      /* Las franjas siguen al original: recorte de cámara, tinte del ratón,
-         objetos que se mueven. Son un puñado de objetos y solo se escribe
-         cuando algo cambia de verdad (ver refrescarFranjas). */
+    /* EL REPASO DE LAS FRANJAS VA EN `postupdate`, NO EN `update`.
+
+       Las franjas siguen al original: recorte de cámara, tinte del ratón, el
+       balanceo del viento, objetos que se mueven. Y tienen que verlo TODO YA,
+       en el mismo fotograma.
+
+       `update` de la escena se emite ANTES de Scene.update(), y el orden entre
+       oyentes depende de quién se registró primero. Copiando ahí, cualquiera
+       que toque el sprite después —el propio Scene.update(), o un módulo que se
+       montara más tarde— dejaría las franjas un fotograma por detrás del
+       original. Con un giro eso se ve como un corte: media casa girada y la
+       otra media no.
+
+       `postupdate` se emite cuando ya ha hablado todo el mundo. Ahí lo que se
+       copia es el estado FINAL del fotograma, siempre. */
+    st.onPost = function () {
       for (var f = st.partidos.length - 1; f >= 0; f--) {
         var dueno = st.partidos[f];
         if (!dueno || !dueno.scene || dueno.active === false) {
@@ -871,7 +883,10 @@
         }
         refrescarFranjas(dueno);
       }
+    };
+    scene.events.on('postupdate', st.onPost);
 
+    st.onUpdate = function () {
       if (!st.pendientes.length) return;
       var colisiones = [scene.collisionRectangles, scene.collisionRectangles1,
                         scene.collisionRectangles2];
@@ -915,6 +930,7 @@
     var st = scene && scene.__gfProf;
     if (!st) return;
     if (st.onUpdate) scene.events.off('update', st.onUpdate);
+    if (st.onPost) scene.events.off('postupdate', st.onPost);
     if (st.onApagar) {
       scene.events.off('shutdown', st.onApagar);
       scene.events.off('destroy', st.onApagar);
