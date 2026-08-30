@@ -95,6 +95,46 @@
   var SONDA_PCT    = 0.85;
   var SONDA_MIN_COL = 3;     // con menos columnas sólidas no me lo creo
 
+  /* ══════════════════════════════════════════════════════════════════════
+     FRANJAS: CUANDO UN OBJETO NO TIENE UNA SOLA LÍNEA DE SUELO
+     ──────────────────────────────────────────────────────────────────────
+     Todo el sistema de "qué va delante" se apoya en UN número por objeto: su
+     línea de suelo. Para un árbol o una caja eso vale. Para una casa en L, en
+     U o en T, NO: la fachada del ala corta está mucho más al norte que la del
+     ala larga, y un solo número no puede describir las dos.
+
+     Lo que se veía: te pones delante del ala corta —o sea, al sur de SU
+     fachada— pero todavía al norte de la línea que se calculó para la casa
+     entera (que la fija el ala larga, o el porche que sobresale). El edificio
+     entero se dibuja encima y el personaje aparece cortado por la mitad.
+
+     Subir o bajar el offset a mano no lo arregla: lo que se gana en un ala se
+     pierde en la otra. El problema no es el número, es que hay UNO SOLO.
+
+     LA SOLUCIÓN: se parte el objeto en FRANJAS VERTICALES, cada una con SU
+     línea de suelo, y cada franja se dibuja con su propia profundidad. En el
+     ala corta pasas por delante y en la larga por detrás, a la vez, porque son
+     dos objetos de dibujo distintos.
+
+     No cuesta memoria: las franjas son el MISMO sprite con `setCrop`, así que
+     no hay texturas nuevas ni copias de píxeles — solo unos pocos objetos de
+     dibujo más, y solo en los objetos que de verdad lo necesitan.        */
+
+  /* Por debajo de este ancho no compensa: la diferencia entre dos franjas
+     sería de unos píxeles y no se nota. */
+  var FRANJA_ANCHO_MIN = 56;
+  /* Cuánto tiene que variar la línea de suelo a lo ancho para partir. Por
+     debajo de esto el objeto es "plano" y se queda con un solo número, como
+     siempre. */
+  var FRANJA_UMBRAL    = 18;
+  /* Columnas cuya línea difiere menos de esto van en la misma franja. */
+  var FRANJA_TOLERA    = 14;
+  /* Tope de franjas por objeto. Más que esto no aporta nada y son objetos de
+     dibujo de más; las que sobran se fusionan por las que menos se parecen. */
+  var FRANJA_MAX       = 5;
+  /* Una franja de una sola columna es ruido de la sonda, no un ala. */
+  var FRANJA_COLS_MIN  = 2;
+
   var cacheMedidas = {};        // clave de textura -> caja opaca
 
   function log() {
@@ -245,6 +285,264 @@
     return linea;
   }
 
+  /**
+   * La línea de suelo COLUMNA A COLUMNA, en vez de resumida en un número.
+   *
+   * Es la misma sonda que sondearSuelo() —bajar preguntando "¿puedo andar
+   * aquí?"— pero sin aplastar el resultado: devuelve la última altura bloqueada
+   * de CADA columna. Eso es lo que permite ver que una casa tiene el ala
+   * izquierda a una altura y la derecha a otra.
+   *
+   * Las columnas donde no hay nada sólido (el hueco de una L, un alero que
+   * vuela sobre suelo transitable) no tienen línea propia: se rellenan con la
+   * de la columna sólida más cercana. Es lo más parecido a la verdad sin
+   * inventarse nada, y en el peor caso deja esa franja como estaba antes.
+   *
+   * Devuelve [{ x, y }] en coordenadas de MUNDO, o null si el objeto no tiene
+   * nada sólido debajo (una flor, un arbusto decorativo).
+   */
+  function sondearColumnas(scene, caja) {
+    if (typeof scene._chocaConEscenario !== 'function') return null;
+    if (!scene._idxColision) return null;
+
+    var s = SONDA_TAM, m = s / 2;
+    var desde = caja.y + caja.alto * SONDA_DESDE;
+    var hasta = caja.abajo + SONDA_MARGEN;
+    var cols = [], solidas = 0;
+
+    for (var x = caja.x + 3; x <= caja.der - 3; x += SONDA_PASO_X) {
+      var ultimo = null;
+      for (var y = desde; y <= hasta; y += SONDA_PASO_Y) {
+        if (scene._chocaConEscenario(x - m, y - m, s, s)) ultimo = y;
+      }
+      if (ultimo !== null && ultimo > caja.abajo + SONDA_MARGEN) ultimo = caja.abajo;
+      if (ultimo !== null) solidas++;
+      cols.push({ x: x, y: ultimo });
+    }
+    if (solidas < SONDA_MIN_COL) return null;
+
+    // Rellenar huecos con la columna sólida más cercana: primero hacia
+    // adelante y luego hacia atrás, que cubre los huecos de los extremos.
+    var i, ultimoBueno = null;
+    for (i = 0; i < cols.length; i++) {
+      if (cols[i].y !== null) ultimoBueno = cols[i].y;
+      else if (ultimoBueno !== null) cols[i].y = ultimoBueno;
+    }
+    ultimoBueno = null;
+    for (i = cols.length - 1; i >= 0; i--) {
+      if (cols[i].y !== null) ultimoBueno = cols[i].y;
+      else if (ultimoBueno !== null) cols[i].y = ultimoBueno;
+    }
+    return cols;
+  }
+
+  /** La mediana de una lista de números. Robusta frente a una columna rara. */
+  function mediana(v) {
+    if (!v.length) return 0;
+    var c = v.slice().sort(function (a, b) { return a - b; });
+    return c[Math.floor(c.length / 2)];
+  }
+
+  /**
+   * Agrupa las columnas en franjas: tramos seguidos con la misma línea.
+   *
+   * Se recorre de izquierda a derecha y se abre franja nueva en cuanto la
+   * columna se aparta más de FRANJA_TOLERA de la que lleva la franja en curso.
+   * Después se limpia: las franjas de una sola columna (ruido de la sonda) se
+   * pegan a la vecina que más se le parezca, y si salen más de FRANJA_MAX se
+   * fusionan por parejas empezando por las que menos se diferencian.
+   *
+   * Devuelve null si no merece la pena partir (una sola franja, o el objeto es
+   * "plano" a lo ancho).
+   */
+  function franjasDe(cols) {
+    if (!cols || cols.length < 2) return null;
+
+    var lineas = [], i;
+    for (i = 0; i < cols.length; i++) {
+      if (typeof cols[i].y !== 'number') return null;   // no se pudo rellenar
+      lineas.push(cols[i].y);
+    }
+    var min = Math.min.apply(null, lineas);
+    var max = Math.max.apply(null, lineas);
+    if (max - min < FRANJA_UMBRAL) return null;        // objeto plano: un número
+
+    // Reparto seguido
+    var fr = [], act = null;
+    for (i = 0; i < cols.length; i++) {
+      if (act && Math.abs(cols[i].y - act.ref) <= FRANJA_TOLERA) {
+        act.ys.push(cols[i].y);
+        act.hasta = cols[i].x;
+        act.n++;
+      } else {
+        act = { desde: cols[i].x, hasta: cols[i].x, ys: [cols[i].y],
+                ref: cols[i].y, n: 1 };
+        fr.push(act);
+      }
+    }
+    if (fr.length < 2) return null;
+
+    // Las franjas demasiado estrechas se pegan a la vecina más parecida.
+    for (i = fr.length - 1; i >= 0 && fr.length > 1; i--) {
+      if (fr[i].n >= FRANJA_COLS_MIN) continue;
+      var izq = i > 0 ? fr[i - 1] : null;
+      var der = i < fr.length - 1 ? fr[i + 1] : null;
+      var dIzq = izq ? Math.abs(izq.ref - fr[i].ref) : Infinity;
+      var dDer = der ? Math.abs(der.ref - fr[i].ref) : Infinity;
+      var dest = (dIzq <= dDer) ? izq : der;
+      if (!dest) continue;
+      dest.ys = dest.ys.concat(fr[i].ys);
+      dest.n += fr[i].n;
+      dest.desde = Math.min(dest.desde, fr[i].desde);
+      dest.hasta = Math.max(dest.hasta, fr[i].hasta);
+      fr.splice(i, 1);
+    }
+
+    // Y si aún sobran, se fusionan las dos vecinas que más se parezcan.
+    while (fr.length > FRANJA_MAX) {
+      var mejor = 0, mejorD = Infinity;
+      for (i = 0; i + 1 < fr.length; i++) {
+        var d = Math.abs(fr[i].ref - fr[i + 1].ref);
+        if (d < mejorD) { mejorD = d; mejor = i; }
+      }
+      fr[mejor].ys = fr[mejor].ys.concat(fr[mejor + 1].ys);
+      fr[mejor].n += fr[mejor + 1].n;
+      fr[mejor].hasta = fr[mejor + 1].hasta;
+      fr.splice(mejor + 1, 1);
+    }
+    if (fr.length < 2) return null;
+
+    // La línea definitiva de cada franja: la MEDIANA de sus columnas.
+    var out = [];
+    for (i = 0; i < fr.length; i++) {
+      out.push({ desde: fr[i].desde, hasta: fr[i].hasta,
+                 y: mediana(fr[i].ys), cols: fr[i].n });
+    }
+    return out;
+  }
+
+  /**
+   * Parte el objeto en franjas de dibujo, cada una con su profundidad.
+   *
+   * CÓMO, SIN GASTAR MEMORIA: cada franja es una COPIA del sprite —misma
+   * posición, mismo origen, mismo tamaño— a la que se le pone `setCrop` para
+   * que solo dibuje su tramo. Phaser recorta el cuadrilátero y las UV, así que
+   * no se dibuja de más ni hace falta ninguna textura nueva. La primera franja
+   * se la queda el sprite ORIGINAL, que así conserva su identidad para todo lo
+   * demás del juego (colisiones, clics, `scene.sprite_jj`, sombras…).
+   *
+   * Los cortes se hacen en píxeles ENTEROS de la textura y pegados unos a
+   * otros: un corte a medio píxel dejaría una costura visible entre franjas.
+   */
+  function partir(scene, spr, franjas, caja) {
+    if (!franjas || franjas.length < 2) return 0;
+    if (spr.flipX) return 0;                 // el recorte iría al revés
+    if (typeof spr.setCrop !== 'function') return 0;
+
+    var texW = spr.width || 0, texH = spr.height || 0;
+    if (!texW || !texH) return 0;
+    var escalaX = (spr.displayWidth || texW) / texW;
+    if (!escalaX) return 0;
+
+    /* Mundo -> píxel de textura, y bordes pegados y enteros.
+
+       El corte va en el PUNTO MEDIO entre la última columna sondeada de una
+       franja y la primera de la siguiente: la sonda va de ocho en ocho píxeles,
+       así que la pared de verdad está en algún punto de ese hueco y el medio es
+       la mejor apuesta. Y enteros y consecutivos: un corte a medio píxel, o dos
+       cortes que se solapen, dejarían una costura entre franjas. */
+    var cortes = [0], i;
+    for (i = 1; i < franjas.length; i++) {
+      var medioMundo = (franjas[i - 1].hasta + franjas[i].desde) / 2;
+      var px = Math.round((medioMundo - caja.x) / escalaX);
+      px = Math.max(cortes[cortes.length - 1] + 1, Math.min(texW - 1, px));
+      cortes.push(px);
+    }
+    cortes.push(texW);
+
+    quitarFranjas(spr);                       // por si se recalibra
+    var trozos = [];
+    for (i = 0; i < franjas.length; i++) {
+      var x0 = cortes[i], ancho = cortes[i + 1] - cortes[i];
+      if (ancho <= 0) continue;
+      var obj;
+      if (i === 0) {
+        obj = spr;                            // la primera se la queda el original
+      } else {
+        obj = scene.add.image(spr.x, spr.y, spr.texture.key);
+        obj.setOrigin(spr.originX, spr.originY);
+        obj.setDisplaySize(spr.displayWidth, spr.displayHeight);
+        obj.setScrollFactor(spr.scrollFactorX, spr.scrollFactorY);
+        obj.setAlpha(spr.alpha);
+        obj.setVisible(spr.visible);
+        /* Las franjas NO se pulsan: el clic lo sigue atendiendo el original,
+           que es quien conoce el objeto del juego. */
+        if (obj.disableInteractive) obj.disableInteractive();
+        if (obj.setData) obj.setData('gfFranja', true);
+        obj.__gfDueno = spr;
+        trozos.push(obj);
+      }
+      obj.setCrop(x0, 0, ancho, texH);
+      obj.setDepth(franjas[i].y);
+      obj.__gfFranjaY = franjas[i].y;
+    }
+
+    spr.__gfFranjas = trozos;
+    spr.__gfFranjasN = franjas.length;
+    /* Y se apunta el estado visible del original, para poder ver si cambia sin
+       preguntárselo a Phaser cada fotograma. */
+    spr.__gfEspejo = { visible: spr.visible, alpha: spr.alpha,
+                       x: spr.x, y: spr.y, tinte: spr.isTinted ? spr.tintTopLeft : -1 };
+    return franjas.length;
+  }
+
+  /** Deshace el partido: se borran las copias y el original recupera su dibujo. */
+  function quitarFranjas(spr) {
+    if (!spr || !spr.__gfFranjas) return;
+    for (var i = 0; i < spr.__gfFranjas.length; i++) {
+      var t = spr.__gfFranjas[i];
+      if (t && t.destroy) t.destroy();
+    }
+    spr.__gfFranjas = null;
+    spr.__gfFranjasN = 0;
+    spr.__gfEspejo = null;
+    if (typeof spr.setCrop === 'function') spr.setCrop();   // sin argumentos = quitar
+  }
+
+  /**
+   * Las franjas siguen al original.
+   *
+   * Hace falta porque el original lo tocan OTROS: el recorte por cámara le pone
+   * `visible` a false cuando se sale de pantalla, el resaltado del ratón le pone
+   * un tinte y algún objeto se mueve (un árbol talado baja a tocón). Si las
+   * copias no lo siguieran, se vería media casa encendida y media apagada.
+   *
+   * Solo se escribe cuando algo ha CAMBIADO de verdad: escribir `visible` en
+   * todas cada fotograma las marca como sucias para el renderizador sin motivo.
+   */
+  function refrescarFranjas(spr) {
+    var tr = spr && spr.__gfFranjas;
+    if (!tr || !tr.length) return;
+    var e = spr.__gfEspejo || (spr.__gfEspejo = {});
+    var tinte = spr.isTinted ? spr.tintTopLeft : -1;
+    var movido  = (e.x !== spr.x || e.y !== spr.y);
+    var cambiaV = (e.visible !== spr.visible);
+    var cambiaA = (e.alpha !== spr.alpha);
+    var cambiaT = (e.tinte !== tinte);
+    if (!movido && !cambiaV && !cambiaA && !cambiaT) return;
+
+    for (var i = 0; i < tr.length; i++) {
+      var t = tr[i];
+      if (!t || !t.scene) continue;
+      if (movido)  t.setPosition(spr.x, spr.y);
+      if (cambiaV) t.setVisible(spr.visible);
+      if (cambiaA) t.setAlpha(spr.alpha);
+      if (cambiaT) { if (tinte < 0) t.clearTint(); else t.setTint(tinte); }
+    }
+    e.x = spr.x; e.y = spr.y; e.visible = spr.visible;
+    e.alpha = spr.alpha; e.tinte = tinte;
+  }
+
   // ------------------------------------------------- línea de suelo
   /**
    * ¿Hay un rectángulo de colisión que sea la PARED de este objeto?
@@ -354,6 +652,29 @@
     spr.setDepth(r.y);
     spr.__gfProf = r.fuente;
     spr.setData && spr.setData('lineaSuelo', r.y);
+
+    /* ¿Y este objeto tiene UNA sola línea de suelo, o varias?
+
+       Solo se intenta partir lo que es ANCHO y lo que tiene colisiones de
+       verdad (fuente 'sonda'). Con los píxeles no se puede: en un árbol el
+       borde de abajo del dibujo baja y sube con la copa, y partirlo por ahí
+       dejaría al jugador pasando por delante de media copa. Lo que se puede
+       medir andando —una fachada— sí es de fiar. */
+    if (r.fuente === 'sonda' && (spr.displayWidth || 0) >= FRANJA_ANCHO_MIN) {
+      try {
+        var caja = cajaMundo(spr);
+        var franjas = franjasDe(sondearColumnas(scene, caja));
+        if (franjas) {
+          var n = partir(scene, spr, franjas, caja);
+          if (n > 1) {
+            r.franjas = n;
+            spr.__gfProf = 'franjas';
+            log('partido en', n, 'franjas:', spr.texture && spr.texture.key,
+                franjas.map(function (f) { return Math.round(f.y); }).join(' / '));
+          }
+        }
+      } catch (e) { /* un objeto raro no puede parar a los demás */ }
+    }
     return r;
   }
 
@@ -366,12 +687,26 @@
       scene: scene,
       pendientes: candidatos(scene),
       hechos: 0,
-      porFuente: { pared: 0, pixeles: 0, sprite: 0 },
+      porFuente: { sonda: 0, pared: 0, pixeles: 0, sprite: 0, franjas: 0 },
+      partidos: [],
       porFrame: opciones.porFrame || POR_FRAME
     };
     scene.__gfProf = st;
 
     st.onUpdate = function () {
+      /* Las franjas siguen al original: recorte de cámara, tinte del ratón,
+         objetos que se mueven. Son un puñado de objetos y solo se escribe
+         cuando algo cambia de verdad (ver refrescarFranjas). */
+      for (var f = st.partidos.length - 1; f >= 0; f--) {
+        var dueno = st.partidos[f];
+        if (!dueno || !dueno.scene || dueno.active === false) {
+          if (dueno) quitarFranjas(dueno);
+          st.partidos.splice(f, 1);
+          continue;
+        }
+        refrescarFranjas(dueno);
+      }
+
       if (!st.pendientes.length) return;
       var colisiones = [scene.collisionRectangles, scene.collisionRectangles1,
                         scene.collisionRectangles2];
@@ -390,7 +725,12 @@
         if (!spr || !spr.active) continue;
         try {
           var r = calibrar(scene, spr, colisiones);
+          if (st.porFuente[r.fuente] === undefined) st.porFuente[r.fuente] = 0;
           st.porFuente[r.fuente]++;
+          if (r.franjas > 1) {
+            st.porFuente.franjas++;
+            st.partidos.push(spr);
+          }
           st.hechos++;
         } catch (e) { /* un objeto raro no puede parar a los demás */ }
       }
@@ -414,6 +754,11 @@
       scene.events.off('shutdown', st.onApagar);
       scene.events.off('destroy', st.onApagar);
     }
+    /* Las copias de las franjas son objetos de dibujo que creó este módulo:
+       se van con él. Si no, al volver a la escena se calibraría otra vez y se
+       crearía un segundo juego de copias encima del primero. */
+    for (var i = 0; i < st.partidos.length; i++) quitarFranjas(st.partidos[i]);
+    st.partidos.length = 0;
     scene.__gfProf = null;
   }
 
@@ -432,6 +777,11 @@
     recalcular: recalcular,
     medir: medir,
     lineaDeSuelo: lineaDeSuelo,
+    /** Las franjas de un objeto, para mirarlo desde la consola. */
+    franjasDe: function (scene, spr) {
+      return franjasDe(sondearColumnas(scene, cajaMundo(spr)));
+    },
+    quitarFranjas: quitarFranjas,
     piesDe: piesDe,
     sobranteAbajo: sobranteAbajo,
     /**
@@ -461,9 +811,13 @@
       var st = scene && scene.__gfProf;
       if (!st) return null;
       return { pendientes: st.pendientes.length, hechos: st.hechos,
-               porFuente: st.porFuente };
+               porFuente: st.porFuente, partidos: st.partidos.length };
     },
     _interno: { cajaMundo: cajaMundo, paredDe: paredDe, candidatos: candidatos,
+                sondearColumnas: sondearColumnas, partir: partir,
+                refrescarFranjas: refrescarFranjas, mediana: mediana,
+                FRANJA_UMBRAL: FRANJA_UMBRAL, FRANJA_TOLERA: FRANJA_TOLERA,
+                FRANJA_MAX: FRANJA_MAX, FRANJA_ANCHO_MIN: FRANJA_ANCHO_MIN,
                 sondearSuelo: sondearSuelo, SONDA_PCT: SONDA_PCT,
                 SONDA_PASO_X: SONDA_PASO_X, SONDA_DESDE: SONDA_DESDE,
                 calibrar: calibrar, SOLAPE_MIN: SOLAPE_MIN,

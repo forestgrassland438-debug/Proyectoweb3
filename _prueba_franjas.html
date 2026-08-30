@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Banco de pruebas — franjas de profundidad</title>
+<style>
+  html,body{margin:0;background:#101408;color:#dfe7d8;font:12px/1.4 system-ui,sans-serif}
+  #panel{position:fixed;right:6px;top:6px;z-index:9;background:rgba(8,12,8,.93);
+         padding:8px 10px;border-radius:8px;width:250px;white-space:pre-wrap}
+  b{color:#f0e6a0}  .ok{color:#7fe08d}  .mal{color:#ff8a7a}
+</style>
+</head>
+<body>
+<div id="juego"></div>
+<div id="panel">…</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script src="./gf-profundidad.js?v=4"></script>
+<script>
+/* Banco de pruebas del Y-SORT POR FRANJAS con el módulo REAL.
+   Se monta una casa en L y unas colisiones que imitan la planta de una casa
+   así: el ala izquierda (el porche) sobresale hacia el SUR y el ala derecha se
+   queda al NORTE. Con una sola línea de suelo es imposible acertar en las dos.
+   El personaje pasea por delante del ala derecha, que es el caso que fallaba. */
+
+var escena, casa, jugador, colisiones = [];
+// Planta elegida por el ancla de la URL:  #L (por defecto) · #W · #recta
+window.PLANTA = (location.hash || '#L').slice(1);
+
+// Planta de la casa: dos alas a distinta altura. (mundo)
+function montarColisiones(caja) {
+  var w = caja.ancho, x = caja.x, abajo = caja.abajo;
+  if (window.PLANTA === 'W') {
+    // Tres alas: hundida, saliente, hundida. El caso peor.
+    colisiones = [
+      { x: x,              y: abajo - 130, width: w * 0.30, height: 60 },
+      { x: x + w * 0.30,   y: abajo - 130, width: w * 0.36, height: 128 },
+      { x: x + w * 0.66,   y: abajo - 130, width: w * 0.34, height: 74 }
+    ];
+  } else if (window.PLANTA === 'recta') {
+    // Fachada recta: NO debe partirse.
+    colisiones = [{ x: x, y: abajo - 120, width: w, height: 118 }];
+  } else {
+    colisiones = [
+      // ala izquierda / porche: la fachada baja hasta casi el pie del sprite
+      { x: x,             y: abajo - 120, width: w * 0.42, height: 118 },
+      // ala derecha: su fachada se queda MUCHO más arriba
+      { x: x + w * 0.42,  y: abajo - 120, width: w * 0.58, height: 52 }
+    ];
+  }
+}
+
+function chocaConEscenario(x, y, w, h) {
+  for (var i = 0; i < colisiones.length; i++) {
+    var r = colisiones[i];
+    if (x < r.x + r.width && x + w > r.x && y < r.y + r.height && y + h > r.y) return true;
+  }
+  return false;
+}
+
+var Escena = {
+  preload: function () {
+    escena = this;
+    this.load.image('casa', './Game/Objetos/casa forma L.png');
+    this.load.image('suelo', './recortadas/low/tile_r0_c0_id1_low.png');
+    for (var i = 1; i <= 7; i++) {
+      this.load.image('run' + i, './Game/Sprites/Soulbound/personaje1/abajo/run_' + i + '.png');
+    }
+  },
+  create: function () {
+    this.add.image(0, 0, 'suelo').setOrigin(0).setDisplaySize(1200, 700).setDepth(-10);
+
+    // Mismo origen (0,1) y mismo marcado que los objetos del mapa del juego.
+    casa = this.add.image(90, 380, 'casa').setOrigin(0, 1).setScale(2.4);
+    casa.setData('optimized', true);
+    casa.setDepth(380);
+
+    var caja = GFProfundidad._interno.cajaMundo(casa);
+    montarColisiones(caja);
+
+    // Lo que el módulo necesita de la escena para poder SONDEAR.
+    this._chocaConEscenario = chocaConEscenario;
+    this._idxColision = true;
+    this.collisionRectangles = colisiones;
+
+    // Se pintan las colisiones para poder verlas.
+    var g = this.add.graphics().setDepth(20000).setAlpha(0.28);
+    g.lineStyle(2, 0xff4444);
+    colisiones.forEach(function (r) { g.strokeRect(r.x, r.y, r.width, r.height); });
+
+    this.anims.create({
+      key: 'andar',
+      frames: [1,2,3,4,5,6,7].map(function (i) { return { key: 'run' + i }; }),
+      frameRate: 10, repeat: -1
+    });
+    jugador = this.add.sprite(200, 330, 'run1').setOrigin(0.5, 1).setScale(1.6);
+    jugador.play('andar');
+
+    // AQUÍ se monta el módulo real.
+    GFProfundidad.montar(this, { porFrame: 8 });
+
+    this.cameras.main.setZoom(1.15);
+    this.cameras.main.centerOn(360, 260);
+    window.casa = casa; window.jugador = jugador; window.escena = this;
+  },
+  update: function () {
+    if (!window.PARADO) {
+      // Pasea de izquierda a derecha justo por delante del ala derecha.
+      var t = this.time.now / 1000;
+      jugador.x = 150 + (Math.sin(t / 3) * 0.5 + 0.5) * 480;
+    }
+    jugador.setDepth(GFProfundidad.piesDe(this, jugador));
+
+    var e = GFProfundidad.estado(this);
+    var tr = casa.__gfFranjas || [];
+    var lineas = [Math.round(casa.depth)].concat(tr.map(function (t) { return Math.round(t.depth); }));
+    document.getElementById('panel').innerHTML =
+      'calibrados: <b>' + (e ? e.hechos : 0) + '</b>  partidos: <b>' + (e ? e.partidos : 0) + '</b>\n' +
+      'franjas de la casa: <b>' + (casa.__gfFranjasN || 1) + '</b>\n' +
+      'profundidad por franja: <b>' + lineas.join(' · ') + '</b>\n' +
+      'pies del jugador: <b>' + Math.round(jugador.depth) + '</b>\n' +
+      'jugador x: <b>' + Math.round(jugador.x) + '</b>';
+  }
+};
+
+new Phaser.Game({
+  type: Phaser.AUTO, parent: 'juego',
+  width: 780, height: 470,
+  backgroundColor: '#243018', pixelArt: true, roundPixels: true,
+  scene: Escena
+});
+</script>
+</body>
+</html>
