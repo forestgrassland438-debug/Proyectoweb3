@@ -248,6 +248,15 @@
       if (!o || o.__gfProf) return;                 // ya calibrado
       if (typeof o.getData !== 'function') return;
       if (!o.getData('optimized')) return;          // solo los del mapa
+      /* LOS TEXTOS NO.
+
+         EL FALLO QUE ARREGLA: los carteles con el nombre de los NPC tambien
+         llevan puesto `optimized` (lo usa el sistema de culling), y un Text de
+         Phaser tiene textura, asi que pasaban el filtro y se les recalculaba la
+         profundidad como si fueran un edificio. Un cartel no esta apoyado en el
+         suelo: flota sobre la cabeza del NPC y su sitio lo decide el NPC, no su
+         propia Y. */
+      if (o.type === 'Text' || o.type === 'BitmapText') return;
       if (!o.texture || !o.texture.key) return;
       out.push(o);
     });

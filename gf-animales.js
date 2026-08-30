@@ -960,19 +960,61 @@
      cada especie y no hace falta ninguna textura.  */
   var SOMBRA_ALFA = 0.26;
 
+  /* CÓMO ES LA SOMBRA DE CADA CLASE DE BICHO.
+
+     DOS FALLOS QUE ARREGLA:
+
+     1. LA SERPIENTE PARECÍA VOLAR. La sombra salía de la HUELLA de colisión,
+        centrada en spr.y — que con origen (0.5, 1) es el borde de abajo del
+        sprite. En un animal alto eso queda medio debajo de las patas y cuela;
+        en una serpiente, que es plana y ya está tumbada en el suelo, la elipse
+        asomaba por detrás del cuerpo y se leía como que el bicho iba por el
+        aire, con su sombra proyectada abajo.
+
+     2. LA DE LA VACA ERA DIMINUTA. La huella de la vaca son 34 px, pero el
+        sprite mide bastante más: la sombra salía como un tercio del animal y
+        parecía una piedrecita a sus pies.
+
+     Ahora la sombra se saca del ANCHO DIBUJADO del sprite, que es lo que se ve,
+     y cada grupo lleva su proporción: los que están tumbados en el suelo la
+     llevan estrecha, pegada y muy tenue, porque un cuerpo que toca el suelo
+     apenas proyecta sombra aparte. */
+  var SOMBRA_POR_GRUPO = {
+    serpiente: { ancho: 0.72, alto: 0.13, dy: -1, alfa: 0.45 },
+    tierra:    { ancho: 0.80, alto: 0.26, dy: -1, alfa: 1.00 },
+    topo:      { ancho: 0.72, alto: 0.24, dy: -1, alfa: 0.85 },
+    ave:       { ancho: 0.70, alto: 0.30, dy:  0, alfa: 0.90 },
+    mariposa:  { ancho: 0.60, alto: 0.35, dy:  0, alfa: 0.60 }
+  };
+  // El cocodrilo es de tierra pero está tan tumbado como una serpiente.
+  var SOMBRA_POR_ESPECIE = { cocodrilo: SOMBRA_POR_GRUPO.serpiente };
+
+  function fichaSombra(a) {
+    return SOMBRA_POR_ESPECIE[a.especie] ||
+           SOMBRA_POR_GRUPO[a.grupo] || SOMBRA_POR_GRUPO.tierra;
+  }
+
+  /** El ancho de la sombra, sacado de lo que MIDE el sprite en pantalla. */
+  function anchoSombra(a) {
+    var f = fichaSombra(a);
+    var w = a.spr.displayWidth || (a.hw * 2) || 20;
+    return Math.max(10, w * f.ancho);
+  }
+
   function crearSombra(st, a) {
     var scene = st.scene;
     if (a.sombra || !scene.add.ellipse) return;
-    var ancho = Math.max(14, a.hw * 0.9);
+    var f = fichaSombra(a);
+    var ancho = anchoSombra(a);
     /* Relleno a tope y la opacidad con setAlpha.
 
        El ultimo argumento de add.ellipse es el fillAlpha, no el alpha del
        objeto, y Phaser dibuja con fillAlpha x alpha. Naciendo con 0,26 y
        poniendole ademas setAlpha(0,26) en cada frame, la sombra se pintaba a
        0,07: cuatro veces mas clara de lo que dice SOMBRA_ALFA. */
-    a.sombra = scene.add.ellipse(a.spr.x, a.spr.y, ancho, ancho * 0.42,
+    a.sombra = scene.add.ellipse(a.spr.x, a.spr.y + f.dy, ancho, ancho * f.alto,
                                  0x000000, 1);
-    a.sombra.setAlpha(SOMBRA_ALFA);
+    a.sombra.setAlpha(SOMBRA_ALFA * f.alfa);
     // Justo por DEBAJO del animal: si fuera por encima, se le vería una mancha
     // oscura encima del lomo.
     a.sombra.setDepth(a.spr.y - 1);
@@ -987,10 +1029,18 @@
     /* Volando, la sombra se queda ABAJO y se hace pequeña y tenue: es lo que da
        la sensación de altura. Si subiera con el pájaro, la sombra iría por el
        aire y no significaría nada. */
-    var y = volando ? a.sombraSuelo : a.spr.y;
+    var f = fichaSombra(a);
+    var y = volando ? a.sombraSuelo : (a.spr.y + f.dy);
     a.sombra.setPosition(a.spr.x, y);
     a.sombra.setDepth(y - 1);
-    a.sombra.setAlpha(volando ? SOMBRA_ALFA * 0.45 : SOMBRA_ALFA);
+    a.sombra.setAlpha(SOMBRA_ALFA * f.alfa * (volando ? 0.45 : 1));
+    /* El ancho se rehace por si el sprite cambió de pose: el cocodrilo abriendo
+       la boca o la serpiente estirada no miden lo mismo que quietos, y una
+       sombra que no acompaña al cuerpo se nota enseguida. */
+    if (!volando && a.sombra.setSize) {
+      var an = anchoSombra(a);
+      if (Math.abs(an - a.sombra.width) > 1.5) a.sombra.setSize(an, an * f.alto);
+    }
     a.sombra.setScale(volando ? 0.6 : 1);
     // Bajo tierra no hay sombra que valga: lo que se ve es un montón de tierra.
     a.sombra.setVisible(a.fase !== 'bajo' && a.spr.visible !== false);
@@ -1997,6 +2047,8 @@
       esArbol: esArbol, construirNido: construirNido,
       sabeTumbarse: sabeTumbarse, danarAnimal: danarAnimal,
       crearSombra: crearSombra, actualizarSombra: actualizarSombra,
+      fichaSombra: fichaSombra, anchoSombra: anchoSombra,
+      SOMBRA_POR_GRUPO: SOMBRA_POR_GRUPO,
       floresYPiedras: floresYPiedras, actualizarMariposa: actualizarMariposa,
       decidirMariposa: decidirMariposa,
       morirAnimal: morirAnimal, revivirAnimal: revivirAnimal,

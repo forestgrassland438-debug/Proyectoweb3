@@ -5527,7 +5527,17 @@ const NPC_LABEL_DEPTH = 90000;
 // sueltos con add.text, así que al bajar la distancia de visión los NPC
 // desaparecían pero sus nombres seguían flotando sobre el vacío. Marcarlos
 // aquí es lo que hace que el recorte quite de verdad "todas las cosas".
-const _marcarCartel = (t) => { t.setOrigin(0.5); t.setDepth(NPC_LABEL_DEPTH); t.setData('optimized', true); return t; };
+/* El cartel se coloca DONDE SU NPC, no por encima de todo.
+
+   EL FALLO QUE ARREGLA: estaban a profundidad 90000, o sea por delante del
+   mundo entero. Al ponerte delante de un NPC, su nombre se te dibujaba encima
+   del cuerpo — se ve clarisimo con "Lord Digby" cruzando al personaje.
+
+   La profundidad de verdad se la pone _colocarCartelesNPC() cada vez que se
+   recolocan, con la del NPC: asi el que esta MAS ABAJO en pantalla tapa al
+   otro, que es lo correcto. Aqui solo se deja un valor de arranque por si se
+   pinta un frame antes de colocarlos. */
+const _marcarCartel = (t) => { t.setOrigin(0.5); t.setDepth(0); t.setData('optimized', true); return t; };
 
 this.npcx1 = _marcarCartel(this.add.text(1829, 3288, 'Farmer Joe', textStyle));
 this.npcx2 = _marcarCartel(this.add.text(3296, 1950, 'Crafter Jack', textStyle));
@@ -23365,9 +23375,28 @@ createImagesFromObjectLayer1(scene, map, objectLayerName, nameMapping) {
           //     temblor sub-píxel de la cámara, que es lo único que provocaba
           //     el parpadeo que arregló la histéresis original.
           // Con esto se pasa de 9 tiles fijos a los 4-6 que de verdad se ven.
-          marginPx: 900,
+          /* PRECARGA MAS ANCHA Y UNA SOLA DESCARGA A LA VEZ.
+
+             EL TIRON AL ANDAR, Y POR QUE SEGUIA AHI. Cada tile mide 2048x2048:
+             cuando termina de bajar, Phaser CREA LA TEXTURA en ese mismo
+             instante y eso son 16 MB subidos a la GPU de golpe. Con cuatro
+             descargas en vuelo era normal que dos o tres terminaran en el mismo
+             tick del navegador — 48 MB en un fotograma. Ese es el paron.
+
+             Ya se habia repartido la creacion de SPRITES entre fotogramas
+             (bombear() en tileManager.js), pero eso no toca la creacion de la
+             TEXTURA, que la hace el cargador de Phaser al completarse la
+             descarga. Lo unico que la limita es cuantas descargas hay a la vez.
+
+             Con UNA sola, cada subida cae en un fotograma distinto y ya no se
+             junta con ninguna otra. Como asi los tiles llegan mas espaciados,
+             el anillo de precarga sube de 900 a 1300 px para que sigan estando
+             listos antes de entrar en cuadro. */
+          marginPx: 1300,
           unloadPadPx: 400,
-          maxConcurrentLoads: 4,
+          maxConcurrentLoads: 1,
+          creaPorFrame: 1,          // sprites creados por fotograma
+          borraPorFrame: 1,         // tiles destruidos por fotograma
           // NOTA: maxLoadedTiles NO lo usa tileManager.js (opción inerte); la
           // memoria se controla con el rango de descarga + histéresis.
           maxLoadedTiles: 20,
@@ -25360,7 +25389,9 @@ get NPC_LABEL_DEPTH() { return 90000; }
 _fijarProfundidadNpcs() {
   ['npcx', 'npcx1', 'npcx2', 'npcx3', 'npcx4', 'npcx5'].forEach(clave => {
     const t = this[clave];
-    if (t && typeof t.setDepth === 'function') t.setDepth(this.NPC_LABEL_DEPTH);
+    /* Ya NO se sube a 90000: eso ponia el cartel por delante del jugador.
+       Se deja a cero y _colocarCartelesNPC le da la de su NPC. */
+    if (t && typeof t.setDepth === 'function') t.setDepth(0);
   });
 }
 
@@ -27792,6 +27823,26 @@ if (this.dogNameText) {
      this.npcx3.setPosition(this.sprite_npc3.x + 20, this.sprite_npc3.y - 120);
      this.npcx4.setPosition(this.sprite_npc4.x + 20, this.sprite_npc4.y - 120);
      this.npcx5.setPosition(this.sprite_npc5.x + 25, this.sprite_npc5.y - 120);
+   }
+
+   /* LA PROFUNDIDAD DEL CARTEL VA CON SU NPC, Y SE COMPRUEBA CADA FRAME.
+
+      El NPC se ordena por sus pies, asi que el cartel hereda su sitio en la
+      fila: si te pones DELANTE del NPC (mas abajo en pantalla) tu profundidad
+      es mayor y le tapas el nombre — que es lo que tiene que pasar. Antes
+      estaban clavados a 90000, por delante del mundo entero, y el nombre se te
+      dibujaba encima del cuerpo.
+
+      Se mira cada frame y no una sola vez porque la profundidad del NPC la
+      recalcula gf-profundidad.js repartida en los primeros frames: colocando el
+      cartel una vez al principio se quedaria con el valor viejo. Son cinco
+      comparaciones por frame y setDepth solo se llama cuando de verdad cambia,
+      asi que no ensucia la lista de dibujo. */
+   for (let i = 1; i <= 5; i++) {
+     const txt = this['npcx' + i], npc = this['sprite_npc' + i];
+     if (!txt || !npc || typeof npc.depth !== 'number') continue;
+     const quiere = npc.depth + 1;
+     if (txt.depth !== quiere) txt.setDepth(quiere);
    }
   
   

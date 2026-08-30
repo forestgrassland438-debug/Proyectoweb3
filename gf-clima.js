@@ -37,6 +37,10 @@
   var RAYOS   = ['rayo_1', 'rayo_2', 'rayo_3'];
   var COPOS   = ['copo_1', 'copo_2', 'copo_3', 'copo_4'];
   var POSAS   = ['posa_1', 'posa_2', 'posa_3'];
+  var CHARCOS = ['charco_1', 'charco_2', 'charco_3', 'charco_4'];
+  var FUEGOS  = ['fuego_1', 'fuego_2', 'fuego_3', 'fuego_4'];
+  var HUMOS   = ['humo_1', 'humo_2', 'humo_3'];
+  var BRASAS  = ['brasa_1', 'brasa_2', 'brasa_3'];
 
   var SYNC_MS   = 3 * 60 * 1000;   // cada cuánto se pregunta el tiempo
   var ENTRA_MS  = 5000;            // lo que tarda en arreciar / amainar
@@ -221,6 +225,33 @@
     return dir * (INCLINA_MIN + (INCLINA_MAX - INCLINA_MIN) * f);
   }
 
+  /* CHARCOS.
+
+     Van en el MUNDO, no pegados a la cámara como la lluvia: un charco se queda
+     donde está y tienes que poder rodearlo. Aparecen despacio mientras llueve,
+     crecen, y se secan poco a poco cuando escampa.
+
+     Se colocan mirando las colisiones del mapa: nada de charcos dentro de una
+     pared, encima de una casa o flotando en el agua. */
+  var N_CHARCOS     = 26;
+  var CHARCO_CADA   = [900, 2600];   // ms entre charco y charco
+  var CHARCO_CRECE  = 26000;         // lo que tarda en llegar a su tamaño
+  var CHARCO_SECA   = 22000;         // lo que tarda en secarse
+  var CHARCO_RADIO  = 620;           // alrededor del jugador
+  var PROF_CHARCO   = 1;             // pegado al suelo: todo pasa por encima
+
+  /* INCENDIO POR RAYO.
+
+     Cuando cae un rayo con trazo, a veces le da a un árbol. El árbol arde un
+     minuto y luego se cae solo: se queda el tocón y entra en el respawn normal
+     del juego. NO da recompensa a nadie — no lo ha talado nadie, se ha quemado.
+     Eso se consigue avisando al servidor por /api/tree/lock, que es la ruta que
+     bloquea el árbol y avisa a todos, y que no reparte nada. */
+  var PROB_INCENDIO = 0.30;          // de los rayos con trazo
+  var ARDE_MS       = 60000;         // un minuto ardiendo
+  var BRASAS_MS     = 9000;          // y un rato de rescoldos
+  var FUEGO_FPS     = 9;
+
   var TRUENO_CADA  = [9000, 26000]; // ms entre relámpagos
   var CENTELLA_CADA = [1800, 7000]; // ms entre centellas (mucho más seguidas)
   var RAYO_SEPARA  = 0.28;          // fracción del ancho que ha de moverse el rayo
@@ -339,6 +370,10 @@
     for (i = 0; i < RAYOS.length; i++)   { scene.load.image('gfc_' + RAYOS[i],   RUTA + RAYOS[i] + '.png'); n++; }
     for (i = 0; i < COPOS.length; i++)   { scene.load.image('gfc_' + COPOS[i],   RUTA + COPOS[i] + '.png'); n++; }
     for (i = 0; i < POSAS.length; i++)   { scene.load.image('gfc_' + POSAS[i],   RUTA + POSAS[i] + '.png'); n++; }
+    for (i = 0; i < CHARCOS.length; i++) { scene.load.image('gfc_' + CHARCOS[i], RUTA + CHARCOS[i] + '.png'); n++; }
+    for (i = 0; i < FUEGOS.length; i++)  { scene.load.image('gfc_' + FUEGOS[i],  RUTA + FUEGOS[i] + '.png'); n++; }
+    for (i = 0; i < HUMOS.length; i++)   { scene.load.image('gfc_' + HUMOS[i],   RUTA + HUMOS[i] + '.png'); n++; }
+    for (i = 0; i < BRASAS.length; i++)  { scene.load.image('gfc_' + BRASAS[i],  RUTA + BRASAS[i] + '.png'); n++; }
     return n;
   }
 
@@ -346,7 +381,7 @@
     /* Se miran las tres familias, no solo las gotas: si se anade la nieve al
        modulo pero se olvida el precargar, montar() seguiria adelante y el
        primer copo reventaria con "texture not found" a mitad de partida. */
-    var familias = [GOTAS, COPOS, RAYOS];
+    var familias = [GOTAS, COPOS, RAYOS, CHARCOS, FUEGOS];
     for (var f = 0; f < familias.length; f++) {
       for (var i = 0; i < familias[f].length; i++) {
         if (!scene.textures.exists('gfc_' + familias[f][i])) return false;
@@ -703,6 +738,10 @@
 
     /* La sacudida llega DESPUÉS del destello, como el trueno de verdad: la luz
        viaja más rápido que el sonido. Ese retardo es lo que lo hace creíble. */
+    /* Y a veces le da a un arbol. Va aqui, en el rayo CON TRAZO: una centella
+       lejana no quema nada, y asi el jugador ve el rayo y el fuego a la vez. */
+    if (Math.random() < PROB_INCENDIO) prenderArbol(st, st.rayo.x);
+
     var retardo = az(180, 700);
     st.truenoEn = ahora + retardo;
     st.proximoTrueno = ahora + az(TRUENO_CADA[0], TRUENO_CADA[1]) / st.fuerzaLluvia;
@@ -760,6 +799,13 @@
       st.cortina.fillColor = 0x37475e;
       st.cortina.setAlpha(lloviendo ? st.fuerzaLluvia * 0.20 : 0);
     }
+
+    /* Charcos e incendio van SIEMPRE, llueva o no: los charcos tienen que
+       poder secarse cuando escampa, y un arbol encendido tiene que acabar de
+       arder aunque la tormenta ya haya pasado. Por eso van ANTES del `return`
+       de "no llueve" que hay mas abajo. */
+    moverCharcos(st, ahora, delta);
+    moverIncendio(st, ahora);
 
     var i, j;
     if (nevando) {
@@ -845,6 +891,265 @@
     else if (st.filtro.setSize) st.filtro.setSize(w, h);
   }
 
+
+  // ═══════════════════════════════════════════════════════════ CHARCOS
+  /**
+   * ¿Se puede poner un charco aquí?
+   *
+   * Se pregunta a la escena por sus colisiones — el mismo camino que usan los
+   * animales para no meterse en las paredes. Si la escena no lo expone, se dice
+   * que no a todo: mejor sin charcos que con charcos dentro de una casa.
+   */
+  function sueloLibre(scene, x, y) {
+    if (typeof scene._chocaConEscenario !== 'function') return false;
+    try {
+      // Se mira el punto y sus cuatro esquinas: un charco ocupa sitio, y
+      // comprobando solo el centro se colaba medio charco bajo una pared.
+      var r = 14;
+      return !scene._chocaConEscenario(x, y) &&
+             !scene._chocaConEscenario(x - r, y) &&
+             !scene._chocaConEscenario(x + r, y) &&
+             !scene._chocaConEscenario(x, y - 6) &&
+             !scene._chocaConEscenario(x, y + 6);
+    } catch (e) { return false; }
+  }
+
+  function nuevoCharco(st) {
+    var s = st.scene.add.image(0, 0, 'gfc_' + CHARCOS[0]);
+    s.setOrigin(0.5, 0.5);
+    s.setDepth(PROF_CHARCO);
+    s.setScale(2);                    // la escala del juego
+    s.setAlpha(0);
+    s.setVisible(false);
+    return { spr: s, vivo: false, nace: 0, tam: 0 };
+  }
+
+  /** Busca sitio y enciende un charco. */
+  function brotarCharco(st) {
+    var scene = st.scene;
+    var p = scene.player;
+    if (!p) return;
+    var libre = null;
+    for (var i = 0; i < st.charcos.length; i++) {
+      if (!st.charcos[i].vivo) { libre = st.charcos[i]; break; }
+    }
+    if (!libre) return;
+
+    // Ocho intentos: si no hay sitio, se deja para la próxima vuelta.
+    for (var t = 0; t < 8; t++) {
+      var ang = az(0, Math.PI * 2);
+      var d = az(120, CHARCO_RADIO);
+      var x = p.x + Math.cos(ang) * d;
+      var y = p.y + Math.sin(ang) * d;
+      if (!sueloLibre(scene, x, y)) continue;
+      // Ni encima de otro charco.
+      var pegado = false;
+      for (var k = 0; k < st.charcos.length; k++) {
+        var c = st.charcos[k];
+        if (c.vivo && Math.hypot(c.spr.x - x, c.spr.y - y) < 46) { pegado = true; break; }
+      }
+      if (pegado) continue;
+
+      libre.vivo = true;
+      libre.nace = scene.time.now;
+      libre.tam = Math.floor(az(0, CHARCOS.length));
+      libre.spr.setTexture('gfc_' + CHARCOS[libre.tam]);
+      libre.spr.setPosition(Math.round(x), Math.round(y));
+      libre.spr.setVisible(true);
+      libre.spr.setAlpha(0);
+      return;
+    }
+  }
+
+  function moverCharcos(st, ahora, delta) {
+    var lloviendo = st.fuerzaLluvia > 0.05;
+
+    if (lloviendo) {
+      if (!st.proximoCharco) st.proximoCharco = ahora + az(CHARCO_CADA[0], CHARCO_CADA[1]);
+      if (ahora >= st.proximoCharco) {
+        brotarCharco(st);
+        st.proximoCharco = ahora + az(CHARCO_CADA[0], CHARCO_CADA[1]) / st.fuerzaLluvia;
+      }
+    }
+
+    for (var i = 0; i < st.charcos.length; i++) {
+      var c = st.charcos[i];
+      if (!c.vivo) continue;
+      var paso = delta / (lloviendo ? CHARCO_CRECE : -CHARCO_SECA);
+      c.spr.alpha = Math.max(0, Math.min(0.82, c.spr.alpha + paso));
+      if (!lloviendo && c.spr.alpha <= 0.001) {
+        c.vivo = false;
+        c.spr.setVisible(false);
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════ INCENDIO
+  /** Los árboles que se ven y no son ya un tocón. */
+  function arbolesAlcanzables(scene) {
+    var out = [];
+    var vista = scene.cameras && scene.cameras.main && scene.cameras.main.worldView;
+    var tocones = scene.treeStumps || {};
+    var fam = [['sprite_arbolx', 18], ['sprite_pinos', 45]];
+    for (var f = 0; f < fam.length; f++) {
+      for (var i = 1; i <= fam[f][1]; i++) {
+        var clave = fam[f][0] + i;
+        if (tocones[clave]) continue;
+        var spr = scene[clave];
+        if (!spr || spr.active === false) continue;
+        // Solo lo que se ve: quemar un árbol al otro lado del mapa no lo vería
+        // nadie y encima lo bloquearía sin motivo.
+        if (vista && (spr.x < vista.x - 60 || spr.x > vista.right + 60 ||
+                      spr.y < vista.y - 60 || spr.y > vista.bottom + 60)) continue;
+        out.push({ clave: clave, spr: spr });
+      }
+    }
+    return out;
+  }
+
+  /** El rayo le ha dado a un árbol: empieza a arder. */
+  function prenderArbol(st, rayoX) {
+    var scene = st.scene;
+    if (st.incendio) return;                       // uno a la vez
+    if (!scene.textures.exists('gfc_' + FUEGOS[0])) return;
+    var cand = arbolesAlcanzables(scene);
+    if (!cand.length) return;
+
+    /* El más cercano a donde ha caído el rayo, en pantalla. Si se cogiera uno
+       al azar, se vería el rayo en un lado y el fuego en el otro. */
+    var vista = scene.cameras.main.worldView;
+    var mundoX = vista.x + (rayoX == null ? vista.width / 2 : rayoX);
+    var mejor = cand[0], mejorD = Infinity;
+    for (var i = 0; i < cand.length; i++) {
+      var d = Math.abs(cand[i].spr.x - mundoX);
+      if (d < mejorD) { mejorD = d; mejor = cand[i]; }
+    }
+
+    var spr = mejor.spr;
+    var alto = spr.displayHeight || 80;
+    var ancho = spr.displayWidth || 40;
+    var base = spr.y;                              // origen (0,1)
+    var cx = spr.x + ancho / 2;
+
+    var inc = {
+      clave: mejor.clave, spr: spr, nace: scene.time.now,
+      llamas: [], humos: [], fase: 'arde', paso: 0, proximoPaso: 0
+    };
+    // Tres llamas escalonadas por la copa y el tronco.
+    var sitios = [[cx, base - alto * 0.18, 2.2],
+                  [cx - ancho * 0.22, base - alto * 0.42, 1.8],
+                  [cx + ancho * 0.24, base - alto * 0.34, 1.6]];
+    for (var k = 0; k < sitios.length; k++) {
+      var ll = scene.add.image(sitios[k][0], sitios[k][1], 'gfc_' + FUEGOS[0]);
+      ll.setOrigin(0.5, 1).setScale(sitios[k][2]);
+      ll.setDepth(spr.depth + 2 + k);
+      inc.llamas.push(ll);
+    }
+    for (var h = 0; h < 2; h++) {
+      var hu = scene.add.image(cx + (h ? 10 : -8), base - alto * 0.62, 'gfc_' + HUMOS[0]);
+      hu.setOrigin(0.5, 1).setScale(2).setAlpha(0.7);
+      hu.setDepth(spr.depth + 5);
+      inc.humos.push(hu);
+    }
+    st.incendio = inc;
+    log('rayo en', mejor.clave, '— arde', ARDE_MS / 1000, 's');
+  }
+
+  /** Avisa al servidor de que el árbol ha caído. Nadie se lleva nada. */
+  function avisarArbolQuemado(scene, clave) {
+    var tipo = null;
+    if (clave.indexOf('sprite_pinos') === 0) tipo = 'pinos';
+    else if (clave.indexOf('sprite_arbustos') === 0) tipo = 'arbustos';
+    else if (clave.indexOf('sprite_arbolx') === 0) tipo = 'arbolx';
+    if (!tipo) return;
+    var M = window.GFMascota;
+    if (!M || !M.api) return;
+    /* /api/tree/lock es la ruta que bloquea el árbol y avisa a TODOS por
+       socket. No entrega nada a nadie, que es justo lo que se quiere: el árbol
+       se ha quemado, no lo ha talado un jugador. Y el respawn que aplica es el
+       normal del juego, con su deforestación y todo. */
+    M.api('/api/tree/lock', { treeKey: clave, treeType: tipo })
+     .then(function (r) { log('árbol quemado avisado:', clave, r && r.ok); });
+  }
+
+  function moverIncendio(st, ahora) {
+    var inc = st.incendio;
+    if (!inc) return;
+    var scene = st.scene;
+    var t = ahora - inc.nace;
+    var i;
+
+    // animación de las llamas
+    if (ahora >= inc.proximoPaso) {
+      inc.proximoPaso = ahora + 1000 / FUEGO_FPS;
+      inc.paso = (inc.paso + 1) % FUEGOS.length;
+      for (i = 0; i < inc.llamas.length; i++) {
+        inc.llamas[i].setTexture('gfc_' + FUEGOS[(inc.paso + i) % FUEGOS.length]);
+      }
+      for (i = 0; i < inc.humos.length; i++) {
+        inc.humos[i].setTexture('gfc_' + HUMOS[(inc.paso + i) % HUMOS.length]);
+      }
+    }
+    // el humo sube y se deshace
+    for (i = 0; i < inc.humos.length; i++) {
+      var h = inc.humos[i];
+      h.y -= 0.28;
+      h.alpha -= 0.004;
+      if (h.alpha <= 0.05) {
+        h.alpha = 0.7;
+        h.y = inc.spr.y - (inc.spr.displayHeight || 80) * 0.62;
+      }
+    }
+
+    if (inc.fase === 'arde') {
+      // el árbol se va tiznando
+      var q = Math.min(1, t / ARDE_MS);
+      if (inc.spr.setTint) {
+        var v = Math.round(255 - 150 * q);
+        inc.spr.setTint((v << 16) | (v << 8) | v);
+      }
+      if (t >= ARDE_MS) {
+        /* SE CAE. Solo queda el tocón, y entra en el respawn normal.
+           showTreeStump es el mismo camino que usa el juego al talar, así que
+           el tocón sale con la textura, la posición y la profundidad buenas. */
+        if (typeof scene.showTreeStump === 'function') scene.showTreeStump(inc.clave);
+        if (inc.spr.clearTint) inc.spr.clearTint();
+        avisarArbolQuemado(scene, inc.clave);
+        // las llamas se apagan y quedan rescoldos en el suelo
+        for (i = 0; i < inc.llamas.length; i++) inc.llamas[i].destroy();
+        inc.llamas.length = 0;
+        var brasa = scene.add.image(inc.spr.x + (inc.spr.displayWidth || 30) / 2,
+                                    inc.spr.y, 'gfc_' + BRASAS[0]);
+        brasa.setOrigin(0.5, 1).setScale(2).setDepth(inc.spr.depth + 1);
+        inc.brasa = brasa;
+        inc.fase = 'brasas';
+        inc.nace = ahora;
+        log('el árbol', inc.clave, 'se ha caído; queda el tocón');
+      }
+      return;
+    }
+
+    // rescoldos: se apagan y se acabó
+    if (inc.brasa) {
+      inc.brasa.setTexture('gfc_' + BRASAS[inc.paso % BRASAS.length]);
+      inc.brasa.setAlpha(Math.max(0, 1 - t / BRASAS_MS));
+    }
+    if (t >= BRASAS_MS) {
+      apagarIncendio(st);
+    }
+  }
+
+  function apagarIncendio(st) {
+    var inc = st.incendio;
+    if (!inc) return;
+    var i;
+    for (i = 0; i < inc.llamas.length; i++) inc.llamas[i].destroy();
+    for (i = 0; i < inc.humos.length; i++) inc.humos[i].destroy();
+    if (inc.brasa) inc.brasa.destroy();
+    if (inc.spr && inc.spr.clearTint) inc.spr.clearTint();
+    st.incendio = null;
+  }
+
   // ---------------------------------------------------------------- montaje
   function montar(scene, opciones) {
     opciones = opciones || {};
@@ -859,6 +1164,7 @@
     var L = lienzo(cam);
     var st = {
       scene: scene, gotas: [], salpicas: [], copos: [], posas: [], bordes: [],
+      charcos: [], proximoCharco: 0, incendio: null,
       fuerzaLluvia: 0, fuerzaNieve: 0,
       proximoTrueno: 0, proximaCentella: 0, truenoEn: 0, truenoFuerza: 1,
       rayoHasta: 0, fogonazoHasta: 0, ultimoRayoX: null,
@@ -908,6 +1214,8 @@
     for (i = 0; i < N_COPOS; i++)   st.copos.push(nuevoCopo(st));
     for (i = 0; i < N_SALPICA; i++) st.salpicas.push(nuevaSalpica(st));
     for (i = 0; i < N_POSAS; i++)   st.posas.push(nuevaPosa(st));
+    // Los charcos NO van en el contenedor: viven en el mundo, no en la pantalla.
+    for (i = 0; i < N_CHARCOS; i++) st.charcos.push(nuevoCharco(st));
 
     // Rayo, marco y fogonazo al final: van por encima de todo lo que cae.
     st.rayo = scene.add.image(0, 0, 'gfc_' + RAYOS[0]);
@@ -978,6 +1286,8 @@
     for (i = 0; i < st.copos.length; i++)    st.copos[i].spr.destroy();
     for (i = 0; i < st.posas.length; i++)    st.posas[i].spr.destroy();
     for (i = 0; i < st.bordes.length; i++)   st.bordes[i].destroy();
+    for (i = 0; i < st.charcos.length; i++)  st.charcos[i].spr.destroy();
+    apagarIncendio(st);
     if (st.filtro)   st.filtro.destroy();
     if (st.cortina)  st.cortina.destroy();
     if (st.fogonazo) st.fogonazo.destroy();
@@ -986,6 +1296,7 @@
     st.capa = null;
     st.gotas.length = 0; st.salpicas.length = 0;
     st.copos.length = 0; st.posas.length = 0; st.bordes.length = 0;
+    st.charcos.length = 0;
     scene.__gfClima = null;
     if (montado === st) montado = null;
   }
@@ -1018,6 +1329,11 @@
       aplicar: aplicar, actualizar: actualizar, relampago: relampago,
       mandarAlViento: mandarAlViento, salpicar: salpicar, sacudir: sacudir,
       centella: centella, sitioDelRayo: sitioDelRayo, ESTACIONES: ESTACIONES,
+      moverCharcos: moverCharcos, brotarCharco: brotarCharco,
+      sueloLibre: sueloLibre, prenderArbol: prenderArbol,
+      moverIncendio: moverIncendio, apagarIncendio: apagarIncendio,
+      arbolesAlcanzables: arbolesAlcanzables, ARDE_MS: ARDE_MS,
+      PROB_INCENDIO: PROB_INCENDIO, N_CHARCOS: N_CHARCOS,
       lienzoRect: lienzoRect, texturaBlanca: texturaBlanca,
       texturasBorde: texturasBorde, moverBorde: moverBorde,
       MULTIPLICAR: MULTIPLICAR,

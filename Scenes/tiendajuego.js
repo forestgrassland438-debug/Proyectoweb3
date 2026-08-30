@@ -2830,8 +2830,16 @@ this.dogNameText = this.add.text(this.dog.x, this.dog.y - 30, '', {
 }).setOrigin(0.5, 1).setDepth(this.player.y + 9).setVisible(false);
 if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
 
-// ── Restore pet removal state that was set before this scene loaded ──
-if (window.globalPetData && window.globalPetData.equipped === false) {
+/* ── Estado de la mascota que venia de la escena anterior ──────────────────
+
+   Se mira `equipped` (la retiraste a mano) y tambien `alive` (esta muerta).
+   Antes solo se miraba lo primero, asi que una mascota muerta reaparecia viva
+   al entrar en la tienda — no se le habia dicho a esta escena que estaba
+   caida. Lo escribe gf-mascota.js, que es quien lleva la cuenta. */
+const _petFuera = window.globalPetData &&
+                  (window.globalPetData.equipped === false ||
+                   window.globalPetData.alive === false);
+if (_petFuera) {
   this.petData = window.globalPetData;
   this.dog.sprite.setVisible(false);
   this.dog.shadowContainer.setVisible(false);
@@ -3020,12 +3028,24 @@ handleMouseMovement(delta) {
         console.log("🌐 Creando nueva conexión socket global");
         
         const SERVER = this.serverclient1;
+        /* LAS MISMAS OPCIONES QUE EN GameScene, Y NO ES CASUALIDAD.
+
+           EL FALLO QUE ARREGLA: el socket es GLOBAL (window.globalSocket) y lo
+           crea la primera escena que arranca. Se habian puesto los reintentos
+           infinitos en GameScene, pero si el jugador pasaba por la tienda —o
+           entraba por ella— el socket lo creaba ESTE fichero, con los 10
+           intentos de antes, y el arreglo no servia de nada. Por eso seguia
+           quedandose desconectado para siempre.
+
+           Si se toca aqui, hay que tocar tambien GameScene.initSocket(). */
         window.globalSocket = io(SERVER, {
           path: '/socket.io',
           transports: ['websocket', 'polling'],
           reconnection: true,
-          reconnectionAttempts: 10,
-          reconnectionDelay: 1000,
+          reconnectionAttempts: Infinity,
+          reconnectionDelay: 800,
+          reconnectionDelayMax: 8000,
+          randomizationFactor: 0.5,
           timeout: 20000,
           autoConnect: true,
           forceNew: false
@@ -3064,20 +3084,42 @@ handleMouseMovement(delta) {
       if (socket._globalEventsSet) return;
       
       socket.on('connect', () => {
-        console.log('✅ Socket global conectado:', socket.id);
-        // Notificar a todas las escenas que el socket está conectado
-        if (window.activeScene && window.activeScene.onSocketReconnect) {
-          window.activeScene.onSocketReconnect();
-        }
+        var esReconexion = socket._huboConexion === true;
+        socket._huboConexion = true;
+        console.log((esReconexion ? '🔁 Socket global RECONECTADO: '
+                                  : '✅ Socket global conectado: ') + socket.id);
+        var esc = window.activeScene;
+        if (esc && esc.onSocketReconnect) esc.onSocketReconnect(esReconexion);
       });
-      
+
       socket.on('disconnect', (reason) => {
         console.log('❌ Socket global desconectado:', reason);
+        var esc = window.activeScene;
+        if (esc && esc.onSocketDisconnect) esc.onSocketDisconnect(reason);
+        // Lo unico que Socket.IO no reintenta solo.
+        if (reason === 'io server disconnect') {
+          setTimeout(function () { try { socket.connect(); } catch (e) {} }, 2000);
+        }
       });
-      
+
       socket.on('connect_error', (error) => {
-        console.error('🔌 Error de conexión socket:', error.message);
+        console.warn('🔌 Error de conexion socket:', error && error.message);
       });
+
+      // Vigilante: levanta el socket si se queda parado (volver de suspension,
+      // recuperar la red). Igual que en GameScene.
+      if (!socket._vigilante) {
+        var levantar = function () {
+          try {
+            if (socket.disconnected && socket.active !== true) socket.connect();
+          } catch (e) {}
+        };
+        socket._vigilante = setInterval(levantar, 5000);
+        document.addEventListener('visibilitychange', function () {
+          if (!document.hidden) levantar();
+        });
+        window.addEventListener('online', levantar);
+      }
       
       socket._globalEventsSet = true;
     }
@@ -3349,7 +3391,9 @@ sendPlayerMovement() {
     dogX: this.dog.x,
     dogY: this.dog.y,
     dogDirection: this.dog.direction,  // 'left' o 'right'
-    dogEquipped: !(this.petData && this.petData.equipped === false), // false = dog removed
+    // Muerta cuenta igual que retirada: los demas no tienen que verla.
+    dogEquipped: !(this.petData && this.petData.equipped === false) &&
+                 !(window.globalPetData && window.globalPetData.alive === false),
     // El nombre de la mascota no se enviaba nunca, por eso los demás jugadores
     // veían tu perro sin etiqueta. El servidor reenvía el payload tal cual.
     dogName: this._isNameSet && this._isNameSet(this.petName) ? this.petName : '',
@@ -3788,9 +3832,41 @@ removeOtherPlayer(playerId) {
     }
 
     // Método para manejar reconexión del socket
-    onSocketReconnect() {
-      console.log('🔁 Reconexión detectada, reuniéndose a sala...');
-      
+    /** Aviso de que se ha caido la conexion: se lo dice al jugador. */
+    onSocketDisconnect(reason) {
+      this._socketCaido = true;
+      if (typeof this.appendSystemMessage === 'function') {
+        this.appendSystemMessage('Connection lost. Reconnecting…');
+      }
+    }
+
+    onSocketReconnect(esReconexion) {
+      console.log('🔁 Reconexion detectada, reuniendose a sala...');
+
+      /* VOLVER A ENTRAR DE VERDAD. Lo mismo que en GameScene:
+
+         1. joinRoom() se salta el envio si la sala es la misma y no ha pasado
+            el cooldown — y tras reconectar ambas cosas son ciertas. Se pone
+            lastJoinTime a 0 para forzarlo.
+         2. El socket trae un id NUEVO; con el viejo, la comprobacion de "este
+            soy yo" deja de valer.
+         3. Los jugadores de antes son fantasmas con ids que ya no existen: se
+            borran para que el currentPlayers de la nueva entrada los recree.
+            Sin esto se quedan TIESOS en pantalla, que es justo lo que se veia. */
+      if (esReconexion && this.scene.isActive()) {
+        this._socketCaido = false;
+        this.socket = window.globalSocket;
+        this.myId = this.socket.id;
+        if (typeof this.clearOtherPlayers === 'function') this.clearOtherPlayers();
+        this.lastJoinTime = 0;
+        this.setupSceneSocketListeners();
+        this.joinRoom(this.currentRoom || 'tienda');
+        if (typeof this.appendSystemMessage === 'function') {
+          this.appendSystemMessage('Reconnected.');
+        }
+        return;
+      }
+
       if (this.scene.isActive()) {
         this.time.delayedCall(1000, () => {
           this.initSocket();
@@ -4065,7 +4141,11 @@ removeOtherPlayer(playerId) {
     };
 
     if (!this.socket || !this.socket.connected) {
-      this.appendSystemMessage('No conectado al servidor de chat.');
+      // En INGLES, como todo lo que ve el jugador, y diciendo lo que pasa de
+      // verdad: que se esta volviendo a conectar, no que el servidor se cayo.
+      this.appendSystemMessage(this._socketCaido
+        ? 'Connection lost. Reconnecting… your message was not sent.'
+        : 'Not connected to the chat server.');
       return;
     }
 

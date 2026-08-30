@@ -125,6 +125,12 @@
     estado.maxHealth  = Number(d.pet.maxHealth) || 100;
     estado.mode       = d.pet.mode === 'attack' ? 'attack' : 'passive';
     estado.alive      = !!d.pet.alive;
+    // Y se apunta ya, sin esperar a que cambie la visibilidad: si entras a la
+    // tienda nada mas cargar, el dato tiene que estar puesto.
+    try {
+      if (!window.globalPetData) window.globalPetData = {};
+      window.globalPetData.alive = estado.alive;
+    } catch (e) {}
     if (d.player) {
       estado.ghost        = !!d.player.ghost;
       estado.deaths       = Number(d.player.deaths) || 0;
@@ -373,6 +379,21 @@
     var viva = estado.alive;
     if (st.vistaViva === viva) return;      // solo cuando cambia
     st.vistaViva = viva;
+
+    /* SE APUNTA EN globalPetData, QUE ES LO QUE SOBREVIVE AL CAMBIO DE ESCENA.
+
+       EL FALLO QUE ARREGLA: "si mi mascota esta muerta, en la tienda aparece
+       cuando entro". Este modulo solo esta montado en GameScene; la tienda crea
+       su propio perro y lo unico que mira antes de enseñarlo es
+       window.globalPetData.equipped. Como ahi no habia nada sobre si la mascota
+       esta viva, entraba y el perro muerto reaparecia tan campante.
+
+       Es el mismo sitio que ya usa el juego para acordarse de si la mascota
+       esta retirada, asi que no se inventa un canal nuevo. */
+    try {
+      if (!window.globalPetData) window.globalPetData = {};
+      window.globalPetData.alive = viva;
+    } catch (e) {}
 
     perro.setVisible(viva);
     if (viva && perro.clearTint) perro.clearTint();
