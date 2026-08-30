@@ -69,7 +69,13 @@
                  monticulo: 2, hoyo: 3 },
     // La mariposa se ve DESDE ARRIBA, no de perfil: de perfil, a 14 px, es una
     // raya. Por eso no tiene poses de andar ni mira a un lado.
-    mariposa:  { vuela: 4, posa: 2 }
+    mariposa:  { vuela: 4, posa: 2 },
+    /* El conejo es el único que tiene CASA: la madriguera se queda dibujada en
+       el mapa aunque él no esté, y de noche se mete dentro. Por eso necesita
+       fotogramas que ningún otro usa: cavar, la madriguera vacía y andar con
+       una zanahoria en la boca. */
+    conejo:    { quieto: 2, camina: 4, corre: 4, come: 2, lleva: 2,
+                 cava: 3, duerme: 2, madriguera: 2 }
   };
 
   /* Fotogramas que tiene UNA especie y no todo su grupo.
@@ -102,7 +108,10 @@
     quieto: 2, camina: 8, come: 5, repta: 9, vuela: 12,
     ataque: 9, cava: 8, asoma: 2, monticulo: 4, hoyo: 1,
     tumbado: 1.4, bana: 6, duerme: 0.8,
-    posa: 1.6
+    posa: 1.6,
+    // El conejo corre a saltos rapidos; llevando la zanahoria va igual que
+    // andando, para que no parezca que la zanahoria le da prisa.
+    corre: 13, lleva: 8, madriguera: 1
   };
 
   /* Ficha de cada especie.
@@ -134,6 +143,10 @@
     serpiente_vibora: { grupo: 'serpiente', vel: 22, corre: 52, huye: 150, huella: [18, 8],  ritmo: 0.95,
                         agresivo: true, vista: 200, alcance: 36, dano: 5, cadencia: 1000, vida: 24 },
     topo:             { grupo: 'topo',      vel: 16, corre: 34, huye: 130, huella: [20, 9],  ritmo: 1.0 },
+    /* El conejo es el animal MAS RAPIDO del mapa y el mas asustadizo: 190 px/s
+       corriendo contra los 96 del zorro, y salta a huir a 240 px. Es lo que lo
+       hace conejo — no lo vas a alcanzar, solo lo vas a ver marcharse. */
+    conejo:           { grupo: 'conejo',    vel: 30, corre: 190, huye: 240, huella: [20, 10], ritmo: 1.25, vida: 22 },
     mariposa_blanca:  { grupo: 'mariposa',  vel: 46, huye: 95, huella: [8, 5], ritmo: 1.6 },
     mariposa_monarca: { grupo: 'mariposa',  vel: 42, huye: 95, huella: [8, 5], ritmo: 1.45 },
     mariposa_azul:    { grupo: 'mariposa',  vel: 50, huye: 90, huella: [8, 5], ritmo: 1.7 },
@@ -146,6 +159,7 @@
     ['serpiente_verde', 2], ['serpiente_coral', 1], ['serpiente_vibora', 2],
     ['topo', 7],
     ['mariposa_blanca', 5], ['mariposa_monarca', 4], ['mariposa_azul', 4],
+    ['conejo', 4],
     ['paloma', 4], ['pajaro', 5]
   ];
 
@@ -187,6 +201,26 @@
   var TOPO_FUERA     = [14000, 32000];  // cuánto se queda fuera
   var TOPO_VEL_BAJO  = 26;              // bajo tierra va más rápido
   var HOYO_DURA_MS   = 25000;           // cuánto se queda el agujero
+
+  /* ─────────────────────────── LOS CONEJOS ───────────────────────────────
+
+     Cada conejo cava UNA madriguera y se la queda: es su casa, no un escondite
+     de usar y tirar. Se dibuja en el mapa y sigue ahí aunque él ande lejos.
+
+     De noche vuelve a ella y se mete dentro — desaparece el conejo y queda la
+     madriguera con sus Z encima. Es distinto de dormir a la intemperie como los
+     demás, y es lo que hace que un conejo se lea como conejo.
+
+     De día busca zanahorias. Cuando encuentra una, la mitad de las veces se la
+     come ahí mismo y la otra mitad se la LLEVA a la madriguera con la zanahoria
+     en la boca. */
+  var CONEJO_CAVA_MS   = 1400;          // lo que tarda en abrir la madriguera
+  var CONEJO_ESPERA    = [4000, 13000]; // entre una cosa y otra
+  var CONEJO_COME_MS   = [3000, 7000];
+  var CONEJO_RADIO     = 520;           // no se aleja mucho de su casa
+  var CONEJO_PROB_CAVA = 0.30;          // de las veces que decide algo
+  var CONEJO_PROB_ZANA = 0.35;          // ...y de buscar zanahoria
+  var CONEJO_LLEVA     = 0.5;           // se la lleva a casa en vez de comerla
 
   /* Abanico de giros que se prueban cuando el camino de frente está cortado.
      Primero desvíos pequeños (bordear), y solo si nada sirve, la vuelta
@@ -507,6 +541,14 @@
     if (f.grupo === 'ave' && sitio) {
       a.soporte = sitio.clave;
       posarse(st, a, sitio);
+    } else if (f.grupo === 'conejo') {
+      a.fase = 'pasea';
+      a.rumbo = az(0, Math.PI * 2);
+      anim(a, 'camina');
+      a.hasta = scene.time.now + az(500, 3000);
+      a.casa = null;
+      a.madriguera = null;
+      a.llevando = false;
     } else if (f.grupo === 'mariposa') {
       a.fase = 'revolotea';
       anim(a, 'vuela');
@@ -1689,6 +1731,205 @@
   }
 
 
+
+  // ═══════════════════════════════════════════════════════════ CONEJOS
+  /** Las zanahorias del mapa: cultivos maduros y las flores/matas que valgan. */
+  function zanahoriasCerca(scene, a) {
+    var out = [];
+    /* Los cultivos del jugador son la fuente buena: si hay una parcela con algo
+       crecido, ahí va el conejo. El juego los guarda en scene.cropSprites o en
+       propiedades sueltas; se mira lo que haya sin dar por hecho ninguna. */
+    var mapa = scene.cropSprites || scene.cultivos || null;
+    if (mapa) {
+      for (var k in mapa) {
+        var c = mapa[k];
+        var spr = (c && c.sprite) ? c.sprite : c;
+        if (!spr || typeof spr.x !== 'number' || spr.active === false) continue;
+        if (Math.hypot(spr.x - a.spr.x, spr.y - a.spr.y) > CONEJO_RADIO) continue;
+        out.push({ x: spr.x, y: spr.y });
+      }
+    }
+    return out;
+  }
+
+  /** Dibuja la madriguera de un conejo donde está ahora. */
+  function abrirMadriguera(st, a) {
+    var scene = st.scene;
+    if (a.madriguera && a.madriguera.active) return a.madriguera;
+    if (!scene.textures.exists('gfa_conejo_madriguera_1')) return null;
+    var m = scene.add.sprite(a.spr.x, a.spr.y, 'gfa_conejo_madriguera_1');
+    m.setOrigin(0.5, 1);
+    m.setScale(ESCALA);
+    // Pegada al suelo: el conejo y todo lo demás pasan por encima.
+    m.setDepth(a.spr.y - 2);
+    var clave = 'gfa_conejo_madriguera';
+    if (scene.anims && !scene.anims.exists(clave)) {
+      try {
+        scene.anims.create({
+          key: clave, frameRate: RITMO.madriguera, repeat: -1,
+          frames: [{ key: 'gfa_conejo_madriguera_1' },
+                   { key: 'gfa_conejo_madriguera_2' }]
+        });
+      } catch (e) {}
+    }
+    try { m.anims.play(clave); } catch (e) {}
+    a.madriguera = m;
+    a.casa = { x: a.spr.x, y: a.spr.y };
+    log(scene, 'un conejo abre su madriguera');
+    return m;
+  }
+
+  /** ¿Está el conejo encima de su madriguera? */
+  function enCasa(a) {
+    return !!(a.casa && Math.hypot(a.spr.x - a.casa.x, a.spr.y - a.casa.y) < 10);
+  }
+
+  function irA(a, x, y, fase, pose) {
+    a.fase = fase;
+    a.destino = { x: x, y: y };
+    anim(a, pose);
+  }
+
+  function decidirConejo(st, a) {
+    var scene = st.scene;
+    var ahora = scene.time.now;
+    var r = Math.random();
+
+    // 1. Sin casa todavía: lo primero es cavarla.
+    if (!a.casa && r < CONEJO_PROB_CAVA + 0.25) {
+      a.fase = 'cava';
+      anim(a, 'cava');
+      a.hasta = ahora + CONEJO_CAVA_MS;
+      return;
+    }
+
+    // 2. Buscar una zanahoria.
+    if (r < CONEJO_PROB_ZANA) {
+      var zs = zanahoriasCerca(scene, a);
+      if (zs.length) {
+        var z = elegir(zs);
+        a.zanahoria = z;
+        irA(a, z.x, z.y, 'aZanahoria', 'camina');
+        a.hasta = ahora + 9000;
+        return;
+      }
+    }
+
+    // 3. Volver a casa de vez en cuando.
+    if (a.casa && r < 0.55 && !enCasa(a)) {
+      irA(a, a.casa.x, a.casa.y, 'aCasa', 'camina');
+      a.hasta = ahora + 9000;
+      return;
+    }
+
+    // 4. Lo normal: pasear o mordisquear.
+    if (r < 0.78) {
+      a.fase = 'pasea';
+      a.rumbo = az(0, Math.PI * 2);
+      anim(a, 'camina');
+    } else {
+      a.fase = 'come';
+      anim(a, 'come');
+      a.hasta = ahora + az(CONEJO_COME_MS[0], CONEJO_COME_MS[1]);
+      return;
+    }
+    a.hasta = ahora + az(CONEJO_ESPERA[0], CONEJO_ESPERA[1]);
+  }
+
+  /**
+   * El conejo.
+   *
+   * Huye CORRIENDO, no trotando: usa su pose de carrera y su velocidad de
+   * carrera, que es la más alta del mapa. Es la diferencia entre un conejo y
+   * cualquier otro bicho pequeño.
+   */
+  function actualizarConejo(st, a, ahora, dt) {
+    var scene = st.scene;
+    var p = scene.player;
+
+    // ── huir ────────────────────────────────────────────────────────────
+    if (p && !jugadorFantasma() && a.fase !== 'huye' && a.fase !== 'cava') {
+      var d = Math.hypot(a.spr.x - p.x, a.spr.y - p.y);
+      if (d < a.ficha.huye * a.miedo) {
+        a.fase = 'huye';
+        a.rumbo = Math.atan2(a.spr.y - p.y, a.spr.x - p.x);
+        anim(a, 'corre');
+        a.hasta = ahora + az(1400, 2600);
+        return;
+      }
+    }
+
+    switch (a.fase) {
+      case 'huye':
+        moverTierra(st, a, dt, true);
+        if (ahora >= a.hasta) decidirConejo(st, a);
+        return;
+
+      case 'cava':
+        if (ahora >= a.hasta) {
+          abrirMadriguera(st, a);
+          decidirConejo(st, a);
+        }
+        return;
+
+      case 'come':
+        if (ahora >= a.hasta) decidirConejo(st, a);
+        return;
+
+      case 'aZanahoria':
+      case 'aCasa':
+        var dst = a.destino;
+        if (!dst) { decidirConejo(st, a); return; }
+        var dx = dst.x - a.spr.x, dy = dst.y - a.spr.y;
+        var dist = Math.hypot(dx, dy);
+        var paso = a.ficha.vel * dt;
+        if (dist < 6 || paso >= dist || ahora >= a.hasta) {
+          if (a.fase === 'aZanahoria') {
+            /* La coge. La mitad de las veces se la come ahí y la otra mitad se
+               la lleva a casa: verlo cruzar el prado con la zanahoria en la
+               boca es la mitad de la gracia. */
+            if (a.casa && Math.random() < CONEJO_LLEVA) {
+              a.llevando = true;
+              irA(a, a.casa.x, a.casa.y, 'aCasa', 'lleva');
+              a.hasta = ahora + 12000;
+            } else {
+              a.fase = 'come';
+              anim(a, 'come');
+              a.hasta = ahora + az(CONEJO_COME_MS[0], CONEJO_COME_MS[1]);
+            }
+          } else {
+            a.llevando = false;
+            decidirConejo(st, a);
+          }
+          return;
+        }
+        moverTierraA(st, a, dt, a.ficha.vel);
+        a.rumbo = Math.atan2(dy, dx);
+        a.spr.setFlipX(dx < 0);
+        return;
+
+      default:
+        if (a.fase === 'pasea') {
+          moverTierra(st, a, dt, false);
+          a.rumbo += az(-0.5, 0.5) * dt;
+        }
+        if (ahora >= a.hasta) decidirConejo(st, a);
+    }
+  }
+
+  /**
+   * De noche el conejo se METE en su madriguera: no duerme a la intemperie.
+   *
+   * Devuelve true si se ha metido, para que el sueño normal no haga nada más.
+   */
+  function meterseEnMadriguera(st, a) {
+    if (a.grupo !== 'conejo' || !a.casa) return false;
+    if (!enCasa(a)) return false;
+    a.spr.setVisible(false);
+    if (a.sombra) a.sombra.setVisible(false);
+    return true;
+  }
+
   // ═══════════════════════════════════════════════════════════ EL SUEÑO
   /** Pose con la que se dibuja un animal dormido, la mejor que tenga. */
   function poseDormido(a) {
@@ -1718,6 +1959,10 @@
     a.fase = 'duerme';
     a.despiertaEn = hasta || 0;
     anim(a, poseDormido(a));
+    /* El conejo, si tiene casa y esta en ella, se METE dentro y no se le ve:
+       queda la madriguera con sus Z encima. Dormir tirado en la hierba a la
+       vista es de otros animales, no de un conejo. */
+    a.enMadriguera = meterseEnMadriguera(st, a);
     // El ave que pasa la noche en su rama aprovecha para hacerse el nido.
     if (!hasta && a.grupo === 'ave' && a.soporte && Math.random() < PROB_NIDO) {
       construirNido(st, a);
@@ -1734,6 +1979,11 @@
     if (!a.durmiendo) return;
     a.durmiendo = false;
     a.despiertaEn = 0;
+    if (a.enMadriguera) {
+      a.spr.setVisible(true);
+      if (a.sombra) a.sombra.setVisible(true);
+      a.enMadriguera = false;
+    }
     quitarZzz(a);
     // Vuelve a decidir en vez de retomar lo que hacía: al despertarse lo
     // primero que hace un animal es mirar alrededor, no seguir comiendo.
@@ -1771,7 +2021,13 @@
     if (!a.zzz) { crearZzz(st, a); if (!a.zzz) return; }
     var t = ((ahora + a.zzzFase) % ZZZ_CICLO) / ZZZ_CICLO;
     var alto = (a.spr.displayHeight || 30);
-    a.zzz.setPosition(a.spr.x + 9, a.spr.y - alto - t * ZZZ_SUBE);
+    /* Metido en la madriguera no se le ve, así que las Z salen del agujero: si
+       salieran de donde está el sprite escondido, flotarían solas en el aire. */
+    if (a.enMadriguera && a.casa) {
+      a.zzz.setPosition(a.casa.x + 9, a.casa.y - 14 - t * ZZZ_SUBE);
+    } else {
+      a.zzz.setPosition(a.spr.x + 9, a.spr.y - alto - t * ZZZ_SUBE);
+    }
     a.zzz.setTexture('gfa_' + ZZZ[Math.min(2, Math.floor(t * 3))]);
     // entra rápido y se va despacio
     a.zzz.setAlpha(t < 0.18 ? t / 0.18 : Math.max(0, 1 - (t - 0.18) / 0.82) * 0.95);
@@ -1804,6 +2060,13 @@
     if (ahora < a.hasta) return false;
 
     if (esDeNoche()) {
+      /* El conejo no se echa donde le pille: primero vuelve a su madriguera.
+         Si aún no tiene casa, duerme fuera como los demás. */
+      if (a.grupo === 'conejo' && a.dormilon && a.casa && !enCasa(a)) {
+        irA(a, a.casa.x, a.casa.y, 'aCasa', 'camina');
+        a.hasta = ahora + 12000;
+        return false;
+      }
       if (a.dormilon && !(a.grupo === 'ave' && a.fase === 'volando')) {
         dormirse(st, a, null);
         return true;
@@ -1881,6 +2144,7 @@
       if (a.grupo === 'ave') actualizarAve(st, a, ahora, dt);
       else if (a.grupo === 'mariposa') actualizarMariposa(st, a, ahora, dt);
       else if (a.grupo === 'topo') actualizarTopo(st, a, ahora, dt);
+      else if (a.grupo === 'conejo') actualizarConejo(st, a, ahora, dt);
       else actualizarTierra(st, a, ahora, dt);
     }
 
@@ -1995,6 +2259,7 @@
       var an = st.animales[i];
       if (an.spr) an.spr.destroy();
       if (an.zzz) an.zzz.destroy();
+      if (an.madriguera) an.madriguera.destroy();
       if (an.barraFondo) an.barraFondo.destroy();
       if (an.barraVida) an.barraVida.destroy();
       if (an.sombra) an.sombra.destroy();
@@ -2039,6 +2304,10 @@
       objetivoDe: objetivoDe, actualizarAgresivo: actualizarAgresivo,
       fuenteDe: fuenteDe, esDeNoche: esDeNoche, companiaDe: companiaDe,
       irseJuntas: irseJuntas, construirNido: construirNido,
+      actualizarConejo: actualizarConejo, decidirConejo: decidirConejo,
+      abrirMadriguera: abrirMadriguera, enCasa: enCasa,
+      meterseEnMadriguera: meterseEnMadriguera,
+      zanahoriasCerca: zanahoriasCerca, CONEJO_RADIO: CONEJO_RADIO,
       dormirse: dormirse, despertar: despertar, actualizarSuenio: actualizarSuenio,
       poseDormido: poseDormido, radioDespertar: radioDespertar,
       moverZzz: moverZzz, PROB_DORMILON: PROB_DORMILON, SIESTA_MS: SIESTA_MS,
