@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Banco de pruebas — sol y nieve</title>
+<style>
+  html,body{margin:0;background:#0e1208;color:#dfe7d8;font:12px/1.4 system-ui,sans-serif}
+  #panel{position:fixed;right:6px;top:6px;z-index:9;background:rgba(8,12,8,.9);
+         padding:8px 10px;border-radius:8px;width:210px;white-space:pre-wrap}
+  b{color:#f0e6a0}
+  button{margin:2px 1px;padding:4px 7px;border-radius:5px;border:1px solid #4b6b45;
+         background:#25361f;color:#dfe7d8;cursor:pointer;font-size:11px}
+</style>
+</head>
+<body>
+<div id="juego"></div>
+<div id="panel">
+  <div id="botones">
+    <button data-q="soleado">Soleado</button>
+    <button data-q="nieve">Nieve</button>
+    <button data-q="lluvia">Lluvia</button>
+    <button data-q="despejado">Nada</button>
+  </div>
+  <div id="salida">…</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script src="./gf-profundidad.js?v=9"></script>
+<script src="./gf-clima.js?v=9"></script>
+<script src="./gf-nieve.js?v=9"></script>
+<script>
+/* Banco de pruebas del clima SOLEADO y de la nieve que se acumula, con los
+   módulos REALES y sin servidor (montar con `sinRed`). Se le pone una escena
+   con objetos que llevan los nombres del mapa para que GFNieve los encuentre. */
+
+var MANDOS = { noche: 0 };
+window.GFCiclo = { oscuridad: function () { return MANDOS.noche; } };
+
+var OBJETOS = [
+  { prop: 'sprite_jj',      url: './Game/Objetos/casa de tienda mejorada.png', x: 60,  y: 300 },
+  { prop: 'sprite_pinos1',  url: './Game/Objetos/pinos.png',                   x: 330, y: 300 },
+  { prop: 'sprite_arbolx1', url: './Game/Objetos/arbol.png',                   x: 420, y: 300 },
+  { prop: 'sprite_piedras_1', url: './Game/Objetos/arbusto.png',               x: 560, y: 300 }
+];
+
+var escena;
+
+var Escena = {
+  preload: function () {
+    escena = this;
+    OBJETOS.forEach(function (o, i) { escena.load.image('t' + i, o.url); });
+    this.load.image('suelo', './recortadas/low/tile_r0_c0_id1_low.png');
+    if (window.GFClima) GFClima.precargar(this);
+  },
+  create: function () {
+    this.add.image(0, 0, 'suelo').setOrigin(0).setDisplaySize(1100, 620).setDepth(-10);
+    OBJETOS.forEach(function (o, i) {
+      var spr = escena.add.image(o.x, o.y, 't' + i).setOrigin(0, 1).setDepth(o.y);
+      escena[o.prop] = spr;
+    });
+
+    // Un jugador de mentira: GFNieve pone las manchas alrededor de él.
+    this.player = { x: 400, y: 380 };
+    // Y un escenario sin paredes, para que las manchas encuentren suelo libre.
+    this._chocaConEscenario = function () { return false; };
+
+    GFClima.montar(this, { sinRed: true });
+    GFNieve.montar(this);
+
+    this.cameras.main.setZoom(1.0);
+    this.cameras.main.centerOn(340, 250);
+  },
+  update: function () {
+    var d = GFClima.diagnostico();
+    var n = GFNieve.estado(escena);
+    document.getElementById('salida').textContent =
+      'sol ' + (d.fuerzaSol == null ? '—' : d.fuerzaSol) +
+      ' · lluvia ' + d.fuerzaLluvia + '\n' +
+      'manto ' + (n ? n.manto : '—') +
+      ' · capas ' + (n ? n.capas : 0) +
+      ' · manchas ' + (n ? n.manchasVivas : 0);
+  }
+};
+
+new Phaser.Game({
+  type: Phaser.AUTO, parent: 'juego',
+  width: 780, height: 470,
+  backgroundColor: '#2b3a24', pixelArt: true, roundPixels: true,
+  scene: Escena
+});
+
+document.getElementById('botones').addEventListener('click', function (e) {
+  var q = e.target && e.target.getAttribute('data-q');
+  if (!q) return;
+  GFClima.probar(q);
+  GFNieve.forzar(q === 'nieve' ? 1 : 0);
+});
+window.MANDOS = MANDOS;
+</script>
+</body>
+</html>

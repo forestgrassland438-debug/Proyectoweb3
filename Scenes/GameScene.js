@@ -27093,6 +27093,12 @@ getPlayerIntentDirection() {
       if (window.GFSombras && window.GFSombras.montar) {
         window.GFSombras.montar(this);
       }
+      /* Y la nieve que se queda: manchas en el suelo y nieve encima de casas y
+         arboles mientras nieve. No cuesta nada si no nieva: se sale del update
+         en dos comprobaciones y no dibuja ni una textura hasta que hace falta. */
+      if (window.GFNieve && window.GFNieve.montar) {
+        window.GFNieve.montar(this);
+      }
     }
 
     // Obtener las coordenadas en el mapa

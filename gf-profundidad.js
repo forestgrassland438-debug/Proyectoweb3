@@ -140,6 +140,10 @@
   /* Solape entre franjas vecinas, en píxeles de la TEXTURA. Ver `partir`:
      es lo que hace imposible que se vea una costura. */
   var FRANJA_SOLAPE    = 1;
+  /* Qué proporción del ancho del objeto tiene que ser sólida para que valga la
+     pena partirlo. Separa las casas (planta ancha) de los árboles y los faroles
+     (un tronco fino y mucha copa). Ver franjasDe. */
+  var FRANJA_SOLIDO_MIN = 0.55;
 
   var cacheMedidas = {};        // clave de textura -> caja opaca
 
@@ -344,6 +348,9 @@
       cols.push({ x: x, y: ultimo });
     }
     if (solidas < SONDA_MIN_COL) return null;
+    /* Cuánto del ancho del objeto es SÓLIDO de verdad. Lo usa franjasDe() para
+       no partir árboles: ver FRANJA_SOLIDO_MIN. */
+    cols.solidas = solidas / cols.length;
 
     // Rellenar huecos con la columna sólida más cercana: primero hacia
     // adelante y luego hacia atrás, que cubre los huecos de los extremos.
@@ -421,6 +428,23 @@
     var min = Math.min.apply(null, y);
     var max = Math.max.apply(null, y);
     if (max - min < FRANJA_UMBRAL) return null;        // objeto plano: un número
+
+    /* UN ÁRBOL NO SE PARTE.
+
+       Partir en franjas tiene sentido cuando el objeto tiene ALAS: trozos
+       distintos apoyados en el suelo a alturas distintas. Un árbol no las
+       tiene — tiene UN tronco y una copa que vuela por encima —, y lo mismo un
+       farol, un cartel o una estatua. Si en uno de esos aparece variación es
+       porque la sonda ha rozado la colisión de algo que hay al lado, y partirlo
+       solo puede salir mal.
+
+       Se distingue por cuánto de su ancho es sólido: la planta de una casa
+       ocupa casi todo su ancho, y la de un árbol es el tronco y ya. Por debajo
+       de esta proporción, un solo número — que es justo lo que había antes y
+       para estos objetos es lo correcto. */
+    if (typeof cols.solidas === 'number' && cols.solidas < FRANJA_SOLIDO_MIN) {
+      return null;
+    }
 
     /* Sumas acumuladas: con ellas el coste de cualquier tramo sale de dos
        restas, y el bucle de abajo pasa de ser cúbico a cuadrático. */
@@ -647,7 +671,24 @@
     var cambiaV = (e.visible !== spr.visible);
     var cambiaA = (e.alpha !== spr.alpha);
     var cambiaT = (e.tinte !== tinte);
-    if (!movido && !cambiaV && !cambiaA && !cambiaT) return;
+    /* EL GIRO Y LA ESCALA TAMBIÉN.
+
+       FALLO QUE ESTO ARREGLA — "a veces un árbol se parte por la mitad, una
+       parte se mueve y la otra no":
+
+       gf-viento mece los árboles cambiándoles la ROTACIÓN. Ese giro se lo
+       aplicaba solo al sprite original, que es quien se queda la primera
+       franja; las copias de las demás franjas se quedaban clavadas. Resultado:
+       media copa balanceándose y la otra media quieta, con el corte a la vista.
+
+       Las franjas comparten posición y origen, así que girarlas TODAS el mismo
+       ángulo sobre el mismo punto las mantiene unidas exactamente. Lo mismo con
+       la escala y el volteo: cualquier cosa que le pase al original tiene que
+       pasarle a sus trozos, o dejan de ser el mismo objeto. */
+    var cambiaG = (e.rot !== spr.rotation ||
+                   e.sx !== spr.scaleX || e.sy !== spr.scaleY ||
+                   e.fx !== spr.flipX);
+    if (!movido && !cambiaV && !cambiaA && !cambiaT && !cambiaG) return;
 
     for (var i = 0; i < tr.length; i++) {
       var t = tr[i];
@@ -656,9 +697,15 @@
       if (cambiaV) t.setVisible(spr.visible);
       if (cambiaA) t.setAlpha(spr.alpha);
       if (cambiaT) { if (tinte < 0) t.clearTint(); else t.setTint(tinte); }
+      if (cambiaG) {
+        t.setRotation(spr.rotation);
+        t.setScale(spr.scaleX, spr.scaleY);
+        if (t.setFlipX) t.setFlipX(!!spr.flipX);
+      }
     }
     e.x = spr.x; e.y = spr.y; e.visible = spr.visible;
     e.alpha = spr.alpha; e.tinte = tinte;
+    e.rot = spr.rotation; e.sx = spr.scaleX; e.sy = spr.scaleY; e.fx = spr.flipX;
   }
 
   // ------------------------------------------------- línea de suelo
@@ -939,6 +986,7 @@
                 FRANJA_UMBRAL: FRANJA_UMBRAL, FRANJA_ERROR: FRANJA_ERROR,
                 FRANJA_MAX: FRANJA_MAX, FRANJA_ANCHO_MIN: FRANJA_ANCHO_MIN,
                 FRANJA_SOLAPE: FRANJA_SOLAPE, FRANJA_PCT: FRANJA_PCT,
+                FRANJA_SOLIDO_MIN: FRANJA_SOLIDO_MIN,
                 sondearSuelo: sondearSuelo, SONDA_PCT: SONDA_PCT,
                 SONDA_PASO_X: SONDA_PASO_X, SONDA_DESDE: SONDA_DESDE,
                 calibrar: calibrar, SOLAPE_MIN: SOLAPE_MIN,

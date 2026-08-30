@@ -15,7 +15,7 @@
 <div id="panel">…</div>
 
 <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
-<script src="./gf-profundidad.js?v=5"></script>
+<script src="./gf-profundidad.js?v=10"></script>
 <script>
 /* Banco de pruebas del Y-SORT POR FRANJAS con el módulo REAL.
    Se monta una casa en L y unas colisiones que imitan la planta de una casa
@@ -119,6 +119,13 @@ var Escena = {
       jugador.x = 150 + (Math.sin(t / 3) * 0.5 + 0.5) * 480;
     }
     jugador.setDepth(GFProfundidad.piesDe(this, jugador));
+
+    /* MECE LA CASA como gf-viento mece los árboles. Sirve para comprobar que
+       las franjas giran TODAS a la vez: si alguna se quedara quieta, el objeto
+       se partiría por el corte y se vería al instante. */
+    if (window.MECER) {
+      casa.rotation = Math.sin(this.time.now / 500) * 0.06;
+    }
 
     var e = GFProfundidad.estado(this);
     var tr = casa.__gfFranjas || [];

@@ -503,6 +503,204 @@
     return puntos;
   }
 
+  /**
+   * La caja del DIBUJO de un sprite, en el mundo.
+   *
+   * `getBounds()` devuelve el rectángulo del ARCHIVO, y casi todos los PNG del
+   * juego traen transparencia de sobra alrededor. Para colocar algo ENCIMA de
+   * otra cosa —una mariposa sobre una flor— esa diferencia es justo el error
+   * que se ve: la mariposa aparece flotando por encima de la flor, o metida
+   * dentro del arbusto, según cuánto relleno traiga ese sprite.
+   *
+   * La caja opaca la mide gf-profundidad.js y la guarda en caché, así que esto
+   * sale gratis. Sin ese módulo se devuelve la caja entera, que es lo que había.
+   */
+  function cajaDibujada(scene, spr) {
+    var b;
+    try { b = spr.getBounds(); } catch (e) { return null; }
+    if (!b || !isFinite(b.centerX) || !b.width) return null;
+
+    var P = window.GFProfundidad, m = null;
+    if (P && P.medir && spr.texture && spr.texture.key) {
+      try { m = P.medir(scene, spr.texture.key); } catch (e) {}
+    }
+    if (!m || !m.leida || !m.ancho || !m.alto) {
+      return { x: b.x, y: b.y, width: b.width, height: b.height,
+               centerX: b.centerX, top: b.top, bottom: b.bottom };
+    }
+    var ex = b.width / m.ancho, ey = b.height / m.alto;
+    var x = b.x + m.izq * ex;
+    var y = b.y + m.arriba * ey;
+    var w = Math.max(1, (m.der - m.izq + 1) * ex);
+    var h = Math.max(1, (m.abajo - m.arriba + 1) * ey);
+    return { x: x, y: y, width: w, height: h,
+             centerX: x + w / 2, top: y, bottom: y + h };
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     ANIMALES CONGELADOS
+     ──────────────────────────────────────────────────────────────────────
+     Cuando nieva de verdad, de vez en cuando un bicho se queda tieso: se para,
+     se le pone el pelaje escarchado y le sale un bloque de hielo alrededor.
+     Al rato se descongela y sigue a lo suyo. No muere ni pierde vida — es un
+     detalle del mundo, no una mecánica.
+
+     A QUIÉN: solo a los de tierra (zorros, cocodrilo, cerdos, serpientes…).
+     Un pájaro se va volando y una mariposa con nieve no está fuera; helar a
+     los que están posados sería castigar al que no puede huir.
+
+     EL HIELO NO ES UNA IMAGEN NUEVA: se dibuja con canvas al arrancar. Añadir
+     un PNG obliga a subirlo al servidor, y ya se ha visto lo que pasa cuando
+     falta uno (el clima entero se quedó sin montar por catorce que no estaban).
+     Lo que se dibuja solo, no se puede olvidar de subir.                    */
+
+  var CONGELA_MIRA    = 4000;        // cada cuánto se sortea, por animal
+  var CONGELA_PROB    = 0.045;       // probabilidad en cada sorteo, a nieve tope
+  var CONGELA_DURA    = [7000, 18000];
+  var CONGELA_TINTE   = 0xbfe4ff;
+  /* Los grupos que existen son: ave, conejo, mariposa, serpiente, tierra y
+     topo. El cocodrilo, los zorros, la vaca y los cerdos son 'tierra'. Se dejan
+     fuera las aves y las mariposas (se van volando), y el topo, que vive bajo
+     tierra y no se ve. */
+  var CONGELA_GRUPOS  = { tierra: 1, conejo: 1, serpiente: 1 };
+  var CLAVE_HIELO     = 'gfa_hielo';
+
+  /** Cuánta nieve cae ahora mismo, de 0 a 1. */
+  function nieveAhora() {
+    var C = window.GFClima;
+    if (!C || !C.estado) return 0;
+    try {
+      var e = C.estado();
+      if (!e || !e.activo || !e.nieve) return 0;
+      return Math.max(0, Math.min(1, Number(e.nieveFuerza) || 1));
+    } catch (e) { return 0; }
+  }
+
+  /**
+   * El bloque de hielo, dibujado una vez con canvas.
+   *
+   * Un rectángulo redondeado de hielo con brillo arriba a la izquierda —de
+   * donde viene la luz en este juego, igual que las sombras— y el borde más
+   * claro. Se estira luego al tamaño de cada bicho.
+   */
+  function texturaHielo(scene) {
+    if (scene.textures.exists(CLAVE_HIELO)) return CLAVE_HIELO;
+    var W = 64, H = 64;
+    try {
+      var cv = document.createElement('canvas');
+      cv.width = W; cv.height = H;
+      var c = cv.getContext('2d');
+      if (!c) return null;
+
+      // Cuerpo: azul muy claro, más denso por abajo (el hielo se acumula).
+      var g = c.createLinearGradient(0, 0, W * 0.6, H);
+      g.addColorStop(0,    'rgba(226,246,255,0.62)');
+      g.addColorStop(0.55, 'rgba(176,222,248,0.50)');
+      g.addColorStop(1,    'rgba(140,196,232,0.66)');
+      c.fillStyle = g;
+      redondeado(c, 3, 3, W - 6, H - 6, 10);
+      c.fill();
+
+      // Borde helado
+      c.strokeStyle = 'rgba(240,252,255,0.85)';
+      c.lineWidth = 2;
+      redondeado(c, 3, 3, W - 6, H - 6, 10);
+      c.stroke();
+
+      // Brillo arriba a la izquierda: es lo que lo hace leer como HIELO y no
+      // como una mancha azul.
+      c.fillStyle = 'rgba(255,255,255,0.55)';
+      c.beginPath();
+      c.moveTo(11, 9); c.lineTo(25, 9); c.lineTo(15, 30); c.lineTo(8, 30);
+      c.closePath(); c.fill();
+      c.fillStyle = 'rgba(255,255,255,0.32)';
+      c.beginPath();
+      c.moveTo(31, 11); c.lineTo(37, 11); c.lineTo(27, 27); c.lineTo(22, 27);
+      c.closePath(); c.fill();
+
+      scene.textures.addCanvas(CLAVE_HIELO, cv);
+      return CLAVE_HIELO;
+    } catch (e) { return null; }
+  }
+
+  /** Rectángulo con las esquinas redondeadas, que canvas no trae en todos lados. */
+  function redondeado(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.lineTo(x + w - r, y); c.quadraticCurveTo(x + w, y, x + w, y + r);
+    c.lineTo(x + w, y + h - r); c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    c.lineTo(x + r, y + h); c.quadraticCurveTo(x, y + h, x, y + h - r);
+    c.lineTo(x, y + r); c.quadraticCurveTo(x, y, x + r, y);
+    c.closePath();
+  }
+
+  function congelar(st, a, ahora) {
+    if (a.congelado || a.muerto || a.durmiendo) return;
+    var clave = texturaHielo(st.scene);
+    if (!clave) return;
+    a.congelado = true;
+    a.hieloDesde = ahora;
+    a.deshielaEn = ahora + az(CONGELA_DURA[0], CONGELA_DURA[1]);
+    a.faseAntesHielo = a.fase;
+    try { if (a.spr.anims) a.spr.anims.pause(); } catch (e) {}
+    a.spr.setTint(CONGELA_TINTE);
+
+    var w = (a.spr.displayWidth || 20) * 1.35;
+    var h = (a.spr.displayHeight || 20) * 1.2;
+    a.hielo = st.scene.add.image(a.spr.x, a.spr.y, clave);
+    a.hielo.setOrigin(0.5, 1);
+    a.hielo.setDisplaySize(w, h);
+    a.hielo.setDepth(a.spr.depth + 1);
+    a.hielo.setAlpha(0);
+    log(st.scene, a.especie, 'se ha quedado congelado');
+  }
+
+  function descongelar(a) {
+    if (!a.congelado) return;
+    a.congelado = false;
+    a.deshielaEn = 0;
+    try { if (a.spr.anims) a.spr.anims.resume(); } catch (e) {}
+    if (a.spr.clearTint) a.spr.clearTint();
+    if (a.hielo) { a.hielo.destroy(); a.hielo = null; }
+  }
+
+  /**
+   * ¿Está helado? Devuelve true si este animal no tiene que hacer nada más
+   * este frame.
+   */
+  function actualizarHielo(st, a, ahora) {
+    var nieve = nieveAhora();
+
+    if (a.congelado) {
+      // Se descongela por tiempo, o en cuanto deja de nevar.
+      if (ahora >= a.deshielaEn || nieve <= 0.02) { descongelar(a); return false; }
+      if (a.hielo) {
+        a.hielo.setPosition(a.spr.x, a.spr.y + 2);
+        a.hielo.setDepth(a.spr.depth + 1);
+        /* Entra y sale con un fundido, y tiembla un pelín: un bloque de hielo
+           que aparece de golpe parece un fallo de dibujo. */
+        var queda = a.deshielaEn - ahora;
+        /* Entra y sale con un fundido de 600 ms. Se mide contra el instante en
+           que se congeló, no contra la duración máxima: la duración es al azar
+           y con la máxima el fundido de entrada salía mal en los hielos cortos. */
+        var f = Math.min(1, Math.min(ahora - a.hieloDesde, queda) / 600);
+        a.hielo.setAlpha(Math.max(0.25, Math.min(0.9, f)));
+        a.hielo.setVisible(a.spr.visible !== false);
+      }
+      return true;                       // ni se mueve, ni huye, ni ataca
+    }
+
+    if (nieve <= 0.05) return false;
+    if (!CONGELA_GRUPOS[a.grupo]) return false;   // aves y mariposas, no
+    if (a.durmiendo || a.muerto) return false;
+
+    if (!a.proximoHielo) { a.proximoHielo = ahora + az(CONGELA_MIRA, CONGELA_MIRA * 2.5); }
+    if (ahora < a.proximoHielo) return false;
+    a.proximoHielo = ahora + az(CONGELA_MIRA, CONGELA_MIRA * 2.5);
+    if (Math.random() < CONGELA_PROB * nieve) congelar(st, a, ahora);
+    return !!a.congelado;
+  }
+
   // ================================================================ ANIMAL
   function nuevo(st, especie, punto, sitio) {
     var scene = st.scene;
@@ -1592,7 +1790,12 @@
     ['sprite_arbustos_', 28], ['sprite_arbusto_ect', 18],
     ['sprite_piedras_', 34]
   ];
-  var MAR_ALTURA   = [0.20, 0.55];     // dónde se posa dentro del objeto
+  /* Dónde se posa dentro del DIBUJO de la flor, contando desde su borde de
+     arriba. La mariposa tiene el origen en los pies, así que estos valores son
+     dónde apoya: en el tercio de arriba de la flor, que es donde está el
+     pétalo. Antes se medía sobre la caja del archivo y por eso a veces se
+     quedaba en el aire, por encima de la flor. */
+  var MAR_ALTURA   = [0.12, 0.42];
   var MAR_POSADA   = [3000, 9000];
   var MAR_VUELO    = [2500, 6000];
   var MAR_RADIO    = 420;              // no cruzan medio mapa de un tirón
@@ -1605,9 +1808,10 @@
         var clave = FAMILIAS_MARIPOSA[f][0] + i;
         var spr = scene[clave];
         if (!spr || spr.active === false) continue;
-        var b;
-        try { b = spr.getBounds(); } catch (e) { continue; }
-        if (!b || !isFinite(b.centerX)) continue;
+        /* La caja del DIBUJO, no la del archivo: si no, la mariposa se posa en
+           el relleno transparente y queda flotando al lado de la flor. */
+        var b = cajaDibujada(scene, spr);
+        if (!b) continue;
         out.push({ clave: clave,
                    x: b.centerX + az(-b.width * 0.22, b.width * 0.22),
                    y: b.top + b.height * az(MAR_ALTURA[0], MAR_ALTURA[1]),
@@ -1619,8 +1823,8 @@
     for (i = 1; i <= 17; i++) {
       var t = scene['sprite_tronco_acostado_' + i + 'png'];
       if (!t || t.active === false) continue;
-      var bt;
-      try { bt = t.getBounds(); } catch (e) { continue; }
+      var bt = cajaDibujada(scene, t);
+      if (!bt) continue;
       out.push({ clave: 'sprite_tronco_acostado_' + i + 'png',
                  x: bt.centerX + az(-bt.width * 0.3, bt.width * 0.3),
                  y: bt.top + bt.height * 0.35,
@@ -2160,6 +2364,10 @@
       actualizarBarraAnimal(a, ahora);
       actualizarSombra(a);
 
+      // Congelado: ni se mueve ni ataca ni se asusta. Va ANTES del sueño
+      // porque un animal helado no se duerme, se queda como está.
+      if (actualizarHielo(st, a, ahora)) continue;
+
       // Dormido: ni se mueve ni ataca ni se asusta, solo suelta sus Z.
       if (actualizarSuenio(st, a, ahora)) continue;
 
@@ -2284,6 +2492,7 @@
       if (an.madriguera) an.madriguera.destroy();
       if (an.barraFondo) an.barraFondo.destroy();
       if (an.barraVida) an.barraVida.destroy();
+      if (an.hielo) an.hielo.destroy();
       if (an.sombra) an.sombra.destroy();
     }
     st.animales.length = 0;
@@ -2307,9 +2516,44 @@
     });
   }
 
+  /** La escena viva con fauna montada, para las pruebas desde la consola. */
+  function escenaConFauna() {
+    var g = window.game || (window.phaserScaler && window.phaserScaler.game);
+    try {
+      var ss = (g && g.scene && g.scene.getScenes) ? (g.scene.getScenes(true) || []) : [];
+      for (var i = 0; i < ss.length; i++) if (ss[i].__gfFauna) return ss[i].__gfFauna;
+    } catch (e) {}
+    return null;
+  }
+
+  /** Congela unos cuantos AHORA, para verlo sin esperar a que nieve. */
+  function congelarAhora(cuantos) {
+    var st = escenaConFauna();
+    if (!st) return 0;
+    var n = 0, ahora = st.scene.time.now;
+    for (var i = 0; i < st.animales.length && n < (cuantos || 1); i++) {
+      var a = st.animales[i];
+      if (!a.spr || a.muerto || a.congelado) continue;
+      if (!CONGELA_GRUPOS[a.grupo]) continue;
+      congelar(st, a, ahora);
+      if (a.congelado) n++;
+    }
+    return n;
+  }
+
   window.GFAnimales = {
     precargar: precargar,
     montar: montar,
+    congelar: congelarAhora,
+    descongelarTodos: function () {
+      var st = escenaConFauna();
+      if (!st) return 0;
+      var n = 0;
+      for (var i = 0; i < st.animales.length; i++) {
+        if (st.animales[i].congelado) { descongelar(st.animales[i]); n++; }
+      }
+      return n;
+    },
     desmontar: desmontar,
     estado: estado,
     RUTA: RUTA,

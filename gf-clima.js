@@ -151,6 +151,88 @@
    * El degradado no es lineal: cae rápido al principio y luego se arrastra
    * (0.45 a la mitad del recorrido), que es como se apaga la luz de verdad.
    */
+  /* ══════════════════════════════════════════════════════════════════════
+     RAYOS DE SOL
+     ──────────────────────────────────────────────────────────────────────
+     Entran por la esquina de ARRIBA A LA IZQUIERDA. No es un capricho: es de
+     donde viene la luz en todo el arte del juego y hacia donde apunta el sol
+     que calcula gf-sombras.js. Si los rayos vinieran de otro lado, el mundo
+     tendría dos soles y se notaría al instante.
+
+     CÓMO SE HACE QUE PAREZCAN LUZ Y NO TIRAS BLANCAS. Tres cosas:
+
+       · MEZCLA ADITIVA. La luz SUMA, no tapa. Una tira blanca normal encima
+         del mundo es un plástico; la misma tira sumando es un haz.
+       · BORDES QUE SE APAGAN. El haz se difumina a lo ancho y se va perdiendo
+         a lo largo, porque un rayo de sol no tiene canto.
+       · NUNCA QUIETOS. Cada haz respira con su propio ritmo —abre y cierra un
+         poco el ángulo y sube y baja la intensidad—, que es lo que hace el
+         polvo del aire de verdad. Un haz fijo se lee como un dibujo pegado.
+
+     Y de noche no hay rayos: la intensidad se multiplica por la luz del día,
+     así que al atardecer se apagan solos.                                  */
+  var N_RAYOS      = 7;
+  var SOL_ANGULO   = -0.95;      // radianes: hacia abajo y a la derecha
+  var SOL_ABANICO  = 0.30;       // cuánto se abren unos de otros
+  var SOL_ALFA     = 0.16;       // por haz, ya con la mezcla aditiva
+  var SOL_ENTRA_MS = 3500;       // lo que tarda en entrar y en irse
+  var PROF_SOL     = 8020;       // sobre el mundo, bajo la cortina de lluvia
+
+  /** El haz: blanco por el centro, apagado a los lados y hacia la punta. */
+  function texturaRayo(scene) {
+    var clave = 'gfc_rayo_sol';
+    if (scene.textures.exists(clave)) return clave;
+    var W = 64, H = 256;
+    try {
+      var c = scene.textures.createCanvas(clave, W, H);
+      var ctx = c.getContext();
+
+      // A lo ancho: el canto se apaga. Un haz con borde recto no es un haz.
+      var gx = ctx.createLinearGradient(0, 0, W, 0);
+      gx.addColorStop(0.00, 'rgba(255,246,214,0)');
+      gx.addColorStop(0.30, 'rgba(255,249,226,0.55)');
+      gx.addColorStop(0.50, 'rgba(255,253,240,1)');
+      gx.addColorStop(0.70, 'rgba(255,249,226,0.55)');
+      gx.addColorStop(1.00, 'rgba(255,246,214,0)');
+      ctx.fillStyle = gx;
+      ctx.fillRect(0, 0, W, H);
+
+      /* A lo largo: se va perdiendo. `destination-in` conserva el color que ya
+         hay y le aplica ESTE alfa — es la forma de cruzar dos degradados sin
+         que el segundo repinte el primero. */
+      ctx.globalCompositeOperation = 'destination-in';
+      var gy = ctx.createLinearGradient(0, 0, 0, H);
+      gy.addColorStop(0.00, 'rgba(0,0,0,0.85)');
+      gy.addColorStop(0.35, 'rgba(0,0,0,1)');
+      gy.addColorStop(1.00, 'rgba(0,0,0,0)');
+      ctx.fillStyle = gy;
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'source-over';
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  /** El resplandor de la esquina: de donde salen los haces. */
+  function texturaResplandor(scene) {
+    var clave = 'gfc_resplandor';
+    if (scene.textures.exists(clave)) return clave;
+    var T = 256;
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      var g = ctx.createRadialGradient(T / 2, T / 2, 0, T / 2, T / 2, T / 2);
+      g.addColorStop(0.00, 'rgba(255,252,236,0.95)');
+      g.addColorStop(0.25, 'rgba(255,244,206,0.45)');
+      g.addColorStop(0.60, 'rgba(255,238,190,0.14)');
+      g.addColorStop(1.00, 'rgba(255,236,186,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, T, T);
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
   function texturasBorde(scene) {
     var hecho = true;
     ['gfc_borde_v', 'gfc_borde_h'].forEach(function (clave) {
@@ -268,6 +350,7 @@
     viento: false, vientoFuerza: 1,
     lluvia: false, lluviaFuerza: 1,
     nieve: false, nieveFuerza: 1,
+    soleado: false, soleadoFuerza: 1,
     truenos: true, estacion: 'verano', cargado: false
   };
   var montado = null;
@@ -320,11 +403,16 @@
     estado.lluviaFuerza = Number(d.lluviaFuerza) || 1;
     estado.nieve        = !!d.nieve;
     estado.nieveFuerza  = Number(d.nieveFuerza) || 1;
+    estado.soleado      = !!d.soleado;
+    estado.soleadoFuerza = Number(d.soleadoFuerza) || 1;
     estado.truenos      = !!d.truenos;
     if (ESTACIONES[d.estacion]) estado.estacion = d.estacion;
     estado.cargado      = true;
     mandarAlViento();
-    log('tiempo:', estado.lluvia ? 'lluvia' : (estado.viento ? 'viento' : 'despejado'));
+    log('tiempo:', estado.lluvia ? 'lluvia'
+                 : (estado.nieve ? 'nieve'
+                 : (estado.soleado ? 'soleado'
+                 : (estado.viento ? 'viento' : 'despejado'))));
     return true;
   }
 
@@ -907,6 +995,7 @@
     st.fuerzaNieve  = hacia(st.fuerzaNieve,
                             (estado.activo && estado.nieve) ? estado.nieveFuerza : 0, paso);
 
+    moverSol(st, ahora, delta, w, h);
     filtroEstacion(st, delta, w, h);
 
     var lloviendo = st.fuerzaLluvia > 0.01;
@@ -977,6 +1066,61 @@
     }
     moverBorde(st, ahora, w, h, L.m);
     if (st.truenoEn && ahora >= st.truenoEn) { sacudir(st); st.truenoEn = 0; }
+  }
+
+  /**
+   * Los haces de sol.
+   *
+   * El sol se pone FUERA del lienzo, arriba a la izquierda, y cada haz sale de
+   * ahí girado un poco distinto. La intensidad se multiplica por la luz del día
+   * (gf-ciclo-dia): al atardecer los rayos se van solos, porque un rayo de sol
+   * de noche no tiene sentido y quedaría como una linterna.
+   */
+  function moverSol(st, ahora, delta, w, h) {
+    if (!st.rayosSol || !st.rayosSol.length) return;
+
+    var quiere = (estado.activo && estado.soleado) ? estado.soleadoFuerza : 0;
+    st.fuerzaSol = hacia(st.fuerzaSol, quiere, delta / SOL_ENTRA_MS);
+
+    // La luz del día. Sin el módulo del ciclo se da por hecho que es de día.
+    var dia = 1;
+    var C = window.GFCiclo;
+    if (C && C.oscuridad) {
+      try {
+        var o = C.oscuridad();
+        if (typeof o === 'number' && isFinite(o)) dia = Math.max(0, 1 - o);
+      } catch (e) {}
+    }
+    var f = st.fuerzaSol * dia;
+
+    if (st.resplandorSol) {
+      var t = Math.min(w, h) * 1.5;
+      st.resplandorSol.setPosition(w * 0.06, h * 0.02);
+      st.resplandorSol.setDisplaySize(t, t);
+      st.resplandorSol.setAlpha(Math.min(0.5, f * 0.30));
+      st.resplandorSol.setVisible(f > 0.01);
+    }
+
+    if (f <= 0.01) {
+      for (var k = 0; k < st.rayosSol.length; k++) st.rayosSol[k].spr.setAlpha(0);
+      return;
+    }
+
+    // De dónde salen: un punto fuera de cuadro, arriba a la izquierda.
+    var sx = -w * 0.10, sy = -h * 0.14;
+    var largoBase = Math.sqrt(w * w + h * h) * 1.25;
+
+    for (var i = 0; i < st.rayosSol.length; i++) {
+      var r = st.rayosSol[i];
+      var s = r.spr;
+      // Respira: abre y cierra el ángulo y sube y baja la intensidad.
+      var b = Math.sin(ahora * 0.001 * r.ritmo + r.fase);
+      s.setPosition(sx, sy);
+      s.setRotation(SOL_ANGULO + r.desvio + b * 0.045);
+      s.setDisplaySize(Math.max(18, 90 * r.ancho * (1 + b * 0.10)),
+                       largoBase * r.largo);
+      s.setAlpha(SOL_ALFA * r.alfa * f * (0.78 + 0.22 * b));
+    }
   }
 
   /** Acerca `v` a `meta` como mucho `paso`. */
@@ -1342,10 +1486,55 @@
     st.cortina = lienzoRect(scene, L.w / 2, L.h / 2, L.w, L.h, 0x37475e);
     if (st.capa) st.capa.add(st.cortina); else st.cortina.setDepth(PROF_CORTINA);
 
+    /* SOL. Va aquí, entre la cortina y las gotas, y no es indiferente: la luz
+       está en el aire, así que tiene que quedar por encima del mundo pero por
+       DEBAJO de la lluvia y de la nieve — si no, los haces se dibujarían encima
+       de los copos y parecerían un cristal delante de la pantalla. */
+    var i;
+    st.rayosSol = [];
+    st.fuerzaSol = 0;
+    var claveRayo = texturaRayo(scene);
+    if (claveRayo) {
+      /* El sol está FUERA de la pantalla, arriba a la izquierda: los haces
+         salen de un punto que no se ve, que es lo que hace que se lean como
+         algo que entra por la ventana y no como un abanico dibujado. */
+      for (i = 0; i < N_RAYOS; i++) {
+        var r = scene.add.image(0, 0, claveRayo);
+        r.setOrigin(0.5, 0);          // el pie del haz es el sol
+        r.setScrollFactor(0);
+        r.setAlpha(0);
+        if (r.setBlendMode && window.Phaser && Phaser.BlendModes) {
+          r.setBlendMode(Phaser.BlendModes.ADD);
+        }
+        if (st.capa) st.capa.add(r); else r.setDepth(PROF_SOL);
+        st.rayosSol.push({
+          spr: r,
+          // Cada haz con su sitio, su grosor y su ritmo: si respiraran todos
+          // igual se vería la cuadrícula.
+          desvio: (i / (N_RAYOS - 1) - 0.5) * 2 * SOL_ABANICO,
+          ancho: az(0.5, 1.6),
+          largo: az(1.1, 1.9),
+          alfa: az(0.55, 1.15),
+          fase: az(0, Math.PI * 2),
+          ritmo: az(0.10, 0.28)
+        });
+      }
+      var claveRes = texturaResplandor(scene);
+      if (claveRes) {
+        st.resplandorSol = scene.add.image(0, 0, claveRes);
+        st.resplandorSol.setScrollFactor(0);
+        st.resplandorSol.setAlpha(0);
+        if (st.resplandorSol.setBlendMode && window.Phaser && Phaser.BlendModes) {
+          st.resplandorSol.setBlendMode(Phaser.BlendModes.ADD);
+        }
+        if (st.capa) st.capa.add(st.resplandorSol);
+        else st.resplandorSol.setDepth(PROF_SOL);
+      }
+    }
+
     /* Cada familia se crea SOLO si tiene sus imágenes. Los bucles de
        actualizar() recorren estos arrays, así que uno vacío simplemente no
        pinta nada — no hace falta ningún `if` más abajo. */
-    var i;
     for (i = 0; i < N_GOTAS; i++)   st.gotas.push(nuevaGota(st));
     if (hay(scene, COPOS))   for (i = 0; i < N_COPOS; i++)   st.copos.push(nuevoCopo(st));
     if (hay(scene, SALPICA)) for (i = 0; i < N_SALPICA; i++) st.salpicas.push(nuevaSalpica(st));
@@ -1448,6 +1637,11 @@
     for (i = 0; i < st.bordes.length; i++)   st.bordes[i].destroy();
     for (i = 0; i < st.charcos.length; i++)  st.charcos[i].spr.destroy();
     apagarIncendio(st);
+    if (st.rayosSol) {
+      for (i = 0; i < st.rayosSol.length; i++) st.rayosSol[i].spr.destroy();
+      st.rayosSol.length = 0;
+    }
+    if (st.resplandorSol) st.resplandorSol.destroy();
     if (st.filtro)   st.filtro.destroy();
     if (st.cortina)  st.cortina.destroy();
     if (st.fogonazo) st.fogonazo.destroy();
@@ -1491,6 +1685,7 @@
           ? window.GFViento.estado() : null,
         estado: estado,
         fuerzaLluvia: st ? Number(st.fuerzaLluvia.toFixed(2)) : null,
+        fuerzaSol: st ? Number((st.fuerzaSol || 0).toFixed(2)) : null,
         fuerzaNieve: st ? Number(st.fuerzaNieve.toFixed(2)) : null,
         piezas: st ? { gotas: st.gotas.length, copos: st.copos.length,
                        salpicas: st.salpicas.length, posas: st.posas.length,
@@ -1506,6 +1701,7 @@
       estado.lluvia = (que === 'lluvia' || que === 'tormenta');
       estado.viento = (que === 'viento' || que === 'tormenta' || que === 'nieve');
       estado.nieve  = (que === 'nieve');
+      estado.soleado = (que === 'soleado');
       estado.truenos = (que === 'tormenta');
       mandarAlViento();
       return estado;
@@ -1523,6 +1719,8 @@
       centella: centella, sitioDelRayo: sitioDelRayo, ESTACIONES: ESTACIONES,
       moverCharcos: moverCharcos, brotarCharco: brotarCharco,
       sueloLibre: sueloLibre, prenderArbol: prenderArbol,
+      moverSol: moverSol, texturaRayo: texturaRayo,
+      texturaResplandor: texturaResplandor,
       arrancarRed: arrancarRed, reintentarViento: reintentarViento,
       hay: hay, faltan: faltan,
       moverIncendio: moverIncendio, apagarIncendio: apagarIncendio,

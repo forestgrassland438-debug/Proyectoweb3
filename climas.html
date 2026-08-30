@@ -176,6 +176,17 @@
       <input type="range" id="nieveFuerza" min="0.2" max="2" step="0.1">
       <span class="valor" id="vNieveFuerza">1.0</span>
     </div>
+    <div class="fila">
+      <label>Soleado<small>Entran rayos de sol por la esquina de arriba a la
+        izquierda, de donde viene la luz del juego. Quita la lluvia y la nieve:
+        no puede hacer sol y llover a la vez.</small></label>
+      <div class="sw"><input type="checkbox" id="soleado"><span></span></div>
+    </div>
+    <div class="fila">
+      <label>Fuerza del sol</label>
+      <input type="range" id="soleadoFuerza" min="0.2" max="2" step="0.1">
+      <span class="valor" id="vSoleadoFuerza">1.0</span>
+    </div>
   </div>
 
   <div class="card">
@@ -236,6 +247,7 @@
         <button data-que="lluvia">Lluvia</button>
         <button data-que="tormenta">Tormenta</button>
         <button data-que="nieve">Nieve</button>
+        <button data-que="soleado">Soleado</button>
         <button data-que="despejado">Despejar</button>
       </div>
     </div>
@@ -428,12 +440,12 @@
   }
 
   // ── Configuración del clima ──────────────────────────────────────────────
-  var CAMPOS_BOOL = ['activo', 'viento', 'lluvia', 'truenos', 'nieve'];
-  var CAMPOS_NUM  = ['vientoFuerza', 'lluviaFuerza', 'nieveFuerza',
+  var CAMPOS_BOOL = ['activo', 'viento', 'lluvia', 'truenos', 'nieve', 'soleado'];
+  var CAMPOS_NUM  = ['vientoFuerza', 'lluviaFuerza', 'nieveFuerza', 'soleadoFuerza',
                      'probViento', 'probLluvia', 'probNieve',
                      'minutosSorteo', 'duracionMin', 'duracionMax'];
   var NOMBRES = { viento: 'Viento', lluvia: 'Lluvia', tormenta: 'Tormenta',
-                  nieve: 'Nieve', despejado: 'Despejado' };
+                  nieve: 'Nieve', soleado: 'Soleado', despejado: 'Despejado' };
 
   async function cargar() {
     var d = await pedir('/api/admin/weather');
@@ -458,6 +470,8 @@
       pastilla(p.activo, p.activo ? 'Clima encendido' : 'Clima APAGADO') +
       pastilla(p.viento, p.viento ? 'Viento ×' + (p.vientoFuerza || 1) : 'Sin viento') +
       pastilla(p.lluvia, p.lluvia ? 'Lluvia ×' + (p.lluviaFuerza || 1) : 'Sin lluvia') +
+      pastilla(p.nieve, p.nieve ? 'Nieve ×' + (p.nieveFuerza || 1) : 'Sin nieve') +
+      pastilla(p.soleado, p.soleado ? 'Soleado ×' + (p.soleadoFuerza || 1) : 'Sin sol') +
       pastilla(p.truenos && p.lluvia, 'Truenos') +
       pastilla(false, 'Modo: ' + (c.modo === 'auto' ? 'automático' : 'manual')) +
       (p.hasta ? pastilla(false, 'Hasta las ' +
@@ -511,6 +525,7 @@
     $('vProbViento').textContent = Math.round($('probViento').value * 100) + '%';
     $('vProbLluvia').textContent = Math.round($('probLluvia').value * 100) + '%';
     $('vNieveFuerza').textContent = Number($('nieveFuerza').value).toFixed(1);
+    $('vSoleadoFuerza').textContent = Number($('soleadoFuerza').value).toFixed(1);
     $('vProbNieve').textContent = Math.round($('probNieve').value * 100) + '%';
   }
 
@@ -601,7 +616,7 @@
   $('reloadBtn').addEventListener('click', function () { cargar().catch(function () {}); });
   $('recargar').addEventListener('click', function () { cargar().catch(function () {}); });
   $('guardar').addEventListener('click', guardar);
-  ['vientoFuerza', 'lluviaFuerza', 'nieveFuerza',
+  ['vientoFuerza', 'lluviaFuerza', 'nieveFuerza', 'soleadoFuerza',
    'probViento', 'probLluvia', 'probNieve'].forEach(function (k) {
     $(k).addEventListener('input', refrescarValores);
   });
