@@ -1642,9 +1642,24 @@
       cerca.push(sitios[i]);
     }
     if (!cerca.length) {
-      // Sin nada donde posarse, sigue revoloteando por ahí.
+      /* Sin nada donde posarse, sigue revoloteando por ahí.
+
+         SE BORRA EL SOPORTE, Y ESTE ES EL ARREGLO DE "LAS MARIPOSAS DUERMEN
+         EN EL AIRE":
+
+         `m.soporte` guarda la flor o la piedra a la que va. Por este camino
+         —cuando no hay NADA cerca donde posarse— se le daba un destino al azar
+         pero NO se borraba el soporte anterior. Al llegar a ese punto en medio
+         de la nada, actualizarMariposa() hacía `if (m.soporte)` , lo veía puesto
+         del viaje anterior y la daba por posada: animación de reposo y quieta
+         entre tres y nueve segundos FLOTANDO EN EL AIRE, sin nada debajo. Y de
+         paso se le ponía la profundidad de una flor que estaba en otro sitio.
+
+         Volando no hay soporte. Punto. */
       m.fase = 'revolotea';
       anim(m, 'vuela');
+      m.soporte = null;
+      m.baseSoporte = null;
       var limD = limites(scene);
       m.destino = {
         x: Math.min(limD.w - 30, Math.max(30, m.spr.x + az(-160, 160))),
@@ -1689,6 +1704,13 @@
     }
 
     if (m.fase === 'posada') {
+      /* Y se comprueba que lo que hay debajo SIGA EXISTIENDO: un arbusto
+         talado o una piedra minada dejaban a la mariposa posada sobre el aire
+         hasta que se le acabara el rato. Si el soporte se fue, se va ella. */
+      if (!m.soporte || !scene[m.soporte] || scene[m.soporte].active === false) {
+        decidirMariposa(st, m);
+        return;
+      }
       // Posada va por delante de la flor, si no se pierde entre los pétalos.
       m.spr.setDepth((m.baseSoporte || m.spr.y) + 2);
       if (ahora >= m.hasta) decidirMariposa(st, m);

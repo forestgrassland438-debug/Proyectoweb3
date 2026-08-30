@@ -20,8 +20,8 @@
   <h3>gf-sombras.js REAL</h3>
   <label>giro <b id="vGiro">0.62</b></label>
   <input id="giro" type="range" min="-1.5" max="1.5" step="0.01" value="0.62">
-  <label>aplasta <b id="vApl">0.58</b></label>
-  <input id="apl" type="range" min="0.1" max="1.2" step="0.01" value="0.58">
+  <label>largo <b id="vApl">1.00</b></label>
+  <input id="apl" type="range" min="0.2" max="2.5" step="0.05" value="1.00">
   <label>alfa <b id="vAlfa">0.30</b></label>
   <input id="alfa" type="range" min="0" max="1" step="0.01" value="0.30">
   <label>viento <b id="vVien">0.00</b></label>
@@ -122,9 +122,9 @@ function enlazar(id, fn, etiqueta) {
     fn(v);
   });
 }
-enlazar('giro', function (v) { GFSombras.ajustar({ giro: v }); }, 'vGiro');
-enlazar('apl',  function (v) { GFSombras.ajustar({ aplasta: v }); }, 'vApl');
-enlazar('alfa', function (v) { GFSombras.ajustar({ alfa: v }); }, 'vAlfa');
+enlazar('giro', function (v) { GFSombras.ajustar({ giro: v }, escena); }, 'vGiro');
+enlazar('apl',  function (v) { GFSombras.ajustar({ largo: v }, escena); }, 'vApl');
+enlazar('alfa', function (v) { GFSombras.ajustar({ alfa: v }, escena); }, 'vAlfa');
 enlazar('vien', function (v) { MANDOS.viento = v; }, 'vVien');
 enlazar('noc',  function (v) { MANDOS.noche = v; }, 'vNoc');
 </script>

@@ -472,17 +472,45 @@
     return n;
   }
 
-  function hayTexturas(scene) {
-    /* Se miran las tres familias, no solo las gotas: si se anade la nieve al
-       modulo pero se olvida el precargar, montar() seguiria adelante y el
-       primer copo reventaria con "texture not found" a mitad de partida. */
-    var familias = [GOTAS, COPOS, RAYOS, CHARCOS, FUEGOS];
-    for (var f = 0; f < familias.length; f++) {
-      for (var i = 0; i < familias[f].length; i++) {
-        if (!scene.textures.exists('gfc_' + familias[f][i])) return false;
-      }
+  /** ¿Están TODAS las texturas de una familia? */
+  function hay(scene, lista) {
+    for (var i = 0; i < lista.length; i++) {
+      if (!scene.textures.exists('gfc_' + lista[i])) return false;
     }
     return true;
+  }
+
+  /** Las que faltan, por nombre, para poder decirlo en la consola. */
+  function faltan(scene) {
+    var todas = [].concat(GOTAS, SALPICA, RAYOS, COPOS, POSAS, CHARCOS,
+                          FUEGOS, HUMOS, BRASAS);
+    var out = [];
+    for (var i = 0; i < todas.length; i++) {
+      if (!scene.textures.exists('gfc_' + todas[i])) out.push(todas[i] + '.png');
+    }
+    return out;
+  }
+
+  /**
+   * ¿Se puede montar el clima?
+   *
+   * SOLO SE EXIGE LA LLUVIA, y este cambio arregla un fallo grande.
+   *
+   * EL FALLO: antes se exigían CINCO familias (gotas, copos, rayos, CHARCOS y
+   * FUEGOS) y, si faltaba UNA sola imagen, montar() devolvía null y el clima
+   * entero se quedaba sin montar. Pasó de verdad: en producción faltaban por
+   * subir los 14 PNG de charcos, fuego, humo y brasas. Resultado: NUNCA llovía,
+   * nunca nevaba y nunca caía un rayo, por muchas tormentas que se lanzaran
+   * desde climas.html — y lo único que se seguía viendo eran las rachas de
+   * viento, que son de otro módulo y se sortean solas. De ahí "solo funcionan
+   * los climas automáticos".
+   *
+   * Un charco que falta debe costar los charcos, no la lluvia. Ahora cada
+   * adorno comprueba lo suyo por separado (ver montar) y lo que falte
+   * sencillamente no aparece.
+   */
+  function hayTexturas(scene) {
+    return hay(scene, GOTAS);
   }
 
   // ------------------------------------------------------------------ gotas
@@ -817,6 +845,7 @@
     var ahora = scene.time.now;
 
     var L = lienzo(cam);
+    if (!st.rayo) { centella(st); return; }   // sin dibujo de rayo: solo fogonazo
     st.rayo.setTexture('gfc_' + elegir(RAYOS));
     // Dentro de lo que se ve, no del sobrante, y NUNCA donde cayó el anterior.
     st.rayo.setPosition(sitioDelRayo(st, L),
@@ -835,7 +864,7 @@
        viaja más rápido que el sonido. Ese retardo es lo que lo hace creíble. */
     /* Y a veces le da a un arbol. Va aqui, en el rayo CON TRAZO: una centella
        lejana no quema nada, y asi el jugador ve el rayo y el fuego a la vez. */
-    if (Math.random() < PROB_INCENDIO) prenderArbol(st, st.rayo.x);
+    if (Math.random() < PROB_INCENDIO) prenderArbol(st, st.rayo ? st.rayo.x : null);
 
     var retardo = az(180, 700);
     st.truenoEn = ahora + retardo;
@@ -914,7 +943,7 @@
     if (!lloviendo) {
       for (i = 0; i < st.gotas.length; i++) st.gotas[i].spr.setAlpha(0);
       for (j = 0; j < st.salpicas.length; j++) st.salpicas[j].spr.setAlpha(0);
-      st.rayo.setAlpha(0);
+      if (st.rayo) st.rayo.setAlpha(0);
       st.fogonazo.setAlpha(0);
       for (i = 0; i < st.bordes.length; i++) st.bordes[i].setAlpha(0);
       return;
@@ -934,7 +963,10 @@
       // Nunca a la vez que un rayo: se pisarían y se vería un parpadeo raro.
       if (ahora >= st.proximaCentella && !st.rayoHasta) centella(st);
     }
-    if (st.rayoHasta && ahora >= st.rayoHasta) { st.rayo.setAlpha(0); st.rayoHasta = 0; }
+    if (st.rayoHasta && ahora >= st.rayoHasta) {
+      if (st.rayo) st.rayo.setAlpha(0);
+      st.rayoHasta = 0;
+    }
     if (st.fogonazoHasta) {
       var q = st.fogonazoHasta - ahora;
       var pico = st.fogonazo.alpha;
@@ -1251,9 +1283,15 @@
     if (!scene || !scene.add) return null;
     if (scene.__gfClima) return scene.__gfClima;
     if (!hayTexturas(scene)) {
-      console.warn('[clima] faltan las texturas: no se monta. ' +
-                   'Revisa GFClima.precargar() en el preload.');
+      console.warn('[clima] falta la textura de la lluvia (' + RUTA +
+                   'gota_*.png): no se monta. Revisa GFClima.precargar().');
       return null;
+    }
+    /* Se avisa de lo que falte, pero se sigue: lo que no esté, no se pinta. */
+    var ausentes = faltan(scene);
+    if (ausentes.length) {
+      console.warn('[clima] faltan ' + ausentes.length + ' imágenes en ' + RUTA +
+                   ' — esos adornos no se verán: ' + ausentes.join(', '));
     }
     var cam = scene.cameras.main;
     var L = lienzo(cam);
@@ -1304,18 +1342,26 @@
     st.cortina = lienzoRect(scene, L.w / 2, L.h / 2, L.w, L.h, 0x37475e);
     if (st.capa) st.capa.add(st.cortina); else st.cortina.setDepth(PROF_CORTINA);
 
+    /* Cada familia se crea SOLO si tiene sus imágenes. Los bucles de
+       actualizar() recorren estos arrays, así que uno vacío simplemente no
+       pinta nada — no hace falta ningún `if` más abajo. */
     var i;
     for (i = 0; i < N_GOTAS; i++)   st.gotas.push(nuevaGota(st));
-    for (i = 0; i < N_COPOS; i++)   st.copos.push(nuevoCopo(st));
-    for (i = 0; i < N_SALPICA; i++) st.salpicas.push(nuevaSalpica(st));
-    for (i = 0; i < N_POSAS; i++)   st.posas.push(nuevaPosa(st));
+    if (hay(scene, COPOS))   for (i = 0; i < N_COPOS; i++)   st.copos.push(nuevoCopo(st));
+    if (hay(scene, SALPICA)) for (i = 0; i < N_SALPICA; i++) st.salpicas.push(nuevaSalpica(st));
+    if (hay(scene, POSAS))   for (i = 0; i < N_POSAS; i++)   st.posas.push(nuevaPosa(st));
     // Los charcos NO van en el contenedor: viven en el mundo, no en la pantalla.
-    for (i = 0; i < N_CHARCOS; i++) st.charcos.push(nuevoCharco(st));
+    if (hay(scene, CHARCOS)) for (i = 0; i < N_CHARCOS; i++) st.charcos.push(nuevoCharco(st));
 
     // Rayo, marco y fogonazo al final: van por encima de todo lo que cae.
-    st.rayo = scene.add.image(0, 0, 'gfc_' + RAYOS[0]);
-    st.rayo.setScrollFactor(0).setOrigin(0.5, 0).setAlpha(0);
-    if (st.capa) st.capa.add(st.rayo); else st.rayo.setDepth(PROF_RAYO);
+    /* El rayo con TRAZO necesita sus imágenes. Sin ellas se pierde el dibujo
+       del rayo, pero el fogonazo, el marco encendido y el trueno siguen — que
+       es casi toda la tormenta. */
+    if (hay(scene, RAYOS)) {
+      st.rayo = scene.add.image(0, 0, 'gfc_' + RAYOS[0]);
+      st.rayo.setScrollFactor(0).setOrigin(0.5, 0).setAlpha(0);
+      if (st.capa) st.capa.add(st.rayo); else st.rayo.setDepth(PROF_RAYO);
+    }
 
     /* Marco de los bordes, lo que enciende una centella. Cuatro tiras de
        degradado, cada una anclada a su lado y desvaneciéndose hacia dentro.
@@ -1446,6 +1492,10 @@
         estado: estado,
         fuerzaLluvia: st ? Number(st.fuerzaLluvia.toFixed(2)) : null,
         fuerzaNieve: st ? Number(st.fuerzaNieve.toFixed(2)) : null,
+        piezas: st ? { gotas: st.gotas.length, copos: st.copos.length,
+                       salpicas: st.salpicas.length, posas: st.posas.length,
+                       charcos: st.charcos.length, rayo: !!st.rayo } : null,
+        texturasQueFaltan: st ? faltan(st.scene) : null,
         gotas: st ? st.gotas.length : 0,
         charcos: st ? st.charcos.filter(function (c) { return c.vivo; }).length : 0
       };
@@ -1474,6 +1524,7 @@
       moverCharcos: moverCharcos, brotarCharco: brotarCharco,
       sueloLibre: sueloLibre, prenderArbol: prenderArbol,
       arrancarRed: arrancarRed, reintentarViento: reintentarViento,
+      hay: hay, faltan: faltan,
       moverIncendio: moverIncendio, apagarIncendio: apagarIncendio,
       arbolesAlcanzables: arbolesAlcanzables, ARDE_MS: ARDE_MS,
       PROB_INCENDIO: PROB_INCENDIO, N_CHARCOS: N_CHARCOS,
