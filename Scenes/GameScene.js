@@ -8670,7 +8670,18 @@ if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
 // This prevents a 1-frame flash of the dog when returning from tiendajuego
 if (window.globalPetData) {
   this.petData = window.globalPetData;
-  if (this.petData.equipped === false || this.petData.visible === false) {
+  /* MUERTA CUENTA IGUAL QUE RETIRADA.
+
+     EL FALLO QUE ARREGLA: "al entrar a GameScene la mascota aparece un instante
+     y se quita". Aqui se miraba `equipped` y `visible`, pero no si estaba
+     MUERTA. El perro nacia visible, y solo cuando gf-mascota.js recibia el
+     estado del servidor —una peticion de red mas tarde— se escondia. Ese hueco
+     es el parpadeo.
+
+     `alive` lo escribe gf-mascota.js en globalPetData justo para esto, y es el
+     mismo dato que ya usa la tienda. */
+  if (this.petData.equipped === false || this.petData.visible === false ||
+      window.globalPetData.alive === false) {
     this.dog.sprite.setVisible(false);
     this.dog.shadowContainer.setVisible(false);
     if (this.dogNameText) this.dogNameText.setVisible(false);
@@ -26963,6 +26974,12 @@ getPlayerIntentDirection() {
         window.GFProfundidad.montar(this);
       } else {
         this.calibrateBuildingDepths();
+      }
+      /* Y las sombras del escenario: la silueta de cada arbol, casa y poste
+         tumbada hacia la derecha. Va aqui y no antes porque necesita que los
+         objetos del mapa ya existan, igual que la calibracion. */
+      if (window.GFSombras && window.GFSombras.montar) {
+        window.GFSombras.montar(this);
       }
     }
 

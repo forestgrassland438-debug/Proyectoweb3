@@ -42,7 +42,14 @@
   var HUMOS   = ['humo_1', 'humo_2', 'humo_3'];
   var BRASAS  = ['brasa_1', 'brasa_2', 'brasa_3'];
 
-  var SYNC_MS   = 3 * 60 * 1000;   // cada cuánto se pregunta el tiempo
+  /* CADA CUANTO SE PREGUNTA EL TIEMPO SI EL SOCKET FALLA.
+
+     Estaba en 3 minutos, y con eso un administrador lanzaba una tormenta desde
+     climas.html y en el juego no pasaba nada durante tres minutos largos —
+     tiempo mas que de sobra para dar por hecho que no funcionaba. Ahora 45
+     segundos: sigue siendo una consulta muy barata y el peor caso deja de
+     parecer una averia. */
+  var SYNC_MS   = 45 * 1000;
   var ENTRA_MS  = 5000;            // lo que tarda en arreciar / amainar
 
   var N_GOTAS    = 120;   // más gotas y más finas: se lee mejor como lluvia
@@ -339,18 +346,58 @@
    * El socket lo crea el juego al conectarse, que puede ser después de que
    * este módulo se monte; por eso montar() reintenta hasta que aparece.
    */
+  /**
+   * Se engancha al socket del juego para enterarse AL MOMENTO.
+   *
+   * EL FALLO GORDO QUE ARREGLA — "lanzo una tormenta desde climas.html, dice
+   * lanzado y en el juego no pasa nada":
+   *
+   *   GameScene monta este modulo ANTES de crear el socket. Asi que al montar
+   *   no habia socket, se arrancaba un reintento cada 1,5 s, se enganchaba al
+   *   primero que apareciera... y ahi se paraba el reintento PARA SIEMPRE.
+   *
+   *   Pero `window.globalSocket` no es uno para toda la partida: initSocket()
+   *   lo TIRA Y LO VUELVE A CREAR cada vez que lo encuentra desconectado — al
+   *   volver de la tienda, tras un corte de red, al cambiar de escena. Desde
+   *   ese momento el modulo se quedaba escuchando a un socket muerto y no se
+   *   enteraba de nada mas. Como ademas la consulta de seguridad era cada 3
+   *   minutos, parecia que el clima sencillamente no funcionaba.
+   *
+   * Ahora se guarda A CUAL se engancho y se comprueba que siga siendo ese. Si
+   * cambia, se engancha al nuevo. La comprobacion es un `!==` cada dos
+   * segundos: no cuesta nada y no hay forma de que se quede colgado.
+   */
+  var socketEnganchado = null;
+
+  function socketDelJuego() {
+    // El global es el de siempre; el de la escena vale de respaldo por si
+    // alguna escena se creara el suyo sin publicarlo.
+    if (window.globalSocket && window.globalSocket.on) return window.globalSocket;
+    try {
+      var g = window.game || (window.phaserScaler && window.phaserScaler.game);
+      var ss = (g && g.scene && g.scene.getScenes) ? (g.scene.getScenes(true) || []) : [];
+      for (var i = 0; i < ss.length; i++) {
+        if (ss[i] && ss[i].socket && ss[i].socket.on) return ss[i].socket;
+      }
+    } catch (e) {}
+    return null;
+  }
+
   function engancharSocket() {
-    var s = window.globalSocket;
-    if (!s || !s.on) return false;
-    if (s.__gfClima) return true;
-    s.__gfClima = true;
+    var s = socketDelJuego();
+    if (!s) return false;
+    if (s === socketEnganchado) return true;      // ya es este
+
+    socketEnganchado = s;
     s.on('worldWeather', function (d) {
       log('el servidor manda tiempo nuevo');
       aplicar(d);
     });
-    // Al reconectar se pregunta: mientras estuvo caído pudo perderse un aviso.
+    /* Al (re)conectar se pregunta: mientras estuvo caido pudo perderse un
+       aviso, y ademas un socket recien creado no ha recibido nada todavia. */
     s.on('connect', function () { sincronizar(); });
-    log('enganchado al socket');
+    sincronizar();
+    log('enganchado al socket', s.id || '(sin id todavia)');
     return true;
   }
 
@@ -1262,11 +1309,10 @@
       sincronizar();
       // Red de seguridad, no la vía principal: la vía principal es el socket.
       if (!timerSync) timerSync = setInterval(sincronizar, SYNC_MS);
-      if (!engancharSocket() && !timerSocket) {
-        timerSocket = setInterval(function () {
-          if (engancharSocket()) { clearInterval(timerSocket); timerSocket = null; }
-        }, 1500);
-      }
+      /* El vigilante NO se para al conseguirlo: sigue mirando por si el juego
+         cambia de socket. Pararlo era justo el fallo. */
+      engancharSocket();
+      if (!timerSocket) timerSocket = setInterval(engancharSocket, 2000);
     }
     log('montado');
     return st;
@@ -1308,6 +1354,24 @@
     sincronizar: sincronizar,
     engancharSocket: engancharSocket,
     estado: function () { return estado; },
+    /**
+     * Para mirar desde la consola por que no se ve el tiempo.
+     *   GFClima.diagnostico()
+     */
+    diagnostico: function () {
+      var st = montado;
+      return {
+        montado: !!st,
+        socket: !!socketEnganchado,
+        socketVivo: !!(socketEnganchado && socketEnganchado.connected),
+        servidor: base(),
+        estado: estado,
+        fuerzaLluvia: st ? Number(st.fuerzaLluvia.toFixed(2)) : null,
+        fuerzaNieve: st ? Number(st.fuerzaNieve.toFixed(2)) : null,
+        gotas: st ? st.gotas.length : 0,
+        charcos: st ? st.charcos.filter(function (c) { return c.vivo; }).length : 0
+      };
+    },
     /** Pinta un tiempo concreto SIN tocar el servidor. Solo para mirarlo. */
     probar: function (que) {
       estado.activo = true;

@@ -52,10 +52,12 @@
 (function () {
   'use strict';
 
-  /* Cuántos objetos se miden por frame. Con 12 y ~200 objetos, la calibración
-     entera cabe en menos de veinte frames — un tercio de segundo repartido, en
-     vez de un tirón. */
-  var POR_FRAME = 12;
+  /* Cuántos objetos se calibran por frame. Cuatro y no doce: desde que la
+     línea de suelo se SONDEA (ver sondearSuelo) cada objeto cuesta unas mil
+     consultas al índice de colisiones en vez de una comparación. Con cuatro por
+     frame, doscientos objetos tardan cincuenta frames — menos de un segundo
+     repartido, que no se nota. De golpe sería un parón. */
+  var POR_FRAME = 4;
 
   /* Cuánto tiene que solaparse un rectángulo de colisión con el objeto para
      darlo por suyo. Por debajo de esto puede ser la valla del vecino. */
@@ -69,6 +71,29 @@
      antialiaseados dejan restos casi invisibles que, contados como dibujo,
      mueven la medida varios píxeles. */
   var ALFA_MIN = 8;
+
+  /* LA SONDA.
+
+     Se recorre el objeto por columnas y, en cada una, se baja preguntando "¿se
+     puede andar aquí?". La última altura BLOQUEADA de cada columna es donde
+     acaba lo sólido: la fachada.
+
+     Paso de 8 px a lo ancho y 6 a lo alto sobre una casa de 200×300 son unas
+     mil preguntas, y cada pregunta es una consulta al índice espacial de
+     colisiones que ya usa el juego para mover al jugador. Con cuatro objetos
+     por frame ni se nota. */
+  var SONDA_PASO_X = 8;
+  var SONDA_PASO_Y = 6;
+  var SONDA_TAM    = 4;      // tamaño del cuadradito que se pregunta
+  var SONDA_MARGEN = 12;     // cuánto se baja por debajo del sprite
+  /* Se ignora el 10 % de arriba: en un edificio eso es tejado, y en un árbol,
+     copa. Nunca es la línea por la que pasas por delante. */
+  var SONDA_DESDE  = 0.10;
+  /* De todas las columnas se coge el percentil 85 y no el máximo: una sola
+     columna rara —la valla del vecino que se cuela por un lado— no debe mover
+     la línea del edificio entero. */
+  var SONDA_PCT    = 0.85;
+  var SONDA_MIN_COL = 3;     // con menos columnas sólidas no me lo creo
 
   var cacheMedidas = {};        // clave de textura -> caja opaca
 
@@ -169,6 +194,57 @@
     return { x: x, y: y, ancho: w, alto: h, der: x + w, abajo: y + h };
   }
 
+  // ------------------------------------------------------------- sondear
+  /**
+   * ¿Hasta dónde llega lo SÓLIDO de este objeto?
+   *
+   * POR QUÉ ESTO Y NO LOS RECTÁNGULOS DE COLISIÓN A PELO.
+   *
+   * Buscar "el rectángulo que es la pared de esta casa" obliga a adivinar cómo
+   * están organizadas las colisiones del mapa, y cada mapa las organiza a su
+   * manera: una casa puede tener un rectángulo, o cinco, o compartir una franja
+   * larga con las casas de al lado. Cualquier regla que se invente —que se
+   * solape tanto, que no desborde tanto— falla en cuanto aparece un caso que no
+   * encaja, y entonces ese objeto se queda con la línea mal puesta. Eso es lo
+   * que estaba pasando: unos edificios bien y otros no.
+   *
+   * Preguntar "¿puedo andar aquí?" no depende de eso. Es EXACTAMENTE la misma
+   * pregunta que se le hace al mover al jugador, así que la línea de suelo que
+   * sale es, por construcción, la última altura a la que el jugador NO puede
+   * estar: la fachada. Da igual si hay un rectángulo o quince.
+   *
+   * Devuelve null si no hay índice de colisiones o si el objeto no tiene nada
+   * sólido debajo (un arbusto decorativo, una flor).
+   */
+  function sondearSuelo(scene, caja) {
+    if (typeof scene._chocaConEscenario !== 'function') return null;
+    if (!scene._idxColision) return null;          // todavía sin construir
+
+    var s = SONDA_TAM, m = s / 2;
+    var desde = caja.y + caja.alto * SONDA_DESDE;
+    var hasta = caja.abajo + SONDA_MARGEN;
+    var fondos = [];
+
+    for (var x = caja.x + 3; x <= caja.der - 3; x += SONDA_PASO_X) {
+      var ultimo = null;
+      for (var y = desde; y <= hasta; y += SONDA_PASO_Y) {
+        if (scene._chocaConEscenario(x - m, y - m, s, s)) ultimo = y;
+      }
+      if (ultimo !== null) fondos.push(ultimo);
+    }
+    if (fondos.length < SONDA_MIN_COL) return null;
+
+    fondos.sort(function (a, b) { return a - b; });
+    var i = Math.min(fondos.length - 1,
+                     Math.floor(fondos.length * SONDA_PCT));
+    var linea = fondos[i];
+
+    /* No puede salirse del cuerpo del objeto: si la sonda encuentra algo por
+       debajo del sprite es de otra cosa, no de éste. */
+    if (linea > caja.abajo + SONDA_MARGEN) linea = caja.abajo;
+    return linea;
+  }
+
   // ------------------------------------------------- línea de suelo
   /**
    * ¿Hay un rectángulo de colisión que sea la PARED de este objeto?
@@ -212,6 +288,14 @@
    */
   function lineaDeSuelo(scene, spr, colisiones) {
     var caja = cajaMundo(spr);
+
+    /* 1. LA SONDA, que es la buena: pregunta por dónde se puede andar. */
+    var sondeada = sondearSuelo(scene, caja);
+    if (sondeada !== null) return { y: sondeada, fuente: 'sonda' };
+
+    /* 2. Si no hay índice de colisiones todavía, se intenta con los
+       rectángulos en crudo. Es peor —hay que adivinar cuál es la pared— pero
+       algo es algo mientras el índice se construye. */
     if (!colisiones) {
       colisiones = [scene.collisionRectangles, scene.collisionRectangles1,
                     scene.collisionRectangles2];
@@ -219,6 +303,8 @@
     var pared = paredDe(colisiones, caja);
     if (pared !== null) return { y: pared, fuente: 'pared' };
 
+    /* 3. Sin nada sólido debajo (una flor, un arbusto decorativo): manda el
+       dibujo. Casi todos los PNG traen transparencia de sobra por abajo. */
     var sobra = sobranteAbajo(scene, spr);
     if (sobra > 1) return { y: caja.abajo - sobra, fuente: 'pixeles' };
 
@@ -292,7 +378,11 @@
       /* Sin colisiones cargadas todavía no se mide nada: se calibraría todo
          por píxeles y luego habría que rehacerlo. Se espera. */
       var hayColisiones = colisiones.some(function (a) { return a && a.length; });
-      if (!hayColisiones && !opciones.sinEsperarColisiones) return;
+      /* Y el ÍNDICE, no solo la lista: la sonda va contra el índice espacial y
+         sin él caeríamos al método viejo justo en los primeros frames, que es
+         cuando se calibra todo. Se espera; son unos pocos frames. */
+      var hayIndice = !!scene._idxColision;
+      if ((!hayColisiones || !hayIndice) && !opciones.sinEsperarColisiones) return;
 
       var n = Math.min(st.porFrame, st.pendientes.length);
       for (var i = 0; i < n; i++) {
@@ -344,6 +434,29 @@
     lineaDeSuelo: lineaDeSuelo,
     piesDe: piesDe,
     sobranteAbajo: sobranteAbajo,
+    /**
+     * Para mirar desde la consola de dónde ha salido la profundidad de cada
+     * objeto y cuál queda mal:
+     *   GFProfundidad.diagnostico(game.scene.getScenes(true)[0])
+     */
+    diagnostico: function (scene) {
+      var out = [];
+      if (!scene || !scene.children) return out;
+      scene.children.each(function (o) {
+        if (!o || !o.__gfProf || typeof o.getData !== 'function') return;
+        var caja = cajaMundo(o);
+        out.push({
+          clave: (o.texture && o.texture.key) || '?',
+          fuente: o.__gfProf,
+          profundidad: Math.round(o.depth),
+          pieDelSprite: Math.round(caja.abajo),
+          // Cuánto se ha corregido: si es 0 es que la sonda no encontró nada.
+          correccion: Math.round(caja.abajo - o.depth)
+        });
+      });
+      out.sort(function (a, b) { return b.correccion - a.correccion; });
+      return out;
+    },
     estado: function (scene) {
       var st = scene && scene.__gfProf;
       if (!st) return null;
@@ -351,6 +464,8 @@
                porFuente: st.porFuente };
     },
     _interno: { cajaMundo: cajaMundo, paredDe: paredDe, candidatos: candidatos,
+                sondearSuelo: sondearSuelo, SONDA_PCT: SONDA_PCT,
+                SONDA_PASO_X: SONDA_PASO_X, SONDA_DESDE: SONDA_DESDE,
                 calibrar: calibrar, SOLAPE_MIN: SOLAPE_MIN,
                 DESBORDE_MAX: DESBORDE_MAX, ALFA_MIN: ALFA_MIN,
                 limpiarCache: function () { cacheMedidas = {}; } }

@@ -210,6 +210,43 @@
    * Va aquí y no en el módulo de la fauna para que TODO el HTTP autenticado de
    * esta funcionalidad viva en un solo sitio, con un único manejo del CSRF.
    */
+  /**
+   * El jugador parpadea en rojo al recibir un golpe.
+   *
+   * POR QUE HACE FALTA: hasta ahora lo unico que decia que te habian mordido
+   * era la barra de vida bajando un punto, arriba a la izquierda, lejos de
+   * donde estas mirando. Se podia perder media vida sin enterarse de que algo
+   * te estaba atacando. Un parpadeo encima del personaje lo dice sin texto.
+   *
+   * Dos golpes rapidos, 90 ms cada uno, y vuelve a su color. Se guarda el
+   * temporizador para que dos mordiscos seguidos no dejen al personaje rojo
+   * para siempre: el segundo cancela el primero.
+   */
+  var ROJO_DANO = 0xff5a4a;
+  function parpadearDano(scene) {
+    var p = scene && scene.player;
+    if (!p || !p.setTint) return;
+    if (scene._parpadeoDano) {
+      clearTimeout(scene._parpadeoDano);
+      scene._parpadeoDano = null;
+    }
+    var pasos = [[0, true], [90, false], [180, true], [270, false]];
+    var i = 0;
+    function siguiente() {
+      if (i >= pasos.length) { scene._parpadeoDano = null; return; }
+      var paso = pasos[i++];
+      try {
+        if (paso[1]) p.setTint(ROJO_DANO); else p.clearTint();
+      } catch (e) {}
+      if (i < pasos.length) {
+        scene._parpadeoDano = setTimeout(siguiente, pasos[i][0] - paso[0]);
+      } else {
+        scene._parpadeoDano = null;
+      }
+    }
+    siguiente();
+  }
+
   var ultimoMordiscoJugador = 0;
   function morderAlJugador(scene) {
     var ahora = Date.now();
@@ -245,6 +282,8 @@
             if (typeof scene.vidaPorcentaje === 'number') scene.vidaPorcentaje = st.vida;
             if (window.playerStats) window.playerStats.vida = st.vida;
           }
+          // Y que se VEA que te han dado, no solo que baje la barra.
+          parpadearDano(scene);
           if (st.vida <= 0) declararMuerte();
         }
         return st;
@@ -639,6 +678,8 @@
     estado: function () { return estado; },
     modo: function () { return estado.mode; },
     viva: function () { return estado.alive; },
+    /** Hace parpadear al jugador en rojo. Lo usa la fauna al morder. */
+    parpadearDano: parpadearDano,
     vida: function () { return estado.health; },
     golpear: golpear,
     morderAlJugador: morderAlJugador,
