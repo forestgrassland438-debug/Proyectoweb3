@@ -15,7 +15,7 @@
 <div id="panel">…</div>
 
 <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
-<script src="./gf-profundidad.js?v=4"></script>
+<script src="./gf-profundidad.js?v=5"></script>
 <script>
 /* Banco de pruebas del Y-SORT POR FRANJAS con el módulo REAL.
    Se monta una casa en L y unas colisiones que imitan la planta de una casa
@@ -36,6 +36,15 @@ function montarColisiones(caja) {
       { x: x,              y: abajo - 130, width: w * 0.30, height: 60 },
       { x: x + w * 0.30,   y: abajo - 130, width: w * 0.36, height: 128 },
       { x: x + w * 0.66,   y: abajo - 130, width: w * 0.34, height: 74 }
+    ];
+  } else if (window.PLANTA === 'E') {
+    // Planta en E: tres dientes salientes y dos entrantes. Cinco franjas.
+    colisiones = [
+      { x: x,             y: abajo - 140, width: w * 0.18, height: 138 },
+      { x: x + w * 0.18,  y: abajo - 140, width: w * 0.16, height: 60 },
+      { x: x + w * 0.34,  y: abajo - 140, width: w * 0.20, height: 138 },
+      { x: x + w * 0.54,  y: abajo - 140, width: w * 0.16, height: 60 },
+      { x: x + w * 0.70,  y: abajo - 140, width: w * 0.30, height: 138 }
     ];
   } else if (window.PLANTA === 'recta') {
     // Fachada recta: NO debe partirse.

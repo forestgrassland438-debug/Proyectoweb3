@@ -122,18 +122,24 @@
 
   /* Por debajo de este ancho no compensa: la diferencia entre dos franjas
      sería de unos píxeles y no se nota. */
-  var FRANJA_ANCHO_MIN = 56;
+  var FRANJA_ANCHO_MIN = 40;
   /* Cuánto tiene que variar la línea de suelo a lo ancho para partir. Por
      debajo de esto el objeto es "plano" y se queda con un solo número, como
      siempre. */
-  var FRANJA_UMBRAL    = 18;
-  /* Columnas cuya línea difiere menos de esto van en la misma franja. */
-  var FRANJA_TOLERA    = 14;
-  /* Tope de franjas por objeto. Más que esto no aporta nada y son objetos de
-     dibujo de más; las que sobran se fusionan por las que menos se parecen. */
-  var FRANJA_MAX       = 5;
+  var FRANJA_UMBRAL    = 16;
+  /* ERROR MÁXIMO TOLERADO, en píxeles de mundo. Es el mando de verdad de todo
+     el reparto: se parte en tantas franjas como haga falta para que NINGUNA
+     columna quede representada por una línea que se aleje más de esto de la
+     suya. Diez píxeles son menos de un paso del personaje. */
+  var FRANJA_ERROR     = 10;
+  /* Tope duro de franjas por objeto. Cada franja es un objeto de dibujo más,
+     así que hay un límite; ocho da de sobra para una planta en E o en cruz. */
+  var FRANJA_MAX       = 8;
   /* Una franja de una sola columna es ruido de la sonda, no un ala. */
   var FRANJA_COLS_MIN  = 2;
+  /* Solape entre franjas vecinas, en píxeles de la TEXTURA. Ver `partir`:
+     es lo que hace imposible que se vea una costura. */
+  var FRANJA_SOLAPE    = 1;
 
   var cacheMedidas = {};        // clave de textura -> caja opaca
 
@@ -301,21 +307,39 @@
    * Devuelve [{ x, y }] en coordenadas de MUNDO, o null si el objeto no tiene
    * nada sólido debajo (una flor, un arbusto decorativo).
    */
-  function sondearColumnas(scene, caja) {
+  function sondearColumnas(scene, caja, spr) {
     if (typeof scene._chocaConEscenario !== 'function') return null;
     if (!scene._idxColision) return null;
 
     var s = SONDA_TAM, m = s / 2;
     var desde = caja.y + caja.alto * SONDA_DESDE;
     var hasta = caja.abajo + SONDA_MARGEN;
-    var cols = [], solidas = 0;
 
+    /* TOPE POR EL DIBUJO, no por el rectángulo del sprite.
+
+       La sonda pregunta a las colisiones del MAPA, que no saben de quién es
+       cada pared. Si al lado hay una valla, un banco o la casa de enfrente, su
+       rectángulo puede caer dentro de la caja de este objeto y arrastrar esa
+       columna mucho más al sur de donde acaba su dibujo. Con un solo número eso
+       se disimulaba en el percentil; repartiendo en franjas, una sola columna
+       envenenada abre una franja falsa.
+
+       El dibujo sí es suyo: nada de este objeto puede tocar el suelo por debajo
+       de su último píxel pintado. */
+    var fondo = caja.abajo;
+    if (spr) {
+      try { fondo = caja.abajo - sobranteAbajo(scene, spr); } catch (e) {}
+      if (!isFinite(fondo) || fondo < caja.y) fondo = caja.abajo;
+    }
+    var tope = fondo + SONDA_MARGEN * 0.5;
+
+    var cols = [], solidas = 0;
     for (var x = caja.x + 3; x <= caja.der - 3; x += SONDA_PASO_X) {
       var ultimo = null;
       for (var y = desde; y <= hasta; y += SONDA_PASO_Y) {
         if (scene._chocaConEscenario(x - m, y - m, s, s)) ultimo = y;
       }
-      if (ultimo !== null && ultimo > caja.abajo + SONDA_MARGEN) ultimo = caja.abajo;
+      if (ultimo !== null && ultimo > tope) ultimo = fondo;
       if (ultimo !== null) solidas++;
       cols.push({ x: x, y: ultimo });
     }
@@ -336,89 +360,156 @@
     return cols;
   }
 
-  /** La mediana de una lista de números. Robusta frente a una columna rara. */
-  function mediana(v) {
+  /** El percentil `q` de una lista de números. */
+  function percentil(v, q) {
     if (!v.length) return 0;
     var c = v.slice().sort(function (a, b) { return a - b; });
-    return c[Math.floor(c.length / 2)];
+    var i = Math.min(c.length - 1, Math.max(0, Math.round((c.length - 1) * q)));
+    return c[i];
   }
 
+  /* LA LÍNEA DE UNA FRANJA NO ES LA MEDIA: VA SESGADA AL NORTE.
+
+     Los dos errores posibles no cuestan lo mismo. Si la línea queda demasiado
+     al SUR, el edificio se dibuja encima del personaje y lo parte por la mitad:
+     se ve muchísimo. Si queda demasiado al NORTE, el personaje pisa unos
+     píxeles del arranque de la pared: casi no se nota. Así que ante la duda se
+     tira al norte — percentil 35 en vez de la mediana. */
+  var FRANJA_PCT = 0.35;
+
   /**
-   * Agrupa las columnas en franjas: tramos seguidos con la misma línea.
+   * Reparte las columnas en franjas de la MEJOR forma posible.
    *
-   * Se recorre de izquierda a derecha y se abre franja nueva en cuanto la
-   * columna se aparta más de FRANJA_TOLERA de la que lleva la franja en curso.
-   * Después se limpia: las franjas de una sola columna (ruido de la sonda) se
-   * pegan a la vecina que más se le parezca, y si salen más de FRANJA_MAX se
-   * fusionan por parejas empezando por las que menos se diferencian.
+   * ═══ POR QUÉ NO VALE IR AGRUPANDO DE IZQUIERDA A DERECHA ═══
    *
-   * Devuelve null si no merece la pena partir (una sola franja, o el objeto es
-   * "plano" a lo ancho).
+   * Lo evidente es recorrer las columnas y abrir franja nueva en cuanto una se
+   * separe de la anterior. Eso funciona con una L —un escalón, dos alas— y se
+   * rompe con cualquier cosa más seria: en una planta en E, en U o en cruz, el
+   * primer corte que decides condiciona todos los demás y acabas gastando las
+   * franjas disponibles en escalones pequeños mientras dejas juntas dos alas
+   * que se llevan cincuenta píxeles. El resultado depende del orden en que
+   * miras, no de la forma del edificio.
+   *
+   * ═══ LO QUE SE HACE EN SU LUGAR ═══
+   *
+   * Se busca el reparto ÓPTIMO por programación dinámica: de todas las formas
+   * posibles de partir las columnas en k tramos seguidos, la que menos error
+   * total deja. `mejor[k][j]` = el mejor coste de repartir las columnas 0..j en
+   * k tramos, y se va construyendo a partir de `mejor[k-1][i]`. El coste de un
+   * tramo es su suma de desviaciones al cuadrado, que se saca en tiempo
+   * constante con sumas acumuladas.
+   *
+   * Y k no se fija a ojo: se prueba 1, 2, 3… y se para en el PRIMERO que
+   * consigue que ninguna columna se desvíe más de FRANJA_ERROR de la línea de
+   * su tramo. Así una fachada recta se queda en una franja (cero objetos de
+   * dibujo extra), una L se parte en dos, y una planta en E se parte en las
+   * cinco que de verdad necesita — sin que nadie tenga que decir cuántas.
+   *
+   * Cuesta unas veinte mil operaciones por edificio, UNA vez al entrar al mapa.
+   *
+   * Devuelve null si no merece la pena partir.
    */
   function franjasDe(cols) {
     if (!cols || cols.length < 2) return null;
 
-    var lineas = [], i;
-    for (i = 0; i < cols.length; i++) {
+    var n = cols.length, i, j, k;
+    var y = [];
+    for (i = 0; i < n; i++) {
       if (typeof cols[i].y !== 'number') return null;   // no se pudo rellenar
-      lineas.push(cols[i].y);
+      y.push(cols[i].y);
     }
-    var min = Math.min.apply(null, lineas);
-    var max = Math.max.apply(null, lineas);
+    var min = Math.min.apply(null, y);
+    var max = Math.max.apply(null, y);
     if (max - min < FRANJA_UMBRAL) return null;        // objeto plano: un número
 
-    // Reparto seguido
-    var fr = [], act = null;
-    for (i = 0; i < cols.length; i++) {
-      if (act && Math.abs(cols[i].y - act.ref) <= FRANJA_TOLERA) {
-        act.ys.push(cols[i].y);
-        act.hasta = cols[i].x;
-        act.n++;
-      } else {
-        act = { desde: cols[i].x, hasta: cols[i].x, ys: [cols[i].y],
-                ref: cols[i].y, n: 1 };
-        fr.push(act);
+    /* Sumas acumuladas: con ellas el coste de cualquier tramo sale de dos
+       restas, y el bucle de abajo pasa de ser cúbico a cuadrático. */
+    var sum = [0], sum2 = [0];
+    for (i = 0; i < n; i++) {
+      sum[i + 1]  = sum[i]  + y[i];
+      sum2[i + 1] = sum2[i] + y[i] * y[i];
+    }
+    /** Desviación cuadrática del tramo [a, b) respecto a su propia media. */
+    function coste(a, b) {
+      var m = b - a;
+      if (m <= 0) return 0;
+      var s1 = sum[b] - sum[a];
+      return (sum2[b] - sum2[a]) - (s1 * s1) / m;
+    }
+
+    var kMax = Math.min(FRANJA_MAX, Math.floor(n / FRANJA_COLS_MIN));
+    if (kMax < 2) return null;
+
+    var INF = Infinity;
+    var mejor = [], deQuien = [];
+    for (k = 0; k <= kMax; k++) {
+      mejor.push(new Array(n + 1));
+      deQuien.push(new Array(n + 1));
+      for (j = 0; j <= n; j++) { mejor[k][j] = INF; deQuien[k][j] = -1; }
+    }
+    mejor[0][0] = 0;
+
+    for (k = 1; k <= kMax; k++) {
+      for (j = k * FRANJA_COLS_MIN; j <= n; j++) {
+        // El último tramo va de i a j, y no puede ser más corto que el mínimo.
+        for (i = (k - 1) * FRANJA_COLS_MIN; i <= j - FRANJA_COLS_MIN; i++) {
+          var previo = mejor[k - 1][i];
+          if (previo === INF) continue;
+          var c = previo + coste(i, j);
+          if (c < mejor[k][j]) { mejor[k][j] = c; deQuien[k][j] = i; }
+        }
       }
     }
-    if (fr.length < 2) return null;
 
-    // Las franjas demasiado estrechas se pegan a la vecina más parecida.
-    for (i = fr.length - 1; i >= 0 && fr.length > 1; i--) {
-      if (fr[i].n >= FRANJA_COLS_MIN) continue;
-      var izq = i > 0 ? fr[i - 1] : null;
-      var der = i < fr.length - 1 ? fr[i + 1] : null;
-      var dIzq = izq ? Math.abs(izq.ref - fr[i].ref) : Infinity;
-      var dDer = der ? Math.abs(der.ref - fr[i].ref) : Infinity;
-      var dest = (dIzq <= dDer) ? izq : der;
-      if (!dest) continue;
-      dest.ys = dest.ys.concat(fr[i].ys);
-      dest.n += fr[i].n;
-      dest.desde = Math.min(dest.desde, fr[i].desde);
-      dest.hasta = Math.max(dest.hasta, fr[i].hasta);
-      fr.splice(i, 1);
-    }
-
-    // Y si aún sobran, se fusionan las dos vecinas que más se parezcan.
-    while (fr.length > FRANJA_MAX) {
-      var mejor = 0, mejorD = Infinity;
-      for (i = 0; i + 1 < fr.length; i++) {
-        var d = Math.abs(fr[i].ref - fr[i + 1].ref);
-        if (d < mejorD) { mejorD = d; mejor = i; }
+    /* Se prueba con 1 tramo, con 2, con 3… y se para en el primero que cumple
+       el error máximo. Menos franjas siempre es mejor: son objetos de dibujo. */
+    for (k = 1; k <= kMax; k++) {
+      if (mejor[k][n] === INF) continue;
+      var tramos = reconstruir(deQuien, k, n);
+      var fr = armar(cols, y, tramos);
+      if (k === 1) continue;                 // una sola franja = no partir
+      if (peorError(y, tramos, fr) <= FRANJA_ERROR || k === kMax) {
+        return fr.length >= 2 ? fr : null;
       }
-      fr[mejor].ys = fr[mejor].ys.concat(fr[mejor + 1].ys);
-      fr[mejor].n += fr[mejor + 1].n;
-      fr[mejor].hasta = fr[mejor + 1].hasta;
-      fr.splice(mejor + 1, 1);
     }
-    if (fr.length < 2) return null;
+    return null;
+  }
 
-    // La línea definitiva de cada franja: la MEDIANA de sus columnas.
+  /** Deshace el camino de la programación dinámica: los cortes elegidos. */
+  function reconstruir(deQuien, k, n) {
+    var tramos = [], j = n;
+    while (k > 0) {
+      var i = deQuien[k][j];
+      if (i < 0) return tramos;
+      tramos.unshift([i, j]);
+      j = i; k--;
+    }
+    return tramos;
+  }
+
+  /** Convierte los tramos (índices de columna) en franjas con su línea. */
+  function armar(cols, y, tramos) {
     var out = [];
-    for (i = 0; i < fr.length; i++) {
-      out.push({ desde: fr[i].desde, hasta: fr[i].hasta,
-                 y: mediana(fr[i].ys), cols: fr[i].n });
+    for (var t = 0; t < tramos.length; t++) {
+      var a = tramos[t][0], b = tramos[t][1];
+      if (b <= a) continue;
+      out.push({ desde: cols[a].x, hasta: cols[b - 1].x,
+                 y: percentil(y.slice(a, b), FRANJA_PCT),
+                 cols: b - a });
     }
     return out;
+  }
+
+  /** La columna peor representada por la línea de su franja. */
+  function peorError(y, tramos, fr) {
+    var peor = 0;
+    for (var t = 0; t < tramos.length && t < fr.length; t++) {
+      for (var i = tramos[t][0]; i < tramos[t][1]; i++) {
+        var d = Math.abs(y[i] - fr[t].y);
+        if (d > peor) peor = d;
+      }
+    }
+    return peor;
   }
 
   /**
@@ -461,9 +552,36 @@
     cortes.push(texW);
 
     quitarFranjas(spr);                       // por si se recalibra
+
+    /* ═══ LA COSTURA, Y POR QUÉ SE SOLAPAN LAS FRANJAS ═══
+       Dos cuadriláteros pegados que comparten un borde deberían encajar sin
+       hueco… en teoría. En la práctica, con `roundPixels` activado el motor
+       redondea cada vértice a píxel de pantalla, y en cuanto la escala del
+       objeto o el zoom no son enteros el borde compartido cae a medio píxel:
+       una de las dos franjas puede quedarse una columna corta y se ve una raya
+       fina de fondo justo por la mitad de la casa.
+
+       Se arregla como ya se arregló en los tiles del mapa (`seamOverlap`): la
+       franja que se dibuja ANTES —la de profundidad menor— se estira UN píxel
+       sobre su vecina. La que va encima la tapa entera, así que en el dibujo no
+       cambia nada; lo que desaparece es la posibilidad de que quede hueco.
+
+       Se estira la de abajo y no las dos a propósito: si las dos se solaparan,
+       una columna con transparencia se mezclaría dos veces y saldría una raya
+       OSCURA en vez de una clara. */
+    var solape = [];                          // cuánto se estira cada franja
+    for (i = 0; i < franjas.length; i++) solape.push({ izq: 0, der: 0 });
+    for (i = 1; i < franjas.length; i++) {
+      if (franjas[i - 1].y <= franjas[i].y) solape[i - 1].der = FRANJA_SOLAPE;
+      else                                  solape[i].izq     = FRANJA_SOLAPE;
+    }
+
     var trozos = [];
     for (i = 0; i < franjas.length; i++) {
-      var x0 = cortes[i], ancho = cortes[i + 1] - cortes[i];
+      var x0 = cortes[i] - solape[i].izq;
+      var ancho = (cortes[i + 1] + solape[i].der) - x0;
+      if (x0 < 0) { ancho += x0; x0 = 0; }
+      if (x0 + ancho > texW) ancho = texW - x0;
       if (ancho <= 0) continue;
       var obj;
       if (i === 0) {
@@ -663,7 +781,7 @@
     if (r.fuente === 'sonda' && (spr.displayWidth || 0) >= FRANJA_ANCHO_MIN) {
       try {
         var caja = cajaMundo(spr);
-        var franjas = franjasDe(sondearColumnas(scene, caja));
+        var franjas = franjasDe(sondearColumnas(scene, caja, spr));
         if (franjas) {
           var n = partir(scene, spr, franjas, caja);
           if (n > 1) {
@@ -779,7 +897,7 @@
     lineaDeSuelo: lineaDeSuelo,
     /** Las franjas de un objeto, para mirarlo desde la consola. */
     franjasDe: function (scene, spr) {
-      return franjasDe(sondearColumnas(scene, cajaMundo(spr)));
+      return franjasDe(sondearColumnas(scene, cajaMundo(spr), spr));
     },
     quitarFranjas: quitarFranjas,
     piesDe: piesDe,
@@ -815,9 +933,12 @@
     },
     _interno: { cajaMundo: cajaMundo, paredDe: paredDe, candidatos: candidatos,
                 sondearColumnas: sondearColumnas, partir: partir,
-                refrescarFranjas: refrescarFranjas, mediana: mediana,
-                FRANJA_UMBRAL: FRANJA_UMBRAL, FRANJA_TOLERA: FRANJA_TOLERA,
+                refrescarFranjas: refrescarFranjas, percentil: percentil,
+                franjasDe: franjasDe, reconstruir: reconstruir, armar: armar,
+                peorError: peorError,
+                FRANJA_UMBRAL: FRANJA_UMBRAL, FRANJA_ERROR: FRANJA_ERROR,
                 FRANJA_MAX: FRANJA_MAX, FRANJA_ANCHO_MIN: FRANJA_ANCHO_MIN,
+                FRANJA_SOLAPE: FRANJA_SOLAPE, FRANJA_PCT: FRANJA_PCT,
                 sondearSuelo: sondearSuelo, SONDA_PCT: SONDA_PCT,
                 SONDA_PASO_X: SONDA_PASO_X, SONDA_DESDE: SONDA_DESDE,
                 calibrar: calibrar, SOLAPE_MIN: SOLAPE_MIN,
