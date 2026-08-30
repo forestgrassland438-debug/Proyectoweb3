@@ -274,6 +274,11 @@
   var timerSync = null;
   var timerSocket = null;
   var pidiendo = null;
+  var ultimoFallo = null;
+  var ultimaRespuesta = 0;
+  var avisadoDelFallo = false;
+  var redArrancada = false;
+  var timerViento = null;
 
   function log() {
     if (!window.GF_CLIMA_DEBUG) return;
@@ -325,13 +330,32 @@
 
   function sincronizar() {
     if (pidiendo) return pidiendo;
-    pidiendo = fetch(base().replace(/\/$/, '') + '/api/world/weather',
-                     { credentials: 'omit', mode: 'cors', cache: 'no-store' })
+    var url = base().replace(/\/$/, '') + '/api/world/weather';
+    pidiendo = fetch(url, { credentials: 'omit', mode: 'cors', cache: 'no-store' })
       .then(function (r) { return r.json(); })
-      .then(function (d) { pidiendo = null; aplicar(d); return estado; })
+      .then(function (d) {
+        pidiendo = null;
+        ultimoFallo = null;
+        ultimaRespuesta = Date.now();
+        aplicar(d);
+        return estado;
+      })
       .catch(function (e) {
         pidiendo = null;
-        log('no se pudo consultar el tiempo:', e && e.message);
+        ultimoFallo = (e && e.message) || 'error';
+        /* Se AVISA una vez, no en silencio.
+
+           Antes esto se tragaba el error salvo con GF_CLIMA_DEBUG puesto. Si la
+           consulta fallaba (dominio mal, CORS, backend caido) el juego se
+           quedaba sin clima para siempre y no habia forma de enterarse: parecia
+           que el clima sencillamente no funciona. Se avisa UNA vez por sesion
+           para no llenar la consola. */
+        if (!avisadoDelFallo) {
+          avisadoDelFallo = true;
+          console.warn('[clima] no se pudo consultar el tiempo en ' + url +
+                       ' (' + ultimoFallo + '). El juego se queda sin clima ' +
+                       'del servidor. Mira GFClima.diagnostico().');
+        }
         return estado;
       });
     return pidiendo;
@@ -401,11 +425,35 @@
     return true;
   }
 
-  /** Le dice al viento lo que manda el servidor. */
+  /**
+   * Le dice al viento lo que manda el servidor.
+   *
+   * CON REINTENTO, y hace falta. El clima se monta DESPUES del viento en
+   * GameScene, pero la respuesta del servidor puede llegar en cualquier
+   * momento: al cargar el mapa, al volver de la tienda, o justo mientras se
+   * esta cambiando de escena, cuando no hay ningun viento montado. Si en ese
+   * hueco se soltaba la orden, se perdia y no se volvia a intentar hasta la
+   * siguiente consulta — 45 segundos, o NUNCA si el clima es manual, porque el
+   * servidor no vuelve a avisar hasta que el administrador toque algo. Se
+   * reintenta cada segundo hasta que el viento la coge.
+   */
   function mandarAlViento() {
     var V = window.GFViento;
-    if (!V || !V.forzar) return;
-    V.forzar(estado.activo && estado.viento, estado.vientoFuerza);
+    if (!V || !V.forzar) { reintentarViento(); return; }
+    var ok = V.forzar(estado.activo && estado.viento, estado.vientoFuerza);
+    if (ok && timerViento) { clearInterval(timerViento); timerViento = null; }
+    if (!ok) reintentarViento();
+  }
+
+  function reintentarViento() {
+    if (timerViento) return;
+    timerViento = setInterval(function () {
+      var V = window.GFViento;
+      if (V && V.forzar && V.forzar(estado.activo && estado.viento, estado.vientoFuerza)) {
+        clearInterval(timerViento);
+        timerViento = null;
+      }
+    }, 1000);
   }
 
   // ------------------------------------------------------------------ carga
@@ -1305,17 +1353,37 @@
     scene.events.once('shutdown', st.onApagar);
     scene.events.once('destroy', st.onApagar);
 
-    if (!opciones.sinRed) {
-      sincronizar();
-      // Red de seguridad, no la vía principal: la vía principal es el socket.
-      if (!timerSync) timerSync = setInterval(sincronizar, SYNC_MS);
-      /* El vigilante NO se para al conseguirlo: sigue mirando por si el juego
-         cambia de socket. Pararlo era justo el fallo. */
-      engancharSocket();
-      if (!timerSocket) timerSocket = setInterval(engancharSocket, 2000);
-    }
+    if (!opciones.sinRed) arrancarRed();
+    // Y se reenvia al viento lo ultimo que se sepa: al entrar a una escena
+    // nueva el viento nace sin orden y hay que volver a darsela.
+    if (estado.cargado) mandarAlViento();
     log('montado');
     return st;
+  }
+
+  /**
+   * Arranca la consulta periodica y el enganche al socket.
+   *
+   * VA APARTE DE montar() A PROPOSITO. Antes esto vivia dentro de montar(), asi
+   * que si la escena no llegaba a montar el clima —falta una textura, se esta
+   * en la tienda, el mapa aun no ha terminado de crearse— el juego se quedaba
+   * SIN PREGUNTAR NUNCA que tiempo hace, y sin escuchar los avisos del
+   * servidor. Un aviso perdido con el clima en MANUAL no se recupera solo,
+   * porque el servidor no vuelve a mandar nada hasta que el administrador
+   * toque algo: por eso "solo funcionaban los climas automaticos".
+   *
+   * Ahora la red arranca sola al cargar el archivo y no se para nunca: cuesta
+   * una consulta cada 45 s y una comprobacion cada 2 s.
+   */
+  function arrancarRed() {
+    if (redArrancada) return;
+    redArrancada = true;
+    sincronizar();
+    if (!timerSync) timerSync = setInterval(sincronizar, SYNC_MS);
+    /* El vigilante NO se para al conseguirlo: sigue mirando por si el juego
+       cambia de socket. Pararlo era justo el fallo. */
+    engancharSocket();
+    if (!timerSocket) timerSocket = setInterval(engancharSocket, 2000);
   }
 
   function desmontar(scene) {
@@ -1358,13 +1426,23 @@
      * Para mirar desde la consola por que no se ve el tiempo.
      *   GFClima.diagnostico()
      */
+    /** Vuelve a pedir el tiempo AHORA y lo aplica. Para probarlo a mano. */
+    refrescar: function () { return sincronizar(); },
+    /** Reenvia al viento lo ultimo que dijo el servidor. */
+    reaplicar: function () { mandarAlViento(); return estado; },
     diagnostico: function () {
       var st = montado;
       return {
         montado: !!st,
+        redArrancada: redArrancada,
         socket: !!socketEnganchado,
         socketVivo: !!(socketEnganchado && socketEnganchado.connected),
         servidor: base(),
+        ultimoFallo: ultimoFallo,
+        segundosDesdeRespuesta: ultimaRespuesta
+          ? Math.round((Date.now() - ultimaRespuesta) / 1000) : null,
+        viento: (window.GFViento && window.GFViento.estado)
+          ? window.GFViento.estado() : null,
         estado: estado,
         fuerzaLluvia: st ? Number(st.fuerzaLluvia.toFixed(2)) : null,
         fuerzaNieve: st ? Number(st.fuerzaNieve.toFixed(2)) : null,
@@ -1395,6 +1473,7 @@
       centella: centella, sitioDelRayo: sitioDelRayo, ESTACIONES: ESTACIONES,
       moverCharcos: moverCharcos, brotarCharco: brotarCharco,
       sueloLibre: sueloLibre, prenderArbol: prenderArbol,
+      arrancarRed: arrancarRed, reintentarViento: reintentarViento,
       moverIncendio: moverIncendio, apagarIncendio: apagarIncendio,
       arbolesAlcanzables: arbolesAlcanzables, ARDE_MS: ARDE_MS,
       PROB_INCENDIO: PROB_INCENDIO, N_CHARCOS: N_CHARCOS,
@@ -1405,4 +1484,9 @@
       RAYO_SEPARA: RAYO_SEPARA
     }
   };
+
+  /* La red arranca sola, sin esperar a ninguna escena. Con un respiro para que
+     el resto de modulos (y `window.game`) esten en pie y `base()` acierte con
+     el servidor. */
+  if (typeof window !== 'undefined') setTimeout(arrancarRed, 1200);
 })();

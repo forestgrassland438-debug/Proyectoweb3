@@ -309,6 +309,26 @@
   }
 
   // ---------------------------------------------------------------- montaje
+  /* LA ORDEN DEL SERVIDOR VIVE FUERA DE LA ESCENA.
+
+     EL FALLO QUE ARREGLA — "desde climas.html pongo viento a mano y en el
+     juego no pasa nada, pero el automatico si se ve":
+
+     `mandado` vivia dentro del estado de la ESCENA. Cada vez que se entra a la
+     tienda y se vuelve al mapa, esa escena se apaga, `desmontar()` tira el
+     estado y `montar()` crea uno nuevo con `mandado: null` — o sea, "nadie
+     manda, sorteo local". La orden del servidor se perdia ahi.
+
+     Con el clima AUTOMATICO no se notaba: el servidor cambia de tiempo cada
+     pocos minutos por su cuenta y el siguiente aviso volvia a mandar. Con el
+     clima MANUAL el servidor avisa UNA vez, cuando el administrador guarda; si
+     ese aviso se pierde no vuelve nunca, y el jugador ve el sorteo local (las
+     rachas cada 9-22 minutos) y cree que "solo funciona el automatico".
+
+     Ahora la orden se guarda aqui, en el modulo, que sobrevive a los cambios
+     de escena, y `montar()` la aplica nada mas nacer. */
+  var orden = { mandado: null, fuerza: 1 };
+
   function montar(scene, opciones) {
     opciones = opciones || {};
     if (!scene || !scene.add) return null;
@@ -322,7 +342,8 @@
     var st = {
       scene: scene, hojas: [], rafagas: [], arboles: [],
       // null = nadie manda, se sortea solo. true/false = lo dice el servidor.
-      mandado: null, fuerzaMandada: 1,
+      // Se hereda la ultima orden del servidor: ver `orden` mas arriba.
+      mandado: orden.mandado, fuerzaMandada: orden.fuerza,
       soplando: false, fuerza: 0, dir: DIRECCION,
       empiezaEn: 0, acabaEn: 0,
       proximaEn: scene.time.now + (opciones.primeraEn != null
@@ -405,15 +426,22 @@
     /** Fuerza una racha ahora mismo, para verlo sin esperar. */
     /** El clima manda: sopla o para, con la fuerza que le digan. */
     forzar: function (activo, fuerza) {
+      /* Se apunta SIEMPRE, aunque no haya escena montada todavia: el clima
+         puede llegar antes de que el mapa termine de crearse, y perder ese
+         primer aviso es justo lo que hacia que el clima manual no arrancara.
+         `montar()` lee esto al nacer. */
+      orden.mandado = !!activo;
+      orden.fuerza  = Math.max(0.2, Math.min(2, Number(fuerza) || 1));
       var e = escenaViva();
-      if (!e || !e.__gfViento) return false;
+      if (!e || !e.__gfViento) return false;      // apuntado, pero aun sin pintar
       var st = e.__gfViento;
-      st.mandado = !!activo;
-      st.fuerzaMandada = Math.max(0.2, Math.min(2, Number(fuerza) || 1));
+      st.mandado = orden.mandado;
+      st.fuerzaMandada = orden.fuerza;
       return true;
     },
     /** Devuelve el mando al sorteo local. */
     soltar: function () {
+      orden.mandado = null;
       var e = escenaViva();
       if (e && e.__gfViento) e.__gfViento.mandado = null;
     },
@@ -444,7 +472,10 @@
       var st = e.__gfViento;
       return { soplando: st.soplando, fuerza: Math.round(st.fuerza * 100) / 100,
                direccion: st.dir, hojas: st.hojas.length,
-               arboles: st.arboles.length };
+               arboles: st.arboles.length,
+               // null = sorteo local; true/false = lo manda el servidor.
+               mandado: st.mandado, fuerzaMandada: st.fuerzaMandada,
+               ordenGuardada: orden.mandado };
     },
     _interno: { actualizar: actualizar, soplarEn: soplar, pararEn: parar,
                 lienzo: lienzo, MARGEN: MARGEN,

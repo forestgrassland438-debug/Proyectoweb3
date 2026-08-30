@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Banco de pruebas — sombras (módulo real)</title>
+<style>
+  html,body{margin:0;background:#141a12;color:#dfe7d8;font:13px/1.4 system-ui,sans-serif}
+  #mandos{position:fixed;right:8px;top:8px;z-index:10;background:rgba(10,14,10,.9);
+          padding:8px 10px;border-radius:8px;width:190px;font-size:11px}
+  #mandos h3{margin:0 0 6px;font-size:11px;letter-spacing:1px;color:#a8c99a}
+  label{display:block;margin:5px 0 0;color:#b9c9b0}
+  input[type=range]{width:100%}
+  b{color:#f0e6a0}
+  #salida{margin-top:6px;color:#8fb884;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div id="juego"></div>
+<div id="mandos">
+  <h3>gf-sombras.js REAL</h3>
+  <label>giro <b id="vGiro">0.62</b></label>
+  <input id="giro" type="range" min="-1.5" max="1.5" step="0.01" value="0.62">
+  <label>aplasta <b id="vApl">0.58</b></label>
+  <input id="apl" type="range" min="0.1" max="1.2" step="0.01" value="0.58">
+  <label>alfa <b id="vAlfa">0.30</b></label>
+  <input id="alfa" type="range" min="0" max="1" step="0.01" value="0.30">
+  <label>viento <b id="vVien">0.00</b></label>
+  <input id="vien" type="range" min="0" max="1" step="0.01" value="0">
+  <label>noche <b id="vNoc">0.00</b></label>
+  <input id="noc" type="range" min="0" max="1" step="0.01" value="0">
+  <div id="salida"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script src="./gf-profundidad.js"></script>
+<script src="./gf-sombras.js"></script>
+<script>
+/* Banco de pruebas que carga el MÓDULO DE VERDAD (gf-sombras.js), no una
+   copia. Se le monta una escena con sprites que llevan los mismos nombres que
+   los del mapa (sprite_arbolx1, sprite_pinos1, sprite_jj…) y se le sirven
+   dobles de GFViento y GFCiclo para poder mover el viento y la noche a mano. */
+
+// Dobles: el módulo pregunta por estos dos y así se puede probar sin el juego.
+window.GFViento = { vector: function (f) { f = f || {}; f.dir = 1; f.fuerza = MANDOS.viento; return f; } };
+window.GFCiclo  = { oscuridad: function () { return MANDOS.noche; } };
+
+var MANDOS = { viento: 0, noche: 0 };
+
+var OBJETOS = [
+  { prop: 'sprite_arbolx1',  url: './Game/Objetos/arbol seco terminado.png',   x: 60,  y: 250 },
+  { prop: 'sprite_pinos1',   url: './Game/Objetos/pinos.png',                  x: 165, y: 250 },
+  { prop: 'sprite_arbolx2',  url: './Game/Objetos/arbol.png',                  x: 250, y: 250 },
+  { prop: 'sprite_piedras_1',url: './Game/Objetos/arbusto.png',                x: 345, y: 250 },
+  { prop: 'sprite_jj',       url: './Game/Objetos/casa de tienda mejorada.png',x: 420, y: 250 },
+  { prop: 'sprite_molino',   url: './Game/Objetos/molino.png',                 x: 800, y: 250 }
+];
+
+var escena, jugador, arboles = [];
+
+var Escena = {
+  preload: function () {
+    escena = this;
+    OBJETOS.forEach(function (o, i) { escena.load.image('t' + i, o.url); });
+    escena.load.image('suelo', './recortadas/low/tile_r0_c0_id1_low.png');
+    for (var i = 1; i <= 7; i++) {
+      escena.load.image('run' + i, './Game/Sprites/Soulbound/personaje1/abajo/run_' + i + '.png');
+    }
+  },
+  create: function () {
+    this.add.image(0, 0, 'suelo').setOrigin(0).setDisplaySize(1100, 620).setDepth(-10);
+
+    OBJETOS.forEach(function (o, i) {
+      // Mismo origen (0,1) y misma profundidad = y que los objetos del mapa.
+      var spr = escena.add.image(o.x, o.y, 't' + i).setOrigin(0, 1).setDepth(o.y);
+      escena[o.prop] = spr;
+      if (/arbolx|pinos/.test(o.prop)) arboles.push({ spr: spr, base: 0, fase: i });
+    });
+
+    this.anims.create({
+      key: 'andar',
+      frames: [1,2,3,4,5,6,7].map(function (i) { return { key: 'run' + i }; }),
+      frameRate: 10, repeat: -1
+    });
+    jugador = this.add.sprite(120, 260, 'run1').setOrigin(0.5, 1).setScale(1.4);
+    jugador.play('andar');
+
+    // AQUÍ se monta el módulo real.
+    window.GFSombras.montar(this);
+
+    this.cameras.main.setZoom(1.1);
+    this.cameras.main.centerOn(300, 210);
+  },
+  update: function (t) {
+    if (!window.PARADO) {
+      jugador.x = 90 + (Math.sin(t / 2600) * 0.5 + 0.5) * 380;
+      jugador.y = 250 + Math.sin(t / 1900) * 26;
+    }
+    jugador.setDepth(jugador.y);
+    // El mismo meneo que le hace gf-viento a los árboles.
+    for (var i = 0; i < arboles.length; i++) {
+      var a = arboles[i];
+      a.spr.rotation = a.base + Math.sin(t / 700 + a.fase) * 0.035 * MANDOS.viento;
+    }
+    var e = window.GFSombras.estado(escena);
+    if (e) document.getElementById('salida').textContent =
+      'vivas ' + e.vivas + ' · pend ' + e.pendientes + '\nluz ' + e.luz + ' · viento ' + e.viento;
+  }
+};
+
+new Phaser.Game({
+  type: Phaser.AUTO, parent: 'juego',
+  width: 780, height: 470,
+  backgroundColor: '#2b3a24', pixelArt: true, roundPixels: true,
+  scene: Escena
+});
+
+function enlazar(id, fn, etiqueta) {
+  var e = document.getElementById(id);
+  e.addEventListener('input', function () {
+    var v = parseFloat(e.value);
+    if (etiqueta) document.getElementById(etiqueta).textContent = v.toFixed(2);
+    fn(v);
+  });
+}
+enlazar('giro', function (v) { GFSombras.ajustar({ giro: v }); }, 'vGiro');
+enlazar('apl',  function (v) { GFSombras.ajustar({ aplasta: v }); }, 'vApl');
+enlazar('alfa', function (v) { GFSombras.ajustar({ alfa: v }); }, 'vAlfa');
+enlazar('vien', function (v) { MANDOS.viento = v; }, 'vVien');
+enlazar('noc',  function (v) { MANDOS.noche = v; }, 'vNoc');
+</script>
+</body>
+</html>

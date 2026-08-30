@@ -248,8 +248,31 @@
       m.declararMuerte();
     }
 
-    if (!!e.ghost !== !!montado.pintadoComoFantasma) {
-      aplicarVisual(!!e.ghost);
+    var fantasma = !!e.ghost;
+    if (fantasma !== !!montado.pintadoComoFantasma) {
+      aplicarVisual(fantasma);
+      pintar();
+      return;
+    }
+
+    /* Y SE REAFIRMA, no solo se cambia.
+
+       FALLO QUE ESTO ARREGLA — "vuelvo de la tienda y ya no estoy fantasma":
+       el aspecto se pintaba UNA vez, cuando el estado cambiaba. Pero el alfa y
+       el tinte del personaje los toca mucha más gente que este módulo — el
+       cambio de personaje Soulbound, el parpadeo de daño, el resaltado al pasar
+       el ratón, la recreación del sprite al entrar en la escena. En cuanto
+       alguno de esos los devolvía a la normalidad, el fantasma se quedaba
+       visible como si estuviera vivo y aquí nadie se enteraba, porque para el
+       vigilante el estado no había cambiado.
+
+       Comprobar un número cada segundo y medio no cuesta nada y cierra la clase
+       entera de fallos, venga de donde venga el borrado. */
+    if (fantasma) {
+      var p = montado.scene && montado.scene.player;
+      if (p && typeof p.alpha === 'number' && p.alpha > ALFA_FANTASMA + 0.05) {
+        aplicarVisual(true);
+      }
       pintar();
     }
   }

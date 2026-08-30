@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Banco de pruebas — chunks del mapa</title>
+<style>
+  html,body{margin:0;background:#0e120c;color:#dfe7d8;font:12px/1.4 system-ui,sans-serif}
+  #panel{position:fixed;right:6px;top:6px;z-index:9;background:rgba(8,12,8,.92);
+         padding:8px 10px;border-radius:8px;width:230px;white-space:pre-wrap}
+  b{color:#f0e6a0}
+</style>
+</head>
+<body>
+<div id="juego"></div>
+<div id="panel">arrancando…</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script src="./lib/tileManager.js"></script>
+<script>
+/* Prueba del TileManager real: carga los chunks de verdad mientras la cámara
+   recorre el mapa, y mide el fotograma MÁS LARGO. Eso es el tirón: si la
+   descodificación vuelve al hilo principal, aquí aparece un pico de 30-60 ms. */
+var tm, meta, peor = 0, ultimo = 0, historial = [];
+
+var Escena = {
+  preload: function () { this.load.json('mapa', './recortadas/mapa.json'); },
+  create: function () {
+    meta = this.cache.json.get('mapa');
+    var TM = window.GrasslandForest.TileManager;
+    tm = new TM(this, meta, {
+      basePath: 'recortadas',
+      supportsWebP: this.game.device.features.webP,
+      preferredLOD: 'hd',
+      marginPx: 1100, unloadPadPx: 400,
+      maxConcurrentLoads: 3, creaPorFrame: 1, borraPorFrame: 1,
+      depth: -1, debug: false
+    });
+    tm.init();
+    this.cameras.main.setBounds(0, 0, meta.width, meta.height);
+    this.cameras.main.setZoom(0.35);
+    this._t = 0;
+    window.tm = tm;
+  },
+  update: function (t, d) {
+    // La cámara pasea por el mapa como si fuera el jugador.
+    this._t += d / 1000;
+    var cam = this.cameras.main;
+    cam.scrollX = 1200 + Math.sin(this._t / 6) * 1200;
+    cam.scrollY = 1200 + Math.cos(this._t / 9) * 1200;
+    tm.updateVisible(cam);
+    tm.bombear();
+
+    if (ultimo) {
+      var dt = performance.now() - ultimo;
+      historial.push(dt);
+      if (historial.length > 240) historial.shift();
+      if (dt > peor && this._t > 1) peor = dt;
+    }
+    ultimo = performance.now();
+
+    var medio = historial.reduce(function (a, b) { return a + b; }, 0) / (historial.length || 1);
+    document.getElementById('panel').innerHTML =
+      'bitmap fuera del hilo: <b>' + tm._soportaBitmap + '</b>\n' +
+      'tiles pintados: <b>' + tm.loaded.size + '</b>\n' +
+      'en vuelo: <b>' + tm.currentLoads + '</b>  cola: <b>' + tm.loadQueue.length + '</b>\n' +
+      'listos sin sprite: <b>' + tm._listos.length + '</b>\n' +
+      'texturas propias: <b>' + tm._texturasPropias.size + '</b>\n' +
+      'fotograma medio: <b>' + medio.toFixed(1) + ' ms</b>\n' +
+      'PEOR fotograma: <b>' + peor.toFixed(1) + ' ms</b>';
+  }
+};
+
+new Phaser.Game({
+  type: Phaser.AUTO, parent: 'juego',
+  width: 760, height: 460,
+  backgroundColor: '#000', pixelArt: true, roundPixels: true,
+  scene: Escena
+});
+window.reiniciarPico = function () { peor = 0; };
+</script>
+</body>
+</html>

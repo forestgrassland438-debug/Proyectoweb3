@@ -15912,6 +15912,15 @@ _setupZoomKeeper() {
       }
       
       this.socket = window.globalSocket;
+      /* Si el socket se reconectó mientras esta escena no existía o estaba
+         pausada, aquí está la deuda de join pendiente. Se fuerza saltándose el
+         enfriamiento: si no, joinRoom() lo ignoraría por "ya estoy en esa
+         sala" y el socket se quedaría fuera. */
+      if (this.socket && this.socket._necesitaJoin) {
+        this.currentRoom = null;
+        this.lastJoinTime = 0;
+        this.socket._necesitaJoin = false;
+      }
       this.setupSceneSocketListeners();
       // IDENTIFICARSE A UNO MISMO.
       //
@@ -15942,8 +15951,34 @@ _setupZoomKeeper() {
         socket._huboConexion = true;
         console.log((esReconexion ? '🔁 Socket global RECONECTADO: '
                                   : '✅ Socket global conectado: ') + socket.id);
+        /* LA DEUDA DE JOIN VIVE EN EL SOCKET, NO EN LA ESCENA.
+
+           FALLO QUE ESTO ARREGLA — "se me cae el chat, dice que no encuentra el
+           servidor y ya no vuelve ni al enviar ni al mirar los usuarios":
+
+           al reconectar, el socket trae un id NUEVO y el servidor no le conoce
+           ninguna sala hasta que el cliente rehace el joinRoom. Ese aviso se le
+           daba a `window.activeScene`… que puede ser null (justo en un cambio
+           de escena) o una escena PAUSADA (durante un combate, `isActive()` es
+           false). En cualquiera de los dos casos no se rehacía el join y el
+           socket se quedaba conectado pero fuera de la sala: mudo para siempre,
+           sin nadie a la vista, y sin nada que lo levantara salvo recargar.
+
+           Ahora la deuda se apunta EN EL SOCKET, que sobrevive a todo. Quien
+           pueda la salda; y si nadie puede ahora, la salda la siguiente escena
+           al montarse (initSocket la mira). */
+        socket._necesitaJoin = true;
         var esc = window.activeScene;
         if (esc && esc.onSocketReconnect) esc.onSocketReconnect(esReconexion);
+      });
+
+      /* El servidor avisa de que este socket no está en ninguna sala. Lo manda
+         cuando llega un chat o un movimiento de alguien a quien no reconoce, que
+         es exactamente lo que pasa tras una reconexión mal saldada. */
+      socket.on('rejoinRequired', () => {
+        socket._necesitaJoin = true;
+        var esc = window.activeScene;
+        if (esc && esc.rehacerJoin) esc.rehacerJoin('el servidor lo pide');
       });
 
       socket.on('disconnect', (reason) => {
@@ -16153,6 +16188,8 @@ _setupZoomKeeper() {
       
       this.lastJoinTime = now;
       this.currentRoom = roomName;
+      // Deuda saldada: el servidor ya sabe en qué sala está este socket.
+      this.socket._necesitaJoin = false;
       
       console.log(`🚪 Uniéndose a sala: ${roomName}`);
       
@@ -16840,6 +16877,47 @@ removeOtherPlayer(playerId) {
     }
 
     /** Aviso de que se ha caido la conexion: se lo dice al jugador. */
+    /**
+     * Vuelve a entrar en la sala, sin excusas.
+     *
+     * Es el único camino de vuelta cuando el socket se reconecta: el servidor
+     * conoce al socket por su id, y tras reconectar ese id es otro. Sin este
+     * join el socket está conectado pero no pertenece a ninguna sala — no
+     * recibe chat, no ve a nadie y lo que envía se descarta.
+     */
+    rehacerJoin(motivo) {
+      var s = window.globalSocket;
+      if (!s || !s.connected) return false;
+      if (!this.scene || !this.scene.isActive()) {
+        this._rejoinPendiente = true;
+        this._prepararRejoinAlDespertar();
+        return false;
+      }
+      console.log('🚪 rehaciendo join (' + (motivo || 'sin motivo') + ')');
+      this._socketCaido = false;
+      this.socket = s;
+      this.myId = s.id;
+      if (typeof this.clearOtherPlayers === 'function') this.clearOtherPlayers();
+      this.lastJoinTime = 0;                  // sin enfriamiento: hay que entrar YA
+      this.setupSceneSocketListeners();
+      this.joinRoom(this.currentRoom || 'game');
+      s._necesitaJoin = false;
+      this._rejoinPendiente = false;
+      return true;
+    }
+
+    /** Deja la reentrada preparada para cuando la escena vuelva a correr. */
+    _prepararRejoinAlDespertar() {
+      if (this._rejoinEnganchado || !this.events) return;
+      this._rejoinEnganchado = true;
+      var reintentar = () => {
+        this._rejoinEnganchado = false;
+        if (this._rejoinPendiente) this.rehacerJoin('la escena ha despertado');
+      };
+      this.events.once('resume', reintentar);
+      this.events.once('wake', reintentar);
+    }
+
     onSocketDisconnect(reason) {
       this._socketCaido = true;
       if (typeof this.appendSystemMessage === 'function') {
@@ -16867,6 +16945,19 @@ removeOtherPlayer(playerId) {
          Y los jugadores que habia antes son fantasmas: sus ids ya no existen en
          el servidor. Se borran para que el `currentPlayers` de la nueva entrada
          los vuelva a crear con los ids buenos. */
+      /* NADA DE `return` SI LA ESCENA NO ESTÁ ACTIVA.
+
+         Antes esto exigía `this.scene.isActive()`, y una escena PAUSADA (por
+         ejemplo mientras se juega un combate, o mientras se está cambiando de
+         escena) no lo está. En ese caso no se rehacía el join NUNCA: al volver
+         del combate seguías conectado, sin chat y sin ver a nadie. Ahora se
+         apunta la deuda y se salda en cuanto la escena despierta. */
+      if (esReconexion && !this.scene.isActive()) {
+        this._rejoinPendiente = true;
+        this._prepararRejoinAlDespertar();
+        return;
+      }
+
       if (esReconexion && this.scene.isActive()) {
         this._socketCaido = false;
         this.socket = window.globalSocket;
@@ -17277,14 +17368,25 @@ removeOtherPlayer(playerId) {
       text
     };
 
+    /* SI NO HAY CONEXIÓN, SE LEVANTA — NO SE PROTESTA Y YA.
+
+       FALLO QUE ESTO ARREGLA: aquí solo se pintaba "Not connected to the chat
+       server" y se devolvía. Si el motor de reintentos de Socket.IO estaba
+       parado (pasa al volver de suspensión en algunos navegadores), ese mensaje
+       era la única señal y no había nada que reconectara: el jugador veía
+       "servidor no encontrado" para siempre. Ahora se empuja la reconexión
+       desde aquí mismo. */
     if (!this.socket || !this.socket.connected) {
-      // Se dice que se esta volviendo, no solo que no hay conexion: antes
-      // parecia que el que se habia caido era el servidor.
-      this.appendSystemMessage(this._socketCaido
-        ? 'Connection lost. Reconnecting… your message was not sent.'
-        : 'Not connected to the chat server.');
+      const s = this.socket || window.globalSocket;
+      if (s && s.disconnected) { try { s.connect(); } catch (e) {} }
+      this.appendSystemMessage('Reconnecting to the chat… your message was not sent. '
+                               + 'Try again in a moment.');
       return;
     }
+
+    /* CONECTADO PERO FUERA DE LA SALA. También hay que arreglarlo aquí: el
+       servidor descartaría el mensaje y el jugador no entendería por qué. */
+    if (this.socket._necesitaJoin) this.rehacerJoin('antes de enviar un chat');
 
     // emitir y limpiar input
     this.socket.emit('chatMessage', payload);
@@ -23403,9 +23505,19 @@ createImagesFromObjectLayer1(scene, map, objectLayerName, nameMapping) {
              junta con ninguna otra. Como asi los tiles llegan mas espaciados,
              el anillo de precarga sube de 900 a 1300 px para que sigan estando
              listos antes de entrar en cuadro. */
-          marginPx: 1300,
+          /* VUELVEN LAS DESCARGAS EN PARALELO.
+
+             Estaban en UNA sola porque descodificar el PNG y subirlo a la GPU
+             se hacían de golpe al terminar la descarga, y dos que terminaran en
+             el mismo tick eran un parón. Ahora la descodificación va en otro
+             hilo (createImageBitmap) y la subida está limitada a una por
+             fotograma dentro de bombear(), así que ya no se pueden juntar: se
+             pueden pedir tres a la vez y los chunks llegan mucho antes de
+             entrar en cuadro. Con eso el anillo de precarga puede bajar de
+             1300 a 1100 px, que es menos memoria de vídeo. */
+          marginPx: 1100,
           unloadPadPx: 400,
-          maxConcurrentLoads: 1,
+          maxConcurrentLoads: 3,
           creaPorFrame: 1,          // sprites creados por fotograma
           borraPorFrame: 1,         // tiles destruidos por fotograma
           // NOTA: maxLoadedTiles NO lo usa tileManager.js (opción inerte); la
