@@ -958,6 +958,251 @@
       }
     }
 
+    /* ═══════════════════════════════════════════════════════════════════
+       QUITAR CANTIDAD DE UNA FACTURA, SIN QUE SE PIERDA LA ACCIÓN
+       ───────────────────────────────────────────────────────────────────
+       EL FALLO QUE ESTO ARREGLA — "❌ Error borrando invoice 1764":
+
+       Al craftear o al llenar el balde en la fuente, el juego mandaba
+       `deleteInvoice(id)` a pelo con el id que tenía guardado en el hueco del
+       inventario. Ese envío se cae por tres motivos distintos, y los tres
+       daban EL MISMO mensaje, que además no dice nada:
+
+         1. El id ya no vale. Los huecos guardan `IDX`, y ese número se queda
+            viejo en cuanto la factura se gasta por otro camino (una compra,
+            una misión, otra pestaña abierta). El servidor lee la factura
+            antes de firmar y responde `ownership_check_failed: invoice N is
+            inactive` o `... not found on-chain`. El jugador ve "Error
+            borrando invoice N" y no puede hacer nada.
+
+         2. El hueco nunca tuvo id de verdad. `addItem()` rellena `idx` con el
+            NÚMERO DE HUECO cuando nadie le pasa uno, así que un objeto que
+            entró por un camino que no crea factura acaba con idx 3, o 12.
+            Mandar `deleteInvoice(3)` es pedir borrar la factura de OTRO
+            jugador, y el anti-trampa del servidor lo corta — con razón.
+
+         3. La cantidad no cuadra. `deleteInvoice` borra la factura ENTERA,
+            valga lo que valga. Si en la cadena quedaban 3 y el inventario
+            creía que quedaba 1, se quemaban los 3.
+
+       LO QUE HACE AHORA
+         a) MIRA la factura antes de tocarla (`getInvoice`, que es una lectura
+            y no gasta gas). Si el id no vale, la busca por su `manualId`, que
+            es el nombre único que sí viaja con el objeto.
+         b) Si de verdad ya no existe —o ya no es del jugador—, NO es un
+            error: es que ya estaba quitada. Se devuelve `ya: true` para que
+            quien llame cuadre su inventario en silencio en vez de asustar al
+            jugador con una cruz roja.
+         c) Para quitar usa `decreaseInvoiceQuantity`, NUNCA `deleteInvoice`.
+            Hacen lo mismo cuando la cantidad llega a cero —el contrato borra
+            la factura él solo, con su evento y liberando el manualId— pero
+            `decrease` solo quita lo que se le pide y se conforma con lo que
+            haya (`actualDecrease = min(pedido, cantidad)`), así que ni quema
+            de más ni revienta si los números no cuadran al píxel.
+            `deleteInvoice` se queda como plan B por si el `decrease` no sale.
+         d) Y si algo falla de verdad, devuelve el motivo REAL para poder
+            enseñarlo, en vez de "Error borrando invoice N".
+
+       Devuelve:
+         { ok, ya, funcion, id, transactionId, txHash, error, motivo }
+       ═══════════════════════════════════════════════════════════════════ */
+
+    /** Saca los campos de una factura venga como venga del normalizador. */
+    _leerCamposFactura(raw) {
+      if (!raw || typeof raw !== 'object') return null;
+      // El normalizador mete la tupla sin nombre en `out0`; ethers a veces la
+      // da como array y a veces como objeto. Se acepta todo.
+      let f = raw;
+      if (f.out0 !== undefined && typeof f.out0 === 'object') f = f.out0;
+      const coge = (...claves) => {
+        for (const k of claves) {
+          if (f && f[k] !== undefined && f[k] !== null) return f[k];
+        }
+        return undefined;
+      };
+      const id       = coge('id', 0);
+      const owner    = coge('owner', 2);
+      const tipo     = coge('tipo', 3);
+      const cantidad = coge('cantidad', 4);
+      const activa   = coge('active', 'activo', 5);
+      if (id === undefined && owner === undefined) return null;
+      return {
+        id:       Number(id || 0),
+        manualId: String(coge('manualId', 1) || ''),
+        owner:    String(owner || '').toLowerCase(),
+        tipo:     String(tipo || ''),
+        cantidad: Number(cantidad || 0),
+        activa:   (activa === true || activa === 'true' || activa === 1 || activa === '1')
+      };
+    }
+
+    /* ¿ESTE FALLO ES DEL NODO O ES LA RESPUESTA?
+
+       Distinguirlo es imprescindible, y no es un detalle fino: si el nodo no
+       contesta y damos por hecho "la factura no existe", el juego borra el
+       objeto del inventario del jugador SIN quemarlo en la cadena. No se pierde
+       nada de verdad —al recargar vuelve—, pero el jugador ve desaparecer su
+       balde y luego reaparecer, y eso parece un juego roto.
+
+       Un revert del contrato (la factura de verdad no está) sí es la respuesta,
+       y ahí sí se puede afirmar. */
+    static _esFalloDeRed(e) {
+      if (!e) return false;
+      const code = String(e.code || '').toUpperCase();
+      if (['NETWORK_ERROR', 'SERVER_ERROR', 'TIMEOUT', 'ECONNRESET',
+           'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN'].includes(code)) return true;
+      // Un revert nunca es de red, aunque el texto se le parezca.
+      if (code === 'CALL_EXCEPTION' || e.reason || e.revert) return false;
+      const m = String(e.shortMessage || e.message || '').toLowerCase();
+      if (!m) return false;
+      if (m.includes('execution reverted') || m.includes('call_exception')) return false;
+      return (
+        m.includes('failed to fetch')   || m.includes('fetch failed')      ||
+        m.includes('network')           || m.includes('timeout')           ||
+        m.includes('timed out')         || m.includes('abort')             ||
+        m.includes('could not detect')  || m.includes('socket hang up')    ||
+        m.includes('bad gateway')       || m.includes('service unavailable')||
+        m.includes('502') || m.includes('503') || m.includes('504')        ||
+        m.includes('http 5')
+      );
+    }
+
+    /**
+     * Lee una factura por su id.
+     *   objeto → la factura
+     *   null   → el contrato dice que no está
+     *   lanza  → no se pudo preguntar (el nodo no contesta)
+     */
+    async leerFactura(contractAddress, id) {
+      const n = Number(id);
+      if (!Number.isFinite(n) || n <= 0) return null;
+      try {
+        const raw = await this.accion(contractAddress, {
+          funcion: 'getInvoice', _id: n, accion: 'obtener'
+        });
+        return this._leerCamposFactura(raw);
+      } catch (e) {
+        // getInvoice revierte cuando la factura no existe: eso NO es un fallo
+        // de red, es la respuesta.
+        if (PhaserRelay._esFalloDeRed(e)) throw e;
+        return null;
+      }
+    }
+
+    /** Lee una factura por su manualId. Mismas reglas que leerFactura. */
+    async leerFacturaPorManualId(contractAddress, manualId) {
+      const m = String(manualId || '').trim();
+      if (!m) return null;
+      try {
+        const raw = await this.accion(contractAddress, {
+          funcion: 'getInvoiceByManualId', _manualId: m, accion: 'obtener'
+        });
+        return this._leerCamposFactura(raw);
+      } catch (e) {
+        if (PhaserRelay._esFalloDeRed(e)) throw e;
+        return null;
+      }
+    }
+
+    async quitarDeFactura(contractAddress, opciones = {}) {
+      const { idx, manualid, cantidad, tipo, vaciarFactura = false } = opciones;
+
+      const auth = await this.checkAuth();
+      if (!auth || !auth.success) {
+        return { ok: false, error: 'No hay sesión iniciada' };
+      }
+      const yo = String(auth.address || '').toLowerCase();
+      const tipoPedido = String(tipo || '').trim();
+
+      /* ¿ESTA FACTURA ES LA QUE BUSCO?
+
+         Además de existir, estar viva y ser mía, tiene que ser DEL MISMO TIPO
+         de objeto. Esa última condición es la que impide un destrozo silencioso:
+         un hueco del inventario puede llevar un `idx` que no es un id de
+         factura (ver addItem: cuando nadie le pasa uno, rellena con el NÚMERO
+         DE HUECO, o sea 3, 7, 12…). Sin comprobar el tipo, gastar ese objeto
+         quemaba la factura número 3 del jugador — que podía ser cualquier otra
+         cosa, sus lingotes o su hacha. Con la comprobación, un id que no cuadra
+         sencillamente no vale y se busca por manualId. */
+      const suya = (f) => f && f.activa && f.id > 0 &&
+                          (!yo || !f.owner || f.owner === yo) &&
+                          (!tipoPedido || !f.tipo || f.tipo === tipoPedido);
+
+      /* Las dos lecturas van envueltas: si el nodo no contesta, esto NO puede
+         acabar en "la factura ya no estaba" (ver _esFalloDeRed). Se devuelve un
+         error de verdad y el jugador conserva su objeto; ya lo volverá a
+         intentar cuando el nodo vuelva, que es lo que pasa siempre. */
+      let f = null;
+      try {
+        // 1) Por el id que trae el hueco.
+        f = await this.leerFactura(contractAddress, idx);
+
+        // 2) Si no vale, por el nombre único del objeto.
+        if (!suya(f) && manualid) {
+          const porNombre = await this.leerFacturaPorManualId(contractAddress, manualid);
+          if (suya(porNombre)) f = porNombre;
+        }
+      } catch (e) {
+        return {
+          ok: false, ya: false, id: Number(idx) || 0,
+          error: 'no se pudo leer la factura (¿el nodo está caído?): ' +
+                 (e && (e.message || String(e)))
+        };
+      }
+
+      // 3) Ya no está: no es un error, es que ya se quitó.
+      if (!suya(f)) {
+        let motivo = 'la factura ya no existe en la cadena';
+        if (f && !f.activa)                             motivo = 'la factura ya estaba cerrada';
+        else if (f && tipoPedido && f.tipo && f.tipo !== tipoPedido)
+                                                        motivo = 'ese id es de otro objeto (' + f.tipo + ')';
+        else if (f)                                     motivo = 'la factura es de otro jugador';
+        return { ok: true, ya: true, id: Number(idx) || 0, motivo: motivo };
+      }
+
+      // 4) Cuánto se quita de verdad.
+      let quitar = vaciarFactura ? f.cantidad : Number(cantidad || 0);
+      if (!Number.isFinite(quitar) || quitar <= 0) quitar = Number(cantidad || 0);
+      if (!Number.isFinite(quitar) || quitar <= 0) {
+        return { ok: true, ya: true, id: f.id, motivo: 'no había nada que quitar' };
+      }
+      if (quitar > f.cantidad) quitar = f.cantidad;
+
+      // 5) decrease primero — el contrato borra la factura solo al llegar a 0.
+      let res = null, error = null;
+      try {
+        res = await this.sendTransaction(contractAddress, 'decreaseInvoiceQuantity',
+                                         { 0: String(f.id), 1: String(quitar) });
+      } catch (e) {
+        error = e && (e.message || String(e));
+      }
+      if (res && res.success) {
+        return { ok: true, ya: false, funcion: 'decreaseInvoiceQuantity', id: f.id,
+                 cantidad: quitar, transactionId: res.transactionId, txHash: res.txHash };
+      }
+      if (!error) error = (res && (res.error || res.message)) || 'envío rechazado';
+
+      /* 6) Plan B: el borrado de toda la vida. Solo cuando se quería vaciar la
+            factura entera — si solo había que quitar una parte, borrarla sería
+            quemar de más, y eso es peor que fallar. */
+      if (vaciarFactura || quitar >= f.cantidad) {
+        try {
+          const res2 = await this.sendTransaction(contractAddress, 'deleteInvoice',
+                                                  { 0: String(f.id) });
+          if (res2 && res2.success) {
+            return { ok: true, ya: false, funcion: 'deleteInvoice', id: f.id,
+                     cantidad: f.cantidad, transactionId: res2.transactionId,
+                     txHash: res2.txHash };
+          }
+          if (res2 && (res2.error || res2.message)) error = res2.error || res2.message;
+        } catch (e2) {
+          error = e2 && (e2.message || String(e2));
+        }
+      }
+
+      return { ok: false, ya: false, id: f.id, cantidad: quitar, error: error };
+    }
+
     // ── NORMALIZADORES DE RESULTADOS ──────────────────────────────────────
 
     _normalizeResult(raw, functionAbi = null) {

@@ -13,7 +13,7 @@
   <title>GRASSLAND FOREST</title>
   <link rel="icon" href="favicon.png" type="image/png" />
   <!-- v17: rediseño del panel de misiones + altura real del viewport en móvil -->
-  <link rel="stylesheet" href="styless.css?v=18.1" />
+  <link rel="stylesheet" href="styless.css?v=18.9" />
 
   <!-- ============================
        CONTENT-SECURITY-POLICY (meta for testing / development)..
@@ -70,43 +70,48 @@
        ============================ -->
 
   <!-- missionspanel.js -->
-  <script src="./missionspanel.js?v=18.1" defer></script>
+  <script src="./missionspanel.js?v=18.9" defer></script>
 
   <!-- Personajes Soulbound. Va ANTES de las escenas porque sus preload()
        le piden las rutas de los sprites del jugador. -->
-  <script src="./gf-soulbound.js?v=18.1" defer></script>
+  <script src="./gf-soulbound.js?v=18.9" defer></script>
 
   <!-- Canales (10 × 50 jugadores). El canal lo asigna el servidor al conectar
        el socket, UNA sola vez por pestaña; este módulo solo lo recuerda y
        pinta el panel del dashboard. -->
-  <script src="./gf-canales.js?v=18.1" defer></script>
-  <script src="./gf-profundidad.js?v=18.1" defer></script>
-  <script src="./gf-sombras.js?v=18.1" defer></script>
-  <script src="./gf-nieve.js?v=18.1" defer></script>
-  <script src="./gf-ciclo-dia.js?v=18.1" defer></script>
+  <script src="./gf-canales.js?v=18.9" defer></script>
+  <script src="./gf-profundidad.js?v=18.9" defer></script>
+  <script src="./gf-sombras.js?v=18.9" defer></script>
+  <script src="./gf-nieve.js?v=18.9" defer></script>
+  <script src="./gf-ciclo-dia.js?v=18.9" defer></script>
 
   <!-- Cazador de micro-parones. Inerte hasta que se le llama a mano desde la
        consola con GFTirones.empezar(). No vigila nada por su cuenta. -->
-  <script src="./gf-tirones.js?v=18.1" defer></script>
-  <script src="./gf-cuervo.js?v=18.1" defer></script>
-  <script src="./gf-animales.js?v=18.1" defer></script>
-  <script src="./gf-mascota.js?v=18.1" defer></script>
-  <script src="./gf-muerte.js?v=18.1" defer></script>
-  <script src="./gf-alquimista.js?v=18.1" defer></script>
-  <script src="./gf-viento.js?v=18.1" defer></script>
-  <script src="./gf-clima.js?v=18.1" defer></script>
+  <script src="./gf-tirones.js?v=18.9" defer></script>
+  <script src="./gf-cuervo.js?v=18.9" defer></script>
+  <script src="./gf-animales.js?v=18.9" defer></script>
+  <script src="./gf-mascota.js?v=18.9" defer></script>
+  <script src="./gf-muerte.js?v=18.9" defer></script>
+  <script src="./gf-alquimista.js?v=18.9" defer></script>
+  <script src="./gf-viento.js?v=18.9" defer></script>
+  <script src="./gf-clima.js?v=18.9" defer></script>
+
+  <!-- Post-procesado: viñeta, desenfoque de bordes y revelado de color sobre
+       el fotograma ya pintado. Va DESPUÉS del clima porque lee de él qué
+       tiempo hace. Si no hay WebGL o la calidad está en baja, no hace nada. -->
+  <script src="./gf-postproceso.js?v=18.9" defer></script>
 
   <!-- Scenes -->
-  <script src="./Scenes/MenuScene.js?v=18.1" defer></script>
-  <script src="./Scenes/LoadingSceneshop.js?v=18.1" defer></script>
-  <script src="./Scenes/tiendajuego.js?v=18.1" defer></script>
-  <script src="./Scenes/LoadingScenegame.js?v=18.1" defer></script>
-  <script src="./Scenes/GameScene.js?v=18.1" defer></script>
-  <script src="./Scenes/BattleScene.js?v=18.1" defer></script>
-  <script src="./Scenes/sacar_mapa.js?v=18.1" defer></script>
+  <script src="./Scenes/MenuScene.js?v=18.9" defer></script>
+  <script src="./Scenes/LoadingSceneshop.js?v=18.9" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=18.9" defer></script>
+  <script src="./Scenes/LoadingScenegame.js?v=18.9" defer></script>
+  <script src="./Scenes/GameScene.js?v=18.9" defer></script>
+  <script src="./Scenes/BattleScene.js?v=18.9" defer></script>
+  <script src="./Scenes/sacar_mapa.js?v=18.9" defer></script>
 
   <!-- tienda marketplace p2p -->
-  <script src="./Scenes/ShopScene.js?v=18.1" defer></script>
+  <script src="./Scenes/ShopScene.js?v=18.9" defer></script>
 
   <!-- utilities -->
 
@@ -119,60 +124,60 @@
        antes y sigue sin existir. El archivo se queda en el repositorio por si
        algún día se usa; solo se dejó de cargar.
        El tamaño del lienzo lo gestiona el gestor de resize de app.js. -->
-  <script src="./phaser-rpg-perf.js?v=18.1" defer></script>
-  <script src="./Phaser-camera.js?v=18.1" defer></script>
-  <script src="./LoadingSystem.js?v=18.1" defer></script>
+  <script src="./phaser-rpg-perf.js?v=18.9" defer></script>
+  <script src="./Phaser-camera.js?v=18.9" defer></script>
+  <script src="./LoadingSystem.js?v=18.9" defer></script>
 
   <!-- blockchain / transaction -->
-  <script src="./BlockchainManager.js?v=18.1" defer></script>
-  <script src="./TransactionHub.js?v=18.1" defer></script>
-  <script src="./SystemaTransaccion.js?v=18.1" defer></script>
-  <script src="./CraftingHub.js?v=18.1" defer></script>
-  <script src="./tienda_sistema.js?v=18.1" defer></script>
-  <script src="./phaser-relay-library.js?v=18.1" defer></script>
-  <script src="./hub.js?v=18.1" defer></script>
+  <script src="./BlockchainManager.js?v=18.9" defer></script>
+  <script src="./TransactionHub.js?v=18.9" defer></script>
+  <script src="./SystemaTransaccion.js?v=18.9" defer></script>
+  <script src="./CraftingHub.js?v=18.9" defer></script>
+  <script src="./tienda_sistema.js?v=18.9" defer></script>
+  <script src="./phaser-relay-library.js?v=18.9" defer></script>
+  <script src="./hub.js?v=18.9" defer></script>
 
 
-  <script src="./register-scenes.js?v=18.1" defer></script>
+  <script src="./register-scenes.js?v=18.9" defer></script>
 
-  <script src="./memory-fix.js?v=18.1" defer></script>
+  <script src="./memory-fix.js?v=18.9" defer></script>
   <!-- CraftingHub.js ya se carga arriba como script clásico; la segunda carga
        como type="module" ejecutaba el archivo completo dos veces (doble parse
        y doble descarga). Eliminada. -->
 
-  <script src="./NotificationHub.js?v=18.1" defer></script>
+  <script src="./NotificationHub.js?v=18.9" defer></script>
 
   <!-- tileManager: if it uses import/export, keep module -->
-  <script type="module" src="lib/tileManager.js?v=18.1" defer></script>
+  <script type="module" src="lib/tileManager.js?v=18.9" defer></script>
 
   <!-- preload critical asset -->
   <link rel="preload" href="./Game/Source/cursor.png" as="image" />
 
   <!-- Contador global de transacciones on-chain en vuelo. Debe cargarse ANTES
        que las escenas para que ninguna transacción se quede sin registrar. -->
-  <script src="./tx-gate.js?v=18.1" defer></script>
+  <script src="./tx-gate.js?v=18.9" defer></script>
 
   <!-- GF Wallet SDK — wallet embebida para quien entró con Google/Facebook/Apple.
        Va después de ethers (lo necesita para firmar) y su arranque solo instala
        window.ethereum si NO hay MetaMask: con extensión instalada, manda ella. -->
-  <script src="./gf-wallet-sdk/gf-wallet.js?v=18.1" defer></script>
-  <script src="./gf-wallet-boot.js?v=18.1" defer></script>
+  <script src="./gf-wallet-sdk/gf-wallet.js?v=18.9" defer></script>
+  <script src="./gf-wallet-boot.js?v=18.9" defer></script>
   <!-- Panel de cartera del dashboard. Va aparte de las escenas porque el
        dashboard es DOM de la pagina, compartido por GameScene y tiendajuego. -->
-  <script src="./gf-wallet-dashboard.js?v=18.1" defer></script>
+  <script src="./gf-wallet-dashboard.js?v=18.9" defer></script>
 
   <!-- Altura real del viewport en móvil (el juego salía en una franja arriba y
        el resto negro). Debe ir ANTES de app.js para publicar --app-height
        antes de que se cree el lienzo. No toca el zoom de la cámara. -->
-  <script src="./viewport-fix.js?v=18.1" defer></script>
+  <script src="./viewport-fix.js?v=18.9" defer></script>
 
   <!-- main app bootstrap -->
-  <script src="app.js?v=18.1" defer></script>
+  <script src="app.js?v=18.9" defer></script>
 
   <!-- Ajustes de gráficos: calidad y distancia de visión (chunks).
        Va DESPUÉS de app.js porque usa window.game y window.gfResizeGame,
        que app.js publica al crear el juego. -->
-  <script src="./gf-graphics-settings.js?v=18.1" defer></script>
+  <script src="./gf-graphics-settings.js?v=18.9" defer></script>
 
   <!-- ============================
        END HEAD
