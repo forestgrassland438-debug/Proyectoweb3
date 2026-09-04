@@ -423,7 +423,10 @@
 
   function dibujarCharco(scene, clave, semilla, helado) {
     if (scene.textures.exists(clave)) return clave;
-    var W = 96, H = 52;
+    /* 56×26 y no 96×52. El primer intento salía a 230×125 px en pantalla —más
+       ancho que alto el jugador— y el jugador lo dijo: "los charcos se ven muy
+       falsos". Un charco de este mapa tiene que caber en dos o tres losas. */
+    var W = 56, H = 26;
     try {
       var c = scene.textures.createCanvas(clave, W, H);
       var ctx = c.getContext();
@@ -435,62 +438,81 @@
 
       // ── el contorno, abollado ──
       var cx = W / 2, cy = H / 2;
-      var rx = W * az2(0.38, 0.46), ry = H * az2(0.34, 0.42);
-      var N = 26, pts = [];
+      var rx = W * az2(0.40, 0.47), ry = H * az2(0.36, 0.44);
+      var N = 28, pts = [];
       for (var i = 0; i < N; i++) {
         var a = (i / N) * Math.PI * 2;
         /* Dos ondas de distinta frecuencia sobre el radio: una sola daría una
            forma de flor, y dos que no casan dan un borde creíble. */
-        var k = 1 + 0.14 * Math.sin(a * 3 + semilla) + 0.09 * Math.sin(a * 5 - semilla * 2);
+        var k = 1 + 0.11 * Math.sin(a * 3 + semilla) + 0.07 * Math.sin(a * 5 - semilla * 2);
         pts.push([cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k]);
       }
-      ctx.beginPath();
-      ctx.moveTo(pts[0][0], pts[0][1]);
-      for (i = 1; i < N; i++) {
-        var m = [(pts[i][0] + pts[(i + 1) % N][0]) / 2, (pts[i][1] + pts[(i + 1) % N][1]) / 2];
-        ctx.quadraticCurveTo(pts[i][0], pts[i][1], m[0], m[1]);
+      function contorno() {
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0], pts[0][1]);
+        for (var j = 1; j <= N; j++) {
+          var p1 = pts[j % N], p2 = pts[(j + 1) % N];
+          ctx.quadraticCurveTo(p1[0], p1[1], (p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2);
+        }
+        ctx.closePath();
       }
-      ctx.closePath();
 
-      /* El relleno es un degradado radial DESCENTRADO hacia arriba: es de
-         donde viene la luz del cielo en un juego cenital. */
-      var g = ctx.createRadialGradient(cx, cy - ry * 0.35, 2, cx, cy, rx);
+      /* EL CUERPO ES OSCURO Y CASI PLANO.
+       *
+       * Aquí estaba el error de bulto del primer intento: un degradado radial
+       * que iba de un azul CLARO en el centro a oscuro por fuera. Sobre la
+       * plaza de piedra —que es gris oscuro— eso pinta una mancha más clara
+       * que el suelo, con el borde difuminado. No parece agua: parece niebla,
+       * o una linterna.
+       *
+       * El agua quieta sobre suelo oscuro es un ESPEJO OSCURO: se ve más
+       * negra que lo que la rodea, y lo único claro es el brillo puntual del
+       * cielo. Así que el cuerpo va oscuro y casi liso, y la luz se mete
+       * después y en poca cantidad.
+       */
+      contorno();
+      var g = ctx.createLinearGradient(0, cy - ry, 0, cy + ry);
       if (helado) {
-        g.addColorStop(0.00, 'rgba(228,242,255,0.95)');
-        g.addColorStop(0.45, 'rgba(176,208,235,0.88)');
-        g.addColorStop(0.82, 'rgba(126,166,201,0.86)');
-        g.addColorStop(1.00, 'rgba(92,126,158,0.80)');
+        // El hielo SÍ es más claro que el suelo: es opaco y difunde la luz.
+        g.addColorStop(0.00, 'rgba(196,222,242,0.90)');
+        g.addColorStop(0.55, 'rgba(158,192,218,0.90)');
+        g.addColorStop(1.00, 'rgba(120,152,180,0.90)');
       } else {
-        g.addColorStop(0.00, 'rgba(150,190,220,0.62)');
-        g.addColorStop(0.45, 'rgba(78,116,148,0.72)');
-        g.addColorStop(0.82, 'rgba(46,72,96,0.80)');
-        g.addColorStop(1.00, 'rgba(30,48,66,0.86)');
+        g.addColorStop(0.00, 'rgba(38,58,74,0.80)');
+        g.addColorStop(0.55, 'rgba(28,44,60,0.86)');
+        g.addColorStop(1.00, 'rgba(20,32,46,0.90)');
       }
       ctx.fillStyle = g;
       ctx.fill();
 
-      // ── el reflejo ──
       ctx.save();
-      ctx.clip();                                   // que no se salga del charco
+      contorno();
+      ctx.clip();                                   // nada se sale del charco
+
+      /* EL CANTO DE ARRIBA, encendido. Es el menisco: el borde del agua
+         recoge la luz del cielo en una línea fina. Con esto el charco deja de
+         ser una mancha y pasa a tener superficie. */
       ctx.globalCompositeOperation = 'lighter';
-      var brillo = ctx.createLinearGradient(0, cy - ry, 0, cy + ry * 0.4);
-      if (helado) {
-        brillo.addColorStop(0, 'rgba(255,255,255,0.55)');
-        brillo.addColorStop(1, 'rgba(255,255,255,0)');
-      } else {
-        brillo.addColorStop(0, 'rgba(190,225,255,0.34)');
-        brillo.addColorStop(1, 'rgba(190,225,255,0)');
-      }
-      ctx.fillStyle = brillo;
+      var canto = ctx.createLinearGradient(0, cy - ry, 0, cy - ry * 0.15);
+      canto.addColorStop(0, helado ? 'rgba(255,255,255,0.46)' : 'rgba(150,190,225,0.30)');
+      canto.addColorStop(1, 'rgba(150,190,225,0)');
+      ctx.fillStyle = canto;
+      ctx.fillRect(0, 0, W, H);
+
+      /* EL BRILLO. Una raya corta y estrecha, descentrada, NO una elipse
+         enorme y difusa. El reflejo del cielo en un charco es pequeño; si
+         ocupa medio charco se convierte en la niebla de antes. */
       ctx.beginPath();
-      ctx.ellipse(cx + az2(-8, 8), cy - ry * 0.42, rx * 0.62, ry * 0.30, az2(-0.2, 0.2), 0, Math.PI * 2);
+      ctx.ellipse(cx + az2(-rx * 0.28, rx * 0.10), cy - ry * 0.30,
+                  rx * az2(0.26, 0.38), ry * 0.11, az2(-0.12, 0.12), 0, Math.PI * 2);
+      ctx.fillStyle = helado ? 'rgba(255,255,255,0.50)' : 'rgba(190,222,255,0.27)';
       ctx.fill();
 
+      ctx.globalCompositeOperation = 'source-over';
       if (helado) {
-        /* GRIETAS. Tres rayas finas y claras desde el centro. Son lo que dice
-           "esto está congelado" y no "esto es un charco muy claro". */
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.strokeStyle = 'rgba(245,252,255,0.6)';
+        /* GRIETAS. Tres rayas finas y claras. Son lo que dice "esto está
+           congelado" y no "esto es un charco muy claro". */
+        ctx.strokeStyle = 'rgba(248,253,255,0.55)';
         ctx.lineWidth = 1;
         for (var q = 0; q < 3; q++) {
           var a0 = az2(0, Math.PI * 2);
@@ -498,12 +520,21 @@
           ctx.moveTo(cx, cy);
           var px = cx, py = cy;
           for (var p = 0; p < 4; p++) {
-            px += Math.cos(a0 + az2(-0.5, 0.5)) * rx * 0.28;
-            py += Math.sin(a0 + az2(-0.5, 0.5)) * ry * 0.28;
+            px += Math.cos(a0 + az2(-0.5, 0.5)) * rx * 0.26;
+            py += Math.sin(a0 + az2(-0.5, 0.5)) * ry * 0.26;
             ctx.lineTo(px, py);
           }
           ctx.stroke();
         }
+      } else {
+        /* Y una sombra por dentro del canto de ABAJO: es el suelo mojado que
+           se ve a través del agua por el lado que no da la luz. Remata el
+           volumen sin aclarar nada. */
+        ctx.strokeStyle = 'rgba(10,18,28,0.45)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + ry * 0.10, rx * 0.92, ry * 0.86, 0, 0.25, Math.PI - 0.25);
+        ctx.stroke();
       }
       ctx.restore();
 
@@ -840,8 +871,50 @@
     return 'https://api.grasslandforest.com';
   }
 
+  /* LO ÚLTIMO QUE SE APLICÓ, PARA NO IR HACIA ATRÁS.
+
+     EL FALLO QUE ARREGLA — "a veces lanzo un clima a mano y no lo procesa, a
+     veces lo cambio y no cambia":
+
+     El tiempo entra por DOS caminos a la vez. El socket lo empuja en cuanto el
+     administrador toca algo, y además se pregunta por HTTP cada 45 segundos.
+     Las dos respuestas se aplicaban tal cual, sin mirar cuál era más nueva.
+
+     Así que bastaba con que hubiera una consulta EN VUELO cuando el
+     administrador lanzaba el clima: llegaba el empujón del socket con la
+     tormenta, se pintaba, y medio segundo después aterrizaba la respuesta de
+     la consulta —que salió ANTES del cambio y trae el tiempo viejo— y lo
+     borraba. Desde el panel se veía "Lanzado", y en el juego no pasaba nada.
+
+     El servidor ya daba lo necesario para evitarlo y no se estaba usando: cada
+     respuesta trae `ahora` (su reloj) y `rev` (un contador que sube con cada
+     cambio). Con eso, una respuesta más vieja que la última aplicada se tira.
+
+     Se compara `ahora` contra `ahora`, siempre del mismo reloj (el del
+     servidor), nunca contra la hora del navegador: así da igual que el
+     jugador tenga el reloj mal. Y si el servidor se reinicia, `rev` vuelve a
+     empezar pero `ahora` sigue subiendo, así que no se queda atascado. */
+  var ultimoAhora = 0;
+  var ultimoRev   = 0;
+  var descartados = 0;
+
   function aplicar(d) {
     if (!d || d.ok !== true) return false;
+
+    var suAhora = Number(d.ahora) || 0;
+    var suRev   = Number(d.rev) || 0;
+    if (suAhora && ultimoAhora && suAhora < ultimoAhora) {
+      descartados++;
+      log('respuesta vieja descartada (' + (ultimoAhora - suAhora) + ' ms tarde)');
+      return false;
+    }
+    if (suAhora && suAhora === ultimoAhora && suRev < ultimoRev) {
+      descartados++;
+      return false;
+    }
+    if (suAhora) ultimoAhora = suAhora;
+    if (suRev)   ultimoRev = suRev;
+
     estado.activo       = !!d.activo;
     estado.modo         = d.modo || 'auto';
     estado.viento       = !!d.viento;
@@ -863,12 +936,45 @@
     return true;
   }
 
+  /* Cuánto se espera una consulta antes de darla por perdida.
+
+     EL FALLO QUE ARREGLA: `if (pidiendo) return pidiendo;` impide que se pisen
+     dos consultas, que está bien. Pero `pidiendo` solo se soltaba en el
+     `.then` o en el `.catch`, y un `fetch` puede quedarse colgado SIN
+     resolverse nunca — la pestaña se duerme, el móvil cambia de wifi a datos,
+     el servidor acepta la conexión y no contesta. En cuanto pasaba eso,
+     `pidiendo` se quedaba puesto para siempre y el sondeo de cada 45 segundos
+     no volvía a preguntar EN TODA LA PARTIDA. Segunda causa de "a veces no
+     cambia": el socket se cae, la consulta de seguridad está muerta desde hace
+     rato, y el juego se queda con el tiempo de hace media hora. */
+  var ESPERA_MAX = 12000;
+
   function sincronizar() {
     if (pidiendo) return pidiendo;
     var url = base().replace(/\/$/, '') + '/api/world/weather';
-    pidiendo = fetch(url, { credentials: 'omit', mode: 'cors', cache: 'no-store' })
+
+    /* AbortController si lo hay (todos los navegadores de este siglo). Además
+       del temporizador, así no se queda una conexión abierta consumiendo. */
+    var corte = null, ctrl = null;
+    try { if (window.AbortController) ctrl = new AbortController(); } catch (e) {}
+    var op = { credentials: 'omit', mode: 'cors', cache: 'no-store' };
+    if (ctrl) op.signal = ctrl.signal;
+
+    var sueltaTimer = function () { if (corte) { clearTimeout(corte); corte = null; } };
+    corte = setTimeout(function () {
+      corte = null;
+      if (ctrl) { try { ctrl.abort(); } catch (e) {} }
+      /* Y se suelta el cerrojo pase lo que pase. Aunque el `fetch` no llegue
+         nunca a rechazar (que es justo el caso malo), la próxima vuelta del
+         temporizador podrá volver a preguntar. */
+      pidiendo = null;
+      ultimoFallo = 'sin respuesta en ' + ESPERA_MAX + ' ms';
+    }, ESPERA_MAX);
+
+    pidiendo = fetch(url, op)
       .then(function (r) { return r.json(); })
       .then(function (d) {
+        sueltaTimer();
         pidiendo = null;
         ultimoFallo = null;
         ultimaRespuesta = Date.now();
@@ -876,6 +982,7 @@
         return estado;
       })
       .catch(function (e) {
+        sueltaTimer();
         pidiendo = null;
         ultimoFallo = (e && e.message) || 'error';
         /* Se AVISA una vez, no en silencio.
@@ -942,19 +1049,52 @@
     return null;
   }
 
+  /* Los dos oyentes que se le ponen al socket, guardados aparte.
+
+     FUGA QUE ARREGLA: cada vez que el juego tiraba el socket y creaba otro
+     —al volver de la tienda, tras un corte de red— aquí se enganchaban DOS
+     oyentes nuevos al socket nuevo y no se quitaba ninguno del viejo. El
+     socket viejo se quedaba retenido por sus propias retrollamadas, y con él
+     todo lo que la clausura tocara. En una sesión larga, entrando y saliendo
+     de la tienda, eso se va sumando.
+
+     Ahora se guardan las funciones y se le quitan al anterior antes de
+     enganchar al nuevo. `off` existe en socket.io desde la v3; si la versión
+     fuera más vieja no pasa nada, se comprueba antes de llamarlo. */
+  var oyenteTiempo = null;
+  var oyenteConexion = null;
+
+  function soltarSocket() {
+    if (!socketEnganchado) return;
+    try {
+      if (typeof socketEnganchado.off === 'function') {
+        if (oyenteTiempo)   socketEnganchado.off('worldWeather', oyenteTiempo);
+        if (oyenteConexion) socketEnganchado.off('connect', oyenteConexion);
+      }
+    } catch (e) { /* socket ya destruido: no hay nada que soltar */ }
+    socketEnganchado = null;
+    oyenteTiempo = null;
+    oyenteConexion = null;
+  }
+
   function engancharSocket() {
     var s = socketDelJuego();
     if (!s) return false;
     if (s === socketEnganchado) return true;      // ya es este
 
+    soltarSocket();                               // fuera los del anterior
     socketEnganchado = s;
-    s.on('worldWeather', function (d) {
+
+    oyenteTiempo = function (d) {
       log('el servidor manda tiempo nuevo');
       aplicar(d);
-    });
+    };
     /* Al (re)conectar se pregunta: mientras estuvo caido pudo perderse un
        aviso, y ademas un socket recien creado no ha recibido nada todavia. */
-    s.on('connect', function () { sincronizar(); });
+    oyenteConexion = function () { sincronizar(); };
+
+    s.on('worldWeather', oyenteTiempo);
+    s.on('connect', oyenteConexion);
     sincronizar();
     log('enganchado al socket', s.id || '(sin id todavia)');
     return true;
@@ -1509,8 +1649,9 @@
       var b = null;
       try { b = arbol.spr.getBounds(); } catch (e) {}
       if (b) {
-        var pant = cam.getWorldPoint ? null : null;
-        // de mundo a pantalla, que es donde vive la capa del clima
+        /* De mundo a lienzo, que es donde vive la capa del clima. Es la
+           inversa exacta de `aMundo()`: allí local−margen se pasa por
+           getWorldPoint, así que aquí (mundo−esquina)·zoom+margen. */
         cx = (b.centerX - cam.worldView.x) * cam.zoom + L.m;
         cy = (b.top + b.height * 0.18 - cam.worldView.y) * cam.zoom + L.m;
       }
@@ -1853,7 +1994,8 @@
     var s = st.scene.add.image(0, 0, CHARCOS_DIBUJADOS[0]);
     s.setOrigin(0.5, 0.5);
     s.setDepth(PROF_CHARCO);
-    s.setScale(2);                    // la escala del juego
+    // Valor de arranque; el de verdad se lo pone brotarCharco al encenderlo.
+    s.setScale(1.2);
     s.setAlpha(0);
     s.setVisible(false);
     return { spr: s, vivo: false, nace: 0, tam: 0, helado: false };
@@ -1890,11 +2032,25 @@
       libre.tam = Math.floor(az(0, CHARCOS_DIBUJADOS.length));
       libre.helado = false;
       libre.spr.setTexture(CHARCOS_DIBUJADOS[libre.tam]);
-      /* Cada charco con su tamaño y su giro. Cuatro dibujos repartidos por
-         treinta sitios del mapa cantan enseguida si salen todos calcados; con
-         la escala y el ángulo movidos, no hay dos iguales. */
-      libre.spr.setScale(az(1.3, 2.4), az(1.2, 2.2));
-      libre.spr.setRotation(az(0, Math.PI * 2));
+      /* Cada charco con su tamaño y su giro, pero CON LÍMITES.
+       *
+       * DOS COSAS QUE ESTABAN MAL Y SE VEÍAN EN LA CAPTURA:
+       *
+       *   - La escala llegaba a 2,4 sobre una textura que ya era de 96 px:
+       *     charcos de 230 px de ancho, más que el jugador de alto. Ahora la
+       *     textura son 56 px y la escala 0,9–1,7 → entre 50 y 95 px, que es
+       *     lo que medían los charcos originales del juego.
+       *
+       *   - El giro era de 0 a 360°. Un charco está TUMBADO en el suelo: si lo
+       *     giras 90° se pone de canto y se lee como una mancha vertical
+       *     flotando, que es justo lo que se veía. Ahora se mueve ±20°, lo
+       *     justo para que no salgan dos iguales.
+       *
+       * La escala en X e Y va casi pareja (±15 %) por lo mismo: estirarlo el
+       * doble en una dirección deshace la forma de charco. */
+      var tam = az(0.9, 1.7);
+      libre.spr.setScale(tam * az(0.9, 1.15), tam * az(0.9, 1.1));
+      libre.spr.setRotation(az(-0.35, 0.35));
       libre.spr.setPosition(Math.round(x), Math.round(y));
       libre.spr.setVisible(true);
       libre.spr.setAlpha(0);
@@ -2699,6 +2855,15 @@
         ultimoFallo: ultimoFallo,
         segundosDesdeRespuesta: ultimaRespuesta
           ? Math.round((Date.now() - ultimaRespuesta) / 1000) : null,
+        /* Para cuando alguien diga "lo lanzo y no entra": `rev` tiene que
+           subir con cada cambio del panel. Si el panel dice que guardó y aquí
+           el rev no se mueve, el cambio no está llegando (caché, otro
+           servidor). Si sube y aun así no se ve, el fallo es de pintado.
+           `descartadas` cuenta las respuestas viejas que se han tirado. */
+        rev: ultimoRev,
+        relojServidor: ultimoAhora || null,
+        respuestasViejasDescartadas: descartados,
+        consultaEnVuelo: !!pidiendo,
         viento: (window.GFViento && window.GFViento.estado)
           ? window.GFViento.estado() : null,
         estado: estado,

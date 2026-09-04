@@ -263,6 +263,19 @@
     var enCurso = 0;
 
     function siguiente() {
+      /* SI LA ESCENA YA NO ESTÁ, SE PARA.
+
+         FUGA QUE ARREGLA: estas descargas siguen en vuelo después de salir de
+         la escena, y cada retrollamada retiene `st`, que retiene la escena
+         entera. Entrar al mapa y salir corriendo a la tienda dejaba media
+         escena viva unos segundos de más por cada viaje. Además se seguían
+         bajando megas de sonido que ya no hacían falta.
+
+         Se mira `st.muerto`, que lo pone `desmontar`. Lo ya descargado se
+         queda en la caché de sonido (que es global y sobrevive al cambio de
+         escena), así que no se pierde trabajo hecho. */
+      if (st.muerto) { st.porCargar.length = 0; return; }
+
       while (enCurso < TANDA && st.porCargar.length) {
         var nombre = st.porCargar.shift();
         var clave = PREFIJO + nombre;
@@ -1047,7 +1060,7 @@
       ultimoMaterial: 'hierba', capa: undefined,
       proximoBicho: 0, proximoBarrido: 0,
       tema: null, temaVol: 0, temaActual: null, saliendo: [],
-      porCargar: [], cargados: 0, cargaTerminada: false
+      porCargar: [], cargados: 0, cargaTerminada: false, muerto: false
     };
     scene.__gfAudio = st;
     montado = st;
@@ -1096,6 +1109,10 @@
   function desmontar(scene) {
     var st = scene && scene.__gfAudio;
     if (!st) return;
+    /* Lo PRIMERO: cortar la carga de fondo. Sus retrollamadas retienen `st` y
+       con él la escena entera; ver `siguiente()`. */
+    st.muerto = true;
+    st.porCargar.length = 0;
     if (st.onUpdate) scene.events.off('update', st.onUpdate);
     if (st.onApagar) {
       scene.events.off('shutdown', st.onApagar);
@@ -1115,11 +1132,31 @@
     for (i = 0; i < st.saliendo.length; i++) {
       try { st.saliendo[i].son.stop(); st.saliendo[i].son.destroy(); } catch (e) {}
     }
-    /* El tema NO se destruye aquí si la escena lo tiene apuntado como música
-       actual: de eso se encarga el sistema de audio del juego al apagarse, y
-       destruirlo dos veces truena en la consola. Solo se suelta la referencia. */
-    if (st.tema && scene.audioState && scene.audioState.currentMusic !== st.tema) {
+    /* EL TEMA SE DESTRUYE SIEMPRE, Y ADEMÁS SE DESAPUNTA.
+     *
+     * FUGA QUE ARREGLA: aquí ponía
+     *
+     *     if (st.tema && scene.audioState && scene.audioState.currentMusic !== st.tema)
+     *
+     * o sea que el tema solo se destruía cuando la escena TENÍA `audioState` y
+     * además apuntaba a otra cosa. En el juego real `currentMusic` ES este
+     * tema, así que nunca entraba, y se confiaba en que `stopMusicSafely()` de
+     * la escena lo destruyera. Medido con diez montajes y desmontajes seguidos:
+     * quedaban diez objetos `Sound` vivos, uno por vuelta. Cada uno arrastra su
+     * AudioBuffer descodificado — y los temas son de 30 y 37 segundos.
+     *
+     * Ahora se destruye siempre y se pone `currentMusic` a null. No hay doble
+     * destrucción: `stopMusicSafely()` empieza con `if (!currentMusic) return`,
+     * así que al encontrarlo vacío no toca nada. */
+    if (st.tema) {
       try { st.tema.stop(); st.tema.destroy(); } catch (e) {}
+      try {
+        if (scene.audioState && scene.audioState.currentMusic === st.tema) {
+          scene.audioState.currentMusic = null;
+          scene.audioState.currentMusicKey = null;
+        }
+      } catch (e) {}
+      st.tema = null;
     }
     st.bucles = {}; st.reserva = {}; st.saliendo = [];
     st.lienzo = null;

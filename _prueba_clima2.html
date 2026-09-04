@@ -77,9 +77,14 @@ var Prueba = {
       I.dibujarCharco(escena, ch[i], i + 1, false);
       I.dibujarCharco(escena, hi[i], i + 1, true);
     }
-    titulo('CHARCOS  ·  agua arriba, hielo abajo');
-    fila(ch, 1.6, 100);
-    fila(hi, 1.6, 100);
+    /* Sobre una losa gris oscura, que es donde el jugador dijo que se veían
+       falsos: sobre negro puro cualquier mancha parece agua. */
+    titulo('CHARCOS sobre piedra  ·  agua arriba, hielo abajo');
+    escena.add.rectangle(10, y - 6, 860, 210, 0x3a4048).setOrigin(0, 0);
+    for (var gx = 10; gx < 870; gx += 32) escena.add.rectangle(gx, y - 6, 1, 210, 0x2f343b).setOrigin(0, 0);
+    for (var gy = y - 6; gy < y + 204; gy += 32) escena.add.rectangle(10, gy, 860, 1, 0x2f343b).setOrigin(0, 0);
+    fila(ch, 2, 104);
+    fila(hi, 2, 104);
 
     // ── HOJAS ──
     V.dibujarTodo && V.dibujarTodo(escena);
