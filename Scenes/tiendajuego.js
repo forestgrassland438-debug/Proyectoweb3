@@ -6958,16 +6958,52 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
           });
         }
 
+        /* SE QUITA POR EL CAMINO RESISTENTE (ver quitarDeFactura en
+           phaser-relay-library.js). Antes aqui se mandaba `deleteInvoice(idx)`
+           a pelo y cualquier tropiezo -- un id viejo, un hueco que nunca tuvo
+           factura, una cantidad que no cuadra -- acababa en el mismo cartel
+           rojo "Error borrando invoice N", que es justo lo que le salia al
+           jugador al craftear y al llenar el balde en la fuente.
+
+           Ahora primero se MIRA la factura, se busca por su manualId si el id
+           no vale, y se quita con decreaseInvoiceQuantity, que borra la factura
+           el solo al llegar a cero y nunca quema de mas. */
         let sendResult;
+        let quitado;
         try {
-          sendResult = await this.relayClient.accion(contract.address, {
-            funcion: 'deleteInvoice',
-            _id: op.idx,
-            accion: 'enviar'
+          quitado = await this.relayClient.quitarDeFactura(contract.address, {
+            idx: op.idx,
+            manualid: op.manualid,
+            cantidad: amount,
+            tipo: ruta_tabla,
+            vaciarFactura: true
           });
         } catch (err) {
-          console.error('❌ Excepción en deleteInvoice (accion):', err);
-          this.relayClient.showError(`❌ Error borrando invoice ${op.idx}`, 4000);
+          console.error('❌ Excepcion quitando de la factura:', err);
+          quitado = { ok: false, error: (err && (err.message || String(err))) || 'excepcion' };
+        }
+
+        /* YA NO ESTABA. No es un fallo: la factura ya se habia gastado por otro
+           camino y el inventario local iba retrasado. Se cuadra el hueco en
+           silencio y se sigue -- asustar al jugador con una cruz roja por algo
+           que ya estaba hecho era la mitad del problema. */
+        if (quitado && quitado.ok && quitado.ya) {
+          console.warn('La factura', op.idx, 'ya no estaba (' + quitado.motivo + '): se cuadra el inventario.');
+          if (window.hub) window.hub.removeTransaction(tempHash);
+          removeAssociatedAddTransactions(op.idx, op.manualid);
+          if (typeof this.EliitemWithCheck === 'function') {
+            try { await this.EliitemWithCheck(producto, amount, op.idx, op.manualid); }
+            catch (ex) { console.error('Error cuadrando el inventario:', ex); }
+          }
+          await sleep(200);
+          continue;
+        }
+
+        if (!quitado || !quitado.ok) {
+          const motivo = (quitado && quitado.error) || 'motivo desconocido';
+          console.error('❌ No se pudo quitar de la factura:', quitado);
+          // El motivo REAL, no "Error borrando invoice N".
+          this.relayClient.showError(`❌ No se pudo gastar ${producto}: ${motivo}`, 5000);
           if (window.hub) {
             window.hub.removeTransaction(tempHash);
             window.hub.addTransaction('interaction', {
@@ -6982,24 +7018,12 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
           continue;
         }
 
-        if (!sendResult || !sendResult.success) {
-          console.error('❌ Error en deleteInvoice:', sendResult);
-          this.relayClient.showError(`❌ Error borrando invoice ${op.idx}`, 4000);
-          if (window.hub) {
-            window.hub.removeTransaction(tempHash);
-            window.hub.addTransaction('interaction', {
-              name: 'Remove Items',
-              quantity: amount,
-              hash: 'reverted-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
-              status: 'reverted',
-              hiddenData: hiddenData
-            });
-          }
-          await sleep(500);
-          continue;
-        }
+        // A partir de aqui todo sigue igual que siempre.
+        sendResult = quitado;
+        op.idx = quitado.id || op.idx;
+        hiddenData.idx = op.idx;
 
-        this.relayClient.showSuccess('Transacción deleteInvoice enviada, esperando confirmación...');
+        this.relayClient.showSuccess(`Transacción ${quitado.funcion} enviada, esperando confirmación...`);
 
         try {
           const final = await this.relayClient.waitForTransaction(sendResult.transactionId, { interval: 3000 });
@@ -7078,17 +7102,39 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
           });
         }
 
+        // Mismo camino resistente que el borrado, pero quitando solo una parte:
+        // aqui NUNCA se cae al plan B de borrar la factura entera.
         let sendResult;
+        let quitado;
         try {
-          sendResult = await this.relayClient.accion(contract.address, {
-            funcion: 'decreaseInvoiceQuantity',
-            _id: op.idx,
-            _decreaseAmount: amount,
-            accion: 'enviar'
+          quitado = await this.relayClient.quitarDeFactura(contract.address, {
+            idx: op.idx,
+            manualid: op.manualid,
+            cantidad: amount,
+            tipo: ruta_tabla,
+            vaciarFactura: false
           });
         } catch (err) {
-          console.error('❌ Excepción en decreaseInvoiceQuantity (accion):', err);
-          this.relayClient.showError(`❌ Error disminuyendo invoice ${op.idx}`, 4000);
+          console.error('❌ Excepcion disminuyendo la factura:', err);
+          quitado = { ok: false, error: (err && (err.message || String(err))) || 'excepcion' };
+        }
+
+        if (quitado && quitado.ok && quitado.ya) {
+          console.warn('La factura', op.idx, 'ya no estaba (' + quitado.motivo + '): se cuadra el inventario.');
+          if (window.hub) window.hub.removeTransaction(tempHash);
+          removeAssociatedAddTransactions(op.idx, op.manualid);
+          if (typeof this.EliitemWithCheck === 'function') {
+            try { await this.EliitemWithCheck(producto, amount, op.idx, op.manualid); }
+            catch (ex) { console.error('Error cuadrando el inventario:', ex); }
+          }
+          await sleep(200);
+          continue;
+        }
+
+        if (!quitado || !quitado.ok) {
+          const motivo = (quitado && quitado.error) || 'motivo desconocido';
+          console.error('❌ No se pudo disminuir la factura:', quitado);
+          this.relayClient.showError(`❌ No se pudo gastar ${producto}: ${motivo}`, 5000);
           if (window.hub) {
             window.hub.removeTransaction(tempHash);
             window.hub.addTransaction('interaction', {
@@ -7103,24 +7149,11 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
           continue;
         }
 
-        if (!sendResult || !sendResult.success) {
-          console.error('❌ Error en decreaseInvoiceQuantity:', sendResult);
-          this.relayClient.showError(`❌ Error disminuyendo invoice ${op.idx}`, 4000);
-          if (window.hub) {
-            window.hub.removeTransaction(tempHash);
-            window.hub.addTransaction('interaction', {
-              name: 'Remove Items',
-              quantity: amount,
-              hash: 'reverted-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
-              status: 'reverted',
-              hiddenData: hiddenData
-            });
-          }
-          await sleep(500);
-          continue;
-        }
+        sendResult = quitado;
+        op.idx = quitado.id || op.idx;
+        hiddenData.idx = op.idx;
 
-        this.relayClient.showSuccess('Transacción decreaseInvoiceQuantity enviada, esperando confirmación...');
+        this.relayClient.showSuccess(`Transacción ${quitado.funcion} enviada, esperando confirmación...`);
 
         try {
           const final = await this.relayClient.waitForTransaction(sendResult.transactionId, { interval: 3000 });
