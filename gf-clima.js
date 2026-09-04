@@ -34,10 +34,10 @@
   var RUTA = './Game/Objetos/clima/';
   var GOTAS   = ['gota_1', 'gota_2', 'gota_3'];
   var SALPICA = ['salpica_1', 'salpica_2', 'salpica_3'];
-  var RAYOS   = ['rayo_1', 'rayo_2', 'rayo_3'];
+  // (los rayos ya no salen de PNG: se dibujan, ver RAYOS_DIBUJADOS más abajo)
   var COPOS   = ['copo_1', 'copo_2', 'copo_3', 'copo_4'];
   var POSAS   = ['posa_1', 'posa_2', 'posa_3'];
-  var CHARCOS = ['charco_1', 'charco_2', 'charco_3', 'charco_4'];
+  // (los charcos ya no salen de PNG: se dibujan, ver CHARCOS_DIBUJADOS)
   var FUEGOS  = ['fuego_1', 'fuego_2', 'fuego_3', 'fuego_4'];
   var HUMOS   = ['humo_1', 'humo_2', 'humo_3'];
   var BRASAS  = ['brasa_1', 'brasa_2', 'brasa_3'];
@@ -70,12 +70,62 @@
 
      El verano no lleva filtro a propósito: es el aspecto con el que está
      pintado el juego, así que cualquier tinte solo lo empeoraría. */
+  /* EL TINTE DE LA ESTACIÓN, Y CUÁNDO PEGA FUERTE.
+   *
+   * EL FALLO QUE ARREGLA: "el mundo se ve muy anaranjado; eso tiene que pasar
+   * en atardeceres o mañanitas, a mediodía no".
+   *
+   * Y tenía razón. El filtro de otoño era un naranja al 42 % multiplicando la
+   * pantalla entera DE SOL A SOL. A las doce del mediodía, con el sol
+   * vertical, un mundo naranja no es otoño: es un filtro de móvil. El naranja
+   * de otoño existe, pero es luz RASANTE — la del amanecer y la del atardecer,
+   * cuando la luz atraviesa mucha más atmósfera y se le cae el azul.
+   *
+   * Por eso cada estación tiene ahora DOS alfas:
+   *   `alfa`  a mediodía, con el sol arriba: casi nada
+   *   `borde` a primera y a última hora: el color de la estación, entero
+   *
+   * Entre uno y otro se interpola con la altura del sol (ver `calidezDelDia`).
+   * El resultado es que el mundo cambia de color a lo largo del día, que es
+   * justo lo que hace de verdad, en vez de llevar una gelatina puesta.
+   */
   var ESTACIONES = {
-    primavera: { color: 0xdcffe4, alfa: 0.18 },
-    verano:    { color: 0xffffff, alfa: 0.00 },
-    otono:     { color: 0xffb15c, alfa: 0.42 },
-    invierno:  { color: 0xbcd4ff, alfa: 0.38 }
+    primavera: { color: 0xdcffe4, alfa: 0.05, borde: 0.20 },
+    verano:    { color: 0xffffff, alfa: 0.00, borde: 0.00 },
+    otono:     { color: 0xffb15c, alfa: 0.10, borde: 0.46 },
+    invierno:  { color: 0xbcd4ff, alfa: 0.12, borde: 0.40 }
   };
+
+  /* El color rasante del amanecer y el atardecer, para las estaciones que no
+     traen naranja propio. Se mezcla ENCIMA del de la estación. */
+  var COLOR_RASANTE = 0xffb072;
+
+  /**
+   * CUÁNTA LUZ RASANTE HAY AHORA MISMO: 0 a mediodía, 1 al ras del horizonte.
+   *
+   * Sale de la hora del mundo, que la lleva gf-ciclo-dia y viene del servidor
+   * (el cliente no se la inventa). El día va de las 5 a las 19; la altura del
+   * sol es un seno sobre ese tramo, máxima a las 12. La calidez es lo que le
+   * falta a esa altura, al cuadrado para que el tramo de mediodía sea ancho y
+   * plano —de 10 a 14 casi no cambia nada— y el color se dispare solo en la
+   * última hora larga de cada punta.
+   *
+   * De noche devuelve 0: la noche ya tiene su propio azul (gf-ciclo-dia
+   * multiplica con COLOR_NOCHE) y sumarle naranja encima la ensuciaría.
+   */
+  function calidezDelDia() {
+    var C = window.GFCiclo;
+    if (!C || !C.hayHora || !C.hayHora() || !C.estado) return 0.35;   // sin reloj, término medio
+    var e;
+    try { e = C.estado(); } catch (x) { return 0.35; }
+    if (!e || typeof e.hora !== 'number') return 0.35;
+
+    var t = e.hora + (e.minuto || 0) / 60;
+    if (t <= 5 || t >= 19) return 0;                  // de noche manda el azul
+    var altura = Math.sin(Math.PI * (t - 5) / 14);    // 0 al alba y al ocaso, 1 a las 12
+    var c = 1 - altura;
+    return c * c;
+  }
   var ESTACION_MS = 2500;          // lo que tarda en pasar de una a otra
 
   /* MULTIPLY.
@@ -211,6 +261,284 @@
       c.refresh();
     } catch (e) { return null; }
     return clave;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     LOS RAYOS, DIBUJADOS AQUÍ
+     ──────────────────────────────────────────────────────────────────────
+     LO QUE HABÍA: tres PNG de 46×210 con una raya quebrada blanca. Y dos
+     problemas que el jugador vio enseguida — "el rayo al caer se ve cortado,
+     aparece en medio de la pantalla y pasa tan rápido que no se ve lo
+     cortado, pero sí lo está":
+
+       1. El dibujo TERMINA A HACHA en el borde de abajo del PNG. No se afina,
+          no se apaga: la raya llega al píxel 210 y deja de existir. Un rayo
+          que acaba en el aire con un corte recto se lee como un error, y a
+          150 ms de exposición el ojo no lo razona pero lo nota.
+       2. Con 210 px de alto escalados por 1,4–2,6 el rayo no llegaba a
+          ninguna parte: colgaba desde arriba y se quedaba flotando por la
+          mitad de la pantalla, sin tocar nada.
+
+     LO QUE HAY AHORA: se dibujan con canvas, altos (512 px), y con tres
+     cosas que los PNG no tenían:
+
+       - RAMAS. Un rayo de verdad se bifurca. Sin ramas es una grieta.
+       - HALO. Tres pasadas —halo ancho y flojo, cuerpo medio, núcleo blanco
+         de dos píxeles— porque lo que hace que un rayo parezca luz y no
+         pintura es el resplandor de alrededor, no la línea.
+       - PUNTA. El último tramo se estrecha Y se desvanece, así que el rayo
+         acaba en un punto en vez de en un corte. Y ese punto es DONDE CAE:
+         ahí se pone el fogonazo de impacto y ahí, si hay un árbol cerca, se
+         prende el fuego (ver `relampago` y `prenderArbol`).
+
+     Se dibujan en lugar de cargarse por lo de siempre en este proyecto: un
+     PNG que alguien no sube a producción es un sistema que no arranca, y con
+     el clima ya pasó una vez. */
+  var RAYOS_DIBUJADOS = ['gfc_rayo_d1', 'gfc_rayo_d2', 'gfc_rayo_d3'];
+  var RAYO_W = 128, RAYO_H = 512;
+
+  /**
+   * Un rayo. `semilla` hace que los tres salgan distintos y siempre iguales a
+   * sí mismos: se dibujan una vez y se quedan en la caché de texturas.
+   */
+  function dibujarRayo(scene, clave, semilla) {
+    if (scene.textures.exists(clave)) return clave;
+    try {
+      var c = scene.textures.createCanvas(clave, RAYO_W, RAYO_H);
+      var ctx = c.getContext();
+      ctx.clearRect(0, 0, RAYO_W, RAYO_H);
+
+      // Azar propio y repetible: dos rayos iguales delatarían el truco.
+      var s = semilla * 7919 + 13;
+      function r() { s = (s * 16807) % 2147483647; return s / 2147483647; }
+      function az2(a, b) { return a + r() * (b - a); }
+
+      /* EL CAMINO. Baja a tramos cortos, y cada tramo se desvía un poco del
+         anterior. La desviación se estrecha con la altura (`aprieta`) para
+         que la punta no acabe en la otra punta del lienzo. */
+      function camino(x0, y0, y1, ancho, pasos) {
+        var p = [[x0, y0]];
+        var x = x0, y = y0;
+        var dy = (y1 - y0) / pasos;
+        for (var i = 0; i < pasos; i++) {
+          var aprieta = 1 - (i / pasos) * 0.55;
+          x += az2(-ancho, ancho) * aprieta;
+          y += dy * az2(0.72, 1.28);
+          if (y > y1) y = y1;
+          p.push([x, y]);
+        }
+        return p;
+      }
+
+      /* Tres pasadas sobre el MISMO camino. El orden importa: primero lo
+         ancho y flojo, encima lo estrecho y fuerte. Al revés, el halo se
+         comería el núcleo. */
+      function trazar(p, capas) {
+        for (var k = 0; k < capas.length; k++) {
+          ctx.beginPath();
+          ctx.moveTo(p[0][0], p[0][1]);
+          for (var i = 1; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]);
+          ctx.strokeStyle = capas[k][0];
+          ctx.lineWidth = capas[k][1];
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.stroke();
+        }
+      }
+
+      var CAPAS_TRONCO = [
+        ['rgba(120,170,255,0.20)', 22],   // halo lejano, azul
+        ['rgba(170,205,255,0.38)', 11],   // halo cercano
+        ['rgba(228,240,255,0.85)', 4.5],  // cuerpo
+        ['rgba(255,255,255,1.00)', 1.8]   // núcleo
+      ];
+      var CAPAS_RAMA = [
+        ['rgba(140,185,255,0.16)', 12],
+        ['rgba(210,232,255,0.55)', 3.2],
+        ['rgba(255,255,255,0.90)', 1.2]
+      ];
+
+      var tronco = camino(RAYO_W / 2, 0, RAYO_H, RAYO_W * 0.20, 22);
+      trazar(tronco, CAPAS_TRONCO);
+
+      /* LAS RAMAS salen de un punto del tronco y se van hacia un lado, más
+         cortas y más finas. Nunca de la parte de abajo: una rama que naciera
+         a un palmo de la punta se vería como una horquilla. */
+      var nRamas = 2 + Math.floor(r() * 3);
+      for (var b = 0; b < nRamas; b++) {
+        var desde = tronco[3 + Math.floor(r() * (tronco.length * 0.55))];
+        var largo = az2(RAYO_H * 0.12, RAYO_H * 0.30);
+        var rama = camino(desde[0], desde[1], desde[1] + largo, RAYO_W * 0.16, 7);
+        // se la lleva de lado, para que se despegue del tronco
+        var lado = r() < 0.5 ? -1 : 1;
+        for (var i = 0; i < rama.length; i++) {
+          rama[i][0] += lado * (i / rama.length) * az2(10, 28);
+        }
+        trazar(rama, CAPAS_RAMA);
+      }
+
+      /* Y AQUÍ SE ARREGLA EL CORTE. `destination-in` conserva lo pintado y le
+         aplica ESTE alfa: entero durante casi todo el recorrido, y apagándose
+         en el último quinto. Arriba también se difumina un poco — el rayo
+         sale de una nube, no de una tapa. */
+      ctx.globalCompositeOperation = 'destination-in';
+      var g = ctx.createLinearGradient(0, 0, 0, RAYO_H);
+      g.addColorStop(0.00, 'rgba(0,0,0,0.35)');
+      g.addColorStop(0.06, 'rgba(0,0,0,1)');
+      g.addColorStop(0.78, 'rgba(0,0,0,1)');
+      g.addColorStop(0.92, 'rgba(0,0,0,0.55)');
+      g.addColorStop(1.00, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, RAYO_W, RAYO_H);
+      ctx.globalCompositeOperation = 'source-over';
+
+      c.refresh();
+      return clave;
+    } catch (e) {
+      console.warn('[clima] no se pudo dibujar el rayo', clave, e);
+      return null;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     LOS CHARCOS, TAMBIÉN DIBUJADOS
+     ──────────────────────────────────────────────────────────────────────
+     Los cuatro PNG que había eran manchas oscuras de 22×11 a 46×20: sobre la
+     hierba se leían como sombras sucias, no como agua. Lo que hace que un
+     charco parezca agua son tres cosas que aquellos no tenían:
+
+       - EL BORDE MÁS OSCURO que el centro. Un charco es una lente: por el
+         canto se ve el barro del fondo y por el medio se ve el cielo.
+       - EL REFLEJO. Una banda clara y alargada, descentrada. Es lo que
+         convierte una mancha en una superficie.
+       - LA FORMA IRREGULAR. Una elipse limpia parece un adorno; un charco de
+         verdad tiene el contorno abollado.
+
+     Y con `hielo` en lugar de agua salen los charcos HELADOS, que es lo que se
+     pinta cuando nieva encima: mismo contorno, azul pálido, reflejo mucho más
+     duro y unas grietas. Ver `helarCharcos`.
+  */
+  var CHARCOS_DIBUJADOS = ['gfc_charco_d1', 'gfc_charco_d2', 'gfc_charco_d3', 'gfc_charco_d4'];
+  var HIELOS_DIBUJADOS  = ['gfc_hielo_d1', 'gfc_hielo_d2', 'gfc_hielo_d3', 'gfc_hielo_d4'];
+
+  function dibujarCharco(scene, clave, semilla, helado) {
+    if (scene.textures.exists(clave)) return clave;
+    var W = 96, H = 52;
+    try {
+      var c = scene.textures.createCanvas(clave, W, H);
+      var ctx = c.getContext();
+      ctx.clearRect(0, 0, W, H);
+
+      var s = semilla * 2654 + 7;
+      function r() { s = (s * 16807) % 2147483647; return s / 2147483647; }
+      function az2(a, b) { return a + r() * (b - a); }
+
+      // ── el contorno, abollado ──
+      var cx = W / 2, cy = H / 2;
+      var rx = W * az2(0.38, 0.46), ry = H * az2(0.34, 0.42);
+      var N = 26, pts = [];
+      for (var i = 0; i < N; i++) {
+        var a = (i / N) * Math.PI * 2;
+        /* Dos ondas de distinta frecuencia sobre el radio: una sola daría una
+           forma de flor, y dos que no casan dan un borde creíble. */
+        var k = 1 + 0.14 * Math.sin(a * 3 + semilla) + 0.09 * Math.sin(a * 5 - semilla * 2);
+        pts.push([cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k]);
+      }
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (i = 1; i < N; i++) {
+        var m = [(pts[i][0] + pts[(i + 1) % N][0]) / 2, (pts[i][1] + pts[(i + 1) % N][1]) / 2];
+        ctx.quadraticCurveTo(pts[i][0], pts[i][1], m[0], m[1]);
+      }
+      ctx.closePath();
+
+      /* El relleno es un degradado radial DESCENTRADO hacia arriba: es de
+         donde viene la luz del cielo en un juego cenital. */
+      var g = ctx.createRadialGradient(cx, cy - ry * 0.35, 2, cx, cy, rx);
+      if (helado) {
+        g.addColorStop(0.00, 'rgba(228,242,255,0.95)');
+        g.addColorStop(0.45, 'rgba(176,208,235,0.88)');
+        g.addColorStop(0.82, 'rgba(126,166,201,0.86)');
+        g.addColorStop(1.00, 'rgba(92,126,158,0.80)');
+      } else {
+        g.addColorStop(0.00, 'rgba(150,190,220,0.62)');
+        g.addColorStop(0.45, 'rgba(78,116,148,0.72)');
+        g.addColorStop(0.82, 'rgba(46,72,96,0.80)');
+        g.addColorStop(1.00, 'rgba(30,48,66,0.86)');
+      }
+      ctx.fillStyle = g;
+      ctx.fill();
+
+      // ── el reflejo ──
+      ctx.save();
+      ctx.clip();                                   // que no se salga del charco
+      ctx.globalCompositeOperation = 'lighter';
+      var brillo = ctx.createLinearGradient(0, cy - ry, 0, cy + ry * 0.4);
+      if (helado) {
+        brillo.addColorStop(0, 'rgba(255,255,255,0.55)');
+        brillo.addColorStop(1, 'rgba(255,255,255,0)');
+      } else {
+        brillo.addColorStop(0, 'rgba(190,225,255,0.34)');
+        brillo.addColorStop(1, 'rgba(190,225,255,0)');
+      }
+      ctx.fillStyle = brillo;
+      ctx.beginPath();
+      ctx.ellipse(cx + az2(-8, 8), cy - ry * 0.42, rx * 0.62, ry * 0.30, az2(-0.2, 0.2), 0, Math.PI * 2);
+      ctx.fill();
+
+      if (helado) {
+        /* GRIETAS. Tres rayas finas y claras desde el centro. Son lo que dice
+           "esto está congelado" y no "esto es un charco muy claro". */
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = 'rgba(245,252,255,0.6)';
+        ctx.lineWidth = 1;
+        for (var q = 0; q < 3; q++) {
+          var a0 = az2(0, Math.PI * 2);
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          var px = cx, py = cy;
+          for (var p = 0; p < 4; p++) {
+            px += Math.cos(a0 + az2(-0.5, 0.5)) * rx * 0.28;
+            py += Math.sin(a0 + az2(-0.5, 0.5)) * ry * 0.28;
+            ctx.lineTo(px, py);
+          }
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+
+      c.refresh();
+      return clave;
+    } catch (e) {
+      console.warn('[clima] no se pudo dibujar el charco', clave, e);
+      return null;
+    }
+  }
+
+  /**
+   * EL FOGONAZO DE IMPACTO: donde acaba el rayo.
+   *
+   * Sin esto la punta del rayo se apaga en el aire y sigue faltando el final.
+   * Un disco aditivo blanco-azulado en el punto de caída cierra la lectura:
+   * el rayo baja, llega ahí, y ahí revienta.
+   */
+  function texturaImpacto(scene) {
+    var clave = 'gfc_impacto';
+    if (scene.textures.exists(clave)) return clave;
+    var T = 192;
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      var g = ctx.createRadialGradient(T / 2, T / 2, 0, T / 2, T / 2, T / 2);
+      g.addColorStop(0.00, 'rgba(255,255,255,0.95)');
+      g.addColorStop(0.16, 'rgba(226,240,255,0.70)');
+      g.addColorStop(0.42, 'rgba(150,195,255,0.28)');
+      g.addColorStop(1.00, 'rgba(110,160,255,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, T, T);
+      c.refresh();
+      return clave;
+    } catch (e) { return null; }
   }
 
   /* EL HALO DEL FUEGO.
@@ -669,10 +997,13 @@
     var n = 0, i;
     for (i = 0; i < GOTAS.length; i++)   { scene.load.image('gfc_' + GOTAS[i],   RUTA + GOTAS[i] + '.png'); n++; }
     for (i = 0; i < SALPICA.length; i++) { scene.load.image('gfc_' + SALPICA[i], RUTA + SALPICA[i] + '.png'); n++; }
-    for (i = 0; i < RAYOS.length; i++)   { scene.load.image('gfc_' + RAYOS[i],   RUTA + RAYOS[i] + '.png'); n++; }
+    /* Los rayos ya NO se cargan: se dibujan al montar (ver `dibujarRayo`). Los
+       tres PNG viejos siguen en Game/Objetos/clima por si alguien los quiere
+       mirar, pero el juego no los toca — son tres archivos menos de los que
+       depender en producción. */
     for (i = 0; i < COPOS.length; i++)   { scene.load.image('gfc_' + COPOS[i],   RUTA + COPOS[i] + '.png'); n++; }
     for (i = 0; i < POSAS.length; i++)   { scene.load.image('gfc_' + POSAS[i],   RUTA + POSAS[i] + '.png'); n++; }
-    for (i = 0; i < CHARCOS.length; i++) { scene.load.image('gfc_' + CHARCOS[i], RUTA + CHARCOS[i] + '.png'); n++; }
+    // (los charcos tampoco se cargan ya: se dibujan, ver dibujarCharco)
     for (i = 0; i < FUEGOS.length; i++)  { scene.load.image('gfc_' + FUEGOS[i],  RUTA + FUEGOS[i] + '.png'); n++; }
     for (i = 0; i < HUMOS.length; i++)   { scene.load.image('gfc_' + HUMOS[i],   RUTA + HUMOS[i] + '.png'); n++; }
     for (i = 0; i < BRASAS.length; i++)  { scene.load.image('gfc_' + BRASAS[i],  RUTA + BRASAS[i] + '.png'); n++; }
@@ -689,7 +1020,8 @@
 
   /** Las que faltan, por nombre, para poder decirlo en la consola. */
   function faltan(scene) {
-    var todas = [].concat(GOTAS, SALPICA, RAYOS, COPOS, POSAS, CHARCOS,
+    // RAYOS ya no está: los rayos se dibujan, no se cargan.
+    var todas = [].concat(GOTAS, SALPICA, COPOS, POSAS,
                           FUEGOS, HUMOS, BRASAS);
     var out = [];
     for (var i = 0; i < todas.length; i++) {
@@ -1158,13 +1490,50 @@
 
     var L = lienzo(cam);
     if (!st.rayo) { centella(st); return; }   // sin dibujo de rayo: solo fogonazo
-    st.rayo.setTexture('gfc_' + elegir(RAYOS));
-    // Dentro de lo que se ve, no del sobrante, y NUNCA donde cayó el anterior.
-    st.rayo.setPosition(sitioDelRayo(st, L),
-                        az(L.m - 30, L.m + L.h * 0.12));
-    st.rayo.setScale(az(1.4, 2.6));
+
+    /* PRIMERO SE DECIDE DÓNDE CAE, Y DESPUÉS SE DIBUJA HASTA AHÍ.
+       Antes era al revés: se colgaba el dibujo desde arriba y luego se buscaba
+       un árbol "por donde más o menos había caído". De ahí salían las dos
+       quejas a la vez — el rayo cortado en el aire y el árbol ardiendo sin que
+       le hubiera dado nada. */
+    var cx = sitioDelRayo(st, L);
+    var cy = L.m + L.h * az(0.52, 0.80);       // dentro de lo que se ve
+    var arriba = L.m - 40;                     // sale del borde de arriba
+
+    /* ¿Hay un árbol donde ha caído? Si lo hay, el rayo se DESVÍA hasta él: es
+       lo que hace un rayo de verdad, buscar lo más alto. Y así el fuego sale
+       exactamente donde se ha visto el impacto. */
+    var punto = aMundo(st, L, cx, cy);
+    var arbol = arbolBajoElRayo(scene, punto);
+    if (arbol && Math.random() < PROB_INCENDIO) {
+      var b = null;
+      try { b = arbol.spr.getBounds(); } catch (e) {}
+      if (b) {
+        var pant = cam.getWorldPoint ? null : null;
+        // de mundo a pantalla, que es donde vive la capa del clima
+        cx = (b.centerX - cam.worldView.x) * cam.zoom + L.m;
+        cy = (b.top + b.height * 0.18 - cam.worldView.y) * cam.zoom + L.m;
+      }
+      prenderArbol(st, arbol);
+    }
+
+    st.rayo.setTexture(elegir(RAYOS_DIBUJADOS));
+    st.rayo.setPosition(cx, arriba);
+    /* Se estira EXACTAMENTE hasta el punto de caída. El ancho se mueve un poco
+       para que dos rayos seguidos no salgan calcados. */
+    var alto = Math.max(120, cy - arriba);
+    st.rayo.setDisplaySize(RAYO_W * az(0.75, 1.25) * (alto / RAYO_H) * 1.6, alto);
+    st.rayo.setFlipX(Math.random() < 0.5);
     st.rayo.setAlpha(1);
-    st.rayoHasta = ahora + az(90, 190);
+    st.rayoHasta = ahora + az(110, 210);
+
+    // Y el reventón donde acaba, que es lo que cierra la lectura del golpe.
+    if (st.impacto) {
+      st.impacto.setPosition(cx, cy);
+      st.impacto.setScale(az(0.55, 1.05));
+      st.impacto.setAlpha(0.95);
+      st.impactoHasta = ahora + az(130, 220);
+    }
 
     st.fogonazo.setAlpha(0.72);
     st.fogonazoHasta = ahora + 130;
@@ -1178,11 +1547,8 @@
        calidad baja) no pasa nada: sigue habiendo fogonazo. */
     if (window.GFPost && window.GFPost.pulso) window.GFPost.pulso(1);
 
-    /* La sacudida llega DESPUÉS del destello, como el trueno de verdad: la luz
-       viaja más rápido que el sonido. Ese retardo es lo que lo hace creíble. */
-    /* Y a veces le da a un arbol. Va aqui, en el rayo CON TRAZO: una centella
-       lejana no quema nada, y asi el jugador ve el rayo y el fuego a la vez. */
-    if (Math.random() < PROB_INCENDIO) prenderArbol(st, st.rayo ? st.rayo.x : null);
+    /* (El incendio ya se ha decidido arriba, ANTES de dibujar, para que el
+       rayo caiga sobre el árbol que arde y no en la otra punta.) */
 
     /* Y suena. El chasquido eléctrico va aquí, pegado al fogonazo; el trueno
        llega luego, con el mismo retardo con el que sacude la cámara. */
@@ -1293,6 +1659,14 @@
       if (st.rayo) st.rayo.setAlpha(0);
       st.rayoHasta = 0;
     }
+    /* El reventón del impacto se apaga solo, y MÁS DESPACIO que el trazo: la
+       luz de un golpe se queda un instante después de que el rayo ya no está.
+       Si se apagaran a la vez, el golpe no se leería como golpe. */
+    if (st.impactoHasta && st.impacto) {
+      var qi = st.impactoHasta - ahora;
+      if (qi <= 0) { st.impacto.setAlpha(0); st.impactoHasta = 0; }
+      else st.impacto.setAlpha(Math.min(1, qi / 160) * 0.95);
+    }
     if (st.fogonazoHasta) {
       var q = st.fogonazoHasta - ahora;
       var pico = st.fogonazo.alpha;
@@ -1388,23 +1762,62 @@
    * del mundo de un frame al siguiente se ve como un fallo de render, no como
    * que ha entrado el otoño.
    */
+  /** Mezcla dos colores 0xRRGGBB. `t` de 0 (el primero) a 1 (el segundo). */
+  function mezclarColor(a, b, t) {
+    t = t < 0 ? 0 : (t > 1 ? 1 : t);
+    var ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+    var br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+    return ((Math.round(ar + (br - ar) * t) << 16) |
+            (Math.round(ag + (bg - ag) * t) << 8) |
+             Math.round(ab + (bb - ab) * t));
+  }
+
+  /** Cuánto se parecen dos colores, en suma de canales. */
+  function distanciaColor(a, b) {
+    if (a == null || b == null) return 999;
+    return Math.abs(((a >> 16) & 255) - ((b >> 16) & 255)) +
+           Math.abs(((a >> 8) & 255) - ((b >> 8) & 255)) +
+           Math.abs((a & 255) - (b & 255));
+  }
+
+  function ponerColorFiltro(st, color) {
+    st.filtroColor = color;
+    if (st.filtro.setTint) st.filtro.setTint(color);
+    else st.filtro.fillColor = color;
+  }
+
   function filtroEstacion(st, delta, w, h) {
     if (!st.filtro) return;
     var e = ESTACIONES[estado.estacion] || ESTACIONES.verano;
     var paso = delta / ESTACION_MS;
 
-    if (st.filtroColor !== e.color) {
-      // Al cambiar de estación se baja a cero con el color viejo y se sube con
-      // el nuevo: mezclar dos colores a medio camino da tonos que no son de
-      // ninguna de las dos.
-      st.filtroAlfa = Math.max(0, st.filtroAlfa - paso);
-      if (st.filtroAlfa <= 0.001) {
-        st.filtroColor = e.color;
-        if (st.filtro.setTint) st.filtro.setTint(e.color);
-        else st.filtro.fillColor = e.color;
+    /* CUÁNTO TINTE TOCA AHORA. Ya no es un número fijo por estación: se mueve
+       entre el de mediodía y el de las puntas del día según lo rasante que
+       venga la luz. Lo mismo con el COLOR: al amanecer y al atardecer se le
+       mete el naranja rasante encima del color de la estación, así que hasta
+       en verano —que no tiñe nada— hay hora dorada. */
+    var c = calidezDelDia();
+    var alfaAhora = e.alfa + (e.borde - e.alfa) * c;
+    var colorAhora = mezclarColor(e.color, COLOR_RASANTE, c * 0.75);
+
+    if (st.filtroColor !== colorAhora) {
+      /* Al CAMBIAR DE ESTACIÓN se baja a cero con el color viejo y se sube con
+         el nuevo: mezclar dos colores a medio camino da tonos que no son de
+         ninguna de las dos.
+
+         Pero el color de la hora cambia despacito y a todas horas, y bajar a
+         cero cada vez sería un parpadeo continuo. Por eso solo se hace el
+         relevo cuando el salto es GRANDE (otra estación); los pasitos del sol
+         se aplican directos. */
+      if (distanciaColor(st.filtroColor, colorAhora) > 40) {
+        st.filtroAlfa = Math.max(0, st.filtroAlfa - paso);
+        if (st.filtroAlfa <= 0.001) ponerColorFiltro(st, colorAhora);
+      } else {
+        ponerColorFiltro(st, colorAhora);
+        st.filtroAlfa = hacia(st.filtroAlfa, alfaAhora, paso);
       }
     } else {
-      st.filtroAlfa = hacia(st.filtroAlfa, e.alfa, paso);
+      st.filtroAlfa = hacia(st.filtroAlfa, alfaAhora, paso);
     }
     st.filtro.setAlpha(st.filtroAlfa);
     st.filtro.setPosition(w / 2, h / 2);
@@ -1437,13 +1850,13 @@
   }
 
   function nuevoCharco(st) {
-    var s = st.scene.add.image(0, 0, 'gfc_' + CHARCOS[0]);
+    var s = st.scene.add.image(0, 0, CHARCOS_DIBUJADOS[0]);
     s.setOrigin(0.5, 0.5);
     s.setDepth(PROF_CHARCO);
     s.setScale(2);                    // la escala del juego
     s.setAlpha(0);
     s.setVisible(false);
-    return { spr: s, vivo: false, nace: 0, tam: 0 };
+    return { spr: s, vivo: false, nace: 0, tam: 0, helado: false };
   }
 
   /** Busca sitio y enciende un charco. */
@@ -1474,8 +1887,14 @@
 
       libre.vivo = true;
       libre.nace = scene.time.now;
-      libre.tam = Math.floor(az(0, CHARCOS.length));
-      libre.spr.setTexture('gfc_' + CHARCOS[libre.tam]);
+      libre.tam = Math.floor(az(0, CHARCOS_DIBUJADOS.length));
+      libre.helado = false;
+      libre.spr.setTexture(CHARCOS_DIBUJADOS[libre.tam]);
+      /* Cada charco con su tamaño y su giro. Cuatro dibujos repartidos por
+         treinta sitios del mapa cantan enseguida si salen todos calcados; con
+         la escala y el ángulo movidos, no hay dos iguales. */
+      libre.spr.setScale(az(1.3, 2.4), az(1.2, 2.2));
+      libre.spr.setRotation(az(0, Math.PI * 2));
       libre.spr.setPosition(Math.round(x), Math.round(y));
       libre.spr.setVisible(true);
       libre.spr.setAlpha(0);
@@ -1485,6 +1904,7 @@
 
   function moverCharcos(st, ahora, delta) {
     var lloviendo = st.fuerzaLluvia > 0.05;
+    var nevando = st.fuerzaNieve > 0.25;
 
     if (lloviendo) {
       if (!st.proximoCharco) st.proximoCharco = ahora + az(CHARCO_CADA[0], CHARCO_CADA[1]);
@@ -1497,13 +1917,67 @@
     for (var i = 0; i < st.charcos.length; i++) {
       var c = st.charcos[i];
       if (!c.vivo) continue;
-      var paso = delta / (lloviendo ? CHARCO_CRECE : -CHARCO_SECA);
-      c.spr.alpha = Math.max(0, Math.min(0.82, c.spr.alpha + paso));
-      if (!lloviendo && c.spr.alpha <= 0.001) {
+
+      /* SE HIELAN CUANDO NIEVA, uno a uno y no todos de golpe.
+         Cada charco lleva su propio reloj (`helarEn`), así que la helada
+         avanza por el mapa en vez de encenderse como un interruptor. Y al
+         dejar de nevar se deshielan igual de escalonados. */
+      if (nevando && !c.helado) {
+        if (!c.helarEn) c.helarEn = ahora + az(2000, 14000);
+        else if (ahora >= c.helarEn) {
+          c.helado = true;
+          c.helarEn = 0;
+          c.spr.setTexture(HIELOS_DIBUJADOS[c.tam]);
+        }
+      } else if (!nevando && c.helado) {
+        if (!c.helarEn) c.helarEn = ahora + az(3000, 16000);
+        else if (ahora >= c.helarEn) {
+          c.helado = false;
+          c.helarEn = 0;
+          c.spr.setTexture(CHARCOS_DIBUJADOS[c.tam]);
+        }
+      }
+
+      /* MIENTRAS NIEVA, EL CHARCO NO SE SECA. Da igual que ya esté helado o
+         que aún esté por helar: el agua no se evapora a esa temperatura, se
+         queda.
+
+         EL FALLO QUE ARREGLA: esto decía `(c.helado && nevando)`, o sea que un
+         charco todavía sin helar SÍ se secaba. Y como helarse tarda entre 2 y
+         14 segundos y secarse tarda 22, en la prueba se murieron veintiuno de
+         veintitrés antes de llegar a hielo: dejaba de llover, empezaba a
+         nevar, y los charcos desaparecían en vez de congelarse. */
+      var crece = lloviendo || nevando;
+      var paso = delta / (crece ? CHARCO_CRECE : -CHARCO_SECA);
+      c.spr.alpha = Math.max(0, Math.min(c.helado ? 0.92 : 0.82, c.spr.alpha + paso));
+      if (!crece && c.spr.alpha <= 0.001) {
         c.vivo = false;
+        c.helado = false;
+        c.helarEn = 0;
         c.spr.setVisible(false);
       }
     }
+  }
+
+  /**
+   * LOS CHARCOS QUE HAY AHORA MISMO, para quien los quiera usar.
+   *
+   * Lo pide gf-animales: cuando escampa, los pájaros bajan a bañarse. Se
+   * devuelven solo los que ya han crecido lo bastante para verse y los que NO
+   * están helados — en un charco congelado no se baña nadie.
+   */
+  function charcosParaBanarse(scene) {
+    var st = scene && scene.__gfClima;
+    var out = [];
+    if (!st || !st.charcos) return out;
+    for (var i = 0; i < st.charcos.length; i++) {
+      var c = st.charcos[i];
+      if (!c.vivo || c.helado) continue;
+      if (c.spr.alpha < 0.35) continue;          // todavía es una mancha
+      out.push({ x: c.spr.x, y: c.spr.y,
+                 ancho: Math.abs(c.spr.displayWidth), alto: Math.abs(c.spr.displayHeight) });
+    }
+    return out;
   }
 
   // ═══════════════════════════════════════════════════════ INCENDIO
@@ -1530,23 +2004,46 @@
   }
 
   /** El rayo le ha dado a un árbol: empieza a arder. */
-  function prenderArbol(st, rayoX) {
-    var scene = st.scene;
-    if (st.incendio) return;                       // uno a la vez
-    if (!scene.textures.exists('gfc_' + FUEGOS[0])) return;
-    var cand = arbolesAlcanzables(scene);
-    if (!cand.length) return;
+  /* HASTA DÓNDE "ALCANZA" UN RAYO PARA PRENDER UN ÁRBOL.
+     Un rayo busca lo más alto de su alrededor, pero de su alrededor: no salta
+     media pantalla. 150 px de mundo son unos tres árboles de ancho. */
+  var ALCANCE_RAYO = 150;
 
-    /* El más cercano a donde ha caído el rayo, en pantalla. Si se cogiera uno
-       al azar, se vería el rayo en un lado y el fuego en el otro. */
-    var vista = scene.cameras.main.worldView;
-    var mundoX = vista.x + (rayoX == null ? vista.width / 2 : rayoX);
-    var mejor = cand[0], mejorD = Infinity;
+  /**
+   * El árbol al que le daría un rayo que cae en `punto` (coordenadas de mundo),
+   * o null si ahí no hay ninguno cerca.
+   *
+   * EL FALLO QUE ARREGLA: "a veces el rayo no cae en el árbol, el árbol se
+   * incendia". Antes se cogía el árbol con la X más parecida a la del rayo,
+   * SIN TOPE de distancia y SIN mirar la Y: bastaba con que existiera un árbol
+   * en pantalla para que ardiera, aunque el rayo hubiera caído en la otra
+   * esquina. Ahora, si no hay árbol dentro del alcance, no hay incendio — y el
+   * rayo se queda en un rayo, que también está bien.
+   */
+  function arbolBajoElRayo(scene, punto) {
+    var cand = arbolesAlcanzables(scene);
+    var mejor = null, mejorD = ALCANCE_RAYO * ALCANCE_RAYO;
     for (var i = 0; i < cand.length; i++) {
-      var d = Math.abs(cand[i].spr.x - mundoX);
+      var spr = cand[i].spr;
+      var b;
+      try { b = spr.getBounds(); } catch (e) { continue; }
+      /* Se mide contra la COPA, no contra el pie: es lo alto lo que se lleva
+         el rayo, y el sprite está anclado abajo. */
+      var dx = b.centerX - punto.x;
+      var dy = (b.top + b.height * 0.25) - punto.y;
+      var d = dx * dx + dy * dy;
       if (d < mejorD) { mejorD = d; mejor = cand[i]; }
     }
+    return mejor;
+  }
 
+  function prenderArbol(st, arbol) {
+    var scene = st.scene;
+    if (st.incendio) return;                       // uno a la vez
+    if (!arbol || !arbol.spr) return;
+    if (!scene.textures.exists('gfc_' + FUEGOS[0])) return;
+
+    var mejor = arbol;
     var spr = mejor.spr;
     var alto = spr.displayHeight || 80;
     var ancho = spr.displayWidth || 40;
@@ -1919,7 +2416,7 @@
       proximoTrueno: 0, proximaCentella: 0, truenoEn: 0, truenoFuerza: 1,
       // true = rayo con trazo (crujido + retumbo), false = centella lejana.
       truenoCerca: true,
-      rayoHasta: 0, fogonazoHasta: 0, ultimoRayoX: null,
+      rayoHasta: 0, impactoHasta: 0, fogonazoHasta: 0, ultimoRayoX: null,
       bordeAlfa: 0, bordeHasta: 0,
       filtroColor: ESTACIONES.verano.color, filtroAlfa: 0,
       inclina: INCLINA_MIN
@@ -2024,16 +2521,42 @@
     if (hay(scene, SALPICA)) for (i = 0; i < N_SALPICA; i++) st.salpicas.push(nuevaSalpica(st));
     if (hay(scene, POSAS))   for (i = 0; i < N_POSAS; i++)   st.posas.push(nuevaPosa(st));
     // Los charcos NO van en el contenedor: viven en el mundo, no en la pantalla.
-    if (hay(scene, CHARCOS)) for (i = 0; i < N_CHARCOS; i++) st.charcos.push(nuevoCharco(st));
+    /* Los charcos y su versión helada se dibujan aquí; ya no salen de los
+       cuatro PNG viejos. */
+    var hayCharco = true;
+    for (i = 0; i < CHARCOS_DIBUJADOS.length; i++) {
+      if (!dibujarCharco(scene, CHARCOS_DIBUJADOS[i], i + 1, false)) hayCharco = false;
+      dibujarCharco(scene, HIELOS_DIBUJADOS[i], i + 1, true);
+    }
+    if (hayCharco) for (i = 0; i < N_CHARCOS; i++) st.charcos.push(nuevoCharco(st));
 
     // Rayo, marco y fogonazo al final: van por encima de todo lo que cae.
     /* El rayo con TRAZO necesita sus imágenes. Sin ellas se pierde el dibujo
        del rayo, pero el fogonazo, el marco encendido y el trueno siguen — que
        es casi toda la tormenta. */
-    if (hay(scene, RAYOS)) {
-      st.rayo = scene.add.image(0, 0, 'gfc_' + RAYOS[0]);
+    /* Los tres rayos se DIBUJAN aquí mismo (ver `dibujarRayo`), así que ya no
+       dependen de que nadie haya subido un PNG. Si por lo que sea el canvas
+       fallara, no hay dibujo de rayo pero siguen el fogonazo, el marco
+       encendido y el trueno — que es casi toda la tormenta. */
+    var hayRayo = false;
+    for (var nr = 0; nr < RAYOS_DIBUJADOS.length; nr++) {
+      if (dibujarRayo(scene, RAYOS_DIBUJADOS[nr], nr + 1)) hayRayo = true;
+    }
+    if (hayRayo) {
+      st.rayo = scene.add.image(0, 0, RAYOS_DIBUJADOS[0]);
       st.rayo.setScrollFactor(0).setOrigin(0.5, 0).setAlpha(0);
       if (st.capa) st.capa.add(st.rayo); else st.rayo.setDepth(PROF_RAYO);
+
+      // El reventón del punto de caída. Aditivo: es luz, no pintura.
+      var claveImp = texturaImpacto(scene);
+      if (claveImp) {
+        st.impacto = scene.add.image(0, 0, claveImp);
+        st.impacto.setScrollFactor(0).setOrigin(0.5, 0.5).setAlpha(0);
+        if (st.impacto.setBlendMode && window.Phaser && Phaser.BlendModes) {
+          st.impacto.setBlendMode(Phaser.BlendModes.ADD);
+        }
+        if (st.capa) st.capa.add(st.impacto); else st.impacto.setDepth(PROF_RAYO + 1);
+      }
     }
 
     /* Marco de los bordes, lo que enciende una centella. Cuatro tiras de
@@ -2134,6 +2657,7 @@
     if (st.cortina)  st.cortina.destroy();
     if (st.fogonazo) st.fogonazo.destroy();
     if (st.rayo)     st.rayo.destroy();
+    if (st.impacto)  st.impacto.destroy();
     if (st.capa && st.capa.destroy) st.capa.destroy();
     st.capa = null;
     st.gotas.length = 0; st.salpicas.length = 0;
@@ -2150,6 +2674,12 @@
     sincronizar: sincronizar,
     engancharSocket: engancharSocket,
     estado: function () { return estado; },
+    /* Cuánta luz RASANTE hay ahora (0 a mediodía, 1 al ras del horizonte).
+       La usa gf-postproceso para no teñir de ámbar a las doce del mediodía. */
+    calidez: calidezDelDia,
+    /* Los charcos donde se puede uno bañar. Lo pide gf-animales cuando
+       escampa, para bajar a los pájaros al agua. */
+    charcos: charcosParaBanarse,
     /**
      * Para mirar desde la consola por que no se ve el tiempo.
      *   GFClima.diagnostico()
@@ -2221,7 +2751,14 @@
       texturasBorde: texturasBorde, moverBorde: moverBorde,
       MULTIPLICAR: MULTIPLICAR,
       filtroEstacion: filtroEstacion, moverCopos: moverCopos,
-      RAYO_SEPARA: RAYO_SEPARA
+      RAYO_SEPARA: RAYO_SEPARA,
+      // lo que se dibuja ahora con canvas (lo usa _prueba_clima2.html)
+      dibujarRayo: dibujarRayo, texturaImpacto: texturaImpacto,
+      dibujarCharco: dibujarCharco, arbolBajoElRayo: arbolBajoElRayo,
+      calidezDelDia: calidezDelDia, mezclarColor: mezclarColor,
+      RAYOS_DIBUJADOS: RAYOS_DIBUJADOS, CHARCOS_DIBUJADOS: CHARCOS_DIBUJADOS,
+      HIELOS_DIBUJADOS: HIELOS_DIBUJADOS, ALCANCE_RAYO: ALCANCE_RAYO,
+      charcosParaBanarse: charcosParaBanarse
     }
   };
 

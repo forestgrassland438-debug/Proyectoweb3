@@ -1036,8 +1036,27 @@
       return;
     }
 
+    /* ── BAÑARSE EN UN CHARCO RECIÉN LLOVIDO ──────────────────────────────
+       Cuando escampa, el suelo se queda lleno de charcos y los pájaros bajan
+       a bañarse en ellos. Es lo primero que hace un gorrión de verdad después
+       de un chaparrón, y en el juego llega justo cuando el mapa se ha quedado
+       en silencio, así que se nota.
+
+       Va ANTES que la fuente y con más probabilidad porque es lo excepcional:
+       la fuente está siempre y los charcos duran un rato. `GFClima.charcos()`
+       ya devuelve solo los que están crecidos y sin helar — en un charco
+       congelado no se baña nadie. */
+    if (r < 0.30) {
+      var ch = charcoParaBanarse(scene, p, a);
+      if (ch) {
+        a.fuente = null;                 // charco: no hay que ponerse delante de nada
+        volarA(st, a, { x: ch.x, y: ch.y }, 'bana', null);
+        return;
+      }
+    }
+
     // ── BAÑARSE EN LA FUENTE ───────────────────────────────────────────────
-    if (r < 0.14) {
+    if (r < 0.38) {
       var f = fuenteDe(scene);
       if (f && (!p || Math.hypot(f.x - p.x, f.y - p.y) > a.ficha.huye * 1.3)) {
         // Se apunta EN QUE fuente se va a bañar: al llegar hace falta para
@@ -1783,6 +1802,40 @@
   }
 
   /** La fuente del pueblo, si existe. Es donde se bañan. */
+  /**
+   * UN CHARCO EN EL QUE BAÑARSE, o null si no hay ninguno que valga.
+   *
+   * Se lo pregunta a gf-clima, que es quien los pone y quien sabe cuáles
+   * están helados. Se descartan los que caen encima del jugador —un pájaro no
+   * baja a bañarse a tus pies— y se elige entre los que quedan, con
+   * preferencia por los cercanos: si se cogiera el charco más lejano, el
+   * pájaro cruzaría media pantalla y llegaría cuando ya se hubiera secado.
+   */
+  function charcoParaBanarse(scene, jugador, a) {
+    var lista = null;
+    try {
+      if (window.GFClima && window.GFClima.charcos) lista = window.GFClima.charcos(scene);
+    } catch (e) {}
+    if (!lista || !lista.length) return null;
+
+    var huye = (a && a.ficha && a.ficha.huye) ? a.ficha.huye * 1.3 : 150;
+    var buenos = [];
+    for (var i = 0; i < lista.length; i++) {
+      var c = lista[i];
+      if (jugador && Math.hypot(c.x - jugador.x, c.y - jugador.y) < huye) continue;
+      if (a && a.spr && Math.hypot(c.x - a.spr.x, c.y - a.spr.y) > RADIO_VUELO) continue;
+      buenos.push(c);
+    }
+    if (!buenos.length) return null;
+
+    var c2 = elegir(buenos);
+    /* No al centro exacto: repartidos por la lámina, y un pelín por debajo del
+       medio, que es donde apoyan las patas. Si todos cayeran en el mismo punto
+       se verían tres pájaros dentro del mismo píxel. */
+    return { x: c2.x + az(-c2.ancho * 0.22, c2.ancho * 0.22),
+             y: c2.y + c2.alto * 0.12 };
+  }
+
   function fuenteDe(scene) {
     for (var i = 0; i < FUENTES.length; i++) {
       var f = scene[FUENTES[i]];

@@ -825,23 +825,35 @@ function ambienteNieve() {
  */
 function trueno(semilla, cerca) {
   const sr = SR_EFECTO;
-  const seg = cerca ? 2.6 : 2.9;
+  /* MÁS LARGOS QUE ANTES. Los primeros duraban 2,6 s y el jugador pidió
+     truenos nuevos: el que había se acababa antes de que te diera tiempo a
+     mirar al cielo. Un trueno de verdad rueda cinco o seis segundos y ESO es
+     lo que impone; el golpe seco solo asusta. */
+  const seg = cerca ? 5.2 : 4.6;
   const buf = lienzo(sr, seg), n = buf.length;
   const rnd = (function (s) { return function () { s = (s * 16807) % 2147483647; return s / 2147483647; }; })(semilla);
+  const az = (a, b) => a + rnd() * (b - a);
 
   if (cerca) {
-    // 1. el chasquido
-    tocarNota(buf, sr, { onda: 'ruido', ruidoP: 1, corto: true, f: 1, ini: 0, dur: 0.05,
-                         vol: 0.85, a: 0.0005, d: 0.9, s: 0.02, r: 0.1, filtroAlto: 0.5 });
+    /* 1. EL DESGARRO. Antes eran 50 ms de ruido y ya. Ahora son tres
+       chasquidos seguidos y desiguales, porque el rayo no es una descarga:
+       son varias por el mismo canal, en unas centésimas. Eso es lo que hace
+       ese sonido de tela rasgada que tiene un rayo cercano. */
+    for (let k = 0; k < 3; k++) {
+      tocarNota(buf, sr, { onda: 'ruido', ruidoP: 1, corto: true, f: 1,
+                           ini: k * az(0.012, 0.030), dur: az(0.030, 0.075),
+                           vol: 0.9 - k * 0.22, a: 0.0005, d: 0.9, s: 0.03, r: 0.1,
+                           filtroAlto: 0.55 - k * 0.08 });
+    }
     // y el destello eléctrico que lo acompaña: barrido rapidísimo hacia abajo
-    tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.5, f: 2600, ini: 0.004, dur: 0.09,
-                         vol: 0.22, a: 0.001, d: 0.8, s: 0.05, r: 0.2, caida: 44 });
+    tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.5, f: az(2200, 3000), ini: 0.004, dur: 0.11,
+                         vol: 0.24, a: 0.001, d: 0.8, s: 0.05, r: 0.2, caida: 44 });
   }
 
   // 2. el golpe
   const golpe = crearRuido(cerca ? 6 : 12);
   const fg = pasoBajo(cerca ? 0.10 : 0.045);
-  const dur2 = Math.round(sr * (cerca ? 0.75 : 1.0));
+  const dur2 = Math.round(sr * (cerca ? 0.95 : 1.2));
   const ini2 = Math.round(sr * (cerca ? 0.02 : 0.10));
   for (let i = 0; i < dur2; i++) {
     const p = i / dur2;
@@ -863,8 +875,30 @@ function trueno(semilla, cerca) {
     const tiembla = 0.55 + 0.45 * (0.34 * Math.sin(2 * Math.PI * w[0] * t + semilla)
                                  + 0.33 * Math.sin(2 * Math.PI * w[1] * t)
                                  + 0.33 * Math.sin(2 * Math.PI * w[2] * t + 1.7));
-    const env = Math.pow(1 - p, 1.5) * (p < 0.05 ? p / 0.05 : 1);
+    /* La cola cae MÁS DESPACIO que antes (exponente 1.15 en vez de 1.5): es lo
+       que convierte un golpe en un trueno que se aleja rodando. */
+    const env = Math.pow(1 - p, 1.15) * (p < 0.05 ? p / 0.05 : 1);
     sumar(buf, ini3 + i, fr2(fr1(rum())) * 9 * env * tiembla * (cerca ? 1 : 0.8));
+  }
+
+  /* 4. LOS REBOTES. Dos o tres golpes graves y flojos, muy separados, dentro
+     de la cola. Son el eco en las montañas, y es lo que faltaba: sin ellos el
+     retumbo se apaga liso y suena a ruido bajando de volumen, no a tormenta.
+     Con ellos el trueno "rueda". */
+  const nEcos = cerca ? 3 : 2;
+  for (let k = 0; k < nEcos; k++) {
+    const eco = crearRuido(cerca ? 34 + k * 8 : 46 + k * 10);
+    const fe = pasoBajo(0.014);
+    const t0 = Math.round(sr * az(0.7 + k * 0.9, 1.2 + k * 1.1));
+    const dur = Math.round(sr * az(0.5, 0.9));
+    if (t0 + dur >= n) continue;
+    const pico = (cerca ? 0.55 : 0.38) * Math.pow(0.62, k);
+    for (let i = 0; i < dur; i++) {
+      const p = i / dur;
+      // sube y baja: un eco entra y sale, no aparece de golpe
+      const env = Math.sin(Math.PI * p);
+      sumar(buf, t0 + i, fe(eco()) * 9 * env * pico);
+    }
   }
   return { sr, buf, temblor: true };
 }
@@ -1114,12 +1148,22 @@ const CATALOGO = [
   ['chispa_2.wav',    () => chispa(1)],
 ];
 
-['hierba', 'tierra', 'ladrillo', 'cemento', 'madera'].forEach(t => {
-  for (let v = 1; v <= 3; v++) CATALOGO.push(['paso_' + t + '_' + v + '.wav', () => pisada(t, v)]);
-});
-['agua', 'nieve'].forEach(t => {
-  for (let v = 1; v <= 2; v++) CATALOGO.push(['paso_' + t + '_' + v + '.wav', () => pisada(t, v)]);
-});
+/* LAS PISADAS ESTÁN APAGADAS.
+ *
+ * El jugador las quitó: no quería oír los pasos ni en el campo ni en la
+ * tienda. El sintetizador se queda entero (`pisada()` sigue ahí arriba, con
+ * sus siete suelos) porque escribirlo fue el trabajo y borrarlo no ahorra
+ * nada; lo que se apaga es que salgan al catálogo.
+ *
+ * Para volver a tenerlas: descomentar estas seis líneas, ejecutar el script y
+ * reponer en gf-audio.js la tabla SUELOS y la función `pisar()`. */
+// ['hierba', 'tierra', 'ladrillo', 'cemento', 'madera'].forEach(t => {
+//   for (let v = 1; v <= 3; v++) CATALOGO.push(['paso_' + t + '_' + v + '.wav', () => pisada(t, v)]);
+// });
+// ['agua', 'nieve'].forEach(t => {
+//   for (let v = 1; v <= 2; v++) CATALOGO.push(['paso_' + t + '_' + v + '.wav', () => pisada(t, v)]);
+// });
+void pisada;
 
 // Los que hablan más de una vez llevan variantes; los demás, una sola.
 [['pajaro', 3], ['paloma', 2], ['cuervo', 2], ['buho', 2], ['vaca', 2], ['cerdo', 2],

@@ -504,10 +504,29 @@
     if (E) {
       d.sat += E.sat; d.con += E.con; d.bri += E.bri;
       d.vinF += E.vin; d.destello += E.destello;
+
+      /* CUÁNTO TIÑE LA ESTACIÓN DEPENDE DE LA HORA.
+       *
+       * EL FALLO QUE ARREGLA: el mundo se veía naranja todo el día. El ámbar
+       * de otoño entraba a fuerza fija de sol a sol, y a mediodía —con el sol
+       * vertical— eso no es otoño, es un filtro puesto encima.
+       *
+       * `GFClima.calidez()` vale 0 a mediodía y 1 al ras del horizonte, así
+       * que el tinte de la estación se queda en un tercio con el sol alto y
+       * sube al doble en la hora dorada. El color de otoño no desaparece
+       * (sigue habiendo hojas y luz cálida): deja de ser una gelatina.
+       */
+      var cal = 0.5;
+      try {
+        if (window.GFClima && window.GFClima.calidez) cal = window.GFClima.calidez();
+      } catch (x) {}
+      var horaDorada = 0.34 + 1.66 * Math.max(0, Math.min(1, cal));
+
       /* El tinte de la estación se COMPONE con el del tiempo en vez de
          sustituirlo: un día de lluvia en otoño no es ni el gris de la lluvia
          ni el ámbar del otoño, es los dos. */
-      var q = E.tinteMas * (1 - d.tinF * 0.5);
+      var q = E.tinteMas * (1 - d.tinF * 0.5) * horaDorada;
+      q = Math.max(0, Math.min(1, q));
       d.tinR = d.tinR * (1 - q) + E.tinte[0] * q;
       d.tinG = d.tinG * (1 - q) + E.tinte[1] * q;
       d.tinB = d.tinB * (1 - q) + E.tinte[2] * q;

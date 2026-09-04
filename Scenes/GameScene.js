@@ -8674,16 +8674,32 @@ this.dog.y = this.player.y + 20;
 this.dog.targetX = this.dog.x;
 this.dog.targetY = this.dog.y;
 
-// Sprite del perro
+/* Sprite del perro. NACE INVISIBLE, Y ESO ES LO IMPORTANTE.
+
+   EL FALLO QUE ARREGLA: "mientras la cámara se aleja para ajustarse al entrar
+   al mapa aparece mi perro como si lo tuviera, y cuando se ajusta se me quita".
+
+   El perro se creaba VISIBLE y solo se escondía si `window.globalPetData` ya
+   decía que no había mascota. Pero ese dato lo escribe gf-mascota.js DESPUÉS
+   de preguntarle al servidor, así que la primera vez que entras al juego no
+   existe todavía: el perro nacía a la vista y se quedaba ahí los dos segundos
+   largos que tarda la cámara en encuadrar. Justo el rato en el que se mira.
+
+   Nacer escondido es además lo correcto: una mascota que nadie ha confirmado
+   no existe. Lo enseña `_loadPetData()` cuando llega la respuesta, y
+   gf-mascota.js cuando sabe si está viva. Si no tienes perro, no aparece
+   nunca; si lo tienes, aparece un instante después, que no molesta a nadie. */
 this.dog.sprite = this.add.sprite(this.dog.x, this.dog.y, 'perro_derecha_1')
     .setScale(2)
-    .setDepth(this.player.y + 8); // Empieza con un depth similar
+    .setDepth(this.player.y + 8) // Empieza con un depth similar
+    .setVisible(false);
 
 // Sombra del perro (igual que la del jugador pero más pequeña)
 this.dog.shadow = this.add.graphics();
 this.dog.shadow.fillStyle(0x000000, 0.25);
 this.dog.shadow.fillEllipse(0, 0, 35, 18);
 this.dog.shadowContainer = this.add.container(this.dog.x, this.dog.y + 22, [this.dog.shadow]);
+this.dog.shadowContainer.setVisible(false);
 
 // Reproducir animación inicial
 this.dog.sprite.play('perro_right');
@@ -8717,12 +8733,17 @@ if (window.globalPetData) {
 
      `alive` lo escribe gf-mascota.js en globalPetData justo para esto, y es el
      mismo dato que ya usa la tienda. */
-  if (this.petData.equipped === false || this.petData.visible === false ||
-      window.globalPetData.alive === false) {
-    this.dog.sprite.setVisible(false);
-    this.dog.shadowContainer.setVisible(false);
-    if (this.dogNameText) this.dogNameText.setVisible(false);
-  }
+  /* Ahora el perro nace escondido, así que aquí solo hay que ENSEÑARLO si el
+     estado guardado dice que sí. Antes era al revés (nacía visible y se
+     escondía) y por eso hacía falta acertar con las tres condiciones a la
+     primera; ahora, si alguna falta, lo peor que pasa es que el perro tarde
+     un instante más en salir. */
+  var hayPerro = this.petData.equipped !== false &&
+                 this.petData.visible !== false &&
+                 window.globalPetData.alive !== false;
+  this.dog.sprite.setVisible(hayPerro);
+  this.dog.shadowContainer.setVisible(hayPerro);
+  if (this.dogNameText && !hayPerro) this.dogNameText.setVisible(false);
 }
 
 
@@ -28936,13 +28957,8 @@ if (this.dogNameText) {
     // If petData was saved cross-scene use that state — don't overwrite with server data
     if (window.globalPetData !== undefined) {
       this.petData = window.globalPetData;
-      // Enforce visibility synchronously on the already-created sprite
-      const equip = this.petData.equipped !== false;
-      const vis   = equip && (this.petData.visible !== false);
-      if (this.dog) {
-        if (this.dog.sprite)          this.dog.sprite.setVisible(vis);
-        if (this.dog.shadowContainer) this.dog.shadowContainer.setVisible(vis);
-      }
+      // Un solo sitio decide si el perro se ve, y mira también si está muerta.
+      this._aplicarVisibilidadPerro();
       this._renderPetPreview();
       return;
     }
@@ -28954,12 +28970,36 @@ if (this.dogNameText) {
         const data = await res.json();
         this.petData = data.pet || { type: 'perro', visible: true, equipped: true };
         window.globalPetData = this.petData; // persist for next scene
+        this._aplicarVisibilidadPerro();
         this._renderPetPreview();
       }
     } catch (_) {
       this.petData = this.petData || { type: 'perro', visible: true, equipped: true };
       window.globalPetData = this.petData;
+      this._aplicarVisibilidadPerro();
       this._renderPetPreview();
+    }
+  }
+
+  /**
+   * Enseña o esconde el perro según lo que diga `petData`.
+   *
+   * HACE FALTA PORQUE EL PERRO YA NACE ESCONDIDO. Esta rama de `_loadPetData`
+   * —la que pregunta al servidor la primera vez que entras— guardaba el estado
+   * y pintaba la ficha del dashboard, pero NO tocaba el sprite: se apoyaba en
+   * que el perro ya estuviera puesto. Ahora que nace invisible (para que no
+   * asome mientras la cámara encuadra), si nadie lo enseña no sale nunca.
+   */
+  _aplicarVisibilidadPerro() {
+    if (!this.dog || !this.dog.sprite) return;
+    const d = this.petData || {};
+    const hay = d.equipped !== false && d.visible !== false &&
+                !(window.globalPetData && window.globalPetData.alive === false);
+    this.dog.sprite.setVisible(hay);
+    if (this.dog.shadowContainer) this.dog.shadowContainer.setVisible(hay);
+    if (this.dogNameText) {
+      if (!hay) this.dogNameText.setVisible(false);
+      else if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
     }
   }
 

@@ -33,8 +33,52 @@
   'use strict';
 
   var RUTA = './Game/Objetos/viento/';
-  var HOJAS   = ['hoja_1', 'hoja_2', 'hoja_3', 'hoja_4'];
   var RAFAGAS = ['rafaga_1', 'rafaga_2', 'rafaga_3'];
+
+  /* ══════════════════════════════════════════════════════════════════════
+     LAS HOJAS, DIBUJADAS Y POR ESTACIÓN
+     ──────────────────────────────────────────────────────────────────────
+     LO QUE HABÍA: cuatro PNG de 7×7 píxeles. Medidos: dos verdes, uno
+     amarillo y uno naranja, y ninguno con forma de hoja — a ese tamaño son
+     manchitas. El jugador lo dijo claro: "las hojas que hiciste no sirven
+     para otoño".
+
+     Y no servían por dos motivos:
+
+       1. TAMAÑO Y FORMA. Siete píxeles no dan para una hoja; dan para una
+          mota. Las nuevas son de 16×16, con silueta de hoja de verdad
+          —punta, base y nervio central— que a la escala del juego se lee.
+       2. NO CAMBIABAN CON EL AÑO. Volaban las mismas cuatro en agosto y en
+          noviembre. Ahora hay TRES JUEGOS y el que vuela lo decide la
+          estación que manda gf-clima:
+
+            verde  primavera y verano — verdes frescos, alguna amarilleando
+            otono  otoño              — rojo vino, teja, ámbar, ocre y pardo
+            seca   invierno           — pardas y grises, y vuelan menos
+
+     Se dibujan con canvas por lo de siempre: un PNG que no se sube es un
+     sistema que no arranca, y con el clima ya pasó. */
+  /* Cada entrada es [cara, nervio]: el color de la hoja y el de la vena, que
+     va un par de tonos por debajo. Ese contraste interno es lo que hace que a
+     16 píxeles se lea "hoja" y no "mancha". */
+  var FAMILIAS_HOJA = {
+    verde: [
+      ['#4e8f3a', '#356328'], ['#63a544', '#41722e'],
+      ['#7fb84e', '#568237'], ['#9ac455', '#6b9440']
+    ],
+    otono: [
+      ['#a8321e', '#6d1f0f'], ['#c8571f', '#8a3512'],
+      ['#d98b21', '#9a5b13'], ['#b8862f', '#7b571c'],
+      ['#8c4a22', '#5c2f14']
+    ],
+    seca: [
+      ['#8a6a44', '#5a452c'], ['#a08056', '#6b573a'],
+      ['#77664f', '#4d4234'], ['#93724a', '#634d31']
+    ]
+  };
+
+  var HOJAS_DIBUJADAS = {};      // familia → lista de claves de textura
+  var N_FORMAS = 4;              // siluetas distintas por familia
 
   // Cada cuánto se levanta viento y cuánto dura. Es raro a propósito: si
   // soplara siempre dejaría de llamar la atención.
@@ -101,20 +145,19 @@
   function precargar(scene) {
     if (!scene || !scene.load) return 0;
     var n = 0, i;
-    for (i = 0; i < HOJAS.length; i++) {
-      scene.load.image('gfv_' + HOJAS[i], RUTA + HOJAS[i] + '.png'); n++;
-    }
-    for (i = 0; i < RAFAGAS.length; i++) {
-      scene.load.image('gfv_' + RAFAGAS[i], RUTA + RAFAGAS[i] + '.png'); n++;
-    }
+    /* YA NO SE CARGA NADA. Hojas, motas de tormenta y ráfagas se dibujan al
+       montar (ver `dibujarTodo`). Son siete PNG menos de los que depender en
+       producción, que es exactamente el fallo que dejó el clima muerto en su
+       día. La función se queda porque GameScene la llama en su preload. */
+    void RUTA; void RAFAGAS; void i;
     return n;
   }
 
+  /* Ya no hace falta comprobar nada antes de montar: lo que vuela se dibuja
+     aquí mismo. Se deja la función porque `montar` la llama, y devuelve true
+     salvo que el canvas no funcione (lo dice `dibujarTodo`). */
   function hayTexturas(scene) {
-    for (var i = 0; i < HOJAS.length; i++) {
-      if (!scene.textures.exists('gfv_' + HOJAS[i])) return false;
-    }
-    return true;
+    return dibujarTodo(scene);
   }
 
   /* ══════════════════════════════════════════════════════════════════════
@@ -169,6 +212,199 @@
   var CAMBIA_MANERA = [1800, 6500];
 
   /* Los tres planos de profundidad, como en la lluvia. */
+  /**
+   * Dibuja UNA hoja: silueta, nervio central y nervios laterales.
+   *
+   * La forma sale de dos arcos que se juntan en la punta y en el rabillo —es
+   * la silueta de una hoja de chopo, la más reconocible—, con la anchura
+   * cambiada por `forma` para que las cuatro no sean la misma. Al final se
+   * gira un poco: una hoja tumbada en horizontal parece un pez.
+   */
+  function dibujarHoja(scene, clave, cara, nervio, forma) {
+    if (scene.textures.exists(clave)) return clave;
+    var T = 16;
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      ctx.clearRect(0, 0, T, T);
+
+      var ancho = 0.30 + forma * 0.055;        // de estrecha a redonda
+      var cx = T / 2, cy = T / 2;
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate((forma - 1.5) * 0.35);        // cada forma, su inclinación
+      ctx.beginPath();
+      ctx.moveTo(0, -T * 0.44);                                    // punta
+      ctx.quadraticCurveTo(T * ancho, -T * 0.05, 0, T * 0.42);     // canto derecho
+      ctx.quadraticCurveTo(-T * ancho, -T * 0.05, 0, -T * 0.44);   // canto izquierdo
+      ctx.closePath();
+      ctx.fillStyle = cara;
+      ctx.fill();
+
+      // nervio central
+      ctx.strokeStyle = nervio;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, -T * 0.40);
+      ctx.lineTo(0, T * 0.38);
+      ctx.stroke();
+
+      // y tres pares de nervios laterales, que es lo que la remata
+      for (var i = 0; i < 3; i++) {
+        var y = -T * 0.22 + i * T * 0.20;
+        var l = T * (0.16 - i * 0.02);
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(l, y + l * 0.7);
+        ctx.moveTo(0, y);
+        ctx.lineTo(-l, y + l * 0.7);
+        ctx.stroke();
+      }
+      ctx.restore();
+      c.refresh();
+      return clave;
+    } catch (e) { return null; }
+  }
+
+  /**
+   * PARTÍCULAS DE TORMENTA.
+   *
+   * "Cuando es tormenta a veces no deberían aparecer hojas sino el viento y
+   * partículas". Y es verdad: en un temporal de agua lo que cruza el aire no
+   * son hojas de otoño dando vueltas, es polvo, agua pulverizada y broza. Son
+   * motas alargadas, casi incoloras, que se ven poco y van muy rápidas.
+   */
+  function dibujarMota(scene, clave, tipo) {
+    if (scene.textures.exists(clave)) return clave;
+    var W = 12, H = 6;
+    try {
+      var c = scene.textures.createCanvas(clave, W, H);
+      var ctx = c.getContext();
+      ctx.clearRect(0, 0, W, H);
+      var g = ctx.createLinearGradient(0, 0, W, 0);
+      if (tipo === 0) {          // agua pulverizada
+        g.addColorStop(0, 'rgba(200,225,245,0)');
+        g.addColorStop(0.5, 'rgba(215,235,255,0.85)');
+        g.addColorStop(1, 'rgba(200,225,245,0)');
+      } else if (tipo === 1) {   // polvo
+        g.addColorStop(0, 'rgba(190,178,150,0)');
+        g.addColorStop(0.45, 'rgba(205,192,162,0.75)');
+        g.addColorStop(1, 'rgba(190,178,150,0)');
+      } else {                   // broza, más oscura
+        g.addColorStop(0, 'rgba(120,104,78,0)');
+        g.addColorStop(0.5, 'rgba(140,120,90,0.8)');
+        g.addColorStop(1, 'rgba(120,104,78,0)');
+      }
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(W / 2, H / 2, W / 2, H * 0.28, 0, 0, Math.PI * 2);
+      ctx.fill();
+      c.refresh();
+      return clave;
+    } catch (e) { return null; }
+  }
+
+  var MOTAS_DIBUJADAS = ['gfv_mota_1', 'gfv_mota_2', 'gfv_mota_3'];
+
+  /* ══════════════════════════════════════════════════════════════════════
+     LAS RÁFAGAS NUEVAS
+     ──────────────────────────────────────────────────────────────────────
+     Las de antes eran tres PNG de 40×14 con rayitas blancas de un píxel, en
+     escalera y a tope de opacidad. Se leían como arañazos en la pantalla: una
+     ráfaga de aire no tiene borde duro ni color blanco puro.
+
+     Las nuevas son bastante más largas (96 px), CURVAS —el aire no va recto—
+     y cada línea se apaga por los dos extremos, así que entran y salen del
+     cuadro sin principio ni final visible. Tres o cuatro líneas por ráfaga a
+     alturas distintas, para que se lea como una corriente y no como un trazo.
+  */
+  var RAFAGAS_DIBUJADAS = ['gfv_rafaga_d1', 'gfv_rafaga_d2', 'gfv_rafaga_d3'];
+
+  function dibujarRafaga(scene, clave, semilla) {
+    if (scene.textures.exists(clave)) return clave;
+    var W = 96, H = 28;
+    try {
+      var c = scene.textures.createCanvas(clave, W, H);
+      var ctx = c.getContext();
+      ctx.clearRect(0, 0, W, H);
+
+      var s = semilla * 3187 + 11;
+      function r() { s = (s * 16807) % 2147483647; return s / 2147483647; }
+      function az2(a, b) { return a + r() * (b - a); }
+
+      var n = 3 + Math.floor(r() * 2);
+      for (var i = 0; i < n; i++) {
+        var y = H * (0.22 + 0.56 * (i / Math.max(1, n - 1))) + az2(-2, 2);
+        var x0 = az2(0, W * 0.28);
+        var x1 = az2(W * 0.72, W);
+        var comba = az2(-4, 4);
+
+        /* Cada línea con su propio degradado a lo largo: transparente en las
+           puntas y opaca en el medio. Es lo que quita el corte. */
+        var g = ctx.createLinearGradient(x0, 0, x1, 0);
+        g.addColorStop(0.00, 'rgba(235,245,255,0)');
+        g.addColorStop(0.30, 'rgba(235,245,255,' + az2(0.45, 0.75).toFixed(2) + ')');
+        g.addColorStop(0.65, 'rgba(255,255,255,' + az2(0.55, 0.85).toFixed(2) + ')');
+        g.addColorStop(1.00, 'rgba(235,245,255,0)');
+        ctx.strokeStyle = g;
+        ctx.lineWidth = az2(0.9, 1.8);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(x0, y);
+        ctx.quadraticCurveTo((x0 + x1) / 2, y + comba, x1, y);
+        ctx.stroke();
+      }
+      c.refresh();
+      return clave;
+    } catch (e) { return null; }
+  }
+
+  /**
+   * QUÉ VUELA AHORA MISMO: hojas de la estación, o motas de tormenta.
+   *
+   * Con lluvia fuerte manda la tormenta; si no, la estación. Se pregunta a
+   * gf-clima, que es quien lo sabe; sin él, hojas verdes, que es lo que había.
+   */
+  function familiaAhora() {
+    var e = null;
+    try { if (window.GFClima && window.GFClima.estado) e = window.GFClima.estado(); } catch (x) {}
+    if (e && e.activo && e.lluvia) return 'tormenta';
+    var est = (e && e.estacion) || 'verano';
+    if (est === 'otono') return 'otono';
+    if (est === 'invierno') return 'seca';
+    return 'verde';
+  }
+
+  /** Las claves de textura que tocan ahora. */
+  function texturasAhora() {
+    var f = familiaAhora();
+    if (f === 'tormenta') return MOTAS_DIBUJADAS;
+    return HOJAS_DIBUJADAS[f] || HOJAS_DIBUJADAS.verde || MOTAS_DIBUJADAS;
+  }
+
+  /** Dibuja todo lo que vuela. Se llama una vez al montar. */
+  function dibujarTodo(scene) {
+    var fam, i, j, hecho = false;
+    for (fam in FAMILIAS_HOJA) {
+      if (!FAMILIAS_HOJA.hasOwnProperty(fam)) continue;
+      HOJAS_DIBUJADAS[fam] = [];
+      var pal = FAMILIAS_HOJA[fam];
+      for (i = 0; i < pal.length; i++) {
+        for (j = 0; j < N_FORMAS; j++) {
+          var clave = 'gfv_hoja_' + fam + '_' + i + '_' + j;
+          if (dibujarHoja(scene, clave, pal[i][0], pal[i][1], j)) {
+            HOJAS_DIBUJADAS[fam].push(clave);
+            hecho = true;
+          }
+        }
+      }
+    }
+    for (i = 0; i < MOTAS_DIBUJADAS.length; i++) dibujarMota(scene, MOTAS_DIBUJADAS[i], i);
+    for (i = 0; i < RAFAGAS_DIBUJADAS.length; i++) dibujarRafaga(scene, RAFAGAS_DIBUJADAS[i], i + 1);
+    return hecho;
+  }
+
   var PLANOS_HOJA = [
     { escala: [1.1, 1.5], vel: [0.55, 0.80], alfa: 0.45, peso: 0.30 },
     { escala: [1.6, 2.2], vel: [0.85, 1.15], alfa: 0.78, peso: 0.44 },
@@ -188,7 +424,7 @@
   function nuevaHoja(st, dentro) {
     var L = lienzo(st.scene.cameras.main);
     var w = L.w, h = L.h;
-    var s = st.scene.add.image(0, 0, 'gfv_' + elegir(HOJAS));
+    var s = st.scene.add.image(0, 0, elegir(texturasAhora()));
     // scrollFactor va en el HIJO aunque esté dentro del contenedor: Phaser lo
     // lee del hijo, no del padre, al montar la matriz de cámara.
     s.setScrollFactor(0);
@@ -233,6 +469,18 @@
     // mal: al reciclarse por abajo la x apenas cambia, y la y sube y baja sola
     // por el bamboleo.
     hoja.vueltas = (hoja.vueltas || 0) + (dentro ? 0 : 1);
+
+    /* AL DAR LA VUELTA SE LE CAMBIA EL DIBUJO.
+       Es el único momento en que se puede hacer sin que se vea: la hoja está
+       fuera de pantalla. Así, cuando entra el otoño o arranca una tormenta, lo
+       que vuela va cambiando solo en los pocos segundos que tardan todas en
+       reciclarse — nadie ve treinta hojas mutar a la vez. */
+    if (!dentro) {
+      var lista = texturasAhora();
+      if (lista && lista.length) {
+        hoja.spr.setTexture(lista[Math.floor(Math.random() * lista.length)]);
+      }
+    }
     /* POR DÓNDE ENTRA.
 
        Antes entraban TODAS por el lado de barlovento, a la misma altura de
@@ -326,7 +574,7 @@
 
   // ---------------------------------------------------------------- ráfagas
   function nuevaRafaga(st) {
-    var s = st.scene.add.image(0, 0, 'gfv_' + elegir(RAFAGAS));
+    var s = st.scene.add.image(0, 0, elegir(RAFAGAS_DIBUJADAS));
     s.setScrollFactor(0);
     s.setScale(az(1.6, 3.2));
     s.setAlpha(0);
@@ -725,6 +973,14 @@
                 enderezarArboles: enderezarArboles,
                 moverHojas: moverHojas, reponer: reponer, nuevaHoja: nuevaHoja,
                 fondoDeEstacion: fondoDeEstacion,
-                MANERAS: MANERAS, PLANOS_HOJA: PLANOS_HOJA }
+                MANERAS: MANERAS, PLANOS_HOJA: PLANOS_HOJA,
+                // lo que se dibuja ahora con canvas (lo usa _prueba_clima2.html)
+                dibujarTodo: dibujarTodo, dibujarHoja: dibujarHoja,
+                dibujarMota: dibujarMota, dibujarRafaga: dibujarRafaga,
+                familiaAhora: familiaAhora, texturasAhora: texturasAhora,
+                HOJAS_DIBUJADAS: function () { return HOJAS_DIBUJADAS; },
+                MOTAS_DIBUJADAS: MOTAS_DIBUJADAS,
+                RAFAGAS_DIBUJADAS: RAFAGAS_DIBUJADAS,
+                FAMILIAS_HOJA: FAMILIAS_HOJA }
   };
 })();

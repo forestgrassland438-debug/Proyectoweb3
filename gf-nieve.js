@@ -72,13 +72,45 @@
 
   /* A qué se le pone nieve encima. Es a propósito la misma familia que las
      sombras: son los objetos que de verdad tienen volumen. */
+  /* QUÉ SE CUBRE DE NIEVE.
+   *
+   * "Cuando la nieve congela quiero que congele nuevas cosas". Lo que había
+   * eran cinco familias —árboles, pinos, postes, arbustos y piedras— y los
+   * edificios. Con eso nevaba sobre el bosque pero el pueblo se quedaba a
+   * medias: los arbustos de flores seguían floridos bajo la nevada, los
+   * troncos caídos limpios y las vetas de mineral relucientes, que es
+   * justamente lo que delata que la nieve está puesta a mano.
+   *
+   * Las nuevas son cosas que el jugador tiene DELANTE todo el rato: las flores
+   * (donde más se nota, porque el blanco encima del color canta), la leña
+   * caída, las rocas de picar, los barriles, las escaleras y el pozo.
+   *
+   * Cada línea cuesta lo mismo que las de antes: gf-nieve solo dibuja el
+   * casquete de los sprites que están en pantalla, así que ampliar la lista no
+   * añade trabajo por frame, solo variedad. */
   var FAMILIAS = [
     { prefijo: 'sprite_arbolx',    hasta: 18 },
     { prefijo: 'sprite_pinos',     hasta: 45 },
     { prefijo: 'post_',            hasta: 24 },
     { prefijo: 'sprite_arbustos_', hasta: 28 },
-    { prefijo: 'sprite_piedras_',  hasta: 34 }
+    { prefijo: 'sprite_piedras_',  hasta: 34 },
+    // ── nuevas ──
+    { prefijo: 'sprite_arbusto_ect',       hasta: 18 },   // arbustos del pueblo
+    { prefijo: 'sprite_flor_formado1_ect', hasta: 19 },   // arbustos con flores
+    { prefijo: 'sprite_flor_formado2_ect', hasta: 20 },
+    { prefijo: 'sprite_flor_formado3_ect', hasta: 19 },
+    { prefijo: 'sprite_flor_formado4_ect', hasta: 18 },
+    { prefijo: 'sprite_minar_piedra',      hasta: 5  },   // vetas de mineral
+    { prefijo: 'sprite_minar_cobre',       hasta: 4  },
+    { prefijo: 'sprite_minar_hierro',      hasta: 3  },
+    { prefijo: 'sprite_cbarril_png',       hasta: 2  },   // barriles
+    { prefijo: 'sprite_escaleraxd',        hasta: 2  },   // escaleras
+    { prefijo: 'sprite_pozoxd',            hasta: 2  }    // el pozo
   ];
+  /* Los troncos caídos van aparte porque su nombre acaba en "png" antes del
+     número (`sprite_tronco_acostado_1png`), y el patrón general es
+     prefijo + número. Se añaden a mano al montar; ver `candidatos`. */
+  var TRONCOS = 10;
   var EDIFICIOS = ['sprite_jj', 'sprite_h', 'sprite_p', 'sprite_casa_npc1xc',
                    'sprite_casa_npc2xc', 'sprite_casa_npc3xc', 'sprite_molino',
                    'sprite_cabaña', 'sprite_casa_comida', 'sprite_casa_comida2'];
@@ -269,6 +301,12 @@
     for (i = 0; i < EDIFICIOS.length; i++) {
       var e = scene[EDIFICIOS[i]];
       if (util(e)) out.push(e);
+    }
+    /* Los troncos caídos, que no siguen el patrón prefijo+número: se llaman
+       `sprite_tronco_acostado_1png`, con el "png" metido en medio. */
+    for (i = 1; i <= TRONCOS; i++) {
+      var t = scene['sprite_tronco_acostado_' + i + 'png'];
+      if (util(t)) out.push(t);
     }
     return out;
   }

@@ -11,9 +11,10 @@
  *     - el viento y las hojas suben cuando sopla
  *     - de día zumba el campo; de noche cantan los grillos
  *     - los bichos hablan cuando te acercas, cada especie con su voz
- *     - cada pisada suena a LO QUE SE PISA: hierba, tierra, ladrillo, cemento,
- *       madera de la tienda, charco o nieve
  *     - la música cambia sola al anochecer, con fundido
+ *
+ *   Lo que NO hace: sonar los pasos. Se probó y se quitó a petición del
+ *   jugador, en el campo y en la tienda (ver la nota junto a SUELOS).
  *
  * DE DÓNDE SALEN LOS SONIDOS
  *   De `Game/MUSIC/`, y los escribe `tools/generar-sonidos.js`: son WAV de 8
@@ -87,18 +88,15 @@
     nieve:   'amb_nieve'
   };
 
-  /* Suelos y cuántas variantes tiene cada uno. Las variantes existen para que
-     andar diez segundos no suene a metrónomo: se sortea una cada paso y se le
-     mueve el tono un poco (ver `sonar`). */
-  var SUELOS = { hierba: 3, tierra: 3, ladrillo: 3, cemento: 3, madera: 3, agua: 2, nieve: 2 };
+  /* LAS PISADAS YA NO SUENAN.
 
-  /* Cuánto sube o baja cada suelo. Salen de medir los archivos: un chasquido
-     de ladrillo tiene el mismo pico que un golpe de tierra pero la mitad de
-     energía, así que a igual volumen se oye menos. Esto lo iguala al oído. */
-  var GANANCIA_SUELO = {
-    hierba: 0.85, tierra: 0.80, ladrillo: 1.15, cemento: 1.10,
-    madera: 0.95, agua: 1.00, nieve: 0.95
-  };
+     Se quitaron a petición del jugador: molestaban tanto en el campo como en
+     la tienda. Lo que se fue es el SONIDO. `material()` se queda, porque dice
+     qué se pisa en cada sitio y de eso viven el diagnóstico y `mirarSuelo()`;
+     y porque volver a encenderlas es reponer `pisar()` y esta tabla. Los WAV
+     `paso_*` los sigue sabiendo escribir tools/generar-sonidos.js: están
+     comentados en su catálogo, no borrados. */
+  var SUELOS = {};
 
   var VOCES = {
     pajaro: 3, paloma: 2, cuervo: 2, buho: 2, vaca: 2, cerdo: 2,
@@ -133,8 +131,6 @@
     soleado:  0.26,
     noche:    0.30,
     nieve:    0.28,
-    paso:     0.34,     // el paso del propio jugador
-    pasoAjeno: 0.22,    // el de otro jugador que anda cerca
     bicho:    0.42,
     trueno:   0.85,
     chispa:   0.30,
@@ -142,11 +138,6 @@
   };
 
   var ALCANCE_BICHO = 430;      // px: más lejos, no se oye
-  var ALCANCE_PASO  = 300;      // px: los pasos de otro
-  var ZANCADA       = 36;       // px andados entre pisada y pisada
-  var MOV_MINIMO    = 0.4;      // por debajo de esto está quieto
-  var SALTO_MAXIMO  = 90;       // más que esto es un teletransporte, no un paso
-
   var FUNDIDO_MS    = 1400;     // lo que tarda un ambiente en subir o bajar
   var FUNDIDO_TEMA  = 2600;     // lo que tarda la música en cambiar
   var MAX_VOCES     = 10;       // efectos sonando a la vez como mucho
@@ -159,7 +150,6 @@
      entonces no había hablado nadie. */
   var BICHO_CADA      = [7000, 18000];   // cada cuánto habla UN bicho concreto
   var BICHO_GLOBAL_MS = 2400;            // y cuánto se espera entre dos bichos
-  var PASO_MINIMO_MS  = 150;             // dos pisadas no pueden pegarse más
 
   function log() {
     if (!window.GF_AUDIO_DEBUG) return;
@@ -181,20 +171,15 @@
     var l = [], k, i;
 
     if (tipo === 'tienda') {
-      /* Bajo techo no hay pájaros ni grillos ni sol. Solo el tema, la madera
-         del suelo y la lluvia —que se oye de fuera, apagada. Cargar aquí los
-         tres megas del campo sería alargar la entrada a la tienda para nada. */
+      /* Bajo techo no hay pájaros ni grillos ni sol. Solo el tema y la lluvia
+         —que se oye de fuera, apagada—. Cargar aquí los tres megas del campo
+         sería alargar la entrada a la tienda para nada. */
       l.push(TEMAS.tienda, AMBIENTES.lluvia);
-      for (i = 1; i <= SUELOS.madera; i++) l.push('paso_madera_' + i);
       return l;
     }
 
     l.push(TEMAS.pradera, TEMAS.noche);
     for (k in AMBIENTES) if (AMBIENTES.hasOwnProperty(k)) l.push(AMBIENTES[k]);
-    for (k in SUELOS) {
-      if (!SUELOS.hasOwnProperty(k) || k === 'madera') continue;   // no hay tarima en el campo
-      for (i = 1; i <= SUELOS[k]; i++) l.push('paso_' + k + '_' + i);
-    }
     for (k in VOCES) {
       if (!VOCES.hasOwnProperty(k)) continue;
       for (i = 1; i <= VOCES[k]; i++) l.push('an_' + k + '_' + i);
@@ -1038,84 +1023,6 @@
   }
 
   // ========================================================================
-  // 9. LAS PISADAS
-  // ========================================================================
-
-  /**
-   * SE CUENTAN AQUÍ Y NO EN gf-pisadas.
-   *
-   * gf-pisadas ya lleva la cuenta de las zancadas para soltar polvo, y lo
-   * primero que se pensó fue colgarse de él. No vale: gf-pisadas NO SE MONTA
-   * en calidad baja (son cincuenta sprites que sobran en un móvil justo), y
-   * dejar sin pasos al que juega en un teléfono flojo es justo al revés de lo
-   * que hay que hacer — el sonido no cuesta memoria de vídeo. Así que la
-   * cuenta se lleva otra vez aquí, que son veinte líneas.
-   */
-  function pisar(st, ahora, delta) {
-    var scene = st.scene;
-    if (scene.player) seguir(st, '@yo', scene.player, 1);
-    if (scene.otherPlayers) {
-      for (var id in scene.otherPlayers) {
-        if (!scene.otherPlayers.hasOwnProperty(id)) continue;
-        var o = scene.otherPlayers[id];
-        if (o && o.sprite && o.sprite.visible) seguir(st, 'r' + id, o.sprite, 0);
-      }
-    }
-
-    var vista = scene.cameras && scene.cameras.main && scene.cameras.main.worldView;
-
-    for (var k in st.andando) {
-      if (!st.andando.hasOwnProperty(k)) continue;
-      var v = st.andando[k];
-      var spr = v.spr;
-      if (!spr || spr.active === false || !spr.scene) { delete st.andando[k]; continue; }
-
-      var dx = spr.x - v.x, dy = spr.y - v.y;
-      v.x = spr.x; v.y = spr.y;
-      var d = Math.sqrt(dx * dx + dy * dy);
-
-      if (d > SALTO_MAXIMO) { v.recorrido = 0; continue; }   // eso fue un portal
-      if (d < MOV_MINIMO) continue;
-
-      v.recorrido += d;
-      if (v.recorrido < ZANCADA) continue;
-      v.recorrido = 0;
-      if (ahora - v.ultimo < PASO_MINIMO_MS) continue;
-      v.ultimo = ahora;
-
-      // Al que no se ve no se le oyen los pasos.
-      if (!v.mio && vista && (spr.x < vista.x - 80 || spr.x > vista.right + 80 ||
-                              spr.y < vista.y - 80 || spr.y > vista.bottom + 80)) continue;
-
-      var mat = material(scene, spr.x, spr.y);
-      var n = SUELOS[mat] || 1;
-      var clave = PREFIJO + 'paso_' + mat + '_' + azEnt(1, n);
-      var g = GANANCIA_SUELO[mat] || 1;
-
-      /* Correr pisa más fuerte que andar. La velocidad sale de lo que se ha
-         movido de verdad, así que vale igual para el jugador de al lado. */
-      var vel = d / Math.max(0.001, delta / 1000);
-      var brio = tope(vel / 150, 0.55, 1.35);
-
-      sonar(st, clave, {
-        x: spr.x, y: spr.y,
-        sinSitio: v.mio,
-        vol: (v.mio ? MEZCLA.paso : MEZCLA.pasoAjeno) * g * brio,
-        tono: az(0.90, 1.12),
-        alcance: ALCANCE_PASO
-      });
-    }
-  }
-
-  function seguir(st, id, spr, mio) {
-    var v = st.andando[id];
-    if (!v) v = st.andando[id] = { spr: spr, x: spr.x, y: spr.y, recorrido: 0, ultimo: 0, mio: !!mio };
-    v.spr = spr;
-    v.mio = !!mio;
-    return v;
-  }
-
-  // ========================================================================
   // 10. MONTAJE
   // ========================================================================
 
@@ -1138,7 +1045,7 @@
       clima: null, climaLeido: 0, vectorViento: { dir: 1, fuerza: 0 },
       porTile: {}, lienzo: null, lienzoUsado: 0, sinLienzo: false,
       ultimoMaterial: 'hierba', capa: undefined,
-      andando: {}, proximoBicho: 0, proximoBarrido: 0,
+      proximoBicho: 0, proximoBarrido: 0,
       tema: null, temaVol: 0, temaActual: null, saliendo: [],
       porCargar: [], cargados: 0, cargaTerminada: false
     };
@@ -1161,7 +1068,6 @@
         delta = Math.min(delta, 250);          // volver de una pestaña dormida
         moverAmbiente(st, delta);
         moverMusica(st, delta);
-        pisar(st, ahora, delta);
         revisarBichos(st, ahora);
         soltarLienzo(st);
       } catch (e) {
@@ -1216,7 +1122,7 @@
       try { st.tema.stop(); st.tema.destroy(); } catch (e) {}
     }
     st.bucles = {}; st.reserva = {}; st.saliendo = [];
-    st.lienzo = null; st.andando = {};
+    st.lienzo = null;
     scene.__gfAudio = null;
     if (montado === st) montado = null;
     log('desmontado');

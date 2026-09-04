@@ -153,7 +153,11 @@
    *   'nieve' nieva → polvo blanco y huellas que aguantan
    *   'seco'  lo demás → polvo de tierra
    */
-  function terreno() {
+  function terreno(fijo) {
+    /* Bajo techo el tiempo no pinta nada: en la tienda se pisa tarima llueva o
+       nieve fuera. `fijo` lo pone quien monta (ver `montar({ suelo:'madera' })`)
+       y corta en seco la consulta al clima. */
+    if (fijo) return fijo;
     var e = null;
     try { if (window.GFClima && window.GFClima.estado) e = window.GFClima.estado(); } catch (x) {}
     if (!e || !e.activo) return 'seco';
@@ -173,10 +177,25 @@
      En la NIEVE es al revés: ahí la huella es lo importante —se queda hundida
      y dura diez veces más— y el polvo es solo el copo que levantas al pisar. */
   var TONOS = {
-    seco:  { polvo: 0xe8dcbc, huella: 0x3f3220, alfaPolvo: 0.62, alfaHuella: 0.34 },
-    nieve: { polvo: 0xffffff, huella: 0x8fa9c6, alfaPolvo: 0.85, alfaHuella: 0.58 },
-    agua:  { polvo: 0xdcecf7, huella: 0x27384b, alfaPolvo: 0.70, alfaHuella: 0.40 }
+    seco:   { polvo: 0xe8dcbc, huella: 0x3f3220, alfaPolvo: 0.62, alfaHuella: 0.34 },
+    nieve:  { polvo: 0xffffff, huella: 0x8fa9c6, alfaPolvo: 0.85, alfaHuella: 0.58 },
+    agua:   { polvo: 0xdcecf7, huella: 0x27384b, alfaPolvo: 0.70, alfaHuella: 0.40 },
+    /* La tienda. Sobre tarima la marca es una pisada húmeda de la calle: casi
+       negra y bastante más corta de vida que en tierra, porque la madera de
+       dentro está seca y se la bebe. Y sin polvo, claro: bajo techo no hay
+       tierra que levantar. */
+    madera: { polvo: 0xd8c49a, huella: 0x2a1d12, alfaPolvo: 0.40, alfaHuella: 0.26 }
   };
+
+  /* QUÉ TERRENOS SUELTAN NUBECILLA.
+
+     En seco y en nieve NO, porque el jugador lo pidió así: la nubecilla de
+     polvo al andar de día le sobraba, y el polvo blanco sobre la nieve más
+     todavía. En agua SÍ, porque ahí no es polvo sino la corona que salta del
+     charco, y quitarla dejaría pisar mojado igual que pisar seco.
+
+     Para devolver el polvo, poner `seco: 1` aquí. Nada más. */
+  var POLVO = { seco: 0, nieve: 0, agua: 1, madera: 0 };
 
   // ── LOS DOS ALMACENES ───────────────────────────────────────────────────
 
@@ -232,7 +251,17 @@
       h.alfa = T.alfaHuella * fuerza;
     }
 
-    // ── el polvo (o el agua) ──
+    /* ── el polvo (o el agua) ──
+       EL POLVO EN SECO Y EN NIEVE ESTÁ APAGADO, a petición del jugador: "cuando
+       camino y es de día no quiero polvo en los pasos que doy, y en la nieve no
+       quiero polvo blanco". Se queda la MARCA, que es la que cuenta que has
+       pasado por ahí, y se va la nubecilla.
+
+       El anillo de agua SÍ sigue: no es polvo, es la corona que levanta un pie
+       en un charco, y sin ella pisar mojado y pisar seco se ven idénticos.
+       Por eso el interruptor va por terreno y no es un `return` a secas. */
+    if (!POLVO[st.terreno]) return true;
+
     var cuantas = st.terreno === 'agua' ? 1 : (Math.random() < 0.45 ? 2 : 1);
     for (var k = 0; k < cuantas && st.motas.length; k++) {
       var m = libre(st.motas, ahora);
@@ -417,21 +446,27 @@
       scene: scene, motas: [], huellas: [], vigilados: {},
       clavePolvo: clavePolvo, claveHuella: claveHuella,
       claveAnillo: claveAnillo || clavePolvo,
-      terreno: 'seco', proximoTerreno: 0
+      suelo: opciones.suelo || null,          // 'madera' en la tienda; null = lo dice el clima
+      terreno: opciones.suelo || 'seco', proximoTerreno: 0
     };
     scene.__gfPisadas = st;
     montado = st;
 
     var n = (calidad() === 'media') ? 0.6 : 1;
     var i;
-    for (i = 0; i < Math.round(N_POLVO * n); i++)   st.motas.push(nuevaMota(st, clavePolvo));
+    /* Si el suelo está fijado y ese suelo no levanta polvo (la tarima de la
+       tienda), no se reservan las motas: son 26 sprites que no se iban a
+       enseñar nunca. */
+    if (!(st.suelo && !POLVO[st.suelo])) {
+      for (i = 0; i < Math.round(N_POLVO * n); i++) st.motas.push(nuevaMota(st, clavePolvo));
+    }
     for (i = 0; i < Math.round(N_HUELLAS * n); i++) st.huellas.push(nuevaHuella(st, claveHuella));
 
     st.onUpdate = function (ahora, delta) {
       // El tiempo se pregunta dos veces por segundo, no en cada frame: cambia
       // de minuto en minuto y consultarlo 60 veces por segundo es tontería.
       if (ahora >= st.proximoTerreno) {
-        st.terreno = terreno();
+        st.terreno = terreno(st.suelo);
         st.proximoTerreno = ahora + 500;
       }
       revisar(st, ahora, delta);

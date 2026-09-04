@@ -706,6 +706,23 @@ this.errorReporter = new PhaserErrorReporter(
       // dando z-index personaje
       this.player.setDepth(1);
 
+      /* SOMBRA DEL PERSONAJE, IGUAL QUE EN EL MAPA.
+
+         FALLO QUE ARREGLA: "en tiendajuego el personaje no tiene sombra". Y no
+         la tenía porque aquí nunca se creó: GameScene la monta en su create()
+         (el óvalo negro dentro de un contenedor) y esta escena solo copió la
+         del perro. Sin sombra el personaje no pisa el suelo, flota — y bajo
+         techo se nota más todavía, porque la tarima es plana y no hay hierba
+         que disimule.
+
+         El óvalo es un pelo más pequeño que el del campo (40×20 contra 45×22)
+         porque la luz de dentro es más cenital y la sombra se cierra. */
+      this.shadow = this.add.graphics();
+      this.shadow.fillStyle(0x000000, 0.22);
+      this.shadow.fillEllipse(0, 0, 40, 20);
+      this.shadow.setDepth(0);
+      this.shadowContainer = this.add.container(this.player.x, this.player.y + 16, [this.shadow]);
+
       /* MASCOTA Y MUERTE TAMBIÉN AQUÍ DENTRO.
 
          FALLO QUE ESTO ARREGLA — "muero, entro en la tienda y ya no soy
@@ -2024,6 +2041,17 @@ this.anims.create({
          y la lluvia que se cuela de fuera. `suelo: 'madera'` le dice que aquí
          no hace falta mirar el tileset — bajo techo se pisa madera y punto. */
       if (window.GFAudio) window.GFAudio.montar(this, { tipo: 'tienda', suelo: 'madera' });
+
+      /* HUELLAS TAMBIÉN AQUÍ DENTRO.
+
+         FALLO QUE ARREGLA: "en tiendajuego el personaje no deja los pasos al
+         caminar". gf-pisadas solo se montaba en GameScene, así que al entrar
+         por la puerta el personaje volvía a deslizarse sobre un suelo intacto.
+
+         `suelo: 'madera'` le dice que no le pregunte al clima: bajo techo se
+         pisa tarima aunque fuera esté nevando, la marca es la de una pisada
+         húmeda de la calle y no levanta polvo. */
+      if (window.GFPisadas) window.GFPisadas.montar(this, { suelo: 'madera' });
       if (!(window.GFAudio && window.GFAudio.llevaLaMusica(this))) {
         this.playMusic('main-theme1');
       }
@@ -11570,6 +11598,14 @@ actualizarBarraComida(porcentaje) {
     const playerFeetY = this.player.y + this.player.displayHeight * 0.5;
     this.player.setDepth(playerFeetY);
     if (this.usuariox) this.usuariox.setDepth(playerFeetY + 1);
+
+    /* La sombra va pegada a los pies y JUSTO DEBAJO del personaje en la
+       ordenación: si compartieran profundidad, Phaser las pintaría en orden de
+       creación y la sombra saldría encima de los zapatos. */
+    if (this.shadowContainer) {
+      this.shadowContainer.setPosition(this.player.x, this.player.y + 22);
+      this.shadowContainer.setDepth(playerFeetY - 1);
+    }
 
     // Y-SORT PROFESIONAL (one-shot): calibrar estructuras cuando las
     // colisiones del mapa de la tienda ya estén cargadas.

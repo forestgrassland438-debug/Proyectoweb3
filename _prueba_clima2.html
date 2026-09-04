@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Prueba: rayos, charcos, hojas y viento</title>
+<!-- =========================================================================
+     BANCO DE PRUEBAS DE LO QUE SE DIBUJA AHORA CON CANVAS
+
+     Enseña, grandes y sin juego alrededor, las texturas nuevas: los tres
+     rayos con sus ramas y su punta desvanecida, el fogonazo de impacto, los
+     charcos de agua y sus versiones heladas, las hojas de las tres estaciones,
+     las motas de tormenta y las ráfagas.
+
+     Sirve para mirar de una vez si algo salió mal (un color, una forma, un
+     lienzo que se corta) sin tener que esperar a que llueva dentro del juego.
+     ====================================================================== -->
+<style>
+  body{margin:0;background:#0d1117;color:#c9d1d9;font:13px system-ui,sans-serif;padding:12px}
+  h3{margin:16px 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#8b949e}
+  #lienzo{display:block}
+  pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px;font-size:11px;
+      white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div id="juego"></div>
+<pre id="informe">montando…</pre>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script src="./gf-viento.js"></script>
+<script src="./gf-clima.js"></script>
+<script>
+/* gf-clima arranca su red sola; aquí no hay backend, así que se le corta el
+   paso apuntando el servidor a ninguna parte. Lo que se prueba son los
+   dibujos, no la sincronización. */
+window.GF_CLIMA_DEBUG = false;
+var estacionPrueba = 'otono';
+window.GFCiclo = {
+  hayHora: function(){ return true; },
+  estado: function(){ return { hora: horaPrueba, minuto: 0, esDia: true }; },
+  oscuridad: function(){ return 0; }
+};
+var horaPrueba = 12;
+
+var Prueba = {
+  key: 'Prueba',
+  create: function () {
+    var escena = this;
+    var I = window.GFClima._interno;
+    var V = window.GFViento._interno || {};
+    var y = 30, filas = [];
+
+    function titulo(t) {
+      escena.add.text(10, y, t, { fontSize: '13px', color: '#8b949e' });
+      y += 22;
+    }
+    function fila(claves, escala, alto) {
+      var x = 16;
+      for (var i = 0; i < claves.length; i++) {
+        if (!escena.textures.exists(claves[i])) { filas.push('FALTA ' + claves[i]); continue; }
+        var im = escena.add.image(x, y, claves[i]).setOrigin(0, 0).setScale(escala || 1);
+        x += im.displayWidth + 14;
+      }
+      y += (alto || 80);
+    }
+
+    // ── RAYOS ──
+    var rayos = I.RAYOS_DIBUJADOS || [];
+    for (var i = 0; i < rayos.length; i++) I.dibujarRayo(escena, rayos[i], i + 1);
+    I.texturaImpacto(escena);
+    titulo('RAYOS (mira la punta: tiene que desvanecerse, no cortarse)');
+    fila(rayos.concat(['gfc_impacto']), 0.55, 300);
+
+    // ── CHARCOS ──
+    var ch = I.CHARCOS_DIBUJADOS, hi = I.HIELOS_DIBUJADOS;
+    for (i = 0; i < ch.length; i++) {
+      I.dibujarCharco(escena, ch[i], i + 1, false);
+      I.dibujarCharco(escena, hi[i], i + 1, true);
+    }
+    titulo('CHARCOS  ·  agua arriba, hielo abajo');
+    fila(ch, 1.6, 100);
+    fila(hi, 1.6, 100);
+
+    // ── HOJAS ──
+    V.dibujarTodo && V.dibujarTodo(escena);
+    var HD = V.HOJAS_DIBUJADAS ? V.HOJAS_DIBUJADAS() : {};
+    ['verde', 'otono', 'seca'].forEach(function (f) {
+      titulo('HOJAS ' + f);
+      fila((HD[f] || []).slice(0, 10), 3, 66);
+    });
+    titulo('MOTAS DE TORMENTA  y  RÁFAGAS');
+    fila((V.MOTAS_DIBUJADAS || []), 3, 40);
+    fila((V.RAFAGAS_DIBUJADAS || []), 1.6, 60);
+
+    // ── informe ──
+    var faltan = [];
+    [].concat(rayos, ['gfc_impacto'], ch, hi, V.MOTAS_DIBUJADAS || [], V.RAFAGAS_DIBUJADAS || [])
+      .forEach(function (k) { if (!escena.textures.exists(k)) faltan.push(k); });
+
+    var lineas = [];
+    lineas.push('texturas que faltan: ' + (faltan.length ? faltan.join(', ') : 'ninguna'));
+
+    // la curva de calidez del día, que es lo que quita el naranja de mediodía
+    lineas.push('');
+    lineas.push('CALIDEZ DEL DÍA (0 = mediodía neutro, 1 = luz rasante)');
+    [6, 8, 10, 12, 14, 16, 18].forEach(function (h) {
+      horaPrueba = h;
+      var c = window.GFClima.calidez();
+      var e = I.ESTACIONES.otono;
+      lineas.push('  ' + String(h).padStart(2) + ':00   calidez ' + c.toFixed(2) +
+                  '   alfa otoño ' + (e.alfa + (e.borde - e.alfa) * c).toFixed(2));
+    });
+    horaPrueba = 12;
+
+    // qué vuela según el tiempo
+    lineas.push('');
+    lineas.push('QUÉ VUELA');
+    var casos = [['verano', false], ['otono', false], ['invierno', false], ['otono', true]];
+    casos.forEach(function (c) {
+      window.GFClima.probarEstacion(c[0]);
+      window.GFClima.probar(c[1] ? 'tormenta' : 'soleado');
+      lineas.push('  ' + c[0].padEnd(10) + (c[1] ? 'tormenta' : 'despejado').padEnd(11) +
+                  '→ ' + (V.familiaAhora ? V.familiaAhora() : '?'));
+    });
+
+    document.getElementById('informe').textContent = lineas.join('\n');
+    window.informe = lineas.join('\n');
+    window.faltan = faltan;
+  }
+};
+
+var juego = new Phaser.Game({
+  type: Phaser.AUTO, parent: 'juego',
+  width: 900, height: 1500,
+  backgroundColor: '#1b2430',
+  scene: [Prueba]
+});
+</script>
+</body>
+</html>

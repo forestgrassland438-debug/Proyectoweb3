@@ -60,7 +60,7 @@
     <h3>Bichos</h3>
     <div id="bichos"></div>
 
-    <h3>Pisadas</h3>
+    <h3>Suelo bajo los pies (ya no suena; solo se mira)</h3>
     <div id="pisos"></div>
 
     <h3>Búho</h3>
@@ -202,7 +202,7 @@ var Prueba = {
     ['hierba','tierra','ladrillo','cemento','madera','agua','nieve'].forEach(function (m) {
       var x = document.createElement('button');
       x.textContent = m;
-      x.onclick = function () { GFAudio.probar('paso_' + m + '_1', { vol: 0.6 }); };
+      x.onclick = function () { console.log(m, GFAudio.mirarSuelo(1)); };
       p.appendChild(x);
     });
 
@@ -278,7 +278,8 @@ function comprobar() {
 
   // sonar de verdad
   comp('un trueno arranca', GFAudio.trueno(true, 1) === true);
-  comp('una pisada arranca', GFAudio.probar('paso_tierra_1', { vol: 0.5 }) === true);
+  comp('las pisadas ya NO suenan', GFAudio.probar('paso_tierra_1', { vol: 0.5 }) === null ||
+       GFAudio.probar('paso_tierra_1', { vol: 0.5 }) === false);
 
   // el búho
   GFBuho.forzar(true);
