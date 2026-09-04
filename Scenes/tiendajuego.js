@@ -551,8 +551,15 @@ showNotification(message, type = 'info') {
     // musica 
 
     this.load.audio('main-theme1', './Game/MUSIC/tienda.ogg');
-    
+
     this.load.audio('level_up_sound', './Game/MUSIC/levelup.wav');
+
+    /* Sonido de la tienda: el tema nuevo de 8 bits, la tarima de madera bajo
+       los pies y la lluvia de fuera —apagada, como se oye desde dentro—.
+       Aquí se carga MUY POCO a propósito: los pájaros, los grillos, los
+       truenos y los suelos del campo no pintan nada bajo techo, y cargarlos
+       solo alargaría la entrada a la tienda. */
+    if (window.GFAudio) window.GFAudio.precargar(this, { tipo: 'tienda' });
 
 
 
@@ -2013,7 +2020,13 @@ this.anims.create({
     // ---------- BOTÓN 2 (musica)
     if (this.sound && typeof this.sound.add === 'function') {
       this.initAudioSystem();
-      this.playMusic('main-theme1');
+      /* Ambiente de la tienda: el tema de 8 bits, las pisadas sobre la tarima
+         y la lluvia que se cuela de fuera. `suelo: 'madera'` le dice que aquí
+         no hace falta mirar el tileset — bajo techo se pisa madera y punto. */
+      if (window.GFAudio) window.GFAudio.montar(this, { tipo: 'tienda', suelo: 'madera' });
+      if (!(window.GFAudio && window.GFAudio.llevaLaMusica(this))) {
+        this.playMusic('main-theme1');
+      }
     } else {
       console.warn('⚠️ Sistema de sonido no disponible, omitiendo inicialización');
     }

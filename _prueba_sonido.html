@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Prueba del ambiente sonoro</title>
+<!-- =========================================================================
+     BANCO DE PRUEBAS DE gf-audio.js Y gf-buho.js
+
+     Monta una escena de Phaser con lo justo para que los dos módulos crean
+     que están en GameScene: el tilemap de verdad, el tileset de verdad, un
+     jugador que se mueve con las flechas y una fauna de mentira. Sirve para
+     comprobar sin backend:
+
+       - que los WAV de 8 bits los descodifica el navegador
+       - que el suelo se clasifica bien (hierba / tierra / ladrillo / cemento)
+       - que los bucles de ambiente suben y bajan con el tiempo
+       - que el búho aparece de noche y se va de día
+       - que no se dispara ningún error en consola
+
+     No forma parte del juego. Va con los demás `_prueba_*.html`.
+     ====================================================================== -->
+<style>
+  html,body{margin:0;height:100%;background:#0d1117;color:#c9d1d9;font:13px system-ui,sans-serif}
+  #todo{display:flex;height:100%}
+  #juego{flex:1;min-width:0}
+  #panel{width:330px;overflow:auto;padding:10px;background:#161b22;border-left:1px solid #30363d}
+  h3{margin:14px 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#8b949e}
+  button{margin:2px;padding:5px 8px;background:#21262d;color:#c9d1d9;border:1px solid #30363d;
+         border-radius:5px;cursor:pointer;font-size:12px}
+  button:hover{background:#30363d}
+  pre{background:#0d1117;border:1px solid #30363d;border-radius:5px;padding:8px;
+      font-size:11px;white-space:pre-wrap;word-break:break-word;max-height:230px;overflow:auto}
+  .ok{color:#3fb950}.mal{color:#f85149}.avi{color:#d29922}
+  label{display:block;margin:6px 0 2px;color:#8b949e}
+  input[type=range]{width:100%}
+</style>
+</head>
+<body>
+<div id="todo">
+  <div id="juego"></div>
+  <div id="panel">
+    <h3>Estado</h3>
+    <pre id="estado">arrancando…</pre>
+
+    <h3>Tiempo</h3>
+    <button onclick="clima('despejado')">despejado</button>
+    <button onclick="clima('lluvia')">lluvia</button>
+    <button onclick="clima('tormenta')">tormenta</button>
+    <button onclick="clima('nieve')">nieve</button>
+    <button onclick="clima('viento')">viento</button>
+
+    <label>Oscuridad (0 día · 1 noche) <span id="noche-val">0</span></label>
+    <input type="range" id="noche" min="0" max="100" value="0" oninput="ponerNoche(this.value)">
+
+    <h3>Rayos</h3>
+    <button onclick="GFAudio.trueno(true,1.2)">rayo cerca</button>
+    <button onclick="GFAudio.trueno(false,0.4)">centella lejos</button>
+    <button onclick="GFAudio.chispa(1)">chispa</button>
+
+    <h3>Bichos</h3>
+    <div id="bichos"></div>
+
+    <h3>Pisadas</h3>
+    <div id="pisos"></div>
+
+    <h3>Búho</h3>
+    <button onclick="GFBuho.forzar(true)">que venga</button>
+    <button onclick="GFBuho.forzar(false)">que se vaya</button>
+    <button onclick="GFBuho.ulular()">ulular</button>
+    <button onclick="GFBuho.forzar(null)">según la hora</button>
+
+    <h3>Música</h3>
+    <button onclick="GFAudio.musica('pradera')">pradera</button>
+    <button onclick="GFAudio.musica('noche')">noche</button>
+    <button onclick="GFAudio.musica('tienda')">tienda</button>
+    <button onclick="GFAudio.musica('nada')">nada</button>
+
+    <h3>Comprobaciones</h3>
+    <button onclick="comprobar()">pasar todas</button>
+    <pre id="informe">—</pre>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script src="./gf-audio.js"></script>
+<script src="./gf-buho.js"></script>
+<script>
+window.GF_AUDIO_DEBUG = true;
+window.GF_BUHO_DEBUG = true;
+
+/* ── Módulos de mentira ────────────────────────────────────────────────────
+   gf-audio pregunta a gf-clima, gf-viento y gf-ciclo-dia. Aquí se les
+   suplanta con objetos que devuelven lo que diga el panel, que es la única
+   manera de probar una tormenta a las tres de la mañana sin esperar. */
+var falso = { lluvia:0, nieve:0, sol:1, viento:0, noche:0 };
+
+window.GFClima = {
+  estado: function(){
+    return { activo:true, lluvia:falso.lluvia>0, nieve:falso.nieve>0,
+             soleado:falso.sol>0, viento:falso.viento>0, truenos:true };
+  }
+};
+window.GFViento = {
+  vector: function(f){ f=f||{}; f.dir=1; f.fuerza=falso.viento*1.4; return f; }
+};
+window.GFCiclo = {
+  hayHora: function(){ return true; },
+  oscuridad: function(){ return falso.noche; }
+};
+// gf-buho pide las copas de los árboles a gf-cuervo
+window.GFCuervo = {
+  _interno: {
+    arbolesDisponibles: function(scene){
+      return (scene.arbolitos||[]).map(function(s,i){ return { clave:'arbolito'+i, spr:s }; });
+    },
+    posadero: function(spr){ var b=spr.getBounds(); return { x:b.centerX, y:b.top+b.height*0.26 }; }
+  }
+};
+
+function clima(q){
+  falso.lluvia = (q==='lluvia'||q==='tormenta') ? 1 : 0;
+  falso.nieve  = (q==='nieve') ? 1 : 0;
+  falso.sol    = (q==='despejado') ? 1 : 0;
+  falso.viento = (q==='viento'||q==='tormenta'||q==='nieve') ? 1 : 0;
+  // en el juego esto lo lleva el estado montado del clima
+  var e = juego.scene.keys.Prueba;
+  e.__gfClima = { fuerzaLluvia:falso.lluvia, fuerzaNieve:falso.nieve, fuerzaSol:falso.sol };
+  /* gf-audio se guarda el tiempo 240 ms para no preguntarlo sesenta veces por
+     segundo. Aqui se le tira ese apunte, o las comprobaciones leerian el
+     tiempo anterior y fallarian sin motivo. */
+  if (e.__gfAudio) e.__gfAudio.climaLeido = 0;
+}
+function ponerNoche(v){
+  falso.noche = v/100;
+  document.getElementById('noche-val').textContent = (v/100).toFixed(2);
+}
+
+/* ── La escena ──────────────────────────────────────────────────────────── */
+var juego, escena;
+
+var Prueba = {
+  key: 'Prueba',
+  preload: function () {
+    this.load.image('tiles', './Game/MAPAS/tiles.png');
+    this.load.tilemapTiledJSON('tilemap', './Maps/mapa_principal.json');
+    window.GFAudio.precargar(this, { tipo: 'campo' });
+    this.load.on('loaderror', function (f) { console.error('NO CARGA:', f.key, f.src); });
+  },
+  create: function () {
+    escena = this;
+    // el mismo montaje que GameScene: tilemap SIN capa dibujada
+    this.map = this.make.tilemap({ key: 'tilemap' });
+
+    // un fondo cualquiera para ver por dónde se anda
+    this.add.rectangle(0, 0, 5008, 5008, 0x223322).setOrigin(0, 0).setDepth(-10);
+
+    // jugador
+    this.player = this.add.rectangle(2400, 2400, 16, 24, 0xffcc66);
+    this.cameras.main.startFollow(this.player);
+    this.cameras.main.setZoom(2);
+    this.teclas = this.input.keyboard.createCursorKeys();
+
+    /* Cuatro "árboles". Van TAMBIÉN como propiedades de la escena
+       (`this.arbolito0`…) porque así es como los tiene el juego de verdad:
+       gf-cuervo devuelve la CLAVE y el búho comprueba con `scene[clave]` que
+       el árbol siga en pie. Colgándolos solo de un array, el búho creía que
+       lo habían talado y salía volando en el frame siguiente a posarse. */
+    this.arbolitos = [];
+    for (var i = 0; i < 4; i++) {
+      var a = this.add.rectangle(2200 + i * 220, 2300 + (i % 2) * 180, 40, 90, 0x2f4f2f);
+      a.setOrigin(0.5, 1);
+      this.arbolitos.push(a);
+      this['arbolito' + i] = a;
+    }
+
+    // fauna de mentira, con la forma que espera gf-audio
+    var esp = ['vaca', 'cerdo', 'zorro', 'pajaro', 'paloma', 'conejo', 'serpiente_verde'];
+    this.__gfFauna = { animales: [] };
+    for (var j = 0; j < esp.length; j++) {
+      var s = this.add.circle(2300 + j * 90, 2500, 7, 0xcc8866);
+      this.__gfFauna.animales.push({
+        especie: esp[j], grupo: esp[j].indexOf('serpiente') === 0 ? 'serpiente' : 'tierra',
+        fase: 'quieto', spr: s
+      });
+    }
+
+    window.GFAudio.montar(this, { tipo: 'campo' });
+    window.GFBuho.montar(this);
+
+    // botones que dependen del catálogo
+    var b = document.getElementById('bichos');
+    ['pajaro','paloma','cuervo','buho','vaca','cerdo','zorro','cocodrilo','serpiente','conejo','topo']
+      .forEach(function (e) {
+        var x = document.createElement('button');
+        x.textContent = e;
+        x.onclick = function () {
+          GFAudio.bicho(escena, e, escena.player.x + 40, escena.player.y, { aLaFuerza: true });
+        };
+        b.appendChild(x);
+      });
+    var p = document.getElementById('pisos');
+    ['hierba','tierra','ladrillo','cemento','madera','agua','nieve'].forEach(function (m) {
+      var x = document.createElement('button');
+      x.textContent = m;
+      x.onclick = function () { GFAudio.probar('paso_' + m + '_1', { vol: 0.6 }); };
+      p.appendChild(x);
+    });
+
+    setInterval(pintarEstado, 400);
+  },
+  update: function () {
+    var v = 3.2;
+    if (this.teclas.left.isDown)  this.player.x -= v;
+    if (this.teclas.right.isDown) this.player.x += v;
+    if (this.teclas.up.isDown)    this.player.y -= v;
+    if (this.teclas.down.isDown)  this.player.y += v;
+  }
+};
+
+function pintarEstado() {
+  var e = GFAudio.estado(), d = GFAudio.diagnostico(), b = GFBuho.estado();
+  document.getElementById('estado').textContent =
+    'tema:      ' + e.tema + '\n' +
+    'ambiente:  ' + JSON.stringify(e.ambiente) + '\n' +
+    'voces:     ' + e.voces + '\n' +
+    'suelo:     ' + d.materialAqui + '   (tiles vistos: ' + e.tilesVistos + ')\n' +
+    'bloqueado: ' + d.bloqueado + '\n' +
+    'faltan:    ' + (d.archivosQueFaltan.length ? d.archivosQueFaltan.join(', ') : 'ninguno') + '\n' +
+    'búho:      ' + b.fase + ' en ' + b.arbol + '  (árboles: ' + b.arbolesEnElMapa + ')';
+}
+
+/* ── Comprobaciones automáticas ─────────────────────────────────────────── */
+function comprobar() {
+  var r = [], ok = 0, mal = 0;
+  function comp(nombre, cond, extra) {
+    r.push((cond ? '✔ ' : '✘ ') + nombre + (extra ? '  → ' + extra : ''));
+    cond ? ok++ : mal++;
+  }
+  var d = GFAudio.diagnostico();
+
+  comp('la carga de fondo terminó', d.carga === 'terminada', 'va por ' + d.carga);
+  comp('están todos los WAV del campo', d.archivosQueFaltan.length === 0,
+       d.archivosQueFaltan.length + ' faltan');
+  comp('el tileset se puede leer', d.tilesetLegible === true);
+
+  // clasificación de suelos: se barre el mapa y se cuenta qué sale
+  var cuenta = {}, n = 0;
+  for (var y = 200; y < 4800; y += 320) {
+    for (var x = 200; x < 4800; x += 320) {
+      var m = GFAudio.material(escena, x, y);
+      cuenta[m] = (cuenta[m] || 0) + 1; n++;
+    }
+  }
+  comp('se clasifican suelos distintos', Object.keys(cuenta).length >= 3,
+       JSON.stringify(cuenta));
+  comp('hay hierba y hay piedra',
+       !!cuenta.hierba && !!(cuenta.ladrillo || cuenta.cemento), JSON.stringify(cuenta));
+
+  // mezcla de ambiente según el tiempo
+  clima('lluvia'); var m1 = GFAudio._interno.mezclarAmbiente(escena.__gfAudio);
+  comp('con lluvia suena la lluvia', m1.lluvia > 0.2, 'lluvia=' + m1.lluvia.toFixed(2));
+  comp('con lluvia se callan los insectos', m1.soleado < 0.05, 'sol=' + m1.soleado.toFixed(2));
+  clima('despejado'); ponerNoche(0);
+  var m2 = GFAudio._interno.mezclarAmbiente(escena.__gfAudio);
+  comp('de día despejado zumba el campo', m2.soleado > 0.1, 'sol=' + m2.soleado.toFixed(2));
+  comp('de día no hay grillos', m2.noche < 0.02, 'noche=' + m2.noche.toFixed(2));
+  ponerNoche(100);
+  var m3 = GFAudio._interno.mezclarAmbiente(escena.__gfAudio);
+  comp('de noche cantan los grillos', m3.noche > 0.2, 'noche=' + m3.noche.toFixed(2));
+  comp('de noche no zumba el campo', m3.soleado < 0.02, 'sol=' + m3.soleado.toFixed(2));
+
+  // música según la hora
+  comp('de noche toca el tema de noche',
+       GFAudio._interno.temaQueToca(escena.__gfAudio) === 'noche');
+  ponerNoche(0);
+  comp('de día toca el tema de campo',
+       GFAudio._interno.temaQueToca(escena.__gfAudio) === 'pradera');
+
+  // sonar de verdad
+  comp('un trueno arranca', GFAudio.trueno(true, 1) === true);
+  comp('una pisada arranca', GFAudio.probar('paso_tierra_1', { vol: 0.5 }) === true);
+
+  // el búho
+  GFBuho.forzar(true);
+  setTimeout(function () {
+    var b = GFBuho.estado();
+    r.push((b.hay ? '✔ ' : '✘ ') + 'el búho llega de noche  → ' + b.fase +
+           (b.hay ? ' hacia ' + b.arbol : ' (árboles: ' + b.arbolesEnElMapa + ')'));
+    b.hay ? ok++ : mal++;
+    GFBuho.forzar(false);                      // y que se vaya al amanecer
+    setTimeout(function () {
+      var b2 = GFBuho.estado();
+      var seVa = !b2.hay || b2.fase === 'se_va';
+      r.push((seVa ? '✔ ' : '✘ ') + 'el búho se va de día  → ' + (b2.fase || 'no está'));
+      seVa ? ok++ : mal++;
+      GFBuho.forzar(null);
+      document.getElementById('informe').textContent =
+        r.join('\n') + '\n\n' + ok + ' bien, ' + mal + ' mal';
+    }, 900);
+  }, 1400);
+
+  document.getElementById('informe').textContent = r.join('\n') + '\n(esperando al búho…)';
+}
+
+/* Mínimos a la fuerza: en un panel oculto el navegador da innerWidth 0, y con
+   ancho negativo Phaser revienta al crear el framebuffer ("Incomplete
+   Attachment"). Pasó en la primera prueba. */
+juego = new Phaser.Game({
+  type: Phaser.AUTO,
+  parent: 'juego',
+  width: Math.max(640, window.innerWidth - 340),
+  height: Math.max(480, window.innerHeight),
+  backgroundColor: '#101820',
+  pixelArt: true,
+  scene: [Prueba]
+});
+</script>
+</body>
+</html>

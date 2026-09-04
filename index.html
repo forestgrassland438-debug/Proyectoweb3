@@ -105,6 +105,18 @@
        (polvo en seco, agua si llueve, nieve si nieva), asi que va despues. -->
   <script src="./gf-pisadas.js?v=19.0" defer></script>
 
+  <!-- Ambiente sonoro de 8 bits: lluvia, truenos, viento, hojas, grillos,
+       bichos, pisadas segun el suelo y los dos temas nuevos. Va DESPUES del
+       clima, del viento y del ciclo de dia porque les pregunta a los tres en
+       cada vuelta que tiempo hace y cuanta noche queda. Los WAV los escribe
+       tools/generar-sonidos.js y viven en Game/MUSIC. -->
+  <script src="./gf-audio.js?v=19.0" defer></script>
+
+  <!-- El buho de la noche: aparece al anochecer, se posa en un arbol y ulula;
+       al amanecer se va. Necesita gf-audio para el ulular y gf-cuervo para el
+       censo de copas, asi que va detras de los dos. -->
+  <script src="./gf-buho.js?v=19.0" defer></script>
+
   <!-- Arte de las batallas: dibuja con canvas los escenarios y TODOS los
        efectos del combate. Va antes de las escenas porque BattleScene lo usa
        en su preload. -->

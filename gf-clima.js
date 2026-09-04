@@ -1091,10 +1091,18 @@
     // Una centella es un rayo lejano: el mismo golpe de luz, mas flojo.
     if (window.GFPost && window.GFPost.pulso) window.GFPost.pulso(fuerte ? 0.5 : 0.28);
 
+    /* El chisporroteo eléctrico va CON la luz, no con el retumbo: es lo poco
+       que se oye al instante de una descarga lejana. Solo en las fuertes, que
+       si no la tormenta parece una freidora. */
+    if (fuerte && window.GFAudio && window.GFAudio.chispa) {
+      try { window.GFAudio.chispa(0.45); } catch (e) {}
+    }
+
     // Una de cada tres retumba, y flojito.
     if (fuerte && Math.random() < 0.35) {
       st.truenoEn = ahora + az(260, 900);
       st.truenoFuerza = az(0.25, 0.5);
+      st.truenoCerca = false;      // centella: solo retumbo, sin crujido
     }
     st.proximaCentella = ahora + az(CENTELLA_CADA[0], CENTELLA_CADA[1]) / st.fuerzaLluvia;
   }
@@ -1176,8 +1184,15 @@
        lejana no quema nada, y asi el jugador ve el rayo y el fuego a la vez. */
     if (Math.random() < PROB_INCENDIO) prenderArbol(st, st.rayo ? st.rayo.x : null);
 
+    /* Y suena. El chasquido eléctrico va aquí, pegado al fogonazo; el trueno
+       llega luego, con el mismo retardo con el que sacude la cámara. */
+    if (window.GFAudio && window.GFAudio.chispa) {
+      try { window.GFAudio.chispa(1); } catch (e) {}
+    }
+
     var retardo = az(180, 700);
     st.truenoEn = ahora + retardo;
+    st.truenoCerca = true;         // rayo con trazo: crujido y retumbo
     st.proximoTrueno = ahora + az(TRUENO_CADA[0], TRUENO_CADA[1]) / st.fuerzaLluvia;
     log('relámpago; trueno en', Math.round(retardo), 'ms');
   }
@@ -1287,7 +1302,17 @@
       if (q <= 0) st.fogonazoHasta = 0;
     }
     moverBorde(st, ahora, w, h, L.m);
-    if (st.truenoEn && ahora >= st.truenoEn) { sacudir(st); st.truenoEn = 0; }
+    if (st.truenoEn && ahora >= st.truenoEn) {
+      sacudir(st);
+      /* El trueno SUENA en el mismo instante en que sacude, que es lo que ya
+         se había calculado bien: el destello va por delante y el ruido llega
+         detrás. gf-audio pone el sonido; si no está, sigue habiendo sacudida
+         y no se rompe nada. */
+      if (window.GFAudio && window.GFAudio.trueno) {
+        try { window.GFAudio.trueno(st.truenoCerca !== false, st.truenoFuerza); } catch (e) {}
+      }
+      st.truenoEn = 0;
+    }
   }
 
   /**
@@ -1892,6 +1917,8 @@
       charcos: [], proximoCharco: 0, incendio: null,
       fuerzaLluvia: 0, fuerzaNieve: 0,
       proximoTrueno: 0, proximaCentella: 0, truenoEn: 0, truenoFuerza: 1,
+      // true = rayo con trazo (crujido + retumbo), false = centella lejana.
+      truenoCerca: true,
       rayoHasta: 0, fogonazoHasta: 0, ultimoRayoX: null,
       bordeAlfa: 0, bordeHasta: 0,
       filtroColor: ESTACIONES.verano.color, filtroAlfa: 0,

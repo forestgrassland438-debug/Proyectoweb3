@@ -2498,6 +2498,12 @@ showNotification(message, type = 'info') {
     if (window.GFViento) window.GFViento.precargar(this);
     // Lluvia, relámpagos y truenos.
     if (window.GFClima) window.GFClima.precargar(this);
+    /* Ambiente sonoro de 8 bits: los dos temas del campo (día y noche), los
+       seis bucles de ambiente, las voces de los bichos, los truenos y las
+       pisadas de cada suelo. Son ~3 MB de WAV que escribe
+       tools/generar-sonidos.js; el módulo se salta los que ya estén en caché,
+       así que volver de la tienda no los recarga. */
+    if (window.GFAudio) window.GFAudio.precargar(this, { tipo: 'campo' });
     // Fresa. 1 = sembrada sin regar · 2 = regada · 3 = creciendo ·
     // 4 = lista para cosechar · 5 = se murio.
     this.load.image('tierra_seca_plant_fresa', './Game/Objetos/Plantas/planta_fresa/1.png');
@@ -5061,6 +5067,17 @@ this.anims.create({
        después del clima porque lo que levanta un pie depende de si el suelo
        está seco, mojado o nevado. */
     if (window.GFPisadas) window.GFPisadas.montar(this);
+    /* Ambiente sonoro. VA DESPUÉS DE TODOS porque en cada vuelta les
+       pregunta: al clima si llueve y cuánto, al viento la fuerza de la
+       racha, al ciclo de día cuánta noche hay, y a la fauna qué bichos
+       tiene cerca. También se hace cargo de la música: pone el tema de
+       campo o el de noche según la hora, con fundido, y lo apunta en
+       `audioState` para que la barra del panel de sonido lo siga mandando. */
+    if (window.GFAudio) window.GFAudio.montar(this, { tipo: 'campo' });
+    /* El búho: al anochecer llega y se posa en un árbol; al amanecer se va.
+       Usa gf-cuervo para saber dónde están las copas y gf-audio para ulular,
+       así que va detrás de los dos. */
+    if (window.GFBuho) window.GFBuho.montar(this);
 
     console.log('game create ejecutándose');
 
@@ -5621,7 +5638,17 @@ this.npcx5 = _marcarCartel(this.add.text(2290, 2283, 'Lord Digby', textStyle));
     // ---------- BOTÓN 2 (musica)
     if (this.sound && typeof this.sound.add === 'function') {
       this.initAudioSystem();
-      this.playMusic('main-theme');
+      /* LA MÚSICA LA LLEVA AHORA gf-audio: pone el tema de campo de día y el
+         de noche cuando anochece, y los cruza con fundido. Se apunta él mismo
+         en `audioState.currentMusic`, así que la barra de música del panel de
+         sonido lo sigue mandando igual que antes.
+
+         Si los WAV no están —nadie ejecutó tools/generar-sonidos.js, o no se
+         subieron— dice que no y aquí se pone la música de siempre. Un archivo
+         que falta no puede dejar la partida en silencio. */
+      if (!(window.GFAudio && window.GFAudio.llevaLaMusica(this))) {
+        this.playMusic('main-theme');
+      }
     } else {
       console.warn('⚠️ Sistema de sonido no disponible, omitiendo inicialización');
     }
