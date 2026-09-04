@@ -162,6 +162,12 @@
    * última fila que tiene dibujo. Si la textura no se puede leer —por ejemplo
    * porque viene de otro dominio y el canvas queda manchado— devuelve la caja
    * entera, que es lo mismo que hacía el juego antes.
+   *
+   * Y además `perfil`: para CADA columna de la textura, la última fila que
+   * tiene dibujo (o -1 si esa columna está vacía entera). Es el "contorno de
+   * abajo" del sprite, y es lo que permite distinguir un árbol de una casa sin
+   * mirarle el nombre: la casa llega al suelo en todo su ancho, el árbol solo
+   * por el tronco. Ver `columnaEsSuya`.
    */
   function medir(scene, clave) {
     if (cacheMedidas[clave]) return cacheMedidas[clave];
@@ -207,8 +213,26 @@
           if (datos[(y * w + x) * 4 + 3] >= ALFA_MIN) { der = x; break; }
         }
       }
+
+      /* EL CONTORNO DE ABAJO, COLUMNA A COLUMNA.
+
+         Se recorre cada columna de abajo hacia arriba y se para en el primer
+         píxel con dibujo, igual que se hizo con `abajo` para la imagen entera.
+         En un sprite normal eso son unas pocas filas por columna, no la imagen
+         completa: cuesta lo mismo que las pasadas de arriba y se hace UNA vez
+         por textura (queda en cacheMedidas). */
+      var perfil = new Array(w);
+      for (x = 0; x < w; x++) {
+        var ultima = -1;
+        for (y = abajo; y >= arriba; y--) {
+          if (datos[(y * w + x) * 4 + 3] >= ALFA_MIN) { ultima = y; break; }
+        }
+        perfil[x] = ultima;
+      }
+
       caja = { ancho: w, alto: h, arriba: arriba, abajo: abajo,
-               izq: Math.min(izq, w - 1), der: Math.max(der, 0), leida: true };
+               izq: Math.min(izq, w - 1), der: Math.max(der, 0),
+               perfil: perfil, leida: true };
     } catch (e) {
       // Textura ilegible: se da por buena entera. Es lo que había antes.
       var t2 = null;
@@ -216,7 +240,7 @@
       var iw = (t2 && t2.source && t2.source[0]) ? t2.source[0].width : 0;
       var ih = (t2 && t2.source && t2.source[0]) ? t2.source[0].height : 0;
       caja = { ancho: iw, alto: ih, arriba: 0, abajo: Math.max(0, ih - 1),
-               izq: 0, der: Math.max(0, iw - 1), leida: false };
+               izq: 0, der: Math.max(0, iw - 1), perfil: null, leida: false };
     }
     cacheMedidas[clave] = caja;
     return caja;
@@ -230,6 +254,80 @@
     if (!m.leida || !m.alto) return 0;
     var escala = Math.abs(spr.scaleY) || 1;
     return (m.alto - 1 - m.abajo) * escala;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     EL CONTORNO DEL OBJETO, LLEVADO AL MUNDO
+     ──────────────────────────────────────────────────────────────────────
+     EL FALLO QUE ESTO ARREGLA — "los tres tipos de árbol se ven partidos":
+
+     La sonda pregunta a las colisiones del MAPA, y las colisiones del mapa no
+     saben de quién es cada pared. Un pino ocupa cien píxeles de ancho pero solo
+     tiene tronco en veinte; en las otras ochenta columnas lo que la sonda
+     encuentra es la colisión del pino de al lado, del vallado o del sendero.
+     Con eso el árbol parecía tener planta ancha —`solidas` salía alto—, pasaba
+     el filtro de FRANJA_SOLIDO_MIN y se PARTÍA en dos franjas con profundidades
+     distintas.
+
+     Y una copa partida en dos profundidades es exactamente lo que se veía en
+     las capturas: un animal (o un jugador) que está DETRÁS del árbol queda por
+     delante de la mitad que tiene menos profundidad, y asoma por el árbol como
+     un recorte rectangular con el borde perfectamente recto — el borde del
+     `setCrop` de la franja.
+
+     LA REGLA: una columna solo cuenta como suya si el DIBUJO del objeto llega
+     hasta ahí abajo. Es una comprobación que no depende del mapa ni de los
+     vecinos, solo del PNG: la casa llega al suelo en todo su ancho y todas sus
+     columnas cuentan; el árbol solo llega por el tronco, así que las de la copa
+     no cuentan, `solidas` se queda bajo y el árbol NO se parte. Que es lo
+     correcto: un árbol tiene una sola línea de suelo.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /* CUÁNTO PUEDE QUEDAR EL DIBUJO POR ENCIMA DE LA COLISIÓN Y AÚN SER SUYO.
+
+     No es un número fijo, y no puede serlo: los rectángulos de colisión se
+     dibujan a mano y casi siempre sobran unos píxeles por debajo del dibujo —
+     en la casa de prueba, quince. Un margen corto daba por ajena la fachada de
+     la casa y dejaba de partirla, que era peor que el fallo que se venía a
+     arreglar.
+
+     Se mide en proporción a la ALTURA del objeto, que es lo que separa los dos
+     casos de verdad: el desajuste de un rectángulo mal cerrado son unos pocos
+     píxeles, y la distancia entre la copa de un árbol y el suelo es un tercio
+     del árbol. Con un 9 % (y un mínimo de 14 px para los objetos bajitos) la
+     casa pasa con holgura y la copa no se acerca ni de lejos. */
+  var PERFIL_TOL_MIN = 14;
+  var PERFIL_TOL_PCT = 0.09;
+
+  function toleranciaPerfil(caja) {
+    return Math.max(PERFIL_TOL_MIN, (caja.alto || 0) * PERFIL_TOL_PCT);
+  }
+
+  /**
+   * El contorno de abajo del sprite en coordenadas de MUNDO, listo para
+   * preguntarle por una X cualquiera. Devuelve null si la textura no se pudo
+   * leer (dominio cruzado): sin contorno no se puede juzgar y se deja pasar
+   * todo, que es como se comportaba antes.
+   */
+  function contornoMundo(scene, spr, caja) {
+    var clave = spr && spr.texture && spr.texture.key;
+    if (!clave) return null;
+    var m = medir(scene, clave);
+    if (!m.leida || !m.perfil || !m.ancho || !m.alto) return null;
+    if (!caja.ancho || !caja.alto) return null;
+
+    var pasoX = m.ancho / caja.ancho;        // píxeles de textura por px de mundo
+    var escalaY = caja.alto / m.alto;
+    var volteada = !!spr.flipX;
+
+    return function (x) {
+      var c = Math.floor((x - caja.x) * pasoX);
+      if (volteada) c = m.ancho - 1 - c;
+      if (c < 0) c = 0; else if (c >= m.ancho) c = m.ancho - 1;
+      var fila = m.perfil[c];
+      if (fila < 0) return null;             // columna vacía: no hay dibujo aquí
+      return caja.y + (fila + 1) * escalaY;  // borde inferior del último píxel
+    };
   }
 
   // --------------------------------------------------- caja del sprite
@@ -337,15 +435,39 @@
     }
     var tope = fondo + SONDA_MARGEN * 0.5;
 
+    /* El contorno del propio dibujo: lo que separa "aquí acaba MI pared" de
+       "aquí lo que hay es la colisión del vecino". Ver contornoMundo. */
+    var contorno = spr ? contornoMundo(scene, spr, caja) : null;
+    var tol = toleranciaPerfil(caja);
+
     var cols = [], solidas = 0;
     for (var x = caja.x + 3; x <= caja.der - 3; x += SONDA_PASO_X) {
       var ultimo = null;
       for (var y = desde; y <= hasta; y += SONDA_PASO_Y) {
         if (scene._chocaConEscenario(x - m, y - m, s, s)) ultimo = y;
       }
-      if (ultimo !== null && ultimo > tope) ultimo = fondo;
-      if (ultimo !== null) solidas++;
-      cols.push({ x: x, y: ultimo });
+      var clavada = (ultimo !== null && ultimo > tope);
+      if (clavada) ultimo = fondo;
+
+      /* ¿ES SUYA ESTA COLUMNA?
+
+         Dos motivos para decir que no, y los dos dejan la columna como HUECO
+         (y no como sólida inventada), que es lo que luego se rellena con la
+         columna buena más cercana:
+
+         1. La sonda se salió por debajo del dibujo (`clavada`): eso ya no es
+            este objeto, es algo que pasa por delante o por detrás.
+         2. El dibujo de este objeto no llega hasta ahí abajo. Es el caso del
+            árbol: en la copa el PNG se acaba mucho más arriba que la colisión
+            que la sonda encontró, porque esa colisión es del árbol de al lado. */
+      var suya = (ultimo !== null) && !clavada;
+      if (suya && contorno) {
+        var propio = contorno(x);
+        if (propio === null || propio < ultimo - tol) suya = false;
+      }
+
+      if (suya) solidas++;
+      cols.push({ x: x, y: suya ? ultimo : null });
     }
     if (solidas < SONDA_MIN_COL) return null;
     /* Cuánto del ancho del objeto es SÓLIDO de verdad. Lo usa franjasDe() para
@@ -812,6 +934,31 @@
     return out;
   }
 
+  /* LA SEGUNDA CERRADURA.
+
+     La regla del contorno (ver contornoMundo) ya deja fuera a los árboles por
+     medida propia, sin mirar nombres. Esto es el cinturón además de los
+     tirantes: si en algún mapa una textura no se puede leer —viene de otro
+     dominio y el canvas queda manchado—, el contorno devuelve null, la regla
+     se queda sin poder juzgar… y el árbol volvería a partirse.
+
+     Estas cosas no tienen alas. Un árbol, un arbusto, un tocón, una flor, un
+     farol o un poste tienen UNA línea de suelo por definición: un pie estrecho
+     y todo lo demás volando por encima. Partirlos no puede mejorar nada y sí
+     puede romperlo, así que no se intenta ni una vez. */
+  var SIN_ALAS = /(arbol|arbust|pino|tronco|toc[oó]n|palmera|planta|flor|seta|hierba|cesped|farol|poste|cartel|antorcha|estatua)/i;
+
+  function esVegetacion(spr) {
+    var clave = (spr && spr.texture && spr.texture.key) || '';
+    if (SIN_ALAS.test(clave)) return true;
+    /* Y el nombre de la propiedad de la escena, que es donde de verdad se ve
+       de qué es cada sprite: las texturas se llaman 'arbol_png' pero muchas
+       familias comparten textura y se distinguen por `sprite_pinos12`. */
+    var nom = '';
+    try { nom = (spr.getData && spr.getData('gfNombre')) || spr.__gfNombre || ''; } catch (e) {}
+    return !!nom && SIN_ALAS.test(nom);
+  }
+
   function calibrar(scene, spr, colisiones) {
     var r = lineaDeSuelo(scene, spr, colisiones);
     spr.setDepth(r.y);
@@ -825,7 +972,8 @@
        borde de abajo del dibujo baja y sube con la copa, y partirlo por ahí
        dejaría al jugador pasando por delante de media copa. Lo que se puede
        medir andando —una fachada— sí es de fiar. */
-    if (r.fuente === 'sonda' && (spr.displayWidth || 0) >= FRANJA_ANCHO_MIN) {
+    if (r.fuente === 'sonda' && (spr.displayWidth || 0) >= FRANJA_ANCHO_MIN &&
+        !esVegetacion(spr)) {
       try {
         var caja = cajaMundo(spr);
         var franjas = franjasDe(sondearColumnas(scene, caja, spr));
@@ -965,6 +1113,16 @@
     quitarFranjas: quitarFranjas,
     piesDe: piesDe,
     sobranteAbajo: sobranteAbajo,
+    /** ¿Este objeto queda excluido del reparto en franjas por ser vegetación? */
+    esVegetacion: esVegetacion,
+    /**
+     * El contorno de abajo del objeto en el mundo, para comprobar a mano por
+     * qué una columna cuenta o no cuenta:
+     *   var f = GFProfundidad.contorno(scene, spr); f(spr.x + 20)
+     */
+    contorno: function (scene, spr) {
+      return contornoMundo(scene, spr, cajaMundo(spr));
+    },
     /**
      * Para mirar desde la consola de dónde ha salido la profundidad de cada
      * objeto y cuál queda mal:

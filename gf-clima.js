@@ -213,6 +213,125 @@
     return clave;
   }
 
+  /* EL HALO DEL FUEGO.
+
+     Lo que hace que un fuego parezca fuego no son las llamas: es la LUZ que
+     tira alrededor. Sin halo, tres dibujitos naranjas encima de un árbol son
+     tres dibujitos naranjas. Con halo —un círculo cálido en modo aditivo que
+     tiembla al ritmo de las llamas— el árbol se enciende de verdad y la hierba
+     de al lado se pone dorada.
+
+     Va aparte del resplandor del sol porque el color es otro: el sol es
+     blanco-crema y el fuego es naranja-rojo. Reutilizar el del sol dejaba el
+     incendio pálido. */
+  function texturaHalo(scene) {
+    var clave = 'gfc_halo_fuego';
+    if (scene.textures.exists(clave)) return clave;
+    var T = 256;
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      var g = ctx.createRadialGradient(T / 2, T / 2, 0, T / 2, T / 2, T / 2);
+      g.addColorStop(0.00, 'rgba(255,236,170,0.95)');
+      g.addColorStop(0.18, 'rgba(255,186,88,0.55)');
+      g.addColorStop(0.45, 'rgba(238,120,40,0.20)');
+      g.addColorStop(0.75, 'rgba(180,64,20,0.06)');
+      g.addColorStop(1.00, 'rgba(150,50,16,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, T, T);
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     LAS MOTAS DE POLVO
+     ──────────────────────────────────────────────────────────────────────
+     Un día soleado no es "el mismo día pero con haces de luz dibujados". Lo
+     que hace que una escena se lea como un día de sol es que se VE el aire:
+     motas de polvo y de polen flotando, encendidas por la luz, subiendo
+     despacio y apagándose cuando salen del haz.
+
+     Son treinta puntitos de dos píxeles. Cuesta nada y es, con diferencia, lo
+     que más cambia un día soleado.
+
+     VAN EN EL MUNDO, no pegadas a la cámara: una mota está a metro y medio de
+     tu cara, así que si andas, se queda atrás. Pegadas a la pantalla se ven
+     como suciedad en el monitor — que es exactamente lo que el jugador dijo de
+     las gotas.
+     ══════════════════════════════════════════════════════════════════════ */
+  var N_MOTAS    = 30;
+  var PROF_MOTA  = 8010;      // sobre el mundo, bajo los haces de sol (8020)
+  var MOTA_VEL   = [-9, -26]; // suben (px/s): el aire caliente tira hacia arriba
+
+  function texturaMota(scene) {
+    var clave = 'gfc_mota';
+    if (scene.textures.exists(clave)) return clave;
+    var T = 16;
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      var g = ctx.createRadialGradient(T / 2, T / 2, 0, T / 2, T / 2, T / 2);
+      g.addColorStop(0.00, 'rgba(255,252,232,1)');
+      g.addColorStop(0.35, 'rgba(255,246,206,0.55)');
+      g.addColorStop(1.00, 'rgba(255,240,190,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, T, T);
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  function nuevaMota(st, clave) {
+    var s = st.scene.add.image(0, 0, clave);
+    s.setDepth(PROF_MOTA);
+    s.setAlpha(0);
+    if (s.setBlendMode && window.Phaser && Phaser.BlendModes) {
+      s.setBlendMode(Phaser.BlendModes.ADD);
+    }
+    return { spr: s, x: 0, y: 0, vy: 0, vx: 0, fase: az(0, 6.283),
+             vaiven: az(0.25, 0.9), amplitud: az(3, 14),
+             tam: az(0.18, 0.55), brillo: az(0.25, 0.75), sembrada: false };
+  }
+
+  /** Coloca una mota en un sitio al azar de lo que se ve ahora mismo. */
+  function sembrarMota(st, m, dentro) {
+    var v = st.scene.cameras.main.worldView;
+    m.x = v.x + az(-40, v.width + 40);
+    m.y = dentro ? v.y + az(0, v.height) : v.bottom + az(4, 90);
+    m.vy = az(MOTA_VEL[0], MOTA_VEL[1]);
+    m.vx = az(-6, 10);
+    m.sembrada = true;
+    m.spr.setPosition(m.x, m.y);
+    m.spr.setScale(m.tam);
+  }
+
+  function moverMotas(st, dt, fuerza) {
+    if (!st.motas || !st.motas.length) return;
+    if (fuerza <= 0.01) {
+      for (var k = 0; k < st.motas.length; k++) st.motas[k].spr.setAlpha(0);
+      return;
+    }
+    var v = st.scene.cameras.main.worldView;
+    // El viento también las lleva: son lo más ligero que hay en el mapa.
+    var lado = (st.inclina || 0) * 26;
+    for (var i = 0; i < st.motas.length; i++) {
+      var m = st.motas[i];
+      if (!m.sembrada) sembrarMota(st, m, true);
+      m.fase += dt * m.vaiven;
+      m.x += (m.vx + Math.sin(m.fase) * m.amplitud + lado) * dt;
+      m.y += m.vy * dt;
+      m.spr.setPosition(m.x, m.y);
+      /* Titilan: una mota solo se ve cuando gira y le da la luz de canto. Ese
+         parpadeo lento es lo que las hace parecer polvo y no puntos pegados. */
+      var brillo = 0.45 + 0.55 * Math.sin(m.fase * 1.7 + i);
+      m.spr.setAlpha(fuerza * m.brillo * brillo);
+      if (m.y < v.y - 120 || m.x < v.x - 120 || m.x > v.right + 120) {
+        sembrarMota(st, m, false);
+      }
+    }
+  }
+
   /** El resplandor de la esquina: de donde salen los haces. */
   function texturaResplandor(scene) {
     var clave = 'gfc_resplandor';
@@ -601,6 +720,58 @@
     return hay(scene, GOTAS);
   }
 
+  /* ══════════════════════════════════════════════════════════════════════
+     DE LA PANTALLA AL MUNDO
+     ──────────────────────────────────────────────────────────────────────
+     La lluvia CAE pegada a la pantalla, y eso está bien: el agua está en el
+     aire, entre tus ojos y el pueblo, así que tiene que seguirte. Lo que NO
+     puede seguirte es lo que ya ha CAÍDO. Una salpicadura es agua que ha dado
+     contra el suelo, y el suelo no se mueve contigo: se queda en su charquito
+     mientras tú te vas. Igual la nieve que se posa.
+
+     EL FALLO QUE ESTO ARREGLA: salpicaduras y montoncitos de nieve vivían en
+     el lienzo de pantalla, con scrollFactor 0, así que al andar se DESLIZABAN
+     por el suelo acompañando a la cámara. Se veía justo como lo describió el
+     jugador: "no queda cada gota exactamente donde cayó porque está pegada a
+     la cámara".
+
+     Esta función traduce un punto del lienzo (píxeles de pantalla, con el
+     MARGEN sumado) al punto del MUNDO donde de verdad está. Con eso, la
+     salpicadura se crea como un objeto normal del mundo y se queda quieta.
+     Los charcos ya funcionaban así desde siempre; ahora todo lo que toca el
+     suelo funciona igual. */
+  function aMundo(st, L, x, y) {
+    var cam = st.scene.cameras.main;
+    if (!cam || typeof cam.getWorldPoint !== 'function') return { x: x, y: y };
+    return cam.getWorldPoint(x - L.m, y - L.m);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     LA LLUVIA TIENE FONDO
+     ──────────────────────────────────────────────────────────────────────
+     Una cortina de gotas todas iguales se lee como una textura moviéndose, no
+     como agua cayendo. Lo que le da cuerpo a la lluvia de verdad es que unas
+     gotas están CERCA y otras LEJOS: las de cerca son largas, rápidas y se
+     ven; las del fondo son finas, lentas y casi no están. Tres planos bastan
+     para que el ojo lo lea como volumen.
+
+     Cada plano es [escala, velocidad, alfa]. No cuesta ni un sprite más: es
+     el mismo número de gotas, repartidas. */
+  var PLANOS_GOTA = [
+    { escala: [0.55, 0.85], vel: [0.55, 0.80], alfa: 0.26, peso: 0.34 },  // fondo
+    { escala: [0.85, 1.30], vel: [0.85, 1.15], alfa: 0.46, peso: 0.40 },  // medio
+    { escala: [1.30, 1.95], vel: [1.20, 1.60], alfa: 0.68, peso: 0.26 }   // frente
+  ];
+
+  function planoAlAzar() {
+    var r = Math.random(), acum = 0;
+    for (var i = 0; i < PLANOS_GOTA.length; i++) {
+      acum += PLANOS_GOTA[i].peso;
+      if (r <= acum) return i;
+    }
+    return PLANOS_GOTA.length - 1;
+  }
+
   // ------------------------------------------------------------------ gotas
   function nuevaGota(st) {
     var L = lienzo(st.scene.cameras.main);
@@ -608,12 +779,19 @@
     // El scrollFactor va en el HIJO aunque viva dentro del contenedor: Phaser
     // lo lee del hijo al montar la matriz de cámara, no del padre.
     s.setScrollFactor(0);
+    var n = planoAlAzar();
+    var P = PLANOS_GOTA[n];
     /* Escala moderada: a x2.6 sobre una textura de 18 px de alto salían
-       rayas de casi 50 px que parecían arañazos en la pantalla, no lluvia. */
-    s.setScale(az(0.9, 1.7));
+       rayas de casi 50 px que parecían arañazos en la pantalla, no lluvia.
+       Y la del fondo, más fina todavía: es lo que la manda lejos. */
+    var e = az(P.escala[0], P.escala[1]);
+    /* Estirada a lo largo de la caída y estrechada a lo ancho: una gota en
+       movimiento no es una gota, es una raya. Es el mismo truco que usa
+       cualquier motion blur, hecho a mano y gratis. */
+    s.setScale(e * az(0.62, 0.85), e * az(1.15, 1.55));
     s.setAlpha(0);
     if (st.capa) st.capa.add(s);
-    var g = { spr: s, vel: az(0.8, 1.35), x: 0, y: 0 };
+    var g = { spr: s, plano: n, vel: az(P.vel[0], P.vel[1]), alfa: P.alfa, x: 0, y: 0 };
     reponerGota(st, g, L.w, L.h, true);
     return g;
   }
@@ -642,7 +820,7 @@
     g.spr.setPosition(g.x, g.y);
   }
 
-  function moverGotas(st, dt, w, h, m) {
+  function moverGotas(st, dt, w, h, m, L) {
     // La raya se dibuja hacia donde va la gota. atan() y no la pendiente a
     // secas: a 0.66 la diferencia ya son 7 grados y se nota.
     var rot = -Math.atan(st.inclina);
@@ -654,11 +832,18 @@
       g.spr.setPosition(g.x, g.y);
       g.spr.setRotation(rot);
       // Translúcidas: el agua no es blanca opaca. A 0.8 tapaban el mundo.
-      g.spr.setAlpha(st.fuerzaLluvia * 0.5);
+      // Y cada plano con la suya: el fondo casi no está, el frente sí.
+      g.spr.setAlpha(st.fuerzaLluvia * g.alfa);
       if (g.y > h + 20) {
-        // La salpicadura, dentro de lo que se VE: el lienzo sobra por los
-        // bordes y una salpicadura en el sobrante no la ve nadie.
-        salpicar(st, g.x, h - m - az(0, (h - m * 2) * 0.55));
+        /* La salpicadura, dentro de lo que se VE: el lienzo sobra por los
+           bordes y una salpicadura en el sobrante no la ve nadie.
+
+           Solo salpica el plano de DELANTE. Las gotas del fondo están, por
+           definición, mucho más allá del suelo que se ve: si salpicaran, el
+           agua reventaría en el aire y se vería el truco. */
+        if (g.plano === PLANOS_GOTA.length - 1) {
+          salpicar(st, g.x, h - m - az(0, (h - m * 2) * 0.55), L);
+        }
         reponerGota(st, g, w, h, false);
       } else if (g.x < -80 || g.x > w + 80) {
         // Se la ha llevado el viento de lado: vuelve arriba sin salpicar.
@@ -708,7 +893,7 @@
     c.spr.setPosition(c.x, c.y);
   }
 
-  function moverCopos(st, dt, w, h, m) {
+  function moverCopos(st, dt, w, h, m, L) {
     for (var i = 0; i < st.copos.length; i++) {
       var c = st.copos[i];
       var v = VEL_COPO * c.vel * st.fuerzaNieve;
@@ -720,7 +905,7 @@
       c.spr.setPosition(c.x, c.y);
       c.spr.setAlpha(st.fuerzaNieve * 0.92);
       if (c.y > h + 12) {
-        posarNieve(st, c.x, h - m - az(0, (h - m * 2) * 0.5));
+        posarNieve(st, c.x, h - m - az(0, (h - m * 2) * 0.5), L);
         reponerCopo(st, c, w, h, false);
       } else if (c.x < -80 || c.x > w + 80) {
         reponerCopo(st, c, w, h, false);
@@ -728,14 +913,22 @@
     }
   }
 
-  /** Marca un montoncito de nieve posada. Se deshace solo. */
-  function posarNieve(st, x, y) {
+  /**
+   * Marca un montoncito de nieve posada. Se deshace solo.
+   *
+   * Va en el MUNDO por el mismo motivo que la salpicadura: la nieve que ya ha
+   * caído está EN EL SUELO. Pegada a la cámara, el manto entero patinaba por
+   * el pueblo cada vez que el jugador daba un paso.
+   */
+  function posarNieve(st, x, y, L) {
     if (Math.random() > 0.3 * st.fuerzaNieve) return;
     for (var i = 0; i < st.posas.length; i++) {
       var p = st.posas[i];
       if (p.hasta > st.scene.time.now) continue;
+      var q = L ? aMundo(st, L, x, y) : { x: x, y: y };
       p.spr.setTexture('gfc_' + elegir(POSAS));
-      p.spr.setPosition(x, y);
+      p.spr.setPosition(q.x, q.y);
+      p.spr.setScale(az(0.9, 1.6));
       p.hasta = st.scene.time.now + az(1400, 3200);
       p.nace = st.scene.time.now;
       return;
@@ -744,9 +937,8 @@
 
   function nuevaPosa(st) {
     var s = st.scene.add.image(0, 0, 'gfc_' + POSAS[0]);
-    s.setScrollFactor(0);
     s.setAlpha(0);
-    if (st.capa) st.capa.add(s);
+    s.setDepth(PROF_SALPICA);
     return { spr: s, hasta: 0, nace: 0 };
   }
 
@@ -762,26 +954,42 @@
   }
 
   // ----------------------------------------------------------- salpicaduras
+  /* La salpicadura vive en el MUNDO (ver aMundo), a ras de suelo y por debajo
+     de todo lo demás: es agua en el barro, tiene que pisarse. Misma altura que
+     los charcos, que llevan ahí desde siempre. */
+  var PROF_SALPICA = PROF_CHARCO + 1;
+  var SALPICA_MS   = 300;
+
   function nuevaSalpica(st) {
     var s = st.scene.add.image(0, 0, 'gfc_' + SALPICA[0]);
-    s.setScrollFactor(0);
     s.setScale(2);
     s.setAlpha(0);
-    // Después de las gotas: dentro de un contenedor manda el ORDEN de
-    // inserción, no el depth.
-    if (st.capa) st.capa.add(s);
-    return { spr: s, hasta: 0, paso: 0 };
+    s.setDepth(PROF_SALPICA);
+    return { spr: s, hasta: 0, paso: 0, nace: 0, escala: 2 };
   }
 
-  /** Marca una salpicadura libre para que empiece su animación aquí. */
-  function salpicar(st, x, y) {
-    if (Math.random() > 0.35 * st.fuerzaLluvia) return;
+  /**
+   * Marca una salpicadura libre para que empiece su animación aquí.
+   *
+   * `x, y` vienen en píxeles del LIENZO (pantalla). Aquí se traducen al mundo
+   * una sola vez, al nacer: a partir de ese momento la salpicadura ya no se
+   * mueve nunca más, se queda donde cayó el agua aunque el jugador se vaya.
+   */
+  function salpicar(st, x, y, L) {
+    if (Math.random() > 0.8 * st.fuerzaLluvia) return;
     for (var i = 0; i < st.salpicas.length; i++) {
       var sp = st.salpicas[i];
       if (sp.hasta > st.scene.time.now) continue;
-      sp.spr.setPosition(x, y);
+      var p = L ? aMundo(st, L, x, y) : { x: x, y: y };
+      sp.spr.setPosition(p.x, p.y);
+      /* Cada salpicadura de su tamaño y girada a su aire. Todas iguales y
+         mirando al mismo lado se veían como un sello repetido por el suelo. */
+      sp.escala = az(1.4, 2.4);
+      sp.spr.setScale(sp.escala);
+      sp.spr.setRotation(az(-0.25, 0.25));
       sp.paso = 0;
-      sp.hasta = st.scene.time.now + 240;
+      sp.nace = st.scene.time.now;
+      sp.hasta = sp.nace + SALPICA_MS;
       return;
     }
   }
@@ -790,13 +998,19 @@
     for (var i = 0; i < st.salpicas.length; i++) {
       var sp = st.salpicas[i];
       var queda = sp.hasta - ahora;
-      if (queda <= 0) { sp.spr.setAlpha(0); continue; }
-      var paso = queda > 160 ? 1 : (queda > 80 ? 2 : 3);
+      if (queda <= 0) { if (sp.spr.alpha) sp.spr.setAlpha(0); continue; }
+      var paso = queda > SALPICA_MS * 0.62 ? 1 : (queda > SALPICA_MS * 0.3 ? 2 : 3);
       if (paso !== sp.paso) {
         sp.paso = paso;
         sp.spr.setTexture('gfc_salpica_' + paso);
       }
-      sp.spr.setAlpha(Math.min(1, queda / 160) * 0.85 * st.fuerzaLluvia);
+      /* LA ONDA SE ABRE. La corona de agua no se queda del mismo tamaño: sale
+         disparada hacia arriba y se derrama hacia fuera. Creciendo un 45 %
+         mientras se desvanece, tres dibujos fijos pasan a leerse como una
+         salpicadura de verdad. */
+      var t = 1 - queda / SALPICA_MS;                 // 0 al nacer, 1 al morir
+      sp.spr.setScale(sp.escala * (1 + t * 0.45));
+      sp.spr.setAlpha(Math.min(1, queda / (SALPICA_MS * 0.62)) * 0.85 * st.fuerzaLluvia);
     }
   }
 
@@ -874,6 +1088,8 @@
 
     st.bordeAlfa = fuerte ? 0.8 : 0.45;
     st.bordeHasta = ahora + az(120, 260);
+    // Una centella es un rayo lejano: el mismo golpe de luz, mas flojo.
+    if (window.GFPost && window.GFPost.pulso) window.GFPost.pulso(fuerte ? 0.5 : 0.28);
 
     // Una de cada tres retumba, y flojito.
     if (fuerte && Math.random() < 0.35) {
@@ -948,6 +1164,12 @@
     st.bordeHasta = ahora + az(180, 320);
     st.truenoFuerza = az(0.8, 1.3);
 
+    /* Y el fotograma entero reacciona: el post-procesado sube el brillo, se
+       lleva el color por delante y abre la vinneta durante un instante, que es
+       lo que hace un rayo con un ojo de verdad. Si el modulo no esta (canvas,
+       calidad baja) no pasa nada: sigue habiendo fogonazo. */
+    if (window.GFPost && window.GFPost.pulso) window.GFPost.pulso(1);
+
     /* La sacudida llega DESPUÉS del destello, como el trueno de verdad: la luz
        viaja más rápido que el sonido. Ese retardo es lo que lo hace creíble. */
     /* Y a veces le da a un arbol. Va aqui, en el rayo CON TRAZO: una centella
@@ -1018,11 +1240,11 @@
        arder aunque la tormenta ya haya pasado. Por eso van ANTES del `return`
        de "no llueve" que hay mas abajo. */
     moverCharcos(st, ahora, delta);
-    moverIncendio(st, ahora);
+    moverIncendio(st, ahora, delta);
 
     var i, j;
     if (nevando) {
-      moverCopos(st, dt, w, h, L.m);
+      moverCopos(st, dt, w, h, L.m, L);
       moverPosas(st, ahora);
     } else {
       for (i = 0; i < st.copos.length; i++) st.copos[i].spr.setAlpha(0);
@@ -1038,7 +1260,7 @@
       return;
     }
 
-    moverGotas(st, dt, w, h, L.m);
+    moverGotas(st, dt, w, h, L.m, L);
     moverSalpicas(st, ahora);
 
     /* RELÁMPAGOS Y CENTELLAS.
@@ -1092,6 +1314,10 @@
       } catch (e) {}
     }
     var f = st.fuerzaSol * dia;
+
+    /* Las motas de polvo van con el sol y con la luz del dia: si no hay sol no
+       hay haz que las encienda, y de noche no se ve el polvo. */
+    moverMotas(st, Math.min(delta, 100) / 1000, f);
 
     if (st.resplandorSol) {
       var t = Math.min(w, h) * 1.5;
@@ -1304,26 +1530,119 @@
 
     var inc = {
       clave: mejor.clave, spr: spr, nace: scene.time.now,
-      llamas: [], humos: [], fase: 'arde', paso: 0, proximoPaso: 0
+      llamas: [], humos: [], pavesas: [], halo: null,
+      cx: cx, base: base, alto: alto, ancho: ancho,
+      baseRot: spr.rotation || 0,
+      fase: 'arde', paso: 0, proximoPaso: 0
     };
-    // Tres llamas escalonadas por la copa y el tronco.
-    var sitios = [[cx, base - alto * 0.18, 2.2],
-                  [cx - ancho * 0.22, base - alto * 0.42, 1.8],
-                  [cx + ancho * 0.24, base - alto * 0.34, 1.6]];
+
+    /* EL HALO, LO PRIMERO Y LO MÁS ABAJO.
+
+       Va por DEBAJO de las llamas y por debajo del propio árbol: es la luz que
+       el fuego echa sobre el suelo y sobre lo que tiene alrededor, no un
+       adorno delante. En aditivo, así que suma luz en vez de pintar naranja
+       encima — la diferencia entre "está iluminado" y "le han puesto un filtro". */
+    var claveHalo = texturaHalo(scene);
+    if (claveHalo) {
+      var halo = scene.add.image(cx, base - alto * 0.30, claveHalo);
+      halo.setDepth(Math.max(0, spr.depth - 1));
+      if (halo.setBlendMode && window.Phaser && Phaser.BlendModes) {
+        halo.setBlendMode(Phaser.BlendModes.ADD);
+      }
+      halo.setAlpha(0);
+      inc.halo = halo;
+    }
+
+    /* SEIS LLAMAS, NO TRES, Y CADA UNA A SU AIRE.
+
+       Con tres el fuego se leía como tres pegatinas: las tres del mismo
+       tamaño, las tres cambiando de dibujo A LA VEZ (mismo `paso`), las tres
+       quietas en su sitio. Un fuego real no tiene dos lenguas iguales ni dos
+       que hagan lo mismo al mismo tiempo.
+
+       Ahora cada llama lleva su propio desfase de animación, su propio ritmo
+       de parpadeo, su propia amplitud de vaivén y su propia altura. Y las de
+       abajo son grandes y las de arriba pequeñas, que es como arde un árbol:
+       la base es una hoguera y la copa son lenguas sueltas. */
+    var sitios = [
+      [cx,                    base - alto * 0.06, 2.5, 1.00],
+      [cx - ancho * 0.20,     base - alto * 0.14, 2.1, 0.92],
+      [cx + ancho * 0.22,     base - alto * 0.12, 2.0, 0.88],
+      [cx - ancho * 0.12,     base - alto * 0.40, 1.6, 0.74],
+      [cx + ancho * 0.16,     base - alto * 0.46, 1.4, 0.68],
+      [cx + ancho * 0.02,     base - alto * 0.64, 1.1, 0.55]
+    ];
     for (var k = 0; k < sitios.length; k++) {
-      var ll = scene.add.image(sitios[k][0], sitios[k][1], 'gfc_' + FUEGOS[0]);
+      var ll = scene.add.image(sitios[k][0], sitios[k][1], 'gfc_' + elegir(FUEGOS));
       ll.setOrigin(0.5, 1).setScale(sitios[k][2]);
       ll.setDepth(spr.depth + 2 + k);
-      inc.llamas.push(ll);
+      if (ll.setBlendMode && window.Phaser && Phaser.BlendModes) {
+        // Aditivo: dos lenguas que se cruzan dan más luz, no una mancha opaca.
+        ll.setBlendMode(Phaser.BlendModes.ADD);
+      }
+      inc.llamas.push({
+        spr: ll,
+        x0: sitios[k][0], y0: sitios[k][1], escala: sitios[k][2],
+        brillo: sitios[k][3],
+        desfase: Math.floor(az(0, FUEGOS.length)),   // no cambian todas a la vez
+        ritmo: az(0.7, 1.6),                          // ni al mismo ritmo
+        fase: az(0, Math.PI * 2),
+        vaiven: az(1.6, 4.2),
+        amplitud: az(1.5, 5.0)
+      });
     }
-    for (var h = 0; h < 2; h++) {
-      var hu = scene.add.image(cx + (h ? 10 : -8), base - alto * 0.62, 'gfc_' + HUMOS[0]);
-      hu.setOrigin(0.5, 1).setScale(2).setAlpha(0.7);
-      hu.setDepth(spr.depth + 5);
-      inc.humos.push(hu);
+
+    /* Cuatro columnas de humo en vez de dos, y cada una con su vida: nace
+       pequeña y opaca junto a la llama, sube, se ensancha y se deshace. Antes
+       las dos subían a la misma velocidad y volvían al mismo sitio, y se veía
+       el bucle. */
+    if (scene.textures.exists('gfc_' + HUMOS[0])) {
+      for (var h = 0; h < 4; h++) {
+        var hu = scene.add.image(cx, base - alto * 0.5, 'gfc_' + elegir(HUMOS));
+        hu.setOrigin(0.5, 1).setDepth(spr.depth + 9).setAlpha(0);
+        inc.humos.push({
+          spr: hu,
+          x0: cx + az(-ancho * 0.22, ancho * 0.22),
+          vida: az(0, 1),                 // escalonadas: no salen todas a la vez
+          dura: az(2200, 4200),
+          sube: az(16, 34),               // px/s
+          giro: az(-0.5, 0.5),
+          escala: az(1.5, 2.8)
+        });
+      }
     }
+
+    /* PAVESAS: los puntitos de brasa que suben del fuego. Es el detalle que
+       más "fuego real" da por lo poco que cuesta — ocho imágenes de tres
+       píxeles subiendo en espiral y apagándose. */
+    if (scene.textures.exists('gfc_' + BRASAS[0])) {
+      for (var b = 0; b < 10; b++) {
+        var pv = scene.add.image(cx, base, 'gfc_' + elegir(BRASAS));
+        pv.setDepth(spr.depth + 8).setAlpha(0);
+        if (pv.setBlendMode && window.Phaser && Phaser.BlendModes) {
+          pv.setBlendMode(Phaser.BlendModes.ADD);
+        }
+        inc.pavesas.push({ spr: pv, vida: 1, dura: 1, x: cx, y: base,
+                           vx: 0, vy: 0, fase: 0, vaiven: 0 });
+      }
+    }
+
     st.incendio = inc;
     log('rayo en', mejor.clave, '— arde', ARDE_MS / 1000, 's');
+  }
+
+  /** Reinicia una pavesa en la base del fuego, con su empujón y su vida. */
+  function soltarPavesa(inc, p, ahora) {
+    p.x = inc.cx + az(-inc.ancho * 0.24, inc.ancho * 0.24);
+    p.y = inc.base - inc.alto * az(0.02, 0.22);
+    p.vy = -az(26, 62);                    // px/s hacia arriba
+    p.vx = az(-8, 8);
+    p.fase = az(0, Math.PI * 2);
+    p.vaiven = az(1.5, 4);
+    p.dura = az(900, 2100);
+    p.vida = 0;
+    p.nace = ahora;
+    p.spr.setScale(az(1.2, 2.4));
   }
 
   /** Avisa al servidor de que el árbol ha caído. Nadie se lleva nada. */
@@ -1343,41 +1662,138 @@
      .then(function (r) { log('árbol quemado avisado:', clave, r && r.ok); });
   }
 
-  function moverIncendio(st, ahora) {
+  function moverIncendio(st, ahora, delta) {
     var inc = st.incendio;
     if (!inc) return;
     var scene = st.scene;
     var t = ahora - inc.nace;
+    var dt = Math.min(delta || 16, 100) / 1000;
     var i;
 
-    // animación de las llamas
+    /* EL PULSO DEL FUEGO.
+
+       Un solo seno se ve como un latido de máquina. Tres senos con periodos
+       que no son múltiplos entre sí no se repiten nunca a ojo: es el truco
+       clásico para que algo parpadee "como una llama" y no "como un LED".
+       Sale entre 0 y 1, casi siempre alto y de vez en cuando bajo. */
+    var pulso = 0.62
+      + 0.20 * Math.sin(ahora * 0.0130)
+      + 0.11 * Math.sin(ahora * 0.0291 + 1.7)
+      + 0.07 * Math.sin(ahora * 0.0533 + 4.2);
+    if (pulso < 0) pulso = 0; else if (pulso > 1) pulso = 1;
+
+    // El viento también empuja el fuego: las lenguas se tumban a sotavento.
+    var empuje = (st.inclina || 0) * 0.55;
+
+    // Cuánto queda de fuego: entra rápido y, al final, se apaga solo.
+    var vigor = inc.fase === 'arde'
+      ? Math.min(1, t / 900) * (1 - Math.max(0, (t - (ARDE_MS - 7000)) / 7000))
+      : 0;
+    if (vigor < 0) vigor = 0;
+
+    // ── llamas ──────────────────────────────────────────────────────────
     if (ahora >= inc.proximoPaso) {
       inc.proximoPaso = ahora + 1000 / FUEGO_FPS;
-      inc.paso = (inc.paso + 1) % FUEGOS.length;
-      for (i = 0; i < inc.llamas.length; i++) {
-        inc.llamas[i].setTexture('gfc_' + FUEGOS[(inc.paso + i) % FUEGOS.length]);
-      }
+      inc.paso++;
       for (i = 0; i < inc.humos.length; i++) {
-        inc.humos[i].setTexture('gfc_' + HUMOS[(inc.paso + i) % HUMOS.length]);
+        // El humo cambia de dibujo mucho más despacio que la llama.
+        if (inc.paso % 3 === 0) {
+          inc.humos[i].spr.setTexture('gfc_' + elegir(HUMOS));
+        }
       }
     }
-    // el humo sube y se deshace
-    for (i = 0; i < inc.humos.length; i++) {
-      var h = inc.humos[i];
-      h.y -= 0.28;
-      h.alpha -= 0.004;
-      if (h.alpha <= 0.05) {
-        h.alpha = 0.7;
-        h.y = inc.spr.y - (inc.spr.displayHeight || 80) * 0.62;
+    for (i = 0; i < inc.llamas.length; i++) {
+      var ll = inc.llamas[i];
+      /* Cada lengua avanza su animación a SU ritmo y desde SU fotograma. Ese
+         desfase es lo que rompe el "todas iguales" de antes. */
+      var cuadro = Math.floor(inc.paso * ll.ritmo + ll.desfase) % FUEGOS.length;
+      ll.spr.setTexture('gfc_' + FUEGOS[cuadro]);
+
+      ll.fase += dt * ll.vaiven;
+      var b = Math.sin(ll.fase);
+      var p = pulso * (0.75 + 0.25 * Math.sin(ll.fase * 0.7 + 1.1));
+      // Se bambolea, se estira y se encoge: el fuego nunca está quieto.
+      ll.spr.setPosition(ll.x0 + b * ll.amplitud + empuje * 14 * ll.brillo,
+                         ll.y0 + Math.sin(ll.fase * 1.7) * 1.5);
+      ll.spr.setScale(ll.escala * (0.86 + 0.20 * p) * vigor || 0.0001,
+                      ll.escala * (0.78 + 0.34 * p) * vigor || 0.0001);
+      ll.spr.setRotation(b * 0.06 + empuje * 0.22);
+      ll.spr.setAlpha(Math.min(1, (0.55 + 0.45 * p) * ll.brillo * vigor));
+    }
+
+    // ── halo: la luz que echa el fuego alrededor ────────────────────────
+    if (inc.halo) {
+      var radio = inc.alto * (1.5 + 0.16 * pulso) * (0.4 + 0.6 * vigor);
+      inc.halo.setDisplaySize(radio, radio);
+      inc.halo.setPosition(inc.cx, inc.base - inc.alto * 0.26);
+      inc.halo.setAlpha((0.30 + 0.22 * pulso) * vigor);
+      /* De noche el fuego se ve MUCHO más: es la única luz que hay. Se le
+         sube el halo con la oscuridad del ciclo de día, si está. */
+      var C = window.GFCiclo;
+      if (C && C.oscuridad) {
+        try {
+          var o = C.oscuridad();
+          if (typeof o === 'number' && isFinite(o)) {
+            inc.halo.setAlpha(inc.halo.alpha * (1 + o * 1.1));
+          }
+        } catch (e) {}
       }
+    }
+
+    // ── humo: nace, sube, se ensancha y se va ───────────────────────────
+    for (i = 0; i < inc.humos.length; i++) {
+      var hm = inc.humos[i];
+      hm.vida += dt * 1000 / hm.dura;
+      if (hm.vida >= 1) { hm.vida = 0; hm.spr.setTexture('gfc_' + elegir(HUMOS)); }
+      var vh = hm.vida;
+      /* Sube derecho al principio y luego se lo lleva el viento, que es lo que
+         hace una columna de humo de verdad: recta hasta que gana el aire. */
+      hm.spr.setPosition(hm.x0 + empuje * 60 * vh * vh + Math.sin(vh * 6 + i) * 6,
+                         inc.base - inc.alto * 0.45 - hm.sube * vh * 3.2);
+      hm.spr.setScale(hm.escala * (0.5 + vh * 1.5));
+      hm.spr.setRotation(hm.giro * vh);
+      // Aparece deprisa y se deshace despacio.
+      hm.spr.setAlpha(Math.min(vh * 5, 1 - vh) * 0.55 * Math.max(vigor, 0.25));
+    }
+
+    // ── pavesas: chispas que suben y se apagan ──────────────────────────
+    for (i = 0; i < inc.pavesas.length; i++) {
+      var pv = inc.pavesas[i];
+      pv.vida += dt * 1000 / pv.dura;
+      if (pv.vida >= 1) {
+        // Solo se sueltan chispas mientras haya fuego que las suelte.
+        if (vigor > 0.05 && Math.random() < 0.6) soltarPavesa(inc, pv, ahora);
+        else { pv.spr.setAlpha(0); pv.vida = 1; continue; }
+      }
+      pv.fase += dt * pv.vaiven;
+      // La chispa pierde fuerza al subir (el aire caliente se enfría).
+      pv.vy += 26 * dt;
+      pv.x += (pv.vx + Math.sin(pv.fase) * 12 + empuje * 40) * dt;
+      pv.y += pv.vy * dt;
+      pv.spr.setPosition(pv.x, pv.y);
+      pv.spr.setAlpha((1 - pv.vida) * (0.55 + 0.45 * Math.sin(pv.fase * 3)));
     }
 
     if (inc.fase === 'arde') {
       // el árbol se va tiznando
       var q = Math.min(1, t / ARDE_MS);
       if (inc.spr.setTint) {
-        var v = Math.round(255 - 150 * q);
-        inc.spr.setTint((v << 16) | (v << 8) | v);
+        /* Y no solo se oscurece: primero coge el color del fuego (se pone
+           anaranjado por la luz que le da) y solo después se vuelve carbón.
+           Pasar directo de verde a gris se veía como si le bajaran el brillo. */
+        var calor = Math.max(0, 1 - q * 2.2);
+        var v = Math.round(255 - 165 * q);
+        var r = Math.min(255, Math.round(v + 70 * calor * pulso));
+        var g2 = Math.round(v + 24 * calor * pulso);
+        inc.spr.setTint((r << 16) | (Math.min(255, g2) << 8) | v);
+      }
+      /* Y tiembla un poco: el aire caliente y la madera que cruje. Muy poco
+         —dos centésimas de radián— pero el ojo lo nota y el árbol deja de
+         parecer una calcomanía con fuego encima. */
+      if (typeof inc.spr.rotation === 'number') {
+        inc.spr.rotation = inc.baseRot +
+          Math.sin(ahora * 0.021) * 0.010 * vigor +
+          Math.sin(ahora * 0.047) * 0.006 * vigor;
       }
       if (t >= ARDE_MS) {
         /* SE CAE. Solo queda el tocón, y entra en el respawn normal.
@@ -1385,14 +1801,27 @@
            el tocón sale con la textura, la posición y la profundidad buenas. */
         if (typeof scene.showTreeStump === 'function') scene.showTreeStump(inc.clave);
         if (inc.spr.clearTint) inc.spr.clearTint();
+        // Se le devuelve la rotación que tenía: el temblor era prestado.
+        if (typeof inc.spr.rotation === 'number') inc.spr.rotation = inc.baseRot;
         avisarArbolQuemado(scene, inc.clave);
         // las llamas se apagan y quedan rescoldos en el suelo
-        for (i = 0; i < inc.llamas.length; i++) inc.llamas[i].destroy();
+        for (i = 0; i < inc.llamas.length; i++) inc.llamas[i].spr.destroy();
         inc.llamas.length = 0;
-        var brasa = scene.add.image(inc.spr.x + (inc.spr.displayWidth || 30) / 2,
-                                    inc.spr.y, 'gfc_' + BRASAS[0]);
-        brasa.setOrigin(0.5, 1).setScale(2).setDepth(inc.spr.depth + 1);
-        inc.brasa = brasa;
+        /* TRES RESCOLDOS EN EL SUELO, no uno. Un árbol que se cae deja una
+           mancha de brasas, no un puntito. Y quedan a ras de suelo, con la
+           profundidad del tocón, para que se pueda pasar por delante. */
+        inc.brasas = [];
+        for (var rb = 0; rb < 3; rb++) {
+          var brasa = scene.add.image(
+            inc.cx + az(-inc.ancho * 0.25, inc.ancho * 0.25),
+            inc.base + az(-3, 3), 'gfc_' + elegir(BRASAS));
+          brasa.setOrigin(0.5, 1).setScale(az(1.4, 2.3));
+          brasa.setDepth(inc.spr.depth + 1);
+          if (brasa.setBlendMode && window.Phaser && Phaser.BlendModes) {
+            brasa.setBlendMode(Phaser.BlendModes.ADD);
+          }
+          inc.brasas.push({ spr: brasa, fase: az(0, 6.28), ritmo: az(1.2, 3.0) });
+        }
         inc.fase = 'brasas';
         inc.nace = ahora;
         log('el árbol', inc.clave, 'se ha caído; queda el tocón');
@@ -1400,10 +1829,23 @@
       return;
     }
 
-    // rescoldos: se apagan y se acabó
-    if (inc.brasa) {
-      inc.brasa.setTexture('gfc_' + BRASAS[inc.paso % BRASAS.length]);
-      inc.brasa.setAlpha(Math.max(0, 1 - t / BRASAS_MS));
+    /* RESCOLDOS: se apagan y se acabó.
+       El halo sigue un rato, cada vez más bajo y más rojo: unas brasas dan
+       luz mucho después de que ya no haya llama. Es lo que remata el efecto. */
+    if (inc.halo) {
+      var res = Math.max(0, 1 - t / BRASAS_MS);
+      inc.halo.setDisplaySize(inc.alto * 0.9 * res, inc.alto * 0.9 * res);
+      inc.halo.setPosition(inc.cx, inc.base - 6);
+      inc.halo.setAlpha(res * res * (0.14 + 0.08 * pulso));
+    }
+    if (inc.brasas) {
+      for (i = 0; i < inc.brasas.length; i++) {
+        var br = inc.brasas[i];
+        br.fase += dt * br.ritmo;
+        br.spr.setTexture('gfc_' + BRASAS[Math.floor(inc.paso * 0.4 + i) % BRASAS.length]);
+        // Respiran: se avivan y se apagan, como brasas de verdad.
+        br.spr.setAlpha(Math.max(0, 1 - t / BRASAS_MS) * (0.55 + 0.45 * Math.sin(br.fase)));
+      }
     }
     if (t >= BRASAS_MS) {
       apagarIncendio(st);
@@ -1414,10 +1856,15 @@
     var inc = st.incendio;
     if (!inc) return;
     var i;
-    for (i = 0; i < inc.llamas.length; i++) inc.llamas[i].destroy();
-    for (i = 0; i < inc.humos.length; i++) inc.humos[i].destroy();
-    if (inc.brasa) inc.brasa.destroy();
+    for (i = 0; i < inc.llamas.length; i++) inc.llamas[i].spr.destroy();
+    for (i = 0; i < inc.humos.length; i++) inc.humos[i].spr.destroy();
+    if (inc.pavesas) for (i = 0; i < inc.pavesas.length; i++) inc.pavesas[i].spr.destroy();
+    if (inc.brasas)  for (i = 0; i < inc.brasas.length; i++) inc.brasas[i].spr.destroy();
+    if (inc.brasa && inc.brasa.destroy) inc.brasa.destroy();   // incendios viejos
+    if (inc.halo) inc.halo.destroy();
     if (inc.spr && inc.spr.clearTint) inc.spr.clearTint();
+    // La rotación era prestada: se devuelve pase lo que pase.
+    if (inc.spr && typeof inc.spr.rotation === 'number') inc.spr.rotation = inc.baseRot || 0;
     st.incendio = null;
   }
 
@@ -1441,6 +1888,7 @@
     var L = lienzo(cam);
     var st = {
       scene: scene, gotas: [], salpicas: [], copos: [], posas: [], bordes: [],
+      motas: [],
       charcos: [], proximoCharco: 0, incendio: null,
       fuerzaLluvia: 0, fuerzaNieve: 0,
       proximoTrueno: 0, proximaCentella: 0, truenoEn: 0, truenoFuerza: 1,
@@ -1519,6 +1967,15 @@
           ritmo: az(0.10, 0.28)
         });
       }
+      /* Las motas de polvo del día soleado. Van en el MUNDO, así que no entran
+         en el contenedor de pantalla; se crean aquí, junto al sol, porque son
+         parte del mismo efecto y se apagan con él. */
+      var claveMota = texturaMota(scene);
+      st.motas = [];
+      if (claveMota) {
+        for (var mm = 0; mm < N_MOTAS; mm++) st.motas.push(nuevaMota(st, claveMota));
+      }
+
       var claveRes = texturaResplandor(scene);
       if (claveRes) {
         st.resplandorSol = scene.add.image(0, 0, claveRes);
@@ -1641,6 +2098,10 @@
       for (i = 0; i < st.rayosSol.length; i++) st.rayosSol[i].spr.destroy();
       st.rayosSol.length = 0;
     }
+    if (st.motas) {
+      for (i = 0; i < st.motas.length; i++) st.motas[i].spr.destroy();
+      st.motas.length = 0;
+    }
     if (st.resplandorSol) st.resplandorSol.destroy();
     if (st.filtro)   st.filtro.destroy();
     if (st.cortina)  st.cortina.destroy();
@@ -1720,6 +2181,9 @@
       moverCharcos: moverCharcos, brotarCharco: brotarCharco,
       sueloLibre: sueloLibre, prenderArbol: prenderArbol,
       moverSol: moverSol, texturaRayo: texturaRayo,
+      texturaHalo: texturaHalo, texturaMota: texturaMota,
+      moverMotas: moverMotas, sembrarMota: sembrarMota, N_MOTAS: N_MOTAS,
+      aMundo: aMundo, PLANOS_GOTA: PLANOS_GOTA,
       texturaResplandor: texturaResplandor,
       arrancarRed: arrancarRed, reintentarViento: reintentarViento,
       hay: hay, faltan: faltan,

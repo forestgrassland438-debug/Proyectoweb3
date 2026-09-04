@@ -117,6 +117,73 @@
     return true;
   }
 
+  /* ══════════════════════════════════════════════════════════════════════
+     POR QUÉ LAS HOJAS ERAN PREDECIBLES, Y QUÉ SE HA HECHO
+     ──────────────────────────────────────────────────────────────────────
+     Lo que había: cada hoja avanzaba a velocidad CONSTANTE hacia la derecha,
+     subía y bajaba con UN seno y giraba a velocidad CONSTANTE. Tres reglas
+     fijas. Con eso, en cuanto miras dos segundos ya sabes dónde va a estar
+     cada hoja, y el efecto se cae: no parece que las lleve el aire, parece que
+     las arrastra un raíl.
+
+     Lo que se ha puesto, y cada cosa por qué:
+
+     1. TURBULENCIA. El aire no empuja liso: hace remolinos. Se suman tres
+        senos con periodos que no son múltiplos entre sí, cada hoja con sus
+        propios ritmos y desfases. Tres senos así no repiten el mismo patrón a
+        ojo NUNCA: es lo mismo que se hace para simular oleaje.
+
+     2. INERCIA. La hoja ya no se coloca donde toca: tiene VELOCIDAD, y el
+        viento la EMPUJA. Así una racha la acelera poco a poco y, cuando
+        amaina, la hoja sigue un rato por su cuenta. Es la diferencia entre
+        algo que flota y algo que va montado en una cinta.
+
+     3. VOLTEO. Una hoja de verdad da vueltas de campana sobre su eje largo:
+        se ve por delante, se pone de canto (desaparece) y se ve por detrás.
+        Se consigue apretando la anchura hasta cero y devolviéndola — un coseno
+        en scaleX. Es EL truco de las hojas, y es el que faltaba.
+
+     4. MANERAS. No todas las hojas hacen lo mismo: una planea en eses largas,
+        otra se pone a voltear como loca, otra se engancha en un remolino y
+        gira sobre sí misma, y otra se queda casi quieta hasta que la pilla una
+        racha. Y cada tantos segundos cambian de manera. Ver MANERAS.
+
+     5. FONDO. Como con la lluvia: unas están cerca (grandes, rápidas, opacas)
+        y otras lejos (pequeñas, lentas, transparentes).
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /* Las cuatro maneras de volar. Los números son multiplicadores sobre el
+     comportamiento base, así que se pueden tocar sin romper nada.
+       arrastre  cuánto la lleva el viento (1 = lo normal)
+       revuelo   cuánta turbulencia le entra
+       vuelta    cuánto voltea sobre su eje
+       giro      cuánto gira en el plano de la pantalla
+       caida     cuánto pesa */
+  var MANERAS = [
+    { nombre: 'planea',   arrastre: 1.00, revuelo: 0.55, vuelta: 0.45, giro: 0.30, caida: 0.75, peso: 0.34 },
+    { nombre: 'voltea',   arrastre: 1.15, revuelo: 1.10, vuelta: 2.40, giro: 1.60, caida: 1.00, peso: 0.28 },
+    { nombre: 'remolino', arrastre: 0.70, revuelo: 1.90, vuelta: 1.30, giro: 3.20, caida: 0.55, peso: 0.22 },
+    { nombre: 'rezagada', arrastre: 0.38, revuelo: 0.80, vuelta: 0.70, giro: 0.50, caida: 1.35, peso: 0.16 }
+  ];
+  // Cada cuánto se replantea una hoja lo que está haciendo.
+  var CAMBIA_MANERA = [1800, 6500];
+
+  /* Los tres planos de profundidad, como en la lluvia. */
+  var PLANOS_HOJA = [
+    { escala: [1.1, 1.5], vel: [0.55, 0.80], alfa: 0.45, peso: 0.30 },
+    { escala: [1.6, 2.2], vel: [0.85, 1.15], alfa: 0.78, peso: 0.44 },
+    { escala: [2.3, 3.1], vel: [1.15, 1.55], alfa: 1.00, peso: 0.26 }
+  ];
+
+  function porPeso(lista) {
+    var r = Math.random(), acum = 0;
+    for (var i = 0; i < lista.length; i++) {
+      acum += lista[i].peso;
+      if (r <= acum) return i;
+    }
+    return lista.length - 1;
+  }
+
   // ------------------------------------------------------------------ hojas
   function nuevaHoja(st, dentro) {
     var L = lienzo(st.scene.cameras.main);
@@ -125,18 +192,36 @@
     // scrollFactor va en el HIJO aunque esté dentro del contenedor: Phaser lo
     // lee del hijo, no del padre, al montar la matriz de cámara.
     s.setScrollFactor(0);
-    s.setScale(2);
     if (st.capa) st.capa.add(s);
+
+    var n = porPeso(PLANOS_HOJA);
+    var P = PLANOS_HOJA[n];
     var hoja = {
-      spr: s,
-      // Cada hoja lleva su propio ritmo de bamboleo: si todas ondularan igual
-      // se vería la cuadrícula.
-      fase: az(0, Math.PI * 2),
-      vaiven: az(0.6, 2.2),
-      amplitud: az(6, 22),
-      vel: az(0.75, 1.35),
-      giro: az(-2.2, 2.2)
+      spr: s, plano: n,
+      tam: az(P.escala[0], P.escala[1]),
+      alfaMax: P.alfa,
+      vel: az(P.vel[0], P.vel[1]),
+
+      /* TRES RITMOS QUE NO CUADRAN ENTRE SÍ. Si fueran múltiplos —0.8, 1.6,
+         3.2— el patrón se repetiría cada pocos segundos y el ojo lo pillaría.
+         Elegidos al azar en rangos que no se solapan, el ciclo conjunto dura
+         minutos: en la práctica, nunca. */
+      r1: az(0.45, 0.95), r2: az(1.30, 2.40), r3: az(3.10, 5.60),
+      f1: az(0, 6.283), f2: az(0, 6.283), f3: az(0, 6.283),
+      revuelo: az(14, 46),               // cuánto se la lleva la turbulencia
+
+      // Velocidad propia: el viento la empuja, no la coloca. Ver INERCIA.
+      vx: 0, vy: 0,
+      inercia: az(1.6, 3.4),             // cuánto tarda en obedecer al viento
+
+      volteo: az(0, 6.283),              // por dónde va la vuelta de campana
+      volteoVel: az(2.2, 7.5),
+      giro: az(-2.6, 2.6),
+
+      manera: porPeso(MANERAS),
+      cambiaEn: 0
     };
+    s.setScale(hoja.tam);
     reponer(st, hoja, dentro, w, h);
     return hoja;
   }
@@ -148,25 +233,94 @@
     // mal: al reciclarse por abajo la x apenas cambia, y la y sube y baja sola
     // por el bamboleo.
     hoja.vueltas = (hoja.vueltas || 0) + (dentro ? 0 : 1);
-    // Entra por el lado de barlovento y sale por el otro.
-    hoja.x = dentro ? az(-40, w + 40) : (st.dir > 0 ? az(-90, -20) : az(w + 20, w + 90));
-    hoja.y = az(-30, h + 30);
+    /* POR DÓNDE ENTRA.
+
+       Antes entraban TODAS por el lado de barlovento, a la misma altura de
+       reparto. Se veía una fila. Ahora una de cada cuatro cae DESDE ARRIBA,
+       como si se acabara de soltar de un árbol, y las demás entran de lado a
+       cualquier altura. Con eso el reparto deja de tener forma. */
+    var deArriba = Math.random() < 0.25;
+    if (dentro) {
+      hoja.x = az(-40, w + 40);
+      hoja.y = az(-30, h + 30);
+    } else if (deArriba) {
+      hoja.x = az(-60, w + 60);
+      hoja.y = az(-90, -20);
+    } else {
+      hoja.x = st.dir > 0 ? az(-110, -20) : az(w + 20, w + 110);
+      hoja.y = az(-60, h * 0.9);
+    }
+    // Nace ya con algo de velocidad: aparecer parada y arrancar se ve.
+    hoja.vx = st.dir * VEL_BASE * hoja.vel * (st.fuerza || 0.3) * az(0.5, 1);
+    hoja.vy = az(4, 22);
+    hoja.manera = porPeso(MANERAS);
+    hoja.cambiaEn = 0;
     hoja.spr.setPosition(hoja.x, hoja.y);
     hoja.spr.setAlpha(0);
   }
 
-  function moverHojas(st, dt, w, h) {
+  function moverHojas(st, dt, w, h, ahora) {
+    /* LA RACHA, aparte de la fuerza media. `st.fuerza` ya sube y baja despacio;
+       esto es el golpe corto de viento que va por encima, con dos ritmos que
+       tampoco cuadran entre sí. Es lo que hace que las hojas salgan disparadas
+       de vez en cuando en vez de desfilar. */
+    var racha = 1
+      + 0.55 * Math.sin(ahora * 0.00081)
+      + 0.30 * Math.sin(ahora * 0.00237 + 2.1);
+    if (racha < 0.25) racha = 0.25;
+
     for (var i = 0; i < st.hojas.length; i++) {
       var j = st.hojas[i];
-      j.fase += dt * j.vaiven;
-      j.x += st.dir * VEL_BASE * j.vel * st.fuerza * dt;
-      // El bamboleo va en la vertical y depende de la fuerza: con poco viento
-      // las hojas casi solo caen, con mucho salen disparadas.
-      j.y += (Math.sin(j.fase) * j.amplitud + 14) * st.fuerza * dt;
+
+      // ¿Le toca cambiar de manera de volar?
+      if (ahora >= j.cambiaEn) {
+        j.manera = porPeso(MANERAS);
+        j.cambiaEn = ahora + az(CAMBIA_MANERA[0], CAMBIA_MANERA[1]);
+      }
+      var M = MANERAS[j.manera];
+
+      // ── turbulencia: tres senos que no repiten ──
+      j.f1 += dt * j.r1; j.f2 += dt * j.r2; j.f3 += dt * j.r3;
+      var tx = (Math.sin(j.f1) * 0.6 + Math.sin(j.f2) * 0.3 + Math.sin(j.f3) * 0.1);
+      var ty = (Math.cos(j.f1 * 0.83) * 0.5 + Math.cos(j.f2 * 1.17) * 0.35 +
+                Math.cos(j.f3 * 0.61) * 0.15);
+      var revuelo = j.revuelo * M.revuelo * st.fuerza;
+
+      // ── a dónde QUIERE llevarla el aire ──
+      var metaX = st.dir * VEL_BASE * j.vel * M.arrastre * st.fuerza * racha
+                  + tx * revuelo;
+      var metaY = (14 * M.caida + ty * revuelo * 0.7) * st.fuerza
+                  + 10 * M.caida;         // siempre pesa un poco, aunque no sople
+
+      // ── inercia: se acerca a esa meta, no salta a ella ──
+      var k = Math.min(1, dt * j.inercia);
+      j.vx += (metaX - j.vx) * k;
+      j.vy += (metaY - j.vy) * k;
+
+      j.x += j.vx * dt;
+      j.y += j.vy * dt;
       j.spr.setPosition(j.x, j.y);
-      j.spr.setAlpha(st.fuerza * 0.95);
-      j.spr.rotation += j.giro * st.fuerza * dt;
-      if (j.x < -110 || j.x > w + 110 || j.y > h + 60) reponer(st, j, false, w, h);
+
+      /* ── VOLTEO: la vuelta de campana ──
+         scaleX pasa por CERO y se hace negativo: la hoja se pone de canto y
+         luego enseña la otra cara. Se le deja un mínimo (0.12) porque una
+         escala exactamente 0 hace que Phaser marque la matriz como degenerada
+         y algunos navegadores parpadean. */
+      j.volteo += dt * j.volteoVel * M.vuelta * (0.4 + 0.6 * st.fuerza);
+      var cara = Math.cos(j.volteo);
+      var anchura = cara < 0 ? Math.min(cara, -0.12) : Math.max(cara, 0.12);
+      j.spr.setScale(j.tam * anchura, j.tam);
+
+      // ── giro en el plano de la pantalla ──
+      j.spr.rotation += j.giro * M.giro * st.fuerza * dt;
+
+      /* La opacidad NO es plana: la hoja se ve menos cuando está de canto,
+         igual que se ve menos de verdad. Un detalle de nada que remata el
+         volteo — sin él, la hoja "de canto" sigue igual de sólida y se nota
+         que es un truco de escala. */
+      j.spr.setAlpha(st.fuerza * j.alfaMax * (0.55 + 0.45 * Math.abs(cara)));
+
+      if (j.x < -140 || j.x > w + 140 || j.y > h + 80) reponer(st, j, false, w, h);
     }
   }
 
@@ -201,15 +355,34 @@
   }
 
   // ---------------------------------------------------------------- árboles
-  /** Los árboles del mapa, con su rotación original guardada. */
+  /** Los árboles y arbustos del mapa, con su rotación original guardada. */
   function arboles(scene) {
     var out = [];
-    var fam = [['sprite_arbolx', 18], ['sprite_pinos', 45]];
+    /* Los arbustos también se mecen: son las plantas que el jugador tiene
+       DELANTE de la cara la mayor parte del tiempo, y verlos clavados mientras
+       los árboles del fondo se mueven es lo que delata que el viento es un
+       adorno. Se mecen más que un árbol —pesan menos— y eso se nota. */
+    /* OJO CON EL NOMBRE: los arbustos llevan GUION BAJO antes del número
+       (`sprite_arbustos_7`) y los árboles no (`sprite_pinos7`). Se pone en la
+       tabla y no se adivina, porque adivinarlo es exactamente la clase de
+       detalle que deja la mitad del bosque sin mecerse y nadie sabe por qué. */
+    var fam = [['sprite_arbolx', 18, 1.0],
+               ['sprite_pinos', 45, 0.85],
+               ['sprite_arbustos_', 28, 1.9]];
     for (var f = 0; f < fam.length; f++) {
       for (var i = 1; i <= fam[f][1]; i++) {
         var spr = scene[fam[f][0] + i];
         if (!spr || spr.active === false || typeof spr.rotation !== 'number') continue;
-        out.push({ spr: spr, base: spr.rotation, fase: Math.random() * 6.28 });
+        out.push({
+          spr: spr, base: spr.rotation,
+          fase: Math.random() * 6.28,
+          // Cada planta con SU ritmo: si todas se mecieran a la vez, el bosque
+          // entero respiraría como un solo bicho y se vería fatal.
+          ritmo: az(0.75, 1.45),
+          // Y con su peso: el que más pesa, menos se mueve y más tarde llega.
+          peso: fam[f][2] * az(0.75, 1.3),
+          fase2: Math.random() * 6.28
+        });
       }
     }
     return out;
@@ -218,12 +391,24 @@
   function mecerArboles(st, ahora) {
     /* Los sprites del mapa tienen origen (0,1) —la esquina de abajo a la
        izquierda—, así que rotar los inclina desde el PIE. Eso es exactamente lo
-       que hace falta: el árbol se mece sin despegarse del suelo. */
+       que hace falta: el árbol se mece sin despegarse del suelo.
+
+       LA RACHA VA APARTE DEL BALANCEO. Son dos cosas distintas y hasta ahora
+       eran una: el balanceo es la planta oscilando en su sitio, cada una a lo
+       suyo; la racha es el aire pasando, y esa SÍ empuja a todas hacia el mismo
+       lado a la vez. Sumadas, el bosque se mueve como un bosque: cada árbol a
+       su aire y, de vez en cuando, todos inclinados a la vez cuando pasa el
+       golpe de viento. Con un solo seno por árbol eso no podía salir. */
+    var racha = 0.55 + 0.45 * Math.sin(ahora * 0.00081);
     for (var i = 0; i < st.arboles.length; i++) {
       var a = st.arboles[i];
       if (!a.spr || a.spr.active === false) continue;
-      var v = Math.sin(ahora / 700 + a.fase) * INCLINA * st.fuerza;
-      a.spr.rotation = a.base + v;
+      var balanceo = Math.sin(ahora / 700 * a.ritmo + a.fase) * 0.62
+                   + Math.sin(ahora / 1900 * a.ritmo + a.fase2) * 0.38;
+      // El empuje siempre va hacia donde sopla: la planta no se dobla contra
+      // el viento, y por eso la racha se SUMA con signo en vez de oscilar.
+      var empuje = st.dir * racha * 0.55;
+      a.spr.rotation = a.base + (balanceo + empuje) * INCLINA * a.peso * st.fuerza;
     }
   }
 
@@ -266,6 +451,23 @@
     log('amaina; vuelve en', Math.round((st.proximaEn - st.scene.time.now) / 60000), 'min');
   }
 
+  /**
+   * El viento de fondo que trae la estación, aparte de las rachas.
+   *
+   * 0 = nada (primavera y verano: si sopla, es porque hay racha).
+   * Se pregunta al clima, que es quien sabe en qué estación está el mundo; si
+   * el módulo no está, no hay fondo y todo sigue como antes.
+   */
+  function fondoDeEstacion() {
+    var e = null;
+    try { if (window.GFClima && window.GFClima.estado) e = window.GFClima.estado(); } catch (x) {}
+    if (!e) return 0;
+    if (e.estacion === 'otono') return 0.30;
+    // En invierno solo si no está nevando: la nieve ya llena el aire.
+    if (e.estacion === 'invierno' && !(e.activo && e.nieve)) return 0.16;
+    return 0;
+  }
+
   function actualizar(st, ahora, delta) {
     var scene = st.scene;
     if (!scene || !scene.cameras || !scene.cameras.main) return;
@@ -287,9 +489,46 @@
       if (!st.mandado && st.soplando) { parar(st); return; }
     } else if (!st.soplando) {
       if (ahora >= st.proximaEn) soplar(st);
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       EL OTOÑO SIEMPRE TIENE HOJAS EN EL AIRE
+       ──────────────────────────────────────────────────────────────────
+       En otoño las hojas caen porque están muertas, no porque sople. Hasta
+       ahora, entre racha y racha —que son nueve a veintidós minutos— el
+       otoño se veía EXACTAMENTE igual que el verano salvo por el tinte
+       ámbar, y eso es lo que hacía que la estación no se notara.
+
+       Así que en otoño hay un suelo de viento permanente y flojito: lo justo
+       para que caigan cuatro hojas y los árboles respiren. Las rachas siguen
+       llegando encima, igual que siempre, y se notan igual porque son mucho
+       más fuertes que esto.
+
+       En invierno también, pero menos y solo si NO está nevando: la nieve ya
+       llena el aire ella sola y sumarle hojas es ruido.
+       ══════════════════════════════════════════════════════════════════ */
+    var suelo = fondoDeEstacion();
+    if (!st.soplando) {
+      if (suelo <= 0) {
+        /* Se acabó el otoño (o ha empezado a nevar) y ya no hay fondo. Hay que
+           DEVOLVER a los árboles su rotación: si no, se quedarían torcidos
+           para siempre en el ángulo del último fotograma, porque nadie más los
+           va a tocar hasta la próxima racha. Solo se hace una vez, no en cada
+           fotograma. */
+        if (st.fuerza > 0) {
+          st.fuerza = 0;
+          enderezarArboles(st);
+          for (var q = 0; q < st.hojas.length; q++) st.hojas[q].spr.setAlpha(0);
+        }
+        return;
+      }
+      // Sin racha pero con otoño: se mece flojito y caen hojas.
+      st.fuerza = suelo;
+      if (!st.arboles.length) st.arboles = arboles(st.scene);
+      moverHojas(st, dt, w, h, ahora);
+      mecerArboles(st, ahora);
       return;
     }
-    if (!st.soplando) return;
 
     // Arrecia y amaina poco a poco: entrar de golpe se nota falso.
     var t = ahora - st.empiezaEn;
@@ -300,8 +539,11 @@
     // Rachas: la fuerza no es plana, va y viene.
     st.fuerza = Math.max(0, f * (0.72 + 0.28 * Math.sin(ahora / 2300)) *
                             (st.mandado !== null ? st.fuerzaMandada : 1));
+    // Y nunca por debajo del suelo de la estación: al amainar una racha en
+    // otoño, las hojas no se paran en seco, se quedan cayendo despacio.
+    if (st.fuerza < suelo) st.fuerza = suelo;
 
-    moverHojas(st, dt, w, h);
+    moverHojas(st, dt, w, h, ahora);
     moverRafagas(st, dt, w, h);
     mecerArboles(st, ahora);
 
@@ -480,6 +722,9 @@
     _interno: { actualizar: actualizar, soplarEn: soplar, pararEn: parar,
                 lienzo: lienzo, MARGEN: MARGEN,
                 arboles: arboles, mecerArboles: mecerArboles,
-                enderezarArboles: enderezarArboles }
+                enderezarArboles: enderezarArboles,
+                moverHojas: moverHojas, reponer: reponer, nuevaHoja: nuevaHoja,
+                fondoDeEstacion: fondoDeEstacion,
+                MANERAS: MANERAS, PLANOS_HOJA: PLANOS_HOJA }
   };
 })();

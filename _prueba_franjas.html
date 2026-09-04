@@ -30,7 +30,22 @@ window.PLANTA = (location.hash || '#L').slice(1);
 // Planta de la casa: dos alas a distinta altura. (mundo)
 function montarColisiones(caja) {
   var w = caja.ancho, x = caja.x, abajo = caja.abajo;
-  if (window.PLANTA === 'W') {
+  if (window.PLANTA === 'pino') {
+    /* EL CASO DEL ÁRBOL, que es el que se veía roto en el juego.
+
+       Un pino tiene el tronco en el centro y nada más tocando el suelo; pero
+       en el mapa, a su izquierda y a su derecha, hay OTROS árboles cuyas
+       colisiones caen dentro de su caja. Eso es lo que hacía creer a la sonda
+       que el pino tenía planta ancha y lo partía en franjas.
+
+       Con el arreglo NO debe partirse: 'franjas de la casa' tiene que quedar
+       en 1 por mucho que estas colisiones digan lo contrario. */
+    colisiones = [
+      { x: x,             y: abajo - 30,  width: w * 0.30, height: 28 },  // vecino izq.
+      { x: x + w * 0.42,  y: abajo - 22,  width: w * 0.16, height: 20 },  // su tronco
+      { x: x + w * 0.72,  y: abajo - 120, width: w * 0.28, height: 118 }  // vecino der.
+    ];
+  } else if (window.PLANTA === 'W') {
     // Tres alas: hundida, saliente, hundida. El caso peor.
     colisiones = [
       { x: x,              y: abajo - 130, width: w * 0.30, height: 60 },
@@ -70,7 +85,9 @@ function chocaConEscenario(x, y, w, h) {
 var Escena = {
   preload: function () {
     escena = this;
-    this.load.image('casa', './Game/Objetos/casa forma L.png');
+    this.load.image('casa', window.PLANTA === 'pino'
+      ? './Game/Objetos/arbol_pinos.png'
+      : './Game/Objetos/casa forma L.png');
     this.load.image('suelo', './recortadas/low/tile_r0_c0_id1_low.png');
     for (var i = 1; i <= 7; i++) {
       this.load.image('run' + i, './Game/Sprites/Soulbound/personaje1/abajo/run_' + i + '.png');
