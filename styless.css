@@ -11877,14 +11877,19 @@ canvas,
 .battle-ui .bf-timertext { font-size: 11px; font-weight: 700; color: var(--bf-muted); }
 
 /* ── ZONA CENTRAL ─────────────────────────────────────────────────────────── */
+/* El rótulo del estado va ARRIBA de la zona central, no en medio.
+   Centrado caía justo encima de los dos luchadores y les tapaba la cara y el
+   cartel del nombre — se veía "Choose your cards" cruzado sobre el perro.
+   Pegado arriba deja libre el terreno de juego, que es donde pasan las cosas. */
 .battle-ui .bf-status {
   flex: 1 1 auto;
-  display: grid; place-items: center;
+  display: grid; place-items: start center;
   text-align: center;
-  padding: 8px 16px;
-  font-size: clamp(14px, 2.4vw, 22px); font-weight: 700;
+  padding: 6px 16px 8px;
+  font-size: clamp(13px, 2.1vw, 19px); font-weight: 700;
   color: #cfe0ff;
-  text-shadow: 0 2px 18px rgba(60,120,240,.35);
+  text-shadow: 0 2px 10px rgba(0,0,0,.85), 0 2px 18px rgba(60,120,240,.35);
+  pointer-events: none;
 }
 
 .battle-ui .bf-reveal:not(.hidden) {

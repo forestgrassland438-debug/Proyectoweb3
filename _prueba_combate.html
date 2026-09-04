@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Banco de pruebas — combate</title>
+<link rel="stylesheet" href="./styless.css">
+<style>
+  html,body{margin:0;background:#0b0d12;color:#dfe7d8;font:12px/1.5 system-ui,sans-serif;overflow:hidden}
+  #mando{position:fixed;left:6px;bottom:6px;z-index:99999;background:rgba(8,10,16,.92);
+         padding:6px 8px;border-radius:8px;max-width:min(96vw,760px)}
+  #mando button{margin:2px;padding:4px 8px;border:0;border-radius:5px;
+                background:#26303f;color:#dfe7d8;cursor:pointer;font-size:11px}
+  #mando button:hover{background:#3a4a63}
+  #mando b{color:#f0e6a0}
+</style>
+</head>
+<body>
+<div id="juego"></div>
+<div id="battleUI" class="battle-ui hidden">
+
+  <!-- ===== Barra superior: marcadores + turno con temporizador ===== -->
+  <div class="bf-topbar">
+    <div class="bf-card bf-you">
+      <div class="bf-portrait" id="bfYouPortrait">🐾</div>
+      <div class="bf-cardbody">
+        <div class="bf-top">
+          <span class="bf-name" id="bfYouName">—</span>
+          <span class="bf-lvl" id="bfYouLvl"></span>
+        </div>
+        <div class="bf-sub"><span id="bfYouPlayer"></span> <span class="bf-addr" id="bfYouAddr"></span></div>
+        <div class="bf-hpbar"><i id="bfYouHp" style="width:100%"></i><b class="bf-shieldbar" id="bfYouShieldBar"></b></div>
+        <div class="bf-hptext"><span id="bfYouHpTxt">—</span><span class="bf-shield" id="bfYouShield"></span></div>
+      </div>
+    </div>
+
+    <div class="bf-turnbox">
+      <div class="bf-turnlabel" id="bfTurnLabel">VS</div>
+      <div class="bf-timer" id="bfTimer"><i id="bfTimerFill"></i></div>
+      <div class="bf-timertext" id="bfTimerText"></div>
+    </div>
+
+    <div class="bf-card bf-rival">
+      <div class="bf-cardbody bf-rightbody">
+        <div class="bf-top">
+          <span class="bf-lvl" id="bfRivalLvl"></span>
+          <span class="bf-name" id="bfRivalName">—</span>
+        </div>
+        <div class="bf-sub"><span class="bf-addr" id="bfRivalAddr"></span> <span id="bfRivalPlayer"></span></div>
+        <div class="bf-hpbar bf-hpbar-rival"><i id="bfRivalHp" style="width:100%"></i><b class="bf-shieldbar" id="bfRivalShieldBar"></b></div>
+        <div class="bf-hptext bf-right"><span class="bf-shield" id="bfRivalShield"></span><span id="bfRivalHpTxt">—</span></div>
+      </div>
+      <div class="bf-portrait bf-portrait-rival" id="bfRivalPortrait">🐾</div>
+    </div>
+  </div>
+
+  <!-- ===== Estado grande (buscando, resultado…) ===== -->
+  <div class="bf-status" id="bfStatus">Searching for an opponent…</div>
+
+  <!-- ===== Reveal de cartas jugadas (aparece unos segundos y se va) ===== -->
+  <div class="bf-reveal hidden" id="bfReveal">
+    <div class="bf-reveal-side bf-reveal-you"><div class="bf-reveal-label">YOU</div><div class="bf-reveal-cards" id="bfRevealYou"></div></div>
+    <div class="bf-reveal-vs">⚔</div>
+    <div class="bf-reveal-side bf-reveal-rival"><div class="bf-reveal-label">RIVAL</div><div class="bf-reveal-cards" id="bfRevealRival"></div></div>
+  </div>
+
+  <!-- ===== Capa de números flotantes de daño/cura ===== -->
+  <div class="bf-floaters" id="bfFloaters"></div>
+
+  <!-- ===== Parte inferior: energía (a un lado) + mano de cartas ===== -->
+  <div class="bf-bottom">
+    <div class="bf-energywrap">
+      <div class="bf-energy-title">ENERGY</div>
+      <div class="bf-energy" id="bfEnergy" aria-label="Energy"></div>
+      <div class="bf-energy-count" id="bfEnergyCount">3 / 3</div>
+    </div>
+
+    <div class="bf-hand" id="bfHand"></div>
+
+    <div class="bf-actions">
+      <button id="bfEndTurn" class="bf-btn bf-btn-main" disabled>End turn</button>
+      <button id="bfLeave" class="bf-btn bf-btn-ghost">Leave</button>
+    </div>
+  </div>
+</div>
+
+  <!-- ===== Tabla de clasificación de batallas P2P (se abre desde el cartel) ===== -->
+<div id="battleRankOverlay" class="battle-rank-overlay hidden">
+  <div class="battle-rank-card" role="dialog" aria-modal="true" aria-labelledby="battleRankTitle">
+    <div class="battle-rank-head">
+      <h2 id="battleRankTitle">🏆 Pet Battle Ranking</h2>
+      <button class="battle-rank-close" id="battleRankCloseBtn" aria-label="Close">✕</button>
+    </div>
+    <p id="battleRankSeason" class="battle-rank-season"></p>
+    <div class="battle-rank-scroll">
+      <table class="battle-rank-table">
+        <thead>
+          <tr>
+            <th>#</th><th>Player</th><th>Pet</th><th>Wallet</th>
+            <th>Pts</th><th>W/L</th><th>Streak</th>
+          </tr>
+        </thead>
+        <tbody id="battleRankBody"></tbody>
+      </table>
+    </div>
+    <div class="battle-rank-foot">
+      <span id="battleRankMe"></span>
+      <button id="battleRankRefreshBtn" class="battle-rank-refresh">🔄 Refresh</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Aviso de girar el teléfono durante la batalla ===== -->
+<div id="battleRotateNotice" class="battle-rotate-notice hidden">
+  <div class="battle-rotate-inner">
+    <div class="battle-rotate-icon">📱↻</div>
+    <p>Rotate your phone to landscape to play the battle comfortably.</p>
+  </div>
+</div>
+<div id="mando"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script>window.GF_BATALLA_DEBUG = true;</script>
+<script src="./gf-batalla-arte.js?v=1"></script>
+<script src="./Scenes/BattleScene.js?v=1"></script>
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   SOCKET FALSO
+   Reproduce EXACTAMENTE los eventos que manda server2.js, para poder mirar
+   la batalla entera sin servidor, sin sesión y sin gastar batallas diarias.
+   ═══════════════════════════════════════════════════════════════════════ */
+function SocketFalso() {
+  this.connected = true;
+  this._h = {};
+}
+SocketFalso.prototype.on = function (ev, fn) { (this._h[ev] = this._h[ev] || []).push(fn); return this; };
+SocketFalso.prototype.once = function (ev, fn) { return this.on(ev, fn); };
+SocketFalso.prototype.off = function (ev, fn) {
+  if (!this._h[ev]) return this;
+  this._h[ev] = this._h[ev].filter(function (f) { return f !== fn; });
+  return this;
+};
+SocketFalso.prototype.removeAllListeners = function () { this._h = {}; };
+// En el banco el socket NUNCA se cae: la escena lo desconecta al apagarse
+// y si nos lo creemos, la siguiente batalla se queda en 'Connecting...'.
+SocketFalso.prototype.disconnect = function () {};
+SocketFalso.prototype.connect = function () { this.connected = true; };
+SocketFalso.prototype.emit = function (ev, d) { console.log('[cliente →]', ev, d || ''); };
+SocketFalso.prototype.recibir = function (ev, d) {
+  console.log('[← servidor]', ev, d);
+  (this._h[ev] || []).slice().forEach(function (f) { try { f(d); } catch (e) { console.error(e); } });
+};
+window.globalSocket = new SocketFalso();
+
+var MAXHP = 260, TURNO = 0;
+var yo = { playerName: 'holi', petName: 'Holi', address: '0xabc123def456', addressShort: '0xabc1...f456',
+           level: 11, hp: MAXHP, maxHp: MAXHP, isBot: false, species: 'perro', status: [] };
+var rival = { playerName: 'Red Fox · Round 4', petName: 'Rusty', address: '', addressShort: 'BOT',
+              level: 11, hp: 280, maxHp: 280, isBot: true, species: 'zorro', status: [] };
+
+var MANO = [
+  { id:'zarpazo', name:'Claw',      emoji:'🐾', cost:1, type:'attack',  dmg:24, desc:'A fast swipe.' },
+  { id:'guardia', name:'Guard',     emoji:'🛡️', cost:1, type:'defense', shield:30, desc:'Raises a shield.' },
+  { id:'mordisco',name:'Fire Bite', emoji:'🔥', cost:2, type:'attack',  dmg:52, desc:'Burns the rival.' },
+  { id:'lamer',   name:'Lick Wounds',emoji:'💚',cost:2, type:'heal',    heal:40, desc:'Heals you.' },
+  { id:'trueno',  name:'Thunder Fang',emoji:'⚡',cost:2, type:'attack',  dmg:46, desc:'Shocking bite.' }
+];
+
+var juego = new Phaser.Game({
+  type: Phaser.AUTO, parent: 'juego',
+  width: window.innerWidth, height: window.innerHeight,
+  backgroundColor: '#0b0d12', pixelArt: true, roundPixels: true,
+  scene: [window.BattleScene]
+});
+
+function arrancar(species) {
+  rival.species = species || rival.species;
+  // limpiar() de la escena desconecta el socket; para el banco hay que
+  // volver a conectarlo o la siguiente batalla se queda en "Connecting…".
+  window.globalSocket.connected = true;
+  juego.scene.stop('BattleScene');
+  juego.scene.start('BattleScene', {
+    playerName: 'holi', petName: 'Holi', address: '0xabc123def456',
+    nivel: 11, serverBase: '', volverA: 'BattleScene', modo: 'bot'
+  });
+  setTimeout(emparejar, 260);
+}
+
+function emparejar() {
+  TURNO = 0;
+  yo.hp = MAXHP; rival.hp = rival.maxHp;
+  window.globalSocket.recibir('battle:matched', {
+    matchId: 'b_' + Date.now(), mode: 'bot', round: 4,
+    you: JSON.parse(JSON.stringify(yo)), rival: JSON.parse(JSON.stringify(rival))
+  });
+  setTimeout(nuevoTurno, 600);
+}
+
+function nuevoTurno() {
+  TURNO++;
+  window.globalSocket.recibir('battle:turnStart', {
+    turn: TURNO, energy: 3, msToChoose: 20000,
+    hand: MANO, you: JSON.parse(JSON.stringify(yo)), rival: JSON.parse(JSON.stringify(rival))
+  });
+}
+
+function resolver(cartasMias, cartasRival, dYo, dRival, cura, escudo) {
+  yo.hp = Math.max(0, yo.hp - dYo);
+  rival.hp = Math.max(0, rival.hp - dRival);
+  if (cura) yo.hp = Math.min(yo.maxHp, yo.hp + cura);
+  window.globalSocket.recibir('battle:turn', {
+    turn: TURNO,
+    you: JSON.parse(JSON.stringify(yo)), rival: JSON.parse(JSON.stringify(rival)),
+    yourCards: cartasMias, rivalCards: cartasRival,
+    damageToRival: dRival, damageToYou: dYo, healYou: cura || 0,
+    shieldYou: escudo || 0, shieldRival: 0,
+    log: 'You hit for ' + dRival + '. The rival hits for ' + dYo + '.'
+  });
+  if (yo.hp <= 0 || rival.hp <= 0) {
+    setTimeout(function () { acabar(rival.hp <= 0 ? 'win' : 'lose'); }, 1400);
+  } else {
+    setTimeout(nuevoTurno, 2600);
+  }
+}
+
+function acabar(res) {
+  window.globalSocket.recibir('battle:end', {
+    result: res, reason: 'ko', pointsEarned: res === 'win' ? 30 : 5,
+    you: JSON.parse(JSON.stringify(yo)), rival: JSON.parse(JSON.stringify(rival)),
+    daily: { done: 4, max: 5 }
+  });
+}
+
+// ── mando ──
+function boton(txt, fn) {
+  var b = document.createElement('button');
+  b.textContent = txt; b.onclick = fn;
+  document.getElementById('mando').appendChild(b);
+}
+var M = document.getElementById('mando');
+M.innerHTML = '<b>rival:</b> ';
+Object.keys(window.BattleScene.ESPECIES).forEach(function (id) {
+  boton(id, function () { arrancar(id); });
+});
+M.appendChild(document.createElement('br'));
+boton('turno normal', function () { resolver([MANO[0]], [MANO[0]], 22, 26, 0, 0); });
+boton('crítico', function () { resolver([MANO[2]], [MANO[0]], 12, 78, 0, 0); });
+boton('fuego', function () { resolver([MANO[2]], [], 0, 55, 0, 0); });
+boton('rayo', function () { resolver([MANO[4]], [], 0, 48, 0, 0); });
+boton('escudo', function () { resolver([MANO[1]], [MANO[0]], 6, 0, 0, 30); });
+boton('cura', function () { resolver([MANO[3]], [MANO[0]], 18, 0, 40, 0); });
+boton('gano', function () { rival.hp = 0; acabar('win'); });
+boton('pierdo', function () { yo.hp = 0; acabar('lose'); });
+
+window.addEventListener('resize', function () {
+  juego.scale.resize(window.innerWidth, window.innerHeight);
+});
+setTimeout(function () { arrancar('zorro'); }, 500);
+</script>
+</body>
+</html>

@@ -465,6 +465,11 @@
       'padding:20px 22px;min-width:260px;max-width:90vw;color:#e8e8f0;',
       'box-shadow:0 12px 40px rgba(0,0,0,.55)}',
       '#gf-pet-card h3{margin:0 0 4px;font-size:18px;letter-spacing:.3px}',
+      // El nivel, como una chapita dorada bajo el nombre.
+      '#gf-pet-nivel{display:inline-block;margin:0 0 8px;padding:2px 10px;',
+      'border-radius:999px;background:rgba(255,214,120,.14);color:#ffd678;',
+      'font-size:12px;font-weight:700;letter-spacing:.04em;',
+      'border:1px solid rgba(255,214,120,.35)}',
       '#gf-pet-sub{margin:0 0 14px;font-size:12px;color:#9aa0b4}',
       '#gf-pet-bar{height:10px;background:#14161e;border-radius:6px;overflow:hidden;',
       'margin:0 0 6px;border:1px solid #3a3f52}',
@@ -494,6 +499,10 @@
     p.innerHTML =
       '<div id="gf-pet-card">' +
         '<h3 id="gf-pet-nombre">Pet</h3>' +
+        // El NIVEL, junto al nombre. Lo pidió el jugador: lo veía flotando
+        // sobre el perro en el mapa pero no al abrir su panel, que es
+        // justamente donde uno va a mirar cómo lleva a su mascota.
+        '<p id="gf-pet-nivel">Lv.1</p>' +
         '<p id="gf-pet-sub">Choose how your pet behaves</p>' +
         '<div id="gf-pet-bar"><div></div></div>' +
         '<p id="gf-pet-hp">100 / 100</p>' +
@@ -553,6 +562,18 @@
     var esc = escenaViva();
     var nombre = (esc && esc.petName && esc.petName !== '---') ? esc.petName : 'Pet';
     p.querySelector('#gf-pet-nombre').textContent = nombre;
+
+    /* NIVEL DE LA MASCOTA. Lo calcula el servidor con las batallas ganadas y
+       viaja en /api/load y en el aviso `petLevelUpdate`; la escena lo guarda
+       en `petLevel`. Si todavía no ha llegado, nivel 1 — que es lo que dice el
+       propio esquema del servidor por defecto. */
+    var nivel = 1;
+    if (esc && Number.isFinite(Number(esc.petLevel))) nivel = Math.max(1, Number(esc.petLevel));
+    else if (window.globalPetData && Number.isFinite(Number(window.globalPetData.petLevel))) {
+      nivel = Math.max(1, Number(window.globalPetData.petLevel));
+    }
+    var elNivel = p.querySelector('#gf-pet-nivel');
+    if (elNivel) elNivel.textContent = 'Level ' + nivel;
     p.querySelector('#gf-pet-bar').firstChild.style.width = estado.health + '%';
     p.querySelector('#gf-pet-bar').firstChild.style.background =
       '#' + colorVida(estado.health).toString(16).padStart(6, '0');

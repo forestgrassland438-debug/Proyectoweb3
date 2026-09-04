@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Banco de pruebas — arte de batalla</title>
+<style>
+  html,body{margin:0;background:#0b0d12;color:#dfe7d8;font:12px/1.5 system-ui,sans-serif}
+  #botones{position:fixed;left:6px;top:6px;z-index:9}
+  #panel{position:fixed;right:6px;top:6px;z-index:9;background:rgba(8,10,16,.9);
+         padding:6px 9px;border-radius:8px}
+  button{margin:2px;padding:4px 8px;border:0;border-radius:5px;background:#26303f;color:#dfe7d8;cursor:pointer}
+  button.on{background:#5f86c6;color:#0b0d12}
+  b{color:#f0e6a0}
+</style>
+</head>
+<body>
+<div id="juego"></div>
+<div id="botones"></div>
+<div id="panel">…</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script>window.GF_BATALLA_DEBUG = true;</script>
+<script src="./gf-batalla-arte.js?v=1"></script>
+<script>
+var escena, fondo, piezas = [], arenaActual = 'pradera', verPiezas = false;
+
+var Escena = {
+  create: function () {
+    escena = this;
+    window.GFBatallaArte.efectos(this);
+    pintarArena('pradera');
+    window.escena = this;
+  }
+};
+
+function pintarArena(id) {
+  arenaActual = id;
+  var r = window.GFBatallaArte.arena(escena, id, 4242);
+  if (fondo) fondo.destroy();
+  if (!r) { document.getElementById('panel').textContent = 'no se pudo crear'; return; }
+  var W = escena.scale.width, H = escena.scale.height;
+  fondo = escena.add.image(W / 2, H / 2, r.clave).setDepth(0);
+  var esc = Math.max(W / fondo.width, H / fondo.height);
+  fondo.setScale(esc);
+
+  // La línea del suelo, marcada: es donde la escena planta a los luchadores.
+  if (window.__linea) window.__linea.destroy();
+  window.__linea = escena.add.rectangle(W / 2, H * r.suelo, W, 2, 0xff4466, 0.7).setDepth(1);
+
+  document.getElementById('panel').innerHTML =
+    'arena: <b>' + r.nombre + '</b>  (' + id + ')<br>línea de suelo: <b>' +
+    r.suelo + '</b> → y=' + Math.round(H * r.suelo);
+  document.querySelectorAll('#botones button[data-a]').forEach(function (b) {
+    b.classList.toggle('on', b.dataset.a === id);
+  });
+}
+
+function mostrarPiezas() {
+  verPiezas = !verPiezas;
+  piezas.forEach(function (p) { p.destroy(); });
+  piezas = [];
+  if (!verPiezas) return;
+  var ids = Object.keys(window.GFBatallaArte._interno.EFECTOS);
+  var W = escena.scale.width;
+  var x = 60, y = 66;
+  ids.forEach(function (id) {
+    var img = escena.add.image(x, y, window.GFBatallaArte.pieza(id)).setDepth(20);
+    var s = Math.min(1, 74 / Math.max(img.width, img.height));
+    img.setScale(s);
+    var t = escena.add.text(x, y + 46, id, { fontSize: '11px', color: '#ffe9a8' })
+      .setOrigin(0.5, 0).setDepth(21);
+    piezas.push(img, t);
+    x += 96;
+    if (x > W - 50) { x = 70; y += 116; }
+  });
+}
+
+new Phaser.Game({
+  type: Phaser.AUTO, parent: 'juego',
+  width: 900, height: 506,
+  backgroundColor: '#0b0d12',
+  scene: Escena
+});
+
+setTimeout(function () {
+  var cont = document.getElementById('botones');
+  window.GFBatallaArte.ORDEN_ARENAS.forEach(function (id) {
+    var b = document.createElement('button');
+    b.textContent = window.GFBatallaArte.ARENAS[id].nombre;
+    b.dataset.a = id;
+    b.onclick = function () { pintarArena(id); };
+    cont.appendChild(b);
+  });
+  var p = document.createElement('button');
+  p.textContent = 'ver piezas';
+  p.onclick = mostrarPiezas;
+  cont.appendChild(p);
+}, 400);
+</script>
+</body>
+</html>

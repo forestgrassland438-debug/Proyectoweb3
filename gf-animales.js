@@ -1040,6 +1040,9 @@
     if (r < 0.14) {
       var f = fuenteDe(scene);
       if (f && (!p || Math.hypot(f.x - p.x, f.y - p.y) > a.ficha.huye * 1.3)) {
+        // Se apunta EN QUE fuente se va a bañar: al llegar hace falta para
+        // ponerse por delante de ella (ver el aterrizaje en 'bana').
+        a.fuente = f.clave;
         volarA(st, a, { x: f.x, y: f.y }, 'bana', null);
         return;
       }
@@ -1138,7 +1141,19 @@
           a.fase = a.alFinal;
           a.soporte = null;
           spr.setPosition(a.destino.x, a.destino.y);
-          spr.setDepth(a.destino.y);
+          /* EL AVE QUE SE BANA VA POR DELANTE DE LA FUENTE.
+
+             El agua de un pozo esta MUY por encima de su linea de suelo, asi
+             que con la profundidad normal (= su Y) el pajaro quedaba DETRAS
+             del brocal y no se veia ni un pluma: se oia el chapoteo y no habia
+             pajaro. Se le da la profundidad de la fuente + 2, igual que se
+             hace con un ave posada en una rama. */
+          var prof = a.destino.y;
+          if (a.alFinal === 'bana' && a.fuente) {
+            var fte = scene[a.fuente];
+            if (fte && typeof fte.depth === 'number') prof = fte.depth + 2;
+          }
+          spr.setDepth(prof);
           anim(a, a.alFinal === 'come' ? 'come'
                  : a.alFinal === 'bana' ? 'bana' : 'camina');
           a.hasta = ahora + (a.alFinal === 'bana'
@@ -1263,6 +1278,17 @@
 
   function actualizarSombra(a) {
     if (!a.sombra || a.muerto) return;
+
+    /* BAÑÁNDOSE NO HAY SOMBRA EN EL SUELO.
+
+       El ave está metida en el agua, a media altura del pozo. Su sombra, que
+       va a la profundidad de su Y, quedaría DETRÁS del brocal y encima no
+       significa nada: la sombra sirve para anclar al bicho al suelo, y aquí no
+       hay suelo debajo, hay agua. Se apaga mientras dura el baño y vuelve sola
+       en cuanto el pájaro sale volando. */
+    if (a.fase === 'bana') { a.sombra.setVisible(false); return; }
+    if (!a.sombra.visible) a.sombra.setVisible(true);
+
     var volando = (a.fase === 'volando');
     if (!volando) a.sombraSuelo = a.spr.y;    // recuerda dónde está el suelo
 
@@ -1673,6 +1699,89 @@
   var PROB_NIDO     = 0.30;     // al posarse, a veces se pone a construir
   var DIST_PAREJA   = 520;      // hasta dónde busca compañía
 
+  /* ══════════════════════════════════════════════════════════════════════
+     DÓNDE ESTÁ EL AGUA, DE VERDAD
+     ──────────────────────────────────────────────────────────────────────
+     EL FALLO QUE ESTO ARREGLA — "los pájaros no están en el sitio correcto
+     para bañarse":
+
+     El sitio del baño se calculaba como `b.bottom - 4`, o sea el borde de
+     ABAJO del sprite del pozo. Pero el pozo no es una charca: es un tejadillo,
+     una polea, un brocal de piedra y, ahí en medio, un agujero con agua. El
+     borde de abajo del sprite es el SUELO delante del pozo. Los pájaros
+     aterrizaban en la hierba y hacían la animación de bañarse en seco.
+
+     Y no se puede arreglar con un número a ojo, porque cada fuente tiene el
+     agua a una altura distinta: en `pozo.png` (68×92) está en la fila 57 y en
+     `Fuente_de_agua.png` (48×48) en la 28.
+
+     Así que se MIDE. Se buscan los píxeles azules del PNG y se coge la banda
+     más BAJA: en un pozo, lo azul de arriba es el tejado y lo azul de abajo es
+     el agua, siempre. De ahí salen el centro y el ancho reales del agua, y el
+     pájaro se posa dentro. Se mide una vez por textura y se guarda.
+     ══════════════════════════════════════════════════════════════════════ */
+  var cacheAgua = {};
+
+  /**
+   * Devuelve, en fracciones de la textura (0..1):
+   *   { cy, alto, cx, ancho }  el centro y el tamaño de la lámina de agua.
+   * null si la textura no se puede leer o no tiene nada azul.
+   */
+  function medirAgua(scene, clave) {
+    if (Object.prototype.hasOwnProperty.call(cacheAgua, clave)) return cacheAgua[clave];
+    var r = null;
+    try {
+      var tex = scene.textures.get(clave);
+      var img = tex && tex.getSourceImage ? tex.getSourceImage() : null;
+      if (!img || !img.width) throw new Error('sin imagen');
+      var w = img.width, h = img.height;
+      var cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      var ctx = cv.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0);
+      var d = ctx.getImageData(0, 0, w, h).data;
+
+      /* Azul = el canal azul manda con claridad sobre los otros dos. El +18 y
+         el +8 no son iguales a propósito: el agua de estos PNG tira a cian, así
+         que el verde le anda más cerca que el rojo. */
+      var bandas = [], actual = null, y, x;
+      for (y = 0; y < h; y++) {
+        var n = 0, sx = 0, minX = w, maxX = -1;
+        for (x = 0; x < w; x++) {
+          var i = (y * w + x) * 4;
+          if (d[i + 3] > 200 && d[i + 2] > d[i] + 18 && d[i + 2] > d[i + 1] + 8 && d[i + 2] > 70) {
+            n++; sx += x;
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+          }
+        }
+        if (n > 0) {
+          if (!actual) actual = { y0: y, y1: y, n: 0, sx: 0, minX: w, maxX: -1 };
+          actual.y1 = y; actual.n += n; actual.sx += sx;
+          if (minX < actual.minX) actual.minX = minX;
+          if (maxX > actual.maxX) actual.maxX = maxX;
+        } else if (actual) {
+          bandas.push(actual); actual = null;
+        }
+      }
+      if (actual) bandas.push(actual);
+      if (!bandas.length) throw new Error('sin agua');
+
+      // La banda MÁS BAJA es el agua; lo de arriba es tejado, polea o cielo.
+      var agua = bandas[bandas.length - 1];
+      r = {
+        cy:    (agua.y0 + agua.y1 + 1) / 2 / h,
+        alto:  (agua.y1 - agua.y0 + 1) / h,
+        cx:    (agua.sx / agua.n) / w,
+        ancho: (agua.maxX - agua.minX + 1) / w
+      };
+    } catch (e) {
+      r = null;   // textura de otro dominio, o una fuente sin agua pintada
+    }
+    cacheAgua[clave] = r;
+    return r;
+  }
+
   /** La fuente del pueblo, si existe. Es donde se bañan. */
   function fuenteDe(scene) {
     for (var i = 0; i < FUENTES.length; i++) {
@@ -1680,9 +1789,29 @@
       if (!f || f.active === false) continue;
       var b;
       try { b = f.getBounds(); } catch (e) { continue; }
-      // al borde del agua, no en el centro del pilón
-      return { x: b.centerX + az(-b.width * 0.25, b.width * 0.25),
-               y: b.bottom - 4, clave: FUENTES[i] };
+
+      var clave = f.texture && f.texture.key;
+      var agua = clave ? medirAgua(scene, clave) : null;
+
+      if (agua) {
+        /* DENTRO del agua, no al borde. El pájaro se mete en el charco:
+           un poco por debajo del centro de la lámina (ahí es donde apoya) y
+           repartido a lo ancho del agua, sin salirse. */
+        var cx = b.x + agua.cx * b.width;
+        var mediaAncho = agua.ancho * b.width * 0.30;
+        return {
+          x: cx + az(-mediaAncho, mediaAncho),
+          y: b.y + (agua.cy + agua.alto * 0.18) * b.height,
+          clave: FUENTES[i],
+          enAgua: true
+        };
+      }
+
+      /* Sin poder medir (textura ilegible): al menos no en el suelo de delante.
+         Dos tercios de la altura es donde está el agua en las dos fuentes que
+         tiene el juego, así que es una apuesta mucho mejor que el borde. */
+      return { x: b.centerX + az(-b.width * 0.18, b.width * 0.18),
+               y: b.y + b.height * 0.62, clave: FUENTES[i], enAgua: false };
     }
     return null;
   }
@@ -2568,7 +2697,8 @@
       huirAve: huirAve, huirDe: huirDe, moverTierra: moverTierra,
       profundidadPosado: profundidadPosado, sitioEnPie: sitioEnPie,
       objetivoDe: objetivoDe, actualizarAgresivo: actualizarAgresivo,
-      fuenteDe: fuenteDe, esDeNoche: esDeNoche, companiaDe: companiaDe,
+      fuenteDe: fuenteDe, medirAgua: medirAgua, FUENTES: FUENTES,
+      esDeNoche: esDeNoche, companiaDe: companiaDe,
       irseJuntas: irseJuntas, construirNido: construirNido,
       actualizarConejo: actualizarConejo, decidirConejo: decidirConejo,
       abrirMadriguera: abrirMadriguera, enCasa: enCasa,

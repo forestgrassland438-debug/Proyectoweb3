@@ -5057,6 +5057,10 @@ this.anims.create({
        decidir el aspecto. Sin WebGL o en calidad baja no se monta y el juego
        se ve exactamente igual que antes. */
     if (window.GFPost) window.GFPost.montar(this);
+    /* Pisadas: polvo y huellas bajo el jugador, la mascota y los demás. Va
+       después del clima porque lo que levanta un pie depende de si el suelo
+       está seco, mojado o nevado. */
+    if (window.GFPisadas) window.GFPisadas.montar(this);
 
     console.log('game create ejecutándose');
 

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Banco de pruebas — pisadas</title>
+<style>
+  html,body{margin:0;background:#101408;color:#dfe7d8;font:12px/1.5 system-ui,sans-serif}
+  #panel{position:fixed;right:6px;top:6px;z-index:9;background:rgba(8,12,8,.94);
+         padding:8px 10px;border-radius:8px;width:230px;white-space:pre-wrap}
+  #botones{position:fixed;left:6px;top:6px;z-index:9}
+  button{margin:2px;padding:4px 8px;border:0;border-radius:5px;background:#2c3a20;color:#dfe7d8;cursor:pointer}
+  b{color:#f0e6a0}
+</style>
+</head>
+<body>
+<div id="juego"></div>
+<div id="botones"></div>
+<div id="panel">…</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script>
+/* Clima falso: gf-pisadas le pregunta qué se pisa (seco / agua / nieve). */
+var clima = { activo: true, lluvia: false, nieve: false, estacion: 'verano' };
+window.GFClima = { estado: function () { return clima; } };
+window.GFGraphics = { get: function () { return { calidad: 'alta' }; } };
+window.GF_PISADAS_DEBUG = true;
+</script>
+<script src="./gf-profundidad.js?v=1"></script>
+<script src="./gf-pisadas.js?v=1"></script>
+<script>
+var escena, jugador, perro, auto = true;
+
+var Escena = {
+  preload: function () {
+    escena = this;
+    this.load.image('suelo', './recortadas/low/tile_r0_c0_id1_low.png');
+    this.load.image('perro', './Game/Sprites/mascota/derecha/run_1.png');
+    for (var i = 1; i <= 7; i++) {
+      this.load.image('run' + i, './Game/Sprites/Soulbound/personaje1/abajo/run_' + i + '.png');
+    }
+  },
+  create: function () {
+    for (var y = 0; y < 8; y++) for (var x = 0; x < 12; x++) {
+      this.add.image(x * 128, y * 128, 'suelo').setOrigin(0).setDisplaySize(128, 128).setDepth(-10);
+    }
+    this.anims.create({ key: 'andar',
+      frames: [1,2,3,4,5,6,7].map(function (i) { return { key: 'run' + i }; }),
+      frameRate: 10, repeat: -1 });
+
+    jugador = this.add.sprite(400, 400, 'run1').setOrigin(0.5, 1).setScale(2).setDepth(400);
+    jugador.play('andar');
+    this.player = jugador;
+
+    // La "mascota" va detrás: sirve para ver que deja huella más pequeña.
+    perro = this.add.sprite(340, 430, 'perro').setOrigin(0.5, 1).setScale(2).setDepth(430);
+    this.dog = { sprite: perro };
+
+    this.cameras.main.setZoom(1).startFollow(jugador, true, 0.08, 0.08);
+    window.GFPisadas.montar(this);
+    window.escena = this;
+  },
+  update: function (t, d) {
+    if (auto) {
+      // Un ocho, para ver curvas y cambios de sentido.
+      var s = t / 1400;
+      jugador.x = 480 + Math.sin(s) * 300;
+      jugador.y = 400 + Math.sin(s * 2) * 170;
+      perro.x = 480 + Math.sin(s - 0.55) * 300;
+      perro.y = 430 + Math.sin((s - 0.55) * 2) * 170;
+    }
+    jugador.setDepth(jugador.y);
+    perro.setDepth(perro.y);
+
+    var e = window.GFPisadas.estado();
+    var st = escena.__gfPisadas;
+    var vivas = st ? st.huellas.filter(function (h) { return h.hasta > t; }).length : 0;
+    var motas = st ? st.motas.filter(function (m) { return m.hasta > t; }).length : 0;
+    document.getElementById('panel').innerHTML =
+      'terreno: <b>' + e.terreno + '</b>\n' +
+      'huellas vivas: <b>' + vivas + '</b> / ' + e.huellas + '\n' +
+      'polvo vivo: <b>' + motas + '</b> / ' + e.motas + '\n' +
+      'siguiendo: <b>' + e.siguiendo.join(', ') + '</b>';
+  }
+};
+
+new Phaser.Game({
+  type: Phaser.AUTO, parent: 'juego',
+  width: 820, height: 500,
+  backgroundColor: '#243018', pixelArt: true, roundPixels: true,
+  scene: Escena
+});
+
+function poner(txt, fn) {
+  var b = document.createElement('button');
+  b.textContent = txt; b.onclick = fn;
+  document.getElementById('botones').appendChild(b);
+}
+poner('seco',  function () { clima.lluvia = false; clima.nieve = false; });
+poner('lluvia', function () { clima.lluvia = true;  clima.nieve = false; });
+poner('nieve', function () { clima.lluvia = false; clima.nieve = true; });
+poner('parar/andar', function () { auto = !auto; });
+</script>
+</body>
+</html>
