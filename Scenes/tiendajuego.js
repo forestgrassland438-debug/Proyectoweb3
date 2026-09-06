@@ -629,20 +629,25 @@ showNotification(message, type = 'info') {
         
     
 
-    /* FUGA QUE ESTO ARREGLA — se apilaban los apagados.
+    /* SE APILABAN LOS APAGADOS. Medido, no supuesto.
      *
-     * Phaser REUTILIZA la instancia de la escena y NO borra los listeners de
-     * `this.events` al apagarla: `Systems.shutdown()` emite SHUTDOWN y punto.
-     * Como esto está en create(), cada ida y vuelta entre el juego y la tienda
-     * registraba OTRO par de manejadores sobre la MISMA función.
+     * Phaser NO borra los listeners de `this.events` al apagar una escena:
+     * `Systems.shutdown()` emite SHUTDOWN y punto. Como esto está en create(),
+     * cada vez que se vuelve a arrancar LA MISMA INSTANCIA se registra otro par
+     * de manejadores encima de los anteriores.
      *
-     * A la décima entrada, salir de la escena ejecutaba shutdown() diez veces
-     * seguidas: diez barridos del TextureManager, diez limpiezas de
-     * TileManagers y diez cierres de socket. Se notaba como un tirón al cambiar
-     * de escena que se alargaba durante toda la sesión.
+     * Comprobado con Phaser 3.90 y una escena de mentira: arrancarla cinco
+     * veces deja los listeners de 'shutdown' en 13, 14, 15, 16 y 17, y el
+     * manejador acaba ejecutándose DIEZ veces en cuatro apagados. Aplicado a
+     * shutdown() eso son diez barridos del TextureManager, diez limpiezas de
+     * TileManagers y diez cierres de socket en la misma transición.
      *
-     * El `off` de delante lo hace idempotente: quita el de la entrada anterior
-     * (si lo hay) y deja uno solo. */
+     * Aquí, ADEMÁS, hay una red de seguridad que ya existía: al entrar en una
+     * escena se hace stop+remove+add de la otra, y con la instancia nueva el
+     * contador vuelve a 13 (también medido). O sea que por el camino normal
+     * juego↔tienda esto no llegaba a morder. Pero solo por ese camino: en
+     * cuanto alguien arranque la escena sin quitarla antes, se apila. El `off`
+     * de delante lo hace idempotente y no cuesta nada. */
     this.events.off('shutdown', this.shutdown, this);
     this.events.off('destroy', this.shutdown, this);
     this.events.on('shutdown', this.shutdown, this);
@@ -3971,6 +3976,29 @@ removeOtherPlayer(playerId) {
       // Solo dejar de hacer referencia a él
       this.socket = null;
       
+      /* EL HUB DE NOTIFICACIONES, QUE SE QUEDABA VIVO.
+       *
+       * FUGA QUE ESTO ARREGLA: en create() se hace `new NotificationHub(...)`
+       * bajo un `if (!this.notifications)`. Esa guarda no sirve de nada aquí,
+       * porque al entrar en la tienda GameScene hace stop+remove+add de esta
+       * escena: la instancia es NUEVA cada vez, y con ella `this.notifications`
+       * vuelve a estar sin definir.
+       *
+       * O sea, un NotificationHub por cada visita a la tienda. Y cada uno
+       * arranca su propio `setInterval` de un segundo (`_startAutoCleanup`) que
+       * nadie para nunca. A las veinte visitas hay veinte relojes latiendo cada
+       * segundo, cada uno reteniendo su hub, sus pools y sus nodos del DOM.
+       *
+       * GameScene ya hacía esto mismo en `cleanupScene`; aquí se había quedado
+       * sin hacer. `destroy()` para el reloj, borra el nodo del hub y vacía los
+       * mapas. */
+      if (this.notifications) {
+        try {
+          if (typeof this.notifications.destroy === 'function') this.notifications.destroy();
+        } catch (e) { /* al salir da igual */ }
+        this.notifications = null;
+      }
+
       // Remover referencia de escena activa
       if (window.activeScene === this) {
         window.activeScene = null;
@@ -4461,7 +4489,11 @@ removeOtherPlayer(playerId) {
       bubble.innerHTML = '';
     }, 4000);
   }
-  _escHtml(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  /* Aqui habia una `_escHtml` PISADA por otra del mismo nombre mas abajo (las
+     dos en la misma clase: gana la ultima). Se ha borrado la de aqui, que
+     ademas era la mala: no pasaba el valor por String() —asi que reventaba
+     con cualquier cosa que no fuera texto— y no escapaba las comillas
+     dobles. La que corre de verdad hace las dos cosas. */
   _showRemoteChatBubble(playerId, text) {
     const op = this.otherPlayers && this.otherPlayers[playerId];
     if (!op || !op.sprite) return;
@@ -4622,7 +4654,19 @@ removeOtherPlayer(playerId) {
     } catch(_) {}
   }
 
-  _escHtml(t) { return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  /* Escapa tambien la comilla SIMPLE y trata null/undefined: si algun atributo
+     se escribe con comillas simples (`data-x='...'`), sin esto se sale de el.
+     Es el mismo escapado que usan GameScene, CraftingHub y missionspanel: que
+     los cuatro sean iguales evita justo el hueco que hubo aqui, donde convivian
+     dos versiones y la floja se comia a la buena. */
+  _escHtml(t) {
+    return String(t === null || t === undefined ? '' : t)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
 
   /** Show a centered screen banner for 2.5 s (green by default, red if isError, blue if isInfo) */
   _showCenterBanner(message, isError = false, isInfo = false) {

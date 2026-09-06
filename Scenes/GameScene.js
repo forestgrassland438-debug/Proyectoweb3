@@ -1507,14 +1507,31 @@ async completeMission(missionId) {
   }
 }
 
-// Método auxiliar para actualizar datos del jugador después de misión
+/* OJO: `getPlayerDataForMissions` NO EXISTE, y este método tampoco lo llama
+ * nadie.
+ *
+ * O sea que hoy no revienta, pero es una mina: quien enganche esto a la
+ * entrega de una misión se llevará "this.getPlayerDataForMissions is not a
+ * function" en la primera. No se sustituye por `loadPlayerData()` —que sí
+ * existe— porque no sirve: aquélla no DEVUELVE los datos, los aplica sobre la
+ * escena, y todo lo que hay aquí abajo espera un objeto con `moneda`,
+ * `nivel_exp` y `nivel`. Cambiarlo sin saber qué se quería sería adivinar.
+ *
+ * Lo cazó tools/metodos-inexistentes.js.
+ */
 async updatePlayerDataAfterMission(missionId) {
   try {
     console.log('🔄 Actualizando datos del jugador después de misión...');
-    
+
+    if (typeof this.getPlayerDataForMissions !== 'function') {
+      console.warn('[misiones] updatePlayerDataAfterMission está incompleto: ' +
+                   'falta getPlayerDataForMissions (ver la nota de encima)');
+      return;
+    }
+
     // Obtener datos actualizados del jugador
     const playerData = await this.getPlayerDataForMissions();
-    
+
     if (playerData) {
       // Actualizar monedas locales
       if (playerData.moneda !== undefined) {
@@ -2644,14 +2661,45 @@ showNotification(message, type = 'info') {
 }
 
 /**
- * SHUTDOWN MEJORADO PARA GAMESCENE
+ * SUELTA LA MEMORIA PESADA DE LA ESCENA: los TileManagers, las texturas del
+ * terreno y los objetos del mapa.
+ *
+ * ═══ ESTO ERA CÓDIGO MUERTO, Y ERA LA FUGA MÁS GRANDE DEL PROYECTO ═══
+ *
+ * Se llamaba `shutdown()`. Y `GameScene` tiene OTRO método `shutdown()` más
+ * abajo (el que cierra la sala del socket). En una clase de JavaScript, si dos
+ * métodos se llaman igual, el segundo PISA al primero sin decir nada: no hay
+ * error, ni aviso, ni nada. Así que este de aquí no se ejecutaba NUNCA, y con
+ * él se perdían las tres cosas que más memoria liberan.
+ *
+ * Y no había red de seguridad: la limpieza de texturas de terreno que hay en
+ * `cleanupScene()` está COMENTADA, y además usa la lista vieja de claves
+ * ('tile_r0_c0'…) que ya no existe desde que se les puso el nivel de detalle
+ * delante ('tile_hd_r0_c0'). O sea que por ningún camino se soltaba un tile.
+ *
+ * La cuenta, que está explicada abajo: cada tile son 2048×2048×4 = 16 MB de
+ * memoria de vídeo, hasta 144 MB por salida de la escena, y como el jugador
+ * puede cambiar la calidad se podían acumular las versiones hd, md y low del
+ * MISMO tile. Cada viaje a la tienda dejaba todo eso retenido.
+ *
+ * Ahora se llama con un nombre que no choca con nada, y el `shutdown()` bueno
+ * la invoca. TRES COSAS DEL ORIGINAL NO SE HAN TRAÍDO, a propósito:
+ *
+ *   · `this.socket.disconnect()`. El socket es GLOBAL y compartido con la
+ *     tienda; el shutdown bueno dice expresamente "no desconectar el socket
+ *     global, solo salir de la sala". Desconectarlo aquí habría dejado sin
+ *     chat ni jugadores al llegar a la tienda.
+ *   · `time.removeAllEvents()` y `input.keyboard.removeAllListeners()`, que
+ *     `cleanupScene()` ya hace (y con más cuidado).
+ *   · `scale.off('resize', this._onResize)`: `_onResize` está comentado desde
+ *     hace tiempo, así que no quitaba nada.
  */
-shutdown() {
-  console.log('🔄 APAGANDO GAMESCENE - LIMPIEZA COMPLETA');
-  
+liberarMemoriaPesada() {
+  console.log('🔄 LIBERANDO LA MEMORIA PESADA DE GAMESCENE');
+
   // 1. LIMPIAR TILEMANAGERS PRIMERO (esto libera ~144MB)
   const tileCleanup = this.cleanupTileManagers();
-  
+
   // 2. Limpiar texturas pesadas del terreno
   //
   // FUGA QUE ESTO ARREGLA: aquí había una lista fija —'tile_r0_c0', 'tile_r0_c1'…—
@@ -2670,39 +2718,40 @@ shutdown() {
   //
   // Ahora se barre por prefijo, así que sigue funcionando aunque cambien los
   // niveles de detalle o el tamaño de la rejilla.
+  /* El prefijo `tile_` solo lo llevan los trozos de terreno que fabrica
+     tileManager (`tile_${lod}_r${row}_c${col}`). Las del tileset del mapa se
+     llaman 'tiles' y 'tiles2', SIN barra baja, así que no las toca. */
   let _texturasTerreno = 0;
-  this.textures.getTextureKeys().forEach(textureKey => {
-    if (/^tile_/.test(textureKey)) {
-      this.textures.remove(textureKey);
-      _texturasTerreno++;
+  if (this.textures && typeof this.textures.getTextureKeys === 'function') {
+    this.textures.getTextureKeys().forEach(textureKey => {
+      if (/^tile_/.test(textureKey)) {
+        this.textures.remove(textureKey);
+        _texturasTerreno++;
+      }
+    });
+    if (_texturasTerreno) {
+      console.log(`🗑️ Texturas de terreno liberadas: ${_texturasTerreno} (~${(_texturasTerreno * 16).toFixed(0)} MB)`);
     }
-  });
-  if (_texturasTerreno) {
-    console.log(`🗑️ Texturas de terreno liberadas: ${_texturasTerreno} (~${(_texturasTerreno * 16).toFixed(0)} MB)`);
+  } else {
+    /* Se avisa ALTO. Si esto llegara a pasar volveríamos a la fuga de antes
+       —hasta 144 MB de vídeo retenidos en cada salida— y sin este aviso sería
+       otra vez invisible, que es justo como estuvo tanto tiempo. */
+    console.warn('⚠️ El gestor de texturas ya no está disponible: NO se han ' +
+                 'podido liberar los tiles del terreno. Hay que llamar a ' +
+                 'liberarMemoriaPesada() antes de que Phaser desmonte los sistemas.');
   }
 
-  // 3. Limpiar socket
-  if (this.socket) {
-    this.socket.disconnect();
-    this.socket = null;
-    console.log('🔌 Socket desconectado');
-  }
-
-  // 4. Limpiar objetos del juego
+  /* 3. Los objetos del mapa. `cleanupScene()` ya los recorre antes que a las
+        texturas, así que normalmente aquí no queda ninguno; se deja como red
+        por si a esta función se la llama por su cuenta. */
   this.objetos?.forEach(obj => {
-    if (obj.imagen && typeof obj.imagen.destroy === 'function') {
+    if (obj && obj.imagen && typeof obj.imagen.destroy === 'function') {
       obj.imagen.destroy();
     }
   });
   this.objetos = [];
-  
-  // 5. Limpiar temporizadores y listeners
-  this.time.removeAllEvents();
-  this.scale.off('resize', this._onResize);
-  this.input.keyboard?.removeAllListeners();
-  
-  console.log(`✅ GameScene completamente limpiada - Memoria liberada: ${tileCleanup.texturesRemoved} texturas pesadas`);
 
+  console.log(`✅ Memoria pesada liberada: ${tileCleanup.texturesRemoved} texturas de los TileManagers`);
 }
 
 
@@ -2746,20 +2795,25 @@ shutdown() {
 
     const isAuthenticated = await this.loadx();
         
-    /* FUGA QUE ESTO ARREGLA — se apilaban los apagados.
+    /* SE APILABAN LOS APAGADOS. Medido, no supuesto.
      *
-     * Phaser REUTILIZA la instancia de la escena y NO borra los listeners de
-     * `this.events` al apagarla: `Systems.shutdown()` emite SHUTDOWN y punto.
-     * Como esto está en create(), cada ida y vuelta entre el juego y la tienda
-     * registraba OTRO par de manejadores sobre la MISMA función.
+     * Phaser NO borra los listeners de `this.events` al apagar una escena:
+     * `Systems.shutdown()` emite SHUTDOWN y punto. Como esto está en create(),
+     * cada vez que se vuelve a arrancar LA MISMA INSTANCIA se registra otro par
+     * de manejadores encima de los anteriores.
      *
-     * A la décima entrada, salir de la escena ejecutaba shutdown() diez veces
-     * seguidas: diez barridos del TextureManager, diez limpiezas de
-     * TileManagers y diez cierres de socket. Se notaba como un tirón al cambiar
-     * de escena que se alargaba durante toda la sesión.
+     * Comprobado con Phaser 3.90 y una escena de mentira: arrancarla cinco
+     * veces deja los listeners de 'shutdown' en 13, 14, 15, 16 y 17, y el
+     * manejador acaba ejecutándose DIEZ veces en cuatro apagados. Aplicado a
+     * shutdown() eso son diez barridos del TextureManager, diez limpiezas de
+     * TileManagers y diez cierres de socket en la misma transición.
      *
-     * El `off` de delante lo hace idempotente: quita el de la entrada anterior
-     * (si lo hay) y deja uno solo. */
+     * Aquí, ADEMÁS, hay una red de seguridad que ya existía: al entrar en una
+     * escena se hace stop+remove+add de la otra, y con la instancia nueva el
+     * contador vuelve a 13 (también medido). O sea que por el camino normal
+     * juego↔tienda esto no llegaba a morder. Pero solo por ese camino: en
+     * cuanto alguien arranque la escena sin quitarla antes, se apila. El `off`
+     * de delante lo hace idempotente y no cuesta nada. */
     this.events.off('shutdown', this.shutdown, this);
     this.events.off('destroy', this.shutdown, this);
     this.events.on('shutdown', this.shutdown, this);
@@ -10560,40 +10614,12 @@ tryAlternativeItemSearch(slotIndex, itemId) {
 
 // BUSCAR ITEM EN INVENTARIO
 // REEMPLAZA ESTA FUNCIÓN:
-findItemInInventory(itemId) {
-  // Buscar en casillas principales
-  if (this.casillas && Array.isArray(this.casillas)) {
-    for (const slot of this.casillas) {
-      if (slot && slot.id === itemId) {
-        return { quantity: slot.count || slot.quantity || 1, source: 'inventory' };
-      }
-    }
-  }
-  
-  // Buscar en casillas extra (cofre)
-  if (this.casillasExtra && Array.isArray(this.casillasExtra)) {
-    for (const slot of this.casillasExtra) {
-      if (slot && slot.id === itemId) {
-        return { quantity: slot.count || slot.quantity || 1, source: 'cofre' };
-      }
-    }
-  }
-  
-  // Buscar en STATE.inventory si existe
-  if (this.STATE && this.STATE.inventory) {
-    if (Array.isArray(this.STATE.inventory)) {
-      for (const item of this.STATE.inventory) {
-        if (item && item.id === itemId) {
-          return { quantity: item.count || item.quantity || 1, source: 'state' };
-        }
-      }
-    }
-  }
-  
-  return null;
-}
-
-// CON ESTA VERSIÓN MEJORADA:
+/* Aqui habia OTRA `findItemInInventory` justo antes de esta, y en una clase de
+   JavaScript el segundo metodo con el mismo nombre pisa al primero sin avisar:
+   ni error, ni aviso, nada. O sea que la de arriba no se ejecutaba nunca. El
+   propio autor lo dejo escrito —"CON ESTA VERSION MEJORADA:"— pero se olvido de
+   borrar la vieja. Se ha borrado: el comportamiento no cambia (esta ya era la
+   que corria) y deja de haber una version fantasma que confunde al leer. */
 findItemInInventory(itemId) {
   console.log(`🔍 Buscando item: ${itemId}`);
   
@@ -17595,8 +17621,35 @@ removeOtherPlayer(playerId) {
   }
 
   /** Escapa HTML para evitar inyección */
+  /**
+   * Escapa texto para meterlo en HTML.
+   *
+   * DOS COSAS QUE LE FALTABAN, Y LAS DOS IMPORTAN:
+   *
+   * 1. NO PASABA POR String(). Si le llegaba un número —el id de un correo, la
+   *    cantidad de un objeto— `t.replace` no existe y saltaba
+   *    "t.replace is not a function".
+   *
+   * 2. NO ESCAPABA LAS COMILLAS, y eso lo dejaba inservible dentro de un
+   *    atributo, que es justo donde se usa (`data-id="…"`, `src="…"`). Con solo
+   *    &, < y > escapados, un valor como
+   *
+   *        x" onmouseover="robar()
+   *
+   *    cierra el atributo y abre otro: HTML inyectado sin usar ni un `<`. Y por
+   *    aquí pasan el asunto y el cuerpo de los correos, que los manda el
+   *    servidor, y los nombres del inventario.
+   *
+   * Es el mismo escapado que ya usaba tiendajuego (allí había dos versiones y
+   * la buena era ésta); ahora las dos escenas escapan igual.
+   */
   _escHtml(t) {
-    return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return String(t === null || t === undefined ? '' : t)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   /** Muestra un mensaje sobre un jugador remoto (otherPlayers) */
@@ -17987,7 +18040,14 @@ closeHudEstadisticas_1() {
     try { this.input.keyboard.enabled = true; } catch(e) {}
   }
   // quitar foco y quitar listeners stop si quedaran
-  if (this.searchInputEl_1) {
+  //
+  // El `&& this._hud_handlers_1` NO sobra: esa tabla de manejadores no la
+  // rellena nadie (solo se pone a null en destroyHudEstadisticas_1), así que
+  // leerle `.inputStop_1` lanzaría "Cannot read properties of undefined". Hoy
+  // no llega a pasar porque `hudEl_1` tampoco se asigna nunca y el `return` de
+  // arriba corta antes; en cuanto alguien monte el HUD de verdad, sí pasaría.
+  // destroyHudEstadisticas_1 ya se protegía igual.
+  if (this.searchInputEl_1 && this._hud_handlers_1) {
     try { this.searchInputEl_1.blur(); } catch(e) {}
     this.searchInputEl_1.removeEventListener('keydown', this._hud_handlers_1.inputStop_1, true);
     this.searchInputEl_1.removeEventListener('keyup', this._hud_handlers_1.inputStop_1, true);
@@ -17995,9 +18055,33 @@ closeHudEstadisticas_1() {
   }
 }
 
+/* OJO: `openHudEstadisticas_1` NO EXISTE.
+ *
+ * Toda esta familia (_hud_renderList…, _hud_showDetalle…, close…, toggle…,
+ * destroy…) está a medio hacer: nadie asigna nunca `this.hudEl_1`,
+ * `this.searchInputEl_1`, `this.detalleEl_1` ni `this._hud_handlers_1` — solo
+ * se ponen a null al destruir—, y nadie llama a este toggle. Por eso hoy no
+ * revienta: el `return` de la primera línea corta siempre.
+ *
+ * Pero el día que alguien monte el HUD y enganche un botón a este toggle, la
+ * primera pulsación lanzará "this.openHudEstadisticas_1 is not a function".
+ * No se escribe aquí ese método porque sería inventarse lo que tiene que
+ * hacer; se deja dicho para que quien lo monte sepa lo que le falta:
+ * `openHudEstadisticas_1`, la creación de los cuatro elementos y el relleno de
+ * `_hud_handlers_1`.
+ *
+ * Lo cazó tools/metodos-inexistentes.js.
+ */
 toggleHudEstadisticas_1() {
   if (!this.hudEl_1) return;
-  if (this.hudEl_1.classList.contains('hidden_1')) this.openHudEstadisticas_1();
+  if (this.hudEl_1.classList.contains('hidden_1')) {
+    if (typeof this.openHudEstadisticas_1 !== 'function') {
+      console.warn('[hud] openHudEstadisticas_1 no existe: el HUD de estadísticas ' +
+                   'está a medio hacer (ver la nota de encima de toggleHudEstadisticas_1)');
+      return;
+    }
+    this.openHudEstadisticas_1();
+  }
   else this.closeHudEstadisticas_1();
 }
 
@@ -18436,6 +18520,22 @@ cleanupSystems() {
         if (hub) hub.style.display = 'none';
         window.missionHub = null;
     }
+
+    /* Y EL PANEL DE MISIONES, que se creaba en cada entrada y no se soltaba.
+     *
+     * `new missionspanel(this)` está en create(), y como al ir a la tienda esta
+     * escena se quita y se vuelve a añadir, cada viaje construía uno nuevo. Ese
+     * panel cuelga cuatro manejadores: tres sobre botones del HUD (que son
+     * únicos en toda la página) y uno sobre `document` para la tecla ESC. Como
+     * nadie los quitaba, se apilaban: a la décima vuelta, pulsar la X llamaba a
+     * `close()` diez veces y quedaban diez paneles retenidos, cada uno con su
+     * referencia a una escena muerta. */
+    if (this.missionsPanel) {
+        try {
+            if (typeof this.missionsPanel.destroy === 'function') this.missionsPanel.destroy();
+        } catch (e) { /* al apagar da igual */ }
+        this.missionsPanel = null;
+    }
     
     // Limpiar notificaciones
     if (this.notifications) {
@@ -18507,7 +18607,7 @@ forceGarbageCollection() {
 // En la clase tiendajuego:
 shutdown() {
   console.log("🔄 Cerrando conexión de socket para tienda");
-  
+
   // Salir de la sala de la tienda
   if (this.socket && this.socket.connected) {
     this.socket.emit("joinRoom", {
@@ -18517,7 +18617,7 @@ shutdown() {
       y: 0
     });
   }
-  
+
   // Limpiar jugadores locales
   Object.values(this.otherPlayers).forEach(p => {
     if (p.sprite) p.sprite.destroy();
@@ -18525,7 +18625,7 @@ shutdown() {
     if (p.dog?.nameText) p.dog.nameText.destroy();
   });
   this.otherPlayers = {};
-  
+
   // No desconectar el socket global, solo salir de la sala
 
 
@@ -18540,7 +18640,18 @@ shutdown() {
 
     console.log('🔄 APAGANDO GAMESCENE');
     this.cleanupScene();
-    
+
+    /* Y AHORA LO GORDO: los TileManagers, las texturas del terreno y los
+       objetos del mapa. Va DESPUÉS de `cleanupScene()` a propósito, porque esa
+       es la que destruye los sprites que están usando esas texturas; quitar
+       una textura por debajo de un sprite vivo deja el sprite en blanco.
+
+       Esto no se llamaba desde ningún sitio: el método se llamaba `shutdown()`
+       igual que éste y quedaba pisado. Ver el comentario largo en
+       `liberarMemoriaPesada()`. */
+    try { this.liberarMemoriaPesada(); }
+    catch (e) { console.warn('⚠️ Error liberando la memoria pesada:', e); }
+
     // Asegurar que la cámara se detenga
     if (this.cameras && this.cameras.main) {
         this.cameras.main.stopFollow();
@@ -18564,9 +18675,16 @@ shutdown() {
 
 }
 
+/**
+ * Phaser NO llama a esto. Al apagar una escena emite el evento 'destroy', que
+ * ya está enganchado a `shutdown()` en create(); lo que Phaser llama es
+ * `Systems.destroy()`, que es otra cosa. Se deja porque es una entrada a mano
+ * razonable, pero sin el `super.destroy()` que había: `Phaser.Scene` no tiene
+ * ningún `destroy()`, así que esa línea reventaba con un TypeError en cuanto
+ * alguien llamara a este método.
+ */
 destroy() {
   this.shutdown();
-  super.destroy();
 }
 
 
@@ -22044,9 +22162,11 @@ reduceCursorQuantity(amount) {
 
 
   // Basic JWT format check
-  tokenValido(token) {
-    return typeof token === 'string' && token.split('.').length === 3;
-  }
+  /* Aqui habia una `tokenValido` que solo miraba que el token tuviera tres
+     trozos separados por puntos. Estaba PISADA por otra del mismo nombre mas
+     abajo (las dos en la misma clase, gana la ultima), que ademas es la buena:
+     descodifica el payload y comprueba la CADUCIDAD. Se ha borrado la de aqui:
+     no corria, y leerla hacia pensar que el token no se valida de verdad. */
 
 async initialize() {
   await this.loadPlayerData();
@@ -28639,7 +28759,7 @@ if (this.dogNameText) {
           'border-radius:6px;padding:10px;position:relative'
         ].join(';');
         item.innerHTML = `
-          <button class="_mail-x" data-id="${mail.id}" style="position:absolute;top:6px;right:8px;background:none;border:none;color:#ff6060;font-size:13px;cursor:pointer;line-height:1;" title="Delete">✕</button>
+          <button class="_mail-x" data-id="${this._escHtml(mail.id)}" style="position:absolute;top:6px;right:8px;background:none;border:none;color:#ff6060;font-size:13px;cursor:pointer;line-height:1;" title="Delete">✕</button>
           <div style="font-size:8px;color:${mail.read ? '#6080a0' : '#40a0ff'};padding-right:20px;">${this._escHtml(mail.subject || '(no subject)')}</div>
           <div style="font-size:7px;color:#c8e8ff;line-height:1.5;">${this._escHtml(mail.body || '')}</div>
           <div style="font-size:6px;color:#405070;margin-top:2px;">${mail.from ? 'From: '+this._escHtml(mail.from) : ''} ${mail.date ? '· '+new Date(mail.date).toLocaleDateString() : ''}</div>
@@ -29131,7 +29251,12 @@ if (this.dogNameText) {
           return;
         }
         slot._item = { id: sel.id, name: sel.name || sel.id, qty: sel.count || 1, idx: sel.idx, manualId: sel.idm };
-        slot.innerHTML = `<img src="${sel.image || ''}" style="width:40px;height:40px;object-fit:contain" onerror="this.style.display='none'"><span class="furnace-slot-label" style="font-size:9px;color:#7ec8ff">${slot._item.name} x${slot._item.qty}</span>`;
+        /* Escapado: `sel.image` y el nombre salen del inventario, y el
+           inventario llega de `/api/load/…`. Sin escapar, una comilla en el
+           nombre cierra el atributo `src` y lo que venga detrás se convierte en
+           HTML de la página. El resto del fichero ya escapa así (`_escHtml`);
+           esta línea se había quedado fuera. */
+        slot.innerHTML = `<img src="${this._escHtml(sel.image || '')}" style="width:40px;height:40px;object-fit:contain" onerror="this.style.display='none'"><span class="furnace-slot-label" style="font-size:9px;color:#7ec8ff">${this._escHtml(slot._item.name)} x${this._escHtml(slot._item.qty)}</span>`;
         slot.classList.add('has-item');
         document.getElementById('furnace-status').textContent = `${slot._item.name} added`;
         this._checkFurnaceReady();

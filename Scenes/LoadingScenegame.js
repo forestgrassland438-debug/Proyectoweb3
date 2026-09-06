@@ -1615,6 +1615,32 @@ class LoadingScenegame extends Phaser.Scene {
         this.intervalId = setInterval(() => this.checkTransition(), 2000);
 
         this.setupActivityTracking();
+
+        /* Y LOS RELOJES SE PARAN AL APAGAR LA ESCENA.
+         *
+         * FUGA QUE ESTO ARREGLA: los dos relojes de esta pantalla —el sondeo de
+         * transición cada 2 s y el auto-refresco del token— solo se paraban por
+         * los caminos "buenos" de `checkTransition`. Por cualquier otro (el hub
+         * de error, una escena que se arranca desde fuera, una recarga de
+         * sesión) se quedaban corriendo PARA SIEMPRE sobre una escena que ya no
+         * existe, y con ella colgando de la referencia.
+         *
+         * Aquí solo se paran los relojes. El `relayClient` NO se toca a
+         * propósito: su `cleanup()` tira las transacciones pendientes, y esta
+         * pantalla lanza transacciones on-chain que pueden seguir en vuelo
+         * cuando ya se ha pasado a GameScene (para eso está
+         * `esperarTransaccionesEnVuelo`). Matarlas aquí sería peor que la fuga.
+         */
+        const pararRelojes = () => this._pararRelojes();
+        this.events.once('shutdown', pararRelojes);
+        this.events.once('destroy',  pararRelojes);
+    }
+
+    /** Para los relojes de esta pantalla. Idempotente. */
+    _pararRelojes() {
+        if (this.intervalId) { clearInterval(this.intervalId); this.intervalId = null; }
+        this.stopAutoRefresh();
+        this._pararSeguimientoActividad();
     }
 
     // =========================================================================
@@ -1760,20 +1786,58 @@ class LoadingScenegame extends Phaser.Scene {
         this.loadingSystem.hide(600);
     }
 
+    /**
+     * Apunta cuándo fue la última vez que el jugador tocó algo.
+     *
+     * FUGA QUE ESTO ARREGLA: aquí se colgaban CUATRO manejadores de `window`
+     * y un `setInterval` de cinco minutos, y no se quitaba ninguno de los
+     * cinco. Los tres problemas que trae eso:
+     *
+     *   1. `window` no se destruye nunca, y cada manejador cierra sobre `this`
+     *      — o sea sobre la escena de carga ENTERA, con sus estrellas, su
+     *      loadingSystem y todo lo que cuelgue de ella. Mientras haya un
+     *      listener puesto, esa escena no se puede recoger jamás.
+     *   2. El de 'mousemove' se dispara en CADA movimiento del ratón durante
+     *      toda la partida, para apuntar una fecha que ya no mira nadie.
+     *   3. Si se vuelve a entrar en la pantalla de carga (Phaser reutiliza la
+     *      instancia, y se vuelve a pasar por aquí al recargar sesión), se
+     *      añaden otros cuatro encima de los anteriores.
+     *
+     * Se sigue el mismo patrón que ya usa `_consejosTimer` unas líneas más
+     * arriba: se guarda lo que se registra y se suelta al apagar la escena.
+     */
     setupActivityTracking() {
+        // Por si se vuelve a entrar: primero se suelta lo de la vez anterior.
+        this._pararSeguimientoActividad();
+
         const updateActivityTime = () => { this.lastActivityTime = Date.now(); };
+        const eventos = ['mousemove', 'keydown', 'click', 'touchstart'];
+        eventos.forEach((ev) => window.addEventListener(ev, updateActivityTime, { passive: true }));
 
-        window.addEventListener('mousemove',  updateActivityTime);
-        window.addEventListener('keydown',    updateActivityTime);
-        window.addEventListener('click',      updateActivityTime);
-        window.addEventListener('touchstart', updateActivityTime);
-
-        setInterval(() => {
+        this._actividadHandler = updateActivityTime;
+        this._actividadEventos = eventos;
+        this._actividadTimer = setInterval(() => {
             const inactiveTime = Date.now() - this.lastActivityTime;
             if (inactiveTime > 30 * 60 * 1000) {
                 console.log('⏰ Usuario inactivo por más de 30 minutos');
             }
         }, 5 * 60 * 1000);
+
+        const parar = () => this._pararSeguimientoActividad();
+        this.events.once('shutdown', parar);
+        this.events.once('destroy',  parar);
+    }
+
+    /** Suelta los manejadores y el reloj del seguimiento de actividad. */
+    _pararSeguimientoActividad() {
+        if (this._actividadHandler && this._actividadEventos) {
+            this._actividadEventos.forEach((ev) => {
+                try { window.removeEventListener(ev, this._actividadHandler); } catch (e) { /* ya no estaba */ }
+            });
+        }
+        this._actividadHandler = null;
+        this._actividadEventos = null;
+        if (this._actividadTimer) { clearInterval(this._actividadTimer); this._actividadTimer = null; }
     }
 
     // =========================================================================
@@ -1898,13 +1962,24 @@ class LoadingScenegame extends Phaser.Scene {
         }
     }
 
-    destroy() {
-        if (this.intervalId) {
-            clearInterval(this.intervalId);
-            this.intervalId = null;
-        }
-
-        this.stopAutoRefresh();
+    /**
+     * Limpieza COMPLETA, incluido el cliente del relay.
+     *
+     * OJO, NO SE LLAMA SOLA, y es a propósito: tira las transacciones que
+     * `relayClient` tenga pendientes, y esta pantalla lanza transacciones que
+     * pueden seguir en vuelo cuando ya se ha pasado a GameScene. Lo que sí se
+     * hace solo al apagar la escena es parar los relojes (`_pararRelojes`).
+     * Esto es para tirar la pantalla de carga de verdad, a mano.
+     *
+     * SE LLAMABA `destroy()` Y ESO ERA UN FALLO DOBLE:
+     *   · `Phaser.Scene` no tiene ningún `destroy()`, así que el `super.destroy()`
+     *     del final reventaba con un TypeError en cuanto alguien la llamara.
+     *   · Y el nombre hacía pensar que Phaser la llamaba al apagar la escena.
+     *     No lo hace —Phaser llama a `Systems.destroy()`, que es otra cosa— así
+     *     que todo lo de dentro era código muerto y los relojes seguían vivos.
+     */
+    limpiezaCompleta() {
+        this._pararRelojes();
 
         // Limpiar relay client
         if (this.relayClient && typeof this.relayClient.cleanup === 'function') {
@@ -1920,7 +1995,6 @@ class LoadingScenegame extends Phaser.Scene {
         this.stars = [];
 
         console.log('🧹 LoadingScenegame limpiado');
-        super.destroy();
     }
 
     // =========================================================================

@@ -89,6 +89,8 @@ class BattleScene extends Phaser.Scene {
     this.puedeJugar = false;
     this._listeners = [];
     this._buscandoIniciado = false;
+    this._botonesRendirse = [];
+    this._confirmandoRendicion = false;
 
     // FIX (la 2ª batalla se quedaba pegada en "Back to the map…"):
     // Phaser REUTILIZA la instancia de la escena, así que `_volviendo` seguía
@@ -164,7 +166,9 @@ class BattleScene extends Phaser.Scene {
     this.socket = window.globalSocket;
     if (!this.socket) {
       this.estadoTexto('No connection to the server.');
-      this.time.delayedCall(2500, () => this.volverAlMapa());
+      this.estado = 'fin';
+      this._cancelarConfirmacion();
+      this.volverEnBreve(2500);
       return;
     }
 
@@ -186,7 +190,9 @@ class BattleScene extends Phaser.Scene {
         if (this.matchId) return;
         this.socket.off('connect', alConectar);
         this.estadoTexto('Could not reach the server.\nBack to the map…');
-        this.time.delayedCall(2000, () => this.volverAlMapa());
+        this.estado = 'fin';
+        this._cancelarConfirmacion();
+        this.volverEnBreve(2000);
       });
     }
 
@@ -340,6 +346,21 @@ class BattleScene extends Phaser.Scene {
 
     return {
       cont, spr, sombra, plataforma, nombre, nivel, barra, barraFondo,
+      /* `homeX`/`baseY`: EL SITIO DE ESTE LUCHADOR, y la única verdad sobre
+         dónde tiene que estar.
+
+         Todas las animaciones (embestir, encajar, la entrada del rival)
+         movían el contenedor leyendo su `x` ACTUAL y volviendo a ella con un
+         yoyo. Eso funciona mientras no haya dos a la vez — y las hay: en un
+         mismo turno el rival encaja el golpe tuyo y a los 180 ms sale a pegar
+         el suyo, así que dos tweens escriben `cont.x` al mismo tiempo. Cada
+         uno vuelve al valor que leyó AL EMPEZAR, y si el segundo arrancó
+         cuando el primero ya había movido al bicho, se queda plantado hasta 78
+         píxeles fuera de su sitio para el resto del combate. Basta un tirón de
+         frame para que pase — y este juego los tiene documentados.
+         Con un ancla fija no hay forma de que ocurra: se sale de `homeX` y se
+         vuelve a `homeX`, lo lea quien lo lea y en el orden que sea. */
+      homeX: x,
       lado, baseY: y, escala: 3, fase: 0, vivo: true
     };
   }
@@ -482,11 +503,33 @@ class BattleScene extends Phaser.Scene {
 
     const alto = h * esc;
     const ancho = w * esc;
+
+    /* EL SUELO DEL BICHO: plataforma y sombra.
+     *
+     * El alto de las dos salía SOLO del ancho del sprite, y eso se rompe con
+     * los animales largos y bajos. El cocodrilo mide 168×58 en pantalla: con
+     * la cuenta vieja su plataforma era de 67 px de alto —MÁS ALTA QUE ÉL— y,
+     * como va centrada 4 px por debajo de las patas, se comía 30 px por encima
+     * de ellas. La víbora, 168×80, igual. En pantalla el bicho no parecía
+     * plantado en el suelo sino metido dentro de un plato.
+     *
+     * Ahora el alto se limita también por lo que MIDE el animal, así que una
+     * marca de suelo nunca puede ser más alta que quien la pisa, y el centro
+     * de las elipses se calcula a partir de su propio alto en vez de con un
+     * número fijo: se quedan justo bajo las patas para cualquier tamaño.
+     *
+     * (El sprite lleva origen 0.5, 1 — o sea que y = 0 son las patas.)
+     */
     if (L.sombra) {
-      L.sombra.setDisplaySize(Math.max(80, ancho * 0.92), Math.max(30, ancho * 0.34));
-      L.sombra.y = Math.max(8, ancho * 0.09);
+      const sh = Math.max(22, Math.min(ancho * 0.30, alto * 0.42, 46));
+      L.sombra.setDisplaySize(Math.max(76, ancho * 0.88), sh);
+      L.sombra.y = sh * 0.30;
     }
-    if (L.plataforma) L.plataforma.setDisplaySize(Math.max(110, ancho * 1.25), Math.max(34, ancho * 0.4));
+    if (L.plataforma) {
+      const ph = Math.max(26, Math.min(ancho * 0.34, alto * 0.55, 56));
+      L.plataforma.setDisplaySize(Math.max(104, ancho * 1.12), ph);
+      L.plataforma.y = ph * 0.12;
+    }
 
     // El cartel, encima de la cabeza y con aire.
     const cima = -alto - 14;
@@ -571,14 +614,45 @@ class BattleScene extends Phaser.Scene {
       this.fondo.setScale(escala).setPosition(width / 2, height / 2);
     }
     const y = this.sueloY(height);
+    /* Al cambiar el tamaño de la pantalla se mueve el ANCLA, no solo el
+       contenedor: si solo se moviera el contenedor, un tween en marcha lo
+       devolvería después al sitio viejo. */
     if (this.luchadorYo) {
       this.luchadorYo.baseY = y;
-      this.luchadorYo.cont.setPosition(width * 0.24, y);
+      this.luchadorYo.homeX = width * 0.24;
+      this.luchadorYo.cont.setPosition(this.luchadorYo.homeX, y);
     }
     if (this.luchadorRival) {
       this.luchadorRival.baseY = y;
-      this.luchadorRival.cont.setPosition(width * 0.76, y);
+      this.luchadorRival.homeX = width * 0.76;
+      this.luchadorRival.cont.setPosition(this.luchadorRival.homeX, y);
     }
+  }
+
+  /**
+   * DEVUELVE A UN LUCHADOR A SU SITIO.
+   *
+   * La red de seguridad de todo lo de arriba: si por lo que sea un luchador
+   * acaba descolocado —un tween que no llegó a terminar porque la pestaña se
+   * fue a segundo plano, dos animaciones pisándose, un cambio de tamaño en
+   * mitad de un salto— esto lo vuelve a plantar. Se llama desde `update()`
+   * cuando no hay ninguna animación en marcha, así que no le quita el sitio a
+   * nada que se esté moviendo a propósito.
+   */
+  asentar(L) {
+    if (!L || !L.cont) return;
+    /* Solo si NO hay ningún tween tocando este contenedor. Se pregunta al
+       gestor de tweens en vez de llevar una bandera a mano: una bandera se
+       queda encendida si un tween muere sin llamar a su `onComplete` —que es
+       justo lo que pasa al apagar la escena— y entonces esta red no volvería a
+       saltar nunca. */
+    if (this.tweens.getTweensOf(L.cont).length > 0) return;
+    if (Math.abs(L.cont.x - L.homeX) > 0.5) L.cont.x = L.homeX;
+    if (Math.abs(L.cont.y - L.baseY) > 0.5) L.cont.y = L.baseY;
+    /* El sprite también: el retroceso se lo lleva él cuando el contenedor está
+       ocupado embistiendo, y si ese tween se corta a medias el bicho se queda
+       torcido dentro de su propia plataforma. */
+    if (L.spr && this.tweens.getTweensOf(L.spr).length === 0 && Math.abs(L.spr.x) > 0.5) L.spr.x = 0;
   }
 
   // ---------------------------------------------------------------------------
@@ -642,21 +716,32 @@ class BattleScene extends Phaser.Scene {
     }
 
     /* Adelante deprisa y atrás despacio: así es como se lee un golpe. Si la
-       ida y la vuelta duran lo mismo, parece que el bicho se columpia. */
+       ida y la vuelta duran lo mismo, parece que el bicho se columpia.
+
+       El recorrido se declara ENTERO —de `homeX` a `homeX ± 78`— en vez de
+       partir de donde esté el contenedor. Así, aunque esta embestida arranque
+       encima de un retroceso que aún se está moviendo, empieza y acaba donde
+       tiene que ser. Y antes se matan los tweens que hubiera sobre el mismo
+       contenedor, para que no queden dos escribiendo `x` a la vez. */
+    this.tweens.killTweensOf(L.cont);
     this.tweens.add({
-      targets: L.cont, x: L.cont.x + dir * 78,
+      targets: L.cont,
+      x: { from: L.homeX, to: L.homeX + dir * 78 },
       duration: 130, ease: 'Quad.easeIn',
       yoyo: true, hold: 60, easeParams: null,
       onYoyo: () => { if (alFinal) alFinal(); },
       onComplete: () => {
         L.animando = false;
+        L.cont.x = L.homeX;          // clavado, sin depender del redondeo del tween
         if (L._tickAtaque) { L._tickAtaque.remove(); L._tickAtaque = null; }
         if (L.marcos && L.marcos.quieto && L.marcos.quieto[0]) L.spr.setTexture(L.marcos.quieto[0]);
       }
     });
     // Un saltito, para que la embestida despegue del suelo.
+    this.tweens.killTweensOf(L.spr);
     this.tweens.add({
-      targets: L.spr, y: -22, duration: 130, yoyo: true, ease: 'Quad.easeOut'
+      targets: L.spr, y: { from: 0, to: -22 }, duration: 130, yoyo: true, ease: 'Quad.easeOut',
+      onComplete: () => { if (!L.ko) L.spr.y = 0; }
     });
   }
 
@@ -664,10 +749,26 @@ class BattleScene extends Phaser.Scene {
   encajar(L) {
     if (!L || !L.spr.visible) return;
     const dir = L.lado === 'yo' ? -1 : 1;
-    this.tweens.add({
-      targets: L.cont, x: L.cont.x + dir * 26,
-      duration: 70, yoyo: true, repeat: 1, ease: 'Sine.easeOut'
-    });
+    /* NO se toca `cont.x` si el bicho está embistiendo: su embestida ya lo
+       está moviendo y meter aquí un segundo tween sobre la misma propiedad es
+       exactamente lo que dejaba a los luchadores fuera de su sitio. El
+       retroceso se lo queda el SPRITE, que en ese momento está libre, y el
+       golpe se sigue viendo igual de bien. */
+    if (L.animando) {
+      this.tweens.add({
+        targets: L.spr, x: { from: 0, to: dir * 18 },
+        duration: 70, yoyo: true, repeat: 1, ease: 'Sine.easeOut',
+        onComplete: () => { L.spr.x = 0; }
+      });
+    } else {
+      this.tweens.killTweensOf(L.cont);
+      this.tweens.add({
+        targets: L.cont,
+        x: { from: L.homeX, to: L.homeX + dir * 26 },
+        duration: 70, yoyo: true, repeat: 1, ease: 'Sine.easeOut',
+        onComplete: () => { L.cont.x = L.homeX; }
+      });
+    }
     if (L.spr.setTint) {
       L.spr.setTint(0xff7a6a);
       this.time.delayedCall(260, () => { if (L.spr && L.spr.clearTint) L.spr.clearTint(); });
@@ -717,6 +818,7 @@ class BattleScene extends Phaser.Scene {
       energyCount: document.getElementById('bfEnergyCount'),
       endTurn: document.getElementById('bfEndTurn'),
       leave: document.getElementById('bfLeave'),
+      surrender: document.getElementById('bfSurrender'),
       reveal: document.getElementById('bfReveal'),
       revealYou: document.getElementById('bfRevealYou'),
       revealRival: document.getElementById('bfRevealRival'),
@@ -756,7 +858,15 @@ class BattleScene extends Phaser.Scene {
     };
 
     this.el.endTurn = recablear(this.el.endTurn, () => this.jugarTurno());
-    this.el.leave = recablear(this.el.leave, () => this.rendirse());
+    this.el.leave = recablear(this.el.leave, () => this.pedirRendicion(this.el.leave));
+    this.el.surrender = recablear(this.el.surrender, () => this.pedirRendicion(this.el.surrender));
+
+    /* Los dos botones de rendirse hacen lo mismo; se guardan juntos para poder
+       devolverlos a su estado normal de una vez cuando se cancela la
+       confirmación. `recablear` clona el nodo, así que esta lista tiene que
+       montarse DESPUÉS de recablear o guardaría los nodos viejos. */
+    this._botonesRendirse = [this.el.leave, this.el.surrender].filter(Boolean);
+    this._cancelarConfirmacion();
 
     if (this.el.reveal) this.el.reveal.classList.add('hidden');
     this.limpiarMano();
@@ -765,6 +875,47 @@ class BattleScene extends Phaser.Scene {
 
   estadoTexto(txt) {
     if (this.el && this.el.status) this.el.status.textContent = txt;
+  }
+
+  /**
+   * RENDIRSE, EN DOS PULSACIONES.
+   *
+   * Rendirse cuenta como derrota y gasta una de las batallas del día, así que
+   * no puede irse en un roce accidental — pero tampoco puede esconderse detrás
+   * de un `confirm()` del navegador ni de una ventana modal: si algo sale mal
+   * mientras se pinta esa ventana, el jugador se queda otra vez encerrado, que
+   * es justo el fallo que se está arreglando.
+   *
+   * La solución es que el propio botón pida la confirmación: primer toque pone
+   * "Confirm?" en rojo, segundo toque dentro de 3,5 s se rinde de verdad, y si
+   * no se toca vuelve solo a su sitio. Sin ventanas, sin nada que bloquee.
+   *
+   * Fuera de combate (buscando rival, o partida ya terminada) no hay nada que
+   * confirmar: no se pierde nada, así que sale directo.
+   */
+  pedirRendicion(boton) {
+    if (this.estado !== 'combate') { this._cancelarConfirmacion(); this.rendirse(); return; }
+
+    if (this._confirmandoRendicion) {
+      this._cancelarConfirmacion();
+      this.rendirse();
+      return;
+    }
+
+    this._confirmandoRendicion = true;
+    if (boton) { boton.classList.add('confirmar'); boton.textContent = 'Confirm?'; }
+    if (this._plazoConfirmar) window.clearTimeout(this._plazoConfirmar);
+    this._plazoConfirmar = window.setTimeout(() => this._cancelarConfirmacion(), 3500);
+  }
+
+  _cancelarConfirmacion() {
+    if (this._plazoConfirmar) { window.clearTimeout(this._plazoConfirmar); this._plazoConfirmar = null; }
+    this._confirmandoRendicion = false;
+    (this._botonesRendirse || []).forEach((b) => {
+      if (!b) return;
+      b.classList.remove('confirmar');
+      b.textContent = this.estado === 'fin' ? 'Back to map' : 'Surrender';
+    });
   }
 
   limpiarMano() {
@@ -1156,12 +1307,23 @@ class BattleScene extends Phaser.Scene {
         if (!this.luchadorRival || this.estado === 'fin') return;
         this.vestirLuchador(this.luchadorRival, esp, true);
         this.pintarCartel(this.luchadorRival, this.rival);
-        // Entra en escena: aparece deslizándose desde fuera del cuadro.
-        const x = this.luchadorRival.cont.x;
-        this.luchadorRival.cont.x = x + 140;
-        this.luchadorRival.cont.alpha = 0;
-        this.tweens.add({ targets: this.luchadorRival.cont, x, alpha: 1,
-                          duration: 420, ease: 'Quad.easeOut' });
+        /* Entra en escena: aparece deslizándose desde fuera del cuadro.
+
+           El destino es `homeX`, NO la `x` que tuviera el contenedor al
+           empezar. `cargarEspecie` puede tardar hasta tres segundos (tiene un
+           corte por si falta un PNG), así que esta parte llega tarde y bien
+           puede caer encima de una embestida ya empezada: leyendo la `x` viva
+           se guardaba una posición desplazada como si fuera la buena, y el
+           rival se quedaba ahí el resto del combate. */
+        const R = this.luchadorRival;
+        this.tweens.killTweensOf(R.cont);
+        R.cont.x = R.homeX + 140;
+        R.cont.alpha = 0;
+        this.tweens.add({
+          targets: R.cont, x: R.homeX, alpha: 1,
+          duration: 420, ease: 'Quad.easeOut',
+          onComplete: () => { R.cont.x = R.homeX; }
+        });
       });
 
       this.pintarLuchadores();
@@ -1265,7 +1427,11 @@ class BattleScene extends Phaser.Scene {
       const diarias = d.daily ? `\nDaily battles: ${d.daily.done}/${d.daily.max}` : '';
       this.estadoTexto(`${titulo}\n+${d.pointsEarned} points${motivo}${diarias}\n\nBack to the map…`);
 
-      this.time.delayedCall(3500, () => this.volverAlMapa());
+      /* Se acabó: el botón de rendirse ya no rinde nada, ahora es el atajo para
+         no esperar los tres segundos y medio. */
+      this._cancelarConfirmacion();
+
+      this.volverEnBreve(3500);
     });
 
     this.on('battle:error', (d) => {
@@ -1276,8 +1442,38 @@ class BattleScene extends Phaser.Scene {
         msg = `You already played your ${d.daily ? d.daily.max : 5} daily battles.\nCome back tomorrow!`;
       }
       this.estadoTexto(msg);
-      this.time.delayedCall(3000, () => this.volverAlMapa());
+      this.estado = 'fin';
+      this._cancelarConfirmacion();
+      this.volverEnBreve(3000);
     });
+  }
+
+  /**
+   * "VUELVE AL MAPA DENTRO DE UN RATO", CON DOS RELOJES.
+   *
+   * Todas las salidas automáticas de la batalla (ganar, perder, un error del
+   * servidor, no poder conectar) iban con `this.time.delayedCall`, que es el
+   * reloj de la ESCENA. Ese reloj solo corre mientras corre el bucle de Phaser,
+   * y el bucle se para en cuanto la pestaña pasa a segundo plano — que es
+   * exactamente lo que hace mucha gente al perder: mirar otra cosa mientras se
+   * va el cartel. Al volver, el temporizador seguía donde lo dejó.
+   *
+   * Peor: si el bucle se queda parado por cualquier motivo, ese aviso NO LLEGA
+   * NUNCA y el jugador se queda mirando la batalla terminada sin salida.
+   *
+   * Aquí se arman los dos: el de la escena, que da la salida suave y a tiempo,
+   * y uno del navegador un poco más tarde, que corre aunque Phaser esté parado.
+   * `volverAlMapa()` aguanta que la llamen dos veces (tiene su propio cerrojo
+   * de 4 s), así que el que llegue segundo no hace nada.
+   */
+  volverEnBreve(ms) {
+    const espera = Math.max(0, ms || 0);
+    this.time.delayedCall(espera, () => this.volverAlMapa());
+    if (this._plazoVolver) window.clearTimeout(this._plazoVolver);
+    this._plazoVolver = window.setTimeout(() => {
+      this._plazoVolver = null;
+      this.volverAlMapa();
+    }, espera + 900);
   }
 
   jugarTurno() {
@@ -1289,13 +1485,36 @@ class BattleScene extends Phaser.Scene {
     this.estadoTexto('Waiting for the rival…');
   }
 
+  /**
+   * RENDIRSE / SALIR. Vale en CUALQUIER momento de la batalla.
+   *
+   * En combate se avisa al servidor (`battle:forfeit`) para que cuente la
+   * derrota y libere el candado del jugador; el servidor contesta con
+   * `battle:end` y de ahí sale solo.
+   *
+   * PERO NO SE CONFÍA EN QUE LA RESPUESTA LLEGUE. Si el socket se cayó, o el
+   * servidor no contesta, antes esto se quedaba esperando para siempre y el
+   * jugador no tenía forma de salir. Ahora hay un plazo: si a los 4 s seguimos
+   * en la batalla, se vuelve al mapa igual.
+   */
   rendirse() {
     if (this.estado === 'combate' && this.socket && this.socket.connected) {
-      this.socket.emit('battle:forfeit');
-    } else {
-      if (this.socket && this.socket.connected) this.socket.emit('battle:leaveQueue');
-      this.volverAlMapa();
+      this.estadoTexto('Surrendering…');
+      try { this.socket.emit('battle:forfeit'); } catch (e) { /* da igual: abajo hay plazo */ }
+      if (this._plazoRendirse) window.clearTimeout(this._plazoRendirse);
+      this._plazoRendirse = window.setTimeout(() => {
+        this._plazoRendirse = null;
+        if (this.estado === 'fin') return;              // el servidor sí contestó
+        console.warn('⚠️ El servidor no confirmó la rendición; se sale igual.');
+        this.volverAlMapa();
+      }, 4000);
+      return;
     }
+    if (this.socket && this.socket.connected) {
+      try { this.socket.emit('battle:leaveQueue'); } catch (e) {}
+      try { this.socket.emit('battle:forfeit'); } catch (e) {}   // por si ya había partida
+    }
+    this.volverAlMapa();
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1563,16 +1782,105 @@ class BattleScene extends Phaser.Scene {
 
   update(ahora) {
     this.respirar(ahora);
+    this.asentar(this.luchadorYo);
+    this.asentar(this.luchadorRival);
   }
 
   // ---------------------------------------------------------------------------
   // SALIDA
   // ---------------------------------------------------------------------------
+  /**
+   * A DÓNDE SE VUELVE. Se comprueba que la escena EXISTA de verdad.
+   *
+   * `scene.start('LoQueSea')` con una clave que el gestor no conoce no lanza
+   * ningún error: no hace nada. Y como el jugador ya no tiene botones (la
+   * interfaz de batalla se acaba de ocultar), se queda mirando el combate
+   * terminado para siempre.
+   */
+  _destinoDeVuelta() {
+    const candidatos = [this.volverA, 'LoadingScenegame', 'GameScene'];
+    for (const clave of candidatos) {
+      if (clave && this.scene.manager && this.scene.manager.getScene(clave)) return clave;
+    }
+    return null;
+  }
+
+  /**
+   * SALIR DE LA BATALLA. Con red debajo.
+   *
+   * EL FALLO QUE ARREGLA — "pierdo y no puedo volver al mapa aunque le hago
+   * clic":
+   *
+   * Antes esto era un cerrojo de una sola dirección:
+   *
+   *     if (this._volviendo) return;
+   *     this._volviendo = true;
+   *     this.limpiar();
+   *     this.scene.start(this.volverA, …);
+   *
+   * En cuanto se ponía `_volviendo`, ya no había vuelta atrás. Si el cambio de
+   * escena NO llegaba a producirse —la escena de destino no está registrada,
+   * `limpiar()` se atraganta a mitad, la pestaña estaba en segundo plano y
+   * Phaser tenía el bucle parado cuando se encoló la operación— el jugador se
+   * quedaba encerrado: la interfaz de la batalla ya estaba oculta (por eso
+   * reaparecía el HUD del mapa) pero la escena seguía siendo la del combate,
+   * con los dos bichos en pantalla y ni un botón que responda. Volver a pulsar
+   * no servía de nada, porque `_volviendo` seguía en true.
+   *
+   * Ahora:
+   *   · `limpiar()` va en try/catch: aunque falle, se intenta salir igual.
+   *   · Se comprueba que la escena de destino exista antes de pedirla.
+   *   · El cerrojo CADUCA: si a los 4 s seguimos en la batalla, se puede
+   *     volver a intentar (con el botón o con el reintento de abajo).
+   *   · Y hay un reintento automático con `window.setTimeout`, NO con
+   *     `this.time`: el reloj de la escena se para al apagarla, así que un
+   *     reintento montado sobre él no se dispararía justo cuando hace falta.
+   */
   volverAlMapa() {
-    if (this._volviendo) return;
+    const ahora = Date.now();
+    /* El cerrojo dura 4 s, no para siempre: es para que dos avisos seguidos
+       (el temporizador del final y el botón de rendirse) no lancen dos cambios
+       de escena a la vez, no para dejar al jugador encerrado. */
+    if (this._volviendo && (ahora - (this._volviendoDesde || 0)) < 4000) return;
     this._volviendo = true;
-    this.limpiar();
-    this.scene.start(this.volverA, { desdeBatalla: true });
+    this._volviendoDesde = ahora;
+
+    try { this.limpiar(); }
+    catch (e) { console.warn('⚠️ limpiar() falló al salir de la batalla:', e); }
+
+    const destino = this._destinoDeVuelta();
+    if (!destino) {
+      /* Ninguna escena a la que ir. Es un caso que no debería pasar nunca,
+         pero si pasa hay que DECIRLO en vez de dejar la pantalla muerta. */
+      console.error('❌ No hay ninguna escena de vuelta registrada:', this.volverA);
+      this.estadoTexto('Could not return to the map.\nReload the page (Ctrl+F5).');
+      if (this.ui) this.ui.classList.remove('hidden');
+      this._volviendo = false;
+      return;
+    }
+
+    try { this.scene.start(destino, { desdeBatalla: true }); }
+    catch (e) { console.warn('⚠️ scene.start(' + destino + ') falló:', e); }
+
+    /* LA RED. Si dentro de segundo y medio esta escena sigue viva, es que el
+       cambio no ha entrado; se insiste por la vía del gestor, que no depende
+       del estado de esta escena. Va con el reloj del navegador a propósito:
+       `this.time` se para en cuanto la escena se apaga. */
+    if (this._reintentoVuelta) window.clearTimeout(this._reintentoVuelta);
+    this._reintentoVuelta = window.setTimeout(() => {
+      this._reintentoVuelta = null;
+      if (!this.sys || !this.sys.isActive || !this.sys.isActive()) return;   // ya salió: bien
+      console.warn('⚠️ La batalla no se cerró al primer intento; reintentando.');
+      try {
+        this.scene.manager.stop('BattleScene');
+        this.scene.manager.start(destino, { desdeBatalla: true });
+      } catch (e) {
+        console.error('❌ Tampoco se pudo volver por el gestor:', e);
+        this.estadoTexto('Could not return to the map.\nReload the page (Ctrl+F5).');
+        if (this.ui) this.ui.classList.remove('hidden');
+      }
+      this._volviendo = false;      // que el botón vuelva a servir
+    }, 1500);
   }
 
   limpiar() {
@@ -1580,6 +1888,20 @@ class BattleScene extends Phaser.Scene {
     if (this._conexionTimeout) { this._conexionTimeout.remove(); this._conexionTimeout = null; }
     if (this._revealTimer) { this._revealTimer.remove(); this._revealTimer = null; }
     this.detenerTemporizador();
+
+    /* Los plazos que van con el reloj del NAVEGADOR, no con el de la escena.
+       Se apuntan aparte porque `this.time` se para al apagar la escena y estos
+       tienen que seguir contando precisamente para esos casos.
+
+       El reintento de vuelta se anula aquí a propósito: si esta limpieza viene
+       del apagado de la escena, es que el cambio de escena SÍ entró y no hay
+       nada que reintentar. Y si viene de `volverAlMapa()`, el reintento se
+       programa DESPUÉS de esta llamada, así que tampoco se pisa. */
+    if (this._plazoRendirse) { window.clearTimeout(this._plazoRendirse); this._plazoRendirse = null; }
+    if (this._reintentoVuelta) { window.clearTimeout(this._reintentoVuelta); this._reintentoVuelta = null; }
+    if (this._plazoConfirmar) { window.clearTimeout(this._plazoConfirmar); this._plazoConfirmar = null; }
+    if (this._plazoVolver) { window.clearTimeout(this._plazoVolver); this._plazoVolver = null; }
+    this._confirmandoRendicion = false;
     if (this.el && this.el.floaters) this.el.floaters.textContent = '';
     if (this.el && this.el.reveal) this.el.reveal.classList.add('hidden');
 
@@ -1612,6 +1934,25 @@ class BattleScene extends Phaser.Scene {
         this.socket.disconnect();
       }
     } catch (e) { /* sin ruido al salir */ }
+
+    /* EL ESCENARIO SE TIRA AL SALIR.
+     *
+     * El fondo de cada batalla es un lienzo de 1024×576 pintado a mano, y su
+     * clave lleva el `matchId` dentro: cada combate estrena escenario. Nadie
+     * los borraba, así que se iban apilando en el gestor de texturas —2,36 MB
+     * de VRAM y otro tanto de canvas en RAM por cada uno— hasta cerrar la
+     * pestaña. Cinco batallas diarias y unas cuantas de PvP se comían fácil
+     * cuarenta megas que ya no servían para nada.
+     *
+     * Primero se destruyen las imágenes que las usan y después se sueltan las
+     * texturas: al revés, Phaser pintaría un fotograma con la textura ya
+     * borrada. */
+    if (this.fondo) { try { this.fondo.destroy(); } catch (e) {} this.fondo = null; }
+    if (this.fondoRespaldo) { try { this.fondoRespaldo.destroy(); } catch (e) {} this.fondoRespaldo = null; }
+    if (window.GFBatallaArte && window.GFBatallaArte.olvidarArenas) {
+      try { window.GFBatallaArte.olvidarArenas(this); } catch (e) {}
+    }
+    this.arena = null;
 
     document.body.classList.remove('in-battle');
     if (this.ui) this.ui.classList.add('hidden');
