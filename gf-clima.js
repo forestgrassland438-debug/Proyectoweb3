@@ -22,10 +22,21 @@
  *   GameScene.preload():  window.GFClima && window.GFClima.precargar(this);
  *   GameScene.create():   window.GFClima && window.GFClima.montar(this);
  *
+ * QUIEN QUIERA REACCIONAR AL TIEMPO, QUE USE `ahora()`
+ *   `estado()` devuelve lo que MANDA el servidor: booleanos. `ahora()` devuelve
+ *   lo que se VE, ya interpolado (la lluvia tarda cinco segundos en arreciar).
+ *   La diferencia importa: con `estado()`, un pájaro dejaría de bañarse en el
+ *   mismo milisegundo en que el administrador pulsa el botón, con el cielo
+ *   todavía despejado. Lo usa gf-animales para refugiar a la fauna.
+ *
  * API
  *   GFClima.montar(scene) / desmontar(scene)
  *   GFClima.sincronizar()        vuelve a preguntar al servidor
- *   GFClima.estado()
+ *   GFClima.estado()             lo que manda el servidor
+ *   GFClima.ahora()              lo que se ve: { lluvia, nieve, sol, viento,
+ *                                truenos, tormenta, estacion, activo }, de 0 a 1
+ *   GFClima.charcos(scene)       los charcos en los que se puede uno bañar
+ *   GFClima.alTronar(fn)         avisa cuando RETUMBA (devuelve la baja)
  *   GFClima.probar('lluvia'|'tormenta'|'viento'|'despejado')   solo para ver
  * ======================================================================== */
 (function () {
@@ -832,6 +843,95 @@
     truenos: true, estacion: 'verano', cargado: false
   };
   var montado = null;
+
+  /* ══════════════════════════════════════════════════════════════════════
+     EL TIEMPO QUE HACE AHORA MISMO, PARA QUIEN LO NECESITE
+     ──────────────────────────────────────────────────────────────────────
+     `estado()` devuelve lo que ha MANDADO el servidor: un booleano y una
+     fuerza. Pero la lluvia no entra de golpe — arrecia y amaina en cinco
+     segundos (ENTRA_MS), y lo que de verdad se ve en pantalla es
+     `st.fuerzaLluvia`, que es el valor ya interpolado.
+
+     La diferencia importa para quien REACCIONA al tiempo. Los animales, sin
+     ir más lejos: con `estado()` un pájaro dejaría de bañarse en el mismo
+     milisegundo en que el administrador pulsa el botón, con el cielo todavía
+     despejado. Con esto se refugia mientras el chaparrón arrecia, que es lo
+     que se ve.
+
+     Quien quiera el mando del servidor sigue teniendo `estado()`. Quien
+     quiera lo que se ve, usa esto.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /* Se reaprovecha SIEMPRE el mismo objeto. Los animales lo piden una vez por
+     fotograma y fabricar un objeto nuevo cada vez es basura para nada. Quien
+     necesite guardárselo, que copie los campos. */
+  var elTiempo = {
+    activo: false, cargado: false, estacion: 'verano',
+    lluvia: 0, nieve: 0, sol: 0, viento: 0,
+    truenos: false, tormenta: false
+  };
+  var vectorViento = { dir: 1, fuerza: 0 };
+
+  function tiempoAhora() {
+    var st = montado;
+    var t = elTiempo;
+    t.activo   = !!estado.activo;
+    t.cargado  = !!estado.cargado;
+    t.estacion = estado.estacion;
+
+    if (st) {
+      /* Lo que se está pintando de verdad. */
+      t.lluvia = st.fuerzaLluvia || 0;
+      t.nieve  = st.fuerzaNieve  || 0;
+      t.sol    = st.fuerzaSol    || 0;
+    } else {
+      /* Sin escena montada (todavía no ha arrancado, o se está cambiando de
+         mapa) no hay valor interpolado: se devuelve el mandado, que es la
+         mejor respuesta posible y no deja a nadie sin tiempo. */
+      t.lluvia = (estado.activo && estado.lluvia) ? (Number(estado.lluviaFuerza) || 1) : 0;
+      t.nieve  = (estado.activo && estado.nieve)  ? (Number(estado.nieveFuerza)  || 1) : 0;
+      t.sol    = (estado.activo && estado.soleado) ? (Number(estado.soleadoFuerza) || 1) : 0;
+    }
+
+    t.viento = 0;
+    try {
+      if (window.GFViento && window.GFViento.vector) {
+        window.GFViento.vector(vectorViento);
+        t.viento = Math.max(0, Math.min(2, vectorViento.fuerza || 0));
+      }
+    } catch (e) { /* sin viento montado, cero */ }
+
+    /* TORMENTA no es lo mismo que LLUVIA. Llueve con truenos y llueve sin
+       ellos, y no se comporta igual un animal bajo un chaparrón que bajo una
+       tormenta eléctrica. Se pide que llueva de verdad (no las últimas gotas)
+       para que el rato de amainar no cuente como tormenta. */
+    t.truenos  = !!(estado.activo && estado.lluvia && estado.truenos);
+    t.tormenta = t.truenos && t.lluvia > 0.45;
+    return t;
+  }
+
+  /* ── EL SOBRESALTO DEL TRUENO ────────────────────────────────────────────
+     Cuando retumba, todo bicho que esté a la intemperie pega un bote. Es la
+     reacción más reconocible que tiene una tormenta y no cuesta nada: aquí
+     solo se avisa, y cada módulo decide qué hace con el aviso.
+
+     Se guarda ADEMÁS el instante del último trueno (`ultimoTrueno`), para
+     quien se enganche tarde o prefiera mirarlo en su propio bucle en vez de
+     llevar un callback. */
+  var oyentesTrueno = [];
+  var ultimoTrueno = 0;
+  var fuerzaUltimoTrueno = 0;
+
+  function avisarDelTrueno(cerca, fuerza) {
+    ultimoTrueno = Date.now();
+    fuerzaUltimoTrueno = fuerza || 1;
+    for (var i = 0; i < oyentesTrueno.length; i++) {
+      /* Un oyente que reviente NO puede tumbar el trueno de los demás ni el
+         fotograma: por eso cada uno va en su try. */
+      try { oyentesTrueno[i](!!cerca, fuerzaUltimoTrueno); } catch (e) {}
+    }
+  }
+
   var timerSync = null;
   var timerSocket = null;
   var pidiendo = null;
@@ -1826,6 +1926,14 @@
       if (window.GFAudio && window.GFAudio.trueno) {
         try { window.GFAudio.trueno(st.truenoCerca !== false, st.truenoFuerza); } catch (e) {}
       }
+      /* Y LA FAUNA SE SOBRESALTA.
+
+         Va aquí y no con el fogonazo a propósito: lo que asusta a un animal es
+         el ESTAMPIDO, no la luz. Entre el relámpago y el trueno pasan de dos
+         a siete décimas, y en ese hueco el mundo sigue tranquilo; luego
+         retumba y salta todo a la vez. Puesto con el destello se veía a los
+         bichos botar antes de oírse nada. */
+      avisarDelTrueno(st.truenoCerca !== false, st.truenoFuerza);
       st.truenoEn = 0;
     }
   }
@@ -2836,6 +2944,32 @@
     /* Los charcos donde se puede uno bañar. Lo pide gf-animales cuando
        escampa, para bajar a los pájaros al agua. */
     charcos: charcosParaBanarse,
+
+    /* EL TIEMPO QUE SE VE AHORA MISMO, ya interpolado (0 a 1 cada cosa):
+         { activo, cargado, estacion, lluvia, nieve, sol, viento,
+           truenos, tormenta }
+       Lo piden los animales para saber si refugiarse. OJO: se devuelve
+       SIEMPRE EL MISMO OBJETO, que se reescribe en cada llamada; quien
+       necesite guardárselo tiene que copiar los campos. */
+    ahora: tiempoAhora,
+
+    /* Avisa cuando RETUMBA un trueno (no cuando destella el rayo: lo que
+       asusta es el estampido). El oyente recibe (cerca, fuerza).
+         var quitar = GFClima.alTronar(function (cerca, f) { ... });
+         quitar();   // para dejar de escuchar
+       Devuelve la función de baja: quien se engancha tiene que llamarla al
+       apagar su escena o el oyente se queda vivo para siempre. */
+    alTronar: function (fn) {
+      if (typeof fn !== 'function') return function () {};
+      oyentesTrueno.push(fn);
+      return function () {
+        var i = oyentesTrueno.indexOf(fn);
+        if (i >= 0) oyentesTrueno.splice(i, 1);
+      };
+    },
+    /** Cuándo retumbó el último trueno (Date.now()), para quien prefiera
+        mirarlo desde su propio bucle en vez de engancharse. 0 si ninguno. */
+    ultimoTrueno: function () { return ultimoTrueno; },
     /**
      * Para mirar desde la consola por que no se ve el tiempo.
      *   GFClima.diagnostico()
@@ -2923,7 +3057,8 @@
       calidezDelDia: calidezDelDia, mezclarColor: mezclarColor,
       RAYOS_DIBUJADOS: RAYOS_DIBUJADOS, CHARCOS_DIBUJADOS: CHARCOS_DIBUJADOS,
       HIELOS_DIBUJADOS: HIELOS_DIBUJADOS, ALCANCE_RAYO: ALCANCE_RAYO,
-      charcosParaBanarse: charcosParaBanarse
+      charcosParaBanarse: charcosParaBanarse,
+      tiempoAhora: tiempoAhora, avisarDelTrueno: avisarDelTrueno
     }
   };
 

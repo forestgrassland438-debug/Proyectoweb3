@@ -629,6 +629,22 @@ showNotification(message, type = 'info') {
         
     
 
+    /* FUGA QUE ESTO ARREGLA — se apilaban los apagados.
+     *
+     * Phaser REUTILIZA la instancia de la escena y NO borra los listeners de
+     * `this.events` al apagarla: `Systems.shutdown()` emite SHUTDOWN y punto.
+     * Como esto está en create(), cada ida y vuelta entre el juego y la tienda
+     * registraba OTRO par de manejadores sobre la MISMA función.
+     *
+     * A la décima entrada, salir de la escena ejecutaba shutdown() diez veces
+     * seguidas: diez barridos del TextureManager, diez limpiezas de
+     * TileManagers y diez cierres de socket. Se notaba como un tirón al cambiar
+     * de escena que se alargaba durante toda la sesión.
+     *
+     * El `off` de delante lo hace idempotente: quita el de la entrada anterior
+     * (si lo hay) y deja uno solo. */
+    this.events.off('shutdown', this.shutdown, this);
+    this.events.off('destroy', this.shutdown, this);
     this.events.on('shutdown', this.shutdown, this);
     this.events.on('destroy', this.shutdown, this);
 
@@ -2566,6 +2582,10 @@ this.actualizarTemporizadoresDesdeStorage();
     this._setupChatDom();
 
     // Escuchadores de escena para limpiar socket al cerrar escena
+    // El `off` de delante evita que se apilen al volver a entrar en la escena:
+    // la explicación larga está donde se registra `shutdown` en create().
+    this.events.off('shutdown', this._onShutdown, this);
+    this.events.off('destroy', this._onShutdown, this);
     this.events.on('shutdown', this._onShutdown, this);
     this.events.on('destroy', this._onShutdown, this);
 
@@ -3824,42 +3844,72 @@ removeOtherPlayer(playerId) {
 }
 
     setupSceneEvents() {
+      /* FUGA QUE ESTO ARREGLA — SEIS MANEJADORES MÁS EN CADA VISITA.
+       *
+       * Aquí había seis `this.events.on(...)` con funciones ANÓNIMAS y nadie
+       * las quitaba nunca. Phaser reutiliza la instancia de la escena y no
+       * borra los listeners al apagarla, así que cada entrada a la tienda
+       * dejaba otros seis pegados encima de los anteriores.
+       *
+       * Y no es solo memoria: son manejadores que HACEN COSAS. A la quinta
+       * visita, un 'resume' llamaba a `initSocket()` cinco veces seguidas y un
+       * 'shutdown' a `performCleanup()` otras cinco. Salir de la tienda se iba
+       * volviendo más lento y el socket se rehacía de más.
+       *
+       * Se arregla igual que ya estaba hecho en GameScene: se apuntan en
+       * `_sceneEventHandlers` y se quitan UNO A UNO al volver a entrar.
+       *
+       * Se quitan AQUÍ, al montar, y no en el apagado, a propósito: quitar un
+       * manejador de 'shutdown' mientras se está emitiendo 'shutdown' es
+       * tocarle el array a la lista que el emisor está recorriendo, y eso se
+       * salta manejadores. Al entrar no hay ningún evento en vuelo. */
+      const anteriores = this._sceneEventHandlers || [];
+      for (let i = 0; i < anteriores.length; i++) {
+        try { this.events.off(anteriores[i][0], anteriores[i][1]); } catch (e) { /* ya no estaba */ }
+      }
+      this._sceneEventHandlers = [];
+
+      const registrar = (evento, fn) => {
+        this.events.on(evento, fn);
+        this._sceneEventHandlers.push([evento, fn]);
+      };
+
       // Evento cuando la escena entra en pausa (al cambiar a otra escena)
-      this.events.on('pause', () => {
+      registrar('pause', () => {
         console.log('⏸️ Escena tienda pausada');
         this.leaveRoom();
       });
-      
+
       // Evento cuando la escena se reanuda
-      this.events.on('resume', () => {
+      registrar('resume', () => {
         console.log('▶️ Escena tienda reanudada');
         this.time.delayedCall(300, () => {
           this.initSocket();
         });
       });
-      
+
       // Evento cuando la escena se duerme (Scene Manager)
-      this.events.on('sleep', () => {
+      registrar('sleep', () => {
         console.log('💤 Escena tienda dormida');
         this.cleanupBeforeTransition();
       });
-      
+
       // Evento cuando la escena se despierta
-      this.events.on('wake', () => {
+      registrar('wake', () => {
         console.log('🌅 Escena tienda despierta');
         this.time.delayedCall(300, () => {
           this.initSocket();
         });
       });
-      
+
       // Evento shutdown - se llama cuando la escena es detenida
-      this.events.on('shutdown', () => {
+      registrar('shutdown', () => {
         console.log('🔌 Escena tienda shutdown');
         this.performCleanup();
       });
-      
+
       // Evento destroy - se llama cuando la escena es destruida
-      this.events.on('destroy', () => {
+      registrar('destroy', () => {
         console.log('💥 Escena tienda destroy');
         this.performCleanup();
       });

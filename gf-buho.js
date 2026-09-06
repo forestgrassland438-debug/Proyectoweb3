@@ -7,6 +7,11 @@
  *   acercas demasiado levanta el vuelo. Cuando amanece se va y NO vuelve hasta
  *   la noche siguiente: de día no hay búho, ni sprite ni sonido.
  *
+ * Y TAMPOCO CUANDO LLUEVE FUERTE
+ *   Con agua encima no se muda de árbol, casi no ulula y se queda con los ojos
+ *   cerrados; con un chaparrón de verdad no sale, y si estaba, se va. El motivo
+ *   está en la sección "EL BÚHO Y LA LLUVIA".
+ *
  * SE TIENE QUE VER DE NOCHE, Y ÉSE ES EL PROBLEMA
  *   gf-ciclo-dia tapa el mundo con una capa oscura en profundidad 9000. Todo
  *   lo que va por debajo se oscurece, que es lo correcto —un cuervo a plena
@@ -58,6 +63,7 @@
   var SUSTO       = 96;              // a menos de esto, se va
   var ULULA_CADA  = [11000, 27000];
   var MUDA_CADA   = [30000, 75000];  // cada cuánto se cambia de árbol
+  var RADIO_MUDA  = 900;             // ...y hasta dónde (ver `arbolLejano`)
   var PARPADEO    = [2600, 7000];
 
   function log() {
@@ -69,6 +75,48 @@
 
   function az(a, b) { return a + Math.random() * (b - a); }
   function elegir(l) { return l[Math.floor(Math.random() * l.length)]; }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     EL BÚHO Y LA LLUVIA
+     ──────────────────────────────────────────────────────────────────────
+     Un búho es lo MENOS impermeable que hay con plumas. Las tiene blandas y
+     desflecadas justo para volar sin hacer ruido, y eso mismo las deja sin la
+     grasa que las hace repeler el agua: un búho mojado no vuela en silencio y,
+     si se moja del todo, casi no vuela. Por eso, cuando llueve de verdad, un
+     búho NO caza. Se pega al tronco, cierra los ojos y espera.
+
+     Aquí eso se traduce en tres cosas:
+       · con lluvia floja no se cambia de árbol y ulula mucho menos
+       · con chaparrón directamente no aparece, y si estaba, se va
+       · y se le ven los ojos cerrados casi todo el rato, que es lo que hace
+         que se lea como "aguantando el agua" y no como "apagado"
+
+     Y hay un motivo de más para que se vaya con el chaparrón: el búho es el
+     único bicho que se ve DE NOCHE gracias a sus ojos encendidos por encima de
+     la capa de oscuridad. Bajo la cortina de tormenta esos dos puntos ámbar
+     flotando cantan muchísimo.
+     ══════════════════════════════════════════════════════════════════════ */
+  var LLUVIA_ENCOGE = 0.25;      // a partir de aquí, ni se muda ni ulula apenas
+  var LLUVIA_SE_VA  = 0.70;      // y a partir de aquí, no hay búho
+
+  /** Cuánto está cayendo ahora mismo, de 0 a 1. */
+  function malTiempo() {
+    var C = window.GFClima;
+    try {
+      if (C && C.ahora) {
+        var t = C.ahora();
+        if (!t || !t.activo) return 0;
+        return Math.max(t.lluvia || 0, (t.nieve || 0) * 0.7);
+      }
+      if (C && C.estado) {
+        var e = C.estado();
+        if (!e || !e.activo) return 0;
+        return Math.max(e.lluvia ? (Number(e.lluviaFuerza) || 1) : 0,
+                        e.nieve ? (Number(e.nieveFuerza) || 1) * 0.7 : 0);
+      }
+    } catch (x) { /* sin clima, despejado */ }
+    return 0;
+  }
 
   // ========================================================================
   // 1. LOS DIBUJOS
@@ -262,17 +310,42 @@
    * hiciera, saldría volando en el mismo frame en que se posa y se quedaría
    * dando vueltas para siempre.
    */
-  function arbolLejano(scene, minDist) {
+  /**
+   * Un árbol que esté a más de `minDist` del jugador.
+   *
+   * `desde` y `radio` son opcionales y limitan LO LEJOS QUE SE VA DE UN VUELO.
+   *
+   * EL FALLO QUE ARREGLAN: se elegía entre TODOS los árboles del mapa, y el
+   * mapa mide 5008 px. A 78 px/s —un búho vuela despacio— cruzarlo son casi
+   * cuarenta segundos EN EL AIRE, y el búho se cambia de árbol cada 30-75 s.
+   * O sea que se pasaba buena parte de la noche planeando de una punta a otra.
+   *
+   * Y en el búho eso se nota el doble, porque lo que se ve de él de noche son
+   * los OJOS, y los ojos solo se encienden posado (`moverOjos`). Un búho que
+   * se pasa media noche volando es un búho que casi no se ve.
+   *
+   * Si en el radio no hay ninguno que valga, se coge de la lista entera: nunca
+   * se queda sin sitio donde ir.
+   */
+  function arbolLejano(scene, minDist, desde, radio) {
     var lista = arboles(scene);
     if (!lista.length) return null;
     var p = scene.player;
     var buenos = [];
+    var cerca = [];
     for (var i = 0; i < lista.length; i++) {
       var c = copaDe(lista[i].spr);
-      if (!p) { buenos.push(lista[i]); continue; }
-      var dx = c.x - p.x, dy = c.y - p.y;
-      if (dx * dx + dy * dy > minDist * minDist) buenos.push(lista[i]);
+      if (p) {
+        var dx = c.x - p.x, dy = c.y - p.y;
+        if (dx * dx + dy * dy <= minDist * minDist) continue;   // pegado al jugador
+      }
+      buenos.push(lista[i]);
+      if (desde && radio) {
+        var ex = c.x - desde.x, ey = c.y - desde.y;
+        if (ex * ex + ey * ey <= radio * radio) cerca.push(lista[i]);
+      }
     }
+    if (cerca.length) return elegir(cerca);
     return elegir(buenos.length ? buenos : lista);
   }
 
@@ -334,7 +407,8 @@
 
   /** Se muda de árbol: o porque le toca, o porque te has acercado. */
   function volarA(st, b, minDist) {
-    var arbol = arbolLejano(st.scene, minDist || 260);
+    // De la zona: ver por qué en `arbolLejano`.
+    var arbol = arbolLejano(st.scene, minDist || 260, b.spr, RADIO_MUDA);
     if (!arbol) return false;
     b.arbol = arbol.clave;
     b.destino = copaDe(arbol.spr);
@@ -379,20 +453,37 @@
         }
       }
 
+      /* CON AGUA ENCIMA, LOS OJOS CERRADOS.
+
+         El parpadeo normal es un instante cerrado cada varios segundos. Bajo
+         la lluvia se le da la vuelta: pasa la mayor parte del rato con los
+         ojos cerrados y solo los abre un momento de tanto en tanto. Es lo que
+         hace un búho aguantando un chaparrón, y de paso apaga casi del todo
+         los dos puntos ámbar de la copa, que con la cortina de tormenta
+         delante quedaban demasiado llamativos. */
+      var mal = malTiempo();
       if (ahora >= b.proximoParpadeo) {
         b.parpadeando = !b.parpadeando;
         spr.setTexture(b.parpadeando ? 'gfb_dormita' : 'gfb_posado');
-        b.proximoParpadeo = ahora + (b.parpadeando ? az(90, 180) : az(PARPADEO[0], PARPADEO[1]));
+        if (mal > LLUVIA_ENCOGE) {
+          b.proximoParpadeo = ahora + (b.parpadeando ? az(1800, 5200) : az(400, 1100));
+        } else {
+          b.proximoParpadeo = ahora + (b.parpadeando ? az(90, 180) : az(PARPADEO[0], PARPADEO[1]));
+        }
       }
 
       if (ahora >= b.proximoUlular) {
-        ulular(st, b);
-        b.proximoUlular = ahora + az(ULULA_CADA[0], ULULA_CADA[1]);
+        /* Con lluvia apenas ulula: el sonido no viaja con el agua y él no está
+           para llamadas. Se pierde el turno y se vuelve a sortear. */
+        if (mal <= LLUVIA_ENCOGE || Math.random() < 0.18) ulular(st, b);
+        b.proximoUlular = ahora + az(ULULA_CADA[0], ULULA_CADA[1]) *
+                                  (mal > LLUVIA_ENCOGE ? 2.2 : 1);
       }
 
       if (ahora >= b.proximaMuda) {
         b.proximaMuda = ahora + az(MUDA_CADA[0], MUDA_CADA[1]);
-        volarA(st, b, 260);
+        // Mojado no se cambia de árbol: cada vuelo es más agua encima.
+        if (mal <= LLUVIA_ENCOGE) volarA(st, b, 260);
       }
 
       /* El árbol donde está puede desaparecer: aquí se talan. Si pasa, se
@@ -440,13 +531,18 @@
        pantalla parecería una luciérnaga. Solo posado. */
     var visible = (b.fase === 'posado') && !b.parpadeando && noche > 0.25;
     if (!visible) { if (o.visible) o.setVisible(false); return; }
+    /* Con la cortina de tormenta delante, los ojos van más apagados: dos
+       puntos ámbar a plena intensidad detrás del agua se leen como un fallo de
+       dibujo, no como un búho. */
+    var apaga = 1 - Math.min(0.55, malTiempo() * 0.6);
 
     /* La cara está en la fila 5 de 16, y el sprite se ancla por las patas
        (origen 0,1). Diez píxeles y medio hacia arriba, por la escala. */
     o.setPosition(b.spr.x, b.spr.y - 10.5 * st.escala);
     o.setVisible(true);
     // Cuanto más cerrada la noche, más se encienden. De día no hay brillo.
-    o.setAlpha(Math.min(1, (noche - 0.25) / 0.5) * (0.72 + 0.28 * Math.sin(st.scene.time.now / 420)));
+    o.setAlpha(Math.min(1, (noche - 0.25) / 0.5) * apaga *
+               (0.72 + 0.28 * Math.sin(st.scene.time.now / 420)));
   }
 
   function retirar(st, b) {
@@ -496,14 +592,17 @@
         if (!st.buho) {
           /* No se intenta en cada frame: si no hay árboles todavía (el mapa
              tarda en montarse) sería sesenta barridos por segundo para nada. */
-          if (n >= st.llega && ahora >= st.proximoIntento) {
+          // Y con el chaparrón encima no sale: ver "EL BÚHO Y LA LLUVIA".
+          if (n >= st.llega && ahora >= st.proximoIntento &&
+              malTiempo() < LLUVIA_SE_VA) {
             st.proximoIntento = ahora + 4000;
             st.buho = crear(st);
           }
           return;
         }
 
-        if (n <= st.seVa && st.buho.fase !== 'se_va') irse(st, st.buho);
+        if (st.buho.fase !== 'se_va' &&
+            (n <= st.seVa || malTiempo() >= LLUVIA_SE_VA)) irse(st, st.buho);
         mover(st, st.buho, ahora, dt);
         if (st.buho) moverOjos(st, st.buho, n);
       } catch (e) {
@@ -545,6 +644,7 @@
         hay: !!b,
         fase: b ? b.fase : null,
         arbol: b ? b.arbol : null,
+        malTiempo: Math.round(malTiempo() * 100) / 100,
         x: b ? Math.round(b.spr.x) : null,
         y: b ? Math.round(b.spr.y) : null,
         arbolesEnElMapa: montado ? arboles(montado.scene).length : 0
@@ -568,7 +668,9 @@
       pintarRejilla: pintarRejilla, texturaVuelo: texturaVuelo,
       texturaOjos: texturaOjos, arboles: arboles, copaDe: copaDe,
       arbolLejano: arbolLejano, crear: crear, mover: mover,
-      LLEGA: LLEGA, SE_VA: SE_VA, PROF_OJOS: PROF_OJOS
+      LLEGA: LLEGA, SE_VA: SE_VA, PROF_OJOS: PROF_OJOS,
+      malTiempo: malTiempo, RADIO_MUDA: RADIO_MUDA,
+      LLUVIA_ENCOGE: LLUVIA_ENCOGE, LLUVIA_SE_VA: LLUVIA_SE_VA
     }
   };
 })();

@@ -7,6 +7,13 @@
  *   parcela, y salen volando si el jugador se acerca. Si talan el árbol donde
  *   está posado uno, se va a otro.
  *
+ * SE ENTERA DEL TIEMPO
+ *   Cuando llueve o nieva no baja al suelo ni a las parcelas: se mete en la
+ *   copa, encoge el cuello y espera, sacudiéndose el agua de vez en cuando. Y
+ *   con un trueno levanta el vuelo y se cambia de árbol. Todo eso está en la
+ *   sección "EL CUERVO Y EL TIEMPO"; sin gf-clima se comporta como si siempre
+ *   estuviera despejado.
+ *
  * NO TOCA NADA DEL JUEGO
  *   El cuervo es un sprite normal SIN cuerpo de física: no colisiona con nada,
  *   no empuja, no se le puede chocar y no interfiere con el jugador, los
@@ -42,6 +49,24 @@
   var ESPERA_ARBOL = [4000, 11000]; // cuánto se queda posado
   var ESPERA_SUELO = [3000, 7000];  // cuánto anda o come antes de decidir
 
+  /* HASTA DÓNDE SE VA DE UN VUELO.
+   *
+   * EL FALLO QUE ARREGLA: `decidir` elegía el árbol entre TODOS los del mapa,
+   * y el mapa mide 5008 px. Un vuelo medio salía de unos 2000 px, y a 95 px/s
+   * son VEINTE SEGUNDOS en el aire contra los 4-11 que se queda posado. En la
+   * simulación, el cuervo se pasaba el 72 % del tiempo volando: no parecía un
+   * cuervo, parecía un avión de línea dando vueltas al mapa.
+   *
+   * Es exactamente el mismo fallo que ya se corrigió en las aves de
+   * gf-animales (allí se llama RADIO_VUELO y vale 700); aquí se había quedado
+   * sin arreglar. Se deja algo más largo porque un cuervo sí recorre más
+   * terreno que una paloma, pero deja de cruzar el mundo entero.
+   *
+   * Si en la zona no hay ningún árbol dentro del radio, se coge el más cercano
+   * de los que haya: nunca se queda sin sitio donde ir.
+   */
+  var RADIO_VUELO = 950;
+
   /* Profundidad volando.
    *
    * TIENE QUE QUEDAR POR DEBAJO DE LA CAPA DE NOCHE, que gf-ciclo-dia.js pone
@@ -71,8 +96,49 @@
   }
 
   function az(a, b) { return a + Math.random() * (b - a); }
-  function azEnt(a, b) { return Math.floor(az(a, b + 1)); }
   function elegir(lista) { return lista[Math.floor(Math.random() * lista.length)]; }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     EL CUERVO Y EL TIEMPO
+     ──────────────────────────────────────────────────────────────────────
+     LO QUE ESTABA MAL: "el cuervo sigue comiendo". Y era literal — el cuervo
+     no miraba el tiempo por ningún lado, así que bajaba a picotear la parcela
+     en mitad de la tormenta como si hiciera un día espléndido.
+
+     Un córvido bajo el agua hace exactamente una cosa: se mete en la copa,
+     encoge el cuello, deja las plumas de punta y espera. No baja al suelo, no
+     come, no cambia de árbol y casi no se mueve. Se sacude cada tanto, y eso
+     es todo.
+
+     No hace falta una fase nueva para eso: 'posado' ya es "está en un árbol
+     sin hacer nada". Lo único que se añade es que, mientras llueve, `decidir`
+     no le deje bajarse, y que se le note en el cuerpo (`encogido`).
+     ══════════════════════════════════════════════════════════════════════ */
+  var MAL_TIEMPO_ENTRA = 0.30;   // por encima, al árbol
+  var MAL_TIEMPO_SALE  = 0.12;   // y no baja hasta que no baje de aquí
+  var ENCOGE = 0.10;             // cuánto se achata al encogerse
+  var SECO = { activo: false, lluvia: 0, nieve: 0, sol: 0, viento: 0,
+               truenos: false, tormenta: false };
+
+  /** Cuánto moja lo que está cayendo ahora mismo, de 0 a 1. */
+  function malTiempo() {
+    var C = window.GFClima;
+    var t = null;
+    try {
+      if (C && C.ahora) t = C.ahora();
+      else if (C && C.estado) {
+        /* gf-clima viejo, sin `ahora()`: peor —salta de golpe en vez de
+           arreciar— pero funciona. */
+        var e = C.estado();
+        if (!e || !e.activo) return 0;
+        t = { activo: true,
+              lluvia: e.lluvia ? (Number(e.lluviaFuerza) || 1) : 0,
+              nieve:  e.nieve  ? (Number(e.nieveFuerza)  || 1) : 0 };
+      }
+    } catch (x) { return 0; }
+    if (!t || !t.activo) return 0;
+    return Math.max(t.lluvia || 0, (t.nieve || 0) * 0.85);
+  }
 
   // ------------------------------------------------------------- animaciones
   var CLAVES = {
@@ -154,6 +220,16 @@
     return out;
   }
 
+  /** Solo los de la zona; si no hay ninguno, la lista entera. */
+  function deLaZona(sitios, c) {
+    var out = [];
+    for (var i = 0; i < sitios.length; i++) {
+      var s = sitios[i].spr ? posadero(sitios[i].spr) : sitios[i];
+      if (Math.hypot(s.x - c.spr.x, s.y - c.spr.y) <= RADIO_VUELO) out.push(sitios[i]);
+    }
+    return out.length ? out : sitios;
+  }
+
   function lejosDelJugador(scene, sitios, minDist) {
     var p = scene.player;
     if (!p) return sitios;
@@ -180,10 +256,20 @@
                               y: scene.player ? scene.player.y - 80 : 0 };
 
     /* Sombra en el suelo. Volando se queda abajo, pequeña y tenue: es lo que
-       hace que se note que el pájaro está en alto y no pegado al césped. */
+       hace que se note que el pájaro está en alto y no pegado al césped.
+
+       EL RELLENO VA A TOPE Y LA OPACIDAD LA PONE setAlpha.
+
+       EL FALLO QUE ARREGLA (el mismo que ya se corrigió en gf-animales): el
+       último argumento de `add.ellipse` es el fillAlpha, NO el alpha del
+       objeto, y Phaser pinta multiplicando los dos. Naciendo con 0,26 y
+       poniéndole además `setAlpha(0.26)` en cada fotograma, la sombra del
+       cuervo se dibujaba al 0,068 — cuatro veces más clara de lo que dice el
+       código. En la práctica el cuervo no tenía sombra. */
     var sombra = null;
     if (scene.add.ellipse) {
-      sombra = scene.add.ellipse(inicio.x, inicio.y, 18, 8, 0x000000, 0.26);
+      sombra = scene.add.ellipse(inicio.x, inicio.y, 18, 8, 0x000000, 1);
+      sombra.setAlpha(0.26);
       sombra.setDepth(inicio.y - 1);
     }
 
@@ -213,8 +299,29 @@
     c.hambreEn = scene.time.now + az(HAMBRE_CADA[0], HAMBRE_CADA[1]);
     c.parcela = null;
     c.picoteoEn = 0;
+    // el tiempo
+    c.encogido = false;
+    c.encoge = 0;
+    c.sacudeEn = 0;
+    c.sacudeHasta = 0;
+    c.truenoVisto = 0;
+    c.huyeEn = 0;
     posarse(st, c, inicio);
     return c;
+  }
+
+  /** Se encoge sobre sí mismo (o se estira) con un fundido, no de golpe. */
+  function encoger(c, dt) {
+    var meta = c.encogido ? 1 : 0;
+    var v = c.encoge || 0;
+    if (v === meta) return;
+    v = (v < meta) ? Math.min(meta, v + 2.4 * dt) : Math.max(meta, v - 2.4 * dt);
+    c.encoge = v;
+    c.spr.setScale(ESCALA, ESCALA * (1 - ENCOGE * v));
+  }
+
+  function ritmo(c, k) {
+    try { if (c.spr.anims) c.spr.anims.timeScale = k; } catch (e) {}
   }
 
   function anim(c, nombre) {
@@ -290,6 +397,14 @@
     c.arbol = arbolClave || null;
     c.spr.setDepth(PROF_VUELO);
     anim(c, 'vuela');
+    /* Volando se aletea a ritmo normal SIEMPRE.
+
+       EL FALLO QUE ARREGLA: al resguardarse de la lluvia se le baja el
+       `timeScale` a 0,45 (y a 2,4 en las sacudidas). Si despegaba estando
+       encogido —huyendo del jugador, o con un trueno— se llevaba ese ritmo al
+       vuelo y cruzaba el mapa aleteando a cámara lenta. Nadie se lo devolvía a
+       1 hasta que volviera a posarse y decidir. */
+    ritmo(c, 1);
     c.spr.setFlipX(punto.x < c.spr.x);
   }
 
@@ -297,7 +412,6 @@
   function huir(st, c) {
     var scene = st.scene;
     var arboles = arbolesDisponibles(scene);
-    if (!arboles.length) return;
     var p = scene.player;
     var mejor = null, mejorD = -1;
     for (var i = 0; i < arboles.length; i++) {
@@ -305,12 +419,44 @@
       var d = p ? Math.hypot(pt.x - p.x, pt.y - p.y) : Math.random();
       // no vale irse al mismo árbol ni a uno pegado al jugador
       if (arboles[i].clave === c.arbol) continue;
-      if (d > mejorD) { mejorD = d; mejor = arboles[i]; }
+      /* Y SE CASTIGA LA DISTANCIA. Huyendo puede irse más lejos que en un
+         vuelo normal, pero sin cruzar el mapa: sin este castigo, el "más lejos
+         del jugador" es siempre la esquina opuesta del mundo, y el cuervo se
+         pasaba medio minuto en el aire cada vez que te acercabas. */
+      var castigo = Math.hypot(pt.x - c.spr.x, pt.y - c.spr.y) * 0.35;
+      if (d - castigo > mejorD) { mejorD = d - castigo; mejor = arboles[i]; }
     }
-    if (!mejor) return;
+    if (!mejor) {
+      /* Ni un árbol al que irse (mapa sin árboles, o solo queda el suyo).
+
+         EL FALLO QUE ARREGLA: aquí se hacía `return` a secas, y como a `huir`
+         se le llama desde el bucle cada vez que el jugador está cerca, el
+         cuervo se pasaba SESENTA VECES POR SEGUNDO recorriendo los 63 árboles
+         del mapa para no hacer nada. Ahora se aparta a la desesperada y, si
+         tampoco puede, se calla un par de segundos antes de volver a mirar. */
+      var ang = p ? Math.atan2(c.spr.y - p.y, c.spr.x - p.x) : az(0, 6.283);
+      c.huyeEn = scene.time.now + 2000;
+      c.asustado = true;
+      volarA(st, c, { x: c.spr.x + Math.cos(ang) * 320,
+                      y: c.spr.y + Math.sin(ang) * 320 }, 'camina', null);
+      return;
+    }
     c.asustado = true;
+    c.encogido = false;
     volarA(st, c, posadero(mejor.spr), 'posado', mejor.clave);
     log(st.scene, 'se asusta y vuela a', mejor.clave);
+  }
+
+  /** El árbol en pie más cercano, para meterse debajo cuanto antes. */
+  function arbolMasCerca(scene, c) {
+    var arboles = arbolesDisponibles(scene);
+    var mejor = null, mejorD = Infinity;
+    for (var i = 0; i < arboles.length; i++) {
+      var pt = posadero(arboles[i].spr);
+      var d = Math.hypot(pt.x - c.spr.x, pt.y - c.spr.y);
+      if (d < mejorD) { mejorD = d; mejor = arboles[i]; }
+    }
+    return mejor;
   }
 
   /** El árbol donde está posado, ¿sigue en pie? */
@@ -339,6 +485,39 @@
     var arboles = arbolesDisponibles(scene);
     var r = Math.random();
 
+    /* ── ¿ESTÁ CAYENDO ALGO? ───────────────────────────────────────────
+       Entonces no hay nada que decidir: a la copa y a esperar. Se sale con un
+       umbral más bajo del que se entra (0,12 contra 0,30) porque con los dos
+       iguales, y la lluvia parada justo ahí, el cuervo bajaría y subiría del
+       árbol una y otra vez. */
+    var mal = malTiempo();
+    if (mal > (c.encogido ? MAL_TIEMPO_SALE : MAL_TIEMPO_ENTRA)) {
+      // Ya está en un árbol que sigue en pie: no se mueve de ahí.
+      if (c.fase === 'posado' && arbolSigueEnPie(scene, c.arbol)) {
+        c.encogido = true;
+        anim(c, 'quieto');
+        ritmo(c, 0.45);
+        c.parcela = null;               // ni se le ocurra picotear bajo el agua
+        c.hasta = scene.time.now + az(6000, 15000);
+        return;
+      }
+      // No lo está: al árbol en pie más cercano, sin buscar el mejor.
+      var refugio = arbolMasCerca(scene, c);
+      if (refugio) {
+        c.encogido = true;
+        c.parcela = null;
+        volarA(st, c, posadero(refugio.spr), 'posado', refugio.clave);
+        return;
+      }
+      // Mapa sin árboles: al menos se queda quieto en el suelo.
+      c.encogido = true;
+      anim(c, 'quieto');
+      ritmo(c, 0.45);
+      c.hasta = scene.time.now + 5000;
+      return;
+    }
+    if (c.encogido) { c.encogido = false; ritmo(c, 1); }
+
     // Con hambre, la balanza se inclina hacia las parcelas: es lo único que le
     // interesa. Sin hambre reparte 45% árbol · 30% suelo · 25% parcela.
     var hambre = tieneHambre(st, c);
@@ -347,7 +526,7 @@
     // 45% cambiar de árbol · 30% bajar a caminar · 25% picotear una parcela
     if (r < 0.45 || !scene.player) {
       if (!arboles.length) { c.hasta = scene.time.now + 3000; return; }
-      var libres = lejosDelJugador(scene, arboles, DIST_SUSTO_ARBOL * 1.5);
+      var libres = lejosDelJugador(scene, deLaZona(arboles, c), DIST_SUSTO_ARBOL * 1.5);
       var destino = elegir(libres);
       volarA(st, c, posadero(destino.spr), 'posado', destino.clave);
       return;
@@ -355,7 +534,7 @@
 
     if (r < 0.75) {
       // bajar a caminar cerca de un árbol, pero no encima del jugador
-      var base = arboles.length ? posadero(elegir(arboles).spr)
+      var base = arboles.length ? posadero(elegir(deLaZona(arboles, c)).spr)
                                 : { x: c.spr.x, y: c.spr.y };
       var punto = { x: base.x + az(-70, 70), y: base.y + az(60, 110) };
       if (scene.player &&
@@ -369,7 +548,7 @@
 
     var pars = parcelas(scene);
     if (!pars.length) { c.hasta = scene.time.now + 2000; return; }
-    var libres2 = lejosDelJugador(scene, pars, DIST_SUSTO_SUELO * 1.4);
+    var libres2 = lejosDelJugador(scene, deLaZona(pars, c), DIST_SUSTO_SUELO * 1.4);
     var elegida = elegir(libres2);
     /* Solo se apunta la parcela SI TIENE HAMBRE.
        EL FALLO QUE ARREGLA: `c.parcela` se ponía siempre que bajaba a una
@@ -428,8 +607,31 @@
     var spr = c.spr;
     if (!spr || !spr.active) return;
     actualizarSombraCuervo(c);
+    encoger(c, dt);
     var ahora = scene.time.now;
     var p = scene.player;
+
+    /* EL TRUENO. Un cuervo con un trueno encima levanta el vuelo y se cambia
+       de árbol graznando; es lo que hace un córvido de verdad y lo que remata
+       la tormenta. `st.trueno` lo pone el oyente que se engancha en `montar`. */
+    if (st.trueno && c.truenoVisto !== st.trueno) {
+      c.truenoVisto = st.trueno;
+      if (c.fase !== 'volando' && Math.random() < 0.6) { huir(st, c); return; }
+    }
+
+    /* ESCAMPÓ: SE ESTIRA YA, sin esperar a que le toque decidir.
+
+       Resguardado, la siguiente decisión se sortea entre 6 y 15 segundos; y
+       quien lo saca del encogimiento es `decidir`. O sea que el cuervo se
+       quedaba con el cuello metido y las plumas de punta bajo un cielo
+       despejado hasta un cuarto de minuto después de la última gota. Aquí se
+       le devuelve el cuerpo en cuanto para, y se le adelanta la decisión para
+       que vuelva a hacer vida normal. */
+    if (c.encogido && malTiempo() <= MAL_TIEMPO_SALE) {
+      c.encogido = false;
+      ritmo(c, 1);
+      if (c.hasta > ahora + 2500) c.hasta = ahora + az(600, 2500);
+    }
 
     /* Posado en un árbol: se mece CON la rama. Antes el árbol se meneaba con
        el viento y el cuervo se quedaba clavado en el aire. Se suma sobre la
@@ -442,7 +644,16 @@
     if (c.fase === 'volando') {
       var dx = c.destino.x - spr.x, dy = c.destino.y - spr.y;
       var d = Math.hypot(dx, dy);
-      if (d < 3) {
+      /* SE ATERRIZA TAMBIÉN SI EL PASO SE PASA DE LARGO.
+
+         EL FALLO QUE ARREGLA: aquí solo valía `d < 3`, y el paso de un
+         fotograma es VEL_VUELO · dt. A 60 fps son 1,6 px y cuela; en móvil,
+         que va topado a 30 fps, son 3,2 px — más que el umbral. El cuervo
+         llegaba al árbol, se pasaba de largo, daba media vuelta, se volvía a
+         pasar... y se quedaba orbitando la copa para siempre sin posarse
+         nunca. Es exactamente el mismo fallo que ya se corrigió en el vuelo de
+         las aves de gf-animales, y aquí se había quedado sin arreglar. */
+      if (d < 3 || VEL_VUELO * dt >= d) {
         if (c.alFinal === 'posado') {
           posarse(st, c, c.destino);
         } else {
@@ -465,10 +676,20 @@
     }
 
     // ---- en el suelo o posado: ¿hay que salir por patas? ----
-    if (p) {
+    if (p && ahora >= (c.huyeEn || 0)) {
       var dist = Math.hypot(spr.x - p.x, spr.y - p.y);
       var limite = (c.fase === 'posado') ? DIST_SUSTO_ARBOL : DIST_SUSTO_SUELO;
       if (dist < limite) { huir(st, c); return; }
+    }
+
+    /* Encogido bajo el agua: cada tanto se sacude. Un pájaro absolutamente
+       inmóvil durante un minuto se lee como colgado, no como resguardado. */
+    if (c.encogido && c.fase === 'posado') {
+      if (ahora >= (c.sacudeEn || 0)) {
+        c.sacudeEn = ahora + az(5000, 13000);
+        c.sacudeHasta = ahora + az(400, 900);
+      }
+      ritmo(c, ahora < (c.sacudeHasta || 0) ? 2.4 : 0.45);
     }
 
     // ---- ¿le han talado el árbol? ----
@@ -527,8 +748,23 @@
       }
     };
     scene.events.on('update', st.onUpdate);
-    scene.events.once('shutdown', function () { desmontar(scene); });
-    scene.events.once('destroy', function () { desmontar(scene); });
+    /* Guardados en una variable: los manejadores anónimos que había aquí NO se
+       podían quitar en `desmontar`, así que al desmontar a mano (sin apagar la
+       escena) se quedaban vivos colgando de la escena y del `st` viejo. */
+    st.onApagar = function () { desmontar(scene); };
+    scene.events.once('shutdown', st.onApagar);
+    scene.events.once('destroy', st.onApagar);
+
+    /* El trueno, para sobresaltarse con él. Hay que darse de baja al
+       desmontar: gf-clima NO se apaga al cambiar de mapa, así que un oyente
+       que se quede enganchado arrastra la escena vieja entera con él. */
+    st.trueno = 0;
+    st.soltarTrueno = null;
+    try {
+      if (window.GFClima && window.GFClima.alTronar) {
+        st.soltarTrueno = window.GFClima.alTronar(function () { st.trueno = Date.now(); });
+      }
+    } catch (e) { /* sin clima no hay truenos */ }
 
     log(scene, 'montados', st.cuervos.length, 'cuervos');
     return st;
@@ -539,6 +775,11 @@
     if (!st) return;
     try {
       if (st.onUpdate) scene.events.off('update', st.onUpdate);
+      if (st.onApagar) {
+        scene.events.off('shutdown', st.onApagar);
+        scene.events.off('destroy', st.onApagar);
+      }
+      if (st.soltarTrueno) { st.soltarTrueno(); st.soltarTrueno = null; }
       for (var i = 0; i < st.cuervos.length; i++) {
         var c = st.cuervos[i];
         if (c && c.spr && c.spr.destroy) c.spr.destroy();
@@ -554,7 +795,8 @@
     if (!st) return null;
     return st.cuervos.map(function (c) {
       return { fase: c.fase, arbol: c.arbol, x: Math.round(c.spr.x),
-               y: Math.round(c.spr.y), asustado: c.asustado };
+               y: Math.round(c.spr.y), asustado: c.asustado,
+               encogido: c.encogido, malTiempo: Math.round(malTiempo() * 100) / 100 };
     });
   }
 
@@ -567,9 +809,12 @@
     // se exponen para poder probarlos sin navegador
     _interno: {
       posadero: posadero, arbolesDisponibles: arbolesDisponibles,
+      deLaZona: deLaZona, RADIO_VUELO: RADIO_VUELO,
       parcelas: parcelas, actualizarCuervo: actualizarCuervo,
       huir: huir, decidir: decidir, profundidadPosado: profundidadPosado,
-      tieneHambre: tieneHambre, saciar: saciar, picotearParcela: picotearParcela
+      tieneHambre: tieneHambre, saciar: saciar, picotearParcela: picotearParcela,
+      malTiempo: malTiempo, arbolMasCerca: arbolMasCerca, encoger: encoger,
+      MAL_TIEMPO_ENTRA: MAL_TIEMPO_ENTRA, MAL_TIEMPO_SALE: MAL_TIEMPO_SALE
     }
   };
 })();

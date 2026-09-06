@@ -28,6 +28,16 @@
  *   por delante de aquello donde se han posado (depth del soporte + 1);
  *   volando, por encima de todo.
  *
+ * SE ENTERAN DEL TIEMPO QUE HACE
+ *   Con lluvia, nieve o viento fuerte cada especie hace lo suyo: las mariposas
+ *   se agarran a una hoja, las aves se meten en la rama, el conejo corre a su
+ *   madriguera, el zorro se tumba bajo una copa, el cocodrilo se acuesta, la
+ *   vaca aguanta de pie y el cerdo se va derecho al primer charco. Al tronar,
+ *   se sobresaltan. Con sol, los reptiles se tuestan y las mariposas no paran.
+ *   Todo eso está en la sección "EL TIEMPO Y LOS ANIMALES", y lo que hace el
+ *   tiempo se le pregunta a gf-clima (`GFClima.ahora()`); sin ese módulo el
+ *   mundo se comporta como si estuviera siempre despejado.
+ *
  * CÓMO SE ENGANCHA
  *   GameScene.preload():  window.GFAnimales && window.GFAnimales.precargar(this);
  *   GameScene.create():   window.GFAnimales && window.GFAnimales.montar(this);
@@ -38,6 +48,8 @@
  *   GFAnimales.montar(scene, opciones)   opciones: { elenco, debug }
  *   GFAnimales.desmontar(scene)
  *   GFAnimales.estado(scene)             para depurar
+ *   GFAnimales.congelar(n) / descongelarTodos()
+ *   GFAnimales.tiempo()                  qué tiempo creen que hace
  * ======================================================================== */
 (function () {
   'use strict';
@@ -397,8 +409,78 @@
     return null;
   }
 
+  /* ══════════════════════════════════════════════════════════════════════
+     EL ESCENARIO SE MIDE UNA VEZ CADA TANTO, NO EN CADA DECISIÓN
+     ──────────────────────────────────────────────────────────────────────
+     LA FUGA QUE ESTO ARREGLA (no de memoria retenida, sino de BASURA):
+
+     `posaderos()` recorre 93 sprites y `floresYPiedras()` recorre 173, y cada
+     uno de ellos llama a `getBounds()` —que fabrica un rectángulo nuevo— y
+     además deja un objeto suelto por cada sitio encontrado. Las dos se
+     llamaban ENTERAS cada vez que un bicho decidía qué hacer.
+
+     Con trece mariposas decidiendo cada dos segundos y medio y nueve aves
+     haciendo lo propio, salían del orden de mil `getBounds()` y varios cientos
+     de objetos POR SEGUNDO, tirados acto seguido. Eso no llena la memoria,
+     pero obliga al recolector a pasar sin parar, y el recolector pasando es
+     exactamente el tirón que se nota al andar por el mapa.
+
+     Ahora el barrido se hace como mucho cada CACHE_SITIOS_MS y el resultado se
+     guarda. Los árboles y las casas no se mueven; lo único que cambia es que
+     talen uno, y eso ya se comprueba aparte (`sitioEnPie`) justo cuando hace
+     falta.
+
+     EL AZAR NO SE GUARDA. Si se cacheara el punto exacto con su desviación al
+     azar ya aplicada, todas las aves que fueran a un mismo tejado caerían en
+     el mismísimo píxel. Lo que se guarda es el CENTRO y CUÁNTO se puede
+     desviar; el sorteo se hace al elegir (`puntoPosadero`, `puntoFlor`).
+     ══════════════════════════════════════════════════════════════════════ */
+  var CACHE_SITIOS_MS = 2500;
+
+  /** Se guarda por escena: dos mapas distintos no comparten árboles. */
+  function cacheDe(scene) {
+    var c = scene.__gfFaunaSitios;
+    if (!c) {
+      c = scene.__gfFaunaSitios = { posaderos: null, flores: null,
+                                    refugios: null, hasta: 0, tocones: -1 };
+    }
+    return c;
+  }
+
+  /** ¿Vale todavía lo guardado? Caduca por tiempo y si han talado algo. */
+  function cacheVale(scene, c) {
+    var ahora = (scene.time && scene.time.now) || 0;
+    var tocones = 0;
+    var t = scene.treeStumps;
+    if (t) { for (var k in t) { if (t[k]) tocones++; } }
+    if (ahora >= c.hasta || tocones !== c.tocones) {
+      c.hasta = ahora + CACHE_SITIOS_MS;
+      c.tocones = tocones;
+      c.posaderos = null;
+      c.flores = null;
+      c.refugios = null;
+      return false;
+    }
+    return true;
+  }
+
+  /** Tira lo guardado: lo llama quien cambie el escenario a mano. */
+  function olvidarSitios(scene) {
+    if (scene && scene.__gfFaunaSitios) scene.__gfFaunaSitios.hasta = 0;
+  }
+
+  /** Un punto CONCRETO dentro de un posadero, con su desviación al azar. */
+  function puntoPosadero(s) {
+    return { clave: s.clave, base: s.base, spr: s.spr,
+             x: s.x + (s.jit ? (Math.random() - 0.5) * s.jit : 0),
+             y: s.y };
+  }
+
   /** Sitios donde puede posarse un ave: árboles, postes y tejados. */
   function posaderos(scene) {
+    var c = cacheDe(scene);
+    if (cacheVale(scene, c) && c.posaderos) return c.posaderos;
+
     var out = [];
     var tocones = scene.treeStumps || {};
 
@@ -407,12 +489,13 @@
       var b;
       try { b = spr.getBounds(); } catch (e) { return; }
       if (!b || !isFinite(b.centerX)) return;
-      // Un poco al azar a lo ancho, para que no se posen siempre en el
-      // mismísimo píxel central del tejado.
-      var jitter = anchoUtil ? (Math.random() - 0.5) * b.width * anchoUtil : 0;
       out.push({
         clave: clave, spr: spr,
-        x: b.centerX + jitter,
+        // El CENTRO. La desviación a lo ancho —para que no se posen siempre en
+        // el mismísimo píxel— la pone `puntoPosadero` al elegir, no aquí: si
+        // se guardara sorteada, todas las aves irían al mismo punto.
+        x: b.centerX,
+        jit: anchoUtil ? b.width * anchoUtil : 0,
         y: b.top + b.height * alto,
         base: (typeof spr.depth === 'number') ? spr.depth : b.bottom
       });
@@ -438,6 +521,7 @@
     for (i = 0; i < casas.length; i++) {
       meter(casas[i], scene[casas[i]], 0.10, 0.55);
     }
+    c.posaderos = out;
     return out;
   }
 
@@ -538,6 +622,772 @@
   }
 
   /* ══════════════════════════════════════════════════════════════════════
+     EL TIEMPO Y LOS ANIMALES
+     ──────────────────────────────────────────────────────────────────────
+     LO QUE ESTABA MAL, EN UNA LÍNEA: llovía a mares y el mapa seguía igual.
+     Los pájaros se bañaban en la fuente bajo el chaparrón, el cocodrilo
+     paseaba, las mariposas revoloteaban y el cuervo picoteaba en la parcela.
+     El clima se PINTABA encima del mundo, pero el mundo no se enteraba.
+
+     Un animal de verdad es el mejor barómetro que hay. Antes de que caiga la
+     primera gota ya se ha ido todo el mundo a cubierto, y lo que se ve no es
+     un efecto de lluvia: es un prado que se queda vacío. Eso es lo que se
+     monta aquí.
+
+     CÓMO ESTÁ HECHO
+       · `tiempo()` lee de gf-clima lo que se ve AHORA (ya interpolado), y una
+         sola vez por fotograma para los treinta y pico bichos.
+       · `molestia()` convierte ese tiempo en un número por animal: cuánto le
+         fastidia. Un cerdo casi ni se entera; una mariposa se refugia con
+         cuatro gotas.
+       · Cada especie tiene su MANERA de guarecerse (`ANTE_EL_AGUA`), porque no
+         se guarecen igual un conejo, un pájaro y un cocodrilo.
+       · Con histéresis: se entra a refugio en 0,30 y no se sale hasta 0,12.
+         Sin ella, con la lluvia parada justo en el umbral, el prado entero
+         entraría y saldría del refugio varias veces por segundo.
+       · Y ESCALONADO: cada bicho tarda lo suyo en reaccionar (`reaccionaEn`).
+         Sin eso, treinta y un animales deciden refugiarse en el MISMO
+         fotograma —un tirón bien visible— y encima se ve coreografiado, que es
+         el mismo fallo que ya tenía el huir en manada y que arregló `miedo`.
+
+     POR QUÉ NO SE METE ESTO EN `decidirTierra` Y YA
+     Porque el tiempo no es algo que el animal ELIJA hacer, es algo que le
+     PASA. Tiene que poder interrumpir lo que estuviera haciendo —comiendo,
+     paseando, bañándose— y tiene que soltarlo en cuanto escampe. Un `if` más
+     en la ruleta de decisiones no haría ni lo uno ni lo otro.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /* Los umbrales. Van sobre la fuerza YA INTERPOLADA (lo que se ve), no sobre
+     lo que manda el servidor: ver `GFClima.ahora()`. */
+  var LLUVIA_MOJA    = 0.15;   // a partir de aquí el bicho se entera
+  var NIEVE_CUAJA    = 0.20;
+  /* POR ENCIMA DE ESTO, UNA MARIPOSA NO SE SOSTIENE.
+
+     Estaba en 0,80 y con eso casi no se notaba, porque hay que mirar QUÉ
+     números da el viento de verdad: `st.fuerza` de gf-viento vale como mucho
+     1 en un día ventoso normal, y encima va y viene con un seno (el término
+     0,72 + 0,28·sen), o sea que oscila entre 0,44 y 1 cada catorce segundos y
+     medio. Con el umbral en 0,80 la molestia llegaba a 0,36 durante un
+     instante — apenas por encima del 0,30 que hace falta para refugiarse— y
+     el retraso de reacción se comía casi toda la racha. Medido en el
+     navegador: las mariposas seguían volando el 30 % de las rachas fuertes.
+
+     Con 0,70 la molestia sube a 0,66 en lo más fuerte de cada racha y baja de
+     0,12 —el umbral de salir— cuando amaina. El resultado es lo que se ve en
+     un prado con viento: se agarran mientras sopla y vuelven a volar en
+     cuanto afloja. */
+  var VIENTO_VUELA   = 0.70;
+  var REFUGIO_ENTRA  = 0.30;   // molestia a la que se va a cubierto
+  var REFUGIO_SALE   = 0.12;   // ...y a la que vuelve a salir (histéresis)
+  var REFUGIO_RADIO  = 620;    // hasta dónde busca un techo
+  var CERDO_RADIO_CHARCO = 1500;      // ...y hasta dónde va un cerdo por barro
+  var REACCION_MS    = [400, 4200];   // lo que tarda en darse cuenta
+
+  /* CUÁNTO LE CAMBIA EL DÍA EL AGUA A CADA UNO.
+
+     Ojo con leer esto como "cuánto le fastidia": no es lo mismo. Es cuánto le
+     CAMBIA lo que estaba haciendo, y hay quien lo cambia porque le fastidia y
+     quien lo cambia porque le encanta. Al cerdo la lluvia le alegra el día y
+     aun así el número es alto, porque suelta lo que tuviera entre manos y se
+     va derecho al barro. Lo que decide QUÉ hace cada uno es `ANTE_EL_AGUA`;
+     esto solo dice CUÁNTO le importa.
+
+       mariposa  1,00  una sola gota pesa como ella; se agarra y no vuela más
+       conejo    0,95  es el primero que desaparece, siempre
+       ave       0,85  a la rama, y las plumas esponjadas
+       serpiente 0,80  de sangre fría: con agua se queda tiesa
+       zorro     0,70  se tumba bajo un árbol, no le corre prisa
+       cerdo     0,60  suelta lo que sea y se va al primer charco, feliz
+       cocodrilo 0,55  no corre a ningún lado, pero se acuesta y no anda más
+       vaca      0,50  aguanta el chaparrón de pie, pero deja de pastar
+
+     EL COCODRILO ESTABA EN 0,25 Y ÉSE ERA EL FALLO. Con el umbral de entrada
+     en 0,30, ni con el diluvio universal llegaba a reaccionar: seguía paseando
+     bajo la tormenta, que es exactamente lo que se reportó. Un cocodrilo no
+     busca techo —eso es verdad y por eso su manera es 'acostarse'—, pero
+     dejar de andar sí lo hace.
+
+     El topo va aparte y no usa esta tabla: ver `actualizarTopo`. */
+  var SENSIBLE_GRUPO = { mariposa: 1.00, ave: 0.85, conejo: 0.95,
+                         serpiente: 0.80, tierra: 0.60, topo: 0 };
+  var SENSIBLE = { zorro: 0.70, zorra: 0.70, vaca: 0.50,
+                   cocodrilo: 0.55, cerdo: 0.60 };
+
+  /* CÓMO se guarece cada uno. */
+  var ANTE_EL_AGUA_GRUPO = {
+    mariposa: 'agarrarse', ave: 'ramaje', conejo: 'madriguera',
+    serpiente: 'techo', tierra: 'techo', topo: 'nada'
+  };
+  var ANTE_EL_AGUA = { cerdo: 'charco', cocodrilo: 'acostarse', vaca: 'aguantar' };
+
+  function comoSeGuarece(a) {
+    return ANTE_EL_AGUA[a.especie] || ANTE_EL_AGUA_GRUPO[a.grupo] || 'techo';
+  }
+
+  /* ── LO QUE HACE AHORA MISMO ───────────────────────────────────────────
+     Una lectura por fotograma para todos los animales. Preguntárselo a
+     gf-clima treinta y una veces por vuelta no cuesta mucho, pero tampoco hace
+     falta: el tiempo no cambia entre un bicho y el siguiente. */
+  /* TIEMPO_SECO NO SE TOCA NUNCA. Es la respuesta de "aquí no hay clima", y
+     tiene que seguir siendo cero pase lo que pase: si se reaprovechara como
+     borrador y luego gf-clima desapareciera —al cambiar de mapa, por ejemplo—
+     los animales se quedarían creyendo que sigue lloviendo para siempre. El
+     borrador de la vía antigua es `tiempoViejo`, que es otro objeto. */
+  var TIEMPO_SECO = { activo: false, cargado: false, estacion: 'verano',
+                      lluvia: 0, nieve: 0, sol: 0, viento: 0,
+                      truenos: false, tormenta: false };
+  var tiempoViejo = { activo: false, cargado: false, estacion: 'verano',
+                      lluvia: 0, nieve: 0, sol: 0, viento: 0,
+                      truenos: false, tormenta: false };
+  var tiempoUltimo = TIEMPO_SECO;
+  var tiempoSello = -1;
+
+  function tiempo() { return tiempoUltimo; }
+
+  /** Relee el tiempo. Se llama UNA vez por vuelta, desde `actualizar`. */
+  function releerTiempo(ahora) {
+    if (tiempoSello === ahora) return tiempoUltimo;
+    tiempoSello = ahora;
+    var C = window.GFClima;
+    try {
+      if (C && C.ahora) {
+        var t = C.ahora();
+        tiempoUltimo = t || TIEMPO_SECO;
+        return tiempoUltimo;
+      }
+      /* gf-clima viejo, sin `ahora()`: se apaña con lo que hay. Peor —salta de
+         golpe en vez de arreciar— pero funciona, que es lo que importa. */
+      if (C && C.estado) {
+        var e = C.estado();
+        tiempoViejo.activo = !!(e && e.activo);
+        tiempoViejo.lluvia = (e && e.activo && e.lluvia) ? (Number(e.lluviaFuerza) || 1) : 0;
+        tiempoViejo.nieve  = (e && e.activo && e.nieve)  ? (Number(e.nieveFuerza)  || 1) : 0;
+        tiempoViejo.sol    = (e && e.activo && e.soleado) ? (Number(e.soleadoFuerza) || 1) : 0;
+        tiempoViejo.truenos  = !!(e && e.activo && e.lluvia && e.truenos);
+        tiempoViejo.tormenta = tiempoViejo.truenos && tiempoViejo.lluvia > 0.45;
+        tiempoViejo.estacion = (e && e.estacion) || 'verano';
+        tiempoViejo.cargado  = !!(e && e.cargado);
+        tiempoUltimo = tiempoViejo;
+        return tiempoUltimo;
+      }
+    } catch (x) { /* sin clima, tiempo seco */ }
+    tiempoUltimo = TIEMPO_SECO;
+    return tiempoUltimo;
+  }
+
+  /** Cuánto le fastidia a ESTE bicho el tiempo que hace, de 0 a 1. */
+  function molestia(a, t) {
+    if (!t || !t.activo) return 0;
+    var f = (SENSIBLE[a.especie] != null) ? SENSIBLE[a.especie]
+          : (SENSIBLE_GRUPO[a.grupo] != null ? SENSIBLE_GRUPO[a.grupo] : 0.6);
+    if (!f) return 0;
+    /* La nieve moja bastante menos que la lluvia a igual fuerza. Lo que trae la
+       nieve es el frío, y de eso ya se encarga el hielo más abajo. */
+    var m = Math.max(t.lluvia, t.nieve * 0.85) * f;
+    /* El viento solo cuenta para quien vuela, y a la mariposa la tumba: por
+       encima de VIENTO_VUELA no hay ala de mariposa que se sostenga. */
+    if (a.grupo === 'mariposa') {
+      m = Math.max(m, (t.viento - VIENTO_VUELA) * 2.2);
+    } else if (a.grupo === 'ave') {
+      m = Math.max(m, (t.viento - VIENTO_VUELA * 1.5) * 0.8);
+    }
+    // Con truenos todo el mundo se pone más nervioso.
+    if (t.tormenta) m *= 1.25;
+    return m < 0 ? 0 : (m > 1 ? 1 : m);
+  }
+
+  /** ¿Está el suelo mojado o nevado? Lo miran las aves para no bañarse. */
+  function sueloMojado(t) {
+    return !!(t && t.activo && (t.lluvia > LLUVIA_MOJA || t.nieve > NIEVE_CUAJA));
+  }
+
+  /** Lo que frena el barro o la nieve: nadie corre igual sobre ellos. */
+  function factorSuelo(t) {
+    if (!t || !t.activo) return 1;
+    return 1 - Math.min(0.40, t.nieve * 0.38 + t.lluvia * 0.10);
+  }
+
+  /* ── DÓNDE HAY TECHO ───────────────────────────────────────────────────
+     Bajo las copas y bajo los aleros. Se mide una vez y se guarda, igual que
+     los posaderos: un árbol no se mueve de sitio. */
+  function refugios(scene) {
+    var c = cacheDe(scene);
+    if (cacheVale(scene, c) && c.refugios) return c.refugios;
+
+    var out = [];
+    var tocones = scene.treeStumps || {};
+
+    function meter(clave, spr, ancho, dy) {
+      if (!spr || spr.active === false || typeof spr.x !== 'number') return;
+      var b;
+      try { b = spr.getBounds(); } catch (e) { return; }
+      if (!b || !isFinite(b.centerX) || !b.width) return;
+      out.push({ clave: clave, x: b.centerX, jit: b.width * ancho,
+                 y: b.bottom + dy,
+                 base: (typeof spr.depth === 'number') ? spr.depth : b.bottom });
+    }
+
+    var fam = [['sprite_arbolx', 18, 0.50], ['sprite_pinos', 45, 0.34]];
+    for (var f = 0; f < fam.length; f++) {
+      for (var i = 1; i <= fam[f][1]; i++) {
+        var clave = fam[f][0] + i;
+        if (tocones[clave]) continue;            // un tocón no tapa de nada
+        meter(clave, scene[clave], fam[f][2], -2);
+      }
+    }
+    /* Los aleros. Un animal pegado a la pared de una casa está tan a cubierto
+       como bajo un árbol, y repartir los refugios entre el bosque y el pueblo
+       evita que se amontonen todos en la misma arboleda. */
+    var casas = ['sprite_jj', 'sprite_h', 'sprite_p', 'sprite_casa_npc1xc',
+                 'sprite_casa_npc2xc', 'sprite_casa_npc3xc', 'sprite_molino',
+                 'sprite_cabaña', 'sprite_casa_comida', 'sprite_casa_comida2'];
+    for (var k = 0; k < casas.length; k++) meter(casas[k], scene[casas[k]], 0.75, 8);
+
+    c.refugios = out;
+    return out;
+  }
+
+  /* Sitio para los tres candidatos más cercanos. Es un array de módulo y no
+     uno nuevo en cada llamada: esto se usa justo cuando empieza a llover y
+     treinta animales buscan techo casi a la vez. */
+  var _cerca3 = [null, null, null];
+
+  /** ¿Cabe el animal bajo esta copa? Devuelve el punto, o null. */
+  function huecoBajo(scene, a, r) {
+    for (var k = 0; k < 5; k++) {
+      var x = r.x + (Math.random() - 0.5) * r.jit;
+      var y = r.y + az(-5, 9);
+      if (libre(scene, a, x, y)) {
+        return { x: x, y: y, clave: r.clave, base: r.base };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * El techo más cercano donde quepa, o null.
+   *
+   * Se hace en DOS PASADAS a propósito. La primera solo mide distancias, que
+   * es aritmética; la segunda, que es la cara (comprueba colisiones), se hace
+   * únicamente sobre los tres más cercanos. Probando el hueco de los 63
+   * árboles salían 315 comprobaciones de colisión por animal, y con el prado
+   * entero buscando techo casi en el mismo fotograma eso es un tirón que se ve.
+   */
+  function refugioCerca(st, a, radio) {
+    var scene = st.scene;
+    var lista = refugios(scene);
+    if (!lista.length) return null;
+    var d0 = Infinity, d1 = Infinity, d2 = Infinity;
+    _cerca3[0] = _cerca3[1] = _cerca3[2] = null;
+    for (var i = 0; i < lista.length; i++) {
+      var r = lista[i];
+      var d = Math.hypot(r.x - a.spr.x, r.y - a.spr.y);
+      if (d > radio) continue;
+      if (d < d0) {
+        d2 = d1; _cerca3[2] = _cerca3[1];
+        d1 = d0; _cerca3[1] = _cerca3[0];
+        d0 = d;  _cerca3[0] = r;
+      } else if (d < d1) {
+        d2 = d1; _cerca3[2] = _cerca3[1];
+        d1 = d;  _cerca3[1] = r;
+      } else if (d < d2) {
+        d2 = d;  _cerca3[2] = r;
+      }
+    }
+    for (var j = 0; j < 3; j++) {
+      if (!_cerca3[j]) continue;
+      var pt = huecoBajo(scene, a, _cerca3[j]);
+      if (pt) return pt;
+    }
+    return null;
+  }
+
+  /* ── ACOSTARSE ─────────────────────────────────────────────────────────
+     EL ARREGLO DE "EL COCODRILO NO SE ACUESTA".
+
+     No hay ningún `cocodrilo_tumbado.png`, y no lo va a haber: el cocodrilo
+     tiene cuatro poses y ninguna es de tumbarse. Pero es que un cocodrilo YA
+     está tumbado — mide 70×24 px y está pegado al suelo de perfil. Lo que le
+     faltaba no era una pose nueva: era DEJAR DE ANDAR.
+
+     Así que acostarse es quedarse quieto, respirar mucho más despacio
+     (`timeScale`) y asentarse sobre la tripa. Lo último se hace achatándolo en
+     vertical; como el sprite tiene el origen en los pies (0.5, 1), achatar en
+     Y lo baja contra el suelo en vez de encogerlo hacia el centro, que es
+     justo lo que hace un bicho al echarse.
+
+     Entra y sale con un fundido porque un animal que se desinfla en un
+     fotograma no parece que se acueste, parece que se rompe. */
+  var ACHATA = 0.13;          // cuánto se achata como mucho
+  var ACHATA_VEL = 2.4;       // por segundo
+
+  function achatar(a, dt) {
+    var meta = a.achataMeta || 0;
+    var v = a.achata || 0;
+    if (v === meta) return;
+    if (v < meta) v = Math.min(meta, v + ACHATA_VEL * dt);
+    else v = Math.max(meta, v - ACHATA_VEL * dt);
+    a.achata = v;
+    a.spr.setScale(ESCALA, ESCALA * (1 - ACHATA * v));
+  }
+
+  /** Respira más despacio: un bicho en reposo no jadea. */
+  function ritmoAnim(a, k) {
+    try { if (a.spr.anims) a.spr.anims.timeScale = k; } catch (e) {}
+  }
+
+  /* ── EL SOBRESALTO DEL TRUENO ──────────────────────────────────────────
+     Retumba y salta todo lo que está a la intemperie. Es la reacción que mejor
+     se lee de una tormenta, y era justo la que faltaba: hasta ahora el trueno
+     sacudía la cámara y los animales seguían pastando como si nada.
+
+     No salta TODO el mundo. La probabilidad sale del `miedo` de cada uno, que
+     es el mismo número que decide a qué distancia huyen; así el manso apenas
+     levanta la cabeza y el asustadizo sale disparado, que es lo que pasa. */
+  function sobresaltar(st, a, ahora) {
+    if (a.muerto || a.congelado) return;
+    if (a.enMadriguera) return;                    // metido en casa, ni se entera
+    if (a.grupo === 'topo' && (a.fase === 'bajo' || a.fase === 'cava')) return;
+    if (a.especie === 'cocodrilo') return;         // a un cocodrilo no le impresiona
+    if (a.durmiendo) despertar(st, a);
+    if (Math.random() > 0.30 + 0.45 * (a.miedo || 1)) return;
+
+    if (a.grupo === 'mariposa') return;            // agarrada a la hoja, aguanta
+    if (a.grupo === 'ave') {
+      /* Una bandada saliendo del árbol al tronar es de las cosas más bonitas
+         que puede hacer un mapa. Pero no todas a la vez, o se vacían los
+         árboles en el primer trueno. */
+      if (a.fase === 'volando') return;
+      if (Math.random() < 0.5) {
+        a.refugio = null; a.aCubierto = false; a.reaccionaEn = 0;
+        huirAve(st, a);
+      }
+      return;
+    }
+    a.refugio = null;
+    a.aCubierto = false;
+    a.reaccionaEn = 0;
+    a.achataMeta = 0;
+    ritmoAnim(a, 1);
+    a.fase = 'sobresalto';
+    a.rumbo = az(0, Math.PI * 2);
+    anim(a, poseAndar(a));
+    a.hasta = ahora + az(500, 1400);
+  }
+
+  /* ── ENTRAR Y SALIR DEL REFUGIO ────────────────────────────────────────── */
+
+  /** Se planta donde está y se queda a cubierto. */
+  function guarecerse(st, a, ahora, pose, lento) {
+    a.fase = 'refugio';
+    /* `aCubierto` sobrevive al sueño, y `fase` no: al dormirse, `fase` pasa a
+       'duerme' y se pierde el dato de si estaba resguardado. Hace falta para
+       que el chaparrón levante SOLO al que duerme a la intemperie. */
+    a.aCubierto = true;
+    a.destino = null;
+    anim(a, pose);
+    ritmoAnim(a, lento || 1);
+    /* Un rato largo: mientras dure el mal tiempo no vuelve a decidir nada, y si
+       escampa antes, `actualizarTiempo` lo saca igual. El número solo importa
+       para que no se quede clavado si el clima desapareciera de golpe. */
+    a.hasta = ahora + az(9000, 22000);
+  }
+
+  /** Vuelve a la vida normal. */
+  function salirDelRefugio(st, a, ahora) {
+    a.refugio = null;
+    a.achataMeta = 0;
+    a.reaccionaEn = 0;
+    a.aCubierto = false;
+    ritmoAnim(a, 1);
+    if (a.enMadriguera && !a.durmiendo) {
+      a.spr.setVisible(true);
+      if (a.sombra) a.sombra.setVisible(true);
+      a.enMadriguera = false;
+    }
+    a.fase = 'quieto';
+    a.hasta = ahora;                 // que su rutina decida ya
+    if (a.grupo === 'ave') {
+      /* En las aves `rumbo` es -1 o +1 (a qué lado dan los pasitos), NO un
+         ángulo: `decidirTierra` no vale para ellas. Que decida `decidirAve`. */
+      a.fase = 'posado';
+    } else if (a.grupo === 'mariposa') {
+      decidirMariposa(st, a);
+    } else if (a.grupo === 'conejo') {
+      decidirConejo(st, a);
+    } else if (a.grupo !== 'topo') {
+      decidirTierra(st, a);
+    }
+  }
+
+  /** Busca dónde meterse y sale para allá. Devuelve false si no hay dónde. */
+  function irseARefugio(st, a, ahora) {
+    var scene = st.scene;
+    var como = comoSeGuarece(a);
+    var i, d;
+
+    if (como === 'acostarse') {
+      /* No busca nada: se acuesta donde esté. Es lo que hace un cocodrilo. */
+      guarecerse(st, a, ahora, 'quieto', 0.35);
+      a.achataMeta = 1;
+      return true;
+    }
+
+    if (como === 'aguantar') {
+      /* La vaca no corre a ningún lado: se queda de pie y deja de pastar. Si
+         resulta que hay un árbol a cuatro pasos, entonces sí se acerca — una
+         vaca busca el árbol cuando lo tiene al lado, no cuando está lejos. */
+      var techoVaca = refugioCerca(st, a, 230);
+      if (techoVaca) {
+        a.refugio = techoVaca;
+        a.fase = 'aRefugio';
+        anim(a, poseAndar(a));
+        a.hasta = ahora + 14000;
+        return true;
+      }
+      guarecerse(st, a, ahora, 'quieto', 0.6);
+      /* De espaldas al agua: se gira a favor del viento, que es justo lo que
+         hace el ganado bajo un chaparrón. */
+      try {
+        var v = { dir: 1, fuerza: 0 };
+        if (window.GFViento && window.GFViento.vector) window.GFViento.vector(v);
+        if (v.fuerza > 0.2) a.spr.setFlipX(v.dir > 0);
+      } catch (e) {}
+      return true;
+    }
+
+    if (como === 'charco') {
+      /* AL CERDO LE GUSTA. No se refugia: se va derecho al primer charco y se
+         revuelca. Es el único animal del mapa al que la lluvia le MEJORA el
+         día, y verlo cruzar el prado hacia el barro mientras los demás corren
+         a esconderse es la mitad de la gracia. */
+      var ch = null;
+      try {
+        if (window.GFClima && window.GFClima.charcos) {
+          var lista = window.GFClima.charcos(scene);
+          /* Y va a por él LEJOS. El radio es el doble largo que el de buscar
+             techo: un cerdo cruza el prado entero por un buen charco, y ver
+             cómo lo cruza es justo la gracia. */
+          var mejorD = CERDO_RADIO_CHARCO;
+          for (i = 0; i < lista.length; i++) {
+            d = Math.hypot(lista[i].x - a.spr.x, lista[i].y - a.spr.y);
+            if (d < mejorD && libre(scene, a, lista[i].x, lista[i].y)) {
+              mejorD = d; ch = lista[i];
+            }
+          }
+        }
+      } catch (e) {}
+      if (ch) {
+        a.refugio = { x: ch.x, y: ch.y, clave: null, base: null };
+        a.fase = 'aRefugio';
+        anim(a, poseAndar(a));
+        a.hasta = ahora + 22000;
+        return true;
+      }
+      /* Ni un charco a tiro (o todavía no se han formado). Tampoco se va a
+         cubierto: hoza en la tierra mojada ahí mismo, que se ablanda con el
+         agua y es la otra mitad de lo que hace un cerdo cuando llueve. Y
+         vuelve a mirar dentro de un rato, por si aparece charco. */
+      guarecerse(st, a, ahora, sabeComer(a) ? 'come' : 'quieto', 0.9);
+      a.reaccionaEn = 0;
+      a.sacudeEn = ahora + az(4000, 9000);
+      return true;
+    }
+
+    if (como === 'madriguera') {
+      if (a.casa) {
+        if (enCasa(a)) {
+          a.enMadriguera = meterseEnMadriguera(st, a);
+          guarecerse(st, a, ahora, 'quieto', 0.6);
+          return true;
+        }
+        a.refugio = { x: a.casa.x, y: a.casa.y, clave: null, base: null, casa: true };
+        a.fase = 'aRefugio';
+        anim(a, 'corre');            // a la madriguera se vuelve corriendo
+        a.hasta = ahora + 14000;
+        return true;
+      }
+      /* Sin casa todavía: la cava AHORA. Es exactamente lo que hace un conejo
+         al que le pilla el agua fuera. */
+      a.refugio = null;
+      a.fase = 'cava';
+      anim(a, 'cava');
+      a.hasta = ahora + CONEJO_CAVA_MS;
+      return true;
+    }
+
+    if (como === 'agarrarse') {
+      /* La mariposa NO busca sitio bonito: se agarra a lo primero que pilla.
+         Con lluvia no hay tiempo de cruzar el prado buscando la mejor flor. */
+      if (a.fase === 'posada' && a.soporte) {
+        guarecerse(st, a, ahora, 'posa', 0.35);
+        a.spr.setDepth((a.baseSoporte || a.spr.y) + 2);
+        return true;
+      }
+      var flores = floresYPiedras(scene);
+      var mej = null, mejD = Infinity;
+      for (i = 0; i < flores.length; i++) {
+        d = Math.hypot(flores[i].x - a.spr.x, flores[i].y - a.spr.y);
+        if (d < mejD) { mejD = d; mej = flores[i]; }
+      }
+      if (!mej) { a.reaccionaEn = ahora + 3000; return false; }
+      var pf = puntoFlor(mej);
+      a.refugio = { x: pf.x, y: pf.y, clave: pf.clave, base: pf.base };
+      a.soporte = pf.clave;
+      a.baseSoporte = pf.base;
+      a.destino = { x: pf.x, y: pf.y };
+      a.fase = 'aRefugio';
+      anim(a, 'vuela');
+      a.hasta = ahora + 12000;
+      return true;
+    }
+
+    if (como === 'ramaje') {
+      /* El ave se mete en la RAMA, que es lo único que tapa de verdad. Se coge
+         el árbol más cercano aunque no sea el mejor: bajo el agua no se cruza
+         medio mapa. */
+      var sitios = posaderos(scene);
+      if (!sitios.length) {
+        var abajo = refugioCerca(st, a, REFUGIO_RADIO);
+        if (!abajo) { a.reaccionaEn = ahora + 4000; return false; }
+        a.refugio = abajo;
+        volarA(st, a, { x: abajo.x, y: abajo.y }, 'refugio', null);
+        return true;
+      }
+      var mejorS = null, mejorSD = Infinity;
+      for (i = 0; i < sitios.length; i++) {
+        /* Un árbol tapa; un poste y un tejado, mucho menos. Se penaliza la
+           distancia de lo que no es árbol para que, a igualdad, se vayan al
+           bosque. */
+        var pen = esArbol(sitios[i].clave) ? 1 : 2.1;
+        d = Math.hypot(sitios[i].x - a.spr.x, sitios[i].y - a.spr.y) * pen;
+        if (d < mejorSD) { mejorSD = d; mejorS = sitios[i]; }
+      }
+      var pp = puntoPosadero(mejorS);
+      a.refugio = pp;
+      volarA(st, a, { x: pp.x, y: pp.y }, 'refugio', pp.clave);
+      return true;
+    }
+
+    // 'techo': los de tierra y las serpientes, bajo una copa.
+    var techo = refugioCerca(st, a, REFUGIO_RADIO);
+    if (!techo) {
+      /* Ni un árbol a tiro. Se para donde esté, que sigue siendo mejor que
+         pasear bajo el agua como si no lloviera. */
+      guarecerse(st, a, ahora, sabeTumbarse(a) ? 'tumbado' : 'quieto', 0.6);
+      if (!sabeTumbarse(a)) a.achataMeta = 0.6;
+      return true;
+    }
+    a.refugio = techo;
+    a.fase = 'aRefugio';
+    anim(a, poseAndar(a));
+    a.hasta = ahora + 15000;
+    return true;
+  }
+
+  /** Ha llegado a donde iba: se acomoda. */
+  function acomodarse(st, a, ahora) {
+    var como = comoSeGuarece(a);
+    if (como === 'madriguera') {
+      if (a.refugio && a.refugio.casa) a.enMadriguera = meterseEnMadriguera(st, a);
+      guarecerse(st, a, ahora, 'quieto', 0.6);
+      return;
+    }
+    if (como === 'charco') {
+      /* Revolcándose: la pose de comer es la de hocicar, que es exactamente lo
+         que hace un cerdo metido en un charco. */
+      guarecerse(st, a, ahora, sabeComer(a) ? 'come' : 'quieto', 0.8);
+      a.achataMeta = 0.5;
+      return;
+    }
+    if (como === 'agarrarse') {
+      guarecerse(st, a, ahora, 'posa', 0.35);
+      a.spr.setDepth((a.baseSoporte || a.spr.y) + 2);
+      return;
+    }
+    // zorros tumbados, serpientes enroscadas, vacas y demás, quietos
+    guarecerse(st, a, ahora, sabeTumbarse(a) ? 'tumbado' : 'quieto', 0.5);
+    if (!sabeTumbarse(a)) a.achataMeta = 0.55;
+  }
+
+  /**
+   * UN FOTOGRAMA DE "QUÉ HACE ESTE BICHO CON EL TIEMPO QUE HACE".
+   *
+   * @returns {boolean} true si ya se ha ocupado de él y la rutina normal no
+   *          tiene que tocarlo en este fotograma.
+   */
+  function actualizarTiempo(st, a, ahora, dt) {
+    var scene = st.scene;
+    var t = tiempo();
+
+    // ── 1. el sobresalto manda sobre todo ────────────────────────────────
+    if (st.trueno && a.truenoVisto !== st.trueno) {
+      a.truenoVisto = st.trueno;
+      sobresaltar(st, a, ahora);
+    }
+    if (a.fase === 'sobresalto') {
+      if (ahora < a.hasta) { moverTierra(st, a, dt, true); return true; }
+      a.fase = 'quieto';
+      a.hasta = ahora;               // que decida su rutina
+      return false;
+    }
+
+    // El topo tiene su propio trato con la lluvia: ver `actualizarTopo`.
+    if (a.grupo === 'topo') return false;
+
+    var m = molestia(a, t);
+    var refugiado = (a.fase === 'refugio' || a.fase === 'aRefugio');
+
+    // ── 2. escampó: todo el mundo fuera ──────────────────────────────────
+    if (m <= REFUGIO_SALE) {
+      if (refugiado) salirDelRefugio(st, a, ahora);
+      else if (a.reaccionaEn) a.reaccionaEn = 0;
+      /* El que se durmió a cubierto no pasa por `salirDelRefugio` —está en
+         fase 'duerme'— y se quedaría con la marca puesta para siempre. Sin
+         quitársela, `aLaIntemperie` diría que sigue resguardado y el próximo
+         chaparrón ya no lo levantaría nunca. */
+      else if (a.aCubierto) { a.aCubierto = false; a.refugio = null; }
+      return false;
+    }
+
+    /* Pelear y huir van POR DELANTE del tiempo. Que llueva no es motivo para
+       dejarse morder, ni para que un cocodrilo deje pasar al jugador por
+       delante del morro. */
+    if (a.fase === 'huye' || a.fase === 'persigue' || a.fase === 'ataca' ||
+        a.fase === 'retirada') {
+      return false;
+    }
+
+    if (refugiado) {
+      var p = scene.player;
+      // Un bicho a cubierto sigue teniendo ojos.
+      if (a.ficha.huye > 0 && p && !jugadorFantasma() &&
+          Math.hypot(a.spr.x - p.x, a.spr.y - p.y) < a.ficha.huye * a.miedo * 0.8) {
+        salirDelRefugio(st, a, ahora);
+        if (a.grupo === 'ave') huirAve(st, a);
+        else if (a.grupo !== 'mariposa') huirDe(st, a, p.x, p.y);
+        return false;
+      }
+      if (a.ficha.agresivo) {
+        var obj = objetivoDe(scene);
+        if (obj && Math.hypot(a.spr.x - obj.x, a.spr.y - obj.y) <= a.ficha.vista) {
+          salirDelRefugio(st, a, ahora);
+          return false;
+        }
+      }
+    }
+
+    // ── 3. ya está a cubierto: se queda ──────────────────────────────────
+    if (a.fase === 'refugio') {
+      // Si le talan el árbol bajo el que se guarece, a buscar otro.
+      if (a.refugio && a.refugio.clave && !sitioEnPie(scene, a.refugio.clave)) {
+        salirDelRefugio(st, a, ahora);
+        return false;
+      }
+      /* De vez en cuando se sacude el agua: se le sube un momento el ritmo de
+         la animación. Un bicho absolutamente inmóvil durante dos minutos se lee
+         como colgado, no como resguardado. */
+      if (ahora >= (a.sacudeEn || 0)) {
+        a.sacudeEn = ahora + az(4000, 12000);
+        a.sacudeHasta = ahora + az(400, 900);
+      }
+      ritmoAnim(a, ahora < (a.sacudeHasta || 0) ? 2.2 : 0.45);
+      if (ahora >= a.hasta) a.hasta = ahora + az(9000, 22000);
+      return true;
+    }
+
+    // ── 4. yendo a cubierto ──────────────────────────────────────────────
+    if (a.fase === 'aRefugio') {
+      var r = a.refugio;
+      if (!r) { a.fase = 'quieto'; a.hasta = ahora; return false; }
+      var dx = r.x - a.spr.x, dy = r.y - a.spr.y;
+      var dist = Math.hypot(dx, dy);
+      /* LA MARIPOSA VUELA, NO ANDA.
+
+         `moverTierraA` comprueba colisiones y una mariposa pasa por encima de
+         todo — con él se quedaría atascada contra el primer arbusto que
+         tuviera entre ella y la flor. Y encima, con lluvia va a trompicones y
+         más despacio, que es lo que se ve: un ala mojada no manda igual. */
+      if (a.grupo === 'mariposa') {
+        var vm = a.ficha.vel * (0.55 + 0.25 * (1 - Math.min(1, t.lluvia)));
+        var pm = vm * dt;
+        if (dist < 5 || pm >= dist) {
+          a.spr.setPosition(r.x, r.y);
+          acomodarse(st, a, ahora);
+          return true;
+        }
+        a.vaiven = (a.vaiven || 0) + dt * 9;
+        var nx = -dy / dist, ny = dx / dist;
+        var lat = Math.sin(a.vaiven) * 30 * dt;
+        var limM = limites(scene);
+        a.spr.x = Math.min(limM.w - 20, Math.max(20, a.spr.x + (dx / dist) * pm + nx * lat));
+        a.spr.y = Math.min(limM.h - 20, Math.max(20, a.spr.y + (dy / dist) * pm + ny * lat));
+        a.spr.setDepth(a.spr.y + 40);
+        return true;
+      }
+      var vel = (a.ficha.corre || a.ficha.vel * 2) * factorSuelo(t);
+      var paso = vel * dt;
+      /* El `paso >= dist` es el mismo arreglo que ya lleva el vuelo de las
+         aves: lejos de la cámara se actualiza a 5 Hz y con dt de 0,2 s el paso
+         se pasa de largo del destino. Sin esto el bicho orbitaría el árbol
+         para siempre sin llegar nunca. */
+      if (dist < 8 || paso >= dist || ahora >= a.hasta) {
+        if (dist < 60) {
+          a.spr.setPosition(r.x, r.y);
+          a.spr.setDepth(r.y);
+        }
+        acomodarse(st, a, ahora);
+        return true;
+      }
+      a.rumbo = Math.atan2(dy, dx);
+      moverTierraA(st, a, dt, vel);
+      a.spr.setFlipX(dx < 0);
+      return true;
+    }
+
+    // ── 5. ¿se va a cubierto ya? ─────────────────────────────────────────
+    if (m < REFUGIO_ENTRA) return false;
+
+    /* YA ESTÁ EN ELLO: NO SE LE VUELVE A MANDAR.
+
+       Dos fases no se llaman 'aRefugio' y aun así SON ir a cubierto. Sin este
+       cierre, el paso 5 las volvía a lanzar desde cero cada vez que se le
+       cumplía el retraso de reacción:
+
+       · EL AVE VOLANDO A SU RAMA. Se le vuelve a elegir posadero cada segundo
+         escaso. No llega a romperse —el más cercano sigue siendo el mismo—
+         pero es trabajo tirado en cada vuelta.
+
+       · EL CONEJO CAVANDO. Un conejo sin casa al que le pilla el agua se pone
+         a cavar una (`fase = 'cava'`, 1400 ms). Quien cuenta ese rato y abre
+         la madriguera al terminar es `actualizarConejo`. Pero el retraso de
+         reacción de un conejo bajo un chaparrón se sortea entre 180 y 1890 ms,
+         o sea que MÁS DE LA MITAD DE LAS VECES se cumple antes de que acabe de
+         cavar; y al cumplirse se vuelve a entrar aquí, se ve que sigue sin
+         casa y se le reinicia el reloj desde el principio.
+
+         No es un cuelgue —acaba saliendo en cuanto le toca un retraso largo—
+         pero se ve: el conejo empieza a escarbar, vuelve a empezar, y vuelve a
+         empezar. Medido con ocho conejos, la animación se reiniciaba 10 veces
+         y abrir la madriguera pasaba de 2,1 a 3,2 segundos de media. Con el
+         cierre puesto: cero reinicios. */
+    if (a.fase === 'cava') return false;
+    if (a.fase === 'volando' && a.alFinal === 'refugio') return false;
+    /* No todos a la vez. Cada bicho tarda lo suyo en darse cuenta de que está
+       lloviendo, y eso es lo que hace que el prado se vacíe POCO A POCO en vez
+       de de golpe, que es lo que se ve de verdad. */
+    if (!a.reaccionaEn) {
+      a.reaccionaEn = ahora + az(REACCION_MS[0], REACCION_MS[1]) *
+                              (1.4 - Math.min(1, m));    // si arrecia, antes
+      return false;
+    }
+    if (ahora < a.reaccionaEn) return false;
+    a.reaccionaEn = 0;
+    return irseARefugio(st, a, ahora);
+  }
+
+
+  /* ══════════════════════════════════════════════════════════════════════
      ANIMALES CONGELADOS
      ──────────────────────────────────────────────────────────────────────
      Cuando nieva de verdad, de vez en cuando un bicho se queda tieso: se para,
@@ -565,15 +1415,19 @@
   var CONGELA_GRUPOS  = { tierra: 1, conejo: 1, serpiente: 1 };
   var CLAVE_HIELO     = 'gfa_hielo';
 
-  /** Cuánta nieve cae ahora mismo, de 0 a 1. */
+  /**
+   * Cuánta nieve cae ahora mismo, de 0 a 1.
+   *
+   * EL FALLO QUE ARREGLA: esto leía `GFClima.estado()`, que es lo que MANDA el
+   * servidor, no lo que se ve. La nieve tarda cinco segundos en arreciar
+   * (ENTRA_MS), así que los animales se congelaban con el cielo todavía
+   * despejado y se descongelaban de golpe en cuanto el panel apagaba la nieve,
+   * con el mundo aún blanco. Ahora se pregunta por la fuerza ya interpolada,
+   * que es la misma que se está pintando.
+   */
   function nieveAhora() {
-    var C = window.GFClima;
-    if (!C || !C.estado) return 0;
-    try {
-      var e = C.estado();
-      if (!e || !e.activo || !e.nieve) return 0;
-      return Math.max(0, Math.min(1, Number(e.nieveFuerza) || 1));
-    } catch (e) { return 0; }
+    var t = tiempo();
+    return (t && t.activo) ? Math.max(0, Math.min(1, t.nieve || 0)) : 0;
   }
 
   /**
@@ -722,7 +1576,14 @@
       hw: f.huella[0], hh: f.huella[1],
       fase: 'quieto', rumbo: az(0, Math.PI * 2), hasta: 0,
       destino: null, alFinal: null, soporte: null, _anim: null,
-      lento: 0
+      lento: 0,
+      /* El tiempo. Se dejan puestos desde el principio y no `undefined`: así
+         `salirDelRefugio` y compañía no tienen que preguntar si existen. */
+      refugio: null, reaccionaEn: 0, aCubierto: false,
+      achata: 0, achataMeta: 0, truenoVisto: 0,
+      sacudeEn: 0, sacudeHasta: 0, pruebaSuenio: 0,
+      // La pareja de las aves; se apuntan la una a la otra al irse juntas.
+      pareja: null, mirarA: null
     };
     var spr = scene.add.sprite(punto.x, punto.y,
                                'gfa_' + especie + '_quieto_1');
@@ -792,7 +1653,29 @@
   function sabeTumbarse(a) { return !!posesDe(a.especie).tumbado; }
 
   function decidirTierra(st, a) {
+    var t = tiempo();
     var r = Math.random();
+    /* EL SOL PESA.
+
+       Un cocodrilo al sol no pasea: se tuesta. Una serpiente, igual — son de
+       sangre fría y el sol es su motor, así que se pasan las horas de luz
+       quietas al descubierto. Y los de sangre caliente, al revés: con el sol
+       alto se echan y se mueven menos.
+
+       Se hace empujando `r` HACIA ARRIBA, que es donde están 'tumbado',
+       'come' y 'quieto'. Los reptiles se empujan más que el resto.
+
+       PERO NO HASTA CLAVARLOS. El empujón de los reptiles estaba en 0,55, y
+       con eso `r` salía siempre por encima de 0,55 — o sea que NUNCA podían
+       coger el camino de pasear. Medido en la simulación: a pleno sol, los
+       cocodrilos y las serpientes recorrían CERO píxeles en diez minutos. Eso
+       no se lee como un bicho tostándose, se lee como un bicho colgado. Con
+       0,35 les queda cerca de un tercio de probabilidad de levantarse a dar
+       una vuelta, que sigue siendo mucho menos que sin sol y sí se mueven. */
+    if (t.activo && t.sol > 0.25) {
+      var tuesta = t.sol * (esReptil(a) ? 0.35 : 0.22);
+      r = r * (1 - tuesta) + tuesta;
+    }
     if (r < 0.55) {
       a.fase = 'pasea';
       a.rumbo = az(0, Math.PI * 2);
@@ -802,7 +1685,7 @@
       // sprite tiene el ojo abierto y las orejas de pie.
       a.fase = 'tumbado';
       anim(a, 'tumbado');
-      a.hasta = st.scene.time.now + az(6000, 16000);
+      a.hasta = st.scene.time.now + az(6000, 16000) * quietudDelSol(a, t);
       return;
     } else if (r < 0.80 && sabeComer(a)) {
       a.fase = 'come';
@@ -811,7 +1694,26 @@
       a.fase = 'quieto';
       anim(a, 'quieto');
     }
-    a.hasta = st.scene.time.now + az(ESPERA_TIERRA[0], ESPERA_TIERRA[1]);
+    /* El sol alarga lo que se está QUIETO, no lo que se anda.
+
+       Puesto también sobre el paseo, un cocodrilo que decidía moverse se
+       echaba una caminata de más de un minuto seguido: el sol le multiplicaba
+       por 2,6 el rato de CADA fase, andar incluido. Lo que hace el calor es
+       que salgas menos, no que cuando salgas andes más. */
+    var espera = az(ESPERA_TIERRA[0], ESPERA_TIERRA[1]);
+    if (a.fase !== 'pasea') espera *= quietudDelSol(a, t);
+    a.hasta = st.scene.time.now + espera;
+  }
+
+  /** De sangre fría: el sol les manda mucho más que a los demás. */
+  function esReptil(a) {
+    return a.grupo === 'serpiente' || a.especie === 'cocodrilo';
+  }
+
+  /** Cuánto más aguanta sin moverse por el sol que hace. */
+  function quietudDelSol(a, t) {
+    if (!t || !t.activo || t.sol <= 0.05) return 1;
+    return 1 + t.sol * (esReptil(a) ? 1.6 : 0.45);
   }
 
   function huirDe(st, a, px, py) {
@@ -834,8 +1736,10 @@
    * la velocidad media no cambia.
    */
   function moverTierra(st, a, dt, corriendo) {
-    return moverTierraA(st, a, dt,
-                        corriendo ? (a.ficha.corre || a.ficha.vel * 2) : a.ficha.vel);
+    var v = corriendo ? (a.ficha.corre || a.ficha.vel * 2) : a.ficha.vel;
+    /* El barro y la nieve frenan. No es un adorno: es lo que hace que un
+       chaparrón se NOTE aunque el bicho no se haya ido a cubierto todavía. */
+    return moverTierraA(st, a, dt, v * factorSuelo(tiempo()));
   }
 
   /** Igual, pero con una velocidad concreta (el topo bajo tierra la cambia). */
@@ -969,7 +1873,12 @@
     for (i = 0; i < st.animales.length; i++) {
       var a = st.animales[i];
       if (a.muerto || !a.soporte || a.posX == null) continue;
-      if (a.fase !== 'posado' && !(a.durmiendo && a.grupo === 'ave')) continue;
+      /* 'refugio' cuenta igual que 'posado': el ave que espera a que escampe
+         está en la misma rama y tiene que mecerse con ella. Sin esto se
+         quedaba clavada en el aire justo cuando más se menea el árbol, que es
+         cuando hay tormenta. */
+      if (a.fase !== 'posado' && a.fase !== 'refugio' &&
+          !(a.durmiendo && a.grupo === 'ave')) continue;
       a.spr.x = a.posX + balanceoSoporte(st.scene, a.soporte, a.posY);
     }
     /* Y EL NIDO TAMBIÉN.
@@ -1019,7 +1928,8 @@
     var sitios = posaderos(scene);
     var r = Math.random();
 
-    a.pareja = null;
+    // Se rompe la pareja POR LOS DOS LADOS. Ver `desemparejar`.
+    desemparejar(a);
 
     /* DE NOCHE SE DUERME — pero de eso se encarga actualizarSuenio.
 
@@ -1046,7 +1956,19 @@
        la fuente está siempre y los charcos duran un rato. `GFClima.charcos()`
        ya devuelve solo los que están crecidos y sin helar — en un charco
        congelado no se baña nadie. */
-    if (r < 0.30) {
+    /* PERO NO MIENTRAS LLUEVE.
+
+       EL FALLO QUE ARREGLA — "los pájaros se siguen bañando en la fuente":
+       aquí no se miraba el tiempo, así que en mitad de un chaparrón los
+       pájaros bajaban al pozo a darse un baño. Un pájaro empapado no se baña;
+       lo que hace un pájaro bajo la lluvia es meterse debajo de algo.
+
+       Bañarse es lo que se hace CUANDO ESCAMPA, y por eso los charcos —que
+       duran un rato después— siguen valiendo: es justo el premio de haber
+       esperado. */
+    var mojado = sueloMojado(tiempo());
+
+    if (!mojado && r < 0.30) {
       var ch = charcoParaBanarse(scene, p, a);
       if (ch) {
         a.fuente = null;                 // charco: no hay que ponerse delante de nada
@@ -1056,7 +1978,7 @@
     }
 
     // ── BAÑARSE EN LA FUENTE ───────────────────────────────────────────────
-    if (r < 0.38) {
+    if (!mojado && r < 0.38) {
       var f = fuenteDe(scene);
       if (f && (!p || Math.hypot(f.x - p.x, f.y - p.y) > a.ficha.huye * 1.3)) {
         // Se apunta EN QUE fuente se va a bañar: al llegar hace falta para
@@ -1071,8 +1993,8 @@
     if (r < 0.30 && sitios.length) {
       var otra = companiaDe(st, a);
       if (otra) {
-        var juntas = elegir(lejosDe(sitios, p ? p.x : null, p ? p.y : null,
-                                    a.ficha.posado * 1.6));
+        var juntas = puntoPosadero(elegir(lejosDe(sitios, p ? p.x : null,
+                                    p ? p.y : null, a.ficha.posado * 1.6)));
         irseJuntas(st, a, otra, juntas);
         return;
       }
@@ -1098,7 +2020,7 @@
       var cerca = cand.filter(function (q) {
         return Math.hypot(q.x - a.spr.x, q.y - a.spr.y) < RADIO_VUELO;
       });
-      var s2 = elegir(cerca.length ? cerca : cand);
+      var s2 = puntoPosadero(elegir(cerca.length ? cerca : cand));
       volarA(st, a, { x: s2.x, y: s2.y }, 'posado', s2.clave);
       return;
     }
@@ -1132,7 +2054,8 @@
       if (d - castigo > mejorD) { mejorD = d - castigo; mejor = sitios[i]; }
     }
     if (!mejor) mejor = sitios[0];
-    volarA(st, a, { x: mejor.x, y: mejor.y }, 'posado', mejor.clave);
+    var pt = puntoPosadero(mejor);
+    volarA(st, a, { x: pt.x, y: pt.y }, 'posado', pt.clave);
   }
 
   function actualizarAve(st, a, ahora, dt) {
@@ -1153,9 +2076,12 @@
          tiempo y casi no se posaba ni bajaba a picotear. */
       if (d < 4 || paso >= d) {
         spr.setPosition(a.destino.x, a.destino.y);
-        if (a.alFinal === 'posado') {
+        if (a.alFinal === 'posado' || a.alFinal === 'refugio') {
           posarse(st, a, { clave: a.soporte, x: a.destino.x, y: a.destino.y,
                            base: null });
+          /* Venía huyendo del agua: se queda ahí hasta que escampe, en vez de
+             volver a la ruleta de "y ahora qué hago". */
+          if (a.alFinal === 'refugio') acomodarse(st, a, ahora);
         } else {
           a.fase = a.alFinal;
           a.soporte = null;
@@ -1399,13 +2325,64 @@
   function morirAnimal(st, a, ahora) {
     a.muerto = true;
     a.fase = 'muerto';
+
+    /* SE MUERE DEL TODO, NO A MEDIAS.
+
+       TRES FALLOS QUE ARREGLA, y los tres son lo mismo: al morir se escondía
+       el sprite y ya, dejando puesto el resto del estado.
+
+       1. EL BLOQUE DE HIELO SE QUEDABA FLOTANDO. `a.hielo` es un sprite
+          aparte, y quien lo mueve y lo borra es `actualizarHielo`... al que ya
+          no se llega, porque el bucle ve `a.muerto` y salta al siguiente. Un
+          animal que moría helado dejaba un cubito de hielo suelto en mitad del
+          prado durante los cinco minutos del respawn.
+
+       2. REVIVÍA DORMIDO. `durmiendo` seguía en true, así que el bicho volvía
+          a la vida con sus Z encima y sin moverse hasta el amanecer.
+
+       3. LA PAREJA SEGUÍA CORTEJANDO AL CADÁVER. `mirarA` apunta a otra ave;
+          `cortejar` solo mira si el sprite sigue ACTIVO, y esconderlo no lo
+          desactiva. La compañera se pasaba cinco minutos girándose hacia un
+          pájaro invisible. Y además `pareja` puesta en la otra la dejaba fuera
+          de `companiaDe` para siempre. */
+    descongelar(a);
+    if (a.durmiendo) despertar(st, a);
     quitarZzz(a);
+    desemparejar(a);
     a.objetivo = null;
+    a.refugio = null;
+    a.aCubierto = false;
+    a.reaccionaEn = 0;
+    a.achata = 0;
+    a.achataMeta = 0;
+    a.spr.setScale(ESCALA);
+    ritmoAnim(a, 1);
     a.revivirEn = ahora + RESPAWN_MS;
     a.spr.setVisible(false);
     if (a.barraFondo) { a.barraFondo.setVisible(false); a.barraVida.setVisible(false); }
     if (a.sombra) a.sombra.setVisible(false);
     log(st.scene, a.especie, 'ha muerto; vuelve en', RESPAWN_MS / 60000, 'min');
+  }
+
+  /**
+   * Deshace la pareja de un ave, POR LOS DOS LADOS.
+   *
+   * EL FALLO QUE ARREGLA — "al rato las aves dejan de juntarse": `decidirAve`
+   * hacía `a.pareja = null` y se quedaba tan ancho, pero la OTRA seguía con su
+   * `pareja` apuntando a ésta. Y `companiaDe` descarta a cualquiera que tenga
+   * pareja puesta. Ave a ave, el mapa entero se iba quedando "emparejado" con
+   * fantasmas y no volvían a irse juntas nunca más.
+   */
+  function desemparejar(a) {
+    if (a.pareja) {
+      if (a.pareja.pareja === a) a.pareja.pareja = null;
+      if (a.pareja.mirarA === a) a.pareja.mirarA = null;
+      a.pareja = null;
+    }
+    if (a.mirarA) {
+      if (a.mirarA.mirarA === a) a.mirarA.mirarA = null;
+      a.mirarA = null;
+    }
   }
 
   /** Vuelve a la vida, en OTRO sitio del mapa. */
@@ -1418,12 +2395,53 @@
     a.revivirEn = 0;
     a.barraHasta = 0;
     a.golpes = 0;
+    a.soporte = null;
+    a.destino = null;
+    a.posX = null;
+    a.posY = null;
     a.spr.setVisible(true);
+    a.spr.setScale(ESCALA);
     if (a.spr.clearTint) a.spr.clearTint();
     if (a.sombra) a.sombra.setVisible(true);
+
+    /* CADA UNO VUELVE A LO SUYO.
+
+       EL FALLO QUE ARREGLA: aquí se llamaba a `decidirTierra` para TODO lo que
+       no fuera un topo, y esa rutina no vale para media plantilla:
+
+         · EN LAS AVES `rumbo` es -1 o +1 (a qué lado dan los pasitos), no un
+           ángulo. `decidirTierra` le metía un ángulo en radianes —hasta 6,28—
+           y el ave revivida cruzaba la pantalla de lado a seis veces su
+           velocidad, como una bala.
+         · LAS MARIPOSAS NO TIENEN 'camina'. `decidirTierra` pedía esa
+           animación, Phaser no la encontraba y la mariposa se quedaba en el
+           fotograma suelto en el que estuviera, sin animar, hasta morirse otra
+           vez. Es el mismo aviso que ya salía por consola y nadie ataba.
+         · EL CONEJO revivía con su `casa` en la otra punta del mapa. */
     if (a.grupo === 'topo') {
       a.fase = 'bajo'; anim(a, 'monticulo');
       a.hasta = scene.time.now + az(TOPO_BAJO[0], TOPO_BAJO[1]);
+    } else if (a.grupo === 'ave') {
+      a.fase = 'camina';
+      a.rumbo = Math.random() < 0.5 ? -1 : 1;
+      anim(a, 'camina');
+      a.hasta = scene.time.now + az(ESPERA_SUELO_AVE[0], ESPERA_SUELO_AVE[1]);
+    } else if (a.grupo === 'mariposa') {
+      a.fase = 'revolotea';
+      anim(a, 'vuela');
+      a.hasta = scene.time.now + az(500, 2500);
+      decidirMariposa(st, a);
+    } else if (a.grupo === 'conejo') {
+      /* La madriguera vieja se queda sin dueño en la otra punta del mapa, y
+         además el sprite no lo borraba nadie: partida larga, conejos que van
+         muriendo y madrigueras huérfanas acumulándose. Se cierra la vieja y ya
+         cavará otra donde le toque vivir ahora. */
+      if (a.madriguera) { try { a.madriguera.destroy(); } catch (e) {} }
+      a.madriguera = null;
+      a.casa = null;
+      a.llevando = false;
+      a.zanahoria = null;
+      decidirConejo(st, a);
     } else {
       decidirTierra(st, a);
     }
@@ -1628,6 +2646,20 @@
     var cerca = p && !jugadorFantasma() &&
                 Math.hypot(a.spr.x - p.x, a.spr.y - p.y) < a.ficha.huye;
 
+    /* EL TOPO Y LA LLUVIA, QUE NO ES LO QUE PARECE.
+
+       Con LLOVIZNA sale MÁS, no menos. El agua encharca las galerías y empuja
+       a las lombrices a la superficie; el topo va detrás de ellas. Es de las
+       cosas menos evidentes y más ciertas del comportamiento animal, y da un
+       detalle que nadie espera: empieza a chispear y el prado se vacía... y a
+       la vez empiezan a salir topos.
+
+       Con CHAPARRÓN es al revés: una madriguera anegada es lo peor que le
+       puede pasar, así que se mete y no vuelve a asomar hasta que amaine. */
+    var t = tiempo();
+    var chaparron = t.activo && t.lluvia > 0.55;
+    var llovizna  = t.activo && t.lluvia > LLUVIA_MOJA && !chaparron;
+
     switch (a.fase) {
       case 'bajo':
         /* Bajo tierra va MÁS RÁPIDO que andando por fuera: es su terreno.
@@ -1636,6 +2668,13 @@
            notó como "no se mueve bien abajo". */
         a.rumbo += az(-0.6, 0.6) * dt;
         moverTierraA(st, a, dt, TOPO_VEL_BAJO);
+        // Con el chaparrón encima no asoma: espera abajo a que amaine.
+        if (chaparron) {
+          if (ahora >= a.hasta) a.hasta = ahora + az(4000, 9000);
+          return;
+        }
+        // Chispeando, se acorta la espera: hay lombrices arriba.
+        if (llovizna && a.hasta - ahora > 9000) a.hasta = ahora + az(3000, 9000);
         if (ahora >= a.hasta) {
           a.fase = 'asoma';
           anim(a, 'asoma');
@@ -1645,7 +2684,7 @@
 
       case 'asoma':
         // asomado se entera de todo: si hay alguien cerca, ni sale
-        if (cerca) { meterse(st, a, ahora, false); return; }
+        if (cerca || chaparron) { meterse(st, a, ahora, false); return; }
         if (ahora >= a.hasta) {
           a.fase = 'sale';
           anim(a, 'cava');
@@ -1681,7 +2720,11 @@
 
       default:
         // fuera: pasea, come o descansa como los demás
-        if (cerca) { meterse(st, a, ahora, true); return; }
+        if (cerca || chaparron) { meterse(st, a, ahora, true); return; }
+        // Chispeando se queda fuera más rato: es cuando mejor se come.
+        if (llovizna && a.fueraHasta && a.fueraHasta - ahora < 6000) {
+          a.fueraHasta = ahora + az(6000, 14000);
+        }
         // se le acabó el rato de superficie: a cavar y para dentro
         if (a.fueraHasta && ahora >= a.fueraHasta) {
           a.fueraHasta = 0;
@@ -1871,9 +2914,15 @@
 
   function esDeNoche() {
     var c = window.GFCiclo;
-    if (!c || !c.hayHora || !c.hayHora()) return false;
-    var e = c.estado();
-    return !!(e && e.esDia === false);
+    if (!c || !c.hayHora || !c.estado) return false;
+    try {
+      if (!c.hayHora()) return false;
+      var e = c.estado();
+      return !!(e && e.esDia === false);
+    } catch (x) {
+      // Sin reloj fiable es de día: mejor un mundo despierto que uno colgado.
+      return false;
+    }
   }
 
   /** Otra ave de LA MISMA especie, posada y sin nada que hacer. */
@@ -1982,7 +3031,19 @@
   var MAR_VUELO    = [2500, 6000];
   var MAR_RADIO    = 420;              // no cruzan medio mapa de un tirón
 
+  /** Un punto CONCRETO dentro de una flor, con su desviación al azar.
+      Ver el comentario de la caché en `posaderos`: lo que se guarda es el
+      centro, y el sorteo se hace aquí, al elegir. */
+  function puntoFlor(s) {
+    return { clave: s.clave, base: s.base,
+             x: s.x + (s.jit ? az(-s.jit, s.jit) : 0),
+             y: s.y0 + s.alto * az(s.a0, s.a1) };
+  }
+
   function floresYPiedras(scene) {
+    var c = cacheDe(scene);
+    if (cacheVale(scene, c) && c.flores) return c.flores;
+
     var out = [];
     var i, f;
     for (f = 0; f < FAMILIAS_MARIPOSA.length; f++) {
@@ -1995,8 +3056,11 @@
         var b = cajaDibujada(scene, spr);
         if (!b) continue;
         out.push({ clave: clave,
-                   x: b.centerX + az(-b.width * 0.22, b.width * 0.22),
-                   y: b.top + b.height * az(MAR_ALTURA[0], MAR_ALTURA[1]),
+                   // Centro y márgenes; el sorteo lo hace `puntoFlor`.
+                   x: b.centerX, jit: b.width * 0.22,
+                   y: b.top + b.height * (MAR_ALTURA[0] + MAR_ALTURA[1]) / 2,
+                   y0: b.top, alto: b.height,
+                   a0: MAR_ALTURA[0], a1: MAR_ALTURA[1],
                    base: (typeof spr.depth === 'number') ? spr.depth : b.bottom });
       }
     }
@@ -2008,10 +3072,12 @@
       var bt = cajaDibujada(scene, t);
       if (!bt) continue;
       out.push({ clave: 'sprite_tronco_acostado_' + i + 'png',
-                 x: bt.centerX + az(-bt.width * 0.3, bt.width * 0.3),
+                 x: bt.centerX, jit: bt.width * 0.3,
                  y: bt.top + bt.height * 0.35,
+                 y0: bt.top, alto: bt.height, a0: 0.3, a1: 0.4,
                  base: (typeof t.depth === 'number') ? t.depth : bt.bottom });
     }
+    c.flores = out;
     return out;
   }
 
@@ -2054,13 +3120,28 @@
       m.hasta = scene.time.now + az(MAR_VUELO[0], MAR_VUELO[1]);
       return;
     }
-    var s2 = elegir(cerca);
+    var s2 = puntoFlor(elegir(cerca));
     m.fase = 'revolotea';
     anim(m, 'vuela');
     m.destino = { x: s2.x, y: s2.y };
     m.soporte = s2.clave;
     m.baseSoporte = s2.base;
-    m.hasta = scene.time.now + az(MAR_VUELO[0], MAR_VUELO[1]);
+    /* CON SOL, MÁS VUELO Y MENOS PARADA.
+
+       Una mariposa es un termómetro con alas: al sol no para quieta y con el
+       cielo tapado se queda posada esperando. Como el vuelo dura `MAR_VUELO` y
+       la parada `MAR_POSADA`, basta con estirar el uno y encoger la otra. */
+    m.hasta = scene.time.now + az(MAR_VUELO[0], MAR_VUELO[1]) * animoDelSol(scene);
+  }
+
+  /**
+   * Cuántas ganas de volar hay hoy, de 0,7 (encapotado) a 1,45 (a pleno sol).
+   * Lo usan las mariposas, que es a quien más le nota.
+   */
+  function animoDelSol(scene) {
+    var t = tiempo();
+    if (!t || !t.activo) return 1;
+    return 1 + t.sol * 0.70 - Math.min(0.3, t.lluvia * 0.4 + t.nieve * 0.3);
   }
 
   /**
@@ -2114,7 +3195,8 @@
       if (m.soporte) {
         m.fase = 'posada';
         anim(m, 'posa');
-        m.hasta = ahora + az(MAR_POSADA[0], MAR_POSADA[1]);
+        // Al sol se para menos; encapotado, más. Ver `animoDelSol`.
+        m.hasta = ahora + az(MAR_POSADA[0], MAR_POSADA[1]) / animoDelSol(scene);
       } else {
         decidirMariposa(st, m);
       }
@@ -2349,9 +3431,34 @@
     return 'quieto';
   }
 
+  /** ¿Está durmiendo al raso, sin nada encima? */
+  function aLaIntemperie(a) {
+    if (a.aCubierto || a.enMadriguera) return false;
+    // El ave que duerme en la copa de un árbol está bajo las hojas.
+    if (a.grupo === 'ave' && esArbol(a.soporte)) return false;
+    // El topo bajo tierra tampoco se moja.
+    if (a.grupo === 'topo' && (a.fase === 'bajo' || a.faseAntes === 'bajo')) return false;
+    return true;
+  }
+
   /** A qué distancia se despierta este animal. */
   function radioDespertar(a) {
-    return Math.max(DESPERTAR_MIN, (a.ficha.huye || 0) * 0.75 * (a.miedo || 1));
+    var r = Math.max(DESPERTAR_MIN, (a.ficha.huye || 0) * 0.75 * (a.miedo || 1));
+    /* LOS QUE MUERDEN SE ENTERAN ANTES.
+
+       EL FALLO QUE ARREGLA: el radio salía de `huye`, o sea de lo asustadizo
+       que es el bicho. Pero el cocodrilo tiene `huye` a 0 —no huye de nada, es
+       él quien va a por ti— así que se quedaba con el mínimo de 70 px. Podías
+       plantarte a un palmo de un cocodrilo dormido y seguía roncando; y ni
+       siquiera te atacaba, porque el camino de pelear va por debajo del sueño.
+       Un bicho que muerde no se lee como dormido, se lee como roto.
+
+       Un depredador tiene que enterarse por lo menos a la distancia a la que
+       podría morderte, con margen. */
+    if (a.ficha.agresivo) {
+      r = Math.max(r, (a.ficha.alcance || 0) * 2.2, 110);
+    }
+    return r;
   }
 
   /**
@@ -2367,6 +3474,10 @@
     a.fase = 'duerme';
     a.despiertaEn = hasta || 0;
     anim(a, poseDormido(a));
+    /* Respirando despacio. Es lo mismo que se le hace al que se resguarda, y
+       por el mismo motivo: la pose de dormir suele ser de dos fotogramas, y a
+       ritmo normal un bicho dormido parpadea como si estuviera nervioso. */
+    ritmoAnim(a, 0.45);
     /* El conejo, si tiene casa y esta en ella, se METE dentro y no se le ve:
        queda la madriguera con sus Z encima. Dormir tirado en la hierba a la
        vista es de otros animales, no de un conejo. */
@@ -2392,7 +3503,33 @@
       if (a.sombra) a.sombra.setVisible(true);
       a.enMadriguera = false;
     }
+    /* Se levanta del todo: si sigue lloviendo, `acomodarse` volverá a
+       achatarlo enseguida. Sin esto se quedaba andando aplastado, y respirando
+       al ralentí — `timeScale` se lo había bajado `guarecerse` y no lo subía
+       nadie, porque el que se duerme resguardado nunca pasa por
+       `salirDelRefugio`. */
+    a.achataMeta = 0;
+    a.pruebaSuenio = 0;
+    ritmoAnim(a, 1);
     quitarZzz(a);
+
+    /* SI DESPIERTA Y SIGUE LLOVIENDO, NO SE VA DE PASEO.
+
+       EL FALLO QUE ARREGLA: un bicho puede echar una cabezada mientras espera
+       a que escampe. Al acabársele, esto llamaba a `decidirTierra` y lo mandaba
+       a pasear bajo el chaparrón; `actualizarTiempo` lo volvía a meter a
+       cubierto un segundo después, pero para entonces ya había salido de
+       debajo del árbol y dado unos pasos bajo el agua. Se veía justo lo que no
+       tiene que verse: al cocodrilo levantarse y andar en plena tormenta.
+
+       Despertarse a cubierto y seguir a cubierto es además lo natural: si
+       sigue cayendo, no hay nada que decidir. */
+    if (a.aCubierto && molestia(a, tiempo()) > REFUGIO_SALE) {
+      acomodarse(st, a, st.scene.time.now);
+      return;
+    }
+    a.aCubierto = false;
+
     // Vuelve a decidir en vez de retomar lo que hacía: al despertarse lo
     // primero que hace un animal es mirar alrededor, no seguir comiendo.
     if (a.grupo === 'ave') { a.fase = 'posado'; a.hasta = st.scene.time.now + az(400, 1400); }
@@ -2460,12 +3597,53 @@
       if (a.despiertaEn && ahora >= a.despiertaEn) { despertar(st, a); return false; }
       // ...o que amanezca.
       if (!a.despiertaEn && !esDeNoche()) { despertar(st, a); return false; }
+      /* ...O QUE SE PONGA A LLOVER ENCIMA.
+
+         Nadie sigue durmiendo tirado en la hierba bajo un chaparrón: se
+         levanta y se va a cubierto. Solo al que duerme A LA INTEMPERIE — el
+         que ya está resguardado, metido en su madriguera o en la rama de un
+         árbol, sigue durmiendo tan tranquilo, que es lo que hace un animal de
+         verdad. Al despertar, `actualizarTiempo` se encarga de llevárselo. */
+      if (aLaIntemperie(a) && molestia(a, tiempo()) > REFUGIO_ENTRA) {
+        despertar(st, a); return false;
+      }
+      /* Y SI ESCAMPÓ MIENTRAS DORMÍA, se le quitan las marcas del mal tiempo.
+
+         EL FALLO QUE ARREGLA: el que se duerme resguardado no vuelve a pasar
+         por `actualizarTiempo` —el bucle sale aquí, en el sueño— así que se
+         quedaba con `aCubierto` puesto y achatado para siempre. Al despertar
+         se levantaba encogido, y peor: con `aCubierto` puesto, `aLaIntemperie`
+         diría que sigue a cubierto y el siguiente chaparrón ya no lo
+         levantaría nunca de la hierba. */
+      if (a.aCubierto && molestia(a, tiempo()) <= REFUGIO_SALE) {
+        a.aCubierto = false;
+        a.refugio = null;
+        a.achataMeta = 0;
+      }
       moverZzz(st, a, ahora);
       return true;
     }
 
-    // ¿Se echa a dormir? Solo cuando ha terminado lo que estuviera haciendo.
-    if (ahora < a.hasta) return false;
+    /* ¿SE ECHA A DORMIR?
+
+       Normalmente, solo cuando ha terminado lo que estuviera haciendo. El que
+       ya está a cubierto es la excepción: está parado esperando a que escampe
+       y puede dormitar en cualquier momento, sin esperar a que se le acabe un
+       rato que, mientras dure el mal tiempo, se renueva solo.
+
+       PERO CON SU PROPIO RELOJ, y esto importa: sin él la cabezada se sortea
+       en CADA FOTOGRAMA. Con PROB_SIESTA a 0,035 eso son sesenta tiradas por
+       segundo, o sea que cualquier bicho resguardado se dormía en menos de
+       medio segundo. En la simulación se quedaban dormidos 20 de 48 nada más
+       ponerse a llover, y el prado no se leía como "todos a cubierto" sino
+       como "todos KO". Ahora se sortea cada 6-16 s, que es más o menos la
+       cadencia con la que decide un animal despejado. */
+    if (a.fase === 'refugio') {
+      if (ahora < (a.pruebaSuenio || 0)) return false;
+      a.pruebaSuenio = ahora + az(6000, 16000);
+    } else if (ahora < a.hasta) {
+      return false;
+    }
 
     if (esDeNoche()) {
       /* El conejo no se echa donde le pille: primero vuelve a su madriguera.
@@ -2498,6 +3676,10 @@
     // false no comprobaba nada.
     if (!scene || !scene.sys) return;
     if (typeof scene.sys.isActive === 'function' && !scene.sys.isActive()) return;
+
+    /* El tiempo se lee UNA vez para los treinta y pico bichos, no una vez por
+       bicho. Va lo primero porque todo lo demás lo consulta. */
+    releerTiempo(ahora);
 
     /* El índice espacial de colisiones lo reconstruye GameScene en su update.
        Este listener se dispara ANTES que Scene.update(), así que en el primer
@@ -2545,6 +3727,8 @@
       limpiarGolpe(a, ahora);
       actualizarBarraAnimal(a, ahora);
       actualizarSombra(a);
+      // Acostarse y levantarse es un fundido, no un salto: ver `achatar`.
+      achatar(a, dt);
 
       // Congelado: ni se mueve ni ataca ni se asusta. Va ANTES del sueño
       // porque un animal helado no se duerme, se queda como está.
@@ -2552,6 +3736,12 @@
 
       // Dormido: ni se mueve ni ataca ni se asusta, solo suelta sus Z.
       if (actualizarSuenio(st, a, ahora)) continue;
+
+      /* EL TIEMPO. Va después del sueño y antes de la rutina normal: un animal
+         dormido a cubierto sigue durmiendo (de eso se encarga `actualizarSuenio`,
+         que despierta al que duerme a la intemperie bajo el chaparrón), y uno
+         despierto se refugia en vez de pasear bajo el agua. */
+      if (actualizarTiempo(st, a, ahora, dt)) continue;
 
       if (a.grupo === 'ave') actualizarAve(st, a, ahora, dt);
       else if (a.grupo === 'mariposa') actualizarMariposa(st, a, ahora, dt);
@@ -2570,16 +3760,9 @@
   }
 
   // ============================================================== MONTAJE
-  function montar(scene, opciones) {
-    opciones = opciones || {};
-    if (!scene || !scene.add || !scene.textures) return null;
-    if (scene.__gfFauna) return scene.__gfFauna;      // ya montada
-
-    var elenco = opciones.elenco || ELENCO;
-    var st = { scene: scene, animales: [], hoyos: [], nidos: {} };
-    var puestos = [];
-    var usados = {};
-
+  /** Reparte por el mapa a todo el elenco. Lo saca de `montar` para que ahí
+      se vea de un vistazo qué se monta y en qué orden. */
+  function poblar(st, scene, elenco, puestos, usados) {
     for (var e = 0; e < elenco.length; e++) {
       var especie = elenco[e][0];
       var cuantos = elenco[e][1];
@@ -2622,9 +3805,13 @@
           // Ni un posadero libre en todo el mapa: se comparte, pero corrido a
           // un lado para que no queden dos sprites calcados.
           if (!sitio && sitios.length) {
-            var comp = elegir(sitios);
+            var comp = puntoPosadero(elegir(sitios));
             sitio = { clave: comp.clave, base: comp.base,
                       x: comp.x + az(-14, 14), y: comp.y + az(-4, 4) };
+          } else if (sitio) {
+            /* La desviación a lo ancho se sortea AQUÍ. `sitio` viene de la
+               lista guardada, que es compartida y no se puede tocar. */
+            sitio = puntoPosadero(sitio);
           }
           if (sitio) {
             usados[sitio.clave] = true;
@@ -2647,6 +3834,33 @@
         }
       }
     }
+  }
+
+  function montar(scene, opciones) {
+    opciones = opciones || {};
+    if (!scene || !scene.add || !scene.textures) return null;
+    if (scene.__gfFauna) return scene.__gfFauna;      // ya montada
+
+    var elenco = opciones.elenco || ELENCO;
+    var st = { scene: scene, animales: [], hoyos: [], nidos: {} };
+    var puestos = [];
+    var usados = {};
+
+    /* Se apunta la fauna en la escena ANTES de poblarla.
+
+       Si algo revienta a mitad del reparto —una textura rara, un sprite del
+       mapa en un estado inesperado— hay que poder llamar a `desmontar` para
+       recoger los animales que ya se habían creado. Sin esto, los sprites
+       hechos hasta el fallo se quedaban sueltos en la escena sin que nadie los
+       tuviera apuntados: imposibles de mover, de borrar y de encontrar. */
+    scene.__gfFauna = st;
+    try {
+      poblar(st, scene, elenco, puestos, usados);
+    } catch (fallo) {
+      console.warn('[fauna] no se pudo montar:', fallo);
+      desmontar(scene);
+      return null;
+    }
 
     st.onUpdate = function (t, d) { actualizar(st, t, d); };
     scene.events.on('update', st.onUpdate);
@@ -2654,7 +3868,26 @@
     scene.events.once('shutdown', st.onApagar);
     scene.events.once('destroy', st.onApagar);
 
-    scene.__gfFauna = st;
+    /* EL TRUENO.
+
+       Se guarda solo el INSTANTE del último; cada animal lleva apuntado cuál
+       fue el último que oyó (`truenoVisto`) y así se entera exactamente una
+       vez, aunque su turno le toque tres fotogramas después por estar lejos de
+       la cámara.
+
+       `soltarTrueno` hay que llamarlo al desmontar o el oyente se queda vivo
+       para siempre dentro de gf-clima, que NO se desmonta al cambiar de mapa:
+       sería una fuga de las de verdad, con la escena entera colgando de él. */
+    st.trueno = 0;
+    st.soltarTrueno = null;
+    try {
+      if (window.GFClima && window.GFClima.alTronar) {
+        st.soltarTrueno = window.GFClima.alTronar(function () {
+          st.trueno = Date.now();
+        });
+      }
+    } catch (e) { /* sin clima no hay truenos, y no pasa nada */ }
+
     log(scene, 'montados', st.animales.length, 'animales');
     return st;
   }
@@ -2667,6 +3900,10 @@
       scene.events.off('shutdown', st.onApagar);
       scene.events.off('destroy', st.onApagar);
     }
+    /* Y el oyente del trueno. gf-clima sobrevive al cambio de escena, así que
+       un oyente que no se da de baja se lleva por delante la escena vieja
+       entera: `st` → `st.scene` → todo el mapa. */
+    if (st.soltarTrueno) { try { st.soltarTrueno(); } catch (e) {} st.soltarTrueno = null; }
     for (var i = 0; i < st.animales.length; i++) {
       var an = st.animales[i];
       if (an.spr) an.spr.destroy();
@@ -2684,6 +3921,8 @@
     st.hoyos.length = 0;
     for (var k in st.nidos) { if (st.nidos[k]) st.nidos[k].destroy(); }
     st.nidos = {};
+    // La medida del escenario (posaderos, flores, refugios) es de ESTA escena.
+    scene.__gfFaunaSitios = null;
     scene.__gfFauna = null;
     log(scene, 'desmontada');
   }
@@ -2738,6 +3977,15 @@
     },
     desmontar: desmontar,
     estado: estado,
+    /** Qué tiempo cree la fauna que hace ahora mismo. Para depurar. */
+    tiempo: function () { return releerTiempo(Date.now()); },
+    /** Un trueno de mentira, para ver los sobresaltos sin esperar. */
+    tronar: function () {
+      var st = escenaConFauna();
+      if (!st) return false;
+      st.trueno = Date.now();
+      return true;
+    },
     RUTA: RUTA,
     FICHA: FICHA,
     ELENCO: ELENCO,
@@ -2762,7 +4010,7 @@
       moverZzz: moverZzz, PROB_DORMILON: PROB_DORMILON, SIESTA_MS: SIESTA_MS,
       PROB_SIESTA: PROB_SIESTA, PROB_SIESTERO: PROB_SIESTERO,
       balanceoSoporte: balanceoSoporte, mecerPosados: mecerPosados,
-      esArbol: esArbol, construirNido: construirNido,
+      esArbol: esArbol,
       sabeTumbarse: sabeTumbarse, danarAnimal: danarAnimal,
       crearSombra: crearSombra, actualizarSombra: actualizarSombra,
       fichaSombra: fichaSombra, anchoSombra: anchoSombra,
@@ -2774,7 +4022,24 @@
       DANO_MASCOTA: DANO_MASCOTA,
       actualizarTopo: actualizarTopo, mascotaPelea: mascotaPelea,
       retirarse: retirarse, morder: morder, abrirHoyo: abrirHoyo,
-      posesDe: posesDe, POSES: POSES, POSES_EXTRA: POSES_EXTRA
+      posesDe: posesDe, POSES: POSES, POSES_EXTRA: POSES_EXTRA,
+      // el tiempo
+      releerTiempo: releerTiempo, tiempo: tiempo, molestia: molestia,
+      comoSeGuarece: comoSeGuarece, refugios: refugios,
+      refugioCerca: refugioCerca, huecoBajo: huecoBajo,
+      actualizarTiempo: actualizarTiempo, irseARefugio: irseARefugio,
+      salirDelRefugio: salirDelRefugio, guarecerse: guarecerse,
+      acomodarse: acomodarse, sobresaltar: sobresaltar,
+      achatar: achatar, factorSuelo: factorSuelo, sueloMojado: sueloMojado,
+      quietudDelSol: quietudDelSol, animoDelSol: animoDelSol,
+      esReptil: esReptil, aLaIntemperie: aLaIntemperie,
+      desemparejar: desemparejar,
+      REFUGIO_ENTRA: REFUGIO_ENTRA, REFUGIO_SALE: REFUGIO_SALE,
+      SENSIBLE: SENSIBLE, SENSIBLE_GRUPO: SENSIBLE_GRUPO,
+      ANTE_EL_AGUA: ANTE_EL_AGUA, ANTE_EL_AGUA_GRUPO: ANTE_EL_AGUA_GRUPO,
+      // la caché del escenario
+      cacheDe: cacheDe, cacheVale: cacheVale, olvidarSitios: olvidarSitios,
+      puntoPosadero: puntoPosadero, puntoFlor: puntoFlor
     }
   };
 })();

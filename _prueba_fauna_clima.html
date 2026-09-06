@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Prueba: la fauna y el tiempo que hace</title>
+<!-- =========================================================================
+     BANCO DE PRUEBAS DE "QUÉ HACE CADA BICHO CUANDO LLUEVE"
+
+     Monta un prado pequeño con árboles, flores, un pozo y un animal de cada
+     clase, y pone unos botones para cambiar el tiempo a mano. Sirve para ver
+     de una sentada lo que antes había que esperar a que pasara dentro del
+     juego: que las mariposas se agarran, que el cocodrilo se acuesta, que los
+     pájaros dejan de bañarse y se meten en la rama, que el conejo corre a su
+     madriguera y que el cerdo se va al charco.
+
+     NO HAY BACKEND. gf-clima intenta preguntarle el tiempo al servidor; aquí
+     se le manda a mano con `GFClima.probar(...)`, que es justo para esto.
+
+     Se abre con el servidor estático de .claude/launch.json:
+        http://localhost:8123/_prueba_fauna_clima.html
+     ====================================================================== -->
+<style>
+  body { margin:0; background:#0d1117; color:#c9d1d9;
+         font:13px system-ui,-apple-system,sans-serif; }
+  #barra { padding:8px 10px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;
+           border-bottom:1px solid #30363d; background:#161b22; position:sticky; top:0; z-index:5 }
+  button { background:#21262d; color:#c9d1d9; border:1px solid #30363d; border-radius:6px;
+           padding:5px 10px; cursor:pointer; font:12px inherit }
+  button:hover { background:#30363d }
+  button.on { background:#1f6feb; border-color:#1f6feb; color:#fff }
+  #panel { display:flex; gap:10px; align-items:flex-start; padding:10px }
+  #juego { border:1px solid #30363d; border-radius:6px; overflow:hidden }
+  #informe { background:#161b22; border:1px solid #30363d; border-radius:6px; padding:8px;
+             font:11px ui-monospace,Consolas,monospace; white-space:pre; min-width:330px;
+             max-height:640px; overflow:auto; margin:0 }
+  .aviso { color:#d29922 }
+</style>
+</head>
+<body>
+
+<div id="barra">
+  <strong style="margin-right:6px">Tiempo:</strong>
+  <button data-clima="despejado" class="on">despejado</button>
+  <button data-clima="lluvia">lluvia</button>
+  <button data-clima="tormenta">tormenta</button>
+  <button data-clima="nieve">nieve</button>
+  <button data-clima="viento">viento</button>
+  <button data-clima="soleado">soleado</button>
+  <span style="width:14px"></span>
+  <button id="btn-trueno">⚡ trueno</button>
+  <button id="btn-charcos">💧 poner charcos</button>
+  <button id="btn-jugador">🚶 mover jugador</button>
+  <span id="aviso" class="aviso"></span>
+</div>
+
+<div id="panel">
+  <div id="juego"></div>
+  <pre id="informe">montando…</pre>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script src="./gf-profundidad.js"></script>
+<script src="./gf-viento.js"></script>
+<script src="./gf-clima.js"></script>
+<script src="./gf-animales.js"></script>
+<script src="./gf-cuervo.js"></script>
+<script src="./gf-buho.js"></script>
+<script>
+/* Reloj del mundo de mentira: gf-animales y gf-buho se lo preguntan a gf-ciclo
+   para saber si es de noche. Aquí siempre es mediodía, para que no se duerman
+   todos y se pueda ver lo del tiempo. */
+window.GFCiclo = {
+  hayHora: function () { return true; },
+  estado:  function () { return { hora: 12, minuto: 0, esDia: true }; },
+  oscuridad: function () { return 0; }
+};
+
+var ANCHO = 900, ALTO = 640;
+
+/* ── El escenario, dibujado con canvas ──────────────────────────────────────
+   Los árboles y las flores del juego son PNG del mapa que aquí no hacen
+   falta: lo que necesita gf-animales de ellos es que existan como sprites con
+   caja y profundidad. Se dibujan cuatro formas y listo. */
+function pintar(scene, clave, w, h, dibujo) {
+  if (scene.textures.exists(clave)) return;
+  var t = scene.textures.createCanvas(clave, w, h);
+  dibujo(t.getContext(), w, h);
+  t.refresh();
+}
+
+var Prado = {
+  key: 'Prado',
+  preload: function () {
+    window.GFAnimales.precargar(this);
+    if (window.GFClima) window.GFClima.precargar(this);
+    if (window.GFViento) window.GFViento.precargar(this);
+    // El cuervo tiene PNG propios; si no están, el módulo avisa y no se monta.
+    var CV = window.GFCuervo;
+    if (CV) {
+      for (var g in CV.CLAVES) {
+        for (var i = 0; i < CV.CLAVES[g].length; i++) {
+          this.load.image(CV.CLAVES[g][i], CV.RUTA + CV.CLAVES[g][i] + '.png');
+        }
+      }
+    }
+    this.load.on('loaderror', function () { /* lo que falte, se avisa luego */ });
+  },
+
+  create: function () {
+    var escena = this;
+    this.cameras.main.setBackgroundColor('#4a7c3f');
+
+    // Un mapa pequeño: cabe entero en pantalla y se ve todo a la vez.
+    this.map = { widthInPixels: ANCHO, heightInPixels: ALTO };
+
+    pintar(this, 'px_arbol', 54, 90, function (c, w, h) {
+      c.fillStyle = '#5a3d24'; c.fillRect(w / 2 - 5, h * 0.55, 10, h * 0.45);
+      c.fillStyle = '#2e6b34';
+      c.beginPath(); c.ellipse(w / 2, h * 0.34, w / 2, h * 0.34, 0, 0, 6.29); c.fill();
+      c.fillStyle = 'rgba(255,255,255,0.10)';
+      c.beginPath(); c.ellipse(w * 0.38, h * 0.24, w * 0.22, h * 0.14, 0, 0, 6.29); c.fill();
+    });
+    pintar(this, 'px_flor', 16, 20, function (c, w, h) {
+      c.fillStyle = '#3f7a37'; c.fillRect(w / 2 - 1, h * 0.4, 2, h * 0.6);
+      c.fillStyle = '#e8d24a';
+      c.beginPath(); c.arc(w / 2, h * 0.28, 5, 0, 6.29); c.fill();
+      c.fillStyle = '#f2e9a0';
+      c.beginPath(); c.arc(w / 2, h * 0.28, 2, 0, 6.29); c.fill();
+    });
+    pintar(this, 'px_pozo', 44, 52, function (c, w, h) {
+      c.fillStyle = '#6b6b73'; c.fillRect(6, h * 0.45, w - 12, h * 0.5);
+      c.fillStyle = '#2f6fb0';      // el agua: azul, que es lo que busca medirAgua()
+      c.fillRect(11, h * 0.55, w - 22, h * 0.22);
+      c.fillStyle = '#7a5232'; c.fillRect(4, h * 0.12, w - 8, 6);
+    });
+
+    // Un sprite del mapa se crea con origen (0,1) y depth = y: se imita igual.
+    function poner(clave, textura, x, y) {
+      var s = escena.add.sprite(x, y, textura).setOrigin(0, 1);
+      s.setDepth(y);
+      escena[clave] = s;
+      return s;
+    }
+
+    var i;
+    for (i = 1; i <= 10; i++) {
+      poner('sprite_arbolx' + i, 'px_arbol',
+            40 + ((i * 173) % (ANCHO - 120)), 120 + ((i * 271) % (ALTO - 160)));
+    }
+    for (i = 1; i <= 19; i++) {
+      poner('sprite_flor_formado1_ect' + i, 'px_flor',
+            30 + ((i * 97) % (ANCHO - 60)), 90 + ((i * 149) % (ALTO - 110)));
+    }
+    for (i = 1; i <= 18; i++) {
+      poner('sprite_arbusto_ect' + i, 'px_flor',
+            25 + ((i * 211) % (ANCHO - 60)), 110 + ((i * 83) % (ALTO - 130)));
+    }
+    poner('sprite_fuente1', 'px_pozo', ANCHO / 2 - 22, ALTO / 2 + 26);
+    escena.treeStumps = {};
+
+    // El jugador: un cuadrito que se puede mover con el ratón o con el botón.
+    this.player = this.add.rectangle(60, ALTO - 40, 14, 22, 0xffd24a).setDepth(99998);
+    this.input.on('pointerdown', function (p) {
+      escena.player.x = p.worldX; escena.player.y = p.worldY;
+    });
+
+    // Sin colisiones de escenario: aquí no hay índice espacial.
+    this._chocaConEscenario = function () { return false; };
+
+    /* Un ejemplar de cada especie, para verlas todas a la vez. Los que van en
+       pareja (aves, mariposas) van de dos en dos porque una parte de lo que
+       hacen es entre ellas. */
+    var elenco = [
+      ['zorro', 1], ['vaca', 1], ['cerdo', 2], ['cocodrilo', 1],
+      ['serpiente_verde', 1], ['topo', 2], ['conejo', 2],
+      ['mariposa_blanca', 2], ['mariposa_azul', 1],
+      ['paloma', 2], ['pajaro', 2]
+    ];
+    window.GFAnimales.montar(this, { elenco: elenco });
+    if (window.GFViento) window.GFViento.montar(this);
+    if (window.GFClima) window.GFClima.montar(this);
+    if (window.GFCuervo) window.GFCuervo.montar(this, { cantidad: 1 });
+    if (window.GFBuho) window.GFBuho.montar(this);
+
+    window.__escena = this;
+    document.getElementById('aviso').textContent = '';
+  }
+};
+
+var juego = new Phaser.Game({
+  type: Phaser.AUTO, width: ANCHO, height: ALTO,
+  parent: 'juego', backgroundColor: '#4a7c3f',
+  physics: { default: 'arcade' },
+  scene: [Prado]
+});
+window.game = juego;
+
+// ── los botones ────────────────────────────────────────────────────────────
+document.querySelectorAll('#barra button[data-clima]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    document.querySelectorAll('#barra button[data-clima]').forEach(function (o) {
+      o.classList.remove('on');
+    });
+    b.classList.add('on');
+    window.GFClima.probar(b.dataset.clima);
+  });
+});
+document.getElementById('btn-trueno').addEventListener('click', function () {
+  if (window.GFAnimales.tronar) window.GFAnimales.tronar();
+  // Y el de gf-clima, que es el que avisa a todos los oyentes de verdad.
+  var I = window.GFClima._interno;
+  if (I && I.avisarDelTrueno) I.avisarDelTrueno(true, 1.2);
+});
+document.getElementById('btn-charcos').addEventListener('click', function () {
+  var e = window.__escena;
+  if (!e || !e.__gfClima) return;
+  // Se despiertan unos cuantos charcos a mano, para no esperar a que llueva.
+  var st = e.__gfClima, n = 0;
+  for (var i = 0; i < st.charcos.length && n < 6; i++) {
+    var c = st.charcos[i];
+    if (c.vivo) continue;
+    c.vivo = true; c.helado = false; c.nace = e.time.now; c.tam = 1;
+    c.spr.setPosition(80 + Math.random() * (ANCHO - 160),
+                      100 + Math.random() * (ALTO - 160));
+    c.spr.setVisible(true).setAlpha(0.8).setScale(1.6);
+    c.spr.setDepth(c.spr.y - 3);
+    n++;
+  }
+});
+document.getElementById('btn-jugador').addEventListener('click', function () {
+  var e = window.__escena;
+  if (!e || !e.player) return;
+  e.player.x = 60 + Math.random() * (ANCHO - 120);
+  e.player.y = 60 + Math.random() * (ALTO - 120);
+});
+
+// ── el informe ─────────────────────────────────────────────────────────────
+setInterval(function () {
+  var e = window.__escena;
+  var salida = [];
+  if (!e) { document.getElementById('informe').textContent = 'montando…'; return; }
+
+  var t = window.GFAnimales.tiempo ? window.GFAnimales.tiempo() : null;
+  if (t) {
+    salida.push('TIEMPO   activo=' + t.activo +
+                '  lluvia=' + (t.lluvia || 0).toFixed(2) +
+                '  nieve=' + (t.nieve || 0).toFixed(2));
+    salida.push('         sol=' + (t.sol || 0).toFixed(2) +
+                '  viento=' + (t.viento || 0).toFixed(2) +
+                '  tormenta=' + !!t.tormenta);
+  }
+  salida.push('');
+
+  var lista = window.GFAnimales.estado(e) || [];
+  var st = e.__gfFauna;
+  if (st) {
+    salida.push('FAUNA (' + st.animales.length + ')');
+    st.animales.forEach(function (a) {
+      var marcas = [];
+      if (a.aCubierto) marcas.push('cubierto');
+      if (a.enMadriguera) marcas.push('en madriguera');
+      if (a.durmiendo) marcas.push('zzz');
+      if (a.congelado) marcas.push('helado');
+      if (a.achata > 0.05) marcas.push('achatado ' + a.achata.toFixed(2));
+      salida.push('  ' + (a.especie + '            ').slice(0, 18) +
+                  (a.fase + '         ').slice(0, 11) +
+                  ((a._anim || '-') + '        ').slice(0, 10) +
+                  marcas.join(' '));
+    });
+  }
+
+  var cu = window.GFCuervo && window.GFCuervo.estado(e);
+  if (cu && cu.length) {
+    salida.push('');
+    salida.push('CUERVO   ' + cu.map(function (c) {
+      return c.fase + (c.encogido ? ' (encogido)' : '');
+    }).join(', '));
+  }
+  var bu = window.GFBuho && window.GFBuho.estado();
+  if (bu && bu.montado) {
+    salida.push('BUHO     ' + (bu.hay ? bu.fase : '(no hay)') +
+                '  malTiempo=' + bu.malTiempo);
+  }
+
+  document.getElementById('informe').textContent = salida.join('\n');
+}, 400);
+</script>
+</body>
+</html>

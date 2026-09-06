@@ -2746,6 +2746,22 @@ shutdown() {
 
     const isAuthenticated = await this.loadx();
         
+    /* FUGA QUE ESTO ARREGLA — se apilaban los apagados.
+     *
+     * Phaser REUTILIZA la instancia de la escena y NO borra los listeners de
+     * `this.events` al apagarla: `Systems.shutdown()` emite SHUTDOWN y punto.
+     * Como esto está en create(), cada ida y vuelta entre el juego y la tienda
+     * registraba OTRO par de manejadores sobre la MISMA función.
+     *
+     * A la décima entrada, salir de la escena ejecutaba shutdown() diez veces
+     * seguidas: diez barridos del TextureManager, diez limpiezas de
+     * TileManagers y diez cierres de socket. Se notaba como un tirón al cambiar
+     * de escena que se alargaba durante toda la sesión.
+     *
+     * El `off` de delante lo hace idempotente: quita el de la entrada anterior
+     * (si lo hay) y deja uno solo. */
+    this.events.off('shutdown', this.shutdown, this);
+    this.events.off('destroy', this.shutdown, this);
     this.events.on('shutdown', this.shutdown, this);
     this.events.on('destroy', this.shutdown, this);
 
@@ -8220,6 +8236,10 @@ console.log('📊 Tree types:', Object.keys(TREE_TYPE_CONFIG));
     this._setupChatDom();
 
     // Escuchadores de escena para limpiar socket al cerrar escena
+    // El `off` de delante evita que se apilen al volver a entrar en la escena:
+    // la explicación larga está donde se registra `shutdown` en create().
+    this.events.off('shutdown', this._onShutdown, this);
+    this.events.off('destroy', this._onShutdown, this);
     this.events.on('shutdown', this._onShutdown, this);
     this.events.on('destroy', this._onShutdown, this);
 
