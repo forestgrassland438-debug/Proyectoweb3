@@ -17,6 +17,31 @@
 
 
 // NotificationHub.js - Librería de notificaciones con diseño pixel art RPG y sistema anti-duplicados
+
+/* ESCAPADO DE HTML.
+ *
+ * AGUJERO QUE ESTO CIERRA: el cuerpo de la notificación se monta con
+ * `innerHTML` y el mensaje se metía CRUDO. Y por aquí pasa texto que no es
+ * nuestro: `showNotification(\`Error: ${error.message}\`)` mete el mensaje de
+ * error tal cual, y ese mensaje puede venir del servidor o de una respuesta de
+ * red. Cualquier `<img src=x onerror=…>` que llegara ahí se ejecutaba en la
+ * página del juego — con la sesión del jugador y su cartera dentro.
+ *
+ * No rompe a nadie: se revisaron todas las llamadas a `show()` del proyecto y
+ * ninguna pasa etiquetas a propósito; todas mandan texto plano.
+ *
+ * El mismo escapado ya existía suelto dentro del panel de historial (era la
+ * única parte que sí escapaba). Ahora es uno solo y lo usan los dos. */
+const _escNotif = (s) => String(s === null || s === undefined ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+/* Y el TIPO no se cuela en un atributo `class` sin mirar: solo se aceptan los
+   cuatro que entiende la hoja de estilos. Cualquier otra cosa pasa a 'info'.
+   Así un tipo con comillas dentro no puede cerrar el atributo y abrir otro. */
+const _TIPOS_NOTIF = { success: 1, error: 1, warning: 1, info: 1 };
+const _tipoNotif = (t) => (_TIPOS_NOTIF[t] ? t : 'info');
+
 class NotificationHub {
     /**
      * options:
@@ -833,14 +858,16 @@ class NotificationHub {
 
             // Crear elemento
             const notificationElement = document.createElement('div');
+            const tipoSeguro = _tipoNotif(type);
             notificationElement.id = notificationId;
-            notificationElement.className = `notification-item ${type}`;
+            notificationElement.className = `notification-item ${tipoSeguro}`;
             notificationElement.setAttribute('role', 'region');
             notificationElement.setAttribute('aria-label', 'Notification');
+            // El mensaje va ESCAPADO: ver `_escNotif` arriba.
             notificationElement.innerHTML = `
                 <div class="notification-header">
-                    <div class="notification-icon ${type}" aria-hidden="true"></div>
-                    <div class="notification-message">${message}</div>
+                    <div class="notification-icon ${tipoSeguro}" aria-hidden="true"></div>
+                    <div class="notification-message">${_escNotif(message)}</div>
                 </div>
                 ${this._debug ? `<div class="notification-timer">${notificationId.split('-')[1]}</div>` : ''}
             `;
@@ -1319,7 +1346,7 @@ class NotificationHub {
                 : 'right:86px;top:120px;width:340px;';
             el.style.cssText = 'position:fixed;' + posCSS + 'z-index:99999;max-height:70vh;overflow:auto;background:rgba(11,61,46,0.97);border:3px solid #ffd23f;border-radius:14px;color:#fff;font-family:Arial,sans-serif;font-size:14px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.5);';
 
-            const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const esc = _escNotif;      // el mismo de arriba, uno solo para todo el módulo
             const TYPES = [['success', 'Success'], ['error', 'Errors'], ['warning', 'Warnings'], ['info', 'Info']];
             let typesHtml = '';
             for (const [t, label] of TYPES) {

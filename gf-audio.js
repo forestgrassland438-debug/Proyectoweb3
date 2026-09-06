@@ -27,7 +27,10 @@
  *   que lo que manda no es el peso del archivo sino la DURACIÓN. Los ~150
  *   segundos que se cargan en el campo salen a unos 29 MB de RAM (no de
  *   memoria de vídeo: no compite con las texturas del suelo, que es donde este
- *   juego va justo). En la tienda son 5 archivos y ~30 s.
+ *   juego va justo). En la tienda son DOS: el tema y la lluvia de fuera.
+ *   (Eran cinco cuando había pisadas; al quitarlas se quedaron en dos y este
+ *   párrafo se quedó diciendo cinco. Lo comprueba
+ *   tools/sonidos-prueba-catalogo.js.)
  *
  *   Si algún día hay que bajarlo, lo que se recorta es duración: los temas y
  *   los seis bucles de ambiente son el 90 % del gasto; las cincuenta voces y
@@ -994,6 +997,10 @@
         a = fauna.animales[i];
         if (!a || !a.spr || a.muerto || a.congelado) continue;
         if (a.fase === 'duerme' || a.fase === 'bajo' || a.fase === 'muerto') continue;
+        /* METIDO EN LA MADRIGUERA NO SE LE OYE. El conejo se esconde dentro
+           cuando llueve o de noche: el sprite deja de verse, pero seguía
+           hablando desde el agujero como si nada. */
+        if (a.enMadriguera) continue;
         if (!VOZ_DE[a.especie]) continue;                 // mariposas y demás: mudas
         if (a.proximaVoz && ahora < a.proximaVoz) continue;
 
@@ -1007,19 +1014,42 @@
         if (d > alcance) continue;
 
         var cerca = 1 - d / alcance;
-        /* Si huye o ataca, habla casi seguro: ahí el sonido está contando algo
-           que pasa, y ése es el sonido que vale la pena. */
-        var alterado = (a.fase === 'huye' || a.fase === 'ataca' || a.fase === 'persigue');
-        if (!alterado && Math.random() > cerca * 0.5) continue;
+        /* Si huye, ataca o se ha llevado un susto, habla casi seguro: ahí el
+           sonido está contando algo que pasa, y ése es el sonido que vale la
+           pena. 'sobresalto' es el bote del trueno (ver gf-animales): un prado
+           entero gritando justo después de que retumbe es lo que remata la
+           tormenta, así que ése es el que más se quiere oír. */
+        var alterado = (a.fase === 'huye' || a.fase === 'ataca' ||
+                        a.fase === 'persigue' || a.fase === 'sobresalto');
 
-        a.proximaVoz = ahora + az(BICHO_CADA[0], BICHO_CADA[1]) * (alterado ? 0.35 : 1);
+        /* A CUBIERTO SE HABLA POCO. Un bicho esperando a que escampe debajo de
+           un árbol está encogido y callado; que siguiera hablando al mismo
+           ritmo era lo que delataba que el sonido no se había enterado de que
+           llueve. No se calla del todo —un prado en silencio absoluto suena a
+           roto— pero se le baja mucho la probabilidad y el volumen. */
+        var aCubierto = (a.fase === 'refugio' || a.fase === 'aRefugio' || a.aCubierto);
+
+        if (!alterado) {
+          var ganas = cerca * 0.5 * (aCubierto ? 0.25 : 1);
+          if (Math.random() > ganas) continue;
+        }
+
+        a.proximaVoz = ahora + az(BICHO_CADA[0], BICHO_CADA[1]) *
+                               (alterado ? 0.35 : (aCubierto ? 1.8 : 1));
         if (bicho(st.scene, a.especie, a.spr.x, a.spr.y,
-                  { vol: alterado ? 1.15 : 1, alcance: alcance })) return;
+                  { vol: alterado ? 1.15 : (aCubierto ? 0.6 : 1), alcance: alcance })) return;
       }
     }
 
-    // Los cuervos van por su cuenta: son de otro módulo.
-    var cv = st.scene.__gfCuervo;
+    /* Los cuervos van por su cuenta: son de otro módulo.
+
+       EL FALLO QUE ARREGLA: aquí ponía `__gfCuervo`, en singular, y gf-cuervo
+       guarda su estado en `__gfCuervos`, en plural. La propiedad era siempre
+       `undefined`, el `if` de abajo nunca entraba y LOS CUERVOS NO GRAZNABAN
+       NUNCA — ni al posarse, ni al asustarse, ni al salir volando con un
+       trueno. Todo este bloque era código muerto y no había forma de notarlo
+       más que echándolo de menos. */
+    var cv = st.scene.__gfCuervos;
     if (cv && cv.cuervos) {
       for (i = 0; i < cv.cuervos.length; i++) {
         var c = cv.cuervos[i];
@@ -1117,6 +1147,17 @@
     if (st.onApagar) {
       scene.events.off('shutdown', st.onApagar);
       scene.events.off('destroy', st.onApagar);
+    }
+    /* Y EL AVISO DE "AUDIO DESBLOQUEADO".
+     *
+     * Ojo con dónde vive: `scene.sound` NO es de la escena, es el gestor de
+     * sonido GLOBAL del juego, que sobrevive a todos los cambios de escena. Un
+     * `once('unlocked')` que no llega a dispararse —porque el jugador cambió de
+     * escena antes de tocar la pantalla— se queda ahí colgado para siempre con
+     * `st` dentro, y `st` es la escena entera. */
+    if (st.onDesbloqueo) {
+      try { scene.sound.off('unlocked', st.onDesbloqueo); } catch (e) {}
+      st.onDesbloqueo = null;
     }
     var k, i;
     for (k in st.bucles) {
@@ -1289,6 +1330,10 @@
       TEMAS: TEMAS, AMBIENTES: AMBIENTES, SUELOS: SUELOS, VOCES: VOCES,
       VOZ_DE: VOZ_DE, MEZCLA: MEZCLA, PREFIJO: PREFIJO,
       clasificar: clasificar, mirarTile: mirarTile, listaDe: listaDe,
+      /* Se exponen para poder comprobar el catálogo sin navegador: que no se
+         pida ningún WAV que no exista y que cada voz numerada tenga su
+         archivo. Ver tools/sonidos-prueba-catalogo.js. */
+      esenciales: esenciales, RAYOS: RAYOS,
       mezclarAmbiente: mezclarAmbiente, leerClima: leerClima,
       oscuridad: oscuridad, temaQueToca: temaQueToca, sonar: sonar,
       CONTRASTE_JUNTA: CONTRASTE_JUNTA

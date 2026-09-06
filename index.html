@@ -49,20 +49,47 @@
   <meta http-equiv="Permissions-Policy" content="geolocation=(), camera=(), microphone=(), payment=()" />
 
   <!-- ============================
-       External libraries (defer). Remove or replace integrity placeholders with real SRI hashes in prod.
+       LIBRERIAS DE TERCEROS, CON SU HUELLA (SRI)
+
+       El comentario de aqui decia "reemplaza los placeholders de integrity por
+       hashes reales en produccion", y nunca se hizo: los cuatro <script>
+       llevaban `crossorigin="anonymous"` pero NINGUN `integrity`. Y el
+       crossorigin solo no protege de nada — esta ahi precisamente para que el
+       SRI pueda funcionar.
+
+       Sin `integrity`, el navegador ejecuta lo que le mande el CDN, sea lo que
+       sea. Si a jsdelivr, cdnjs o cdn.socket.io les cambian un fichero, o
+       alguien se mete por medio, ese codigo corre DENTRO de la pagina del
+       juego. Y uno de los cuatro es `ethers`, que es quien firma las
+       transacciones y toca la cartera del jugador: ahi no se trata de que se
+       vea raro el mapa, se trata de que le vacien el saldo.
+
+       Con el hash puesto, si el fichero no es EXACTAMENTE el mismo, el
+       navegador se niega a ejecutarlo.
+
+       Los cuatro hashes se calcularon descargando los ficheros y se comprobo
+       que salieran iguales en dos descargas seguidas. Las URL llevan version
+       fija, asi que no cambian solas. SI SE SUBE DE VERSION HAY QUE RECALCULAR
+       EL HASH o el script dejara de cargar:
+
+           curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A
        ============================ -->
 
   <!-- Phaser (pinned) -->
-  <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js" defer crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js" defer crossorigin="anonymous"
+          integrity="sha384-AvQiDMZAVLda3VtAoU5MCfBz8pzXhteb2CiUJeKBmPlWzpXj1uJ96Km11+YuFNu/"></script>
 
   <!-- Socket.IO client CDN (if you instead serve it from your backend, use /socket.io/socket.io.js over HTTPS) -->
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" defer crossorigin="anonymous"></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" defer crossorigin="anonymous"
+          integrity="sha384-mZLF4UVrpi/QTWPA7BjNPEnkIfRFn4ZEO3Qt/HFklTJBj/gBOV8G3HcKn4NfQblz"></script>
 
   <!-- Ethers -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.10.0/ethers.umd.min.js" defer crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.10.0/ethers.umd.min.js" defer crossorigin="anonymous"
+          integrity="sha384-tVisdJ1MRZqej8bqmBNU9m3Gd3FN6xhhCMSWW3eJWnpsaR2XvOQWMBY08U6BIKMw"></script>
 
   <!-- rex virtual joystick -->
-  <script src="https://cdn.jsdelivr.net/npm/phaser3-rex-plugins@1.60.0/dist/rexvirtualjoystickplugin.min.js" defer crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/phaser3-rex-plugins@1.60.0/dist/rexvirtualjoystickplugin.min.js" defer crossorigin="anonymous"
+          integrity="sha384-iYVSUJQjlQbXL4+IRTt+0+SAss7Ag1anmdEBZDw7aOjkxm0C5YfPkaOHI63tU6Ur"></script>
 
   <!-- ============================
        Local scripts (all external, defer). No inline <script> blocks remain.
@@ -746,6 +773,13 @@
       <div class="bf-turnlabel" id="bfTurnLabel">VS</div>
       <div class="bf-timer" id="bfTimer"><i id="bfTimerFill"></i></div>
       <div class="bf-timertext" id="bfTimerText"></div>
+      <!-- RENDIRSE, SIEMPRE A MANO.
+           Este va en la barra de arriba a proposito: la de abajo (.bf-bottom)
+           la comparte con la mano de cartas y en horizontal se aprieta, ademas
+           de que al terminar el combate el jugador ya no mira ahi. Este chip se
+           ve en las tres fases (buscando rival, combate y final) y no lo tapa
+           ninguna carta. Pide confirmacion pulsando dos veces. -->
+      <button id="bfSurrender" class="bf-surrender" type="button">Surrender</button>
     </div>
 
     <div class="bf-card bf-rival">
@@ -787,7 +821,9 @@
 
     <div class="bf-actions">
       <button id="bfEndTurn" class="bf-btn bf-btn-main" disabled>End turn</button>
-      <button id="bfLeave" class="bf-btn bf-btn-ghost">Leave</button>
+      <!-- Decia "Leave", que se lee como "salir" y no como "rendirse", aunque
+           siempre llamo a rendirse(). Ahora dice lo que hace. -->
+      <button id="bfLeave" class="bf-btn bf-btn-ghost">Surrender</button>
     </div>
   </div>
 </div>

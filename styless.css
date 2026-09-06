@@ -11876,6 +11876,53 @@ canvas,
 }
 .battle-ui .bf-timertext { font-size: 11px; font-weight: 700; color: var(--bf-muted); }
 
+/* ── RENDIRSE ──────────────────────────────────────────────────────────────
+   Chip pequeno dentro del recuadro del turno. Va aqui y no abajo porque la
+   fila de abajo se la reparte con la mano de cartas —en horizontal se aprieta
+   hasta quedar en un borde— y porque al acabar el combate el jugador ya no
+   esta mirando ahi. Aqui se ve en las tres fases y no lo tapa ninguna carta.
+
+   Discreto de normal (es una salida, no la accion principal) y rojo cuando
+   pide confirmacion, para que la segunda pulsacion sea consciente. */
+.battle-ui .bf-surrender {
+  margin-top: 2px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: clamp(9px, 1.2vw, 11px);
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  color: #ffc9c9;
+  background: rgba(248, 113, 113, .10);
+  border: 1px solid rgba(248, 113, 113, .40);
+  transition: background .15s, color .15s, border-color .15s;
+  touch-action: manipulation;
+  /* Zona de toque de 32 px sin agrandar el chip: en el movil el dedo tapa el
+     boton entero y fallar aqui significa seguir encerrado en la batalla. */
+  position: relative;
+}
+.battle-ui .bf-surrender::after {
+  content: ''; position: absolute; left: 0; right: 0;
+  top: 50%; height: 32px; transform: translateY(-50%);
+}
+.battle-ui .bf-surrender:hover { background: rgba(248, 113, 113, .22); }
+.battle-ui .bf-surrender.confirmar {
+  color: #fff;
+  background: rgba(220, 38, 38, .85);
+  border-color: #fca5a5;
+  animation: bfSurrenderLatido .9s ease-in-out infinite;
+}
+@keyframes bfSurrenderLatido {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(248, 113, 113, .55); }
+  50%      { box-shadow: 0 0 0 5px rgba(248, 113, 113, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .battle-ui .bf-surrender.confirmar { animation: none; }
+}
+
 /* ── ZONA CENTRAL ─────────────────────────────────────────────────────────── */
 /* El rótulo del estado va ARRIBA de la zona central, no en medio.
    Centrado caía justo encima de los dos luchadores y les tapaba la cara y el
@@ -12053,6 +12100,9 @@ canvas,
   .battle-ui .bf-cardbtn   { width: 74px; padding: 7px 5px 6px; }
   .battle-ui .bf-cardbtn .c-desc { display: none; }
   .battle-ui .bf-btn       { min-height: 38px; }
+  /* El chip de rendirse SIGUE VISIBLE en apaisado: es la unica salida y no se
+     esconde nunca. Solo se aprieta un poco. */
+  .battle-ui .bf-surrender { padding: 3px 8px; font-size: 9px; margin-top: 1px; }
 }
 
 /* ── PANTALLAS ESTRECHAS EN VERTICAL ───────────────────────────────────────── */

@@ -61,17 +61,61 @@ class missionspanel {
       .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
   }
 
+  /**
+   * FUGA QUE ESTO ARREGLA: aquí se colgaban cuatro manejadores con funciones
+   * anónimas y no se quitaba ninguno. Los tres primeros van sobre elementos
+   * del HUD que existen UNA vez en toda la página (`close-missions`,
+   * `missions-overlay`, `refresh-missions`); el cuarto va sobre `document`.
+   *
+   * Y este panel se construye en el create() de GameScene, que al entrar en la
+   * tienda se quita y se vuelve a añadir: instancia nueva cada viaje. O sea
+   * cuatro manejadores más por cada ida y vuelta, cada uno cerrando sobre un
+   * panel viejo que ya no se puede recoger. A la décima, pulsar la X del panel
+   * llamaba a `close()` diez veces y había diez paneles retenidos en memoria.
+   *
+   * Se guardan las referencias para poder soltarlas en `destroy()`.
+   */
   initEvents() {
-    this.closeButton.addEventListener('click', () => this.close());
-    this.overlay.addEventListener('click', () => this.close());
-    this.refreshButton.addEventListener('click', () => this.refreshMissions());
+    // Por si a alguien se le ocurre llamarlo dos veces sobre la misma instancia.
+    this.destroyEvents();
 
-    // Cerrar con ESC
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !this.panel.classList.contains('hidden')) {
+    this._onClose   = () => this.close();
+    this._onOverlay = () => this.close();
+    this._onRefresh = () => this.refreshMissions();
+    this._onKeydown = (e) => {
+      if (e.key === 'Escape' && this.panel && !this.panel.classList.contains('hidden')) {
         this.close();
       }
-    });
+    };
+
+    this.closeButton.addEventListener('click', this._onClose);
+    this.overlay.addEventListener('click', this._onOverlay);
+    this.refreshButton.addEventListener('click', this._onRefresh);
+    document.addEventListener('keydown', this._onKeydown);
+  }
+
+  /** Suelta los manejadores. Idempotente: se puede llamar las veces que sea. */
+  destroyEvents() {
+    if (this._onClose && this.closeButton) {
+      this.closeButton.removeEventListener('click', this._onClose);
+    }
+    if (this._onOverlay && this.overlay) {
+      this.overlay.removeEventListener('click', this._onOverlay);
+    }
+    if (this._onRefresh && this.refreshButton) {
+      this.refreshButton.removeEventListener('click', this._onRefresh);
+    }
+    if (this._onKeydown) {
+      document.removeEventListener('keydown', this._onKeydown);
+    }
+    this._onClose = this._onOverlay = this._onRefresh = this._onKeydown = null;
+  }
+
+  /** Tira el panel: suelta los manejadores y la referencia a la escena. */
+  destroy() {
+    this.destroyEvents();
+    this.gameScene = null;
+    this.destroyed = true;
   }
 
   async show(npcId) {

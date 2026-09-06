@@ -361,10 +361,29 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
       const address = (req.user.address || '').toLowerCase();
       const { category, search, currency, sort } = req.query;
 
+      /* TODO LO QUE VIENE DE LA QUERY SE FUERZA A TEXTO ANTES DE ENTRAR AL
+         FILTRO DE MONGO.
+         Express monta objetos con la notación de corchetes: una petición como
+             ?category[$ne]=todos
+         llega aquí como `{ $ne: 'todos' }`, y Mongo lo interpreta como un
+         OPERADOR, no como un valor. Es inyección NoSQL. Aquí el daño es
+         pequeño —solo cambia qué anuncios se listan, y los anuncios son
+         públicos— pero es el mismo descuido que en un endpoint de escritura
+         sería serio, y arreglarlo cuesta un String().
+
+         `currency` y `sort` ya estaban con lista blanca, y `search` ya pasaba
+         por `escapeRegex`, que hace su propio String(). El único suelto era
+         `category`.
+
+         Al `search` se le pone además un tope de largo: sin él, una cadena de
+         cien mil caracteres construye un regex enorme que se pasea por los 300
+         anuncios en cada petición. */
       const filter = {};
-      if (category && category !== 'todos') filter.category = category;
+      const categoriaTxt = (typeof category === 'string') ? category : '';
+      const buscarTxt = (typeof search === 'string') ? search.slice(0, 80) : '';
+      if (categoriaTxt && categoriaTxt !== 'todos') filter.category = categoriaTxt;
       if (currency && ['oro', 'plata'].includes(currency)) filter.currency = currency;
-      if (search) filter.name = new RegExp(escapeRegex(search), 'i');
+      if (buscarTxt) filter.name = new RegExp(escapeRegex(buscarTxt), 'i');
 
       let sortOpt = { createdAt: -1 };
       if (sort === 'price_asc') sortOpt = { pricePerUnit: 1 };

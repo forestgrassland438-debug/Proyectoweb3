@@ -419,8 +419,15 @@
 
     st.onUpdate = function () { dibujarNoche(st); };
     scene.events.on('update', st.onUpdate);
-    scene.events.once('shutdown', function () { desmontarEscena(scene); });
-    scene.events.once('destroy', function () { desmontarEscena(scene); });
+    /* El manejador de apagado se guarda en `st` para poder QUITARLO al
+       desmontar, como hacen los demás módulos gf-*. Antes eran dos funciones
+       anónimas: al llamar a `GFCiclo.desmontarEscena(scene)` a mano —sin que la
+       escena se apagara— se quedaban las dos enganchadas. No rompían nada
+       (`desmontarEscena` sale si no hay estado), pero es la única pieza del
+       montón que no se recogía sola. */
+    st.onApagar = function () { desmontarEscena(scene); };
+    scene.events.once('shutdown', st.onApagar);
+    scene.events.once('destroy', st.onApagar);
 
     log('noche montada en', scene.scene && scene.scene.key,
         '·', st.postes.length, 'postes');
@@ -621,6 +628,10 @@
     if (!st) return;
     try {
       if (st.onUpdate) scene.events.off('update', st.onUpdate);
+      if (st.onApagar) {
+        scene.events.off('shutdown', st.onApagar);
+        scene.events.off('destroy', st.onApagar);
+      }
       if (st.rt && st.rt.destroy) st.rt.destroy();
       if (st.pincel && st.pincel.destroy) st.pincel.destroy();
       for (var i = 0; i < st.resplandores.length; i++) {
@@ -628,6 +639,7 @@
       }
     } catch (e) { /* la escena ya se estaba destruyendo */ }
     st.rt = null; st.pincel = null; st.postes = []; st.resplandores = [];
+    st.onApagar = null;
     scene.__gfCiclo = null;
     log('noche desmontada de', scene.scene && scene.scene.key);
   }

@@ -458,6 +458,26 @@
    * Crea (una sola vez) la textura de un escenario.
    * Devuelve { clave, suelo, cfg } o null.
    */
+  /* LAS ARENAS SE APUNTAN, PORQUE HAY QUE TIRARLAS.
+   *
+   * La clave de una arena lleva la SEMILLA dentro, y la semilla es el
+   * `matchId`: cada combate pinta su propio escenario y ninguno se parecía al
+   * anterior. Eso está bien para el juego y fatal para la memoria, porque
+   * nadie las borraba: cinco batallas diarias más las de PvP dejaban una
+   * ristra de lienzos de 1024×576 vivos hasta cerrar la pestaña. Son 2,36 MB
+   * de VRAM cada uno, y otro tanto del canvas que se queda en RAM: unos 4,7 MB
+   * por batalla que no se recuperaban nunca.
+   *
+   * Se guardan las dos últimas —la de ahora y la anterior, por si el jugador
+   * gira el teléfono y la escena se vuelve a montar— y de ahí para atrás se
+   * van borrando solas. */
+  var arenasVivas = [];
+  var MAX_ARENAS = 2;
+
+  function soltarArena(scene, clave) {
+    try { scene.textures.remove(clave); } catch (e) { /* ya no estaba */ }
+  }
+
   function arena(scene, id, semilla) {
     var cfg = ARENAS[id] || ARENAS.pradera;
     var sem = (semilla >>> 0) || 12345;
@@ -470,7 +490,31 @@
       pintarArena(ctx, w, h, cfg, sem);
     });
     if (!hecha) return null;
+
+    var i = arenasVivas.indexOf(clave);
+    if (i >= 0) arenasVivas.splice(i, 1);
+    arenasVivas.push(clave);
+    while (arenasVivas.length > MAX_ARENAS) soltarArena(scene, arenasVivas.shift());
+
     return { clave: clave, suelo: cfg.suelo, cfg: cfg, nombre: cfg.nombre };
+  }
+
+  /**
+   * Suelta las arenas guardadas. `salvo` es la que se quiere conservar (o
+   * nada, para tirarlas todas).
+   *
+   * Lo llama BattleScene al apagarse: fuera de la batalla no hay nada que las
+   * use, y son con diferencia lo más gordo que deja la escena detrás.
+   */
+  function olvidarArenas(scene, salvo) {
+    if (!scene || !scene.textures) { arenasVivas.length = 0; return 0; }
+    var quedan = [], n = 0;
+    for (var i = 0; i < arenasVivas.length; i++) {
+      if (arenasVivas[i] === salvo) { quedan.push(arenasVivas[i]); continue; }
+      soltarArena(scene, arenasVivas[i]); n++;
+    }
+    arenasVivas = quedan;
+    return n;
   }
 
   /** Un escenario estable para una batalla concreta. */
@@ -760,6 +804,7 @@
   window.GFBatallaArte = {
     efectos: efectos,
     arena: arena,
+    olvidarArenas: olvidarArenas,
     elegirArena: elegirArena,
     pieza: pieza,
     ARENAS: ARENAS,
@@ -768,7 +813,9 @@
     _interno: {
       lienzo: lienzo, dado: dado, pintarArena: pintarArena,
       cordillera: cordillera, colinas: colinas, EFECTOS: EFECTOS,
-      rgba: rgba, mezcla: mezcla
+      rgba: rgba, mezcla: mezcla,
+      arenasVivas: function () { return arenasVivas.slice(); },
+      MAX_ARENAS: MAX_ARENAS
     }
   };
 })();

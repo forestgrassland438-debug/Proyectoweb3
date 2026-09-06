@@ -1644,7 +1644,34 @@
   function emptyState(glyph, title, text){
     return `<div class="empty"><div class="glyph">${glyph}</div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(text)}</p></div>`;
   }
-  function escapeHtml(str){ const d = document.createElement('div'); d.textContent = str == null ? '' : String(str); return d.innerHTML; }
+  /* ESCAPADO DE HTML, TAMBIEN VALIDO DENTRO DE UN ATRIBUTO.
+   *
+   * AGUJERO QUE ESTO CIERRA: antes esto era
+   *
+   *     const d = document.createElement('div');
+   *     d.textContent = str; return d.innerHTML;
+   *
+   * y ese truco escapa & < > ... pero NO LAS COMILLAS. El serializador de HTML
+   * no las escapa en un nodo de texto porque ahi no hacen falta. El problema es
+   * que aqui el resultado se mete DENTRO DE ATRIBUTOS:
+   *
+   *     data-owner="${escapeHtml(l.ownerName)}"
+   *     <option value="${escapeHtml(id)}">
+   *
+   * y `l.ownerName` es el nombre de OTRO JUGADOR, que llega del mercado. Un
+   * nombre como   x" onmouseover="robar()   cierra el atributo y abre otro:
+   * codigo inyectado sin usar ni un solo `<`.
+   *
+   * Se escapa a mano y se anaden las dos comillas. En texto normal no cambia
+   * nada visible: el navegador pinta &quot; como una comilla. */
+  function escapeHtml(str){
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
 
   // ══════════════════════════════════════════════════════════════════════
   // MODAL — vender

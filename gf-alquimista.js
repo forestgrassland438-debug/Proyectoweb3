@@ -43,6 +43,22 @@
   var montado = null;
   var catalogo = null;
 
+  /* ESCAPADO DE HTML.
+   *
+   * AGUJERO QUE ESTO CIERRA: la lista de pociones se monta con `innerHTML` y
+   * `it.name` se metía crudo. Ese nombre NO es nuestro: llega de
+   * `/api/alchemist/catalog`, o sea del servidor. Un nombre con
+   * `<img src=x onerror=…>` dentro se ejecutaba en la página del juego, con la
+   * sesión y la cartera del jugador delante.
+   *
+   * Se escapa todo lo que venga del catálogo, incluidos los números: hoy son
+   * números, pero quien los mande es el mismo sitio que manda el nombre. */
+  function esc(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
   function log() {
     if (!window.GF_ALQUIMISTA_DEBUG) return;
     var a = Array.prototype.slice.call(arguments);
@@ -147,14 +163,15 @@
       var usable = it.revives
         ? (it.owned > 0 && pet.alive === false)
         : (it.owned > 0 && pet.alive !== false && pet.health < pet.maxHealth);
+      // Todo lo que sale del catálogo del servidor va escapado: ver `esc`.
       fila.innerHTML =
-        '<img src="' + (IMG[it.id] || '') + '" alt="">' +
-        '<div class="gf-alq-info"><b>' + it.name + '</b>' +
-          '<span>' + (it.revives ? 'Brings your pet back' : 'Heals ' + it.heals + ' HP') +
-          '  ·  you have ' + it.owned + '</span></div>' +
+        '<img src="' + esc(IMG[it.id] || '') + '" alt="">' +
+        '<div class="gf-alq-info"><b>' + esc(it.name) + '</b>' +
+          '<span>' + (it.revives ? 'Brings your pet back' : 'Heals ' + esc(it.heals) + ' HP') +
+          '  ·  you have ' + esc(it.owned) + '</span></div>' +
         '<div class="gf-alq-acc">' +
           '<button class="comprar"' + (puede ? '' : ' disabled') + '>' +
-            it.price + ' silver</button>' +
+            esc(it.price) + ' silver</button>' +
           '<button class="usar"' + (usable ? '' : ' disabled') + '>' +
             (it.revives ? 'Revive' : 'Use') + '</button>' +
         '</div>';

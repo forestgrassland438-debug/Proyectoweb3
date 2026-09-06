@@ -32,9 +32,16 @@ class TiendaSistema {
     // TiendaSistema.addItemWithCheck tiene su propia lógica (usa this.STATE, this.ItemDefinitions),
     // pero al final llama a renderSlot, queuedAction y rebuildPlayerInventoryFromState
     // que solo existen en la escena. Se delegan aquí para no romper la cadena.
-    renderSlot(index) {
-        if (typeof this.scene?.renderSlot === 'function') return this.scene.renderSlot(index);
-    }
+    /* Aqui habia una `renderSlot` delegadora a la escena, y estaba MUERTA:
+       mas abajo, en esta misma clase, hay otra `renderSlot` con la
+       implementacion entera, y en una clase de JavaScript el segundo metodo
+       con el mismo nombre pisa al primero sin avisar. Se ha borrado la
+       delegadora —no se ejecutaba— y no cambia nada: lo que ya corria es la
+       de abajo, que ademas tiene a mano lo que necesita (`this.STATE` y
+       `this.ItemDefinitions` existen en TiendaSistema).
+
+       `queuedAction` y `rebuildPlayerInventoryFromState`, que van justo
+       debajo, SI son delegadoras vivas: esas no estan duplicadas. */
     queuedAction(payload) {
         if (typeof this.scene?.queuedAction === 'function') return this.scene.queuedAction(payload);
     }
