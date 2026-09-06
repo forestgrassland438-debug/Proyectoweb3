@@ -294,7 +294,11 @@
     };
     if (arbolIni) c.arbol = arbolIni.clave;
     c.sombra = sombra;
-    c.sombraSuelo = inicio.y;
+    /* El cuervo NACE POSADO en un árbol, así que `inicio.y` es la Y de la COPA,
+       no la del suelo. Poniéndola aquí a pelo, la sombra arrancaba a la altura
+       de la rama y se quedaba ahí hasta que el cuervo bajase a andar por el
+       suelo — que puede no pasar en un buen rato. El suelo es el pie del árbol. */
+    c.sombraSuelo = arbolIni ? pieDelSoporte(scene, arbolIni.clave, inicio.y) : inicio.y;
     c.hambriento = false;
     c.hambreEn = scene.time.now + az(HAMBRE_CADA[0], HAMBRE_CADA[1]);
     c.parcela = null;
@@ -378,10 +382,30 @@
     return Math.sin(spr.rotation) * alto;
   }
 
+  /**
+   * DÓNDE ESTÁ EL SUELO BAJO UN SOPORTE.
+   *
+   * Los árboles llevan origen (0,1), así que su `y` ES la línea del suelo donde
+   * se apoyan (lo mismo que aprovecha `balanceoSoporte`). Es lo que hace falta
+   * para la sombra de un cuervo posado: al PIE del árbol, no bajo sus patas,
+   * que están en la copa.
+   *
+   * Si el soporte no existe, o su pie sale por encima del sitio donde se posó,
+   * se devuelve el valor de respaldo.
+   */
+  function pieDelSoporte(scene, clave, porDefecto) {
+    if (!clave || !scene) return porDefecto;
+    var spr = scene[clave];
+    if (!spr || typeof spr.y !== 'number') return porDefecto;
+    return (spr.y > porDefecto) ? spr.y : porDefecto;
+  }
+
   function posarse(st, c, punto) {
     c.fase = 'posado';
     c.destino = null;
     c.spr.setPosition(punto.x, punto.y);
+    // El suelo bajo el cuervo pasa a ser el pie de ESTE árbol.
+    c.sombraSuelo = pieDelSoporte(st.scene, c.arbol, punto.y);
     // Dónde se posó de verdad; el balanceo del viento se suma a esto.
     c.posX = punto.x;
     c.posY = punto.y;
@@ -397,6 +421,14 @@
     c.arbol = arbolClave || null;
     c.spr.setDepth(PROF_VUELO);
     anim(c, 'vuela');
+
+    /* ── LA SOMBRA VIAJA POR EL SUELO, DE AQUÍ HASTA ALLÁ ──
+       Se apuntan los dos extremos para poder interpolar. Sin esto la sombra se
+       quedaba clavada donde despegó, y si el cuervo cruzaba la pantalla hacia
+       ABAJO acababa dibujada POR ENCIMA de él. */
+    c.sueloDesde = (typeof c.sombraSuelo === 'number') ? c.sombraSuelo : c.spr.y;
+    c.sueloHasta = pieDelSoporte(st.scene, arbolClave, punto.y);
+    c.vueloDist  = Math.max(1, Math.hypot(punto.x - c.spr.x, punto.y - c.spr.y));
     /* Volando se aletea a ritmo normal SIEMPRE.
 
        EL FALLO QUE ARREGLA: al resguardarse de la lluvia se le baja el
@@ -590,12 +622,60 @@
       .catch(function () { /* sin red: ya se ha saciado igual */ });
   }
 
-  /** La sombra sigue al cuervo por el suelo. */
+  /**
+   * La sombra sigue al cuervo por el suelo.
+   *
+   * EL FALLO QUE ARREGLA — "las sombras de los cuervos están encima del
+   * cuervo":
+   *
+   * Aquí ponía
+   *
+   *     if (!alto) c.sombraSuelo = c.spr.y;   // en el suelo, recuerda dónde
+   *     var y = alto ? c.sombraSuelo : c.spr.y;
+   *
+   * o sea que mientras el cuervo estaba en alto —volando O POSADO— la sombra se
+   * quedaba en la última Y que el cuervo hubiera tenido a ras de suelo. Y un
+   * cuervo se pasa la vida posado: puede estar cuarenta minutos en un árbol, y
+   * mientras tanto ese número es de otro sitio del mapa.
+   *
+   * Además, los cuervos NACEN posados en un árbol, y `sombraSuelo` arrancaba
+   * valiendo la Y de la COPA. Así que desde el primer segundo la sombra estaba
+   * a la altura de la rama; en cuanto el cuervo volaba a un árbol más abajo en
+   * pantalla, la sombra se le quedaba por encima de la cabeza.
+   *
+   * Ahora el suelo se sabe de verdad en los tres casos: andando es el propio
+   * pie del bicho, posado es el PIE DEL ÁRBOL (los árboles tienen origen 0,1,
+   * así que su `y` es la línea del suelo), y volando se interpola de uno a
+   * otro. Y por si acaso, la última línea impide que la sombra pueda quedar
+   * por encima del cuervo pase lo que pase.
+   */
   function actualizarSombraCuervo(c) {
     if (!c.sombra) return;
-    var alto = (c.fase === 'volando' || c.fase === 'posado');
-    if (!alto) c.sombraSuelo = c.spr.y;      // en el suelo, recuerda dónde
+    var scene = c.spr && c.spr.scene;
+    var volando = (c.fase === 'volando');
+    var posado  = (c.fase === 'posado');
+
+    if (volando) {
+      if (c.destino && typeof c.sueloDesde === 'number') {
+        var queda = Math.hypot(c.destino.x - c.spr.x, c.destino.y - c.spr.y);
+        var t = 1 - Math.max(0, Math.min(1, queda / (c.vueloDist || 1)));
+        c.sombraSuelo = c.sueloDesde + (c.sueloHasta - c.sueloDesde) * t;
+      }
+    } else if (posado) {
+      c.sombraSuelo = pieDelSoporte(scene, c.arbol, c.sombraSuelo || c.spr.y);
+    } else {
+      c.sombraSuelo = c.spr.y;                 // caminando o comiendo: aquí mismo
+    }
+
+    var alto = volando || posado;
     var y = alto ? c.sombraSuelo : c.spr.y;
+
+    /* LA RED. En pantalla la Y crece hacia abajo, así que el suelo tiene que
+       tener una Y mayor o igual que la del cuervo. Si el número de arriba
+       saliera mal por lo que fuera, aquí se corrige: la sombra se queda a sus
+       pies en vez de flotando sobre su cabeza. */
+    if (y < c.spr.y) y = c.spr.y;
+
     c.sombra.setPosition(c.spr.x, y);
     c.sombra.setDepth(y - 1);
     c.sombra.setAlpha(alto ? 0.12 : 0.26);

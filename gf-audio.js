@@ -140,7 +140,49 @@
     musica:   1.00      // se multiplica por el control de música del panel
   };
 
-  var ALCANCE_BICHO = 430;      // px: más lejos, no se oye
+  /* ── HASTA DÓNDE SE OYE CADA COSA ───────────────────────────────────────
+
+     Antes había UN solo número para todo lo que tenía sitio (430 px) y el
+     trueno no tenía ninguno: se soltaba con `sinSitio`, o sea a pleno volumen
+     y centrado, estuviera donde estuviera el jugador.
+
+     Las dos cosas están mal por el mismo motivo: un topo y una vaca no se oyen
+     igual de lejos, y un trueno se oye MUCHO más lejos que cualquier bicho.
+     Con un número único, o la vaca se queda muda a media pantalla o el topo se
+     oye desde la otra punta del mapa.
+
+     Los números son en píxeles de mundo, y salen del tamaño del bicho y de lo
+     que grita:
+
+       · 300  lo pequeño y discreto — conejo, topo, pájaro, paloma, serpiente.
+              Si no lo tienes casi encima, no lo oyes.
+       · 470  lo mediano — cerdo, zorro, cuervo.
+       · 760  lo grande y escandaloso — vaca, cocodrilo, búho. Un mugido cruza
+              el prado; para eso es un mugido.
+       · 1400 el crujido eléctrico del relámpago. Se oye lejos, pero no en todo
+              el mapa: si el rayo cae en la otra punta, ves el fogonazo del
+              cielo y no oyes el chasquido, que es exactamente lo que pasa.
+       · 3400 el trueno. Un trueno de verdad se oye a kilómetros, así que aquí
+              cubre prácticamente todo lo jugable — pero SIGUE teniendo un
+              límite, y sigue sonando más flojo y más a un lado según dónde
+              haya caído. Antes sonaba idéntico cayera donde cayera.
+
+     Lo que quede fuera del alcance NO se reproduce: no se crea el objeto de
+     sonido, no se descodifica nada, no se ocupa una de las diez voces. */
+  var ALCANCE_BICHO   = 430;    // el de siempre, para lo que no diga otra cosa
+  var ALCANCE_CHISPA  = 1400;
+  var ALCANCE_TRUENO  = 3400;
+
+  var ALCANCE_VOZ = {
+    conejo: 300, topo: 300, pajaro: 320, paloma: 340, serpiente: 260,
+    cerdo: 470, zorro: 470, cuervo: 520,
+    vaca: 760, cocodrilo: 700, buho: 780
+  };
+
+  /** Hasta dónde se oye esta voz. */
+  function alcanceDe(voz) {
+    return ALCANCE_VOZ[voz] || ALCANCE_BICHO;
+  }
   var FUNDIDO_MS    = 1400;     // lo que tarda un ambiente en subir o bajar
   var FUNDIDO_TEMA  = 2600;     // lo que tarda la música en cambiar
   var MAX_VOCES     = 10;       // efectos sonando a la vez como mucho
@@ -397,9 +439,18 @@
       var alcance = op.alcance || ALCANCE_BICHO;
       if (d > alcance) return null;
       /* Al cuadrado y no lineal: el sonido de verdad cae con el cuadrado de
-         la distancia, y lineal daba la sensación de que todo estaba encima. */
+         la distancia, y lineal daba la sensación de que todo estaba encima.
+
+         PERO NO TODO CAE IGUAL. Un bicho es una fuente pequeña y se apaga
+         deprisa; un trueno es una descarga de kilómetros y se apaga despacio
+         —por eso se oye tan lejos—. Con la caída al cuadrado sobre un alcance
+         de 3400 px, el trueno se quedaba por debajo del umbral de audición a
+         los 3100: el alcance declarado y el real no coincidían, que es la
+         clase de número que luego nadie entiende. `op.caida` deja que cada
+         cosa tenga su curva. */
       var cerca = 1 - d / alcance;
-      vol *= cerca * cerca;
+      var caida = op.caida || 2;
+      vol *= (caida === 2) ? cerca * cerca : Math.pow(cerca, caida);
       pan = tope(dx / (alcance * 0.7), -1, 1) * 0.75;
     }
     if (vol <= 0.004) return null;
@@ -915,7 +966,7 @@
    * `cerca` distingue el rayo con trazo (crujido + retumbo) de la centella
    * lejana (solo retumbo). `fuerza` la manda gf-clima entre 0,25 y 1,3.
    */
-  function trueno(cerca, fuerza) {
+  function trueno(cerca, fuerza, x, y) {
     var st = escenaViva();
     if (!st) return false;
     fuerza = tope(fuerza === undefined ? 1 : fuerza, 0.15, 1.4);
@@ -927,8 +978,27 @@
        es el mismo trueno oído desde debajo de un tejado. */
     var techo = st.tipo === 'tienda' ? 0.45 : 1;
 
+    /* EL TRUENO AHORA TIENE SITIO, Y UN ALCANCE MUY GRANDE.
+     *
+     * Antes iba con `sinSitio: true`: sonaba centrado y a pleno volumen
+     * cayera donde cayera el rayo, incluso si había caído en la otra punta
+     * del mapa. Un trueno es lo más lejos que se oye de todo el juego, pero
+     * "lejos" no es "en todas partes por igual": el que cae encima te sacude y
+     * el que cae a mil metros retumba flojo y por un lado.
+     *
+     * `gf-clima` manda ahora dónde ha caído (ver `st.truenoX/truenoY`). Si no
+     * lo manda —una tormenta sin rayo dibujado, un aviso de otro sitio— se
+     * queda como estaba, centrado: eso es un retumbo general, y también existe.
+     *
+     * Bajo techo se le quita el sitio a propósito: dentro de la tienda no hay
+     * un "por dónde" — el ruido entra por todas las paredes a la vez. */
+    var conSitio = (typeof x === 'number' && typeof y === 'number' && st.tipo !== 'tienda');
+
     sonar(st, clave, {
-      sinSitio: true,
+      sinSitio: !conSitio,
+      x: x, y: y,
+      alcance: ALCANCE_TRUENO,
+      caida: 1.15,          // se apaga despacio: por eso un trueno se oye lejos
       vol: MEZCLA.trueno * fuerza * techo,
       // Un trueno más grave se lee como más lejos. El tono lo da la fuerza.
       tono: az(0.88, 1.06) * (cerca ? 1 : 0.92)
@@ -937,11 +1007,20 @@
   }
 
   /** El zumbido eléctrico del fogonazo, en el instante del relámpago. */
-  function chispa(fuerza) {
+  function chispa(fuerza, x, y) {
     var st = escenaViva();
     if (!st || st.tipo === 'tienda') return false;
+    /* El chasquido eléctrico es el sonido del rayo EN SÍ, no del retumbo, así
+       que llega mucho antes de apagarse con la distancia: alcance grande, pero
+       bastante menor que el del trueno. Si el rayo cae en la otra punta del
+       mapa ves el fogonazo del cielo y no oyes el crujido — que es justo lo
+       que pasa de verdad. */
+    var conSitio = (typeof x === 'number' && typeof y === 'number');
     sonar(st, PREFIJO + 'chispa_' + azEnt(1, RAYOS.chispa), {
-      sinSitio: true,
+      sinSitio: !conSitio,
+      x: x, y: y,
+      alcance: ALCANCE_CHISPA,
+      caida: 1.6,           // entre el bicho y el trueno
       vol: MEZCLA.chispa * tope(fuerza === undefined ? 1 : fuerza, 0.2, 1.2),
       tono: az(0.9, 1.15)
     });
@@ -970,7 +1049,7 @@
       /* Cada individuo tiene su tono: dos palomas seguidas con el mismo
          archivo y el mismo tono suenan a lo que son, un archivo repetido. */
       tono: op.tono || az(0.88, 1.14),
-      alcance: op.alcance || ALCANCE_BICHO
+      alcance: op.alcance || alcanceDe(voz)
     });
     return !!s;
   }
@@ -1004,13 +1083,13 @@
         if (!VOZ_DE[a.especie]) continue;                 // mariposas y demás: mudas
         if (a.proximaVoz && ahora < a.proximaVoz) continue;
 
+        /* CADA BICHO CON SU ALCANCE. Antes se medía dos veces contra el mismo
+           número para todos (430 px) y solo la serpiente tenía el suyo: la
+           vaca se quedaba muda a media pantalla y el topo se oía desde la otra
+           punta. Ahora sale de la tabla de arriba. */
+        var alcance = (a.grupo === 'serpiente') ? 210 : alcanceDe(VOZ_DE[a.especie]);
         dx = a.spr.x - oyente.x; dy = a.spr.y - oyente.y;
         d = Math.sqrt(dx * dx + dy * dy);
-        if (d > ALCANCE_BICHO) continue;
-
-        /* La serpiente solo sisea si la tienes encima: un siseo que se oye a
-           cuatro pantallas de distancia no asusta, desconcierta. */
-        var alcance = (a.grupo === 'serpiente') ? 210 : ALCANCE_BICHO;
         if (d > alcance) continue;
 
         var cerca = 1 - d / alcance;
@@ -1055,14 +1134,172 @@
         var c = cv.cuervos[i];
         if (!c || !c.spr || !c.spr.visible) continue;
         if (c.proximaVoz && ahora < c.proximaVoz) continue;
+        var alcCuervo = alcanceDe('cuervo');
         dx = c.spr.x - oyente.x; dy = c.spr.y - oyente.y;
         d = Math.sqrt(dx * dx + dy * dy);
-        if (d > ALCANCE_BICHO) continue;
-        if (!c.asustado && Math.random() > (1 - d / ALCANCE_BICHO) * 0.4) continue;
+        if (d > alcCuervo) continue;
+        if (!c.asustado && Math.random() > (1 - d / alcCuervo) * 0.4) continue;
         c.proximaVoz = ahora + az(7000, 20000) * (c.asustado ? 0.3 : 1);
-        if (bicho(st.scene, 'cuervo', c.spr.x, c.spr.y, { vol: c.asustado ? 1.2 : 0.9 })) return;
+        if (bicho(st.scene, 'cuervo', c.spr.x, c.spr.y,
+                  { vol: c.asustado ? 1.2 : 0.9, alcance: alcCuervo })) return;
       }
     }
+  }
+
+  // ========================================================================
+  // 9 bis. LA MEMORIA DEL AUDIO
+  // ========================================================================
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     POR QUÉ ESTE BLOQUE EXISTE
+
+     Un sonido en memoria NO ocupa lo que ocupa su archivo. Web Audio lo guarda
+     descodificado, en Float32 y por canal, Y REMUESTREADO a la frecuencia del
+     AudioContext (48 000 Hz en la práctica). O sea:
+
+         bytes en RAM = segundos × 48000 × canales × 4
+
+     La frecuencia del archivo da igual: bajar un WAV a 11 kHz ahorra disco y
+     NI UN BYTE de memoria. Lo único que cuenta es cuánto DURA y cuántos
+     canales tiene. Medido en este proyecto con `_prueba_audio_memoria.html`:
+
+         tienda.ogg      3,3 MB en disco  →  38,4 MB en RAM   (×12)
+         Principal.ogg   1,7 MB en disco  →  25,6 MB en RAM   (×16)
+         amb_viento      108 KB en disco  →   1,8 MB en RAM   (×17)
+
+     Y la caché de sonido de Phaser es GLOBAL: nada se suelta nunca solo. Todo
+     lo que se ha cargado alguna vez sigue ahí hasta cerrar la pestaña.
+
+     Con todo cargado eran 107 MB. De esos, 64 MB eran los dos temas viejos en
+     .ogg — que este módulo PARA Y SUSTITUYE por los suyos nada más arrancar,
+     así que se quedaban ocupando memoria sin llegar a sonar.
+     ───────────────────────────────────────────────────────────────────────── */
+
+  /** Lo que ocupa en memoria un AudioBuffer ya descodificado. */
+  function pesoDe(buffer) {
+    if (!buffer || typeof buffer.length !== 'number') return 0;
+    return buffer.length * (buffer.numberOfChannels || 1) * 4;
+  }
+
+  /**
+   * Suelta sonidos de la memoria: para lo que los esté usando, los saca de la
+   * caché y devuelve cuántos bytes se han liberado.
+   *
+   * `claves` son claves de caché completas (con su prefijo si lo llevan).
+   */
+  function soltar(scene, claves) {
+    if (!scene || !scene.cache || !scene.cache.audio) return 0;
+    var liberado = 0;
+
+    for (var i = 0; i < claves.length; i++) {
+      var clave = claves[i];
+      try {
+        if (!scene.cache.audio.exists(clave)) continue;
+
+        /* PRIMERO SE APAGA LO QUE ESTÉ SONANDO CON ESA CLAVE.
+           Sacar el buffer de la caché con un `Sound` todavía enganchado deja
+           el sonido reproduciéndose y, peor, el buffer vivo por la referencia
+           del propio Sound: no se liberaría nada. `scene.sound` es el gestor
+           GLOBAL del juego, así que aquí salen también los de otras escenas. */
+        var lista = (scene.sound && scene.sound.sounds) ? scene.sound.sounds.slice() : [];
+        for (var j = 0; j < lista.length; j++) {
+          if (lista[j] && lista[j].key === clave) {
+            try { lista[j].stop(); } catch (e) {}
+            try { lista[j].destroy(); } catch (e) {}
+          }
+        }
+
+        liberado += pesoDe(scene.cache.audio.get(clave));
+        scene.cache.audio.remove(clave);
+      } catch (e) { /* uno que no se deja no puede parar a los demás */ }
+    }
+
+    if (liberado) log('soltados', Math.round(liberado / 1048576 * 10) / 10, 'MB de audio');
+    return liberado;
+  }
+
+  /**
+   * SUELTA EL TEMA VIEJO DEL JUEGO (Principal.ogg / tienda.ogg).
+   *
+   * Lo llaman GameScene y tiendajuego cuando este módulo se hace cargo de la
+   * música. Los dos .ogg se cargan en `preload` —hacen falta como respaldo por
+   * si los WAV de los temas no están— pero si estamos aquí es que sí están, y
+   * entonces ese .ogg no va a sonar nunca: solo ocupa.
+   *
+   * Son 25,6 MB el del campo y 38,4 MB el de la tienda. Medido, no estimado.
+   */
+  function soltarTemaDelJuego(scene, clave) {
+    if (!scene) return 0;
+    var claves = clave ? [clave] : ['main-theme', 'main-theme1'];
+    /* Y se limpia `audioState` si apuntaba ahí, o el panel de sonido seguiría
+       creyendo que la música que manda es la que acabamos de tirar. */
+    try {
+      if (scene.audioState && claves.indexOf(scene.audioState.currentMusicKey) >= 0) {
+        scene.audioState.currentMusic = null;
+        scene.audioState.currentMusicKey = null;
+      }
+    } catch (e) {}
+    return soltar(scene, claves);
+  }
+
+  /** Todas las claves que puede llegar a tener este módulo, por tipo de escena. */
+  function clavesDe(tipo) {
+    var l = listaDe(tipo), out = [], i;
+    for (i = 0; i < l.length; i++) out.push(PREFIJO + l[i]);
+    return out;
+  }
+
+  function todasLasClaves() {
+    var vistas = {}, out = [], tipos = ['campo', 'tienda'], i, j, l;
+    for (i = 0; i < tipos.length; i++) {
+      l = clavesDe(tipos[i]);
+      for (j = 0; j < l.length; j++) {
+        if (!vistas[l[j]]) { vistas[l[j]] = 1; out.push(l[j]); }
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Al entrar en una escena, suelta lo que esa escena NO usa.
+   *
+   * Dentro de la tienda no hacen falta las veintiuna voces de animales, ni los
+   * siete truenos, ni el viento, ni los dos temas del campo: son 28 MB que
+   * estaban ocupados por sonidos que no se pueden oír desde ahí. Y en el campo
+   * sobra el tema de la tienda.
+   *
+   * Lo soltado se vuelve a pedir solo al volver (`precargar` mira la caché
+   * antes de encolar, y el cargador de fondo también). En disco son ficheros
+   * de entre 5 y 800 KB, así que la vuelta no se nota.
+   */
+  function soltarLoQueNoHaceFalta(scene, tipo) {
+    var quedan = clavesDe(tipo), todas = todasLasClaves(), fuera = [], i;
+    for (i = 0; i < todas.length; i++) {
+      if (quedan.indexOf(todas[i]) < 0) fuera.push(todas[i]);
+    }
+    return soltar(scene, fuera);
+  }
+
+  /** Cuánta memoria está ocupando el audio ahora mismo, para poder mirarlo. */
+  function memoria(scene) {
+    scene = scene || (montado && montado.scene);
+    if (!scene || !scene.cache || !scene.cache.audio) return null;
+    var total = 0, n = 0, detalle = [];
+    try {
+      scene.cache.audio.entries.each(function (clave, buffer) {
+        var b = pesoDe(buffer);
+        total += b; n++;
+        if (b > 1048576) detalle.push(clave + ': ' + (b / 1048576).toFixed(1) + ' MB');
+        return true;
+      });
+    } catch (e) { return null; }
+    detalle.sort(function (a, b) { return parseFloat(b.split(': ')[1]) - parseFloat(a.split(': ')[1]); });
+    return {
+      sonidos: n,
+      MB: Math.round(total / 1048576 * 10) / 10,
+      frecuenciaDelContexto: (scene.sound && scene.sound.context && scene.sound.context.sampleRate) || null,
+      losGordos: detalle
+    };
   }
 
   // ========================================================================
@@ -1094,6 +1331,15 @@
     };
     scene.__gfAudio = st;
     montado = st;
+
+    /* LO PRIMERO, SOLTAR LO QUE AQUÍ NO SE VA A OÍR.
+       La caché de sonido de Phaser es global y no suelta nada sola: al entrar
+       en la tienda seguían ocupando memoria las veintiuna voces de animales,
+       los siete truenos, el viento y los dos temas del campo. Son 28 MB de
+       sonidos que desde ahí dentro no se pueden oír. Se sueltan ANTES de
+       encolar los de esta escena, para no tener los dos juegos a la vez ni un
+       instante. */
+    soltarLoQueNoHaceFalta(scene, st.tipo);
 
     /* Y ahora, por detrás, los otros cincuenta: ambientes, bichos, truenos y
        pisadas. El juego ya está en marcha; van llegando. */
@@ -1217,6 +1463,16 @@
     trueno: trueno,
     chispa: chispa,
     bicho: bicho,
+
+    /* ── MEMORIA ──
+       `soltarTemaDelJuego` lo llaman las escenas cuando este módulo se queda
+       con la música: tira el .ogg que ya no va a sonar (25,6 MB el del campo,
+       38,4 MB el de la tienda).
+       `memoria()` dice cuánto ocupa el audio ahora mismo; se puede llamar desde
+       la consola del navegador para comprobarlo. */
+    soltarTemaDelJuego: soltarTemaDelJuego,
+    soltar: soltar,
+    memoria: memoria,
     musica: function (cual) {
       var st = escenaViva();
       return st ? musica(st.scene, cual) : false;

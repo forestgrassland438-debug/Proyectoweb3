@@ -5718,6 +5718,21 @@ this.npcx5 = _marcarCartel(this.add.text(2290, 2283, 'Lord Digby', textStyle));
          que falta no puede dejar la partida en silencio. */
       if (!(window.GFAudio && window.GFAudio.llevaLaMusica(this))) {
         this.playMusic('main-theme');
+      } else if (window.GFAudio.soltarTemaDelJuego) {
+        /* SE SUELTA Principal.ogg: son 25,6 MB QUE NO VAN A SONAR.
+         *
+         * El .ogg se carga en `preload` como respaldo, por si los WAV de los
+         * temas no están. Si estamos en esta rama es que sí están y la música
+         * la lleva gf-audio, así que ese .ogg se queda descodificado en la
+         * caché de sonido —que en Phaser es global y no suelta nada sola—
+         * ocupando hasta cerrar la pestaña sin llegar a reproducirse ni una
+         * vez.
+         *
+         * 25,6 MB no es una errata: Web Audio guarda el audio descomprimido,
+         * en Float32 por canal y remuestreado a los 48 kHz del AudioContext.
+         * 1,7 MB de .ogg estéreo de 70 segundos son 70 × 48000 × 2 × 4 bytes.
+         * Medido con `_prueba_audio_memoria.html`. */
+        try { window.GFAudio.soltarTemaDelJuego(this, 'main-theme'); } catch (e) {}
       }
     } else {
       console.warn('⚠️ Sistema de sonido no disponible, omitiendo inicialización');

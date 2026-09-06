@@ -2075,6 +2075,13 @@ this.anims.create({
       if (window.GFPisadas) window.GFPisadas.montar(this, { suelo: 'madera' });
       if (!(window.GFAudio && window.GFAudio.llevaLaMusica(this))) {
         this.playMusic('main-theme1');
+      } else if (window.GFAudio.soltarTemaDelJuego) {
+        /* SE SUELTA tienda.ogg: 38,4 MB QUE NO VAN A SONAR — el fichero más
+           gordo de todo el juego en memoria, y con diferencia.
+           Mismo motivo que en GameScene: se carga como respaldo y, si gf-audio
+           lleva la música, se queda descodificado en la caché global sin
+           reproducirse nunca. Ver el comentario largo allí. */
+        try { window.GFAudio.soltarTemaDelJuego(this, 'main-theme1'); } catch (e) {}
       }
     } else {
       console.warn('⚠️ Sistema de sonido no disponible, omitiendo inicialización');

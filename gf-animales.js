@@ -1852,6 +1852,25 @@
     return Math.sin(spr.rotation) * alto;
   }
 
+  /**
+   * DÓNDE ESTÁ EL SUELO BAJO UN SOPORTE.
+   *
+   * Los árboles, tejados y postes llevan origen (0,1), así que su `y` ES la
+   * línea del suelo donde se apoyan. Es lo que hace falta para poner la sombra
+   * de un bicho posado: no debajo de sus patas —que están en la copa— sino al
+   * pie del árbol.
+   *
+   * Si el soporte no existe o su pie sale POR ENCIMA del sitio donde se posó
+   * (un dato raro, un sprite con otro origen), se devuelve el valor de
+   * respaldo: más vale una sombra en el sitio de siempre que una flotando.
+   */
+  function pieDelSoporte(scene, clave, porDefecto) {
+    if (!clave || !scene) return porDefecto;
+    var spr = scene[clave];
+    if (!spr || typeof spr.y !== 'number') return porDefecto;
+    return (spr.y > porDefecto) ? spr.y : porDefecto;
+  }
+
   function posarse(st, a, sitio) {
     a.fase = 'posado';
     a.destino = null;
@@ -1863,6 +1882,10 @@
     a.posX = a.spr.x;
     a.posY = a.spr.y;
     a.spr.setDepth(profundidadPosado(st.scene, a, sitio));
+    /* El suelo bajo el ave es el PIE del árbol en el que acaba de posarse, no
+       la rama. Sin esto, la sombra se quedaba en el último suelo que el ave
+       hubiera pisado, que podía estar en la otra punta del mapa. */
+    a.sombraSuelo = pieDelSoporte(st.scene, a.soporte, a.spr.y);
     anim(a, 'quieto');
     a.hasta = st.scene.time.now + az(ESPERA_POSADO[0], ESPERA_POSADO[1]);
   }
@@ -1900,6 +1923,18 @@
     a.soporte = soporte || null;
     a.spr.setDepth(PROF_VUELO);
     anim(a, 'vuela');
+
+    /* ── LA SOMBRA VIAJA POR EL SUELO, DE AQUÍ HASTA ALLÁ ──
+       Antes la sombra se quedaba CLAVADA en el suelo del despegue mientras
+       durase el vuelo (`if (!volando) a.sombraSuelo = a.spr.y`). Eso está bien
+       para un salto corto y está mal para un vuelo: si el ave cruza la pantalla
+       hacia ABAJO, su Y se hace mayor que la de la sombra y la sombra acaba
+       DIBUJADA POR ENCIMA del pájaro. Se apuntan los dos extremos y la sombra
+       se interpola entre ellos, que es lo que hace una sombra de verdad:
+       recorrer el suelo bajo el que vuela. */
+    a.sueloDesde = (typeof a.sombraSuelo === 'number') ? a.sombraSuelo : a.spr.y;
+    a.sueloHasta = pieDelSoporte(st.scene, soporte, destino.y);
+    a.vueloDist  = Math.max(1, Math.hypot(destino.x - a.spr.x, destino.y - a.spr.y));
   }
 
   function lejosDe(sitios, px, py, min) {
@@ -2235,13 +2270,41 @@
     if (!a.sombra.visible) a.sombra.setVisible(true);
 
     var volando = (a.fase === 'volando');
-    if (!volando) a.sombraSuelo = a.spr.y;    // recuerda dónde está el suelo
+    /* "En alto" solo si de verdad esta SUBIDA a algo. `refugio` lo usan tambien
+       los animales de tierra —una vaca esperando a que escampe bajo un arbol—
+       y esos estan en el suelo: su sombra va bajo sus patas, no al pie del
+       arbol. Lo que distingue un caso del otro es tener soporte. */
+    var posado  = (a.fase === 'posado' || a.fase === 'refugio') && !!a.soporte;
+    var f = fichaSombra(a);
 
-    /* Volando, la sombra se queda ABAJO y se hace pequeña y tenue: es lo que da
+    /* DÓNDE ESTÁ EL SUELO AHORA MISMO. Tres casos:
+         · andando o comiendo → bajo sus propias patas, y se recuerda.
+         · posada en un árbol → al PIE del árbol, no en la rama.
+         · volando            → se interpola entre el suelo de donde despegó y
+                                el de donde va a aterrizar.
+       Volando, la sombra se queda ABAJO y se hace pequeña y tenue: es lo que da
        la sensación de altura. Si subiera con el pájaro, la sombra iría por el
        aire y no significaría nada. */
-    var f = fichaSombra(a);
-    var y = volando ? a.sombraSuelo : (a.spr.y + f.dy);
+    if (volando) {
+      if (a.destino && typeof a.sueloDesde === 'number') {
+        var queda = Math.hypot(a.destino.x - a.spr.x, a.destino.y - a.spr.y);
+        var t = 1 - Math.max(0, Math.min(1, queda / (a.vueloDist || 1)));
+        a.sombraSuelo = a.sueloDesde + (a.sueloHasta - a.sueloDesde) * t;
+      }
+    } else if (posado) {
+      a.sombraSuelo = pieDelSoporte(a.spr.scene, a.soporte, a.sombraSuelo || a.spr.y);
+    } else {
+      a.sombraSuelo = a.spr.y;                // en el suelo: aquí mismo
+    }
+
+    var y = (volando || posado) ? a.sombraSuelo : (a.spr.y + f.dy);
+
+    /* LA RED, Y LA QUE ARREGLA EL FALLO QUE SE VEÍA: la sombra NUNCA puede
+       quedar por encima del bicho. En pantalla la Y crece hacia abajo, así que
+       el suelo tiene que tener una Y mayor o igual que la del animal. Da igual
+       de dónde salga el número de arriba: si alguna vez sale mal, aquí se
+       corrige y la sombra queda a sus pies en vez de flotando sobre su cabeza. */
+    if (y < a.spr.y + f.dy) y = a.spr.y + f.dy;
     a.sombra.setPosition(a.spr.x, y);
     a.sombra.setDepth(y - 1);
     a.sombra.setAlpha(SOMBRA_ALFA * f.alfa * (volando ? 0.45 : 1));

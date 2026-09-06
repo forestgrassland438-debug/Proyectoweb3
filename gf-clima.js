@@ -1675,6 +1675,12 @@
       st.truenoEn = ahora + az(260, 900);
       st.truenoFuerza = az(0.25, 0.5);
       st.truenoCerca = false;      // centella: solo retumbo, sin crujido
+      /* SIN SITIO, A PROPÓSITO. Una centella es un resplandor lejano del que
+         no se sabe dónde ha caído: su retumbo llega de todas partes. Y si no
+         se borrasen, aquí seguirían las coordenadas del ÚLTIMO rayo con trazo
+         y el retumbo saldría de un punto que ya no tiene nada que ver. */
+      st.truenoX = null;
+      st.truenoY = null;
     }
     st.proximaCentella = ahora + az(CENTELLA_CADA[0], CENTELLA_CADA[1]) / st.fuerzaLluvia;
   }
@@ -1791,10 +1797,22 @@
     /* (El incendio ya se ha decidido arriba, ANTES de dibujar, para que el
        rayo caiga sobre el árbol que arde y no en la otra punta.) */
 
+    /* DÓNDE HA CAÍDO, EN COORDENADAS DE MUNDO.
+       Se recalcula AQUÍ y no antes a propósito: si el rayo se ha desviado
+       hasta un árbol, `cx/cy` ya son los del árbol, y el sonido tiene que
+       salir de donde se ha VISTO el impacto, no de donde iba a caer.
+
+       Sirve para que el chasquido y el trueno suenen desde ahí: más flojos y
+       hacia un lado si el rayo ha caído lejos. Antes los dos sonaban centrados
+       y a pleno volumen cayera donde cayera. */
+    var impacto = aMundo(st, L, cx, cy);
+    st.truenoX = impacto.x;
+    st.truenoY = impacto.y;
+
     /* Y suena. El chasquido eléctrico va aquí, pegado al fogonazo; el trueno
        llega luego, con el mismo retardo con el que sacude la cámara. */
     if (window.GFAudio && window.GFAudio.chispa) {
-      try { window.GFAudio.chispa(1); } catch (e) {}
+      try { window.GFAudio.chispa(1, impacto.x, impacto.y); } catch (e) {}
     }
 
     var retardo = az(180, 700);
@@ -1924,7 +1942,14 @@
          detrás. gf-audio pone el sonido; si no está, sigue habiendo sacudida
          y no se rompe nada. */
       if (window.GFAudio && window.GFAudio.trueno) {
-        try { window.GFAudio.trueno(st.truenoCerca !== false, st.truenoFuerza); } catch (e) {}
+        /* Con el sitio del impacto: el trueno tiene un alcance enorme (ver
+           ALCANCE_TRUENO en gf-audio) pero ya no suena idéntico cayera donde
+           cayera. Si no hubo rayo dibujado, `truenoX` es undefined y gf-audio
+           lo suelta centrado, que es lo que era hasta ahora. */
+        try {
+          window.GFAudio.trueno(st.truenoCerca !== false, st.truenoFuerza,
+                                st.truenoX, st.truenoY);
+        } catch (e) {}
       }
       /* Y LA FAUNA SE SOBRESALTA.
 

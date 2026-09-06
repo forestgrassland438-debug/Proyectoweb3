@@ -471,6 +471,46 @@
     antialiasGL:     false,
     autoFocus:       true,
 
+    /* ═══════════════════════════════════════════════════════════════════════
+       DE AQUÍ SALÍAN LOS 400 MB DE MÁS
+       ───────────────────────────────────────────────────────────────────────
+       Phaser reserva AL ARRANCAR, y por defecto, una escalera entera de
+       búferes de dibujo para los efectos "PreFX" (`sprite.preFX.addGlow()` y
+       compañía). En `PipelineManager.boot()`:
+
+           var qty = Math.ceil(min(ancho, alto) / 32);
+           for (var i = 1; i < qty; i++) {
+               targets.push(new RenderTarget(r, i*32, i*32));   // ×3 copias
+           }
+           // y tres más a pantalla completa
+
+       O sea: 32×32, 64×64, 96×96… hasta el lado menor de la pantalla, TRES
+       copias de cada una, más tres a pantalla completa. Y el juego renderiza a
+       `tamaño CSS × floor(devicePixelRatio)`, así que el coste crece con el
+       CUBO de la resolución. Con una ventana de 1600×900:
+
+           dpr 1  →  1600×900     escalera  90 MB + pantalla completa 22 MB =  112 MB
+           dpr 2  →  3200×1800    escalera 704 MB + pantalla completa 88 MB =  792 MB
+           dpr 3  →  4800×2700    escalera 2,3 GB …
+
+       Ahí está la diferencia entre "usa 150-200 MB" y "usa 600-800 MB": no es
+       el sonido, ni el clima, ni los animales. Es esto, y salta solo con
+       cambiar de monitor.
+
+       ESTE JUEGO NO USA PREFX EN NINGÚN SITIO. Se comprobó en todo el
+       proyecto: el único efecto que hay es `cam.postFX.addColorMatrix()` en
+       gf-muerte.js, y el post-procesado de gf-postproceso.js — los dos son
+       PostFX, que es otra cosa: cada `PostFXPipeline` se crea SU PROPIO
+       búfer (`config.renderTarget = 1` en su constructor) y no toca esta
+       escalera. Así que apagarla no quita nada de lo que se ve; solo deja de
+       reservar memoria para una función que no se usa.
+
+       Si algún día se quiere usar `preFX`, hay que quitar esta línea — y
+       entonces conviene poner también `GF_MAX_DPR = 2`, porque el coste de
+       arriba es real.
+       ═══════════════════════════════════════════════════════════════════════ */
+    disablePreFX:    true,
+
     physics: {
       default: 'arcade',
       arcade:  {

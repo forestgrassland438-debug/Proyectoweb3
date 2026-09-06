@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cuanta VRAM se come la pantalla</title>
+<style>
+  body { margin:0; padding:16px; background:#0d1117; color:#e6edf3;
+         font:13px ui-monospace, Menlo, Consolas, monospace; }
+  h1 { font-size:15px; margin:0 0 4px; }
+  p.sub { color:#8b949e; margin:0 0 12px; max-width:820px; line-height:1.5; }
+  button { background:#238636; color:#fff; border:0; border-radius:6px;
+           padding:8px 16px; font:inherit; font-weight:700; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  table { border-collapse:collapse; margin-top:14px; width:100%; max-width:960px; }
+  th,td { text-align:right; padding:4px 10px; border-bottom:1px solid #21262d; }
+  th:first-child, td:first-child { text-align:left; }
+  th { color:#8b949e; font-weight:600; }
+  tr.mal td { color:#ff7b72; font-weight:700; }
+  tr.bien td { color:#7ee787; }
+  #juego { position:fixed; left:-9999px; top:0; }
+  .nota { color:#f0883e; }
+</style></head><body>
+
+<h1>Cuanta memoria de video se come la RESOLUCION DE PANTALLA</h1>
+<p class="sub">El juego renderiza a <b>tamaño CSS x floor(devicePixelRatio)</b>, sin tope
+(<code>GF_MAX_DPR</code> por defecto es infinito). Cada buffer a pantalla completa
+—el lienzo, y uno mas por cada <i>render target</i> que Phaser reserva al poner un
+shader en la camara— cuesta <b>ancho x alto x 4</b> bytes. Como el coste va con el
+CUADRADO del dpr, pasar de 3 a 2 no ahorra un tercio: ahorra mas de la mitad.<br>
+Esta pagina crea un Phaser DE VERDAD (el mismo del juego) con y sin post-procesado, y
+lee los buffers que reserva.</p>
+
+<button id="ir">Medir</button>
+<div id="res"></div>
+<div id="juego"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"
+        crossorigin="anonymous"
+        integrity="sha384-AvQiDMZAVLda3VtAoU5MCfBz8pzXhteb2CiUJeKBmPlWzpXj1uJ96Km11+YuFNu/"></script>
+<script>
+const MB = (b) => b / 1048576;
+
+/** Crea un juego al tamaño dado, con o sin shader de camara, y mide sus buffers. */
+function medir(w, h, conPost) {
+  return new Promise((resolve) => {
+    let Tuberia = null;
+    if (conPost && Phaser.Renderer.WebGL.Pipelines.PostFXPipeline) {
+      Tuberia = class extends Phaser.Renderer.WebGL.Pipelines.PostFXPipeline {
+        constructor(game) {
+          super({ game, fragShader:
+            'precision mediump float;uniform sampler2D uMainSampler;varying vec2 outTexCoord;' +
+            'void main(){vec4 c=texture2D(uMainSampler,outTexCoord);' +
+            'float d=distance(outTexCoord,vec2(0.5));c.rgb*=1.0-d*0.6;gl_FragColor=c;}' });
+        }
+      };
+    }
+
+    const juego = new Phaser.Game({
+      type: Phaser.WEBGL, width: w, height: h, parent: 'juego',
+      banner: false, audio: { noAudio: true },
+      pipeline: Tuberia ? { gfPrueba: Tuberia } : undefined,
+      scene: {
+        create() {
+          if (Tuberia) { try { this.cameras.main.setPostPipeline('gfPrueba'); } catch (e) {} }
+          /* setTimeout y NO this.time.delayedCall: el reloj de la escena solo
+             corre mientras corre el bucle de Phaser, y el bucle se para con la
+             pestana en segundo plano. Con delayedCall esta medicion no termina
+             nunca si la pagina no esta a la vista. */
+          setTimeout(() => {
+            const r = juego.renderer;
+            let rts = [], totalRT = 0;
+            try {
+              (r.pipelines.renderTargets || []).forEach((t, i) => {
+                const b = (t.width || 0) * (t.height || 0) * 4;
+                totalRT += b;
+                rts.push({ i, w: t.width, h: t.height, MB: +MB(b).toFixed(1) });
+              });
+            } catch (e) {}
+            // El lienzo principal: color (x2 por el doble buffer) + profundidad/plantilla.
+            const lienzo = w * h * 4;
+            resolve({ w, h, conPost, lienzo, rts, totalRT,
+                      total: lienzo * 2 + totalRT });
+            juego.destroy(true);
+          }, 120);
+        }
+      }
+    });
+  });
+}
+
+document.getElementById('ir').onclick = async function () {
+  this.disabled = true;
+  const res = document.getElementById('res');
+  const css = { w: 1600, h: 900 };            // una ventana de juego normal
+
+  let html = '<p>Ventana de ejemplo: <b>' + css.w + 'x' + css.h + ' CSS</b>. ' +
+             'Tu pantalla ahora mismo tiene devicePixelRatio = <b>' +
+             (window.devicePixelRatio || 1) + '</b>.</p>';
+  html += '<table><tr><th>dpr</th><th>resolucion interna</th><th>post</th>' +
+          '<th>lienzo x2</th><th>render targets</th><th>TOTAL VRAM</th></tr>';
+
+  const filas = [];
+  for (const dpr of [1, 2, 3]) {
+    for (const post of [false, true]) {
+      const w = css.w * dpr, h = css.h * dpr;
+      // No se piden buffers absurdos si la GPU no los soporta.
+      if (w > 8192 || h > 8192) continue;
+      const m = await medir(w, h, post);
+      filas.push(m);
+      const clase = m.total > 300 * 1048576 ? 'mal' : (m.total < 100 * 1048576 ? 'bien' : '');
+      html += '<tr class="' + clase + '"><td>' + dpr + '</td><td>' + w + 'x' + h + '</td><td>' +
+              (post ? 'si' : 'no') + '</td><td>' + MB(m.lienzo * 2).toFixed(1) + ' MB</td><td>' +
+              MB(m.totalRT).toFixed(1) + ' MB (' + m.rts.length + ')</td><td><b>' +
+              MB(m.total).toFixed(1) + ' MB</b></td></tr>';
+    }
+  }
+  html += '</table>';
+
+  // El ahorro de poner techo al dpr.
+  const buscar = (dpr, post) => filas.find((f) => f.w === css.w * dpr && f.conPost === post);
+  const a3 = buscar(3, true), a2 = buscar(2, true), a1 = buscar(1, true);
+  if (a3 && a2) html += '<p class="nota">Poner GF_MAX_DPR = 2 en una pantalla de dpr 3 ahorra <b>' +
+                        MB(a3.total - a2.total).toFixed(0) + ' MB</b>.</p>';
+  if (a2 && a1) html += '<p class="nota">Y GF_MAX_DPR = 1 sobre dpr 2 ahorra <b>' +
+                        MB(a2.total - a1.total).toFixed(0) + ' MB</b>.</p>';
+
+  res.innerHTML = html;
+  window.__vram = filas.map((f) => ({ px: f.w + 'x' + f.h, post: f.conPost,
+                                      totalMB: +MB(f.total).toFixed(1),
+                                      rts: f.rts.length, rtMB: +MB(f.totalRT).toFixed(1) }));
+};
+</script>
+</body></html>
