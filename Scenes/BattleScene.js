@@ -1866,10 +1866,20 @@ class BattleScene extends Phaser.Scene {
        cambio no ha entrado; se insiste por la vía del gestor, que no depende
        del estado de esta escena. Va con el reloj del navegador a propósito:
        `this.time` se para en cuanto la escena se apaga. */
+    /* Se pregunta por el DESTINO, no por esta escena. `sys.isActive()` es
+       falso también cuando la escena está en pausa o dormida —y en esos dos
+       casos sigue en pantalla, que es justo el problema— así que preguntarle a
+       él daría el visto bueno a un cambio que no ha ocurrido. Lo que importa
+       es una sola cosa: si el mapa está ya en marcha. */
+    const yaEstamosEnElMapa = () => {
+      try { return this.scene.manager.isActive(destino) || this.scene.manager.isVisible(destino); }
+      catch (e) { return false; }
+    };
+
     if (this._reintentoVuelta) window.clearTimeout(this._reintentoVuelta);
     this._reintentoVuelta = window.setTimeout(() => {
       this._reintentoVuelta = null;
-      if (!this.sys || !this.sys.isActive || !this.sys.isActive()) return;   // ya salió: bien
+      if (yaEstamosEnElMapa()) return;                    // ya salió: bien
       console.warn('⚠️ La batalla no se cerró al primer intento; reintentando.');
       try {
         this.scene.manager.stop('BattleScene');

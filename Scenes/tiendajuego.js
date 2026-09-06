@@ -2283,6 +2283,15 @@ this.anims.create({
           mineral_piedra: { src: "./Game/Source/piedra.png", maxStack: 20 , tipo: "mineral_piedra", usos: null },
           mineral_cobre: { src: "./Game/Source/cobre.png", maxStack: 20 , tipo: "mineral_cobre", usos: null },
           mineral_hierro: { src: "./Game/Source/hierro.png", maxStack: 20 , tipo: "mineral_hierro", usos: null },
+          /* FALTABAN AQUÍ, Y SOLO AQUÍ.
+             Este catálogo es una COPIA del de GameScene, y se había quedado
+             atrás: le faltaban el carbón y las tres pociones del alquimista,
+             que sí están en el mapa. No es un detalle estético — con la copia
+             coja, `renderSlot` reventaba al llegar a una de estas casillas y el
+             inventario de la tienda se quedaba a medio pintar (ver
+             `_crearIconoDeItem` más abajo). Lo comprueba
+             `tools/inventario-catalogos.js`. */
+          carbon: { src: "./Game/Objetos/carbon.png", maxStack: 20 , tipo: "carbon", usos: null },
 
           palo: { src: "./Game/Source/palo.png", maxStack: 20 , tipo: "palo", usos: null},
           tablon_de_madera: { src: "./Game/Source/madera.png", maxStack: 20 , tipo: "tablon_de_madera", usos: null},
@@ -2312,6 +2321,15 @@ this.anims.create({
           tomate_corta: { src: "./Game/Objetos/Plantas/planta_tomates/item_planta.png", maxStack: 20 , tipo: "tomate_corta", usos: null},
           tomate_mala: { src: "./Game/Objetos/Plantas/planta_tomates/item_tomate_malo.png", maxStack: 20 , tipo: "tomate_mala", usos: null},
           fresa_buena: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_buena.png", maxStack: 20, tipo: "fresa_buena", usos: null },
+
+          // Pociones del alquimista. Curan y reviven a la mascota; se usan
+          // desde su hub, no haciendo clic en el inventario. Faltaban en esta
+          // copia del catálogo: eran las que cortaban el pintado del
+          // inventario de la tienda.
+          pocion_mascota:        { src: "./Game/Objetos/pociones/pocion_mascota.png",        maxStack: 20, tipo: "pocion_mascota",        usos: null },
+          pocion_mascota_grande: { src: "./Game/Objetos/pociones/pocion_mascota_grande.png", maxStack: 10, tipo: "pocion_mascota_grande", usos: null },
+          elixir_revivir:        { src: "./Game/Objetos/pociones/elixir_revivir.png",        maxStack: 5,  tipo: "elixir_revivir",        usos: null },
+
           fresa_corta: { src: "./Game/Objetos/Plantas/planta_fresa/item_planta.png", maxStack: 20 , tipo: "fresa_corta", usos: null},
           fresa_mala: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_podrida.png", maxStack: 20 , tipo: "fresa_mala", usos: null},
 
@@ -7560,6 +7578,59 @@ addItem(itemId, quantity = 1, customIdx = null, customIdm = null) {
   return true;
 }
 
+/**
+ * Icono de un ítem para las casillas.
+ *
+ * EL FALLO QUE ARREGLA — "en GameScene se ven todos los objetos y en la tienda
+ * no":
+ *
+ * Aquí se hacía `img.src = this.ItemDefinitions[itemObj.id].src` a pelo. Si el
+ * ítem no estaba en `ItemDefinitions`, eso no es un hueco: es un
+ * `TypeError: Cannot read properties of undefined (reading 'src')` que sale
+ * disparado de `renderSlot`, sube hasta el bucle de `renderAllSlots()` —que no
+ * tenía red— y LO CORTA. Todas las casillas que vinieran después se quedaban
+ * en blanco.
+ *
+ * Y este catálogo es una copia del de GameScene que se había quedado atrás: le
+ * faltaban el carbón y las tres pociones del alquimista. Con una poción en la
+ * casilla 12, el inventario de la tienda pintaba las doce primeras y dejaba las
+ * veintiocho restantes vacías, mientras que en el mapa se veía entero. Eso es
+ * exactamente lo que se veía en las capturas.
+ *
+ * Ahora una definición ausente cuesta SU casilla y nada más. Es la misma
+ * función que ya tiene GameScene (se le puso cuando le pasó con el carbón);
+ * esta escena se quedó sin ella.
+ */
+_crearIconoDeItem(itemId) {
+  const img = document.createElement('img');
+  img.alt = itemId;
+  img.decoding = 'async';
+
+  const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
+  if (!def || !def.src) {
+    console.warn(`⚠️ '${itemId}' no está en ItemDefinitions de la tienda: la casilla se pinta sin icono`);
+    img.style.visibility = 'hidden';
+    return img;
+  }
+
+  img.dataset.gfSrc = def.src;
+  img.onerror = () => {
+    // Un solo reintento con cache-buster; si tampoco, se deja el hueco en vez
+    // de quedarse con el icono roto del navegador.
+    if (img.dataset.gfRetry === '1') { img.onerror = null; img.style.visibility = 'hidden'; return; }
+    img.dataset.gfRetry = '1';
+    img.src = def.src + (def.src.indexOf('?') >= 0 ? '&' : '?') + 'r=' + Date.now();
+  };
+  img.src = def.src;
+  return img;
+}
+
+/** La ruta del icono de un ítem, o null si no se conoce. Para el arrastre. */
+_srcDeItem(itemId) {
+  const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
+  return (def && def.src) ? def.src : null;
+}
+
 renderSlot(index) {
   // Helper: añade indicador de usos si el item es una herramienta con usos definidos
   const _addUsosIndicator = (container, itemObj) => {
@@ -7607,9 +7678,7 @@ renderSlot(index) {
     } else {
       const itemObj = this.STATE.slots[index];
       if (itemObj) {
-        const img = document.createElement("img");
-        img.src = this.ItemDefinitions[itemObj.id].src;
-        img.alt = itemObj.id;
+        const img = this._crearIconoDeItem(itemObj.id);
         invDiv.appendChild(img);
         if (itemObj.count > 1) {
           const span = document.createElement("span");
@@ -7636,9 +7705,7 @@ renderSlot(index) {
     } else {
       const itemObj = this.STATE.quickSlots[index];
       if (itemObj) {
-        const img = document.createElement("img");
-        img.src = this.ItemDefinitions[itemObj.id].src;
-        img.alt = itemObj.id;
+        const img = this._crearIconoDeItem(itemObj.id);
         quickDiv.appendChild(img);
         if (itemObj.count > 1) {
           const span = document.createElement("span");
@@ -7693,9 +7760,12 @@ async handleSlotClick(type, index, clickX, clickY) {
       const div = document.querySelector(`.inv-slot[data-slot-index="${index}"]`);
       div.innerHTML = '';
       div.classList.add('highlight');
-      
+
+      // Sin `.src` a pelo: un ítem sin definición se arrastra sin dibujo, pero
+      // se arrastra. Antes reventaba aquí y el ítem se quedaba a medias — el
+      // slot vaciado y en la mano nada.
       this.startDrag(
-        this.ItemDefinitions[this.STATE.selectedItem.id].src,
+        this._srcDeItem(this.STATE.selectedItem.id),
         clickX,
         clickY,
         this.STATE.selectedItem.count
@@ -7727,9 +7797,9 @@ async handleSlotClick(type, index, clickX, clickY) {
       const div = document.querySelector(`.quick-slot[data-slot-index="${index}"]`);
       div.innerHTML = '';
       div.classList.add('highlight');
-      
+
       this.startDrag(
-        this.ItemDefinitions[this.STATE.selectedItem.id].src,
+        this._srcDeItem(this.STATE.selectedItem.id),
         clickX,
         clickY,
         this.STATE.selectedItem.count
@@ -7995,14 +8065,25 @@ async mergeItemsBlockchain(origin, destType, destIndex) {
  * para reflejar el estado actual en la interfaz.
  */
 renderAllSlots() {
-  // Actualizar slots del inventario (40)
-  for (let i = 0; i < this.STATE.slots.length; i++) {
-    this.renderSlot(i);
-  }
-  // Actualizar quick slots (7)
-  for (let i = 0; i < this.STATE.quickSlots.length; i++) {
-    this.renderSlot(i);
-  }
+  /* CADA CASILLA EN SU PROPIO try.
+     Esta era la otra mitad del fallo: el bucle no tenía red, así que
+     CUALQUIER excepción dentro de `renderSlot` —una definición que falta, un
+     dato raro en un slot— dejaba sin pintar todas las casillas siguientes. Un
+     ítem con un problema puede costar SU casilla; no las otras treinta y
+     nueve. */
+  const pintar = (i) => {
+    try { this.renderSlot(i); }
+    catch (e) { console.error('❌ No se pudo pintar la casilla ' + i + ':', e); }
+  };
+
+  // Actualizar slots del inventario (40). `renderSlot(i)` pinta a la vez la
+  // casilla de inventario i y la rápida i, así que las 7 rápidas ya quedan
+  // hechas en las siete primeras vueltas de este mismo bucle.
+  for (let i = 0; i < this.STATE.slots.length; i++) pintar(i);
+
+  // Y por si el array de casillas rápidas fuera más largo que el de
+  // inventario (no lo es hoy: 7 contra 40), se completan las que faltasen.
+  for (let i = this.STATE.slots.length; i < this.STATE.quickSlots.length; i++) pintar(i);
   // Si tienes chestSlots adicionales (por ejemplo, un cofre extendido), también puedes iterar sobre ellos
   // if (this.STATE.chestSlots) {
   //   for (let i = 0; i < this.STATE.chestSlots.length; i++) {
@@ -8208,9 +8289,19 @@ startDrag(src, x, y, count = 1) {
   const dragDiv = document.getElementById('drag-item');
   const dragImg = dragDiv.querySelector('img');
   const dragCount = document.getElementById('drag-count');
-  
-  dragImg.src = src;
-  
+
+  /* Un ítem sin icono se arrastra igual, pero SIN imagen.
+     Poniendo `src = null` a pelo, el navegador lo convierte en la cadena
+     "null", la pide como si fuera una ruta, se come un 404 y deja el icono de
+     imagen rota pegado al cursor. Mejor un hueco limpio. */
+  if (src) {
+    dragImg.src = src;
+    dragImg.style.visibility = '';
+  } else {
+    dragImg.removeAttribute('src');
+    dragImg.style.visibility = 'hidden';
+  }
+
   if (count > 0) {
     dragCount.textContent = count;
     dragCount.style.display = 'block';

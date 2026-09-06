@@ -19964,9 +19964,12 @@ async handleSlotClick(type, index, clickX, clickY) {
       const div = document.querySelector(`.inv-slot[data-slot-index="${index}"]`);
       div.innerHTML = '';
       div.classList.add('highlight');
-      
+
+      /* Sin `.src` a pelo, por lo mismo que en `_crearIconoDeItem`: un ítem que
+         no esté en el catálogo reventaba AQUÍ, con la casilla ya vaciada y el
+         ítem todavía sin llegar a la mano. Ahora se arrastra sin dibujo. */
       this.startDrag(
-        this.ItemDefinitions[this.STATE.selectedItem.id].src,
+        this._srcDeItem(this.STATE.selectedItem.id),
         clickX,
         clickY,
         this.STATE.selectedItem.count
@@ -19998,9 +20001,9 @@ async handleSlotClick(type, index, clickX, clickY) {
       const div = document.querySelector(`.quick-slot[data-slot-index="${index}"]`);
       div.innerHTML = '';
       div.classList.add('highlight');
-      
+
       this.startDrag(
-        this.ItemDefinitions[this.STATE.selectedItem.id].src,
+        this._srcDeItem(this.STATE.selectedItem.id),
         clickX,
         clickY,
         this.STATE.selectedItem.count
@@ -20295,6 +20298,12 @@ async mergeItemsBlockchain(origin, destType, destIndex) {
  * cargar se reintenta una vez (basta con que el navegador haya descartado el
  * mapa de bits al tener la pestaña en segundo plano).
  */
+/** La ruta del icono de un ítem, o null si no se conoce. Para el arrastre. */
+_srcDeItem(itemId) {
+  const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
+  return (def && def.src) ? def.src : null;
+}
+
 _crearIconoDeItem(itemId) {
   const img = document.createElement('img');
   img.alt = itemId;
@@ -20356,14 +20365,24 @@ _repintarCasillasAlVolver() {
 }
 
 renderAllSlots() {
-  // Actualizar slots del inventario (40)
-  for (let i = 0; i < this.STATE.slots.length; i++) {
-    this.renderSlot(i);
-  }
-  // Actualizar quick slots (7)
-  for (let i = 0; i < this.STATE.quickSlots.length; i++) {
-    this.renderSlot(i);
-  }
+  /* CADA CASILLA EN SU PROPIO try.
+     Aquí no llegó a verse el fallo porque a esta escena ya se le puso
+     `_crearIconoDeItem`, pero el bucle es el mismo que tenía la tienda: sin
+     red, una sola excepción dentro de `renderSlot` dejaba en blanco todas las
+     casillas siguientes. Un ítem con un problema puede costar SU casilla; no
+     las otras treinta y nueve. */
+  const pintar = (i) => {
+    try { this.renderSlot(i); }
+    catch (e) { console.error('❌ No se pudo pintar la casilla ' + i + ':', e); }
+  };
+
+  // `renderSlot(i)` pinta a la vez la casilla de inventario i y la rápida i,
+  // así que las 7 rápidas ya quedan hechas en las siete primeras vueltas.
+  for (let i = 0; i < this.STATE.slots.length; i++) pintar(i);
+
+  // Y por si el array de rápidas fuera más largo que el de inventario (no lo
+  // es hoy: 7 contra 40), se completan las que faltasen.
+  for (let i = this.STATE.slots.length; i < this.STATE.quickSlots.length; i++) pintar(i);
   // Si tienes chestSlots adicionales (por ejemplo, un cofre extendido), también puedes iterar sobre ellos
   // if (this.STATE.chestSlots) {
   //   for (let i = 0; i < this.STATE.chestSlots.length; i++) {
@@ -20581,9 +20600,19 @@ startDrag(src, x, y, count = 1) {
   const dragDiv = document.getElementById('drag-item');
   const dragImg = dragDiv.querySelector('img');
   const dragCount = document.getElementById('drag-count');
-  
-  dragImg.src = src;
-  
+
+  /* Un ítem sin icono se arrastra igual, pero SIN imagen.
+     Poniendo `src = null` a pelo, el navegador lo convierte en la cadena
+     "null", la pide como si fuera una ruta, se come un 404 y deja el icono de
+     imagen rota pegado al cursor. Mejor un hueco limpio. */
+  if (src) {
+    dragImg.src = src;
+    dragImg.style.visibility = '';
+  } else {
+    dragImg.removeAttribute('src');
+    dragImg.style.visibility = 'hidden';
+  }
+
   if (count > 0) {
     dragCount.textContent = count;
     dragCount.style.display = 'block';
