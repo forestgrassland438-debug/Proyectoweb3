@@ -928,18 +928,6 @@
          suelo: flota sobre la cabeza del NPC y su sitio lo decide el NPC, no su
          propia Y. */
       if (o.type === 'Text' || o.type === 'BitmapText') return;
-      /* EL SUELO TAMPOCO.
-
-         EL FALLO QUE ARREGLA: las parcelas de siembra llevan `optimized` (lo
-         necesitan para el recorte por distancia) y pasaban por aqui como si
-         fueran arboles. Se les cambiaba su depth 0 por su linea de suelo, y
-         entonces las parcelas del sur tapaban al jugador que estaba plantado
-         en medio del huerto.
-
-         Lo que esta PINTADO EN EL SUELO no se ordena con el mundo: se queda
-         debajo de todo. Quien dibuje algo asi solo tiene que marcarlo con
-         `setData('gfSuelo', true)`. */
-      try { if (o.getData('gfSuelo')) return; } catch (e) {}
       if (!o.texture || !o.texture.key) return;
       out.push(o);
     });

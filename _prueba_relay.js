@@ -103,12 +103,32 @@ const AJENA = { id: 3, manualId: 'otro#1', owner: '0xotro',
 
   // 4. EL CASO PELIGROSO: el hueco lleva un numero de hueco (3) que resulta ser
   //    una factura de OTRO jugador y de otro objeto. No se puede tocar.
+  //
+  //    OJO CON LO QUE SE DEVUELVE: antes esto contestaba `ya: true` ("ya estaba
+  //    quitada"), y quien llama entiende eso como "cuadra tu inventario", o sea
+  //    BORRA EL OBJETO de la pantalla. Como en la cadena seguia intacto, al
+  //    recargar el mapa reaparecia — y en la tienda, encima, ya te habian
+  //    pagado. Una factura viva que no es la que buscabas es un ERROR: el
+  //    jugador conserva su objeto y no se cobra nada.
   rel = relayDePrueba({ porId: { 3: AJENA }, porNombre: {} });
   res = await rel.quitarDeFactura('0xC', { idx: 3, manualid: '',
                                            cantidad: 1, tipo: 'balde_vacio',
                                            vaciarFactura: true });
-  comprobar('id que apunta a factura ajena → no se toca',
-            [res.ok, res.ya, rel.enviadas.length], [true, true, 0]);
+  comprobar('id que apunta a factura ajena → error, no "ya quitada"',
+            [res.ok, res.ya, rel.enviadas.length], [false, false, 0]);
+
+  // 4-bis. EL FALLO DE LA VENTA EN LA TIENDA (2026-09-07): la factura es MIA y
+  //    esta viva, pero se pide con un tipo que no es el suyo — la tienda
+  //    mandaba el literal 'slots' en vez del tipo on-chain del objeto. Eso
+  //    NUNCA puede leerse como "ya se gasto".
+  rel = relayDePrueba({ porId: { 1764: MIA }, porNombre: {} });
+  res = await rel.quitarDeFactura('0xC', { idx: 1764, manualid: 'balde#1',
+                                           cantidad: 1, tipo: 'slots',
+                                           vaciarFactura: true });
+  comprobar('tipo equivocado → error, y no se envia nada',
+            [res.ok, res.ya, rel.enviadas.length], [false, false, 0]);
+  comprobar('y el motivo dice cual es el objeto de verdad',
+            /es de otro objeto \(balde_vacio\)/.test(res.error || ''), true);
 
   // 5. El nodo no contesta: NO puede acabar en "ya estaba quitada".
   rel = relayDePrueba({ porId: {}, porNombre: {} }, new Error('Failed to fetch'));

@@ -40,11 +40,38 @@ function sinComentarios(txt) {
   return out;
 }
 
-/** Y los comentarios de HTML, que son otros. */
+/** Y los comentarios de HTML, que son otros.
+ *
+ * OJO: un .html tiene DOS clases de comentario, y hay que quitar las dos.
+ * Quitando solo los `<!-- -->`, lo que va dentro de un `<script>` se lee tal
+ * cual — comentarios de JavaScript incluidos. Eso dio un falso positivo real:
+ * el comentario de `escapeHtml` en market.html explica el ataque con el ejemplo
+ *
+ *     x" onmouseover="robar()
+ *
+ * y el detector de manejadores huérfanos lo leyó como un `onmouseover=` de
+ * verdad y avisó de que `robar()` no existe. Existir no existe, claro: es un
+ * ejemplo dentro de un comentario.
+ *
+ * Así que primero se quitan los comentarios de HTML y después, DENTRO de cada
+ * <script> que no sea de tipo dato (application/json y compañía), los de JS.
+ * Los `<script src=...>` no tienen cuerpo y no estorban.
+ */
 function sinComentariosHtml(txt) {
-  return txt.replace(/<!--[\s\S]*?-->/g, function (m) {
+  var sinHtml = txt.replace(/<!--[\s\S]*?-->/g, function (m) {
     return m.replace(/[^\n]/g, ' ');       // se conservan los saltos de línea
   });
+
+  return sinHtml.replace(
+    /(<script\b([^>]*)>)([\s\S]*?)(<\/script\s*>)/gi,
+    function (todo, apertura, atributos, cuerpo, cierre) {
+      // Un <script type="application/json"> no lleva código: no se toca.
+      if (/type\s*=\s*["']?(?!text\/javascript|module|application\/javascript)[^"'\s>]+/i.test(atributos)) {
+        return todo;
+      }
+      return apertura + sinComentarios(cuerpo) + cierre;
+    }
+  );
 }
 
 module.exports = { sinComentarios: sinComentarios, sinComentariosHtml: sinComentariosHtml };

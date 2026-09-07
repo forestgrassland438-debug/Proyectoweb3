@@ -3107,6 +3107,10 @@ handleMouseMovement(delta) {
       } else entry = payload;
 
       this._queue.push(entry);
+      // Hay algo que guardar. Se apunta aparte de la cola porque _processBatches
+      // la vacia antes de esperar, y en ese hueco la cola miente: parece que no
+      // queda nada pendiente cuando en realidad el guardado no ha salido aun.
+      this._guardadoPendiente = true;
 
       if (!this._processing) {
         this._processBatches().catch(err => console.error(err));
@@ -3127,12 +3131,46 @@ handleMouseMovement(delta) {
         const batch = this._queue.slice();
         this._queue.length = 0;
 
-        // Esperar 1 segundo usando el reloj de Phaser
-        await new Promise(resolve => this.time.delayedCall(wait, resolve, [], this));
+        /* EL RELOJ DE LA PAGINA, NO EL DE LA ESCENA.
 
-        // Mensaje exactamente como pediste:
+           FALLO QUE ESTO ARREGLA — "vendo y al salir del mapa lo sigo teniendo":
+           este temporizador es el que dispara el GUARDADO en el servidor, y
+           estaba en `this.time`, el reloj de la escena. Ese reloj se para
+           cuando la escena se duerme y lo borra entero `time.removeAllEvents()`
+           al cerrarla. O sea: si salias del mapa dentro del segundo siguiente a
+           cualquier cambio, la espera no terminaba nunca, `savegg()` no llegaba
+           a ejecutarse y el cambio se perdia. Con setTimeout el guardado sale
+           igual aunque la escena ya se este cerrando. */
+        await new Promise(resolve => setTimeout(resolve, wait));
+
         console.log(`en cola hubieron ${batch.length} llamadas y fueron eliminadas y procesado este console log.`, batch);
-        this.savegg();
+        try {
+          await this.savegg();
+        } catch (e) {
+          console.error('❌ savegg fallo en la cola de guardado:', e);
+        } finally {
+          this._guardadoPendiente = false;
+        }
+      }
+    }
+
+    /**
+     * Guarda YA lo que quede pendiente, sin esperar el segundo de la tanda.
+     * Se llama al cerrar la escena: es la ultima oportunidad de que lo que
+     * acaba de hacer el jugador llegue al servidor.
+     */
+    async flushGuardado(motivo) {
+      const hayCola = !!(this._queue && this._queue.length);
+      if (!this._guardadoPendiente && !hayCola) return false;
+      try {
+        if (this._queue) this._queue.length = 0;
+        this._guardadoPendiente = false;
+        console.log('💾 Guardando lo pendiente antes de ' + (motivo || 'salir'));
+        await this.savegg();
+        return true;
+      } catch (e) {
+        console.error('❌ No se pudo guardar lo pendiente al ' + (motivo || 'salir') + ':', e);
+        return false;
       }
     }
 
@@ -4211,6 +4249,9 @@ removeOtherPlayer(playerId) {
     }
 
     performCleanup() {
+      // ULTIMA OPORTUNIDAD DE GUARDAR: ver el comentario gemelo en GameScene.
+      // Sin esto, vender algo y salir enseguida de la tienda perdia la venta.
+      try { this.flushGuardado && this.flushGuardado('cerrar la tienda'); } catch (e) {}
       console.log('🧼 Limpieza completa de escena tienda');
       
       // Tell the server we are leaving this room BEFORE clearing socket
@@ -7016,7 +7057,14 @@ async verificarRompimiento(itemRef) {
       this.notifications.show(`Your ${itemRef.id} broke!`, 'error');
 
       // ── Quitar 1 del stack en blockchain + local ──
-      await this.ejecutarDivisionRemove.call(this, 'slots', itemRef.id, toolDef.maxStack || 5, 1);
+      /* EL TIPO ON-CHAIN, NO LA PALABRA 'slots'. Ese argumento acaba en
+         `quitarDeFactura({ tipo })`, que lo compara con el tipo de la factura
+         para no quemar la equivocada. Con 'slots' la comparacion fallaba
+         siempre y la respuesta era "esa factura ya no estaba": la herramienta
+         rota desaparecia de la pantalla pero seguia entera en la cadena.
+         Mismo fallo que tenia la venta de la tienda. */
+      const tipoOnchain = (toolDef && toolDef.tipo) || itemRef.id;
+      await this.ejecutarDivisionRemove.call(this, tipoOnchain, itemRef.id, toolDef.maxStack || 5, 1);
 
       // ── Borrar registro de usos para que las unidades restantes empiecen frescos ──
       try {
@@ -12139,8 +12187,34 @@ const upPressed    = this.cursors?.up?.isDown    || this.keys?.W?.isDown || fals
 const downPressed  = this.cursors?.down?.isDown  || this.keys?.S?.isDown || false;
 
 // Movimiento real del jugador
-const playerDx = player.x - this.prevPlayerX;
-const playerDy = player.y - this.prevPlayerY;
+/* EL DESPLAZAMIENTO SE MIDE CONTRA LA POSICION REAL DEL FRAME ANTERIOR.
+
+   FALLO QUE ESTO ARREGLA — "choco a proposito hacia abajo, suelto la tecla y el
+   personaje mira ARRIBA" (y al reves, y lo mismo con izquierda/derecha):
+
+   este bloque corre ANTES de que se resuelvan las colisiones, asi que
+   `player.y` de aqui es la posicion QUE SE INTENTA, no la que acaba teniendo.
+   Al guardarla en `prevPlayerY` para el frame siguiente, se guardaba una
+   posicion que un momento despues se deshacia por chocar contra la pared.
+
+   Contra un muro, apretando abajo:
+     · frame 1: intento P+d  ->  se guarda P+d  ->  la colision devuelve a P
+     · frame 2 (sueltas):     posicion P  ->  playerDy = P - (P+d) = -d
+   Un movimiento hacia ARRIBA que nunca ocurrio. Y unas lineas mas abajo eso
+   escribia `this.lastDirection = 'up'`, que es de donde saca su textura el
+   personaje quieto: mirabas al lado contrario del que estabas empujando.
+
+   `this.previousPosition` se toma al principio del update y ya viene con las
+   colisiones del frame anterior aplicadas: es la posicion de verdad. Con ella,
+   apretando contra el muro sale +d (la intencion, correcta) y al soltar sale 0
+   (no te has movido), que es justo lo que tiene que pasar. */
+const _refX = (this.previousPosition && typeof this.previousPosition.x === 'number')
+  ? this.previousPosition.x : this.prevPlayerX;
+const _refY = (this.previousPosition && typeof this.previousPosition.y === 'number')
+  ? this.previousPosition.y : this.prevPlayerY;
+
+const playerDx = player.x - _refX;
+const playerDy = player.y - _refY;
 const playerMoved = Math.hypot(playerDx, playerDy) > 0.06;
 
 this.prevPlayerX = player.x;
@@ -12176,12 +12250,15 @@ if (intentDir === 'down') {
   desiredDir = intentDir;
   this.lastDirection = intentDir;
 } else if (playerMoved) {
+  /* Sin teclas: el desplazamiento decide donde se pone el PERRO, y nada mas.
+     Aqui ya no se escribe `this.lastDirection`: la mirada del personaje la
+     lleva el bloque de animacion, mas abajo, con el desplazamiento ya corregido
+     por las colisiones. Que el codigo del perro tocara esa variable era la
+     segunda mitad del fallo de la mirada invertida. */
   if (Math.abs(playerDx) > Math.abs(playerDy) && Math.abs(playerDx) > 0.06) {
     desiredDir = playerDx > 0 ? 'right' : 'left';
-    this.lastDirection = desiredDir;
   } else if (Math.abs(playerDy) > 0.06) {
     desiredDir = playerDy > 0 ? 'down' : 'up';
-    this.lastDirection = desiredDir;
   }
 }
 

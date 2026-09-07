@@ -421,13 +421,11 @@ class BattleScene extends Phaser.Scene {
       ['ataque', E.ataque || 0]
     ];
     let pedidos = 0;
-    const claves = [];          // lo que tiene que existir cuando esto acabe
     poses.forEach(([pose, n]) => {
       // La mascota no tiene poses: sus cuatro run_ valen de todo.
       const realPose = (E.via === 'mascota') ? 'quieto' : pose;
       if (!n) return;
       this._rutasEspecie(id, realPose, n).forEach(([clave, ruta]) => {
-        claves.push(clave);
         if (this.textures.exists(clave)) return;
         this.load.image(clave, ruta);
         pedidos++;
@@ -439,54 +437,22 @@ class BattleScene extends Phaser.Scene {
       return Promise.resolve(true);
     }
 
-    /* SE ESPERA MIRANDO LAS TEXTURAS, NO UN EVENTO DEL CARGADOR.
-
-       FALLO QUE ESTO ARREGLA — "entro a batalla y estoy peleando con alguien
-       invisible":
-
-       aqui se hacia `this.load.once('complete', …)` + `this.load.start()`. Dos
-       problemas, y bastaba con uno:
-
-         · `load.start()` SE IGNORA si el cargador ya esta en marcha. Y en una
-           batalla se llama a esto DOS veces casi a la vez (tu especie y la del
-           rival, al emparejar), asi que la segunda tanda se quedaba encolada y
-           sin arrancar. Este mismo fichero ya avisa del problema en su
-           preload… y aqui volvia a caer en el.
-         · el 'complete' de la PRIMERA tanda resolvia tambien la promesa de la
-           segunda, que daba por buenas unas texturas que no existian.
-
-       Resultado: `_framesDe` devolvia una lista vacia, `vestirLuchador` no
-       encontraba textura y escondia al luchador. Rival invisible.
-
-       Ahora se comprueba lo unico que importa —que las texturas existan— y se
-       reintenta arrancar el cargador cada vez que se para. Con `setTimeout`,
-       no con el reloj de la escena: ese se para si la escena se pausa. */
     return new Promise((resolve) => {
-      const t0 = Date.now();
-      const TOPE = 6000;
-      const marcar = () => { (this._especiesListas || (this._especiesListas = {}))[id] = true; };
-
-      const revisar = () => {
-        // ¿Ya estan todas?
-        if (claves.every((k) => this.textures.exists(k))) { marcar(); resolve(true); return; }
-
-        // Tope de tiempo: si un PNG falta de verdad, se sigue con lo que haya
-        // en vez de dejar la batalla sin luchadores para siempre.
-        if (Date.now() - t0 > TOPE) {
-          console.warn('⚠️ La especie "' + id + '" no cargo entera en ' + TOPE + ' ms; ' +
-                       'faltan: ' + claves.filter((k) => !this.textures.exists(k)).join(', '));
-          marcar();
-          resolve(false);
-          return;
-        }
-
-        // start() no hace nada si ya esta cargando; en cuanto para, arranca la
-        // tanda que se habia quedado esperando.
-        if (!this.load.isLoading()) { try { this.load.start(); } catch (e) {} }
-        setTimeout(revisar, 80);
+      /* Un tope de tiempo, siempre. Si un PNG falta —una especie nueva en el
+         servidor y el archivo sin subir— la promesa no puede quedarse colgada
+         para siempre: la batalla se quedaría sin luchadores. Al cabo de tres
+         segundos se sigue con lo que haya cargado. */
+      const corte = this.time.delayedCall(3000, () => {
+        this.load.off('complete', fin);
+        resolve(false);
+      });
+      const fin = () => {
+        corte.remove();
+        (this._especiesListas || (this._especiesListas = {}))[id] = true;
+        resolve(true);
       };
-
-      revisar();
+      this.load.once('complete', fin);
+      this.load.start();
     });
   }
 
@@ -515,35 +481,12 @@ class BattleScene extends Phaser.Scene {
     const id = BattleScene.ESPECIES[especie] ? especie : 'perro';
     L.especie = id;
 
-    /* UN LUCHADOR NUNCA SE QUEDA INVISIBLE.
-
-       El respaldo era 'perro_derecha_1', que es una textura de GameScene: si se
-       entra a la batalla con el mapa ya descargado (o tras una limpieza de
-       memoria), no existe — y entonces esto escondia al luchador. Peleabas
-       contra un hueco.
-
-       El orden ahora es: los fotogramas de su especie; si no, el perro que
-       carga ESTA escena en su propio preload; si no, el del mapa; y si no
-       hubiera ninguno, un rectangulo de color, que al menos se ve y se puede
-       apuntar. */
     const quietos = this._framesDe(id, 'quieto');
-    const candidatas = [quietos[0], 'bfp_perro_quieto_1', 'perro_derecha_1'];
-    const clave = candidatas.find((k) => k && this.textures.exists(k));
-
-    if (!clave) {
-      console.warn('⚠️ Sin ninguna textura para el luchador (' + especie + '): se dibuja un bloque.');
-      L.spr.setVisible(true);
-      L.spr.setTexture('__bf_bloque__');
-      if (!this.textures.exists('__bf_bloque__')) {
-        const g = this.make.graphics({ add: false });
-        g.fillStyle(miraIzquierda ? 0xf87171 : 0x4ade80, 1);
-        g.fillRect(0, 0, 48, 48);
-        g.generateTexture('__bf_bloque__', 48, 48);
-        g.destroy();
-        L.spr.setTexture('__bf_bloque__');
-      }
-      L.escala = 2;
-      L.spr.setScale(2);
+    const clave = quietos[0] || 'perro_derecha_1';
+    if (!this.textures.exists(clave)) {
+      // Ni la especie ni el perro del mapa: se deja un bloque de color, que es
+      // lo que hacía antes, en vez de romper la escena.
+      L.spr.setVisible(false);
       return;
     }
     L.spr.setVisible(true);
