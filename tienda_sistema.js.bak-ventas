@@ -21,23 +21,6 @@ class TiendaSistema {
         return this.scene?.STATE;
     }
 
-    /* EL CATALOGO DE OBJETOS ES EL DE LA ESCENA, NO UNA TERCERA COPIA.
-
-       FALLO QUE ESTO ARREGLA — "no puedo vender fresa_buena":
-
-       habia TRES ItemDefinitions (GameScene, tiendajuego y esta), y la de la
-       tienda se habia quedado con 37 de los 44 objetos. Le faltaban carbon,
-       fresa_buena, fresa_corta, fresa_mala, pocion_mascota,
-       pocion_mascota_grande y elixir_revivir. Y de aqui salen el tipo on-chain
-       y el maxStack con los que se quita un objeto al venderlo: sin ficha, la
-       tienda no sabe ni como se llama esa fresa en la cadena.
-
-       Ahora se lee la de la escena, que es la que usa el juego entero, con la
-       copia local solo de respaldo. Una verdad, no tres. */
-    get ItemDefinitions() {
-        return this.scene?.ItemDefinitions || this._ItemDefinitionsRespaldo;
-    }
-
     // FIX: getter playerName para que _owner en createInvoice no sea null.
     // TiendaSistema nunca asignaba this.playerName, así que el contrato recibía
     // args=["hacha de madera","1","manualId"] (3 args) en vez de 4 → "no matching fragment"
@@ -64,28 +47,6 @@ class TiendaSistema {
     }
     rebuildPlayerInventoryFromState() {
         if (typeof this.scene?.rebuildPlayerInventoryFromState === 'function') return this.scene.rebuildPlayerInventoryFromState();
-    }
-
-    /* GUARDAR EN EL SERVIDOR. FALTABA, Y POR ESO LO VENDIDO VOLVIA.
-
-       FALLO QUE ESTO ARREGLA — "vendo 5 zanahorias, me dice que las vendio, y
-       al salir del mapa las sigo teniendo":
-
-       EliitemWithCheck termina con `if (typeof this.savegg === 'function')
-       await this.savegg();`. Pero `savegg` esta definida en la ESCENA
-       (tiendajuego), no en TiendaSistema — y ahi `this` es TiendaSistema. La
-       comprobacion daba false, el `if` se saltaba entero y NADIE guardaba: el
-       inventario cambiaba en pantalla, se cobraba el dinero, y al recargar el
-       mapa volvia el que tenia el servidor, con las zanahorias dentro.
-
-       Era mudo por partida doble: el `typeof` disfrazaba de "opcional" algo que
-       no lo es, asi que no salia ni un aviso en consola. Ahora se delega, y si
-       algun dia tampoco existe en la escena se dice a gritos. */
-    async savegg() {
-        if (typeof this.scene?.savegg === 'function') return this.scene.savegg();
-        console.error('❌ savegg no existe ni en TiendaSistema ni en la escena: ' +
-                      'lo que acabas de hacer NO se ha guardado en el servidor.');
-        return false;
     }
 
     constructor(scene) {
@@ -176,10 +137,8 @@ class TiendaSistema {
 
 
 
-        /* RESPALDO, NO LA VERDAD. Ver el getter `ItemDefinitions` de arriba:
-           el catalogo bueno es el de la escena. Esta copia solo se usa si la
-           tienda se instanciara sin escena, que hoy no pasa. */
-        this._ItemDefinitionsRespaldo = {
+                // Carácter global de las definiciones de ítems
+        this.ItemDefinitions = {
           Semillax: { src: "./Game/Objetos/Plantas/planta_zanahorias/item_saco.png", maxStack: 50, tipo: "bolsa zanahorias", usos: null },
           Semillax1: { src: "./Game/Objetos/Plantas/planta_tomates/semillas_tomate.png", maxStack: 50 , tipo: "bolsa de tomates", usos: null},
           
@@ -420,55 +379,6 @@ class TiendaSistema {
                     comision: 2,
                     limiteDiario: 0,
                     descripcion: 'Juicy tomato, perfect for salads. Restores 5% food.'
-                },
-                /* LAS TRES COSECHAS QUE FALTABAN.
-                 *
-                 * "no puedo vender fresa_buena": el trigo, la calabaza y la
-                 * fresa se pueden plantar, regar, cosechar y comer, pero no
-                 * estaban en el catalogo de la tienda — asi que no habia forma
-                 * de venderlas. Solo estaban la zanahoria y el tomate.
-                 *
-                 * PRECIOS: no me los he inventado sueltos. Los dos que ya
-                 * habia valen 2,85 veces su semilla (semilla 5 -> zanahoria 14;
-                 * semilla 7 -> tomate 20). Se mantiene esa proporcion con el
-                 * precio de cada semilla: trigo 3, fresa 10, calabaza 12. La
-                 * compra queda, como en los otros dos, un 40% por encima de la
-                 * venta. Si quieres otros numeros, se cambian aqui y ya. */
-                {
-                    id: 'trigo_buena',
-                    name: 'Fresh Wheat',
-                    image: './Game/Objetos/Plantas/planta_trigo/item_trigo_bueno.png',
-                    buyPrice: 13,
-                    sellPrice: 9,
-                    currency: 'silver',
-                    categoria: 'alimentos',
-                    comision: 2,
-                    limiteDiario: 0,
-                    descripcion: 'Golden wheat, just harvested. Restores 5% food.'
-                },
-                {
-                    id: 'fresa_buena',
-                    name: 'Fresh Strawberry',
-                    image: './Game/Objetos/Plantas/planta_fresa/item_fresa_buena.png',
-                    buyPrice: 40,
-                    sellPrice: 28,
-                    currency: 'silver',
-                    categoria: 'alimentos',
-                    comision: 2,
-                    limiteDiario: 0,
-                    descripcion: 'Sweet ripe strawberry. Restores 5% food.'
-                },
-                {
-                    id: 'calabaza_buena',
-                    name: 'Fresh Pumpkin',
-                    image: './Game/Objetos/Plantas/planta_calabaza/item_calabaza_buena.png',
-                    buyPrice: 48,
-                    sellPrice: 34,
-                    currency: 'silver',
-                    categoria: 'alimentos',
-                    comision: 2,
-                    limiteDiario: 0,
-                    descripcion: 'A big ripe pumpkin. Restores 5% food.'
                 },
                 {
                     id: 'balde_con_agua',
@@ -2125,22 +2035,26 @@ class TiendaSistema {
     }
 
     // Tabla de seguimiento on-chain por producto: itemId → [ruta_tabla, límite de stack]
-    /**
-     * [tipoOnChain, maxStack] de un item, sacado de ItemDefinitions.
-     *
-     * FALLO QUE ESTO ARREGLA: aqui habia una lista escrita a mano con 12
-     * entradas, y el catalogo de la tienda no tiene por que caber en ella. Un
-     * item que se pusiera a la venta sin acordarse de añadirlo aqui se vendia
-     * "a ciegas": se cobraba y no se quitaba nada. Y los tipos estaban
-     * duplicados, asi que una errata de una letra rompia la venta en silencio.
-     *
-     * ItemDefinitions ya tiene el tipo y el maxStack de cada objeto, y es lo
-     * que usan CraftingHub y el resto del juego. Con esto hay una sola verdad.
-     */
     _getOnchainTableFor(itemId) {
-        const def = this.ItemDefinitions?.[itemId];
-        if (!def || !def.tipo) return null;
-        return [def.tipo, Number(def.maxStack) || 1];
+        const T = {
+            // semillas
+            Semillax:  ['bolsa zanahorias', 50],
+            Semillax1: ['bolsa de tomates', 50],
+            Semillax2: ['bolsa de trigo', 50],
+            Semillax3: ['bolsa de calabazas', 50],
+            Semillax4: ['bolsa_de_fresas', 50],
+            // herramientas
+            Regaderax: ['Regaderax', 1],
+            Tijerasx:  ['Tijerasx', 1],
+            hacha_de_madera: ['hacha de madera', 5],
+            pico_de_madera:  ['pico de madera', 5],
+            // comidas
+            tomate_buena:    ['tomate_buena', 20],
+            zanahoria_buena: ['zanahoria_buena', 20],
+            // pote con agua
+            balde_con_agua:  ['balde_con_agua', 5]
+        };
+        return T[itemId] || null;
     }
 
     // Encola la parte blockchain de una compra. Las compras se procesan en
@@ -2960,14 +2874,7 @@ async verificarRompimiento(itemRef) {
       this.notifications.show(`Your ${itemRef.id} broke!`, 'error');
 
       // ── Quitar 1 del stack en blockchain + local ──
-      /* EL TIPO ON-CHAIN, NO LA PALABRA 'slots'. Ese argumento acaba en
-         `quitarDeFactura({ tipo })`, que lo compara con el tipo de la factura
-         para no quemar la equivocada. Con 'slots' la comparacion fallaba
-         siempre y la respuesta era "esa factura ya no estaba": la herramienta
-         rota desaparecia de la pantalla pero seguia entera en la cadena.
-         Mismo fallo que tenia la venta de la tienda. */
-      const tipoOnchain = (toolDef && toolDef.tipo) || itemRef.id;
-      await this.ejecutarDivisionRemove.call(this, tipoOnchain, itemRef.id, toolDef.maxStack || 5, 1);
+      await this.ejecutarDivisionRemove.call(this, 'slots', itemRef.id, toolDef.maxStack || 5, 1);
 
       // ── Borrar el registro de usos para que las unidades restantes del stack empiecen frescos ──
       try {
@@ -3734,18 +3641,13 @@ async EliitemWithCheck(itemId, amountToRemove = 1, invoiceIdx = null, manualId =
     this.queuedAction && this.queuedAction({ type: 'forSpam2' });
     this.rebuildPlayerInventoryFromState && this.rebuildPlayerInventoryFromState();
 
-    /* GUARDAR NO ES OPCIONAL: es lo que hace que el cambio exista.
-       El `typeof` de antes convertia un fallo grave —no hay a quien pedirle el
-       guardado— en un silencio. Ahora se intenta siempre y se grita si falla:
-       si esto no ocurre, el objeto reaparece en cuanto se recarga el mapa. */
-    try {
-      await this.savegg();
-    } catch (e) {
-      console.error('❌ savegg fallo al guardar la eliminacion de ' + itemId + ':', e);
-      this.showNotification?.(
-        '⚠️ The change could not be saved. Check your connection before trading again.',
-        'error'
-      );
+    // Guardar en backend si tienes función savegg (opcional pero recomendado)
+    if (typeof this.savegg === 'function') {
+      try {
+        await this.savegg();
+      } catch (e) {
+        console.warn('⚠️ savegg falló (no crítico):', e);
+      }
     }
   } catch (e) {
     console.error('⚠️ Error actualizando UI/state tras EliitemWithCheck:', e);
@@ -4069,46 +3971,20 @@ renderSlot(index) {
         // (comparando el inventario antes y después) y solo se paga por esas.
         const cantidadAntes = this.getItemCountInInventory(item.id);
 
-        /* EL PRIMER ARGUMENTO ES EL TIPO ON-CHAIN, NO LA PALABRA 'slots'.
-
-           ESTE ERA EL FALLO GORDO DE LA VENTA. Ese argumento acaba en
-           `quitarDeFactura({ tipo })`, que lo compara con el tipo de la factura
-           del contrato para asegurarse de que no quema la factura equivocada.
-           Como aqui iba el literal 'slots', la comparacion
-           `f.tipo === 'slots'` fallaba SIEMPRE, y la funcion contestaba
-           `{ ok:true, ya:true, motivo:'ese id es de otro objeto' }` — o sea
-           "esa factura ya no estaba".
-
-           Y el cliente se lo creia: "cuadraba" el inventario borrando las
-           zanahorias EN LOCAL, sin tocar la cadena. Resultado: te pagaban, el
-           objeto desaparecia de la pantalla, en la cadena seguia intacto, y al
-           volver al mapa reaparecia. Dinero de la nada.
-
-           El tipo bueno esta en ItemDefinitions (es lo que usa CraftingHub). */
         const tabla = this._getOnchainTableFor(item.id);
-
-        /* SIN TIPO ON-CHAIN NO SE VENDE. Antes, un item sin tabla se daba por
-           vendido a ciegas (`vendidas = quantity`): se pagaba y no se quitaba
-           nada de ningun sitio. Con el catalogo actual no pasa, pero bastaba
-           con poner a la venta un mineral para regalar dinero. */
-        if (!tabla) {
-            this.showNotification?.(
-                `⚠️ ${item.name} cannot be sold yet: it has no on-chain record.`,
-                'error'
-            );
-            console.error(`❌ Venta cancelada: ${item.id} no tiene tipo on-chain (ItemDefinitions).`);
-            return;
-        }
-
-        const [tipoOnchain, limite] = tabla;
-        try {
-            await this.ejecutarDivisionRemove.call(this, tipoOnchain, item.id, limite, quantity);
-        } catch (err) {
-            console.error(`❌ Error quitando ${item.id} en la venta:`, err);
+        if (tabla) {
+            const [, limite] = tabla;
+            try {
+                await this.ejecutarDivisionRemove.call(this, 'slots', item.id, limite, quantity);
+            } catch (err) {
+                console.error(`❌ Error quitando ${item.id} en la venta:`, err);
+            }
         }
 
         const cantidadDespues = this.getItemCountInInventory(item.id);
-        const vendidas = Math.max(0, cantidadAntes - cantidadDespues);
+        const vendidas = tabla
+            ? Math.max(0, cantidadAntes - cantidadDespues)
+            : quantity; // ítem sin representación on-chain: se confía en la cantidad pedida
 
         if (vendidas <= 0) {
             this.showNotification?.(

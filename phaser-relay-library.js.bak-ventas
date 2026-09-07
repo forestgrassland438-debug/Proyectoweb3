@@ -1152,41 +1152,11 @@
 
       // 3) Ya no está: no es un error, es que ya se quitó.
       if (!suya(f)) {
-        /* CUIDADO CON LO QUE SE LLAMA "YA NO ESTABA".
-
-           `ya: true` significa para quien llama: "eso ya se gastó, cuadra tu
-           inventario" — y el cliente BORRA el objeto de la pantalla. Solo puede
-           decirse cuando de verdad no queda factura que gastar.
-
-           FALLO QUE ESTO ARREGLA — "vendo 5 zanahorias, me las paga, y al
-           salir del mapa las sigo teniendo": si el tipo pedido no cuadra con el
-           de la factura, NO sabemos que se haya gastado nada; lo que sabemos es
-           que estamos mirando la factura equivocada. Devolver `ya: true` ahí
-           hacía que el cliente borrase el objeto en local mientras en la cadena
-           seguía intacto — y encima cobraba la venta. Dinero de la nada.
-
-           Un tipo que no cuadra es un ERROR: el jugador conserva su objeto y no
-           se le paga nada. Lo mismo si la factura es de otro jugador, que
-           tampoco es "ya gastada". */
-        if (f && f.activa) {
-          if (tipoPedido && f.tipo && f.tipo !== tipoPedido) {
-            return {
-              ok: false, ya: false, id: Number(idx) || 0,
-              error: 'ese id es de otro objeto (' + f.tipo + '), no de ' + tipoPedido
-            };
-          }
-          if (yo && f.owner && f.owner !== yo) {
-            return {
-              ok: false, ya: false, id: Number(idx) || 0,
-              error: 'la factura es de otro jugador'
-            };
-          }
-        }
-
-        // Aquí sí: no hay factura, o está cerrada. Eso es "ya se gastó".
-        const motivo = (f && !f.activa)
-          ? 'la factura ya estaba cerrada'
-          : 'la factura ya no existe en la cadena';
+        let motivo = 'la factura ya no existe en la cadena';
+        if (f && !f.activa)                             motivo = 'la factura ya estaba cerrada';
+        else if (f && tipoPedido && f.tipo && f.tipo !== tipoPedido)
+                                                        motivo = 'ese id es de otro objeto (' + f.tipo + ')';
+        else if (f)                                     motivo = 'la factura es de otro jugador';
         return { ok: true, ya: true, id: Number(idx) || 0, motivo: motivo };
       }
 
