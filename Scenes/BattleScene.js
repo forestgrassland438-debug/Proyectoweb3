@@ -172,8 +172,11 @@ class BattleScene extends Phaser.Scene {
       return;
     }
 
-    // GameScene desconecta este mismo socket global al salir del mapa
-    // (cleanupScene → socket.disconnect), así que aquí suele llegar caído.
+    // Lo normal ahora es que llegue CONECTADO: ni GameScene ni la tienda tiran
+    // el socket global al salir (antes sí, y era el origen de que el chat no
+    // volviera nunca tras un combate). La rama de abajo se conserva igual como
+    // red de seguridad: entrar al combate en mitad de un corte de red sigue
+    // siendo posible.
     if (this.socket.connected) {
       this.arrancarBusqueda();
     } else {
@@ -1937,11 +1940,19 @@ class BattleScene extends Phaser.Scene {
         // desconectar, esto es el aviso limpio y llega antes.)
         if (this.socket.connected) this.socket.emit('battle:leave');
 
-        // Se deja el socket como lo deja la tienda al salir del mapa:
-        // desconectado. Así GameScene.initSocket() crea uno nuevo con todos sus
-        // manejadores globales (cleanupScene ya le hizo removeAllListeners).
-        this.socket.removeAllListeners();
-        this.socket.disconnect();
+        // EL SOCKET NO SE TOCA MÁS. Arriba ya se han quitado los oyentes de
+        // ESTA escena, uno a uno, que es todo lo que le corresponde hacer.
+        //
+        // Aquí había un `removeAllListeners()` + `disconnect()`. El comentario
+        // decía "se deja como lo deja la tienda: desconectado, así GameScene
+        // crea uno nuevo" — y esa costumbre era justo el fallo: `globalSocket`
+        // es UNO por pestaña y lo comparten mapa, tienda y combate. Al borrarle
+        // todos los oyentes se llevaba por delante los globales ('connect',
+        // 'rejoinRequired'), y el socket se quedaba sordo: se reconectaba y
+        // nadie rehacía el joinRoom. Volvías del combate conectado pero fuera
+        // de la sala — sin chat y sin ver a nadie, mientras los demás sí te
+        // veían a ti. Ahora la conexión sobrevive al combate y al volver al
+        // mapa no hay que rehacer nada.
       }
     } catch (e) { /* sin ruido al salir */ }
 

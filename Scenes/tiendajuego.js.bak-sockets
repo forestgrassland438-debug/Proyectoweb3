@@ -3132,32 +3132,8 @@ handleMouseMovement(delta) {
     initSocket() {
       console.log("🔄 Inicializando socket para tienda...");
       
-      /* SE REUTILIZA EL SOCKET. NO SE TIRA POR ESTAR DESCONECTADO UN INSTANTE.
-
-         FALLO QUE ESTO ARREGLA — "se desconecta y no vuelve; dejo de ver a mis
-         amigos aunque ellos se vean entre ellos":
-
-         la condición era `!window.globalSocket.connected`. Pero un socket que
-         está RECONECTANDO tiene connected=false durante varios segundos, y
-         justo entonces es cuando el juego cambia de escena. Así que se creaba
-         un socket NUEVO y se abandonaba el anterior… que NO estaba muerto:
-         seguía con sus reintentos infinitos y su vigilante resucitándolo.
-
-         Cada cambio de escena durante un corte dejaba otro zombi:
-           · todos conectados al servidor, ninguno en tu sala;
-           · el servidor cuenta sockets para repartir canales, así que tus
-             propios zombis llenaban el canal y a tus amigos les asignaba otro
-             distinto — por eso dejabais de veros;
-           · y gastaban red y batería el resto de la partida.
-
-         Ahora solo se crea uno si NO hay ninguno o el que hay está muerto de
-         verdad: ni conectado (`connected`) ni intentándolo (`active`). Y en ese
-         caso al viejo se le entierra bien, con su vigilante y sus oyentes. */
-      var _sockActual = window.globalSocket;
-      var _sirve = !!_sockActual && (_sockActual.connected === true || _sockActual.active === true);
-
-      if (!_sirve) {
-        if (_sockActual) this._enterrarSocket(_sockActual);
+      // Usar socket global si existe, sino crear uno
+      if (!window.globalSocket || !window.globalSocket.connected) {
         console.log("🌐 Creando nueva conexión socket global");
         
         const SERVER = this.serverclient1;
@@ -3181,22 +3157,7 @@ handleMouseMovement(delta) {
           randomizationFactor: 0.5,
           timeout: 20000,
           autoConnect: true,
-          forceNew: false,
-          /* EL CANAL VIAJA EN EL SALUDO PARA RECUPERARLO AL RECONECTAR.
-
-             El servidor reparte canal en cada conexión, y una reconexión es una
-             conexión nueva: al volver te podía meter en otro canal —otro mundo
-             paralelo— sin avisar, y ahí no está nadie de tu grupo. Mandándole
-             el que ya tenías, te devuelve ese mismo si queda sitio.
-
-             Es una FUNCIÓN a propósito: Socket.IO la llama antes de cada
-             intento, así que siempre manda el valor de ahora y no uno viejo
-             congelado en el momento de crear el socket. */
-          auth: function (cb) {
-            var c = 0;
-            try { c = Number(window.__gfCanalActual) || 0; } catch (e) {}
-            cb({ canal: c });
-          }
+          forceNew: false
         });
         
         // Configurar eventos globales del socket
@@ -3237,34 +3198,10 @@ handleMouseMovement(delta) {
     }
 
     setupGlobalSocketEvents(socket) {
-      /* "UNA SOLA VEZ" NO PUEDE SER UNA BANDERA A SECAS.
-
-         FALLO QUE ESTO ARREGLA: la comprobación era `if (socket._globalEventsSet)
-         return;`. Si algo borraba los oyentes del socket —y el cierre de escena
-         lo hacía con `socket.off()`— la bandera seguía en true y estos oyentes
-         no volvían a ponerse jamás. El socket quedaba sordo a 'connect' y por
-         tanto sin rejoin: conectado, pero fuera de la sala para siempre.
-
-         Ahora se comprueba lo que importa de verdad: si NUESTRO manejador de
-         'connect' sigue enganchado. Si no está, se vuelve a montar todo. */
-      if (socket._gfAlConectar &&
-          socket.listeners('connect').indexOf(socket._gfAlConectar) >= 0) return;
-
-      /* Restos de una instalacion anterior: se quitan UNO A UNO, por
-         referencia. Un `socket.off('connect')` a secas se llevaria por delante
-         el de gf-canales.js, que tambien escucha ahi para pedir su canal. */
-      if (socket._gfGlobales) {
-        socket._gfGlobales.forEach(function (par) {
-          try { socket.off(par[0], par[1]); } catch (e) {}
-        });
-      }
-      socket._gfGlobales = [];
-      var poner = function (ev, fn) {
-        socket.on(ev, fn);
-        socket._gfGlobales.push([ev, fn]);
-      };
-
-      socket._gfAlConectar = () => {
+      // Solo configurar una vez
+      if (socket._globalEventsSet) return;
+      
+      socket.on('connect', () => {
         var esReconexion = socket._huboConexion === true;
         socket._huboConexion = true;
         console.log((esReconexion ? '🔁 Socket global RECONECTADO: '
@@ -3286,25 +3223,20 @@ handleMouseMovement(delta) {
            pueda la salda; y si nadie puede ahora, la salda la siguiente escena
            al montarse (initSocket la mira). */
         socket._necesitaJoin = true;
-        /* El id cambia en cada conexión. Si `myId` se queda con el viejo, la
-           comprobación "este soy yo" deja de valer y te puedes ver a ti mismo
-           como si fueras otro jugador. */
         var esc = window.activeScene;
-        try { if (esc) esc.myId = socket.id; } catch (e) {}
         if (esc && esc.onSocketReconnect) esc.onSocketReconnect(esReconexion);
-      };
-      poner('connect', socket._gfAlConectar);
+      });
 
       /* El servidor avisa de que este socket no está en ninguna sala. Lo manda
          cuando llega un chat o un movimiento de alguien a quien no reconoce, que
          es exactamente lo que pasa tras una reconexión mal saldada. */
-      poner('rejoinRequired', () => {
+      socket.on('rejoinRequired', () => {
         socket._necesitaJoin = true;
         var esc = window.activeScene;
         if (esc && esc.rehacerJoin) esc.rehacerJoin('el servidor lo pide');
       });
 
-      poner('disconnect', (reason) => {
+      socket.on('disconnect', (reason) => {
         console.log('❌ Socket global desconectado:', reason);
         var esc = window.activeScene;
         if (esc && esc.onSocketDisconnect) esc.onSocketDisconnect(reason);
@@ -3314,37 +3246,19 @@ handleMouseMovement(delta) {
         }
       });
 
-      poner('connect_error', (error) => {
+      socket.on('connect_error', (error) => {
         console.warn('🔌 Error de conexion socket:', error && error.message);
       });
 
       // Vigilante: levanta el socket si se queda parado (volver de suspension,
       // recuperar la red). Igual que en GameScene.
-      /* EL VIGILANTE ES DE LA PÁGINA, NO DE UN SOCKET CONCRETO.
-
-         FUGA QUE ESTO ARREGLA: se creaba un setInterval y DOS oyentes de
-         `document`/`window` por cada socket, y no se quitaban nunca. Con la
-         costumbre de tirar y recrear el socket en cada cambio de escena, cada
-         viaje al mapa o a la tienda dejaba otro vigilante vivo… resucitando su
-         socket zombi cada cinco segundos. Esos zombis seguían conectados al
-         servidor y ocupaban plaza en el canal (el servidor cuenta sockets), así
-         que tus propias conexiones muertas llenaban el canal 1 y a tus amigos
-         les tocaba otro: dejabais de veros sin motivo aparente.
-
-         Ahora hay UNO solo por pestaña y mira `window.globalSocket` en el
-         momento, así que siempre levanta el bueno y nunca a un difunto. */
-      if (!window.__gfVigilanciaSocket) {
-        window.__gfVigilanciaSocket = true;
+      if (!socket._vigilante) {
         var levantar = function () {
           try {
-            var s = window.globalSocket;
-            if (s && s.disconnected && s.active !== true) {
-              console.log('🩺 socket parado: levantandolo a mano');
-              s.connect();
-            }
+            if (socket.disconnected && socket.active !== true) socket.connect();
           } catch (e) {}
         };
-        window.__gfVigilanteTimer = setInterval(levantar, 5000);
+        socket._vigilante = setInterval(levantar, 5000);
         document.addEventListener('visibilitychange', function () {
           if (!document.hidden) levantar();
         });
@@ -3352,23 +3266,6 @@ handleMouseMovement(delta) {
       }
       
       socket._globalEventsSet = true;
-    }
-
-    /**
-     * Entierra un socket que ya no sirve, de verdad.
-     *
-     * No basta con `disconnect()`: el vigilante viejo (uno por socket, antes de
-     * este arreglo) lo resucitaba a los cinco segundos, y sus oyentes seguían
-     * reteniendo la escena entera en memoria. Se apaga el vigilante, se le
-     * quitan los oyentes y se cierra sin reintentos.
-     */
-    _enterrarSocket(sock) {
-      if (!sock) return;
-      console.log('⚰️ Enterrando socket viejo:', sock.id || '(sin id)');
-      try { if (sock._vigilante) { clearInterval(sock._vigilante); sock._vigilante = null; } } catch (e) {}
-      try { sock.removeAllListeners(); } catch (e) {}
-      try { sock._gfAlConectar = null; sock._gfGlobales = null; sock._globalEventsSet = false; } catch (e) {}
-      try { sock.close(); } catch (e) { try { sock.disconnect(); } catch (e2) {} }
     }
 
     setupSceneSocketListeners() {
@@ -3519,26 +3416,8 @@ handleMouseMovement(delta) {
     }
 
     joinRoom(roomName) {
-      if (!this.socket) {
-        console.warn('⚠️ No hay socket, no se puede unir a sala');
-        return;
-      }
-
-      /* SIN CONEXIÓN TODAVÍA: SE APUNTA, NO SE TIRA.
-
-         FALLO QUE ESTO ARREGLA: initSocket() crea el socket y llama a joinRoom
-         en la línea siguiente, pero conectar tarda un momento — así que en el
-         arranque `connected` es false y el join se perdía en un console.warn.
-         Lo mismo cada vez que se pedía entrar durante un corte de red. Quedaba
-         apuntado en ningún sitio y el jugador se quedaba fuera de la sala hasta
-         que otra cosa, por casualidad, volviera a intentarlo.
-
-         Ahora la deuda se apunta en el socket, que es lo que sobrevive, y la
-         salda el manejador de 'connect' en cuanto haya línea. */
-      if (!this.socket.connected) {
-        console.log('⏸️ Socket aún sin conexión: join a "' + roomName + '" apuntado para cuando la haya');
-        this.socket._salaPendiente = roomName;
-        this.socket._necesitaJoin = true;
+      if (!this.socket || !this.socket.connected) {
+        console.warn('⚠️ Socket no conectado, no se puede unir a sala');
         return;
       }
       
@@ -3552,10 +3431,6 @@ handleMouseMovement(delta) {
       this.currentRoom = roomName;
       // Deuda saldada: el servidor ya sabe en qué sala está este socket.
       this.socket._necesitaJoin = false;
-      // Y la sala apuntada tambien: si se quedara puesta, la OTRA escena la
-      // leeria al reconectar y te meteria en la sala equivocada — en el mapa
-      // estando en la tienda, o al reves.
-      this.socket._salaPendiente = null;
       
       console.log(`🚪 Uniéndose a sala: ${roomName}`);
       
@@ -4180,11 +4055,7 @@ removeOtherPlayer(playerId) {
       if (typeof this.clearOtherPlayers === 'function') this.clearOtherPlayers();
       this.lastJoinTime = 0;                  // sin enfriamiento: hay que entrar YA
       this.setupSceneSocketListeners();
-      // La sala apuntada mientras no había línea manda sobre la que recordara
-      // la escena: es la última que se pidió de verdad.
-      var _sala = s._salaPendiente || this.currentRoom || 'tienda';
-      s._salaPendiente = null;
-      this.joinRoom(_sala);
+      this.joinRoom(this.currentRoom || 'tienda');
       s._necesitaJoin = false;
       this._rejoinPendiente = false;
       return true;
@@ -4249,18 +4120,10 @@ removeOtherPlayer(playerId) {
         return;
       }
 
-      /* PRIMERA CONEXIÓN (no es reconexión).
-
-         Antes esto esperaba un segundo y volvía a llamar a initSocket() con la
-         esperanza de que allí saliera el join. Un segundo es mucho —y si la
-         escena se cerraba en ese rato, la llamada se perdía y el jugador se
-         quedaba conectado pero fuera de la sala. Ahora se entra en el momento,
-         y si la escena está dormida se deja apuntado como en los demás casos. */
       if (this.scene.isActive()) {
-        this.rehacerJoin('primera conexion');
-      } else {
-        this._rejoinPendiente = true;
-        this._prepararRejoinAlDespertar();
+        this.time.delayedCall(1000, () => {
+          this.initSocket();
+        });
       }
     }
 
@@ -5011,31 +4874,13 @@ removeOtherPlayer(playerId) {
   // Cleanup
   // -----------------------------
   _onShutdown() {
-    /* EL SOCKET ES DE LA PÁGINA, NO DE ESTA ESCENA. NO SE TOCA.
-
-       ESTE ERA EL FALLO GORDO DE LA RECONEXIÓN — "se cae el chat y ya no
-       vuelve; mis amigos se ven moverse y yo no los veo".
-
-       Aquí había dos líneas demoledoras sobre `window.globalSocket`, que es
-       COMPARTIDO por el mapa, la tienda y el combate:
-
-         · `socket.off()`  — sin argumentos borra TODOS los oyentes del socket,
-           incluidos los globales ('connect', 'disconnect', 'rejoinRequired')
-           que pone setupGlobalSocketEvents. Y como la bandera
-           `_globalEventsSet` seguía en true, no se volvían a poner NUNCA. A
-           partir de ahí el socket se quedaba sordo: podía reconectarse mil
-           veces, pero ya nadie se enteraba, así que nadie rehacía el joinRoom.
-           Conectado y fuera de la sala = ni chat, ni jugadores, para siempre.
-
-         · `socket.disconnect()` — tiraba la conexión de todos, y encima el
-           vigilante de 5 s la resucitaba luego sin oyentes.
-
-       Y esto se disparaba en CADA 'shutdown' y 'destroy', o sea en cada viaje
-       al mapa, a la tienda o a un combate.
-
-       Lo correcto es quitar solo lo que puso ESTA escena. La conexión sigue
-       viva para la siguiente, con sus oyentes globales intactos. */
-    try { this.removeSocketListeners(); } catch (e) { /* ignore */ }
+    if (this.socket) {
+      try {
+        this.socket.off(); // remover listeners
+        this.socket.disconnect();
+      } catch (e) { /* ignore */ }
+      this.socket = null;
+    }
   }
 
 

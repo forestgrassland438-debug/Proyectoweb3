@@ -52,7 +52,21 @@
   // aparece y entonces se enlaza UNA sola vez.
   function enlazar() {
     var s = global.globalSocket;
-    if (!s || enlazado) return enlazado;
+    if (!s) return false;
+
+    /* SE COMPRUEBA A CUÁL ESTAMOS ENGANCHADOS, NO UNA BANDERA.
+
+       FALLO QUE ESTO ARREGLA: la condición era `if (!s || enlazado) return`.
+       Bastaba con engancharse una vez y ya no se volvía a mirar. Pero el juego
+       podía sustituir `window.globalSocket` por otro (al recrearlo tras un
+       corte, al cambiar de escena), y desde ese momento este módulo escuchaba
+       a un socket muerto: el panel se quedaba con el canal viejo y el aviso de
+       'canalAsignado' del socket bueno no lo recibía nadie. Es el mismo cuidado
+       que ya tenía gf-clima.js, por el mismo motivo. */
+    if (enlazado && socket === s) return true;
+    if (enlazado && socket !== s) {
+      log('el socket ha cambiado: reenganchando');
+    }
     socket = s;
     enlazado = true;
 
@@ -69,7 +83,7 @@
 
     socket.on('canalesEstado', function (d) {
       if (!d) return;
-      if (d.canal) canal = d.canal;
+      if (d.canal) { canal = d.canal; try { global.__gfCanalActual = canal; } catch (e) {} }
       total   = d.total || total;
       cupo    = d.cupo  || cupo;
       canales = d.canales || canales;
@@ -98,13 +112,38 @@
       pintar();
     });
 
-    // Al reconectar, el servidor asigna canal de nuevo y manda 'canalAsignado'.
+    /* PEDIR EL ESTADO AL CONECTAR, SIN ESPERAR A QUE NOS LO MANDEN.
+
+       CARRERA QUE ESTO ARREGLA: el servidor manda 'canalAsignado' dentro del
+       propio manejador de conexion, o sea en cuanto el socket entra. Pero este
+       modulo se engancha cuando aparece `window.globalSocket`, y lo comprueba
+       con un reloj: si el saludo llega antes de ese enganche, el aviso se
+       pierde y nos quedamos sin saber en que canal estamos — con lo cual el
+       numero que se manda en el siguiente saludo es 0 y el servidor nos vuelve
+       a repartir canal a su aire, que es justo lo que queriamos evitar.
+
+       Preguntando al conectar, el dato llega siempre, y ademas se refresca
+       despues de cada reconexion. */
+    socket.on('connect', function () { try { socket.emit('canalesEstado'); } catch (e) {} });
+    if (socket.connected) { try { socket.emit('canalesEstado'); } catch (e) {} }
+
     log('enlazado al socket');
     return true;
   }
 
-  /** Avisa a quien quiera enterarse (por ejemplo el HUD). */
+  /**
+   * Avisa a quien quiera enterarse (por ejemplo el HUD) y DEJA EL CANAL A MANO
+   * para el saludo del socket.
+   *
+   * Por qué `window.__gfCanalActual`: el servidor reparte canal en cada
+   * conexión, y una reconexion es una conexion nueva — al volver te podia meter
+   * en otro canal, un mundo paralelo donde no esta nadie de tu grupo. Ahora el
+   * socket manda este numero en el handshake (ver initSocket) y el servidor te
+   * devuelve el mismo canal si queda sitio. Sigue sin viajar en `joinRoom`: el
+   * nombre de la sala lo compone el servidor, como siempre.
+   */
   function avisar() {
+    try { global.__gfCanalActual = canal || 0; } catch (e) {}
     try {
       global.dispatchEvent(new CustomEvent('gf-canal-cambiado', { detail: { canal: canal } }));
     } catch (e) {}
@@ -249,9 +288,21 @@
 
   // El socket lo crea la escena, que arranca después que este script. Se vigila
   // hasta que aparezca y luego se deja de insistir.
+  //
+  // El reloj NO se para al primer enganche: sigue comprobando —barato, un
+  // `!==` cada dos segundos— por si el juego sustituyera el socket. Antes se
+  // paraba, y a partir de ahi el modulo se quedaba escuchando al socket viejo.
   var intentos = 0;
   var reloj = setInterval(function () {
-    if (enlazar() || ++intentos > 100) clearInterval(reloj);
+    enlazar();
+    intentos++;
   }, 300);
+
+  // Tras el primer minuto la comprobacion se espacia: ya no hace falta mirar
+  // tres veces por segundo, solo estar atento a un cambio de socket.
+  setTimeout(function () {
+    try { clearInterval(reloj); } catch (e) {}
+    setInterval(enlazar, 2000);
+  }, 60000);
 
 })(window);
