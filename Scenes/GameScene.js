@@ -8332,8 +8332,24 @@ console.log('📊 Tree types:', Object.keys(TREE_TYPE_CONFIG));
 // ─────────────────────────────────────────────────────────────────
 
       
-      // Propiedades del socket
-      this.socket = null;
+      /* EL SOCKET SE ADOPTA YA, NO SE PONE A NULL.
+
+         EL HUECO QUE ESTO CIERRA — "mi amigo se mueve pero el chat dice
+         'Reconnecting…' y no vuelve nunca":
+
+         unas lineas mas abajo se hace `window.activeScene = this` y el
+         initSocket() de verdad se programa con un delayedCall de 500 ms. En ese
+         medio segundo esta escena YA es la activa —o sea, ya le llegan los
+         avisos del socket y ya se puede escribir en el chat— pero `this.socket`
+         estaba a null, asi que todo lo que preguntara por el se creia sin
+         conexion. Y ese delayedCall va en el RELOJ DE LA ESCENA: si algo lo
+         barre (performCleanup hace `time.removeAllEvents()`) o la escena se
+         duerme antes de que salte, no se ejecuta nunca y el hueco deja de ser
+         medio segundo para ser el resto de la partida.
+
+         Adoptando aqui el socket de la pestaña, si ya lo hay, no hay hueco.
+         Los oyentes y el join siguen montandose en initSocket(). */
+      this.socket = window.globalSocket || null;
       this.socketInitialized = false;
       this.socketListeners = [];
       
@@ -16273,6 +16289,12 @@ _setupZoomKeeper() {
                 this.createOtherPlayer(player);
               }
             });
+
+            /* Este evento es la señal de "ya estas dentro de la sala": el
+               servidor solo lo manda al terminar un joinRoom. Es el momento
+               exacto para soltar los mensajes que se escribieron durante un
+               corte — antes de esto los descartaria por no tener sala. */
+            if (typeof this._vaciarColaChat === 'function') this._vaciarColaChat();
           }
         },
         
@@ -16376,7 +16398,11 @@ _setupZoomKeeper() {
         this.socket.on(listener.event, listener.handler);
         this.socketListeners.push({
           event: listener.event,
-          handler: listener.handler
+          handler: listener.handler,
+          // En QUE socket se puso. Sin esto, si el socket se sustituye, el
+          // oyente viejo se queda pegado al anterior y no hay forma de
+          // quitarlo: removeSocketListeners() se lo pedia al socket de ahora.
+          socket: this.socket
         });
       });
       
@@ -16384,13 +16410,95 @@ _setupZoomKeeper() {
     }
 
     removeSocketListeners() {
-      if (!this.socket || !this.socketListeners.length) return;
-      
+      /* La lista se vacia SIEMPRE, aunque no se pueda quitar nada.
+
+         FALLO QUE ESTO ARREGLA: la guarda era `if (!this.socket || …) return;`,
+         asi que cuando la escena se habia quedado sin referencia al socket
+         (performCleanup lo pone a null) la funcion se iba sin tocar la lista.
+         Los apuntes se quedaban dentro, y al volver a montar los oyentes se
+         AÑADIAN encima de los que ya estaban: mensajes de chat duplicados y
+         jugadores creados dos veces. */
+      if (!this.socketListeners || !this.socketListeners.length) {
+        this.socketListeners = [];
+        return;
+      }
+
       this.socketListeners.forEach(listener => {
-        this.socket.off(listener.event, listener.handler);
+        // Del socket en el que se puso, no del que haya ahora.
+        const s = listener.socket || this.socket;
+        try { if (s) s.off(listener.event, listener.handler); } catch (e) {}
       });
-      
+
       this.socketListeners = [];
+    }
+
+    /**
+     * El socket que DE VERDAD esta sirviendo ahora mismo.
+     *
+     * FALLO QUE ESTO ARREGLA — "mi amigo se mueve, yo escribo y siempre sale
+     * 'Reconnecting to the chat…', y no vuelve nunca":
+     *
+     * `this.socket` es la referencia de ESTA escena, y hay rutas que la ponen a
+     * null con la escena todavia viva (performCleanup, cleanupBeforeTransition).
+     * Los oyentes, en cambio, siguen enganchados al socket global — por eso se
+     * seguia viendo a los demas moverse mientras el chat juraba que no habia
+     * conexion. Quien pregunte por aqui recupera el bueno y, de paso, esta
+     * escena vuelve a adoptarlo con sus oyentes.
+     *
+     * Solo readopta si la escena sigue en pie: una escena ya cerrada no debe
+     * volver a engancharse a nada.
+     */
+    _socketVivo() {
+      const g = window.globalSocket;
+
+      let enPie = false;
+      try { enPie = (window.activeScene === this) || (this.scene && this.scene.isActive()); }
+      catch (e) { enPie = false; }
+
+      if (this.socket && this.socket === g) {
+        /* El socket es el bueno, pero sin oyentes. Pasa si el initSocket() que
+           los monta se quedo por el camino: va en un delayedCall del RELOJ DE
+           LA ESCENA, y ese reloj lo barre performCleanup y se para al dormir la
+           escena. Sintoma: chat mudo y ningun jugador a la vista, con la
+           conexion perfectamente viva. */
+        if (enPie && (!this.socketListeners || !this.socketListeners.length)) {
+          console.log('🔗 El socket estaba sin oyentes: montandolos');
+          try { this.setupSceneSocketListeners(); } catch (e) {}
+        }
+        return this.socket;
+      }
+
+      if (!g) return this.socket || null;
+      if (!enPie) return this.socket || g;
+
+      console.log('🔗 La escena habia perdido el socket: readoptando el global');
+      this.socket = g;
+      this.myId = g.id;
+      try { this.setupSceneSocketListeners(); } catch (e) {}
+      return g;
+    }
+
+    /**
+     * Suelta los mensajes que se escribieron mientras no habia linea.
+     *
+     * Se llama al recibir `currentPlayers`, que es la señal de que el servidor
+     * ya nos tiene dentro de la sala — antes de eso los tiraria.
+     */
+    _vaciarColaChat() {
+      if (!this._colaChat || !this._colaChat.length) return;
+      const pendientes = this._colaChat.slice();
+      this._colaChat.length = 0;
+
+      // De uno en uno y espaciados: el servidor descarta los que lleguen a
+      // menos de un segundo del anterior (freno antispam), asi que soltarlos
+      // de golpe perderia todos menos el primero.
+      pendientes.forEach((texto, i) => {
+        setTimeout(() => {
+          const v = this._socketVivo();
+          if (!v || !v.connected) return;
+          v.emit('chatMessage', { usernamex: this.Username || '---', text: texto });
+        }, i * 1100);
+      });
     }
 
     joinRoom(roomName) {
@@ -17621,34 +17729,51 @@ removeOtherPlayer(playerId) {
       text
     };
 
-    /* SI NO HAY CONEXIÓN, SE LEVANTA — NO SE PROTESTA Y YA.
+    /* SE PREGUNTA POR EL SOCKET VIVO, NO POR LA REFERENCIA DE LA ESCENA.
 
-       FALLO QUE ESTO ARREGLA: aquí solo se pintaba "Not connected to the chat
-       server" y se devolvía. Si el motor de reintentos de Socket.IO estaba
-       parado (pasa al volver de suspensión en algunos navegadores), ese mensaje
-       era la única señal y no había nada que reconectara: el jugador veía
-       "servidor no encontrado" para siempre. Ahora se empuja la reconexión
-       desde aquí mismo. */
-    if (!this.socket || !this.socket.connected) {
-      const s = this.socket || window.globalSocket;
+       FALLO QUE ESTO ARREGLA — "mi amigo se mueve, yo escribo y siempre sale
+       'Reconnecting to the chat… your message was not sent', y no vuelve nunca":
+
+       este guardia decidia con `this.socket`, que varias rutas ponen a null con
+       la escena todavia viva. Cuando eso pasaba:
+
+         · `!this.socket` daba verdadero y se pintaba el aviso;
+         · el respaldo cogia `window.globalSocket`… que estaba CONECTADO, asi
+           que `s.disconnected` era false y no se intentaba reconectar NADA;
+         · y el mensaje se tiraba.
+
+       O sea: el mismo texto en cada intento, para siempre, mientras el juego
+       funcionaba perfectamente por ese mismo socket — de ahi que se siguiera
+       viendo a los demas moverse. No habia ninguna reconexion que hacer: solo
+       una referencia perdida.
+
+       Ahora `_socketVivo()` devuelve el que esta sirviendo —y esta escena lo
+       readopta— y si de verdad no hay linea el mensaje se GUARDA y sale solo al
+       volver, en vez de tirarse pidiendo al jugador que lo reescriba. */
+    const s = this._socketVivo();
+
+    if (!s || !s.connected) {
+      this._colaChat = this._colaChat || [];
+      if (this._colaChat.length < 5) this._colaChat.push(text);
       if (s && s.disconnected) { try { s.connect(); } catch (e) {} }
-      this.appendSystemMessage('Reconnecting to the chat… your message was not sent. '
-                               + 'Try again in a moment.');
+      this.appendSystemMessage('No connection. Your message will be sent as soon as it comes back.');
+      if (typeof this._cerrarSelectorEmojis === 'function') this._cerrarSelectorEmojis();
+      this.chatInput.value = '';
       return;
     }
 
     /* CONECTADO PERO FUERA DE LA SALA. También hay que arreglarlo aquí: el
        servidor descartaría el mensaje y el jugador no entendería por qué. */
-    if (this.socket._necesitaJoin) this.rehacerJoin('antes de enviar un chat');
+    if (s._necesitaJoin) this.rehacerJoin('antes de enviar un chat');
 
     // emitir y limpiar input
-    this.socket.emit('chatMessage', payload);
+    s.emit('chatMessage', payload);
     // Al enviar se cierra el selector de emojis, si estaba abierto.
     if (typeof this._cerrarSelectorEmojis === 'function') this._cerrarSelectorEmojis();
     this._isTyping = false;
     clearTimeout(this._typingTimer);
-    if (this.socket && this.socket.connected)
-      this.socket.emit('chatTyping', { typing: false, usernamex: this.Username || '---' });
+    if (s.connected)
+      s.emit('chatTyping', { typing: false, usernamex: this.Username || '---' });
     this._showLocalChatBubble(text);  // Show sent message above own character
     this.chatInput.value = '';
   }
