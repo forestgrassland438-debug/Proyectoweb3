@@ -34,9 +34,10 @@
  *
  * API
  * ---------------------------------------------------------------------------
- *   GFNombreColor.montar(scene)      engancha la tarjeta y aplica el color
- *   GFNombreColor.mio()              '#rrggbb' o null
- *   GFNombreColor.poner(color)       lo cambia y lo guarda
+ *   GFNombreColor.montar(scene)      engancha las tarjetas y aplica los colores
+ *   GFNombreColor.mio()              '#rrggbb' o null (personaje)
+ *   GFNombreColor.mioMascota()       '#rrggbb' o null (mascota)
+ *   GFNombreColor.poner(color, silencioso, 'personaje'|'mascota')
  *   GFNombreColor.valido(color)      '#rrggbb' o null
  *   GFNombreColor.aColorPhaser(c)    '#rrggbb' -> número, para setColor/tint
  *   GFNombreColor.aplicarAlLocal(scene)
@@ -60,8 +61,41 @@
   ];
 
   var miColor = null;
+  var miColorMascota = null;
   var escena = null;
   var socket = null;
+
+  /* LAS DOS TARJETAS SON LA MISMA MÁQUINA.
+     El personaje y la mascota se eligen igual, se guardan igual y se pintan
+     igual: lo único que cambia es qué cartel se tiñe y por qué evento viaja.
+     Con una tabla, añadir el color de un tercer cartel (una montura, un
+     gremio) sería una fila más, no otra copia del módulo. */
+  var QUIEN = {
+    personaje: {
+      prefijo: 'gfnc',
+      evento:  'player:nameColor',
+      campo:   'nameColor',
+      leer:    function () { return miColor; },
+      poner:   function (c) { miColor = c; },
+      aplicar: function (sc) { pintarCartel(sc, 'usuariox', miColor); }
+    },
+    mascota: {
+      prefijo: 'gfnp',
+      evento:  'player:petNameColor',
+      campo:   'petNameColor',
+      leer:    function () { return miColorMascota; },
+      poner:   function (c) { miColorMascota = c; },
+      aplicar: function (sc) { pintarCartel(sc, 'dogNameText', miColorMascota); }
+    }
+  };
+
+  /** Tiñe un cartel de texto de la escena, si existe. */
+  function pintarCartel(scene, propiedad, color) {
+    var sc = scene || escena;
+    var t = sc && sc[propiedad];
+    if (!t || typeof t.setColor !== 'function') return;
+    try { t.setColor(color || POR_DEFECTO); } catch (e) {}
+  }
 
   function valido(c) {
     return (typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c)) ? c.toLowerCase() : null;
@@ -91,8 +125,8 @@
    */
   function aplicarAlLocal(scene) {
     var s = scene || escena;
-    if (!s || !s.usuariox || typeof s.usuariox.setColor !== 'function') return;
-    try { s.usuariox.setColor(miColor || POR_DEFECTO); } catch (e) {}
+    QUIEN.personaje.aplicar(s);
+    QUIEN.mascota.aplicar(s);
   }
 
   /** Pinta el cartel de un jugador remoto. La llaman las escenas. */
@@ -103,13 +137,23 @@
     try { jugador.nameText.setColor(c || POR_DEFECTO); } catch (e) {}
   }
 
+  /** Y el de su mascota. */
+  function aplicarAMascotaRemota(jugador, color) {
+    if (!jugador || !jugador.dog || !jugador.dog.nameText) return;
+    if (typeof jugador.dog.nameText.setColor !== 'function') return;
+    var c = valido(color);
+    jugador._petNameColor = c;
+    try { jugador.dog.nameText.setColor(c || POR_DEFECTO); } catch (e) {}
+  }
+
   // ── Guardar ───────────────────────────────────────────────────────────────
 
-  function poner(color, silencioso) {
+  function poner(color, silencioso, quien) {
+    var q = QUIEN[quien || 'personaje'];
     var c = valido(color);
     // Cadena vacía o null = volver al blanco de siempre.
-    miColor = c;
-    aplicarAlLocal();
+    q.poner(c);
+    q.aplicar();
     pintarTarjeta();
 
     var s = socketVivo();
@@ -117,8 +161,11 @@
       if (!silencioso) avisar('No connection — the colour was not saved.', 'error');
       return false;
     }
-    s.emit('player:nameColor', { color: c || '' });
-    if (!silencioso) avisar(c ? 'Name colour saved.' : 'Name colour reset.', 'success');
+    s.emit(q.evento, { color: c || '' });
+    if (!silencioso) {
+      var quePinta = (quien === 'mascota') ? 'Pet name colour' : 'Name colour';
+      avisar(quePinta + (c ? ' saved.' : ' reset.'), 'success');
+    }
     return true;
   }
 
@@ -134,26 +181,38 @@
 
   // ── La tarjeta del dashboard ──────────────────────────────────────────────
 
+  /** El nombre que se enseña en cada muestra. */
+  function nombreDe(quien) {
+    try {
+      if (quien === 'mascota') {
+        var p = (escena && escena.petName) || global.globalPetName || null;
+        return (p && p !== '---') ? p : 'Your pet';
+      }
+      var n = (escena && escena.Username && escena.Username !== '---') ? escena.Username : null;
+      if (!n && global.GFAmigos && global.GFAmigos.miNombre) n = global.GFAmigos.miNombre();
+      return n || 'Your name';
+    } catch (e) { return quien === 'mascota' ? 'Your pet' : 'Your name'; }
+  }
+
   function pintarTarjeta() {
-    var rejilla = doc.getElementById('gfnc-paleta');
-    if (rejilla) {
-      [].forEach.call(rejilla.children, function (b) {
-        b.classList.toggle('on', (b.getAttribute('data-color') || '').toLowerCase() ===
-                                 (miColor || POR_DEFECTO).toLowerCase());
-      });
-    }
-    var muestra = doc.getElementById('gfnc-muestra');
-    if (muestra) {
-      muestra.style.color = miColor || POR_DEFECTO;
-      var nombre = null;
-      try {
-        nombre = (escena && escena.Username && escena.Username !== '---') ? escena.Username : null;
-        if (!nombre && global.GFAmigos && global.GFAmigos.miNombre) nombre = global.GFAmigos.miNombre();
-      } catch (e) {}
-      muestra.textContent = nombre || 'Your name';
-    }
-    var libre = doc.getElementById('gfnc-libre');
-    if (libre) libre.value = miColor || POR_DEFECTO;
+    Object.keys(QUIEN).forEach(function (quien) {
+      var q = QUIEN[quien];
+      var color = q.leer();
+      var rejilla = doc.getElementById(q.prefijo + '-paleta');
+      if (rejilla) {
+        [].forEach.call(rejilla.children, function (b) {
+          b.classList.toggle('on', (b.getAttribute('data-color') || '').toLowerCase() ===
+                                   (color || POR_DEFECTO).toLowerCase());
+        });
+      }
+      var muestra = doc.getElementById(q.prefijo + '-muestra');
+      if (muestra) {
+        muestra.style.color = color || POR_DEFECTO;
+        muestra.textContent = nombreDe(quien);
+      }
+      var libre = doc.getElementById(q.prefijo + '-libre');
+      if (libre) libre.value = color || POR_DEFECTO;
+    });
   }
 
   /**
@@ -166,39 +225,42 @@
    * color dos veces por clic.
    */
   function engancharTarjeta() {
-    var rejilla = doc.getElementById('gfnc-paleta');
-    if (!rejilla) return;                 // esta página no tiene dashboard
+    Object.keys(QUIEN).forEach(function (quien) {
+      var q = QUIEN[quien];
+      var rejilla = doc.getElementById(q.prefijo + '-paleta');
+      if (!rejilla) return;               // esta página no tiene esa tarjeta
 
-    if (!rejilla.dataset.gfncListo) {
-      rejilla.dataset.gfncListo = '1';
-      PALETA.forEach(function (c) {
-        var b = doc.createElement('button');
-        b.type = 'button';
-        b.className = 'gfnc-color';
-        b.setAttribute('data-color', c);
-        b.setAttribute('aria-label', 'Use colour ' + c);
-        b.title = c;
-        b.style.background = c;
-        b.addEventListener('click', function (e) { e.preventDefault(); poner(c); });
-        rejilla.appendChild(b);
-      });
-    }
+      if (!rejilla.dataset.gfncListo) {
+        rejilla.dataset.gfncListo = '1';
+        PALETA.forEach(function (c) {
+          var b = doc.createElement('button');
+          b.type = 'button';
+          b.className = 'gfnc-color';
+          b.setAttribute('data-color', c);
+          b.setAttribute('aria-label', 'Use colour ' + c);
+          b.title = c;
+          b.style.background = c;
+          b.addEventListener('click', function (e) { e.preventDefault(); poner(c, false, quien); });
+          rejilla.appendChild(b);
+        });
+      }
 
-    var libre = doc.getElementById('gfnc-libre');
-    if (libre && !libre.dataset.gfncListo) {
-      libre.dataset.gfncListo = '1';
-      /* 'change' y no 'input': el selector nativo dispara 'input' en cada
-         movimiento del ratón dentro de la rueda de color. Con 'input' se
-         mandaría una transacción por píxel recorrido. */
-      libre.addEventListener('change', function () { poner(libre.value); });
-    }
+      var libre = doc.getElementById(q.prefijo + '-libre');
+      if (libre && !libre.dataset.gfncListo) {
+        libre.dataset.gfncListo = '1';
+        /* 'change' y no 'input': el selector nativo dispara 'input' en cada
+           movimiento del ratón dentro de la rueda de color. Con 'input' se
+           mandaría una transacción por píxel recorrido. */
+        libre.addEventListener('change', function () { poner(libre.value, false, quien); });
+      }
 
-    var reset = doc.getElementById('gfnc-reset');
-    if (reset) {
-      if (reset._gfncClic) reset.removeEventListener('click', reset._gfncClic);
-      reset._gfncClic = function (e) { e.preventDefault(); poner(null); };
-      reset.addEventListener('click', reset._gfncClic);
-    }
+      var reset = doc.getElementById(q.prefijo + '-reset');
+      if (reset) {
+        if (reset._gfncClic) reset.removeEventListener('click', reset._gfncClic);
+        reset._gfncClic = function (e) { e.preventDefault(); poner(null, false, quien); };
+        reset.addEventListener('click', reset._gfncClic);
+      }
+    });
 
     pintarTarjeta();
   }
@@ -213,6 +275,13 @@
     s.on('player:nameColor', function (d) {
       if (!d || !d.ok) return;
       miColor = valido(d.color);
+      aplicarAlLocal();
+      pintarTarjeta();
+    });
+
+    s.on('player:petNameColor', function (d) {
+      if (!d || !d.ok) return;
+      miColorMascota = valido(d.color);
       aplicarAlLocal();
       pintarTarjeta();
     });
@@ -232,18 +301,32 @@
        create() no la espera), se vuelve a mirar un par de veces — es un dato
        de pantalla, así que no pasa nada por llegar un segundo tarde, pero
        tampoco puede quedarse sin aplicar. */
+    /* UNA SOLA CADENA DE COMPROBACIÓN.
+
+       `montar()` se llama en cada entrada a una escena —mapa, tienda y cada
+       despertar—, y arrancaba seis `setTimeout` encadenados cada vez. A la
+       tercera visita había tres cadenas haciendo exactamente lo mismo. */
+    if (global.__gfncMirando) return true;
+    global.__gfncMirando = true;
+
     var intentos = 0;
     var mirar = function () {
       intentos++;
-      var c = null;
-      try { c = valido(escena && escena.nameColor); } catch (e) {}
-      if (c && c !== miColor) {
-        miColor = c;
-        aplicarAlLocal();
-        pintarTarjeta();
-      }
-      if (miColor) aplicarAlLocal();
+      var cambio = false;
+      try {
+        var c = valido(escena && escena.nameColor);
+        if (c && c !== miColor) { miColor = c; cambio = true; }
+        var p = valido(escena && escena.petNameColor);
+        if (p && p !== miColorMascota) { miColorMascota = p; cambio = true; }
+      } catch (e) {}
+      if (cambio) pintarTarjeta();
+      /* Se reaplica SIEMPRE, no solo cuando cambia: los carteles del personaje
+         y de la mascota se crean dentro del create() de la escena, que puede
+         terminar después de esto. Si solo se pintara al cambiar, el primer
+         cartel nacería en blanco y ahí se quedaría. */
+      aplicarAlLocal();
       if (intentos < 6) setTimeout(mirar, 1200);
+      else global.__gfncMirando = false;   // la próxima escena puede volver a mirar
     };
     mirar();
 
@@ -259,10 +342,12 @@
     desmontar: desmontar,
     poner: poner,
     mio: function () { return miColor; },
+    mioMascota: function () { return miColorMascota; },
     valido: valido,
     aColorPhaser: aColorPhaser,
     aplicarAlLocal: aplicarAlLocal,
     aplicarARemoto: aplicarARemoto,
+    aplicarAMascotaRemota: aplicarAMascotaRemota,
     POR_DEFECTO: POR_DEFECTO,
     PALETA: PALETA.slice()
   };

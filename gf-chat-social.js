@@ -7,8 +7,10 @@
  *   · REACCIONES. Seis emojis fijos debajo de cada mensaje. Se pulsa uno y se
  *     pone; se vuelve a pulsar y se quita. Se ve quién ha reaccionado al pasar
  *     el ratón por encima.
- *   · EDITAR, UNA SOLA VEZ. Solo tus mensajes, solo dentro de los dos primeros
- *     minutos y solo una vez. Queda marcado como "(edited)".
+ *   · EDITAR: NO, aquí no. Un mensaje público que cambia después de que lo
+ *     hayan leído no es de fiar, y así lo pidió el jugador. La edición vive
+ *     solo en los mensajes privados (gf-amigos.js), donde hablas con UNA
+ *     persona y arreglar una errata no engaña a nadie.
  *   · COMANDOS. `/add_friend "Fulano"` manda la solicitud de amistad y NO se
  *     reparte por el chat: a quién le pides amistad no es asunto del canal.
  *   · EL COLOR DEL NOMBRE. El que cada jugador se elige en el dashboard, que
@@ -49,7 +51,18 @@
      nada, que es la peor clase de fallo — el que no da error. */
   var EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
-  var EDICION_PLAZO_MS = 2 * 60 * 1000;   // el mismo plazo que el servidor
+  /* EL CATÁLOGO COMPLETO, el mismo que el selector del chat general
+     (GameScene._montarSelectorEmojis). Vive aquí para que el selector de los
+     mensajes privados use EXACTAMENTE la misma lista: dos catálogos separados
+     acaban distintos, y el jugador nota que en un sitio hay emojis que en el
+     otro no. */
+  var CATEGORIAS_EMOJI = [
+    { nombre: 'Faces', lista: ['😀','😄','😁','😆','😅','🤣','😂','🙂','😉','😊','😍','🥰','😘','😜','🤪','🤔','🤨','😐','😴','😎','🥳','😏','😢','😭','😤','😡','🥺','😱','🤯','🤗','🤝','🙏'] },
+    { nombre: 'Gestures', lista: ['👍','👎','👌','✌️','🤞','🤙','👋','💪','🫶','👏','🙌','🤛','🤜','✊','☝️','🖐️'] },
+    { nombre: 'Game', lista: ['⚔️','🛡️','🏹','🪓','⛏️','🎣','🧪','💎','🪵','🪨','🔥','💧','⚡','🌟','✨','🏆','🥇','🎁','💰','🪙','🗝️','🧭','🗺️','⏳'] },
+    { nombre: 'Farm', lista: ['🌱','🌿','🍀','🌳','🌲','🌾','🥕','🍅','🎃','🌽','🍎','🍇','🐄','🐔','🐷','🐶','🐱','🐝','🦋','☀️','🌧️','❄️','🌈','🌙'] },
+    { nombre: 'Chat', lista: ['❤️','💔','💯','✅','❌','❓','❗','💬','👀','🎉','🤝','🚀','⭐','🔔','📦','🛒'] }
+  ];
 
   /* Registro de mensajes pintados: mid -> { linea, textoEl, msg }.
      Hace falta porque una reacción o una edición llegan DESPUÉS, por el socket,
@@ -57,6 +70,33 @@
      acumule referencias a nodos que ya nadie mira. */
   var pintados = new Map();
   var TOPE_REGISTRO = 300;
+
+  /* TOPE DE RENGLONES EN PANTALLA.
+
+     `chatMessages.appendChild(line)` no quitaba nunca nada: una partida de tres
+     horas deja miles de renglones en el DOM. Ya pasaba antes, pero ahora cada
+     renglón lleva además dos botones con sus manejadores y su entrada en el
+     registro, así que pesa el triple — y un DOM de miles de nodos es justo lo
+     que produce los tirones al pintar y al desplazar.
+
+     200 es de sobra: el servidor solo guarda 50 de historial, así que nadie va
+     a echar de menos el renglón 201. Se poda de 20 en 20 y no de uno en uno
+     para no tocar el DOM en cada mensaje. */
+  var TOPE_RENGLONES = 200;
+  var PODA_RENGLONES = 20;
+
+  function podarChat(caja) {
+    if (!caja || !caja.children) return;
+    var sobran = caja.children.length - TOPE_RENGLONES;
+    if (sobran < PODA_RENGLONES) return;
+    for (var i = 0; i < sobran; i++) {
+      var viejo = caja.firstElementChild;
+      if (!viejo) break;
+      var mid = viejo.getAttribute && viejo.getAttribute('data-mid');
+      if (mid) pintados.delete(mid);
+      caja.removeChild(viejo);
+    }
+  }
 
   var socketEnlazado = null;
 
@@ -106,9 +146,14 @@
     s.id = 'gfcs-estilos';
     s.textContent = [
       '.chat-line{position:relative;}',
-      '.gfcs-barra{display:inline-flex;gap:3px;margin-left:6px;vertical-align:middle;',
-      '  opacity:0;transition:opacity .15s;}',
-      '.chat-line:hover .gfcs-barra,.gfcs-barra.fijo{opacity:1;}',
+      /* FLOTANDO SOBRE LA LÍNEA, NO DENTRO DE ELLA.
+         Era `inline-flex`, o sea que al pasar el ratón aparecían dos botones de
+         20 px, el renglón crecía y el chat entero pegaba un salto. En absoluta
+         aparece y desaparece sin mover nada. `.chat-line` ya es `relative`. */
+      '.gfcs-barra{position:absolute;top:2px;right:4px;display:flex;gap:3px;',
+      '  opacity:0;transition:opacity .15s;pointer-events:none;',
+      '  background:rgba(6,14,30,0.82);border-radius:7px;padding:1px 2px;}',
+      '.chat-line:hover .gfcs-barra,.gfcs-barra.fijo{opacity:1;pointer-events:auto;}',
       '.gfcs-bot{background:rgba(64,160,255,0.14);border:1px solid rgba(64,160,255,0.28);',
       '  color:#a8d8ff;border-radius:6px;width:20px;height:20px;font-size:11px;line-height:1;',
       '  cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center;}',
@@ -121,22 +166,22 @@
       '  cursor:pointer;padding:3px 4px;border-radius:6px;}',
       '.gfcs-paleta button:hover{background:rgba(64,160,255,0.22);}',
 
-      '.gfcs-reacs{display:flex;flex-wrap:wrap;gap:4px;margin:3px 0 1px 4px;}',
+      '.gfcs-reacs{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 0 2px;}',
       '.gfcs-reac{display:inline-flex;align-items:center;gap:3px;font-size:11px;',
       '  background:rgba(20,50,100,0.5);border:1px solid rgba(64,160,255,0.22);',
       '  color:#cfe6ff;border-radius:11px;padding:1px 7px;cursor:pointer;line-height:1.5;}',
       '.gfcs-reac:hover{background:rgba(40,90,160,0.6);}',
       '.gfcs-reac.mia{border-color:rgba(90,200,255,0.75);background:rgba(30,90,170,0.7);}',
 
-      '.gfcs-editado{font-size:9px;opacity:.55;margin-left:5px;font-style:italic;}',
-      '.gfcs-editar{background:rgba(6,16,34,0.9);border:1px solid rgba(64,160,255,0.45);',
-      '  border-radius:6px;color:#dff0ff;font-size:12px;padding:3px 6px;outline:none;',
-      '  width:min(60vw,240px);}',
+      /* En el móvil el sitio de la barra lo ocupa la hora: se aparta un poco
+         para que no se solapen. */
+      '@media (hover:none){ .gfcs-barra{position:static;opacity:.55;',
+      '  display:inline-flex;margin-left:6px;vertical-align:middle;',
+      '  background:none;padding:0;pointer-events:auto;} }',
 
       /* En el móvil no hay `hover`: los botones se quedan puestos, pero muy
          discretos, o el chat se llena de iconos. */
       '@media (hover:none){',
-      '  .gfcs-barra{opacity:.55;}',
       '  .gfcs-bot{width:24px;height:24px;font-size:13px;}',
       '  .gfcs-reac{padding:2px 9px;font-size:12px;}',
       '}'
@@ -161,10 +206,39 @@
    * escuchando a un socket muerto — las reacciones de los demás dejarían de
    * verse sin ningún error por medio.
    */
+  /* Lo que este módulo engancha en cada socket, para poder soltarlo. Sin esto,
+     al sustituirse `window.globalSocket` (reconexión) los manejadores del
+     anterior se quedaban puestos: el socket muerto no se puede recoger mientras
+     alguien cierre sobre él, y se van sumando uno por reconexión. */
+  var oyentesPuestos = [];
+
+  function soltarOyentes() {
+    if (!socketEnlazado) return;
+    oyentesPuestos.forEach(function (par) {
+      try { socketEnlazado.off(par[0], par[1]); } catch (e) {}
+    });
+    oyentesPuestos.length = 0;
+  }
+
   function enlazar(scene) {
     var s = socketVivo(scene);
     if (!s || socketEnlazado === s) return s;
+    soltarOyentes();          // los del socket anterior, que ya no sirve
     socketEnlazado = s;
+
+    /* Se apunta lo que se engancha, PERO `s` sigue siendo el socket de verdad.
+
+       El primer intento fue envolverlo en un objeto con `on`, `id` y
+       `connected` copiados. Mala idea: los manejadores cierran sobre `s`, y uno
+       de ellos compara `m.id === s.id` para saber si el mensaje es propio. Con
+       el id COPIADO, en cuanto el socket reconectara (id nuevo) los mensajes
+       propios dejarían de reconocerse y el botón del chat titilaría con lo que
+       escribe uno mismo. Un envoltorio que congela estado es una fuente de
+       fallos peor que la fuga que arreglaba. */
+    var poner = function (evento, fn) {
+      s.on(evento, fn);
+      oyentesPuestos.push([evento, fn]);
+    };
 
     /* El aviso del botón. Va aquí, junto a los demás oyentes del socket, y no
        en las escenas: el botón y el panel son DOM de la página, así que con uno
@@ -172,38 +246,19 @@
        mensaje que llega en vivo— y NO a `chatHistory`, para que entrar en una
        escena y recibir las últimas 50 líneas de golpe no deje el botón
        titilando por conversaciones de hace media hora. */
-    s.on('chatMessage', function (m) { avisarDeMensaje(s, m); });
+    poner('chatMessage', function (m) {
+      avisarDeMensaje(s, m);
+      // La poda va aquí, DESPUÉS de que la escena haya insertado el renglón:
+      // dentro de `decorar` la línea todavía no está colgada del DOM.
+      try { podarChat(doc.getElementById('chat-messages')); } catch (e) {}
+    });
 
-    s.on('chatReaction', function (d) {
+    poner('chatReaction', function (d) {
       if (!d || !d.mid) return;
       var reg = pintados.get(d.mid);
       if (!reg) return;
       reg.msg.reacciones = d.reacciones || [];
       pintarReacciones(escenaViva || scene, reg);
-    });
-
-    s.on('chatEdited', function (d) {
-      if (!d || !d.mid) return;
-      var reg = pintados.get(d.mid);
-      if (!reg) return;
-      reg.msg.text = d.text;
-      reg.msg.editado = true;
-      reg.textoEl.textContent = ' ' + desescapar(d.text);
-      marcarEditado(reg);
-      // Ya no se puede volver a editar: fuera el lápiz.
-      var lapiz = reg.linea.querySelector('.gfcs-lapiz');
-      if (lapiz && lapiz.parentNode) lapiz.parentNode.removeChild(lapiz);
-    });
-
-    s.on('chatEditError', function (d) {
-      var motivos = {
-        no_existe:      'That message is no longer in the chat.',
-        no_es_tuyo:     'You can only edit your own messages.',
-        ya_editado:     'You can only edit a message once.',
-        fuera_de_plazo: 'Too late — messages can only be edited for 2 minutes.',
-        vacio:          'The message cannot be empty.'
-      };
-      avisar(escenaViva || scene, motivos[d && d.motivo] || 'The message could not be edited.', 'error');
     });
 
     return s;
@@ -417,64 +472,6 @@
     doc.removeEventListener('pointerdown', cerrarSiFuera, true);
   }
 
-  // ── Editar ────────────────────────────────────────────────────────────────
-
-  function marcarEditado(reg) {
-    if (reg.linea.querySelector('.gfcs-editado')) return;
-    var m = el('span', 'gfcs-editado', '(edited)');
-    reg.textoEl.parentNode.insertBefore(m, reg.textoEl.nextSibling);
-  }
-
-  function empezarEdicion(scene, reg) {
-    if (reg.linea.querySelector('.gfcs-editar')) return;   // ya está en ello
-
-    var campo = doc.createElement('input');
-    campo.type = 'text';
-    campo.className = 'gfcs-editar';
-    campo.maxLength = 300;
-    campo.value = desescapar(reg.msg.text);
-
-    var textoVisible = reg.textoEl.style.display;
-    reg.textoEl.style.display = 'none';
-    reg.textoEl.parentNode.insertBefore(campo, reg.textoEl);
-
-    var cerrar = function () {
-      if (campo.parentNode) campo.parentNode.removeChild(campo);
-      reg.textoEl.style.display = textoVisible;
-    };
-
-    var guardar = function () {
-      var t = campo.value.trim();
-      cerrar();
-      if (!t || t === desescapar(reg.msg.text)) return;
-      var s = enlazar(scene);
-      if (!s || !s.connected) { avisar(scene, 'No connection right now.', 'error'); return; }
-      s.emit('chatEdit', { mid: reg.msg.mid, text: t });
-    };
-
-    // stopPropagation en todas: el juego escucha las teclas en el documento y
-    // sin esto escribir la edición haría andar al personaje.
-    campo.addEventListener('keydown', function (e) {
-      e.stopPropagation();
-      if (e.key === 'Enter')  { e.preventDefault(); guardar(); }
-      if (e.key === 'Escape') { e.preventDefault(); cerrar(); }
-    });
-    campo.addEventListener('keyup', function (e) { e.stopPropagation(); });
-    campo.addEventListener('blur', cerrar);
-
-    try { campo.focus(); campo.select(); } catch (e) {}
-  }
-
-  /** ¿Este mensaje es mío y todavía se puede editar? */
-  function puedoEditar(scene, msg) {
-    if (!msg || !msg.mid || msg.editado) return false;
-    var s = socketVivo(scene);
-    if (!s || msg.id !== s.id) return false;      // no es mío
-    var t = Date.parse(msg.ts);
-    if (!isFinite(t)) return false;
-    return (Date.now() - t) < EDICION_PLAZO_MS;
-  }
-
   // ── Lo que llaman las escenas ─────────────────────────────────────────────
 
   /**
@@ -498,13 +495,24 @@
     // servidor, no el cliente que lo escribió.
     if (nombreEl) {
       var c = colorSeguro(msg.nameColor);
-      if (c) nombreEl.style.color = c;
+      /* CON `important`, O NO SE VE.
+
+         `styless.css` fija `.chat-line strong { color: … !important }` en tres
+         sitios distintos. Un `style.color` normal pierde contra eso, así que el
+         color que el jugador elegía en el dashboard salía en su cartel del mapa
+         pero NO en el chat. Con la tercera forma de setProperty se pone al
+         mismo nivel y gana por ser en línea. */
+      if (c) nombreEl.style.setProperty('color', c, 'important');
     }
 
     if (!msg.mid || !textoEl) return;   // mensaje de un servidor antiguo
 
     var reg = { linea: linea, textoEl: textoEl, msg: msg };
     pintados.set(msg.mid, reg);
+    // Se apunta en el propio nodo para poder soltar su entrada del registro
+    // cuando la poda lo quite del DOM.
+    linea.setAttribute('data-mid', msg.mid);
+    podarChat(linea.parentNode || (scene && scene.chatMessages) || null);
 
     // Poda: una partida larga no puede acumular referencias a nodos sin fin.
     if (pintados.size > TOPE_REGISTRO) {
@@ -528,32 +536,13 @@
     });
     barra.appendChild(reaccionar1);
 
-    if (puedoEditar(scene, msg)) {
-      var lapiz = el('button', 'gfcs-bot gfcs-lapiz', '✎');
-      lapiz.type = 'button';
-      lapiz.title = 'Edit (only once, within 2 minutes)';
-      lapiz.setAttribute('aria-label', 'Edit this message');
-      lapiz.addEventListener('click', function (e) {
-        e.stopPropagation();
-        empezarEdicion(scene, reg);
-      });
-      barra.appendChild(lapiz);
+    /* AQUÍ NO HAY LÁPIZ. El chat general no se edita: un mensaje público que
+       cambia después de leído no es de fiar. Editar existe en los privados,
+       que es donde arreglar una errata no engaña a nadie. */
 
-      /* El lápiz se retira solo cuando vence el plazo. Sin esto, el botón se
-         quedaría puesto para siempre y al pulsarlo el servidor contestaría
-         "fuera de plazo": un botón que solo sirve para dar un error. */
-      var quedan = EDICION_PLAZO_MS - (Date.now() - Date.parse(msg.ts));
-      if (quedan > 0 && quedan < 0x7fffffff) {
-        setTimeout(function () {
-          if (lapiz.parentNode) lapiz.parentNode.removeChild(lapiz);
-        }, quedan);
-      }
-    }
-
-    // La barra va detrás de la hora, al final de la línea.
+    // La barra va al final de la línea; el CSS la coloca flotando a la derecha
+    // para que aparecer y desaparecer no mueva el renglón.
     linea.appendChild(barra);
-
-    if (msg.editado) marcarEditado(reg);
     if (msg.reacciones && msg.reacciones.length) pintarReacciones(scene, reg);
   }
 
@@ -638,10 +627,12 @@
       return !!(b && b.classList.contains(CLASE_TITILA));
     },
     EMOJIS: EMOJIS,
+    /* La lista de emojis del chat general, para que el selector de los
+       privados sea EL MISMO y no dos catálogos que se separen con el tiempo. */
+    CATEGORIAS_EMOJI: CATEGORIAS_EMOJI,
     _interno: {
       desescapar: desescapar, colorSeguro: colorSeguro,
-      puedoEditar: puedoEditar, pintados: pintados,
-      EDICION_PLAZO_MS: EDICION_PLAZO_MS
+      pintados: pintados
     }
   };
 

@@ -47,10 +47,32 @@ comprobar('factura como array', comoArray,
 comprobar('factura vacía', r._leerCamposFactura(null), null);
 
 // ── el camino completo ────────────────────────────────────────────────────
-function relayDePrueba(facturas, errorLectura) {
+/**
+ * @param facturas      { porId, porNombre } lo que contesta getInvoice / ByManualId
+ * @param errorLectura  si se pasa, TODA lectura revienta con ese error
+ * @param inventario    lo que contesta getUserInventorySnapshot:
+ *                        array  → esas son las facturas vivas del jugador
+ *                        null   → el snapshot NO se puede leer
+ */
+function relayDePrueba(facturas, errorLectura, inventario) {
   const rel = Object.create(PhaserRelay.prototype);
   rel.enviadas = [];
+  rel.config = { debug: false };
   rel.checkAuth = async () => ({ success: true, address: '0xJUGADOR'.toLowerCase() });
+
+  /* El snapshot del inventario, que es la TERCERA vía por la que
+     `quitarDeFactura` busca la factura buena cuando el idx y el manualId del
+     hueco son basura. `inventario === null` = no se puede leer la cadena. */
+  rel._apiRequest = async (ruta, metodo, cuerpo) => {
+    if (ruta === '/api/relay/call-view' &&
+        cuerpo && cuerpo.functionName === 'getUserInventorySnapshot') {
+      if (inventario === null || inventario === undefined) {
+        throw new Error('Failed to fetch');
+      }
+      return { success: true, result: inventario };
+    }
+    throw new Error('ruta no esperada en la prueba: ' + ruta);
+  };
   rel.accion = async (dir, op) => {
     if (errorLectura) throw errorLectura;
     if (op.funcion === 'getInvoice') {
@@ -93,13 +115,56 @@ const AJENA = { id: 3, manualId: 'otro#1', owner: '0xotro',
                                            vaciarFactura: true });
   comprobar('id viejo, lo salva el manualId', [res.ok, res.ya, res.id], [true, false, 1764]);
 
-  // 3. Ya no existe: no es error, es "ya estaba quitada".
-  rel = relayDePrueba({ porId: {}, porNombre: {} });
+  /* 3. YA NO EXISTE — pero eso solo se puede AFIRMAR mirando el inventario.
+   *
+   *    `ya:true` es lo que autoriza a quien llama a borrar el objeto de la
+   *    pantalla sin tocar la cadena. Decirlo porque `getInvoice` revirtió es
+   *    justo lo que hacía que se vendieran zanahorias que seguían vivas: el
+   *    `idx` del hueco es a menudo el NÚMERO DE HUECO, no un id de factura.
+   *
+   *    Ahora hay tres respuestas distintas según lo que diga el inventario. */
+
+  // 3a. El inventario confirma que no le queda ninguna de ese tipo: sí se gastó.
+  rel = relayDePrueba({ porId: {}, porNombre: {} }, null, []);
   res = await rel.quitarDeFactura('0xC', { idx: 1764, manualid: 'balde#1',
                                            cantidad: 1, tipo: 'balde_vacio',
                                            vaciarFactura: true });
-  comprobar('ya no existe → ya:true sin enviar nada',
+  comprobar('no queda ninguna en la cadena → ya:true sin enviar nada',
             [res.ok, res.ya, rel.enviadas.length], [true, true, 0]);
+
+  // 3b. EL CASO DE LAS ZANAHORIAS. El idx del hueco no vale y el manualId
+  //     tampoco, pero el jugador SÍ tiene una factura viva de ese tipo: hay que
+  //     encontrarla y quitarle a ELLA, no dar la venta por hecha.
+  const DIEZ = { id: 4321, manualId: 'zanahoria#7', owner: '0xjugador',
+                 tipo: 'zanahoria_buena', cantidad: 10, active: true };
+  rel = relayDePrueba({ porId: {}, porNombre: {} }, null,
+                      [{ ...DIEZ, activa: true }]);
+  res = await rel.quitarDeFactura('0xC', { idx: 3, manualid: 'zanahoria_buena',
+                                           cantidad: 5, tipo: 'zanahoria_buena',
+                                           vaciarFactura: false });
+  comprobar('idx basura pero la factura existe → se quita de la BUENA',
+            [res.ok, res.ya, res.id, rel.enviadas[0]],
+            [true, false, 4321, ['decreaseInvoiceQuantity', '4321', '5']]);
+
+  // 3c. En la cadena hay un balde de ese tipo, pero es de OTRO jugador. Eso no
+  //     es "mío": para mí no queda ninguno, así que sí se puede cuadrar el
+  //     inventario. Y desde luego no se toca la factura ajena.
+  rel = relayDePrueba({ porId: {}, porNombre: {} }, null,
+                      [{ id: 99, manualId: 'x', owner: '0xotro',
+                         tipo: 'balde_vacio', cantidad: 2, activa: true }]);
+  res = await rel.quitarDeFactura('0xC', { idx: 1764, manualid: 'balde#1',
+                                           cantidad: 1, tipo: 'balde_vacio',
+                                           vaciarFactura: true });
+  comprobar('una factura de OTRO no cuenta como mía → ya:true y sin tocarla',
+            [res.ok, res.ya, rel.enviadas.length], [true, true, 0]);
+
+  // 3d. No se puede leer el inventario: tampoco se afirma nada.
+  rel = relayDePrueba({ porId: {}, porNombre: {} }, null, null);
+  res = await rel.quitarDeFactura('0xC', { idx: 1764, manualid: 'balde#1',
+                                           cantidad: 1, tipo: 'balde_vacio',
+                                           vaciarFactura: true });
+  comprobar('sin poder leer el inventario → error, nunca ya:true',
+            [res.ok, res.ya, rel.enviadas.length], [false, false, 0]);
 
   // 4. EL CASO PELIGROSO: el hueco lleva un numero de hueco (3) que resulta ser
   //    una factura de OTRO jugador y de otro objeto. No se puede tocar.

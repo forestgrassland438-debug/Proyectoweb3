@@ -60,6 +60,7 @@
   var doc = global.document;
 
   var socket   = null;
+  var oyentesPuestos = [];   // [evento, fn] de lo enganchado al socket actual
   var escena   = null;
   var listo    = false;      // el DOM ya está construido
   var abierto  = false;
@@ -72,6 +73,7 @@
   var buscados = null;       // null = no se ha buscado nada
   var bandeja = [];
   var conversacion = [];
+  var limpiezaDM = 0;        // 0 = apagado; 24, 72 o 168 horas
 
   function log() {
     try { console.log.apply(console, ['[GFAmigos]'].concat([].slice.call(arguments))); }
@@ -239,8 +241,8 @@
       '  border-bottom:1px solid rgba(64,160,255,0.18);flex-shrink:0;}',
       '.gfa-chat-msgs{flex:1;overflow-y:auto;padding:10px 12px;display:flex;',
       '  flex-direction:column;gap:6px;-webkit-overflow-scrolling:touch;}',
-      '.gfa-burbuja{max-width:80%;padding:7px 10px;border-radius:12px;font-size:12px;',
-      '  line-height:1.45;word-break:break-word;}',
+      '.gfa-burbuja{position:relative;max-width:80%;padding:7px 10px;border-radius:12px;',
+      '  font-size:12px;line-height:1.45;word-break:break-word;}',
       '.gfa-burbuja.mia{align-self:flex-end;background:rgba(40,110,200,0.42);color:#eaf5ff;',
       '  border:1px solid rgba(90,180,255,0.35);border-bottom-right-radius:4px;}',
       '.gfa-burbuja.suya{align-self:flex-start;background:rgba(20,50,100,0.55);color:#d6ecff;',
@@ -251,6 +253,71 @@
       '.gfa-chat-fila input{flex:1;min-width:0;background:rgba(6,16,34,0.85);',
       '  border:1px solid rgba(64,160,255,0.25);border-radius:8px;color:#dff0ff;',
       '  font-size:12px;padding:8px 10px;outline:none;}',
+
+      /* ── Los privados: emojis, reacciones, editar y el menú ─────────── */
+
+      /* Las acciones FLOTAN sobre la burbuja. Metidas en el flujo, aparecer al
+         pasar el ratón cambiaría el alto del mensaje y la conversación entera
+         daría un salto — que es justo lo que había que evitar. */
+      '.gfa-msg-acc{position:absolute;top:-10px;display:flex;gap:3px;opacity:0;',
+      '  transition:opacity .15s;pointer-events:none;background:rgba(6,14,30,0.92);',
+      '  border:1px solid rgba(64,160,255,0.28);border-radius:8px;padding:1px 3px;}',
+      '.gfa-burbuja.mia .gfa-msg-acc{right:4px;}',
+      '.gfa-burbuja.suya .gfa-msg-acc{left:4px;}',
+      '.gfa-burbuja:hover .gfa-msg-acc{opacity:1;pointer-events:auto;}',
+      '.gfa-msg-bot{background:none;border:none;color:#a8d8ff;font-size:12px;',
+      '  cursor:pointer;padding:2px 4px;border-radius:5px;line-height:1;}',
+      '.gfa-msg-bot:hover{background:rgba(64,160,255,0.25);}',
+      /* Sin `hover` (móvil) se quedan puestas pero muy discretas. */
+      '@media (hover:none){ .gfa-msg-acc{opacity:.5;pointer-events:auto;}',
+      '  .gfa-msg-bot{font-size:15px;padding:4px 7px;} }',
+
+      '.gfa-editar{background:rgba(6,16,34,0.95);border:1px solid rgba(120,200,255,0.6);',
+      '  border-radius:7px;color:#eaf5ff;font-size:12px;padding:4px 7px;outline:none;',
+      '  width:min(62vw,240px);}',
+
+      '.gfa-reacs{display:flex;flex-wrap:wrap;gap:4px;margin:-2px 2px 2px;}',
+      '.gfa-reac{display:inline-flex;align-items:center;gap:3px;font-size:11px;',
+      '  background:rgba(20,50,100,0.55);border:1px solid rgba(64,160,255,0.22);',
+      '  color:#cfe6ff;border-radius:11px;padding:1px 7px;cursor:pointer;line-height:1.5;}',
+      '.gfa-reac:hover{background:rgba(40,90,160,0.65);}',
+      '.gfa-reac.mia{border-color:rgba(90,200,255,0.8);background:rgba(30,90,170,0.75);}',
+
+      '.gfa-paleta{position:fixed;z-index:10045;display:flex;gap:2px;padding:5px 6px;',
+      '  background:rgba(8,18,40,0.97);border:1px solid rgba(64,160,255,0.38);',
+      '  border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.55);}',
+      '.gfa-paleta button{background:none;border:none;font-size:19px;line-height:1;',
+      '  cursor:pointer;padding:3px 5px;border-radius:6px;}',
+      '.gfa-paleta button:hover{background:rgba(64,160,255,0.22);}',
+
+      /* El selector de emojis, encima de la fila de escribir. Tope de alto para
+         que nunca se coma la conversación entera, que es lo que se está
+         mirando. */
+      '.gfa-emojis{flex-shrink:0;max-height:34vh;overflow-y:auto;padding:6px 10px;',
+      '  border-top:1px solid rgba(64,160,255,0.18);background:rgba(6,14,32,0.6);',
+      '  -webkit-overflow-scrolling:touch;}',
+      '.gfa-emojis.oculto{display:none;}',
+      '.gfa-emoji-cat{color:rgba(120,190,255,0.65);font-size:9px;font-weight:700;',
+      '  letter-spacing:1px;text-transform:uppercase;margin:6px 0 3px;}',
+      '.gfa-emoji-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(34px,1fr));',
+      '  gap:2px;}',
+      '.gfa-emoji-grid button{background:none;border:none;font-size:20px;line-height:1;',
+      '  cursor:pointer;padding:5px 0;border-radius:7px;}',
+      '.gfa-emoji-grid button:hover{background:rgba(64,160,255,0.22);}',
+
+      '.gfa-menu-conv{position:fixed;z-index:10046;min-width:230px;padding:6px;',
+      '  background:linear-gradient(160deg,#0a1628,#0d2040);border:1.5px solid ',
+      '  rgba(64,160,255,0.38);border-radius:12px;box-shadow:0 8px 26px rgba(0,0,0,.6);}',
+      '.gfa-menu-tit{color:rgba(120,190,255,0.7);font-size:9px;font-weight:700;',
+      '  letter-spacing:1px;text-transform:uppercase;padding:7px 9px 4px;}',
+      '.gfa-menu-item{display:flex;align-items:center;gap:9px;width:100%;background:none;',
+      '  border:none;color:#dff0ff;font-size:12px;padding:8px 10px;border-radius:8px;',
+      '  cursor:pointer;text-align:left;}',
+      '.gfa-menu-item:hover{background:rgba(64,160,255,0.18);}',
+      '.gfa-menu-item.on{color:#9df3c8;}',
+      '.gfa-menu-item.mal{color:#ffc0cc;}',
+      '.gfa-menu-pie{color:rgba(140,190,240,0.5);font-size:10px;line-height:1.45;',
+      '  padding:6px 10px 4px;border-top:1px solid rgba(64,160,255,0.15);margin-top:4px;}',
 
       /* Chapa del botón redondo */
       '#friends-btn .gfa-chapa{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;',
@@ -370,15 +437,46 @@
     var chatNom = el('div', 'gfa-nombre');
     chatNom.id = 'gfa-chat-nombre';
     chatNom.style.flex = '1';
+
+    // El menú de la conversación: vaciar y limpiador automático.
+    var menuBtn = el('button', 'gfa-mini', '⋯');
+    menuBtn.type = 'button';
+    menuBtn.id = 'gfa-chat-menu';
+    menuBtn.title = 'Chat options';
+    menuBtn.setAttribute('aria-label', 'Chat options');
+    menuBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      menuConversacion(menuBtn);
+    });
+
     chatCab.appendChild(volver);
     chatCab.appendChild(chatNom);
+    chatCab.appendChild(menuBtn);
     chat.appendChild(chatCab);
 
     var msgs = el('div', 'gfa-chat-msgs');
     msgs.id = 'gfa-chat-msgs';
     chat.appendChild(msgs);
 
+    // El selector de emojis vive ENCIMA de la fila de escribir, dentro de la
+    // conversación: así no tapa la lista de mensajes al abrirse.
+    var emojis = el('div', 'gfa-emojis oculto');
+    emojis.id = 'gfa-emojis';
+    chat.appendChild(emojis);
+
     var fila = el('div', 'gfa-chat-fila');
+
+    var botonEmoji = el('button', 'gfa-mini', '😀');
+    botonEmoji.type = 'button';
+    botonEmoji.id = 'gfa-emoji-btn';
+    botonEmoji.title = 'Emojis';
+    botonEmoji.setAttribute('aria-label', 'Emojis');
+    botonEmoji.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      alternarEmojis();
+    });
+    fila.appendChild(botonEmoji);
+
     var entrada = el('input');
     entrada.id = 'gfa-chat-input';
     entrada.type = 'text';
@@ -411,7 +509,8 @@
     nodos = {
       panel: panel, caja: caja, tabs: tabs, lista: lista,
       buscar: buscar, campo: campo,
-      chat: chat, chatNom: chatNom, msgs: msgs, entrada: entrada
+      chat: chat, chatNom: chatNom, msgs: msgs, entrada: entrada,
+      emojis: emojis
     };
 
     // ESC cierra, esté donde esté el foco.
@@ -476,10 +575,29 @@
     if (!s) return false;
     if (socket === s) return true;
 
+    /* Los del socket ANTERIOR se sueltan. Una reconexión sustituye
+       `window.globalSocket`, y sin esto los manejadores del viejo se quedaban
+       puestos: el socket muerto no se puede recoger mientras alguien cierre
+       sobre él, y se van sumando uno por reconexión. */
+    if (socket && oyentesPuestos.length) {
+      oyentesPuestos.forEach(function (par) {
+        try { socket.off(par[0], par[1]); } catch (e) {}
+      });
+    }
+    oyentesPuestos.length = 0;
+
     socket = s;
     log('enganchado al socket', s.id || '(sin id)');
 
-    s.on('friends:state', function (d) {
+    /* Se apunta lo que se engancha. `s` sigue siendo el socket de verdad: los
+       manejadores tienen que ver su `id` y su `connected` VIVOS, no una copia
+       congelada del momento del enganche. */
+    var poner = function (evento, fn) {
+      s.on(evento, fn);
+      oyentesPuestos.push([evento, fn]);
+    };
+
+    poner('friends:state', function (d) {
       if (!d || !d.ok) return;
       estado = {
         yo: d.yo || null,
@@ -488,37 +606,38 @@
         salientes: d.salientes || [],
         noLeidos: d.noLeidos || 0
       };
+      if (typeof d.limpiezaDM === 'number') limpiezaDM = d.limpiezaDM;
       pintarChapa();
       if (abierto) pintar();
     });
 
-    s.on('friends:online', function (d) {
+    poner('friends:online', function (d) {
       if (!d || !d.ok) return;
       enLinea = { canal: d.canal, jugadores: d.jugadores || [] };
       if (abierto && pestana === 'online') pintar();
     });
 
-    s.on('friends:search', function (d) {
+    poner('friends:search', function (d) {
       if (!d || !d.ok) return;
       buscados = d.jugadores || [];
       if (abierto) pintar();
     });
 
-    s.on('friends:request:new', function (d) {
+    poner('friends:request:new', function (d) {
       var n = (d && d.de && d.de.username) || 'Someone';
       aviso(desescapar(n) + ' sent you a friend request', 'info');
       pedirEstado();
     });
 
-    s.on('friends:accepted', function (d) {
+    poner('friends:accepted', function (d) {
       var n = (d && d.por && d.por.username) || 'Someone';
       aviso(desescapar(n) + ' is now your friend', 'success');
       pedirEstado();
     });
 
-    s.on('friends:removed', function () { pedirEstado(); });
+    poner('friends:removed', function () { pedirEstado(); });
 
-    s.on('friends:presence', function (d) {
+    poner('friends:presence', function (d) {
       if (!d || !d.playerName) return;
       for (var i = 0; i < estado.amigos.length; i++) {
         if (estado.amigos[i].playerName === d.playerName) {
@@ -530,18 +649,18 @@
       if (abierto && pestana === 'friends') pintar();
     });
 
-    s.on('friends:unread', function (d) {
+    poner('friends:unread', function (d) {
       estado.noLeidos = (d && d.noLeidos) || 0;
       pintarChapa();
     });
 
-    s.on('friends:inbox', function (d) {
+    poner('friends:inbox', function (d) {
       if (!d || !d.ok) return;
       bandeja = d.conversaciones || [];
       if (abierto && pestana === 'messages' && !chatCon) pintar();
     });
 
-    s.on('friends:dm:history', function (d) {
+    poner('friends:dm:history', function (d) {
       if (!d || !d.ok) return;
       if (d.con !== chatCon) return;         // llegó tarde: es de otra conversación
       chatFicha = d.ficha || chatFicha;
@@ -553,7 +672,7 @@
        se avisa y sube el contador. El aviso sale SIEMPRE, aunque el panel esté
        cerrado: es lo que hace que un mensaje llegue de verdad y no se quede
        esperando a que a alguien se le ocurra abrir la pestaña. */
-    s.on('friends:dm', function (m) {
+    poner('friends:dm', function (m) {
       if (!m) return;
       if (chatCon && m.de === chatCon && abierto) {
         conversacion.push(m);
@@ -567,7 +686,7 @@
       if (abierto && pestana === 'messages') pedirBandeja();
     });
 
-    s.on('friends:dm:sent', function (m) {
+    poner('friends:dm:sent', function (m) {
       if (!m) return;
       if (chatCon && m.para === chatCon && abierto) {
         // Ya lo pintamos en optimista al enviarlo; solo se refresca si no está.
@@ -584,7 +703,57 @@
       }
     });
 
-    s.on('friends:ok', function (d) {
+    poner('friends:dm:reaccion', function (d) {
+      if (!d || !d.id) return;
+      for (var i = 0; i < conversacion.length; i++) {
+        if (conversacion[i].id === d.id) {
+          conversacion[i].reacciones = d.reacciones || [];
+          if (abierto && chatCon) pintarConversacion();
+          return;
+        }
+      }
+    });
+
+    poner('friends:dm:editado', function (d) {
+      if (!d || !d.id) return;
+      for (var j = 0; j < conversacion.length; j++) {
+        if (conversacion[j].id === d.id) {
+          conversacion[j].texto = d.texto;
+          conversacion[j].editado = true;
+          if (abierto && chatCon) pintarConversacion();
+          return;
+        }
+      }
+    });
+
+    poner('friends:dm:editError', function (d) {
+      var motivos = {
+        no_existe:      'That message is no longer there.',
+        no_es_tuyo:     'You can only edit your own messages.',
+        ya_editado:     'You can only edit a message once.',
+        fuera_de_plazo: 'Too late — messages can only be edited for 5 minutes.',
+        vacio:          'The message cannot be empty.'
+      };
+      aviso(motivos[d && d.motivo] || 'The message could not be edited.', 'error');
+    });
+
+    poner('friends:dm:cleared', function (d) {
+      if (!d) return;
+      if (chatCon === d.con) { conversacion = []; pintarConversacion(); }
+      aviso('Conversation cleared.', 'success');
+      pedirBandeja();
+    });
+
+    poner('friends:dm:limpieza', function (d) {
+      if (!d || !d.ok) return;
+      limpiezaDM = d.horas || 0;
+      var textos = { 0: 'Auto-clean turned off.', 24: 'Auto-clean set to 24 hours.',
+                     72: 'Auto-clean set to 3 days.', 168: 'Auto-clean set to 1 week.' };
+      aviso(textos[limpiezaDM] || 'Auto-clean updated.', 'success');
+      if (chatCon && enlazar()) socket.emit('friends:dm:history', { con: chatCon });
+    });
+
+    poner('friends:ok', function (d) {
       var q = d && d.que;
       var n = d && d.nombre ? desescapar(d.nombre) : '';
       if (q === 'enviada')   aviso('Friend request sent' + (n ? ' to ' + n : ''), 'success');
@@ -594,7 +763,7 @@
       pedirEstado();
     });
 
-    s.on('friends:error', function (d) {
+    poner('friends:error', function (d) {
       var m = d && d.motivo;
       var n = d && d.nombre ? desescapar(d.nombre) : 'that player';
       var textos = {
@@ -618,7 +787,7 @@
     /* EL COMANDO DEL CHAT. El servidor contesta `chatCommand` cuando alguien
        escribe /add_friend en el chat general — pasa cuando el cliente no lo
        interceptó (pestaña sin recargar). Se ejecuta igual. */
-    s.on('chatCommand', function (d) {
+    poner('chatCommand', function (d) {
       if (d && d.que === 'add_friend' && d.nombre) pedirAmistad(d.nombre);
     });
 
@@ -653,7 +822,7 @@
    * (y con él el socket y las animaciones) hasta que se conteste, y en el PC
    * roba el foco. Además así se ve como el resto del juego.
    */
-  function confirmar(texto, alSi) {
+  function confirmar(texto, alSi, textoBoton) {
     var fondo = el('div');
     fondo.id = 'gfa-confirmar';
     fondo.style.cssText = 'position:fixed;inset:0;background:rgba(0,8,24,0.72);z-index:10030;' +
@@ -669,7 +838,7 @@
     fila.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;';
     var no = el('button', 'gfa-btn', 'Cancel');
     no.type = 'button';
-    var si = el('button', 'gfa-btn mal', 'Remove');
+    var si = el('button', 'gfa-btn mal', textoBoton || 'Remove');
     si.type = 'button';
     var quitarCaja = function () { if (fondo.parentNode) fondo.parentNode.removeChild(fondo); };
     no.addEventListener('click', quitarCaja);
@@ -713,6 +882,9 @@
   }
 
   function cerrarConversacion() {
+    cerrarPaletaReaccion();
+    cerrarMenuConversacion();
+    alternarEmojis(false);
     chatCon = null;
     chatFicha = null;
     conversacion = [];
@@ -739,12 +911,268 @@
       texto: texto, ts: new Date().toISOString()
     });
     nodos.entrada.value = '';
+    alternarEmojis(false);
     pintarConversacion();
   }
 
   function esMovil() {
     try { return global.matchMedia && global.matchMedia('(max-width:560px)').matches; }
     catch (e) { return false; }
+  }
+
+  // ── LOS PRIVADOS: EMOJIS, REACCIONES, EDITAR, VACIAR Y LIMPIADOR ──────────
+  //
+  // Aquí SÍ se puede editar, al revés que en el chat general. No es un
+  // capricho: un mensaje público que cambia después de que lo haya leído medio
+  // canal no es de fiar; en una conversación de dos, arreglar una errata no
+  // engaña a nadie — y queda marcado como "(edited)".
+
+  var EMOJIS_REAC = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+  var DM_EDICION_PLAZO_MS = 5 * 60 * 1000;   // el mismo plazo que el servidor
+
+  /** Las categorías del selector: LAS MISMAS que el chat general. */
+  function categoriasEmoji() {
+    if (global.GFChatSocial && global.GFChatSocial.CATEGORIAS_EMOJI) {
+      return global.GFChatSocial.CATEGORIAS_EMOJI;
+    }
+    // Respaldo mínimo por si el otro módulo no está cargado.
+    return [{ nombre: 'Emojis', lista: EMOJIS_REAC.concat(['🙂', '😉', '🙏', '👋', '✅']) }];
+  }
+
+  /** Mete el emoji donde esté el cursor del campo del privado. */
+  function meterEmoji(emoji) {
+    var campo = nodos.entrada;
+    if (!campo) return;
+    var max = 300;
+    var ini = (typeof campo.selectionStart === 'number') ? campo.selectionStart : campo.value.length;
+    var fin = (typeof campo.selectionEnd === 'number') ? campo.selectionEnd : campo.value.length;
+    var nuevo = campo.value.slice(0, ini) + emoji + campo.value.slice(fin);
+    if (nuevo.length > max) { aviso('Message is too long.', 'info'); return; }
+    campo.value = nuevo;
+    var pos = ini + emoji.length;
+    try { campo.focus(); campo.setSelectionRange(pos, pos); } catch (e) {}
+  }
+
+  /**
+   * El selector de emojis del privado.
+   *
+   * Se construye UNA vez y se enseña y esconde. En el móvil, al abrirlo se baja
+   * el teclado: con los dos a la vez no queda sitio para ver la conversación,
+   * que es justo lo que se estaba mirando.
+   */
+  function alternarEmojis(forzar) {
+    var panel = nodos.emojis;
+    if (!panel) return;
+    var abierto = (typeof forzar === 'boolean') ? forzar : panel.classList.contains('oculto');
+    panel.classList.toggle('oculto', !abierto);
+    if (!abierto) return;
+
+    if (!panel.dataset.gfaListo) {
+      panel.dataset.gfaListo = '1';
+      categoriasEmoji().forEach(function (cat) {
+        panel.appendChild(el('div', 'gfa-emoji-cat', cat.nombre));
+        var rejilla = el('div', 'gfa-emoji-grid');
+        cat.lista.forEach(function (emoji) {
+          var b = el('button', null, emoji);
+          b.type = 'button';
+          b.title = emoji;
+          // pointerdown + preventDefault: el campo NO pierde el foco, así que
+          // el cursor se queda donde estaba y en el móvil no se cierra nada.
+          b.addEventListener('pointerdown', function (e) {
+            e.preventDefault(); e.stopPropagation();
+            meterEmoji(emoji);
+          });
+          rejilla.appendChild(b);
+        });
+        panel.appendChild(rejilla);
+      });
+    }
+    try { if (esMovil()) nodos.entrada.blur(); } catch (e) {}
+    panel.scrollTop = 0;
+  }
+
+  /** La paleta de seis reacciones, junto al mensaje que la abrió. */
+  function paletaReaccion(idMensaje, anclaje) {
+    cerrarPaletaReaccion();
+    var p = el('div', 'gfa-paleta');
+    p.id = 'gfa-paleta-reac';
+    EMOJIS_REAC.forEach(function (e) {
+      var b = el('button', null, e);
+      b.type = 'button';
+      b.title = 'React with ' + e;
+      b.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        if (enlazar()) socket.emit('friends:dm:react', { id: idMensaje, emoji: e });
+        cerrarPaletaReaccion();
+      });
+      p.appendChild(b);
+    });
+    doc.body.appendChild(p);
+
+    var r = anclaje.getBoundingClientRect();
+    var pr = p.getBoundingClientRect();
+    var x = Math.max(6, Math.min(r.left, global.innerWidth - pr.width - 6));
+    var y = r.top - pr.height - 6;
+    if (y < 6) y = Math.min(r.bottom + 6, global.innerHeight - pr.height - 6);
+    p.style.left = x + 'px';
+    p.style.top = y + 'px';
+
+    setTimeout(function () { doc.addEventListener('pointerdown', cerrarPaletaSiFuera, true); }, 0);
+  }
+
+  function cerrarPaletaSiFuera(e) {
+    var p = doc.getElementById('gfa-paleta-reac');
+    if (p && !p.contains(e.target)) cerrarPaletaReaccion();
+  }
+
+  function cerrarPaletaReaccion() {
+    var p = doc.getElementById('gfa-paleta-reac');
+    if (p && p.parentNode) p.parentNode.removeChild(p);
+    doc.removeEventListener('pointerdown', cerrarPaletaSiFuera, true);
+  }
+
+  /** ¿Este privado es mío y todavía se puede editar? */
+  function puedoEditarDM(m) {
+    if (!m || !m.id || m._pendiente || m.editado) return false;
+    var yo = estado.yo && estado.yo.playerName;
+    if (!yo || m.de !== yo) return false;
+    var t = Date.parse(m.ts);
+    if (!isFinite(t)) return false;
+    return (Date.now() - t) < DM_EDICION_PLAZO_MS;
+  }
+
+  /** Cambia el texto de la burbuja por un campo, y lo manda al aceptar. */
+  function editarDM(m, burbuja, textoEl) {
+    if (burbuja.querySelector('.gfa-editar')) return;
+    var campo = doc.createElement('input');
+    campo.type = 'text';
+    campo.className = 'gfa-editar';
+    campo.maxLength = 300;
+    campo.value = desescapar(m.texto);
+
+    textoEl.style.display = 'none';
+    burbuja.insertBefore(campo, textoEl);
+
+    var cerrar = function () {
+      if (campo.parentNode) campo.parentNode.removeChild(campo);
+      textoEl.style.display = '';
+    };
+    var guardar = function () {
+      var t = campo.value.trim();
+      cerrar();
+      if (!t || t === desescapar(m.texto)) return;
+      if (!enlazar()) { aviso('No connection right now.', 'error'); return; }
+      socket.emit('friends:dm:edit', { id: m.id, texto: t });
+    };
+
+    // stopPropagation en todas: el juego escucha las teclas en el documento y
+    // sin esto escribir la edición haría andar al personaje.
+    campo.addEventListener('keydown', function (e) {
+      e.stopPropagation();
+      if (e.key === 'Enter')  { e.preventDefault(); guardar(); }
+      if (e.key === 'Escape') { e.preventDefault(); cerrar(); }
+    });
+    campo.addEventListener('keyup', function (e) { e.stopPropagation(); });
+    campo.addEventListener('blur', cerrar);
+    try { campo.focus(); campo.select(); } catch (e) {}
+  }
+
+  /** Los emojis con su cuenta, debajo de la burbuja. */
+  function pintarReaccionesDM(m, burbuja) {
+    var vieja = burbuja.parentNode && burbuja.parentNode.querySelector('[data-reac="' + m.id + '"]');
+    if (vieja && vieja.parentNode) vieja.parentNode.removeChild(vieja);
+    var lista = m.reacciones || [];
+    if (!lista.length) return;
+
+    var fila = el('div', 'gfa-reacs');
+    fila.setAttribute('data-reac', m.id);
+    var yo = estado.yo && estado.yo.playerName;
+    lista.forEach(function (r) {
+      var mia = yo && (r.quienes || []).indexOf(yo) >= 0;
+      var chip = el('button', 'gfa-reac' + (mia ? ' mia' : ''));
+      chip.type = 'button';
+      chip.appendChild(doc.createTextNode(r.emoji));
+      chip.appendChild(el('span', null, String((r.quienes || []).length)));
+      chip.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (enlazar()) socket.emit('friends:dm:react', { id: m.id, emoji: r.emoji });
+      });
+      fila.appendChild(chip);
+    });
+    // Del lado de su burbuja, para que se lea de quién es el mensaje.
+    fila.style.alignSelf = burbuja.classList.contains('mia') ? 'flex-end' : 'flex-start';
+    burbuja.parentNode.insertBefore(fila, burbuja.nextSibling);
+  }
+
+  /**
+   * El menú de la conversación: vaciar y limpiador automático.
+   *
+   * "Vaciar" borra SOLO DE TU LADO. Un privado es de dos, y quitarle a la otra
+   * persona su copia no es asunto tuyo — además sería un regalo para quien
+   * quiera decir algo y hacerlo desaparecer del historial ajeno.
+   */
+  function menuConversacion(anclaje) {
+    cerrarMenuConversacion();
+    var m = el('div', 'gfa-menu-conv');
+    m.id = 'gfa-menu-conv';
+
+    var cabecera = el('div', 'gfa-menu-tit', 'This conversation');
+    m.appendChild(cabecera);
+
+    var vaciar = el('button', 'gfa-menu-item mal');
+    vaciar.type = 'button';
+    vaciar.appendChild(el('span', null, '🗑'));
+    vaciar.appendChild(el('span', null, 'Clear chat (only for me)'));
+    vaciar.addEventListener('click', function (e) {
+      e.stopPropagation();
+      cerrarMenuConversacion();
+      confirmar('Clear this conversation? It will disappear for you — the other player keeps their copy.',
+        function () {
+          if (enlazar()) socket.emit('friends:dm:clear', { con: chatCon });
+        }, 'Clear');
+    });
+    m.appendChild(vaciar);
+
+    m.appendChild(el('div', 'gfa-menu-tit', 'Auto-clean my messages'));
+    [[0, 'Off'], [24, 'After 24 hours'], [72, 'After 3 days'], [168, 'After 1 week']]
+      .forEach(function (op) {
+        var b = el('button', 'gfa-menu-item' + (limpiezaDM === op[0] ? ' on' : ''));
+        b.type = 'button';
+        b.appendChild(el('span', null, limpiezaDM === op[0] ? '●' : '○'));
+        b.appendChild(el('span', null, op[1]));
+        b.addEventListener('click', function (e) {
+          e.stopPropagation();
+          cerrarMenuConversacion();
+          if (!enlazar()) { aviso('No connection right now.', 'error'); return; }
+          socket.emit('friends:dm:limpieza', { horas: op[0] });
+        });
+        m.appendChild(b);
+      });
+
+    var pie = el('div', 'gfa-menu-pie',
+      'Auto-clean only hides them for you. Your friend keeps their own copy.');
+    m.appendChild(pie);
+
+    doc.body.appendChild(m);
+    var r = anclaje.getBoundingClientRect();
+    var mr = m.getBoundingClientRect();
+    m.style.left = Math.max(8, Math.min(r.left, global.innerWidth - mr.width - 8)) + 'px';
+    m.style.top = Math.max(8, Math.min(r.bottom + 6, global.innerHeight - mr.height - 8)) + 'px';
+
+    setTimeout(function () {
+      doc.addEventListener('pointerdown', cerrarMenuConvSiFuera, true);
+    }, 0);
+  }
+
+  function cerrarMenuConvSiFuera(e) {
+    var m = doc.getElementById('gfa-menu-conv');
+    if (m && !m.contains(e.target)) cerrarMenuConversacion();
+  }
+
+  function cerrarMenuConversacion() {
+    var m = doc.getElementById('gfa-menu-conv');
+    if (m && m.parentNode) m.parentNode.removeChild(m);
+    doc.removeEventListener('pointerdown', cerrarMenuConvSiFuera, true);
   }
 
   // ── Pintado ───────────────────────────────────────────────────────────────
@@ -1030,10 +1458,45 @@
     conversacion.forEach(function (m) {
       var mio = yo ? (m.de === yo) : (m.para === chatCon);
       var b = el('div', 'gfa-burbuja ' + (mio ? 'mia' : 'suya'));
-      b.appendChild(doc.createTextNode(desescapar(m.texto)));
-      var t = el('span', 't', hora(m.ts) + (m._pendiente ? ' · sending…' : ''));
+
+      // El texto en su propio nodo: sin él no se puede sustituir al editar.
+      var textoEl = el('span', 'gfa-burbuja-txt', desescapar(m.texto));
+      b.appendChild(textoEl);
+
+      var t = el('span', 't',
+        hora(m.ts) + (m.editado ? ' · edited' : '') + (m._pendiente ? ' · sending…' : ''));
       b.appendChild(t);
+
+      /* Las acciones del mensaje. Flotan sobre la burbuja y no dentro: metidas
+         en el flujo, aparecer al pasar el ratón cambiaría el alto y la
+         conversación entera daría un salto. */
+      if (m.id && !m._pendiente) {
+        var acciones = el('div', 'gfa-msg-acc');
+
+        var reac = el('button', 'gfa-msg-bot', '☺');
+        reac.type = 'button';
+        reac.title = 'React';
+        reac.addEventListener('click', function (e) {
+          e.stopPropagation();
+          paletaReaccion(m.id, reac);
+        });
+        acciones.appendChild(reac);
+
+        if (puedoEditarDM(m)) {
+          var lapiz = el('button', 'gfa-msg-bot', '✎');
+          lapiz.type = 'button';
+          lapiz.title = 'Edit (only once, within 5 minutes)';
+          lapiz.addEventListener('click', function (e) {
+            e.stopPropagation();
+            editarDM(m, b, textoEl);
+          });
+          acciones.appendChild(lapiz);
+        }
+        b.appendChild(acciones);
+      }
+
       M.appendChild(b);
+      if (m.reacciones && m.reacciones.length) pintarReaccionesDM(m, b);
     });
 
     // Al final del todo: lo último es lo que importa.
@@ -1068,6 +1531,12 @@
     abierto = false;
     chatCon = null;
     buscados = null;
+    // Los flotantes viven en <body>, no dentro del panel: si no se cierran a
+    // mano se quedan sobre el juego después de cerrar el panel.
+    cerrarPaletaReaccion();
+    cerrarMenuConversacion();
+    cerrarMenuJugador();
+    alternarEmojis(false);
     nodos.panel.classList.remove('abierto');
     /* Se le devuelve el foco al lienzo: si se queda en el campo de búsqueda, en
        el PC el personaje no se mueve porque las teclas se las come el input. */

@@ -1104,6 +1104,128 @@
       }
     }
 
+    /**
+     * TODAS MIS FACTURAS VIVAS, DE UNA SOLA LECTURA.
+     *
+     * POR QUÉ HACE FALTA — "vendo 5 zanahorias, me las paga, salgo al mapa y
+     * tengo las 10 otra vez":
+     *
+     * `quitarDeFactura` busca la factura por el `idx` del hueco del inventario
+     * y, si no vale, por su `manualId`. Los dos pueden ser basura, y de hecho lo
+     * son a menudo: `addItem` rellena `idx` con el NÚMERO DE HUECO cuando nadie
+     * le pasa un id de factura, y `manualId` acaba valiendo el nombre del objeto
+     * ("zanahoria_buena") cuando el guardado no traía uno. Con los dos malos,
+     * `getInvoice` revertía, y eso se interpretaba como "la factura ya no
+     * está" — o sea: se quitaba el objeto EN LOCAL, se cobraba la venta, y en
+     * la cadena la factura seguía intacta.
+     *
+     * Al volver al mapa, `LoadingScenegame.syncInventoryWithBlockchain()` lee la
+     * cadena y REPONE lo que sigue habiendo allí. De ahí las diez zanahorias.
+     *
+     * Con esta lectura hay una tercera vía —y la buena—: preguntar qué facturas
+     * tiene el jugador DE VERDAD y coger la del tipo que se está gastando. Es la
+     * misma llamada que ya usa la pantalla de carga para cuadrar el inventario,
+     * así que no se inventa nada nuevo.
+     *
+     * SE CACHEA UNOS SEGUNDOS porque una venta de varios huecos la pide una vez
+     * por hueco, y sería una lectura RPC por hueco para el mismo dato. La caché
+     * se tira en cuanto se quita algo, para que la segunda pasada no trabaje con
+     * la foto de antes.
+     */
+    async misFacturas(contractAddress, opciones = {}) {
+      const ahora = Date.now();
+      const forzar = !!opciones.forzar;
+      if (!forzar && this._facturasCache &&
+          this._facturasCache.contrato === contractAddress &&
+          (ahora - this._facturasCache.cuando) < 4000) {
+        return this._facturasCache.lista;
+      }
+
+      const auth = await this.checkAuth();
+      if (!auth || !auth.success || !auth.address) return [];
+
+      let crudo;
+      try {
+        const resp = await this._apiRequest('/api/relay/call-view', 'POST', {
+          contractAddress,
+          functionName: 'getUserInventorySnapshot',
+          parameters:   { '0': auth.address }
+        });
+        if (!resp || !resp.success) return [];
+        crudo = resp.result;
+      } catch (e) {
+        // Sin snapshot no se puede afirmar nada: se devuelve vacío y quien
+        // llama tratará el caso como "no lo sé", nunca como "no tiene nada".
+        if (this.config && this.config.debug) {
+          console.warn('[PhaserRelay] misFacturas:', e && e.message);
+        }
+        return null;
+      }
+
+      const lista = PhaserRelay._facturasDeSnapshot(crudo, this._leerCamposFactura.bind(this));
+      this._facturasCache = { contrato: contractAddress, cuando: ahora, lista: lista };
+      return lista;
+    }
+
+    /** Se tira la foto guardada: algo ha cambiado en la cadena. */
+    _olvidarFacturas() { this._facturasCache = null; }
+
+    /**
+     * Normaliza lo que devuelve `getUserInventorySnapshot`.
+     *
+     * El relay entrega la misma información de cuatro formas distintas según
+     * por dónde pase (array de objetos, array de tuplas, envuelto en `result`,
+     * o —cuando el normalizador se queda corto— los campos sueltos de UNA sola
+     * factura). Es la misma casuística que ya documenta
+     * `LoadingScenegame._buildSyncMaps`; aquí se repite porque esta librería no
+     * puede depender de una escena del juego.
+     */
+    static _facturasDeSnapshot(crudo, leerCampos) {
+      const salida = [];
+      if (!crudo) return salida;
+
+      const pareceFactura = (x) =>
+        x && typeof x === 'object' && !Array.isArray(x) &&
+        (x.id !== undefined || x['0'] !== undefined);
+
+      let arr = [];
+      if (Array.isArray(crudo)) {
+        if (!crudo.length) arr = [];
+        else if (Array.isArray(crudo[0]) || pareceFactura(crudo[0])) arr = crudo;
+        else arr = [crudo];                       // los campos de UNA factura
+      } else if (typeof crudo === 'object') {
+        const vals = Object.values(crudo);
+        if (!vals.length) arr = [];
+        else if (Array.isArray(vals[0])) {
+          const dentro = vals[0];
+          if (!dentro.length) arr = [];
+          else if (Array.isArray(dentro[0]) || pareceFactura(dentro[0])) arr = dentro;
+          else arr = [dentro];
+        } else if (pareceFactura(crudo)) arr = [crudo];
+        else arr = vals.filter(v => v && typeof v === 'object');
+      }
+
+      for (const bruto of arr) {
+        if (!bruto) continue;
+        let f = null;
+        if (Array.isArray(bruto)) {
+          // [id, manualId, owner, tipo, cantidad, activa, creadaEn]
+          f = {
+            id:       Number(bruto[0] || 0),
+            manualId: String(bruto[1] != null ? bruto[1] : ''),
+            owner:    String(bruto[2] || '').toLowerCase(),
+            tipo:     String(bruto[3] != null ? bruto[3] : ''),
+            cantidad: Number(bruto[4] || 0),
+            activa:   (bruto[5] !== false && bruto[5] !== 'false' && bruto[5] !== 0)
+          };
+        } else {
+          f = leerCampos(bruto);
+        }
+        if (f && f.id > 0 && f.activa && f.cantidad > 0) salida.push(f);
+      }
+      return salida;
+    }
+
     async quitarDeFactura(contractAddress, opciones = {}) {
       const { idx, manualid, cantidad, tipo, vaciarFactura = false } = opciones;
 
@@ -1133,6 +1255,8 @@
          error de verdad y el jugador conserva su objeto; ya lo volverá a
          intentar cuando el nodo vuelva, que es lo que pasa siempre. */
       let f = null;
+      let miInventario = null;      // null = no se ha podido leer la cadena
+      let misDelTipo   = null;      // mis facturas vivas del tipo que se gasta
       try {
         // 1) Por el id que trae el hueco.
         f = await this.leerFactura(contractAddress, idx);
@@ -1142,6 +1266,39 @@
           const porNombre = await this.leerFacturaPorManualId(contractAddress, manualid);
           if (suya(porNombre)) f = porNombre;
         }
+
+        /* 3) TERCERA VÍA: MIS FACTURAS DE ESE TIPO.
+
+           ESTA ES LA QUE ARREGLA "vendo y al salir del mapa lo sigo teniendo".
+           El `idx` del hueco no es de fiar —`addItem` lo rellena con el número
+           de hueco cuando nadie le pasa un id de factura— y el `manualId`
+           tampoco. Con los dos malos se daba por hecho que la factura ya no
+           estaba, se borraba el objeto en local y se cobraba… con la factura
+           viva en la cadena. Al volver al mapa, el cuadre contra la cadena
+           reponía el objeto.
+
+           Aquí se pregunta qué tiene el jugador DE VERDAD y se coge una factura
+           suya del mismo tipo. Se prefiere la que tenga cantidad suficiente
+           para no partir la venta en dos transacciones cuando no hace falta;
+           si no hay ninguna así, la más grande. */
+        if (!suya(f) && tipoPedido) {
+          miInventario = await this.misFacturas(contractAddress);
+          if (Array.isArray(miInventario)) {
+            const pedido = Number(cantidad) || 0;
+            misDelTipo = miInventario
+              .filter(x => x.tipo === tipoPedido && (!yo || !x.owner || x.owner === yo))
+              .sort((a, b) => b.cantidad - a.cantidad);
+            const cabe = misDelTipo.find(x => x.cantidad >= pedido);
+            const elegida = cabe || misDelTipo[0] || null;
+            if (suya(elegida)) {
+              f = elegida;
+              if (this.config && this.config.debug) {
+                console.log('[PhaserRelay] la factura', idx, 'no valía; se usa la',
+                            f.id, 'de', tipoPedido, 'con', f.cantidad);
+              }
+            }
+          }
+        }
       } catch (e) {
         return {
           ok: false, ya: false, id: Number(idx) || 0,
@@ -1150,7 +1307,7 @@
         };
       }
 
-      // 3) Ya no está: no es un error, es que ya se quitó.
+      // 4) Ya no está: no es un error, es que ya se quitó.
       if (!suya(f)) {
         /* CUIDADO CON LO QUE SE LLAMA "YA NO ESTABA".
 
@@ -1183,6 +1340,47 @@
           }
         }
 
+        /* "YA SE GASTÓ" SOLO SI DE VERDAD NO LE QUEDA NINGUNA.
+
+           `ya:true` autoriza a quien llama a BORRAR el objeto del inventario
+           sin tocar la cadena. Decirlo a la ligera es justo lo que hacía que se
+           vendieran zanahorias que seguían existiendo en la cadena. Así que
+           antes de afirmarlo se comprueba en el inventario real del jugador:
+
+             · si le quedan facturas vivas de ese tipo → NO se ha gastado; lo
+               que ha pasado es que no hemos sabido cuál era, y eso es un error,
+               no un "ya estaba hecho";
+             · si no se ha podido leer la cadena (`null`) tampoco se afirma
+               nada: se devuelve error y el jugador conserva su objeto. */
+        if (tipoPedido) {
+          /* SE REUTILIZA lo que ya miró la tercera vía. Volver a filtrar aquí
+             con el mismo criterio no podía dar nunca un resultado distinto —si
+             hubiera encontrado algo, la tercera vía ya lo habría usado— y eran
+             dos criterios que podían separarse con el tiempo. */
+          if (misDelTipo === null && miInventario === null) {
+            miInventario = await this.misFacturas(contractAddress);
+            if (Array.isArray(miInventario)) {
+              misDelTipo = miInventario.filter(
+                x => x.tipo === tipoPedido && (!yo || !x.owner || x.owner === yo));
+            }
+          }
+          if (misDelTipo === null) {
+            return {
+              ok: false, ya: false, id: Number(idx) || 0,
+              error: 'no se pudo comprobar el inventario en la cadena; no se ha quitado nada'
+            };
+          }
+          if (misDelTipo.length) {
+            /* Le quedan facturas de ese tipo pero ninguna servía (cantidad a
+               cero, cerrada…). No se ha gastado: no se puede borrar en local. */
+            return {
+              ok: false, ya: false, id: Number(idx) || 0,
+              error: 'la factura ' + (Number(idx) || 0) + ' no vale y en la cadena todavía ' +
+                     'quedan ' + misDelTipo.length + ' de ' + tipoPedido + ': no se quita nada'
+            };
+          }
+        }
+
         // Aquí sí: no hay factura, o está cerrada. Eso es "ya se gastó".
         const motivo = (f && !f.activa)
           ? 'la factura ya estaba cerrada'
@@ -1207,6 +1405,9 @@
         error = e && (e.message || String(e));
       }
       if (res && res.success) {
+        // La cadena va a cambiar: la foto del inventario que teníamos guardada
+        // ya no sirve para la siguiente vuelta de esta misma venta.
+        this._olvidarFacturas();
         return { ok: true, ya: false, funcion: 'decreaseInvoiceQuantity', id: f.id,
                  cantidad: quitar, transactionId: res.transactionId, txHash: res.txHash };
       }
@@ -1220,6 +1421,7 @@
           const res2 = await this.sendTransaction(contractAddress, 'deleteInvoice',
                                                   { 0: String(f.id) });
           if (res2 && res2.success) {
+            this._olvidarFacturas();
             return { ok: true, ya: false, funcion: 'deleteInvoice', id: f.id,
                      cantidad: f.cantidad, transactionId: res2.transactionId,
                      txHash: res2.txHash };

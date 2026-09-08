@@ -63,7 +63,8 @@
       amigos: AMIGOS.slice(),
       entrantes: ENTRANTES.slice(),
       salientes: SALIENTES.slice(),
-      noLeidos: noLeidos
+      noLeidos: noLeidos,
+      limpiezaDM: 0
     };
   }
 
@@ -192,6 +193,53 @@
       setTimeout(function () { s.recibir('friends:dm:sent', m); }, 90);
     }
 
+    if (evento === 'friends:dm:react') {
+      var m = CONVERSACION.filter(function (x) { return x.id === datos.id; })[0];
+      if (!m) return;
+      m.reacciones = m.reacciones || [];
+      var g = m.reacciones.filter(function (r) { return r.emoji === datos.emoji; })[0];
+      if (g && g.quienes.indexOf('cuenta_yo') >= 0) {
+        g.quienes = g.quienes.filter(function (q) { return q !== 'cuenta_yo'; });
+        if (!g.quienes.length) m.reacciones = m.reacciones.filter(function (r) { return r.emoji !== datos.emoji; });
+      } else {
+        if (!g) { g = { emoji: datos.emoji, quienes: [] }; m.reacciones.push(g); }
+        g.quienes.push('cuenta_yo');
+      }
+      setTimeout(function () {
+        s.recibir('friends:dm:reaccion', { id: m.id, reacciones: m.reacciones });
+      }, 60);
+    }
+
+    if (evento === 'friends:dm:edit') {
+      var me = CONVERSACION.filter(function (x) { return x.id === datos.id; })[0];
+      if (!me) return;
+      if (me.editado) {
+        setTimeout(function () { s.recibir('friends:dm:editError', { motivo: 'ya_editado' }); }, 60);
+        return;
+      }
+      me.texto = datos.texto; me.editado = true;
+      setTimeout(function () {
+        s.recibir('friends:dm:editado', { id: me.id, texto: me.texto, editado: true });
+      }, 60);
+    }
+
+    if (evento === 'friends:dm:clear') {
+      CONVERSACION.length = 0;
+      setTimeout(function () { s.recibir('friends:dm:cleared', { con: datos.con }); }, 60);
+    }
+
+    if (evento === 'friends:dm:limpieza') {
+      setTimeout(function () {
+        s.recibir('friends:dm:limpieza', { ok: true, horas: datos.horas });
+      }, 60);
+    }
+
+    if (evento === 'player:petNameColor') {
+      setTimeout(function () {
+        s.recibir('player:petNameColor', { ok: true, color: datos.color || null });
+      }, 50);
+    }
+
     if (evento === 'player:nameColor') {
       setTimeout(function () {
         s.recibir('player:nameColor', { ok: true, color: datos.color || null });
@@ -241,11 +289,22 @@
     Username: 'Kuro',
     nameColor: null,
     socket: socket,
+    petName: 'Kuro Jr',
+    /* El contenedor del chat, como en el juego: es de donde `podarChat` saca
+       los renglones viejos cuando pasan del tope. */
+    chatMessages: document.getElementById('chat-messages'),
     usuariox: {
       _color: '#ffffff',
       setColor: function (c) {
         this._color = c;
         apuntar('cartel del personaje → ' + c);
+      }
+    },
+    dogNameText: {
+      _color: '#ffffff',
+      setColor: function (c) {
+        this._color = c;
+        apuntar('cartel de la mascota → ' + c);
       }
     },
     notifications: {

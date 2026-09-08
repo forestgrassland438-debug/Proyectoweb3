@@ -8321,7 +8321,18 @@ console.log('📊 Tree types:', Object.keys(TREE_TYPE_CONFIG));
 
 
       // control simple anti-spam cliente (ms)
-    this._chatRateLimitMs = 800;
+    /* POR ENCIMA DEL FRENO DEL SERVIDOR, que son 1000 ms.
+
+       Estaba en 800, o sea POR DEBAJO: había una ventana de 200 ms en la que
+       el cliente daba el mensaje por bueno, vaciaba el campo y lo enviaba… y el
+       servidor lo descartaba por rápido. Ese era el "a veces escribo y no
+       sale", y como el texto ya no estaba en el campo, el jugador lo
+       reescribía y acababa mandando el mismo dos veces.
+
+       Con 1100 el cliente siempre es el más lento de los dos, así que lo que
+       él acepta el servidor lo acepta. Y lo que llega antes de tiempo ya no se
+       tira: se encola (ver _encolarChat). */
+    this._chatRateLimitMs = 1100;
     this._lastChatSent = 0;
     
 
@@ -16440,6 +16451,18 @@ _setupZoomKeeper() {
           }
         },
 
+        // playerPetNameColor - Cambió el color del nombre de SU mascota estando
+        // quieto (si se mueve, ya viaja dentro de playerMoved).
+        {
+          event: 'playerPetNameColor',
+          handler: (data) => {
+            if (!data || !data.id) return;
+            const p = this.otherPlayers[data.id];
+            if (!p || !window.GFNombreColor) return;
+            window.GFNombreColor.aplicarAMascotaRemota(p, data.petNameColor);
+          }
+        },
+
         // playerLeft - Jugador abandonó la sala
         {
           event: 'playerLeft',
@@ -16810,18 +16833,51 @@ sendPlayerMovement() {
     // GESTIÓN DE OTROS JUGADORES
     // ================================
 
+
+/**
+ * SUELTA TODO LO QUE LLEVA UN JUGADOR REMOTO.
+ *
+ * UN SOLO SITIO, A PROPÓSITO. Antes esta lista estaba escrita DOS veces
+ * —en `clearOtherPlayers` y en `removeOtherPlayer`— y se desincronizaron: a la
+ * primera se le habían olvidado la etiqueta de la mascota y las burbujas de
+ * chat. Como `clearOtherPlayers` se ejecuta en cada `currentPlayers` (o sea en
+ * cada reconexión de cualquiera), el mapa se iba llenando de nombres de
+ * mascotas flotando sin dueño — los "clones" que se veían.
+ *
+ * Aquí NO se decide nada: se destruye todo lo que se haya podido crear. Cada
+ * cosa en su propio try, porque un objeto ya destruido por otro camino no puede
+ * impedir que se suelten los demás.
+ */
+_soltarJugadorRemoto(p) {
+  if (!p) return;
+  const fuera = (o) => { try { if (o && o.destroy) o.destroy(); } catch (_) {} };
+
+  fuera(p.sprite);
+  fuera(p.nameText);
+  fuera(p.shadowContainer);
+
+  // Burbujas de chat y los tres puntos de "está escribiendo".
+  fuera(p._chatContainer);
+  fuera(p._typingContainer);
+  fuera(p._chatText);
+  fuera(p._chatTypingText);
+
+  // Y sus temporizadores: si no, se disparan sobre objetos ya destruidos.
+  try { if (p._chatTimer) clearTimeout(p._chatTimer); } catch (_) {}
+  try { if (p._typingHideTimer) clearTimeout(p._typingHideTimer); } catch (_) {}
+  p._chatTimer = null;
+  p._typingHideTimer = null;
+
+  if (p.dog) {
+    fuera(p.dog.sprite);
+    fuera(p.dog.shadowContainer);
+    // ESTA era la que faltaba en clearOtherPlayers: el nombre de la mascota.
+    fuera(p.dog.nameText);
+  }
+}
+
 clearOtherPlayers() {
-  Object.values(this.otherPlayers).forEach(player => {
-    if (player.sprite) player.sprite.destroy();
-    if (player.nameText) player.nameText.destroy();
-    if (player.shadowContainer) player.shadowContainer.destroy();
-
-    if (player.dog) {
-      if (player.dog.sprite) player.dog.sprite.destroy();
-      if (player.dog.shadowContainer) player.dog.shadowContainer.destroy();
-    }
-  });
-
+  Object.values(this.otherPlayers).forEach(p => this._soltarJugadorRemoto(p));
   this.otherPlayers = {};
 }
 
@@ -17239,6 +17295,14 @@ updateOtherPlayer(playerInfo) {
     // no tenga nombre todavía (antes se ocultaba la etiqueta entera y por eso
     // no se veía ningún nivel de mascota).
     if (typeof playerInfo.petLevel === 'number') player.dog._petLevel = playerInfo.petLevel;
+
+    /* El color que ese jugador eligió para el nombre de SU mascota. Lo pone el
+       servidor en el paquete de la sala, igual que el del personaje. */
+    if (window.GFNombreColor && playerInfo.petNameColor !== undefined) {
+      if (player._petNameColor !== playerInfo.petNameColor) {
+        window.GFNombreColor.aplicarAMascotaRemota(player, playerInfo.petNameColor);
+      }
+    }
     player.dog.nameText.setText(this._dogLabelText(dogName, player.dog._petLevel));
     player.dog.nameText.setPosition(dogX, dogY - player.dog.sprite.displayHeight * 0.5 - 4);
     player.dog.nameText.setDepth(remoteDogFeetY + 1);
@@ -17253,19 +17317,8 @@ removeOtherPlayer(playerId) {
   const player = this.otherPlayers[playerId];
   if (!player) return;
 
-  if (player.sprite) player.sprite.destroy();
-  if (player.nameText) player.nameText.destroy();
-  // La sombra es un contenedor aparte: si no se destruye aquí se queda una
-  // mancha oscura clavada en el suelo donde estaba el jugador que se fue.
-  if (player.shadowContainer) { try { player.shadowContainer.destroy(); } catch(_){} }
-  if (player._chatContainer) { try { player._chatContainer.destroy(); } catch(_){} }
-  if (player._typingContainer) { try { player._typingContainer.destroy(); } catch(_){} }
-
-  if (player.dog) {
-    if (player.dog.sprite) player.dog.sprite.destroy();
-    if (player.dog.shadowContainer) player.dog.shadowContainer.destroy();
-    if (player.dog.nameText) player.dog.nameText.destroy();
-  }
+  // Una sola lista de cosas que soltar, la de _soltarJugadorRemoto.
+  this._soltarJugadorRemoto(player);
 
   delete this.otherPlayers[playerId];
 
@@ -17881,6 +17934,57 @@ removeOtherPlayer(playerId) {
   // -----------------------------
   // Envío de mensajes
   // -----------------------------
+  /**
+   * GUARDA UN MENSAJE QUE LLEGA DEMASIADO PRONTO Y LO SUELTA A SU HORA.
+   *
+   * El servidor descarta lo que llegue a menos de un segundo del mensaje
+   * anterior. Antes el cliente se limitaba a avisar y a tirarlo — con el campo
+   * ya vacío, así que el jugador tenía que reescribirlo, y de ahí salía el
+   * mismo mensaje dos veces.
+   *
+   * Tope de cinco y sin repetidos: si alguien machaca la tecla de enviar, se
+   * queda con lo que escribió, no con veinte copias.
+   */
+  _encolarChat(texto, espera) {
+    this._colaEnvioChat = this._colaEnvioChat || [];
+    if (this._colaEnvioChat.indexOf(texto) < 0 && this._colaEnvioChat.length < 5) {
+      this._colaEnvioChat.push(texto);
+    }
+    if (this.chatInput) this.chatInput.value = '';
+    try { this._refrescarBotonEnviarChat && this._refrescarBotonEnviarChat(); } catch (_) {}
+    if (typeof this._cerrarSelectorEmojis === 'function') this._cerrarSelectorEmojis();
+
+    if (this._relojColaChat) return;         // ya hay uno en marcha
+    const soltar = () => {
+      this._relojColaChat = null;
+      if (!this._colaEnvioChat || !this._colaEnvioChat.length) return;
+      const siguiente = this._colaEnvioChat.shift();
+      const falta = this._chatRateLimitMs - (Date.now() - this._lastChatSent);
+      if (falta > 0) { this._relojColaChat = setTimeout(soltar, falta + 30); this._colaEnvioChat.unshift(siguiente); return; }
+      this._lastChatSent = Date.now();
+      this._enviarTextoAlChat(siguiente);
+      if (this._colaEnvioChat.length) {
+        this._relojColaChat = setTimeout(soltar, this._chatRateLimitMs + 30);
+      }
+    };
+    this._relojColaChat = setTimeout(soltar, Math.max(60, espera + 30));
+  }
+
+  /** Manda un texto por el socket. Lo usan el envío normal y la cola. */
+  _enviarTextoAlChat(texto) {
+    const s = this._socketVivo();
+    if (!s || !s.connected) {
+      this._colaChat = this._colaChat || [];
+      if (this._colaChat.length < 5) this._colaChat.push(texto);
+      if (s && s.disconnected) { try { s.connect(); } catch (e) {} }
+      this.appendSystemMessage('No connection. Your message will be sent as soon as it comes back.');
+      return;
+    }
+    if (s._necesitaJoin) this.rehacerJoin('antes de enviar un chat');
+    s.emit('chatMessage', { usernamex: this.Username || '---', text: texto });
+    this._showLocalChatBubble(texto);
+  }
+
   _sendChatFromInput() {
     if (!this.chatInput) return;
     const text = this.chatInput.value.trim();
@@ -17903,66 +18007,32 @@ removeOtherPlayer(playerId) {
       }
     } catch (e) { console.warn('comando de chat:', e); }
 
-    // rate limit cliente
+    /* DEMASIADO PRONTO: SE GUARDA, NO SE TIRA.
+
+       Antes esto avisaba y se iba, con el mensaje ya borrado del campo por el
+       camino: el jugador lo escribía, desaparecía y no salía en ninguna parte.
+       Ahora espera su turno y sale solo. Un mensaje escrito no se pierde. */
     const now = Date.now();
-    if (now - this._lastChatSent < this._chatRateLimitMs) {
-      this.appendSystemMessage('Please wait a moment before sending another message.');
-      return;
-    }
+    const _espera = this._chatRateLimitMs - (now - this._lastChatSent);
+    if (_espera > 0) { this._encolarChat(text, _espera); return; }
     this._lastChatSent = now;
 
-    // preparar payload
-    const payload = {
-      usernamex: this.Username || '---',
-      text
-    };
+    /* El envío de verdad vive en UN solo sitio, `_enviarTextoAlChat`, que es el
+       mismo que usa la cola. Dos copias del envío se separan con el tiempo y
+       luego el fallo aparece solo por uno de los dos caminos. */
+    this._enviarTextoAlChat(text);
 
-    /* SE PREGUNTA POR EL SOCKET VIVO, NO POR LA REFERENCIA DE LA ESCENA.
-
-       FALLO QUE ESTO ARREGLA — "mi amigo se mueve, yo escribo y siempre sale
-       'Reconnecting to the chat… your message was not sent', y no vuelve nunca":
-
-       este guardia decidia con `this.socket`, que varias rutas ponen a null con
-       la escena todavia viva. Cuando eso pasaba:
-
-         · `!this.socket` daba verdadero y se pintaba el aviso;
-         · el respaldo cogia `window.globalSocket`… que estaba CONECTADO, asi
-           que `s.disconnected` era false y no se intentaba reconectar NADA;
-         · y el mensaje se tiraba.
-
-       O sea: el mismo texto en cada intento, para siempre, mientras el juego
-       funcionaba perfectamente por ese mismo socket — de ahi que se siguiera
-       viendo a los demas moverse. No habia ninguna reconexion que hacer: solo
-       una referencia perdida.
-
-       Ahora `_socketVivo()` devuelve el que esta sirviendo —y esta escena lo
-       readopta— y si de verdad no hay linea el mensaje se GUARDA y sale solo al
-       volver, en vez de tirarse pidiendo al jugador que lo reescriba. */
-    const s = this._socketVivo();
-
-    if (!s || !s.connected) {
-      this._colaChat = this._colaChat || [];
-      if (this._colaChat.length < 5) this._colaChat.push(text);
-      if (s && s.disconnected) { try { s.connect(); } catch (e) {} }
-      this.appendSystemMessage('No connection. Your message will be sent as soon as it comes back.');
-      if (typeof this._cerrarSelectorEmojis === 'function') this._cerrarSelectorEmojis();
-      this.chatInput.value = '';
-      return;
-    }
-
-    /* CONECTADO PERO FUERA DE LA SALA. También hay que arreglarlo aquí: el
-       servidor descartaría el mensaje y el jugador no entendería por qué. */
-    if (s._necesitaJoin) this.rehacerJoin('antes de enviar un chat');
-
-    // emitir y limpiar input
-    s.emit('chatMessage', payload);
     // Al enviar se cierra el selector de emojis, si estaba abierto.
     if (typeof this._cerrarSelectorEmojis === 'function') this._cerrarSelectorEmojis();
     this._isTyping = false;
     clearTimeout(this._typingTimer);
-    if (s.connected)
-      s.emit('chatTyping', { typing: false, usernamex: this.Username || '---' });
-    this._showLocalChatBubble(text);  // Show sent message above own character
+    /* Se vuelve a pedir el socket: el de antes se lo quedó
+       `_enviarTextoAlChat`, que es quien manda ahora. Y la burbuja sobre el
+       personaje también la pone él — pintarla otra vez aquí saldría doble. */
+    const _s = this._socketVivo();
+    if (_s && _s.connected) {
+      _s.emit('chatTyping', { typing: false, usernamex: this.Username || '---' });
+    }
     this.chatInput.value = '';
   }
 
@@ -19123,14 +19193,10 @@ shutdown() {
     });
   }
 
-  // Limpiar jugadores locales
-  Object.values(this.otherPlayers).forEach(p => {
-    if (p.sprite) p.sprite.destroy();
-    if (p.nameText) p.nameText.destroy();
-    if (p.shadowContainer) p.shadowContainer.destroy();
-    if (p.dog?.nameText) p.dog.nameText.destroy();
-    if (p.dog?.shadowContainer) p.dog.shadowContainer.destroy();
-  });
+  /* Limpiar jugadores locales — por el MISMO camino que los otros dos sitios.
+     Esta lista también iba suelta y también se le habían olvidado cosas (el
+     sprite del perro, las burbujas de chat). Ver _soltarJugadorRemoto. */
+  Object.values(this.otherPlayers).forEach(p => this._soltarJugadorRemoto(p));
   this.otherPlayers = {};
 
   // No desconectar el socket global, solo salir de la sala
@@ -22856,7 +22922,7 @@ async loadPlayerData() {
       'misiones', 'Username', 'lenguaje', 'petName', 'petLevel',
       // Color del nombre. Lo lee gf-nombre-color.js al montarse para pintar
       // el cartel del jugador y la muestra del dashboard.
-      'nameColor'
+      'nameColor', 'petNameColor'
     ];
     playerProps.forEach(prop => {
       if (data[prop] !== undefined && data[prop] !== null) this[prop] = data[prop];

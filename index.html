@@ -1634,6 +1634,21 @@
         character and in the chat.</div>
     </div>
 
+    <!-- Y el de la MASCOTA, justo debajo. Misma máquina: gf-nombre-color.js
+         monta las dos tarjetas desde la misma tabla, solo cambia el prefijo de
+         los ids (gfnc = personaje, gfnp = mascota). -->
+    <div class="hub-row_101 dash-card_101">
+      <label class="hub-label_101">🐶 Pet name colour</label>
+      <div class="gfnc-fila">
+        <span class="gfnc-muestra" id="gfnp-muestra">Your pet</span>
+        <input type="color" id="gfnp-libre" value="#ffffff"
+               aria-label="Pick a custom pet name colour" title="Custom colour" />
+        <button id="gfnp-reset" type="button" class="btn-ghost gfnc-reset">Default</button>
+      </div>
+      <div class="gfnc-paleta" id="gfnp-paleta"></div>
+      <div class="dash-hint_101">The colour of your pet's name, above its head.</div>
+    </div>
+
     <div class="hub-row_101 dash-card_101">
       <label class="hub-label_101" for="language-select">🌐 Language</label>
       <select id="language-select" aria-label="Select language">

@@ -2199,19 +2199,42 @@ class StatsSync {
         }
     }
 
+    /**
+     * Vuelve a intentarlo DENTRO DE UN MOMENTO, sin gastar reintentos.
+     *
+     * Es para los choques: otro envío en vuelo, el cerrojo global cogido por la
+     * otra instancia de StatsSync (el mapa y la tienda tienen una cada uno), o
+     * `window.currentPlayer` que todavía no ha llegado. Nada de eso es un
+     * fallo: es "ahora no, en un momento".
+     *
+     * LO QUE ARREGLA: antes estas tres situaciones se iban con un `return` seco
+     * y lo pendiente se quedaba SIN NINGÚN TEMPORIZADOR. Solo salía si el
+     * jugador cambiaba otro stat después. Con `immediate:true` —que es como
+     * cobra la tienda— eso significaba que el oro bajaba en pantalla y en la
+     * base de datos, y a la cadena no llegaba nunca.
+     */
+    _reintentarPronto() {
+        if (!Object.keys(this._pending).length) return;
+        clearTimeout(this._timer);
+        this._timer = setTimeout(() => this._flush(), 400);
+    }
+
     /** Envía todos los cambios pendientes al backend */
     async _flush() {
-        if (this._updating) return;
+        if (this._updating) { this._reintentarPronto(); return; }
         const toSend = { ...this._pending };
         if (!Object.keys(toSend).length) return;
 
         // Lock global por jugador para evitar doble-TX desde múltiples instancias
         const playerName = window.currentPlayer;
-        if (!playerName) return;
+        if (!playerName) { this._reintentarPronto(); return; }
         const lockKey = `statsFlush_${playerName}`;
         if (window[lockKey]) {
-            // Ya hay un flush en curso — re-encolar y esperar
+            // Ya hay un flush en curso — re-encolar Y VOLVER A INTENTARLO.
+            // El `return` sin reloj de antes era el agujero por el que se
+            // perdía el cobro de la tienda.
             Object.assign(this._pending, toSend);
+            this._reintentarPronto();
             return;
         }
         window[lockKey] = true;
@@ -2288,8 +2311,15 @@ class StatsSync {
         if (!Object.keys(this._pending).length) return;
         this._reintentos = (this._reintentos || 0) + 1;
         if (this._reintentos > 6) {
-            console.warn('⚠️ StatsSync: demasiados reintentos, se deja para el próximo cambio');
+            /* Se para la escalada, pero NO se tira lo pendiente: se deja un
+               reloj lento puesto. Lo que hay aquí puede ser el oro de una
+               compra, y perderlo en silencio es peor que insistir cada medio
+               minuto. */
+            console.warn('⚠️ StatsSync: 6 reintentos fallidos; se sigue insistiendo despacio con:',
+                         Object.keys(this._pending).join(', '));
             this._reintentos = 0;
+            clearTimeout(this._timer);
+            this._timer = setTimeout(() => this._flush(), 30000);
             return;
         }
         const espera = Math.min(2000 * Math.pow(2, this._reintentos - 1), 30000);
@@ -2355,10 +2385,32 @@ class StatsSync {
         }
     }
 
-    /** Vacía inmediatamente el buffer pendiente — llamar antes de salir de escena */
+    /**
+     * Vacía inmediatamente el buffer pendiente — se llama al salir de escena.
+     *
+     * ES LA ÚLTIMA OPORTUNIDAD, así que no vale con intentarlo una vez: si hay
+     * un envío en vuelo o el cerrojo global está cogido, se espera un poco y se
+     * vuelve. Antes bastaba un choque en ese instante para que el cobro de la
+     * tienda se quedara en el navegador y no llegara nunca a la cadena.
+     */
     async _flushUpdates() {
         clearTimeout(this._timer);
-        await this._flush();
+        for (let intento = 0; intento < 6; intento++) {
+            if (!Object.keys(this._pending).length) return;
+            const playerName = window.currentPlayer;
+            const libre = playerName && !this._updating && !window[`statsFlush_${playerName}`];
+            if (libre) {
+                await this._flush();
+                if (!Object.keys(this._pending).length) return;
+            }
+            await new Promise(r => setTimeout(r, 350));
+        }
+        if (Object.keys(this._pending).length) {
+            console.warn('⚠️ StatsSync: quedaba algo por enviar al salir de la escena:',
+                         Object.keys(this._pending).join(', '));
+            // Se deja con reloj puesto: la instancia sigue viva en la página.
+            this._reintentarPronto();
+        }
     }
 }
 
