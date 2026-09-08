@@ -5149,6 +5149,19 @@ this.anims.create({
        así que va detrás de los dos. */
     if (window.GFBuho) window.GFBuho.montar(this);
 
+    /* ── SOCIAL ──────────────────────────────────────────────────────────
+       Amistades (el botón redondo de debajo de Mail, con las solicitudes y
+       los privados), las reacciones del chat y el color del nombre.
+
+       Los tres son DOM de la PÁGINA, no de la escena, así que sobreviven al
+       viaje al mapa/tienda/batalla. Por eso sus `montar` son idempotentes:
+       reenganchan los manejadores a la escena VIVA en vez de sumar otro. Sin
+       eso, un botón acabaría abriendo el panel dos veces por clic — que es
+       exactamente el fallo que ya se corrigió en el botón del chat. */
+    if (window.GFAmigos)      window.GFAmigos.montar(this);
+    if (window.GFChatSocial)  window.GFChatSocial.montar(this);
+    if (window.GFNombreColor) window.GFNombreColor.montar(this);
+
     console.log('game create ejecutándose');
 
 
@@ -5906,6 +5919,14 @@ window.hub.onRetry = (hiddenData) => {
           chatBtn.style.removeProperty('display');
           this._bindDomClick(chatBtn, 'chatToggle', () => this._toggleChat());
         }
+
+        /* Lo social va por el mismo camino y por el mismo motivo: el botón de
+           amistades es DOM de la página y su manejador apunta a la escena que
+           lo puso. Si la escena se despierta en vez de recrearse, ese manejador
+           sigue apuntando a una escena muerta y el botón deja de abrir nada. */
+        if (window.GFAmigos)      window.GFAmigos.montar(this);
+        if (window.GFChatSocial)  window.GFChatSocial.montar(this);
+        if (window.GFNombreColor) window.GFNombreColor.montar(this);
         try { document.body.classList.remove('in-battle'); } catch (_) {}
 
         // Los botones de CERRAR de los paneles se asignan con `.onclick = …`
@@ -8189,6 +8210,14 @@ console.log('📊 Tree types:', Object.keys(TREE_TYPE_CONFIG));
               
 
       this.initialize();
+
+      /* EL CERROJO SE REARMA AQUÍ. Ver el comentario largo de `savegg()`.
+         La instancia de la escena se REUTILIZA, así que `_inventarioCargado`
+         llegaba hasta aquí valiendo true de la vez anterior — y justo debajo se
+         vacía `this.STATE`. Entre ese vaciado y el final de `initialize()` (que
+         es asíncrono y nadie espera), cualquier guardado escribía un inventario
+         VACÍO encima del bueno. */
+      this._inventarioCargado = false;
 
       this.STATE = {
         slots: Array(40).fill(null),
@@ -16395,6 +16424,22 @@ _setupZoomKeeper() {
           }
         },
 
+        // playerNameColor - Otro jugador cambió el color de su nombre SIN
+        // moverse. Si se mueve, el color ya viaja dentro de playerMoved; esto
+        // cubre al que lo cambia estando quieto, que si no se seguiría viendo
+        // del color de antes hasta que diera un paso.
+        {
+          event: 'playerNameColor',
+          handler: (data) => {
+            if (!data || !data.id) return;
+            const p = this.otherPlayers[data.id];
+            if (!p || !p.nameText || !window.GFNombreColor) return;
+            p._nameColor = data.nameColor || null;
+            const c = window.GFNombreColor.valido(data.nameColor);
+            p.nameText.setColor(c || window.GFNombreColor.POR_DEFECTO);
+          }
+        },
+
         // playerLeft - Jugador abandonó la sala
         {
           event: 'playerLeft',
@@ -16769,6 +16814,7 @@ clearOtherPlayers() {
   Object.values(this.otherPlayers).forEach(player => {
     if (player.sprite) player.sprite.destroy();
     if (player.nameText) player.nameText.destroy();
+    if (player.shadowContainer) player.shadowContainer.destroy();
 
     if (player.dog) {
       if (player.dog.sprite) player.dog.sprite.destroy();
@@ -16804,6 +16850,33 @@ createOtherPlayer(playerInfo) {
   sprite.setScale(2);
   sprite.setDepth(playerInfo.y + sprite.displayHeight * 0.5);
 
+  /* ── LA SOMBRA DEL JUGADOR REMOTO ──────────────────────────────────────
+     FALLO QUE ESTO ARREGLA — "a mis amigos no les sale la sombra debajo del
+     personaje, solo la de los pasos":
+
+     y era literal. Aquí se creaba el sprite, la etiqueta del nombre, el perro
+     y HASTA LA SOMBRA DEL PERRO… pero no la del jugador. Mi personaje sí la
+     tenía (this.shadowContainer, creado en create()), así que en la misma
+     pantalla el mío iba pisando el suelo y los demás flotaban. Lo único que se
+     les veía debajo eran las huellas de gf-pisadas, que son otra cosa.
+
+     Es la MISMA elipse que la del jugador local —45 x 22.5 al 20 % de negro—
+     para que dos personajes uno al lado del otro proyecten la misma sombra. La
+     posición sale de `displayHeight` en vez de un +45 fijo: así sigue estando
+     en los pies aunque el personaje Soulbound tenga otra altura.
+
+     La profundidad se lleva como la del perro (pies - 1), que es lo que ya
+     funciona en este mapa: por debajo de su dueño y por encima del suelo. */
+  const sombraRemota = this.add.graphics();
+  sombraRemota.fillStyle(0x000000, 0.2);
+  sombraRemota.fillEllipse(0, 0, 45, 22.5);
+  const shadowContainer = this.add.container(
+    playerInfo.x,
+    playerInfo.y + sprite.displayHeight * 0.45,
+    [sombraRemota]
+  );
+  shadowContainer.setDepth(playerInfo.y + sprite.displayHeight * 0.5 - 1);
+
   const nameText = this.add.text(
     playerInfo.x,
     playerInfo.y - sprite.height / 2 - 30,
@@ -16823,9 +16896,20 @@ createOtherPlayer(playerInfo) {
   // jugador remoto pasa por detrás de ellos, igual que el jugador local.
   nameText.setDepth(playerInfo.y + sprite.displayHeight * 0.5 + 1);
 
+  /* El color que ESE jugador se eligió. Viene en el paquete de la sala y lo
+     pone el servidor (ver joinRoom), no el cliente del otro: si viajara en el
+     mensaje, cualquiera podría pintarse el nombre del color que quisiera en la
+     pantalla de los demás. Se vuelve a comprobar aquí que sea '#rrggbb' antes
+     de tocar un estilo. */
+  if (window.GFNombreColor && playerInfo.nameColor) {
+    const _c = window.GFNombreColor.valido(playerInfo.nameColor);
+    if (_c) nameText.setColor(_c);
+  }
+
   this.otherPlayers[playerInfo.id] = {
     sprite,
     nameText,
+    shadowContainer,
     _displayName: playerInfo.username || 'Player',
     _nivel: typeof playerInfo.nivel === 'number' ? playerInfo.nivel : undefined,
     // Identidad que manda el SERVIDOR (no el cliente): con ella el submenú
@@ -16940,6 +17024,30 @@ updateOtherPlayer(playerInfo) {
     const sprH6 = player.sprite.displayHeight || 64;
     player.nameText.setPosition(playerInfo.x, playerInfo.y - sprH6 * 0.5 - 14);
     player.nameText.setDepth(playerInfo.y + sprH6 * 0.5 + 1);
+  }
+
+  /* La sombra va pegada a los pies. Si el jugador se creó antes de que este
+     código existiera (o si por lo que sea le falta), se le pone ahora: así no
+     hace falta que salga y vuelva a entrar para tener sombra. */
+  {
+    const sprH8 = player.sprite.displayHeight || 64;
+    if (!player.shadowContainer) {
+      const g = this.add.graphics();
+      g.fillStyle(0x000000, 0.2);
+      g.fillEllipse(0, 0, 45, 22.5);
+      player.shadowContainer = this.add.container(playerInfo.x, playerInfo.y + sprH8 * 0.45, [g]);
+    }
+    player.shadowContainer.setPosition(playerInfo.x, playerInfo.y + sprH8 * 0.45);
+    player.shadowContainer.setDepth(playerInfo.y + sprH8 * 0.5 - 1);
+  }
+
+  // El color del nombre puede llegar más tarde que el primer paquete.
+  if (playerInfo.nameColor !== undefined && player.nameText && window.GFNombreColor) {
+    if (player._nameColor !== playerInfo.nameColor) {
+      player._nameColor = playerInfo.nameColor;
+      const _cc = window.GFNombreColor.valido(playerInfo.nameColor);
+      player.nameText.setColor(_cc || window.GFNombreColor.POR_DEFECTO);
+    }
   }
   // Move new chat/typing containers
   if (player._chatContainer) {
@@ -17147,6 +17255,9 @@ removeOtherPlayer(playerId) {
 
   if (player.sprite) player.sprite.destroy();
   if (player.nameText) player.nameText.destroy();
+  // La sombra es un contenedor aparte: si no se destruye aquí se queda una
+  // mancha oscura clavada en el suelo donde estaba el jugador que se fue.
+  if (player.shadowContainer) { try { player.shadowContainer.destroy(); } catch(_){} }
   if (player._chatContainer) { try { player._chatContainer.destroy(); } catch(_){} }
   if (player._typingContainer) { try { player._typingContainer.destroy(); } catch(_){} }
 
@@ -17780,6 +17891,18 @@ removeOtherPlayer(playerId) {
     if (!text) { _refrescar(); return; }
     setTimeout(_refrescar, 0);
 
+    /* COMANDOS. `/add_friend "Fulano"` manda la solicitud y NO se envía al
+       chat: a quién le pides amistad no es asunto de todo el canal. Se mira
+       ANTES del freno antispam a propósito — un comando no es un mensaje y no
+       debe gastar el turno de escritura. */
+    try {
+      if (window.GFChatSocial && window.GFChatSocial.comando(this, text)) {
+        this.chatInput.value = '';
+        if (typeof this._cerrarSelectorEmojis === 'function') this._cerrarSelectorEmojis();
+        return;
+      }
+    } catch (e) { console.warn('comando de chat:', e); }
+
     // rate limit cliente
     const now = Date.now();
     if (now - this._lastChatSent < this._chatRateLimitMs) {
@@ -18187,14 +18310,21 @@ removeOtherPlayer(playerId) {
     strong.textContent = name + ((this.socket && msg.id === this.socket.id) ? ' (you):' : ':');
     strong.style.color = '#b3ffb3';
 
-    const textNode = document.createTextNode(' ' + text);
+    /* EL TEXTO VA EN SU PROPIO <span>, NO EN UN NODO DE TEXTO SUELTO.
+       Antes era un textNode pelado, y un textNode no se puede localizar dentro
+       de la línea ni sustituir: sin este span no hay forma de EDITAR un mensaje
+       ya pintado. Sigue rellenándose con textContent, así que es igual de
+       seguro que antes frente a HTML inyectado. */
+    const textSpan = document.createElement('span');
+    textSpan.className = 'chat-text';
+    textSpan.textContent = ' ' + text;
 
     const timeSpan = document.createElement('span');
     timeSpan.className = 'chat-time';
     timeSpan.textContent = ts.toLocaleTimeString();
 
     line.appendChild(strong);
-    line.appendChild(textNode);
+    line.appendChild(textSpan);
     line.appendChild(timeSpan);
 
     if (!this.chatMessages) {
@@ -18202,6 +18332,14 @@ removeOtherPlayer(playerId) {
       console.log(`[CHAT] ${name}: ${text} (${timeSpan.textContent})`);
       return;
     }
+
+    /* Reacciones, botón de editar y el color que cada jugador se eligió. Vive
+       en gf-chat-social.js y no aquí porque este método está DUPLICADO en
+       tiendajuego.js —cada escena es autónoma— y escribirlo dos veces
+       significaría arreglar cada fallo dos veces. */
+    try {
+      if (window.GFChatSocial) window.GFChatSocial.decorar(this, msg, line, strong, textSpan);
+    } catch (e) { console.warn('chat social:', e); }
 
     this.chatMessages.appendChild(line);
     this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
@@ -18989,7 +19127,9 @@ shutdown() {
   Object.values(this.otherPlayers).forEach(p => {
     if (p.sprite) p.sprite.destroy();
     if (p.nameText) p.nameText.destroy();
+    if (p.shadowContainer) p.shadowContainer.destroy();
     if (p.dog?.nameText) p.dog.nameText.destroy();
+    if (p.dog?.shadowContainer) p.dog.shadowContainer.destroy();
   });
   this.otherPlayers = {};
 
@@ -22713,7 +22853,10 @@ async loadPlayerData() {
       'pesca', 'pesca_exp', 'cocina', 'cocina_exp', 'fuerza', 'fuerza_exp',
       // `tutorial` NO va en esta lista: se aplica aparte, unas líneas más abajo,
       // porque su regla es distinta (nunca puede retroceder).
-      'misiones', 'Username', 'lenguaje', 'petName', 'petLevel'
+      'misiones', 'Username', 'lenguaje', 'petName', 'petLevel',
+      // Color del nombre. Lo lee gf-nombre-color.js al montarse para pintar
+      // el cartel del jugador y la muestra del dashboard.
+      'nameColor'
     ];
     playerProps.forEach(prop => {
       if (data[prop] !== undefined && data[prop] !== null) this[prop] = data[prop];
@@ -23636,7 +23779,7 @@ _cleanupTutorial() {
         // Verificar que tenemos los datos necesarios
         if (!this.playerName || !this.isAuthenticated) {
             console.error('❌ No se puede guardar: falta playerName o autenticación');
-            return;
+            return false;
         }
 
         /* CERROJO ANTI-BORRADO.
@@ -23663,7 +23806,7 @@ _cleanupTutorial() {
             await this.getCSRFToken();
             if (!this.csrfToken) {
                 console.error('❌ No se pudo obtener token CSRF para guardar');
-                return;
+                return false;
             }
         }
 
@@ -23760,7 +23903,7 @@ _cleanupTutorial() {
                     console.warn('⚠️ Token expirado o inválido después de reintentos');
                     this.showTokenErrorHub();
                 }
-                return;
+                return false;
             }
             
             const resData = await resp.json().catch(() => ({}));
@@ -23787,9 +23930,13 @@ _cleanupTutorial() {
                 } catch (err) {
                     console.warn('⚠️ No se pudo recargar el inventario:', err);
                 }
+                return false;   // el inventario del servidor manda: este no se guardó
             }
+
+            return true;
         } catch (e) {
             console.error('❌ Error de red al guardar:', e);
+            return false;
         }
     }
 
@@ -25245,6 +25392,14 @@ _refreshRemoteDepths() {
       const feet = p.sprite.y + p.sprite.displayHeight * 0.5;
       p.sprite.setDepth(feet);
       if (p.nameText) p.nameText.setDepth(feet + 1);
+      /* La sombra se reordena aquí igual que el sprite y por el mismo motivo
+         que el perro: un jugador QUIETO no manda paquetes de movimiento, así
+         que su sombra se quedaría con la profundidad del último paso y podría
+         acabar dibujada por encima de quien pase por delante. */
+      if (p.shadowContainer) {
+        p.shadowContainer.setPosition(p.sprite.x, p.sprite.y + p.sprite.displayHeight * 0.45);
+        p.shadowContainer.setDepth(feet - 1);
+      }
     }
 
     if (p.dog && p.dog.sprite && p.dog.sprite.active) {
@@ -26430,10 +26585,49 @@ _abrirMenuJugador(playerId, pointer) {
   menu.appendChild(head);
 
   const opciones = [
-    { icono: '👤', texto: 'Profile',       accion: () => this._mostrarPerfilJugador(playerId) },
+    { icono: '👤', texto: 'Profile',       accion: () => this._mostrarPerfilJugador(playerId) }
+  ];
+
+  /* AMISTAD. Va la segunda —justo debajo del perfil— porque es lo que más se
+     va a usar de este menú: el jugador acaba de ver a alguien y quiere
+     agregarlo.
+
+     La cuenta (`_playerName`) la manda el SERVIDOR dentro del paquete de la
+     sala, no el cliente del otro jugador, así que no se puede suplantar. El
+     nombre visible (`_displayName`) es lo que se le manda al servidor para
+     buscar la cuenta, que es como funciona también /add_friend. */
+  if (window.GFAmigos) {
+    const cuenta  = jugador._playerName || null;
+    const visible = jugador._displayName || '';
+    const esAmigo = !!(cuenta && window.GFAmigos.esAmigo(cuenta));
+
+    if (esAmigo) {
+      opciones.push({
+        icono: '✉️', texto: 'Send private message',
+        accion: () => window.GFAmigos.abrirChatCon(cuenta, visible)
+      });
+    } else {
+      opciones.push({
+        icono: '➕', texto: 'Add to my friends',
+        accion: () => {
+          /* Sin nombre visible no hay a quién agregar: un jugador que todavía
+             no ha fijado su nombre sigue siendo '---' para todos. Se le dice,
+             en vez de mandar una solicitud que el servidor no puede resolver. */
+          if (!visible || visible === '---' || visible === 'Player') {
+            this.notifications && this.notifications.show(
+              'That player has not chosen a name yet.', 'info');
+            return;
+          }
+          window.GFAmigos.pedirAmistad(visible);
+        }
+      });
+    }
+  }
+
+  opciones.push(
     { icono: '🛡️', texto: 'Send verifier', accion: () => this._enviarVerificador(playerId) },
     { icono: '🚩', texto: 'Report',        accion: () => this._abrirReporteJugador(playerId), peligro: true }
-  ];
+  );
 
   opciones.forEach(op => {
     const b = document.createElement('button');

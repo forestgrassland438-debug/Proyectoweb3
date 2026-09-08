@@ -2107,6 +2107,18 @@ this.anims.create({
 
     */
 
+    /* ── SOCIAL ──────────────────────────────────────────────────────────
+       Los mismos tres módulos que monta GameScene, y por el mismo motivo: el
+       HUD es DOM de la PÁGINA, así que el botón de amistades sigue ahí al
+       entrar en la tienda pero su manejador apunta a la escena del mapa, que
+       ya está apagada. `montar` es idempotente y lo reengancha a esta.
+
+       TODO CAMBIO VA EN LOS DOS SITIOS: si esto faltara aquí, el jugador
+       entraría en la tienda y el botón de amigos dejaría de responder. */
+    if (window.GFAmigos)      window.GFAmigos.montar(this);
+    if (window.GFChatSocial)  window.GFChatSocial.montar(this);
+    if (window.GFNombreColor) window.GFNombreColor.montar(this);
+
     // ASIGNAR LISTENERS
     this.roundButtons[0]?.addEventListener('click', this.onRoundBtnDashboard);
     this.roundButtons[1]?.addEventListener('click', this.onRoundBtnMail);
@@ -2368,6 +2380,16 @@ this.anims.create({
         
         this.initialize();
 
+
+        /* EL CERROJO DEL INVENTARIO. Ver `savegg()` más abajo.
+
+           Phaser REUTILIZA la instancia de la escena, así que al volver a
+           entrar en la tienda `_inventarioCargado` llegaría aquí valiendo true
+           de la visita anterior — y justo debajo se vacía `this.STATE`. Entre
+           ese vaciado y el final de `initialize()` (que es asíncrono y nadie
+           espera), cualquier guardado escribiría un inventario VACÍO encima del
+           bueno. */
+        this._inventarioCargado = false;
 
         this.STATE = {
           slots: Array(40).fill(null),
@@ -3491,6 +3513,20 @@ handleMouseMovement(delta) {
           }
         },
 
+        // playerNameColor - Otro jugador cambió el color de su nombre estando
+        // QUIETO (si se mueve, el color ya viaja dentro de playerMoved).
+        {
+          event: 'playerNameColor',
+          handler: (data) => {
+            if (!data || !data.id) return;
+            const p = this.otherPlayers[data.id];
+            if (!p || !p.nameText || !window.GFNombreColor) return;
+            p._nameColor = data.nameColor || null;
+            const c = window.GFNombreColor.valido(data.nameColor);
+            p.nameText.setColor(c || window.GFNombreColor.POR_DEFECTO);
+          }
+        },
+
         // playerLeft - Jugador abandonó la sala
         {
           event: 'playerLeft',
@@ -3841,6 +3877,8 @@ clearOtherPlayers() {
   Object.values(this.otherPlayers).forEach(player => {
     if (player.sprite) player.sprite.destroy();
     if (player.nameText) player.nameText.destroy();
+    // Sin esto se queda una mancha oscura clavada donde estaba el jugador.
+    if (player.shadowContainer) player.shadowContainer.destroy();
 
     if (player.dog) {
       if (player.dog.sprite) player.dog.sprite.destroy();
@@ -3875,6 +3913,21 @@ createOtherPlayer(playerInfo) {
   sprite.setScale(2);
   sprite.setDepth(playerInfo.y + sprite.displayHeight * 0.5);
 
+  /* LA SOMBRA DEL JUGADOR REMOTO. Faltaba aquí igual que en el mapa: se creaba
+     el sprite, el nombre, el perro y la sombra DEL PERRO, pero no la del
+     jugador — así que los demás se veían flotando sobre la tarima mientras el
+     personaje propio sí pisaba. Misma elipse y mismo alfa que la del jugador
+     local, para que dos personajes juntos proyecten la misma sombra. */
+  const sombraRemota = this.add.graphics();
+  sombraRemota.fillStyle(0x000000, 0.2);
+  sombraRemota.fillEllipse(0, 0, 45, 22.5);
+  const shadowContainer = this.add.container(
+    playerInfo.x,
+    playerInfo.y + sprite.displayHeight * 0.45,
+    [sombraRemota]
+  );
+  shadowContainer.setDepth(playerInfo.y + sprite.displayHeight * 0.5 - 1);
+
   const nameText = this.add.text(
     playerInfo.x,
     playerInfo.y - sprite.height / 2 - 30,
@@ -3891,15 +3944,42 @@ createOtherPlayer(playerInfo) {
   nameText.setOrigin(0.5, 1);
   nameText.setDepth(playerInfo.y + sprite.displayHeight * 0.5 + 1);
 
+  // El color que ESE jugador se eligió. Lo pone el servidor en el paquete de
+  // la sala; aquí se vuelve a comprobar que sea '#rrggbb' antes de pintarlo.
+  if (window.GFNombreColor && playerInfo.nameColor) {
+    const _c = window.GFNombreColor.valido(playerInfo.nameColor);
+    if (_c) nameText.setColor(_c);
+  }
+
   this.otherPlayers[playerInfo.id] = {
     sprite,
     nameText,
+    shadowContainer,
+    // Identidad que manda el SERVIDOR (no el cliente del otro jugador). Con
+    // ella el menú de amistad sabe a qué cuenta apunta.
+    _displayName: playerInfo.username || 'Player',
+    _playerName: playerInfo.playerName || null,
+    _address: playerInfo.address || null,
     // Personaje Soulbound de ESTE jugador.
     _soulbound: _sbRemoto,
     lastUpdate: Date.now(),
     lastDirection: playerInfo.direction || 'right',
     dog: null
   };
+
+  /* MENÚ DE JUGADOR EN LA TIENDA (clic derecho o doble toque).
+
+     GameScene ya tiene el suyo —perfil, verificador, reporte— y ahí solo se le
+     añadió la opción de amistad. Aquí no había ninguno, así que se usa el menú
+     mínimo de gf-amigos: agregar y escribir.
+
+     Se le pasa una FUNCIÓN y no el objeto del jugador porque esta escena
+     RECREA el registro al reconectar: guardándose el objeto, el menú acabaría
+     enseñando los datos de un jugador que ya no está en la sala. */
+  if (window.GFAmigos && window.GFAmigos.habilitarEnSprite) {
+    window.GFAmigos.habilitarEnSprite(this, sprite,
+      () => this.otherPlayers && this.otherPlayers[playerInfo.id]);
+  }
 
   // Traer sus sprites en segundo plano; hasta que lleguen se le ve con el
   // personaje por defecto en lugar de con el mío.
@@ -4045,6 +4125,31 @@ updateOtherPlayer(playerInfo) {
       );
     }
 
+    // La identidad puede llegar más tarde que el primer paquete.
+    if (playerInfo.username)   player._displayName = playerInfo.username;
+    if (playerInfo.playerName) player._playerName  = playerInfo.playerName;
+
+    /* La sombra sigue a los pies y se reordena con ellos. Si el jugador se creó
+       sin sombra (paquete de una versión anterior) se le pone ahora, sin
+       obligarle a salir y volver a entrar. */
+    if (!player.shadowContainer) {
+      const g = this.add.graphics();
+      g.fillStyle(0x000000, 0.2);
+      g.fillEllipse(0, 0, 45, 22.5);
+      player.shadowContainer = this.add.container(x, y + (player.sprite.displayHeight || 64) * 0.45, [g]);
+    }
+    player.shadowContainer.setPosition(x, y + (player.sprite.displayHeight || 64) * 0.45);
+    player.shadowContainer.setDepth(remoteFeetY - 1);
+
+    // El color del nombre puede cambiar en caliente.
+    if (playerInfo.nameColor !== undefined && player.nameText && window.GFNombreColor) {
+      if (player._nameColor !== playerInfo.nameColor) {
+        player._nameColor = playerInfo.nameColor;
+        const _cc = window.GFNombreColor.valido(playerInfo.nameColor);
+        player.nameText.setColor(_cc || window.GFNombreColor.POR_DEFECTO);
+      }
+    }
+
     if (!player.dog) {
       player.dog = {
         sprite: null,
@@ -4133,6 +4238,7 @@ removeOtherPlayer(playerId) {
 
   if (player.sprite) player.sprite.destroy();
   if (player.nameText) player.nameText.destroy();
+  if (player.shadowContainer) player.shadowContainer.destroy();
 
   if (player.dog) {
     if (player.dog.sprite) player.dog.sprite.destroy();
@@ -4665,6 +4771,17 @@ removeOtherPlayer(playerId) {
     const text = this.chatInput.value.trim();
     if (!text) return;
 
+    /* COMANDOS. `/add_friend "Fulano"` manda la solicitud y NO sale por el
+       chat. Va antes del freno antispam: un comando no es un mensaje y no debe
+       gastar el turno de escritura. (Igual que en GameScene.) */
+    try {
+      if (window.GFChatSocial && window.GFChatSocial.comando(this, text)) {
+        this.chatInput.value = '';
+        if (typeof this._cerrarSelectorEmojis === 'function') this._cerrarSelectorEmojis();
+        return;
+      }
+    } catch (e) { console.warn('comando de chat:', e); }
+
     // rate limit cliente
     const now = Date.now();
     if (now - this._lastChatSent < this._chatRateLimitMs) {
@@ -5140,14 +5257,20 @@ removeOtherPlayer(playerId) {
     strong.textContent = name + ((this.socket && msg.id === this.socket.id) ? ' (you):' : ':');
     strong.style.color = '#b3ffb3';
 
-    const textNode = document.createTextNode(' ' + text);
+    /* El texto en su propio <span> y no en un nodo suelto: un nodo de texto no
+       se puede localizar ni sustituir, y sin eso no hay forma de EDITAR un
+       mensaje ya pintado. Se sigue rellenando con textContent. (Mismo cambio
+       que en GameScene.appendMessage.) */
+    const textSpan = document.createElement('span');
+    textSpan.className = 'chat-text';
+    textSpan.textContent = ' ' + text;
 
     const timeSpan = document.createElement('span');
     timeSpan.className = 'chat-time';
     timeSpan.textContent = ts.toLocaleTimeString();
 
     line.appendChild(strong);
-    line.appendChild(textNode);
+    line.appendChild(textSpan);
     line.appendChild(timeSpan);
 
     if (!this.chatMessages) {
@@ -5155,6 +5278,11 @@ removeOtherPlayer(playerId) {
       console.log(`[CHAT] ${name}: ${text} (${timeSpan.textContent})`);
       return;
     }
+
+    // Reacciones, editar una vez y el color del nombre. Ver gf-chat-social.js.
+    try {
+      if (window.GFChatSocial) window.GFChatSocial.decorar(this, msg, line, strong, textSpan);
+    } catch (e) { console.warn('chat social:', e); }
 
     this.chatMessages.appendChild(line);
     this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
@@ -9653,6 +9781,25 @@ async loadPlayerData() {
     
     const data = await response.json();
     console.log('✅ Datos del jugador recibidos');
+
+    /* CUÁNDO SE CARGÓ ESTA COPIA DEL INVENTARIO.
+
+       Viaja luego en cada /api/save. El servidor la compara con la última
+       escritura del market (`marketWriteAt`) para decidir si este guardado trae
+       datos anteriores a una compra.
+
+       LO QUE ARREGLA MANDARLA: sin ella el servidor no puede comparar nada y
+       aplica una red de seguridad a lo bruto — si el market tocó el inventario
+       en los últimos DIEZ MINUTOS, descarta el inventario del guardado ENTERO.
+       Eso convertía en humo cualquier venta hecha en ese rato: el objeto
+       desaparecía de la pantalla, se cobraba el dinero, y al volver al mapa
+       reaparecía porque en la base de datos nunca se había ido. GameScene la
+       manda desde hace tiempo; aquí faltaba.
+
+       Se apunta ANTES de tocar nada: si el market escribe justo mientras esta
+       carga está en vuelo, la marca queda "antigua" y el servidor protege el
+       inventario, que es el lado seguro del error. */
+    this._inventoryLoadedAt = new Date().toISOString();
     
     // INICIALIZAR STATE solo si no existe - ¡ESTO ES CLAVE!
     if (!this.STATE) {
@@ -9713,7 +9860,9 @@ async loadPlayerData() {
       'agricultura', 'agricultura_exp', 'mineria', 'mineria_exp',
       'deforestacion', 'deforestacion_exp',
       'pesca', 'pesca_exp', 'cocina', 'cocina_exp', 'fuerza', 'fuerza_exp',
-      'misiones', 'Username', 'lenguaje', 'petName', 'petLevel'
+      'misiones', 'Username', 'lenguaje', 'petName', 'petLevel',
+      // Color del nombre: lo lee gf-nombre-color.js al montarse.
+      'nameColor'
     ];
 
     playerProps.forEach(prop => {
@@ -9787,6 +9936,10 @@ async loadPlayerData() {
     }
 
     console.log('✅ Datos del jugador cargados exitosamente');
+
+    // A partir de aquí ya se puede guardar sin riesgo de escribir un inventario
+    // vacío sobre el bueno. Ver el cerrojo en savegg().
+    this._inventarioCargado = true;
 
     // Renderizar slots inmediatamente
     this.renderInventoryAfterLoad();
@@ -10509,7 +10662,22 @@ _cleanupTutorial() {
         // Verificar que tenemos los datos necesarios
         if (!this.playerName || !this.isAuthenticated) {
             console.error('❌ No se puede guardar: falta playerName o autenticación');
-            return;
+            return false;
+        }
+
+        /* CERROJO ANTI-BORRADO (el mismo que tiene GameScene.savegg).
+
+           No se guarda hasta haber cargado el inventario al menos una vez. Sin
+           esto, un guardado que caiga entre el `this.STATE = {…vacío…}` de
+           create() y la llegada de /api/load escribe en la base de datos
+           cuarenta huecos vacíos y el jugador se queda sin objetos.
+
+           No se pierde nada: se pospone. La cola de guardado vuelve a pasar en
+           cuanto los datos estén cargados. */
+        if (this._inventarioCargado !== true) {
+            console.warn('⏸️ Guardado pospuesto: el inventario de la tienda todavía ' +
+                         'no se ha cargado (esto evita escribir uno vacío sobre el bueno).');
+            return false;
         }
 
         // Asegurarnos de tener token CSRF
@@ -10517,7 +10685,7 @@ _cleanupTutorial() {
             await this.getCSRFToken();
             if (!this.csrfToken) {
                 console.error('❌ No se pudo obtener token CSRF para guardar');
-                return;
+                return false;
             }
         }
 
@@ -10545,6 +10713,12 @@ _cleanupTutorial() {
         this.moneda = Math.floor(_canonicalMoneda != null ? _canonicalMoneda : this.monto_moneda);
         
         const payload = {
+            /* Cuándo se cargó esta copia del inventario. Sin esto el servidor
+               no puede distinguir un guardado con datos viejos de uno al día, y
+               descarta el inventario "por si acaso" durante los diez minutos
+               siguientes a cualquier compra en el market — que era justo el
+               motivo de que lo vendido en la tienda volviera al salir al mapa. */
+            inventoryLoadedAt: this._inventoryLoadedAt || null,
             posicionplayerx: this.posicionplayerx, 
             posicionplayery: this.posicionplayery,
             vidaPorcentaje:   (window.playerStats && typeof window.playerStats.vida   === 'number') ? window.playerStats.vida   : this.vidaPorcentaje,
@@ -10609,7 +10783,7 @@ _cleanupTutorial() {
                     console.warn('⚠️ Token expirado o inválido después de reintentos');
                     this.showTokenErrorHub();
                 }
-                return;
+                return false;
             }
             
             const resData = await resp.json().catch(() => ({}));
@@ -10618,6 +10792,33 @@ _cleanupTutorial() {
             // Mismo aviso que en GameScene: el panel de configuraciones es DOM
             // compartido, así que el nombre se puede fijar desde las dos escenas.
             this._avisarNombresRechazados(resData);
+
+            /* EL SERVIDOR NO SE HA QUEDADO CON MI INVENTARIO.
+
+               Contesta `inventoryStale: true` cuando el market escribió después
+               de que este cliente cargara su copia: en ese caso NO pisa el
+               inventario, y manda esta bandera precisamente para que el cliente
+               se entere. Hasta ahora se ignoraba en silencio, así que la
+               pantalla y la base de datos se quedaban contando cosas distintas
+               y el jugador solo lo descubría al cambiar de mapa.
+
+               Se recarga la copia buena y se repinta: lo que hay en el servidor
+               manda, porque incluye lo que se compró en el market. */
+            if (resData && resData.inventoryStale) {
+                console.warn('🛡️ El servidor conservó SU inventario (el market escribió después). Recargando.');
+                try {
+                    this.showNotification?.('Your inventory changed elsewhere — reloading it.', 'info');
+                } catch (e) {}
+                try {
+                    await this.loadPlayerData();
+                    this.rebuildPlayerInventoryFromState && this.rebuildPlayerInventoryFromState();
+                } catch (e) {
+                    console.error('❌ No se pudo recargar el inventario:', e);
+                }
+                return false;
+            }
+
+            return true;
         } catch (e) {
             console.error('❌ Error de red al guardar:', e);
         }
