@@ -187,6 +187,19 @@
       <input type="range" id="soleadoFuerza" min="0.2" max="2" step="0.1">
       <span class="valor" id="vSoleadoFuerza">1.0</span>
     </div>
+    <div class="fila">
+      <label>Nublado<small>No cae nada del cielo: lo que se ve son las
+        SOMBRAS DE LAS NUBES cruzando el suelo del mundo. Van pegadas al mapa,
+        no a la cámara, así que al caminar se atraviesan como una sombra de
+        verdad. Quita el sol: no puede haber rayos y cielo cubierto a la vez.</small></label>
+      <div class="sw"><input type="checkbox" id="nublado"><span></span></div>
+    </div>
+    <div class="fila">
+      <label>Cuánto tapan<small>0.2 son cuatro nubes altas que apenas se notan;
+        2 es un cielo cubierto con sombras marcadas.</small></label>
+      <input type="range" id="nubladoFuerza" min="0.2" max="2" step="0.1">
+      <span class="valor" id="vNubladoFuerza">1.0</span>
+    </div>
   </div>
 
   <div class="card">
@@ -248,6 +261,7 @@
         <button data-que="tormenta">Tormenta</button>
         <button data-que="nieve">Nieve</button>
         <button data-que="soleado">Soleado</button>
+        <button data-que="nublado">Nublado</button>
         <button data-que="despejado">Despejar</button>
       </div>
     </div>
@@ -440,12 +454,14 @@
   }
 
   // ── Configuración del clima ──────────────────────────────────────────────
-  var CAMPOS_BOOL = ['activo', 'viento', 'lluvia', 'truenos', 'nieve', 'soleado'];
+  var CAMPOS_BOOL = ['activo', 'viento', 'lluvia', 'truenos', 'nieve', 'soleado', 'nublado'];
   var CAMPOS_NUM  = ['vientoFuerza', 'lluviaFuerza', 'nieveFuerza', 'soleadoFuerza',
+                     'nubladoFuerza',
                      'probViento', 'probLluvia', 'probNieve',
                      'minutosSorteo', 'duracionMin', 'duracionMax'];
   var NOMBRES = { viento: 'Viento', lluvia: 'Lluvia', tormenta: 'Tormenta',
-                  nieve: 'Nieve', soleado: 'Soleado', despejado: 'Despejado' };
+                  nieve: 'Nieve', soleado: 'Soleado', nublado: 'Nublado',
+                  despejado: 'Despejado' };
 
   async function cargar() {
     var d = await pedir('/api/admin/weather');
@@ -472,6 +488,7 @@
       pastilla(p.lluvia, p.lluvia ? 'Lluvia ×' + (p.lluviaFuerza || 1) : 'Sin lluvia') +
       pastilla(p.nieve, p.nieve ? 'Nieve ×' + (p.nieveFuerza || 1) : 'Sin nieve') +
       pastilla(p.soleado, p.soleado ? 'Soleado ×' + (p.soleadoFuerza || 1) : 'Sin sol') +
+      pastilla(p.nublado, p.nublado ? 'Nublado ×' + (p.nubladoFuerza || 1) : 'Sin nubes') +
       pastilla(p.truenos && p.lluvia, 'Truenos') +
       pastilla(false, 'Modo: ' + (c.modo === 'auto' ? 'automático' : 'manual')) +
       (p.hasta ? pastilla(false, 'Hasta las ' +
@@ -526,6 +543,7 @@
     $('vProbLluvia').textContent = Math.round($('probLluvia').value * 100) + '%';
     $('vNieveFuerza').textContent = Number($('nieveFuerza').value).toFixed(1);
     $('vSoleadoFuerza').textContent = Number($('soleadoFuerza').value).toFixed(1);
+    $('vNubladoFuerza').textContent = Number($('nubladoFuerza').value).toFixed(1);
     $('vProbNieve').textContent = Math.round($('probNieve').value * 100) + '%';
   }
 
@@ -616,7 +634,7 @@
   $('reloadBtn').addEventListener('click', function () { cargar().catch(function () {}); });
   $('recargar').addEventListener('click', function () { cargar().catch(function () {}); });
   $('guardar').addEventListener('click', guardar);
-  ['vientoFuerza', 'lluviaFuerza', 'nieveFuerza', 'soleadoFuerza',
+  ['vientoFuerza', 'lluviaFuerza', 'nieveFuerza', 'soleadoFuerza', 'nubladoFuerza',
    'probViento', 'probLluvia', 'probNieve'].forEach(function (k) {
     $(k).addEventListener('input', refrescarValores);
   });

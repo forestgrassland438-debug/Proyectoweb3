@@ -34,10 +34,11 @@
  *   GFClima.sincronizar()        vuelve a preguntar al servidor
  *   GFClima.estado()             lo que manda el servidor
  *   GFClima.ahora()              lo que se ve: { lluvia, nieve, sol, viento,
- *                                truenos, tormenta, estacion, activo }, de 0 a 1
+ *                                nublado, truenos, tormenta, estacion,
+ *                                activo }, de 0 a 1
  *   GFClima.charcos(scene)       los charcos en los que se puede uno bañar
  *   GFClima.alTronar(fn)         avisa cuando RETUMBA (devuelve la baja)
- *   GFClima.probar('lluvia'|'tormenta'|'viento'|'despejado')   solo para ver
+ *   GFClima.probar('lluvia'|'tormenta'|'viento'|'nublado'|'despejado')  para ver
  * ======================================================================== */
 (function () {
   'use strict';
@@ -702,6 +703,244 @@
     }
   }
 
+  /* ══════════════════════════════════════════════════════════════════════
+     NUBLADO: LAS SOMBRAS DE LAS NUBES CRUZANDO EL MUNDO
+     ──────────────────────────────────────────────────────────────────────
+     QUÉ ES
+     Un día que por lo demás está despejado —no cae nada, no hay cortina, el
+     mundo se ve igual de nítido— pero por el que van pasando las sombras de
+     las nubes. Es el efecto que más cambia un campo abierto sin tocar ni un
+     tile: el suelo deja de ser una superficie plana y uniforme y pasa a tener
+     una hora del día.
+
+     VAN EN EL MUNDO, NO PEGADAS A LA CÁMARA. Esto es lo único que importa de
+     verdad, y es lo que las distingue de cualquier "filtro oscuro":
+
+       · pegadas a la cámara, la mancha se queda quieta sobre la pantalla
+         mientras andas. Se lee como suciedad en el monitor — es el mismo
+         defecto que ya se corrigió con las motas de polvo del día soleado.
+       · en el mundo, si te quedas quieto, la sombra te pasa por encima; y si
+         andas, la atraviesas tú a ella. Las dos cosas se leen como una sombra
+         de verdad porque las dos pasan de verdad.
+
+     Por eso `sombra.x/y` son coordenadas de MUNDO y no hay setScrollFactor(0)
+     en ninguna parte de este bloque. Lo mismo que hacen las motas.
+
+     POR QUÉ MULTIPLY Y NO UN RECTÁNGULO NEGRO CON ALFA
+     Una sombra no añade negro: quita luz. Superponer negro al 20 % apaga por
+     igual el césped y el tejado rojo y aplana la escena; multiplicar mantiene
+     el color de cada cosa y solo lo baja. Y se hace con una IMAGEN de textura
+     de lienzo, no con un Graphics: las figuras de Phaser ignoran el modo de
+     mezcla, así que un `fillEllipse` en MULTIPLY se pinta en normal y se ve
+     una mancha gris opaca en vez de una sombra.
+
+     LA PROFUNDIDAD, 6200
+     Por encima de los sprites del mundo (que se ordenan por su línea de pies,
+     y el mapa más alto son 5008 px) y por encima de las sombras proyectadas de
+     gf-sombras (6000), pero por debajo del filtro de la estación (8030) y de
+     la lluvia (8100). O sea: la nube ensombrece el suelo, los árboles, las
+     casas y a los jugadores, que es lo que hace una nube; y no ensombrece los
+     carteles ni el interfaz.
+     ══════════════════════════════════════════════════════════════════════ */
+  var N_NUBES   = 7;
+  var PROF_NUBE = 6200;
+  var NUBE_VEL  = [11, 27];      // px/s: una nube tarda medio minuto en cruzar
+  /* EL TAMAÑO, MEDIDO CONTRA LO QUE SE VE DE VERDAD.
+
+     La primera versión iba de 460 a 1180 px y era demasiado. El juego se juega
+     con zoom 2 casi siempre, así que la cámara ve unos 500 x 300 px de MUNDO:
+     una nube de 1180 tapaba dos pantallas y media y no se leía como una sombra
+     que pasa, sino como que la pantalla entera se apaga y se aclara.
+
+     De 320 a 820 cada nube ocupa entre media pantalla y pantalla y media: se ve
+     entrar por un lado, cruzar y salir, que es lo que hace una nube. */
+  var NUBE_TAM  = [320, 820];    // px de lado
+  /* CUÁNTO APAGAN EN SU CENTRO.
+
+     MEDIDO, NO ESTIMADO. Con los primeros valores (0.14–0.32 sobre una textura
+     que como mucho llegaba al 55 % de opacidad) la sombra oscurecía el suelo un
+     5 %: sobre la hierba del juego, invisible. Se comprobó leyendo el píxel del
+     lienzo con y sin nube en el banco de pruebas (_prueba_nublado.html).
+
+     Con estos valores y la textura llegando al 100 % en el centro, el núcleo de
+     la sombra baja el suelo un 20-25 %, que es lo que se ve como una sombra de
+     nube y no como una mancha ni como un filtro. */
+  var NUBE_ALFA = [0.30, 0.55];
+  var NUBE_COLOR = 0x64748f;     // gris azulado; el color de una sombra al aire
+  var NUBLADO_ENTRA_MS = 9000;   // se nubla despacio, como se nubla de verdad
+
+  /**
+   * La mancha de una nube: manchones redondos superpuestos, blancos y con el
+   * borde desvanecido.
+   *
+   * Blanca a propósito: el color lo pone `setTint` al sprite, así que con una
+   * sola textura por variante valen todas las nubes y se puede oscurecer más o
+   * menos sin repintar nada.
+   *
+   * El contorno NO es un círculo. Una sombra de nube redonda se lee como una
+   * viñeta o como una mancha de suciedad; lo que la hace creíble es que tenga
+   * golfos y salientes. Los manchones van colocados con una secuencia FIJA por
+   * variante (no al azar) para que las tres texturas sean siempre las mismas:
+   * si se sortearan, cada partida tendría nubes distintas y no habría forma de
+   * comparar un cambio con el anterior.
+   */
+  function texturaNube(scene, variante) {
+    var clave = 'gfc_nube_' + variante;
+    if (scene.textures.exists(clave)) return clave;
+    var T = 256;
+    // Tres recetas de manchones: [x, y, radio] en tanto por uno del lienzo.
+    var RECETAS = [
+      [[0.42, 0.46, 0.30], [0.62, 0.40, 0.22], [0.30, 0.56, 0.20],
+       [0.56, 0.62, 0.24], [0.72, 0.55, 0.16], [0.22, 0.40, 0.14],
+       [0.48, 0.30, 0.17]],
+      [[0.50, 0.50, 0.26], [0.28, 0.44, 0.22], [0.70, 0.52, 0.23],
+       [0.44, 0.66, 0.19], [0.60, 0.34, 0.15], [0.80, 0.44, 0.12],
+       [0.34, 0.62, 0.13]],
+      [[0.46, 0.52, 0.32], [0.66, 0.46, 0.19], [0.32, 0.38, 0.17],
+       [0.54, 0.70, 0.16], [0.24, 0.58, 0.15], [0.74, 0.62, 0.13],
+       [0.40, 0.28, 0.12]]
+    ];
+    var receta = RECETAS[variante % RECETAS.length];
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      ctx.clearRect(0, 0, T, T);
+      for (var i = 0; i < receta.length; i++) {
+        var cx = receta[i][0] * T, cy = receta[i][1] * T, r = receta[i][2] * T;
+        var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        /* El desvanecido es LARGO (empieza a caer al 45 % del radio). Un borde
+           corto deja un canto duro y la sombra parece un sello; las sombras de
+           nube de verdad no tienen contorno. */
+        g.addColorStop(0.00, 'rgba(255,255,255,1.00)');
+        g.addColorStop(0.45, 'rgba(255,255,255,0.80)');
+        g.addColorStop(0.78, 'rgba(255,255,255,0.26)');
+        g.addColorStop(1.00, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  function nuevaNube(st, indice) {
+    var clave = texturaNube(st.scene, indice % 3);
+    if (!clave) return null;
+    var s = st.scene.add.image(0, 0, clave);
+    s.setDepth(PROF_NUBE);
+    s.setAlpha(0);
+    s.setTint(NUBE_COLOR);
+    if (s.setBlendMode) s.setBlendMode(MULTIPLICAR);
+    return {
+      spr: s, x: 0, y: 0,
+      vx: az(NUBE_VEL[0], NUBE_VEL[1]),
+      vy: az(-3, 7),
+      tam: az(NUBE_TAM[0], NUBE_TAM[1]),
+      // Cada nube apaga lo suyo: si todas tuvieran el mismo alfa se vería que
+      // son la misma mancha repetida.
+      fuerza: az(NUBE_ALFA[0], NUBE_ALFA[1]),
+      giro: az(0, Math.PI * 2),
+      // Se deforman un poco al ir: una nube no es un sello rígido.
+      fase: az(0, Math.PI * 2),
+      respira: az(0.05, 0.14),
+      sembrada: false
+    };
+  }
+
+  /**
+   * Coloca una nube.
+   *
+   * `dentro` = repartidas por lo que se ve (al montar, para que no haya que
+   * esperar medio minuto a que entre la primera). Si no, entra por el lado
+   * contrario al que va: como se mueven hacia la derecha, aparecen por la
+   * izquierda, siempre fuera de cuadro.
+   *
+   * Que la siembra se haga respecto de la cámara NO las ancla a ella: solo dice
+   * DÓNDE nacen. A partir de ahí la nube vive en coordenadas de mundo y la
+   * cámara le da igual. Y una nube que se queda muy atrás se reaprovecha
+   * poniéndola delante, cosa que nunca se ve porque pasa a pantalla y media de
+   * distancia.
+   */
+  function sembrarNube(st, n, dentro) {
+    var v = st.scene.cameras.main.worldView;
+
+    /* EL MARGEN VA CON LO QUE SE VE, NO CON EL TAMAÑO DE LA NUBE.
+
+       FALLO QUE ESTO ARREGLA — "el nublado está puesto y no se ve ninguna
+       sombra": el margen era `n.tam * 0.75`, o sea hasta 885 px con las nubes
+       grandes. Repartidas por una franja de más de 2500 px alrededor de una
+       cámara que ve 760, la mayoría caían fuera de cuadro y podías estar un
+       minuto sin ver una sola. Y no daba ningún error: el clima decía que
+       estaba nublado y la pantalla estaba despejada.
+
+       Atándolo al ancho de lo que se ve, las nubes se reparten SIEMPRE
+       alrededor de la pantalla, mida lo que mida y con el zoom que sea. */
+    var margenX = v.width  * 0.45;
+    var margenY = v.height * 0.45;
+
+    if (dentro) {
+      n.x = v.x + az(-margenX, v.width  + margenX);
+      n.y = v.y + az(-margenY, v.height + margenY);
+    } else {
+      // Entra por la izquierda, que es hacia donde NO van: siempre fuera de
+      // cuadro, para que nunca se vea aparecer una sombra de la nada.
+      n.x = v.x - n.tam * 0.6 - az(0, v.width * 0.5);
+      n.y = v.y + az(-margenY, v.height + margenY);
+    }
+    n.sembrada = true;
+    n.spr.setPosition(n.x, n.y);
+  }
+
+  function moverNubes(st, dt, fuerza) {
+    if (!st.nubes || !st.nubes.length) return;
+
+    if (fuerza <= 0.01) {
+      for (var k = 0; k < st.nubes.length; k++) st.nubes[k].spr.setVisible(false);
+      return;
+    }
+
+    var v = st.scene.cameras.main.worldView;
+    /* El viento las empuja. `st.inclina` es la inclinación que ya calcula el
+       clima a partir de gf-viento, así que las nubes soplan en la misma
+       dirección que la lluvia y que las hojas — no cada una por su lado. */
+    var empuje = (st.inclina || 0) * 34;
+
+    /* CUÁNTAS SE VEN depende de la fuerza. Con 0.2 (cuatro nubes altas) no
+       tiene sentido pintar las siete al 14 % cada una: se ve un velo gris
+       constante en vez de nubes sueltas. Se apagan las últimas del todo. */
+    var cuantas = Math.max(2, Math.round(N_NUBES * Math.min(1, fuerza / 1.4)));
+
+    for (var i = 0; i < st.nubes.length; i++) {
+      var n = st.nubes[i];
+      if (i >= cuantas) { n.spr.setVisible(false); continue; }
+      if (!n.sembrada) sembrarNube(st, n, true);
+
+      n.x += (n.vx + empuje) * dt;
+      n.y += n.vy * dt;
+      n.fase += dt * n.respira;
+
+      // Respiración: la mancha se estira y se encoge muy poco, lo justo para
+      // que no parezca una calcomanía arrastrada.
+      var estira = 1 + Math.sin(n.fase) * 0.07;
+      n.spr.setPosition(n.x, n.y);
+      n.spr.setDisplaySize(n.tam * estira, n.tam * (2 - estira) * 0.72);
+      n.spr.setRotation(n.giro);
+      n.spr.setVisible(true);
+      n.spr.setAlpha(Math.min(0.72, n.fuerza * Math.min(1.6, fuerza)));
+
+      /* Se ha ido del todo: vuelve a entrar por la izquierda. El umbral se
+         mide desde el borde de lo que se ve MÁS el tamaño de la nube, para que
+         el salto ocurra siempre lejos de la vista y no se pille nunca. */
+      if (n.x - n.tam > v.right + v.width * 0.5 ||
+          n.y - n.tam > v.bottom + v.height * 0.5 ||
+          n.y + n.tam < v.y - v.height * 0.5) {
+        sembrarNube(st, n, false);
+      }
+    }
+  }
+
   /** El resplandor de la esquina: de donde salen los haces. */
   function texturaResplandor(scene) {
     var clave = 'gfc_resplandor';
@@ -840,6 +1079,7 @@
     lluvia: false, lluviaFuerza: 1,
     nieve: false, nieveFuerza: 1,
     soleado: false, soleadoFuerza: 1,
+    nublado: false, nubladoFuerza: 1,
     truenos: true, estacion: 'verano', cargado: false
   };
   var montado = null;
@@ -867,7 +1107,7 @@
      necesite guardárselo, que copie los campos. */
   var elTiempo = {
     activo: false, cargado: false, estacion: 'verano',
-    lluvia: 0, nieve: 0, sol: 0, viento: 0,
+    lluvia: 0, nieve: 0, sol: 0, viento: 0, nublado: 0,
     truenos: false, tormenta: false
   };
   var vectorViento = { dir: 1, fuerza: 0 };
@@ -884,6 +1124,7 @@
       t.lluvia = st.fuerzaLluvia || 0;
       t.nieve  = st.fuerzaNieve  || 0;
       t.sol    = st.fuerzaSol    || 0;
+      t.nublado = st.fuerzaNublado || 0;
     } else {
       /* Sin escena montada (todavía no ha arrancado, o se está cambiando de
          mapa) no hay valor interpolado: se devuelve el mandado, que es la
@@ -891,6 +1132,7 @@
       t.lluvia = (estado.activo && estado.lluvia) ? (Number(estado.lluviaFuerza) || 1) : 0;
       t.nieve  = (estado.activo && estado.nieve)  ? (Number(estado.nieveFuerza)  || 1) : 0;
       t.sol    = (estado.activo && estado.soleado) ? (Number(estado.soleadoFuerza) || 1) : 0;
+      t.nublado = (estado.activo && estado.nublado) ? (Number(estado.nubladoFuerza) || 1) : 0;
     }
 
     t.viento = 0;
@@ -1025,6 +1267,8 @@
     estado.nieveFuerza  = Number(d.nieveFuerza) || 1;
     estado.soleado      = !!d.soleado;
     estado.soleadoFuerza = Number(d.soleadoFuerza) || 1;
+    estado.nublado      = !!d.nublado;
+    estado.nubladoFuerza = Number(d.nubladoFuerza) || 1;
     estado.truenos      = !!d.truenos;
     if (ESTACIONES[d.estacion]) estado.estacion = d.estacion;
     estado.cargado      = true;
@@ -1032,7 +1276,8 @@
     log('tiempo:', estado.lluvia ? 'lluvia'
                  : (estado.nieve ? 'nieve'
                  : (estado.soleado ? 'soleado'
-                 : (estado.viento ? 'viento' : 'despejado'))));
+                 : (estado.nublado ? 'nublado'
+                 : (estado.viento ? 'viento' : 'despejado')))));
     return true;
   }
 
@@ -1856,6 +2101,14 @@
                             (estado.activo && estado.lluvia) ? estado.lluviaFuerza : 0, paso);
     st.fuerzaNieve  = hacia(st.fuerzaNieve,
                             (estado.activo && estado.nieve) ? estado.nieveFuerza : 0, paso);
+
+    /* NUBLADO. Va antes que el sol porque son opuestos y así el sol pinta
+       encima: si por lo que sea llegaran los dos encendidos, mandan los rayos.
+       Se nubla y se despeja despacio (NUBLADO_ENTRA_MS), como todo lo demás. */
+    st.fuerzaNublado = hacia(st.fuerzaNublado,
+                             (estado.activo && estado.nublado) ? estado.nubladoFuerza : 0,
+                             delta / NUBLADO_ENTRA_MS);
+    moverNubes(st, dt, st.fuerzaNublado);
 
     moverSol(st, ahora, delta, w, h);
     filtroEstacion(st, delta, w, h);
@@ -2751,6 +3004,17 @@
        está en el aire, así que tiene que quedar por encima del mundo pero por
        DEBAJO de la lluvia y de la nieve — si no, los haces se dibujarían encima
        de los copos y parecerían un cristal delante de la pantalla. */
+    /* LAS SOMBRAS DE LAS NUBES. Fuera del contenedor `st.capa` a propósito:
+       ese contenedor lleva setScrollFactor(0), o sea que va pegado a la
+       pantalla, y una sombra pegada a la pantalla no es una sombra. Estas van
+       en coordenadas de mundo, como las motas de polvo. */
+    st.nubes = [];
+    st.fuerzaNublado = 0;
+    for (var nn = 0; nn < N_NUBES; nn++) {
+      var nube = nuevaNube(st, nn);
+      if (nube) st.nubes.push(nube);
+    }
+
     var i;
     st.rayosSol = [];
     st.fuerzaSol = 0;
@@ -2941,6 +3205,10 @@
       for (i = 0; i < st.motas.length; i++) st.motas[i].spr.destroy();
       st.motas.length = 0;
     }
+    if (st.nubes) {
+      for (i = 0; i < st.nubes.length; i++) st.nubes[i].spr.destroy();
+      st.nubes.length = 0;
+    }
     if (st.resplandorSol) st.resplandorSol.destroy();
     if (st.filtro)   st.filtro.destroy();
     if (st.cortina)  st.cortina.destroy();
@@ -3044,6 +3312,7 @@
       estado.viento = (que === 'viento' || que === 'tormenta' || que === 'nieve');
       estado.nieve  = (que === 'nieve');
       estado.soleado = (que === 'soleado');
+      estado.nublado = (que === 'nublado');
       estado.truenos = (que === 'tormenta');
       mandarAlViento();
       return estado;
@@ -3064,6 +3333,8 @@
       moverSol: moverSol, texturaRayo: texturaRayo,
       texturaHalo: texturaHalo, texturaMota: texturaMota,
       moverMotas: moverMotas, sembrarMota: sembrarMota, N_MOTAS: N_MOTAS,
+      texturaNube: texturaNube, nuevaNube: nuevaNube, sembrarNube: sembrarNube,
+      moverNubes: moverNubes, N_NUBES: N_NUBES, PROF_NUBE: PROF_NUBE,
       aMundo: aMundo, PLANOS_GOTA: PLANOS_GOTA,
       texturaResplandor: texturaResplandor,
       arrancarRed: arrancarRed, reintentarViento: reintentarViento,

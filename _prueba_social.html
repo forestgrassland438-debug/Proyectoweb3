@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Banco de pruebas — amistades, chat social y color del nombre</title>
+<!--
+  ===========================================================================
+  BANCO DE PRUEBAS DE LO SOCIAL
+  ===========================================================================
+
+  PARA QUÉ: mirar y TOCAR el panel de amistades, las reacciones del chat y la
+  paleta del nombre sin arrancar el juego, sin backend y sin cuenta.
+
+  CÓMO: se le pone delante un SOCKET DE MENTIRA que contesta a los mismos
+  eventos que el servidor de verdad (friends:state, friends:online,
+  friends:search, friends:dm…) con datos inventados. Los módulos que se cargan
+  son los REALES, sin tocar: si algo se rompe aquí, está roto en el juego.
+
+  LO QUE NO PRUEBA: nada del servidor. Los nombres de los eventos y la forma de
+  los mensajes se comprueban aparte, contra el server2.js de verdad, en
+  `node tools/social-prueba.js`. Los dos hacen falta: este enseña que la
+  interfaz funciona, y aquel que las dos partes se hablan.
+
+  Abrir el fichero en el navegador. No necesita servidor.
+  ===========================================================================
+-->
+<link rel="stylesheet" href="./styless.css" />
+<style>
+  body {
+    margin: 0; min-height: 100vh;
+    background: radial-gradient(circle at 30% 20%, #16321f 0%, #0a1b12 60%, #06110c 100%);
+    color: #dbe9ff; font-family: "Segoe UI", system-ui, sans-serif;
+  }
+  .pb-cab { padding: 18px 20px 8px; }
+  .pb-cab h1 { margin: 0 0 4px; font-size: 18px; color: #a8d8ff; }
+  .pb-cab p  { margin: 0; font-size: 12px; color: #8fb8d8; max-width: 720px; line-height: 1.6; }
+  .pb-cols { display: flex; flex-wrap: wrap; gap: 16px; padding: 16px 20px 60px; }
+  .pb-caja {
+    background: rgba(8,20,40,.72); border: 1px solid rgba(64,160,255,.25);
+    border-radius: 12px; padding: 14px 16px; flex: 1 1 340px; min-width: 300px;
+  }
+  .pb-caja h2 { margin: 0 0 10px; font-size: 13px; color: #7ec8ff; letter-spacing: .5px; }
+  .pb-caja p  { font-size: 12px; color: #9fc4e0; line-height: 1.6; margin: 0 0 10px; }
+  .pb-btn {
+    background: rgba(64,160,255,.16); border: 1px solid rgba(64,160,255,.35);
+    color: #cfe6ff; border-radius: 8px; padding: 8px 12px; font-size: 12px;
+    cursor: pointer; margin: 0 6px 6px 0;
+  }
+  .pb-btn:hover { background: rgba(64,160,255,.30); }
+  .pb-log {
+    background: #050d1c; border: 1px solid rgba(64,160,255,.20); border-radius: 8px;
+    font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: #9fe0b8;
+    padding: 10px; height: 190px; overflow: auto; white-space: pre-wrap;
+  }
+  /* El chat de mentira, con las mismas clases que el del juego para que las
+     reacciones y el botón de editar se coloquen igual que allí. */
+  #chat-messages {
+    background: rgba(4,12,26,.9); border: 1px solid rgba(64,160,255,.22);
+    border-radius: 8px; padding: 10px; height: 240px; overflow: auto;
+    font-size: 12px; color: #d6ecff;
+  }
+  #chat-messages .chat-line { margin-bottom: 7px; line-height: 1.5; }
+  #chat-messages .chat-time { font-size: 9px; opacity: .45; margin-left: 6px; }
+</style>
+</head>
+<body>
+
+<div class="pb-cab">
+  <h1>Banco de pruebas — amistades, reacciones y color del nombre</h1>
+  <p>Los módulos son los del juego, sin tocar. Lo que hay debajo es un socket de
+     mentira que contesta lo mismo que el servidor. Sirve para ver la interfaz,
+     probarla con el dedo y comprobar que se lee bien en una pantalla estrecha.</p>
+</div>
+
+<div class="pb-cols">
+
+  <div class="pb-caja">
+    <h2>1 · Panel de amistades</h2>
+    <p>El botón redondo de abajo es el mismo que va debajo de Mail en el juego.
+       Abre las cuatro pestañas, busca "An", agrega, acepta y escribe un privado.</p>
+    <div id="game-hud">
+      <div class="round-buttons" id="round-buttons-container">
+        <button class="round-btn round-btn--friends" tabindex="-1" id="friends-btn">
+          <img src="./Game/Source/amistades.png" alt="Friends" />
+          <span class="label-badge">Friends</span>
+        </button>
+      </div>
+    </div>
+    <div style="height:60px"></div>
+    <button class="pb-btn" id="pb-abrir">Abrir el panel</button>
+    <button class="pb-btn" id="pb-solicitud">Llega una solicitud</button>
+    <button class="pb-btn" id="pb-privado">Llega un privado</button>
+    <button class="pb-btn" id="pb-menu">Menú de jugador</button>
+  </div>
+
+  <div class="pb-caja">
+    <h2>2 · Chat: reacciones y editar</h2>
+    <p>Pasa el ratón por encima de una línea: salen el <b>☺</b> (reaccionar) y,
+       en los mensajes propios, el <b>✎</b> (editar una sola vez).</p>
+    <div id="chat-messages"></div>
+    <div style="margin-top:8px">
+      <button class="pb-btn" id="pb-msg-mio">Mensaje mío</button>
+      <button class="pb-btn" id="pb-msg-otro">Mensaje de otro</button>
+      <button class="pb-btn" id="pb-comando">Probar /add_friend "Ana"</button>
+    </div>
+  </div>
+
+  <div class="pb-caja">
+    <h2>2b · El botón del chat titila</h2>
+    <p>Con el chat <b>cerrado</b>, un mensaje de otro jugador tiene que poner el
+       botón de abajo a la izquierda a titilar. Se apaga solo al abrir el chat.
+       El mensaje propio no lo enciende.</p>
+    <button class="pb-btn" id="pb-llega-cerrado">Llega un mensaje (chat cerrado)</button>
+    <button class="pb-btn" id="pb-llega-mio">Llega uno MÍO (no debe titilar)</button>
+    <button class="pb-btn" id="pb-abrir-chat">Abrir / cerrar el chat</button>
+    <p style="margin-top:8px">Estado del chat: <b id="pb-estado-chat">cerrado</b>
+       · botón titilando: <b id="pb-estado-aviso">no</b></p>
+
+    <!-- El mismo marcado que el juego: el módulo busca estos dos ids. -->
+    <div id="chat-panel" class="chat-hidden">
+      <div class="chat-messages" id="chat-messages-real"></div>
+    </div>
+    <button id="open-chat-btn" class="chat-open-btn" tabindex="0" aria-label="Abrir chat">
+      <img src="./Game/Source/chat.png" alt="Abrir Chat" />
+    </button>
+  </div>
+
+  <div class="pb-caja">
+    <h2>3 · Color del nombre</h2>
+    <p>La misma tarjeta que va en el dashboard, encima de Language.</p>
+    <div class="hub-row_101 dash-card_101" style="background:rgba(10,25,50,.6);
+         border:1px solid rgba(64,160,255,.2);border-radius:10px;padding:12px">
+      <label class="hub-label_101" style="color:#a8d8ff;font-size:12px">🎨 Name colour</label>
+      <div class="gfnc-fila">
+        <span class="gfnc-muestra" id="gfnc-muestra">Your name</span>
+        <input type="color" id="gfnc-libre" value="#ffffff" />
+        <button id="gfnc-reset" type="button" class="btn-ghost gfnc-reset">Default</button>
+      </div>
+      <div class="gfnc-paleta" id="gfnc-paleta"></div>
+    </div>
+  </div>
+
+  <div class="pb-caja" style="flex-basis:100%">
+    <h2>4 · Lo que se manda por el socket</h2>
+    <p>Todo lo que los módulos emiten. Aquí se ve si un botón manda lo que dice
+       mandar — y con qué nombre de evento.</p>
+    <div class="pb-log" id="pb-log"></div>
+    <button class="pb-btn" id="pb-limpiar" style="margin-top:8px">Limpiar</button>
+  </div>
+
+</div>
+
+<script src="./gf-amigos.js"></script>
+<script src="./gf-chat-social.js"></script>
+<script src="./gf-nombre-color.js"></script>
+<script src="./_prueba_social.js"></script>
+</body>
+</html>

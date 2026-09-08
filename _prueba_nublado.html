@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prueba: nublado — las sombras de las nubes</title>
+<!-- =========================================================================
+     BANCO DE PRUEBAS DEL CLIMA NUBLADO
+
+     LO QUE HAY QUE COMPROBAR AQUÍ, Y NO SE PUEDE COMPROBAR MIRANDO EL CÓDIGO:
+     que las sombras van EN EL MUNDO y no pegadas a la cámara.
+
+     La diferencia solo se ve moviendo la cámara. Por eso este banco tiene un
+     suelo de cuadros —para que se note el desplazamiento— y dos botones:
+
+       · "Parar el tiempo" congela las nubes. Con el tiempo parado, MOVER la
+         cámara tiene que arrastrar la sombra por la pantalla: si se quedara
+         quieta sobre el cristal, estaría pegada a la cámara y sería un filtro,
+         no una sombra.
+
+       · "Mover la cámara" la pasea sola, para verlo sin tocar nada.
+
+     El informe de abajo enseña, en números, la posición de cada nube EN EL
+     MUNDO y el desplazamiento de la cámara. Si al mover la cámara cambian los
+     dos a la vez y en la misma cantidad, la nube está anclada a la pantalla —
+     que es exactamente el fallo que hay que evitar.
+
+     No necesita backend: el clima se pone a mano con GFClima.probar('nublado').
+     ====================================================================== -->
+<style>
+  body { margin:0; background:#0d1117; color:#c9d1d9;
+         font:13px system-ui, sans-serif; padding:10px; }
+  h1 { font-size:15px; margin:0 0 4px; color:#a8d8ff; }
+  p.sub { margin:0 0 10px; color:#8b949e; font-size:12px; max-width:760px; line-height:1.55; }
+  #juego { border:1px solid #30363d; border-radius:6px; overflow:hidden; width:min(100%,760px); }
+  .btns { margin:10px 0; }
+  button { background:#1b2b45; border:1px solid #2f4d7a; color:#cfe6ff;
+           border-radius:7px; padding:7px 12px; font-size:12px; cursor:pointer; margin-right:6px; }
+  button:hover { background:#25406b; }
+  pre { background:#161b22; border:1px solid #30363d; border-radius:6px; padding:9px;
+        font-size:11px; white-space:pre-wrap; max-width:760px; }
+</style>
+</head>
+<body>
+
+<h1>Nublado — las sombras de las nubes cruzando el mundo</h1>
+<p class="sub">El suelo de cuadros está para que se note el movimiento. Con el
+  tiempo parado, mover la cámara tiene que <b>arrastrar la sombra por la
+  pantalla</b>: eso es lo que demuestra que está en el mundo y no pegada al
+  cristal. En los números de abajo, la <b>x del mundo</b> de cada nube no debe
+  cambiar cuando cambia el <b>scroll</b> de la cámara.</p>
+
+<div id="juego"></div>
+
+<div class="btns">
+  <button id="b-parar">Parar / seguir el tiempo</button>
+  <button id="b-camara">Mover la cámara sola</button>
+  <button id="b-fuerza">Cambiar la fuerza (0.3 / 1 / 2)</button>
+  <button id="b-despejar">Despejar</button>
+</div>
+
+<pre id="informe">montando…</pre>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script src="./gf-viento.js"></script>
+<script src="./gf-clima.js"></script>
+<script src="./_prueba_nublado.js"></script>
+</body>
+</html>

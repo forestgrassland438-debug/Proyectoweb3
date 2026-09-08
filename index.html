@@ -150,6 +150,13 @@
   <script src="./gf-batalla-arte.js?v=19.0" defer></script>
 
   <!-- Scenes -->
+  <!-- SOCIAL: amistades, reacciones del chat y color del nombre.
+       Van ANTES de las escenas porque GameScene y tiendajuego los montan en su
+       create(); con `defer` el orden de estas etiquetas es el de ejecución. -->
+  <script src="./gf-amigos.js?v=19.0" defer></script>
+  <script src="./gf-chat-social.js?v=19.0" defer></script>
+  <script src="./gf-nombre-color.js?v=19.0" defer></script>
+
   <script src="./Scenes/MenuScene.js?v=19.0" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=19.0" defer></script>
   <script src="./Scenes/tiendajuego.js?v=19.0" defer></script>
@@ -1395,6 +1402,16 @@
         <span style="font-size:20px;display:flex;align-items:center;justify-content:center;width:100%;height:100%">🛒</span>
         <span class="label-badge">Store</span>
       </button>
+      <!-- AMISTADES. En el HTML va el ÚLTIMO y en pantalla sale el TERCERO,
+           justo debajo de Mail: lo coloca el `order` del CSS. El motivo está
+           arriba — tiendajuego.js engancha varios de estos botones por su
+           índice en la NodeList, así que meterlo en medio del HTML los
+           desplazaría a todos. La chapa con el número de solicitudes y
+           privados sin leer la pone gf-amigos.js. -->
+      <button class="round-btn round-btn--friends" tabindex="-1" id="friends-btn">
+        <img src="./Game/Source/amistades.png" alt="Friends" />
+        <span class="label-badge">Friends</span>
+      </button>
     </div>
   </div>
 
@@ -1598,6 +1615,23 @@
         <button id="apply-pet-name" class="btn-primary dash-apply_101">Apply</button>
       </div>
       <div id="pet-name-hint" class="dash-hint_101">⚠️ You can only choose it ONCE — think carefully.</div>
+    </div>
+
+    <!-- COLOR DEL NOMBRE. Encima de Language a propósito: es una preferencia
+         de aspecto, y las de aspecto van antes que las de idioma en esta
+         columna. Los botones de la paleta los crea gf-nombre-color.js; aquí
+         solo está el hueco, para no meter doce botones a mano en el HTML. -->
+    <div class="hub-row_101 dash-card_101">
+      <label class="hub-label_101">🎨 Name colour</label>
+      <div class="gfnc-fila">
+        <span class="gfnc-muestra" id="gfnc-muestra">Your name</span>
+        <input type="color" id="gfnc-libre" value="#ffffff"
+               aria-label="Pick a custom name colour" title="Custom colour" />
+        <button id="gfnc-reset" type="button" class="btn-ghost gfnc-reset">Default</button>
+      </div>
+      <div class="gfnc-paleta" id="gfnc-paleta"></div>
+      <div class="dash-hint_101">Everyone sees this colour on your name — above your
+        character and in the chat.</div>
     </div>
 
     <div class="hub-row_101 dash-card_101">

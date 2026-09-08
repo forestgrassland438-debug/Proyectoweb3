@@ -3739,7 +3739,22 @@ async EliitemWithCheck(itemId, amountToRemove = 1, invoiceIdx = null, manualId =
        guardado— en un silencio. Ahora se intenta siempre y se grita si falla:
        si esto no ocurre, el objeto reaparece en cuanto se recarga el mapa. */
     try {
-      await this.savegg();
+      /* SE MIRA LO QUE CONTESTA, NO SOLO SI EXPLOTA.
+
+         `savegg()` no siempre lanza cuando no guarda: devuelve `false` cuando
+         se pospone (el inventario todavia no ha cargado) y cuando el servidor
+         conserva SU copia porque el market escribio despues (`inventoryStale`).
+         Antes solo se miraba la excepcion, asi que los dos casos silenciosos
+         pasaban por buenos — y son exactamente los dos que hacen que lo vendido
+         reaparezca al salir del mapa. Ahora se avisa. */
+      const guardado = await this.savegg();
+      if (guardado === false) {
+        console.error('❌ El cambio de ' + itemId + ' NO llego al servidor (savegg devolvio false).');
+        this.showNotification?.(
+          '⚠️ That change has not been saved yet. Do not close the game until it syncs.',
+          'error'
+        );
+      }
     } catch (e) {
       console.error('❌ savegg fallo al guardar la eliminacion de ' + itemId + ':', e);
       this.showNotification?.(
