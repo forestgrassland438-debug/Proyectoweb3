@@ -2,7 +2,9 @@
    Se le da a PhaserRelay un doble de `accion` que devuelve la factura que
    queramos (o el error que queramos) y se comprueba QUÉ decide. */
 const fs = require('fs');
-const path = process.argv[2];
+// Por defecto, la librería que hay al lado: así se ejecuta con solo
+// `node _prueba_relay.js`, sin tener que acordarse de la ruta.
+const path = process.argv[2] || require('path').join(__dirname, 'phaser-relay-library.js');
 
 // Entorno mínimo para que el archivo se pueda cargar fuera del navegador.
 global.window = global;
@@ -46,19 +48,87 @@ comprobar('factura como array', comoArray,
 
 comprobar('factura vacía', r._leerCamposFactura(null), null);
 
+// ── LA TUPLA DE getInvoice NO SE PUEDE QUEDAR EN EL PRIMER CAMPO ──────────
+/* EL FALLO QUE VIGILA — "puedo comprar pero no vender".
+
+   `getInvoice` tiene UNA salida y esa salida es el struct entero. El
+   normalizador se quedaba con `out0 = raw[0]` (solo el id) y tiraba el
+   manualId, el dueño, el tipo, la cantidad y el `active`. Con eso
+   `_leerCamposFactura` devolvía null, y para `quitarDeFactura` eso significa
+   "el contrato dice que esa factura no existe": los dos primeros caminos de
+   la venta quedaban muertos y todo dependía de poder listar el inventario.
+
+   `out0` tiene que seguir valiendo el id: es lo que leen las COMPRAS para
+   saber el número de la factura recién creada. */
+const ABI_GET_INVOICE = {
+  type: 'function', name: 'getInvoice', stateMutability: 'view',
+  inputs: [{ name: '_id', type: 'uint256' }],
+  outputs: [{ name: '', type: 'tuple', components: [
+    { name: 'id', type: 'uint256' }, { name: 'manualId', type: 'string' },
+    { name: 'owner', type: 'address' }, { name: 'tipo', type: 'string' },
+    { name: 'cantidad', type: 'uint256' }, { name: 'active', type: 'bool' },
+    { name: 'createdAt', type: 'uint256' }
+  ] }]
+};
+const FACTURA_ESPERADA = { id: 1764, manualId: 'zan#1', owner: '0xab',
+                           tipo: 'zanahoria_buena', cantidad: 5, activa: true };
+
+// a) como lista plana: lo que manda server2 con ethers v6
+const planaNorm = r._normalizeResult(
+  ['1764', 'zan#1', '0xAB', 'zanahoria_buena', '5', true, '99'], ABI_GET_INVOICE);
+comprobar('tupla plana → la factura entera', r._leerCamposFactura(planaNorm), FACTURA_ESPERADA);
+comprobar('y out0 sigue siendo el id (lo leen las compras)', planaNorm.out0, '1764');
+
+// b) como objeto con nombres
+const conNombresNorm = r._normalizeResult(
+  { id: '1764', manualId: 'zan#1', owner: '0xAB', tipo: 'zanahoria_buena',
+    cantidad: '5', active: true, createdAt: '99' }, ABI_GET_INVOICE);
+comprobar('tupla con nombres → la factura entera',
+  r._leerCamposFactura(conNombresNorm), FACTURA_ESPERADA);
+
+// c) como objeto con claves numéricas
+const porIndiceNorm = r._normalizeResult(
+  { 0: '1764', 1: 'zan#1', 2: '0xAB', 3: 'zanahoria_buena', 4: '5', 5: true, 6: '99' },
+  ABI_GET_INVOICE);
+comprobar('tupla por posición → la factura entera',
+  r._leerCamposFactura(porIndiceNorm), FACTURA_ESPERADA);
+
+// d) una LISTA de tuplas no es una tupla: se deja pasar tal cual
+const ABI_SNAPSHOT = {
+  type: 'function', name: 'getUserInventorySnapshot', stateMutability: 'view',
+  inputs: [{ name: 'user', type: 'address' }],
+  outputs: [{ name: 'result', type: 'tuple[]', components: ABI_GET_INVOICE.outputs[0].components }]
+};
+comprobar('tuple[] no se toca',
+  r._normalizeResult([['1', 'a', '0x1', 't', '2', true, '3']], ABI_SNAPSHOT),
+  { result: ['1', 'a', '0x1', 't', '2', true, '3'] });
+
 // ── el camino completo ────────────────────────────────────────────────────
 /**
  * @param facturas      { porId, porNombre } lo que contesta getInvoice / ByManualId
  * @param errorLectura  si se pasa, TODA lectura revienta con ese error
- * @param inventario    lo que contesta getUserInventorySnapshot:
+ * @param inventario    lo que contesta la funcion de inventario:
  *                        array  → esas son las facturas vivas del jugador
- *                        null   → el snapshot NO se puede leer
+ *                        null   → existe pero NO se puede leer
+ * @param sinInventario true = el contrato NO tiene funcion para listar el
+ *                      inventario (hay despliegues asi; por eso la pantalla de
+ *                      carga trae un plan B). Cambia la decision, asi que hay
+ *                      que poder probarlo.
  */
-function relayDePrueba(facturas, errorLectura, inventario) {
+function relayDePrueba(facturas, errorLectura, inventario, sinInventario) {
   const rel = Object.create(PhaserRelay.prototype);
   rel.enviadas = [];
   rel.config = { debug: false };
+  rel.contractsCache = new Map();
   rel.checkAuth = async () => ({ success: true, address: '0xJUGADOR'.toLowerCase() });
+
+  /* El ABI decide POR QUE FUNCION se listan las facturas. Un contrato sin
+     ninguna es el caso que dejo la tienda sin poder vender. */
+  rel.fetchABI = async () => (sinInventario ? [] : [{
+    type: 'function', name: 'getUserInventorySnapshot', stateMutability: 'view',
+    inputs: [{ name: 'user', type: 'address' }],
+    outputs: [{ name: '', type: 'tuple[]' }]
+  }]);
 
   /* El snapshot del inventario, que es la TERCERA vía por la que
      `quitarDeFactura` busca la factura buena cuando el idx y el manualId del
@@ -158,12 +228,39 @@ const AJENA = { id: 3, manualId: 'otro#1', owner: '0xotro',
   comprobar('una factura de OTRO no cuenta como mía → ya:true y sin tocarla',
             [res.ok, res.ya, rel.enviadas.length], [true, true, 0]);
 
-  // 3d. No se puede leer el inventario: tampoco se afirma nada.
+  // 3d. La funcion existe pero NO se puede leer (nodo caido): no se afirma nada.
   rel = relayDePrueba({ porId: {}, porNombre: {} }, null, null);
   res = await rel.quitarDeFactura('0xC', { idx: 1764, manualid: 'balde#1',
                                            cantidad: 1, tipo: 'balde_vacio',
                                            vaciarFactura: true });
-  comprobar('sin poder leer el inventario → error, nunca ya:true',
+  comprobar('el inventario no se deja leer → error, nunca ya:true',
+            [res.ok, res.ya, rel.enviadas.length], [false, false, 0]);
+
+  /* 3e. EL CONTRATO NO SABE LISTAR EL INVENTARIO.
+   *
+   *    Hay despliegues asi —la pantalla de carga trae un plan B por eso mismo—
+   *    y al exigir la comprobacion, NINGUNA venta se confirmaba: "The sale of
+   *    Fresh Carrot was not confirmed on-chain", siempre.
+   *
+   *    Cuando no hay forma de comprobar, se vuelve a la regla de antes: se
+   *    acepta "ya se gasto" solo si el contrato lo dijo EXPLICITAMENTE (un
+   *    revert). No es peor que lo que habia, y donde si se puede enumerar se
+   *    sigue quitando de la factura buena (caso 3b). */
+  rel = relayDePrueba({ porId: {}, porNombre: {} }, null, null, true);
+  res = await rel.quitarDeFactura('0xC', { idx: 1764, manualid: 'balde#1',
+                                           cantidad: 1, tipo: 'balde_vacio',
+                                           vaciarFactura: true });
+  comprobar('contrato sin listado → se cree al contrato y se cuadra',
+            [res.ok, res.ya, rel.enviadas.length], [true, true, 0]);
+
+  /* 3f. Y con ese mismo contrato, una factura VIVA que no es la que se pide
+   *    sigue siendo un error: la falta de listado no puede convertirse en
+   *    barra libre para dar cosas por gastadas. */
+  rel = relayDePrueba({ porId: { 1764: MIA }, porNombre: {} }, null, null, true);
+  res = await rel.quitarDeFactura('0xC', { idx: 1764, manualid: 'balde#1',
+                                           cantidad: 1, tipo: 'zanahoria_buena',
+                                           vaciarFactura: true });
+  comprobar('contrato sin listado + factura viva de otro tipo → sigue siendo error',
             [res.ok, res.ya, rel.enviadas.length], [false, false, 0]);
 
   // 4. EL CASO PELIGROSO: el hueco lleva un numero de hueco (3) que resulta ser
@@ -220,6 +317,42 @@ const AJENA = { id: 3, manualId: 'otro#1', owner: '0xotro',
                                            vaciarFactura: false });
   comprobar('pedir de mas → se recorta a lo que hay', rel.enviadas[0],
             ['decreaseInvoiceQuantity', '50', '8']);
+
+  // 8. TRAS UN FALLO, EL REINTENTO VUELVE A PREGUNTAR A LA CADENA.
+  //    `misFacturas` guarda la respuesta unos segundos para no pedirla una vez
+  //    por hueco. Esa foto se quedaba puesta tambien al fallar, asi que
+  //    reintentar en el acto —lo primero que hace cualquiera— repetia la
+  //    respuesta vieja y volvia a fallar aunque la cadena ya hubiera cambiado.
+  {
+    // El hueco apunta a una factura AJENA: el primer intento tiene que fallar.
+    let inventario = [];
+    const relCache = relayDePrueba({ porId: { 3: AJENA }, porNombre: {} }, null, inventario);
+    let lecturas = 0;
+    relCache._apiRequest = async (ruta, metodo, cuerpo) => {
+      if (cuerpo && cuerpo.functionName === 'getUserInventorySnapshot') {
+        lecturas++;
+        return { success: true, result: inventario };
+      }
+      throw new Error('ruta no esperada en la prueba: ' + ruta);
+    };
+
+    const r1 = await relCache.quitarDeFactura('0xC', { idx: 3, manualid: 'otro#1',
+                                                       cantidad: 1, tipo: 'madera',
+                                                       vaciarFactura: false });
+    comprobar('primer intento con factura ajena → error', [r1.ok, r1.ya], [false, false]);
+
+    // La cadena cambia (otra pestaña, una misión, la propia tx que sí entró) y
+    // el jugador reintenta EN EL ACTO. Sin tirar la foto, volvería a fallar.
+    inventario = [[77, 'mad#1', '0xjugador', 'madera', 4, true, 1]];
+    const antes = lecturas;
+    const r2 = await relCache.quitarDeFactura('0xC', { idx: 3, manualid: 'otro#1',
+                                                       cantidad: 1, tipo: 'madera',
+                                                       vaciarFactura: false });
+    comprobar('el reintento vuelve a leer la cadena', lecturas > antes, true);
+    comprobar('y encuentra la factura buena', [r2.ok, r2.ya], [true, false]);
+    comprobar('y quita de ELLA, no de la ajena', relCache.enviadas[0],
+              ['decreaseInvoiceQuantity', '77', '1']);
+  }
 
   console.log(fallos ? '\n' + fallos + ' PRUEBAS FALLAN' : '\nTodas las pruebas pasan');
   process.exit(fallos ? 1 : 0);

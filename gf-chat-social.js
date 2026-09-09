@@ -51,23 +51,10 @@
      nada, que es la peor clase de fallo — el que no da error. */
   var EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
-  /* EL CATÁLOGO COMPLETO, el mismo que el selector del chat general
-     (GameScene._montarSelectorEmojis). Vive aquí para que el selector de los
-     mensajes privados use EXACTAMENTE la misma lista: dos catálogos separados
-     acaban distintos, y el jugador nota que en un sitio hay emojis que en el
-     otro no. */
-  var CATEGORIAS_EMOJI = [
-    { nombre: 'Faces', lista: ['😀','😄','😁','😆','😅','🤣','😂','🙂','😉','😊','😍','🥰','😘','😜','🤪','🤔','🤨','😐','😴','😎','🥳','😏','😢','😭','😤','😡','🥺','😱','🤯','🤗','🤝','🙏'] },
-    { nombre: 'Gestures', lista: ['👍','👎','👌','✌️','🤞','🤙','👋','💪','🫶','👏','🙌','🤛','🤜','✊','☝️','🖐️'] },
-    { nombre: 'Game', lista: ['⚔️','🛡️','🏹','🪓','⛏️','🎣','🧪','💎','🪵','🪨','🔥','💧','⚡','🌟','✨','🏆','🥇','🎁','💰','🪙','🗝️','🧭','🗺️','⏳'] },
-    { nombre: 'Farm', lista: ['🌱','🌿','🍀','🌳','🌲','🌾','🥕','🍅','🎃','🌽','🍎','🍇','🐄','🐔','🐷','🐶','🐱','🐝','🦋','☀️','🌧️','❄️','🌈','🌙'] },
-    { nombre: 'Chat', lista: ['❤️','💔','💯','✅','❌','❓','❗','💬','👀','🎉','🤝','🚀','⭐','🔔','📦','🛒'] }
-  ];
-
   /* Registro de mensajes pintados: mid -> { linea, textoEl, msg }.
-     Hace falta porque una reacción o una edición llegan DESPUÉS, por el socket,
-     y hay que saber qué línea repintar. Se poda para que una sesión larga no
-     acumule referencias a nodos que ya nadie mira. */
+     Hace falta porque una reacción llega DESPUÉS, por el socket, y hay que
+     saber qué línea repintar. Se poda para que una sesión larga no acumule
+     referencias a nodos que ya nadie mira. */
   var pintados = new Map();
   var TOPE_REGISTRO = 300;
 
@@ -75,7 +62,7 @@
 
      `chatMessages.appendChild(line)` no quitaba nunca nada: una partida de tres
      horas deja miles de renglones en el DOM. Ya pasaba antes, pero ahora cada
-     renglón lleva además dos botones con sus manejadores y su entrada en el
+     renglón lleva además botones con sus manejadores y su entrada en el
      registro, así que pesa el triple — y un DOM de miles de nodos es justo lo
      que produce los tirones al pintar y al desplazar.
 
@@ -124,7 +111,16 @@
     return n;
   }
 
-  /** Igual que en las escenas: deshacer el escapado del servidor, sin innerHTML. */
+  /**
+   * Deshace el escapado del servidor, sin innerHTML.
+   *
+   * El backend pasa cada mensaje por escapeHtml() antes de repartirlo, así que
+   * llega con `&amp;`, `&#039;`… Aquí todo se pinta con textContent —que ya es
+   * seguro por sí mismo— y sin deshacer ese escapado el jugador vería
+   * literalmente "&#039;" en vez de un apóstrofo. Se hace con reemplazos
+   * explícitos y NUNCA con innerHTML: interpretar HTML aquí reabriría justo el
+   * agujero que el escapado del servidor cierra.
+   */
   function desescapar(t) {
     return String(t == null ? '' : t)
       .replace(/&lt;/g, '<')
@@ -132,11 +128,187 @@
       .replace(/&quot;/g, '"')
       .replace(/&#0?39;/g, "'")
       .replace(/&#x27;/gi, "'")
-      .replace(/&amp;/g, '&');
+      .replace(/&amp;/g, '&');   // el último, o se re-expandirían los demás
   }
 
+  /** '#rrggbb' válido, o null. El color de otro jugador nunca se pinta a ciegas. */
   function colorSeguro(c) {
     return (typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c)) ? c : null;
+  }
+
+
+  /* ══════════════════════════════════════════════════════════════════════
+     EL CATÁLOGO DE EMOJIS, Y POR QUÉ SE FILTRA EN CALIENTE
+     ──────────────────────────────────────────────────────────────────────
+     EL FALLO: varios emojis salían como un cuadrado vacío. No era el chat: era
+     que la lista tenía emojis de Unicode 13 y 14 (🪵 🪨 🪙 🪓 🫶 …) y la fuente
+     Segoe UI Emoji de Windows 10 se quedó en Unicode 12. Un emoji que la fuente
+     no tiene se pinta como "tofu" — el rectángulo vacío — y no hay forma de
+     saberlo desde CSS.
+
+     LA SOLUCIÓN NO ES RECORTAR LA LISTA. Recortarla al mínimo común dejaría a
+     quien tiene un móvil moderno sin la mitad de los emojis que sí puede ver.
+     Lo que se hace es DIBUJAR CADA UNO en un lienzo y comparar su huella con la
+     del carácter que ninguna fuente tiene (U+FFFF): si coinciden, este
+     dispositivo no lo sabe pintar y no se enseña.
+
+     Así la lista puede ser todo lo larga que se quiera —hay más de doscientos—
+     y cada jugador ve exactamente los que su equipo dibuja bien. Se hace UNA
+     vez, la primera que se abre un selector, y se guarda.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /* La pila de fuentes de emoji. Va delante de todo en los botones del selector
+     y en las chapas de reacción, que son elementos de solo-emoji: así el
+     navegador no intenta primero una fuente de texto que no los tiene. */
+  var FUENTE_EMOJI = '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",' +
+                     '"Twemoji Mozilla","Segoe UI Symbol","Android Emoji",sans-serif';
+
+  var CATEGORIAS_EMOJI = [
+    { nombre: 'Smileys', lista: [
+      '😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😇','🥰','😍',
+      '🤩','😘','😗','😚','😙','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔',
+      '🤐','🤨','😐','😑','😶','😏','😒','🙄','😬','🤥','😌','😔','😪','🤤','😴',
+      '😷','🤒','🤕','🤢','🤮','🤧','🥵','🥶','🥴','😵','🤯','🤠','🥳','😎','🤓',
+      '🧐','😕','😟','🙁','😮','😯','😲','😳','🥺','😦','😧','😨','😰','😥','😢',
+      '😭','😱','😖','😣','😞','😓','😩','😫','😤','😡','😠','🤬','😈','👿','💀',
+      '💩','🤡','👻','👽','🤖','😺','😸','😹','😻','😼','😽','🙀','😿','😾'
+    ] },
+    { nombre: 'Gestures', lista: [
+      '👋','🤚','🖐️','✋','🖖','👌','🤏','✌️','🤞','🤟','🤘','🤙','👈','👉','👆',
+      '👇','☝️','👍','👎','✊','👊','🤛','🤜','👏','🙌','👐','🤲','🤝','🙏','💪',
+      '🦵','🦶','👂','👃','👀','👁️','👅','👄','💋','🧠','🦷','🦴'
+    ] },
+    { nombre: 'People', lista: [
+      '👶','🧒','👦','👧','🧑','👨','👩','🧓','👴','👵','🙍','🙎','🙅','🙆','💁',
+      '🙋','🙇','🤦','🤷','👮','🕵️','💂','👷','🤴','👸','🧙','🧚','🧛','🧜','🧝',
+      '🎅','🤶','🦸','🦹','💃','🕺','👯','🧘','🛌','🏃','🚶'
+    ] },
+    { nombre: 'Game', lista: [
+      '⚔️','🛡️','🏹','🔨','⛏️','⚒️','🗡️','🔪','🪓','🎣','🧪','⚗️','💎','💰','🪙',
+      '💵','🧭','🗺️','🗝️','🔑','🔒','🔓','⏳','⌛','⏰','🔔','🔕','📦','🎁','🎈',
+      '🎊','🎉','🏆','🥇','🥈','🥉','🎖️','🏅','⭐','🌟','✨','💫','🔥','💥','⚡',
+      '💧','🌊','❄️','🪵','🪨','🧱','🛢️','⚙️','🧰','🔧','🪚','🧲','🎯','🎲','🕹️'
+    ] },
+    { nombre: 'Farm', lista: [
+      '🌱','🌿','☘️','🍀','🎋','🌾','🌵','🌴','🌳','🌲','🍁','🍂','🍃','🌺','🌸',
+      '🌼','🌻','🌷','🌹','🥀','💐','🍄','🌰','🥕','🥔','🍠','🌽','🍅','🥒','🥬',
+      '🥦','🧄','🧅','🍆','🥑','🫐','🍓','🍇','🍉','🍎','🍏','🍐','🍑','🍒','🍍',
+      '🥝','🍌','🍋','🥥','🌶️','🍯','🥚','🧀','🍞','🥖','🥐','🍪','🍰','🧁','🍫'
+    ] },
+    { nombre: 'Animals', lista: [
+      '🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵',
+      '🙈','🙉','🙊','🐔','🐧','🐦','🐤','🦆','🦅','🦉','🦇','🐺','🐗','🐴','🦄',
+      '🐝','🐛','🦋','🐌','🐞','🐜','🕷️','🦂','🐢','🐍','🦎','🐙','🦑','🦐','🦀',
+      '🐡','🐠','🐟','🐬','🐳','🐋','🦈','🐊','🐅','🦓','🦍','🐘','🦏','🐪','🦙',
+      '🐑','🐐','🦌','🐕','🐈','🐓','🦃','🕊️','🐇','🐁','🐀','🐿️','🦔'
+    ] },
+    { nombre: 'Weather', lista: [
+      '☀️','🌤️','⛅','🌥️','☁️','🌦️','🌧️','⛈️','🌩️','🌨️','❄️','☃️','⛄','🌬️','💨',
+      '🌪️','🌫️','🌈','☂️','☔','🌙','🌛','🌜','🌚','🌝','🌞','⭐','🌠','🌌','🌍'
+    ] },
+    { nombre: 'Chat', lista: [
+      '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗',
+      '💖','💘','💝','💯','✅','❌','❗','❓','💬','💭','🗯️','👀','🎵','🎶','🚀',
+      '🛒','🏠','🏡','🏰','⛺','🚪','🛏️','🪑','🚽','🚿','🧹','🧺','🧼','📜','📖',
+      '📝','✏️','📌','📍','🔎','🔍','⚠️','🚧','🆗','🆕','🔝','♻️','⚓','🧭'
+    ] }
+  ];
+
+  /* ¿QUÉ EMOJIS SABE DIBUJAR ESTE EQUIPO?
+
+     Se dibujan TODOS en una sola rejilla y se lee el lienzo UNA vez. La versión
+     anterior hacía un `getImageData` por emoji y tardaba 754 ms —medido— porque
+     el coste está en la llamada, que sincroniza con la GPU, no en los píxeles.
+     Con una sola lectura son unos pocos milisegundos, y además pasa una sola
+     vez: la primera que se abre un selector.
+
+     La celda es más ancha que la letra a propósito: un emoji puede sobresalir
+     un poco de su caja y, si se solaparan, la huella de uno contaminaría la del
+     vecino y se descartaría un emoji perfectamente bueno. */
+  var soporteEmoji = null;
+
+  function calcularSoporte(lista) {
+    var CELDA = 28, LETRA = 18, COLS = 24;
+    var acepta = {};
+    try {
+      // La celda 0 la ocupa U+FFFF, que no existe en ninguna fuente: es el
+      // "tofu" con el que se compara todo lo demás.
+      var todos = ['\uFFFF'].concat(lista);
+      var filas = Math.ceil(todos.length / COLS);
+      var lienzo = doc.createElement('canvas');
+      lienzo.width  = COLS * CELDA;
+      lienzo.height = filas * CELDA;
+      var ctx = lienzo.getContext('2d', { willReadFrequently: true });
+      ctx.textBaseline = 'top';
+      ctx.font = LETRA + 'px ' + FUENTE_EMOJI;
+
+      for (var i = 0; i < todos.length; i++) {
+        ctx.fillText(todos[i], (i % COLS) * CELDA + 4, Math.floor(i / COLS) * CELDA + 4);
+      }
+
+      var datos = ctx.getImageData(0, 0, lienzo.width, lienzo.height).data;
+      var ancho = lienzo.width;
+
+      /* Huella de una celda: solo el canal alfa, o sea la FORMA. El color no
+         importa —lo que se quiere saber es si hay dibujo y si es el del tofu—,
+         y mirar un canal en vez de cuatro es cuatro veces menos trabajo. */
+      var huella = function (celda) {
+        var cx = (celda % COLS) * CELDA, cy = Math.floor(celda / COLS) * CELDA;
+        var h = 0, vacia = true;
+        for (var y = 0; y < CELDA; y++) {
+          var fila = ((cy + y) * ancho + cx) * 4 + 3;
+          for (var x = 0; x < CELDA; x++) {
+            var a = datos[fila + x * 4];
+            if (a) vacia = false;
+            h = ((h * 31) + a) | 0;
+          }
+        }
+        return vacia ? null : h;
+      };
+
+      var tofu = huella(0);
+      for (var k = 0; k < lista.length; k++) {
+        var hk = huella(k + 1);
+        acepta[lista[k]] = (hk !== null && hk !== tofu);
+      }
+    } catch (e) {
+      /* Sin lienzo (navegador raro, modo privado estricto) se aceptan todos:
+         ver alguno mal es mejor que quedarse sin selector. */
+      for (var j = 0; j < lista.length; j++) acepta[lista[j]] = true;
+    }
+    return acepta;
+  }
+
+  function prepararSoporteEmoji() {
+    if (soporteEmoji) return soporteEmoji;
+    var todos = [];
+    CATEGORIAS_EMOJI.forEach(function (c) {
+      c.lista.forEach(function (e) { if (todos.indexOf(e) < 0) todos.push(e); });
+    });
+    var tabla = calcularSoporte(todos);
+    soporteEmoji = function (ch) { return tabla[ch] !== false; };
+    return soporteEmoji;
+  }
+
+  /** Las categorías, ya sin los emojis que este equipo no sabe dibujar. */
+  var categoriasFiltradas = null;
+
+  function categoriasEmojiUsables() {
+    if (categoriasFiltradas) return categoriasFiltradas;
+    var acepta = prepararSoporteEmoji();
+    categoriasFiltradas = CATEGORIAS_EMOJI.map(function (cat) {
+      return { nombre: cat.nombre, lista: cat.lista.filter(acepta) };
+    }).filter(function (cat) { return cat.lista.length > 0; });
+
+    try {
+      var total = CATEGORIAS_EMOJI.reduce(function (n, c) { return n + c.lista.length; }, 0);
+      var quedan = categoriasFiltradas.reduce(function (n, c) { return n + c.lista.length; }, 0);
+      if (quedan < total) {
+        log('este equipo no dibuja ' + (total - quedan) + ' de ' + total +
+            ' emojis: se ocultan para que no salgan como un cuadrado vacío');
+      }
+    } catch (e) {}
+    return categoriasFiltradas;
   }
 
   // ── Estilos ───────────────────────────────────────────────────────────────
@@ -163,11 +335,16 @@
       '  background:rgba(8,18,40,0.97);border:1px solid rgba(64,160,255,0.38);',
       '  border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.55);}',
       '.gfcs-paleta button{background:none;border:none;font-size:18px;line-height:1;',
-      '  cursor:pointer;padding:3px 4px;border-radius:6px;}',
+      '  cursor:pointer;padding:3px 4px;border-radius:6px;',
+      /* La fuente de emoji DELANTE: son botones de solo-emoji, y si el
+         navegador prueba antes una fuente de texto puede acabar pintando la
+         versión en blanco y negro. */
+      '  font-family:' + FUENTE_EMOJI + ';}',
       '.gfcs-paleta button:hover{background:rgba(64,160,255,0.22);}',
 
       '.gfcs-reacs{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 0 2px;}',
       '.gfcs-reac{display:inline-flex;align-items:center;gap:3px;font-size:11px;',
+      '  font-family:' + FUENTE_EMOJI + ';',
       '  background:rgba(20,50,100,0.5);border:1px solid rgba(64,160,255,0.22);',
       '  color:#cfe6ff;border-radius:11px;padding:1px 7px;cursor:pointer;line-height:1.5;}',
       '.gfcs-reac:hover{background:rgba(40,90,160,0.6);}',
@@ -593,6 +770,28 @@
     return false;
   }
 
+  /**
+   * Deja hecho el repaso de emojis ANTES de que nadie abra el selector.
+   *
+   * Mirar cuáles sabe dibujar el equipo cuesta unos 80 ms (una sola lectura del
+   * lienzo, ver `calcularSoporte`). No es mucho, pero caería justo en el clic
+   * que abre el selector, que es cuando peor sienta. Hecho en un rato muerto,
+   * el jugador no lo pisa nunca.
+   *
+   * `requestIdleCallback` no está en todos los navegadores; el respaldo es un
+   * temporizador largo, que para esto vale igual.
+   */
+  function precalentarEmojis() {
+    if (global.__gfcsEmojisListos) return;
+    global.__gfcsEmojisListos = true;
+    var hazlo = function () { try { categoriasEmojiUsables(); } catch (e) {} };
+    if (typeof global.requestIdleCallback === 'function') {
+      global.requestIdleCallback(hazlo, { timeout: 4000 });
+    } else {
+      setTimeout(hazlo, 2500);
+    }
+  }
+
   function montar(scene) {
     // La escena viva se apunta ANTES de enlazar: si el socket ya estaba
     // enganchado, `enlazar` se va sin hacer nada y esta es la única línea que
@@ -600,6 +799,7 @@
     if (scene) escenaViva = scene;
     estilos();
     enlazar(scene);
+    precalentarEmojis();
     vigilarChat();
     /* Al entrar en una escena con el chat ya abierto no puede quedar un aviso
        de antes puesto: se ve el chat y el botón titilando a la vez. */
@@ -630,6 +830,11 @@
     /* La lista de emojis del chat general, para que el selector de los
        privados sea EL MISMO y no dos catálogos que se separen con el tiempo. */
     CATEGORIAS_EMOJI: CATEGORIAS_EMOJI,
+    /* Las que ESTE equipo sabe dibujar. Es lo que deben usar los selectores:
+       las crudas llevan emojis que en un Windows 10 salen como un cuadrado. */
+    categoriasEmojiUsables: categoriasEmojiUsables,
+    soportaEmoji: function (ch) { return prepararSoporteEmoji()(ch); },
+    FUENTE_EMOJI: FUENTE_EMOJI,
     _interno: {
       desescapar: desescapar, colorSeguro: colorSeguro,
       pintados: pintados

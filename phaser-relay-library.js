@@ -1105,15 +1105,64 @@
     }
 
     /**
+     * ¿POR QUÉ FUNCIÓN SE PUEDEN LISTAR MIS FACTURAS EN ESTE CONTRATO?
+     *
+     * No todos los despliegues tienen la misma. `getUserInventorySnapshot` es la
+     * buena y es la que usa la pantalla de carga, pero ya hubo contratos sin
+     * ella (por eso LoadingScenegame trae un plan B con `batchVerifySlots`).
+     *
+     * Así que en vez de dar por hecho un nombre, se MIRA EL ABI: primero los
+     * nombres conocidos y, si no está ninguno, cualquier función de lectura que
+     * reciba UNA dirección y devuelva una lista. Si no hay ninguna, se devuelve
+     * null y quien llama sabe que en este contrato no se puede enumerar — que
+     * es distinto de "lo intenté y falló".
+     */
+    async _funcionDeInventario(contractAddress) {
+      const key = this._toKey(contractAddress);
+      if (this._funcInvCache && this._funcInvCache.key === key) {
+        return this._funcInvCache.nombre;
+      }
+
+      let abi = null;
+      try { abi = await this.fetchABI(contractAddress); } catch (e) { return undefined; }
+      if (!Array.isArray(abi)) return undefined;
+
+      const esLectura = (f) => f.stateMutability === 'view' || f.stateMutability === 'pure';
+      const unaDireccion = (f) => Array.isArray(f.inputs) && f.inputs.length === 1 &&
+                                  f.inputs[0].type === 'address';
+
+      const CONOCIDAS = ['getUserInventorySnapshot', 'getInvoicesSafe',
+                         'getUserInvoices', 'getInvoicesOf', 'invoicesOf'];
+
+      let elegida = null;
+      for (const nombre of CONOCIDAS) {
+        const f = abi.find(x => x.type === 'function' && x.name === nombre &&
+                                esLectura(x) && unaDireccion(x));
+        if (f) { elegida = nombre; break; }
+      }
+
+      if (!elegida) {
+        const f = abi.find(x => x.type === 'function' && esLectura(x) && unaDireccion(x) &&
+                                /invoice|inventor/i.test(x.name || '') &&
+                                Array.isArray(x.outputs) && x.outputs.length === 1 &&
+                                /\[\]$/.test(String(x.outputs[0].type || '')));
+        if (f) elegida = f.name;
+      }
+
+      this._funcInvCache = { key: key, nombre: elegida || null };
+      return this._funcInvCache.nombre;
+    }
+
+    /**
      * TODAS MIS FACTURAS VIVAS, DE UNA SOLA LECTURA.
      *
      * POR QUÉ HACE FALTA — "vendo 5 zanahorias, me las paga, salgo al mapa y
      * tengo las 10 otra vez":
      *
-     * `quitarDeFactura` busca la factura por el `idx` del hueco del inventario
-     * y, si no vale, por su `manualId`. Los dos pueden ser basura, y de hecho lo
-     * son a menudo: `addItem` rellena `idx` con el NÚMERO DE HUECO cuando nadie
-     * le pasa un id de factura, y `manualId` acaba valiendo el nombre del objeto
+     * `quitarDeFactura` busca la factura por el `idx` del hueco y, si no vale,
+     * por su `manualId`. Los dos pueden ser basura, y de hecho lo son a menudo:
+     * `addItem` rellena `idx` con el NÚMERO DE HUECO cuando nadie le pasa un id
+     * de factura, y `manualId` acaba valiendo el nombre del objeto
      * ("zanahoria_buena") cuando el guardado no traía uno. Con los dos malos,
      * `getInvoice` revertía, y eso se interpretaba como "la factura ya no
      * está" — o sea: se quitaba el objeto EN LOCAL, se cobraba la venta, y en
@@ -1123,14 +1172,17 @@
      * cadena y REPONE lo que sigue habiendo allí. De ahí las diez zanahorias.
      *
      * Con esta lectura hay una tercera vía —y la buena—: preguntar qué facturas
-     * tiene el jugador DE VERDAD y coger la del tipo que se está gastando. Es la
-     * misma llamada que ya usa la pantalla de carga para cuadrar el inventario,
-     * así que no se inventa nada nuevo.
+     * tiene el jugador DE VERDAD y coger la del tipo que se está gastando.
+     *
+     * TRES RESPUESTAS, y las tres importan:
+     *   array      → estas son sus facturas vivas
+     *   null       → la función existe pero la lectura falló (nodo caído): NO se
+     *                puede afirmar nada
+     *   undefined  → este contrato no permite enumerar; quien llama tendrá que
+     *                decidir con lo que tenga
      *
      * SE CACHEA UNOS SEGUNDOS porque una venta de varios huecos la pide una vez
-     * por hueco, y sería una lectura RPC por hueco para el mismo dato. La caché
-     * se tira en cuanto se quita algo, para que la segunda pasada no trabaje con
-     * la foto de antes.
+     * por hueco. La caché se tira en cuanto se quita algo.
      */
     async misFacturas(contractAddress, opciones = {}) {
       const ahora = Date.now();
@@ -1141,21 +1193,24 @@
         return this._facturasCache.lista;
       }
 
+      const funcion = await this._funcionDeInventario(contractAddress);
+      if (!funcion) return undefined;          // este contrato no sabe enumerar
+
       const auth = await this.checkAuth();
-      if (!auth || !auth.success || !auth.address) return [];
+      if (!auth || !auth.success || !auth.address) return null;
 
       let crudo;
       try {
         const resp = await this._apiRequest('/api/relay/call-view', 'POST', {
           contractAddress,
-          functionName: 'getUserInventorySnapshot',
+          functionName: funcion,
           parameters:   { '0': auth.address }
         });
-        if (!resp || !resp.success) return [];
+        if (!resp || !resp.success) return null;
         crudo = resp.result;
       } catch (e) {
-        // Sin snapshot no se puede afirmar nada: se devuelve vacío y quien
-        // llama tratará el caso como "no lo sé", nunca como "no tiene nada".
+        // Sin lectura no se puede afirmar nada: se devuelve null y quien llama
+        // tratará el caso como "no lo sé", nunca como "no tiene nada".
         if (this.config && this.config.debug) {
           console.warn('[PhaserRelay] misFacturas:', e && e.message);
         }
@@ -1171,7 +1226,7 @@
     _olvidarFacturas() { this._facturasCache = null; }
 
     /**
-     * Normaliza lo que devuelve `getUserInventorySnapshot`.
+     * Normaliza lo que devuelve la función de inventario.
      *
      * El relay entrega la misma información de cuatro formas distintas según
      * por dónde pase (array de objetos, array de tuplas, envuelto en `result`,
@@ -1229,9 +1284,23 @@
     async quitarDeFactura(contractAddress, opciones = {}) {
       const { idx, manualid, cantidad, tipo, vaciarFactura = false } = opciones;
 
+      /* SI ESTO NO SALE, LA FOTO DEL INVENTARIO DEJA DE VALER.
+
+         `misFacturas` guarda unos segundos lo que le contesto la cadena para
+         no preguntarlo una vez por hueco en una venta de varios montones. Pero
+         esa foto se quedaba puesta TAMBIEN cuando la operacion fallaba, asi
+         que un reintento inmediato —lo primero que hace cualquiera cuando le
+         sale un error— repetia la misma respuesta vieja y volvia a fallar,
+         aunque entretanto la cadena hubiera cambiado (otra pestaña, una
+         mision, la propia transaccion que si llego a entrar).
+
+         Todo camino de fallo pasa ahora por aqui y tira la foto: el siguiente
+         intento vuelve a preguntar de verdad. */
+      const noSePudo = (respuesta) => { this._olvidarFacturas(); return respuesta; };
+
       const auth = await this.checkAuth();
       if (!auth || !auth.success) {
-        return { ok: false, error: 'No hay sesión iniciada' };
+        return noSePudo({ ok: false, error: 'No hay sesión iniciada' });
       }
       const yo = String(auth.address || '').toLowerCase();
       const tipoPedido = String(tipo || '').trim();
@@ -1255,8 +1324,12 @@
          error de verdad y el jugador conserva su objeto; ya lo volverá a
          intentar cuando el nodo vuelva, que es lo que pasa siempre. */
       let f = null;
-      let miInventario = null;      // null = no se ha podido leer la cadena
+      /* undefined = todavía no se ha mirado · null = no se pudo leer ·
+         array = estas son sus facturas.  `sinEnumerar` marca el caso distinto:
+         este contrato NO tiene forma de listar el inventario. */
+      let miInventario = undefined;
       let misDelTipo   = null;      // mis facturas vivas del tipo que se gasta
+      let sinEnumerar  = false;
       try {
         // 1) Por el id que trae el hueco.
         f = await this.leerFactura(contractAddress, idx);
@@ -1283,6 +1356,7 @@
            si no hay ninguna así, la más grande. */
         if (!suya(f) && tipoPedido) {
           miInventario = await this.misFacturas(contractAddress);
+          if (miInventario === undefined) sinEnumerar = true;
           if (Array.isArray(miInventario)) {
             const pedido = Number(cantidad) || 0;
             misDelTipo = miInventario
@@ -1300,11 +1374,11 @@
           }
         }
       } catch (e) {
-        return {
+        return noSePudo({
           ok: false, ya: false, id: Number(idx) || 0,
           error: 'no se pudo leer la factura (¿el nodo está caído?): ' +
                  (e && (e.message || String(e)))
-        };
+        });
       }
 
       // 4) Ya no está: no es un error, es que ya se quitó.
@@ -1327,16 +1401,16 @@
            tampoco es "ya gastada". */
         if (f && f.activa) {
           if (tipoPedido && f.tipo && f.tipo !== tipoPedido) {
-            return {
+            return noSePudo({
               ok: false, ya: false, id: Number(idx) || 0,
               error: 'ese id es de otro objeto (' + f.tipo + '), no de ' + tipoPedido
-            };
+            });
           }
           if (yo && f.owner && f.owner !== yo) {
-            return {
+            return noSePudo({
               ok: false, ya: false, id: Number(idx) || 0,
               error: 'la factura es de otro jugador'
-            };
+            });
           }
         }
 
@@ -1357,27 +1431,46 @@
              con el mismo criterio no podía dar nunca un resultado distinto —si
              hubiera encontrado algo, la tercera vía ya lo habría usado— y eran
              dos criterios que podían separarse con el tiempo. */
-          if (misDelTipo === null && miInventario === null) {
+          if (misDelTipo === null && miInventario === undefined) {
             miInventario = await this.misFacturas(contractAddress);
+            if (miInventario === undefined) sinEnumerar = true;
             if (Array.isArray(miInventario)) {
               misDelTipo = miInventario.filter(
                 x => x.tipo === tipoPedido && (!yo || !x.owner || x.owner === yo));
             }
           }
-          if (misDelTipo === null) {
+
+          /* ESTE CONTRATO NO SABE ENUMERAR. No se puede comprobar nada, así que
+             se decide con lo único que hay: lo que contestó el contrato al
+             preguntar por la factura. Si dijo EXPLÍCITAMENTE que no existe —un
+             revert, que `leerFactura` distingue de un fallo de red— se acepta
+             que ya se gastó, que es la regla que había antes de todo esto.
+             Negarse aquí dejaría el juego sin poder vender nada. */
+          if (sinEnumerar) {
+            console.warn('[PhaserRelay] el contrato no permite listar el inventario: ' +
+                         'se acepta que la factura ' + (Number(idx) || 0) + ' ya no está ' +
+                         'porque el contrato lo dijo. Si el objeto reaparece, es esto.');
             return {
-              ok: false, ya: false, id: Number(idx) || 0,
-              error: 'no se pudo comprobar el inventario en la cadena; no se ha quitado nada'
+              ok: true, ya: true, id: Number(idx) || 0,
+              motivo: 'el contrato dice que la factura no existe (sin poder listar el inventario)'
             };
+          }
+
+          if (misDelTipo === null) {
+            return noSePudo({
+              ok: false, ya: false, id: Number(idx) || 0,
+              error: 'no se pudo leer el inventario en la cadena (¿el nodo está caído?); ' +
+                     'no se ha quitado nada'
+            });
           }
           if (misDelTipo.length) {
             /* Le quedan facturas de ese tipo pero ninguna servía (cantidad a
                cero, cerrada…). No se ha gastado: no se puede borrar en local. */
-            return {
+            return noSePudo({
               ok: false, ya: false, id: Number(idx) || 0,
               error: 'la factura ' + (Number(idx) || 0) + ' no vale y en la cadena todavía ' +
                      'quedan ' + misDelTipo.length + ' de ' + tipoPedido + ': no se quita nada'
-            };
+            });
           }
         }
 
@@ -1432,10 +1525,90 @@
         }
       }
 
-      return { ok: false, ya: false, id: f.id, cantidad: quitar, error: error };
+      return noSePudo({ ok: false, ya: false, id: f.id, cantidad: quitar, error: error });
     }
 
     // ── NORMALIZADORES DE RESULTADOS ──────────────────────────────────────
+
+    /* UNA SOLA SALIDA QUE ES UNA TUPLA: NO SE PUEDE TIRAR EL RESTO.
+
+       FALLO QUE ESTO ARREGLA — "puedo comprar pero no vender".
+
+       `getInvoice` y `getInvoiceByManualId` devuelven UNA salida, y esa salida
+       es el struct Invoice entero. El backend lo serializa como una lista
+       plana —["1","zan#1","0xab…","zanahoria_buena","5",true,"…"]— porque el
+       Result de ethers v6 es un array y sus nombres no son propiedades
+       enumerables (ver convertBigIntToString en server2.js).
+
+       Lo que hacía este normalizador con eso era quedarse con `out0 = raw[0]`,
+       o sea SOLO EL ID, y tirar el manualId, el dueño, el tipo, la cantidad y
+       el `active`. `_leerCamposFactura` recibía `{ out0: "1" }`, no encontraba
+       ni `id` ni `owner`, y devolvía null: para `quitarDeFactura` eso es "el
+       contrato dice que esa factura no existe".
+
+       Consecuencia en el juego: los DOS primeros caminos de `quitarDeFactura`
+       (por id y por manualId) estaban MUERTOS. Toda venta dependía del tercero
+       —leer el inventario entero del jugador—, así que:
+         · si esa lectura fallaba un segundo, no se podía vender NADA aunque el
+           hueco llevara el id bueno;
+         · y en un contrato sin función para listar el inventario, la venta se
+           daba por hecha, se cobraba, y la factura seguía viva en la cadena.
+
+       Ahora, cuando hay UNA sola salida de tipo tupla y llega una lista plana,
+       se devuelven los campos CON SU NOMBRE, más los índices numéricos, más el
+       `out0` de siempre. Los tres a la vez, porque los tres se leen por ahí:
+       `_leerCamposFactura` usa los nombres y `_getInvoiceFieldsFromResponse`
+       (el de las compras) arma su lista desde los índices. Así nada de lo que
+       ya funcionaba cambia de forma. */
+    _tuplaConNombres(raw, functionAbi) {
+      if (!functionAbi || !Array.isArray(functionAbi.outputs)) return null;
+      if (functionAbi.outputs.length !== 1) return null;
+
+      const salida = functionAbi.outputs[0];
+      if (!salida || !String(salida.type || '').startsWith('tuple')) return null;
+      if (String(salida.type).endsWith('[]')) return null;   // tuple[]: se deja tal cual
+      const campos = Array.isArray(salida.components) ? salida.components : null;
+      if (!campos || !campos.length) return null;
+
+      /* La misma tupla llega de DOS formas según por dónde pase: una lista
+         plana (lo normal, ver arriba) o un objeto con los campos por nombre
+         (cuando el serializador del backend sí ve los nombres del Result).
+         Las dos tienen que salir de aquí igual, o el fallo vuelve por la
+         puerta de al lado. */
+      let leer;
+      if (Array.isArray(raw)) {
+        // Una lista de tuplas no es una tupla: si el primer elemento ya es un
+        // objeto o una lista, esto no es lo que buscamos.
+        if (raw.length && (Array.isArray(raw[0]) ||
+            (raw[0] && typeof raw[0] === 'object' && !raw[0]._isBigNumber))) return null;
+        leer = (c, i) => raw[i];
+      } else if (raw && typeof raw === 'object') {
+        /* Un objeto vale si trae los campos por su NOMBRE o por su POSICIÓN.
+           Las dos formas se han visto: depende de si el serializador del
+           backend llegó a ver los nombres del Result de ethers. Si no trae ni
+           una cosa ni la otra, no es esta tupla y se deja pasar. */
+        const conNombre  = campos.filter(c => c.name && Object.prototype.hasOwnProperty.call(raw, c.name));
+        const conIndice  = campos.filter((c, i) => Object.prototype.hasOwnProperty.call(raw, String(i)));
+        const mitad = Math.ceil(campos.length / 2);
+        if (conNombre.length < mitad && conIndice.length < mitad) return null;
+        leer = (c, i) => (c.name && raw[c.name] !== undefined) ? raw[c.name] : raw[i];
+      } else {
+        return null;
+      }
+
+      const out = {};
+      campos.forEach((c, i) => {
+        let val = leer(c, i);
+        if (val && val._isBigNumber) val = val.toString();
+        if (typeof val === 'bigint') val = val.toString();
+        out[i] = val;                                        // por índice
+        if (c.name && c.name.length) out[c.name] = val;      // y por nombre
+      });
+      // `out0` se conserva con el MISMO valor de siempre (el primer campo):
+      // las compras lo leen para sacar el id de la factura recién creada.
+      out.out0 = out[0];
+      return out;
+    }
 
     _normalizeResult(raw, functionAbi = null) {
       if (raw == null) return raw;
@@ -1448,6 +1621,9 @@
         }
         return this._convertBigInts(raw);
       }
+
+      const tupla = this._tuplaConNombres(raw, functionAbi);
+      if (tupla) return tupla;
 
       if (Array.isArray(raw)) {
         const out = {};

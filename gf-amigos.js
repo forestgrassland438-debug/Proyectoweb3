@@ -75,6 +75,43 @@
   var conversacion = [];
   var limpiezaDM = 0;        // 0 = apagado; 24, 72 o 168 horas
 
+  /* CUÁNTOS MENSAJES SE TIENEN A LA VISTA.
+
+     El servidor guarda 200 por conversación (DM_GUARDADOS_MAX) y el historial
+     nunca devuelve más, así que 200 es exactamente lo que se puede llegar a
+     ver de golpe. Lo que SÍ podía pasarse: dejar la conversación abierta y ir
+     recibiendo. Cada mensaje entraba con un push y nadie quitaba nada, y como
+     `pintarConversacion` REHACE la lista entera, el mensaje número 800 costaba
+     ocho veces más que el primero — y con él sus ochocientas burbujas y sus
+     mil seiscientos botones colgando del DOM. Un tirón que crece solo. */
+  var TOPE_CONVERSACION = 200;
+
+  /** Añade un mensaje a la conversación abierta, sin dejar que se desborde. */
+  function apilar(m) {
+    conversacion.push(m);
+    if (conversacion.length > TOPE_CONVERSACION) {
+      // Los que salen de la lista salen TAMBIÉN del DOM: dejarlos colgando
+      // sería justo la fuga que el tope viene a cerrar.
+      conversacion.splice(0, conversacion.length - TOPE_CONVERSACION)
+                  .forEach(soltarBurbuja);
+    }
+  }
+
+  /* Marcar como leído reaprovecha `friends:dm:history`, que es una consulta a
+     la base de datos de hasta 200 documentos. Pedirla por CADA mensaje que
+     entra es tirar el trabajo: en una conversación viva son cientos de
+     consultas idénticas. Con el freno se marca igual de bien y se pide, como
+     mucho, una cada tres segundos. */
+  var LEIDO_FRENO_MS = 3000;
+  var leidoUltimo = 0;
+
+  function marcarLeido() {
+    var ahora = Date.now();
+    if (ahora - leidoUltimo < LEIDO_FRENO_MS) return;
+    leidoUltimo = ahora;
+    if (socket && chatCon) socket.emit('friends:dm:history', { con: chatCon });
+  }
+
   function log() {
     try { console.log.apply(console, ['[GFAmigos]'].concat([].slice.call(arguments))); }
     catch (e) {}
@@ -242,7 +279,11 @@
       '.gfa-chat-msgs{flex:1;overflow-y:auto;padding:10px 12px;display:flex;',
       '  flex-direction:column;gap:6px;-webkit-overflow-scrolling:touch;}',
       '.gfa-burbuja{position:relative;max-width:80%;padding:7px 10px;border-radius:12px;',
-      '  font-size:12px;line-height:1.45;word-break:break-word;}',
+      '  font-size:12px;line-height:1.45;word-break:break-word;',
+      /* Las fuentes de emoji AL FINAL aquí: el texto normal lo pinta la del
+         panel y solo los emojis caen a estas. */
+      '  font-family:"Segoe UI",system-ui,sans-serif,"Segoe UI Emoji",',
+      '  "Apple Color Emoji","Noto Color Emoji";}',
       '.gfa-burbuja.mia{align-self:flex-end;background:rgba(40,110,200,0.42);color:#eaf5ff;',
       '  border:1px solid rgba(90,180,255,0.35);border-bottom-right-radius:4px;}',
       '.gfa-burbuja.suya{align-self:flex-start;background:rgba(20,50,100,0.55);color:#d6ecff;',
@@ -301,6 +342,11 @@
       '  letter-spacing:1px;text-transform:uppercase;margin:6px 0 3px;}',
       '.gfa-emoji-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(34px,1fr));',
       '  gap:2px;}',
+      /* Fuente de emoji DELANTE en todo lo que es solo-emoji: si el navegador
+         prueba antes una de texto puede pintar la versión en blanco y negro. */
+      '.gfa-emoji-grid button,.gfa-paleta button,.gfa-reac,.gfa-msg-bot{',
+      '  font-family:"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",',
+      '  "Segoe UI Symbol",sans-serif;}',
       '.gfa-emoji-grid button{background:none;border:none;font-size:20px;line-height:1;',
       '  cursor:pointer;padding:5px 0;border-radius:7px;}',
       '.gfa-emoji-grid button:hover{background:rgba(64,160,255,0.22);}',
@@ -675,9 +721,9 @@
     poner('friends:dm', function (m) {
       if (!m) return;
       if (chatCon && m.de === chatCon && abierto) {
-        conversacion.push(m);
-        pintarConversacion();
-        if (socket) socket.emit('friends:dm:history', { con: chatCon });  // marcar leído
+        apilar(m);
+        anadirBurbuja(m);
+        marcarLeido();
         return;
       }
       estado.noLeidos = (estado.noLeidos || 0) + 1;
@@ -693,13 +739,21 @@
         for (var i = conversacion.length - 1; i >= 0; i--) {
           if (conversacion[i].id === m.id) return;
           if (conversacion[i]._pendiente && conversacion[i].texto === m.texto) {
+            /* El eco del servidor sustituye la copia optimista. Se cambia SOLO
+               esa burbuja --ahora ya tiene id, así que le salen los botones de
+               reaccionar y editar-- y no la conversación entera. */
+            var pendiente = conversacion[i];
             conversacion[i] = m;
-            pintarConversacion();
+            if (pendiente._nodo && pendiente._nodo.parentNode) {
+              pendiente._nodo.parentNode.replaceChild(burbujaDe(m), pendiente._nodo);
+            } else {
+              pintarConversacion();
+            }
             return;
           }
         }
-        conversacion.push(m);
-        pintarConversacion();
+        apilar(m);
+        anadirBurbuja(m);
       }
     });
 
@@ -707,8 +761,12 @@
       if (!d || !d.id) return;
       for (var i = 0; i < conversacion.length; i++) {
         if (conversacion[i].id === d.id) {
-          conversacion[i].reacciones = d.reacciones || [];
-          if (abierto && chatCon) pintarConversacion();
+          var mr = conversacion[i];
+          mr.reacciones = d.reacciones || [];
+          // Solo esa burbuja: es lo único que ha cambiado.
+          if (abierto && chatCon && mr._nodo && mr._nodo.parentNode) {
+            pintarReaccionesDM(mr, mr._nodo);
+          }
           return;
         }
       }
@@ -718,9 +776,19 @@
       if (!d || !d.id) return;
       for (var j = 0; j < conversacion.length; j++) {
         if (conversacion[j].id === d.id) {
-          conversacion[j].texto = d.texto;
-          conversacion[j].editado = true;
-          if (abierto && chatCon) pintarConversacion();
+          var me2 = conversacion[j];
+          me2.texto = d.texto;
+          me2.editado = true;
+          /* Solo el texto y su hora. Rehacer la lista aquí además BORRABA la
+             burbuja que el jugador acababa de editar y la volvía a crear, con
+             lo que el desplazamiento daba un salto. */
+          if (me2._txt) {
+            me2._txt.textContent = desescapar(d.texto);
+            var reloj = me2._nodo && me2._nodo.querySelector('.t');
+            if (reloj) reloj.textContent = hora(me2.ts) + ' · edited';
+          } else if (abierto && chatCon) {
+            pintarConversacion();
+          }
           return;
         }
       }
@@ -903,7 +971,7 @@
     /* Se pinta YA, sin esperar al servidor. El eco (`friends:dm:sent`) sustituye
        esta copia cuando llega; si no llegara, la marca `_pendiente` deja claro
        que aún no está confirmado en vez de fingir que sí. */
-    conversacion.push({
+    apilar({
       id: null, _pendiente: true,
       de: (estado.yo && estado.yo.playerName) || '',
       para: chatCon,
@@ -930,13 +998,27 @@
   var EMOJIS_REAC = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
   var DM_EDICION_PLAZO_MS = 5 * 60 * 1000;   // el mismo plazo que el servidor
 
-  /** Las categorías del selector: LAS MISMAS que el chat general. */
+  /**
+   * Las categorías del selector: LAS MISMAS que el chat general, y ya
+   * filtradas a lo que este equipo sabe dibujar.
+   *
+   * Lo segundo importa tanto como lo primero: la lista tiene emojis de Unicode
+   * 13 y 14 que la fuente de Windows 10 no trae, y sin filtrar salen como un
+   * cuadrado vacío. gf-chat-social los detecta dibujándolos en un lienzo.
+   */
   function categoriasEmoji() {
-    if (global.GFChatSocial && global.GFChatSocial.CATEGORIAS_EMOJI) {
-      return global.GFChatSocial.CATEGORIAS_EMOJI;
-    }
+    var G = global.GFChatSocial;
+    if (G && G.categoriasEmojiUsables) return G.categoriasEmojiUsables();
+    if (G && G.CATEGORIAS_EMOJI) return G.CATEGORIAS_EMOJI;
     // Respaldo mínimo por si el otro módulo no está cargado.
     return [{ nombre: 'Emojis', lista: EMOJIS_REAC.concat(['🙂', '😉', '🙏', '👋', '✅']) }];
+  }
+
+  /** La pila de fuentes de emoji, la misma que usa el chat general. */
+  function fuenteEmoji() {
+    var G = global.GFChatSocial;
+    return (G && G.FUENTE_EMOJI) ||
+           '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
   }
 
   /** Mete el emoji donde esté el cursor del campo del privado. */
@@ -1079,8 +1161,13 @@
 
   /** Los emojis con su cuenta, debajo de la burbuja. */
   function pintarReaccionesDM(m, burbuja) {
-    var vieja = burbuja.parentNode && burbuja.parentNode.querySelector('[data-reac="' + m.id + '"]');
+    /* La fila anterior se guarda en el propio mensaje (`m._reacs`) en vez de
+       buscarla por atributo: el `querySelector` recorria toda la conversacion
+       y esto se llama por cada reaccion que llega. Se comprueba que siga
+       colgada, porque `pintarConversacion` vacia la caja de golpe. */
+    var vieja = m._reacs;
     if (vieja && vieja.parentNode) vieja.parentNode.removeChild(vieja);
+    m._reacs = null;
     var lista = m.reacciones || [];
     if (!lista.length) return;
 
@@ -1102,6 +1189,7 @@
     // Del lado de su burbuja, para que se lea de quién es el mensaje.
     fila.style.alignSelf = burbuja.classList.contains('mia') ? 'flex-end' : 'flex-start';
     burbuja.parentNode.insertBefore(fila, burbuja.nextSibling);
+    m._reacs = fila;
   }
 
   /**
@@ -1444,6 +1532,104 @@
     });
   }
 
+  /**
+   * LA BURBUJA DE UN MENSAJE, ella sola.
+   *
+   * Se guarda en el propio mensaje (`m._nodo` y `m._txt`) para que reaccionar,
+   * editar o podar puedan ir DIRECTOS a lo que cambia en vez de rehacer la
+   * conversación entera. Ver el comentario de `anadirBurbuja`.
+   */
+  function burbujaDe(m) {
+    var yo = (estado.yo && estado.yo.playerName) || null;
+    var mio = yo ? (m.de === yo) : (m.para === chatCon);
+    var b = el('div', 'gfa-burbuja ' + (mio ? 'mia' : 'suya'));
+
+    // El texto en su propio nodo: sin él no se puede sustituir al editar.
+    var textoEl = el('span', 'gfa-burbuja-txt', desescapar(m.texto));
+    b.appendChild(textoEl);
+
+    var t = el('span', 't',
+      hora(m.ts) + (m.editado ? ' · edited' : '') + (m._pendiente ? ' · sending…' : ''));
+    b.appendChild(t);
+
+    /* Las acciones del mensaje. Flotan sobre la burbuja y no dentro: metidas
+       en el flujo, aparecer al pasar el ratón cambiaría el alto y la
+       conversación entera daría un salto. */
+    if (m.id && !m._pendiente) {
+      var acciones = el('div', 'gfa-msg-acc');
+
+      var reac = el('button', 'gfa-msg-bot', '☺');
+      reac.type = 'button';
+      reac.title = 'React';
+      reac.addEventListener('click', function (e) {
+        e.stopPropagation();
+        paletaReaccion(m.id, reac);
+      });
+      acciones.appendChild(reac);
+
+      if (puedoEditarDM(m)) {
+        var lapiz = el('button', 'gfa-msg-bot', '✎');
+        lapiz.type = 'button';
+        lapiz.title = 'Edit (only once, within 5 minutes)';
+        lapiz.addEventListener('click', function (e) {
+          e.stopPropagation();
+          editarDM(m, b, textoEl);
+        });
+        acciones.appendChild(lapiz);
+      }
+      b.appendChild(acciones);
+    }
+
+    m._nodo = b;
+    m._txt  = textoEl;
+    return b;
+  }
+
+  /** ¿Está el jugador mirando el final de la conversación? */
+  function alFinal(M) {
+    return (M.scrollHeight - M.scrollTop - M.clientHeight) < 40;
+  }
+
+  /**
+   * UN MENSAJE NUEVO AL FINAL, sin tocar los que ya están.
+   *
+   * POR QUÉ EXISTE: antes cada privado que entraba llamaba a
+   * `pintarConversacion`, que vacía la lista y la reconstruye entera. Medido en
+   * el banco: 3.8 ms por mensaje con 22 burbujas, 28.3 ms con 122 -- o sea, el
+   * coste sube con lo que llevas hablado. Al tope de 200 son unos 46 ms: tres
+   * cuadros perdidos por cada mensaje, justo cuando la otra persona escribe
+   * seguido y más se nota.
+   *
+   * Colgar UNA burbuja cuesta lo mismo con dos mensajes que con doscientos.
+   *
+   * El desplazamiento solo baja si ya estabas abajo: si te habías subido a
+   * releer algo, un mensaje nuevo no te tira de la pantalla.
+   */
+  function anadirBurbuja(m) {
+    if (!nodos.msgs) return;
+    var M = nodos.msgs;
+    /* El cartel de "no messages yet" solo puede estar de PRIMERO y solo. Un
+       `querySelector` recorreria las 200 burbujas para no encontrar nada. */
+    var v = M.firstElementChild;
+    if (v && v.className === 'gfa-vacio') M.removeChild(v);
+
+    var pegado = alFinal(M);
+    var b = burbujaDe(m);
+    M.appendChild(b);
+    if (m.reacciones && m.reacciones.length) pintarReaccionesDM(m, b);
+    if (pegado) M.scrollTop = M.scrollHeight;
+  }
+
+  /** Quita del DOM la burbuja de un mensaje (y su fila de reacciones). */
+  function soltarBurbuja(m) {
+    if (!m) return;
+    if (m._reacs && m._reacs.parentNode) m._reacs.parentNode.removeChild(m._reacs);
+    if (m._nodo && m._nodo.parentNode) m._nodo.parentNode.removeChild(m._nodo);
+    m._nodo  = null;
+    m._txt   = null;
+    m._reacs = null;
+  }
+
   function pintarConversacion() {
     if (!nodos.msgs) return;
     var M = nodos.msgs;
@@ -1454,49 +1640,17 @@
       return;
     }
 
-    var yo = (estado.yo && estado.yo.playerName) || null;
+    /* En un fragmento y de una vez: colgar 200 burbujas de una en una son 200
+       recálculos de la caja, y aquí sí se construyen las 200 (es el historial
+       completo, y eso pasa UNA vez al abrir la conversación). */
+    var frag = doc.createDocumentFragment();
+    conversacion.forEach(function (m) { frag.appendChild(burbujaDe(m)); });
+    M.appendChild(frag);
+
+    /* Las reacciones, después: `pintarReaccionesDM` se cuelga del PADRE de la
+       burbuja, así que necesita que la burbuja ya esté puesta. */
     conversacion.forEach(function (m) {
-      var mio = yo ? (m.de === yo) : (m.para === chatCon);
-      var b = el('div', 'gfa-burbuja ' + (mio ? 'mia' : 'suya'));
-
-      // El texto en su propio nodo: sin él no se puede sustituir al editar.
-      var textoEl = el('span', 'gfa-burbuja-txt', desescapar(m.texto));
-      b.appendChild(textoEl);
-
-      var t = el('span', 't',
-        hora(m.ts) + (m.editado ? ' · edited' : '') + (m._pendiente ? ' · sending…' : ''));
-      b.appendChild(t);
-
-      /* Las acciones del mensaje. Flotan sobre la burbuja y no dentro: metidas
-         en el flujo, aparecer al pasar el ratón cambiaría el alto y la
-         conversación entera daría un salto. */
-      if (m.id && !m._pendiente) {
-        var acciones = el('div', 'gfa-msg-acc');
-
-        var reac = el('button', 'gfa-msg-bot', '☺');
-        reac.type = 'button';
-        reac.title = 'React';
-        reac.addEventListener('click', function (e) {
-          e.stopPropagation();
-          paletaReaccion(m.id, reac);
-        });
-        acciones.appendChild(reac);
-
-        if (puedoEditarDM(m)) {
-          var lapiz = el('button', 'gfa-msg-bot', '✎');
-          lapiz.type = 'button';
-          lapiz.title = 'Edit (only once, within 5 minutes)';
-          lapiz.addEventListener('click', function (e) {
-            e.stopPropagation();
-            editarDM(m, b, textoEl);
-          });
-          acciones.appendChild(lapiz);
-        }
-        b.appendChild(acciones);
-      }
-
-      M.appendChild(b);
-      if (m.reacciones && m.reacciones.length) pintarReaccionesDM(m, b);
+      if (m.reacciones && m.reacciones.length && m._nodo) pintarReaccionesDM(m, m._nodo);
     });
 
     // Al final del todo: lo último es lo que importa.

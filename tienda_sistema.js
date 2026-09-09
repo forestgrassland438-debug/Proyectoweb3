@@ -1037,9 +1037,11 @@ class TiendaSistema {
         
         const item = this.selectedItem;
         const purchasedToday = this.dailyLimits[item.id] || 0;
+        // Al vender se enseña lo que queda LIBRE: lo que ya está en la cola de
+        // ventas no se puede volver a vender (ver disponibleParaVenta).
         const disponible = this.transactionType === 'compra' 
             ? (item.limiteDiario ? item.limiteDiario - purchasedToday : 99)
-            : this.getItemCountInInventory(item.id);
+            : this.disponibleParaVenta(item.id);
         
         const categorias = {
             'semillas': 'Seeds',
@@ -1155,7 +1157,7 @@ class TiendaSistema {
             text = 'Sell';
             icon = '💵';
             
-            const playerCount = this.getItemCountInInventory(item.id);
+            const playerCount = this.disponibleParaVenta(item.id);
             if (quantity > playerCount) {
                 enabled = false;
                 text = 'Not enough items';
@@ -1454,7 +1456,22 @@ class TiendaSistema {
     // Cerrar la tienda
     close() {
         if (!this.isOpen) return;
-        
+
+        /* AVISO, NO CANDADO. Las ventas y compras encoladas siguen su camino
+           aunque se cierre la tienda: viven en `window.tiendaSistema` y están
+           anotadas en el TxGate, así que la pantalla de carga las espera antes
+           de entrar al mapa (ver tx-gate.js). Al jugador se le dice para que no
+           crea que ha perdido algo si cierra el juego a lo bruto. */
+        const pendientes = this.trabajosPendientes();
+        if (pendientes > 0) {
+            this.showNotification?.(
+                `⏳ ${pendientes} transaction(s) still finishing. They will complete on their own — ` +
+                `do not close the game yet.`,
+                'info'
+            );
+            console.log(`🏪 La tienda se cierra con ${pendientes} trabajo(s) en cola: siguen en marcha.`);
+        }
+
         if (this.scene && this.scene.scene && typeof this.scene.scene.resume === 'function') {
             try {
                 let sceneKey = null;
@@ -1538,9 +1555,11 @@ class TiendaSistema {
         
         const item = this.selectedItem;
         const purchasedToday = this.dailyLimits[item.id] || 0;
+        // Al vender se enseña lo que queda LIBRE: lo que ya está en la cola de
+        // ventas no se puede volver a vender (ver disponibleParaVenta).
         const disponible = this.transactionType === 'compra' 
             ? (item.limiteDiario ? item.limiteDiario - purchasedToday : 99)
-            : this.getItemCountInInventory(item.id);
+            : this.disponibleParaVenta(item.id);
         
         document.getElementById('mobile-item-name').textContent = item.name;
         document.getElementById('mobile-item-img').src = item.image;
@@ -1671,7 +1690,9 @@ class TiendaSistema {
         
         if (this.transactionType === 'venta') {
             allItems = allItems.filter(item => {
-                const count = this.getItemCountInInventory(item.id);
+                // Un objeto entero en la cola de ventas deja de ofrecerse:
+                // volver a venderlo no encontraría nada que quemar.
+                const count = this.disponibleParaVenta(item.id);
                 return count > 0;
             });
         }
@@ -1948,7 +1969,7 @@ class TiendaSistema {
             
             return Math.max(0, Math.min(maxByMoney, maxByLimit, 99));
         } else {
-            return Math.max(0, this.getItemCountInInventory(item.id));
+            return Math.max(0, this.disponibleParaVenta(item.id));
         }
     }
     
@@ -2005,7 +2026,7 @@ class TiendaSistema {
             }
         } else {
             text = 'Sell';
-            const playerCount = this.getItemCountInInventory(item.id);
+            const playerCount = this.disponibleParaVenta(item.id);
             if (quantity > playerCount) {
                 enabled = false;
                 text = 'Not enough items';
@@ -2143,13 +2164,89 @@ class TiendaSistema {
         return [def.tipo, Number(def.maxStack) || 1];
     }
 
+    /* ═══════════════════════════════════════════════════════════════════════
+       LA COLA DE LA TIENDA — UNA SOLA, PARA COMPRAS Y VENTAS
+       ───────────────────────────────────────────────────────────────────────
+       Antes había DOS colas independientes: `_purchaseQueue` para las compras
+       y, para las ventas, nada — la venta esperaba a la cadena con la
+       interfaz trancada.
+
+       Dos colas separadas no solo van lentas: se pisan. `_runOnchainPurchase`
+       decide cuánto se confirmó comparando el inventario ANTES y DESPUÉS de su
+       transacción; si mientras tanto se ejecuta una venta del mismo objeto, esa
+       resta sale mal y la compra se REEMBOLSA sin motivo. Con una sola cola no
+       hay dos trabajos de la tienda a la vez, y de paso las transacciones no
+       compiten por el nonce del relayer.
+
+       Y cada trabajo se anota en el TxGate DESDE QUE SE ENCOLA, no desde que le
+       toca el turno: si el jugador cierra la tienda con tres ventas esperando,
+       la pantalla de carga espera a las tres (ver tx-gate.js).
+       ═══════════════════════════════════════════════════════════════════════ */
+    _encolarTrabajoTienda(etiqueta, trabajo) {
+        const finTx = (window.GFTxGate && window.GFTxGate.begin)
+            ? window.GFTxGate.begin(etiqueta)
+            : null;
+
+        this._trabajosEnCola = (this._trabajosEnCola || 0) + 1;
+
+        if (!this._colaTienda) this._colaTienda = Promise.resolve();
+        this._colaTienda = this._colaTienda
+            .catch(() => {})                 // un fallo anterior no para la cola
+            .then(() => trabajo())
+            .catch(err => console.error(`❌ Error en la cola de la tienda (${etiqueta}):`, err))
+            .then(() => {
+                this._trabajosEnCola = Math.max(0, (this._trabajosEnCola || 1) - 1);
+                if (finTx) finTx();
+            });
+
+        return this._colaTienda;
+    }
+
+    /** ¿Queda algo por hacer? Lo usa el aviso al cerrar la tienda. */
+    trabajosPendientes() { return this._trabajosEnCola || 0; }
+
     // Encola la parte blockchain de una compra. Las compras se procesan en
     // serie (una promesa encadenada) pero SIN bloquear la interfaz.
     _enqueueOnchainPurchase(item, quantity, transactionInfo) {
-        if (!this._purchaseQueue) this._purchaseQueue = Promise.resolve();
-        this._purchaseQueue = this._purchaseQueue
-            .then(() => this._runOnchainPurchase(item, quantity, transactionInfo))
-            .catch(err => console.error('❌ Error en cola de compras on-chain:', err));
+        this._purchaseQueue = this._encolarTrabajoTienda(
+            `Shop purchase: ${quantity}x ${item.id}`,
+            () => this._runOnchainPurchase(item, quantity, transactionInfo)
+        );
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       UNIDADES COMPROMETIDAS EN VENTAS QUE TODAVÍA NO HAN SALIDO
+       ───────────────────────────────────────────────────────────────────────
+       Con la venta en cola, el objeto SIGUE en el inventario hasta que la
+       cadena lo quema — y tiene que seguir, porque hasta entonces es del
+       jugador. Pero si la tienda contara esas unidades como disponibles, se
+       podrían vender DOS VECES: la segunda venta no encontraría nada que
+       quemar y acabaría en "no se confirmó" después de haber dicho que sí.
+
+       Así que se apuntan aparte. `getItemCountInInventory` sigue diciendo lo
+       que hay de verdad (lo usan el quitado y el cuadre); `disponibleParaVenta`
+       descuenta lo ya comprometido, y es lo que mira la tienda para ofrecer,
+       para el máximo del contador y para el botón de vender.
+       ═══════════════════════════════════════════════════════════════════════ */
+    _comprometido(itemId) {
+        return (this._ventasComprometidas && this._ventasComprometidas[itemId]) || 0;
+    }
+
+    _comprometer(itemId, unidades) {
+        if (!this._ventasComprometidas) this._ventasComprometidas = {};
+        this._ventasComprometidas[itemId] = this._comprometido(itemId) + (Number(unidades) || 0);
+    }
+
+    _descomprometer(itemId, unidades) {
+        if (!this._ventasComprometidas) return;
+        const queda = this._comprometido(itemId) - (Number(unidades) || 0);
+        if (queda > 0) this._ventasComprometidas[itemId] = queda;
+        else delete this._ventasComprometidas[itemId];
+    }
+
+    /** Lo que el jugador puede poner a la venta AHORA (sin contar lo ya encolado). */
+    disponibleParaVenta(itemId) {
+        return Math.max(0, this.getItemCountInInventory(itemId) - this._comprometido(itemId));
     }
 
     async _runOnchainPurchase(item, quantity, transactionInfo) {
@@ -2622,9 +2719,26 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
         });
       }
 
+      /* EL DUEÑO DE LA FACTURA ES UNA DIRECCIÓN, NO UN NOMBRE.
+
+         `createInvoice(address _owner, …)` espera una dirección, y aquí iba
+         `this.playerName`, que es el APODO del jugador en cuanto se pone uno
+         (/api/auth/me devuelve `playerName: player.playerName || address`, y
+         el juego guarda `data.playerName || data.address`). Con un apodo, la
+         transacción ni sale: ethers no puede codificar "Kuro" como address.
+
+         Y si saliera sería peor: el relay comprueba que la factura sea del
+         jugador antes de firmar cualquier `decreaseInvoiceQuantity`
+         (verifyInvoiceOwnership en server2.js), así que una factura con otro
+         dueño NO SE PODRÍA VENDER NUNCA.
+
+         Se usa la dirección autenticada, que es la que compara el servidor. El
+         apodo queda de respaldo solo por si `checkAuth` no la trajo. */
+      const duenoFactura = (auth && auth.address) ? auth.address : this.playerName;
+
       const accionCrear = {
         funcion: 'createInvoice',
-        _owner: this.playerName,
+        _owner: duenoFactura,
         _tipo: ruta_tabla,
         _cantidad: amountAdded,
         _manualId: manualGenerado,
@@ -2996,8 +3110,25 @@ async verificarRompimiento(itemRef) {
 // ---------------------------
 // EJECUTAR DIVISIÓN (ELIMINAR) - CORREGIDA
 // ---------------------------
+/* CUÁNTAS UNIDADES SE QUITARON DE VERDAD, Y DE QUÉ MANERA.
+
+   Antes esto no devolvía nada útil (`RemoveItemBlockchains` daba un booleano
+   que además se perdía por el camino), así que la venta tenía que ADIVINARLO
+   comparando el inventario antes y después. Esa cuenta miente en cuanto algo
+   más toca el inventario a la vez — y con la cola de ventas eso pasa —, y
+   encima confundía "ya estaba gastado en la cadena" con "se ha vendido", que
+   es la diferencia entre cuadrar un hueco y pagar dinero.
+
+   Ahora el recuento sube desde donde se sabe:
+     confirmadas → unidades quemadas en la cadena en ESTA operación (se pagan)
+     yaGastadas  → la factura ya no estaba; se cuadra el hueco y NO se paga
+     fallidas    → no se pudo; el objeto se queda donde está */
+_recuentoVacio(fallidas = 0, motivo = null) {
+    return { confirmadas: 0, yaGastadas: 0, fallidas: Number(fallidas) || 0, motivo: motivo };
+}
+
 async ejecutarDivisionRemove(ruta_tabla, producto, limitacion, cantidad) {
-    if (limitacion <= 0 || cantidad <= 0) return;
+    if (limitacion <= 0 || cantidad <= 0) return this._recuentoVacio(0, 'cantidad inválida');
 
     // Mismo criterio que ejecutarDivision: se ENCOLA en vez de descartar, para
     // que vender varias cosas seguidas no pierda ninguna transacción.
@@ -3007,20 +3138,33 @@ async ejecutarDivisionRemove(ruta_tabla, producto, limitacion, cantidad) {
         ? window.GFTxGate.begin(`Shop sale: ${cantidad}x ${producto}`)
         : null;
 
-    this._removeItemQueue = (this._removeItemQueue || Promise.resolve())
-        .then(() => this._ejecutarDivisionRemoveInterno(ruta_tabla, producto, limitacion, cantidad))
-        .catch(err => console.error('❌ Error procesando venta en cola:', err))
+    /* SE DEVUELVE EL RESULTADO DE ESTA LLAMADA, NO EL DE LA COLA ENTERA.
+
+       Antes se devolvía `this._removeItemQueue`, que es la cadena COMPLETA: si
+       mientras tanto entraba otra venta, quien esperaba aquí recibía el
+       resultado de la otra. Con la cola de ventas eso pasa constantemente.
+       `mia` es la promesa de ESTA operación; la cola se sigue encadenando a
+       ella para que el orden no cambie. */
+    const mia = (this._removeItemQueue || Promise.resolve())
+        .catch(() => {})            // un fallo anterior no arrastra al siguiente
+        .then(() => this._ejecutarDivisionRemoveInterno(ruta_tabla, producto, limitacion, cantidad));
+
+    /* La cola NUNCA se queda rechazada: si lo hiciera, el navegador sacaría un
+       "unhandled rejection" y el siguiente trabajo heredaría el fallo. Quien
+       llamó recibe `mia` y ya trata el error por su cuenta. */
+    this._removeItemQueue = mia
+        .catch(err => { console.error('❌ Error en la cola de quitar objetos:', err); })
         .finally(() => { if (finTx) finTx(); });
 
-    return this._removeItemQueue;
+    return mia;
 }
 
 async _ejecutarDivisionRemoveInterno(ruta_tabla, producto, limitacion, cantidad) {
-    if (limitacion <= 0 || cantidad <= 0) return;
+    if (limitacion <= 0 || cantidad <= 0) return this._recuentoVacio(0, 'cantidad inválida');
 
     if (this._removeItemBlockchainBusy) {
         console.warn('Transacción de eliminar item ya en progreso. Ignorando nueva petición.');
-        return;
+        return this._recuentoVacio(cantidad, 'ya había otra operación en curso');
     }
     this._removeItemBlockchainBusy = true;
 
@@ -3044,7 +3188,17 @@ async _ejecutarDivisionRemoveInterno(ruta_tabla, producto, limitacion, cantidad)
             console.log(`↩️ Item "${cursorItem.id}" devuelto a ${cursorItem.originType}[${cursorItem.originIndex}] antes de eliminar`);
         }
 
-        await this.RemoveItemBlockchains(ruta_tabla, producto, cantidad);
+        /* NUNCA LANZA HACIA ARRIBA. Quien llama es la cola de la tienda, y una
+           promesa rechazada ahí se convierte en un "unhandled rejection" que no
+           arregla nada y esconde el motivo. El fallo se devuelve como recuento,
+           que es lo que la venta sabe interpretar. */
+        const recuento = await this.RemoveItemBlockchains(ruta_tabla, producto, cantidad);
+        return (recuento && typeof recuento === 'object')
+            ? recuento
+            : this._recuentoVacio(cantidad, 'la operación no devolvió recuento');
+    } catch (err) {
+        console.error('❌ Error quitando ' + producto + ' de la cadena:', err);
+        return this._recuentoVacio(cantidad, (err && (err.message || String(err))) || 'error inesperado');
     } finally {
         // Sin este finally la bandera se quedaba en true y toda venta
         // posterior se descartaba en silencio.
@@ -3207,6 +3361,16 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
     });
   };
 
+  /* EL RECUENTO VIVE FUERA DEL try: el `catch` de abajo también lo lee, y lo
+     que ya se quemó en la cadena hay que pagarlo aunque la operación reviente
+     a mitad. Declararlo dentro sería un ReferenceError en el peor momento. */
+  let confirmadas = 0, yaGastadas = 0, fallidas = 0;
+
+  /* El motivo del fallo es de ESTA operación. Sin limpiarlo, una venta que
+     falla enseña el motivo de la anterior — y con la cola de ventas eso es lo
+     habitual, no una rareza. */
+  this._ultimoMotivoFallo = null;
+
   try {
     // Inicializar relayClient si hace falta
     if (!this.relayClient) {
@@ -3227,7 +3391,8 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
     const auth = await this.relayClient.checkAuth();
     if (!auth || !auth.success) {
       this.relayClient.showError('❌ Debes estar autenticado. Vuelve al juego e inicia sesión.', 5000);
-      return false;
+      this._ultimoMotivoFallo = 'no hay sesión iniciada';
+      return this._recuentoVacio(cantidad, this._ultimoMotivoFallo);
     }
     console.log('🔑 Usuario autenticado:', auth.address);
 
@@ -3242,11 +3407,13 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
       contract = await this.relayClient.findContract('ItemContract');
     } catch (error) {
       this.relayClient.showError('❌ Error conectando al backend: ' + (error.message || error), 5000);
-      return false;
+      this._ultimoMotivoFallo = 'no se pudo conectar con el servidor';
+      return this._recuentoVacio(cantidad, this._ultimoMotivoFallo);
     }
     if (!contract) {
       this.relayClient.showError('❌ Contrato ItemContract no encontrado', 3000);
-      return false;
+      this._ultimoMotivoFallo = 'no se encontró el contrato';
+      return this._recuentoVacio(cantidad, this._ultimoMotivoFallo);
     }
     console.log('📄 Contrato encontrado:', contract.address);
 
@@ -3257,10 +3424,12 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
     if (!reporte || !Array.isArray(reporte.operations) || reporte.operations.length === 0) {
       if (reporte && reporte.remaining > 0) {
         this.relayClient.showWarning(`⚠️ No hay suficiente cantidad para eliminar. Falta: ${reporte.remaining}`, 4000);
+        this._ultimoMotivoFallo = 'no hay bastante en el inventario';
       } else {
         this.relayClient.showInfo('ℹ️ No hay operaciones a ejecutar (nada que remover).', 3000);
+        this._ultimoMotivoFallo = 'no había nada que quitar';
       }
-      return false;
+      return this._recuentoVacio(cantidad, this._ultimoMotivoFallo);
     }
 
     // ===== BLOQUEAR SLOTS IMPLICADOS =====
@@ -3317,9 +3486,31 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
         }
       }
 
+      /* SIN idx NO SE ABANDONA: SE SIGUE POR EL TIPO.
+
+         FALLO QUE ESTO ARREGLA — "puedo comprar pero no vender".
+
+         Aquí había un `continue` que descartaba la operación entera cuando el
+         hueco no traía un id de factura utilizable. Y eso pasa a menudo:
+         `/api/load` manda `idx: s.IDX ?? s.id`, así que un objeto sin IDX en la
+         base de datos se queda con el NÚMERO DE HUECO — y el hueco 0 da
+         `idx = 0`, que en JavaScript es falso. Un objeto guardado en la primera
+         casilla del inventario NO SE PODÍA VENDER NUNCA. Tampoco los que
+         llegaron con `idx: null`.
+
+         Y no era un fallo ruidoso: al saltarse la operación no se enviaba nada,
+         no se apuntaba ningún motivo, y la venta terminaba con el cartel genérico
+         "la cadena no lo confirmó". Nada que mirar.
+
+         `quitarDeFactura` YA SABE resolver esto: si el id no vale, busca por
+         manualId y, si tampoco, mira las facturas vivas del jugador y coge una
+         del tipo que se está gastando. Lo único que hacía falta era dejarla
+         intentarlo. El id se manda como 0 —que es lo que ella entiende por "no
+         tengo id"— y el `tipo` hace el trabajo. */
       if (!op.idx) {
-        console.warn('Operación sin idx (invoice id) y no resolvible por manualid - ignorando operación:', op);
-        continue;
+        console.warn('Operación sin id de factura utilizable: se buscará por tipo (' +
+                     ruta_tabla + ') en el inventario del jugador.', op);
+        op.idx = 0;
       }
 
       // normalize amountRemoved
@@ -3395,12 +3586,20 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
             try { await this.EliitemWithCheck(producto, amount, op.idx, op.manualid); }
             catch (ex) { console.error('Error cuadrando el inventario:', ex); }
           }
+          /* NO CUENTA COMO VENDIDO. La factura ya no estaba: el hueco iba
+             retrasado y se cuadra, pero en la cadena no ha salido nada AHORA,
+             así que pagarlo sería dinero de la nada. La venta lo cuenta aparte
+             y se lo dice al jugador. */
+          yaGastadas += amount;
           await sleep(200);
           continue;
         }
 
         if (!quitado || !quitado.ok) {
           const motivo = (quitado && quitado.error) || 'motivo desconocido';
+          // Se guarda para que el aviso de la venta pueda decir POR QUÉ falló:
+          // "no se confirmó" a secas no le sirve a nadie para saber qué mirar.
+          this._ultimoMotivoFallo = motivo;
           console.error('❌ No se pudo quitar de la factura:', quitado);
           // El motivo REAL, no "Error borrando invoice N".
           this.relayClient.showError(`❌ No se pudo gastar ${producto}: ${motivo}`, 5000);
@@ -3414,6 +3613,7 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
               hiddenData: hiddenData
             });
           }
+          fallidas += amount;
           await sleep(500);
           continue;
         }
@@ -3445,6 +3645,9 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
             // Eliminar las transacciones de items asociadas a esta factura
             removeAssociatedAddTransactions(op.idx, op.manualid);
 
+            // Quemado de verdad en la cadena: ESTO es lo que se paga.
+            confirmadas += Math.min(amount, Number(quitado.cantidad) || amount);
+
             // Actualiza estado local con la eliminación
             if (typeof this.EliitemWithCheck === 'function') {
               try {
@@ -3459,6 +3662,8 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
               console.warn('EliitemWithCheck no definida, por favor implementa el handler local de eliminación.');
             }
           } else {
+            fallidas += amount;
+            this._ultimoMotivoFallo = (final && final.error) || 'la transacción no se confirmó';
             this.relayClient.showError(`❌ Delete falló: ${final?.error || 'unknown'}`);
             if (window.hub) {
               window.hub.removeTransaction(tempHash);
@@ -3472,6 +3677,8 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
             }
           }
         } catch (err) {
+          fallidas += amount;
+          this._ultimoMotivoFallo = 'se agotó la espera de la confirmación';
           this.relayClient.showError(`⏰ Error esperando confirmación deleteInvoice: ${err.message || err}`);
           if (window.hub) {
             window.hub.removeTransaction(tempHash);
@@ -3527,12 +3734,18 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
             try { await this.EliitemWithCheck(producto, amount, op.idx, op.manualid); }
             catch (ex) { console.error('Error cuadrando el inventario:', ex); }
           }
+          /* NO CUENTA COMO VENDIDO. La factura ya no estaba: el hueco iba
+             retrasado y se cuadra, pero en la cadena no ha salido nada AHORA,
+             así que pagarlo sería dinero de la nada. La venta lo cuenta aparte
+             y se lo dice al jugador. */
+          yaGastadas += amount;
           await sleep(200);
           continue;
         }
 
         if (!quitado || !quitado.ok) {
           const motivo = (quitado && quitado.error) || 'motivo desconocido';
+          this._ultimoMotivoFallo = motivo;
           console.error('❌ No se pudo disminuir la factura:', quitado);
           this.relayClient.showError(`❌ No se pudo gastar ${producto}: ${motivo}`, 5000);
           if (window.hub) {
@@ -3545,6 +3758,7 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
               hiddenData: hiddenData
             });
           }
+          fallidas += amount;
           await sleep(500);
           continue;
         }
@@ -3574,6 +3788,9 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
             // Eliminar las transacciones de items asociadas a esta factura
             removeAssociatedAddTransactions(op.idx, op.manualid);
 
+            // Quemado de verdad en la cadena: ESTO es lo que se paga.
+            confirmadas += Math.min(amount, Number(quitado.cantidad) || amount);
+
             // Actualiza estado local con la disminución
             if (typeof this.EliitemWithCheck === 'function') {
               try {
@@ -3588,6 +3805,8 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
               console.warn('EliitemWithCheck no definida, por favor implementa el handler local de eliminación.');
             }
           } else {
+            fallidas += amount;
+            this._ultimoMotivoFallo = (final && final.error) || 'la transacción no se confirmó';
             this.relayClient.showError(`❌ Decrease falló: ${final?.error || 'unknown'}`);
             if (window.hub) {
               window.hub.removeTransaction(tempHash);
@@ -3601,6 +3820,8 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
             }
           }
         } catch (err) {
+          fallidas += amount;
+          this._ultimoMotivoFallo = 'se agotó la espera de la confirmación';
           this.relayClient.showError(`⏰ Error esperando confirmación decreaseInvoiceQuantity: ${err.message || err}`);
           if (window.hub) {
             window.hub.removeTransaction(tempHash);
@@ -3622,16 +3843,35 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
     // Si quedó restante en el reporte, notificar
     if (!reporte.success && reporte.remaining > 0) {
       this.relayClient.showWarning(`⚠️ No se pudo remover toda la cantidad. Falta: ${reporte.remaining}`, 5000);
+      fallidas += reporte.remaining;
+      if (!this._ultimoMotivoFallo) this._ultimoMotivoFallo = 'no hay bastante en el inventario';
     }
 
-    return anyProcessed;
+    console.log(`📊 Quitar ${producto}: ${confirmadas} quemadas, ${yaGastadas} ya estaban gastadas, ` +
+                `${fallidas} sin poder (pedidas ${cantidad}).`, anyProcessed ? '' : '(ninguna operación llegó a enviarse)');
+
+    return {
+      confirmadas: confirmadas,
+      yaGastadas:  yaGastadas,
+      fallidas:    fallidas,
+      motivo:      this._ultimoMotivoFallo || null
+    };
 
   } catch (error) {
     console.error('❌ Error crítico en RemoveItemBlockchains:', error);
     if (this.relayClient) {
       this.relayClient.showError(`❌ Error crítico: ${error.message || error}`, 5000);
     }
-    return false;
+    this._ultimoMotivoFallo = (error && (error.message || String(error))) || 'error inesperado';
+    /* Lo ya confirmado NO se tira: si la primera factura se quemó y la segunda
+       reventó, el jugador tiene que cobrar la primera. Antes esto devolvía
+       `false` y esas unidades se perdían sin pagar. */
+    return {
+      confirmadas: confirmadas,
+      yaGastadas:  yaGastadas,
+      fallidas:    Math.max(0, cantidad - confirmadas - yaGastadas),
+      motivo:      this._ultimoMotivoFallo
+    };
   } finally {
     // Liberar bloqueo visual de todos los slots
     unlockAllSlotsLocal();
@@ -3657,25 +3897,45 @@ async EliitemWithCheck(itemId, amountToRemove = 1, invoiceIdx = null, manualId =
 
   let remaining = Number(amountToRemove);
 
-  // Helper: procesar array de slots (mutación IN-PLACE)
-  const processSlotsArray = (slotsArray, slotType) => {
+  /* EL OBJETO MANDA; EL idx SOLO ELIGE QUÉ MONTÓN. Dos pasadas.
+
+     DOS FALLOS QUE ESTO ARREGLA:
+
+     1) SE PODÍA BORRAR OTRA COSA. La condición de antes aceptaba un hueco si
+        coincidía el `idx` O el `idm`, SIN mirar de qué objeto era. Y los `idx`
+        de los huecos son números de hueco muy a menudo (3, 7, 12…), repetidos
+        entre inventario y cofre rápido. Vender 5 zanahorias con `idx = 3`
+        podía vaciar el hueco 3 del cofre —donde estaba el hacha—. Ahora un
+        hueco solo entra si `slot.id === itemId`: nunca se toca otro objeto.
+
+     2) SE QUEMABA EN LA CADENA Y NO EN EL INVENTARIO. Si ningún hueco tenía
+        ese `idx` ni ese `idm` (lo normal cuando `quitarDeFactura` encuentra la
+        factura buena por el tipo y devuelve OTRO id), no se quitaba nada en
+        local: la factura desaparecía de la cadena y el objeto seguía en
+        pantalla. Ahora hay una segunda pasada: si con las pistas no se
+        completó, se quita de cualquier montón de ESE MISMO objeto.
+
+     `soloPreferidos = true`  → solo los huecos que casan con idx/manualId.
+     `soloPreferidos = false` → cualquier hueco de ese objeto. */
+  const processSlotsArray = (slotsArray, slotType, soloPreferidos) => {
+    // Un id 0 o un manualId vacío no son pistas: son "no tengo".
+    const hayPista = (invoiceIdx !== null && invoiceIdx !== undefined && Number(invoiceIdx) > 0) ||
+                     (manualId !== null && manualId !== undefined && String(manualId) !== '');
+
     for (let i = 0; i < slotsArray.length && remaining > 0; i++) {
       const slot = slotsArray[i];
       if (!slot) continue;
 
-      // Priorizar coincidencia por invoiceIdx/manualId si fueron provistos
-      const matchesIdx = invoiceIdx !== null && (slot.idx === invoiceIdx || slot.idx === Number(invoiceIdx));
-      const matchesManual = manualId !== null && (slot.idm === manualId || slot.idm === String(manualId));
+      // NUNCA otro objeto: esta es la condición que no se puede saltar.
+      if (slot.id !== itemId) continue;
 
-      // Si tenemos idx/manual y NO coincide, saltamos
-      if ((invoiceIdx !== null || manualId !== null) && !(matchesIdx || matchesManual)) {
-        continue;
-      }
+      const matchesIdx = invoiceIdx !== null && Number(invoiceIdx) > 0 &&
+                         (slot.idx === invoiceIdx || Number(slot.idx) === Number(invoiceIdx));
+      const matchesManual = manualId !== null && String(manualId) !== '' &&
+                            (slot.idm === manualId || String(slot.idm) === String(manualId));
 
-      // Si no hay idx/manual dado, aceptamos por itemId
-      if ((invoiceIdx === null && manualId === null) && slot.id !== itemId) {
-        continue;
-      }
+      // En la primera pasada solo valen los huecos señalados por las pistas.
+      if (soloPreferidos && hayPista && !(matchesIdx || matchesManual)) continue;
 
       // Encontrado un slot válido para reducir
       const slotCount = Number(slot.count || slot.quantity || 0);
@@ -3706,28 +3966,35 @@ async EliitemWithCheck(itemId, amountToRemove = 1, invoiceIdx = null, manualId =
     }
   };
 
-  // 1) Prioridad: quickSlots (hotbar / cofre rápido)
-  if (this.STATE && Array.isArray(this.STATE.quickSlots)) {
-    processSlotsArray(this.STATE.quickSlots, 'quick');
-  }
+  // Se recorre TODO con las pistas puestas y, si aún falta, se repite sin
+  // ellas. El orden entre montones no cambia: cofre rápido, inventario, cofre.
+  const recorrerTodo = (soloPreferidos) => {
+    // 1) Prioridad: quickSlots (hotbar / cofre rápido)
+    if (remaining > 0 && this.STATE && Array.isArray(this.STATE.quickSlots)) {
+      processSlotsArray(this.STATE.quickSlots, 'quick', soloPreferidos);
+    }
 
-  // 2) Inventario principal
-  if (remaining > 0 && this.STATE && Array.isArray(this.STATE.slots)) {
-    processSlotsArray(this.STATE.slots, 'inv');
-  }
+    // 2) Inventario principal
+    if (remaining > 0 && this.STATE && Array.isArray(this.STATE.slots)) {
+      processSlotsArray(this.STATE.slots, 'inv', soloPreferidos);
+    }
 
-  // 3) Chest / cofre extra (si existe)
-  if (remaining > 0 && this.STATE && Array.isArray(this.STATE.chestSlots)) {
-    processSlotsArray(this.STATE.chestSlots, 'chest');
-  }
+    // 3) Chest / cofre extra (si existe)
+    if (remaining > 0 && this.STATE && Array.isArray(this.STATE.chestSlots)) {
+      processSlotsArray(this.STATE.chestSlots, 'chest', soloPreferidos);
+    }
 
-  // 4) Como respaldo, si aún queda y existen otros arrays (casillas, casillasExtra)
-  if (remaining > 0 && Array.isArray(this.casillas)) {
-    processSlotsArray(this.casillas, 'casillas');
-  }
-  if (remaining > 0 && Array.isArray(this.casillasExtra)) {
-    processSlotsArray(this.casillasExtra, 'casillasExtra');
-  }
+    // 4) Como respaldo, si aún queda y existen otros arrays (casillas, casillasExtra)
+    if (remaining > 0 && Array.isArray(this.casillas)) {
+      processSlotsArray(this.casillas, 'casillas', soloPreferidos);
+    }
+    if (remaining > 0 && Array.isArray(this.casillasExtra)) {
+      processSlotsArray(this.casillasExtra, 'casillasExtra', soloPreferidos);
+    }
+  };
+
+  recorrerTodo(true);
+  if (remaining > 0) recorrerTodo(false);
 
   // Persistir / UI
   try {
@@ -4070,42 +4337,40 @@ renderSlot(index) {
         return true;
     }
 
-    // Procesar venta usando sellPrice
+    /* ═══════════════════════════════════════════════════════════════════════
+       VENDER — SE ENCOLA Y SE DEVUELVE EL MANDO AL JUGADOR
+       ───────────────────────────────────────────────────────────────────────
+       ANTES: `processSale` hacía `await` de la transacción entera. El botón se
+       quedaba desactivado y el modal abierto hasta que la cadena confirmara —
+       de unos segundos a un minuto largo, y hasta dos si había que esperar el
+       tope de `waitForTransaction`. Vender diez cosas era esperar diez veces,
+       una detrás de otra, sin poder tocar nada. Es exactamente lo que ya se
+       arregló en la compra y aquí se había quedado sin hacer.
+
+       AHORA, igual que la compra:
+         1. Se comprueba lo que se puede comprobar EN EL ACTO (que el objeto
+            tiene tipo on-chain y que quedan bastantes unidades sin comprometer).
+         2. Se COMPROMETEN esas unidades para que no se puedan vender dos veces
+            mientras esperan turno.
+         3. El trabajo de cadena se mete en la cola de la tienda y se vuelve.
+            El jugador puede seguir vendiendo o comprando al instante.
+         4. Cuando le toca, se quita de la cadena y SOLO ENTONCES se paga, por
+            las unidades que se quemaron de verdad. Si falla, no se cobra nada
+            y las unidades se sueltan.
+
+       LO QUE NO CAMBIA, Y ES LO IMPORTANTE: primero se quita el objeto de la
+       cadena y después se paga. Al revés —pagar y luego intentar quitar— es
+       dinero de la nada en cuanto una transacción falle, y ya pasó una vez.
+       ═══════════════════════════════════════════════════════════════════════ */
     async processSale(item, quantity) {
-        // La tienda no altera el inventario: solo registra la interacción y aplica el cálculo económico.
-        const currency = this.getItemCurrency(item);
-        const unitGross = Number(item.sellPrice) || 0;
-        const comisionPct = Number(item.comision) || 0;
+        const cantidad = Math.max(0, Math.floor(Number(quantity) || 0));
+        if (!item || cantidad <= 0) return;
 
-        // ORDEN CORREGIDO (2026-08-03): antes se PAGABA primero y luego se
-        // intentaba quitar el ítem en blockchain. Si esa transacción fallaba,
-        // el jugador se quedaba con el dinero Y con el ítem. Ahora primero se
-        // quita el ítem, se comprueba cuántas unidades salieron de verdad
-        // (comparando el inventario antes y después) y solo se paga por esas.
-        const cantidadAntes = this.getItemCountInInventory(item.id);
-
-        /* EL PRIMER ARGUMENTO ES EL TIPO ON-CHAIN, NO LA PALABRA 'slots'.
-
-           ESTE ERA EL FALLO GORDO DE LA VENTA. Ese argumento acaba en
-           `quitarDeFactura({ tipo })`, que lo compara con el tipo de la factura
-           del contrato para asegurarse de que no quema la factura equivocada.
-           Como aqui iba el literal 'slots', la comparacion
-           `f.tipo === 'slots'` fallaba SIEMPRE, y la funcion contestaba
-           `{ ok:true, ya:true, motivo:'ese id es de otro objeto' }` — o sea
-           "esa factura ya no estaba".
-
-           Y el cliente se lo creia: "cuadraba" el inventario borrando las
-           zanahorias EN LOCAL, sin tocar la cadena. Resultado: te pagaban, el
-           objeto desaparecia de la pantalla, en la cadena seguia intacto, y al
-           volver al mapa reaparecia. Dinero de la nada.
-
-           El tipo bueno esta en ItemDefinitions (es lo que usa CraftingHub). */
-        const tabla = this._getOnchainTableFor(item.id);
-
-        /* SIN TIPO ON-CHAIN NO SE VENDE. Antes, un item sin tabla se daba por
+        /* SIN TIPO ON-CHAIN NO SE VENDE. Un objeto sin tabla se daba antes por
            vendido a ciegas (`vendidas = quantity`): se pagaba y no se quitaba
-           nada de ningun sitio. Con el catalogo actual no pasa, pero bastaba
-           con poner a la venta un mineral para regalar dinero. */
+           nada de ningún sitio. Bastaba con poner a la venta un mineral que se
+           hubiera olvidado en ItemDefinitions para regalar dinero. */
+        const tabla = this._getOnchainTableFor(item.id);
         if (!tabla) {
             this.showNotification?.(
                 `⚠️ ${item.name} cannot be sold yet: it has no on-chain record.`,
@@ -4115,22 +4380,167 @@ renderSlot(index) {
             return;
         }
 
-        const [tipoOnchain, limite] = tabla;
-        try {
-            await this.ejecutarDivisionRemove.call(this, tipoOnchain, item.id, limite, quantity);
-        } catch (err) {
-            console.error(`❌ Error quitando ${item.id} en la venta:`, err);
-        }
-
-        const cantidadDespues = this.getItemCountInInventory(item.id);
-        const vendidas = Math.max(0, cantidadAntes - cantidadDespues);
-
-        if (vendidas <= 0) {
+        /* NI GRATIS NI POR ERROR. Un objeto con `sellPrice` a 0 (o sin él, que
+           es lo mismo tras el `Number(...) || 0`) se quemaría en la cadena a
+           cambio de nada. Es un fallo del catálogo, no una oferta: se corta
+           aquí en vez de dejar que el jugador pierda el objeto. */
+        if (!(Number(item.sellPrice) > 0)) {
             this.showNotification?.(
-                `⚠️ The sale of ${item.name} was not confirmed on-chain. Nothing was charged or paid.`,
+                `⚠️ ${item.name} has no sale price: it cannot be sold.`,
                 'error'
             );
-            console.warn(`⚠️ Venta no confirmada: 0/${quantity} ${item.id}`);
+            console.error(`❌ Venta cancelada: ${item.id} no tiene sellPrice (${item.sellPrice}).`);
+            return;
+        }
+
+        /* NO SE PUEDE VENDER DOS VECES LO MISMO. Mientras una venta espera su
+           turno el objeto sigue en el inventario, así que sin esta cuenta el
+           jugador podría venderlo otra vez: la segunda no encontraría nada que
+           quemar y acabaría en "no se confirmó" después de haber dicho que sí. */
+        const disponible = this.disponibleParaVenta(item.id);
+        if (cantidad > disponible) {
+            const enCola = this._comprometido(item.id);
+            this.showNotification?.(
+                enCola > 0
+                    ? `⚠️ You only have ${disponible} ${item.name} free to sell (${enCola} already in the sale queue).`
+                    : `⚠️ You do not have ${cantidad} ${item.name}.`,
+                'error'
+            );
+            return;
+        }
+
+        this._comprometer(item.id, cantidad);
+
+        // La tienda ya puede seguir: se refresca lo que depende del disponible.
+        this.showNotification?.(`⏳ Selling ${cantidad}x ${item.name}…`, 'info');
+        this._refrescarDisponibles();
+
+        this._encolarTrabajoTienda(
+            `Shop sale: ${cantidad}x ${item.id}`,
+            () => this._ejecutarVenta(item, cantidad, tabla)
+        );
+
+        console.log(`🧾 Venta encolada: ${cantidad}x ${item.id} (en cola: ${this.trabajosPendientes()})`);
+    }
+
+    /** Repinta lo que depende de cuántas unidades quedan libres para vender. */
+    _refrescarDisponibles() {
+        /* CON LA TIENDA CERRADA NO SE TOCA NADA. Una venta encolada puede
+           confirmarse mucho después de salir de la tienda, y `updatePcSimpleDetail`
+           llama a `switchTab('detalles')`: repintar entonces sería mover la
+           pantalla del jugador por algo que ya no está mirando. */
+        if (!this.isOpen) return;
+        try {
+            if (this.transactionType === 'venta') this.filterItems?.();
+            if (this.selectedItem) {
+                if (this.isMobile) {
+                    this.updateMobileActionButton?.();
+                    this.updateMobileTotalPrice?.();
+                } else {
+                    this.updatePcModalActionButton?.();
+                }
+                this.updatePcSimpleDetail?.();
+            }
+        } catch (e) {
+            console.warn('No se pudo refrescar la tienda tras encolar la venta:', e);
+        }
+    }
+
+    /* El trabajo de verdad de una venta. Corre dentro de la cola de la tienda,
+       nunca desde el botón: aquí sí se puede esperar a la cadena. */
+    async _ejecutarVenta(item, cantidad, tabla) {
+        /* LAS UNIDADES COMPROMETIDAS SE SUELTAN SIEMPRE, PASE LO QUE PASE.
+
+           Si una excepción se colara antes del `finally` de abajo, esas
+           unidades se quedarían apuntadas para siempre y el jugador no podría
+           volver a venderlas EN TODA LA SESIÓN — sin ningún aviso, porque el
+           objeto seguiría en el inventario pero la tienda no lo ofrecería.
+           `soltar` es idempotente: se llama en cuanto termina la cadena (para
+           que la pantalla se refresque con el número bueno) y otra vez al
+           salir, como red. */
+        let soltado = false;
+        const soltar = () => {
+            if (soltado) return;
+            soltado = true;
+            this._descomprometer(item.id, cantidad);
+        };
+
+        try {
+            return await this._ventaEnCadena(item, cantidad, tabla, soltar);
+        } finally {
+            soltar();
+        }
+    }
+
+    async _ventaEnCadena(item, cantidad, tabla, soltar) {
+        const currency    = this.getItemCurrency(item);
+        const unitGross   = Number(item.sellPrice) || 0;
+        const comisionPct = Number(item.comision) || 0;
+        const [tipoOnchain, limite] = tabla;
+
+        let recuento = null;
+        const antes = this.getItemCountInInventory(item.id);
+
+        try {
+            /* EL PRIMER ARGUMENTO ES EL TIPO ON-CHAIN, NO LA PALABRA 'slots'.
+
+               Ese argumento acaba en `quitarDeFactura({ tipo })`, que lo compara
+               con el tipo de la factura del contrato para no quemar la factura
+               equivocada. Cuando aquí iba el literal 'slots' la comparación
+               fallaba SIEMPRE y la respuesta era "esa factura ya no estaba" — o
+               sea: te pagaban, el objeto desaparecía de la pantalla, en la
+               cadena seguía intacto, y al volver al mapa reaparecía. */
+            recuento = await this.ejecutarDivisionRemove(tipoOnchain, item.id, limite, cantidad);
+        } catch (err) {
+            console.error(`❌ Error quitando ${item.id} en la venta:`, err);
+            recuento = null;
+        } finally {
+            // Ya no están en vuelo: la tienda puede volver a ofrecerlas si la
+            // venta no salió, o dejar de contarlas si salió.
+            soltar();
+        }
+
+        const despues       = this.getItemCountInInventory(item.id);
+        const porInventario = Math.max(0, antes - despues);
+
+        /* CUÁNTAS SE PAGAN. Se prefiere lo que dice la cadena (`confirmadas`);
+           la resta del inventario queda solo de respaldo para cuando el
+           recuento no llega, porque con la cola esa resta puede incluir lo que
+           haya hecho otro trabajo. Nunca más de lo pedido. */
+        const confirmadas = (recuento && Number.isFinite(recuento.confirmadas))
+            ? recuento.confirmadas
+            : porInventario;
+        const vendidas   = Math.max(0, Math.min(cantidad, confirmadas));
+        const yaGastadas = (recuento && Number.isFinite(recuento.yaGastadas)) ? recuento.yaGastadas : 0;
+
+        /* "YA ESTABA GASTADO" NO SE PAGA. La factura ya no estaba en la cadena:
+           el hueco iba retrasado y se ha cuadrado, pero ahora mismo no ha salido
+           nada de la cadena. Pagarlo sería crear dinero. Se le dice al jugador
+           para que no parezca que le han robado el objeto. */
+        if (yaGastadas > 0) {
+            this.showNotification?.(
+                `ℹ️ ${yaGastadas}x ${item.name} had already been spent elsewhere. ` +
+                `Your inventory was corrected and they were not paid.`,
+                'info'
+            );
+        }
+
+        if (vendidas <= 0) {
+            /* CON EL MOTIVO. "No se confirmó" a secas no le dice al jugador si
+               es que se le cayó la red, si el contrato no encuentra su factura o
+               si la transacción se quedó esperando — y sin eso no puede ni
+               decidir si reintentar ni contarlo bien. */
+            const motivo = (recuento && recuento.motivo) || this._ultimoMotivoFallo;
+            const porQue = motivo ? ` (${motivo})` : '';
+            if (yaGastadas <= 0) {
+                this.showNotification?.(
+                    `⚠️ ${item.name} was not sold: the blockchain did not confirm it${porQue}. Nothing was charged or paid.`,
+                    'error'
+                );
+            }
+            console.warn(`⚠️ Venta no confirmada: 0/${cantidad} ${item.id}`,
+                         motivo || '(sin motivo apuntado)');
+            this._refrescarDisponibles();
             return;
         }
 
@@ -4158,15 +4568,23 @@ renderSlot(index) {
         };
         console.log('🛒 SHOP TRANSACTION (SALE)', transactionInfo);
 
-        if (vendidas < quantity) {
-            this.showNotification?.(
-                `⚠️ Only ${vendidas} of ${quantity} ${item.name} were confirmed on-chain. You were paid for ${vendidas}.`,
-                'error'
-            );
+        if (vendidas < cantidad) {
+            const perdidas = cantidad - vendidas - yaGastadas;
+            if (perdidas > 0) {
+                this.showNotification?.(
+                    `⚠️ Only ${vendidas} of ${cantidad} ${item.name} were confirmed on-chain. ` +
+                    `You were paid for ${vendidas}; the rest are still yours.`,
+                    'error'
+                );
+            }
         }
 
         this.addToHistorial('venta', item, vendidas, finalPrice);
         this.showTransactionAnimation('venta', item, vendidas, finalPrice, commission);
+        this.updateMonedaDisplay?.();
+        this.updateHistorialDisplay?.();
+        this.updateMobileHistorialDisplay?.();
+        this._refrescarDisponibles();
 
         try { this.scene?.queuedAction && this.scene.queuedAction({ type: 'forSpam2' }); } catch (err) { /* ignorar */ }
         console.log(`✅ Sale recorded: ${vendidas}x ${item.name} for ${finalPrice} ${this.getCurrencyLabel(currency)} (fee: ${commission} ${this.getCurrencyLabel(currency)})`);
