@@ -988,7 +988,7 @@
       <div class="furnace-slots-row">
         <div class="furnace-slot-box">
           <div class="furnace-slot" id="furnace-slot-ore" data-type="ore">
-            <span class="furnace-slot-label">Mineral</span>
+            <span class="furnace-slot-label">Ore</span>
           </div>
           <div class="furnace-slot" id="furnace-slot-coal" data-type="coal">
             <span class="furnace-slot-label">Coal</span>
@@ -1002,18 +1002,20 @@
           <div id="furnace-timer" class="furnace-timer" style="display:none">⏱️ <span id="furnace-time-display">--</span></div>
         </div>
       </div>
-      <div id="furnace-status" class="furnace-status">Add ore and coal to smelt</div>
+      <div id="furnace-status" class="furnace-status">Pick up ore, click the top slot; pick up coal, click the bottom one</div>
       <div class="furnace-recipes">
         <div class="furnace-recipes-title">📋 Recipes</div>
         <div id="furnace-recipe-list" class="furnace-recipe-list">
+          <!-- Estas filas tienen que decir lo MISMO que FURNACE_RECIPES en
+               GameScene.js. Antes anunciaban tres recetas que no existían
+               (piedra, y carbón x2/x3), y el horno no fundía nada. -->
+          <!-- Nada de 🪵 aquí: es Unicode 13 y Windows 10 se quedó en la 12, así
+               que sale como un cuadrado vacío. ⬛ es de toda la vida. -->
           <div class="furnace-recipe-row">
-            <span>🪨 Stone</span><span>+</span><span>🪵 Coal x1</span><span>→</span><span>❓ 30s</span>
+            <span>🟤 Copper Ore</span><span>+</span><span>⬛ Coal x1</span><span>→</span><span>🟠 Copper Ingot · 1 min</span>
           </div>
           <div class="furnace-recipe-row">
-            <span>🟤 Copper</span><span>+</span><span>🪵 Coal x2</span><span>→</span><span>❓ 60s</span>
-          </div>
-          <div class="furnace-recipe-row">
-            <span>⚫ Iron</span><span>+</span><span>🪵 Coal x3</span><span>→</span><span>❓ 90s</span>
+            <span>⚫ Iron Ore</span><span>+</span><span>⬛ Coal x1</span><span>→</span><span>⚪ Iron Ingot · 5 min</span>
           </div>
         </div>
       </div>

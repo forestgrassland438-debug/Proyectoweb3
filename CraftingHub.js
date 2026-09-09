@@ -159,14 +159,14 @@ class CraftingSystem {
         resultImage:'./Game/Source/pico_y_hacha/hacha_de_cobre.png', level:5, category:'tools',
         description:'Copper axe made from wood and copper',
         resources:[
-          {itemId:'mineral_cobre',quantity:3,name:'Copper Ore',image:'./Game/Source/cobre.png'},
+          {itemId:'mineral_cobre',quantity:3,name:'Copper Ingot',image:'./Game/Source/cobre.png'},
           {itemId:'palo',quantity:1,name:'Wood Stick',image:'./Game/Source/palo.png'}
         ], optionalResources:null },
       { id:'hacha_de_hierro', name:'Iron Axe', resultItem:'hacha_de_hierro',
         resultImage:'./Game/Source/pico_y_hacha/hacha_de_hierro.png', level:6, category:'tools',
         description:'Iron axe made from wood and iron',
         resources:[
-          {itemId:'mineral_hierro',quantity:3,name:'Iron Ore',image:'./Game/Source/hierro.png'},
+          {itemId:'mineral_hierro',quantity:3,name:'Iron Ingot',image:'./Game/Source/hierro.png'},
           {itemId:'palo',quantity:1,name:'Wood Stick',image:'./Game/Source/palo.png'}
         ], optionalResources:null },
       { id:'pico_madera', name:'Wooden Pickaxe', resultItem:'pico_de_madera',
@@ -187,14 +187,14 @@ class CraftingSystem {
         resultImage:'./Game/Source/pico_y_hacha/pico_de_cobre.png', level:5, category:'consumables',
         description:'Copper pickaxe made from wood and copper',
         resources:[
-          {itemId:'mineral_cobre',quantity:3,name:'Copper Ore',image:'./Game/Source/cobre.png'},
+          {itemId:'mineral_cobre',quantity:3,name:'Copper Ingot',image:'./Game/Source/cobre.png'},
           {itemId:'palo',quantity:1,name:'Wood Stick',image:'./Game/Source/palo.png'}
         ], optionalResources:null },
       { id:'pico_de_hierro', name:'Iron Pickaxe', resultItem:'pico_de_hierro',
         resultImage:'./Game/Source/pico_y_hacha/pico_de_hierro.png', level:6, category:'consumables',
         description:'Iron pickaxe made from wood and iron',
         resources:[
-          {itemId:'mineral_hierro',quantity:3,name:'Iron Ore',image:'./Game/Source/hierro.png'},
+          {itemId:'mineral_hierro',quantity:3,name:'Iron Ingot',image:'./Game/Source/hierro.png'},
           {itemId:'palo',quantity:1,name:'Wood Stick',image:'./Game/Source/palo.png'}
         ], optionalResources:null }
     ];
@@ -1059,7 +1059,9 @@ class CraftingSystem {
     }
     const d={madera_pinos:'Madera de Pino',madera_seca:'Madera Seca',madera_con_hojas:'Madera con Hojas',
       tablon_de_madera:'Tabla de Madera',palo:'Palo de Madera',mineral_piedra:'Piedra',
-      mineral_cobre:'Mineral Cobre',mineral_hierro:'Mineral Hierro',zanahoria_buena:'Zanahoria',
+      mineral_cobre:'Lingote de Cobre',mineral_hierro:'Lingote de Hierro',
+      mineral_piedra_cobre:'Piedra de Cobre',mineral_piedra_hierro:'Piedra de Hierro',
+      mineral_carbon:'Piedra de Carbon',carbon:'Carbon',zanahoria_buena:'Zanahoria',
       balde_vacio:'Balde Vacío',balde_con_agua:'Balde con Agua',hacha_de_madera:'Hacha de Madera',
       hacha_de_piedra:'Hacha de Piedra',hacha_de_cobre:'Hacha de Cobre',hacha_de_hierro:'Hacha de Hierro',
       pico_de_madera:'Pico de Madera',pico_de_piedra:'Pico de Piedra',pico_de_cobre:'Pico de Cobre',

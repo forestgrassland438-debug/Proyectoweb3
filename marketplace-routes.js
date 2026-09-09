@@ -62,8 +62,16 @@ const ITEM_CATALOG = {
   balde_con_agua: { name: 'Balde con Agua', category: 'herramientas', icon: '/Game/Source/item_pozo2.png', maxStack: 5 },
 
   mineral_piedra: { name: 'Piedra', category: 'minerales', icon: '/Game/Source/piedra.png', maxStack: 20 },
-  mineral_cobre:  { name: 'Cobre',  category: 'minerales', icon: '/Game/Source/cobre.png', maxStack: 20 },
-  mineral_hierro: { name: 'Hierro', category: 'minerales', icon: '/Game/Source/hierro.png', maxStack: 20 },
+  mineral_cobre:  { name: 'Lingote de Cobre',  category: 'minerales', icon: '/Game/Source/cobre.png', maxStack: 20 },
+  mineral_hierro: { name: 'Lingote de Hierro', category: 'minerales', icon: '/Game/Source/hierro.png', maxStack: 20 },
+
+  // Piedra en bruto y carbón: lo que sale de la mina desde que hay horno.
+  // Sin estas entradas no se podrían publicar en el mercado (el catálogo de
+  // aquí es el que decide qué se puede listar).
+  mineral_piedra_cobre:  { name: 'Piedra de Cobre',  category: 'minerales', icon: '/Game/Source/piedra_cobre.png',  maxStack: 20 },
+  mineral_piedra_hierro: { name: 'Piedra de Hierro', category: 'minerales', icon: '/Game/Source/piedra_hierro.png', maxStack: 20 },
+  mineral_carbon:        { name: 'Piedra de Carbón', category: 'minerales', icon: '/Game/Source/piedra_carbon.png', maxStack: 20 },
+  carbon:                { name: 'Carbón',           category: 'minerales', icon: '/Game/Objetos/carbon.png',       maxStack: 20 },
 
   palo:             { name: 'Palo',             category: 'madera', icon: '/Game/Source/palo.png', maxStack: 20 },
   tablon_de_madera: { name: 'Tablón de Madera', category: 'madera', icon: '/Game/Source/madera.png', maxStack: 20 },
