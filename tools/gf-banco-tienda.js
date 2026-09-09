@@ -322,6 +322,20 @@ class ServidorFalso {
 
     if (ruta === '/ping') return json(200, { ok: true });
 
+    // El horno: mismo contrato que /api/furnace/:playerName en server2.js —
+    // guarda oreItem, coalItem y timestamp, y nada mas.
+    if (/^\/api\/furnace\//.test(ruta)) {
+      if (metodo === 'POST') {
+        this.horno = {
+          oreItem:   (cuerpo && cuerpo.oreItem)  || null,
+          coalItem:  (cuerpo && cuerpo.coalItem) || null,
+          timestamp: (cuerpo && cuerpo.timestamp) || 0
+        };
+        return json(200, { success: true });
+      }
+      return json(200, this.horno || { oreItem: null, coalItem: null, timestamp: 0 });
+    }
+
     if (ruta === '/api/auth/me') {
       if (this.opciones.autenticado === false) return json(401, { authenticated: false, error: 'Not authenticated' });
       return json(200, { authenticated: true, address: this.jugador, playerName: 'Ana' });

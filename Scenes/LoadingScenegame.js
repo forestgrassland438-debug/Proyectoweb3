@@ -144,6 +144,25 @@ class LoadingScenegame extends Phaser.Scene {
             mineral_piedra:   { src: './Game/Source/piedra.png',         maxStack: 20 },
             mineral_cobre:    { src: './Game/Source/cobre.png',          maxStack: 20 },
             mineral_hierro:   { src: './Game/Source/hierro.png',         maxStack: 20 },
+
+            /* ESTE CATÁLOGO TAMBIÉN CUENTA, Y SE OLVIDA CON FACILIDAD.
+               `_addMissingBlockchainItems` repone al entrar al mapa lo que hay
+               en la cadena y no está en el inventario guardado, y para eso
+               traduce el `tipo` de la factura a una clave DE AQUÍ. Un ítem que
+               no esté en esta lista se descarta con "sin itemId → omitiendo":
+               existe en la cadena pero el jugador no lo ve nunca.
+
+               Al carbón y a las pociones les pasaba eso desde que se añadieron;
+               se arregla de paso. */
+            mineral_piedra_cobre:  { src: './Game/Source/piedra_cobre.png',  maxStack: 20 },
+            mineral_piedra_hierro: { src: './Game/Source/piedra_hierro.png', maxStack: 20 },
+            mineral_carbon:        { src: './Game/Source/piedra_carbon.png', maxStack: 20 },
+            carbon:                { src: './Game/Objetos/carbon.png',       maxStack: 20 },
+
+            pocion_mascota:        { src: './Game/Objetos/pociones/pocion_mascota.png',        maxStack: 20 },
+            pocion_mascota_grande: { src: './Game/Objetos/pociones/pocion_mascota_grande.png', maxStack: 10 },
+            elixir_revivir:        { src: './Game/Objetos/pociones/elixir_revivir.png',        maxStack: 5  },
+
             palo:             { src: './Game/Source/palo.png',           maxStack: 20 },
             tablon_de_madera: { src: './Game/Source/madera.png',         maxStack: 20 },
             madera_pinos:     { src: './Game/Source/madera_oscura.png',  maxStack: 50 },
@@ -192,6 +211,13 @@ class LoadingScenegame extends Phaser.Scene {
             'mineral piedra':   'mineral_piedra',
             'mineral cobre':    'mineral_cobre',
             'mineral hierro':   'mineral_hierro',
+            // Piedra en bruto y carbón: sus tablas ya se llaman igual que la
+            // clave del juego, así que la conversión automática de
+            // `_tipoToItemId` bastaría; se dejan escritas para que se vean.
+            'mineral_piedra_cobre':  'mineral_piedra_cobre',
+            'mineral_piedra_hierro': 'mineral_piedra_hierro',
+            'mineral_carbon':        'mineral_carbon',
+            'carbon':                'carbon',
             'tablon de madera': 'tablon_de_madera',
             'madera pinos':     'madera_pinos',
             'madera con hojas': 'madera_con_hojas',

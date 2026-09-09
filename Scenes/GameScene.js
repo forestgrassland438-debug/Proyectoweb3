@@ -1090,6 +1090,10 @@ MISSION_ITEM_MAP = {
   'cobre': 'mineral_cobre',       'copper': 'mineral_cobre',
   'hierro': 'mineral_hierro',     'iron': 'mineral_hierro',
   'carbon': 'carbon',             'coal': 'carbon',
+  // Piedra en bruto: lo que suelta la mina desde que hay horno.
+  'piedra_cobre': 'mineral_piedra_cobre',   'copper_ore': 'mineral_piedra_cobre',
+  'piedra_hierro': 'mineral_piedra_hierro', 'iron_ore': 'mineral_piedra_hierro',
+  'piedra_carbon': 'mineral_carbon',        'coal_ore': 'mineral_carbon',
   'madera': 'madera_pinos',       'wood': 'madera_pinos'
 };
 
@@ -6337,61 +6341,67 @@ const mineRewards = {
   // ── Cobres ───────────────────────────────────────────────────────────────
   'sprite_minar_cobre1': {
     items: [
-      { id: 'mineral_piedra', cantidad: 1, probabilidad: 40 },
-      { id: 'mineral_cobre',  cantidad: 1, probabilidad: 60 }
+      { id: 'mineral_piedra',       cantidad: 1, probabilidad: 40 },
+      { id: 'mineral_piedra_cobre', cantidad: 1, probabilidad: 60 }
     ],
     nombre: "Cobre", colorNotificacion: "#e67e22", dificultadBase: 1.25
   },
   'sprite_minar_cobre2': {
     items: [
-      { id: 'mineral_piedra', cantidad: 1, probabilidad: 40 },
-      { id: 'mineral_cobre',  cantidad: 1, probabilidad: 60 }
+      { id: 'mineral_piedra',       cantidad: 1, probabilidad: 40 },
+      { id: 'mineral_piedra_cobre', cantidad: 1, probabilidad: 60 }
     ],
     nombre: "Cobre", colorNotificacion: "#e67e22", dificultadBase: 1.2
   },
   'sprite_minar_cobre3': {
     items: [
-      { id: 'mineral_piedra', cantidad: 1, probabilidad: 40 },
-      { id: 'mineral_cobre',  cantidad: 1, probabilidad: 60 }
+      { id: 'mineral_piedra',       cantidad: 1, probabilidad: 40 },
+      { id: 'mineral_piedra_cobre', cantidad: 1, probabilidad: 60 }
     ],
     nombre: "Cobre", colorNotificacion: "#e67e22", dificultadBase: 1.2
   },
   'sprite_minar_cobre4': {
     items: [
-      { id: 'mineral_piedra', cantidad: 1, probabilidad: 40 },
-      { id: 'mineral_cobre',  cantidad: 1, probabilidad: 60 }
+      { id: 'mineral_piedra',       cantidad: 1, probabilidad: 40 },
+      { id: 'mineral_piedra_cobre', cantidad: 1, probabilidad: 60 }
     ],
     nombre: "Cobre", colorNotificacion: "#e67e22", dificultadBase: 1.25
   },
   // ── Hierros ──────────────────────────────────────────────────────────────
   'sprite_minar_hierro1': {
     items: [
-      { id: 'mineral_piedra', cantidad: 1, probabilidad: 60 },
-      { id: 'mineral_hierro', cantidad: 1, probabilidad: 40 }
+      { id: 'mineral_piedra',        cantidad: 1, probabilidad: 60 },
+      { id: 'mineral_piedra_hierro', cantidad: 1, probabilidad: 40 }
     ],
     nombre: "Hierro", colorNotificacion: "#bdc3c7", dificultadBase: 1.0
   },
   'sprite_minar_hierro2': {
     items: [
-      { id: 'mineral_piedra', cantidad: 1, probabilidad: 60 },
-      { id: 'mineral_hierro', cantidad: 1, probabilidad: 40 }
+      { id: 'mineral_piedra',        cantidad: 1, probabilidad: 60 },
+      { id: 'mineral_piedra_hierro', cantidad: 1, probabilidad: 40 }
     ],
     nombre: "Hierro", colorNotificacion: "#bdc3c7", dificultadBase: 1.0
   },
   'sprite_minar_hierro3': {
     items: [
-      { id: 'mineral_piedra', cantidad: 1, probabilidad: 60 },
-      { id: 'mineral_hierro', cantidad: 1, probabilidad: 40 }
+      { id: 'mineral_piedra',        cantidad: 1, probabilidad: 60 },
+      { id: 'mineral_piedra_hierro', cantidad: 1, probabilidad: 40 }
     ],
     nombre: "Hierro", colorNotificacion: "#bdc3c7", dificultadBase: 1.0
   },
   // ── Carbones ─────────────────────────────────────────────────────────────
   'carbon_pngx1': {
-    items: [{ id: 'carbon', cantidad: 1, probabilidad: 100 }],
+    items: [
+      { id: 'carbon',         cantidad: 1, probabilidad: 100 },
+      { id: 'mineral_carbon', cantidad: 1, probabilidad: 100 }
+    ],
     nombre: "Carbón", colorNotificacion: "#2c3e50", dificultadBase: 1.0
   },
   'carbon_pngx2': {
-    items: [{ id: 'carbon', cantidad: 1, probabilidad: 100 }],
+    items: [
+      { id: 'carbon',         cantidad: 1, probabilidad: 100 },
+      { id: 'mineral_carbon', cantidad: 1, probabilidad: 100 }
+    ],
     nombre: "Carbón", colorNotificacion: "#2c3e50", dificultadBase: 1.0
   }
 };
@@ -8145,8 +8155,22 @@ console.log('📊 Tree types:', Object.keys(TREE_TYPE_CONFIG));
           Tijerasx: { src: "./Game/Source/tijeras.png", maxStack: 1 , tipo: "Tijerasx", usos: 20 },
 
           mineral_piedra: { src: "./Game/Source/piedra.png", maxStack: 20 , tipo: "mineral_piedra", usos: null },
+
+          /* LOS DOS LINGOTES. Ya no salen de picar: ahora se FUNDEN en el horno
+             a partir de la piedra en bruto (ver FURNACE_RECIPES más abajo). El
+             dibujo es una barra de 16x9, no una roca — siempre fueron lingotes
+             aunque el nombre dijera "mineral". */
           mineral_cobre: { src: "./Game/Source/cobre.png", maxStack: 20 , tipo: "mineral_cobre", usos: null },
           mineral_hierro: { src: "./Game/Source/hierro.png", maxStack: 20 , tipo: "mineral_hierro", usos: null },
+
+          /* PIEDRA EN BRUTO — lo que suelta la mina desde 2026-09-08.
+             Sus tablas on-chain son mineral_piedra_cobre / mineral_piedra_hierro
+             / mineral_carbon, y NO se pueden confundir con las de los lingotes
+             (mineral_cobre / mineral_hierro): son tablas distintas del contrato,
+             con su propio cupo y sus propias facturas. */
+          mineral_piedra_cobre:  { src: "./Game/Source/piedra_cobre.png",  maxStack: 20, tipo: "mineral_piedra_cobre",  usos: null },
+          mineral_piedra_hierro: { src: "./Game/Source/piedra_hierro.png", maxStack: 20, tipo: "mineral_piedra_hierro", usos: null },
+          mineral_carbon:        { src: "./Game/Source/piedra_carbon.png", maxStack: 20, tipo: "mineral_carbon",        usos: null },
           // FALTABA (2026-08-05): el carbón se podía picar (mineRewards lo da
           // como botín de las rocas de carbón) pero no estaba definido aquí.
           // Sin definición no tiene `tipo`, así que nunca se acuñaba en la
@@ -11276,8 +11300,12 @@ getItemDisplayName(itemId) {
     'Regaderax': 'Regadera',
     'Tijerasx': 'Tijeras',
     'mineral_piedra': 'Piedra',
-    'mineral_cobre': 'Mineral de Cobre',
-    'mineral_hierro': 'Mineral de Hierro',
+    'mineral_cobre': 'Lingote de Cobre',
+    'mineral_hierro': 'Lingote de Hierro',
+    'mineral_piedra_cobre': 'Piedra de Cobre',
+    'mineral_piedra_hierro': 'Piedra de Hierro',
+    'mineral_carbon': 'Piedra de Carbón',
+    'carbon': 'Carbón',
     'palo': 'Palo',
     'tablon_de_madera': 'Tabla de Madera',
     'madera_pinos': 'Madera de Pino',
@@ -14143,8 +14171,11 @@ _getFruitDisplayNameEN(itemId) {
     fresa_buena: 'Good Strawberry', fresa_corta: 'Unripe Strawberry', fresa_mala: 'Rotten Strawberry',
     pocion_mascota: 'Pet Potion', pocion_mascota_grande: 'Great Pet Potion',
     elixir_revivir: 'Revival Elixir',
-    // Minerales (reutilizado también por la minería on-chain, ver _agregarFrutoOnChain)
-    mineral_piedra: 'Stone', mineral_cobre: 'Copper Ore', mineral_hierro: 'Iron Ore', carbon: 'Coal',
+    // Minerales (reutilizado también por la minería on-chain, ver _agregarFrutoOnChain).
+    // Ojo con los nombres: mineral_cobre/mineral_hierro son los LINGOTES que
+    // salen del horno; lo que se pica ahora es la piedra en bruto.
+    mineral_piedra: 'Stone', mineral_cobre: 'Copper Ingot', mineral_hierro: 'Iron Ingot', carbon: 'Coal',
+    mineral_piedra_cobre: 'Copper Ore', mineral_piedra_hierro: 'Iron Ore', mineral_carbon: 'Coal Ore',
     // Maderas: se añadieron al pasar la tala a botín 1-3, para que el aviso
     // diga "3x Pine Log" en vez del identificador crudo "3x madera_pinos".
     madera_pinos: 'Pine Log', madera_seca: 'Dry Log', madera_con_hojas: 'Leafy Log'
@@ -18464,7 +18495,13 @@ removeOtherPlayer(playerId) {
        Lo correcto es quitar solo lo que puso ESTA escena. La conexión sigue
        viva para la siguiente, con sus oyentes globales intactos. */
     try { this.removeSocketListeners(); } catch (e) { /* ignore */ }
-    
+
+    /* El reloj del horno es un setInterval de la PÁGINA, no un temporizador de
+       Phaser: no se lo lleva por delante el cierre de la escena. Si el jugador
+       se va del mapa con el panel abierto, ese intervalo seguiría latiendo cada
+       segundo contra un DOM que ya no mira nadie. Se para aquí.
+       (La fundición NO se pierde: vive en el servidor, ver _guardarHorno.) */
+    try { this._pararRelojHorno(); } catch (e) { /* ignore */ }
   }
 
 
@@ -29947,8 +29984,115 @@ if (this.dogNameText) {
   }
 
   // =========================================================================
-  // FURNACE PANEL
+  // FURNACE PANEL — EL HORNO
   // =========================================================================
+  /*
+   * Funciona como el de Minecraft: abajo el combustible, arriba el mineral en
+   * bruto, y al cabo de un rato sale el lingote. El carbón SE GASTA.
+   *
+   *   1 piedra de cobre  + 1 carbón →  1 lingote de cobre   (1 minuto)
+   *   1 piedra de hierro + 1 carbón →  1 lingote de hierro  (5 minutos)
+   *
+   * ORDEN DE LAS TRANSACCIONES, Y ES LO IMPORTANTE:
+   *
+   *   Primero se QUEMAN en la cadena el mineral y el carbón, y solo cuando las
+   *   dos quemas están confirmadas empieza a correr el reloj. El lingote se
+   *   acuña al RECOGERLO, no antes. Al revés —acuñar primero— sería crear un
+   *   lingote de la nada si la quema fallara, que es exactamente el fallo que
+   *   ya costó caro en la tienda.
+   *
+   *   Si el mineral se quema y el carbón no, el mineral SE DEVUELVE (se vuelve
+   *   a acuñar) y no se empieza nada. Es la única forma de no dejar al jugador
+   *   sin material por una transacción a medias.
+   *
+   * NO CONFUNDIR LAS TABLAS. `mineral_piedra_cobre` y `mineral_piedra_hierro`
+   * son la piedra en bruto; `mineral_cobre` y `mineral_hierro` son los
+   * lingotes. Son cuatro tablas DISTINTAS en el contrato, con sus propias
+   * facturas y su propio cupo. Aquí se leen siempre de ItemDefinitions
+   * (`def.tipo`), nunca escritas a mano.
+   *
+   * DÓNDE VIVE EL ESTADO. En el servidor (`/api/furnace/:playerName`), no en el
+   * navegador: el horno tiene que seguir contando aunque el jugador cierre el
+   * juego. Lo que se guarda es `oreItem`, `coalItem` y `timestamp`, que es lo
+   * único que ese endpoint persiste — de ahí se recalcula todo lo demás (la
+   * receta sale del mineral, y la hora de fin de `timestamp` + la duración).
+   * Así el horno funciona sin tocar el backend.
+   */
+
+  /** Recetas del horno. La clave es el mineral EN BRUTO que se funde. */
+  get FURNACE_RECIPES() {
+    return {
+      mineral_piedra_cobre:  { resultado: 'mineral_cobre',  segundos: 60,  carbon: 1 },
+      mineral_piedra_hierro: { resultado: 'mineral_hierro', segundos: 300, carbon: 1 }
+    };
+  }
+
+  /** Qué vale como combustible. El carbón suelto y la piedra de carbón. */
+  _esCombustibleHorno(itemId) {
+    return itemId === 'carbon' || itemId === 'mineral_carbon';
+  }
+
+  /**
+   * Cuántas unidades hay DONDE EL HORNO PUEDE COGERLAS.
+   *
+   * `contarItemEnInventario` incluye el cofre, y de ahí `simulateRemoveItem` NO
+   * saca nada: contar con el cofre haría que el horno dijera "sí tienes" y
+   * luego la quema no encontrara la unidad. Se cuentan las mismas casillas que
+   * mira la quema: inventario y barra rápida.
+   */
+  _contarParaFundir(itemId) {
+    let total = 0;
+    const sumar = (arr) => {
+      if (!Array.isArray(arr)) return;
+      arr.forEach(s => { if (s && s.id === itemId) total += Number(s.count || 0); });
+    };
+    sumar(this.STATE && this.STATE.slots);
+    sumar(this.STATE && this.STATE.quickSlots);
+    return total;
+  }
+
+  /**
+   * ¿CUÁNTO TIENE EL JUGADOR DE VERDAD, EN LA CADENA?
+   *
+   * FALLO QUE ESTO EVITA — el horno encendido con material FANTASMA:
+   *
+   *   Un hueco del inventario puede decir "1 carbón" cuando en la cadena esa
+   *   factura ya no existe (se gastó por otro camino, otra pestaña, una
+   *   misión). Al intentar quemarlo, `quitarDeFactura` contesta "ya no estaba"
+   *   —que es lo correcto— y el cliente CUADRA el hueco borrándolo. Visto solo
+   *   desde el inventario local eso es indistinguible de una quema buena: el
+   *   contador baja igual.
+   *
+   *   Con eso, el horno arrancaba sin haber quemado nada y a los cinco minutos
+   *   entregaba un lingote. Un lingote de la nada, que es justo lo que no puede
+   *   pasar en un juego donde los objetos son facturas.
+   *
+   * Así que antes de tocar nada se pregunta a la cadena. Devuelve un mapa
+   * `tipo → unidades`, o `null` si NO SE PUDO LEER — y ojo con esa diferencia:
+   * "no lo sé" no puede impedir fundir, o una caída del nodo dejaría el horno
+   * inservible. Cuando no se sabe, se sigue con la comprobación local, que es
+   * lo que había hasta ahora.
+   */
+  async _existenciasEnCadena(tipos) {
+    try {
+      if (!this.relayClient || typeof this.relayClient.misFacturas !== 'function') return null;
+      const contrato = await this.relayClient.findContract('ItemContract');
+      if (!contrato || !contrato.address) return null;
+      const facturas = await this.relayClient.misFacturas(contrato.address);
+      if (!Array.isArray(facturas)) return null;      // null = no se pudo; undefined = no se puede listar
+      const total = {};
+      tipos.forEach(t => { total[t] = 0; });
+      for (const f of facturas) {
+        if (f && f.activa && Object.prototype.hasOwnProperty.call(total, f.tipo)) {
+          total[f.tipo] += Number(f.cantidad) || 0;
+        }
+      }
+      return total;
+    } catch (e) {
+      console.warn('Horno: no se pudo leer el inventario en la cadena:', e && e.message);
+      return null;
+    }
+  }
 
   openFurnacePanel() {
     const panel = document.getElementById('furnace-panel');
@@ -29966,104 +30110,420 @@ if (this.dogNameText) {
     panel.classList.remove('furnace-visible');
     panel.classList.add('furnace-hidden');
     panel.style.display = 'none';
+    this._pararRelojHorno();
   }
 
   _setupFurnacePanel() {
     const closeBtn = document.getElementById('furnace-close');
     if (closeBtn) closeBtn.onclick = () => this.closeFurnacePanel();
 
-    // Smelt button
+    // Botón principal: funde o recoge, según en qué punto esté el horno.
     const smeltBtn = document.getElementById('furnace-smelt-btn');
     if (smeltBtn) {
       smeltBtn.onclick = () => {
-        const oreSlot  = document.getElementById('furnace-slot-ore');
-        const coalSlot = document.getElementById('furnace-slot-coal');
-        const oreItem  = oreSlot  && oreSlot._item;
-        const coalItem = coalSlot && coalSlot._item;
-        if (!oreItem || !coalItem) {
-          document.getElementById('furnace-status').textContent = '⚠️ Add ore and coal first';
-          return;
-        }
-        // Log all info for developer to implement contract interaction
-        console.log('🔥 [FURNACE] Smelting request:', {
-          ore:  { id: oreItem.id, name: oreItem.name, quantity: oreItem.qty, idx: oreItem.idx, manualId: oreItem.manualId },
-          coal: { id: coalItem.id, name: coalItem.name, quantity: coalItem.qty, idx: coalItem.idx, manualId: coalItem.manualId },
-          playerName: this.playerName, address: this.currentAccount,
-          timestamp: Date.now(),
-          note: 'Use decreaseInvoiceQuantity for ore and coal, then createInvoice for result'
-        });
-        document.getElementById('furnace-status').textContent = '✅ Smelt request logged — check console';
-        this._saveFurnaceState(oreItem, coalItem);
+        if (this._hornoEstado && this._hornoEstado.fase === 'listo') this._recogerDelHorno();
+        else this._iniciarFundido();
       };
     }
 
-    // Drop items into slots via inventory click
-    this._furnaceDropMode = null;
+    /* METER COSAS EN EL HORNO. Se coge el objeto del inventario (queda en el
+       cursor) y se hace clic en la casilla. Es el mismo gesto que ya había;
+       lo que cambia es que ahora se comprueba que lo que se mete SE PUEDA
+       fundir, en vez de aceptar cualquier cosa que no sea carbón. */
     ['furnace-slot-ore', 'furnace-slot-coal'].forEach(slotId => {
       const slot = document.getElementById(slotId);
       if (!slot) return;
       slot.onclick = () => {
+        const estado = document.getElementById('furnace-status');
+        if (this._hornoEstado && this._hornoEstado.fase !== 'vacio') {
+          if (estado) estado.textContent = '⏳ The furnace is busy. Wait for it to finish.';
+          return;
+        }
         const sel = this.STATE && this.STATE.selectedItem;
-        if (!sel) { document.getElementById('furnace-status').textContent = 'Select an item from inventory first'; return; }
+        if (!sel) {
+          if (estado) estado.textContent = 'Pick up an item from your inventory first';
+          return;
+        }
         const itemId = sel.id;
-        const isCoal = itemId && itemId.toLowerCase().includes('carbon');
-        if (slotId === 'furnace-slot-coal' && !isCoal) {
-          document.getElementById('furnace-status').textContent = '⚠️ Only carbon/coal goes here';
+        const esCarbon = this._esCombustibleHorno(itemId);
+
+        if (slotId === 'furnace-slot-coal' && !esCarbon) {
+          if (estado) estado.textContent = '⚠️ Only coal goes in the fuel slot';
           return;
         }
-        if (slotId === 'furnace-slot-ore' && isCoal) {
-          document.getElementById('furnace-status').textContent = '⚠️ This slot is for ore only';
-          return;
+        if (slotId === 'furnace-slot-ore') {
+          if (esCarbon) { if (estado) estado.textContent = '⚠️ Coal goes in the slot below'; return; }
+          if (!this.FURNACE_RECIPES[itemId]) {
+            if (estado) estado.textContent = `⚠️ ${this._getFruitDisplayNameEN(itemId)} cannot be smelted`;
+            return;
+          }
         }
-        slot._item = { id: sel.id, name: sel.name || sel.id, qty: sel.count || 1, idx: sel.idx, manualId: sel.idm };
-        /* Escapado: `sel.image` y el nombre salen del inventario, y el
-           inventario llega de `/api/load/…`. Sin escapar, una comilla en el
-           nombre cierra el atributo `src` y lo que venga detrás se convierte en
-           HTML de la página. El resto del fichero ya escapa así (`_escHtml`);
-           esta línea se había quedado fuera. */
-        slot.innerHTML = `<img src="${this._escHtml(sel.image || '')}" style="width:40px;height:40px;object-fit:contain" onerror="this.style.display='none'"><span class="furnace-slot-label" style="font-size:9px;color:#7ec8ff">${this._escHtml(slot._item.name)} x${this._escHtml(slot._item.qty)}</span>`;
+
+        const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
+        slot._item = {
+          id: itemId,
+          name: this._getFruitDisplayNameEN(itemId),
+          tipo: def ? def.tipo : null,
+          maxStack: def ? (def.maxStack || 20) : 20,
+          image: (def && def.src) || sel.image || '',
+          idx: sel.idx, manualId: sel.idm
+        };
+        /* Escapado: el nombre y la imagen salen del inventario, que llega de
+           `/api/load/…`. Sin escapar, una comilla cierra el atributo `src` y lo
+           que venga detrás se convierte en HTML de la página. */
+        slot.innerHTML =
+          `<img src="${this._escHtml(slot._item.image)}" style="width:40px;height:40px;object-fit:contain" ` +
+          `onerror="this.style.display='none'">` +
+          `<span class="furnace-slot-label" style="font-size:9px;color:#7ec8ff">${this._escHtml(slot._item.name)}</span>`;
         slot.classList.add('has-item');
-        document.getElementById('furnace-status').textContent = `${slot._item.name} added`;
-        this._checkFurnaceReady();
+        if (estado) estado.textContent = `${slot._item.name} added`;
+        this._pintarHorno();
       };
     });
 
-    // Load saved state
-    this._loadFurnaceState();
+    // Estado guardado (puede haber una fundición a medias de otra sesión).
+    this._cargarHorno();
   }
 
-  _checkFurnaceReady() {
-    const oreSlot  = document.getElementById('furnace-slot-ore');
-    const coalSlot = document.getElementById('furnace-slot-coal');
-    const smeltBtn = document.getElementById('furnace-smelt-btn');
-    const ready = !!(oreSlot && oreSlot._item && coalSlot && coalSlot._item);
-    if (smeltBtn) smeltBtn.disabled = !ready;
+  // ── ESTADO ────────────────────────────────────────────────────────────────
+
+  /**
+   * Reconstruye el estado a partir de lo que el servidor sabe guardar.
+   *
+   * `/api/furnace/:playerName` solo persiste `oreItem`, `coalItem` y
+   * `timestamp`. Con eso basta: la receta sale de `oreItem.id` y la hora de fin
+   * de `timestamp + segundos`. Nada de esto depende de campos nuevos, así que
+   * el horno funciona con el backend tal y como está hoy.
+   */
+  _estadoDesdeGuardado(data) {
+    if (!data || !data.oreItem || !data.oreItem.id || !data.timestamp) return null;
+    const receta = this.FURNACE_RECIPES[data.oreItem.id];
+    if (!receta) {
+      /* Que esto salte quiere decir que se quitó una receta con una fundición
+         a medias: ese jugador ya quemó su mineral y su carbón y no va a poder
+         recoger nada. Se grita para que se vea en vez de perderse en silencio. */
+      console.warn('⚠️ Horno: hay una fundición guardada de "' + data.oreItem.id +
+                   '", que ya no tiene receta. Ese material queda perdido.');
+      return null;
+    }
+    const finAt = Number(data.timestamp) + receta.segundos * 1000;
+    return {
+      fase: Date.now() >= finAt ? 'listo' : 'fundiendo',
+      oreId: data.oreItem.id,
+      coalId: (data.coalItem && data.coalItem.id) || 'carbon',
+      resultado: receta.resultado,
+      inicio: Number(data.timestamp),
+      finAt: finAt
+    };
   }
 
-  _saveFurnaceState(oreItem, coalItem) {
-    const payload = { oreItem, coalItem, playerName: this.playerName, timestamp: Date.now() };
-    fetch(`${this.serverBase}/api/furnace/${encodeURIComponent(this.playerName)}`, {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken() },
-      body: JSON.stringify(payload)
-    }).then(r => r.ok && console.log('✅ Furnace state saved'))
-      .catch(e => console.warn('Furnace save error:', e));
-  }
-
-  _loadFurnaceState() {
+  _cargarHorno() {
+    this._hornoEstado = this._hornoEstado || { fase: 'vacio' };
+    this._pintarHorno();
     if (!this.playerName) return;
     fetch(`${this.serverBase}/api/furnace/${encodeURIComponent(this.playerName)}`, {
       credentials: 'include'
-    }).then(r => r.ok ? r.json() : null)
+    }).then(r => (r.ok ? r.json() : null))
       .then(data => {
-        if (!data) return;
-        console.log('🔥 Furnace state loaded:', data);
-        const status = document.getElementById('furnace-status');
-        if (status && data.timestamp) {
-          const mins = Math.floor((Date.now() - data.timestamp) / 60000);
-          status.textContent = `Last smelted ${mins}m ago`;
+        const est = this._estadoDesdeGuardado(data);
+        // Si no había nada guardado se deja el horno vacío, pero NO se pisa una
+        // fundición que se acabe de arrancar en esta misma sesión.
+        if (!est && this._hornoEstado && this._hornoEstado.fase !== 'vacio') return;
+        this._hornoEstado = est || { fase: 'vacio' };
+        this._pintarHorno();
+      })
+      .catch(e => console.warn('No se pudo leer el estado del horno:', e));
+  }
+
+  _guardarHorno(estado) {
+    if (!this.playerName) return Promise.resolve(false);
+    const cuerpo = estado && estado.fase !== 'vacio'
+      ? { oreItem:  { id: estado.oreId },
+          coalItem: { id: estado.coalId },
+          timestamp: estado.inicio }
+      : { oreItem: null, coalItem: null, timestamp: 0 };
+    return fetch(`${this.serverBase}/api/furnace/${encodeURIComponent(this.playerName)}`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken() },
+      body: JSON.stringify(cuerpo)
+    }).then(r => r.ok)
+      .catch(e => { console.warn('No se pudo guardar el estado del horno:', e); return false; });
+  }
+
+  // ── PINTADO ───────────────────────────────────────────────────────────────
+
+  _pararRelojHorno() {
+    if (this._hornoReloj) { clearInterval(this._hornoReloj); this._hornoReloj = null; }
+  }
+
+  _pintarHorno() {
+    const oreSlot   = document.getElementById('furnace-slot-ore');
+    const coalSlot  = document.getElementById('furnace-slot-coal');
+    const resSlot   = document.getElementById('furnace-slot-result');
+    const btn       = document.getElementById('furnace-smelt-btn');
+    const estadoTxt = document.getElementById('furnace-status');
+    const timer     = document.getElementById('furnace-timer');
+    const timeDisp  = document.getElementById('furnace-time-display');
+    if (!oreSlot || !coalSlot || !btn) return;
+
+    const est  = this._hornoEstado || { fase: 'vacio' };
+    const fase = est.fase;
+
+    const vaciarCasilla = (slot, etiqueta) => {
+      slot._item = null;
+      slot.classList.remove('has-item');
+      slot.innerHTML = `<span class="furnace-slot-label">${etiqueta}</span>`;
+    };
+    const ponerCasilla = (slot, itemId, etiqueta) => {
+      const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
+      /* Lo que se pinta aquí es lo que YA está dentro del horno, no lo que el
+         jugador acaba de dejar: se borra `_item` para que al terminar la
+         fundición las casillas no sigan diciendo que hay material puesto —
+         ese material se quemó. */
+      slot._item = null;
+      slot.classList.add('has-item');
+      slot.innerHTML =
+        `<img src="${this._escHtml((def && def.src) || '')}" style="width:40px;height:40px;object-fit:contain" ` +
+        `onerror="this.style.display='none'">` +
+        `<span class="furnace-slot-label" style="font-size:9px;color:#7ec8ff">${this._escHtml(etiqueta)}</span>`;
+    };
+
+    if (fase === 'vacio') {
+      this._pararRelojHorno();
+      // Solo se vacía lo que no tiene material del jugador puesto: si acaba de
+      // dejar el mineral y llega la respuesta del servidor diciendo "no hay
+      // nada en marcha", no se le puede borrar lo que acaba de poner.
+      if (!oreSlot._item)  vaciarCasilla(oreSlot,  'Ore');
+      if (!coalSlot._item) vaciarCasilla(coalSlot, 'Coal');
+      if (resSlot) resSlot.innerHTML = '<span class="furnace-slot-label">Result</span>';
+      if (timer) timer.style.display = 'none';
+      const listo = !!(oreSlot._item && coalSlot._item);
+      btn.disabled = !listo;
+      btn.textContent = '🔥 Smelt';
+      if (estadoTxt && !this._hornoAvisoPropio) {
+        estadoTxt.textContent = listo ? 'Ready to smelt' : 'Add ore and coal to smelt';
+      }
+      this._hornoAvisoPropio = false;
+      return;
+    }
+
+    // Fundiendo o listo: las casillas enseñan lo que se metió y no se tocan.
+    ponerCasilla(oreSlot,  est.oreId,  this._getFruitDisplayNameEN(est.oreId));
+    ponerCasilla(coalSlot, est.coalId, this._getFruitDisplayNameEN(est.coalId));
+    if (resSlot) {
+      const def = this.ItemDefinitions ? this.ItemDefinitions[est.resultado] : null;
+      const opacidad = fase === 'listo' ? '1' : '0.35';
+      resSlot.innerHTML =
+        `<img src="${this._escHtml((def && def.src) || '')}" style="width:40px;height:40px;object-fit:contain;opacity:${opacidad}" ` +
+        `onerror="this.style.display='none'">` +
+        `<span class="furnace-slot-label" style="font-size:9px;color:#7ec8ff">${this._escHtml(this._getFruitDisplayNameEN(est.resultado))}</span>`;
+    }
+
+    if (fase === 'listo') {
+      this._pararRelojHorno();
+      if (timer) timer.style.display = 'none';
+      btn.disabled = false;
+      btn.textContent = '📦 Collect';
+      if (estadoTxt) estadoTxt.textContent = `✅ ${this._getFruitDisplayNameEN(est.resultado)} is ready!`;
+      return;
+    }
+
+    // fase === 'fundiendo'
+    btn.disabled = true;
+    btn.textContent = '🔥 Smelting…';
+    if (estadoTxt) estadoTxt.textContent = `🔥 Smelting ${this._getFruitDisplayNameEN(est.oreId)}…`;
+    if (timer) timer.style.display = '';
+
+    const refrescar = () => {
+      const quedan = Math.max(0, (this._hornoEstado.finAt || 0) - Date.now());
+      if (timeDisp) {
+        const s = Math.ceil(quedan / 1000);
+        timeDisp.textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+      }
+      if (quedan <= 0) {
+        this._hornoEstado.fase = 'listo';
+        this._pintarHorno();
+        try { this.notifications && this.notifications.show(
+          `The furnace finished your ${this._getFruitDisplayNameEN(this._hornoEstado.resultado)}!`,
+          'success', { icon: '🔥' }); } catch (e) { /* ignorar */ }
+      }
+    };
+    this._pararRelojHorno();
+    refrescar();
+    this._hornoReloj = setInterval(refrescar, 1000);
+  }
+
+  /** Deja el aviso puesto sin que el repintado lo borre. */
+  _avisoHorno(texto) {
+    const el = document.getElementById('furnace-status');
+    if (el) el.textContent = texto;
+    this._hornoAvisoPropio = true;
+  }
+
+  // ── FUNDIR ────────────────────────────────────────────────────────────────
+
+  async _iniciarFundido() {
+    if (this._hornoOcupado) return;                 // doble clic
+    const oreSlot  = document.getElementById('furnace-slot-ore');
+    const coalSlot = document.getElementById('furnace-slot-coal');
+    const btn      = document.getElementById('furnace-smelt-btn');
+    const ore  = oreSlot  && oreSlot._item;
+    const coal = coalSlot && coalSlot._item;
+
+    if (!ore || !coal) { this._avisoHorno('⚠️ Add ore and coal first'); this._pintarHorno(); return; }
+
+    const receta = this.FURNACE_RECIPES[ore.id];
+    if (!receta) { this._avisoHorno('⚠️ That ore cannot be smelted'); this._pintarHorno(); return; }
+    if (!this._esCombustibleHorno(coal.id)) { this._avisoHorno('⚠️ That is not fuel'); this._pintarHorno(); return; }
+
+    const defOre  = this.ItemDefinitions[ore.id];
+    const defCoal = this.ItemDefinitions[coal.id];
+    const defRes  = this.ItemDefinitions[receta.resultado];
+    if (!defOre || !defOre.tipo || !defCoal || !defCoal.tipo || !defRes || !defRes.tipo) {
+      this._avisoHorno('⚠️ This furnace recipe has no on-chain record');
+      console.error('❌ Horno: falta el tipo on-chain de', ore.id, coal.id, receta.resultado);
+      this._pintarHorno();
+      return;
+    }
+
+    // ¿Tiene de verdad lo que dice tener? (el hueco pudo cambiar desde el clic)
+    if (this._contarParaFundir(ore.id) < 1) {
+      this._avisoHorno(`⚠️ You have no ${ore.name} left`); this._pintarHorno(); return;
+    }
+    if (this._contarParaFundir(coal.id) < receta.carbon) {
+      this._avisoHorno(`⚠️ You need ${receta.carbon} ${coal.name}`); this._pintarHorno(); return;
+    }
+
+    this._hornoOcupado = true;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Sending…'; }
+    this._avisoHorno('⏳ Checking your ore on-chain…');
+
+    /* LA CADENA MANDA. Si el hueco dice que hay material pero en la cadena no
+       hay factura, no se enciende nada: ver _existenciasEnCadena. Cuando la
+       lectura no se puede hacer (nodo caído) se devuelve null y se sigue con la
+       comprobación local de siempre. */
+    const enCadena = await this._existenciasEnCadena([defOre.tipo, defCoal.tipo]);
+    if (enCadena) {
+      if ((enCadena[defOre.tipo] || 0) < 1) {
+        this._avisoHorno(`❌ You have no ${ore.name} on-chain. Nothing was used.`);
+        this._hornoOcupado = false;
+        this._pintarHorno();
+        return;
+      }
+      if ((enCadena[defCoal.tipo] || 0) < receta.carbon) {
+        this._avisoHorno(`❌ You have no coal on-chain. The furnace was not lit.`);
+        this._hornoOcupado = false;
+        this._pintarHorno();
+        return;
+      }
+    }
+
+    this._avisoHorno('⏳ Burning ore and coal on-chain…');
+
+    const fin = (window.GFTxGate && window.GFTxGate.begin)
+      ? window.GFTxGate.begin(`Furnace: ${ore.id} → ${receta.resultado}`)
+      : null;
+
+    try {
+      // 1) EL MINERAL. Se comprueba con el inventario, no con lo que conteste
+      //    la función: `ejecutarDivisionRemove` es una cola y no propaga bien
+      //    el resultado (mismo criterio que usa el resto del juego).
+      const oreAntes = this._contarParaFundir(ore.id);
+      await this.ejecutarDivisionRemove(defOre.tipo, ore.id, defOre.maxStack || 20, 1);
+      if (oreAntes - this._contarParaFundir(ore.id) < 1) {
+        this._avisoHorno('❌ The ore could not be burned on-chain. Nothing was used.');
+        return;
+      }
+
+      // 2) EL CARBÓN. Si esto falla, el mineral YA se quemó: se devuelve.
+      const coalAntes = this._contarParaFundir(coal.id);
+      await this.ejecutarDivisionRemove(defCoal.tipo, coal.id, defCoal.maxStack || 20, receta.carbon);
+      if (coalAntes - this._contarParaFundir(coal.id) < receta.carbon) {
+        this._avisoHorno('❌ The coal could not be burned. Returning your ore…');
+        console.warn('⚠️ Horno: el carbón no se quemó; se devuelve el mineral', ore.id);
+        try {
+          await this.ejecutarDivision(defOre.tipo, ore.id, defOre.maxStack || 20, 1);
+          this._avisoHorno('❌ The coal could not be burned. Your ore was returned.');
+        } catch (err) {
+          console.error('❌ No se pudo devolver el mineral tras fallar el carbón:', err);
+          this._avisoHorno('❌ The coal failed AND the ore could not be returned. Reopen the furnace.');
         }
-      }).catch(() => {});
+        return;
+      }
+
+      // 3) A CONTAR. Solo ahora, con las dos quemas confirmadas.
+      const ahora = Date.now();
+      this._hornoEstado = {
+        fase: 'fundiendo',
+        oreId: ore.id,
+        coalId: coal.id,
+        resultado: receta.resultado,
+        inicio: ahora,
+        finAt: ahora + receta.segundos * 1000
+      };
+      await this._guardarHorno(this._hornoEstado);
+      console.log(`🔥 Horno: ${ore.id} + ${coal.id} → ${receta.resultado} en ${receta.segundos}s`);
+      try { this.notifications && this.notifications.show(
+        `Smelting ${ore.name}… ready in ${Math.round(receta.segundos / 60) || 1} min`,
+        'info', { icon: '🔥' }); } catch (e) { /* ignorar */ }
+    } catch (err) {
+      console.error('❌ Error arrancando el horno:', err);
+      this._avisoHorno('❌ Something went wrong. Nothing was charged.');
+    } finally {
+      if (fin) fin();
+      this._hornoOcupado = false;
+      this._pintarHorno();
+    }
+  }
+
+  async _recogerDelHorno() {
+    if (this._hornoOcupado) return;
+    const est = this._hornoEstado;
+    if (!est || est.fase !== 'listo') return;
+
+    const def = this.ItemDefinitions[est.resultado];
+    if (!def || !def.tipo) {
+      this._avisoHorno('⚠️ The result has no on-chain record');
+      return;
+    }
+
+    this._hornoOcupado = true;
+    const btn = document.getElementById('furnace-smelt-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Collecting…'; }
+    this._avisoHorno('⏳ Minting your ingot on-chain…');
+
+    const fin = (window.GFTxGate && window.GFTxGate.begin)
+      ? window.GFTxGate.begin(`Furnace collect: ${est.resultado}`)
+      : null;
+
+    try {
+      /* SE ACUÑA PRIMERO Y SE BORRA EL HORNO DESPUÉS. Si se borrara antes y la
+         acuñación fallara, el jugador se quedaría sin mineral, sin carbón y sin
+         lingote. Mientras el horno no se borre, puede volver a darle a recoger. */
+      const antes = this._contarParaFundir(est.resultado);
+      await this.ejecutarDivision(def.tipo, est.resultado, def.maxStack || 20, 1);
+      const conseguidas = this._contarParaFundir(est.resultado) - antes;
+
+      if (conseguidas < 1) {
+        this._avisoHorno('❌ Could not confirm on-chain. Your ingot is still here — try again.');
+        console.warn('⚠️ Horno: la acuñación de', est.resultado, 'no se confirmó; el horno se queda listo.');
+        return;
+      }
+
+      this._hornoEstado = { fase: 'vacio' };
+      await this._guardarHorno(this._hornoEstado);
+      this._avisoHorno(`✅ You collected 1 ${this._getFruitDisplayNameEN(est.resultado)}`);
+      try { this.notifications && this.notifications.show(
+        `You collected 1 ${this._getFruitDisplayNameEN(est.resultado)}!`,
+        'success', { icon: '🔥' }); } catch (e) { /* ignorar */ }
+    } catch (err) {
+      console.error('❌ Error recogiendo del horno:', err);
+      this._avisoHorno('❌ Something went wrong. Your ingot is still in the furnace.');
+    } finally {
+      if (fin) fin();
+      this._hornoOcupado = false;
+      this._pintarHorno();
+    }
   }
 
   // =========================================================================

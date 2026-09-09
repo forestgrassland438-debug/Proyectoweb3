@@ -2300,8 +2300,22 @@ this.anims.create({
           Tijerasx: { src: "./Game/Source/tijeras.png", maxStack: 1 , tipo: "Tijerasx", usos: 20 },
 
           mineral_piedra: { src: "./Game/Source/piedra.png", maxStack: 20 , tipo: "mineral_piedra", usos: null },
+
+          /* LOS DOS LINGOTES. Ya no salen de picar: ahora se FUNDEN en el horno
+             a partir de la piedra en bruto (ver FURNACE_RECIPES más abajo). El
+             dibujo es una barra de 16x9, no una roca — siempre fueron lingotes
+             aunque el nombre dijera "mineral". */
           mineral_cobre: { src: "./Game/Source/cobre.png", maxStack: 20 , tipo: "mineral_cobre", usos: null },
           mineral_hierro: { src: "./Game/Source/hierro.png", maxStack: 20 , tipo: "mineral_hierro", usos: null },
+
+          /* PIEDRA EN BRUTO — lo que suelta la mina desde 2026-09-08.
+             Sus tablas on-chain son mineral_piedra_cobre / mineral_piedra_hierro
+             / mineral_carbon, y NO se pueden confundir con las de los lingotes
+             (mineral_cobre / mineral_hierro): son tablas distintas del contrato,
+             con su propio cupo y sus propias facturas. */
+          mineral_piedra_cobre:  { src: "./Game/Source/piedra_cobre.png",  maxStack: 20, tipo: "mineral_piedra_cobre",  usos: null },
+          mineral_piedra_hierro: { src: "./Game/Source/piedra_hierro.png", maxStack: 20, tipo: "mineral_piedra_hierro", usos: null },
+          mineral_carbon:        { src: "./Game/Source/piedra_carbon.png", maxStack: 20, tipo: "mineral_carbon",        usos: null },
           /* FALTABAN AQUÍ, Y SOLO AQUÍ.
              Este catálogo es una COPIA del de GameScene, y se había quedado
              atrás: le faltaban el carbón y las tres pociones del alquimista,
