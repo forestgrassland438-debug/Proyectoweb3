@@ -154,6 +154,19 @@ function tienda(escena, facturas) {
 const callar = () => { console.log = () => {}; };
 const volver = () => { console.log = hablar; };
 
+/* LA VENTA YA NO ESPERA A LA CADENA: SE ENCOLA (ver tienda-prueba-cola.js).
+   `processSale` vuelve en cuanto ha comprometido las unidades, así que una
+   prueba que mire el inventario justo después no ve nada hecho todavía. Esto
+   espera a que la cola de la tienda se vacíe, que es el momento en el que ya
+   se puede comprobar el resultado. */
+const dormir = (ms) => new Promise(r => setTimeout(r, ms));
+async function vender(t, item, cantidad) {
+  await t.processSale(item, cantidad);
+  const hasta = Date.now() + 20000;
+  while (t.trabajosPendientes && t.trabajosPendientes() > 0 && Date.now() < hasta) await dormir(5);
+  await dormir(20);
+}
+
 console.log('=== LA VENTA EN LA TIENDA ===\n');
 
 // ── 1. Todo lo vendible se puede quitar de la cadena ────────────────────────
@@ -200,7 +213,7 @@ console.log('\n2) Trigo, fresa y calabaza estan a la venta');
   const bruto = item.sellPrice * 5;
   const esperado = plataAntes + bruto - Math.ceil(bruto * (item.comision / 100));
 
-  callar(); await t.processSale(item, 5); volver();
+  callar(); await vender(t, item, 5); volver();
 
   const pedido = t.relayClient.pedidos[0] || {};
   ok(pedido.tipo === 'zanahoria_buena', 'se pide el tipo on-chain, no "slots"',
@@ -224,7 +237,7 @@ console.log('\n2) Trigo, fresa y calabaza estan a la venta');
   const t2 = tienda(e2, facturas2);
   const plataAntes2 = Math.floor(Number(t2.getBalanceByCurrency('silver')) || 0);
 
-  callar(); await t2.processSale(item, 5); volver();
+  callar(); await vender(t2, item, 5); volver();
 
   ok(e2.contar('zanahoria_buena') === 5, 'el jugador conserva sus zanahorias',
      String(e2.contar('zanahoria_buena')));
@@ -245,7 +258,7 @@ console.log('\n2) Trigo, fresa y calabaza estan a la venta');
   const bruto3 = fresa.sellPrice * 3;
   const esperado3 = plataAntes3 + bruto3 - Math.ceil(bruto3 * (fresa.comision / 100));
 
-  callar(); await t3.processSale(fresa, 3); volver();
+  callar(); await vender(t3, fresa, 3); volver();
 
   ok(e3.contar('fresa_buena') === 0, 'las fresas salen del inventario',
      String(e3.contar('fresa_buena')));

@@ -114,7 +114,7 @@ function escuchados(texto) {
 }
 
 /** Solo los eventos de lo social: el resto del juego no es asunto de esta prueba. */
-const MIOS = /^(friends:|chat(React|Edit|Command|Reaction|Edited|EditError)|player:nameColor|playerNameColor)/;
+const MIOS = /^(friends:|chat(React|Command|Reaction)|player:(pet)?[Nn]ameColor|player(Pet)?NameColor)/;
 const soloMios = (conjunto) => [...conjunto].filter(e => MIOS.test(e)).sort();
 
 const clienteEmite   = new Set();
@@ -250,10 +250,14 @@ console.log('\n5) El color del nombre se valida SIEMPRE antes de pintarlo');
   });
 
   if (servidor) {
-    ok(/if \('nameColor' in update\)/.test(servidor),
-       '/api/save valida nameColor antes de guardarlo');
+    /* Los DOS colores (personaje y mascota) se validan en el mismo bucle: son
+       el mismo tipo de dato y el mismo riesgo, así que un solo sitio. */
+    ok(/for \(const campoColor of \['nameColor', 'petNameColor'\]\)/.test(servidor),
+       '/api/save valida los dos colores antes de guardarlos');
     ok(/socket\.on\('player:nameColor'/.test(servidor),
        'existe el evento player:nameColor para cambiarlo en caliente');
+    ok(/socket\.on\('player:petNameColor'/.test(servidor),
+       'y player:petNameColor para el de la mascota');
   } else saltar('sin server2.js no se puede comprobar el guardado');
 }
 
@@ -327,8 +331,12 @@ console.log('\n7) El mapa y la tienda montan los TRES módulos');
 // ── 7b. El aviso del botón del chat ─────────────────────────────────────────
 console.log('\n7b) El botón del chat titila con un mensaje nuevo');
 {
-  ok(/s\.on\('chatMessage', function \(m\) \{ avisarDeMensaje\(s, m\); \}\);/.test(SRC.chat),
+  /* Se busca el enganche, sea con `s.on` o con el ayudante `poner` que apunta
+     lo enganchado para poder soltarlo cuando el socket se sustituye. */
+  ok(/(poner|s\.on)\('chatMessage',\s*function \(m\) \{\s*avisarDeMensaje\(s, m\);/.test(SRC.chat),
      'el aviso escucha `chatMessage` (el mensaje en vivo)');
+  ok(/oyentesPuestos/.test(SRC.chat) && /oyentesPuestos/.test(SRC.amigos),
+     'y los oyentes del socket viejo se sueltan al cambiar de socket');
 
   /* Y NO `chatHistory`. Entrar en una escena trae las últimas 50 líneas de
      golpe: si el aviso las contara, el botón titilaría siempre al entrar, por
@@ -369,6 +377,191 @@ console.log('\n7b) El botón del chat titila con un mensaje nuevo');
 
   ok(/prefers-reduced-motion: reduce/.test(SRC.css.slice(iAviso)),
      'y quien pide menos movimiento ve el botón encendido en vez de parpadeando');
+}
+
+// ── 7c. Fugas: lo que crece sin fin ─────────────────────────────────────────
+console.log('\n7c) Nada crece sin techo');
+{
+  /* EL CHAT NO SE PODABA. `chatMessages.appendChild` no quitaba nunca nada: una
+     partida larga deja miles de renglones en el DOM, y ahora cada uno lleva
+     además dos botones con manejadores. Un DOM de miles de nodos es justo lo
+     que produce los tirones al pintar y al desplazar. */
+  ok(/var TOPE_RENGLONES = \d+;/.test(SRC.chat), 'el chat tiene tope de renglones');
+  ok(/function podarChat\(/.test(SRC.chat) && /caja\.removeChild\(viejo\)/.test(SRC.chat),
+     'y una poda que los quita de verdad del DOM');
+  ok(/pintados\.delete\(mid\)/.test(SRC.chat),
+     'y suelta también su entrada del registro de mensajes');
+  ok(/var TOPE_REGISTRO = \d+;/.test(SRC.chat), 'el registro de mensajes tiene tope');
+
+  /* Los oyentes del socket viejo. Una reconexión sustituye
+     `window.globalSocket`; sin soltarlos, el socket muerto no se puede recoger
+     y se acumula uno por reconexión. */
+  ['chat', 'amigos'].forEach(function (cual) {
+    ok(/oyentesPuestos/.test(SRC[cual]) && /\.off\(par\[0\], par\[1\]\)/.test(SRC[cual]),
+       'gf-' + (cual === 'chat' ? 'chat-social' : 'amigos') + ': suelta los oyentes del socket anterior');
+  });
+
+  ok(/__gfncMirando/.test(SRC.color),
+     'el vigilante del color no se multiplica por escena');
+
+  /* Y la limpieza de jugadores remotos, en UN solo sitio. Tenerla escrita dos
+     veces fue lo que dejó los nombres de mascota flotando por el mapa. */
+  [['GameScene', SRC.mapa], ['tiendajuego', SRC.tienda]].forEach(function (par) {
+    const txt = par[1];
+    ok(/_soltarJugadorRemoto\(p\) \{/.test(txt),
+       par[0] + ': existe _soltarJugadorRemoto, la única lista de cosas que soltar');
+    const usos = (txt.match(/_soltarJugadorRemoto\(/g) || []).length;
+    ok(usos >= 4, par[0] + ': la usan todos los caminos de limpieza (' + usos + ' usos)');
+    ok(/fuera\(p\.dog\.nameText\)/.test(txt),
+       par[0] + ': suelta el nombre de la mascota (era el que se quedaba clavado)');
+  });
+}
+
+// ── 7d. Seguridad de los privados ───────────────────────────────────────────
+console.log('\n7d) El chat privado no se puede usar para colarse');
+{
+  if (!servidor) {
+    saltar('sin server2.js no se pueden comprobar las reglas del backend');
+  } else {
+    /* 1. QUIÉN ERES LO DICE EL JWT, NUNCA EL MENSAJE. Si un solo manejador
+          sacara el nombre del cuerpo, cualquiera podría leer, editar o vaciar
+          la conversación de otro sin más que escribir su nombre. */
+    const manejadores = ['friends:dm', 'friends:dm:history', 'friends:dm:react',
+                         'friends:dm:edit', 'friends:dm:clear', 'friends:dm:limpieza',
+                         'friends:inbox'];
+    const sinIdentidad = manejadores.filter(ev => {
+      const i = servidor.indexOf("socket.on('" + ev + "'");
+      if (i < 0) return true;
+      const cuerpo = servidor.slice(i, i + 900);
+      return !/const yo = await cuentaDelSocket\(socket\)/.test(cuerpo);
+    });
+    ok(sinIdentidad.length === 0,
+       'los ' + manejadores.length + ' manejadores sacan la identidad del socket, no del mensaje',
+       sinIdentidad.join(', '));
+
+    /* 2. NO SE PUEDE TOCAR UN MENSAJE AJENO. */
+    ok(/if \(!m \|\| !mioOSuyo\(m, yo\)\) return;/.test(servidor),
+       'reaccionar exige que el privado sea de tu conversación');
+    ok(/if \(m\.de !== yo\)\s+return socket\.emit\('friends:dm:editError'/.test(servidor),
+       'editar exige ser el autor');
+    ok(/const filtro = \{ \$or: \[\{ de: yo, para: otro \}, \{ de: otro, para: yo \}\] \};/.test(servidor),
+       'vaciar solo alcanza a TU conversación con esa persona');
+
+    /* 3. UN ID QUE NO ES UN ID NO LLEGA A LA BASE DE DATOS. `findById` con
+          basura lanza CastError; con el id viniendo del cliente, eso es un
+          grifo de errores abierto. */
+    ok(/function privadoPorId/.test(servidor) &&
+       /\^\[0-9a-fA-F\]\{24\}\$/.test(servidor),
+       'el id de un privado se valida antes de consultar');
+
+    /* 4. EL TEXTO SE ESCAPA AL GUARDARLO, las dos veces que se guarda. */
+    const escapes = (servidor.match(/const texto = escapeHtml\(recortado\);/g) || []).length;
+    ok(escapes >= 2, 'el texto se escapa al enviarlo Y al editarlo (' + escapes + ' sitios)');
+    ok(/\[\.\.\.crudo\]\.slice\(0, DM_LARGO_MAX\)/.test(servidor),
+       'y se recorta por puntos de código, sin partir un emoji por la mitad');
+
+    /* 5. LAS REACCIONES SON UNA LISTA CERRADA. Con emoji libre, el campo se
+          convierte en un segundo chat sin freno pegado a cada mensaje. */
+    ok(/function reaccionValida\(e\) \{ return REACCIONES_VALIDAS/.test(servidor),
+       'las reacciones se validan contra la lista cerrada');
+
+    /* 6. HACE FALTA UNA RELACIÓN PARA ESCRIBIR. Sin esto, la bandeja de
+          cualquiera queda abierta a todo el mundo — y lo que entra se guarda. */
+    ok(/const hayRelacion = enLista\(mio\.amigos, otro\) \|\|/.test(servidor),
+       'solo se escribe a amigos o a quien tenga una solicitud contigo');
+
+    /* 7. FRENOS. */
+    ['dm', 'dmreact', 'dmedit', 'dmclear'].forEach(f => {
+      ok(new RegExp("frenado\\(socket, '" + f + "'").test(servidor),
+         'freno antispam en ' + f);
+    });
+
+    /* 8. LA DIRECCIÓN DE LA CARTERA NO SALE. Entró en la ficha para poder
+          buscar la presencia por varias llaves; que se cuele al cliente sería
+          repartir la cartera de todos los jugadores. */
+    const fugas = [];
+    ['friends:online', 'friends:search'].forEach(ev => {
+      const i = servidor.indexOf("socket.on('" + ev + "'");
+      const cuerpo = servidor.slice(i, i + 2200);
+      if (!/const \{ address, \.\.\.publica \} = f;/.test(cuerpo) &&
+          !/NO se copia/.test(cuerpo)) fugas.push(ev);
+    });
+    ok(fugas.length === 0, 'la dirección de la cartera no viaja al cliente', fugas.join(', '));
+
+    /* 8b. LO QUE SE ESCRIBE EN LA BUSCA ACABA EN UNA EXPRESIÓN REGULAR DE
+           MONGO. Sin limpiar, `.*.*.*.*x` es una consulta que se come el
+           servidor, y un `$` bien puesto cambia lo que se busca. Se recorta a
+           letras y dígitos, se limita a 15 y además se escapan los comodines. */
+    ok(servidor.includes("{Nd}]/gu, '')") &&
+       servidor.includes(".slice(0, 15)"),
+       'la búsqueda solo deja pasar letras y dígitos');
+    ok(servidor.includes("const esc = limpio.replace(") &&
+       servidor.includes("$regex: '^' + esc"),
+       'y lo que quede se escapa antes de ir a la expresión regular');
+    ok(/const \{ address, \.\.\.publica \} = f;/.test(servidor),
+       'y la lista de amigos tampoco la lleva');
+  }
+
+  /* 9. EN EL CLIENTE, NADA DE HTML. Todo lo que escribe otro jugador se pinta
+        con textContent; un innerHTML aquí reabriría el agujero que cierra el
+        escapado del servidor. */
+  ['amigos', 'chat'].forEach(cual => {
+    const txt = SRC[cual].replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    ok(!/\.innerHTML\s*=/.test(txt) && !/insertAdjacentHTML/.test(txt),
+       'gf-' + (cual === 'chat' ? 'chat-social' : 'amigos') + ': no usa innerHTML con datos de nadie');
+  });
+  ok(/function colorSeguro/.test(SRC.amigos) && /function colorSeguro/.test(SRC.chat),
+     'el color que manda otro jugador se valida antes de pintarlo');
+}
+
+// ── 7e. El privado que entra no repinta la conversación entera ───────────
+console.log('\n7e) Un mensaje nuevo cuesta un mensaje, no la conversación entera');
+{
+  /* POR QUÉ SE VIGILA. `pintarConversacion` vacía la lista y la reconstruye
+     entera, con sus dos botones y sus manejadores por burbuja. Medido en el
+     banco: 3.8 ms por mensaje con 22 burbujas y 28.3 ms con 122 — el coste
+     sube con lo que llevas hablado, y al tope de 200 son unos 46 ms, tres
+     cuadros perdidos por cada mensaje. Es exactamente la clase de tirón que
+     nadie asocia con el chat.
+
+     Volver a poner `pintarConversacion()` en cualquiera de estos cuatro sitios
+     lo trae de vuelta sin dar ningún error, así que se comprueba aquí. */
+  const A = SRC.amigos;
+
+  ok(/function burbujaDe\(m\)/.test(A) && /function anadirBurbuja\(m\)/.test(A),
+     'la burbuja de un mensaje se construye suelta (burbujaDe + anadirBurbuja)');
+
+  const trozo = (marca, largo) => {
+    const i = A.indexOf(marca);
+    return i < 0 ? '' : A.slice(i, i + largo);
+  };
+
+  const entrante = trozo("poner('friends:dm', function (m)", 700);
+  ok(/anadirBurbuja\(m\);/.test(entrante) && !/pintarConversacion\(\)/.test(entrante),
+     'un privado que entra añade UNA burbuja');
+
+  const reaccion = trozo("poner('friends:dm:reaccion'", 700);
+  ok(/pintarReaccionesDM\(mr, mr\._nodo\)/.test(reaccion) && !/pintarConversacion\(\)/.test(reaccion),
+     'una reacción repinta solo su burbuja');
+
+  const editado = trozo("poner('friends:dm:editado'", 900);
+  ok(/me2\._txt\.textContent = desescapar\(d\.texto\)/.test(editado),
+     'una edición cambia solo el texto de su burbuja');
+
+  /* EL TOPE. Sin él, dejar la conversación abierta la deja crecer sin fin: ni
+     el array ni el DOM sueltan nunca nada. 200 es lo que guarda el servidor
+     (DM_GUARDADOS_MAX), o sea lo más que se puede llegar a ver. */
+  ok(/var TOPE_CONVERSACION = 200;/.test(A), 'la conversación abierta tiene tope');
+  ok(/\.forEach\(soltarBurbuja\);/.test(A),
+     'y lo que sale de la lista sale también del DOM');
+  ok(/function soltarBurbuja\(m\)/.test(A) && /m\._reacs = null;/.test(A),
+     'soltando además su fila de reacciones');
+
+  /* MARCAR LEÍDO REAPROVECHA `friends:dm:history`, que es una consulta de hasta
+     200 documentos. Pedirla por cada mensaje que entra son cientos de consultas
+     idénticas en una conversación viva. */
+  ok(/var LEIDO_FRENO_MS = 3000;/.test(A) && /function marcarLeido/.test(A),
+     'marcar leído lleva freno (no una consulta por mensaje)');
 }
 
 // ── 8. El botón redondo ──────────────────────────────────────────────────────

@@ -33,7 +33,12 @@ const METODOS = ['initSocket', 'setupGlobalSocketEvents', '_enterrarSocket',
                  'joinRoom', 'rehacerJoin', '_prepararRejoinAlDespertar',
                  'onSocketReconnect', 'onSocketDisconnect', '_onShutdown',
                  'setupSceneSocketListeners', 'removeSocketListeners',
-                 '_socketVivo', '_vaciarColaChat', '_sendChatFromInput'];
+                 '_socketVivo', '_vaciarColaChat', '_sendChatFromInput',
+                 /* El envio se parti en dos: `_sendChatFromInput` prepara y
+                    `_enviarTextoAlChat` manda, que es tambien lo que usa la cola
+                    de mensajes que llegan demasiado pronto (`_encolarChat`). Sin
+                    los tres, esta prueba carga media clase y revienta. */
+                 '_enviarTextoAlChat', '_encolarChat'];
 
 /** Extrae `nombre(...) { … }` contando llaves, sin tropezar con cadenas ni comentarios. */
 function metodo(txt, nombre) {
@@ -132,6 +137,8 @@ class EscenaDePrueba {
   _desescaparChat(t) { return t; }
   _showLocalChatBubble() {} _cerrarSelectorEmojis() {} _refrescarBotonEnviarChat() {}
   escribir(texto) { this.chatInput.value = texto; this._sendChatFromInput(); }
+  /* La cola de envio usa setTimeout; en esta prueba el freno es 0, asi que
+     nunca se encola. Se deja el metodo por si algun dia se prueba. */
 `;
 
 function claseDe(fichero) {

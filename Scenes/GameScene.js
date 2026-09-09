@@ -18258,13 +18258,20 @@ removeOtherPlayer(playerId) {
     const panel = document.getElementById('chat-emoji-picker');
     if (!boton || !panel || !this.chatInput) return;
 
-    const CATEGORIAS = [
-      { nombre: 'Faces', lista: ['😀','😄','😁','😆','😅','🤣','😂','🙂','😉','😊','😍','🥰','😘','😜','🤪','🤔','🤨','😐','😴','😎','🥳','😏','😢','😭','😤','😡','🥺','😱','🤯','🤗','🤝','🙏'] },
-      { nombre: 'Gestures', lista: ['👍','👎','👌','✌️','🤞','🤙','👋','💪','🫶','👏','🙌','🤛','🤜','✊','☝️','🖐️'] },
-      { nombre: 'Game', lista: ['⚔️','🛡️','🏹','🪓','⛏️','🎣','🧪','💎','🪵','🪨','🔥','💧','⚡','🌟','✨','🏆','🥇','🎁','💰','🪙','🗝️','🧭','🗺️','⏳'] },
-      { nombre: 'Farm', lista: ['🌱','🌿','🍀','🌳','🌲','🌾','🥕','🍅','🎃','🌽','🍎','🍇','🐄','🐔','🐷','🐶','🐱','🐝','🦋','☀️','🌧️','❄️','🌈','🌙'] },
-      { nombre: 'Chat', lista: ['❤️','💔','💯','✅','❌','❓','❗','💬','👀','🎉','🤝','🚀','⭐','🔔','📦','🛒'] }
-    ];
+    /* EL CATÁLOGO SALE DE gf-chat-social, NO DE AQUÍ.
+
+       Dos motivos. El primero, que estaba escrito TRES veces (aquí, en la
+       tienda y en el selector de los privados) y tres copias de una lista
+       acaban distintas — el jugador ve emojis en un sitio que en otro no.
+
+       El segundo es el que lo rompía: varios de los que había son de Unicode 13
+       y 14, y la fuente de Windows 10 se quedó en el 12. Un emoji que la fuente
+       no tiene se pinta como un CUADRADO VACÍO y no hay forma de saberlo desde
+       CSS. El módulo los detecta dibujándolos en un lienzo y solo devuelve los
+       que este equipo sabe pintar. */
+    const CATEGORIAS = (window.GFChatSocial && window.GFChatSocial.categoriasEmojiUsables)
+      ? window.GFChatSocial.categoriasEmojiUsables()
+      : [{ nombre: 'Emojis', lista: ['😀','😄','😉','🙂','😢','😡','👍','👎','❤️','🔥','✅','❌'] }];
 
     // Rejilla (se construye una sola vez)
     if (!panel.dataset.gfListo) {
@@ -20198,9 +20205,26 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
         });
       }
 
+      /* EL DUEÑO DE LA FACTURA ES UNA DIRECCIÓN, NO UN NOMBRE.
+
+         `createInvoice(address _owner, …)` espera una dirección, y aquí iba
+         `this.playerName`, que es el APODO del jugador en cuanto se pone uno
+         (/api/auth/me devuelve `playerName: player.playerName || address`, y
+         el juego guarda `data.playerName || data.address`). Con un apodo, la
+         transacción ni sale: ethers no puede codificar "Kuro" como address.
+
+         Y si saliera sería peor: el relay comprueba que la factura sea del
+         jugador antes de firmar cualquier `decreaseInvoiceQuantity`
+         (verifyInvoiceOwnership en server2.js), así que una factura con otro
+         dueño NO SE PODRÍA VENDER NUNCA.
+
+         Se usa la dirección autenticada, que es la que compara el servidor. El
+         apodo queda de respaldo solo por si `checkAuth` no la trajo. */
+      const duenoFactura = (auth && auth.address) ? auth.address : this.playerName;
+
       const accionCrear = {
         funcion: 'createInvoice',
-        _owner: this.playerName,
+        _owner: duenoFactura,
         _tipo: ruta_tabla,
         _cantidad: amountAdded,
         _manualId: manualGenerado,
@@ -21986,9 +22010,31 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
         }
       }
 
+      /* SIN idx NO SE ABANDONA: SE SIGUE POR EL TIPO.
+
+         FALLO QUE ESTO ARREGLA — "puedo comprar pero no vender".
+
+         Aquí había un `continue` que descartaba la operación entera cuando el
+         hueco no traía un id de factura utilizable. Y eso pasa a menudo:
+         `/api/load` manda `idx: s.IDX ?? s.id`, así que un objeto sin IDX en la
+         base de datos se queda con el NÚMERO DE HUECO — y el hueco 0 da
+         `idx = 0`, que en JavaScript es falso. Un objeto guardado en la primera
+         casilla del inventario NO SE PODÍA VENDER NUNCA. Tampoco los que
+         llegaron con `idx: null`.
+
+         Y no era un fallo ruidoso: al saltarse la operación no se enviaba nada,
+         no se apuntaba ningún motivo, y la venta terminaba con el cartel genérico
+         "la cadena no lo confirmó". Nada que mirar.
+
+         `quitarDeFactura` YA SABE resolver esto: si el id no vale, busca por
+         manualId y, si tampoco, mira las facturas vivas del jugador y coge una
+         del tipo que se está gastando. Lo único que hacía falta era dejarla
+         intentarlo. El id se manda como 0 —que es lo que ella entiende por "no
+         tengo id"— y el `tipo` hace el trabajo. */
       if (!op.idx) {
-        console.warn('Operación sin idx (invoice id) y no resolvible por manualid - ignorando operación:', op);
-        continue;
+        console.warn('Operación sin id de factura utilizable: se buscará por tipo (' +
+                     ruta_tabla + ') en el inventario del jugador.', op);
+        op.idx = 0;
       }
 
       // normalize amountRemoved
@@ -22326,25 +22372,45 @@ async EliitemWithCheck(itemId, amountToRemove = 1, invoiceIdx = null, manualId =
 
   let remaining = Number(amountToRemove);
 
-  // Helper: procesar array de slots (mutación IN-PLACE)
-  const processSlotsArray = (slotsArray, slotType) => {
+  /* EL OBJETO MANDA; EL idx SOLO ELIGE QUÉ MONTÓN. Dos pasadas.
+
+     DOS FALLOS QUE ESTO ARREGLA:
+
+     1) SE PODÍA BORRAR OTRA COSA. La condición de antes aceptaba un hueco si
+        coincidía el `idx` O el `idm`, SIN mirar de qué objeto era. Y los `idx`
+        de los huecos son números de hueco muy a menudo (3, 7, 12…), repetidos
+        entre inventario y cofre rápido. Vender 5 zanahorias con `idx = 3`
+        podía vaciar el hueco 3 del cofre —donde estaba el hacha—. Ahora un
+        hueco solo entra si `slot.id === itemId`: nunca se toca otro objeto.
+
+     2) SE QUEMABA EN LA CADENA Y NO EN EL INVENTARIO. Si ningún hueco tenía
+        ese `idx` ni ese `idm` (lo normal cuando `quitarDeFactura` encuentra la
+        factura buena por el tipo y devuelve OTRO id), no se quitaba nada en
+        local: la factura desaparecía de la cadena y el objeto seguía en
+        pantalla. Ahora hay una segunda pasada: si con las pistas no se
+        completó, se quita de cualquier montón de ESE MISMO objeto.
+
+     `soloPreferidos = true`  → solo los huecos que casan con idx/manualId.
+     `soloPreferidos = false` → cualquier hueco de ese objeto. */
+  const processSlotsArray = (slotsArray, slotType, soloPreferidos) => {
+    // Un id 0 o un manualId vacío no son pistas: son "no tengo".
+    const hayPista = (invoiceIdx !== null && invoiceIdx !== undefined && Number(invoiceIdx) > 0) ||
+                     (manualId !== null && manualId !== undefined && String(manualId) !== '');
+
     for (let i = 0; i < slotsArray.length && remaining > 0; i++) {
       const slot = slotsArray[i];
       if (!slot) continue;
 
-      // Priorizar coincidencia por invoiceIdx/manualId si fueron provistos
-      const matchesIdx = invoiceIdx !== null && (slot.idx === invoiceIdx || slot.idx === Number(invoiceIdx));
-      const matchesManual = manualId !== null && (slot.idm === manualId || slot.idm === String(manualId));
+      // NUNCA otro objeto: esta es la condición que no se puede saltar.
+      if (slot.id !== itemId) continue;
 
-      // Si tenemos idx/manual y NO coincide, saltamos
-      if ((invoiceIdx !== null || manualId !== null) && !(matchesIdx || matchesManual)) {
-        continue;
-      }
+      const matchesIdx = invoiceIdx !== null && Number(invoiceIdx) > 0 &&
+                         (slot.idx === invoiceIdx || Number(slot.idx) === Number(invoiceIdx));
+      const matchesManual = manualId !== null && String(manualId) !== '' &&
+                            (slot.idm === manualId || String(slot.idm) === String(manualId));
 
-      // Si no hay idx/manual dado, aceptamos por itemId
-      if ((invoiceIdx === null && manualId === null) && slot.id !== itemId) {
-        continue;
-      }
+      // En la primera pasada solo valen los huecos señalados por las pistas.
+      if (soloPreferidos && hayPista && !(matchesIdx || matchesManual)) continue;
 
       // Encontrado un slot válido para reducir
       const slotCount = Number(slot.count || slot.quantity || 0);
@@ -22375,28 +22441,35 @@ async EliitemWithCheck(itemId, amountToRemove = 1, invoiceIdx = null, manualId =
     }
   };
 
-  // 1) Prioridad: quickSlots (hotbar / cofre rápido)
-  if (this.STATE && Array.isArray(this.STATE.quickSlots)) {
-    processSlotsArray(this.STATE.quickSlots, 'quick');
-  }
+  // Se recorre TODO con las pistas puestas y, si aún falta, se repite sin
+  // ellas. El orden entre montones no cambia: cofre rápido, inventario, cofre.
+  const recorrerTodo = (soloPreferidos) => {
+    // 1) Prioridad: quickSlots (hotbar / cofre rápido)
+    if (remaining > 0 && this.STATE && Array.isArray(this.STATE.quickSlots)) {
+      processSlotsArray(this.STATE.quickSlots, 'quick', soloPreferidos);
+    }
 
-  // 2) Inventario principal
-  if (remaining > 0 && this.STATE && Array.isArray(this.STATE.slots)) {
-    processSlotsArray(this.STATE.slots, 'inv');
-  }
+    // 2) Inventario principal
+    if (remaining > 0 && this.STATE && Array.isArray(this.STATE.slots)) {
+      processSlotsArray(this.STATE.slots, 'inv', soloPreferidos);
+    }
 
-  // 3) Chest / cofre extra (si existe)
-  if (remaining > 0 && this.STATE && Array.isArray(this.STATE.chestSlots)) {
-    processSlotsArray(this.STATE.chestSlots, 'chest');
-  }
+    // 3) Chest / cofre extra (si existe)
+    if (remaining > 0 && this.STATE && Array.isArray(this.STATE.chestSlots)) {
+      processSlotsArray(this.STATE.chestSlots, 'chest', soloPreferidos);
+    }
 
-  // 4) Como respaldo, si aún queda y existen otros arrays (casillas, casillasExtra)
-  if (remaining > 0 && Array.isArray(this.casillas)) {
-    processSlotsArray(this.casillas, 'casillas');
-  }
-  if (remaining > 0 && Array.isArray(this.casillasExtra)) {
-    processSlotsArray(this.casillasExtra, 'casillasExtra');
-  }
+    // 4) Como respaldo, si aún queda y existen otros arrays (casillas, casillasExtra)
+    if (remaining > 0 && Array.isArray(this.casillas)) {
+      processSlotsArray(this.casillas, 'casillas', soloPreferidos);
+    }
+    if (remaining > 0 && Array.isArray(this.casillasExtra)) {
+      processSlotsArray(this.casillasExtra, 'casillasExtra', soloPreferidos);
+    }
+  };
+
+  recorrerTodo(true);
+  if (remaining > 0) recorrerTodo(false);
 
   // Persistir / UI
   try {
