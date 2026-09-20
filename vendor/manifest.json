@@ -1,0 +1,34 @@
+{
+  "versions": {
+    "@socket.io/component-emitter": "3.1.2",
+    "engine.io-client": "6.6.6",
+    "engine.io-parser": "5.2.3",
+    "ethers": "6.17.0",
+    "phaser": "3.90.0",
+    "phaser3-rex-plugins": "1.60.0",
+    "socket.io-client": "4.8.3",
+    "socket.io-parser": "4.2.7"
+  },
+  "files": {
+    "phaser.min.js": {
+      "bytes": 1196122,
+      "cacheKey": "e92ddef111ba",
+      "integrity": "sha384-AvQiDMZAVLda3VtAoU5MCfBz8pzXhteb2CiUJeKBmPlWzpXj1uJ96Km11+YuFNu/"
+    },
+    "ethers.umd.min.js": {
+      "bytes": 526551,
+      "cacheKey": "532950515fd2",
+      "integrity": "sha384-lApM4ELRuFNT7NgNqnXB2zFWgSDdhVvmnOHov2DPJz/2zuNpZImXBeklFr18ilvi"
+    },
+    "rexvirtualjoystickplugin.min.js": {
+      "bytes": 14284,
+      "cacheKey": "4fcbfc1931be",
+      "integrity": "sha384-iYVSUJQjlQbXL4+IRTt+0+SAss7Ag1anmdEBZDw7aOjkxm0C5YfPkaOHI63tU6Ur"
+    },
+    "socket.io.min.js": {
+      "bytes": 42350,
+      "cacheKey": "870d83168a0e",
+      "integrity": "sha384-YcYLaFXXR/8FhGSjB8IL//yNuj3jIcW9XDTrHLppVdjuPbsYm9l2B4+bsInmrSOO"
+    }
+  }
+}

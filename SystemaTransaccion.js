@@ -44,6 +44,8 @@ class TransactionSystem {
         this.txHub = null;
         
         this.userData = null;
+        this._sendQueue = Promise.resolve();
+        this._destroyed = false;
     }
 
     async initialize() {
@@ -173,6 +175,13 @@ class TransactionSystem {
     }
 
     async send(payload) {
+        const pending = this._sendQueue.then(() => this._send(payload));
+        this._sendQueue = pending.catch(() => {});
+        return pending;
+    }
+
+    async _send(payload) {
+        if (this._destroyed) throw new Error('El sistema de transacciones está cerrado');
         if (!this.isAuthenticated) {
             throw new Error('Usuario no autenticado');
         }
@@ -204,15 +213,18 @@ class TransactionSystem {
             return result;
             
         } catch (error) {
-            this.handleTransactionError(error, payload);
+            await this.handleTransactionError(error, payload);
             throw error;
         }
     }
 
     validatePayload(payload) {
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+            return { valid: false, error: 'Payload inválido' };
+        }
         const { contract, function: functionName, _autoNonce = true, _userNonce } = payload;
 
-        if (!contract || !this.allowedContracts[contract]) {
+        if (typeof contract !== 'string' || !/^0x[\da-f]{40}$/i.test(contract) || !Object.prototype.hasOwnProperty.call(this.allowedContracts, contract)) {
             return { valid: false, error: `Contrato no permitido: ${contract}` };
         }
 
@@ -223,7 +235,7 @@ class TransactionSystem {
             return { valid: false, error: `Función no permitida: ${functionName}` };
         }
 
-        if (!_autoNonce && !_userNonce) {
+        if (!_autoNonce && (typeof _userNonce !== 'string' || !/^(?:0x)?[\da-f]+$/i.test(_userNonce))) {
             return { valid: false, error: 'Nonce requerido cuando _autoNonce es false' };
         }
 
@@ -249,7 +261,7 @@ class TransactionSystem {
         console.log(`🔢 Usando nonce: ${nonceToUse} (modo ${_autoNonce ? 'automático' : 'manual'})`);
 
         // CORRECCIÓN CRÍTICA: Estructurar correctamente los parámetros según lo que espera el backend
-        const processedParameters = {};
+        const processedParameters = Object.create(null);
         
         // Para logMessage, extraer el mensaje correctamente
         if (functionName === 'logMessage') {
@@ -326,14 +338,15 @@ class TransactionSystem {
         }
     }
 
-    handleTransactionError(error, originalPayload) {
+    async handleTransactionError(error, originalPayload) {
         console.error('❌ Error en transacción:', error);
         
         if (this.txHub) {
             this.txHub.showError(error.message || 'Error desconocido');
         }
         
-        this.fetchUserData().catch(e => 
+        if (this._destroyed) return;
+        await this.fetchUserData().catch(e => 
             console.error('Error recargando datos de usuario:', e)
         );
     }
@@ -351,8 +364,7 @@ class TransactionSystem {
             contract: '0x52f269b242121ed0b80aed7d7a35f1db5b111c73',
             function: 'logMessage',
             message: message, // CORRECCIÓN: Usar "message" en lugar de "_message"
-            _userNonce: currentNonce, // CORRECCIÓN: Enviar nonce actual
-            _autoNonce: false // CORRECCIÓN: Desactivar auto nonce
+            _autoNonce: true // Leer el nonce al procesar la cola, después de la transacción anterior.
         };
 
         return await this.send(payload);
@@ -365,6 +377,7 @@ class TransactionSystem {
 
     initializeTransactionHub() {
         try {
+            if (this.txHub || this._destroyed) return;
             if (window.TransactionHub) {
                 this.txHub = new TransactionHub({
                     debug: true,
@@ -412,7 +425,9 @@ class TransactionSystem {
                 return;
             }
 
-            if (this.socket && this.socket.connected) {
+            if (this._destroyed) return;
+            if (this.socket) {
+                this.socket.removeAllListeners();
                 this.socket.disconnect();
             }
 
@@ -488,15 +503,20 @@ class TransactionSystem {
 
     destroy() {
         try {
+            this._destroyed = true;
             if (this.socket) {
+                this.socket.removeAllListeners();
                 this.socket.disconnect();
                 this.socket = null;
             }
             
             if (this.txHub && this.txHub.destroy) {
                 this.txHub.destroy();
-                this.txHub = null;
             }
+            this.txHub = null;
+            this.isAuthenticated = false;
+            this.accessToken = this.currentAccount = this.playerName = this.userNonce = this.userData = null;
+            this.scene = null;
             
             console.log('♻️ TransactionSystem destruido');
         } catch (error) {

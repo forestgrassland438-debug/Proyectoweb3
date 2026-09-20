@@ -1,7 +1,21 @@
 {
+  "private": true,
+  "scripts": {
+    "build:vendor": "node tools/build-vendor.cjs",
+    "test:engine": "node --test tools/engine-lifecycle.test.cjs tools/memory-diagnostics.test.cjs",
+    "test:web3": "node --test tools/web3-seguridad-prueba.cjs tools/hub-lifecycle.test.cjs"
+  },
+  "overrides": { "socket.io-parser": "4.2.7", "i18next-http-backend": "3.0.5" },
   "devDependencies": {
+    "esbuild": "0.28.2",
     "eslint": "^9.28.0",
     "eslint-plugin-no-unsanitized": "^4.1.2",
     "eslint-plugin-security": "^3.0.1"
+  },
+  "dependencies": {
+    "ethers": "6.17.0",
+    "phaser": "3.90.0",
+    "phaser3-rex-plugins": "1.60.0",
+    "socket.io-client": "4.8.3"
   }
 }
