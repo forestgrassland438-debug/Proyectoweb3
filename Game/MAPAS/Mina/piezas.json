@@ -1,0 +1,367 @@
+{
+ "frames": {
+  "racimo_azul": {
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 64,
+    "h": 96
+   }
+  },
+  "racimo_morado": {
+   "frame": {
+    "x": 65,
+    "y": 0,
+    "w": 64,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 64,
+    "h": 96
+   }
+  },
+  "racimo_verde": {
+   "frame": {
+    "x": 130,
+    "y": 0,
+    "w": 64,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 64,
+    "h": 96
+   }
+  },
+  "estalagmita_g1": {
+   "frame": {
+    "x": 195,
+    "y": 0,
+    "w": 64,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 64,
+    "h": 96
+   }
+  },
+  "estalagmita_g2": {
+   "frame": {
+    "x": 260,
+    "y": 0,
+    "w": 64,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 64,
+    "h": 96
+   }
+  },
+  "estalagmita_g3": {
+   "frame": {
+    "x": 325,
+    "y": 0,
+    "w": 64,
+    "h": 96
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 96
+   },
+   "sourceSize": {
+    "w": 64,
+    "h": 96
+   }
+  },
+  "pena_pequena": {
+   "frame": {
+    "x": 390,
+    "y": 0,
+    "w": 64,
+    "h": 64
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 64
+   },
+   "sourceSize": {
+    "w": 64,
+    "h": 64
+   }
+  },
+  "pena_mediana": {
+   "frame": {
+    "x": 0,
+    "y": 97,
+    "w": 64,
+    "h": 64
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 64
+   },
+   "sourceSize": {
+    "w": 64,
+    "h": 64
+   }
+  },
+  "pena_grande": {
+   "frame": {
+    "x": 65,
+    "y": 97,
+    "w": 96,
+    "h": 64
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 96,
+    "h": 64
+   },
+   "sourceSize": {
+    "w": 96,
+    "h": 64
+   }
+  },
+  "vagoneta": {
+   "frame": {
+    "x": 162,
+    "y": 97,
+    "w": 64,
+    "h": 64
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 64
+   },
+   "sourceSize": {
+    "w": 64,
+    "h": 64
+   }
+  },
+  "puntal": {
+   "frame": {
+    "x": 227,
+    "y": 97,
+    "w": 96,
+    "h": 64
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 96,
+    "h": 64
+   },
+   "sourceSize": {
+    "w": 96,
+    "h": 64
+   }
+  },
+  "antorcha": {
+   "frame": {
+    "x": 324,
+    "y": 97,
+    "w": 32,
+    "h": 64
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 64
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 64
+   }
+  },
+  "monton_piedra": {
+   "frame": {
+    "x": 357,
+    "y": 97,
+    "w": 64,
+    "h": 64
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 64
+   },
+   "sourceSize": {
+    "w": 64,
+    "h": 64
+   }
+  },
+  "monton_cobre": {
+   "frame": {
+    "x": 422,
+    "y": 97,
+    "w": 64,
+    "h": 64
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 64
+   },
+   "sourceSize": {
+    "w": 64,
+    "h": 64
+   }
+  },
+  "monton_hierro": {
+   "frame": {
+    "x": 0,
+    "y": 162,
+    "w": 64,
+    "h": 64
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 64
+   },
+   "sourceSize": {
+    "w": 64,
+    "h": 64
+   }
+  },
+  "monton_carbon": {
+   "frame": {
+    "x": 65,
+    "y": 162,
+    "w": 64,
+    "h": 64
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 64
+   },
+   "sourceSize": {
+    "w": 64,
+    "h": 64
+   }
+  },
+  "monton_oro": {
+   "frame": {
+    "x": 130,
+    "y": 162,
+    "w": 64,
+    "h": 64
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 64
+   },
+   "sourceSize": {
+    "w": 64,
+    "h": 64
+   }
+  }
+ },
+ "meta": {
+  "image": "piezas.png",
+  "size": {
+   "w": 512,
+   "h": 227
+  },
+  "scale": "1",
+  "app": "tools/generar-mina.py",
+  "nota": "Las piezas de `altas` se ponen como SPRITE y su orden de dibujo lo decide gf-profundidad.js. Su sombra la pone gf-sombras.js: por eso NINGUNA lleva sombra pintada.",
+  "altas": [
+   "antorcha",
+   "estalagmita_g1",
+   "estalagmita_g2",
+   "estalagmita_g3",
+   "pena_grande",
+   "pena_mediana",
+   "puntal",
+   "racimo_azul",
+   "racimo_morado",
+   "racimo_verde",
+   "vagoneta"
+  ]
+ }
+}
