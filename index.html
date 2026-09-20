@@ -13,7 +13,7 @@
   <title>GRASSLAND FOREST</title>
   <link rel="icon" href="favicon.png" type="image/png" />
   <!-- v17: rediseño del panel de misiones + altura real del viewport en móvil -->
-  <link rel="stylesheet" href="styless.css?v=19.0" />
+  <link rel="stylesheet" href="styless.css?v=19.1" />
 
   <!-- ============================
        CONTENT-SECURITY-POLICY (meta for testing / development)..
@@ -31,7 +31,7 @@
         content="default-src 'self';
                  base-uri 'self';
                  object-src 'none';
-                 script-src 'self' https://cdn.jsdelivr.net https://cdn.socket.io https://cdnjs.cloudflare.com 'sha256-vvt4KWwuNr51XfE5m+hzeNEGhiOfZzG97ccfqGsPwvE=';
+                 script-src 'self';
                  connect-src 'self' https: http://127.0.0.1:3001 ws://127.0.0.1:3001 ws: wss:;
                  img-src 'self' data: blob:;
                  style-src 'self' 'unsafe-inline';
@@ -44,129 +44,101 @@
                  upgrade-insecure-requests;" />
 
   <!-- Other security meta (prefer server headers in prod) -->
-  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
-  <meta http-equiv="Permissions-Policy" content="geolocation=(), camera=(), microphone=(), payment=()" />
 
-  <!-- ============================
-       LIBRERIAS DE TERCEROS, CON SU HUELLA (SRI)
-
-       El comentario de aqui decia "reemplaza los placeholders de integrity por
-       hashes reales en produccion", y nunca se hizo: los cuatro <script>
-       llevaban `crossorigin="anonymous"` pero NINGUN `integrity`. Y el
-       crossorigin solo no protege de nada — esta ahi precisamente para que el
-       SRI pueda funcionar.
-
-       Sin `integrity`, el navegador ejecuta lo que le mande el CDN, sea lo que
-       sea. Si a jsdelivr, cdnjs o cdn.socket.io les cambian un fichero, o
-       alguien se mete por medio, ese codigo corre DENTRO de la pagina del
-       juego. Y uno de los cuatro es `ethers`, que es quien firma las
-       transacciones y toca la cartera del jugador: ahi no se trata de que se
-       vea raro el mapa, se trata de que le vacien el saldo.
-
-       Con el hash puesto, si el fichero no es EXACTAMENTE el mismo, el
-       navegador se niega a ejecutarlo.
-
-       Los cuatro hashes se calcularon descargando los ficheros y se comprobo
-       que salieran iguales en dos descargas seguidas. Las URL llevan version
-       fija, asi que no cambian solas. SI SE SUBE DE VERSION HAY QUE RECALCULAR
-       EL HASH o el script dejara de cargar:
-
-           curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A
-       ============================ -->
+  <!-- Local, pinned browser libraries with SRI. Rebuild: npm run build:vendor in bin.
+       Versions, hashes and licenses are recorded in vendor/manifest.json and LICENSES.txt. -->
 
   <!-- Phaser (pinned) -->
-  <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js" defer crossorigin="anonymous"
-          integrity="sha384-AvQiDMZAVLda3VtAoU5MCfBz8pzXhteb2CiUJeKBmPlWzpXj1uJ96Km11+YuFNu/"></script>
+  <script src="./vendor/phaser.min.js?v=e92ddef111ba" defer integrity="sha384-AvQiDMZAVLda3VtAoU5MCfBz8pzXhteb2CiUJeKBmPlWzpXj1uJ96Km11+YuFNu/"></script>
 
-  <!-- Socket.IO client CDN (if you instead serve it from your backend, use /socket.io/socket.io.js over HTTPS) -->
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" defer crossorigin="anonymous"
-          integrity="sha384-mZLF4UVrpi/QTWPA7BjNPEnkIfRFn4ZEO3Qt/HFklTJBj/gBOV8G3HcKn4NfQblz"></script>
+  <!-- Socket.IO client rebuilt with the patched parser from package-lock.json -->
+  <script src="./vendor/socket.io.min.js?v=870d83168a0e" defer integrity="sha384-YcYLaFXXR/8FhGSjB8IL//yNuj3jIcW9XDTrHLppVdjuPbsYm9l2B4+bsInmrSOO"></script>
 
   <!-- Ethers -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.10.0/ethers.umd.min.js" defer crossorigin="anonymous"
-          integrity="sha384-tVisdJ1MRZqej8bqmBNU9m3Gd3FN6xhhCMSWW3eJWnpsaR2XvOQWMBY08U6BIKMw"></script>
+  <script src="./vendor/ethers.umd.min.js?v=532950515fd2" defer integrity="sha384-lApM4ELRuFNT7NgNqnXB2zFWgSDdhVvmnOHov2DPJz/2zuNpZImXBeklFr18ilvi"></script>
 
   <!-- rex virtual joystick -->
-  <script src="https://cdn.jsdelivr.net/npm/phaser3-rex-plugins@1.60.0/dist/rexvirtualjoystickplugin.min.js" defer crossorigin="anonymous"
-          integrity="sha384-iYVSUJQjlQbXL4+IRTt+0+SAss7Ag1anmdEBZDw7aOjkxm0C5YfPkaOHI63tU6Ur"></script>
+  <script src="./vendor/rexvirtualjoystickplugin.min.js?v=4fcbfc1931be" defer integrity="sha384-iYVSUJQjlQbXL4+IRTt+0+SAss7Ag1anmdEBZDw7aOjkxm0C5YfPkaOHI63tU6Ur"></script>
 
   <!-- ============================
        Local scripts (all external, defer). No inline <script> blocks remain.
        Ensure your server serves these files over HTTPS in production.
        ============================ -->
 
+  <script src="./ui-image-fallbacks.js" defer></script>
+
   <!-- missionspanel.js -->
-  <script src="./missionspanel.js?v=19.0" defer></script>
+  <script src="./missionspanel.js?v=19.1" defer></script>
 
   <!-- Personajes Soulbound. Va ANTES de las escenas porque sus preload()
        le piden las rutas de los sprites del jugador. -->
-  <script src="./gf-soulbound.js?v=19.0" defer></script>
+  <script src="./gf-soulbound.js?v=19.1" defer></script>
 
   <!-- Canales (10 × 50 jugadores). El canal lo asigna el servidor al conectar
        el socket, UNA sola vez por pestaña; este módulo solo lo recuerda y
        pinta el panel del dashboard. -->
-  <script src="./gf-canales.js?v=19.0" defer></script>
-  <script src="./gf-profundidad.js?v=19.0" defer></script>
-  <script src="./gf-sombras.js?v=19.0" defer></script>
-  <script src="./gf-nieve.js?v=19.0" defer></script>
-  <script src="./gf-ciclo-dia.js?v=19.0" defer></script>
+  <script src="./gf-canales.js?v=19.1" defer></script>
+  <script src="./gf-profundidad.js?v=19.1" defer></script>
+  <script src="./gf-sombras.js?v=19.1" defer></script>
+  <script src="./gf-nieve.js?v=19.1" defer></script>
+  <script src="./gf-ciclo-dia.js?v=19.1" defer></script>
 
   <!-- Cazador de micro-parones. Inerte hasta que se le llama a mano desde la
        consola con GFTirones.empezar(). No vigila nada por su cuenta. -->
-  <script src="./gf-tirones.js?v=19.0" defer></script>
-  <script src="./gf-cuervo.js?v=19.0" defer></script>
-  <script src="./gf-animales.js?v=19.0" defer></script>
-  <script src="./gf-mascota.js?v=19.0" defer></script>
-  <script src="./gf-muerte.js?v=19.0" defer></script>
-  <script src="./gf-alquimista.js?v=19.0" defer></script>
-  <script src="./gf-viento.js?v=19.0" defer></script>
-  <script src="./gf-clima.js?v=19.0" defer></script>
+  <script src="./gf-tirones.js?v=19.1" defer></script>
+  <script src="./gf-cuervo.js?v=19.1" defer></script>
+  <script src="./gf-animales.js?v=19.1" defer></script>
+  <script src="./gf-mascota.js?v=19.1" defer></script>
+  <script src="./gf-muerte.js?v=19.1" defer></script>
+  <script src="./gf-alquimista.js?v=19.1" defer></script>
+  <script src="./gf-viento.js?v=19.1" defer></script>
+  <script src="./gf-clima.js?v=19.1" defer></script>
 
   <!-- Post-procesado: viñeta, desenfoque de bordes y revelado de color sobre
        el fotograma ya pintado. Va DESPUÉS del clima porque lee de él qué
        tiempo hace. Si no hay WebGL o la calidad está en baja, no hace nada. -->
-  <script src="./gf-postproceso.js?v=19.0" defer></script>
+  <script src="./gf-postproceso.js?v=19.1" defer></script>
 
   <!-- Pisadas: polvo y huellas bajo quien anda. Lee el tiempo de gf-clima
        (polvo en seco, agua si llueve, nieve si nieva), asi que va despues. -->
-  <script src="./gf-pisadas.js?v=19.0" defer></script>
+  <script src="./gf-pisadas.js?v=19.1" defer></script>
 
   <!-- Ambiente sonoro de 8 bits: lluvia, truenos, viento, hojas, grillos,
        bichos, pisadas segun el suelo y los dos temas nuevos. Va DESPUES del
        clima, del viento y del ciclo de dia porque les pregunta a los tres en
        cada vuelta que tiempo hace y cuanta noche queda. Los WAV los escribe
        tools/generar-sonidos.js y viven en Game/MUSIC. -->
-  <script src="./gf-audio.js?v=19.0" defer></script>
+  <script src="./gf-audio.js?v=19.1" defer></script>
 
   <!-- El buho de la noche: aparece al anochecer, se posa en un arbol y ulula;
        al amanecer se va. Necesita gf-audio para el ulular y gf-cuervo para el
        censo de copas, asi que va detras de los dos. -->
-  <script src="./gf-buho.js?v=19.0" defer></script>
+  <script src="./gf-buho.js?v=19.1" defer></script>
 
   <!-- Arte de las batallas: dibuja con canvas los escenarios y TODOS los
        efectos del combate. Va antes de las escenas porque BattleScene lo usa
        en su preload. -->
-  <script src="./gf-batalla-arte.js?v=19.0" defer></script>
+  <script src="./gf-batalla-arte.js?v=19.1" defer></script>
 
   <!-- Scenes -->
   <!-- SOCIAL: amistades, reacciones del chat y color del nombre.
        Van ANTES de las escenas porque GameScene y tiendajuego los montan en su
        create(); con `defer` el orden de estas etiquetas es el de ejecución. -->
-  <script src="./gf-amigos.js?v=19.0" defer></script>
-  <script src="./gf-chat-social.js?v=19.0" defer></script>
-  <script src="./gf-nombre-color.js?v=19.0" defer></script>
+  <script src="./gf-amigos.js?v=19.1" defer></script>
+  <script src="./gf-chat-social.js?v=19.1" defer></script>
+  <script src="./gf-nombre-color.js?v=19.1" defer></script>
 
-  <script src="./Scenes/MenuScene.js?v=19.0" defer></script>
-  <script src="./Scenes/LoadingSceneshop.js?v=19.0" defer></script>
-  <script src="./Scenes/tiendajuego.js?v=19.0" defer></script>
-  <script src="./Scenes/LoadingScenegame.js?v=19.0" defer></script>
-  <script src="./Scenes/GameScene.js?v=19.0" defer></script>
-  <script src="./Scenes/BattleScene.js?v=19.0" defer></script>
-  <script src="./Scenes/sacar_mapa.js?v=19.0" defer></script>
+  <script src="./Scenes/MenuScene.js?v=19.1" defer></script>
+  <script src="./Scenes/LoadingSceneshop.js?v=19.1" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=19.1" defer></script>
+  <script src="./Scenes/LoadingScenegame.js?v=19.1" defer></script>
+  <script src="./Scenes/GameScene.js?v=19.1" defer></script>
+  <script src="./Scenes/BattleScene.js?v=19.1" defer></script>
+  <script src="./Scenes/sacar_mapa.js?v=19.1" defer></script>
 
   <!-- tienda marketplace p2p -->
-  <script src="./Scenes/ShopScene.js?v=19.0" defer></script>
+  <script src="./Scenes/ShopScene.js?v=19.1" defer></script>
 
   <!-- utilities -->
 
@@ -179,60 +151,60 @@
        antes y sigue sin existir. El archivo se queda en el repositorio por si
        algún día se usa; solo se dejó de cargar.
        El tamaño del lienzo lo gestiona el gestor de resize de app.js. -->
-  <script src="./phaser-rpg-perf.js?v=19.0" defer></script>
-  <script src="./Phaser-camera.js?v=19.0" defer></script>
-  <script src="./LoadingSystem.js?v=19.0" defer></script>
+  <script src="./phaser-rpg-perf.js?v=19.1" defer></script>
+  <script src="./Phaser-camera.js?v=19.1" defer></script>
+  <script src="./LoadingSystem.js?v=19.1" defer></script>
 
   <!-- blockchain / transaction -->
-  <script src="./BlockchainManager.js?v=19.0" defer></script>
-  <script src="./TransactionHub.js?v=19.0" defer></script>
-  <script src="./SystemaTransaccion.js?v=19.0" defer></script>
-  <script src="./CraftingHub.js?v=19.0" defer></script>
-  <script src="./tienda_sistema.js?v=19.0" defer></script>
-  <script src="./phaser-relay-library.js?v=19.0" defer></script>
-  <script src="./hub.js?v=19.0" defer></script>
+  <script src="./BlockchainManager.js?v=19.1" defer></script>
+  <script src="./TransactionHub.js?v=19.1" defer></script>
+  <script src="./SystemaTransaccion.js?v=19.1" defer></script>
+  <script src="./CraftingHub.js?v=19.1" defer></script>
+  <script src="./tienda_sistema.js?v=19.1" defer></script>
+  <script src="./phaser-relay-library.js?v=19.1" defer></script>
+  <script src="./hub.js?v=19.1" defer></script>
 
 
-  <script src="./register-scenes.js?v=19.0" defer></script>
+  <script src="./register-scenes.js?v=19.1" defer></script>
 
-  <script src="./memory-fix.js?v=19.0" defer></script>
+  <script src="./memory-fix.js?v=19.1" defer></script>
   <!-- CraftingHub.js ya se carga arriba como script clásico; la segunda carga
        como type="module" ejecutaba el archivo completo dos veces (doble parse
        y doble descarga). Eliminada. -->
 
-  <script src="./NotificationHub.js?v=19.0" defer></script>
+  <script src="./NotificationHub.js?v=19.1" defer></script>
 
   <!-- tileManager: if it uses import/export, keep module -->
-  <script type="module" src="lib/tileManager.js?v=19.0" defer></script>
+  <script type="module" src="lib/tileManager.js?v=19.1" defer></script>
 
   <!-- preload critical asset -->
   <link rel="preload" href="./Game/Source/cursor.png" as="image" />
 
   <!-- Contador global de transacciones on-chain en vuelo. Debe cargarse ANTES
        que las escenas para que ninguna transacción se quede sin registrar. -->
-  <script src="./tx-gate.js?v=19.0" defer></script>
+  <script src="./tx-gate.js?v=19.1" defer></script>
 
   <!-- GF Wallet SDK — wallet embebida para quien entró con Google/Facebook/Apple.
        Va después de ethers (lo necesita para firmar) y su arranque solo instala
        window.ethereum si NO hay MetaMask: con extensión instalada, manda ella. -->
-  <script src="./gf-wallet-sdk/gf-wallet.js?v=19.0" defer></script>
-  <script src="./gf-wallet-boot.js?v=19.0" defer></script>
+  <script src="./gf-wallet-sdk/gf-wallet.js?v=19.1" defer></script>
+  <script src="./gf-wallet-boot.js?v=19.1" defer></script>
   <!-- Panel de cartera del dashboard. Va aparte de las escenas porque el
        dashboard es DOM de la pagina, compartido por GameScene y tiendajuego. -->
-  <script src="./gf-wallet-dashboard.js?v=19.0" defer></script>
+  <script src="./gf-wallet-dashboard.js?v=19.1" defer></script>
 
   <!-- Altura real del viewport en móvil (el juego salía en una franja arriba y
        el resto negro). Debe ir ANTES de app.js para publicar --app-height
        antes de que se cree el lienzo. No toca el zoom de la cámara. -->
-  <script src="./viewport-fix.js?v=19.0" defer></script>
+  <script src="./viewport-fix.js?v=19.1" defer></script>
 
   <!-- main app bootstrap -->
-  <script src="app.js?v=19.0" defer></script>
+  <script src="app.js?v=19.1" defer></script>
 
   <!-- Ajustes de gráficos: calidad y distancia de visión (chunks).
        Va DESPUÉS de app.js porque usa window.game y window.gfResizeGame,
        que app.js publica al crear el juego. -->
-  <script src="./gf-graphics-settings.js?v=19.0" defer></script>
+  <script src="./gf-graphics-settings.js?v=19.1" defer></script>
 
   <!-- ============================
        END HEAD
@@ -1383,7 +1355,7 @@
         <span class="notif-badge" id="mail-notif-badge" style="display:none">0</span>
       </button>
       <button class="round-btn" tabindex="-1">
-        <img src="./Game/Source/control.png" alt="Música" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+        <img src="./Game/Source/control.png" alt="Música" data-hide-on-error data-image-fallback />
         <span style="display:none;font-size:20px;align-items:center;justify-content:center;width:100%;height:100%">🎵</span>
         <span class="label-badge">Music</span>
       </button>
@@ -1392,7 +1364,7 @@
         <span class="label-badge">Transactions</span>
       </button>
       <button class="round-btn round-btn--nft" tabindex="-1" id="nft-btn">
-        <img src="./Game/Source/nft_icon.png" alt="NFT" onerror="this.style.display='none';this.parentNode.querySelector('.nft-fallback').style.display='flex'" />
+        <img src="./Game/Source/nft_icon.png" alt="NFT" data-hide-on-error data-image-fallback />
         <span class="nft-fallback" style="display:none;font-size:18px;align-items:center;justify-content:center;width:100%;height:100%">🖼️</span>
         <span class="label-badge">NFT</span>
       </button>
@@ -1561,7 +1533,7 @@
        se conservan para no romper el código de las escenas. -->
   <aside id="hub-panel_101" role="dialog" aria-hidden="true" aria-label="Player dashboard">
     <div class="header_101 dash-header_101">
-      <div class="dash-avatar_101" aria-hidden="true"><img src="./Game/Source/config.png" alt="" onerror="this.style.display='none'"></div>
+      <div class="dash-avatar_101" aria-hidden="true"><img src="./Game/Source/config.png" alt="" data-hide-on-error></div>
       <div class="dash-header-text_101">
         <div class="title_101">DASHBOARD</div>
         <div class="muted dash-subtitle_101">Profile, pet and preferences</div>

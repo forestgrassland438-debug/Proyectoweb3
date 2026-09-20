@@ -113,8 +113,7 @@
       // Combinar dos uint32 para mayor entropía (64 bits efectivos)
       return (BigInt(arr[0]) * 4294967296n + BigInt(arr[1])).toString();
     } catch (e) {
-      // Fallback en entornos sin crypto: usar timestamp + aleatorio
-      return (Date.now() * 1000 + Math.floor(Math.random() * 1000)).toString();
+      throw new Error('WebCrypto is required to generate transaction nonces');
     }
   }
 
@@ -136,19 +135,31 @@
   // Lanza un error 'REQUEST_TIMEOUT' si la petición supera el límite.
   async function _fetchWithTimeout(url, opts, timeoutMs) {
     const controller = new AbortController();
+    const externalSignal = opts && opts.signal;
+    const abort = () => controller.abort();
+    if (externalSignal) {
+      if (externalSignal.aborted) controller.abort();
+      else externalSignal.addEventListener('abort', abort, { once: true });
+    }
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url, Object.assign({}, opts, { signal: controller.signal }));
-      clearTimeout(timer);
-      return res;
+      const res = await fetch(url, Object.assign({ redirect: 'error', referrerPolicy: 'no-referrer' }, opts, { signal: controller.signal }));
+      // Keep the deadline while reading the body too: fetch resolves at headers.
+      const body = await res.text();
+      return {
+        ok: res.ok, status: res.status, statusText: res.statusText, headers: res.headers,
+        text: async () => body, json: async () => JSON.parse(body)
+      };
     } catch (e) {
-      clearTimeout(timer);
-      if (e.name === 'AbortError') {
-        const err = new Error(`Request timeout after ${timeoutMs}ms: ${url}`);
+      if (e.name === 'AbortError' && !(externalSignal && externalSignal.aborted)) {
+        const err = new Error(`Request timeout after ${timeoutMs}ms`);
         err.code  = 'REQUEST_TIMEOUT';
         throw err;
       }
       throw e;
+    } finally {
+      clearTimeout(timer);
+      if (externalSignal) externalSignal.removeEventListener('abort', abort);
     }
   }
 
@@ -177,21 +188,12 @@
         apiBase = isSecure ? 'https://127.0.0.1:3001' : 'http://127.0.0.1:3001';
       }
 
-      // Convertir localhost → 127.0.0.1 (evita problemas de CSP en algunos navegadores)
-      if (apiBase.includes('localhost')) {
-        apiBase = apiBase.replace('localhost', '127.0.0.1');
-        if (config.debug) console.warn('[PhaserRelay] Convertido localhost → 127.0.0.1 para CSP');
+      const base = new URL(apiBase, typeof location !== 'undefined' ? location.href : undefined);
+      const local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(base.hostname);
+      if ((base.protocol !== 'https:' && !(base.protocol === 'http:' && local)) || base.username || base.password || base.search || base.hash) {
+        throw new Error('PhaserRelay requires an HTTPS API URL (HTTP is allowed only on localhost)');
       }
-
-      // FIX #2: En producción, rechazar URLs HTTP si la página es HTTPS
-      const pageIsHttps = typeof location !== 'undefined' && location.protocol === 'https:';
-      if (pageIsHttps && apiBase.startsWith('http://')) {
-        console.error(
-          '[PhaserRelay] ADVERTENCIA: La página usa HTTPS pero el backend usa HTTP. ' +
-          'El navegador bloqueará las peticiones (mixed-content). ' +
-          'Usa una URL HTTPS para apiBase.'
-        );
-      }
+      apiBase = base.href.replace(/\/$/, '');
 
       // ── Config interna — SIN spread de config externo ─────────────────────
       //
@@ -203,9 +205,9 @@
       this.config = {
         apiBase,
         debug:              !!config.debug,
-        timeout:            (typeof config.timeout      === 'number' && config.timeout > 0)      ? config.timeout      : 30000,
-        maxRetries:         (typeof config.maxRetries   === 'number' && config.maxRetries >= 0)  ? config.maxRetries   : 3,
-        retryDelay:         (typeof config.retryDelay   === 'number' && config.retryDelay >= 0)  ? config.retryDelay   : 1000,
+        timeout:            (Number.isFinite(config.timeout) && config.timeout > 0) ? Math.min(config.timeout, 300000) : 30000,
+        maxRetries:         (Number.isFinite(config.maxRetries) && config.maxRetries >= 0) ? Math.min(Math.floor(config.maxRetries), 5) : 3,
+        retryDelay:         (Number.isFinite(config.retryDelay) && config.retryDelay >= 0) ? Math.min(config.retryDelay, 30000) : 1000,
         useNotificationHub: config.useNotificationHub !== false,
         ethersProviderUrl:  typeof config.ethersProviderUrl === 'string' ? config.ethersProviderUrl : null
         // No se acepta ninguna otra clave de config para evitar sobrescrituras.
@@ -213,6 +215,8 @@
 
       // ── Estado de autenticación ───────────────────────────────────────────
       this.auth = { authenticated: false, address: null, playerName: null };
+      this._destroyed = false;
+      this._abortController = new AbortController();
       this.csrfToken = null;
       this.authToken = null;
 
@@ -268,6 +272,11 @@
     }
 
     // ── NOTIFICACIONES ────────────────────────────────────────────────────
+
+    _fetch(url, options, timeout) {
+      if (this._destroyed) return Promise.reject(new Error('PhaserRelay has been cleaned up'));
+      return _fetchWithTimeout(url, Object.assign({}, options, { signal: this._abortController.signal }), timeout);
+    }
 
     _notify(type, message, duration = 4000) {
       try {
@@ -340,7 +349,7 @@
 
     async _pingBackend() {
       try {
-        const res = await _fetchWithTimeout(
+        const res = await this._fetch(
           `${this.config.apiBase}/ping`,
           { method: 'GET', credentials: 'include', mode: 'cors' },
           5000 // 5 s para ping, independiente del timeout general
@@ -355,7 +364,7 @@
     async checkAuth() {
       try {
         const resp = await this._apiRequest('/api/auth/me', 'GET');
-        if (resp && resp.authenticated) {
+        if (!this._destroyed && resp && resp.authenticated) {
           this.auth = {
             authenticated: true,
             address:    resp.address,
@@ -380,7 +389,7 @@
         this._autoRefreshInterval = null;
       }
 
-      if (!this.autoRefreshEnabled || !this.auth.authenticated) return;
+      if (this._destroyed || !this.autoRefreshEnabled || !this.auth.authenticated) return;
 
       // Refrescar cada 4 minutos (token de sesión dura 15 min típicamente)
       this._autoRefreshInterval = setInterval(async () => {
@@ -428,6 +437,7 @@
     // ── PETICIÓN HTTP CON TIMEOUT, CSRF Y REINTENTOS ──────────────────────
 
     async _apiRequest(path, method = 'GET', body = null, retryCount = 0) {
+      if (this._destroyed) throw new Error('PhaserRelay has been cleaned up');
       const url = `${this.config.apiBase}${path}`;
 
       const headers = {
@@ -459,7 +469,7 @@
 
       try {
         // FIX #4: Todas las peticiones tienen timeout via AbortController
-        const response = await _fetchWithTimeout(url, opts, this.config.timeout);
+        const response = await this._fetch(url, opts, this.config.timeout);
         const text     = await response.text();
 
         let parsed;
@@ -511,7 +521,7 @@
       this._refreshInProgress = true;
 
       try {
-        const response = await _fetchWithTimeout(
+        const response = await this._fetch(
           `${this.config.apiBase}/api/auth/refresh`,
           {
             method: 'POST',
@@ -544,7 +554,7 @@
 
     async _getCSRFToken() {
       try {
-        const response = await _fetchWithTimeout(
+        const response = await this._fetch(
           `${this.config.apiBase}/api/auth/csrf-token`,
           { method: 'GET', credentials: 'include' },
           this.config.timeout
@@ -1787,7 +1797,7 @@
 
       const results = { ping: false, csrfToken: false, auth: false, contracts: false };
       try {
-        const pingRes = await _fetchWithTimeout(
+        const pingRes = await this._fetch(
           `${this.config.apiBase}/ping`,
           { credentials: 'include' },
           5000
@@ -1806,11 +1816,25 @@
     }
 
     cleanup() {
+      if (this._destroyed) return;
+      this._destroyed = true;
+      this._abortController.abort();
       this.stopAutoRefresh();
       this.pendingTransactions.clear();
-      if (this._notificationHub && typeof this._notificationHub.hideAllNotifications === 'function') {
-        try { this._notificationHub.hideAllNotifications(); } catch (e) {}
+      this.contractsCache.clear();
+      this.authToken = this.csrfToken = null;
+      this.auth = { authenticated: false, address: null, playerName: null };
+      if (this.readProvider && typeof this.readProvider.destroy === 'function') {
+        try { this.readProvider.destroy(); } catch (e) {}
       }
+      this.readProvider = null;
+      if (this._notificationHub) {
+        try {
+          if (typeof this._notificationHub.destroy === 'function') this._notificationHub.destroy();
+          else if (typeof this._notificationHub.hideAllNotifications === 'function') this._notificationHub.hideAllNotifications();
+        } catch (e) {}
+      }
+      this._notificationHub = null;
     }
   }
 

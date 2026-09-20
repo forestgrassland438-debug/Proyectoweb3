@@ -83,7 +83,18 @@
       const nativeClearInterval = window.clearInterval;
 
       window.setTimeout = function(fn, delay, ...args){
-        const id = nativeSetTimeout(fn, delay, ...args);
+        // Completed timeouts used to remain in the reporter forever, retaining
+        // their stack strings and reporting them as leaks after they had fired.
+        // Non-function handlers keep native semantics without instrumentation.
+        if (typeof fn !== 'function') return nativeSetTimeout(fn, delay, ...args);
+        const id = nativeSetTimeout(function (...values) {
+          const index = instr.timers.list.findIndex(item => item.id === id);
+          if (index !== -1) {
+            instr.timers.list.splice(index, 1);
+            instr.timers.count = Math.max(0, instr.timers.count - 1);
+          }
+          return fn.apply(this, values);
+        }, delay, ...args);
         try{
           instr.timers.count++;
           instr.timers.list.push({ id, type:'timeout', delay, createdAt: nowISO(), stack: stackSample() });
