@@ -2118,6 +2118,11 @@ this.anims.create({
     if (window.GFAmigos)      window.GFAmigos.montar(this);
     if (window.GFChatSocial)  window.GFChatSocial.montar(this);
     if (window.GFNombreColor) window.GFNombreColor.montar(this);
+    /* El botón redondo de Lands. Esta escena NO hereda de GameScene, así que
+       no tiene `_bindDomClick`; gf-lands.js lo detecta y cae a `.onclick`, que
+       también pisa el manejador anterior en vez de acumularlo. Con esta línea
+       el botón funciona igual aquí que en el mapa y en la mina. */
+    if (window.GFLands)       window.GFLands.montar(this);
 
     // ASIGNAR LISTENERS
     this.roundButtons[0]?.addEventListener('click', this.onRoundBtnDashboard);

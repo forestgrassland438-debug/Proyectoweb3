@@ -19,8 +19,36 @@
 
 
 class GameScene extends Phaser.Scene {
-  constructor() {
-    super({ key: 'GameScene' });
+  /**
+   * `config` existe para que MinaScene pueda heredar de esta clase con SU
+   * propia clave de escena.
+   *
+   * Sin esto no se puede: Phaser guarda la clave dentro de `sys.settings` en el
+   * constructor de Scene, y el gestor de escenas RESPETA esa clave e ignora la
+   * que se le pase a `scene.add(...)` cuando ya viene rellena. Una subclase que
+   * llamara a `super()` a secas se registraria como 'GameScene' y pisaria al
+   * mapa de fuera.
+   *
+   * Sin argumentos se comporta exactamente como antes.
+   */
+  constructor(config) {
+    super(config || { key: 'GameScene' });
+
+      /* LOS JUGADORES REMOTOS, DESDE EL CONSTRUCTOR.
+       *
+       * FALLO QUE ESTO ARREGLA: `this.otherPlayers = {}` se hacia en preload()
+       * y en create(). Las escenas hijas (MinaScene, LandsScene) tienen los
+       * suyos propios, asi que en ellas la propiedad no llegaba a existir — y
+       * `clearOtherPlayers()`, que corre en el APAGADO de cualquier escena,
+       * hace `Object.values(this.otherPlayers)`: con `undefined` eso lanza
+       * "Cannot convert undefined or null to object" y la escena se queda a
+       * medio apagar.
+       *
+       * En GameScene el fallo estaba latente: basta con que la escena se pare
+       * antes de que preload termine (un cambio de escena rapido, un fallo de
+       * red) para que pase lo mismo. Naciendo en el constructor, la propiedad
+       * existe siempre. */
+      this.otherPlayers = {};
 
       this.currentAccount = null;
       this.panelactualizacion = 1;
@@ -3090,9 +3118,45 @@ liberarMemoriaPesada() {
 
     });
 
+    // ── LA PUERTA DE LA MINA ─────────────────────────────────────────────
+    //
+    // No hace falta capa nueva en el mapa: el objeto `puerta_mina` YA estaba
+    // en la capa `Objetosxd` (es el que pinta el batiente), así que la zona de
+    // entrada se saca de él. Menos cosas que mantener y, sobre todo, el
+    // disparador no se puede desalinear del dibujo de la puerta.
+    //
+    // OJO CON LA Y. En Tiled, un objeto CON gid —como éste, que lleva
+    // tile— tiene su origen en la esquina de ABAJO a la izquierda, no arriba.
+    // Tomando obj.y tal cual, el rectángulo quedaría un alto entero por debajo
+    // de la puerta, en mitad de la nada, y no se dispararía nunca.
+    this.collisionRectangles3 = [];
+    try {
+      const capaObjetosxd = this.map.getObjectLayer('Objetosxd');
+      (capaObjetosxd?.objects || []).forEach(obj => {
+        if (obj.name !== 'puerta_mina') return;
+        const arriba = obj.gid ? (obj.y - obj.height) : obj.y;
+        this.collisionRectangles3.push(
+          new Phaser.Geom.Rectangle(obj.x, arriba, obj.width, obj.height));
+      });
+      if (!this.collisionRectangles3.length) {
+        console.warn('⛏️ no se encontró el objeto puerta_mina en la capa Objetosxd');
+      }
+    } catch (e) {
+      console.warn('⛏️ no se pudo preparar la puerta de la mina:', e);
+    }
+
+    // Candado de la puerta de la mina, por el mismo motivo que el de la
+    // tienda: al volver de la mina se reaparece al lado del batiente, así que
+    // sin esto el primer frame te devolvería abajo. Empieza DESARMADA y se
+    // arma en cuanto el jugador sale del rectángulo.
+    this._minaArmada = false;
+
     // Rejilla espacial sobre los 325 rectángulos que se acaban de crear. Es lo
     // que evita recorrerlos uno a uno en cada consulta de colisión (jugador y
     // perro, decenas de veces por frame). Ver _reconstruirIndiceColisiones().
+    //
+    // collisionRectangles3 NO entra en la rejilla a propósito: es un
+    // disparador, no un obstáculo. Si entrara, la puerta sería un muro.
     this._reconstruirIndiceColisiones();
 
 
@@ -4605,7 +4669,11 @@ this.createImagesFromObjectLayer(this, this.map, 'Lamparas', imageMappingpostes,
         puerta_mina: {
         spriteKey: 'puerta_mina_png',
         targetProp: 'puerta_mina_pngx1',
-        onClick: () => { this.openFurnacePanel(); },
+        // ANTES ESTO ABRÍA EL HORNO. Era una línea copiada del objeto de
+        // arriba (`horno_mineral1`) a la que se le cambió el nombre pero no el
+        // manejador: clicar la puerta de la mina abría el panel de fundición.
+        // Ahora hace lo que dice: baja a la mina.
+        onClick: () => { this.entrarEnLaMina(); },
       },
     };
 
@@ -5892,67 +5960,16 @@ window.hub.onRetry = (hiddenData) => {
     // que NO pasan por create(). Es seguro llamarlo de más: _bindDomClick es
     // idempotente — quita el manejador anterior antes de poner el nuevo, así
     // que nunca se duplican los clics.
-    this._reengancharHUD = () => {
-      try {
-        this.roundButtons = document.querySelectorAll('.round-btn');
-        this._bindDomClick(this.roundButtons[0], 'dashboard', this.onRoundBtnDashboard);
-        this._bindDomClick(this.roundButtons[2], 'stats',      this.onRoundBtnStats);
-        this._bindDomClick(this.roundButtons[3], 'reputation', this.onRoundBtnReputation);
-        this._bindDomClick(document.getElementById('mail-btn'), 'mail', this.onRoundBtnMail);
-        this._bindDomClick(document.getElementById('nft-btn'), 'nft', (e) => {
-          e.stopPropagation(); this.openNFTPanel();
-        });
-        this._bindDomClick(document.getElementById('skills-btn'), 'skills', (e) => {
-          e.stopPropagation(); this.openSkillsPanel();
-        });
-        this._bindDomClick(document.getElementById('store-btn'), 'store', (e) => {
-          e.stopPropagation();
-          window.open(new URL('market.html', window.location.href).href, '_blank');
-        });
-
-        // El botón de mostrar/ocultar los botones redondos y el del chat también
-        // son DOM de la página: si se quedan sin manejador, el jugador ve los
-        // botones ahí, los pulsa y no pasa nada. Los dos van por vías
-        // idempotentes, así que reengancharlos aquí no duplica clics.
-        const innerBtn = document.querySelector('.inner-btn');
-        if (innerBtn && this.onInnerBtnClick) {
-          this._bindDomClick(innerBtn, 'innerBtn', this.onInnerBtnClick);
-        }
-        const chatBtn = document.getElementById('open-chat-btn');
-        if (chatBtn && this._toggleChat) {
-          chatBtn.style.removeProperty('display');
-          this._bindDomClick(chatBtn, 'chatToggle', () => this._toggleChat());
-        }
-
-        /* Lo social va por el mismo camino y por el mismo motivo: el botón de
-           amistades es DOM de la página y su manejador apunta a la escena que
-           lo puso. Si la escena se despierta en vez de recrearse, ese manejador
-           sigue apuntando a una escena muerta y el botón deja de abrir nada. */
-        if (window.GFAmigos)      window.GFAmigos.montar(this);
-        if (window.GFChatSocial)  window.GFChatSocial.montar(this);
-        if (window.GFNombreColor) window.GFNombreColor.montar(this);
-        try { document.body.classList.remove('in-battle'); } catch (_) {}
-
-        // Los botones de CERRAR de los paneles se asignan con `.onclick = …`
-        // en create(). Esa función captura el `this` de la escena en la que se
-        // creó; si la escena se recrea y create() no vuelve a pasar por ahí,
-        // el `onclick` viejo sigue puesto apuntando a una escena MUERTA: al
-        // pulsarlo lanza una excepción y el panel no se cierra. De ahí el
-        // "abren y no cierran". Se reasignan aquí con el `this` vivo.
-        const cerrar = [
-          ['notif-close',           () => this._closeNotifPanel()],
-          ['notif-mark-all-read',   () => this._markAllNotifRead()],
-          ['notif-clear-all',       () => this._clearAllNotif()],
-          ['close-panel',           () => this.hideSettingsPanel && this.hideSettingsPanel()]
-        ];
-        cerrar.forEach(([id, fn]) => {
-          const el = document.getElementById(id);
-          if (el) el.onclick = fn;
-        });
-
-        console.log('🔌 Botones del HUD reenganchados');
-      } catch (e) { console.warn('⚠️ No se pudo reenganchar el HUD:', e); }
-    };
+    // EL CUERPO DE ESTO VIVE AHORA EN EL METODO _cablearHUD().
+    //
+    // Se saco de aqui para que MinaScene pueda cablear EL MISMO HUD. La mina
+    // no pasa por este create() —no construye el mapa de fuera— pero si usa el
+    // HUD entero: botones redondos, campana, NFT, habilidades, tienda, chat y
+    // los botones de cerrar de los paneles. Copiarlo alli habria dejado dos
+    // cableados del mismo HUD que se irian separando con cada arreglo.
+    //
+    // Aqui queda solo el envoltorio que Phaser engancha a 'wake' y 'resume'.
+    this._reengancharHUD = () => this._cablearHUD();
     // `off` antes de `on`: create() puede correr varias veces sobre la MISMA
     // instancia de escena (Phaser la reutiliza), y sin esto se acumulaba un
     // manejador de 'wake'/'resume' por cada entrada al mapa.
@@ -8143,92 +8160,13 @@ console.log('📊 Tree types:', Object.keys(TREE_TYPE_CONFIG));
 
 
                 // Carácter global de las definiciones de ítems
-        this.ItemDefinitions = {
-          Semillax: { src: "./Game/Objetos/Plantas/planta_zanahorias/item_saco.png", maxStack: 50, tipo: "bolsa zanahorias", usos: null },
-          Semillax1: { src: "./Game/Objetos/Plantas/planta_tomates/semillas_tomate.png", maxStack: 50 , tipo: "bolsa de tomates", usos: null},
-          Semillax4: { src: "./Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png", maxStack: 50 , tipo: "bolsa_de_fresas", usos: null},
-          
-          Semillax2: { src: "./Game/Objetos/Plantas/planta_trigo/item_semilla_trigo.png", maxStack: 50 , tipo: "bolsa de trigo", usos: null},
-          Semillax3: { src: "./Game/Objetos/Plantas/planta_calabaza/item_semilla_calabaza.png", maxStack: 50, tipo: "bolsa de calabazas", usos: null },
-
-          Regaderax: { src: "./Game/Source/recurso2.png", maxStack: 1 , tipo: "Regaderax", usos: 20 },
-          Tijerasx: { src: "./Game/Source/tijeras.png", maxStack: 1 , tipo: "Tijerasx", usos: 20 },
-
-          mineral_piedra: { src: "./Game/Source/piedra.png", maxStack: 20 , tipo: "mineral_piedra", usos: null },
-
-          /* LOS DOS LINGOTES. Ya no salen de picar: ahora se FUNDEN en el horno
-             a partir de la piedra en bruto (ver FURNACE_RECIPES más abajo). El
-             dibujo es una barra de 16x9, no una roca — siempre fueron lingotes
-             aunque el nombre dijera "mineral". */
-          mineral_cobre: { src: "./Game/Source/cobre.png", maxStack: 20 , tipo: "mineral_cobre", usos: null },
-          mineral_hierro: { src: "./Game/Source/hierro.png", maxStack: 20 , tipo: "mineral_hierro", usos: null },
-
-          /* PIEDRA EN BRUTO — lo que suelta la mina desde 2026-09-08.
-             Sus tablas on-chain son mineral_piedra_cobre / mineral_piedra_hierro
-             / mineral_carbon, y NO se pueden confundir con las de los lingotes
-             (mineral_cobre / mineral_hierro): son tablas distintas del contrato,
-             con su propio cupo y sus propias facturas. */
-          mineral_piedra_cobre:  { src: "./Game/Source/piedra_cobre.png",  maxStack: 20, tipo: "mineral_piedra_cobre",  usos: null },
-          mineral_piedra_hierro: { src: "./Game/Source/piedra_hierro.png", maxStack: 20, tipo: "mineral_piedra_hierro", usos: null },
-          mineral_carbon:        { src: "./Game/Source/piedra_carbon.png", maxStack: 20, tipo: "mineral_carbon",        usos: null },
-          // FALTABA (2026-08-05): el carbón se podía picar (mineRewards lo da
-          // como botín de las rocas de carbón) pero no estaba definido aquí.
-          // Sin definición no tiene `tipo`, así que nunca se acuñaba en la
-          // cadena y se guardaba sin IDX/Manualid… que es justo lo que
-          // /api/save descarta. Resultado: el carbón desaparecía al guardar.
-          carbon: { src: "./Game/Objetos/carbon.png", maxStack: 20 , tipo: "carbon", usos: null },
-
-          palo: { src: "./Game/Source/palo.png", maxStack: 20 , tipo: "palo", usos: null},
-          tablon_de_madera: { src: "./Game/Source/madera.png", maxStack: 20 , tipo: "tablon_de_madera", usos: null},
-          madera_pinos: { src: "./Game/Source/madera_oscura.png", maxStack: 50 , tipo: "madera pinos", usos: null},
-          madera_con_hojas: { src: "./Game/Source/madera de hoja.png", maxStack: 50 , tipo: "madera con hojas", usos: null},
-          madera_seca: { src: "./Game/Source/madera seca.png", maxStack: 50 , tipo: "madera seca", usos: null},
-
-          balde_vacio: { src: "./Game/Source/item_pozo1.png", maxStack: 5 , tipo: "balde_vacio", usos: null },
-          balde_con_agua: { src: "./Game/Source/item_pozo2.png", maxStack: 5 , tipo: "balde_con_agua", usos: 1 },
-
-          
-          hacha_de_madera: { src: "./Game/Source/pico_y_hacha/hacha_de_madera.png", maxStack: 5, tipo: "hacha de madera", usos: 5  },
-          hacha_de_piedra: { src: "./Game/Source/pico_y_hacha/hacha_de_piedra.png", maxStack: 5, tipo: "hacha de piedra", usos: 10 },
-          hacha_de_cobre:  { src: "./Game/Source/pico_y_hacha/hacha_de_cobre.png",  maxStack: 5, tipo: "hacha de cobre", usos: 15 },
-          hacha_de_hierro: { src: "./Game/Source/pico_y_hacha/hacha_de_hierro.png", maxStack: 5, tipo: "hacha de hierro", usos: 20 },
-
-          pico_de_madera: { src: "./Game/Source/pico_y_hacha/pico_de_madera.png", maxStack: 5, tipo: "pico de madera", usos: 5  },
-          pico_de_piedra: { src: "./Game/Source/pico_y_hacha/pico_de_piedra.png", maxStack: 5, tipo: "pico de piedra", usos: 10 },
-          pico_de_cobre:  { src: "./Game/Source/pico_y_hacha/pico_de_cobre.png",  maxStack: 5, tipo: "pico de cobre", usos: 15 },
-          pico_de_hierro: { src: "./Game/Source/pico_y_hacha/pico_de_hierro.png", maxStack: 5, tipo: "pico de hierro", usos: 20 },
-          
-          zanahoria_buena: { src: "./Game/Objetos/Plantas/planta_zanahorias/item_zanahoria_buena.png", maxStack: 20 , tipo: "zanahoria_buena", usos: null },
-          zanahoria_corta: { src: "./Game/Objetos/Plantas/planta_zanahorias/planta_crecimiento_zanahoria.png", maxStack: 20 , tipo: "zanahoria_corta", usos: null},
-          zanahoria_mala: { src: "./Game/Objetos/Plantas/planta_zanahorias/item_zanahoria_podrida.png", maxStack: 20 , tipo: "zanahoria_mala", usos: null},
-
-          tomate_buena: { src: "./Game/Objetos/Plantas/planta_tomates/item_tomate_bueno.png", maxStack: 20, tipo: "tomate_buena", usos: null },
-          tomate_corta: { src: "./Game/Objetos/Plantas/planta_tomates/item_planta.png", maxStack: 20 , tipo: "tomate_corta", usos: null},
-          tomate_mala: { src: "./Game/Objetos/Plantas/planta_tomates/item_tomate_malo.png", maxStack: 20 , tipo: "tomate_mala", usos: null},
-          fresa_buena: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_buena.png", maxStack: 20, tipo: "fresa_buena", usos: null },
-
-          // Pociones del alquimista. Curan y reviven a la mascota; se usan
-          // desde su hub, no haciendo clic en el inventario.
-          pocion_mascota:        { src: "./Game/Objetos/pociones/pocion_mascota.png",        maxStack: 20, tipo: "pocion_mascota",        usos: null },
-          pocion_mascota_grande: { src: "./Game/Objetos/pociones/pocion_mascota_grande.png", maxStack: 10, tipo: "pocion_mascota_grande", usos: null },
-          elixir_revivir:        { src: "./Game/Objetos/pociones/elixir_revivir.png",        maxStack: 5,  tipo: "elixir_revivir",        usos: null },
-          fresa_corta: { src: "./Game/Objetos/Plantas/planta_fresa/item_planta.png", maxStack: 20 , tipo: "fresa_corta", usos: null},
-          fresa_mala: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_podrida.png", maxStack: 20 , tipo: "fresa_mala", usos: null},
-
-          
-
-          trigo_buena: { src: "./Game/Objetos/Plantas/planta_trigo/item_trigo_bueno.png", maxStack: 20 , tipo: "trigo_buena", usos: null},
-          trigo_corta: { src: "./Game/Objetos/Plantas/planta_trigo/item_planta_trigo.png", maxStack: 20 , tipo: "trigo_corta", usos: null},
-          trigo_mala: { src: "./Game/Objetos/Plantas/planta_trigo/item_trigo_podrido.png", maxStack: 20 , tipo: "trigo_mala", usos: null},
-
-          calabaza_buena: { src: "./Game/Objetos/Plantas/planta_calabaza/item_calabaza_buena.png", maxStack: 20 , tipo: "calabaza_buena", usos: null},
-          calabaza_corta: { src: "./Game/Objetos/Plantas/planta_calabaza/item_planta_calabaza.png", maxStack: 20, tipo: "calabaza_corta", usos: null},
-          calabaza_mala: { src: "./Game/Objetos/Plantas/planta_calabaza/item_calabaza_podrida.png", maxStack: 20, tipo: "calabaza_mala", usos: null },
-
-
-        
-          // Agrega más definiciones según sea necesario
-        };
+        // EL CATALOGO DE OBJETOS VIVE AHORA EN _definirObjetos().
+        //
+        // Se saco de aqui para que MinaScene tenga EL MISMO. Sin catalogo no
+        // hay inventario: `rebuildPlayerInventoryFromState` no sabe que imagen
+        // pintar en cada casilla y las deja en blanco, y el cobro on-chain no
+        // sabe el `tipo` que hay que mandar al contrato.
+        this._definirObjetos();
         
         
               
@@ -8836,84 +8774,9 @@ this._onDOM(window, 'mouseup', (e) => {
 
 
 
-// ============ MASCOTA (PERRO) ============
-// Posición inicial: unos 40px a la derecha y debajo del jugador
-this.dog.x = this.player.x + 40;
-this.dog.y = this.player.y + 20;
-this.dog.targetX = this.dog.x;
-this.dog.targetY = this.dog.y;
-
-/* Sprite del perro. NACE INVISIBLE, Y ESO ES LO IMPORTANTE.
-
-   EL FALLO QUE ARREGLA: "mientras la cámara se aleja para ajustarse al entrar
-   al mapa aparece mi perro como si lo tuviera, y cuando se ajusta se me quita".
-
-   El perro se creaba VISIBLE y solo se escondía si `window.globalPetData` ya
-   decía que no había mascota. Pero ese dato lo escribe gf-mascota.js DESPUÉS
-   de preguntarle al servidor, así que la primera vez que entras al juego no
-   existe todavía: el perro nacía a la vista y se quedaba ahí los dos segundos
-   largos que tarda la cámara en encuadrar. Justo el rato en el que se mira.
-
-   Nacer escondido es además lo correcto: una mascota que nadie ha confirmado
-   no existe. Lo enseña `_loadPetData()` cuando llega la respuesta, y
-   gf-mascota.js cuando sabe si está viva. Si no tienes perro, no aparece
-   nunca; si lo tienes, aparece un instante después, que no molesta a nadie. */
-this.dog.sprite = this.add.sprite(this.dog.x, this.dog.y, 'perro_derecha_1')
-    .setScale(2)
-    .setDepth(this.player.y + 8) // Empieza con un depth similar
-    .setVisible(false);
-
-// Sombra del perro (igual que la del jugador pero más pequeña)
-this.dog.shadow = this.add.graphics();
-this.dog.shadow.fillStyle(0x000000, 0.25);
-this.dog.shadow.fillEllipse(0, 0, 35, 18);
-this.dog.shadowContainer = this.add.container(this.dog.x, this.dog.y + 22, [this.dog.shadow]);
-this.dog.shadowContainer.setVisible(false);
-
-// Reproducir animación inicial
-this.dog.sprite.play('perro_right');
-
-// ── Etiqueta con el NOMBRE de la mascota (dashboard → nombre único) ──────
-// Solo se muestra cuando el jugador ya fijó un nombre (≠ '---'). Se
-// reposiciona cada frame en el update del perro, igual que el nombre del
-// jugador (usuariox).
-if (!this.petName) this.petName = window.globalPetName || '---';
-this.dogNameText = this.add.text(this.dog.x, this.dog.y - 30, '', {
-  fontFamily: '"PressStart2P"',
-  fontSize: '8px',
-  color: '#ffe9a8',
-  resolution: 4,
-  stroke: '#000000',
-  strokeThickness: 4
-}).setOrigin(0.5, 1).setDepth(this.player.y + 9).setVisible(false);
-if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
-
-// ── Synchronously apply saved pet state BEFORE the async _loadPetData call ──
-// This prevents a 1-frame flash of the dog when returning from tiendajuego
-if (window.globalPetData) {
-  this.petData = window.globalPetData;
-  /* MUERTA CUENTA IGUAL QUE RETIRADA.
-
-     EL FALLO QUE ARREGLA: "al entrar a GameScene la mascota aparece un instante
-     y se quita". Aqui se miraba `equipped` y `visible`, pero no si estaba
-     MUERTA. El perro nacia visible, y solo cuando gf-mascota.js recibia el
-     estado del servidor —una peticion de red mas tarde— se escondia. Ese hueco
-     es el parpadeo.
-
-     `alive` lo escribe gf-mascota.js en globalPetData justo para esto, y es el
-     mismo dato que ya usa la tienda. */
-  /* Ahora el perro nace escondido, así que aquí solo hay que ENSEÑARLO si el
-     estado guardado dice que sí. Antes era al revés (nacía visible y se
-     escondía) y por eso hacía falta acertar con las tres condiciones a la
-     primera; ahora, si alguna falta, lo peor que pasa es que el perro tarde
-     un instante más en salir. */
-  var hayPerro = this.petData.equipped !== false &&
-                 this.petData.visible !== false &&
-                 window.globalPetData.alive !== false;
-  this.dog.sprite.setVisible(hayPerro);
-  this.dog.shadowContainer.setVisible(hayPerro);
-  if (this.dogNameText && !hayPerro) this.dogNameText.setVisible(false);
-}
+    // LA CREACION DE LA MASCOTA VIVE AHORA EN _crearMascota().
+    // Misma razon que _actualizarMascota(): la mina tambien tiene perro.
+    this._crearMascota();
 
 
 
@@ -16908,7 +16771,7 @@ _soltarJugadorRemoto(p) {
 }
 
 clearOtherPlayers() {
-  Object.values(this.otherPlayers).forEach(p => this._soltarJugadorRemoto(p));
+  Object.values(this.otherPlayers || {}).forEach(p => this._soltarJugadorRemoto(p));
   this.otherPlayers = {};
 }
 
@@ -19240,7 +19103,7 @@ shutdown() {
   /* Limpiar jugadores locales — por el MISMO camino que los otros dos sitios.
      Esta lista también iba suelta y también se le habían olvidado cosas (el
      sprite del perro, las burbujas de chat). Ver _soltarJugadorRemoto. */
-  Object.values(this.otherPlayers).forEach(p => this._soltarJugadorRemoto(p));
+  Object.values(this.otherPlayers || {}).forEach(p => this._soltarJugadorRemoto(p));
   this.otherPlayers = {};
 
   // No desconectar el socket global, solo salir de la sala
@@ -19450,6 +19313,14 @@ highlightQuickSlot(index) {
   }
 
   loadState() {
+    /* `this.hubInfo` se rellena en create(), y las escenas hijas (mina, isla)
+       tienen el suyo propio. Sin esta comprobacion, llamar a loadState() desde
+       ellas lanzaba "Cannot read properties of undefined (reading
+       'classList')" — un fallo que no rompia nada a la vista pero dejaba el
+       panel del hub en el estado equivocado y ensuciaba la consola. Se busca
+       el nodo aqui si hace falta: es DOM de la pagina, siempre esta. */
+    if (!this.hubInfo) this.hubInfo = document.getElementById("hub-info");
+    if (!this.hubInfo) return;
     const estadoGuardado = localStorage.getItem("hubInfoCollapsed");
     if (estadoGuardado === "true") {
       this.hubInfo.classList.add("collapsed");
@@ -19459,6 +19330,10 @@ highlightQuickSlot(index) {
   }
 
   removeListener() {
+    // Mismo motivo que loadState: esto se llama tambien al salir de la mina y
+    // de la isla, que no pasan por el create() que rellena profileImage.
+    if (!this.profileImage) this.profileImage = document.getElementById("player-image");
+    if (!this.profileImage || !this.toggleHubInfo) return;
     this.profileImage.removeEventListener("click", this.toggleHubInfo);
   }
 
@@ -28109,479 +27984,14 @@ getPlayerIntentDirection() {
     const mapX = Math.floor(this.player.x / this.map.tileWidth); // Coordenada X en tiles
     const mapY = Math.floor(this.player.y / this.map.tileHeight); // Coordenada Y en tiles
 
-// ============ MASCOTA (PERRO) – UPDATE COMPLETO, MIRADA CORREGIDA, ANIMACIÓN ESTABLE Y EVASIÓN DE COLISIONES ============
-const dog = this.dog;
-const player = this.player;
-
-// If pet was removed by player, keep it hidden and skip all dog update logic
-if (this.petData && this.petData.equipped === false) {
-  if (dog && dog.sprite && dog.sprite.visible) dog.sprite.setVisible(false);
-  if (dog && dog.shadowContainer && dog.shadowContainer.visible) dog.shadowContainer.setVisible(false);
-  if (this.dogNameText && this.dogNameText.visible) this.dogNameText.setVisible(false);
-  // Skip rest of update for this frame
-} else {
-
-if (!dog || !dog.sprite || !player) return;
-
-if (this.prevPlayerX === undefined) this.prevPlayerX = player.x;
-if (this.prevPlayerY === undefined) this.prevPlayerY = player.y;
-
-if (dog.prevX === undefined) dog.prevX = dog.x;
-if (dog.prevY === undefined) dog.prevY = dog.y;
-if (dog.prevTargetX === undefined) dog.prevTargetX = dog.targetX;
-if (dog.prevTargetY === undefined) dog.prevTargetY = dog.targetY;
-if (dog.lastFacing === undefined) dog.lastFacing = 'right';
-if (dog.desiredFacing === undefined) dog.desiredFacing = 'right';
-if (dog.smoothOffsetX === undefined) dog.smoothOffsetX = 0;
-if (dog.smoothOffsetY === undefined) dog.smoothOffsetY = 20;
-if (dog.lastAnimState === undefined) dog.lastAnimState = 'idle';
-if (dog.isMoving === undefined) dog.isMoving = false;
-// FIX: facingLockUntil nunca se inicializaba; "now >= undefined" siempre es
-// false, así que la mirada del perro jamás se actualizaba con las teclas
-// izquierda/derecha. Con 0 el primer cambio de mirada funciona de inmediato.
-if (dog.facingLockUntil === undefined) dog.facingLockUntil = 0;
-// Lado de esquive preferido por la evasión anticipada (+1 / -1 / 0 = ninguno).
-// Se recuerda entre frames para rodear el obstáculo por un solo lado en vez
-// de zigzaguear.
-if (dog.avoidSide === undefined) dog.avoidSide = 0;
-
-const now = this.time.now;
-const FOLLOW_OFFSET = 70;
-
-// Teclas opcionales
-const _chatBlk = this._chatInputFocused === true;
-const leftPressed  = !_chatBlk && (this.cursors?.left?.isDown  || this.keys?.A?.isDown || false);
-const rightPressed = !_chatBlk && (this.cursors?.right?.isDown || this.keys?.D?.isDown || false);
-const upPressed    = !_chatBlk && (this.cursors?.up?.isDown    || this.keys?.W?.isDown || false);
-const downPressed  = !_chatBlk && (this.cursors?.down?.isDown  || this.keys?.S?.isDown || false);
-// Movimiento real del jugador
-/* EL DESPLAZAMIENTO SE MIDE CONTRA LA POSICION REAL DEL FRAME ANTERIOR.
-
-   FALLO QUE ESTO ARREGLA — "choco a proposito hacia abajo, suelto la tecla y el
-   personaje mira ARRIBA" (y al reves, y lo mismo con izquierda/derecha):
-
-   este bloque corre ANTES de que se resuelvan las colisiones, asi que
-   `player.y` de aqui es la posicion QUE SE INTENTA, no la que acaba teniendo.
-   Al guardarla en `prevPlayerY` para el frame siguiente, se guardaba una
-   posicion que un momento despues se deshacia por chocar contra la pared.
-
-   Contra un muro, apretando abajo:
-     · frame 1: intento P+d  ->  se guarda P+d  ->  la colision devuelve a P
-     · frame 2 (sueltas):     posicion P  ->  playerDy = P - (P+d) = -d
-   Un movimiento hacia ARRIBA que nunca ocurrio. Y unas lineas mas abajo eso
-   escribia `this.lastDirection = 'up'`, que es de donde saca su textura el
-   personaje quieto: mirabas al lado contrario del que estabas empujando.
-
-   `this.previousPosition` se toma al principio del update y ya viene con las
-   colisiones del frame anterior aplicadas: es la posicion de verdad. Con ella,
-   apretando contra el muro sale +d (la intencion, correcta) y al soltar sale 0
-   (no te has movido), que es justo lo que tiene que pasar. */
-const _refX = (this.previousPosition && typeof this.previousPosition.x === 'number')
-  ? this.previousPosition.x : this.prevPlayerX;
-const _refY = (this.previousPosition && typeof this.previousPosition.y === 'number')
-  ? this.previousPosition.y : this.prevPlayerY;
-
-const playerDx = player.x - _refX;
-const playerDy = player.y - _refY;
-const playerMoved = Math.hypot(playerDx, playerDy) > 0.06;
-
-this.prevPlayerX = player.x;
-this.prevPlayerY = player.y;
-
-// Dirección de intención del jugador
-let intentDir = null;
-if (downPressed && !upPressed) intentDir = 'down';
-else if (upPressed && !downPressed) intentDir = 'up';
-else if (rightPressed && !leftPressed) intentDir = 'right';
-else if (leftPressed && !rightPressed) intentDir = 'left';
-
-// Mirada del perro
-if (intentDir === 'left' || intentDir === 'right') {
-  if (now >= dog.facingLockUntil && dog.desiredFacing !== intentDir) {
-    dog.desiredFacing = intentDir;
-    dog.facingLockUntil = now + 90;
-  }
-} else if (playerMoved && Math.abs(playerDx) > 0.06) {
-  dog.desiredFacing = playerDx > 0 ? 'right' : 'left';
-}
-
-// Dirección de seguimiento
-let desiredDir = this.lastDirection || 'right';
-
-if (intentDir === 'down') {
-  desiredDir = 'down';
-  this.lastDirection = 'down';
-} else if (intentDir === 'up') {
-  desiredDir = 'up';
-  this.lastDirection = 'up';
-} else if (intentDir === 'left' || intentDir === 'right') {
-  desiredDir = intentDir;
-  this.lastDirection = intentDir;
-} else if (playerMoved) {
-  /* Sin teclas: el desplazamiento decide donde se pone el PERRO, y nada mas.
-     Aqui ya no se escribe `this.lastDirection`: la mirada del personaje la
-     lleva el bloque de animacion, mas abajo, con el desplazamiento ya corregido
-     por las colisiones. Que el codigo del perro tocara esa variable era la
-     segunda mitad del fallo de la mirada invertida. */
-  if (Math.abs(playerDx) > Math.abs(playerDy) && Math.abs(playerDx) > 0.06) {
-    desiredDir = playerDx > 0 ? 'right' : 'left';
-  } else if (Math.abs(playerDy) > 0.06) {
-    desiredDir = playerDy > 0 ? 'down' : 'up';
-  }
-}
-
-// Offset objetivo según dirección
-let targetOffsetX = 0;
-let targetOffsetY = 20;
-
-switch (desiredDir) {
-  case 'left':
-    targetOffsetX = FOLLOW_OFFSET;
-    targetOffsetY = 20;
-    break;
-  case 'right':
-    targetOffsetX = -FOLLOW_OFFSET;
-    targetOffsetY = 20;
-    break;
-  case 'up':
-    targetOffsetX = 0;
-    targetOffsetY = FOLLOW_OFFSET;
-    break;
-  case 'down':
-    targetOffsetX = 0;
-    targetOffsetY = -FOLLOW_OFFSET;
-    break;
-}
-
-// Suavizado del offset
-//
-// BUG QUE ESTO ARREGLA — "el perro no deja de correr su animación":
-// una interpolación así NUNCA llega al destino, solo se acerca cada vez más
-// (70 → 63 → 56,7 → …). El desplazamiento se hace minúsculo pero nunca es cero,
-// así que `dogMoved` seguía dando true durante uno o dos segundos después de
-// que el perro ya estuviera visualmente colocado, y la animación de correr
-// seguía puesta. Se remata a mano: por debajo de un cuarto de píxel se fija el
-// valor exacto y se acabó el movimiento.
-const OFFSET_LERP = 0.10;
-dog.smoothOffsetX += (targetOffsetX - dog.smoothOffsetX) * OFFSET_LERP;
-dog.smoothOffsetY += (targetOffsetY - dog.smoothOffsetY) * OFFSET_LERP;
-if (Math.abs(targetOffsetX - dog.smoothOffsetX) < 0.25) dog.smoothOffsetX = targetOffsetX;
-if (Math.abs(targetOffsetY - dog.smoothOffsetY) < 0.25) dog.smoothOffsetY = targetOffsetY;
-
-// Target final
-dog.targetX = player.x + dog.smoothOffsetX;
-dog.targetY = player.y + dog.smoothOffsetY;
-
-// Helper de colisiones del perro.
-//
-// El tamaño de su caja no cambia dentro de un frame, así que se calcula UNA vez
-// aquí fuera en vez de en cada una de las ~90 llamadas. Y la consulta va contra
-// el índice espacial (_chocaConEscenario), que solo mira los rectángulos de las
-// celdas ocupadas en lugar de los 325 del mapa. Sin `new Rectangle`: cero basura
-// para el recolector. Ver la nota larga en _reconstruirIndiceColisiones().
-const _dogW = Math.max(18, (dog.sprite.displayWidth  || 32) * 0.55);
-const _dogH = Math.max(14, (dog.sprite.displayHeight || 32) * 0.50);
-const collidesAt = (x, y) =>
-  this._chocaConEscenario(x - _dogW * 0.5, y - _dogH * 0.5, _dogW, _dogH);
-
-// Busca un punto alternativo para rodear la colisión
-const findEscapePoint = (fromX, fromY, toX, toY) => {
-  const dx = toX - fromX;
-  const dy = toY - fromY;
-
-  const signX = dx >= 0 ? 1 : -1;
-  const signY = dy >= 0 ? 1 : -1;
-
-  const tests = [
-    [toX + signX * 18, toY],
-    [toX, toY + signY * 18],
-    [toX - signX * 18, toY],
-    [toX, toY - signY * 18],
-
-    [fromX + signX * 18, fromY],
-    [fromX, fromY + signY * 18],
-
-    [toX + signX * 12, toY + signY * 12],
-    [toX - signX * 12, toY + signY * 12],
-    [toX + signX * 12, toY - signY * 12],
-    [toX - signX * 12, toY - signY * 12],
-
-    [fromX + signX * 24, fromY + signY * 10],
-    [fromX + signX * 24, fromY - signY * 10],
-    [fromX - signX * 24, fromY + signY * 10],
-    [fromX - signX * 24, fromY - signY * 10]
-  ];
-
-  for (const [tx, ty] of tests) {
-    if (!collidesAt(tx, ty)) {
-      return { x: tx, y: ty };
-    }
-  }
-
-  return null;
-};
-
-// Resolver movimiento sin atravesar obstáculos
-const resolveDogMove = (fromX, fromY, toX, toY) => {
-  // 1) intento directo
-  if (!collidesAt(toX, toY)) {
-    return { x: toX, y: toY };
-  }
-
-  // 2) deslizamiento por ejes
-  if (!collidesAt(toX, fromY)) {
-    return { x: toX, y: fromY };
-  }
-
-  if (!collidesAt(fromX, toY)) {
-    return { x: fromX, y: toY };
-  }
-
-  // 3) rodeo inteligente
-  const escapePoint = findEscapePoint(fromX, fromY, toX, toY);
-  if (escapePoint) return escapePoint;
-
-  // 4) intento de empuje corto en varias direcciones
-  const steps = [6, 10, 14, 18, 24, 30, 36];
-  for (const s of steps) {
-    const tries = [
-      [toX + s, fromY],
-      [toX - s, fromY],
-      [fromX, toY + s],
-      [fromX, toY - s],
-      [toX + s, toY],
-      [toX - s, toY],
-      [toX, toY + s],
-      [toX, toY - s]
-    ];
-
-    for (const [cx, cy] of tries) {
-      if (!collidesAt(cx, cy)) {
-        return { x: cx, y: cy };
-      }
-    }
-  }
-
-  // 5) si todo falla, no avanza
-  return { x: fromX, y: fromY };
-};
-
-// ── EVASIÓN ANTICIPADA (perro "inteligente") ──────────────────────────────
-// Antes el perro solo REACCIONABA al chocar: proponía el paso, colisionaba y
-// resolveDogMove buscaba por dónde salir — se veía cómo se pegaba al
-// obstáculo y luego se deslizaba. Ahora MIRA HACIA ADELANTE en la línea hacia
-// su objetivo: si detecta que el camino directo va a chocar en los próximos
-// pasos, desvía el objetivo hacia un costado (perpendicular al rumbo) ANTES
-// de tocar el obstáculo, y recuerda el lado elegido (dog.avoidSide) para
-// rodearlo por un solo lado sin zigzaguear. resolveDogMove queda como red de
-// seguridad final.
-const computeSteeredTarget = () => {
-  const dx = dog.targetX - dog.x;
-  const dy = dog.targetY - dog.y;
-  const dist = Math.hypot(dx, dy);
-
-  // Muy cerca del objetivo: no hay nada que anticipar
-  if (dist < 6) {
-    dog.avoidSide = 0;
-    return { x: dog.targetX, y: dog.targetY };
-  }
-
-  const nx = dx / dist;
-  const ny = dy / dist;
-
-  // Sondear el camino directo por delante del perro (sin pasarse del objetivo)
-  const LOOKAHEAD_STEPS = [14, 28, 42];
-  let blockedAt = -1;
-  for (const d of LOOKAHEAD_STEPS) {
-    if (d > dist + 8) break;
-    if (collidesAt(dog.x + nx * d, dog.y + ny * d)) { blockedAt = d; break; }
-  }
-
-  // Camino libre: seguir directo y olvidar el lado de esquive
-  if (blockedAt < 0) {
-    dog.avoidSide = 0;
-    return { x: dog.targetX, y: dog.targetY };
-  }
-
-  // Camino bloqueado más adelante: buscar un punto de desvío lateral.
-  // Perpendicular al rumbo (px,py); se prueba primero el lado ya elegido en
-  // frames anteriores para mantener un rodeo coherente.
-  const px = -ny;
-  const py = nx;
-  const sides = dog.avoidSide !== 0 ? [dog.avoidSide, -dog.avoidSide] : [1, -1];
-
-  for (const side of sides) {
-    for (const lateral of [26, 40, 54]) {
-      const cx = dog.x + nx * Math.min(blockedAt, 24) + px * lateral * side;
-      const cy = dog.y + ny * Math.min(blockedAt, 24) + py * lateral * side;
-
-      // El punto de desvío y el tramo intermedio hacia él deben estar libres
-      if (!collidesAt(cx, cy) &&
-          !collidesAt(dog.x + (cx - dog.x) * 0.5, dog.y + (cy - dog.y) * 0.5)) {
-        dog.avoidSide = side;
-        return { x: cx, y: cy };
-      }
-    }
-  }
-
-  // Ningún desvío lateral libre: dejar que resolveDogMove haga lo que pueda
-  dog.avoidSide = 0;
-  return { x: dog.targetX, y: dog.targetY };
-};
-
-const steerTarget = computeSteeredTarget();
-
-// Movimiento suave
-const DOG_LERP = 0.08;
-// Al esquivar (steerTarget ≠ target), un lerp sobre una distancia más corta
-// haría al perro más lento justo cuando necesita rodear; se compensa un poco.
-const isDetouring = (steerTarget.x !== dog.targetX || steerTarget.y !== dog.targetY);
-const effLerp = isDetouring ? Math.min(0.14, DOG_LERP * 1.75) : DOG_LERP;
-
-// ── LLEGADA: EL PERRO SE PARA DE VERDAD ─────────────────────────────────────
-// El mismo problema que con el offset: `dog.x += (target - dog.x) * 0.08` se
-// acerca al objetivo pero no llega jamás. El perro quedaba avanzando fracciones
-// de píxel un buen rato, y como la animación se decidía por "¿se movió algo?",
-// seguía corriendo en el sitio hasta que el resto del sistema se estabilizaba —
-// que es justo lo que se notaba como "no para hasta que la cámara se queda
-// quieta".
-//
-// Ahora, cuando queda menos de un píxel y medio hasta el destino Y no hay
-// desvío en curso, se coloca EXACTO y se marca como llegado. A partir de ahí no
-// hay movimiento, así que no hay animación: se queda quieto donde toca.
-const faltaX = steerTarget.x - dog.x;
-const faltaY = steerTarget.y - dog.y;
-const distanciaAlObjetivo = Math.hypot(faltaX, faltaY);
-const LLEGADA = 1.5;   // píxeles
-
-let proposedX, proposedY;
-if (!isDetouring && distanciaAlObjetivo <= LLEGADA) {
-  proposedX = steerTarget.x;
-  proposedY = steerTarget.y;
-} else {
-  // PASO MÍNIMO EN EL ÚLTIMO TRAMO.
-  // Con solo la interpolación, cubrir los últimos 12 px costaba unos 30
-  // fotogramas (medio segundo) avanzando cada vez menos: se veía al perro
-  // "arrastrándose" al final de cada parada, animación de correr incluida.
-  // Poniendo un avance mínimo de 1,2 px por fotograma cuando ya está cerca, ese
-  // último tramo se resuelve en unos 10 fotogramas y la llegada se ve limpia.
-  // Lejos del objetivo no cambia nada: manda la interpolación de siempre.
-  let paso = distanciaAlObjetivo * effLerp;
-  if (distanciaAlObjetivo < 12 && paso < 1.2) paso = Math.min(1.2, distanciaAlObjetivo);
-  const k = paso / distanciaAlObjetivo;
-  proposedX = dog.x + faltaX * k;
-  proposedY = dog.y + faltaY * k;
-}
-
-const moved = resolveDogMove(dog.x, dog.y, proposedX, proposedY);
-const prevDogX = dog.x;
-const prevDogY = dog.y;
-
-dog.x = moved.x;
-dog.y = moved.y;
-
-const dogDx = dog.x - prevDogX;
-const dogDy = dog.y - prevDogY;
-// Umbral de "se está moviendo" subido de 0,02 a 0,2 px por frame. A 0,02 un
-// desplazamiento diez veces más pequeño que un píxel ya contaba como caminar:
-// invisible en pantalla, pero suficiente para mantener la animación encendida.
-// Con 0,2 el perro solo se anima cuando de verdad se le ve avanzar.
-const dogMoved = Math.hypot(dogDx, dogDy) > 0.2;
-// ¿Ya está donde tiene que estar? Si es así no se anima, pase lo que pase con
-// la cámara o con los redondeos de la posición del jugador.
-const dogEnDestino = (distanciaAlObjetivo <= LLEGADA);
-
-// Mirada final del perro
-if (dog.desiredFacing === 'left' || dog.desiredFacing === 'right') {
-  dog.lastFacing = dog.desiredFacing;
-} else if (Math.abs(dogDx) > 0.01) {
-  dog.lastFacing = dogDx > 0 ? 'right' : 'left';
-}
-// FIX MULTIJUGADOR: sendPlayerMovement emite this.dog.direction, pero nunca
-// se actualizaba — los demás jugadores no veían hacia dónde mira tu perro.
-dog.direction = dog.lastFacing;
-
-// Animación estable: solo se reproduce si realmente está caminando.
-//
-// La condición manda sobre todo lo demás: si el perro YA ESTÁ en su sitio, no
-// se anima. Antes bastaba con que el jugador se hubiera movido un pelo
-// (`playerMoved`) o con que el perro hubiera avanzado 0,02 px para dejar la
-// animación de correr puesta, aunque el perro estuviera visualmente parado
-// junto al jugador.
-const shouldAnimate = !dogEnDestino && (playerMoved || dogMoved || intentDir !== null);
-
-// GUARD: si dog.sprite se destruyó/no existe, saltar TODO el render del perro.
-//
-// OJO con la condición: `if (dog.sprite)` NO basta. Phaser, al destruir un
-// objeto, NO pone la referencia a null: solo le quita `scene` y `sys`. Así que
-// el sprite muerto sigue siendo un objeto (truthy), pasaba el guard y reventaba
-// dentro de setTexture con "Cannot read properties of undefined (reading 'sys')"
-// en CADA frame — la escena se quedaba en negro al volver de una batalla.
-// `sprite.scene` es lo que de verdad distingue un sprite vivo de uno destruido.
-if (dog.sprite && dog.sprite.scene) {
-
-if (shouldAnimate && (dogMoved || playerMoved || intentDir)) {
-  const animKey = (dog.lastFacing === 'left') ? 'perro_left' : 'perro_right';
-
-  // Solo reinicia si cambió la animación.
-  // FIX (pantalla negra al volver de la batalla): al reiniciar la escena el
-  // perro puede estar a medio recrear y dog.sprite.anims llegar undefined. El
-  // acceso a .isPlaying lanzaba un TypeError EN CADA FRAME dentro de update(),
-  // y como update() se cortaba ahí, todo lo que venía después (incluido el
-  // seguimiento de cámara) dejaba de ejecutarse y el mapa se veía en negro.
-  if (dog.sprite.anims && (!dog.sprite.anims.isPlaying || dog.sprite.anims.currentAnim?.key !== animKey)) {
-    if (this.anims.exists(animKey)) {
-      dog.sprite.play(animKey, true);
-    } else {
-      dog.sprite.setTexture(
-        dog.lastFacing === 'left' ? 'perro_izquierda_1' : 'perro_derecha_1'
-      );
-    }
-  }
-
-  dog.isMoving = true;
-  dog.lastAnimState = animKey;
-} else {
-  if (dog.isMoving || (dog.sprite.anims && dog.sprite.anims.isPlaying)) {
-    if (dog.sprite.anims) dog.sprite.anims.stop();
-  }
-
-  dog.sprite.setTexture(
-    dog.lastFacing === 'left' ? 'perro_izquierda_1' : 'perro_derecha_1'
-  );
-
-  dog.isMoving = false;
-  dog.lastAnimState = 'idle';
-}
-
-// Posición y profundidad
-dog.sprite.setPosition(dog.x, dog.y);
-
-const dogFeetY = dog.y + dog.sprite.displayHeight * 0.5;
-dog.sprite.setDepth(dogFeetY);
-
-if (dog.shadowContainer) {
-  dog.shadowContainer.setPosition(dog.x, dog.y + 22);
-  dog.shadowContainer.setDepth(dogFeetY - 1);
-}
-
-// Etiqueta de la mascota (nombre y/o nivel): sigue al perro, sobre su cabeza.
-// Este bloque corre en cada frame, así que la condición de aquí manda sobre lo
-// que ponga _updateDogNameLabel: si exigiera nombre, el nivel de una mascota
-// sin nombrar volvería a ocultarse en el frame siguiente.
-if (this.dogNameText) {
-  if (dog.sprite.visible) {
-    this.dogNameText.setVisible(true);
-    this.dogNameText.setPosition(dog.x, dog.y - dog.sprite.displayHeight * 0.5 - 4);
-    this.dogNameText.setDepth(dogFeetY + 1);
-  } else {
-    this.dogNameText.setVisible(false);
-  }
-}
-
-} // cierre del GUARD if (dog.sprite)
-
-} // end petData.equipped else block
+    // EL BLOQUE DE LA MASCOTA VIVE AHORA EN _actualizarMascota().
+    //
+    // Eran 473 lineas metidas en mitad de update(). Se sacaron por lo mismo
+    // que el cableado del HUD: MinaScene tiene su propio update() —no recorre
+    // los arboles ni las rocas del mapa de fuera— pero el perro tiene que
+    // seguir al jugador tambien bajo tierra, con su esquiva de obstaculos y su
+    // animacion. Sin esto habria dos perros distintos que se irian separando.
+    this._actualizarMascota();
 
     // rectangulo de player
     //
@@ -28727,6 +28137,22 @@ if (this.dogNameText) {
     //  • _cambiandoEscena: scene.stop() y scene.start() no surten efecto hasta
     //    el final del paso actual, así que sin esto el mismo forEach (o el
     //    frame siguiente) podía lanzar la transición dos veces.
+    // ── PUERTA DE LA MINA ────────────────────────────────────────────────
+    // Mismos dos candados que la de la tienda, justo debajo, y por los mismos
+    // motivos: `_minaArmada` evita que al volver de la mina —se reaparece
+    // pegado al batiente— el primer frame te vuelva a meter dentro, y
+    // `_cambiandoEscena` evita disparar dos veces la misma transición.
+    if (Array.isArray(this.collisionRectangles3) && this.collisionRectangles3.length) {
+      const _tocandoMina = this.collisionRectangles3.some(r =>
+        r && Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, r));
+      if (!_tocandoMina) {
+        this._minaArmada = true;
+      } else if (this._minaArmada && !this._cambiandoEscena) {
+        this._minaArmada = false;
+        this.entrarEnLaMina();
+      }
+    }
+
     const _tocandoPuerta = this.collisionRectangles1.some(r =>
       r && Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, r));
     if (!_tocandoPuerta) this._puertaArmada = true;
@@ -30650,6 +30076,1166 @@ if (this.dogNameText) {
         body: JSON.stringify({ notifications: this._notifList.slice(0, 50) })
       });
     } catch (_) {}
+  }
+
+
+  /**
+   * Cablea TODO el HUD de la pagina a ESTA escena.
+   *
+   * Lo llaman tres sitios: el final de create(), los eventos 'wake' y
+   * 'resume' (que no pasan por create()), y el create() de MinaScene.
+   *
+   * Es IDEMPOTENTE: _bindDomClick quita el manejador anterior antes de
+   * poner el nuevo, asi que llamarlo de mas no duplica clics.
+   */
+  _cablearHUD() {
+      try {
+        this.roundButtons = document.querySelectorAll('.round-btn');
+        this._bindDomClick(this.roundButtons[0], 'dashboard', this.onRoundBtnDashboard);
+        this._bindDomClick(this.roundButtons[2], 'stats',      this.onRoundBtnStats);
+        this._bindDomClick(this.roundButtons[3], 'reputation', this.onRoundBtnReputation);
+        this._bindDomClick(document.getElementById('mail-btn'), 'mail', this.onRoundBtnMail);
+        this._bindDomClick(document.getElementById('nft-btn'), 'nft', (e) => {
+          e.stopPropagation(); this.openNFTPanel();
+        });
+        this._bindDomClick(document.getElementById('skills-btn'), 'skills', (e) => {
+          e.stopPropagation(); this.openSkillsPanel();
+        });
+        this._bindDomClick(document.getElementById('store-btn'), 'store', (e) => {
+          e.stopPropagation();
+          window.open(new URL('market.html', window.location.href).href, '_blank');
+        });
+
+        // El botón de mostrar/ocultar los botones redondos y el del chat también
+        // son DOM de la página: si se quedan sin manejador, el jugador ve los
+        // botones ahí, los pulsa y no pasa nada. Los dos van por vías
+        // idempotentes, así que reengancharlos aquí no duplica clics.
+        const innerBtn = document.querySelector('.inner-btn');
+        if (innerBtn && this.onInnerBtnClick) {
+          this._bindDomClick(innerBtn, 'innerBtn', this.onInnerBtnClick);
+        }
+        const chatBtn = document.getElementById('open-chat-btn');
+        if (chatBtn && this._toggleChat) {
+          chatBtn.style.removeProperty('display');
+          this._bindDomClick(chatBtn, 'chatToggle', () => this._toggleChat());
+        }
+
+        /* Lo social va por el mismo camino y por el mismo motivo: el botón de
+           amistades es DOM de la página y su manejador apunta a la escena que
+           lo puso. Si la escena se despierta en vez de recrearse, ese manejador
+           sigue apuntando a una escena muerta y el botón deja de abrir nada. */
+        if (window.GFAmigos)      window.GFAmigos.montar(this);
+        if (window.GFChatSocial)  window.GFChatSocial.montar(this);
+        if (window.GFNombreColor) window.GFNombreColor.montar(this);
+        /* El boton de Lands va por el mismo camino y por el mismo motivo: es
+           DOM de la pagina y su manejador apunta a la escena que lo puso. Si
+           la escena se despierta en vez de recrearse, ese manejador apunta a
+           una escena muerta y el boton deja de llevar a ningun sitio. */
+        if (window.GFLands)       window.GFLands.montar(this);
+        try { document.body.classList.remove('in-battle'); } catch (_) {}
+
+        // Los botones de CERRAR de los paneles se asignan con `.onclick = …`
+        // en create(). Esa función captura el `this` de la escena en la que se
+        // creó; si la escena se recrea y create() no vuelve a pasar por ahí,
+        // el `onclick` viejo sigue puesto apuntando a una escena MUERTA: al
+        // pulsarlo lanza una excepción y el panel no se cierra. De ahí el
+        // "abren y no cierran". Se reasignan aquí con el `this` vivo.
+        const cerrar = [
+          ['notif-close',           () => this._closeNotifPanel()],
+          ['notif-mark-all-read',   () => this._markAllNotifRead()],
+          ['notif-clear-all',       () => this._clearAllNotif()],
+          ['close-panel',           () => this.hideSettingsPanel && this.hideSettingsPanel()]
+        ];
+        cerrar.forEach(([id, fn]) => {
+          const el = document.getElementById(id);
+          if (el) el.onclick = fn;
+        });
+
+        console.log('🔌 Botones del HUD reenganchados');
+      } catch (e) { console.warn('⚠️ No se pudo reenganchar el HUD:', e); }
+  }
+
+
+  /**
+   * Mueve la mascota, la anima y la coloca. Se llama una vez por frame
+   * desde el update() de GameScene y desde el de MinaScene.
+   *
+   * No recibe `time` ni `delta`: el bloque original no los usaba (lee la
+   * hora de this.time.now), asi que la firma se deja vacia a proposito.
+   */
+  _actualizarMascota() {
+// ============ MASCOTA (PERRO) – UPDATE COMPLETO, MIRADA CORREGIDA, ANIMACIÓN ESTABLE Y EVASIÓN DE COLISIONES ============
+const dog = this.dog;
+const player = this.player;
+
+// If pet was removed by player, keep it hidden and skip all dog update logic
+if (this.petData && this.petData.equipped === false) {
+  if (dog && dog.sprite && dog.sprite.visible) dog.sprite.setVisible(false);
+  if (dog && dog.shadowContainer && dog.shadowContainer.visible) dog.shadowContainer.setVisible(false);
+  if (this.dogNameText && this.dogNameText.visible) this.dogNameText.setVisible(false);
+  // Skip rest of update for this frame
+} else {
+
+if (!dog || !dog.sprite || !player) return;
+
+if (this.prevPlayerX === undefined) this.prevPlayerX = player.x;
+if (this.prevPlayerY === undefined) this.prevPlayerY = player.y;
+
+if (dog.prevX === undefined) dog.prevX = dog.x;
+if (dog.prevY === undefined) dog.prevY = dog.y;
+if (dog.prevTargetX === undefined) dog.prevTargetX = dog.targetX;
+if (dog.prevTargetY === undefined) dog.prevTargetY = dog.targetY;
+if (dog.lastFacing === undefined) dog.lastFacing = 'right';
+if (dog.desiredFacing === undefined) dog.desiredFacing = 'right';
+if (dog.smoothOffsetX === undefined) dog.smoothOffsetX = 0;
+if (dog.smoothOffsetY === undefined) dog.smoothOffsetY = 20;
+if (dog.lastAnimState === undefined) dog.lastAnimState = 'idle';
+if (dog.isMoving === undefined) dog.isMoving = false;
+// FIX: facingLockUntil nunca se inicializaba; "now >= undefined" siempre es
+// false, así que la mirada del perro jamás se actualizaba con las teclas
+// izquierda/derecha. Con 0 el primer cambio de mirada funciona de inmediato.
+if (dog.facingLockUntil === undefined) dog.facingLockUntil = 0;
+// Lado de esquive preferido por la evasión anticipada (+1 / -1 / 0 = ninguno).
+// Se recuerda entre frames para rodear el obstáculo por un solo lado en vez
+// de zigzaguear.
+if (dog.avoidSide === undefined) dog.avoidSide = 0;
+
+const now = this.time.now;
+const FOLLOW_OFFSET = 70;
+
+// Teclas opcionales
+const _chatBlk = this._chatInputFocused === true;
+const leftPressed  = !_chatBlk && (this.cursors?.left?.isDown  || this.keys?.A?.isDown || false);
+const rightPressed = !_chatBlk && (this.cursors?.right?.isDown || this.keys?.D?.isDown || false);
+const upPressed    = !_chatBlk && (this.cursors?.up?.isDown    || this.keys?.W?.isDown || false);
+const downPressed  = !_chatBlk && (this.cursors?.down?.isDown  || this.keys?.S?.isDown || false);
+// Movimiento real del jugador
+/* EL DESPLAZAMIENTO SE MIDE CONTRA LA POSICION REAL DEL FRAME ANTERIOR.
+
+   FALLO QUE ESTO ARREGLA — "choco a proposito hacia abajo, suelto la tecla y el
+   personaje mira ARRIBA" (y al reves, y lo mismo con izquierda/derecha):
+
+   este bloque corre ANTES de que se resuelvan las colisiones, asi que
+   `player.y` de aqui es la posicion QUE SE INTENTA, no la que acaba teniendo.
+   Al guardarla en `prevPlayerY` para el frame siguiente, se guardaba una
+   posicion que un momento despues se deshacia por chocar contra la pared.
+
+   Contra un muro, apretando abajo:
+     · frame 1: intento P+d  ->  se guarda P+d  ->  la colision devuelve a P
+     · frame 2 (sueltas):     posicion P  ->  playerDy = P - (P+d) = -d
+   Un movimiento hacia ARRIBA que nunca ocurrio. Y unas lineas mas abajo eso
+   escribia `this.lastDirection = 'up'`, que es de donde saca su textura el
+   personaje quieto: mirabas al lado contrario del que estabas empujando.
+
+   `this.previousPosition` se toma al principio del update y ya viene con las
+   colisiones del frame anterior aplicadas: es la posicion de verdad. Con ella,
+   apretando contra el muro sale +d (la intencion, correcta) y al soltar sale 0
+   (no te has movido), que es justo lo que tiene que pasar. */
+const _refX = (this.previousPosition && typeof this.previousPosition.x === 'number')
+  ? this.previousPosition.x : this.prevPlayerX;
+const _refY = (this.previousPosition && typeof this.previousPosition.y === 'number')
+  ? this.previousPosition.y : this.prevPlayerY;
+
+const playerDx = player.x - _refX;
+const playerDy = player.y - _refY;
+const playerMoved = Math.hypot(playerDx, playerDy) > 0.06;
+
+this.prevPlayerX = player.x;
+this.prevPlayerY = player.y;
+
+// Dirección de intención del jugador
+let intentDir = null;
+if (downPressed && !upPressed) intentDir = 'down';
+else if (upPressed && !downPressed) intentDir = 'up';
+else if (rightPressed && !leftPressed) intentDir = 'right';
+else if (leftPressed && !rightPressed) intentDir = 'left';
+
+// Mirada del perro
+if (intentDir === 'left' || intentDir === 'right') {
+  if (now >= dog.facingLockUntil && dog.desiredFacing !== intentDir) {
+    dog.desiredFacing = intentDir;
+    dog.facingLockUntil = now + 90;
+  }
+} else if (playerMoved && Math.abs(playerDx) > 0.06) {
+  dog.desiredFacing = playerDx > 0 ? 'right' : 'left';
+}
+
+// Dirección de seguimiento
+let desiredDir = this.lastDirection || 'right';
+
+if (intentDir === 'down') {
+  desiredDir = 'down';
+  this.lastDirection = 'down';
+} else if (intentDir === 'up') {
+  desiredDir = 'up';
+  this.lastDirection = 'up';
+} else if (intentDir === 'left' || intentDir === 'right') {
+  desiredDir = intentDir;
+  this.lastDirection = intentDir;
+} else if (playerMoved) {
+  /* Sin teclas: el desplazamiento decide donde se pone el PERRO, y nada mas.
+     Aqui ya no se escribe `this.lastDirection`: la mirada del personaje la
+     lleva el bloque de animacion, mas abajo, con el desplazamiento ya corregido
+     por las colisiones. Que el codigo del perro tocara esa variable era la
+     segunda mitad del fallo de la mirada invertida. */
+  if (Math.abs(playerDx) > Math.abs(playerDy) && Math.abs(playerDx) > 0.06) {
+    desiredDir = playerDx > 0 ? 'right' : 'left';
+  } else if (Math.abs(playerDy) > 0.06) {
+    desiredDir = playerDy > 0 ? 'down' : 'up';
+  }
+}
+
+// Offset objetivo según dirección
+let targetOffsetX = 0;
+let targetOffsetY = 20;
+
+switch (desiredDir) {
+  case 'left':
+    targetOffsetX = FOLLOW_OFFSET;
+    targetOffsetY = 20;
+    break;
+  case 'right':
+    targetOffsetX = -FOLLOW_OFFSET;
+    targetOffsetY = 20;
+    break;
+  case 'up':
+    targetOffsetX = 0;
+    targetOffsetY = FOLLOW_OFFSET;
+    break;
+  case 'down':
+    targetOffsetX = 0;
+    targetOffsetY = -FOLLOW_OFFSET;
+    break;
+}
+
+// Suavizado del offset
+//
+// BUG QUE ESTO ARREGLA — "el perro no deja de correr su animación":
+// una interpolación así NUNCA llega al destino, solo se acerca cada vez más
+// (70 → 63 → 56,7 → …). El desplazamiento se hace minúsculo pero nunca es cero,
+// así que `dogMoved` seguía dando true durante uno o dos segundos después de
+// que el perro ya estuviera visualmente colocado, y la animación de correr
+// seguía puesta. Se remata a mano: por debajo de un cuarto de píxel se fija el
+// valor exacto y se acabó el movimiento.
+const OFFSET_LERP = 0.10;
+dog.smoothOffsetX += (targetOffsetX - dog.smoothOffsetX) * OFFSET_LERP;
+dog.smoothOffsetY += (targetOffsetY - dog.smoothOffsetY) * OFFSET_LERP;
+if (Math.abs(targetOffsetX - dog.smoothOffsetX) < 0.25) dog.smoothOffsetX = targetOffsetX;
+if (Math.abs(targetOffsetY - dog.smoothOffsetY) < 0.25) dog.smoothOffsetY = targetOffsetY;
+
+// Target final
+dog.targetX = player.x + dog.smoothOffsetX;
+dog.targetY = player.y + dog.smoothOffsetY;
+
+// Helper de colisiones del perro.
+//
+// El tamaño de su caja no cambia dentro de un frame, así que se calcula UNA vez
+// aquí fuera en vez de en cada una de las ~90 llamadas. Y la consulta va contra
+// el índice espacial (_chocaConEscenario), que solo mira los rectángulos de las
+// celdas ocupadas en lugar de los 325 del mapa. Sin `new Rectangle`: cero basura
+// para el recolector. Ver la nota larga en _reconstruirIndiceColisiones().
+const _dogW = Math.max(18, (dog.sprite.displayWidth  || 32) * 0.55);
+const _dogH = Math.max(14, (dog.sprite.displayHeight || 32) * 0.50);
+const collidesAt = (x, y) =>
+  this._chocaConEscenario(x - _dogW * 0.5, y - _dogH * 0.5, _dogW, _dogH);
+
+// Busca un punto alternativo para rodear la colisión
+const findEscapePoint = (fromX, fromY, toX, toY) => {
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+
+  const signX = dx >= 0 ? 1 : -1;
+  const signY = dy >= 0 ? 1 : -1;
+
+  const tests = [
+    [toX + signX * 18, toY],
+    [toX, toY + signY * 18],
+    [toX - signX * 18, toY],
+    [toX, toY - signY * 18],
+
+    [fromX + signX * 18, fromY],
+    [fromX, fromY + signY * 18],
+
+    [toX + signX * 12, toY + signY * 12],
+    [toX - signX * 12, toY + signY * 12],
+    [toX + signX * 12, toY - signY * 12],
+    [toX - signX * 12, toY - signY * 12],
+
+    [fromX + signX * 24, fromY + signY * 10],
+    [fromX + signX * 24, fromY - signY * 10],
+    [fromX - signX * 24, fromY + signY * 10],
+    [fromX - signX * 24, fromY - signY * 10]
+  ];
+
+  for (const [tx, ty] of tests) {
+    if (!collidesAt(tx, ty)) {
+      return { x: tx, y: ty };
+    }
+  }
+
+  return null;
+};
+
+// Resolver movimiento sin atravesar obstáculos
+const resolveDogMove = (fromX, fromY, toX, toY) => {
+  // 1) intento directo
+  if (!collidesAt(toX, toY)) {
+    return { x: toX, y: toY };
+  }
+
+  // 2) deslizamiento por ejes
+  if (!collidesAt(toX, fromY)) {
+    return { x: toX, y: fromY };
+  }
+
+  if (!collidesAt(fromX, toY)) {
+    return { x: fromX, y: toY };
+  }
+
+  // 3) rodeo inteligente
+  const escapePoint = findEscapePoint(fromX, fromY, toX, toY);
+  if (escapePoint) return escapePoint;
+
+  // 4) intento de empuje corto en varias direcciones
+  const steps = [6, 10, 14, 18, 24, 30, 36];
+  for (const s of steps) {
+    const tries = [
+      [toX + s, fromY],
+      [toX - s, fromY],
+      [fromX, toY + s],
+      [fromX, toY - s],
+      [toX + s, toY],
+      [toX - s, toY],
+      [toX, toY + s],
+      [toX, toY - s]
+    ];
+
+    for (const [cx, cy] of tries) {
+      if (!collidesAt(cx, cy)) {
+        return { x: cx, y: cy };
+      }
+    }
+  }
+
+  // 5) si todo falla, no avanza
+  return { x: fromX, y: fromY };
+};
+
+// ── EVASIÓN ANTICIPADA (perro "inteligente") ──────────────────────────────
+// Antes el perro solo REACCIONABA al chocar: proponía el paso, colisionaba y
+// resolveDogMove buscaba por dónde salir — se veía cómo se pegaba al
+// obstáculo y luego se deslizaba. Ahora MIRA HACIA ADELANTE en la línea hacia
+// su objetivo: si detecta que el camino directo va a chocar en los próximos
+// pasos, desvía el objetivo hacia un costado (perpendicular al rumbo) ANTES
+// de tocar el obstáculo, y recuerda el lado elegido (dog.avoidSide) para
+// rodearlo por un solo lado sin zigzaguear. resolveDogMove queda como red de
+// seguridad final.
+const computeSteeredTarget = () => {
+  const dx = dog.targetX - dog.x;
+  const dy = dog.targetY - dog.y;
+  const dist = Math.hypot(dx, dy);
+
+  // Muy cerca del objetivo: no hay nada que anticipar
+  if (dist < 6) {
+    dog.avoidSide = 0;
+    return { x: dog.targetX, y: dog.targetY };
+  }
+
+  const nx = dx / dist;
+  const ny = dy / dist;
+
+  // Sondear el camino directo por delante del perro (sin pasarse del objetivo)
+  const LOOKAHEAD_STEPS = [14, 28, 42];
+  let blockedAt = -1;
+  for (const d of LOOKAHEAD_STEPS) {
+    if (d > dist + 8) break;
+    if (collidesAt(dog.x + nx * d, dog.y + ny * d)) { blockedAt = d; break; }
+  }
+
+  // Camino libre: seguir directo y olvidar el lado de esquive
+  if (blockedAt < 0) {
+    dog.avoidSide = 0;
+    return { x: dog.targetX, y: dog.targetY };
+  }
+
+  // Camino bloqueado más adelante: buscar un punto de desvío lateral.
+  // Perpendicular al rumbo (px,py); se prueba primero el lado ya elegido en
+  // frames anteriores para mantener un rodeo coherente.
+  const px = -ny;
+  const py = nx;
+  const sides = dog.avoidSide !== 0 ? [dog.avoidSide, -dog.avoidSide] : [1, -1];
+
+  for (const side of sides) {
+    for (const lateral of [26, 40, 54]) {
+      const cx = dog.x + nx * Math.min(blockedAt, 24) + px * lateral * side;
+      const cy = dog.y + ny * Math.min(blockedAt, 24) + py * lateral * side;
+
+      // El punto de desvío y el tramo intermedio hacia él deben estar libres
+      if (!collidesAt(cx, cy) &&
+          !collidesAt(dog.x + (cx - dog.x) * 0.5, dog.y + (cy - dog.y) * 0.5)) {
+        dog.avoidSide = side;
+        return { x: cx, y: cy };
+      }
+    }
+  }
+
+  // Ningún desvío lateral libre: dejar que resolveDogMove haga lo que pueda
+  dog.avoidSide = 0;
+  return { x: dog.targetX, y: dog.targetY };
+};
+
+const steerTarget = computeSteeredTarget();
+
+// Movimiento suave
+const DOG_LERP = 0.08;
+// Al esquivar (steerTarget ≠ target), un lerp sobre una distancia más corta
+// haría al perro más lento justo cuando necesita rodear; se compensa un poco.
+const isDetouring = (steerTarget.x !== dog.targetX || steerTarget.y !== dog.targetY);
+const effLerp = isDetouring ? Math.min(0.14, DOG_LERP * 1.75) : DOG_LERP;
+
+// ── LLEGADA: EL PERRO SE PARA DE VERDAD ─────────────────────────────────────
+// El mismo problema que con el offset: `dog.x += (target - dog.x) * 0.08` se
+// acerca al objetivo pero no llega jamás. El perro quedaba avanzando fracciones
+// de píxel un buen rato, y como la animación se decidía por "¿se movió algo?",
+// seguía corriendo en el sitio hasta que el resto del sistema se estabilizaba —
+// que es justo lo que se notaba como "no para hasta que la cámara se queda
+// quieta".
+//
+// Ahora, cuando queda menos de un píxel y medio hasta el destino Y no hay
+// desvío en curso, se coloca EXACTO y se marca como llegado. A partir de ahí no
+// hay movimiento, así que no hay animación: se queda quieto donde toca.
+const faltaX = steerTarget.x - dog.x;
+const faltaY = steerTarget.y - dog.y;
+const distanciaAlObjetivo = Math.hypot(faltaX, faltaY);
+const LLEGADA = 1.5;   // píxeles
+
+let proposedX, proposedY;
+if (!isDetouring && distanciaAlObjetivo <= LLEGADA) {
+  proposedX = steerTarget.x;
+  proposedY = steerTarget.y;
+} else {
+  // PASO MÍNIMO EN EL ÚLTIMO TRAMO.
+  // Con solo la interpolación, cubrir los últimos 12 px costaba unos 30
+  // fotogramas (medio segundo) avanzando cada vez menos: se veía al perro
+  // "arrastrándose" al final de cada parada, animación de correr incluida.
+  // Poniendo un avance mínimo de 1,2 px por fotograma cuando ya está cerca, ese
+  // último tramo se resuelve en unos 10 fotogramas y la llegada se ve limpia.
+  // Lejos del objetivo no cambia nada: manda la interpolación de siempre.
+  let paso = distanciaAlObjetivo * effLerp;
+  if (distanciaAlObjetivo < 12 && paso < 1.2) paso = Math.min(1.2, distanciaAlObjetivo);
+  const k = paso / distanciaAlObjetivo;
+  proposedX = dog.x + faltaX * k;
+  proposedY = dog.y + faltaY * k;
+}
+
+const moved = resolveDogMove(dog.x, dog.y, proposedX, proposedY);
+const prevDogX = dog.x;
+const prevDogY = dog.y;
+
+dog.x = moved.x;
+dog.y = moved.y;
+
+const dogDx = dog.x - prevDogX;
+const dogDy = dog.y - prevDogY;
+// Umbral de "se está moviendo" subido de 0,02 a 0,2 px por frame. A 0,02 un
+// desplazamiento diez veces más pequeño que un píxel ya contaba como caminar:
+// invisible en pantalla, pero suficiente para mantener la animación encendida.
+// Con 0,2 el perro solo se anima cuando de verdad se le ve avanzar.
+const dogMoved = Math.hypot(dogDx, dogDy) > 0.2;
+// ¿Ya está donde tiene que estar? Si es así no se anima, pase lo que pase con
+// la cámara o con los redondeos de la posición del jugador.
+const dogEnDestino = (distanciaAlObjetivo <= LLEGADA);
+
+// Mirada final del perro
+if (dog.desiredFacing === 'left' || dog.desiredFacing === 'right') {
+  dog.lastFacing = dog.desiredFacing;
+} else if (Math.abs(dogDx) > 0.01) {
+  dog.lastFacing = dogDx > 0 ? 'right' : 'left';
+}
+// FIX MULTIJUGADOR: sendPlayerMovement emite this.dog.direction, pero nunca
+// se actualizaba — los demás jugadores no veían hacia dónde mira tu perro.
+dog.direction = dog.lastFacing;
+
+// Animación estable: solo se reproduce si realmente está caminando.
+//
+// La condición manda sobre todo lo demás: si el perro YA ESTÁ en su sitio, no
+// se anima. Antes bastaba con que el jugador se hubiera movido un pelo
+// (`playerMoved`) o con que el perro hubiera avanzado 0,02 px para dejar la
+// animación de correr puesta, aunque el perro estuviera visualmente parado
+// junto al jugador.
+const shouldAnimate = !dogEnDestino && (playerMoved || dogMoved || intentDir !== null);
+
+// GUARD: si dog.sprite se destruyó/no existe, saltar TODO el render del perro.
+//
+// OJO con la condición: `if (dog.sprite)` NO basta. Phaser, al destruir un
+// objeto, NO pone la referencia a null: solo le quita `scene` y `sys`. Así que
+// el sprite muerto sigue siendo un objeto (truthy), pasaba el guard y reventaba
+// dentro de setTexture con "Cannot read properties of undefined (reading 'sys')"
+// en CADA frame — la escena se quedaba en negro al volver de una batalla.
+// `sprite.scene` es lo que de verdad distingue un sprite vivo de uno destruido.
+if (dog.sprite && dog.sprite.scene) {
+
+if (shouldAnimate && (dogMoved || playerMoved || intentDir)) {
+  const animKey = (dog.lastFacing === 'left') ? 'perro_left' : 'perro_right';
+
+  // Solo reinicia si cambió la animación.
+  // FIX (pantalla negra al volver de la batalla): al reiniciar la escena el
+  // perro puede estar a medio recrear y dog.sprite.anims llegar undefined. El
+  // acceso a .isPlaying lanzaba un TypeError EN CADA FRAME dentro de update(),
+  // y como update() se cortaba ahí, todo lo que venía después (incluido el
+  // seguimiento de cámara) dejaba de ejecutarse y el mapa se veía en negro.
+  if (dog.sprite.anims && (!dog.sprite.anims.isPlaying || dog.sprite.anims.currentAnim?.key !== animKey)) {
+    if (this.anims.exists(animKey)) {
+      dog.sprite.play(animKey, true);
+    } else {
+      dog.sprite.setTexture(
+        dog.lastFacing === 'left' ? 'perro_izquierda_1' : 'perro_derecha_1'
+      );
+    }
+  }
+
+  dog.isMoving = true;
+  dog.lastAnimState = animKey;
+} else {
+  if (dog.isMoving || (dog.sprite.anims && dog.sprite.anims.isPlaying)) {
+    if (dog.sprite.anims) dog.sprite.anims.stop();
+  }
+
+  dog.sprite.setTexture(
+    dog.lastFacing === 'left' ? 'perro_izquierda_1' : 'perro_derecha_1'
+  );
+
+  dog.isMoving = false;
+  dog.lastAnimState = 'idle';
+}
+
+// Posición y profundidad
+dog.sprite.setPosition(dog.x, dog.y);
+
+const dogFeetY = dog.y + dog.sprite.displayHeight * 0.5;
+dog.sprite.setDepth(dogFeetY);
+
+if (dog.shadowContainer) {
+  dog.shadowContainer.setPosition(dog.x, dog.y + 22);
+  dog.shadowContainer.setDepth(dogFeetY - 1);
+}
+
+// Etiqueta de la mascota (nombre y/o nivel): sigue al perro, sobre su cabeza.
+// Este bloque corre en cada frame, así que la condición de aquí manda sobre lo
+// que ponga _updateDogNameLabel: si exigiera nombre, el nivel de una mascota
+// sin nombrar volvería a ocultarse en el frame siguiente.
+if (this.dogNameText) {
+  if (dog.sprite.visible) {
+    this.dogNameText.setVisible(true);
+    this.dogNameText.setPosition(dog.x, dog.y - dog.sprite.displayHeight * 0.5 - 4);
+    this.dogNameText.setDepth(dogFeetY + 1);
+  } else {
+    this.dogNameText.setVisible(false);
+  }
+}
+
+} // cierre del GUARD if (dog.sprite)
+
+} // end petData.equipped else block
+  }
+
+
+  /**
+   * Crea el sprite de la mascota, su sombra y su etiqueta de nombre.
+   * Lo llaman el create() de GameScene y el de MinaScene.
+   *
+   * Exige que this.player y las animaciones 'perro_*' existan ya.
+   */
+  _crearMascota() {
+// ============ MASCOTA (PERRO) ============
+// Posición inicial: unos 40px a la derecha y debajo del jugador
+this.dog.x = this.player.x + 40;
+this.dog.y = this.player.y + 20;
+this.dog.targetX = this.dog.x;
+this.dog.targetY = this.dog.y;
+
+/* Sprite del perro. NACE INVISIBLE, Y ESO ES LO IMPORTANTE.
+
+   EL FALLO QUE ARREGLA: "mientras la cámara se aleja para ajustarse al entrar
+   al mapa aparece mi perro como si lo tuviera, y cuando se ajusta se me quita".
+
+   El perro se creaba VISIBLE y solo se escondía si `window.globalPetData` ya
+   decía que no había mascota. Pero ese dato lo escribe gf-mascota.js DESPUÉS
+   de preguntarle al servidor, así que la primera vez que entras al juego no
+   existe todavía: el perro nacía a la vista y se quedaba ahí los dos segundos
+   largos que tarda la cámara en encuadrar. Justo el rato en el que se mira.
+
+   Nacer escondido es además lo correcto: una mascota que nadie ha confirmado
+   no existe. Lo enseña `_loadPetData()` cuando llega la respuesta, y
+   gf-mascota.js cuando sabe si está viva. Si no tienes perro, no aparece
+   nunca; si lo tienes, aparece un instante después, que no molesta a nadie. */
+this.dog.sprite = this.add.sprite(this.dog.x, this.dog.y, 'perro_derecha_1')
+    .setScale(2)
+    .setDepth(this.player.y + 8) // Empieza con un depth similar
+    .setVisible(false);
+
+// Sombra del perro (igual que la del jugador pero más pequeña)
+this.dog.shadow = this.add.graphics();
+this.dog.shadow.fillStyle(0x000000, 0.25);
+this.dog.shadow.fillEllipse(0, 0, 35, 18);
+this.dog.shadowContainer = this.add.container(this.dog.x, this.dog.y + 22, [this.dog.shadow]);
+this.dog.shadowContainer.setVisible(false);
+
+// Reproducir animación inicial
+this.dog.sprite.play('perro_right');
+
+// ── Etiqueta con el NOMBRE de la mascota (dashboard → nombre único) ──────
+// Solo se muestra cuando el jugador ya fijó un nombre (≠ '---'). Se
+// reposiciona cada frame en el update del perro, igual que el nombre del
+// jugador (usuariox).
+if (!this.petName) this.petName = window.globalPetName || '---';
+this.dogNameText = this.add.text(this.dog.x, this.dog.y - 30, '', {
+  fontFamily: '"PressStart2P"',
+  fontSize: '8px',
+  color: '#ffe9a8',
+  resolution: 4,
+  stroke: '#000000',
+  strokeThickness: 4
+}).setOrigin(0.5, 1).setDepth(this.player.y + 9).setVisible(false);
+if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
+
+// ── Synchronously apply saved pet state BEFORE the async _loadPetData call ──
+// This prevents a 1-frame flash of the dog when returning from tiendajuego
+if (window.globalPetData) {
+  this.petData = window.globalPetData;
+  /* MUERTA CUENTA IGUAL QUE RETIRADA.
+
+     EL FALLO QUE ARREGLA: "al entrar a GameScene la mascota aparece un instante
+     y se quita". Aqui se miraba `equipped` y `visible`, pero no si estaba
+     MUERTA. El perro nacia visible, y solo cuando gf-mascota.js recibia el
+     estado del servidor —una peticion de red mas tarde— se escondia. Ese hueco
+     es el parpadeo.
+
+     `alive` lo escribe gf-mascota.js en globalPetData justo para esto, y es el
+     mismo dato que ya usa la tienda. */
+  /* Ahora el perro nace escondido, así que aquí solo hay que ENSEÑARLO si el
+     estado guardado dice que sí. Antes era al revés (nacía visible y se
+     escondía) y por eso hacía falta acertar con las tres condiciones a la
+     primera; ahora, si alguna falta, lo peor que pasa es que el perro tarde
+     un instante más en salir. */
+  var hayPerro = this.petData.equipped !== false &&
+                 this.petData.visible !== false &&
+                 window.globalPetData.alive !== false;
+  this.dog.sprite.setVisible(hayPerro);
+  this.dog.shadowContainer.setVisible(hayPerro);
+  if (this.dogNameText && !hayPerro) this.dogNameText.setVisible(false);
+}
+  }
+
+
+  /**
+   * Baja a la mina.
+   *
+   * La llaman dos sitios: el disparador de colision de `puerta_mina` (en
+   * update) y el clic sobre el batiente. Los dos pasan por aqui para que el
+   * apagado del HUD y el guardado sean identicos vengas por donde vengas.
+   *
+   * El HUD es DOM de la PAGINA, no de la escena: sobrevive al cambio y hay que
+   * apagarlo a mano, igual que hace la puerta de la tienda. MinaScene lo
+   * vuelve a sacar y a cablear a si misma en su create().
+   */
+  entrarEnLaMina() {
+    if (this._cambiandoEscena) return;
+
+    // Red de seguridad: si Scenes/MinaScene.js no cargo (un 404, por ejemplo),
+    // mas vale quedarse fuera que apagar el HUD y saltar a una escena que no
+    // existe, que dejaria al jugador en negro y sin interfaz.
+    if (typeof window.MinaScene !== 'function') {
+      console.warn('MinaScene no esta cargada: no se puede entrar en la mina');
+      return;
+    }
+
+    this._cambiandoEscena = true;
+    console.log('entrando en la mina');
+
+    // Soltar el item que se llevara en la mano ANTES de irse: el div del
+    // arrastre es DOM compartido y se quedaria pegado al cursor.
+    try { this._cancelarArrastre(); } catch (e) {}
+    try { this.player.anims.stop(); } catch (e) {}
+
+    this.mundo = 3;
+    try { this.savegg(); } catch (e) { console.warn('guardado antes de la mina:', e); }
+    this.saveTimer = 0;
+
+    // Apagar el HUD de la pagina.
+    const $ = (id) => document.getElementById(id);
+    const hud = $('game-hud');
+    if (hud) { hud.classList.remove('hud-visible'); hud.classList.add('hud-hidden'); }
+    ['hub', 'quick-slots-bar', 'open-chat-btn'].forEach(id => {
+      const el = $(id);
+      if (el) el.classList.add('hidden');
+    });
+    document.querySelectorAll('.quick-slot').forEach(s => { s.style.display = 'none'; });
+    const izq = $('info-text-left');
+    if (izq) izq.textContent = '';
+    const uiText = $('game-ui-text');
+    if (uiText) uiText.style.display = 'none';
+
+    try { this.removeListener(); } catch (e) {}
+    try { this._unbindAllDomClicks(); } catch (e) {}
+    try { this.stopMusicSafely(); } catch (e) {}
+
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('joinRoom', {
+        room: 'mina',
+        username: this.Username || '---',
+        lastScene: 'GameScene'
+      });
+    }
+
+    try { this.cleanupScene(); } catch (e) { console.warn('limpieza:', e); }
+    this.scene.start('MinaScene');
+  }
+
+
+  /**
+   * Rellena this.ItemDefinitions: la imagen, el apilado y el tipo on-chain
+   * de cada objeto del juego.
+   *
+   * OJO: tiendajuego.js tiene SU PROPIA copia de esta tabla (busca
+   * `this.ItemDefinitions = {` alli). Son dos catalogos que hay que
+   * mantener a la vez, y ya ha costado un fallo: un objeto que le falte a
+   * una copia corta el pintado del inventario desde esa casilla. No se ha
+   * unificado aqui porque las dos tablas NO son identicas hoy y cambiarlo
+   * a ciegas tocaria el comportamiento de la tienda.
+   */
+  _definirObjetos() {
+        this.ItemDefinitions = {
+          Semillax: { src: "./Game/Objetos/Plantas/planta_zanahorias/item_saco.png", maxStack: 50, tipo: "bolsa zanahorias", usos: null },
+          Semillax1: { src: "./Game/Objetos/Plantas/planta_tomates/semillas_tomate.png", maxStack: 50 , tipo: "bolsa de tomates", usos: null},
+          Semillax4: { src: "./Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png", maxStack: 50 , tipo: "bolsa_de_fresas", usos: null},
+          
+          Semillax2: { src: "./Game/Objetos/Plantas/planta_trigo/item_semilla_trigo.png", maxStack: 50 , tipo: "bolsa de trigo", usos: null},
+          Semillax3: { src: "./Game/Objetos/Plantas/planta_calabaza/item_semilla_calabaza.png", maxStack: 50, tipo: "bolsa de calabazas", usos: null },
+
+          Regaderax: { src: "./Game/Source/recurso2.png", maxStack: 1 , tipo: "Regaderax", usos: 20 },
+          Tijerasx: { src: "./Game/Source/tijeras.png", maxStack: 1 , tipo: "Tijerasx", usos: 20 },
+
+          mineral_piedra: { src: "./Game/Source/piedra.png", maxStack: 20 , tipo: "mineral_piedra", usos: null },
+
+          /* LOS DOS LINGOTES. Ya no salen de picar: ahora se FUNDEN en el horno
+             a partir de la piedra en bruto (ver FURNACE_RECIPES más abajo). El
+             dibujo es una barra de 16x9, no una roca — siempre fueron lingotes
+             aunque el nombre dijera "mineral". */
+          mineral_cobre: { src: "./Game/Source/cobre.png", maxStack: 20 , tipo: "mineral_cobre", usos: null },
+          mineral_hierro: { src: "./Game/Source/hierro.png", maxStack: 20 , tipo: "mineral_hierro", usos: null },
+
+          /* PIEDRA EN BRUTO — lo que suelta la mina desde 2026-09-08.
+             Sus tablas on-chain son mineral_piedra_cobre / mineral_piedra_hierro
+             / mineral_carbon, y NO se pueden confundir con las de los lingotes
+             (mineral_cobre / mineral_hierro): son tablas distintas del contrato,
+             con su propio cupo y sus propias facturas. */
+          mineral_piedra_cobre:  { src: "./Game/Source/piedra_cobre.png",  maxStack: 20, tipo: "mineral_piedra_cobre",  usos: null },
+          mineral_piedra_hierro: { src: "./Game/Source/piedra_hierro.png", maxStack: 20, tipo: "mineral_piedra_hierro", usos: null },
+          mineral_carbon:        { src: "./Game/Source/piedra_carbon.png", maxStack: 20, tipo: "mineral_carbon",        usos: null },
+          // FALTABA (2026-08-05): el carbón se podía picar (mineRewards lo da
+          // como botín de las rocas de carbón) pero no estaba definido aquí.
+          // Sin definición no tiene `tipo`, así que nunca se acuñaba en la
+          // cadena y se guardaba sin IDX/Manualid… que es justo lo que
+          // /api/save descarta. Resultado: el carbón desaparecía al guardar.
+          carbon: { src: "./Game/Objetos/carbon.png", maxStack: 20 , tipo: "carbon", usos: null },
+
+          palo: { src: "./Game/Source/palo.png", maxStack: 20 , tipo: "palo", usos: null},
+          tablon_de_madera: { src: "./Game/Source/madera.png", maxStack: 20 , tipo: "tablon_de_madera", usos: null},
+          madera_pinos: { src: "./Game/Source/madera_oscura.png", maxStack: 50 , tipo: "madera pinos", usos: null},
+          madera_con_hojas: { src: "./Game/Source/madera de hoja.png", maxStack: 50 , tipo: "madera con hojas", usos: null},
+          madera_seca: { src: "./Game/Source/madera seca.png", maxStack: 50 , tipo: "madera seca", usos: null},
+
+          balde_vacio: { src: "./Game/Source/item_pozo1.png", maxStack: 5 , tipo: "balde_vacio", usos: null },
+          balde_con_agua: { src: "./Game/Source/item_pozo2.png", maxStack: 5 , tipo: "balde_con_agua", usos: 1 },
+
+          
+          hacha_de_madera: { src: "./Game/Source/pico_y_hacha/hacha_de_madera.png", maxStack: 5, tipo: "hacha de madera", usos: 5  },
+          hacha_de_piedra: { src: "./Game/Source/pico_y_hacha/hacha_de_piedra.png", maxStack: 5, tipo: "hacha de piedra", usos: 10 },
+          hacha_de_cobre:  { src: "./Game/Source/pico_y_hacha/hacha_de_cobre.png",  maxStack: 5, tipo: "hacha de cobre", usos: 15 },
+          hacha_de_hierro: { src: "./Game/Source/pico_y_hacha/hacha_de_hierro.png", maxStack: 5, tipo: "hacha de hierro", usos: 20 },
+
+          pico_de_madera: { src: "./Game/Source/pico_y_hacha/pico_de_madera.png", maxStack: 5, tipo: "pico de madera", usos: 5  },
+          pico_de_piedra: { src: "./Game/Source/pico_y_hacha/pico_de_piedra.png", maxStack: 5, tipo: "pico de piedra", usos: 10 },
+          pico_de_cobre:  { src: "./Game/Source/pico_y_hacha/pico_de_cobre.png",  maxStack: 5, tipo: "pico de cobre", usos: 15 },
+          pico_de_hierro: { src: "./Game/Source/pico_y_hacha/pico_de_hierro.png", maxStack: 5, tipo: "pico de hierro", usos: 20 },
+          
+          zanahoria_buena: { src: "./Game/Objetos/Plantas/planta_zanahorias/item_zanahoria_buena.png", maxStack: 20 , tipo: "zanahoria_buena", usos: null },
+          zanahoria_corta: { src: "./Game/Objetos/Plantas/planta_zanahorias/planta_crecimiento_zanahoria.png", maxStack: 20 , tipo: "zanahoria_corta", usos: null},
+          zanahoria_mala: { src: "./Game/Objetos/Plantas/planta_zanahorias/item_zanahoria_podrida.png", maxStack: 20 , tipo: "zanahoria_mala", usos: null},
+
+          tomate_buena: { src: "./Game/Objetos/Plantas/planta_tomates/item_tomate_bueno.png", maxStack: 20, tipo: "tomate_buena", usos: null },
+          tomate_corta: { src: "./Game/Objetos/Plantas/planta_tomates/item_planta.png", maxStack: 20 , tipo: "tomate_corta", usos: null},
+          tomate_mala: { src: "./Game/Objetos/Plantas/planta_tomates/item_tomate_malo.png", maxStack: 20 , tipo: "tomate_mala", usos: null},
+          fresa_buena: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_buena.png", maxStack: 20, tipo: "fresa_buena", usos: null },
+
+          // Pociones del alquimista. Curan y reviven a la mascota; se usan
+          // desde su hub, no haciendo clic en el inventario.
+          pocion_mascota:        { src: "./Game/Objetos/pociones/pocion_mascota.png",        maxStack: 20, tipo: "pocion_mascota",        usos: null },
+          pocion_mascota_grande: { src: "./Game/Objetos/pociones/pocion_mascota_grande.png", maxStack: 10, tipo: "pocion_mascota_grande", usos: null },
+          elixir_revivir:        { src: "./Game/Objetos/pociones/elixir_revivir.png",        maxStack: 5,  tipo: "elixir_revivir",        usos: null },
+          fresa_corta: { src: "./Game/Objetos/Plantas/planta_fresa/item_planta.png", maxStack: 20 , tipo: "fresa_corta", usos: null},
+          fresa_mala: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_podrida.png", maxStack: 20 , tipo: "fresa_mala", usos: null},
+
+          
+
+          trigo_buena: { src: "./Game/Objetos/Plantas/planta_trigo/item_trigo_bueno.png", maxStack: 20 , tipo: "trigo_buena", usos: null},
+          trigo_corta: { src: "./Game/Objetos/Plantas/planta_trigo/item_planta_trigo.png", maxStack: 20 , tipo: "trigo_corta", usos: null},
+          trigo_mala: { src: "./Game/Objetos/Plantas/planta_trigo/item_trigo_podrido.png", maxStack: 20 , tipo: "trigo_mala", usos: null},
+
+          calabaza_buena: { src: "./Game/Objetos/Plantas/planta_calabaza/item_calabaza_buena.png", maxStack: 20 , tipo: "calabaza_buena", usos: null},
+          calabaza_corta: { src: "./Game/Objetos/Plantas/planta_calabaza/item_planta_calabaza.png", maxStack: 20, tipo: "calabaza_corta", usos: null},
+          calabaza_mala: { src: "./Game/Objetos/Plantas/planta_calabaza/item_calabaza_podrida.png", maxStack: 20, tipo: "calabaza_mala", usos: null },
+
+
+        
+          // Agrega más definiciones según sea necesario
+        };
+  }
+
+
+  // =========================================================================
+  // AYUDANTES COMPARTIDOS CON LAS ESCENAS HIJAS (mina e isla)
+  // =========================================================================
+  //
+  // Estos seis metodos NO los usa el create() de GameScene, que hace todo
+  // esto en linea desde hace anos. Estan aqui porque MinaScene y LandsScene
+  // heredan de esta clase y los dos los necesitan identicos: montar los
+  // controles, crear las animaciones, arrancar el inventario y la cadena,
+  // sacar el HUD y decidir la animacion del jugador.
+  //
+  // Nacieron dentro de MinaScene. Al escribir la isla hizo falta lo mismo, y
+  // antes que copiarlos —que es como este proyecto acabo con dos inventarios
+  // y dos catalogos de objetos que hay que mantener a la vez— se subieron a
+  // la clase padre.
+
+  /**
+   * Arranca los sistemas de juego: inventario, cofre, monedas, cadena, socket,
+   * misiones y sonido.
+   *
+   * ESTO ES LO QUE FALTABA. La primera version de la mina construia el mapa y
+   * enseñaba el HUD, pero no llamaba a nada de esto, asi que el HUD salia
+   * vacio: monedas en `undefined`, las 40 casillas del inventario en blanco,
+   * el cofre sin nada y ninguna transaccion posible. Se veia bonito y no
+   * servia para nada.
+   *
+   * El orden es EL MISMO que en el create() de GameScene, y no es casual:
+   *
+   *   1. el catalogo de objetos, porque sin el el inventario no sabe que
+   *      imagen pintar ni que `tipo` mandar al contrato;
+   *   2. el cerrojo `_inventarioCargado` y un STATE limpio, ANTES de pedir
+   *      datos: `initialize()` es asincrono y nadie lo espera, asi que entre
+   *      el vaciado y su final cualquier guardado escribiria un inventario
+   *      vacio encima del bueno (es el mismo motivo que explica `savegg()`);
+   *   3. los datos del jugador (monedas, inventario, cofre, experiencia);
+   *   4. el inventario ya con datos;
+   *   5. el resto.
+   *
+   * Todos son metodos heredados de GameScene: aqui no hay ni una copia.
+   */
+  async _arrancarSistemas() {
+    // 1. El catalogo de objetos.
+    try { this._definirObjetos(); } catch (e) { console.warn('⛏️ catalogo:', e); }
+
+    // 2. Cerrojo y estado limpio.
+    this._inventarioCargado = false;
+    this.STATE = {
+      slots: Array(40).fill(null),
+      quickSlots: Array(7).fill(null),
+      selectedItem: null,
+      ghostSlots: { inv: Array(40).fill(null), quick: Array(7).fill(null) }
+    };
+
+    // 3. Datos del jugador: monedas, inventario, cofre, experiencia y la
+    //    conexion con el contrato (loadPlayerData monta el relayClient).
+    try {
+      await this.initialize();
+    } catch (e) {
+      console.error('⛏️ no se pudieron cargar los datos del jugador:', e);
+    }
+
+    // 4. Inventario, casillas rapidas y cofre.
+    try {
+      this.initInventory();
+      this.rebuildPlayerInventoryFromState();
+    } catch (e) { console.error('⛏️ inventario:', e); }
+
+    // 5. Teclas: I abre el inventario, 1..7 eligen casilla rapida.
+    this.input.keyboard.on('keydown-I', () => {
+      try { this.toggleInventory(); } catch (e) {}
+    });
+    this.input.keyboard.on('keydown', (evento) => {
+      const n = parseInt(evento.key, 10);
+      if (!isNaN(n) && n >= 1 && n <= 7) {
+        try { this.selectQuickSlot(n - 1); } catch (e) {}
+      }
+    });
+
+    // 6. Estado guardado del HUD (paneles abiertos, posiciones).
+    //    Los dos nodos se cogen AQUI porque quien los cogia era el create()
+    //    de GameScene, por el que estas escenas no pasan.
+    this.profileImage = document.getElementById('player-image');
+    this.hubInfo = document.getElementById('hub-info');
+    try {
+      this.toggleHubInfo = this.toggleHubInfo.bind(this);
+      this.loadState();
+      if (this.profileImage) {
+        this.profileImage.removeEventListener('click', this.toggleHubInfo);
+        this.profileImage.addEventListener('click', this.toggleHubInfo);
+      }
+    } catch (e) { console.warn('⛏️ estado del hub:', e); }
+
+    // 7. El socket, con el mismo retraso que GameScene: se enchufa DESPUES de
+    //    tener cargado lo basico.
+    this.time.delayedCall(500, () => {
+      try { this.initSocket(); } catch (e) { console.warn('⛏️ socket:', e); }
+    });
+
+    // 8. Eventos de la escena y misiones.
+    try { this.setupSceneEvents(); } catch (e) { console.warn('⛏️ eventos:', e); }
+    try { if (this.loadMissionsData) this.loadMissionsData(); } catch (e) {}
+
+    // 9. Sonido.
+    if (this.sound && typeof this.sound.add === 'function') {
+      try { this.initAudioSystem(); } catch (e) { console.warn('⛏️ audio:', e); }
+    }
+
+    console.log('⛏️ sistemas arrancados · monedas:', this.moneda, '/', this.moneda_plata,
+                '· objetos en el inventario:',
+                (this.STATE.slots || []).filter(Boolean).length);
+  }
+
+  /** Teclado, raton y joystick. */
+  _montarControles() {
+    this.keys = this.input.keyboard.addKeys({
+      left: Phaser.Input.Keyboard.KeyCodes.A,
+      right: Phaser.Input.Keyboard.KeyCodes.D,
+      up: Phaser.Input.Keyboard.KeyCodes.W,
+      down: Phaser.Input.Keyboard.KeyCodes.S,
+      leftArrow: Phaser.Input.Keyboard.KeyCodes.LEFT,
+      rightArrow: Phaser.Input.Keyboard.KeyCodes.RIGHT,
+      upArrow: Phaser.Input.Keyboard.KeyCodes.UP,
+      downArrow: Phaser.Input.Keyboard.KeyCodes.DOWN
+    });
+    this.cursors = this.input.keyboard.createCursorKeys();
+
+    // El objeto que espera `handleMouseMovement()`, que es heredado.
+    this.mouseMovement = {
+      isHolding: false,
+      holdStartTime: 0,
+      holdDuration: 300,
+      minHoldDistance: 15,
+      followCursorActive: false,
+      speed: 350,
+      directionX: 0,
+      directionY: 0,
+      cursorOverUI: false
+    };
+
+    this.input.on('pointerdown', (pointer) => {
+      if (pointer.button !== 0) return;
+      const canvas = this.sys.canvas;
+      const enCanvas = pointer.event.target === canvas ||
+                       canvas.contains(pointer.event.target);
+      if (!enCanvas) return;
+      // Hit-test real en el momento del clic: si hay algo interactivo debajo
+      // (el personaje, un boton), el clic no mueve al jugador.
+      let sobreUI = false;
+      try { sobreUI = (this.input.hitTestPointer(pointer) || []).length > 0; } catch (e) {}
+      if (sobreUI) return;
+      const p = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+      if (Phaser.Math.Distance.Between(this.player.x, this.player.y, p.x, p.y)
+          > this.mouseMovement.minHoldDistance) {
+        this.mouseMovement.isHolding = true;
+        this.mouseMovement.holdStartTime = this.time.now;
+        this.mouseMovement.followCursorActive = false;
+      }
+    });
+
+    this.input.on('pointerup', () => { this.stopMouseMovement(); });
+
+    // Joystick en movil. El plugin puede no haber cargado (ver el aviso de
+    // app.js), asi que se comprueba antes de usarlo.
+    if (this.joystick && typeof this.joystick.add === 'function' &&
+        window.Utils && window.Utils.isMobile && window.Utils.isMobile()) {
+      try {
+        this._joy = this.joystick.add(this, {
+          x: 100, y: 300, radius: 50,
+          base: this.add.circle(0, 0, 50, 0x888888, 0.5).setScrollFactor(0).setDepth(9500),
+          thumb: this.add.circle(0, 0, 25, 0xcccccc, 0.8).setScrollFactor(0).setDepth(9501),
+          dir: '8dir', forceMin: 16, fixed: true, enable: true
+        });
+      } catch (e) { console.warn('joystick:', e); }
+    }
+  }
+
+  /**
+   * Saca el HUD de la pagina y lo engancha a ESTA escena.
+   *
+   * Es la misma secuencia que la tienda. `_cablearHUD()` es el metodo heredado
+   * que se saco de GameScene.create(): deja los botones redondos, la campana,
+   * NFT, habilidades, tienda, chat, amistades y los botones de CERRAR de los
+   * paneles apuntando a la escena viva. Sin el, los botones estarian ahi,
+   * responderian al raton y no harian nada.
+   */
+  _mostrarHUD() {
+    const $ = (id) => document.getElementById(id);
+    const hud = $('game-hud');
+    if (hud) { hud.classList.remove('hud-hidden'); hud.classList.add('hud-visible'); }
+    ['hub', 'quick-slots-bar', 'open-chat-btn'].forEach(id => {
+      const el = $(id);
+      if (el) el.classList.remove('hidden');
+    });
+    document.querySelectorAll('.quick-slot').forEach(s => { s.style.display = 'block'; });
+    const uiText = $('game-ui-text');
+    if (uiText) uiText.style.display = 'block';
+
+    // Los manejadores de los botones redondos que _cablearHUD() espera
+    // encontrar ya puestos en la escena.
+    this.onRoundBtnDashboard = () => { this.showSettingsPanel(); };
+    this.onRoundBtnMail = (e) => {
+      if (e && e.stopPropagation) e.stopPropagation();
+      this._openNotifPanel();
+    };
+
+    try { this.setupSettingsPanel(); } catch (e) { console.warn('ajustes:', e); }
+    this.roundButtons = document.querySelectorAll('.round-btn');
+
+    // Y aqui esta todo el HUB, de una sola llamada.
+    try { this._cablearHUD(); } catch (e) { console.warn('HUD:', e); }
+
+    // El boton de Lands: lo engancha su modulo, que es quien sabe si esta
+    // escena va A la isla o VUELVE de ella, y que icono le toca.
+    try {
+      if (window.GFLands) window.GFLands.montar(this);
+    } catch (e) { console.warn('lands:', e); }
+
+    // Atajo de la mochila (DOM de la pagina; onclick y no addEventListener
+    // para que no se acumule uno por cada entrada a la escena).
+    const inv = $('inv-shortcut-btn');
+    if (inv) {
+      inv.onclick = () => {
+        const panel = $('inventory-panel');
+        if (panel) panel.style.display = panel.style.display === 'flex' ? 'none' : 'flex';
+      };
+    }
+
+    // Retrato, nombre, monedas y barras.
+    try {
+      this.actualizarImagenJugador(
+        window.GFSoulbound ? window.GFSoulbound.rutaPerfil()
+                           : './Game/Sprites/Soulbound/personaje1/Perfil/Perfil.png');
+      if (this.currentAccount) {
+        this.actualizarNombreUsuario(
+          `${this.currentAccount.slice(0, 6)}...${this.currentAccount.slice(-4)}`);
+      }
+      this._initStatsSync();
+      const izq = $('info-text-left');
+      const der = $('info-text-right');
+      if (izq) izq.textContent = `${this.moneda}`;
+      if (der) der.textContent = `${this.moneda_plata}`;
+      this.actualizarBarraVida(this.vidaPorcentaje);
+      this.actualizarBarraAgua(this.aguaPorcentaje);
+      this.actualizarBarraComida(this.comidaPorcentaje);
+    } catch (e) {
+      console.warn('⛏️ HUD parcialmente sin datos:', e);
+    }
+  }
+
+  /** Esconde el HUD de la pagina. La escena siguiente lo vuelve a sacar. */
+  _ocultarHUD() {
+    const $ = (id) => document.getElementById(id);
+    const hud = $('game-hud');
+    if (hud) { hud.classList.remove('hud-visible'); hud.classList.add('hud-hidden'); }
+    ['hub', 'quick-slots-bar', 'open-chat-btn'].forEach(id => {
+      const el = $(id);
+      if (el) el.classList.add('hidden');
+    });
+    document.querySelectorAll('.quick-slot').forEach(s => { s.style.display = 'none'; });
+    const izq = $('info-text-left');
+    if (izq) izq.textContent = '';
+    const uiText = $('game-ui-text');
+    if (uiText) uiText.style.display = 'none';
+  }
+
+  /** Las animaciones. Se comprueba `exists` porque el gestor es GLOBAL: si se
+   *  viene de GameScene ya estan creadas y volver a crearlas da un aviso. */
+  _crearAnimaciones() {
+    const anim = (key, pref, n, rate) => {
+      if (this.anims.exists(key)) return;
+      const frames = [];
+      for (let i = 1; i <= n; i++) frames.push({ key: pref + i });
+      this.anims.create({ key, frames, frameRate: rate, repeat: -1 });
+    };
+    anim('right', 'player_right_', 7, 9);
+    anim('left', 'player_left_', 7, 9);
+    anim('up', 'player_up_', 7, 9);
+    anim('down', 'player_down_', 7, 9);
+    anim('perro_right', 'perro_derecha_', 4, 6);
+    anim('perro_left', 'perro_izquierda_', 4, 6);
+
+    if (!this.anims.exists('lava_burbuja_anim')) {
+      this.anims.create({
+        key: 'lava_burbuja_anim',
+        frames: this.anims.generateFrameNumbers('lava_burbuja', { start: 0, end: 5 }),
+        frameRate: 9,
+        repeat: 0
+      });
+    }
+  }
+
+  /** La decision de animacion, con el desplazamiento ya corregido. */
+  _animarJugador(prevX, prevY) {
+    const dx = this.player.x - prevX;
+    const dy = this.player.y - prevY;
+    const EPS = 0.05;
+    const moviendoX = Math.abs(dx) > EPS;
+    const moviendoY = Math.abs(dy) > EPS;
+
+    const conRaton = !!(this.mouseMovement && this.mouseMovement.followCursorActive);
+
+    if (conRaton) {
+      // Con el raton solo existen 'left' y 'right', y la mirada sale de la
+      // INTENCION hacia el cursor y no del desplazamiento: si una pared frena
+      // la horizontal pero se sigue avanzando en vertical, la animacion no se
+      // queda congelada.
+      const mdx = this.mouseMovement.directionX || 0;
+      let mira;
+      if (mdx < -0.001) mira = 'left';
+      else if (mdx > 0.001) mira = 'right';
+      else mira = (this.lastDirection === 'left') ? 'left' : 'right';
+
+      if (moviendoX || moviendoY) {
+        this.lastDirection = mira;
+        if (!this.player.anims.isPlaying ||
+            this.player.anims.currentAnim?.key !== mira) {
+          this.player.anims.play(mira, true);
+        }
+      } else {
+        this.player.anims.stop();
+        this.lastDirection = mira;
+        this.player.setTexture(mira === 'left' ? 'player_left_1' : 'player_right_1');
+      }
+      return;
+    }
+
+    if (!moviendoX && !moviendoY) {
+      this.player.anims.stop();
+      const quieto = {
+        left: 'player_left_1', right: 'player_right_1',
+        up: 'player_up_1', down: 'player_down_1'
+      }[this.lastDirection] || 'player_down_1';
+      this.player.setTexture(quieto);
+      return;
+    }
+
+    const clave = moviendoX ? (dx < 0 ? 'left' : 'right')
+                            : (dy < 0 ? 'up' : 'down');
+    this.lastDirection = clave;
+    if (!this.player.anims.isPlaying ||
+        this.player.anims.currentAnim?.key !== clave) {
+      this.player.anims.play(clave, true);
+    }
   }
 
 } // fin clase GameScene
