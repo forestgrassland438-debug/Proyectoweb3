@@ -37,7 +37,6 @@ class TransactionHub {
                 debug: false
             };
             this.config = Object.assign({}, defaults, options);
-            this._normalizeConfig();
 
             this.isInitialized = false;
             this.currentNotification = null;
@@ -45,10 +44,6 @@ class TransactionHub {
             // Control de visibilidad: usamos token + interval para medir tiempo con performance.now()
             this._visibilityIntervalId = null;
             this._visibilityToken = 0; // cambia cada vez que se inicia un nuevo conteo
-            this._animationFrameId = null;
-            this._animationTimeoutId = null;
-            this._hideTimeoutId = null;
-            this._readyHandler = null;
 
             this._styleId = 'transaction-hub-styles';
             this._debug = !!this.config.debug;
@@ -57,36 +52,6 @@ class TransactionHub {
             console.error('TransactionHub.constructor error:', e);
             throw e;
         }
-    }
-
-    _normalizeConfig() {
-        for (const [key, fallback, min, max] of [
-            ['width', 320, 180, 800], ['animationDuration', 500, 0, 5000],
-            ['visibleDuration', 10000, 0, 300000]
-        ]) {
-            const value = this.config[key];
-            this.config[key] = Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
-        }
-    }
-
-    _cancelAnimations() {
-        if (this._animationFrameId !== null) cancelAnimationFrame(this._animationFrameId);
-        if (this._animationTimeoutId !== null) clearTimeout(this._animationTimeoutId);
-        if (this._hideTimeoutId !== null) clearTimeout(this._hideTimeoutId);
-        this._animationFrameId = this._animationTimeoutId = this._hideTimeoutId = null;
-    }
-
-    _showAnimation() {
-        this._cancelAnimations();
-        this._animationFrameId = requestAnimationFrame(() => {
-            this._animationFrameId = null;
-            this._animationTimeoutId = setTimeout(() => {
-                this._animationTimeoutId = null;
-                if (!this.currentNotification) return;
-                this.currentNotification.classList.remove('hide');
-                this.currentNotification.classList.add('show');
-            }, 10);
-        });
     }
 
     _handleError(context, err) {
@@ -115,12 +80,8 @@ class TransactionHub {
     initialize() {
         try {
             if (this.isInitialized) return;
-            if (typeof document === 'undefined') return;
-            if (!document.body) {
-                if (!this._readyHandler) {
-                    this._readyHandler = () => { this._readyHandler = null; this.initialize(); };
-                    document.addEventListener('DOMContentLoaded', this._readyHandler, { once: true });
-                }
+            if (typeof document === 'undefined' || !document.body) {
+                document.addEventListener('DOMContentLoaded', () => this.initialize(), { once: true });
                 return;
             }
 
@@ -222,7 +183,14 @@ class TransactionHub {
             if (this._hashElement) this._hashElement.style.display = 'none';
             if (this._explorerElement) this._explorerElement.style.display = 'none';
 
-            this._showAnimation();
+            requestAnimationFrame(() => setTimeout(() => {
+                try {
+                    this.currentNotification.classList.remove('hide');
+                    this.currentNotification.classList.add('show');
+                } catch (e) {
+                    this._handleError('showPending.animation', e);
+                }
+            }, 10));
         } catch (e) {
             this._handleError('showPending', e);
         }
@@ -261,19 +229,8 @@ class TransactionHub {
                 }
                 const base = explorerBase || this.config.explorerBase || '';
                 if (this._explorerElement) {
-                    // A config or remote explorer URL must never become a javascript:/data: link.
-                    this._explorerElement.removeAttribute('href');
-                    this._explorerElement.style.display = 'none';
-                    try {
-                        const url = new URL(base);
-                        if (url.protocol === 'https:' && !url.username && !url.password && /^0x[\da-f]{64}$/i.test(txHash)) {
-                            url.pathname = url.pathname.replace(/\/?$/, '/') + txHash;
-                            url.search = '';
-                            url.hash = '';
-                            this._explorerElement.setAttribute('href', url.href);
-                            this._explorerElement.style.display = 'inline-block';
-                        }
-                    } catch (_) { /* Invalid explorer URL: keep the transaction hash visible. */ }
+                    this._explorerElement.style.display = 'inline-block';
+                    this._explorerElement.setAttribute('href', base + encodeURIComponent(txHash));
                     this._explorerElement.textContent = 'Ver en explorer';
                 }
             } else {
@@ -281,7 +238,14 @@ class TransactionHub {
                 if (this._explorerElement) this._explorerElement.style.display = 'none';
             }
 
-            this._showAnimation();
+            requestAnimationFrame(() => setTimeout(() => {
+                try {
+                    this.currentNotification.classList.remove('hide');
+                    this.currentNotification.classList.add('show');
+                } catch (e) {
+                    this._handleError('showCompleted.animation', e);
+                }
+            }, 10));
 
             // iniciar conteo seguro: usamos interval que compara performance.now()
             this._startVisibilityCountdown(this.config.visibleDuration);
@@ -316,7 +280,14 @@ class TransactionHub {
             if (this._hashElement) this._hashElement.style.display = 'none';
             if (this._explorerElement) this._explorerElement.style.display = 'none';
 
-            this._showAnimation();
+            requestAnimationFrame(() => setTimeout(() => {
+                try {
+                    this.currentNotification.classList.remove('hide');
+                    this.currentNotification.classList.add('show');
+                } catch (e) {
+                    this._handleError('showError.animation', e);
+                }
+            }, 10));
 
             this._startVisibilityCountdown(this.config.visibleDuration);
         } catch (e) {
@@ -387,12 +358,10 @@ class TransactionHub {
             this._cancelVisibilityCountdown();
 
             // animar salida (no tocar texto)
-            this._cancelAnimations();
             this.currentNotification.classList.remove('show');
             this.currentNotification.classList.add('hide');
 
-            this._hideTimeoutId = setTimeout(() => {
-                this._hideTimeoutId = null;
+            setTimeout(() => {
                 try {
                     if (this._hubElement) this._hubElement.style.display = 'none';
                     // dejamos el contenido tal cual (útil para debugging si se necesita)
@@ -408,7 +377,6 @@ class TransactionHub {
     updateConfig(newConfig = {}) {
         try {
             this.config = Object.assign({}, this.config, newConfig);
-            this._normalizeConfig();
             const styleTag = document.getElementById(this._styleId);
             if (styleTag) {
                 styleTag.parentNode.removeChild(styleTag);
@@ -422,9 +390,6 @@ class TransactionHub {
     destroy() {
         try {
             this._cancelVisibilityCountdown();
-            this._cancelAnimations();
-            if (this._readyHandler) document.removeEventListener('DOMContentLoaded', this._readyHandler);
-            this._readyHandler = null;
 
             const hub = document.getElementById('transaction-hub');
             if (hub) hub.remove();

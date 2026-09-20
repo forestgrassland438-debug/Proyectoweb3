@@ -90,7 +90,7 @@ class BlockchainManager {
      * Registrar contrato de forma simplificada
      */
     registerContract(contractId, contractConfig) {
-        if (!contractConfig || typeof contractConfig.address !== 'string' || !/^0x[\da-f]{40}$/i.test(contractConfig.address)) {
+        if (!contractConfig || typeof contractConfig.address !== 'string' || !contractConfig.address) {
             throw new Error(`registerContract: falta la dirección del contrato para "${contractId}"`);
         }
 
@@ -123,7 +123,7 @@ class BlockchainManager {
             throw new Error(`Contrato no registrado: ${contractId}`);
         }
 
-        if (!Object.prototype.hasOwnProperty.call(contract.functions, functionName)) {
+        if (!contract.functions[functionName]) {
             throw new Error(`Función no disponible: ${functionName}`);
         }
 
@@ -262,20 +262,19 @@ class BlockchainManager {
             }
 
             if (!response.ok) {
+                this.revertNonce(); // Revertir en caso de error
                 throw new Error(result.error || 'Error del servidor');
             }
 
             // Actualizar nonce desde backend
-            if (result.newNonce !== undefined && result.newNonce !== null) {
+            if (result.newNonce) {
                 this.updateNonce(result.newNonce);
             }
 
             return result;
 
         } catch (error) {
-            // Solo revertir la reserva de ESTA petición. No alterar un nonce
-            // más reciente de una transacción concurrente ni revertir dos veces.
-            if (this.userNonce === payload.userNonce) this.revertNonce();
+            this.revertNonce(); // Revertir en caso de error de red
             throw error;
         }
     }

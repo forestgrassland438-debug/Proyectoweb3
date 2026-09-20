@@ -20,9 +20,8 @@
 /* Phaser Memory Sleuth v1.0
    - Uso recomendado (solo inspección primero):
        window.PhaserSleuth.run({ dryRun:true, sizeThresholdMB: 10 });
-   - Limpieza manual destructiva: requiere rutas/claves explícitas ya verificadas
-     como inactivas. Nunca se libera un recurso sólo por su tamaño.
-       window.PhaserSleuth.run({ dryRun:false, aggressive:true, cleanupPaths: ['window.unusedCache'] });
+   - Para limpieza agresiva (destructiva):
+       window.PhaserSleuth.run({ dryRun:false, aggressive:true, sizeThresholdMB: 5 });
    - El script devuelve y descarga (si exportReport=true) un JSON con:
        - lista de objetos grandes (paths, estimación en MB)
        - resumen de caches/textures encontradas
@@ -37,8 +36,7 @@
   function safe(fn, fallback){ try { return fn(); } catch(e) { return fallback; } }
 
   // heurístico de estimación (más cuidadoso que antes)
-  function estimateSize(value, opts, seen = new WeakSet(), depth = 0, budget = { remaining: 2000 }){
-    if (--budget.remaining < 0 || depth > (opts.maxDepth || 3)) return 0;
+  function estimateSize(value, opts, seen = new WeakSet(), depth = 0){
     if (value === null || value === undefined) return 0;
     if (typeof value === 'number') return 8;
     if (typeof value === 'boolean') return 4;
@@ -57,13 +55,13 @@
       if (typeof WebAssembly !== 'undefined' && value instanceof WebAssembly.Memory && value.buffer) return value.buffer.byteLength || 0;
 
       // DOM
-      if (typeof Element !== 'undefined' && value instanceof Element) return 1024;
+      if (value instanceof Element) return 1024;
 
       // Array
       if (Array.isArray(value)){
         let sum = 0;
         const limit = Math.min(value.length, opts.maxArrayElements || 1000);
-        for (let i=0;i<limit && budget.remaining > 0;i++) sum += estimateSize(value[i], opts, seen, depth+1, budget);
+        for (let i=0;i<limit;i++) sum += estimateSize(value[i], opts, seen, depth+1);
         if (value.length > limit) sum += (value.length - limit) * 8;
         return sum;
       }
@@ -72,16 +70,16 @@
       if (value instanceof Map){
         let sum = 0; let i=0;
         for (let [k,v] of value){
-          if (i++ >= (opts.maxMapEntries||500) || budget.remaining <= 0) break;
-          sum += estimateSize(k, opts, seen, depth+1, budget) + estimateSize(v, opts, seen, depth+1, budget);
+          if (i++ > (opts.maxMapEntries||500)) break;
+          sum += estimateSize(k, opts, seen, depth+1) + estimateSize(v, opts, seen, depth+1);
         }
         return sum;
       }
       if (value instanceof Set){
         let sum = 0; let i=0;
         for (let v of value){
-          if (i++ >= (opts.maxMapEntries||500) || budget.remaining <= 0) break;
-          sum += estimateSize(v, opts, seen, depth+1, budget);
+          if (i++ > (opts.maxMapEntries||500)) break;
+          sum += estimateSize(v, opts, seen, depth+1);
         }
         return sum;
       }
@@ -91,9 +89,9 @@
       let s = 0;
       const keys = Object.keys(value);
       const K = Math.min(keys.length, opts.maxProps || 200);
-      for (let i=0;i<K && budget.remaining > 0;i++){
+      for (let i=0;i<K;i++){
         const k = keys[i];
-        try{ const property = Object.getOwnPropertyDescriptor(value, k); if (property && 'value' in property) s += estimateSize(property.value, opts, seen, depth+1, budget); s += k.length * 2; }catch(e){}
+        try{ s += estimateSize(value[k], opts, seen, depth+1); s += k.length * 2; }catch(e){}
       }
       if (keys.length > K) s += (keys.length - K) * 16;
       return s;
@@ -119,14 +117,11 @@
           if (seen.has(o)) continue;
           seen.add(o);
 
-          // Traversal and size estimation must not share a visited set: the
-          // root has already been marked visited, which previously forced 0.
-          const size = estimateSize(o, opts);
+          const size = estimateSize(o, opts, seen, cur.depth);
           if (size >= (opts.sizeThresholdMB||1) * 1024*1024){
             results.push({ path: p, bytes: size, MB: parseFloat((size/1024/1024).toFixed(2)), type: Object.prototype.toString.call(o) });
           }
 
-          if (cur.depth >= (opts.maxDepth || 3) || ArrayBuffer.isView(o) || o instanceof ArrayBuffer) continue;
           // push children: arrays, object props (shallow)
           if (Array.isArray(o)){
             const len = Math.min(o.length, opts.maxArrayElements || 200);
@@ -148,7 +143,7 @@
           } else {
             const props = Object.keys(o).slice(0, opts.maxProps || 200);
             for (const k of props){
-              try{ const property = Object.getOwnPropertyDescriptor(o, k); if (property && 'value' in property) stack.push({ obj: property.value, path: p + '.' + k, depth: cur.depth+1 }); }catch(e){}
+              try{ stack.push({ obj: o[k], path: p + '.' + k, depth: cur.depth+1 }); }catch(e){}
             }
           }
         } else {
@@ -225,17 +220,10 @@
 
   // cleanup helpers (conservative): clear arrays length=0, clear maps/sets, stop sounds, remove textures by key list
   function safeCleanupByPath(path, opts){
-    // Explicit own-property paths only. Never execute property names as code.
+    // path is like "window.SomeObj.cache.largeArray" — we try to evaluate and clean common types
     try{
-      if (!/^(window|game)(?:\.[a-zA-Z_$][\w$]*|\[\d+\])+$/.test(path)) return { ok:false, reason:'invalid path' };
-      const parts = path.replace(/\[(\d+)\]/g, '.$1').split('.');
-      let obj = parts.shift() === 'window' ? window : (opts.game || window.game);
-      for (const part of parts) {
-        if (['__proto__', 'prototype', 'constructor'].includes(part) || !obj) return { ok:false, reason:'unsafe path' };
-        const property = Object.getOwnPropertyDescriptor(obj, part);
-        if (!property || !('value' in property)) return { ok:false, reason:'not a data property' };
-        obj = property.value;
-      }
+      const fn = new Function('return ' + path); // may throw
+      const obj = fn();
       if (!obj) return { ok:false, reason:'undefined' };
       // arrays
       if (Array.isArray(obj)){
@@ -249,8 +237,13 @@
       if (typeof obj.clear === 'function'){ try{ obj.clear(); return { ok:true, action:'obj.clear()' }; }catch(e){} }
       if (typeof obj.destroy === 'function'){ try{ obj.destroy(); return { ok:true, action:'obj.destroy()' }; }catch(e){} }
       if (typeof obj.dispose === 'function'){ try{ obj.dispose(); return { ok:true, action:'obj.dispose()' }; }catch(e){} }
+      // fallback: set to null if top-level on window
+      const top = path.split('.')[0];
+      if (top === 'window' || top in window){
+        try{ window[top] = null; return { ok:true, action:'window.'+top+' = null' }; }catch(e){}
+      }
       return { ok:false, reason:'no known cleanup' };
-    }catch(e){ return { ok:false, reason:'cleanup failed' }; }
+    }catch(e){ return { ok:false, reason:'eval failed' }; }
   }
 
   // main run
@@ -258,9 +251,6 @@
     const opts = Object.assign({
       dryRun: true,
       aggressive: false,
-      cleanupPaths: [],
-      textureKeys: [],
-      cacheKeys: [],
       exportReport: true,
       sizeThresholdMB: 5,
       maxNodes: 30000,
@@ -318,8 +308,8 @@
       // 1) try to remove large textures by key > sizeThresholdMB from phaserSummary
       try{
         const texs = report.phaserSummary && report.phaserSummary.textures ? report.phaserSummary.textures : [];
-        // Size alone is never evidence that a live texture can be destroyed.
-        const toRemove = texs.filter(t => Array.isArray(opts.textureKeys) && opts.textureKeys.includes(t.key));
+        const threshBytes = opts.sizeThresholdMB * 1024 * 1024;
+        const toRemove = texs.filter(t => t.bytes >= threshBytes || (opts.texturePrefixBlacklist && opts.texturePrefixBlacklist.some(pref => t.key && t.key.indexOf(pref)===0)));
         if (toRemove.length && game && game.textures){
           for (const t of toRemove){
             try{
@@ -334,7 +324,7 @@
       // 2) try to clear caches that appear large (best-effort)
       try{
         if (game && game.cache){
-          const stores = Object.keys(game.cache || {}).filter(key => Array.isArray(opts.cacheKeys) && opts.cacheKeys.includes(key));
+          const stores = Object.keys(game.cache || {});
           for (const s of stores){
             try{
               const store = game.cache[s];
@@ -353,7 +343,6 @@
           for (const item of top.slice(0,20)){
             try{
               const p = item.path;
-              if (!Array.isArray(opts.cleanupPaths) || !opts.cleanupPaths.includes(p)) continue;
               const res = safeCleanupByPath(p, opts);
               report.attemptedCleanup.push({ path:p, result:res });
             }catch(e){}

@@ -365,12 +365,10 @@
 
   function debounce(fn, wait) {
     let timer;
-    const debounced = function (...args) {
+    return function (...args) {
       clearTimeout(timer);
-      timer = setTimeout(() => { timer = null; fn(...args); }, wait);
+      timer = setTimeout(() => fn(...args), wait);
     };
-    debounced.cancel = () => { clearTimeout(timer); timer = null; };
-    return debounced;
   }
 
   function throttle(fn, limit) {
@@ -588,10 +586,7 @@
       this._pending   = new global.Set();
     }
 
-    setScene(scene) {
-      if (scene !== this.scene) this.removeAllListeners();
-      this.scene = scene;
-    }
+    setScene(scene) { this.scene = scene; }
 
     addListener(event, callback, context = this) {
       if (!this.scene || !this.scene.events) {
@@ -600,7 +595,6 @@
       }
       if (!this._listeners.has(event)) this._listeners.set(event, new global.Map());
       const key = this._listenerKey(callback, context);
-      if (this._listeners.get(event).has(key)) return () => this.removeListener(event, callback, context);
       this._listeners.get(event).set(key, { callback, context });
       try { this.scene.events.on(event, callback, context); } catch (e) {
         if (DEBUG_MODE) console.warn('Error añadiendo listener:', e);
@@ -638,12 +632,10 @@
     }
 
     _listenerKey(cb, ctx) {
-      const contextId = ctx !== null && (typeof ctx === 'object' || typeof ctx === 'function')
-        ? __getListenerId(ctx) : `${typeof ctx}:${String(ctx)}`;
-      return `${__getListenerId(cb)}_${contextId}`;
+      return `${__getListenerId(cb)}_${ctx ? ctx.toString() : 'global'}`;
     }
 
-    destroy() { this.removeAllListeners(); this._pending.clear(); this.scene = null; }
+    destroy() { this.removeAllListeners(); this._pending.clear(); }
 
     getStats() {
       let total = 0;
@@ -2333,8 +2325,6 @@
       this._onPreStep         = null;
       this._onPostStep        = null;
       this._memoryInterval    = null;
-      this._onGameDestroy = () => this.destroy();
-      if (game && game.events && game.events.once) game.events.once('destroy', this._onGameDestroy);
 
       // Registrar en sistema de aislamiento (solo tracking, sin Proxy que bloquee)
       PerfIsolation.registerInstance(this);
@@ -2460,23 +2450,6 @@
 
       this.opt = Object.assign({}, this.opt, options);
       this.eventManager.setScene(this.scene);
-      this._detachSceneLifecycle();
-      const managedScene = this.scene;
-      const sceneEvents = managedScene.events;
-      this._onSceneShutdown = () => {
-        if (this.scene !== managedScene) return;
-        this._detachSceneLifecycle();
-        this._releaseSceneSubsystems();
-        this.eventManager.setScene(null);
-        this.scene = null;
-        this._chunkProvider = null;
-        this._initialized = false;
-      };
-      if (sceneEvents && sceneEvents.once) {
-        this._sceneLifecycleEmitter = sceneEvents;
-        sceneEvents.once('shutdown', this._onSceneShutdown);
-        sceneEvents.once('destroy', this._onSceneShutdown);
-      }
 
       // FIX: init() se llama una vez por escena (GameScene, tiendajuego, y otra
       // vez cada vez que se vuelve a entrar). Antes se creaban subsistemas
@@ -2501,15 +2474,6 @@
       safeLog('PhaserRPGPerf completamente inicializado en escena',
         this.scene.sys ? this.scene.sys.settings.key : this.scene);
       return this;
-    }
-
-    _detachSceneLifecycle() {
-      if (this._sceneLifecycleEmitter) {
-        this._sceneLifecycleEmitter.off('shutdown', this._onSceneShutdown);
-        this._sceneLifecycleEmitter.off('destroy', this._onSceneShutdown);
-      }
-      this._sceneLifecycleEmitter = null;
-      this._onSceneShutdown = null;
     }
 
     _applyAdaptiveSettings(settings) {
@@ -2559,7 +2523,6 @@
     }
     createChunkManager(map, options) {
       if (!this.scene) throw new Error('Scene requerida para crear ChunkManager');
-      if (this.chunkManager) this.chunkManager.destroy();
       this.chunkManager = new DynamicChunkManager(this.scene, map, Object.assign({}, this.opt, options));
       if (this._chunkProvider) this.chunkManager.setProvider(this._chunkProvider);
       return this.chunkManager;
@@ -2737,32 +2700,29 @@
     // Destrucción
     destroy() {
       if (this._destroyed) { safeLog('PhaserRPGPerf ya destruido'); return; }
-      this._destroyed = true;
       safeLog('PhaserRPGPerf destroy iniciado');
 
       if (this._autoScanInterval) clearInterval(this._autoScanInterval);
       if (this._resizeHandler && typeof global !== 'undefined') {
-        if (this._resizeHandler.cancel) this._resizeHandler.cancel();
         global.removeEventListener('resize',            this._resizeHandler);
         global.removeEventListener('orientationchange', this._resizeHandler);
       }
       if (this.game && this.game.events) {
-        this.game.events.off('destroy', this._onGameDestroy);
         if (this._onPreStep)  this.game.events.off('prestep',  this._onPreStep);
         if (this._onPostStep) this.game.events.off('poststep', this._onPostStep);
       }
       if (this._memoryInterval) clearInterval(this._memoryInterval);
 
+      try { if (this.chunkManager)   this.chunkManager.destroy();   } catch (e) {}
+      try { if (this.pool)           this.pool.destroy();           } catch (e) {}
+      try { if (this.layerCache)     this.layerCache.destroy();     } catch (e) {}
+      try { if (this.cull)           this.cull.destroy();           } catch (e) {}
+      try { if (this.particles)      this.particles.destroy();      } catch (e) {}
       try { if (this.eventManager)   this.eventManager.destroy();   } catch (e) {}
       try { if (this.performanceMonitor) this.performanceMonitor.destroy(); } catch (e) {}
+      try { if (this.textureCache)   this.textureCache.destroy();   } catch (e) {}
 
-      this._releaseSceneSubsystems();
-      this._detachSceneLifecycle();
-      this._initialized = false;
-      this._autoScanInterval = this._memoryInterval = null;
-      this._chunkProvider = this.scene = this.game = null;
-      if (this.adaptivePerformance) this.adaptivePerformance.game = null;
-      this._frameTimeHistory.length = 0;
+      this._destroyed = true;
       safeLog('PhaserRPGPerf destruido completamente');
     }
   }

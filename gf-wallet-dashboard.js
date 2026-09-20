@@ -22,25 +22,6 @@
 
   var ENLAZADO = false;
   var PINTADO  = false;
-  var secretoTimer = null;
-
-  function limpiarSecretos() {
-    if (secretoTimer !== null) clearTimeout(secretoTimer);
-    secretoTimer = null;
-    ['gfw-w-code-out', 'gfw-w-pk-out'].forEach(function (id) {
-      var el = $(id);
-      if (el) { el.textContent = ''; el.style.display = 'none'; }
-    });
-    ['gfw-w-secret', 'gfw-w-pk-secret', 'gfw-w-key-in', 'gfw-w-code-in', 'gfw-w-key-new'].forEach(function (id) {
-      var el = $(id);
-      if (el) el.value = '';
-    });
-  }
-
-  function ocultarSecretoDespues() {
-    if (secretoTimer !== null) clearTimeout(secretoTimer);
-    secretoTimer = setTimeout(limpiarSecretos, 30000);
-  }
 
   function $(id) { return document.getElementById(id); }
 
@@ -309,10 +290,8 @@
       mensaje('Checking...');
       wallet.revealCodeWithPassphrase(clave).then(function (codigo) {
         var out = $('gfw-w-code-out');
-        if (!out || document.hidden) return;
         out.style.display = 'block';
         out.textContent = codigo;
-        ocultarSecretoDespues();
         mensaje('This is your recovery code. Keep it somewhere safe.', 'ok');
         $('gfw-w-key-in').value = '';
       }).catch(function (e) {
@@ -330,10 +309,8 @@
       mensaje('Checking...');
       wallet.exportPrivateKey(secreto).then(function (r) {
         var out = $('gfw-w-pk-out');
-        if (!out || document.hidden) return;
         out.style.display = 'block';
         out.textContent = r.privateKey;
-        ocultarSecretoDespues();
         mensaje('Anyone with this key owns your wallet. Never paste it anywhere.', 'err');
         $('gfw-w-pk-secret').value = '';
       }).catch(function (e) {
@@ -378,7 +355,6 @@
     });
 
     function abrir(cat) {
-      if (cat !== 'wallet') limpiarSecretos();
       Array.prototype.forEach.call(tabs, function (b) {
         b.classList.toggle('active', b.getAttribute('data-cat') === cat);
       });
@@ -410,11 +386,9 @@
   }, 300);
 
   if (document.readyState !== 'loading') enlazar();
-  else document.addEventListener('DOMContentLoaded', enlazar, { once: true });
+  else document.addEventListener('DOMContentLoaded', enlazar);
 
   // Si la wallet se desbloquea más tarde (el login social termina después de
   // que se abriera el panel), se vuelve a pintar con los datos buenos.
-  window.addEventListener('gfWalletReady', function () { limpiarSecretos(); PINTADO = false; });
-  document.addEventListener('visibilitychange', function () { if (document.hidden) limpiarSecretos(); });
-  window.addEventListener('pagehide', limpiarSecretos);
+  window.addEventListener('gfWalletReady', function () { PINTADO = false; });
 })();

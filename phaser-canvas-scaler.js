@@ -56,14 +56,12 @@
 
   function debounce(fn, wait) {
     let t = null;
-    const debounced = function () {
+    return function () {
       const ctx  = this;
       const args = arguments;
       clearTimeout(t);
-      t = setTimeout(() => { t = null; fn.apply(ctx, args); }, wait);
+      t = setTimeout(() => fn.apply(ctx, args), wait);
     };
-    debounced.cancel = () => { clearTimeout(t); t = null; };
-    return debounced;
   }
 
   // Detección de dispositivo — complementada con tamaño de pantalla
@@ -137,10 +135,7 @@
 
       // FIX #4 / MEJ#3: Promise pública — el usuario puede hacer:
       //   new PhaserCanvasScaler(opts).ready.then(({ game }) => ...)
-      this.ready = new Promise((resolve, reject) => { this._resolveReady = resolve; this._rejectReady = reject; });
-      // Callers may use the event API only; keep an initialization error from
-      // becoming an unhandled rejection while preserving ready's rejection.
-      this.ready.catch(() => {});
+      this.ready = new Promise(resolve => { this._resolveReady = resolve; });
 
       // Estado interno
       this.game       = null;
@@ -148,7 +143,6 @@
       this.isWebGL2   = false;
       this._isBrave   = false;
       this._destroyed = false;
-      this._timers = new Set();
 
       // FIX #1: resolver parent ahora que el DOM existe
       if (this.opts.parent === null || this.opts.parent === undefined) {
@@ -187,36 +181,20 @@
       detectBrave()
         .then(isBrave  => { this._isBrave = !!isBrave; })
         .catch(()      => { this._isBrave = false;      })
-        .then(()    => {
+        .finally(()    => {
           if (this._destroyed) return;
           this._createCanvasAndGame();
           this._attachListeners();
           this._onWindowResize();
 
           // MEJ#3: emitir 'ready' + resolver Promise pública
-          const readyData = { game: this.game, device: this.device, isWebGL2: this.isWebGL2, isBrave: this._isBrave };
-          this._resolveReady(readyData);
-          this._resolveReady = this._rejectReady = null;
+          const readyData = { device: this.device, isWebGL2: this.isWebGL2, isBrave: this._isBrave };
           this.events.emit('ready', readyData);
-        })
-        .catch(error => {
-          if (this._rejectReady) this._rejectReady(error);
-          this._resolveReady = this._rejectReady = null;
-          this.destroy();
+          this._resolveReady(readyData);
         });
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
-
-    _schedule(callback, delay) {
-      if (this._destroyed) return;
-      const id = setTimeout(() => {
-        this._timers.delete(id);
-        if (!this._destroyed) callback();
-      }, delay);
-      this._timers.add(id);
-      return id;
-    }
 
     _captureStyles(el, props) {
       if (!el) return {};
@@ -322,18 +300,16 @@
       this.container.appendChild(this.canvas);
 
       // MEJ#1: registrar handler de pérdida de contexto WebGL
-      this._onContextLost = e => {
+      this.canvas.addEventListener('webglcontextlost', e => {
         e.preventDefault();
         console.warn('[PhaserCanvasScaler] Contexto WebGL perdido');
         this.events.emit('contextlost');
-      };
-      this.canvas.addEventListener('webglcontextlost', this._onContextLost);
+      });
 
-      this._onContextRestored = () => {
+      this.canvas.addEventListener('webglcontextrestored', () => {
         console.warn('[PhaserCanvasScaler] Contexto WebGL restaurado');
         this.events.emit('contextrestored');
-      };
-      this.canvas.addEventListener('webglcontextrestored', this._onContextRestored);
+      });
 
       // FIX #3: NO llamar getContext() aquí — dejamos que Phaser
       // gestione su propio contexto. isWebGL2 se detecta DESPUÉS de la init.
@@ -360,8 +336,7 @@
 
       // Detectar WebGL2 DESPUÉS de que Phaser creó su renderer
       if (this.game && this.game.renderer && this.game.renderer.gl) {
-        this.isWebGL2 = typeof WebGL2RenderingContext !== 'undefined' &&
-          this.game.renderer.gl instanceof WebGL2RenderingContext;
+        this.isWebGL2 = this.game.renderer.gl instanceof WebGL2RenderingContext;
       }
     }
 
@@ -468,7 +443,7 @@
           this.game = new Phaser.Game(fallbackConfig);
 
           // Esperar a que Phaser cree el canvas y aplicar estilos
-          this._schedule(() => {
+          setTimeout(() => {
             if (this.game && this.game.canvas) {
               this.canvas = this.game.canvas;
               this._applyCanvasStyles();
@@ -519,13 +494,13 @@
       } else {
         this.events.emit('visible');
         if (this.game.loop) this.game.loop.resume();
-        this._schedule(() => this._onWindowResize(), 100);
+        setTimeout(() => this._onWindowResize(), 100);
       }
     };
 
     // FIX WARN#4: un solo resize con delay suficiente, sin doble disparo
     _onOrientationChange() {
-      this._schedule(() => this._onWindowResize(), 300);
+      setTimeout(() => this._onWindowResize(), 300);
     }
 
     // ─── Resize ───────────────────────────────────────────────────────────────
@@ -657,7 +632,7 @@
     }
 
     toggleFullScreen() {
-      if (this._destroyed || !this.container || !this.opts.allowFullScreen) return;
+      if (!this.opts.allowFullScreen) return;
 
       if (!document.fullscreenElement) {
         const el = this.container;
@@ -670,7 +645,7 @@
         else if (document.msExitFullscreen)     document.msExitFullscreen();
       }
 
-      this._schedule(() => this._onWindowResize(), 300);
+      setTimeout(() => this._onWindowResize(), 300);
     }
 
     setZIndex(z) {
@@ -688,13 +663,7 @@
     // ─── Destrucción ──────────────────────────────────────────────────────────
 
     destroy() {
-      if (this._destroyed) return;
       this._destroyed = true;
-      if (this._onWindowResize.cancel) this._onWindowResize.cancel();
-      for (const id of this._timers) clearTimeout(id);
-      this._timers.clear();
-      if (this._resolveReady) this._resolveReady({ game: null, destroyed: true });
-      this._resolveReady = this._rejectReady = null;
 
       // Desconectar ResizeObserver (MEJ#2)
       if (this._resizeObserver) {
@@ -716,8 +685,6 @@
 
       // Remover listeners del canvas
       if (this.canvas) {
-        this.canvas.removeEventListener('webglcontextlost', this._onContextLost);
-        this.canvas.removeEventListener('webglcontextrestored', this._onContextRestored);
         if (this._touchPreventer) {
           ['touchstart','touchmove','touchend','touchcancel'].forEach(ev => {
             this.canvas.removeEventListener(ev, this._touchPreventer);
@@ -732,10 +699,7 @@
 
       // Destruir juego Phaser
       if (this.game) {
-        try {
-          this.game.destroy(true, false);
-          if (this.game.loop && this.game.loop.running === false && this.game.loop.wake) this.game.loop.wake();
-        } catch (e) { console.warn('[PhaserCanvasScaler] Game cleanup failed:', e); }
+        try { this.game.destroy(true, false); } catch (e) { /* ignorar */ }
         this.game = null;
       }
 
@@ -752,9 +716,6 @@
       if (this.events) this.events.destroy();
 
       this.canvas   = null;
-      this.container = null;
-      this._lastBaseConfig = null;
-      this.opts.parent = null;
       this.isWebGL2 = false;
     }
   }

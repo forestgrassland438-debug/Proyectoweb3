@@ -110,8 +110,7 @@
    */
   function whenIdle(opciones) {
     opciones = opciones || {};
-    var tope = Number.isFinite(opciones.timeout) && opciones.timeout >= 0
-      ? Math.min(opciones.timeout, TOPE_POR_TRABAJO_MS) : 90000;
+    var tope = typeof opciones.timeout === 'number' ? opciones.timeout : 90000;
     var inicio = Date.now();
 
     if (trabajos.size === 0) {
@@ -121,13 +120,11 @@
     return new Promise(function (resolve) {
       var terminado = false;
       var latido = null;
-      var limite = null;
 
       function acabar(idle) {
         if (terminado) return;
         terminado = true;
-        if (latido !== null) clearInterval(latido);
-        if (limite !== null) clearTimeout(limite);
+        if (latido) clearInterval(latido);
         var i = oyentes.indexOf(alVaciarse);
         if (i !== -1) oyentes.splice(i, 1);
         resolve({ idle: idle, waitedMs: Date.now() - inicio, remaining: trabajos.size });
@@ -136,7 +133,7 @@
       function alVaciarse() { acabar(true); }
       oyentes.push(alVaciarse);
 
-      limite = setTimeout(function () {
+      var limite = setTimeout(function () {
         console.warn('[TxGate] Se agotó la espera con ' + trabajos.size + ' trabajo(s) pendiente(s):', labels());
         acabar(false);
       }, tope);
@@ -150,6 +147,8 @@
         try { opciones.onTick(trabajos.size, labels()); } catch (e) {}
       }
 
+      // Si acaba antes, limpiar el tope.
+      oyentes.push(function () { clearTimeout(limite); });
     });
   }
 
