@@ -67,6 +67,17 @@ class LandsScene extends GameScene {
     this._piezas = [];
   }
 
+
+  /**
+   * Recoge la sesion que nos pasa la escena anterior.
+   *
+   * `init` corre ANTES que preload y create, que es justo lo que hace falta:
+   * asi `create` ya la tiene y no necesita ir a la red.
+   */
+  init(datos) {
+    this.__sesionRecibida = (datos && datos.sesion) || null;
+  }
+
   // =========================================================================
   // PRELOAD
   // =========================================================================
@@ -108,19 +119,35 @@ class LandsScene extends GameScene {
   async create() {
     console.log('🏝️ LandsScene.create()');
 
-    // La sesion primero, igual que en la mina: sin playerName, loadPlayerData
-    // se va sin cargar monedas ni inventario y el HUD sale vacio.
-    const autenticado = await this.loadx();
-    if (!autenticado) {
-      console.error('🏝️ no se pudo autenticar: la isla no arranca');
-      return;
+    /* ── LA SESION, LO PRIMERO DE TODO ───────────────────────────────────
+     *
+     * Phaser crea una instancia NUEVA al cambiar de escena: el `playerName`,
+     * el `address` y el token CSRF que tenia la escena anterior no viajan
+     * solos. Sin ellos `loadPlayerData()` se planta en su primera linea y se
+     * va sin cargar nada — ni monedas, ni inventario, ni cofre— sin dar un
+     * error rojo, solo un HUD en blanco.
+     *
+     * PERO NO SE VUELVE A AUTENTICAR. La version anterior llamaba aqui a
+     * `loadx()`, que pide el CSRF y llama a /api/auth/me. Eso dio el cartel de
+     * SESSION EXPIRED al entrar, y por un motivo tonto: `serverBase` se
+     * rellenaba en el preload() de GameScene, por el que esta escena no pasa,
+     * asi que la peticion salia a `undefined/api/auth/me` y fallaba con la
+     * sesion perfectamente viva.
+     *
+     * Ahora la escena que nos lanza nos PASA su sesion, que ya esta
+     * comprobada. `loadx()` se queda solo de red de seguridad para cuando se
+     * entra sin venir de ningun sitio. */
+    let sesion = this._aplicarSesion(this.__sesionRecibida);
+    if (!sesion) {
+      console.log('🏝️ sin sesion heredada: se pide al servidor');
+      sesion = await this.loadx();
     }
-    if (!this.playerName) {
-      console.error('🏝️ sin playerName: la isla no arranca');
+    if (!sesion || !this.playerName) {
+      console.error('🏝️ no se pudo autenticar: la isla no arranca');
       this.showTokenErrorHub();
       return;
     }
-    this.currentAccount = this.playerName;
+    this.currentAccount = this.currentAccount || this.playerName;
     this.phaser_ancho = this.scale.width;
     this.phaser_largo = this.scale.height;
 

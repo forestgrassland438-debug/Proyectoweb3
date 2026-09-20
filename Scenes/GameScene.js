@@ -50,6 +50,24 @@ class GameScene extends Phaser.Scene {
        * existe siempre. */
       this.otherPlayers = {};
 
+      /* LA DIRECCION DEL SERVIDOR, DESDE EL CONSTRUCTOR.
+       *
+       * FALLO QUE ESTO ARREGLA — "entro a la isla y sale SESSION EXPIRED":
+       *
+       * `serverBase` se rellenaba dentro de preload(). MinaScene y LandsScene
+       * heredan de esta clase pero tienen SU PROPIO preload (no cargan los
+       * arboles ni las casas del mapa de fuera), asi que nunca pasaban por esa
+       * linea y `this.serverBase` se quedaba en undefined.
+       *
+       * Entonces `loadx()` pedia a `undefined/api/auth/me`, el navegador lo
+       * resolvia como una ruta relativa que no existe, la respuesta no era OK
+       * y se llamaba a showTokenErrorHub(): el cartel de sesion caducada. La
+       * sesion estaba perfectamente bien; lo que faltaba era la direccion.
+       *
+       * En el constructor lo tienen TODAS las escenas, pasen por el preload
+       * que pasen. */
+      this._resolverServidor();
+
       this.currentAccount = null;
       this.panelactualizacion = 1;
       this.statsSync = null; // StatsSync para sincronización con el contrato
@@ -2208,18 +2226,9 @@ showNotification(message, type = 'info') {
     // rompía auth/me: serverclient1 también alimenta el socket multijugador
     // (io(SERVER,...)) y los enlaces de market/hub, así que todo eso también
     // intentaba conectar a 127.0.0.1:3001 en el juego real.
-    const _host = window.location.hostname;
-    const _isLocal = _host === 'localhost' || _host === '127.0.0.1';
-
-    if (_isLocal) {
-      this.serverclient  = 'http://127.0.0.1:8080/api'; // ajusta el puerto si tu server2.js local usa otro
-      this.serverclient1 = 'http://127.0.0.1:8080';
-      this.serverBase    = 'http://127.0.0.1:8080';
-    } else {
-      this.serverclient  = 'https://api.grasslandforest.com/api';
-      this.serverclient1 = 'https://api.grasslandforest.com';
-      this.serverBase    = 'https://api.grasslandforest.com';
-    }
+    // Esto vive ahora en _resolverServidor(), que ademas lo llama el
+    // CONSTRUCTOR. Ver alli por que.
+    this._resolverServidor();
 
     // ── LIMPIAR RESTOS DE UNA BATALLA ────────────────────────────────────────
     // FIX "AL VOLVER DE LA BATALLA EL CHAT Y EL DASHBOARD NO ABREN":
@@ -4669,11 +4678,18 @@ this.createImagesFromObjectLayer(this, this.map, 'Lamparas', imageMappingpostes,
         puerta_mina: {
         spriteKey: 'puerta_mina_png',
         targetProp: 'puerta_mina_pngx1',
-        // ANTES ESTO ABRÍA EL HORNO. Era una línea copiada del objeto de
-        // arriba (`horno_mineral1`) a la que se le cambió el nombre pero no el
-        // manejador: clicar la puerta de la mina abría el panel de fundición.
-        // Ahora hace lo que dice: baja a la mina.
-        onClick: () => { this.entrarEnLaMina(); },
+        // SIN `onClick` A PROPOSITO. A la mina se entra ANDANDO, tocando la
+        // puerta con el personaje (ver collisionRectangles3 en update), no
+        // clicandola desde el otro lado del mapa.
+        //
+        // Aqui hubo dos versiones equivocadas antes: la original llamaba a
+        // `openFurnacePanel()` —una línea copiada del objeto de arriba a la
+        // que le cambiaron el nombre pero no el manejador, asi que clicar la
+        // puerta abria el horno—, y despues se cambio por `entrarEnLaMina()`.
+        // Las dos estaban mal por el mismo motivo: un `onClick` deja el
+        // sprite INTERACTIVO, con su cursor de mano, y el jugador entiende
+        // que ahi se pulsa. Sin manejador, la puerta es decorado y el unico
+        // modo de entrar es el que toca.
       },
     };
 
@@ -30742,11 +30758,21 @@ if (window.globalPetData) {
   entrarEnLaMina() {
     if (this._cambiandoEscena) return;
 
-    // Red de seguridad: si Scenes/MinaScene.js no cargo (un 404, por ejemplo),
-    // mas vale quedarse fuera que apagar el HUD y saltar a una escena que no
-    // existe, que dejaria al jugador en negro y sin interfaz.
-    if (typeof window.MinaScene !== 'function') {
-      console.warn('MinaScene no esta cargada: no se puede entrar en la mina');
+    /* SE PREGUNTA AL GESTOR DE ESCENAS, NO A `window`.
+     *
+     * FALLO QUE ESTO ARREGLA — "choco con la puerta de la mina y no pasa
+     * nada": aqui ponia `typeof window.MinaScene !== 'function'`, y
+     * register-scenes.js BORRA esos globales a proposito cuando termina de
+     * registrar (`delete root[name]`, superficie minima). Asi que la
+     * comprobacion se cumplia SIEMPRE y la funcion salia por la puerta de
+     * atras sin decir nada: la colision se detectaba bien, pero justo
+     * despues se abandonaba.
+     *
+     * Lo que de verdad hay que comprobar es si la escena esta REGISTRADA,
+     * que es lo unico que hace falta para poder arrancarla. */
+    if (!this.scene.get('MinaScene')) {
+      console.warn('MinaScene no esta registrada: no se puede entrar en la mina');
+      this._cambiandoEscena = false;
       return;
     }
 
@@ -30789,7 +30815,8 @@ if (window.globalPetData) {
     }
 
     try { this.cleanupScene(); } catch (e) { console.warn('limpieza:', e); }
-    this.scene.start('MinaScene');
+    // La sesion viaja con la escena: la mina no vuelve a autenticarse.
+    this.scene.start('MinaScene', { sesion: this._capturarSesion() });
   }
 
 
@@ -31236,6 +31263,81 @@ if (window.globalPetData) {
         this.player.anims.currentAnim?.key !== clave) {
       this.player.anims.play(clave, true);
     }
+  }
+
+
+  /**
+   * Decide a que servidor se habla, mirando el dominio desde el que se sirve
+   * la pagina.
+   *
+   * Lo llaman el constructor y el preload. Es idempotente y no hace ninguna
+   * peticion: solo elige entre el servidor local y el de produccion.
+   *
+   * OJO CON EL `elipeticiones` DE ANTES: aqui hubo un fallo que se arrastro
+   * mucho — una bandera se fijaba a 0 y se comparaba "=== 0" en el mismo
+   * bloque, asi que la rama LOCAL se ejecutaba siempre, tambien en el juego
+   * real. Eso no solo rompia auth/me: serverclient1 alimenta el socket
+   * multijugador y los enlaces del market, asi que todo intentaba conectar a
+   * 127.0.0.1. Por eso ahora se decide por `window.location.hostname` y nada
+   * mas.
+   */
+  _resolverServidor() {
+    const host = (window.location && window.location.hostname) || '';
+    const local = host === 'localhost' || host === '127.0.0.1';
+    if (local) {
+      this.serverclient  = 'http://127.0.0.1:8080/api';
+      this.serverclient1 = 'http://127.0.0.1:8080';
+      this.serverBase    = 'http://127.0.0.1:8080';
+    } else {
+      this.serverclient  = 'https://api.grasslandforest.com/api';
+      this.serverclient1 = 'https://api.grasslandforest.com';
+      this.serverBase    = 'https://api.grasslandforest.com';
+    }
+    return this.serverBase;
+  }
+
+  /**
+   * Empaqueta la sesion viva para pasarsela a otra escena.
+   *
+   * Cambiar de escena crea una INSTANCIA NUEVA: el playerName, el address y
+   * el token CSRF que tenia esta escena no viajan solos. Antes la mina y la
+   * isla se volvian a autenticar llamando a `loadx()`, que es una peticion de
+   * red mas y un sitio mas donde algo puede salir mal — y de hecho salia mal.
+   *
+   * Si ya hay sesion buena aqui, se pasa tal cual y la escena nueva no
+   * pregunta nada. `loadx()` se queda solo como red de seguridad para cuando
+   * se entra sin venir de ningun sitio.
+   */
+  _capturarSesion() {
+    return {
+      playerName:      this.playerName,
+      address:         this.address,
+      currentAccount:  this.currentAccount,
+      isAuthenticated: this.isAuthenticated === true,
+      csrfToken:       this.csrfToken || window.csrfToken || null,
+      serverBase:      this.serverBase,
+      serverclient:    this.serverclient,
+      serverclient1:   this.serverclient1
+    };
+  }
+
+  /**
+   * Aplica una sesion recibida de otra escena. Devuelve true si vale.
+   */
+  _aplicarSesion(ses) {
+    if (!ses || !ses.isAuthenticated || !ses.playerName) return false;
+    this.playerName      = ses.playerName;
+    this.address         = ses.address;
+    this.currentAccount  = ses.currentAccount || ses.playerName;
+    this.isAuthenticated = true;
+    if (ses.csrfToken) {
+      this.csrfToken = ses.csrfToken;
+      window.csrfToken = ses.csrfToken;
+    }
+    if (ses.serverBase)    this.serverBase    = ses.serverBase;
+    if (ses.serverclient)  this.serverclient  = ses.serverclient;
+    if (ses.serverclient1) this.serverclient1 = ses.serverclient1;
+    return true;
   }
 
 } // fin clase GameScene

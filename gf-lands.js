@@ -118,6 +118,34 @@
     try { if (escena.cleanupScene) escena.cleanupScene(); } catch (e) { log('limpieza:', e); }
   }
 
+  /**
+   * Empaqueta la sesion para pasarsela a la isla.
+   *
+   * Las escenas que heredan de GameScene traen `_capturarSesion()`.
+   * `tiendajuego` no hereda, asi que se compone a mano con lo que tenga — y
+   * si le falta algo, la isla lo resuelve sola llamando a `loadx()`.
+   *
+   * POR QUE ESTO IMPORTA: cambiar de escena crea una instancia NUEVA, y la
+   * isla se autenticaba de cero. Eso dio el cartel de SESSION EXPIRED, porque
+   * `serverBase` se rellena en el preload() de GameScene y la isla tiene el
+   * suyo propio: la peticion salia a `undefined/api/auth/me`.
+   */
+  function sesionDe(escena) {
+    if (typeof escena._capturarSesion === 'function') {
+      try { return escena._capturarSesion(); } catch (e) {}
+    }
+    return {
+      playerName:      escena.playerName,
+      address:         escena.address,
+      currentAccount:  escena.currentAccount,
+      isAuthenticated: escena.isAuthenticated === true,
+      csrfToken:       escena.csrfToken || root.csrfToken || null,
+      serverBase:      escena.serverBase,
+      serverclient:    escena.serverclient,
+      serverclient1:   escena.serverclient1
+    };
+  }
+
   /** De donde se vino, para poder devolver al jugador a su sitio. */
   function recordarVuelta(escena) {
     try {
@@ -141,7 +169,7 @@
     recordarVuelta(escena);
     log('a la isla desde', escena.sys.settings.key);
     apagarHUD(escena);
-    escena.scene.start(CLAVE_ISLA);
+    escena.scene.start(CLAVE_ISLA, { sesion: sesionDe(escena) });
   }
 
   function volver(escena) {

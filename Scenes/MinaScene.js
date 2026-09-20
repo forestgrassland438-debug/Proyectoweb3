@@ -106,6 +106,17 @@ class MinaScene extends GameScene {
     this._salidaArmada = false;
   }
 
+
+  /**
+   * Recoge la sesion que nos pasa la escena anterior.
+   *
+   * `init` corre ANTES que preload y create, que es justo lo que hace falta:
+   * asi `create` ya la tiene y no necesita ir a la red.
+   */
+  init(datos) {
+    this.__sesionRecibida = (datos && datos.sesion) || null;
+  }
+
   // =========================================================================
   // PRELOAD
   // =========================================================================
@@ -176,29 +187,33 @@ class MinaScene extends GameScene {
 
     /* ── LA SESION, LO PRIMERO DE TODO ───────────────────────────────────
      *
-     * ESTO FALTABA EN LA PRIMERA VERSION Y ERA LA CAUSA DE "las monedas
-     * salen undefined y el inventario esta vacio".
+     * Phaser crea una instancia NUEVA al cambiar de escena: el `playerName`,
+     * el `address` y el token CSRF que tenia la escena anterior no viajan
+     * solos. Sin ellos `loadPlayerData()` se planta en su primera linea y se
+     * va sin cargar nada — ni monedas, ni inventario, ni cofre— sin dar un
+     * error rojo, solo un HUD en blanco.
      *
-     * Phaser crea una instancia NUEVA de escena: el `playerName`, el
-     * `address` y el `isAuthenticated` que tenia GameScene no viajan solos.
-     * Sin ellos, `loadPlayerData()` se planta en su primera linea ("no se
-     * puede cargar datos: jugador no autenticado") y se va sin cargar nada:
-     * ni monedas, ni inventario, ni cofre, ni experiencia. Y no da error
-     * rojo — solo un aviso en consola y un HUD en blanco.
+     * PERO NO SE VUELVE A AUTENTICAR. La version anterior llamaba aqui a
+     * `loadx()`, que pide el CSRF y llama a /api/auth/me. Eso dio el cartel de
+     * SESSION EXPIRED al entrar, y por un motivo tonto: `serverBase` se
+     * rellenaba en el preload() de GameScene, por el que esta escena no pasa,
+     * asi que la peticion salia a `undefined/api/auth/me` y fallaba con la
+     * sesion perfectamente viva.
      *
-     * `loadx()` es el mismo metodo que usa GameScene: pide el CSRF, llama a
-     * /api/auth/me y rellena la sesion. Es heredado, no hay copia. */
-    const autenticado = await this.loadx();
-    if (!autenticado) {
-      console.error('⛏️ no se pudo autenticar: la mina no arranca');
-      return;
+     * Ahora la escena que nos lanza nos PASA su sesion, que ya esta
+     * comprobada. `loadx()` se queda solo de red de seguridad para cuando se
+     * entra sin venir de ningun sitio. */
+    let sesion = this._aplicarSesion(this.__sesionRecibida);
+    if (!sesion) {
+      console.log('⛏️ sin sesion heredada: se pide al servidor');
+      sesion = await this.loadx();
     }
-    if (!this.playerName) {
-      console.error('⛏️ sin playerName: la mina no arranca');
+    if (!sesion || !this.playerName) {
+      console.error('⛏️ no se pudo autenticar: la mina no arranca');
       this.showTokenErrorHub();
       return;
     }
-    this.currentAccount = this.playerName;
+    this.currentAccount = this.currentAccount || this.playerName;
 
     this.currentWidth = parseInt(localStorage.getItem('screenWidth'));
     this.currentHeight = parseInt(localStorage.getItem('screenHeight'));
