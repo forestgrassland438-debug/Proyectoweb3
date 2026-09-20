@@ -82,18 +82,18 @@
   <script src="./gf-profundidad.js?v=19.1" defer></script>
   <script src="./gf-sombras.js?v=19.1" defer></script>
   <script src="./gf-nieve.js?v=19.1" defer></script>
-  <script src="./gf-ciclo-dia.js?v=19.1" defer></script>
+  <script src="./gf-ciclo-dia.js?v=19.2" defer></script>
 
   <!-- Cazador de micro-parones. Inerte hasta que se le llama a mano desde la
        consola con GFTirones.empezar(). No vigila nada por su cuenta. -->
   <script src="./gf-tirones.js?v=19.1" defer></script>
   <script src="./gf-cuervo.js?v=19.1" defer></script>
-  <script src="./gf-animales.js?v=19.1" defer></script>
+  <script src="./gf-animales.js?v=19.2" defer></script>
   <script src="./gf-mascota.js?v=19.1" defer></script>
   <script src="./gf-muerte.js?v=19.1" defer></script>
   <script src="./gf-alquimista.js?v=19.1" defer></script>
   <script src="./gf-viento.js?v=19.1" defer></script>
-  <script src="./gf-clima.js?v=19.1" defer></script>
+  <script src="./gf-clima.js?v=19.2" defer></script>
 
   <!-- Post-procesado: viñeta, desenfoque de bordes y revelado de color sobre
        el fotograma ya pintado. Va DESPUÉS del clima porque lee de él qué
@@ -134,6 +134,11 @@
   <script src="./Scenes/tiendajuego.js?v=19.1" defer></script>
   <script src="./Scenes/LoadingScenegame.js?v=19.1" defer></script>
   <script src="./Scenes/GameScene.js?v=19.1" defer></script>
+  <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
+       ella o `class MinaScene extends GameScene` no encuentra la clase base.
+       Con `defer` los scripts se ejecutan en el orden del documento, asi que
+       basta con dejarla en esta linea y no antes. -->
+  <script src="./Scenes/MinaScene.js?v=19.1" defer></script>
   <script src="./Scenes/BattleScene.js?v=19.1" defer></script>
   <script src="./Scenes/sacar_mapa.js?v=19.1" defer></script>
 
@@ -151,7 +156,7 @@
        antes y sigue sin existir. El archivo se queda en el repositorio por si
        algún día se usa; solo se dejó de cargar.
        El tamaño del lienzo lo gestiona el gestor de resize de app.js. -->
-  <script src="./phaser-rpg-perf.js?v=19.1" defer></script>
+  <script src="./phaser-rpg-perf.js?v=19.2" defer></script>
   <script src="./Phaser-camera.js?v=19.1" defer></script>
   <script src="./LoadingSystem.js?v=19.1" defer></script>
 
@@ -199,7 +204,7 @@
   <script src="./viewport-fix.js?v=19.1" defer></script>
 
   <!-- main app bootstrap -->
-  <script src="app.js?v=19.1" defer></script>
+  <script src="app.js?v=19.2" defer></script>
 
   <!-- Ajustes de gráficos: calidad y distancia de visión (chunks).
        Va DESPUÉS de app.js porque usa window.game y window.gfResizeGame,

@@ -1585,8 +1585,11 @@
       // La pareja de las aves; se apuntan la una a la otra al irse juntas.
       pareja: null, mirarA: null
     };
+    // Register before the first allocation so partial construction is recoverable.
+    st.animales.push(a);
     var spr = scene.add.sprite(punto.x, punto.y,
                                'gfa_' + especie + '_quieto_1');
+    a.spr = spr;
     spr.setOrigin(0.5, 1);
     spr.setScale(ESCALA);
     spr.setDepth(punto.y);
@@ -2365,7 +2368,7 @@
    * pegaba y no pasaba nada visible.
    */
   function danarAnimal(st, a, cuanto) {
-    if (a.muerto) return;
+    if (a.muerto || !Number.isFinite(cuanto) || cuanto <= 0) return;
     var ahora = st.scene.time.now;
     // Un mordisco levanta a cualquiera.
     if (a.durmiendo) despertar(st, a);
@@ -3734,7 +3737,9 @@
 
   // =============================================================== BUCLE
   function actualizar(st, ahora, delta) {
-    var scene = st.scene;
+    var scene = st && st.scene;
+    if (!Number.isFinite(ahora) || !Number.isFinite(delta) || delta < 0) return;
+    delta = Math.min(delta, 100);
     // sys.isActive es una FUNCION en Phaser, no una propiedad: compararla con
     // false no comprobaba nada.
     if (!scene || !scene.sys) return;
@@ -3826,10 +3831,13 @@
   /** Reparte por el mapa a todo el elenco. Lo saca de `montar` para que ahí
       se vea de un vistazo qué se monta y en qué orden. */
   function poblar(st, scene, elenco, puestos, usados) {
-    for (var e = 0; e < elenco.length; e++) {
+    for (var e = 0; e < elenco.length && st.animales.length < 256; e++) {
+      if (!Array.isArray(elenco[e])) continue;
       var especie = elenco[e][0];
       var cuantos = elenco[e][1];
-      var f = FICHA[especie];
+      if (!Number.isFinite(cuantos) || cuantos <= 0) continue;
+      cuantos = Math.min(Math.floor(cuantos), 256 - st.animales.length);
+      var f = Object.prototype.hasOwnProperty.call(FICHA, especie) ? FICHA[especie] : null;
       if (!f) { console.warn('[fauna] especie desconocida:', especie); continue; }
       if (!hayTexturas(scene, especie)) {
         console.warn('[fauna] faltan las texturas de ' + especie +
@@ -3879,13 +3887,13 @@
           if (sitio) {
             usados[sitio.clave] = true;
             puestos.push({ x: sitio.x, y: sitio.y });
-            st.animales.push(nuevo(st, especie, { x: sitio.x, y: sitio.y }, sitio));
+            nuevo(st, especie, { x: sitio.x, y: sitio.y }, sitio);
           } else {
             // sin ningún sitio donde posarse, nace en el suelo como los demás
             var enSuelo = repartir(scene, { hw: f.huella[0], hh: f.huella[1] },
                                    1, puestos);
             if (enSuelo.length) {
-              st.animales.push(nuevo(st, especie, enSuelo[0], null));
+              nuevo(st, especie, enSuelo[0], null);
             }
           }
         }
@@ -3893,7 +3901,7 @@
         var plantilla = { hw: f.huella[0], hh: f.huella[1] };
         var puntos = repartir(scene, plantilla, cuantos, puestos);
         for (var j = 0; j < puntos.length; j++) {
-          st.animales.push(nuevo(st, especie, puntos[j], null));
+          nuevo(st, especie, puntos[j], null);
         }
       }
     }
@@ -3901,13 +3909,13 @@
 
   function montar(scene, opciones) {
     opciones = opciones || {};
-    if (!scene || !scene.add || !scene.textures) return null;
+    if (!scene || !scene.add || !scene.textures || !scene.events || !scene.time) return null;
     if (scene.__gfFauna) return scene.__gfFauna;      // ya montada
 
-    var elenco = opciones.elenco || ELENCO;
-    var st = { scene: scene, animales: [], hoyos: [], nidos: {} };
+    var elenco = Array.isArray(opciones.elenco) ? opciones.elenco.slice(0, 256) : ELENCO;
+    var st = { scene: scene, animales: [], hoyos: [], nidos: Object.create(null) };
     var puestos = [];
-    var usados = {};
+    var usados = Object.create(null);
 
     /* Se apunta la fauna en la escena ANTES de poblarla.
 
@@ -3917,6 +3925,8 @@
        hechos hasta el fallo se quedaban sueltos en la escena sin que nadie los
        tuviera apuntados: imposibles de mover, de borrar y de encontrar. */
     scene.__gfFauna = st;
+    tiempoSello = -1;
+    releerTiempo(scene.time.now);
     try {
       poblar(st, scene, elenco, puestos, usados);
     } catch (fallo) {
@@ -3955,38 +3965,31 @@
     return st;
   }
 
+  function destruirObjeto(obj) {
+    try { if (obj && obj.destroy) obj.destroy(); } catch (e) { /* Continue releasing the other owned resources. */ }
+  }
   function desmontar(scene) {
     var st = scene && scene.__gfFauna;
     if (!st) return;
-    if (st.onUpdate) scene.events.off('update', st.onUpdate);
-    if (st.onApagar) {
-      scene.events.off('shutdown', st.onApagar);
-      scene.events.off('destroy', st.onApagar);
-    }
-    /* Y el oyente del trueno. gf-clima sobrevive al cambio de escena, así que
-       un oyente que no se da de baja se lleva por delante la escena vieja
-       entera: `st` → `st.scene` → todo el mapa. */
-    if (st.soltarTrueno) { try { st.soltarTrueno(); } catch (e) {} st.soltarTrueno = null; }
-    for (var i = 0; i < st.animales.length; i++) {
-      var an = st.animales[i];
-      if (an.spr) an.spr.destroy();
-      if (an.zzz) an.zzz.destroy();
-      if (an.madriguera) an.madriguera.destroy();
-      if (an.barraFondo) an.barraFondo.destroy();
-      if (an.barraVida) an.barraVida.destroy();
-      if (an.hielo) an.hielo.destroy();
-      if (an.sombra) an.sombra.destroy();
-    }
-    st.animales.length = 0;
-    for (var h = 0; h < st.hoyos.length; h++) {
-      if (st.hoyos[h].spr) st.hoyos[h].spr.destroy();
-    }
-    st.hoyos.length = 0;
-    for (var k in st.nidos) { if (st.nidos[k]) st.nidos[k].destroy(); }
-    st.nidos = {};
-    // La medida del escenario (posaderos, flores, refugios) es de ESTA escena.
-    scene.__gfFaunaSitios = null;
     scene.__gfFauna = null;
+    if (st.onUpdate) scene.events.off('update', st.onUpdate);
+    if (st.onApagar) { scene.events.off('shutdown', st.onApagar); scene.events.off('destroy', st.onApagar); }
+    if (st.soltarTrueno) { try { st.soltarTrueno(); } catch (e) {} st.soltarTrueno = null; }
+    st.animales.forEach(function (an) {
+      desemparejar(an);
+      ['spr', 'zzz', 'madriguera', 'barraFondo', 'barraVida', 'hielo', 'sombra'].forEach(function (key) {
+        destruirObjeto(an[key]); an[key] = null;
+      });
+      an.objetivo = an.refugio = an.destino = an.alFinal = null;
+    });
+    st.animales.length = 0;
+    st.hoyos.forEach(function (hoyo) { destruirObjeto(hoyo.spr); });
+    st.hoyos.length = 0;
+    Object.keys(st.nidos).forEach(function (key) { destruirObjeto(st.nidos[key]); });
+    st.nidos = Object.create(null);
+    st.scene = st.onUpdate = st.onApagar = null;
+    scene.__gfFaunaSitios = null;
+    tiempoUltimo = TIEMPO_SECO; tiempoSello = -1;
     log(scene, 'desmontada');
   }
 

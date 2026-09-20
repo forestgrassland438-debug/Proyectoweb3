@@ -1019,8 +1019,9 @@
      para que su esquina caiga en (-MARGEN,-MARGEN) de la pantalla; dentro se
      sigue trabajando en píxeles de pantalla. */
   function lienzo(cam) {
-    var z = (cam && cam.zoom > 0) ? cam.zoom : 1;
-    var W = cam.width, H = cam.height;
+    var z = (cam && Number.isFinite(cam.zoom) && cam.zoom > 0) ? cam.zoom : 1;
+    var W = Number.isFinite(cam.width) && cam.width > 0 ? cam.width : 1;
+    var H = Number.isFinite(cam.height) && cam.height > 0 ? cam.height : 1;
     return {
       z: z, m: MARGEN,
       w: W + MARGEN * 2, h: H + MARGEN * 2,
@@ -1129,10 +1130,10 @@
       /* Sin escena montada (todavía no ha arrancado, o se está cambiando de
          mapa) no hay valor interpolado: se devuelve el mandado, que es la
          mejor respuesta posible y no deja a nadie sin tiempo. */
-      t.lluvia = (estado.activo && estado.lluvia) ? (Number(estado.lluviaFuerza) || 1) : 0;
+      t.lluvia = (estado.activo && estado.lluvia) ? fuerza(estado.lluviaFuerza) : 0;
       t.nieve  = (estado.activo && estado.nieve)  ? (Number(estado.nieveFuerza)  || 1) : 0;
-      t.sol    = (estado.activo && estado.soleado) ? (Number(estado.soleadoFuerza) || 1) : 0;
-      t.nublado = (estado.activo && estado.nublado) ? (Number(estado.nubladoFuerza) || 1) : 0;
+      t.sol    = (estado.activo && estado.soleado) ? fuerza(estado.soleadoFuerza) : 0;
+      t.nublado = (estado.activo && estado.nublado) ? fuerza(estado.nubladoFuerza) : 0;
     }
 
     t.viento = 0;
@@ -1167,10 +1168,11 @@
   function avisarDelTrueno(cerca, fuerza) {
     ultimoTrueno = Date.now();
     fuerzaUltimoTrueno = fuerza || 1;
-    for (var i = 0; i < oyentesTrueno.length; i++) {
+    var lista = oyentesTrueno.slice();
+    for (var i = 0; i < lista.length; i++) {
       /* Un oyente que reviente NO puede tumbar el trueno de los demás ni el
          fotograma: por eso cada uno va en su try. */
-      try { oyentesTrueno[i](!!cerca, fuerzaUltimoTrueno); } catch (e) {}
+      try { lista[i](!!cerca, fuerzaUltimoTrueno); } catch (e) {}
     }
   }
 
@@ -1182,6 +1184,17 @@
   var avisadoDelFallo = false;
   var redArrancada = false;
   var timerViento = null;
+  var timerArranque = null;
+  var consulta = null;
+  var escenas = new Set();
+
+  function destruirObjeto(obj) {
+    try { if (obj && obj.destroy) obj.destroy(); } catch (e) { log('no se pudo liberar un objeto', e); }
+  }
+  function fuerza(v) {
+    var n = Number(v);
+    return v == null || !Number.isFinite(n) ? 1 : Math.max(0, Math.min(2, n));
+  }
 
   function log() {
     if (!window.GF_CLIMA_DEBUG) return;
@@ -1245,6 +1258,7 @@
 
     var suAhora = Number(d.ahora) || 0;
     var suRev   = Number(d.rev) || 0;
+    if (!Number.isFinite(suAhora) || !Number.isFinite(suRev) || suAhora < 0 || suRev < 0) return false;
     if (suAhora && ultimoAhora && suAhora < ultimoAhora) {
       descartados++;
       log('respuesta vieja descartada (' + (ultimoAhora - suAhora) + ' ms tarde)');
@@ -1258,19 +1272,19 @@
     if (suRev)   ultimoRev = suRev;
 
     estado.activo       = !!d.activo;
-    estado.modo         = d.modo || 'auto';
+    estado.modo         = d.modo === 'manual' ? 'manual' : 'auto';
     estado.viento       = !!d.viento;
-    estado.vientoFuerza = Number(d.vientoFuerza) || 1;
+    estado.vientoFuerza = fuerza(d.vientoFuerza);
     estado.lluvia       = !!d.lluvia;
-    estado.lluviaFuerza = Number(d.lluviaFuerza) || 1;
+    estado.lluviaFuerza = fuerza(d.lluviaFuerza);
     estado.nieve        = !!d.nieve;
-    estado.nieveFuerza  = Number(d.nieveFuerza) || 1;
+    estado.nieveFuerza  = fuerza(d.nieveFuerza);
     estado.soleado      = !!d.soleado;
-    estado.soleadoFuerza = Number(d.soleadoFuerza) || 1;
+    estado.soleadoFuerza = fuerza(d.soleadoFuerza);
     estado.nublado      = !!d.nublado;
-    estado.nubladoFuerza = Number(d.nubladoFuerza) || 1;
+    estado.nubladoFuerza = fuerza(d.nubladoFuerza);
     estado.truenos      = !!d.truenos;
-    if (ESTACIONES[d.estacion]) estado.estacion = d.estacion;
+    if (Object.prototype.hasOwnProperty.call(ESTACIONES, d.estacion)) estado.estacion = d.estacion;
     estado.cargado      = true;
     mandarAlViento();
     log('tiempo:', estado.lluvia ? 'lluvia'
@@ -1297,54 +1311,41 @@
   function sincronizar() {
     if (pidiendo) return pidiendo;
     var url = base().replace(/\/$/, '') + '/api/world/weather';
-
-    /* AbortController si lo hay (todos los navegadores de este siglo). Además
-       del temporizador, así no se queda una conexión abierta consumiendo. */
-    var corte = null, ctrl = null;
-    try { if (window.AbortController) ctrl = new AbortController(); } catch (e) {}
-    var op = { credentials: 'omit', mode: 'cors', cache: 'no-store' };
-    if (ctrl) op.signal = ctrl.signal;
-
-    var sueltaTimer = function () { if (corte) { clearTimeout(corte); corte = null; } };
-    corte = setTimeout(function () {
-      corte = null;
-      if (ctrl) { try { ctrl.abort(); } catch (e) {} }
-      /* Y se suelta el cerrojo pase lo que pase. Aunque el `fetch` no llegue
-         nunca a rechazar (que es justo el caso malo), la próxima vuelta del
-         temporizador podrá volver a preguntar. */
-      pidiendo = null;
-      ultimoFallo = 'sin respuesta en ' + ESPERA_MAX + ' ms';
-    }, ESPERA_MAX);
-
-    pidiendo = fetch(url, op)
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        sueltaTimer();
-        pidiendo = null;
-        ultimoFallo = null;
-        ultimaRespuesta = Date.now();
-        aplicar(d);
-        return estado;
-      })
-      .catch(function (e) {
-        sueltaTimer();
-        pidiendo = null;
+    var req = { ctrl: typeof AbortController === 'function' ? new AbortController() : null, timer: null };
+    consulta = req;
+    pidiendo = new Promise(function (resolve) {
+      req.terminar = function () {
+        if (consulta !== req) return;
+        clearTimeout(req.timer);
+        consulta = null; pidiendo = null;
+        resolve(estado);
+      };
+      function fallo(e) {
+        if (consulta !== req) return;
         ultimoFallo = (e && e.message) || 'error';
-        /* Se AVISA una vez, no en silencio.
-
-           Antes esto se tragaba el error salvo con GF_CLIMA_DEBUG puesto. Si la
-           consulta fallaba (dominio mal, CORS, backend caido) el juego se
-           quedaba sin clima para siempre y no habia forma de enterarse: parecia
-           que el clima sencillamente no funciona. Se avisa UNA vez por sesion
-           para no llenar la consola. */
         if (!avisadoDelFallo) {
           avisadoDelFallo = true;
-          console.warn('[clima] no se pudo consultar el tiempo en ' + url +
-                       ' (' + ultimoFallo + '). El juego se queda sin clima ' +
-                       'del servidor. Mira GFClima.diagnostico().');
+          console.warn('[clima] no se pudo consultar el tiempo: ' + ultimoFallo);
         }
-        return estado;
-      });
+        req.terminar();
+      }
+      req.timer = setTimeout(function () {
+        fallo(new Error('sin respuesta en ' + ESPERA_MAX + ' ms'));
+        if (req.ctrl) req.ctrl.abort();
+      }, ESPERA_MAX);
+      Promise.resolve().then(function () {
+        return fetch(url, { credentials: 'omit', mode: 'cors', cache: 'no-store', signal: req.ctrl ? req.ctrl.signal : undefined });
+      }).then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).then(function (d) {
+        if (consulta !== req) return;
+        if (!d || d.ok !== true) throw new Error('Invalid weather response');
+        aplicar(d);
+        ultimoFallo = null; ultimaRespuesta = Date.now();
+        req.terminar();
+      }).catch(fallo);
+    });
     return pidiendo;
   }
 
@@ -1424,7 +1425,7 @@
 
   function engancharSocket() {
     var s = socketDelJuego();
-    if (!s) return false;
+    if (!s) { soltarSocket(); return false; }
     if (s === socketEnganchado) return true;      // ya es este
 
     soltarSocket();                               // fuera los del anterior
@@ -1466,7 +1467,7 @@
   }
 
   function reintentarViento() {
-    if (timerViento) return;
+    if (timerViento || !redArrancada) return;
     timerViento = setInterval(function () {
       var V = window.GFViento;
       if (V && V.forzar && V.forzar(estado.activo && estado.viento, estado.vientoFuerza)) {
@@ -2083,8 +2084,10 @@
 
   // ------------------------------------------------------------------ bucle
   function actualizar(st, ahora, delta) {
-    var scene = st.scene;
+    var scene = st && st.scene;
     if (!scene || !scene.cameras || !scene.cameras.main) return;
+    if (!Number.isFinite(ahora) || !Number.isFinite(delta) || delta < 0) return;
+    delta = Math.min(delta, 100);
     var cam = scene.cameras.main;
     /* Se recalcula cada frame: el jugador puede cambiar el zoom o el tamaño de
        la ventana en cualquier momento, y hasta ahora la lluvia se quedaba con
@@ -2148,6 +2151,8 @@
       for (i = 0; i < st.gotas.length; i++) st.gotas[i].spr.setAlpha(0);
       for (j = 0; j < st.salpicas.length; j++) st.salpicas[j].spr.setAlpha(0);
       if (st.rayo) st.rayo.setAlpha(0);
+      if (st.impacto) st.impacto.setAlpha(0);
+      st.rayoHasta = st.impactoHasta = st.fogonazoHasta = st.truenoEn = st.proximoTrueno = st.proximaCentella = 0;
       st.fogonazo.setAlpha(0);
       for (i = 0; i < st.bordes.length; i++) st.bordes[i].setAlpha(0);
       return;
@@ -2594,12 +2599,19 @@
 
     var inc = {
       clave: mejor.clave, spr: spr, nace: scene.time.now,
-      llamas: [], humos: [], pavesas: [], halo: null,
+      llamas: [], humos: [], pavesas: [], halo: null, objetos: [],
       cx: cx, base: base, alto: alto, ancho: ancho,
       baseRot: spr.rotation || 0,
       fase: 'arde', paso: 0, proximoPaso: 0
     };
 
+    st.incendio = inc;
+    function imagen(x, y, clave) {
+      var obj = scene.add.image(x, y, clave);
+      inc.objetos.push(obj);
+      return obj;
+    }
+    try {
     /* EL HALO, LO PRIMERO Y LO MÁS ABAJO.
 
        Va por DEBAJO de las llamas y por debajo del propio árbol: es la luz que
@@ -2608,7 +2620,7 @@
        encima — la diferencia entre "está iluminado" y "le han puesto un filtro". */
     var claveHalo = texturaHalo(scene);
     if (claveHalo) {
-      var halo = scene.add.image(cx, base - alto * 0.30, claveHalo);
+      var halo = imagen(cx, base - alto * 0.30, claveHalo);
       halo.setDepth(Math.max(0, spr.depth - 1));
       if (halo.setBlendMode && window.Phaser && Phaser.BlendModes) {
         halo.setBlendMode(Phaser.BlendModes.ADD);
@@ -2637,7 +2649,7 @@
       [cx + ancho * 0.02,     base - alto * 0.64, 1.1, 0.55]
     ];
     for (var k = 0; k < sitios.length; k++) {
-      var ll = scene.add.image(sitios[k][0], sitios[k][1], 'gfc_' + elegir(FUEGOS));
+      var ll = imagen(sitios[k][0], sitios[k][1], 'gfc_' + elegir(FUEGOS));
       ll.setOrigin(0.5, 1).setScale(sitios[k][2]);
       ll.setDepth(spr.depth + 2 + k);
       if (ll.setBlendMode && window.Phaser && Phaser.BlendModes) {
@@ -2662,7 +2674,7 @@
        el bucle. */
     if (scene.textures.exists('gfc_' + HUMOS[0])) {
       for (var h = 0; h < 4; h++) {
-        var hu = scene.add.image(cx, base - alto * 0.5, 'gfc_' + elegir(HUMOS));
+        var hu = imagen(cx, base - alto * 0.5, 'gfc_' + elegir(HUMOS));
         hu.setOrigin(0.5, 1).setDepth(spr.depth + 9).setAlpha(0);
         inc.humos.push({
           spr: hu,
@@ -2681,7 +2693,7 @@
        píxeles subiendo en espiral y apagándose. */
     if (scene.textures.exists('gfc_' + BRASAS[0])) {
       for (var b = 0; b < 10; b++) {
-        var pv = scene.add.image(cx, base, 'gfc_' + elegir(BRASAS));
+        var pv = imagen(cx, base, 'gfc_' + elegir(BRASAS));
         pv.setDepth(spr.depth + 8).setAlpha(0);
         if (pv.setBlendMode && window.Phaser && Phaser.BlendModes) {
           pv.setBlendMode(Phaser.BlendModes.ADD);
@@ -2691,7 +2703,11 @@
       }
     }
 
-    st.incendio = inc;
+    } catch (e) {
+      apagarIncendio(st);
+      log('no se pudo crear el incendio', e);
+      return;
+    }
     log('rayo en', mejor.clave, '— arde', ARDE_MS / 1000, 's');
   }
 
@@ -2919,23 +2935,26 @@
   function apagarIncendio(st) {
     var inc = st.incendio;
     if (!inc) return;
-    var i;
-    for (i = 0; i < inc.llamas.length; i++) inc.llamas[i].spr.destroy();
-    for (i = 0; i < inc.humos.length; i++) inc.humos[i].spr.destroy();
-    if (inc.pavesas) for (i = 0; i < inc.pavesas.length; i++) inc.pavesas[i].spr.destroy();
-    if (inc.brasas)  for (i = 0; i < inc.brasas.length; i++) inc.brasas[i].spr.destroy();
-    if (inc.brasa && inc.brasa.destroy) inc.brasa.destroy();   // incendios viejos
-    if (inc.halo) inc.halo.destroy();
-    if (inc.spr && inc.spr.clearTint) inc.spr.clearTint();
-    // La rotación era prestada: se devuelve pase lo que pase.
-    if (inc.spr && typeof inc.spr.rotation === 'number') inc.spr.rotation = inc.baseRot || 0;
     st.incendio = null;
+    var objetos = new Set(inc.objetos || []);
+    ['llamas', 'humos', 'pavesas', 'brasas'].forEach(function (key) {
+      (inc[key] || []).forEach(function (obj) { objetos.add(obj.spr); });
+      if (inc[key]) inc[key].length = 0;
+    });
+    objetos.add(inc.brasa); objetos.add(inc.halo);
+    objetos.forEach(destruirObjeto);
+    if (inc.objetos) inc.objetos.length = 0;
+    try {
+      if (inc.spr && inc.spr.clearTint) inc.spr.clearTint();
+      if (inc.spr && typeof inc.spr.rotation === 'number') inc.spr.rotation = inc.baseRot || 0;
+    } catch (e) { /* The borrowed tree may already have been destroyed. */ }
+    inc.brasa = inc.halo = inc.spr = null;
   }
 
   // ---------------------------------------------------------------- montaje
   function montar(scene, opciones) {
     opciones = opciones || {};
-    if (!scene || !scene.add) return null;
+    if (!scene || !scene.add || !scene.cameras || !scene.cameras.main || !scene.events) return null;
     if (scene.__gfClima) return scene.__gfClima;
     if (!hayTexturas(scene)) {
       console.warn('[clima] falta la textura de la lluvia (' + RUTA +
@@ -2965,6 +2984,9 @@
     };
     scene.__gfClima = st;
     montado = st;
+    escenas.add(scene);
+    var existentes = scene.children && scene.children.list ? new Set(scene.children.list) : null;
+    try {
 
     /* TODO EN UN CONTENEDOR.
        Una sola transformación por frame para las ~270 piezas, y el zoom se
@@ -3154,6 +3176,15 @@
     if (estado.cargado) mandarAlViento();
     log('montado');
     return st;
+    } catch (e) {
+      desmontar(scene);
+      // Factory/setter failures can occur before an object enters a pool.
+      if (existentes && scene.children && scene.children.list) {
+        scene.children.list.slice().forEach(function (obj) { if (!existentes.has(obj)) destruirObjeto(obj); });
+      }
+      console.warn('[clima] no se pudo montar:', e);
+      return null;
+    }
   }
 
   /**
@@ -3167,10 +3198,11 @@
    * porque el servidor no vuelve a mandar nada hasta que el administrador
    * toque algo: por eso "solo funcionaban los climas automaticos".
    *
-   * Ahora la red arranca sola al cargar el archivo y no se para nunca: cuesta
+   * La red sobrevive a los cambios de escena y se detiene al destruir el juego: cuesta
    * una consulta cada 45 s y una comprobacion cada 2 s.
    */
   function arrancarRed() {
+    clearTimeout(timerArranque); timerArranque = null;
     if (redArrancada) return;
     redArrancada = true;
     sincronizar();
@@ -3184,47 +3216,37 @@
   function desmontar(scene) {
     var st = scene && scene.__gfClima;
     if (!st) return;
-    if (st.onUpdate) scene.events.off('update', st.onUpdate);
-    if (st.onApagar) {
-      scene.events.off('shutdown', st.onApagar);
-      scene.events.off('destroy', st.onApagar);
-    }
-    var i;
-    for (i = 0; i < st.gotas.length; i++)    st.gotas[i].spr.destroy();
-    for (i = 0; i < st.salpicas.length; i++) st.salpicas[i].spr.destroy();
-    for (i = 0; i < st.copos.length; i++)    st.copos[i].spr.destroy();
-    for (i = 0; i < st.posas.length; i++)    st.posas[i].spr.destroy();
-    for (i = 0; i < st.bordes.length; i++)   st.bordes[i].destroy();
-    for (i = 0; i < st.charcos.length; i++)  st.charcos[i].spr.destroy();
-    apagarIncendio(st);
-    if (st.rayosSol) {
-      for (i = 0; i < st.rayosSol.length; i++) st.rayosSol[i].spr.destroy();
-      st.rayosSol.length = 0;
-    }
-    if (st.motas) {
-      for (i = 0; i < st.motas.length; i++) st.motas[i].spr.destroy();
-      st.motas.length = 0;
-    }
-    if (st.nubes) {
-      for (i = 0; i < st.nubes.length; i++) st.nubes[i].spr.destroy();
-      st.nubes.length = 0;
-    }
-    if (st.resplandorSol) st.resplandorSol.destroy();
-    if (st.filtro)   st.filtro.destroy();
-    if (st.cortina)  st.cortina.destroy();
-    if (st.fogonazo) st.fogonazo.destroy();
-    if (st.rayo)     st.rayo.destroy();
-    if (st.impacto)  st.impacto.destroy();
-    if (st.capa && st.capa.destroy) st.capa.destroy();
-    st.capa = null;
-    st.gotas.length = 0; st.salpicas.length = 0;
-    st.copos.length = 0; st.posas.length = 0; st.bordes.length = 0;
-    st.charcos.length = 0;
     scene.__gfClima = null;
-    if (montado === st) montado = null;
+    escenas.delete(scene);
+    if (st.onUpdate) scene.events.off('update', st.onUpdate);
+    if (st.onApagar) { scene.events.off('shutdown', st.onApagar); scene.events.off('destroy', st.onApagar); }
+    apagarIncendio(st);
+    ['gotas', 'salpicas', 'copos', 'posas', 'bordes', 'charcos', 'rayosSol', 'motas', 'nubes'].forEach(function (key) {
+      (st[key] || []).forEach(function (obj) { destruirObjeto(obj.spr || obj); });
+      if (st[key]) st[key].length = 0;
+    });
+    ['resplandorSol', 'filtro', 'cortina', 'fogonazo', 'rayo', 'impacto', 'capa'].forEach(function (key) {
+      destruirObjeto(st[key]); st[key] = null;
+    });
+    st.scene = st.onUpdate = st.onApagar = null;
+    if (montado === st) montado = escenas.size ? Array.from(escenas).pop().__gfClima : null;
+  }
+  function detener() {
+    redArrancada = false;
+    clearTimeout(timerArranque); clearInterval(timerSync); clearInterval(timerSocket); clearInterval(timerViento);
+    timerArranque = timerSync = timerSocket = timerViento = null;
+    if (consulta) {
+      var req = consulta; req.terminar();
+      if (req.ctrl) req.ctrl.abort();
+    }
+    soltarSocket();
+    Array.from(escenas).forEach(desmontar);
+    oyentesTrueno.length = 0;
   }
 
   window.GFClima = {
+    arrancar: arrancarRed,
+    detener: detener,
     precargar: precargar,
     montar: montar,
     desmontar: desmontar,
@@ -3255,7 +3277,10 @@
     alTronar: function (fn) {
       if (typeof fn !== 'function') return function () {};
       oyentesTrueno.push(fn);
+      var activo = true;
       return function () {
+        if (!activo) return;
+        activo = false;
         var i = oyentesTrueno.indexOf(fn);
         if (i >= 0) oyentesTrueno.splice(i, 1);
       };
@@ -3319,7 +3344,7 @@
     },
     /** Cambia la estación SIN tocar el servidor. Solo para mirarla. */
     probarEstacion: function (e) {
-      if (ESTACIONES[e]) estado.estacion = e;
+      if (Object.prototype.hasOwnProperty.call(ESTACIONES, e)) estado.estacion = e;
       return estado.estacion;
     },
     _interno: {
@@ -3361,5 +3386,6 @@
   /* La red arranca sola, sin esperar a ninguna escena. Con un respiro para que
      el resto de modulos (y `window.game`) esten en pie y `base()` acierte con
      el servidor. */
-  if (typeof window !== 'undefined') setTimeout(arrancarRed, 1200);
+  timerArranque = setTimeout(arrancarRed, 1200);
+  if (window.addEventListener) window.addEventListener('pagehide', function (e) { if (!e.persisted) detener(); });
 })();

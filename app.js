@@ -213,6 +213,119 @@
     }
   };
 
+  var bootRuntime = null;
+  var bootPromise = null;
+  var pageClosing = false;
+  var autoBootTimer = null;
+  function abortError() { var e = new Error('Game startup cancelled'); e.name = 'AbortError'; return e; }
+  function Runtime() {
+    this.disposed = false;
+    this.timers = new Set();
+    this.cleanups = new Set();
+    this.game = null;
+    this.perf = null;
+    this.battery = null;
+    this.result = null;
+  }
+  Runtime.prototype.defer = function (fn, delay) {
+    if (this.disposed) return null;
+    var self = this;
+    var id = root.setTimeout(function () {
+      self.timers.delete(id);
+      if (!self.disposed) fn();
+    }, delay);
+    this.timers.add(id);
+    return id;
+  };
+  Runtime.prototype.cancel = function (id) { root.clearTimeout(id); this.timers.delete(id); };
+  Runtime.prototype.listen = function (target, event, fn, options) {
+    target.addEventListener(event, fn, options);
+    this.cleanups.add(function () { target.removeEventListener(event, fn, options); });
+  };
+  Runtime.prototype.waitFor = function (check, timeoutMs) {
+    var self = this;
+    return new Promise(function (resolve, reject) {
+      var deadline = Date.now() + timeoutMs;
+      var timer = null;
+      function finish(value, error) {
+        self.cancel(timer);
+        self.cleanups.delete(cancel);
+        if (error) reject(error); else resolve(value);
+      }
+      function cancel() { finish(false, abortError()); }
+      function poll() {
+        if (self.disposed) return cancel();
+        try {
+          if (check()) return finish(true);
+          if (Date.now() >= deadline) return finish(false);
+          timer = self.defer(poll, 25);
+        } catch (error) { finish(false, error); }
+      }
+      self.cleanups.add(cancel);
+      poll();
+    });
+  };
+  Runtime.prototype.dispose = function () {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.timers.forEach(function (id) { root.clearTimeout(id); });
+    this.timers.clear();
+    this.cleanups.forEach(function (fn) { try { fn(); } catch (e) { Logger.warn('Cleanup failed:', e); } });
+    this.cleanups.clear();
+    try { if (this.perf && typeof this.perf.destroy === 'function') this.perf.destroy(); }
+    catch (e) { Logger.warn('Performance cleanup failed:', e); }
+    if (root.game === this.game) root.game = null;
+    if (root.PHASER_GAME === this.game) root.PHASER_GAME = null;
+    if (root.GFBateria === this.battery) root.GFBateria = null;
+    if (root.perf === this.perf) root.perf = null;
+    if (bootRuntime === this) {
+      ['GFCiclo', 'GFClima'].forEach(function (key) {
+        try { if (root[key] && typeof root[key].detener === 'function') root[key].detener(); }
+        catch (e) { Logger.warn('Environment cleanup failed:', e); }
+      });
+      bootRuntime = null;
+      bootPromise = null;
+      IsolationSystem.destroy();
+      resizeManager.reset();
+      DebugOverlay.destroy();
+    }
+    this.game = this.perf = this.battery = this.result = null;
+  };
+  function destroyGame(game) {
+    if (!game || !game.events || typeof game.destroy !== 'function') return;
+    if (!game.pendingDestroy) game.destroy(true, false);
+    // A failed boot has no frame to finish destruction. A sleeping live game does.
+    if (!game.isRunning && game.isBooted && typeof game.runDestroy === 'function') game.runDestroy();
+    else if (game.loop && game.loop.running === false && typeof game.loop.wake === 'function') game.loop.wake();
+  }
+  function disposeRuntime(runtime) {
+    var game = runtime && runtime.game;
+    if (runtime) runtime.dispose();
+    try { destroyGame(game); } catch (e) { Logger.error('Game cleanup failed:', e); }
+  }
+  function renderSize() {
+    var vf = root.gfViewportFix, vv = root.visualViewport;
+    function dimension(value, fallback, minimum) {
+      return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.max(minimum, Math.min(8192, Math.round(value))) : fallback;
+    }
+    var width = root.innerWidth, height = root.innerHeight;
+    try {
+      if (vf && typeof vf.width === 'function' && typeof vf.height === 'function') { width = vf.width(); height = vf.height(); }
+      else if (vv) { width = vv.width; height = vv.height; }
+    } catch (e) {}
+    var w = dimension(width, 800, 320), h = dimension(height, 600, 240);
+    var dpr = typeof root.devicePixelRatio === 'number' && Number.isFinite(root.devicePixelRatio) ? root.devicePixelRatio : 1;
+    var cap = typeof root.GF_MAX_DPR === 'number' && Number.isFinite(root.GF_MAX_DPR) ? root.GF_MAX_DPR : 4;
+    if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) cap = Math.min(cap, 2);
+    var factor = Math.max(1, Math.floor(Math.min(4, Math.max(1, dpr), Math.max(1, cap))));
+    while (factor > 1 && (w * h * factor * factor > 16777216 || Math.max(w, h) * factor > 8192)) factor--;
+    return { w: w * factor, h: h * factor };
+  }
+  function validSceneName(name) {
+    return typeof name === 'string' && /^[A-Za-z_][A-Za-z0-9_-]{0,79}$/.test(name) &&
+      name !== '__proto__' && name !== 'constructor' && name !== 'prototype';
+  }
+
   // ── SISTEMA DE AISLAMIENTO ────────────────────────────────────────────────
   //
   //  Responsabilidades:
@@ -247,21 +360,7 @@
       },
 
       _guardInternalEvents: function () {
-        // Solo interceptamos eventos con prefijos internos propios.
-        // window.addEventListener sigue funcionando normal para todo lo demás.
-        var _orig = root.addEventListener;
-        var _blocked = ['_gf_internal_', '_gf_vault_'];
-        try {
-          root.addEventListener = function (type, listener, opts) {
-            if (typeof type === 'string') {
-              var t = type.toLowerCase();
-              for (var i = 0; i < _blocked.length; i++) {
-                if (t.indexOf(_blocked[i]) === 0) return; // silenciosamente ignorado
-              }
-            }
-            return _orig.call(this, type, listener, opts);
-          };
-        } catch (e) { /* si el navegador no permite la redefinición, continuar */ }
+        // Internal state lives in closures; replacing the browser event API is not isolation.
       },
 
       _ensureSys: function () {
@@ -382,14 +481,14 @@
       //  poder hacer get/has de clases sin tocar el scope global.
       //
       registerScene: function (game, friendlyName, SceneClass) {
-        if (!game || !game.scene) return false;
+        if (!game || !game.scene || game.pendingDestroy || !validSceneName(friendlyName)) return false;
         if (typeof SceneClass !== 'function') {
           Logger.warn('registerScene: clase inválida para', friendlyName);
           return false;
         }
 
         // Evitar registro duplicado en Phaser
-        if (game.scene.keys && game.scene.keys[friendlyName]) {
+        if (game.scene.keys && Object.prototype.hasOwnProperty.call(game.scene.keys, friendlyName)) {
           Logger.log('Escena ya registrada en Phaser:', friendlyName);
           IsolationSystem.registerSceneClass(friendlyName, SceneClass);
           return true;
@@ -711,68 +810,20 @@
   };
 
   // ── CONTROL DE REGISTRO DE ESCENAS ───────────────────────────────────────
-  var _scenesRegistered  = false;
-  var _registrationTries = 0;
-  var MAX_REG_TRIES      = 2;
-
   function registerSceneClasses(game) {
-    if (!game || !game.scene) {
-      Logger.warn('registerSceneClasses: juego o plugin de escena no disponible');
-      return false;
-    }
-
-    if (_scenesRegistered) {
-      Logger.log('Escenas ya registradas, saltando');
-      return true;
-    }
-
-    _registrationTries++;
-    if (_registrationTries > MAX_REG_TRIES) {
-      Logger.warn('Máximo de intentos de registro alcanzado');
-      return false;
-    }
-
-    // ── Detección de escenas ──────────────────────────────────────────────
-    //
-    //  Prioridad 1: window.__secureSceneRegistry (llenado por register-scenes.js)
-    //  Prioridad 2: búsqueda directa en window por nombre conocido (solo dev)
-    //
-    var scenes = [];
-    var knownNames = ['LoadingScenegame', 'GameScene', 'tiendajuego', 'LoadingSceneshop', 'BattleScene'];
-
-    // Fuente 1: registro seguro de register-scenes.js
+    if (!game || !game.scene || game.pendingDestroy) return false;
+    var scenes = new Map();
+    var knownNames = ['LoadingScenegame', 'GameScene', 'MinaScene', 'tiendajuego', 'LoadingSceneshop', 'BattleScene'];
     if (root.__secureSceneRegistry instanceof root.Map) {
       root.__secureSceneRegistry.forEach(function (cls, key) {
-        if (Utils.isFunction(cls)) scenes.push({ key: key, cls: cls });
+        if (validSceneName(key) && Utils.isFunction(cls)) scenes.set(key, cls);
       });
     }
-
-    // Fuente 2: fallback directo en window (útil si register-scenes.js no cargó)
     knownNames.forEach(function (name) {
-      var alreadyFound = scenes.some(function (s) { return s.key === name; });
-      if (!alreadyFound && Utils.isFunction(root[name])) {
-        scenes.push({ key: name, cls: root[name] });
-      }
+      if (!scenes.has(name) && Object.prototype.hasOwnProperty.call(root, name) && Utils.isFunction(root[name])) scenes.set(name, root[name]);
     });
-
-    if (scenes.length === 0) {
-      Logger.warn('No se encontraron clases de escena para registrar');
-      return false;
-    }
-
     var registered = 0;
-    var seen = {};
-
-    scenes.forEach(function (scene) {
-      if (seen[scene.key]) return;
-      seen[scene.key] = true;
-
-      var ok = Security.registerScene(game, scene.key, scene.cls);
-      if (ok) registered++;
-    });
-
-    _scenesRegistered = true;
-    Logger.log('Escenas registradas en esta pasada:', registered);
+    scenes.forEach(function (cls, key) { if (Security.registerScene(game, key, cls)) registered++; });
     return registered > 0;
   }
 
@@ -785,12 +836,12 @@
   function safeStartScene(game, sceneKey, data) {
     data = data || {};
     try {
-      if (!game || !game.scene) {
+      if (!game || !game.scene || game.pendingDestroy || !validSceneName(sceneKey)) {
         Logger.warn('safeStartScene: sin plugin de escena');
         return false;
       }
 
-      if (!game.scene.keys || !game.scene.keys[sceneKey]) {
+      if (!game.scene.keys || !Object.prototype.hasOwnProperty.call(game.scene.keys, sceneKey)) {
         Logger.warn('safeStartScene: escena no registrada en Phaser:', sceneKey);
         return false;
       }
@@ -893,26 +944,21 @@
       document.body.appendChild(container);
     }
 
-    // Limpiar hijos previos (canvas obsoleto de hot-reload, etc.)
-    while (container.firstChild) container.removeChild(container.firstChild);
-
-    // Bloquear gestos de pinch/zoom sobre el contenedor del juego
-    container.addEventListener('contextmenu', function (e) { e.preventDefault(); });
-    container.addEventListener('dragstart',   function (e) { e.preventDefault(); });
-    container.addEventListener('touchstart',
-      function (e) { if (e.touches && e.touches.length > 1) e.preventDefault(); },
-      { passive: false }
-    );
-    container.addEventListener('touchmove',
-      function (e) { if (e.touches && e.touches.length > 1) e.preventDefault(); },
-      { passive: false }
-    );
+    // Existing canvases and UI can belong to a reused scaler. Never detach them.
+    if (bootRuntime) {
+      var prevent = function (e) { e.preventDefault(); };
+      var preventMulti = function (e) { if (e.touches && e.touches.length > 1) e.preventDefault(); };
+      bootRuntime.listen(container, 'contextmenu', prevent);
+      bootRuntime.listen(container, 'dragstart', prevent);
+      bootRuntime.listen(container, 'touchstart', preventMulti, { passive: false });
+      bootRuntime.listen(container, 'touchmove', preventMulti, { passive: false });
+    }
 
     return container;
   }
 
   // ── CREACIÓN DEL JUEGO ────────────────────────────────────────────────────
-  function createGame() {
+  function createGame(runtime) {
     var isMobile = Utils.isMobile();
     var isLowEnd = Utils.isLowEnd();
 
@@ -958,15 +1004,15 @@
                  (isMobile ? ' (techo de densidad: ' + root.GF_DPR_TECHO_DISPOSITIVO + ')' : ''));
     }
 
-    // Reutilizar instancia existente de phaserScaler si ya existe
-    if (root.phaserScaler && root.phaserScaler.game) {
-      Logger.log('Reutilizando phaserScaler.game existente');
-      try {
-        if (root.phaserScaler.container) {
-          root.phaserScaler.container = setupContainer();
-        }
-      } catch (e) {}
-      return root.phaserScaler.game;
+    // The existing scaler owns its live canvas; register it without clearing its container.
+    if (root.phaserScaler && root.phaserScaler.game && !root.phaserScaler._destroyed && !root.phaserScaler.game.pendingDestroy) {
+      var existing = root.phaserScaler.game;
+      if (existing.scene && existing.events) {
+        runtime.game = existing;
+        IsolationSystem.registerGame(existing);
+        root.game = existing;
+        return existing;
+      }
     }
 
     if (!root.rexvirtualjoystickplugin) {
@@ -974,6 +1020,10 @@
     }
 
     var config = Object.assign({}, ADVANCED_CONFIG);
+    var initialSize = renderSize();
+    config.width = initialSize.w;
+    config.height = initialSize.h;
+    config.callbacks = { preBoot: function (candidate) { runtime.game = candidate; } };
 
     // ── AHORRO DE BATERÍA: LÍMITE DE FOTOGRAMAS ───────────────────────────────
     // CAUSA RAÍZ DEL "EN EL TELÉFONO SE GASTA LA BATERÍA MUY RÁPIDO":
@@ -1055,6 +1105,8 @@
       var esFalloWebGL = msg.indexOf('webgl') !== -1 && config.type !== Phaser.CANVAS;
 
       if (!esFalloWebGL) throw e;
+      try { destroyGame(runtime.game); } catch (cleanupError) { Logger.warn('Renderer cleanup failed:', cleanupError); }
+      runtime.game = null;
 
       // FIX: red de seguridad adicional — con Phaser.AUTO esto casi nunca
       // debería ejecutarse, pero si el navegador aún así falla, forzamos
@@ -1071,6 +1123,7 @@
     }
 
     try {
+      runtime.game = game;
       IsolationSystem.registerGame(game);
 
       // Referencia global al juego.
@@ -1109,17 +1162,17 @@
       //     GFBateria.desactivar()   → 60 fps
       //     GFBateria.estado()       → true / false
       //     GFBateria.fps()          → fotogramas por segundo reales
-      root.GFBateria = {
+      root.GFBateria = runtime.battery = {
         activar:    function () { return this.set(true); },
         desactivar: function () { return this.set(false); },
         estado:     function () { return !!root.GF_AHORRO_BATERIA; },
         fps:        function () {
-          try { return Math.round(game.loop.actualFps); } catch (e) { return null; }
+          try { return runtime.disposed ? null : Math.round(runtime.game.loop.actualFps); } catch (e) { return null; }
         },
         set: function (activar) {
           activar = !!activar;
           try {
-            var bucle = game.loop;
+            var bucle = !runtime.disposed && runtime.game && runtime.game.loop;
             if (!bucle) return false;
             // Propiedades internas de TimeStep (estables desde Phaser 3.60).
             // Se tocan con cuidado: si esta versión no las tuviera, se avisa y
@@ -1129,6 +1182,9 @@
               Logger.warn('Esta versión de Phaser no admite límite de fps en caliente');
               return false;
             }
+            if (!bucle.raf || typeof bucle.step !== 'function' || typeof bucle.stepLimitFPS !== 'function') return false;
+            // TimeStep selects its RAF callback at start, not from hasFpsLimit each frame.
+            bucle.raf.callback = (activar ? bucle.stepLimitFPS : bucle.step).bind(bucle);
             bucle.hasFpsLimit = activar;
             bucle._limitRate  = activar ? (1000 / 30) : 0;
             bucle._limitCount = 0;
@@ -1143,35 +1199,8 @@
         }
       };
 
-      // Eventos de ciclo de vida del juego
-      game.events.on('ready', function () {
-        Logger.log('Phaser.Game listo');
-        setTimeout(function () {
-          if (root.perf) {
-            try {
-              root.perf.applyPixelPerfect({
-                pixelArt: true, roundPixels: true,
-                crispScaling: true, integerScaling: true
-              });
-            } catch (e) {}
-          }
-        }, 100);
-      });
-
-      game.events.on('blur', function () {
-        Logger.perf('Juego en segundo plano — reduciendo carga');
-        if (root.perf) {
-          try { root.perf.setQualityTier('low'); } catch (e) {}
-          try { root.perf.stopAllEmitters(); }     catch (e) {}
-        }
-      });
-
-      game.events.on('focus', function () {
-        Logger.perf('Juego en primer plano — restaurando rendimiento');
-        if (root.perf) {
-          try { root.perf.enableAdaptivePerformance(true); } catch (e) {}
-        }
-      });
+      // Phaser handles focus/visibility itself. Do not permanently stop scene emitters
+      // or overwrite the player's quality setting on every blur/focus.
 
       Logger.log('Phaser.Game creado correctamente');
       return game;
@@ -1182,62 +1211,32 @@
   }
 
   // ── INTEGRACIÓN CON PhaserRPGPerf ─────────────────────────────────────────
-  function waitForPerf(timeoutMs) {
-    return new Promise(function (resolve) {
-      var start = Date.now();
-      (function check() {
-        if (root.PhaserRPGPerf) { resolve(true); return; }
-        if (Date.now() - start > timeoutMs) { resolve(false); return; }
-        setTimeout(check, 50);
-      })();
-    });
-  }
-
-  function integratePerfAndStart(game, firstScene) {
-    return waitForPerf(5000).then(function (perfAvailable) {
-      registerSceneClasses(game);
-
-      if (!perfAvailable) {
-        Logger.warn('PhaserRPGPerf no disponible — iniciando escena directamente');
-        safeStartScene(game, firstScene);
-        return null;
-      }
-
-      var perf;
-      try {
-        perf = root.PhaserRPGPerf.create(game, PERF_OPTIONS);
-      } catch (e) {
-        Logger.error('Error creando PhaserRPGPerf:', e);
-        safeStartScene(game, firstScene);
-        return null;
-      }
-
-      // Iniciar escena con un pequeño delay para que el registrar de perf termine
-      setTimeout(function () {
-        if (!safeStartScene(game, firstScene)) {
-          Logger.warn('Primera escena no arrancó — reintentando en 500 ms');
-          setTimeout(function () { safeStartScene(game, firstScene); }, 500);
+  function integratePerfAndStart(game, firstScene, runtime) {
+    return runtime.waitFor(function () { return root.PhaserRPGPerf && typeof root.PhaserRPGPerf.create === 'function'; }, 5000)
+      .then(function (available) {
+        if (runtime.disposed || game.pendingDestroy) throw abortError();
+        if (available) {
+          try { runtime.perf = root.PhaserRPGPerf.create(game, PERF_OPTIONS); }
+          catch (e) { Logger.warn('Optional performance helper could not start:', e); }
         }
-      }, 100);
-
-      // Optimizaciones gráficas
-      setTimeout(function () {
-        try {
-          if (perf.applyPixelPerfect) {
-            perf.applyPixelPerfect({
-              pixelArt: true, roundPixels: true,
-              crispScaling: true, integerScaling: true
-            });
-          }
-          if (perf.enableHighPerformance) perf.enableHighPerformance();
-          Logger.log('Optimizaciones gráficas aplicadas');
-        } catch (e) {
-          Logger.warn('Error en optimizaciones gráficas:', e);
+        return runtime.waitFor(function () {
+          registerSceneClasses(game);
+          return game.scene.keys && Object.prototype.hasOwnProperty.call(game.scene.keys, firstScene);
+        }, 2000);
+      }).then(function (registered) {
+        if (!registered) throw new Error('Initial game scene is unavailable');
+        if (!safeStartScene(game, firstScene)) throw new Error('Initial game scene could not start');
+        if (runtime.perf) {
+          runtime.defer(function () {
+            if (game.pendingDestroy) return;
+            try {
+              runtime.perf.applyPixelPerfect({ pixelArt: true, roundPixels: true, crispScaling: true, integerScaling: true });
+              runtime.perf.enableHighPerformance();
+            } catch (e) { Logger.warn('Graphics optimization failed:', e); }
+          }, 200);
         }
-      }, 200);
-
-      return perf;
-    });
+        return runtime.perf;
+      });
   }
 
   // ── GESTOR DE RESIZE ──────────────────────────────────────────────────────
@@ -1296,22 +1295,25 @@
      * de gama baja (un dpr de 3 son 9 veces más píxeles que rellenar que uno
      * de 1). Por defecto no limita nada para no cambiar cómo se ve hoy.
      */
-    _gameSize: function (css) {
-      var dpr   = Math.max(1, root.devicePixelRatio || 1);
-      var techo = Math.max(1, root.GF_MAX_DPR || Infinity);
-      var factor= Math.max(1, Math.min(Math.floor(dpr), techo));
-      return { w: Math.floor(css.w * factor), h: Math.floor(css.h * factor) };
-    },
+    _gameSize: function () { return renderSize(); },
 
     handle: function () {
+      var runtime = bootRuntime;
+      if (!runtime || runtime.disposed || !runtime.game || runtime.game.pendingDestroy) return;
       var now = Date.now();
-      if (now - this._last < this._throttle) {
-        this._pending = true;
+      var remaining = this._throttle - (now - this._last);
+      if (remaining > 0) {
+        if (this._timer == null) {
+          var self = this;
+          this._timer = runtime.defer(function () { self._timer = null; self.handle(); }, remaining);
+        }
         return;
       }
+      if (this._timer != null) { runtime.cancel(this._timer); this._timer = null; }
       this._last = now;
       this._perform();
     },
+    reset: function () { this._timer = null; this._last = 0; this._lastW = 0; this._lastH = 0; this._pending = false; },
 
     /** Fuerza el próximo _perform aunque el tamaño no haya cambiado. */
     invalidate: function () { this._lastW = 0; this._lastH = 0; },
@@ -1358,10 +1360,6 @@
           canvas.style.imageRendering = 'pixelated';
         }
 
-        if (this._pending) {
-          this._pending = false;
-          setTimeout(function () { self.handle(); }, self._throttle);
-        }
       } catch (e) {
         Logger.error('Error en resize:', e);
       }
@@ -1398,6 +1396,7 @@
     },
 
     show: function () {
+      if (this._visible) return;
       this._create();
       this._el.classList.add('visible');
       this._visible = true;
@@ -1408,6 +1407,12 @@
       if (this._el) this._el.classList.remove('visible');
       this._visible = false;
       if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; }
+    },
+
+    destroy: function () {
+      this.hide();
+      if (this._el) this._el.remove();
+      this._el = null;
     },
 
     _update: function () {
@@ -1440,89 +1445,56 @@
 
   // ── BOOTSTRAP ─────────────────────────────────────────────────────────────
   function bootstrap() {
-    return Promise.resolve()
-      .then(function () {
-        Security.init();
-        injectPerformanceCSS();
-        setupContainer();
-
-        var game = createGame();
-
-        // Esperar a que el juego esté completamente inicializado
-        return new Promise(function (resolve) {
-          if (game.isBooted) { resolve(game); }
-          else { game.events.once('ready', function () { resolve(game); }); }
+    if (pageClosing) return Promise.reject(abortError());
+    if (bootRuntime && !bootRuntime.disposed) {
+      if (bootRuntime.game && bootRuntime.game.pendingDestroy) return Promise.reject(abortError());
+      return bootPromise || Promise.resolve(bootRuntime.result);
+    }
+    var runtime = new Runtime();
+    bootRuntime = runtime;
+    bootPromise = Promise.resolve().then(function () {
+      if (runtime.disposed) throw abortError();
+      Security.init();
+      injectPerformanceCSS();
+      setupContainer();
+      var game = createGame(runtime);
+      var onDestroy = function () { runtime.dispose(); };
+      game.events.once('destroy', onDestroy);
+      runtime.cleanups.add(function () { game.events.off('destroy', onDestroy); });
+      runtime.listen(root, 'resize', function () { resizeManager.handle(); });
+      runtime.listen(root, 'orientationchange', function () { resizeManager.handle(); });
+      // isBooted becomes true before textures and SceneManager are ready.
+      return runtime.waitFor(function () {
+        return game.isRunning && game.scene && game.scene.isBooted;
+      }, 10000).then(function (ready) {
+        if (!ready) throw new Error('Phaser startup timed out');
+        ['GFCiclo', 'GFClima'].forEach(function (key) {
+          if (root[key] && typeof root[key].arrancar === 'function') root[key].arrancar();
         });
-      })
-      .then(function (game) {
-        return integratePerfAndStart(game, BOOT_FIRST_SCENE).then(function (perf) {
-          Logger.log('Bootstrap completo — perf integrado:', !!perf);
-
-          if (Security.isDebug()) {
-            DebugOverlay.show();
-          }
-
-          // Verificación post-inicialización (única)
-          setTimeout(function () {
-            var g = IsolationSystem.getGame();
-            if (!g) return;
-
-            var active = g.scene.getScenes(true) || [];
-            var found  = active.some(function (s) {
-              return s && s.sys && s.sys.settings &&
-                     s.sys.settings.key === BOOT_FIRST_SCENE;
-            });
-
-            if (!found) {
-              Logger.warn('Escena principal no activa — reintento final');
-              setTimeout(function () { safeStartScene(g, BOOT_FIRST_SCENE); }, 1000);
-            } else {
-              Logger.log('Escena principal confirmada activa:', BOOT_FIRST_SCENE);
-            }
-          }, 2000);
-
-          setTimeout(function () { resizeManager.handle(); }, 200);
-          setTimeout(function () { resizeManager.handle(); }, 1000);
-
-          return { game: game, perf: perf };
-        });
-      })
-      .catch(function (e) {
-        Logger.error('Bootstrap — error fatal:', e);
-        throw e;
+        return integratePerfAndStart(game, BOOT_FIRST_SCENE, runtime);
+      }).then(function (perf) {
+        if (runtime.disposed) throw abortError();
+        if (Security.isDebug()) DebugOverlay.show();
+        resizeManager.handle();
+        runtime.defer(function () { resizeManager.handle(); }, 200);
+        runtime.defer(function () { resizeManager.handle(); }, 1000);
+        runtime.result = { game: game, perf: perf };
+        return runtime.result;
       });
+    }).catch(function (error) {
+      disposeRuntime(runtime);
+      throw error;
+    });
+    return bootPromise;
   }
 
-  // ── EVENTOS GLOBALES ──────────────────────────────────────────────────────
-  root.addEventListener('resize', function () { resizeManager.handle(); });
-  root.addEventListener('orientationchange', Utils.debounce(function () {
-    setTimeout(function () { resizeManager.handle(); }, 100);
-  }, 250));
-
-  document.addEventListener('touchstart', function (e) {
-    if (e.touches && e.touches.length > 1) e.preventDefault();
-  }, { passive: false });
-  document.addEventListener('gesturestart',  function (e) { e.preventDefault(); });
-  document.addEventListener('gesturechange', function (e) { e.preventDefault(); });
-
-  // ── LIMPIEZA AL CERRAR ────────────────────────────────────────────────────
-  root.addEventListener('beforeunload', function () {
-    var game = IsolationSystem.getGame();
-    if (game) {
-      try { game.events.off(); }  catch (e) {}
-      try { game.sound && game.sound.destroy(); } catch (e) {}
-      try {
-        var gl = game.renderer && game.renderer.gl;
-        if (gl) {
-          var ext = gl.getExtension('WEBGL_lose_context');
-          if (ext) ext.loseContext();
-        }
-      } catch (e) {}
-      try { game.destroy(true); } catch (e) {}
-    }
-
-    try { IsolationSystem.destroy(); } catch (e) {}
-    try { DebugOverlay.hide(); }      catch (e) {}
+  // beforeunload may be cancelled. BFCache pages must remain resumable.
+  root.addEventListener('pagehide', function (event) {
+    if (event.persisted) return;
+    pageClosing = true;
+    if (autoBootTimer != null) { root.clearTimeout(autoBootTimer); autoBootTimer = null; }
+    document.removeEventListener('DOMContentLoaded', scheduleAutoBoot);
+    disposeRuntime(bootRuntime);
   });
 
   // ── API PÚBLICA (SUPERFICIE MÍNIMA) ───────────────────────────────────────
@@ -1536,7 +1508,7 @@
   Object.defineProperty(root, 'startGame', {
     value: function () {
       return bootstrap().catch(function (e) {
-        Logger.error('startGame falló:', e);
+        if (e.name !== 'AbortError') Logger.error('startGame falló:', e);
         return null;
       });
     },
@@ -1632,18 +1604,16 @@
   //  que el fallo quede contenido y solo registrado, sin promesa sin manejar.
   //
   function autoBoot() {
+    autoBootTimer = null;
     bootstrap().catch(function (e) {
-      Logger.error('Arranque automático falló:', e);
+      if (e.name !== 'AbortError') Logger.error('Arranque automático falló:', e);
     });
   }
-
-  if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    setTimeout(autoBoot, 10);
-  } else {
-    document.addEventListener('DOMContentLoaded', function () {
-      setTimeout(autoBoot, 10);
-    });
+  function scheduleAutoBoot() {
+    if (!pageClosing && autoBootTimer == null) autoBootTimer = root.setTimeout(autoBoot, 10);
   }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') scheduleAutoBoot();
+  else document.addEventListener('DOMContentLoaded', scheduleAutoBoot, { once: true });
 
   if (ENV_MODE === 0) {
     Logger.log('Sistema listo — modo desarrollo');

@@ -101,8 +101,10 @@
      Poniendo escala = 1/zoom y esquina = centro - mitad/zoom, el borde
      izquierdo cae en 0 y el derecho en el ancho de la pantalla, siempre. */
   function geometriaCapa(camAncho, camAlto, zoom, margen) {
-    var z = zoom > 0 ? zoom : 1;
-    var m = (margen === undefined) ? MARGEN_CAPA : margen;
+    var z = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+    var m = Number.isFinite(margen) && margen >= 0 ? margen : MARGEN_CAPA;
+    camAncho = Number.isFinite(camAncho) && camAncho > 0 ? camAncho : 1;
+    camAlto = Number.isFinite(camAlto) && camAlto > 0 ? camAlto : 1;
     /* Con el sobrante, la esquina de la capa no cae en (0,0) de la pantalla
        sino en (-m,-m), sea cual sea el zoom:
            pantalla = (p - centro) * zoom + centro
@@ -124,6 +126,21 @@
   var faseAnterior = null;
   var timerSync = null;
   var timerHud = null;
+  var timerReintento = null;
+  var consulta = null;
+  var arrancado = false;
+  var escenas = new Set();
+
+  function destruirObjeto(obj) {
+    try { if (obj && obj.destroy) obj.destroy(); } catch (e) { log('no se pudo liberar un objeto', e); }
+  }
+  function datosValidos(d) {
+    return d && d.ok === true &&
+      ['ahora', 'epocaMs', 'cicloMs', 'diaMs', 'nocheMs'].every(function (k) { return Number.isFinite(d[k]); }) &&
+      Math.abs(d.ahora) <= 8640000000000000 && Math.abs(d.epocaMs) <= 8640000000000000 &&
+      d.cicloMs > 0 && d.diaMs > 0 && d.nocheMs > 0 &&
+      Math.abs(d.cicloMs - d.diaMs - d.nocheMs) < 1;
+  }
 
   function hayHora() { return ancla !== null; }
 
@@ -190,47 +207,45 @@
   // ------------------------------------------------------------ sincronizar
   function sincronizar(motivo) {
     if (pidiendo) return pidiendo;
+    if (timerReintento !== null) { clearTimeout(timerReintento); timerReintento = null; }
     var url = apiBase().replace(/\/$/, '') + '/api/world/time';
     var t0 = performance.now();
-
-    pidiendo = fetch(url, { method: 'GET', credentials: 'omit', cache: 'no-store' })
-      .then(function (r) {
+    var req = { ctrl: typeof AbortController === 'function' ? new AbortController() : null, timer: null };
+    consulta = req;
+    pidiendo = new Promise(function (resolve) {
+      req.terminar = function (valor) {
+        if (consulta !== req) return;
+        clearTimeout(req.timer);
+        consulta = null; pidiendo = null;
+        resolve(valor);
+      };
+      function fallo(e) {
+        if (consulta !== req) return;
+        log('no se pudo sincronizar:', e && e.message);
+        req.terminar(null);
+        if (arrancado && !ancla && timerReintento === null) {
+          timerReintento = setTimeout(function () { timerReintento = null; sincronizar('reintento'); }, REINTENTO_MS);
+        }
+      }
+      req.timer = setTimeout(function () {
+        fallo(new Error('World clock request timed out'));
+        if (req.ctrl) req.ctrl.abort();
+      }, 12000);
+      Promise.resolve().then(function () {
+        return fetch(url, { method: 'GET', credentials: 'omit', cache: 'no-store', signal: req.ctrl ? req.ctrl.signal : undefined });
+      }).then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
-      })
-      .then(function (d) {
-        if (!d || d.ok !== true || typeof d.ahora !== 'number') {
-          throw new Error('respuesta inesperada');
-        }
+      }).then(function (d) {
+        if (consulta !== req) return;
+        if (!datosValidos(d)) throw new Error('Invalid world clock response');
         var t1 = performance.now();
-        // La respuesta tardó (t1-t0). Se supone que la hora del servidor es de
-        // la mitad del viaje, que es la estimación estándar y deja el error en
-        // la mitad de la latencia.
-        ancla = {
-          servidorMs: d.ahora + (t1 - t0) / 2,
-          monotonicoMs: t1,
-          epocaMs: d.epocaMs,
-          cicloMs: d.cicloMs,
-          diaMs: d.diaMs,
-          nocheMs: d.nocheMs,
-          sincronizadoEn: t1
-        };
-        log('sincronizado (' + (motivo || 'periódico') + ')', d.horaTexto, d.fase,
-            'latencia', Math.round(t1 - t0) + 'ms');
-        pintarHud();
-        avisarFase();
-        pidiendo = null;
-        return estado();
-      })
-      .catch(function (e) {
-        pidiendo = null;
-        log('no se pudo sincronizar:', e && e.message);
-        // Si nunca hubo hora, se reintenta pronto; si ya había, se sigue
-        // extrapolando con la que hay y se espera al siguiente ciclo normal.
-        if (!ancla) setTimeout(function () { sincronizar('reintento'); }, REINTENTO_MS);
-        return null;
-      });
-
+        ancla = { servidorMs: d.ahora + (t1 - t0) / 2, monotonicoMs: t1,
+          epocaMs: d.epocaMs, cicloMs: d.cicloMs, diaMs: d.diaMs, nocheMs: d.nocheMs, sincronizadoEn: t1 };
+        pintarHud(); avisarFase();
+        req.terminar(estado());
+      }).catch(fallo);
+    });
     return pidiendo;
   }
 
@@ -245,7 +260,15 @@
   }
 
   function alCambiarFase(fn) {
-    if (typeof fn === 'function') oyentes.push(fn);
+    if (typeof fn !== 'function') return function () {};
+    oyentes.push(fn);
+    var activo = true;
+    return function () {
+      if (!activo) return;
+      activo = false;
+      var i = oyentes.indexOf(fn);
+      if (i >= 0) oyentes.splice(i, 1);
+    };
   }
 
   function avisarFase() {
@@ -253,8 +276,9 @@
     if (!est) return;
     if (faseAnterior === est.fase) return;
     faseAnterior = est.fase;
-    for (var i = 0; i < oyentes.length; i++) {
-      try { oyentes[i](est); } catch (e) { console.warn('[ciclo] oyente falló', e); }
+    var lista = oyentes.slice();
+    for (var i = 0; i < lista.length; i++) {
+      try { lista[i](est); } catch (e) { console.warn('[ciclo] oyente falló', e); }
     }
   }
 
@@ -369,7 +393,7 @@
   }
 
   function montarEscena(scene, opciones) {
-    if (!scene || !scene.add || !scene.cameras) return null;
+    if (!scene || !scene.add || !scene.cameras || !scene.cameras.main || !scene.events) return null;
     if (scene.__gfCiclo) return scene.__gfCiclo;
     opciones = opciones || {};
 
@@ -384,6 +408,8 @@
       encendidos: false
     };
 
+    scene.__gfCiclo = st;
+    escenas.add(scene);
     try {
       texturaLuz(scene, 'gf_luz_poste', RADIO_POSTE);
       texturaLuz(scene, 'gf_luz_jugador', RADIO_JUGADOR);
@@ -393,23 +419,13 @@
       st.anchoCam = cam.width;
       st.altoCam = cam.height;
       // Más grande que la pantalla: ver MARGEN_CAPA.
-      st.rt = scene.add.renderTexture(0, 0,
-                                      cam.width + MARGEN_CAPA * 2,
-                                      cam.height + MARGEN_CAPA * 2)
-        .setOrigin(0, 0)
-        .setScrollFactor(0)
-        .setDepth(PROFUNDIDAD)
-        .setBlendMode(Phaser.BlendModes.MULTIPLY);
+      st.rt = crearCapa(scene, cam);
       st.rt.setVisible(false);
 
       // Pincel reutilizable: un solo objeto que se recoloca y se reescala para
       // cada luz, en vez de crear uno por lámpara y por frame.
-      st.pincel = scene.make.image({ key: 'gf_luz_poste', add: false })
-        .setOrigin(0.5, 0.5);
-    } catch (e) {
-      console.warn('[ciclo] no se pudo crear la capa de noche:', e);
-      return null;
-    }
+      st.pincel = scene.make.image({ key: 'gf_luz_poste', add: false });
+      st.pincel.setOrigin(0.5, 0.5);
 
     st.postes = recogerPostes(scene, opciones.postes);
     st.jugador = opciones.jugador || scene.player || null;
@@ -429,6 +445,12 @@
     scene.events.once('shutdown', st.onApagar);
     scene.events.once('destroy', st.onApagar);
 
+    } catch (e) {
+      desmontarEscena(scene);
+      console.warn('[ciclo] no se pudo crear la capa de noche:', e);
+      return null;
+    }
+    arrancar();
     log('noche montada en', scene.scene && scene.scene.key,
         '·', st.postes.length, 'postes');
     return st;
@@ -487,12 +509,12 @@
       var p = st.postes[i];
       if (!p) continue;
       var pt = puntoLampara(p);
-      var res = scene.add.image(pt.x, pt.y, 'gf_resplandor')
-        .setBlendMode(Phaser.BlendModes.ADD)
+      var res = scene.add.image(pt.x, pt.y, 'gf_resplandor');
+      st.resplandores.push(res);
+      res.setBlendMode(Phaser.BlendModes.ADD)
         .setDepth((p.depth || 0) + 1)
         .setAlpha(0)
         .setScale(3.3);          // crece con RADIO_POSTE, si no queda suelto
-      st.resplandores.push(res);
     }
   }
 
@@ -514,6 +536,7 @@
     var est = estado();
     var o = oscuridad(est);
     var scene = st.scene;
+    if (!scene || !scene.cameras) return;
     var cam = scene.cameras.main;
     if (!cam || !st.rt) return;
 
@@ -546,7 +569,7 @@
       if (!rehacerCapa(st, cam)) return;
     }
 
-    var z = cam.zoom > 0 ? cam.zoom : 1;
+    var z = Number.isFinite(cam.zoom) && cam.zoom > 0 ? cam.zoom : 1;
     var geo = geometriaCapa(cam.width, cam.height, z);
     st.rt.setScale(geo.escala);
     st.rt.setPosition(geo.x, geo.y);
@@ -603,22 +626,27 @@
   }
 
   /* Rehace la capa cuando cambia el tamaño de la ventana. */
+  function crearCapa(scene, cam) {
+    var w = Math.ceil(cam.width + MARGEN_CAPA * 2), h = Math.ceil(cam.height + MARGEN_CAPA * 2);
+    var renderer = scene.sys && scene.sys.game && scene.sys.game.renderer;
+    var max = Math.min(8192, (renderer && renderer.config && renderer.config.maxTextureSize) || 8192);
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0 || w > max || h > max || w * h > 20000000) {
+      throw new Error('Invalid night texture dimensions');
+    }
+    var rt = scene.add.renderTexture(0, 0, w, h);
+    try { return rt.setOrigin(0, 0).setScrollFactor(0).setDepth(PROFUNDIDAD).setBlendMode(Phaser.BlendModes.MULTIPLY); }
+    catch (e) { destruirObjeto(rt); throw e; }
+  }
   function rehacerCapa(st, cam) {
     try {
-      if (st.rt && st.rt.destroy) st.rt.destroy();
-      st.rt = st.scene.add.renderTexture(0, 0,
-                                         cam.width + MARGEN_CAPA * 2,
-                                         cam.height + MARGEN_CAPA * 2)
-        .setOrigin(0, 0)
-        .setScrollFactor(0)
-        .setDepth(PROFUNDIDAD)
-        .setBlendMode(Phaser.BlendModes.MULTIPLY);
-      st.anchoCam = cam.width;
-      st.altoCam = cam.height;
+      var nueva = crearCapa(st.scene, cam);
+      var anterior = st.rt;
+      st.rt = nueva;
+      st.anchoCam = cam.width; st.altoCam = cam.height;
+      destruirObjeto(anterior);
       return true;
     } catch (e) {
-      console.warn('[ciclo] no se pudo rehacer la capa de noche:', e);
-      st.rt = null;
+      log('no se pudo rehacer la capa de noche:', e);
       return false;
     }
   }
@@ -626,45 +654,51 @@
   function desmontarEscena(scene) {
     var st = scene && scene.__gfCiclo;
     if (!st) return;
-    try {
-      if (st.onUpdate) scene.events.off('update', st.onUpdate);
-      if (st.onApagar) {
-        scene.events.off('shutdown', st.onApagar);
-        scene.events.off('destroy', st.onApagar);
-      }
-      if (st.rt && st.rt.destroy) st.rt.destroy();
-      if (st.pincel && st.pincel.destroy) st.pincel.destroy();
-      for (var i = 0; i < st.resplandores.length; i++) {
-        if (st.resplandores[i] && st.resplandores[i].destroy) st.resplandores[i].destroy();
-      }
-    } catch (e) { /* la escena ya se estaba destruyendo */ }
-    st.rt = null; st.pincel = null; st.postes = []; st.resplandores = [];
-    st.onApagar = null;
     scene.__gfCiclo = null;
-    log('noche desmontada de', scene.scene && scene.scene.key);
+    escenas.delete(scene);
+    if (st.onUpdate) scene.events.off('update', st.onUpdate);
+    if (st.onApagar) {
+      scene.events.off('shutdown', st.onApagar); scene.events.off('destroy', st.onApagar);
+    }
+    destruirObjeto(st.rt); destruirObjeto(st.pincel);
+    st.resplandores.forEach(destruirObjeto);
+    st.rt = st.pincel = st.jugador = st.scene = st.onUpdate = st.onApagar = null;
+    st.postes.length = 0; st.resplandores.length = 0;
   }
 
   // --------------------------------------------------------------- arranque
-  function arrancar() {
-    sincronizar('arranque');
-
-    if (timerSync) clearInterval(timerSync);
-    timerSync = setInterval(function () { sincronizar('periódico'); }, SYNC_MS);
-
-    // El reloj del HUD se repinta cada segundo: es solo escribir un texto, y
-    // un minuto de juego dura 30 segundos reales, así que no hace falta más.
-    if (timerHud) clearInterval(timerHud);
-    timerHud = setInterval(function () { pintarHud(); avisarFase(); }, 1000);
-
-    document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState !== 'visible') return;
-      // Dormir el equipo puede congelar el cronómetro monótono; al volver se
-      // comprueba, pero solo se pide hora si la que hay ya está vieja.
-      sincronizarSiHaceFalta('vuelta a la pestaña');
-    });
+  function alVolver() {
+    if (document.visibilityState === 'visible') sincronizarSiHaceFalta('vuelta a la pestaña');
   }
+  function arrancar() {
+    document.removeEventListener('DOMContentLoaded', arrancar);
+    if (arrancado) return;
+    arrancado = true;
+    sincronizar('arranque');
+    timerSync = setInterval(function () { sincronizar('periódico'); }, SYNC_MS);
+    timerHud = setInterval(function () { pintarHud(); avisarFase(); }, 1000);
+    document.addEventListener('visibilitychange', alVolver);
+  }
+  function detener() {
+    arrancado = false;
+    document.removeEventListener('DOMContentLoaded', arrancar);
+    document.removeEventListener('visibilitychange', alVolver);
+    clearInterval(timerSync); clearInterval(timerHud); clearTimeout(timerReintento);
+    timerSync = timerHud = timerReintento = null;
+    if (consulta) {
+      var req = consulta; req.terminar(null);
+      if (req.ctrl) req.ctrl.abort();
+    }
+    Array.from(escenas).forEach(desmontarEscena);
+    oyentes.length = 0;
+    faseAnterior = null;
+    elCaja = elHora = elIcono = null;
+  }
+  if (window.addEventListener) window.addEventListener('pagehide', function (e) { if (!e.persisted) detener(); });
 
   window.GFCiclo = {
+    arrancar: arrancar,
+    detener: detener,
     sincronizar: sincronizar,
     sincronizarSiHaceFalta: sincronizarSiHaceFalta,
     estado: estado,

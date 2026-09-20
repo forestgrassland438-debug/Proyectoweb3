@@ -2,10 +2,16 @@
   "private": true,
   "scripts": {
     "build:vendor": "node tools/build-vendor.cjs",
-    "test:engine": "node --test tools/engine-lifecycle.test.cjs tools/memory-diagnostics.test.cjs",
-    "test:web3": "node --test tools/web3-seguridad-prueba.cjs tools/hub-lifecycle.test.cjs"
+    "test:engine": "node --test tools/engine-lifecycle.test.cjs tools/memory-diagnostics.test.cjs tools/app-lifecycle.test.cjs tools/perf-subsystems.test.cjs",
+    "test:web3": "node --test tools/web3-seguridad-prueba.cjs tools/hub-lifecycle.test.cjs",
+    "build:mina": "python tools/generar-mina.py && python tools/generar-mina-mapa.py",
+    "test:mina": "node tools/mina-prueba.js",
+    "test:environment": "node --test tools/environment-lifecycle.test.cjs"
   },
-  "overrides": { "socket.io-parser": "4.2.7", "i18next-http-backend": "3.0.5" },
+  "overrides": {
+    "socket.io-parser": "4.2.7",
+    "i18next-http-backend": "3.0.5"
+  },
   "devDependencies": {
     "esbuild": "0.28.2",
     "eslint": "^9.28.0",

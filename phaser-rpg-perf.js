@@ -374,14 +374,30 @@
   }
 
   function throttle(fn, limit) {
-    let inThrottle;
-    return function (...args) {
-      if (!inThrottle) {
-        fn.apply(this, args);
-        inThrottle = true;
-        setTimeout(() => { inThrottle = false; }, limit);
-      }
+    let timer = null;
+    const throttled = function (...args) {
+      if (timer !== null) return;
+      timer = setTimeout(() => { timer = null; }, limit);
+      return fn.apply(this, args);
     };
+    throttled.cancel = () => { clearTimeout(timer); timer = null; };
+    return throttled;
+  }
+  function finiteNumber(value, fallback, min, max) {
+    return typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+  }
+  function safeOptions(base, extra) {
+    const result = { ...base };
+    if (extra && typeof extra === 'object') {
+      for (const key of Object.keys(extra)) {
+        if (key !== '__proto__' && key !== 'constructor' && key !== 'prototype') result[key] = extra[key];
+      }
+    }
+    return result;
+  }
+  function cancelled() { const error = new Error('Operation cancelled'); error.name = 'AbortError'; return error; }
+  function validSceneKey(key) {
+    return typeof key === 'string' && /^[A-Za-z_][A-Za-z0-9_-]{0,79}$/.test(key) && !['__proto__', 'prototype', 'constructor'].includes(key);
   }
 
   // ── PERFORMANCE MONITOR ───────────────────────────────────────────────────
@@ -393,7 +409,13 @@
     }
 
     start(key) {
+      if (typeof key !== 'string' || key.length > 160 || this._destroyed) return;
+      const previous = this.metrics.get(key);
+      if (!previous && this.metrics.size >= 256) this.metrics.delete(this.metrics.keys().next().value);
       this.metrics.set(key, {
+        total: previous?.total || 0,
+        completed: previous?.completed || 0,
+        running: true,
         start:    performance.now(),
         end:      0,
         duration: 0,
@@ -403,9 +425,12 @@
 
     end(key) {
       const m = this.metrics.get(key);
-      if (!m) return;
+      if (!m || !m.running) return;
+      m.running = false;
       m.end      = performance.now();
-      m.duration = m.end - m.start;
+      m.duration = Math.max(0, m.end - m.start);
+      m.total += m.duration;
+      m.completed++;
 
       if (DEFAULTS.logPerformance && performance.now() - this.lastSample > this.sampleRate) {
         safeLog(`Performance — ${key}: ${m.duration.toFixed(2)}ms (calls: ${m.calls})`);
@@ -417,9 +442,9 @@
     clear()         { this.metrics.clear(); }
 
     getStats() {
-      const stats = {};
+      const stats = Object.create(null);
       for (const [key, m] of this.metrics) {
-        stats[key] = { duration: m.duration, calls: m.calls, average: m.calls > 0 ? m.duration / m.calls : 0 };
+        stats[key] = { duration: m.duration, calls: m.calls, average: m.completed > 0 ? m.total / m.completed : 0 };
       }
       return stats;
     }
@@ -445,14 +470,14 @@
     }
 
     _initObservers() {
-      if (!global.PerformanceObserver) return;
+      if (!global.PerformanceObserver || !DEBUG_MODE) return;
       try {
         this.performanceObserver = new PerformanceObserver(list => {
           list.getEntries().forEach(e => {
             if (e.entryType === 'measure') this._recordMetric('perf_entries', e);
           });
         });
-        this.performanceObserver.observe({ entryTypes: ['measure', 'mark', 'navigation', 'resource'] });
+        this.performanceObserver.observe({ entryTypes: ['measure'] });
       } catch (e) {
         if (DEBUG_MODE) console.warn('PerformanceObserver no disponible:', e);
       }
@@ -464,13 +489,18 @@
       } catch (e) { /* silencioso en producción */ }
     }
 
-    startFrame() { this.start('frame'); this._lastFrameStart = performance.now(); }
+    startFrame() {
+      const now = performance.now();
+      this._frameInterval = this._lastFrameStart === undefined ? 0 : Math.max(0, now - this._lastFrameStart);
+      this._lastFrameStart = now;
+      this.start('frame');
+    }
 
     endFrame() {
       this.end('frame');
       const m = this.getMetric('frame');
       if (!m) return;
-      this.frameTimes.push(m.duration);
+      this.frameTimes.push(this._frameInterval || m.duration);
       if (this.frameTimes.length > this.maxHistorySize) this.frameTimes.shift();
       this._analyzePerformanceTrends();
     }
@@ -529,6 +559,8 @@
     }
 
     _recordMetric(key, value) {
+      if (this._destroyed) return;
+      if (!this.metricsHistory.has(key) && this.metricsHistory.size >= 256) this.metricsHistory.delete(this.metricsHistory.keys().next().value);
       if (!this.metricsHistory.has(key)) this.metricsHistory.set(key, []);
       const h = this.metricsHistory.get(key);
       h.push({ value, timestamp: Date.now() });
@@ -550,7 +582,7 @@
       const avg = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
       return {
         avgFrameTime: avg,
-        fps:          1000 / avg,
+        fps:          avg > 0 ? 1000 / avg : 0,
         min:          Math.min(...this.frameTimes),
         max:          Math.max(...this.frameTimes),
         count:        this.frameTimes.length,
@@ -571,8 +603,10 @@
     }
 
     destroy() {
+      this._destroyed = true;
       if (this.performanceObserver)  this.performanceObserver.disconnect();
       if (this.longTaskObserver)     this.longTaskObserver.disconnect();
+      this.performanceObserver = this.longTaskObserver = null;
       super.clear();
       this.frameTimes      = [];
       this.memorySnapshots = [];
@@ -710,218 +744,150 @@
 
   class SecureVault {
     constructor() {
-      this.store      = new global.Map();
-      this.sessionKey = null;
-      this.PREFIX     = '__perf_vault_';
-      this.initialized        = false;
-      this.encryptionEnabled  = false;
-      this._init();
+      this.store = new Map(); this.sessionKey = null; this.PREFIX = '__perf_vault_';
+      this.initialized = false; this.encryptionEnabled = false; this._destroyed = false;
+      this._epoch = 0; this._writes = new Map();
+      this._initPromise = this._initialize();
     }
-
-    async _init() {
+    async _initialize() {
       try {
-        if (_crypto && _crypto.subtle) {
-          this.sessionKey = await _crypto.subtle.generateKey(
-            { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']
-          );
-          this.encryptionEnabled = true;
+        if (_crypto?.subtle) {
+          const key = await _crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+          if (!this._destroyed) { this.sessionKey = key; this.encryptionEnabled = true; }
         }
-        this.initialized = true;
-        safeLog('SecureVault inicializado — cifrado:', this.encryptionEnabled);
-      } catch (e) {
-        if (DEBUG_MODE) console.warn('SecureVault: Web Crypto no disponible, usando fallback v1');
-        this.initialized = true;
-      }
+      } catch (e) { /* Encrypted persistence fails closed; explicit preferences may use v1. */ }
+      if (!this._destroyed) this.initialized = true;
     }
-
-    async set(name, value, opts = {}) {
-      if (!this.initialized) await this._init();
-      const key = String(name);
+    _init() { return this._initPromise; }
+    _remember(key, value) {
+      if (!this.store.has(key) && this.store.size >= 256) this.store.delete(this.store.keys().next().value);
       this.store.set(key, value);
-      if (!opts.persist) return true;
-
-      if (!this.encryptionEnabled || !this.sessionKey) {
-        return this._fallbackSet(key, value);
-      }
-      try {
-        const iv  = _crypto.getRandomValues(new Uint8Array(12));
-        const ct  = await _crypto.subtle.encrypt(
-          { name: 'AES-GCM', iv },
-          this.sessionKey,
-          _strToU8(JSON.stringify(value))
-        );
-        localStorage.setItem(this.PREFIX + key, JSON.stringify({
-          v: 2, iv: _bufToB64(iv.buffer), ct: _bufToB64(ct), timestamp: Date.now()
-        }));
-        return true;
-      } catch (e) {
-        if (DEBUG_MODE) console.warn('SecureVault: cifrado fallido, usando fallback:', e);
-        return this._fallbackSet(key, value);
-      }
     }
-
-    _fallbackSet(key, value) {
+    async set(name, value, opts = {}) {
+      if (this._destroyed || typeof name !== 'string' || name.length > 160) return false;
+      const key = name, epoch = this._epoch, ticket = {};
+      if (!this._writes.has(key) && this._writes.size >= 256) return false;
+      this._writes.set(key, ticket);
+      this._remember(key, value);
+      const current = () => !this._destroyed && this._epoch === epoch && this._writes.get(key) === ticket;
       try {
-        localStorage.setItem(this.PREFIX + key, JSON.stringify({ v: 1, data: value, timestamp: Date.now() }));
+        if (!opts.persist) return true;
+        const json = JSON.stringify(value);
+        if (typeof json !== 'string' || json.length > 1048576) return false;
+        // Preferences are intentionally not secrets, and must survive a new session.
+        if (opts.allowPlaintext === true) {
+          if (!current()) return false;
+          localStorage.setItem(this.PREFIX + key, JSON.stringify({ v: 1, data: JSON.parse(json), timestamp: Date.now() }));
+          return true;
+        }
+        await this._initPromise;
+        if (!current() || !this.encryptionEnabled || !this.sessionKey) return false;
+        const iv = _crypto.getRandomValues(new Uint8Array(12));
+        const ct = await _crypto.subtle.encrypt({ name: 'AES-GCM', iv }, this.sessionKey, _strToU8(json));
+        if (!current()) return false;
+        localStorage.setItem(this.PREFIX + key, JSON.stringify({ v: 2, iv: _bufToB64(iv.buffer), ct: _bufToB64(ct), timestamp: Date.now() }));
         return true;
-      } catch (e) {
-        if (DEBUG_MODE) console.warn('SecureVault: localStorage fallido:', e);
-        return false;
-      }
+      } catch (e) { return false; }
+      finally { if (this._writes.get(key) === ticket) this._writes.delete(key); }
     }
-
     async get(name, opts = {}) {
-      if (!this.initialized) await this._init();
-      const key = String(name);
-      if (this.store.has(key)) return this.store.get(key);
+      if (this._destroyed || typeof name !== 'string' || name.length > 160) return undefined;
+      if (this.store.has(name)) return this.store.get(name);
       if (!opts.persist) return undefined;
-
+      const epoch = this._epoch;
       try {
-        const raw = localStorage.getItem(this.PREFIX + key);
-        if (!raw) return undefined;
+        const raw = localStorage.getItem(this.PREFIX + name);
+        if (!raw || raw.length > 1500000) return undefined;
         const payload = JSON.parse(raw);
-
-        if (payload.v === 2 && this.encryptionEnabled && this.sessionKey) {
-          try {
-            const plain = await _crypto.subtle.decrypt(
-              { name: 'AES-GCM', iv: new Uint8Array(_b64ToBuf(payload.iv)) },
-              this.sessionKey,
-              _b64ToBuf(payload.ct)
-            );
-            const val = JSON.parse(_u8ToStr(new Uint8Array(plain)));
-            this.store.set(key, val);
-            return val;
-          } catch (e) {
-            // Clave de sesión expiró — dato v2 no recuperable
-            if (DEBUG_MODE) console.warn('SecureVault: dato v2 no descifrable (clave de sesión perdida):', key);
-            return undefined;
-          }
-        }
-
-        if (payload.v === 1) {
-          this.store.set(key, payload.data);
-          return payload.data;
-        }
-
-        return undefined;
-      } catch (e) {
-        if (DEBUG_MODE) console.warn('SecureVault.get error:', e);
-        return undefined;
-      }
+        if (!payload || typeof payload !== 'object') return undefined;
+        let value;
+        if (payload.v === 1 && opts.allowPlaintext === true) value = payload.data;
+        else if (payload.v === 2) {
+          await this._initPromise;
+          if (this._destroyed || epoch !== this._epoch || !this.sessionKey) return undefined;
+          if (typeof payload.iv !== 'string' || typeof payload.ct !== 'string') return undefined;
+          const iv = new Uint8Array(_b64ToBuf(payload.iv));
+          if (iv.length !== 12) return undefined;
+          const plain = await _crypto.subtle.decrypt({ name: 'AES-GCM', iv }, this.sessionKey, _b64ToBuf(payload.ct));
+          value = JSON.parse(_u8ToStr(new Uint8Array(plain)));
+        } else return undefined;
+        if (this._destroyed || epoch !== this._epoch) return undefined;
+        if (this.store.has(name)) return this.store.get(name);
+        this._remember(name, value);
+        return value;
+      } catch (e) { return undefined; }
     }
-
-    clearMemory()         { this.store.clear(); }
-    removePersisted(name) { try { localStorage.removeItem(this.PREFIX + String(name)); } catch (e) {} }
-
+    clearMemory() { this._epoch++; this.store.clear(); this._writes.clear(); }
+    removePersisted(name) {
+      this._writes.delete(name); this.store.delete(name); this._epoch++;
+      try { localStorage.removeItem(this.PREFIX + String(name)); } catch (e) {}
+    }
     clearAllPersisted() {
-      try {
-        Object.keys(localStorage).forEach(k => {
-          if (k.startsWith(this.PREFIX)) localStorage.removeItem(k);
-        });
-      } catch (e) {}
+      this.clearMemory();
+      try { Object.keys(localStorage).forEach(key => { if (key.startsWith(this.PREFIX)) localStorage.removeItem(key); }); } catch (e) {}
     }
-
-    getStats() {
-      return { memItems: this.store.size, initialized: this.initialized, encryptionEnabled: this.encryptionEnabled };
-    }
+    destroy() { this._destroyed = true; this.clearMemory(); this.sessionKey = null; this.encryptionEnabled = false; }
+    getStats() { return { memItems: this.store.size, initialized: this.initialized, encryptionEnabled: this.encryptionEnabled }; }
   }
 
   // ── SMART TEXTURE CACHE ───────────────────────────────────────────────────
   class SmartTextureCache {
     constructor(scene, maxSizeMB = 50) {
-      this.scene       = scene;
-      this.cache       = new global.Map();
-      this.accessCount = new global.Map();
-      this.creationTime= new global.Map();
-      this.maxSize     = maxSizeMB * 1024 * 1024;
-      this.currentSize = 0;
-      this.hits        = 0;
-      this.misses      = 0;
-      this.enabled     = true;
+      this.scene = scene; this.cache = new Map(); this.accessCount = new Map(); this.creationTime = new Map();
+      this.sizes = new Map(); this.owned = new Set(); this.maxSize = finiteNumber(maxSizeMB, 50, 0, 512) * 1048576;
+      this.currentSize = 0; this.hits = 0; this.misses = 0; this.enabled = true; this._destroyed = false;
     }
-
     _calcSize(texture) {
-      if (!texture || !texture.source) return 0;
-      try {
-        const src = Array.isArray(texture.source) ? texture.source[0] : texture.source;
-        if (!src) return 0;
-        return (src.width || texture.width || 0) * (src.height || texture.height || 0) * 4;
-      } catch (e) { return 0; }
+      if (!texture?.source) return 0;
+      const sources = Array.isArray(texture.source) ? texture.source : [texture.source];
+      return sources.reduce((sum, src) => sum + (src ? finiteNumber(src.width, 0, 0, 32768) * finiteNumber(src.height, 0, 0, 32768) * 4 : 0), 0);
     }
-
     _evict(targetSize = 0) {
-      if (this.currentSize <= targetSize) return;
-      const sorted = Array.from(this.cache.entries())
-        .map(([k, t]) => ({ k, t, lastAccess: this.accessCount.get(k) || 0, size: this._calcSize(t) }))
-        .sort((a, b) => a.lastAccess - b.lastAccess);
-
-      let freed = 0;
-      const need = this.currentSize - targetSize;
-      for (const { k, size } of sorted) {
-        if (freed >= need) break;
-        try { this.scene.textures.remove(k); } catch (e) {}
-        this.cache.delete(k);
-        this.accessCount.delete(k);
-        this.creationTime.delete(k);
-        freed += size;
-        this.currentSize -= size;
-      }
+      const entries = [...this.cache.keys()].sort((a,b) => this.accessCount.get(a) - this.accessCount.get(b));
+      for (const key of entries) { if (this.currentSize <= targetSize) break; this.removeTexture(key); }
     }
-
-    addTexture(key, texture) {
-      if (!this.enabled) return false;
+    addTexture(key, texture, options = {}) {
+      if (!this.enabled || this._destroyed || typeof key !== 'string' || key.length > 200) return false;
       const size = this._calcSize(texture);
-      if (!size) return false;
-      if (this.currentSize + size > this.maxSize) this._evict(Math.max(0, this.maxSize - size));
-      if (this.cache.has(key)) this.removeTexture(key);
-      this.cache.set(key, texture);
-      this.accessCount.set(key, Date.now());
-      this.creationTime.set(key, Date.now());
+      if (!size || size > this.maxSize) return false;
+      if (this.cache.get(key) === texture) { this.accessCount.set(key, Date.now()); return true; }
+      this.removeTexture(key);
+      if (this.currentSize + size > this.maxSize) this._evict(this.maxSize - size);
+      if (this.cache.size >= 1024) this.removeTexture(this.cache.keys().next().value);
+      this.cache.set(key, texture); this.sizes.set(key, size); this.accessCount.set(key, Date.now()); this.creationTime.set(key, Date.now());
+      if (options.owned === true) this.owned.add(key);
       this.currentSize += size;
       return true;
     }
-
     getTexture(key) {
       if (!this.enabled || !this.cache.has(key)) { this.misses++; return null; }
-      this.accessCount.set(key, Date.now());
-      this.hits++;
-      return this.cache.get(key);
+      const texture = this.cache.get(key);
+      if (!texture.source) { this.removeTexture(key); this.misses++; return null; }
+      this.accessCount.set(key, Date.now()); this.hits++; return texture;
     }
-
     removeTexture(key) {
       if (!this.cache.has(key)) return false;
-      const size = this._calcSize(this.cache.get(key));
-      try { this.scene.textures.remove(key); } catch (e) {}
-      this.cache.delete(key);
-      this.accessCount.delete(key);
-      this.creationTime.delete(key);
-      this.currentSize = Math.max(0, this.currentSize - size);
+      const texture = this.cache.get(key), owned = this.owned.delete(key);
+      this.currentSize = Math.max(0, this.currentSize - this.sizes.get(key));
+      this.cache.delete(key); this.sizes.delete(key); this.accessCount.delete(key); this.creationTime.delete(key);
+      // A cache reference does not confer ownership of a shared game texture.
+      if (owned) {
+        try {
+          if (this.scene?.textures?.get(key) === texture) this.scene.textures.remove(key);
+          else if (texture.source && typeof texture.destroy === 'function') texture.destroy();
+        } catch (e) {}
+      }
       return true;
     }
-
-    clear() {
-      Array.from(this.cache.keys()).forEach(k => this.removeTexture(k));
-      this.cache.clear();
-      this.accessCount.clear();
-      this.creationTime.clear();
-      this.currentSize = 0;
-    }
-
-    setEnabled(state) { this.enabled = state; if (!state) this.clear(); }
-    resizeCache(mb)   { this.maxSize = mb * 1024 * 1024; if (this.currentSize > this.maxSize) this._evict(this.maxSize); }
-
+    clear() { for (const key of [...this.cache.keys()]) this.removeTexture(key); }
+    setEnabled(state) { this.enabled = !!state && !this._destroyed; if (!this.enabled) this.clear(); }
+    resizeCache(mb) { this.maxSize = finiteNumber(mb, this.maxSize / 1048576, 0, 512) * 1048576; this._evict(this.maxSize); }
     getStats() {
-      const total   = this.hits + this.misses;
-      const hitRate = total > 0 ? (this.hits / total) * 100 : 0;
-      return {
-        enabled: this.enabled, totalTextures: this.cache.size,
-        memoryUsage: this.currentSize, memoryLimit: this.maxSize,
-        memoryUsageMB: (this.currentSize / 1048576).toFixed(2),
-        hitRate: hitRate.toFixed(2) + '%', hits: this.hits, misses: this.misses
-      };
+      const total = this.hits + this.misses;
+      return { enabled: this.enabled, totalTextures: this.cache.size, memoryUsage: this.currentSize, memoryLimit: this.maxSize,
+        memoryUsageMB: (this.currentSize / 1048576).toFixed(2), hitRate: (total ? this.hits / total * 100 : 0).toFixed(2) + '%', hits: this.hits, misses: this.misses };
     }
-
-    destroy() { this.clear(); }
+    destroy() { this.clear(); this._destroyed = true; this.enabled = false; this.scene = null; }
   }
 
   // ── ERROR RECOVERY SYSTEM ─────────────────────────────────────────────────
@@ -931,23 +897,35 @@
       this.maxRetries        = 3;
       this.recoveryCallbacks = new global.Map();
       this.circuitBreakers   = new global.Map();
+      this._destroyed = false; this._waits = new Set();
     }
 
-    registerRecoveryStrategy(type, fn) { this.recoveryCallbacks.set(type, fn); }
+    registerRecoveryStrategy(type, fn) { if (this._destroyed || typeof type !== 'string' || type.length > 160 || typeof fn !== 'function') return; if (!this.recoveryCallbacks.has(type) && this.recoveryCallbacks.size >= 256) this.recoveryCallbacks.delete(this.recoveryCallbacks.keys().next().value); this.recoveryCallbacks.set(type, fn); }
 
-    async executeWithRetry(operation, context = 'unknown', opType = 'generic') {
-      for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+    async executeWithRetry(operation, context = 'unknown', opType = 'generic', options = {}) {
+      if (typeof operation !== 'function') throw new TypeError('Operation must be a function');
+      const signal = options.signal;
+      const check = () => { if (this._destroyed || signal?.aborted) throw cancelled(); };
+      check();
+      if (this.isCircuitBreakerOpen(context)) throw new Error('Operation temporarily unavailable');
+      const attempts = Math.floor(finiteNumber(this.maxRetries, 3, 1, 5));
+      for (let attempt = 1; attempt <= attempts; attempt++) {
         try {
+          check();
           const result = await operation();
+          check();
           this._recordSuccess(context);
           return result;
         } catch (error) {
+          check();
+          if (error?.name === 'AbortError') throw error;
           this._handleError(error, context, attempt, opType);
-          if (attempt === this.maxRetries) {
+          if (attempt === attempts) {
             this._triggerCircuitBreaker(context);
             throw this._enhanceError(error, context, attempt);
           }
-          await this._backoff(attempt);
+          await this._backoff(attempt, signal);
+          check();
           if (this.recoveryCallbacks.has(opType)) {
             try { await this.recoveryCallbacks.get(opType)(context, attempt, error); } catch (e) {}
           }
@@ -955,15 +933,24 @@
       }
     }
 
-    _backoff(attempt) {
-      const delay = Math.min(100 * Math.pow(2, attempt - 1), 5000);
-      return new Promise(r => setTimeout(r, delay + Math.random() * 100));
+    _backoff(attempt, signal) {
+      if (this._destroyed || signal?.aborted) return Promise.reject(cancelled());
+      return new Promise((resolve, reject) => {
+        const finish = error => {
+          clearTimeout(timer); this._waits.delete(abort); signal?.removeEventListener('abort', abort);
+          error ? reject(error) : resolve();
+        };
+        const abort = () => finish(cancelled());
+        const timer = setTimeout(() => finish(), Math.min(100 * Math.pow(2, attempt - 1), 5000));
+        this._waits.add(abort); signal?.addEventListener('abort', abort, { once: true });
+      });
     }
 
     _handleError(error, context, attempt, opType) {
-      const k = `${context}_${opType}`;
+      const k = `${context}\0${opType}`;
+      if (!this.errorCounts.has(k) && this.errorCounts.size >= 256) this.errorCounts.delete(this.errorCounts.keys().next().value);
       this.errorCounts.set(k, (this.errorCounts.get(k) || 0) + 1);
-      safeLog(`Error recovery ${attempt}/${this.maxRetries} for ${context}:`, error.message);
+      safeLog(`Error recovery ${attempt}/${this.maxRetries} for ${context}:`, error?.message);
       if (DEBUG_MODE && DEFAULTS.debug) {
         console.groupCollapsed(`Error Details: ${context}`);
         console.error('Error:', error);
@@ -974,18 +961,19 @@
 
     _recordSuccess(context) {
       for (const k of this.errorCounts.keys()) {
-        if (k.startsWith(context)) this.errorCounts.delete(k);
+        if (k.startsWith(`${context}\0`)) this.errorCounts.delete(k);
       }
       this.circuitBreakers.delete(context);
     }
 
     _triggerCircuitBreaker(context) {
+      if (!this.circuitBreakers.has(context) && this.circuitBreakers.size >= 256) this.circuitBreakers.delete(this.circuitBreakers.keys().next().value);
       this.circuitBreakers.set(context, { triggeredAt: Date.now(), errorCount: this.errorCounts.get(context) || 1 });
       if (DEBUG_MODE) console.error(`Circuit breaker triggered: ${context}`);
     }
 
     _enhanceError(orig, context, attempt) {
-      const e = new Error(`Operation failed after ${attempt} attempts: ${orig.message}`);
+      const e = new Error(`Operation failed after ${attempt} attempts: ${orig?.message || 'Unknown failure'}`);
       e.originalError = orig;
       e.context = context;
       e.attempts = attempt;
@@ -1013,6 +1001,7 @@
     }
 
     reset() { this.errorCounts.clear(); this.circuitBreakers.clear(); }
+    destroy() { this._destroyed = true; for (const cancel of [...this._waits]) cancel(); this.reset(); this.recoveryCallbacks.clear(); }
   }
 
   // ── ADAPTIVE PERFORMANCE MANAGER ─────────────────────────────────────────
@@ -1213,12 +1202,12 @@
       // thrashing que puede verse como "titileo" (partículas y AA
       // encendiéndose/apagándose una y otra vez).
       try { console.log('[GF] Calidad adaptativa:', from, '→', tier); } catch (e) {}
-      if (this.game.events) {
+      if (this.game?.events) {
         this.game.events.emit('qualitychanged', { from, to: tier, settings: this.currentSettings });
       }
     }
 
-    forceQualityTier(tier)           { if (this.qualitySettings[tier]) { this._applyTier(tier); this.enabled = false; } }
+    forceQualityTier(tier)           { if (Object.prototype.hasOwnProperty.call(this.qualitySettings, tier)) { this._applyTier(tier); this.enabled = false; } }
     enableAdaptivePerformance(state) { this.enabled = state; if (state) this._applyTier(this.deviceTier); }
     getCurrentSettings()             { return { ...this.currentSettings, tier: this.currentTier }; }
 
@@ -1240,22 +1229,27 @@
     constructor(scene) {
       this.scene = scene;
       this.pools = new global.Map();
+      this._destroyed = false;
       this.stats = { totalSpawns: 0, totalDespawns: 0, cacheHits: 0, cacheMisses: 0, errors: 0 };
       this.errorRecovery = new ErrorRecoverySystem();
     }
 
     createPool(key, factoryFn, size = 20, resetFn = null) {
+      if (this._destroyed || typeof factoryFn !== 'function' || !Number.isInteger(size) || size < 0 || size > 10000) return Promise.resolve(null);
       return this.errorRecovery.executeWithRetry(async () => {
         if (this.pools.has(key)) { safeLog('Pool ya existe:', key); return this.pools.get(key); }
         const arr = [];
         let created = 0, errors = 0;
         for (let i = 0; i < size; i++) {
+          let obj;
           try {
-            const obj = factoryFn();
+            obj = factoryFn();
+            if (!obj || typeof obj !== 'object' || typeof obj.then === 'function' || arr.includes(obj)) throw new TypeError('Pool factory must create a unique object');
             if (obj && obj.setActive)  obj.setActive(false);
             if (obj && obj.setVisible) obj.setVisible(false);
+            if (obj.body) obj.body.enable = false;
             arr.push(obj); created++;
-          } catch (e) { errors++; if (DEBUG_MODE) console.warn('Pool factory error:', key, e); }
+          } catch (e) { if (obj && !arr.includes(obj) && typeof obj.destroy === 'function') { try { obj.destroy(); } catch (ignored) {} } errors++; if (DEBUG_MODE) console.warn('Pool factory error:', key, e); }
         }
         const pool = { arr, factoryFn, resetFn, size, created, errors };
         this.pools.set(key, pool);
@@ -1266,6 +1260,7 @@
     }
 
     spawn(key, x, y, ...args) {
+      if (this._destroyed) return null;
       const entry = this.pools.get(key);
       if (!entry) { this.stats.errors++; if (DEBUG_MODE) console.warn('Pool no encontrado:', key); return null; }
 
@@ -1275,7 +1270,12 @@
       }
 
       if (!obj) {
-        try { obj = entry.factoryFn(...args); entry.arr.push(obj); this.stats.cacheMisses++; }
+        if (entry.arr.length >= 10000) return null;
+        try {
+          obj = entry.factoryFn(...args);
+          if (!obj || typeof obj !== 'object' || typeof obj.then === 'function' || entry.arr.includes(obj)) throw new TypeError('Invalid pool object');
+          entry.arr.push(obj); this.stats.cacheMisses++;
+        }
         catch (e) { this.stats.errors++; if (DEBUG_MODE) console.warn('Pool factory error en spawn:', key, e); return null; }
       }
 
@@ -1285,14 +1285,16 @@
         if (obj.setVisible)  obj.setVisible(true);
         if (obj.body && obj.body.enable !== undefined) obj.body.enable = true;
         if (typeof obj.onSpawn === 'function') obj.onSpawn(x, y, ...args);
-      } catch (e) { this.stats.errors++; if (DEBUG_MODE) console.warn('Pool spawn setup error:', e); }
+      } catch (e) { this.stats.errors++; this.despawn(obj); return null; }
 
       this.stats.totalSpawns++;
       return obj;
     }
 
     despawn(obj) {
-      if (!obj) return;
+      if (!obj || this._destroyed) return;
+      const owner = [...this.pools.values()].find(entry => entry.arr.includes(obj));
+      if (!owner) return;
       try {
         for (const entry of this.pools.values()) {
           if (entry.arr.indexOf(obj) >= 0 && typeof entry.resetFn === 'function') {
@@ -1309,6 +1311,7 @@
     }
 
     resizePool(key, newSize) {
+      if (this._destroyed || !Number.isInteger(newSize) || newSize < 0 || newSize > 10000) return false;
       const entry = this.pools.get(key);
       if (!entry) return false;
       const curr = entry.arr.length;
@@ -1316,20 +1319,19 @@
         for (let i = curr; i < newSize; i++) {
           try {
             const o = entry.factoryFn();
+            if (!o || typeof o !== 'object' || typeof o.then === 'function' || entry.arr.includes(o)) continue;
+            if (o.body) o.body.enable = false;
             if (o && o.setActive)  o.setActive(false);
             if (o && o.setVisible) o.setVisible(false);
             entry.arr.push(o);
           } catch (e) { this.stats.errors++; }
         }
       } else if (newSize < curr) {
-        let removed = 0;
-        entry.arr.slice(newSize).forEach(o => {
-          if (o && !o.active && o.destroy) {
-            try { o.destroy(); removed++; } catch (e) { this.stats.errors++; }
-          }
-        });
-        entry.arr = entry.arr.slice(0, newSize);
-        safeLog('Pool reducido:', key, curr, '→', newSize, 'eliminados:', removed);
+        for (let i = entry.arr.length - 1; i >= 0 && entry.arr.length > newSize; i--) {
+          const obj = entry.arr[i];
+          if (obj?.active) continue;
+          try { obj?.destroy?.(); entry.arr.splice(i, 1); } catch (e) { this.stats.errors++; }
+        }
       }
       entry.size = newSize;
       return true;
@@ -1357,10 +1359,10 @@
       safeLog('Pool destruido:', key);
     }
 
-    destroy() { for (const k of this.pools.keys()) this.destroyPool(k); this.pools.clear(); }
+    destroy() { if (this._destroyed) return; this._destroyed = true; this.errorRecovery.destroy(); for (const k of [...this.pools.keys()]) this.destroyPool(k); this.pools.clear(); this.scene = null; }
 
     getStats() {
-      const poolStats = {};
+      const poolStats = Object.create(null);
       for (const [k, v] of this.pools) {
         const active   = v.arr.filter(o => o && o.active).length;
         poolStats[k]   = { total: v.arr.length, active, inactive: v.arr.length - active, configuredSize: v.size, created: v.created, errors: v.errors };
@@ -1416,16 +1418,40 @@
     }
 
     add(target, options = {}) {
-      if (!target) return;
+      if (!target || this._destroyed) return;
+      this.remove(target);
       this.targets.set(target, {
         target, persistent: options.persistent || false,
         lastState: null, bounds: options.bounds || null,
-        updateFrequency: options.updateFrequency || 1
+        updateFrequency: Math.floor(finiteNumber(options.updateFrequency, 1, 1, 1000))
       });
+      if (typeof target.once === 'function') {
+        const gone = () => { this.targets.delete(target); };
+        this.targets.get(target).gone = gone;
+        target.once('destroy', gone);
+      }
     }
 
-    remove(target)             { this.targets.delete(target); }
-    setEnabled(state)          { this.enabled = state; }
+    remove(target) {
+      const data = this.targets.get(target);
+      if (!data) return;
+      this._restore(data);
+      if (data.gone && typeof target.off === 'function') target.off('destroy', data.gone);
+      this.targets.delete(target);
+    }
+    _restore(data) {
+      if (!data.ocultadoPorCull) return;
+      const target = data.target;
+      data.ocultadoPorCull = false; data.lastState = null;
+      if (target.setVisible) target.setVisible(data.visiblePrevio);
+      if (target.setActive) target.setActive(data.activoPrevio);
+      if (target.body && target.body === data.bodyPrevio) target.body.enable = data.bodyEnabledPrevio;
+      data.bodyPrevio = null;
+    }
+    setEnabled(state) {
+      this.enabled = !!state && !this._destroyed;
+      if (!this.enabled) for (const data of this.targets.values()) this._restore(data);
+    }
     setOptimizedUpdate(state)  { this.optimizedUpdate = state; }
 
     _onPreUpdate() {
@@ -1434,7 +1460,7 @@
     }
 
     _onUpdate() {
-      if (!this.enabled || !this.scene.cameras || !this.scene.cameras.main) return;
+      if (!this.enabled || !this.scene?.cameras?.main) return;
 
       // SIN OBJETOS REGISTRADOS NO HAY NADA QUE HACER.
       // Este manejador corre en CADA frame desde que se crea el gestor. Como
@@ -1510,17 +1536,14 @@
 
       if (visible) {
         // Solo se restaura lo que escondimos nosotros.
-        if (data.ocultadoPorCull) {
-          data.ocultadoPorCull = false;
-          if (t.setVisible) t.setVisible(data.visiblePrevio !== false);
-          if (t.setActive)  t.setActive(data.activoPrevio !== false);
-          if (t.body && t.body.enable !== undefined) t.body.enable = data.visiblePrevio !== false;
-        }
+        this._restore(data);
       } else {
         // Se guarda el estado propio del objeto antes de taparlo.
         if (!data.ocultadoPorCull) {
           data.visiblePrevio = t.visible;
           data.activoPrevio  = t.active;
+          data.bodyPrevio = t.body;
+          data.bodyEnabledPrevio = t.body?.enable;
           data.ocultadoPorCull = true;
           if (t.setVisible) t.setVisible(false);
           if (t.setActive)  t.setActive(false);
@@ -1532,7 +1555,7 @@
       this.stats.visibilityChanges++;
     }
 
-    destroy() { this.eventManager.destroy(); this.targets.clear(); }
+    destroy() { if (this._destroyed) return; this._destroyed = true; this.enabled = false; this.eventManager.destroy(); for (const target of [...this.targets.keys()]) this.remove(target); this.scene = null; }
 
     getStats() {
       return { ...this.stats, totalTargets: this.targets.size, enabled: this.enabled, optimizedUpdate: this.optimizedUpdate };
@@ -1542,103 +1565,76 @@
   // ── SMART LAYER CACHE ─────────────────────────────────────────────────────
   class SmartLayerCache {
     constructor(scene) {
-      this.scene        = scene;
-      this.cache        = new global.Map();
+      this.scene = scene; this.cache = new Map();
       this.textureCache = new SmartTextureCache(scene, DEFAULTS.textureCacheSizeMB);
-      this.enabled      = DEFAULTS.enableSmartCaching;
+      this.enabled = DEFAULTS.enableSmartCaching; this._destroyed = false;
     }
-
-    cacheTilemapLayer(layer, options = {}) {
-      if (!this.enabled || !layer || !layer.tilemap) return null;
-      if (this.cache.has(layer)) return this.cache.get(layer);
-
-      const map  = layer.tilemap;
-      const tileW= map.tileWidth;
-      const tileH= map.tileHeight;
-      const w    = Math.max(1, layer.layer.width  * tileW);
-      const h    = Math.max(1, layer.layer.height * tileH);
-
-      if (w > DEFAULTS.maxRenderTextureSize || h > DEFAULTS.maxRenderTextureSize) {
-        if (DEBUG_MODE) console.warn('Capa demasiado grande para caché:', w, h);
-        return null;
-      }
-
+    _create(layer, previous = null) {
+      if (!this.enabled || this._destroyed || !layer?.tilemap || !layer.layer) return null;
+      const w = layer.layer.width * layer.tilemap.tileWidth, h = layer.layer.height * layer.tilemap.tileHeight;
+      if (!Number.isFinite(w) || !Number.isFinite(h) || w < 1 || h < 1 || w > DEFAULTS.maxRenderTextureSize || h > DEFAULTS.maxRenderTextureSize) return null;
+      const used = this.getStats().memoryUsage - (previous?.memoryUsage || 0);
+      if (used + w * h * 4 > this.textureCache.maxSize) return null;
+      let rt = null, img = null, texKey = null, saved = false;
+      const visible = previous ? previous.visible : layer.visible;
       try {
-        const rt     = this.scene.make.renderTexture({ width: w, height: h, add: false });
-        rt.draw(layer);
-        const texKey = `layercache-${Date.now()}-${randHex(6)}`;
-        rt.saveTexture(texKey);
-        const tex    = this.scene.textures.get(texKey);
-        if (tex) this.textureCache.addTexture(texKey, tex);
-
-        const img = this.scene.add.image(0, 0, texKey).setOrigin(0);
+        rt = this.scene.make.renderTexture({ width: w, height: h, add: false });
+        const wasVisible = layer.visible;
+        try { layer.setVisible(true); rt.draw(layer); } finally { layer.setVisible(wasVisible); }
+        texKey = `layercache-${Date.now()}-${randHex(12)}`;
+        rt.saveTexture(texKey); saved = true;
+        img = this.scene.add.image(layer.x || 0, layer.y || 0, texKey).setOrigin(0);
         if (layer.depth !== undefined) img.setDepth(layer.depth);
-        img.x = layer.x || 0;
-        img.y = layer.y || 0;
+        img.setVisible(visible !== false);
+        if (img.setAlpha && layer.alpha !== undefined) img.setAlpha(layer.alpha);
+        if (img.setScale) img.setScale(layer.scaleX ?? 1, layer.scaleY ?? 1);
+        if (img.setScrollFactor) img.setScrollFactor(layer.scrollFactorX ?? 1, layer.scrollFactorY ?? 1);
+        if (img.setRotation) img.setRotation(layer.rotation || 0);
         layer.setVisible(false);
-
-        const rec = { rt, img, texKey, original: layer, size: { w, h }, timestamp: Date.now(), memoryUsage: w * h * 4 };
-        this.cache.set(layer, rec);
-        return rec;
+        return { rt, img, texKey, original: layer, visible, size: { w, h }, timestamp: Date.now(), memoryUsage: w * h * 4 };
       } catch (e) {
-        if (DEBUG_MODE) console.warn('Error cacheando capa:', e);
+        try { img?.destroy(); } catch (ignored) {}
+        try { rt?.destroy(); } catch (ignored) {}
+        if (saved) { try { this.scene.textures.remove(texKey); } catch (ignored) {} }
         return null;
       }
     }
-
+    _release(rec) {
+      if (rec.gone && typeof rec.original.off === 'function') rec.original.off('destroy', rec.gone);
+      try { rec.img?.destroy(); } catch (e) {}
+      try { rec.rt?.destroy(); } catch (e) {}
+      // saveTexture transfers the DynamicTexture to TextureManager (RenderTexture will not free it).
+      try { this.scene?.textures.remove(rec.texKey); } catch (e) {}
+    }
+    _track(layer, rec) {
+      if (typeof layer.once === 'function') { rec.gone = () => this.uncache(layer, false); layer.once('destroy', rec.gone); }
+      this.cache.set(layer, rec);
+      return rec;
+    }
+    cacheTilemapLayer(layer) {
+      if (this.cache.has(layer)) return this.cache.get(layer);
+      const rec = this._create(layer);
+      return rec ? this._track(layer, rec) : null;
+    }
     refresh(layer) {
-      const rec = this.cache.get(layer);
-      if (!rec) return this.cacheTilemapLayer(layer);
-      try { this.textureCache.removeTexture(rec.texKey); } catch (e) {}
-
-      const map    = layer.tilemap;
-      const w      = Math.max(1, layer.layer.width  * map.tileWidth);
-      const h      = Math.max(1, layer.layer.height * map.tileHeight);
-
-      try {
-        const rt     = this.scene.make.renderTexture({ width: w, height: h, add: false });
-        rt.draw(layer);
-        const texKey = `layercache-${Date.now()}-${randHex(6)}`;
-        rt.saveTexture(texKey);
-        const tex    = this.scene.textures.get(texKey);
-        if (tex) this.textureCache.addTexture(texKey, tex);
-        rec.rt       = rt;
-        rec.texKey   = texKey;
-        rec.img.setTexture(texKey);
-        rec.timestamp    = Date.now();
-        rec.memoryUsage  = w * h * 4;
-        rec.original.setVisible(false);
-        return rec;
-      } catch (e) {
-        if (DEBUG_MODE) console.warn('Error refrescando capa:', e);
-        return null;
-      }
+      const previous = this.cache.get(layer);
+      if (!previous) return this.cacheTilemapLayer(layer);
+      const rec = this._create(layer, previous);
+      if (!rec) return null; // Keep the last complete rendered image on failure.
+      this._release(previous);
+      return this._track(layer, rec);
     }
-
-    uncache(layer) {
-      const rec = this.cache.get(layer);
-      if (!rec) return;
-      try { this.textureCache.removeTexture(rec.texKey); } catch (e) {}
-      try { if (rec.img) rec.img.destroy(); }          catch (e) {}
-      try { if (rec.rt)  rec.rt.destroy();  }          catch (e) {}
-      rec.original.setVisible(true);
-      this.cache.delete(layer);
+    uncache(layer, restore = true) {
+      const rec = this.cache.get(layer); if (!rec) return;
+      this.cache.delete(layer); this._release(rec);
+      if (restore && layer.setVisible) layer.setVisible(rec.visible);
     }
-
-    setEnabled(state) { this.enabled = state; if (!state) this.clear(); }
-    clear()           { for (const rec of this.cache.values()) this.uncache(rec.original); this.cache.clear(); }
-    destroy()         { this.clear(); this.textureCache.destroy(); }
-
+    setEnabled(state) { this.enabled = !!state && !this._destroyed; if (!this.enabled) this.clear(); }
+    clear() { for (const layer of [...this.cache.keys()]) this.uncache(layer); }
+    destroy() { if (this._destroyed) return; this.clear(); this.textureCache.destroy(); this._destroyed = true; this.enabled = false; this.scene = null; }
     getStats() {
-      const totals = Array.from(this.cache.values())
-        .reduce((a, r) => { a.mem += r.memoryUsage; a.n++; return a; }, { mem: 0, n: 0 });
-      return {
-        cachedLayers:   totals.n,
-        memoryUsage:    totals.mem,
-        memoryUsageMB:  (totals.mem / 1048576).toFixed(2),
-        enabled:        this.enabled,
-        textureCache:   this.textureCache.getStats()
-      };
+      const memoryUsage = [...this.cache.values()].reduce((total, rec) => total + rec.memoryUsage, 0);
+      return { cachedLayers: this.cache.size, memoryUsage, memoryUsageMB: (memoryUsage / 1048576).toFixed(2), enabled: this.enabled, textureCache: this.textureCache.getStats() };
     }
   }
 
@@ -1662,10 +1658,13 @@
     constructor(scene, map, options = {}) {
       this.scene    = scene;
       this.map      = map || null;
-      this.opt      = Object.assign({}, DEFAULTS, options);
+      this.opt      = safeOptions(DEFAULTS, options);
       this.loaded   = new global.Map();
-      this.chunkW   = this.opt.chunkSizeTiles * (map ? map.tileWidth  : 32);
-      this.chunkH   = this.opt.chunkSizeTiles * (map ? map.tileHeight : 32);
+      this.opt.chunkSizeTiles = Math.floor(finiteNumber(this.opt.chunkSizeTiles, 16, 1, 256));
+      this.opt.chunkRadius = Math.floor(finiteNumber(this.opt.chunkRadius, 2, 0, 8));
+      this.chunkW = this.opt.chunkSizeTiles * finiteNumber(map?.tileWidth, 32, 1, 4096);
+      this.chunkH = this.opt.chunkSizeTiles * finiteNumber(map?.tileHeight, 32, 1, 4096);
+      this._destroyed = false;
       this.playerRef= null;
       this.provider = null;
       this.enabled  = true;
@@ -1683,7 +1682,7 @@
       this.provider = fn;
     }
     setPlayer(player) { this.playerRef = player; }
-    setEnabled(state) { this.enabled   = state;  }
+    setEnabled(state) { this.enabled = !!state && !this._destroyed; }
 
     _chunkKey(cx, cy) { return `${cx},${cy}`; }
     worldToChunk(x, y) { return [Math.floor(x / this.chunkW), Math.floor(y / this.chunkH)]; }
@@ -1717,7 +1716,7 @@
      *    cada 2 s por si algo se cargó por otra vía.
      */
     _update() {
-      if (!this.enabled || !this.playerRef) return;
+      if (!this.enabled || this._destroyed || !this.playerRef || !this.provider || !Number.isFinite(this.playerRef.x) || !Number.isFinite(this.playerRef.y)) return;
 
       const [cx, cy] = this.worldToChunk(this.playerRef.x, this.playerRef.y);
       const ahora = Date.now();
@@ -1730,7 +1729,7 @@
       this._ultCy = cy;
       this._ultRevision = ahora;
 
-      const radioCarga   = this.opt.chunkRadius;
+      const radioCarga   = Math.floor(finiteNumber(this.opt.chunkRadius, 2, 0, 8));
       const radioDescarga = radioCarga + 1;   // el anillo de histéresis
 
       for (let dx = -radioCarga; dx <= radioCarga; dx++) {
@@ -1750,68 +1749,61 @@
       }
     }
 
-    async loadChunk(cx, cy) {
-      const key = this._chunkKey(cx, cy);
-      if (this.loaded.has(key)) return this.loaded.get(key).container;
-
-      return this.errorRecovery.executeWithRetry(async () => {
-        const container = this.scene.add.container(cx * this.chunkW, cy * this.chunkH);
-        container.name  = `chunk-${key}`;
-        const rec       = { cx, cy, container, status: 'loading', key, loadTime: Date.now() };
-        this.loaded.set(key, rec);
-        this.stats.lastLoadTime = Date.now();
-
+    loadChunk(cx, cy) {
+      if (this._destroyed || !Number.isSafeInteger(cx) || !Number.isSafeInteger(cy)) return Promise.resolve(null);
+      const key = this._chunkKey(cx, cy), existing = this.loaded.get(key);
+      if (existing) return existing.promise || Promise.resolve(existing.container);
+      if (this.loaded.size >= 512) return Promise.resolve(null);
+      const rec = { cx, cy, container: null, status: 'loading', key, controller: new AbortController() };
+      this.loaded.set(key, rec);
+      const current = () => !this._destroyed && !rec.controller.signal.aborted && this.loaded.get(key) === rec;
+      const release = () => {
+        const container = rec.container; rec.container = null;
+        try { container?.destroy(); } catch (e) { this.stats.unloadErrors++; }
+      };
+      rec.release = release;
+      const provider = this.provider;
+      rec.promise = this.errorRecovery.executeWithRetry(async () => {
+        if (!current()) throw cancelled();
+        const began = Date.now();
+        rec.container = this.scene.add.container(cx * this.chunkW, cy * this.chunkH);
+        rec.container.name = `chunk-${key}`;
+        this.stats.lastLoadTime = began;
         try {
-          if (this.provider) {
-            const res = this.provider(cx, cy, container, this.map);
-            if (res && typeof res.then === 'function') await res;
-          }
-          rec.status   = 'ready';
-          rec.loadTime = Date.now() - rec.loadTime;
-          this.stats.totalLoaded++;
-        } catch (e) {
-          rec.status = 'error';
-          this.stats.loadErrors++;
-          try { container.destroy(true); } catch (ce) {}
-          this.loaded.delete(key);
-          throw e;
+          if (provider) await provider(cx, cy, rec.container, this.map, rec.controller.signal);
+          if (!current()) throw cancelled();
+          rec.status = 'ready'; rec.loadTime = Date.now() - began; this.stats.totalLoaded++;
+          return rec.container;
+        } catch (error) {
+          release();
+          if (error?.name !== 'AbortError') this.stats.loadErrors++;
+          throw error;
         }
-        return container;
-      }, `loadChunk_${key}`, 'chunk_loading')
-      .catch(e => { if (DEBUG_MODE) console.error('Error cargando chunk:', key, e); return null; });
+      }, `loadChunk_${key}`, 'chunk_loading', { signal: rec.controller.signal }).catch(() => {
+        release();
+        if (this.loaded.get(key) === rec) this.loaded.delete(key);
+        return null;
+      });
+      return rec.promise;
     }
-
     unloadChunk(cx, cy) {
-      const key = this._chunkKey(cx, cy);
-      const rec = this.loaded.get(key);
+      const key = this._chunkKey(cx, cy), rec = this.loaded.get(key);
       if (!rec) return;
-      try {
-        if (rec.container) { rec.container.removeAll(true); rec.container.destroy(true); }
-        this.loaded.delete(key);
-        this.stats.totalUnloaded++;
-      } catch (e) {
-        if (DEBUG_MODE) console.warn('Error descargando chunk:', key, e);
-        this.stats.unloadErrors++;
-      }
+      this.loaded.delete(key); rec.controller.abort(); rec.release(); this.stats.totalUnloaded++;
     }
-
-    preloadChunks(cx, cy, radius = 1) {
-      const [ccx, ccy] = this.worldToChunk(cx, cy);
-      for (let dx = -radius; dx <= radius; dx++)
-        for (let dy = -radius; dy <= radius; dy++)
-          this.loadChunk(ccx + dx, ccy + dy);
+    preloadChunks(x, y, radius = 1) {
+      if (this._destroyed || !Number.isFinite(x) || !Number.isFinite(y)) return;
+      const [cx, cy] = this.worldToChunk(x, y);
+      radius = Math.floor(finiteNumber(radius, 1, 0, 8));
+      for (let dx = -radius; dx <= radius; dx++) for (let dy = -radius; dy <= radius; dy++) this.loadChunk(cx + dx, cy + dy);
     }
-
-    cleanup() {
-      for (const [, rec] of this.loaded) {
-        if (rec.status === 'error') this.unloadChunk(rec.cx, rec.cy);
-      }
-    }
-
+    cleanup() { for (const rec of [...this.loaded.values()]) if (rec.status === 'error') this.unloadChunk(rec.cx, rec.cy); }
     destroy() {
-      this.eventManager.destroy();
-      for (const rec of this.loaded.values()) this.unloadChunk(rec.cx, rec.cy);
-      this.loaded.clear();
+      if (this._destroyed) return;
+      this._destroyed = true; this.enabled = false;
+      this.eventManager.destroy(); this._updateBound.cancel(); this.errorRecovery.destroy();
+      for (const rec of [...this.loaded.values()]) this.unloadChunk(rec.cx, rec.cy);
+      this.playerRef = this.provider = this.map = this.scene = null;
     }
 
     getStats() {
@@ -1847,11 +1839,13 @@
       this.emitters      = new global.Map();
       this.configs       = new global.Map();
       this.activeEmitters= new global.Set();
+      this._destroyed = false;
     }
 
     // Solo relevante en la API antigua (≤3.55): devuelve un manager reutilizable.
     // En 3.60+ no existen managers, así que este método no se usa.
     getManager(key, textureKey) {
+      if (this._destroyed || !_particleApiIsLegacy) return null;
       if (this.managers.has(key)) return this.managers.get(key);
       const mgr = this.scene.add.particles(textureKey || key);
       this.managers.set(key, mgr);
@@ -1859,6 +1853,7 @@
     }
 
     createEmitter(key, cfg) {
+      if (this._destroyed) return null;
       cfg = cfg || {};
       const textureKey = cfg.textureKey || key;
       let em = null;
@@ -1885,7 +1880,12 @@
       if (!this.emitters.has(key)) this.emitters.set(key, []);
       this.emitters.get(key).push(em);
       this.configs.set(em, { ...cfg, key });
-      this.activeEmitters.add(em);
+      if (em.emitting !== false && em.on !== false) this.activeEmitters.add(em);
+      if (typeof em.once === 'function') {
+        const gone = () => this._forgetEmitter(em);
+        this.configs.get(em).gone = gone;
+        em.once('destroy', gone);
+      }
       return em;
     }
 
@@ -1905,16 +1905,22 @@
       else      { for (const es of this.emitters.values()) es.forEach(e => this.startEmitter(e)); }
     }
 
-    destroyEmitter(em) {
+    _forgetEmitter(em) {
       if (!em) return;
       const cfg = this.configs.get(em);
       if (cfg) {
         const es = this.emitters.get(cfg.key) || [];
         const i  = es.indexOf(em);
         if (i > -1) es.splice(i, 1);
+        if (es.length === 0) this.emitters.delete(cfg.key);
+        if (cfg.gone && typeof em.off === 'function') em.off('destroy', cfg.gone);
         this.configs.delete(em);
       }
       this.activeEmitters.delete(em);
+    }
+    destroyEmitter(em) {
+      if (!this.configs.has(em)) return;
+      this._forgetEmitter(em);
       try { if (em.destroy) em.destroy(); } catch (e) {}
     }
 
@@ -1928,27 +1934,29 @@
         // fuga de memoria y partículas fantasma).
         const active = Array.from(ems).filter(em => {
           // 'emitting' es la propiedad en Phaser 3.60+; 'on' en la API antigua.
-          const isEmitting = (typeof em.emitting === 'boolean') ? em.emitting : em.on;
-          if (isEmitting || this.activeEmitters.has(em)) return true;
+          const isEmitting = typeof em.emitting === 'boolean' ? em.emitting : typeof em.on === 'boolean' ? em.on : this.activeEmitters.has(em);
+          if (isEmitting || (typeof em.getAliveParticleCount === 'function' && em.getAliveParticleCount() > 0)) return true;
           this.destroyEmitter(em); cleaned++;
           return false;
         });
-        this.emitters.set(key, active);
+        if (active.length) this.emitters.set(key, active); else this.emitters.delete(key);
       }
       return cleaned;
     }
 
     destroy() {
+      if (this._destroyed) return;
+      this._destroyed = true;
       // FIX: misma razón que en cleanupInactiveEmitters — iterar sobre copia
       // porque destroyEmitter() muta el array original con splice (antes se
       // saltaba uno de cada dos emitters y quedaban vivos tras destroy()).
       for (const ems of this.emitters.values()) Array.from(ems).forEach(em => this.destroyEmitter(em));
       for (const m of this.managers.values()) { try { m.destroy(); } catch (e) {} }
-      this.managers.clear(); this.emitters.clear(); this.configs.clear(); this.activeEmitters.clear();
+      this.managers.clear(); this.emitters.clear(); this.configs.clear(); this.activeEmitters.clear(); this.scene = null;
     }
 
     getStats() {
-      const stats = { totalManagers: this.managers.size, totalEmitters: 0, activeEmitters: this.activeEmitters.size, byKey: {} };
+      const stats = { totalManagers: this.managers.size, totalEmitters: 0, activeEmitters: this.activeEmitters.size, byKey: Object.create(null) };
       for (const [k, ems] of this.emitters) {
         stats.byKey[k] = { total: ems.length, active: ems.filter(e => this.activeEmitters.has(e)).length };
         stats.totalEmitters += ems.length;
@@ -2120,29 +2128,17 @@
       this.registered    = false;
       this.errorRecovery = new ErrorRecoverySystem();
 
-      if (ENV_MODE === 1) this.clearPublicRegistrations();
+      this._destroyed = false;
+      this._controller = new AbortController();
     }
 
     clearPublicRegistrations() {
-      if (DEBUG_MODE) return; // en dev, dejamos las referencias por comodidad
-      try {
-        if (global.GameScenes) {
-          Object.keys(global.GameScenes).forEach(k => delete global.GameScenes[k]);
-          delete global.GameScenes;
-        }
-        if (global.sceneClasses) {
-          global.sceneClasses.length = 0;
-          delete global.sceneClasses;
-        }
-        ['scenes', 'gameScenes', 'phaserScenes'].forEach(key => {
-          if (global[key]) { try { delete global[key]; } catch (e) {} }
-        });
-      } catch (e) {
-        if (DEBUG_MODE) console.warn('Error limpiando registros públicos:', e);
-      }
+      // Scene classes are shared input. Deleting them breaks other registrars/restarts
+      // and does not form a security boundary inside the same browser context.
     }
 
     async registerFromGlobals(game) {
+      if (this._destroyed || !game?.scene || game.pendingDestroy) return false;
       return this.errorRecovery.executeWithRetry(async () => {
         const sp = game.scene;
         if (!sp || !sp.add) throw new Error('Scene plugin no disponible');
@@ -2177,26 +2173,29 @@
         this.registered = true;
         safeLog(`SecureSceneRegistrar: ${count} escenas registradas`);
         return count > 0;
-      }, 'registerFromGlobals', 'scene_registration')
+      }, 'registerFromGlobals', 'scene_registration', { signal: this._controller.signal })
       .catch(e => { if (DEBUG_MODE) console.error('Error registrando escenas:', e); return false; });
     }
 
     // ── Registro en Phaser con nombre amigable ────────────────────────────
     _registerScene(game, friendlyName, cls, options = {}) {
+      if (this._destroyed || !game?.scene || game.pendingDestroy || !validSceneKey(friendlyName) || typeof cls !== 'function') return false;
       const sp = game.scene;
 
       // La clave en Phaser ES el nombre amigable — no hay codificación Base64.
       // Esto garantiza que game.scene.start(friendlyName) funcione siempre.
       const phaserKey = friendlyName;
 
-      this.mapping.set(friendlyName, { key: phaserKey, cls, options });
+      const entry = { key: phaserKey, cls, options: safeOptions({}, options) };
 
       try {
-        if (sp.keys && sp.keys[phaserKey]) {
+        if (sp.keys && Object.prototype.hasOwnProperty.call(sp.keys, phaserKey)) {
+          this.mapping.set(friendlyName, entry);
           safeLog('Escena ya registrada:', friendlyName);
           return true;
         }
         sp.add(phaserKey, cls, false);
+        this.mapping.set(friendlyName, entry);
         safeLog('Escena registrada:', friendlyName);
         return true;
       } catch (e) {
@@ -2206,6 +2205,7 @@
     }
 
     startFriendlyScene(game, friendlyName, data) {
+      if (this._destroyed || !game?.scene || game.pendingDestroy || !validSceneKey(friendlyName)) return false;
       const sp = game.scene;
       if (!sp || !sp.start) return false;
 
@@ -2220,7 +2220,7 @@
       }
 
       // Asegurar que esté registrada en Phaser
-      if (!sp.keys || !sp.keys[key]) {
+      if (!sp.keys || !Object.prototype.hasOwnProperty.call(sp.keys, key)) {
         if (entry) {
           try { sp.add(key, entry.cls, false); }
           catch (e) { safeLog('Re-registro fallido:', friendlyName, e); return false; }
@@ -2241,27 +2241,23 @@
     }
 
     async initRegistrarWithRetry(game, firstFriendlyName, data) {
-      return this.errorRecovery.executeWithRetry(async () => {
-        await this.registerFromGlobals(game);
-
-        if (!firstFriendlyName) return false;
-
-        if (this.startFriendlyScene(game, firstFriendlyName, data)) return true;
-
-        for (let i = 0; i < DEFAULTS.registrarRetryCount; i++) {
-          await new Promise(r => setTimeout(r, DEFAULTS.registrarRetryMs));
+      if (this._destroyed || !validSceneKey(firstFriendlyName)) return false;
+      this._controller.abort(); this._controller = new AbortController();
+      const signal = this._controller.signal;
+      try {
+        for (let i = 0; i <= DEFAULTS.registrarRetryCount; i++) {
+          if (this._destroyed || signal.aborted || !game?.scene || game.pendingDestroy) return false;
+          await this.registerFromGlobals(game);
+          if (signal.aborted || this._destroyed) return false;
           if (this.startFriendlyScene(game, firstFriendlyName, data)) return true;
-          if (game.scene.keys && game.scene.keys[firstFriendlyName]) {
-            try { game.scene.start(firstFriendlyName, data); return true; } catch (e) {}
-          }
+          if (i < DEFAULTS.registrarRetryCount) await this.errorRecovery._backoff(1, signal);
         }
-
-        // Fallback: iniciar cualquier escena disponible
-        const first = this.mapping.keys().next();
-        if (!first.done) return this.startFriendlyScene(game, first.value, data);
-        return false;
-      }, `initRegistrar_${firstFriendlyName || 'no_scene'}`, 'scene_initialization')
-      .catch(e => { safeLog('initRegistrarWithRetry failed:', e); return false; });
+      } catch (e) { safeLog('Scene registration cancelled or unavailable'); }
+      return false;
+    }
+    destroy() {
+      if (this._destroyed) return;
+      this._destroyed = true; this._controller.abort(); this.errorRecovery.destroy(); this.mapping.clear(); this.registered = false;
     }
 
     registerSceneLater(game, friendlyName, cls, startNow = false, data) {
@@ -2305,7 +2301,7 @@
     constructor(game, opts = {}) {
       this.game = game;
       this.scene= null;
-      this.opt  = Object.assign({}, DEFAULTS, opts);
+      this.opt  = safeOptions(DEFAULTS, opts);
 
       this.eventManager   = new EnhancedEventManager();
       this.pool           = null;
@@ -2326,6 +2322,8 @@
       this.statsData          = { chunksLoaded: 0, pools: {}, emitters: 0, startupTime: Date.now(), frameCount: 0 };
       this.version            = '2.2.2';
       this._chunkProvider     = null;
+      this._cameraClamps = new Set();
+      this._cameraClampByScene = new WeakMap();
       this._initialized       = false;
       this._destroyed         = false;
       this._lastFrameTime     = 0;
@@ -2429,7 +2427,7 @@
         const ft = performance.now() - this._lastFrameTime;
         this._frameTimeHistory.push(ft);
         if (this._frameTimeHistory.length > 120) this._frameTimeHistory.shift();
-        this.adaptivePerformance.recordFrameMetrics(ft);
+        this.adaptivePerformance.recordFrameMetrics(this.game?.loop?.delta || this.performanceMonitor._frameInterval || ft);
         this.statsData.frameCount++;
       };
 
@@ -2458,7 +2456,7 @@
       this.scene = scene || this.scene;
       if (!this.scene) throw new Error('PhaserRPGPerf.init requiere una Phaser.Scene');
 
-      this.opt = Object.assign({}, this.opt, options);
+      this.opt = safeOptions(this.opt, options);
       this.eventManager.setScene(this.scene);
       this._detachSceneLifecycle();
       const managedScene = this.scene;
@@ -2560,7 +2558,7 @@
     createChunkManager(map, options) {
       if (!this.scene) throw new Error('Scene requerida para crear ChunkManager');
       if (this.chunkManager) this.chunkManager.destroy();
-      this.chunkManager = new DynamicChunkManager(this.scene, map, Object.assign({}, this.opt, options));
+      this.chunkManager = new DynamicChunkManager(this.scene, map, safeOptions(this.opt, options));
       if (this._chunkProvider) this.chunkManager.setProvider(this._chunkProvider);
       return this.chunkManager;
     }
@@ -2592,7 +2590,7 @@
     setLayerCachingEnabled(state){ if (this._initialized && this.layerCache) this.layerCache.setEnabled(state); }
 
     // Texture Cache
-    cacheTexture(key, texture)   { if (!this._initialized || !this.textureCache) return false; return this.textureCache.addTexture(key, texture); }
+    cacheTexture(key, texture, options = {})   { if (!this._initialized || !this.textureCache) return false; return this.textureCache.addTexture(key, texture, options); }
     getCachedTexture(key)        { if (!this._initialized || !this.textureCache) return null;  return this.textureCache.getTexture(key); }
     removeCachedTexture(key)     { if (!this._initialized || !this.textureCache) return false; return this.textureCache.removeTexture(key); }
     setTextureCacheSize(mb)      { if (this._initialized && this.textureCache) this.textureCache.resizeCache(mb); }
@@ -2635,43 +2633,35 @@
 
     // Camera
     attachCameraClamp(scene, bounds, opts = {}) {
-      try {
-        const cam = scene.cameras.main;
-        if (!cam) return () => {};
-        cam.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
-        if (scene.physics && scene.physics.world) {
-          scene.physics.world.setBounds(bounds.x, bounds.y, bounds.width, bounds.height, true, true, true, true);
-        }
-        const minZoom= opts.minZoom || 0.5;
-        const maxZoom= opts.maxZoom || 2;
-        const smooth = opts.smooth !== false;
-        const updateFn = () => {
-          try {
-            const maxX = bounds.x + Math.max(0, bounds.width  - cam.width);
-            const maxY = bounds.y + Math.max(0, bounds.height - cam.height);
-            let sx = cam.scrollX, sy = cam.scrollY, changed = false;
-            if (sx < bounds.x) { sx = bounds.x; changed = true; }
-            if (sy < bounds.y) { sy = bounds.y; changed = true; }
-            if (sx > maxX)     { sx = maxX;     changed = true; }
-            if (sy > maxY)     { sy = maxY;     changed = true; }
-            if (changed) {
-              if (smooth) {
-                cam.scrollX = Phaser.Math.Linear(cam.scrollX, sx, 0.1);
-                cam.scrollY = Phaser.Math.Linear(cam.scrollY, sy, 0.1);
-              } else { cam.setScroll(Math.round(sx), Math.round(sy)); }
-              if (cam.zoom < minZoom) cam.setZoom(minZoom);
-              if (cam.zoom > maxZoom) cam.setZoom(maxZoom);
-            }
-          } catch (e) {}
-        };
-        if (scene.sys && scene.sys.events) scene.sys.events.on('update', updateFn);
-        return () => { try { if (scene.sys && scene.sys.events) scene.sys.events.off('update', updateFn); } catch (e) {} };
-      } catch (e) { if (DEBUG_MODE) console.warn('Camera clamp error:', e); return () => {}; }
+      const cam = scene?.cameras?.main, events = scene?.sys?.events || scene?.events;
+      if (this._destroyed || !cam || !events || !bounds || !['x', 'y', 'width', 'height'].every(key => Number.isFinite(bounds[key])) || bounds.width <= 0 || bounds.height <= 0) return () => {};
+      this._cameraClampByScene.get(scene)?.();
+      cam.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
+      scene.physics?.world?.setBounds(bounds.x, bounds.y, bounds.width, bounds.height, true, true, true, true);
+      const minZoom = finiteNumber(opts.minZoom, 0.5, 0.05, 16), maxZoom = finiteNumber(opts.maxZoom, 2, minZoom, 16);
+      const update = () => {
+        if (this._destroyed) return;
+        const zoom = finiteNumber(cam.zoom, 1, minZoom, maxZoom);
+        if (zoom !== cam.zoom) cam.setZoom(zoom);
+        // Native camera clamps account for zoom and origin offsets correctly.
+        const x = cam.clampX(cam.scrollX), y = cam.clampY(cam.scrollY);
+        if (opts.smooth !== false) { cam.scrollX += (x - cam.scrollX) * 0.1; cam.scrollY += (y - cam.scrollY) * 0.1; }
+        else cam.setScroll(x, y);
+      };
+      let detached = false;
+      const detach = () => {
+        if (detached) return; detached = true;
+        events.off('update', update); events.off('shutdown', detach); events.off('destroy', detach);
+        this._cameraClamps.delete(detach); this._cameraClampByScene.delete(scene);
+      };
+      events.on('update', update); events.once('shutdown', detach); events.once('destroy', detach);
+      this._cameraClamps.add(detach); this._cameraClampByScene.set(scene, detach);
+      return detach;
     }
 
     // Settings (vault)
-    async saveSettings(settings)      { return await this.vault.set('game_settings', settings, { persist: true }); }
-    async loadSettings()              { return await this.vault.get('game_settings', { persist: true }) || {}; }
+    async saveSettings(settings)      { return await this.vault.set('game_settings', settings, { persist: true, allowPlaintext: true }); }
+    async loadSettings() { const settings = await this.vault.get('game_settings', { persist: true, allowPlaintext: true }); return settings && typeof settings === 'object' && !Array.isArray(settings) ? safeOptions({}, settings) : {}; }
     async saveGraphicsConfig(config)  { const s = await this.loadSettings(); s.graphics = config; return await this.saveSettings(s); }
     async loadGraphicsConfig()        { const s = await this.loadSettings(); return s.graphics || {}; }
 
@@ -2756,6 +2746,8 @@
       try { if (this.eventManager)   this.eventManager.destroy();   } catch (e) {}
       try { if (this.performanceMonitor) this.performanceMonitor.destroy(); } catch (e) {}
 
+      for (const detach of [...this._cameraClamps]) detach();
+      this._registrar.destroy(); this.vault.destroy(); this.errorRecovery.destroy(); this.problemDetector.clear();
       this._releaseSceneSubsystems();
       this._detachSceneLifecycle();
       this._initialized = false;
@@ -2799,7 +2791,7 @@
 
     const existing = _perfByGame.get(game);
     if (existing && !existing._destroyed) {
-      if (opts) Object.assign(existing.opt, opts);
+      if (opts) existing.opt = safeOptions(existing.opt, opts);
       safeLog('PhaserRPGPerf: reutilizando instancia existente para este juego');
       return existing;
     }

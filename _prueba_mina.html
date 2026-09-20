@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Prueba: la mina</title>
+<!-- =========================================================================
+     BANCO DE PRUEBAS DE LA MINA
+
+     Monta el mapa de la mina con Phaser DE VERDAD —las dos capas de tiles, la
+     lava animada, el agua y las colisiones— pero SIN el juego alrededor: sin
+     login, sin backend, sin blockchain y sin HUD.
+
+     Para que sirve: para mirar el mapa y la lava sin tener que arrancar el
+     juego entero e ir andando hasta la puerta de la mina. Si algo sale mal (un
+     tile que no encaja, la lava que no corre, una pared con el trozo
+     equivocado) se ve aqui en dos segundos.
+
+     Lo que NO prueba: nada del HUD, del inventario ni de la mascota. Eso vive
+     en MinaScene y necesita el juego entero.
+
+     Controles: flechas o WASD para volar por el mapa, rueda para el zoom,
+     C para pintar las colisiones encima.
+     ====================================================================== -->
+<style>
+  html,body{margin:0;height:100%;background:#0d1117;color:#c9d1d9;
+            font:13px system-ui,sans-serif;overflow:hidden}
+  #juego{position:absolute;inset:0}
+  #panel{position:absolute;left:10px;top:10px;z-index:10;background:rgba(13,17,23,.88);
+         border:1px solid #30363d;border-radius:8px;padding:10px 12px;line-height:1.7;
+         pointer-events:none;min-width:250px}
+  b{color:#58a6ff}
+  .k{display:inline-block;background:#21262d;border:1px solid #30363d;border-radius:4px;
+     padding:0 5px;font-family:ui-monospace,monospace}
+  #estado{color:#7ee787}
+  .mal{color:#ff7b72}
+</style>
+</head>
+<body>
+<div id="juego"></div>
+<div id="panel">
+  <b>Prueba de la mina</b><br>
+  <span class="k">flechas</span> / <span class="k">WASD</span> volar ·
+  <span class="k">rueda</span> zoom ·
+  <span class="k">C</span> colisiones<br>
+  <span id="estado">cargando…</span><br>
+  <span id="datos"></span>
+</div>
+
+<script src="./vendor/phaser.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  if (typeof Phaser === 'undefined') {
+    $('estado').className = 'mal';
+    $('estado').textContent =
+      'Phaser no cargo. Falta vendor/phaser.min.js (es la carpeta que no esta subida al servidor).';
+    return;
+  }
+
+  var Prueba = new Phaser.Scene('Prueba');
+
+  Prueba.preload = function () {
+    this.load.image('tiles_mina', './Game/MAPAS/Mina/tileset_mina.png');
+    this.load.tilemapTiledJSON('mina', './Maps/mina.json');
+    this.load.image('lava_flujo', './Game/MAPAS/Mina/lava_flujo.png');
+    this.load.image('lava_brillo', './Game/MAPAS/Mina/lava_brillo.png');
+    this.load.image('agua_flujo', './Game/MAPAS/Mina/agua_flujo.png');
+    this.load.spritesheet('lava_burbuja', './Game/MAPAS/Mina/lava_burbuja.png',
+                          { frameWidth: 16, frameHeight: 16 });
+    this.load.on('loaderror', function (f) {
+      $('estado').className = 'mal';
+      $('estado').textContent = 'no se pudo cargar: ' + f.src;
+    });
+  };
+
+  Prueba.create = function () {
+    var esc = this;
+    this.capas = [];
+
+    var mapa = this.make.tilemap({ key: 'mina' });
+    var ts = mapa.addTilesetImage('tileset_mina', 'tiles_mina', 16, 16);
+    this.textures.get('tiles_mina').setFilter(Phaser.Textures.FilterMode.NEAREST);
+
+    var suelo = mapa.createLayer('mina', ts, 0, 0).setDepth(0);
+    var objetos = mapa.createLayer('mina_objetos', ts, 0, 0).setDepth(1);
+
+    // Misma receta que MinaScene: DOS tileSprite por liquido, recortados con
+    // una mascara hecha con los rectangulos del mapa. Si aqui se ve bien, en
+    // la escena de verdad tambien.
+    function liquido(nombreCapa, texFlujo, texBrillo, prof, vel) {
+      var capa = mapa.getObjectLayer(nombreCapa);
+      if (!capa || !capa.objects.length) return;
+      var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      capa.objects.forEach(function (o) {
+        x0 = Math.min(x0, o.x); y0 = Math.min(y0, o.y);
+        x1 = Math.max(x1, o.x + o.width); y1 = Math.max(y1, o.y + o.height);
+      });
+      var forma = esc.make.graphics({ x: 0, y: 0, add: false });
+      forma.fillStyle(0xffffff);
+      capa.objects.forEach(function (o) { forma.fillRect(o.x, o.y, o.width, o.height); });
+      var mascara = forma.createGeometryMask();
+
+      var f = esc.add.tileSprite(x0, y0, x1 - x0, y1 - y0, texFlujo)
+        .setOrigin(0, 0).setDepth(prof).setMask(mascara);
+      f.tilePositionX = x0; f.tilePositionY = y0;
+      esc.capas.push({ obj: f, vx: vel * 0.35, vy: vel });
+
+      if (texBrillo) {
+        var b = esc.add.tileSprite(x0, y0, x1 - x0, y1 - y0, texBrillo)
+          .setOrigin(0, 0).setDepth(prof + 1).setAlpha(0.75).setMask(mascara);
+        b.setBlendMode(Phaser.BlendModes.ADD);
+        b.tilePositionX = x0; b.tilePositionY = y0;
+        esc.capas.push({ obj: b, vx: -vel * 0.18, vy: vel * 0.42 });
+      }
+    }
+    // Las capas *_interior, igual que MinaScene: el brillo se queda una
+    // casilla adentro para no rematar el lago con un filo recto encima de la
+    // onda de las piezas de transicion.
+    liquido('area_lava_interior', 'lava_flujo', 'lava_brillo', 4, 10);
+    liquido('area_agua_interior', 'agua_flujo', null, 5, 0);
+
+    // Burbujas
+    this.anims.create({
+      key: 'burbuja',
+      frames: this.anims.generateFrameNumbers('lava_burbuja', { start: 0, end: 5 }),
+      frameRate: 9, repeat: 0
+    });
+    var trozos = mapa.getObjectLayer('area_lava').objects;
+    function recolocar(spr) {
+      var t = trozos[Phaser.Math.Between(0, trozos.length - 1)];
+      spr.setPosition(t.x + Phaser.Math.Between(0, Math.max(0, t.width - 16)) + 8,
+                      t.y + Phaser.Math.Between(0, Math.max(0, t.height - 16)) + 8);
+      spr.setVisible(true).play('burbuja');
+    }
+    for (var i = 0; i < 8; i++) {
+      (function (k) {
+        var s = esc.add.sprite(0, 0, 'lava_burbuja', 0)
+          .setDepth(6).setScale(1.5).setVisible(false);
+        s.on('animationcomplete', function () {
+          s.setVisible(false);
+          esc.time.delayedCall(Phaser.Math.Between(400, 2200), function () { recolocar(s); });
+        });
+        esc.time.delayedCall(k * 260 + 200, function () { recolocar(s); });
+      })(i);
+    }
+
+    // Penumbra de cueva, igual que en la escena.
+    this.add.rectangle(0, 0, mapa.widthInPixels, mapa.heightInPixels, 0x4a5a78)
+      .setOrigin(0, 0).setDepth(9000).setAlpha(0.30)
+      .setBlendMode(Phaser.BlendModes.MULTIPLY);
+
+    // Colisiones, para verlas con la C.
+    this.pintadoColisiones = this.add.graphics().setDepth(9500).setVisible(false);
+    this.pintadoColisiones.lineStyle(1, 0xff4444, 0.9);
+    var cols = mapa.getObjectLayer('area_colision_general').objects;
+    cols.forEach(function (o) { esc.pintadoColisiones.strokeRect(o.x, o.y, o.width, o.height); });
+    this.pintadoColisiones.lineStyle(2, 0x44ff88, 1);
+    mapa.getObjectLayer('area_salida_mina').objects.forEach(function (o) {
+      esc.pintadoColisiones.strokeRect(o.x, o.y, o.width, o.height);
+    });
+
+    // La camara arranca donde aparece el jugador, o donde diga la direccion:
+    //   _prueba_mina.html#156,272        va a esa casilla
+    //   _prueba_mina.html#156,272,1.5    y ademas con ese zoom
+    // Asi se puede enlazar un sitio concreto del mapa sin tener que volar.
+    var ap = mapa.getObjectLayer('aparicion').objects[0];
+    var cam = this.cameras.main;
+    cam.setBounds(0, 0, mapa.widthInPixels, mapa.heightInPixels);
+    cam.setRoundPixels(true);
+
+    var destino = (location.hash || '').slice(1).split(',').map(Number);
+    if (destino.length >= 2 && !isNaN(destino[0]) && !isNaN(destino[1])) {
+      cam.setZoom(destino[2] > 0 ? destino[2] : 2);
+      cam.centerOn(destino[0] * 16, destino[1] * 16);
+    } else {
+      cam.setZoom(2);
+      cam.centerOn(ap.x, ap.y);
+    }
+    window.__camara = cam;
+
+    // Phaser en modo RESIZE cambia el tamano del LIENZO, pero no el de la
+    // camara: sin esto el lienzo ocupaba la ventana entera y el mapa se seguia
+    // dibujando en el rectangulo del tamano de arranque, arriba a la
+    // izquierda, con el resto en negro.
+    this.scale.on('resize', function (tam) {
+      cam.setSize(tam.width, tam.height);
+    });
+    cam.setSize(this.scale.width, this.scale.height);
+
+    this.teclas = this.input.keyboard.addKeys('W,A,S,D,LEFT,RIGHT,UP,DOWN,C');
+    this.input.on('wheel', function (p, o, dx, dy) {
+      cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.85 : 1.18), 0.15, 6));
+    });
+    this.input.keyboard.on('keydown-C', function () {
+      esc.pintadoColisiones.setVisible(!esc.pintadoColisiones.visible);
+    });
+
+    $('estado').textContent = 'mapa montado';
+    $('datos').innerHTML =
+      mapa.width + '×' + mapa.height + ' tiles (' + mapa.widthInPixels + ' px)<br>' +
+      cols.length + ' rectangulos de colision<br>' +
+      trozos.length + ' trozos de lava · ' +
+      mapa.getObjectLayer('area_agua').objects.length + ' de agua<br>' +
+      'capas de tiles: ' + ((suelo ? 1 : 0) + (objetos ? 1 : 0)) + ' · ' +
+      'llamadas de dibujo de liquidos: ' + esc.capas.length;
+
+    // Para que la captura de pantalla de la verificacion no salga con la
+    // camara a medio mover.
+    window.__minaLista = true;
+  };
+
+  Prueba.update = function (t, delta) {
+    var cam = this.cameras.main;
+    var k = this.teclas;
+    if (!k) return;
+    var v = 700 * (delta / 1000) / cam.zoom;
+    if (k.A.isDown || k.LEFT.isDown) cam.scrollX -= v;
+    if (k.D.isDown || k.RIGHT.isDown) cam.scrollX += v;
+    if (k.W.isDown || k.UP.isDown) cam.scrollY -= v;
+    if (k.S.isDown || k.DOWN.isDown) cam.scrollY += v;
+
+    var seg = delta / 1000;
+    for (var i = 0; i < this.capas.length; i++) {
+      this.capas[i].obj.tilePositionX += this.capas[i].vx * seg;
+      this.capas[i].obj.tilePositionY += this.capas[i].vy * seg;
+    }
+  };
+
+  window.__juego = new Phaser.Game({
+    type: Phaser.AUTO,
+    parent: 'juego',
+    backgroundColor: '#0d1117',
+    pixelArt: true,
+    // RESIZE y no un tamano fijo: asi el lienzo sigue a la ventana. Con
+    // width/height fijos, al cambiar el tamano del navegador el mapa se
+    // quedaba en un recuadro pequeno en la esquina.
+    scale: {
+      mode: Phaser.Scale.RESIZE,
+      parent: 'juego',
+      width: '100%',
+      height: '100%'
+    },
+    scene: Prueba
+  });
+})();
+</script>
+</body>
+</html>
