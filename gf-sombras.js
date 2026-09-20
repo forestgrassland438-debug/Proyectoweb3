@@ -204,16 +204,43 @@
    * Devuelve la clave de la textura nueva y dónde cae dentro de ella el punto
    * por el que la sombra toca el suelo, ya en forma de origen normalizado.
    */
-  function hornear(scene, claveOrigen, largo) {
-    var clave = 'gfsom_' + claveOrigen + '_' + Math.round(largo * 1000);
+  /**
+   * `nombreFrame` es para los ATLAS.
+   *
+   * FALLO QUE ARREGLA: esto horneaba una sombra POR CLAVE DE TEXTURA. Con un
+   * PNG por objeto —como el mapa de fuera— eso es correcto y ademas barato.
+   * Pero cuando varios objetos comparten un atlas, todos tienen la MISMA clave
+   * y todos recibian la silueta de la HOJA ENTERA: en la mina, sus 61 piezas
+   * salieron con una sombra rectangular de 592x107 px, el tamano del atlas.
+   *
+   * Con el nombre del frame, la clave de la sombra lo incluye y se dibuja solo
+   * ese recorte. Sin nombre se comporta exactamente como antes.
+   */
+  function hornear(scene, claveOrigen, largo, nombreFrame) {
+    var esFrame = !!(nombreFrame && nombreFrame !== '__BASE');
+    var clave = 'gfsom_' + claveOrigen + (esFrame ? '_' + nombreFrame : '') +
+                '_' + Math.round(largo * 1000);
     if (horneadas[clave] && scene.textures.exists(clave)) return horneadas[clave];
 
     var tex = scene.textures.get(claveOrigen);
     var img = tex && tex.getSourceImage ? tex.getSourceImage() : null;
     if (!img || !img.width || !img.height) return null;
 
+    var fx = 0, fy = 0;
     var w = img.width, h = img.height;
-    var caja = cajaOpaca(scene, claveOrigen);
+    var caja;
+    if (esFrame) {
+      var fr = tex.frames && tex.frames[nombreFrame];
+      if (!fr) return null;
+      fx = fr.cutX; fy = fr.cutY; w = fr.cutWidth; h = fr.cutHeight;
+      /* La caja del frame entero. Se podria medir el alfa como hace
+         gf-profundidad, pero esa cache es por TEXTURA y aqui haria falta por
+         frame; con piezas dibujadas ajustadas a su marco la diferencia es de
+         uno o dos pixeles en la base. */
+      caja = { w: w, h: h, izq: 0, der: w, arriba: 0, abajo: h };
+    } else {
+      caja = cajaOpaca(scene, claveOrigen);
+    }
     var gx = (caja.izq + caja.der) / 2;      // centro del pie, a lo ancho
     var gy = caja.abajo;                     // fila del pie
 
@@ -249,7 +276,8 @@
         ctx.filter = 'blur(' + DIFUMINA + 'px)';
       }
       ctx.setTransform(1, 0, -k, -f, gy * k - gx + offX, gy * f + offY);
-      ctx.drawImage(img, 0, 0);
+      if (esFrame) ctx.drawImage(img, fx, fy, w, h, 0, 0, w, h);
+      else ctx.drawImage(img, 0, 0);
 
       /* 2. Se tiñe conservando ese alfa: `source-in` pinta solo donde ya hay
             dibujo y respeta su transparencia, difuminado incluido. */
@@ -294,7 +322,8 @@
     var spr = item.spr;
     if (!util(spr)) return null;
     var claveOrigen = spr.texture.key;
-    var horno = hornear(scene, claveOrigen, largoDe(item.largo));
+    var horno = hornear(scene, claveOrigen, largoDe(item.largo),
+                        item.spr.frame && item.spr.frame.name);
     if (!horno) return null;
 
     var s;
@@ -405,7 +434,8 @@
   /** El dueño cambió de textura (un árbol talado pasa a tocón). */
   function rehacer(scene, d) {
     var claveOrigen = d.dueno.texture.key;
-    var horno = hornear(scene, claveOrigen, largoDe(d.largoFam));
+    var horno = hornear(scene, claveOrigen, largoDe(d.largoFam),
+                        d.dueno && d.dueno.frame && d.dueno.frame.name);
     if (!horno) return;
     d.claveOrigen = claveOrigen;
     d.horno = horno;
@@ -415,6 +445,38 @@
     } catch (e) { /* textura ya liberada: se queda con la anterior */ }
   }
 
+  /**
+   * Sprites que NO estan en las familias de arriba y aun asi quieren sombra.
+   *
+   * `candidatos()` busca por NOMBRE (scene.arbol1, scene.pino4, la lista de
+   * EDIFICIOS): funciona para el mapa de fuera, donde cada objeto se guarda en
+   * una propiedad con nombre fijo, pero no sirve para escenas que crean sus
+   * objetos en un bucle — como la mina, que saca sus pedruscos, racimos,
+   * vagonetas y arcos de una capa del mapa.
+   *
+   * Con `montar(scene, { extra: [...] })` esas escenas pasan sus sprites y
+   * reciben la MISMA sombra que un arbol: proyectada por cizalla hacia abajo y
+   * a la derecha, horneada por textura. La alternativa era que cada escena se
+   * dibujara la suya, y una sombra pintada a mano no se puede orientar.
+   */
+  function extras(opciones) {
+    var lista = opciones && opciones.extra;
+    if (!lista || !lista.length) return [];
+    var out = [];
+    for (var i = 0; i < lista.length; i++) {
+      var e = lista[i];
+      var spr = e && e.spr ? e.spr : e;
+      if (!util(spr)) continue;
+      out.push({
+        spr: spr,
+        largo: (e && e.largo) || LARGO_EDIFICIO,
+        alfa: (e && e.alfa) || ALFA_EDIFICIO,
+        mece: !!(e && e.mece)
+      });
+    }
+    return out;
+  }
+
   function montar(scene, opciones) {
     opciones = opciones || {};
     if (!scene || !scene.add) return null;
@@ -422,7 +484,7 @@
 
     var st = {
       scene: scene,
-      pendientes: candidatos(scene),
+      pendientes: candidatos(scene).concat(extras(opciones)),
       sombras: [],
       hechas: 0,
       // Se arranca con la luz REAL, no con 1: si entras de noche las sombras
@@ -531,7 +593,8 @@
     for (var i = 0; i < st.sombras.length; i++) {
       var d = st.sombras[i];
       if (!d.spr) continue;
-      var horno = hornear(scene, d.claveOrigen, largoDe(d.largoFam));
+      var horno = hornear(scene, d.claveOrigen, largoDe(d.largoFam),
+                          d.dueno && d.dueno.frame && d.dueno.frame.name);
       if (!horno) continue;
       d.horno = horno;
       d.spr.setTexture(horno.clave);

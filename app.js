@@ -813,7 +813,7 @@
   function registerSceneClasses(game) {
     if (!game || !game.scene || game.pendingDestroy) return false;
     var scenes = new Map();
-    var knownNames = ['LoadingScenegame', 'GameScene', 'MinaScene', 'tiendajuego', 'LoadingSceneshop', 'BattleScene'];
+    var knownNames = ['LoadingScenegame', 'GameScene', 'MinaScene', 'LandsScene', 'tiendajuego', 'LoadingSceneshop', 'BattleScene'];
     if (root.__secureSceneRegistry instanceof root.Map) {
       root.__secureSceneRegistry.forEach(function (cls, key) {
         if (validSceneName(key) && Utils.isFunction(cls)) scenes.set(key, cls);

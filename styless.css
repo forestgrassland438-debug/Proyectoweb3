@@ -12963,6 +12963,10 @@ html.gf-teclado-abierto #chat-panel {
 
    El contenedor ya es `display:flex; flex-direction:column`, así que `order`
    manda sin más. */
+/* LANDS va el PRIMERO, encima de Dashboard. En el HTML está el último por el
+   mismo motivo que Friends (los índices de la NodeList), así que su sitio se
+   decide aquí. `order: 0` lo pone delante de todos sin tocar ni un índice. */
+#game-hud .round-buttons #lands-btn              { order: 0; }  /* Lands        */
 #game-hud .round-buttons .round-btn:nth-child(1) { order: 1; }  /* Dashboard    */
 #game-hud .round-buttons .round-btn:nth-child(2) { order: 2; }  /* Mail         */
 #game-hud .round-buttons #friends-btn            { order: 3; }  /* Friends      */

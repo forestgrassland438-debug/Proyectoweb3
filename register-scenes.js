@@ -161,6 +161,8 @@
     // cargarse, el juego tiene que seguir arrancando —solo se quedaria sin la
     // mina— en vez de avisar de escena requerida que falta y parar.
     { name: 'MinaScene',        required: false },
+    // La isla de las parcelas. required:false por lo mismo que la mina.
+    { name: 'LandsScene',       required: false },
     { name: 'tiendajuego',      required: true  },
     { name: 'LoadingSceneshop', required: true  },
     // Batallas P2P de mascotas. required:false para que, si el archivo no
