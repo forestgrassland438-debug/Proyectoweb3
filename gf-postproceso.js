@@ -316,7 +316,9 @@
   var V = null;                 // valores que se están pintando ahora
   var destino = null;           // hacia dónde van
   var montado = null;           // { scene, cam, clave }
-  var registrado = {};          // qué tuberías ya están dadas de alta
+  // El juego puede destruirse y arrancar otra vez en la misma página.
+  // Registrar en el renderer anterior no registra en el siguiente.
+  var registrados = new WeakMap();
 
   function nuevoValor() {
     var L = LOOKS.normal;
@@ -385,6 +387,9 @@
     if (!game.renderer.pipelines || !game.renderer.pipelines.addPostPipeline) return null;
 
     var clave = NOMBRE + (conTaps ? '' : '-ligero');
+    var manager = game.renderer.pipelines;
+    var registrado = registrados.get(manager);
+    if (!registrado) { registrado = Object.create(null); registrados.set(manager, registrado); }
     if (registrado[clave]) return clave;
 
     var Clase = claseTuberia(conTaps);
@@ -602,7 +607,7 @@
 
   function montar(scene, opciones) {
     opciones = opciones || {};
-    if (!scene || !scene.cameras || !scene.cameras.main) return null;
+    if (!scene || !scene.events || !scene.cameras || !scene.cameras.main) return null;
     if (scene.__gfPost) return scene.__gfPost;
 
     var cal = opciones.calidad || calidad();
@@ -621,11 +626,12 @@
     try {
       cam.setPostPipeline(clave);
     } catch (e) {
+      try { if (cam.removePostPipeline) cam.removePostPipeline(clave); } catch (ignore) {}
       console.warn('[post] la cámara no aceptó la tubería:', e && e.message);
       return null;
     }
 
-    if (!V) V = nuevoValor();
+    V = nuevoValor();
     var st = {
       scene: scene, cam: cam, clave: clave, conTaps: conTaps, movil: movil,
       quieto: false, px: 0, py: 0, ultimoMovimiento: 0,
@@ -635,6 +641,7 @@
     montado = st;
 
     st.onUpdate = function (ahora, delta) {
+      if (!Number.isFinite(ahora) || !Number.isFinite(delta) || delta < 0) return;
       vigilarJugador(st, ahora);
       destino = calcularDestino(st);
       acercar(st, Math.min(delta, 100));
@@ -662,9 +669,12 @@
       scene.events.off('shutdown', st.onApagar);
       scene.events.off('destroy', st.onApagar);
     }
-    try { if (st.cam && st.cam.resetPostPipeline) st.cam.resetPostPipeline(); } catch (e) {}
+    // La cámara también puede tener el efecto de muerte u otro postproceso.
+    // Destruir solo el nuestro evita borrar sus recursos y su estado.
+    try { if (st.cam && st.cam.removePostPipeline) st.cam.removePostPipeline(st.clave); } catch (e) {}
     scene.__gfPost = null;
-    if (montado === st) montado = null;
+    if (montado === st) { montado = null; V = destino = null; }
+    st.scene = st.cam = st.onUpdate = st.onApagar = st.manual = null;
   }
 
   /**

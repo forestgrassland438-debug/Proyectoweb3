@@ -117,10 +117,52 @@
 
   var ALFA_MIN = 8;                  // a partir de aquí un píxel cuenta
 
-  /* Texturas ya dibujadas. En el módulo y no en la escena: las texturas viven
-     en game.textures y sobreviven al cambio de escena, así que al volver al
-     mapa no hay que dibujar nada otra vez. */
-  var hechas = {};
+  // Las capas pueden tener el tamaño de una casa completa. Mantenerlas en
+  // game.textures tras derretirse retenía tanto el canvas como la copia GPU.
+  // Se comparten mientras haya una escena que las use y luego se eliminan.
+  var texturasPorManager = new WeakMap();
+
+  function retenerTextura(scene, clave, creada) {
+    var st = scene.__gfNieveSt;
+    if (!st) return clave;
+    var cache = texturasPorManager.get(scene.textures);
+    if (!cache) { cache = new Map(); texturasPorManager.set(scene.textures, cache); }
+    var duenos = cache.get(clave);
+    if (!duenos && creada) { duenos = new Set(); cache.set(clave, duenos); }
+    if (duenos) { duenos.add(st); st.texturas.add(clave); }
+    return clave;
+  }
+
+  function liberarTexturas(st) {
+    var manager = st.scene && st.scene.textures;
+    var cache = manager && texturasPorManager.get(manager);
+    if (cache) st.texturas.forEach(function (clave) {
+      var duenos = cache.get(clave);
+      if (!duenos) return;
+      duenos.delete(st);
+      if (!duenos.size) {
+        try { if (manager.exists(clave)) manager.remove(clave); } catch (e) { log('no se pudo liberar', clave, e); }
+        cache.delete(clave);
+      }
+    });
+    st.texturas.clear();
+  }
+
+  function destruirObjeto(obj) {
+    try { if (obj && obj.destroy) obj.destroy(); } catch (e) { log('no se pudo liberar un objeto', e); }
+  }
+
+  function retirarManto(st) {
+    st.capas.forEach(function (d) {
+      destruirObjeto(d.spr);
+      if (d.dueno && d.dueno.__gfNieve === d) d.dueno.__gfNieve = null;
+      d.spr = d.dueno = null;
+    });
+    st.manchas.forEach(function (m) { destruirObjeto(m.spr); m.spr = null; });
+    st.capas.length = st.manchas.length = 0;
+    st.cursor = st.hechas = st.proximaMancha = 0;
+    liberarTexturas(st);
+  }
 
   function log() {
     if (!window.GF_NIEVE_DEBUG) return;
@@ -139,7 +181,8 @@
     try {
       var e = C.estado();
       if (!e || !e.activo || !e.nieve) return 0;
-      return Math.max(0, Math.min(1, Number(e.nieveFuerza) || 1));
+      var fuerza = Number(e.nieveFuerza);
+      return Number.isFinite(fuerza) ? Math.max(0, Math.min(1, fuerza)) : 1;
     } catch (e) { return 0; }
   }
   var forzado = null;
@@ -165,7 +208,7 @@
    */
   function texturaMancha(scene, n) {
     var clave = 'gfn_mancha_' + n;
-    if (scene.textures.exists(clave)) return clave;
+    if (scene.textures.exists(clave)) return retenerTextura(scene, clave);
     var T = 96;
     try {
       var cv = document.createElement('canvas');
@@ -192,7 +235,7 @@
       if (t && t.setFilter && window.Phaser && Phaser.Textures) {
         t.setFilter(Phaser.Textures.FilterMode.LINEAR);
       }
-      return clave;
+      return retenerTextura(scene, clave, true);
     } catch (e) { return null; }
   }
 
@@ -213,18 +256,23 @@
    */
   function texturaCapa(scene, claveOrigen) {
     var clave = 'gfn_capa_' + claveOrigen;
-    if (hechas[clave] && scene.textures.exists(clave)) return clave;
+    if (scene.textures.exists(clave)) return retenerTextura(scene, clave);
 
     var tex = scene.textures.get(claveOrigen);
     var img = tex && tex.getSourceImage ? tex.getSourceImage() : null;
     if (!img || !img.width || !img.height) return null;
-    var w = img.width, h = img.height;
+    // El contorno se dibuja a resolución limitada y se escala con el sprite;
+    // una textura de origen grande no necesita otra copia RGBA completa.
+    var escala = Math.min(1, 1024 / Math.max(img.width, img.height));
+    var w = Math.max(1, Math.round(img.width * escala));
+    var h = Math.max(1, Math.round(img.height * escala));
+    var lec = null;
 
     try {
-      var lec = document.createElement('canvas');
+      lec = document.createElement('canvas');
       lec.width = w; lec.height = h;
       var lc = lec.getContext('2d', { willReadFrequently: true });
-      lc.drawImage(img, 0, 0);
+      lc.drawImage(img, 0, 0, w, h);
       var d = lc.getImageData(0, 0, w, h).data;
 
       // Primer píxel pintado de cada columna. -1 = columna vacía.
@@ -275,11 +323,13 @@
       if (t2 && t2.setFilter && window.Phaser && Phaser.Textures) {
         t2.setFilter(Phaser.Textures.FilterMode.LINEAR);
       }
-      hechas[clave] = true;
-      return clave;
+      return retenerTextura(scene, clave, true);
     } catch (e) {
       log('no se pudo dibujar la capa de', claveOrigen, e && e.message);
       return null;
+    } finally {
+      // Suelta el buffer de lectura inmediatamente, incluido el caso vacío.
+      if (lec) { lec.width = 0; lec.height = 0; }
     }
   }
 
@@ -329,16 +379,18 @@
 
   function ponerCapa(scene, spr) {
     var clave = texturaCapa(scene, spr.texture.key);
-    if (!clave) { spr.__gfNieve = 'no'; return null; }
+    if (!clave) return null;
     var s;
-    try { s = scene.add.image(spr.x, spr.y, clave); } catch (e) { return null; }
-    s.setOrigin(spr.originX, spr.originY);
-    s.setDisplaySize(spr.displayWidth, spr.displayHeight);
-    s.setScrollFactor(spr.scrollFactorX, spr.scrollFactorY);
-    s.setDepth(profundidadDe(spr));
-    s.setAlpha(0);
-    s.setVisible(false);
-    if (s.disableInteractive) s.disableInteractive();
+    try {
+      s = scene.add.image(spr.x, spr.y, clave);
+      s.setOrigin(spr.originX, spr.originY);
+      s.setDisplaySize(spr.displayWidth, spr.displayHeight);
+      s.setScrollFactor(spr.scrollFactorX, spr.scrollFactorY);
+      s.setDepth(profundidadDe(spr));
+      s.setAlpha(0);
+      s.setVisible(false);
+      if (s.disableInteractive) s.disableInteractive();
+    } catch (e) { destruirObjeto(s); return null; }
     var d = { spr: s, dueno: spr, clave: spr.texture.key };
     spr.__gfNieve = d;
     return d;
@@ -355,12 +407,15 @@
   function nuevaMancha(st, n) {
     var clave = texturaMancha(st.scene, n % 4);
     if (!clave) return null;
-    var s = st.scene.add.image(0, 0, clave);
-    s.setOrigin(0.5, 0.5);
-    s.setDepth(PROF_MANCHA);
-    s.setAlpha(0);
-    s.setVisible(false);
-    if (s.disableInteractive) s.disableInteractive();
+    var s;
+    try {
+      s = st.scene.add.image(0, 0, clave);
+      s.setOrigin(0.5, 0.5);
+      s.setDepth(PROF_MANCHA);
+      s.setAlpha(0);
+      s.setVisible(false);
+      if (s.disableInteractive) s.disableInteractive();
+    } catch (e) { destruirObjeto(s); return null; }
     return { spr: s, viva: false };
   }
 
@@ -402,19 +457,26 @@
   // ═══════════════════════════════════════════════════════════ MONTAJE
   function montar(scene, opciones) {
     opciones = opciones || {};
-    if (!scene || !scene.add) return null;
+    if (!scene || !scene.add || !scene.events || !scene.textures) return null;
     if (scene.__gfNieveSt) { recalcular(scene); return scene.__gfNieveSt; }
 
     var st = {
       scene: scene,
       pendientes: candidatos(scene),
       capas: [], manchas: [],
+      texturas: new Set(),
       manto: 0, proximaMancha: 0, cursor: 0, hechas: 0,
-      porFrame: opciones.porFrame || POR_FRAME
+      porFrame: Number.isFinite(opciones.porFrame) ? Math.max(1, Math.min(20, Math.floor(opciones.porFrame))) : POR_FRAME
     };
     scene.__gfNieveSt = st;
 
+    st.onApagar = function () { desmontar(scene); };
+    scene.events.once('shutdown', st.onApagar);
+    scene.events.once('destroy', st.onApagar);
+
     st.onUpdate = function (ahora, delta) {
+      if (!st.scene || !Number.isFinite(ahora) || !Number.isFinite(delta) || delta < 0) return;
+      delta = Math.min(delta, 100);
       var i, d;
       var quiere = nieveMandada();
       var nevando = quiere > 0.05;
@@ -423,6 +485,14 @@
          que hace que se lea como acumulación y no como un interruptor. */
       var paso = delta / (nevando ? CUAJA_MS : -DERRITE_MS);
       st.manto = Math.max(0, Math.min(1, st.manto + paso * (nevando ? quiere : 1)));
+
+      if (!nevando && st.manto <= 0.001) {
+        if (st.capas.length || st.manchas.length || st.texturas.size) {
+          retirarManto(st);
+          st.pendientes = candidatos(scene);
+        }
+        return;
+      }
 
       // Nada que hacer y nada puesto: se sale enseguida.
       if (st.manto <= 0.001 && !st.capas.length && !st.pendientes.length) return;
@@ -436,6 +506,12 @@
             ciento cincuenta texturas de golpe es un tirón al entrar. Solo se
             hace cuando ya está nevando; si no nieva nunca, no se paga nada. */
       if (st.manto > 0.01) {
+        if (!st.manchas.length) {
+          for (var j = 0; j < N_MANCHAS; j++) {
+            var mancha = nuevaMancha(st, j);
+            if (mancha) st.manchas.push(mancha);
+          }
+        }
         var n = Math.min(st.porFrame, st.pendientes.length);
         for (i = 0; i < n; i++) {
           var spr = st.pendientes.shift();
@@ -474,7 +550,7 @@
         var dueno = d.dueno;
 
         if (!dueno || !dueno.scene || dueno.active === false) {
-          if (d.spr) d.spr.destroy();
+          destruirObjeto(d.spr);
           if (dueno && dueno.__gfNieve === d) dueno.__gfNieve = null;
           st.capas.splice(st.cursor, 1);
           continue;
@@ -499,14 +575,6 @@
     };
     scene.events.on('update', st.onUpdate);
 
-    for (var j = 0; j < N_MANCHAS; j++) {
-      var m = nuevaMancha(st, j);
-      if (m) st.manchas.push(m);
-    }
-
-    st.onApagar = function () { desmontar(scene); };
-    scene.events.once('shutdown', st.onApagar);
-    scene.events.once('destroy', st.onApagar);
     log('montado con', st.pendientes.length, 'objetos');
     return st;
   }
@@ -514,33 +582,25 @@
   function desmontar(scene) {
     var st = scene && scene.__gfNieveSt;
     if (!st) return;
+    scene.__gfNieveSt = null;
     if (st.onUpdate) scene.events.off('update', st.onUpdate);
     if (st.onApagar) {
       scene.events.off('shutdown', st.onApagar);
       scene.events.off('destroy', st.onApagar);
     }
-    var i;
-    for (i = 0; i < st.capas.length; i++) {
-      var d = st.capas[i];
-      if (d.spr) d.spr.destroy();
-      if (d.dueno && d.dueno.__gfNieve === d) d.dueno.__gfNieve = null;
-    }
-    for (i = 0; i < st.pendientes.length; i++) {
+    retirarManto(st);
+    for (var i = 0; i < st.pendientes.length; i++) {
       if (st.pendientes[i]) st.pendientes[i].__gfNieve = null;
     }
-    for (i = 0; i < st.manchas.length; i++) {
-      if (st.manchas[i].spr) st.manchas[i].spr.destroy();
-    }
     st.capas.length = 0; st.manchas.length = 0; st.pendientes.length = 0;
-    scene.__gfNieveSt = null;
-    /* Las texturas dibujadas NO se borran: son pocas y pequeñas, viven en
-       game.textures y así al volver al mapa la nieve aparece sin redibujar. */
+    st.scene = st.onUpdate = st.onApagar = null;
   }
 
   function recalcular(scene) {
     var st = scene && scene.__gfNieveSt;
     if (!st) return 0;
-    var nuevos = candidatos(scene);
+    var pendientes = new Set(st.pendientes);
+    var nuevos = candidatos(scene).filter(function (spr) { return !pendientes.has(spr); });
     if (nuevos.length) st.pendientes = st.pendientes.concat(nuevos);
     return nuevos.length;
   }

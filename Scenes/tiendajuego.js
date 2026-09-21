@@ -39,17 +39,8 @@ class tiendajuego extends Phaser.Scene {
       this._windowMs = 1000; // 1 segundo entre tandas
       this.lenguaje = 0;
 
-      if (!this.notifications) {
-        this.notifications = new NotificationHub({
-          width: 350,
-          animationDuration: 400,
-          visibleDuration: 2000,
-          maxNotifications: 10,
-          spacing: 15,
-          debug: true,
-          autoCleanup: true
-        });
-      }
+      // Una escena registrada con autoStart:false no debe crear relojes DOM.
+      this.notifications = null;
 
           // ====== EN EL CONSTRUCTOR ======
     this.dog = {
@@ -594,6 +585,19 @@ showNotification(message, type = 'info') {
     }
   
     async create() {
+    const sceneRunId = this._sceneRunId = (this._sceneRunId || 0) + 1;
+    this._sceneStopped = false;
+    this._shopCleanupDone = false;
+    this.events.off('shutdown', this.performCleanup, this);
+    this.events.off('destroy', this.performCleanup, this);
+    this.events.once('shutdown', this.performCleanup, this);
+    this.events.once('destroy', this.performCleanup, this);
+    if (!this.notifications) {
+      this.notifications = new NotificationHub({
+        width: 350, animationDuration: 400, visibleDuration: 2000,
+        maxNotifications: 10, spacing: 15, debug: true, autoCleanup: true
+      });
+    }
 
     // ── Candados de la puerta de salida ─────────────────────────────────────
     // Phaser reutiliza la instancia de la escena: sin reiniciarlos, la puerta
@@ -626,6 +630,7 @@ showNotification(message, type = 'info') {
     }
 
     const isAuthenticated = await this.loadx();
+    if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
         
     
 
@@ -685,6 +690,7 @@ this.errorReporter = new PhaserErrorReporter(
 */
     
     if (this.loadMissionsData) await this.loadMissionsData();
+    if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
 
     // ── Inicializar sincronización de stats con el contrato ──
     this._initStatsSync();
@@ -1542,7 +1548,8 @@ this.anims.create({
 
       
 
-(function initHubPanel(){
+(function initHubPanel(owner){
+  if (owner._sceneStopped) return;
   const panel = document.getElementById('hub-panel_101');
   const applyBtn = document.getElementById('apply-name');
   const closePanelBtn = document.getElementById('close-panel');
@@ -1558,9 +1565,9 @@ this.anims.create({
     console.warn(`⚠️ Dashboard aún no disponible para hubPanel (intento ${window.__hubPanelTries})`);
     if (window.__hubPanelTries <= 20) {
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initHubPanel, { once: true });
+        owner._onDOM(document, 'DOMContentLoaded', () => initHubPanel(owner), { once: true });
       } else {
-        setTimeout(initHubPanel, 500);
+        owner._sceneTimeout(() => initHubPanel(owner), 500);
       }
     }
     return;
@@ -1675,7 +1682,7 @@ this.anims.create({
   }
 
   // Evitar que al escribir se inserten caracteres no permitidos y forzar maxlength
-  nameInput.addEventListener('input', (e) => {
+  owner._onDOM(nameInput, 'input', (e) => {
     const clean = sanitizeName(e.target.value);
     if (e.target.value !== clean) {
       // reemplaza el valor (esto evita caracteres inválidos en tiempo real)
@@ -1686,7 +1693,7 @@ this.anims.create({
   });
 
   // Sanitizar pegado (paste) para prevenir inyección por paste
-  nameInput.addEventListener('paste', (e) => {
+  owner._onDOM(nameInput, 'paste', (e) => {
     e.preventDefault();
     const text = (e.clipboardData || window.clipboardData).getData('text') || '';
     const clean = sanitizeName(text);
@@ -1764,7 +1771,7 @@ this.anims.create({
   // salía vacío del saneado, el único aviso era un console.log, así que el
   // botón parecía roto. Ahora aplica de verdad, con la misma regla de "una
   // sola vez" y con avisos visibles.
-  applyBtn.addEventListener('click', ()=>{
+  owner._onDOM(applyBtn, 'click', ()=>{
     if(nameInput.hasAttribute('disabled') || nameInput.disabled) return;
 
     const scene = phaserScene || resolvePhaserScene();
@@ -1777,7 +1784,7 @@ this.anims.create({
     // Regla de nombre único: si ya está fijado, no se admiten cambios
     const actual = scene && typeof scene.Username === 'string' ? scene.Username : '';
     if (actual.trim() !== '' && actual !== '---') {
-      window.hubPanel.setActtov(1);
+      window.hubPanel?.setActtov(1);
       notify('Your character name is already set and cannot be changed.', 'error');
       return;
     }
@@ -1836,14 +1843,14 @@ this.anims.create({
   });
 
 
-  closePanelBtn.addEventListener('click', ()=>{
+  owner._onDOM(closePanelBtn, 'click', ()=>{
     hidePanel();
   });
 
   // Logout — antes solo llamaba a options.onLogout, que es null por defecto:
   // el botón NO cerraba nada. Ahora hace el cierre COMPLETO: sesión del
   // backend + wallet desconectada + limpieza + redirección al login.
-  logoutBtn.addEventListener('click', ()=>{
+  owner._onDOM(logoutBtn, 'click', ()=>{
     console.log('cerrando session');
     if(typeof options.onLogout === 'function'){
       try{ options.onLogout(); }catch(e){ console.warn('onLogout callback error',e); }
@@ -1852,7 +1859,7 @@ this.anims.create({
   });
 
   // Lenguaje: 1 => inglés, 2 => español
-  langSelect.addEventListener('change', ()=>{
+  owner._onDOM(langSelect, 'change', ()=>{
     const v = langSelect.value;
     if(v === 'en'){
       console.log(1);
@@ -1865,13 +1872,13 @@ this.anims.create({
   });
 
   // Evitar conflictos con la entrada de teclado de la escena Phaser cuando el input está enfocado
-  nameInput.addEventListener('focus', ()=>{
+  owner._onDOM(nameInput, 'focus', ()=>{
     // Deshabilitar captura global del teclado en la escena (si existe)
     if(phaserScene && phaserScene.input && phaserScene.input.keyboard){
       try{ phaserScene.input.keyboard.enabled = false; }catch(e){ /* no crítico */ }
     }
   });
-  nameInput.addEventListener('blur', ()=>{
+  owner._onDOM(nameInput, 'blur', ()=>{
     if(phaserScene && phaserScene.input && phaserScene.input.keyboard){
       try{ phaserScene.input.keyboard.enabled = true; }catch(e){ /* no crítico */ }
     }
@@ -1879,7 +1886,7 @@ this.anims.create({
 
   // También detener propagación de eventos de teclado cuando se escribe dentro del input
   ['keydown','keyup','keypress'].forEach(evtName=>{
-    nameInput.addEventListener(evtName, e=>{
+    owner._onDOM(nameInput, evtName, e=>{
       e.stopPropagation();
     });
   });
@@ -1901,11 +1908,11 @@ this.anims.create({
   if(typeof window._acttov !== 'undefined') applyActtov();
 
   // Tecla Esc para cerrar (útil cuando el panel está sobre el juego)
-  window.addEventListener('keydown', (e)=>{
+  owner._onDOM(window, 'keydown', (e)=>{
     if(e.key === 'Escape') hidePanel();
   });
 
-})(); // end IIFE
+})(this); // end IIFE
 
 // Nota: llama window.hubPanel.init(this) desde create() de tu escena Phaser:
 // ejemplo:
@@ -1914,7 +1921,7 @@ this.anims.create({
 // }
 
 
-      window.hubPanel.init(this)
+      if (window.hubPanel) { window.hubPanel.init(this); this._hubPanel = window.hubPanel; }
 
       
 
@@ -1990,7 +1997,7 @@ this.anims.create({
     this.innerBtn = document.querySelector('.inner-btn');
 
     if (this.innerBtn) {
-        this.innerBtn.addEventListener('click', this.onInnerBtnClick);
+        this._onDOM(this.innerBtn, 'click', this.onInnerBtnClick);
     }
 
 
@@ -2010,17 +2017,17 @@ this.anims.create({
     const _notifCloseBtn = document.getElementById('notif-close');
     if (_notifCloseBtn && !_notifCloseBtn._tiendaWired) {
       _notifCloseBtn._tiendaWired = true;
-      _notifCloseBtn.addEventListener('click', () => this._closeNotifPanel());
+      this._onDOM(_notifCloseBtn, 'click', () => this._closeNotifPanel());
     }
     const _notifMarkAll = document.getElementById('notif-mark-all-read');
     if (_notifMarkAll && !_notifMarkAll._tiendaWired) {
       _notifMarkAll._tiendaWired = true;
-      _notifMarkAll.addEventListener('click', () => this._markAllNotifRead());
+      this._onDOM(_notifMarkAll, 'click', () => this._markAllNotifRead());
     }
     const _notifClearAll = document.getElementById('notif-clear-all');
     if (_notifClearAll && !_notifClearAll._tiendaWired) {
       _notifClearAll._tiendaWired = true;
-      _notifClearAll.addEventListener('click', () => this._clearAllNotif());
+      this._onDOM(_notifClearAll, 'click', () => this._clearAllNotif());
     }
 
     // ---------- BOTÓN 0 (Dashboard)
@@ -2125,10 +2132,10 @@ this.anims.create({
     if (window.GFLands)       window.GFLands.montar(this);
 
     // ASIGNAR LISTENERS
-    this.roundButtons[0]?.addEventListener('click', this.onRoundBtnDashboard);
-    this.roundButtons[1]?.addEventListener('click', this.onRoundBtnMail);
+    this._onDOM(this.roundButtons[0], 'click', this.onRoundBtnDashboard);
+    this._onDOM(this.roundButtons[1], 'click', this.onRoundBtnMail);
     
-    this.roundButtons[2]?.addEventListener('click', this.onRoundBtnStats);
+    this._onDOM(this.roundButtons[2], 'click', this.onRoundBtnStats);
 
     // ---------- BOTÓN 3 (Transactions)
     this.onRoundBtnTransactions = () => {
@@ -2146,7 +2153,7 @@ this.anims.create({
         panel.style.display = 'none';
       }
     };
-    this.roundButtons[3]?.addEventListener('click', this.onRoundBtnTransactions);
+    this._onDOM(this.roundButtons[3], 'click', this.onRoundBtnTransactions);
 
     // ---------- BOTÓN 4 (NFT)
     this.onRoundBtnNFT = () => {
@@ -2184,7 +2191,7 @@ this.anims.create({
         panel.style.display = 'none';
       }
     };
-    this.roundButtons[4]?.addEventListener('click', this.onRoundBtnNFT);
+    this._onDOM(this.roundButtons[4], 'click', this.onRoundBtnNFT);
 
     // ---------- BOTÓN 5 (Skills)
     //
@@ -2252,7 +2259,7 @@ this.anims.create({
       const marketUrl = new URL('market.html', window.location.href).href;
       window.open(marketUrl, '_blank');
     };
-    this.roundButtons[6]?.addEventListener('click', this.onRoundBtnStore);
+    this._onDOM(this.roundButtons[6], 'click', this.onRoundBtnStore);
 
     // Apply custom cursor image for tiendajuego + re-apply after scene settles
     this.input.setDefaultCursor('url("./Game/Source/cursor.png") 8 8, pointer');
@@ -2441,8 +2448,7 @@ this.anims.create({
         */
 
         // 4) Botón de cerrar inventario (HTML Overlay)
-        document.querySelector('#inventory-panel .cerrar-hud')
-          .addEventListener('click', () => {
+        this._onDOM(document.querySelector('#inventory-panel .cerrar-hud'), 'click', () => {
             this.hideInventory();
           });
 
@@ -2584,7 +2590,7 @@ boton3.on("pointerdown", () => {
     this.loadState();
 
     // Añadir listener
-    this.profileImage.addEventListener("click", this.toggleHubInfo);
+    this._onDOM(this.profileImage, "click", this.toggleHubInfo);
 
 
 
@@ -2778,7 +2784,7 @@ this.actualizarTemporizadoresDesdeStorage();
 
 
 
-    window.addEventListener('beforeunload', () => {
+    this._onDOM(window, 'beforeunload', () => {
         this.handlePageUnload();
     });
 
@@ -3959,7 +3965,7 @@ _soltarJugadorRemoto(p) {
 }
 
 clearOtherPlayers() {
-  Object.values(this.otherPlayers).forEach(p => this._soltarJugadorRemoto(p));
+  Object.values(this.otherPlayers || {}).forEach(p => this._soltarJugadorRemoto(p));
   this.otherPlayers = {};
 }
 
@@ -4429,6 +4435,11 @@ removeOtherPlayer(playerId) {
     }
 
     performCleanup() {
+      if (this._shopCleanupDone) return;
+      this._shopCleanupDone = true;
+      this._sceneStopped = true;
+      this.events.off('shutdown', this.performCleanup, this);
+      this.events.off('destroy', this.performCleanup, this);
       // ULTIMA OPORTUNIDAD DE GUARDAR: ver el comentario gemelo en GameScene.
       // Sin esto, vender algo y salir enseguida de la tienda perdia la venta.
       try { this.flushGuardado && this.flushGuardado('cerrar la tienda'); } catch (e) {}
@@ -4454,6 +4465,41 @@ removeOtherPlayer(playerId) {
       // NO desconectar el socket global
       // Solo dejar de hacer referencia a él
       this.socket = null;
+
+      this._offDOM();
+      const callbacks = this._sceneCleanupCallbacks || [];
+      this._sceneCleanupCallbacks = [];
+      callbacks.forEach(fn => { try { fn(); } catch (e) {} });
+      for (const key of ['_typingTimer', '_localBubbleTimer', '_relojColaChat', '_regenVitalesTimer']) {
+        if (this[key] != null) { clearTimeout(this[key]); clearInterval(this[key]); }
+        this[key] = null;
+      }
+      this._colaEnvioChat = [];
+      if (this._sceneTimeouts) {
+        this._sceneTimeouts.forEach(timer => clearTimeout(timer));
+        this._sceneTimeouts.clear();
+      }
+      try { this._cleanupTutorial(); } catch (e) {}
+      try { this._cancelarArrastre(); } catch (e) {}
+      try { this.stopMusicSafely(); } catch (e) {}
+      if (this.audioState && this.audioState.activeSFX) {
+        this.audioState.activeSFX.forEach(sound => { try { sound.destroy(); } catch (e) {} });
+        this.audioState.activeSFX.clear();
+      }
+      this.soundHubElements = null;
+      try { this.statsSync?.destroy?.(); } catch (e) {}
+      this.statsSync = null;
+      this._statsReady = false;
+      try { this.map?.destroy(); } catch (e) {}
+      this.map = null;
+      this.backgroundLayer = null;
+      this.chunkObjectsMap?.clear();
+      if (window.tiendaSistema?.scene === this) window.tiendaSistema.scene = null;
+      if (this._hubPanel && window.hubPanel === this._hubPanel) {
+        this._hubPanel.init(null);
+        window.hubPanel = null;
+      }
+      this._hubPanel = null;
       
       /* EL HUB DE NOTIFICACIONES, QUE SE QUEDABA VIVO.
        *
@@ -4758,6 +4804,7 @@ removeOtherPlayer(playerId) {
   }
 
   _setupChatDom() {
+  this._offDOM('chat');
     this.openBtn = document.getElementById('open-chat-btn');
     this.chatPanel = document.getElementById('chat-panel');
     this.chatMessages = document.getElementById('chat-messages');
@@ -4797,12 +4844,12 @@ removeOtherPlayer(playerId) {
       this.openBtn.removeEventListener('keyup', this.openBtn._gfChatKeyup);
     }
     this.openBtn._gfChatKeyup = (e) => { if (e.key === 'Enter') toggleChat(); };
-    this.openBtn.addEventListener('keyup', this.openBtn._gfChatKeyup);
+    this._onDOM(this.openBtn, 'keyup', this.openBtn._gfChatKeyup, undefined, 'chat');
 
     // Selector de emojis, igual que en GameScene.
     this._montarSelectorEmojis();
 
-    this.chatInput.addEventListener('keydown', (e) => {
+    this._onDOM(this.chatInput, 'keydown', (e) => {
       e.stopPropagation();
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -4810,11 +4857,11 @@ removeOtherPlayer(playerId) {
       } else if (e.key === 'Escape') {
         toggleChat(false);
       }
-    });
+    }, undefined, 'chat');
 
     this._typingTimer = null;
     this._isTyping = false;
-    this.chatInput.addEventListener('input', () => {
+    this._onDOM(this.chatInput, 'input', () => {
       if (this.chatInput.value.length > 0) {
         if (!this._isTyping) {
           this._isTyping = true;
@@ -4833,7 +4880,7 @@ removeOtherPlayer(playerId) {
         if (this.socket && this.socket.connected)
           this.socket.emit('chatTyping', { typing: false, usernamex: this.Username || '---' });
       }
-    });
+    }, undefined, 'chat');
 
   }
 
@@ -5610,18 +5657,19 @@ updateSoundHubControls() {
 
 // Configurar eventos del panel de sonido
 setupSoundHubEvents() {
+  this._offDOM('sound-hub');
   const el = this.soundHubElements;
   
   // Cerrar panel
   if (el.closeBtn) {
-    el.closeBtn.addEventListener('click', () => {
+    this._onDOM(el.closeBtn, 'click', () => {
       this.hideSoundHub();
-    });
+    }, undefined, 'sound-hub');
   }
   
   // Control deslizante de música
   if (el.musicSlider) {
-    el.musicSlider.addEventListener('input', (e) => {
+    this._onDOM(el.musicSlider, 'input', (e) => {
       const value = parseInt(e.target.value);
       el.musicPercent.textContent = `${value}%`;
       el.musicSliderFill.style.width = `${value}%`;
@@ -5639,29 +5687,29 @@ setupSoundHubEvents() {
         localStorage.setItem('grassland_music_volume', this.audioState._musicVolumeReal.toString());
         localStorage.setItem('grassland_music_muted',  this.audioState.musicMuted.toString());
       } catch(err) { /* ignorar */ }
-    });
+    }, undefined, 'sound-hub');
   }
   
   // Botón de prueba de música
   if (el.musicTestBtn) {
-    el.musicTestBtn.addEventListener('click', () => {
+    this._onDOM(el.musicTestBtn, 'click', () => {
       this.playTestMusic();
-    });
+    }, undefined, 'sound-hub');
   }
   
   // Botón de silenciar música
   if (el.musicMuteBtn) {
-    el.musicMuteBtn.addEventListener('click', () => {
+    this._onDOM(el.musicMuteBtn, 'click', () => {
       this.toggleMusicMute();
       try {
         localStorage.setItem('grassland_music_muted', this.audioState.musicMuted.toString());
       } catch(err) { /* ignorar */ }
-    });
+    }, undefined, 'sound-hub');
   }
   
   // Control deslizante de efectos
   if (el.sfxSlider) {
-    el.sfxSlider.addEventListener('input', (e) => {
+    this._onDOM(el.sfxSlider, 'input', (e) => {
       const value = parseInt(e.target.value);
       el.sfxPercent.textContent = `${value}%`;
       el.sfxSliderFill.style.width = `${value}%`;
@@ -5679,41 +5727,41 @@ setupSoundHubEvents() {
         localStorage.setItem('grassland_sfx_volume', this.audioState._sfxVolumeReal.toString());
         localStorage.setItem('grassland_sfx_muted',  this.audioState.sfxMuted.toString());
       } catch(err) { /* ignorar */ }
-    });
+    }, undefined, 'sound-hub');
   }
   
   // Botón de prueba de efectos
   if (el.sfxTestBtn) {
-    el.sfxTestBtn.addEventListener('click', () => {
+    this._onDOM(el.sfxTestBtn, 'click', () => {
       this.playTestSFX();
-    });
+    }, undefined, 'sound-hub');
   }
   
   // Botón de silenciar efectos
   if (el.sfxMuteBtn) {
-    el.sfxMuteBtn.addEventListener('click', () => {
+    this._onDOM(el.sfxMuteBtn, 'click', () => {
       this.toggleSFXMute();
       try {
         localStorage.setItem('grassland_sfx_muted', this.audioState.sfxMuted.toString());
       } catch(err) { /* ignorar */ }
-    });
+    }, undefined, 'sound-hub');
   }
   
   // Botón para cambiar música
   if (el.musicChangeBtn) {
-    el.musicChangeBtn.addEventListener('click', () => {
+    this._onDOM(el.musicChangeBtn, 'click', () => {
       const selectedMusic = el.musicSelect ? el.musicSelect.value : 'default';
       this.changeMusic(selectedMusic);
-    });
+    }, undefined, 'sound-hub');
   }
   
   // Botón de guardar
   if (el.saveBtn) {
-    el.saveBtn.addEventListener('click', () => {
+    this._onDOM(el.saveBtn, 'click', () => {
       this.saveAudioSettings();
       this._showCenterBanner('Configuration Saved');
       this.hideSoundHub();
-    });
+    }, undefined, 'sound-hub');
   }
   
   // Cerrar al presionar Escape
@@ -5725,11 +5773,11 @@ setupSoundHubEvents() {
   
   // Cerrar al hacer clic fuera del panel
   if (el.panel) {
-    el.panel.addEventListener('click', (e) => {
+    this._onDOM(el.panel, 'click', (e) => {
       if (e.target === el.panel) {
         this.hideSoundHub();
       }
-    });
+    }, undefined, 'sound-hub');
   }
 }
 
@@ -6090,31 +6138,12 @@ highlightQuickSlot(index) {
 
 // En la clase tiendajuego:
 shutdown() {
-  console.log("🔄 Cerrando conexión de socket para tienda");
-  
-  // Salir de la sala de la tienda
-  if (this.socket && this.socket.connected) {
-    this.socket.emit("joinRoom", {
-      room: "game", // Cambiar a la sala del juego principal
-      username: this.Username || '---',
-      x: 0,
-      y: 0
-    });
-  }
-  
-  /* Limpiar jugadores locales — por el MISMO camino que los otros dos sitios.
-     Aquí solo se soltaban el sprite y el nombre: el perro entero, las sombras y
-     las burbujas de chat se quedaban en la escena. Ver _soltarJugadorRemoto. */
-  Object.values(this.otherPlayers).forEach(p => this._soltarJugadorRemoto(p));
-  this.otherPlayers = {};
-  
-  // No desconectar el socket global, solo salir de la sala
+  this.performCleanup();
 }
 
 
 destroy() {
   this.shutdown();
-  super.destroy();
 }
 
 
@@ -6142,6 +6171,7 @@ destroy() {
 
 
  makeElementDraggable(elementId) {
+  this._offDOM('drag:' + elementId);
     const panel = document.getElementById(elementId);
 
     if (!panel) {
@@ -6273,16 +6303,16 @@ destroy() {
     };
 
     // Asignar listeners
-    panel.addEventListener("mousedown", panel._dragHandlers.mousedown);
-    panel.addEventListener("touchstart", panel._dragHandlers.touchstart, { passive: false });
-    panel.addEventListener("dragstart", panel._dragHandlers.dragstart);
+    this._onDOM(panel, "mousedown", panel._dragHandlers.mousedown, undefined, 'drag:' + elementId);
+    this._onDOM(panel, "touchstart", panel._dragHandlers.touchstart, { passive: false }, 'drag:' + elementId);
+    this._onDOM(panel, "dragstart", panel._dragHandlers.dragstart, undefined, 'drag:' + elementId);
 
-    document.addEventListener("mousemove", document._dragHandlers.mousemove);
-    document.addEventListener("mouseup", document._dragHandlers.mouseup);
-    document.addEventListener("touchmove", document._dragHandlers.touchmove, { passive: false });
-    document.addEventListener("touchend", document._dragHandlers.touchend);
-    document.addEventListener("touchcancel", document._dragHandlers.touchcancel);
-    document.addEventListener("keydown", document._dragHandlers.keydown);
+    this._onDOM(document, "mousemove", document._dragHandlers.mousemove, undefined, 'drag:' + elementId);
+    this._onDOM(document, "mouseup", document._dragHandlers.mouseup, undefined, 'drag:' + elementId);
+    this._onDOM(document, "touchmove", document._dragHandlers.touchmove, { passive: false }, 'drag:' + elementId);
+    this._onDOM(document, "touchend", document._dragHandlers.touchend, undefined, 'drag:' + elementId);
+    this._onDOM(document, "touchcancel", document._dragHandlers.touchcancel, undefined, 'drag:' + elementId);
+    this._onDOM(document, "keydown", document._dragHandlers.keydown, undefined, 'drag:' + elementId);
 
     panel.setAttribute('data-draggable', 'true');
     panel.centerPanel = centerPanel;
@@ -6302,26 +6332,39 @@ destroy() {
  * addEventListener sin su removeEventListener deja la escena muerta viva para
  * siempre y multiplica el trabajo por cada viaje entre mapa y tienda.
  */
-_onDOM(target, type, handler, options) {
+_onDOM(target, type, handler, options, group = null) {
   if (!target || !type || typeof handler !== 'function') return handler;
-
-  if (!this._domListeners) {
-    this._domListeners = [];
-    const soltarTodos = () => {
-      const lista = this._domListeners || [];
-      lista.forEach(function (r) {
-        try { r.t.removeEventListener(r.ty, r.h, r.o); } catch (e) { /* ya soltado */ }
-      });
-      this._domListeners = null;
-      if (lista.length) console.log(`🧹 ${lista.length} listeners de DOM soltados al apagar la tienda`);
-    };
-    this.events.once('shutdown', soltarTodos);
-    this.events.once('destroy',  soltarTodos);
-  }
-
+  if (this._sceneStopped) return handler;
+  if (!this._domListeners) this._domListeners = [];
   target.addEventListener(type, handler, options);
-  this._domListeners.push({ t: target, ty: type, h: handler, o: options });
+  this._domListeners.push({ t: target, ty: type, h: handler, o: options, group });
   return handler;
+}
+
+_offDOM(group) {
+  const keep = [];
+  (this._domListeners || []).forEach(r => {
+    if (group !== undefined && r.group !== group) { keep.push(r); return; }
+    try { r.t.removeEventListener(r.ty, r.h, r.o); } catch (e) {}
+  });
+  this._domListeners = keep;
+}
+
+_onSceneCleanup(callback) {
+  if (!this._sceneCleanupCallbacks) this._sceneCleanupCallbacks = [];
+  this._sceneCleanupCallbacks.push(callback);
+}
+
+_sceneTimeout(callback, delay) {
+  if (this._sceneStopped) return null;
+  if (!this._sceneTimeouts) this._sceneTimeouts = new Set();
+  const sceneRunId = this._sceneRunId;
+  const timer = setTimeout(() => {
+    this._sceneTimeouts.delete(timer);
+    if (!this._sceneStopped && this._sceneRunId === sceneRunId) callback();
+  }, delay);
+  this._sceneTimeouts.add(timer);
+  return timer;
 }
 
 /**
@@ -11564,13 +11607,14 @@ GOLD_PACKAGES = [ { gold: 1, usdt: 1 }, { gold: 10, usdt: 9 }, { gold: 100, usdt
 // listeners y un clic abría el panel varias veces. Mismo criterio que en
 // GameScene._setupCurrencyHub.
 _setupCurrencyHub() {
+  this._offDOM('currency');
   try {
     const bind = (el, tab) => {
       if (!el) return;
       el.style.cursor = 'pointer';
       if (el._gfCurrencyHandler) el.removeEventListener('click', el._gfCurrencyHandler);
       el._gfCurrencyHandler = () => this._openCurrencyHub(tab);
-      el.addEventListener('click', el._gfCurrencyHandler);
+      this._onDOM(el, 'click', el._gfCurrencyHandler, undefined, 'currency');
     };
     bind(document.querySelector('.corner-box .left-stack'),  'buy');
     bind(document.querySelector('.corner-box .right-stack'), 'exchange');

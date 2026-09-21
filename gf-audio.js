@@ -269,6 +269,20 @@
   /* Cuántos WAV se descargan a la vez por detrás. Cuatro es de sobra: son
      archivos de entre 4 y 130 KB y el juego ya está andando mientras llegan. */
   var TANDA = 4;
+  var CARGA_TIMEOUT_MS = 15000;
+
+  function esAmbiente(nombre) {
+    for (var k in AMBIENTES) if (AMBIENTES[k] === nombre) return true;
+    return false;
+  }
+
+  function pedirAmbiente(st, nombre) {
+    if (st.muerto || !st.continuarCarga || st.cargando[nombre] ||
+        st.porCargar.indexOf(nombre) >= 0 || st.faltan[PREFIJO + nombre]) return;
+    st.cargaTerminada = false;
+    st.porCargar.push(nombre);
+    st.continuarCarga();
+  }
 
   /**
    * LOS OTROS CINCUENTA SONIDOS SE CARGAN A MANO, SIN EL CARGADOR DE PHASER.
@@ -308,22 +322,12 @@
     var enCurso = 0;
 
     function siguiente() {
-      /* SI LA ESCENA YA NO ESTÁ, SE PARA.
-
-         FUGA QUE ARREGLA: estas descargas siguen en vuelo después de salir de
-         la escena, y cada retrollamada retiene `st`, que retiene la escena
-         entera. Entrar al mapa y salir corriendo a la tienda dejaba media
-         escena viva unos segundos de más por cada viaje. Además se seguían
-         bajando megas de sonido que ya no hacían falta.
-
-         Se mira `st.muerto`, que lo pone `desmontar`. Lo ya descargado se
-         queda en la caché de sonido (que es global y sobrevive al cambio de
-         escena), así que no se pierde trabajo hecho. */
       if (st.muerto) { st.porCargar.length = 0; return; }
 
       while (enCurso < TANDA && st.porCargar.length) {
         var nombre = st.porCargar.shift();
         var clave = PREFIJO + nombre;
+        if (st.cargando[nombre]) continue;
         if (st.scene.cache.audio.exists(clave)) { st.cargados++; continue; }
         enCurso++;
         pedir(nombre, clave);
@@ -336,12 +340,37 @@
     }
 
     function pedir(nombre, clave) {
-      fetch(RUTA + nombre + '.wav')
+      var peticion = { cancelada: false, terminada: false, timer: null,
+        controller: typeof AbortController === 'function' ? new AbortController() : null };
+      st.cargando[nombre] = peticion;
+      function terminar() {
+        if (peticion.terminada) return;
+        peticion.terminada = true;
+        if (peticion.timer !== null) clearTimeout(peticion.timer);
+        delete st.cargando[nombre];
+        enCurso--;
+        siguiente();
+      }
+      peticion.cancelar = function () {
+        peticion.cancelada = true;
+        if (peticion.controller) peticion.controller.abort();
+        terminar();
+      };
+      peticion.timer = setTimeout(function () {
+        if (!st.muerto) st.faltan[clave] = true;
+        peticion.cancelar();
+      }, CARGA_TIMEOUT_MS);
+      Promise.resolve().then(function () {
+        if (st.muerto || peticion.cancelada) return null;
+        return fetch(RUTA + nombre + '.wav', peticion.controller ? { signal: peticion.controller.signal } : undefined);
+      })
         .then(function (r) {
+          if (st.muerto || peticion.cancelada) return null;
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.arrayBuffer();
         })
         .then(function (bytes) {
+          if (st.muerto || peticion.cancelada) return null;
           return new Promise(function (bien, mal) {
             /* Con retrollamadas y no con promesa: la forma de promesa de
                `decodeAudioData` no la tienen los Safari viejos, y la de
@@ -350,14 +379,18 @@
           });
         })
         .then(function (buffer) {
+          if (st.muerto || peticion.cancelada || !buffer) return;
           try {
             if (st.scene.cache && st.scene.cache.audio) {
-              st.scene.cache.audio.add(clave, buffer);
+              // Otra escena puede haber terminado de cargar la misma clave.
+              if (!st.scene.cache.audio.exists(clave)) st.scene.cache.audio.add(clave, buffer);
+              delete st.faltan[clave];
               st.cargados++;
             }
           } catch (e) {}
         })
         .catch(function (e) {
+          if (st.muerto || peticion.cancelada) return;
           st.faltan[clave] = true;
           if (!st.avisoCarga) {
             st.avisoCarga = true;
@@ -365,9 +398,10 @@
                          '). ¿Se ejecutó tools/generar-sonidos.js? Mira GFAudio.diagnostico().');
           }
         })
-        .then(function () { enCurso--; siguiente(); });
+        .then(terminar);
     }
 
+    st.continuarCarga = siguiente;
     siguiente();
   }
 
@@ -388,6 +422,10 @@
     var reserva = st.reserva[clave];
     if (!reserva) reserva = st.reserva[clave] = [];
     for (var i = 0; i < reserva.length; i++) {
+      if (reserva[i].pendingRemove || reserva[i].manager === null) {
+        reserva.splice(i--, 1);
+        continue;
+      }
       if (!reserva[i].isPlaying) return reserva[i];
     }
     if (reserva.length >= 4) return null;         // ese sonido ya está saturado
@@ -421,7 +459,7 @@
    */
   function sonar(st, clave, op) {
     op = op || {};
-    if (!st.scene || !st.scene.sys || !st.scene.sys.isActive()) return null;
+    if (st.muerto || !st.scene || !st.scene.sys || !st.scene.sys.isActive()) return null;
     if (!st.scene.cache.audio.exists(clave)) {
       if (!st.faltan[clave]) { st.faltan[clave] = true; log('falta el archivo', clave); }
       return null;
@@ -563,8 +601,14 @@
   function soltarLienzo(st) {
     if (!st.lienzo) return;
     if (Date.now() - st.lienzoUsado < 10000) return;
-    st.lienzo = null;
+    vaciarLienzo(st);
     log('lienzo del tileset soltado');
+  }
+
+  function vaciarLienzo(st) {
+    var canvas = st.lienzo && st.lienzo.ctx && st.lienzo.ctx.canvas;
+    if (canvas) { canvas.width = 0; canvas.height = 0; }
+    st.lienzo = null;
   }
 
   /** El tileset al que pertenece un tile, y su geometría dentro de la imagen. */
@@ -718,7 +762,7 @@
 
     c = st.clima = st.clima || { lluvia: 0, nieve: 0, sol: 0, viento: 0, hayClima: false };
     st.climaLeido = ahora;
-    c.lluvia = c.nieve = c.sol = 0;
+    c.lluvia = c.nieve = c.sol = c.viento = 0;
     c.hayClima = false;
 
     try {
@@ -770,7 +814,7 @@
     if (b) return b;
     var clave = PREFIJO + AMBIENTES[nombre];
     if (!st.scene.cache.audio.exists(clave)) {
-      if (!st.faltan[clave]) { st.faltan[clave] = true; log('falta el ambiente', clave); }
+      pedirAmbiente(st, AMBIENTES[nombre]);
       return null;
     }
     try {
@@ -832,11 +876,21 @@
       var b = st.bucles[nombre];
 
       // Nada que sonar y nada sonando: ni se crea el objeto.
-      if (!b && destino <= 0.001) continue;
+      if (!b && destino <= 0.001) {
+        soltarAmbiente(st, nombre);
+        continue;
+      }
       if (!b) { b = bucle(st, nombre); if (!b) continue; }
 
       b.destino = destino;
       b.actual += (destino - b.actual) * paso;
+
+      if (destino <= 0.001 && b.actual <= 0.002) {
+        destruirSonido(b.son);
+        delete st.bucles[nombre];
+        soltarAmbiente(st, nombre);
+        continue;
+      }
 
       var vol = b.actual * maestro;
       if (vol > 0.002) {
@@ -911,7 +965,9 @@
       return true;
     } catch (e) {
       console.warn('[audio] no se pudo poner el tema', cual, e);
+      destruirSonido(st.tema);
       st.tema = null;
+      st.temaActual = null;
       return false;
     }
   }
@@ -939,7 +995,7 @@
       var s = st.saliendo[i];
       s.vol -= paso;
       if (s.vol <= 0.01) {
-        try { s.son.stop(); s.son.destroy(); } catch (e) {}
+        destruirSonido(s.son);
         st.saliendo.splice(i, 1);
       } else {
         try { s.son.setVolume(s.vol * maestro); } catch (e) {}
@@ -1181,6 +1237,31 @@
     return buffer.length * (buffer.numberOfChannels || 1) * 4;
   }
 
+  function destruirSonido(son) {
+    if (!son) return;
+    try { son.stop(); } catch (e) {}
+    try { son.destroy(); } catch (e) {}
+  }
+
+  function usadasPorOtra(scene, clave) {
+    for (var i = 0; i < montados.length; i++) {
+      var otro = montados[i];
+      if (!otro.muerto && otro.scene !== scene && otro.scene.cache.audio === scene.cache.audio &&
+          clavesDe(otro.tipo).indexOf(clave) >= 0) return true;
+    }
+    return false;
+  }
+
+  function soltarAmbiente(st, nombre) {
+    var archivo = AMBIENTES[nombre], clave = PREFIJO + archivo;
+    // Cancelar también la descarga: el clima puede acabar antes de decodificar.
+    var pendiente = st.porCargar.indexOf(archivo);
+    if (pendiente >= 0) st.porCargar.splice(pendiente, 1);
+    if (st.cargando[archivo]) st.cargando[archivo].cancelar();
+    if (!st.scene.cache.audio.exists(clave)) return;
+    if (!usadasPorOtra(st.scene, clave)) soltar(st.scene, [clave]);
+  }
+
   /**
    * Suelta sonidos de la memoria: para lo que los esté usando, los saca de la
    * caché y devuelve cuántos bytes se han liberado.
@@ -1275,7 +1356,7 @@
   function soltarLoQueNoHaceFalta(scene, tipo) {
     var quedan = clavesDe(tipo), todas = todasLasClaves(), fuera = [], i;
     for (i = 0; i < todas.length; i++) {
-      if (quedan.indexOf(todas[i]) < 0) fuera.push(todas[i]);
+      if (quedan.indexOf(todas[i]) < 0 && !usadasPorOtra(scene, todas[i])) fuera.push(todas[i]);
     }
     return soltar(scene, fuera);
   }
@@ -1307,6 +1388,7 @@
   // ========================================================================
 
   var montado = null;
+  var montados = [];
 
   function montar(scene, op) {
     op = op || {};
@@ -1327,10 +1409,12 @@
       ultimoMaterial: 'hierba', capa: undefined,
       proximoBicho: 0, proximoBarrido: 0,
       tema: null, temaVol: 0, temaActual: null, saliendo: [],
-      porCargar: [], cargados: 0, cargaTerminada: false, muerto: false
+      porCargar: [], cargando: {}, continuarCarga: null,
+      cargados: 0, cargaTerminada: false, muerto: false
     };
     scene.__gfAudio = st;
     montado = st;
+    montados.push(st);
 
     /* LO PRIMERO, SOLTAR LO QUE AQUÍ NO SE VA A OÍR.
        La caché de sonido de Phaser es global y no suelta nada sola: al entrar
@@ -1345,12 +1429,13 @@
        pisadas. El juego ya está en marcha; van llegando. */
     var todo = listaDe(st.tipo), fuera = esenciales(st.tipo);
     for (var i = 0; i < todo.length; i++) {
-      if (fuera.indexOf(todo[i]) < 0) st.porCargar.push(todo[i]);
+      if (fuera.indexOf(todo[i]) < 0 && !esAmbiente(todo[i])) st.porCargar.push(todo[i]);
     }
     st.porCargarTotal = st.porCargar.length;
     cargarDeFondo(st);
 
     st.onUpdate = function (ahora, delta) {
+      if (st.muerto || !Number.isFinite(delta) || delta < 0) return;
       /* Nunca romper el frame. Un fallo en el sonido no puede dejar el juego
          congelado, así que el bucle entero va envuelto. */
       try {
@@ -1384,11 +1469,14 @@
 
   function desmontar(scene) {
     var st = scene && scene.__gfAudio;
-    if (!st) return;
+    if (!st || st.muerto) return;
     /* Lo PRIMERO: cortar la carga de fondo. Sus retrollamadas retienen `st` y
        con él la escena entera; ver `siguiente()`. */
     st.muerto = true;
+    scene.__gfAudio = null;
     st.porCargar.length = 0;
+    Object.keys(st.cargando).forEach(function (nombre) { st.cargando[nombre].cancelar(); });
+    st.continuarCarga = null;
     if (st.onUpdate) scene.events.off('update', st.onUpdate);
     if (st.onApagar) {
       scene.events.off('shutdown', st.onApagar);
@@ -1408,16 +1496,16 @@
     var k, i;
     for (k in st.bucles) {
       if (!st.bucles.hasOwnProperty(k)) continue;
-      try { st.bucles[k].son.stop(); st.bucles[k].son.destroy(); } catch (e) {}
+      destruirSonido(st.bucles[k].son);
     }
     for (k in st.reserva) {
       if (!st.reserva.hasOwnProperty(k)) continue;
       for (i = 0; i < st.reserva[k].length; i++) {
-        try { st.reserva[k][i].stop(); st.reserva[k][i].destroy(); } catch (e) {}
+        destruirSonido(st.reserva[k][i]);
       }
     }
     for (i = 0; i < st.saliendo.length; i++) {
-      try { st.saliendo[i].son.stop(); st.saliendo[i].son.destroy(); } catch (e) {}
+      destruirSonido(st.saliendo[i].son);
     }
     /* EL TEMA SE DESTRUYE SIEMPRE, Y ADEMÁS SE DESAPUNTA.
      *
@@ -1436,7 +1524,7 @@
      * destrucción: `stopMusicSafely()` empieza con `if (!currentMusic) return`,
      * así que al encontrarlo vacío no toca nada. */
     if (st.tema) {
-      try { st.tema.stop(); st.tema.destroy(); } catch (e) {}
+      destruirSonido(st.tema);
       try {
         if (scene.audioState && scene.audioState.currentMusic === st.tema) {
           scene.audioState.currentMusic = null;
@@ -1446,9 +1534,16 @@
       st.tema = null;
     }
     st.bucles = {}; st.reserva = {}; st.saliendo = [];
-    st.lienzo = null;
-    scene.__gfAudio = null;
-    if (montado === st) montado = null;
+    vaciarLienzo(st);
+    st.capa = null;
+    st.porTile = {};
+    var indice = montados.indexOf(st);
+    if (indice >= 0) montados.splice(indice, 1);
+    // Minas y lands no montan necesariamente GFAudio: liberar al salir,
+    // sin depender de que otra escena de audio haga el próximo barrido.
+    soltar(scene, clavesDe(st.tipo).filter(function (clave) { return !usadasPorOtra(scene, clave); }));
+    st.scene = st.onUpdate = st.onApagar = null;
+    if (montado === st) montado = montados.length ? montados[montados.length - 1] : null;
     log('desmontado');
   }
 

@@ -2153,6 +2153,7 @@
       if (st.rayo) st.rayo.setAlpha(0);
       if (st.impacto) st.impacto.setAlpha(0);
       st.rayoHasta = st.impactoHasta = st.fogonazoHasta = st.truenoEn = st.proximoTrueno = st.proximaCentella = 0;
+      st.bordeHasta = st.bordeAlfa = 0;
       st.fogonazo.setAlpha(0);
       for (i = 0; i < st.bordes.length; i++) st.bordes[i].setAlpha(0);
       return;
@@ -2165,12 +2166,16 @@
        Los rayos con trazo son los pocos; las centellas —el resplandor sin
        dibujo— van mucho más seguidas. Es la proporción de una tormenta de
        verdad, y hace que la de aquí no parezca una feria de rayos. */
-    if (estado.truenos) {
+    if (estado.activo && estado.lluvia && estado.truenos) {
       if (!st.proximoTrueno) st.proximoTrueno = ahora + az(3000, 9000);
       if (ahora >= st.proximoTrueno) relampago(st);
       if (!st.proximaCentella) st.proximaCentella = ahora + az(800, 4000);
       // Nunca a la vez que un rayo: se pisarían y se vería un parpadeo raro.
       if (ahora >= st.proximaCentella && !st.rayoHasta) centella(st);
+    } else {
+      // Amainar tarda unos segundos. En ese intervalo ya no deben nacer
+      // rayos ni sonar truenos pendientes de una tormenta desactivada.
+      st.proximoTrueno = st.proximaCentella = st.truenoEn = 0;
     }
     if (st.rayoHasta && ahora >= st.rayoHasta) {
       if (st.rayo) st.rayo.setAlpha(0);

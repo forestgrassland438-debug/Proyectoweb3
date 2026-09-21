@@ -32,6 +32,7 @@ class GameScene extends Phaser.Scene {
    * Sin argumentos se comporta exactamente como antes.
    */
   constructor(config) {
+
     super(config || { key: 'GameScene' });
 
       /* LOS JUGADORES REMOTOS, DESDE EL CONSTRUCTOR.
@@ -2797,6 +2798,16 @@ liberarMemoriaPesada() {
 
 
   async create() {
+    const sceneRunId = this._sceneRunId = (this._sceneRunId || 0) + 1;
+    this._sceneStopped = false;
+    this._cleanupSceneDone = false;
+    this._shutdownDone = false;
+    // Registrar antes del primer await: la autenticación puede terminar
+    // después de que el jugador ya haya abandonado esta entrada al mapa.
+    this.events.off('shutdown', this.shutdown, this);
+    this.events.off('destroy', this.shutdown, this);
+    this.events.on('shutdown', this.shutdown, this);
+    this.events.on('destroy', this.shutdown, this);
     // ── Candados de la puerta de la tienda ───────────────────────────────────
     // Phaser REUTILIZA la instancia de la escena, así que estos dos hay que
     // reiniciarlos a mano en cada entrada:
@@ -2835,6 +2846,7 @@ liberarMemoriaPesada() {
     }
 
     const isAuthenticated = await this.loadx();
+    if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
         
     /* SE APILABAN LOS APAGADOS. Medido, no supuesto.
      *
@@ -2881,6 +2893,7 @@ liberarMemoriaPesada() {
 
     
     if (this.loadMissionsData) await this.loadMissionsData();
+    if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
 
 
     this.phaser_ancho = this.scale.width;
@@ -6010,17 +6023,7 @@ window.hub.onRetry = (hiddenData) => {
     */
 
 
-    window.addEventListener('beforeunload', () => {
-        this.handlePageUnload();
-      this.children.each(child => child.destroy());
-
-      // 2. Limpiar texturas no usadas
-      this.textures.remove('texture-key');
-
-      // 3. Limpiar caché
-      this.cache.html.remove('key');
-
-    });
+    this._onDOM(window, 'beforeunload', () => this.handlePageUnload());
 
 
 
@@ -8245,8 +8248,7 @@ console.log('📊 Tree types:', Object.keys(TREE_TYPE_CONFIG));
         */
 
         // 4) Botón de cerrar inventario (HTML Overlay)
-        document.querySelector('#inventory-panel .cerrar-hud')
-          .addEventListener('click', () => {
+        this._onDOM(document.querySelector('#inventory-panel .cerrar-hud'), 'click', () => {
             this.hideInventory();
           });
     
@@ -8281,7 +8283,7 @@ console.log('📊 Tree types:', Object.keys(TREE_TYPE_CONFIG));
     this.loadState();
 
     // Añadir listener
-    this.profileImage.addEventListener("click", this.toggleHubInfo);
+    this._bindDomClick(this.profileImage, 'profile', this.toggleHubInfo);
 
 
 
@@ -9710,6 +9712,8 @@ _updateDogNameLabel() {
 }
 
 setupSettingsPanel() {
+    const domGroup = 'settings';
+    const bindDOM = this._domGroup(domGroup);
     // Referencias a elementos del panel
     this.settingsPanel = document.getElementById('hub-panel_101');
     this.settingsApplyBtn = document.getElementById('apply-name');
@@ -9729,7 +9733,7 @@ setupSettingsPanel() {
         this._settingsSetupTries = (this._settingsSetupTries || 0) + 1;
         console.warn(`⚠️ Panel de configuraciones aún no disponible (intento ${this._settingsSetupTries})`);
         if (this._settingsSetupTries <= 20) {
-            setTimeout(() => this.setupSettingsPanel(), 500);
+            this.time.delayedCall(500, () => this.setupSettingsPanel());
         }
         return;
     }
@@ -9754,17 +9758,17 @@ setupSettingsPanel() {
     // manejadores. Y van ANTES del guardián, para que se ejecuten SIEMPRE.
     this.settingsCloseBtn = document.getElementById('close-panel');
     if (this.settingsCloseBtn) {
-        this.settingsCloseBtn.onclick = () => this.hideSettingsPanel();
+        this._setDOMProperty(this.settingsCloseBtn, 'onclick', () => this.hideSettingsPanel(), domGroup);
     }
     if (this.settingsLogoutBtn) {
-        this.settingsLogoutBtn.onclick = () => {
+        this._setDOMProperty(this.settingsLogoutBtn, 'onclick', () => {
             if (this.stopAutoRefresh) this.stopAutoRefresh();
             this.Username = null;
             this._doFullLogout();
-        };
+        }, domGroup);
     }
     if (this.settingsLangSelect) {
-        this.settingsLangSelect.onchange = (event) => this._aplicarCambioDeIdioma(event.target.value);
+        this._setDOMProperty(this.settingsLangSelect, 'onchange', (event) => this._aplicarCambioDeIdioma(event.target.value), domGroup);
     }
 
     // Los CAMPOS de texto del dashboard son DOM persistente de game.html y ya no
@@ -9772,12 +9776,7 @@ setupSettingsPanel() {
     // 'input'/'keydown'/'focus' se enganchan UNA sola vez: si no, cada entrada a
     // GameScene añadiría otro handler sobre el mismo campo.
     // El estado visual (bloqueado/editable) SÍ se refresca siempre, más abajo.
-    if (this.settingsNameInput._gfDashBound) {
-        console.log('✅ Campos del dashboard ya enganchados — botones reenganchados y estado refrescado');
-        this._refreshNameLockUI();
-        return;
-    }
-    this.settingsNameInput._gfDashBound = true;
+    // Cada entrada al dashboard recibe handlers de la escena actual.
 
     console.log('✅ Panel de configuraciones configurado');
 
@@ -9810,7 +9809,7 @@ setupSettingsPanel() {
     };
     
     // Evento para input de nombre
-    this.settingsNameInput.addEventListener('input', (e) => {
+    bindDOM(this.settingsNameInput, 'input', (e) => {
         const clean = sanitizeName(e.target.value);
         if (e.target.value !== clean) {
             e.target.value = clean;
@@ -9818,7 +9817,7 @@ setupSettingsPanel() {
     });
     
     // Eventos para manejar el foco del input y desactivar WASD
-    this.settingsNameInput.addEventListener('focus', () => {
+    bindDOM(this.settingsNameInput, 'focus', () => {
         console.log('📝 Input enfocado - controles WASD desactivados');
         // Asegurarse de que los controles están desactivados
         if (this.keys) {
@@ -9834,13 +9833,13 @@ setupSettingsPanel() {
         this.input.keyboard.enabled = false;
     });
     
-    this.settingsNameInput.addEventListener('blur', () => {
+    bindDOM(this.settingsNameInput, 'blur', () => {
         console.log('📝 Input sin foco');
         // Nota: Los controles se reactivarán en hideSettingsPanel()
     });
     
     // Prevenir que eventos de teclado se propaguen a Phaser
-    this.settingsNameInput.addEventListener('keydown', (e) => {
+    bindDOM(this.settingsNameInput, 'keydown', (e) => {
         e.stopPropagation();
         // Permitir ESC para cerrar el panel
         if (e.key === 'Escape') {
@@ -9848,17 +9847,17 @@ setupSettingsPanel() {
         }
     });
     
-    this.settingsNameInput.addEventListener('keyup', (e) => {
+    bindDOM(this.settingsNameInput, 'keyup', (e) => {
         e.stopPropagation();
     });
     
     // Eventos para el selector de idioma
-    this.settingsLangSelect.addEventListener('focus', () => {
+    bindDOM(this.settingsLangSelect, 'focus', () => {
         console.log('🌍 Selector de idioma enfocado');
         this.input.keyboard.enabled = false;
     });
     
-    this.settingsLangSelect.addEventListener('keydown', (e) => {
+    bindDOM(this.settingsLangSelect, 'keydown', (e) => {
         e.stopPropagation();
         if (e.key === 'Escape') {
             this.hideSettingsPanel();
@@ -9868,7 +9867,7 @@ setupSettingsPanel() {
     // Botón aplicar nombre de PERSONAJE — se puede fijar UNA sola vez.
     // Se usa .onclick (no addEventListener) para que las recreaciones de la
     // escena no acumulen handlers duplicados sobre el mismo botón del DOM.
-    this.settingsApplyBtn.onclick = () => {
+    this._setDOMProperty(this.settingsApplyBtn, 'onclick', () => {
         // El mismo botón del dashboard también lo escucha el hubPanel de
         // tiendajuego. Si aquel ya atendió este clic (fija el nombre y guarda),
         // aquí no hay que hacer nada: si no, saldrían DOS confirmaciones.
@@ -9943,29 +9942,29 @@ setupSettingsPanel() {
 
         // Cerrar panel
         this.hideSettingsPanel();
-    };
+    }, domGroup);
 
     // Botón aplicar nombre de MASCOTA — también se fija UNA sola vez.
     if (this.settingsApplyPetBtn && this.settingsPetInput) {
         // Mismos guards de teclado que el input de personaje
-        this.settingsPetInput.addEventListener('input', (e) => {
+        bindDOM(this.settingsPetInput, 'input', (e) => {
             const clean = sanitizeName(e.target.value);
             if (e.target.value !== clean) e.target.value = clean;
         });
-        this.settingsPetInput.addEventListener('focus', () => {
+        bindDOM(this.settingsPetInput, 'focus', () => {
             if (this.keys) {
                 ['left','right','up','down','leftArrow','rightArrow','upArrow','downArrow']
                   .forEach(k => { if (this.keys[k]) this.keys[k].enabled = false; });
             }
             this.input.keyboard.enabled = false;
         });
-        this.settingsPetInput.addEventListener('keydown', (e) => {
+        bindDOM(this.settingsPetInput, 'keydown', (e) => {
             e.stopPropagation();
             if (e.key === 'Escape') this.hideSettingsPanel();
         });
-        this.settingsPetInput.addEventListener('keyup', (e) => e.stopPropagation());
+        bindDOM(this.settingsPetInput, 'keyup', (e) => e.stopPropagation());
 
-        this.settingsApplyPetBtn.onclick = () => {
+        this._setDOMProperty(this.settingsApplyPetBtn, 'onclick', () => {
             if (this._isNameSet(this.petName)) {
                 this._refreshNameLockUI();
                 if (this.notifications) this.notifications.show('El nombre de la mascota ya fue fijado y no puede cambiarse.', 'error');
@@ -10023,7 +10022,7 @@ setupSettingsPanel() {
 
             this._refreshNameLockUI();
             if (this.notifications) this.notifications.show(`✅ Tu mascota ahora se llama ${name}`, 'success');
-        };
+        }, domGroup);
     }
     
     // (El botón de cerrar, el de cerrar sesión y el selector de idioma se
@@ -14850,6 +14849,7 @@ stopMusicSafely() {
 
 // Inicializar el sistema de audio CORREGIDO
 initAudioSystem() {
+  this._disposeSceneAudio();
   console.log('🎵 Inicializando sistema de audio corregido...');
   
   // Estado del audio CORREGIDO - VOLÚMENES INDEPENDIENTES
@@ -14993,13 +14993,14 @@ setupAudioCleanup() {
     if (this.audioState && this.audioState.activeSFX) {
       const toRemove = [];
       this.audioState.activeSFX.forEach(sound => {
-        if (!sound.isPlaying) {
+        if (!sound.isPlaying && !sound.isPaused) {
           toRemove.push(sound);
         }
       });
       
       toRemove.forEach(sound => {
         this.audioState.activeSFX.delete(sound);
+        try { sound.destroy(); } catch (_) {}
       });
       
       if (toRemove.length > 0) {
@@ -15080,18 +15081,20 @@ updateSoundHubControls() {
 
 // Configurar eventos del panel de sonido CORREGIDOS
 setupSoundHubEvents() {
+    const domGroup = 'sound';
+    const bindDOM = this._domGroup(domGroup);
   const el = this.soundHubElements;
   
   // Cerrar panel
   if (el.closeBtn) {
-    el.closeBtn.addEventListener('click', () => {
+    bindDOM(el.closeBtn, 'click', () => {
       this.hideSoundHub();
     });
   }
   
   // Control deslizante de música - CORREGIDO
   if (el.musicSlider) {
-    el.musicSlider.addEventListener('input', (e) => {
+    bindDOM(el.musicSlider, 'input', (e) => {
       const value = parseInt(e.target.value);
       el.musicPercent.textContent = `${value}%`;
       el.musicSliderFill.style.width = `${value}%`;
@@ -15114,14 +15117,14 @@ setupSoundHubEvents() {
   
   // Botón de prueba de música
   if (el.musicTestBtn) {
-    el.musicTestBtn.addEventListener('click', () => {
+    bindDOM(el.musicTestBtn, 'click', () => {
       this.playTestMusic();
     });
   }
   
   // Botón de silenciar música - CORREGIDO
   if (el.musicMuteBtn) {
-    el.musicMuteBtn.addEventListener('click', () => {
+    bindDOM(el.musicMuteBtn, 'click', () => {
       this.toggleMusicMute();
       try {
         localStorage.setItem('grassland_music_muted', this.audioState.musicMuted.toString());
@@ -15131,7 +15134,7 @@ setupSoundHubEvents() {
   
   // Control deslizante de efectos - CORREGIDO
   if (el.sfxSlider) {
-    el.sfxSlider.addEventListener('input', (e) => {
+    bindDOM(el.sfxSlider, 'input', (e) => {
       const value = parseInt(e.target.value);
       el.sfxPercent.textContent = `${value}%`;
       el.sfxSliderFill.style.width = `${value}%`;
@@ -15154,14 +15157,14 @@ setupSoundHubEvents() {
   
   // Botón de prueba de efectos
   if (el.sfxTestBtn) {
-    el.sfxTestBtn.addEventListener('click', () => {
+    bindDOM(el.sfxTestBtn, 'click', () => {
       this.playTestSFX();
     });
   }
   
   // Botón de silenciar efectos - CORREGIDO
   if (el.sfxMuteBtn) {
-    el.sfxMuteBtn.addEventListener('click', () => {
+    bindDOM(el.sfxMuteBtn, 'click', () => {
       this.toggleSFXMute();
       try {
         localStorage.setItem('grassland_sfx_muted', this.audioState.sfxMuted.toString());
@@ -15171,7 +15174,7 @@ setupSoundHubEvents() {
   
   // Botón para cambiar música
   if (el.musicChangeBtn) {
-    el.musicChangeBtn.addEventListener('click', () => {
+    bindDOM(el.musicChangeBtn, 'click', () => {
       const selectedMusic = el.musicSelect ? el.musicSelect.value : 'default';
       this.changeMusic(selectedMusic);
     });
@@ -15179,7 +15182,7 @@ setupSoundHubEvents() {
   
   // Botón de guardar
   if (el.saveBtn) {
-    el.saveBtn.addEventListener('click', () => {
+    bindDOM(el.saveBtn, 'click', () => {
       if (this.saveAudioSettings()) {
         this._showSaveSuccessBanner('Configuration Saved');
         this.hideSoundHub();
@@ -15196,7 +15199,7 @@ setupSoundHubEvents() {
   
   // Cerrar al hacer clic fuera del panel
   if (el.panel) {
-    el.panel.addEventListener('click', (e) => {
+    bindDOM(el.panel, 'click', (e) => {
       if (e.target === el.panel) {
         this.hideSoundHub();
       }
@@ -15390,9 +15393,7 @@ toggleSFXMute() {
 // Reproducir música - CORREGIDO
 playMusic(key, config = {}) {
   // Detener música actual si existe
-  if (this.audioState.currentMusic) {
-    this.audioState.currentMusic.stop();
-  }
+  this.stopMusicSafely();
   
   // Configuración por defecto - CORREGIDO
   // Usa el volumen APLICADO (que considera si está silenciado o no)
@@ -15429,9 +15430,7 @@ changeMusic(key) {
   if (key === 'none') {
     // Detener música
     if (this.audioState.currentMusic) {
-      this.audioState.currentMusic.stop();
-      this.audioState.currentMusic = null;
-      this.audioState.currentMusicKey = null;
+      this.stopMusicSafely();
     }
     console.log('🎵 Música detenida');
   } else {
@@ -15458,19 +15457,15 @@ playSFX(key, config = {}) {
     }
     
     const sound = this.sound.add(key, finalConfig);
-    sound.play();
-    
-    // CORRECCIÓN: Registrar efecto activo
-    if (this.audioState.activeSFX) {
-      this.audioState.activeSFX.add(sound);
-      
-      // Remover cuando termine
-      sound.once('complete', () => {
-        if (this.audioState.activeSFX) {
-          this.audioState.activeSFX.delete(sound);
-        }
-      });
-    }
+    const activeSFX = this.audioState.activeSFX;
+    activeSFX.add(sound);
+    const release = () => { activeSFX.delete(sound); sound.destroy(); };
+    sound.once('complete', release);
+    sound.once('stop', release);
+    sound.once('destroy', () => activeSFX.delete(sound));
+    try {
+      if (sound.play() === false) { release(); return null; }
+    } catch (error) { release(); throw error; }
     
     console.log(`🔊 Reproduciendo efecto: ${key} (volumen: ${finalConfig.volume})`);
     return sound;
@@ -15491,13 +15486,12 @@ playTestMusic() {
     console.log('🎵 Reproduciendo música actual de prueba');
   } else {
     // Crear un sonido de prueba simple
-    const testSound = this.sound.add('test-beep', {
+    const testSound = this.playSFX('test-beep', {
       volume: this.audioState.musicVolumeApplied,
       loop: false
     });
     
     if (testSound) {
-      testSound.play();
       console.log('🎵 Reproduciendo tono de prueba');
     } else {
       console.log('⚠️ No hay música disponible para prueba');
@@ -17661,6 +17655,8 @@ removeOtherPlayer(playerId) {
   }
 
   _setupChatDom() {
+    const domGroup = 'chat';
+    const bindDOM = this._domGroup(domGroup);
     this.openBtn = document.getElementById('open-chat-btn');
     this.chatPanel = document.getElementById('chat-panel');
     this.chatMessages = document.getElementById('chat-messages');
@@ -17721,8 +17717,8 @@ removeOtherPlayer(playerId) {
     if (this.openBtn._gfChatKeyup) {
       this.openBtn.removeEventListener('keyup', this.openBtn._gfChatKeyup);
     }
-    this.openBtn._gfChatKeyup = (e) => { if (e.key === 'Enter') toggleChat(); };
-    this.openBtn.addEventListener('keyup', this.openBtn._gfChatKeyup);
+    this._setDOMProperty(this.openBtn, '_gfChatKeyup', (e) => { if (e.key === 'Enter') toggleChat(); }, domGroup);
+    bindDOM(this.openBtn, 'keyup', this.openBtn._gfChatKeyup);
 
     // ── DE AQUÍ PARA ABAJO, UNA SOLA VEZ ─────────────────────────────────────
     // Todo lo que queda son listeners sobre el CAMPO de texto y sobre el canvas,
@@ -17731,14 +17727,13 @@ removeOtherPlayer(playerId) {
     // tras un par de viajes al mapa, cada tecla emitía varios 'chatTyping' y
     // cada Enter mandaba el mensaje repetido. El toggle de arriba SÍ se
     // reengancha siempre, porque su manejador se reemplaza en vez de sumarse.
-    if (this.chatInput._gfChatBound) return;
-    this.chatInput._gfChatBound = true;
+    // El grupo anterior ya se soltó; el input nunca retiene otra escena.
 
     // Selector de emojis (botón junto al campo de texto).
     this._montarSelectorEmojis();
 
 
-    this.chatInput.addEventListener('keydown', (e) => {
+    bindDOM(this.chatInput, 'keydown', (e) => {
       e.stopPropagation();
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -17760,50 +17755,49 @@ removeOtherPlayer(playerId) {
     // preventDefault para que el campo NO pierda el foco al pulsarlo: si lo
     // perdiera, en el móvil se cerraría el teclado en cada mensaje.
     const botonEnviar = document.getElementById('chat-send-btn');
-    if (botonEnviar && !botonEnviar._gfBound) {
-      botonEnviar._gfBound = true;
+    if (botonEnviar) {
 
       const enviar = (e) => {
         if (e) { e.preventDefault(); e.stopPropagation(); }
         this._sendChatFromInput();
         try { this.chatInput.focus(); } catch (_) {}
       };
-      botonEnviar.addEventListener('pointerdown', enviar);
+      bindDOM(botonEnviar, 'pointerdown', enviar);
       // Respaldo para navegadores sin eventos de puntero.
-      botonEnviar.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
+      bindDOM(botonEnviar, 'click', (e) => { e.preventDefault(); e.stopPropagation(); });
 
       // Se apaga mientras no haya nada escrito, para que se vea que no hace nada.
       const refrescarBotonEnviar = () => {
         botonEnviar.disabled = !(this.chatInput.value || '').trim();
       };
-      this.chatInput.addEventListener('input', refrescarBotonEnviar);
+      bindDOM(this.chatInput, 'input', refrescarBotonEnviar);
       refrescarBotonEnviar();
       this._refrescarBotonEnviarChat = refrescarBotonEnviar;
     }
 
     // When chat input is focused: disable game movement
-    this.chatInput.addEventListener('focus', () => {
+    bindDOM(this.chatInput, 'focus', () => {
       this._chatInputFocused = true;
       // Se apunta el zoom elegido ANTES de que el teclado del móvil reflote el
       // viewport, para poder devolverlo tal cual al cerrarse.
       if (this.cameras && this.cameras.main) this._zoomBeforeKeyboard = this.currentZoomIndex;
     });
     // When chat loses focus: re-enable game movement
-    this.chatInput.addEventListener('blur', () => {
+    bindDOM(this.chatInput, 'blur', () => {
       this._chatInputFocused = false;
       // El teclado se va y el viewport vuelve a su tamaño: restaurar el zoom.
       // El visualViewport tarda un poco en estabilizarse, de ahí los dos pases.
       if (typeof this._zoomBeforeKeyboard === 'number' && this._applyZoomIndex) {
         const idx = this._zoomBeforeKeyboard;
-        setTimeout(() => this._applyZoomIndex(idx, 0), 60);
-        setTimeout(() => this._applyZoomIndex(idx, 0), 350);
+        this.time.delayedCall(60, () => this._applyZoomIndex(idx, 0));
+        this.time.delayedCall(350, () => this._applyZoomIndex(idx, 0));
       }
     });
 
     // Clicking the game canvas while chat is open should blur chat input
     const gameCanvas = document.querySelector('canvas');
     if (gameCanvas) {
-      gameCanvas.addEventListener('pointerdown', () => {
+      bindDOM(gameCanvas, 'pointerdown', () => {
         if (this._chatInputFocused) {
           this.chatInput.blur();
           this._chatInputFocused = false;
@@ -17814,7 +17808,7 @@ removeOtherPlayer(playerId) {
     // ── Typing indicator: emitir al servidor y mostrar dots locales ──────────
     this._typingTimer = null;
     this._isTyping = false;
-    this.chatInput.addEventListener('input', () => {
+    bindDOM(this.chatInput, 'input', () => {
       if (this.chatInput.value.length > 0) {
         if (!this._isTyping) {
           this._isTyping = true;
@@ -18658,15 +18652,39 @@ destroyHudEstadisticas_1() {
 
 
 
+_disposeSceneAudio() {
+    if (this._audioCleanupTimer) clearInterval(this._audioCleanupTimer);
+    this._audioCleanupTimer = null;
+    const state = this.audioState;
+    if (!state) return;
+    const owned = new Set(state.activeSFX || []);
+    if (state.currentMusic) owned.add(state.currentMusic);
+    if (state.activeSFX) state.activeSFX.clear();
+    state.currentMusic = null;
+    state.currentMusicKey = null;
+    owned.forEach(sound => { try { sound.destroy(); } catch (_) {} });
+}
+
 cleanupScene() {
+    if (this._cleanupSceneDone) return true;
+    this._cleanupSceneDone = true;
+    this._sceneStopped = true;
+    if (this._disposeDOMHook) this._disposeDOMHook();
+    this._unbindAllDomClicks();
+    this._teardownZoomKeeper();
+    this.destroyHudEstadisticas_1();
+    if (this._onMouseMoveBound) document.removeEventListener('mousemove', this._onMouseMoveBound);
+    this._onMouseMoveBound = null;
+    ['_typingTimer', '_localBubbleTimer', '_relojColaChat'].forEach(key => {
+      if (this[key]) clearTimeout(this[key]);
+      this[key] = null;
+    });
+    this._colaEnvioChat = [];
     console.log('🧹 LIMPIANDO ESCENA COMPLETAMENTE');
 
     
     // 2. DETENER Y LIMPIAR SISTEMAS DE SONIDO
-    if (this.sound) {
-        this.sound.stopAll();
-        this.sound.removeAll();
-    }
+    this._disposeSceneAudio();
     
     // 3. LIMPIAR OBJETOS DEL JUEGO PRIMERO (antes de texturas)
     if (this.objetos && Array.isArray(this.objetos)) {
@@ -18990,21 +19008,22 @@ cleanupDomListeners() {
 // que se vuelve a entrar. Esto guarda el handler EN el elemento y quita el
 // anterior antes de poner el nuevo: siempre queda exactamente uno.
 _bindDomClick(el, key, handler) {
-    if (!el) return;
+    if (!el || this._sceneStopped) return;
     this._domClickBindings = this._domClickBindings || [];
     const prop = `_gfClick_${key}`;
     if (el[prop]) el.removeEventListener('click', el[prop]);
     el[prop] = handler;
     el.addEventListener('click', handler);
-    this._domClickBindings.push({ el, prop });
+    this._domClickBindings = this._domClickBindings.filter(r => r.el !== el || r.prop !== prop);
+    this._domClickBindings.push({ el, prop, handler });
 }
 
 _unbindAllDomClicks() {
-    (this._domClickBindings || []).forEach(({ el, prop }) => {
+    (this._domClickBindings || []).forEach(({ el, prop, handler }) => {
         try {
-            if (el && el[prop]) {
-                el.removeEventListener('click', el[prop]);
-                delete el[prop];
+            if (el) {
+                el.removeEventListener('click', handler);
+                if (el[prop] === handler) delete el[prop];
             }
         } catch (_) {}
     });
@@ -19104,6 +19123,9 @@ forceGarbageCollection() {
 
 // En la clase tiendajuego:
 shutdown() {
+  if (this._shutdownDone) return;
+  this._shutdownDone = true;
+  this._sceneStopped = true;
   console.log("🔄 Cerrando conexión de socket para tienda");
 
   // Salir de la sala de la tienda
@@ -19354,6 +19376,8 @@ highlightQuickSlot(index) {
   }
 
  makeElementDraggable(elementId) {
+    const domGroup = 'drag:' + elementId;
+    const bindDOM = this._domGroup(domGroup);
     const panel = document.getElementById(elementId);
 
     if (!panel) {
@@ -19475,7 +19499,7 @@ highlightQuickSlot(index) {
         dragstart: (e) => { e.preventDefault(); }
     };
 
-    document._dragHandlers = {
+    const dragHandlers = {
         mousemove: (e) => drag(e.clientX, e.clientY),
         mouseup: (e) => { if (e.button === 0) endDrag(); },
         touchmove: (e) => { if (isDragging && e.touches.length === 1) { const t = e.touches[0]; drag(t.clientX, t.clientY); e.preventDefault(); } },
@@ -19485,19 +19509,19 @@ highlightQuickSlot(index) {
     };
 
     // Asignar listeners
-    panel.addEventListener("mousedown", panel._dragHandlers.mousedown);
-    panel.addEventListener("touchstart", panel._dragHandlers.touchstart, { passive: false });
-    panel.addEventListener("dragstart", panel._dragHandlers.dragstart);
+    bindDOM(panel, "mousedown", panel._dragHandlers.mousedown);
+    bindDOM(panel, "touchstart", panel._dragHandlers.touchstart, { passive: false });
+    bindDOM(panel, "dragstart", panel._dragHandlers.dragstart);
 
-    document.addEventListener("mousemove", document._dragHandlers.mousemove);
-    document.addEventListener("mouseup", document._dragHandlers.mouseup);
-    document.addEventListener("touchmove", document._dragHandlers.touchmove, { passive: false });
-    document.addEventListener("touchend", document._dragHandlers.touchend);
-    document.addEventListener("touchcancel", document._dragHandlers.touchcancel);
-    document.addEventListener("keydown", document._dragHandlers.keydown);
+    bindDOM(document, "mousemove", dragHandlers.mousemove);
+    bindDOM(document, "mouseup", dragHandlers.mouseup);
+    bindDOM(document, "touchmove", dragHandlers.touchmove, { passive: false });
+    bindDOM(document, "touchend", dragHandlers.touchend);
+    bindDOM(document, "touchcancel", dragHandlers.touchcancel);
+    bindDOM(document, "keydown", dragHandlers.keydown);
 
     panel.setAttribute('data-draggable', 'true');
-    panel.centerPanel = centerPanel;
+    this._setDOMProperty(panel, 'centerPanel', centerPanel, domGroup);
     panel.style.pointerEvents = "auto";
 
     if (!(panel.style.left && panel.style.top)) centerPanel();
@@ -19525,26 +19549,50 @@ highlightQuickSlot(index) {
  * Uso: this._onDOM(document, 'mousemove', fn) en vez de
  *      document.addEventListener('mousemove', fn).
  */
-_onDOM(target, type, handler, options) {
-  if (!target || !type || typeof handler !== 'function') return handler;
-
-  if (!this._domListeners) {
-    this._domListeners = [];
-    const soltarTodos = () => {
-      const lista = this._domListeners || [];
-      lista.forEach(function (r) {
-        try { r.t.removeEventListener(r.ty, r.h, r.o); } catch (e) { /* ya soltado */ }
-      });
-      this._domListeners = null;
-      if (lista.length) console.log(`🧹 ${lista.length} listeners de DOM soltados al apagar la escena`);
-    };
-    this.events.once('shutdown', soltarTodos);
-    this.events.once('destroy',  soltarTodos);
-  }
-
+_onDOM(target, type, handler, options, group) {
+  if (!target || !type || typeof handler !== 'function' || this._sceneStopped) return handler;
+  this._trackDOMDisposal(() => target.removeEventListener(type, handler, options), group);
   target.addEventListener(type, handler, options);
-  this._domListeners.push({ t: target, ty: type, h: handler, o: options });
   return handler;
+}
+
+_trackDOMDisposal(dispose, group) {
+  if (!this._domListeners) this._domListeners = [];
+  if (!this._disposeDOMHook) {
+    const release = this._disposeDOMHook = () => {
+      this.events.off('shutdown', release);
+      this.events.off('destroy', release);
+      this._disposeDOMHook = null;
+      this._clearDOMGroup();
+      this._domListeners = null;
+    };
+    this.events.once('shutdown', release);
+    this.events.once('destroy', release);
+  }
+  this._domListeners.push({ dispose, group });
+}
+
+_clearDOMGroup(group) {
+  const records = this._domListeners || [];
+  this._domListeners = group === undefined ? [] : records.filter(r => r.group !== group);
+  records.forEach(r => {
+    if (group === undefined || r.group === group) {
+      try { r.dispose(); } catch (_) {}
+    }
+  });
+}
+
+_domGroup(group) {
+  this._clearDOMGroup(group);
+  return (target, type, handler, options) => this._onDOM(target, type, handler, options, group);
+}
+
+_setDOMProperty(target, property, handler, group) {
+  if (!target || this._sceneStopped) return;
+  target[property] = handler;
+  this._trackDOMDisposal(() => {
+    if (target[property] === handler) target[property] = null;
+  }, group);
 }
 
 makeDraggable(element) {
@@ -22976,6 +23024,28 @@ async loadPlayerData() {
     // Posicionar al jugador si existe
     if (this.player) {
       this.player.setVisible(true);
+
+      /* SALVO QUE LA ESCENA TENGA SU PROPIO PUNTO DE APARICION.
+       *
+       * Esta linea coloca al jugador donde dice la partida, que es una
+       * coordenada DEL MAPA DE FUERA (hasta 5008x5008). La mina y la isla
+       * llaman a `loadPlayerData()` como todos —lo necesitan para el
+       * inventario, las monedas y las barras— pero ellas ya habian colocado al
+       * jugador en su propia entrada. Y llega DESPUES, asi que lo arrastraba.
+       *
+       * En la isla, que mide 2048x1536, una x de 3300 se recorta contra el
+       * limite del mundo y el jugador aparecia clavado EN LA ESQUINA. En la
+       * mina caia dentro de la roca.
+       *
+       * `_anclaPropia` la ponen MinaScene y LandsScene justo antes de arrancar
+       * los sistemas. Tambien se corrige `posicionplayerx/y`, para que el
+       * siguiente `savegg()` guarde donde esta de verdad y no la coordenada de
+       * la calle. */
+      if (this._anclaPropia) {
+        this.posicionplayerx = this._anclaPropia.x;
+        this.posicionplayery = this._anclaPropia.y;
+      }
+
       this.player.setPosition(this.posicionplayerx, this.posicionplayery);
       // El perro tiene que ir CON el jugador, no detrás de él.
       this._pegarPerroAlJugador();
@@ -30961,6 +31031,7 @@ if (window.globalPetData) {
    * Todos son metodos heredados de GameScene: aqui no hay ni una copia.
    */
   async _arrancarSistemas() {
+    const sceneRunId = this._sceneRunId;
     // 1. El catalogo de objetos.
     try { this._definirObjetos(); } catch (e) { console.warn('⛏️ catalogo:', e); }
 
@@ -30980,6 +31051,7 @@ if (window.globalPetData) {
     } catch (e) {
       console.error('⛏️ no se pudieron cargar los datos del jugador:', e);
     }
+    if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
 
     // 4. Inventario, casillas rapidas y cofre.
     try {
@@ -31007,8 +31079,7 @@ if (window.globalPetData) {
       this.toggleHubInfo = this.toggleHubInfo.bind(this);
       this.loadState();
       if (this.profileImage) {
-        this.profileImage.removeEventListener('click', this.toggleHubInfo);
-        this.profileImage.addEventListener('click', this.toggleHubInfo);
+        this._bindDomClick(this.profileImage, 'profile', this.toggleHubInfo);
       }
     } catch (e) { console.warn('⛏️ estado del hub:', e); }
 
@@ -31201,14 +31272,26 @@ if (window.globalPetData) {
     anim('perro_right', 'perro_derecha_', 4, 6);
     anim('perro_left', 'perro_izquierda_', 4, 6);
 
-    if (!this.anims.exists('lava_burbuja_anim')) {
-      this.anims.create({
-        key: 'lava_burbuja_anim',
-        frames: this.anims.generateFrameNumbers('lava_burbuja', { start: 0, end: 5 }),
-        frameRate: 9,
-        repeat: 0
-      });
-    }
+    /* LA BURBUJA DE LAVA SE FUE DE AQUI, Y ESTE HUECO ES EL RECORDATORIO.
+     *
+     * Estaba creando `lava_burbuja_anim` en TODAS las escenas que heredan de
+     * GameScene. Pero la hoja de sprites `lava_burbuja` solo la carga el
+     * preload de la MINA. Asi que al entrar en la isla —que no la carga—
+     * `generateFrameNumbers` no encontraba la textura, devolvia una lista
+     * VACIA, y la animacion se creaba igualmente con CERO fotogramas.
+     *
+     * Y las animaciones de Phaser son GLOBALES del juego, no de la escena. De
+     * modo que al bajar despues a la mina, el `anims.exists(...)` daba true,
+     * no se rehacia nada, y el primer `play()` de una burbuja reventaba con
+     * "Cannot read properties of undefined (reading 'duration')" al buscar
+     * `frames[0]`.
+     *
+     * Eso tiraba el JUEGO ENTERO: la llamada salia de un TimerEvent, y una
+     * excepcion ahi corta el paso del bucle de Phaser antes de dibujar. Pantalla
+     * negra y "no corre nada", solo si habias pasado por la isla antes.
+     *
+     * Ahora la animacion se construye en MinaScene, que es quien tiene la
+     * textura, y se rehace en cada entrada. Ver `_montarBurbujas()`. */
   }
 
   /** La decision de animacion, con el desplazamiento ya corregido. */

@@ -374,7 +374,10 @@
   // ============================================================================
   function texturaLuz(scene, clave, radio) {
     if (scene.textures.exists(clave)) return;
-    var d = radio * 2;
+    // El radio de mundo se aplica al dibujar el pincel. El degradado no
+    // necesita un canvas de 1400x1400 para cada farol: se interpola al ampliar.
+    var d = Math.min(256, radio * 2);
+    radio = d / 2;
     var canvas = scene.textures.createCanvas(clave, d, d);
     var ctx = canvas.getContext();
     var g = ctx.createRadialGradient(radio, radio, 0, radio, radio, radio);
@@ -538,7 +541,7 @@
     var scene = st.scene;
     if (!scene || !scene.cameras) return;
     var cam = scene.cameras.main;
-    if (!cam || !st.rt) return;
+    if (!cam) return;
 
     // Los faroles se encienden con la oscuridad, no de golpe: al atardecer van
     // subiendo igual que baja la luz. Se enciende un poco antes de que la
@@ -546,7 +549,10 @@
     encenderPostes(st, clamp(o * 1.35, 0, 1));
 
     if (o <= 0.01) {
-      if (st.rt.visible) st.rt.setVisible(false);
+      // Ocultar la imagen no libera su framebuffer/textura de pantalla.
+      // Al amanecer se suelta; la siguiente noche lo crea de nuevo.
+      destruirObjeto(st.rt);
+      st.rt = null;
       return;
     }
 
@@ -565,7 +571,7 @@
     // Si cambia el tamaño de la ventana hay que rehacer la capa: eso sí es un
     // cambio de textura de verdad, pero pasa una vez al redimensionar, no por
     // frame como pasaba con el zoom.
-    if (st.anchoCam !== cam.width || st.altoCam !== cam.height) {
+    if (!st.rt || st.anchoCam !== cam.width || st.altoCam !== cam.height) {
       if (!rehacerCapa(st, cam)) return;
     }
 

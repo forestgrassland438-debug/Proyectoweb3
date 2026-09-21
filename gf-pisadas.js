@@ -215,9 +215,9 @@
     var masVieja = null;
     for (var i = 0; i < lista.length; i++) {
       if (lista[i].hasta <= ahora) return lista[i];
-      if (!masVieja || lista[i].hasta < masVieja.hasta) masVieja = lista[i];
+      if (!masVieja || lista[i].orden < masVieja.orden) masVieja = lista[i];
     }
-    return masVieja;   // todas ocupadas: se recicla la que antes acabe
+    return masVieja;   // todas ocupadas: se recicla la primera que nació
   }
 
   /**
@@ -230,7 +230,7 @@
    */
   function pisar(scene, x, y, op) {
     var st = scene && scene.__gfPisadas;
-    if (!st) return false;
+    if (!st || st.muerto || !Number.isFinite(x) || !Number.isFinite(y)) return false;
     op = op || {};
     var ahora = scene.time.now;
     var T = TONOS[st.terreno] || TONOS.seco;
@@ -246,9 +246,14 @@
       h.spr.setTint(T.huella);
       h.spr.setVisible(true);
       h.nace = ahora;
-      h.dura = (st.terreno === 'nieve' ? HUELLA_NIEVE : HUELLA_MS) * az(0.8, 1.2);
-      h.hasta = ahora + h.dura;
+      h.orden = ++st.orden;
+      // La variación aleatoria borraba huellas recientes antes que antiguas.
+      // Mantener la fecha de salida ordenada también al pasar de nieve a seco.
+      h.hasta = Math.max(ahora + (st.terreno === 'nieve' ? HUELLA_NIEVE : HUELLA_MS), st.ultimaHuellaHasta);
+      h.dura = h.hasta - ahora;
+      st.ultimaHuellaHasta = h.hasta;
       h.alfa = T.alfaHuella * fuerza;
+      h.spr.setAlpha(h.alfa);
     }
 
     /* ── el polvo (o el agua) ──
@@ -270,6 +275,7 @@
       m.spr.setTexture(esAnillo ? st.claveAnillo : st.clavePolvo);
       m.x = x + az(-3, 3);
       m.y = y + az(-2, 2);
+      m.spr.setPosition(m.x, m.y);
       /* El polvo sale hacia ATRÁS del que anda, no hacia los lados al azar: es
          lo que hace que se lea como impulso y no como humo. */
       var atras = (op.rumbo || 0) + Math.PI + az(-0.5, 0.5);
@@ -280,8 +286,10 @@
       m.spr.setTint(T.polvo);
       m.spr.setVisible(true);
       m.nace = ahora;
+      m.orden = ++st.orden;
       m.hasta = ahora + az(POLVO_MS[0], POLVO_MS[1]) * (esAnillo ? 0.7 : 1);
       m.alfa = T.alfaPolvo * fuerza;
+      m.spr.setAlpha(m.alfa);
     }
     return true;
   }
@@ -307,7 +315,7 @@
   /** Da de alta a alguien a quien seguir. */
   function seguir(st, id, spr, fuerza) {
     var v = st.vigilados[id];
-    if (!v) {
+    if (!v || v.spr !== spr) {
       v = st.vigilados[id] = { spr: spr, x: spr.x, y: spr.y, recorrido: 0,
                                fuerza: fuerza, rumbo: 0 };
     }
@@ -343,7 +351,12 @@
 
       /* Un sprite que ya no está (jugador que se fue, mascota retirada) se
          suelta: si no, el mapa se llenaría de fantasmas a los que seguir. */
-      if (!spr || spr.active === false || !spr.scene) { delete st.vigilados[k]; continue; }
+      var sigue = k === '@yo' ? scene.player === spr : k === '@perro' ?
+        scene.dog && scene.dog.sprite === spr : scene.otherPlayers &&
+        scene.otherPlayers[k.slice(1)] && scene.otherPlayers[k.slice(1)].sprite === spr;
+      if (!sigue || !spr || spr.active === false || spr.visible === false || !spr.scene) {
+        delete st.vigilados[k]; continue;
+      }
 
       var dx = spr.x - v.x, dy = spr.y - v.y;
       v.x = spr.x; v.y = spr.y;
@@ -444,6 +457,7 @@
 
     var st = {
       scene: scene, motas: [], huellas: [], vigilados: {},
+      orden: 0, ultimaHuellaHasta: 0, muerto: false,
       clavePolvo: clavePolvo, claveHuella: claveHuella,
       claveAnillo: claveAnillo || clavePolvo,
       suelo: opciones.suelo || null,          // 'madera' en la tienda; null = lo dice el clima
@@ -457,12 +471,20 @@
     /* Si el suelo está fijado y ese suelo no levanta polvo (la tarima de la
        tienda), no se reservan las motas: son 26 sprites que no se iban a
        enseñar nunca. */
-    if (!(st.suelo && !POLVO[st.suelo])) {
-      for (i = 0; i < Math.round(N_POLVO * n); i++) st.motas.push(nuevaMota(st, clavePolvo));
+    try {
+      if (!(st.suelo && !POLVO[st.suelo])) {
+        for (i = 0; i < Math.round(N_POLVO * n); i++) st.motas.push(nuevaMota(st, clavePolvo));
+      }
+      for (i = 0; i < Math.round(N_HUELLAS * n); i++) st.huellas.push(nuevaHuella(st, claveHuella));
+    } catch (e) {
+      desmontar(scene);
+      return null;
     }
-    for (i = 0; i < Math.round(N_HUELLAS * n); i++) st.huellas.push(nuevaHuella(st, claveHuella));
 
     st.onUpdate = function (ahora, delta) {
+      if (st.muerto || !Number.isFinite(delta) || delta < 0) return;
+      // Phaser emite el tiempo global; las marcas nacen en el reloj de escena.
+      ahora = scene.time.now;
       // El tiempo se pregunta dos veces por segundo, no en cada frame: cambia
       // de minuto en minuto y consultarlo 60 veces por segundo es tontería.
       if (ahora >= st.proximoTerreno) {
@@ -484,18 +506,26 @@
 
   function desmontar(scene) {
     var st = scene && scene.__gfPisadas;
-    if (!st) return;
+    if (!st || st.muerto) return;
+    st.muerto = true;
+    scene.__gfPisadas = null;
     if (st.onUpdate) scene.events.off('update', st.onUpdate);
     if (st.onApagar) {
       scene.events.off('shutdown', st.onApagar);
       scene.events.off('destroy', st.onApagar);
     }
     var i;
-    for (i = 0; i < st.motas.length; i++)   st.motas[i].spr.destroy();
-    for (i = 0; i < st.huellas.length; i++) st.huellas[i].spr.destroy();
+    for (i = 0; i < st.motas.length; i++) {
+      try { st.motas[i].spr.destroy(); } catch (e) {}
+      st.motas[i].spr = null;
+    }
+    for (i = 0; i < st.huellas.length; i++) {
+      try { st.huellas[i].spr.destroy(); } catch (e) {}
+      st.huellas[i].spr = null;
+    }
     st.motas.length = 0; st.huellas.length = 0;
     st.vigilados = {};
-    scene.__gfPisadas = null;
+    st.scene = st.onUpdate = st.onApagar = null;
     if (montado === st) montado = null;
   }
 

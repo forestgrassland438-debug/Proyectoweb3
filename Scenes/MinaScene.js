@@ -203,17 +203,28 @@ class MinaScene extends GameScene {
    *      pantalla negra de la que solo se sale recargando.
    */
   async create() {
+    const sceneRunId = this._sceneRunId = (this._sceneRunId || 0) + 1;
+    this._sceneStopped = false;
+    this._cleanupSceneDone = false;
+    this._shutdownDone = false;
+    this._minaCleanupDone = false;
+    this.events.off('shutdown', this._alApagar, this);
+    this.events.off('destroy', this._alApagar, this);
+    this.events.once('shutdown', this._alApagar, this);
+    this.events.once('destroy', this._alApagar, this);
     this._faseMina = 'arranque';
     this._rescatando = false;
 
     try {
-      await this._construirMina();
+      await this._construirMina(sceneRunId);
     } catch (e) {
+      if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
       console.error('⛏️ la mina se rompio en la fase "' + this._faseMina + '":', e);
       this._rescatar('la mina no se pudo montar (' + this._faseMina + ')');
       return;
     }
 
+    if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
     if (!this.map || !this.player || !this.keys) {
       console.error('⛏️ la mina quedo a medias en la fase "' + this._faseMina +
                     '" -> mapa:' + !!this.map +
@@ -267,7 +278,7 @@ class MinaScene extends GameScene {
     });
   }
 
-  async _construirMina() {
+  async _construirMina(sceneRunId = this._sceneRunId) {
     console.log('⛏️ MinaScene.create()');
 
     /* ── LA SESION, LO PRIMERO DE TODO ───────────────────────────────────
@@ -294,6 +305,7 @@ class MinaScene extends GameScene {
       console.log('⛏️ sin sesion heredada: se pide al servidor');
       sesion = await this.loadx();
     }
+    if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
     if (!sesion || !this.playerName) {
       /* Sin sesion NO se monta la mina, pero tampoco se deja al jugador
          mirando una escena vacia: el envoltorio lo devuelve a la pantalla de
@@ -434,6 +446,12 @@ class MinaScene extends GameScene {
     this.posicionplayerx = inicio.x;
     this.posicionplayery = inicio.y;
 
+    /* EL ANCLA. `loadPlayerData()` (heredado) llega despues y recoloca al
+       jugador en la posicion guardada, que es una coordenada del mapa de
+       fuera. Con esto puesto, respeta la de aqui. Ver el comentario en
+       GameScene, junto a `this._anclaPropia`. */
+    this._anclaPropia = { x: inicio.x, y: inicio.y };
+
     this.player = this.physics.add.sprite(inicio.x, inicio.y, 'player_right_1');
     this.player.setScale(2);
     this.player.setCollideWorldBounds(true);
@@ -511,6 +529,7 @@ class MinaScene extends GameScene {
     // para que cuando se pinten las barras y las monedas ya haya datos.
     this._faseMina = 'sistemas de juego';
     await this._arrancarSistemas();
+    if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
 
     // ── El HUD ─────────────────────────────────────────────────────────────
     this._faseMina = 'HUD';
@@ -540,7 +559,6 @@ class MinaScene extends GameScene {
     if (window.tiendaSistema) window.tiendaSistema.scene = this;
 
     // ── Limpieza al salir ──────────────────────────────────────────────────
-    this.events.once('shutdown', () => this._alApagar());
 
     this._faseMina = 'lista';
     console.log('⛏️ mina lista');
@@ -772,14 +790,55 @@ class MinaScene extends GameScene {
     if (!capa || !capa.objects.length) return;
     const trozos = capa.objects;
 
+    /* LA ANIMACION SE REHACE AQUI EN CADA ENTRADA, Y NO ES POR GUSTO.
+     *
+     * Antes se creaba en `GameScene._crearAnimaciones()` con un
+     * `if (!anims.exists(...))`. Dos formas de romperse, y las dos acabaron en
+     * pantalla negra:
+     *
+     *   1. La isla tambien hereda ese metodo y NO carga `lava_burbuja`. Alli
+     *      la animacion se creaba con CERO fotogramas —las animaciones son
+     *      globales del juego— y la mina se la encontraba ya hecha y vacia.
+     *   2. `_alApagar()` suelta la textura al salir. En la segunda visita la
+     *      textura es OTRA, pero las tramas de la animacion vieja seguian
+     *      apuntando a la destruida.
+     *
+     * En los dos casos, el primer `play()` moria en `frames[0].duration`. Y la
+     * llamada sale de un TimerEvent: una excepcion ahi corta el paso del bucle
+     * de Phaser ANTES de dibujar, asi que no se pierde una burbuja, se pierde
+     * el juego entero.
+     *
+     * Rehacerla cuesta nada y no deja ninguna de las dos puertas abiertas. */
+    if (!this.textures.exists('lava_burbuja')) {
+      console.warn('⛏️ sin la textura lava_burbuja: la mina va sin burbujas');
+      return;
+    }
+    if (this.anims.exists('lava_burbuja_anim')) {
+      this.anims.remove('lava_burbuja_anim');
+    }
+    this.anims.create({
+      key: 'lava_burbuja_anim',
+      frames: this.anims.generateFrameNumbers('lava_burbuja', { start: 0, end: 5 }),
+      frameRate: 9,
+      repeat: 0
+    });
+
     const recolocar = (spr) => {
-      const t = trozos[Phaser.Math.Between(0, trozos.length - 1)];
-      spr.setPosition(
-        t.x + Phaser.Math.Between(0, Math.max(0, t.width - 16)) + 8,
-        t.y + Phaser.Math.Between(0, Math.max(0, t.height - 16)) + 8
-      );
-      spr.setVisible(true);
-      spr.play('lava_burbuja_anim');
+      /* Y aun asi, con red. Esto corre desde un temporizador, y un temporizador
+         que lanza se lleva por delante el fotograma entero. Ninguna burbuja
+         merece eso. */
+      try {
+        const t = trozos[Phaser.Math.Between(0, trozos.length - 1)];
+        spr.setPosition(
+          t.x + Phaser.Math.Between(0, Math.max(0, t.width - 16)) + 8,
+          t.y + Phaser.Math.Between(0, Math.max(0, t.height - 16)) + 8
+        );
+        spr.setVisible(true);
+        spr.play('lava_burbuja_anim');
+      } catch (e) {
+        console.warn('⛏️ burbuja:', e && e.message);
+        try { spr.setVisible(false); } catch (e2) {}
+      }
     };
 
     for (let i = 0; i < 8; i++) {
@@ -1022,6 +1081,12 @@ class MinaScene extends GameScene {
   // memoria de video crecia en cada viaje hasta que el juego se arrastraba.
 
   _alApagar() {
+    if (this._minaCleanupDone) return;
+    this._minaCleanupDone = true;
+    this._sceneStopped = true;
+    this.events.off('shutdown', this._alApagar, this);
+    this.events.off('destroy', this._alApagar, this);
+    try { this.cleanupScene(); } catch (e) { console.warn('limpieza de mina:', e); }
     console.log('⛏️ apagando la mina');
 
     (this._mascaras || []).forEach(g => { try { g.destroy(); } catch (e) {} });
@@ -1039,11 +1104,17 @@ class MinaScene extends GameScene {
     try { if (this.backgroundLayer) this.backgroundLayer.destroy(); } catch (e) {}
     try { if (this.capaObjetos) this.capaObjetos.destroy(); } catch (e) {}
     try { if (this.penumbra) this.penumbra.destroy(); } catch (e) {}
+    this.backgroundLayer = null;
+    this.capaObjetos = null;
+    this.penumbra = null;
 
     // El tilemap tambien: sin esto su copia de los 97.969 tiles se queda en la
     // cache de tilemaps de la escena.
     try { if (this.map) this.map.destroy(); } catch (e) {}
     this.map = null;
+    this.collisionRectangles = [];
+    this.collisionRectangles1 = [];
+    this.collisionRectangles2 = [];
 
     ['tiles_mina', 'piezas_mina', 'lava_flujo', 'lava_brillo', 'agua_flujo',
      'lava_burbuja']

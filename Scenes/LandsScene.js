@@ -117,6 +117,15 @@ class LandsScene extends GameScene {
   // =========================================================================
 
   async create() {
+    const sceneRunId = this._sceneRunId = (this._sceneRunId || 0) + 1;
+    this._sceneStopped = false;
+    this._cleanupSceneDone = false;
+    this._shutdownDone = false;
+    this._landsCleanupDone = false;
+    this.events.off('shutdown', this._alApagar, this);
+    this.events.off('destroy', this._alApagar, this);
+    this.events.once('shutdown', this._alApagar, this);
+    this.events.once('destroy', this._alApagar, this);
     console.log('🏝️ LandsScene.create()');
 
     /* ── LA SESION, LO PRIMERO DE TODO ───────────────────────────────────
@@ -142,6 +151,7 @@ class LandsScene extends GameScene {
       console.log('🏝️ sin sesion heredada: se pide al servidor');
       sesion = await this.loadx();
     }
+    if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
     if (!sesion || !this.playerName) {
       console.error('🏝️ no se pudo autenticar: la isla no arranca');
       this.showTokenErrorHub();
@@ -210,6 +220,12 @@ class LandsScene extends GameScene {
     const inicio = this._puntoDeAparicion();
     this.posicionplayerx = inicio.x;
     this.posicionplayery = inicio.y;
+
+    /* EL ANCLA. `loadPlayerData()` (heredado) llega despues y recoloca al
+       jugador en la posicion guardada, que es una coordenada del mapa de
+       fuera. Con esto puesto, respeta la de aqui. Ver el comentario en
+       GameScene, junto a `this._anclaPropia`. */
+    this._anclaPropia = { x: inicio.x, y: inicio.y };
     this.player = this.physics.add.sprite(inicio.x, inicio.y, 'player_right_1');
     this.player.setScale(2);
     this.player.setCollideWorldBounds(true);
@@ -249,6 +265,7 @@ class LandsScene extends GameScene {
 
     // ── Sistemas y HUD ─────────────────────────────────────────────────────
     await this._arrancarSistemas();
+    if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
     this._mostrarHUD();
 
     // Al aire libre si van el viento y el ciclo de dia: es una isla, no una
@@ -266,7 +283,6 @@ class LandsScene extends GameScene {
     try { this._setupChatDom(); } catch (e) { console.warn('🏝️ chat:', e); }
     if (window.tiendaSistema) window.tiendaSistema.scene = this;
 
-    this.events.once('shutdown', () => this._alApagar());
     console.log('🏝️ isla lista');
   }
 
@@ -588,10 +604,20 @@ class LandsScene extends GameScene {
   // =========================================================================
 
   _alApagar() {
+    if (this._landsCleanupDone) return;
+    this._landsCleanupDone = true;
+    this._sceneStopped = true;
+    this.events.off('shutdown', this._alApagar, this);
+    this.events.off('destroy', this._alApagar, this);
+    try { this.cleanupScene(); } catch (e) { console.warn('limpieza de isla:', e); }
     console.log('🏝️ apagando la isla');
     try { if (this.backgroundLayer) this.backgroundLayer.destroy(); } catch (e) {}
     try { if (this.map) this.map.destroy(); } catch (e) {}
     this.map = null;
+    this.backgroundLayer = null;
+    this.collisionRectangles = [];
+    this.collisionRectangles1 = [];
+    this.collisionRectangles2 = [];
     // La textura de la isla se suelta: mientras se juega fuera no pinta nada
     // ocupando memoria de video.
     try {
