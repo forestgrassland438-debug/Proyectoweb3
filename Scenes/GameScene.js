@@ -1789,84 +1789,46 @@ showNotification(message, type = 'info') {
 
     // NUEVO: Sistema de auto-refresh CORREGIDO
     startAutoRefresh() {
-        if (this.autoRefreshInterval) {
-            clearInterval(this.autoRefreshInterval);
-            this.autoRefreshInterval = null;
+        if (!this.autoRefreshEnabled || !this.isAuthenticated || this._sceneStopped) return;
+        // Solo datos escalares: el temporizador de página no retiene escenas.
+        let service = window.__gfAuthRefreshService;
+        if (!service) {
+            service = window.__gfAuthRefreshService = {
+                getCSRFToken: GameScene.prototype.getCSRFToken,
+                refreshInProgress: false, currentRefreshAttempts: 0, lastRefreshTime: 0
+            };
+            service.timer = setInterval(GameScene._refreshSessionTick, 270000);
+            if (this.game?.events) this.game.events.once('destroy', GameScene._stopSessionRefresh);
         }
-        
-        // Verificar si está habilitado el auto-refresh
-        if (!this.autoRefreshEnabled || !this.isAuthenticated) {
-            console.log('🔄 Auto-refresh deshabilitado o usuario no autenticado');
-            return;
-        }
-        
-        console.log('🔄 Iniciando sistema de auto-refresh corregido...');
-        
-        // Refrescar cada 4.5 minutos (270,000 ms) para prevenir expiración
-        this.autoRefreshInterval = setInterval(async () => {
-            try {
-                // Verificar que el usuario aún esté autenticado
-                if (!this.isAuthenticated || !this.playerName) {
-                    console.log('🔄 Usuario no autenticado, deteniendo auto-refresh');
-                    this.stopAutoRefresh();
-                    return;
-                }
-                
-                // Verificar tiempo desde el último refresco
-                const now = Date.now();
-                const timeSinceLastRefresh = now - this.lastRefreshTime;
-                
-                // Solo refrescar si ha pasado más de 1 minuto desde el último refresh
-                if (timeSinceLastRefresh < 60000) {
-                    console.log(`🔄 Esperando, refrescado hace ${Math.floor(timeSinceLastRefresh/1000)} segundos`);
-                    return;
-                }
-                
-                console.log('🔄 Ejecutando auto-refresh programado...');
-                
-                // Verificar actividad del usuario antes de refrescar
-                const inactiveTime = now - this.lastActivityTime;
-                if (inactiveTime < 30 * 60 * 1000) { // Solo si el usuario estuvo activo en los últimos 30 minutos
-                    const success = await this.refreshAuthToken();
-                    
-                    if (success) {
-                        console.log('✅ Auto-refresh exitoso');
-                        this.lastRefreshTime = now;
-                        this.currentRefreshAttempts = 0;
-                    } else {
-                        console.warn('⚠️ Auto-refresh falló');
-                        this.currentRefreshAttempts++;
-                        
-                        // Si hay demasiados intentos fallidos, verificar autenticación
-                        if (this.currentRefreshAttempts >= this.maxRefreshAttempts) {
-                            console.error('❌ Demasiados intentos fallidos de auto-refresh');
-                            
-                            // Verificar si aún estamos autenticados
-                            const authStatus = await this.checkAuthStatus();
-                            if (!authStatus) {
-                                console.log('🔐 Autenticación perdida, mostrando error');
-                                this.showTokenErrorHub();
-                            }
-                            this.currentRefreshAttempts = 0; // Resetear después de verificar
-                        }
-                    }
-                } else {
-                    console.log('⏰ Usuario inactivo, omitiendo auto-refresh');
-                }
-            } catch (error) {
-                console.error('❌ Error en auto-refresh:', error);
+        service.serverBase = this.serverBase;
+        service.lastActivityTime = this.lastActivityTime || Date.now();
+    }
+
+    static async _refreshSessionTick() {
+        const service = window.__gfAuthRefreshService;
+        if (!service || service.refreshInProgress) return;
+        const scenes = window.game?.scene?.getScenes?.(true) || [];
+        for (const scene of scenes) {
+            if (Number.isFinite(scene.lastActivityTime)) {
+                service.lastActivityTime = Math.max(service.lastActivityTime, scene.lastActivityTime);
             }
-        }, 270000); // 4.5 minutos (antes de que expire el token de 5 minutos)
-        
-        console.log('✅ Sistema de auto-refresh iniciado (cada 4.5 minutos)');
+        }
+        const now = Date.now();
+        if (now - service.lastRefreshTime < 60000 || now - service.lastActivityTime >= 30 * 60 * 1000) return;
+        if (await GameScene.prototype.refreshAuthToken.call(service)) service.lastRefreshTime = now;
+    }
+
+    static _stopSessionRefresh() {
+        const service = window.__gfAuthRefreshService;
+        if (!service) return;
+        clearInterval(service.timer);
+        window.__gfAuthRefreshService = null;
     }
     
     stopAutoRefresh() {
-        if (this.autoRefreshInterval) {
-            clearInterval(this.autoRefreshInterval);
-            this.autoRefreshInterval = null;
-            console.log('🛑 Auto-refresh detenido');
-        }
+        if (this.autoRefreshInterval) clearInterval(this.autoRefreshInterval);
+        this.autoRefreshInterval = null;
+        GameScene._stopSessionRefresh();
     }
     
     // NUEVO: Método para refrescar token de autenticación CORREGIDO
@@ -1878,7 +1840,7 @@ showNotification(message, type = 'info') {
         }
         
         this.refreshInProgress = true;
-        this.currentRefreshAttempts++;
+        this.currentRefreshAttempts = (this.currentRefreshAttempts || 0) + 1;
         
         try {
             console.log('🔄 Refrescando token de autenticación...');
@@ -2088,16 +2050,19 @@ showNotification(message, type = 'info') {
     }
 
     async loadx() {
+  const sceneRunId = this._sceneRunId;
         console.log('🔍 Iniciando verificación de autenticación...');
         
         try {
             // Primero obtener token CSRF
             await this.getCSRFToken();
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
             
             // Usar fetchWithTokenRetry para manejar errores de token
             const response = await this.fetchWithTokenRetry(`${this.serverBase}/api/auth/me`, {
                 method: 'GET'
             });
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
             
             console.log('📊 Response status de /api/auth/me:', response.status);
             
@@ -2108,6 +2073,7 @@ showNotification(message, type = 'info') {
             }
 
             const data = await response.json();
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
             console.log('📥 Datos de autenticación:', data);
 
             if (data.authenticated && data.address) {
@@ -2134,6 +2100,7 @@ showNotification(message, type = 'info') {
                 return false;
             }
         } catch (error) {
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
             console.error('❌ Error en loadx:', error);
             this.showTokenErrorHub();
             return false;
@@ -9052,8 +9019,7 @@ setupResourceLockSocket() {
     this._resourceLockSocketBound = false;
     this._cerrarMenuJugador();
   };
-  this.events.once('shutdown', soltar);
-  this.events.once('destroy',  soltar);
+  this._onceSceneEnd(soltar);
 }
 
 async loadMineLockStates() {
@@ -15121,7 +15087,7 @@ setupSoundHubEvents() {
   }
   
   // Cerrar al presionar Escape
-  this._onDOM(document, 'keydown', (e) => {   // FIX FUGA: era anónimo y no se quitaba
+  bindDOM(document, 'keydown', (e) => {   // FIX FUGA: era anónimo y no se quitaba
     if (e.key === 'Escape' && this.isSoundHubVisible()) {
       this.hideSoundHub();
     }
@@ -15344,7 +15310,7 @@ playMusic(key, config = {}) {
     console.log(`🎵 Reproduciendo música: ${key} (volumen: ${finalConfig.volume})`);
     
     // Actualizar selector si el panel está abierto
-    if (this.soundHubElements.musicSelect && this.isSoundHubVisible()) {
+    if (this.soundHubElements?.musicSelect && this.isSoundHubVisible()) {
       this.soundHubElements.musicSelect.value = key;
     }
     
@@ -15389,10 +15355,18 @@ playSFX(key, config = {}) {
     const sound = this.sound.add(key, finalConfig);
     const activeSFX = this.audioState.activeSFX;
     activeSFX.add(sound);
-    const release = () => { activeSFX.delete(sound); sound.destroy(); };
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      activeSFX.delete(sound);
+      sound.destroy();
+    };
     sound.once('complete', release);
-    sound.once('stop', release);
-    sound.once('destroy', () => activeSFX.delete(sound));
+    // Phaser emite STOP dentro de destroy(), antes de marcar pendingRemove.
+    // Esperar la microtarea evita destruir los AudioNodes dos veces.
+    sound.once('stop', () => { Promise.resolve().then(release); });
+    sound.once('destroy', () => { released = true; activeSFX.delete(sound); });
     try {
       if (sound.play() === false) { release(); return null; }
     } catch (error) { release(); throw error; }
@@ -15919,12 +15893,14 @@ _setupZoomKeeper() {
         if (this._zoomKeeperBound) return;
         this._zoomKeeperBound = true;
 
-        let t = null;
         this._onViewportChange = () => {
-            clearTimeout(t);
+            clearTimeout(this._zoomKeeperTimer);
             // Se espera a que el navegador termine de reflotar: el resize del
             // teclado llega en varios pasos y restaurar antes de tiempo no sirve.
-            t = setTimeout(() => this._reapplyZoom(), 250);
+            this._zoomKeeperTimer = setTimeout(() => {
+              this._zoomKeeperTimer = null;
+              if (!this._sceneStopped) this._reapplyZoom();
+            }, 250);
         };
 
         window.addEventListener('resize', this._onViewportChange);
@@ -15934,11 +15910,12 @@ _setupZoomKeeper() {
         }
 
         // Al cerrar el chat en el móvil el teclado se va: mismo tratamiento.
-        this.events.once('shutdown', () => this._teardownZoomKeeper());
-        this.events.once('destroy',  () => this._teardownZoomKeeper());
+        this._trackDOMDisposal(() => this._teardownZoomKeeper(), 'zoom');
     }
 
     _teardownZoomKeeper() {
+        clearTimeout(this._zoomKeeperTimer);
+        this._zoomKeeperTimer = null;
         if (!this._onViewportChange) return;
         window.removeEventListener('resize', this._onViewportChange);
         window.removeEventListener('orientationchange', this._onViewportChange);
@@ -17666,8 +17643,7 @@ removeOtherPlayer(playerId) {
       this._tecladoSeguidorPuesto = false;
       this._tecladoAlto = 0;
     };
-    this.events.once('shutdown', soltar);
-    this.events.once('destroy',  soltar);
+    this._onceSceneEnd(soltar);
   }
 
   _setupChatDom() {
@@ -18174,6 +18150,7 @@ removeOtherPlayer(playerId) {
   // panel varias veces.
   // ═════════════════════════════════════════════════════════════════════════
   _montarSelectorEmojis() {
+    this._clearDOMGroup('emoji');
     const boton = document.getElementById('chat-emoji-btn');
     const panel = document.getElementById('chat-emoji-picker');
     if (!boton || !panel || !this.chatInput) return;
@@ -18211,11 +18188,7 @@ removeOtherPlayer(playerId) {
           b.title = emoji;
           // pointerdown + preventDefault: así el campo de texto NO pierde el
           // foco y el cursor se queda donde estaba.
-          b.addEventListener('pointerdown', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            this._insertarEmojiEnChat(emoji);
-          });
+          b.dataset.gfEmoji = emoji;
           rejilla.appendChild(b);
         });
         panel.appendChild(rejilla);
@@ -18234,17 +18207,23 @@ removeOtherPlayer(playerId) {
       }
     };
 
-    if (!boton.dataset.gfListo) {
-      boton.dataset.gfListo = '1';
-      boton.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); abrirCerrar(); });
+    {
+      this._onDOM(boton, 'click', (e) => { e.preventDefault(); e.stopPropagation(); abrirCerrar(); }, undefined, 'emoji');
       // Cerrar al tocar fuera del chat.
       this._onDOM(document, 'pointerdown', (e) => {   // FIX FUGA: era anónimo y no se quitaba
         if (panel.classList.contains('hidden')) return;
         if (panel.contains(e.target) || boton.contains(e.target)) return;
         abrirCerrar(false);
-      });
+      }, undefined, 'emoji');
     }
 
+    this._onDOM(panel, 'pointerdown', (e) => {
+      const button = e.target.closest?.('.chat-emoji-grid button');
+      if (!button || !panel.contains(button)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this._insertarEmojiEnChat(button.dataset.gfEmoji || button.textContent);
+    }, undefined, 'emoji');
     this._cerrarSelectorEmojis = () => abrirCerrar(false);
   }
 
@@ -18696,6 +18675,7 @@ cleanupScene() {
       this[key] = null;
     });
     this._colaEnvioChat = [];
+    if (window.activeScene === this) window.activeScene = null;
     console.log('🧹 LIMPIANDO ESCENA COMPLETAMENTE');
 
     
@@ -18766,11 +18746,8 @@ cleanupScene() {
     //
     // Aquí se cierran todos de golpe, de forma tolerante a fallos: cualquiera
     // que ya estuviera cancelado simplemente se ignora.
-    // NO se toca `autoRefreshInterval` a propósito: es el que renueva el token
-    // de sesión cada 4,5 minutos y tiene que seguir vivo mientras el jugador
-    // está en la tienda o en una batalla, o se quedaría sin sesión a mitad de
-    // partida. Además no tiene fuga: startAutoRefresh() cancela el anterior
-    // antes de crear el nuevo.
+    // La renovación de sesión pertenece ahora a un único servicio de página,
+    // sin referencias a escenas, y se mantiene durante tienda y batalla.
     [
       '_audioCleanupTimer',       // limpieza de efectos de sonido (cada 5 s)
       '_regenVitalesTimer',       // regeneración de vida/agua/comida (cada 60 s)
@@ -18863,6 +18840,13 @@ cleanupScene() {
 // Métodos auxiliares para organizar mejor:
 
 cleanupTextsAndGraphics() {
+    for (const key of ['mineTexts', 'oreTexts']) {
+        Object.values(this[key] || {}).forEach(text => {
+            try { text?.indicator?.destroy(); } catch (_) {}
+            try { text?.destroy(); } catch (_) {}
+        });
+        this[key] = {};
+    }
     // Limpiar textos de cristales
     if (this.crystalTexts) {
         Object.values(this.crystalTexts).forEach(text => {
@@ -18893,12 +18877,27 @@ cleanupTextsAndGraphics() {
     
     // Limpiar sombra
     if (this.shadow && typeof this.shadow.destroy === 'function') {
-        this.shadow.destroy();
+        try { this.shadow.destroy(); } catch (_) {}
         this.shadow = null;
     }
 }
 
 cleanupTexturesAndMaps() {
+    // Phaser conserva la instancia al hacer stop/start; el Tilemap no se
+    // destruye automáticamente junto a su DisplayList.
+    try { this.map?.destroy(); } catch (error) { console.warn('limpieza del mapa:', error); }
+    this.map = null;
+    this.backgroundLayer = null;
+    this.chunkObjectsMap?.clear();
+    this.collisionRectangles = [];
+    this.collisionRectangles1 = [];
+    this.collisionRectangles2 = [];
+    this.collisionRectangles3 = [];
+    for (const key of ['pendingLabels', 'pendingWaterLabels', 'pendingCutLabels']) {
+        if (!this[key]?.forEach) continue;
+        this[key].forEach(label => { try { label?.destroy(); } catch (_) {} });
+        this[key].clear();
+    }
     // 1. Primero destruir TileManagers
     if (this._tileManagers && Array.isArray(this._tileManagers)) {
         this._tileManagers.forEach((manager, index) => {
@@ -19509,7 +19508,7 @@ highlightQuickSlot(index) {
     };
 
     // Guardar referencias de funciones para remover listeners luego
-    panel._dragHandlers = {
+    const panelDragHandlers = {
         mousedown: (e) => { if (e.button === 0) { startDrag(e.clientX, e.clientY); e.stopPropagation(); } },
         touchstart: (e) => { if (e.touches.length === 1) { const t = e.touches[0]; startDrag(t.clientX, t.clientY); e.stopPropagation(); } },
         dragstart: (e) => { e.preventDefault(); }
@@ -19525,9 +19524,9 @@ highlightQuickSlot(index) {
     };
 
     // Asignar listeners
-    bindDOM(panel, "mousedown", panel._dragHandlers.mousedown);
-    bindDOM(panel, "touchstart", panel._dragHandlers.touchstart, { passive: false });
-    bindDOM(panel, "dragstart", panel._dragHandlers.dragstart);
+    bindDOM(panel, "mousedown", panelDragHandlers.mousedown);
+    bindDOM(panel, "touchstart", panelDragHandlers.touchstart, { passive: false });
+    bindDOM(panel, "dragstart", panelDragHandlers.dragstart);
 
     bindDOM(document, "mousemove", dragHandlers.mousemove);
     bindDOM(document, "mouseup", dragHandlers.mouseup);
@@ -19570,6 +19569,20 @@ _onDOM(target, type, handler, options, group) {
   this._trackDOMDisposal(() => target.removeEventListener(type, handler, options), group);
   target.addEventListener(type, handler, options);
   return handler;
+}
+
+_onceSceneEnd(callback) {
+  let done = false;
+  const release = () => {
+    this.events.off('shutdown', release);
+    this.events.off('destroy', release);
+    if (done) return;
+    done = true;
+    callback();
+  };
+  this.events.once('shutdown', release);
+  this.events.once('destroy', release);
+  return release;
 }
 
 _trackDOMDisposal(dispose, group) {
@@ -20949,8 +20962,7 @@ _repintarCasillasAlVolver() {
     window.removeEventListener('pageshow', repintar);
     this._repintadoCasillasBound = false;
   };
-  this.events.once('shutdown', soltar);
-  this.events.once('destroy', soltar);
+  this._onceSceneEnd(soltar);
 }
 
 renderAllSlots() {
@@ -22877,6 +22889,7 @@ async loadAdminTimeOnly() {
 }
 // 2) Load player data (renamed to avoid conflict) - FUNCIÓN CORREGIDA
 async loadPlayerData() {
+  const sceneRunId = this._sceneRunId;
   console.log('📥 Cargando datos del jugador...');
   
   try {
@@ -22905,9 +22918,11 @@ async loadPlayerData() {
         }
       }
     );
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
     
     if (!response.ok) {
       const errorText = await response.text();
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
       console.error('❌ Error al cargar datos del jugador:', {
         status: response.status,
         error: errorText
@@ -22916,6 +22931,7 @@ async loadPlayerData() {
     }
     
     const data = await response.json();
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
     console.log('✅ Datos del jugador recibidos');
     
     // INICIALIZAR STATE solo si no existe - ¡ESTO ES CLAVE!
@@ -23122,6 +23138,7 @@ async loadPlayerData() {
     return data;
 
   } catch (error) {
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
     console.error('❌ Error de red al cargar datos del jugador:', error);
     return null;
   }
@@ -23129,6 +23146,7 @@ async loadPlayerData() {
 
 // Método auxiliar para renderizar inventario después de cargar
 async renderInventoryAfterLoad() {
+  const sceneRunId = this._sceneRunId;
   if (typeof this.renderSlot !== 'function') return;
 
   // Recolectar todos los invoiceIds de herramientas presentes en el inventario
@@ -23146,7 +23164,9 @@ async renderInventoryAfterLoad() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ invoiceIds: toolIds })
       });
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
       const data = await r.json();
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
       const uses = data.uses || {};
       [...this.STATE.slots, ...this.STATE.quickSlots].forEach(s => {
         if (s?.idx && uses[s.idx] != null) {
@@ -23155,6 +23175,7 @@ async renderInventoryAfterLoad() {
         }
       });
     } catch (e) {
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
       console.warn('⚠️ No se pudo cargar usos de herramientas al iniciar:', e);
     }
   }
@@ -23376,8 +23397,7 @@ _ensureTutorialPathTimer() {
   this._tutorialPathTimer = this.time.addEvent({
     delay: 250, loop: true, callback: () => this._drawTutorialPathToTarget()
   });
-  this.events.once('shutdown', () => this._cleanupTutorial());
-  this.events.once('destroy',  () => this._cleanupTutorial());
+  this._onceSceneEnd(() => this._cleanupTutorial());
 }
 
 // Paso 1 (mundo): instrucciones de siembra + camino a la parcela más cercana.
@@ -26427,11 +26447,7 @@ _iniciarRegeneracionVitales() {
 
   // El temporizador vive fuera de Phaser, así que hay que apagarlo a mano al
   // cerrar la escena o quedaría corriendo (y pidiendo stats) para siempre.
-  this.events.once('shutdown', () => {
-    clearInterval(this._regenVitalesTimer);
-    this._regenVitalesTimer = null;
-  });
-  this.events.once('destroy', () => {
+  this._onceSceneEnd(() => {
     clearInterval(this._regenVitalesTimer);
     this._regenVitalesTimer = null;
   });

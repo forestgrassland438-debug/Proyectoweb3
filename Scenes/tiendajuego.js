@@ -297,11 +297,13 @@ showNotification(message, type = 'info') {
     
 
     async loadx() {
+  const sceneRunId = this._sceneRunId;
         console.log('🔍 Iniciando verificación de autenticación...');
         
         try {
             // Primero obtener token CSRF
             await this.getCSRFToken();
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
             
             // Luego verificar autenticación
             const response = await fetch(`${this.serverBase}/api/auth/me`, {
@@ -313,6 +315,7 @@ showNotification(message, type = 'info') {
                     'X-CSRF-Token': window.getCsrfToken(this.csrfToken)
                 }
             });
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
 
             console.log('📊 Response status de /api/auth/me:', response.status);
             
@@ -323,6 +326,7 @@ showNotification(message, type = 'info') {
             }
 
             const data = await response.json();
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
             console.log('📥 Datos de autenticación:', data);
 
             if (data.authenticated && data.address) {
@@ -343,6 +347,7 @@ showNotification(message, type = 'info') {
                 return false;
             }
         } catch (error) {
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
             console.error('❌ Error en loadx:', error);
             this.showTokenErrorHub();
             return false;
@@ -4481,7 +4486,7 @@ removeOtherPlayer(playerId) {
       }
       try { this._cleanupTutorial(); } catch (e) {}
       try { this._cancelarArrastre(); } catch (e) {}
-      try { this.stopMusicSafely(); } catch (e) {}
+      try { GameScene.prototype._disposeSceneAudio.call(this); } catch (e) {}
       if (this.audioState && this.audioState.activeSFX) {
         this.audioState.activeSFX.forEach(sound => { try { sound.destroy(); } catch (e) {} });
         this.audioState.activeSFX.clear();
@@ -4839,13 +4844,24 @@ removeOtherPlayer(playerId) {
     // sobrevive al cambio de escena, así que con addEventListener se acumulaba
     // un manejador por cada entrada a la tienda (dos manejadores = abrir y
     // cerrar en el mismo clic, o sea "el chat no abre").
-    this.openBtn.onclick = () => toggleChat();
+    this._setDOMProperty(this.openBtn, 'onclick', () => toggleChat(), 'chat');
     if (this.openBtn._gfChatKeyup) {
       this.openBtn.removeEventListener('keyup', this.openBtn._gfChatKeyup);
     }
-    this.openBtn._gfChatKeyup = (e) => { if (e.key === 'Enter') toggleChat(); };
+    this._setDOMProperty(this.openBtn, '_gfChatKeyup', (e) => { if (e.key === 'Enter') toggleChat(); }, 'chat');
     this._onDOM(this.openBtn, 'keyup', this.openBtn._gfChatKeyup, undefined, 'chat');
 
+    const sendButton = document.getElementById('chat-send-btn');
+    if (sendButton) {
+      this._onDOM(sendButton, 'pointerdown', e => {
+        e.preventDefault(); e.stopPropagation();
+        this._sendChatFromInput(); this.chatInput.focus();
+      }, undefined, 'chat');
+      const refresh = () => { sendButton.disabled = !(this.chatInput.value || '').trim(); };
+      this._onDOM(this.chatInput, 'input', refresh, undefined, 'chat');
+      this._refrescarBotonEnviarChat = refresh;
+      refresh();
+    }
     // Selector de emojis, igual que en GameScene.
     this._montarSelectorEmojis();
 
@@ -5272,6 +5288,7 @@ removeOtherPlayer(playerId) {
    * Los emojis no se ven afectados: escapeHtml solo cambia & < > " '.
    */
   _montarSelectorEmojis() {
+    this._offDOM('emoji');
     const boton = document.getElementById('chat-emoji-btn');
     const panel = document.getElementById('chat-emoji-picker');
     if (!boton || !panel || !this.chatInput) return;
@@ -5309,11 +5326,7 @@ removeOtherPlayer(playerId) {
           b.title = emoji;
           // pointerdown + preventDefault: así el campo de texto NO pierde el
           // foco y el cursor se queda donde estaba.
-          b.addEventListener('pointerdown', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            this._insertarEmojiEnChat(emoji);
-          });
+          b.dataset.gfEmoji = emoji;
           rejilla.appendChild(b);
         });
         panel.appendChild(rejilla);
@@ -5332,17 +5345,23 @@ removeOtherPlayer(playerId) {
       }
     };
 
-    if (!boton.dataset.gfListo) {
-      boton.dataset.gfListo = '1';
-      boton.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); abrirCerrar(); });
+    {
+      this._onDOM(boton, 'click', (e) => { e.preventDefault(); e.stopPropagation(); abrirCerrar(); }, undefined, 'emoji');
       // Cerrar al tocar fuera del chat.
       this._onDOM(document, 'pointerdown', (e) => {   // FIX FUGA: era anónimo
         if (panel.classList.contains('hidden')) return;
         if (panel.contains(e.target) || boton.contains(e.target)) return;
         abrirCerrar(false);
-      });
+      }, undefined, 'emoji');
     }
 
+    this._onDOM(panel, 'pointerdown', (e) => {
+      const button = e.target.closest?.('.chat-emoji-grid button');
+      if (!button || !panel.contains(button)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this._insertarEmojiEnChat(button.dataset.gfEmoji || button.textContent);
+    }, undefined, 'emoji');
     this._cerrarSelectorEmojis = () => abrirCerrar(false);
   }
 
@@ -5523,6 +5542,7 @@ stopMusicSafely() {
 
 // Inicializar el sistema de audio
 initAudioSystem() {
+  GameScene.prototype._disposeSceneAudio.call(this);
   console.log('🎵 Inicializando sistema de audio...');
   
   // Estado del audio — volúmenes REALES (lo que se guarda) separados de los APLICADOS (consideran mute)
@@ -5897,104 +5917,16 @@ toggleSFXMute() {
 }
 
 // Reproducir música
-playMusic(key, config = {}) {
-  if (this.audioState.currentMusic) {
-    this.audioState.currentMusic.stop();
-  }
-  
-  const defaultConfig = {
-    volume: this.audioState.musicVolumeApplied, // usa el volumen aplicado (considera mute)
-    loop: true,
-    delay: 0
-  };
-  
-  const finalConfig = { ...defaultConfig, ...config };
-  
-  try {
-    this.audioState.currentMusic = this.sound.add(key, finalConfig);
-    this.audioState.currentMusicKey = key;
-    this.audioState.currentMusic.play();
-    
-    console.log(`🎵 Reproduciendo música: ${key} (volumen: ${finalConfig.volume})`);
-    
-    if (this.soundHubElements.musicSelect && this.isSoundHubVisible()) {
-      this.soundHubElements.musicSelect.value = key;
-    }
-    
-    return this.audioState.currentMusic;
-  } catch (error) {
-    console.error(`❌ Error reproduciendo música ${key}:`, error);
-    return null;
-  }
-}
+playMusic(...args) { return GameScene.prototype.playMusic.apply(this, args); }
 
 // Cambiar música
-changeMusic(key) {
-  if (key === 'none') {
-    // Detener música
-    if (this.audioState.currentMusic) {
-      this.audioState.currentMusic.stop();
-      this.audioState.currentMusic = null;
-      this.audioState.currentMusicKey = null;
-    }
-    console.log('🎵 Música detenida');
-  } else {
-    // Cambiar a nueva música
-    this.playMusic(key);
-  }
-}
+changeMusic(...args) { return GameScene.prototype.changeMusic.apply(this, args); }
 
 // Reproducir efecto de sonido
-playSFX(key, config = {}) {
-  // Configuración por defecto
-  const defaultConfig = {
-    volume: this.audioState.sfxMuted ? 0 : this.audioState.sfxVolume
-  };
-  
-  const finalConfig = { ...defaultConfig, ...config };
-  
-  try {
-    // Verificar si el sonido existe en caché
-    if (!this.cache.audio.exists(key)) {
-      console.warn(`⚠️ Sonido no encontrado: ${key}`);
-      return null;
-    }
-    
-    const sound = this.sound.add(key, finalConfig);
-    sound.play();
-    
-    console.log(`🔊 Reproduciendo efecto: ${key}`, finalConfig);
-    return sound;
-  } catch (error) {
-    console.error(`❌ Error reproduciendo efecto ${key}:`, error);
-    return null;
-  }
-}
+playSFX(...args) { return GameScene.prototype.playSFX.apply(this, args); }
 
 // Reproducir música de prueba
-playTestMusic() {
-  // Intentar reproducir una música de prueba
-  // Si no existe, usar la música actual o un tono de prueba
-  if (this.audioState.currentMusic) {
-    // Reiniciar música actual
-    this.audioState.currentMusic.stop();
-    this.audioState.currentMusic.play();
-    console.log('🎵 Reproduciendo música actual de prueba');
-  } else {
-    // Crear un sonido de prueba simple
-    const testSound = this.sound.add('test-beep', {
-      volume: this.audioState.musicMuted ? 0 : this.audioState.musicVolume,
-      loop: false
-    });
-    
-    if (testSound) {
-      testSound.play();
-      console.log('🎵 Reproduciendo tono de prueba');
-    } else {
-      console.log('⚠️ No hay música disponible para prueba');
-    }
-  }
-}
+playTestMusic(...args) { return GameScene.prototype.playTestMusic.apply(this, args); }
 
 // Reproducir efecto de prueba
 playTestSFX() {
@@ -6287,13 +6219,13 @@ destroy() {
     };
 
     // Guardar referencias de funciones para remover listeners luego
-    panel._dragHandlers = {
+    const panelDragHandlers = {
         mousedown: (e) => { if (e.button === 0) { startDrag(e.clientX, e.clientY); e.stopPropagation(); } },
         touchstart: (e) => { if (e.touches.length === 1) { const t = e.touches[0]; startDrag(t.clientX, t.clientY); e.stopPropagation(); } },
         dragstart: (e) => { e.preventDefault(); }
     };
 
-    document._dragHandlers = {
+    const dragHandlers = {
         mousemove: (e) => drag(e.clientX, e.clientY),
         mouseup: (e) => { if (e.button === 0) endDrag(); },
         touchmove: (e) => { if (isDragging && e.touches.length === 1) { const t = e.touches[0]; drag(t.clientX, t.clientY); e.preventDefault(); } },
@@ -6303,19 +6235,19 @@ destroy() {
     };
 
     // Asignar listeners
-    this._onDOM(panel, "mousedown", panel._dragHandlers.mousedown, undefined, 'drag:' + elementId);
-    this._onDOM(panel, "touchstart", panel._dragHandlers.touchstart, { passive: false }, 'drag:' + elementId);
-    this._onDOM(panel, "dragstart", panel._dragHandlers.dragstart, undefined, 'drag:' + elementId);
+    this._onDOM(panel, "mousedown", panelDragHandlers.mousedown, undefined, 'drag:' + elementId);
+    this._onDOM(panel, "touchstart", panelDragHandlers.touchstart, { passive: false }, 'drag:' + elementId);
+    this._onDOM(panel, "dragstart", panelDragHandlers.dragstart, undefined, 'drag:' + elementId);
 
-    this._onDOM(document, "mousemove", document._dragHandlers.mousemove, undefined, 'drag:' + elementId);
-    this._onDOM(document, "mouseup", document._dragHandlers.mouseup, undefined, 'drag:' + elementId);
-    this._onDOM(document, "touchmove", document._dragHandlers.touchmove, { passive: false }, 'drag:' + elementId);
-    this._onDOM(document, "touchend", document._dragHandlers.touchend, undefined, 'drag:' + elementId);
-    this._onDOM(document, "touchcancel", document._dragHandlers.touchcancel, undefined, 'drag:' + elementId);
-    this._onDOM(document, "keydown", document._dragHandlers.keydown, undefined, 'drag:' + elementId);
+    this._onDOM(document, "mousemove", dragHandlers.mousemove, undefined, 'drag:' + elementId);
+    this._onDOM(document, "mouseup", dragHandlers.mouseup, undefined, 'drag:' + elementId);
+    this._onDOM(document, "touchmove", dragHandlers.touchmove, { passive: false }, 'drag:' + elementId);
+    this._onDOM(document, "touchend", dragHandlers.touchend, undefined, 'drag:' + elementId);
+    this._onDOM(document, "touchcancel", dragHandlers.touchcancel, undefined, 'drag:' + elementId);
+    this._onDOM(document, "keydown", dragHandlers.keydown, undefined, 'drag:' + elementId);
 
     panel.setAttribute('data-draggable', 'true');
-    panel.centerPanel = centerPanel;
+    this._setDOMProperty(panel, 'centerPanel', centerPanel, 'drag:' + elementId);
     panel.style.pointerEvents = "auto";
 
     if (!(panel.style.left && panel.style.top)) centerPanel();
@@ -6341,11 +6273,22 @@ _onDOM(target, type, handler, options, group = null) {
   return handler;
 }
 
+_setDOMProperty(target, property, handler, group) {
+  if (!target || this._sceneStopped) return;
+  target[property] = handler;
+  if (!this._domListeners) this._domListeners = [];
+  this._domListeners.push({ group, dispose() {
+    if (target[property] === handler) target[property] = null;
+  } });
+}
+
+refreshAuthToken() { return GameScene.prototype.refreshAuthToken.call(this); }
+
 _offDOM(group) {
   const keep = [];
   (this._domListeners || []).forEach(r => {
     if (group !== undefined && r.group !== group) { keep.push(r); return; }
-    try { r.t.removeEventListener(r.ty, r.h, r.o); } catch (e) {}
+    try { if (r.dispose) r.dispose(); else r.t.removeEventListener(r.ty, r.h, r.o); } catch (e) {}
   });
   this._domListeners = keep;
 }
@@ -9946,6 +9889,7 @@ async loadAdminTimeOnly() {
 // 2) Load player data (renamed to avoid conflict)
 // 2) Load player data (renamed to avoid conflict) - FUNCIÓN CORREGIDA
 async loadPlayerData() {
+  const sceneRunId = this._sceneRunId;
   console.log('📥 Cargando datos del jugador...');
   
   try {
@@ -9966,9 +9910,11 @@ async loadPlayerData() {
         }
       }
     );
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
     
     if (!response.ok) {
       const errorText = await response.text();
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
       console.error('❌ Error al cargar datos del jugador:', {
         status: response.status,
         error: errorText
@@ -9977,6 +9923,7 @@ async loadPlayerData() {
     }
     
     const data = await response.json();
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
     console.log('✅ Datos del jugador recibidos');
 
     /* CUÁNDO SE CARGÓ ESTA COPIA DEL INVENTARIO.
@@ -10148,6 +10095,7 @@ async loadPlayerData() {
     return data;
 
   } catch (error) {
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
     console.error('❌ Error de red al cargar datos del jugador:', error);
     return null;
   }
@@ -10156,6 +10104,7 @@ async loadPlayerData() {
 
 // Método auxiliar para renderizar inventario después de cargar
 async renderInventoryAfterLoad() {
+  const sceneRunId = this._sceneRunId;
   if (typeof this.renderSlot !== 'function') return;
 
   // Recolectar todos los invoiceIds de herramientas presentes en el inventario
@@ -10173,7 +10122,9 @@ async renderInventoryAfterLoad() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ invoiceIds: toolIds })
       });
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
       const data = await r.json();
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
       const uses = data.uses || {};
       [...this.STATE.slots, ...this.STATE.quickSlots].forEach(s => {
         if (s?.idx && uses[s.idx] != null) {
@@ -10182,6 +10133,7 @@ async renderInventoryAfterLoad() {
         }
       });
     } catch (e) {
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
       console.warn('⚠️ No se pudo cargar usos de herramientas al iniciar:', e);
     }
   }
