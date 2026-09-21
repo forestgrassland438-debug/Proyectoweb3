@@ -263,6 +263,11 @@ class LandsScene extends GameScene {
     this.cameras.main.setRoundPixels(true);
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
 
+    /* EL ZOOM. Vivia suelto dentro del create() de GameScene, por el que esta
+       escena no pasa: sin esto la camara se quedaba clavada en 1.0x y no habia
+       ni rueda, ni pellizco, ni botones de mas y menos. Ver `_montarZoom()`. */
+    this._montarZoom();
+
     // ── Sistemas y HUD ─────────────────────────────────────────────────────
     await this._arrancarSistemas();
     if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
@@ -524,17 +529,22 @@ class LandsScene extends GameScene {
     // clavarse al tocarla en diagonal.
     const prevX = this.previousPosition.x;
     const prevY = this.previousPosition.y;
-    if (this._chocaConEscenario(this.player.x - 15, prevY + 25, 30, 15)) {
+    /* 26 de alto, no 15. El sprite es de 23x51 a escala 2, o sea 102 px con el
+       origen en el centro: los pies caen en `y + 51`. Con 15 de alto la caja
+       acababa en `y + 40` y los ultimos once pixeles del personaje se metian
+       DENTRO de la pared. Se alarga por abajo y no se mueve: el borde de
+       arriba sigue igual, asi que no se empieza a chocar antes de costado. */
+    if (this._chocaConEscenario(this.player.x - 15, prevY + 25, 30, 26)) {
       this.player.x = prevX;
     }
-    if (this._chocaConEscenario(this.player.x - 15, this.player.y + 25, 30, 15)) {
+    if (this._chocaConEscenario(this.player.x - 15, this.player.y + 25, 30, 26)) {
       this.player.y = prevY;
     }
 
     this._animarJugador(prevX, prevY);
 
-    if (!this.playerRect) this.playerRect = new Phaser.Geom.Rectangle(0, 0, 30, 15);
-    this.playerRect.setTo(this.player.x - 15, this.player.y + 25, 30, 15);
+    if (!this.playerRect) this.playerRect = new Phaser.Geom.Rectangle(0, 0, 30, 26);
+    this.playerRect.setTo(this.player.x - 15, this.player.y + 25, 30, 26);
 
     this.player.setDepth(this.player.y);
     if (this.shadowContainer) {

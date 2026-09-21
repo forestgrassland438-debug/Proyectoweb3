@@ -504,6 +504,10 @@ class MinaScene extends GameScene {
     this._faseMina = 'liquidos';
     this._montarLiquidos();
 
+    // ── Que se VEA por donde se sale ─────────────────────────────
+    this._faseMina = 'salida visible';
+    try { this._montarSalidaVisible(); } catch (e) { console.warn('salida:', e); }
+
     // ── Entrada ────────────────────────────────────────────────────────────
     this._faseMina = 'controles';
     this._montarControles();
@@ -512,6 +516,11 @@ class MinaScene extends GameScene {
     this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
     this.cameras.main.setRoundPixels(true);
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+
+    /* EL ZOOM. Vivia suelto dentro del create() de GameScene, por el que esta
+       escena no pasa: sin esto la camara se quedaba clavada en 1.0x y no habia
+       ni rueda, ni pellizco, ni botones de mas y menos. Ver `_montarZoom()`. */
+    this._montarZoom();
 
     // Oscuridad de cueva: un rectangulo azulado en MULTIPLY sobre todo el mapa.
     //
@@ -624,6 +633,10 @@ class MinaScene extends GameScene {
     const capa = this.map.getObjectLayer('piezas');
     if (!capa || !capa.objects.length) return;
 
+    // Las que se atraviesan a proposito: ver el porque mas abajo.
+    const SIN_COLISION = new Set(['antorcha', 'puntal']);
+    const solidas = [];
+
     const textura = this.textures.get('piezas_mina');
     capa.objects.forEach(o => {
       if (!o.name) return;
@@ -648,7 +661,35 @@ class MinaScene extends GameScene {
        * de verdad se pasa. Eso es justo lo que gf-profundidad mide bien. */
       spr.setData('optimized', true);
       this._piezas.push(spr);
+
+      /* Y SU COLISION, que antes no tenian ninguna: se atravesaban los
+         pedruscos, los racimos de cristal y las vagonetas como si fueran
+         humo.
+
+         Dos piezas NO frenan, y es a proposito:
+           · `antorcha`, que va colgada del muro y ya esta dentro de la roca;
+           · `puntal`, que es un arco de apuntalar, o sea un hueco de paso:
+             frenarlo taponaria la galeria por la que pasa.
+
+         El rectangulo es el PIE, no la silueta: 70 % del ancho y 16 px de
+         alto pegados a la base. Las piezas altas (un racimo de 96) hay que
+         poder rodearlas pasando por detras de su punta, que es justo lo que
+         hace el 2.5D de gf-profundidad. Frenar la silueta entera volveria
+         solido el aire que hay sobre la base. */
+      if (!SIN_COLISION.has(o.name)) {
+        const ancho = spr.displayWidth * 0.7;
+        solidas.push(new Phaser.Geom.Rectangle(
+          spr.x - ancho / 2, spr.y - 16, ancho, 16));
+      }
     });
+
+    /* Van en `collisionRectangles2`, la tercera lista que lee el indice
+       espacial heredado (`_reconstruirIndiceColisiones`). Se usa esa y no se
+       mezclan con las del mapa para poder seguir distinguiendolas: las del
+       mapa las escribe el generador, estas salen de los sprites. */
+    this.collisionRectangles2 = solidas;
+    this._reconstruirIndiceColisiones();
+    console.log('⛏️ piezas solidas:', solidas.length, 'de', this._piezas.length);
 
     /* PROFUNDIDAD Y SOMBRA: LOS SISTEMAS DEL JUEGO, NO UNOS MIOS.
      *
@@ -785,6 +826,116 @@ class MinaScene extends GameScene {
    * su animacion se coloca en otro punto de lava al azar y vuelve a empezar
    * tras una espera. Ocho objetos fijos, cero basura para el recolector.
    */
+  /**
+   * SEÑALA LA SALIDA con un degradado de luz de dia y tres flechas.
+   *
+   * EL PROBLEMA QUE RESUELVE: se aparece a 64 px por debajo de la boca de la
+   * galeria, mirando una pared de roca igual que las otras mil. Nada decia que
+   * por ahi se vuelve al mapa, asi que la primera impresion de la mina era la
+   * de estar encerrado.
+   *
+   * COMO ESTA HECHO, Y POR QUE ASI:
+   *
+   *   · El degradado es una TEXTURA DE LIENZO, no un Graphics. Las figuras de
+   *     Phaser (`add.rectangle`, `Graphics`) IGNORAN los modos de mezcla, asi
+   *     que un rectangulo no puede "sumar luz": se quedaria como una mancha
+   *     plana encima de la roca. Una imagen si acepta ADD, que es lo que hace
+   *     que parezca luz y no pintura.
+   *
+   *   · Se difumina tambien por los LADOS (`destination-in` con un degradado
+   *     horizontal). Sin eso se ve el borde recto del rectangulo y delata que
+   *     es un cartel pegado encima en vez de luz entrando por un hueco.
+   *
+   *   · Las flechas suben y se desvanecen en bucle, desfasadas. El movimiento
+   *     es lo que lee el ojo como "por aqui": un simbolo quieto sobre una
+   *     pared oscura se confunde con parte del decorado.
+   *
+   * La luz viene de ARRIBA porque la boca esta al norte del punto de
+   * aparicion (el rectangulo de salida esta en y=224 y se aparece en y=352).
+   * Si algun dia se mueve la salida, el degradado la sigue: todo sale de
+   * `collisionRectangles1`, no de numeros escritos aqui.
+   */
+  _montarSalidaVisible() {
+    const r = (this.collisionRectangles1 || [])[0];
+    if (!r) return;
+
+    const W = Math.round(r.width) + 80;
+    const H = Math.round(r.height) + 128;
+
+    const CLAVE = 'mina_salida_luz';
+    if (this.textures.exists(CLAVE)) this.textures.remove(CLAVE);
+    const lienzo = this.textures.createCanvas(CLAVE, W, H);
+    const ctx = lienzo.getContext();
+
+    const vert = ctx.createLinearGradient(0, 0, 0, H);
+    vert.addColorStop(0.00, 'rgba(255,238,190,0.80)');
+    vert.addColorStop(0.28, 'rgba(255,226,155,0.34)');
+    vert.addColorStop(1.00, 'rgba(255,214,130,0)');
+    ctx.fillStyle = vert;
+    ctx.fillRect(0, 0, W, H);
+
+    // Difuminado lateral: recorta la propia mancha con un degradado horizontal.
+    ctx.globalCompositeOperation = 'destination-in';
+    const hor = ctx.createLinearGradient(0, 0, W, 0);
+    hor.addColorStop(0.00, 'rgba(0,0,0,0)');
+    hor.addColorStop(0.22, 'rgba(0,0,0,1)');
+    hor.addColorStop(0.78, 'rgba(0,0,0,1)');
+    hor.addColorStop(1.00, 'rgba(0,0,0,0)');
+    ctx.fillStyle = hor;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'source-over';
+    lienzo.refresh();
+
+    this._salidaLuz = this.add.image(r.centerX, r.y - 40, CLAVE)
+      .setOrigin(0.5, 0)
+      .setDepth(5)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    this.tweens.add({
+      targets: this._salidaLuz,
+      alpha: { from: 0.72, to: 1 },
+      duration: 1900,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+
+    // ── Las flechas ────────────────────────────────────────────────────────
+    const CLAVE_F = 'mina_salida_flecha';
+    if (this.textures.exists(CLAVE_F)) this.textures.remove(CLAVE_F);
+    const lf = this.textures.createCanvas(CLAVE_F, 28, 16);
+    const cf = lf.getContext();
+    cf.strokeStyle = 'rgba(255,240,200,0.95)';
+    cf.lineWidth = 5;
+    cf.lineCap = 'round';
+    cf.lineJoin = 'round';
+    cf.beginPath();
+    cf.moveTo(4, 12);
+    cf.lineTo(14, 4);
+    cf.lineTo(24, 12);
+    cf.stroke();
+    lf.refresh();
+
+    this._salidaFlechas = [];
+    for (let i = 0; i < 3; i++) {
+      const f = this.add.image(r.centerX, r.bottom + 46, CLAVE_F)
+        .setDepth(5)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      this._salidaFlechas.push(f);
+      this.tweens.add({
+        targets: f,
+        y: { from: r.bottom + 46, to: r.bottom - 14 },
+        alpha: { from: 0, to: 1 },
+        duration: 1500,
+        delay: i * 500,
+        repeat: -1,
+        ease: 'Sine.easeOut',
+        yoyo: false,
+        onRepeat: () => { f.setAlpha(0); }
+      });
+    }
+  }
+
   _montarBurbujas() {
     const capa = this.map.getObjectLayer('area_lava');
     if (!capa || !capa.objects.length) return;
@@ -940,10 +1091,15 @@ class MinaScene extends GameScene {
     // El rectangulo (30x15 a los pies) es el mismo que usa el mapa de fuera.
     const prevX = this.previousPosition.x;
     const prevY = this.previousPosition.y;
-    if (this._chocaConEscenario(this.player.x - 15, prevY + 25, 30, 15)) {
+    /* 26 de alto, no 15. El sprite es de 23x51 a escala 2, o sea 102 px con el
+       origen en el centro: los pies caen en `y + 51`. Con 15 de alto la caja
+       acababa en `y + 40` y los ultimos once pixeles del personaje se metian
+       DENTRO de la pared. Se alarga por abajo y no se mueve: el borde de
+       arriba sigue igual, asi que no se empieza a chocar antes de costado. */
+    if (this._chocaConEscenario(this.player.x - 15, prevY + 25, 30, 26)) {
       this.player.x = prevX;
     }
-    if (this._chocaConEscenario(this.player.x - 15, this.player.y + 25, 30, 15)) {
+    if (this._chocaConEscenario(this.player.x - 15, this.player.y + 25, 30, 26)) {
       this.player.y = prevY;
     }
 
@@ -957,8 +1113,8 @@ class MinaScene extends GameScene {
     this._animarJugador(prevX, prevY);
 
     // ── Rectangulo del jugador (lo usa la salida) ──────────────────────────
-    if (!this.playerRect) this.playerRect = new Phaser.Geom.Rectangle(0, 0, 30, 15);
-    this.playerRect.setTo(this.player.x - 15, this.player.y + 25, 30, 15);
+    if (!this.playerRect) this.playerRect = new Phaser.Geom.Rectangle(0, 0, 30, 26);
+    this.playerRect.setTo(this.player.x - 15, this.player.y + 25, 30, 26);
 
     // ── Profundidad y adornos que siguen al jugador ────────────────────────
     this.player.setDepth(this.player.y);
@@ -1088,6 +1244,17 @@ class MinaScene extends GameScene {
     this.events.off('destroy', this._alApagar, this);
     try { this.cleanupScene(); } catch (e) { console.warn('limpieza de mina:', e); }
     console.log('⛏️ apagando la mina');
+
+    /* El cartel de la salida. Sus dos texturas son de lienzo y las crea
+       esta escena, asi que se sueltan aqui o se quedan en memoria de video
+       -el problema que ya costo caro en este proyecto-. */
+    try { if (this._salidaLuz) this._salidaLuz.destroy(); } catch (e) {}
+    (this._salidaFlechas || []).forEach(f => { try { f.destroy(); } catch (e) {} });
+    this._salidaLuz = null;
+    this._salidaFlechas = [];
+    ['mina_salida_luz', 'mina_salida_flecha'].forEach(k => {
+      try { if (this.textures.exists(k)) this.textures.remove(k); } catch (e) {}
+    });
 
     (this._mascaras || []).forEach(g => { try { g.destroy(); } catch (e) {} });
     this._mascaras = [];

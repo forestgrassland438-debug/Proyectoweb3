@@ -5357,78 +5357,7 @@ this.anims.create({
       this.cam_alto = this.cam.height;
 
       // 🔧 TU CONFIGURACIÓN ESPECÍFICA
-        this.zoomConfig = {
-            level: 2,      // Zoom inicial: 2x
-            min: 0.5,      // Zoom mínimo: 0.5x
-            max: 2,        // Zoom máximo: 2x  
-            step: 0.5     // Paso de zoom: 0.25
-        };
-
-        // 🎯 VALORES EXACTOS PRE-DEFINIDOS (evita cálculos con decimales)
-        // FIX COSTURAS/LÍNEAS ENTRE TILES: solo zooms ENTEROS. Con pixel art, un
-        // zoom fraccionario (0.5 / 1.5) hace que el borde de cada tile caiga a
-        // medio píxel: el rasterizador redondea distinto en tiles contiguos y
-        // aparecen líneas/costuras (y "hormigueo" al moverse). Con 1x y 2x cada
-        // píxel de textura mapea a un número entero de píxeles de pantalla.
-        // (tiendajuego ya usaba [1.0, 2.0] por lo mismo.)
-        // 0.5 y 2.0 son múltiplos/divisores EXACTOS de 1 (cada píxel de textura
-        // cae en un número entero de píxeles de pantalla) → no generan costuras.
-        // 1.5x SÍ las generaba (borde de tile a medio píxel), por eso no vuelve.
-        this.zoomValues = [0.5, 1.0, 2.0];
-
-        // FIX "AL VOLVER DE LA TIENDA SE DA UN ZOOM DE 2":
-        // La animación de entrada (`setZoom(2)` + `zoomTo(1, 2000)`, más
-        // arriba) aleja la cámara hasta 1.0x — el MISMO visor que usa
-        // tiendajuego. Pero aquí se declaraba el índice 2, o sea 2.0x, como
-        // "el zoom que el jugador tiene elegido". En cuanto terminaba de
-        // alejarse, el juego volvía a acercar a 2.0x de golpe.
-        //
-        // El índice tiene que describir el zoom en el que la cámara TERMINA de
-        // verdad: 1.0x, que es el índice 1.
-        //
-        // Los niveles siguen siendo los tres de siempre: el jugador puede
-        // alejar a 0.5x o acercar a 2.0x con la rueda o el pellizco igual que
-        // antes. Lo único que cambia es de dónde parte.
-        this.currentZoomIndex = 1; // 1.0x — el visor con el que se entra al mapa
-
-        // NOTA: aquí NO se toca `cameras.main.zoom`.
-        // FIX: antes había un `this.cameras.main.zoom = this.zoomValues[...]`
-        // en esta línea, pero se ejecuta mientras la animación de entrada
-        // (`zoomTo(1, 2000)`, unas líneas más arriba) sigue corriendo. Esa
-        // animación reescribe `cam.zoom` en cada frame, así que la asignación
-        // se perdía en silencio: la cámara acababa en 1.0x mientras el juego
-        // creía tenerla en 2.0x. De ahí el salto de zoom en el primer resize.
-        // El zoom elegido se aplica al terminar la entrada (ver el manejador
-        // de 'camerazoomcomplete' más arriba).
-
-        // 🎯 VERIFICACIÓN INICIAL
-        console.log("=== CONFIGURACIÓN DE ZOOM PRECISO ===");
-        console.log(`📊 Zoom configurado: ${this.zoomValues[this.currentZoomIndex]}x`);
-        console.log(`📊 Zoom real de cámara: ${this.cameras.main.zoom}x`);
-        console.log(`🎯 Valores disponibles: [${this.zoomValues.join(', ')}]`);
-
-        // Zoom con DOS DEDOS (móvil) sobre el mapa.
-        this._setupPinchZoom();
-
-        // Guardián del zoom: lo restaura tras cada resize del viewport (teclado
-        // del móvil al abrir el chat, giro de pantalla).
-        this._setupZoomKeeper();
-
-        // Clic en las monedas del HUD → hub de compra/cambio de moneda.
-        this._setupCurrencyHub();
-
-        // 🖱️ CONTROL CON RUEDA DEL MOUSE - USANDO VALORES EXACTOS
-        this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY) => {
-            console.log("✅ Rueda - DeltaY:", deltaY);
-            
-            if (deltaY > 0) {
-                // Scroll HACIA ABAJO - Alejar (zoom out)
-                this.preciseZoomOut();
-            } else {
-                // Scroll HACIA ARRIBA - Acercar (zoom in)
-                this.preciseZoomIn();
-            }
-        });
+        this._montarZoom();
 
 
       // estado circular de sombra del personaje 
@@ -15573,6 +15502,75 @@ createTestBeep() {
     // Ahora: se guarda el índice deseado, se mata cualquier tween de zoom en
     // vuelo y al terminar se fija el valor EXACTO. Y `_reapplyZoom()` vuelve a
     // poner ese valor después de cada resize.
+    /**
+     * Monta el sistema de zoom: niveles, rueda, pellizco y el guardian.
+     *
+     * POR QUE ES UN METODO Y NO CODIGO SUELTO EN create():
+     * aqui estaba, dentro de las 6.000 lineas del create() de GameScene. La
+     * mina y la isla no pasan por ese create, asi que se quedaban SIN zoom: ni
+     * rueda, ni pellizco, ni los botones de mas y menos. Y peor que eso, sin
+     * `zoomValues` la camara se quedaba en 1.0x fijo, que con un tileset de 32
+     * px hace que el mundo se vea la mitad de grande que en el mapa.
+     *
+     * Los metodos que hacen el trabajo (`_applyZoomIndex`, `preciseZoomIn/Out`,
+     * `_setupPinchZoom`, `_setupZoomKeeper`) ya estaban en la clase y por tanto
+     * ya los heredaban: lo unico que les faltaba era ESTE arranque.
+     *
+     * Es idempotente: Phaser reutiliza las instancias de escena, asi que la
+     * rueda se desengancha antes de volver a engancharla o se acumularian
+     * manejadores y un golpe de rueda daria dos saltos de zoom.
+     */
+    _montarZoom() {
+        this.zoomConfig = {
+            level: 2,      // Zoom inicial: 2x
+            min: 0.5,      // Zoom minimo: 0.5x
+            max: 2,        // Zoom maximo: 2x
+            step: 0.5
+        };
+
+        /* SOLO ZOOMS QUE CAEN EN PIXEL ENTERO.
+           Con pixel art, un zoom fraccionario (1.5x) deja el borde de cada tile
+           a medio pixel: el rasterizador redondea distinto en tiles contiguos y
+           aparecen costuras y hormigueo al moverse. 0.5 y 2.0 son divisor y
+           multiplo exactos de 1, asi que cada pixel de textura cae en un numero
+           entero de pixeles de pantalla. Por eso 1.5x no vuelve. */
+        this.zoomValues = [0.5, 1.0, 2.0];
+
+        /* Se entra a 1.0x. El indice tiene que describir el zoom en el que la
+           camara TERMINA de verdad: declarar 2.0x aqui hacia que, en cuanto
+           acababa la animacion de entrada, el juego volviera a acercar de
+           golpe. Aqui NO se toca `cameras.main.zoom`: la animacion de entrada
+           lo reescribe en cada fotograma y la asignacion se perderia. */
+        if (typeof this.currentZoomIndex !== 'number') this.currentZoomIndex = 1;
+
+        console.log('=== ZOOM ===', this.zoomValues.join(' / ') + 'x',
+                    '· elegido', this.zoomValues[this.currentZoomIndex] + 'x',
+                    '· camara', this.cameras.main.zoom + 'x');
+
+        try { this._setupPinchZoom(); } catch (e) { console.warn('zoom (pellizco):', e); }
+        try { this._setupZoomKeeper(); } catch (e) { console.warn('zoom (guardian):', e); }
+        try { this._setupCurrencyHub(); } catch (e) { console.warn('hub de monedas:', e); }
+
+        /* Y que la camara y el indice digan lo MISMO desde el primer
+           fotograma... salvo si hay una animacion de zoom en marcha. GameScene
+           entra con `setZoom(2)` + `zoomTo(1, 2000)`, que reescribe `cam.zoom`
+           en cada fotograma: asignarlo aqui se perderia en silencio y el juego
+           creeria tener un zoom que no tiene. La mina y la isla no tienen esa
+           animacion, asi que ahi si se aplica. */
+        const cam = this.cameras.main;
+        const animando = cam.zoomEffect && cam.zoomEffect.isRunning;
+        if (!animando) {
+            try { this._applyZoomIndex(this.currentZoomIndex, 0); } catch (e) {}
+        }
+
+        if (this._alaRueda) this.input.off('wheel', this._alaRueda);
+        this._alaRueda = (pointer, gameObjects, deltaX, deltaY) => {
+            if (deltaY > 0) this.preciseZoomOut();
+            else this.preciseZoomIn();
+        };
+        this.input.on('wheel', this._alaRueda);
+    }
+
     _applyZoomIndex(index, duration = 300) {
         if (index < 0 || index >= this.zoomValues.length) return;
         this.currentZoomIndex = index;
@@ -31059,6 +31057,30 @@ if (window.globalPetData) {
       this.rebuildPlayerInventoryFromState();
     } catch (e) { console.error('⛏️ inventario:', e); }
 
+    // 4b. Los botes de basura del panel de inventario.
+    try { this.initTrashSystem(); } catch (e) { console.warn('⛏️ basura:', e); }
+
+    /* 4b-bis. LAS NOTIFICACIONES.
+       `_cablearHUD()` ya reasigna los botones del panel (cerrar, marcar todo,
+       vaciar), pero el ESTADO se montaba solo en el create() de GameScene:
+       `_notifList`, `_notifPanel`, la chapita y la carga desde el servidor.
+       Sin eso, bajo tierra la campana abria un panel vacio —y `_notifList`
+       sin definir hace que marcar como leido reviente. */
+    this._notifBadge = document.getElementById('mail-notif-badge');
+    this._notifPanel = document.getElementById('notif-panel');
+    if (!Array.isArray(this._notifList)) this._notifList = [];
+    try {
+      const buzonViejo = document.getElementById('_mail-panel-root');
+      if (buzonViejo) buzonViejo.style.display = 'none';
+    } catch (e) {}
+    try { this._loadNotifications(); } catch (e) { console.warn('⛏️ notificaciones:', e); }
+
+    // 4c. Y la sincronizacion con la cadena, que faltaba aqui.
+    try {
+      await this._sincronizarInventarioConLaCadena();
+    } catch (e) { console.warn('⛏️ sincronizacion con la cadena:', e); }
+    if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+
     // 5. Teclas: I abre el inventario, 1..7 eligen casilla rapida.
     this.input.keyboard.on('keydown-I', () => {
       try { this.toggleInventory(); } catch (e) {}
@@ -31101,6 +31123,56 @@ if (window.globalPetData) {
     console.log('⛏️ sistemas arrancados · monedas:', this.moneda, '/', this.moneda_plata,
                 '· objetos en el inventario:',
                 (this.STATE.slots || []).filter(Boolean).length);
+  }
+
+  /**
+   * Sincroniza el inventario con las facturas del contrato.
+   *
+   * POR QUE SE PIDEN PRESTADOS LOS METODOS EN VEZ DE COPIARLOS
+   * -------------------------------------------------------------------------
+   * La sincronizacion de verdad vive en `LoadingScenegame`, y arrastra seis
+   * metodos mas (`_buildSyncMaps`, `_applySyncToSlots`, `_tipoToItemId`...):
+   * unas cuatrocientas lineas. Copiarlas aqui seria repetir el error que este
+   * proyecto ya paga con `ItemDefinitions`, que esta duplicado en GameScene y
+   * en tiendajuego y donde un objeto que le falte a una copia corta el pintado
+   * del inventario desde esa casilla.
+   *
+   * Asi que no se copian: se cogen de la INSTANCIA de LoadingScenegame, que
+   * sigue viva en el gestor de escenas, y se enganchan en esta. El resto de lo
+   * que necesitan (`savegg`, `fetchWithTokenRetry`, `getCSRFToken`,
+   * `showTokenErrorHub`, `stopAutoRefresh`) ya esta en esta clase, y el
+   * `this` durante la llamada es ESTA escena: se sincroniza NUESTRO `STATE` y
+   * se guarda por NUESTRO `savegg`.
+   *
+   * POR QUE HACIA FALTA: al mapa y a la tienda se entra por la pantalla de
+   * carga, que sincroniza al pasar. A la mina y a la isla se entra con un
+   * `scene.start` directo, sin pasar por ella — asi que bajo tierra el
+   * inventario nunca se contrastaba con la cadena.
+   */
+  async _sincronizarInventarioConLaCadena() {
+    const cargador = this.scene.get('LoadingScenegame');
+    if (!cargador) {
+      console.warn('sin LoadingScenegame a mano: no se sincroniza con la cadena');
+      return;
+    }
+    if (!this.address || !this.isAuthenticated) return;
+
+    const prestados = [
+      'syncInventoryWithBlockchain', '_buildSyncMaps', '_applySyncToSlots',
+      '_addMissingBlockchainItems', '_ensureRelayClient', '_syncFallback',
+      '_tipoToItemId'
+    ];
+    for (const nombre of prestados) {
+      if (typeof cargador[nombre] === 'function' && typeof this[nombre] !== 'function') {
+        this[nombre] = cargador[nombre];
+      }
+    }
+    if (this._ITEM_CONTRACT_NAME == null) {
+      this._ITEM_CONTRACT_NAME = cargador._ITEM_CONTRACT_NAME;
+    }
+
+    if (typeof this.syncInventoryWithBlockchain !== 'function') return;
+    await this.syncInventoryWithBlockchain();
   }
 
   /** Teclado, raton y joystick. */
