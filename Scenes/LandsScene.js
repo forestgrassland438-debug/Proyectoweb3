@@ -190,10 +190,21 @@ class LandsScene extends GameScene {
 
     // ── El agua, que frena ─────────────────────────────────────────────────
     this.collisionRectangles = this._rectangulosDeAgua();
+
+    /* LA PUERTA, en `collisionRectangles1`.
+       Se usa el MISMO nombre de propiedad que la mina y que el mapa de fuera
+       porque el indice espacial heredado (`_reconstruirIndiceColisiones`) lee
+       justo esas tres listas. Pero OJO: aqui la puerta NO frena. Es geometria
+       para `_comprobarSalida()`, igual que la boca de la galeria en la mina:
+       lo que hace el update es mirar si el jugador la toca, no rebotarlo. */
     this.collisionRectangles1 = [];
     this.collisionRectangles2 = [];
     this._reconstruirIndiceColisiones();
     console.log('🏝️ agua:', this.collisionRectangles.length, 'rectangulos');
+
+    this._puerta = this._rectDePuerta();
+    this._salidaArmada = false;
+    this._cambiandoEscena = false;
 
     // ── El jugador ─────────────────────────────────────────────────────────
     const inicio = this._puntoDeAparicion();
@@ -323,14 +334,87 @@ class LandsScene extends GameScene {
   }
 
   /**
-   * Donde aparece el jugador: el centro de la isla.
+   * El rectangulo de la capa de objetos `puerta`, si el mapa la trae.
    *
-   * No se da por bueno el centro geometrico sin mas — se comprueba que esa
-   * casilla NO sea agua, y si lo fuera se busca en espiral la tierra mas
-   * cercana. Aparecer dentro del mar deja al jugador atrapado contra las
-   * colisiones, y es la clase de fallo que no da ningun error.
+   * Es la capa que se dibuja en Tiled sobre `mapa_lands.json`: marca a la vez
+   * DONDE SE LLEGA y POR DONDE SE VUELVE. Se lee de la capa y no se escribe a
+   * mano en el codigo a proposito: mover la puerta en Tiled tiene que bastar,
+   * sin volver a tocar este archivo.
+   *
+   * Los objetos SIN gid (un rectangulo dibujado a mano, que es lo que hay
+   * aqui) tienen su origen ARRIBA a la izquierda. Los que si tienen gid -los
+   * que se colocan arrastrando un tile- lo tienen ABAJO a la izquierda, y por
+   * eso se resta la altura en ese caso. Confundirlos deja la puerta un alto
+   * por debajo de donde se ve en Tiled.
+   */
+  _rectDePuerta() {
+    const capa = this.map.getObjectLayer('puerta');
+    if (!capa || !capa.objects || !capa.objects.length) {
+      console.warn('🏝️ mapa_lands.json no trae la capa de objetos "puerta"');
+      return null;
+    }
+    const o = capa.objects[0];
+    const arriba = o.gid ? (o.y - o.height) : o.y;
+    const r = new Phaser.Geom.Rectangle(o.x, arriba, o.width, o.height);
+    console.log('🏝️ puerta:', Math.round(r.x), Math.round(r.y),
+                Math.round(r.width) + 'x' + Math.round(r.height));
+    return r;
+  }
+
+  /**
+   * Donde aparece el jugador: DELANTE de la puerta, no encima.
+   *
+   * "Delante" son 60 px hacia fuera del borde de la puerta. Aparecer DENTRO
+   * de su rectangulo es justo lo que impedia volver: el primer fotograma ya
+   * estaba tocando la salida, y aunque el candado `_salidaArmada` evita el
+   * viaje inmediato, el jugador tenia que salirse del rectangulo y volver a
+   * entrar sin verlo. Puesto delante, la puerta se ve, se pisa y se vuelve.
+   *
+   * Se prueban los cuatro lados y se coge el primero que sea TIERRA. La isla
+   * tiene la puerta cerca de la orilla sur, asi que el norte suele ganar, pero
+   * si un dia se mueve la puerta a otra costa esto sigue funcionando.
+   *
+   * Y si no hay capa `puerta` -un mapa antiguo-, se cae al centro de la isla,
+   * que es lo que se hacia antes. Nunca se devuelve una posicion en el agua:
+   * ahi el jugador se queda atrapado contra las colisiones sin un solo error.
    */
   _puntoDeAparicion() {
+    const puerta = this._puerta || this._rectDePuerta();
+    if (puerta) {
+      const M = 60;
+      const candidatos = [
+        { x: puerta.centerX,   y: puerta.y - M,        lado: 'norte' },
+        { x: puerta.centerX,   y: puerta.bottom + M,   lado: 'sur'   },
+        { x: puerta.x - M,     y: puerta.centerY,      lado: 'oeste' },
+        { x: puerta.right + M, y: puerta.centerY,      lado: 'este'  }
+      ];
+      for (const c of candidatos) {
+        if (this._esTierraEnPixeles(c.x, c.y + 32)) {
+          console.log('🏝️ apareces al', c.lado, 'de la puerta');
+          return { x: c.x, y: c.y };
+        }
+      }
+      console.warn('🏝️ la puerta no tiene tierra alrededor: se usa el centro');
+    }
+    return this._centroDeLaIsla();
+  }
+
+  /**
+   * Si ese punto (en pixeles) pisa tierra. `y` se pasa ya a la altura de los
+   * PIES del jugador: la casilla que importa es la que pisa, no la que le
+   * queda a la altura de la cabeza.
+   */
+  _esTierraEnPixeles(px, py) {
+    const capa = this.map.getLayer('Terrain');
+    const T = this.map.tileWidth;
+    const x = Math.floor(px / T);
+    const y = Math.floor(py / T);
+    if (x < 0 || y < 0 || x >= this.map.width || y >= this.map.height) return false;
+    const t = capa && capa.data[y][x];
+    return !!(t && t.index > 0 && this.gidsAgua.indexOf(t.index) === -1);
+  }
+
+  _centroDeLaIsla() {
     const capa = this.map.getLayer('Terrain');
     const T = this.map.tileWidth;
     const cx = Math.floor(this.map.width / 2);
@@ -368,6 +452,11 @@ class LandsScene extends GameScene {
   // recorre arboles, rocas y NPC del mapa de fuera, que aqui no existen.
 
   update(time, delta) {
+    /* Ya nos vamos: ni un fotograma mas. Sin esto, el update seguiria
+       escribiendo `posicionplayerx` con las coordenadas de la isla encima de
+       las que `_dejarPartidaEnElMapa()` acaba de guardar. */
+    if (this._cambiandoEscena) return;
+
     {
       let b = this._elBurbujaLocal;
       if (!b || !b.isConnected) {
@@ -443,6 +532,55 @@ class LandsScene extends GameScene {
     }
 
     try { this._actualizarMascota(); } catch (e) {}
+
+    this._comprobarSalida();
+  }
+
+  // =========================================================================
+  // SALIR DE LA ISLA
+  // =========================================================================
+
+  /**
+   * Pisar la puerta devuelve al mapa.
+   *
+   * Los mismos dos candados que la mina y que la puerta de la tienda:
+   *
+   *   . `_salidaArmada`: no dispara hasta que el jugador haya estado FUERA del
+   *     rectangulo al menos un fotograma. Sin esto, aparecer cerca de la
+   *     puerta te devolveria al mapa antes de ver la isla.
+   *   . `_cambiandoEscena`: `scene.start()` no surte efecto hasta el final del
+   *     paso actual, asi que sin el, el mismo fotograma podria lanzar la
+   *     transicion dos veces.
+   *
+   * El viaje lo hace `GFLands.volver()`, el mismo que el boton redondo: asi
+   * hay UN solo camino de vuelta, y el icono del boton y el apagado del HUD no
+   * se pueden quedar a medias segun por donde se haya salido.
+   */
+  _comprobarSalida() {
+    if (!this._puerta || !this.playerRect) return;
+
+    const tocando = Phaser.Geom.Intersects.RectangleToRectangle(
+      this.playerRect, this._puerta);
+
+    if (!tocando) { this._salidaArmada = true; return; }
+    if (!this._salidaArmada || this._cambiandoEscena) return;
+
+    this._salidaArmada = false;
+    console.log('🏝️ has pisado la puerta: de vuelta al mapa');
+
+    /* El guardado NO se hace aqui: lo hace `GFLands.volver()`, que es tambien
+       el camino del boton redondo. Un solo sitio que corrige el mundo y la
+       posicion antes de guardar, y no dos que se pueden desincronizar. */
+    if (window.GFLands) {
+      window.GFLands.volver(this);
+    } else {
+      // Sin gf-lands.js cargado: la vuelta a mano, a la plaza.
+      this._dejarPartidaEnElMapa(2097, 2359);
+      this.scene.start('LoadingScenegame', {
+        targetScene: 'GameScene',
+        playerData: { x: 2097, y: 2359, mundo: 1 }
+      });
+    }
   }
 
   // =========================================================================

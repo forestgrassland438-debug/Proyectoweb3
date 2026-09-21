@@ -50,6 +50,13 @@
 
   var CLAVE_ISLA = 'LandsScene';
 
+  /* LA PLAZA: donde nace toda cuenta nueva, y adonde devuelve la isla.
+     El valor esta escrito igual en LoadingScenegame.js y en GameScene.js
+     (`this.posicionplayerx = 2097; this.posicionplayery = 2359;`). Si algun
+     dia se mueve la plaza, hay que cambiarlo en los tres sitios. */
+  var PLAZA_X = 2097;
+  var PLAZA_Y = 2359;
+
   function log() {
     if (root.console && console.log) {
       console.log.apply(console, ['[gf-lands]'].concat([].slice.call(arguments)));
@@ -176,20 +183,46 @@
     if (escena._cambiandoEscena) return;
     escena._cambiandoEscena = true;
     log('de vuelta al mapa');
+
+    /* EL MUNDO SE CORRIGE ANTES DE APAGAR EL HUD, y el orden no es un detalle:
+       `apagarHUD()` tambien llama a `savegg()`. Corrigiendolo despues habria
+       DOS guardados en vuelo -uno diciendo "esta en la isla" y otro diciendo
+       "esta en el mapa"- y cual de los dos llega el ultimo al servidor no lo
+       decide nadie. Poniendolo aqui, los dos guardan lo mismo. */
+    if (typeof escena._dejarPartidaEnElMapa === 'function') {
+      escena._dejarPartidaEnElMapa(PLAZA_X, PLAZA_Y);
+    }
+
     apagarHUD(escena);
 
     /* SIEMPRE a GameScene, aunque se hubiera venido de la tienda o de la mina.
        Es lo que se pidio, y ademas es lo unico que no deja al jugador en un
        sitio raro: volver a la tienda significaria reaparecer dentro de un
-       edificio al que ya no se sabe por donde se entro. */
+       edificio al que ya no se sabe por donde se entro.
+
+       Y SIEMPRE A LA PLAZA. Antes se devolvia al jugador a las coordenadas
+       exactas desde las que habia pulsado el boton (`__gfLandsVuelta`). Suena
+       mejor de lo que es: desde la tienda o desde la mina esa posicion no
+       existe en el mapa de fuera, y desde el mapa te devolvia pegado a
+       cualquier sitio, a veces dentro de una colision. La plaza es el punto
+       de partida de toda cuenta nueva (LoadingScenegame y GameScene lo tienen
+       igual: 2097, 2359), asi que siempre es suelo pisable y siempre es un
+       sitio reconocible.
+
+       `__gfLandsVuelta` se sigue guardando: no se usa para colocar al
+       jugador, pero dice en el log de donde se vino. */
     var vuelta = root.__gfLandsVuelta || {};
-    var datos = { targetScene: 'GameScene', playerData: { mundo: 1 } };
-    if (vuelta.escena === 'GameScene' &&
-        typeof vuelta.x === 'number' && typeof vuelta.y === 'number') {
-      datos.playerData.x = vuelta.x;
-      datos.playerData.y = vuelta.y;
-    }
-    escena.scene.start('LoadingScenegame', datos);
+    log('vuelta a la plaza (se venia de', vuelta.escena || 'ningun sitio', ')');
+
+    /* El `playerData` de aqui abajo es DECORATIVO y se deja solo por parecerse
+       a las demas transiciones del juego: LoadingScenegame no tiene `init()`,
+       nadie lo lee, y la posicion y el mundo salen siempre de /api/load. Quien
+       de verdad decide donde apareces es el `_dejarPartidaEnElMapa()` de
+       arriba, que lo deja guardado antes de irse. */
+    escena.scene.start('LoadingScenegame', {
+      targetScene: 'GameScene',
+      playerData: { x: PLAZA_X, y: PLAZA_Y, mundo: 1 }
+    });
   }
 
   /**

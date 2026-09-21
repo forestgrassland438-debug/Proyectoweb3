@@ -182,7 +182,92 @@ class MinaScene extends GameScene {
   // CREATE
   // =========================================================================
 
+  /**
+   * El create() DE VERDAD es `_construirMina()`. Este es solo el envoltorio
+   * que impide que la mina se quede en negro sin decir nada.
+   *
+   * POR QUE HACE FALTA: `create()` es `async`. Si algo revienta dentro de una
+   * funcion async, la excepcion NO sube al bucle de Phaser: se convierte en
+   * una promesa rechazada que nadie mira. La escena se queda a medio montar
+   * -sin mapa, sin jugador- y `update()` se va por su primer `return`. El
+   * resultado es exactamente lo que se vio: pantalla negra, "no corre nada", y
+   * ni una linea roja en la consola que diga donde se rompio.
+   *
+   * Asi que aqui se hacen tres cosas que antes no se hacian:
+   *
+   *   1. Se atrapa el fallo y se dice EN QUE FASE ocurrio (`this._faseMina`),
+   *      que es lo unico que hacia falta para no tener que adivinar.
+   *   2. Se comprueba al final que lo esencial este montado. Asi tambien queda
+   *      cazado el fallo MUDO: una capa que vuelve null y no lanza nada.
+   *   3. Pase lo que pase, el jugador acaba en el mapa y no encerrado en una
+   *      pantalla negra de la que solo se sale recargando.
+   */
   async create() {
+    this._faseMina = 'arranque';
+    this._rescatando = false;
+
+    try {
+      await this._construirMina();
+    } catch (e) {
+      console.error('⛏️ la mina se rompio en la fase "' + this._faseMina + '":', e);
+      this._rescatar('la mina no se pudo montar (' + this._faseMina + ')');
+      return;
+    }
+
+    if (!this.map || !this.player || !this.keys) {
+      console.error('⛏️ la mina quedo a medias en la fase "' + this._faseMina +
+                    '" -> mapa:' + !!this.map +
+                    ' jugador:' + !!this.player +
+                    ' controles:' + !!this.keys);
+      this._rescatar('la mina quedo a medias (' + this._faseMina + ')');
+    }
+  }
+
+  /**
+   * Devuelve al jugador al mapa cuando la mina no se puede montar.
+   *
+   * Se sale por LoadingScenegame y no por `scene.start('GameScene')` a pelo:
+   * la pantalla de carga es la que vuelve a pedir la partida al servidor y,
+   * si el problema era la sesion, es ella la que sabe ensenar el aviso. Se
+   * manda `mundo: 1` a proposito para que la partida no se quede guardada
+   * como "esta en la mina" y el siguiente arranque no repita el viaje.
+   */
+  _rescatar(motivo) {
+    if (this._rescatando || this._cambiandoEscena) return;
+    this._rescatando = true;
+    this._cambiandoEscena = true;
+    console.warn('⛏️ saliendo de la mina por las malas:', motivo);
+
+    /* EL CORTACIRCUITOS, y no es paranoia: sin el, esto es un BUCLE.
+       La partida se guarda con `mundo: 3` al entrar en la mina, y la pantalla
+       de carga ahora sabe que el mundo 3 es la mina. Asi que si la mina no
+       monta, el camino seria: carga -> mina -> revienta -> carga -> mina...
+       sin fin y sin que el jugador pueda hacer nada.
+
+       Se corta por dos sitios a la vez:
+
+         . `_dejarPartidaEnElMapa` deja GUARDADO mundo 1, que arregla tambien
+           los arranques siguientes y hasta otra pestana.
+         . la bandera global, para cuando ese guardado no llega a salir -que
+           es justo el caso si lo que fallo fue la sesion-. La pantalla de
+           carga la mira antes de mandar a nadie a la mina. */
+    window.__gfMinaRota = motivo || true;
+    try { this._dejarPartidaEnElMapa(3334, 760); } catch (e) {}
+
+    try { this._ocultarHUD(); } catch (e) {}
+    try { this.removeListener(); } catch (e) {}
+    try { this._unbindAllDomClicks(); } catch (e) {}
+    try { this.stopMusicSafely(); } catch (e) {}
+    try { this.cleanupScene(); } catch (e) {}
+
+    // Delante de la puerta de la mina, en el mapa de fuera.
+    this.scene.start('LoadingScenegame', {
+      targetScene: 'GameScene',
+      playerData: { x: 3334, y: 760, mundo: 1 }
+    });
+  }
+
+  async _construirMina() {
     console.log('⛏️ MinaScene.create()');
 
     /* ── LA SESION, LO PRIMERO DE TODO ───────────────────────────────────
@@ -203,15 +288,18 @@ class MinaScene extends GameScene {
      * Ahora la escena que nos lanza nos PASA su sesion, que ya esta
      * comprobada. `loadx()` se queda solo de red de seguridad para cuando se
      * entra sin venir de ningun sitio. */
+    this._faseMina = 'sesion';
     let sesion = this._aplicarSesion(this.__sesionRecibida);
     if (!sesion) {
       console.log('⛏️ sin sesion heredada: se pide al servidor');
       sesion = await this.loadx();
     }
     if (!sesion || !this.playerName) {
-      console.error('⛏️ no se pudo autenticar: la mina no arranca');
-      this.showTokenErrorHub();
-      return;
+      /* Sin sesion NO se monta la mina, pero tampoco se deja al jugador
+         mirando una escena vacia: el envoltorio lo devuelve a la pantalla de
+         carga, que es la que sabe volver a pedir la partida y, si de verdad
+         la sesion caduco, ensenar el aviso una sola vez y en su sitio. */
+      throw new Error('sin sesion: la mina no arranca');
     }
     this.currentAccount = this.currentAccount || this.playerName;
 
@@ -225,6 +313,7 @@ class MinaScene extends GameScene {
     // Phaser REUTILIZA la instancia de la escena, asi que toda bandera de "ya
     // lo hice" hay que rearmarla aqui o sobrevive al cambio de escena y se
     // comporta como si la entrada anterior no hubiera terminado.
+    this._faseMina = 'estado de la escena';
     this.mundo = 3;
     this._cambiandoEscena = false;
     this._salidaArmada = false;
@@ -248,6 +337,7 @@ class MinaScene extends GameScene {
     // window a proposito (superficie minima). Lo que sobrevive es el binding
     // lexico que crea `class GameScene` en el script, mas la copia del
     // registro seguro. Se prueban los dos.
+    this._faseMina = 'reciclar GameScene';
     const ClaseMapa =
       (window.__secureSceneRegistry && window.__secureSceneRegistry.get('GameScene')) ||
       (typeof GameScene === 'function' ? GameScene : null);
@@ -272,6 +362,7 @@ class MinaScene extends GameScene {
     }
 
     // ── El mapa ────────────────────────────────────────────────────────────
+    this._faseMina = 'mapa';
     this.map = this.make.tilemap({ key: 'tilemap_mina' });
     // 32, no 16: el tileset de la mina se redibujo a 32 px. Si aqui se
     // quedara el 16 viejo, Phaser leeria el atlas del tileset con la rejilla
@@ -279,10 +370,28 @@ class MinaScene extends GameScene {
     // parece corrupcion del PNG y no lo es.
     const tileset = this.map.addTilesetImage('tileset_mina', 'tiles_mina', 32, 32);
 
+    /* SI EL MAPA NO CARGO, AQUI SE PARA.
+       `addTilesetImage` devuelve null cuando la imagen no esta en la cache, y
+       `createLayer` devuelve null cuando el tileset es null o la capa no
+       existe. Sin esta comprobacion, la linea de abajo
+       (`this.backgroundLayer.setDepth(0)`) lanza un TypeError dentro de una
+       funcion async: se pierde en una promesa rechazada y la mina se queda en
+       negro sin decir por que. Mejor un error legible y volver al mapa. */
+    if (!tileset) {
+      throw new Error("el tileset 'tiles_mina' no esta cargado " +
+                      '(Game/MAPAS/Mina/tileset_mina.png)');
+    }
+    if (!this.map.width || !this.map.height) {
+      throw new Error("el mapa 'tilemap_mina' vino vacio (Maps/mina.json)");
+    }
+
     // NEAREST o el pixel art sale borroso y con costuras entre tiles.
     this.textures.get('tiles_mina').setFilter(Phaser.Textures.FilterMode.NEAREST);
 
     this.backgroundLayer = this.map.createLayer('mina', tileset, 0, 0);
+    if (!this.backgroundLayer) {
+      throw new Error("Maps/mina.json no trae la capa de tiles 'mina'");
+    }
     this.backgroundLayer.setDepth(0);
 
     /* La capa de SOMBRAS: la mancha oscura que el muro echa sobre el suelo que
@@ -310,6 +419,7 @@ class MinaScene extends GameScene {
     // (collisionRectangles / 1 / 2) porque el indice espacial heredado
     // (_reconstruirIndiceColisiones) lee justo esos. Cambiarles el nombre aqui
     // dejaria a la mina sin colisiones y sin ningun error en consola.
+    this._faseMina = 'colisiones';
     this.collisionRectangles = this._rectsDeCapa('area_colision_general');
     this.collisionRectangles1 = this._rectsDeCapa('area_salida_mina');
     this.collisionRectangles2 = [];
@@ -319,6 +429,7 @@ class MinaScene extends GameScene {
                 'rectangulos; salida:', this.collisionRectangles1.length);
 
     // ── El jugador ─────────────────────────────────────────────────────────
+    this._faseMina = 'jugador';
     const inicio = this._puntoDeAparicion();
     this.posicionplayerx = inicio.x;
     this.posicionplayery = inicio.y;
@@ -368,14 +479,18 @@ class MinaScene extends GameScene {
     this._crearMascota();          // heredado de GameScene
 
     // ── Las piezas altas, en 2.5D ──────────────────────────────────────────
+    this._faseMina = 'piezas';
     this._montarPiezas();
 
     // ── Lava, agua y burbujas ──────────────────────────────────────────────
+    this._faseMina = 'liquidos';
     this._montarLiquidos();
 
     // ── Entrada ────────────────────────────────────────────────────────────
+    this._faseMina = 'controles';
     this._montarControles();
 
+    this._faseMina = 'camara';
     this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
     this.cameras.main.setRoundPixels(true);
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
@@ -394,15 +509,18 @@ class MinaScene extends GameScene {
     // ── LOS SISTEMAS DE JUEGO ──────────────────────────────────────────────
     // Inventario, cofre, monedas, cadena, socket, misiones. Va ANTES del HUD
     // para que cuando se pinten las barras y las monedas ya haya datos.
+    this._faseMina = 'sistemas de juego';
     await this._arrancarSistemas();
 
     // ── El HUD ─────────────────────────────────────────────────────────────
+    this._faseMina = 'HUD';
     this._mostrarHUD();
 
     // ── Los modulos que SI van bajo tierra ─────────────────────────────────
     //
     // La lista es la misma que monta la tienda, que es la otra escena "bajo
     // techo". Lo que no esta aqui es deliberado: ver la cabecera del archivo.
+    this._faseMina = 'modulos';
     if (window.GFMascota)     window.GFMascota.montar(this);
     if (window.GFMuerte)      window.GFMuerte.montar(this);
     if (window.GFAlquimista)  window.GFAlquimista.montar(this);
@@ -424,6 +542,7 @@ class MinaScene extends GameScene {
     // ── Limpieza al salir ──────────────────────────────────────────────────
     this.events.once('shutdown', () => this._alApagar());
 
+    this._faseMina = 'lista';
     console.log('⛏️ mina lista');
   }
 
@@ -692,6 +811,11 @@ class MinaScene extends GameScene {
   // movimiento por raton y el seguimiento de la mascota son los heredados.
 
   update(time, delta) {
+    /* Ya nos vamos: ni un fotograma mas. Sin esto, el update seguiria
+       escribiendo `posicionplayerx` con las coordenadas de la cueva encima de
+       las que `_dejarPartidaEnElMapa()` acaba de guardar. */
+    if (this._cambiandoEscena) return;
+
     // La burbuja de chat local se recoloca aunque este oculta: es lo que
     // permite reafirmarla si algo apago el HUD con un mensaje en pantalla.
     {
@@ -844,15 +968,21 @@ class MinaScene extends GameScene {
     try { this._cancelarArrastre(); } catch (e) {}
     try { this.player.anims.stop(); } catch (e) {}
 
-    // Guardar antes de irse.
-    try { this.savegg(); } catch (e) { console.warn('guardado:', e); }
-
     // Donde se reaparece arriba: justo DEBAJO del hueco de la puerta de la
     // mina, en el pasillo que dejan los dos muros de la entrada (x 3305..3363,
     // y ~730). Si se pusiera dentro del rectangulo de la puerta, el candado
-    // `_puertaArmada` de GameScene lo resolveria, pero el jugador aparecia
+    // `_puertaArmada` de GameScene lo resolveria, pero el jugador apareceria
     // encima del batiente.
     const destino = { x: 3334, y: 760, mundo: 1 };
+
+    /* GUARDAR CON EL MUNDO YA CORREGIDO, y no `savegg()` a secas.
+       `savegg()` guarda `mundo: this.mundo`, que aqui vale 3. Guardando tal
+       cual, la partida quedaba como "esta en la mina" y la pantalla de carga
+       -que ignora el `playerData` de abajo y lee siempre de /api/load- te
+       devolvia a la mina. El `playerData` del scene.start se deja porque es
+       lo que hacen las otras transiciones del juego, pero quien manda de
+       verdad es esta linea. */
+    this._dejarPartidaEnElMapa(destino.x, destino.y);
 
     this._ocultarHUD();
     try { this.removeListener(); } catch (e) {}

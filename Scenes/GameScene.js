@@ -31308,6 +31308,45 @@ if (window.globalPetData) {
    * pregunta nada. `loadx()` se queda solo como red de seguridad para cuando
    * se entra sin venir de ningun sitio.
    */
+  /**
+   * Deja la partida apuntando AL MAPA antes de salir de una escena satelite
+   * (la mina, la isla). Lo llaman MinaScene y gf-lands.
+   *
+   * POR QUE HACE FALTA, Y POR QUE NO BASTA CON `scene.start(..., playerData)`:
+   *
+   * LoadingScenegame NO TIENE `init()`. Los datos que se le pasan en
+   * `scene.start('LoadingScenegame', { playerData: {...} })` no los lee nadie:
+   * la pantalla de carga siempre pide la partida a /api/load y copia de ahi
+   * `mundo`, `posicionplayerx` y `posicionplayery` (ver su lista
+   * `playerProps`). Ese `playerData` lleva anos en el codigo siendo
+   * decorativo.
+   *
+   * Asi que quien manda es lo ULTIMO QUE SE GUARDO. Y `savegg()` guarda
+   * `mundo: this.mundo`, que en la mina vale 3 y en la isla 4. Sin esta
+   * funcion, salir de la isla guardaba "estoy en la isla", la pantalla de
+   * carga leia mundo 4 y te devolvia a la isla: un bucle del que no se sale.
+   *
+   * Por eso se corrige el estado ANTES de guardar, y no se confia en el
+   * parametro.
+   */
+  _dejarPartidaEnElMapa(x, y) {
+    this.mundo = 1;
+    this.posicionplayerx = x;
+    this.posicionplayery = y;
+
+    /* El candado corta el update() de la mina y de la isla, que reescriben
+       `posicionplayerx` con la posicion del sprite en cada fotograma. Sin el,
+       un ultimo fotograma antes del cambio de escena volveria a dejar ahi las
+       coordenadas de la cueva. */
+    this._cambiandoEscena = true;
+
+    try {
+      this.savegg();
+    } catch (e) {
+      console.warn('guardado al salir:', e);
+    }
+  }
+
   _capturarSesion() {
     return {
       playerName:      this.playerName,

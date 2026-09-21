@@ -1974,18 +1974,91 @@ class LoadingScenegame extends Phaser.Scene {
             return;
         }
 
-        if (this.mundo === 1 || this.mundo === 2) {
-            const nextScene = this.mundo === 1 ? 'GameScene' : 'tiendajuego';
-            console.log(`🚀 Transicionando a: ${nextScene}`);
+        /* A QUE ESCENA VA CADA MUNDO.
+         *
+         * ESTO ERA UN `if (mundo === 1 || mundo === 2)` Y DEJABA EL JUEGO EN
+         * NEGRO. `savegg()` guarda `mundo` tal cual (en GameScene: `mundo:
+         * this.mundo`), y la mina se marca como mundo 3 y la isla como mundo 4.
+         * En cuanto el jugador entraba en la mina y volvia a pasar por esta
+         * pantalla -recargar la pagina, volver a entrar- la partida venia con
+         * mundo 3, ninguna de las dos ramas se cumplia, no se llamaba a
+         * `scene.start` NUNCA y la pantalla de carga se quedaba colgada para
+         * siempre. Sin error en consola: solo negro.
+         *
+         * Ahora es una tabla, que es lo que siempre debio ser: anadir un mundo
+         * es anadir una linea, y olvidarse de tocar esta funcion ya no cuelga
+         * el juego. */
+        const ESCENA_DE_MUNDO = {
+            1: 'GameScene',
+            2: 'tiendajuego',
+            3: 'MinaScene',
+            4: 'LandsScene'
+        };
 
-            if (window.perf && typeof window.perf.init === 'function' && !this.sys.settings.__perfInitialized) {
-                window.perf.init(this, { debug: false });
-                this.sys.settings.__perfInitialized = true;
-            }
+        let nextScene = ESCENA_DE_MUNDO[this.mundo];
 
-            this.scene.start(nextScene);
-            clearInterval(this.intervalId);
+        /* DOS REDES DE SEGURIDAD, y las dos terminan en GameScene.
+         *
+         * La primera, un mundo que no este en la tabla (una partida vieja, un
+         * valor raro de la base de datos). La segunda, un mundo valido cuya
+         * escena no este registrada: si algun dia MinaScene.js no se sube, o
+         * register-scenes.js no la da de alta. En los dos casos es preferible
+         * aparecer en el mapa que quedarse en la pantalla de carga: el jugador
+         * sigue jugando y puede volver a entrar por su puerta.
+         *
+         * Se corrige tambien `this.mundo` para que el primer `savegg()` de
+         * GameScene deje la partida coherente y no se repita el desvio. */
+        if (!nextScene) {
+            console.warn('🌍 mundo ' + this.mundo + ' desconocido: se va al mapa');
+            nextScene = 'GameScene';
+            this.mundo = 1;
+        } else if (!this.scene.get(nextScene)) {
+            console.warn('🌍 ' + nextScene + ' no esta registrada: se va al mapa');
+            nextScene = 'GameScene';
+            this.mundo = 1;
+        } else if (nextScene === 'MinaScene' && window.__gfMinaRota) {
+            /* LA MINA YA SE ROMPIO UNA VEZ EN ESTA SESION.
+               Sin esto hay bucle: la partida dice mundo 3, esta pantalla manda
+               a la mina, la mina no monta, se rescata volviendo aqui, y vuelta
+               a empezar. La bandera la pone `MinaScene._rescatar()` y solo vive
+               mientras la pestana este abierta: recargando se vuelve a
+               intentar, que es lo razonable si lo que fallaba era un archivo
+               que no habia terminado de subirse. */
+            console.warn('🌍 la mina fallo antes en esta sesion (' +
+                         window.__gfMinaRota + '): se va al mapa');
+            nextScene = 'GameScene';
+            this.mundo = 1;
         }
+
+        console.log(`🚀 Transicionando a: ${nextScene}`);
+
+        if (window.perf && typeof window.perf.init === 'function' && !this.sys.settings.__perfInitialized) {
+            window.perf.init(this, { debug: false });
+            this.sys.settings.__perfInitialized = true;
+        }
+
+        /* La mina y la isla esperan la sesion de la escena anterior en
+           `datos.sesion`. Viniendo de aqui no hay escena anterior, asi que se
+           les pasa la de esta pantalla, que acaba de comprobarse arriba. Sin
+           esto se autenticarian de cero y saldria el cartel de SESSION
+           EXPIRED, que es justo el fallo que ya costo una vuelta. */
+        if (nextScene === 'MinaScene' || nextScene === 'LandsScene') {
+            this.scene.start(nextScene, {
+                sesion: {
+                    playerName:      this.playerName,
+                    address:         this.address,
+                    currentAccount:  this.currentAccount || this.playerName,
+                    isAuthenticated: true,
+                    csrfToken:       this.csrfToken || window.csrfToken || null,
+                    serverBase:      this.serverBase,
+                    serverclient:    this.serverclient,
+                    serverclient1:   this.serverclient1
+                }
+            });
+        } else {
+            this.scene.start(nextScene);
+        }
+        clearInterval(this.intervalId);
     }
 
     /**
