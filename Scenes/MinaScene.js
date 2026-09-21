@@ -595,12 +595,18 @@ class MinaScene extends GameScene {
     if (window.GFMuerte)      window.GFMuerte.montar(this);
     if (window.GFAlquimista)  window.GFAlquimista.montar(this);
     if (window.GFPisadas)     window.GFPisadas.montar(this, { suelo: 'tierra' });
-    if (window.GFAudio)       window.GFAudio.montar(this, { tipo: 'tienda', suelo: 'tierra' });
+    /* `interior: true` = ni ambiente, ni clima, ni truenos. Bajo tierra no
+       hay tejado en el que oir la lluvia: hay cien metros de roca. */
+    if (window.GFAudio)       window.GFAudio.montar(this, { tipo: 'tienda', suelo: 'tierra', interior: true });
     if (window.GFAmigos)      window.GFAmigos.montar(this);
     if (window.GFChatSocial)  window.GFChatSocial.montar(this);
     if (window.GFNombreColor) window.GFNombreColor.montar(this);
     if (window.GFSoulbound)   window.GFSoulbound.sincronizar(this);
-    if (window.GFPost)        window.GFPost.montar(this);
+    /* `interior: true` tambien aqui, y por un motivo que costo encontrar:
+       `GFPost` pregunta la oscuridad a `GFCiclo.oscuridad()`, que es el
+       reloj GLOBAL de la partida. No le importa que nadie haya montado el
+       ciclo en esta escena: si fuera es de noche, tine la mina de noche. */
+    if (window.GFPost)        window.GFPost.montar(this, { interior: true });
 
     // El chat: el panel es DOM de la pagina y el metodo es heredado.
     try { this._setupChatDom(); } catch (e) { console.warn('chat:', e); }

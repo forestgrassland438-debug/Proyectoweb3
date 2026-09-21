@@ -117,7 +117,10 @@ class LandsScene extends GameScene {
     this.load.tilemapTiledJSON('tilemap_lands', './Maps/mapa_lands.json');
 
     this.load.audio('level_up_sound', './Game/MUSIC/levelup.wav');
-    if (window.GFAudio) window.GFAudio.precargar(this, { tipo: 'campo' });
+    /* `tipo: 'tienda'`, aunque la isla sea al aire libre: es el modo que NO
+       carga los veintiun animales, los siete truenos ni el viento. Se pidio
+       expresamente que en la isla no se oyera el ambiente. */
+    if (window.GFAudio) window.GFAudio.precargar(this, { tipo: 'tienda' });
   }
 
   // =========================================================================
@@ -287,7 +290,7 @@ class LandsScene extends GameScene {
     if (window.GFMascota)     window.GFMascota.montar(this);
     if (window.GFMuerte)      window.GFMuerte.montar(this);
     if (window.GFPisadas)     window.GFPisadas.montar(this, { suelo: 'hierba' });
-    if (window.GFAudio)       window.GFAudio.montar(this, { tipo: 'campo' });
+    if (window.GFAudio)       window.GFAudio.montar(this, { tipo: 'tienda', suelo: 'hierba', interior: true });
     if (window.GFAmigos)      window.GFAmigos.montar(this);
     if (window.GFChatSocial)  window.GFChatSocial.montar(this);
     if (window.GFNombreColor) window.GFNombreColor.montar(this);

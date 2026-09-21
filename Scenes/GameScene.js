@@ -30857,7 +30857,21 @@ if (window.globalPetData) {
    * apagarlo a mano, igual que hace la puerta de la tienda. MinaScene lo
    * vuelve a sacar y a cablear a si misma en su create().
    */
-  entrarEnLaMina() {
+  /**
+   * A la mina POR LA PANTALLA DE CARGA, como a la tienda.
+   *
+   * Antes esto hacia `scene.start('MinaScene')` a pelo. Funcionaba, pero se
+   * saltaba la pantalla de carga, y con ella las dos cosas que hace: volver a
+   * pedir la partida al servidor y contrastar el inventario con la cadena. De
+   * ahi que el viaje se sintiera distinto al de la tienda.
+   *
+   * Es `async` y el guardado se ESPERA. No es un detalle: la pantalla de
+   * carga decide a donde va leyendo `mundo` de /api/load, asi que si el
+   * guardado de `mundo = 3` sigue en vuelo cuando ella pregunta, el servidor
+   * contesta con el mundo viejo y te devuelve al mapa. Es una carrera que se
+   * pierde justo el dia que la red va lenta.
+   */
+  async entrarEnLaMina() {
     if (this._cambiandoEscena) return;
 
     /* SE PREGUNTA AL GESTOR DE ESCENAS, NO A `window`.
@@ -30887,7 +30901,8 @@ if (window.globalPetData) {
     try { this.player.anims.stop(); } catch (e) {}
 
     this.mundo = 3;
-    try { this.savegg(); } catch (e) { console.warn('guardado antes de la mina:', e); }
+    // ESPERADO, no lanzado: ver la cabecera del metodo.
+    try { await this.savegg(); } catch (e) { console.warn('guardado antes de la mina:', e); }
     this.saveTimer = 0;
 
     // Apagar el HUD de la pagina.
@@ -30918,7 +30933,11 @@ if (window.globalPetData) {
 
     try { this.cleanupScene(); } catch (e) { console.warn('limpieza:', e); }
     // La sesion viaja con la escena: la mina no vuelve a autenticarse.
-    this.scene.start('MinaScene', { sesion: this._capturarSesion() });
+    /* A la pantalla de carga, que leera `mundo = 3` y traera la mina.
+       Sin `playerData`: esa pantalla no tiene `init()` y no lo lee nadie
+       (ver el comentario de `_dejarPartidaEnElMapa`). Lo que manda es lo que
+       se acaba de guardar. */
+    this.scene.start('LoadingScenegame');
   }
 
 
@@ -31081,7 +31100,25 @@ if (window.globalPetData) {
       ghostSlots: { inv: Array(40).fill(null), quick: Array(7).fill(null) }
     };
 
-    // 3. Datos del jugador: monedas, inventario, cofre, experiencia y la
+    /* 3. LAS CASILLAS, ANTES DE PEDIR LOS DATOS.
+     *
+     * EL ORDEN AQUI ERA EL FALLO DE "EN LA MINA NO VEO MI INVENTARIO".
+     * `initInventory()` no solo crea los 47 divs: hace `STATE.slots = []` y
+     * los vuelve a llenar de nulls, o sea que BORRA el inventario. Llamandolo
+     * DESPUES de `await this.initialize()`, los 22 objetos que acababa de
+     * traer el servidor se tiraban a la basura en la linea siguiente. El log
+     * lo decia en la cara y no lo vi: "Cargando 22 items del inventario" y,
+     * dos lineas mas abajo, "objetos en el inventario: 0".
+     *
+     * GameScene no lo sufre por casualidad: alli `initialize()` va SIN await,
+     * asi que los datos llegan despues de que `initInventory()` haya barrido.
+     * Eso es una carrera que funciona de milagro; aqui se hace bien, creando
+     * las casillas primero y pintando cuando los datos ya estan. */
+    try {
+      this.initInventory();
+    } catch (e) { console.error('⛏️ casillas del inventario:', e); }
+
+    // 4. Datos del jugador: monedas, inventario, cofre, experiencia y la
     //    conexion con el contrato (loadPlayerData monta el relayClient).
     try {
       await this.initialize();
@@ -31090,9 +31127,8 @@ if (window.globalPetData) {
     }
     if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
 
-    // 4. Inventario, casillas rapidas y cofre.
+    // 5. Y ahora si, pintar lo que hay.
     try {
-      this.initInventory();
       this.rebuildPlayerInventoryFromState();
     } catch (e) { console.error('⛏️ inventario:', e); }
 
