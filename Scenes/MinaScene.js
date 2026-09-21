@@ -100,7 +100,15 @@ class MinaScene extends GameScene {
      * del mapa de fuera. */
     this.esMina = true;
 
-    this.mina = null;          // datos del mapa (capas, rectangulos)
+    this.mina = null;
+
+    /* SIN 0.5x. El mundo de esta escena es una capa de TILEMAP, y a medio
+       zoom el borde de cada casilla cae a medio pixel: el rasterizador
+       redondea distinto en casillas contiguas y salen rayas por todo el mapa,
+       como si estuviera partido en cuadros. Con 1x y 2x cada pixel de textura
+       cae en un numero entero de pixeles de pantalla y no hay costuras.
+       tiendajuego usa estos dos niveles desde hace tiempo, por lo mismo. */
+    this._nivelesDeZoom = [1.0, 2.0];          // datos del mapa (capas, rectangulos)
     this._lavaCapas = [];      // los tileSprite del flujo y del brillo
     this._burbujas = [];       // burbujas que revientan en la lava
     this._salidaArmada = false;
@@ -433,12 +441,22 @@ class MinaScene extends GameScene {
     // dejaria a la mina sin colisiones y sin ningun error en consola.
     this._faseMina = 'colisiones';
     this.collisionRectangles = this._rectsDeCapa('area_colision_general');
-    this.collisionRectangles1 = this._rectsDeCapa('area_salida_mina');
+
+    /* LA SALIDA VA APARTE, Y NO EN `collisionRectangles1`.
+       ESTO ERA LO QUE IMPEDIA SALIR DE LA MINA. El indice espacial heredado
+       (`_reconstruirIndiceColisiones`) mete en las colisiones
+       `collisionRectangles` Y `collisionRectangles1`: poner ahi la boca de la
+       galeria la convertia en un MURO. El jugador chocaba con ella, nunca
+       llegaba a solaparla, y `_comprobarSalida()` -que dispara justo al
+       solaparla- no saltaba jamas. Se veia la luz, se llegaba hasta ella y no
+       se podia salir. */
+    this._salida = (this._rectsDeCapa('area_salida_mina') || [])[0] || null;
+    this.collisionRectangles1 = [];
     this.collisionRectangles2 = [];
     this._reconstruirIndiceColisiones();
 
     console.log('⛏️ colisiones de la mina:', this.collisionRectangles.length,
-                'rectangulos; salida:', this.collisionRectangles1.length);
+                'rectangulos; salida:', this._salida ? 'si' : 'NO');
 
     // ── El jugador ─────────────────────────────────────────────────────────
     this._faseMina = 'jugador';
@@ -528,9 +546,33 @@ class MinaScene extends GameScene {
     // de verdad, una por antorcha— serian 38 objetos mas y un lienzo del
     // tamano del mapa (5008x5008 a 4 bytes son 100 MB de memoria de video), que
     // es exactamente el problema de VRAM que ya costo caro en este proyecto.
-    this.penumbra = this.add.rectangle(
-      0, 0, this.map.widthInPixels, this.map.heightInPixels, 0x4a5a78
-    ).setOrigin(0, 0).setDepth(9000).setAlpha(0.30);
+    /* UNA IMAGEN, NO UN `add.rectangle`.
+     *
+     * ESTO ERA LO QUE DEJABA LA MINA LAVADA Y PLANA. Las FIGURAS de Phaser
+     * (Rectangle, Graphics y companyia) IGNORAN el modo de mezcla: el
+     * `setBlendMode(MULTIPLY)` de la version anterior no hacia absolutamente
+     * nada, y lo que quedaba era un rectangulo azul grisaceo al 30 % pintado
+     * en NORMAL sobre todo el mapa. En vez de oscurecer la cueva, le echaba
+     * niebla encima: por eso el suelo y el pie de las paredes "no cuadraban"
+     * -perdian el contraste entre si- y la luz de la salida se veia rara,
+     * porque competia contra una capa plana que no deberia estar ahi.
+     *
+     * Una IMAGEN si respeta la mezcla. Se usa una textura minima de 4x4 del
+     * color y se estira al tamano del mapa: sigue siendo una sola llamada de
+     * dibujo y cuatro pixeles de memoria de video. */
+    const CLAVE_PEN = 'mina_penumbra';
+    if (!this.textures.exists(CLAVE_PEN)) {
+      const lz = this.textures.createCanvas(CLAVE_PEN, 4, 4);
+      const cx = lz.getContext();
+      cx.fillStyle = '#4a5a78';
+      cx.fillRect(0, 0, 4, 4);
+      lz.refresh();
+    }
+    this.penumbra = this.add.image(0, 0, CLAVE_PEN)
+      .setOrigin(0, 0)
+      .setDisplaySize(this.map.widthInPixels, this.map.heightInPixels)
+      .setDepth(9000)
+      .setAlpha(0.42);
     this.penumbra.setBlendMode(Phaser.BlendModes.MULTIPLY);
 
     // ── LOS SISTEMAS DE JUEGO ──────────────────────────────────────────────
@@ -683,11 +725,13 @@ class MinaScene extends GameScene {
       }
     });
 
-    /* Van en `collisionRectangles2`, la tercera lista que lee el indice
-       espacial heredado (`_reconstruirIndiceColisiones`). Se usa esa y no se
-       mezclan con las del mapa para poder seguir distinguiendolas: las del
-       mapa las escribe el generador, estas salen de los sprites. */
-    this.collisionRectangles2 = solidas;
+    /* VAN EN `collisionRectangles`, la lista buena.
+       El primer intento las puso en `collisionRectangles2` pensando que era
+       "la tercera lista" del indice espacial. No lo es:
+       `_reconstruirIndiceColisiones()` solo mete `collisionRectangles` y
+       `collisionRectangles1`. En `...2` no frenaban nada y se seguian
+       atravesando los pedruscos exactamente igual que antes. */
+    this.collisionRectangles = this.collisionRectangles.concat(solidas);
     this._reconstruirIndiceColisiones();
     console.log('⛏️ piezas solidas:', solidas.length, 'de', this._piezas.length);
 
@@ -856,39 +900,72 @@ class MinaScene extends GameScene {
    * `collisionRectangles1`, no de numeros escritos aqui.
    */
   _montarSalidaVisible() {
-    const r = (this.collisionRectangles1 || [])[0];
+    const r = this._salida;
     if (!r) return;
 
-    const W = Math.round(r.width) + 80;
-    const H = Math.round(r.height) + 128;
+    /* UN CHARCO DE LUZ, NO UN RECTANGULO.
+     *
+     * La primera version era un degradado LINEAL de arriba abajo recortado en
+     * los lados. Se veia raro por dos motivos y los dos eran de dibujo: el
+     * borde de arriba salia a plena intensidad, o sea un CANTO RECTO de luz
+     * sobre la roca; y al ser lineal, la luz tenia la misma fuerza a lo ancho
+     * de toda la boca en vez de concentrarse en ella.
+     *
+     * Ahora es un degradado RADIAL centrado en la boca. Se apaga solo en
+     * todas las direcciones, asi que no hay ningun canto: es luz entrando por
+     * un hueco, que es lo que se queria contar. El lienzo se hace mas grande
+     * que la boca (el doble de alto) justo para que el radial tenga sitio
+     * donde apagarse dentro de la textura y no lo corte el borde. */
+    const W = Math.round(r.width) + 160;
+    const H = Math.round(r.height) + 224;
 
     const CLAVE = 'mina_salida_luz';
     if (this.textures.exists(CLAVE)) this.textures.remove(CLAVE);
     const lienzo = this.textures.createCanvas(CLAVE, W, H);
     const ctx = lienzo.getContext();
 
-    const vert = ctx.createLinearGradient(0, 0, 0, H);
-    vert.addColorStop(0.00, 'rgba(255,238,190,0.80)');
-    vert.addColorStop(0.28, 'rgba(255,226,155,0.34)');
-    vert.addColorStop(1.00, 'rgba(255,214,130,0)');
-    ctx.fillStyle = vert;
+    const cx = W / 2;
+    const cy = Math.round(r.height) * 0.6 + 24;   // la boca, dentro del lienzo
+    const radio = Math.max(W, H) * 0.60;
+
+    const luz = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.06, cx, cy, radio);
+    luz.addColorStop(0.00, 'rgba(255,244,214,0.92)');
+    luz.addColorStop(0.18, 'rgba(255,234,176,0.52)');
+    luz.addColorStop(0.45, 'rgba(255,222,146,0.20)');
+    luz.addColorStop(0.75, 'rgba(255,212,126,0.05)');
+    luz.addColorStop(1.00, 'rgba(255,208,120,0)');
+    ctx.fillStyle = luz;
     ctx.fillRect(0, 0, W, H);
 
-    // Difuminado lateral: recorta la propia mancha con un degradado horizontal.
-    ctx.globalCompositeOperation = 'destination-in';
-    const hor = ctx.createLinearGradient(0, 0, W, 0);
-    hor.addColorStop(0.00, 'rgba(0,0,0,0)');
-    hor.addColorStop(0.22, 'rgba(0,0,0,1)');
-    hor.addColorStop(0.78, 'rgba(0,0,0,1)');
-    hor.addColorStop(1.00, 'rgba(0,0,0,0)');
-    ctx.fillStyle = hor;
-    ctx.fillRect(0, 0, W, H);
+    /* Y un haz suave que baja hacia el suelo: es lo que hace que se lea como
+       "entra luz por ahi arriba" y no como una mancha flotando. Va en
+       `lighter` para que se sume al radial en vez de taparlo. */
+    ctx.globalCompositeOperation = 'lighter';
+    const haz = ctx.createLinearGradient(0, cy, 0, H);
+    haz.addColorStop(0.00, 'rgba(255,238,190,0.30)');
+    haz.addColorStop(0.55, 'rgba(255,226,160,0.10)');
+    haz.addColorStop(1.00, 'rgba(255,220,150,0)');
+    ctx.fillStyle = haz;
+    const anchoHaz = Math.round(r.width) * 0.9;
+    ctx.beginPath();
+    ctx.moveTo(cx - anchoHaz / 2, cy);
+    ctx.lineTo(cx + anchoHaz / 2, cy);
+    ctx.lineTo(cx + anchoHaz, H);
+    ctx.lineTo(cx - anchoHaz, H);
+    ctx.closePath();
+    ctx.fill();
     ctx.globalCompositeOperation = 'source-over';
+
     lienzo.refresh();
 
-    this._salidaLuz = this.add.image(r.centerX, r.y - 40, CLAVE)
+    /* DEPTH 9500: POR ENCIMA DE LA PENUMBRA, que esta en 9000.
+       Estaba en 5, o sea debajo, y la penumbra -que ahora SI multiplica- le
+       quitaba justo lo que la hace luz. Una luz que entra por un hueco tiene
+       que caer sobre todo lo que hay debajo, incluido el jugador: por eso va
+       arriba del todo y en ADD, sumando en vez de tapando. */
+    this._salidaLuz = this.add.image(r.centerX, r.y - 24, CLAVE)
       .setOrigin(0.5, 0)
-      .setDepth(5)
+      .setDepth(9500)
       .setBlendMode(Phaser.BlendModes.ADD);
 
     this.tweens.add({
@@ -919,7 +996,7 @@ class MinaScene extends GameScene {
     this._salidaFlechas = [];
     for (let i = 0; i < 3; i++) {
       const f = this.add.image(r.centerX, r.bottom + 46, CLAVE_F)
-        .setDepth(5)
+        .setDepth(9501)
         .setBlendMode(Phaser.BlendModes.ADD);
       this._salidaFlechas.push(f);
       this.tweens.add({
@@ -1161,11 +1238,10 @@ class MinaScene extends GameScene {
    *     transicion dos veces.
    */
   _comprobarSalida() {
-    if (!Array.isArray(this.collisionRectangles1) ||
-        !this.collisionRectangles1.length) return;
+    if (!this._salida || !this.playerRect) return;
 
-    const tocando = this.collisionRectangles1.some(r =>
-      r && Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, r));
+    const tocando = Phaser.Geom.Intersects.RectangleToRectangle(
+      this.playerRect, this._salida);
 
     if (!tocando) { this._salidaArmada = true; return; }
     if (!this._salidaArmada || this._cambiandoEscena) return;
@@ -1271,6 +1347,9 @@ class MinaScene extends GameScene {
     try { if (this.backgroundLayer) this.backgroundLayer.destroy(); } catch (e) {}
     try { if (this.capaObjetos) this.capaObjetos.destroy(); } catch (e) {}
     try { if (this.penumbra) this.penumbra.destroy(); } catch (e) {}
+    try {
+      if (this.textures.exists('mina_penumbra')) this.textures.remove('mina_penumbra');
+    } catch (e) {}
     this.backgroundLayer = null;
     this.capaObjetos = null;
     this.penumbra = null;

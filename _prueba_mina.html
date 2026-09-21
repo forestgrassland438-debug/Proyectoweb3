@@ -81,11 +81,16 @@
     this.capas = [];
 
     var mapa = this.make.tilemap({ key: 'mina' });
-    var ts = mapa.addTilesetImage('tileset_mina', 'tiles_mina', 16, 16);
+    // 32, no 16: el tileset se redibujo a 32 px y esta pagina se quedo con
+    // la rejilla vieja. Leer el atlas con la rejilla equivocada saca cuartos
+    // de tile mezclados, que parece corrupcion del PNG y no lo es.
+    var ts = mapa.addTilesetImage('tileset_mina', 'tiles_mina', 32, 32);
     this.textures.get('tiles_mina').setFilter(Phaser.Textures.FilterMode.NEAREST);
 
     var suelo = mapa.createLayer('mina', ts, 0, 0).setDepth(0);
-    var objetos = mapa.createLayer('mina_objetos', ts, 0, 0).setDepth(1);
+    var sombras = mapa.createLayer('mina_sombras', ts, 0, 0);
+    if (sombras) sombras.setDepth(1);
+    var objetos = mapa.createLayer('mina_objetos', ts, 0, 0).setDepth(2);
 
     // Misma receta que MinaScene: DOS tileSprite por liquido, recortados con
     // una mascara hecha con los rectangulos del mapa. Si aqui se ve bien, en
@@ -174,7 +179,10 @@
     var destino = (location.hash || '').slice(1).split(',').map(Number);
     if (destino.length >= 2 && !isNaN(destino[0]) && !isNaN(destino[1])) {
       cam.setZoom(destino[2] > 0 ? destino[2] : 2);
-      cam.centerOn(destino[0] * 16, destino[1] * 16);
+      // EN PIXELES, no en casillas por 16. Venia de cuando el tileset era de
+      // 16 px; con el de 32 multiplicar por 16 te deja a media galeria de
+      // donde creias ir, o directamente dentro de la roca.
+      cam.centerOn(destino[0], destino[1]);
     } else {
       cam.setZoom(2);
       cam.centerOn(ap.x, ap.y);
@@ -204,7 +212,7 @@
       cols.length + ' rectangulos de colision<br>' +
       trozos.length + ' trozos de lava · ' +
       mapa.getObjectLayer('area_agua').objects.length + ' de agua<br>' +
-      'capas de tiles: ' + ((suelo ? 1 : 0) + (objetos ? 1 : 0)) + ' · ' +
+      'capas de tiles: ' + ((suelo ? 1 : 0) + (sombras ? 1 : 0) + (objetos ? 1 : 0)) + ' · ' +
       'llamadas de dibujo de liquidos: ' + esc.capas.length;
 
     // Para que la captura de pantalla de la verificacion no salga con la

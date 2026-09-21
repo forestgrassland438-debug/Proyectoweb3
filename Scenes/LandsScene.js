@@ -65,6 +65,14 @@ class LandsScene extends GameScene {
     this.gidsAgua = [43];
 
     this._piezas = [];
+
+    /* SIN 0.5x. El mundo de esta escena es una capa de TILEMAP, y a medio
+       zoom el borde de cada casilla cae a medio pixel: el rasterizador
+       redondea distinto en casillas contiguas y salen rayas por todo el mapa,
+       como si estuviera partido en cuadros. Con 1x y 2x cada pixel de textura
+       cae en un numero entero de pixeles de pantalla y no hay costuras.
+       tiendajuego usa estos dos niveles desde hace tiempo, por lo mismo. */
+    this._nivelesDeZoom = [1.0, 2.0];
   }
 
 
@@ -313,42 +321,158 @@ class LandsScene extends GameScene {
     const W = this.map.width;
     const H = this.map.height;
     const T = this.map.tileWidth;
-    const agua = new Set(this.gidsAgua);
 
-    const marca = [];
+    /* SUB = 4 -> la rejilla de colision va a 8 px, no a 32.
+       Es lo que permite que media casilla frene y la otra media no. */
+    const SUB = 4;
+    const paso = T / SUB;
+    const SW = W * SUB;
+    const SH = H * SUB;
+
+    const mascaras = this._mascarasDeAgua(SUB);
+    if (!mascaras) return this._rectangulosDeAguaPorCasilla();
+
+    const marca = new Uint8Array(SW * SH);
+    let subAgua = 0;
     for (let y = 0; y < H; y++) {
-      const fila = [];
       for (let x = 0; x < W; x++) {
         const t = capa.data[y][x];
-        fila.push(!!(t && agua.has(t.index)));
+        if (!t || t.index <= 0) continue;
+        const m = mascaras[t.index];
+        if (!m) continue;
+        for (let sy = 0; sy < SUB; sy++) {
+          for (let sx = 0; sx < SUB; sx++) {
+            if (!m[sy * SUB + sx]) continue;
+            marca[(y * SUB + sy) * SW + (x * SUB + sx)] = 1;
+            subAgua++;
+          }
+        }
       }
-      marca.push(fila);
     }
 
-    const usado = marca.map(f => f.map(() => false));
+    // Fusion en rectangulos maximos, igual que antes pero sobre la rejilla fina.
+    const usado = new Uint8Array(SW * SH);
     const rects = [];
-    for (let y = 0; y < H; y++) {
+    for (let y = 0; y < SH; y++) {
       let x = 0;
-      while (x < W) {
-        if (!marca[y][x] || usado[y][x]) { x++; continue; }
+      while (x < SW) {
+        const i = y * SW + x;
+        if (!marca[i] || usado[i]) { x++; continue; }
         let x2 = x;
-        while (x2 + 1 < W && marca[y][x2 + 1] && !usado[y][x2 + 1]) x2++;
+        while (x2 + 1 < SW && marca[y * SW + x2 + 1] && !usado[y * SW + x2 + 1]) x2++;
         let y2 = y;
         for (;;) {
-          if (y2 + 1 >= H) break;
+          if (y2 + 1 >= SH) break;
           let cabe = true;
           for (let k = x; k <= x2; k++) {
-            if (!marca[y2 + 1][k] || usado[y2 + 1][k]) { cabe = false; break; }
+            const j = (y2 + 1) * SW + k;
+            if (!marca[j] || usado[j]) { cabe = false; break; }
           }
           if (!cabe) break;
           y2++;
         }
         for (let yy = y; yy <= y2; yy++) {
-          for (let xx = x; xx <= x2; xx++) usado[yy][xx] = true;
+          for (let xx = x; xx <= x2; xx++) usado[yy * SW + xx] = 1;
         }
         rects.push(new Phaser.Geom.Rectangle(
-          x * T, y * T, (x2 - x + 1) * T, (y2 - y + 1) * T));
+          x * paso, y * paso, (x2 - x + 1) * paso, (y2 - y + 1) * paso));
         x = x2 + 1;
+      }
+    }
+    console.log('🏝️ agua: ' + rects.length + ' rectangulos de ' +
+                subAgua + ' trozos de ' + paso + ' px');
+    return rects;
+  }
+
+  /**
+   * Que parte de cada tile del tileset es AGUA, mirando sus pixeles.
+   *
+   * Devuelve, por indice de tile, un array de SUB*SUB booleanos: uno por cada
+   * trozo de 8x8 de la casilla. null si la textura no se puede leer.
+   *
+   * POR QUE SE MIRAN LOS PIXELES Y NO UNA LISTA DE GID
+   * -------------------------------------------------------------------------
+   * La version anterior tenia `gidsAgua = [43]` escrito a mano. El 43 es el
+   * unico tile que es agua ENTERA; las orillas (76..86) son mitad arena y
+   * mitad agua. Al no estar en la lista, no frenaban nada y se podia caminar
+   * sobre el mar por el borde. Meterlas en la lista habria sido peor: habria
+   * bloqueado tambien la mitad de arena, o sea la playa entera.
+   *
+   * Mirando los pixeles no hay lista que mantener: si el mapa cambia de
+   * tileset, o se dibujan orillas nuevas, esto sigue funcionando solo. Y se
+   * hace UNA vez al entrar, sobre 128 casillas, no por fotograma.
+   *
+   * Que cuenta como agua: azul claramente dominante sobre rojo y verde. Es el
+   * mismo criterio con el que se comprobo el tileset a mano, y deja fuera el
+   * verde de la hierba y el beige de la arena sin margen de duda.
+   */
+  _mascarasDeAgua(SUB) {
+    if (this._cacheMascarasAgua) return this._cacheMascarasAgua;
+
+    let datos, ancho, alto;
+    try {
+      const tex = this.textures.get('tiles_isla');
+      const img = tex.getSourceImage();
+      ancho = img.width;
+      alto = img.height;
+      const lienzo = document.createElement('canvas');
+      lienzo.width = ancho;
+      lienzo.height = alto;
+      const ctx = lienzo.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0);
+      datos = ctx.getImageData(0, 0, ancho, alto).data;
+    } catch (e) {
+      console.warn('🏝️ no se pudo leer el tileset: el agua frena por casillas enteras', e);
+      return null;
+    }
+
+    const T = this.map.tileWidth;
+    const cols = Math.floor(ancho / T);
+    const filas = Math.floor(alto / T);
+    const paso = T / SUB;
+    const minAgua = paso * paso * 0.5;   // medio trozo mojado ya frena
+
+    const mascaras = {};
+    for (let i = 0; i < cols * filas; i++) {
+      const tx = (i % cols) * T;
+      const ty = Math.floor(i / cols) * T;
+      const m = new Uint8Array(SUB * SUB);
+      let alguno = false;
+      for (let sy = 0; sy < SUB; sy++) {
+        for (let sx = 0; sx < SUB; sx++) {
+          let azules = 0;
+          for (let py = 0; py < paso; py++) {
+            for (let px = 0; px < paso; px++) {
+              const o = ((ty + sy * paso + py) * ancho + (tx + sx * paso + px)) * 4;
+              const r = datos[o], g = datos[o + 1], b = datos[o + 2], a = datos[o + 3];
+              if (a > 40 && b > 110 && b > r + 35 && b > g + 18) azules++;
+            }
+          }
+          if (azules >= minAgua) { m[sy * SUB + sx] = 1; alguno = true; }
+        }
+      }
+      // El indice del tile en Phaser es firstgid + i; con un solo tileset
+      // desde 1, eso es i + 1.
+      if (alguno) mascaras[i + 1] = m;
+    }
+    this._cacheMascarasAgua = mascaras;
+    console.log('🏝️ tiles con agua: ' + Object.keys(mascaras).length +
+                ' de ' + (cols * filas));
+    return mascaras;
+  }
+
+  /** Vuelta atras: casillas enteras segun `gidsAgua`, si no se pueden leer los pixeles. */
+  _rectangulosDeAguaPorCasilla() {
+    const capa = this.map.getLayer('Terrain');
+    const W = this.map.width, H = this.map.height, T = this.map.tileWidth;
+    const agua = new Set(this.gidsAgua);
+    const rects = [];
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const t = capa.data[y][x];
+        if (t && agua.has(t.index)) {
+          rects.push(new Phaser.Geom.Rectangle(x * T, y * T, T, T));
+        }
       }
     }
     return rects;

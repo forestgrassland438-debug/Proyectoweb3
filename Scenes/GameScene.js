@@ -7659,17 +7659,18 @@ const getMultipleRewards_Ore = (oreKey, pickName) => {
   return obtainedRewards;
 };
 
-if (!this.notifications) {
-  this.notifications = new NotificationHub({
-    width: 350,
-    animationDuration: 400,
-    visibleDuration: 2000,
-    maxNotifications: 10,
-    spacing: 15,
-    debug: true,
-    autoCleanup: true
-  });
-}
+/* EL HUB DE AVISOS SE MONTA AHORA EN `_montarNotificaciones()`, que llaman
+   tambien la mina y la isla. Aqui solo queda la llamada.
+
+   POR QUE IMPORTA: `this.notifications` se creaba SOLO dentro de este
+   create(), y hay 167 sitios en esta clase que hacen
+   `this.notifications.show(...)`. En la mina y en la isla valia undefined, asi
+   que cualquiera de esos 167 caminos reventaba. El mas visible: comer. El
+   panel de consumo avisa con `notifications.show()` cuando la barra ya esta
+   llena, y al ser `_consumeItemOnPlayer` una funcion async, la excepcion se
+   iba a una promesa rechazada que no mira nadie: hacias clic en el personaje
+   con la comida elegida y NO PASABA NADA, sin un error en consola. */
+this._montarNotificaciones();
 
 const createTextStyle_Ore = (oreKey) => {
   const color = oreRewards[oreKey]?.colorNotificacion || '#ffffff';
@@ -15534,14 +15535,31 @@ createTestBeep() {
            aparecen costuras y hormigueo al moverse. 0.5 y 2.0 son divisor y
            multiplo exactos de 1, asi que cada pixel de textura cae en un numero
            entero de pixeles de pantalla. Por eso 1.5x no vuelve. */
-        this.zoomValues = [0.5, 1.0, 2.0];
+        /* LOS NIVELES LOS PUEDE CAMBIAR LA ESCENA.
+           La mina y la isla dibujan el mundo con CAPAS DE TILEMAP, y a 0.5x
+           salian rayas entre casilla y casilla: el borde de cada tile cae a
+           medio pixel y el rasterizador redondea distinto en tiles contiguos,
+           asi que el mapa parecia partido en cuadros. GameScene no lo sufre
+           porque su terreno son trozos de imagen grandes, no un tilemap.
+           Por eso esas dos escenas declaran `_nivelesDeZoom = [1, 2]`, que es
+           lo mismo que ya hacia tiendajuego y por el mismo motivo. */
+        this.zoomValues = Array.isArray(this._nivelesDeZoom)
+          ? this._nivelesDeZoom.slice()
+          : [0.5, 1.0, 2.0];
 
         /* Se entra a 1.0x. El indice tiene que describir el zoom en el que la
            camara TERMINA de verdad: declarar 2.0x aqui hacia que, en cuanto
            acababa la animacion de entrada, el juego volviera a acercar de
            golpe. Aqui NO se toca `cameras.main.zoom`: la animacion de entrada
            lo reescribe en cada fotograma y la asignacion se perderia. */
-        if (typeof this.currentZoomIndex !== 'number') this.currentZoomIndex = 1;
+        /* El indice se busca, no se escribe: con [0.5, 1, 2] el 1.0x es el
+           indice 1, pero con [1, 2] es el 0. Y si la escena se reutiliza y el
+           jugador ya habia elegido zoom, se le respeta. */
+        const iUno = this.zoomValues.indexOf(1.0);
+        const valido = typeof this.currentZoomIndex === 'number' &&
+                       this.currentZoomIndex >= 0 &&
+                       this.currentZoomIndex < this.zoomValues.length;
+        if (!valido) this.currentZoomIndex = iUno >= 0 ? iUno : 0;
 
         console.log('=== ZOOM ===', this.zoomValues.join(' / ') + 'x',
                     '· elegido', this.zoomValues[this.currentZoomIndex] + 'x',
@@ -31030,6 +31048,11 @@ if (window.globalPetData) {
    */
   async _arrancarSistemas() {
     const sceneRunId = this._sceneRunId;
+    // 0. Los avisos. Lo PRIMERO: 167 sitios de esta clase llaman a
+    //    `this.notifications.show(...)`, y sin el hub cualquiera de ellos
+    //    revienta. Ver `_montarNotificaciones()`.
+    try { this._montarNotificaciones(); } catch (e) { console.warn('⛏️ avisos:', e); }
+
     // 1. El catalogo de objetos.
     try { this._definirObjetos(); } catch (e) { console.warn('⛏️ catalogo:', e); }
 
@@ -31175,6 +31198,31 @@ if (window.globalPetData) {
     await this.syncInventoryWithBlockchain();
   }
 
+  /**
+   * El hub de avisos. Lo llaman GameScene, la mina y la isla.
+   *
+   * Es idempotente a proposito: Phaser reutiliza las instancias de escena, y
+   * crear un hub nuevo sobre uno vivo dejaria el anterior con sus nodos en el
+   * DOM y sus relojes corriendo.
+   */
+  _montarNotificaciones() {
+    if (this.notifications) return this.notifications;
+    if (typeof NotificationHub !== 'function') {
+      console.warn('NotificationHub no esta cargado: los avisos se pierden');
+      return null;
+    }
+    this.notifications = new NotificationHub({
+      width: 350,
+      animationDuration: 400,
+      visibleDuration: 2000,
+      maxNotifications: 10,
+      spacing: 15,
+      debug: true,
+      autoCleanup: true
+    });
+    return this.notifications;
+  }
+
   /** Teclado, raton y joystick. */
   _montarControles() {
     this.keys = this.input.keyboard.addKeys({
@@ -31266,6 +31314,52 @@ if (window.globalPetData) {
     this.onRoundBtnMail = (e) => {
       if (e && e.stopPropagation) e.stopPropagation();
       this._openNotifPanel();
+    };
+
+    /* LOS TRES QUE FALTABAN, y que `_cablearHUD()` buscaba sin encontrar.
+       Los botones redondos van por POSICION: [2] es Music y [3] es
+       Transactions -los nombres de los manejadores vienen de una version
+       vieja del HUD y ya no describen lo que abren-. Se definian solo en el
+       create() de GameScene, asi que en la mina y en la isla `_bindDomClick`
+       enganchaba `undefined`: el jugador veia el boton, lo pulsaba y no pasaba
+       nada. Lo mismo el de ocultar los botones redondos (`.inner-btn`). */
+
+    // [2] Music: el panel de sonido.
+    this.onRoundBtnStats = () => {
+      try { this.showSoundHub(); } catch (e) { console.warn('panel de sonido:', e); }
+    };
+
+    // [3] Transactions: el hub de transacciones, con vuelta al DOM si no esta.
+    this.onRoundBtnReputation = () => {
+      try {
+        if (window.hub) {
+          if (!window.hub.baseUrl) window.hub.baseUrl = this.serverclient1 || '';
+          window.hub.setUser(this.playerName, this.playerName);
+          window.hub.toggle();
+          return;
+        }
+      } catch (e) {}
+      const panel = document.getElementById('tx-hub');
+      if (!panel) return;
+      const oculto = panel.classList.contains('tx-hub-hidden');
+      panel.classList.toggle('tx-hub-hidden', !oculto);
+      panel.classList.toggle('tx-hub-visible', oculto);
+      panel.style.display = oculto ? 'flex' : 'none';
+    };
+
+    // El boton de ocultar/mostrar los botones redondos.
+    this.onInnerBtnClick = (e) => {
+      const fila = document.querySelector('.round-buttons');
+      const chapa = document.querySelector('.inner-btn .quests-label');
+      if (!fila) return;
+      const oculto = fila.classList.toggle('hidden');
+      if (chapa) chapa.textContent = oculto ? 'Show' : 'Hide';
+      const boton = document.querySelector('.inner-btn');
+      if (boton) {
+        boton.style.transform = 'scale(0.95)';
+        setTimeout(() => { boton.style.transform = ''; }, 150);
+      }
+      if (e && e.stopPropagation) e.stopPropagation();
     };
 
     try { this.setupSettingsPanel(); } catch (e) { console.warn('ajustes:', e); }
