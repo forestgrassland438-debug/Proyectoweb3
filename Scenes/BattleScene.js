@@ -69,6 +69,25 @@ class BattleScene extends Phaser.Scene {
   }
 
   init(data) {
+    this._battleRun = (this._battleRun || 0) + 1;
+    this._cleaned = false;
+    this._especiesPendientes = new Map();
+    this._domBindings = [];
+    this.turnoActual = 0;
+    this._turnoResuelto = 0;
+    this._sinFondo = false;
+    this._reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if (this._reintentoVuelta) { window.clearTimeout(this._reintentoVuelta); this._reintentoVuelta = null; }
+    // El apagado también puede ocurrir durante preload o sin conexión.
+    if (this.events) {
+      if (this._alCerrarBatalla) {
+        this.events.off('shutdown', this._alCerrarBatalla);
+        this.events.off('destroy', this._alCerrarBatalla);
+      }
+      this._alCerrarBatalla = () => this.limpiar();
+      this.events.once('shutdown', this._alCerrarBatalla);
+      this.events.once('destroy', this._alCerrarBatalla);
+    }
     this.datosJugador = {
       playerName: (data && data.playerName) || '---',
       petName: (data && data.petName) || '---',
@@ -122,18 +141,19 @@ class BattleScene extends Phaser.Scene {
       './Game/Objetos/fondo_batalla.png',
       './Game/FONDO/fondo_batalla.png'
     ];
-    this.load.image('fondo_batalla', this._rutasFondo[0]);
+    if (!this.textures.exists('fondo_batalla')) this.load.image('fondo_batalla', this._rutasFondo[0]);
 
     // Si aun así fallara (fichero borrado, 404 del servidor), se marca para
     // usar el fondo de respaldo en vez de dejar la pantalla vacía.
     // `once` y no `on`: el LoaderPlugin es de la escena y la escena se
     // reutiliza, así que con `on` se acumulaba un listener por batalla.
     this._sinFondo = false;
-    this.load.once('loaderror', (file) => {
+    this._errorFondo = (file) => {
       if (!file || file.key !== 'fondo_batalla') return;
       console.warn('⚠️ No se pudo cargar assets/fondo_batalla.png; se usa el fondo de respaldo');
       this._sinFondo = true;
-    });
+    };
+    this.load.on('loaderror', this._errorFondo);
 
     /* EL PERRO, SIEMPRE.
 
@@ -154,6 +174,8 @@ class BattleScene extends Phaser.Scene {
 
   create() {
     const { width, height } = this.scale;
+    if (this._errorFondo) { this.load.off('loaderror', this._errorFondo); this._errorFondo = null; }
+    this.scale.on('resize', this.onResize, this);
 
     document.body.classList.add('in-battle');   // oculta el HUD del mapa
     /* Las piezas de los efectos se dibujan ANTES del escenario: crearEscenario
@@ -181,26 +203,27 @@ class BattleScene extends Phaser.Scene {
       this.arrancarBusqueda();
     } else {
       this.estadoTexto('Connecting to the server…');
-      this.socket.connect();
-
       const alConectar = () => {
+        this.socket.off('connect', alConectar);
+        this._alConectar = null;
+        if (this._cleaned) return;
         if (this._conexionTimeout) { this._conexionTimeout.remove(); this._conexionTimeout = null; }
         this.arrancarBusqueda();
       };
+      this._alConectar = alConectar;
       this.socket.once('connect', alConectar);
 
       this._conexionTimeout = this.time.delayedCall(10000, () => {
         if (this.matchId) return;
         this.socket.off('connect', alConectar);
+        this._alConectar = null;
         this.estadoTexto('Could not reach the server.\nBack to the map…');
         this.estado = 'fin';
         this._cancelarConfirmacion();
         this.volverEnBreve(2000);
       });
+      this.socket.connect();
     }
-
-    this.scale.on('resize', this.onResize, this);
-    this.events.once('shutdown', () => this.limpiar());
   }
 
   // ---------------------------------------------------------------------------
@@ -412,8 +435,9 @@ class BattleScene extends Phaser.Scene {
    */
   cargarEspecie(id) {
     const E = BattleScene.ESPECIES[id];
-    if (!E) return Promise.resolve(false);
-    if (this._especiesListas && this._especiesListas[id]) return Promise.resolve(true);
+    if (!E || this._cleaned) return Promise.resolve(false);
+    const pendiente = this._especiesPendientes.get(id);
+    if (pendiente) return pendiente.promise;
 
     const poses = [
       ['quieto', E.quieto || 0],
@@ -435,7 +459,6 @@ class BattleScene extends Phaser.Scene {
     });
 
     if (!pedidos) {
-      (this._especiesListas || (this._especiesListas = {}))[id] = true;
       return Promise.resolve(true);
     }
 
@@ -461,33 +484,43 @@ class BattleScene extends Phaser.Scene {
        Ahora se comprueba lo unico que importa —que las texturas existan— y se
        reintenta arrancar el cargador cada vez que se para. Con `setTimeout`,
        no con el reloj de la escena: ese se para si la escena se pausa. */
-    return new Promise((resolve) => {
+    const run = this._battleRun;
+    const trabajo = { timer: null, cancel: null, promise: null };
+    trabajo.promise = new Promise((resolve) => {
       const t0 = Date.now();
       const TOPE = 6000;
-      const marcar = () => { (this._especiesListas || (this._especiesListas = {}))[id] = true; };
+      const terminar = (ok) => {
+        if (trabajo.timer != null) window.clearTimeout(trabajo.timer);
+        trabajo.timer = null;
+        if (this._especiesPendientes.get(id) === trabajo) this._especiesPendientes.delete(id);
+        resolve(ok);
+      };
+      trabajo.cancel = () => terminar(false);
 
       const revisar = () => {
+        if (this._cleaned || this._battleRun !== run) { terminar(false); return; }
         // ¿Ya estan todas?
-        if (claves.every((k) => this.textures.exists(k))) { marcar(); resolve(true); return; }
+        if (claves.every((k) => this.textures.exists(k))) { terminar(true); return; }
 
         // Tope de tiempo: si un PNG falta de verdad, se sigue con lo que haya
         // en vez de dejar la batalla sin luchadores para siempre.
         if (Date.now() - t0 > TOPE) {
           console.warn('⚠️ La especie "' + id + '" no cargo entera en ' + TOPE + ' ms; ' +
                        'faltan: ' + claves.filter((k) => !this.textures.exists(k)).join(', '));
-          marcar();
-          resolve(false);
+          terminar(false);
           return;
         }
 
         // start() no hace nada si ya esta cargando; en cuanto para, arranca la
         // tanda que se habia quedado esperando.
         if (!this.load.isLoading()) { try { this.load.start(); } catch (e) {} }
-        setTimeout(revisar, 80);
+        trabajo.timer = window.setTimeout(revisar, 80);
       };
 
-      revisar();
+      trabajo.timer = window.setTimeout(revisar, 0);
     });
+    this._especiesPendientes.set(id, trabajo);
+    return trabajo.promise;
   }
 
   /** Qué fotogramas tiene de verdad una especie, ya cargados. */
@@ -907,14 +940,11 @@ class BattleScene extends Phaser.Scene {
       }
     };
 
-    // Los botones se recablean en cada entrada a la escena, así que se
-    // reemplazan por clones para no acumular listeners de partidas anteriores.
+    // Cada entrada es dueña de sus callbacks y los retira al apagarse.
     const recablear = (el, fn) => {
       if (!el) return null;
-      const nuevo = el.cloneNode(true);
-      el.parentNode.replaceChild(nuevo, el);
-      nuevo.addEventListener('click', fn);
-      return nuevo;
+      this._escucharDOM(el, 'click', fn);
+      return el;
     };
 
     this.el.endTurn = recablear(this.el.endTurn, () => this.jugarTurno());
@@ -927,10 +957,74 @@ class BattleScene extends Phaser.Scene {
        montarse DESPUÉS de recablear o guardaría los nodos viejos. */
     this._botonesRendirse = [this.el.leave, this.el.surrender].filter(Boolean);
     this._cancelarConfirmacion();
+    this.montarTacticas();
+    this._escucharDOM(window, 'keydown', (event) => {
+      if (event.repeat || event.ctrlKey || event.altKey || event.metaKey || this._cleaned) return;
+      const target = event.target;
+      if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      if (/^[1-5]$/.test(event.key) && this.puedeJugar) {
+        event.preventDefault();
+        this.alternarCarta(Number(event.key) - 1);
+      } else if (event.key === 'Enter' && this.puedeJugar && (!target || target.tagName !== 'BUTTON')) {
+        event.preventDefault();
+        this.jugarTurno();
+      } else if (event.key === 'Escape') {
+        this._cancelarConfirmacion();
+        if (this.puedeJugar) { this.seleccion = []; this.refrescarMano(); }
+      }
+    });
 
     if (this.el.reveal) this.el.reveal.classList.add('hidden');
     this.limpiarMano();
     this.pintarEnergia(0);
+  }
+
+  _escucharDOM(target, event, callback) {
+    if (!target) return;
+    target.addEventListener(event, callback);
+    this._domBindings.push([target, event, callback]);
+  }
+
+  montarTacticas() {
+    const bottom = this.ui.querySelector('.bf-bottom');
+    if (!bottom) return;
+    let panel = bottom.querySelector('.bf-tactics');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.className = 'bf-tactics';
+      const intent = document.createElement('div');
+      intent.className = 'bf-intent';
+      intent.setAttribute('aria-live', 'polite');
+      const preview = document.createElement('div');
+      preview.className = 'bf-card-preview';
+      const hint = document.createElement('div');
+      hint.className = 'bf-key-hint';
+      hint.textContent = '1–5 select · Enter play · Esc clear';
+      panel.append(intent, preview, hint);
+      bottom.prepend(panel);
+    }
+    this.el.intent = panel.querySelector('.bf-intent');
+    this.el.preview = panel.querySelector('.bf-card-preview');
+    this.el.intent.textContent = 'Plan your turn';
+    this.el.preview.textContent = 'Both players choose before cards are revealed.';
+  }
+
+  describirCarta(indice) {
+    const c = this.mano[indice];
+    if (!c || !this.el || !this.el.preview) return;
+    this.el.preview.textContent = `${c.name} · ${c.cost} energy · ${c.desc || ''}`;
+  }
+
+  refrescarTacticas() {
+    if (!this.el || !this.el.intent) return;
+    const cards = this.seleccion.map((i) => this.mano[i]).filter(Boolean);
+    const sum = (field) => cards.reduce((n, c) => n + (Number(c[field]) || 0), 0);
+    const bank = Math.min(2, Math.max(0, this.energiaMax - this.energiaGastada()));
+    const next = 3 + bank + sum('energyNext');
+    const state = this.puedeJugar ? 'Plan' : 'Submitted';
+    this.el.intent.textContent = `${state}: ⚔ ${sum('dmg')} · 🛡 ${sum('shield')} · 💚 ${sum('heal')} · Next energy ≈ ${next}`;
+    this.el.intent.title = 'Base card values before status effects and enemy defense. Next energy may change if the rival stuns you. Up to 2 unused energy carries over.';
+    if (this.el.endTurn) this.el.endTurn.textContent = cards.length ? `Play ${cards.length} card${cards.length === 1 ? '' : 's'}` : 'Pass · save energy';
   }
 
   estadoTexto(txt) {
@@ -985,11 +1079,12 @@ class BattleScene extends Phaser.Scene {
   }
 
   // ---- Temporizador de turno (barra + segundos, debajo del número de turno) ----
-  iniciarTemporizador(ms) {
+  iniciarTemporizador(ms, remainingMs = ms) {
     this.detenerTemporizador();
     if (!this.el || !this.el.timer) return;
-    const total = Math.max(1000, ms || 20000);
-    this._turnDeadline = Date.now() + total;
+    const total = Number.isFinite(ms) && ms > 0 ? ms : 20000;
+    const remaining = Number.isFinite(remainingMs) ? Math.max(0, Math.min(total, remainingMs)) : total;
+    this._turnDeadline = Date.now() + remaining;
 
     const tick = () => {
       const restante = Math.max(0, this._turnDeadline - Date.now());
@@ -997,10 +1092,15 @@ class BattleScene extends Phaser.Scene {
       if (this.el.timerFill) this.el.timerFill.style.width = (frac * 100) + '%';
       if (this.el.timerText) this.el.timerText.textContent = Math.ceil(restante / 1000) + 's';
       if (this.el.timer) this.el.timer.classList.toggle('low', frac < 0.25);
-      if (restante <= 0) this.detenerTemporizador();
+      if (restante <= 0) {
+        this.puedeJugar = false;
+        this.detenerTemporizador();
+        this.refrescarMano();
+        this.estadoTexto('Time is up. Resolving the turn…');
+      }
     };
-    tick();
     this._timerTurno = this.time.addEvent({ delay: 200, loop: true, callback: tick });
+    tick();
   }
 
   detenerTemporizador() {
@@ -1015,14 +1115,14 @@ class BattleScene extends Phaser.Scene {
     this.el.energy.textContent = '';
     for (let i = 0; i < this.energiaMax; i++) {
       const pip = document.createElement('i');
-      if (i < this.energiaMax - gastada) pip.className = 'on';
+      pip.className = i < this.energiaMax - gastada ? 'on' : 'reserved';
       this.el.energy.appendChild(pip);
     }
     if (this.el.energyCount) this.el.energyCount.textContent = `${this.energiaMax - gastada} / ${this.energiaMax}`;
   }
 
   energiaGastada() {
-    return this.seleccion.reduce((t, i) => t + (this.mano[i] ? this.mano[i].cost : 0), 0);
+    return this.seleccion.reduce((t, i) => t + (Number(this.mano[i] && this.mano[i].cost) || 0), 0);
   }
 
   // Construye una carta del DOM a partir de los datos del servidor
@@ -1067,6 +1167,10 @@ class BattleScene extends Phaser.Scene {
       const btn = this._crearCartaDOM(carta);
       btn.style.animationDelay = (i * 60) + 'ms';
       btn.addEventListener('click', () => this.alternarCarta(i, btn));
+      btn.addEventListener('focus', () => this.describirCarta(i));
+      btn.addEventListener('pointerenter', () => this.describirCarta(i));
+      btn.setAttribute('aria-keyshortcuts', String(i + 1));
+      btn.setAttribute('aria-label', `${i + 1}. ${carta.name}, ${carta.cost} energy. ${carta.desc || ''}`);
       this.el.hand.appendChild(btn);
     });
 
@@ -1074,14 +1178,18 @@ class BattleScene extends Phaser.Scene {
   }
 
   alternarCarta(indice, btn) {
-    if (!this.puedeJugar) return;
+    if (!this.puedeJugar || !Number.isInteger(indice) || !this.mano[indice]) return;
+    this.describirCarta(indice);
 
     const pos = this.seleccion.indexOf(indice);
     if (pos >= 0) {
       this.seleccion.splice(pos, 1);
     } else {
       const coste = this.mano[indice].cost;
-      if (this.energiaGastada() + coste > this.energiaMax) return; // no hay energía
+      if (this.energiaGastada() + coste > this.energiaMax) {
+        this.estadoTexto('Not enough energy. Remove a selected card first.');
+        return;
+      }
       this.seleccion.push(indice);
     }
     this.refrescarMano();
@@ -1096,11 +1204,15 @@ class BattleScene extends Phaser.Scene {
     Array.from(this.el.hand.children).forEach((btn, i) => {
       const elegida = this.seleccion.includes(i);
       btn.classList.toggle('sel', elegida);
+      btn.setAttribute('aria-pressed', String(elegida));
+      if (elegida) btn.dataset.order = String(this.seleccion.indexOf(i) + 1);
+      else delete btn.dataset.order;
       btn.disabled = !this.puedeJugar || (!elegida && this.mano[i].cost > restante);
     });
 
     this.pintarEnergia(gastada);
     if (this.el.endTurn) this.el.endTurn.disabled = !this.puedeJugar;
+    this.refrescarTacticas();
   }
 
   pintarLuchadores() {
@@ -1249,8 +1361,14 @@ class BattleScene extends Phaser.Scene {
   // SOCKET
   // ---------------------------------------------------------------------------
   on(evento, manejador) {
-    this.socket.on(evento, manejador);
-    this._listeners.push([evento, manejador]);
+    const run = this._battleRun;
+    const guarded = (data) => {
+      if (this._cleaned || this._battleRun !== run) return;
+      if (data && data.matchId && this.matchId && data.matchId !== this.matchId) return;
+      manejador(data || {});
+    };
+    this.socket.on(evento, guarded);
+    this._listeners.push([evento, guarded]);
   }
 
   /**
@@ -1292,7 +1410,7 @@ class BattleScene extends Phaser.Scene {
   }
 
   arrancarBusqueda() {
-    if (this._buscandoIniciado) return;
+    if (this._buscandoIniciado || this._cleaned) return;
     this._buscandoIniciado = true;
 
     this.registrarSocket();
@@ -1323,17 +1441,18 @@ class BattleScene extends Phaser.Scene {
       callback: () => {
         if (this.estado !== 'buscando') return;
         this._segundosBuscando++;
-        this.estadoTexto(`Searching for an opponent…  ${this._segundosBuscando}s`);
+        this.estadoTexto(`Searching for a similar-level opponent…  ${this._segundosBuscando}s`);
       }
     });
   }
 
   registrarSocket() {
     this.on('battle:queued', (d) => {
-      this.estadoTexto(`Searching for an opponent…\n(position ${d.position} in queue)`);
+      this.estadoTexto(`Searching for a similar-level opponent…\n(position ${d.position} in queue)`);
     });
 
     this.on('battle:matched', (d) => {
+      if (this.estado !== 'buscando' || !d.matchId || !d.you || !d.rival) return;
       // El modo tiene que coincidir con el que se pidió. Si se entró por
       // "Battle in P2P" y llega una partida contra bot (o al revés), se ignora
       // y se sigue esperando rival: antes se aceptaba cualquier emparejamiento
@@ -1348,6 +1467,7 @@ class BattleScene extends Phaser.Scene {
       this.estado = 'combate';
       this.yo = d.you;
       this.rival = d.rival;
+      this._cancelarVigilanteDeBusqueda();
       if (this._timerBusqueda) { this._timerBusqueda.remove(); this._timerBusqueda = null; }
 
       /* EL ESCENARIO SE ELIGE CON EL ID DE LA PARTIDA, no antes.
@@ -1363,8 +1483,9 @@ class BattleScene extends Phaser.Scene {
       this.vestirLuchador(this.luchadorYo, 'perro', false);
       this.pintarCartel(this.luchadorYo, this.yo);
       const esp = (d.rival && d.rival.species) || 'perro';
+      const run = this._battleRun;
       this.cargarEspecie(esp).then(() => {
-        if (!this.luchadorRival || this.estado === 'fin') return;
+        if (this._cleaned || this._battleRun !== run || !this.luchadorRival || this.estado === 'fin') return;
         this.vestirLuchador(this.luchadorRival, esp, true);
         this.pintarCartel(this.luchadorRival, this.rival);
         /* Entra en escena: aparece deslizándose desde fuera del cuadro.
@@ -1376,6 +1497,7 @@ class BattleScene extends Phaser.Scene {
            se guardaba una posición desplazada como si fuera la buena, y el
            rival se quedaba ahí el resto del combate. */
         const R = this.luchadorRival;
+        if (this._reducedMotion) return;
         this.tweens.killTweensOf(R.cont);
         R.cont.x = R.homeX + 140;
         R.cont.alpha = 0;
@@ -1394,10 +1516,12 @@ class BattleScene extends Phaser.Scene {
     });
 
     this.on('battle:turnStart', (d) => {
+      if (this.estado !== 'combate' || !Number.isInteger(d.turn) || d.turn <= this.turnoActual || !d.you || !d.rival) return;
+      this.turnoActual = d.turn;
       this.yo = d.you;
       this.rival = d.rival;
-      this.mano = d.hand || [];
-      this.energiaMax = d.energy || 3;
+      this.mano = Array.isArray(d.hand) ? d.hand.slice(0, 5).map((c) => ({ ...c, cost: Number.isFinite(Number(c.cost)) ? Math.max(0, Number(c.cost)) : 99 })) : [];
+      this.energiaMax = Number.isFinite(d.energy) ? Math.max(0, Math.min(10, d.energy)) : 3;
       this.seleccion = [];
       this.puedeJugar = true;
 
@@ -1406,7 +1530,8 @@ class BattleScene extends Phaser.Scene {
       this.pintarMano();
       this.estadoTexto('Choose your cards');
       if (this.el && this.el.turno) this.el.turno.textContent = `TURN ${d.turn}`;
-      this.iniciarTemporizador(d.msToChoose);
+      const remaining = Number.isFinite(d.deadlineAt) && Number.isFinite(d.serverNow) ? d.deadlineAt - d.serverNow : d.msToChoose;
+      this.iniciarTemporizador(d.msToChoose, remaining);
     });
 
     this.on('battle:rivalReady', () => {
@@ -1414,6 +1539,9 @@ class BattleScene extends Phaser.Scene {
     });
 
     this.on('battle:turn', (d) => {
+      if (this.estado !== 'combate' || !Number.isInteger(d.turn) || d.turn < this.turnoActual || d.turn <= this._turnoResuelto || !d.you || !d.rival) return;
+      this._turnoResuelto = d.turn;
+      this.turnoActual = d.turn;
       this.yo = d.you;
       this.rival = d.rival;
       this.puedeJugar = false;
@@ -1457,6 +1585,7 @@ class BattleScene extends Phaser.Scene {
     });
 
     this.on('battle:end', (d) => {
+      if (this.estado !== 'combate') return;
       this.estado = 'fin';
       this.puedeJugar = false;
       this.detenerTemporizador();
@@ -1483,7 +1612,7 @@ class BattleScene extends Phaser.Scene {
       const titulo = d.result === 'win' ? '🏆 YOU WIN!'
         : d.result === 'lose' ? '💀 YOU LOSE'
         : '🤝 DRAW';
-      const motivo = d.reason === 'forfeit' ? '\n(the rival left the battle)' : '';
+      const motivo = d.reason === 'forfeit' ? (d.result === 'win' ? '\n(the rival left the battle)' : '\n(you left the battle)') : '';
       const diarias = d.daily ? `\nDaily battles: ${d.daily.done}/${d.daily.max}` : '';
       this.estadoTexto(`${titulo}\n+${d.pointsEarned} points${motivo}${diarias}\n\nBack to the map…`);
 
@@ -1495,6 +1624,9 @@ class BattleScene extends Phaser.Scene {
     });
 
     this.on('battle:error', (d) => {
+      this.puedeJugar = false;
+      this.detenerTemporizador();
+      this.refrescarMano();
       let msg = 'Could not start the battle.';
       if (d && d.error === 'not_authenticated') msg = 'You must be logged in to battle.';
       else if (d && d.error === 'already_in_battle') msg = 'You are already in a battle.';
@@ -1538,9 +1670,10 @@ class BattleScene extends Phaser.Scene {
 
   jugarTurno() {
     if (!this.puedeJugar || this.estado !== 'combate') return;
+    if (!this.socket || !this.socket.connected) { this.estadoTexto('Connection lost. Waiting to reconnect…'); return; }
     this.puedeJugar = false;
     this.detenerTemporizador();
-    this.socket.emit('battle:action', { cards: this.seleccion.slice() });
+    this.socket.emit('battle:action', { matchId: this.matchId, turn: this.turnoActual, cards: this.seleccion.slice() });
     this.refrescarMano();
     this.estadoTexto('Waiting for the rival…');
   }

@@ -1838,7 +1838,7 @@ this.anims.create({
       console.warn('phaserScene no está inicializada; se usará onApplyName si existe.');
     }
 
-    window.hubPanel.setActtov(1); // queda bloqueado: ya está fijado
+    window.hubPanel?.setActtov(1); // queda bloqueado: ya está fijado
     notify(`✅ Name set: ${name}`, 'success');
 
     // también notificar callback (si aplica)
@@ -1917,6 +1917,8 @@ this.anims.create({
     if(e.key === 'Escape') hidePanel();
   });
 
+  owner._hubPanel = window.hubPanel;
+  owner._hubPanel.init(owner);
 })(this); // end IIFE
 
 // Nota: llama window.hubPanel.init(this) desde create() de tu escena Phaser:
@@ -2018,22 +2020,7 @@ this.anims.create({
     this._notifPanel = document.getElementById('notif-panel');
     this._loadNotifications();
 
-    // Wire notif panel buttons (shared DOM with GameScene)
-    const _notifCloseBtn = document.getElementById('notif-close');
-    if (_notifCloseBtn && !_notifCloseBtn._tiendaWired) {
-      _notifCloseBtn._tiendaWired = true;
-      this._onDOM(_notifCloseBtn, 'click', () => this._closeNotifPanel());
-    }
-    const _notifMarkAll = document.getElementById('notif-mark-all-read');
-    if (_notifMarkAll && !_notifMarkAll._tiendaWired) {
-      _notifMarkAll._tiendaWired = true;
-      this._onDOM(_notifMarkAll, 'click', () => this._markAllNotifRead());
-    }
-    const _notifClearAll = document.getElementById('notif-clear-all');
-    if (_notifClearAll && !_notifClearAll._tiendaWired) {
-      _notifClearAll._tiendaWired = true;
-      this._onDOM(_notifClearAll, 'click', () => this._clearAllNotif());
-    }
+    this._wireNotificationPanel();
 
     // ---------- BOTÓN 0 (Dashboard)
     this.onRoundBtnDashboard = () => {
@@ -4443,6 +4430,7 @@ removeOtherPlayer(playerId) {
       if (this._shopCleanupDone) return;
       this._shopCleanupDone = true;
       this._sceneStopped = true;
+      this._stopVitalRegen?.();
       this.events.off('shutdown', this.performCleanup, this);
       this.events.off('destroy', this.performCleanup, this);
       // ULTIMA OPORTUNIDAD DE GUARDAR: ver el comentario gemelo en GameScene.
@@ -13370,50 +13358,7 @@ if (this.dogNameText) {
    * barras suban mientras el jugador está dentro. Solo se ADOPTA lo que sube.
    */
   _iniciarRegeneracionVitales() {
-    if (this._regenVitalesTimer) return;
-
-    this._regenVitalesTimer = setInterval(async () => {
-      try {
-        if (!this.playerName || !this.isAuthenticated) return;
-        if (document.hidden) return;
-
-        const res = await fetch(
-          `${this.serverBase}/api/stats/${encodeURIComponent(this.playerName)}`,
-          { method: 'GET', credentials: 'include' }
-        );
-        if (!res.ok) return;
-
-        const data = await res.json();
-        const s = data && data.stats;
-        if (!s) return;
-
-        let subio = false;
-        const aplicar = (clave, prop) => {
-          const valor = Number(s[clave]);
-          if (!Number.isFinite(valor)) return;
-          if (valor > (Number(this[prop]) || 0)) { this[prop] = valor; subio = true; }
-        };
-        aplicar('vida',   'vidaPorcentaje');
-        aplicar('agua',   'aguaPorcentaje');
-        aplicar('comida', 'comidaPorcentaje');
-
-        if (subio) {
-          if (window.playerStats) {
-            window.playerStats.vida   = this.vidaPorcentaje;
-            window.playerStats.agua   = this.aguaPorcentaje;
-            window.playerStats.comida = this.comidaPorcentaje;
-          }
-          this._refreshBarrasUI();
-        }
-      } catch (e) { /* un minuto perdido no importa */ }
-    }, 60000);
-
-    const apagar = () => {
-      clearInterval(this._regenVitalesTimer);
-      this._regenVitalesTimer = null;
-    };
-    this.events.once('shutdown', apagar);
-    this.events.once('destroy', apagar);
+    return GameScene.prototype._iniciarRegeneracionVitales.call(this);
   }
 
   _refreshBarrasUI() {
@@ -13514,6 +13459,15 @@ if (this.dogNameText) {
       this._notifPanel.style.display = 'flex';
       this._markAllNotifRead();
     }
+  }
+
+  _wireNotificationPanel() {
+    this._offDOM('notifications');
+    for (const [id, action] of [
+      ['notif-close', () => this._closeNotifPanel()],
+      ['notif-mark-all-read', () => this._markAllNotifRead()],
+      ['notif-clear-all', () => this._clearAllNotif()]
+    ]) this._onDOM(document.getElementById(id), 'click', action, undefined, 'notifications');
   }
 
   _closeNotifPanel() {

@@ -104,6 +104,22 @@ class GameScene extends Phaser.Scene {
         this.csrfToken = null;
         this.isAuthenticated = false;
 
+        /* EL REFRESCO DEL TOKEN ESTABA APAGADO EN TODAS PARTES.
+         *
+         * `startAutoRefresh()` empieza con
+         *     if (!this.autoRefreshEnabled || ...) return;
+         * y NADIE asignaba `autoRefreshEnabled` en esta clase: valia undefined,
+         * asi que la funcion se iba por la primera linea. De ahi el
+         * "Auto-refresh deshabilitado o usuario no autenticado" del log, con el
+         * usuario perfectamente autenticado.
+         *
+         * Resultado: el JWT no se renovaba NUNCA despues de la pantalla de
+         * carga -que si lo hacia, y lo paraba al transicionar-. La sesion
+         * caducaba sola y el cartel saltaba en la siguiente peticion, que
+         * normalmente era al volver al mapa. Bajo tierra no saltaba porque
+         * alli se pedia menos, no porque estuviera bien. */
+        this.autoRefreshEnabled = true;
+
         this.posicionplayerx = 2097;
         this.posicionplayery = 2359;
         this.vidaPorcentaje = 100000;
@@ -2033,6 +2049,7 @@ showNotification(message, type = 'info') {
                 }
                 
             } catch (error) {
+                if (fetchOptions.signal?.aborted || error?.name === 'AbortError') throw error;
                 console.error(`❌ Error de red (intento ${retries + 1}):`, error);
                 retries++;
                 
@@ -16281,7 +16298,7 @@ _setupZoomKeeper() {
             
             // Crear nuevos jugadores
             players.forEach(player => {
-              if (player.id !== this.myId) {
+              if (player.id !== this.myId && !this._esMiCuenta(player)) {
                 this.createOtherPlayer(player);
               }
             });
@@ -16298,7 +16315,7 @@ _setupZoomKeeper() {
         {
           event: 'newPlayer',
           handler: (playerInfo) => {
-            if (playerInfo.id === this.myId) return;
+            if (playerInfo.id === this.myId || this._esMiCuenta(playerInfo)) return;
             console.log(`👤 Nuevo jugador en game: ${playerInfo.username || playerInfo.id}`);
             this.createOtherPlayer(playerInfo);
           }
@@ -16308,7 +16325,7 @@ _setupZoomKeeper() {
         {
           event: 'playerMoved',
           handler: (playerInfo) => {
-            if (playerInfo.id === this.myId) return;
+            if (playerInfo.id === this.myId || this._esMiCuenta(playerInfo)) return;
             this.updateOtherPlayer(playerInfo);
           }
         },
@@ -16778,8 +16795,39 @@ clearOtherPlayers() {
   this.otherPlayers = {};
 }
 
+/**
+ * ?Este "otro jugador" soy YO con otro socket?
+ *
+ * FALLO QUE ESTO ARREGLA - "aparece un clon mio": el unico filtro que habia
+ * era `playerInfo.id === this.myId`, y `myId` es el SOCKET, que cambia en cada
+ * conexion. Cuando el cliente se reconecta, el servidor tarda hasta 60 s
+ * (pingTimeout) en dar por muerto el socket viejo; durante ese rato la sala
+ * tiene dos entradas de la misma cuenta y la segunda pasa el filtro. El
+ * jugador se ve a si mismo plantado al lado.
+ *
+ * La identidad que NO cambia es la cuenta. Y el servidor la manda ya
+ * autenticada (`address` / `playerName` salen de `socket.authenticatedAddress`,
+ * no de lo que diga el cliente), asi que se puede comparar sin fiarse de nadie.
+ *
+ * El arreglo de fondo esta en el backend -una cuenta, un avatar por sala-,
+ * pero este guardia vale igual con un servidor sin parchear, y cubre tambien
+ * el caso de dos pestanas abiertas con la misma cuenta.
+ */
+_esMiCuenta(info) {
+  if (!info) return false;
+  const norm = (v) => String(v || '').trim().toLowerCase();
+  const suya = norm(info.address) || norm(info.playerName);
+  if (!suya) return false;
+  return suya === norm(this.address) || suya === norm(this.playerName);
+}
+
 createOtherPlayer(playerInfo) {
+  if (!playerInfo) return;
   if (this.otherPlayers[playerInfo.id]) return;
+  if (playerInfo.id === this.myId || this._esMiCuenta(playerInfo)) {
+    console.log('[sala] ignorado un doble mio:', playerInfo.id);
+    return;
+  }
 
   // PERSONAJE PROPIO DE CADA JUGADOR.
   // Antes todos compartían las claves globales 'player_*', que son las que
@@ -18664,6 +18712,7 @@ cleanupScene() {
     if (this._cleanupSceneDone) return true;
     this._cleanupSceneDone = true;
     this._sceneStopped = true;
+    this._stopVitalRegen?.();
     if (this._disposeDOMHook) this._disposeDOMHook();
     this._unbindAllDomClicks();
     this._teardownZoomKeeper();
@@ -26007,63 +26056,44 @@ checkBattleEntrance() {
 }
 
 openBattleHub() {
+  if (this._sceneStopped) return;
   const overlay = document.getElementById('battleHubOverlay');
-  if (!overlay) {
-    console.warn('⚠️ No se encontró #battleHubOverlay en el DOM');
-    return;
-  }
-
-  // Cablear una sola vez (el DOM sobrevive a los cambios de escena)
-  if (!overlay._wired) {
-    overlay._wired = true;
-
-    const cerrar = () => this.closeBattleHub();
-    document.getElementById('battleHubCloseBtn')?.addEventListener('click', cerrar);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) cerrar(); });
-
-    document.getElementById('battleHubPvpBtn')?.addEventListener('click', () => {
-      this.closeBattleHub();
-      this.startPvpBattle();
-    });
-
-    document.getElementById('battleHubAdventureBtn')?.addEventListener('click', () => {
-      this.closeBattleHub();
-      this.startPvpBattle('bot');
-    });
-
-    document.getElementById('battleHubRankingBtn')?.addEventListener('click', () => {
-      this.closeBattleHub();
-      this.openBattleLeaderboard();
-    });
-  }
-
+  if (!overlay) return;
+  const bind = this._domGroup('battle-hub');
+  const cerrar = () => this.closeBattleHub();
+  bind(document.getElementById('battleHubCloseBtn'), 'click', cerrar);
+  bind(overlay, 'click', e => { if (e.target === overlay) cerrar(); });
+  bind(document.getElementById('battleHubPvpBtn'), 'click', () => {
+    cerrar(); this.startPvpBattle();
+  });
+  bind(document.getElementById('battleHubAdventureBtn'), 'click', () => {
+    cerrar(); this.startPvpBattle('bot');
+  });
+  bind(document.getElementById('battleHubRankingBtn'), 'click', () => {
+    cerrar(); this.openBattleLeaderboard();
+  });
+  this._trackDOMDisposal(() => overlay.classList.add('hidden'), 'battle-hub');
   overlay.classList.remove('hidden');
   if (this.input && this.input.keyboard) this.input.keyboard.enabled = false;
 
-  // Cuántas batallas diarias le quedan hoy (lo dice el servidor, no el navegador)
   const sub = document.querySelector('#battleHubAdventureBtn .btn-text small');
   if (sub) sub.textContent = 'Checking your daily battles…';
-  if (this.socket && this.socket.connected) {
-    // El flag va en el SOCKET (que es global y sobrevive a los reinicios de la
-    // escena), no en la escena: si no, cada recreación de GameScene añadiría
-    // otro listener sobre el mismo socket y se acumularían.
-    if (!this.socket._battleDailyWired) {
-      this.socket._battleDailyWired = true;
-      this.socket.on('battle:daily', (d) => {
-        const s = document.querySelector('#battleHubAdventureBtn .btn-text small');
-        if (!s) return;
-        s.textContent = d.remaining > 0
-          ? `${d.remaining} of ${d.max} left today · next: round ${d.nextRound}`
-          : 'Done for today — come back tomorrow';
-      });
-    }
-    this.socket.emit('battle:dailyStatus');
-  } else if (sub) {
-    sub.textContent = 'Complete the daily challenge';
-  }
+  const socket = this.socket;
+  if (socket && socket.connected) {
+    const daily = d => {
+      if (!sub || !d || this._sceneStopped) return;
+      sub.textContent = d.remaining > 0
+        ? `${d.remaining} of ${d.max} left today · next: round ${d.nextRound}`
+        : 'Done for today — come back tomorrow';
+    };
+    socket.on('battle:daily', daily);
+    this._trackDOMDisposal(() => socket.off('battle:daily', daily), 'battle-hub');
+    socket.emit('battle:dailyStatus');
+  } else if (sub) sub.textContent = 'Complete the daily challenge';
 }
 
 closeBattleHub() {
+  this._clearDOMGroup('battle-hub');
   document.getElementById('battleHubOverlay')?.classList.add('hidden');
   if (this.input && this.input.keyboard) this.input.keyboard.enabled = true;
 }
@@ -26113,18 +26143,27 @@ startPvpBattle(modo = 'pvp') {
 // TABLA DE CLASIFICACIÓN (todo viene del backend; nada se guarda en el navegador)
 // -----------------------------------------------------------------------------
 async openBattleLeaderboard() {
+  if (this._sceneStopped) return;
+  const sceneRunId = this._sceneRunId;
   const overlay = document.getElementById('battleRankOverlay');
   if (!overlay) {
     console.warn('⚠️ No se encontró #battleRankOverlay en el DOM');
     return;
   }
 
-  if (!overlay._wired) {
-    overlay._wired = true;
-    document.getElementById('battleRankCloseBtn')?.addEventListener('click', () => this.closeBattleLeaderboard());
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) this.closeBattleLeaderboard(); });
-    document.getElementById('battleRankRefreshBtn')?.addEventListener('click', () => this.openBattleLeaderboard());
-  }
+  const bind = this._domGroup('battle-ranking');
+  const request = new AbortController();
+  this._battleRankRequest = request;
+  const isCurrent = () => !this._sceneStopped && this._sceneRunId === sceneRunId &&
+    this._battleRankRequest === request && !request.signal.aborted;
+  this._trackDOMDisposal(() => {
+    request.abort();
+    if (this._battleRankRequest === request) this._battleRankRequest = null;
+    overlay.classList.add('hidden');
+  }, 'battle-ranking');
+  bind(document.getElementById('battleRankCloseBtn'), 'click', () => this.closeBattleLeaderboard());
+  bind(overlay, 'click', e => { if (e.target === overlay) this.closeBattleLeaderboard(); });
+  bind(document.getElementById('battleRankRefreshBtn'), 'click', () => this.openBattleLeaderboard());
 
   overlay.classList.remove('hidden');
   if (this.input && this.input.keyboard) this.input.keyboard.enabled = false;
@@ -26135,9 +26174,11 @@ async openBattleLeaderboard() {
   if (cuerpo) cuerpo.innerHTML = '<tr><td colspan="7" class="rank-loading">Loading…</td></tr>';
 
   try {
-    const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/battle/leaderboard?limit=50`, { method: 'GET' });
+    const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/battle/leaderboard?limit=50`, { method: 'GET', signal: request.signal });
+    if (!isCurrent()) return;
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    if (!isCurrent()) return;
 
     if (meta) {
       const dias = Math.floor(data.season.msRemaining / 86400000);
@@ -26173,12 +26214,14 @@ async openBattleLeaderboard() {
       }
     }
   } catch (e) {
+    if (!isCurrent()) return;
     console.error('❌ Error cargando la clasificación:', e);
     if (cuerpo) cuerpo.innerHTML = '<tr><td colspan="7" class="rank-loading">Could not load the leaderboard.</td></tr>';
   }
 }
 
 closeBattleLeaderboard() {
+  this._clearDOMGroup('battle-ranking');
   document.getElementById('battleRankOverlay')?.classList.add('hidden');
   if (this.input && this.input.keyboard) this.input.keyboard.enabled = true;
 }
@@ -26404,53 +26447,51 @@ _adoptarVitalesDelServidor(stats) {
  * recursos que el jugador acaba de gastar.
  */
 _iniciarRegeneracionVitales() {
-  if (this._regenVitalesTimer) return;
-  const UN_MINUTO = 60000;
-
-  this._regenVitalesTimer = setInterval(async () => {
+  if (this._regenVitalesTimer || this._sceneStopped) return;
+  this._stopVitalRegen?.();
+  const sceneRunId = this._sceneRunId;
+  let request = null;
+  let stopped = false;
+  const isCurrent = () => !stopped && !this._sceneStopped && this._sceneRunId === sceneRunId;
+  const timer = this._regenVitalesTimer = setInterval(async () => {
+    if (!isCurrent() || request || !this.playerName || !this.isAuthenticated || document.hidden) return;
+    const pending = request = new AbortController();
     try {
-      if (!this.playerName || !this.isAuthenticated) return;
-      if (document.hidden) return; // pestaña en segundo plano: el servidor sigue sumando igual
-
       const res = await fetch(
         `${this.serverBase}/api/stats/${encodeURIComponent(this.playerName)}`,
-        { method: 'GET', credentials: 'include' }
+        { method: 'GET', credentials: 'include', signal: pending.signal }
       );
-      if (!res.ok) return;
-
+      if (!isCurrent() || !res.ok) return;
       const data = await res.json();
-      const s = data && data.stats;
-      if (!s) return;
-
-      let subio = false;
-      const aplicar = (clave, prop) => {
-        const valor = Number(s[clave]);
-        if (!Number.isFinite(valor)) return;
-        if (valor > (Number(this[prop]) || 0)) { this[prop] = valor; subio = true; }
-      };
-      aplicar('vida',   'vidaPorcentaje');
-      aplicar('agua',   'aguaPorcentaje');
-      aplicar('comida', 'comidaPorcentaje');
-
-      if (subio) {
+      if (!isCurrent()) return;
+      const stats = data && data.stats;
+      if (!stats) return;
+      let changed = false;
+      for (const [key, property] of [['vida', 'vidaPorcentaje'], ['agua', 'aguaPorcentaje'], ['comida', 'comidaPorcentaje']]) {
+        const value = Number(stats[key]);
+        if (Number.isFinite(value) && value > (Number(this[property]) || 0)) {
+          this[property] = value; changed = true;
+        }
+      }
+      if (changed) {
         if (window.playerStats) {
-          window.playerStats.vida   = this.vidaPorcentaje;
-          window.playerStats.agua   = this.aguaPorcentaje;
+          window.playerStats.vida = this.vidaPorcentaje;
+          window.playerStats.agua = this.aguaPorcentaje;
           window.playerStats.comida = this.comidaPorcentaje;
         }
         this._refreshBarrasUI();
       }
-    } catch (e) {
-      // Un minuto perdido no importa: al siguiente se vuelve a preguntar.
-    }
-  }, UN_MINUTO);
-
-  // El temporizador vive fuera de Phaser, así que hay que apagarlo a mano al
-  // cerrar la escena o quedaría corriendo (y pidiendo stats) para siempre.
-  this._onceSceneEnd(() => {
-    clearInterval(this._regenVitalesTimer);
-    this._regenVitalesTimer = null;
-  });
+    } catch (_) { /* La siguiente consulta reintenta si la escena sigue abierta. */ }
+    finally { if (request === pending) request = null; }
+  }, 60000);
+  const release = this._stopVitalRegen = () => {
+    stopped = true;
+    clearInterval(timer);
+    if (request) { request.abort(); request = null; }
+    if (this._regenVitalesTimer === timer) this._regenVitalesTimer = null;
+    if (this._stopVitalRegen === release) this._stopVitalRegen = null;
+  };
+  GameScene.prototype._onceSceneEnd.call(this, release);
 }
 
 /**
@@ -30232,6 +30273,15 @@ getPlayerIntentDirection() {
         if (innerBtn && this.onInnerBtnClick) {
           this._bindDomClick(innerBtn, 'innerBtn', this.onInnerBtnClick);
         }
+        /* LA X DEL INVENTARIO.
+           Estaba enganchada dentro del create() de GameScene y en ningun sitio
+           mas, asi que en la mina y en la isla el panel se abria y no se podia
+           cerrar. Va por `.onclick` y no por addEventListener a proposito: el
+           panel es DOM de la PAGINA y sobrevive al cambio de escena, asi que un
+           listener por entrada se apilaria. */
+        const cerrarInv = document.querySelector('#inventory-panel .cerrar-hud');
+        if (cerrarInv) cerrarInv.onclick = () => { try { this.hideInventory(); } catch (e) {} };
+
         const chatBtn = document.getElementById('open-chat-btn');
         if (chatBtn && this._toggleChat) {
           chatBtn.style.removeProperty('display');
@@ -31083,6 +31133,15 @@ if (window.globalPetData) {
    */
   async _arrancarSistemas() {
     const sceneRunId = this._sceneRunId;
+    /* -1. EL REFRESCO DEL TOKEN. Antes de nada, porque es lo que mantiene
+           viva la sesion mientras se juega. La mina y la isla no pasan por
+           `loadx()` -heredan la sesion de quien las lanza-, y `loadx()` era el
+           unico sitio que lo arrancaba: bajo tierra el token no se renovaba.
+           El temporizador es un singleton de pagina (`__gfAuthRefreshService`),
+           asi que llamarlo de mas no crea relojes de mas. */
+    this.lastActivityTime = Date.now();
+    try { this.startAutoRefresh(); } catch (e) { console.warn('⛏️ refresco del token:', e); }
+
     // 0. Los avisos. Lo PRIMERO: 167 sitios de esta clase llaman a
     //    `this.notifications.show(...)`, y sin el hub cualquiera de ellos
     //    revienta. Ver `_montarNotificaciones()`.
@@ -31141,6 +31200,14 @@ if (window.globalPetData) {
        `_notifList`, `_notifPanel`, la chapita y la carga desde el servidor.
        Sin eso, bajo tierra la campana abria un panel vacio —y `_notifList`
        sin definir hace que marcar como leido reviente. */
+    /* El freno antispam del chat. Se ponia en el create() de GameScene, asi
+       que en la mina y en la isla valia `undefined` y la cuenta
+       `this._chatRateLimitMs - (now - this._lastChatSent)` daba NaN. No
+       bloqueaba -NaN > 0 es falso-, pero la cola de mensajes trabajaba a
+       ciegas. Mejor con los mismos numeros en las tres escenas. */
+    if (typeof this._chatRateLimitMs !== 'number') this._chatRateLimitMs = 1100;
+    if (typeof this._lastChatSent !== 'number') this._lastChatSent = 0;
+
     this._notifBadge = document.getElementById('mail-notif-badge');
     this._notifPanel = document.getElementById('notif-panel');
     if (!Array.isArray(this._notifList)) this._notifList = [];

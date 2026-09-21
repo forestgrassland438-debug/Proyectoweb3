@@ -421,6 +421,40 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   </section>
 
   <!-- ══════════════════════════════════════════════════════════════════════
+       LOS QUE MÁS HAN JUGADO
+       ══════════════════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="section-head">
+      <h2>⏱️ Los que más han jugado</h2>
+      <span class="dim" id="topInfo"></span>
+    </div>
+
+    <div class="cfg-grid">
+      <label class="cfg-field">
+        <span>¿Cuántos quieres ver?</span>
+        <input type="number" id="topN" min="1" max="500" step="1" value="20">
+        <small class="dim">De 1 a 500, ordenados de más tiempo a menos.</small>
+      </label>
+    </div>
+
+    <div class="cfg-actions">
+      <button class="btn btn-primary" id="topBtn">Ver clasificación</button>
+    </div>
+
+    <table class="tabla" style="margin-top:14px;">
+      <thead>
+        <tr>
+          <th>#</th><th>Jugador</th><th>Tiempo jugado</th>
+          <th>Entradas</th><th>Última vez</th><th>Estado</th>
+        </tr>
+      </thead>
+      <tbody id="topBody">
+        <tr><td colspan="6" class="empty">Pon un número y pulsa «Ver clasificación».</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
        CONFIGURACIÓN DE LA TABLA DE CLASIFICACIÓN
        ══════════════════════════════════════════════════════════════════════ -->
   <section>
@@ -703,6 +737,74 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   }
 
   // ── Lista de jugadores ───────────────────────────────────────────────────
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     LOS QUE MÁS HAN JUGADO
+
+     El número lo pone el administrador y el servidor devuelve esa cantidad,
+     ordenada de más tiempo a menos (GET /api/admin/top-jugadores?n=N).
+
+     OJO CON LO QUE MIDE: el tiempo se empezó a contar cuando se añadió el
+     campo `tiempoJugadoMs`, así que las partidas anteriores NO están. No hay
+     forma de reconstruirlas: antes no se guardaba en ninguna parte.
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  /** Milisegundos a algo que se lea: "3 d 04 h", "2 h 15 min", "48 min". */
+  function tiempoLargo(ms) {
+    var seg = Math.floor((ms || 0) / 1000);
+    var dias = Math.floor(seg / 86400);
+    var horas = Math.floor((seg % 86400) / 3600);
+    var mins = Math.floor((seg % 3600) / 60);
+    if (dias) return dias + ' d ' + (horas < 10 ? '0' : '') + horas + ' h';
+    if (horas) return horas + ' h ' + (mins < 10 ? '0' : '') + mins + ' min';
+    if (mins) return mins + ' min';
+    return seg + ' s';
+  }
+
+  async function cargarTopJugadores() {
+    var campo = $('topN');
+    var n = Math.min(500, Math.max(1, parseInt(campo && campo.value, 10) || 20));
+    if (campo) campo.value = n;
+
+    var cuerpo = $('topBody');
+    cuerpo.innerHTML = '<tr><td colspan="6" class="empty">Cargando\u2026</td></tr>';
+    try {
+      var d = await pedir('/api/admin/top-jugadores?n=' + n);
+      var lista = (d && d.jugadores) || [];
+      if (!lista.length) {
+        cuerpo.innerHTML = '<tr><td colspan="6" class="empty">' +
+          'Todav\u00eda no hay tiempo registrado de nadie.</td></tr>';
+        $('topInfo').textContent = '';
+        return;
+      }
+      cuerpo.innerHTML = lista.map(function (j) {
+        var cuando = j.lastLogin ? new Date(j.lastLogin).toLocaleString() : '\u2014';
+        return '<tr>' +
+          '<td>' + j.puesto + '</td>' +
+          '<td>' + esc(j.playerName || '\u2014') + '</td>' +
+          '<td>' + esc(tiempoLargo(j.ms)) + '</td>' +
+          '<td>' + (j.loginCount || 0) + '</td>' +
+          '<td>' + esc(cuando) + '</td>' +
+          '<td>' + (j.conectado ? 'jugando ahora' : '\u2014') + '</td>' +
+          '</tr>';
+      }).join('');
+      $('topInfo').textContent = lista.length + ' de los ' + n + ' pedidos';
+    } catch (e) {
+      cuerpo.innerHTML = '<tr><td colspan="6" class="empty">No se pudo cargar: ' +
+        esc(e.message) + '</td></tr>';
+    }
+  }
+
+  (function engancharTop() {
+    var b = $('topBtn');
+    if (b) b.onclick = cargarTopJugadores;
+    var campo = $('topN');
+    // Enter en el campo hace lo mismo que el bot\u00f3n.
+    if (campo) campo.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); cargarTopJugadores(); }
+    });
+  })();
+
   async function cargarJugadores() {
     var tbody = $('rows');
     tbody.innerHTML = '<tr><td colspan="8" class="empty">Cargando…</td></tr>';

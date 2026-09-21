@@ -45,19 +45,98 @@
    */
   function lienzo(scene, clave, w, h, pintor) {
     if (!scene || !scene.textures) return null;
-    if (scene.textures.exists(clave)) return clave;
+    var gestor = scene.textures, c = null, nueva = false;
     try {
-      var c = scene.textures.createCanvas(clave, w, h);
-      if (!c) return null;
+      if (gestor.exists(clave)) return clave;
+      nueva = true;
+      c = gestor.createCanvas(clave, w, h);
+      if (!c) throw new Error('canvas no disponible');
       var ctx = c.getContext();
+      if (!ctx) throw new Error('contexto no disponible');
       pintor(ctx, w, h);
       c.refresh();
       return clave;
     } catch (e) {
       log('no se pudo crear', clave, e && e.message);
-      try { scene.textures.remove(clave); } catch (e2) {}
+      // Un fallo no puede borrar una textura ajena que ya existía o que
+      // sustituyó a este canvas. Phaser libera su canvas y su WebGLTexture.
+      try {
+        if (nueva && gestor.exists(clave) &&
+            (!c || !gestor.get || gestor.get(clave) === c)) gestor.remove(clave);
+      } catch (e2) {}
       return null;
     }
+  }
+
+  // El catálogo no retiene escenas ni motores cerrados. Cada escena adquiere
+  // una referencia y solo la última salida destruye el recurso compartido.
+  var recursosPorGestor = new WeakMap();
+
+  function recursos(scene, crear) {
+    if (!scene || !scene.textures) return null;
+    var r = recursosPorGestor.get(scene.textures);
+    if (!r && crear) {
+      r = { claves: new Map(), escenas: new WeakMap() };
+      recursosPorGestor.set(scene.textures, r);
+    }
+    return r;
+  }
+
+  function clavesEscena(scene, tipo, crear) {
+    var r = recursos(scene, crear);
+    if (!r) return [];
+    var e = r.escenas.get(scene);
+    if (!e && crear) {
+      e = { arenas: [], efectos: [] };
+      r.escenas.set(scene, e);
+    }
+    return e ? e[tipo] : [];
+  }
+
+  function adquirir(scene, tipo, clave, w, h, pintor) {
+    if (!scene || !scene.textures) return null;
+    var gestor = scene.textures, existia;
+    try { existia = gestor.exists(clave); } catch (e) { return null; }
+    if (!lienzo(scene, clave, w, h, pintor)) return null;
+    var r = recursos(scene, true), lista = clavesEscena(scene, tipo, true);
+    var textura = gestor.get ? gestor.get(clave) : null;
+    var registro = r.claves.get(clave);
+    if (!registro) {
+      registro = { referencias: 0, propia: !existia, textura: textura };
+      r.claves.set(clave, registro);
+    } else if (!existia || (gestor.get && registro.textura !== textura)) {
+      // El gestor pudo vaciarse o reemplazar una clave sin reiniciar la escena.
+      registro.propia = !existia;
+      registro.textura = textura;
+    }
+    var i = lista.indexOf(clave);
+    if (i >= 0) lista.splice(i, 1);
+    else registro.referencias++;
+    lista.push(clave);
+    return clave;
+  }
+
+  function liberar(scene, clave) {
+    var r = recursos(scene, false), registro = r && r.claves.get(clave);
+    if (!registro) return;
+    if (--registro.referencias > 0) return;
+    r.claves.delete(clave);
+    var gestor = scene.textures;
+    try {
+      if (registro.propia && gestor.exists(clave) &&
+          (!gestor.get || gestor.get(clave) === registro.textura)) gestor.remove(clave);
+    } catch (e) { log('no se pudo liberar', clave, e && e.message); }
+  }
+
+  function olvidarTipo(scene, tipo, salvo) {
+    var lista = clavesEscena(scene, tipo, false), n = 0;
+    for (var i = lista.length - 1; i >= 0; i--) {
+      if (lista[i] === salvo) continue;
+      liberar(scene, lista[i]);
+      lista.splice(i, 1);
+      n++;
+    }
+    return n;
   }
 
   /* Azar REPETIBLE. Los escenarios se dibujan con una semilla para que la
@@ -357,6 +436,41 @@
       ctx.fill();
     }
 
+    // Detalle fijo en los bordes: flores, hielo o pequeñas runas. Se pinta
+    // una vez en el fondo, sin emisores, actualizaciones ni otra textura.
+    // El centro y las posiciones de los luchadores permanecen despejados.
+    for (var d = 0; d < 32; d++) {
+      var dx = d % 2 ? rnd(w * 0.88, w) : rnd(0, w * 0.12);
+      var dy = rnd(ySuelo + h * 0.015, h * 0.88);
+      var ds = Math.max(2, Math.round((dy / h) * 5));
+      dx = Math.round(dx); dy = Math.round(dy);
+      if (cfg.nevando) {
+        ctx.fillStyle = 'rgba(130,192,235,0.45)';
+        ctx.fillRect(dx, dy, ds, ds * 3);
+        ctx.fillStyle = 'rgba(246,253,255,0.85)';
+        ctx.fillRect(dx, dy, 1, ds * 3);
+      } else if (cfg.luciernagas) {
+        ctx.strokeStyle = 'rgba(172,198,226,0.28)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(dx - ds, dy - ds, ds * 2, ds * 2);
+        ctx.fillStyle = 'rgba(203,227,243,0.45)';
+        ctx.fillRect(dx, dy, 2, 2);
+      } else if (cfg.silueta === 'copa' || cfg.silueta === 'pino') {
+        ctx.fillStyle = rgba(cfg.mata, 0.85);
+        ctx.fillRect(dx, dy, 2, ds * 2);
+        ctx.fillStyle = d % 3 ? 'rgba(255,237,172,0.8)' : 'rgba(200,179,238,0.8)';
+        ctx.fillRect(dx - 1, dy - 1, ds, ds);
+        ctx.fillStyle = 'rgba(255,255,246,0.8)';
+        ctx.fillRect(dx, dy, 1, 1);
+      } else {
+        ctx.strokeStyle = rgba(cfg.tierra[1], 0.5);
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(dx, dy);
+        ctx.lineTo(dx + ds * 3, dy + ds);
+        ctx.lineTo(dx + ds * 4, dy - ds); ctx.stroke();
+      }
+    }
+
     // ── PIEDRAS Y MATOJOS ──
     for (var p = 0; p < 14; p++) {
       var px = rnd(0, w);
@@ -471,30 +585,24 @@
    * Se guardan las dos últimas —la de ahora y la anterior, por si el jugador
    * gira el teléfono y la escena se vuelve a montar— y de ahí para atrás se
    * van borrando solas. */
-  var arenasVivas = [];
   var MAX_ARENAS = 2;
 
-  function soltarArena(scene, clave) {
-    try { scene.textures.remove(clave); } catch (e) { /* ya no estaba */ }
-  }
-
   function arena(scene, id, semilla) {
-    var cfg = ARENAS[id] || ARENAS.pradera;
+    id = Object.prototype.hasOwnProperty.call(ARENAS, id) ? id : 'pradera';
+    var cfg = ARENAS[id];
     var sem = (semilla >>> 0) || 12345;
     var clave = PREFIJO + 'arena_' + id + '_' + sem;
     /* 1024×576 y no la resolución de pantalla: es 16:9, se estira sin
        deformarse a cualquier tamaño y ocupa 2,3 MB de VRAM. Subirlo a 1920
        serían 8 MB por un detalle que, escalado, no se distingue. */
     var W = 1024, H = 576;
-    var hecha = lienzo(scene, clave, W, H, function (ctx, w, h) {
+    var hecha = adquirir(scene, 'arenas', clave, W, H, function (ctx, w, h) {
       pintarArena(ctx, w, h, cfg, sem);
     });
     if (!hecha) return null;
 
-    var i = arenasVivas.indexOf(clave);
-    if (i >= 0) arenasVivas.splice(i, 1);
-    arenasVivas.push(clave);
-    while (arenasVivas.length > MAX_ARENAS) soltarArena(scene, arenasVivas.shift());
+    var arenasVivas = clavesEscena(scene, 'arenas', false);
+    while (arenasVivas.length > MAX_ARENAS) liberar(scene, arenasVivas.shift());
 
     return { clave: clave, suelo: cfg.suelo, cfg: cfg, nombre: cfg.nombre };
   }
@@ -507,14 +615,16 @@
    * use, y son con diferencia lo más gordo que deja la escena detrás.
    */
   function olvidarArenas(scene, salvo) {
-    if (!scene || !scene.textures) { arenasVivas.length = 0; return 0; }
-    var quedan = [], n = 0;
-    for (var i = 0; i < arenasVivas.length; i++) {
-      if (arenasVivas[i] === salvo) { quedan.push(arenasVivas[i]); continue; }
-      soltarArena(scene, arenasVivas[i]); n++;
-    }
-    arenasVivas = quedan;
-    return n;
+    return olvidarTipo(scene, 'arenas', salvo);
+  }
+
+  function olvidarEfectos(scene) {
+    return olvidarTipo(scene, 'efectos');
+  }
+
+  /** Llamar después de destruir los sprites que usan este arte. */
+  function olvidar(scene) {
+    return olvidarArenas(scene) + olvidarEfectos(scene);
   }
 
   /** Un escenario estable para una batalla concreta. */
@@ -769,6 +879,19 @@
       ctx.translate(w / 2, h / 2); ctx.scale(1, 0.36); ctx.translate(-w / 2, -h / 2);
       ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
       ctx.restore();
+      // Doble aro y marcas de orientación: el contraste se conserva incluso
+      // sobre la nieve. El tint del luchador da el color a esta misma pieza.
+      ctx.strokeStyle = 'rgba(0,0,0,0.34)';
+      ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.ellipse(w / 2, h / 2, w * 0.42, h * 0.32, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(w / 2, h / 2, w * 0.42, h * 0.32, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.23)';
+      ctx.beginPath(); ctx.ellipse(w / 2, h / 2, w * 0.37, h * 0.27, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.fillRect(w * 0.06, h / 2 - 2, 10, 4);
+      ctx.fillRect(w * 0.94 - 10, h / 2 - 2, 10, 4);
     }],
 
     // Flecha de "te toca": apunta hacia abajo sobre el luchador activo.
@@ -792,7 +915,7 @@
     for (var id in EFECTOS) {
       if (!Object.prototype.hasOwnProperty.call(EFECTOS, id)) continue;
       var e = EFECTOS[id];
-      if (lienzo(scene, PREFIJO + id, e[0], e[1], e[2])) n++;
+      if (adquirir(scene, 'efectos', PREFIJO + id, e[0], e[1], e[2])) n++;
     }
     log('piezas de efecto listas:', n, '/', Object.keys(EFECTOS).length);
     return n;
@@ -805,6 +928,8 @@
     efectos: efectos,
     arena: arena,
     olvidarArenas: olvidarArenas,
+    olvidarEfectos: olvidarEfectos,
+    olvidar: olvidar,
     elegirArena: elegirArena,
     pieza: pieza,
     ARENAS: ARENAS,
@@ -814,7 +939,7 @@
       lienzo: lienzo, dado: dado, pintarArena: pintarArena,
       cordillera: cordillera, colinas: colinas, EFECTOS: EFECTOS,
       rgba: rgba, mezcla: mezcla,
-      arenasVivas: function () { return arenasVivas.slice(); },
+      arenasVivas: function (scene) { return clavesEscena(scene, 'arenas', false).slice(); },
       MAX_ARENAS: MAX_ARENAS
     }
   };

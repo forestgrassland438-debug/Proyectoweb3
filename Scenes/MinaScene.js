@@ -579,6 +579,21 @@ class MinaScene extends GameScene {
     // Inventario, cofre, monedas, cadena, socket, misiones. Va ANTES del HUD
     // para que cuando se pinten las barras y las monedas ya haya datos.
     this._faseMina = 'sistemas de juego';
+    /* EL CHAT, ANTES DE CABLEAR EL HUD.
+       `_cablearHUD()` engancha el boton del chat solo `if (this._toggleChat)`,
+       y ese metodo lo crea `_setupChatDom()`. Llamandolo despues, el boton se
+       quedaba sin enganchar por esa via. Ahora va primero. */
+    try { this._setupChatDom(); } catch (e) { console.warn('chat:', e); }
+
+    /* EL HUD SE ENSENA ANTES DE IR A LA RED.
+       Estaba DESPUES de `_arrancarSistemas()`, que hace media docena de
+       peticiones: dos o tres segundos mirando el mapa sin barras, sin monedas
+       y sin botones. Ahora se pinta en cuanto el mundo esta montado y los
+       datos van llegando encima. Se vuelve a llamar al terminar porque
+       `_cablearHUD()` necesita cosas que solo existen despues (el catalogo de
+       objetos, el hub de avisos): la segunda llamada es idempotente. */
+    this._mostrarHUD();
+
     await this._arrancarSistemas();
     if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
 
@@ -609,7 +624,6 @@ class MinaScene extends GameScene {
     if (window.GFPost)        window.GFPost.montar(this, { interior: true });
 
     // El chat: el panel es DOM de la pagina y el metodo es heredado.
-    try { this._setupChatDom(); } catch (e) { console.warn('chat:', e); }
 
     // Que la tienda apunte a esta escena para que el STATE del inventario sea
     // el de aqui. Es lo mismo que hacen GameScene y tiendajuego.

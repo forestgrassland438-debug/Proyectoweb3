@@ -11683,7 +11683,7 @@ canvas,
   --bf-line:      rgba(120, 170, 255, .16);
   --bf-line-hi:   rgba(120, 170, 255, .38);
   --bf-text:      #e8f0ff;
-  --bf-muted:     #8fa3c8;
+  --bf-muted:     #bacbe7;
   --bf-you:       #4ade80;
   --bf-rival:     #f87171;
   --bf-shield:    #60a5fa;
@@ -11755,7 +11755,7 @@ canvas,
   padding: 10px 12px;
   border-radius: var(--bf-radius);
   border: 1px solid var(--bf-line);
-  background: linear-gradient(160deg, rgba(255,255,255,.045), rgba(255,255,255,.015));
+  background: linear-gradient(160deg, rgba(22,36,57,.94), rgba(9,18,32,.92));
   box-shadow: 0 6px 24px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
 }
 .battle-ui .bf-you   { border-left:  3px solid var(--bf-you); }
@@ -11937,6 +11937,8 @@ canvas,
   color: #cfe0ff;
   text-shadow: 0 2px 10px rgba(0,0,0,.85), 0 2px 18px rgba(60,120,240,.35);
   pointer-events: none;
+  min-height: 0;
+  margin: 0;
 }
 
 .battle-ui .bf-reveal:not(.hidden) {
@@ -12001,30 +12003,43 @@ canvas,
   box-shadow: 0 0 9px rgba(251,191,36,.75);
   border-color: rgba(255,220,130,.9);
 }
+.battle-ui .bf-energy > .reserved {
+  background: repeating-linear-gradient(135deg, #715629 0 3px, #263146 3px 6px);
+  border-color: #ffd97a;
+  box-shadow: none;
+}
 .battle-ui .bf-energy-count { font-size: 11px; font-weight: 800; color: var(--bf-energy); }
 
 /* La mano: se desplaza en horizontal si no caben las cartas, nunca desborda. */
 .battle-ui .bf-hand {
   display: flex; align-items: stretch; gap: 8px;
   min-width: 0;
-  padding: 4px;
+  justify-content: flex-start;
+  /* Espacio para elevar la carta y para el foco: el scroll antes cortaba el
+     coste, la selección y las primeras cartas de una mano ancha. */
+  padding: 12px 7px 7px;
   overflow-x: auto; overflow-y: hidden;
+  scroll-padding-inline: 7px;
   scrollbar-width: thin;
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-x;
 }
+.battle-ui .bf-hand > :first-child { margin-left: auto; }
+.battle-ui .bf-hand > :last-child { margin-right: auto; }
 .battle-ui .bf-hand::-webkit-scrollbar { height: 5px; }
 .battle-ui .bf-hand::-webkit-scrollbar-thumb { background: var(--bf-line-hi); border-radius: 999px; }
 
 .battle-ui .bf-cardbtn {
+  --card-accent: #bacbe7;
   position: relative;
   flex: 0 0 auto;
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   width: clamp(76px, 12vw, 116px);
   padding: 9px 7px 8px;
-  border-radius: 12px;
+  border-radius: 9px;
   border: 1px solid var(--bf-line);
+  border-top: 3px solid var(--card-accent);
   background: linear-gradient(170deg, rgba(38,54,92,.95), rgba(16,24,44,.95));
   color: var(--bf-text);
   cursor: pointer;
@@ -12041,29 +12056,42 @@ canvas,
 .battle-ui .bf-cardbtn:active:not(:disabled) { transform: translateY(-1px); }
 .battle-ui .bf-cardbtn.sel {
   border-color: var(--bf-energy);
-  box-shadow: 0 0 0 2px rgba(251,191,36,.45), 0 12px 30px rgba(0,0,0,.6);
-  transform: translateY(-7px);
+  background: linear-gradient(170deg, #36445a, #282839);
+  box-shadow: 0 0 0 2px rgba(251,191,36,.8), inset 0 -3px 0 #b78a31;
+  transform: translateY(-4px);
 }
-.battle-ui .bf-cardbtn:disabled { opacity: .38; cursor: not-allowed; transform: none; }
+.battle-ui .bf-cardbtn.sel::after {
+  display: grid; place-items: center;
+  top: 5px; right: 5px; width: 20px; height: 20px;
+  border-radius: 4px; background: #f5cb63; color: #231c11;
+  font: 800 12px/1 system-ui, sans-serif;
+}
+.battle-ui .bf-cardbtn.sel[data-order]::after { content: attr(data-order); }
+.battle-ui .bf-cardbtn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+.battle-ui .bf-cardbtn.sel:disabled { opacity: 1; }
+.battle-ui .bf-cardbtn[data-type="attack"] { --card-accent: #ff9786; }
+.battle-ui .bf-cardbtn[data-type="defense"] { --card-accent: #8bc5ff; }
+.battle-ui .bf-cardbtn[data-type="heal"] { --card-accent: #86e5a4; }
+.battle-ui .bf-cardbtn[data-type="hybrid"] { --card-accent: #c6a5ff; }
 
 .battle-ui .bf-cardbtn .c-cost {
-  position: absolute; top: -7px; left: -7px;
+  position: absolute; top: 5px; left: 5px;
   display: grid; place-items: center;
   width: 22px; height: 22px; border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #fff6d5, var(--bf-energy));
   color: #3b2c00; font-size: 12px; font-weight: 900;
   border: 2px solid rgba(0,0,0,.45);
 }
-.battle-ui .bf-cardbtn .c-emoji { font-size: clamp(20px, 3.2vw, 28px); line-height: 1; }
+.battle-ui .bf-cardbtn .c-emoji { font-size: clamp(20px, 3.2vw, 28px); line-height: 1; margin-top: 20px; }
 .battle-ui .bf-cardbtn .c-name  {
-  font-size: clamp(9px, 1.2vw, 11px); font-weight: 800; text-align: center; line-height: 1.15;
+  font-size: clamp(10px, 1.2vw, 12px); font-weight: 800; text-align: center; line-height: 1.2;
 }
 .battle-ui .bf-cardbtn .c-stats { display: flex; gap: 5px; font-size: 9.5px; font-weight: 800; }
 .battle-ui .bf-cardbtn .s-dmg    { color: #ff9d9d; }
 .battle-ui .bf-cardbtn .s-shield { color: #9dc7ff; }
 .battle-ui .bf-cardbtn .s-heal   { color: #a8f0c0; }
 .battle-ui .bf-cardbtn .c-desc {
-  font-size: 9px; line-height: 1.3; color: var(--bf-muted); text-align: center;
+  font-size: 10px; line-height: 1.3; color: var(--bf-muted); text-align: center;
 }
 
 .battle-ui .bf-actions { display: flex; flex-direction: column; gap: 6px; }
@@ -12091,6 +12119,31 @@ canvas,
   border-color: rgba(248,113,113,.45);
 }
 
+/* El foco se ve sin depender del color de la carta o de pasar el ratón. */
+.battle-ui button:focus-visible {
+  outline: 3px solid #fff2be;
+  outline-offset: 3px;
+}
+.battle-ui .bf-cardbtn:focus-visible { z-index: 4; }
+.battle-ui .bf-timer.low > i { background: #ff8076; }
+.battle-ui .bf-timertext, .battle-ui .bf-hptext,
+.battle-ui .bf-energy-count, .battle-ui .c-cost { font-variant-numeric: tabular-nums; }
+
+/* Lectura táctica en una franja compacta, independiente del área de sprites. */
+.battle-ui .bf-tactics {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: 5px 12px; flex: 0 0 auto; padding: 6px 10px;
+  border: 1px solid var(--bf-line-hi); border-radius: 8px;
+  background: rgba(9,18,32,.94); color: var(--bf-text);
+  font-size: 11px; line-height: 1.4;
+}
+.battle-ui .bf-bottom > .bf-tactics { grid-column: 1 / -1; order: -1; }
+.battle-ui .bf-intent { color: #ffd19b; }
+.battle-ui .bf-card-preview { color: #deebff; }
+.battle-ui .bf-tactics:empty, .battle-ui .bf-intent:empty,
+.battle-ui .bf-card-preview:empty { display: none; }
+.battle-ui .bf-key-hint { color: var(--bf-muted); font-size: 10px; }
+
 /* ── TELÉFONO EN APAISADO (que es como se pide jugar la batalla) ──────────── */
 @media (max-height: 500px) {
   .battle-ui { --bf-gap: 6px; }
@@ -12098,11 +12151,14 @@ canvas,
   .battle-ui .bf-sub       { display: none; }
   .battle-ui .bf-status    { font-size: 13px; padding: 2px 10px; }
   .battle-ui .bf-cardbtn   { width: 74px; padding: 7px 5px 6px; }
+  .battle-ui .bf-cardbtn .c-emoji { margin-top: 18px; font-size: 21px; }
   .battle-ui .bf-cardbtn .c-desc { display: none; }
   .battle-ui .bf-btn       { min-height: 38px; }
   /* El chip de rendirse SIGUE VISIBLE en apaisado: es la unica salida y no se
      esconde nunca. Solo se aprieta un poco. */
   .battle-ui .bf-surrender { padding: 3px 8px; font-size: 9px; margin-top: 1px; }
+  .battle-ui .bf-tactics { padding: 3px 8px; font-size: 10px; }
+  .battle-ui .bf-key-hint { display: none; }
 }
 
 /* ── PANTALLAS ESTRECHAS EN VERTICAL ───────────────────────────────────────── */
@@ -12141,10 +12197,13 @@ canvas,
 
 /* Quien no quiera animaciones no las sufre. */
 @media (prefers-reduced-motion: reduce) {
-  .battle-ui .bf-cardbtn,
-  .battle-ui .bf-hpbar > i,
-  .battle-ui .bf-shieldbar,
-  .battle-ui .bf-timer > i { transition: none; }
+  .battle-ui *, .battle-ui *::before, .battle-ui *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  .battle-ui .bf-cardbtn:hover:not(:disabled),
+  .battle-ui .bf-cardbtn.sel { transform: none; }
   .battle-rotate-icon { animation: none; }
 }
 
