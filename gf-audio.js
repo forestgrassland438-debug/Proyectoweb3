@@ -826,9 +826,18 @@
 
   /** Qué volumen le toca ahora a cada ambiente. */
   function mezclarAmbiente(st) {
+    var o = st.objetivo;
+
+    /* BAJO TIERRA NO SE OYE EL TIEMPO QUE HACE. Ni lluvia, ni viento, ni
+       hojas, ni grillos, ni el zumbido del campo. Se sale antes de leer el
+       clima siquiera: no hay nada que mezclar. */
+    if (st.interior) {
+      o.lluvia = o.viento = o.arboles = o.soleado = o.noche = o.nieve = 0;
+      return o;
+    }
+
     var c = leerClima(st);
     var noche = oscuridad(st);
-    var o = st.objetivo;
 
     if (st.tipo === 'tienda') {
       /* Dentro solo entra la lluvia, y apagada: es el agua que se oye en el
@@ -1025,6 +1034,8 @@
   function trueno(cerca, fuerza, x, y) {
     var st = escenaViva();
     if (!st) return false;
+    // En una cueva o donde se haya pedido silencio de fuera, no truena.
+    if (st.interior) return false;
     fuerza = tope(fuerza === undefined ? 1 : fuerza, 0.15, 1.4);
 
     var familia = cerca ? 'rayo' : 'centella';
@@ -1400,6 +1411,13 @@
 
     var st = {
       scene: scene,
+      /* INTERIOR: ni ambiente, ni bichos, ni truenos.
+         Lo pide la mina y lo pide la isla. `tipo:'tienda'` ya suelta los
+         animales, los siete truenos y el viento, pero deja pasar la lluvia
+         apagada -"el agua que se oye en el tejado"-, y bajo tierra eso no
+         tiene sentido: no hay tejado, hay cien metros de roca. Esta bandera
+         apaga TODO lo de fuera y deja solo el tema y las pisadas. */
+      interior: op.interior === true,
       tipo: op.tipo || 'campo',
       suelo: op.suelo || (op.tipo === 'tienda' ? 'madera' : null),
       bucles: {}, reserva: {}, faltan: {},

@@ -166,6 +166,25 @@
     }
   }
 
+  /**
+   * A la isla POR LA PANTALLA DE CARGA, igual que a la mina y a la tienda.
+   *
+   * DOS MOTIVOS, y el segundo es un fallo de verdad:
+   *
+   *   1. Consistencia: es el mismo viaje que hace el resto del juego, con su
+   *      pantalla de carga y su sincronizacion del inventario con la cadena.
+   *
+   *   2. LA ISLA NO SE GUARDABA. `LandsScene` se marca como `mundo = 4` en su
+   *      create, pero eso solo vive en la instancia: hasta que algo llamara a
+   *      `savegg()` con ese valor puesto, la partida seguia diciendo "mundo 1".
+   *      Recargar la pagina te sacaba al mapa como si nunca hubieras ido.
+   *      Ahora el mundo se guarda ANTES de irse, y se ESPERA a que el guardado
+   *      termine: la pantalla de carga decide a donde va leyendo /api/load, y
+   *      si el guardado sigue en vuelo cuando pregunta, lee el mundo viejo.
+   *
+   * `sesionDe()` ya no hace falta aqui: viniendo de la pantalla de carga, es
+   * ella la que le pasa su sesion a la isla.
+   */
   function ir(escena) {
     if (escena._cambiandoEscena) return;
     if (!escena.scene.get(CLAVE_ISLA)) {
@@ -175,8 +194,20 @@
     escena._cambiandoEscena = true;
     recordarVuelta(escena);
     log('a la isla desde', escena.sys.settings.key);
-    apagarHUD(escena);
-    escena.scene.start(CLAVE_ISLA, { sesion: sesionDe(escena) });
+
+    escena.mundo = 4;
+    var irYa = function () {
+      apagarHUD(escena);
+      escena.scene.start('LoadingScenegame');
+    };
+    try {
+      var p = escena.savegg && escena.savegg();
+      if (p && typeof p.then === 'function') p.then(irYa, irYa);
+      else irYa();
+    } catch (e) {
+      log('guardado antes de la isla:', e);
+      irYa();
+    }
   }
 
   function volver(escena) {

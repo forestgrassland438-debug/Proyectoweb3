@@ -74,7 +74,7 @@
   <!-- Personajes Soulbound. Va ANTES de las escenas porque sus preload()
        le piden las rutas de los sprites del jugador. -->
   <script src="./gf-soulbound.js?v=19.1" defer></script>
-  <script src="./gf-lands.js?v=19.3" defer></script>
+  <script src="./gf-lands.js?v=19.6" defer></script>
 
   <!-- Canales (10 × 50 jugadores). El canal lo asigna el servidor al conectar
        el socket, UNA sola vez por pestaña; este módulo solo lo recuerda y
@@ -83,7 +83,7 @@
   <script src="./gf-profundidad.js?v=19.1" defer></script>
   <script src="./gf-sombras.js?v=19.1" defer></script>
   <script src="./gf-nieve.js?v=19.1" defer></script>
-  <script src="./gf-ciclo-dia.js?v=19.2" defer></script>
+  <script src="./gf-ciclo-dia.js?v=19.1" defer></script>
 
   <!-- Cazador de micro-parones. Inerte hasta que se le llama a mano desde la
        consola con GFTirones.empezar(). No vigila nada por su cuenta. -->
@@ -94,12 +94,12 @@
   <script src="./gf-muerte.js?v=19.1" defer></script>
   <script src="./gf-alquimista.js?v=19.1" defer></script>
   <script src="./gf-viento.js?v=19.1" defer></script>
-  <script src="./gf-clima.js?v=19.2" defer></script>
+  <script src="./gf-clima.js?v=19.1" defer></script>
 
   <!-- Post-procesado: viñeta, desenfoque de bordes y revelado de color sobre
        el fotograma ya pintado. Va DESPUÉS del clima porque lee de él qué
        tiempo hace. Si no hay WebGL o la calidad está en baja, no hace nada. -->
-  <script src="./gf-postproceso.js?v=19.1" defer></script>
+  <script src="./gf-postproceso.js?v=19.6" defer></script>
 
   <!-- Pisadas: polvo y huellas bajo quien anda. Lee el tiempo de gf-clima
        (polvo en seco, agua si llueve, nieve si nieva), asi que va despues. -->
@@ -110,7 +110,7 @@
        clima, del viento y del ciclo de dia porque les pregunta a los tres en
        cada vuelta que tiempo hace y cuanta noche queda. Los WAV los escribe
        tools/generar-sonidos.js y viven en Game/MUSIC. -->
-  <script src="./gf-audio.js?v=19.1" defer></script>
+  <script src="./gf-audio.js?v=19.6" defer></script>
 
   <!-- El buho de la noche: aparece al anochecer, se posa en un arbol y ulula;
        al amanecer se va. Necesita gf-audio para el ulular y gf-cuervo para el
@@ -134,15 +134,15 @@
   <script src="./Scenes/LoadingSceneshop.js?v=19.1" defer></script>
   <script src="./Scenes/tiendajuego.js?v=19.1" defer></script>
   <script src="./Scenes/LoadingScenegame.js?v=19.3" defer></script>
-  <script src="./Scenes/GameScene.js?v=19.5" defer></script>
+  <script src="./Scenes/GameScene.js?v=19.6" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
        basta con dejarla en esta linea y no antes. -->
-  <script src="./Scenes/MinaScene.js?v=19.5" defer></script>
+  <script src="./Scenes/MinaScene.js?v=19.6" defer></script>
   <!-- La isla de las parcelas. Hereda de GameScene igual que la mina,
        asi que tambien tiene que ir DESPUES de ella. -->
-  <script src="./Scenes/LandsScene.js?v=19.5" defer></script>
+  <script src="./Scenes/LandsScene.js?v=19.6" defer></script>
   <script src="./Scenes/BattleScene.js?v=19.1" defer></script>
   <script src="./Scenes/sacar_mapa.js?v=19.1" defer></script>
 

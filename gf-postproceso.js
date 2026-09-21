@@ -449,7 +449,16 @@
     return e || {};
   }
 
-  function oscuridad() {
+  function oscuridad(st) {
+    /* INTERIOR: aqui no anochece.
+     *
+     * ESTO ES LO QUE METIA LA NOCHE EN LA MINA. `GFCiclo.oscuridad()` es el
+     * reloj GLOBAL de la partida, no el montaje por escena: da igual que
+     * nadie haya llamado a `GFCiclo.montarEscena()` bajo tierra, porque esta
+     * funcion no pregunta por la escena, pregunta por la hora. Asi que el
+     * post-procesado aplicaba el tinte y la bajada de luz de la noche dentro
+     * de una cueva, donde la hora no significa nada. */
+    if (st && st.interior) return 0;
     try {
       if (window.GFCiclo && window.GFCiclo.oscuridad) {
         var o = window.GFCiclo.oscuridad();
@@ -470,7 +479,10 @@
    * eso, empezar a llover cambiaría el revelado de golpe.
    */
   function calcularDestino(st) {
-    var e = climaAhora();
+    /* En interiores tampoco entra el TIEMPO: bajo tierra no se ve la
+       tormenta, asi que no hay motivo para virar la imagen a gris de lluvia
+       ni a naranja de atardecer. Se deja el look normal y ya. */
+    var e = (st && st.interior) ? { activo: false, estacion: null } : climaAhora();
     var base = LOOKS.normal;
     var look = base, peso = 0;
 
@@ -539,7 +551,7 @@
     }
 
     // ── La noche, encima de todo ──
-    var n = oscuridad();
+    var n = oscuridad(st);
     if (n > 0.001) {
       d.sat += NOCHE.sat * n;
       d.con += NOCHE.con * n;
@@ -635,7 +647,9 @@
     var st = {
       scene: scene, cam: cam, clave: clave, conTaps: conTaps, movil: movil,
       quieto: false, px: 0, py: 0, ultimoMovimiento: 0,
-      forzado: null, manual: null
+      forzado: null, manual: null,
+      // Ni noche ni clima: lo piden las escenas bajo techo (ver `oscuridad`).
+      interior: opciones.interior === true
     };
     scene.__gfPost = st;
     montado = st;
