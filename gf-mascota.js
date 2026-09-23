@@ -640,6 +640,8 @@
   }
 
   // ---------------------------------------------------------------- montaje
+  function sincronizarPeriodico() { sincronizar('periódico'); }
+
   function montar(scene) {
     if (!scene || !scene.add) return null;
     if (scene.__gfMascota) return scene.__gfMascota;
@@ -663,8 +665,15 @@
     scene.events.once('destroy', st.onApagar);
 
     sincronizarSiHaceFalta('entrar en ' + (scene.scene && scene.scene.key));
+    /* El reloj es de la PÁGINA y se crea con una función del MÓDULO, no con
+       una escrita aquí dentro. FUGA QUE ESTO ARREGLA: `st.onApagar` (arriba)
+       usa `scene`, así que el motor guarda `scene` en el contexto de esta
+       llamada a montar(); cualquier función creada aquí comparte ese contexto.
+       El setInterval vive toda la partida, y con él quedaba retenida PARA
+       SIEMPRE la primera escena en la que se montó la mascota (medido: tras ir
+       y volver de la tienda, esa GameScene nunca se liberaba). */
     if (!timerSync) {
-      timerSync = setInterval(function () { sincronizar('periódico'); }, SYNC_MS);
+      timerSync = setInterval(sincronizarPeriodico, SYNC_MS);
     }
     log('montado en', scene.scene && scene.scene.key);
     return st;

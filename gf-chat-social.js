@@ -430,12 +430,20 @@
       try { podarChat(doc.getElementById('chat-messages')); } catch (e) {}
     });
 
+    /* NINGÚN CIERRE DE AQUÍ PUEDE NOMBRAR `scene`.
+
+       FUGA QUE ESTO ARREGLA (vista en un heap snapshot): este oyente usaba
+       `escenaViva || scene`. Con que UN cierre de la función nombre `scene`,
+       el motor la guarda en el contexto que comparten TODOS los cierres de esa
+       llamada, y el de 'chatMessage' —colgado del socket global, que se
+       engancha una sola vez por pestaña— la arrastraba: la primera GameScene
+       no se liberaba nunca, por muchos viajes que se hicieran. */
     poner('chatReaction', function (d) {
       if (!d || !d.mid) return;
       var reg = pintados.get(d.mid);
       if (!reg) return;
       reg.msg.reacciones = d.reacciones || [];
-      pintarReacciones(escenaViva || scene, reg);
+      pintarReacciones(escenaViva, reg);
     });
 
     return s;
@@ -796,7 +804,14 @@
     // La escena viva se apunta ANTES de enlazar: si el socket ya estaba
     // enganchado, `enlazar` se va sin hacer nada y esta es la única línea que
     // corre — y es justo la que hace falta.
-    if (scene) escenaViva = scene;
+    if (scene) {
+      escenaViva = scene;
+      // Y se suelta al apagarse: si no, la escena que se fue sigue en memoria
+      // hasta que otra vuelva a montar.
+      if (scene.events && scene.events.once) {
+        scene.events.once('shutdown', function () { if (escenaViva === scene) escenaViva = null; });
+      }
+    }
     estilos();
     enlazar(scene);
     precalentarEmojis();

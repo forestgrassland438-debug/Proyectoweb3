@@ -66,11 +66,14 @@
     if (enlazado && socket === s) return true;
     if (enlazado && socket !== s) {
       log('el socket ha cambiado: reenganchando');
+      // Se sueltan los oyentes del socket viejo: si no, ese socket muerto no se
+      // puede recoger (sus oyentes lo retienen) y se acumula uno por cambio.
+      soltarOyentes();
     }
     socket = s;
     enlazado = true;
 
-    socket.on('canalAsignado', function (d) {
+    poner('canalAsignado', function (d) {
       if (!d) return;
       canal   = d.canal;
       total   = d.total || total;
@@ -81,7 +84,7 @@
       pintar();
     });
 
-    socket.on('canalesEstado', function (d) {
+    poner('canalesEstado', function (d) {
       if (!d) return;
       if (d.canal) { canal = d.canal; try { global.__gfCanalActual = canal; } catch (e) {} }
       total   = d.total || total;
@@ -90,7 +93,7 @@
       pintar();
     });
 
-    socket.on('canalCambiado', function (d) {
+    poner('canalCambiado', function (d) {
       if (!d) return;
       canal   = d.canal;
       canales = d.canales || canales;
@@ -103,7 +106,7 @@
       pintar();
     });
 
-    socket.on('canalError', function (d) {
+    poner('canalError', function (d) {
       var motivo = (d && d.motivo) || 'error';
       if (d && d.canales) canales = d.canales;
       mensaje(motivo === 'lleno'
@@ -124,11 +127,22 @@
 
        Preguntando al conectar, el dato llega siempre, y ademas se refresca
        despues de cada reconexion. */
-    socket.on('connect', function () { try { socket.emit('canalesEstado'); } catch (e) {} });
+    poner('connect', function () { try { socket.emit('canalesEstado'); } catch (e) {} });
     if (socket.connected) { try { socket.emit('canalesEstado'); } catch (e) {} }
 
     log('enlazado al socket');
     return true;
+  }
+
+  // Los oyentes que este módulo le pone al socket, para poder quitarlos.
+  var oyentes = [];
+  function poner(evento, fn) {
+    socket.on(evento, fn);
+    oyentes.push([socket, evento, fn]);
+  }
+  function soltarOyentes() {
+    oyentes.forEach(function (o) { try { o[0].off(o[1], o[2]); } catch (e) {} });
+    oyentes = [];
   }
 
   /**
@@ -177,10 +191,17 @@
     var esc = escenaViva();
     if (!esc) return;
     try {
+      /* La sala que corresponde a la escena en la que se ESTÁ. Antes solo se
+         distinguía tienda/mapa, así que cambiar de canal dentro de la mina
+         metía al jugador en la sala del mapa: un fantasma allí, y en la mina
+         nadie. */
+      var clave = esc.scene && esc.scene.key;
+      var sala = clave === 'tiendajuego' ? 'tienda'
+               : clave === 'MinaScene'   ? 'mina'
+               : 'game';
       esc.currentRoom  = null;
       esc.lastJoinTime = 0;
       if (typeof esc.clearOtherPlayers === 'function') esc.clearOtherPlayers();
-      var sala = (esc.scene && esc.scene.key === 'tiendajuego') ? 'tienda' : 'game';
       esc.joinRoom(sala);
     } catch (e) { log('no se pudo rehacer el join:', e); }
   }

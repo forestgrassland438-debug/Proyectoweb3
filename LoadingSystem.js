@@ -124,6 +124,11 @@ class LoadingSystem {
       throw new Error('LoadingSystem: no se pudo crear o encontrar #loading-overlay. Verifica que el DOM esté listo.');
     }
 
+    // FIX: un hide() anterior todavía en marcha (300 ms de pausa + el
+    // fundido) escondía ESTA pantalla recién abierta al dispararse, y el
+    // progreso volvía a 0 debajo de la nueva carga. Se cancela aquí.
+    this._cancelarOcultado();
+
     this.currentProgress = opts.initialProgress;
 
     this.overlay.style.display    = 'flex';
@@ -258,6 +263,29 @@ class LoadingSystem {
     }
   }
 
+  /**
+   * Cancela un ocultado en curso y RESUELVE sus promesas.
+   *
+   * FIX: antes se cancelaban los dos temporizadores y ya está, así que la
+   * promesa del hide() anterior no se resolvía nunca: cualquier
+   * `await hideLoadingOverlay()` que coincidiera con otro hide() o con un
+   * show() se quedaba colgado para siempre.
+   */
+  _cancelarOcultado() {
+    // El estado es COMPARTIDO entre instancias: LoadingScenegame y
+    // LoadingSceneshop crean cada una su LoadingSystem, pero las dos manejan
+    // el MISMO #loading-overlay. Con temporizadores por instancia, el hide()
+    // de la tienda escondía a los 300 ms la carga que el mapa acababa de abrir.
+    const S = LoadingSystem.ocultado;
+    if (S.pausa)   { clearTimeout(S.pausa);   S.pausa   = null; }
+    if (S.fundido) { clearTimeout(S.fundido); S.fundido = null; }
+    this._hidePauseTimeout = null;
+    this.hideTimeout       = null;
+    const pendientes = S.resolvers;
+    S.resolvers = [];
+    pendientes.forEach((r) => { try { r(); } catch (e) { /* nada */ } });
+  }
+
   // MEJ#1: hide() devuelve Promise que resuelve cuando el fade termina
   hide(fadeOutMs = 500) {
     return new Promise(resolve => {
@@ -265,24 +293,28 @@ class LoadingSystem {
 
       this.update(1);
 
-      // FIX #4: cancelar AMBOS timeouts pendientes
-      if (this._hidePauseTimeout) { clearTimeout(this._hidePauseTimeout); this._hidePauseTimeout = null; }
-      if (this.hideTimeout)       { clearTimeout(this.hideTimeout);       this.hideTimeout       = null; }
+      // FIX #4: cancelar AMBOS timeouts pendientes (y soltar a quien esperaba)
+      this._cancelarOcultado();
+      const S = LoadingSystem.ocultado;
+      S.resolvers = [resolve];
 
       // FIX #4: guardar referencia al outer timeout
-      this._hidePauseTimeout = setTimeout(() => {
-        this._hidePauseTimeout = null;
+      S.pausa = this._hidePauseTimeout = setTimeout(() => {
+        S.pausa = this._hidePauseTimeout = null;
+        if (!this.overlay) { this._cancelarOcultado(); return; }
         this.overlay.style.transition = `opacity ${fadeOutMs}ms ease`;
         this.overlay.style.opacity    = '0';
 
-        this.hideTimeout = setTimeout(() => {
-          this.hideTimeout                = null;
-          this.overlay.style.display      = 'none';
-          this.overlay.style.opacity      = '1';
-          this.overlay.style.transition   = '';
+        S.fundido = this.hideTimeout = setTimeout(() => {
+          S.fundido = this.hideTimeout    = null;
+          if (this.overlay) {
+            this.overlay.style.display      = 'none';
+            this.overlay.style.opacity      = '1';
+            this.overlay.style.transition   = '';
+          }
           this.currentProgress            = 0;
           this._updateProgressBar(0);
-          resolve(); // MEJ#1: resolver la Promise cuando el fade termina
+          this._cancelarOcultado(); // MEJ#1: resolver la Promise cuando el fade termina
         }, fadeOutMs);
       }, 300);
     });
@@ -294,8 +326,7 @@ class LoadingSystem {
     return new Promise(resolve => {
       // FIX #5: limpiar animaciones y timeouts previos antes de empezar
       this.cancelAnimation();
-      if (this._hidePauseTimeout) { clearTimeout(this._hidePauseTimeout); this._hidePauseTimeout = null; }
-      if (this.hideTimeout)       { clearTimeout(this.hideTimeout);       this.hideTimeout       = null; }
+      this._cancelarOcultado();
 
       this.show({ message, initialProgress: 0 });
 
@@ -351,9 +382,7 @@ class LoadingSystem {
 
   destroy() {
     this.cancelAnimation();
-
-    if (this._hidePauseTimeout) { clearTimeout(this._hidePauseTimeout); this._hidePauseTimeout = null; }
-    if (this.hideTimeout)       { clearTimeout(this.hideTimeout);       this.hideTimeout       = null; }
+    this._cancelarOcultado();
 
     if (this.overlay && this.overlay.parentNode) {
       this.overlay.parentNode.removeChild(this.overlay);
@@ -364,6 +393,9 @@ class LoadingSystem {
     this.textElement = null;
   }
 }
+
+// Ocultado en curso, compartido por todas las instancias (ver _cancelarOcultado).
+LoadingSystem.ocultado = { pausa: null, fundido: null, resolvers: [] };
 
 // ─── Exports ─────────────────────────────────────────────────────────────────
 

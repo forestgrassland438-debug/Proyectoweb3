@@ -125,6 +125,7 @@ class missionspanel {
     // devolvía algo, así que cuando el NPC no tenía misiones para hoy (o la
     // carga fallaba) al jugador no le pasaba absolutamente nada al hablarle:
     // ni panel, ni aviso. Ahora abre y, si no hay nada, lo dice.
+    if (!this.gameScene) return;
     let loaded = null;
     try {
       loaded = await this.gameScene.loadDailyMissions(npcId);
@@ -132,6 +133,9 @@ class missionspanel {
       console.warn('missionspanel: fallo cargando misiones:', e && e.message);
     }
 
+    // La carga es asíncrona: si mientras tanto se cambió de escena, este panel
+    // ya se destruyó (gameScene = null) y render() reventaría con un TypeError.
+    if (this.destroyed || !this.gameScene) return;
     this.render(!loaded);
     this.panel.classList.remove('hidden');
     this.overlay.classList.remove('hidden');
@@ -142,15 +146,20 @@ class missionspanel {
     this.panel.classList.add('hidden');
     this.overlay.classList.add('hidden');
 
+    // Tras destroy() no hay escena: solo se esconde el panel.
+    const gs = this.gameScene;
+    if (!gs) return;
+
     // Reanudar el juego
-    if (this.gameScene.scene.isPaused()) {
-      this.gameScene.scene.resume();
+    if (gs.scene && typeof gs.scene.isPaused === 'function' && gs.scene.isPaused()) {
+      gs.scene.resume();
     }
 
-    this.gameScene.currentNpcMission = null;
+    gs.currentNpcMission = null;
   }
 
   async refreshMissions() {
+    if (!this.gameScene) return;
     if (this.gameScene.currentNpcMission) {
       if (this.refreshButton) {
         this.refreshButton.disabled = true;
@@ -158,7 +167,7 @@ class missionspanel {
       }
       try {
         await this.gameScene.loadDailyMissions(this.gameScene.currentNpcMission);
-        this.render();
+        if (!this.destroyed && this.gameScene) this.render();
       } finally {
         if (this.refreshButton) {
           this.refreshButton.disabled = false;
@@ -273,7 +282,7 @@ class missionspanel {
    *        Se sigue pintando el panel, con el mensaje de "sin misiones".
    */
   render(fallóLaCarga = false) {
-    if (this.disabled) return;
+    if (this.disabled || !this.gameScene) return;
 
     // Sin datos (no hay misiones hoy, o la carga falló): se pinta el panel
     // vacío con su mensaje en vez de dejarlo en blanco o no abrirlo.
@@ -282,7 +291,7 @@ class missionspanel {
       return;
     }
 
-    const lang = this.gameScene.languageMap[this.gameScene.lenguaje] || 'en-US';
+    const lang = (this.gameScene.languageMap || {})[this.gameScene.lenguaje] || 'en-US';
     const esEspanol = this.gameScene.lenguaje === 3;
 
     // FIX: tolerar respuestas incompletas del backend — antes cualquier campo
@@ -570,12 +579,14 @@ class missionspanel {
         const textoOriginal = boton.textContent;
         boton.textContent = esEspanol ? 'ENVIANDO…' : 'SENDING…';
         try {
-          const hasItems = await this.gameScene.checkMissionRequirements(mission.missionId);
+          const escena = this.gameScene;
+          if (!escena) return;
+          const hasItems = await escena.checkMissionRequirements(mission.missionId);
 
           if (hasItems) {
-            await this.gameScene.completeMission(mission.missionId);
-            this.render(); // Actualizar panel después de completar
-          } else {
+            await escena.completeMission(mission.missionId);
+            if (!this.destroyed && this.gameScene) this.render(); // Actualizar panel después de completar
+          } else if (this.gameScene) {
             this.gameScene.showNotification(
               esEspanol
                 ? `No tienes los items requeridos (${nombreItem})`

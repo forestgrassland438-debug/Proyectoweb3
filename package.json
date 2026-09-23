@@ -6,7 +6,8 @@
     "test:web3": "node --test tools/web3-seguridad-prueba.cjs tools/hub-lifecycle.test.cjs",
     "build:mina": "python tools/generar-mina.py && python tools/generar-mina-mapa.py && python tools/generar-mina-tmx.py",
     "test:mina": "node tools/mina-prueba.js",
-    "test:environment": "node --test tools/environment-lifecycle.test.cjs"
+    "test:environment": "node --test tools/environment-lifecycle.test.cjs tools/environment-resources.test.cjs",
+    "test:memory": "node --test tools/scene-memory-lifecycle.test.cjs tools/audio-footprints-lifecycle.test.cjs tools/environment-resources.test.cjs"
   },
   "overrides": {
     "socket.io-parser": "4.2.7",

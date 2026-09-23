@@ -207,9 +207,15 @@
     $('gfw-w-addr').textContent = dir;
     $('gfw-w-recv-addr').textContent = dir;
 
+    // writeText devuelve una PROMESA: con try/catch a secas se decía "copiada"
+    // aunque el navegador la rechazara (permiso denegado, página sin foco) y el
+    // rechazo quedaba sin manejar.
     $('gfw-w-copy').onclick = function () {
-      try { navigator.clipboard.writeText(dir); mensaje('Address copied', 'ok'); }
-      catch (e) { mensaje('Could not copy', 'err'); }
+      try {
+        Promise.resolve(navigator.clipboard.writeText(dir))
+          .then(function () { mensaje('Address copied', 'ok'); })
+          .catch(function () { mensaje('Could not copy', 'err'); });
+      } catch (e) { mensaje('Could not copy', 'err'); }
     };
 
     // Las tres secciones se abren y cierran como un acordeón: en el móvil el
@@ -227,14 +233,18 @@
     $('gfw-w-recv-tab').onclick = function () { alternar('recv'); };
     $('gfw-w-cfg-tab').onclick  = function () { alternar('cfg'); };
 
+    // Los elementos pueden haber desaparecido cuando llega la respuesta (el
+    // panel se repinta al desbloquearse la wallet): sin comprobarlo, el
+    // TypeError del .then caía en el .catch, que volvía a fallar igual.
+    function poner(id, texto) { var el = $(id); if (el) el.textContent = texto; }
     function refrescarSaldo() {
       return wallet.getBalance().then(function (b) {
-        $('gfw-w-bal').textContent = Number(b.formatted).toFixed(4);
-        $('gfw-w-sym').textContent = b.symbol;
-        $('gfw-w-net').textContent = b.chainName + ' (id ' + b.chainId + ')';
+        poner('gfw-w-bal', Number(b.formatted).toFixed(4));
+        poner('gfw-w-sym', b.symbol);
+        poner('gfw-w-net', b.chainName + ' (id ' + b.chainId + ')');
       }).catch(function () {
-        $('gfw-w-bal').textContent = '—';
-        $('gfw-w-net').textContent = 'Network unavailable';
+        poner('gfw-w-bal', '—');
+        poner('gfw-w-net', 'Network unavailable');
       });
     }
     refrescarSaldo();
@@ -242,9 +252,9 @@
     wallet.getActivity(12).then(function (r) {
       var caja = $('gfw-w-acts');
       if (!caja) return;
-      if (!r.txs.length) {
+      if (!r || !Array.isArray(r.txs) || !r.txs.length) {
         caja.innerHTML = '<div class="gfw-w-sub" style="margin:0;">' +
-          (r.error ? 'Could not read the explorer right now.' : 'No movements yet.') + '</div>';
+          (!r || r.error ? 'Could not read the explorer right now.' : 'No movements yet.') + '</div>';
         return;
       }
       caja.innerHTML = r.txs.map(function (tx) {
@@ -414,7 +424,15 @@
 
   // Si la wallet se desbloquea más tarde (el login social termina después de
   // que se abriera el panel), se vuelve a pintar con los datos buenos.
-  window.addEventListener('gfWalletReady', function () { limpiarSecretos(); PINTADO = false; });
+  window.addEventListener('gfWalletReady', function () {
+    limpiarSecretos();
+    PINTADO = false;
+    // Si la pestaña de la cartera está abierta ahora mismo, se repinta ya: si
+    // no, seguía enseñando "Loading wallet..." o el aviso de MetaMask hasta que
+    // el jugador cambiara de pestaña y volviera.
+    var sec = $('gfw-cat-wallet');
+    if (sec && sec.style.display !== 'none' && sec.offsetParent !== null) pintar();
+  });
   document.addEventListener('visibilitychange', function () { if (document.hidden) limpiarSecretos(); });
   window.addEventListener('pagehide', limpiarSecretos);
 })();

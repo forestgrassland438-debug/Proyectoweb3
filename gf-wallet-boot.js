@@ -42,7 +42,7 @@
     if (typeof window.serverBase === 'string')  return window.serverBase;
     if (typeof window.GF_API_BASE === 'string') return window.GF_API_BASE;
     var host = window.location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1') return 'http://127.0.0.1:3001';
+    if (host === 'localhost' || host === '127.0.0.1') return 'http://127.0.0.1:8080';
     return 'https://api.grasslandforest.com';
   }
 

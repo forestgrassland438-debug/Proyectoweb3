@@ -43,7 +43,7 @@ class BlockchainManager {
      */
     async autoConfig() {
         try {
-            const baseUrl = this.scene.serverclient.replace('/api', '');
+            const baseUrl = this._baseUrl();
             const response = await fetch(`${baseUrl}/api/config`);
             
             if (response.ok) {
@@ -82,6 +82,19 @@ class BlockchainManager {
             });
         }
         return false;
+    }
+
+    /**
+     * Origen del backend SIN el sufijo /api.
+     *
+     * FIX: antes era `serverclient.replace('/api', '')`, que quita la PRIMERA
+     * aparición de "/api". En producción serverclient vale
+     * 'https://api.grasslandforest.com/api' y la primera es la del dominio
+     * ("//api.grass…"), así que salía 'https:/.grasslandforest.com/api'.
+     */
+    _baseUrl() {
+        const s = String((this.scene && (this.scene.serverclient || this.scene.serverBase)) || '');
+        return s.replace(/\/api\/?$/, '');
     }
 
     // ==================== GESTIÓN DE CONTRATOS ====================
@@ -242,7 +255,7 @@ class BlockchainManager {
         }
 
         try {
-            const baseUrl = this.scene.serverclient.replace('/api', '');
+            const baseUrl = this._baseUrl();
             const response = await fetch(`${baseUrl}/api/transaction/execute`, {
                 method: 'POST',
                 headers: {
@@ -321,7 +334,7 @@ class BlockchainManager {
      */
     async checkStatus() {
         try {
-            const baseUrl = this.scene.serverclient.replace('/api', '');
+            const baseUrl = this._baseUrl();
             const response = await fetch(`${baseUrl}/api/health`);
             
             if (response.ok) {
@@ -343,7 +356,7 @@ class BlockchainManager {
             
             if (!accessToken) return null;
 
-            const baseUrl = this.scene.serverclient.replace('/api', '');
+            const baseUrl = this._baseUrl();
             const response = await fetch(`${baseUrl}/api/user/data`, {
                 headers: {
                     'Authorization': 'Bearer ' + accessToken

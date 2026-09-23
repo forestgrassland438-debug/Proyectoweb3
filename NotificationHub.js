@@ -205,7 +205,7 @@ class NotificationHub {
                 clearTimeout(notification.timer);
             }
             
-            const displayDuration = options.duration !== null ? options.duration : this.config.visibleDuration;
+            const displayDuration = this._duracion(options.duration);
             notification.expiresAt = displayDuration > 0 ? Date.now() + displayDuration : null;
             
             if (displayDuration > 0) {
@@ -238,6 +238,21 @@ class NotificationHub {
             this._handleError('_updateExistingNotification', e);
             return null;
         }
+    }
+
+    /**
+     * Cuánto dura una notificación.
+     *
+     * FIX: antes era `duration !== null ? duration : visibleDuration`. Con un
+     * `{ duration: undefined }` (una variable sin valor en quien llama) salía
+     * `undefined`: no se ponía temporizador ni caducidad y la notificación se
+     * quedaba en pantalla PARA SIEMPRE — y al repetirse, la ya visible perdía
+     * su temporizador y también. Un 0 explícito sigue significando "no se va
+     * sola".
+     * @private
+     */
+    _duracion(d) {
+        return (typeof d === 'number' && Number.isFinite(d) && d >= 0) ? d : this.config.visibleDuration;
     }
 
     /**
@@ -339,6 +354,11 @@ class NotificationHub {
 
             this.isInitialized = true;
             this._hubElement = hub;
+            this._destroyed = false;
+            NotificationHub._vivos.add(this);
+            NotificationHub._ultima = this;
+            // La posición que eligió el jugador vale para todas las instancias.
+            if (NotificationHub._prefs.position) this._aplicarPosicion(NotificationHub._prefs.position);
 
             // Botón flotante ⚙️/🔔 para abrir el panel de control (una sola vez global).
             this._ensureSettingsButton();
@@ -809,15 +829,14 @@ class NotificationHub {
             this.initialize();
 
             // Historial para el panel de control (se guarda SIEMPRE, aunque el
-            // tipo esté oculto).
-            this._history = this._history || [];
-            this._history.unshift({ message: String(message), type, at: Date.now() });
-            if (this._history.length > 60) this._history.length = 60;
+            // tipo esté oculto). Es COMPARTIDO entre instancias: ver _prefs.
+            const prefs = NotificationHub._prefs;
+            prefs.history.unshift({ message: String(message), type, at: Date.now() });
+            if (prefs.history.length > 60) prefs.history.length = 60;
 
             // Filtro por tipo (panel de control): si el jugador desactivó este
             // tipo, no se muestra (pero sí queda en el historial).
-            this._enabledTypes = this._enabledTypes || { success: true, error: true, warning: true, info: true };
-            if (this._enabledTypes[type] === false) return null;
+            if (prefs.enabledTypes[type] === false) return null;
 
             // Validar y mezclar opciones
             const defaultOptions = {
@@ -854,7 +873,7 @@ class NotificationHub {
             }
 
             const notificationId = `notification-${++this.notificationCounter}`;
-            const displayDuration = opts.duration !== null ? opts.duration : this.config.visibleDuration;
+            const displayDuration = this._duracion(opts.duration);
 
             // Crear elemento
             const notificationElement = document.createElement('div');
@@ -1201,11 +1220,23 @@ class NotificationHub {
             this._stopAutoCleanup();
             this.hideAllNotifications();
 
-            const hub = document.getElementById('notification-hub');
-            if (hub) hub.remove();
-            
-            const styleTag = document.getElementById(this._styleId);
-            if (styleTag) styleTag.remove();
+            /* SOLO LO PROPIO. Antes se quitaba `getElementById('notification-hub')`
+               —el PRIMERO con ese id, que podía ser el de otra instancia viva (la
+               del relay, la de la otra escena)— y la hoja de estilos compartida,
+               con lo que las notificaciones de las demás se quedaban sin estilo
+               hasta recargar. */
+            if (this._hubElement && this._hubElement.parentNode) this._hubElement.remove();
+            this._destroyed = true;
+            NotificationHub._vivos.delete(this);
+            if (NotificationHub._ultima === this) {
+                let otra = null;
+                NotificationHub._vivos.forEach((h) => { otra = h; });
+                NotificationHub._ultima = otra;
+            }
+            if (NotificationHub._vivos.size === 0) {
+                const styleTag = document.getElementById(this._styleId);
+                if (styleTag) styleTag.remove();
+            }
 
             this.notifications.clear();
             this.pools.clear();
@@ -1221,6 +1252,22 @@ class NotificationHub {
      * Métodos estáticos para gestión global
      */
     static instances = new Map();
+
+    /* Instancias con hub montado, y la última que se montó. La campana del HUD
+       se crea UNA vez y sobrevive a las escenas: si abriera el panel de la
+       instancia que la creó, tras cambiar de escena los ajustes se aplicarían
+       a un hub ya destruido y no harían nada. Abre el de la instancia viva. */
+    static _vivos = new Set();
+    static _ultima = null;
+
+    /* Preferencias del panel (tipos visibles, posición e historial). Son de la
+       SESIÓN, no de una escena: antes vivían en cada instancia y se perdían en
+       cada ida y vuelta a la tienda. Siguen sin guardarse en el navegador. */
+    static _prefs = {
+        enabledTypes: { success: true, error: true, warning: true, info: true },
+        history: [],
+        position: null
+    };
 
     /**
      * Obtiene o crea una instancia con nombre
@@ -1274,13 +1321,19 @@ class NotificationHub {
     // Nota: las preferencias son POR SESIÓN (no se guardan en localStorage,
     // pedido del usuario de no usar storage). Se reinician al recargar.
     setTypeEnabled(type, on) {
-        this._enabledTypes = this._enabledTypes || { success: true, error: true, warning: true, info: true };
-        this._enabledTypes[type] = !!on;
+        if (!_TIPOS_NOTIF[type]) return;
+        NotificationHub._prefs.enabledTypes[type] = !!on;
     }
-    getHistory() { return (this._history || []).slice(); }
+    getHistory() { return NotificationHub._prefs.history.slice(); }
     setPosition(pos) {
         const valid = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
         if (valid.indexOf(pos) === -1) return;
+        NotificationHub._prefs.position = pos;
+        // A todas las instancias vivas: todas pintan en la misma esquina.
+        NotificationHub._vivos.forEach((h) => { if (h !== this) h._aplicarPosicion(pos); });
+        this._aplicarPosicion(pos);
+    }
+    _aplicarPosicion(pos) {
         this.config.position = pos;
         if (this._hubElement) {
             const s = this._hubElement.style;
@@ -1325,7 +1378,11 @@ class NotificationHub {
             btn.innerHTML =
                 '<span style="font-size:20px;display:flex;align-items:center;justify-content:center;width:100%;height:100%">🔔</span>' +
                 '<span class="label-badge">Notifications</span>';
-            btn.addEventListener('click', (e) => { e.preventDefault(); this.openSettingsPanel(); });
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const viva = NotificationHub._ultima;
+                (viva && !viva._destroyed ? viva : this).openSettingsPanel();
+            });
             container.appendChild(btn);
         } catch (e) { /* no crítico */ }
     }
@@ -1334,7 +1391,7 @@ class NotificationHub {
         try {
             const existing = document.getElementById('gf-notif-panel');
             if (existing) { existing.remove(); return; } // toggle
-            this._enabledTypes = this._enabledTypes || { success: true, error: true, warning: true, info: true };
+            const tipos = NotificationHub._prefs.enabledTypes;
 
             const el = document.createElement('div');
             el.id = 'gf-notif-panel';
@@ -1350,7 +1407,7 @@ class NotificationHub {
             const TYPES = [['success', 'Success'], ['error', 'Errors'], ['warning', 'Warnings'], ['info', 'Info']];
             let typesHtml = '';
             for (const [t, label] of TYPES) {
-                const on = this._enabledTypes[t] !== false;
+                const on = tipos[t] !== false;
                 typesHtml += `<label style="display:flex;align-items:center;gap:8px;margin:4px 0;cursor:pointer;">
                     <input type="checkbox" data-type="${t}" ${on ? 'checked' : ''}/> Show ${label}
                 </label>`;
@@ -1394,7 +1451,7 @@ class NotificationHub {
             });
             el.querySelector('#gf-notif-pos').addEventListener('change', (e) => this.setPosition(e.target.value));
             el.querySelector('#gf-notif-clearhist').addEventListener('click', () => {
-                this._history = [];
+                NotificationHub._prefs.history = [];
                 el.remove();              // cerrar y volver a abrir ya vacío
                 this.openSettingsPanel();
             });

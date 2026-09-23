@@ -833,7 +833,7 @@
       <h2 data-i18n="sell_title">Publicar objeto</h2>
       <p class="sub" data-i18n="sell_sub">Se retirará del juego mientras esté publicado. Si cancelas la publicación, vuelve a tu inventario.</p>
       <div class="modal-item">
-        <img id="sell-item-icon" src="" alt="">
+        <img id="sell-item-icon" alt="">
         <div>
           <div class="name" id="sell-item-name">—</div>
           <div class="cat" id="sell-item-cat">—</div>
@@ -877,7 +877,7 @@
       <h2 data-i18n="buy_title">Comprar objeto</h2>
       <p class="sub"><span data-i18n="sold_by">Vendido por</span> <span id="buy-seller">—</span></p>
       <div class="modal-item">
-        <img id="buy-item-icon" src="" alt="">
+        <img id="buy-item-icon" alt="">
         <div>
           <div class="name" id="buy-item-name">—</div>
           <div class="cat" id="buy-item-cat">—</div>
@@ -944,7 +944,7 @@
   <div class="modal-backdrop" id="profile-modal">
     <div class="modal profile-modal">
       <h2 data-i18n="prof_title">Perfil del jugador</h2>
-      <div id="profile-body"><div class="prof-loading" data-i18n="loading">Cargando...</div></div>
+      <div id="profile-body"><div class="prof-loading" data-i18n="prof_loading">Cargando...</div></div>
       <div class="modal-actions">
         <button class="btn-cancel-modal" id="profile-close" data-i18n="close">Cerrar</button>
       </div>
@@ -1013,7 +1013,7 @@
       adm_confirm_del:'¿Eliminar este lote limitado?',
       prof_title:'Perfil del jugador', prof_items:'Objetos que posee', prof_none:'No tiene objetos visibles',
       prof_level:'Nivel', prof_missions:'Misiones', prof_pet:'Mascota', prof_total:'Objetos',
-      close:'Cerrar', loading:'Cargando…',
+      close:'Cerrar', prof_loading:'Cargando…',
       m_market:'Mercado', m_sell:'Inventario', m_mine:'Mío', m_history:'Historial',
       search_ph:'Buscar objetos…',
       sort_recent:'Más recientes', sort_price_asc:'Precio: menor a mayor', sort_price_desc:'Precio: mayor a menor',
@@ -1084,7 +1084,7 @@
       adm_confirm_del:'Delete this limited drop?',
       prof_title:'Player profile', prof_items:'Items they own', prof_none:'No visible items',
       prof_level:'Level', prof_missions:'Missions', prof_pet:'Pet', prof_total:'Items',
-      close:'Close', loading:'Loading…',
+      close:'Close', prof_loading:'Loading…',
       m_market:'Market', m_sell:'Inventory', m_mine:'Mine', m_history:'History',
       search_ph:'Search items…',
       sort_recent:'Newest', sort_price_asc:'Price: low to high', sort_price_desc:'Price: high to low',
@@ -1930,7 +1930,7 @@
     if (!clave) return;
     const modal = document.getElementById('profile-modal');
     const body  = document.getElementById('profile-body');
-    body.innerHTML = `<div class="prof-loading">${escapeHtml(t('loading'))}</div>`;
+    body.innerHTML = `<div class="prof-loading">${escapeHtml(t('prof_loading'))}</div>`;
     modal.classList.add('show');
 
     try{

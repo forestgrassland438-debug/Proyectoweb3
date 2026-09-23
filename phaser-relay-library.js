@@ -185,7 +185,7 @@
       if (!apiBase) {
         // Auto-detectar: si estamos en HTTPS, usar HTTPS; si en HTTP, HTTP
         const isSecure = typeof location !== 'undefined' && location.protocol === 'https:';
-        apiBase = isSecure ? 'https://127.0.0.1:3001' : 'http://127.0.0.1:3001';
+        apiBase = isSecure ? 'https://127.0.0.1:8080' : 'http://127.0.0.1:8080';
       }
 
       const base = new URL(apiBase, typeof location !== 'undefined' ? location.href : undefined);
@@ -370,7 +370,10 @@
             address:    resp.address,
             playerName: resp.playerName || resp.address
           };
-          this.startAutoRefresh();
+          // Solo si no estaba ya en marcha. checkAuth() se llama antes de CADA
+          // transacción, y startAutoRefresh() reinicia el reloj de 4 minutos:
+          // talando o minando seguido, el refresco no llegaba a dispararse nunca.
+          if (!this._autoRefreshInterval) this.startAutoRefresh();
           return { success: true, ...this.auth };
         }
         this.auth = { authenticated: false, address: null, playerName: null };
@@ -610,10 +613,14 @@
 
       try {
         const resp = await this._apiRequest(`/api/relay/contract/${contractAddress}/abi`, 'GET');
-        if (resp && resp.abi) {
+        if (resp && Array.isArray(resp.abi)) {
           this.contractsCache.set(key, { address: contractAddress, name: resp.name || null, abi: resp.abi });
           return resp.abi;
         }
+        // Respuesta sin ABI: antes se devolvía `undefined` y quien llamaba
+        // reventaba después con "abi.find is not a function". Se trata como un
+        // fallo para pasar por la lista de contratos.
+        throw new Error('respuesta sin ABI');
       } catch (e) {
         await this.fetchContractList().catch(() => {});
         const fresh = this.contractsCache.get(key);
@@ -902,6 +909,9 @@
       let attempts    = 0;
 
       while (true) {
+        // Tras cleanup() no hay nada que esperar: antes se seguía sondeando
+        // (cada petición fallaba al instante) hasta agotar el minuto entero.
+        if (this._destroyed) throw new Error('PhaserRelay has been cleaned up');
         attempts++;
         const elapsed = Date.now() - startTime;
 
@@ -1760,6 +1770,7 @@
 
       for (let i = 0; i < attempts; i++) {
         await new Promise(r => setTimeout(r, delayMs));
+        if (this._destroyed) break;
         try {
           const current = await this.readView(contractAddress, readFunctionNameOrNull, readParams);
           const verified = typeof verifyPredicate === 'function'

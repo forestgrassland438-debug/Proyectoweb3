@@ -245,10 +245,25 @@
     doc.addEventListener(ev, function (e) { e.preventDefault(); });
   });
   // Doble toque rápido = zoom en iOS. Se anula sin romper el toque simple.
+  //
+  // FIX: el preventDefault de un `touchend` también cancela el CLIC que el
+  // navegador genera después, así que el segundo toque rápido sobre un botón
+  // se perdía: el "+" de cantidad de la tienda, el ataque de la batalla, las
+  // casillas del inventario… En los controles no hace falta, porque
+  // styless.css ya les pone `touch-action: manipulation` (que desactiva el zoom
+  // por doble toque de verdad); aquí solo queda de red para el resto.
+  // Las monedas y el retrato del HUD también se tocan como botones aunque
+  // sean <div>: sin ellos aquí, el segundo toque rápido (cerrar el hub de
+  // monedas y volver a abrirlo) se cancelaba y "no hacía nada".
+  var CONTROLES = 'button, a, input, select, textarea, label, [role="button"], ' +
+                  '[onclick], .inv-slot, .quick-slot, .item-card, .btn, ' +
+                  '.coin-stack, .clock-stack, #hub-image-container, #hub-image';
   var ultimoToque = 0;
   doc.addEventListener('touchend', function (e) {
     var ahora = Date.now();
-    if (ahora - ultimoToque < 320 && e.cancelable) e.preventDefault();
+    var t = e.target;
+    var esControl = !!(t && t.closest && t.closest(CONTROLES));
+    if (!esControl && ahora - ultimoToque < 320 && e.cancelable) e.preventDefault();
     ultimoToque = ahora;
   }, { passive: false });
 

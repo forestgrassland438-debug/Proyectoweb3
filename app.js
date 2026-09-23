@@ -1126,6 +1126,43 @@
       runtime.game = game;
       IsolationSystem.registerGame(game);
 
+      /* UNA EXCEPCIÓN EN UN update() NO PUEDE CONGELAR EL JUEGO.
+
+         El bucle de Phaser pide el fotograma siguiente DESPUÉS de dar el paso
+         (`callback(t), isRunning && requestAnimationFrame(paso)`): si el paso
+         lanza, no se vuelve a pedir y el juego se queda CONGELADO para siempre,
+         sin más salida que recargar. Encima el gestor de escenas deja
+         `isProcessing` en true. Medido: un TypeError en GameScene.update al
+         volver de una batalla dejaba el mapa quieto y ningún cambio de escena
+         volvía a funcionar.
+
+         Se envuelve el paso: el error se cuenta por consola (una vez por
+         mensaje, para no escribir 60 por segundo; console.error lo recoge
+         también el reportero de errores) y el bucle sigue vivo. Va en la
+         instancia y antes del arranque: `Game.start()` hace
+         `loop.start(this.step.bind(this))` tras el evento READY. */
+      (function blindarPaso(g) {
+        var pasoOriginal = g && g.step;
+        if (typeof pasoOriginal !== 'function' || pasoOriginal.__gfBlindado) return;
+        var vistos = Object.create(null), avisos = 0;
+        var blindado = function (time, delta) {
+          try {
+            return pasoOriginal.call(this, time, delta);
+          } catch (err) {
+            try { if (this.scene) this.scene.isProcessing = false; } catch (e) {}
+            var clave = String((err && err.message) || err);
+            if (!vistos[clave] && avisos < 50) {
+              vistos[clave] = true; avisos++;
+              try { console.error('[GF] Error en el bucle del juego (el juego sigue):', err); } catch (e) {}
+            }
+          }
+        };
+        blindado.__gfBlindado = true;
+        g.step = blindado;
+        // Por si el bucle ya hubiera arrancado con el paso sin envolver.
+        try { if (g.loop && g.loop.callback) g.loop.callback = blindado.bind(g); } catch (e) {}
+      })(game);
+
       // Referencia global al juego.
       // FIX: varios módulos ya la daban por hecha (CraftingHub.js usa
       // `window.game?.scene?.keys?.GameScene` en debugCraftingSystem,

@@ -541,9 +541,14 @@ window.hub = new hub({
   // 🔧 URL base del backend:
   // FIX: antes estaba fija en http://127.0.0.1:3001, lo que rompía las
   // peticiones en producción (apuntaban al localhost del visitante).
-  // Ahora solo se usa el puerto 3001 cuando la página se sirve desde
-  // localhost (desarrollo); en cualquier otro host se usa el mismo origen.
-  baseUrl: (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-    ? 'http://127.0.0.1:3001'
-    : ''
+  // Ahora solo se usa el backend local cuando la página se sirve desde
+  // localhost (desarrollo).
+  // FIX 2026-09-22: el backend local escucha en el 8080 (PORT por defecto de
+  // server2.js, el mismo que usan las escenas), no en el 3001. Y en producción
+  // el "mismo origen" ('') es game.grasslandforest.com — GitHub Pages, donde
+  // no hay API —, así que se apunta a la API pública como el resto del juego.
+  baseUrl: (typeof window.GF_API_BASE === 'string') ? window.GF_API_BASE
+    : (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+      ? 'http://127.0.0.1:8080'
+      : 'https://api.grasslandforest.com'
 });

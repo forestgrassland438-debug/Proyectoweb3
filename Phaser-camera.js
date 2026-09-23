@@ -90,6 +90,13 @@ class RulerOverlay {
       this._onSceneUpdate = this._onSceneUpdate.bind(this);
       this._onResize      = this._onResize.bind(this);
 
+      // Se desmonta solo con la escena: Phaser no borra los oyentes de
+      // scene.events ni de scale al apagar, así que sin esto el 'update' y el
+      // 'resize' seguían enganchados a una escena reutilizada.
+      this.destroy = this.destroy.bind(this);
+      this.scene.events.once('shutdown', this.destroy);
+      this.scene.events.once('destroy',  this.destroy);
+
       this._setupCameraImmediately();
 
       // FIX #3: guardar referencia para cancelar si destroy() se llama antes de 100ms
@@ -320,7 +327,12 @@ class RulerOverlay {
 
   destroy() {
     try {
+      if (this._destroyed) return;
       this._destroyed = true; // MEJ#1: marcar primero
+      if (this.scene && this.scene.events) {
+        this.scene.events.off('shutdown', this.destroy);
+        this.scene.events.off('destroy',  this.destroy);
+      }
 
       // FIX #3: cancelar el delayed call si aún no se disparó
       if (this._initDelayedCall) {

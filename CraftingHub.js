@@ -58,7 +58,14 @@ class CraftingSystem {
 
   // FIX 6: lógica de espacio corregida
   canAddItemToInventory(itemId, quantity) {
-    const isStackable = this.isItemStackable(itemId);
+    // FIX: el tope por casilla era siempre 99, pero el inventario de verdad
+    // apila según ItemDefinitions (20 palos, 50 maderas, 5 hachas…), que es lo
+    // que usa ejecutarDivision al entregar. Con 99 se daba por bueno un
+    // crafteo que luego no cabía: se gastaban los materiales y había que
+    // devolverlos. Se usa el maxStack real cuando se conoce.
+    const def = this.scene && this.scene.ItemDefinitions && this.scene.ItemDefinitions[itemId];
+    const maxDef = def ? Number(def.maxStack) : NaN;
+    const tope = (maxDef > 0) ? maxDef : (this.isItemStackable(itemId) ? this._maxStackSize : 1);
     let availableSpace = 0;
     if (this.scene && this.scene.STATE) {
       const allSlots = [
@@ -68,10 +75,10 @@ class CraftingSystem {
       ];
       allSlots.forEach(slot => {
         if (!slot) {
-          availableSpace += isStackable ? this._maxStackSize : 1;
-        } else if (slot.id === itemId && isStackable) {
+          availableSpace += tope;
+        } else if (slot.id === itemId && tope > 1) {
           const cur = parseInt(slot.quantity||slot.count)||1;
-          availableSpace += Math.max(0, this._maxStackSize - cur);
+          availableSpace += Math.max(0, tope - cur);
         }
       });
     }
@@ -699,6 +706,13 @@ class CraftingSystem {
         if(!(await this.removePlayerItem(opt.itemId,total))){this.showFeedback('Error consuming resources','error');return;}
         materialesConsumidos.push({itemId:opt.itemId,quantity:total,name:opt.name||opt.itemId});
       } else {
+        // FIX: si falla el descuento del 2º material, los que YA se gastaron se
+        // devuelven. Antes se salía con un `return` y el primero se perdía
+        // (hacha: el tablón descontado, el palo no, y ni hacha ni tablón).
+        const abortarDevolviendo = async (msg) => {
+          await this._devolverMateriales(materialesConsumidos);
+          this.showFeedback(msg + (materialesConsumidos.length ? ' Your materials were returned.' : ''), 'error');
+        };
         // Se comprueba TODO antes de consumir nada: si falta un material no se
         // gasta ninguno de los otros.
         for(const resource of (recipe.resources||[])){
@@ -716,14 +730,14 @@ class CraftingSystem {
 
         for(const resource of (recipe.resources||[])){
           const total=resource.quantity*quantity;
-          if(!(await this.removePlayerItem(resource.itemId,total))){this.showFeedback('Error consuming resources','error');return;}
+          if(!(await this.removePlayerItem(resource.itemId,total))){await abortarDevolviendo('Error consuming resources.');return;}
           materialesConsumidos.push({itemId:resource.itemId,quantity:total,name:resource.name||resource.itemId});
         }
         if(recipe.optionalResources?.length&&optional!==null&&optional!==undefined){
           const opt=recipe.optionalResources[0]?.[optional];
           if(opt){
             const total=opt.quantity*quantity;
-            if(!(await this.removePlayerItem(opt.itemId,total))){this.showFeedback('Error consuming optional resource','error');return;}
+            if(!(await this.removePlayerItem(opt.itemId,total))){await abortarDevolviendo('Error consuming optional resource.');return;}
             materialesConsumidos.push({itemId:opt.itemId,quantity:total,name:opt.name||opt.itemId});
           }
         }
@@ -1203,7 +1217,14 @@ class CraftingSystem {
 
   enablePhaserInput() {
     if(!this.scene?.input?.keyboard) return;
-    try{this.scene.input.keyboard.enabled=this._phaserInputPreviouslyEnabled??true;this._phaserInputPreviouslyEnabled=null;}
+    // Si la escena sabe decir si queda otro panel de escritura abierto, manda
+    // ella: "el estado de antes" podía ser "apagado" por otro panel y dejar el
+    // teclado muerto al cerrar los dos (ver GameScene._tecladoLibre).
+    try{
+      const libre = typeof this.scene._tecladoLibre === 'function' ? this.scene._tecladoLibre() : null;
+      this.scene.input.keyboard.enabled = libre !== null ? libre : (this._phaserInputPreviouslyEnabled ?? true);
+      this._phaserInputPreviouslyEnabled=null;
+    }
     catch(e){console.warn('No se pudo reactivar input de Phaser:',e);}
   }
 

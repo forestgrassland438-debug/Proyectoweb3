@@ -48,6 +48,16 @@ class TransactionSystem {
         this._destroyed = false;
     }
 
+    /**
+     * Origen del backend SIN el sufijo /api.
+     * FIX: `serverclient.replace('/api', '')` quitaba la PRIMERA aparición, que
+     * en producción es la del dominio: 'https://api.grasslandforest.com/api'
+     * acababa en 'https:/.grasslandforest.com/api'.
+     */
+    _baseUrl() {
+        return String(this.serverclient || '').replace(/\/api\/?$/, '');
+    }
+
     async initialize() {
         try {
             console.log('🔗 Inicializando TransactionSystem...');
@@ -68,7 +78,7 @@ class TransactionSystem {
 
     async loadServerConfig() {
         try {
-            const baseUrl = this.serverclient.replace('/api', '');
+            const baseUrl = this._baseUrl();
             const resp = await fetch(`${baseUrl}/api/config`);
             
             if (!resp.ok) throw new Error('No se pudo cargar la configuración');
@@ -128,7 +138,7 @@ class TransactionSystem {
             throw new Error('No hay token de acceso');
         }
 
-        const baseUrl = this.serverclient.replace('/api', '');
+        const baseUrl = this._baseUrl();
         const resp = await fetch(`${baseUrl}/api/user/data`, {
             method: 'GET',
             headers: { 
@@ -286,7 +296,7 @@ class TransactionSystem {
     }
 
     async executeTransaction(transactionData) {
-        const baseUrl = this.serverclient.replace('/api', '');
+        const baseUrl = this._baseUrl();
         
         console.log('📤 Enviando transacción:', transactionData);
         
@@ -396,18 +406,24 @@ class TransactionSystem {
     }
 
     createFallbackNotificationSystem() {
+        // La escena puede no tener showToast (o haberse ido: destroy() la pone
+        // a null) y el aviso no debe convertirse en un TypeError.
+        const toast = (m) => {
+            const sc = this.scene;
+            if (sc && typeof sc.showToast === 'function') { try { sc.showToast(m); } catch (e) { /* nada */ } }
+        };
         this.txHub = {
             showPending: (msg) => {
                 console.log('📝 Pending:', msg);
-                this.scene.showToast('⏳ ' + msg);
+                toast('⏳ ' + msg);
             },
             showCompleted: (txHash, msg) => {
                 console.log('✅ Completed:', txHash, msg);
-                this.scene.showToast('✅ ' + (msg || 'Transacción completada'));
+                toast('✅ ' + (msg || 'Transacción completada'));
             },
             showError: (msg) => {
                 console.log('❌ Error:', msg);
-                this.scene.showToast('❌ ' + msg);
+                toast('❌ ' + msg);
             },
             hideNotification: () => {
                 console.log('🗑️ Notification hidden');
@@ -431,7 +447,7 @@ class TransactionSystem {
                 this.socket.disconnect();
             }
 
-            const socketUrl = this.serverclient.replace('/api', '');
+            const socketUrl = this._baseUrl();
             this.socket = window.io(socketUrl, {
                 transports: ['websocket', 'polling']
             });

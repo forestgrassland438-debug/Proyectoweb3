@@ -176,6 +176,23 @@
     return Math.max(0, Math.round(px / (tileSize || 2048)));
   }
 
+  /* El anillo de precarga del terreno EN PÍXELES, para los gestores creados
+     con `marginPx` (GameScene). Escala con la barra y en el valor por defecto
+     (12 chunks) da justo los 1100 px con los que nace el mapa, así que quien
+     no toque la barra ve lo mismo de siempre. Por debajo de 256 px el borde
+     del terreno llegaría a verse con la cámara en movimiento. */
+  var TERRENO_PX_DEFECTO = 1100;
+  var TERRENO_PX_MIN     = 256;
+  function margenDePx(chunks) {
+    return Math.max(TERRENO_PX_MIN, Math.round(chunks * TERRENO_PX_DEFECTO / 12));
+  }
+
+  /* ¿Este gestor mide el anillo en píxeles? Entonces `margin` (tiles) no lo
+     lee nadie y hay que usar setMarginPx — ver lib/tileManager.js. */
+  function usaPx(tm) {
+    return typeof tm.marginPx === 'number' && typeof tm.setMarginPx === 'function';
+  }
+
   function aplicarATerreno(escena) {
     var tms = escena._tileManagers;
     if (!tms || !tms.length) return false;
@@ -189,7 +206,10 @@
         if (typeof tm.setLOD === 'function' && tm.chosenLOD !== lod) {
           if (tm.setLOD(lod)) tocado = true;
         }
-        if (typeof tm.setMargin === 'function') {
+        if (usaPx(tm)) {
+          var px = margenDePx(ajustes.chunks);
+          if (tm.marginPx !== px && tm.setMarginPx(px)) tocado = true;
+        } else if (typeof tm.setMargin === 'function') {
           var m = margenDeTiles(ajustes.chunks, tm.tileSize);
           if (tm.margin !== m && tm.setMargin(m)) tocado = true;
         }
@@ -220,7 +240,9 @@
       var tm = tms[i];
       if (!tm) continue;
       if (tm.chosenLOD !== lod) return true;
-      if (tm.margin !== margenDeTiles(ajustes.chunks, tm.tileSize)) return true;
+      if (usaPx(tm)) {
+        if (tm.marginPx !== margenDePx(ajustes.chunks)) return true;
+      } else if (tm.margin !== margenDeTiles(ajustes.chunks, tm.tileSize)) return true;
     }
     return false;
   }

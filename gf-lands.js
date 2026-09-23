@@ -194,6 +194,10 @@
     escena._cambiandoEscena = true;
     recordarVuelta(escena);
     log('a la isla desde', escena.sys.settings.key);
+    // Al apagarse, la escena entra en la sala de su destino (ver
+    // _salaAlSalir en GameScene y tiendajuego). Sin esto, el jugador que se
+    // iba a la isla quedaba como fantasma en la tienda o en el mapa.
+    escena._salaDestino = 'isla';
 
     escena.mundo = 4;
     var irYa = function () {
@@ -260,6 +264,30 @@
    * Engancha el boton a ESTA escena y le pone el icono que toca.
    * Lo llaman los create() de GameScene, tiendajuego, MinaScene y LandsScene.
    */
+  /* EL BOTÓN APUNTA A LA ESCENA VIVA, NO A LA QUE LO ENGANCHÓ.
+
+     FALLO QUE ESTO ARREGLA: el manejador era un cierre sobre `escena`. En la
+     tienda (que no tiene `_bindDomClick`) se ponía con `b.onclick = accion`, y
+     al volver al mapa GameScene añadía el suyo con addEventListener SIN quitar
+     aquel `onclick`. Desde entonces cada clic en el botón de las islas lanzaba
+     DOS viajes: uno desde el mapa y otro desde la tienda ya destruida. Y ese
+     `onclick` viejo mantenía la tienda entera en memoria (visto en un heap
+     snapshot: #lands-btn → onclick → accion → escena).
+
+     Ahora el manejador es del módulo y mira `escenaBoton` en el momento; el
+     `onclick` se borra siempre que se engancha por `_bindDomClick`, y la
+     escena se suelta al apagarse. */
+  var escenaBoton = null;
+  var enLaIslaBoton = false;
+
+  function accionBoton(ev) {
+    if (ev && ev.stopPropagation) ev.stopPropagation();
+    var escena = escenaBoton;
+    if (!escena || !escena.sys) return;
+    if (enLaIslaBoton) volver(escena);
+    else ir(escena);
+  }
+
   function montar(escena) {
     var b = boton();
     if (!b) {
@@ -270,20 +298,22 @@
     try { enLaIsla = escena.sys.settings.key === CLAVE_ISLA; } catch (e) {}
 
     pintarIcono(enLaIsla);
+    escenaBoton = escena;
+    enLaIslaBoton = enLaIsla;
+    if (escena.events && escena.events.once) {
+      escena.events.once('shutdown', function () {
+        if (escenaBoton === escena) escenaBoton = null;
+      });
+    }
 
-    var accion = function (ev) {
-      if (ev && ev.stopPropagation) ev.stopPropagation();
-      if (enLaIsla) volver(escena);
-      else ir(escena);
-    };
-
-    // `_bindDomClick` (GameScene y herederas) ya es idempotente. `tiendajuego`
-    // no lo tiene, asi que alli se usa `onclick`, que tambien pisa el anterior
-    // en vez de acumularlo.
+    // `_bindDomClick` (GameScene y herederas) ya es idempotente y lo suelta al
+    // apagar la escena. `tiendajuego` no lo tiene, asi que alli se usa
+    // `onclick`, que pisa el anterior en vez de acumularlo.
     if (typeof escena._bindDomClick === 'function') {
-      escena._bindDomClick(b, 'lands', accion);
+      b.onclick = null;
+      escena._bindDomClick(b, 'lands', accionBoton);
     } else {
-      b.onclick = accion;
+      b.onclick = accionBoton;
     }
   }
 

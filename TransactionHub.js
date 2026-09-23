@@ -144,7 +144,9 @@ class TransactionHub {
             document.body.appendChild(hub);
 
             this.isInitialized = true;
-            this.currentNotification = document.getElementById('tx-current-notification');
+            // Del PROPIO panel: con getElementById, una segunda instancia cogía el
+            // de la primera (mismo id) y las dos pintaban en el mismo sitio.
+            this.currentNotification = hub.querySelector('.tx-notification');
 
             // referencias rápidas
             this._hubElement = hub;
@@ -426,7 +428,8 @@ class TransactionHub {
             if (this._readyHandler) document.removeEventListener('DOMContentLoaded', this._readyHandler);
             this._readyHandler = null;
 
-            const hub = document.getElementById('transaction-hub');
+            // El panel de ESTA instancia, no el primero que tenga el id.
+            const hub = this._hubElement || document.getElementById('transaction-hub');
             if (hub) hub.remove();
             const styleTag = document.getElementById(this._styleId);
             if (styleTag) styleTag.remove();

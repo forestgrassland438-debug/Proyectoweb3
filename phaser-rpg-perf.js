@@ -410,17 +410,20 @@
 
     start(key) {
       if (typeof key !== 'string' || key.length > 160 || this._destroyed) return;
-      const previous = this.metrics.get(key);
-      if (!previous && this.metrics.size >= 256) this.metrics.delete(this.metrics.keys().next().value);
-      this.metrics.set(key, {
-        total: previous?.total || 0,
-        completed: previous?.completed || 0,
-        running: true,
-        start:    performance.now(),
-        end:      0,
-        duration: 0,
-        calls:    (this.metrics.get(key)?.calls || 0) + 1
-      });
+      // Se REUTILIZA el registro de la clave. Antes se creaba un objeto nuevo
+      // en cada llamada, y 'frame' se mide en CADA fotograma: 60 objetos por
+      // segundo para el recolector de basura, durante toda la partida.
+      let m = this.metrics.get(key);
+      if (!m) {
+        if (this.metrics.size >= 256) this.metrics.delete(this.metrics.keys().next().value);
+        m = { total: 0, completed: 0, running: false, start: 0, end: 0, duration: 0, calls: 0 };
+        this.metrics.set(key, m);
+      }
+      m.running  = true;
+      m.start    = performance.now();
+      m.end      = 0;
+      m.duration = 0;
+      m.calls++;
     }
 
     end(key) {
@@ -507,19 +510,25 @@
 
     _analyzePerformanceTrends() {
       if (this.frameTimes.length < DEFAULTS.minFramesForSpikeAnalysis || !this._spikeDetectionEnabled) return;
-      const recent    = this.frameTimes.slice(-60);
-      const avgFrame  = recent.reduce((a, b) => a + b, 0) / 60;
+      // Sin slice/reduce/filter: esto corre en CADA fotograma y cada uno de
+      // esos creaba un array nuevo (basura constante para el recolector).
+      const ft = this.frameTimes, n = ft.length, desde = n - 60;
+      let suma = 0;
+      for (let i = desde; i < n; i++) suma += ft[i];
+      const avgFrame  = suma / 60;
       const frameRate = 1000 / avgFrame;
       if (frameRate < 30 && avgFrame > 5) this._triggerPerfWarning('low_fps', { frameRate, avgFrame });
-      this._checkSpikes(recent, avgFrame);
+      this._checkSpikes(desde, avgFrame);
     }
 
-    _checkSpikes(recent, avgFrame) {
+    _checkSpikes(desde, avgFrame) {
       const now = Date.now();
       if (now - this._lastSpikeWarning < DEFAULTS.spikeCooldown) return;
       if (avgFrame < 5) return;
       const threshold = Math.max(this._spikeThreshold, avgFrame * 2);
-      const spikes    = recent.filter(t => t > threshold && t > 16).length;
+      const ft = this.frameTimes;
+      let spikes = 0;
+      for (let i = Math.max(0, desde); i < ft.length; i++) if (ft[i] > threshold && ft[i] > 16) spikes++;
       if (spikes > 5) {
         this._lastSpikeWarning = now;
         this._triggerPerfWarning('frame_spikes', { spikes, threshold, avgFrame: avgFrame.toFixed(2) });
@@ -1143,7 +1152,10 @@
         return;
       }
 
-      this.performanceHistory.push({ frameTime, memoryUsage, timestamp: Date.now() });
+      // Solo el número: antes se guardaba un objeto {frameTime, memoryUsage,
+      // timestamp} por fotograma (60 objetos por segundo de basura) y de él
+      // solo se leía frameTime.
+      this.performanceHistory.push(frameTime);
       if (this.performanceHistory.length > 60) this.performanceHistory.shift();
       if (Date.now() - this.lastAdjustmentTime > this.adjustmentCooldown) {
         this._adjustSettings();
@@ -1152,8 +1164,10 @@
 
     _adjustSettings() {
       if (this.performanceHistory.length < 30) return;
-      const recent  = this.performanceHistory.slice(-30);
-      const avgFrame= recent.reduce((s, f) => s + f.frameTime, 0) / recent.length;
+      const h = this.performanceHistory;
+      let suma = 0;
+      for (let i = h.length - 30; i < h.length; i++) suma += h[i];
+      const avgFrame= suma / 30;
       let newTier   = this.currentTier;
 
       // FIX TITILEO: banda de histéresis. Para BAJAR de calidad el frame-time
@@ -1164,7 +1178,17 @@
       // encendiéndose y apagándose = parpadeo. La banda crea una zona muerta
       // donde no se cambia nada.
       const HYST = 3; // ms de margen a cada lado de la zona muerta
-      const downThreshold = DEFAULTS.maxFrameTime + HYST;   // 36 ms (~28 fps)
+
+      // FIX "EN EL MÓVIL LA CALIDAD BAJA Y NO VUELVE": los dos umbrales daban
+      // por hecho 60 fps. Pero en el móvil el ahorro de batería (app.js) está
+      // encendido por defecto y limita a 30 fps: el frame normal ya mide
+      // ~33 ms, a un pelo del umbral de bajada (36), y el de subida (20 ms)
+      // es imposible de alcanzar a 30 fps. Cualquier tirón bajaba la calidad
+      // y ya no volvía nunca. Ahora los umbrales se miden contra el ritmo
+      // OBJETIVO real del bucle (1000/30 con límite, 1000/60 sin él). A 60 fps
+      // salen los mismos números de siempre (36 y 20 ms).
+      const objetivo = this._frameObjetivo();
+      const downThreshold = Math.max(DEFAULTS.maxFrameTime + HYST, objetivo * 1.35);
 
       // Umbral para SUBIR de calidad.
       //
@@ -1178,7 +1202,7 @@
       // Ahora se pide ir claramente holgado (por debajo de 20 ms ≈ 50 fps
       // sostenidos), que sí es alcanzable a 60 fps, y sigue quedando una zona
       // muerta amplia (20–36 ms) donde no se toca nada.
-      const upThreshold   = DEFAULTS.maxFrameTime - 13;     // 20 ms (~50 fps)
+      const upThreshold   = Math.max(DEFAULTS.maxFrameTime - 13, objetivo * 1.2); // 20 ms a 60 fps, 40 ms a 30
 
       if (avgFrame > downThreshold) {
         if (this.currentTier === 'high')   newTier = 'medium';
@@ -1190,6 +1214,15 @@
 
       if (newTier !== this.currentTier) this._applyTier(newTier);
       this.lastAdjustmentTime = Date.now();
+    }
+
+    /** Duración de un frame NORMAL según el límite de fps activo del bucle. */
+    _frameObjetivo() {
+      try {
+        const loop = this.game && this.game.loop;
+        if (loop && loop.hasFpsLimit && loop._limitRate > 0) return loop._limitRate;
+      } catch (e) { /* bucle no disponible: se asume 60 fps */ }
+      return 1000 / 60;
     }
 
     _applyTier(tier) {
@@ -1213,7 +1246,7 @@
 
     getPerformanceMetrics() {
       if (!this.performanceHistory.length) return { avgFrameTime: 0, minFrameTime: 0, maxFrameTime: 0, frameCount: 0 };
-      const times = this.performanceHistory.map(f => f.frameTime);
+      const times = this.performanceHistory;
       return {
         avgFrameTime: times.reduce((a, b) => a + b, 0) / times.length,
         minFrameTime: Math.min(...times),

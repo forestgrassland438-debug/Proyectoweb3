@@ -2222,6 +2222,20 @@ class TiendaSistema {
     /** ¿Queda algo por hacer? Lo usa el aviso al cerrar la tienda. */
     trabajosPendientes() { return this._trabajosEnCola || 0; }
 
+    /* LA TIENDA ES UNA POR PÁGINA; LA ESCENA NO. `window.tiendaSistema` vive
+       siempre y guardaba en `this.scene` la última tienda visitada: al salir,
+       esa escena entera se quedaba en memoria hasta la visita siguiente. Se
+       suelta al apagarse, pero NO mientras quede una compra o venta en vuelo
+       (siguen escribiendo en ella): entonces se espera a que la cola se vacíe. */
+    soltarEscena(scene) {
+        if (!scene || this.scene !== scene) return;
+        const libre = () => this.trabajosPendientes() === 0;
+        if (libre() && !this._addItemQueue) { this.scene = null; return; }
+        Promise.all([this._colaTienda, this._addItemQueue])
+            .catch(() => {})
+            .then(() => { if (this.scene === scene && libre()) this.scene = null; });
+    }
+
     // Encola la parte blockchain de una compra. Las compras se procesan en
     // serie (una promesa encadenada) pero SIN bloquear la interfaz.
     _enqueueOnchainPurchase(item, quantity, transactionInfo) {
@@ -2603,7 +2617,7 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
 
     // ===== SIMULADOR =====
     const reporte = this.simulateAddItem(producto, cantidad);
-    console.error('Reporte completo:', reporte);
+    console.log('Reporte completo:', reporte);
 
     // Bloquear slots implicados (si vienen)
     if (Array.isArray(reporte.operations)) {
@@ -2946,7 +2960,7 @@ simulateAddItem(itemId, quantity = 1) {
         mergedAny = true;
 
         const slotReal = type === 'quick' ? this.STATE.quickSlots[i] : this.STATE.slots[i];
-        console.error(`[SIMULATE] Merge en ${type} slot ${i}: prev=${prev}, add=${add}, final=${slot.count}, remaining=${remaining}`);
+        console.log(`[SIMULATE] Merge en ${type} slot ${i}: prev=${prev}, add=${add}, final=${slot.count}, remaining=${remaining}`);
 
         operations.push({
           type: 'merge',
@@ -2976,7 +2990,7 @@ simulateAddItem(itemId, quantity = 1) {
         remaining -= add;
         createdAny = true;
 
-        console.error(`[SIMULATE] Nuevo stack en ${type} slot ${i}: add=${add}, remaining=${remaining}`);
+        console.log(`[SIMULATE] Nuevo stack en ${type} slot ${i}: add=${add}, remaining=${remaining}`);
 
         operations.push({
           type: 'new',
@@ -2995,7 +3009,7 @@ simulateAddItem(itemId, quantity = 1) {
   let iteration = 0;
   while (remaining > 0) {
     iteration++;
-    console.error(`[SIMULATE] Iteración ${iteration}, remaining=${remaining}`);
+    console.log(`[SIMULATE] Iteración ${iteration}, remaining=${remaining}`);
 
     // 1️⃣ Completar stacks parciales
     const mergedQuick = completePartialStacks(simQuick, 'quick');
@@ -3007,7 +3021,7 @@ simulateAddItem(itemId, quantity = 1) {
 
     // 3️⃣ Si no hubo merge ni nuevos stacks → no hay más espacio
     if (!mergedQuick && !mergedInv && !newQuick && !newInv) {
-      console.error(`[SIMULATE] No hay más espacio para agregar los ${remaining} restantes`);
+      console.log(`[SIMULATE] No hay más espacio para agregar los ${remaining} restantes`);
       break;
     }
   }
@@ -3029,7 +3043,7 @@ simulateAddItem(itemId, quantity = 1) {
     slotsUsed[op.location.type]++;
   });
 
-  console.error(`[SIMULATE] Resultado final: success=${success}, remaining=${remaining}, totalMerged=${totalMerged}, totalNewStacks=${totalNew}, newStacksCount=${newStacksCount}`);
+  console.log(`[SIMULATE] Resultado final: success=${success}, remaining=${remaining}, totalMerged=${totalMerged}, totalNewStacks=${totalNew}, newStacksCount=${newStacksCount}`);
 
   return {
     success,
