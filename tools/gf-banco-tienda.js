@@ -484,7 +484,7 @@ class EscenaFalsa {
   constructor(BIN) {
     this.ItemDefinitions = catalogoDeLaEscena(BIN);
     this.playerName = 'Ana';
-    this.serverBase = 'http://prueba.local';
+    this.serverBase = 'https://prueba.local';
     this.moneda = 1000;
     this.moneda_plata = 1000;
     this.nivel = 50;
@@ -570,7 +570,7 @@ function montar(BIN, opciones = {}) {
   const escena = new EscenaFalsa(BIN);
   const tienda = new _TiendaSistema(escena);
 
-  const relay = new _PhaserRelay({ apiBase: 'http://prueba.local', debug: false, useNotificationHub: false });
+  const relay = new _PhaserRelay({ apiBase: 'https://prueba.local', debug: false, useNotificationHub: false });
   relay.showError = () => {}; relay.showWarning = () => {};
   relay.showInfo = () => {}; relay.showSuccess = () => {};
   // Sin espera entre sondeos: la prueba no está para dormir.

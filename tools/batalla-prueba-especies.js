@@ -69,6 +69,11 @@ function hacerEscena({ tardanza = 40, quePngFalten = [] } = {}) {
   const texturas = new Set();
   const esc = {
     _especiesListas: null,
+    // Lo que la BattleScene de verdad inicializa en init(): la carga de cada
+    // especie se comparte por id y se invalida al cambiar de batalla.
+    _especiesPendientes: new Map(),
+    _battleRun: 1,
+    _cleaned: false,
     cargados: [],
     arranques: 0,
     textures: {
@@ -109,6 +114,10 @@ function hacerEscena({ tardanza = 40, quePngFalten = [] } = {}) {
   esc.constructor = { ESPECIES };
   return esc;
 }
+
+// cargarEspecie usa window.setTimeout (no el reloj de la escena, que se para
+// con la escena en pausa). En Node no hay window: se le da el global.
+if (typeof global.window === 'undefined') global.window = global;
 
 // Se montan los metodos reales sobre la escena de mentira.
 // Los metodos de clase se pegan como miembros de un objeto: hacen falta comas.

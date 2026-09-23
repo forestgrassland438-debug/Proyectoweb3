@@ -126,7 +126,13 @@ VETAS = {
 }
 
 # ── MEDIDAS, TODAS EN CASILLAS DE 32 ──────────────────────────────────────
-ALTO_MURO = 3                   # 3 x 32 = 96 px, casi la altura del jugador
+ALTO_MURO = 5                   # 5 x 32 = 160 px, vez y media el jugador
+#
+# ERA 3 (96 px) Y SE VEIA BAJO. El personaje mide 102 px en pantalla, asi
+# que la pared le llegaba al hombro: parecia un bordillo, no una galeria
+# excavada. A 160 px le saca media altura y la mina se lee como un sitio
+# cerrado. El mapa coge este numero de la ficha del tileset, asi que basta
+# con volver a correr los dos generadores.
 ANCHO_MURO = 8                  # el parche: 8 x 32 = 256 px sin repetirse
 PARCHE_LAVA = 4                 # 4 x 32 = 128 px de lava sin repetirse
 PARCHE_ROCA = 2                 # 2 x 32 = 64 px de lomo sin repetirse
@@ -181,7 +187,9 @@ def tabla(semilla, cortes=()):
     t = Lienzo(T, T)
     relleno(t, PAL['madera'], semilla, motas=0)
 
-    franjas = [(0, 8), (8, 16), (16, 24), (24, T)]
+    # DOS tablones de 16, no cuatro de 8: cuatro tablas en una casilla de 32
+    # es el dibujo de un suelo de 16 px, que es justo lo que se veia pequeno.
+    franjas = [(0, 16), (16, T)]
     for (y0, y1) in franjas[1:]:
         for x in range(T):
             t.set(x, y0 - 1, os_)
@@ -197,7 +205,7 @@ def tabla(semilla, cortes=()):
                 t.set(cx + 1, y, cl)
         vy = y0 + 2 + int(ruido(k * 5 + 2, 3, semilla) * max(1, y1 - y0 - 4))
         vx = int(ruido(k * 9 + 4, 7, semilla) * (T - 14))
-        for dx in range(10):
+        for dx in range(20):
             if vx + dx != cx and vy < y1 - 1:
                 t.set(vx + dx, vy, veta_col)
     return t
@@ -236,16 +244,19 @@ def via(orientacion, semilla):
         li = Lienzo(W, H)
         fondo(li)
         # Traviesas: perpendiculares a los railes, o sea VERTICALES.
-        for tx in range(2, W, 11):
-            for y in range(9, H - 9):
+        # Traviesas de 10 px cada 16, no de 6 cada 11. Y el paso DIVIDE los
+        # 32 px de la casilla, asi que la via no da un salto al repetirse.
+        for tx in range(2, W, 16):
+            for y in range(6, H - 6):
                 li.set(tx, y, mad_cl)
-                for k in range(1, 5):
+                for k in range(1, 9):
                     li.set((tx + k) % W, y, mad)
-                li.set((tx + 5) % W, y, mad_os)
+                li.set((tx + 9) % W, y, mad_os)
         # Los dos railes. Galibo 40 px sobre una banda de 64.
         for y in (12, H - 16):
             for x in range(W):
-                li.set(x, y - 1, met_os)
+                li.set(x, y - 2, met_os)
+                li.set(x, y - 1, met_cl)
                 li.set(x, y, met_cl)
                 li.set(x, y + 1, met)
                 li.set(x, y + 2, met_os)
@@ -254,15 +265,17 @@ def via(orientacion, semilla):
     W, H = 2 * T, T                          # 64 x 32
     li = Lienzo(W, H)
     fondo(li)
-    for ty in range(2, H, 11):
-        for x in range(9, W - 9):
+    # Igual que la horizontal: traviesas de 10 px cada 16.
+    for ty in range(2, H, 16):
+        for x in range(6, W - 6):
             li.set(x, ty, mad_cl)
-            for k in range(1, 5):
+            for k in range(1, 9):
                 li.set(x, (ty + k) % H, mad)
-            li.set(x, (ty + 5) % H, mad_os)
+            li.set(x, (ty + 9) % H, mad_os)
     for x in (12, W - 16):
         for y in range(H):
-            li.set(x - 1, y, met_os)
+            li.set(x - 2, y, met_os)
+            li.set(x - 1, y, met_cl)
             li.set(x, y, met_cl)
             li.set(x + 1, y, met)
             li.set(x + 2, y, met_os)
@@ -474,8 +487,8 @@ def _pinta_muro(li, semilla, deco=None):
     H = ALTO_MURO * T
     cl, me, os_ = PAL['roca']
 
-    VOL.empedrado(li, 0, 11, W - 1, H - 9, PAL['roca'], semilla,
-                  alto=9, ancho=(11, 17), periodo=W)
+    VOL.empedrado(li, 0, 22, W - 1, H - 18, PAL['roca'], semilla,
+                  alto=18, ancho=(22, 34), periodo=W)
 
     # ── TODO LO QUE SE DIBUJE A PARTIR DE AQUI SE PINTA TRES VECES ─────────
     # en su sitio, un ancho a la izquierda y otro a la derecha. `empedrado` ya
@@ -489,16 +502,16 @@ def _pinta_muro(li, semilla, deco=None):
 
     for i in range(max(2, W // 24)):
         bx = ruido(i * 11 + 1, 5, semilla) * W
-        by = 22 + ruido(6, i * 7 + 2, semilla) * (H - 46)
-        rx = 7.5 + ruido(i, 3, semilla) * 3.5
-        ry = 5.2 + ruido(3, i, semilla) * 2.4
+        by = 40 + ruido(6, i * 7 + 2, semilla) * (H - 80)
+        rx = 15.0 + ruido(i, 3, semilla) * 7.0
+        ry = 10.4 + ruido(3, i, semilla) * 4.8
         tres(lambda d, bx=bx, by=by, rx=rx, ry=ry:
              VOL.guijarro(li, bx + d, by, rx, ry, PAL['roca']))
 
     for i in range(max(1, W // 70)):
         gx = ruido(i * 17 + 3, 9, semilla) * W
-        y0 = 16 + int(ruido(4, i * 5, semilla) * 18)
-        largo = int((H - y0 - 14) * (0.45 + ruido(i, 8, semilla) * 0.5))
+        y0 = 32 + int(ruido(4, i * 5, semilla) * 36)
+        largo = int((H - y0 - 28) * (0.45 + ruido(i, 8, semilla) * 0.5))
 
         def grieta(d, gx=gx, y0=y0, largo=largo, i=i):
             for k in range(largo):
@@ -532,7 +545,7 @@ def _pinta_muro(li, semilla, deco=None):
     lomo = [ajusta(c, dv=0.52) for c in PAL['roca']]
     pf = perfil(semilla + 41, T, 2.0)
     for x in range(W):
-        corte = max(4, min(15, 10 + pf[x % T]))
+        corte = max(8, min(30, 20 + 2 * pf[x % T]))
         for y in range(0, corte):
             li.set(x, y, lomo[1] if ruido(x, y, semilla) > 0.25 else lomo[2])
         li.set(x, corte, ajusta(cl, dv=1.25))
@@ -542,16 +555,16 @@ def _pinta_muro(li, semilla, deco=None):
             li.set(x, corte + 2, mezcla(cl, me, 0.5))
 
     # ── EL PIE ─────────────────────────────────────────────────────────────
-    for i, y in enumerate(range(H - 9, H)):
+    for i, y in enumerate(range(H - 18, H)):
         for x in range(W):
             c = li.get(x, y)
             if not c[3]:
                 c = me
-            li.set(x, y, ajusta(c, dv=0.74 - i * 0.045))
+            li.set(x, y, ajusta(c, dv=0.74 - i * 0.0225))
     for i in range(max(3, W // 9)):
         cx = ruido(i * 9 + 1, 4, semilla) * W
         for desp in (-W, 0, W):
-            VOL.guijarro(li, cx + desp, H - 5.0, 4.0, 2.8,
+            VOL.guijarro(li, cx + desp, H - 10.0, 8.0, 5.6,
                          [ajusta(k, dv=0.62) for k in PAL['roca'][:3]])
 
     if deco is not None:

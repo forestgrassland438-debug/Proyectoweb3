@@ -77,9 +77,32 @@ FICHA_TILESET = os.path.join(RAIZ, 'Game', 'MAPAS', 'Mina', 'tileset_mina.json')
 #
 # De paso, el mapa pasa de 97.969 casillas a 24.649: cuatro veces menos datos
 # que recorrer y que guardar.
-W = H = 157                    # 157 x 32 = 5024 px, como mapa_principal
-TILE = 32
-PX = W * TILE                  # 5024
+# DOS REJILLAS, Y ES A PROPOSITO.
+#
+# EL PROBLEMA: se pidio que el mapa midiera 5008 x 5008 clavados, como
+# `mapa_principal.json`. Pero 5008 / 32 = 156,5: con casillas de 32 px NO HAY
+# un numero entero de casillas que de 5008. O te quedas en 4992 o te pasas a
+# 5024.
+#
+# LA SALIDA: que la casilla del MAPA sea de 16 px (313 x 16 = 5008 exactos) y
+# que las tiles del TILESET sigan siendo de 32. Tiled y Phaser admiten un
+# tileset con tiles MAS GRANDES que la rejilla: cada tile se dibuja anclada
+# ABAJO A LA IZQUIERDA de su casilla y desborda hacia arriba y hacia la
+# derecha, ocupando 2 x 2 casillas. Comprobado en Phaser 3.90 antes de
+# escribir esto, no dado por supuesto.
+#
+# Asi que aqui se trabaja con la rejilla del ARTE (156 x 156 de 32 px, que es
+# como se excava, se pinta y se colocan las cosas) y al escribir el JSON se
+# expande a la rejilla del MAPA (313 x 313 de 16 px). Los objetos -colisiones,
+# lava, salida- no se tocan: ya estaban en PIXELES, que es lo mismo en las dos
+# rejillas.
+W = H = 156                    # la rejilla del ARTE: 156 x 32 = 4992 px
+TILE = 32                      # el lado de una tile del tileset
+PX = W * TILE                  # 4992
+
+REJILLA = 16                   # el lado de una casilla del MAPA
+WM = HM = 313                  # 313 x 16 = 5008 px, exactamente mapa_principal
+PXM = WM * REJILLA             # 5008
 
 # Lo que hay en cada casilla mientras se construye.
 ROCA, SUELO, GRAVA, TABLA, LAVA, AGUA, CARRIL = range(7)
@@ -995,6 +1018,35 @@ def _oid():
     return _ID[0]
 
 
+def expandir(capa):
+    """
+    De la rejilla del ARTE (156 casillas de 32) a la del MAPA (313 de 16).
+
+    Una tile de 32 se dibuja anclada ABAJO a la izquierda de su casilla, asi
+    que para que cubra el cuadro [ax*32, ax*32+32) x [ay*32, ay*32+32) hay que
+    ponerla en la casilla (ax*2, ay*2 + 1):
+
+        el borde izquierdo es cx*16           -> cx = ax*2
+        el borde de ABAJO es (cy+1)*16        -> cy = ay*2 + 1
+
+    Las otras tres casillas de cada bloque de 2x2 quedan a 0: el dibujo ya lo
+    cubre la tile grande. Por eso tres de cada cuatro casillas del mapa estan
+    vacias, y no es un error.
+    """
+    fuera = [0] * (WM * HM)
+    for ay in range(H):
+        fila = ay * W
+        for ax in range(W):
+            g = capa[fila + ax]
+            if not g:
+                continue
+            cx = ax * 2
+            cy = ay * 2 + 1
+            if cx < WM and cy < HM:
+                fuera[cy * WM + cx] = g
+    return fuera
+
+
 def obj_rect(x, y, w, h, nombre=''):
     return {'id': _oid(), 'name': nombre, 'type': '', 'visible': True,
             'rotation': 0, 'x': round(x, 2), 'y': round(y, 2),
@@ -1057,6 +1109,13 @@ def main():
     marca = [[g[y][x] in (ROCA, LAVA) for x in range(W)] for y in range(H)]
     rects = rectangulos(marca)
     colisiones = [obj_rect(x, y, w, h) for (x, y, w, h) in rects]
+
+    # EL BORDE QUE SOBRA. El arte llega a 4992 y el mapa mide 5008: quedan
+    # 16 px de franja al este y al sur sin dibujar. La camara SI deja llegar
+    # hasta ahi, porque sus limites salen de `map.widthInPixels`. Dos
+    # rectangulos y el jugador no se asoma al vacio.
+    colisiones.append(obj_rect(PX, 0, PXM - PX, PXM))
+    colisiones.append(obj_rect(0, PX, PX, PXM - PX))
 
     # ── Lava y agua: rectangulos para el tileSprite animado ─────────────────
     #
@@ -1161,28 +1220,28 @@ def main():
 
     mapa = {
         'compressionlevel': -1,
-        'height': H,
+        'height': HM,
         'infinite': False,
         'nextlayerid': 40,
         'nextobjectid': _ID[0] + 20000,
         'orientation': 'orthogonal',
         'renderorder': 'right-down',
         'tiledversion': '1.11.2',
-        'tileheight': TILE,
-        'tilewidth': TILE,
+        'tileheight': REJILLA,
+        'tilewidth': REJILLA,
         'type': 'map',
         'version': '1.10',
-        'width': W,
+        'width': WM,
         'layers': [
-            {'data': capa, 'height': H, 'id': 1, 'name': 'mina',
+            {'data': expandir(capa), 'height': HM, 'id': 1, 'name': 'mina',
              'opacity': 1, 'type': 'tilelayer', 'visible': True,
-             'width': W, 'x': 0, 'y': 0},
-            {'data': capa_sombras, 'height': H, 'id': 4, 'name': 'mina_sombras',
+             'width': WM, 'x': 0, 'y': 0},
+            {'data': expandir(capa_sombras), 'height': HM, 'id': 4, 'name': 'mina_sombras',
              'opacity': 1, 'type': 'tilelayer', 'visible': True,
-             'width': W, 'x': 0, 'y': 0},
-            {'data': capa_objetos, 'height': H, 'id': 2, 'name': 'mina_objetos',
+             'width': WM, 'x': 0, 'y': 0},
+            {'data': expandir(capa_objetos), 'height': HM, 'id': 2, 'name': 'mina_objetos',
              'opacity': 1, 'type': 'tilelayer', 'visible': True,
-             'width': W, 'x': 0, 'y': 0},
+             'width': WM, 'x': 0, 'y': 0},
             capa_obj('area_colision_general', colisiones),
             capa_obj('area_lava', objs_lava),
             capa_obj('area_lava_interior', objs_lava_int),
@@ -1219,7 +1278,8 @@ def main():
     vista(g, os.path.join(carpeta, 'mina_vista.png'))
 
     huecos = sum(1 for y in range(H) for x in range(W) if g[y][x] != ROCA)
-    print('mina.json  %dx%d tiles (%dx%d px)' % (W, H, PX, PX))
+    print('mina.json  %dx%d casillas de %d px = %dx%d px  (arte en tiles de %d)'
+          % (WM, HM, REJILLA, PXM, PXM, TILE))
     print('  excavado      %d casillas (%.1f %% del mapa)'
           % (huecos, 100.0 * huecos / (W * H)))
     print('  colisiones    %d rectangulos (de %d casillas de roca/lava)'

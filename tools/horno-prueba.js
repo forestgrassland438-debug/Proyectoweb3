@@ -94,7 +94,9 @@ const METODOS = [
 ];
 
 function catalogoDe(fichero) {
-  const t = fs.readFileSync(fichero, 'utf8').replace(/\r\n/g, '\n');
+  // Sin comentarios: GameScene cita la marca en un comentario antes del código.
+  const t = require('./_sin-comentarios').sinComentarios(
+    fs.readFileSync(fichero, 'utf8').replace(/\r\n/g, '\n'));
   const marca = 'this.ItemDefinitions = {';
   const i = t.indexOf(marca);
   const ini = t.indexOf('{', i + marca.length - 1);
