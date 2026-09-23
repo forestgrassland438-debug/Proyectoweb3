@@ -93,7 +93,7 @@ function soloCodigo(txt) {
 
 function ficheros(dir, acc = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (['node_modules', '.git', 'temp_old', 'XDPRUEBA', 'tools', 'recortadas',
+    if (['node_modules', '.git', 'temp_old', 'XDPRUEBA', 'tools', 'recortadas', 'vendor',
          'Game', 'assets', 'fonts', 'Maps'].includes(e.name)) continue;
     const p = path.join(dir, e.name);
     if (e.isDirectory()) ficheros(p, acc);

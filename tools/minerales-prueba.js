@@ -33,6 +33,9 @@ function ok(cond, mensaje, extra) {
 
 /** Saca un objeto literal del fuente contando llaves desde una marca. */
 function objetoTras(txt, marca) {
+  // Sin comentarios: GameScene cita `this.ItemDefinitions = {` en un
+  // comentario ANTES del código, y se cortaba el objeto desde ahí.
+  txt = sinComentarios(txt);
   const i = txt.indexOf(marca);
   if (i < 0) return null;
   const ini = txt.indexOf('{', i + marca.length - 1);
@@ -45,6 +48,7 @@ function objetoTras(txt, marca) {
   try { return eval('(' + txt.slice(ini, j) + ')'); } catch (e) { return null; }
 }
 
+const { sinComentarios } = require('./_sin-comentarios');
 const leer = (p) => fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
 
 const NUEVOS = {

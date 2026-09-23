@@ -24,12 +24,19 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const { sinComentarios } = require('./_sin-comentarios');
 
 const BIN = process.argv[2] || path.join(__dirname, '..');
 
-/** Saca el objeto literal que sigue a `marca` contando llaves. */
+/** Saca el objeto literal que sigue a `marca` contando llaves.
+ *
+ *  Se busca en el fuente SIN COMENTARIOS: GameScene explica en un comentario
+ *  que "tiendajuego tiene su propia copia (busca `this.ItemDefinitions = {`
+ *  alli)", y esa frase salia antes que el codigo. El detector cortaba el
+ *  bloque desde la llave del comentario, el catalogo de GameScene salia con
+ *  0 objetos y avisaba de 47 "faltan" que no faltaban. */
 function bloque(rel, marca) {
-  const s = fs.readFileSync(path.join(BIN, rel), 'utf8');
+  const s = sinComentarios(fs.readFileSync(path.join(BIN, rel), 'utf8'));
   const i = s.indexOf(marca);
   if (i < 0) throw new Error('no encuentro "' + marca + '" en ' + rel);
   const j = s.indexOf('{', i);

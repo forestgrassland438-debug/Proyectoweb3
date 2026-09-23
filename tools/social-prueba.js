@@ -410,7 +410,11 @@ console.log('\n7c) Nada crece sin techo');
     const txt = par[1];
     ok(/_soltarJugadorRemoto\(p\) \{/.test(txt),
        par[0] + ': existe _soltarJugadorRemoto, la única lista de cosas que soltar');
-    const usos = (txt.match(/_soltarJugadorRemoto\(/g) || []).length;
+    // Cuenta también las llamadas a clearOtherPlayers(), que suelta a TODOS por
+    // _soltarJugadorRemoto: tiendajuego limpia por ahí en sus cinco caminos
+    // (transición, performCleanup, shutdown…) en vez de repetir el forEach.
+    const usos = (txt.match(/_soltarJugadorRemoto\(/g) || []).length +
+                 (txt.match(/(?:this\.)clearOtherPlayers\(\)/g) || []).length;
     ok(usos >= 4, par[0] + ': la usan todos los caminos de limpieza (' + usos + ' usos)');
     ok(/fuera\(p\.dog\.nameText\)/.test(txt),
        par[0] + ': suelta el nombre de la mascota (era el que se quedaba clavado)');
@@ -591,7 +595,10 @@ console.log('\n8) El botón de Friends está puesto sin descolocar a los demás'
      'y el CSS lo coloca el TERCERO, debajo de Mail');
 
   // Y que la tienda siga apuntando a los mismos índices de siempre.
-  ok(/roundButtons\[6\]\?\.addEventListener\('click', this\.onRoundBtnStore\)/.test(SRC.tienda),
+  // Se engancha con `_onDOM(...)` (que además lo suelta al salir) o con
+  // addEventListener a pelo; lo que importa es el índice 6.
+  ok(/roundButtons\[6\]\?\.addEventListener\('click', this\.onRoundBtnStore\)/.test(SRC.tienda) ||
+     /_onDOM\(this\.roundButtons\[6\], 'click', this\.onRoundBtnStore\)/.test(SRC.tienda),
      'tiendajuego sigue usando roundButtons[6] para la tienda');
 }
 
@@ -623,9 +630,12 @@ console.log('\n9) La venta en la tienda llega al servidor');
 // ── 10. Los minerales en piedra ──────────────────────────────────────────────
 console.log('\n10) Los minerales en piedra');
 {
-  const dir = path.join(BIN, 'Game', 'newpro', 'recursos');
+  // El generador los dibuja en newpro/recursos, pero los catálogos (los
+  // cuatro ItemDefinitions) los piden en Game/Source: vale cualquiera de las
+  // dos, y lo que de verdad importa es la ruta que usa el juego.
+  const dirs = [path.join(BIN, 'Game', 'Source'), path.join(BIN, 'Game', 'newpro', 'recursos')];
   ['piedra_hierro.png', 'piedra_cobre.png', 'piedra_carbon.png'].forEach(f => {
-    ok(hay(path.join(dir, f)), f + ' existe');
+    ok(dirs.some(d => hay(path.join(d, f))), f + ' existe');
   });
   ok(hay(path.join(BIN, 'tools', 'generar-minerales.py')),
      'el generador está guardado (se pueden volver a hacer igual)');
