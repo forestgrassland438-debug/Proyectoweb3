@@ -406,7 +406,10 @@ showNotification(message, type = 'info') {
       }
 
       // Cierre de sesión COMPLETO disponible para el panel del dashboard.
-      window.gfFullLogout = () => this._doFullLogout();
+      // Función ESTÁTICA, no `() => this._doFullLogout()`: ese cierre dejaba
+      // la última tienda visitada retenida en memoria hasta la visita
+      // siguiente (medido con WeakRef). La estática busca la escena viva.
+      window.gfFullLogout = tiendajuego._cerrarSesionGlobal;
 
       this.zoom = false;
       this.definirhorax = 0;
@@ -593,6 +596,8 @@ showNotification(message, type = 'info') {
     const sceneRunId = this._sceneRunId = (this._sceneRunId || 0) + 1;
     this._sceneStopped = false;
     this._shopCleanupDone = false;
+    // Sala del servidor al salir (ver _salaAlSalir). Se rearma en cada entrada.
+    this._salaDestino = null;
     this.events.off('shutdown', this.performCleanup, this);
     this.events.off('destroy', this.performCleanup, this);
     this.events.once('shutdown', this.performCleanup, this);
@@ -861,7 +866,7 @@ this.player.on('pointerdown', (pointer) => {
                              : './Game/Sprites/Soulbound/personaje1/Perfil/Perfil.png'
         );
 
-        this.actualizarNombreUsuario(`${this.currentAccount.slice(0, 6)}...${this.currentAccount.slice(-4)}`);
+        this.actualizarNombreUsuario(GameScene.nombreParaHud(this.currentAccount));
         this.actualizarBarraVida(this.vidaPorcentaje);
         this.actualizarBarraAgua(this.aguaPorcentaje);
         this.actualizarBarraComida(this.comidaPorcentaje);
@@ -2168,9 +2173,10 @@ this.anims.create({
         if (window.GFSoulbound) window.GFSoulbound.montarPanel(this);
 
         // Setup close button
+        // En CADA apertura (sin la marca `_wired`): el mapa también pone su
+        // `onclick` aquí, y con la marca la tienda no recuperaba el suyo.
         const closeBtn = document.getElementById('nft-close');
-        if (closeBtn && !closeBtn._wired) {
-          closeBtn._wired = true;
+        if (closeBtn) {
           closeBtn.onclick = () => {
             panel.classList.remove('nft-panel-visible');
             panel.classList.add('nft-panel-hidden');
@@ -2216,9 +2222,9 @@ this.anims.create({
         this._cargarSkillsTienda();
 
         // Wire close button
+        // En CADA apertura (ver el ✕ de NFT, arriba).
         const closeBtn = document.getElementById('skills-close');
-        if (closeBtn && !closeBtn._wired) {
-          closeBtn._wired = true;
+        if (closeBtn) {
           closeBtn.onclick = () => {
             panel.classList.remove('skills-panel-visible');
             panel.classList.add('skills-panel-hidden');
@@ -2706,8 +2712,19 @@ this.actualizarTemporizadoresDesdeStorage();
          Los oyentes y el join siguen montandose en initSocket(). */
       this.socket = window.globalSocket || null;
       this.socketInitialized = false;
-      this.socketListeners = [];
-      
+      /* SOLTAR, NO VACIAR.
+
+         FUGA QUE ESTO ARREGLA (medida en el navegador: +34 oyentes en el
+         socket global por cada ida y vuelta a la tienda, sin límite): el chat
+         pregunta por el socket nada más montarse (`_socketVivo`), y eso
+         engancha ya los oyentes de la escena. Esta línea llegaba DESPUÉS y
+         hacía `socketListeners = []`: tiraba la lista SIN quitar esos oyentes
+         del socket, y luego initSocket() montaba otro juego entero. Cada visita
+         dejaba colgado un juego completo (currentPlayers, newPlayer,
+         playerMoved, chat…) cerrado sobre una escena ya muerta: la escena no se
+         podía recoger, y cada mensaje del servidor ejecutaba todos los viejos. */
+      this.removeSocketListeners();
+
       // Para evitar múltiples joinRoom
       this.currentRoom = null;
       this.lastJoinTime = 0;
@@ -4394,13 +4411,24 @@ removeOtherPlayer(playerId) {
       });
     }
 
+    /**
+     * La sala del servidor en la que se entra al irse de la tienda. Lo normal
+     * es volver al mapa ('game'), pero desde el HUD de la tienda también se
+     * puede ir a la isla: con 'game' fijo, el jugador aparecía como un
+     * fantasma en el mapa mientras estaba en la isla. Ver el gemelo en
+     * GameScene._salaAlSalir.
+     */
+    _salaAlSalir() {
+      return this._salaDestino || 'game';
+    }
+
     leaveRoom() {
       console.log('🚪 Saliendo de sala tienda...');
-      
+
       if (this.socket && this.socket.connected) {
         // Emitir que estamos cambiando a game
         this.socket.emit("joinRoom", {
-          room: "game",
+          room: this._salaAlSalir(),
           username: this.Username || '---',
           lastScene: 'tiendajuego',
           x: 0,
@@ -4441,7 +4469,7 @@ removeOtherPlayer(playerId) {
       // Tell the server we are leaving this room BEFORE clearing socket
       if (this.socket && this.socket.connected) {
         this.socket.emit("joinRoom", {
-          room: "game",
+          room: this._salaAlSalir(),
           username: this.Username || '---',
           lastScene: 'tiendajuego',
           x: this.player ? this.player.x : 0,
@@ -4521,6 +4549,8 @@ removeOtherPlayer(playerId) {
       if (window.activeScene === this) {
         window.activeScene = null;
       }
+      // La tienda (window.tiendaSistema) también la apuntaba: ver soltarEscena.
+      try { window.tiendaSistema?.soltarEscena?.(this); } catch (e) { /* al salir da igual */ }
     }
 
     // Método para manejar reconexión del socket
@@ -5141,21 +5171,14 @@ removeOtherPlayer(playerId) {
       document.body.appendChild(panel);
     }
     panel.style.display = 'flex';
+    // En CADA apertura y con la escena viva (la marca `_wired` los dejaba
+    // atados a la primera escena que abrió el buzón).
     const closeBtn = document.getElementById('_mail-close');
-    if (closeBtn && !closeBtn._wired) {
-      closeBtn._wired = true;
-      closeBtn.onclick = () => { panel.style.display = 'none'; };
-    }
+    if (closeBtn) closeBtn.onclick = () => { panel.style.display = 'none'; };
     const readAllBtn = document.getElementById('_mail-read-all');
-    if (readAllBtn && !readAllBtn._wired) {
-      readAllBtn._wired = true;
-      readAllBtn.onclick = () => this._markAllMailRead();
-    }
+    if (readAllBtn) readAllBtn.onclick = () => this._markAllMailRead();
     const clearAllBtn = document.getElementById('_mail-clear-all');
-    if (clearAllBtn && !clearAllBtn._wired) {
-      clearAllBtn._wired = true;
-      clearAllBtn.onclick = () => this._clearAllMail();
-    }
+    if (clearAllBtn) clearAllBtn.onclick = () => this._clearAllMail();
     this._fetchMails();
   }
 
@@ -6710,6 +6733,15 @@ unlockAllSlots() {
 // ------------------------------------------------------------------
 // FUNCIÓN PRINCIPAL ADDITEMBLOCKCHAINS (sin cambios, pero se incluye completa)
 // ------------------------------------------------------------------
+/* Additemblockchains (abajo) llamaba a `this.simulateAddItem`, que esta clase
+   no tenía: existe en GameScene y en TiendaSistema. Hoy esta ruta no la usa
+   nadie (la tienda compra por TiendaSistema), pero el día que se usara
+   reventaría con "simulateAddItem is not a function". La simulación solo lee
+   ItemDefinitions y STATE, que esta escena también tiene. */
+simulateAddItem(itemId, quantity = 1) {
+  return GameScene.prototype.simulateAddItem.call(this, itemId, quantity);
+}
+
 async Additemblockchains(ruta_tabla, producto, cantidad) {
   // Bandera EXCLUSIVA de "agregar item por blockchain": _transactionInProgress
   // también lo tocan el drag&drop del inventario y las ventas, y si alguno lo
@@ -6924,7 +6956,7 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
 
     // ===== SIMULADOR =====
     const reporte = this.simulateAddItem(producto, cantidad);
-    console.error('Reporte completo:', reporte);
+    console.log('Reporte completo:', reporte);
 
     // Bloquear slots implicados (si vienen)
     if (Array.isArray(reporte.operations)) {
@@ -11493,7 +11525,13 @@ hideCursor() {
 
 
 actualizarImagenJugador(imgSrc) {
-  document.getElementById('player-image').src = imgSrc;
+  const img = document.getElementById('player-image');
+  if (!img) return;
+  /* Para VACIARLA se quita el atributo. `src = ''` hace que el navegador pida
+     la PROPIA PÁGINA como si fuera una imagen: una descarga entera del HTML
+     que falla, cada vez que se esconde el HUD (cambio de escena, muerte). */
+  if (!imgSrc) img.removeAttribute('src');
+  else img.src = imgSrc;
 }
 actualizarNombreUsuario(nombre) {
   document.getElementById('username').textContent = nombre;
@@ -12042,6 +12080,20 @@ _setupPinchZoom() {
 // wallet, corta el socket, limpia rastros locales y manda al login. Antes el
 // botón del dashboard no hacía nada en esta escena (onLogout era null) y en
 // GameScene solo recargaba la página (seguías logueado y con la wallet conectada).
+/** Logout del dashboard: lo hace la escena que esté viva ahora mismo. */
+static _cerrarSesionGlobal() {
+  const esc = window.activeScene;
+  if (esc && typeof esc._doFullLogout === 'function') return esc._doFullLogout();
+  // Sin escena viva (en plena transición): el mismo cierre, con lo mínimo
+  // que usa (serverBase y socket), para no saltarse el logout del backend.
+  const h = window.location.hostname;
+  const local = h === 'localhost' || h === '127.0.0.1';
+  return tiendajuego.prototype._doFullLogout.call({
+    serverBase: local ? 'http://127.0.0.1:8080' : 'https://api.grasslandforest.com',
+    socket: window.globalSocket || null
+  });
+}
+
 async _doFullLogout() {
   console.log('🔐 Cerrando sesión completa…');
 

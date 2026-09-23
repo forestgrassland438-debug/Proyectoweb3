@@ -76,6 +76,22 @@ async _esperarTransaccionesPendientes() {
 }
 
 async loadResources() {
+  /* ESTA CARGA PUEDE QUEDAR ANTICUADA (mismo arreglo que LoadingScenegame).
+     Phaser no espera a este async: si la escena se apagaba durante los ~3 s de
+     la carga —logout, otra escena que la para—, al terminar hacía igualmente
+     `scene.start("tiendajuego")` y metía al jugador en la tienda por sorpresa.
+     Y dos create() seguidos lanzaban dos cargas que arrancaban la tienda dos
+     veces. Solo la pasada vigente puede terminar. */
+  const turno = this._turnoCarga = (this._turnoCarga || 0) + 1;
+  const vigente = () => {
+    if (this._turnoCarga !== turno || !this.sys || !this.sys.settings) return false;
+    const st = this.sys.settings.status;
+    return st !== Phaser.Scenes.SHUTDOWN && st !== Phaser.Scenes.DESTROYED;
+  };
+  // El texto va protegido: sin el elemento en el HTML, el TypeError dejaba la
+  // pantalla de carga puesta para siempre.
+  const texto = (t) => { if (this.loadingSystem.textElement) this.loadingSystem.textElement.textContent = t; };
+
   // Mostrar loading con mensaje inicial
   this.loadingSystem.show({
     message: 'Loading resources...',
@@ -85,6 +101,7 @@ async loadResources() {
   // Antes de nada: terminar lo que quedó en vuelo en GameScene (una tala, un
   // crafteo, una siembra…). Si no, la tienda cargaría un inventario incompleto.
   await this._esperarTransaccionesPendientes();
+  if (!vigente()) return;
 
   // Simular carga con tiempo controlado
   const steps = 10; // 10 pasos
@@ -92,6 +109,7 @@ async loadResources() {
   
   for (let i = 0; i <= steps; i++) {
     await new Promise(resolve => setTimeout(resolve, stepDelay));
+    if (!vigente()) return;
     
     // Usar easing para progreso más natural
     const progress = i / steps;
@@ -102,11 +120,11 @@ async loadResources() {
     
     // Cambiar mensaje según progreso
     if (progress < 0.4) {
-      this.loadingSystem.textElement.textContent = 'Loading resources...';
+      texto('Loading resources...');
     } else if (progress < 0.8) {
-      this.loadingSystem.textElement.textContent = 'Processing data...';
+      texto('Processing data...');
     } else {
-      this.loadingSystem.textElement.textContent = 'Finalizing...';
+      texto('Finalizing...');
     }
   }
   
@@ -114,17 +132,16 @@ async loadResources() {
   this.loadingSystem.update(1);
   
   // Cambiar mensaje final
-  this.loadingSystem.textElement.textContent = 'Loaded successfully!';
+  texto('Loaded successfully!');
   
   // Esperar un momento para que se vea el 100%
   await new Promise(resolve => setTimeout(resolve, 800));
+  if (!vigente()) return;
   
   // Ocultar con fade suave
   this.loadingSystem.hide(600);
 
-  
-        this.scene.start("tiendajuego");
-        clearInterval(this.intervalId);
+  this.scene.start("tiendajuego");
 }
 
 
@@ -162,10 +179,16 @@ async loadResources() {
     }
 
     create() {
+        // Un apagado invalida la carga en curso (ver loadResources).
+        this.events.once('shutdown', () => { this._turnoCarga = (this._turnoCarga || 0) + 1; });
 
-
-
-        this.loadResources();
+        this.loadResources().catch((err) => {
+            // Sin esto el fallo era un "unhandled rejection" y la pantalla de
+            // carga se quedaba puesta: se entra a la tienda igualmente.
+            console.error('❌ LoadingSceneshop: la carga falló, se entra igual a la tienda:', err);
+            try { this.loadingSystem.hide(300); } catch (_) {}
+            try { if (this.sys.isActive()) this.scene.start("tiendajuego"); } catch (_) {}
+        });
     }
 
 

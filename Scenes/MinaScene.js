@@ -1300,6 +1300,9 @@ class MinaScene extends GameScene {
     try { this._unbindAllDomClicks(); } catch (e) {}
     try { this.stopMusicSafely(); } catch (e) {}
 
+    // El apagado heredado de GameScene entra en `_salaAlSalir()`: que sea la
+    // del mapa, la misma que se pide aquí, y no 'fuera'.
+    this._salaDestino = 'game';
     if (this.socket && this.socket.connected) {
       this.socket.emit('joinRoom', {
         room: 'game',

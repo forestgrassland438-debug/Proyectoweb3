@@ -72,7 +72,9 @@ class BattleScene extends Phaser.Scene {
     this._battleRun = (this._battleRun || 0) + 1;
     this._cleaned = false;
     this._especiesPendientes = new Map();
-    this._domBindings = [];
+    // La escena se REUTILIZA: lo que enganchó la batalla anterior se suelta
+    // aquí también, por si su limpiar() no llegó a correr.
+    this._soltarDOM();
     this.turnoActual = 0;
     this._turnoResuelto = 0;
     this._sinFondo = false;
@@ -982,7 +984,21 @@ class BattleScene extends Phaser.Scene {
   _escucharDOM(target, event, callback) {
     if (!target) return;
     target.addEventListener(event, callback);
-    this._domBindings.push([target, event, callback]);
+    (this._domBindings = this._domBindings || []).push([target, event, callback]);
+  }
+
+  /* FALLO QUE ESTO ARREGLA: estos oyentes se apuntaban pero NO se quitaban
+     nunca (init() solo vaciaba la lista). La escena de batalla se reutiliza,
+     así que cada combate añadía otro juego sobre los mismos botones y sobre
+     window: desde el segundo, "End turn" mandaba la jugada dos veces,
+     "Surrender" se rendía al primer toque sin pedir confirmación (el segundo
+     manejador confirmaba lo que el primero acababa de pedir) y las teclas 1-5
+     alternaban la carta dos veces, o sea, no la seleccionaban. */
+  _soltarDOM() {
+    (this._domBindings || []).forEach(([t, ev, cb]) => {
+      try { t.removeEventListener(ev, cb); } catch (e) { /* ya no existe */ }
+    });
+    this._domBindings = [];
   }
 
   montarTacticas() {
@@ -1335,8 +1351,16 @@ class BattleScene extends Phaser.Scene {
       // shutdown.
       const vertical = window.innerHeight > window.innerWidth;
       const viva     = this._escenaViva !== false;
-      aviso.classList.toggle('hidden', !(esMovil && vertical && viva));
+      // "Jugar en vertical": con el giro automático bloqueado, el aviso tapaba
+      // la batalla entera sin salida (ni jugar ni rendirse). Se recuerda
+      // durante la sesión para no pedirlo en cada combate.
+      const aceptado = window.__gfBatallaEnVertical === true;
+      aviso.classList.toggle('hidden', !(esMovil && vertical && viva && !aceptado));
     };
+    this._escucharDOM(document.getElementById('battleRotateSeguir'), 'click', () => {
+      window.__gfBatallaEnVertical = true;
+      revisar();
+    });
 
     this._escenaViva = true;
     this._revisarOrientacion = revisar;
@@ -2087,6 +2111,7 @@ class BattleScene extends Phaser.Scene {
   }
 
   limpiar() {
+    this._soltarDOM();
     if (this._timerBusqueda) { this._timerBusqueda.remove(); this._timerBusqueda = null; }
     if (this._conexionTimeout) { this._conexionTimeout.remove(); this._conexionTimeout = null; }
     if (this._revealTimer) { this._revealTimer.remove(); this._revealTimer = null; }

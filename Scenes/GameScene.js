@@ -200,8 +200,34 @@ this.prevPlayerY = undefined;
 
 
 
-    // Configuración del sistema de reporte de errores
-    this.errorReporter = {
+    /* EL REPORTERO DE ERRORES ES DE LA PÁGINA, NO DE LA ESCENA.
+
+       Se crea con GameScene._nuevoReportero(), FUERA de la instancia. Antes el
+       objeto se escribía aquí mismo, dentro del constructor, y además se hacía
+       uno nuevo por cada GameScene. Los envoltorios de console.* y los oyentes
+       de window que instala el primero son de toda la página, así que quedaban
+       cerrados sobre aquel primer objeto — y, a través del contexto del
+       constructor, sobre la primera GameScene entera: medido en el navegador,
+       tras ir y volver de la tienda las escenas intermedias se liberaban y esa
+       primera no se liberaba nunca. Ahora hay UN reportero por página, sin
+       ningún lazo con la escena que lo creó; init() le apunta la escena viva. */
+    this.errorReporter = window.__gfErrorReporter ||
+      (window.__gfErrorReporter = GameScene._nuevoReportero());
+
+    
+
+
+
+
+
+
+      
+  }
+
+
+  /** El reportero de errores (uno por página: ver el constructor). */
+  static _nuevoReportero() {
+    return {
       enabled: true,
       serverUrl: '', // Se establecerá en create()
       pendingReports: [],
@@ -260,19 +286,25 @@ this.prevPlayerY = undefined;
         // Sobrescribir console.error
         console.error = (...args) => {
           this.originalConsoleError.apply(console, args);
-          this.captureError('console.error', args, scene);
+          this.captureError('console.error', args, this.scene);
         };
         
         // Sobrescribir console.warn
         console.warn = (...args) => {
           this.originalConsoleWarn.apply(console, args);
-          this.captureError('console.warn', args, scene);
+          this.captureError('console.warn', args, this.scene);
         };
         
         // Capturar logs importantes
         console.log = (...args) => {
           this.originalConsoleLog.apply(console, args);
-          
+
+          // Antes de mirar el texto: si ahora mismo no se podría reportar nada
+          // (desactivado o dentro de los 10 s de pausa), no se hace el join de
+          // TODOS los argumentos de CADA console.log del juego — y el juego
+          // registra muchísimo.
+          if (!this.enabled || Date.now() - this.lastReportTime < this.minReportInterval) return;
+
           // Capturar solo logs que parezcan errores
           const message = args.join(' ').toLowerCase();
           if (message.includes('error') || 
@@ -281,7 +313,7 @@ this.prevPlayerY = undefined;
               message.includes('uncaught') ||
               message.includes('typeerror') ||
               message.includes('referenceerror')) {
-            this.captureError('console.log', args, scene);
+            this.captureError('console.log', args, this.scene);
           }
         };
         
@@ -292,7 +324,7 @@ this.prevPlayerY = undefined;
             `File: ${event.filename}`,
             `Line: ${event.lineno}`,
             `Column: ${event.colno}`
-          ], scene);
+          ], this.scene);
         }, true);
         
         // Capturar promesas rechazadas no manejadas
@@ -301,35 +333,32 @@ this.prevPlayerY = undefined;
           this.captureError('unhandledrejection', [
             `Promise rejection: ${reason}`,
             reason instanceof Error ? reason.stack : String(reason)
-          ], scene);
+          ], this.scene);
         });
         
         // Capturar errores de recursos
         window.addEventListener('loaderror', (event) => {
           this.captureError('resource.error', [
-            `Resource failed to load: ${event.target.src || event.target.href}`
-          ], scene);
+            `Resource failed to load: ${(event.target && (event.target.src || event.target.href)) || 'unknown'}`
+          ], this.scene);
         }, true);
         
         // Capturar errores de Phaser específicos
+        // (Estos van al emisor del JUEGO, que vive toda la página: con la
+        // escena capturada, retenían la primera GameScene para siempre.)
         if (scene.game) {
           scene.game.events.on('error', (error) => {
-            this.captureError('phaser.game.error', [error], scene);
+            this.captureError('phaser.game.error', [error], this.scene);
           });
-          
+
           scene.game.events.on('loaderror', (key, file) => {
             this.captureError('phaser.load.error', [
               `Failed to load: ${key}`,
-              `File: ${file.src}`,
-              `Type: ${file.type}`
-            ], scene);
+              `File: ${file && file.src}`,
+              `Type: ${file && file.type}`
+            ], this.scene);
           });
         }
-        
-        // Capturar errores en la escena actual
-        scene.events.on('error', (error) => {
-          this.captureError('phaser.scene.error', [error], scene);
-        });
         
         // Iniciar procesador de reportes pendientes
         this.startPendingProcessor();
@@ -361,7 +390,8 @@ this.prevPlayerY = undefined;
       // Capturar error
       captureError: function(type, args, scene) {
         if (!this.enabled) return;
-        
+        scene = scene || this.scene || window.activeScene || {};
+                
         try {
           // Prevenir spam temporal
           const now = Date.now();
@@ -458,7 +488,7 @@ this.prevPlayerY = undefined;
             } : null,
             zoom: scene.cameras?.main?.zoom || 1,
             worldBounds: scene.cameras?.main?.worldView || null,
-            time: scene.time.now,
+            time: (scene.time && scene.time.now) || 0,
             active: scene.scene?.isActive() || false,
             visible: scene.scene?.isVisible() || false
           };
@@ -603,7 +633,10 @@ this.prevPlayerY = undefined;
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 8000);
           
-          const response = await fetch(`${this.serverUrl}/api/error/report`, {
+          // serverUrl es el `serverclient` de la escena, que ya acaba en /api:
+          // sin quitarlo, la ruta salía como /api/api/error/report.
+          const base = String(this.serverUrl || '').replace(/\/api\/?$/, '');
+          const response = await fetch(`${base}/api/error/report`, {
             method: 'POST',
             headers: headers,
             body: JSON.stringify(errorData),
@@ -632,9 +665,23 @@ this.prevPlayerY = undefined;
               entries.forEach(hash => this.reportCache.delete(hash));
             }
             
+          } else if (response.status >= 400 && response.status < 500 && response.status !== 408 && response.status !== 429) {
+            /* ERROR DEL CLIENTE: reintentar no lo arregla nunca.
+
+               FALLO QUE ESTO ARREGLA: antes CUALQUIER respuesta mala volvía a
+               la cola, y el procesador la reintenta cada 2 s. Si la ruta no
+               existe en el servidor (404) —y el backend actual no tiene
+               /api/error/report— eso era una petición fallida cada dos
+               segundos durante TODA la partida, desde el primer error. */
+            this.originalConsoleWarn?.apply(console, ['⚠️ El servidor rechazó el reporte de error:', response.status]);
+            if (response.status === 404 || response.status === 405) {
+              // La ruta no existe: no tiene sentido seguir intentándolo.
+              this.enabled = false;
+              this.pendingReports = [];
+            }
           } else {
-            console.warn('⚠️ Error al reportar error:', response.status, response.statusText);
-            // Reintentar más tarde
+            this.originalConsoleWarn?.apply(console, ['⚠️ Error al reportar error:', response.status, response.statusText]);
+            // Reintentar más tarde (fallo del servidor o de la red)
             this.queueReport(errorData);
           }
         } catch (error) {
@@ -824,17 +871,8 @@ this.prevPlayerY = undefined;
           };
         }
       },
-      
+
     };
-
-    
-
-
-
-
-
-
-      
   }
 
 // Función para cargar SOLO los datos de misiones
@@ -2784,6 +2822,9 @@ liberarMemoriaPesada() {
   async create() {
     const sceneRunId = this._sceneRunId = (this._sceneRunId || 0) + 1;
     this._sceneStopped = false;
+    // A qué sala del servidor se va al salir (ver _salaAlSalir). Se rearma en
+    // cada entrada: Phaser reutiliza la instancia de la escena.
+    this._salaDestino = null;
     this._cleanupSceneDone = false;
     this._shutdownDone = false;
     // Registrar antes del primer await: la autenticación puede terminar
@@ -5165,7 +5206,7 @@ this.anims.create({
         console.log("xd",this.currentAccount);
 
 
-        this.actualizarNombreUsuario(`${this.currentAccount.slice(0, 6)}...${this.currentAccount.slice(-4)}`);
+        this.actualizarNombreUsuario(GameScene.nombreParaHud(this.currentAccount));
 
         // ── Cargar stats del contrato justo antes de pintar las barras ──────
         // Se llama aquí (al final del create) para que ningún loadPlayerData
@@ -5553,14 +5594,10 @@ this._loadNotifications();
 // como leídas dos veces.
 
 // Cerrar panel
-const notifClose = document.getElementById('notif-close');
-if (notifClose) notifClose.onclick = () => this._closeNotifPanel();
-
-const markAllBtn = document.getElementById('notif-mark-all-read');
-if (markAllBtn) markAllBtn.onclick = () => this._markAllNotifRead();
-
-const clearAllNotifBtn = document.getElementById('notif-clear-all');
-if (clearAllNotifBtn) clearAllNotifBtn.onclick = () => this._clearAllNotif();
+// Van por _onclickCompartido: son DOM de la página y hay que soltarlos al irse.
+this._onclickCompartido(document.getElementById('notif-close'), () => this._closeNotifPanel());
+this._onclickCompartido(document.getElementById('notif-mark-all-read'), () => this._markAllNotifRead());
+this._onclickCompartido(document.getElementById('notif-clear-all'), () => this._clearAllNotif());
 
 /*
 // API de badge (accesible desde cualquier parte de la escena):
@@ -5780,7 +5817,7 @@ this.onRoundBtnReputation = () => {
     // Try hub system first, fall back to direct DOM toggle
     try {
       if (window.hub) {
-        if (!window.hub.baseUrl) {
+        if (this.serverclient1 || !window.hub.baseUrl) {  // la escena sabe dónde está la API
           window.hub.baseUrl = this.serverclient1 || '';
         }
         window.hub.setUser(this.playerName, this.playerName);
@@ -8161,10 +8198,10 @@ console.log('📊 Tree types:', Object.keys(TREE_TYPE_CONFIG));
 
         */
 
-        // 4) Botón de cerrar inventario (HTML Overlay)
-        this._onDOM(document.querySelector('#inventory-panel .cerrar-hud'), 'click', () => {
-            this.hideInventory();
-          });
+        // 4) Botón de cerrar inventario: lo engancha _cablearHUD() (en el mapa,
+        // la mina y la isla). Engancharlo también aquí le ponía DOS manejadores
+        // en el mapa (contados con el depurador): hideInventory() corría dos
+        // veces por clic.
     
 
 
@@ -8285,8 +8322,19 @@ console.log('📊 Tree types:', Object.keys(TREE_TYPE_CONFIG));
          Los oyentes y el join siguen montandose en initSocket(). */
       this.socket = window.globalSocket || null;
       this.socketInitialized = false;
-      this.socketListeners = [];
-      
+      /* SOLTAR, NO VACIAR.
+
+         FUGA QUE ESTO ARREGLA (medida en el navegador: +34 oyentes en el
+         socket global por cada ida y vuelta a la tienda, sin límite): el chat
+         pregunta por el socket nada más montarse (`_socketVivo`), y eso
+         engancha ya los oyentes de la escena. Esta línea llegaba DESPUÉS y
+         hacía `socketListeners = []`: tiraba la lista SIN quitar esos oyentes
+         del socket, y luego initSocket() montaba otro juego entero. Cada visita
+         dejaba colgado un juego completo (currentPlayers, newPlayer,
+         playerMoved, chat…) cerrado sobre una escena ya muerta: la escena no se
+         podía recoger, y cada mensaje del servidor ejecutaba todos los viejos. */
+      this.removeSocketListeners();
+
       // Para evitar múltiples joinRoom
       this.currentRoom = null;
       this.lastJoinTime = 0;
@@ -8936,6 +8984,9 @@ _olvidarEstadoArbol(treeKey) {
 setupResourceLockSocket() {
   if (!this.socket || this._resourceLockSocketBound) return;
   this._resourceLockSocketBound = true;
+  // El socket en el que se ponen estos oyentes. Hay que quitarlos de ESTE:
+  // cuando `soltar` corre (al apagar la escena) `this.socket` ya vale null.
+  const sockRecursos = this.socket;
 
   // Los bloqueos permanentes (deforestación al 100%: lockedUntil año 3000) no
   // se reprograman. Un delayedCall con esa distancia desborda y se dispararía
@@ -9020,17 +9071,27 @@ setupResourceLockSocket() {
 
   // Al salir de la escena hay que soltar los listeners: si no, al volver se
   // acumulan y cada tala se aplicaría varias veces.
+  /* FUGA QUE ESTO ARREGLA (medida: un juego más de estos nueve oyentes por
+     cada visita al mapa, sin límite): `soltar` corre al apagar la escena, y
+     para entonces la limpieza ya ha puesto `this.socket = null`. El
+     `this.socket.off(...)` lanzaba un TypeError que el try se tragaba y no se
+     quitaba NADA: cada tala de otro jugador se procesaba una vez por cada
+     visita anterior, sobre escenas ya muertas. Se quitan del socket en el que
+     se pusieron. */
   const soltar = () => {
+    const s = sockRecursos || this.socket;
     try {
-      this.socket.off('treeLocked');
-      this.socket.off('mineLocked');
-      this.socket.off('petLevelUpdate');
-      this.socket.off('verifierChallenge');
-      this.socket.off('verifierResult');
-      this.socket.off('verifierTimeout');
-      this.socket.off('moderationWarning');
-      this.socket.off('accountBanned');
-      this.socket.off('accountSuspended');
+      if (s) {
+        s.off('treeLocked');
+        s.off('mineLocked');
+        s.off('petLevelUpdate');
+        s.off('verifierChallenge');
+        s.off('verifierResult');
+        s.off('verifierTimeout');
+        s.off('moderationWarning');
+        s.off('accountBanned');
+        s.off('accountSuspended');
+      }
     } catch (_) {}
     this._eventosModeracionListos = false;
     this._resourceLockSocketBound = false;
@@ -9046,6 +9107,9 @@ async loadMineLockStates() {
     });
     if (!response.ok) return;
     const locks = await response.json();
+    // El servidor manda una lista; cualquier otra cosa (un error con 200 de un
+    // proxy, un cuerpo vacío) hacía reventar el forEach de abajo.
+    if (!Array.isArray(locks)) return;
     locks.forEach(lock => {
       const spr = this[lock.mineKey];
       if (!spr) return;
@@ -9098,6 +9162,9 @@ async loadTreeLockStates() {
     });
     if (!response.ok) return;
     const locks = await response.json();
+    // El servidor manda una lista; cualquier otra cosa (un error con 200 de un
+    // proxy, un cuerpo vacío) hacía reventar el forEach de abajo.
+    if (!Array.isArray(locks)) return;
     locks.forEach(lock => {
       const spr = this[lock.treeKey];
       if (!spr) return;
@@ -9995,11 +10062,17 @@ showSettingsPanel() {
         if (this.settingsPanel) this.setupSettingsPanel();
     }
     if (this.settingsPanel) {
+        /* EL ESTADO DEL TECLADO SE GUARDA SOLO AL ABRIR DE VERDAD.
+           Si el panel ya estaba abierto (se pulsó Dashboard otra vez), aquí el
+           teclado ya está apagado por este mismo panel: guardarlo ahora hacía
+           que al cerrar se "restaurara" apagado y el jugador ya no podía
+           moverse con el teclado hasta cambiar de escena. */
+        const yaAbierto = this.settingsPanel.classList.contains('visible');
         this.settingsPanel.classList.add('visible');
         this.settingsPanel.setAttribute('aria-hidden', 'false');
         
         // Guardar estado del teclado
-        this.wasKeyboardEnabled = this.input.keyboard.enabled;
+        if (!yaAbierto) this.wasKeyboardEnabled = this.input.keyboard.enabled;
         
         // Desactivar controles del teclado
         if (this.keys) {
@@ -10020,8 +10093,12 @@ showSettingsPanel() {
         // deshabilitado y el aviso pasa a "definitivo".
         this._refreshNameLockUI();
 
-        // Enfocar el primer input editable
-        setTimeout(() => {
+        // Enfocar el primer input editable. En pantallas táctiles NO: en un
+        // móvil enfocar un campo saca el teclado virtual, que tapa medio panel
+        // nada más abrirlo sin que el jugador haya pedido escribir nada.
+        const tactil = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+        if (!tactil) setTimeout(() => {
+            if (!this.settingsPanel || !this.settingsPanel.classList.contains('visible')) return;
             if (this.settingsNameInput && !this.settingsNameInput.disabled) {
                 this.settingsNameInput.focus();
             } else if (this.settingsPetInput && !this.settingsPetInput.disabled) {
@@ -10040,10 +10117,17 @@ hideSettingsPanel() {
         this.settingsPanel.classList.remove('visible');
         this.settingsPanel.setAttribute('aria-hidden', 'true');
         
-        // Quitar el foco del input
+        // Quitar el foco de CUALQUIER campo del panel, no solo el del nombre:
+        // con el de la mascota (o el selector de idioma) enfocado, el campo
+        // invisible seguía recibiendo las teclas y el teclado del juego,
+        // apagado.
         if (this.settingsNameInput) {
             this.settingsNameInput.blur();
         }
+        try {
+            const activo = document.activeElement;
+            if (activo && activo !== document.body && this.settingsPanel.contains(activo)) activo.blur();
+        } catch (e) { /* no crítico */ }
         
         // Reactivar los controles del teclado
         if (this.keys) {
@@ -10057,8 +10141,9 @@ hideSettingsPanel() {
             this.keys.downArrow.enabled = true;
         }
         
-        // Reactivar el teclado
-        this.input.keyboard.enabled = this.wasKeyboardEnabled !== false;
+        // Reactivar el teclado (si no queda otro panel de escritura abierto;
+        // ver _tecladoLibre)
+        this.input.keyboard.enabled = this._tecladoLibre();
         
         // Reanudar juego
         // this.scene.resume(); // removed: we don't pause anymore
@@ -10116,10 +10201,39 @@ enableKeyboardControls() {
         this.keys.downArrow.enabled = true;
     }
     
-    // Reactivar el teclado
-    this.input.keyboard.enabled = this.wasKeyboardEnabled !== false;
+    // Reactivar el teclado (si no queda otro panel de escritura abierto)
+    this.input.keyboard.enabled = this._tecladoLibre();
     
     console.log('⌨️ Controles de teclado reactivados');
+}
+
+/* ¿PUEDE EL JUEGO VOLVER A ESCUCHAR EL TECLADO?
+
+   FALLO QUE ESTO ARREGLA: el Dashboard, la papelera y el crafteo apagaban el
+   teclado al abrirse guardando "cómo estaba", y al cerrarse lo dejaban "como
+   estaba". Pero el Dashboard y la papelera compartían la MISMA variable
+   (`wasKeyboardEnabled`) y el crafteo tenía la suya: con dos paneles abiertos
+   a la vez, el segundo guardaba "apagado", y al cerrar los dos el teclado se
+   quedaba apagado para siempre — el personaje dejaba de moverse con WASD y
+   las flechas hasta cambiar de escena.
+
+   Ahora no se restaura "lo de antes": se mira si queda de verdad algo
+   abierto que necesite el teclado (un panel de escritura o un campo de texto
+   enfocado y visible). Cada panel se marca como cerrado ANTES de llamar aquí. */
+_tecladoLibre() {
+    try {
+        const visible = (el) => !!(el && el.isConnected &&
+            (!el.checkVisibility || el.checkVisibility({ opacityProperty: true, visibilityProperty: true })));
+        if (this.settingsPanel && this.settingsPanel.classList.contains('visible')) return false;
+        if (this.trashHubOpen) return false;
+        const craft = document.getElementById('crafting-hub');
+        if (craft && !craft.classList.contains('crafting-hub-hidden') && visible(craft)) return false;
+        const a = document.activeElement;
+        if (a && a !== document.body &&
+            (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable) &&
+            visible(a)) return false;
+    } catch (e) { /* ante la duda, el teclado vuelve */ }
+    return true;
 }
 
 
@@ -12183,14 +12297,24 @@ setupCropSocketEvents() {
   // initCropSystem() ya hacía esto para tres eventos; faltaban los otros diez.
   // Se quitan TODOS los que se registran justo debajo, para que la lista se
   // pueda leer de un vistazo junto a los .on() correspondientes.
-  [
+  const eventosCultivo = [
     'cropConfig', 'cropPlanted', 'cropWatered', 'cropGrowth',
     'plantSuccess', 'plantError',
     'waterSuccess', 'waterError',
     'harvestSuccess', 'harvestError',
     'cutSuccess', 'cutError',
     'userCropsData'
-  ].forEach(evento => this.socket.off(evento));
+  ];
+  eventosCultivo.forEach(evento => this.socket.off(evento));
+
+  /* Y TAMBIÉN AL APAGAR LA ESCENA, no solo al volver: mientras se está en la
+     tienda o en una batalla, estos oyentes seguían colgados del socket global
+     apuntando a la escena ya cerrada. Un 'cropGrowth' del servidor en ese rato
+     repintaba sprites destruidos, y la escena entera seguía en memoria. */
+  const sockCultivos = this.socket;
+  this._onceSceneEnd(() => {
+    eventosCultivo.forEach(evento => { try { sockCultivos.off(evento); } catch (_) {} });
+  });
 
   this.socket.on('cropConfig', (config) => {
     this.cropTypes = config;
@@ -17331,13 +17455,32 @@ removeOtherPlayer(playerId) {
       });
     }
 
+    /**
+     * La sala del servidor en la que se entra AL IRSE del mapa.
+     *
+     * FALLO QUE ESTO ARREGLA — "un jugador fantasma en la esquina de la
+     * tienda": el servidor no tiene "salir de sala", solo joinRoom, y aquí se
+     * salía SIEMPRE entrando en 'tienda'. Fuera a donde fuera el jugador —la
+     * mina, una batalla, la isla— el servidor lo metía en la sala de la tienda
+     * en (0,0) y avisaba a los que estaban allí con newPlayer: lo veían
+     * plantado en la esquina durante toda su partida en la mina, y su chat
+     * les llegaba a ellos. La mina ya mandaba su 'mina', pero el apagado de
+     * la escena, que va DESPUÉS, lo pisaba con 'tienda'.
+     *
+     * Ahora cada salida apunta su destino en `_salaDestino`; si no se sabe,
+     * 'fuera', una sala que ninguna escena pinta.
+     */
+    _salaAlSalir() {
+      return this._salaDestino || 'fuera';
+    }
+
     leaveRoom() {
       console.log('🚪 Saliendo de sala game...');
-      
+
       if (this.socket && this.socket.connected) {
         // Emitir que estamos cambiando a game
         this.socket.emit("joinRoom", {
-          room: "tienda",
+          room: this._salaAlSalir(),
           username: this.Username || '---',
           lastScene: 'GameScene',
           x: 0,
@@ -17375,7 +17518,7 @@ removeOtherPlayer(playerId) {
       // Tell the server we are leaving this room BEFORE clearing socket
       if (this.socket && this.socket.connected) {
         this.socket.emit("joinRoom", {
-          room: "tienda",
+          room: this._salaAlSalir(),
           username: this.Username || '---',
           lastScene: 'GameScene',
           x: this.player ? this.player.x : 0,
@@ -18725,6 +18868,13 @@ cleanupScene() {
     });
     this._colaEnvioChat = [];
     if (window.activeScene === this) window.activeScene = null;
+    // El reportero de errores es UNO por página (window.__gfErrorReporter) y
+    // apunta a la escena viva: si se queda con esta, la GameScene entera (mapa,
+    // sprites, texturas) sigue en memoria mientras se está en la tienda.
+    if (this.errorReporter && this.errorReporter.scene === this) this.errorReporter.scene = null;
+    // La tienda (window.tiendaSistema) también la apunta en create(): se suelta
+    // igual que hace tiendajuego (espera si queda una compra o venta en vuelo).
+    try { window.tiendaSistema?.soltarEscena?.(this); } catch (e) { /* al salir da igual */ }
     console.log('🧹 LIMPIANDO ESCENA COMPLETAMENTE');
 
     
@@ -18765,7 +18915,7 @@ cleanupScene() {
         // a los que se quedan.
         if (this.socket.connected) {
           this.socket.emit("joinRoom", {
-            room: "tienda",
+            room: this._salaAlSalir(),
             username: this.Username || '---',
             lastScene: 'GameScene',
             x: 0, y: 0
@@ -19075,6 +19225,14 @@ _bindDomClick(el, key, handler) {
     if (!el || this._sceneStopped) return;
     this._domClickBindings = this._domClickBindings || [];
     const prop = `_gfClick_${key}`;
+    /* UN `onclick` QUE SOBRA ES DE OTRA ESCENA. La tienda engancha algunos de
+       estos mismos botones del HUD con `.onclick` y solo los suelta al salir
+       por la puerta. Saliendo por otro camino (el botón de las islas, por
+       ejemplo) el `onclick` viejo seguía puesto y este listener se sumaba:
+       dos manejadores por clic, que en un botón que abre y cierra un panel
+       es abrirlo y cerrarlo a la vez. Ninguno de estos botones lleva onclick
+       propio en el HTML. */
+    if (typeof el.onclick === 'function') el.onclick = null;
     if (el[prop]) el.removeEventListener('click', el[prop]);
     el[prop] = handler;
     el.addEventListener('click', handler);
@@ -19092,6 +19250,28 @@ _unbindAllDomClicks() {
         } catch (_) {}
     });
     this._domClickBindings = [];
+    // Y los `onclick` que esta escena puso en el DOM compartido (solo si siguen
+    // siendo suyos: otra escena puede haberlos cambiado ya).
+    (this._onclicksPuestos || []).forEach(([el, fn]) => {
+        try { if (el && el.onclick === fn) el.onclick = null; } catch (_) {}
+    });
+    this._onclicksPuestos = [];
+}
+
+/* `el.onclick = fn` sobre DOM de la PÁGINA (paneles y botones que sobreviven
+   al cambio de escena), apuntado para soltarlo al irse.
+
+   FALLO QUE ESTO ARREGLA: estos `onclick` se quedaban puestos al salir del
+   mapa. En la tienda, la ✕ del Dashboard y la de Mail tenían DOS manejadores
+   (contados con el depurador): el de la tienda y el de la GameScene muerta,
+   que además la mantenía en memoria. Y la ✕ de Skills de la tienda solo se
+   enganchaba la primera vez (`_wired`), así que según el orden de las visitas
+   acababa llamando a la escena muerta. */
+_onclickCompartido(el, fn) {
+    if (!el) return;
+    el.onclick = fn;
+    this._onclicksPuestos = (this._onclicksPuestos || []).filter(([e]) => e !== el);
+    this._onclicksPuestos.push([el, fn]);
 }
 
 cleanupSystems() {
@@ -19195,7 +19375,7 @@ shutdown() {
   // Salir de la sala de la tienda
   if (this.socket && this.socket.connected) {
     this.socket.emit("joinRoom", {
-      room: "tienda", // Cambiar a la sala del juego principal
+      room: this._salaAlSalir(), // la sala del destino (ver _salaAlSalir)
       username: this.Username || '---',
       x: 0,
       y: 0
@@ -20126,7 +20306,7 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
 
     // ===== SIMULADOR =====
     const reporte = this.simulateAddItem(producto, cantidad);
-    console.error('Reporte completo:', reporte);
+    console.log('Reporte completo:', reporte);
 
     // Bloquear slots implicados (si vienen)
     if (Array.isArray(reporte.operations)) {
@@ -21453,7 +21633,7 @@ simulateAddItem(itemId, quantity = 1) {
         mergedAny = true;
 
         const slotReal = type === 'quick' ? this.STATE.quickSlots[i] : this.STATE.slots[i];
-        console.error(`[SIMULATE] Merge en ${type} slot ${i}: prev=${prev}, add=${add}, final=${slot.count}, remaining=${remaining}`);
+        console.log(`[SIMULATE] Merge en ${type} slot ${i}: prev=${prev}, add=${add}, final=${slot.count}, remaining=${remaining}`);
 
         operations.push({
           type: 'merge',
@@ -21483,7 +21663,7 @@ simulateAddItem(itemId, quantity = 1) {
         remaining -= add;
         createdAny = true;
 
-        console.error(`[SIMULATE] Nuevo stack en ${type} slot ${i}: add=${add}, remaining=${remaining}`);
+        console.log(`[SIMULATE] Nuevo stack en ${type} slot ${i}: add=${add}, remaining=${remaining}`);
 
         operations.push({
           type: 'new',
@@ -21502,7 +21682,7 @@ simulateAddItem(itemId, quantity = 1) {
   let iteration = 0;
   while (remaining > 0) {
     iteration++;
-    console.error(`[SIMULATE] Iteración ${iteration}, remaining=${remaining}`);
+    console.log(`[SIMULATE] Iteración ${iteration}, remaining=${remaining}`);
 
     // 1️⃣ Completar stacks parciales
     const mergedQuick = completePartialStacks(simQuick, 'quick');
@@ -21514,7 +21694,7 @@ simulateAddItem(itemId, quantity = 1) {
 
     // 3️⃣ Si no hubo merge ni nuevos stacks → no hay más espacio
     if (!mergedQuick && !mergedInv && !newQuick && !newInv) {
-      console.error(`[SIMULATE] No hay más espacio para agregar los ${remaining} restantes`);
+      console.log(`[SIMULATE] No hay más espacio para agregar los ${remaining} restantes`);
       break;
     }
   }
@@ -21536,7 +21716,7 @@ simulateAddItem(itemId, quantity = 1) {
     slotsUsed[op.location.type]++;
   });
 
-  console.error(`[SIMULATE] Resultado final: success=${success}, remaining=${remaining}, totalMerged=${totalMerged}, totalNewStacks=${totalNew}, newStacksCount=${newStacksCount}`);
+  console.log(`[SIMULATE] Resultado final: success=${success}, remaining=${remaining}, totalMerged=${totalMerged}, totalNewStacks=${totalNew}, newStacksCount=${newStacksCount}`);
 
   return {
     success,
@@ -24581,14 +24761,24 @@ createImagesFromObjectLayer1(scene, map, objectLayerName, nameMapping) {
   // enteras retenidas en memoria — en un teléfono eso son pausas del recolector
   // de basura y tirones de frames cada vez peores según avanza la partida.
   // Con la marca `_gfTileCleanupPatched` se envuelve UNA sola vez.
-  if (scene.scene && scene.scene.manager && !scene.scene.manager._gfTileCleanupPatched) {
-    const sceneManager = scene.scene.manager;
-    sceneManager._gfTileCleanupPatched = true;
-
+  //
+  // Y el envoltorio se crea FUERA de esta función (ver _envolverGestorEscenas).
+  // Creado aquí, aunque no nombrara `scene`, colgaba del mismo contexto que los
+  // cierres de arriba que sí la usan: el gestor de escenas, que vive toda la
+  // partida, retenía así la PRIMERA GameScene para siempre (heap snapshot:
+  // game.scene.start → context → previous → scene).
+  if (scene.scene && scene.scene.manager) {
+    GameScene._envolverGestorEscenas(scene.scene.manager);
     // La escena a limpiar se lee en el momento desde el registro, en vez de
-    // quedar capturada en el closure: así el envoltorio no retiene ninguna
-    // escena concreta.
-    sceneManager._gfTileCleanupScene = scene;
+    // quedar capturada en el closure.
+    scene.scene.manager._gfTileCleanupScene = scene;
+  }
+}
+
+/** Envuelve start/stop del gestor de escenas UNA vez, sin ninguna escena en su ámbito. */
+static _envolverGestorEscenas(sceneManager) {
+    if (!sceneManager || sceneManager._gfTileCleanupPatched) return;
+    sceneManager._gfTileCleanupPatched = true;
 
     // Interceptar el cambio de escena para limpiar
     const originalStart = sceneManager.start.bind(sceneManager);
@@ -24629,11 +24819,6 @@ createImagesFromObjectLayer1(scene, map, objectLayerName, nameMapping) {
       }
       return originalStop(key);
     };
-  } else if (scene.scene && scene.scene.manager) {
-    // Ya estaba envuelto por una entrada anterior: solo se apunta la escena
-    // actual como la que hay que limpiar.
-    scene.scene.manager._gfTileCleanupScene = scene;
-  }
 }
 
 // ⚡ MEJORA: Función auxiliar para limpiar todos los TileManagers manualmente
@@ -26110,9 +26295,17 @@ startPvpBattle(modo = 'pvp') {
   // navegador con la lista de escenas vieja…), se registra aquí mismo a partir
   // de la clase global en vez de dejar al jugador con un "no disponible".
   if (!this.scene.manager.keys['BattleScene']) {
-    if (typeof window.BattleScene === 'function') {
+    // FIX: `window.BattleScene` NO existe en producción — register-scenes.js
+    // lo borra de window a propósito —, así que esta red de seguridad no
+    // servía nunca. Se busca como en MinaScene: el registro seguro y, si no,
+    // el binding léxico que deja `class BattleScene` en su script.
+    const ClaseBatalla =
+      (window.__secureSceneRegistry && window.__secureSceneRegistry.get('BattleScene')) ||
+      (typeof window.BattleScene === 'function' ? window.BattleScene : null) ||
+      (typeof BattleScene === 'function' ? BattleScene : null);
+    if (ClaseBatalla) {
       try {
-        this.scene.manager.add('BattleScene', window.BattleScene, false);
+        this.scene.manager.add('BattleScene', ClaseBatalla, false);
         console.log('🛠️ BattleScene registrada sobre la marcha');
       } catch (e) {
         console.error('No se pudo registrar BattleScene:', e);
@@ -26128,6 +26321,7 @@ startPvpBattle(modo = 'pvp') {
     return;
   }
 
+  this._salaDestino = 'batalla';
   this.scene.start('BattleScene', {
     modo,
     playerName: this.Username || '---',
@@ -27683,7 +27877,22 @@ actualizarBarra(valorActual, valorMaximo) {
 
 
 actualizarImagenJugador(imgSrc) {
-  document.getElementById('player-image').src = imgSrc;
+  const img = document.getElementById('player-image');
+  if (!img) return;
+  /* Para VACIARLA se quita el atributo. `src = ''` hace que el navegador pida
+     la PROPIA PÁGINA como si fuera una imagen: una descarga entera del HTML
+     que falla, cada vez que se esconde el HUD (cambio de escena, muerte). */
+  if (!imgSrc) img.removeAttribute('src');
+  else img.src = imgSrc;
+}
+/* El nombre del HUD. `playerName` es el nombre que eligió el jugador o, si no
+   eligió ninguno, su dirección de cartera. Antes se recortaba SIEMPRE como si
+   fuera una dirección (6 + "..." + 4), así que un nombre como "Tester" salía
+   "Tester...ster". Solo se acortan las direcciones y los nombres muy largos. */
+static nombreParaHud(cuenta) {
+  const s = String(cuenta || '').trim();
+  if (/^0x[0-9a-fA-F]{20,}$/.test(s)) return `${s.slice(0, 6)}...${s.slice(-4)}`;
+  return s.length > 18 ? s.slice(0, 16) + '…' : s;
 }
 actualizarNombreUsuario(nombre) {
   document.getElementById('username').textContent = nombre;
@@ -27940,7 +28149,11 @@ getPlayerIntentDirection() {
     // `scene`), this.player seguía siendo un objeto y todo el update reventaba
     // frame tras frame — la pantalla se quedaba en negro.
     // Mientras el jugador no esté vivo, no hay nada que actualizar.
-    if (!this.player || !this.player.scene) return;
+    // Y el MAPA tampoco puede faltar: al volver de una batalla el jugador nuevo
+    // ya existe mientras create() sigue esperando el mapa, y la línea de
+    // `this.map.tileWidth` de más abajo lanzaba un TypeError que, además de
+    // cortar el update, congelaba el bucle entero del juego.
+    if (!this.player || !this.player.scene || !this.map) return;
 
     // Índice espacial de colisiones: se comprueba UNA vez por frame si sigue
     // vigente (ver _asegurarIndiceColisiones). Todas las consultas de colisión
@@ -28495,6 +28708,7 @@ getPlayerIntentDirection() {
         delete this.mostrarObjetoEnCursor;
 
 
+        this._salaDestino = 'tienda';
         this.cleanupScene();
         this.scene.start("LoadingSceneshop");
 
@@ -29063,7 +29277,7 @@ getPlayerIntentDirection() {
     panel.classList.add('skills-panel-visible');
     panel.style.display = 'flex';
     this._loadSkillsData();
-    document.getElementById('skills-close').onclick = () => this.closeSkillsPanel();
+    this._onclickCompartido(document.getElementById('skills-close'), () => this.closeSkillsPanel());
   }
 
 
@@ -29100,22 +29314,11 @@ getPlayerIntentDirection() {
     }
     panel.style.display = 'flex';
 
-    // Wire controls every open (safe with _wired guard)
-    const closeBtn = document.getElementById('_mail-close');
-    if (closeBtn && !closeBtn._wired) {
-      closeBtn._wired = true;
-      closeBtn.onclick = () => { panel.style.display = 'none'; };
-    }
-    const readAllBtn = document.getElementById('_mail-read-all');
-    if (readAllBtn && !readAllBtn._wired) {
-      readAllBtn._wired = true;
-      readAllBtn.onclick = () => this._markAllMailRead();
-    }
-    const clearAllBtn = document.getElementById('_mail-clear-all');
-    if (clearAllBtn && !clearAllBtn._wired) {
-      clearAllBtn._wired = true;
-      clearAllBtn.onclick = () => this._clearAllMail();
-    }
+    // En CADA apertura y con la escena viva: la marca `_wired` de antes los
+    // dejaba enganchados para siempre a la primera escena que abrió el buzón.
+    this._onclickCompartido(document.getElementById('_mail-close'), () => { panel.style.display = 'none'; });
+    this._onclickCompartido(document.getElementById('_mail-read-all'), () => this._markAllMailRead());
+    this._onclickCompartido(document.getElementById('_mail-clear-all'), () => this._clearAllMail());
 
     this._fetchMails();
   }
@@ -29400,14 +29603,9 @@ getPlayerIntentDirection() {
   }
 
   _setupNFTPanel() {
-    const closeBtn = document.getElementById('nft-close');
-    if (closeBtn) closeBtn.onclick = () => this.closeNFTPanel();
-
-    const toggleBtn = document.getElementById('nft-pet-toggle');
-    if (toggleBtn) toggleBtn.onclick = () => this._togglePetVisibility();
-
-    const removeBtn = document.getElementById('nft-pet-remove');
-    if (removeBtn) removeBtn.onclick = () => this._removePet();
+    this._onclickCompartido(document.getElementById('nft-close'), () => this.closeNFTPanel());
+    this._onclickCompartido(document.getElementById('nft-pet-toggle'), () => this._togglePetVisibility());
+    this._onclickCompartido(document.getElementById('nft-pet-remove'), () => this._removePet());
   }
 
   // =========================================================================
@@ -30280,7 +30478,7 @@ getPlayerIntentDirection() {
            panel es DOM de la PAGINA y sobrevive al cambio de escena, asi que un
            listener por entrada se apilaria. */
         const cerrarInv = document.querySelector('#inventory-panel .cerrar-hud');
-        if (cerrarInv) cerrarInv.onclick = () => { try { this.hideInventory(); } catch (e) {} };
+        this._onclickCompartido(cerrarInv, () => { try { this.hideInventory(); } catch (e) {} });
 
         const chatBtn = document.getElementById('open-chat-btn');
         if (chatBtn && this._toggleChat) {
@@ -30316,7 +30514,7 @@ getPlayerIntentDirection() {
         ];
         cerrar.forEach(([id, fn]) => {
           const el = document.getElementById(id);
-          if (el) el.onclick = fn;
+          this._onclickCompartido(el, fn);
         });
 
         console.log('🔌 Botones del HUD reenganchados');
@@ -30973,6 +31171,7 @@ if (window.globalPetData) {
     try { this._unbindAllDomClicks(); } catch (e) {}
     try { this.stopMusicSafely(); } catch (e) {}
 
+    this._salaDestino = 'mina';
     if (this.socket && this.socket.connected) {
       this.socket.emit('joinRoom', {
         room: 'mina',
@@ -31452,7 +31651,7 @@ if (window.globalPetData) {
     this.onRoundBtnReputation = () => {
       try {
         if (window.hub) {
-          if (!window.hub.baseUrl) window.hub.baseUrl = this.serverclient1 || '';
+          if (this.serverclient1 || !window.hub.baseUrl) window.hub.baseUrl = this.serverclient1 || window.hub.baseUrl || '';
           window.hub.setUser(this.playerName, this.playerName);
           window.hub.toggle();
           return;
@@ -31509,8 +31708,7 @@ if (window.globalPetData) {
         window.GFSoulbound ? window.GFSoulbound.rutaPerfil()
                            : './Game/Sprites/Soulbound/personaje1/Perfil/Perfil.png');
       if (this.currentAccount) {
-        this.actualizarNombreUsuario(
-          `${this.currentAccount.slice(0, 6)}...${this.currentAccount.slice(-4)}`);
+        this.actualizarNombreUsuario(GameScene.nombreParaHud(this.currentAccount));
       }
       this._initStatsSync();
       const izq = $('info-text-left');

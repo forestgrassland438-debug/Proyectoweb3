@@ -561,6 +561,11 @@ class LoadingScenegame extends Phaser.Scene {
                             break;
                         }
                     }
+                    // FIX: con los reintentos agotados no había salida: el
+                    // while volvía a pedir la misma URL con el mismo contador
+                    // y un 403 persistente se convertía en un bucle infinito
+                    // de peticiones contra el servidor.
+                    break;
                 } else {
                     console.error(`❌ Error HTTP ${response.status}`);
                     break;
@@ -1149,9 +1154,18 @@ class LoadingScenegame extends Phaser.Scene {
                 continue;
             }
 
-            const def      = this.ItemDefinitions[itemId];
-            const maxStack = def ? def.maxStack : 99;
-            const cantidad = Math.min(Number(invoice.cantidad), maxStack);
+            // FIX: antes se recortaba a maxStack. Pero un hueco representa UNA
+            // factura entera: `_applySyncToSlots` pone siempre la cantidad de
+            // la cadena, así que el recorte duraba solo esta carga — savegg
+            // guardaba 50 de una factura de 60 y en la siguiente entrada
+            // "reaparecían" 10. Y con una cantidad ilegible salía NaN en el
+            // hueco. La cadena manda: se usa su cantidad y se ignoran las
+            // facturas vacías.
+            const cantidad = Number(invoice.cantidad);
+            if (!Number.isFinite(cantidad) || cantidad <= 0) {
+                console.warn(`🚫 [sync] invoice id=${invoiceId} cantidad="${invoice.cantidad}" → omitiendo`);
+                continue;
+            }
 
             // Intentar inventario principal primero, luego cofre
             let placed = false;
@@ -1565,7 +1579,31 @@ class LoadingScenegame extends Phaser.Scene {
     async create() {
         console.log('🚀 Iniciando LoadingScenegame...');
 
+        /* ESTA PASADA POR create() PUEDE QUEDAR ANTICUADA.
+         *
+         * create() es asíncrono y Phaser no lo espera: entre await y await la
+         * escena puede apagarse (logout, recarga de sesión, otra escena que la
+         * para). Antes los relojes se paraban con un `once('shutdown')` puesto
+         * AL FINAL, así que un apagado a mitad de la carga no lo oía nadie: la
+         * carga seguía, arrancaba el sondeo de transición y el auto-refresco
+         * sobre una escena muerta, y a los 2 s hacía `scene.start` por su
+         * cuenta. Ahora se escucha desde el principio y cada paso comprueba
+         * que sigue siendo la pasada vigente. */
+        const turno = this._turnoCreate = (this._turnoCreate || 0) + 1;
+        const vigente = () => {
+            if (this._turnoCreate !== turno || !this.sys || !this.sys.settings) return false;
+            const st = this.sys.settings.status;
+            return st !== Phaser.Scenes.SHUTDOWN && st !== Phaser.Scenes.DESTROYED;
+        };
+        const pararRelojes = () => {
+            if (this._turnoCreate === turno) this._turnoCreate++;
+            this._pararRelojes();
+        };
+        this.events.once('shutdown', pararRelojes);
+        this.events.once('destroy',  pararRelojes);
+
         const isAuthenticated = await this.loadx();
+        if (!vigente()) { this._pararRelojes(); return; }
 
         if (!isAuthenticated) {
             console.error('❌ No se pudo autenticar al usuario');
@@ -1599,11 +1637,13 @@ class LoadingScenegame extends Phaser.Scene {
         this._arrancarConsejosDeCarga();
         this._paso('datos', 'activo', 'Waking up the forest…', 0.05);
         await this._esperarTransaccionesPendientes();
+        if (!vigente()) return;
 
         // ── 1. Cargar datos del jugador desde la BD ─────────────────────────
         this._paso('datos', 'activo', 'Finding your farm…', 0.2);
 
         await this.loadPlayerData();
+        if (!vigente()) return;
         this._paso('datos', 'hecho');
 
         // ── 2. Sincronizar inventario contra blockchain ──────────────────────
@@ -1617,16 +1657,19 @@ class LoadingScenegame extends Phaser.Scene {
         // Así oro/plata quedan en 0 antes de que el save del inventario los guarde.
         this._paso('stats', 'activo', 'Counting your coins…', 0.62);
         await this.syncStatsWithBlockchain();
+        if (!vigente()) return;
         this._paso('stats', 'hecho');
 
         // ── Luego sincronizar inventario con blockchain ──
         this._paso('blockchain', 'activo', 'Dusting off your tools…', 0.75);
         await this.syncInventoryWithBlockchain();
+        if (!vigente()) return;
         this._paso('blockchain', 'hecho');
 
         // ── 4. Barra de progreso final ───────────────────────────────────────
         this._paso('mundo', 'activo', 'Growing the grass…', 0.9);
         await this.loadResources();
+        if (!vigente()) return;
         this._paso('mundo', 'hecho', 'Everything is ready. Have fun!', 1);
 
         // ── 4. Fondo animado ─────────────────────────────────────────────────
@@ -1656,10 +1699,10 @@ class LoadingScenegame extends Phaser.Scene {
          * pantalla lanza transacciones on-chain que pueden seguir en vuelo
          * cuando ya se ha pasado a GameScene (para eso está
          * `esperarTransaccionesEnVuelo`). Matarlas aquí sería peor que la fuga.
+         *
+         * (Los `once('shutdown'/'destroy')` que los paran se ponen al PRINCIPIO
+         * de create(): ver `vigente`.)
          */
-        const pararRelojes = () => this._pararRelojes();
-        this.events.once('shutdown', pararRelojes);
-        this.events.once('destroy',  pararRelojes);
     }
 
     /** Para los relojes de esta pantalla. Idempotente. */
@@ -1788,25 +1831,33 @@ class LoadingScenegame extends Phaser.Scene {
         const steps     = 10;
         const stepDelay = 200;
 
+        // FIX: la barra ya va por el 90 % cuando se llega aquí (ver _paso), y
+        // esto la empujaba desde el 50 %: LoadingSystem rechazaba cada paso por
+        // "retroceso" y soltaba 8 avisos en consola en cada carga. Ahora se
+        // avanza desde donde esté. Y el texto va protegido: sin el elemento en
+        // el HTML, el TypeError tumbaba create() entero y la carga no terminaba.
+        const desde = Math.min(1, this.loadingSystem.currentProgress || 0);
+        const texto = (t) => { if (this.loadingSystem.textElement) this.loadingSystem.textElement.textContent = t; };
+
         for (let i = 0; i <= steps; i++) {
             await new Promise(resolve => setTimeout(resolve, stepDelay));
 
             const progress     = i / steps;
             const easedProgress = this.loadingSystem.easeOutCubic(progress);
 
-            this.loadingSystem.update(0.5 + easedProgress * 0.5);
+            this.loadingSystem.update(desde + easedProgress * (1 - desde));
 
             if (progress < 0.4) {
-                this.loadingSystem.textElement.textContent = 'Loading resources...';
+                texto('Loading resources...');
             } else if (progress < 0.8) {
-                this.loadingSystem.textElement.textContent = 'Processing data...';
+                texto('Processing data...');
             } else {
-                this.loadingSystem.textElement.textContent = 'Finalizing...';
+                texto('Finalizing...');
             }
         }
 
         this.loadingSystem.update(1);
-        this.loadingSystem.textElement.textContent = 'Loaded successfully!';
+        texto('Loaded successfully!');
 
         await new Promise(resolve => setTimeout(resolve, 700));
         this.loadingSystem.hide(600);
@@ -2122,15 +2173,21 @@ class LoadingScenegame extends Phaser.Scene {
             align-items: center; z-index: 10000; font-family: Arial, sans-serif;
         `;
 
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes errorPulse {
-                0%   { box-shadow: 0 15px 40px rgba(255,77,77,0.4); }
-                50%  { box-shadow: 0 20px 50px rgba(255,77,77,0.7); }
-                100% { box-shadow: 0 15px 40px rgba(255,77,77,0.4); }
-            }
-        `;
-        document.head.appendChild(style);
+        // Una sola hoja de estilo: antes se añadía un <style> nuevo al <head>
+        // cada vez que se mostraba el aviso (y el auto-refresh puede mostrarlo
+        // más de una vez), sin quitar nunca los anteriores.
+        if (!document.getElementById('token-error-hub-style')) {
+            const style = document.createElement('style');
+            style.id = 'token-error-hub-style';
+            style.textContent = `
+                @keyframes errorPulse {
+                    0%   { box-shadow: 0 15px 40px rgba(255,77,77,0.4); }
+                    50%  { box-shadow: 0 20px 50px rgba(255,77,77,0.7); }
+                    100% { box-shadow: 0 15px 40px rgba(255,77,77,0.4); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
 
         const contentBox = document.createElement('div');
         contentBox.style.cssText = `
@@ -2254,7 +2311,7 @@ class StatsSync {
      */
     constructor(scene) {
         this.scene       = scene;
-        this.serverBase  = window.serverBase || scene.serverBase || 'http://127.0.0.1:3001';
+        this.serverBase  = window.serverBase || scene.serverBase || 'http://127.0.0.1:8080';
         this._pending    = {};   // stat → nuevo valor pendiente de enviar
         this._updating   = false;
         this._timer      = null;
@@ -2353,6 +2410,11 @@ class StatsSync {
                 Object.assign(this._pending, toSend);
                 window[lockKey] = false;
                 this._updating = false;
+                // FIX: "más tarde" no llegaba nunca — era la cuarta salida sin
+                // temporizador: lo pendiente (el oro de una compra, el agua que
+                // se acaba de beber) se quedaba en el navegador hasta que otro
+                // cambio de stats lo arrastrara.
+                this._programarReintento();
                 return;
             }
 
