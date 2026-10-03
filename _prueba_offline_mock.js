@@ -155,13 +155,13 @@
       vidaPorcentaje: estado.stats.vida, aguaPorcentaje: estado.stats.agua,
       comidaPorcentaje: estado.stats.comida,
       speed: 2.7, mundo: 1, moneda: estado.stats.oro, moneda_plata: estado.stats.plata,
-      nivel: 6, nivel_exp: 10, misiones: 0, Username: JUGADOR, lenguaje: 1,
+      nivel: 6, nivel_exp: 4500, misiones: 0, Username: JUGADOR, lenguaje: 1,
       agricultura: 1, agricultura_exp: 0, mineria: 1, mineria_exp: 0,
       deforestacion: 1, deforestacion_exp: 0, pesca: 0, pesca_exp: 0,
       cocina: 0, cocina_exp: 0, fuerza: 0, fuerza_exp: 0,
       // ?tut=22 = tutorial terminado (el HUD se ve entero). Por defecto el
       // paso 1, que es como entra un jugador nuevo.
-      tutorial: TUTORIAL, petName: 'Firulais', petLevel: 3, petWins: 2, petBattles: 3,
+      tutorial: TUTORIAL, petName: 'Firulais', petLevel: 6, petWins: 2, petBattles: 3,
       inventory: [
         hueco(0, 'hacha_de_madera', 1, 101),
         hueco(1, 'pico_de_piedra', 1, 102),
@@ -416,7 +416,10 @@
           puesto: fila ? fila.puesto : r.puestos.length, de: r.puestos.length, yo: fila ? fila.id : null,
           puntos: modo === 'practica' ? 0 : (modo === 'bot' ? (gano ? 1 : 0) : (gano ? 3 : 1)),
           motivo: r.motivo, duracionMs: r.duracionMs, daily: modo === 'bot' ? diario : null,
-          petLevel: 6, tabla: r.puestos
+          petLevel: 6, tabla: r.puestos,
+          // La arena da EXP (misma tabla que expDeArena en server2.js).
+          exp: modo === 'practica' ? 0 : (modo === 'bot' ? (gano ? 60 : 15) : ([100, 60, 40, 25][Math.min(3, (fila ? fila.puesto : 9) - 1)])),
+          expTotal: null
         };
         setTimeout(function () {
           if (!Pf._fuera) s._fire('brawl:fin', fin);

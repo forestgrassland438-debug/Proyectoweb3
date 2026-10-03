@@ -884,10 +884,7 @@ this.player.on('pointerdown', (pointer) => {
 
         // FIX: usar onclick en lugar de addEventListener para que no se acumulen
         // listeners al cambiar entre escenas (GameScene <-> tiendajuego)
-        document.getElementById('inv-shortcut-btn').onclick = () => {
-          const panel = document.getElementById('inventory-panel');
-          panel.style.display = panel.style.display === 'flex' ? 'none' : 'flex';
-        };
+        document.getElementById('inv-shortcut-btn').onclick = () => this.toggleInventory();
         // Actualizar la escena activa en tiendaSistema para que STATE apunte aquí
         if (window.tiendaSistema) {
           window.tiendaSistema.scene = this;
@@ -2830,31 +2827,9 @@ this.time.addEvent({
     // ======================
     // SISTEMA DE NIVELES
     // ======================
-    // MISMA curva que GameScene (_expTotalParaNivel). Si las dos escenas usaran
-    // curvas distintas, el jugador vería un nivel en el mapa y otro en la
-    // tienda, y cada cambio de escena le subiría o le bajaría el nivel.
-    const MAX_LEVEL = 150;
-
-    while (this.nivel < MAX_LEVEL) {
-      const expNecesaria = this._expTotalParaNivel(this.nivel + 1);
-
-      if (this.nivel_exp >= expNecesaria) {
-        this.nivel++;
-        this.playSFX('level_up_sound');
-        this.actualizarBarraVida(this.vidaPorcentaje);
-        // LA MASCOTA NUNCA VA POR DEBAJO DE TU NIVEL: es la misma regla del
-        // servidor (nivelMascotaEfectivo en server2.js), la que usan la arena y
-        // /api/load. Sin esto, al subir de nivel el cartel del perro seguía
-        // con el número viejo hasta recargar o cambiar de escena.
-        if (this.nivel > (Number(this.petLevel) || 1)) {
-          this.petLevel = this.nivel;
-          window.globalPetLevel = this.petLevel;
-          if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
-        }
-      } else {
-        break;
-      }
-    }
+    // MISMA regla que GameScene (_nivelDesdeExp): el nivel sale de la exp en
+    // las dos direcciones y el perro tiene ese mismo nivel.
+    this._nivelDesdeExp();
 
   }
 });
@@ -3307,9 +3282,9 @@ handleMouseMovement(delta) {
           reconnection: true,
           reconnectionAttempts: Infinity,
           reconnectionDelay: 800,
-          reconnectionDelayMax: 8000,
+          reconnectionDelayMax: 5000,   // varios intentos dentro de los 20 s que la arena guarda tu perro
           randomizationFactor: 0.5,
-          timeout: 20000,
+          timeout: 10000,               // un intento colgado no se come la espera entera
           autoConnect: true,
           forceNew: false,
           /* EL CANAL VIAJA EN EL SALUDO PARA RECUPERARLO AL RECONECTAR.
@@ -3648,7 +3623,15 @@ handleMouseMovement(delta) {
         // hasta recargar la página.
         {
           event: 'petLevelUpdate',
-          handler: ({ petLevel }) => {
+          handler: ({ petLevel, expTotal }) => {
+            // La arena da EXP: si quien llega aquí se fue de la partida antes
+            // de acabar, su exp local va por detrás de la del servidor.
+            const total = Number(expTotal);
+            if (Number.isFinite(total) && total > (Number(this.nivel_exp) || 0)) {
+              this.nivel_exp = total;
+              this._nivelDesdeExp();
+              return;
+            }
             const n = Math.max(1, Number(petLevel) || 1);
             window.globalPetLevel = n;
             if (this.petLevel === n) return;
@@ -6676,9 +6659,15 @@ hideInventory() {
   this.clearSelectedItem();
 }
 
-toggleInventory() {
+/* Mismo arreglo que en GameScene: el botón de la mochila abría con 'flex' y
+   aquí solo se miraba 'block'. */
+_inventarioAbierto() {
   const panel = document.getElementById('inventory-panel');
-  if (panel.style.display === 'block') {
+  return !!panel && (panel.style.display === 'block' || panel.style.display === 'flex');
+}
+
+toggleInventory() {
+  if (this._inventarioAbierto()) {
     this.hideInventory();
   } else {
     this.showInventory();
@@ -10108,6 +10097,9 @@ async loadPlayerData() {
         if (typeof window.playerStats.plata  === 'number') this.moneda_plata     = window.playerStats.plata;
     }
 
+    // El nivel (y el del perro) salen de la exp recién cargada.
+    try { this._nivelDesdeExp(); } catch (e) { console.warn('nivel desde exp:', e); }
+
     console.log('✅ Datos del jugador cargados exitosamente');
 
     // A partir de aquí ya se puede guardar sin riesgo de escribir un inventario
@@ -10254,12 +10246,14 @@ async _cargarSkillsTienda() {
     const mayor  = (a, b) => Math.max(Number(a) || 0, Number(b) || 0);
 
     const fusion = { exp: {} };
+    // `level` y su exp son los de la escena, nunca los del espejo (ver
+    // GameScene._adoptarSkills: por ahí entraba el "nivel 34" de la nada).
     Object.keys(local).forEach(k => {
       if (k === 'exp') return;
-      fusion[k] = mayor(local[k], remoto[k]);
+      fusion[k] = k === 'level' ? local[k] : mayor(local[k], remoto[k]);
     });
     Object.keys(local.exp).forEach(k => {
-      fusion.exp[k] = mayor(local.exp[k], (remoto.exp || {})[k]);
+      fusion.exp[k] = k === 'level' ? local.exp[k] : mayor(local.exp[k], (remoto.exp || {})[k]);
     });
 
     // Si el servidor iba por delante se adopta en la escena, para que el
@@ -10274,9 +10268,6 @@ async _cargarSkillsTienda() {
       if (nivel > (Number(this[prop]) || 1))          this[prop] = nivel;
       if (xp    > (Number(this[prop + '_exp']) || 0)) this[prop + '_exp'] = xp;
     });
-    const expNivel = Math.max(0, Math.round(Number(fusion.exp.level) || 0));
-    if (expNivel > (Number(this.nivel_exp) || 0)) this.nivel_exp = expNivel;
-
     this._pintarSkillsTienda(fusion);
   } catch (_) {
     this._pintarSkillsTienda(local);
@@ -10322,6 +10313,40 @@ _expTotalParaNivel(n) {
   const vieja = 200 * Math.pow(2, Math.min(L - 1, 40));
   const nueva = 100 * L * L + 100 * L;
   return Math.min(vieja, nueva);
+}
+
+/** Nivel que paga `exp`. COPIA de GameScene._nivelPorExp. */
+_nivelPorExp(exp) {
+  const e = Math.max(0, Math.round(Number(exp) || 0));
+  let n = 0;
+  while (n < 150 && e >= this._expTotalParaNivel(n + 1)) n++;
+  return n;
+}
+
+/**
+ * El nivel sale de la exp, en las dos direcciones, y el perro tiene el mismo.
+ * COPIA de GameScene._nivelDesdeExp — ahí está la explicación del fallo de
+ * "tengo nivel 5 o 6 y de pronto me dice 34 o 52".
+ */
+_nivelDesdeExp() {
+  if (this.nivel_exp == null && this.nivel == null) return;
+  const exp = Math.max(0, Math.round(Number(this.nivel_exp) || 0));
+  if (this.nivel_exp !== exp) this.nivel_exp = exp;
+  const objetivo = this._nivelPorExp(exp);
+  const actual = Number(this.nivel);
+  if (actual === objetivo && Number(this.petLevel) === Math.max(1, objetivo)) return;
+
+  const subio = Number.isFinite(actual) && objetivo > actual;
+  this.nivel = objetivo;
+  if (subio) this.playSFX('level_up_sound');
+  this.actualizarBarraVida(this.vidaPorcentaje);
+
+  const pet = Math.max(1, objetivo);
+  if (Number(this.petLevel) !== pet) {
+    this.petLevel = pet;
+    window.globalPetLevel = pet;
+    if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
+  }
 }
 
 /**

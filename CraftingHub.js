@@ -97,13 +97,11 @@ class CraftingSystem {
     if (typeof this.scene?.getSceneLevel==='function') {
       try { if ((n=tryInt(this.scene.getSceneLevel()))!==null) return n; } catch(e){}
     }
-    if (this.scene) {
-      for (const key in this.scene) {
-        if (key.toLowerCase().includes('nivel')||key.toLowerCase().includes('level')) {
-          if ((n=tryInt(this.scene[key]))!==null) return n;
-        }
-      }
-    }
+    // ANTES aquí se recorrían TODAS las propiedades de la escena y se cogía la
+    // primera cuyo nombre contuviera "nivel" o "level": antes de cargar los
+    // datos salía MAX_LEVEL_PERSONAJE (150), `nivel_exp` (miles) o `petLevel`.
+    // Un nivel inventado así abría recetas que no tocaban. Mejor 1 hasta que
+    // la escena tenga su nivel de verdad (updatePlayerLevelFromScene lo pone).
     console.warn('⚠️ No se pudo detectar nivel del jugador, usando 1');
     return 1;
   }
@@ -546,6 +544,8 @@ class CraftingSystem {
   // los crafteos se ejecutan uno tras otro, en orden. Mismo criterio que la
   // cola de transacciones de ejecutarDivision() en GameScene.
   async craftItem() {
+    // Siendo fantasma no se craftea (ver GFMuerte.bloquear).
+    if (window.GFMuerte && window.GFMuerte.bloquear(this.scene, 'craft')) return false;
     if(!this.selectedRecipe){this.showFeedback('No recipe selected','error');return;}
 
     const peticion={
@@ -652,6 +652,8 @@ class CraftingSystem {
 
   // FIX 7: anti-double-craft con try/finally
   async _craftItemInterno({recipe,quantity,optional}) {
+    // Siendo fantasma no se craftea (ver GFMuerte.bloquear).
+    if (window.GFMuerte && window.GFMuerte.bloquear(this.scene, 'craft')) return false;
     if(!recipe) return;
     // El nivel puede haber cambiado mientras esta petición esperaba en la cola
     this.updatePlayerLevelFromScene();

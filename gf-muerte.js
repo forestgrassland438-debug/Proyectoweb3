@@ -80,7 +80,11 @@
       '#gf-death-btn:disabled{opacity:.55;cursor:not-allowed}',
       '#gf-death-precio{font-weight:400;color:#b7d8bb;margin-left:6px}',
       '#gf-death-aviso{pointer-events:none;margin:6px 0 0;font-size:12px;',
-      'color:#f0c95e;text-shadow:0 1px 3px rgba(0,0,0,.9);min-height:15px}'
+      'color:#f0c95e;text-shadow:0 1px 3px rgba(0,0,0,.9);min-height:15px}',
+      // Al intentar trabajar siendo fantasma, el botón de revivir da un salto.
+      '#gf-death.llamar #gf-death-btn{animation:gfdeath-llamar .6s ease}',
+      '@keyframes gfdeath-llamar{0%,100%{transform:scale(1)}30%{transform:scale(1.12)}',
+      '60%{transform:scale(.97)}}'
     ].join('');
     document.head.appendChild(css);
   }
@@ -325,10 +329,67 @@
     if (montado === st) montado = null;
   }
 
+  // ------------------------------------------------- lo que un fantasma NO hace
+  /* SIENDO FANTASMA NO SE PRODUCE NADA.
+
+     FALLO QUE ESTO ARREGLA (2026-10-02): muerto y en modo fantasma se podía
+     seguir sembrando, regando, cortando y cosechando, talando, minando,
+     crafteando, usando el horno, cogiendo agua y completando misiones. Morir
+     no costaba nada: se seguía trabajando igual y se revivía al acabar.
+
+     Cada acción pregunta aquí ANTES de empezar (y antes de cobrar vitales o
+     quemar nada en la cadena). El servidor tiene su propia puerta (responde
+     423 'fantasma' en /consume, /gather/claim, el horno, las misiones, el agua
+     y los cultivos): esto es para avisar bien
+     y no gastar una transacción, aquello es lo que de verdad no se puede saltar.
+
+     Moverse, mirar el mundo, abrir paneles, vender y revivir SÍ se puede. */
+  var QUE = {
+    plant: 'plant', water: 'water crops', harvest: 'harvest', cut: 'cut crops',
+    chop: 'chop trees', mine: 'mine', craft: 'craft', mission: 'complete missions',
+    furnace: 'use the furnace', collect: 'collect water', buy: 'get new items'
+  };
+  var avisadoEn = 0;
+
+  /** ¿Está muerto? El estado del servidor, o la vida ya a 0 aunque aún no lo
+      sepa. La vida se lee igual que en revisar(): si no, "bloqueado" y
+      "muerto" podrían discrepar un instante. */
+  function muerto(scene) {
+    if (esFantasma()) return true;
+    var vida = vidaActual(scene || (montado && montado.scene));
+    return vida !== null && vida <= 0;
+  }
+
+  /**
+   * Devuelve true (y avisa) si la acción NO se puede hacer porque eres un
+   * fantasma. Uso: `if (GFMuerte.bloquear(this, 'chop')) return;`
+   */
+  function bloquear(scene, accion) {
+    if (!muerto(scene)) return false;
+    var ahora = Date.now();
+    if (ahora - avisadoEn > 2200) {
+      avisadoEn = ahora;
+      var txt = '👻 You are a ghost — revive to ' + (QUE[accion] || 'do that') + '.';
+      var n = scene && scene.notifications;
+      if (n && typeof n.show === 'function') n.show(txt, 'warning');
+      else aviso(txt);
+      // Y se señala el botón de revivir, que es la salida.
+      var p = document.getElementById('gf-death');
+      if (p) {
+        p.classList.remove('llamar');
+        void p.offsetWidth;
+        p.classList.add('llamar');
+      }
+    }
+    return true;
+  }
+
   window.GFMuerte = {
     montar: montar,
     desmontar: desmontar,
     esFantasma: esFantasma,
+    muerto: muerto,
+    bloquear: bloquear,
     pintar: pintar,
     _interno: { revisar: revisar, aplicarVisual: aplicarVisual,
                 vidaActual: vidaActual, grisear: grisear }

@@ -1,4 +1,4 @@
-// eslint-disable-next-line no-unused-
+// eslint-disable-next-line no-unused-vars
 
 /*!
  * ============================================================================
@@ -1411,6 +1411,8 @@ normalizeInventoryData(items) {
 // Método para completar una misión - VERSIÓN FINAL
 // Método para completar una misión - VERSIÓN FINAL CORREGIDA
 async completeMission(missionId) {
+  // Siendo fantasma no se produce nada (ver GFMuerte.bloquear).
+  if (window.GFMuerte && window.GFMuerte.bloquear(this, 'mission')) return false;
   try {
     console.log(`🎉 INICIANDO COMPLETADO DE MISIÓN: ${missionId}`);
     console.log('==============================================');
@@ -5293,10 +5295,7 @@ this.anims.create({
 
         // FIX: usar onclick en lugar de addEventListener para que no se acumulen
         // listeners al cambiar entre escenas (GameScene <-> tiendajuego)
-        document.getElementById('inv-shortcut-btn').onclick = () => {
-          const panel = document.getElementById('inventory-panel');
-          panel.style.display = panel.style.display === 'flex' ? 'none' : 'flex';
-        };
+        document.getElementById('inv-shortcut-btn').onclick = () => this.toggleInventory();
         // Actualizar la escena activa en tiendaSistema para que STATE apunte aquí
         if (window.tiendaSistema) {
           window.tiendaSistema.scene = this;
@@ -8461,30 +8460,8 @@ this.time.addEvent({
     // ======================
     // SISTEMA DE NIVELES
     // ======================
-    // La curva vive en _expTotalParaNivel() (ver más abajo). Aquí solo se
-    // comprueba si la experiencia acumulada ya alcanza el siguiente nivel.
-    const MAX_LEVEL = this.MAX_LEVEL_PERSONAJE;
-
-    while (this.nivel < MAX_LEVEL) {
-      const expNecesaria = this._expTotalParaNivel(this.nivel + 1);
-
-      if (this.nivel_exp >= expNecesaria) {
-        this.nivel++;
-        this.playSFX('level_up_sound');
-        this.actualizarBarraVida(this.vidaPorcentaje);
-        // LA MASCOTA NUNCA VA POR DEBAJO DE TU NIVEL: es la misma regla del
-        // servidor (nivelMascotaEfectivo en server2.js), la que usan la arena y
-        // /api/load. Sin esto, al subir de nivel el cartel del perro seguía
-        // con el número viejo hasta recargar o cambiar de escena.
-        if (this.nivel > (Number(this.petLevel) || 1)) {
-          this.petLevel = this.nivel;
-          window.globalPetLevel = this.petLevel;
-          if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
-        }
-      } else {
-        break;
-      }
-    }
+    // La curva vive en _expTotalParaNivel() (ver más abajo).
+    this._nivelDesdeExp();
 
     // La exp tiene su propia factura en el contrato (tabla `exp`), igual que
     // oro y plata. La exp se gana en muchos sitios distintos, así que en vez de
@@ -9036,7 +9013,15 @@ setupResourceLockSocket() {
   // El backend recalcula el nivel de la mascota al terminar cada batalla.
   // Antes solo se leía en /api/load, así que tu propio perro seguía mostrando
   // el nivel viejo hasta que recargabas la página.
-  this.socket.on('petLevelUpdate', ({ petLevel }) => {
+  this.socket.on('petLevelUpdate', ({ petLevel, expTotal }) => {
+    // La arena da EXP (el perro tiene tu nivel). Si volviste al mapa antes de
+    // que acabara la partida, tu exp local va por detrás: se adopta la total.
+    const total = Number(expTotal);
+    if (Number.isFinite(total) && total > (Number(this.nivel_exp) || 0)) {
+      this.nivel_exp = total;
+      this._nivelDesdeExp();
+      return;
+    }
     const n = Math.max(1, Number(petLevel) || 1);
     // Compartido con la tienda: sin esto, al cambiar de escena el perro volvía
     // a mostrarse en Lv.1 hasta que /api/load respondiera (o nunca).
@@ -11809,6 +11794,8 @@ async updateWaterCollectionStatus() {
  * Maneja el clic en el pozo - VERSIÓN CORREGIDA CON AUTENTICACIÓN
  */
 async handleWaterCollectionClick(pointer) {
+  // Siendo fantasma no se produce nada (ver GFMuerte.bloquear).
+  if (window.GFMuerte && window.GFMuerte.bloquear(this, 'collect')) return;
   // Verificar que es clic en el canvas
   const canvas = this.sys.canvas;
   const isCanvasClick = pointer.event.target === canvas || 
@@ -12840,6 +12827,8 @@ contarReservadasEnVuelo(seedType) {
 
 // Agrega un cuadro a la cola de siembra pendiente
 stageSeed(plotId, seedType) {
+  // Siendo fantasma no se produce nada (ver GFMuerte.bloquear).
+  if (window.GFMuerte && window.GFMuerte.bloquear(this, 'plant')) return;
   const cropConfig = this.cropTypes[seedType];
   if (!cropConfig) {
     this.notifications.show("Invalid seed type", "error");
@@ -13221,6 +13210,8 @@ _consultarBloqueoSiembra() {
 }
 
 async confirmSiembraPendiente() {
+  // Siendo fantasma no se produce nada (ver GFMuerte.bloquear).
+  if (window.GFMuerte && window.GFMuerte.bloquear(this, 'plant')) return;
   if (this.pendingPlantings.size === 0) return;
   if (this._verificandoBloqueoSiembra) return;
 
@@ -13520,6 +13511,8 @@ cancelSiembraPendiente() {
  *        descontó en blockchain y tiene que sembrarse sí o sí.
  */
 async plantSeed(plotId, seedType, opciones = {}) {
+  // Siendo fantasma no se produce nada (ver GFMuerte.bloquear).
+  if (window.GFMuerte && window.GFMuerte.bloquear(this, 'plant')) return false;
   const cropConfig = this.cropTypes[seedType];
   if (!cropConfig) {
     this.notifications.show("Invalid seed type", "error");
@@ -13596,6 +13589,8 @@ async plantSeed(plotId, seedType, opciones = {}) {
  * desde código (tutorial, pruebas) sin montar un lote.
  */
 async waterCrop(plotId) {
+  // Siendo fantasma no se produce nada (ver GFMuerte.bloquear).
+  if (window.GFMuerte && window.GFMuerte.bloquear(this, 'water')) return false;
   const cropData = this.cropData.get(plotId);
   if (!cropData) return;
 
@@ -13713,6 +13708,8 @@ marcarCuadroPendienteRiego(plotId, activo) {
 }
 
 stageWater(plotId, herramienta) {
+  // Siendo fantasma no se produce nada (ver GFMuerte.bloquear).
+  if (window.GFMuerte && window.GFMuerte.bloquear(this, 'water')) return;
   this._asegurarEstructurasRiego();
 
   // Una sola herramienta activa por lote: mezclar regadera y balde en la
@@ -13898,6 +13895,8 @@ cancelRiegoPendiente() {
 
 /** ✔ Confirmar: riega todas las parcelas marcadas. */
 async confirmRiegoPendiente() {
+  // Siendo fantasma no se produce nada (ver GFMuerte.bloquear).
+  if (window.GFMuerte && window.GFMuerte.bloquear(this, 'water')) return;
   this._asegurarEstructurasRiego();
   if (this.pendingWaters.size === 0) return;
   if (this._riegoEnCurso) {
@@ -14144,6 +14143,8 @@ marcarCuadroPendienteCorte(plotId, activo) {
 }
 
 stageCut(plotId) {
+  // Siendo fantasma no se produce nada (ver GFMuerte.bloquear).
+  if (window.GFMuerte && window.GFMuerte.bloquear(this, 'cut')) return;
   this.pendingCuts.set(plotId, true);
   this.marcarCuadroPendienteCorte(plotId, true);
   this.showCorteHub();
@@ -14269,6 +14270,8 @@ cancelCortePendiente() {
 // la cola de inmediato (mismo criterio que la siembra: no dejar el hub
 // pegado en pantalla esperando la respuesta del servidor/blockchain).
 async confirmCortePendiente() {
+  // Siendo fantasma no se produce nada (ver GFMuerte.bloquear).
+  if (window.GFMuerte && window.GFMuerte.bloquear(this, 'cut')) return;
   if (this.pendingCuts.size === 0) return;
 
   const plotIds = Array.from(this.pendingCuts.keys());
@@ -14533,6 +14536,8 @@ async _procesarLoteCorte(plotIds) {
 }
 
 harvestCrop(plotId) {
+  // Siendo fantasma no se produce nada (ver GFMuerte.bloquear).
+  if (window.GFMuerte && window.GFMuerte.bloquear(this, 'harvest')) return;
   this.socket.emit('harvestCrop', {
     userId: this.currentAccount,
     plotId: plotId
@@ -15917,6 +15922,55 @@ _expTotalParaNivel(n) {
   return Math.min(vieja, nueva);
 }
 
+/** Nivel que paga `exp` (copia de nivelPorExperiencia en server2.js). */
+_nivelPorExp(exp) {
+  const e = Math.max(0, Math.round(Number(exp) || 0));
+  const tope = this.MAX_LEVEL_PERSONAJE || 150;
+  let n = 0;
+  while (n < tope && e >= this._expTotalParaNivel(n + 1)) n++;
+  return n;
+}
+
+/**
+ * EL NIVEL SALE DE LA EXPERIENCIA. SIEMPRE, Y EN LAS DOS DIRECCIONES.
+ *
+ * FALLO QUE ESTO ARREGLA (2026-10-02) — "tengo nivel 5 o 6 y de pronto me
+ * dice 34 o 52": antes el nivel solo SUBÍA (`nivel++` mientras la exp
+ * alcanzara el siguiente), así que cualquier número que entrara por otro
+ * camino —el de /api/load, una exp inflada un instante, el espejo de
+ * habilidades— se quedaba pegado aunque la exp no lo pagara. Y el perro
+ * copiaba ese número.
+ *
+ * Ahora se calcula el nivel que paga la exp y la escena se pone en ese:
+ *   · si sube, suena y se pinta (una vez, aunque suba varios);
+ *   · si el que había era MAYOR que el que paga la exp, se corrige — es lo
+ *     mismo que hace el servidor en /api/save (deriva `nivel` de `nivel_exp`).
+ * Y la exp se normaliza a número: una cadena "3400" + 50 daría "340050".
+ * El perro tiene el mismo nivel (nivelMascotaEfectivo en server2.js).
+ */
+_nivelDesdeExp() {
+  // Sin datos todavía (antes de /api/load) no se toca nada: si no, el nivel
+  // pasaría por 0 y el perro por Lv.1 durante un instante.
+  if (this.nivel_exp == null && this.nivel == null) return;
+  const exp = Math.max(0, Math.round(Number(this.nivel_exp) || 0));
+  if (this.nivel_exp !== exp) this.nivel_exp = exp;
+  const objetivo = this._nivelPorExp(exp);
+  const actual = Number(this.nivel);
+  if (actual === objetivo && Number(this.petLevel) === Math.max(1, objetivo)) return;
+
+  const subio = Number.isFinite(actual) && objetivo > actual;
+  this.nivel = objetivo;
+  if (subio) this.playSFX('level_up_sound');
+  this.actualizarBarraVida(this.vidaPorcentaje);
+
+  const pet = Math.max(1, objetivo);
+  if (Number(this.petLevel) !== pet) {
+    this.petLevel = pet;
+    window.globalPetLevel = pet;
+    if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
+  }
+}
+
 /**
  * Suma experiencia a una habilidad y la sube de nivel cuando toca.
  *
@@ -16203,9 +16257,9 @@ _setupZoomKeeper() {
           reconnection: true,
           reconnectionAttempts: Infinity,
           reconnectionDelay: 800,
-          reconnectionDelayMax: 8000,
+          reconnectionDelayMax: 5000,   // varios intentos dentro de los 20 s que la arena guarda tu perro
           randomizationFactor: 0.5,
-          timeout: 20000,
+          timeout: 10000,               // un intento colgado no se come la espera entera
           autoConnect: true,
           forceNew: false,
           /* EL CANAL VIAJA EN EL SALUDO PARA RECUPERARLO AL RECONECTAR.
@@ -20021,9 +20075,17 @@ hideInventory() {
   this.clearSelectedItem();
 }
 
-toggleInventory() {
+/* ¿Está abierto? Lo abrían dos caminos con valores distintos: la tecla I con
+   'block' y el botón de la mochila con 'flex' (el CSS pinta los dos igual).
+   Solo se miraba 'block', así que abierto con el botón, la I lo "abría" otra
+   vez en vez de cerrarlo. Ahora los dos pasan por toggleInventory(). */
+_inventarioAbierto() {
   const panel = document.getElementById('inventory-panel');
-  if (panel.style.display === 'block') {
+  return !!panel && (panel.style.display === 'block' || panel.style.display === 'flex');
+}
+
+toggleInventory() {
+  if (this._inventarioAbierto()) {
     this.hideInventory();
   } else {
     this.showInventory();
@@ -23291,6 +23353,9 @@ async loadPlayerData() {
       this.moneda       = window.playerStats.oro;
       this.moneda_plata = window.playerStats.plata || 0;
     }
+    // El nivel (y el del perro) salen de la exp que acaba de llegar. Aquí y no
+    // solo en el reloj de create(): la mina y la isla no tienen ese reloj.
+    try { this._nivelDesdeExp(); } catch (e) { console.warn('nivel desde exp:', e); }
     // Posicionar al jugador si existe
     if (this.player) {
       this.player.setVisible(true);
@@ -26464,6 +26529,8 @@ _escapeRankHtml(s) {
  * @returns {boolean} true si se puede trabajar
  */
 _hayRecursosParaTrabajar(tarea) {
+  // Siendo fantasma no se tala ni se mina (ver GFMuerte.bloquear).
+  if (window.GFMuerte && window.GFMuerte.bloquear(this, tarea === 'mine' ? 'mine' : 'chop')) return false;
   const agua   = Number(this.aguaPorcentaje);
   const comida = Number(this.comidaPorcentaje);
 
@@ -26590,6 +26657,19 @@ async _consumirVitales(costos, motivo = 'action', extra = null) {
       const data = await res.json().catch(() => null);
       if (data && data.stats) this._adoptarVitalesDelServidor(data.stats);
       this._avisarFaltanVitales((data && data.missing) || Object.keys(limpio));
+      return false;
+    }
+
+    // 423 = eres un fantasma (lo decide el servidor, ver GFMuerte.bloquear).
+    // NO se cae al respaldo de abajo: ese descuenta en local y deja seguir,
+    // que es justo lo que no puede hacer un muerto.
+    if (res && res.status === 423) {
+      if (!(window.GFMuerte && window.GFMuerte.bloquear && window.GFMuerte.bloquear(this, motivo))) {
+        // El servidor lo sabe y este cliente todavía no: se avisa igual y se
+        // pide el estado, para que aparezca el botón de revivir.
+        this.notifications.show('👻 You are a ghost — revive first.', 'warning');
+        try { if (window.GFMascota && window.GFMascota.sincronizar) window.GFMascota.sincronizar('fantasma'); } catch (e) {}
+      }
       return false;
     }
 
@@ -29468,13 +29548,12 @@ getPlayerIntentDirection() {
       if (nivel > (Number(this[prop]) || 1))            this[prop] = nivel;
       if (xp    > (Number(this[prop + '_exp']) || 0))   this[prop + '_exp'] = xp;
     });
-    // Del personaje solo se adopta la EXPERIENCIA. El NIVEL no: lo calcula el
-    // bucle de niveles a partir de la experiencia (ver _expTotalParaNivel), y
-    // adoptarlo de aquí podría regalar un nivel que la exp todavía no paga —
-    // `_getSkillsFromScene` publica `this.nivel || 1`, así que un jugador de
-    // nivel 0 se vería subido a 1 sin haber ganado nada.
-    const expPersonaje = Math.max(0, Math.round(Number(exp.level) || 0));
-    if (expPersonaje > (Number(this.nivel_exp) || 0)) this.nivel_exp = expPersonaje;
+    // Del PERSONAJE no se adopta nada: ni el nivel ni su experiencia.
+    // FALLO QUE ESTO ARREGLA (2026-10-02) — "tengo nivel 5 o 6 y de pronto me
+    // dice 34 o 52": este espejo guardaba la exp del personaje "solo hacia
+    // arriba", así que una foto rara se quedaba para siempre, y al abrir el
+    // panel se copiaba aquí y el nivel saltaba. La exp del personaje viene de
+    // /api/load y de su factura; el servidor ya ni la guarda en /api/skills.
   }
 
   async _loadSkillsData() {
@@ -29505,12 +29584,14 @@ getPlayerIntentDirection() {
         // si el que va por delante es este, no se pierde el progreso.
         const mayor = (a, b) => Math.max(Number(a) || 0, Number(b) || 0);
         const fusion = { exp: {} };
+        // `level` (el nivel del personaje) y su exp son SIEMPRE los de la
+        // escena: no son de este espejo (ver _adoptarSkills).
         Object.keys(skills).forEach(k => {
           if (k === 'exp') return;
-          fusion[k] = mayor(skills[k], remote[k]);
+          fusion[k] = k === 'level' ? skills[k] : mayor(skills[k], remote[k]);
         });
         Object.keys(skills.exp || {}).forEach(k => {
-          fusion.exp[k] = mayor(skills.exp[k], (remote.exp || {})[k]);
+          fusion.exp[k] = k === 'level' ? skills.exp[k] : mayor(skills.exp[k], (remote.exp || {})[k]);
         });
         skills = fusion;
 
@@ -30160,6 +30241,8 @@ getPlayerIntentDirection() {
   // ── FUNDIR ────────────────────────────────────────────────────────────────
 
   async _iniciarFundido() {
+    // Siendo fantasma no se produce nada (ver GFMuerte.bloquear).
+    if (window.GFMuerte && window.GFMuerte.bloquear(this, 'furnace')) return;
     if (this._hornoOcupado) return;                 // doble clic
     const oreSlot  = document.getElementById('furnace-slot-ore');
     const coalSlot = document.getElementById('furnace-slot-coal');
@@ -30274,6 +30357,8 @@ getPlayerIntentDirection() {
   }
 
   async _recogerDelHorno() {
+    // Siendo fantasma no se produce nada (ver GFMuerte.bloquear).
+    if (window.GFMuerte && window.GFMuerte.bloquear(this, 'furnace')) return;
     if (this._hornoOcupado) return;
     const est = this._hornoEstado;
     if (!est || est.fase !== 'listo') return;
@@ -31710,10 +31795,7 @@ if (window.globalPetData) {
     // para que no se acumule uno por cada entrada a la escena).
     const inv = $('inv-shortcut-btn');
     if (inv) {
-      inv.onclick = () => {
-        const panel = $('inventory-panel');
-        if (panel) panel.style.display = panel.style.display === 'flex' ? 'none' : 'flex';
-      };
+      inv.onclick = () => this.toggleInventory();
     }
 
     // Retrato, nombre, monedas y barras.

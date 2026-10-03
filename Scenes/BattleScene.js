@@ -28,8 +28,9 @@
  *
  * LA ARENA ES UN MAPA DE TILED
  * ---------------------------------------------------------------------------
- * Maps/arena_<id>.json + Game/MAPAS/arena_32.png (32 px, 16x16 casillas), que
- * escribe tools/generar-arenas.py. Suelo, decoración y puentes van como capas
+ * Maps/arena_<id>.json + Game/MAPAS/arena_32.png o arena_32_b.png (la de nieve
+ * y cañón; 32 px, 16x16 casillas cada una), que escribe
+ * tools/generar-arenas.py. Cada mapa dice su hoja (su tileset). Suelo, decoración y puentes van como capas
  * de tilemap; muros, tapas, matas y cajas como imágenes sueltas, porque
  * tienen que ordenarse en profundidad con los perros (un perro que pasa por
  * detrás de un muro queda tapado por él). La rejilla de CHOQUES no sale del
@@ -53,7 +54,14 @@
 class BattleScene extends Phaser.Scene {
   static TILESET = 'bz_arena_32';
   static RUTA_TILESET = './Game/MAPAS/arena_32.png';
-  static ARENAS = ['pradera', 'ruinas', 'rio'];
+  /* Las hojas de las arenas, por el NOMBRE de tileset que lleva cada mapa.
+     Las cajas, el hueso, los barriles, el comedero y la carne están en las
+     mismas casillas en las dos (ver _catalogo). */
+  static HOJAS = {
+    arena_32:   { clave: 'bz_arena_32',   ruta: './Game/MAPAS/arena_32.png' },
+    arena_32_b: { clave: 'bz_arena_32_b', ruta: './Game/MAPAS/arena_32_b.png' }
+  };
+  static ARENAS = ['pradera', 'ruinas', 'rio', 'nieve', 'canon'];
   static RETRATO_MASCOTA = './Game/Sprites/mascota/derecha/run_1.png';
 
   /* Cuántas casillas se ven como mínimo. El zoom es ENTERO (en pixel art un
@@ -72,7 +80,8 @@ class BattleScene extends Phaser.Scene {
 
   /* Los efectos de sonido de la arena: WAV de 8 bits que escribe
      tools/generar-sonidos.js (Game/MUSIC/bz_*.wav). */
-  static SONIDOS = ['ladrido_1', 'ladrido_2', 'aullido', 'golpe', 'caja', 'hueso', 'ko', 'cuenta', 'ya', 'victoria', 'derrota'];
+  static SONIDOS = ['ladrido_1', 'ladrido_2', 'aullido', 'golpe', 'caja', 'hueso', 'ko', 'cuenta', 'ya', 'victoria', 'derrota',
+                    'boom', 'cura', 'alarma'];
 
   static COLOR = {
     yo: 0x6fe37b, rival: 0xff6b5e, oro: 0xffd24a, municion: 0xff9c3a,
@@ -169,11 +178,22 @@ class BattleScene extends Phaser.Scene {
     this.zona = null;
     this.zonaR = null;
     this.zonaRObjetivo = null;
+    this.zonaC = null;                 // centro de la niebla AHORA (se desliza)
+    this.zonaCObjetivo = null;
+    this.zonaSig = null;               // el anillo de la siguiente zona segura
+    this.zonaEstado = 0;               // 0 esperando · 1 cerrando · 2 cerrada
+    this.zonaCambioEn = 0;             // performance.now() del próximo cambio
     this._zonaPintada = -1;
+    this._zonaPintadaC = null;
+    this._sigPintado = '';
+    this._sinRedDesde = 0;             // desde cuándo no hay conexión (reconexión)
+    this._pidioVolverEn = 0;
+    this._texArena = BattleScene.TILESET;
+    this._marcoNombre = 'muro_seto_15';
     this.tCombateLocal = 0;
     this.seguidoId = null;
     this.arbustosApagados = new Set();
-    this._avisosNiebla = { previo: false, empieza: false, final: false };
+    this._avisosNiebla = { previo: false, empieza: false, final: false, fase: -1 };
     this._hud = {};
     this._tactil = false;
     this._zoom = 1;
@@ -201,10 +221,9 @@ class BattleScene extends Phaser.Scene {
   }
 
   preload() {
-    const T = BattleScene.TILESET;
-    if (!this.textures.exists(T)) {
-      this.load.spritesheet(T, BattleScene.RUTA_TILESET, { frameWidth: 32, frameHeight: 32 });
-    }
+    Object.values(BattleScene.HOJAS).forEach((h) => {
+      if (!this.textures.exists(h.clave)) this.load.spritesheet(h.clave, h.ruta, { frameWidth: 32, frameHeight: 32 });
+    });
     BattleScene.ARENAS.forEach((id) => {
       const k = 'bz_mapa_' + id;
       if (!this.cache.tilemap.exists(k)) this.load.tilemapTiledJSON(k, './Maps/arena_' + id + '.json');
@@ -293,11 +312,27 @@ class BattleScene extends Phaser.Scene {
         if (p) cat[p.value] = t.id;
       });
     } catch (e) { /* sin catálogo: se usan los de respaldo */ }
-    // Los de respaldo son los del generador (tools/generar-arenas.py).
-    const def = { caja_1: 192, caja_2: 193, caja_3: 194, caja_oro_1: 195, caja_oro_2: 196, hueso: 197 };
+    // Los de respaldo son los del generador (tools/generar-arenas.py): la
+    // fila 12 es igual en las dos hojas.
+    const def = { caja_1: 192, caja_2: 193, caja_3: 194, caja_oro_1: 195, caja_oro_2: 196, hueso: 197,
+                  barril_1: 202, barril_2: 203, barril_3: 204, cuenco: 205, carne: 206 };
     Object.keys(def).forEach((k) => { if (cat[k] == null) cat[k] = def[k]; });
     this._cat = cat;
     return cat;
+  }
+
+  /** La hoja (textura + nombre de tileset) y el marco que dice el mapa `clave`. */
+  _hojaDe(clave) {
+    let nombre = 'arena_32', marco = 'muro_seto_15';
+    try {
+      const json = this.cache.tilemap.get(clave);
+      const datos = json && json.data;
+      const ts = datos && datos.tilesets && datos.tilesets[0];
+      if (ts && BattleScene.HOJAS[ts.name]) nombre = ts.name;
+      const p = (datos && datos.properties || []).find((q) => q.name === 'marco');
+      if (p && p.value) marco = p.value;
+    } catch (e) { /* la A, por defecto */ }
+    return { nombre, clave: BattleScene.HOJAS[nombre].clave, marco };
   }
 
   /**
@@ -307,8 +342,11 @@ class BattleScene extends Phaser.Scene {
    * se juega igual.
    */
   construirArena(id, filas) {
-    const T = BattleScene.TILESET;
     const clave = 'bz_mapa_' + id;
+    const hoja = this._hojaDe(clave);
+    const T = hoja.clave;
+    this._texArena = T;
+    this._marcoNombre = hoja.marco;
     const C = 32;
     const res = { id, mapa: null, capas: [], objetos: [], arbustos: new Map(), cajas: new Map(), ancho: 30, alto: 22 };
     this._cat = null;
@@ -323,7 +361,7 @@ class BattleScene extends Phaser.Scene {
       console.warn('⚠️ Arena: el mapa ' + clave + ' no se pudo leer:', e);
       return this.construirArenaDeRespaldo(res, filas);
     }
-    const ts = mapa.addTilesetImage('arena_32', T);
+    const ts = mapa.addTilesetImage(hoja.nombre, T);
     res.mapa = mapa;
     res.ancho = mapa.width;
     res.alto = mapa.height;
@@ -384,16 +422,17 @@ class BattleScene extends Phaser.Scene {
     recorrer('cajas', (f, x, y) => {
       const im = this.add.image(x * C + 16, y * C + 16, T, f).setDepth((y + 1) * C - 1);
       res.objetos.push(im);
-      res.cajas.set(y * W + x, { img: im, oro: f === cat.caja_oro_1, rota: false });
+      res.cajas.set(y * W + x, { img: im, oro: f === cat.caja_oro_1, barril: f === cat.barril_1, rota: false });
     });
     return res;
   }
 
   /** El seto que rodea la arena (decorado: los choques ya los pone el motor). */
   _marco(res, ancho, alto) {
-    const T = BattleScene.TILESET, C = 32, M = BattleScene.MARCO;
+    const T = this._texArena || BattleScene.TILESET, C = 32, M = BattleScene.MARCO;
     const W = ancho * C, H = alto * C, m = M * C;
-    const f = this._cat && this._cat.muro_seto_15;
+    const cat = this._cat || {};
+    const f = cat[this._marcoNombre] != null ? cat[this._marcoNombre] : cat.muro_seto_15;
     const trozos = [[-m, -m, W + 2 * m, m], [-m, H, W + 2 * m, m], [-m, 0, m, H], [W, 0, m, H]];
     trozos.forEach(([x, y, w, h]) => {
       let o;
@@ -437,11 +476,16 @@ class BattleScene extends Phaser.Scene {
           res.objetos.push(r);
           res.arbustos.set(y * res.ancho + x, [r]);
         }
-        if (ch === 'c' || ch === 'o') {
-          const r = this.add.rectangle(x * C + 16, y * C + 16, C - 6, C - 6, ch === 'o' ? 0xd9b02a : 0xb07f45)
+        if (ch === 'c' || ch === 'o' || ch === 'x') {
+          const color = ch === 'o' ? 0xd9b02a : (ch === 'x' ? 0xb8392e : 0xb07f45);
+          const r = this.add.rectangle(x * C + 16, y * C + 16, C - 6, C - 6, color)
             .setStrokeStyle(2, 0x3a2516).setDepth((y + 1) * C - 1);
           res.objetos.push(r);
-          res.cajas.set(y * res.ancho + x, { img: r, oro: ch === 'o', rota: false, respaldo: true });
+          res.cajas.set(y * res.ancho + x, { img: r, oro: ch === 'o', barril: ch === 'x', rota: false, respaldo: true });
+        }
+        if (ch === '+') {
+          const r = this.add.ellipse(x * C + 16, y * C + 18, 22, 12, 0xa6582f).setStrokeStyle(2, 0x2a140a).setDepth(-990);
+          res.objetos.push(r);
         }
       }
     }
@@ -731,11 +775,14 @@ class BattleScene extends Phaser.Scene {
       pie: $('bzPie'), superBarra: $('bzSuperBarra'), superRelleno: $('bzSuperRelleno'), superTexto: $('bzSuperTexto'),
       caido: $('bzCaido'), caidoTitulo: $('bzCaidoTitulo'), caidoTexto: $('bzCaidoTexto'), mirar: $('bzMirar'), volverCaido: $('bzVolverCaido'),
       resultado: $('bzResultado'), resPuesto: $('bzResPuesto'), resTitulo: $('bzResTitulo'), resSub: $('bzResSub'),
-      resPremios: $('bzResPremios'), resTabla: $('bzResTabla'), otraVez: $('bzOtraVez'), volver: $('bzVolver')
+      resPremios: $('bzResPremios'), resTabla: $('bzResTabla'), otraVez: $('bzOtraVez'), volver: $('bzVolver'),
+      nieblaEstado: $('bzNieblaEstado'), fuera: $('bzFuera'), fueraTxt: $('bzFueraTxt'), flecha: $('bzFlecha'),
+      red: $('bzRed')
     };
     const e = this.el;
     // Estado de partida: todo a cero (la UI es la misma de la batalla anterior).
-    [e.caido, e.resultado, e.aviso].forEach((n) => n && n.classList.add('hidden'));
+    [e.caido, e.resultado, e.aviso, e.nieblaEstado, e.fuera, e.red].forEach((n) => n && n.classList.add('hidden'));
+    if (this.ui) this.ui.classList.remove('en-niebla');
     if (e.busqueda) e.busqueda.classList.remove('hidden');
     if (e.feed) e.feed.textContent = '';
     if (e.dolor) e.dolor.classList.remove('activo');
@@ -1162,6 +1209,7 @@ class BattleScene extends Phaser.Scene {
     this.on('brawl:caja', (d) => this.alCaja(d));
     this.on('brawl:objeto', (d) => this.alObjeto(d));
     this.on('brawl:recoger', (d) => this.alRecoger(d));
+    this.on('brawl:boom', (d) => this.alBoom(d));
     this.on('brawl:ko', (d) => this.alKO(d));
     this.on('brawl:fin', (d) => this.mostrarResultado(d));
     this.on('brawl:error', (d) => {
@@ -1184,10 +1232,42 @@ class BattleScene extends Phaser.Scene {
       this._cancelarConfirmacion();
       this.volverEnBreve(3200);
     });
-    // Si se cae la conexión a mitad, se avisa; el servidor ya te da por caído.
+    /* SI SE CAE LA CONEXIÓN A MITAD, NO SE PIERDE LA PARTIDA (2026-10-02).
+       El servidor guarda tu perro unos segundos con un piloto automático (ver
+       brawlEsperarVuelta en server2.js). Socket.IO reconecta solo; en cuanto
+       vuelve, se pide la partida ('brawl:volver') y llega un brawl:inicio con
+       `reanudar` (ver reanudarPartida). Mientras, un cartel "Reconnecting…". */
     this.on('disconnect', () => {
-      if (this.estado === 'combate' || this.estado === 'cuenta') this.aviso('Connection lost', { peque: true, ms: 2500 });
+      if (!this.matchId || this.estado === 'fin') return;
+      if (!this._sinRedDesde) this._sinRedDesde = performance.now();
+      this._pintarRed(true);
     });
+    this.on('connect', () => this._pedirVolver());
+    this.on('brawl:volverError', (d) => {
+      if (!this.matchId || this.estado === 'fin') return;
+      this._pintarRed(false);
+      this.estado = 'fin';
+      this._cancelarConfirmacion();
+      this.aviso(d && d.error === 'ended' ? 'The battle ended while you were away' : 'Could not rejoin the battle — back to the map',
+                 { peque: true, ms: 2600 });
+      this.volverEnBreve(2600);
+    });
+  }
+
+  /** Recién (re)conectado en plena partida: pedirla otra vez. */
+  _pedirVolver() {
+    if (!this.matchId || this.estado === 'fin' || this.estado === 'buscando') return;
+    this._pidioVolverEn = performance.now();
+    this._emitir('brawl:volver', { matchId: this.matchId });
+  }
+
+  /** El cartel de "se ha ido la conexión" (no tapa la partida). */
+  _pintarRed(sinRed) {
+    const n = this.el && this.el.red;
+    if (!n) return;
+    if (this._hud.red === sinRed) return;
+    this._hud.red = sinRed;
+    n.classList.toggle('hidden', !sinRed);
   }
 
   // =========================================================================
@@ -1195,7 +1275,12 @@ class BattleScene extends Phaser.Scene {
   // =========================================================================
   montarPartida(d) {
     if (!d || !d.matchId || !d.arena || !Array.isArray(d.luchadores)) return;
-    if (this.matchId) return;                     // ya estamos en una
+    if (this.matchId) {
+      // Ya estamos en una: si es la MISMA y viene con `reanudar`, es que se
+      // cortó la red y el servidor nos devuelve la partida tal y como va.
+      if (d.reanudar && d.matchId === this.matchId) this.reanudarPartida(d);
+      return;
+    }
     const modoRecibido = d.modo === 'bot' ? 'bot' : (d.modo === 'practica' ? 'practica' : 'pvp');
     if (modoRecibido !== this.modo && !(modoRecibido === 'practica' && this._aceptaPractica)) {
       console.warn('⚠️ Se ignora una partida "' + modoRecibido + '": se pidió "' + this.modo + '"');
@@ -1245,10 +1330,14 @@ class BattleScene extends Phaser.Scene {
       });
     });
 
-    this.zona = d.zona;
-    this.zonaR = d.zona ? d.zona.r0 : null;
-    this.zonaRObjetivo = this.zonaR;
-    this.quedan = d.luchadores.length;
+    this._ponerZona(d.zona);
+    this._ponerObjetos(d.objetos);
+    // Los que ya habían caído (si se entra a mitad: reconexión).
+    d.luchadores.forEach((l) => {
+      const v = this.vistas.get(l.id);
+      if (v && l.vivo === false && v.vivo) { v.vivo = false; this._caer(v); }
+    });
+    this.quedan = d.luchadores.filter((l) => l.vivo !== false).length;
     if (this.el && this.el.quedan) this.el.quedan.textContent = String(this.quedan);
     if (this.el && this.el.busqueda) this.el.busqueda.classList.add('hidden');
     const rival = d.luchadores.find((l) => l.id !== this.yoId);
@@ -1259,6 +1348,14 @@ class BattleScene extends Phaser.Scene {
         : (this.modo === 'practica' ? 'Practice' : 'Arena PvP') + nombreArena;
     }
     if (this.ui) this.ui.classList.remove('buscando');
+
+    // Entrando a mitad (la página se recargó con la partida en marcha): sin
+    // cuenta atrás, directo al combate.
+    if (d.reanudar && d.fase === 'combate') {
+      this._cancelarConfirmacion();
+      this._empezarYa(Number(d.enCombateMs) || 0);
+      return;
+    }
 
     // La cuenta atrás, con el reloj del navegador.
     this.estado = 'cuenta';
@@ -1285,11 +1382,101 @@ class BattleScene extends Phaser.Scene {
     this._cancelarConfirmacion();
   }
 
+  /** Al combate sin cuenta atrás, `enCombateMs` después de que empezara. */
+  _empezarYa(enCombateMs) {
+    const yo = this.vistas.get(this.yoId);
+    this.estado = yo && yo.vivo ? 'combate' : 'caido';
+    this.tCombateLocal = performance.now() - Math.max(0, enCombateMs || 0);
+    this._ultimoSnap = performance.now();
+    // Los avisos de la niebla que ya pasaron, no se repiten.
+    const z = this.zona;
+    if (z && enCombateMs >= z.inicioMs - 5000) this._avisosNiebla.previo = true;
+    if (z && enCombateMs >= z.inicioMs) this._avisosNiebla.empieza = true;
+  }
+
+  /** La niebla del inicio: el plan de fases y dónde está ahora. */
+  _ponerZona(z) {
+    this.zona = z || null;
+    if (!z) return;
+    const r = Number.isFinite(z.r) ? z.r : z.r0;
+    this.zonaR = r;
+    this.zonaRObjetivo = r;
+    this.zonaC = { x: z.cx, y: z.cy };
+    this.zonaCObjetivo = { x: z.cx, y: z.cy };
+    // Hasta la primera instantánea, el anillo siguiente sale del plan.
+    const f = Array.isArray(z.fases) && z.fases[0];
+    this.zonaSig = f ? { x: f[2], y: f[3], r: f[4] } : null;
+    this._zonaPintada = -1;
+    this._sigPintado = '';
+  }
+
+  /** Lo que hay en el suelo al entrar (huesos y carne). */
+  _ponerObjetos(lista) {
+    this.huesosVista.forEach((h) => { try { if (h.flota) h.flota.remove(); if (h.late) h.late.remove(); h.img.destroy(); if (h.brillo) h.brillo.destroy(); } catch (e) {} });
+    this.huesosVista.clear();
+    (lista || []).forEach((o) => this.alObjeto({ id: o[0], x: o[1], y: o[2], tipo: o[3] }));
+  }
+
+  /**
+   * VUELVE LA CONEXIÓN a mitad de partida (ver brawlVolver en server2.js).
+   * La arena ya está montada: se pone al día lo que haya cambiado mientras
+   * tanto —cajas rotas, quién ha caído, dónde está cada uno, lo del suelo, la
+   * niebla— y se sigue jugando. Tu perro lo ha llevado un piloto automático:
+   * se recoloca donde lo dejó.
+   */
+  reanudarPartida(d) {
+    const M = window.GFBrawlMotor;
+    if (!M || !this.R || !this.arena) return;
+    const vivas = new Set((d.arena.cajas || []).map((c) => c[0]));
+    Object.keys(this.R.cajas).forEach((k) => {
+      const i = Number(k);
+      if (vivas.has(i)) return;
+      M.romperCaja(this.R, i);
+      const c = this.arena.cajas.get(i);
+      if (c && !c.rota) this._cajaRota(i, c, false);
+    });
+    d.luchadores.forEach((l) => {
+      const v = this.vistas.get(l.id);
+      if (!v) return;
+      v.hp = l.hp; v.maxHp = l.maxHp; v.potencia = l.potencia || 0;
+      if (l.vivo === false) { if (v.vivo) { v.vivo = false; this._caer(v); } return; }
+      v.x = l.x; v.y = l.y;
+      if (v.buffer) v.buffer.length = 0;
+      v.oculto = false;
+      if (v.yo) {
+        this.pred = { x: l.x, y: l.y };
+        this.desvio.x = 0; this.desvio.y = 0;
+        this._pintarVidaHUD(v.hp, v.maxHp);
+      }
+    });
+    this.quedan = d.luchadores.filter((l) => l.vivo !== false).length;
+    if (this.el && this.el.quedan) this.el.quedan.textContent = String(this.quedan);
+    this._ponerZona(d.zona);
+    this._ponerObjetos(d.objetos);
+    this.balasVista.forEach((b) => this._quitarBala(b, false));
+    this.balasVista = [];
+    if (d.fase === 'combate') this._empezarYa(Number(d.enCombateMs) || 0);
+    this._sinRedDesde = 0;
+    this._pidioVolverEn = 0;
+    this._pintarRed(false);
+    this.aviso('Reconnected!', { peque: true, ms: 1400 });
+  }
+
   alSnap(d) {
     if (!this.matchId || !Array.isArray(d.f)) return;
     const ahora = performance.now();
     this._ultimoSnap = ahora;
-    if (Number.isFinite(d.z)) this.zonaRObjetivo = d.z;
+    const z = d.z;
+    if (Array.isArray(z)) {
+      // [radio, x, y, radio sig., x sig., y sig., estado, ms hasta el cambio]
+      this.zonaRObjetivo = z[0];
+      this.zonaCObjetivo = { x: z[1], y: z[2] };
+      if (!this.zonaC) this.zonaC = { x: z[1], y: z[2] };
+      this.zonaSig = z[3] > 0 ? { r: z[3], x: z[4], y: z[5] } : null;
+      if (z[6] !== this.zonaEstado && z[6] === 1) this._alCerrarNiebla();
+      this.zonaEstado = z[6];
+      this.zonaCambioEn = ahora + (Number(z[7]) || 0);
+    } else if (Number.isFinite(z)) this.zonaRObjetivo = z;     // servidor de antes
     const vistos = new Set();
     for (let i = 0; i < d.f.length; i++) {
       const f = d.f[i];
@@ -1517,7 +1704,7 @@ class BattleScene extends Phaser.Scene {
     v.hp = d.hp;
     v.golpeHasta = performance.now() + 90;
     if (!document.hidden) {
-      const col = d.sup ? BattleScene.COLOR.oro : (v.yo ? 0xff7a6a : 0xfff0c0);
+      const col = d.boom ? 0xff9a3c : (d.sup ? BattleScene.COLOR.oro : (v.yo ? 0xff7a6a : 0xfff0c0));
       this._impacto(d.x, d.y, col, !!d.sup);
       this._numero(v.x, v.y - (v.altoSprite || 28), '-' + d.d, v.yo ? '#ff8f83' : (d.sup ? '#ffd24a' : '#ffffff'), !!d.sup);
     }
@@ -1542,11 +1729,11 @@ class BattleScene extends Phaser.Scene {
     if (!c || c.rota) return;
     if (d.rota) { this._cajaRota(d.i, c, true); return; }
     const cat = this._cat || {};
-    if (!c.respaldo && d.vida <= d.max / 2) c.img.setFrame(c.oro ? cat.caja_oro_2 : cat.caja_2);
+    if (!c.respaldo && d.vida <= d.max / 2) c.img.setFrame(c.barril ? cat.barril_2 : (c.oro ? cat.caja_oro_2 : cat.caja_2));
     if (!this._reducedMotion && !document.hidden) {
       const x0 = c.img.x;
       this.tweens.add({ targets: c.img, x: { from: x0 - 2, to: x0 }, duration: 70, ease: 'Sine.easeOut', repeat: 1, onComplete: () => { if (c.img) c.img.x = x0; } });
-      this._chispas(c.img.x, c.img.y, 5, 0xc9975a, 20);
+      this._chispas(c.img.x, c.img.y, 5, c.barril ? 0xff8a3a : 0xc9975a, 20);
     }
   }
 
@@ -1554,7 +1741,9 @@ class BattleScene extends Phaser.Scene {
     c.rota = true;
     const cat = this._cat || {};
     if (c.respaldo) { c.img.setAlpha(0.25); c.img.setDepth(-980); return; }
-    c.img.setFrame(cat.caja_3).setDepth(-980);
+    // El barril deja su marca quemada; el estallido lo pinta alBoom.
+    c.img.setFrame(c.barril ? cat.barril_3 : cat.caja_3).setDepth(-980);
+    if (c.barril) return;
     if (conEfecto && !document.hidden) {
       const A = window.GFBatallaArte;
       this._sonar('caja', { x: c.img.x, y: c.img.y });
@@ -1567,13 +1756,14 @@ class BattleScene extends Phaser.Scene {
     if (this.huesosVista.has(d.id)) return;
     const cat = this._cat || {};
     const A = window.GFBatallaArte;
-    const T = BattleScene.TILESET;
+    const T = this._texArena || BattleScene.TILESET;
+    const carne = d.tipo === 'carne';
     const brillo = (A && this.textures.exists(A.pieza('brillo')))
-      ? this.add.image(d.x, d.y, A.pieza('brillo')).setTint(BattleScene.COLOR.oro).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(34, 22).setAlpha(0.7).setDepth(d.y - 21)
+      ? this.add.image(d.x, d.y, A.pieza('brillo')).setTint(carne ? 0xff8a6a : BattleScene.COLOR.oro).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(34, 22).setAlpha(0.7).setDepth(d.y - 21)
       : null;
     const img = this.textures.exists(T)
-      ? this.add.image(d.x, d.y, T, cat.hueso).setDepth(d.y - 20)
-      : this.add.rectangle(d.x, d.y, 16, 6, 0xf3ecd8).setDepth(d.y - 20);
+      ? this.add.image(d.x, d.y, T, carne ? cat.carne : cat.hueso).setDepth(d.y - 20)
+      : this.add.rectangle(d.x, d.y, 16, carne ? 12 : 6, carne ? 0xc4552f : 0xf3ecd8).setDepth(d.y - 20);
     img.setScale(0.1);
     this.tweens.add({ targets: img, scale: 0.8, duration: 260, ease: 'Back.easeOut' });
     const flota = this._reducedMotion ? null : this.tweens.add({ targets: img, y: d.y - 4, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: 260 });
@@ -1597,12 +1787,45 @@ class BattleScene extends Phaser.Scene {
       v.potencia = d.potencia;
       v.maxHp = d.maxHp;
       v.hp = d.hp;
+      if (d.tipo === 'carne') {
+        if (!document.hidden) this._numero(v.x, v.y - (v.altoSprite || 28), '+' + (d.cura || ''), '#7dff8a', true);
+        if (v.yo) {
+          this._pintarVidaHUD(v.hp, v.maxHp);
+          this.aviso('+HEALTH', { peque: true, ms: 1000 });
+          this._sonar('cura');
+        }
+        return;
+      }
       if (v.yo) {
         this._pintarVidaHUD(v.hp, v.maxHp);
         if (this.el && this.el.huesos) this.el.huesos.textContent = '🦴 ' + d.potencia;
         this.aviso('+1 POWER BONE', { peque: true, ms: 1200 });
         this._sonar('hueso');
       }
+    }
+  }
+
+  /** Un barril explota: fogonazo, onda, humo, chispas y temblor si te pilla cerca. */
+  alBoom(d) {
+    const x = Number(d.x), y = Number(d.y), r = Number(d.r) || 76;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    this._sonar('boom', { x, y });
+    if (document.hidden) return;
+    this._pieza('estallido', x, y, { color: 0xffb347, escala: 0.12, dura: 380, prof: 42000, tween: { scale: r / 70, alpha: 0, angle: 30 } });
+    this._pieza('anillo', x, y, { color: 0xffe08a, escala: 0.1, alfa: 0.9, dura: 420, prof: 42000, tween: { scale: r / 55, alpha: 0 } });
+    this._pieza('brillo', x, y, { color: 0xff7a2a, escala: 1.2, alfa: 0.9, dura: 300, prof: 42000, tween: { scale: 3, alpha: 0 } });
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 0.4;
+      this._pieza('humo', x + Math.cos(a) * 10, y + Math.sin(a) * 8, {
+        color: 0x5a4c44, escala: 0.3, alfa: 0.75, dura: 900, mezcla: false, prof: 41500,
+        tween: { scale: 0.85, alpha: 0, x: x + Math.cos(a) * 34, y: y + Math.sin(a) * 26 - 16 }
+      });
+    }
+    this._chispas(x, y, 16, 0xff9a3c, 60);
+    const yo = this.vistas.get(this.yoId);
+    if (yo && !this._reducedMotion) {
+      const dist = Math.hypot(yo.x - x, yo.y - y);
+      if (dist < r * 4) this.cameras.main.shake(260, 0.012 * Math.max(0.25, 1 - dist / (r * 4)));
     }
   }
 
@@ -1699,11 +1922,14 @@ class BattleScene extends Phaser.Scene {
     const premios = [];
     const yoFila = (d.tabla || []).find((f) => f.id === d.yo);
     if (this.modo !== 'practica') premios.push(['+' + (d.puntos || 0) + ' pts', (d.puntos || 0) > 0 ? 'oro' : '']);
+    // La arena da EXP al personaje, y el perro tiene su nivel (uno solo en
+    // todo el juego: ver nivelMascotaEfectivo en server2.js).
+    if (d.exp > 0) premios.push(['+' + d.exp + ' EXP', 'verde']);
     if (d.petLevel) {
       const antes = Number(this.datosJugador.nivel) || 0;
       const yo = this.vistas.get(this.yoId);
       const nivelAntes = yo ? Number(yo.datos.nivel) || antes : antes;
-      premios.push(['🐶 Pet Lv.' + d.petLevel + (d.petLevel > nivelAntes ? ' ▲' : ''), 'verde']);
+      if (d.petLevel > nivelAntes) premios.push(['⭐ Level up! Lv.' + d.petLevel, 'verde']);
       // El mapa se pone al día ya (también llega por 'petLevelUpdate').
       window.globalPetLevel = d.petLevel;
     }
@@ -1869,36 +2095,120 @@ class BattleScene extends Phaser.Scene {
   // =========================================================================
   // LA NIEBLA
   // =========================================================================
-  _pintarNiebla() {
+  /*
+   * LA NIEBLA, BIEN A LA VISTA.
+   *
+   * FALLO QUE ESTO ARREGLA (2026-10-02) — "la zona que se cierra no está": la
+   * niebla solo se pintaba cuando ya había empezado a encoger, y empezaba
+   * cubriendo hasta las esquinas: con la cámara encima del perro no se veía
+   * nunca. Ahora:
+   *   · el ANILLO DE LA SIGUIENTE ZONA SEGURA (blanco, a trazos) se ve desde
+   *     el primer segundo, y una pastilla bajo el reloj dice cuánto falta;
+   *   · la niebla es más densa y su borde late mientras cierra;
+   *   · si estás FUERA, se tiñe el borde de la pantalla y una flecha señala
+   *     hacia dónde correr (ver _avisoFuera).
+   * Se repinta solo cuando cambia algo (el radio, el centro o el anillo).
+   */
+  _pintarNiebla(time) {
     if (!this.zona || !this.R || this.zonaR == null) return;
-    const r = this.zonaR;
-    // Mientras no ha empezado a cerrar, no hay nada que ver.
-    if (r >= this.zona.r0 - 1) {
-      if (this.nieblaRT) this.nieblaRT.setVisible(false);
-      if (this.nieblaAnillo) this.nieblaAnillo.clear();
-      return;
-    }
-    if (Math.abs(r - this._zonaPintada) < 0.75) return;
-    this._zonaPintada = r;
     const A = window.GFBatallaArte;
     if (!this.nieblaRT) {
       this.nieblaRT = this.add.renderTexture(0, 0, this.R.anchoPx, this.R.altoPx).setOrigin(0, 0).setDepth(45000);
       this.nieblaAnillo = this.add.graphics().setDepth(45001);
+      this.nieblaSig = this.add.graphics().setDepth(45002);
       if (A && this.textures.exists(A.pieza('circulo'))) this.nieblaGoma = this.make.image({ key: A.pieza('circulo'), add: false });
     }
+    const r = this.zonaR;
+    const c = this.zonaC || { x: this.zona.cx, y: this.zona.cy };
+
+    // El anillo de la siguiente zona segura (a trazos), si se sabe.
+    const s = this.zonaSig;
+    const claveSig = s ? Math.round(s.x) + ',' + Math.round(s.y) + ',' + Math.round(s.r) : '';
+    if (claveSig !== this._sigPintado && this.nieblaSig) {
+      this._sigPintado = claveSig;
+      const g = this.nieblaSig;
+      g.clear();
+      if (s && s.r > 0) {
+        const n = Math.max(24, Math.round(s.r / 9));
+        g.lineStyle(3, 0x0b1a10, 0.35);
+        for (let i = 0; i < n; i += 2) g.beginPath(), g.arc(s.x, s.y, s.r + 1, (i / n) * Math.PI * 2, ((i + 1) / n) * Math.PI * 2), g.strokePath();
+        g.lineStyle(2, 0xffffff, 0.85);
+        for (let i = 0; i < n; i += 2) g.beginPath(), g.arc(s.x, s.y, s.r, (i / n) * Math.PI * 2, ((i + 1) / n) * Math.PI * 2), g.strokePath();
+      }
+    }
+    // El borde late mientras cierra.
+    if (this.nieblaAnillo) this.nieblaAnillo.setAlpha(this.zonaEstado === 1 ? 0.65 + 0.35 * Math.sin((time || 0) / 140) : 1);
+
+    // La niebla: mientras no ha entrado, no hay nada que pintar.
+    if (r >= this.zona.r0 - 1) {
+      if (this.nieblaRT.visible) this.nieblaRT.setVisible(false);
+      this.nieblaAnillo.clear();
+      this._zonaPintada = -1;
+      return;
+    }
+    const pc = this._zonaPintadaC;
+    if (Math.abs(r - this._zonaPintada) < 0.75 && pc && Math.abs(pc.x - c.x) < 0.75 && Math.abs(pc.y - c.y) < 0.75) return;
+    this._zonaPintada = r;
+    this._zonaPintadaC = { x: c.x, y: c.y };
     const rt = this.nieblaRT;
     rt.setVisible(true);
     rt.clear();
-    rt.fill(BattleScene.COLOR.niebla, 0.46);
+    rt.fill(BattleScene.COLOR.niebla, 0.58);
     if (this.nieblaGoma && r > 0) {
-      this.nieblaGoma.setDisplaySize(r * 2, r * 2).setPosition(this.zona.cx, this.zona.cy);
+      this.nieblaGoma.setDisplaySize(r * 2, r * 2).setPosition(c.x, c.y);
       rt.erase(this.nieblaGoma);
     }
     const g = this.nieblaAnillo;
     g.clear();
     if (r > 0) {
-      g.lineStyle(6, 0x9cff6e, 0.18).strokeCircle(this.zona.cx, this.zona.cy, r + 2);
-      g.lineStyle(2, 0xc4ff8f, 0.9).strokeCircle(this.zona.cx, this.zona.cy, r);
+      g.lineStyle(10, 0x2f6b22, 0.30).strokeCircle(c.x, c.y, r + 5);
+      g.lineStyle(6, 0x9cff6e, 0.22).strokeCircle(c.x, c.y, r + 2);
+      g.lineStyle(3, 0xc4ff8f, 0.95).strokeCircle(c.x, c.y, r);
+    }
+  }
+
+  /** La niebla acaba de empezar a cerrar (una fase más). */
+  _alCerrarNiebla() {
+    if (this.estado !== 'combate') return;
+    const av = this._avisosNiebla;
+    av.fase += 1;
+    this._sonar('alarma');
+    if (av.fase > 0) this.aviso('The fog moves in again! Get to the new circle.', { peque: true, ms: 2600 });
+  }
+
+  /**
+   * ¿Estás en la niebla? Borde de pantalla teñido, texto y una flecha que
+   * señala la zona buena. Y si la niebla va a cerrar pronto y estás fuera del
+   * próximo anillo, un aviso amarillo con la misma flecha.
+   */
+  _avisoFuera(yo, ahora) {
+    const e = this.el;
+    if (!e || !e.fuera) return;
+    let modo = '';
+    let destino = null;
+    if (yo && yo.vivo && (this.estado === 'combate') && this.zonaC) {
+      const r = this.zonaR, c = this.zonaC;
+      const activa = this.zona && r < this.zona.r0 - 1;
+      if (activa && Math.hypot(yo.x - c.x, yo.y - c.y) > r) { modo = 'dentro'; destino = c; }
+      else if (this.zonaSig && this.zonaEstado !== 2) {
+        const s = this.zonaSig;
+        const queda = this.zonaCambioEn - ahora;
+        if (Math.hypot(yo.x - s.x, yo.y - s.y) > s.r && queda < 9000) { modo = 'pronto'; destino = s; }
+      }
+    }
+    if (this._hud.fuera !== modo) {
+      this._hud.fuera = modo;
+      e.fuera.classList.toggle('hidden', !modo);
+      e.fuera.classList.toggle('pronto', modo === 'pronto');
+      if (this.ui) this.ui.classList.toggle('en-niebla', modo === 'dentro');
+      if (e.fueraTxt) {
+        e.fueraTxt.textContent = modo === 'dentro' ? "You're in the fog! Get to the safe zone" : 'The fog is coming — move to the white circle';
+      }
+    }
+    if (modo && destino && e.flecha && yo) {
+      const ang = Math.atan2(destino.y - yo.y, destino.x - yo.x) * 180 / Math.PI;
+      const a = Math.round(ang / 3) * 3;
+      if (this._hud.flecha !== a) { this._hud.flecha = a; e.flecha.style.transform = 'rotate(' + a + 'deg)'; }
     }
   }
 
@@ -1971,8 +2281,14 @@ class BattleScene extends Phaser.Scene {
     // ── la niebla ──
     if (this.zonaRObjetivo != null) {
       if (this.zonaR == null) this.zonaR = this.zonaRObjetivo;
-      this.zonaR += (this.zonaRObjetivo - this.zonaR) * Math.min(1, dt * 6);
-      this._pintarNiebla();
+      const k = Math.min(1, dt * 6);
+      this.zonaR += (this.zonaRObjetivo - this.zonaR) * k;
+      if (this.zonaC && this.zonaCObjetivo) {
+        this.zonaC.x += (this.zonaCObjetivo.x - this.zonaC.x) * k;
+        this.zonaC.y += (this.zonaCObjetivo.y - this.zonaC.y) * k;
+      }
+      this._pintarNiebla(time);
+      this._avisoFuera(yo, ahora);
     }
     this._pintarReloj(ahora);
     this._vigilarConexion(ahora);
@@ -2007,13 +2323,31 @@ class BattleScene extends Phaser.Scene {
    * update() no corre, así que esto no salta por estar en segundo plano.
    */
   _vigilarConexion(ahora) {
-    if (this.estado !== 'combate' && this.estado !== 'caido') return;
-    if (!this._ultimoSnap || ahora - this._ultimoSnap < 6000) return;
-    this._ultimoSnap = ahora;
-    this.estado = 'fin';
-    this._cancelarConfirmacion();
-    this.aviso('Connection lost — back to the map', { peque: true, ms: 2600 });
-    this.volverEnBreve(2600);
+    if (this.estado !== 'combate' && this.estado !== 'caido' && this.estado !== 'cuenta') return;
+    const rendirse = (txt) => {
+      this._pintarRed(false);
+      this.estado = 'fin';
+      this._cancelarConfirmacion();
+      this.aviso(txt, { peque: true, ms: 2600 });
+      this.volverEnBreve(2600);
+    };
+    // 1) Sin conexión: se espera a que Socket.IO reconecte (el servidor guarda
+    //    tu perro 20 s); pasado ese rato ya no hay partida a la que volver.
+    if (!this.socket || !this.socket.connected) {
+      if (!this._sinRedDesde) this._sinRedDesde = ahora;
+      this._pintarRed(true);
+      if (ahora - this._sinRedDesde > 22000) rendirse('Connection lost — back to the map');
+      return;
+    }
+    this._sinRedDesde = 0;
+    if (this.estado === 'cuenta') { this._pintarRed(false); return; }
+    // 2) Conectado pero sin instantáneas: el servidor no nos tiene enlazados
+    //    (reconectó con otro socket antes de que llegara el 'connect'). Se pide
+    //    la partida otra vez cada 3 s; si en 14 s no hay nada, se acabó.
+    if (!this._ultimoSnap || ahora - this._ultimoSnap < 3000) { this._pintarRed(false); return; }
+    this._pintarRed(true);
+    if (!this._pidioVolverEn || ahora - this._pidioVolverEn > 3000) this._pedirVolver();
+    if (ahora - this._ultimoSnap > 14000) rendirse('Connection lost — back to the map');
   }
 
   _enviarPosicion(ahora) {
@@ -2153,6 +2487,18 @@ class BattleScene extends Phaser.Scene {
     const niebla = pasado >= this.zona.inicioMs;
     this.el.relojTxt.classList.toggle('niebla', niebla && s > 20);
     this.el.relojTxt.classList.toggle('poco', s <= 20);
+    // La pastilla de la niebla: cuánto falta para que se mueva / que ya cierra.
+    if (this.el.nieblaEstado) {
+      const q = Math.max(0, Math.ceil((this.zonaCambioEn - ahora) / 1000));
+      const t = this.zonaEstado === 2 ? '☁ Final circle'
+        : (this.zonaEstado === 1 ? '☁ Closing… ' + q + 's' : '☁ Fog in ' + q + 's');
+      if (this._hud.niebla !== t) {
+        this._hud.niebla = t;
+        this.el.nieblaEstado.textContent = t;
+        this.el.nieblaEstado.classList.toggle('cerrando', this.zonaEstado === 1);
+        this.el.nieblaEstado.classList.remove('hidden');
+      }
+    }
     const av = this._avisosNiebla;
     if (!av.previo && pasado >= this.zona.inicioMs - 5000 && this.estado === 'combate') {
       av.previo = true;
@@ -2339,7 +2685,7 @@ class BattleScene extends Phaser.Scene {
     this.huesosVista.clear();
     this.numerosLibres.forEach((t) => { try { t.destroy(); } catch (e) {} });
     this.numerosLibres = [];
-    ['nieblaRT', 'nieblaAnillo', 'nieblaGoma', 'gApunte'].forEach((k) => {
+    ['nieblaRT', 'nieblaAnillo', 'nieblaSig', 'nieblaGoma', 'gApunte'].forEach((k) => {
       if (this[k]) { try { this[k].destroy(); } catch (e) {} this[k] = null; }
     });
     this.arbustosApagados = new Set();
@@ -2353,7 +2699,7 @@ class BattleScene extends Phaser.Scene {
     const T = this.textures;
     try {
       T.getTextureKeys().forEach((k) => {
-        if (k === BattleScene.TILESET || k.indexOf('bz_esp_') === 0 || k === 'bz_bloque') T.remove(k);
+        if (k.indexOf('bz_arena_32') === 0 || k.indexOf('bz_esp_') === 0 || k === 'bz_bloque') T.remove(k);
       });
     } catch (e) {}
     if (window.GFBatallaArte && window.GFBatallaArte.olvidarEfectos) {

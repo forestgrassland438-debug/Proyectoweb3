@@ -13,7 +13,7 @@
   <title>GRASSLAND FOREST</title>
   <link rel="icon" href="favicon.png" type="image/png" />
   <!-- v17: rediseño del panel de misiones + altura real del viewport en móvil -->
-  <link rel="stylesheet" href="styless.css?v=20.0" />
+  <link rel="stylesheet" href="styless.css?v=20.1" />
 
   <!-- ============================
        CONTENT-SECURITY-POLICY (meta for testing / development)..
@@ -91,7 +91,7 @@
   <script src="./gf-cuervo.js?v=19.1" defer></script>
   <script src="./gf-animales.js?v=19.2" defer></script>
   <script src="./gf-mascota.js?v=19.8" defer></script>
-  <script src="./gf-muerte.js?v=19.1" defer></script>
+  <script src="./gf-muerte.js?v=20.1" defer></script>
   <script src="./gf-alquimista.js?v=19.1" defer></script>
   <script src="./gf-viento.js?v=19.1" defer></script>
   <script src="./gf-clima.js?v=19.1" defer></script>
@@ -124,7 +124,7 @@
   <!-- El motor de la arena: las MISMAS colisiones, balas y reglas que usa el
        servidor (server2.js lleva una copia incrustada). BattleScene lo usa para
        mover a tu perro sin esperar a la red. -->
-  <script src="./gf-brawl-motor.js?v=20.0" defer></script>
+  <script src="./gf-brawl-motor.js?v=20.1" defer></script>
 
   <!-- Scenes -->
   <!-- SOCIAL: amistades, reacciones del chat y color del nombre.
@@ -136,9 +136,9 @@
 
   <script src="./Scenes/MenuScene.js?v=19.1" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=19.8" defer></script>
-  <script src="./Scenes/tiendajuego.js?v=20.0" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=20.1" defer></script>
   <script src="./Scenes/LoadingScenegame.js?v=19.8" defer></script>
-  <script src="./Scenes/GameScene.js?v=20.0" defer></script>
+  <script src="./Scenes/GameScene.js?v=20.1" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
@@ -147,7 +147,7 @@
   <!-- La isla de las parcelas. Hereda de GameScene igual que la mina,
        asi que tambien tiene que ir DESPUES de ella. -->
   <script src="./Scenes/LandsScene.js?v=19.7" defer></script>
-  <script src="./Scenes/BattleScene.js?v=20.0" defer></script>
+  <script src="./Scenes/BattleScene.js?v=20.1" defer></script>
   <script src="./Scenes/sacar_mapa.js?v=19.1" defer></script>
 
   <!-- tienda marketplace p2p -->
@@ -172,7 +172,7 @@
   <script src="./BlockchainManager.js?v=19.8" defer></script>
   <script src="./TransactionHub.js?v=19.8" defer></script>
   <script src="./SystemaTransaccion.js?v=19.8" defer></script>
-  <script src="./CraftingHub.js?v=19.9" defer></script>
+  <script src="./CraftingHub.js?v=20.1" defer></script>
   <script src="./tienda_sistema.js?v=19.8" defer></script>
   <script src="./phaser-relay-library.js?v=19.8" defer></script>
   <script src="./hub.js?v=19.8" defer></script>
@@ -212,7 +212,7 @@
   <script src="./viewport-fix.js?v=19.9" defer></script>
 
   <!-- main app bootstrap -->
-  <script src="app.js?v=19.8" defer></script>
+  <script src="app.js?v=20.1" defer></script>
 
   <!-- Ajustes de gráficos: calidad y distancia de visión (chunks).
        Va DESPUÉS de app.js porque usa window.game y window.gfResizeGame,
@@ -774,6 +774,7 @@
     <div class="bz-centro">
       <div class="bz-modo" id="bzModo">ARENA</div>
       <div class="bz-reloj" id="bzReloj">--:--</div>
+      <div class="bz-niebla-estado hidden" id="bzNieblaEstado" title="The fog closes in phases: stay inside the white circle"></div>
       <div class="bz-quedan" title="Fighters still standing"><span aria-hidden="true">🐾</span><b id="bzQuedan">-</b><small>left</small></div>
     </div>
     <div class="bz-acciones">
@@ -789,6 +790,16 @@
 
   <!-- El borde rojo al recibir un golpe -->
   <div class="bz-dolor" id="bzDolor"></div>
+
+  <!-- Estás en la niebla (o va a llegar): hacia dónde correr -->
+  <div class="bz-fuera hidden" id="bzFuera" role="status" aria-live="polite">
+    <i class="bz-flecha" id="bzFlecha" aria-hidden="true"></i><span id="bzFueraTxt"></span>
+  </div>
+
+  <!-- Se ha ido la conexión: el servidor te guarda el perro unos segundos -->
+  <div class="bz-red hidden" id="bzRed" role="status" aria-live="polite">
+    <i aria-hidden="true"></i><span>Connection lost — reconnecting…</span>
+  </div>
 
   <!-- Buscando partida -->
   <div class="bz-busqueda" id="bzBusqueda">

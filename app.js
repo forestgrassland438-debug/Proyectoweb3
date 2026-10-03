@@ -291,6 +291,26 @@
     }
     this.game = this.perf = this.battery = this.result = null;
   };
+
+  /* Los paneles flotantes que pertenecen a la escena en la que se abrieron:
+     el inventario, el objeto que se arrastra y las fichas de compra de la
+     tienda. Se cierran al salir de la escena (ver cerrarAlSalirDeEscena).
+     El chat, el sonido o las notificaciones NO: esos acompañan al jugador. */
+  function cerrarFlotantesDeEscena() {
+    try {
+      var d = root.document;
+      if (!d) return;
+      var inv = d.getElementById('inventory-panel');
+      if (inv) inv.style.display = 'none';
+      var arrastre = d.getElementById('drag-item');
+      if (arrastre) arrastre.style.display = 'none';
+      ['pc-item-modal', 'mobile-item-modal'].forEach(function (id) {
+        var m = d.getElementById(id);
+        if (m) m.classList.add('hidden');
+      });
+    } catch (e) {}
+  }
+
   function destroyGame(game) {
     if (!game || !game.events || typeof game.destroy !== 'function') return;
     if (!game.pendingDestroy) game.destroy(true, false);
@@ -1161,6 +1181,30 @@
         g.step = blindado;
         // Por si el bucle ya hubiera arrancado con el paso sin envolver.
         try { if (g.loop && g.loop.callback) g.loop.callback = blindado.bind(g); } catch (e) {}
+      })(game);
+
+      /* LO QUE ERA DE UNA ESCENA SE CIERRA AL SALIR DE ELLA.
+
+         FALLO QUE ESTO ARREGLA (2026-10-02): con el inventario abierto, ir a la
+         tienda, la mina, la isla o una batalla lo dejaba ABIERTO encima de la
+         pantalla de carga y de la escena nueva. El panel es DOM de la página,
+         no de Phaser: parar la escena no lo toca, y ninguna de las escenas que
+         lo abren lo cerraba al irse.
+
+         Las escenas se añaden en caliente (scene.add) y TODAS cambian con
+         scene.start, que pasa por SceneManager.stop (ni launch ni sleep se usan).
+         Se envuelve ese stop en la instancia: vale para las escenas que ya
+         existen y para las que se añadan después, sin tocar cada una. */
+      (function cerrarAlSalirDeEscena(g) {
+        var sm = g && g.scene;
+        if (!sm || typeof sm.stop !== 'function' || sm.stop.__gfCierra) return;
+        var original = sm.stop;
+        var envuelto = function () {
+          cerrarFlotantesDeEscena();
+          return original.apply(this, arguments);
+        };
+        envuelto.__gfCierra = true;
+        sm.stop = envuelto;
       })(game);
 
       // Referencia global al juego.
