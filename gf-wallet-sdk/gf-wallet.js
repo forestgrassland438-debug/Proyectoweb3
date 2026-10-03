@@ -131,6 +131,7 @@
 
   function hexToBytes(hex) {
     var h = String(hex).replace(/^0x/, '');
+    if (!/^[0-9a-f]*$/i.test(h)) throw err('Dato hexadecimal inválido', 'bad_hex');
     if (h.length % 2) h = '0' + h;
     var out = new Uint8Array(h.length / 2);
     for (var i = 0; i < out.length; i++) out[i] = parseInt(h.substr(i * 2, 2), 16);
@@ -218,7 +219,7 @@
     // Un código real son 20 bytes → 32 símbolos. Si tras limpiar queda mucho
     // menos, es que se escribió mal o está incompleto: mejor decirlo así que
     // dejar que reviente luego con un críptico "no se pudo descifrar".
-    if (clean.length < 32) {
+    if (clean.length !== 32) {
       throw err('El código de recuperación está incompleto o mal escrito', 'bad_recovery_code');
     }
 
@@ -316,12 +317,23 @@
   function idbOp(mode, fn) {
     return openDb().then(function (db) {
       return new Promise(function (resolve, reject) {
-        var tx = db.transaction(DB_STORE, mode);
-        var store = tx.objectStore(DB_STORE);
-        var out;
-        try { out = fn(store); } catch (e) { reject(e); return; }
-        tx.oncomplete = function () { db.close(); resolve(out && out.result !== undefined ? out.result : out); };
-        tx.onerror = function () { db.close(); reject(tx.error); };
+        var tx, out, settled = false;
+        function finish(error) {
+          if (settled) return;
+          settled = true;
+          db.close();
+          if (error) reject(error);
+          else resolve(out && out.result !== undefined ? out.result : out);
+        }
+        try {
+          tx = db.transaction(DB_STORE, mode);
+          tx.oncomplete = function () { finish(); };
+          tx.onerror = tx.onabort = function () { finish(tx.error || err('Transacción IndexedDB cancelada', 'idb_abort')); };
+          out = fn(tx.objectStore(DB_STORE));
+        } catch (e) {
+          if (tx) { try { tx.abort(); } catch (_) {} }
+          finish(e);
+        }
       });
     });
   }
@@ -341,6 +353,30 @@
 
   var _cfg = null;
 
+  function validateEndpoint(value) {
+    var base = typeof window !== 'undefined' ? window.location.href : undefined;
+    var url;
+    try { url = new URL(value || '/', base); } catch (_) { throw err('URL de red inválida', 'bad_url'); }
+    var local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(url.hostname);
+    if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) || url.username || url.password || url.search || url.hash) {
+      throw err('La wallet requiere HTTPS (HTTP solo para localhost)', 'bad_url');
+    }
+    return url.href.replace(/\/$/, '');
+  }
+
+  async function fetchJson(url, options) {
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, 30000);
+    try {
+      var response = await fetch(url, Object.assign({ cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer' }, options, { signal: controller.signal }));
+      var data = null;
+      try { data = await response.json(); } catch (e) {
+        if (controller.signal.aborted) throw e;
+      }
+      return { response: response, data: data };
+    } finally { clearTimeout(timer); }
+  }
+
   function apiUrl(path) {
     return _cfg.apiBase.replace(/\/$/, '') + (path.charAt(0) === '/' ? path : '/' + path);
   }
@@ -349,15 +385,16 @@
     if (typeof document === 'undefined' || !document.cookie) return null;
     var esc = name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1');
     var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + esc + '=([^;]*)'));
-    return m ? decodeURIComponent(m[1]) : null;
+    if (!m) return null;
+    try { return decodeURIComponent(m[1]); } catch (_) { return null; }
   }
 
   async function csrfToken() {
     var fromCookie = readCookie('csrf-token');
     if (fromCookie) return fromCookie;
     try {
-      var r = await fetch(apiUrl('/api/auth/csrf-token'), { credentials: 'include', mode: 'cors' });
-      if (r.ok) { var d = await r.json(); return d.csrfToken || null; }
+      var r = await fetchJson(apiUrl('/api/auth/csrf-token'), { credentials: 'include', mode: 'cors' });
+      if (r.response.ok && r.data) return r.data.csrfToken || null;
     } catch (e) { /* sin red */ }
     return null;
   }
@@ -373,15 +410,14 @@
       var t = await csrfToken();
       if (t) headers['X-CSRF-Token'] = t;
     }
-    var res = await fetch(apiUrl(path), {
+    var result = await fetchJson(apiUrl(path), {
       method: options.method || 'GET',
       credentials: 'include',
       mode: 'cors',
       headers: headers,
       body: options.body ? JSON.stringify(options.body) : undefined
     });
-    var data = null;
-    try { data = await res.json(); } catch (e) { /* respuesta vacía */ }
+    var res = result.response, data = result.data;
     if (!res.ok) {
       throw err((data && (data.message || data.error)) || ('HTTP ' + res.status), (data && data.error) || 'http_' + res.status);
     }
@@ -430,7 +466,7 @@
 
       function onMessage(ev) {
         if (terminado) return;
-        if (ev.origin !== miOrigen) return;            // ← mensaje de otro sitio: se ignora
+        if (ev.origin !== miOrigen || ev.source !== popup) return;
         var d = ev.data;
         if (!d || d.__gfWallet !== 'oauth-result') return;
         if (d.state !== stateEsperado) return;         // ← respuesta de otro intento
@@ -572,10 +608,10 @@
   // ==========================================================================
 
   function crearProveedor(wallet) {
-    var oyentes = {};
+    var oyentes = Object.create(null);
 
     function emitir(evento, dato) {
-      (oyentes[evento] || []).forEach(function (fn) {
+      (oyentes[evento] || []).slice().forEach(function (fn) {
         try { fn(dato); } catch (e) { console.error('[gf-wallet] error en oyente', evento, e); }
       });
     }
@@ -608,6 +644,9 @@
 
           case 'personal_sign': {
             // personal_sign(message, address)
+            if (params[1] && String(params[1]).toLowerCase() !== String(wallet.getAddress()).toLowerCase()) {
+              throw err('La cuenta solicitada no corresponde a esta wallet', 'account_mismatch');
+            }
             var mensaje = params[0];
             return wallet.signMessage(mensaje);
           }
@@ -616,6 +655,9 @@
             throw err('eth_sign está desactivado por seguridad (permite firmar cualquier cosa a ciegas). Usa personal_sign.', 'unsupported_method');
 
           case 'eth_signTypedData_v4': {
+            if (!params[0] || String(params[0]).toLowerCase() !== String(wallet.getAddress()).toLowerCase()) {
+              throw err('La cuenta solicitada no corresponde a esta wallet', 'account_mismatch');
+            }
             var payload = params[1];
             return wallet.signTypedData(typeof payload === 'string' ? JSON.parse(payload) : payload);
           }
@@ -647,12 +689,13 @@
             // Lecturas de la cadena: se reenvían al RPC público. Solo métodos
             // de lectura; nada que pueda mover fondos.
             if (/^(eth_(getBalance|blockNumber|call|estimateGas|getTransactionReceipt|getTransactionByHash|getCode|getLogs|gasPrice|getBlockByNumber))$/.test(method)) {
-              var r = await fetch(_cfg.rpcUrl, {
+              var rpc = await fetchJson(_cfg.rpcUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: method, params: params })
               });
-              var j = await r.json();
+              var j = rpc.data;
+              if (!rpc.response.ok || !j) throw err('Respuesta RPC inválida', 'rpc_error');
               if (j.error) throw err(j.error.message || 'error RPC', 'rpc_error');
               return j.result;
             }
@@ -662,11 +705,17 @@
       },
 
       on: function (evento, fn) {
+        if (typeof fn !== 'function') throw new TypeError('El oyente debe ser una función');
         (oyentes[evento] = oyentes[evento] || []).push(fn);
         return provider;
       },
       removeListener: function (evento, fn) {
         oyentes[evento] = (oyentes[evento] || []).filter(function (f) { return f !== fn; });
+        return provider;
+      },
+      removeAllListeners: function (evento) {
+        if (evento === undefined) oyentes = Object.create(null);
+        else delete oyentes[evento];
         return provider;
       },
       _emit: emitir
@@ -681,6 +730,9 @@
 
   function GFWalletInstance(config) {
     _cfg = Object.assign({}, DEFAULTS, config || {});
+    _cfg.apiBase = validateEndpoint(_cfg.apiBase);
+    _cfg.rpcUrl = validateEndpoint(_cfg.rpcUrl);
+    _cfg.explorerUrl = validateEndpoint(_cfg.explorerUrl);
     this.config = _cfg;
 
     this._privKey   = null;   // Uint8Array(32) — SOLO en memoria, nunca se guarda
@@ -706,7 +758,7 @@
         log('no se pudo leer /api/wallet/config:', e.message);
         this._remoteCfg = { providers: {} };
       }
-      this._provider = crearProveedor(this);
+      if (!this._provider) this._provider = crearProveedor(this);
       return this;
     },
 
@@ -785,6 +837,7 @@
     _crearBoveda: async function (verificado) {
       log('creando bóveda nueva');
 
+      try {
       var priv = generarClavePrivada();
       var E = getEthers();
       var signer = new E.Wallet('0x' + bytesToHex(priv));
@@ -841,6 +894,13 @@
         // ⚠️ ÚNICA vez que este código existe fuera de la cabeza del jugador.
         recoveryCode: recoveryCode
       };
+      } finally {
+        wipe(mitadServidor);
+        wipe(mitadDispositivo);
+        wipe(recoveryBytes);
+        wipe(recoveryKey);
+        if (this._privKey !== priv) wipe(priv);
+      }
     },
 
     /**
@@ -936,6 +996,7 @@
       var mitadDispositivo = randomBytes(32);
       var mitadServidor    = xorBytes(priv, mitadDispositivo);
 
+      try {
       await apiFetch('/api/wallet/vault/link', {
         method: 'POST',
         body: {
@@ -953,9 +1014,11 @@
       });
       await deviceStore.putLast({ walletId: this._walletId, address: address });
 
-      wipe(mitadServidor);
-      wipe(mitadDispositivo);
       return deviceId;
+      } finally {
+        wipe(mitadServidor);
+        wipe(mitadDispositivo);
+      }
     },
 
     /**
@@ -979,6 +1042,7 @@
         wipe(recoveryKey);
       }
 
+      try {
       var E = getEthers();
       var signer = new E.Wallet('0x' + bytesToHex(priv));
       if (datos.address && signer.address.toLowerCase() !== String(datos.address).toLowerCase()) {
@@ -992,9 +1056,13 @@
 
       this._aplicarClave(priv, signer);
       return { address: signer.address, isNew: false, needsRecoveryCode: false };
+      } finally {
+        if (this._privKey !== priv) wipe(priv);
+      }
     },
 
     _aplicarClave: function (priv, signer) {
+      if (this._privKey !== priv) wipe(this._privKey);
       this._privKey = priv;
       this._signer  = signer;
       this._address = signer.address;
@@ -1008,11 +1076,12 @@
     _armarAutoLock: function () {
       var self = this;
       clearTimeout(this._lockTimer);
-      if (!_cfg.autoLockMs) return;
+      if (_cfg.autoLockMs === 0) return;
+      var delay = Number.isFinite(_cfg.autoLockMs) && _cfg.autoLockMs > 0 ? Math.min(_cfg.autoLockMs, 2147483647) : DEFAULTS.autoLockMs;
       this._lockTimer = setTimeout(function () {
         log('auto-bloqueo por inactividad');
         self.lock();
-      }, _cfg.autoLockMs);
+      }, delay);
     },
 
     /** Borra la clave de memoria. La cuenta sigue existiendo. */
@@ -1021,6 +1090,7 @@
       this._privKey = null;
       this._signer  = null;
       clearTimeout(this._lockTimer);
+      this._lockTimer = null;
       if (this._provider) this._provider._emit('accountsChanged', []);
     },
 
@@ -1126,6 +1196,8 @@
 
     signTypedData: async function (typed) {
       if (!this.isUnlocked()) throw err('La wallet está bloqueada', 'locked');
+      if (!typed || !typed.domain || !typed.types || typeof typed.types !== 'object') throw err('Datos de firma inválidos', 'bad_typed_data');
+      if (typed.domain.chainId != null && BigInt(typed.domain.chainId) !== BigInt(_cfg.chainId)) throw err('La firma pertenece a otra red', 'unsupported_chain');
       this._armarAutoLock();
       var dominio = typed.domain, tipos = Object.assign({}, typed.types);
       delete tipos.EIP712Domain;   // ethers lo añade solo
@@ -1138,12 +1210,13 @@
     getBalance: async function () {
       const addr = this._address;
       if (!addr) throw err('La wallet está bloqueada', 'locked');
-      const r = await fetch(_cfg.rpcUrl, {
+      const rpc = await fetchJson(_cfg.rpcUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBalance', params: [addr, 'latest'] })
       });
-      const j = await r.json();
+      const j = rpc.data;
+      if (!rpc.response.ok || !j) throw err('Respuesta RPC inválida', 'rpc_error');
       if (j.error) throw err(j.error.message || 'error RPC', 'rpc_error');
       const E = getEthers();
       const wei = BigInt(j.result);
@@ -1166,14 +1239,15 @@
     getActivity: async function (limite) {
       const addr = this._address;
       if (!addr) return { txs: [], error: 'locked' };
+      const limit = Number.isFinite(limite) ? Math.max(1, Math.min(100, Math.floor(limite))) : 15;
       const url = _cfg.explorerUrl.replace(/\/$/, '') +
-        '/api?module=account&action=txlist&sort=desc&page=1&offset=' + (limite || 15) +
-        '&address=' + addr;
+        '/api?module=account&action=txlist&sort=desc&page=1&offset=' + limit +
+        '&address=' + encodeURIComponent(addr);
       try {
-        const r = await fetch(url, { headers: { Accept: 'application/json' } });
-        if (!r.ok) return { txs: [], error: 'explorer_http_' + r.status };
-        const j = await r.json();
-        const filas = Array.isArray(j.result) ? j.result : [];
+        const result = await fetchJson(url, { headers: { Accept: 'application/json' } });
+        if (!result.response.ok) return { txs: [], error: 'explorer_http_' + result.response.status };
+        const j = result.data;
+        const filas = j && Array.isArray(j.result) ? j.result.filter(tx => tx && /^0x[\da-f]{64}$/i.test(tx.hash)).slice(0, limit) : [];
         const E = getEthers();
         return {
           txs: filas.map(function (tx) {
@@ -1238,8 +1312,9 @@
       // 2. Envolver el código con la clave.
       const salt = randomBytes(16);
       const llave = await keyFromRecoveryCode(clave, salt);   // mismo KDF, otra entrada
-      const sobre = await aesGcmEncrypt(llave, utf8(String(codigo).trim()), 'gf-wallet-pass:' + this._walletId);
-      wipe(llave);
+      let sobre;
+      try { sobre = await aesGcmEncrypt(llave, utf8(String(codigo).trim()), 'gf-wallet-pass:' + this._walletId); }
+      finally { wipe(llave); }
 
       await apiFetch('/api/wallet/passphrase', {
         method: 'POST',
@@ -1263,7 +1338,8 @@
         throw err('Clave incorrecta', 'bad_passphrase');
       } finally { wipe(llave); }
 
-      return new TextDecoder().decode(bytes);
+      try { return new TextDecoder().decode(bytes); }
+      finally { wipe(bytes); }
     },
 
     /** Quita la clave personal (se vuelve a usar solo el código). */
@@ -1353,9 +1429,9 @@
 
       // 2. Se reconstruye la clave SOLO para esta transacción.
       const priv = await this._clavePrivadaDesdeCodigo(v.codigo);
-      let firmante;
+      let firmante, proveedor;
       try {
-        const proveedor = new E.JsonRpcProvider(_cfg.rpcUrl, {
+        proveedor = new E.JsonRpcProvider(_cfg.rpcUrl, {
           chainId: _cfg.chainId, name: _cfg.chainName
         });
         firmante = new E.Wallet('0x' + bytesToHex(priv), proveedor);
@@ -1373,10 +1449,18 @@
         return {
           hash: tx.hash,
           url: _cfg.explorerUrl.replace(/\/$/, '') + '/tx/' + tx.hash,
-          wait: () => tx.wait()
+          // The sender provider must not keep polling after the panel closes.
+          // Only create a reader when a caller actually requests confirmation.
+          wait: async () => {
+            const lector = new E.JsonRpcProvider(_cfg.rpcUrl, { chainId: _cfg.chainId, name: _cfg.chainName });
+            try { return await lector.waitForTransaction(tx.hash, 1, 120000); }
+            finally { lector.destroy(); }
+          }
         };
       } finally {
         wipe(priv);
+        firmante = null;
+        if (proveedor && typeof proveedor.destroy === 'function') proveedor.destroy();
       }
     },
 
@@ -1425,7 +1509,13 @@
     /** Crea (o devuelve) la instancia del SDK. */
     create: function (config) {
       if (!_instancia) _instancia = new GFWalletInstance(config);
-      else if (config) Object.assign(_instancia.config, config);
+      else if (config) {
+        var next = Object.assign({}, _instancia.config, config);
+        next.apiBase = validateEndpoint(next.apiBase);
+        next.rpcUrl = validateEndpoint(next.rpcUrl);
+        next.explorerUrl = validateEndpoint(next.explorerUrl);
+        Object.assign(_instancia.config, next);
+      }
       return _instancia;
     },
 

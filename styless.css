@@ -12958,3 +12958,82 @@ html.gf-teclado-abierto #chat-panel {
   .bz-resultado-tarjeta .bz-resultado-botones { grid-area: botones; margin-top: 10px; }
   .bz-resultado-tarjeta .bz-btn { min-height: 38px; padding: 7px 14px; font-size: 13px; }
 }
+
+/* ── La niebla por fases, el aviso de fuera y la reconexión (2026-10-02) ── */
+.bz-niebla-estado {
+  margin-top: 3px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px; font-weight: 800; letter-spacing: .02em;
+  color: #c4ff8f;
+  background: rgba(62, 125, 44, .28);
+  border: 1px solid rgba(196, 255, 143, .35);
+  white-space: nowrap;
+}
+.bz-niebla-estado.cerrando { color: #ffe08a; background: rgba(160, 110, 20, .3); border-color: rgba(255, 224, 138, .45); animation: bz-latido 1s ease-in-out infinite; }
+
+.bz-fuera {
+  position: absolute; left: 50%; top: 31%;
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px;
+  max-width: 90vw;
+  padding: 9px 16px 9px 10px;
+  border-radius: 14px;
+  background: rgba(20, 44, 14, .86);
+  border: 1px solid rgba(196, 255, 143, .55);
+  color: #d8ffb8;
+  font-size: clamp(12px, 2.4vw, 16px); font-weight: 800;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, .45);
+  pointer-events: none;
+  /* solo opacidad: bz-entra mueve en X y descolocaria el centrado */
+  animation: bz-aparece .2s ease-out;
+}
+@keyframes bz-aparece { from { opacity: 0; } to { opacity: 1; } }
+.bz-fuera.pronto { background: rgba(58, 44, 8, .86); border-color: rgba(255, 224, 138, .6); color: #ffe9a8; }
+.bz-flecha {
+  flex: 0 0 auto;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .12);
+  position: relative;
+  transition: transform .12s linear;
+}
+.bz-flecha::before {
+  content: "";
+  position: absolute; left: 7px; top: 8px;
+  border-style: solid;
+  border-width: 7px 0 7px 16px;
+  border-color: transparent transparent transparent currentColor;
+}
+.battle-ui.bz.en-niebla::after {
+  content: "";
+  position: absolute; inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 120px rgba(110, 200, 60, .55);
+  animation: bz-latido 1.2s ease-in-out infinite;
+}
+
+.bz-red {
+  position: absolute; left: 50%; top: calc(max(8px, env(safe-area-inset-top)) + 70px);
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgba(46, 12, 12, .9);
+  border: 1px solid rgba(255, 143, 131, .55);
+  color: #ffd0ca;
+  font-size: 13px; font-weight: 800;
+  pointer-events: none;
+  z-index: 3;
+}
+.bz-red i {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 208, 202, .35);
+  border-top-color: #ffd0ca;
+  animation: bz-gira .8s linear infinite;
+}
+@keyframes bz-gira { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .bz-niebla-estado.cerrando, .battle-ui.bz.en-niebla::after, .bz-red i { animation: none; }
+}
