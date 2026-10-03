@@ -20,6 +20,7 @@
     "eslint-plugin-security": "^3.0.1"
   },
   "dependencies": {
+    "@metamask/connect-evm": "2.1.1",
     "ethers": "6.17.0",
     "phaser": "3.90.0",
     "phaser3-rex-plugins": "1.60.0",

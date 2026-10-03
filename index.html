@@ -80,7 +80,7 @@
        el socket, UNA sola vez por pestaña; este módulo solo lo recuerda y
        pinta el panel del dashboard. -->
   <script src="./gf-canales.js?v=19.8" defer></script>
-  <script src="./gf-profundidad.js?v=19.1" defer></script>
+  <script src="./gf-profundidad.js?v=20.2" defer></script>
   <script src="./gf-sombras.js?v=19.1" defer></script>
   <script src="./gf-nieve.js?v=19.1" defer></script>
   <script src="./gf-ciclo-dia.js?v=19.8" defer></script>
@@ -136,9 +136,9 @@
 
   <script src="./Scenes/MenuScene.js?v=19.1" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=19.8" defer></script>
-  <script src="./Scenes/tiendajuego.js?v=20.1" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=20.2" defer></script>
   <script src="./Scenes/LoadingScenegame.js?v=19.8" defer></script>
-  <script src="./Scenes/GameScene.js?v=20.1" defer></script>
+  <script src="./Scenes/GameScene.js?v=20.2" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
@@ -147,7 +147,7 @@
   <!-- La isla de las parcelas. Hereda de GameScene igual que la mina,
        asi que tambien tiene que ir DESPUES de ella. -->
   <script src="./Scenes/LandsScene.js?v=19.7" defer></script>
-  <script src="./Scenes/BattleScene.js?v=20.1" defer></script>
+  <script src="./Scenes/BattleScene.js?v=20.2" defer></script>
   <script src="./Scenes/sacar_mapa.js?v=19.1" defer></script>
 
   <!-- tienda marketplace p2p -->
@@ -201,7 +201,8 @@
        Va después de ethers (lo necesita para firmar) y su arranque solo instala
        window.ethereum si NO hay MetaMask: con extensión instalada, manda ella. -->
   <script src="./gf-wallet-sdk/gf-wallet.js?v=19.1" defer></script>
-  <script src="./gf-wallet-boot.js?v=19.8" defer></script>
+  <script src="./vendor/gf-metamask-connect.js?v=20.2" defer></script>
+  <script src="./gf-wallet-boot.js?v=20.2" defer></script>
   <!-- Panel de cartera del dashboard. Va aparte de las escenas porque el
        dashboard es DOM de la pagina, compartido por GameScene y tiendajuego. -->
   <script src="./gf-wallet-dashboard.js?v=19.8" defer></script>

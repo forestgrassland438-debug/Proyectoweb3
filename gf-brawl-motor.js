@@ -761,7 +761,7 @@
   /* El inicio de la partida. También se manda a mitad (reconectar): por eso
      lleva el ESTADO de ahora —quién sigue vivo, las cajas que quedan, lo que
      hay en el suelo, en qué fase va la niebla— y no solo el del principio. */
-  function enviarInicio(P, l) {
+  function enviarInicio(P, l, reanudar) {
     if (!l.humano || l.sinConexion) return;
     var armas = {};
     Object.keys(ARMAS).forEach(function (k) { armas[k] = armaPublica(ARMAS[k]); });
@@ -798,7 +798,7 @@
       objetos: P.objetos.map(function (o) { return [o.id, redondea(o.x, 2), redondea(o.y, 2), o.tipo]; }),
       curas: P.curas.map(function (c) { return [redondea(c.x), redondea(c.y)]; }),
       fase: P.fase,
-      reanudar: P.fase !== 'cuenta',
+      reanudar: !!reanudar || P.fase !== 'cuenta',
       enCombateMs: P.fase === 'combate' ? Math.max(0, ahora - P.tCombate) : 0,
       cuentaMs: Math.max(0, P.tCombate - ahora),
       serverNow: ahora,
@@ -988,7 +988,15 @@
     l.seq = 0;
     l.correccion++;
     l.corregir = true;
-    enviarInicio(P, l);
+    enviarInicio(P, l, true);
+    return true;
+  }
+
+  // Reenvía el estado completo sin reiniciar secuencias ni el piloto automático.
+  function resincronizar(P, id) {
+    var l = P.porId[id];
+    if (!l || !l.humano || l.fuera || l.sinConexion || P.fase === 'fin') return false;
+    enviarInicio(P, l, true);
     return true;
   }
 
@@ -2056,6 +2064,7 @@
     abandonar: abandonar,
     desconectar: desconectar,
     reconectar: reconectar,
+    resincronizar: resincronizar,
     terminar: terminar,
     loVe: loVe,
     esCaja: esCaja

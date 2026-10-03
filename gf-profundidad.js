@@ -440,8 +440,11 @@
     var contorno = spr ? contornoMundo(scene, spr, caja) : null;
     var tol = toleranciaPerfil(caja);
 
+    var edificio = !!(spr && spr.getData && spr.getData('isBuilding'));
+    // Las alas de una casa necesitan cortes más precisos que un tronco.
+    var pasoX = edificio ? 2 : SONDA_PASO_X;
     var cols = [], solidas = 0;
-    for (var x = caja.x + 3; x <= caja.der - 3; x += SONDA_PASO_X) {
+    for (var x = caja.x + 3; x <= caja.der - 3; x += pasoX) {
       var ultimo = null;
       for (var y = desde; y <= hasta; y += SONDA_PASO_Y) {
         if (scene._chocaConEscenario(x - m, y - m, s, s)) ultimo = y;
@@ -474,17 +477,23 @@
        no partir árboles: ver FRANJA_SOLIDO_MIN. */
     cols.solidas = solidas / cols.length;
 
-    // Rellenar huecos con la columna sólida más cercana: primero hacia
-    // adelante y luego hacia atrás, que cubre los huecos de los extremos.
-    var i, ultimoBueno = null;
+    // Guarda las distancias a ambos lados ANTES de rellenar: copiar siempre
+    // la anterior extendía el ala baja sobre el hueco de un ala más alta.
+    var i, ultimoBueno = null, anterior = [], siguiente = [];
     for (i = 0; i < cols.length; i++) {
-      if (cols[i].y !== null) ultimoBueno = cols[i].y;
-      else if (ultimoBueno !== null) cols[i].y = ultimoBueno;
+      if (cols[i].y !== null) ultimoBueno = i;
+      anterior[i] = ultimoBueno;
     }
     ultimoBueno = null;
     for (i = cols.length - 1; i >= 0; i--) {
-      if (cols[i].y !== null) ultimoBueno = cols[i].y;
-      else if (ultimoBueno !== null) cols[i].y = ultimoBueno;
+      if (cols[i].y !== null) ultimoBueno = i;
+      siguiente[i] = ultimoBueno;
+    }
+    for (i = 0; i < cols.length; i++) {
+      if (cols[i].y !== null) continue;
+      var a = anterior[i], b = siguiente[i];
+      var cercano = a === null ? b : (b === null ? a : (i - a < b - i ? a : b));
+      cols[i].y = cols[cercano].y;
     }
     return cols;
   }

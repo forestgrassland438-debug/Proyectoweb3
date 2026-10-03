@@ -47,6 +47,16 @@
   }
 
   function arrancar() {
+    // La elección de wallet es pública; las credenciales siguen en la cookie
+    // del backend. Google conserva la bóveda y MetaMask conserva su proveedor.
+    if (window.GFMetaMask && new URLSearchParams(window.location.search).get('wallet') === 'metamask') {
+      window.GFMetaMask.prepare().then(function (provider) {
+        if (!window.ethereum) window.ethereum = provider;
+      }).catch(function (e) { log('No se pudo preparar MetaMask:', e && e.message); }).then(function () {
+        try { window.dispatchEvent(new Event(LISTO)); } catch (e) {}
+      });
+      return;
+    }
     if (typeof window.GFWallet === 'undefined') {
       log('SDK no cargado (falta gf-wallet-sdk/gf-wallet.js) — se sigue sin wallet embebida');
       return;
