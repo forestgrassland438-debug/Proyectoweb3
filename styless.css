@@ -10447,247 +10447,6 @@ body.in-battle #tx-hub,
 body.in-battle #inventory-panel,
 body.in-battle #notification-hub { display: none !important; }
 
-/* ==========================================================================
-   INTERFAZ DE BATALLA — DISEÑO AVANZADO (cartas estilo Axie)
-   ========================================================================== */
-.battle-ui {
-  position: fixed;
-  inset: 0;
-  z-index: 900;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: clamp(6px, 1.4vw, 14px);
-  pointer-events: none;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color: #fff;
-  -webkit-user-select: none;
-  user-select: none;
-  overflow: hidden;
-}
-.battle-ui * { box-sizing: border-box; }
-.battle-ui button, .battle-ui .bf-cardbtn { pointer-events: auto; }
-
-/* -------- Barra superior -------- */
-.bf-topbar {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: start;
-  gap: clamp(6px, 1.4vw, 16px);
-}
-
-.bf-card {
-  display: flex;
-  gap: 10px;
-  background: linear-gradient(180deg, rgba(10,20,38,.82), rgba(6,12,24,.82));
-  border: 1px solid rgba(120,170,255,.28);
-  border-radius: 14px;
-  padding: clamp(6px,1.1vw,10px) clamp(9px,1.3vw,14px);
-  backdrop-filter: blur(7px);
-  -webkit-backdrop-filter: blur(7px);
-  box-shadow: 0 6px 22px rgba(0,0,0,.35);
-  min-width: 0;
-  animation: bf-slidein-l .4s ease;
-}
-.bf-rival { animation: bf-slidein-r .4s ease; flex-direction: row; text-align: right; justify-content: flex-end; }
-.bf-cardbody { min-width: 0; flex: 1; }
-.bf-rightbody { text-align: right; }
-
-.bf-portrait {
-  width: clamp(38px, 7vw, 58px);
-  height: clamp(38px, 7vw, 58px);
-  flex: 0 0 auto;
-  border-radius: 12px;
-  background: radial-gradient(circle at 50% 35%, #2b4a7d, #101d33);
-  border: 1px solid rgba(140,190,255,.4);
-  display: flex; align-items: center; justify-content: center;
-  font-size: clamp(20px, 4vw, 32px);
-}
-.bf-portrait-rival { background: radial-gradient(circle at 50% 35%, #7d3b3b, #331010); border-color: rgba(255,150,150,.4); }
-
-.bf-top { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.bf-rival .bf-top { justify-content: flex-end; }
-.bf-name { font-weight: 800; font-size: clamp(13px, 2.5vw, 19px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bf-lvl { font-size: clamp(10px,1.7vw,13px); color: #ffd873; white-space: nowrap; }
-.bf-sub { font-size: clamp(8px,1.5vw,11px); color: #a9c2e6; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bf-addr { font-family: monospace; color: #86aadf; }
-
-.bf-hpbar {
-  position: relative;
-  margin-top: 6px;
-  height: clamp(11px, 1.8vw, 16px);
-  border-radius: 999px;
-  background: rgba(255,255,255,.13);
-  border: 1px solid rgba(0,0,0,.5);
-  overflow: hidden;
-}
-.bf-hpbar i {
-  position: absolute; left: 0; top: 0; bottom: 0;
-  background: linear-gradient(180deg, #78f19a, #33b45c);
-  transition: width .45s cubic-bezier(.2,.8,.2,1);
-}
-.bf-hpbar-rival i { background: linear-gradient(180deg, #ff8f83, #d9483f); left: auto; right: 0; }
-.bf-shieldbar { position: absolute; top: 0; bottom: 0; right: 0; width: 0; background: repeating-linear-gradient(45deg, rgba(130,200,255,.55), rgba(130,200,255,.55) 5px, rgba(130,200,255,.25) 5px, rgba(130,200,255,.25) 10px); transition: width .35s ease; }
-.bf-hptext { display: flex; gap: 8px; align-items: center; font-size: clamp(9px,1.5vw,12px); margin-top: 3px; color: #dbe8ff; }
-.bf-hptext.bf-right { justify-content: flex-end; }
-.bf-shield:not(:empty) { background: rgba(120,190,255,.2); border: 1px solid rgba(120,190,255,.55); border-radius: 999px; padding: 1px 7px; font-size: .9em; }
-
-/* -------- Turno + temporizador -------- */
-.bf-turnbox { align-self: start; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: clamp(72px, 12vw, 120px); }
-.bf-turnlabel { font-weight: 800; font-size: clamp(11px,1.9vw,16px); text-shadow: 0 2px 6px rgba(0,0,0,.8); white-space: nowrap; }
-.bf-timer { width: 100%; height: 7px; border-radius: 999px; background: rgba(255,255,255,.15); overflow: hidden; border: 1px solid rgba(0,0,0,.4); }
-.bf-timer i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #6ee98a, #ffe27a, #ff8a80); transition: width .25s linear; }
-.bf-timer.low i { background: #ff6b6b; }
-.bf-timertext { font-size: clamp(9px,1.5vw,12px); color: #cfe0ff; font-variant-numeric: tabular-nums; }
-
-/* -------- Estado grande -------- */
-.bf-status {
-  align-self: center;
-  text-align: center;
-  font-size: clamp(15px, 3vw, 27px);
-  font-weight: 800;
-  text-shadow: 0 3px 12px rgba(0,0,0,.9);
-  white-space: pre-line;
-  line-height: 1.3;
-  margin: auto 0;
-  pointer-events: none;
-}
-
-/* -------- Reveal de cartas jugadas -------- */
-.bf-reveal {
-  position: absolute;
-  left: 50%; top: 42%;
-  transform: translate(-50%, -50%);
-  display: flex; align-items: center; gap: clamp(10px, 3vw, 34px);
-  padding: clamp(10px,2vw,20px);
-  background: rgba(4,10,20,.72);
-  border: 1px solid rgba(140,190,255,.3);
-  border-radius: 18px;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  pointer-events: none;
-  animation: bf-reveal-in .3s ease;
-  z-index: 5;
-}
-.bf-reveal.hidden { display: none; }
-.bf-reveal.out { animation: bf-reveal-out .35s ease forwards; }
-.bf-reveal-side { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.bf-reveal-label { font-size: clamp(9px,1.5vw,12px); letter-spacing: 2px; color: #a9c2e6; }
-.bf-reveal-cards { display: flex; gap: 6px; }
-.bf-reveal-vs { font-size: clamp(18px,4vw,30px); }
-.bf-mini {
-  width: clamp(46px, 9vw, 70px);
-  border-radius: 9px;
-  border: 2px solid rgba(255,255,255,.25);
-  background: linear-gradient(180deg, rgba(30,52,90,.98), rgba(14,26,46,.98));
-  padding: 6px 3px; text-align: center;
-  animation: bf-flip .4s ease backwards;
-}
-.bf-mini .m-emoji { font-size: clamp(15px,3vw,22px); }
-.bf-mini .m-name { font-size: clamp(7px,1.3vw,10px); font-weight: 700; }
-
-/* -------- Numeros flotantes -------- */
-.bf-floaters { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
-.bf-float { position: absolute; font-weight: 900; font-size: clamp(18px,4vw,32px); text-shadow: 0 2px 6px rgba(0,0,0,.9); animation: bf-float-up 1.1s ease forwards; }
-.bf-float.dmg { color: #ff6b6b; }
-.bf-float.heal { color: #63e08a; }
-.bf-float.shield { color: #8ec6ff; }
-
-/* -------- Energia (a un lado) + mano -------- */
-.bf-bottom {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: end;
-  gap: clamp(6px, 1.5vw, 16px);
-}
-.bf-energywrap { display: flex; flex-direction: column; align-items: center; gap: 3px; padding-bottom: 6px; }
-.bf-energy-title { font-size: clamp(8px,1.4vw,11px); letter-spacing: 1.5px; color: #ffd873; }
-.bf-energy { display: flex; gap: 4px; }
-.bf-energy i {
-  width: clamp(12px,2.2vw,18px); height: clamp(12px,2.2vw,18px); border-radius: 50%;
-  background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.35); display: block;
-  transition: transform .15s ease, background .15s ease;
-}
-.bf-energy i.on { background: radial-gradient(circle at 40% 35%, #fff2b0, #f0a92b); border-color: #ffdf8a; box-shadow: 0 0 8px rgba(240,169,43,.7); }
-.bf-energy-count { font-size: clamp(9px,1.5vw,12px); color: #cfe0ff; font-variant-numeric: tabular-nums; }
-
-.bf-hand {
-  display: flex;
-  gap: clamp(4px, 1vw, 10px);
-  justify-content: center;
-  align-items: flex-end;
-  padding: 6px 4px 2px;
-  max-width: 100%;
-  overflow-x: auto;
-}
-
-.bf-cardbtn {
-  position: relative;
-  flex: 0 0 auto;
-  width: clamp(80px, 16vw, 128px);
-  border-radius: 13px;
-  border: 2px solid rgba(255,255,255,.2);
-  background: linear-gradient(180deg, rgba(30,52,90,.97), rgba(12,22,40,.97));
-  color: #fff;
-  padding: clamp(7px,1.2vw,11px) 7px 8px;
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
-  cursor: pointer;
-  transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease;
-  animation: bf-deal .35s ease backwards;
-}
-.bf-cardbtn:hover:not(:disabled) { transform: translateY(-8px) scale(1.03); border-color: #7fb2ff; box-shadow: 0 12px 24px rgba(0,0,0,.5); z-index: 3; }
-.bf-cardbtn.sel { border-color: #ffd873; transform: translateY(-12px) scale(1.05); box-shadow: 0 14px 26px rgba(255,190,60,.35); }
-.bf-cardbtn.sel::after { content: '\2713'; position: absolute; top: 5px; right: 7px; color: #ffd873; font-weight: 900; }
-.bf-cardbtn:disabled { opacity: .4; cursor: not-allowed; }
-
-/* franja de color por tipo */
-.bf-cardbtn[data-type="attack"]  { border-top: 4px solid #ff7a6b; }
-.bf-cardbtn[data-type="defense"] { border-top: 4px solid #7fb2ff; }
-.bf-cardbtn[data-type="heal"]    { border-top: 4px solid #63e08a; }
-.bf-cardbtn[data-type="hybrid"]  { border-top: 4px solid #c58cff; }
-
-.bf-cardbtn .c-cost {
-  position: absolute; top: 6px; left: 7px;
-  min-width: 20px; text-align: center;
-  font-size: clamp(9px,1.6vw,12px); font-weight: 800;
-  background: radial-gradient(circle at 40% 35%, #fff2b0, #f0a92b);
-  color: #3a2600; border-radius: 999px; padding: 1px 5px;
-}
-.bf-cardbtn .c-emoji { font-size: clamp(20px,4vw,30px); line-height: 1; margin-top: 4px; }
-.bf-cardbtn .c-name  { font-size: clamp(10px,1.8vw,13px); font-weight: 800; text-align: center; }
-.bf-cardbtn .c-stats { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; font-size: clamp(8px,1.5vw,11px); font-weight: 700; }
-.bf-cardbtn .c-stats .s-dmg { color: #ff9d92; }
-.bf-cardbtn .c-stats .s-shield { color: #9ecbff; }
-.bf-cardbtn .c-stats .s-heal { color: #7fe6a0; }
-.bf-cardbtn .c-desc  { font-size: clamp(7px,1.3vw,10px); color: #aec4e6; text-align: center; line-height: 1.25; }
-
-.bf-actions { display: flex; flex-direction: column; gap: 8px; padding-bottom: 6px; }
-.bf-btn { border-radius: 11px; padding: clamp(8px,1.4vw,13px) clamp(14px,3vw,26px); font-size: clamp(11px,1.9vw,15px); font-weight: 800; cursor: pointer; border: 2px solid transparent; white-space: nowrap; transition: filter .15s ease, transform .1s ease; }
-.bf-btn:hover:not(:disabled) { filter: brightness(1.15); }
-.bf-btn:active:not(:disabled) { transform: scale(.96); }
-.bf-btn-main { background: linear-gradient(180deg, #4f9dff, #2f6fd0); color: #fff; border-color: #7fb2ff; box-shadow: 0 6px 14px rgba(47,111,208,.4); }
-.bf-btn-main:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
-.bf-btn-ghost { background: rgba(0,0,0,.4); color: #ffd7d7; border-color: rgba(255,150,150,.5); }
-
-/* pequeno sacudon cuando una mascota recibe dano */
-.bf-hit { animation: bf-hit-shake .3s ease; }
-
-@keyframes bf-slidein-l { from { transform: translateX(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes bf-slidein-r { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes bf-deal { from { transform: translateY(40px) rotate(-6deg); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes bf-flip { from { transform: rotateY(90deg); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes bf-reveal-in { from { transform: translate(-50%,-50%) scale(.8); opacity: 0; } to { transform: translate(-50%,-50%) scale(1); opacity: 1; } }
-@keyframes bf-reveal-out { to { transform: translate(-50%,-64%) scale(.9); opacity: 0; } }
-@keyframes bf-float-up { 0% { transform: translateY(0) scale(.8); opacity: 0; } 20% { opacity: 1; transform: translateY(-10px) scale(1.1); } 100% { transform: translateY(-70px) scale(1); opacity: 0; } }
-@keyframes bf-hit-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 50% { transform: translateX(8px); } 75% { transform: translateX(-5px); } }
-
-/* En movil apaisado (poca altura) se compacta */
-@media (max-height: 470px) {
-  .bf-status { font-size: clamp(13px,2.5vw,20px); }
-  .bf-cardbtn { width: clamp(70px,12vw,100px); }
-  .bf-cardbtn .c-desc { display: none; }
-  .bf-portrait { display: none; }
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    FIX MÓVIL — ZOOM AUTOMÁTICO AL ABRIR EL TECLADO
@@ -11660,519 +11419,6 @@ canvas,
   .gf-gfx-value { min-width: 50px; font-size: 13px; padding: 6px 8px; }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   HUB DE BATALLA — REDISEÑO PROFESIONAL                        (2026-08-11)
-   ---------------------------------------------------------------------------
-   Se AÑADE sobre las reglas antiguas (van más arriba en este archivo y ganan
-   por orden de cascada). No se borró nada: si algo hiciera falta revertir,
-   basta con quitar este bloque.
-
-   Estructura respetada al 100 %: mismos IDs y mismas clases que usa
-   BattleScene.js. Aquí solo cambia el aspecto y el espaciado.
-
-   CUIDADO CON `.hidden`: la regla global `.hidden { display:none !important }`
-   tiene la misma especificidad que `.battle-ui`, y como este bloque va DESPUÉS
-   ganaría y el hub se quedaría visible para siempre. Por eso los contenedores
-   que se ocultan con esa clase se estilan con `:not(.hidden)`, que además de
-   ser correcto sube la especificidad sin pelearse.
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.battle-ui {
-  --bf-bg-0:      #060a14;
-  --bf-bg-1:      #0d1526;
-  --bf-line:      rgba(120, 170, 255, .16);
-  --bf-line-hi:   rgba(120, 170, 255, .38);
-  --bf-text:      #e8f0ff;
-  --bf-muted:     #bacbe7;
-  --bf-you:       #4ade80;
-  --bf-rival:     #f87171;
-  --bf-shield:    #60a5fa;
-  --bf-energy:    #fbbf24;
-  --bf-radius:    14px;
-  --bf-gap:       clamp(6px, 1.2vw, 14px);
-}
-
-.battle-ui:not(.hidden) {
-  position: fixed;
-  inset: 0;
-  /* POR ENCIMA DEL LIENZO. Lo que hace que se vea el escenario de la batalla
-     NO es el z-index sino que el fondo sea TRANSPARENTE (ver abajo). Con 900
-     el lienzo de Phaser quedaba por delante —`#container` tiene `transform`
-     por el CSS de rendimiento, y eso crea su propio contexto de apilado— y las
-     cartas dejaban de recibir clics. */
-  z-index: 1002;
-  display: flex;
-  flex-direction: column;
-  gap: var(--bf-gap);
-  height: var(--app-height, 100vh);
-  padding: calc(var(--bf-gap) + env(safe-area-inset-top, 0px))
-           calc(var(--bf-gap) + env(safe-area-inset-right, 0px))
-           calc(var(--bf-gap) + env(safe-area-inset-bottom, 0px))
-           calc(var(--bf-gap) + env(safe-area-inset-left, 0px));
-  box-sizing: border-box;
-
-  /* FIX "NO SE VE fondo_batalla.png":
-     el rediseño puso aquí un fondo OPACO (dos degradados a color sólido). Este
-     div ocupa la pantalla entera por encima del lienzo de Phaser, así que
-     tapaba por completo el escenario que dibuja BattleScene — incluida la
-     imagen de fondo. El .battle-ui original no tenía fondo NINGUNO: es un HUD
-     transparente sobre el juego, y así debe seguir.
-     Solo se deja un velo muy suave arriba y abajo para que el texto blanco de
-     las tarjetas y del estado se lea sobre cualquier escenario. */
-  background:
-    linear-gradient(180deg, rgba(4, 8, 18, .55) 0%, rgba(4, 8, 18, 0) 22%,
-                            rgba(4, 8, 18, 0) 62%, rgba(4, 8, 18, .62) 100%);
-
-  color: var(--bf-text);
-  font-family: var(--font-family_101, system-ui, sans-serif);
-  overflow: hidden;
-  overscroll-behavior: contain;
-
-  /* NO se pone `pointer-events: none` aquí a propósito.
-     El .battle-ui original lo llevaba porque era un HUD sobre un mapa donde el
-     jugador seguía necesitando pulsar el escenario. En la batalla no hay nada
-     que pulsar en el lienzo: todo se juega con las cartas y los botones, que
-     son DOM. Dejar el contenedor "atravesable" solo añade una vía para que un
-     control deje de responder si alguien olvida ponerle `auto`, sin ninguna
-     ventaja a cambio. El escenario se ve porque el fondo es TRANSPARENTE, que
-     es cosa distinta del pointer-events. */
-}
-
-/* ── BARRA SUPERIOR: los dos combatientes y el turno ──────────────────────── */
-.battle-ui .bf-topbar {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: stretch;
-  gap: var(--bf-gap);
-  flex: 0 0 auto;
-}
-
-.battle-ui .bf-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  padding: 10px 12px;
-  border-radius: var(--bf-radius);
-  border: 1px solid var(--bf-line);
-  background: linear-gradient(160deg, rgba(22,36,57,.94), rgba(9,18,32,.92));
-  box-shadow: 0 6px 24px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
-}
-.battle-ui .bf-you   { border-left:  3px solid var(--bf-you); }
-.battle-ui .bf-rival { border-right: 3px solid var(--bf-rival); }
-
-.battle-ui .bf-portrait {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  width:  clamp(38px, 7vw, 56px);
-  height: clamp(38px, 7vw, 56px);
-  border-radius: 50%;
-  font-size: clamp(20px, 3.4vw, 30px);
-  background: radial-gradient(circle at 30% 25%, rgba(255,255,255,.14), rgba(0,0,0,.35));
-  border: 1px solid var(--bf-line-hi);
-}
-
-.battle-ui .bf-cardbody { flex: 1 1 auto; min-width: 0; }
-.battle-ui .bf-rightbody { text-align: right; }
-
-.battle-ui .bf-top {
-  display: flex; align-items: baseline; gap: 8px;
-  margin-bottom: 3px;
-}
-.battle-ui .bf-rightbody .bf-top { justify-content: flex-end; }
-
-.battle-ui .bf-name {
-  font-weight: 800;
-  font-size: clamp(12px, 1.8vw, 16px);
-  letter-spacing: .02em;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  max-width: 100%;
-}
-.battle-ui .bf-lvl {
-  flex: 0 0 auto;
-  font-size: 10px; font-weight: 700;
-  padding: 2px 7px; border-radius: 999px;
-  background: rgba(120,170,255,.16); color: #bcd4ff;
-  border: 1px solid var(--bf-line-hi);
-}
-.battle-ui .bf-sub {
-  font-size: 10.5px; color: var(--bf-muted);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  margin-bottom: 6px;
-}
-.battle-ui .bf-addr { font-family: ui-monospace, Menlo, Consolas, monospace; opacity: .75; }
-
-/* Barra de vida con el escudo montado encima */
-.battle-ui .bf-hpbar {
-  position: relative;
-  height: 10px; border-radius: 999px; overflow: hidden;
-  background: rgba(0,0,0,.55);
-  border: 1px solid rgba(255,255,255,.09);
-}
-.battle-ui .bf-hpbar > i {
-  display: block; height: 100%;
-  background: linear-gradient(90deg, #22c55e, var(--bf-you));
-  transition: width .35s cubic-bezier(.3,.8,.4,1);
-}
-.battle-ui .bf-hpbar-rival > i { background: linear-gradient(90deg, #ef4444, var(--bf-rival)); }
-.battle-ui .bf-hpbar > i.low   { background: linear-gradient(90deg, #f59e0b, #ef4444); }
-
-/* ARMADURA (escudo) — tiene que REFLEJAR la barra de vida.
-   La tarjeta del rival está espejada: su vida crece de derecha a izquierda
-   (.bf-hpbar-rival > i va anclado a la derecha), así que su escudo debe ir
-   pegado a la DERECHA. El tuyo, a la IZQUIERDA, igual que tu vida.
-
-   Estaba mal en las dos direcciones: el CSS antiguo anclaba el escudo SIEMPRE
-   a la derecha (por eso el tuyo salía del lado equivocado) y el rediseño lo
-   ancló SIEMPRE a la izquierda (por eso el del rival salía del lado
-   equivocado). Ahora cada uno sigue a su barra. */
-.battle-ui .bf-shieldbar {
-  position: absolute;
-  top: 0; bottom: 0;
-  left: 0; right: auto;          /* TÚ: pegado a la izquierda */
-  height: 100%;
-  background: repeating-linear-gradient(115deg,
-              rgba(96,165,250,.85) 0 6px, rgba(96,165,250,.5) 6px 12px);
-  transition: width .35s cubic-bezier(.3,.8,.4,1);
-}
-
-.battle-ui .bf-hpbar-rival .bf-shieldbar {
-  left: auto; right: 0;          /* RIVAL: pegado a la derecha */
-}
-
-.battle-ui .bf-hptext {
-  display: flex; align-items: center; gap: 8px;
-  margin-top: 4px;
-  font-size: 11px; font-weight: 700; color: var(--bf-muted);
-}
-.battle-ui .bf-hptext.bf-right { justify-content: flex-end; }
-.battle-ui .bf-shield { color: var(--bf-shield); }
-
-/* Caja central del turno */
-.battle-ui .bf-turnbox {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 6px;
-  min-width: clamp(78px, 12vw, 130px);
-  padding: 8px 12px;
-  border-radius: var(--bf-radius);
-  border: 1px solid var(--bf-line);
-  background: rgba(0,0,0,.35);
-}
-.battle-ui .bf-turnlabel {
-  font-size: clamp(11px, 1.6vw, 14px); font-weight: 900; letter-spacing: .08em;
-  text-align: center; text-transform: uppercase;
-  background: linear-gradient(180deg, #fff, #9db8e8);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-}
-.battle-ui .bf-timer {
-  width: 100%; height: 6px; border-radius: 999px; overflow: hidden;
-  background: rgba(255,255,255,.1);
-}
-.battle-ui .bf-timer > i {
-  display: block; height: 100%;
-  background: linear-gradient(90deg, var(--bf-energy), #f97316);
-  transition: width .25s linear;
-}
-.battle-ui .bf-timertext { font-size: 11px; font-weight: 700; color: var(--bf-muted); }
-
-/* ── RENDIRSE ──────────────────────────────────────────────────────────────
-   Chip pequeno dentro del recuadro del turno. Va aqui y no abajo porque la
-   fila de abajo se la reparte con la mano de cartas —en horizontal se aprieta
-   hasta quedar en un borde— y porque al acabar el combate el jugador ya no
-   esta mirando ahi. Aqui se ve en las tres fases y no lo tapa ninguna carta.
-
-   Discreto de normal (es una salida, no la accion principal) y rojo cuando
-   pide confirmacion, para que la segunda pulsacion sea consciente. */
-.battle-ui .bf-surrender {
-  margin-top: 2px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-family: inherit;
-  font-size: clamp(9px, 1.2vw, 11px);
-  font-weight: 800;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  cursor: pointer;
-  color: #ffc9c9;
-  background: rgba(248, 113, 113, .10);
-  border: 1px solid rgba(248, 113, 113, .40);
-  transition: background .15s, color .15s, border-color .15s;
-  touch-action: manipulation;
-  /* Zona de toque de 32 px sin agrandar el chip: en el movil el dedo tapa el
-     boton entero y fallar aqui significa seguir encerrado en la batalla. */
-  position: relative;
-}
-.battle-ui .bf-surrender::after {
-  content: ''; position: absolute; left: 0; right: 0;
-  top: 50%; height: 32px; transform: translateY(-50%);
-}
-.battle-ui .bf-surrender:hover { background: rgba(248, 113, 113, .22); }
-.battle-ui .bf-surrender.confirmar {
-  color: #fff;
-  background: rgba(220, 38, 38, .85);
-  border-color: #fca5a5;
-  animation: bfSurrenderLatido .9s ease-in-out infinite;
-}
-@keyframes bfSurrenderLatido {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(248, 113, 113, .55); }
-  50%      { box-shadow: 0 0 0 5px rgba(248, 113, 113, 0); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .battle-ui .bf-surrender.confirmar { animation: none; }
-}
-
-/* ── ZONA CENTRAL ─────────────────────────────────────────────────────────── */
-/* El rótulo del estado va ARRIBA de la zona central, no en medio.
-   Centrado caía justo encima de los dos luchadores y les tapaba la cara y el
-   cartel del nombre — se veía "Choose your cards" cruzado sobre el perro.
-   Pegado arriba deja libre el terreno de juego, que es donde pasan las cosas. */
-.battle-ui .bf-status {
-  flex: 1 1 auto;
-  display: grid; place-items: start center;
-  text-align: center;
-  padding: 6px 16px 8px;
-  font-size: clamp(13px, 2.1vw, 19px); font-weight: 700;
-  color: #cfe0ff;
-  text-shadow: 0 2px 10px rgba(0,0,0,.85), 0 2px 18px rgba(60,120,240,.35);
-  pointer-events: none;
-  min-height: 0;
-  margin: 0;
-}
-
-.battle-ui .bf-reveal:not(.hidden) {
-  position: absolute; left: 50%; top: 46%;
-  transform: translate(-50%, -50%);
-  display: flex; align-items: center; gap: clamp(10px, 3vw, 34px);
-  padding: 14px 18px;
-  border-radius: 18px;
-  border: 1px solid var(--bf-line-hi);
-  background: rgba(6, 12, 24, .93);
-  box-shadow: 0 24px 70px rgba(0,0,0,.7);
-  z-index: 3;
-  max-width: min(94vw, 900px);
-}
-.battle-ui .bf-reveal-side { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.battle-ui .bf-reveal-label {
-  font-size: 10px; font-weight: 900; letter-spacing: .14em; color: var(--bf-muted);
-}
-.battle-ui .bf-reveal-you   .bf-reveal-label { color: var(--bf-you); }
-.battle-ui .bf-reveal-rival .bf-reveal-label { color: var(--bf-rival); }
-.battle-ui .bf-reveal-cards { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
-.battle-ui .bf-reveal-vs { font-size: clamp(20px, 4vw, 32px); opacity: .8; }
-
-.battle-ui .bf-mini {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  min-width: 52px; padding: 7px 8px;
-  border-radius: 10px;
-  background: rgba(255,255,255,.06);
-  border: 1px solid var(--bf-line);
-}
-.battle-ui .bf-mini .m-emoji { font-size: 20px; line-height: 1; }
-.battle-ui .bf-mini .m-name  { font-size: 9px; color: var(--bf-muted); text-align: center; }
-
-.battle-ui .bf-floaters { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
-
-/* ── PARTE INFERIOR: energía + mano + acciones ─────────────────────────────── */
-.battle-ui .bf-bottom {
-  flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--bf-gap);
-}
-
-.battle-ui .bf-energywrap {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 8px 10px; border-radius: var(--bf-radius);
-  border: 1px solid var(--bf-line); background: rgba(0,0,0,.32);
-}
-.battle-ui .bf-energy-title {
-  font-size: 9px; font-weight: 900; letter-spacing: .12em; color: var(--bf-muted);
-}
-.battle-ui .bf-energy { display: flex; gap: 4px; }
-.battle-ui .bf-energy > * {
-  width: 11px; height: 11px; border-radius: 50%;
-  background: rgba(255,255,255,.12);
-  border: 1px solid rgba(255,255,255,.18);
-  transition: background .2s, box-shadow .2s;
-}
-.battle-ui .bf-energy > .on {
-  background: radial-gradient(circle at 35% 30%, #fff6d5, var(--bf-energy));
-  box-shadow: 0 0 9px rgba(251,191,36,.75);
-  border-color: rgba(255,220,130,.9);
-}
-.battle-ui .bf-energy > .reserved {
-  background: repeating-linear-gradient(135deg, #715629 0 3px, #263146 3px 6px);
-  border-color: #ffd97a;
-  box-shadow: none;
-}
-.battle-ui .bf-energy-count { font-size: 11px; font-weight: 800; color: var(--bf-energy); }
-
-/* La mano: se desplaza en horizontal si no caben las cartas, nunca desborda. */
-.battle-ui .bf-hand {
-  display: flex; align-items: stretch; gap: 8px;
-  min-width: 0;
-  justify-content: flex-start;
-  /* Espacio para elevar la carta y para el foco: el scroll antes cortaba el
-     coste, la selección y las primeras cartas de una mano ancha. */
-  padding: 12px 7px 7px;
-  overflow-x: auto; overflow-y: hidden;
-  scroll-padding-inline: 7px;
-  scrollbar-width: thin;
-  overscroll-behavior-x: contain;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
-}
-.battle-ui .bf-hand > :first-child { margin-left: auto; }
-.battle-ui .bf-hand > :last-child { margin-right: auto; }
-.battle-ui .bf-hand::-webkit-scrollbar { height: 5px; }
-.battle-ui .bf-hand::-webkit-scrollbar-thumb { background: var(--bf-line-hi); border-radius: 999px; }
-
-.battle-ui .bf-cardbtn {
-  --card-accent: #bacbe7;
-  position: relative;
-  flex: 0 0 auto;
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
-  width: clamp(76px, 12vw, 116px);
-  padding: 9px 7px 8px;
-  border-radius: 9px;
-  border: 1px solid var(--bf-line);
-  border-top: 3px solid var(--card-accent);
-  background: linear-gradient(170deg, rgba(38,54,92,.95), rgba(16,24,44,.95));
-  color: var(--bf-text);
-  cursor: pointer;
-  font-family: inherit;
-  transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-.battle-ui .bf-cardbtn:hover:not(:disabled) {
-  transform: translateY(-4px);
-  border-color: var(--bf-line-hi);
-  box-shadow: 0 10px 26px rgba(0,0,0,.55);
-}
-.battle-ui .bf-cardbtn:active:not(:disabled) { transform: translateY(-1px); }
-.battle-ui .bf-cardbtn.sel {
-  border-color: var(--bf-energy);
-  background: linear-gradient(170deg, #36445a, #282839);
-  box-shadow: 0 0 0 2px rgba(251,191,36,.8), inset 0 -3px 0 #b78a31;
-  transform: translateY(-4px);
-}
-.battle-ui .bf-cardbtn.sel::after {
-  display: grid; place-items: center;
-  top: 5px; right: 5px; width: 20px; height: 20px;
-  border-radius: 4px; background: #f5cb63; color: #231c11;
-  font: 800 12px/1 system-ui, sans-serif;
-}
-.battle-ui .bf-cardbtn.sel[data-order]::after { content: attr(data-order); }
-.battle-ui .bf-cardbtn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
-.battle-ui .bf-cardbtn.sel:disabled { opacity: 1; }
-.battle-ui .bf-cardbtn[data-type="attack"] { --card-accent: #ff9786; }
-.battle-ui .bf-cardbtn[data-type="defense"] { --card-accent: #8bc5ff; }
-.battle-ui .bf-cardbtn[data-type="heal"] { --card-accent: #86e5a4; }
-.battle-ui .bf-cardbtn[data-type="hybrid"] { --card-accent: #c6a5ff; }
-
-.battle-ui .bf-cardbtn .c-cost {
-  position: absolute; top: 5px; left: 5px;
-  display: grid; place-items: center;
-  width: 22px; height: 22px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #fff6d5, var(--bf-energy));
-  color: #3b2c00; font-size: 12px; font-weight: 900;
-  border: 2px solid rgba(0,0,0,.45);
-}
-.battle-ui .bf-cardbtn .c-emoji { font-size: clamp(20px, 3.2vw, 28px); line-height: 1; margin-top: 20px; }
-.battle-ui .bf-cardbtn .c-name  {
-  font-size: clamp(10px, 1.2vw, 12px); font-weight: 800; text-align: center; line-height: 1.2;
-}
-.battle-ui .bf-cardbtn .c-stats { display: flex; gap: 5px; font-size: 9.5px; font-weight: 800; }
-.battle-ui .bf-cardbtn .s-dmg    { color: #ff9d9d; }
-.battle-ui .bf-cardbtn .s-shield { color: #9dc7ff; }
-.battle-ui .bf-cardbtn .s-heal   { color: #a8f0c0; }
-.battle-ui .bf-cardbtn .c-desc {
-  font-size: 10px; line-height: 1.3; color: var(--bf-muted); text-align: center;
-}
-
-.battle-ui .bf-actions { display: flex; flex-direction: column; gap: 6px; }
-.battle-ui .bf-btn {
-  min-height: 44px;
-  padding: 0 clamp(12px, 2vw, 22px);
-  border-radius: 11px;
-  font-family: inherit; font-size: clamp(11px, 1.5vw, 14px); font-weight: 800;
-  letter-spacing: .03em;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: filter .15s, transform .12s;
-  touch-action: manipulation;
-}
-.battle-ui .bf-btn:hover:not(:disabled)  { filter: brightness(1.14); }
-.battle-ui .bf-btn:active:not(:disabled) { transform: translateY(1px); }
-.battle-ui .bf-btn-main {
-  background: linear-gradient(160deg, #3b82f6, #1d4ed8);
-  color: #fff; border-color: rgba(150,190,255,.5);
-  box-shadow: 0 6px 18px rgba(29,78,216,.45);
-}
-.battle-ui .bf-btn-main:disabled { opacity: .42; cursor: not-allowed; box-shadow: none; }
-.battle-ui .bf-btn-ghost {
-  background: rgba(255,255,255,.05); color: #ffc9c9;
-  border-color: rgba(248,113,113,.45);
-}
-
-/* El foco se ve sin depender del color de la carta o de pasar el ratón. */
-.battle-ui button:focus-visible {
-  outline: 3px solid #fff2be;
-  outline-offset: 3px;
-}
-.battle-ui .bf-cardbtn:focus-visible { z-index: 4; }
-.battle-ui .bf-timer.low > i { background: #ff8076; }
-.battle-ui .bf-timertext, .battle-ui .bf-hptext,
-.battle-ui .bf-energy-count, .battle-ui .c-cost { font-variant-numeric: tabular-nums; }
-
-/* Lectura táctica en una franja compacta, independiente del área de sprites. */
-.battle-ui .bf-tactics {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
-  gap: 5px 12px; flex: 0 0 auto; padding: 6px 10px;
-  border: 1px solid var(--bf-line-hi); border-radius: 8px;
-  background: rgba(9,18,32,.94); color: var(--bf-text);
-  font-size: 11px; line-height: 1.4;
-}
-.battle-ui .bf-bottom > .bf-tactics { grid-column: 1 / -1; order: -1; }
-.battle-ui .bf-intent { color: #ffd19b; }
-.battle-ui .bf-card-preview { color: #deebff; }
-.battle-ui .bf-tactics:empty, .battle-ui .bf-intent:empty,
-.battle-ui .bf-card-preview:empty { display: none; }
-.battle-ui .bf-key-hint { color: var(--bf-muted); font-size: 10px; }
-
-/* ── TELÉFONO EN APAISADO (que es como se pide jugar la batalla) ──────────── */
-@media (max-height: 500px) {
-  .battle-ui { --bf-gap: 6px; }
-  .battle-ui .bf-card      { padding: 6px 9px; gap: 8px; }
-  .battle-ui .bf-sub       { display: none; }
-  .battle-ui .bf-status    { font-size: 13px; padding: 2px 10px; }
-  .battle-ui .bf-cardbtn   { width: 74px; padding: 7px 5px 6px; }
-  .battle-ui .bf-cardbtn .c-emoji { margin-top: 18px; font-size: 21px; }
-  .battle-ui .bf-cardbtn .c-desc { display: none; }
-  .battle-ui .bf-btn       { min-height: 38px; }
-  /* El chip de rendirse SIGUE VISIBLE en apaisado: es la unica salida y no se
-     esconde nunca. Solo se aprieta un poco. */
-  .battle-ui .bf-surrender { padding: 3px 8px; font-size: 9px; margin-top: 1px; }
-  .battle-ui .bf-tactics { padding: 3px 8px; font-size: 10px; }
-  .battle-ui .bf-key-hint { display: none; }
-}
-
-/* ── PANTALLAS ESTRECHAS EN VERTICAL ───────────────────────────────────────── */
-@media (max-width: 560px) {
-  .battle-ui .bf-portrait { width: 34px; height: 34px; font-size: 18px; }
-  .battle-ui .bf-bottom {
-    display: flex; flex-direction: column; align-items: stretch; gap: 8px;
-  }
-  .battle-ui .bf-hand      { order: 1; }
-  .battle-ui .bf-energywrap { order: 2; flex-direction: row; justify-content: center; gap: 8px; }
-  .battle-ui .bf-actions   { order: 3; flex-direction: row; }
-  .battle-ui .bf-actions .bf-btn { flex: 1 1 auto; }
-}
-
 /* ── AVISO DE ROTAR EL TELÉFONO ────────────────────────────────────────────── */
 .battle-rotate-notice:not(.hidden) {
   position: fixed; inset: 0; z-index: 1004;
@@ -12195,32 +11441,6 @@ canvas,
   margin: 0; font-size: 15px; line-height: 1.55; color: #cfe0ff; font-weight: 600;
 }
 
-/* Quien no quiera animaciones no las sufre. */
-@media (prefers-reduced-motion: reduce) {
-  .battle-ui *, .battle-ui *::before, .battle-ui *::after {
-    animation: none !important;
-    transition: none !important;
-    scroll-behavior: auto !important;
-  }
-  .battle-ui .bf-cardbtn:hover:not(:disabled),
-  .battle-ui .bf-cardbtn.sel { transform: none; }
-  .battle-rotate-icon { animation: none; }
-}
-
-/* El retrato lleva ahora el sprite de la mascota como imagen de fondo
-   (BattleScene.pintarLuchadores). Se le quita el relleno de emoji y se deja
-   respirar la imagen; `pixelated` porque el sprite es pixel art y con el
-   suavizado por defecto salía borroso al ampliarlo. */
-.battle-ui .bf-portrait {
-  background-color: rgba(0, 0, 0, .35);
-  image-rendering: pixelated;
-  overflow: hidden;
-}
-/* El rival controlado por la máquina se marca con el borde, no con otro dibujo. */
-.battle-ui .bf-portrait.bf-portrait-bot {
-  border-color: rgba(251, 191, 36, .75);
-  box-shadow: 0 0 10px rgba(251, 191, 36, .35);
-}
 
 
 /* ==========================================================================
@@ -13218,9 +12438,7 @@ html.gf-teclado-abierto #chat-panel {
   }
 }
 
-/* Botón "Play in portrait" del aviso de girar el teléfono, y las cinco cartas
-   en un móvil en vertical: a 76 px la quinta se salía 13 px por la derecha
-   (medido a 412 px de ancho). */
+/* Botón "Play in portrait" del aviso de girar el teléfono. */
 .battle-rotate-seguir {
   margin-top: 18px;
   min-height: 44px;
@@ -13234,10 +12452,509 @@ html.gf-teclado-abierto #chat-panel {
   cursor: pointer;
   touch-action: manipulation;
 }
-@media (max-width: 560px) {
-  .battle-ui .bf-cardbtn {
-    width: calc((100vw - 58px) / 5);
-    max-width: 76px;
-    min-width: 0;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LA ARENA (batallas en tiempo real)                             (2026-10-02)
+   ---------------------------------------------------------------------------
+   Lo que va encima del lienzo mientras se pelea: tu tarjeta, el reloj, los
+   que quedan, los avisos, los mandos táctiles y las pantallas de búsqueda,
+   de caído y de resultados. Lo mueve Scenes/BattleScene.js.
+
+   Mismo lenguaje que el menú de batallas (.battle-hub-card): paneles azul
+   noche translúcidos y botones redondeados. Los colores de juego son fijos y
+   se usan igual en el lienzo: VERDE eres tú, ROJO son los rivales, DORADO
+   es el súper y los huesos de poder.
+
+   Nada de `backdrop-filter` aquí: encima de un lienzo que se repinta 60 veces
+   por segundo obliga al navegador a desenfocar 60 veces por segundo (ver
+   "RENDIMIENTO DEL HUD SOBRE EL LIENZO DEL JUEGO", más arriba).
+   ═══════════════════════════════════════════════════════════════════════════ */
+.battle-ui.bz {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  pointer-events: none;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #fff;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  overflow: hidden;
+  --bz-panel: linear-gradient(180deg, rgba(14, 26, 46, .9), rgba(7, 15, 29, .9));
+  --bz-borde: rgba(120, 170, 255, .22);
+  --bz-yo: #6fe37b;
+  --bz-rival: #ff6b5e;
+  --bz-oro: #ffd24a;
+}
+.battle-ui.bz * { box-sizing: border-box; }
+.battle-ui.bz button { pointer-events: auto; font: inherit; }
+
+/* ── Botones ─────────────────────────────────────────────────────────────── */
+.bz-btn {
+  min-height: 42px;
+  padding: 9px 18px;
+  border-radius: 13px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  background: linear-gradient(180deg, #3478f0, #1f50b3);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: .01em;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .22);
+  transition: transform .12s ease, filter .12s ease, background .15s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.bz-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.bz-btn:active { transform: translateY(1px); filter: brightness(.95); }
+.bz-btn:focus-visible { outline: 3px solid rgba(255, 210, 74, .8); outline-offset: 2px; }
+.bz-btn:disabled { opacity: .5; cursor: default; transform: none; filter: none; }
+.bz-btn-sec { background: linear-gradient(180deg, #f6bd3a, #d58b12); color: #2a1800; border-color: rgba(255, 230, 160, .5); }
+.bz-btn-ghost, .bz-btn-salir { background: rgba(10, 18, 34, .82); border-color: rgba(255, 255, 255, .22); }
+.bz-btn-salir { min-height: 36px; padding: 7px 14px; font-size: 13px; }
+.bz-btn-salir.confirmar { background: linear-gradient(180deg, #e8483d, #b52a21); border-color: rgba(255, 180, 170, .6); }
+
+/* ── Barra de arriba ─────────────────────────────────────────────────────── */
+.bz-top {
+  position: absolute;
+  top: max(8px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  gap: 10px;
+}
+.bz-yo {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 320px;
+  padding: 7px 12px 7px 7px;
+  border-radius: 16px;
+  background: var(--bz-panel);
+  border: 1px solid var(--bz-borde);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .35);
+}
+.bz-retrato {
+  flex: 0 0 auto;
+  width: 48px; height: 48px;
+  border-radius: 13px;
+  border: 2px solid rgba(111, 227, 123, .65);
+  background-color: #17351f;
+  background-image: radial-gradient(circle at 50% 30%, #2f6b3b, #10261a);
+  background-repeat: no-repeat;
+  background-position: center 65%;
+  background-size: 82%;
+  image-rendering: pixelated;
+}
+.bz-yo-datos { min-width: 0; }
+.bz-yo-nombre {
+  font-weight: 800; font-size: 15px; line-height: 1.15;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bz-nivel {
+  display: inline-block;
+  margin-left: 2px; padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 210, 74, .16);
+  color: #ffdc7a; font-size: 11px; font-weight: 800;
+  vertical-align: 1px;
+}
+.bz-vida {
+  position: relative;
+  width: 180px; max-width: 40vw; height: 13px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .5);
+  border: 1px solid rgba(0, 0, 0, .65);
+  overflow: hidden;
+}
+.bz-vida i {
+  position: absolute; top: 0; bottom: 0; left: 0;
+  width: 100%;
+  background: linear-gradient(180deg, #8ff59a, #3daf4d);
+  transition: width .18s ease;
+}
+.bz-vida.media i { background: linear-gradient(180deg, #ffe58a, #d6a52a); }
+.bz-vida.baja i { background: linear-gradient(180deg, #ff9b8f, #d4433a); }
+.bz-vida b {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font-size: 10px; font-weight: 800; line-height: 1;
+  text-shadow: 0 1px 2px #000, 0 0 3px #000;
+  font-variant-numeric: tabular-nums;
+}
+.bz-yo-extra { display: flex; gap: 12px; margin-top: 4px; font-size: 12px; font-weight: 700; color: #d6e4ff; }
+
+.bz-centro {
+  display: flex; flex-direction: column; align-items: center;
+  min-width: 128px;
+  padding: 6px 18px 8px;
+  border-radius: 16px;
+  background: var(--bz-panel);
+  border: 1px solid var(--bz-borde);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .35);
+}
+.bz-modo { font-size: 10px; letter-spacing: .16em; color: #a9bfe6; font-weight: 800; text-transform: uppercase; white-space: nowrap; }
+.bz-reloj {
+  margin-top: 3px;
+  font: 17px/1.2 "PressStart2P", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, .6);
+}
+.bz-reloj.niebla { color: #c4ff8f; }
+.bz-reloj.poco { color: #ff8f83; animation: bz-latido 1s ease-in-out infinite; }
+.bz-quedan { display: flex; align-items: baseline; gap: 5px; margin-top: 2px; font-size: 12px; color: #d6e4ff; }
+.bz-quedan b { font-size: 18px; color: #fff; }
+.bz-acciones { justify-self: end; display: flex; gap: 8px; }
+
+/* ── Registro de caídas ──────────────────────────────────────────────────── */
+.bz-feed {
+  position: absolute;
+  top: calc(max(8px, env(safe-area-inset-top)) + 58px);
+  right: max(10px, env(safe-area-inset-right));
+  margin: 0; padding: 0; list-style: none;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+  max-width: min(46vw, 360px);
+}
+.bz-feed li {
+  max-width: 100%;
+  padding: 5px 11px;
+  border-radius: 10px;
+  background: rgba(7, 15, 29, .82);
+  border: 1px solid rgba(255, 255, 255, .12);
+  font-size: 13px; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  animation: bz-entra .25s ease-out;
+}
+.bz-feed li.sale { animation: bz-sale .4s ease-in forwards; }
+.bz-feed .yo { color: var(--bz-yo); }
+.bz-feed .rival { color: #ffb0a8; }
+.bz-feed .niebla { color: #c4ff8f; }
+
+/* ── Avisos del centro ───────────────────────────────────────────────────── */
+.bz-aviso {
+  position: absolute; left: 50%; top: 36%;
+  transform: translate(-50%, -50%);
+  max-width: 92vw;
+  font: clamp(30px, 8vw, 72px)/1.1 "PressStart2P", ui-monospace, monospace;
+  color: #fff;
+  text-align: center; white-space: nowrap;
+  text-shadow: 0 5px 0 #1b2b4d, 0 0 26px rgba(0, 0, 0, .65);
+  pointer-events: none;
+}
+.bz-aviso.pop { animation: bz-pop .55s cubic-bezier(.2, 1.5, .4, 1); }
+.bz-aviso.oro { color: var(--bz-oro); }
+.bz-aviso.peque {
+  top: 24%;
+  font-size: clamp(13px, 2.6vw, 20px);
+  color: #c4ff8f;
+  white-space: normal;
+  padding: 10px 18px; border-radius: 14px;
+  background: rgba(7, 15, 29, .78);
+  border: 1px solid rgba(196, 255, 143, .35);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, .6);
+}
+
+.bz-dolor {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 rgba(255, 40, 40, 0);
+  transition: box-shadow .35s ease;
+}
+.bz-dolor.activo { box-shadow: inset 0 0 70px rgba(255, 36, 36, .38); transition: none; }
+
+/* ── Buscando partida ────────────────────────────────────────────────────── */
+.bz-busqueda {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  padding: 16px;
+  background: radial-gradient(ellipse at center, rgba(3, 9, 20, .35), rgba(3, 9, 20, .82));
+  pointer-events: auto;
+}
+.bz-busqueda.hidden { display: none; }
+.bz-busqueda-tarjeta {
+  width: min(94vw, 430px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 24px 22px 20px;
+  border-radius: 22px;
+  text-align: center;
+  background: linear-gradient(180deg, rgba(14, 26, 46, .97), rgba(7, 15, 29, .97));
+  border: 1px solid rgba(120, 170, 255, .25);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, .55);
+}
+.bz-busqueda-tarjeta h2 { margin: 6px 0 4px; font-size: 22px; letter-spacing: .01em; }
+.bz-busqueda-tarjeta p { margin: 0; color: #b9cbec; font-size: 14px; }
+.bz-huellas { display: flex; justify-content: center; gap: 10px; height: 26px; margin-bottom: 4px; }
+.bz-huellas i {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--bz-yo);
+  box-shadow: 0 0 12px rgba(111, 227, 123, .6);
+  animation: bz-huella 1.2s ease-in-out infinite;
+}
+.bz-huellas i:nth-child(2) { animation-delay: .15s; }
+.bz-huellas i:nth-child(3) { animation-delay: .3s; }
+.bz-huellas i:nth-child(4) { animation-delay: .45s; }
+.bz-sala { min-height: 22px; margin-top: 10px; font-weight: 800; color: var(--bz-oro); font-size: 15px; }
+.bz-sala .puntos { display: inline-flex; gap: 4px; margin-left: 8px; vertical-align: middle; }
+.bz-sala .puntos i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, .18); }
+.bz-sala .puntos i.lleno { background: var(--bz-oro); box-shadow: 0 0 6px rgba(255, 210, 74, .7); }
+.bz-busqueda-tiempo { margin-top: 6px; font: 13px "PressStart2P", ui-monospace, monospace; color: #8fa6cf; }
+.bz-consejos {
+  margin: 16px 0 0; padding: 12px 14px;
+  list-style: none; text-align: left;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid rgba(255, 255, 255, .08);
+  font-size: 13px; line-height: 1.75; color: #cfdcf5;
+}
+.bz-consejos b { color: #fff; }
+.bz-busqueda-botones { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+
+/* ── Mandos táctiles ─────────────────────────────────────────────────────── */
+.bz-tactil { display: none; }
+.battle-ui.bz.tactil .bz-tactil { display: block; }
+.bz-zona-mover, .bz-zona-disparo {
+  position: absolute; bottom: 0;
+  height: 64%;
+  pointer-events: auto;
+  touch-action: none;
+}
+.bz-zona-mover { left: 0; width: 46%; }
+.bz-zona-disparo { right: 0; width: 42%; }
+.bz-stick {
+  position: absolute;
+  width: 124px; height: 124px;
+  margin: -62px 0 0 -62px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, .05), rgba(255, 255, 255, .12));
+  border: 2px solid rgba(255, 255, 255, .28);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .3);
+  opacity: .55;
+  transition: opacity .15s ease;
+  pointer-events: none;
+}
+.bz-stick.activo { opacity: 1; }
+.bz-stick i {
+  position: absolute; left: 50%; top: 50%;
+  width: 54px; height: 54px;
+  margin: -27px 0 0 -27px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffffff, #b8c9ea);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .45);
+}
+.bz-stick-fuego i { background: radial-gradient(circle at 35% 30%, #ffe7c2, #ff8c38); }
+.bz-stick-fuego.super i { background: radial-gradient(circle at 35% 30%, #fff6c8, #f2b62f); }
+.bz-super {
+  position: absolute;
+  right: calc(max(12px, env(safe-area-inset-right)) + 150px);
+  bottom: calc(max(14px, env(safe-area-inset-bottom)) + 18px);
+  width: 76px; height: 76px;
+  padding: 0;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(7, 15, 29, .7);
+  color: #8fa6cf;
+  font-weight: 900; font-size: 11px; letter-spacing: .06em;
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.bz-super svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.bz-super .bz-super-fondo { fill: none; stroke: rgba(255, 255, 255, .14); stroke-width: 6; }
+.bz-super .bz-super-carga { fill: none; stroke: var(--bz-oro); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 176; stroke-dashoffset: 176; transition: stroke-dashoffset .2s ease; }
+.bz-super span { position: relative; }
+.bz-super.listo { color: #2a1800; background: radial-gradient(circle at 40% 35%, #fff2b0, #f2b62f); animation: bz-latido 1s ease-in-out infinite; box-shadow: 0 0 22px rgba(255, 210, 74, .75); }
+
+/* ── Abajo (PC) ──────────────────────────────────────────────────────────── */
+.bz-pie {
+  position: absolute; left: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.battle-ui.bz.tactil .bz-pie { display: none; }
+.bz-superbarra {
+  position: relative;
+  width: 230px; height: 18px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .55);
+  border: 1px solid rgba(255, 210, 74, .35);
+  overflow: hidden;
+}
+.bz-superbarra i {
+  position: absolute; top: 0; bottom: 0; left: 0;
+  width: 0;
+  background: linear-gradient(180deg, #ffe48a, #e2a21c);
+  transition: width .2s ease;
+}
+.bz-superbarra span {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font-size: 10px; font-weight: 900; letter-spacing: .14em;
+  text-shadow: 0 1px 2px #000;
+}
+.bz-superbarra.lista { box-shadow: 0 0 16px rgba(255, 210, 74, .8); animation: bz-latido 1s ease-in-out infinite; }
+.bz-teclas {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(7, 15, 29, .74);
+  border: 1px solid rgba(255, 255, 255, .1);
+  font-size: 12px; color: #cfdcf5; white-space: nowrap;
+}
+.bz-teclas kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, .25);
+  border-bottom-width: 2px;
+  background: rgba(255, 255, 255, .08);
+  font: 700 11px system-ui, sans-serif;
+  color: #fff;
+}
+
+/* ── Caído / resultados ─────────────────────────────────────────────────── */
+.bz-caido, .bz-resultado {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  padding: 16px;
+  pointer-events: auto;
+}
+.bz-caido { background: rgba(3, 9, 20, .35); }
+.bz-resultado { background: radial-gradient(ellipse at center, rgba(3, 9, 20, .45), rgba(3, 9, 20, .86)); }
+.bz-caido.hidden, .bz-resultado.hidden { display: none; }
+.bz-caido-tarjeta, .bz-resultado-tarjeta {
+  width: min(94vw, 460px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 22px 22px 18px;
+  border-radius: 22px;
+  text-align: center;
+  background: linear-gradient(180deg, rgba(14, 26, 46, .97), rgba(7, 15, 29, .97));
+  border: 1px solid rgba(120, 170, 255, .25);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, .55);
+  animation: bz-sube .35s cubic-bezier(.2, 1.2, .4, 1);
+}
+.bz-caido-tarjeta { width: min(92vw, 360px); }
+.bz-caido-tarjeta h3 { margin: 0 0 6px; font-size: 21px; color: #ffb0a8; }
+.bz-caido-tarjeta p { margin: 0; color: #cfdcf5; font-size: 14px; }
+.bz-caido-botones, .bz-resultado-botones { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.bz-medalla {
+  width: 78px; height: 78px;
+  margin: 0 auto 8px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  font: 20px "PressStart2P", ui-monospace, monospace;
+  color: #2a1800;
+  background: radial-gradient(circle at 38% 32%, #fff4bf, #e9a91c);
+  border: 3px solid rgba(255, 255, 255, .6);
+  box-shadow: 0 0 28px rgba(255, 210, 74, .55), inset 0 -4px 0 rgba(0, 0, 0, .15);
+}
+.bz-medalla.plata { background: radial-gradient(circle at 38% 32%, #ffffff, #a9b6c8); box-shadow: 0 0 22px rgba(200, 215, 235, .45); }
+.bz-medalla.bronce { background: radial-gradient(circle at 38% 32%, #ffd9b0, #c27a3a); box-shadow: 0 0 22px rgba(220, 140, 70, .45); }
+.bz-medalla.nada { background: radial-gradient(circle at 38% 32%, #6b7a94, #2c374b); color: #dfe8f7; box-shadow: none; }
+.bz-resultado-tarjeta h2 { margin: 0; font-size: 26px; letter-spacing: .01em; }
+.bz-resultado-tarjeta h2.gana { color: var(--bz-oro); text-shadow: 0 0 18px rgba(255, 210, 74, .45); }
+.bz-resultado-tarjeta > p { margin: 4px 0 0; color: #b9cbec; font-size: 14px; }
+.bz-premios { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
+.bz-premios li {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(255, 255, 255, .12);
+  font-size: 13px; font-weight: 800;
+}
+.bz-premios li.oro { color: var(--bz-oro); border-color: rgba(255, 210, 74, .45); background: rgba(255, 210, 74, .1); }
+.bz-premios li.verde { color: var(--bz-yo); border-color: rgba(111, 227, 123, .4); background: rgba(111, 227, 123, .08); }
+.bz-tabla { margin: 14px 0 0; padding: 0; list-style: none; text-align: left; }
+.bz-tabla li {
+  display: grid;
+  grid-template-columns: 34px 1fr auto auto;
+  align-items: center; gap: 10px;
+  padding: 7px 10px;
+  border-radius: 11px;
+  font-size: 13px;
+}
+.bz-tabla li:nth-child(odd) { background: rgba(255, 255, 255, .035); }
+.bz-tabla li.yo { background: rgba(111, 227, 123, .12); outline: 1px solid rgba(111, 227, 123, .35); }
+.bz-tabla .pos { font: 11px "PressStart2P", ui-monospace, monospace; color: #a9bfe6; text-align: center; }
+.bz-tabla .quien { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 800; }
+.bz-tabla .quien small { font-weight: 600; color: #93a8cc; margin-left: 6px; }
+.bz-tabla .num { color: #cfdcf5; font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+
+/* ── Teléfono ────────────────────────────────────────────────────────────── */
+@media (max-width: 720px), (max-height: 460px) {
+  .bz-yo { padding: 5px 10px 5px 5px; border-radius: 13px; }
+  .bz-retrato { width: 38px; height: 38px; border-radius: 10px; }
+  .bz-yo-nombre { font-size: 13px; }
+  .bz-vida { width: 130px; height: 11px; }
+  .bz-yo-extra { display: none; }
+  .bz-centro { min-width: 100px; padding: 4px 12px 6px; }
+  .bz-reloj { font-size: 13px; }
+  .bz-quedan b { font-size: 15px; }
+  .bz-feed { top: calc(max(8px, env(safe-area-inset-top)) + 48px); }
+  .bz-feed li { font-size: 12px; padding: 4px 9px; }
+  .bz-stick { width: 108px; height: 108px; margin: -54px 0 0 -54px; }
+  .bz-super { width: 66px; height: 66px; right: calc(max(10px, env(safe-area-inset-right)) + 128px); }
+  .bz-consejos { display: none; }
+}
+@media (max-width: 460px) {
+  .bz-top { grid-template-columns: 1fr auto; }
+  .bz-centro { grid-column: 2; grid-row: 1; }
+  .bz-acciones { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
+  .bz-yo { max-width: 58vw; }
+}
+
+/* ── Animaciones ─────────────────────────────────────────────────────────── */
+@keyframes bz-pop { 0% { transform: translate(-50%, -50%) scale(.35); opacity: 0; } 60% { opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1); } }
+@keyframes bz-entra { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes bz-sale { to { transform: translateX(24px); opacity: 0; } }
+@keyframes bz-sube { from { transform: translateY(26px) scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes bz-latido { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.25); } }
+@keyframes bz-huella { 0%, 100% { transform: translateY(0) scale(.85); opacity: .35; } 50% { transform: translateY(-7px) scale(1); opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .battle-ui.bz *, .battle-ui.bz *::before, .battle-ui.bz *::after {
+    animation: none !important;
+    transition: none !important;
   }
+}
+
+/* Mientras se busca partida no hay nada que marcar: ni reloj, ni mandos. */
+.battle-ui.bz.buscando .bz-top,
+.battle-ui.bz.buscando .bz-pie,
+.battle-ui.bz.buscando .bz-tactil,
+.battle-ui.bz.buscando .bz-feed { display: none; }
+/* Dónde descansan los joysticks hasta que se tocan. */
+.bz-zona-mover .bz-stick { left: calc(max(14px, env(safe-area-inset-left)) + 84px); top: calc(100% - 96px); }
+.bz-zona-disparo .bz-stick { left: calc(100% - max(14px, env(safe-area-inset-right)) - 84px); top: calc(100% - 96px); }
+
+/* Resultados en una pantalla baja (móvil en horizontal): en dos columnas, la
+   medalla y los botones a la izquierda y la tabla a la derecha. En una sola
+   columna los botones se salían por abajo y no se podía volver al mapa. */
+@media (max-height: 520px) and (orientation: landscape) {
+  .bz-resultado-tarjeta {
+    width: min(96vw, 780px);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    grid-template-areas: "medalla tabla" "titulo tabla" "sub tabla" "premios tabla" "botones tabla";
+    grid-template-rows: auto auto auto 1fr auto;
+    column-gap: 18px;
+    align-items: start;
+    padding: 14px 16px;
+  }
+  .bz-resultado-tarjeta .bz-medalla { grid-area: medalla; width: 54px; height: 54px; font-size: 14px; margin-bottom: 4px; }
+  .bz-resultado-tarjeta h2 { grid-area: titulo; font-size: 21px; }
+  .bz-resultado-tarjeta > p { grid-area: sub; font-size: 13px; }
+  .bz-resultado-tarjeta .bz-premios { grid-area: premios; margin-top: 10px; gap: 6px; }
+  .bz-resultado-tarjeta .bz-premios li { padding: 4px 10px; font-size: 12px; }
+  .bz-resultado-tarjeta .bz-tabla { grid-area: tabla; margin: 0; align-self: center; max-height: calc(100dvh - 60px); overflow-y: auto; }
+  .bz-resultado-tarjeta .bz-tabla li { padding: 6px 8px; }
+  .bz-resultado-tarjeta .bz-resultado-botones { grid-area: botones; margin-top: 10px; }
+  .bz-resultado-tarjeta .bz-btn { min-height: 38px; padding: 7px 14px; font-size: 13px; }
 }

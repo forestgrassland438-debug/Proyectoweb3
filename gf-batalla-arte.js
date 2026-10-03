@@ -909,6 +909,140 @@
     }]
   };
 
+  /* ══════════════════════════════════════════════════════════════════════
+     LOS PROYECTILES DE LA ARENA (y dos piezas de apoyo)
+     ──────────────────────────────────────────────────────────────────────
+     A diferencia de las piezas de arriba, éstas van CON SU COLOR: una bala
+     tiene que leerse de un vistazo (¿es mía? ¿es el aullido?) y teñir una
+     pieza blanca no da para eso. Todas se dibujan mirando a la DERECHA y la
+     escena las gira hacia donde vuelan. Tamaños pequeños, en píxeles del
+     mundo (una casilla son 32): a zoom 3 un ladrido de 20 px ya se ve.
+     ══════════════════════════════════════════════════════════════════════ */
+  function arco(ctx, cx, cy, r, a0, a1, grosor, color) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, a0, a1);
+    ctx.lineWidth = grosor;
+    ctx.strokeStyle = color;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  var PROYECTILES = {
+    // Ladrido: tres ondas de sonido abriéndose hacia delante.
+    p_onda: [22, 26, function (ctx, w, h) {
+      var cy = h / 2;
+      arco(ctx, 2, cy, 8, -0.95, 0.95, 3, 'rgba(120,200,255,0.55)');
+      arco(ctx, 2, cy, 13, -0.85, 0.85, 3, 'rgba(190,235,255,0.85)');
+      arco(ctx, 2, cy, 18, -0.75, 0.75, 3, 'rgba(255,255,255,1)');
+    }],
+    // Zarpazo: tres arañazos curvos.
+    p_zarpa: [22, 22, function (ctx, w, h) {
+      for (var i = 0; i < 3; i++) {
+        var y = 5 + i * 6;
+        ctx.beginPath();
+        ctx.moveTo(3, y + 3); ctx.quadraticCurveTo(12, y - 2, 20, y + 1);
+        ctx.lineWidth = 3; ctx.lineCap = 'round';
+        ctx.strokeStyle = 'rgba(255,170,90,0.9)'; ctx.stroke();
+        ctx.lineWidth = 1.4; ctx.strokeStyle = '#fff6e0'; ctx.stroke();
+      }
+    }],
+    // Mordisco: dos mandíbulas que se cierran.
+    p_mordisco: [20, 22, function (ctx, w, h) {
+      arco(ctx, 4, h / 2 - 4, 9, -0.2, 1.2, 3, '#ffffff');
+      arco(ctx, 4, h / 2 + 4, 9, -1.2, 0.2, 3, '#ffffff');
+      for (var i = 0; i < 3; i++) {
+        ctx.fillStyle = '#ffe9c0';
+        ctx.fillRect(9 + i * 3, h / 2 - 3, 2, 2);
+        ctx.fillRect(9 + i * 3, h / 2 + 1, 2, 2);
+      }
+    }],
+    // Colmillo: una punta de marfil.
+    p_colmillo: [16, 8, function (ctx, w, h) {
+      ctx.beginPath();
+      ctx.moveTo(1, 1); ctx.lineTo(w - 1, h / 2); ctx.lineTo(1, h - 1); ctx.quadraticCurveTo(5, h / 2, 1, 1);
+      ctx.fillStyle = '#f3ecd8'; ctx.fill();
+      ctx.lineWidth = 1; ctx.strokeStyle = '#6b5a3a'; ctx.stroke();
+    }],
+    // Pluma: oscura, con el canto claro.
+    p_pluma: [18, 8, function (ctx, w, h) {
+      ctx.beginPath();
+      ctx.moveTo(1, h / 2); ctx.quadraticCurveTo(w * 0.5, -1, w - 1, h / 2);
+      ctx.quadraticCurveTo(w * 0.5, h + 1, 1, h / 2);
+      ctx.fillStyle = '#3b3550'; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(2, h / 2); ctx.lineTo(w - 2, h / 2);
+      ctx.lineWidth = 1; ctx.strokeStyle = '#b9b2d6'; ctx.stroke();
+    }],
+    // Dentellada: una boca grande.
+    p_diente: [26, 30, function (ctx, w, h) {
+      arco(ctx, 3, h / 2 - 5, 13, -0.15, 1.15, 4, '#ffffff');
+      arco(ctx, 3, h / 2 + 5, 13, -1.15, 0.15, 4, '#ffffff');
+      ctx.fillStyle = '#ffd8d8';
+      for (var i = 0; i < 4; i++) {
+        ctx.fillRect(10 + i * 3, h / 2 - 4, 2, 3);
+        ctx.fillRect(10 + i * 3, h / 2 + 1, 2, 3);
+      }
+    }],
+    // Escupitajo: una gota verde con brillo.
+    p_veneno: [14, 14, function (ctx, w, h) {
+      ctx.beginPath(); ctx.arc(w / 2, h / 2, 5.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#5fd35a'; ctx.fill();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = '#1f6b28'; ctx.stroke();
+      ctx.fillStyle = '#d8ffb0'; ctx.fillRect(w / 2 - 3, h / 2 - 3, 2, 2);
+    }],
+    // Aullido (súper del perro): una onda ancha y dorada.
+    p_aullido: [40, 52, function (ctx, w, h) {
+      var cy = h / 2;
+      arco(ctx, 2, cy, 18, -0.9, 0.9, 6, 'rgba(255,214,90,0.45)');
+      arco(ctx, 2, cy, 26, -0.85, 0.85, 6, 'rgba(255,236,150,0.8)');
+      arco(ctx, 2, cy, 34, -0.8, 0.8, 5, 'rgba(255,255,230,1)');
+    }],
+    // Embestida: polvo y tierra levantados en abanico.
+    p_embestida: [44, 52, function (ctx, w, h) {
+      var cy = h / 2;
+      arco(ctx, 2, cy, 22, -0.95, 0.95, 8, 'rgba(160,120,80,0.55)');
+      arco(ctx, 2, cy, 32, -0.85, 0.85, 6, 'rgba(225,195,150,0.9)');
+      for (var i = 0; i < 7; i++) {
+        var a = -0.8 + i * 0.27;
+        ctx.fillStyle = 'rgba(120,90,60,0.9)';
+        ctx.fillRect(2 + Math.cos(a) * 38, cy + Math.sin(a) * 38, 3, 3);
+      }
+    }],
+    // Fuego fatuo: una bola de fuego con el centro claro.
+    p_fuego: [26, 26, function (ctx, w, h) {
+      var g = ctx.createRadialGradient(w / 2, h / 2, 1, w / 2, h / 2, 12);
+      g.addColorStop(0, 'rgba(255,255,220,1)');
+      g.addColorStop(0.35, 'rgba(255,200,80,1)');
+      g.addColorStop(0.7, 'rgba(255,110,40,0.85)');
+      g.addColorStop(1, 'rgba(255,60,20,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    }],
+    // Círculo blanco macizo: la "goma" con la que se abre el hueco de la niebla.
+    circulo: [128, 128, function (ctx, w, h) {
+      ctx.beginPath(); ctx.arc(w / 2, h / 2, w / 2, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff'; ctx.fill();
+    }],
+    // Brillo radial: halo de los huesos y del súper listo.
+    brillo: [64, 64, function (ctx, w, h) {
+      var g = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+      g.addColorStop(0, 'rgba(255,255,255,0.9)');
+      g.addColorStop(0.4, 'rgba(255,255,255,0.35)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    }]
+  };
+
+  /** Crea las piezas de la arena (proyectiles, círculo, brillo). */
+  function proyectiles(scene) {
+    var n = 0;
+    for (var id in PROYECTILES) {
+      if (!Object.prototype.hasOwnProperty.call(PROYECTILES, id)) continue;
+      var e = PROYECTILES[id];
+      // Mismo registro que los efectos: olvidarEfectos() las suelta también.
+      if (adquirir(scene, 'efectos', PREFIJO + id, e[0], e[1], e[2])) n++;
+    }
+    return n;
+  }
+
   /** Crea TODAS las piezas de efectos. Devuelve cuántas se pudieron crear. */
   function efectos(scene) {
     var n = 0;
@@ -926,6 +1060,7 @@
 
   window.GFBatallaArte = {
     efectos: efectos,
+    proyectiles: proyectiles,
     arena: arena,
     olvidarArenas: olvidarArenas,
     olvidarEfectos: olvidarEfectos,
@@ -938,7 +1073,7 @@
     _interno: {
       lienzo: lienzo, dado: dado, pintarArena: pintarArena,
       cordillera: cordillera, colinas: colinas, EFECTOS: EFECTOS,
-      rgba: rgba, mezcla: mezcla,
+      rgba: rgba, mezcla: mezcla, PROYECTILES: PROYECTILES,
       arenasVivas: function (scene) { return clavesEscena(scene, 'arenas', false).slice(); },
       MAX_ARENAS: MAX_ARENAS
     }

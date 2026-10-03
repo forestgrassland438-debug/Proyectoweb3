@@ -13,7 +13,7 @@
   <title>GRASSLAND FOREST</title>
   <link rel="icon" href="favicon.png" type="image/png" />
   <!-- v17: rediseño del panel de misiones + altura real del viewport en móvil -->
-  <link rel="stylesheet" href="styless.css?v=19.9" />
+  <link rel="stylesheet" href="styless.css?v=20.0" />
 
   <!-- ============================
        CONTENT-SECURITY-POLICY (meta for testing / development)..
@@ -120,7 +120,11 @@
   <!-- Arte de las batallas: dibuja con canvas los escenarios y TODOS los
        efectos del combate. Va antes de las escenas porque BattleScene lo usa
        en su preload. -->
-  <script src="./gf-batalla-arte.js?v=19.1" defer></script>
+  <script src="./gf-batalla-arte.js?v=20.0" defer></script>
+  <!-- El motor de la arena: las MISMAS colisiones, balas y reglas que usa el
+       servidor (server2.js lleva una copia incrustada). BattleScene lo usa para
+       mover a tu perro sin esperar a la red. -->
+  <script src="./gf-brawl-motor.js?v=20.0" defer></script>
 
   <!-- Scenes -->
   <!-- SOCIAL: amistades, reacciones del chat y color del nombre.
@@ -132,9 +136,9 @@
 
   <script src="./Scenes/MenuScene.js?v=19.1" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=19.8" defer></script>
-  <script src="./Scenes/tiendajuego.js?v=19.9" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=20.0" defer></script>
   <script src="./Scenes/LoadingScenegame.js?v=19.8" defer></script>
-  <script src="./Scenes/GameScene.js?v=19.9" defer></script>
+  <script src="./Scenes/GameScene.js?v=20.0" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
@@ -143,7 +147,7 @@
   <!-- La isla de las parcelas. Hereda de GameScene igual que la mina,
        asi que tambien tiene que ir DESPUES de ella. -->
   <script src="./Scenes/LandsScene.js?v=19.7" defer></script>
-  <script src="./Scenes/BattleScene.js?v=19.9" defer></script>
+  <script src="./Scenes/BattleScene.js?v=20.0" defer></script>
   <script src="./Scenes/sacar_mapa.js?v=19.1" defer></script>
 
   <!-- tienda marketplace p2p -->
@@ -703,15 +707,15 @@
 
     <div class="battle-hub-header">
       <div class="battle-hub-icon" aria-hidden="true">
-        ⚔
+        🐾
       </div>
-      <h2 id="battleHubTitle">battle of Pets</h2>
-      <p>Choose your combat mode</p>
+      <h2 id="battleHubTitle">Pet Arena</h2>
+      <p>Move, bark and be the last dog standing</p>
     </div>
 
     <div class="battle-hub-actions">
       <button id="battleHubAdventureBtn" class="battle-btn battle-btn-adventure">
-        <span class="btn-icon">⚔</span>
+        <span class="btn-icon">🌲</span>
         <span class="btn-text">
           <strong>5 Daily Battles</strong>
           <small>Complete the daily challenge</small>
@@ -721,8 +725,16 @@
       <button id="battleHubPvpBtn" class="battle-btn battle-btn-pvp">
         <span class="btn-icon">⚔</span>
         <span class="btn-text">
-          <strong>Battle in P2P</strong>
-          <small>Turn-based battle against another player</small>
+          <strong>Arena PvP</strong>
+          <small>Up to 6 players · last one standing wins</small>
+        </span>
+      </button>
+
+      <button id="battleHubPracticeBtn" class="battle-btn battle-btn-practice">
+        <span class="btn-icon">🎯</span>
+        <span class="btn-text">
+          <strong>Practice</strong>
+          <small>Train against 3 bots · no points</small>
         </span>
       </button>
 
@@ -739,79 +751,106 @@
 
   
 
-<!-- ===== Interfaz de la batalla de mascotas (HTML/CSS, adaptable) ===== -->
-<div id="battleUI" class="battle-ui hidden">
+<!-- ===== Interfaz de la ARENA (HTML/CSS, adaptable) =====
+     La dibuja y la mueve Scenes/BattleScene.js. Phaser pinta la arena y los
+     luchadores; esto es lo que va encima: tu tarjeta, el reloj, los que
+     quedan, los avisos, los mandos táctiles y las pantallas de búsqueda,
+     de caído y de resultados. -->
+<div id="battleUI" class="battle-ui bz hidden">
 
-  <!-- ===== Barra superior: marcadores + turno con temporizador ===== -->
-  <div class="bf-topbar">
-    <div class="bf-card bf-you">
-      <div class="bf-portrait" id="bfYouPortrait">🐾</div>
-      <div class="bf-cardbody">
-        <div class="bf-top">
-          <span class="bf-name" id="bfYouName">—</span>
-          <span class="bf-lvl" id="bfYouLvl"></span>
+  <!-- Arriba: tú · el reloj y los que quedan · rendirse -->
+  <div class="bz-top">
+    <div class="bz-yo" id="bzYo">
+      <div class="bz-retrato" id="bzRetrato" aria-hidden="true"></div>
+      <div class="bz-yo-datos">
+        <div class="bz-yo-nombre"><span id="bzYoNombre">—</span> <span class="bz-nivel" id="bzYoNivel"></span></div>
+        <div class="bz-vida" id="bzYoVidaBarra"><i id="bzYoVida"></i><b id="bzYoVidaTxt"></b></div>
+        <div class="bz-yo-extra">
+          <span id="bzYoHuesos" title="Power bones: +10% damage and health each">🦴 0</span>
+          <span id="bzYoBajas" title="Knockouts">💥 0</span>
         </div>
-        <div class="bf-sub"><span id="bfYouPlayer"></span> <span class="bf-addr" id="bfYouAddr"></span></div>
-        <div class="bf-hpbar"><i id="bfYouHp" style="width:100%"></i><b class="bf-shieldbar" id="bfYouShieldBar"></b></div>
-        <div class="bf-hptext"><span id="bfYouHpTxt">—</span><span class="bf-shield" id="bfYouShield"></span></div>
       </div>
     </div>
-
-    <div class="bf-turnbox">
-      <div class="bf-turnlabel" id="bfTurnLabel">VS</div>
-      <div class="bf-timer" id="bfTimer"><i id="bfTimerFill"></i></div>
-      <div class="bf-timertext" id="bfTimerText"></div>
-      <!-- RENDIRSE, SIEMPRE A MANO.
-           Este va en la barra de arriba a proposito: la de abajo (.bf-bottom)
-           la comparte con la mano de cartas y en horizontal se aprieta, ademas
-           de que al terminar el combate el jugador ya no mira ahi. Este chip se
-           ve en las tres fases (buscando rival, combate y final) y no lo tapa
-           ninguna carta. Pide confirmacion pulsando dos veces. -->
-      <button id="bfSurrender" class="bf-surrender" type="button">Surrender</button>
+    <div class="bz-centro">
+      <div class="bz-modo" id="bzModo">ARENA</div>
+      <div class="bz-reloj" id="bzReloj">--:--</div>
+      <div class="bz-quedan" title="Fighters still standing"><span aria-hidden="true">🐾</span><b id="bzQuedan">-</b><small>left</small></div>
     </div>
-
-    <div class="bf-card bf-rival">
-      <div class="bf-cardbody bf-rightbody">
-        <div class="bf-top">
-          <span class="bf-lvl" id="bfRivalLvl"></span>
-          <span class="bf-name" id="bfRivalName">—</span>
-        </div>
-        <div class="bf-sub"><span class="bf-addr" id="bfRivalAddr"></span> <span id="bfRivalPlayer"></span></div>
-        <div class="bf-hpbar bf-hpbar-rival"><i id="bfRivalHp" style="width:100%"></i><b class="bf-shieldbar" id="bfRivalShieldBar"></b></div>
-        <div class="bf-hptext bf-right"><span class="bf-shield" id="bfRivalShield"></span><span id="bfRivalHpTxt">—</span></div>
-      </div>
-      <div class="bf-portrait bf-portrait-rival" id="bfRivalPortrait">🐾</div>
+    <div class="bz-acciones">
+      <button type="button" id="bzSalir" class="bz-btn bz-btn-salir">Surrender</button>
     </div>
   </div>
 
-  <!-- ===== Estado grande (buscando, resultado…) ===== -->
-  <div class="bf-status" id="bfStatus">Searching for an opponent…</div>
+  <!-- Quién ha tumbado a quién -->
+  <ol class="bz-feed" id="bzFeed" aria-live="polite" aria-label="Knockouts"></ol>
 
-  <!-- ===== Reveal de cartas jugadas (aparece unos segundos y se va) ===== -->
-  <div class="bf-reveal hidden" id="bfReveal">
-    <div class="bf-reveal-side bf-reveal-you"><div class="bf-reveal-label">YOU</div><div class="bf-reveal-cards" id="bfRevealYou"></div></div>
-    <div class="bf-reveal-vs">⚔</div>
-    <div class="bf-reveal-side bf-reveal-rival"><div class="bf-reveal-label">RIVAL</div><div class="bf-reveal-cards" id="bfRevealRival"></div></div>
+  <!-- Avisos grandes: la cuenta atrás, ¡a pelear!, la niebla… -->
+  <div class="bz-aviso hidden" id="bzAviso" aria-live="assertive"></div>
+
+  <!-- El borde rojo al recibir un golpe -->
+  <div class="bz-dolor" id="bzDolor"></div>
+
+  <!-- Buscando partida -->
+  <div class="bz-busqueda" id="bzBusqueda">
+    <div class="bz-busqueda-tarjeta" role="dialog" aria-labelledby="bzBusquedaTitulo">
+      <div class="bz-huellas" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <h2 id="bzBusquedaTitulo">Searching for players…</h2>
+      <p id="bzBusquedaTexto">Be the last dog standing.</p>
+      <div class="bz-sala" id="bzSala" aria-live="polite"></div>
+      <div class="bz-busqueda-tiempo" id="bzBusquedaTiempo">0:00</div>
+      <ul class="bz-consejos" id="bzConsejos">
+        <li><b>Move</b> WASD / left stick</li>
+        <li><b>Bark</b> click / right stick · 3 charges that reload</li>
+        <li><b>Super</b> E or right-click · charges as you hit</li>
+        <li><b>Hide</b> in tall grass · <b>bones</b> make you stronger</li>
+      </ul>
+      <div class="bz-busqueda-botones">
+        <button type="button" id="bzPracticar" class="bz-btn bz-btn-sec">Practice vs bots</button>
+        <button type="button" id="bzCancelar" class="bz-btn bz-btn-ghost">Cancel</button>
+      </div>
+    </div>
   </div>
 
-  <!-- ===== Capa de números flotantes de daño/cura ===== -->
-  <div class="bf-floaters" id="bfFloaters"></div>
+  <!-- Mandos táctiles: se mueve con la izquierda, se apunta y dispara con la derecha -->
+  <div class="bz-tactil" id="bzTactil">
+    <div class="bz-zona-mover" id="bzZonaMover"><div class="bz-stick" id="bzStickMover"><i></i></div></div>
+    <div class="bz-zona-disparo" id="bzZonaDisparo"><div class="bz-stick bz-stick-fuego" id="bzStickDisparo"><i></i></div></div>
+    <button type="button" class="bz-super" id="bzSuper" aria-label="Super attack" disabled>
+      <svg viewBox="0 0 64 64" aria-hidden="true"><circle class="bz-super-fondo" cx="32" cy="32" r="28"/><circle class="bz-super-carga" id="bzSuperAnillo" cx="32" cy="32" r="28"/></svg>
+      <span>SUPER</span>
+    </button>
+  </div>
 
-  <!-- ===== Parte inferior: energía (a un lado) + mano de cartas ===== -->
-  <div class="bf-bottom">
-    <div class="bf-energywrap">
-      <div class="bf-energy-title">ENERGY</div>
-      <div class="bf-energy" id="bfEnergy" aria-label="Energy"></div>
-      <div class="bf-energy-count" id="bfEnergyCount">3 / 3</div>
+  <!-- Abajo (PC): la barra del súper y las teclas -->
+  <div class="bz-pie" id="bzPie">
+    <div class="bz-superbarra" id="bzSuperBarra"><i id="bzSuperRelleno"></i><span id="bzSuperTexto">SUPER</span></div>
+    <div class="bz-teclas"><kbd>WASD</kbd> move · <kbd>Click</kbd> bark · <kbd>Space</kbd> auto-aim · <kbd>E</kbd> / <kbd>Right-click</kbd> super</div>
+  </div>
+
+  <!-- Te han tumbado: mirar cómo acaba o volver al mapa -->
+  <div class="bz-caido hidden" id="bzCaido">
+    <div class="bz-caido-tarjeta" role="dialog" aria-labelledby="bzCaidoTitulo">
+      <h3 id="bzCaidoTitulo">Knocked out!</h3>
+      <p id="bzCaidoTexto"></p>
+      <div class="bz-caido-botones">
+        <button type="button" id="bzMirar" class="bz-btn bz-btn-ghost">Keep watching</button>
+        <button type="button" id="bzVolverCaido" class="bz-btn">Back to map</button>
+      </div>
     </div>
+  </div>
 
-    <div class="bf-hand" id="bfHand"></div>
-
-    <div class="bf-actions">
-      <button id="bfEndTurn" class="bf-btn bf-btn-main" disabled>End turn</button>
-      <!-- Decia "Leave", que se lee como "salir" y no como "rendirse", aunque
-           siempre llamo a rendirse(). Ahora dice lo que hace. -->
-      <button id="bfLeave" class="bf-btn bf-btn-ghost">Surrender</button>
+  <!-- Resultados -->
+  <div class="bz-resultado hidden" id="bzResultado">
+    <div class="bz-resultado-tarjeta" role="dialog" aria-labelledby="bzResTitulo">
+      <div class="bz-medalla" id="bzResPuesto">#1</div>
+      <h2 id="bzResTitulo">Victory!</h2>
+      <p id="bzResSub"></p>
+      <ul class="bz-premios" id="bzResPremios"></ul>
+      <ol class="bz-tabla" id="bzResTabla"></ol>
+      <div class="bz-resultado-botones">
+        <button type="button" id="bzOtraVez" class="bz-btn bz-btn-sec">Play again</button>
+        <button type="button" id="bzVolver" class="bz-btn">Back to map</button>
+      </div>
     </div>
   </div>
 </div>
