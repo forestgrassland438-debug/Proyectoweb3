@@ -309,97 +309,128 @@
         self._fire('playerCount', 1);
       }, 30);
     }
-    if (/^battle:/.test(evento)) combateFalso(self, evento, datos);
+    if (/^(battle|brawl):/.test(evento)) combateFalso(self, evento, datos);
     var cb = typeof ack === 'function' ? ack : (typeof datos === 'function' ? datos : null);
     if (cb) setTimeout(function () { try { cb({ ok: true, success: true }); } catch (e) {} }, 10);
     return this;
   };
 
-  /* COMBATES DE MENTIRA, con la misma forma de datos que server2.js
-     (battlePublicPlayer, cartaPublica, battle:matched/turnStart/turn/end).
-     Sirve para probar una batalla entera —cartas, turnos, final, rendición y
-     vuelta al mapa— sin servidor. El rival es un zorro: así se prueba también
-     la carga de otra especie. */
-  var CARTAS_FALSAS = [
-    { id: 'zarpazo', name: 'Claw', emoji: '🐾', cost: 1, type: 'attack', rarity: 'common', desc: 'Fast swipe.', dmg: 12, shield: 0, heal: 0 },
-    { id: 'guardia', name: 'Guard', emoji: '🛡️', cost: 1, type: 'defense', rarity: 'common', desc: 'Shield.', dmg: 0, shield: 15, heal: 0 },
-    { id: 'colazo', name: 'Tail Whip', emoji: '🌀', cost: 1, type: 'hybrid', rarity: 'common', desc: 'Poke.', dmg: 8, shield: 5, heal: 0 },
-    { id: 'mordisco', name: 'Bite', emoji: '🦷', cost: 2, type: 'attack', rarity: 'rare', desc: 'Big bite.', dmg: 22, shield: 0, heal: 0 },
-    { id: 'lamer', name: 'Lick', emoji: '👅', cost: 1, type: 'heal', rarity: 'common', desc: 'Heal.', dmg: 0, shield: 0, heal: 10 }
-  ];
-  var combate = null;
-  function publico(p) {
-    return { playerName: p.playerName, petName: p.petName, address: p.address, addressShort: '0x12…abcd',
-             level: p.level, hp: p.hp, maxHp: p.maxHp, isBot: !!p.isBot, species: p.species, status: [] };
-  }
+  /* LA ARENA DE MENTIRA. No imita al servidor: usa EL MISMO MOTOR que lleva
+     server2.js (gf-brawl-motor.js, que el index ya carga), con un "host" de
+     juguete y 40 ms de red en cada sentido. Así la prueba juega partidas de
+     verdad —moverse, disparar, cajas, huesos, niebla, bots— sin servidor:
+     diaria contra un zorro, PvP contra dos "jugadores" (que son bots) y
+     práctica contra tres. */
+  var RED_MS = 40;
+  var brawl = null;
+  var diario = { done: 1, max: 5, remaining: 4, nextRound: 2, wins: 1 };
   function combateFalso(s, evento, datos) {
-    var diario = { done: 1, max: 5, remaining: 4, nextRound: 2 };
     if (evento === 'battle:dailyStatus') {
       setTimeout(function () { s._fire('battle:daily', diario); }, 20);
       return;
     }
-    if (evento === 'battle:bot' || evento === 'battle:queue') {
-      var esBot = evento === 'battle:bot';
-      var yo = { playerName: JUGADOR, petName: 'Firulais', address: DIRECCION, level: 6, hp: 60, maxHp: 60, species: 'perro' };
-      var rival = { playerName: esBot ? 'Bot' : 'Otro', petName: 'Zorrito', address: '0xabc', level: 5, hp: 45, maxHp: 45,
-                    species: 'zorro', isBot: esBot };
-      combate = { id: 'm' + Date.now(), turno: 0, yo: yo, rival: rival, modo: esBot ? 'bot' : 'pvp', s: s };
-      if (!esBot) setTimeout(function () { s._fire('battle:queued', { position: 1 }); }, 50);
-      var c = combate;
-      setTimeout(function () {
-        if (combate !== c) return;
-        s._fire('battle:matched', { matchId: c.id, mode: c.modo, round: 2, daily: diario, you: publico(yo), rival: publico(rival) });
-        setTimeout(function () { if (combate === c) turnoFalso(); }, 600);
-      }, esBot ? 300 : 1200);
+    var M = window.GFBrawlMotor;
+    if (!M) return;
+    if (evento === 'brawl:bot' || evento === 'brawl:practica' || evento === 'brawl:cola') {
+      if (brawl && brawl.P.fase !== 'fin') {
+        if (evento === 'brawl:practica' && brawl.esperando) { clearTimeout(brawl.esperando); brawl = null; }
+        else { setTimeout(function () { s._fire('brawl:error', { error: 'already_in_battle' }); }, 10); return; }
+      }
+      var modo = evento === 'brawl:bot' ? 'bot' : (evento === 'brawl:practica' ? 'practica' : 'pvp');
+      if (modo === 'pvp') {
+        setTimeout(function () { s._fire('brawl:enCola', { posicion: 1, enCola: 1 }); }, 30);
+        setTimeout(function () { s._fire('brawl:sala', { jugadores: 3, max: 6, empiezaEnMs: 1500 }); }, 600);
+        var espera = setTimeout(function () { arrancarArena(s, modo); }, 2100);
+        brawl = { P: { fase: 'cola' }, esperando: espera };
+      } else {
+        setTimeout(function () { arrancarArena(s, modo); }, 250);
+      }
       return;
     }
-    if (!combate) return;
-    if (evento === 'battle:action') {
-      var c2 = combate, jug = (datos && datos.cards) || [];
-      var hecho = 0, cura = 0, escudo = 0;
-      var mano = c2.mano || [];
-      jug.forEach(function (i) {
-        var carta = typeof i === 'number' ? mano[i] : CARTAS_FALSAS.filter(function (k) { return k.id === i; })[0];
-        if (!carta) return;
-        hecho += carta.dmg; cura += carta.heal; escudo += carta.shield;
-      });
-      var recibido = Math.max(0, 9 - escudo);
-      c2.rival.hp = Math.max(0, c2.rival.hp - hecho);
-      c2.yo.hp = Math.max(0, Math.min(c2.yo.maxHp, c2.yo.hp - recibido + cura));
-      setTimeout(function () {
-        if (combate !== c2) return;
-        s._fire('battle:turn', { matchId: c2.id, turn: c2.turno,
-          yourCards: jug.map(function (i) { return typeof i === 'number' ? mano[i] : null; }).filter(Boolean),
-          rivalCards: [CARTAS_FALSAS[0]], damageToYou: recibido, damageToRival: hecho,
-          healYou: cura, shieldYou: escudo, shieldRival: 0, log: 'Turn ' + c2.turno,
-          combosYou: [], combosRival: [], statusYou: [], statusRival: [],
-          you: publico(c2.yo), rival: publico(c2.rival) });
+    if (!brawl || !brawl.P || brawl.P.fase === 'cola') {
+      if (evento === 'brawl:salirCola' || evento === 'brawl:salir') {
+        if (brawl && brawl.esperando) clearTimeout(brawl.esperando);
+        brawl = null;
+      }
+      return;
+    }
+    var P = brawl.P, yo = brawl.yo;
+    var copia = datos == null ? datos : JSON.parse(JSON.stringify(datos));
+    setTimeout(function () {
+      if (!brawl || brawl.P !== P) return;
+      try {
+        if (evento === 'brawl:mover') M.entrada(P, yo, copia);
+        else if (evento === 'brawl:disparo') M.disparar(P, yo, copia);
+        else if (evento === 'brawl:rendirse') M.abandonar(P, yo, { irse: false });
+        else if (evento === 'brawl:salir' || evento === 'brawl:salirCola') {
+          M.abandonar(P, yo, { irse: true });
+          P._fuera = true;
+        }
+      } catch (e) { console.error('[arena de mentira]', e); }
+    }, RED_MS);
+  }
+  var arenaN = 0;
+  function arrancarArena(s, modo) {
+    var M = window.GFBrawlMotor;
+    var arenas = Object.keys(M.ARENAS);
+    var bots;
+    if (modo === 'bot') {
+      bots = [{ especie: 'zorro', petName: 'Rusty', playerName: 'Red Fox · Round 2', nivel: 5, maxHp: 140, ataque: 20, astucia: 0.3, vidaFija: true }];
+    } else if (modo === 'practica') {
+      bots = [
+        { especie: 'cerdo', petName: 'Tusk', playerName: 'Wild Boar · Practice', nivel: 6, maxHp: 152, ataque: 22, astucia: 0.30 },
+        { especie: 'cuervo', petName: 'Shade', playerName: 'Old Crow · Practice', nivel: 6, maxHp: 152, ataque: 22, astucia: 0.38 },
+        { especie: 'cocodrilo', petName: 'Gnash', playerName: 'Swamp Croc · Practice', nivel: 6, maxHp: 152, ataque: 22, astucia: 0.46 }
+      ];
+    } else {
+      bots = [
+        { especie: 'perro', petName: 'Toby', playerName: 'Lucia', nivel: 6, maxHp: 152, ataque: 22, astucia: 0.4 },
+        { especie: 'perro', petName: 'Kira', playerName: 'Marco', nivel: 7, maxHp: 164, ataque: 24, astucia: 0.35 }
+      ];
+    }
+    var luchadores = [{ clave: 'yo', humano: true, playerName: JUGADOR, petName: 'Firulais', address: DIRECCION,
+                        especie: 'perro', nivel: 6, maxHp: 152, ataque: 22, salud: 1 }];
+    bots.forEach(function (b, i) { b.clave = 'bot' + i; b.humano = false; luchadores.push(b); });
+    var P = null;
+    var host = {};
+    P = M.crearPartida({
+      id: (modo === 'bot' ? 'b_' : modo === 'practica' ? 'p_' : 'm_') + Date.now(),
+      modo: modo, ronda: modo === 'bot' ? diario.nextRound : null,
+      arena: (window.__arenaPrueba && M.ARENAS[window.__arenaPrueba]) ? window.__arenaPrueba : arenas[arenaN++ % arenas.length],
+      luchadores: luchadores,
+      extraInicio: modo === 'bot' ? { daily: diario } : null,
+      enviar: function (l, ev, d) {
+        if (l.clave !== 'yo') return;
+        var c = JSON.parse(JSON.stringify(d));
+        setTimeout(function () { if (!P || !P._fuera) s._fire(ev, c); }, RED_MS);
+      },
+      alTerminar: function (Pf, r) {
+        clearInterval(host.reloj);
+        var fila = r.puestos.filter(function (f) { return f.clave === 'yo'; })[0];
+        var gano = !!fila && fila.puesto === 1;
+        if (modo === 'bot') {
+          diario = { done: diario.done + 1, max: 5, remaining: Math.max(0, 4 - diario.done), nextRound: Math.min(5, diario.done + 2), wins: diario.wins + (gano ? 1 : 0) };
+        }
+        var fin = {
+          matchId: Pf.id, modo: modo, ronda: Pf.ronda, resultado: gano ? 'win' : 'lose',
+          puesto: fila ? fila.puesto : r.puestos.length, de: r.puestos.length, yo: fila ? fila.id : null,
+          puntos: modo === 'practica' ? 0 : (modo === 'bot' ? (gano ? 1 : 0) : (gano ? 3 : 1)),
+          motivo: r.motivo, duracionMs: r.duracionMs, daily: modo === 'bot' ? diario : null,
+          petLevel: 6, tabla: r.puestos
+        };
         setTimeout(function () {
-          if (combate !== c2) return;
-          if (c2.rival.hp <= 0 || c2.yo.hp <= 0) finFalso(c2.rival.hp <= 0 ? 'win' : 'lose', 'ko');
-          else turnoFalso();
-        }, 900);
-      }, 250);
-      return;
-    }
-    if (evento === 'battle:forfeit') { finFalso('lose', 'forfeit'); return; }
-    if (evento === 'battle:leave' || evento === 'battle:leaveQueue') { combate = null; }
-  }
-  function turnoFalso() {
-    var c = combate; if (!c) return;
-    c.turno++;
-    c.mano = CARTAS_FALSAS.slice();
-    var ahora = Date.now();
-    c.s._fire('battle:turnStart', { matchId: c.id, turn: c.turno, msToChoose: 20000, deadlineAt: ahora + 20000,
-      serverNow: ahora, energy: 3, energyBase: 3, energyBank: 0, hand: c.mano,
-      statusYou: [], statusRival: [], statusNotes: {}, combos: [], you: publico(c.yo), rival: publico(c.rival) });
-  }
-  function finFalso(resultado, motivo) {
-    var c = combate; if (!c) return;
-    combate = null;
-    c.s._fire('battle:end', { matchId: c.id, turn: c.turno, result: resultado, reason: motivo,
-      pointsEarned: resultado === 'win' ? 1 : 0, mode: c.modo, round: 2,
-      daily: { done: 2, max: 5, remaining: 3, nextRound: 3 }, you: publico(c.yo), rival: publico(c.rival) });
+          if (!Pf._fuera) s._fire('brawl:fin', fin);
+          if (modo === 'bot') s._fire('battle:daily', diario);
+          if (brawl && brawl.P === Pf) brawl = null;
+        }, RED_MS + 30);
+      }
+    });
+    host.reloj = setInterval(function () {
+      try { M.paso(P); } catch (e) { console.error('[arena de mentira] paso', e); clearInterval(host.reloj); }
+      if (P._fuera && P.fase !== 'fin') { /* se fue: sigue sola hasta acabar */ }
+    }, 50);
+    brawl = { P: P, yo: 1, host: host };
+    window.__arenaFalsa = brawl;
   }
   SocketFalso.prototype.timeout = function () { return this; };
   Object.defineProperty(SocketFalso.prototype, 'volatile', { get: function () { return this; } });
@@ -418,17 +449,27 @@
      Mientras la página esté oculta, esto hace avanzar el bucle a mano: 30
      pasos de 16,7 ms cada cuarto de segundo. Con la página visible no hace
      nada: manda el bucle de verdad. */
+  /* Tampoco llegan fotogramas si la página está "visible" pero el panel que
+     la contiene no se está pintando (el navegador integrado de las pruebas,
+     minimizado): se detecta mirando si requestAnimationFrame sigue vivo. */
+  var rafVivo = performance.now();
+  (function latir() { rafVivo = performance.now(); requestAnimationFrame(latir); })();
   var motorT = 0;
   setInterval(function () {
-    if (!document.hidden) { motorT = 0; return; }
+    var sinFotogramas = performance.now() - rafVivo > 400;
+    if (!document.hidden && !sinFotogramas) { motorT = 0; return; }
     var g = window.game;
     if (!g || !g.isRunning || typeof g.step !== 'function') return;
     if (!motorT) motorT = (g.loop && g.loop.time) || performance.now();
-    for (var i = 0; i < 30; i++) {
+    // A tiempo real (antes iba al doble: 30 pasos cada 250 ms). Con el
+    // combate en tiempo real eso importa: el servidor recorta lo que se anda.
+    var ahora = performance.now();
+    var pasos = Math.max(1, Math.min(30, Math.floor((ahora - motorT) / 16.67)));
+    for (var i = 0; i < pasos; i++) {
       motorT += 16.67;
       try { g.step(motorT, 16.67); } catch (e) { apuntar('motor', [e]); break; }
     }
-  }, 250);
+  }, 50);
 
   window.__mock = {
     estado: estado,

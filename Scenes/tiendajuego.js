@@ -2842,6 +2842,15 @@ this.time.addEvent({
         this.nivel++;
         this.playSFX('level_up_sound');
         this.actualizarBarraVida(this.vidaPorcentaje);
+        // LA MASCOTA NUNCA VA POR DEBAJO DE TU NIVEL: es la misma regla del
+        // servidor (nivelMascotaEfectivo en server2.js), la que usan la arena y
+        // /api/load. Sin esto, al subir de nivel el cartel del perro seguía
+        // con el número viejo hasta recargar o cambiar de escena.
+        if (this.nivel > (Number(this.petLevel) || 1)) {
+          this.petLevel = this.nivel;
+          window.globalPetLevel = this.petLevel;
+          if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
+        }
       } else {
         break;
       }

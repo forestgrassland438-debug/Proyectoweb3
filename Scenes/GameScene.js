@@ -8472,6 +8472,15 @@ this.time.addEvent({
         this.nivel++;
         this.playSFX('level_up_sound');
         this.actualizarBarraVida(this.vidaPorcentaje);
+        // LA MASCOTA NUNCA VA POR DEBAJO DE TU NIVEL: es la misma regla del
+        // servidor (nivelMascotaEfectivo en server2.js), la que usan la arena y
+        // /api/load. Sin esto, al subir de nivel el cartel del perro seguía
+        // con el número viejo hasta recargar o cambiar de escena.
+        if (this.nivel > (Number(this.petLevel) || 1)) {
+          this.petLevel = this.nivel;
+          window.globalPetLevel = this.petLevel;
+          if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
+        }
       } else {
         break;
       }
@@ -26254,6 +26263,10 @@ openBattleHub() {
   bind(document.getElementById('battleHubAdventureBtn'), 'click', () => {
     cerrar(); this.startPvpBattle('bot');
   });
+  // Práctica: tú contra 3 bots en la arena, sin puntos (ver BattleScene).
+  bind(document.getElementById('battleHubPracticeBtn'), 'click', () => {
+    cerrar(); this.startPvpBattle('practica');
+  });
   bind(document.getElementById('battleHubRankingBtn'), 'click', () => {
     cerrar(); this.openBattleLeaderboard();
   });
@@ -26284,7 +26297,8 @@ closeBattleHub() {
 }
 
 // Arranca la escena de batalla llevándose lo que hace falta para volver.
-// modo: 'pvp' (contra otro jugador) o 'bot' (una de las 5 batallas diarias)
+// modo: 'pvp' (arena contra otros jugadores), 'bot' (una de las 5 batallas
+// diarias) o 'practica' (tú contra 3 bots, sin puntos)
 startPvpBattle(modo = 'pvp') {
   try {
     this.savegg && this.savegg();

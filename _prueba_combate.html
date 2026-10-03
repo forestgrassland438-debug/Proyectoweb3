@@ -2,259 +2,179 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Banco de pruebas — combate</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Banco de pruebas — arena</title>
+<!-- BANCO DE PRUEBAS DE LA ARENA (no se sube; no lo carga el juego).
+     Abre SOLO la batalla: Phaser, el arte, el motor y la BattleScene de
+     verdad, con un "servidor" de juguete que usa el MISMO motor que server2.js
+     y una latencia de red a elegir. La interfaz (#battleUI) se copia en
+     caliente del index.html, así que siempre es la de verdad.
+
+       python -m http.server 8123   →   http://localhost:8123/_prueba_combate.html
+
+     Lo que se puede tocar en el panel de abajo a la izquierda: modo, arena,
+     latencia, adelantar la niebla y forzar el final. -->
 <link rel="stylesheet" href="./styless.css">
 <style>
-  html,body{margin:0;background:#0b0d12;color:#dfe7d8;font:12px/1.5 system-ui,sans-serif;overflow:hidden}
-  #mando{position:fixed;left:6px;bottom:6px;z-index:99999;background:rgba(8,10,16,.92);
-         padding:6px 8px;border-radius:8px;max-width:min(96vw,760px)}
-  #mando button{margin:2px;padding:4px 8px;border:0;border-radius:5px;
-                background:#26303f;color:#dfe7d8;cursor:pointer;font-size:11px}
-  #mando button:hover{background:#3a4a63}
-  #mando b{color:#f0e6a0}
+  html, body { margin: 0; height: 100%; background: #0b0d12; overflow: hidden; }
+  #container { position: fixed; inset: 0; }
+  #container canvas { display: block; width: 100% !important; height: 100% !important; }
+  #mando { position: fixed; left: 6px; bottom: 6px; z-index: 99999; background: rgba(8, 10, 16, .92);
+           padding: 6px 8px; border-radius: 8px; color: #dfe7d8; font: 12px/1.5 system-ui, sans-serif; max-width: min(96vw, 640px); }
+  #mando button, #mando select { margin: 2px; padding: 4px 8px; border: 0; border-radius: 5px; background: #26303f; color: #dfe7d8; cursor: pointer; font-size: 11px; }
+  #mando button:hover { background: #3a4a63; }
+  #mando b { color: #f0e6a0; }
+  #mando.plegado .cuerpo { display: none; }
 </style>
+<script src="./vendor/phaser.min.js"></script>
+<script src="./gf-batalla-arte.js"></script>
+<script src="./gf-brawl-motor.js"></script>
+<script src="./Scenes/BattleScene.js"></script>
 </head>
 <body>
-<div id="juego"></div>
-<div id="battleUI" class="battle-ui hidden">
-
-  <!-- ===== Barra superior: marcadores + turno con temporizador ===== -->
-  <div class="bf-topbar">
-    <div class="bf-card bf-you">
-      <div class="bf-portrait" id="bfYouPortrait">🐾</div>
-      <div class="bf-cardbody">
-        <div class="bf-top">
-          <span class="bf-name" id="bfYouName">—</span>
-          <span class="bf-lvl" id="bfYouLvl"></span>
-        </div>
-        <div class="bf-sub"><span id="bfYouPlayer"></span> <span class="bf-addr" id="bfYouAddr"></span></div>
-        <div class="bf-hpbar"><i id="bfYouHp" style="width:100%"></i><b class="bf-shieldbar" id="bfYouShieldBar"></b></div>
-        <div class="bf-hptext"><span id="bfYouHpTxt">—</span><span class="bf-shield" id="bfYouShield"></span></div>
-      </div>
-    </div>
-
-    <div class="bf-turnbox">
-      <div class="bf-turnlabel" id="bfTurnLabel">VS</div>
-      <div class="bf-timer" id="bfTimer"><i id="bfTimerFill"></i></div>
-      <div class="bf-timertext" id="bfTimerText"></div>
-    </div>
-
-    <div class="bf-card bf-rival">
-      <div class="bf-cardbody bf-rightbody">
-        <div class="bf-top">
-          <span class="bf-lvl" id="bfRivalLvl"></span>
-          <span class="bf-name" id="bfRivalName">—</span>
-        </div>
-        <div class="bf-sub"><span class="bf-addr" id="bfRivalAddr"></span> <span id="bfRivalPlayer"></span></div>
-        <div class="bf-hpbar bf-hpbar-rival"><i id="bfRivalHp" style="width:100%"></i><b class="bf-shieldbar" id="bfRivalShieldBar"></b></div>
-        <div class="bf-hptext bf-right"><span class="bf-shield" id="bfRivalShield"></span><span id="bfRivalHpTxt">—</span></div>
-      </div>
-      <div class="bf-portrait bf-portrait-rival" id="bfRivalPortrait">🐾</div>
-    </div>
-  </div>
-
-  <!-- ===== Estado grande (buscando, resultado…) ===== -->
-  <div class="bf-status" id="bfStatus">Searching for an opponent…</div>
-
-  <!-- ===== Reveal de cartas jugadas (aparece unos segundos y se va) ===== -->
-  <div class="bf-reveal hidden" id="bfReveal">
-    <div class="bf-reveal-side bf-reveal-you"><div class="bf-reveal-label">YOU</div><div class="bf-reveal-cards" id="bfRevealYou"></div></div>
-    <div class="bf-reveal-vs">⚔</div>
-    <div class="bf-reveal-side bf-reveal-rival"><div class="bf-reveal-label">RIVAL</div><div class="bf-reveal-cards" id="bfRevealRival"></div></div>
-  </div>
-
-  <!-- ===== Capa de números flotantes de daño/cura ===== -->
-  <div class="bf-floaters" id="bfFloaters"></div>
-
-  <!-- ===== Parte inferior: energía (a un lado) + mano de cartas ===== -->
-  <div class="bf-bottom">
-    <div class="bf-energywrap">
-      <div class="bf-energy-title">ENERGY</div>
-      <div class="bf-energy" id="bfEnergy" aria-label="Energy"></div>
-      <div class="bf-energy-count" id="bfEnergyCount">3 / 3</div>
-    </div>
-
-    <div class="bf-hand" id="bfHand"></div>
-
-    <div class="bf-actions">
-      <button id="bfEndTurn" class="bf-btn bf-btn-main" disabled>End turn</button>
-      <button id="bfLeave" class="bf-btn bf-btn-ghost">Leave</button>
-    </div>
-  </div>
+<div id="container"></div>
+<div id="mando">
+  <b>Arena</b> <button id="plegar">–</button>
+  <span class="cuerpo">
+    <button data-modo="bot">Diaria</button>
+    <button data-modo="pvp">PvP (2 rivales)</button>
+    <button data-modo="practica">Práctica</button>
+    · arena <select id="arena"><option value="">al azar</option></select>
+    · red <select id="red"><option value="0">0 ms</option><option value="40" selected>40 ms</option><option value="120">120 ms</option><option value="250">250 ms</option></select>
+    <br>
+    <button id="niebla">Adelantar a la niebla</button>
+    <button id="niebla50">Niebla a medio cerrar</button>
+    <label><input type="checkbox" id="invencible"> invencible</label>
+    <button id="ganar">Ganar ya</button>
+    <button id="perder">Perder ya</button>
+    <span id="info"></span>
+  </span>
 </div>
-
-  <!-- ===== Tabla de clasificación de batallas P2P (se abre desde el cartel) ===== -->
-<div id="battleRankOverlay" class="battle-rank-overlay hidden">
-  <div class="battle-rank-card" role="dialog" aria-modal="true" aria-labelledby="battleRankTitle">
-    <div class="battle-rank-head">
-      <h2 id="battleRankTitle">🏆 Pet Battle Ranking</h2>
-      <button class="battle-rank-close" id="battleRankCloseBtn" aria-label="Close">✕</button>
-    </div>
-    <p id="battleRankSeason" class="battle-rank-season"></p>
-    <div class="battle-rank-scroll">
-      <table class="battle-rank-table">
-        <thead>
-          <tr>
-            <th>#</th><th>Player</th><th>Pet</th><th>Wallet</th>
-            <th>Pts</th><th>W/L</th><th>Streak</th>
-          </tr>
-        </thead>
-        <tbody id="battleRankBody"></tbody>
-      </table>
-    </div>
-    <div class="battle-rank-foot">
-      <span id="battleRankMe"></span>
-      <button id="battleRankRefreshBtn" class="battle-rank-refresh">🔄 Refresh</button>
-    </div>
-  </div>
-</div>
-
-<!-- ===== Aviso de girar el teléfono durante la batalla ===== -->
-<div id="battleRotateNotice" class="battle-rotate-notice hidden">
-  <div class="battle-rotate-inner">
-    <div class="battle-rotate-icon">📱↻</div>
-    <p>Rotate your phone to landscape to play the battle comfortably.</p>
-  </div>
-</div>
-<div id="mando"></div>
-
-<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
-<script>window.GF_BATALLA_DEBUG = true;</script>
-<script src="./gf-batalla-arte.js?v=1"></script>
-<script src="./Scenes/BattleScene.js?v=1"></script>
 <script>
-/* ═══════════════════════════════════════════════════════════════════════
-   SOCKET FALSO
-   Reproduce EXACTAMENTE los eventos que manda server2.js, para poder mirar
-   la batalla entera sin servidor, sin sesión y sin gastar batallas diarias.
-   ═══════════════════════════════════════════════════════════════════════ */
-function SocketFalso() {
-  this.connected = true;
-  this._h = {};
-}
-SocketFalso.prototype.on = function (ev, fn) { (this._h[ev] = this._h[ev] || []).push(fn); return this; };
-SocketFalso.prototype.once = function (ev, fn) { return this.on(ev, fn); };
-SocketFalso.prototype.off = function (ev, fn) {
-  if (!this._h[ev]) return this;
-  this._h[ev] = this._h[ev].filter(function (f) { return f !== fn; });
-  return this;
-};
-SocketFalso.prototype.removeAllListeners = function () { this._h = {}; };
-// En el banco el socket NUNCA se cae: la escena lo desconecta al apagarse
-// y si nos lo creemos, la siguiente batalla se queda en 'Connecting...'.
-SocketFalso.prototype.disconnect = function () {};
-SocketFalso.prototype.connect = function () { this.connected = true; };
-SocketFalso.prototype.emit = function (ev, d) { console.log('[cliente →]', ev, d || ''); };
-SocketFalso.prototype.recibir = function (ev, d) {
-  console.log('[← servidor]', ev, d);
-  (this._h[ev] || []).slice().forEach(function (f) { try { f(d); } catch (e) { console.error(e); } });
-};
-window.globalSocket = new SocketFalso();
-
-var MAXHP = 260, TURNO = 0;
-var yo = { playerName: 'holi', petName: 'Holi', address: '0xabc123def456', addressShort: '0xabc1...f456',
-           level: 11, hp: MAXHP, maxHp: MAXHP, isBot: false, species: 'perro', status: [] };
-var rival = { playerName: 'Red Fox · Round 4', petName: 'Rusty', address: '', addressShort: 'BOT',
-              level: 11, hp: 280, maxHp: 280, isBot: true, species: 'zorro', status: [] };
-
-var MANO = [
-  { id:'zarpazo', name:'Claw',      emoji:'🐾', cost:1, type:'attack',  dmg:24, desc:'A fast swipe.' },
-  { id:'guardia', name:'Guard',     emoji:'🛡️', cost:1, type:'defense', shield:30, desc:'Raises a shield.' },
-  { id:'mordisco',name:'Fire Bite', emoji:'🔥', cost:2, type:'attack',  dmg:52, desc:'Burns the rival.' },
-  { id:'lamer',   name:'Lick Wounds',emoji:'💚',cost:2, type:'heal',    heal:40, desc:'Heals you.' },
-  { id:'trueno',  name:'Thunder Fang',emoji:'⚡',cost:2, type:'attack',  dmg:46, desc:'Shocking bite.' }
-];
-
-var juego = new Phaser.Game({
-  type: Phaser.AUTO, parent: 'juego',
-  width: window.innerWidth, height: window.innerHeight,
-  backgroundColor: '#0b0d12', pixelArt: true, roundPixels: true,
-  scene: [window.BattleScene]
-});
-
-function arrancar(species) {
-  rival.species = species || rival.species;
-  // limpiar() de la escena desconecta el socket; para el banco hay que
-  // volver a conectarlo o la siguiente batalla se queda en "Connecting…".
-  window.globalSocket.connected = true;
-  juego.scene.stop('BattleScene');
-  juego.scene.start('BattleScene', {
-    playerName: 'holi', petName: 'Holi', address: '0xabc123def456',
-    nivel: 11, serverBase: '', volverA: 'BattleScene', modo: 'bot'
+(async function () {
+  'use strict';
+  // ── La interfaz de verdad, sacada del index.html ──────────────────────────
+  const html = await (await fetch('./index.html')).text();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  ['battleUI', 'battleRotateNotice'].forEach((id) => {
+    const n = doc.getElementById(id);
+    if (n) document.body.appendChild(document.importNode(n, true));
   });
-  setTimeout(emparejar, 260);
-}
 
-function emparejar() {
-  TURNO = 0;
-  yo.hp = MAXHP; rival.hp = rival.maxHp;
-  window.globalSocket.recibir('battle:matched', {
-    matchId: 'b_' + Date.now(), mode: 'bot', round: 4,
-    you: JSON.parse(JSON.stringify(yo)), rival: JSON.parse(JSON.stringify(rival))
-  });
-  setTimeout(nuevoTurno, 600);
-}
+  const M = window.GFBrawlMotor;
+  const sel = document.getElementById('arena');
+  Object.keys(M.ARENAS).forEach((k) => { const o = document.createElement('option'); o.value = k; o.textContent = M.ARENAS[k].nombre; sel.appendChild(o); });
+  const red = () => Number(document.getElementById('red').value) || 0;
 
-function nuevoTurno() {
-  TURNO++;
-  window.globalSocket.recibir('battle:turnStart', {
-    turn: TURNO, energy: 3, msToChoose: 20000,
-    hand: MANO, you: JSON.parse(JSON.stringify(yo)), rival: JSON.parse(JSON.stringify(rival))
-  });
-}
+  // ── Un socket de juguete con un "servidor" que usa el motor de verdad ─────
+  function Emisor() { this._h = Object.create(null); }
+  Emisor.prototype.on = function (e, f) { (this._h[e] = this._h[e] || []).push(f); return this; };
+  Emisor.prototype.once = function (e, f) { const s = this; const g = function () { s.off(e, g); f.apply(null, arguments); }; g._o = f; return this.on(e, g); };
+  Emisor.prototype.off = function (e, f) { if (!this._h[e]) return this; this._h[e] = this._h[e].filter((x) => x !== f && x._o !== f); return this; };
+  Emisor.prototype._fire = function (e) { const a = [].slice.call(arguments, 1); (this._h[e] || []).slice().forEach((f) => { try { f.apply(null, a); } catch (err) { console.error(err); } }); };
+  const socket = new Emisor();
+  socket.connected = true;
+  socket.connect = () => socket;
+  let partida = null, reloj = null;
+  const diario = { done: 1, max: 5, remaining: 4, nextRound: 2, wins: 1 };
+  socket.emit = function (ev, datos) {
+    if (ev === 'brawl:bot' || ev === 'brawl:practica' || ev === 'brawl:cola') {
+      const modo = ev === 'brawl:bot' ? 'bot' : (ev === 'brawl:practica' ? 'practica' : 'pvp');
+      if (modo === 'pvp') {
+        setTimeout(() => socket._fire('brawl:enCola', { posicion: 1, enCola: 1 }), 30);
+        setTimeout(() => socket._fire('brawl:sala', { jugadores: 3, max: 6, empiezaEnMs: 1500 }), 500);
+        setTimeout(() => arrancar(modo), 2000);
+      } else setTimeout(() => arrancar(modo), 200);
+      return;
+    }
+    if (!partida) return;
+    const P = partida, c = datos == null ? datos : JSON.parse(JSON.stringify(datos));
+    setTimeout(() => {
+      if (partida !== P) return;
+      if (ev === 'brawl:mover') M.entrada(P, 1, c);
+      else if (ev === 'brawl:disparo') M.disparar(P, 1, c);
+      else if (ev === 'brawl:rendirse') M.abandonar(P, 1, { irse: false });
+      else if (ev === 'brawl:salir' || ev === 'brawl:salirCola') { M.abandonar(P, 1, { irse: true }); P._fuera = true; }
+    }, red());
+  };
+  window.globalSocket = socket;
 
-function resolver(cartasMias, cartasRival, dYo, dRival, cura, escudo) {
-  yo.hp = Math.max(0, yo.hp - dYo);
-  rival.hp = Math.max(0, rival.hp - dRival);
-  if (cura) yo.hp = Math.min(yo.maxHp, yo.hp + cura);
-  window.globalSocket.recibir('battle:turn', {
-    turn: TURNO,
-    you: JSON.parse(JSON.stringify(yo)), rival: JSON.parse(JSON.stringify(rival)),
-    yourCards: cartasMias, rivalCards: cartasRival,
-    damageToRival: dRival, damageToYou: dYo, healYou: cura || 0,
-    shieldYou: escudo || 0, shieldRival: 0,
-    log: 'You hit for ' + dRival + '. The rival hits for ' + dYo + '.'
-  });
-  if (yo.hp <= 0 || rival.hp <= 0) {
-    setTimeout(function () { acabar(rival.hp <= 0 ? 'win' : 'lose'); }, 1400);
-  } else {
-    setTimeout(nuevoTurno, 2600);
+  function arrancar(modo) {
+    const bots = modo === 'bot'
+      ? [{ especie: 'zorro', petName: 'Rusty', playerName: 'Red Fox · Round 2', nivel: 5, maxHp: 140, ataque: 20, astucia: 0.3, vidaFija: true }]
+      : modo === 'practica'
+        ? [{ especie: 'cerdo', petName: 'Tusk', playerName: 'Boar', nivel: 6, maxHp: 152, ataque: 22, astucia: 0.3 },
+           { especie: 'cuervo', petName: 'Shade', playerName: 'Crow', nivel: 6, maxHp: 152, ataque: 22, astucia: 0.38 },
+           { especie: 'cocodrilo', petName: 'Gnash', playerName: 'Croc', nivel: 6, maxHp: 152, ataque: 22, astucia: 0.46 }]
+        : [{ especie: 'perro', petName: 'Toby', playerName: 'Lucia', nivel: 6, maxHp: 152, ataque: 22, astucia: 0.4 },
+           { especie: 'perro', petName: 'Kira', playerName: 'Marco', nivel: 7, maxHp: 164, ataque: 24, astucia: 0.35 }];
+    const luchadores = [{ clave: 'yo', humano: true, playerName: 'Tester', petName: 'Firulais', especie: 'perro', nivel: 6, maxHp: 152, ataque: 22, salud: 1 }]
+      .concat(bots.map((b, i) => Object.assign({ clave: 'bot' + i, humano: false }, b)));
+    const arenas = Object.keys(M.ARENAS);
+    const P = M.crearPartida({
+      id: modo[0] + '_' + Date.now(), modo, ronda: modo === 'bot' ? 2 : null,
+      arena: sel.value || arenas[Math.floor(Math.random() * arenas.length)],
+      luchadores, extraInicio: modo === 'bot' ? { daily: diario } : null,
+      enviar: (l, ev, d) => { if (l.clave !== 'yo') return; const c = JSON.parse(JSON.stringify(d)); setTimeout(() => { if (!P._fuera) socket._fire(ev, c); }, red()); },
+      alTerminar: (Pf, r) => {
+        clearInterval(reloj);
+        const f = r.puestos.find((x) => x.clave === 'yo');
+        const gano = !!f && f.puesto === 1;
+        setTimeout(() => { if (!Pf._fuera) socket._fire('brawl:fin', {
+          matchId: Pf.id, modo, ronda: Pf.ronda, resultado: gano ? 'win' : 'lose', puesto: f ? f.puesto : r.puestos.length, de: r.puestos.length,
+          yo: f ? f.id : null, puntos: modo === 'practica' ? 0 : (modo === 'bot' ? (gano ? 1 : 0) : (gano ? 3 : 1)), motivo: r.motivo,
+          duracionMs: r.duracionMs, daily: modo === 'bot' ? diario : null, petLevel: 6, tabla: r.puestos }); }, red() + 30);
+      }
+    });
+    partida = P;
+    clearInterval(reloj);
+    reloj = setInterval(() => { try { M.paso(P); } catch (e) { console.error(e); clearInterval(reloj); } }, 50);
+    window.__partida = P;
   }
-}
 
-function acabar(res) {
-  window.globalSocket.recibir('battle:end', {
-    result: res, reason: 'ko', pointsEarned: res === 'win' ? 30 : 5,
-    you: JSON.parse(JSON.stringify(yo)), rival: JSON.parse(JSON.stringify(rival)),
-    daily: { done: 4, max: 5 }
+  // ── Mandos del banco ──────────────────────────────────────────────────────
+  document.getElementById('plegar').onclick = () => document.getElementById('mando').classList.toggle('plegado');
+  document.getElementById('niebla').onclick = () => { if (partida) { partida.tCombate -= M.REGLAS.ZONA_INICIO_MS - 2000; const b = game.scene.getScene('BattleScene'); if (b) b.tCombateLocal -= M.REGLAS.ZONA_INICIO_MS - 2000; } };
+  document.getElementById('niebla50').onclick = () => {
+    if (!partida) return;
+    const R = M.REGLAS, salto = R.ZONA_INICIO_MS + (R.ZONA_FIN_MS - R.ZONA_INICIO_MS) * 0.55;
+    const ya = Date.now() - partida.tCombate;
+    if (ya < salto) { partida.tCombate -= salto - ya; const b = game.scene.getScene('BattleScene'); if (b) b.tCombateLocal -= salto - ya; }
+  };
+  setInterval(() => { if (partida && document.getElementById('invencible').checked) { const yo = partida.porId[1]; if (yo && yo.vivo) yo.hp = yo.maxHp; } }, 50);
+  document.getElementById('ganar').onclick = () => { if (partida) partida.luchadores.forEach((l) => { if (l.id !== 1 && l.vivo) { l.hp = 1; } }); };
+  document.getElementById('perder').onclick = () => { if (partida) { const yo = partida.porId[1]; if (yo) yo.hp = 1; } };
+
+  // ── El juego: solo la batalla y un "mapa" de mentira al que volver ────────
+  class MapaFalso extends Phaser.Scene {
+    constructor() { super({ key: 'LoadingScenegame' }); }
+    create() {
+      const { width, height } = this.scale;
+      this.add.text(width / 2, height / 2, 'Back on the map — pick a battle below', { fontFamily: 'system-ui', fontSize: '20px', color: '#dfe7d8' }).setOrigin(0.5);
+    }
+  }
+  const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+  window.game = new Phaser.Game({
+    type: Phaser.AUTO, parent: 'container', backgroundColor: '#0b0d12',
+    width: innerWidth * dpr, height: innerHeight * dpr, pixelArt: true, roundPixels: true, antialias: false,
+    disablePreFX: true, disablePostFX: true, scale: { mode: Phaser.Scale.NONE },
+    scene: [MapaFalso, window.BattleScene]
   });
-}
-
-// ── mando ──
-function boton(txt, fn) {
-  var b = document.createElement('button');
-  b.textContent = txt; b.onclick = fn;
-  document.getElementById('mando').appendChild(b);
-}
-var M = document.getElementById('mando');
-M.innerHTML = '<b>rival:</b> ';
-Object.keys(window.BattleScene.ESPECIES).forEach(function (id) {
-  boton(id, function () { arrancar(id); });
-});
-M.appendChild(document.createElement('br'));
-boton('turno normal', function () { resolver([MANO[0]], [MANO[0]], 22, 26, 0, 0); });
-boton('crítico', function () { resolver([MANO[2]], [MANO[0]], 12, 78, 0, 0); });
-boton('fuego', function () { resolver([MANO[2]], [], 0, 55, 0, 0); });
-boton('rayo', function () { resolver([MANO[4]], [], 0, 48, 0, 0); });
-boton('escudo', function () { resolver([MANO[1]], [MANO[0]], 6, 0, 0, 30); });
-boton('cura', function () { resolver([MANO[3]], [MANO[0]], 18, 0, 40, 0); });
-boton('gano', function () { rival.hp = 0; acabar('win'); });
-boton('pierdo', function () { yo.hp = 0; acabar('lose'); });
-
-window.addEventListener('resize', function () {
-  juego.scale.resize(window.innerWidth, window.innerHeight);
-});
-setTimeout(function () { arrancar('zorro'); }, 500);
+  addEventListener('resize', () => game.scale.resize(innerWidth * dpr, innerHeight * dpr));
+  document.querySelectorAll('#mando [data-modo]').forEach((b) => {
+    b.onclick = () => {
+      const modo = b.getAttribute('data-modo');
+      const activa = game.scene.getScenes(true)[0];
+      if (activa && activa.sys.settings.key === 'BattleScene') { activa.rendirse(); setTimeout(() => game.scene.start('BattleScene', { modo, petName: 'Firulais' }), 400); }
+      else game.scene.start('BattleScene', { modo, petName: 'Firulais', volverA: 'LoadingScenegame' });
+      if (activa && activa.sys.settings.key !== 'BattleScene') game.scene.stop(activa.sys.settings.key);
+    };
+  });
+  setInterval(() => {
+    const P = partida;
+    document.getElementById('info').textContent = P ? (' · ' + P.arenaId + ' · ' + P.fase + ' · tick ' + P.tick) : '';
+  }, 500);
+})();
 </script>
 </body>
 </html>

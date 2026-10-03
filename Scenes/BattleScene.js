@@ -1,1359 +1,2179 @@
 /*!
- * BattleScene — Batallas de mascotas por CARTAS y turnos (Grassland Forest)
+ * BattleScene — La ARENA de mascotas, en tiempo real (Grassland Forest)
+ * ===========================================================================
+ *
+ * Tú ERES tu perro: lo mueves por una arena de casillas, apuntas, ladras,
+ * te escondes en la hierba alta, rompes cajas doradas para coger huesos de
+ * poder y aguantas mientras la niebla cierra el campo. Gana el último en pie.
+ *
+ *   · 5 batallas diarias contra animales salvajes (la escalera de siempre:
+ *     conejo, jabalí, cuervo, zorro y el cocodrilo de jefe).
+ *   · Arena PvP: de 2 a 6 jugadores, todos contra todos.
+ *   · Práctica: tú contra 3 bots, sin puntos.
+ *
+ * QUIÉN HACE QUÉ
  * ---------------------------------------------------------------------------
- * Phaser dibuja SOLO el escenario (fondo + las dos mascotas). Toda la interfaz
- * (marcadores, vida, mano de cartas, energía, botones) es HTML/CSS —
- * #battleUI en game.html / index.html, estilos en styless.css— para que se
- * adapte igual a PC y a teléfonos.
+ * El SERVIDOR manda (server2.js, con el motor gf-brawl-motor.js incrustado):
+ * mueve las balas, reparte el daño, decide quién cae y lleva a los bots. Esta
+ * escena dibuja lo que le cuentan y hace tres cosas por su cuenta, para que
+ * jugar se sienta inmediato aunque haya 150 ms de red:
  *
- * El servidor es la autoridad: reparte la mano, valida la energía y calcula el
- * daño. El cliente solo manda los índices de las cartas que juega.
+ *   1. Mueve a TU perro en cuanto pulsas, con las MISMAS colisiones que el
+ *      servidor (GFBrawlMotor.moverCirculo). Si el servidor no está de
+ *      acuerdo, manda la posición buena y el perro se recoloca suave.
+ *   2. Dibuja tu ladrido en el momento de disparar, y lo casa después con la
+ *      bala de verdad cuando llega.
+ *   3. Pinta a los demás 110 ms "en el pasado", interpolando entre dos
+ *      instantáneas: así se mueven suaves aunque lleguen a saltos.
  *
- * Eventos (ver server2.js, "SISTEMA DE BATALLAS P2P"):
- *   → battle:queue | battle:bot | battle:action {cards:[índices]} | battle:forfeit
- *   ← battle:queued, battle:matched, battle:turnStart {hand,energy},
- *     battle:rivalReady, battle:turn, battle:end, battle:error
+ * LA ARENA ES UN MAPA DE TILED
+ * ---------------------------------------------------------------------------
+ * Maps/arena_<id>.json + Game/MAPAS/arena_32.png (32 px, 16x16 casillas), que
+ * escribe tools/generar-arenas.py. Suelo, decoración y puentes van como capas
+ * de tilemap; muros, tapas, matas y cajas como imágenes sueltas, porque
+ * tienen que ordenarse en profundidad con los perros (un perro que pasa por
+ * detrás de un muro queda tapado por él). La rejilla de CHOQUES no sale del
+ * mapa sino del servidor (viene en brawl:inicio): así la física del cliente es
+ * siempre la del servidor, aunque alguien edite un mapa y no lo suba.
  *
- * El fondo se busca en varias rutas (ver preload): en cuanto exista el archivo
- * se usa; mientras tanto se dibuja un degradado de respaldo.
+ * MEMORIA (la escena se REUTILIZA entre batallas)
+ * ---------------------------------------------------------------------------
+ *   · Oyentes del socket: solo con `this.on()`, que los apunta; limpiar() los
+ *     quita uno a uno. El socket es UNO por pestaña y no se toca más.
+ *   · Oyentes del DOM: solo con `_escucharDOM()`; init() y limpiar() los
+ *     sueltan (si no, desde el segundo combate cada botón contaba doble).
+ *   · Relojes del navegador: solo con `_reloj()`; limpiar() los cancela.
+ *   · Texturas propias (tileset, perros, animales, piezas): se sueltan al
+ *     APAGARSE la escena, cuando Phaser ya ha destruido los sprites que las
+ *     usan — al revés, pintaría un fotograma con la textura borrada.
+ *   · Todo lo que se crea por mensajes (balas, números, chispas) tiene tope:
+ *     con la pestaña oculta Phaser no avanza, pero los mensajes siguen
+ *     llegando, y sin tope se apilarían hasta volver.
  */
 class BattleScene extends Phaser.Scene {
-  // Imagen de la mascota para los retratos del HUD. Es el mismo PNG que el
-  // juego usa para el perro en el mapa (ver GameScene: load.image
-  // 'perro_derecha_1'), así que no añade ninguna descarga nueva: el navegador
-  // ya lo tiene en caché cuando se entra en batalla desde el mapa.
+  static TILESET = 'bz_arena_32';
+  static RUTA_TILESET = './Game/MAPAS/arena_32.png';
+  static ARENAS = ['pradera', 'ruinas', 'rio'];
   static RETRATO_MASCOTA = './Game/Sprites/mascota/derecha/run_1.png';
 
-  /* ═════════════════════════════════════════════════════════════════════
-     LOS RIVALES: NO TODO SON PERROS
-     ─────────────────────────────────────────────────────────────────────
-     Antes las dos mascotas del combate eran el MISMO perro, uno mirando a
-     cada lado. Se veía justo lo que dijo el jugador: dos perros iguales, sin
-     saber cuál era el tuyo, y sin ninguna sensación de estar peleando contra
-     algo. Además hacía inútil el nombre del bot: daba igual que se llamara
-     "Thorn" o "Boulder", era el mismo bicho.
+  /* Cuántas casillas se ven como mínimo. El zoom es ENTERO (en pixel art un
+     zoom de 2,5 deja medio píxel en cada borde de casilla y salen costuras):
+     se elige el mayor que todavía deje ver esto. */
+  static VISTA = { ancho: 19, alto: 11 };
+  static RETRASO_INTERP = 110;     // ms "en el pasado" a los que se pinta a los demás
+  static ENVIO_MS = 50;            // 20 posiciones por segundo al servidor
+  static LATIDO_MS = 250;          // aunque estés quieto, para confirmar correcciones
+  static MAX_BALAS = 160;
+  static MAX_EFECTOS = 140;
+  /* Casillas de MARCO alrededor de la arena (un seto, solo se ve). Sin él la
+     cámara choca contra el borde del mapa y, en una esquina, tu perro queda
+     debajo de la tarjeta del HUD; con él siempre puede ir centrado. */
+  static MARCO = 4;
 
-     Ahora el servidor manda `species` con cada rival y aquí se busca en esta
-     tabla qué dibujar. Todos los sprites YA ESTÁN en el juego (son los
-     animales del mapa), así que esto no añade ni un archivo nuevo: solo los
-     usa donde no se usaban.
+  /* Los efectos de sonido de la arena: WAV de 8 bits que escribe
+     tools/generar-sonidos.js (Game/MUSIC/bz_*.wav). */
+  static SONIDOS = ['ladrido_1', 'ladrido_2', 'aullido', 'golpe', 'caja', 'hueso', 'ko', 'cuenta', 'ya', 'victoria', 'derrota'];
 
-     Cada especie dice cuántos fotogramas tiene de cada pose. Las poses que
-     valen 0 no existen para ese bicho y se caen a `quieto`.
-     ═════════════════════════════════════════════════════════════════════ */
-  static ESPECIES = {
-    perro:     { via: 'mascota',  etiqueta: 'Dog',       quieto: 4, camina: 4, ataque: 0 },
-    conejo:    { via: 'animales', pre: 'conejo_',        etiqueta: 'Rabbit',    quieto: 2, camina: 4, ataque: 0 },
-    cerdo:     { via: 'animales', pre: 'cerdo_',         etiqueta: 'Boar',      quieto: 2, camina: 4, ataque: 0 },
-    cuervo:    { via: 'cuervo',   pre: 'cuervo_',        etiqueta: 'Crow',      quieto: 2, camina: 4, ataque: 0 },
-    zorro:     { via: 'animales', pre: 'zorro_',         etiqueta: 'Fox',       quieto: 2, camina: 4, ataque: 3 },
-    zorra:     { via: 'animales', pre: 'zorra_',         etiqueta: 'Vixen',     quieto: 2, camina: 4, ataque: 3 },
-    cocodrilo: { via: 'animales', pre: 'cocodrilo_',     etiqueta: 'Croc',      quieto: 2, camina: 4, ataque: 3 },
-    vibora:    { via: 'animales', pre: 'serpiente_vibora_', etiqueta: 'Viper',  quieto: 2, camina: 0, repta: 4, ataque: 3 },
-    coral:     { via: 'animales', pre: 'serpiente_coral_',  etiqueta: 'Coral',  quieto: 2, camina: 0, repta: 4, ataque: 3 },
-    topo:      { via: 'animales', pre: 'topo_',          etiqueta: 'Mole',      quieto: 2, camina: 4, ataque: 0 },
-    vaca:      { via: 'animales', pre: 'vaca_',          etiqueta: 'Bull',      quieto: 2, camina: 4, ataque: 0 }
+  static COLOR = {
+    yo: 0x6fe37b, rival: 0xff6b5e, oro: 0xffd24a, municion: 0xff9c3a,
+    vidaMedia: 0xe8bf3a, vidaBaja: 0xe2554a, fondoBarra: 0x0d1320, niebla: 0x3e7d2c
   };
 
-  /* Cuánto ocupa un luchador en pantalla. Se normaliza por las DOS medidas
-     porque los sprites no tienen nada que ver entre sí: el cocodrilo mide
-     70×24 y el conejo 26×20. Escalando solo por la altura, el cocodrilo
-     ocupaba media pantalla de ancho. */
-  static LUCHADOR_ANCHO = 168;
-  static LUCHADOR_ALTO  = 118;
-  static LUCHADOR_ESCALA_MIN = 2.0;
-  static LUCHADOR_ESCALA_MAX = 4.6;
+  /* Los rivales que no son perros: sus sprites YA están en el juego (son los
+     animales del mapa). Cada especie dice cuántos fotogramas tiene de cada
+     pose; las que valen 0 se caen a 'quieto'. Todos miran a la DERECHA. */
+  static ESPECIES = {
+    perro:     { via: 'mascota',  quieto: 4, camina: 4 },
+    conejo:    { via: 'animales', pre: 'conejo_',  quieto: 2, camina: 4 },
+    cerdo:     { via: 'animales', pre: 'cerdo_',   quieto: 2, camina: 4 },
+    cuervo:    { via: 'cuervo',   pre: 'cuervo_',  quieto: 2, camina: 4 },
+    zorro:     { via: 'animales', pre: 'zorro_',   quieto: 2, camina: 4, ataque: 3 },
+    zorra:     { via: 'animales', pre: 'zorra_',   quieto: 2, camina: 4, ataque: 3 },
+    cocodrilo: { via: 'animales', pre: 'cocodrilo_', quieto: 2, camina: 4, ataque: 3 },
+    vibora:    { via: 'animales', pre: 'serpiente_vibora_', quieto: 2, camina: 0, repta: 4, ataque: 3 },
+    coral:     { via: 'animales', pre: 'serpiente_coral_',  quieto: 2, camina: 0, repta: 4, ataque: 3 },
+    topo:      { via: 'animales', pre: 'topo_',    quieto: 2, camina: 4 },
+    vaca:      { via: 'animales', pre: 'vaca_',    quieto: 2, camina: 4 }
+  };
 
   constructor() {
     super({ key: 'BattleScene' });
   }
 
+  // =========================================================================
+  // CICLO DE VIDA
+  // =========================================================================
   init(data) {
     this._battleRun = (this._battleRun || 0) + 1;
     this._cleaned = false;
-    this._especiesPendientes = new Map();
     // La escena se REUTILIZA: lo que enganchó la batalla anterior se suelta
     // aquí también, por si su limpiar() no llegó a correr.
     this._soltarDOM();
-    this.turnoActual = 0;
-    this._turnoResuelto = 0;
-    this._sinFondo = false;
-    this._reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-    if (this._reintentoVuelta) { window.clearTimeout(this._reintentoVuelta); this._reintentoVuelta = null; }
-    // El apagado también puede ocurrir durante preload o sin conexión.
+    this._soltarSocket();
+    this._pararRelojes();
+
     if (this.events) {
       if (this._alCerrarBatalla) {
         this.events.off('shutdown', this._alCerrarBatalla);
         this.events.off('destroy', this._alCerrarBatalla);
       }
-      this._alCerrarBatalla = () => this.limpiar();
+      this._alCerrarBatalla = () => { this.limpiar(); this._liberarRecursos(); };
       this.events.once('shutdown', this._alCerrarBatalla);
       this.events.once('destroy', this._alCerrarBatalla);
     }
-    this.datosJugador = {
-      playerName: (data && data.playerName) || '---',
-      petName: (data && data.petName) || '---',
-      address: (data && data.address) || '',
-      nivel: (data && data.nivel) || 1
-    };
-    this.serverBase = (data && data.serverBase) || '';
-    this.volverA = (data && data.volverA) || 'LoadingScenegame';
-    this.modo = (data && data.modo) === 'bot' ? 'bot' : 'pvp';
 
-    this.estado = 'buscando';   // buscando | combate | fin
+    data = data || {};
+    this.datosInicio = Object.assign({}, data);
+    this.datosJugador = {
+      playerName: data.playerName || '---',
+      petName: data.petName || '---',
+      address: data.address || '',
+      nivel: data.nivel || 1
+    };
+    this.serverBase = data.serverBase || '';
+    this.volverA = data.volverA || 'LoadingScenegame';
+    this.modo = data.modo === 'bot' ? 'bot' : (data.modo === 'practica' ? 'practica' : 'pvp');
+    this._aceptaPractica = this.modo === 'practica';
+
+    this.estado = 'buscando';          // buscando | cuenta | combate | caido | fin
     this.matchId = null;
-    this.yo = null;
-    this.rival = null;
-    this.mano = [];
-    this.energiaMax = 3;
-    this.seleccion = [];        // índices de cartas elegidas
-    this.puedeJugar = false;
+    this.yoId = null;
+    this.partida = null;
+    this.armas = null;
+    this.R = null;
+    this.arena = null;
+    this.fondoEspera = null;
+    this.vistas = new Map();
+    this.balasVista = [];
+    this.efectosVivos = [];
+    this.huesosVista = new Map();
+    this.numerosLibres = [];
+    this.pred = null;
+    this.desvio = { x: 0, y: 0 };      // lo que queda de una recolocación suave
+    this.teclas = {};
+    this.movTactil = { x: 0, y: 0 };
+    this.apunte = { ang: 0, mostrar: false, sup: false, ratonX: 0, ratonY: 0, raton: false, ratonEn: 0 };
+    this.disparoMantenido = false;
+    this.seq = 0;
+    this.seqDisparo = 0;
+    this.cAplicada = 0;
+    this.ultimoEnvio = 0;
+    this.ultimoLatido = 0;
+    this.envioX = NaN;
+    this.envioY = NaN;
+    this.municion = 3;
+    this.superCarga = 0;
+    this.ultimoDisparoLocal = 0;
+    this.misBajas = 0;
+    this.quedan = 0;
+    this.zona = null;
+    this.zonaR = null;
+    this.zonaRObjetivo = null;
+    this._zonaPintada = -1;
+    this.tCombateLocal = 0;
+    this.seguidoId = null;
+    this.arbustosApagados = new Set();
+    this._avisosNiebla = { previo: false, empieza: false, final: false };
+    this._hud = {};
+    this._tactil = false;
+    this._zoom = 1;
+    this._especiesPendientes = new Map();
     this._listeners = [];
     this._buscandoIniciado = false;
-    this._botonesRendirse = [];
+    this._respuestaCola = false;
+    this._reintentado = false;
+    this._intentoPeticion = 0;
     this._confirmandoRendicion = false;
-
-    // FIX (la 2ª batalla se quedaba pegada en "Back to the map…"):
-    // Phaser REUTILIZA la instancia de la escena, así que `_volviendo` seguía
-    // en true desde la batalla anterior y `volverAlMapa()` hacía `return` sin
-    // volver nunca al mapa. Hay que resetearlo en cada init().
+    this._resultado = null;
     this._volviendo = false;
+    this._volviendoDesde = 0;
+    this._faltan = new Set();
+    this._ultimoSonido = {};
+    this._volumenSFX = (() => {
+      // El mismo ajuste que el mapa (GameScene.loadAudioSettings).
+      try {
+        if (localStorage.getItem('grassland_sfx_muted') === 'true') return 0;
+        const v = parseFloat(localStorage.getItem('grassland_sfx_volume'));
+        return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.7;
+      } catch (e) { return 0.7; }
+    })();
+    this._reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   }
 
   preload() {
-    // Se prueban varias rutas: así vale tanto si guardas la imagen en
-    // Game/Objetos como en assets o en Game/FONDO.
-    // FIX "NO SE VE EL FONDO DE BATALLA":
-    // La primera ruta que se probaba era './Game/Objetos/fondo_batalla.png',
-    // que NO existe. La imagen está en './assets/fondo_batalla.png'.
-    //
-    // Había un reintento por `loaderror` que cargaba la siguiente ruta y
-    // llamaba a `this.load.start()`, pero eso no funciona: el cargador ya está
-    // corriendo durante el preload y una llamada a start() mientras
-    // `isLoading` es true se ignora. Además create() se ejecuta en cuanto
-    // termina el preload original, así que aunque el reintento hubiera
-    // arrancado, `textures.exists('fondo_batalla')` seguiría siendo false al
-    // construir el escenario y siempre caía en el fondo de respaldo pintado
-    // con graphics. Resultado: el PNG no se veía nunca.
-    //
-    // Ahora se pide directamente la ruta buena. Las otras se quedan
-    // documentadas por si la imagen se mueve, pero ya no hacen falta.
-    this._rutasFondo = [
-      './assets/fondo_batalla.png',       // ← la que existe de verdad
-      './Game/Objetos/fondo_batalla.png',
-      './Game/FONDO/fondo_batalla.png'
-    ];
-    if (!this.textures.exists('fondo_batalla')) this.load.image('fondo_batalla', this._rutasFondo[0]);
-
-    // Si aun así fallara (fichero borrado, 404 del servidor), se marca para
-    // usar el fondo de respaldo en vez de dejar la pantalla vacía.
-    // `once` y no `on`: el LoaderPlugin es de la escena y la escena se
-    // reutiliza, así que con `on` se acumulaba un listener por batalla.
-    this._sinFondo = false;
-    this._errorFondo = (file) => {
-      if (!file || file.key !== 'fondo_batalla') return;
-      console.warn('⚠️ No se pudo cargar assets/fondo_batalla.png; se usa el fondo de respaldo');
-      this._sinFondo = true;
-    };
-    this.load.on('loaderror', this._errorFondo);
-
-    /* EL PERRO, SIEMPRE.
-
-       La mascota del jugador es un perro, y en PvP el rival también. Sus
-       cuatro fotogramas se piden aquí, con el resto del preload, para que la
-       batalla arranque ya con los dos luchadores puestos.
-
-       Antes esto se daba por hecho: se usaba la textura 'perro_derecha_1' que
-       carga GameScene. Funciona si entras a la batalla DESDE el mapa, y solo
-       entonces — con la escena arrancada de otra forma (o tras una limpieza de
-       memoria que tirara esa textura) los dos luchadores se quedaban sin
-       dibujo. Cargarlos aquí cuesta cuatro PNG de menos de un kilobyte y
-       quita esa dependencia. */
-    this._rutasEspecie('perro', 'quieto', 4).forEach(([clave, ruta]) => {
-      if (!this.textures.exists(clave)) this.load.image(clave, ruta);
+    const T = BattleScene.TILESET;
+    if (!this.textures.exists(T)) {
+      this.load.spritesheet(T, BattleScene.RUTA_TILESET, { frameWidth: 32, frameHeight: 32 });
+    }
+    BattleScene.ARENAS.forEach((id) => {
+      const k = 'bz_mapa_' + id;
+      if (!this.cache.tilemap.exists(k)) this.load.tilemapTiledJSON(k, './Maps/arena_' + id + '.json');
     });
+    // El perro, siempre: es tu luchador y el de cualquier otro jugador.
+    for (let i = 1; i <= 4; i++) {
+      if (!this.textures.exists('bz_esp_perro_d_' + i)) this.load.image('bz_esp_perro_d_' + i, './Game/Sprites/mascota/derecha/run_' + i + '.png');
+      if (!this.textures.exists('bz_esp_perro_i_' + i)) this.load.image('bz_esp_perro_i_' + i, './Game/Sprites/mascota/izquierda/run_' + i + '.png');
+    }
+    if (this._volumenSFX > 0) {
+      BattleScene.SONIDOS.forEach((n) => {
+        const k = 'bz_snd_' + n;
+        if (!this.cache.audio.exists(k)) this.load.audio(k, './Game/MUSIC/bz_' + n + '.wav');
+      });
+    }
+    // `once` no basta (cada archivo que falla dispara uno); se apunta y se
+    // quita en create(): el cargador es de la escena y la escena se reutiliza.
+    this._errorCarga = (file) => {
+      if (!file || !file.key) return;
+      this._faltan.add(file.key);
+      console.warn('⚠️ Arena: no se pudo cargar ' + file.key + ' (' + (file.src || file.url || '') + ')');
+    };
+    this.load.on('loaderror', this._errorCarga);
   }
 
   create() {
-    const { width, height } = this.scale;
-    if (this._errorFondo) { this.load.off('loaderror', this._errorFondo); this._errorFondo = null; }
+    if (this._errorCarga) { this.load.off('loaderror', this._errorCarga); this._errorCarga = null; }
     this.scale.on('resize', this.onResize, this);
+    document.body.classList.add('in-battle');
 
-    document.body.classList.add('in-battle');   // oculta el HUD del mapa
-    /* Las piezas de los efectos se dibujan ANTES del escenario: crearEscenario
-       ya las usa (la sombra y la plataforma de cada luchador salen de ahí). */
-    if (window.GFBatallaArte) window.GFBatallaArte.efectos(this);
-    this.crearEscenario(width, height);
+    const A = window.GFBatallaArte;
+    if (A) {
+      A.efectos(this);
+      if (A.proyectiles) A.proyectiles(this);
+    }
+    this.cameras.main.setBackgroundColor('#132a1b');
+    this.gApunte = this.add.graphics().setDepth(39000);
+
     this.montarUI();
+    this.montarControles();
     this.avisoHorizontal();
+    this._ajustarZoom();
+    this.montarFondoDeEspera();
 
     this.socket = window.globalSocket;
     if (!this.socket) {
-      this.estadoTexto('No connection to the server.');
+      this.estadoBusqueda('No connection', 'Could not reach the server. Back to the map…');
       this.estado = 'fin';
-      this._cancelarConfirmacion();
       this.volverEnBreve(2500);
       return;
     }
-
-    // Lo normal ahora es que llegue CONECTADO: ni GameScene ni la tienda tiran
-    // el socket global al salir (antes sí, y era el origen de que el chat no
-    // volviera nunca tras un combate). La rama de abajo se conserva igual como
-    // red de seguridad: entrar al combate en mitad de un corte de red sigue
-    // siendo posible.
     if (this.socket.connected) {
       this.arrancarBusqueda();
     } else {
-      this.estadoTexto('Connecting to the server…');
+      this.estadoBusqueda('Connecting…', 'Connecting to the server.');
       const alConectar = () => {
         this.socket.off('connect', alConectar);
         this._alConectar = null;
         if (this._cleaned) return;
-        if (this._conexionTimeout) { this._conexionTimeout.remove(); this._conexionTimeout = null; }
         this.arrancarBusqueda();
       };
       this._alConectar = alConectar;
       this.socket.once('connect', alConectar);
-
-      this._conexionTimeout = this.time.delayedCall(10000, () => {
-        if (this.matchId) return;
-        this.socket.off('connect', alConectar);
-        this._alConectar = null;
-        this.estadoTexto('Could not reach the server.\nBack to the map…');
+      this._reloj(10000, () => {
+        if (this.matchId || this._buscandoIniciado) return;
+        this.estadoBusqueda('No connection', 'Could not reach the server. Back to the map…');
         this.estado = 'fin';
-        this._cancelarConfirmacion();
         this.volverEnBreve(2000);
       });
-      this.socket.connect();
+      try { this.socket.connect(); } catch (e) {}
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // ESCENARIO (lo único que dibuja Phaser)
-  // ---------------------------------------------------------------------------
-  crearEscenario(width, height) {
-    const A = window.GFBatallaArte;
-
-    /* ── EL ESCENARIO ──
-       Cinco escenarios distintos, dibujados con canvas (gf-batalla-arte.js), y
-       el cuadro pintado a mano de siempre como sexto. Cuál toca lo decide el
-       identificador de la partida, así que las dos personas de un PvP ven el
-       mismo sitio y, al girar el teléfono, sigue siendo el mismo.
-
-       Antes había UN fondo para todas las batallas del juego. */
-    this.arena = null;
-    const semilla = this.matchId || this.datosJugador.playerName || 'gf';
-    if (A) {
-      const id = A.elegirArena(semilla);
-      let sem = 0;
-      const txt = String(semilla);
-      for (let i = 0; i < txt.length; i++) sem = (sem * 131 + txt.charCodeAt(i)) >>> 0;
-      this.arena = A.arena(this, id, sem || 7);
-    }
-
-    if (this.arena) {
-      this.fondo = this.add.image(width / 2, height / 2, this.arena.clave).setDepth(0);
-      this.sueloFrac = this.arena.suelo;
-    } else if (!this._sinFondo && this.textures.exists('fondo_batalla')) {
-      this.fondo = this.add.image(width / 2, height / 2, 'fondo_batalla').setDepth(0);
-      this.sueloFrac = 0.70;
-    } else {
-      const g = this.add.graphics().setDepth(0);
-      g.fillGradientStyle(0x7ec8f2, 0x7ec8f2, 0xcfe9f7, 0xcfe9f7, 1);
-      g.fillRect(0, 0, width, height);
-      g.fillStyle(0xe4d3a8, 1);
-      g.fillRect(0, height * 0.62, width, height * 0.38);
-      this.fondoRespaldo = g;
-      this.sueloFrac = 0.70;
-    }
-
-    /* ── LA CAPA DE EFECTOS ──
-       Todo lo que estalla vive en su propio contenedor, por encima de los
-       luchadores. Así se puede vaciar de golpe al acabar la batalla sin ir
-       persiguiendo sprites sueltos. */
-    this.capaEfectos = this.add.container(0, 0).setDepth(30);
-    this._efectos = [];
-
-    this.crearLuchadores(width, height);
-    this.ajustarFondo(width, height);
+  // =========================================================================
+  // LA ARENA
+  // =========================================================================
+  /** Nombre → fotograma del tileset, leído de las propiedades del propio mapa. */
+  _catalogo(clave) {
+    if (this._cat) return this._cat;
+    const cat = {};
+    try {
+      const json = this.cache.tilemap.get(clave);
+      const ts = json && json.data && json.data.tilesets && json.data.tilesets[0];
+      (ts && ts.tiles || []).forEach((t) => {
+        const p = (t.properties || []).find((q) => q.name === 'nombre');
+        if (p) cat[p.value] = t.id;
+      });
+    } catch (e) { /* sin catálogo: se usan los de respaldo */ }
+    // Los de respaldo son los del generador (tools/generar-arenas.py).
+    const def = { caja_1: 192, caja_2: 193, caja_3: 194, caja_oro_1: 195, caja_oro_2: 196, hueso: 197 };
+    Object.keys(def).forEach((k) => { if (cat[k] == null) cat[k] = def[k]; });
+    this._cat = cat;
+    return cat;
   }
 
   /**
-   * Cambia el escenario por el que le toca a esta partida.
-   * Se llama al emparejar, cuando ya se conoce el matchId.
+   * Monta la arena `id`. Devuelve un objeto con todo lo creado, para poder
+   * deshacerlo de golpe. `filas` (la rejilla del servidor) solo se usa si el
+   * mapa no ha cargado: entonces se dibuja una arena de bloques de color, que
+   * se juega igual.
    */
-  cambiarArena(semilla) {
-    const A = window.GFBatallaArte;
-    if (!A || !semilla) return;
-    const { width, height } = this.scale;
-    const id = A.elegirArena(semilla);
-    let sem = 0;
-    const txt = String(semilla);
-    for (let i = 0; i < txt.length; i++) sem = (sem * 131 + txt.charCodeAt(i)) >>> 0;
-    const nueva = A.arena(this, id, sem || 7);
-    if (!nueva || (this.arena && this.arena.clave === nueva.clave)) return;
-
-    this.arena = nueva;
-    this.sueloFrac = nueva.suelo;
-    if (this.fondoRespaldo) { this.fondoRespaldo.destroy(); this.fondoRespaldo = null; }
-    if (this.fondo) this.fondo.destroy();
-    this.fondo = this.add.image(width / 2, height / 2, nueva.clave).setDepth(0).setAlpha(0);
-    this.tweens.add({ targets: this.fondo, alpha: 1, duration: 380 });
-    this.ajustarFondo(width, height);
-  }
-
-  /** La Y del suelo donde se plantan los luchadores. */
-  sueloY(height) {
-    /* Sobre la línea del suelo del escenario, con un dedo de margen para que
-       los pies se hundan un poco en vez de quedarse encima de la raya — es lo
-       que hace que un personaje parezca plantado y no pegado con celo.
-
-       Y NO más abajo: la mano de cartas ocupa la franja de abajo de la
-       pantalla, así que un luchador puesto al 75 % de la altura queda medio
-       tapado por sus propias cartas. Ése era el aspecto raro de la captura. */
-    return height * (this.sueloFrac || 0.68) + height * 0.02;
-  }
-
-  /**
-   * Monta un luchador entero: sombra, plataforma, sprite y cartel.
-   *
-   * Se hace con un CONTENEDOR por luchador. Antes eran sprites sueltos y cada
-   * animación tenía que mover a mano cada pieza; con el contenedor, el brinco
-   * de ataque o el retroceso al recibir mueven al bicho con su sombra y su
-   * nombre, todo junto, y no hay forma de que se descoloque.
-   */
-  crearLuchador(x, y, lado) {
-    const A = window.GFBatallaArte;
-    const cont = this.add.container(x, y).setDepth(lado === 'yo' ? 10 : 9);
-
-    // Marca de suelo: dice DÓNDE está plantado, aunque el bicho salte.
-    let plataforma = null;
-    if (A && this.textures.exists(A.pieza('plataforma'))) {
-      plataforma = this.add.image(0, 4, A.pieza('plataforma')).setAlpha(0.5);
-      plataforma.setDisplaySize(150, 44);
-      cont.add(plataforma);
+  construirArena(id, filas) {
+    const T = BattleScene.TILESET;
+    const clave = 'bz_mapa_' + id;
+    const C = 32;
+    const res = { id, mapa: null, capas: [], objetos: [], arbustos: new Map(), cajas: new Map(), ancho: 30, alto: 22 };
+    this._cat = null;
+    this._catalogo(clave);
+    if (!this.cache.tilemap.exists(clave) || !this.textures.exists(T) || this._faltan.has(T)) {
+      return this.construirArenaDeRespaldo(res, filas);
     }
-
-    /* LA SOMBRA.
-
-       Va DENTRO del contenedor pero un poco por debajo de los pies, no
-       centrada en ellos: si la elipse se centra justo en la línea del suelo,
-       el propio sprite le tapa la mitad de arriba y en pantalla no queda casi
-       nada — se probó y no se veía. Bajándola un tercio de su alto, la parte
-       que asoma por delante de las patas es la que hace todo el trabajo.
-
-       El luchador salta con `spr.y`, no con el contenedor, así que la sombra
-       se queda en el suelo cuando el bicho despega. Eso es lo que da altura al
-       salto: si la sombra subiera con él, el brinco no se notaría. */
-    let sombra = null;
-    if (A && this.textures.exists(A.pieza('sombra'))) {
-      sombra = this.add.image(0, 12, A.pieza('sombra'));
-      sombra.setDisplaySize(126, 46).setAlpha(0.78);
-      cont.add(sombra);
+    let mapa;
+    try {
+      mapa = this.make.tilemap({ key: clave });
+    } catch (e) {
+      console.warn('⚠️ Arena: el mapa ' + clave + ' no se pudo leer:', e);
+      return this.construirArenaDeRespaldo(res, filas);
     }
-
-    const spr = this.add.sprite(0, 0, '__DEFAULT');
-    spr.setOrigin(0.5, 1);
-    cont.add(spr);
-
-    /* El cartel: nombre y nivel encima de la cabeza, más una barra de vida
-       pequeña. Lo pidió el jugador y además hace falta: con rivales de
-       especies distintas, saber a quién estás pegando deja de ser evidente. */
-    const nombre = this.add.text(0, 0, '', {
-      fontFamily: '"PressStart2P", monospace', fontSize: '11px',
-      color: '#ffffff', stroke: '#000000', strokeThickness: 5, resolution: 2
-    }).setOrigin(0.5, 1);
-    const nivel = this.add.text(0, 0, '', {
-      fontFamily: '"PressStart2P", monospace', fontSize: '9px',
-      color: '#ffe08a', stroke: '#000000', strokeThickness: 5, resolution: 2
-    }).setOrigin(0.5, 1);
-    const barraFondo = this.add.rectangle(0, 0, 92, 9, 0x14161f).setOrigin(0.5, 1);
-    barraFondo.setStrokeStyle(2, 0x000000, 0.75);
-    const barra = this.add.rectangle(0, 0, 88, 5, 0x5ec26a).setOrigin(0, 1);
-    cont.add([barraFondo, barra, nombre, nivel]);
-
-    return {
-      cont, spr, sombra, plataforma, nombre, nivel, barra, barraFondo,
-      /* `homeX`/`baseY`: EL SITIO DE ESTE LUCHADOR, y la única verdad sobre
-         dónde tiene que estar.
-
-         Todas las animaciones (embestir, encajar, la entrada del rival)
-         movían el contenedor leyendo su `x` ACTUAL y volviendo a ella con un
-         yoyo. Eso funciona mientras no haya dos a la vez — y las hay: en un
-         mismo turno el rival encaja el golpe tuyo y a los 180 ms sale a pegar
-         el suyo, así que dos tweens escriben `cont.x` al mismo tiempo. Cada
-         uno vuelve al valor que leyó AL EMPEZAR, y si el segundo arrancó
-         cuando el primero ya había movido al bicho, se queda plantado hasta 78
-         píxeles fuera de su sitio para el resto del combate. Basta un tirón de
-         frame para que pase — y este juego los tiene documentados.
-         Con un ancla fija no hay forma de que ocurra: se sale de `homeX` y se
-         vuelve a `homeX`, lo lea quien lo lea y en el orden que sea. */
-      homeX: x,
-      lado, baseY: y, escala: 3, fase: 0, vivo: true
+    const ts = mapa.addTilesetImage('arena_32', T);
+    res.mapa = mapa;
+    res.ancho = mapa.width;
+    res.alto = mapa.height;
+    const W = mapa.width;
+    ['suelo', 'deco', 'puente'].forEach((n, i) => {
+      const capa = mapa.createLayer(n, ts, 0, 0);
+      if (capa) { capa.setDepth(-1000 + i); res.capas.push(capa); }
+    });
+    const esDe = (capa, x, y) => {
+      const t = mapa.getTileAt(x, y, true, capa);
+      return !!(t && t.index > 0);
     };
+    const recorrer = (nombre, fn) => {
+      const capa = mapa.getLayer(nombre);
+      if (!capa) return;
+      for (let y = 0; y < capa.data.length; y++) {
+        const fila = capa.data[y];
+        for (let x = 0; x < fila.length; x++) {
+          const t = fila[x];
+          if (t && t.index > 0) fn(t.index - 1, x, y);
+        }
+      }
+    };
+    /* La sombra al pie de cada muro: lo que hace que un bloque parezca alto
+       y no pintado en el suelo. Un solo Graphics para todas. */
+    const sombras = this.add.graphics().setDepth(-990);
+    res.objetos.push(sombras);
+    recorrer('muros', (f, x, y) => {
+      const im = this.add.image(x * C + 16, y * C + 16, T, f).setDepth((y + 1) * C);
+      res.objetos.push(im);
+      if (!esDe('muros', x, y + 1)) {
+        sombras.fillStyle(0x000000, 0.24);
+        sombras.fillRect(x * C + 1, (y + 1) * C, C - 2, 5);
+        sombras.fillStyle(0x000000, 0.11);
+        sombras.fillRect(x * C + 2, (y + 1) * C + 5, C - 4, 4);
+      }
+    });
+    // La tapa va en la casilla de ENCIMA pero es del muro de abajo: misma profundidad.
+    recorrer('muros_tapa', (f, x, y) => {
+      res.objetos.push(this.add.image(x * C + 16, y * C + 16, T, f).setDepth((y + 2) * C));
+    });
+    const apuntarArbusto = (celda, im) => {
+      if (!res.arbustos.has(celda)) res.arbustos.set(celda, []);
+      res.arbustos.get(celda).push(im);
+    };
+    recorrer('arbustos', (f, x, y) => {
+      const im = this.add.image(x * C + 16, y * C + 16, T, f).setDepth((y + 1) * C - 2);
+      res.objetos.push(im);
+      apuntarArbusto(y * W + x, im);
+    });
+    recorrer('arbustos_tapa', (f, x, y) => {
+      const im = this.add.image(x * C + 16, y * C + 16, T, f).setDepth((y + 2) * C - 2);
+      res.objetos.push(im);
+      apuntarArbusto((y + 1) * W + x, im);
+    });
+    this._marco(res, mapa.width, mapa.height);
+    const cat = this._cat;
+    recorrer('cajas', (f, x, y) => {
+      const im = this.add.image(x * C + 16, y * C + 16, T, f).setDepth((y + 1) * C - 1);
+      res.objetos.push(im);
+      res.cajas.set(y * W + x, { img: im, oro: f === cat.caja_oro_1, rota: false });
+    });
+    return res;
   }
 
-  crearLuchadores(width, height) {
-    const y = this.sueloY(height);
-    this.luchadorYo = this.crearLuchador(width * 0.24, y, 'yo');
-    this.luchadorRival = this.crearLuchador(width * 0.76, y, 'rival');
-
-    // Compatibilidad: el resto del archivo llamaba a estos dos por su nombre.
-    this.petYo = this.luchadorYo.spr;
-    this.petRival = this.luchadorRival.spr;
-
-    // Hasta que llegue el emparejamiento, los dos son perros.
-    this.vestirLuchador(this.luchadorYo, 'perro', false);
-    this.vestirLuchador(this.luchadorRival, 'perro', true);
+  /** El seto que rodea la arena (decorado: los choques ya los pone el motor). */
+  _marco(res, ancho, alto) {
+    const T = BattleScene.TILESET, C = 32, M = BattleScene.MARCO;
+    const W = ancho * C, H = alto * C, m = M * C;
+    const f = this._cat && this._cat.muro_seto_15;
+    const trozos = [[-m, -m, W + 2 * m, m], [-m, H, W + 2 * m, m], [-m, 0, m, H], [W, 0, m, H]];
+    trozos.forEach(([x, y, w, h]) => {
+      let o;
+      if (f != null && this.textures.exists(T)) o = this.add.tileSprite(x, y, w, h, T, f).setOrigin(0, 0);
+      else o = this.add.rectangle(x, y, w, h, 0x2d5b30).setOrigin(0, 0);
+      o.setDepth(-995);
+      res.objetos.push(o);
+    });
+    // Sombra hacia dentro y un velo oscuro encima del seto: "esto es fuera".
+    const g = this.add.graphics().setDepth(-994);
+    g.fillStyle(0x07140c, 0.42);
+    trozos.forEach(([x, y, w, h]) => g.fillRect(x, y, w, h));
+    g.fillStyle(0x000000, 0.22);
+    g.fillRect(0, 0, W, 6); g.fillRect(0, 0, 6, H);
+    g.fillStyle(0x000000, 0.12);
+    g.fillRect(0, H - 4, W, 4); g.fillRect(W - 4, 0, 4, H);
+    res.objetos.push(g);
   }
 
-  // ---------------------------------------------------------------------------
-  // ESPECIES: CARGA Y VESTIDO
-  // ---------------------------------------------------------------------------
-  /** Las rutas de los fotogramas de una pose. */
+  /** Arena de bloques de color: por si el PNG o el JSON no han llegado. */
+  construirArenaDeRespaldo(res, filas) {
+    const C = 32;
+    const rej = filas || (window.GFBrawlMotor && window.GFBrawlMotor.ARENAS[res.id] && window.GFBrawlMotor.ARENAS[res.id].filas) || [];
+    res.alto = rej.length || 22;
+    res.ancho = (rej[0] || '').length || 30;
+    const g = this.add.graphics().setDepth(-1000);
+    res.objetos.push(g);
+    g.fillStyle(0x418546, 1).fillRect(0, 0, res.ancho * C, res.alto * C);
+    this._marco(res, res.ancho, res.alto);
+    for (let y = 0; y < res.alto; y++) {
+      for (let x = 0; x < res.ancho; x++) {
+        const ch = (rej[y] || '').charAt(x);
+        if (ch === '~') g.fillStyle(0x4aa8cf, 1).fillRect(x * C, y * C, C, C);
+        if (ch === '=') g.fillStyle(0xb07f45, 1).fillRect(x * C, y * C, C, C);
+        if (ch === '#') {
+          const r = this.add.rectangle(x * C + 16, y * C + 16, C, C, 0x8b8376).setStrokeStyle(2, 0x3c3730).setDepth((y + 1) * C);
+          res.objetos.push(r);
+        }
+        if (ch === '*') {
+          const r = this.add.rectangle(x * C + 16, y * C + 16, C, C, 0x4c9a46, 0.9).setDepth((y + 1) * C - 2);
+          res.objetos.push(r);
+          res.arbustos.set(y * res.ancho + x, [r]);
+        }
+        if (ch === 'c' || ch === 'o') {
+          const r = this.add.rectangle(x * C + 16, y * C + 16, C - 6, C - 6, ch === 'o' ? 0xd9b02a : 0xb07f45)
+            .setStrokeStyle(2, 0x3a2516).setDepth((y + 1) * C - 1);
+          res.objetos.push(r);
+          res.cajas.set(y * res.ancho + x, { img: r, oro: ch === 'o', rota: false, respaldo: true });
+        }
+      }
+    }
+    return res;
+  }
+
+  destruirArena(res) {
+    if (!res) return;
+    res.objetos.forEach((o) => { try { o.destroy(); } catch (e) {} });
+    res.capas.forEach((c) => { try { c.destroy(); } catch (e) {} });
+    if (res.mapa) { try { res.mapa.destroy(); } catch (e) {} }
+    res.objetos.length = 0;
+    res.capas.length = 0;
+    res.arbustos.clear();
+    res.cajas.clear();
+  }
+
+  /** Mientras se busca partida, se ve una arena de fondo y la cámara pasea. */
+  montarFondoDeEspera() {
+    const ids = BattleScene.ARENAS;
+    const id = ids[(this._battleRun || 0) % ids.length];
+    this.fondoEspera = this.construirArena(id);
+    const cam = this.cameras.main;
+    const W = this.fondoEspera.ancho * 32, H = this.fondoEspera.alto * 32;
+    const m = BattleScene.MARCO * 32;
+    cam.setBounds(-m, -m, W + 2 * m, H + 2 * m);
+    cam.centerOn(W * 0.3, H * 0.4);
+    if (!this._reducedMotion) {
+      this._paseo = this.tweens.add({
+        targets: cam, scrollX: { from: cam.scrollX, to: cam.scrollX + W * 0.35 },
+        duration: 16000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+      });
+    }
+  }
+
+  quitarFondoDeEspera() {
+    if (this._paseo) { this._paseo.remove(); this._paseo = null; }
+    if (this.fondoEspera) { this.destruirArena(this.fondoEspera); this.fondoEspera = null; }
+  }
+
+  // =========================================================================
+  // ZOOM Y CÁMARA
+  // =========================================================================
+  _ajustarZoom() {
+    const cam = this.cameras.main;
+    const w = this.scale.width, h = this.scale.height;
+    const m2 = BattleScene.MARCO * 64;
+    const anchoArena = (this.R ? this.R.anchoPx : 960) + m2, altoArena = (this.R ? this.R.altoPx : 704) + m2;
+    let z = Math.floor(Math.min(w / (BattleScene.VISTA.ancho * 32), h / (BattleScene.VISTA.alto * 32)));
+    // Nunca tan lejos que se vea fuera de la arena.
+    z = Math.max(z, Math.ceil(w / anchoArena), Math.ceil(h / altoArena));
+    z = Math.max(1, Math.min(8, z));
+    this._zoom = z;
+    cam.setZoom(z);
+    cam.setRoundPixels(true);
+    // Escala de los carteles: se diseñan en píxeles de CSS (texto de 12 px),
+    // y un píxel de CSS son dpr/zoom píxeles del mundo.
+    this._dpr = Math.max(1, Math.round(w / Math.max(1, window.innerWidth || w)));
+    this._escalaCartel = this._dpr / z;
+    this.vistas.forEach((v) => this._escalarCartel(v));
+  }
+
+  onResize() {
+    this._ajustarZoom();
+    if (this._revisarOrientacion) this._revisarOrientacion();
+  }
+
+  // =========================================================================
+  // LUCHADORES
+  // =========================================================================
   _rutasEspecie(id, pose, n) {
     const E = BattleScene.ESPECIES[id];
-    if (!E) return [];
+    if (!E || E.via === 'mascota') return [];
     const out = [];
     for (let i = 1; i <= n; i++) {
-      if (E.via === 'mascota') {
-        out.push([`bfp_${id}_${pose}_${i}`, `./Game/Sprites/mascota/derecha/run_${i}.png`]);
-      } else if (E.via === 'cuervo') {
-        out.push([`bfp_${id}_${pose}_${i}`, `./Game/Sprites/cuervo/${E.pre}${pose}_${i}.png`]);
-      } else {
-        out.push([`bfp_${id}_${pose}_${i}`, `./Game/Sprites/animales/${E.pre}${pose}_${i}.png`]);
-      }
+      const base = E.via === 'cuervo' ? './Game/Sprites/cuervo/' : './Game/Sprites/animales/';
+      out.push(['bz_esp_' + id + '_' + pose + '_' + i, base + E.pre + pose + '_' + i + '.png']);
     }
     return out;
   }
 
   /**
-   * Descarga los fotogramas de una especie y avisa cuando estén.
-   *
-   * Se hace AQUÍ y no en el preload porque la especie del rival no se sabe
-   * hasta que el servidor empareja, que es después. Phaser deja arrancar el
-   * cargador en marcha sin problema; lo que no se puede es dar por hecho que
-   * la textura existe justo después de pedirla, de ahí la promesa.
+   * Descarga los fotogramas de una especie. Se espera MIRANDO LAS TEXTURAS,
+   * no un evento del cargador: `load.start()` se ignora si ya está cargando y
+   * el 'complete' de una tanda resolvía también la de otra especie que aún no
+   * había llegado (el fallo del "peleo contra alguien invisible").
    */
   cargarEspecie(id) {
     const E = BattleScene.ESPECIES[id];
-    if (!E || this._cleaned) return Promise.resolve(false);
-    const pendiente = this._especiesPendientes.get(id);
-    if (pendiente) return pendiente.promise;
-
-    const poses = [
-      ['quieto', E.quieto || 0],
-      [E.repta ? 'repta' : 'camina', E.repta || E.camina || 0],
-      ['ataque', E.ataque || 0]
-    ];
+    if (!E || E.via === 'mascota' || this._cleaned) return Promise.resolve(true);
+    if (this._especiesPendientes.has(id)) return this._especiesPendientes.get(id);
+    const claves = [];
     let pedidos = 0;
-    const claves = [];          // lo que tiene que existir cuando esto acabe
-    poses.forEach(([pose, n]) => {
-      // La mascota no tiene poses: sus cuatro run_ valen de todo.
-      const realPose = (E.via === 'mascota') ? 'quieto' : pose;
-      if (!n) return;
-      this._rutasEspecie(id, realPose, n).forEach(([clave, ruta]) => {
-        claves.push(clave);
-        if (this.textures.exists(clave)) return;
-        this.load.image(clave, ruta);
+    [['quieto', E.quieto], [E.repta ? 'repta' : 'camina', E.repta || E.camina], ['ataque', E.ataque || 0]].forEach(([pose, n]) => {
+      this._rutasEspecie(id, pose, n || 0).forEach(([k, ruta]) => {
+        claves.push(k);
+        if (this.textures.exists(k)) return;
+        this.load.image(k, ruta);
         pedidos++;
       });
     });
-
-    if (!pedidos) {
-      return Promise.resolve(true);
-    }
-
-    /* SE ESPERA MIRANDO LAS TEXTURAS, NO UN EVENTO DEL CARGADOR.
-
-       FALLO QUE ESTO ARREGLA — "entro a batalla y estoy peleando con alguien
-       invisible":
-
-       aqui se hacia `this.load.once('complete', …)` + `this.load.start()`. Dos
-       problemas, y bastaba con uno:
-
-         · `load.start()` SE IGNORA si el cargador ya esta en marcha. Y en una
-           batalla se llama a esto DOS veces casi a la vez (tu especie y la del
-           rival, al emparejar), asi que la segunda tanda se quedaba encolada y
-           sin arrancar. Este mismo fichero ya avisa del problema en su
-           preload… y aqui volvia a caer en el.
-         · el 'complete' de la PRIMERA tanda resolvia tambien la promesa de la
-           segunda, que daba por buenas unas texturas que no existian.
-
-       Resultado: `_framesDe` devolvia una lista vacia, `vestirLuchador` no
-       encontraba textura y escondia al luchador. Rival invisible.
-
-       Ahora se comprueba lo unico que importa —que las texturas existan— y se
-       reintenta arrancar el cargador cada vez que se para. Con `setTimeout`,
-       no con el reloj de la escena: ese se para si la escena se pausa. */
+    if (!pedidos) return Promise.resolve(true);
     const run = this._battleRun;
-    const trabajo = { timer: null, cancel: null, promise: null };
-    trabajo.promise = new Promise((resolve) => {
+    const p = new Promise((resolve) => {
       const t0 = Date.now();
-      const TOPE = 6000;
-      const terminar = (ok) => {
-        if (trabajo.timer != null) window.clearTimeout(trabajo.timer);
-        trabajo.timer = null;
-        if (this._especiesPendientes.get(id) === trabajo) this._especiesPendientes.delete(id);
-        resolve(ok);
-      };
-      trabajo.cancel = () => terminar(false);
-
       const revisar = () => {
-        if (this._cleaned || this._battleRun !== run) { terminar(false); return; }
-        // ¿Ya estan todas?
-        if (claves.every((k) => this.textures.exists(k))) { terminar(true); return; }
-
-        // Tope de tiempo: si un PNG falta de verdad, se sigue con lo que haya
-        // en vez de dejar la batalla sin luchadores para siempre.
-        if (Date.now() - t0 > TOPE) {
-          console.warn('⚠️ La especie "' + id + '" no cargo entera en ' + TOPE + ' ms; ' +
-                       'faltan: ' + claves.filter((k) => !this.textures.exists(k)).join(', '));
-          terminar(false);
-          return;
-        }
-
-        // start() no hace nada si ya esta cargando; en cuanto para, arranca la
-        // tanda que se habia quedado esperando.
+        if (this._cleaned || this._battleRun !== run) { resolve(false); return; }
+        if (claves.every((k) => this.textures.exists(k) || this._faltan.has(k))) { resolve(true); return; }
+        if (Date.now() - t0 > 6000) { resolve(false); return; }
         if (!this.load.isLoading()) { try { this.load.start(); } catch (e) {} }
-        trabajo.timer = window.setTimeout(revisar, 80);
+        this._reloj(80, revisar);
       };
-
-      trabajo.timer = window.setTimeout(revisar, 0);
+      this._reloj(0, revisar);
     });
-    this._especiesPendientes.set(id, trabajo);
-    return trabajo.promise;
+    this._especiesPendientes.set(id, p);
+    return p;
   }
 
-  /** Qué fotogramas tiene de verdad una especie, ya cargados. */
-  _framesDe(id, pose) {
-    const E = BattleScene.ESPECIES[id];
-    if (!E) return [];
-    const realPose = (E.via === 'mascota') ? 'quieto' : pose;
-    const n = realPose === 'quieto' ? (E.quieto || 0)
-            : realPose === 'ataque' ? (E.ataque || 0)
-            : (E.repta || E.camina || 0);
+  _fotogramas(id, pose, lado) {
+    const E = BattleScene.ESPECIES[id] || BattleScene.ESPECIES.perro;
+    if (E.via === 'mascota') {
+      const out = [];
+      for (let i = 1; i <= 4; i++) {
+        const k = 'bz_esp_perro_' + (lado < 0 ? 'i' : 'd') + '_' + i;
+        if (this.textures.exists(k)) out.push(k);
+      }
+      return out;
+    }
+    const real = pose === 'camina' ? (E.repta ? 'repta' : (E.camina ? 'camina' : 'quieto')) : pose;
+    const n = real === 'quieto' ? E.quieto : real === 'ataque' ? (E.ataque || 0) : (E.repta || E.camina || 0);
     const out = [];
     for (let i = 1; i <= n; i++) {
-      const clave = `bfp_${id}_${realPose}_${i}`;
-      if (this.textures.exists(clave)) out.push(clave);
+      const k = 'bz_esp_' + id + '_' + real + '_' + i;
+      if (this.textures.exists(k)) out.push(k);
     }
     return out;
   }
 
-  /**
-   * Pone a un luchador la pinta de su especie: textura, tamaño, hacia dónde
-   * mira y dónde le caen la sombra y el cartel.
-   */
-  vestirLuchador(L, especie, miraIzquierda) {
-    if (!L) return;
-    const id = BattleScene.ESPECIES[especie] ? especie : 'perro';
-    L.especie = id;
+  crearVista(l) {
+    const C = BattleScene.COLOR;
+    const esYo = l.id === this.yoId;
+    const v = {
+      id: l.id, datos: l, especie: l.especie || 'perro', yo: esYo,
+      x: l.x, y: l.y, hp: l.hp, maxHp: l.maxHp, potencia: 0,
+      vivo: true, oculto: false, enArbusto: false, mira: 1, andando: false,
+      buffer: [{ t: performance.now(), x: l.x, y: l.y }],
+      paso: 0, proximoPaso: 0, golpeHasta: 0, retroceso: 0,
+      ultTexto: {}
+    };
+    const A = window.GFBatallaArte;
+    v.sombra = (A && this.textures.exists(A.pieza('sombra')))
+      ? this.add.image(l.x, l.y + 8, A.pieza('sombra')).setDisplaySize(30, 12).setAlpha(0.55)
+      : this.add.ellipse(l.x, l.y + 8, 26, 9, 0x000000, 0.3);
+    v.spr = this.add.sprite(l.x, l.y + 9, '__DEFAULT').setOrigin(0.5, 1);
+    if (esYo) {
+      // Un aro a los pies: dónde estás, de un vistazo, en mitad del lío.
+      v.aro = this.add.ellipse(l.x, l.y + 8, 30, 12).setStrokeStyle(2, C.yo, 0.9).setFillStyle(C.yo, 0.12);
+      v.superListo = (A && this.textures.exists(A.pieza('brillo')))
+        ? this.add.image(l.x, l.y, A.pieza('brillo')).setTint(C.oro).setBlendMode(Phaser.BlendModes.ADD).setVisible(false).setDisplaySize(64, 40)
+        : null;
+    } else {
+      // Los rivales, con un aro rojo fino: en PvP todos son perros iguales y
+      // esto (con la barra roja) es lo que dice de un vistazo quién no eres tú.
+      v.aro = this.add.ellipse(l.x, l.y + 8, 28, 11).setStrokeStyle(1.5, C.rival, 0.8).setFillStyle(C.rival, 0.07);
+    }
+    this._crearCartel(v);
+    this._vestir(v);
+    this.vistas.set(l.id, v);
+    return v;
+  }
 
-    /* UN LUCHADOR NUNCA SE QUEDA INVISIBLE.
-
-       El respaldo era 'perro_derecha_1', que es una textura de GameScene: si se
-       entra a la batalla con el mapa ya descargado (o tras una limpieza de
-       memoria), no existe — y entonces esto escondia al luchador. Peleabas
-       contra un hueco.
-
-       El orden ahora es: los fotogramas de su especie; si no, el perro que
-       carga ESTA escena en su propio preload; si no, el del mapa; y si no
-       hubiera ninguno, un rectangulo de color, que al menos se ve y se puede
-       apuntar. */
-    const quietos = this._framesDe(id, 'quieto');
-    const candidatas = [quietos[0], 'bfp_perro_quieto_1', 'perro_derecha_1'];
-    const clave = candidatas.find((k) => k && this.textures.exists(k));
-
-    if (!clave) {
-      console.warn('⚠️ Sin ninguna textura para el luchador (' + especie + '): se dibuja un bloque.');
-      L.spr.setVisible(true);
-      L.spr.setTexture('__bf_bloque__');
-      if (!this.textures.exists('__bf_bloque__')) {
+  _vestir(v) {
+    const id = BattleScene.ESPECIES[v.especie] ? v.especie : 'perro';
+    let quietos = this._fotogramas(id, 'quieto', v.mira);
+    if (!quietos.length) quietos = this._fotogramas('perro', 'quieto', v.mira);
+    const k = quietos[0];
+    if (!k) {
+      // Ni el perro: un bloque de color, que al menos se ve y se puede apuntar.
+      if (!this.textures.exists('bz_bloque')) {
         const g = this.make.graphics({ add: false });
-        g.fillStyle(miraIzquierda ? 0xf87171 : 0x4ade80, 1);
-        g.fillRect(0, 0, 48, 48);
-        g.generateTexture('__bf_bloque__', 48, 48);
+        g.fillStyle(0xffffff, 1).fillRect(0, 0, 22, 22);
+        g.generateTexture('bz_bloque', 22, 22);
         g.destroy();
-        L.spr.setTexture('__bf_bloque__');
       }
-      L.escala = 2;
-      L.spr.setScale(2);
+      v.spr.setTexture('bz_bloque').setTint(v.yo ? BattleScene.COLOR.yo : BattleScene.COLOR.rival);
+      v.escala = 1;
+      v.marcos = null;
       return;
     }
-    L.spr.setVisible(true);
-    L.spr.setTexture(clave);
-
-    // Tamaño normalizado: ver LUCHADOR_ANCHO / LUCHADOR_ALTO.
-    const w = L.spr.width || 32, h = L.spr.height || 32;
-    let esc = Math.min(BattleScene.LUCHADOR_ANCHO / w, BattleScene.LUCHADOR_ALTO / h);
-    esc = Math.max(BattleScene.LUCHADOR_ESCALA_MIN,
-                   Math.min(BattleScene.LUCHADOR_ESCALA_MAX, esc));
-    L.escala = esc;
-    L.spr.setScale(esc);
-    /* Los PNG de los animales miran a la DERECHA. El de la derecha de la
-       pantalla tiene que mirar hacia dentro, o sea a la izquierda. */
-    L.spr.setFlipX(!!miraIzquierda);
-    L.mira = miraIzquierda ? -1 : 1;
-
-    const alto = h * esc;
-    const ancho = w * esc;
-
-    /* EL SUELO DEL BICHO: plataforma y sombra.
-     *
-     * El alto de las dos salía SOLO del ancho del sprite, y eso se rompe con
-     * los animales largos y bajos. El cocodrilo mide 168×58 en pantalla: con
-     * la cuenta vieja su plataforma era de 67 px de alto —MÁS ALTA QUE ÉL— y,
-     * como va centrada 4 px por debajo de las patas, se comía 30 px por encima
-     * de ellas. La víbora, 168×80, igual. En pantalla el bicho no parecía
-     * plantado en el suelo sino metido dentro de un plato.
-     *
-     * Ahora el alto se limita también por lo que MIDE el animal, así que una
-     * marca de suelo nunca puede ser más alta que quien la pisa, y el centro
-     * de las elipses se calcula a partir de su propio alto en vez de con un
-     * número fijo: se quedan justo bajo las patas para cualquier tamaño.
-     *
-     * (El sprite lleva origen 0.5, 1 — o sea que y = 0 son las patas.)
-     */
-    if (L.sombra) {
-      const sh = Math.max(22, Math.min(ancho * 0.30, alto * 0.42, 46));
-      L.sombra.setDisplaySize(Math.max(76, ancho * 0.88), sh);
-      L.sombra.y = sh * 0.30;
-    }
-    if (L.plataforma) {
-      const ph = Math.max(26, Math.min(ancho * 0.34, alto * 0.55, 56));
-      L.plataforma.setDisplaySize(Math.max(104, ancho * 1.12), ph);
-      L.plataforma.y = ph * 0.12;
-    }
-
-    // El cartel, encima de la cabeza y con aire.
-    const cima = -alto - 14;
-    L.barraFondo.setPosition(0, cima);
-    L.barra.setPosition(-44, cima - 2);
-    L.nivel.setPosition(0, cima - 12);
-    L.nombre.setPosition(0, cima - 26);
-
-    L.marcos = {
-      quieto: quietos,
-      anda: this._framesDe(id, 'camina'),
-      ataque: this._framesDe(id, 'ataque')
-    };
-    L.paso = 0;
-    L.proximoPaso = 0;
+    v.spr.setTexture(k);
+    const w = v.spr.width || 32, h = v.spr.height || 32;
+    let esc = id === 'perro' ? 1 : Math.min(52 / w, 34 / h);
+    esc = Math.max(0.6, Math.min(1.3, esc));
+    v.escala = esc;
+    v.spr.setScale(esc);
+    v.altoSprite = h * esc;
+    v.marcos = { id };
   }
 
-  /* ═════════════════════════════════════════════════════════════════════
-     LOS ESTADOS, QUE NADIE PINTABA
-     ─────────────────────────────────────────────────────────────────────
-     El servidor lleva veneno, aturdimiento, debilidad, regeneración,
-     espinas, concentración, armadura y exposición; los calcula, los aplica y
-     los MANDA en cada paquete (`status`). El cliente no los enseñaba en
-     ningún sitio.
-
-     Eso no es un detalle estético, es media partida: sin ver que el rival
-     lleva armadura no sabes que hay que romperla con `expose`, y sin ver que
-     vas envenenado no sabes que tienes tres turnos para acabar. Toda la
-     profundidad que ya tenía el combate estaba escondida.
-
-     Se pintan como una tira de iconos bajo la barra de vida, con los turnos
-     que le quedan a cada uno. */
-  static ESTADOS = {
-    poison: { icono: '☠', color: '#9ff05a' },
-    stun:   { icono: '💫', color: '#ffe066' },
-    weak:   { icono: '▼', color: '#ff9aa0' },
-    regen:  { icono: '✚', color: '#7ef09a' },
-    thorns: { icono: '✷', color: '#ffb060' },
-    focus:  { icono: '◎', color: '#ffd24a' },
-    armor:  { icono: '▣', color: '#76c8ff' },
-    expose: { icono: '✖', color: '#ff7ad0' }
-  };
-
-  /** Nombre, nivel, vida y estados del cartel de un luchador. */
-  pintarCartel(L, datos) {
-    if (!L || !datos) return;
-    L.nombre.setText(datos.petName || '—');
-    const especie = BattleScene.ESPECIES[L.especie];
-    const mote = datos.isBot && especie && especie.etiqueta ? ` · ${especie.etiqueta}` : '';
-    L.nivel.setText(`Lv.${datos.level || 1}${mote}`);
-    const p = Math.max(0, Math.min(1, datos.hp / Math.max(1, datos.maxHp)));
-    L.barra.width = 88 * p;
-    L.barra.fillColor = p > 0.55 ? 0x5ec26a : p > 0.25 ? 0xe0b64a : 0xc7503f;
-    L.vivo = datos.hp > 0;
-
-    // ── la tira de estados ──
-    if (!L.estados) L.estados = [];
-    L.estados.forEach((t) => t.destroy());
-    L.estados.length = 0;
-    const lista = Array.isArray(datos.status) ? datos.status : [];
-    if (!lista.length) return;
-
-    const anchoIcono = 26;
-    const total = lista.length * anchoIcono;
-    const y0 = L.barraFondo.y + 15;
-    lista.forEach((e, i) => {
-      const cfg = BattleScene.ESTADOS[e.id];
-      if (!cfg) return;
-      const t = this.add.text(-total / 2 + i * anchoIcono + anchoIcono / 2, y0,
-        `${cfg.icono}${e.turnos > 1 ? e.turnos : ''}`, {
-          fontFamily: 'system-ui, sans-serif', fontSize: '13px',
-          color: cfg.color, stroke: '#000000', strokeThickness: 4, resolution: 2
-        }).setOrigin(0.5, 0);
-      L.cont.add(t);
-      L.estados.push(t);
+  _crearCartel(v) {
+    const C = BattleScene.COLOR;
+    const res = this._dpr || 1;
+    const est = (tam, color) => ({
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif', fontStyle: 'bold',
+      fontSize: tam + 'px', color, stroke: '#0a0f1a', strokeThickness: 3, resolution: res
     });
-  }
-
-  ajustarFondo(width, height) {
-    if (this.fondo) {
-      const escala = Math.max(width / this.fondo.width, height / this.fondo.height);
-      this.fondo.setScale(escala).setPosition(width / 2, height / 2);
-    }
-    const y = this.sueloY(height);
-    /* Al cambiar el tamaño de la pantalla se mueve el ANCLA, no solo el
-       contenedor: si solo se moviera el contenedor, un tween en marcha lo
-       devolvería después al sitio viejo. */
-    if (this.luchadorYo) {
-      this.luchadorYo.baseY = y;
-      this.luchadorYo.homeX = width * 0.24;
-      this.luchadorYo.cont.setPosition(this.luchadorYo.homeX, y);
-    }
-    if (this.luchadorRival) {
-      this.luchadorRival.baseY = y;
-      this.luchadorRival.homeX = width * 0.76;
-      this.luchadorRival.cont.setPosition(this.luchadorRival.homeX, y);
-    }
-  }
-
-  /**
-   * DEVUELVE A UN LUCHADOR A SU SITIO.
-   *
-   * La red de seguridad de todo lo de arriba: si por lo que sea un luchador
-   * acaba descolocado —un tween que no llegó a terminar porque la pestaña se
-   * fue a segundo plano, dos animaciones pisándose, un cambio de tamaño en
-   * mitad de un salto— esto lo vuelve a plantar. Se llama desde `update()`
-   * cuando no hay ninguna animación en marcha, así que no le quita el sitio a
-   * nada que se esté moviendo a propósito.
-   */
-  asentar(L) {
-    if (!L || !L.cont) return;
-    /* Solo si NO hay ningún tween tocando este contenedor. Se pregunta al
-       gestor de tweens en vez de llevar una bandera a mano: una bandera se
-       queda encendida si un tween muere sin llamar a su `onComplete` —que es
-       justo lo que pasa al apagar la escena— y entonces esta red no volvería a
-       saltar nunca. */
-    if (this.tweens.getTweensOf(L.cont).length > 0) return;
-    if (Math.abs(L.cont.x - L.homeX) > 0.5) L.cont.x = L.homeX;
-    if (Math.abs(L.cont.y - L.baseY) > 0.5) L.cont.y = L.baseY;
-    /* El sprite también: el retroceso se lo lleva él cuando el contenedor está
-       ocupado embistiendo, y si ese tween se corta a medias el bicho se queda
-       torcido dentro de su propia plataforma. */
-    if (L.spr && this.tweens.getTweensOf(L.spr).length === 0 && Math.abs(L.spr.x) > 0.5) L.spr.x = 0;
-  }
-
-  // ---------------------------------------------------------------------------
-  // VIDA PROPIA DE LOS LUCHADORES
-  // ---------------------------------------------------------------------------
-  /**
-   * El respiro.
-   *
-   * Dos sprites clavados en su sitio son dos pegatinas — es exactamente lo que
-   * se veía en la captura del jugador. Con un balanceo lento y desfasado entre
-   * los dos, y el paso de la animación de andar de fondo, la escena pasa a
-   * estar VIVA sin gastar nada: son dos senos y un cambio de textura cada
-   * doscientos milisegundos.
-   */
-  respirar(ahora) {
-    const uno = (L, desfase) => {
-      if (!L || !L.spr.visible) return;
-      /* MIENTRAS HAY UNA ANIMACIÓN, EL RESPIRO SE CALLA.
-
-         El respiro escribe `spr.y` y `spr.scale` en CADA fotograma. Si a la
-         vez hay un tween moviendo esas mismas propiedades —la embestida, el
-         salto de celebración, la caída del KO— el respiro le pisa el valor
-         justo después y la animación no se ve: el bicho se queda temblando en
-         el sitio. Dos cosas escribiendo lo mismo nunca acaba bien; manda la
-         animación, que es la que cuenta algo. */
-      if (L.ko || L.animando) return;
-      L.fase = ahora * 0.0032 + desfase;
-      // Se estira y se encoge un pelín: es como respira un dibujo animado.
-      const r = Math.sin(L.fase);
-      L.spr.setScale(L.escala * (1 - r * 0.016), L.escala * (1 + r * 0.022));
-      L.spr.y = -Math.abs(r) * 2;
-
-      // Y mueve las patas, si su especie tiene con qué.
-      const marcos = L.marcos && L.marcos.quieto;
-      if (marcos && marcos.length > 1 && ahora >= L.proximoPaso) {
-        L.proximoPaso = ahora + 420;
-        L.paso = (L.paso + 1) % marcos.length;
-        L.spr.setTexture(marcos[L.paso]);
+    const d = v.datos;
+    const c = this.add.container(v.x, v.y).setDepth(43000);
+    /* Medidas en píxeles de CSS (el contenedor se escala a dpr/zoom):
+         nombre y nivel  ── encima
+         [■■■■■■■ 1520]  ── la barra de vida, con el número dentro
+         ▮▮▮             ── tu munición (solo la tuya), debajo */
+    v.nombre = this.add.text(0, -13, d.petName || 'Pet', est(12, v.yo ? '#c8ffcf' : '#ffffff')).setOrigin(0.5, 1);
+    v.nivel = this.add.text(0, -13, '', est(10, '#ffdc7a')).setOrigin(0, 1);
+    v.barraFondo = this.add.rectangle(0, -6, 54, 11, C.fondoBarra).setOrigin(0.5, 0.5).setStrokeStyle(1, 0x000000, 0.95);
+    v.barra = this.add.rectangle(-26, -6, 52, 9, v.yo ? C.yo : C.rival).setOrigin(0, 0.5);
+    v.vidaTxt = this.add.text(0, -6, '', est(9, '#ffffff')).setOrigin(0.5, 0.5);
+    v.huesos = this.add.text(30, -6, '', est(10, '#ffdc7a')).setOrigin(0, 0.5);
+    c.add([v.barraFondo, v.barra, v.nombre, v.nivel, v.vidaTxt, v.huesos]);
+    if (v.yo) {
+      v.municion = [];
+      for (let i = 0; i < 3; i++) {
+        const fondo = this.add.rectangle(-26 + i * 18, 3, 16, 5, C.fondoBarra).setOrigin(0, 0.5).setStrokeStyle(1, 0x000000, 0.85);
+        const lleno = this.add.rectangle(-26 + i * 18, 3, 16, 5, C.municion).setOrigin(0, 0.5);
+        c.add([fondo, lleno]);
+        v.municion.push(lleno);
       }
-    };
-    uno(this.luchadorYo, 0);
-    uno(this.luchadorRival, 2.1);
-  }
-
-  /** Un brinco hacia el rival, con su golpe y su vuelta. */
-  embestir(L, alFinal) {
-    if (!L || !L.spr.visible) return;
-    const dir = L.lado === 'yo' ? 1 : -1;
-    const marcos = (L.marcos && L.marcos.ataque && L.marcos.ataque.length)
-      ? L.marcos.ataque
-      : (L.marcos && L.marcos.anda && L.marcos.anda.length ? L.marcos.anda : null);
-
-    L.animando = true;
-    if (marcos) {
-      let i = 0;
-      L.spr.setTexture(marcos[0]);
-      L._tickAtaque = this.time.addEvent({
-        delay: 90, repeat: marcos.length * 2,
-        callback: () => { i = (i + 1) % marcos.length; L.spr.setTexture(marcos[i]); }
-      });
     }
-
-    /* Adelante deprisa y atrás despacio: así es como se lee un golpe. Si la
-       ida y la vuelta duran lo mismo, parece que el bicho se columpia.
-
-       El recorrido se declara ENTERO —de `homeX` a `homeX ± 78`— en vez de
-       partir de donde esté el contenedor. Así, aunque esta embestida arranque
-       encima de un retroceso que aún se está moviendo, empieza y acaba donde
-       tiene que ser. Y antes se matan los tweens que hubiera sobre el mismo
-       contenedor, para que no queden dos escribiendo `x` a la vez. */
-    this.tweens.killTweensOf(L.cont);
-    this.tweens.add({
-      targets: L.cont,
-      x: { from: L.homeX, to: L.homeX + dir * 78 },
-      duration: 130, ease: 'Quad.easeIn',
-      yoyo: true, hold: 60, easeParams: null,
-      onYoyo: () => { if (alFinal) alFinal(); },
-      onComplete: () => {
-        L.animando = false;
-        L.cont.x = L.homeX;          // clavado, sin depender del redondeo del tween
-        if (L._tickAtaque) { L._tickAtaque.remove(); L._tickAtaque = null; }
-        if (L.marcos && L.marcos.quieto && L.marcos.quieto[0]) L.spr.setTexture(L.marcos.quieto[0]);
-      }
-    });
-    // Un saltito, para que la embestida despegue del suelo.
-    this.tweens.killTweensOf(L.spr);
-    this.tweens.add({
-      targets: L.spr, y: { from: 0, to: -22 }, duration: 130, yoyo: true, ease: 'Quad.easeOut',
-      onComplete: () => { if (!L.ko) L.spr.y = 0; }
-    });
+    v.cartel = c;
+    this._ponerTextoNivel(v);
+    this._escalarCartel(v);
   }
 
-  /** Recibe: retrocede, parpadea en rojo y suelta polvo. */
-  encajar(L) {
-    if (!L || !L.spr.visible) return;
-    const dir = L.lado === 'yo' ? -1 : 1;
-    /* NO se toca `cont.x` si el bicho está embistiendo: su embestida ya lo
-       está moviendo y meter aquí un segundo tween sobre la misma propiedad es
-       exactamente lo que dejaba a los luchadores fuera de su sitio. El
-       retroceso se lo queda el SPRITE, que en ese momento está libre, y el
-       golpe se sigue viendo igual de bien. */
-    if (L.animando) {
-      this.tweens.add({
-        targets: L.spr, x: { from: 0, to: dir * 18 },
-        duration: 70, yoyo: true, repeat: 1, ease: 'Sine.easeOut',
-        onComplete: () => { L.spr.x = 0; }
-      });
-    } else {
-      this.tweens.killTweensOf(L.cont);
-      this.tweens.add({
-        targets: L.cont,
-        x: { from: L.homeX, to: L.homeX + dir * 26 },
-        duration: 70, yoyo: true, repeat: 1, ease: 'Sine.easeOut',
-        onComplete: () => { L.cont.x = L.homeX; }
-      });
-    }
-    if (L.spr.setTint) {
-      L.spr.setTint(0xff7a6a);
-      this.time.delayedCall(260, () => { if (L.spr && L.spr.clearTint) L.spr.clearTint(); });
-    }
+  _ponerTextoNivel(v) {
+    const d = v.datos;
+    v.nivel.setText('Lv.' + (d.nivel || 1));
+    // Nombre y nivel centrados JUNTOS sobre la cabeza.
+    const total = v.nombre.width + 5 + v.nivel.width;
+    v.nombre.setOrigin(0, 1).setX(-total / 2);
+    v.nivel.setX(-total / 2 + v.nombre.width + 5);
   }
 
-  /** Se cae. Queda tumbado hasta el final del combate. */
-  tumbar(L) {
-    if (!L || L.ko) return;
-    L.ko = true;
-    this.tweens.add({
-      targets: L.spr, angle: L.lado === 'yo' ? -78 : 78,
-      y: 6, alpha: 0.55, duration: 520, ease: 'Bounce.easeOut'
-    });
-    if (L.plataforma) this.tweens.add({ targets: L.plataforma, alpha: 0.18, duration: 520 });
+  _escalarCartel(v) {
+    if (!v.cartel) return;
+    const s = this._escalaCartel || 1;
+    v.cartel.setScale(s);
+    v.cartelAlto = (v.altoSprite || 30) + 4;
   }
 
-  /** Salta de alegría. */
-  celebrar(L) {
-    if (!L || L.ko) return;
-    L.animando = true;      // que el respiro no le pise el salto
-    this.tweens.add({
-      targets: L.spr, y: -34, duration: 260, yoyo: true, repeat: 3, ease: 'Quad.easeOut',
-      onComplete: () => { L.animando = false; }
+  _pintarCartel(v) {
+    const C = BattleScene.COLOR;
+    const p = Math.max(0, Math.min(1, v.hp / Math.max(1, v.maxHp)));
+    v.barra.width = 52 * p;
+    if (!v.yo) v.barra.fillColor = C.rival;
+    else v.barra.fillColor = p > 0.5 ? C.yo : (p > 0.25 ? C.vidaMedia : C.vidaBaja);
+    const txt = String(Math.max(0, Math.round(v.hp)));
+    if (v.ultTexto.vida !== txt) { v.vidaTxt.setText(txt); v.ultTexto.vida = txt; }
+    const hu = v.potencia > 0 ? '🦴' + v.potencia : '';
+    if (v.ultTexto.huesos !== hu) { v.huesos.setText(hu); v.ultTexto.huesos = hu; }
+  }
+
+  destruirVista(v) {
+    ['sombra', 'spr', 'aro', 'superListo', 'cartel'].forEach((k) => {
+      if (v[k]) { try { v[k].destroy(); } catch (e) {} v[k] = null; }
     });
   }
 
-  // ---------------------------------------------------------------------------
+  // =========================================================================
   // INTERFAZ HTML
-  // ---------------------------------------------------------------------------
+  // =========================================================================
   montarUI() {
     this.ui = document.getElementById('battleUI');
-    if (!this.ui) {
-      console.error('❌ Falta #battleUI en el HTML');
-      return;
-    }
+    if (!this.ui) { console.error('❌ Falta #battleUI en el HTML'); return; }
     this.ui.classList.remove('hidden');
-
+    this.ui.classList.add('buscando');
+    const $ = (id) => document.getElementById(id);
     this.el = {
-      status: document.getElementById('bfStatus'),
-      turno: document.getElementById('bfTurnLabel'),
-      timer: document.getElementById('bfTimer'),
-      timerFill: document.getElementById('bfTimerFill'),
-      timerText: document.getElementById('bfTimerText'),
-      hand: document.getElementById('bfHand'),
-      energy: document.getElementById('bfEnergy'),
-      energyCount: document.getElementById('bfEnergyCount'),
-      endTurn: document.getElementById('bfEndTurn'),
-      leave: document.getElementById('bfLeave'),
-      surrender: document.getElementById('bfSurrender'),
-      reveal: document.getElementById('bfReveal'),
-      revealYou: document.getElementById('bfRevealYou'),
-      revealRival: document.getElementById('bfRevealRival'),
-      floaters: document.getElementById('bfFloaters'),
-      you: {
-        name: document.getElementById('bfYouName'),
-        lvl: document.getElementById('bfYouLvl'),
-        player: document.getElementById('bfYouPlayer'),
-        addr: document.getElementById('bfYouAddr'),
-        portrait: document.getElementById('bfYouPortrait'),
-        hp: document.getElementById('bfYouHp'),
-        hpTxt: document.getElementById('bfYouHpTxt'),
-        shield: document.getElementById('bfYouShield'),
-        shieldBar: document.getElementById('bfYouShieldBar')
-      },
-      rival: {
-        name: document.getElementById('bfRivalName'),
-        lvl: document.getElementById('bfRivalLvl'),
-        player: document.getElementById('bfRivalPlayer'),
-        addr: document.getElementById('bfRivalAddr'),
-        portrait: document.getElementById('bfRivalPortrait'),
-        hp: document.getElementById('bfRivalHp'),
-        hpTxt: document.getElementById('bfRivalHpTxt'),
-        shield: document.getElementById('bfRivalShield'),
-        shieldBar: document.getElementById('bfRivalShieldBar')
-      }
+      yo: $('bzYo'), retrato: $('bzRetrato'), nombre: $('bzYoNombre'), nivel: $('bzYoNivel'),
+      vidaBarra: $('bzYoVidaBarra'), vida: $('bzYoVida'), vidaTxt: $('bzYoVidaTxt'),
+      huesos: $('bzYoHuesos'), bajas: $('bzYoBajas'),
+      modo: $('bzModo'), relojTxt: $('bzReloj'), quedan: $('bzQuedan'), salir: $('bzSalir'),
+      feed: $('bzFeed'), aviso: $('bzAviso'), dolor: $('bzDolor'),
+      busqueda: $('bzBusqueda'), busqTitulo: $('bzBusquedaTitulo'), busqTexto: $('bzBusquedaTexto'),
+      sala: $('bzSala'), busqTiempo: $('bzBusquedaTiempo'), practicar: $('bzPracticar'), cancelar: $('bzCancelar'),
+      tactil: $('bzTactil'), zonaMover: $('bzZonaMover'), stickMover: $('bzStickMover'),
+      zonaDisparo: $('bzZonaDisparo'), stickDisparo: $('bzStickDisparo'), superBtn: $('bzSuper'), superAnillo: $('bzSuperAnillo'),
+      pie: $('bzPie'), superBarra: $('bzSuperBarra'), superRelleno: $('bzSuperRelleno'), superTexto: $('bzSuperTexto'),
+      caido: $('bzCaido'), caidoTitulo: $('bzCaidoTitulo'), caidoTexto: $('bzCaidoTexto'), mirar: $('bzMirar'), volverCaido: $('bzVolverCaido'),
+      resultado: $('bzResultado'), resPuesto: $('bzResPuesto'), resTitulo: $('bzResTitulo'), resSub: $('bzResSub'),
+      resPremios: $('bzResPremios'), resTabla: $('bzResTabla'), otraVez: $('bzOtraVez'), volver: $('bzVolver')
     };
+    const e = this.el;
+    // Estado de partida: todo a cero (la UI es la misma de la batalla anterior).
+    [e.caido, e.resultado, e.aviso].forEach((n) => n && n.classList.add('hidden'));
+    if (e.busqueda) e.busqueda.classList.remove('hidden');
+    if (e.feed) e.feed.textContent = '';
+    if (e.dolor) e.dolor.classList.remove('activo');
+    if (e.relojTxt) { e.relojTxt.textContent = '--:--'; e.relojTxt.classList.remove('niebla', 'poco'); }
+    if (e.quedan) e.quedan.textContent = '-';
+    if (e.modo) e.modo.textContent = this.modo === 'bot' ? 'Daily battle' : (this.modo === 'practica' ? 'Practice' : 'Arena PvP');
+    if (e.nombre) e.nombre.textContent = this.datosJugador.petName && this.datosJugador.petName !== '---' ? this.datosJugador.petName : 'Your dog';
+    if (e.nivel) e.nivel.textContent = '';
+    if (e.retrato) e.retrato.style.backgroundImage = "url('" + BattleScene.RETRATO_MASCOTA + "')";
+    if (e.huesos) e.huesos.textContent = '🦴 0';
+    if (e.bajas) e.bajas.textContent = '💥 0';
+    this._pintarVidaHUD(1, 1);
+    this._pintarSuperHUD(0);
+    if (e.practicar) e.practicar.classList.toggle('hidden', this.modo !== 'pvp');
+    if (e.sala) e.sala.textContent = '';
+    if (e.busqTiempo) e.busqTiempo.textContent = '';
+    this.estadoBusqueda(
+      this.modo === 'bot' ? 'Preparing your daily battle…' : (this.modo === 'practica' ? 'Preparing practice…' : 'Searching for players…'),
+      this.modo === 'pvp' ? 'Be the last dog standing. Up to 6 players.' : 'Get ready!'
+    );
 
-    // Cada entrada es dueña de sus callbacks y los retira al apagarse.
-    const recablear = (el, fn) => {
-      if (!el) return null;
-      this._escucharDOM(el, 'click', fn);
-      return el;
-    };
-
-    this.el.endTurn = recablear(this.el.endTurn, () => this.jugarTurno());
-    this.el.leave = recablear(this.el.leave, () => this.pedirRendicion(this.el.leave));
-    this.el.surrender = recablear(this.el.surrender, () => this.pedirRendicion(this.el.surrender));
-
-    /* Los dos botones de rendirse hacen lo mismo; se guardan juntos para poder
-       devolverlos a su estado normal de una vez cuando se cancela la
-       confirmación. `recablear` clona el nodo, así que esta lista tiene que
-       montarse DESPUÉS de recablear o guardaría los nodos viejos. */
-    this._botonesRendirse = [this.el.leave, this.el.surrender].filter(Boolean);
+    this._escucharDOM(e.salir, 'click', () => this.pedirRendicion(e.salir));
+    this._escucharDOM(e.cancelar, 'click', () => this.rendirse());
+    this._escucharDOM(e.practicar, 'click', () => this.pasarAPractica());
+    this._escucharDOM(e.mirar, 'click', () => { if (e.caido) e.caido.classList.add('hidden'); });
+    this._escucharDOM(e.volverCaido, 'click', () => this.rendirse());
+    this._escucharDOM(e.volver, 'click', () => this.volverAlMapa());
+    this._escucharDOM(e.otraVez, 'click', () => this.jugarOtraVez());
     this._cancelarConfirmacion();
-    this.montarTacticas();
-    this._escucharDOM(window, 'keydown', (event) => {
-      if (event.repeat || event.ctrlKey || event.altKey || event.metaKey || this._cleaned) return;
-      const target = event.target;
-      if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
-      if (/^[1-5]$/.test(event.key) && this.puedeJugar) {
-        event.preventDefault();
-        this.alternarCarta(Number(event.key) - 1);
-      } else if (event.key === 'Enter' && this.puedeJugar && (!target || target.tagName !== 'BUTTON')) {
-        event.preventDefault();
-        this.jugarTurno();
-      } else if (event.key === 'Escape') {
-        this._cancelarConfirmacion();
-        if (this.puedeJugar) { this.seleccion = []; this.refrescarMano(); }
-      }
-    });
-
-    if (this.el.reveal) this.el.reveal.classList.add('hidden');
-    this.limpiarMano();
-    this.pintarEnergia(0);
   }
 
-  _escucharDOM(target, event, callback) {
-    if (!target) return;
-    target.addEventListener(event, callback);
-    (this._domBindings = this._domBindings || []).push([target, event, callback]);
+  estadoBusqueda(titulo, texto) {
+    if (!this.el) return;
+    if (titulo != null && this.el.busqTitulo) this.el.busqTitulo.textContent = titulo;
+    if (texto != null && this.el.busqTexto) this.el.busqTexto.textContent = texto;
   }
 
-  /* FALLO QUE ESTO ARREGLA: estos oyentes se apuntaban pero NO se quitaban
-     nunca (init() solo vaciaba la lista). La escena de batalla se reutiliza,
-     así que cada combate añadía otro juego sobre los mismos botones y sobre
-     window: desde el segundo, "End turn" mandaba la jugada dos veces,
-     "Surrender" se rendía al primer toque sin pedir confirmación (el segundo
-     manejador confirmaba lo que el primero acababa de pedir) y las teclas 1-5
-     alternaban la carta dos veces, o sea, no la seleccionaban. */
-  _soltarDOM() {
-    (this._domBindings || []).forEach(([t, ev, cb]) => {
-      try { t.removeEventListener(ev, cb); } catch (e) { /* ya no existe */ }
-    });
-    this._domBindings = [];
-  }
-
-  montarTacticas() {
-    const bottom = this.ui.querySelector('.bf-bottom');
-    if (!bottom) return;
-    let panel = bottom.querySelector('.bf-tactics');
-    if (!panel) {
-      panel = document.createElement('div');
-      panel.className = 'bf-tactics';
-      const intent = document.createElement('div');
-      intent.className = 'bf-intent';
-      intent.setAttribute('aria-live', 'polite');
-      const preview = document.createElement('div');
-      preview.className = 'bf-card-preview';
-      const hint = document.createElement('div');
-      hint.className = 'bf-key-hint';
-      hint.textContent = '1–5 select · Enter play · Esc clear';
-      panel.append(intent, preview, hint);
-      bottom.prepend(panel);
+  _pintarVidaHUD(hp, maxHp) {
+    const e = this.el;
+    if (!e || !e.vida) return;
+    const p = Math.max(0, Math.min(1, hp / Math.max(1, maxHp)));
+    const ancho = Math.round(p * 1000) / 10 + '%';
+    if (this._hud.vida !== ancho) { e.vida.style.width = ancho; this._hud.vida = ancho; }
+    const clase = p > 0.5 ? '' : (p > 0.25 ? 'media' : 'baja');
+    if (this._hud.vidaClase !== clase) {
+      e.vidaBarra.classList.remove('media', 'baja');
+      if (clase) e.vidaBarra.classList.add(clase);
+      this._hud.vidaClase = clase;
     }
-    this.el.intent = panel.querySelector('.bf-intent');
-    this.el.preview = panel.querySelector('.bf-card-preview');
-    this.el.intent.textContent = 'Plan your turn';
-    this.el.preview.textContent = 'Both players choose before cards are revealed.';
+    const txt = Math.max(0, Math.round(hp)) + ' / ' + Math.round(maxHp);
+    if (this._hud.vidaTxt !== txt) { e.vidaTxt.textContent = txt; this._hud.vidaTxt = txt; }
   }
 
-  describirCarta(indice) {
-    const c = this.mano[indice];
-    if (!c || !this.el || !this.el.preview) return;
-    this.el.preview.textContent = `${c.name} · ${c.cost} energy · ${c.desc || ''}`;
+  _pintarSuperHUD(carga) {
+    const e = this.el;
+    if (!e) return;
+    const c = Math.max(0, Math.min(1, carga));
+    const k = Math.round(c * 50);
+    if (this._hud.super === k) return;
+    this._hud.super = k;
+    const lista = c >= 1;
+    if (e.superRelleno) e.superRelleno.style.width = (c * 100) + '%';
+    if (e.superBarra) e.superBarra.classList.toggle('lista', lista);
+    if (e.superTexto) e.superTexto.textContent = lista ? 'SUPER READY · E' : 'SUPER';
+    if (e.superAnillo) e.superAnillo.style.strokeDashoffset = String(176 * (1 - c));
+    if (e.superBtn) { e.superBtn.classList.toggle('listo', lista); e.superBtn.disabled = !lista; }
   }
 
-  refrescarTacticas() {
-    if (!this.el || !this.el.intent) return;
-    const cards = this.seleccion.map((i) => this.mano[i]).filter(Boolean);
-    const sum = (field) => cards.reduce((n, c) => n + (Number(c[field]) || 0), 0);
-    const bank = Math.min(2, Math.max(0, this.energiaMax - this.energiaGastada()));
-    const next = 3 + bank + sum('energyNext');
-    const state = this.puedeJugar ? 'Plan' : 'Submitted';
-    this.el.intent.textContent = `${state}: ⚔ ${sum('dmg')} · 🛡 ${sum('shield')} · 💚 ${sum('heal')} · Next energy ≈ ${next}`;
-    this.el.intent.title = 'Base card values before status effects and enemy defense. Next energy may change if the rival stuns you. Up to 2 unused energy carries over.';
-    if (this.el.endTurn) this.el.endTurn.textContent = cards.length ? `Play ${cards.length} card${cards.length === 1 ? '' : 's'}` : 'Pass · save energy';
+  aviso(texto, op) {
+    const el = this.el && this.el.aviso;
+    if (!el) return;
+    op = op || {};
+    el.textContent = texto;
+    el.classList.remove('hidden', 'pop', 'oro', 'peque');
+    if (op.oro) el.classList.add('oro');
+    if (op.peque) el.classList.add('peque');
+    void el.offsetWidth;                       // reinicia la animación
+    if (!this._reducedMotion) el.classList.add('pop');
+    if (this._plazoAviso) window.clearTimeout(this._plazoAviso);
+    this._plazoAviso = this._reloj(op.ms || 1100, () => { el.classList.add('hidden'); });
   }
 
-  estadoTexto(txt) {
-    if (this.el && this.el.status) this.el.status.textContent = txt;
+  alFeed(html) {
+    const f = this.el && this.el.feed;
+    if (!f) return;
+    const li = document.createElement('li');
+    li.innerHTML = html;
+    f.appendChild(li);
+    while (f.children.length > 5) f.removeChild(f.firstChild);
+    this._reloj(5200, () => { li.classList.add('sale'); this._reloj(420, () => li.remove()); });
+  }
+
+  _esc(t) {
+    return String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
   /**
-   * RENDIRSE, EN DOS PULSACIONES.
-   *
-   * Rendirse cuenta como derrota y gasta una de las batallas del día, así que
-   * no puede irse en un roce accidental — pero tampoco puede esconderse detrás
-   * de un `confirm()` del navegador ni de una ventana modal: si algo sale mal
-   * mientras se pinta esa ventana, el jugador se queda otra vez encerrado, que
-   * es justo el fallo que se está arreglando.
-   *
-   * La solución es que el propio botón pida la confirmación: primer toque pone
-   * "Confirm?" en rojo, segundo toque dentro de 3,5 s se rinde de verdad, y si
-   * no se toca vuelve solo a su sitio. Sin ventanas, sin nada que bloquee.
-   *
-   * Fuera de combate (buscando rival, o partida ya terminada) no hay nada que
-   * confirmar: no se pierde nada, así que sale directo.
+   * RENDIRSE, EN DOS PULSACIONES. En combate gasta una de las batallas del
+   * día, así que no puede irse en un roce; pero tampoco puede esconderse
+   * detrás de una ventana modal (si algo falla mientras se pinta, el jugador
+   * se queda encerrado). El propio botón pide la confirmación.
    */
   pedirRendicion(boton) {
-    if (this.estado !== 'combate') { this._cancelarConfirmacion(); this.rendirse(); return; }
-
-    if (this._confirmandoRendicion) {
-      this._cancelarConfirmacion();
-      this.rendirse();
-      return;
-    }
-
+    if (this.estado !== 'combate' && this.estado !== 'cuenta') { this._cancelarConfirmacion(); this.rendirse(); return; }
+    if (this._confirmandoRendicion) { this._cancelarConfirmacion(); this.rendirse(); return; }
     this._confirmandoRendicion = true;
     if (boton) { boton.classList.add('confirmar'); boton.textContent = 'Confirm?'; }
     if (this._plazoConfirmar) window.clearTimeout(this._plazoConfirmar);
-    this._plazoConfirmar = window.setTimeout(() => this._cancelarConfirmacion(), 3500);
+    this._plazoConfirmar = this._reloj(3500, () => this._cancelarConfirmacion());
   }
 
   _cancelarConfirmacion() {
     if (this._plazoConfirmar) { window.clearTimeout(this._plazoConfirmar); this._plazoConfirmar = null; }
     this._confirmandoRendicion = false;
-    (this._botonesRendirse || []).forEach((b) => {
-      if (!b) return;
-      b.classList.remove('confirmar');
-      b.textContent = this.estado === 'fin' ? 'Back to map' : 'Surrender';
+    const b = this.el && this.el.salir;
+    if (!b) return;
+    b.classList.remove('confirmar');
+    b.textContent = (this.estado === 'fin' || this.estado === 'caido') ? 'Back to map' : 'Surrender';
+  }
+
+  _escucharDOM(target, event, callback, opciones) {
+    if (!target) return;
+    target.addEventListener(event, callback, opciones);
+    (this._domBindings = this._domBindings || []).push([target, event, callback, opciones]);
+  }
+
+  _soltarDOM() {
+    (this._domBindings || []).forEach(([t, ev, cb, op]) => {
+      try { t.removeEventListener(ev, cb, op); } catch (e) { /* ya no existe */ }
     });
+    this._domBindings = [];
   }
 
-  limpiarMano() {
-    if (this.el && this.el.hand) this.el.hand.textContent = '';
-    this.seleccion = [];
-    if (this.el && this.el.endTurn) this.el.endTurn.disabled = true;
+  /** setTimeout que se cancela solo al limpiar la escena. */
+  _reloj(ms, fn) {
+    const run = this._battleRun;
+    const id = window.setTimeout(() => {
+      if (this._relojes) this._relojes.delete(id);
+      if (this._battleRun !== run) return;
+      try { fn(); } catch (e) { console.error('BattleScene reloj:', e); }
+    }, Math.max(0, ms || 0));
+    (this._relojes = this._relojes || new Set()).add(id);
+    return id;
   }
 
-  // ---- Temporizador de turno (barra + segundos, debajo del número de turno) ----
-  iniciarTemporizador(ms, remainingMs = ms) {
-    this.detenerTemporizador();
-    if (!this.el || !this.el.timer) return;
-    const total = Number.isFinite(ms) && ms > 0 ? ms : 20000;
-    const remaining = Number.isFinite(remainingMs) ? Math.max(0, Math.min(total, remainingMs)) : total;
-    this._turnDeadline = Date.now() + remaining;
+  _pararRelojes() {
+    if (this._relojes) this._relojes.forEach((id) => window.clearTimeout(id));
+    this._relojes = new Set();
+  }
 
-    const tick = () => {
-      const restante = Math.max(0, this._turnDeadline - Date.now());
-      const frac = restante / total;
-      if (this.el.timerFill) this.el.timerFill.style.width = (frac * 100) + '%';
-      if (this.el.timerText) this.el.timerText.textContent = Math.ceil(restante / 1000) + 's';
-      if (this.el.timer) this.el.timer.classList.toggle('low', frac < 0.25);
-      if (restante <= 0) {
-        this.puedeJugar = false;
-        this.detenerTemporizador();
-        this.refrescarMano();
-        this.estadoTexto('Time is up. Resolving the turn…');
+  // =========================================================================
+  // CONTROLES
+  // =========================================================================
+  montarControles() {
+    const e = this.el || {};
+    const fino = window.matchMedia && window.matchMedia('(pointer: fine)').matches;
+    const grueso = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    this._ponerTactil(!!(grueso || (!fino && (navigator.maxTouchPoints || 0) > 0)));
+
+    // ── Teclado (en window: Phaser comparte el teclado con el resto del juego) ──
+    const esCampo = (t) => t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+    this._escucharDOM(window, 'keydown', (ev) => {
+      if (this._cleaned || esCampo(ev.target) || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      const k = ev.code || ev.key;
+      if (/^(KeyW|KeyA|KeyS|KeyD|ArrowUp|ArrowDown|ArrowLeft|ArrowRight)$/.test(k)) {
+        this.teclas[k] = true;
+        if (this.estado === 'combate' || this.estado === 'cuenta') ev.preventDefault();
+      } else if (k === 'Space') {
+        ev.preventDefault();
+        if (!ev.repeat) this.dispararAuto(false);
+      } else if (k === 'KeyE' || k === 'KeyQ') {
+        if (!ev.repeat) {
+          if (this.apunte.raton) this.disparar(true, this.apunte.ang);
+          else this.dispararAuto(true);
+        }
+      } else if (k === 'Escape') {
+        this._cancelarConfirmacion();
       }
+    });
+    this._escucharDOM(window, 'keyup', (ev) => {
+      const k = ev.code || ev.key;
+      if (this.teclas[k]) this.teclas[k] = false;
+    });
+    // Al perder el foco (alt-tab) se sueltan todas: si no, el perro seguiría
+    // andando solo hacia donde iba al cambiar de ventana.
+    this._escucharDOM(window, 'blur', () => { this.teclas = {}; this.disparoMantenido = false; });
+
+    // ── Ratón (sobre el lienzo, con Phaser) ──
+    this._alMoverRaton = (p) => {
+      if (p.wasTouch || p.pointerType === 'touch') return;
+      this.apunte.raton = true;
+      this.apunte.ratonEn = performance.now();
+      this.apunte.ratonX = p.worldX; this.apunte.ratonY = p.worldY;
     };
-    this._timerTurno = this.time.addEvent({ delay: 200, loop: true, callback: tick });
-    tick();
+    this._alPulsarRaton = (p) => {
+      if (p.wasTouch || p.pointerType === 'touch') { this._ponerTactil(true); return; }
+      this._alMoverRaton(p);
+      if (p.rightButtonDown && p.rightButtonDown()) { this.disparar(true, this.apunte.ang); return; }
+      this.disparoMantenido = true;
+      this.disparar(false, this.apunte.ang);
+    };
+    this._alSoltarRaton = (p) => {
+      if (p.wasTouch || p.pointerType === 'touch') return;
+      if (!(p.leftButtonDown && p.leftButtonDown())) this.disparoMantenido = false;
+    };
+    this.input.on('pointermove', this._alMoverRaton);
+    this.input.on('pointerdown', this._alPulsarRaton);
+    this.input.on('pointerup', this._alSoltarRaton);
+    const lienzo = this.game.canvas;
+    this._escucharDOM(lienzo, 'contextmenu', (ev) => { if (!this._cleaned) ev.preventDefault(); });
+    this._escucharDOM(lienzo, 'pointerleave', () => { this.apunte.raton = false; this.disparoMantenido = false; });
+
+    // ── Mandos táctiles (DOM) ──
+    this._montarStick(e.zonaMover, e.stickMover, {
+      mover: (dx, dy) => { this.movTactil.x = dx; this.movTactil.y = dy; },
+      soltar: () => { this.movTactil.x = 0; this.movTactil.y = 0; }
+    });
+    const disparoTactil = (sup) => ({
+      empezar: () => { this.apunte.sup = sup; this.apunte.mostrar = false; },
+      mover: (dx, dy, largo) => {
+        if (largo > 0.22) { this.apunte.ang = Math.atan2(dy, dx); this.apunte.mostrar = true; this.apunte.tactil = true; }
+        else this.apunte.mostrar = false;
+      },
+      soltar: (dx, dy, largo) => {
+        const manual = largo > 0.22;
+        this.apunte.mostrar = false; this.apunte.tactil = false;
+        if (manual) this.disparar(sup, Math.atan2(dy, dx));
+        else this.dispararAuto(sup);
+      }
+    });
+    this._montarStick(e.zonaDisparo, e.stickDisparo, disparoTactil(false));
+    this._montarStick(e.superBtn, e.stickDisparo, Object.assign(disparoTactil(true), { fijo: true }));
   }
 
-  detenerTemporizador() {
-    if (this._timerTurno) { this._timerTurno.remove(); this._timerTurno = null; }
-    if (this.el && this.el.timerText) this.el.timerText.textContent = '';
-    if (this.el && this.el.timerFill) this.el.timerFill.style.width = '0%';
-    if (this.el && this.el.timer) this.el.timer.classList.remove('low');
+  _ponerTactil(si) {
+    this._tactil = !!si;
+    if (this.ui) this.ui.classList.toggle('tactil', this._tactil);
   }
 
-  pintarEnergia(gastada) {
-    if (!this.el || !this.el.energy) return;
-    this.el.energy.textContent = '';
-    for (let i = 0; i < this.energiaMax; i++) {
-      const pip = document.createElement('i');
-      pip.className = i < this.energiaMax - gastada ? 'on' : 'reserved';
-      this.el.energy.appendChild(pip);
+  /**
+   * Un joystick que aparece donde pones el dedo. `zona` recibe el toque y
+   * `stick` es el dibujo. Con `fijo` (el botón del súper) el centro es el
+   * propio botón. Captura el puntero: si el dedo sale de la zona, sigue.
+   */
+  _montarStick(zona, stick, fns) {
+    if (!zona || !stick) return;
+    const RADIO = 52;
+    let id = null, cx = 0, cy = 0, dx = 0, dy = 0;
+    const pomo = stick.querySelector('i');
+    const colocar = () => {
+      const r = zona.getBoundingClientRect();
+      if (!fns.fijo) { stick.style.left = (cx - r.left) + 'px'; stick.style.top = (cy - r.top) + 'px'; }
+      if (pomo) pomo.style.transform = 'translate(' + (dx * RADIO) + 'px,' + (dy * RADIO) + 'px)';
+    };
+    this._escucharDOM(zona, 'pointerdown', (ev) => {
+      if (id !== null || this._cleaned) return;
+      if (ev.pointerType === 'touch') this._ponerTactil(true);
+      if (fns.fijo && zona.disabled) return;
+      ev.preventDefault();
+      id = ev.pointerId;
+      try { zona.setPointerCapture(id); } catch (e) {}
+      if (fns.fijo) {
+        const r = zona.getBoundingClientRect();
+        cx = r.left + r.width / 2; cy = r.top + r.height / 2;
+        const zr = this.el.zonaDisparo && this.el.zonaDisparo.getBoundingClientRect();
+        if (zr) { stick.style.left = (cx - zr.left) + 'px'; stick.style.top = (cy - zr.top) + 'px'; }
+        stick.classList.add('super');
+      } else { cx = ev.clientX; cy = ev.clientY; }
+      dx = 0; dy = 0;
+      stick.classList.add('activo');
+      colocar();
+      if (fns.empezar) fns.empezar();
+    });
+    this._escucharDOM(zona, 'pointermove', (ev) => {
+      if (ev.pointerId !== id) return;
+      ev.preventDefault();
+      let x = (ev.clientX - cx) / RADIO, y = (ev.clientY - cy) / RADIO;
+      const l = Math.sqrt(x * x + y * y);
+      if (l > 1) { x /= l; y /= l; }
+      dx = x; dy = y;
+      colocar();
+      if (fns.mover) fns.mover(dx, dy, Math.min(1, l));
+    });
+    const acabar = (ev) => {
+      if (ev.pointerId !== id) return;
+      const largo = Math.sqrt(dx * dx + dy * dy);
+      const fx = dx, fy = dy;
+      id = null; dx = 0; dy = 0;
+      stick.classList.remove('activo', 'super');
+      stick.style.left = ''; stick.style.top = '';      // vuelve a su sitio de reposo
+      if (pomo) pomo.style.transform = '';
+      if (fns.soltar) fns.soltar(fx, fy, largo);
+    };
+    this._escucharDOM(zona, 'pointerup', acabar);
+    this._escucharDOM(zona, 'pointercancel', acabar);
+  }
+
+  /** El vector de movimiento que se pide ahora mismo (teclado o joystick). */
+  _movimiento() {
+    const t = this.teclas;
+    let x = (t.KeyD || t.ArrowRight ? 1 : 0) - (t.KeyA || t.ArrowLeft ? 1 : 0);
+    let y = (t.KeyS || t.ArrowDown ? 1 : 0) - (t.KeyW || t.ArrowUp ? 1 : 0);
+    if (!x && !y) { x = this.movTactil.x; y = this.movTactil.y; }
+    const l = Math.sqrt(x * x + y * y);
+    if (l < 0.2) return { x: 0, y: 0 };
+    return { x: x / l, y: y / l };          // a toda velocidad en cuanto se inclina
+  }
+
+  // =========================================================================
+  // SOCKET
+  // =========================================================================
+  on(evento, manejador) {
+    const run = this._battleRun;
+    const guardado = (data) => {
+      if (this._cleaned || this._battleRun !== run) return;
+      if (data && data.matchId && this.matchId && data.matchId !== this.matchId) return;
+      try { manejador(data || {}); } catch (e) { console.error('BattleScene ' + evento + ':', e); }
+    };
+    this.socket.on(evento, guardado);
+    this._listeners.push([evento, guardado]);
+  }
+
+  _soltarSocket() {
+    if (this.socket && this._listeners) {
+      this._listeners.forEach(([ev, fn]) => { try { this.socket.off(ev, fn); } catch (e) {} });
     }
-    if (this.el.energyCount) this.el.energyCount.textContent = `${this.energiaMax - gastada} / ${this.energiaMax}`;
+    this._listeners = [];
+    if (this.socket && this._alConectar) { try { this.socket.off('connect', this._alConectar); } catch (e) {} this._alConectar = null; }
   }
 
-  energiaGastada() {
-    return this.seleccion.reduce((t, i) => t + (Number(this.mano[i] && this.mano[i].cost) || 0), 0);
+  _emitir(ev, datos) {
+    try { if (this.socket && this.socket.connected) this.socket.emit(ev, datos); } catch (e) {}
   }
 
-  // Construye una carta del DOM a partir de los datos del servidor
-  _crearCartaDOM(carta) {
-    const btn = document.createElement('button');
-    btn.className = 'bf-cardbtn';
-    btn.type = 'button';
-    btn.dataset.type = carta.type || 'attack';
-
-    const coste = document.createElement('span');
-    coste.className = 'c-cost';
-    coste.textContent = carta.cost;
-
-    const emoji = document.createElement('span');
-    emoji.className = 'c-emoji';
-    emoji.textContent = carta.emoji || '⚔';
-
-    const nombre = document.createElement('span');
-    nombre.className = 'c-name';
-    nombre.textContent = carta.name;
-
-    // Valores reales calculados por el servidor (según el ataque de la mascota)
-    const stats = document.createElement('span');
-    stats.className = 'c-stats';
-    if (carta.dmg) { const s = document.createElement('span'); s.className = 's-dmg'; s.textContent = `⚔ ${carta.dmg}`; stats.appendChild(s); }
-    if (carta.shield) { const s = document.createElement('span'); s.className = 's-shield'; s.textContent = `🛡 ${carta.shield}`; stats.appendChild(s); }
-    if (carta.heal) { const s = document.createElement('span'); s.className = 's-heal'; s.textContent = `💚 ${carta.heal}`; stats.appendChild(s); }
-
-    const desc = document.createElement('span');
-    desc.className = 'c-desc';
-    desc.textContent = carta.desc || '';
-
-    btn.append(coste, emoji, nombre, stats, desc);
-    return btn;
-  }
-
-  pintarMano() {
-    if (!this.el || !this.el.hand) return;
-    this.el.hand.textContent = '';
-
-    this.mano.forEach((carta, i) => {
-      const btn = this._crearCartaDOM(carta);
-      btn.style.animationDelay = (i * 60) + 'ms';
-      btn.addEventListener('click', () => this.alternarCarta(i, btn));
-      btn.addEventListener('focus', () => this.describirCarta(i));
-      btn.addEventListener('pointerenter', () => this.describirCarta(i));
-      btn.setAttribute('aria-keyshortcuts', String(i + 1));
-      btn.setAttribute('aria-label', `${i + 1}. ${carta.name}, ${carta.cost} energy. ${carta.desc || ''}`);
-      this.el.hand.appendChild(btn);
-    });
-
-    this.refrescarMano();
-  }
-
-  alternarCarta(indice, btn) {
-    if (!this.puedeJugar || !Number.isInteger(indice) || !this.mano[indice]) return;
-    this.describirCarta(indice);
-
-    const pos = this.seleccion.indexOf(indice);
-    if (pos >= 0) {
-      this.seleccion.splice(pos, 1);
-    } else {
-      const coste = this.mano[indice].cost;
-      if (this.energiaGastada() + coste > this.energiaMax) {
-        this.estadoTexto('Not enough energy. Remove a selected card first.');
-        return;
-      }
-      this.seleccion.push(indice);
-    }
-    this.refrescarMano();
-  }
-
-  // Marca las elegidas y desactiva las que ya no caben en la energía restante
-  refrescarMano() {
-    if (!this.el || !this.el.hand) return;
-    const gastada = this.energiaGastada();
-    const restante = this.energiaMax - gastada;
-
-    Array.from(this.el.hand.children).forEach((btn, i) => {
-      const elegida = this.seleccion.includes(i);
-      btn.classList.toggle('sel', elegida);
-      btn.setAttribute('aria-pressed', String(elegida));
-      if (elegida) btn.dataset.order = String(this.seleccion.indexOf(i) + 1);
-      else delete btn.dataset.order;
-      btn.disabled = !this.puedeJugar || (!elegida && this.mano[i].cost > restante);
-    });
-
-    this.pintarEnergia(gastada);
-    if (this.el.endTurn) this.el.endTurn.disabled = !this.puedeJugar;
-    this.refrescarTacticas();
-  }
-
-  pintarLuchadores() {
-    if (!this.el) return;
-
-    const pinta = (destino, datos) => {
-      if (!datos) return;
-      destino.name.textContent = datos.petName || '—';
-      destino.lvl.textContent = `(Lv.${datos.level})`;
-      destino.player.textContent = datos.playerName || '';
-      destino.addr.textContent = datos.addressShort || (datos.isBot ? 'BOT' : '');
-
-      // RETRATO: el sprite REAL de la mascota, no un emoji.
-      // Antes esto ponía '🐾' (o '🤖' para el bot), así que el jugador no veía
-      // a su perro por ningún lado. Se usa la misma imagen que el juego ya
-      // carga para la mascota en el mapa, puesta como fondo del círculo para
-      // que se recorte solo y no deforme.
-      if (destino.portrait) {
-        destino.portrait.textContent = '';
-        destino.portrait.style.backgroundImage = `url('${BattleScene.RETRATO_MASCOTA}')`;
-        destino.portrait.style.backgroundSize = 'contain';
-        destino.portrait.style.backgroundRepeat = 'no-repeat';
-        destino.portrait.style.backgroundPosition = 'center';
-        // El bot se distingue con un borde distinto en vez de otro dibujo:
-        // sigue siendo un perro, solo que no es de nadie.
-        destino.portrait.classList.toggle('bf-portrait-bot', !!datos.isBot);
-      }
-      const p = Math.max(0, Math.min(1, datos.hp / datos.maxHp));
-      destino.hp.style.width = (p * 100) + '%';
-      destino.hpTxt.textContent = `${datos.hp}/${datos.maxHp} HP`;
+  arrancarBusqueda() {
+    if (this._buscandoIniciado || this._cleaned) return;
+    this._buscandoIniciado = true;
+    this.registrarSocket();
+    this._pedirPartida();
+    // Cronómetro de la búsqueda, con el reloj del navegador (corre aunque
+    // Phaser esté parado con la pestaña oculta). Con _reloj y no con un
+    // setInterval: se apaga solo al limpiar la escena y al dejar de buscar.
+    const t0 = Date.now();
+    const tic = () => {
+      if (this.estado !== 'buscando' || !this.el || !this.el.busqTiempo) return;
+      const s = Math.floor((Date.now() - t0) / 1000);
+      this.el.busqTiempo.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+      this._reloj(500, tic);
     };
-
-    pinta(this.el.you, this.yo);
-    pinta(this.el.rival, this.rival);
+    tic();
   }
 
-  mostrarEscudos(tuyo, rival) {
-    if (!this.el) return;
-    const pinta = (destino, datos, escudo) => {
-      destino.shield.textContent = escudo > 0 ? `🛡️ ${escudo}` : '';
-      if (destino.shieldBar && datos) {
-        const frac = Math.max(0, Math.min(1, escudo / datos.maxHp));
-        destino.shieldBar.style.width = (frac * 100) + '%';
-      }
-    };
-    pinta(this.el.you, this.yo, tuyo);
-    pinta(this.el.rival, this.rival, rival);
-  }
-
-  // Muestra las cartas jugadas por ambos, en el centro, y se va sola en ~2.2s
-  mostrarReveal(tusCartas, cartasRival) {
-    if (!this.el || !this.el.reveal) return;
-    const llenar = (cont, cartas) => {
-      if (!cont) return;
-      cont.textContent = '';
-      if (!cartas || !cartas.length) {
-        const mini = document.createElement('div');
-        mini.className = 'bf-mini';
-        mini.innerHTML = '<div class="m-emoji">💤</div><div class="m-name">Pass</div>';
-        cont.appendChild(mini);
-        return;
-      }
-      cartas.forEach((c, i) => {
-        const mini = document.createElement('div');
-        mini.className = 'bf-mini';
-        mini.style.animationDelay = (i * 90) + 'ms';
-        const e = document.createElement('div'); e.className = 'm-emoji'; e.textContent = c.emoji || '⚔';
-        const n = document.createElement('div'); n.className = 'm-name'; n.textContent = c.name || '';
-        mini.append(e, n);
-        cont.appendChild(mini);
+  _pedirPartida() {
+    const ev = this.modo === 'bot' ? 'brawl:bot' : (this.modo === 'practica' ? 'brawl:practica' : 'brawl:cola');
+    this._emitir(ev);
+    /* VIGILANTE. Si la petición se pierde (el socket se reconecta justo en
+       medio), se repite una vez; si aun así no llega nada, se avisa y se
+       vuelve al mapa en vez de dejar al jugador mirando un "buscando…" eterno.
+       En PvP solo se vigila que la cola conteste: esperar a otros jugadores
+       puede tardar de verdad, y para eso está el botón de cancelar. */
+    const run = this._battleRun;
+    this._intentoPeticion = (this._intentoPeticion || 0) + 1;
+    const intentoDe = this._intentoPeticion;
+    this._reloj(6000, () => {
+      if (this._battleRun !== run || this.estado !== 'buscando' || this._respuestaCola || this.matchId) return;
+      if (intentoDe !== this._intentoPeticion) return;
+      console.warn('⏳ La arena no contestó; se repite la petición');
+      this._reintentado = true;
+      this._emitir(ev);
+      this._reloj(8000, () => {
+        if (this._battleRun !== run || this.estado !== 'buscando' || this._respuestaCola || this.matchId) return;
+        this.estadoBusqueda('Could not start the battle', 'The server did not answer. Back to the map…');
+        this.estado = 'fin';
+        this.volverEnBreve(2600);
       });
-    };
-    llenar(this.el.revealYou, tusCartas);
-    llenar(this.el.revealRival, cartasRival);
+    });
+    // En PvP, a los 4 minutos sin rival se para (y se ofrece practicar).
+    if (this.modo === 'pvp') {
+      this._reloj(240000, () => {
+        if (this._battleRun !== run || this.estado !== 'buscando' || this.matchId) return;
+        this.estadoBusqueda('No players right now', 'Try again later — or practice against bots meanwhile.');
+        this._emitir('brawl:salirCola');
+      });
+    }
+  }
 
-    this.el.reveal.classList.remove('hidden', 'out');
-    // forzar reinicio de la animación de entrada
-    void this.el.reveal.offsetWidth;
+  pasarAPractica() {
+    if (this.estado !== 'buscando') return;
+    this._aceptaPractica = true;
+    this.modo = 'practica';
+    this._respuestaCola = false;
+    if (this.el && this.el.practicar) this.el.practicar.classList.add('hidden');
+    if (this.el && this.el.modo) this.el.modo.textContent = 'Practice';
+    if (this.el && this.el.sala) this.el.sala.textContent = '';
+    this.estadoBusqueda('Preparing practice…', 'You against 3 bots. No points — just training.');
+    this._pedirPartida();
+  }
 
-    if (this._revealTimer) this._revealTimer.remove();
-    this._revealTimer = this.time.delayedCall(2200, () => {
-      if (!this.el || !this.el.reveal) return;
-      this.el.reveal.classList.add('out');
-      this.time.delayedCall(350, () => { if (this.el && this.el.reveal) this.el.reveal.classList.add('hidden'); });
+  registrarSocket() {
+    this.on('brawl:enCola', (d) => {
+      this._respuestaCola = true;
+      if (this.estado !== 'buscando' || this.modo !== 'pvp') return;
+      this.estadoBusqueda('Searching for players…', 'Be the last dog standing. Up to 6 players.');
+      if (this.el.sala) this.el.sala.textContent = d.enCola > 1 ? (d.enCola + ' players searching') : '';
+    });
+    this.on('brawl:sala', (d) => {
+      this._respuestaCola = true;
+      if (this.estado !== 'buscando' || this.modo !== 'pvp') return;
+      const n = Number(d.jugadores) || 2, max = Number(d.max) || 6;
+      const seg = Math.ceil((Number(d.empiezaEnMs) || 0) / 1000);
+      this.estadoBusqueda('Players found!', 'Waiting a few seconds for more to join…');
+      if (this.el.sala) {
+        let puntos = '';
+        for (let i = 0; i < max; i++) puntos += '<i class="' + (i < n ? 'lleno' : '') + '"></i>';
+        this.el.sala.innerHTML = n + ' / ' + max + ' · starting in ' + seg + 's <span class="puntos">' + puntos + '</span>';
+      }
+    });
+    this.on('brawl:fueraCola', () => {});
+    this.on('brawl:inicio', (d) => this.montarPartida(d));
+    this.on('brawl:ya', () => this.empezarCombate());
+    this.on('brawl:snap', (d) => this.alSnap(d));
+    this.on('brawl:balas', (d) => this.alBalas(d));
+    this.on('brawl:golpe', (d) => this.alGolpe(d));
+    this.on('brawl:caja', (d) => this.alCaja(d));
+    this.on('brawl:objeto', (d) => this.alObjeto(d));
+    this.on('brawl:recoger', (d) => this.alRecoger(d));
+    this.on('brawl:ko', (d) => this.alKO(d));
+    this.on('brawl:fin', (d) => this.mostrarResultado(d));
+    this.on('brawl:error', (d) => {
+      /* Tras repetir la petición, "ya estás en una batalla" casi siempre es la
+         PRIMERA petición, que sigue en marcha (el servidor tardó). Irse ahora
+         dejaría esa partida empezando sin nadie (y gastaría una diaria): se
+         sigue esperando a su brawl:inicio. */
+      if (d.error === 'already_in_battle' && this._reintentado && this.estado === 'buscando') {
+        this._reintentado = false;
+        return;
+      }
+      this._respuestaCola = true;
+      let msg = 'Could not start the battle.';
+      if (d.error === 'not_authenticated') msg = 'You must be logged in to battle.';
+      else if (d.error === 'already_in_battle') msg = 'You are already in a battle (maybe in another tab).';
+      else if (d.error === 'daily_limit') msg = 'You already played your ' + ((d.daily && d.daily.max) || 5) + ' daily battles. Come back tomorrow!';
+      if (this.estado === 'buscando') this.estadoBusqueda('Oops', msg + ' Back to the map…');
+      else this.aviso(msg, { peque: true, ms: 3000 });
+      this.estado = 'fin';
+      this._cancelarConfirmacion();
+      this.volverEnBreve(3200);
+    });
+    // Si se cae la conexión a mitad, se avisa; el servidor ya te da por caído.
+    this.on('disconnect', () => {
+      if (this.estado === 'combate' || this.estado === 'cuenta') this.aviso('Connection lost', { peque: true, ms: 2500 });
     });
   }
 
-  // Número flotante (daño/cura/escudo) sobre la mascota indicada
-  flotarNumero(texto, clase, lado) {
-    if (!this.el || !this.el.floaters) return;
-    const f = document.createElement('div');
-    f.className = 'bf-float ' + (clase || 'dmg');
-    f.textContent = texto;
-    // 'you' a la izquierda-abajo, 'rival' a la derecha-abajo (donde están las mascotas)
-    f.style.left = (lado === 'rival' ? 72 : 24) + '%';
-    f.style.top = '58%';
-    this.el.floaters.appendChild(f);
-    this.time.delayedCall(1150, () => f.remove());
+  // =========================================================================
+  // LA PARTIDA
+  // =========================================================================
+  montarPartida(d) {
+    if (!d || !d.matchId || !d.arena || !Array.isArray(d.luchadores)) return;
+    if (this.matchId) return;                     // ya estamos en una
+    const modoRecibido = d.modo === 'bot' ? 'bot' : (d.modo === 'practica' ? 'practica' : 'pvp');
+    if (modoRecibido !== this.modo && !(modoRecibido === 'practica' && this._aceptaPractica)) {
+      console.warn('⚠️ Se ignora una partida "' + modoRecibido + '": se pidió "' + this.modo + '"');
+      return;
+    }
+    const M = window.GFBrawlMotor;
+    if (!M) { console.error('❌ Falta gf-brawl-motor.js'); this.rendirse(); return; }
+
+    this.modo = modoRecibido;
+    this.matchId = d.matchId;
+    this.partida = d;
+    this.yoId = d.yo;
+    this.armas = d.armas || {};
+    this.R = M.crearRejilla(d.arena);
+    // Las cajas, como las cuenta el servidor (por si alguna llega ya tocada).
+    const vivas = new Set();
+    (d.arena.cajas || []).forEach(([i, vida, max]) => {
+      vivas.add(i);
+      if (this.R.cajas[i]) { this.R.cajas[i].vida = vida; this.R.cajas[i].max = max; }
+    });
+    Object.keys(this.R.cajas).forEach((k) => { if (!vivas.has(Number(k))) M.romperCaja(this.R, Number(k)); });
+
+    this.quitarFondoDeEspera();
+    this.arena = this.construirArena(d.arena.id, d.arena.filas);
+    this.arena.cajas.forEach((c, i) => { if (!vivas.has(i)) this._cajaRota(i, c, false); });
+
+    this._ajustarZoom();
+    const cam = this.cameras.main;
+    const m = BattleScene.MARCO * 32;
+    cam.setBounds(-m, -m, this.R.anchoPx + 2 * m, this.R.altoPx + 2 * m);
+
+    d.luchadores.forEach((l) => this.crearVista(l));
+    const yo = this.vistas.get(this.yoId);
+    if (yo) {
+      this.pred = { x: yo.x, y: yo.y };
+      cam.centerOn(yo.x, yo.y);
+      this._pintarVidaHUD(yo.hp, yo.maxHp);
+      if (this.el && this.el.nivel) this.el.nivel.textContent = 'Lv.' + (yo.datos.nivel || 1);
+      if (this.el && this.el.nombre) this.el.nombre.textContent = yo.datos.petName || 'Your dog';
+    }
+    // Los animales, a por sus sprites (mientras, se ven como perro).
+    const run = this._battleRun;
+    new Set(d.luchadores.map((l) => l.especie)).forEach((esp) => {
+      this.cargarEspecie(esp).then(() => {
+        if (this._cleaned || this._battleRun !== run) return;
+        this.vistas.forEach((v) => { if (v.especie === esp && v.vivo) this._vestir(v); });
+      });
+    });
+
+    this.zona = d.zona;
+    this.zonaR = d.zona ? d.zona.r0 : null;
+    this.zonaRObjetivo = this.zonaR;
+    this.quedan = d.luchadores.length;
+    if (this.el && this.el.quedan) this.el.quedan.textContent = String(this.quedan);
+    if (this.el && this.el.busqueda) this.el.busqueda.classList.add('hidden');
+    const rival = d.luchadores.find((l) => l.id !== this.yoId);
+    if (this.el && this.el.modo) {
+      const nombreArena = d.arena.nombre ? ' · ' + d.arena.nombre : '';
+      this.el.modo.textContent = this.modo === 'bot'
+        ? 'Daily ' + (d.ronda || '') + '/5' + (rival ? ' · vs ' + (rival.etiqueta || rival.petName) : '')
+        : (this.modo === 'practica' ? 'Practice' : 'Arena PvP') + nombreArena;
+    }
+    if (this.ui) this.ui.classList.remove('buscando');
+
+    // La cuenta atrás, con el reloj del navegador.
+    this.estado = 'cuenta';
+    this._cancelarConfirmacion();
+    const cuenta = Math.max(0, Number(d.cuentaMs) || 0);
+    const pasos = Math.floor(cuenta / 1000);
+    for (let i = 0; i < pasos; i++) {
+      const n = pasos - i;
+      this._reloj(cuenta - n * 1000, () => {
+        if (this.estado === 'cuenta') { this.aviso(String(n), { ms: 900 }); this._sonar('cuenta'); }
+      });
+    }
+    // Por si 'brawl:ya' se pierde o llega tarde: el combate empieza igual.
+    this._reloj(cuenta + 1500, () => { if (this.estado === 'cuenta') this.empezarCombate(); });
   }
 
-  // Aviso para móviles en vertical: se pide girar el teléfono
+  empezarCombate() {
+    if (this.estado !== 'cuenta') return;
+    this.estado = 'combate';
+    this.tCombateLocal = performance.now();
+    this._ultimoSnap = this.tCombateLocal;
+    this.aviso('FIGHT!', { oro: true, ms: 900 });
+    this._sonar('ya');
+    this._cancelarConfirmacion();
+  }
+
+  alSnap(d) {
+    if (!this.matchId || !Array.isArray(d.f)) return;
+    const ahora = performance.now();
+    this._ultimoSnap = ahora;
+    if (Number.isFinite(d.z)) this.zonaRObjetivo = d.z;
+    const vistos = new Set();
+    for (let i = 0; i < d.f.length; i++) {
+      const f = d.f[i];
+      const v = this.vistas.get(f[0]);
+      if (!v || !v.vivo) continue;
+      vistos.add(f[0]);
+      v.hp = f[3];
+      v.andando = !!(f[4] & 2);
+      v.enArbusto = !!(f[4] & 4);
+      v.potencia = f[5] || 0;
+      if (f[6]) v.maxHp = f[6];
+      if (v.yo) continue;
+      v.mira = (f[4] & 8) ? -1 : 1;
+      if (v.oculto) {
+        // Reaparece: sin interpolar desde donde se escondió (sería un fogonazo
+        // cruzando media arena), se planta donde está.
+        v.buffer.length = 0;
+        v.x = f[1]; v.y = f[2];
+      }
+      v.oculto = false;
+      v.buffer.push({ t: ahora, x: f[1], y: f[2] });
+      if (v.buffer.length > 24) v.buffer.splice(0, v.buffer.length - 24);
+    }
+    // Los que no vienen están escondidos (en la hierba, lejos de ti).
+    this.vistas.forEach((v, id) => { if (!v.yo && v.vivo && !vistos.has(id)) v.oculto = true; });
+
+    const y = d.y;
+    if (y) {
+      this.municion = (Number(y.m) || 0) / 100;
+      this.superCarga = (Number(y.s) || 0) / 100;
+      const yo = this.vistas.get(this.yoId);
+      if (yo) { yo.hp = y.hp; this._pintarVidaHUD(yo.hp, yo.maxHp); }
+      if (Number(y.c) > this.cAplicada) {
+        if (y.x != null && y.y != null) this._recolocar(Number(y.x), Number(y.y));
+        this.cAplicada = Number(y.c);
+      }
+    }
+    this._pintarSuperHUD(this.superCarga);
+  }
+
+  /** El servidor dice que tu perro está en otro sitio: se recoloca, suave. */
+  _recolocar(x, y) {
+    if (!this.pred) return;
+    const dx = this.pred.x - x, dy = this.pred.y - y;
+    if (Math.abs(dx) > 64 || Math.abs(dy) > 64) { this.desvio.x = 0; this.desvio.y = 0; }
+    else { this.desvio.x += dx; this.desvio.y += dy; }
+    this.pred.x = x; this.pred.y = y;
+    this.envioX = NaN;          // que la próxima entrada salga ya, con la c nueva
+  }
+
+  // ── Disparos ──────────────────────────────────────────────────────────────
+  _armaMia(sup) {
+    const yo = this.vistas.get(this.yoId);
+    if (!yo || !this.armas) return null;
+    return this.armas[sup ? yo.datos.super : yo.datos.arma] || null;
+  }
+
+  disparar(sup, ang) {
+    if (this.estado !== 'combate' || !Number.isFinite(ang)) return false;
+    const yo = this.vistas.get(this.yoId);
+    if (!yo || !yo.vivo || !this.pred) return false;
+    const arma = this._armaMia(sup);
+    if (!arma) return false;
+    const ahora = performance.now();
+    if (ahora - this.ultimoDisparoLocal < arma.cadencia) return false;
+    if (sup) {
+      if (this.superCarga < 1) return false;
+      this.superCarga = 0;
+      this._pintarSuperHUD(0);
+    } else {
+      if (this.municion < 1) { this._sinMunicion(yo); return false; }
+      this.municion -= 1;
+    }
+    this.ultimoDisparoLocal = ahora;
+    const s = ++this.seqDisparo;
+    this._emitir('brawl:disparo', { a: Math.round(ang * 1000) / 1000, sup: sup ? 1 : 0, s });
+    // Se dibuja YA, sin esperar al servidor; luego se casa con la de verdad.
+    const balas = arma.balas || 1;
+    for (let i = 0; i < balas; i++) {
+      const off = balas > 1 ? (i / (balas - 1) - 0.5) * arma.abanico * Math.PI / 180 : 0;
+      this._nuevaBala({
+        id: null, duenio: this.yoId, x: this.pred.x, y: this.pred.y, ang: ang + off,
+        vel: arma.vel, alcance: arma.alcance, radio: arma.radio, tipo: arma.tipo,
+        atraviesa: !!arma.atraviesa, prevista: true, s, orden: i
+      });
+    }
+    if (Math.abs(Math.cos(ang)) > 0.2) yo.mira = Math.cos(ang) > 0 ? 1 : -1;
+    this._fogonazo(yo, ang, sup);
+    if (sup) this._sonar(yo.especie === 'perro' ? 'aullido' : 'golpe');
+    else this._sonar(this.seqDisparo % 2 ? 'ladrido_1' : 'ladrido_2', { detune: (Math.random() - 0.5) * 120 });
+    return true;
+  }
+
+  /** Disparo con apuntado automático al rival visible más cercano. */
+  dispararAuto(sup) {
+    const ang = this._anguloAuto(sup);
+    return this.disparar(sup, ang);
+  }
+
+  _anguloAuto(sup) {
+    const yo = this.vistas.get(this.yoId);
+    if (!yo || !this.pred) return 0;
+    const arma = this._armaMia(sup) || { alcance: 230, vel: 360 };
+    let mejor = null, md = Infinity;
+    this.vistas.forEach((v) => {
+      if (v.yo || !v.vivo || v.oculto) return;
+      const d = Math.hypot(v.x - this.pred.x, v.y - this.pred.y);
+      // Un poco de preferencia por lo que está a tiro.
+      const peso = d <= arma.alcance * 1.1 ? d : d + 1000;
+      if (peso < md) { md = peso; mejor = v; }
+    });
+    if (!mejor) return this.apunte.ang || (yo.mira < 0 ? Math.PI : 0);
+    // Adelantar el tiro con la velocidad que lleva (de sus dos últimas posiciones).
+    let vx = 0, vy = 0;
+    const b = mejor.buffer;
+    if (b.length >= 2) {
+      const a1 = b[b.length - 1], a0 = b[b.length - 2];
+      const dt = Math.max(16, a1.t - a0.t) / 1000;
+      vx = (a1.x - a0.x) / dt; vy = (a1.y - a0.y) / dt;
+    }
+    const d = Math.hypot(mejor.x - this.pred.x, mejor.y - this.pred.y);
+    const t = d / Math.max(60, arma.vel || 360);
+    return Math.atan2(mejor.y + vy * t * 0.7 - this.pred.y, mejor.x + vx * t * 0.7 - this.pred.x);
+  }
+
+  _sinMunicion(yo) {
+    if (!yo || !yo.municion || this._parpadeoMunicion) return;
+    this._parpadeoMunicion = true;
+    yo.municion.forEach((m) => { m.fillColor = 0xe2554a; });
+    this._reloj(160, () => {
+      this._parpadeoMunicion = false;
+      const v = this.vistas.get(this.yoId);
+      if (v && v.municion) v.municion.forEach((m) => { m.fillColor = BattleScene.COLOR.municion; });
+    });
+  }
+
+  _nuevaBala(o) {
+    const A = window.GFBatallaArte;
+    const clave = A ? A.pieza('p_' + (o.tipo || 'onda')) : null;
+    if (this.balasVista.length >= BattleScene.MAX_BALAS) {
+      const vieja = this.balasVista.shift();
+      if (vieja && vieja.spr) vieja.spr.destroy();
+    }
+    let spr = null;
+    if (clave && this.textures.exists(clave)) {
+      spr = this.add.image(o.x, o.y, clave).setRotation(o.ang).setDepth(40000);
+      if (o.tipo === 'aullido' || o.tipo === 'fuego') spr.setBlendMode(Phaser.BlendModes.ADD);
+    } else {
+      spr = this.add.circle(o.x, o.y, Math.max(3, o.radio || 6), 0xffffff).setDepth(40000);
+    }
+    const b = Object.assign({ dx: Math.cos(o.ang), dy: Math.sin(o.ang), resto: o.alcance, nace: performance.now(), spr, golpeados: new Set() }, o);
+    this.balasVista.push(b);
+    return b;
+  }
+
+  alBalas(d) {
+    if (!Array.isArray(d.b)) return;
+    if (d.o === this.yoId && d.s != null) {
+      // Las mías: casar las dibujadas con su id de verdad.
+      const mias = this.balasVista.filter((b) => b.prevista && b.s === d.s && b.id == null);
+      if (mias.length) {
+        mias.sort((a, b) => a.orden - b.orden);
+        d.b.forEach((datos, i) => { if (mias[i]) { mias[i].id = datos[0]; mias[i].prevista = false; } });
+        return;
+      }
+    }
+    if (document.hidden) return;              // nada que dibujar ahora
+    d.b.forEach((x) => {
+      this._nuevaBala({ id: x[0], duenio: d.o, x: x[1], y: x[2], ang: x[3], vel: x[4], alcance: x[5], radio: x[6], tipo: x[7], atraviesa: !!d.sup && (x[7] === 'aullido' || x[7] === 'embestida') });
+    });
+    const quien = this.vistas.get(d.o);
+    if (quien && !quien.yo) {
+      if (Math.abs(Math.cos(d.b[0][3])) > 0.2) quien.mira = Math.cos(d.b[0][3]) > 0 ? 1 : -1;
+      this._fogonazo(quien, d.b[0][3], !!d.sup);
+      if (quien.especie === 'perro') {
+        this._sonar(d.sup ? 'aullido' : 'ladrido_2', { x: quien.x, y: quien.y, vol: 0.7, detune: 150 + Math.random() * 150 });
+      } else if (d.sup) this._sonar('golpe', { x: quien.x, y: quien.y, vol: 0.8, detune: -300 });
+    }
+  }
+
+  _moverBalas(dt) {
+    const M = window.GFBrawlMotor;
+    if (!M || !this.R) return;
+    const ahora = performance.now();
+    const quedan = [];
+    for (let i = 0; i < this.balasVista.length; i++) {
+      const b = this.balasVista[i];
+      // Una bala dibujada que el servidor no confirma en medio segundo es que
+      // no salió (te quedaste sin munición en el servidor): se apaga.
+      if (b.prevista && b.id == null && ahora - b.nace > 600) { this._quitarBala(b, false); continue; }
+      const choque = M.avanzarBala(this.R, b, Math.min(b.resto, b.vel * dt), (bb) => {
+        if (bb.atraviesa) return false;
+        let tocado = false;
+        this.vistas.forEach((v) => {
+          if (tocado || !v.vivo || v.oculto || v.id === bb.duenio) return;
+          const rr = 11 + (bb.radio || 6);
+          if ((v.x - bb.x) * (v.x - bb.x) + (v.y - bb.y) * (v.y - bb.y) <= rr * rr) tocado = true;
+        });
+        return tocado;
+      });
+      if (b.spr) b.spr.setPosition(b.x, b.y);
+      if (choque) { this._quitarBala(b, !!(choque.muro || choque.caja != null)); continue; }
+      if (b.resto <= 0) { this._quitarBala(b, false); continue; }
+      quedan.push(b);
+    }
+    this.balasVista = quedan;
+  }
+
+  _quitarBala(b, contraMuro) {
+    if (b.spr) {
+      if (contraMuro && !document.hidden) this._chispas(b.x, b.y, 4, 0xe8dcbc, 18);
+      b.spr.destroy();
+      b.spr = null;
+    }
+  }
+
+  alGolpe(d) {
+    // La bala que dio desaparece (si no atraviesa).
+    for (let i = 0; i < this.balasVista.length; i++) {
+      const b = this.balasVista[i];
+      if (b.id === d.b && !b.atraviesa) { this._quitarBala(b, false); this.balasVista.splice(i, 1); break; }
+    }
+    const v = this.vistas.get(d.t);
+    if (!v) return;
+    v.hp = d.hp;
+    v.golpeHasta = performance.now() + 90;
+    if (!document.hidden) {
+      const col = d.sup ? BattleScene.COLOR.oro : (v.yo ? 0xff7a6a : 0xfff0c0);
+      this._impacto(d.x, d.y, col, !!d.sup);
+      this._numero(v.x, v.y - (v.altoSprite || 28), '-' + d.d, v.yo ? '#ff8f83' : (d.sup ? '#ffd24a' : '#ffffff'), !!d.sup);
+    }
+    if (v.yo || d.o === this.yoId) this._sonar('golpe', { detune: v.yo ? -200 : 0 });
+    if (v.yo) {
+      this._pintarVidaHUD(v.hp, v.maxHp);
+      if (this.el && this.el.dolor) {
+        this.el.dolor.classList.add('activo');
+        this._reloj(120, () => this.el && this.el.dolor && this.el.dolor.classList.remove('activo'));
+      }
+      if (!this._reducedMotion) this.cameras.main.shake(110, d.sup ? 0.008 : 0.004);
+    }
+  }
+
+  alCaja(d) {
+    const M = window.GFBrawlMotor;
+    if (this.R) {
+      if (d.rota) M.romperCaja(this.R, d.i);
+      else if (this.R.cajas[d.i]) this.R.cajas[d.i].vida = d.vida;
+    }
+    const c = this.arena && this.arena.cajas.get(d.i);
+    if (!c || c.rota) return;
+    if (d.rota) { this._cajaRota(d.i, c, true); return; }
+    const cat = this._cat || {};
+    if (!c.respaldo && d.vida <= d.max / 2) c.img.setFrame(c.oro ? cat.caja_oro_2 : cat.caja_2);
+    if (!this._reducedMotion && !document.hidden) {
+      const x0 = c.img.x;
+      this.tweens.add({ targets: c.img, x: { from: x0 - 2, to: x0 }, duration: 70, ease: 'Sine.easeOut', repeat: 1, onComplete: () => { if (c.img) c.img.x = x0; } });
+      this._chispas(c.img.x, c.img.y, 5, 0xc9975a, 20);
+    }
+  }
+
+  _cajaRota(i, c, conEfecto) {
+    c.rota = true;
+    const cat = this._cat || {};
+    if (c.respaldo) { c.img.setAlpha(0.25); c.img.setDepth(-980); return; }
+    c.img.setFrame(cat.caja_3).setDepth(-980);
+    if (conEfecto && !document.hidden) {
+      const A = window.GFBatallaArte;
+      this._sonar('caja', { x: c.img.x, y: c.img.y });
+      this._chispas(c.img.x, c.img.y, 12, c.oro ? BattleScene.COLOR.oro : 0xc9975a, 34);
+      if (A) this._pieza('humo', c.img.x, c.img.y, { color: 0xe8dcbc, escala: 0.3, alfa: 0.7, dura: 520, mezcla: false, tween: { scale: 0.7, alpha: 0, y: c.img.y - 12 } });
+    }
+  }
+
+  alObjeto(d) {
+    if (this.huesosVista.has(d.id)) return;
+    const cat = this._cat || {};
+    const A = window.GFBatallaArte;
+    const T = BattleScene.TILESET;
+    const brillo = (A && this.textures.exists(A.pieza('brillo')))
+      ? this.add.image(d.x, d.y, A.pieza('brillo')).setTint(BattleScene.COLOR.oro).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(34, 22).setAlpha(0.7).setDepth(d.y - 21)
+      : null;
+    const img = this.textures.exists(T)
+      ? this.add.image(d.x, d.y, T, cat.hueso).setDepth(d.y - 20)
+      : this.add.rectangle(d.x, d.y, 16, 6, 0xf3ecd8).setDepth(d.y - 20);
+    img.setScale(0.1);
+    this.tweens.add({ targets: img, scale: 0.8, duration: 260, ease: 'Back.easeOut' });
+    const flota = this._reducedMotion ? null : this.tweens.add({ targets: img, y: d.y - 4, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: 260 });
+    const late = (brillo && !this._reducedMotion) ? this.tweens.add({ targets: brillo, alpha: 0.35, duration: 700, yoyo: true, repeat: -1 }) : null;
+    this.huesosVista.set(d.id, { img, brillo, flota, late });
+  }
+
+  alRecoger(d) {
+    const h = this.huesosVista.get(d.id);
+    const v = this.vistas.get(d.por);
+    if (h) {
+      this.huesosVista.delete(d.id);
+      if (h.flota) h.flota.remove();
+      if (h.late) h.late.remove();
+      if (h.brillo) h.brillo.destroy();
+      if (v && !this._reducedMotion && !document.hidden) {
+        this.tweens.add({ targets: h.img, x: v.x, y: v.y - 16, scale: 0.3, alpha: 0, duration: 220, onComplete: () => h.img.destroy() });
+      } else h.img.destroy();
+    }
+    if (v) {
+      v.potencia = d.potencia;
+      v.maxHp = d.maxHp;
+      v.hp = d.hp;
+      if (v.yo) {
+        this._pintarVidaHUD(v.hp, v.maxHp);
+        if (this.el && this.el.huesos) this.el.huesos.textContent = '🦴 ' + d.potencia;
+        this.aviso('+1 POWER BONE', { peque: true, ms: 1200 });
+        this._sonar('hueso');
+      }
+    }
+  }
+
+  alKO(d) {
+    const v = this.vistas.get(d.t);
+    const k = d.k ? this.vistas.get(d.k) : null;
+    this.quedan = Number(d.quedan) || Math.max(0, this.quedan - 1);
+    if (this.el && this.el.quedan) this.el.quedan.textContent = String(this.quedan);
+    if (v && v.vivo) {
+      v.vivo = false;
+      this._caer(v);
+      this._sonar('ko', { x: v.x, y: v.y, vol: v.yo ? 1 : 0.8 });
+    }
+    const nombre = (x) => x ? this._esc(x.datos.petName || 'Pet') : '?';
+    const clase = (x) => (x && x.yo) ? 'yo' : 'rival';
+    if (k && v) this.alFeed('<span class="' + clase(k) + '">' + nombre(k) + '</span> 💥 <span class="' + clase(v) + '">' + nombre(v) + '</span>');
+    else if (v) this.alFeed('<span class="' + clase(v) + '">' + nombre(v) + '</span> is out');
+    if (k && k.yo) {
+      this.misBajas++;
+      if (this.el && this.el.bajas) this.el.bajas.textContent = '💥 ' + this.misBajas;
+      this.aviso('KNOCKOUT!', { oro: true, ms: 1000 });
+    }
+    if (v && v.yo) {
+      this.estado = 'caido';
+      this.apunte.mostrar = false;
+      this._cancelarConfirmacion();
+      // En la diaria y la práctica el final llega al momento: no hace falta
+      // ofrecer "mirar". En PvP sí: la partida sigue sin ti.
+      if (this.modo === 'pvp' && this.quedan > 1 && this.el && this.el.caido) {
+        this.el.caidoTitulo.textContent = 'Knocked out!';
+        this.el.caidoTexto.textContent = 'You finished #' + d.puesto + '. ' + (k ? 'Knocked out by ' + (k.datos.petName || 'a rival') + '.' : '');
+        this.el.caido.classList.remove('hidden');
+        this.seguidoId = k && k.vivo ? k.id : null;
+      } else {
+        this.aviso('KNOCKED OUT', { ms: 1400 });
+      }
+    }
+    if (this.seguidoId === d.t) this.seguidoId = null;
+  }
+
+  _caer(v) {
+    if (v.cartel) v.cartel.setVisible(false);
+    if (v.aro) v.aro.setVisible(false);
+    if (v.superListo) v.superListo.setVisible(false);
+    if (!v.spr) return;
+    const A = window.GFBatallaArte;
+    if (!document.hidden && A) {
+      this._pieza('humo', v.x, v.y, { color: 0xe8dcbc, escala: 0.35, alfa: 0.8, dura: 600, mezcla: false, tween: { scale: 0.8, alpha: 0, y: v.y - 18 } });
+      this._chispas(v.x, v.y - 10, 10, 0xffffff, 30);
+    }
+    if (this._reducedMotion || document.hidden) { v.spr.setAlpha(0.25); v.spr.setAngle(90); return; }
+    this.tweens.add({ targets: v.spr, angle: v.mira < 0 ? -90 : 90, alpha: 0.25, y: v.spr.y + 2, duration: 420, ease: 'Bounce.easeOut' });
+    if (v.sombra) this.tweens.add({ targets: v.sombra, alpha: 0.15, duration: 420 });
+  }
+
+  // =========================================================================
+  // RESULTADOS
+  // =========================================================================
+  mostrarResultado(d) {
+    if (this.estado === 'fin' && this._resultado) return;
+    this.estado = 'fin';
+    this._resultado = d;
+    this.apunte.mostrar = false;
+    this.teclas = {};
+    this.movTactil = { x: 0, y: 0 };
+    this._cancelarConfirmacion();
+    const e = this.el;
+    if (!e || !e.resultado) { this.volverEnBreve(4000); return; }
+    if (e.caido) e.caido.classList.add('hidden');
+    if (e.aviso) e.aviso.classList.add('hidden');
+    if (this._plazoAviso) { window.clearTimeout(this._plazoAviso); this._plazoAviso = null; }
+
+    const gano = d.resultado === 'win';
+    const puesto = Number(d.puesto) || 1, de = Number(d.de) || 1;
+    this._sonar(gano ? 'victoria' : 'derrota');
+    const ordinal = (n) => n + (n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th');
+    e.resPuesto.textContent = '#' + puesto;
+    // Plata y bronce solo tienen sentido con más de dos: perder un 1 contra 1
+    // no es "quedar segundo".
+    const medalla = puesto === 1 ? '' : (de > 2 && puesto === 2 ? 'plata' : (de > 3 && puesto === 3 ? 'bronce' : 'nada'));
+    e.resPuesto.className = 'bz-medalla ' + medalla;
+    e.resTitulo.textContent = gano ? 'Victory!' : (this.modo === 'pvp' ? ordinal(puesto) + ' place' : 'Defeated');
+    e.resTitulo.classList.toggle('gana', gano);
+    const rival = (d.tabla || []).find((f) => f.id !== d.yo);
+    if (this.modo === 'bot') {
+      const esp = rival && window.GFBrawlMotor && window.GFBrawlMotor.ESPECIES[rival.especie];
+      e.resSub.textContent = 'Daily battle ' + (d.ronda || '') + '/5' + (rival ? ' · vs ' + rival.petName + (esp ? ' the ' + esp.etiqueta : '') : '');
+    } else if (this.modo === 'practica') {
+      e.resSub.textContent = 'Practice — no points, just training.';
+    } else {
+      e.resSub.textContent = de + ' players · ' + ((this.partida && this.partida.arena && this.partida.arena.nombre) || 'Arena');
+    }
+
+    const premios = [];
+    const yoFila = (d.tabla || []).find((f) => f.id === d.yo);
+    if (this.modo !== 'practica') premios.push(['+' + (d.puntos || 0) + ' pts', (d.puntos || 0) > 0 ? 'oro' : '']);
+    if (d.petLevel) {
+      const antes = Number(this.datosJugador.nivel) || 0;
+      const yo = this.vistas.get(this.yoId);
+      const nivelAntes = yo ? Number(yo.datos.nivel) || antes : antes;
+      premios.push(['🐶 Pet Lv.' + d.petLevel + (d.petLevel > nivelAntes ? ' ▲' : ''), 'verde']);
+      // El mapa se pone al día ya (también llega por 'petLevelUpdate').
+      window.globalPetLevel = d.petLevel;
+    }
+    if (d.daily) premios.push(['Daily ' + d.daily.done + '/' + d.daily.max, '']);
+    if (yoFila) {
+      premios.push(['💥 ' + yoFila.bajas + ' KO' + (yoFila.bajas === 1 ? '' : 's'), '']);
+      premios.push(['⚔ ' + yoFila.dano + ' dmg', '']);
+      if (yoFila.potencia) premios.push(['🦴 ' + yoFila.potencia, 'oro']);
+    }
+    e.resPremios.innerHTML = premios.map(([t, c]) => '<li class="' + c + '">' + this._esc(t) + '</li>').join('');
+    e.resTabla.innerHTML = (d.tabla || []).slice().sort((a, b) => a.puesto - b.puesto).map((f) => {
+      const esp = window.GFBrawlMotor && window.GFBrawlMotor.ESPECIES[f.especie];
+      const quien = f.humano ? this._esc(f.playerName) : (esp ? esp.etiqueta : 'Bot');
+      return '<li class="' + (f.id === d.yo ? 'yo' : '') + '"><span class="pos">#' + f.puesto + '</span>' +
+        '<span class="quien">' + this._esc(f.petName) + '<small>' + quien + '</small></span>' +
+        '<span class="num">💥' + f.bajas + '</span><span class="num">⚔' + f.dano + '</span></li>';
+    }).join('');
+
+    // "Otra vez": la siguiente diaria si quedan, otra cola, otra práctica.
+    let otra = 'Play again';
+    let puedeOtra = true;
+    if (this.modo === 'bot') {
+      puedeOtra = !!(d.daily && d.daily.remaining > 0);
+      otra = puedeOtra ? 'Next battle (' + (d.daily.done + 1) + '/' + d.daily.max + ')' : 'Play again';
+    } else if (this.modo === 'practica') otra = 'Practice again';
+    e.otraVez.textContent = otra;
+    e.otraVez.classList.toggle('hidden', !puedeOtra);
+    e.resultado.classList.remove('hidden');
+
+    // Se vuelve solo al mapa al cabo de un rato (con el reloj del navegador).
+    let quedan = 25;
+    const pintar = () => { if (e.volver) e.volver.textContent = 'Back to map (' + quedan + ')'; };
+    pintar();
+    const tic = () => {
+      if (this.estado !== 'fin' || this._cleaned) return;
+      quedan--;
+      if (quedan <= 0) { this.volverAlMapa(); return; }
+      pintar();
+      this._reloj(1000, tic);
+    };
+    this._reloj(1000, tic);
+    if (gano && !this._reducedMotion) {
+      const yo = this.vistas.get(this.yoId);
+      if (yo && yo.spr) this.tweens.add({ targets: yo.spr, y: yo.spr.y - 10, duration: 220, yoyo: true, repeat: 3, ease: 'Quad.easeOut' });
+    }
+  }
+
+  jugarOtraVez() {
+    if (this.estado !== 'fin') return;
+    const datos = Object.assign({}, this.datosInicio, { modo: this.modo });
+    // Que el servidor sepa que ya no estamos (por si el final llegó antes).
+    this._emitir('brawl:salir');
+    this.scene.restart(datos);
+  }
+
+  // =========================================================================
+  // SONIDO
+  // =========================================================================
+  /**
+   * Suena un efecto. `cerca`: la posición de quien lo hace, para bajarle el
+   * volumen con la distancia (lo tuyo suena entero, lo del otro lado de la
+   * arena casi no). Con tope: un mismo sonido no se repite en menos de 60 ms
+   * (cinco balas de un abanico que dan a la vez son UN golpe, no cinco).
+   */
+  _sonar(nombre, op) {
+    if (!this._volumenSFX || document.hidden || !this.sound) return;
+    const k = 'bz_snd_' + nombre;
+    if (!this.cache.audio.exists(k)) return;
+    const ahora = performance.now();
+    if (ahora - (this._ultimoSonido[nombre] || 0) < 60) return;
+    this._ultimoSonido[nombre] = ahora;
+    op = op || {};
+    let vol = this._volumenSFX * (op.vol == null ? 1 : op.vol);
+    if (op.x != null && this.pred) {
+      const d = Math.hypot(op.x - this.pred.x, op.y - this.pred.y);
+      vol *= Math.max(0.12, 1 - d / 640);
+    }
+    try { this.sound.play(k, { volume: vol, detune: op.detune || 0 }); } catch (e) { /* sin audio: se juega igual */ }
+  }
+
+  // =========================================================================
+  // EFECTOS
+  // =========================================================================
+  _pieza(clave, x, y, op) {
+    const A = window.GFBatallaArte;
+    if (!A || !this.textures.exists(A.pieza(clave))) return null;
+    if (this.efectosVivos.length >= BattleScene.MAX_EFECTOS) {
+      const v = this.efectosVivos.shift();
+      if (v) { try { v.destroy(); } catch (e) {} }
+    }
+    op = op || {};
+    const s = this.add.image(x, y, A.pieza(clave)).setDepth(op.prof || 41000);
+    s.setTint(op.color == null ? 0xffffff : op.color);
+    s.setAlpha(op.alfa == null ? 1 : op.alfa);
+    s.setScale(op.escala == null ? 1 : op.escala);
+    if (op.rot) s.setRotation(op.rot);
+    if (op.mezcla !== false) s.setBlendMode(Phaser.BlendModes.ADD);
+    this.efectosVivos.push(s);
+    this.tweens.add(Object.assign({
+      targets: s, duration: op.dura || 380, ease: 'Quad.easeOut',
+      onComplete: () => {
+        const i = this.efectosVivos.indexOf(s);
+        if (i >= 0) this.efectosVivos.splice(i, 1);
+        s.destroy();
+      }
+    }, op.tween || {}));
+    return s;
+  }
+
+  _chispas(x, y, n, color, fuerza) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const d = (fuerza || 24) * (0.4 + Math.random() * 0.8);
+      this._pieza('chispa', x, y, {
+        color, escala: 0.12 + Math.random() * 0.14, dura: 260 + Math.random() * 240,
+        tween: { x: x + Math.cos(a) * d, y: y + Math.sin(a) * d * 0.8, alpha: 0, scale: 0.02, ease: 'Cubic.easeOut' }
+      });
+    }
+  }
+
+  _impacto(x, y, color, gordo) {
+    this._pieza('estallido', x, y, { color, escala: 0.08, dura: 260, tween: { scale: gordo ? 0.45 : 0.3, alpha: 0, angle: 40 } });
+    this._pieza('anillo', x, y, { color, escala: 0.05, alfa: 0.8, dura: 320, tween: { scale: gordo ? 0.5 : 0.32, alpha: 0 } });
+    this._chispas(x, y, gordo ? 9 : 5, color, gordo ? 34 : 22);
+  }
+
+  _fogonazo(v, ang, sup) {
+    if (document.hidden || !v) return;
+    const x = v.x + Math.cos(ang) * 14, y = v.y - 8 + Math.sin(ang) * 14;
+    this._pieza('anillo', x, y, { color: sup ? BattleScene.COLOR.oro : 0xdff4ff, escala: 0.04, alfa: 0.7, dura: 180, tween: { scale: sup ? 0.3 : 0.16, alpha: 0 } });
+    if (v.spr && !this._reducedMotion) {
+      // Un culatazo: se encoge y vuelve, como quien ladra con ganas.
+      v.retroceso = 1;
+    }
+  }
+
+  /** Números de daño: reutilizados (Text cuesta un lienzo cada uno). */
+  _numero(x, y, texto, color, gordo) {
+    if (document.hidden) return;
+    let t = this.numerosLibres.pop();
+    const tam = (gordo ? 16 : 13);
+    if (!t) {
+      t = this.add.text(0, 0, '', {
+        fontFamily: '"PressStart2P", monospace', fontSize: tam + 'px', color: '#ffffff',
+        stroke: '#0a0f1a', strokeThickness: 4, resolution: this._dpr || 1
+      }).setOrigin(0.5, 1).setDepth(42000);
+    }
+    t.setActive(true).setVisible(true);
+    t.setFontSize(tam).setColor(color).setText(texto);
+    const s = this._escalaCartel || 1;
+    t.setScale(s * 0.6).setAlpha(1).setPosition(x + (Math.random() - 0.5) * 8, y);
+    this.tweens.add({
+      targets: t, y: y - 22, scale: s, duration: 220, ease: 'Back.easeOut',
+      onComplete: () => {
+        this.tweens.add({
+          targets: t, y: y - 34, alpha: 0, duration: 420, delay: 180,
+          onComplete: () => { t.setVisible(false).setActive(false); if (this.numerosLibres.length < 24) this.numerosLibres.push(t); else t.destroy(); }
+        });
+      }
+    });
+  }
+
+  // =========================================================================
+  // LA NIEBLA
+  // =========================================================================
+  _pintarNiebla() {
+    if (!this.zona || !this.R || this.zonaR == null) return;
+    const r = this.zonaR;
+    // Mientras no ha empezado a cerrar, no hay nada que ver.
+    if (r >= this.zona.r0 - 1) {
+      if (this.nieblaRT) this.nieblaRT.setVisible(false);
+      if (this.nieblaAnillo) this.nieblaAnillo.clear();
+      return;
+    }
+    if (Math.abs(r - this._zonaPintada) < 0.75) return;
+    this._zonaPintada = r;
+    const A = window.GFBatallaArte;
+    if (!this.nieblaRT) {
+      this.nieblaRT = this.add.renderTexture(0, 0, this.R.anchoPx, this.R.altoPx).setOrigin(0, 0).setDepth(45000);
+      this.nieblaAnillo = this.add.graphics().setDepth(45001);
+      if (A && this.textures.exists(A.pieza('circulo'))) this.nieblaGoma = this.make.image({ key: A.pieza('circulo'), add: false });
+    }
+    const rt = this.nieblaRT;
+    rt.setVisible(true);
+    rt.clear();
+    rt.fill(BattleScene.COLOR.niebla, 0.46);
+    if (this.nieblaGoma && r > 0) {
+      this.nieblaGoma.setDisplaySize(r * 2, r * 2).setPosition(this.zona.cx, this.zona.cy);
+      rt.erase(this.nieblaGoma);
+    }
+    const g = this.nieblaAnillo;
+    g.clear();
+    if (r > 0) {
+      g.lineStyle(6, 0x9cff6e, 0.18).strokeCircle(this.zona.cx, this.zona.cy, r + 2);
+      g.lineStyle(2, 0xc4ff8f, 0.9).strokeCircle(this.zona.cx, this.zona.cy, r);
+    }
+  }
+
+  // =========================================================================
+  // CADA FOTOGRAMA
+  // =========================================================================
+  update(time, delta) {
+    if (this._cleaned) return;
+    const dt = Math.min(50, Math.max(0, delta || 16)) / 1000;
+    const ahora = performance.now();
+    const M = window.GFBrawlMotor;
+    const enJuego = this.matchId && this.R && M;
+
+    // ── tu perro ──
+    const yo = this.vistas.get(this.yoId);
+    if (enJuego && yo && yo.vivo && this.pred) {
+      let andando = false;
+      if (this.estado === 'combate') {
+        const mv = this._movimiento();
+        if (mv.x || mv.y) {
+          const vel = yo.datos.vel || 104;
+          const p = M.moverCirculo(this.R, this.pred.x, this.pred.y, mv.x * vel * dt, mv.y * vel * dt, 11);
+          andando = Math.abs(p[0] - this.pred.x) + Math.abs(p[1] - this.pred.y) > 0.05;
+          if (Math.abs(p[0] - this.pred.x) > 0.05) yo.mira = p[0] > this.pred.x ? 1 : -1;
+          this.pred.x = p[0]; this.pred.y = p[1];
+        }
+        this._enviarPosicion(ahora);
+        if (this.disparoMantenido && !this._tactil) this.disparar(false, this.apunte.ang);
+      }
+      // La recolocación suave: el desvío se apaga en ~120 ms.
+      const k = Math.min(1, dt * 9);
+      this.desvio.x -= this.desvio.x * k; this.desvio.y -= this.desvio.y * k;
+      yo.x = this.pred.x + this.desvio.x;
+      yo.y = this.pred.y + this.desvio.y;
+      yo.andando = andando;
+      // Munición que se recarga sola, entre instantánea e instantánea.
+      const arma = this._armaMia(false);
+      if (arma && arma.recarga && this.municion < 3) this.municion = Math.min(3, this.municion + delta / arma.recarga);
+    }
+
+    // ── los demás: 110 ms en el pasado, entre dos instantáneas ──
+    const tPintar = ahora - BattleScene.RETRASO_INTERP;
+    this.vistas.forEach((v) => {
+      if (v.yo || !v.vivo) return;
+      const b = v.buffer;
+      if (!b.length) return;
+      while (b.length >= 2 && b[1].t <= tPintar) b.shift();
+      if (b.length >= 2 && b[0].t <= tPintar) {
+        const f = (tPintar - b[0].t) / Math.max(1, b[1].t - b[0].t);
+        v.x = b[0].x + (b[1].x - b[0].x) * f;
+        v.y = b[0].y + (b[1].y - b[0].y) * f;
+      } else {
+        v.x = b[0].x; v.y = b[0].y;
+      }
+    });
+
+    // ── apuntar con el ratón ──
+    if (yo && this.pred && this.apunte.raton && !this._tactil) {
+      const cam = this.cameras.main;
+      const p = cam.getWorldPoint(this.input.activePointer.x, this.input.activePointer.y);
+      this.apunte.ratonX = p.x; this.apunte.ratonY = p.y;
+      this.apunte.ang = Math.atan2(p.y - (yo.y - 6), p.x - yo.x);
+    }
+
+    this._moverBalas(dt);
+    this._pintarVistas(ahora, dt);
+    this._pintarApunte(yo);
+    this._arbustosCerca(yo);
+
+    // ── la niebla ──
+    if (this.zonaRObjetivo != null) {
+      if (this.zonaR == null) this.zonaR = this.zonaRObjetivo;
+      this.zonaR += (this.zonaRObjetivo - this.zonaR) * Math.min(1, dt * 6);
+      this._pintarNiebla();
+    }
+    this._pintarReloj(ahora);
+    this._vigilarConexion(ahora);
+
+    // ── la cámara ──
+    const cam = this.cameras.main;
+    let foco = null;
+    if (yo && yo.vivo) foco = yo;
+    else if (this.matchId) {
+      // Caído: se mira al que te tumbó o a cualquiera que siga en pie.
+      let s = this.seguidoId ? this.vistas.get(this.seguidoId) : null;
+      if (!s || !s.vivo) {
+        s = null;
+        this.vistas.forEach((v) => { if (!s && v.vivo && !v.oculto) s = v; });
+        this.seguidoId = s ? s.id : null;
+      }
+      foco = s || yo;
+    }
+    if (foco) {
+      const cx = cam.scrollX + cam.width / 2, cy = cam.scrollY + cam.height / 2;
+      const k = Math.min(1, dt * 10);
+      cam.centerOn(cx + (foco.x - cx) * k, cy + (foco.y - 8 - cy) * k);
+    }
+  }
+
+  /**
+   * SIN NOTICIAS DEL SERVIDOR. En combate llegan 20 instantáneas por segundo;
+   * si en 6 s no llega ninguna, la conexión se ha perdido (o se reconectó con
+   * otro socket, y para el servidor ya eres otro jugador: te dio por caído).
+   * El final no va a llegar nunca, así que se avisa y se vuelve al mapa en vez
+   * de dejar al jugador mirando una arena congelada. Con la pestaña oculta
+   * update() no corre, así que esto no salta por estar en segundo plano.
+   */
+  _vigilarConexion(ahora) {
+    if (this.estado !== 'combate' && this.estado !== 'caido') return;
+    if (!this._ultimoSnap || ahora - this._ultimoSnap < 6000) return;
+    this._ultimoSnap = ahora;
+    this.estado = 'fin';
+    this._cancelarConfirmacion();
+    this.aviso('Connection lost — back to the map', { peque: true, ms: 2600 });
+    this.volverEnBreve(2600);
+  }
+
+  _enviarPosicion(ahora) {
+    if (ahora - this.ultimoEnvio < BattleScene.ENVIO_MS || !this.pred) return;
+    const movido = !(Math.abs(this.pred.x - this.envioX) < 0.05 && Math.abs(this.pred.y - this.envioY) < 0.05);
+    if (!movido && ahora - this.ultimoLatido < BattleScene.LATIDO_MS) return;
+    this.ultimoEnvio = ahora;
+    this.ultimoLatido = ahora;
+    this.envioX = this.pred.x; this.envioY = this.pred.y;
+    this._emitir('brawl:mover', {
+      s: ++this.seq,
+      x: Math.round(this.pred.x * 100) / 100,
+      y: Math.round(this.pred.y * 100) / 100,
+      c: this.cAplicada,
+      a: Math.round((this.apunte.ang || 0) * 1000) / 1000
+    });
+  }
+
+  _pintarVistas(ahora, dt) {
+    this.vistas.forEach((v) => {
+      if (!v.spr) return;
+      const visible = v.vivo ? !v.oculto : true;
+      // Escondido: se desvanece rápido (y no se dibuja nada encima).
+      const alfaObjetivo = !visible ? 0 : (v.enArbusto ? (v.yo ? 0.6 : 0.55) : 1);
+      if (v.vivo) v.spr.alpha += (alfaObjetivo - v.spr.alpha) * Math.min(1, dt * 14);
+      const vis = v.spr.alpha > 0.02 || !v.vivo;
+      v.spr.setVisible(vis);
+      if (v.sombra) v.sombra.setVisible(vis).setPosition(v.x, v.y + 8);
+      if (v.aro) v.aro.setVisible(vis && v.vivo).setPosition(v.x, v.y + 8);
+      if (!v.vivo) return;
+
+      // Andar: fotogramas a su ritmo; quieto: el primero, respirando.
+      const pose = v.andando ? 'camina' : 'quieto';
+      const marcos = this._fotogramas(v.especie, pose, v.mira);
+      if (marcos.length) {
+        if (ahora >= v.proximoPaso) {
+          v.proximoPaso = ahora + (v.andando ? 110 : 380);
+          v.paso = (v.paso + 1) % marcos.length;
+        }
+        const k = marcos[Math.min(v.paso, marcos.length - 1)] || marcos[0];
+        if (v.spr.texture.key !== k) v.spr.setTexture(k);
+        // Los animales solo miran a la derecha: se les da la vuelta. El perro
+        // tiene sus propios fotogramas de cada lado.
+        v.spr.setFlipX(v.especie !== 'perro' && v.mira < 0);
+      }
+      const resp = v.andando ? Math.abs(Math.sin(ahora * 0.018)) * 1.5 : Math.sin(ahora * 0.004 + v.id) * 0.6;
+      if (v.retroceso > 0) v.retroceso = Math.max(0, v.retroceso - dt * 7);
+      const e = v.escala || 1;
+      v.spr.setScale(e * (1 + v.retroceso * 0.08), e * (1 - v.retroceso * 0.1));
+      v.spr.setPosition(Math.round(v.x), Math.round(v.y + 9 - resp));
+      v.spr.setDepth(v.y + 9);
+      if (v.sombra) v.sombra.setDepth(v.y - 30);
+      if (v.aro) v.aro.setDepth(v.y - 29);
+      // Destello blanco al recibir.
+      if (ahora < v.golpeHasta) v.spr.setTintFill(0xffffff);
+      else if (v.spr.tintFill) v.spr.clearTint();
+
+      // El cartel.
+      if (v.cartel) {
+        v.cartel.setVisible(vis && v.spr.alpha > 0.3);
+        v.cartel.setPosition(Math.round(v.x), Math.round(v.y + 9 - (v.altoSprite || 30) - 6 * (this._escalaCartel || 1)));
+        this._pintarCartel(v);
+        if (v.yo && v.municion) {
+          for (let i = 0; i < 3; i++) {
+            const c = Math.max(0, Math.min(1, this.municion - i));
+            v.municion[i].width = 16 * c;
+            v.municion[i].setAlpha(c >= 1 ? 1 : 0.55);
+          }
+        }
+      }
+      if (v.superListo) {
+        const listo = this.superCarga >= 1 && this.estado === 'combate';
+        v.superListo.setVisible(listo);
+        if (listo) v.superListo.setPosition(v.x, v.y + 4).setDepth(v.y - 28).setAlpha(0.45 + Math.sin(ahora * 0.008) * 0.25);
+      }
+    });
+  }
+
+  /** La guía de apuntado: una banda (o un abanico) hasta donde llega el tiro. */
+  _pintarApunte(yo) {
+    const g = this.gApunte;
+    if (!g) return;
+    g.clear();
+    if (!yo || !yo.vivo || this.estado !== 'combate') return;
+    const raton = this.apunte.raton && !this._tactil && performance.now() - this.apunte.ratonEn < 4000;
+    if (!raton && !this.apunte.mostrar) return;
+    const sup = this.apunte.mostrar ? this.apunte.sup : false;
+    const arma = this._armaMia(sup);
+    if (!arma) return;
+    const ang = this.apunte.ang;
+    const x = yo.x, y = yo.y - 6;
+    const color = sup ? BattleScene.COLOR.oro : 0xffffff;
+    const alfa = sup ? 0.3 : (this.municion >= 1 ? 0.2 : 0.08);
+    g.fillStyle(color, alfa);
+    if (arma.balas > 1 && arma.abanico) {
+      const medio = arma.abanico * Math.PI / 360;
+      g.slice(x, y, arma.alcance, ang - medio, ang + medio, false);
+      g.fillPath();
+    } else {
+      const w = Math.max(5, arma.radio);
+      const nx = -Math.sin(ang) * w, ny = Math.cos(ang) * w;
+      const fx = x + Math.cos(ang) * arma.alcance, fy = y + Math.sin(ang) * arma.alcance;
+      g.fillPoints([{ x: x + nx, y: y + ny }, { x: fx + nx, y: fy + ny }, { x: fx - nx, y: fy - ny }, { x: x - nx, y: y - ny }], true);
+    }
+    g.lineStyle(1, color, alfa * 2);
+    g.strokeCircle(x + Math.cos(ang) * arma.alcance, y + Math.sin(ang) * arma.alcance, 4);
+  }
+
+  /** Las matas de alrededor se vuelven transparentes cuando estás dentro. */
+  _arbustosCerca(yo) {
+    if (!this.arena || !this.R) return;
+    const nuevas = new Set();
+    if (yo && yo.vivo && this.R) {
+      const cx = Math.floor(yo.x / 32), cy = Math.floor(yo.y / 32);
+      if (window.GFBrawlMotor.celdaEn(this.R, cx, cy) === '*') {
+        for (let y = cy - 2; y <= cy + 2; y++) {
+          for (let x = cx - 2; x <= cx + 2; x++) {
+            const lista = this.arena.arbustos.get(y * this.R.ancho + x);
+            if (lista) lista.forEach((im) => nuevas.add(im));
+          }
+        }
+      }
+    }
+    this.arbustosApagados.forEach((im) => { if (!nuevas.has(im) && im.active) im.setAlpha(1); });
+    nuevas.forEach((im) => { if (im.active) im.setAlpha(0.45); });
+    this.arbustosApagados = nuevas;
+  }
+
+  _pintarReloj(ahora) {
+    if (!this.el || !this.el.relojTxt || !this.zona) return;
+    if (this.estado !== 'combate' && this.estado !== 'caido') return;
+    const pasado = ahora - this.tCombateLocal;
+    const queda = Math.max(0, this.zona.maxMs - pasado);
+    const s = Math.ceil(queda / 1000);
+    const txt = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    if (this._hud.reloj !== txt) { this.el.relojTxt.textContent = txt; this._hud.reloj = txt; }
+    const niebla = pasado >= this.zona.inicioMs;
+    this.el.relojTxt.classList.toggle('niebla', niebla && s > 20);
+    this.el.relojTxt.classList.toggle('poco', s <= 20);
+    const av = this._avisosNiebla;
+    if (!av.previo && pasado >= this.zona.inicioMs - 5000 && this.estado === 'combate') {
+      av.previo = true;
+      this.aviso('The fog is coming in 5 seconds!', { peque: true, ms: 2600 });
+    }
+    if (!av.empieza && niebla && this.estado === 'combate') {
+      av.empieza = true;
+      this.aviso('The fog is closing in! Stay inside the circle.', { peque: true, ms: 3000 });
+    }
+  }
+
+  // =========================================================================
+  // ORIENTACIÓN (móvil)
+  // =========================================================================
   avisoHorizontal() {
     const aviso = document.getElementById('battleRotateNotice');
     if (!aviso) return;
-
-    const esMovil = /Android|iPhone|iPad|iPod|Windows Phone/i.test(navigator.userAgent)
-      || (navigator.maxTouchPoints || 0) > 1;
-
+    const esMovil = /Android|iPhone|iPad|iPod|Windows Phone/i.test(navigator.userAgent) || (navigator.maxTouchPoints || 0) > 1;
     const revisar = () => {
-      // FIX: se usaba `this.scene.isActive('BattleScene')`, pero esta función se
-      // llama desde create() y en ese momento la escena todavía está en estado
-      // CREATING, no RUNNING — así que isActive() devolvía FALSE y el aviso se
-      // ocultaba nada más entrar. Como después solo se revisaba en 'resize' y
-      // 'orientationchange', un jugador que YA entraba en vertical no disparaba
-      // ningún evento y el aviso no aparecía nunca. De ahí que "no salga el hub
-      // de rotar el teléfono".
-      //
-      // Ahora basta con que la escena no esté apagada: se comprueba contra la
-      // bandera propia, que se pone a true al terminar create() y a false en el
-      // shutdown.
       const vertical = window.innerHeight > window.innerWidth;
-      const viva     = this._escenaViva !== false;
-      // "Jugar en vertical": con el giro automático bloqueado, el aviso tapaba
-      // la batalla entera sin salida (ni jugar ni rendirse). Se recuerda
-      // durante la sesión para no pedirlo en cada combate.
+      const viva = this._escenaViva !== false;
       const aceptado = window.__gfBatallaEnVertical === true;
       aviso.classList.toggle('hidden', !(esMovil && vertical && viva && !aceptado));
     };
@@ -1361,659 +2181,37 @@ class BattleScene extends Phaser.Scene {
       window.__gfBatallaEnVertical = true;
       revisar();
     });
-
     this._escenaViva = true;
     this._revisarOrientacion = revisar;
-    window.addEventListener('resize', revisar);
-    window.addEventListener('orientationchange', revisar);
-
-    // En el móvil la medida buena es visualViewport: al esconderse la barra del
-    // navegador cambia la altura sin que llegue un 'resize' de window.
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', revisar);
-    }
-
+    this._escucharDOM(window, 'resize', revisar);
+    this._escucharDOM(window, 'orientationchange', revisar);
+    if (window.visualViewport) this._escucharDOM(window.visualViewport, 'resize', revisar);
     revisar();
-    // Segunda pasada cuando la escena ya está en marcha de verdad, y una
-    // tercera por si el navegador tarda en dar las medidas definitivas al
-    // entrar en la batalla desde el mapa.
-    this.time.delayedCall(60,  revisar);
-    this.time.delayedCall(400, revisar);
+    this._reloj(60, revisar);
+    this._reloj(400, revisar);
   }
 
-  // ---------------------------------------------------------------------------
-  // SOCKET
-  // ---------------------------------------------------------------------------
-  on(evento, manejador) {
-    const run = this._battleRun;
-    const guarded = (data) => {
-      if (this._cleaned || this._battleRun !== run) return;
-      if (data && data.matchId && this.matchId && data.matchId !== this.matchId) return;
-      manejador(data || {});
-    };
-    this.socket.on(evento, guarded);
-    this._listeners.push([evento, guarded]);
-  }
-
-  /**
-   * Vigila que la batalla llegue a empezar.
-   *
-   * Contra bot el plazo es corto (el servidor solo tiene que leer el contador
-   * diario y fabricar el rival). En P2P es largo porque hay que esperar a que
-   * aparezca otra persona en la cola, que puede tardar de verdad.
-   */
-  _armarVigilanteDeBusqueda() {
-    this._cancelarVigilanteDeBusqueda();
-
-    const esBot   = this.modo === 'bot';
-    const limite  = esBot ? 12000 : 90000;   // ms hasta rendirse
-    const reintento = Math.floor(limite / 2);
-
-    // Reintento a mitad de camino: si la petición se perdió (típico cuando el
-    // socket se reconecta justo después de emitir), esto la recupera sin que
-    // el jugador tenga que hacer nada.
-    this._reintentoBusqueda = this.time.delayedCall(reintento, () => {
-      if (this.matchId || this.estado !== 'buscando') return;
-      if (!this.socket || !this.socket.connected) return;
-      console.warn('⏳ La batalla no arrancó; se reintenta la petición');
-      this.socket.emit(esBot ? 'battle:bot' : 'battle:queue');
-    });
-
-    this._vigilanteBusqueda = this.time.delayedCall(limite, () => {
-      if (this.matchId || this.estado !== 'buscando') return;
-      this.estadoTexto(esBot
-        ? 'The battle could not be started.\nPlease try again in a moment.'
-        : 'No opponent found right now.\nTry again later or play a daily battle.');
-      this.time.delayedCall(2600, () => this.volverAlMapa());
-    });
-  }
-
-  _cancelarVigilanteDeBusqueda() {
-    if (this._reintentoBusqueda) { this._reintentoBusqueda.remove(); this._reintentoBusqueda = null; }
-    if (this._vigilanteBusqueda) { this._vigilanteBusqueda.remove(); this._vigilanteBusqueda = null; }
-  }
-
-  arrancarBusqueda() {
-    if (this._buscandoIniciado || this._cleaned) return;
-    this._buscandoIniciado = true;
-
-    this.registrarSocket();
-
-    // ── VIGILANTE ANTI-CUELGUE ──────────────────────────────────────────────
-    // FIX "SE QUEDA ESPERANDO Y NUNCA PASA NADA": no había NINGÚN límite de
-    // tiempo. Se emitía la petición y, si la respuesta del servidor no llegaba
-    // —porque el socket se reconectó justo en medio, porque el servidor tardó
-    // más de la cuenta, o porque el emparejamiento se descartó— el jugador se
-    // quedaba mirando "Preparing your daily battle…" para siempre, sin batalla
-    // y sin forma de salir salvo recargar.
-    //
-    // Ahora se reintenta UNA vez a la mitad del plazo (cubre el caso más común,
-    // que la petición se pierda en una reconexión) y, si sigue sin haber
-    // batalla, se avisa y se vuelve al mapa en vez de dejarlo colgado.
-    this._armarVigilanteDeBusqueda();
-
-    if (this.modo === 'bot') {
-      this.estadoTexto('Preparing your daily battle…');
-      this.socket.emit('battle:bot');
-      return;
-    }
-
-    this.socket.emit('battle:queue');
-    this._segundosBuscando = 0;
-    this._timerBusqueda = this.time.addEvent({
-      delay: 1000, loop: true,
-      callback: () => {
-        if (this.estado !== 'buscando') return;
-        this._segundosBuscando++;
-        this.estadoTexto(`Searching for a similar-level opponent…  ${this._segundosBuscando}s`);
-      }
-    });
-  }
-
-  registrarSocket() {
-    this.on('battle:queued', (d) => {
-      this.estadoTexto(`Searching for a similar-level opponent…\n(position ${d.position} in queue)`);
-    });
-
-    this.on('battle:matched', (d) => {
-      if (this.estado !== 'buscando' || !d.matchId || !d.you || !d.rival) return;
-      // El modo tiene que coincidir con el que se pidió. Si se entró por
-      // "Battle in P2P" y llega una partida contra bot (o al revés), se ignora
-      // y se sigue esperando rival: antes se aceptaba cualquier emparejamiento
-      // y el jugador acababa peleando contra la máquina sin haberlo pedido.
-      const modoRecibido = d.mode === 'bot' ? 'bot' : 'pvp';
-      if (modoRecibido !== this.modo) {
-        console.warn(`⚠️ Se ignora un emparejamiento '${modoRecibido}' porque se pidió '${this.modo}'`);
-        return;
-      }
-
-      this.matchId = d.matchId;
-      this.estado = 'combate';
-      this.yo = d.you;
-      this.rival = d.rival;
-      this._cancelarVigilanteDeBusqueda();
-      if (this._timerBusqueda) { this._timerBusqueda.remove(); this._timerBusqueda = null; }
-
-      /* EL ESCENARIO SE ELIGE CON EL ID DE LA PARTIDA, no antes.
-         En create() todavía no hay partida, así que el fondo que se montó era
-         provisional. Con el matchId ya en la mano se cambia por el que toca, y
-         eso garantiza que las DOS personas de un PvP están en el mismo sitio. */
-      this.cambiarArena(this.matchId);
-
-      /* Y cada uno se viste de lo suyo. El rival puede ser un zorro, un
-         cocodrilo o una víbora, y sus sprites no están cargados todavía: se
-         piden ahora y se le ponen cuando lleguen. Mientras, sigue siendo un
-         perro, que es mejor que un hueco. */
-      this.vestirLuchador(this.luchadorYo, 'perro', false);
-      this.pintarCartel(this.luchadorYo, this.yo);
-      const esp = (d.rival && d.rival.species) || 'perro';
-      const run = this._battleRun;
-      this.cargarEspecie(esp).then(() => {
-        if (this._cleaned || this._battleRun !== run || !this.luchadorRival || this.estado === 'fin') return;
-        this.vestirLuchador(this.luchadorRival, esp, true);
-        this.pintarCartel(this.luchadorRival, this.rival);
-        /* Entra en escena: aparece deslizándose desde fuera del cuadro.
-
-           El destino es `homeX`, NO la `x` que tuviera el contenedor al
-           empezar. `cargarEspecie` puede tardar hasta tres segundos (tiene un
-           corte por si falta un PNG), así que esta parte llega tarde y bien
-           puede caer encima de una embestida ya empezada: leyendo la `x` viva
-           se guardaba una posición desplazada como si fuera la buena, y el
-           rival se quedaba ahí el resto del combate. */
-        const R = this.luchadorRival;
-        if (this._reducedMotion) return;
-        this.tweens.killTweensOf(R.cont);
-        R.cont.x = R.homeX + 140;
-        R.cont.alpha = 0;
-        this.tweens.add({
-          targets: R.cont, x: R.homeX, alpha: 1,
-          duration: 420, ease: 'Quad.easeOut',
-          onComplete: () => { R.cont.x = R.homeX; }
-        });
-      });
-
-      this.pintarLuchadores();
-      this.estadoTexto(d.mode === 'bot'
-        ? `DAILY BATTLE ${d.round}/5\n${d.you.petName} vs ${d.rival.petName}`
-        : `${d.you.petName} vs ${d.rival.petName}`);
-      if (this.el && this.el.turno) this.el.turno.textContent = 'VS';
-    });
-
-    this.on('battle:turnStart', (d) => {
-      if (this.estado !== 'combate' || !Number.isInteger(d.turn) || d.turn <= this.turnoActual || !d.you || !d.rival) return;
-      this.turnoActual = d.turn;
-      this.yo = d.you;
-      this.rival = d.rival;
-      this.mano = Array.isArray(d.hand) ? d.hand.slice(0, 5).map((c) => ({ ...c, cost: Number.isFinite(Number(c.cost)) ? Math.max(0, Number(c.cost)) : 99 })) : [];
-      this.energiaMax = Number.isFinite(d.energy) ? Math.max(0, Math.min(10, d.energy)) : 3;
-      this.seleccion = [];
-      this.puedeJugar = true;
-
-      this.pintarLuchadores();
-      this.mostrarEscudos(0, 0);
-      this.pintarMano();
-      this.estadoTexto('Choose your cards');
-      if (this.el && this.el.turno) this.el.turno.textContent = `TURN ${d.turn}`;
-      const remaining = Number.isFinite(d.deadlineAt) && Number.isFinite(d.serverNow) ? d.deadlineAt - d.serverNow : d.msToChoose;
-      this.iniciarTemporizador(d.msToChoose, remaining);
-    });
-
-    this.on('battle:rivalReady', () => {
-      if (this.puedeJugar) this.estadoTexto('The rival already played. Your turn!');
-    });
-
-    this.on('battle:turn', (d) => {
-      if (this.estado !== 'combate' || !Number.isInteger(d.turn) || d.turn < this.turnoActual || d.turn <= this._turnoResuelto || !d.you || !d.rival) return;
-      this._turnoResuelto = d.turn;
-      this.turnoActual = d.turn;
-      this.yo = d.you;
-      this.rival = d.rival;
-      this.puedeJugar = false;
-      this.detenerTemporizador();
-      this.limpiarMano();
-
-      // Reveal de lo que jugó cada uno (aparece en el centro y se va solo)
-      this.mostrarReveal(d.yourCards, d.rivalCards);
-
-      // Actualizar barras y escudos
-      this.pintarLuchadores();
-      this.mostrarEscudos(d.shieldYou || 0, d.shieldRival || 0);
-      this.estadoTexto(d.log || '');
-
-      // Números flotantes + sacudón de la mascota golpeada
-      if (d.damageToRival > 0) this.flotarNumero(`-${d.damageToRival}`, 'dmg', 'rival');
-      if (d.damageToYou > 0) this.flotarNumero(`-${d.damageToYou}`, 'dmg', 'you');
-      if (d.healYou > 0) this.flotarNumero(`+${d.healYou}`, 'heal', 'you');
-      if (d.shieldYou > 0) this.flotarNumero(`🛡 ${d.shieldYou}`, 'shield', 'you');
-
-      /* ¿Fue un golpetazo? Un daño muy por encima de lo normal se marca como
-         CRÍTICO: pantalla más blanca, sacudida más fuerte y el doble de
-         chispas. No lo decide el servidor —no manda esa marca— sino la
-         proporción de vida que se llevó por delante, que es justo lo que hace
-         que un golpe se sienta grande. */
-      const gordo = (dano, quien) => quien && dano > quien.maxHp * 0.16;
-      this.animarGolpe(d.damageToRival > 0, d.damageToYou > 0, {
-        criticoRival: gordo(d.damageToRival, this.rival),
-        criticoYo: gordo(d.damageToYou, this.yo)
-      });
-
-      // Y los efectos propios de cada carta jugada, encima del intercambio.
-      this.efectosDeCartas(d.yourCards, this.luchadorYo, this.luchadorRival);
-      this.time.delayedCall(200, () => {
-        this.efectosDeCartas(d.rivalCards, this.luchadorRival, this.luchadorYo);
-      });
-
-      // Los carteles de la escena, al día con la vida que queda.
-      this.pintarCartel(this.luchadorYo, this.yo);
-      this.pintarCartel(this.luchadorRival, this.rival);
-    });
-
-    this.on('battle:end', (d) => {
-      if (this.estado !== 'combate') return;
-      this.estado = 'fin';
-      this.puedeJugar = false;
-      this.detenerTemporizador();
-      this.limpiarMano();
-      this.yo = d.you;
-      this.rival = d.rival;
-      this.pintarLuchadores();
-      this.pintarCartel(this.luchadorYo, this.yo);
-      this.pintarCartel(this.luchadorRival, this.rival);
-
-      /* El desenlace se VE. Antes la batalla se acababa con un cartel de texto
-         y los dos bichos igual de tiesos que al principio; ahora el que cae se
-         cae y el que gana lo celebra, que es lo mínimo para que un combate
-         tenga final. */
-      if (d.result === 'win') {
-        this.tumbar(this.luchadorRival);
-        this.time.delayedCall(280, () => this.celebrar(this.luchadorYo));
-        this.destello(0.3, 260);
-      } else if (d.result === 'lose') {
-        this.tumbar(this.luchadorYo);
-        this.time.delayedCall(280, () => this.celebrar(this.luchadorRival));
-      }
-
-      const titulo = d.result === 'win' ? '🏆 YOU WIN!'
-        : d.result === 'lose' ? '💀 YOU LOSE'
-        : '🤝 DRAW';
-      const motivo = d.reason === 'forfeit' ? (d.result === 'win' ? '\n(the rival left the battle)' : '\n(you left the battle)') : '';
-      const diarias = d.daily ? `\nDaily battles: ${d.daily.done}/${d.daily.max}` : '';
-      this.estadoTexto(`${titulo}\n+${d.pointsEarned} points${motivo}${diarias}\n\nBack to the map…`);
-
-      /* Se acabó: el botón de rendirse ya no rinde nada, ahora es el atajo para
-         no esperar los tres segundos y medio. */
-      this._cancelarConfirmacion();
-
-      this.volverEnBreve(3500);
-    });
-
-    this.on('battle:error', (d) => {
-      this.puedeJugar = false;
-      this.detenerTemporizador();
-      this.refrescarMano();
-      let msg = 'Could not start the battle.';
-      if (d && d.error === 'not_authenticated') msg = 'You must be logged in to battle.';
-      else if (d && d.error === 'already_in_battle') msg = 'You are already in a battle.';
-      else if (d && d.error === 'daily_limit') {
-        msg = `You already played your ${d.daily ? d.daily.max : 5} daily battles.\nCome back tomorrow!`;
-      }
-      this.estadoTexto(msg);
-      this.estado = 'fin';
-      this._cancelarConfirmacion();
-      this.volverEnBreve(3000);
-    });
-  }
-
-  /**
-   * "VUELVE AL MAPA DENTRO DE UN RATO", CON DOS RELOJES.
-   *
-   * Todas las salidas automáticas de la batalla (ganar, perder, un error del
-   * servidor, no poder conectar) iban con `this.time.delayedCall`, que es el
-   * reloj de la ESCENA. Ese reloj solo corre mientras corre el bucle de Phaser,
-   * y el bucle se para en cuanto la pestaña pasa a segundo plano — que es
-   * exactamente lo que hace mucha gente al perder: mirar otra cosa mientras se
-   * va el cartel. Al volver, el temporizador seguía donde lo dejó.
-   *
-   * Peor: si el bucle se queda parado por cualquier motivo, ese aviso NO LLEGA
-   * NUNCA y el jugador se queda mirando la batalla terminada sin salida.
-   *
-   * Aquí se arman los dos: el de la escena, que da la salida suave y a tiempo,
-   * y uno del navegador un poco más tarde, que corre aunque Phaser esté parado.
-   * `volverAlMapa()` aguanta que la llamen dos veces (tiene su propio cerrojo
-   * de 4 s), así que el que llegue segundo no hace nada.
-   */
+  // =========================================================================
+  // SALIDA
+  // =========================================================================
+  /** Vuelve al mapa dentro de un rato, con los DOS relojes (ver volverAlMapa). */
   volverEnBreve(ms) {
     const espera = Math.max(0, ms || 0);
     this.time.delayedCall(espera, () => this.volverAlMapa());
     if (this._plazoVolver) window.clearTimeout(this._plazoVolver);
-    this._plazoVolver = window.setTimeout(() => {
-      this._plazoVolver = null;
-      this.volverAlMapa();
-    }, espera + 900);
-  }
-
-  jugarTurno() {
-    if (!this.puedeJugar || this.estado !== 'combate') return;
-    if (!this.socket || !this.socket.connected) { this.estadoTexto('Connection lost. Waiting to reconnect…'); return; }
-    this.puedeJugar = false;
-    this.detenerTemporizador();
-    this.socket.emit('battle:action', { matchId: this.matchId, turn: this.turnoActual, cards: this.seleccion.slice() });
-    this.refrescarMano();
-    this.estadoTexto('Waiting for the rival…');
+    this._plazoVolver = window.setTimeout(() => { this._plazoVolver = null; this.volverAlMapa(); }, espera + 900);
   }
 
   /**
-   * RENDIRSE / SALIR. Vale en CUALQUIER momento de la batalla.
-   *
-   * En combate se avisa al servidor (`battle:forfeit`) para que cuente la
-   * derrota y libere el candado del jugador; el servidor contesta con
-   * `battle:end` y de ahí sale solo.
-   *
-   * PERO NO SE CONFÍA EN QUE LA RESPUESTA LLEGUE. Si el socket se cayó, o el
-   * servidor no contesta, antes esto se quedaba esperando para siempre y el
-   * jugador no tenía forma de salir. Ahora hay un plazo: si a los 4 s seguimos
-   * en la batalla, se vuelve al mapa igual.
+   * RENDIRSE / SALIR. Vale en cualquier momento. En combate cuenta como caer
+   * (el servidor lo apunta como derrota); fuera de combate solo sale.
    */
   rendirse() {
-    if (this.estado === 'combate' && this.socket && this.socket.connected) {
-      this.estadoTexto('Surrendering…');
-      try { this.socket.emit('battle:forfeit'); } catch (e) { /* da igual: abajo hay plazo */ }
-      if (this._plazoRendirse) window.clearTimeout(this._plazoRendirse);
-      this._plazoRendirse = window.setTimeout(() => {
-        this._plazoRendirse = null;
-        if (this.estado === 'fin') return;              // el servidor sí contestó
-        console.warn('⚠️ El servidor no confirmó la rendición; se sale igual.');
-        this.volverAlMapa();
-      }, 4000);
-      return;
-    }
-    if (this.socket && this.socket.connected) {
-      try { this.socket.emit('battle:leaveQueue'); } catch (e) {}
-      try { this.socket.emit('battle:forfeit'); } catch (e) {}   // por si ya había partida
-    }
+    if (this.estado === 'buscando') this._emitir('brawl:salirCola');
+    this._emitir('brawl:salir');
     this.volverAlMapa();
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
-  //  EFECTOS
-  // ═══════════════════════════════════════════════════════════════════════
-  /* Todas las piezas son BLANCAS (ver gf-batalla-arte.js) y el color se lo
-     pone aquí cada efecto con setTint. Así el mismo estallido sirve de golpe
-     naranja, de veneno verde y de hielo celeste, y no hay que dibujar tres. */
-  static COLORES = {
-    golpe:   0xfff0c0, critico: 0xffd24a, escudo: 0x76c8ff, cura: 0x7ef09a,
-    veneno:  0x9ff05a, aturde:  0xffe066, fuego:  0xff9040, hielo:  0x9fe8ff,
-    rayo:    0xfff27a, oscuro:  0xc07aff, polvo:  0xe8dcbc
-  };
-
-  /** Una pieza suelta que se mueve y se borra sola. Devuelve el sprite. */
-  _pieza(clave, x, y, op) {
-    const A = window.GFBatallaArte;
-    if (!A || !this.textures.exists(A.pieza(clave))) return null;
-    op = op || {};
-    const s = this.add.image(x, y, A.pieza(clave));
-    s.setTint(op.color == null ? 0xffffff : op.color);
-    s.setAlpha(op.alfa == null ? 1 : op.alfa);
-    s.setScale(op.escala == null ? 1 : op.escala);
-    if (op.rot) s.setRotation(op.rot);
-    if (op.mezcla !== false && Phaser.BlendModes) s.setBlendMode(Phaser.BlendModes.ADD);
-    if (this.capaEfectos) this.capaEfectos.add(s);
-    this._efectos.push(s);
-
-    const conf = Object.assign({
-      targets: s, duration: op.dura || 380, ease: 'Quad.easeOut',
-      onComplete: () => { this._soltar(s); }
-    }, op.tween || {});
-    this.tweens.add(conf);
-    return s;
-  }
-
-  _soltar(s) {
-    const i = this._efectos.indexOf(s);
-    if (i >= 0) this._efectos.splice(i, 1);
-    if (s && s.destroy) s.destroy();
-  }
-
-  /** El punto donde se dibujan los golpes de un luchador: su pecho. */
-  _centroDe(L) {
-    if (!L) return { x: 0, y: 0 };
-    const alto = (L.spr.height || 32) * (L.escala || 3);
-    return { x: L.cont.x, y: L.cont.y - alto * 0.55 };
-  }
-
-  /** Chispas que salen disparadas desde un punto. */
-  chispas(x, y, n, color, fuerza) {
-    for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const d = (fuerza || 70) * (0.4 + Math.random() * 0.9);
-      this._pieza('chispa', x, y, {
-        color, escala: 0.2 + Math.random() * 0.35, dura: 320 + Math.random() * 320,
-        tween: {
-          x: x + Math.cos(a) * d, y: y + Math.sin(a) * d * 0.8,
-          alpha: 0, scale: 0.05, ease: 'Cubic.easeOut'
-        }
-      });
-    }
-  }
-
-  /**
-   * EL GOLPE. Es el efecto que más se ve, así que lleva las cinco capas de un
-   * impacto de verdad: el corte que llega, el fogonazo, la onda que se abre,
-   * las chispas y el polvo del suelo. Con una sola de las cinco se ve pobre;
-   * con las cinco, se siente.
-   */
-  efectoGolpe(L, critico) {
-    const c = this._centroDe(L);
-    const col = critico ? BattleScene.COLORES.critico : BattleScene.COLORES.golpe;
-
-    this._pieza('zarpazo', c.x, c.y, {
-      color: col, escala: 0.35, alfa: 0.95, dura: 260,
-      rot: (L.lado === 'yo' ? Math.PI : 0) + (Math.random() - 0.5) * 0.5,
-      tween: { scale: 1.05, alpha: 0 }
-    });
-    this._pieza('estallido', c.x, c.y, {
-      color: col, escala: 0.2, dura: 300,
-      tween: { scale: critico ? 1.5 : 1.05, alpha: 0, angle: 40 }
-    });
-    this._pieza('anillo', c.x, c.y, {
-      color: col, escala: 0.15, alfa: 0.8, dura: 380,
-      tween: { scale: critico ? 1.5 : 1.1, alpha: 0 }
-    });
-    this.chispas(c.x, c.y, critico ? 16 : 9, col, critico ? 130 : 85);
-    // El polvo del suelo, a los pies: el golpe llega hasta abajo.
-    this._pieza('humo', L.cont.x, L.cont.y - 6, {
-      color: BattleScene.COLORES.polvo, escala: 0.5, alfa: 0.5, dura: 520, mezcla: false,
-      tween: { scaleX: 1.5, scaleY: 0.9, y: L.cont.y - 26, alpha: 0 }
-    });
-    this._pieza('onda', L.cont.x, L.cont.y, {
-      color: BattleScene.COLORES.polvo, escala: 0.25, alfa: 0.55, dura: 420, mezcla: false,
-      tween: { scaleX: 1.3, scaleY: 0.9, alpha: 0 }
-    });
-  }
-
-  /** El escudo: un hexágono que aparece de golpe y se queda respirando. */
-  efectoEscudo(L) {
-    const c = this._centroDe(L);
-    this._pieza('escudo', c.x, c.y, {
-      color: BattleScene.COLORES.escudo, escala: 0.35, alfa: 0, dura: 220,
-      tween: {
-        scale: 1.0, alpha: 0.9, ease: 'Back.easeOut',
-        onComplete: null,
-        yoyo: true, hold: 420
-      }
-    });
-    this.chispas(c.x, c.y, 6, BattleScene.COLORES.escudo, 55);
-  }
-
-  /** La cura: una cruz que sube y motas verdes que la acompañan. */
-  efectoCura(L) {
-    const c = this._centroDe(L);
-    this._pieza('cruz', c.x, c.y, {
-      color: BattleScene.COLORES.cura, escala: 0.5, dura: 700,
-      tween: { y: c.y - 70, alpha: 0, scale: 0.85 }
-    });
-    for (let i = 0; i < 8; i++) {
-      const dx = (Math.random() - 0.5) * 80;
-      this._pieza('chispa', c.x + dx, c.y + 30, {
-        color: BattleScene.COLORES.cura, escala: 0.25, dura: 600 + Math.random() * 400,
-        tween: { y: c.y - 60 - Math.random() * 40, alpha: 0 }
-      });
-    }
-  }
-
-  /** Veneno: burbujas que suben de los pies. */
-  efectoVeneno(L) {
-    for (let i = 0; i < 7; i++) {
-      const dx = (Math.random() - 0.5) * 70;
-      this._pieza('burbuja', L.cont.x + dx, L.cont.y - 10, {
-        color: BattleScene.COLORES.veneno, escala: 0.25 + Math.random() * 0.35,
-        dura: 700 + Math.random() * 500, mezcla: false, alfa: 0.85,
-        tween: { y: L.cont.y - 90 - Math.random() * 40, alpha: 0 }
-      });
-    }
-  }
-
-  /** Aturdimiento: estrellitas girando sobre la cabeza. */
-  efectoAturde(L) {
-    const alto = (L.spr.height || 32) * (L.escala || 3);
-    const cy = L.cont.y - alto - 6;
-    for (let i = 0; i < 5; i++) {
-      const a0 = (i / 5) * Math.PI * 2;
-      const s = this._pieza('estrella', L.cont.x, cy, {
-        color: BattleScene.COLORES.aturde, escala: 0.4, dura: 1100,
-        tween: { alpha: 0, ease: 'Linear' }
-      });
-      if (!s) continue;
-      // La órbita se hace a mano: un tween por ángulo, no por posición.
-      const giro = { a: a0 };
-      this.tweens.add({
-        targets: giro, a: a0 + Math.PI * 4, duration: 1100, ease: 'Linear',
-        onUpdate: () => {
-          if (!s.scene) return;
-          s.x = L.cont.x + Math.cos(giro.a) * 42;
-          s.y = cy + Math.sin(giro.a) * 13;
-        }
-      });
-    }
-  }
-
-  /** Elemental: fuego, hielo o rayo cayendo sobre el objetivo. */
-  efectoElemento(L, cual) {
-    const c = this._centroDe(L);
-    if (cual === 'rayo') {
-      this._pieza('rayo', c.x, c.y - 90, {
-        color: BattleScene.COLORES.rayo, escala: 1.1, dura: 260,
-        tween: { alpha: 0, scaleY: 1.4 }
-      });
-      this.destello(0.55, 120);
-      this.chispas(c.x, c.y, 12, BattleScene.COLORES.rayo, 110);
-      return;
-    }
-    const clave = cual === 'hielo' ? 'hielo' : 'llama';
-    const color = cual === 'hielo' ? BattleScene.COLORES.hielo : BattleScene.COLORES.fuego;
-    for (let i = 0; i < 6; i++) {
-      const dx = (Math.random() - 0.5) * 90;
-      this._pieza(clave, c.x + dx, c.y + 30 + Math.random() * 30, {
-        color, escala: 0.5 + Math.random() * 0.5, dura: 480 + Math.random() * 300,
-        rot: cual === 'hielo' ? (Math.random() - 0.5) * 1.2 : 0,
-        tween: cual === 'hielo'
-          ? { y: c.y + 60, alpha: 0, angle: 120 }
-          : { y: c.y - 60 - Math.random() * 40, alpha: 0, scaleX: 0.2 }
-      });
-    }
-  }
-
-  /** Un fogonazo blanco a pantalla completa. */
-  destello(fuerza, ms) {
-    const { width, height } = this.scale;
-    if (!this._flash) {
-      this._flash = this.add.rectangle(width / 2, height / 2, width, height, 0xffffff)
-        .setDepth(60).setAlpha(0);
-    }
-    this._flash.setPosition(width / 2, height / 2).setSize(width, height);
-    this._flash.setAlpha(fuerza || 0.4);
-    this.tweens.add({ targets: this._flash, alpha: 0, duration: ms || 180 });
-  }
-
-  /**
-   * QUÉ EFECTO TOCA PARA CADA CARTA.
-   *
-   * El servidor manda el tipo y el nombre de cada carta jugada; aquí se
-   * traduce a lo que se ve. Se mira el NOMBRE en inglés porque es lo que
-   * distingue una carta de fuego de una de hielo dentro del mismo tipo
-   * 'attack'; si no encaja con nada, se cae al golpe normal, que siempre vale.
-   */
-  efectosDeCartas(cartas, quienPega, quienRecibe) {
-    if (!cartas || !cartas.length) return;
-    cartas.forEach((c, i) => {
-      const nombre = String((c && c.name) || '').toLowerCase();
-      const tipo = (c && c.type) || 'attack';
-      this.time.delayedCall(i * 140, () => {
-        if (!this.scene || !this.scene.isActive || !this.scene.isActive()) return;
-        if (/burn|fire|flame|ember|blaze/.test(nombre)) this.efectoElemento(quienRecibe, 'fuego');
-        else if (/ice|frost|chill|freeze/.test(nombre)) this.efectoElemento(quienRecibe, 'hielo');
-        else if (/spark|bolt|thunder|shock|storm/.test(nombre)) this.efectoElemento(quienRecibe, 'rayo');
-        else if (/poison|venom|toxic|rot/.test(nombre)) this.efectoVeneno(quienRecibe);
-        else if (/stun|daze|dizzy|crush/.test(nombre)) this.efectoAturde(quienRecibe);
-        else if (tipo === 'defense' || /guard|shield|block|armor/.test(nombre)) this.efectoEscudo(quienPega);
-        else if (tipo === 'heal' || /heal|mend|regen|lick|rest/.test(nombre)) this.efectoCura(quienPega);
-        else if (tipo === 'buff') this.efectoEscudo(quienPega);
-      });
-    });
-  }
-
-  /**
-   * El intercambio del turno, coreografiado.
-   *
-   * Antes esto era: sacudir el sprite catorce píxeles y teñirlo de rosa. Ahora
-   * hay embestida, impacto, retroceso, sacudida de cámara y una PAUSA de dos
-   * fotogramas justo en el golpe — el "hit stop" de los juegos de pelea, que
-   * es lo que hace que un porrazo se sienta en las manos y no solo se vea.
-   */
-  animarGolpe(peguéYo, pegóRival, extra) {
-    extra = extra || {};
-    const Y = this.luchadorYo, R = this.luchadorRival;
-    if (!Y || !R) return;
-
-    const golpe = (atacante, victima, critico) => {
-      this.embestir(atacante, () => {
-        this.efectoGolpe(victima, critico);
-        this.encajar(victima);
-        this.cameras.main.shake(critico ? 220 : 130, critico ? 0.011 : 0.006);
-        if (critico) this.destello(0.30, 140);
-      });
-    };
-
-    // Los dos resuelven a la vez, pero se escalonan 180 ms para que se
-    // distingan los dos golpes en vez de verse un amasijo.
-    if (peguéYo) golpe(Y, R, !!extra.criticoRival);
-    if (pegóRival) this.time.delayedCall(peguéYo ? 180 : 0, () => golpe(R, Y, !!extra.criticoYo));
-  }
-
-  onResize(gameSize) {
-    const { width, height } = gameSize;
-    this.ajustarFondo(width, height);
-    if (this._flash) this._flash.setPosition(width / 2, height / 2).setSize(width, height);
-    if (this._revisarOrientacion) this._revisarOrientacion();
-  }
-
-  update(ahora) {
-    this.respirar(ahora);
-    this.asentar(this.luchadorYo);
-    this.asentar(this.luchadorRival);
-  }
-
-  // ---------------------------------------------------------------------------
-  // SALIDA
-  // ---------------------------------------------------------------------------
-  /**
-   * A DÓNDE SE VUELVE. Se comprueba que la escena EXISTA de verdad.
-   *
-   * `scene.start('LoQueSea')` con una clave que el gestor no conoce no lanza
-   * ningún error: no hace nada. Y como el jugador ya no tiene botones (la
-   * interfaz de batalla se acaba de ocultar), se queda mirando el combate
-   * terminado para siempre.
-   */
   _destinoDeVuelta() {
     const candidatos = [this.volverA, 'LoadingScenegame', 'GameScene'];
     for (const clave of candidatos) {
@@ -2023,190 +2221,151 @@ class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * SALIR DE LA BATALLA. Con red debajo.
-   *
-   * EL FALLO QUE ARREGLA — "pierdo y no puedo volver al mapa aunque le hago
-   * clic":
-   *
-   * Antes esto era un cerrojo de una sola dirección:
-   *
-   *     if (this._volviendo) return;
-   *     this._volviendo = true;
-   *     this.limpiar();
-   *     this.scene.start(this.volverA, …);
-   *
-   * En cuanto se ponía `_volviendo`, ya no había vuelta atrás. Si el cambio de
-   * escena NO llegaba a producirse —la escena de destino no está registrada,
-   * `limpiar()` se atraganta a mitad, la pestaña estaba en segundo plano y
-   * Phaser tenía el bucle parado cuando se encoló la operación— el jugador se
-   * quedaba encerrado: la interfaz de la batalla ya estaba oculta (por eso
-   * reaparecía el HUD del mapa) pero la escena seguía siendo la del combate,
-   * con los dos bichos en pantalla y ni un botón que responda. Volver a pulsar
-   * no servía de nada, porque `_volviendo` seguía en true.
-   *
-   * Ahora:
-   *   · `limpiar()` va en try/catch: aunque falle, se intenta salir igual.
-   *   · Se comprueba que la escena de destino exista antes de pedirla.
-   *   · El cerrojo CADUCA: si a los 4 s seguimos en la batalla, se puede
-   *     volver a intentar (con el botón o con el reintento de abajo).
-   *   · Y hay un reintento automático con `window.setTimeout`, NO con
-   *     `this.time`: el reloj de la escena se para al apagarla, así que un
-   *     reintento montado sobre él no se dispararía justo cuando hace falta.
+   * SALIR DE LA BATALLA, CON RED DEBAJO (ver la historia en la memoria
+   * "batallas-entrar-y-salir"): el cerrojo caduca a los 4 s, limpiar() va en
+   * try/catch, se comprueba que la escena de destino exista (scene.start con
+   * una clave desconocida no hace nada) y hay un reintento por el gestor con
+   * el reloj del NAVEGADOR, que pregunta por el destino y no por esta escena.
    */
   volverAlMapa() {
     const ahora = Date.now();
-    /* El cerrojo dura 4 s, no para siempre: es para que dos avisos seguidos
-       (el temporizador del final y el botón de rendirse) no lancen dos cambios
-       de escena a la vez, no para dejar al jugador encerrado. */
     if (this._volviendo && (ahora - (this._volviendoDesde || 0)) < 4000) return;
     this._volviendo = true;
     this._volviendoDesde = ahora;
 
-    try { this.limpiar(); }
-    catch (e) { console.warn('⚠️ limpiar() falló al salir de la batalla:', e); }
+    try { this.limpiar(); } catch (e) { console.warn('⚠️ limpiar() falló al salir de la batalla:', e); }
 
     const destino = this._destinoDeVuelta();
     if (!destino) {
-      /* Ninguna escena a la que ir. Es un caso que no debería pasar nunca,
-         pero si pasa hay que DECIRLO en vez de dejar la pantalla muerta. */
       console.error('❌ No hay ninguna escena de vuelta registrada:', this.volverA);
-      this.estadoTexto('Could not return to the map.\nReload the page (Ctrl+F5).');
       if (this.ui) this.ui.classList.remove('hidden');
+      this.estadoBusqueda('Could not return to the map', 'Reload the page (Ctrl+F5).');
+      if (this.el && this.el.busqueda) this.el.busqueda.classList.remove('hidden');
       this._volviendo = false;
       return;
     }
-
     try { this.scene.start(destino, { desdeBatalla: true }); }
     catch (e) { console.warn('⚠️ scene.start(' + destino + ') falló:', e); }
 
-    /* LA RED. Si dentro de segundo y medio esta escena sigue viva, es que el
-       cambio no ha entrado; se insiste por la vía del gestor, que no depende
-       del estado de esta escena. Va con el reloj del navegador a propósito:
-       `this.time` se para en cuanto la escena se apaga. */
-    /* Se pregunta por el DESTINO, no por esta escena. `sys.isActive()` es
-       falso también cuando la escena está en pausa o dormida —y en esos dos
-       casos sigue en pantalla, que es justo el problema— así que preguntarle a
-       él daría el visto bueno a un cambio que no ha ocurrido. Lo que importa
-       es una sola cosa: si el mapa está ya en marcha. */
     const yaEstamosEnElMapa = () => {
       try { return this.scene.manager.isActive(destino) || this.scene.manager.isVisible(destino); }
       catch (e) { return false; }
     };
-
     if (this._reintentoVuelta) window.clearTimeout(this._reintentoVuelta);
     this._reintentoVuelta = window.setTimeout(() => {
       this._reintentoVuelta = null;
-      if (yaEstamosEnElMapa()) return;                    // ya salió: bien
+      if (yaEstamosEnElMapa()) return;
       console.warn('⚠️ La batalla no se cerró al primer intento; reintentando.');
       try {
         this.scene.manager.stop('BattleScene');
         this.scene.manager.start(destino, { desdeBatalla: true });
       } catch (e) {
         console.error('❌ Tampoco se pudo volver por el gestor:', e);
-        this.estadoTexto('Could not return to the map.\nReload the page (Ctrl+F5).');
         if (this.ui) this.ui.classList.remove('hidden');
       }
-      this._volviendo = false;      // que el botón vuelva a servir
+      this._volviendo = false;
     }, 1500);
   }
 
+  /**
+   * Limpieza de LÓGICA: oyentes, relojes, avisos al servidor, el DOM. Se puede
+   * llamar varias veces. Las texturas no se tocan aquí (los sprites aún se
+   * pintan hasta que la escena se apague): eso va en _liberarRecursos().
+   */
   limpiar() {
+    const yaLimpia = this._cleaned;
+    this._cleaned = true;
     this._soltarDOM();
-    if (this._timerBusqueda) { this._timerBusqueda.remove(); this._timerBusqueda = null; }
-    if (this._conexionTimeout) { this._conexionTimeout.remove(); this._conexionTimeout = null; }
-    if (this._revealTimer) { this._revealTimer.remove(); this._revealTimer = null; }
-    this.detenerTemporizador();
-
-    /* Los plazos que van con el reloj del NAVEGADOR, no con el de la escena.
-       Se apuntan aparte porque `this.time` se para al apagar la escena y estos
-       tienen que seguir contando precisamente para esos casos.
-
-       El reintento de vuelta se anula aquí a propósito: si esta limpieza viene
-       del apagado de la escena, es que el cambio de escena SÍ entró y no hay
-       nada que reintentar. Y si viene de `volverAlMapa()`, el reintento se
-       programa DESPUÉS de esta llamada, así que tampoco se pisa. */
-    if (this._plazoRendirse) { window.clearTimeout(this._plazoRendirse); this._plazoRendirse = null; }
-    if (this._reintentoVuelta) { window.clearTimeout(this._reintentoVuelta); this._reintentoVuelta = null; }
+    this._pararRelojes();
     if (this._plazoConfirmar) { window.clearTimeout(this._plazoConfirmar); this._plazoConfirmar = null; }
     if (this._plazoVolver) { window.clearTimeout(this._plazoVolver); this._plazoVolver = null; }
-    this._confirmandoRendicion = false;
-    if (this.el && this.el.floaters) this.el.floaters.textContent = '';
-    if (this.el && this.el.reveal) this.el.reveal.classList.add('hidden');
+    if (this._reintentoVuelta && yaLimpia) { window.clearTimeout(this._reintentoVuelta); this._reintentoVuelta = null; }
+    if (this._paseo) { this._paseo.remove(); this._paseo = null; }
 
-    /* Los efectos que quedaran a medio volar se tiran a mano. Sus tweens
-       tienen un onComplete que los destruye, pero al apagar la escena esos
-       tweens no llegan a terminar y los sprites se quedarían colgados. */
-    if (this._efectos) {
-      this._efectos.slice().forEach((s) => { try { s.destroy(); } catch (e) {} });
-      this._efectos.length = 0;
+    if (this.input) {
+      if (this._alMoverRaton) this.input.off('pointermove', this._alMoverRaton);
+      if (this._alPulsarRaton) this.input.off('pointerdown', this._alPulsarRaton);
+      if (this._alSoltarRaton) this.input.off('pointerup', this._alSoltarRaton);
     }
+    this.teclas = {};
+    this.disparoMantenido = false;
 
     try {
-      if (this.socket) {
-        this._listeners.forEach(([ev, fn]) => this.socket.off(ev, fn));
-        this._listeners = [];
-        if (this.estado === 'buscando' && this.socket.connected) this.socket.emit('battle:leaveQueue');
-
-        // Avisar SIEMPRE que se abandona la batalla, no solo si se estaba
-        // buscando rival. El servidor guarda un candado por socket mientras
-        // dura el combate; si se sale sin avisar, ese candado se quedaba puesto
-        // y el siguiente intento respondía 'already_in_battle' — el jugador no
-        // podía volver a entrar. (El servidor también lo suelta al
-        // desconectar, esto es el aviso limpio y llega antes.)
-        if (this.socket.connected) this.socket.emit('battle:leave');
-
-        // EL SOCKET NO SE TOCA MÁS. Arriba ya se han quitado los oyentes de
-        // ESTA escena, uno a uno, que es todo lo que le corresponde hacer.
-        //
-        // Aquí había un `removeAllListeners()` + `disconnect()`. El comentario
-        // decía "se deja como lo deja la tienda: desconectado, así GameScene
-        // crea uno nuevo" — y esa costumbre era justo el fallo: `globalSocket`
-        // es UNO por pestaña y lo comparten mapa, tienda y combate. Al borrarle
-        // todos los oyentes se llevaba por delante los globales ('connect',
-        // 'rejoinRequired'), y el socket se quedaba sordo: se reconectaba y
-        // nadie rehacía el joinRoom. Volvías del combate conectado pero fuera
-        // de la sala — sin chat y sin ver a nadie, mientras los demás sí te
-        // veían a ti. Ahora la conexión sobrevive al combate y al volver al
-        // mapa no hay que rehacer nada.
+      if (this.socket && !yaLimpia) {
+        // Avisar SIEMPRE de que nos vamos: el servidor suelta el candado (si
+        // no, el siguiente intento respondía 'already_in_battle'). Si la
+        // partida ya acabó, no hace nada.
+        if (this.estado === 'buscando') this._emitir('brawl:salirCola');
+        if (this.estado !== 'fin') this._emitir('brawl:salir');
       }
+      this._soltarSocket();
+      // EL SOCKET NO SE TOCA MÁS: es uno por pestaña y lo comparten el mapa,
+      // la tienda y la batalla (ver la memoria "reconexion-y-sala").
     } catch (e) { /* sin ruido al salir */ }
 
-    /* EL ESCENARIO SE TIRA AL SALIR.
-     *
-     * El fondo de cada batalla es un lienzo de 1024×576 pintado a mano, y su
-     * clave lleva el `matchId` dentro: cada combate estrena escenario. Nadie
-     * los borraba, así que se iban apilando en el gestor de texturas —2,36 MB
-     * de VRAM y otro tanto de canvas en RAM por cada uno— hasta cerrar la
-     * pestaña. Cinco batallas diarias y unas cuantas de PvP se comían fácil
-     * cuarenta megas que ya no servían para nada.
-     *
-     * Primero se destruyen las imágenes que las usan y después se sueltan las
-     * texturas: al revés, Phaser pintaría un fotograma con la textura ya
-     * borrada. */
-    if (this.fondo) { try { this.fondo.destroy(); } catch (e) {} this.fondo = null; }
-    if (this.fondoRespaldo) { try { this.fondoRespaldo.destroy(); } catch (e) {} this.fondoRespaldo = null; }
-    if (window.GFBatallaArte && window.GFBatallaArte.olvidarArenas) {
-      try { window.GFBatallaArte.olvidarArenas(this); } catch (e) {}
-    }
-    this.arena = null;
-
     document.body.classList.remove('in-battle');
-    if (this.ui) this.ui.classList.add('hidden');
-
-    // La escena se apaga: el aviso de rotar no debe seguir vivo sobre el mapa.
+    if (this.ui) {
+      this.ui.classList.add('hidden');
+      this.ui.classList.remove('tactil', 'buscando');
+    }
+    if (this.el) {
+      if (this.el.feed) this.el.feed.textContent = '';
+      [this.el.caido, this.el.resultado, this.el.aviso].forEach((n) => n && n.classList.add('hidden'));
+      if (this.el.dolor) this.el.dolor.classList.remove('activo');
+    }
     this._escenaViva = false;
     const aviso = document.getElementById('battleRotateNotice');
     if (aviso) aviso.classList.add('hidden');
-    if (this._revisarOrientacion) {
-      window.removeEventListener('resize', this._revisarOrientacion);
-      window.removeEventListener('orientationchange', this._revisarOrientacion);
-      // FIX FUGA: este también se registraba y no se quitaba.
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', this._revisarOrientacion);
-      }
-      this._revisarOrientacion = null;
+    this._revisarOrientacion = null;
+    if (this.scale) this.scale.off('resize', this.onResize, this);
+  }
+
+  /**
+   * Se llama SOLO al apagarse la escena, cuando Phaser ya ha destruido los
+   * sprites: ahora sí se pueden soltar las texturas sin que nadie las pinte.
+   */
+  _liberarRecursos() {
+    try { this.destruirArena(this.arena); } catch (e) {}
+    try { this.destruirArena(this.fondoEspera); } catch (e) {}
+    this.arena = null;
+    this.fondoEspera = null;
+    this.vistas.forEach((v) => this.destruirVista(v));
+    this.vistas.clear();
+    this.balasVista.forEach((b) => { if (b.spr) { try { b.spr.destroy(); } catch (e) {} } });
+    this.balasVista = [];
+    this.efectosVivos.forEach((s) => { try { s.destroy(); } catch (e) {} });
+    this.efectosVivos = [];
+    this.huesosVista.forEach((h) => { try { h.img.destroy(); if (h.brillo) h.brillo.destroy(); } catch (e) {} });
+    this.huesosVista.clear();
+    this.numerosLibres.forEach((t) => { try { t.destroy(); } catch (e) {} });
+    this.numerosLibres = [];
+    ['nieblaRT', 'nieblaAnillo', 'nieblaGoma', 'gApunte'].forEach((k) => {
+      if (this[k]) { try { this[k].destroy(); } catch (e) {} this[k] = null; }
+    });
+    this.arbustosApagados = new Set();
+    this.R = null;
+    this.pred = null;
+    this._cat = null;
+
+    // Las texturas propias: el tileset (1 MB de vídeo), los perros, los
+    // animales y el bloque de respaldo. Las piezas de efecto las lleva su
+    // propio contador (GFBatallaArte), que las suelta con la última escena.
+    const T = this.textures;
+    try {
+      T.getTextureKeys().forEach((k) => {
+        if (k === BattleScene.TILESET || k.indexOf('bz_esp_') === 0 || k === 'bz_bloque') T.remove(k);
+      });
+    } catch (e) {}
+    if (window.GFBatallaArte && window.GFBatallaArte.olvidarEfectos) {
+      try { window.GFBatallaArte.olvidarEfectos(this); } catch (e) {}
     }
-    this.scale.off('resize', this.onResize, this);
+    // Los sonidos de la arena, descodificados (Web Audio los guarda en crudo).
+    BattleScene.SONIDOS.forEach((n) => {
+      const k = 'bz_snd_' + n;
+      try { if (this.sound) this.sound.removeByKey(k); } catch (e) {}
+      try { if (this.cache.audio.exists(k)) this.cache.audio.remove(k); } catch (e) {}
+    });
+    this._especiesPendientes.clear();
   }
 }
 
