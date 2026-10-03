@@ -188,6 +188,10 @@ class BattleScene extends Phaser.Scene {
     this._sigPintado = '';
     this._sinRedDesde = 0;             // desde cuándo no hay conexión (reconexión)
     this._pidioVolverEn = 0;
+    this._ultimoSnap = 0;
+    this._busquedaDesde = 0;
+    this._pvpDeadlineScheduled = false;
+    this._colaAgotada = false;
     this._texArena = BattleScene.TILESET;
     this._marcoNombre = 'muro_seto_15';
     this.tCombateLocal = 0;
@@ -287,7 +291,7 @@ class BattleScene extends Phaser.Scene {
       };
       this._alConectar = alConectar;
       this.socket.once('connect', alConectar);
-      this._reloj(10000, () => {
+      this._reloj(30000, () => {
         if (this.matchId || this._buscandoIniciado) return;
         this.estadoBusqueda('No connection', 'Could not reach the server. Back to the map…');
         this.estado = 'fin';
@@ -1136,6 +1140,9 @@ class BattleScene extends Phaser.Scene {
   }
 
   _pedirPartida() {
+    if (this._cleaned || this.estado !== 'buscando') return;
+    if (this.modo === 'pvp' && this._colaAgotada) return;
+    if (!this._busquedaDesde) this._busquedaDesde = Date.now();
     const ev = this.modo === 'bot' ? 'brawl:bot' : (this.modo === 'practica' ? 'brawl:practica' : 'brawl:cola');
     this._emitir(ev);
     /* VIGILANTE. Si la petición se pierde (el socket se reconecta justo en
@@ -1146,23 +1153,29 @@ class BattleScene extends Phaser.Scene {
     const run = this._battleRun;
     this._intentoPeticion = (this._intentoPeticion || 0) + 1;
     const intentoDe = this._intentoPeticion;
-    this._reloj(6000, () => {
+    this._reloj(10000, () => {
       if (this._battleRun !== run || this.estado !== 'buscando' || this._respuestaCola || this.matchId) return;
       if (intentoDe !== this._intentoPeticion) return;
       console.warn('⏳ La arena no contestó; se repite la petición');
       this._reintentado = true;
       this._emitir(ev);
-      this._reloj(8000, () => {
+      this._reloj(20000, () => {
         if (this._battleRun !== run || this.estado !== 'buscando' || this._respuestaCola || this.matchId) return;
+        if (intentoDe !== this._intentoPeticion) return;
+        // Cancela también una admisión que todavía esté esperando a Mongo.
+        this._emitir('brawl:salirCola');
+        this._emitir('brawl:salir');
         this.estadoBusqueda('Could not start the battle', 'The server did not answer. Back to the map…');
         this.estado = 'fin';
         this.volverEnBreve(2600);
       });
     });
     // En PvP, a los 4 minutos sin rival se para (y se ofrece practicar).
-    if (this.modo === 'pvp') {
+    if (this.modo === 'pvp' && !this._pvpDeadlineScheduled) {
+      this._pvpDeadlineScheduled = true;
       this._reloj(240000, () => {
-        if (this._battleRun !== run || this.estado !== 'buscando' || this.matchId) return;
+        if (this._battleRun !== run || this.estado !== 'buscando' || this.matchId || this.modo !== 'pvp') return;
+        this._colaAgotada = true;
         this.estadoBusqueda('No players right now', 'Try again later — or practice against bots meanwhile.');
         this._emitir('brawl:salirCola');
       });
@@ -1174,6 +1187,7 @@ class BattleScene extends Phaser.Scene {
     this._aceptaPractica = true;
     this.modo = 'practica';
     this._respuestaCola = false;
+    this._busquedaDesde = Date.now();
     if (this.el && this.el.practicar) this.el.practicar.classList.add('hidden');
     if (this.el && this.el.modo) this.el.modo.textContent = 'Practice';
     if (this.el && this.el.sala) this.el.sala.textContent = '';
@@ -1238,11 +1252,28 @@ class BattleScene extends Phaser.Scene {
        vuelve, se pide la partida ('brawl:volver') y llega un brawl:inicio con
        `reanudar` (ver reanudarPartida). Mientras, un cartel "Reconnecting…". */
     this.on('disconnect', () => {
+      if (this.estado === 'buscando') {
+        this._respuestaCola = false;
+        ++this._intentoPeticion;
+        this.estadoBusqueda('Reconnecting…', 'Your search will resume when the connection returns.');
+        const intento = this._intentoPeticion;
+        this._reloj(30000, () => {
+          if (this.estado !== 'buscando' || this.matchId || this.socket.connected || intento !== this._intentoPeticion) return;
+          this.estado = 'fin';
+          this.estadoBusqueda('No connection', 'Could not reach the server. Back to the map…');
+          this.volverEnBreve(2000);
+        });
+      }
       if (!this.matchId || this.estado === 'fin') return;
       if (!this._sinRedDesde) this._sinRedDesde = performance.now();
       this._pintarRed(true);
     });
-    this.on('connect', () => this._pedirVolver());
+    this.on('connect', () => {
+      if (this.estado === 'buscando' && !this.matchId) {
+        this._respuestaCola = false;
+        this._pedirPartida();
+      } else this._pedirVolver();
+    });
     this.on('brawl:volverError', (d) => {
       if (!this.matchId || this.estado === 'fin') return;
       this._pintarRed(false);
@@ -1257,6 +1288,8 @@ class BattleScene extends Phaser.Scene {
   /** Recién (re)conectado en plena partida: pedirla otra vez. */
   _pedirVolver() {
     if (!this.matchId || this.estado === 'fin' || this.estado === 'buscando') return;
+    if (!this.socket || !this.socket.connected) return;
+    if (this._pidioVolverEn && performance.now() - this._pidioVolverEn < 2000) return;
     this._pidioVolverEn = performance.now();
     this._emitir('brawl:volver', { matchId: this.matchId });
   }
@@ -1458,6 +1491,7 @@ class BattleScene extends Phaser.Scene {
     if (d.fase === 'combate') this._empezarYa(Number(d.enCombateMs) || 0);
     this._sinRedDesde = 0;
     this._pidioVolverEn = 0;
+    this._ultimoSnap = performance.now();
     this._pintarRed(false);
     this.aviso('Reconnected!', { peque: true, ms: 1400 });
   }
@@ -2340,7 +2374,6 @@ class BattleScene extends Phaser.Scene {
       return;
     }
     this._sinRedDesde = 0;
-    if (this.estado === 'cuenta') { this._pintarRed(false); return; }
     // 2) Conectado pero sin instantáneas: el servidor no nos tiene enlazados
     //    (reconectó con otro socket antes de que llegara el 'connect'). Se pide
     //    la partida otra vez cada 3 s; si en 14 s no hay nada, se acabó.
@@ -2357,7 +2390,10 @@ class BattleScene extends Phaser.Scene {
     this.ultimoEnvio = ahora;
     this.ultimoLatido = ahora;
     this.envioX = this.pred.x; this.envioY = this.pred.y;
-    this._emitir('brawl:mover', {
+    // Las posiciones viejas no deben encolarse en una red lenta.
+    const canal = this.socket && (this.socket.volatile || this.socket);
+    if (!canal || !this.socket.connected) return;
+    canal.emit('brawl:mover', {
       s: ++this.seq,
       x: Math.round(this.pred.x * 100) / 100,
       y: Math.round(this.pred.y * 100) / 100,

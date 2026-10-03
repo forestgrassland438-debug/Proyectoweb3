@@ -3279,6 +3279,8 @@ handleMouseMovement(delta) {
         window.globalSocket = io(SERVER, {
           path: '/socket.io',
           transports: ['websocket', 'polling'],
+          tryAllTransports: true,
+          withCredentials: true,
           reconnection: true,
           reconnectionAttempts: Infinity,
           reconnectionDelay: 800,

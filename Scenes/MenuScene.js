@@ -46,7 +46,8 @@ class MenuScene extends Phaser.Scene {
         
 
         // Agregar sonido a la escena
-        this.sonidoBoton = this.sound.add('sonidoClick');
+        // Los botones usan sound.play(), que libera el efecto al terminar.
+        // No crear aquí un sonido global sin uso en cada entrada al menú.
 
 
         // Verifica si la imagen se cargó correctamente
@@ -754,5 +755,4 @@ class MenuScene extends Phaser.Scene {
 
 
 }
-
 

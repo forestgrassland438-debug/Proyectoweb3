@@ -9,6 +9,12 @@ class ShopScene extends Phaser.Scene {
     preload() { }
 
     create() {
+        this._cleanupShop();
+        this._shopActive = true;
+        this._shopGeneration = (this._shopGeneration || 0) + 1;
+        this._shopMasks = [];
+        this.events.once('shutdown', this._cleanupShop, this);
+        this.events.once('destroy', this._cleanupShop, this);
         const screenWidth = this.cameras.main.width;
         const screenHeight = this.cameras.main.height;
         const margin = 10;
@@ -29,8 +35,8 @@ class ShopScene extends Phaser.Scene {
         // ----------------- Paneles de Colecciones, Items y Categorías -----------------
         const panelY = 120;
         const panelHeight = screenHeight - panelY - margin;
-        const collectionsPanelWidth = 150;
-        const categoriesPanelWidth = 150;
+        const collectionsPanelWidth = Math.min(150, Math.max(60, screenWidth * 0.24));
+        const categoriesPanelWidth = Math.min(150, Math.max(60, screenWidth * 0.24));
         const itemsPanelWidth = screenWidth - collectionsPanelWidth - categoriesPanelWidth - 3 * margin;
         const itemsPanelX = margin + collectionsPanelWidth + margin;
         const categoriesPanelX = margin + collectionsPanelWidth + margin + itemsPanelWidth + margin;
@@ -62,7 +68,7 @@ class ShopScene extends Phaser.Scene {
         this.renderItems();
 
         // Configurar scroll con la rueda del ratón en cada panel
-        this.input.on('wheel', (pointer, currentlyOver, dx, dy, dz, event) => {
+        this._shopWheelHandler = (pointer, currentlyOver, dx, dy, dz, event) => {
             if (Phaser.Geom.Rectangle.ContainsPoint(this.collectionsArea, pointer)) {
                 this.scrollContainer(this.collectionContainer, this.collectionsArea, dy);
             }
@@ -72,7 +78,8 @@ class ShopScene extends Phaser.Scene {
             if (Phaser.Geom.Rectangle.ContainsPoint(this.categoriesArea, pointer)) {
                 this.scrollContainer(this.categoriesContainer, this.categoriesArea, dy);
             }
-        });
+        };
+        this.input.on('wheel', this._shopWheelHandler);
 
         this.updateStatsPanel();
     }
@@ -130,6 +137,7 @@ class ShopScene extends Phaser.Scene {
         maskGraphics.fillRect(x, y, width, height);
         let mask = maskGraphics.createGeometryMask();
         this.collectionContainer.setMask(mask);
+        this._shopMasks.push({ graphics: maskGraphics, mask, container: this.collectionContainer });
     }
 
     renderCollections() {
@@ -159,6 +167,7 @@ class ShopScene extends Phaser.Scene {
         maskGraphics.fillRect(x, y, width, height);
         let mask = maskGraphics.createGeometryMask();
         this.categoriesContainer.setMask(mask);
+        this._shopMasks.push({ graphics: maskGraphics, mask, container: this.categoriesContainer });
     }
 
     renderCategories() {
@@ -187,6 +196,7 @@ class ShopScene extends Phaser.Scene {
         maskGraphics.fillRect(x, y, width, height);
         let mask = maskGraphics.createGeometryMask();
         this.itemsContainer.setMask(mask);
+        this._shopMasks.push({ graphics: maskGraphics, mask, container: this.itemsContainer });
     }
 
     renderItems() {
@@ -249,15 +259,20 @@ class ShopScene extends Phaser.Scene {
     }
 
     buySelectedItem() {
-        if (!this.selectedItem) {
+        if (!this.selectedItem || this._purchaseInFlight) {
             console.warn("No se ha seleccionado ningún ítem");
             return;
         }
-        console.log("Comprando ítem:", this.selectedItem);
-        let purchaseText = this.add.text(this.itemsArea.x + 10, this.itemsArea.y + this.itemsArea.height - 20, `Comprando ${this.selectedItem.name}...`, { fontFamily: 'Arial', fontSize: '14px', fill: '#32cd32' });
+        const item = this.selectedItem;
+        const generation = this._shopGeneration;
+        this._purchaseInFlight = true;
+        this._purchaseText?.destroy();
+        let purchaseText = this._purchaseText = this.add.text(this.itemsArea.x + 10, this.itemsArea.y + this.itemsArea.height - 20, `Comprando ${item.name}...`, { fontFamily: 'Arial', fontSize: '14px', fill: '#32cd32' });
         this.time.delayedCall(1500, () => {
-            purchaseText.setText(`${this.selectedItem.name} comprado exitosamente!`);
-            let price = parseFloat(this.selectedItem.price);
+            if (!this._shopActive || generation !== this._shopGeneration) return;
+            this._purchaseInFlight = false;
+            purchaseText.setText(`${item.name} comprado exitosamente!`);
+            let price = parseFloat(item.price);
             this.stats.compras += 1;
             this.stats.ventas += 1;
             this.stats.volumenCompra += price;
@@ -268,9 +283,11 @@ class ShopScene extends Phaser.Scene {
     }
 
     async connectWallet() {
+        const generation = this._shopGeneration;
         if (typeof window.ethereum !== 'undefined') {
             try {
                 const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                if (!this._shopActive || generation !== this._shopGeneration || !accounts?.[0]) return;
                 const account = accounts[0];
                 this.walletText.setText(`Wallet: ${account.substring(0, 6)}...${account.substring(account.length - 4)}`);
                 console.log("Wallet conectada:", account);
@@ -290,5 +307,23 @@ class ShopScene extends Phaser.Scene {
         let maxY = area.y;
         let newY = Phaser.Math.Clamp(currentY - deltaY, minY, maxY);
         container.y = newY;
+    }
+
+    _cleanupShop() {
+        this._shopActive = false;
+        this._shopGeneration = (this._shopGeneration || 0) + 1;
+        this.events?.off('shutdown', this._cleanupShop, this);
+        this.events?.off('destroy', this._cleanupShop, this);
+        if (this._shopWheelHandler) this.input?.off('wheel', this._shopWheelHandler);
+        this._shopWheelHandler = null;
+        for (const owner of this._shopMasks || []) {
+            owner.container.clearMask(false);
+            owner.mask.destroy();
+            owner.graphics.destroy();
+        }
+        this._shopMasks = [];
+        this._purchaseText?.destroy();
+        this._purchaseText = null;
+        this._purchaseInFlight = false;
     }
 }
