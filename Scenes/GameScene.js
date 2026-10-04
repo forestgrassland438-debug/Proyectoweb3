@@ -9741,6 +9741,13 @@ setupSettingsPanel() {
             this._doFullLogout();
         }, domGroup);
     }
+    const switchAccountButton = document.getElementById('switch-account-btn');
+    if (switchAccountButton) {
+        this._setDOMProperty(switchAccountButton, 'onclick', () => {
+            if (this.stopAutoRefresh) this.stopAutoRefresh();
+            this._doFullLogout(true);
+        }, domGroup);
+    }
     if (this.settingsLangSelect) {
         this._setDOMProperty(this.settingsLangSelect, 'onchange', (event) => this._aplicarCambioDeIdioma(event.target.value), domGroup);
     }
@@ -25936,7 +25943,7 @@ _setupPinchZoom() {
 
 // Cierre de sesión COMPLETO: cierra la sesión en el backend, DESCONECTA la
 // wallet, corta el socket, limpia rastros locales y manda al login.
-async _doFullLogout() {
+async _doFullLogout(switchAccount = false) {
   console.log('🔐 Cerrando sesión completa…');
 
   // 1) Sesión del backend (logout exige CSRF: se toma de la cookie viva).
@@ -25964,7 +25971,11 @@ async _doFullLogout() {
   //    login (app.grasslandforest.com). El login ve ese parámetro y revoca
   //    también en su propio origen, así la wallet queda desconectada de verdad.
   const _login = window.GF_LOGIN_URL || 'https://app.grasslandforest.com/';
-  window.location.href = _login + (_login.indexOf('?') >= 0 ? '&' : '?') + 'logout=1';
+  const loginURL = new URL(_login, window.location.href);
+  loginURL.searchParams.set('logout', '1');
+  if (switchAccount) loginURL.searchParams.set('native_action', 'choose_account');
+  if (new URLSearchParams(window.location.search).get('native_client') === 'android') loginURL.searchParams.set('native_client', 'android');
+  window.location.href = loginURL.href;
 }
 
 // ─── CONSUMIBLES (comer/beber haciendo clic en el personaje) ─────────────────

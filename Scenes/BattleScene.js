@@ -185,6 +185,10 @@ class BattleScene extends Phaser.Scene {
     this.zonaCambioEn = 0;             // performance.now() del próximo cambio
     this._zonaPintada = -1;
     this._zonaPintadaC = null;
+    this._nieblaDibujadaEn = -Infinity;
+    this._camaraGolpeEn = -Infinity;
+    this._camaraRetroceso = { x: 0, y: 0 };
+    this._camaraAnticipo = { x: 0, y: 0 };
     this._sigPintado = '';
     this._sinRedDesde = 0;             // desde cuándo no hay conexión (reconexión)
     this._pidioVolverEn = 0;
@@ -1599,6 +1603,7 @@ class BattleScene extends Phaser.Scene {
     }
     if (Math.abs(Math.cos(ang)) > 0.2) yo.mira = Math.cos(ang) > 0 ? 1 : -1;
     this._fogonazo(yo, ang, sup);
+    this._impulsoCamara(sup ? 'super' : 'tiro', ang);
     if (sup) this._sonar(yo.especie === 'perro' ? 'aullido' : 'golpe');
     else this._sonar(this.seqDisparo % 2 ? 'ladrido_1' : 'ladrido_2', { detune: (Math.random() - 0.5) * 120 });
     return true;
@@ -1749,7 +1754,7 @@ class BattleScene extends Phaser.Scene {
         this.el.dolor.classList.add('activo');
         this._reloj(120, () => this.el && this.el.dolor && this.el.dolor.classList.remove('activo'));
       }
-      if (!this._reducedMotion) this.cameras.main.shake(110, d.sup ? 0.008 : 0.004);
+      this._impulsoCamara('dano', 0, d.sup ? 1 : 0.6);
     }
   }
 
@@ -1859,7 +1864,7 @@ class BattleScene extends Phaser.Scene {
     const yo = this.vistas.get(this.yoId);
     if (yo && !this._reducedMotion) {
       const dist = Math.hypot(yo.x - x, yo.y - y);
-      if (dist < r * 4) this.cameras.main.shake(260, 0.012 * Math.max(0.25, 1 - dist / (r * 4)));
+      if (dist < r * 4) this._impulsoCamara('explosion', 0, Math.max(0.15, 1 - dist / (r * 4)));
     }
   }
 
@@ -2147,10 +2152,16 @@ class BattleScene extends Phaser.Scene {
     if (!this.zona || !this.R || this.zonaR == null) return;
     const A = window.GFBatallaArte;
     if (!this.nieblaRT) {
-      this.nieblaRT = this.add.renderTexture(0, 0, this.R.anchoPx, this.R.altoPx).setOrigin(0, 0).setDepth(45000);
+      this._nieblaMargen = BattleScene.MARCO * 32;
+      const m = this._nieblaMargen;
+      this.nieblaRT = this.add.renderTexture(-m, -m, this.R.anchoPx + m * 2, this.R.altoPx + m * 2).setOrigin(0, 0).setDepth(45000);
       this.nieblaAnillo = this.add.graphics().setDepth(45001);
       this.nieblaSig = this.add.graphics().setDepth(45002);
       if (A && this.textures.exists(A.pieza('circulo'))) this.nieblaGoma = this.make.image({ key: A.pieza('circulo'), add: false });
+      if (A && this.textures.exists(A.pieza('niebla'))) {
+        this.nieblaNubes = this.make.tileSprite({ x: 0, y: 0, width: this.R.anchoPx + m * 2,
+          height: this.R.altoPx + m * 2, key: A.pieza('niebla'), add: false }).setOrigin(0, 0);
+      }
     }
     const r = this.zonaR;
     const c = this.zonaC || { x: this.zona.cx, y: this.zona.cy };
@@ -2171,7 +2182,8 @@ class BattleScene extends Phaser.Scene {
       }
     }
     // El borde late mientras cierra.
-    if (this.nieblaAnillo) this.nieblaAnillo.setAlpha(this.zonaEstado === 1 ? 0.65 + 0.35 * Math.sin((time || 0) / 140) : 1);
+    if (this.nieblaAnillo) this.nieblaAnillo.setAlpha(this._reducedMotion ? 1 :
+      (this.zonaEstado === 1 ? 0.88 + 0.12 * Math.sin((time || 0) / 800) : 1));
 
     // La niebla: mientras no ha entrado, no hay nada que pintar.
     if (r >= this.zona.r0 - 1) {
@@ -2181,23 +2193,44 @@ class BattleScene extends Phaser.Scene {
       return;
     }
     const pc = this._zonaPintadaC;
-    if (Math.abs(r - this._zonaPintada) < 0.75 && pc && Math.abs(pc.x - c.x) < 0.75 && Math.abs(pc.y - c.y) < 0.75) return;
+    const cambio = Math.abs(r - this._zonaPintada) >= 0.75 || !pc || Math.abs(pc.x - c.x) >= 0.75 || Math.abs(pc.y - c.y) >= 0.75;
+    const animar = !this._reducedMotion && !document.hidden;
+    if (!cambio && !animar) return;
+    if ((time || 0) - this._nieblaDibujadaEn < 100) return;
+    this._nieblaDibujadaEn = time || 0;
     this._zonaPintada = r;
     this._zonaPintadaC = { x: c.x, y: c.y };
     const rt = this.nieblaRT;
     rt.setVisible(true);
     rt.clear();
-    rt.fill(BattleScene.COLOR.niebla, 0.58);
+    rt.fill(0x153f37, 0.40);
+    if (this.nieblaNubes) {
+      this.nieblaNubes.tilePositionX = animar ? time * 0.008 : 0;
+      this.nieblaNubes.tilePositionY = animar ? -time * 0.005 : 0;
+      rt.draw(this.nieblaNubes, 0, 0);
+    }
     if (this.nieblaGoma && r > 0) {
-      this.nieblaGoma.setDisplaySize(r * 2, r * 2).setPosition(c.x, c.y);
+      this.nieblaGoma.setDisplaySize(r * 2, r * 2).setPosition(c.x + this._nieblaMargen, c.y + this._nieblaMargen);
       rt.erase(this.nieblaGoma);
     }
     const g = this.nieblaAnillo;
     g.clear();
     if (r > 0) {
-      g.lineStyle(10, 0x2f6b22, 0.30).strokeCircle(c.x, c.y, r + 5);
-      g.lineStyle(6, 0x9cff6e, 0.22).strokeCircle(c.x, c.y, r + 2);
-      g.lineStyle(3, 0xc4ff8f, 0.95).strokeCircle(c.x, c.y, r);
+      g.lineStyle(18, 0x74ba8b, 0.13).strokeCircle(c.x, c.y, r + 10);
+      g.lineStyle(7, 0x9ad6a0, 0.24).strokeCircle(c.x, c.y, r + 4);
+      g.lineStyle(2, 0xe2ffc2, 0.92).strokeCircle(c.x, c.y, r);
+      // Motas y corrientes fuera del límite: no invaden la zona segura.
+      const fase = animar ? time / 9000 : 0;
+      for (let i = 0; i < 32; i++) {
+        const a = i * Math.PI * 2 / 32 + fase;
+        const rr = r + 10 + (i % 4) * 7 + 3 * Math.sin(fase * 3 + i);
+        g.fillStyle(i % 3 ? 0xbbe9ac : 0x69aa92, 0.35 + (i % 3) * 0.12);
+        g.fillCircle(c.x + Math.cos(a) * rr, c.y + Math.sin(a) * rr, i % 3 ? 1.5 : 2.5);
+        if (i % 4 === 0) {
+          g.lineStyle(2, 0xc5edb0, 0.25);
+          g.beginPath().arc(c.x, c.y, r + 12, a, a + 0.13).strokePath();
+        }
+      }
     }
   }
 
@@ -2344,8 +2377,29 @@ class BattleScene extends Phaser.Scene {
     if (foco) {
       const cx = cam.scrollX + cam.width / 2, cy = cam.scrollY + cam.height / 2;
       const k = Math.min(1, dt * 10);
-      cam.centerOn(cx + (foco.x - cx) * k, cy + (foco.y - 8 - cy) * k);
+      const anticipo = this._camaraAnticipo, retro = this._camaraRetroceso;
+      const apuntando = foco.yo && this.apunte.mostrar && !this._reducedMotion;
+      const distancia = apuntando ? 18 : 0;
+      anticipo.x += (Math.cos(this.apunte.ang || 0) * distancia - anticipo.x) * Math.min(1, dt * 4);
+      anticipo.y += (Math.sin(this.apunte.ang || 0) * distancia - anticipo.y) * Math.min(1, dt * 4);
+      retro.x *= Math.max(0, 1 - dt * 14); retro.y *= Math.max(0, 1 - dt * 14);
+      cam.centerOn(cx + (foco.x + anticipo.x + retro.x - cx) * k,
+        cy + (foco.y - 8 + anticipo.y + retro.y - cy) * k);
     }
+  }
+
+  _impulsoCamara(tipo, ang, fuerza = 1) {
+    if (this._reducedMotion || document.hidden || this._cleaned) return;
+    const ahora = performance.now();
+    if (tipo === 'tiro' || tipo === 'super') {
+      const r = this._camaraRetroceso;
+      const n = tipo === 'super' ? 7 : 3;
+      r.x = -Math.cos(ang) * n; r.y = -Math.sin(ang) * n;
+    }
+    if (tipo === 'tiro' || ahora - this._camaraGolpeEn < 180) return;
+    this._camaraGolpeEn = ahora;
+    const duracion = tipo === 'explosion' ? 150 : 85;
+    this.cameras.main.shake(duracion, Math.min(0.0025, Math.max(0, fuerza) * 0.0025), false);
   }
 
   /**
@@ -2721,7 +2775,8 @@ class BattleScene extends Phaser.Scene {
     this.huesosVista.clear();
     this.numerosLibres.forEach((t) => { try { t.destroy(); } catch (e) {} });
     this.numerosLibres = [];
-    ['nieblaRT', 'nieblaAnillo', 'nieblaSig', 'nieblaGoma', 'gApunte'].forEach((k) => {
+    if (this.cameras && this.cameras.main) this.cameras.main.resetFX();
+    ['nieblaRT', 'nieblaAnillo', 'nieblaSig', 'nieblaGoma', 'nieblaNubes', 'gApunte'].forEach((k) => {
       if (this[k]) { try { this[k].destroy(); } catch (e) {} this[k] = null; }
     });
     this.arbustosApagados = new Set();

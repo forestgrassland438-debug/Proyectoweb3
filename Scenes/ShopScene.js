@@ -268,8 +268,9 @@ class ShopScene extends Phaser.Scene {
         this._purchaseInFlight = true;
         this._purchaseText?.destroy();
         let purchaseText = this._purchaseText = this.add.text(this.itemsArea.x + 10, this.itemsArea.y + this.itemsArea.height - 20, `Comprando ${item.name}...`, { fontFamily: 'Arial', fontSize: '14px', fill: '#32cd32' });
-        this.time.delayedCall(1500, () => {
+        this._purchaseTimer = this.time.delayedCall(1500, () => {
             if (!this._shopActive || generation !== this._shopGeneration) return;
+            this._purchaseTimer = null;
             this._purchaseInFlight = false;
             purchaseText.setText(`${item.name} comprado exitosamente!`);
             let price = parseFloat(item.price);
@@ -325,5 +326,7 @@ class ShopScene extends Phaser.Scene {
         this._purchaseText?.destroy();
         this._purchaseText = null;
         this._purchaseInFlight = false;
+        this._purchaseTimer?.remove(false);
+        this._purchaseTimer = null;
     }
 }
