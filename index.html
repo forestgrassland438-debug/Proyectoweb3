@@ -120,11 +120,11 @@
   <!-- Arte de las batallas: dibuja con canvas los escenarios y TODOS los
        efectos del combate. Va antes de las escenas porque BattleScene lo usa
        en su preload. -->
-  <script src="./gf-batalla-arte.js?v=20.0" defer></script>
+  <script src="./gf-batalla-arte.js?v=20.3" defer></script>
   <!-- El motor de la arena: las MISMAS colisiones, balas y reglas que usa el
        servidor (server2.js lleva una copia incrustada). BattleScene lo usa para
        mover a tu perro sin esperar a la red. -->
-  <script src="./gf-brawl-motor.js?v=20.1" defer></script>
+  <script src="./gf-brawl-motor.js?v=20.3" defer></script>
 
   <!-- Scenes -->
   <!-- SOCIAL: amistades, reacciones del chat y color del nombre.
@@ -134,7 +134,7 @@
   <script src="./gf-chat-social.js?v=19.8" defer></script>
   <script src="./gf-nombre-color.js?v=19.1" defer></script>
 
-  <script src="./Scenes/MenuScene.js?v=19.1" defer></script>
+  <script src="./Scenes/MenuScene.js?v=20.3" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=19.8" defer></script>
   <script src="./Scenes/tiendajuego.js?v=20.2" defer></script>
   <script src="./Scenes/LoadingScenegame.js?v=19.8" defer></script>
@@ -147,11 +147,11 @@
   <!-- La isla de las parcelas. Hereda de GameScene igual que la mina,
        asi que tambien tiene que ir DESPUES de ella. -->
   <script src="./Scenes/LandsScene.js?v=19.7" defer></script>
-  <script src="./Scenes/BattleScene.js?v=20.2" defer></script>
+  <script src="./Scenes/BattleScene.js?v=20.3" defer></script>
   <script src="./Scenes/sacar_mapa.js?v=19.1" defer></script>
 
   <!-- tienda marketplace p2p -->
-  <script src="./Scenes/ShopScene.js?v=19.1" defer></script>
+  <script src="./Scenes/ShopScene.js?v=20.3" defer></script>
 
   <!-- utilities -->
 
@@ -201,7 +201,7 @@
        Va después de ethers (lo necesita para firmar) y su arranque solo instala
        window.ethereum si NO hay MetaMask: con extensión instalada, manda ella. -->
   <script src="./gf-wallet-sdk/gf-wallet.js?v=19.1" defer></script>
-  <script src="./vendor/gf-metamask-connect.js?v=20.2" defer></script>
+  <script src="./vendor/gf-metamask-connect.js?v=20.3" defer></script>
   <script src="./gf-wallet-boot.js?v=20.2" defer></script>
   <!-- Panel de cartera del dashboard. Va aparte de las escenas porque el
        dashboard es DOM de la pagina, compartido por GameScene y tiendajuego. -->
@@ -1715,7 +1715,8 @@
     <div class="hub-row_101 dash-card_101">
       <div class="hub-label_101">🔐 Account</div>
       <div class="dash-account-row_101">
-        <button id="logout-btn" class="btn-ghost">Log out</button>
+        <button id="logout-btn" class="btn-ghost">Sign out</button>
+        <button id="switch-account-btn" class="btn-ghost">Switch account</button>
         <div class="muted"><span class="dash-session-dot_101"></span> Session active</div>
       </div>
     </div>

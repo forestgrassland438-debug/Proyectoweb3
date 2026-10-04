@@ -11,7 +11,8 @@
   },
   "overrides": {
     "socket.io-parser": "4.2.7",
-    "i18next-http-backend": "3.0.5"
+    "i18next-http-backend": "3.0.5",
+    "@metamask/utils": { "uuid": "11.1.1" }
   },
   "devDependencies": {
     "esbuild": "0.28.2",

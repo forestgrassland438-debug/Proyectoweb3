@@ -1016,6 +1016,19 @@
       g.addColorStop(1, 'rgba(255,60,20,0)');
       ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
     }],
+    // Nubes repetibles: una textura pequeña, compartida y liberada al salir.
+    niebla: [256, 256, function (ctx, w, h) {
+      for (var i = 0; i < 18; i++) {
+        var x = (i * 97 + 31) % w, y = (i * 61 + 53) % h;
+        var r = 34 + (i * 13) % 42;
+        for (var ox = -w; ox <= w; ox += w) for (var oy = -h; oy <= h; oy += h) {
+          var g = ctx.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, r);
+          g.addColorStop(0, i % 3 ? 'rgba(118,178,114,0.48)' : 'rgba(25,75,70,0.65)');
+          g.addColorStop(1, 'rgba(45,108,73,0)');
+          ctx.fillStyle = g; ctx.fillRect(x + ox - r, y + oy - r, r * 2, r * 2);
+        }
+      }
+    }],
     // Círculo blanco macizo: la "goma" con la que se abre el hueco de la niebla.
     circulo: [128, 128, function (ctx, w, h) {
       ctx.beginPath(); ctx.arc(w / 2, h / 2, w / 2, 0, Math.PI * 2);
