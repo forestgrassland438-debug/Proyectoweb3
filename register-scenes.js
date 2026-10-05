@@ -163,6 +163,8 @@
     { name: 'MinaScene',        required: false },
     // La isla de las parcelas. required:false por lo mismo que la mina.
     { name: 'LandsScene',       required: false },
+    // Dentro de las casas (2026-10-05). required:false por lo mismo.
+    { name: 'InteriorScene',    required: false },
     { name: 'tiendajuego',      required: true  },
     { name: 'LoadingSceneshop', required: true  },
     // Batallas P2P de mascotas. required:false para que, si el archivo no

@@ -210,6 +210,24 @@ class TiendaSistema {
           // El carbón suelto: es el combustible del horno y faltaba en esta
           // copia de respaldo (la de las escenas sí lo tiene desde 2026-08-05).
           carbon: { src: "./Game/Objetos/carbon.png", maxStack: 20 , tipo: "carbon", usos: null },
+          // La parcela de construcción (2026-10-03): tabla `parcelas`, 20 por casilla.
+          parcela: { src: "./Game/Objetos/construccion/parcela.png", maxStack: 20, tipo: "parcelas", usos: null },
+          pala_construccion: { src: "./Game/Objetos/construccion/pala_construccion.png", maxStack: 1, tipo: "pala_contrucion", usos: null },
+          // El bote de basura y los cofres de la isla (2026-10-05).
+          basura: { src: "./Game/Objetos/cofres/basura.png", maxStack: 10, tipo: "basura", usos: null },
+          cofre1: { src: "./Game/Objetos/cofres/cofre1.png", maxStack: 5, tipo: "cofre1", usos: null },
+          cofre2: { src: "./Game/Objetos/cofres/cofre2.png", maxStack: 5, tipo: "cofre2", usos: null },
+          cofre3: { src: "./Game/Objetos/cofres/cofre3.png", maxStack: 5, tipo: "cofre3", usos: null },
+          cofre4: { src: "./Game/Objetos/cofres/cofre4.png", maxStack: 5, tipo: "cofre4", usos: null },
+          // Equipo, granja y pesca (2026-10-05).
+          espada_madera:  { src: "./Game/Objetos/armas/espada_madera.png",   maxStack: 1,  tipo: "madera",         usos: null },
+          espada_cobre:   { src: "./Game/Objetos/armas/espada_cobre.png",    maxStack: 1,  tipo: "cobre",          usos: null },
+          espada_hierro:  { src: "./Game/Objetos/armas/espada_hierro.png",   maxStack: 1,  tipo: "hierro",         usos: null },
+          cana_pescar:    { src: "./Game/Objetos/pesca/cana_pescar.png",     maxStack: 1,  tipo: "caña_pescar",    usos: null },
+          espantapajaros: { src: "./Game/Objetos/granja/espantapajaros.png", maxStack: 10, tipo: "espantapajaros", usos: null },
+          pes1: { src: "./Game/Objetos/pesca/pes1.png", maxStack: 20, tipo: "pes1", usos: null },
+          pes2: { src: "./Game/Objetos/pesca/pes2.png", maxStack: 20, tipo: "pes2", usos: null },
+          pes3: { src: "./Game/Objetos/pesca/pes3.png", maxStack: 20, tipo: "pes3", usos: null },
 
           palo: { src: "./Game/Source/palo.png", maxStack: 20 , tipo: "palo", usos: null},
           tablon_de_madera: { src: "./Game/Source/madera.png", maxStack: 20 , tipo: "tablon_de_madera", usos: null},
@@ -498,10 +516,241 @@ class TiendaSistema {
                     comision: 2,
                     limiteDiario: 0,
                     descripcion: 'Fresh water for hydration. Restores 20% water.'
+                },
+                /* LOS PECES DEL RÍO (2026-10-05): se pescan en el río del
+                 * pueblo con la caña. SOLO SE VENDEN (`soloVenta`): no salen
+                 * en la lista de compra y la compra los rechaza, porque solo
+                 * el servidor los acuña al pescar. */
+                {
+                    id: 'pes1',
+                    name: 'Brown Trout',
+                    image: './Game/Objetos/pesca/pes1.png',
+                    buyPrice: 0,
+                    sellPrice: 12,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'A common river trout. Caught with a fishing rod. Restores 6% food.'
+                },
+                {
+                    id: 'pes2',
+                    name: 'Common Carp',
+                    image: './Game/Objetos/pesca/pes2.png',
+                    buyPrice: 0,
+                    sellPrice: 22,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'A heavy, bronze river carp. Restores 10% food.'
+                },
+                {
+                    id: 'pes3',
+                    name: 'Golden Trout',
+                    image: './Game/Objetos/pesca/pes3.png',
+                    buyPrice: 0,
+                    sellPrice: 70,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'A rare golden trout. Few anglers ever see one. Restores 18% food.'
+                }
+            ],
+
+            /* CONSTRUCCIÓN (2026-10-03). Lo que se coloca en la isla (Lands).
+             *
+             * Cada objeto de aquí vive en su tabla del contrato (la parcela,
+             * en `parcelas`, 20 por factura = 20 por casilla) y, al colocarlo,
+             * pasa a la tabla de lo construido (`cons_parcelas`) con su
+             * posición. Esas tablas las crea el administrador a mano: hasta
+             * que existan, este apartado se ve pero no deja comprar (ver
+             * _comprobarConstruccion), para no cobrar una compra que la
+             * cadena iba a rechazar.
+             *
+             * Precio: una parcela es un cuadro de huerto PERMANENTE, así que
+             * cuesta lo que la regadera y media (120) y se revende a la mitad,
+             * como el resto de herramientas. La pala no se gasta nunca: cuesta
+             * algo más y se revende a la mitad.
+             *
+             * `tabla` es la tabla del contrato de cada objeto: el apartado se
+             * bloquea OBJETO A OBJETO según exista o no la suya. */
+            construccion: [
+                {
+                    id: 'parcela',
+                    name: 'Land Plot',
+                    image: './Game/Objetos/construccion/parcela.png',
+                    buyPrice: 200,
+                    sellPrice: 100,
+                    currency: 'silver',
+                    categoria: 'construccion',
+                    tabla: 'parcelas',
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'A farm plot for your island (Lands), the same soil as the village garden. Select it in your inventory and place it on the island: then plant any seed, water and harvest on it. Up to 20 per slot.'
+                },
+                {
+                    id: 'pala_construccion',
+                    name: 'Construction Shovel',
+                    image: './Game/Objetos/construccion/pala_construccion.png',
+                    buyPrice: 300,
+                    sellPrice: 150,
+                    currency: 'silver',
+                    categoria: 'construccion',
+                    tabla: 'pala_contrucion',
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'The building tool for your island. Hold it and click something you built twice to dig it up: it goes back to your bag (a plot can only be dug up when nothing is planted on it). It never breaks.'
+                },
+                /* EL BOTE DE BASURA Y LOS COFRES (2026-10-05). Sus tablas
+                 * (`basura`, `cofre1..4`) se dan de alta SOLAS con la primera
+                 * compra o el primer crafteo, así que no se bloquean esperando
+                 * al administrador (`tablaSola`). Los cofres 2, 3 y 4 no se
+                 * compran: se craftean, y aquí solo se venden. */
+                {
+                    id: 'basura',
+                    name: 'Trash Can',
+                    image: './Game/Objetos/cofres/basura.png',
+                    buyPrice: 120,
+                    sellPrice: 60,
+                    currency: 'silver',
+                    categoria: 'construccion',
+                    tabla: 'basura',
+                    tablaSola: true,
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'A trash can for your island. Place it in Lands and click it to throw away what you no longer want, just like the one in the village.'
+                },
+                {
+                    id: 'cofre1',
+                    name: 'Wooden Chest',
+                    image: './Game/Objetos/cofres/cofre1.png',
+                    buyPrice: 150,
+                    sellPrice: 75,
+                    currency: 'silver',
+                    categoria: 'construccion',
+                    tabla: 'cofre1',
+                    tablaSola: true,
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'A simple chest for your island: it keeps 5 stacks. Place it in Lands and click it to store things. Craft it into better chests (7, 13 and 20 slots).'
+                },
+                {
+                    id: 'cofre2',
+                    name: 'Reinforced Chest',
+                    image: './Game/Objetos/cofres/cofre2.png',
+                    buyPrice: 0,
+                    sellPrice: 250,
+                    soloVenta: true,
+                    currency: 'silver',
+                    categoria: 'construccion',
+                    tabla: 'cofre2',
+                    tablaSola: true,
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'An iron-bound chest with 7 slots. It cannot be bought: craft it from a Wooden Chest.'
+                },
+                {
+                    id: 'cofre3',
+                    name: 'Magic Chest',
+                    image: './Game/Objetos/cofres/cofre3.png',
+                    buyPrice: 0,
+                    sellPrice: 700,
+                    soloVenta: true,
+                    currency: 'silver',
+                    categoria: 'construccion',
+                    tabla: 'cofre3',
+                    tablaSola: true,
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'A glowing chest with 13 slots. It cannot be bought: craft it from a Reinforced Chest.'
+                },
+                {
+                    id: 'cofre4',
+                    name: 'Legendary Chest',
+                    image: './Game/Objetos/cofres/cofre4.png',
+                    buyPrice: 0,
+                    sellPrice: 2000,
+                    soloVenta: true,
+                    currency: 'silver',
+                    categoria: 'construccion',
+                    tabla: 'cofre4',
+                    tablaSola: true,
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'The finest chest in the land, with 20 slots. It cannot be bought: craft it from a Magic Chest.'
+                }
+            ],
+            /* EQUIPO (2026-10-05): las tres espadas, la caña de pescar y el
+             * espantapájaros. Cada uno en su tabla del contrato. */
+            equipo: [
+                {
+                    id: 'espada_madera',
+                    name: 'Wooden Sword',
+                    image: './Game/Objetos/armas/espada_madera.png',
+                    buyPrice: 80,
+                    sellPrice: 40,
+                    currency: 'silver',
+                    categoria: 'equipo',
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'A training sword. Equip it next to your bag and press SPACE to swing. Damage 12.'
+                },
+                {
+                    id: 'espada_cobre',
+                    name: 'Copper Sword',
+                    image: './Game/Objetos/armas/espada_cobre.png',
+                    buyPrice: 250,
+                    sellPrice: 125,
+                    currency: 'silver',
+                    categoria: 'equipo',
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'A sharp copper blade. Equip it and press SPACE to swing. Damage 20.'
+                },
+                {
+                    id: 'espada_hierro',
+                    name: 'Iron Sword',
+                    image: './Game/Objetos/armas/espada_hierro.png',
+                    buyPrice: 600,
+                    sellPrice: 300,
+                    currency: 'silver',
+                    categoria: 'equipo',
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'A heavy iron sword for seasoned adventurers. Damage 32.'
+                },
+                {
+                    id: 'cana_pescar',
+                    name: 'Fishing Rod',
+                    image: './Game/Objetos/pesca/cana_pescar.png',
+                    buyPrice: 150,
+                    sellPrice: 75,
+                    currency: 'silver',
+                    categoria: 'equipo',
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'Walk to the village river with it in your bag and fish: trout, carp and, with luck, a golden trout. It never breaks.'
+                },
+                {
+                    id: 'espantapajaros',
+                    name: 'Scarecrow',
+                    image: './Game/Objetos/granja/espantapajaros.png',
+                    buyPrice: 120,
+                    sellPrice: 60,
+                    currency: 'silver',
+                    categoria: 'equipo',
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'Put it on a planted plot (village or island): crows land on it instead of eating your crop. Lasts 2 hours.'
                 }
             ],
             /*
-            equipo: [
+            equipo_viejo: [
                 {
                     id: 'pico_de_hierro',
                     name: 'Pico de Hierro',
@@ -633,7 +882,23 @@ class TiendaSistema {
         // Filtros
         document.getElementById('tienda-categoria')?.addEventListener('change', (e) => {
             this.currentCategory = e.target.value;
+            this._pintarApartados();
             this.filterItems?.();
+        });
+
+        // Apartados (los botones de encima de la rejilla). Hacen lo mismo que
+        // el desplegable y los dos se mantienen iguales: el desplegable sigue
+        // ahí para quien ya lo usaba, y en el móvil, donde un <select> abre
+        // la lista del sistema, los botones son un toque.
+        document.querySelectorAll('#tienda-apartados .tienda-apartado').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const cat = btn.dataset.cat || 'todas';
+                this.currentCategory = cat;
+                const sel = document.getElementById('tienda-categoria');
+                if (sel) sel.value = cat;
+                this._pintarApartados();
+                this.filterItems?.();
+            });
         });
         
         document.getElementById('tienda-tipo')?.addEventListener('change', (e) => {
@@ -1066,7 +1331,8 @@ class TiendaSistema {
             'minerales': 'Minerals',
             'alimentos': 'Food',
             'equipo': 'Equipment',
-            'especial': 'Special'
+            'especial': 'Special',
+            'construccion': 'Construction'
         };
         
         document.getElementById('pc-item-name').textContent = item.name;
@@ -1451,6 +1717,10 @@ class TiendaSistema {
         }
         
         await this.loadPlayerMoneda();
+        // Sin esperar: la tienda se abre ya y el apartado se repinta solo
+        // cuando llegue la respuesta.
+        this._comprobarConstruccion();
+        this._pintarApartados();
         
         document.getElementById('tienda-hub')?.classList.remove('tienda-hub-hidden');
         document.getElementById('tienda-overlay')?.classList.remove('tienda-overlay-hidden');
@@ -1705,6 +1975,11 @@ class TiendaSistema {
             );
         }
         
+        // Lo que solo se vende (los peces) no sale en la lista de compra.
+        if (this.transactionType === 'compra') {
+            allItems = allItems.filter(item => !item.soloVenta);
+        }
+
         if (this.transactionType === 'venta') {
             allItems = allItems.filter(item => {
                 // Un objeto entero en la cola de ventas deja de ofrecerse:
@@ -1727,7 +2002,8 @@ class TiendaSistema {
                 'minerales': 'Minerals',
                 'alimentos': 'Food',
                 'equipo': 'Equipment',
-                'especial': 'Special'
+                'especial': 'Special',
+                'construccion': 'Construction'
             };
             filtroTexto = categorias[this.currentCategory] || this.currentCategory;
         }
@@ -1827,6 +2103,20 @@ class TiendaSistema {
         card.appendChild(img);
         card.appendChild(name);
         card.appendChild(price);
+
+        // Construcción sin habilitar (faltan sus tablas en el contrato).
+        if (this._construccionBloqueada(item) && this.transactionType === 'compra') {
+            card.classList.add('locked-by-level');
+            card.style.position = 'relative';
+            card.style.opacity = '0.78';
+            img.style.filter = 'grayscale(1) brightness(0.6)';
+            const soon = document.createElement('div');
+            soon.className = 'item-lock-badge';
+            soon.textContent = '🔒 Soon';
+            soon.title = 'Construction is not enabled on the contract yet.';
+            soon.style.cssText = 'position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.78);color:#ffd23f;font-size:11px;font-weight:bold;padding:2px 6px;border-radius:6px;pointer-events:none;z-index:2;';
+            card.appendChild(soon);
+        }
 
         // Bloqueo por nivel: se ve el ítem pero en gris con candado y 'Lv. N'.
         if (this._isLockedByLevel(item)) {
@@ -2105,7 +2395,64 @@ class TiendaSistema {
     }
     
     // Procesar compra usando buyPrice
+    /**
+     * ¿Están creadas las tablas de construcción en el contrato?
+     *
+     * Las crea el administrador a mano (ver server2.js, TABLAS_MANUALES). Si
+     * todavía no existen, comprar una parcela COBRARÍA y luego la cadena
+     * rechazaría la factura (TipoNotConfigured) y habría que reembolsar: el
+     * jugador vería su dinero bajar y volver. Se pregunta una vez al abrir la
+     * tienda; `null` = no se sabe (servidor viejo, red caída) y no bloquea.
+     */
+    async _comprobarConstruccion() {
+        if (this._comprobandoConstruccion) return;
+        this._comprobandoConstruccion = true;
+        try {
+            const base = this._resolveApiBase();
+            const r = await fetch(`${base}/api/lands/construcciones`, { credentials: 'include' });
+            if (!r.ok) { this._construccionDisponible = null; return; }
+            const d = await r.json();
+            const antes = this._construccionDisponible;
+            this._construccionDisponible = !!(d && d.tablas && d.tablas.parcelas);
+            // Qué tablas existen, una a una: cada objeto se bloquea por la SUYA.
+            this._construccionTablas = (d && d.tablas && typeof d.tablas === 'object') ? d.tablas : null;
+            if (antes !== this._construccionDisponible && this.isOpen) this.filterItems?.();
+        } catch (_) {
+            this._construccionDisponible = null;
+        } finally {
+            this._comprobandoConstruccion = false;
+        }
+    }
+
+    _construccionBloqueada(item) {
+        if (!item || item.categoria !== 'construccion') return false;
+        // Tablas que se crean solas al comprar (bote y cofres): nunca esperan.
+        if (item.tablaSola) return false;
+        const tablas = this._construccionTablas;
+        if (tablas && item.tabla && Object.prototype.hasOwnProperty.call(tablas, item.tabla)) {
+            return tablas[item.tabla] === false;
+        }
+        return this._construccionDisponible === false;
+    }
+
+    /** Marca el apartado activo en la barra de encima de la rejilla. */
+    _pintarApartados() {
+        const actual = this.currentCategory || 'todas';
+        document.querySelectorAll('#tienda-apartados .tienda-apartado').forEach((btn) => {
+            const activo = (btn.dataset.cat || 'todas') === actual;
+            btn.classList.toggle('activo', activo);
+            btn.setAttribute('aria-selected', activo ? 'true' : 'false');
+        });
+    }
+
     async processPurchase(item, quantity) {
+        // Los peces solo se venden: los acuña el servidor al pescar.
+        if (item && item.soloVenta) {
+            throw new Error('This item cannot be bought: catch it yourself!');
+        }
+        if (this._construccionBloqueada(item)) {
+            throw new Error('Construction is not available yet. Try again later.');
+        }
         const currency = this.getItemCurrency(item);
         const totalCost = item.buyPrice * quantity;
         const balance = this.getBalanceByCurrency(currency);

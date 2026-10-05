@@ -96,7 +96,25 @@ const ITEM_CATALOG = {
 
   calabaza_buena: { name: 'Calabaza Buena',   category: 'cultivos', icon: '/Game/Objetos/Plantas/planta_calabaza/item_calabaza_buena.png', maxStack: 20 },
   calabaza_corta: { name: 'Calabaza (brote)', category: 'cultivos', icon: '/Game/Objetos/Plantas/planta_calabaza/item_planta_calabaza.png', maxStack: 20 },
-  calabaza_mala:  { name: 'Calabaza Podrida', category: 'cultivos', icon: '/Game/Objetos/Plantas/planta_calabaza/item_calabaza_podrida.png', maxStack: 20 }
+  calabaza_mala:  { name: 'Calabaza Podrida', category: 'cultivos', icon: '/Game/Objetos/Plantas/planta_calabaza/item_calabaza_podrida.png', maxStack: 20 },
+
+  // Construcción (2026-10-03): la parcela que se coloca en la isla.
+  parcela: { name: 'Parcela', category: 'construccion', icon: '/Game/Objetos/construccion/parcela.png', maxStack: 20 },
+  pala_construccion: { name: 'Pala de construcción', category: 'construccion', icon: '/Game/Objetos/construccion/pala_construccion.png', maxStack: 1 },
+  // El bote de basura y los cofres de la isla (2026-10-05).
+  basura: { name: 'Bote de basura',   category: 'construccion', icon: '/Game/Objetos/cofres/basura.png', maxStack: 10 },
+  cofre1: { name: 'Cofre de madera',  category: 'construccion', icon: '/Game/Objetos/cofres/cofre1.png', maxStack: 5 },
+  cofre2: { name: 'Cofre reforzado',  category: 'construccion', icon: '/Game/Objetos/cofres/cofre2.png', maxStack: 5 },
+  cofre3: { name: 'Cofre mágico',     category: 'construccion', icon: '/Game/Objetos/cofres/cofre3.png', maxStack: 5 },
+  cofre4: { name: 'Cofre legendario', category: 'construccion', icon: '/Game/Objetos/cofres/cofre4.png', maxStack: 5 },
+
+  // Equipo (2026-10-05). Los peces NO están: no se compran en ningún sitio,
+  // solo se pescan (y se comen o se venden en la tienda).
+  espada_madera:  { name: 'Wooden Sword', category: 'herramientas', icon: '/Game/Objetos/armas/espada_madera.png',   maxStack: 1 },
+  espada_cobre:   { name: 'Copper Sword', category: 'herramientas', icon: '/Game/Objetos/armas/espada_cobre.png',    maxStack: 1 },
+  espada_hierro:  { name: 'Iron Sword',   category: 'herramientas', icon: '/Game/Objetos/armas/espada_hierro.png',   maxStack: 1 },
+  cana_pescar:    { name: 'Fishing Rod',  category: 'herramientas', icon: '/Game/Objetos/pesca/cana_pescar.png',     maxStack: 1 },
+  espantapajaros: { name: 'Scarecrow',    category: 'herramientas', icon: '/Game/Objetos/granja/espantapajaros.png', maxStack: 10 }
 };
 
 const CATEGORIES = [
@@ -105,6 +123,7 @@ const CATEGORIES = [
   { id: 'minerales',    label: 'Minerales' },
   { id: 'madera',       label: 'Madera' },
   { id: 'cultivos',     label: 'Cultivos' },
+  { id: 'construccion', label: 'Construcción' },
   { id: 'otros',        label: 'Otros' }
 ];
 

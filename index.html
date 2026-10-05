@@ -13,7 +13,9 @@
   <title>GRASSLAND FOREST</title>
   <link rel="icon" href="favicon.png" type="image/png" />
   <!-- v17: rediseño del panel de misiones + altura real del viewport en móvil -->
-  <link rel="stylesheet" href="styless.css?v=20.1" />
+  <link rel="stylesheet" href="styless.css?v=21.31" />
+  <!-- El HUD nuevo (2026-10-05): viste lo de arriba sin cambiar ni un id. -->
+  <link rel="stylesheet" href="gf-hud.css?v=21.14" />
 
   <!-- ============================
        CONTENT-SECURITY-POLICY (meta for testing / development)..
@@ -73,8 +75,10 @@
 
   <!-- Personajes Soulbound. Va ANTES de las escenas porque sus preload()
        le piden las rutas de los sprites del jugador. -->
-  <script src="./gf-soulbound.js?v=19.1" defer></script>
-  <script src="./gf-lands.js?v=19.8" defer></script>
+  <script src="./gf-soulbound.js?v=21.3" defer></script>
+  <!-- "My NFTs" del panel NFT: la colección que se elige en admin.html. -->
+  <script src="./gf-nft.js?v=20.7" defer></script>
+  <script src="./gf-lands.js?v=21.1" defer></script>
 
   <!-- Canales (10 × 50 jugadores). El canal lo asigna el servidor al conectar
        el socket, UNA sola vez por pestaña; este módulo solo lo recuerda y
@@ -82,19 +86,25 @@
   <script src="./gf-canales.js?v=19.8" defer></script>
   <script src="./gf-profundidad.js?v=20.2" defer></script>
   <script src="./gf-sombras.js?v=19.1" defer></script>
-  <script src="./gf-nieve.js?v=19.1" defer></script>
-  <script src="./gf-ciclo-dia.js?v=19.8" defer></script>
+  <script src="./gf-nieve.js?v=20.93" defer></script>
+  <script src="./gf-pesca.js?v=21.31" defer></script>
+  <script src="./gf-espantapajaros.js?v=21.0" defer></script>
+  <script src="./gf-espada.js?v=21.1" defer></script>
+  <script src="./gf-agua.js?v=21.3" defer></script>
+  <script src="./gf-suelo.js?v=21.1" defer></script>
+  <script src="./gf-casas.js?v=21.3" defer></script>
+  <script src="./gf-ciclo-dia.js?v=20.8" defer></script>
 
   <!-- Cazador de micro-parones. Inerte hasta que se le llama a mano desde la
        consola con GFTirones.empezar(). No vigila nada por su cuenta. -->
   <script src="./gf-tirones.js?v=19.1" defer></script>
-  <script src="./gf-cuervo.js?v=19.1" defer></script>
-  <script src="./gf-animales.js?v=19.2" defer></script>
-  <script src="./gf-mascota.js?v=19.8" defer></script>
+  <script src="./gf-cuervo.js?v=21.2" defer></script>
+  <script src="./gf-animales.js?v=21.2" defer></script>
+  <script src="./gf-mascota.js?v=20.8" defer></script>
   <script src="./gf-muerte.js?v=20.1" defer></script>
   <script src="./gf-alquimista.js?v=19.1" defer></script>
   <script src="./gf-viento.js?v=19.1" defer></script>
-  <script src="./gf-clima.js?v=19.1" defer></script>
+  <script src="./gf-clima.js?v=21.1" defer></script>
 
   <!-- Post-procesado: viñeta, desenfoque de bordes y revelado de color sobre
        el fotograma ya pintado. Va DESPUÉS del clima porque lee de él qué
@@ -130,24 +140,25 @@
   <!-- SOCIAL: amistades, reacciones del chat y color del nombre.
        Van ANTES de las escenas porque GameScene y tiendajuego los montan en su
        create(); con `defer` el orden de estas etiquetas es el de ejecución. -->
-  <script src="./gf-amigos.js?v=19.1" defer></script>
+  <script src="./gf-amigos.js?v=20.8" defer></script>
   <script src="./gf-chat-social.js?v=19.8" defer></script>
   <script src="./gf-nombre-color.js?v=19.1" defer></script>
 
   <script src="./Scenes/MenuScene.js?v=20.3" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=19.8" defer></script>
-  <script src="./Scenes/tiendajuego.js?v=20.2" defer></script>
-  <script src="./Scenes/LoadingScenegame.js?v=19.8" defer></script>
-  <script src="./Scenes/GameScene.js?v=20.2" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=21.3" defer></script>
+  <script src="./Scenes/LoadingScenegame.js?v=21.3" defer></script>
+  <script src="./Scenes/GameScene.js?v=21.31" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
        basta con dejarla en esta linea y no antes. -->
-  <script src="./Scenes/MinaScene.js?v=19.8" defer></script>
+  <script src="./Scenes/MinaScene.js?v=21.3" defer></script>
   <!-- La isla de las parcelas. Hereda de GameScene igual que la mina,
        asi que tambien tiene que ir DESPUES de ella. -->
-  <script src="./Scenes/LandsScene.js?v=19.7" defer></script>
-  <script src="./Scenes/BattleScene.js?v=20.3" defer></script>
+  <script src="./Scenes/LandsScene.js?v=21.33" defer></script>
+  <script src="./Scenes/InteriorScene.js?v=21.31" defer></script>
+  <script src="./Scenes/BattleScene.js?v=21.1" defer></script>
   <script src="./Scenes/sacar_mapa.js?v=19.1" defer></script>
 
   <!-- tienda marketplace p2p -->
@@ -172,13 +183,13 @@
   <script src="./BlockchainManager.js?v=19.8" defer></script>
   <script src="./TransactionHub.js?v=19.8" defer></script>
   <script src="./SystemaTransaccion.js?v=19.8" defer></script>
-  <script src="./CraftingHub.js?v=20.1" defer></script>
-  <script src="./tienda_sistema.js?v=19.8" defer></script>
+  <script src="./CraftingHub.js?v=21.31" defer></script>
+  <script src="./tienda_sistema.js?v=21.3" defer></script>
   <script src="./phaser-relay-library.js?v=19.8" defer></script>
   <script src="./hub.js?v=19.8" defer></script>
 
 
-  <script src="./register-scenes.js?v=19.1" defer></script>
+  <script src="./register-scenes.js?v=21.13" defer></script>
 
   <script src="./memory-fix.js?v=19.1" defer></script>
   <!-- CraftingHub.js ya se carga arriba como script clásico; la segunda carga
@@ -188,7 +199,7 @@
   <script src="./NotificationHub.js?v=19.8" defer></script>
 
   <!-- tileManager: if it uses import/export, keep module -->
-  <script type="module" src="lib/tileManager.js?v=19.8" defer></script>
+  <script type="module" src="lib/tileManager.js?v=21.12" defer></script>
 
   <!-- preload critical asset -->
   <link rel="preload" href="./Game/Source/cursor.png" as="image" />
@@ -213,7 +224,7 @@
   <script src="./viewport-fix.js?v=19.9" defer></script>
 
   <!-- main app bootstrap -->
-  <script src="app.js?v=20.1" defer></script>
+  <script src="app.js?v=21.13" defer></script>
 
   <!-- Ajustes de gráficos: calidad y distancia de visión (chunks).
        Va DESPUÉS de app.js porque usa window.game y window.gfResizeGame,
@@ -421,6 +432,7 @@
           <option value="alimentos">Food</option>
           <option value="equipo">Equipment</option>
           <option value="especial">Special</option>
+          <option value="construccion">Construction</option>
         </select>
         
         <select id="tienda-tipo" class="tienda-select">
@@ -428,6 +440,19 @@
           <option value="venta">Sell</option>
         </select>
       </div>
+    </div>
+
+    <!-- Apartados de la tienda (2026-10-03). Hacen lo mismo que el
+         desplegable de categorías, pero a la vista: el de Construcción es el
+         que vende lo que se coloca en la isla. Lo engancha tienda_sistema.js
+         (initEvents / _pintarApartados). -->
+    <div class="tienda-apartados" id="tienda-apartados" role="tablist" aria-label="Shop sections">
+      <button type="button" class="tienda-apartado activo" data-cat="todas" role="tab" aria-selected="true">All</button>
+      <button type="button" class="tienda-apartado" data-cat="semillas" role="tab" aria-selected="false">🌱 Seeds</button>
+      <button type="button" class="tienda-apartado" data-cat="herramientas" role="tab" aria-selected="false">🔨 Tools</button>
+      <button type="button" class="tienda-apartado" data-cat="alimentos" role="tab" aria-selected="false">🍎 Food</button>
+      <button type="button" class="tienda-apartado" data-cat="equipo" role="tab" aria-selected="false">⚔️ Equipment</button>
+      <button type="button" class="tienda-apartado tienda-apartado-construccion" data-cat="construccion" role="tab" aria-selected="false">🏗️ Construction</button>
     </div>
 
     <!-- Main content -->
@@ -879,15 +904,16 @@
       <table class="battle-rank-table">
         <thead>
           <tr>
-            <th>#</th><th>Player</th><th>Pet</th><th>Wallet</th>
-            <th>Pts</th><th>W/L</th><th>Streak</th>
+            <th>#</th><th>Player</th><th class="rank-pet">Pet</th><th class="rank-addr">Wallet</th>
+            <th class="rank-num">Points</th><th class="rank-num">Won</th><th class="rank-num">Lost</th>
+            <th class="rank-num">Battles</th><th class="rank-num rank-racha">Best streak</th>
           </tr>
         </thead>
         <tbody id="battleRankBody"></tbody>
       </table>
     </div>
     <div class="battle-rank-foot">
-      <span id="battleRankMe"></span>
+      <span id="battleRankMe" class="battle-rank-me"></span>
       <button id="battleRankRefreshBtn" class="battle-rank-refresh">🔄 Refresh</button>
     </div>
   </div>
@@ -1138,53 +1164,44 @@
     </div>
   </div>
 </div>
-<!-- NFT + Pet Panel -->
-<div id="nft-panel" class="nft-panel-hidden" style="z-index:10003;">
+<!-- Panel NFT (botón redondo NFT): el personaje Soulbound y los NFT de la
+     colección que elige el administrador (2026-10-04). El apartado "My Pet"
+     se quitó: la mascota tiene su propio panel y su barra. -->
+<div id="nft-panel" class="nft-panel-hidden" style="z-index:10003;" role="dialog" aria-modal="true" aria-labelledby="nft-title">
   <div class="nft-container">
     <div class="nft-header">
-      <h2 class="nft-title">🖼️ NFT &amp; Pets</h2>
-      <button id="nft-close" class="nft-close-btn">✕</button>
+      <h2 class="nft-title" id="nft-title">🧬 Character &amp; NFTs</h2>
+      <button id="nft-close" class="nft-close-btn" aria-label="Close">✕</button>
     </div>
     <div class="nft-body">
-      <!-- Pet Section -->
-      <div class="nft-section">
-        <div class="nft-section-title">🐾 My Pet</div>
-        <div class="nft-pet-area">
-          <div id="nft-pet-display" class="nft-pet-display">
-            <canvas id="nft-pet-canvas" width="128" height="128" style="image-rendering:pixelated;"></canvas>
-            <div id="nft-pet-empty" class="nft-pet-empty">No pet equipped</div>
-          </div>
-          <div class="nft-pet-controls">
-            <div id="nft-pet-name" class="nft-pet-name">—</div>
-            <button id="nft-pet-toggle" class="nft-btn secondary">Toggle Visibility</button>
-            <button id="nft-pet-remove" class="nft-btn ghost">Remove Pet</button>
-          </div>
-        </div>
-        <div id="nft-pet-list" class="nft-pet-list">
-          <!-- populated by JS -->
-        </div>
-      </div>
       <!-- Soulbound Characters -->
-      <div class="nft-section">
-        <div class="nft-section-title">🧬 Soulbound Character</div>
+      <div class="nft-section nft-section--sb">
+        <div class="nft-section-title">Soulbound Character</div>
         <div class="sb-current">
           <div class="sb-current-art"><img id="sb-current-img" alt="" /></div>
           <div class="sb-current-info">
             <div id="sb-current-name" class="sb-current-name">—</div>
+            <div id="sb-current-gender" class="sb-current-gender"></div>
             <div class="sb-current-hint">Pick a character below. It is bound to your account.</div>
           </div>
         </div>
-        <!-- Botones redondos: los rellena _renderSoulboundList() con lo que
-             haya en Game/Sprites/Soulbound/ (no hay lista fija que mantener). -->
+        <!-- Los rellena gf-soulbound.js con lo que haya en Game/Sprites/Soulbound/
+             (no hay lista fija que mantener). -->
         <div id="sb-list" class="sb-list">
           <div class="sb-loading">Loading characters…</div>
         </div>
       </div>
 
-      <!-- NFT Section placeholder -->
-      <div class="nft-section">
-        <div class="nft-section-title">💎 My NFTs</div>
-        <div class="nft-empty-state">NFT wallet integration coming soon</div>
+      <!-- My NFTs: los de la colección de admin.html, leídos de la cartera. -->
+      <div class="nft-section nft-section--mine">
+        <div class="nft-section-head">
+          <div class="nft-section-title">My NFTs · <span id="nft-collection-name">—</span> <span id="nft-count" class="nft-count"></span></div>
+          <button type="button" id="nft-refresh" class="nft-refresh" aria-label="Read my wallet again" title="Read my wallet again">⟳</button>
+        </div>
+        <div class="nft-wallet-row">Wallet <span id="nft-wallet" class="nft-wallet"></span></div>
+        <div id="nft-list" class="nft-grid">
+          <div class="nft-empty-state">Loading…</div>
+        </div>
       </div>
     </div>
   </div>
@@ -1196,46 +1213,47 @@
     <div class="crafting-header">
       <h2 id="crafting-title" class="crafting-title">⚒️ Crafting Workshop</h2>
       <div class="header-controls">
-        <button id="crafting-close" class="crafting-close-btn" aria-label="Cerrar panel de crafteo" data-crafting-close>✕</button>
+        <button id="crafting-close" class="crafting-close-btn" aria-label="Close the crafting panel" data-crafting-close>✕</button>
       </div>
     </div>
 
     <div class="crafting-main">
-      <aside class="crafting-sidebar" aria-label="Filtros y recetas">
+      <aside class="crafting-sidebar" aria-label="Filters and recipes">
         <div class="crafting-filters">
           <h3 class="filter-title">📁 Categories</h3>
-          <div class="filter-buttons" role="tablist" aria-label="Categorías de recetas">
+          <div class="filter-buttons" role="tablist" aria-label="Recipe categories">
             <button class="filter-btn active" data-category="all" role="tab" aria-selected="true">All</button>
             <button class="filter-btn" data-category="tools" role="tab">Axes</button>
             <button class="filter-btn" data-category="consumables" role="tab">Pickaxes</button>
             <button class="filter-btn" data-category="resources" role="tab">Extras</button>
+            <button class="filter-btn" data-category="chests" role="tab">Chests</button>
           </div>
         </div>
 
         <div class="crafting-search">
-          <label for="crafting-search-input" class="sr-only">Buscar receta</label>
+          <label for="crafting-search-input" class="sr-only">Search recipe</label>
           <input type="text" id="crafting-search-input" placeholder="🔍 Search recipe..." class="search-input" autocomplete="off" inputmode="search">
         </div>
 
         <!-- LISTA: ahora flex:1 para estirarse -->
         <div class="recipes-list" id="recipes-list" tabindex="0" aria-live="polite">
-          <div class="empty-state">Selecciona una categoría o busca recetas</div>
+          <div class="empty-state">Pick a category or search for a recipe</div>
         </div>
       </aside>
 
-      <section class="crafting-details" aria-label="Detalles de crafteo">
+      <section class="crafting-details" aria-label="Crafting details">
         <!-- En móvil este bloque se oculta y se usa overlay -->
         <div class="recipe-details" id="recipe-details">
           <div class="recipe-header">
             <img src="./assets/default-item.png" alt="Ítem resultante" class="recipe-result-img" id="recipe-result-img">
             <div class="recipe-info">
-              <h3 class="recipe-name" id="recipe-name">Selecciona una receta</h3>
+              <h3 class="recipe-name" id="recipe-name">Select a recipe</h3>
               <div class="recipe-meta">
                 <div class="recipe-level" id="recipe-level">
-                  <span class="level-icon" aria-hidden="true">⭐</span> Nivel: <strong id="required-level">0</strong>
+                  <span class="level-icon" aria-hidden="true">⭐</span> Level: <strong id="required-level">0</strong>
                 </div>
                 <div class="recipe-category" id="recipe-category">
-                  Categoría: <span id="category-name">-</span>
+                  Category: <span id="category-name">-</span>
                 </div>
               </div>
             </div>
@@ -1244,7 +1262,7 @@
           <div class="required-resources">
             <h4>📦 Required resources:</h4>
             <div class="resources-list" id="resources-list">
-              <div class="empty-state">Selecciona una receta para ver los recursos requeridos</div>
+              <div class="empty-state">Select a recipe to see what it needs</div>
             </div>
 
             <div class="optional-resources hidden" id="optional-resources" aria-hidden="true">
@@ -1256,10 +1274,10 @@
           <div class="crafting-quantity">
             <h4>Quantity to craft:</h4>
             <div class="quantity-controls">
-              <button id="decrease-qty" class="qty-btn" aria-label="Disminuir cantidad">-</button>
-              <input type="number" id="crafting-qty" value="1" min="1" max="99" class="qty-input" inputmode="numeric" aria-label="Cantidad a craftear">
-              <button id="increase-qty" class="qty-btn" aria-label="Incrementar cantidad">+</button>
-              <div class="max-possible" id="max-possible">Máx: <span id="max-craft">0</span></div>
+              <button id="decrease-qty" class="qty-btn" aria-label="Less">-</button>
+              <input type="number" id="crafting-qty" value="1" min="1" max="99" class="qty-input" inputmode="numeric" aria-label="Quantity to craft">
+              <button id="increase-qty" class="qty-btn" aria-label="More">+</button>
+              <div class="max-possible" id="max-possible">Max: <span id="max-craft">0</span></div>
             </div>
           </div>
 
@@ -1299,7 +1317,7 @@
   <!-- OVERLAY para móviles - SOLO BOTÓN VOLVER, SIN X -->
   <div id="recipe-overlay" class="recipe-overlay hidden" role="dialog" aria-modal="true" aria-hidden="true">
     <div class="overlay-header">
-      <button id="overlay-back" class="overlay-back-btn" aria-label="Volver a la lista">← Volver</button>
+      <button id="overlay-back" class="overlay-back-btn" aria-label="Back to the list">← Back</button>
       <!-- Eliminado el botón de cerrar -->
     </div>
     <div id="overlay-content" class="overlay-content" tabindex="0"></div>
@@ -1399,7 +1417,7 @@
 
       <!-- Botón (se mantiene a la derecha) -->
       <button class="inner-btn" tabindex="-1" id="toggle-hud-btn" aria-label="Toggle HUD">
-        <img src="./Game/Source/0.png" alt="Botón interno" />
+        <img src="./Game/Source/hud/ojo.png" alt="Botón interno" />
         <span class="label-badge quests-label">Hide</span>
       </button>
     </div>
@@ -1408,35 +1426,35 @@
 
     <div class="round-buttons" id="round-buttons-container">
       <button class="round-btn" tabindex="-1">
-        <img src="./Game/Source/1.png" alt="Botón 1" />
+        <img src="./Game/Source/hud/panel.png" alt="Dashboard" />
         <span class="label-badge">Dashboard</span>
       </button>
       <button class="round-btn round-btn--mail" tabindex="-1" id="mail-btn">
-        <img src="./Game/Source/2.png" alt="Botón 2" />
+        <img src="./Game/Source/hud/correo.png" alt="Mail" />
         <span class="label-badge">Mail</span>
         <!-- Badge de notificación: se muestra/oculta y actualiza desde Phaser -->
         <span class="notif-badge" id="mail-notif-badge" style="display:none">0</span>
       </button>
       <button class="round-btn" tabindex="-1">
-        <img src="./Game/Source/control.png" alt="Música" data-hide-on-error data-image-fallback />
+        <img src="./Game/Source/hud/musica.png" alt="Music" data-hide-on-error data-image-fallback />
         <span style="display:none;font-size:20px;align-items:center;justify-content:center;width:100%;height:100%">🎵</span>
         <span class="label-badge">Music</span>
       </button>
       <button class="round-btn" tabindex="-1">
-        <img src="./Game/Source/5.png" alt="Botón 4" />
+        <img src="./Game/Source/hud/transacciones.png" alt="Transactions" />
         <span class="label-badge">Transactions</span>
       </button>
       <button class="round-btn round-btn--nft" tabindex="-1" id="nft-btn">
-        <img src="./Game/Source/nft_icon.png" alt="NFT" data-hide-on-error data-image-fallback />
+        <img src="./Game/Source/hud/nft.png" alt="NFT" data-hide-on-error data-image-fallback />
         <span class="nft-fallback" style="display:none;font-size:18px;align-items:center;justify-content:center;width:100%;height:100%">🖼️</span>
         <span class="label-badge">NFT</span>
       </button>
       <button class="round-btn" tabindex="-1" id="skills-btn">
-        <span style="font-size:20px;display:flex;align-items:center;justify-content:center;width:100%;height:100%">⚔️</span>
+        <img src="./Game/Source/hud/habilidades.png" alt="Skills" />
         <span class="label-badge">Skills</span>
       </button>
       <button class="round-btn" tabindex="-1" id="store-btn">
-        <span style="font-size:20px;display:flex;align-items:center;justify-content:center;width:100%;height:100%">🛒</span>
+        <img src="./Game/Source/hud/tienda.png" alt="Store" />
         <span class="label-badge">Store</span>
       </button>
       <!-- AMISTADES. En el HTML va el ÚLTIMO y en pantalla sale el TERCERO,
@@ -1446,7 +1464,7 @@
            desplazaría a todos. La chapa con el número de solicitudes y
            privados sin leer la pone gf-amigos.js. -->
       <button class="round-btn round-btn--friends" tabindex="-1" id="friends-btn">
-        <img src="./Game/Source/amistades.png" alt="Friends" />
+        <img src="./Game/Source/hud/amigos.png" alt="Friends" />
         <span class="label-badge">Friends</span>
       </button>
       <!-- LANDS. Igual que Amistades: en el HTML va el ÚLTIMO y en pantalla
@@ -1460,14 +1478,14 @@
            que es también quien decide a dónde lleva según la escena. -->
       <button class="round-btn round-btn--lands" tabindex="-1" id="lands-btn"
               aria-label="Ir a mis parcelas">
-        <img src="./Game/Source/lands.png" alt="Lands" />
+        <img src="./Game/Source/hud/lands.png" alt="Lands" />
         <span class="label-badge">Lands</span>
       </button>
     </div>
   </div>
 
   <button id="open-chat-btn" class="chat-open-btn hidden" tabindex="0" aria-label="Abrir chat">
-    <img src="./Game/Source/chat.png" alt="Abrir Chat" />
+    <img src="./Game/Source/hud/chat.png" alt="Abrir Chat" />
   </button>
 
   <div id="chat-panel" class="chat-hidden">
