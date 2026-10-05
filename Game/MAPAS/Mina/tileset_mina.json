@@ -3,29 +3,95 @@
  "imagen": "Game/MAPAS/Mina/tileset_mina.png",
  "tile": 32,
  "columnas": 16,
- "filas": 20,
- "tiles": 320,
+ "filas": 28,
+ "tiles": 448,
  "generado_por": "tools/generar-mina.py",
- "nota": "Indices BASE 0, como la hoja de referencia. En un .json de Tiled hay que sumarles el firstgid, que para mina.json es 1.",
+ "nota": "Indices BASE 0, como la hoja de referencia. En el .json de Tiled hay que sumarles el firstgid de su tileset.",
  "muro": {
   "alto_tiles": 5,
   "alto_px": 160,
   "ancho_tiles": 8,
   "nota": "muro_<fila>_<col>: fila 0 es el remate y la ultima el pie que toca el suelo. Los extremos son muro_izq/der_<fila>."
  },
- "parche_lava": {
+ "parche_suelo": {
+  "lado": 8,
+  "nota": "suelo_p<i><j>, i = x mod 8, j = y mod 8."
+ },
+ "parche_grava": {
+  "lado": 8,
+  "nota": "grava_p<i><j> y grava_b_<lado>_<i><j>; solo los bordes que usa el mapa."
+ },
+ "parche_tabla": {
   "lado": 4,
-  "nota": "La lava se pone con lava_p<i><j>, con i = x mod 4 y j = y mod 4: asi las grietas cruzan de casilla a casilla."
+  "nota": "tabla_p<i><j>; los puentes, puente_<n|c|s>_<i>."
+ },
+ "parche_lava": {
+  "lado": 8,
+  "nota": "lava_p<i><j>, en el tileset de la lava."
+ },
+ "parche_agua": {
+  "lado": 8,
+  "nota": "agua_p<i><j>, en el tileset del agua."
  },
  "parche_roca": {
-  "lado": 2,
-  "nota": "roca_top_<i><j>, con i = x mod 2 y j = y mod 2."
+  "lado": 4,
+  "nota": "roca_top_<i><j>, con i = x mod 4 y j = y mod 4."
  },
+ "lados_borde": [
+  "NO",
+  "N",
+  "NE",
+  "O",
+  "E",
+  "SO",
+  "S",
+  "SE",
+  "iNO",
+  "iNE",
+  "iSO",
+  "iSE"
+ ],
  "piezas_grandes": {
   "atlas": "Game/MAPAS/Mina/piezas.png",
-  "nota": "Cada pieza son varios tiles; sus indices se llaman <pieza>_<columna><fila>. Las `alta:true` van como sprite para que el jugador pueda pasar por detras.",
+  "nota": "Las `alta:true` van como sprite para que el jugador pueda pasar por detras. Las planas, ademas, como tiles <pieza>_<columna><fila> en la capa de objetos.",
   "medidas": {
-   "pena_pequena": {
+   "antorcha": {
+    "ancho": 1,
+    "alto": 2,
+    "px": [
+     32,
+     64
+    ],
+    "alta": true
+   },
+   "estalagmita_g1": {
+    "ancho": 2,
+    "alto": 3,
+    "px": [
+     64,
+     96
+    ],
+    "alta": true
+   },
+   "estalagmita_g2": {
+    "ancho": 2,
+    "alto": 3,
+    "px": [
+     64,
+     96
+    ],
+    "alta": true
+   },
+   "estalagmita_g3": {
+    "ancho": 2,
+    "alto": 3,
+    "px": [
+     64,
+     96
+    ],
+    "alta": true
+   },
+   "monton_carbon": {
     "ancho": 2,
     "alto": 2,
     "px": [
@@ -33,6 +99,51 @@
      64
     ],
     "alta": false
+   },
+   "monton_cobre": {
+    "ancho": 2,
+    "alto": 2,
+    "px": [
+     64,
+     64
+    ],
+    "alta": false
+   },
+   "monton_hierro": {
+    "ancho": 2,
+    "alto": 2,
+    "px": [
+     64,
+     64
+    ],
+    "alta": false
+   },
+   "monton_oro": {
+    "ancho": 2,
+    "alto": 2,
+    "px": [
+     64,
+     64
+    ],
+    "alta": false
+   },
+   "monton_piedra": {
+    "ancho": 2,
+    "alto": 2,
+    "px": [
+     64,
+     64
+    ],
+    "alta": false
+   },
+   "pena_grande": {
+    "ancho": 3,
+    "alto": 2,
+    "px": [
+     96,
+     64
+    ],
+    "alta": true
    },
    "pena_mediana": {
     "ancho": 2,
@@ -43,7 +154,16 @@
     ],
     "alta": true
    },
-   "pena_grande": {
+   "pena_pequena": {
+    "ancho": 2,
+    "alto": 2,
+    "px": [
+     64,
+     64
+    ],
+    "alta": false
+   },
+   "puntal": {
     "ancho": 3,
     "alto": 2,
     "px": [
@@ -87,815 +207,1363 @@
      64
     ],
     "alta": true
-   },
-   "puntal": {
-    "ancho": 3,
-    "alto": 2,
-    "px": [
-     96,
-     64
-    ],
-    "alta": true
-   },
-   "antorcha": {
-    "ancho": 1,
-    "alto": 2,
-    "px": [
-     32,
-     64
-    ],
-    "alta": true
-   },
-   "monton_piedra": {
-    "ancho": 2,
-    "alto": 2,
-    "px": [
-     64,
-     64
-    ],
-    "alta": false
-   },
-   "monton_cobre": {
-    "ancho": 2,
-    "alto": 2,
-    "px": [
-     64,
-     64
-    ],
-    "alta": false
-   },
-   "monton_hierro": {
-    "ancho": 2,
-    "alto": 2,
-    "px": [
-     64,
-     64
-    ],
-    "alta": false
-   },
-   "monton_carbon": {
-    "ancho": 2,
-    "alto": 2,
-    "px": [
-     64,
-     64
-    ],
-    "alta": false
-   },
-   "monton_oro": {
-    "ancho": 2,
-    "alto": 2,
-    "px": [
-     64,
-     64
-    ],
-    "alta": false
-   },
-   "estalagmita_g1": {
-    "ancho": 2,
-    "alto": 3,
-    "px": [
-     64,
-     96
-    ],
-    "alta": true
-   },
-   "estalagmita_g2": {
-    "ancho": 2,
-    "alto": 3,
-    "px": [
-     64,
-     96
-    ],
-    "alta": true
-   },
-   "estalagmita_g3": {
-    "ancho": 2,
-    "alto": 3,
-    "px": [
-     64,
-     96
-    ],
-    "alta": true
+   }
+  }
+ },
+ "liquidos": {
+  "lava": {
+   "imagenes": [
+    "Game/MAPAS/Mina/tileset_lava_0.png",
+    "Game/MAPAS/Mina/tileset_lava_1.png",
+    "Game/MAPAS/Mina/tileset_lava_2.png",
+    "Game/MAPAS/Mina/tileset_lava_3.png",
+    "Game/MAPAS/Mina/tileset_lava_4.png",
+    "Game/MAPAS/Mina/tileset_lava_5.png"
+   ],
+   "fotogramas": 6,
+   "fps": 6,
+   "tiles": 320,
+   "columnas": 16,
+   "filas": 20,
+   "indices": {
+    "lava_p00": 0,
+    "lava_p10": 1,
+    "lava_p20": 2,
+    "lava_p30": 3,
+    "lava_p40": 4,
+    "lava_p50": 5,
+    "lava_p60": 6,
+    "lava_p70": 7,
+    "lava_p01": 8,
+    "lava_p11": 9,
+    "lava_p21": 10,
+    "lava_p31": 11,
+    "lava_p41": 12,
+    "lava_p51": 13,
+    "lava_p61": 14,
+    "lava_p71": 15,
+    "lava_p02": 16,
+    "lava_p12": 17,
+    "lava_p22": 18,
+    "lava_p32": 19,
+    "lava_p42": 20,
+    "lava_p52": 21,
+    "lava_p62": 22,
+    "lava_p72": 23,
+    "lava_p03": 24,
+    "lava_p13": 25,
+    "lava_p23": 26,
+    "lava_p33": 27,
+    "lava_p43": 28,
+    "lava_p53": 29,
+    "lava_p63": 30,
+    "lava_p73": 31,
+    "lava_p04": 32,
+    "lava_p14": 33,
+    "lava_p24": 34,
+    "lava_p34": 35,
+    "lava_p44": 36,
+    "lava_p54": 37,
+    "lava_p64": 38,
+    "lava_p74": 39,
+    "lava_p05": 40,
+    "lava_p15": 41,
+    "lava_p25": 42,
+    "lava_p35": 43,
+    "lava_p45": 44,
+    "lava_p55": 45,
+    "lava_p65": 46,
+    "lava_p75": 47,
+    "lava_p06": 48,
+    "lava_p16": 49,
+    "lava_p26": 50,
+    "lava_p36": 51,
+    "lava_p46": 52,
+    "lava_p56": 53,
+    "lava_p66": 54,
+    "lava_p76": 55,
+    "lava_p07": 56,
+    "lava_p17": 57,
+    "lava_p27": 58,
+    "lava_p37": 59,
+    "lava_p47": 60,
+    "lava_p57": 61,
+    "lava_p67": 62,
+    "lava_p77": 63,
+    "lava_b_NO_70": 64,
+    "lava_b_NO_11": 65,
+    "lava_b_NO_21": 66,
+    "lava_b_NO_61": 67,
+    "lava_b_NO_62": 68,
+    "lava_b_NO_03": 69,
+    "lava_b_NO_23": 70,
+    "lava_b_NO_43": 71,
+    "lava_b_NO_04": 72,
+    "lava_b_NO_34": 73,
+    "lava_b_NO_64": 74,
+    "lava_b_NO_15": 75,
+    "lava_b_NO_35": 76,
+    "lava_b_NO_55": 77,
+    "lava_b_NO_65": 78,
+    "lava_b_NO_75": 79,
+    "lava_b_NO_06": 80,
+    "lava_b_NO_16": 81,
+    "lava_b_NO_07": 82,
+    "lava_b_NO_27": 83,
+    "lava_b_NO_67": 84,
+    "lava_b_N_00": 85,
+    "lava_b_N_10": 86,
+    "lava_b_N_20": 87,
+    "lava_b_N_30": 88,
+    "lava_b_N_40": 89,
+    "lava_b_N_50": 90,
+    "lava_b_N_60": 91,
+    "lava_b_N_70": 92,
+    "lava_b_N_31": 93,
+    "lava_b_N_41": 94,
+    "lava_b_N_51": 95,
+    "lava_b_N_61": 96,
+    "lava_b_N_33": 97,
+    "lava_b_N_43": 98,
+    "lava_b_N_53": 99,
+    "lava_b_N_04": 100,
+    "lava_b_N_14": 101,
+    "lava_b_N_24": 102,
+    "lava_b_N_34": 103,
+    "lava_b_N_44": 104,
+    "lava_b_N_54": 105,
+    "lava_b_N_64": 106,
+    "lava_b_N_74": 107,
+    "lava_b_N_05": 108,
+    "lava_b_N_15": 109,
+    "lava_b_N_25": 110,
+    "lava_b_N_35": 111,
+    "lava_b_N_45": 112,
+    "lava_b_N_55": 113,
+    "lava_b_N_65": 114,
+    "lava_b_N_75": 115,
+    "lava_b_N_16": 116,
+    "lava_b_N_26": 117,
+    "lava_b_N_36": 118,
+    "lava_b_N_46": 119,
+    "lava_b_N_07": 120,
+    "lava_b_N_17": 121,
+    "lava_b_N_27": 122,
+    "lava_b_N_37": 123,
+    "lava_b_N_47": 124,
+    "lava_b_N_57": 125,
+    "lava_b_N_67": 126,
+    "lava_b_N_77": 127,
+    "lava_b_NE_40": 128,
+    "lava_b_NE_50": 129,
+    "lava_b_NE_70": 130,
+    "lava_b_NE_71": 131,
+    "lava_b_NE_52": 132,
+    "lava_b_NE_13": 133,
+    "lava_b_NE_63": 134,
+    "lava_b_NE_04": 135,
+    "lava_b_NE_24": 136,
+    "lava_b_NE_64": 137,
+    "lava_b_NE_15": 138,
+    "lava_b_NE_25": 139,
+    "lava_b_NE_35": 140,
+    "lava_b_NE_45": 141,
+    "lava_b_NE_55": 142,
+    "lava_b_NE_26": 143,
+    "lava_b_NE_56": 144,
+    "lava_b_NE_66": 145,
+    "lava_b_NE_37": 146,
+    "lava_b_NE_47": 147,
+    "lava_b_NE_67": 148,
+    "lava_b_O_20": 149,
+    "lava_b_O_60": 150,
+    "lava_b_O_61": 151,
+    "lava_b_O_71": 152,
+    "lava_b_O_12": 153,
+    "lava_b_O_62": 154,
+    "lava_b_O_63": 155,
+    "lava_b_O_04": 156,
+    "lava_b_O_64": 157,
+    "lava_b_O_16": 158,
+    "lava_b_O_66": 159,
+    "lava_b_O_76": 160,
+    "lava_b_O_07": 161,
+    "lava_b_O_17": 162,
+    "lava_b_O_67": 163,
+    "lava_b_O_77": 164,
+    "lava_b_E_41": 165,
+    "lava_b_E_51": 166,
+    "lava_b_E_71": 167,
+    "lava_b_E_02": 168,
+    "lava_b_E_03": 169,
+    "lava_b_E_04": 170,
+    "lava_b_E_36": 171,
+    "lava_b_E_37": 172,
+    "lava_b_E_47": 173,
+    "lava_b_E_67": 174,
+    "lava_b_SO_70": 175,
+    "lava_b_SO_11": 176,
+    "lava_b_SO_41": 177,
+    "lava_b_SO_61": 178,
+    "lava_b_SO_02": 179,
+    "lava_b_SO_52": 180,
+    "lava_b_SO_13": 181,
+    "lava_b_SO_63": 182,
+    "lava_b_SO_05": 183,
+    "lava_b_SO_65": 184,
+    "lava_b_SO_06": 185,
+    "lava_b_SO_16": 186,
+    "lava_b_SO_56": 187,
+    "lava_b_SO_67": 188,
+    "lava_b_S_00": 189,
+    "lava_b_S_10": 190,
+    "lava_b_S_20": 191,
+    "lava_b_S_30": 192,
+    "lava_b_S_01": 193,
+    "lava_b_S_11": 194,
+    "lava_b_S_21": 195,
+    "lava_b_S_31": 196,
+    "lava_b_S_41": 197,
+    "lava_b_S_51": 198,
+    "lava_b_S_61": 199,
+    "lava_b_S_71": 200,
+    "lava_b_S_02": 201,
+    "lava_b_S_12": 202,
+    "lava_b_S_22": 203,
+    "lava_b_S_62": 204,
+    "lava_b_S_72": 205,
+    "lava_b_S_03": 206,
+    "lava_b_S_13": 207,
+    "lava_b_S_23": 208,
+    "lava_b_S_33": 209,
+    "lava_b_S_43": 210,
+    "lava_b_S_53": 211,
+    "lava_b_S_63": 212,
+    "lava_b_S_73": 213,
+    "lava_b_S_04": 214,
+    "lava_b_S_14": 215,
+    "lava_b_S_74": 216,
+    "lava_b_S_05": 217,
+    "lava_b_S_15": 218,
+    "lava_b_S_25": 219,
+    "lava_b_S_35": 220,
+    "lava_b_S_45": 221,
+    "lava_b_S_55": 222,
+    "lava_b_S_65": 223,
+    "lava_b_S_75": 224,
+    "lava_b_S_16": 225,
+    "lava_b_S_26": 226,
+    "lava_b_S_36": 227,
+    "lava_b_S_46": 228,
+    "lava_b_S_56": 229,
+    "lava_b_S_66": 230,
+    "lava_b_S_07": 231,
+    "lava_b_S_17": 232,
+    "lava_b_S_27": 233,
+    "lava_b_S_37": 234,
+    "lava_b_S_47": 235,
+    "lava_b_S_57": 236,
+    "lava_b_S_67": 237,
+    "lava_b_S_77": 238,
+    "lava_b_SE_00": 239,
+    "lava_b_SE_40": 240,
+    "lava_b_SE_31": 241,
+    "lava_b_SE_41": 242,
+    "lava_b_SE_71": 243,
+    "lava_b_SE_22": 244,
+    "lava_b_SE_32": 245,
+    "lava_b_SE_52": 246,
+    "lava_b_SE_72": 247,
+    "lava_b_SE_43": 248,
+    "lava_b_SE_63": 249,
+    "lava_b_SE_73": 250,
+    "lava_b_SE_24": 251,
+    "lava_b_SE_65": 252,
+    "lava_b_SE_36": 253,
+    "lava_b_SE_56": 254,
+    "lava_b_SE_66": 255,
+    "lava_b_SE_76": 256,
+    "lava_b_SE_17": 257,
+    "lava_b_iNO_00": 258,
+    "lava_b_iNO_10": 259,
+    "lava_b_iNO_21": 260,
+    "lava_b_iNO_71": 261,
+    "lava_b_iNO_72": 262,
+    "lava_b_iNO_13": 263,
+    "lava_b_iNO_04": 264,
+    "lava_b_iNO_24": 265,
+    "lava_b_iNO_05": 266,
+    "lava_b_iNO_35": 267,
+    "lava_b_iNO_65": 268,
+    "lava_b_iNO_56": 269,
+    "lava_b_iNO_17": 270,
+    "lava_b_iNO_77": 271,
+    "lava_b_iNE_30": 272,
+    "lava_b_iNE_40": 273,
+    "lava_b_iNE_60": 274,
+    "lava_b_iNE_42": 275,
+    "lava_b_iNE_14": 276,
+    "lava_b_iNE_64": 277,
+    "lava_b_iNE_05": 278,
+    "lava_b_iNE_25": 279,
+    "lava_b_iNE_65": 280,
+    "lava_b_iNE_16": 281,
+    "lava_b_iNE_46": 282,
+    "lava_b_iNE_56": 283,
+    "lava_b_iNE_27": 284,
+    "lava_b_iNE_57": 285,
+    "lava_b_iSO_10": 286,
+    "lava_b_iSO_40": 287,
+    "lava_b_iSO_01": 288,
+    "lava_b_iSO_51": 289,
+    "lava_b_iSO_12": 290,
+    "lava_b_iSO_05": 291,
+    "lava_b_iSO_15": 292,
+    "lava_b_iSO_75": 293,
+    "lava_b_iSO_66": 294,
+    "lava_b_iSO_77": 295,
+    "lava_b_iSE_30": 296,
+    "lava_b_iSE_70": 297,
+    "lava_b_iSE_01": 298,
+    "lava_b_iSE_21": 299,
+    "lava_b_iSE_31": 300,
+    "lava_b_iSE_42": 301,
+    "lava_b_iSE_62": 302,
+    "lava_b_iSE_72": 303,
+    "lava_b_iSE_23": 304,
+    "lava_b_iSE_64": 305,
+    "lava_b_iSE_55": 306,
+    "lava_b_iSE_75": 307,
+    "lava_b_iSE_16": 308,
+    "lava_b_iSE_46": 309,
+    "lava_b_iSE_07": 310,
+    "_hueco_311": 311,
+    "_hueco_312": 312,
+    "_hueco_313": 313,
+    "_hueco_314": 314,
+    "_hueco_315": 315,
+    "_hueco_316": 316,
+    "_hueco_317": 317,
+    "_hueco_318": 318,
+    "_hueco_319": 319
+   }
+  },
+  "agua": {
+   "imagenes": [
+    "Game/MAPAS/Mina/tileset_agua_0.png",
+    "Game/MAPAS/Mina/tileset_agua_1.png",
+    "Game/MAPAS/Mina/tileset_agua_2.png",
+    "Game/MAPAS/Mina/tileset_agua_3.png"
+   ],
+   "fotogramas": 4,
+   "fps": 4,
+   "tiles": 160,
+   "columnas": 16,
+   "filas": 10,
+   "indices": {
+    "agua_p00": 0,
+    "agua_p10": 1,
+    "agua_p20": 2,
+    "agua_p30": 3,
+    "agua_p40": 4,
+    "agua_p50": 5,
+    "agua_p60": 6,
+    "agua_p70": 7,
+    "agua_p01": 8,
+    "agua_p11": 9,
+    "agua_p21": 10,
+    "agua_p31": 11,
+    "agua_p41": 12,
+    "agua_p51": 13,
+    "agua_p61": 14,
+    "agua_p71": 15,
+    "agua_p02": 16,
+    "agua_p12": 17,
+    "agua_p22": 18,
+    "agua_p32": 19,
+    "agua_p42": 20,
+    "agua_p52": 21,
+    "agua_p62": 22,
+    "agua_p72": 23,
+    "agua_p03": 24,
+    "agua_p13": 25,
+    "agua_p23": 26,
+    "agua_p33": 27,
+    "agua_p43": 28,
+    "agua_p53": 29,
+    "agua_p63": 30,
+    "agua_p73": 31,
+    "agua_p04": 32,
+    "agua_p14": 33,
+    "agua_p24": 34,
+    "agua_p34": 35,
+    "agua_p44": 36,
+    "agua_p54": 37,
+    "agua_p64": 38,
+    "agua_p74": 39,
+    "agua_p05": 40,
+    "agua_p15": 41,
+    "agua_p25": 42,
+    "agua_p35": 43,
+    "agua_p45": 44,
+    "agua_p55": 45,
+    "agua_p65": 46,
+    "agua_p75": 47,
+    "agua_p06": 48,
+    "agua_p16": 49,
+    "agua_p26": 50,
+    "agua_p36": 51,
+    "agua_p46": 52,
+    "agua_p56": 53,
+    "agua_p66": 54,
+    "agua_p76": 55,
+    "agua_p07": 56,
+    "agua_p17": 57,
+    "agua_p27": 58,
+    "agua_p37": 59,
+    "agua_p47": 60,
+    "agua_p57": 61,
+    "agua_p67": 62,
+    "agua_p77": 63,
+    "agua_b_NO_40": 64,
+    "agua_b_NO_31": 65,
+    "agua_b_NO_51": 66,
+    "agua_b_NO_22": 67,
+    "agua_b_NO_42": 68,
+    "agua_b_NO_33": 69,
+    "agua_b_NO_14": 70,
+    "agua_b_NO_75": 71,
+    "agua_b_NO_66": 72,
+    "agua_b_NO_07": 73,
+    "agua_b_NO_57": 74,
+    "agua_b_N_04": 75,
+    "agua_b_N_24": 76,
+    "agua_b_N_05": 77,
+    "agua_b_N_15": 78,
+    "agua_b_N_25": 79,
+    "agua_b_N_35": 80,
+    "agua_b_N_45": 81,
+    "agua_b_NE_41": 82,
+    "agua_b_NE_61": 83,
+    "agua_b_NE_52": 84,
+    "agua_b_NE_72": 85,
+    "agua_b_NE_14": 86,
+    "agua_b_NE_25": 87,
+    "agua_b_NE_55": 88,
+    "agua_b_NE_36": 89,
+    "agua_b_NE_66": 90,
+    "agua_b_O_11": 91,
+    "agua_b_O_12": 92,
+    "agua_b_O_13": 93,
+    "agua_b_O_15": 94,
+    "agua_b_O_16": 95,
+    "agua_b_E_30": 96,
+    "agua_b_E_41": 97,
+    "agua_b_E_73": 98,
+    "agua_b_E_37": 99,
+    "agua_b_SO_00": 100,
+    "agua_b_SO_03": 101,
+    "agua_b_SO_23": 102,
+    "agua_b_SO_14": 103,
+    "agua_b_SO_74": 104,
+    "agua_b_S_62": 105,
+    "agua_b_S_72": 106,
+    "agua_b_S_13": 107,
+    "agua_b_S_23": 108,
+    "agua_b_S_33": 109,
+    "agua_b_S_43": 110,
+    "agua_b_S_53": 111,
+    "agua_b_S_63": 112,
+    "agua_b_S_04": 113,
+    "agua_b_S_14": 114,
+    "agua_b_S_24": 115,
+    "agua_b_S_34": 116,
+    "agua_b_SE_50": 117,
+    "agua_b_SE_42": 118,
+    "agua_b_SE_33": 119,
+    "agua_b_SE_53": 120,
+    "agua_b_SE_44": 121,
+    "agua_b_SE_67": 122,
+    "agua_b_iNO_50": 123,
+    "agua_b_iNO_41": 124,
+    "agua_b_iNO_32": 125,
+    "agua_b_iNO_52": 126,
+    "agua_b_iNO_43": 127,
+    "agua_b_iNO_34": 128,
+    "agua_b_iNO_76": 129,
+    "agua_b_iNO_17": 130,
+    "agua_b_iNO_67": 131,
+    "agua_b_iNE_31": 132,
+    "agua_b_iNE_42": 133,
+    "agua_b_iNE_62": 134,
+    "agua_b_iNE_74": 135,
+    "agua_b_iNE_15": 136,
+    "agua_b_iNE_26": 137,
+    "agua_b_iNE_56": 138,
+    "agua_b_iSO_10": 139,
+    "agua_b_iSO_02": 140,
+    "agua_b_iSO_73": 141,
+    "agua_b_iSE_40": 142,
+    "agua_b_iSE_32": 143,
+    "agua_b_iSE_52": 144,
+    "agua_b_iSE_43": 145,
+    "agua_b_iSE_57": 146,
+    "_hueco_147": 147,
+    "_hueco_148": 148,
+    "_hueco_149": 149,
+    "_hueco_150": 150,
+    "_hueco_151": 151,
+    "_hueco_152": 152,
+    "_hueco_153": 153,
+    "_hueco_154": 154,
+    "_hueco_155": 155,
+    "_hueco_156": 156,
+    "_hueco_157": 157,
+    "_hueco_158": 158,
+    "_hueco_159": 159
    }
   }
  },
  "animacion": {
-  "texturas": {
-   "lava_flujo": "Game/MAPAS/Mina/lava_flujo.png",
-   "lava_brillo": "Game/MAPAS/Mina/lava_brillo.png",
-   "lava_burbuja": "Game/MAPAS/Mina/lava_burbuja.png",
-   "agua_flujo": "Game/MAPAS/Mina/agua_flujo.png"
-  },
-  "como": "La escena pone un tileSprite con lava_flujo sobre el interior de cada lago y mueve tilePositionY; encima, otro con lava_brillo a otra velocidad."
+  "burbuja": "Game/MAPAS/Mina/lava_burbuja.png",
+  "burbuja_fotograma": 32,
+  "como": "La lava y el agua van en la capa `mina_bordes` con su propio tileset. La escena cambia la imagen de ese tileset (tileset.setImage) a `fps` fotogramas por segundo: se anima el lago entero, orilla incluida, sin redibujar un pixel."
  },
  "indices": {
-  "suelo_1": 0,
-  "suelo_2": 1,
-  "suelo_3": 2,
-  "suelo_4": 3,
-  "suelo_deco_1": 4,
-  "suelo_deco_2": 5,
-  "suelo_deco_3": 6,
-  "suelo_deco_4": 7,
-  "grava_1": 8,
-  "grava_2": 9,
-  "grava_3": 10,
-  "grava_4": 11,
-  "grava_deco_1": 12,
-  "grava_deco_2": 13,
-  "grava_deco_3": 14,
-  "grava_deco_4": 15,
-  "tabla_1": 16,
-  "tabla_2": 17,
-  "tabla_3": 18,
-  "tabla_4": 19,
-  "_hueco_20": 20,
-  "_hueco_21": 21,
-  "_hueco_22": 22,
-  "_hueco_23": 23,
-  "_hueco_24": 24,
-  "_hueco_25": 25,
-  "_hueco_26": 26,
-  "_hueco_27": 27,
-  "_hueco_28": 28,
-  "_hueco_29": 29,
-  "_hueco_30": 30,
-  "_hueco_31": 31,
-  "trans_grava_NO": 32,
-  "trans_grava_N": 33,
-  "trans_grava_NE": 34,
-  "trans_grava_O": 35,
-  "trans_grava_C": 36,
-  "trans_grava_E": 37,
-  "trans_grava_SO": 38,
-  "trans_grava_S": 39,
-  "trans_grava_SE": 40,
-  "trans_grava_iNO": 41,
-  "trans_grava_iNE": 42,
-  "trans_grava_iSO": 43,
-  "trans_grava_iSE": 44,
-  "_hueco_45": 45,
-  "_hueco_46": 46,
-  "_hueco_47": 47,
-  "via_h_0": 48,
-  "via_h_1": 49,
-  "via_v_0": 50,
-  "via_v_1": 51,
-  "_hueco_52": 52,
-  "_hueco_53": 53,
-  "_hueco_54": 54,
-  "_hueco_55": 55,
-  "_hueco_56": 56,
-  "_hueco_57": 57,
-  "_hueco_58": 58,
-  "_hueco_59": 59,
-  "_hueco_60": 60,
-  "_hueco_61": 61,
-  "_hueco_62": 62,
-  "_hueco_63": 63,
-  "trans_lava_NO": 64,
-  "trans_lava_N": 65,
-  "trans_lava_NE": 66,
-  "trans_lava_O": 67,
-  "trans_lava_C": 68,
-  "trans_lava_E": 69,
-  "trans_lava_SO": 70,
-  "trans_lava_S": 71,
-  "trans_lava_SE": 72,
-  "trans_lava_iNO": 73,
-  "trans_lava_iNE": 74,
-  "trans_lava_iSO": 75,
-  "trans_lava_iSE": 76,
+  "suelo_p00": 0,
+  "suelo_p10": 1,
+  "suelo_p20": 2,
+  "suelo_p30": 3,
+  "suelo_p40": 4,
+  "suelo_p50": 5,
+  "suelo_p60": 6,
+  "suelo_p70": 7,
+  "suelo_p01": 8,
+  "suelo_p11": 9,
+  "suelo_p21": 10,
+  "suelo_p31": 11,
+  "suelo_p41": 12,
+  "suelo_p51": 13,
+  "suelo_p61": 14,
+  "suelo_p71": 15,
+  "suelo_p02": 16,
+  "suelo_p12": 17,
+  "suelo_p22": 18,
+  "suelo_p32": 19,
+  "suelo_p42": 20,
+  "suelo_p52": 21,
+  "suelo_p62": 22,
+  "suelo_p72": 23,
+  "suelo_p03": 24,
+  "suelo_p13": 25,
+  "suelo_p23": 26,
+  "suelo_p33": 27,
+  "suelo_p43": 28,
+  "suelo_p53": 29,
+  "suelo_p63": 30,
+  "suelo_p73": 31,
+  "suelo_p04": 32,
+  "suelo_p14": 33,
+  "suelo_p24": 34,
+  "suelo_p34": 35,
+  "suelo_p44": 36,
+  "suelo_p54": 37,
+  "suelo_p64": 38,
+  "suelo_p74": 39,
+  "suelo_p05": 40,
+  "suelo_p15": 41,
+  "suelo_p25": 42,
+  "suelo_p35": 43,
+  "suelo_p45": 44,
+  "suelo_p55": 45,
+  "suelo_p65": 46,
+  "suelo_p75": 47,
+  "suelo_p06": 48,
+  "suelo_p16": 49,
+  "suelo_p26": 50,
+  "suelo_p36": 51,
+  "suelo_p46": 52,
+  "suelo_p56": 53,
+  "suelo_p66": 54,
+  "suelo_p76": 55,
+  "suelo_p07": 56,
+  "suelo_p17": 57,
+  "suelo_p27": 58,
+  "suelo_p37": 59,
+  "suelo_p47": 60,
+  "suelo_p57": 61,
+  "suelo_p67": 62,
+  "suelo_p77": 63,
+  "suelo_deco_1": 64,
+  "suelo_deco_2": 65,
+  "suelo_deco_3": 66,
+  "suelo_deco_4": 67,
+  "grava_deco_1": 68,
+  "grava_deco_2": 69,
+  "grava_deco_3": 70,
+  "grava_deco_4": 71,
+  "_hueco_72": 72,
+  "_hueco_73": 73,
+  "_hueco_74": 74,
+  "_hueco_75": 75,
+  "_hueco_76": 76,
   "_hueco_77": 77,
   "_hueco_78": 78,
   "_hueco_79": 79,
-  "lava_p00": 80,
-  "lava_p10": 81,
-  "lava_p20": 82,
-  "lava_p30": 83,
-  "lava_p01": 84,
-  "lava_p11": 85,
-  "lava_p21": 86,
-  "lava_p31": 87,
-  "lava_p02": 88,
-  "lava_p12": 89,
-  "lava_p22": 90,
-  "lava_p32": 91,
-  "lava_p03": 92,
-  "lava_p13": 93,
-  "lava_p23": 94,
-  "lava_p33": 95,
-  "lava_anim_1": 96,
-  "lava_anim_2": 97,
-  "lava_anim_3": 98,
-  "lava_anim_4": 99,
-  "_hueco_100": 100,
-  "_hueco_101": 101,
-  "_hueco_102": 102,
-  "_hueco_103": 103,
-  "_hueco_104": 104,
-  "_hueco_105": 105,
-  "_hueco_106": 106,
-  "_hueco_107": 107,
-  "_hueco_108": 108,
-  "_hueco_109": 109,
-  "_hueco_110": 110,
-  "_hueco_111": 111,
-  "trans_agua_NO": 112,
-  "trans_agua_N": 113,
-  "trans_agua_NE": 114,
-  "trans_agua_O": 115,
-  "trans_agua_C": 116,
-  "trans_agua_E": 117,
-  "trans_agua_SO": 118,
-  "trans_agua_S": 119,
-  "trans_agua_SE": 120,
-  "trans_agua_iNO": 121,
-  "trans_agua_iNE": 122,
-  "trans_agua_iSO": 123,
-  "trans_agua_iSE": 124,
-  "agua_hondo": 125,
-  "agua_claro": 126,
-  "agua_brillo": 127,
-  "muro_0_0": 128,
-  "muro_0_1": 129,
-  "muro_0_2": 130,
-  "muro_0_3": 131,
-  "muro_0_4": 132,
-  "muro_0_5": 133,
-  "muro_0_6": 134,
-  "muro_0_7": 135,
-  "muro_1_0": 136,
-  "muro_1_1": 137,
-  "muro_1_2": 138,
-  "muro_1_3": 139,
-  "muro_1_4": 140,
-  "muro_1_5": 141,
-  "muro_1_6": 142,
-  "muro_1_7": 143,
-  "muro_2_0": 144,
-  "muro_2_1": 145,
-  "muro_2_2": 146,
-  "muro_2_3": 147,
-  "muro_2_4": 148,
-  "muro_2_5": 149,
-  "muro_2_6": 150,
-  "muro_2_7": 151,
-  "muro_3_0": 152,
-  "muro_3_1": 153,
-  "muro_3_2": 154,
-  "muro_3_3": 155,
-  "muro_3_4": 156,
-  "muro_3_5": 157,
-  "muro_3_6": 158,
-  "muro_3_7": 159,
-  "muro_4_0": 160,
-  "muro_4_1": 161,
-  "muro_4_2": 162,
-  "muro_4_3": 163,
-  "muro_4_4": 164,
-  "muro_4_5": 165,
-  "muro_4_6": 166,
-  "muro_4_7": 167,
-  "muro_izq_0": 168,
-  "muro_izq_1": 169,
-  "muro_izq_2": 170,
-  "muro_izq_3": 171,
-  "muro_izq_4": 172,
-  "muro_der_0": 173,
-  "muro_der_1": 174,
-  "muro_der_2": 175,
-  "muro_der_3": 176,
-  "muro_der_4": 177,
-  "_hueco_178": 178,
-  "_hueco_179": 179,
-  "_hueco_180": 180,
-  "_hueco_181": 181,
-  "_hueco_182": 182,
-  "_hueco_183": 183,
-  "_hueco_184": 184,
-  "_hueco_185": 185,
-  "_hueco_186": 186,
-  "_hueco_187": 187,
-  "_hueco_188": 188,
-  "_hueco_189": 189,
-  "_hueco_190": 190,
-  "_hueco_191": 191,
-  "roca_top_00": 192,
-  "roca_top_10": 193,
-  "roca_top_01": 194,
-  "roca_top_11": 195,
-  "roca_canto_N": 196,
-  "roca_canto_O": 197,
-  "roca_canto_E": 198,
-  "sombra_N": 199,
-  "sombra_NO": 200,
-  "sombra_NE": 201,
-  "sombra_O": 202,
-  "sombra_E": 203,
-  "_hueco_204": 204,
-  "_hueco_205": 205,
-  "_hueco_206": 206,
-  "_hueco_207": 207,
-  "veta_piedra": 208,
-  "veta_cobre": 209,
-  "veta_hierro": 210,
-  "veta_carbon": 211,
-  "veta_oro": 212,
-  "veta_macizo_piedra": 213,
-  "veta_macizo_cobre": 214,
-  "veta_macizo_hierro": 215,
-  "veta_macizo_carbon": 216,
-  "veta_macizo_oro": 217,
-  "_hueco_218": 218,
-  "_hueco_219": 219,
-  "_hueco_220": 220,
-  "_hueco_221": 221,
-  "_hueco_222": 222,
-  "_hueco_223": 223,
-  "pena_pequena_00": 224,
-  "pena_pequena_10": 225,
-  "pena_pequena_01": 226,
-  "pena_pequena_11": 227,
-  "pena_mediana_00": 228,
-  "pena_mediana_10": 229,
-  "pena_mediana_01": 230,
-  "pena_mediana_11": 231,
-  "pena_grande_00": 232,
-  "pena_grande_10": 233,
-  "pena_grande_20": 234,
-  "pena_grande_01": 235,
-  "pena_grande_11": 236,
-  "pena_grande_21": 237,
-  "racimo_azul_00": 238,
-  "racimo_azul_10": 239,
-  "racimo_azul_01": 240,
-  "racimo_azul_11": 241,
-  "racimo_azul_02": 242,
-  "racimo_azul_12": 243,
-  "racimo_morado_00": 244,
-  "racimo_morado_10": 245,
-  "racimo_morado_01": 246,
-  "racimo_morado_11": 247,
-  "racimo_morado_02": 248,
-  "racimo_morado_12": 249,
-  "racimo_verde_00": 250,
-  "racimo_verde_10": 251,
-  "racimo_verde_01": 252,
-  "racimo_verde_11": 253,
-  "racimo_verde_02": 254,
-  "racimo_verde_12": 255,
-  "vagoneta_00": 256,
-  "vagoneta_10": 257,
-  "vagoneta_01": 258,
-  "vagoneta_11": 259,
-  "puntal_00": 260,
-  "puntal_10": 261,
-  "puntal_20": 262,
-  "puntal_01": 263,
-  "puntal_11": 264,
-  "puntal_21": 265,
-  "antorcha_00": 266,
-  "antorcha_01": 267,
-  "monton_piedra_00": 268,
-  "monton_piedra_10": 269,
-  "monton_piedra_01": 270,
-  "monton_piedra_11": 271,
-  "monton_cobre_00": 272,
-  "monton_cobre_10": 273,
-  "monton_cobre_01": 274,
-  "monton_cobre_11": 275,
-  "monton_hierro_00": 276,
-  "monton_hierro_10": 277,
-  "monton_hierro_01": 278,
-  "monton_hierro_11": 279,
-  "monton_carbon_00": 280,
-  "monton_carbon_10": 281,
-  "monton_carbon_01": 282,
-  "monton_carbon_11": 283,
-  "monton_oro_00": 284,
-  "monton_oro_10": 285,
-  "monton_oro_01": 286,
-  "monton_oro_11": 287,
-  "estalagmita_g1_00": 288,
-  "estalagmita_g1_10": 289,
-  "estalagmita_g1_01": 290,
-  "estalagmita_g1_11": 291,
-  "estalagmita_g1_02": 292,
-  "estalagmita_g1_12": 293,
-  "estalagmita_g2_00": 294,
-  "estalagmita_g2_10": 295,
-  "estalagmita_g2_01": 296,
-  "estalagmita_g2_11": 297,
-  "estalagmita_g2_02": 298,
-  "estalagmita_g2_12": 299,
-  "estalagmita_g3_00": 300,
-  "estalagmita_g3_10": 301,
-  "estalagmita_g3_01": 302,
-  "estalagmita_g3_11": 303,
-  "estalagmita_g3_02": 304,
-  "estalagmita_g3_12": 305,
-  "_hueco_306": 306,
-  "_hueco_307": 307,
-  "_hueco_308": 308,
-  "_hueco_309": 309,
-  "_hueco_310": 310,
-  "_hueco_311": 311,
-  "_hueco_312": 312,
-  "_hueco_313": 313,
-  "_hueco_314": 314,
-  "_hueco_315": 315,
-  "_hueco_316": 316,
-  "_hueco_317": 317,
-  "_hueco_318": 318,
-  "_hueco_319": 319
+  "grava_p00": 80,
+  "grava_p10": 81,
+  "grava_p20": 82,
+  "grava_p30": 83,
+  "grava_p40": 84,
+  "grava_p50": 85,
+  "grava_p60": 86,
+  "grava_p70": 87,
+  "grava_p01": 88,
+  "grava_p11": 89,
+  "grava_p21": 90,
+  "grava_p31": 91,
+  "grava_p41": 92,
+  "grava_p51": 93,
+  "grava_p61": 94,
+  "grava_p71": 95,
+  "grava_p02": 96,
+  "grava_p12": 97,
+  "grava_p22": 98,
+  "grava_p32": 99,
+  "grava_p42": 100,
+  "grava_p52": 101,
+  "grava_p62": 102,
+  "grava_p72": 103,
+  "grava_p03": 104,
+  "grava_p13": 105,
+  "grava_p23": 106,
+  "grava_p33": 107,
+  "grava_p43": 108,
+  "grava_p53": 109,
+  "grava_p63": 110,
+  "grava_p73": 111,
+  "grava_p04": 112,
+  "grava_p14": 113,
+  "grava_p24": 114,
+  "grava_p34": 115,
+  "grava_p44": 116,
+  "grava_p54": 117,
+  "grava_p64": 118,
+  "grava_p74": 119,
+  "grava_p05": 120,
+  "grava_p15": 121,
+  "grava_p25": 122,
+  "grava_p35": 123,
+  "grava_p45": 124,
+  "grava_p55": 125,
+  "grava_p65": 126,
+  "grava_p75": 127,
+  "grava_p06": 128,
+  "grava_p16": 129,
+  "grava_p26": 130,
+  "grava_p36": 131,
+  "grava_p46": 132,
+  "grava_p56": 133,
+  "grava_p66": 134,
+  "grava_p76": 135,
+  "grava_p07": 136,
+  "grava_p17": 137,
+  "grava_p27": 138,
+  "grava_p37": 139,
+  "grava_p47": 140,
+  "grava_p57": 141,
+  "grava_p67": 142,
+  "grava_p77": 143,
+  "grava_b_NO_00": 144,
+  "grava_b_NO_40": 145,
+  "grava_b_NO_50": 146,
+  "grava_b_NO_31": 147,
+  "grava_b_NO_41": 148,
+  "grava_b_NO_22": 149,
+  "grava_b_NO_13": 150,
+  "grava_b_NO_16": 151,
+  "grava_b_NO_57": 152,
+  "grava_b_NO_67": 153,
+  "grava_b_N_10": 154,
+  "grava_b_N_20": 155,
+  "grava_b_N_04": 156,
+  "grava_b_N_14": 157,
+  "grava_b_N_54": 158,
+  "grava_b_N_64": 159,
+  "grava_b_N_74": 160,
+  "grava_b_N_35": 161,
+  "grava_b_N_26": 162,
+  "grava_b_N_56": 163,
+  "grava_b_N_07": 164,
+  "grava_b_N_47": 165,
+  "grava_b_N_77": 166,
+  "grava_b_NE_30": 167,
+  "grava_b_NE_70": 168,
+  "grava_b_NE_42": 169,
+  "grava_b_NE_24": 170,
+  "grava_b_NE_45": 171,
+  "grava_b_NE_36": 172,
+  "grava_b_NE_66": 173,
+  "grava_b_NE_57": 174,
+  "grava_b_O_00": 175,
+  "grava_b_O_01": 176,
+  "grava_b_O_02": 177,
+  "grava_b_O_03": 178,
+  "grava_b_O_53": 179,
+  "grava_b_O_04": 180,
+  "grava_b_O_14": 181,
+  "grava_b_O_05": 182,
+  "grava_b_O_65": 183,
+  "grava_b_O_06": 184,
+  "grava_b_O_66": 185,
+  "grava_b_O_07": 186,
+  "grava_b_E_50": 187,
+  "grava_b_E_31": 188,
+  "grava_b_E_51": 189,
+  "grava_b_E_71": 190,
+  "grava_b_E_52": 191,
+  "grava_b_E_72": 192,
+  "grava_b_E_43": 193,
+  "grava_b_E_53": 194,
+  "grava_b_E_34": 195,
+  "grava_b_E_54": 196,
+  "grava_b_E_55": 197,
+  "grava_b_E_16": 198,
+  "grava_b_E_56": 199,
+  "grava_b_E_57": 200,
+  "grava_b_E_67": 201,
+  "grava_b_SO_42": 202,
+  "grava_b_SO_53": 203,
+  "grava_b_SO_54": 204,
+  "grava_b_SO_15": 205,
+  "grava_b_SO_46": 206,
+  "grava_b_SO_07": 207,
+  "grava_b_S_02": 208,
+  "grava_b_S_12": 209,
+  "grava_b_S_22": 210,
+  "grava_b_S_32": 211,
+  "grava_b_S_42": 212,
+  "grava_b_S_52": 213,
+  "grava_b_S_62": 214,
+  "grava_b_S_72": 215,
+  "grava_b_S_25": 216,
+  "grava_b_S_35": 217,
+  "grava_b_S_06": 218,
+  "grava_b_S_16": 219,
+  "grava_b_S_26": 220,
+  "grava_b_S_36": 221,
+  "grava_b_S_56": 222,
+  "grava_b_S_66": 223,
+  "grava_b_S_76": 224,
+  "grava_b_SE_43": 225,
+  "grava_b_SE_73": 226,
+  "grava_b_SE_64": 227,
+  "grava_b_SE_35": 228,
+  "grava_b_SE_55": 229,
+  "grava_b_SE_46": 230,
+  "grava_b_SE_17": 231,
+  "grava_b_iNO_50": 232,
+  "grava_b_iNO_60": 233,
+  "grava_b_iNO_41": 234,
+  "grava_b_iNO_51": 235,
+  "grava_b_iNO_32": 236,
+  "grava_b_iNO_23": 237,
+  "grava_b_iNO_17": 238,
+  "grava_b_iNO_67": 239,
+  "grava_b_iNE_60": 240,
+  "grava_b_iNE_32": 241,
+  "grava_b_iNE_44": 242,
+  "grava_b_iNE_25": 243,
+  "grava_b_iNE_46": 244,
+  "grava_b_iNE_37": 245,
+  "grava_b_iSO_52": 246,
+  "grava_b_iSO_64": 247,
+  "grava_b_iSO_45": 248,
+  "grava_b_iSE_42": 249,
+  "grava_b_iSE_33": 250,
+  "grava_b_iSE_63": 251,
+  "grava_b_iSE_54": 252,
+  "grava_b_iSE_15": 253,
+  "grava_b_iSE_45": 254,
+  "_hueco_255": 255,
+  "tabla_p00": 256,
+  "tabla_p10": 257,
+  "tabla_p20": 258,
+  "tabla_p30": 259,
+  "tabla_p01": 260,
+  "tabla_p11": 261,
+  "tabla_p21": 262,
+  "tabla_p31": 263,
+  "tabla_p02": 264,
+  "tabla_p12": 265,
+  "tabla_p22": 266,
+  "tabla_p32": 267,
+  "tabla_p03": 268,
+  "tabla_p13": 269,
+  "tabla_p23": 270,
+  "tabla_p33": 271,
+  "puente_n_0": 272,
+  "puente_n_1": 273,
+  "puente_n_2": 274,
+  "puente_n_3": 275,
+  "puente_c_0": 276,
+  "puente_c_1": 277,
+  "puente_c_2": 278,
+  "puente_c_3": 279,
+  "puente_s_0": 280,
+  "puente_s_1": 281,
+  "puente_s_2": 282,
+  "puente_s_3": 283,
+  "_hueco_284": 284,
+  "_hueco_285": 285,
+  "_hueco_286": 286,
+  "_hueco_287": 287,
+  "via_h_0": 288,
+  "via_h_1": 289,
+  "via_v_0": 290,
+  "via_v_1": 291,
+  "_hueco_292": 292,
+  "_hueco_293": 293,
+  "_hueco_294": 294,
+  "_hueco_295": 295,
+  "_hueco_296": 296,
+  "_hueco_297": 297,
+  "_hueco_298": 298,
+  "_hueco_299": 299,
+  "_hueco_300": 300,
+  "_hueco_301": 301,
+  "_hueco_302": 302,
+  "_hueco_303": 303,
+  "muro_0_0": 304,
+  "muro_0_1": 305,
+  "muro_0_2": 306,
+  "muro_0_3": 307,
+  "muro_0_4": 308,
+  "muro_0_5": 309,
+  "muro_0_6": 310,
+  "muro_0_7": 311,
+  "muro_1_0": 312,
+  "muro_1_1": 313,
+  "muro_1_2": 314,
+  "muro_1_3": 315,
+  "muro_1_4": 316,
+  "muro_1_5": 317,
+  "muro_1_6": 318,
+  "muro_1_7": 319,
+  "muro_2_0": 320,
+  "muro_2_1": 321,
+  "muro_2_2": 322,
+  "muro_2_3": 323,
+  "muro_2_4": 324,
+  "muro_2_5": 325,
+  "muro_2_6": 326,
+  "muro_2_7": 327,
+  "muro_3_0": 328,
+  "muro_3_1": 329,
+  "muro_3_2": 330,
+  "muro_3_3": 331,
+  "muro_3_4": 332,
+  "muro_3_5": 333,
+  "muro_3_6": 334,
+  "muro_3_7": 335,
+  "muro_4_0": 336,
+  "muro_4_1": 337,
+  "muro_4_2": 338,
+  "muro_4_3": 339,
+  "muro_4_4": 340,
+  "muro_4_5": 341,
+  "muro_4_6": 342,
+  "muro_4_7": 343,
+  "muro_izq_0": 344,
+  "muro_izq_1": 345,
+  "muro_izq_2": 346,
+  "muro_izq_3": 347,
+  "muro_izq_4": 348,
+  "muro_der_0": 349,
+  "muro_der_1": 350,
+  "muro_der_2": 351,
+  "muro_der_3": 352,
+  "muro_der_4": 353,
+  "_hueco_354": 354,
+  "_hueco_355": 355,
+  "_hueco_356": 356,
+  "_hueco_357": 357,
+  "_hueco_358": 358,
+  "_hueco_359": 359,
+  "_hueco_360": 360,
+  "_hueco_361": 361,
+  "_hueco_362": 362,
+  "_hueco_363": 363,
+  "_hueco_364": 364,
+  "_hueco_365": 365,
+  "_hueco_366": 366,
+  "_hueco_367": 367,
+  "roca_top_00": 368,
+  "roca_top_10": 369,
+  "roca_top_20": 370,
+  "roca_top_30": 371,
+  "roca_top_01": 372,
+  "roca_top_11": 373,
+  "roca_top_21": 374,
+  "roca_top_31": 375,
+  "roca_top_02": 376,
+  "roca_top_12": 377,
+  "roca_top_22": 378,
+  "roca_top_32": 379,
+  "roca_top_03": 380,
+  "roca_top_13": 381,
+  "roca_top_23": 382,
+  "roca_top_33": 383,
+  "roca_canto_N": 384,
+  "roca_canto_O": 385,
+  "roca_canto_E": 386,
+  "sombra_N": 387,
+  "sombra_NO": 388,
+  "sombra_NE": 389,
+  "sombra_O": 390,
+  "sombra_E": 391,
+  "_hueco_392": 392,
+  "_hueco_393": 393,
+  "_hueco_394": 394,
+  "_hueco_395": 395,
+  "_hueco_396": 396,
+  "_hueco_397": 397,
+  "_hueco_398": 398,
+  "_hueco_399": 399,
+  "veta_piedra": 400,
+  "veta_cobre": 401,
+  "veta_hierro": 402,
+  "veta_carbon": 403,
+  "veta_oro": 404,
+  "veta_macizo_piedra": 405,
+  "veta_macizo_cobre": 406,
+  "veta_macizo_hierro": 407,
+  "veta_macizo_carbon": 408,
+  "veta_macizo_oro": 409,
+  "_hueco_410": 410,
+  "_hueco_411": 411,
+  "_hueco_412": 412,
+  "_hueco_413": 413,
+  "_hueco_414": 414,
+  "_hueco_415": 415,
+  "pena_pequena_00": 416,
+  "pena_pequena_10": 417,
+  "pena_pequena_01": 418,
+  "pena_pequena_11": 419,
+  "monton_piedra_00": 420,
+  "monton_piedra_10": 421,
+  "monton_piedra_01": 422,
+  "monton_piedra_11": 423,
+  "monton_cobre_00": 424,
+  "monton_cobre_10": 425,
+  "monton_cobre_01": 426,
+  "monton_cobre_11": 427,
+  "monton_hierro_00": 428,
+  "monton_hierro_10": 429,
+  "monton_hierro_01": 430,
+  "monton_hierro_11": 431,
+  "monton_carbon_00": 432,
+  "monton_carbon_10": 433,
+  "monton_carbon_01": 434,
+  "monton_carbon_11": 435,
+  "monton_oro_00": 436,
+  "monton_oro_10": 437,
+  "monton_oro_01": 438,
+  "monton_oro_11": 439,
+  "_hueco_440": 440,
+  "_hueco_441": 441,
+  "_hueco_442": 442,
+  "_hueco_443": 443,
+  "_hueco_444": 444,
+  "_hueco_445": 445,
+  "_hueco_446": 446,
+  "_hueco_447": 447
  },
  "tiles_detalle": [
   {
    "i": 0,
-   "nombre": "suelo_1",
+   "nombre": "suelo_p00",
    "papel": "suelo"
   },
   {
    "i": 1,
-   "nombre": "suelo_2",
+   "nombre": "suelo_p10",
    "papel": "suelo"
   },
   {
    "i": 2,
-   "nombre": "suelo_3",
+   "nombre": "suelo_p20",
    "papel": "suelo"
   },
   {
    "i": 3,
-   "nombre": "suelo_4",
+   "nombre": "suelo_p30",
    "papel": "suelo"
   },
   {
    "i": 4,
-   "nombre": "suelo_deco_1",
+   "nombre": "suelo_p40",
    "papel": "suelo"
   },
   {
    "i": 5,
-   "nombre": "suelo_deco_2",
+   "nombre": "suelo_p50",
    "papel": "suelo"
   },
   {
    "i": 6,
-   "nombre": "suelo_deco_3",
+   "nombre": "suelo_p60",
    "papel": "suelo"
   },
   {
    "i": 7,
-   "nombre": "suelo_deco_4",
+   "nombre": "suelo_p70",
    "papel": "suelo"
   },
   {
    "i": 8,
-   "nombre": "grava_1",
+   "nombre": "suelo_p01",
    "papel": "suelo"
   },
   {
    "i": 9,
-   "nombre": "grava_2",
+   "nombre": "suelo_p11",
    "papel": "suelo"
   },
   {
    "i": 10,
-   "nombre": "grava_3",
+   "nombre": "suelo_p21",
    "papel": "suelo"
   },
   {
    "i": 11,
-   "nombre": "grava_4",
+   "nombre": "suelo_p31",
    "papel": "suelo"
   },
   {
    "i": 12,
-   "nombre": "grava_deco_1",
+   "nombre": "suelo_p41",
    "papel": "suelo"
   },
   {
    "i": 13,
-   "nombre": "grava_deco_2",
+   "nombre": "suelo_p51",
    "papel": "suelo"
   },
   {
    "i": 14,
-   "nombre": "grava_deco_3",
+   "nombre": "suelo_p61",
    "papel": "suelo"
   },
   {
    "i": 15,
-   "nombre": "grava_deco_4",
+   "nombre": "suelo_p71",
    "papel": "suelo"
   },
   {
    "i": 16,
-   "nombre": "tabla_1",
+   "nombre": "suelo_p02",
    "papel": "suelo"
   },
   {
    "i": 17,
-   "nombre": "tabla_2",
+   "nombre": "suelo_p12",
    "papel": "suelo"
   },
   {
    "i": 18,
-   "nombre": "tabla_3",
+   "nombre": "suelo_p22",
    "papel": "suelo"
   },
   {
    "i": 19,
-   "nombre": "tabla_4",
+   "nombre": "suelo_p32",
    "papel": "suelo"
   },
   {
    "i": 20,
-   "nombre": "_hueco_20",
-   "papel": "hueco"
+   "nombre": "suelo_p42",
+   "papel": "suelo"
   },
   {
    "i": 21,
-   "nombre": "_hueco_21",
-   "papel": "hueco"
+   "nombre": "suelo_p52",
+   "papel": "suelo"
   },
   {
    "i": 22,
-   "nombre": "_hueco_22",
-   "papel": "hueco"
+   "nombre": "suelo_p62",
+   "papel": "suelo"
   },
   {
    "i": 23,
-   "nombre": "_hueco_23",
-   "papel": "hueco"
+   "nombre": "suelo_p72",
+   "papel": "suelo"
   },
   {
    "i": 24,
-   "nombre": "_hueco_24",
-   "papel": "hueco"
+   "nombre": "suelo_p03",
+   "papel": "suelo"
   },
   {
    "i": 25,
-   "nombre": "_hueco_25",
-   "papel": "hueco"
+   "nombre": "suelo_p13",
+   "papel": "suelo"
   },
   {
    "i": 26,
-   "nombre": "_hueco_26",
-   "papel": "hueco"
+   "nombre": "suelo_p23",
+   "papel": "suelo"
   },
   {
    "i": 27,
-   "nombre": "_hueco_27",
-   "papel": "hueco"
+   "nombre": "suelo_p33",
+   "papel": "suelo"
   },
   {
    "i": 28,
-   "nombre": "_hueco_28",
-   "papel": "hueco"
+   "nombre": "suelo_p43",
+   "papel": "suelo"
   },
   {
    "i": 29,
-   "nombre": "_hueco_29",
-   "papel": "hueco"
+   "nombre": "suelo_p53",
+   "papel": "suelo"
   },
   {
    "i": 30,
-   "nombre": "_hueco_30",
-   "papel": "hueco"
+   "nombre": "suelo_p63",
+   "papel": "suelo"
   },
   {
    "i": 31,
-   "nombre": "_hueco_31",
-   "papel": "hueco"
+   "nombre": "suelo_p73",
+   "papel": "suelo"
   },
   {
    "i": 32,
-   "nombre": "trans_grava_NO",
-   "papel": "transicion"
+   "nombre": "suelo_p04",
+   "papel": "suelo"
   },
   {
    "i": 33,
-   "nombre": "trans_grava_N",
-   "papel": "transicion"
+   "nombre": "suelo_p14",
+   "papel": "suelo"
   },
   {
    "i": 34,
-   "nombre": "trans_grava_NE",
-   "papel": "transicion"
+   "nombre": "suelo_p24",
+   "papel": "suelo"
   },
   {
    "i": 35,
-   "nombre": "trans_grava_O",
-   "papel": "transicion"
+   "nombre": "suelo_p34",
+   "papel": "suelo"
   },
   {
    "i": 36,
-   "nombre": "trans_grava_C",
-   "papel": "transicion"
+   "nombre": "suelo_p44",
+   "papel": "suelo"
   },
   {
    "i": 37,
-   "nombre": "trans_grava_E",
-   "papel": "transicion"
+   "nombre": "suelo_p54",
+   "papel": "suelo"
   },
   {
    "i": 38,
-   "nombre": "trans_grava_SO",
-   "papel": "transicion"
+   "nombre": "suelo_p64",
+   "papel": "suelo"
   },
   {
    "i": 39,
-   "nombre": "trans_grava_S",
-   "papel": "transicion"
+   "nombre": "suelo_p74",
+   "papel": "suelo"
   },
   {
    "i": 40,
-   "nombre": "trans_grava_SE",
-   "papel": "transicion"
+   "nombre": "suelo_p05",
+   "papel": "suelo"
   },
   {
    "i": 41,
-   "nombre": "trans_grava_iNO",
-   "papel": "transicion"
+   "nombre": "suelo_p15",
+   "papel": "suelo"
   },
   {
    "i": 42,
-   "nombre": "trans_grava_iNE",
-   "papel": "transicion"
+   "nombre": "suelo_p25",
+   "papel": "suelo"
   },
   {
    "i": 43,
-   "nombre": "trans_grava_iSO",
-   "papel": "transicion"
+   "nombre": "suelo_p35",
+   "papel": "suelo"
   },
   {
    "i": 44,
-   "nombre": "trans_grava_iSE",
-   "papel": "transicion"
+   "nombre": "suelo_p45",
+   "papel": "suelo"
   },
   {
    "i": 45,
-   "nombre": "_hueco_45",
-   "papel": "hueco"
+   "nombre": "suelo_p55",
+   "papel": "suelo"
   },
   {
    "i": 46,
-   "nombre": "_hueco_46",
-   "papel": "hueco"
+   "nombre": "suelo_p65",
+   "papel": "suelo"
   },
   {
    "i": 47,
-   "nombre": "_hueco_47",
-   "papel": "hueco"
+   "nombre": "suelo_p75",
+   "papel": "suelo"
   },
   {
    "i": 48,
-   "nombre": "via_h_0",
-   "papel": "camino"
+   "nombre": "suelo_p06",
+   "papel": "suelo"
   },
   {
    "i": 49,
-   "nombre": "via_h_1",
-   "papel": "camino"
+   "nombre": "suelo_p16",
+   "papel": "suelo"
   },
   {
    "i": 50,
-   "nombre": "via_v_0",
-   "papel": "camino"
+   "nombre": "suelo_p26",
+   "papel": "suelo"
   },
   {
    "i": 51,
-   "nombre": "via_v_1",
-   "papel": "camino"
+   "nombre": "suelo_p36",
+   "papel": "suelo"
   },
   {
    "i": 52,
-   "nombre": "_hueco_52",
-   "papel": "hueco"
+   "nombre": "suelo_p46",
+   "papel": "suelo"
   },
   {
    "i": 53,
-   "nombre": "_hueco_53",
-   "papel": "hueco"
+   "nombre": "suelo_p56",
+   "papel": "suelo"
   },
   {
    "i": 54,
-   "nombre": "_hueco_54",
-   "papel": "hueco"
+   "nombre": "suelo_p66",
+   "papel": "suelo"
   },
   {
    "i": 55,
-   "nombre": "_hueco_55",
-   "papel": "hueco"
+   "nombre": "suelo_p76",
+   "papel": "suelo"
   },
   {
    "i": 56,
-   "nombre": "_hueco_56",
-   "papel": "hueco"
+   "nombre": "suelo_p07",
+   "papel": "suelo"
   },
   {
    "i": 57,
-   "nombre": "_hueco_57",
-   "papel": "hueco"
+   "nombre": "suelo_p17",
+   "papel": "suelo"
   },
   {
    "i": 58,
-   "nombre": "_hueco_58",
-   "papel": "hueco"
+   "nombre": "suelo_p27",
+   "papel": "suelo"
   },
   {
    "i": 59,
-   "nombre": "_hueco_59",
-   "papel": "hueco"
+   "nombre": "suelo_p37",
+   "papel": "suelo"
   },
   {
    "i": 60,
-   "nombre": "_hueco_60",
-   "papel": "hueco"
+   "nombre": "suelo_p47",
+   "papel": "suelo"
   },
   {
    "i": 61,
-   "nombre": "_hueco_61",
-   "papel": "hueco"
+   "nombre": "suelo_p57",
+   "papel": "suelo"
   },
   {
    "i": 62,
-   "nombre": "_hueco_62",
-   "papel": "hueco"
+   "nombre": "suelo_p67",
+   "papel": "suelo"
   },
   {
    "i": 63,
-   "nombre": "_hueco_63",
-   "papel": "hueco"
+   "nombre": "suelo_p77",
+   "papel": "suelo"
   },
   {
    "i": 64,
-   "nombre": "trans_lava_NO",
-   "papel": "transicion"
+   "nombre": "suelo_deco_1",
+   "papel": "deco"
   },
   {
    "i": 65,
-   "nombre": "trans_lava_N",
-   "papel": "transicion"
+   "nombre": "suelo_deco_2",
+   "papel": "deco"
   },
   {
    "i": 66,
-   "nombre": "trans_lava_NE",
-   "papel": "transicion"
+   "nombre": "suelo_deco_3",
+   "papel": "deco"
   },
   {
    "i": 67,
-   "nombre": "trans_lava_O",
-   "papel": "transicion"
+   "nombre": "suelo_deco_4",
+   "papel": "deco"
   },
   {
    "i": 68,
-   "nombre": "trans_lava_C",
-   "papel": "transicion"
+   "nombre": "grava_deco_1",
+   "papel": "deco"
   },
   {
    "i": 69,
-   "nombre": "trans_lava_E",
-   "papel": "transicion"
+   "nombre": "grava_deco_2",
+   "papel": "deco"
   },
   {
    "i": 70,
-   "nombre": "trans_lava_SO",
-   "papel": "transicion"
+   "nombre": "grava_deco_3",
+   "papel": "deco"
   },
   {
    "i": 71,
-   "nombre": "trans_lava_S",
-   "papel": "transicion"
+   "nombre": "grava_deco_4",
+   "papel": "deco"
   },
   {
    "i": 72,
-   "nombre": "trans_lava_SE",
-   "papel": "transicion"
+   "nombre": "_hueco_72",
+   "papel": "hueco"
   },
   {
    "i": 73,
-   "nombre": "trans_lava_iNO",
-   "papel": "transicion"
+   "nombre": "_hueco_73",
+   "papel": "hueco"
   },
   {
    "i": 74,
-   "nombre": "trans_lava_iNE",
-   "papel": "transicion"
+   "nombre": "_hueco_74",
+   "papel": "hueco"
   },
   {
    "i": 75,
-   "nombre": "trans_lava_iSO",
-   "papel": "transicion"
+   "nombre": "_hueco_75",
+   "papel": "hueco"
   },
   {
    "i": 76,
-   "nombre": "trans_lava_iSE",
-   "papel": "transicion"
+   "nombre": "_hueco_76",
+   "papel": "hueco"
   },
   {
    "i": 77,
@@ -914,1202 +1582,1842 @@
   },
   {
    "i": 80,
-   "nombre": "lava_p00",
-   "papel": "lava"
+   "nombre": "grava_p00",
+   "papel": "suelo"
   },
   {
    "i": 81,
-   "nombre": "lava_p10",
-   "papel": "lava"
+   "nombre": "grava_p10",
+   "papel": "suelo"
   },
   {
    "i": 82,
-   "nombre": "lava_p20",
-   "papel": "lava"
+   "nombre": "grava_p20",
+   "papel": "suelo"
   },
   {
    "i": 83,
-   "nombre": "lava_p30",
-   "papel": "lava"
+   "nombre": "grava_p30",
+   "papel": "suelo"
   },
   {
    "i": 84,
-   "nombre": "lava_p01",
-   "papel": "lava"
+   "nombre": "grava_p40",
+   "papel": "suelo"
   },
   {
    "i": 85,
-   "nombre": "lava_p11",
-   "papel": "lava"
+   "nombre": "grava_p50",
+   "papel": "suelo"
   },
   {
    "i": 86,
-   "nombre": "lava_p21",
-   "papel": "lava"
+   "nombre": "grava_p60",
+   "papel": "suelo"
   },
   {
    "i": 87,
-   "nombre": "lava_p31",
-   "papel": "lava"
+   "nombre": "grava_p70",
+   "papel": "suelo"
   },
   {
    "i": 88,
-   "nombre": "lava_p02",
-   "papel": "lava"
+   "nombre": "grava_p01",
+   "papel": "suelo"
   },
   {
    "i": 89,
-   "nombre": "lava_p12",
-   "papel": "lava"
+   "nombre": "grava_p11",
+   "papel": "suelo"
   },
   {
    "i": 90,
-   "nombre": "lava_p22",
-   "papel": "lava"
+   "nombre": "grava_p21",
+   "papel": "suelo"
   },
   {
    "i": 91,
-   "nombre": "lava_p32",
-   "papel": "lava"
+   "nombre": "grava_p31",
+   "papel": "suelo"
   },
   {
    "i": 92,
-   "nombre": "lava_p03",
-   "papel": "lava"
+   "nombre": "grava_p41",
+   "papel": "suelo"
   },
   {
    "i": 93,
-   "nombre": "lava_p13",
-   "papel": "lava"
+   "nombre": "grava_p51",
+   "papel": "suelo"
   },
   {
    "i": 94,
-   "nombre": "lava_p23",
-   "papel": "lava"
+   "nombre": "grava_p61",
+   "papel": "suelo"
   },
   {
    "i": 95,
-   "nombre": "lava_p33",
-   "papel": "lava"
+   "nombre": "grava_p71",
+   "papel": "suelo"
   },
   {
    "i": 96,
-   "nombre": "lava_anim_1",
-   "papel": "lava"
+   "nombre": "grava_p02",
+   "papel": "suelo"
   },
   {
    "i": 97,
-   "nombre": "lava_anim_2",
-   "papel": "lava"
+   "nombre": "grava_p12",
+   "papel": "suelo"
   },
   {
    "i": 98,
-   "nombre": "lava_anim_3",
-   "papel": "lava"
+   "nombre": "grava_p22",
+   "papel": "suelo"
   },
   {
    "i": 99,
-   "nombre": "lava_anim_4",
-   "papel": "lava"
+   "nombre": "grava_p32",
+   "papel": "suelo"
   },
   {
    "i": 100,
-   "nombre": "_hueco_100",
-   "papel": "hueco"
+   "nombre": "grava_p42",
+   "papel": "suelo"
   },
   {
    "i": 101,
-   "nombre": "_hueco_101",
-   "papel": "hueco"
+   "nombre": "grava_p52",
+   "papel": "suelo"
   },
   {
    "i": 102,
-   "nombre": "_hueco_102",
-   "papel": "hueco"
+   "nombre": "grava_p62",
+   "papel": "suelo"
   },
   {
    "i": 103,
-   "nombre": "_hueco_103",
-   "papel": "hueco"
+   "nombre": "grava_p72",
+   "papel": "suelo"
   },
   {
    "i": 104,
-   "nombre": "_hueco_104",
-   "papel": "hueco"
+   "nombre": "grava_p03",
+   "papel": "suelo"
   },
   {
    "i": 105,
-   "nombre": "_hueco_105",
-   "papel": "hueco"
+   "nombre": "grava_p13",
+   "papel": "suelo"
   },
   {
    "i": 106,
-   "nombre": "_hueco_106",
-   "papel": "hueco"
+   "nombre": "grava_p23",
+   "papel": "suelo"
   },
   {
    "i": 107,
-   "nombre": "_hueco_107",
-   "papel": "hueco"
+   "nombre": "grava_p33",
+   "papel": "suelo"
   },
   {
    "i": 108,
-   "nombre": "_hueco_108",
-   "papel": "hueco"
+   "nombre": "grava_p43",
+   "papel": "suelo"
   },
   {
    "i": 109,
-   "nombre": "_hueco_109",
-   "papel": "hueco"
+   "nombre": "grava_p53",
+   "papel": "suelo"
   },
   {
    "i": 110,
-   "nombre": "_hueco_110",
-   "papel": "hueco"
+   "nombre": "grava_p63",
+   "papel": "suelo"
   },
   {
    "i": 111,
-   "nombre": "_hueco_111",
-   "papel": "hueco"
+   "nombre": "grava_p73",
+   "papel": "suelo"
   },
   {
    "i": 112,
-   "nombre": "trans_agua_NO",
-   "papel": "transicion"
+   "nombre": "grava_p04",
+   "papel": "suelo"
   },
   {
    "i": 113,
-   "nombre": "trans_agua_N",
-   "papel": "transicion"
+   "nombre": "grava_p14",
+   "papel": "suelo"
   },
   {
    "i": 114,
-   "nombre": "trans_agua_NE",
-   "papel": "transicion"
+   "nombre": "grava_p24",
+   "papel": "suelo"
   },
   {
    "i": 115,
-   "nombre": "trans_agua_O",
-   "papel": "transicion"
+   "nombre": "grava_p34",
+   "papel": "suelo"
   },
   {
    "i": 116,
-   "nombre": "trans_agua_C",
-   "papel": "transicion"
+   "nombre": "grava_p44",
+   "papel": "suelo"
   },
   {
    "i": 117,
-   "nombre": "trans_agua_E",
-   "papel": "transicion"
+   "nombre": "grava_p54",
+   "papel": "suelo"
   },
   {
    "i": 118,
-   "nombre": "trans_agua_SO",
-   "papel": "transicion"
+   "nombre": "grava_p64",
+   "papel": "suelo"
   },
   {
    "i": 119,
-   "nombre": "trans_agua_S",
-   "papel": "transicion"
+   "nombre": "grava_p74",
+   "papel": "suelo"
   },
   {
    "i": 120,
-   "nombre": "trans_agua_SE",
-   "papel": "transicion"
+   "nombre": "grava_p05",
+   "papel": "suelo"
   },
   {
    "i": 121,
-   "nombre": "trans_agua_iNO",
-   "papel": "transicion"
+   "nombre": "grava_p15",
+   "papel": "suelo"
   },
   {
    "i": 122,
-   "nombre": "trans_agua_iNE",
-   "papel": "transicion"
+   "nombre": "grava_p25",
+   "papel": "suelo"
   },
   {
    "i": 123,
-   "nombre": "trans_agua_iSO",
-   "papel": "transicion"
+   "nombre": "grava_p35",
+   "papel": "suelo"
   },
   {
    "i": 124,
-   "nombre": "trans_agua_iSE",
-   "papel": "transicion"
+   "nombre": "grava_p45",
+   "papel": "suelo"
   },
   {
    "i": 125,
-   "nombre": "agua_hondo",
-   "papel": "agua"
+   "nombre": "grava_p55",
+   "papel": "suelo"
   },
   {
    "i": 126,
-   "nombre": "agua_claro",
-   "papel": "agua"
+   "nombre": "grava_p65",
+   "papel": "suelo"
   },
   {
    "i": 127,
-   "nombre": "agua_brillo",
-   "papel": "agua"
+   "nombre": "grava_p75",
+   "papel": "suelo"
   },
   {
    "i": 128,
+   "nombre": "grava_p06",
+   "papel": "suelo"
+  },
+  {
+   "i": 129,
+   "nombre": "grava_p16",
+   "papel": "suelo"
+  },
+  {
+   "i": 130,
+   "nombre": "grava_p26",
+   "papel": "suelo"
+  },
+  {
+   "i": 131,
+   "nombre": "grava_p36",
+   "papel": "suelo"
+  },
+  {
+   "i": 132,
+   "nombre": "grava_p46",
+   "papel": "suelo"
+  },
+  {
+   "i": 133,
+   "nombre": "grava_p56",
+   "papel": "suelo"
+  },
+  {
+   "i": 134,
+   "nombre": "grava_p66",
+   "papel": "suelo"
+  },
+  {
+   "i": 135,
+   "nombre": "grava_p76",
+   "papel": "suelo"
+  },
+  {
+   "i": 136,
+   "nombre": "grava_p07",
+   "papel": "suelo"
+  },
+  {
+   "i": 137,
+   "nombre": "grava_p17",
+   "papel": "suelo"
+  },
+  {
+   "i": 138,
+   "nombre": "grava_p27",
+   "papel": "suelo"
+  },
+  {
+   "i": 139,
+   "nombre": "grava_p37",
+   "papel": "suelo"
+  },
+  {
+   "i": 140,
+   "nombre": "grava_p47",
+   "papel": "suelo"
+  },
+  {
+   "i": 141,
+   "nombre": "grava_p57",
+   "papel": "suelo"
+  },
+  {
+   "i": 142,
+   "nombre": "grava_p67",
+   "papel": "suelo"
+  },
+  {
+   "i": 143,
+   "nombre": "grava_p77",
+   "papel": "suelo"
+  },
+  {
+   "i": 144,
+   "nombre": "grava_b_NO_00",
+   "papel": "borde"
+  },
+  {
+   "i": 145,
+   "nombre": "grava_b_NO_40",
+   "papel": "borde"
+  },
+  {
+   "i": 146,
+   "nombre": "grava_b_NO_50",
+   "papel": "borde"
+  },
+  {
+   "i": 147,
+   "nombre": "grava_b_NO_31",
+   "papel": "borde"
+  },
+  {
+   "i": 148,
+   "nombre": "grava_b_NO_41",
+   "papel": "borde"
+  },
+  {
+   "i": 149,
+   "nombre": "grava_b_NO_22",
+   "papel": "borde"
+  },
+  {
+   "i": 150,
+   "nombre": "grava_b_NO_13",
+   "papel": "borde"
+  },
+  {
+   "i": 151,
+   "nombre": "grava_b_NO_16",
+   "papel": "borde"
+  },
+  {
+   "i": 152,
+   "nombre": "grava_b_NO_57",
+   "papel": "borde"
+  },
+  {
+   "i": 153,
+   "nombre": "grava_b_NO_67",
+   "papel": "borde"
+  },
+  {
+   "i": 154,
+   "nombre": "grava_b_N_10",
+   "papel": "borde"
+  },
+  {
+   "i": 155,
+   "nombre": "grava_b_N_20",
+   "papel": "borde"
+  },
+  {
+   "i": 156,
+   "nombre": "grava_b_N_04",
+   "papel": "borde"
+  },
+  {
+   "i": 157,
+   "nombre": "grava_b_N_14",
+   "papel": "borde"
+  },
+  {
+   "i": 158,
+   "nombre": "grava_b_N_54",
+   "papel": "borde"
+  },
+  {
+   "i": 159,
+   "nombre": "grava_b_N_64",
+   "papel": "borde"
+  },
+  {
+   "i": 160,
+   "nombre": "grava_b_N_74",
+   "papel": "borde"
+  },
+  {
+   "i": 161,
+   "nombre": "grava_b_N_35",
+   "papel": "borde"
+  },
+  {
+   "i": 162,
+   "nombre": "grava_b_N_26",
+   "papel": "borde"
+  },
+  {
+   "i": 163,
+   "nombre": "grava_b_N_56",
+   "papel": "borde"
+  },
+  {
+   "i": 164,
+   "nombre": "grava_b_N_07",
+   "papel": "borde"
+  },
+  {
+   "i": 165,
+   "nombre": "grava_b_N_47",
+   "papel": "borde"
+  },
+  {
+   "i": 166,
+   "nombre": "grava_b_N_77",
+   "papel": "borde"
+  },
+  {
+   "i": 167,
+   "nombre": "grava_b_NE_30",
+   "papel": "borde"
+  },
+  {
+   "i": 168,
+   "nombre": "grava_b_NE_70",
+   "papel": "borde"
+  },
+  {
+   "i": 169,
+   "nombre": "grava_b_NE_42",
+   "papel": "borde"
+  },
+  {
+   "i": 170,
+   "nombre": "grava_b_NE_24",
+   "papel": "borde"
+  },
+  {
+   "i": 171,
+   "nombre": "grava_b_NE_45",
+   "papel": "borde"
+  },
+  {
+   "i": 172,
+   "nombre": "grava_b_NE_36",
+   "papel": "borde"
+  },
+  {
+   "i": 173,
+   "nombre": "grava_b_NE_66",
+   "papel": "borde"
+  },
+  {
+   "i": 174,
+   "nombre": "grava_b_NE_57",
+   "papel": "borde"
+  },
+  {
+   "i": 175,
+   "nombre": "grava_b_O_00",
+   "papel": "borde"
+  },
+  {
+   "i": 176,
+   "nombre": "grava_b_O_01",
+   "papel": "borde"
+  },
+  {
+   "i": 177,
+   "nombre": "grava_b_O_02",
+   "papel": "borde"
+  },
+  {
+   "i": 178,
+   "nombre": "grava_b_O_03",
+   "papel": "borde"
+  },
+  {
+   "i": 179,
+   "nombre": "grava_b_O_53",
+   "papel": "borde"
+  },
+  {
+   "i": 180,
+   "nombre": "grava_b_O_04",
+   "papel": "borde"
+  },
+  {
+   "i": 181,
+   "nombre": "grava_b_O_14",
+   "papel": "borde"
+  },
+  {
+   "i": 182,
+   "nombre": "grava_b_O_05",
+   "papel": "borde"
+  },
+  {
+   "i": 183,
+   "nombre": "grava_b_O_65",
+   "papel": "borde"
+  },
+  {
+   "i": 184,
+   "nombre": "grava_b_O_06",
+   "papel": "borde"
+  },
+  {
+   "i": 185,
+   "nombre": "grava_b_O_66",
+   "papel": "borde"
+  },
+  {
+   "i": 186,
+   "nombre": "grava_b_O_07",
+   "papel": "borde"
+  },
+  {
+   "i": 187,
+   "nombre": "grava_b_E_50",
+   "papel": "borde"
+  },
+  {
+   "i": 188,
+   "nombre": "grava_b_E_31",
+   "papel": "borde"
+  },
+  {
+   "i": 189,
+   "nombre": "grava_b_E_51",
+   "papel": "borde"
+  },
+  {
+   "i": 190,
+   "nombre": "grava_b_E_71",
+   "papel": "borde"
+  },
+  {
+   "i": 191,
+   "nombre": "grava_b_E_52",
+   "papel": "borde"
+  },
+  {
+   "i": 192,
+   "nombre": "grava_b_E_72",
+   "papel": "borde"
+  },
+  {
+   "i": 193,
+   "nombre": "grava_b_E_43",
+   "papel": "borde"
+  },
+  {
+   "i": 194,
+   "nombre": "grava_b_E_53",
+   "papel": "borde"
+  },
+  {
+   "i": 195,
+   "nombre": "grava_b_E_34",
+   "papel": "borde"
+  },
+  {
+   "i": 196,
+   "nombre": "grava_b_E_54",
+   "papel": "borde"
+  },
+  {
+   "i": 197,
+   "nombre": "grava_b_E_55",
+   "papel": "borde"
+  },
+  {
+   "i": 198,
+   "nombre": "grava_b_E_16",
+   "papel": "borde"
+  },
+  {
+   "i": 199,
+   "nombre": "grava_b_E_56",
+   "papel": "borde"
+  },
+  {
+   "i": 200,
+   "nombre": "grava_b_E_57",
+   "papel": "borde"
+  },
+  {
+   "i": 201,
+   "nombre": "grava_b_E_67",
+   "papel": "borde"
+  },
+  {
+   "i": 202,
+   "nombre": "grava_b_SO_42",
+   "papel": "borde"
+  },
+  {
+   "i": 203,
+   "nombre": "grava_b_SO_53",
+   "papel": "borde"
+  },
+  {
+   "i": 204,
+   "nombre": "grava_b_SO_54",
+   "papel": "borde"
+  },
+  {
+   "i": 205,
+   "nombre": "grava_b_SO_15",
+   "papel": "borde"
+  },
+  {
+   "i": 206,
+   "nombre": "grava_b_SO_46",
+   "papel": "borde"
+  },
+  {
+   "i": 207,
+   "nombre": "grava_b_SO_07",
+   "papel": "borde"
+  },
+  {
+   "i": 208,
+   "nombre": "grava_b_S_02",
+   "papel": "borde"
+  },
+  {
+   "i": 209,
+   "nombre": "grava_b_S_12",
+   "papel": "borde"
+  },
+  {
+   "i": 210,
+   "nombre": "grava_b_S_22",
+   "papel": "borde"
+  },
+  {
+   "i": 211,
+   "nombre": "grava_b_S_32",
+   "papel": "borde"
+  },
+  {
+   "i": 212,
+   "nombre": "grava_b_S_42",
+   "papel": "borde"
+  },
+  {
+   "i": 213,
+   "nombre": "grava_b_S_52",
+   "papel": "borde"
+  },
+  {
+   "i": 214,
+   "nombre": "grava_b_S_62",
+   "papel": "borde"
+  },
+  {
+   "i": 215,
+   "nombre": "grava_b_S_72",
+   "papel": "borde"
+  },
+  {
+   "i": 216,
+   "nombre": "grava_b_S_25",
+   "papel": "borde"
+  },
+  {
+   "i": 217,
+   "nombre": "grava_b_S_35",
+   "papel": "borde"
+  },
+  {
+   "i": 218,
+   "nombre": "grava_b_S_06",
+   "papel": "borde"
+  },
+  {
+   "i": 219,
+   "nombre": "grava_b_S_16",
+   "papel": "borde"
+  },
+  {
+   "i": 220,
+   "nombre": "grava_b_S_26",
+   "papel": "borde"
+  },
+  {
+   "i": 221,
+   "nombre": "grava_b_S_36",
+   "papel": "borde"
+  },
+  {
+   "i": 222,
+   "nombre": "grava_b_S_56",
+   "papel": "borde"
+  },
+  {
+   "i": 223,
+   "nombre": "grava_b_S_66",
+   "papel": "borde"
+  },
+  {
+   "i": 224,
+   "nombre": "grava_b_S_76",
+   "papel": "borde"
+  },
+  {
+   "i": 225,
+   "nombre": "grava_b_SE_43",
+   "papel": "borde"
+  },
+  {
+   "i": 226,
+   "nombre": "grava_b_SE_73",
+   "papel": "borde"
+  },
+  {
+   "i": 227,
+   "nombre": "grava_b_SE_64",
+   "papel": "borde"
+  },
+  {
+   "i": 228,
+   "nombre": "grava_b_SE_35",
+   "papel": "borde"
+  },
+  {
+   "i": 229,
+   "nombre": "grava_b_SE_55",
+   "papel": "borde"
+  },
+  {
+   "i": 230,
+   "nombre": "grava_b_SE_46",
+   "papel": "borde"
+  },
+  {
+   "i": 231,
+   "nombre": "grava_b_SE_17",
+   "papel": "borde"
+  },
+  {
+   "i": 232,
+   "nombre": "grava_b_iNO_50",
+   "papel": "borde"
+  },
+  {
+   "i": 233,
+   "nombre": "grava_b_iNO_60",
+   "papel": "borde"
+  },
+  {
+   "i": 234,
+   "nombre": "grava_b_iNO_41",
+   "papel": "borde"
+  },
+  {
+   "i": 235,
+   "nombre": "grava_b_iNO_51",
+   "papel": "borde"
+  },
+  {
+   "i": 236,
+   "nombre": "grava_b_iNO_32",
+   "papel": "borde"
+  },
+  {
+   "i": 237,
+   "nombre": "grava_b_iNO_23",
+   "papel": "borde"
+  },
+  {
+   "i": 238,
+   "nombre": "grava_b_iNO_17",
+   "papel": "borde"
+  },
+  {
+   "i": 239,
+   "nombre": "grava_b_iNO_67",
+   "papel": "borde"
+  },
+  {
+   "i": 240,
+   "nombre": "grava_b_iNE_60",
+   "papel": "borde"
+  },
+  {
+   "i": 241,
+   "nombre": "grava_b_iNE_32",
+   "papel": "borde"
+  },
+  {
+   "i": 242,
+   "nombre": "grava_b_iNE_44",
+   "papel": "borde"
+  },
+  {
+   "i": 243,
+   "nombre": "grava_b_iNE_25",
+   "papel": "borde"
+  },
+  {
+   "i": 244,
+   "nombre": "grava_b_iNE_46",
+   "papel": "borde"
+  },
+  {
+   "i": 245,
+   "nombre": "grava_b_iNE_37",
+   "papel": "borde"
+  },
+  {
+   "i": 246,
+   "nombre": "grava_b_iSO_52",
+   "papel": "borde"
+  },
+  {
+   "i": 247,
+   "nombre": "grava_b_iSO_64",
+   "papel": "borde"
+  },
+  {
+   "i": 248,
+   "nombre": "grava_b_iSO_45",
+   "papel": "borde"
+  },
+  {
+   "i": 249,
+   "nombre": "grava_b_iSE_42",
+   "papel": "borde"
+  },
+  {
+   "i": 250,
+   "nombre": "grava_b_iSE_33",
+   "papel": "borde"
+  },
+  {
+   "i": 251,
+   "nombre": "grava_b_iSE_63",
+   "papel": "borde"
+  },
+  {
+   "i": 252,
+   "nombre": "grava_b_iSE_54",
+   "papel": "borde"
+  },
+  {
+   "i": 253,
+   "nombre": "grava_b_iSE_15",
+   "papel": "borde"
+  },
+  {
+   "i": 254,
+   "nombre": "grava_b_iSE_45",
+   "papel": "borde"
+  },
+  {
+   "i": 255,
+   "nombre": "_hueco_255",
+   "papel": "hueco"
+  },
+  {
+   "i": 256,
+   "nombre": "tabla_p00",
+   "papel": "suelo"
+  },
+  {
+   "i": 257,
+   "nombre": "tabla_p10",
+   "papel": "suelo"
+  },
+  {
+   "i": 258,
+   "nombre": "tabla_p20",
+   "papel": "suelo"
+  },
+  {
+   "i": 259,
+   "nombre": "tabla_p30",
+   "papel": "suelo"
+  },
+  {
+   "i": 260,
+   "nombre": "tabla_p01",
+   "papel": "suelo"
+  },
+  {
+   "i": 261,
+   "nombre": "tabla_p11",
+   "papel": "suelo"
+  },
+  {
+   "i": 262,
+   "nombre": "tabla_p21",
+   "papel": "suelo"
+  },
+  {
+   "i": 263,
+   "nombre": "tabla_p31",
+   "papel": "suelo"
+  },
+  {
+   "i": 264,
+   "nombre": "tabla_p02",
+   "papel": "suelo"
+  },
+  {
+   "i": 265,
+   "nombre": "tabla_p12",
+   "papel": "suelo"
+  },
+  {
+   "i": 266,
+   "nombre": "tabla_p22",
+   "papel": "suelo"
+  },
+  {
+   "i": 267,
+   "nombre": "tabla_p32",
+   "papel": "suelo"
+  },
+  {
+   "i": 268,
+   "nombre": "tabla_p03",
+   "papel": "suelo"
+  },
+  {
+   "i": 269,
+   "nombre": "tabla_p13",
+   "papel": "suelo"
+  },
+  {
+   "i": 270,
+   "nombre": "tabla_p23",
+   "papel": "suelo"
+  },
+  {
+   "i": 271,
+   "nombre": "tabla_p33",
+   "papel": "suelo"
+  },
+  {
+   "i": 272,
+   "nombre": "puente_n_0",
+   "papel": "suelo"
+  },
+  {
+   "i": 273,
+   "nombre": "puente_n_1",
+   "papel": "suelo"
+  },
+  {
+   "i": 274,
+   "nombre": "puente_n_2",
+   "papel": "suelo"
+  },
+  {
+   "i": 275,
+   "nombre": "puente_n_3",
+   "papel": "suelo"
+  },
+  {
+   "i": 276,
+   "nombre": "puente_c_0",
+   "papel": "suelo"
+  },
+  {
+   "i": 277,
+   "nombre": "puente_c_1",
+   "papel": "suelo"
+  },
+  {
+   "i": 278,
+   "nombre": "puente_c_2",
+   "papel": "suelo"
+  },
+  {
+   "i": 279,
+   "nombre": "puente_c_3",
+   "papel": "suelo"
+  },
+  {
+   "i": 280,
+   "nombre": "puente_s_0",
+   "papel": "suelo"
+  },
+  {
+   "i": 281,
+   "nombre": "puente_s_1",
+   "papel": "suelo"
+  },
+  {
+   "i": 282,
+   "nombre": "puente_s_2",
+   "papel": "suelo"
+  },
+  {
+   "i": 283,
+   "nombre": "puente_s_3",
+   "papel": "suelo"
+  },
+  {
+   "i": 284,
+   "nombre": "_hueco_284",
+   "papel": "hueco"
+  },
+  {
+   "i": 285,
+   "nombre": "_hueco_285",
+   "papel": "hueco"
+  },
+  {
+   "i": 286,
+   "nombre": "_hueco_286",
+   "papel": "hueco"
+  },
+  {
+   "i": 287,
+   "nombre": "_hueco_287",
+   "papel": "hueco"
+  },
+  {
+   "i": 288,
+   "nombre": "via_h_0",
+   "papel": "camino"
+  },
+  {
+   "i": 289,
+   "nombre": "via_h_1",
+   "papel": "camino"
+  },
+  {
+   "i": 290,
+   "nombre": "via_v_0",
+   "papel": "camino"
+  },
+  {
+   "i": 291,
+   "nombre": "via_v_1",
+   "papel": "camino"
+  },
+  {
+   "i": 292,
+   "nombre": "_hueco_292",
+   "papel": "hueco"
+  },
+  {
+   "i": 293,
+   "nombre": "_hueco_293",
+   "papel": "hueco"
+  },
+  {
+   "i": 294,
+   "nombre": "_hueco_294",
+   "papel": "hueco"
+  },
+  {
+   "i": 295,
+   "nombre": "_hueco_295",
+   "papel": "hueco"
+  },
+  {
+   "i": 296,
+   "nombre": "_hueco_296",
+   "papel": "hueco"
+  },
+  {
+   "i": 297,
+   "nombre": "_hueco_297",
+   "papel": "hueco"
+  },
+  {
+   "i": 298,
+   "nombre": "_hueco_298",
+   "papel": "hueco"
+  },
+  {
+   "i": 299,
+   "nombre": "_hueco_299",
+   "papel": "hueco"
+  },
+  {
+   "i": 300,
+   "nombre": "_hueco_300",
+   "papel": "hueco"
+  },
+  {
+   "i": 301,
+   "nombre": "_hueco_301",
+   "papel": "hueco"
+  },
+  {
+   "i": 302,
+   "nombre": "_hueco_302",
+   "papel": "hueco"
+  },
+  {
+   "i": 303,
+   "nombre": "_hueco_303",
+   "papel": "hueco"
+  },
+  {
+   "i": 304,
    "nombre": "muro_0_0",
    "papel": "muro"
   },
   {
-   "i": 129,
+   "i": 305,
    "nombre": "muro_0_1",
    "papel": "muro"
   },
   {
-   "i": 130,
+   "i": 306,
    "nombre": "muro_0_2",
    "papel": "muro"
   },
   {
-   "i": 131,
+   "i": 307,
    "nombre": "muro_0_3",
    "papel": "muro"
   },
   {
-   "i": 132,
+   "i": 308,
    "nombre": "muro_0_4",
    "papel": "muro"
   },
   {
-   "i": 133,
+   "i": 309,
    "nombre": "muro_0_5",
    "papel": "muro"
   },
   {
-   "i": 134,
+   "i": 310,
    "nombre": "muro_0_6",
    "papel": "muro"
   },
   {
-   "i": 135,
+   "i": 311,
    "nombre": "muro_0_7",
    "papel": "muro"
   },
   {
-   "i": 136,
+   "i": 312,
    "nombre": "muro_1_0",
    "papel": "muro"
   },
   {
-   "i": 137,
+   "i": 313,
    "nombre": "muro_1_1",
    "papel": "muro"
   },
   {
-   "i": 138,
+   "i": 314,
    "nombre": "muro_1_2",
    "papel": "muro"
   },
   {
-   "i": 139,
+   "i": 315,
    "nombre": "muro_1_3",
    "papel": "muro"
   },
   {
-   "i": 140,
+   "i": 316,
    "nombre": "muro_1_4",
    "papel": "muro"
   },
   {
-   "i": 141,
+   "i": 317,
    "nombre": "muro_1_5",
    "papel": "muro"
   },
   {
-   "i": 142,
+   "i": 318,
    "nombre": "muro_1_6",
    "papel": "muro"
   },
   {
-   "i": 143,
+   "i": 319,
    "nombre": "muro_1_7",
    "papel": "muro"
   },
   {
-   "i": 144,
+   "i": 320,
    "nombre": "muro_2_0",
    "papel": "muro"
   },
   {
-   "i": 145,
+   "i": 321,
    "nombre": "muro_2_1",
    "papel": "muro"
   },
   {
-   "i": 146,
+   "i": 322,
    "nombre": "muro_2_2",
    "papel": "muro"
   },
   {
-   "i": 147,
+   "i": 323,
    "nombre": "muro_2_3",
    "papel": "muro"
   },
   {
-   "i": 148,
+   "i": 324,
    "nombre": "muro_2_4",
    "papel": "muro"
   },
   {
-   "i": 149,
+   "i": 325,
    "nombre": "muro_2_5",
    "papel": "muro"
   },
   {
-   "i": 150,
+   "i": 326,
    "nombre": "muro_2_6",
    "papel": "muro"
   },
   {
-   "i": 151,
+   "i": 327,
    "nombre": "muro_2_7",
    "papel": "muro"
   },
   {
-   "i": 152,
+   "i": 328,
    "nombre": "muro_3_0",
    "papel": "muro"
   },
   {
-   "i": 153,
+   "i": 329,
    "nombre": "muro_3_1",
    "papel": "muro"
   },
   {
-   "i": 154,
+   "i": 330,
    "nombre": "muro_3_2",
    "papel": "muro"
   },
   {
-   "i": 155,
+   "i": 331,
    "nombre": "muro_3_3",
    "papel": "muro"
   },
   {
-   "i": 156,
+   "i": 332,
    "nombre": "muro_3_4",
    "papel": "muro"
   },
   {
-   "i": 157,
+   "i": 333,
    "nombre": "muro_3_5",
    "papel": "muro"
   },
   {
-   "i": 158,
+   "i": 334,
    "nombre": "muro_3_6",
    "papel": "muro"
   },
   {
-   "i": 159,
+   "i": 335,
    "nombre": "muro_3_7",
    "papel": "muro"
   },
   {
-   "i": 160,
+   "i": 336,
    "nombre": "muro_4_0",
    "papel": "muro"
   },
   {
-   "i": 161,
+   "i": 337,
    "nombre": "muro_4_1",
    "papel": "muro"
   },
   {
-   "i": 162,
+   "i": 338,
    "nombre": "muro_4_2",
    "papel": "muro"
   },
   {
-   "i": 163,
+   "i": 339,
    "nombre": "muro_4_3",
    "papel": "muro"
   },
   {
-   "i": 164,
+   "i": 340,
    "nombre": "muro_4_4",
    "papel": "muro"
   },
   {
-   "i": 165,
+   "i": 341,
    "nombre": "muro_4_5",
    "papel": "muro"
   },
   {
-   "i": 166,
+   "i": 342,
    "nombre": "muro_4_6",
    "papel": "muro"
   },
   {
-   "i": 167,
+   "i": 343,
    "nombre": "muro_4_7",
    "papel": "muro"
   },
   {
-   "i": 168,
+   "i": 344,
    "nombre": "muro_izq_0",
    "papel": "muro"
   },
   {
-   "i": 169,
+   "i": 345,
    "nombre": "muro_izq_1",
    "papel": "muro"
   },
   {
-   "i": 170,
+   "i": 346,
    "nombre": "muro_izq_2",
    "papel": "muro"
   },
   {
-   "i": 171,
+   "i": 347,
    "nombre": "muro_izq_3",
    "papel": "muro"
   },
   {
-   "i": 172,
+   "i": 348,
    "nombre": "muro_izq_4",
    "papel": "muro"
   },
   {
-   "i": 173,
+   "i": 349,
    "nombre": "muro_der_0",
    "papel": "muro"
   },
   {
-   "i": 174,
+   "i": 350,
    "nombre": "muro_der_1",
    "papel": "muro"
   },
   {
-   "i": 175,
+   "i": 351,
    "nombre": "muro_der_2",
    "papel": "muro"
   },
   {
-   "i": 176,
+   "i": 352,
    "nombre": "muro_der_3",
    "papel": "muro"
   },
   {
-   "i": 177,
+   "i": 353,
    "nombre": "muro_der_4",
    "papel": "muro"
   },
   {
-   "i": 178,
-   "nombre": "_hueco_178",
+   "i": 354,
+   "nombre": "_hueco_354",
    "papel": "hueco"
   },
   {
-   "i": 179,
-   "nombre": "_hueco_179",
+   "i": 355,
+   "nombre": "_hueco_355",
    "papel": "hueco"
   },
   {
-   "i": 180,
-   "nombre": "_hueco_180",
+   "i": 356,
+   "nombre": "_hueco_356",
    "papel": "hueco"
   },
   {
-   "i": 181,
-   "nombre": "_hueco_181",
+   "i": 357,
+   "nombre": "_hueco_357",
    "papel": "hueco"
   },
   {
-   "i": 182,
-   "nombre": "_hueco_182",
+   "i": 358,
+   "nombre": "_hueco_358",
    "papel": "hueco"
   },
   {
-   "i": 183,
-   "nombre": "_hueco_183",
+   "i": 359,
+   "nombre": "_hueco_359",
    "papel": "hueco"
   },
   {
-   "i": 184,
-   "nombre": "_hueco_184",
+   "i": 360,
+   "nombre": "_hueco_360",
    "papel": "hueco"
   },
   {
-   "i": 185,
-   "nombre": "_hueco_185",
+   "i": 361,
+   "nombre": "_hueco_361",
    "papel": "hueco"
   },
   {
-   "i": 186,
-   "nombre": "_hueco_186",
+   "i": 362,
+   "nombre": "_hueco_362",
    "papel": "hueco"
   },
   {
-   "i": 187,
-   "nombre": "_hueco_187",
+   "i": 363,
+   "nombre": "_hueco_363",
    "papel": "hueco"
   },
   {
-   "i": 188,
-   "nombre": "_hueco_188",
+   "i": 364,
+   "nombre": "_hueco_364",
    "papel": "hueco"
   },
   {
-   "i": 189,
-   "nombre": "_hueco_189",
+   "i": 365,
+   "nombre": "_hueco_365",
    "papel": "hueco"
   },
   {
-   "i": 190,
-   "nombre": "_hueco_190",
+   "i": 366,
+   "nombre": "_hueco_366",
    "papel": "hueco"
   },
   {
-   "i": 191,
-   "nombre": "_hueco_191",
+   "i": 367,
+   "nombre": "_hueco_367",
    "papel": "hueco"
   },
   {
-   "i": 192,
+   "i": 368,
    "nombre": "roca_top_00",
    "papel": "muro"
   },
   {
-   "i": 193,
+   "i": 369,
    "nombre": "roca_top_10",
    "papel": "muro"
   },
   {
-   "i": 194,
+   "i": 370,
+   "nombre": "roca_top_20",
+   "papel": "muro"
+  },
+  {
+   "i": 371,
+   "nombre": "roca_top_30",
+   "papel": "muro"
+  },
+  {
+   "i": 372,
    "nombre": "roca_top_01",
    "papel": "muro"
   },
   {
-   "i": 195,
+   "i": 373,
    "nombre": "roca_top_11",
    "papel": "muro"
   },
   {
-   "i": 196,
+   "i": 374,
+   "nombre": "roca_top_21",
+   "papel": "muro"
+  },
+  {
+   "i": 375,
+   "nombre": "roca_top_31",
+   "papel": "muro"
+  },
+  {
+   "i": 376,
+   "nombre": "roca_top_02",
+   "papel": "muro"
+  },
+  {
+   "i": 377,
+   "nombre": "roca_top_12",
+   "papel": "muro"
+  },
+  {
+   "i": 378,
+   "nombre": "roca_top_22",
+   "papel": "muro"
+  },
+  {
+   "i": 379,
+   "nombre": "roca_top_32",
+   "papel": "muro"
+  },
+  {
+   "i": 380,
+   "nombre": "roca_top_03",
+   "papel": "muro"
+  },
+  {
+   "i": 381,
+   "nombre": "roca_top_13",
+   "papel": "muro"
+  },
+  {
+   "i": 382,
+   "nombre": "roca_top_23",
+   "papel": "muro"
+  },
+  {
+   "i": 383,
+   "nombre": "roca_top_33",
+   "papel": "muro"
+  },
+  {
+   "i": 384,
    "nombre": "roca_canto_N",
    "papel": "muro"
   },
   {
-   "i": 197,
+   "i": 385,
    "nombre": "roca_canto_O",
    "papel": "muro"
   },
   {
-   "i": 198,
+   "i": 386,
    "nombre": "roca_canto_E",
    "papel": "muro"
   },
   {
-   "i": 199,
+   "i": 387,
    "nombre": "sombra_N",
    "papel": "sombra"
   },
   {
-   "i": 200,
+   "i": 388,
    "nombre": "sombra_NO",
    "papel": "sombra"
   },
   {
-   "i": 201,
+   "i": 389,
    "nombre": "sombra_NE",
    "papel": "sombra"
   },
   {
-   "i": 202,
+   "i": 390,
    "nombre": "sombra_O",
    "papel": "sombra"
   },
   {
-   "i": 203,
+   "i": 391,
    "nombre": "sombra_E",
    "papel": "sombra"
   },
   {
-   "i": 204,
-   "nombre": "_hueco_204",
+   "i": 392,
+   "nombre": "_hueco_392",
    "papel": "hueco"
   },
   {
-   "i": 205,
-   "nombre": "_hueco_205",
+   "i": 393,
+   "nombre": "_hueco_393",
    "papel": "hueco"
   },
   {
-   "i": 206,
-   "nombre": "_hueco_206",
+   "i": 394,
+   "nombre": "_hueco_394",
    "papel": "hueco"
   },
   {
-   "i": 207,
-   "nombre": "_hueco_207",
+   "i": 395,
+   "nombre": "_hueco_395",
    "papel": "hueco"
   },
   {
-   "i": 208,
+   "i": 396,
+   "nombre": "_hueco_396",
+   "papel": "hueco"
+  },
+  {
+   "i": 397,
+   "nombre": "_hueco_397",
+   "papel": "hueco"
+  },
+  {
+   "i": 398,
+   "nombre": "_hueco_398",
+   "papel": "hueco"
+  },
+  {
+   "i": 399,
+   "nombre": "_hueco_399",
+   "papel": "hueco"
+  },
+  {
+   "i": 400,
    "nombre": "veta_piedra",
    "papel": "veta"
   },
   {
-   "i": 209,
+   "i": 401,
    "nombre": "veta_cobre",
    "papel": "veta"
   },
   {
-   "i": 210,
+   "i": 402,
    "nombre": "veta_hierro",
    "papel": "veta"
   },
   {
-   "i": 211,
+   "i": 403,
    "nombre": "veta_carbon",
    "papel": "veta"
   },
   {
-   "i": 212,
+   "i": 404,
    "nombre": "veta_oro",
    "papel": "veta"
   },
   {
-   "i": 213,
+   "i": 405,
    "nombre": "veta_macizo_piedra",
    "papel": "veta"
   },
   {
-   "i": 214,
+   "i": 406,
    "nombre": "veta_macizo_cobre",
    "papel": "veta"
   },
   {
-   "i": 215,
+   "i": 407,
    "nombre": "veta_macizo_hierro",
    "papel": "veta"
   },
   {
-   "i": 216,
+   "i": 408,
    "nombre": "veta_macizo_carbon",
    "papel": "veta"
   },
   {
-   "i": 217,
+   "i": 409,
    "nombre": "veta_macizo_oro",
    "papel": "veta"
   },
   {
-   "i": 218,
-   "nombre": "_hueco_218",
+   "i": 410,
+   "nombre": "_hueco_410",
    "papel": "hueco"
   },
   {
-   "i": 219,
-   "nombre": "_hueco_219",
+   "i": 411,
+   "nombre": "_hueco_411",
    "papel": "hueco"
   },
   {
-   "i": 220,
-   "nombre": "_hueco_220",
+   "i": 412,
+   "nombre": "_hueco_412",
    "papel": "hueco"
   },
   {
-   "i": 221,
-   "nombre": "_hueco_221",
+   "i": 413,
+   "nombre": "_hueco_413",
    "papel": "hueco"
   },
   {
-   "i": 222,
-   "nombre": "_hueco_222",
+   "i": 414,
+   "nombre": "_hueco_414",
    "papel": "hueco"
   },
   {
-   "i": 223,
-   "nombre": "_hueco_223",
+   "i": 415,
+   "nombre": "_hueco_415",
    "papel": "hueco"
   },
   {
-   "i": 224,
+   "i": 416,
    "nombre": "pena_pequena_00",
    "papel": "grande"
   },
   {
-   "i": 225,
+   "i": 417,
    "nombre": "pena_pequena_10",
    "papel": "grande"
   },
   {
-   "i": 226,
+   "i": 418,
    "nombre": "pena_pequena_01",
    "papel": "grande"
   },
   {
-   "i": 227,
+   "i": 419,
    "nombre": "pena_pequena_11",
    "papel": "grande"
   },
   {
-   "i": 228,
-   "nombre": "pena_mediana_00",
-   "papel": "grande"
-  },
-  {
-   "i": 229,
-   "nombre": "pena_mediana_10",
-   "papel": "grande"
-  },
-  {
-   "i": 230,
-   "nombre": "pena_mediana_01",
-   "papel": "grande"
-  },
-  {
-   "i": 231,
-   "nombre": "pena_mediana_11",
-   "papel": "grande"
-  },
-  {
-   "i": 232,
-   "nombre": "pena_grande_00",
-   "papel": "grande"
-  },
-  {
-   "i": 233,
-   "nombre": "pena_grande_10",
-   "papel": "grande"
-  },
-  {
-   "i": 234,
-   "nombre": "pena_grande_20",
-   "papel": "grande"
-  },
-  {
-   "i": 235,
-   "nombre": "pena_grande_01",
-   "papel": "grande"
-  },
-  {
-   "i": 236,
-   "nombre": "pena_grande_11",
-   "papel": "grande"
-  },
-  {
-   "i": 237,
-   "nombre": "pena_grande_21",
-   "papel": "grande"
-  },
-  {
-   "i": 238,
-   "nombre": "racimo_azul_00",
-   "papel": "grande"
-  },
-  {
-   "i": 239,
-   "nombre": "racimo_azul_10",
-   "papel": "grande"
-  },
-  {
-   "i": 240,
-   "nombre": "racimo_azul_01",
-   "papel": "grande"
-  },
-  {
-   "i": 241,
-   "nombre": "racimo_azul_11",
-   "papel": "grande"
-  },
-  {
-   "i": 242,
-   "nombre": "racimo_azul_02",
-   "papel": "grande"
-  },
-  {
-   "i": 243,
-   "nombre": "racimo_azul_12",
-   "papel": "grande"
-  },
-  {
-   "i": 244,
-   "nombre": "racimo_morado_00",
-   "papel": "grande"
-  },
-  {
-   "i": 245,
-   "nombre": "racimo_morado_10",
-   "papel": "grande"
-  },
-  {
-   "i": 246,
-   "nombre": "racimo_morado_01",
-   "papel": "grande"
-  },
-  {
-   "i": 247,
-   "nombre": "racimo_morado_11",
-   "papel": "grande"
-  },
-  {
-   "i": 248,
-   "nombre": "racimo_morado_02",
-   "papel": "grande"
-  },
-  {
-   "i": 249,
-   "nombre": "racimo_morado_12",
-   "papel": "grande"
-  },
-  {
-   "i": 250,
-   "nombre": "racimo_verde_00",
-   "papel": "grande"
-  },
-  {
-   "i": 251,
-   "nombre": "racimo_verde_10",
-   "papel": "grande"
-  },
-  {
-   "i": 252,
-   "nombre": "racimo_verde_01",
-   "papel": "grande"
-  },
-  {
-   "i": 253,
-   "nombre": "racimo_verde_11",
-   "papel": "grande"
-  },
-  {
-   "i": 254,
-   "nombre": "racimo_verde_02",
-   "papel": "grande"
-  },
-  {
-   "i": 255,
-   "nombre": "racimo_verde_12",
-   "papel": "grande"
-  },
-  {
-   "i": 256,
-   "nombre": "vagoneta_00",
-   "papel": "grande"
-  },
-  {
-   "i": 257,
-   "nombre": "vagoneta_10",
-   "papel": "grande"
-  },
-  {
-   "i": 258,
-   "nombre": "vagoneta_01",
-   "papel": "grande"
-  },
-  {
-   "i": 259,
-   "nombre": "vagoneta_11",
-   "papel": "grande"
-  },
-  {
-   "i": 260,
-   "nombre": "puntal_00",
-   "papel": "grande"
-  },
-  {
-   "i": 261,
-   "nombre": "puntal_10",
-   "papel": "grande"
-  },
-  {
-   "i": 262,
-   "nombre": "puntal_20",
-   "papel": "grande"
-  },
-  {
-   "i": 263,
-   "nombre": "puntal_01",
-   "papel": "grande"
-  },
-  {
-   "i": 264,
-   "nombre": "puntal_11",
-   "papel": "grande"
-  },
-  {
-   "i": 265,
-   "nombre": "puntal_21",
-   "papel": "grande"
-  },
-  {
-   "i": 266,
-   "nombre": "antorcha_00",
-   "papel": "grande"
-  },
-  {
-   "i": 267,
-   "nombre": "antorcha_01",
-   "papel": "grande"
-  },
-  {
-   "i": 268,
+   "i": 420,
    "nombre": "monton_piedra_00",
    "papel": "grande"
   },
   {
-   "i": 269,
+   "i": 421,
    "nombre": "monton_piedra_10",
    "papel": "grande"
   },
   {
-   "i": 270,
+   "i": 422,
    "nombre": "monton_piedra_01",
    "papel": "grande"
   },
   {
-   "i": 271,
+   "i": 423,
    "nombre": "monton_piedra_11",
    "papel": "grande"
   },
   {
-   "i": 272,
+   "i": 424,
    "nombre": "monton_cobre_00",
    "papel": "grande"
   },
   {
-   "i": 273,
+   "i": 425,
    "nombre": "monton_cobre_10",
    "papel": "grande"
   },
   {
-   "i": 274,
+   "i": 426,
    "nombre": "monton_cobre_01",
    "papel": "grande"
   },
   {
-   "i": 275,
+   "i": 427,
    "nombre": "monton_cobre_11",
    "papel": "grande"
   },
   {
-   "i": 276,
+   "i": 428,
    "nombre": "monton_hierro_00",
    "papel": "grande"
   },
   {
-   "i": 277,
+   "i": 429,
    "nombre": "monton_hierro_10",
    "papel": "grande"
   },
   {
-   "i": 278,
+   "i": 430,
    "nombre": "monton_hierro_01",
    "papel": "grande"
   },
   {
-   "i": 279,
+   "i": 431,
    "nombre": "monton_hierro_11",
    "papel": "grande"
   },
   {
-   "i": 280,
+   "i": 432,
    "nombre": "monton_carbon_00",
    "papel": "grande"
   },
   {
-   "i": 281,
+   "i": 433,
    "nombre": "monton_carbon_10",
    "papel": "grande"
   },
   {
-   "i": 282,
+   "i": 434,
    "nombre": "monton_carbon_01",
    "papel": "grande"
   },
   {
-   "i": 283,
+   "i": 435,
    "nombre": "monton_carbon_11",
    "papel": "grande"
   },
   {
-   "i": 284,
+   "i": 436,
    "nombre": "monton_oro_00",
    "papel": "grande"
   },
   {
-   "i": 285,
+   "i": 437,
    "nombre": "monton_oro_10",
    "papel": "grande"
   },
   {
-   "i": 286,
+   "i": 438,
    "nombre": "monton_oro_01",
    "papel": "grande"
   },
   {
-   "i": 287,
+   "i": 439,
    "nombre": "monton_oro_11",
    "papel": "grande"
   },
   {
-   "i": 288,
-   "nombre": "estalagmita_g1_00",
-   "papel": "grande"
-  },
-  {
-   "i": 289,
-   "nombre": "estalagmita_g1_10",
-   "papel": "grande"
-  },
-  {
-   "i": 290,
-   "nombre": "estalagmita_g1_01",
-   "papel": "grande"
-  },
-  {
-   "i": 291,
-   "nombre": "estalagmita_g1_11",
-   "papel": "grande"
-  },
-  {
-   "i": 292,
-   "nombre": "estalagmita_g1_02",
-   "papel": "grande"
-  },
-  {
-   "i": 293,
-   "nombre": "estalagmita_g1_12",
-   "papel": "grande"
-  },
-  {
-   "i": 294,
-   "nombre": "estalagmita_g2_00",
-   "papel": "grande"
-  },
-  {
-   "i": 295,
-   "nombre": "estalagmita_g2_10",
-   "papel": "grande"
-  },
-  {
-   "i": 296,
-   "nombre": "estalagmita_g2_01",
-   "papel": "grande"
-  },
-  {
-   "i": 297,
-   "nombre": "estalagmita_g2_11",
-   "papel": "grande"
-  },
-  {
-   "i": 298,
-   "nombre": "estalagmita_g2_02",
-   "papel": "grande"
-  },
-  {
-   "i": 299,
-   "nombre": "estalagmita_g2_12",
-   "papel": "grande"
-  },
-  {
-   "i": 300,
-   "nombre": "estalagmita_g3_00",
-   "papel": "grande"
-  },
-  {
-   "i": 301,
-   "nombre": "estalagmita_g3_10",
-   "papel": "grande"
-  },
-  {
-   "i": 302,
-   "nombre": "estalagmita_g3_01",
-   "papel": "grande"
-  },
-  {
-   "i": 303,
-   "nombre": "estalagmita_g3_11",
-   "papel": "grande"
-  },
-  {
-   "i": 304,
-   "nombre": "estalagmita_g3_02",
-   "papel": "grande"
-  },
-  {
-   "i": 305,
-   "nombre": "estalagmita_g3_12",
-   "papel": "grande"
-  },
-  {
-   "i": 306,
-   "nombre": "_hueco_306",
+   "i": 440,
+   "nombre": "_hueco_440",
    "papel": "hueco"
   },
   {
-   "i": 307,
-   "nombre": "_hueco_307",
+   "i": 441,
+   "nombre": "_hueco_441",
    "papel": "hueco"
   },
   {
-   "i": 308,
-   "nombre": "_hueco_308",
+   "i": 442,
+   "nombre": "_hueco_442",
    "papel": "hueco"
   },
   {
-   "i": 309,
-   "nombre": "_hueco_309",
+   "i": 443,
+   "nombre": "_hueco_443",
    "papel": "hueco"
   },
   {
-   "i": 310,
-   "nombre": "_hueco_310",
+   "i": 444,
+   "nombre": "_hueco_444",
    "papel": "hueco"
   },
   {
-   "i": 311,
-   "nombre": "_hueco_311",
+   "i": 445,
+   "nombre": "_hueco_445",
    "papel": "hueco"
   },
   {
-   "i": 312,
-   "nombre": "_hueco_312",
+   "i": 446,
+   "nombre": "_hueco_446",
    "papel": "hueco"
   },
   {
-   "i": 313,
-   "nombre": "_hueco_313",
-   "papel": "hueco"
-  },
-  {
-   "i": 314,
-   "nombre": "_hueco_314",
-   "papel": "hueco"
-  },
-  {
-   "i": 315,
-   "nombre": "_hueco_315",
-   "papel": "hueco"
-  },
-  {
-   "i": 316,
-   "nombre": "_hueco_316",
-   "papel": "hueco"
-  },
-  {
-   "i": 317,
-   "nombre": "_hueco_317",
-   "papel": "hueco"
-  },
-  {
-   "i": 318,
-   "nombre": "_hueco_318",
-   "papel": "hueco"
-  },
-  {
-   "i": 319,
-   "nombre": "_hueco_319",
+   "i": 447,
+   "nombre": "_hueco_447",
    "papel": "hueco"
   }
  ]
