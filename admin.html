@@ -315,6 +315,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
     <h1>Registro de guardabosques</h1>
     <span class="sub">Grassland Forest</span>
   </div>
+  <a class="btn btn-sm" href="./contrato-stats.html" title="Estadísticas del contrato en la cadena" style="text-decoration:none">📜 Contrato</a>
   <span class="wallet-chip" id="walletChip"><span class="dot off"></span><span id="walletText">Sin conectar</span></span>
   <button class="btn btn-sm" id="themeBtn" title="Cambiar tema">Tema</button>
   <button class="btn btn-sm hidden" id="reloadBtn">Actualizar</button>
@@ -336,6 +337,37 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   <section>
     <div class="section-head"><h2>Resumen</h2></div>
     <div class="kpis" id="kpis"></div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       TABLAS DEL CONTRATO
+       Las tablas que el servidor necesita y que se crean A MANO con
+       setLimit(tabla, limit, perInvoiceLimit) desde la cartera dueña del
+       contrato. Si falta una, lo que depende de ella se salta sin romper el
+       juego; aquí se ve cuál falta y si los límites son los recomendados.
+       ══════════════════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="section-head">
+      <h2>⛓️ Tablas del contrato</h2>
+      <span class="dim" id="tablasInfo"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Tabla</th><th>Para qué</th><th>Estado</th>
+            <th style="text-align:right">Límite total</th><th style="text-align:right">Por factura</th>
+            <th style="text-align:right">En uso</th><th style="text-align:right">Facturas</th><th>Avisos</th>
+          </tr>
+        </thead>
+        <tbody id="tablasBody">
+          <tr><td colspan="8" class="empty">Cargando…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="cfg-actions">
+      <button class="btn" id="tablasBtn">Volver a mirar</button>
+    </div>
   </section>
 
   <section>
@@ -364,6 +396,46 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
       <button class="btn btn-sm" id="prevBtn">‹ Anterior</button>
       <span class="dim mono" id="pageInfo">—</span>
       <button class="btn btn-sm" id="nextBtn">Siguiente ›</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       LA COLECCIÓN NFT DEL PANEL "MY NFTs"
+       El botón redondo NFT del juego enseña los NFT que la cartera del
+       jugador tiene de ESTA colección. El nombre es el que se ve (el de
+       MetaMask); el contrato hace falta para leerla en la cadena, porque un
+       nombre no es único.
+       ══════════════════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="section-head">
+      <h2>🖼️ Colección NFT del juego</h2>
+      <span class="dim" id="nftInfo"></span>
+    </div>
+    <div class="cfg-grid">
+      <label class="cfg-field">
+        <span>Nombre de la colección</span>
+        <input type="text" id="nftNombre" maxlength="80" placeholder="ej. Forest Spirits" autocomplete="off">
+        <small class="dim">El que verán los jugadores en el panel My NFTs (el mismo que sale en MetaMask).</small>
+      </label>
+      <label class="cfg-field">
+        <span>Contrato de la colección (ERC-721)</span>
+        <input type="text" id="nftContrato" maxlength="42" placeholder="0x…" autocomplete="off" spellcheck="false">
+        <small class="dim">En MetaMask: el NFT → detalles → “Contract address”.</small>
+      </label>
+      <label class="cfg-field">
+        <span>Red (chain id)</span>
+        <input type="number" id="nftChain" min="1" step="1">
+        <small class="dim">Vacío = la red del juego.</small>
+      </label>
+      <label class="cfg-field">
+        <span>RPC de esa red (solo si no es la del juego)</span>
+        <input type="text" id="nftRpc" maxlength="200" placeholder="https://…" autocomplete="off" spellcheck="false">
+      </label>
+    </div>
+    <div class="cfg-actions">
+      <button class="btn btn-primary" id="nftSaveBtn">Guardar colección</button>
+      <button class="btn" id="nftReloadBtn">Recargar</button>
+      <button class="btn btn-danger" id="nftClearBtn">Quitar la colección</button>
     </div>
   </section>
 
@@ -698,6 +770,8 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
       $('reloadBtn').classList.remove('hidden');
       await Promise.all([
         cargarResumen(),
+        cargarTablas(),
+        cargarColeccionNft(),
         cargarJugadores(),
         cargarConfigSiembra(),
         cargarConfigClasificacion()
@@ -733,6 +807,46 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
       }).join('');
     } catch (e) {
       $('kpis').innerHTML = '<div class="empty">No se pudo cargar el resumen: ' + esc(e.message) + '</div>';
+    }
+  }
+
+  // ── Tablas del contrato ──────────────────────────────────────────────────
+  function numero(v) {
+    var n = Number(v);
+    return isFinite(n) ? n.toLocaleString() : '—';
+  }
+
+  async function cargarTablas() {
+    var cuerpo = $('tablasBody');
+    cuerpo.innerHTML = '<tr><td colspan="8" class="empty">Cargando…</td></tr>';
+    try {
+      var d = await pedir('/api/admin/tablas');
+      var filas = (d && d.tablas) || [];
+      cuerpo.innerHTML = filas.map(function (t) {
+        var c = t.cadena;
+        var estado = !c ? '<span class="pill warn">sin leer</span>'
+          : (t.existe ? '<span class="pill">creada</span>' : '<span class="pill warn">FALTA CREARLA</span>');
+        var limite = c && t.existe ? numero(c.limit) : '<span class="dim">' + numero(t.limit) + ' (recom.)</span>';
+        var porFactura = c && t.existe ? numero(c.perInvoiceLimit) : '<span class="dim">' + numero(t.perInvoiceLimit) + ' (recom.)</span>';
+        var avisos = (t.avisos || []).map(function (a) { return '<span class="pill warn">' + esc(a) + '</span>'; }).join(' ');
+        return '<tr>' +
+          '<td class="mono">' + esc(t.tipo) + '</td>' +
+          '<td style="white-space:normal;min-width:220px">' + esc(t.para || '') + '</td>' +
+          '<td>' + estado + '</td>' +
+          '<td class="num">' + limite + '</td>' +
+          '<td class="num">' + porFactura + '</td>' +
+          '<td class="num">' + (c && t.existe ? numero(c.totalQuantity) : '—') + '</td>' +
+          '<td class="num">' + (c && t.existe ? numero(c.invoiceCount) : '—') + '</td>' +
+          '<td style="white-space:normal">' + (avisos || '<span class="dim">—</span>') + '</td>' +
+        '</tr>';
+      }).join('') || '<tr><td colspan="8" class="empty">El servidor no devolvió ninguna tabla.</td></tr>';
+      var faltan = filas.filter(function (t) { return t.cadena && !t.existe; }).length;
+      $('tablasInfo').textContent = 'Contrato ' + corto(d.contrato || '') + ' · v' + (d.version || '?') +
+        (d.casillasEnCadena ? ' · guarda las casillas del inventario' : ' · sin casillas (v2)') +
+        (faltan ? ' · faltan ' + faltan + ' por crear' : '');
+    } catch (e) {
+      cuerpo.innerHTML = '<tr><td colspan="8" class="empty">No se pudo leer: ' + esc(e.message) + '</td></tr>';
+      $('tablasInfo').textContent = '';
     }
   }
 
@@ -921,6 +1035,13 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
       html += '</div>';
     }
 
+    // Lo que hay en la cadena (tablas nivel, nombre, parcelas y cons_parcelas).
+    // Se rellena aparte: leer el contrato tarda y la ficha no tiene que esperar.
+    html += '<h3>En la cadena <span class="pill">nivel · nombre · parcelas</span></h3>' +
+      '<div id="cadenaJugador"><div class="dim">Leyendo el contrato…</div></div>' +
+      '<div class="cfg-actions" style="margin-top:10px"><button class="btn btn-sm" id="cadenaSyncBtn">' +
+      'Escribir en la cadena ahora</button></div>';
+
     html += '<div class="danger-zone"><h3>Eliminar la cuenta</h3>' +
       '<p style="margin:0 0 4px;font-size:13.5px">Borra al jugador de la base de datos: personaje, inventario, ' +
       'estadísticas, habilidades, misiones y acceso. <strong>No se puede deshacer.</strong></p>' +
@@ -944,6 +1065,54 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
     var conf = $('confirmDelete'), del = $('deleteBtn');
     conf.addEventListener('input', function () { del.disabled = conf.value !== p.playerName; });
     del.addEventListener('click', function () { eliminar(p.playerName, conf.value); });
+
+    $('cadenaSyncBtn').addEventListener('click', function () { forzarCadena(p.playerName); });
+    cargarCadenaJugador(p.playerName);
+  }
+
+  async function cargarCadenaJugador(playerName) {
+    var caja = $('cadenaJugador');
+    if (!caja) return;
+    try {
+      var d = await pedir('/api/admin/players/' + encodeURIComponent(playerName) + '/cadena');
+      // La ficha pudo cerrarse o cambiar de jugador mientras se leía.
+      if (!state.actual || state.actual.player.playerName !== playerName || !$('cadenaJugador')) return;
+      var c = d.cadena || {};
+      function dato(x) { return x ? esc(x.valor) + ' <span class="dim">#' + esc(x.factura) + '</span>' : '<span class="pill mute">no está</span>'; }
+      var m = d.mascota || {};
+      $('cadenaJugador').innerHTML = '<div class="facts">' +
+        '<div class="fact"><div class="k">Nivel personaje</div><div class="v">' + dato(c.nivelPj) +
+          '<div class="dim" style="font-size:12px">en el juego: ' + esc(d.nivelPj) + '</div></div></div>' +
+        '<div class="fact"><div class="k">Nivel mascota</div><div class="v">' + dato(c.nivelPet) +
+          '<div class="dim" style="font-size:12px">en el juego: ' + esc(m.petLevel) + ' · ' + esc(m.petExp) + ' exp</div></div></div>' +
+        '<div class="fact"><div class="k">Nombre personaje</div><div class="v" style="font-size:13px">' + dato(c.nombrePj) + '</div></div>' +
+        '<div class="fact"><div class="k">Nombre mascota</div><div class="v" style="font-size:13px">' + dato(c.nombrePet) + '</div></div>' +
+        '<div class="fact"><div class="k">Parcelas (inventario)</div><div class="v">' + esc(c.parcelasEnInventario || 0) + '</div></div>' +
+        '<div class="fact"><div class="k">Parcelas colocadas</div><div class="v">' + esc(c.parcelasColocadas || 0) +
+          '<div class="dim" style="font-size:12px">en la base de datos: ' + esc(d.construcciones) + '</div></div></div>' +
+        '</div>';
+    } catch (e) {
+      if ($('cadenaJugador')) {
+        $('cadenaJugador').innerHTML = '<div class="note">No se pudo leer el contrato: ' + esc(e.message) + '</div>';
+      }
+    }
+  }
+
+  async function forzarCadena(playerName) {
+    var b = $('cadenaSyncBtn');
+    if (!confirm('Se enviarán a la blockchain las transacciones que falten (nivel, nombre y casillas del inventario) para «' +
+                 playerName + '».\n\n¿Continuar?')) return;
+    if (b) b.disabled = true;
+    try {
+      var d = await pedir('/api/admin/players/' + encodeURIComponent(playerName) + '/cadena', { method: 'POST', body: '{}' });
+      var id = d.identidad || {};
+      aviso(id.ok ? 'Cadena al día.' : 'Hecho a medias: ' + (id.motivo || 'revisa el registro del servidor'), id.ok ? '' : 'warn');
+      await cargarCadenaJugador(playerName);
+    } catch (e) {
+      aviso('No se pudo escribir en la cadena: ' + e.message, 'err');
+    } finally {
+      if ($('cadenaSyncBtn')) $('cadenaSyncBtn').disabled = false;
+    }
   }
 
   async function guardar() {
@@ -1078,6 +1247,53 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   }
 
   // ═══════════════════════════════════════════════════════════════════════
+  // LA COLECCIÓN NFT DEL PANEL "MY NFTs"
+  // ═══════════════════════════════════════════════════════════════════════
+  var chainIdJuego = null;
+
+  async function cargarColeccionNft() {
+    try {
+      var d = await pedir('/api/admin/nft-coleccion');
+      var c = d.config || {};
+      chainIdJuego = d.chainIdJuego || null;
+      $('nftNombre').value = c.nombre || '';
+      $('nftContrato').value = c.contrato || '';
+      $('nftChain').value = c.chainId || d.chainIdJuego || '';
+      $('nftRpc').value = c.rpc || '';
+      var info;
+      if (!c.contrato) info = 'Sin colección: el panel My NFTs dice que no hay ninguna.';
+      else if (d.errorCadena) info = 'El contrato no contesta: ' + d.errorCadena;
+      else info = 'En la cadena se llama «' + (d.nombreEnCadena || '?') + '»' +
+                  (c.updatedAt ? ' · última edición ' + fecha(c.updatedAt) : '');
+      $('nftInfo').textContent = info;
+    } catch (e) {
+      $('nftInfo').textContent = 'No se pudo cargar: ' + (e.message || e);
+    }
+  }
+
+  async function guardarColeccionNft(vaciar) {
+    var cuerpo = vaciar ? { nombre: '', contrato: '', chainId: chainIdJuego, rpc: '' } : {
+      nombre: $('nftNombre').value.trim(),
+      contrato: $('nftContrato').value.trim(),
+      chainId: Number($('nftChain').value) || chainIdJuego,
+      rpc: $('nftRpc').value.trim()
+    };
+    if (vaciar && !confirm('El panel My NFTs dejará de enseñar la colección. ¿Seguro?')) return;
+    $('nftSaveBtn').disabled = true;
+    $('nftClearBtn').disabled = true;
+    try {
+      var d = await pedir('/api/admin/nft-coleccion', { method: 'PUT', body: JSON.stringify(cuerpo) });
+      aviso(vaciar ? 'Colección quitada.' : (d.aviso ? 'Guardada. Ojo: ' + d.aviso : 'Colección guardada.'), d.aviso ? 'warn' : '');
+      await cargarColeccionNft();
+    } catch (e) {
+      aviso('No se pudo guardar: ' + (e.message || e), 'err');
+    } finally {
+      $('nftSaveBtn').disabled = false;
+      $('nftClearBtn').disabled = false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
   // CONFIGURACIÓN DE LA TABLA DE CLASIFICACIÓN
   // ═══════════════════════════════════════════════════════════════════════
   async function cargarConfigClasificacion() {
@@ -1136,9 +1352,13 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   });
   $('saveBtn').addEventListener('click', guardar);
   $('reloadBtn').addEventListener('click', function () {
-    cargarResumen(); cargarJugadores();
+    cargarResumen(); cargarTablas(); cargarColeccionNft(); cargarJugadores();
     cargarConfigSiembra(); cargarConfigClasificacion();
   });
+  $('tablasBtn').addEventListener('click', cargarTablas);
+  $('nftSaveBtn').addEventListener('click', function () { guardarColeccionNft(false); });
+  $('nftReloadBtn').addEventListener('click', cargarColeccionNft);
+  $('nftClearBtn').addEventListener('click', function () { guardarColeccionNft(true); });
   $('searchBtn').addEventListener('click', function () { state.q = $('q').value.trim(); state.page = 1; cargarJugadores(); });
   $('clearBtn').addEventListener('click', function () { $('q').value = ''; state.q = ''; state.page = 1; cargarJugadores(); });
   $('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('searchBtn').click(); });

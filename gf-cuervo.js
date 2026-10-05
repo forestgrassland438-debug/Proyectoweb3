@@ -188,7 +188,56 @@
         out.push({ clave: clave, spr: spr });
       }
     }
+    /* Y los espantapájaros (2026-10-05): un posadero más. Cuelgan de la
+       escena como `espanta_<parcela>` igual que los árboles, así que todo lo
+       demás (posadero, sombra al pie, irse si desaparece) funciona igual. */
+    if (window.GFEspantapajaros && window.GFEspantapajaros.perchas) {
+      try { out = out.concat(window.GFEspantapajaros.perchas(scene)); } catch (e) {}
+    }
     return out;
+  }
+
+  /* Un sitio de tierra firme donde ponerse sin árboles (la isla): se prueba
+     alrededor del centro y se comprueba con la escena si es tierra, para no
+     nacer en el mar. */
+  function sueloLibre(scene) {
+    var c = (typeof scene._centroDeLaIsla === 'function') ? scene._centroDeLaIsla()
+          : { x: scene.player ? scene.player.x : 0, y: scene.player ? scene.player.y : 0 };
+    for (var i = 0; i < 20; i++) {
+      var p = { x: c.x + az(-260, 260), y: c.y + az(-200, 200) };
+      if (!esAgua(scene, p.x, p.y)) return p;
+    }
+    return c;
+  }
+
+  /* ¿Es agua ese punto? (2026-10-05) — "los cuervos caminan sobre las aguas
+     de Lands; no quiero eso ni en el río del pueblo, ni ninguna ave". La
+     máscara del agua animada (GFAgua: el río y el mar) y, en la isla, su
+     propia prueba de tierra. Un pájaro puede CRUZAR el agua volando; lo que
+     no puede es posarse ni andar sobre ella. */
+  function esAgua(scene, x, y) {
+    try {
+      if (window.GFAgua && window.GFAgua.claseEn && window.GFAgua.claseEn(scene, x, y) > 0) return true;
+      if (typeof scene._esTierraEnPixeles === 'function' && !scene._esTierraEnPixeles(x, y)) return true;
+    } catch (e) {}
+    return false;
+  }
+
+  /** Un sitio seco cerca de `p` (o null): se prueba alrededor. */
+  function secoCerca(scene, p, radio) {
+    if (!esAgua(scene, p.x, p.y)) return p;
+    for (var i = 0; i < 16; i++) {
+      var a = az(0, 6.283), r = az(20, radio || 160);
+      var q = { x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r };
+      if (!esAgua(scene, q.x, q.y)) return q;
+    }
+    return null;
+  }
+
+  /** ¿Guarda esa parcela un espantapájaros? */
+  function protegida(scene, plotId) {
+    try { return !!(plotId && window.GFEspantapajaros && window.GFEspantapajaros.activoEn(scene, plotId)); }
+    catch (e) { return false; }
   }
 
   /* Punto donde se posa: arriba de la copa y en el centro.
@@ -251,9 +300,13 @@
     // el cuervo se posa en uno pero cree estar en otro, y entonces vigila la
     // tala del arbol equivocado.
     var arbolIni = arboles.length ? elegir(arboles) : null;
+    /* Sin árboles (la isla): nace EN EL SUELO, junto a una parcela si la hay
+       y si no lejos del jugador. Antes nacía flotando sobre su cabeza. */
+    var pars0 = arbolIni ? [] : parcelas(scene);
+    var sueloIni = pars0.length ? elegir(pars0) : null;
     var inicio = arbolIni ? posadero(arbolIni.spr)
-                          : { x: scene.player ? scene.player.x : 0,
-                              y: scene.player ? scene.player.y - 80 : 0 };
+                          : sueloIni ? { x: sueloIni.x + az(-60, 60), y: sueloIni.y + az(20, 50) }
+                          : sueloLibre(scene);
 
     /* Sombra en el suelo. Volando se queda abajo, pequeña y tenue: es lo que
        hace que se note que el pájaro está en alto y no pegado al césped.
@@ -469,8 +522,11 @@
       var ang = p ? Math.atan2(c.spr.y - p.y, c.spr.x - p.x) : az(0, 6.283);
       c.huyeEn = scene.time.now + 2000;
       c.asustado = true;
-      volarA(st, c, { x: c.spr.x + Math.cos(ang) * 320,
-                      y: c.spr.y + Math.sin(ang) * 320 }, 'camina', null);
+      // A tierra firme: huyendo hacia el mar, se busca la orilla más cerca.
+      var huida = secoCerca(scene, { x: c.spr.x + Math.cos(ang) * 320, y: c.spr.y + Math.sin(ang) * 320 }, 260) ||
+                  secoCerca(scene, { x: c.spr.x, y: c.spr.y }, 300);
+      if (!huida) return;
+      volarA(st, c, huida, 'camina', null);
       return;
     }
     c.asustado = true;
@@ -568,7 +624,8 @@
       // bajar a caminar cerca de un árbol, pero no encima del jugador
       var base = arboles.length ? posadero(elegir(deLaZona(arboles, c)).spr)
                                 : { x: c.spr.x, y: c.spr.y };
-      var punto = { x: base.x + az(-70, 70), y: base.y + az(60, 110) };
+      var punto = secoCerca(scene, { x: base.x + az(-70, 70), y: base.y + az(60, 110) }, 120);
+      if (!punto) { c.hasta = scene.time.now + 1500; return; }
       if (scene.player &&
           Math.hypot(punto.x - scene.player.x, punto.y - scene.player.y) < DIST_SUSTO_SUELO * 1.4) {
         c.hasta = scene.time.now + 1500;
@@ -582,6 +639,14 @@
     if (!pars.length) { c.hasta = scene.time.now + 2000; return; }
     var libres2 = lejosDelJugador(scene, deLaZona(pars, c), DIST_SUSTO_SUELO * 1.4);
     var elegida = elegir(libres2);
+    /* EL ESPANTAPÁJAROS: si la parcela tiene uno, el cuervo se posa en su
+       cabeza y no come. Es justo lo que hace un cuervo de verdad con uno: lo
+       usa de percha. */
+    if (protegida(scene, elegida.clave) && scene['espanta_' + elegida.clave]) {
+      c.parcela = null;
+      volarA(st, c, posadero(scene['espanta_' + elegida.clave]), 'posado', 'espanta_' + elegida.clave);
+      return;
+    }
     /* Solo se apunta la parcela SI TIENE HAMBRE.
        EL FALLO QUE ARREGLA: `c.parcela` se ponía siempre que bajaba a una
        parcela, y el picoteo avisa al servidor en cuanto hay parcela apuntada.
@@ -604,6 +669,8 @@
     if (!c.parcela || !window.GFMascota || !window.GFMascota.api) { saciar(st, c); return; }
     var clave = c.parcela;
     c.parcela = null;
+    // Le han puesto un espantapájaros mientras bajaba: no se atreve.
+    if (protegida(st.scene, clave)) { saciar(st, c); return; }
     saciar(st, c);
     window.GFMascota.api('/api/crops/crow', { plotId: clave })
       .then(function (r) {
@@ -787,7 +854,8 @@
     }
 
     if (c.fase === 'camina') {
-      // pasitos cortos de un lado a otro
+      // pasitos cortos de un lado a otro; delante del agua, media vuelta
+      if (esAgua(scene, spr.x + c.rumbo * 14, spr.y)) c.rumbo *= -1;
       spr.x += c.rumbo * VEL_ANDAR * dt;
       spr.setFlipX(c.rumbo < 0);
       spr.setDepth(spr.y);
@@ -892,7 +960,7 @@
       deLaZona: deLaZona, RADIO_VUELO: RADIO_VUELO,
       parcelas: parcelas, actualizarCuervo: actualizarCuervo,
       huir: huir, decidir: decidir, profundidadPosado: profundidadPosado,
-      tieneHambre: tieneHambre, saciar: saciar, picotearParcela: picotearParcela,
+      tieneHambre: tieneHambre, saciar: saciar, picotearParcela: picotearParcela, protegida: protegida, esAgua: esAgua,
       malTiempo: malTiempo, arbolMasCerca: arbolMasCerca, encoger: encoger,
       MAL_TIEMPO_ENTRA: MAL_TIEMPO_ENTRA, MAL_TIEMPO_SALE: MAL_TIEMPO_SALE
     }

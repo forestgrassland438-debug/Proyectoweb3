@@ -123,6 +123,38 @@
   </div>
 
   <div class="card">
+    <h2>🕒 Hora del juego</h2>
+    <p class="sub">Día o noche para todo el mundo. En <b>automático</b> el reloj
+      corre solo: «Poner de día / de noche» lo <b>adelanta</b> hasta las 08:00 o
+      las 21:00 y desde ahí sigue corriendo. En <b>manual</b> la hora se queda
+      <b>quieta</b> donde la pongas. Los jugadores lo ven al momento.</p>
+    <div class="estado" id="horaAhora"></div>
+    <div class="acciones" style="margin-top:12px">
+      <button data-hora="dia">☀️ Poner de día</button>
+      <button data-hora="noche">🌙 Poner de noche</button>
+      <button data-hora="adelantar" data-horas="1">⏩ +1 h</button>
+      <button data-hora="adelantar" data-horas="3">⏩ +3 h</button>
+    </div>
+    <div class="fila">
+      <label>Modo del reloj<small><b>Automático</b>: corre solo. <b>Manual</b>: la
+        hora se queda fija en la que escribas.</small></label>
+      <div class="modos">
+        <button id="relojAuto">Automático</button>
+        <button id="relojManual">Manual</button>
+      </div>
+    </div>
+    <div class="fila">
+      <label>Fijar la hora (manual)<small>De 00:00 a 23:59. Amanece a las 06:00 y
+        anochece a las 18:00.</small></label>
+      <input type="time" id="horaFija" value="21:00" style="background:var(--panel2);border:1px solid var(--borde);color:var(--texto);border-radius:8px;padding:7px 9px">
+      <div class="acciones" style="margin-top:0"><button id="fijarHora">Fijar</button></div>
+    </div>
+    <div class="acciones">
+      <button id="horaNormal">Volver a la hora normal</button>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>Interruptor general</h2>
     <p class="sub">Apagado no hay clima de ninguna clase: ni viento ni lluvia.
       Los jugadores ven el mundo despejado.</p>
@@ -467,6 +499,35 @@
     var d = await pedir('/api/admin/weather');
     state.config = d.config;
     pintar(d.config, d.publico);
+    await cargarReloj();
+  }
+
+  // ── La hora del juego ────────────────────────────────────────────────────
+  function pintarReloj(d) {
+    var r = d.reloj || {}, e = d.estado || {};
+    $('horaAhora').innerHTML =
+      pastilla(true, (e.esDia ? '☀️ ' : '🌙 ') + (e.horaTexto || '--:--')) +
+      pastilla(false, e.esDia ? 'Es de día' : 'Es de noche') +
+      pastilla(r.modo === 'manual', r.modo === 'manual' ? 'Reloj QUIETO (manual)' : 'Reloj en marcha (automático)') +
+      (r.modo !== 'manual' && Number(r.desfaseMs) ? pastilla(false, 'Adelantado ' +
+        Math.round(Number(r.desfaseMs) / 60000) + ' min reales') : '');
+    $('relojAuto').classList.toggle('on', r.modo !== 'manual');
+    $('relojManual').classList.toggle('on', r.modo === 'manual');
+  }
+
+  async function cargarReloj() {
+    try { pintarReloj(await pedir('/api/admin/world-time')); }
+    catch (e) { $('horaAhora').innerHTML = pastilla(false, 'No se pudo leer la hora'); }
+  }
+
+  async function moverReloj(cuerpo, texto) {
+    try {
+      var d = await pedir('/api/admin/world-time', { method: 'POST', body: JSON.stringify(cuerpo) });
+      pintarReloj(d);
+      aviso(texto + ' Ahora son las ' + ((d.estado && d.estado.horaTexto) || '?') + '.', 'ok');
+    } catch (e) {
+      aviso('No se pudo cambiar la hora: ' + (e.message || e), 'err');
+    }
   }
 
   function pintar(c, pub) {
@@ -656,6 +717,26 @@
       state.estacion = b.getAttribute('data-estacion');
       marcar('estaciones', 'estacion', state.estacion);
     });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-hora]'), function (b) {
+    b.addEventListener('click', function () {
+      var accion = b.getAttribute('data-hora');
+      var horas = Number(b.getAttribute('data-horas')) || undefined;
+      moverReloj({ accion: accion, horas: horas },
+        accion === 'dia' ? 'Ya es de día.' : accion === 'noche' ? 'Ya es de noche.' : 'Hora adelantada.');
+    });
+  });
+  $('relojAuto').addEventListener('click', function () {
+    moverReloj({ accion: 'reanudar' }, 'El reloj vuelve a correr desde aquí.');
+  });
+  $('relojManual').addEventListener('click', function () { $('fijarHora').click(); });
+  $('fijarHora').addEventListener('click', function () {
+    var v = String($('horaFija').value || '').split(':');
+    if (v.length < 2) { aviso('Escribe una hora, por ejemplo 21:00.', 'err'); return; }
+    moverReloj({ accion: 'fijar', hora: Number(v[0]), minuto: Number(v[1]) }, 'Hora fijada.');
+  });
+  $('horaNormal').addEventListener('click', function () {
+    moverReloj({ accion: 'normal' }, 'Hora normal otra vez.');
   });
   $('lanzar').addEventListener('click', lanzar);
   $('encolar').addEventListener('click', encolar);

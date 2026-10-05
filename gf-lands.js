@@ -45,8 +45,9 @@
 (function (root) {
   'use strict';
 
-  var ICONO_IR     = './Game/Source/lands.png';
-  var ICONO_VOLVER = './Game/Source/lands_volver.png';
+  // Los del HUD nuevo (tools/generar-iconos-hud.py, 2026-10-05).
+  var ICONO_IR     = './Game/Source/hud/lands.png';
+  var ICONO_VOLVER = './Game/Source/hud/lands_volver.png';
 
   var CLAVE_ISLA = 'LandsScene';
 
@@ -192,6 +193,9 @@
       return;
     }
     escena._cambiandoEscena = true;
+    // A MI isla: una nota de viaje que se hubiera quedado sin recoger (un
+    // "visitar su isla" que no llego a salir) no puede llevarme a la de otro.
+    root.__gfViaje = null;
     recordarVuelta(escena);
     log('a la isla desde', escena.sys.settings.key);
     // Al apagarse, la escena entra en la sala de su destino (ver
@@ -218,6 +222,8 @@
     if (escena._cambiandoEscena) return;
     escena._cambiandoEscena = true;
     log('de vuelta al mapa');
+    // Al apagarse, la escena entra en la sala de su destino (_salaAlSalir).
+    escena._salaDestino = 'game';
 
     /* EL MUNDO SE CORRIGE ANTES DE APAGAR EL HUD, y el orden no es un detalle:
        `apagarHUD()` tambien llama a `savegg()`. Corrigiendolo despues habria
@@ -316,6 +322,147 @@
       b.onclick = accionBoton;
     }
   }
+
+  // =========================================================================
+  // EL TELETRANSPORTE DEL PANEL DE AMIGOS                       (2026-10-04)
+  // =========================================================================
+  /*
+   * "Ir con el" y "visitar su isla" (gf-amigos.js, pestanas Online y Friends).
+   *
+   * EL VIAJE ES EL MISMO QUE EL DEL BOTON DE LAS ISLAS -guardar, apagar el
+   * HUD, pantalla de carga-, porque es el unico camino que ya funciona desde
+   * las cuatro escenas. Lo que se anade es el DESTINO, en dos partes:
+   *
+   *   . el MUNDO (1 mapa, 2 tienda, 3 mina, 4 isla) va GUARDADO en la
+   *     partida: es lo unico que lee la pantalla de carga para elegir escena
+   *     (LoadingScenegame no tiene init()).
+   *   . el PUNTO exacto y, en la isla, DE QUIEN es, van en `__gfViaje`, una
+   *     nota de pagina que la escena de llegada recoge con `tomar()` y borra.
+   *     Caduca al minuto y medio, y se tira tambien si la recoge una escena
+   *     de otro mundo (el viaje fallo): una nota olvidada no puede soltarte
+   *     en un sitio raro la siguiente vez que entres.
+   *
+   * Si ya estas en la misma escena (los dos en el mapa, o en la misma isla),
+   * no hay pantalla de carga: se mueve al jugador alli mismo.
+   */
+  var ESCENA_DE_MUNDO = { 1: 'GameScene', 2: 'tiendajuego', 3: 'MinaScene', 4: CLAVE_ISLA };
+  var SALA_DE_MUNDO   = { 1: 'game', 2: 'tienda', 3: 'mina', 4: 'isla' };
+  var MUNDO_DE_ZONA   = { world: 1, shop: 2, mine: 3, island: 4 };
+  // Sin punto conocido (alguien que acaba de entrar y no se ha movido), la
+  // entrada de siempre de cada sitio. La mina y la isla ya tienen la suya.
+  var ENTRADA_DE_MUNDO = { 1: { x: PLAZA_X, y: PLAZA_Y }, 2: { x: 1041, y: 1778 } };
+  var CADUCIDAD_VIAJE = 90 * 1000;
+
+  function numero(v) {
+    var n = Number(v);
+    return v !== null && v !== '' && isFinite(n) ? n : null;
+  }
+
+  /** La escena en la que esta el jugador: la ultima que monto el boton. */
+  function escenaActual() {
+    var e = escenaBoton;
+    try { return e && e.sys && e.sys.isActive() ? e : null; } catch (err) { return null; }
+  }
+
+  /** Lo que deja la escena de llegada. null si no hay nada para ella. */
+  function tomar(mundo) {
+    var v = root.__gfViaje;
+    if (!v) return null;
+    root.__gfViaje = null;
+    if (Date.now() - (v.t || 0) > CADUCIDAD_VIAJE) return null;
+    if (Number(v.mundo) !== Number(mundo)) {
+      log('nota de viaje para el mundo', v.mundo, 'recogida en el', mundo, ': se tira');
+      return null;
+    }
+    return v;
+  }
+
+  /** Sin cambiar de escena: el jugador aparece alli. */
+  function moverEnSitio(escena, x, y) {
+    var p = escena.player;
+    if (!p) return false;
+    try { if (escena.stopMouseMovement) escena.stopMouseMovement(); } catch (e) {}
+    p.setPosition(x, y);
+    try { if (p.body && p.body.reset) p.body.reset(x, y); } catch (e) {}
+    escena.posicionplayerx = x;
+    escena.posicionplayery = y;
+    escena.previousPosition = { x: x, y: y };
+    try { if (escena._pegarPerroAlJugador) escena._pegarPerroAlJugador(); } catch (e) {}
+    try { escena.cameras.main.flash(250, 255, 255, 255); } catch (e) {}
+    try { if (escena.sendPlayerMovement) escena.sendPlayerMovement(); } catch (e) {}
+    log('teletransporte en el sitio a', Math.round(x) + ',' + Math.round(y));
+    return true;
+  }
+
+  /**
+   * Viaja. `destino` = { mundo, x?, y?, islaDe?, islaDeNombre? }.
+   * Devuelve false si el viaje no puede ni empezar (ya se esta cambiando de
+   * escena, o no hay escena viva).
+   */
+  function viajar(destino) {
+    var escena = escenaActual();
+    if (!escena || !destino) { log('viaje: no hay escena activa'); return false; }
+    if (escena._cambiandoEscena) return false;
+    var mundo = Number(destino.mundo);
+    var clave = ESCENA_DE_MUNDO[mundo];
+    if (!clave || !escena.scene.get(clave)) { log('viaje: mundo sin escena', mundo); return false; }
+
+    var x = numero(destino.x), y = numero(destino.y);
+    var conSitio = x !== null && y !== null && (x > 0 || y > 0);
+    if (!conSitio && ENTRADA_DE_MUNDO[mundo]) {
+      x = ENTRADA_DE_MUNDO[mundo].x; y = ENTRADA_DE_MUNDO[mundo].y; conSitio = true;
+    }
+    var islaDe = null;
+    if (mundo === 4 && destino.islaDe && destino.islaDe !== escena.playerName) islaDe = String(destino.islaDe);
+
+    // La misma escena (y, en la isla, la misma isla): sin pantalla de carga.
+    if (escena.sys.settings.key === clave && conSitio &&
+        (mundo !== 4 || (escena._islaDe || null) === islaDe)) {
+      return moverEnSitio(escena, x, y);
+    }
+
+    root.__gfViaje = {
+      mundo: mundo,
+      x: conSitio ? x : null,
+      y: conSitio ? y : null,
+      islaDe: islaDe,
+      islaDeNombre: islaDe ? String(destino.islaDeNombre || islaDe) : null,
+      t: Date.now()
+    };
+    escena._cambiandoEscena = true;
+    recordarVuelta(escena);
+    escena._salaDestino = SALA_DE_MUNDO[mundo];
+    escena.mundo = mundo;
+    if (conSitio) {
+      escena.posicionplayerx = x;
+      escena.posicionplayery = y;
+    }
+    log('viaje a', clave, islaDe ? '(isla de ' + islaDe + ')' : '',
+        conSitio ? Math.round(x) + ',' + Math.round(y) : '(entrada)');
+
+    // Igual que `ir()`: se ESPERA al guardado, porque la pantalla de carga
+    // elige la escena leyendo el mundo de /api/load.
+    var irYa = function () {
+      apagarHUD(escena);
+      escena.scene.start('LoadingScenegame');
+    };
+    try {
+      var p = escena.savegg && escena.savegg();
+      if (p && typeof p.then === 'function') p.then(irYa, irYa);
+      else irYa();
+    } catch (e) {
+      log('guardado antes del viaje:', e);
+      irYa();
+    }
+    return true;
+  }
+
+  root.GFViaje = {
+    viajar: viajar,
+    tomar: tomar,
+    moverEnSitio: moverEnSitio,
+    MUNDO_DE_ZONA: MUNDO_DE_ZONA
+  };
 
   root.GFLands = {
     montar: montar,

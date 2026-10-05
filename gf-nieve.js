@@ -95,7 +95,7 @@
     { prefijo: 'sprite_arbustos_', hasta: 28 },
     { prefijo: 'sprite_piedras_',  hasta: 34 },
     // ── nuevas ──
-    { prefijo: 'sprite_arbusto_ect',       hasta: 18 },   // arbustos del pueblo
+    { prefijo: 'sprite_arbusto_ect',       hasta: 19 },   // arbustos del pueblo
     { prefijo: 'sprite_flor_formado1_ect', hasta: 19 },   // arbustos con flores
     { prefijo: 'sprite_flor_formado2_ect', hasta: 20 },
     { prefijo: 'sprite_flor_formado3_ect', hasta: 19 },
@@ -116,6 +116,26 @@
                    'sprite_cabaña', 'sprite_casa_comida', 'sprite_casa_comida2'];
 
   var ALFA_MIN = 8;                  // a partir de aquí un píxel cuenta
+
+  /* ── Los detalles (2026-10-04) ─────────────────────────────────────
+     "La nieve con más gráficos y efectos altamente detallados":
+       DESTELLOS  la nieve al sol brilla a puntos sueltos que se encienden y
+                  se apagan, sobre los tejados, las copas y el suelo nevado.
+       HUELLAS    el jugador deja pisadas, que la nevada vuelve a tapar.
+       VAHO       con frío se le ve el aliento.
+     Y las capas de encima de los objetos llevan ahora bultos (la nieve se
+     amontona, no calca el canto) y sombra azulada por debajo. */
+  var N_DESTELLOS  = 18;
+  var DESTELLO_MS  = [280, 720];
+  var N_HUELLAS    = 40;
+  var HUELLA_PASO  = 26;             // px andados entre pisada y pisada
+  var HUELLA_MS    = 14000;          // lo que tarda la nevada en taparlas
+  var N_VAHOS      = 4;
+  var VAHO_CADA    = [1800, 3200];
+  var VAHO_MS      = 1300;
+  var PROF_HUELLA  = PROF_MANCHA + 0.1;
+  // Puntos de la cresta de cada capa (u, v de 0 a 1), para los destellos.
+  var puntosCapa   = {};
 
   // Las capas pueden tener el tamaño de una casa completa. Mantenerlas en
   // game.textures tras derretirse retenía tanto el canvas como la copia GPU.
@@ -159,6 +179,12 @@
       d.spr = d.dueno = null;
     });
     st.manchas.forEach(function (m) { destruirObjeto(m.spr); m.spr = null; });
+    if (st.detalles) {
+      ['destellos', 'huellas', 'vahos'].forEach(function (k) {
+        st.detalles[k].forEach(function (o) { destruirObjeto(o.spr); o.spr = null; });
+      });
+      st.detalles = null;
+    }
     st.capas.length = st.manchas.length = 0;
     st.cursor = st.hechas = st.proximaMancha = 0;
     liberarTexturas(st);
@@ -230,6 +256,20 @@
         c.fillStyle = g;
         c.beginPath(); c.arc(cx, cy, r, 0, 6.284); c.fill();
       }
+      /* Encima de lo ya pintado (source-atop): una sombra azulada hacia el
+         canto de abajo —la nieve tiene volumen— y escarcha, puntitos más
+         blancos sueltos. Solo caen donde ya hay nieve. */
+      c.globalCompositeOperation = 'source-atop';
+      var sg = c.createRadialGradient(T * 0.5, T * 0.66, 0, T * 0.5, T * 0.66, T * 0.44);
+      sg.addColorStop(0, 'rgba(160,190,228,0.22)');
+      sg.addColorStop(1, 'rgba(160,190,228,0)');
+      c.fillStyle = sg;
+      c.fillRect(0, 0, T, T);
+      for (i = 0; i < 28; i++) {
+        c.fillStyle = 'rgba(255,255,255,' + az(0.4, 0.9).toFixed(2) + ')';
+        c.fillRect(Math.floor(az(8, T - 8)), Math.floor(az(8, T - 8)), 1, 1);
+      }
+      c.globalCompositeOperation = 'source-over';
       scene.textures.addCanvas(clave, cv);
       var t = scene.textures.get(clave);
       if (t && t.setFilter && window.Phaser && Phaser.Textures) {
@@ -286,6 +326,8 @@
       if (hay < 3) return null;
 
       var grueso = Math.max(CAPA_MIN, Math.min(CAPA_MAX, Math.round(h * CAPA_GRUESO)));
+      var semilla = (claveOrigen.length * 7.31) % 6.28;
+      var puntos = [];
 
       var cv = document.createElement('canvas');
       cv.width = w; cv.height = h;
@@ -309,14 +351,23 @@
         var alto = grueso * agarre * onda;
         if (alto < 0.6) continue;
 
-        var g = c.createLinearGradient(0, cima[x] - 1, 0, cima[x] + alto);
-        g.addColorStop(0,   'rgba(255,255,255,0.98)');
-        g.addColorStop(0.6, 'rgba(244,250,255,0.92)');
-        g.addColorStop(1,   'rgba(214,232,248,0.10)');
-        c.fillStyle = g;
+        /* BULTOS: la nieve no calca el canto, se amontona encima a su aire.
+           Dos senos de periodos distintos dan montoncitos irregulares, y solo
+           donde agarra (en la pendiente no se amontona nada). */
+        var bulto = agarre * (0.6 + 0.6 * Math.sin(x * 0.37 + semilla) * Math.sin(x * 0.11 + semilla * 2)) *
+                    Math.max(1, grueso * 0.18);
         // Un pelín por encima del contorno: la nieve sobresale del canto.
-        c.fillRect(x, cima[x] - 1, 1, alto + 1);
+        var arriba = cima[x] - 1 - Math.max(0, bulto);
+        var g = c.createLinearGradient(0, arriba, 0, cima[x] + alto);
+        g.addColorStop(0,    'rgba(255,255,255,1)');
+        g.addColorStop(0.18, 'rgba(250,253,255,0.97)');
+        g.addColorStop(0.65, 'rgba(232,242,254,0.90)');
+        g.addColorStop(1,    'rgba(196,216,242,0.10)');
+        c.fillStyle = g;
+        c.fillRect(x, arriba, 1, cima[x] + alto - arriba + 1);
+        if (x % 3 === 0 && alto > 2) puntos.push({ u: (x + 0.5) / w, v: (arriba + 1.5) / h });
       }
+      puntosCapa[clave] = puntos;
 
       scene.textures.addCanvas(clave, cv);
       var t2 = scene.textures.get(clave);
@@ -385,6 +436,7 @@
       s = scene.add.image(spr.x, spr.y, clave);
       s.setOrigin(spr.originX, spr.originY);
       s.setDisplaySize(spr.displayWidth, spr.displayHeight);
+      if (s.setFlip) s.setFlip(!!spr.flipX, !!spr.flipY);
       s.setScrollFactor(spr.scrollFactorX, spr.scrollFactorY);
       s.setDepth(profundidadDe(spr));
       s.setAlpha(0);
@@ -405,7 +457,7 @@
   }
 
   function nuevaMancha(st, n) {
-    var clave = texturaMancha(st.scene, n % 4);
+    var clave = texturaMancha(st.scene, n % 6);
     if (!clave) return null;
     var s;
     try {
@@ -451,6 +503,193 @@
       libre.spr.setRotation(az(0, 6.28));
       libre.spr.setVisible(true);
       return;
+    }
+  }
+
+  // ═══════════════════════════════════════════════ DESTELLOS, HUELLAS, VAHO
+  function texturaDibujada(scene, clave, W, H, pintar) {
+    if (scene.textures.exists(clave)) return retenerTextura(scene, clave);
+    try {
+      var cv = document.createElement('canvas');
+      cv.width = W; cv.height = H;
+      var c = cv.getContext('2d');
+      if (!c) return null;
+      pintar(c, W, H);
+      scene.textures.addCanvas(clave, cv);
+      return retenerTextura(scene, clave, true);
+    } catch (e) { return null; }
+  }
+
+  function texturaDestello(scene) {
+    return texturaDibujada(scene, 'gfn_destello', 9, 9, function (c) {
+      // Una estrella de cuatro puntas: el brillo de un cristal de hielo.
+      c.fillStyle = 'rgba(255,255,255,1)';
+      c.fillRect(4, 4, 1, 1);
+      for (var k = 1; k <= 4; k++) {
+        c.fillStyle = 'rgba(235,246,255,' + (1 - k * 0.22).toFixed(2) + ')';
+        c.fillRect(4 - k, 4, 1, 1); c.fillRect(4 + k, 4, 1, 1);
+        c.fillRect(4, 4 - k, 1, 1); c.fillRect(4, 4 + k, 1, 1);
+      }
+      c.fillStyle = 'rgba(220,238,255,0.35)';
+      c.fillRect(3, 3, 1, 1); c.fillRect(5, 3, 1, 1); c.fillRect(3, 5, 1, 1); c.fillRect(5, 5, 1, 1);
+    });
+  }
+
+  function texturaHuella(scene) {
+    return texturaDibujada(scene, 'gfn_huella', 8, 13, function (c) {
+      // La suela y el tacón, hundidos: azul de sombra con el centro más claro.
+      c.fillStyle = 'rgba(118,144,186,0.62)';
+      c.beginPath(); c.ellipse(4, 4.2, 3, 3.9, 0, 0, 6.284); c.fill();
+      c.beginPath(); c.ellipse(4, 10.4, 2.4, 2.2, 0, 0, 6.284); c.fill();
+      c.fillStyle = 'rgba(176,198,232,0.45)';
+      c.beginPath(); c.ellipse(4, 4.6, 1.8, 2.4, 0, 0, 6.284); c.fill();
+      c.beginPath(); c.ellipse(4, 10.6, 1.3, 1.1, 0, 0, 6.284); c.fill();
+    });
+  }
+
+  function texturaVaho(scene) {
+    return texturaDibujada(scene, 'gfn_vaho', 24, 24, function (c, W) {
+      var g = c.createRadialGradient(W / 2, W / 2, 0, W / 2, W / 2, W / 2);
+      g.addColorStop(0, 'rgba(255,255,255,0.75)');
+      g.addColorStop(0.5, 'rgba(245,250,255,0.35)');
+      g.addColorStop(1, 'rgba(240,248,255,0)');
+      c.fillStyle = g;
+      c.fillRect(0, 0, W, W);
+    });
+  }
+
+  function imagenNieve(scene, clave, prof) {
+    var s = scene.add.image(0, 0, clave);
+    s.setDepth(prof); s.setAlpha(0); s.setVisible(false);
+    if (s.disableInteractive) s.disableInteractive();
+    return s;
+  }
+
+  function prepararDetalles(st) {
+    var scene = st.scene;
+    var D = { destellos: [], huellas: [], vahos: [], proxVaho: 0, ultimaHuella: null, pie: 1, iHuella: 0 };
+    var cd = texturaDestello(scene), ch = texturaHuella(scene), cv = texturaVaho(scene);
+    var i, s;
+    if (cd) for (i = 0; i < N_DESTELLOS; i++) {
+      s = imagenNieve(scene, cd, PROF_MANCHA + 0.2);
+      if (s.setBlendMode && window.Phaser && Phaser.BlendModes) s.setBlendMode(Phaser.BlendModes.ADD);
+      D.destellos.push({ spr: s, vida: 1, dura: 1, esc: 1 });
+    }
+    if (ch) for (i = 0; i < N_HUELLAS; i++) D.huellas.push({ spr: imagenNieve(scene, ch, PROF_HUELLA), nace: 0 });
+    if (cv) for (i = 0; i < N_VAHOS; i++) D.vahos.push({ spr: imagenNieve(scene, cv, 3), vida: 1, x: 0, y: 0, dir: 1 });
+    return D;
+  }
+
+  /** Un sitio nevado A LA VISTA: la cresta de una capa, o dentro de una mancha. */
+  function sitioNevado(st, vista) {
+    for (var intento = 0; intento < 6; intento++) {
+      if (Math.random() < 0.65 && st.capas.length) {
+        var d = st.capas[Math.floor(Math.random() * st.capas.length)];
+        if (!d.spr || !d.spr.visible) continue;
+        var pts = puntosCapa['gfn_capa_' + d.clave];
+        if (!pts || !pts.length) continue;
+        var p = pts[Math.floor(Math.random() * pts.length)];
+        var u = d.spr.flipX ? 1 - p.u : p.u;
+        var x = d.spr.x - d.spr.displayWidth * d.spr.originX + u * d.spr.displayWidth;
+        var y = d.spr.y - d.spr.displayHeight * d.spr.originY + p.v * d.spr.displayHeight + az(0, 3);
+        if (vista && !vista.contains(x, y)) continue;
+        return { x: x, y: y, prof: d.spr.depth + 0.05 };
+      }
+      var vivas = st.manchas.filter(function (m) { return m.viva; });
+      if (!vivas.length) continue;
+      var m = vivas[Math.floor(Math.random() * vivas.length)];
+      var mx = m.spr.x + az(-0.3, 0.3) * m.spr.displayWidth;
+      var my = m.spr.y + az(-0.25, 0.25) * m.spr.displayHeight;
+      if (vista && !vista.contains(mx, my)) continue;
+      return { x: mx, y: my, prof: PROF_MANCHA + 0.2 };
+    }
+    return null;
+  }
+
+  function moverDetalles(st, ahora, delta, l) {
+    var scene = st.scene, p = scene.player;
+    if (!st.detalles) st.detalles = prepararDetalles(st);
+    var D = st.detalles, i, t;
+    var vista = scene.cameras && scene.cameras.main ? scene.cameras.main.worldView : null;
+
+    /* DESTELLOS: solo con luz (de noche la nieve no brilla) y con el manto
+       ya puesto. Cuantos más, más luz y más nieve. */
+    var ritmo = (st.manto > 0.3 && l > 0.35) ? 14 * st.manto * l : 0;
+    var nuevos = ritmo * delta / 1000;
+    for (i = 0; i < D.destellos.length; i++) {
+      var de = D.destellos[i];
+      if (de.vida >= 1) {
+        if (nuevos > 0 && Math.random() < nuevos) {
+          var sitio = sitioNevado(st, vista);
+          if (sitio) {
+            nuevos -= 1;
+            de.vida = 0; de.dura = az(DESTELLO_MS[0], DESTELLO_MS[1]); de.esc = az(0.6, 1.25);
+            de.spr.setPosition(sitio.x, sitio.y).setDepth(sitio.prof).setRotation(az(-0.3, 0.3)).setVisible(true);
+            continue;
+          }
+        }
+        if (de.spr.visible) de.spr.setVisible(false);
+        continue;
+      }
+      de.vida += delta / de.dura;
+      var brillo = Math.sin(Math.PI * Math.min(1, de.vida));
+      de.spr.setScale(de.esc * (0.3 + 0.7 * brillo));
+      de.spr.setAlpha(brillo * 0.95 * l);
+    }
+
+    /* HUELLAS: una pisada cada HUELLA_PASO px andados, alternando pie, a
+       los dos lados de la línea de marcha. Un salto grande (teletransporte,
+       cambio de mapa) no deja un rastro de pisadas en el aire. */
+    if (p && st.manto > 0.25 && !scene._cambiandoEscena && D.huellas.length) {
+      var pie = { x: p.x, y: p.y + 45 };
+      if (!D.ultimaHuella) D.ultimaHuella = pie;
+      var dx = pie.x - D.ultimaHuella.x, dy = pie.y - D.ultimaHuella.y;
+      var dist = Math.hypot(dx, dy);
+      if (dist > 200) D.ultimaHuella = pie;
+      else if (dist >= HUELLA_PASO) {
+        var ang = Math.atan2(dy, dx);
+        var off = D.pie * 5;
+        var hx = pie.x - Math.sin(ang) * off, hy = pie.y + Math.cos(ang) * off;
+        if (sueloLibre(scene, hx, hy)) {
+          var hu = D.huellas[D.iHuella % D.huellas.length];
+          D.iHuella++;
+          hu.nace = ahora;
+          hu.spr.setPosition(hx, hy).setRotation(ang + Math.PI / 2).setScale(1.4).setVisible(true);
+        }
+        D.pie = -D.pie;
+        D.ultimaHuella = pie;
+      }
+    }
+    for (i = 0; i < D.huellas.length; i++) {
+      var h = D.huellas[i];
+      if (!h.nace) continue;
+      t = (ahora - h.nace) / HUELLA_MS;
+      if (t >= 1 || st.manto <= 0.05) { h.nace = 0; h.spr.setVisible(false); continue; }
+      h.spr.setAlpha((1 - t) * Math.min(1, st.manto * 1.4) * (0.45 + 0.4 * l));
+    }
+
+    /* VAHO: con el frío puesto, cada par de segundos una nubecita delante
+       de la cara, hacia donde mira. Se ve también de noche. */
+    if (p && st.manto > 0.15 && D.vahos.length && ahora >= D.proxVaho) {
+      D.proxVaho = ahora + az(VAHO_CADA[0], VAHO_CADA[1]);
+      for (i = 0; i < D.vahos.length; i++) {
+        var v = D.vahos[i];
+        if (v.vida < 1) continue;
+        v.dir = scene.lastDirection === 'left' ? -1 : 1;
+        v.x = p.x + v.dir * 12; v.y = p.y - 34; v.vida = 0;
+        v.spr.setVisible(true);
+        break;
+      }
+    }
+    for (i = 0; i < D.vahos.length; i++) {
+      var va = D.vahos[i];
+      if (va.vida >= 1) { if (va.spr.visible) va.spr.setVisible(false); continue; }
+      va.vida += delta / VAHO_MS;
+      var k = Math.min(1, va.vida);
+      va.spr.setPosition(va.x + va.dir * 12 * k, va.y - 10 * k);
+      va.spr.setScale(0.35 + 0.8 * k);
+      va.spr.setDepth((p ? p.depth : 3) + 1);
+      va.spr.setAlpha((1 - k) * 0.5 * (0.6 + 0.4 * l) * Math.min(1, st.manto * 2));
     }
   }
 
@@ -567,11 +806,15 @@
            gf-profundidad copian el giro. */
         d.spr.setRotation(dueno.rotation || 0);
         d.spr.setDisplaySize(dueno.displayWidth, dueno.displayHeight);
+        if (d.spr.setFlip) d.spr.setFlip(!!dueno.flipX, !!dueno.flipY);
         d.spr.setDepth(profundidadDe(dueno));
         d.spr.setAlpha(alfaCapa);
         d.spr.setVisible(st.manto > 0.01 && dueno.visible !== false);
         st.cursor++;
       }
+
+      /* 4. Los detalles: destellos al sol, huellas y vaho. */
+      if (st.manto > 0.01) moverDetalles(st, ahora, delta, l);
     };
     scene.events.on('update', st.onUpdate);
 
@@ -625,6 +868,7 @@
                 candidatos: candidatos, ponerCapa: ponerCapa,
                 brotarMancha: brotarMancha, sueloLibre: sueloLibre,
                 profundidadDe: profundidadDe, nieveMandada: nieveMandada,
+                moverDetalles: moverDetalles, sitioNevado: sitioNevado,
                 CUAJA_MS: CUAJA_MS, DERRITE_MS: DERRITE_MS }
   };
 })();

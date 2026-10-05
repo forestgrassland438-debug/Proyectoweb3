@@ -25,6 +25,7 @@ class CraftingSystem {
       { id: 'tools',       name: 'Axes',      icon: '🛠️' },
       { id: 'consumables', name: 'Pickaxes',  icon: '🛠️' },
       { id: 'resources',   name: 'Extras',    icon: '📦' },
+      { id: 'chests',      name: 'Chests',    icon: '🗃️' },
     ];
     this.currentCategory = 'all';
     this.searchTerm = '';
@@ -201,6 +202,41 @@ class CraftingSystem {
         resources:[
           {itemId:'mineral_hierro',quantity:3,name:'Iron Ingot',image:'./Game/Source/hierro.png'},
           {itemId:'palo',quantity:1,name:'Wood Stick',image:'./Game/Source/palo.png'}
+        ], optionalResources:null },
+      /* LOS COFRES DE LA ISLA (2026-10-05). El de madera (cofre1, 5
+         casillas) se compra en la tienda; los otros tres solo salen de aquí,
+         cada uno a partir del anterior, y cuestan de verdad: nivel alto,
+         muchos lingotes, pociones grandes y truchas doradas (las más
+         difíciles de pescar). Se colocan en Lands con la barra de construir. */
+      { id:'cofre2', name:'Reinforced Chest', resultItem:'cofre2',
+        resultImage:'./Game/Objetos/cofres/cofre2.png', level:10, category:'chests',
+        description:'An iron-bound chest for your island: 7 slots (the Wooden Chest has 5). Place it in Lands.',
+        resources:[
+          {itemId:'cofre1',quantity:1,name:'Wooden Chest',image:'./Game/Objetos/cofres/cofre1.png'},
+          {itemId:'tablon_de_madera',quantity:20,name:'Wood Plank',image:'./Game/Source/madera.png'},
+          {itemId:'mineral_hierro',quantity:8,name:'Iron Ingot',image:'./Game/Source/hierro.png'},
+          {itemId:'palo',quantity:10,name:'Wood Stick',image:'./Game/Source/palo.png'}
+        ], optionalResources:null },
+      { id:'cofre3', name:'Magic Chest', resultItem:'cofre3',
+        resultImage:'./Game/Objetos/cofres/cofre3.png', level:15, category:'chests',
+        description:'A glowing chest with 13 slots, sealed with potions and a golden trout.',
+        resources:[
+          {itemId:'cofre2',quantity:1,name:'Reinforced Chest',image:'./Game/Objetos/cofres/cofre2.png'},
+          {itemId:'mineral_hierro',quantity:25,name:'Iron Ingot',image:'./Game/Source/hierro.png'},
+          {itemId:'mineral_cobre',quantity:25,name:'Copper Ingot',image:'./Game/Source/cobre.png'},
+          {itemId:'pocion_mascota_grande',quantity:3,name:'Great Pet Potion',image:'./Game/Objetos/pociones/pocion_mascota_grande.png'},
+          {itemId:'pes3',quantity:2,name:'Golden Trout',image:'./Game/Objetos/pesca/pes3.png'}
+        ], optionalResources:null },
+      { id:'cofre4', name:'Legendary Chest', resultItem:'cofre4',
+        resultImage:'./Game/Objetos/cofres/cofre4.png', level:20, category:'chests',
+        description:'The finest chest in the land: 20 slots. Forged with an iron sword, elixirs and six golden trout.',
+        resources:[
+          {itemId:'cofre3',quantity:1,name:'Magic Chest',image:'./Game/Objetos/cofres/cofre3.png'},
+          {itemId:'mineral_hierro',quantity:60,name:'Iron Ingot',image:'./Game/Source/hierro.png'},
+          {itemId:'mineral_cobre',quantity:60,name:'Copper Ingot',image:'./Game/Source/cobre.png'},
+          {itemId:'elixir_revivir',quantity:3,name:'Revival Elixir',image:'./Game/Objetos/pociones/elixir_revivir.png'},
+          {itemId:'pes3',quantity:6,name:'Golden Trout',image:'./Game/Objetos/pesca/pes3.png'},
+          {itemId:'espada_hierro',quantity:1,name:'Iron Sword',image:'./Game/Objetos/armas/espada_hierro.png'}
         ], optionalResources:null }
     ];
     this.filteredRecipes = [...this.recipes];
@@ -315,7 +351,7 @@ class CraftingSystem {
     if (!lc) return;
     lc.innerHTML='';
     if (!this.filteredRecipes.length) {
-      lc.innerHTML=`<div class="empty-state">No se encontraron recetas</div>`;
+      lc.innerHTML=`<div class="empty-state">No recipes found</div>`;
       const av=document.getElementById('available-recipes');
       if(av) av.textContent='0';
       return;
@@ -337,9 +373,9 @@ class CraftingSystem {
       <div class="recipe-item-info">
         <h4 class="recipe-item-name">${this._esc(recipe.name)}</h4>
         <div class="recipe-item-meta">
-          <div class="recipe-item-level"><span class="level-badge">⭐</span> Nivel ${this._esc(String(recipe.level))}</div>
+          <div class="recipe-item-level"><span class="level-badge">⭐</span> Level ${this._esc(String(recipe.level))}</div>
           <div class="recipe-item-category">
-            ${recipe.category==='tools'?'🛠️':recipe.category==='consumables'?'🛠️':recipe.category==='resources'?'📦':'🎲'}
+            ${recipe.category==='tools'?'🛠️':recipe.category==='consumables'?'🛠️':recipe.category==='resources'?'📦':recipe.category==='chests'?'🗃️':'🎲'}
           </div>
           <div class="recipe-item-status ${canCraft?'can-craft':'cannot-craft'}">${canCraft?'✅':'❌'}</div>
         </div>
@@ -417,7 +453,7 @@ class CraftingSystem {
     const reqEl=document.getElementById('required-level');
     const catEl=document.getElementById('category-name');
     if(!this.selectedRecipe){
-      if(nameEl) nameEl.textContent='Selecciona una receta';
+      if(nameEl) nameEl.textContent='Select a recipe';
       if(reqEl) reqEl.textContent='0'; if(catEl) catEl.textContent='-'; if(descEl) descEl.textContent='';
       const rl=document.getElementById('resources-list'); if(rl) rl.innerHTML='';
       document.getElementById('optional-resources')?.classList.add('hidden');
@@ -1090,7 +1126,7 @@ class CraftingSystem {
     if(!container) return;
     container.innerHTML='';
     const relevant=this.getRelevantInventoryItems();
-    if(!relevant.length){container.innerHTML=`<div class="empty-state">Sin ítems relevantes</div>`;return;}
+    if(!relevant.length){container.innerHTML=`<div class="empty-state">No relevant items</div>`;return;}
     relevant.forEach(it=>{
       const el=document.createElement('div');
       el.className='inventory-item';
@@ -1127,7 +1163,7 @@ class CraftingSystem {
 
   updateRecipesCount() {
     const el=document.querySelector('.recipes-count');
-    if(el) el.textContent=`${this.filteredRecipes.length} recetas`;
+    if(el) el.textContent=`${this.filteredRecipes.length} recipes`;
   }
 
   // FIX 1: adjuntar listeners aquí (DOM existe)

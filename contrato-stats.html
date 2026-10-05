@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Libro del contrato · Grassland Forest</title>
+<style>
+/* ===========================================================================
+   LIBRO DEL CONTRATO — estadísticas del InvoiceSystem en la cadena
+   ---------------------------------------------------------------------------
+   La misma paleta que admin.html (noche de bosque, musgo, farol y arcilla).
+   SOLO LEE: no hay un solo botón que firme una transacción. La cartera se
+   conecta para saber QUIÉN mira, y la página solo se abre si es el owner o un
+   admin del contrato. Ojo: lo que se ve aquí es público en la cadena; el
+   candado es para que el panel no se lo encuentre cualquiera, no un secreto.
+   =========================================================================== */
+:root {
+  --ink: #0E1512; --surface: #16211C; --surface-2: #1C2A23; --line: #26382E;
+  --text: #E6EDE7; --text-dim: #8A9C90;
+  --moss: #7FB069; --moss-soft: rgba(127,176,105,.14);
+  --lantern: #E0A458; --lantern-soft: rgba(224,164,88,.14);
+  --clay: #C05746; --clay-soft: rgba(192,87,70,.14);
+  --sky: #6FA8C9; --plum: #B48AC9; --sand: #CBB27A;
+  --radius: 10px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --ink: #F1EFE4; --surface: #FBFAF4; --surface-2: #F4F2E7; --line: #DCD8C6;
+    --text: #1B2620; --text-dim: #5F6E64;
+    --moss: #4E7A3C; --moss-soft: rgba(78,122,60,.12);
+    --lantern: #9A6516; --lantern-soft: rgba(154,101,22,.12);
+    --clay: #97392A; --clay-soft: rgba(151,57,42,.10);
+    --sky: #2F6C8F; --plum: #7A4F92; --sand: #8A7134;
+  }
+}
+:root[data-theme="light"] {
+  --ink: #F1EFE4; --surface: #FBFAF4; --surface-2: #F4F2E7; --line: #DCD8C6;
+  --text: #1B2620; --text-dim: #5F6E64;
+  --moss: #4E7A3C; --moss-soft: rgba(78,122,60,.12);
+  --lantern: #9A6516; --lantern-soft: rgba(154,101,22,.12);
+  --clay: #97392A; --clay-soft: rgba(151,57,42,.10);
+  --sky: #2F6C8F; --plum: #7A4F92; --sand: #8A7134;
+}
+:root[data-theme="dark"] {
+  --ink: #0E1512; --surface: #16211C; --surface-2: #1C2A23; --line: #26382E;
+  --text: #E6EDE7; --text-dim: #8A9C90;
+  --moss: #7FB069; --moss-soft: rgba(127,176,105,.14);
+  --lantern: #E0A458; --lantern-soft: rgba(224,164,88,.14);
+  --clay: #C05746; --clay-soft: rgba(192,87,70,.14);
+  --sky: #6FA8C9; --plum: #B48AC9; --sand: #CBB27A;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--ink); color: var(--text);
+  font-family: var(--sans); font-size: 15px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased; overflow-x: hidden;
+}
+h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -.01em; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--moss); outline-offset: 2px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.dim { color: var(--text-dim); }
+.ok { color: var(--moss); } .warn { color: var(--lantern); } .bad { color: var(--clay); }
+[hidden] { display: none !important; }
+
+header.top {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 22px; border-bottom: 1px solid var(--line);
+  background: var(--surface); position: sticky; top: 0; z-index: 20;
+}
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; min-width: 0; }
+.brand h1 { font-size: 16px; }
+.brand .sub { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--text-dim); }
+.chip {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 100%;
+  padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface-2); font-family: var(--mono); font-size: 12.5px;
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--moss); flex: none; }
+.dot.off { background: var(--text-dim); } .dot.warn { background: var(--lantern); }
+
+.btn {
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--text);
+  padding: 8px 14px; border-radius: var(--radius); font-size: 14px;
+  transition: border-color .15s, background .15s;
+}
+.btn:hover { border-color: var(--moss); }
+.btn-primary { background: var(--moss); color: var(--ink); border-color: var(--moss); font-weight: 600; }
+.btn-primary:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-sm { padding: 5px 10px; font-size: 13px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.seg button { border: 0; background: var(--surface-2); padding: 6px 12px; font-size: 13px; color: var(--text-dim); }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.on { background: var(--moss-soft); color: var(--moss); font-weight: 600; }
+
+input.campo {
+  width: 100%; padding: 8px 11px; border-radius: var(--radius);
+  border: 1px solid var(--line); background: var(--surface-2); font-family: var(--mono); font-size: 13px;
+}
+
+.gate { min-height: 74vh; display: grid; place-items: center; padding: 32px 16px; }
+.gate-card {
+  width: min(100%, 520px); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 14px; padding: 30px 26px;
+}
+.gate-card h2 { font-size: 21px; margin-bottom: 6px; }
+.gate-card p { color: var(--text-dim); font-size: 14px; margin: 0 0 18px; }
+.gate-mark { font-size: 38px; line-height: 1; margin-bottom: 14px; }
+.gate-card label { display: block; font-size: 12px; color: var(--text-dim); margin: 0 0 6px; }
+.gate-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+.aviso {
+  margin-top: 16px; padding: 10px 12px; border-radius: var(--radius); font-size: 13.5px;
+  border: 1px solid var(--line); background: var(--surface-2);
+}
+.aviso.bad { border-color: var(--clay); background: var(--clay-soft); color: var(--text); }
+.aviso.warn { border-color: var(--lantern); background: var(--lantern-soft); color: var(--text); }
+
+main { padding: 22px; max-width: 1400px; margin: 0 auto; }
+section { margin-bottom: 30px; }
+.section-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.section-head h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .11em; color: var(--text-dim); margin-right: auto; }
+.nota { font-size: 12.5px; color: var(--text-dim); margin: -4px 0 12px; }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 13px 15px; min-width: 0; }
+.kpi .label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); display: block; margin-bottom: 6px; }
+.kpi .value { font-family: var(--mono); font-size: 23px; font-variant-numeric: tabular-nums; line-height: 1.15; overflow-wrap: anywhere; }
+.kpi .value.small { font-size: 14px; }
+.kpi .foot { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.tabla-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); font-weight: 600; background: var(--surface-2); position: sticky; top: 0; }
+th.num, td.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+tbody tr:hover { background: var(--surface-2); }
+th button.orden { border: 0; background: none; padding: 0; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; }
+.barra { position: relative; height: 6px; width: 90px; background: var(--surface-2); border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; margin-left: 8px; }
+.barra > i { position: absolute; inset: 0 auto 0 0; background: var(--moss); }
+.barra.warn > i { background: var(--lantern); } .barra.bad > i { background: var(--clay); }
+.tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; border: 1px solid var(--line); }
+.tag.ok { border-color: var(--moss); background: var(--moss-soft); }
+.tag.warn { border-color: var(--lantern); background: var(--lantern-soft); }
+.tag.bad { border-color: var(--clay); background: var(--clay-soft); }
+
+.barra-progreso { height: 4px; background: var(--surface-2); border-radius: 2px; overflow: hidden; margin: 8px 0 4px; }
+.barra-progreso > i { display: block; height: 100%; width: 0; background: var(--moss); transition: width .2s; }
+
+.grafica { padding: 14px 14px 10px; }
+.grafica canvas { width: 100%; height: 240px; display: block; }
+.leyenda { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--text-dim); margin-top: 8px; }
+.leyenda span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--c); margin-right: 6px; vertical-align: -1px; }
+
+.dos { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+.buscar { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.buscar .panel { padding: 14px; }
+.buscar h3 { font-size: 14px; margin-bottom: 8px; }
+.fila-campo { display: flex; gap: 8px; }
+.resultado { margin-top: 10px; font-size: 13px; }
+.resultado dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; }
+.resultado dt { color: var(--text-dim); }
+.resultado dd { margin: 0; font-family: var(--mono); overflow-wrap: anywhere; }
+a { color: var(--sky); }
+.copiar { border: 0; background: none; padding: 0; color: var(--sky); font-family: var(--mono); font-size: inherit; text-decoration: underline dotted; }
+
+@media (max-width: 640px) {
+  header.top { padding: 10px 16px; }
+  main { padding: 16px; }
+  .brand .sub { display: none; }
+  .kpi .value { font-size: 19px; }
+  th, td { padding: 7px 9px; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><h1>Libro del contrato</h1><span class="sub">InvoiceSystem · Grassland Forest</span></div>
+  <span class="chip" id="chipRed"><span class="dot off"></span><span id="txtRed">Sin red</span></span>
+  <span class="chip" id="chipCartera"><span class="dot off"></span><span id="txtCartera">Sin conectar</span></span>
+  <button class="btn btn-sm" id="btnRefrescar" type="button" hidden>↻ Actualizar</button>
+</header>
+
+<!-- ── La puerta ─────────────────────────────────────────────────────────── -->
+<div class="gate" id="puerta">
+  <div class="gate-card">
+    <div class="gate-mark" aria-hidden="true">📜</div>
+    <h2>Estadísticas del contrato</h2>
+    <p>Conecta la cartera del <b>owner</b> o de un <b>admin</b> del contrato. La página solo lee la cadena: no pide firmar nada.</p>
+    <label for="inContrato">Dirección del contrato (InvoiceSystem)</label>
+    <input class="campo" id="inContrato" spellcheck="false" autocomplete="off">
+    <div class="gate-actions">
+      <button class="btn btn-primary" id="btnConectar" type="button">Conectar MetaMask</button>
+    </div>
+    <div class="aviso" id="avisoPuerta" hidden></div>
+  </div>
+</div>
+
+<!-- ── El libro ──────────────────────────────────────────────────────────── -->
+<main id="libro" hidden>
+
+  <section>
+    <div class="section-head"><h2>Resumen</h2><span class="dim" id="horaLectura"></span></div>
+    <div class="kpis" id="kpisResumen"></div>
+  </section>
+
+  <section>
+    <div class="section-head"><h2>Cuentas con poder</h2>
+      <button class="btn btn-sm" id="btnHistorial" type="button">Buscar admins en el historial</button>
+    </div>
+    <p class="nota" id="notaHistorial">El owner y tu cartera se comprueban siempre. Los demás admins salen de los eventos AdminAdded / AdminRemoved: pulsa el botón para recorrer el historial (se recuerda lo ya leído).</p>
+    <div class="barra-progreso" id="progHistorial" hidden><i></i></div>
+    <div class="panel tabla-wrap"><table>
+      <thead><tr><th>Cuenta</th><th>Papel</th><th class="num">Saldo (zkLTC)</th><th class="num">Nonce</th><th class="num">En cola</th><th>Estado</th></tr></thead>
+      <tbody id="tbCuentas"></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <div class="section-head"><h2>Tablas (tipos)</h2>
+      <input class="campo" id="filtroTablas" placeholder="Filtrar tabla…" style="max-width:220px">
+      <div class="seg" id="segTablas" role="group" aria-label="Qué tablas">
+        <button type="button" data-v="todas" class="on">Todas</button>
+        <button type="button" data-v="config">Configuradas</button>
+        <button type="button" data-v="alerta">Cerca del límite</button>
+      </div>
+    </div>
+    <p class="nota">Las 52 tablas que usa el juego, más las que aparezcan en los eventos TipoLimitSet leídos. Uso = en circulación ÷ límite.</p>
+    <div class="panel tabla-wrap" style="max-height:560px"><table>
+      <thead><tr>
+        <th><button class="orden" data-orden="nombre" type="button">Tabla</button></th>
+        <th>Estado</th>
+        <th class="num"><button class="orden" data-orden="cantidad" type="button">En circulación</button></th>
+        <th class="num"><button class="orden" data-orden="limite" type="button">Límite</button></th>
+        <th><button class="orden" data-orden="uso" type="button">Uso</button></th>
+        <th class="num">Por factura</th>
+        <th class="num"><button class="orden" data-orden="facturas" type="button">Facturas</button></th>
+        <th class="num"><button class="orden" data-orden="quemado" type="button">Quemado</button></th>
+      </tr></thead>
+      <tbody id="tbTablas"></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <div class="section-head"><h2>Actividad</h2>
+      <div class="seg" id="segVentana" role="group" aria-label="Ventana de tiempo">
+        <button type="button" data-h="1">1 h</button>
+        <button type="button" data-h="24" class="on">24 h</button>
+        <button type="button" data-h="168">7 días</button>
+      </div>
+      <button class="btn btn-sm" id="btnActividad" type="button">Leer actividad</button>
+    </div>
+    <p class="nota" id="notaActividad">Todos los eventos del contrato en la ventana elegida. Las horas son aproximadas (se interpolan entre bloques).</p>
+    <div class="barra-progreso" id="progActividad" hidden><i></i></div>
+    <div class="kpis" id="kpisActividad"></div>
+    <div class="panel grafica" style="margin-top:12px">
+      <canvas id="lienzo" aria-label="Eventos por intervalo de tiempo" role="img"></canvas>
+      <div class="leyenda" id="leyenda"></div>
+    </div>
+    <div class="dos" style="margin-top:14px">
+      <div class="panel tabla-wrap"><table>
+        <thead><tr><th>Cuentas más activas</th><th class="num">Eventos</th></tr></thead>
+        <tbody id="tbTopCuentas"></tbody>
+      </table></div>
+      <div class="panel tabla-wrap"><table>
+        <thead><tr><th>Tablas con más facturas nuevas</th><th class="num">Creadas</th><th class="num">Unidades</th></tr></thead>
+        <tbody id="tbTopTablas"></tbody>
+      </table></div>
+    </div>
+    <div class="dos" style="margin-top:14px">
+      <div class="panel tabla-wrap"><table>
+        <thead><tr><th>Quién paga el gas</th><th class="num">Tx (muestra)</th><th class="num">Gas medio</th><th class="num">Coste</th></tr></thead>
+        <tbody id="tbGas"></tbody>
+      </table></div>
+      <div class="panel tabla-wrap" style="max-height:340px"><table>
+        <thead><tr><th>Bloque</th><th>Evento</th><th>Detalle</th><th>Tx</th></tr></thead>
+        <tbody id="tbUltimos"></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><h2>Buscar</h2></div>
+    <div class="buscar">
+      <div class="panel">
+        <h3>Factura por id</h3>
+        <div class="fila-campo"><input class="campo" id="inFactura" inputmode="numeric" placeholder="123"><button class="btn btn-sm" id="btnFactura" type="button">Ver</button></div>
+        <div class="resultado" id="resFactura"></div>
+      </div>
+      <div class="panel">
+        <h3>Factura por manualId</h3>
+        <div class="fila-campo"><input class="campo" id="inManual" placeholder="parcela#109"><button class="btn btn-sm" id="btnManual" type="button">Ver</button></div>
+        <div class="resultado" id="resManual"></div>
+      </div>
+      <div class="panel">
+        <h3>Inventario de una cartera</h3>
+        <div class="fila-campo"><input class="campo" id="inCartera" placeholder="0x…"><button class="btn btn-sm" id="btnCartera" type="button">Ver</button></div>
+        <div class="resultado" id="resCartera"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="./vendor/ethers.umd.min.js?v=532950515fd2"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ── La red y el contrato (los mismos que gf-wallet-sdk/gf-wallet.js) ──────
+  var RED = {
+    chainId: 4441, chainIdHex: '0x1159', nombre: 'LiteForge',
+    rpc: 'https://liteforge.rpc.caldera.xyz/http',
+    explorador: 'https://liteforge.explorer.caldera.xyz',
+    moneda: { name: 'zkLTC', symbol: 'zkLTC', decimals: 18 }
+  };
+  // La dirección por defecto es la del servidor (ITEM_CONTRACT_ADDRESS). Tras
+  // migrar a un contrato nuevo se escribe aquí la nueva: se recuerda.
+  var CONTRATO_DEFECTO = '0x686E17D89Bf97247fadC04C3A3f0dfD02F914115';
+
+  // Las tablas que usa el juego: ITEM_TIPO_MAP de server2.js + las del servidor.
+  var TABLAS_JUEGO = ["Regaderax","Tijerasx","balde_con_agua","balde_vacio","bolsa de calabazas","bolsa de tomates",
+    "bolsa de trigo","bolsa zanahorias","bolsa_de_fresas","calabaza_buena","calabaza_corta","calabaza_mala","carbon",
+    "elixir_revivir","fresa_buena","fresa_corta","fresa_mala","hacha de cobre","hacha de hierro","hacha de madera",
+    "hacha de piedra","madera con hojas","madera pinos","madera seca","mineral_carbon","mineral_cobre","mineral_hierro",
+    "mineral_piedra","mineral_piedra_cobre","mineral_piedra_hierro","pala_contrucion","palo","parcelas","pico de cobre",
+    "pico de hierro","pico de madera","pico de piedra","pocion_mascota","pocion_mascota_grande","tablon_de_madera",
+    "tomate_buena","tomate_corta","tomate_mala","trigo_buena","trigo_corta","trigo_mala","zanahoria_buena",
+    "zanahoria_corta","zanahoria_mala","nivel","nombre","cons_parcelas"];
+
+  var FACTURA = 'tuple(uint256 id, string manualId, address owner, string tipo, uint256 cantidad, bool active, uint256 createdAt)';
+  var ABI = [
+    'function owner() view returns (address)',
+    'function isAdmin(address) view returns (bool)',
+    'function CONTRACT_VERSION() view returns (uint256)',
+    'function MAX_BATCH_SIZE() view returns (uint256)',
+    'function migrationSealed() view returns (bool)',
+    'function totalInvoicesEver() view returns (uint256)',
+    'function getTipoStats(string) view returns (uint256 totalQuantity, uint256 limit, uint256 perInvoiceLimit, uint256 invoiceCount, uint256 totalBurned, bool exists)',
+    'function getInvoice(uint256) view returns (' + FACTURA + ')',
+    'function getInvoiceByManualIdSafe(string) view returns (' + FACTURA + ' inv, bool found)',
+    'function getInvoiceSlot(uint256) view returns (uint32)',
+    'function getUserInventorySnapshot(address) view returns (' + FACTURA + '[])',
+    'function getUserInventorySnapshotWithSlots(address) view returns (' + FACTURA + '[] result, uint32[] slots)',
+    'event InvoiceCreated(uint256 indexed id, string manualId, address indexed owner, string indexed tipo, uint256 cantidad, uint256 createdAt)',
+    'event InvoiceQuantityIncreased(uint256 indexed id, uint256 increaseAmount, uint256 newCantidad)',
+    'event InvoiceQuantityDecreased(uint256 indexed id, uint256 decreaseAmount, uint256 newCantidad)',
+    'event InvoiceDeleted(uint256 indexed id, string manualId)',
+    'event InvoiceTransferred(uint256 indexed originalId, uint256 newId, address indexed from, address indexed to, uint256 amount)',
+    'event InvoiceQuantityMoved(uint256 indexed fromId, uint256 indexed toId, uint256 amount)',
+    'event TipoLimitSet(string tipo, uint256 limit, uint256 perInvoiceLimit)',
+    'event ManualIdFreed(string manualId)',
+    'event TipoDeprecated(string tipo)',
+    'event AdminAdded(address indexed admin)',
+    'event AdminRemoved(address indexed admin)',
+    'event InvoiceMigrated(uint256 indexed id, address indexed owner, string tipo, uint256 cantidad)',
+    'event MigrationSealed()',
+    'event InvoiceSlotSet(uint256 indexed id, address indexed owner, uint32 slot)',
+    'event OwnershipTransferred(address indexed previousOwner, address indexed newOwner)'
+  ];
+
+  // Cómo se pinta cada evento en la gráfica y en la lista.
+  var EVENTOS = {
+    InvoiceCreated:          { nombre: 'Creada',      color: '--moss' },
+    InvoiceQuantityIncreased:{ nombre: 'Aumentada',   color: '--sky' },
+    InvoiceQuantityDecreased:{ nombre: 'Gastada',     color: '--lantern' },
+    InvoiceDeleted:          { nombre: 'Borrada',     color: '--clay' },
+    InvoiceTransferred:      { nombre: 'Transferida', color: '--plum' },
+    InvoiceQuantityMoved:    { nombre: 'Movida',      color: '--plum' },
+    InvoiceSlotSet:          { nombre: 'Casilla',     color: '--sand' },
+    InvoiceMigrated:         { nombre: 'Migrada',     color: '--sky' },
+    otros:                   { nombre: 'Configuración', color: '--text-dim' }
+  };
+  var CONFIG_EVENTOS = ['AdminAdded', 'AdminRemoved', 'TipoLimitSet', 'TipoDeprecated', 'MigrationSealed', 'OwnershipTransferred'];
+
+  var E = ethers;
+  var iface = new E.Interface(ABI);
+  var ultimaGrafica = null;
+  var lector = null;      // proveedor de lectura (RPC público, o MetaMask si aquel falla)
+  var contrato = null;
+  var direccion = '';
+  var cuenta = '';
+  var estado = { owner: '', admins: new Map(), tablas: [], extraTablas: new Set(), deprecadas: new Set(),
+                 ordenTablas: { campo: 'uso', desc: true }, filtroTablas: 'todas', horas: 24 };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var LS = {
+    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+
+  // ── Formato ───────────────────────────────────────────────────────────────
+  function num(v) {
+    try { return BigInt(v).toLocaleString('es-ES'); } catch (e) { return String(v); }
+  }
+  function corta(a) { a = String(a || ''); return a.length > 12 ? a.slice(0, 6) + '…' + a.slice(-4) : a; }
+  function moneda(wei, dec) {
+    try { return Number(E.formatEther(wei)).toLocaleString('es-ES', { maximumFractionDigits: dec == null ? 4 : dec }); }
+    catch (e) { return '—'; }
+  }
+  function cuando(segundos) {
+    if (!segundos) return '—';
+    try { return new Date(Number(segundos) * 1000).toLocaleString('es-ES'); } catch (e) { return '—'; }
+  }
+  function el(tag, clase, texto) {
+    var n = document.createElement(tag);
+    if (clase) n.className = clase;
+    if (texto != null) n.textContent = texto;
+    return n;
+  }
+  function celda(fila, texto, clase) { var td = el('td', clase || '', texto); fila.appendChild(td); return td; }
+  function enlaceTx(hash) {
+    var a = el('a', 'mono', corta(hash));
+    a.href = RED.explorador + '/tx/' + hash; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    return a;
+  }
+  function enlaceCuenta(addr) {
+    var a = el('a', 'mono', corta(addr));
+    a.href = RED.explorador + '/address/' + addr; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    a.title = addr;
+    return a;
+  }
+  function kpi(cont, label, valor, opts) {
+    opts = opts || {};
+    var k = el('div', 'kpi');
+    k.appendChild(el('span', 'label', label));
+    var v = el('div', 'value' + (opts.clase ? ' ' + opts.clase : ''), valor);
+    k.appendChild(v);
+    if (opts.pie) k.appendChild(el('div', 'foot', opts.pie));
+    cont.appendChild(k);
+    return k;
+  }
+  function aviso(id, texto, tipo) {
+    var a = $(id);
+    if (!texto) { a.hidden = true; return; }
+    a.hidden = false; a.className = 'aviso' + (tipo ? ' ' + tipo : ''); a.textContent = texto;
+  }
+  function progreso(id, frac) {
+    var p = $(id);
+    if (frac == null) { p.hidden = true; return; }
+    p.hidden = false; p.firstElementChild.style.width = Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%';
+  }
+  function chip(id, txtId, texto, tipo) {
+    $(txtId).textContent = texto;
+    $(id).querySelector('.dot').className = 'dot' + (tipo === 'ok' ? '' : ' ' + (tipo || 'off'));
+  }
+
+  /** Varias promesas a la vez, pero no más de `n` en vuelo (el RPC lo agradece). */
+  async function enTandas(lista, n, fn) {
+    var out = new Array(lista.length), i = 0;
+    async function obrero() {
+      while (i < lista.length) { var k = i++; try { out[k] = await fn(lista[k], k); } catch (e) { out[k] = { error: e }; } }
+    }
+    var obreros = [];
+    for (var j = 0; j < Math.min(n, lista.length); j++) obreros.push(obrero());
+    await Promise.all(obreros);
+    return out;
+  }
+  async function intenta(fn, porDefecto) { try { return await fn(); } catch (e) { return porDefecto; } }
+
+  // ── Conectar ──────────────────────────────────────────────────────────────
+  $('inContrato').value = LS.get('gf-contrato-stats:contrato') || CONTRATO_DEFECTO;
+
+  async function asegurarRed() {
+    var eth = window.ethereum;
+    var actual = await eth.request({ method: 'eth_chainId' });
+    if (String(actual).toLowerCase() === RED.chainIdHex) return true;
+    try {
+      await eth.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: RED.chainIdHex }] });
+      return true;
+    } catch (e) {
+      if (e && (e.code === 4902 || /Unrecognized chain/i.test(e.message || ''))) {
+        await eth.request({ method: 'wallet_addEthereumChain', params: [{
+          chainId: RED.chainIdHex, chainName: RED.nombre, rpcUrls: [RED.rpc],
+          blockExplorerUrls: [RED.explorador], nativeCurrency: RED.moneda }] });
+        return true;
+      }
+      // Sin cambiar de red se puede leer igual (las lecturas van por el RPC
+      // público); solo se avisa.
+      return false;
+    }
+  }
+
+  async function prepararLector() {
+    var rpc = new E.JsonRpcProvider(RED.rpc, RED.chainId, { staticNetwork: true });
+    try { await rpc.getBlockNumber(); return rpc; }
+    catch (e) {
+      // El RPC público no contesta (CORS, caída): se lee a través de MetaMask.
+      var mm = new E.BrowserProvider(window.ethereum);
+      var red = await mm.getNetwork();
+      if (Number(red.chainId) !== RED.chainId) throw new Error('El RPC público no responde y MetaMask no está en la red ' + RED.nombre + '.');
+      return mm;
+    }
+  }
+
+  async function conectar() {
+    aviso('avisoPuerta', '');
+    if (!window.ethereum) { aviso('avisoPuerta', 'No se encuentra MetaMask en este navegador.', 'bad'); return; }
+    var dir = $('inContrato').value.trim();
+    if (!E.isAddress(dir)) { aviso('avisoPuerta', 'La dirección del contrato no es válida.', 'bad'); return; }
+    direccion = E.getAddress(dir);
+    LS.set('gf-contrato-stats:contrato', direccion);
+    $('btnConectar').disabled = true;
+    $('btnConectar').textContent = 'Conectando…';
+    try {
+      var cuentas = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      if (!cuentas || !cuentas.length) throw new Error('MetaMask no ha dado ninguna cuenta.');
+      cuenta = E.getAddress(cuentas[0]);
+      chip('chipCartera', 'txtCartera', corta(cuenta), 'warn');
+      var enRed = await asegurarRed();
+      chip('chipRed', 'txtRed', enRed ? RED.nombre : 'Otra red (solo lectura por RPC)', enRed ? 'ok' : 'warn');
+      lector = await prepararLector();
+      if ((await lector.getCode(direccion)) === '0x') throw new Error('En esa dirección no hay ningún contrato en ' + RED.nombre + '.');
+      contrato = new E.Contract(direccion, ABI, lector);
+      estado.owner = E.getAddress(await contrato.owner());
+      var esOwner = estado.owner === cuenta;
+      var esAdmin = esOwner || await intenta(function () { return contrato.isAdmin(cuenta); }, false);
+      if (!esAdmin) {
+        chip('chipCartera', 'txtCartera', corta(cuenta) + ' · sin permiso', 'bad');
+        aviso('avisoPuerta', 'Esta cartera no es el owner ni un admin del contrato. Cambia de cuenta en MetaMask y vuelve a conectar.', 'bad');
+        return;
+      }
+      chip('chipCartera', 'txtCartera', corta(cuenta) + (esOwner ? ' · owner' : ' · admin'), 'ok');
+      $('puerta').hidden = true;
+      $('libro').hidden = false;
+      $('btnRefrescar').hidden = false;
+      cargarHistorialGuardado();
+      await cargarTodo();
+    } catch (e) {
+      aviso('avisoPuerta', (e && (e.shortMessage || e.message)) || 'No se pudo conectar.', 'bad');
+    } finally {
+      $('btnConectar').disabled = false;
+      $('btnConectar').textContent = 'Conectar MetaMask';
+    }
+  }
+
+  async function cargarTodo() {
+    $('horaLectura').textContent = 'Leído ' + new Date().toLocaleTimeString('es-ES');
+    await cargarResumenYTablas();
+    await pintarCuentas();
+  }
+
+  // ── Resumen y tablas ──────────────────────────────────────────────────────
+  async function cargarResumenYTablas() {
+    var r = await Promise.all([
+      intenta(function () { return contrato.CONTRACT_VERSION(); }, null),
+      intenta(function () { return contrato.totalInvoicesEver(); }, null),
+      intenta(function () { return contrato.migrationSealed(); }, null),
+      intenta(function () { return contrato.MAX_BATCH_SIZE(); }, null),
+      lector.getBlock('latest')
+    ]);
+    var version = r[0], total = r[1], sellada = r[2], lote = r[3], bloque = r[4];
+
+    var nombres = new Set(TABLAS_JUEGO);
+    estado.extraTablas.forEach(function (t) { nombres.add(t); });
+    var lista = Array.from(nombres);
+    var stats = await enTandas(lista, 8, function (t) { return contrato.getTipoStats(t); });
+    estado.tablas = lista.map(function (t, i) {
+      var s = stats[i];
+      if (!s || s.error) return { nombre: t, error: true };
+      return { nombre: t, cantidad: s.totalQuantity, limite: s.limit, porFactura: s.perInvoiceLimit,
+               facturas: s.invoiceCount, quemado: s.totalBurned, existe: s.exists };
+    });
+
+    var config = estado.tablas.filter(function (t) { return t.existe; });
+    var suma = function (campo) { return config.reduce(function (a, t) { return a + BigInt(t[campo] || 0); }, 0n); };
+    var alerta = estado.tablas.filter(function (t) { return t.existe && usoDe(t) >= 0.8; }).length;
+
+    var K = $('kpisResumen'); K.textContent = '';
+    kpi(K, 'Versión', version == null ? 'v2 o anterior' : 'v' + version, { clase: version == null ? 'small' : '' });
+    kpi(K, 'Facturas emitidas', total == null ? '—' : num(total), { pie: total == null ? 'el contrato no lo expone' : 'id más alto' });
+    kpi(K, 'Facturas activas', num(suma('facturas')), { pie: 'suma de las tablas' });
+    kpi(K, 'Unidades en circulación', num(suma('cantidad')));
+    kpi(K, 'Unidades quemadas', num(suma('quemado')), { pie: 'gastadas o borradas' });
+    kpi(K, 'Tablas configuradas', config.length + ' / ' + estado.tablas.length,
+        { pie: alerta ? alerta + ' cerca del límite (≥ 80 %)' : 'ninguna cerca del límite', clase: alerta ? 'warn' : '' });
+    kpi(K, 'Migración', sellada == null ? '—' : (sellada ? 'Sellada' : 'Abierta'),
+        { clase: sellada === false ? 'warn' : '', pie: sellada === false ? 'sella al terminar (sealMigration)' : '' });
+    kpi(K, 'Bloque', num(bloque.number), { pie: cuando(bloque.timestamp) + (lote != null ? ' · lote máx. ' + lote : '') });
+    var kOwner = kpi(K, 'Owner', '', { clase: 'small' });
+    kOwner.querySelector('.value').appendChild(enlaceCuenta(estado.owner));
+    var kContrato = kpi(K, 'Contrato', '', { clase: 'small' });
+    kContrato.querySelector('.value').appendChild(enlaceCuenta(direccion));
+
+    pintarTablas();
+  }
+
+  function usoDe(t) {
+    if (!t.existe || !t.limite || BigInt(t.limite) === 0n) return 0;
+    return Number(BigInt(t.cantidad) * 100000n / BigInt(t.limite)) / 100000;
+  }
+
+  function pintarTablas() {
+    var tb = $('tbTablas'); tb.textContent = '';
+    var q = $('filtroTablas').value.trim().toLowerCase();
+    var f = estado.filtroTablas;
+    var o = estado.ordenTablas;
+    var filas = estado.tablas.filter(function (t) {
+      if (q && t.nombre.toLowerCase().indexOf(q) < 0) return false;
+      if (f === 'config' && !t.existe) return false;
+      if (f === 'alerta' && !(t.existe && usoDe(t) >= 0.8)) return false;
+      return true;
+    });
+    var val = function (t) {
+      if (o.campo === 'nombre') return t.nombre.toLowerCase();
+      if (o.campo === 'uso') return usoDe(t);
+      return t.error ? -1 : Number(t[o.campo] || 0);
+    };
+    filas.sort(function (a, b) {
+      var x = val(a), y = val(b);
+      var r = x < y ? -1 : x > y ? 1 : 0;
+      return o.desc ? -r : r;
+    });
+    filas.forEach(function (t) {
+      var tr = el('tr');
+      celda(tr, t.nombre, 'mono');
+      var est = celda(tr, '');
+      if (t.error) est.appendChild(el('span', 'tag bad', 'error al leer'));
+      else if (t.existe) est.appendChild(el('span', 'tag ok', 'activa'));
+      else if (estado.deprecadas.has(t.nombre)) est.appendChild(el('span', 'tag warn', 'deprecada'));
+      else est.appendChild(el('span', 'tag', 'sin configurar'));
+      if (t.error) { for (var i = 0; i < 6; i++) celda(tr, '—', 'num'); tb.appendChild(tr); return; }
+      celda(tr, num(t.cantidad), 'num');
+      celda(tr, t.existe ? num(t.limite) : '—', 'num');
+      var u = usoDe(t);
+      var tdUso = celda(tr, t.existe ? (u * 100).toLocaleString('es-ES', { maximumFractionDigits: u < 0.01 ? 4 : 1 }) + ' %' : '—', 'mono');
+      if (t.existe) {
+        var b = el('span', 'barra' + (u >= 0.95 ? ' bad' : u >= 0.8 ? ' warn' : ''));
+        var i2 = el('i'); i2.style.width = Math.min(100, u * 100) + '%'; b.appendChild(i2); tdUso.appendChild(b);
+      }
+      celda(tr, t.existe ? num(t.porFactura) : '—', 'num');
+      celda(tr, num(t.facturas), 'num');
+      celda(tr, num(t.quemado), 'num');
+      tb.appendChild(tr);
+    });
+    if (!filas.length) { var tr = el('tr'); var td = celda(tr, 'Ninguna tabla con ese filtro.', 'dim'); td.colSpan = 8; tb.appendChild(tr); }
+  }
+
+  // ── Cuentas con poder ─────────────────────────────────────────────────────
+  async function pintarCuentas() {
+    var set = new Map();
+    set.set(estado.owner, 'owner');
+    estado.admins.forEach(function (v, a) { if (!set.has(a)) set.set(a, 'admin (historial)'); });
+    if (!set.has(cuenta)) set.set(cuenta, 'tu cartera');
+    var lista = Array.from(set.keys());
+    var datos = await enTandas(lista, 4, async function (a) {
+      var r = await Promise.all([
+        a === estado.owner ? true : intenta(function () { return contrato.isAdmin(a); }, null),
+        intenta(function () { return lector.getBalance(a); }, null),
+        intenta(function () { return lector.getTransactionCount(a, 'latest'); }, null),
+        intenta(function () { return lector.getTransactionCount(a, 'pending'); }, null)
+      ]);
+      return { admin: r[0], saldo: r[1], nonce: r[2], pend: r[3] };
+    });
+    var tb = $('tbCuentas'); tb.textContent = '';
+    lista.forEach(function (a, i) {
+      var d = datos[i] || {};
+      var tr = el('tr');
+      var c = celda(tr, ''); c.appendChild(enlaceCuenta(a));
+      if (a === cuenta) c.appendChild(el('span', 'dim', ' (tú)'));
+      var papel = a === estado.owner ? 'Owner' : (d.admin ? 'Admin' : (set.get(a) === 'tu cartera' ? '—' : 'Admin retirado'));
+      celda(tr, papel);
+      celda(tr, d.saldo == null ? '—' : moneda(d.saldo), 'num');
+      celda(tr, d.nonce == null ? '—' : num(d.nonce), 'num');
+      var enCola = (d.pend != null && d.nonce != null) ? d.pend - d.nonce : null;
+      celda(tr, enCola == null ? '—' : String(enCola), 'num' + (enCola > 0 ? ' warn' : ''));
+      var est = celda(tr, '');
+      var saldoBajo = d.saldo != null && d.saldo < E.parseEther('0.01');
+      if (!d.admin && a !== estado.owner) est.appendChild(el('span', 'tag', 'sin permiso'));
+      else if (saldoBajo) est.appendChild(el('span', 'tag bad', 'poco saldo para gas'));
+      else if (enCola > 0) est.appendChild(el('span', 'tag warn', enCola + ' tx esperando'));
+      else est.appendChild(el('span', 'tag ok', 'bien'));
+      tb.appendChild(tr);
+    });
+  }
+
+  // ── Lectura de eventos por trozos ─────────────────────────────────────────
+  /* Los RPC limitan el rango de eth_getLogs. Se empieza con trozos grandes y,
+     si el nodo se queja, se parten por la mitad (hasta 250 bloques). */
+  async function leerEventos(desde, hasta, topics, alProgreso, tope) {
+    var salida = [];
+    var paso = 20000;
+    var b = desde;
+    while (b <= hasta) {
+      var fin = Math.min(hasta, b + paso - 1);
+      try {
+        var logs = await lector.getLogs({ address: direccion, fromBlock: b, toBlock: fin, topics: topics || undefined });
+        for (var i = 0; i < logs.length; i++) salida.push(logs[i]);
+        b = fin + 1;
+        if (paso < 20000 && logs.length < 2000) paso = Math.min(20000, paso * 2);
+        if (alProgreso) alProgreso((b - desde) / Math.max(1, hasta - desde + 1));
+        if (tope && salida.length >= tope) return { logs: salida, cortado: true, hasta: fin };
+      } catch (e) {
+        if (paso <= 250) throw e;
+        paso = Math.max(250, Math.floor(paso / 2));
+      }
+    }
+    return { logs: salida, cortado: false, hasta: hasta };
+  }
+
+  function parsear(log) {
+    try { var p = iface.parseLog(log); return p ? { nombre: p.name, args: p.args, log: log } : null; }
+    catch (e) { return null; }
+  }
+
+  // ── El historial de configuración (admins, tablas, migración) ────────────
+  /* Se recuerda en el navegador hasta qué bloque se ha leído: la segunda vez
+     solo se pide lo nuevo. El primer bloque con código se busca por bisección
+     (getCode por bloque); si el nodo no guarda historia, se empieza 500.000
+     bloques atrás y se dice. */
+  function claveHistorial() { return 'gf-contrato-stats:hist:' + direccion.toLowerCase(); }
+
+  function cargarHistorialGuardado() {
+    estado.admins = new Map(); estado.extraTablas = new Set(); estado.deprecadas = new Set();
+    var h = null;
+    try { h = JSON.parse(LS.get(claveHistorial()) || 'null'); } catch (e) { h = null; }
+    if (!h) return null;
+    (h.admins || []).forEach(function (a) { estado.admins.set(a, true); });
+    (h.tablas || []).forEach(function (t) { estado.extraTablas.add(t); });
+    (h.deprecadas || []).forEach(function (t) { estado.deprecadas.add(t); });
+    $('notaHistorial').textContent = 'Historial leído hasta el bloque ' + num(h.hasta) + '. Pulsa el botón para leer lo nuevo.';
+    return h;
+  }
+
+  async function primerBloque(ultimo) {
+    var lo = 0, hi = ultimo;
+    if ((await lector.getCode(direccion, 0).catch(function () { return null; })) === null) return null;
+    while (lo < hi) {
+      var mid = Math.floor((lo + hi) / 2);
+      var code = await lector.getCode(direccion, mid);
+      if (code && code !== '0x') hi = mid; else lo = mid + 1;
+    }
+    return lo;
+  }
+
+  async function leerHistorial() {
+    var btn = $('btnHistorial'); btn.disabled = true;
+    try {
+      var h = cargarHistorialGuardado() || {};
+      var ultimo = await lector.getBlockNumber();
+      var desde = h.hasta ? h.hasta + 1 : null;
+      var nota = '';
+      if (desde == null) {
+        $('notaHistorial').textContent = 'Buscando el bloque en el que se desplegó el contrato…';
+        var pb = await intenta(function () { return primerBloque(ultimo); }, null);
+        if (pb == null) { desde = Math.max(0, ultimo - 500000); nota = ' (el nodo no guarda historia: se leen los últimos 500.000 bloques)'; }
+        else desde = pb;
+      }
+      if (desde > ultimo) { $('notaHistorial').textContent = 'El historial ya está al día (bloque ' + num(ultimo) + ').'; await pintarCuentas(); return; }
+      var temas = [CONFIG_EVENTOS.map(function (n) { return iface.getEvent(n).topicHash; })];
+      $('notaHistorial').textContent = 'Leyendo eventos de configuración desde el bloque ' + num(desde) + nota + '…';
+      var r = await leerEventos(desde, ultimo, temas, function (f) { progreso('progHistorial', f); });
+      var admins = new Map(estado.admins);
+      r.logs.map(parsear).filter(Boolean).forEach(function (ev) {
+        if (ev.nombre === 'AdminAdded') admins.set(E.getAddress(ev.args.admin), true);
+        if (ev.nombre === 'AdminRemoved') admins.set(E.getAddress(ev.args.admin), false);
+        if (ev.nombre === 'TipoLimitSet') { estado.extraTablas.add(String(ev.args.tipo)); estado.deprecadas.delete(String(ev.args.tipo)); }
+        if (ev.nombre === 'TipoDeprecated') estado.deprecadas.add(String(ev.args.tipo));
+      });
+      estado.admins = admins;
+      var guardar = {
+        hasta: ultimo,
+        admins: Array.from(admins.keys()),
+        tablas: Array.from(estado.extraTablas),
+        deprecadas: Array.from(estado.deprecadas)
+      };
+      LS.set(claveHistorial(), JSON.stringify(guardar));
+      $('notaHistorial').textContent = 'Historial leído hasta el bloque ' + num(ultimo) + nota + ': ' + r.logs.length +
+        ' eventos de configuración, ' + admins.size + ' cuentas que alguna vez fueron admin.';
+      progreso('progHistorial', null);
+      await cargarResumenYTablas();
+      await pintarCuentas();
+    } catch (e) {
+      progreso('progHistorial', null);
+      $('notaHistorial').textContent = 'No se pudo leer el historial: ' + ((e && (e.shortMessage || e.message)) || e);
+    } finally { btn.disabled = false; }
+  }
+
+  // ── La actividad ──────────────────────────────────────────────────────────
+  async function leerActividad() {
+    var btn = $('btnActividad'); btn.disabled = true;
+    var K = $('kpisActividad'); K.textContent = '';
+    try {
+      var ultimoN = await lector.getBlockNumber();
+      var ultimo = await lector.getBlock(ultimoN);
+      // Tiempo de bloque medido sobre los últimos 2.000 bloques.
+      var muestraN = Math.max(0, ultimoN - 2000);
+      var muestra = await lector.getBlock(muestraN);
+      var tBloque = Math.max(0.05, (ultimo.timestamp - muestra.timestamp) / Math.max(1, ultimoN - muestraN));
+      var segundos = estado.horas * 3600;
+      var desdeN = Math.max(0, ultimoN - Math.ceil(segundos / tBloque));
+      var desde = await lector.getBlock(desdeN);
+      $('notaActividad').textContent = 'Leyendo ' + num(ultimoN - desdeN + 1) + ' bloques (≈ ' + tBloque.toFixed(2) + ' s por bloque)…';
+      var r = await leerEventos(desdeN, ultimoN, null, function (f) { progreso('progActividad', f); }, 60000);
+      progreso('progActividad', null);
+
+      var t0 = desde.timestamp, t1 = ultimo.timestamp;
+      var hora = function (bn) {
+        if (ultimoN === desdeN) return t1;
+        return t0 + (t1 - t0) * (bn - desdeN) / (ultimoN - desdeN);
+      };
+      var eventos = r.logs.map(parsear).filter(Boolean);
+
+      // Nombre de cada tabla por su hash (InvoiceCreated lleva `tipo` indexado).
+      var porHash = new Map();
+      TABLAS_JUEGO.concat(Array.from(estado.extraTablas)).forEach(function (t) { porHash.set(E.id(t), t); });
+
+      var conteo = {}, cuentas = new Map(), tablas = new Map(), txs = new Set();
+      eventos.forEach(function (ev) {
+        var k = EVENTOS[ev.nombre] ? ev.nombre : 'otros';
+        conteo[k] = (conteo[k] || 0) + 1;
+        txs.add(ev.log.transactionHash);
+        var quien = ev.args && (ev.args.owner || ev.args.from || null);
+        if (quien) { quien = E.getAddress(quien); cuentas.set(quien, (cuentas.get(quien) || 0) + 1); }
+        if (ev.nombre === 'InvoiceCreated') {
+          var tHash = ev.log.topics[3];
+          var nom = porHash.get(tHash) || ('tabla ' + corta(tHash));
+          var t = tablas.get(nom) || { n: 0, u: 0n };
+          t.n++; t.u += BigInt(ev.args.cantidad); tablas.set(nom, t);
+        }
+      });
+
+      // KPIs
+      var minutos = Math.max(1, (t1 - t0) / 60);
+      kpi(K, 'Eventos', num(eventos.length), { pie: r.cortado ? 'cortado a 60.000: ventana demasiado grande' : '≈ ' + (eventos.length / minutos).toFixed(2) + ' por minuto' });
+      kpi(K, 'Transacciones', num(txs.size));
+      ['InvoiceCreated', 'InvoiceQuantityDecreased', 'InvoiceQuantityIncreased', 'InvoiceTransferred', 'InvoiceDeleted', 'InvoiceSlotSet'].forEach(function (n) {
+        kpi(K, EVENTOS[n].nombre + 's', num(conteo[n] || 0));
+      });
+
+      // La gráfica: intervalos de 5 min (1 h), 1 h (24 h) o 6 h (7 días).
+      var cubo = estado.horas <= 1 ? 300 : estado.horas <= 24 ? 3600 : 21600;
+      var nCubos = Math.max(1, Math.ceil((t1 - t0) / cubo));
+      var series = {};
+      Object.keys(EVENTOS).forEach(function (k) { series[k] = new Array(nCubos).fill(0); });
+      eventos.forEach(function (ev) {
+        var k = EVENTOS[ev.nombre] ? ev.nombre : 'otros';
+        var i = Math.min(nCubos - 1, Math.max(0, Math.floor((hora(ev.log.blockNumber) - t0) / cubo)));
+        series[k][i]++;
+      });
+      var pico = 0, picoI = 0;
+      for (var i = 0; i < nCubos; i++) {
+        var s = 0; Object.keys(series).forEach(function (k) { s += series[k][i]; });
+        if (s > pico) { pico = s; picoI = i; }
+      }
+      kpi(K, 'Pico', num(pico), { pie: pico ? 'hacia las ' + new Date((t0 + picoI * cubo) * 1000).toLocaleString('es-ES', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : 'sin actividad' });
+      ultimaGrafica = [series, nCubos, t0, cubo];
+      dibujar(series, nCubos, t0, cubo);
+
+      // Tops
+      var tb = $('tbTopCuentas'); tb.textContent = '';
+      Array.from(cuentas.entries()).sort(function (a, b) { return b[1] - a[1]; }).slice(0, 10).forEach(function (p) {
+        var tr = el('tr'); var c = celda(tr, ''); c.appendChild(enlaceCuenta(p[0]));
+        if (estado.admins.get(p[0]) || p[0] === estado.owner) c.appendChild(el('span', 'dim', ' (admin)'));
+        celda(tr, num(p[1]), 'num'); tb.appendChild(tr);
+      });
+      if (!cuentas.size) vacio(tb, 2);
+      var tb2 = $('tbTopTablas'); tb2.textContent = '';
+      Array.from(tablas.entries()).sort(function (a, b) { return b[1].n - a[1].n; }).slice(0, 10).forEach(function (p) {
+        var tr = el('tr'); celda(tr, p[0], 'mono'); celda(tr, num(p[1].n), 'num'); celda(tr, num(p[1].u), 'num'); tb2.appendChild(tr);
+      });
+      if (!tablas.size) vacio(tb2, 3);
+
+      // Últimos eventos
+      var tb3 = $('tbUltimos'); tb3.textContent = '';
+      eventos.slice(-60).reverse().forEach(function (ev) {
+        var tr = el('tr');
+        celda(tr, num(ev.log.blockNumber), 'mono');
+        celda(tr, EVENTOS[ev.nombre] ? EVENTOS[ev.nombre].nombre : ev.nombre);
+        celda(tr, detalle(ev, porHash), 'mono');
+        var c = celda(tr, ''); c.appendChild(enlaceTx(ev.log.transactionHash));
+        tb3.appendChild(tr);
+      });
+      if (!eventos.length) vacio(tb3, 4);
+
+      $('notaActividad').textContent = 'Del ' + cuando(t0) + ' al ' + cuando(t1) + ' · bloques ' + num(desdeN) + '–' + num(ultimoN) +
+        '. Las horas son aproximadas (se interpolan entre bloques).';
+
+      await medirGas(Array.from(txs).slice(-40));
+    } catch (e) {
+      progreso('progActividad', null);
+      $('notaActividad').textContent = 'No se pudo leer la actividad: ' + ((e && (e.shortMessage || e.message)) || e);
+    } finally { btn.disabled = false; }
+  }
+
+  function vacio(tb, cols) { var tr = el('tr'); var td = celda(tr, 'Nada en esta ventana.', 'dim'); td.colSpan = cols; tb.appendChild(tr); }
+
+  function detalle(ev, porHash) {
+    var a = ev.args || {};
+    switch (ev.nombre) {
+      case 'InvoiceCreated': return '#' + a.id + ' ' + (porHash.get(ev.log.topics[3]) || '?') + ' ×' + a.cantidad + ' → ' + corta(a.owner);
+      case 'InvoiceQuantityIncreased': return '#' + a.id + ' +' + a.increaseAmount + ' = ' + a.newCantidad;
+      case 'InvoiceQuantityDecreased': return '#' + a.id + ' −' + a.decreaseAmount + ' = ' + a.newCantidad;
+      case 'InvoiceDeleted': return '#' + a.id + ' ' + a.manualId;
+      case 'InvoiceTransferred': return '#' + a.originalId + ' ×' + a.amount + ' ' + corta(a.from) + ' → ' + corta(a.to);
+      case 'InvoiceQuantityMoved': return '#' + a.fromId + ' → #' + a.toId + ' ×' + a.amount;
+      case 'InvoiceSlotSet': return '#' + a.id + ' casilla ' + a.slot;
+      case 'InvoiceMigrated': return '#' + a.id + ' ' + a.tipo + ' ×' + a.cantidad;
+      case 'TipoLimitSet': return a.tipo + ' límite ' + a.limit + ' / ' + a.perInvoiceLimit;
+      case 'TipoDeprecated': return String(a.tipo);
+      case 'AdminAdded': case 'AdminRemoved': return corta(a.admin);
+      case 'ManualIdFreed': return String(a.manualId);
+      default: return '';
+    }
+  }
+
+  async function medirGas(hashes) {
+    var tb = $('tbGas'); tb.textContent = '';
+    if (!hashes.length) { vacio(tb, 4); return; }
+    var recibos = await enTandas(hashes, 6, function (h) { return lector.getTransactionReceipt(h); });
+    var porQuien = new Map();
+    recibos.forEach(function (r) {
+      if (!r || r.error || !r.from) return;
+      var q = E.getAddress(r.from);
+      var d = porQuien.get(q) || { n: 0, gas: 0n, coste: 0n };
+      d.n++; d.gas += BigInt(r.gasUsed); d.coste += BigInt(r.gasUsed) * BigInt(r.gasPrice || r.effectiveGasPrice || 0);
+      porQuien.set(q, d);
+    });
+    Array.from(porQuien.entries()).sort(function (a, b) { return b[1].n - a[1].n; }).forEach(function (p) {
+      var tr = el('tr'); var c = celda(tr, ''); c.appendChild(enlaceCuenta(p[0]));
+      celda(tr, String(p[1].n), 'num');
+      celda(tr, num(p[1].gas / BigInt(p[1].n)), 'num');
+      celda(tr, moneda(p[1].coste, 6) + ' zkLTC', 'num');
+      tb.appendChild(tr);
+    });
+    if (!porQuien.size) vacio(tb, 4);
+  }
+
+  function color(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim() || '#888'; }
+
+  function dibujar(series, n, t0, cubo) {
+    var cv = $('lienzo');
+    var dpr = window.devicePixelRatio || 1;
+    var W = cv.clientWidth, H = cv.clientHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    var g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+    var izq = 40, abajo = 22, arriba = 8;
+    var claves = Object.keys(series);
+    var max = 1;
+    for (var i = 0; i < n; i++) { var s = 0; claves.forEach(function (k) { s += series[k][i]; }); if (s > max) max = s; }
+    var alto = H - abajo - arriba, ancho = W - izq - 6;
+    g.font = '11px ' + getComputedStyle(document.body).fontFamily;
+    g.fillStyle = color('--text-dim'); g.strokeStyle = color('--line'); g.lineWidth = 1;
+    [0, 0.5, 1].forEach(function (f) {
+      var y = arriba + alto * (1 - f);
+      g.beginPath(); g.moveTo(izq, Math.round(y) + 0.5); g.lineTo(W - 4, Math.round(y) + 0.5); g.stroke();
+      g.fillText(String(Math.round(max * f)), 4, y + 4);
+    });
+    var bw = ancho / n;
+    for (var j = 0; j < n; j++) {
+      var y0 = arriba + alto;
+      claves.forEach(function (k) {
+        var v = series[k][j]; if (!v) return;
+        var h = alto * v / max;
+        g.fillStyle = color(EVENTOS[k].color);
+        g.fillRect(izq + j * bw + (bw > 4 ? 1 : 0), y0 - h, Math.max(1, bw - (bw > 4 ? 2 : 0)), h);
+        y0 -= h;
+      });
+    }
+    g.fillStyle = color('--text-dim');
+    var marcas = Math.min(n, Math.max(2, Math.floor(ancho / 90)));
+    for (var m = 0; m < marcas; m++) {
+      var idx = Math.round(m * (n - 1) / Math.max(1, marcas - 1));
+      var d = new Date((t0 + idx * cubo) * 1000);
+      var txt = cubo >= 21600 ? d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + d.getHours() + 'h'
+                              : d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      var x = izq + idx * bw + bw / 2 - g.measureText(txt).width / 2;
+      g.fillText(txt, Math.max(izq, Math.min(W - g.measureText(txt).width - 2, x)), H - 6);
+    }
+    var L = $('leyenda'); L.textContent = '';
+    claves.forEach(function (k) {
+      var total = series[k].reduce(function (a, b) { return a + b; }, 0);
+      if (!total) return;
+      var s = el('span', '', EVENTOS[k].nombre + ' · ' + total);
+      s.style.setProperty('--c', color(EVENTOS[k].color));
+      L.appendChild(s);
+    });
+  }
+
+  // ── Buscar ────────────────────────────────────────────────────────────────
+  function pintarFactura(cont, f, casilla) {
+    cont.textContent = '';
+    var dl = el('dl');
+    var par = function (k, v) { dl.appendChild(el('dt', '', k)); var dd = el('dd'); if (v instanceof Node) dd.appendChild(v); else dd.textContent = v; dl.appendChild(dd); };
+    par('Id', '#' + f.id);
+    par('Tabla', f.tipo);
+    par('Cantidad', num(f.cantidad));
+    par('Activa', f.active ? 'sí' : 'no');
+    par('Dueño', enlaceCuenta(f.owner));
+    par('manualId', f.manualId);
+    par('Creada', cuando(f.createdAt));
+    if (casilla != null) {
+      var c = Number(casilla);
+      par('Casilla', c === 0 ? 'sin asignar' : c < 10001 ? 'inventario ' + (c - 1) : 'cofre ' + (c - 10001));
+    }
+    cont.appendChild(dl);
+  }
+  function errorEn(cont, e) { cont.textContent = ''; cont.appendChild(el('span', 'bad', (e && (e.shortMessage || e.reason || e.message)) || String(e))); }
+
+  async function buscarFactura() {
+    var cont = $('resFactura'); var v = $('inFactura').value.trim();
+    if (!/^\d+$/.test(v)) { errorEn(cont, 'Escribe un número.'); return; }
+    cont.textContent = 'Buscando…';
+    try {
+      var f = await contrato.getInvoice(v);
+      var casilla = await intenta(function () { return contrato.getInvoiceSlot(v); }, null);
+      pintarFactura(cont, f, casilla);
+    } catch (e) { errorEn(cont, /InvoiceNotFound|revert/i.test(String(e && e.message)) ? 'No existe esa factura.' : e); }
+  }
+  async function buscarManual() {
+    var cont = $('resManual'); var v = $('inManual').value.trim();
+    if (!v) return;
+    cont.textContent = 'Buscando…';
+    try {
+      var r = await contrato.getInvoiceByManualIdSafe(v);
+      if (!r.found) { cont.textContent = ''; cont.appendChild(el('span', 'dim', 'No hay ninguna factura ACTIVA con ese manualId.')); return; }
+      pintarFactura(cont, r.inv, await intenta(function () { return contrato.getInvoiceSlot(r.inv.id); }, null));
+    } catch (e) { errorEn(cont, e); }
+  }
+  async function buscarCartera() {
+    var cont = $('resCartera'); var v = $('inCartera').value.trim();
+    if (!E.isAddress(v)) { errorEn(cont, 'Dirección no válida.'); return; }
+    cont.textContent = 'Leyendo…';
+    try {
+      var lista, casillas = null;
+      try { var r = await contrato.getUserInventorySnapshotWithSlots(v); lista = r.result || r[0]; casillas = r.slots || r[1]; }
+      catch (e) { lista = await contrato.getUserInventorySnapshot(v); }
+      var activas = [];
+      for (var i = 0; i < lista.length; i++) if (lista[i].active) activas.push({ f: lista[i], c: casillas ? Number(casillas[i]) : null });
+      cont.textContent = '';
+      var porTabla = new Map();
+      activas.forEach(function (x) { porTabla.set(x.f.tipo, (porTabla.get(x.f.tipo) || 0n) + BigInt(x.f.cantidad)); });
+      cont.appendChild(el('div', 'dim', activas.length + ' facturas activas, ' + porTabla.size + ' tablas.'));
+      var wrap = el('div', 'tabla-wrap'); wrap.style.maxHeight = '260px'; wrap.style.marginTop = '8px';
+      var t = el('table'); var th = el('thead'); var trh = el('tr');
+      ['Id', 'Tabla', 'Cantidad', 'Casilla'].forEach(function (h, i) { trh.appendChild(el('th', i === 2 ? 'num' : '', h)); });
+      th.appendChild(trh); t.appendChild(th);
+      var tb = el('tbody');
+      activas.sort(function (a, b) { return (a.c || 1e9) - (b.c || 1e9); }).forEach(function (x) {
+        var tr = el('tr');
+        celda(tr, '#' + x.f.id, 'mono'); celda(tr, x.f.tipo, 'mono'); celda(tr, num(x.f.cantidad), 'num');
+        celda(tr, x.c == null ? '—' : x.c === 0 ? 'libre' : x.c < 10001 ? 'inv ' + (x.c - 1) : 'cofre ' + (x.c - 10001), 'mono');
+        tb.appendChild(tr);
+      });
+      t.appendChild(tb); wrap.appendChild(t); cont.appendChild(wrap);
+    } catch (e) { errorEn(cont, e); }
+  }
+
+  // ── Enganches ─────────────────────────────────────────────────────────────
+  $('btnConectar').addEventListener('click', conectar);
+  $('inContrato').addEventListener('keydown', function (e) { if (e.key === 'Enter') conectar(); });
+  $('btnRefrescar').addEventListener('click', function () { if (contrato) cargarTodo(); });
+  $('btnHistorial').addEventListener('click', leerHistorial);
+  $('btnActividad').addEventListener('click', leerActividad);
+  $('btnFactura').addEventListener('click', buscarFactura);
+  $('btnManual').addEventListener('click', buscarManual);
+  $('btnCartera').addEventListener('click', buscarCartera);
+  [['inFactura', buscarFactura], ['inManual', buscarManual], ['inCartera', buscarCartera]].forEach(function (p) {
+    $(p[0]).addEventListener('keydown', function (e) { if (e.key === 'Enter') p[1](); });
+  });
+  $('filtroTablas').addEventListener('input', pintarTablas);
+  $('segTablas').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    estado.filtroTablas = b.getAttribute('data-v');
+    [].forEach.call(this.children, function (x) { x.classList.toggle('on', x === b); });
+    pintarTablas();
+  });
+  $('segVentana').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    estado.horas = Number(b.getAttribute('data-h'));
+    [].forEach.call(this.children, function (x) { x.classList.toggle('on', x === b); });
+  });
+  document.querySelectorAll('th button.orden').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var c = b.getAttribute('data-orden');
+      if (estado.ordenTablas.campo === c) estado.ordenTablas.desc = !estado.ordenTablas.desc;
+      else estado.ordenTablas = { campo: c, desc: c !== 'nombre' };
+      pintarTablas();
+    });
+  });
+  if (window.ethereum && window.ethereum.on) {
+    window.ethereum.on('accountsChanged', function () { if (contrato) location.reload(); });
+    window.ethereum.on('chainChanged', function () { if (contrato) location.reload(); });
+  }
+  var relojTam = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(relojTam);
+    relojTam = setTimeout(function () { if (ultimaGrafica) dibujar.apply(null, ultimaGrafica); }, 150);
+  });
+})();
+</script>
+</body>
+</html>

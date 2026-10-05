@@ -471,6 +471,10 @@
       'font-size:12px;font-weight:700;letter-spacing:.04em;',
       'border:1px solid rgba(255,214,120,.35)}',
       '#gf-pet-sub{margin:0 0 14px;font-size:12px;color:#9aa0b4}',
+      '#gf-pet-xpbar{height:6px;background:#14161e;border-radius:4px;overflow:hidden;',
+      'margin:0 0 4px;border:1px solid #3a3f52}',
+      '#gf-pet-xpbar div{height:100%;width:0;background:#ffd678;transition:width .3s}',
+      '#gf-pet-xp{font-size:11px;color:#c9b27a;margin:0 0 12px}',
       '#gf-pet-bar{height:10px;background:#14161e;border-radius:6px;overflow:hidden;',
       'margin:0 0 6px;border:1px solid #3a3f52}',
       '#gf-pet-bar div{height:100%;width:100%;background:#5ec26a;transition:width .2s}',
@@ -503,6 +507,12 @@
         // sobre el perro en el mapa pero no al abrir su panel, que es
         // justamente donde uno va a mirar cómo lleva a su mascota.
         '<p id="gf-pet-nivel">Lv.1</p>' +
+        // LA EXPERIENCIA DE LA MASCOTA (2026-10-03). Desde que la mascota
+        // tiene nivel propio, la barra enseña cuánto le falta para el
+        // siguiente: un número suelto que no se mueve no se distingue de uno
+        // inventado ("no sé si ese nivel reflejado es falso").
+        '<div id="gf-pet-xpbar" title="Your pet earns EXP in arena battles"><div></div></div>' +
+        '<p id="gf-pet-xp">Fight in the arena to level up your pet</p>' +
         '<p id="gf-pet-sub">Choose how your pet behaves</p>' +
         '<div id="gf-pet-bar"><div></div></div>' +
         '<p id="gf-pet-hp">100 / 100</p>' +
@@ -574,6 +584,31 @@
     }
     var elNivel = p.querySelector('#gf-pet-nivel');
     if (elNivel) elNivel.textContent = 'Level ' + nivel;
+
+    /* La barra de experiencia: la escena guarda lo que manda el servidor
+       (petExp, petExpBase y petExpSiguiente, en /api/load y en el aviso
+       'petLevelUpdate' de cada batalla). Sin datos, se queda el texto que
+       explica cómo se sube. */
+    var xp = null;
+    if (esc && Number.isFinite(Number(esc.petExp)) && Number.isFinite(Number(esc.petExpSiguiente))) {
+      xp = { exp: Number(esc.petExp), base: Number(esc.petExpBase) || 0, sig: Number(esc.petExpSiguiente) };
+    } else if (window.globalPetExp && Number.isFinite(Number(window.globalPetExp.petExpSiguiente))) {
+      var g = window.globalPetExp;
+      xp = { exp: Number(g.petExp) || 0, base: Number(g.petExpBase) || 0, sig: Number(g.petExpSiguiente) };
+    }
+    var elBarraXp = p.querySelector('#gf-pet-xpbar div');
+    var elXp = p.querySelector('#gf-pet-xp');
+    if (xp && elBarraXp && elXp) {
+      var tramo = Math.max(1, xp.sig - xp.base);
+      var hecho = Math.max(0, Math.min(tramo, xp.exp - xp.base));
+      if (xp.sig <= xp.base) {
+        elBarraXp.style.width = '100%';
+        elXp.textContent = 'Max level';
+      } else {
+        elBarraXp.style.width = Math.round(hecho / tramo * 100) + '%';
+        elXp.textContent = hecho + ' / ' + tramo + ' EXP to level ' + (nivel + 1);
+      }
+    }
     p.querySelector('#gf-pet-bar').firstChild.style.width = estado.health + '%';
     p.querySelector('#gf-pet-bar').firstChild.style.background =
       '#' + colorVida(estado.health).toString(16).padStart(6, '0');
@@ -703,6 +738,11 @@
     // Se expone el helper de HTTP para que otros modulos (el cuervo, por
     // ejemplo) no tengan que repetir el manejo del CSRF y de las cookies.
     api: api,
+    /** Repinta el panel si está abierto (nivel o experiencia nuevos). */
+    repintar: function () {
+      var p = document.getElementById('gf-pet-panel');
+      if (p && p.classList.contains('abierto')) pintarMenu();
+    },
     montar: montar,
     desmontar: desmontar,
     estado: function () { return estado; },

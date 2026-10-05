@@ -72,6 +72,28 @@
   var VEL_COPO   = 62;    // px/s; un copo baja como diez veces más lento que una gota
   var VAIVEN_COPO = [0.5, 1.9];   // cada copo se mece a su ritmo
 
+  /* LA NIEVE EN TRES PLANOS (2026-10-04).
+
+     Los 110 copos de PNG eran todos del mismo tamaño y caían a la misma
+     distancia: se leía como un fondo de pantalla. Ahora hay profundidad:
+
+       png      los de siempre: el grueso de la nevada, a media distancia
+       cristal  copos con su ESTRELLA de brazos y ramitas, en pixel art
+                dibujado con canvas
+       cerca    pocos, grandes y DESENFOCADOS, que pasan rápido por delante de
+                la cámara: es lo que da la sensación de estar dentro de la
+                nevada y no mirándola
+
+     Y LA RÁFAGA: cada pocos segundos el viento arrecia un momento, los copos
+     se tumban y se arremolinan, y vuelve la calma. */
+  var N_CRISTALES   = 26;
+  var N_COPOS_CERCA = 14;
+  var PLANO_COPO = {
+    png:     { vel: 1.00, alfa: 1.00, posa: true  },
+    cristal: { vel: 0.85, alfa: 0.95, posa: true  },
+    cerca:   { vel: 2.10, alfa: 0.40, posa: false }
+  };
+
   /* ESTACIONES.
 
      El filtro es lo que hace que un mismo mapa se lea como otoño o como
@@ -433,12 +455,26 @@
   var CHARCOS_DIBUJADOS = ['gfc_charco_d1', 'gfc_charco_d2', 'gfc_charco_d3', 'gfc_charco_d4'];
   var HIELOS_DIBUJADOS  = ['gfc_hielo_d1', 'gfc_hielo_d2', 'gfc_hielo_d3', 'gfc_hielo_d4'];
 
-  function dibujarCharco(scene, clave, semilla, helado) {
+  /* LOS CHARCOS SE EXTIENDEN (2026-10-05) — "quiero que se puedan esparcir".
+     Cada charco tiene ETAPAS dibujos con el MISMO contorno creciendo: no se
+     escala entero como un globo, sino que el agua avanza por el suelo y saca
+     lóbulos hacia donde el terreno baja (dos o tres por charco, siempre los
+     mismos para ese charco). Al secarse se recorre al revés: se encoge por
+     los bordes y lo último en irse es el centro. La última etapa usa la clave
+     de siempre (gfc_charco_dN), así que nada de fuera cambia. */
+  var ETAPAS_CHARCO = 6;
+  function claveEtapa(base, e) { return e >= ETAPAS_CHARCO - 1 ? base : base + '_e' + e; }
+
+  function dibujarCharco(scene, clave, semilla, helado, etapa) {
+    if (etapa === undefined) etapa = ETAPAS_CHARCO - 1;
+    clave = claveEtapa(clave, etapa);
     if (scene.textures.exists(clave)) return clave;
-    /* 56×26 y no 96×52. El primer intento salía a 230×125 px en pantalla —más
+    /* 72×34 de lienzo para que quepan los lóbulos; el cuerpo del charco mide
+       lo mismo que antes (56×26). El primer intento salía a 230×125 px —más
        ancho que alto el jugador— y el jugador lo dijo: "los charcos se ven muy
        falsos". Un charco de este mapa tiene que caber en dos o tres losas. */
-    var W = 56, H = 26;
+    var W = 72, H = 34;
+    var crec = etapa / (ETAPAS_CHARCO - 1);           // 0 = recién nacido, 1 = entero
     try {
       var c = scene.textures.createCanvas(clave, W, H);
       var ctx = c.getContext();
@@ -450,23 +486,44 @@
 
       // ── el contorno, abollado ──
       var cx = W / 2, cy = H / 2;
-      var rx = W * az2(0.40, 0.47), ry = H * az2(0.36, 0.44);
-      var N = 28, pts = [];
+      var rx = W * az2(0.31, 0.36), ry = H * az2(0.30, 0.36);
+      /* Los lóbulos: hacia dónde se extiende este charco. Salen del azar con
+         semilla, así que son los mismos en todas sus etapas. */
+      var lobulos = [];
+      for (var l = 0, nl = 2 + Math.floor(r() * 2); l < nl; l++) lobulos.push([az2(0, Math.PI * 2), az2(0.22, 0.4), az2(0.32, 0.5)]);
+      var tam = 0.42 + 0.58 * crec;
+      var N = 36, pts = [];
       for (var i = 0; i < N; i++) {
         var a = (i / N) * Math.PI * 2;
         /* Dos ondas de distinta frecuencia sobre el radio: una sola daría una
            forma de flor, y dos que no casan dan un borde creíble. */
         var k = 1 + 0.11 * Math.sin(a * 3 + semilla) + 0.07 * Math.sin(a * 5 - semilla * 2);
-        pts.push([cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k]);
+        for (var lb = 0; lb < lobulos.length; lb++) {
+          var da = Math.atan2(Math.sin(a - lobulos[lb][0]), Math.cos(a - lobulos[lb][0]));
+          k += lobulos[lb][1] * crec * crec * Math.exp(-(da * da) / (2 * lobulos[lb][2] * lobulos[lb][2]));
+        }
+        var px0 = cx + Math.cos(a) * rx * k * tam, py0 = cy + Math.sin(a) * ry * k * tam;
+        pts.push([Math.max(2, Math.min(W - 2, px0)), Math.max(2, Math.min(H - 2, py0))]);
       }
-      function contorno() {
+      function contorno(esc) {
+        esc = esc || 1;
+        var q = function (p) { return [cx + (p[0] - cx) * esc, cy + (p[1] - cy) * esc]; };
         ctx.beginPath();
-        ctx.moveTo(pts[0][0], pts[0][1]);
+        var p0 = q(pts[0]);
+        ctx.moveTo(p0[0], p0[1]);
         for (var j = 1; j <= N; j++) {
-          var p1 = pts[j % N], p2 = pts[(j + 1) % N];
+          var p1 = q(pts[j % N]), p2 = q(pts[(j + 1) % N]);
           ctx.quadraticCurveTo(p1[0], p1[1], (p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2);
         }
         ctx.closePath();
+      }
+
+      /* EL SUELO EMPAPADO alrededor: un halo oscuro y suave por fuera del
+         agua. Es lo que dice que el agua ha ido avanzando por la tierra y no
+         que es una pegatina puesta encima. El hielo no lo lleva. */
+      if (!helado) {
+        contorno(1.2); ctx.fillStyle = 'rgba(22,16,10,0.10)'; ctx.fill();
+        contorno(1.09); ctx.fillStyle = 'rgba(22,16,10,0.12)'; ctx.fill();
       }
 
       /* EL CUERPO ES OSCURO Y CASI PLANO.
@@ -483,7 +540,7 @@
        * después y en poca cantidad.
        */
       contorno();
-      var g = ctx.createLinearGradient(0, cy - ry, 0, cy + ry);
+      var g = ctx.createLinearGradient(0, cy - ry * 1.3, 0, cy + ry * 1.3);
       if (helado) {
         // El hielo SÍ es más claro que el suelo: es opaco y difunde la luz.
         g.addColorStop(0.00, 'rgba(196,222,242,0.90)');
@@ -1679,24 +1736,98 @@
    * copo pesa nada. Esa diferencia de comportamiento es lo que hace que se lea
    * como nieve y no como lluvia blanca.
    */
-  function nuevoCopo(st) {
+  function nuevoCopo(st, tipo) {
     var L = lienzo(st.scene.cameras.main);
-    var s = st.scene.add.image(0, 0, 'gfc_' + elegir(COPOS));
+    var clave = 'gfc_' + elegir(COPOS);
+    if (tipo === 'cristal') clave = texturaCristal(st.scene, Math.floor(Math.random() * 4));
+    else if (tipo === 'cerca') clave = texturaCopoCerca(st.scene);
+    if (!clave) return null;
+    var s = st.scene.add.image(0, 0, clave);
     s.setScrollFactor(0);
     // Sin escalar: los copos están dibujados al tamaño del tileset (2..7 px) y
-    // agrandarlos los convertiría en pelotas de papel.
+    // agrandarlos los convertiría en pelotas de papel. Los dibujados sí llevan
+    // su escala: el cristal se encoge un poco y el de cerca crece.
+    if (tipo === 'cristal') s.setScale(Math.random() < 0.7 ? 1 : 2);
+    if (tipo === 'cerca') s.setScale(az(0.28, 0.6));
     s.setAlpha(0);
     if (st.capa) st.capa.add(s);
     var c = {
       spr: s,
+      plano: PLANO_COPO[tipo] || PLANO_COPO.png,
       vel: az(0.55, 1.5),
       vaiven: az(VAIVEN_COPO[0], VAIVEN_COPO[1]),
       fase: az(0, Math.PI * 2),
-      amplitud: az(9, 30),
+      amplitud: tipo === 'cerca' ? az(20, 50) : az(9, 30),
+      // Sin giro: un pixel art girado a medio grado se deshace en dientes.
+      giro: 0,
       x: 0, y: 0, vueltas: 0
     };
     reponerCopo(st, c, L.w, L.h, true);
     return c;
+  }
+
+  /**
+   * Un copo de verdad, en PIXEL ART: brazos en las ocho direcciones con sus
+   * ramitas, píxel a píxel y con filtro NEAREST. Dibujado con líneas suaves se
+   * veía como una mancha borrosa al ampliar la cámara; así queda nítido como
+   * el resto del juego. Cuatro variantes (brazos más o menos largos, con o sin
+   * diagonales, ramitas en distinto sitio) para que no caigan dos iguales.
+   */
+  function texturaCristal(scene, n) {
+    var clave = 'gfc_copo_cristal_' + n;
+    if (scene.textures.exists(clave)) return clave;
+    var T = 11, c0 = 5;
+    var largo = [4, 3, 4, 5][n % 4];
+    var rama  = [2, 2, 3, 3][n % 4];
+    var diagonales = n % 4 !== 1;
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      var px = function (x, y, a) {
+        if (x < 0 || y < 0 || x >= T || y >= T) return;
+        ctx.fillStyle = 'rgba(240,248,255,' + a + ')';
+        ctx.fillRect(x, y, 1, 1);
+      };
+      var dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      if (diagonales) dirs.push([1, 1], [-1, -1], [1, -1], [-1, 1]);
+      for (var d = 0; d < dirs.length; d++) {
+        var dx = dirs[d][0], dy = dirs[d][1];
+        var diag = dx && dy;
+        var L = diag ? Math.max(2, largo - 1) : largo;
+        for (var k = 1; k <= L; k++) px(c0 + dx * k, c0 + dy * k, k === L ? 0.7 : 0.95);
+        if (!diag && rama <= L) {
+          // Las ramitas: un píxel a cada lado del brazo, hacia fuera.
+          var bx = c0 + dx * rama, by = c0 + dy * rama;
+          px(bx + dy + dx, by + dx + dy, 0.8);
+          px(bx - dy + dx, by - dx + dy, 0.8);
+        }
+      }
+      px(c0, c0, 1);
+      c.refresh();
+      var t = scene.textures.get(clave);
+      if (t && t.setFilter && window.Phaser && Phaser.Textures) t.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  /** El copo que pasa por delante de la cámara: grande, blando, sin forma. */
+  function texturaCopoCerca(scene) {
+    var clave = 'gfc_copo_cerca';
+    if (scene.textures.exists(clave)) return clave;
+    var T = 32;
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      var g = ctx.createRadialGradient(T / 2, T / 2, 0, T / 2, T / 2, T / 2);
+      g.addColorStop(0.00, 'rgba(255,255,255,0.90)');
+      g.addColorStop(0.30, 'rgba(248,252,255,0.62)');
+      g.addColorStop(0.70, 'rgba(232,242,255,0.16)');
+      g.addColorStop(1.00, 'rgba(232,242,255,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, T, T);
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
   }
 
   function reponerCopo(st, c, w, h, dentro) {
@@ -1712,18 +1843,35 @@
   }
 
   function moverCopos(st, dt, w, h, m, L) {
+    /* LA RÁFAGA. Un valor de 0 a 1 que va hacia una meta que cambia cada
+       pocos segundos: casi siempre calma, a veces un golpe de viento. Se llega
+       a la meta poco a poco: el viento arrecia, no se enciende. */
+    st.rafagaEn = (st.rafagaEn || 0) - dt;
+    if (st.rafagaEn <= 0) {
+      st.rafagaMeta = Math.random() < 0.35 ? az(0.6, 1) : az(0, 0.2);
+      st.rafagaEn = az(2.5, 6.5);
+    }
+    st.rafaga = (st.rafaga || 0) + ((st.rafagaMeta || 0) - (st.rafaga || 0)) * Math.min(1, dt * 0.9);
+    var rafaga = st.rafaga;
+
     for (var i = 0; i < st.copos.length; i++) {
       var c = st.copos[i];
-      var v = VEL_COPO * c.vel * st.fuerzaNieve;
+      var pl = c.plano || PLANO_COPO.png;
+      var v = VEL_COPO * c.vel * pl.vel * st.fuerzaNieve;
       c.fase += dt * c.vaiven;
       c.y += v * dt;
       // El vaivén va aparte del viento: uno es el aire quieto moviéndolo, el
-      // otro es el aire empujándolo. Sumados dan el revoloteo que se ve.
-      c.x += (Math.sin(c.fase) * c.amplitud + v * st.inclina * 2.2) * dt;
+      // otro es el aire empujándolo. Sumados dan el revoloteo que se ve. En la
+      // ráfaga el arrastre crece y aparece el remolino, que depende de la
+      // altura: los copos de arriba y los de abajo giran a destiempo.
+      var arrastre = v * st.inclina * 2.2 * (1 + rafaga * 1.6);
+      var remolino = rafaga * Math.sin(c.y * 0.02 + c.fase * 0.5) * 26 * pl.vel;
+      c.x += (Math.sin(c.fase) * c.amplitud + arrastre + remolino) * dt;
       c.spr.setPosition(c.x, c.y);
-      c.spr.setAlpha(st.fuerzaNieve * 0.92);
-      if (c.y > h + 12) {
-        posarNieve(st, c.x, h - m - az(0, (h - m * 2) * 0.5), L);
+      if (c.giro) c.spr.rotation += c.giro * dt * (1 + rafaga);
+      c.spr.setAlpha(st.fuerzaNieve * 0.92 * pl.alfa);
+      if (c.y > h + (pl.posa ? 12 : 40)) {
+        if (pl.posa) posarNieve(st, c.x, h - m - az(0, (h - m * 2) * 0.5), L);
         reponerCopo(st, c, w, h, false);
       } else if (c.x < -80 || c.x > w + 80) {
         reponerCopo(st, c, w, h, false);
@@ -2136,7 +2284,9 @@
        arder aunque la tormenta ya haya pasado. Por eso van ANTES del `return`
        de "no llueve" que hay mas abajo. */
     moverCharcos(st, ahora, delta);
+    try { vidaCharcos(st, ahora); } catch (e) { log('vida de los charcos:', e); }
     moverIncendio(st, ahora, delta);
+    moverQuemaduras(st, ahora);
 
     var i, j;
     if (nevando) {
@@ -2394,7 +2544,16 @@
     s.setScale(1.2);
     s.setAlpha(0);
     s.setVisible(false);
-    return { spr: s, vivo: false, nace: 0, tam: 0, helado: false };
+    /* El brillo que se pasea por encima: el cielo reflejado se mueve un poco
+       con el viento y el charco deja de ser una calcomanía quieta. */
+    var b = null;
+    if (st.scene.textures.exists('gfc_charco_brillo')) {
+      b = st.scene.add.image(0, 0, 'gfc_charco_brillo').setDepth(PROF_CHARCO + 0.02).setVisible(false);
+      if (window.Phaser && Phaser.BlendModes) b.setBlendMode(Phaser.BlendModes.ADD);
+      (st.brillosCharco = st.brillosCharco || []).push({ spr: b });
+    }
+    return { spr: s, brillo: b, vivo: false, nace: 0, tam: 0, helado: false, prog: 0, etapa: -1,
+             sx: 1, sy: 1, fase: Math.random() * 6.28 };
   }
 
   /** Busca sitio y enciende un charco. */
@@ -2427,7 +2586,9 @@
       libre.nace = scene.time.now;
       libre.tam = Math.floor(az(0, CHARCOS_DIBUJADOS.length));
       libre.helado = false;
-      libre.spr.setTexture(CHARCOS_DIBUJADOS[libre.tam]);
+      libre.prog = 0;
+      libre.etapa = 0;
+      libre.spr.setTexture(claveEtapa(CHARCOS_DIBUJADOS[libre.tam], 0));
       /* Cada charco con su tamaño y su giro, pero CON LÍMITES.
        *
        * DOS COSAS QUE ESTABAN MAL Y SE VEÍAN EN LA CAPTURA:
@@ -2444,8 +2605,9 @@
        *
        * La escala en X e Y va casi pareja (±15 %) por lo mismo: estirarlo el
        * doble en una dirección deshace la forma de charco. */
-      var tam = az(0.9, 1.7);
-      libre.spr.setScale(tam * az(0.9, 1.15), tam * az(0.9, 1.1));
+      var tam = az(0.9, 1.5);
+      libre.sx = tam * az(0.9, 1.15); libre.sy = tam * az(0.9, 1.1);
+      libre.spr.setScale(libre.sx * 0.85, libre.sy * 0.85);
       libre.spr.setRotation(az(-0.35, 0.35));
       libre.spr.setPosition(Math.round(x), Math.round(y));
       libre.spr.setVisible(true);
@@ -2479,14 +2641,14 @@
         else if (ahora >= c.helarEn) {
           c.helado = true;
           c.helarEn = 0;
-          c.spr.setTexture(HIELOS_DIBUJADOS[c.tam]);
+          c.spr.setTexture(claveEtapa(HIELOS_DIBUJADOS[c.tam], Math.max(0, c.etapa)));
         }
       } else if (!nevando && c.helado) {
         if (!c.helarEn) c.helarEn = ahora + az(3000, 16000);
         else if (ahora >= c.helarEn) {
           c.helado = false;
           c.helarEn = 0;
-          c.spr.setTexture(CHARCOS_DIBUJADOS[c.tam]);
+          c.spr.setTexture(claveEtapa(CHARCOS_DIBUJADOS[c.tam], Math.max(0, c.etapa)));
         }
       }
 
@@ -2500,13 +2662,24 @@
          veintitrés antes de llegar a hielo: dejaba de llover, empezaba a
          nevar, y los charcos desaparecían en vez de congelarse. */
       var crece = lloviendo || nevando;
+      /* Lo que avanza es `prog` (0..1): el contorno se extiende por etapas y
+         el charco engorda un poco. La transparencia solo cuenta al nacer y al
+         irse del todo. Un charco helado no crece: el hielo no avanza. */
       var paso = delta / (crece ? CHARCO_CRECE : -CHARCO_SECA);
-      c.spr.alpha = Math.max(0, Math.min(c.helado ? 0.92 : 0.82, c.spr.alpha + paso));
-      if (!crece && c.spr.alpha <= 0.001) {
+      if (!(c.helado && crece)) c.prog = Math.max(0, Math.min(1, c.prog + paso));
+      var e = Math.min(ETAPAS_CHARCO - 1, Math.floor(c.prog * ETAPAS_CHARCO));
+      if (e !== c.etapa) {
+        c.etapa = e;
+        c.spr.setTexture(claveEtapa(c.helado ? HIELOS_DIBUJADOS[c.tam] : CHARCOS_DIBUJADOS[c.tam], e));
+      }
+      c.spr.setScale(c.sx * (0.85 + 0.15 * c.prog), c.sy * (0.85 + 0.15 * c.prog));
+      c.spr.alpha = (c.helado ? 0.92 : 0.84) * Math.min(1, c.prog * 3);
+      if (!crece && c.prog <= 0.001) {
         c.vivo = false;
         c.helado = false;
         c.helarEn = 0;
         c.spr.setVisible(false);
+        if (c.brillo) c.brillo.setVisible(false);
       }
     }
   }
@@ -2530,6 +2703,139 @@
                  ancho: Math.abs(c.spr.displayWidth), alto: Math.abs(c.spr.displayHeight) });
     }
     return out;
+  }
+
+  /* ── LA VIDA DE LOS CHARCOS (2026-10-05) ──────────────────────────────
+     Tres cosas que los hacen agua y no un dibujo en el suelo:
+       · el brillo del cielo que se pasea (con el viento),
+       · los anillos de la lluvia cayendo dentro mientras llueve,
+       · el CHAPOTEO: al pisar uno andando salta agua y se abre un anillo.
+     Todo con grupos fijos que se reciclan: cero objetos nuevos por gota. */
+  function texturasVidaCharco(scene) {
+    function lienzo(clave, w, h, pintar) {
+      if (scene.textures.exists(clave)) return;
+      try { var ct = scene.textures.createCanvas(clave, w, h); pintar(ct.getContext(), w, h); ct.refresh(); }
+      catch (e) { log('textura ' + clave, e); }
+    }
+    lienzo('gfc_charco_brillo', 20, 5, function (x, w, h) {
+      var g = x.createLinearGradient(0, 0, w, 0);
+      g.addColorStop(0, 'rgba(200,228,255,0)'); g.addColorStop(0.5, 'rgba(220,238,255,0.9)'); g.addColorStop(1, 'rgba(200,228,255,0)');
+      x.fillStyle = g; x.beginPath(); x.ellipse(w / 2, h / 2, w / 2, h / 2 - 0.5, 0, 0, Math.PI * 2); x.fill();
+    });
+    lienzo('gfc_onda_charco', 18, 8, function (x, w, h) {
+      x.strokeStyle = 'rgba(214,234,252,0.95)'; x.lineWidth = 1;
+      x.beginPath(); x.ellipse(w / 2, h / 2, w / 2 - 1, h / 2 - 1, 0, 0, Math.PI * 2); x.stroke();
+    });
+    lienzo('gfc_gotita', 2, 2, function (x) { x.fillStyle = 'rgba(214,236,255,1)'; x.fillRect(0, 0, 2, 2); });
+  }
+
+  function montarVidaCharcos(st) {
+    var scene = st.scene, i;
+    st.ondasCharco = []; st.gotitasCharco = [];
+    if (scene.textures.exists('gfc_onda_charco')) {
+      for (i = 0; i < 18; i++) st.ondasCharco.push({ spr: scene.add.image(0, 0, 'gfc_onda_charco').setDepth(PROF_CHARCO + 0.05).setVisible(false), vivo: false });
+    }
+    if (scene.textures.exists('gfc_gotita')) {
+      for (i = 0; i < 14; i++) st.gotitasCharco.push({ spr: scene.add.image(0, 0, 'gfc_gotita').setVisible(false), vivo: false });
+    }
+    st.proximaOndaCharco = 0; st.proximoChapoteo = 0;
+  }
+
+  function ondaEnCharco(st, x, y, escala, dura) {
+    var o = null;
+    for (var i = 0; i < st.ondasCharco.length; i++) if (!st.ondasCharco[i].vivo) { o = st.ondasCharco[i]; break; }
+    if (!o) return;
+    o.vivo = true;
+    var s = o.spr;
+    s.setPosition(x, y).setVisible(true).setAlpha(0.75).setScale(0.2 * escala);
+    st.scene.tweens.add({ targets: s, scaleX: escala, scaleY: escala, alpha: 0, duration: dura || 480, ease: 'Quad.easeOut',
+      onComplete: function () { s.setVisible(false); o.vivo = false; } });
+  }
+
+  function chapoteo(st, x, y, prof) {
+    ondaEnCharco(st, x, y, 1.6, 560);
+    for (var i = 0, n = 0; i < st.gotitasCharco.length && n < 4; i++) {
+      var g = st.gotitasCharco[i];
+      if (g.vivo) continue;
+      g.vivo = true; n++;
+      (function (g) {
+        var s = g.spr, vx = az(-18, 18), alto = az(6, 16), x0 = x + az(-5, 5);
+        s.setPosition(x0, y).setDepth(prof).setVisible(true).setAlpha(0.9);
+        st.scene.tweens.addCounter({ from: 0, to: 1, duration: az(260, 380), onUpdate: function (tw) {
+          var t = tw.getValue();
+          s.setPosition(x0 + vx * t, y - alto * 4 * t * (1 - t));
+        }, onComplete: function () { s.setVisible(false); g.vivo = false; } });
+      })(g);
+    }
+  }
+
+  /** El charco (vivo, de agua, ya visible) que hay en ese punto. */
+  function charcoEn(st, x, y) {
+    for (var i = 0; i < st.charcos.length; i++) {
+      var c = st.charcos[i];
+      if (!c.vivo || c.helado || c.spr.alpha < 0.3) continue;
+      var rx = Math.abs(c.spr.displayWidth) * 0.36, ry = Math.abs(c.spr.displayHeight) * 0.34;
+      var dx = (x - c.spr.x) / rx, dy = (y - c.spr.y) / ry;
+      if (dx * dx + dy * dy <= 1) return c;
+    }
+    return null;
+  }
+
+  function piesDeCharco(scene, spr) {
+    try { if (window.GFProfundidad && window.GFProfundidad.piesDe) return window.GFProfundidad.piesDe(scene, spr); } catch (e) {}
+    var oy = (spr.originY === undefined) ? 0.5 : spr.originY;
+    return spr.y + (spr.displayHeight || 0) * (1 - oy);
+  }
+
+  function vidaCharcos(st, ahora) {
+    if (!st.ondasCharco) return;
+    var scene = st.scene, cam = scene.cameras && scene.cameras.main, v = cam && cam.worldView;
+    if (!v) return;
+    var viento = 0;
+    try { viento = tiempoAhora().viento || 0; } catch (e) {}
+    var i, c;
+    // El brillo que se pasea.
+    for (i = 0; i < st.charcos.length; i++) {
+      c = st.charcos[i];
+      if (!c.brillo) continue;
+      var ver = c.vivo && !c.helado && c.spr.alpha > 0.25 && v.contains(c.spr.x, c.spr.y);
+      c.brillo.setVisible(ver);
+      if (!ver) continue;
+      var w = Math.abs(c.spr.displayWidth);
+      c.brillo.setPosition(c.spr.x + Math.sin(ahora * (0.0007 + viento * 0.0009) + c.fase) * w * 0.14,
+                           c.spr.y - Math.abs(c.spr.displayHeight) * 0.13);
+      c.brillo.setScale(w / 46, 1);
+      c.brillo.setAlpha(c.spr.alpha * (0.14 + 0.12 * (0.5 + 0.5 * Math.sin(ahora * 0.0021 + c.fase * 2))));
+    }
+    // La lluvia dentro de los charcos.
+    if (st.fuerzaLluvia > 0.05 && ahora >= st.proximaOndaCharco) {
+      st.proximaOndaCharco = ahora + 70 / st.fuerzaLluvia;
+      for (var k = 0; k < 4; k++) {
+        c = st.charcos[Math.floor(Math.random() * st.charcos.length)];
+        if (!c || !c.vivo || c.helado || c.spr.alpha < 0.3 || !v.contains(c.spr.x, c.spr.y)) continue;
+        var a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random());
+        ondaEnCharco(st, c.spr.x + Math.cos(a) * rr * Math.abs(c.spr.displayWidth) * 0.3,
+                     c.spr.y + Math.sin(a) * rr * Math.abs(c.spr.displayHeight) * 0.28, az(0.7, 1.1), 420);
+        break;
+      }
+    }
+    // El chapoteo: el jugador y su mascota, si andan por encima.
+    if (ahora < st.proximoChapoteo) return;
+    st.proximoChapoteo = ahora + 90;
+    var quienes = [scene.player, scene.dog];
+    st._ultPos = st._ultPos || [];
+    for (i = 0; i < quienes.length; i++) {
+      var q = quienes[i];
+      if (!q || !q.active) continue;
+      var ant = st._ultPos[i], movio = ant && (Math.abs(q.x - ant[0]) + Math.abs(q.y - ant[1]) > 1.5);
+      st._ultPos[i] = [q.x, q.y];
+      if (!movio) continue;
+      var py = piesDeCharco(scene, q) - 3;
+      if (!charcoEn(st, q.x, py)) continue;
+      if (ahora - (q.__gfChapoteo || 0) < 260) continue;
+      q.__gfChapoteo = ahora;
+      chapoteo(st, q.x, py, (q.depth || py) + 1);
+    }
   }
 
   // ═══════════════════════════════════════════════════════ INCENDIO
@@ -2708,12 +3014,446 @@
       }
     }
 
+    // Lo dibujado: la copa que prende, las chispas, las hojas y la ceniza.
+    montarFuegoDibujado(st, inc);
+
     } catch (e) {
       apagarIncendio(st);
       log('no se pudo crear el incendio', e);
       return;
     }
     log('rayo en', mejor.clave, '— arde', ARDE_MS / 1000, 's');
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     EL FUEGO DIBUJADO                                           (2026-10-04)
+     ──────────────────────────────────────────────────────────────────────
+     "Quiero el fuego de cuando le cae a un árbol más detallado". Lo que ya
+     había —las seis lenguas PNG, el halo, el humo y las pavesas— se queda: es
+     la hoguera del tronco. Encima va ahora:
+
+       · LENGUAS SOBRE LA COPA. Se lee la silueta del árbol (los píxeles de su
+         textura) y se reparten llamas por donde HAY hojas. Y no se encienden
+         todas a la vez: prenden desde el punto donde cayó el rayo hacia fuera,
+         así que el fuego se PROPAGA por la copa en unos segundos.
+       · El ESTALLIDO de chispas del impacto, y después chasquidos sueltos.
+       · HOJAS ARDIENDO que se desprenden y caen girando hasta el suelo.
+       · CENIZA gris que sube flotando.
+       · HUMO DENSO, oscuro abajo y más claro al subir.
+       · Una QUEMADURA en el suelo cuando el árbol cae, que se borra sola.
+
+     Todo con canvas: ningún PNG nuevo que olvidar subir al servidor.
+     ══════════════════════════════════════════════════════════════════════ */
+  var LLAMA_FOTOS   = 6;
+  var N_LENGUAS     = 16;
+  var PROPAGA_MS    = 7000;
+  var N_CHISPAS     = 22;
+  var N_HOJAS       = 10;
+  var N_CENIZAS     = 14;
+  var N_HUMO_DENSO  = 5;
+  var QUEMADURA_MS  = 45000;
+  var _copasLeidas  = {};          // clave de textura -> [{u, v}] (se lee una vez)
+
+  function aditivo(obj) {
+    if (obj && obj.setBlendMode && window.Phaser && Phaser.BlendModes) obj.setBlendMode(Phaser.BlendModes.ADD);
+    return obj;
+  }
+
+  /**
+   * Los fotogramas de una lengua de fuego: tres capas encajadas (rojo
+   * anaranjado fuera, naranja amarillo en medio y un corazón casi blanco),
+   * con los bordes ondulados y la punta que se mueve de un fotograma a otro.
+   */
+  function texturasLlama(scene) {
+    var claves = [];
+    for (var f = 0; f < LLAMA_FOTOS; f++) {
+      var clave = 'gfc_llama_d' + f;
+      claves.push(clave);
+      if (scene.textures.exists(clave)) continue;
+      var W = 32, H = 56;
+      try {
+        var c = scene.textures.createCanvas(clave, W, H);
+        var ctx = c.getContext();
+        var capas = [
+          { ancho: 13, alto: 0.98, color0: 'rgba(255,92,24,0.85)',  color1: 'rgba(200,40,10,0)' },
+          { ancho: 9,  alto: 0.78, color0: 'rgba(255,170,48,0.95)', color1: 'rgba(255,110,30,0)' },
+          { ancho: 5,  alto: 0.52, color0: 'rgba(255,246,200,1)',   color1: 'rgba(255,214,110,0)' }
+        ];
+        var fase = f * (Math.PI * 2 / LLAMA_FOTOS);
+        for (var k = 0; k < capas.length; k++) {
+          var cp = capas[k];
+          var base = H - 4, alto = (H - 6) * cp.alto;
+          ctx.beginPath();
+          var N = 18, i, t, w, dx;
+          for (i = 0; i <= N; i++) {               // lado izquierdo, subiendo
+            t = i / N;
+            w = cp.ancho * Math.pow(1 - t, 0.75) * (0.86 + 0.14 * Math.sin(t * 7 + fase));
+            dx = Math.sin(t * 4.2 + fase) * 3.2 * t;
+            ctx.lineTo(W / 2 + dx - w, base - t * alto);
+          }
+          for (i = N; i >= 0; i--) {               // lado derecho, bajando
+            t = i / N;
+            w = cp.ancho * Math.pow(1 - t, 0.75) * (0.86 + 0.14 * Math.sin(t * 6.1 + fase + 1.3));
+            dx = Math.sin(t * 4.2 + fase) * 3.2 * t;
+            ctx.lineTo(W / 2 + dx + w, base - t * alto);
+          }
+          ctx.closePath();
+          var g = ctx.createLinearGradient(0, base, 0, base - alto);
+          g.addColorStop(0, cp.color0);
+          g.addColorStop(0.55, cp.color0);
+          g.addColorStop(1, cp.color1);
+          ctx.fillStyle = g;
+          ctx.fill();
+        }
+        c.refresh();
+      } catch (e) { return null; }
+    }
+    return claves;
+  }
+
+  function texturaPunto(scene, clave, T, paradas) {
+    if (scene.textures.exists(clave)) return clave;
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      var g = ctx.createRadialGradient(T / 2, T / 2, 0, T / 2, T / 2, T / 2);
+      for (var i = 0; i < paradas.length; i++) g.addColorStop(paradas[i][0], paradas[i][1]);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, T, T);
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  function texturaHojaArdiendo(scene) {
+    var clave = 'gfc_hoja_ardiendo';
+    if (scene.textures.exists(clave)) return clave;
+    try {
+      var c = scene.textures.createCanvas(clave, 8, 6);
+      var ctx = c.getContext();
+      ctx.fillStyle = 'rgba(70,30,12,0.95)';
+      ctx.beginPath(); ctx.ellipse(4, 3, 3.6, 2.4, 0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,150,40,1)';
+      ctx.beginPath(); ctx.ellipse(4, 3, 2.4, 1.4, 0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,236,170,1)';
+      ctx.fillRect(3, 2, 2, 1);
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  /** Humo denso: varias bolas blandas superpuestas, nunca un círculo. */
+  function texturaHumoDenso(scene) {
+    var clave = 'gfc_humo_denso';
+    if (scene.textures.exists(clave)) return clave;
+    var T = 64;
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      var bolas = [[32, 36, 22], [22, 30, 15], [42, 28, 16], [30, 20, 14], [40, 42, 13], [20, 42, 12]];
+      for (var i = 0; i < bolas.length; i++) {
+        var b = bolas[i];
+        var g = ctx.createRadialGradient(b[0], b[1], 0, b[0], b[1], b[2]);
+        g.addColorStop(0, 'rgba(255,255,255,0.55)');
+        g.addColorStop(0.6, 'rgba(255,255,255,0.22)');
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, T, T);
+      }
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  /** La quemadura del suelo: una elipse carbonizada de borde irregular. */
+  function texturaQuemadura(scene) {
+    var clave = 'gfc_quemadura';
+    if (scene.textures.exists(clave)) return clave;
+    var W = 96, H = 48;
+    try {
+      var c = scene.textures.createCanvas(clave, W, H);
+      var ctx = c.getContext();
+      for (var i = 0; i < 14; i++) {
+        var a = (i / 14) * Math.PI * 2;
+        var bx = W / 2 + Math.cos(a) * 26 * (0.6 + 0.4 * Math.sin(i * 2.3));
+        var by = H / 2 + Math.sin(a) * 11 * (0.6 + 0.4 * Math.cos(i * 1.7));
+        var r = 10 + 6 * Math.abs(Math.sin(i * 3.1));
+        var g = ctx.createRadialGradient(bx, by, 0, bx, by, r);
+        g.addColorStop(0, 'rgba(24,14,8,0.45)');
+        g.addColorStop(1, 'rgba(24,14,8,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+      }
+      var g2 = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 30);
+      g2.addColorStop(0, 'rgba(12,8,6,0.75)');
+      g2.addColorStop(0.6, 'rgba(30,18,10,0.35)');
+      g2.addColorStop(1, 'rgba(30,18,10,0)');
+      ctx.fillStyle = g2;
+      ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(1, 0.5); ctx.translate(-W / 2, -H / 2);
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  /**
+   * Dónde HAY hojas en el árbol: puntos (u, v) de 0 a 1 sobre su textura.
+   *
+   * Se lee el fotograma a 24 columnas (lo justo para encontrar la copa) y se
+   * quedan las celdas con píxeles pintados en el 72 % de arriba —lo de abajo
+   * es el tronco, que ya arde con la hoguera—. Una vez por textura.
+   */
+  function puntosDeCopa(spr) {
+    var fr = spr && spr.frame;
+    var img = fr && fr.source && fr.source.image;
+    if (!img) return [];
+    var clave = spr.texture.key + '|' + fr.name;
+    if (_copasLeidas[clave]) return _copasLeidas[clave];
+    var out = [];
+    var lec = null;
+    try {
+      var cols = 24;
+      var rows = Math.max(8, Math.round(cols * fr.cutHeight / Math.max(1, fr.cutWidth)));
+      lec = document.createElement('canvas');
+      lec.width = cols; lec.height = rows;
+      var ctx = lec.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, fr.cutX, fr.cutY, fr.cutWidth, fr.cutHeight, 0, 0, cols, rows);
+      var d = ctx.getImageData(0, 0, cols, rows).data;
+      var hasta = Math.floor(rows * 0.72);
+      for (var y = 0; y < hasta; y++) {
+        for (var x = 0; x < cols; x++) {
+          if (d[(y * cols + x) * 4 + 3] > 60) out.push({ u: (x + 0.5) / cols, v: (y + 0.5) / rows });
+        }
+      }
+    } catch (e) { out = []; }
+    finally { if (lec) { lec.width = 0; lec.height = 0; } }
+    _copasLeidas[clave] = out;
+    return out;
+  }
+
+  /** De (u, v) de la textura a coordenadas de mundo, con origen y volteo. */
+  function aMundoDelArbol(spr, p) {
+    var u = spr.flipX ? 1 - p.u : p.u;
+    return {
+      x: spr.x - spr.displayWidth * spr.originX + u * spr.displayWidth,
+      y: spr.y - spr.displayHeight * spr.originY + p.v * spr.displayHeight
+    };
+  }
+
+  function montarFuegoDibujado(st, inc) {
+    var scene = st.scene, spr = inc.spr;
+    var claves = texturasLlama(scene);
+    inc.lenguas = []; inc.chispas = []; inc.hojas = []; inc.cenizas = []; inc.humoDenso = [];
+    inc.proximaChispa = 0; inc.proximaHoja = 0;
+    function poner(clave) { var o = scene.add.image(0, 0, clave); inc.objetos.push(o); return o; }
+
+    // El punto del rayo: lo alto de la copa (el mismo sitio donde se dibuja).
+    var b = null;
+    try { b = spr.getBounds(); } catch (e) {}
+    var rayo = b ? { x: b.centerX, y: b.top + b.height * 0.18 } : { x: inc.cx, y: inc.base - inc.alto * 0.8 };
+    inc.puntoRayo = rayo;
+
+    // ── lenguas sobre la copa, repartidas y encendiéndose desde el rayo ──
+    if (claves) {
+      var copa = puntosDeCopa(spr).slice();
+      for (var s = copa.length - 1; s > 0; s--) {         // barajar
+        var r = Math.floor(Math.random() * (s + 1)); var tmp = copa[s]; copa[s] = copa[r]; copa[r] = tmp;
+      }
+      var elegidos = [], separa = Math.max(10, inc.ancho * 0.12);
+      for (var i = 0; i < copa.length && elegidos.length < N_LENGUAS; i++) {
+        var w = aMundoDelArbol(spr, copa[i]);
+        var cerca = false;
+        for (var j = 0; j < elegidos.length; j++) {
+          if (Math.abs(elegidos[j].x - w.x) + Math.abs(elegidos[j].y - w.y) < separa) { cerca = true; break; }
+        }
+        if (!cerca) elegidos.push({ x: w.x, y: w.y, v: copa[i].v });
+      }
+      var lejos = 1;
+      elegidos.forEach(function (p) { lejos = Math.max(lejos, Math.hypot(p.x - rayo.x, p.y - rayo.y)); });
+      var tam = Math.max(0.45, Math.min(1.6, inc.alto / 190));
+      elegidos.forEach(function (p, k) {
+        /* Mezcla NORMAL, no aditiva: sobre el verde de la copa, sumar luz
+           blanqueaba la llama a un amarillo pálido. Así se ve el rojo, el
+           naranja y el corazón claro tal como están dibujados; la luz la
+           pone el halo, que sí es aditivo. */
+        var ll = poner(claves[k % claves.length]);
+        ll.setOrigin(0.5, 0.92).setDepth(spr.depth + 3 + (k % 4) * 0.1).setAlpha(0);
+        inc.lenguas.push({
+          spr: ll, x0: p.x, y0: p.y,
+          escala: tam * az(0.55, 0.95) * (0.75 + 0.5 * p.v),
+          enciende: (Math.hypot(p.x - rayo.x, p.y - rayo.y) / lejos) * PROPAGA_MS * az(0.85, 1.15),
+          desfase: Math.floor(az(0, LLAMA_FOTOS)), ritmo: az(0.8, 1.7),
+          fase: az(0, Math.PI * 2), vaiven: az(2, 5), amplitud: az(1, 3.5)
+        });
+      });
+    }
+
+    // ── el estallido del impacto ─────────────────────────────────────────
+    var chispa = texturaPunto(scene, 'gfc_chispa', 6,
+      [[0, 'rgba(255,255,236,1)'], [0.45, 'rgba(255,214,120,0.9)'], [1, 'rgba(255,140,40,0)']]);
+    if (chispa) {
+      for (var c = 0; c < N_CHISPAS; c++) {
+        var ch = aditivo(poner(chispa));
+        ch.setDepth(spr.depth + 12);
+        var ang = az(-Math.PI * 0.95, -Math.PI * 0.05);        // hacia arriba y a los lados
+        var vel = az(70, 190);
+        inc.chispas.push({ spr: ch, x: rayo.x, y: rayo.y, vx: Math.cos(ang) * vel, vy: Math.sin(ang) * vel,
+                           vida: 0, dura: az(450, 1100) });
+        ch.setPosition(rayo.x, rayo.y).setScale(az(0.6, 1.3));
+      }
+    }
+
+    // ── hojas ardiendo, ceniza y humo denso (se sueltan mientras arde) ───
+    var hoja = texturaHojaArdiendo(scene);
+    if (hoja) for (var h = 0; h < N_HOJAS; h++) {
+      var hj = aditivo(poner(hoja)); hj.setAlpha(0).setDepth(spr.depth + 11);
+      inc.hojas.push({ spr: hj, viva: false });
+    }
+    var ceniza = texturaPunto(scene, 'gfc_ceniza', 4, [[0, 'rgba(190,186,180,0.9)'], [1, 'rgba(150,146,140,0)']]);
+    if (ceniza) for (var z = 0; z < N_CENIZAS; z++) {
+      var cz = poner(ceniza); cz.setAlpha(0).setDepth(spr.depth + 10);
+      inc.cenizas.push({ spr: cz, vida: az(0, 1), dura: az(4000, 7000), x: 0, y: 0, fase: az(0, 6.28) });
+    }
+    var humo = texturaHumoDenso(scene);
+    if (humo) for (var u = 0; u < N_HUMO_DENSO; u++) {
+      var hd = poner(humo); hd.setAlpha(0).setDepth(spr.depth + 9.5);
+      inc.humoDenso.push({ spr: hd, vida: u / N_HUMO_DENSO, dura: az(3200, 5200),
+                           x0: inc.cx + az(-inc.ancho * 0.25, inc.ancho * 0.25), giro: az(-0.4, 0.4) });
+    }
+  }
+
+  function moverFuegoDibujado(st, inc, ahora, dt, t, vigor, pulso, empuje) {
+    var i;
+    // ── lenguas de la copa ──────────────────────────────────────────────
+    var encendidas = [];
+    for (i = 0; i < (inc.lenguas || []).length; i++) {
+      var ll = inc.lenguas[i];
+      if (t < ll.enciende) { ll.spr.setAlpha(0); continue; }
+      var crece = Math.min(1, (t - ll.enciende) / 1200);
+      encendidas.push(ll);
+      ll.spr.setTexture('gfc_llama_d' + (Math.floor(inc.paso * ll.ritmo + ll.desfase) % LLAMA_FOTOS));
+      ll.fase += dt * ll.vaiven;
+      var bb = Math.sin(ll.fase);
+      var p = pulso * (0.7 + 0.3 * Math.sin(ll.fase * 0.6 + i));
+      ll.spr.setPosition(ll.x0 + bb * ll.amplitud + empuje * 10, ll.y0);
+      var e = ll.escala * crece * vigor;
+      ll.spr.setScale(e * (0.85 + 0.2 * p) || 0.0001, e * (0.75 + 0.4 * p) || 0.0001);
+      ll.spr.setRotation(bb * 0.08 + empuje * 0.3);
+      ll.spr.setAlpha(Math.min(1, (0.6 + 0.4 * p) * crece * vigor));
+    }
+
+    // ── chispas: primero el estallido, luego chasquidos sueltos ─────────
+    if (inc.chispas && encendidas.length && vigor > 0.2 && ahora >= inc.proximaChispa) {
+      inc.proximaChispa = ahora + az(250, 900);
+      var libres = inc.chispas.filter(function (c) { return c.vida >= 1; });
+      var origen = encendidas[Math.floor(Math.random() * encendidas.length)];
+      for (var n = 0; n < Math.min(libres.length, 1 + Math.floor(Math.random() * 3)); n++) {
+        var cs = libres[n];
+        var a = az(-Math.PI * 0.85, -Math.PI * 0.15), v = az(40, 110);
+        cs.x = origen.x0; cs.y = origen.y0 - 6; cs.vx = Math.cos(a) * v; cs.vy = Math.sin(a) * v;
+        cs.vida = 0; cs.dura = az(350, 800);
+      }
+    }
+    for (i = 0; i < (inc.chispas || []).length; i++) {
+      var c = inc.chispas[i];
+      if (c.vida >= 1) { c.spr.setAlpha(0); continue; }
+      c.vida += dt * 1000 / c.dura;
+      c.vy += 170 * dt;                      // caen: son brasas, pesan
+      c.x += (c.vx + empuje * 30) * dt; c.y += c.vy * dt;
+      c.spr.setPosition(c.x, c.y);
+      c.spr.setAlpha(Math.max(0, 1 - c.vida) * (0.7 + 0.3 * Math.sin(c.vida * 40)));
+    }
+
+    // ── hojas ardiendo que caen ─────────────────────────────────────────
+    if (inc.hojas && encendidas.length && vigor > 0.25 && ahora >= inc.proximaHoja) {
+      inc.proximaHoja = ahora + az(500, 1300);
+      for (i = 0; i < inc.hojas.length; i++) {
+        var hl = inc.hojas[i];
+        if (hl.viva) continue;
+        var o = encendidas[Math.floor(Math.random() * encendidas.length)];
+        hl.viva = true; hl.x = o.x0 + az(-6, 6); hl.y = o.y0; hl.vy = az(22, 46);
+        hl.fase = az(0, 6.28); hl.giro = az(-5, 5); hl.vida = 0; hl.dura = az(2400, 4200);
+        hl.suelo = inc.base + az(-4, 10);
+        hl.spr.setScale(az(0.9, 1.6));
+        break;
+      }
+    }
+    for (i = 0; i < (inc.hojas || []).length; i++) {
+      var hj = inc.hojas[i];
+      if (!hj.viva) { hj.spr.setAlpha(0); continue; }
+      hj.vida += dt * 1000 / hj.dura;
+      hj.fase += dt * 3;
+      if (hj.y < hj.suelo) {
+        hj.y += hj.vy * dt;
+        hj.x += (Math.sin(hj.fase) * 22 + empuje * 40) * dt;
+        hj.spr.rotation += hj.giro * dt;
+      }
+      hj.spr.setPosition(hj.x, hj.y);
+      // Brilla en el aire y se apaga (se vuelve ceniza) al llegar abajo.
+      hj.spr.setAlpha(Math.max(0, 1 - hj.vida) * (0.75 + 0.25 * Math.sin(hj.fase * 4)));
+      if (hj.vida >= 1) hj.viva = false;
+    }
+
+    // ── ceniza que sube ─────────────────────────────────────────────────
+    for (i = 0; i < (inc.cenizas || []).length; i++) {
+      var cz = inc.cenizas[i];
+      cz.vida += dt * 1000 / cz.dura;
+      if (cz.vida >= 1) {
+        cz.vida = 0;
+        cz.x = inc.cx + az(-inc.ancho * 0.35, inc.ancho * 0.35);
+        cz.y = inc.base - inc.alto * az(0.4, 0.9);
+      }
+      cz.fase += dt * 1.3;
+      cz.x += (Math.sin(cz.fase) * 9 + empuje * 50) * dt;
+      cz.y -= 14 * dt;
+      cz.spr.setPosition(cz.x, cz.y);
+      cz.spr.setAlpha(Math.min(cz.vida * 4, 1 - cz.vida) * 0.7 * Math.max(vigor, 0.3));
+    }
+
+    // ── humo denso: oscuro al nacer, más claro y más ancho al subir ─────
+    for (i = 0; i < (inc.humoDenso || []).length; i++) {
+      var hd = inc.humoDenso[i];
+      hd.vida += dt * 1000 / hd.dura;
+      if (hd.vida >= 1) { hd.vida = 0; hd.x0 = inc.cx + az(-inc.ancho * 0.25, inc.ancho * 0.25); }
+      var vh = hd.vida;
+      hd.spr.setPosition(hd.x0 + empuje * 80 * vh * vh + Math.sin(vh * 5 + i) * 5,
+                         inc.base - inc.alto * (0.55 + vh * 0.9));
+      var esc = (inc.ancho / 64) * (0.7 + vh * 1.6);
+      hd.spr.setScale(esc);
+      hd.spr.setRotation(hd.giro * vh);
+      var gris = Math.round(40 + vh * 90);
+      hd.spr.setTint((gris << 16) | (gris << 8) | gris);
+      hd.spr.setAlpha(Math.min(vh * 4, 1 - vh) * 0.65 * Math.max(vigor, 0.2));
+    }
+  }
+
+  /** El árbol cae: fuera las llamas de la copa y queda la quemadura. */
+  function caerFuegoDibujado(st, inc) {
+    ['lenguas', 'hojas'].forEach(function (k) {
+      (inc[k] || []).forEach(function (o) { destruirObjeto(o.spr); });
+      inc[k] = [];
+    });
+    var clave = texturaQuemadura(st.scene);
+    if (!clave) return;
+    try {
+      var q = st.scene.add.image(inc.cx, inc.base - 2, clave);
+      q.setDisplaySize(Math.max(70, inc.ancho * 1.25), Math.max(34, inc.ancho * 0.6));
+      q.setDepth(PROF_CHARCO + 0.6);
+      q.setAlpha(0.9);
+      (st.quemaduras = st.quemaduras || []).push({ spr: q, nace: st.scene.time.now });
+    } catch (e) { log('quemadura:', e); }
+  }
+
+  /** Las quemaduras se van borrando solas (la hierba vuelve). */
+  function moverQuemaduras(st, ahora) {
+    var q = st.quemaduras;
+    if (!q || !q.length) return;
+    for (var i = q.length - 1; i >= 0; i--) {
+      var t = (ahora - q[i].nace) / QUEMADURA_MS;
+      if (t >= 1) { destruirObjeto(q[i].spr); q.splice(i, 1); continue; }
+      q[i].spr.setAlpha(0.9 * (1 - t * t));
+    }
   }
 
   /** Reinicia una pavesa en la base del fuego, con su empujón y su vida. */
@@ -2859,6 +3599,8 @@
       pv.spr.setAlpha((1 - pv.vida) * (0.55 + 0.45 * Math.sin(pv.fase * 3)));
     }
 
+    moverFuegoDibujado(st, inc, ahora, dt, t, vigor, pulso, empuje);
+
     if (inc.fase === 'arde') {
       // el árbol se va tiznando
       var q = Math.min(1, t / ARDE_MS);
@@ -2892,6 +3634,7 @@
         // las llamas se apagan y quedan rescoldos en el suelo
         for (i = 0; i < inc.llamas.length; i++) inc.llamas[i].spr.destroy();
         inc.llamas.length = 0;
+        caerFuegoDibujado(st, inc);
         /* TRES RESCOLDOS EN EL SUELO, no uno. Un árbol que se cae deja una
            mancha de brasas, no un puntito. Y quedan a ras de suelo, con la
            profundidad del tocón, para que se pueda pasar por delante. */
@@ -2942,7 +3685,7 @@
     if (!inc) return;
     st.incendio = null;
     var objetos = new Set(inc.objetos || []);
-    ['llamas', 'humos', 'pavesas', 'brasas'].forEach(function (key) {
+    ['llamas', 'humos', 'pavesas', 'brasas', 'lenguas', 'chispas', 'hojas', 'cenizas', 'humoDenso'].forEach(function (key) {
       (inc[key] || []).forEach(function (obj) { objetos.add(obj.spr); });
       if (inc[key]) inc[key].length = 0;
     });
@@ -2977,7 +3720,7 @@
     var st = {
       scene: scene, gotas: [], salpicas: [], copos: [], posas: [], bordes: [],
       motas: [],
-      charcos: [], proximoCharco: 0, incendio: null,
+      charcos: [], proximoCharco: 0, incendio: null, quemaduras: [],
       fuerzaLluvia: 0, fuerzaNieve: 0,
       proximoTrueno: 0, proximaCentella: 0, truenoEn: 0, truenoFuerza: 1,
       // true = rayo con trazo (crujido + retumbo), false = centella lejana.
@@ -3098,6 +3841,11 @@
        pinta nada — no hace falta ningún `if` más abajo. */
     for (i = 0; i < N_GOTAS; i++)   st.gotas.push(nuevaGota(st));
     if (hay(scene, COPOS))   for (i = 0; i < N_COPOS; i++)   st.copos.push(nuevoCopo(st));
+    /* Los cristales y los de cerca se dibujan con canvas: van aunque falten
+       los PNG de los copos. Los de cerca, los ÚLTIMOS en el contenedor, para
+       pasar por delante de todos los demás. */
+    for (i = 0; i < N_CRISTALES; i++)   { var cr = nuevoCopo(st, 'cristal'); if (cr) st.copos.push(cr); }
+    for (i = 0; i < N_COPOS_CERCA; i++) { var ce = nuevoCopo(st, 'cerca');   if (ce) st.copos.push(ce); }
     if (hay(scene, SALPICA)) for (i = 0; i < N_SALPICA; i++) st.salpicas.push(nuevaSalpica(st));
     if (hay(scene, POSAS))   for (i = 0; i < N_POSAS; i++)   st.posas.push(nuevaPosa(st));
     // Los charcos NO van en el contenedor: viven en el mundo, no en la pantalla.
@@ -3105,10 +3853,16 @@
        cuatro PNG viejos. */
     var hayCharco = true;
     for (i = 0; i < CHARCOS_DIBUJADOS.length; i++) {
-      if (!dibujarCharco(scene, CHARCOS_DIBUJADOS[i], i + 1, false)) hayCharco = false;
-      dibujarCharco(scene, HIELOS_DIBUJADOS[i], i + 1, true);
+      for (var et = 0; et < ETAPAS_CHARCO; et++) {
+        if (!dibujarCharco(scene, CHARCOS_DIBUJADOS[i], i + 1, false, et)) hayCharco = false;
+        dibujarCharco(scene, HIELOS_DIBUJADOS[i], i + 1, true, et);
+      }
     }
-    if (hayCharco) for (i = 0; i < N_CHARCOS; i++) st.charcos.push(nuevoCharco(st));
+    texturasVidaCharco(scene);
+    if (hayCharco) {
+      for (i = 0; i < N_CHARCOS; i++) st.charcos.push(nuevoCharco(st));
+      montarVidaCharcos(st);
+    }
 
     // Rayo, marco y fogonazo al final: van por encima de todo lo que cae.
     /* El rayo con TRAZO necesita sus imágenes. Sin ellas se pierde el dibujo
@@ -3226,7 +3980,8 @@
     if (st.onUpdate) scene.events.off('update', st.onUpdate);
     if (st.onApagar) { scene.events.off('shutdown', st.onApagar); scene.events.off('destroy', st.onApagar); }
     apagarIncendio(st);
-    ['gotas', 'salpicas', 'copos', 'posas', 'bordes', 'charcos', 'rayosSol', 'motas', 'nubes'].forEach(function (key) {
+    ['gotas', 'salpicas', 'copos', 'posas', 'bordes', 'charcos', 'rayosSol', 'motas', 'nubes', 'quemaduras',
+     'brillosCharco', 'ondasCharco', 'gotitasCharco'].forEach(function (key) {
       (st[key] || []).forEach(function (obj) { destruirObjeto(obj.spr || obj); });
       if (st[key]) st[key].length = 0;
     });
@@ -3370,6 +4125,8 @@
       arrancarRed: arrancarRed, reintentarViento: reintentarViento,
       hay: hay, faltan: faltan,
       moverIncendio: moverIncendio, apagarIncendio: apagarIncendio,
+      texturasLlama: texturasLlama, puntosDeCopa: puntosDeCopa, moverQuemaduras: moverQuemaduras,
+      texturaCristal: texturaCristal, texturaCopoCerca: texturaCopoCerca, PLANO_COPO: PLANO_COPO,
       arbolesAlcanzables: arbolesAlcanzables, ARDE_MS: ARDE_MS,
       PROB_INCENDIO: PROB_INCENDIO, N_CHARCOS: N_CHARCOS,
       lienzoRect: lienzoRect, texturaBlanca: texturaBlanca,

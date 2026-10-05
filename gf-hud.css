@@ -1,0 +1,904 @@
+/* ===========================================================================
+ * EL HUD NUEVO                                                     (2026-10-05)
+ *
+ * "Hazme un HUD nuevo al juego, profesional y cómodo para PC y teléfonos, de
+ * altos gráficos y animaciones: todos los paneles de botones redondos, el
+ * inventario, todos los paneles."
+ *
+ * CÓMO ESTÁ HECHO, Y POR QUÉ ASÍ
+ *   Es UNA hoja que va la última y viste lo que ya hay: no cambia ni un id ni
+ *   una clase, ni el orden de los botones (tiendajuego.js engancha botones por
+ *   su posición), ni ninguna posición de nada salvo las etiquetas de los
+ *   botones redondos. Si esta hoja no cargara, el juego se vería como antes.
+ *
+ *   Todo cuelga de `html body …` y lleva !important: styless.css tiene trece
+ *   mil líneas con capas de !important encima de otras, y sin subir la
+ *   especificidad esta hoja perdería contra cualquiera de ellas.
+ *
+ * EL ESTILO
+ *   Cristal oscuro (ciruela y noche) con remates DORADOS, el mismo oro de las
+ *   monedas y de los iconos nuevos (Game/Source/hud, tools/generar-iconos-hud.py).
+ *   Cabeceras con su filo de luz, cerrar redondo, pestañas, barras de vida con
+ *   brillo, casillas con bisel.
+ *
+ * LAS ANIMACIONES
+ *   Al abrir un panel, al pasar el ratón, al pulsar y al aparecer el HUD.
+ *   NINGUNA infinita decorativa: un bucle eterno mantiene despierto al
+ *   compositor del navegador aunque no pase nada (ver la nota de styless.css
+ *   sobre `btn-shimmer`). Las que avisan de algo (el correo sin leer, la vida
+ *   en rojo) laten unas pocas veces y se paran.
+ * ======================================================================== */
+
+:root {
+  --gfh-fondo: linear-gradient(165deg, rgba(42, 34, 66, .97) 0%, rgba(24, 20, 40, .97) 52%, rgba(14, 12, 25, .98) 100%);
+  --gfh-fondo-2: rgba(255, 238, 205, .05);
+  --gfh-fondo-3: rgba(255, 238, 205, .09);
+  --gfh-oro: #f2c35c;
+  --gfh-oro-claro: #ffe2a0;
+  --gfh-oro-osc: #a8742a;
+  --gfh-borde: rgba(242, 195, 92, .58);
+  --gfh-borde-suave: rgba(242, 195, 92, .22);
+  --gfh-texto: #fff4dd;
+  --gfh-texto-2: rgba(255, 236, 204, .72);
+  --gfh-turq: #4cc9b4;
+  --gfh-rojo: #e0564c;
+  --gfh-sombra: 0 18px 44px rgba(0, 0, 0, .62), 0 0 0 1px rgba(0, 0, 0, .35);
+  --gfh-radio: 16px;
+  --gfh-fuente: 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', sans-serif;
+}
+
+/* ─────────────────────────────────────────────────── LOS BOTONES REDONDOS */
+html body #game-hud .round-buttons .round-btn {
+  width: 50px !important;
+  height: 50px !important;
+  border-radius: 50% !important;
+  overflow: visible !important;
+  background: radial-gradient(circle at 34% 26%, #4d4172 0%, #261f3e 52%, #141120 100%) !important;
+  border: 2px solid var(--gfh-borde) !important;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, .55), 0 0 0 3px rgba(12, 10, 20, .5),
+              inset 0 2px 0 rgba(255, 255, 255, .14), inset 0 -4px 10px rgba(0, 0, 0, .5) !important;
+  transition-property: transform, box-shadow, border-color, opacity !important;
+  transition-duration: .2s !important;
+  transition-timing-function: cubic-bezier(.2, .9, .3, 1.35) !important;
+}
+html body #game-hud .round-buttons .round-btn::before {
+  border-radius: 50% !important;
+  background: linear-gradient(115deg, transparent 32%, rgba(255, 236, 190, .28) 50%, transparent 68%) !important;
+  background-size: 220% 100% !important;
+}
+html body #game-hud .round-buttons .round-btn img {
+  width: 32px !important;
+  height: 32px !important;
+  object-fit: contain !important;
+  image-rendering: auto !important;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .55)) !important;
+  transition: transform .2s cubic-bezier(.2, .9, .3, 1.4) !important;
+}
+@media (hover: hover) {
+  html body #game-hud .round-buttons .round-btn:hover {
+    transform: translateY(-2px) scale(1.08) !important;
+    border-color: var(--gfh-oro-claro) !important;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, .55), 0 0 0 3px rgba(12, 10, 20, .5), 0 0 20px rgba(255, 200, 90, .45),
+                inset 0 2px 0 rgba(255, 255, 255, .2), inset 0 -4px 10px rgba(0, 0, 0, .45) !important;
+  }
+  html body #game-hud .round-buttons .round-btn:hover img { transform: rotate(-6deg) scale(1.06) !important; }
+}
+html body #game-hud .round-buttons .round-btn:active { transform: scale(.9) !important; transition-duration: .08s !important; }
+
+/* La etiqueta: una píldora a la IZQUIERDA del botón (la columna está a la
+   derecha de la pantalla; encima tapaba el botón de arriba). */
+html body #game-hud .round-buttons .round-btn .label-badge {
+  left: auto !important;
+  right: calc(100% + 12px) !important;
+  top: 50% !important;
+  bottom: auto !important;
+  transform: translate(8px, -50%) !important;
+  padding: 6px 12px !important;
+  border-radius: 999px !important;
+  background: var(--gfh-fondo) !important;
+  border: 1px solid var(--gfh-borde) !important;
+  color: var(--gfh-oro-claro) !important;
+  font: 700 12px/1 var(--gfh-fuente) !important;
+  letter-spacing: .04em !important;
+  white-space: nowrap !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, .5) !important;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .6) !important;
+  transition: opacity .16s ease, transform .2s cubic-bezier(.2, .9, .3, 1.3), visibility .16s !important;
+}
+html body #game-hud .round-buttons .round-btn:hover .label-badge {
+  transform: translate(0, -50%) !important;
+}
+
+/* La chapa de avisos: roja con filo de oro, y late tres veces al llegar. */
+html body .round-btn .notif-badge,
+html body .round-btn .gfa-pip,
+html body .round-btn [class*="badge"]:not(.label-badge) {
+  background: linear-gradient(180deg, #ff6b5e, #c8352e) !important;
+  border: 2px solid #ffe2a0 !important;
+  color: #fff !important;
+  font: 800 10px/1 var(--gfh-fuente) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .5) !important;
+  animation: gfh-latido .7s ease-in-out 3 !important;
+}
+@keyframes gfh-latido { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.22); } }
+
+/* Al aparecer el HUD, los botones entran uno detrás de otro. */
+html body #game-hud.hud-visible .round-buttons:not(.hidden) .round-btn {
+  animation: gfh-entra .5s cubic-bezier(.2, .9, .3, 1.3) backwards !important;
+}
+html body #game-hud.hud-visible .round-buttons .round-btn:nth-child(2) { animation-delay: .04s !important; }
+html body #game-hud.hud-visible .round-buttons .round-btn:nth-child(3) { animation-delay: .08s !important; }
+html body #game-hud.hud-visible .round-buttons .round-btn:nth-child(4) { animation-delay: .12s !important; }
+html body #game-hud.hud-visible .round-buttons .round-btn:nth-child(5) { animation-delay: .16s !important; }
+html body #game-hud.hud-visible .round-buttons .round-btn:nth-child(6) { animation-delay: .2s !important; }
+html body #game-hud.hud-visible .round-buttons .round-btn:nth-child(7) { animation-delay: .24s !important; }
+html body #game-hud.hud-visible .round-buttons .round-btn:nth-child(8) { animation-delay: .28s !important; }
+html body #game-hud.hud-visible .round-buttons .round-btn:nth-child(9) { animation-delay: .32s !important; }
+@keyframes gfh-entra { from { opacity: 0; transform: translateX(26px) scale(.6); } }
+
+/* ─────────────────────────────────────── LAS MONEDAS, EL RELOJ Y "HIDE" */
+html body #game-hud .corner-box {
+  background: var(--gfh-fondo) !important;
+  border: 1.5px solid var(--gfh-borde) !important;
+  border-radius: 18px !important;
+  box-shadow: var(--gfh-sombra), inset 0 1px 0 rgba(255, 255, 255, .08) !important;
+}
+html body #game-hud .corner-box .info-text,
+html body #game-hud .corner-box .clock-time {
+  color: var(--gfh-oro-claro) !important;
+  font-weight: 800 !important;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .7), 0 0 8px rgba(255, 200, 90, .25) !important;
+}
+html body #game-hud .corner-box .main-img { filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .55)) !important; }
+html body #game-hud .corner-box .inner-btn {
+  border-radius: 50% !important;
+  background: radial-gradient(circle at 34% 26%, #4d4172 0%, #261f3e 52%, #141120 100%) !important;
+  border: 2px solid var(--gfh-borde) !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .5), inset 0 2px 0 rgba(255, 255, 255, .14) !important;
+}
+html body #game-hud .corner-box .inner-btn img { image-rendering: auto !important; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .6)) !important; }
+
+/* ─────────────────────────────────────────────── LA TARJETA DEL JUGADOR */
+html body #hub {
+  background: var(--gfh-fondo) !important;
+  border: 1.5px solid var(--gfh-borde) !important;
+  border-radius: 18px !important;
+  box-shadow: var(--gfh-sombra), inset 0 1px 0 rgba(255, 255, 255, .08) !important;
+}
+html body #hub-image {
+  border: 2px solid var(--gfh-oro) !important;
+  border-radius: 14px !important;
+  background: radial-gradient(circle at 50% 30%, #3a3160, #17132a) !important;
+  box-shadow: 0 0 0 3px rgba(12, 10, 20, .6), 0 0 14px rgba(255, 200, 90, .3), inset 0 0 12px rgba(0, 0, 0, .6) !important;
+}
+html body #player-level-container,
+html body #player-level {
+  background: linear-gradient(180deg, #ffd77a, #c98a2c) !important;
+  color: #2a1606 !important;
+  border-color: #ffe9b0 !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .45) !important;
+}
+html body #username {
+  color: var(--gfh-texto) !important;
+  font-weight: 800 !important;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .7) !important;
+}
+html body #hub .status-bar {
+  background: linear-gradient(180deg, rgba(0, 0, 0, .55), rgba(20, 16, 30, .7)) !important;
+  border: 1px solid rgba(255, 236, 204, .16) !important;
+  border-radius: 999px !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, .55) !important;
+  overflow: hidden !important;
+}
+html body #hub .status-fill {
+  border-radius: 999px !important;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, .35), inset 0 -2px 0 rgba(0, 0, 0, .25) !important;
+  transition: width .45s cubic-bezier(.2, .9, .3, 1) !important;
+}
+html body #health-bar .status-fill { background: linear-gradient(180deg, #ff8a78 0%, #e0453a 55%, #b22a24 100%) !important; }
+html body #water-bar .status-fill  { background: linear-gradient(180deg, #8fd4ff 0%, #3b97e6 55%, #2168b4 100%) !important; }
+html body #food-bar .status-fill   { background: linear-gradient(180deg, #ffd27a 0%, #f0a023 55%, #b8700f 100%) !important; }
+html body #hub .status-text {
+  color: #fff !important;
+  font-weight: 800 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .9) !important;
+}
+
+/* ───────────────────────────────────────── LA BARRA RÁPIDA Y LA BOLSA */
+html body #quick-slots-bar {
+  background: var(--gfh-fondo) !important;
+  border: 1.5px solid var(--gfh-borde) !important;
+  border-radius: 18px !important;
+  box-shadow: var(--gfh-sombra), inset 0 1px 0 rgba(255, 255, 255, .08) !important;
+}
+html body .quick-slot,
+html body #inventory-grid .inv-slot {
+  background: linear-gradient(180deg, rgba(10, 8, 18, .75), rgba(34, 28, 52, .75)) !important;
+  border: 1px solid rgba(255, 226, 160, .2) !important;
+  border-radius: 11px !important;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .65), inset 0 -1px 0 rgba(255, 255, 255, .06), 0 1px 0 rgba(255, 255, 255, .05) !important;
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s cubic-bezier(.2, .9, .3, 1.4) !important;
+}
+@media (hover: hover) {
+  html body .quick-slot:hover,
+  html body #inventory-grid .inv-slot:hover {
+    border-color: rgba(255, 226, 160, .6) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, .55), 0 0 10px rgba(255, 200, 90, .25) !important;
+  }
+}
+html body .quick-slot.highlight,
+html body .quick-slot.selected,
+html body #inventory-grid .inv-slot.selected,
+html body #inventory-grid .inv-slot.highlight {
+  border-color: var(--gfh-oro-claro) !important;
+  box-shadow: inset 0 0 10px rgba(255, 200, 90, .35), 0 0 0 2px rgba(255, 200, 90, .4), 0 0 14px rgba(255, 200, 90, .45) !important;
+  animation: gfh-elegida .3s cubic-bezier(.2, .9, .3, 1.5) !important;
+}
+@keyframes gfh-elegida { 50% { transform: scale(1.1); } }
+html body .quick-slot .item-count,
+html body #inventory-grid .inv-slot .item-count {
+  background: linear-gradient(180deg, #2b2340, #15111f) !important;
+  border: 1px solid rgba(255, 226, 160, .45) !important;
+  color: var(--gfh-oro-claro) !important;
+  border-radius: 7px !important;
+  font-weight: 800 !important;
+  text-shadow: 0 1px 0 #000 !important;
+}
+
+/* El botón de la bolsa, con la mochila nueva en vez del dibujo de líneas. */
+html body #inv-shortcut-btn {
+  background: radial-gradient(circle at 34% 26%, #4d4172 0%, #261f3e 52%, #141120 100%) !important;
+  border: 2px solid var(--gfh-borde) !important;
+  border-radius: 13px !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .5), inset 0 2px 0 rgba(255, 255, 255, .14) !important;
+}
+html body #inv-shortcut-btn svg { display: none !important; }
+html body #inv-shortcut-btn::before {
+  content: '' !important;
+  position: absolute !important;
+  inset: 6px !important;
+  background: url('./Game/Source/hud/mochila.png') center / contain no-repeat !important;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .55)) !important;
+  animation: none !important;
+  border-radius: 0 !important;
+}
+html body #inv-shortcut-btn::after {
+  background: var(--gfh-fondo) !important;
+  border-color: var(--gfh-borde) !important;
+  color: var(--gfh-oro-claro) !important;
+}
+html body #gf-espada-btn {
+  border-radius: 13px !important;
+  border: 2px solid var(--gfh-borde) !important;
+}
+
+/* ─────────────────────────────────────────────────────────── EL CHAT */
+html body .chat-open-btn,
+html body #open-chat-btn {
+  border-radius: 50% !important;
+  background: radial-gradient(circle at 34% 26%, #4d4172 0%, #261f3e 52%, #141120 100%) !important;
+  border: 2px solid var(--gfh-borde) !important;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, .55), inset 0 2px 0 rgba(255, 255, 255, .14) !important;
+}
+html body #open-chat-btn img { image-rendering: auto !important; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .5)) !important; }
+html body #chat-panel {
+  background: var(--gfh-fondo) !important;
+  border: 1.5px solid var(--gfh-borde) !important;
+  border-radius: var(--gfh-radio) !important;
+  box-shadow: var(--gfh-sombra) !important;
+}
+html body #chat-panel #chat-input {
+  background: rgba(0, 0, 0, .35) !important;
+  border-top: 1px solid var(--gfh-borde-suave) !important;
+  color: var(--gfh-texto) !important;
+}
+html body #chat-panel .chat-line strong { color: var(--gfh-oro-claro) !important; }
+
+/* ─────────────────────────────────────────────────── TODOS LOS PANELES */
+/* La caja de cada uno (no su velo de fondo). */
+html body #inventory-panel,
+html body #tx-hub,
+html body #tienda-hub .tienda-panel,
+html body #missions-panel,
+html body #trash-hub .trash-hub-content,
+html body .furnace-container,
+html body .notif-container,
+html body .skills-container,
+html body .nft-container,
+html body .crafting-container,
+html body .sound-hub-container,
+html body #hub-panel_101,
+html body #dashboard-overlay .dashboard-container,
+html body #gfa-panel .gfa-caja,
+html body #gf-pet-card,
+html body .gf-espada-menu {
+  background: var(--gfh-fondo) !important;
+  border: 1.5px solid var(--gfh-borde) !important;
+  border-radius: var(--gfh-radio) !important;
+  box-shadow: var(--gfh-sombra), inset 0 1px 0 rgba(255, 255, 255, .08), inset 0 0 40px rgba(255, 200, 120, .03) !important;
+  color: var(--gfh-texto) !important;
+  font-family: var(--gfh-fuente) !important;
+}
+
+/* Las cabeceras: un filo de oro abajo y la luz que lo recorre al abrir. */
+html body #inventory-panel .inv-drag-handle,
+html body .tx-hub-header,
+html body .tienda-header,
+html body .missions-header,
+html body .trash-hub-header,
+html body .furnace-header,
+html body .notif-header,
+html body .skills-header,
+html body .nft-header,
+html body .crafting-header,
+html body .sound-hub-header,
+html body #hub-panel_101 .header_101,
+html body .dashboard-header,
+html body .gfa-cab {
+  position: relative !important;
+  background: linear-gradient(180deg, rgba(255, 226, 160, .10), rgba(255, 226, 160, .02)) !important;
+  border-bottom: 1px solid var(--gfh-borde-suave) !important;
+}
+html body #inventory-panel .inv-drag-handle::after,
+html body .tx-hub-header::after,
+html body .tienda-header::after,
+html body .missions-header::after,
+html body .trash-hub-header::after,
+html body .furnace-header::after,
+html body .notif-header::after,
+html body .skills-header::after,
+html body .nft-header::after,
+html body .crafting-header::after,
+html body .sound-hub-header::after,
+html body #hub-panel_101 .header_101::after,
+html body .dashboard-header::after,
+html body .gfa-cab::after {
+  content: '' !important;
+  position: absolute !important;
+  left: 8% !important;
+  right: 8% !important;
+  bottom: -1px !important;
+  height: 2px !important;
+  background: linear-gradient(90deg, transparent, var(--gfh-oro-claro), transparent) !important;
+  opacity: .75 !important;
+  pointer-events: none !important;
+}
+
+/* Los títulos. */
+html body #inventory-panel .letrainv,
+html body .tx-hub-title,
+html body .tienda-title h2,
+html body #missions-npc-title,
+html body .trash-hub-title,
+html body .furnace-title,
+html body .notif-title,
+html body .skills-title,
+html body .nft-title,
+html body .crafting-title,
+html body .sound-hub-title,
+html body #hub-panel_101 .title_101,
+html body .dashboard-title,
+html body .gfa-titulo,
+html body #gf-pet-card h3 {
+  color: var(--gfh-oro-claro) !important;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .8), 0 0 14px rgba(255, 196, 90, .35) !important;
+  letter-spacing: .06em !important;
+}
+html body #hub-panel_101 .muted,
+html body .gfa-panel .gfa-sub { color: var(--gfh-texto-2) !important; }
+
+/* Cerrar: redondo, oscuro con filo de oro; se pone rojo al señalarlo. */
+html body #inventory-panel .cerrar-hud,
+html body .tx-hub-close-btn,
+html body .trash-hub-close-btn,
+html body .furnace-close-btn,
+html body .skills-close-btn,
+html body .nft-close-btn,
+html body .crafting-close-btn,
+html body .sound-hub-close-btn,
+html body #hub-panel_101 .dash-close_101,
+html body .dashboard-header .close-btn,
+html body .gfa-cerrar,
+html body #tienda-hub .tienda-close,
+html body #tienda-hub [class*="cerrar"],
+html body #missions-panel [class*="close"] {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 50% !important;
+  background: radial-gradient(circle at 34% 26%, #4d4172, #1b1630 70%) !important;
+  border: 1.5px solid var(--gfh-borde) !important;
+  color: var(--gfh-oro-claro) !important;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .14) !important;
+  transition: transform .15s cubic-bezier(.2, .9, .3, 1.5), background .15s, color .15s !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+}
+@media (hover: hover) {
+  html body #inventory-panel .cerrar-hud:hover,
+  html body .tx-hub-close-btn:hover,
+  html body .trash-hub-close-btn:hover,
+  html body .furnace-close-btn:hover,
+  html body .skills-close-btn:hover,
+  html body .nft-close-btn:hover,
+  html body .crafting-close-btn:hover,
+  html body .sound-hub-close-btn:hover,
+  html body #hub-panel_101 .dash-close_101:hover,
+  html body .dashboard-header .close-btn:hover,
+  html body .gfa-cerrar:hover {
+    background: radial-gradient(circle at 34% 26%, #ff7a6c, #b0302a 70%) !important;
+    color: #fff !important;
+    transform: rotate(90deg) scale(1.08) !important;
+  }
+}
+
+/* Pestañas (amigos, transacciones, tienda, crafteo...). */
+/* LA X DEL INVENTARIO (2026-10-05). En su asa va centrada en alto con
+   `translateY(-50%)` (styless.css); el giro de pasar el ratón SUSTITUÍA ese
+   transform y la X bajaba media altura: "al poner el cursor se echa abajo".
+   Se compone con él. */
+@media (hover: hover) {
+  html body #inventory-panel .inv-drag-handle .cerrar-hud:hover {
+    transform: translateY(-50%) rotate(90deg) scale(1.08) !important;
+  }
+}
+html body #inventory-panel .inv-drag-handle .cerrar-hud:active {
+  transform: translateY(-50%) scale(.92) !important;
+}
+
+/* LA X DE LAS NOTIFICACIONES: no estaba en la lista de arriba y se quedó
+   con su estilo azul, sin animación. Ahora es como todas. */
+html body .notif-close-btn {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 50% !important;
+  background: radial-gradient(circle at 34% 26%, #4d4172, #1b1630 70%) !important;
+  border: 1.5px solid var(--gfh-borde) !important;
+  color: var(--gfh-oro-claro) !important;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .14) !important;
+  transition: transform .15s cubic-bezier(.2, .9, .3, 1.5), background .15s, color .15s !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+}
+@media (hover: hover) {
+  html body .notif-close-btn:hover {
+    background: radial-gradient(circle at 34% 26%, #ff7a6c, #b0302a 70%) !important;
+    color: #fff !important;
+    transform: rotate(90deg) scale(1.08) !important;
+  }
+}
+html body .notif-close-btn:active { transform: scale(.9) !important; }
+
+/* EL BOTÓN REDONDO DEL CHAT, COMO LOS DEMÁS (2026-10-05). No se animaba al
+   pasar el ratón: styless.css le fija `transform: translateY(...)` con
+   !important y por id (para apartarlo del teclado del móvil), y eso ganaba a
+   su `:hover`. Aquí se compone el mismo salto que los botones redondos CON
+   ese desplazamiento. Y su respiración y su brillo eran bucles infinitos (el
+   compositor del navegador nunca descansaba): ahora el brillo pasa una vez al
+   señalarlo, como en los redondos. El aviso de mensaje nuevo (gfcs-titila)
+   sigue igual. */
+html body #open-chat-btn {
+  animation: none !important;
+  transition: transform .2s cubic-bezier(.2, .9, .3, 1.35), box-shadow .2s ease, border-color .2s ease !important;
+}
+html body #open-chat-btn.gfcs-titila { animation: gfcs-chat-titila 1.1s ease-in-out infinite !important; }
+html body #open-chat-btn::before { animation: none !important; }
+html body #open-chat-btn img { transition: transform .2s cubic-bezier(.2, .9, .3, 1.4) !important; }
+@media (hover: hover) {
+  html body #open-chat-btn:hover {
+    transform: translateY(calc(-1 * var(--gf-teclado, 0px))) translateY(-2px) scale(1.08) !important;
+    border-color: var(--gfh-oro-claro) !important;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, .55), 0 0 0 3px rgba(12, 10, 20, .5), 0 0 20px rgba(255, 200, 90, .45),
+                inset 0 2px 0 rgba(255, 255, 255, .2), inset 0 -4px 10px rgba(0, 0, 0, .45) !important;
+  }
+  html body #open-chat-btn:hover::before { animation: btn-shimmer 1.2s linear 1 !important; }
+  html body #open-chat-btn:hover img { transform: rotate(-6deg) scale(1.06) !important; }
+}
+html body #open-chat-btn:active {
+  transform: translateY(calc(-1 * var(--gf-teclado, 0px))) scale(.9) !important;
+  transition-duration: .08s !important;
+}
+
+html body .gfa-tab,
+html body .tx-tab,
+html body .tienda-apartado,
+html body .crafting-tab,
+html body .nft-tab {
+  background: var(--gfh-fondo-2) !important;
+  border-color: var(--gfh-borde-suave) !important;
+  color: var(--gfh-texto-2) !important;
+  transition: background .15s, color .15s, border-color .15s !important;
+}
+html body .gfa-tab.on,
+html body .tx-tab.active,
+html body .tienda-apartado.active,
+html body .tienda-apartado.activo,
+html body .crafting-tab.active,
+html body .nft-tab.active {
+  background: linear-gradient(180deg, rgba(255, 210, 120, .26), rgba(255, 210, 120, .08)) !important;
+  border-color: var(--gfh-borde) !important;
+  color: var(--gfh-oro-claro) !important;
+}
+
+/* Los botones de acción de dentro de los paneles: oro. */
+html body #hub-panel_101 button.btn_101,
+html body .dashboard-container .action-btn,
+html body .dashboard-container .save-btn,
+html body .notif-mark-btn,
+html body .tx-refresh-btn,
+html body .gfa-boton,
+html body #gf-pet-card button {
+  border-radius: 10px !important;
+  transition: transform .12s ease, filter .12s ease !important;
+}
+html body .dashboard-container .action-btn,
+html body .dashboard-container .save-btn,
+html body #hub-panel_101 button.btn_101 {
+  background: linear-gradient(180deg, #ffd77a, #c98a2c) !important;
+  border: 1px solid #ffe9b0 !important;
+  color: #2a1606 !important;
+  font-weight: 800 !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .4) !important;
+  box-shadow: 0 3px 0 #7a4f17, 0 6px 12px rgba(0, 0, 0, .35) !important;
+}
+html body .dashboard-container .action-btn:active,
+html body .dashboard-container .save-btn:active,
+html body #hub-panel_101 button.btn_101:active { transform: translateY(2px) !important; box-shadow: 0 1px 0 #7a4f17 !important; }
+
+/* Barras de desplazamiento finas, de oro. */
+html body #inventory-grid::-webkit-scrollbar,
+html body .notif-container ::-webkit-scrollbar,
+html body .crafting-container ::-webkit-scrollbar,
+html body .nft-container ::-webkit-scrollbar,
+html body #tienda-hub ::-webkit-scrollbar,
+html body #gfa-panel ::-webkit-scrollbar,
+html body #chat-panel ::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
+html body #inventory-grid::-webkit-scrollbar-thumb,
+html body .notif-container ::-webkit-scrollbar-thumb,
+html body .crafting-container ::-webkit-scrollbar-thumb,
+html body .nft-container ::-webkit-scrollbar-thumb,
+html body #tienda-hub ::-webkit-scrollbar-thumb,
+html body #gfa-panel ::-webkit-scrollbar-thumb,
+html body #chat-panel ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--gfh-oro), var(--gfh-oro-osc)) !important;
+  border-radius: 8px !important;
+}
+html body #inventory-grid::-webkit-scrollbar-track,
+html body .notif-container ::-webkit-scrollbar-track,
+html body .crafting-container ::-webkit-scrollbar-track,
+html body .nft-container ::-webkit-scrollbar-track,
+html body #tienda-hub ::-webkit-scrollbar-track,
+html body #gfa-panel ::-webkit-scrollbar-track,
+html body #chat-panel ::-webkit-scrollbar-track { background: rgba(0, 0, 0, .3) !important; }
+
+/* ─────────────────────────────────────── LO DE DENTRO DE LOS PANELES */
+/* Los paneles se escribieron en azul (rgba(64,160,255,…), #a8d8ff: unas 145
+   veces en styless.css). En vez de reescribir cada uno, se cambia la gama de
+   lo que todos comparten por nombre: secciones, filas, tarjetas, títulos de
+   sección y las píldoras de valor. Las tarjetas de objetos de la tienda no se
+   tocan: su color dice la rareza. */
+html body :is(.skills-container, .nft-container, .notif-container, .crafting-container, .furnace-container,
+              .sound-hub-container, #hub-panel_101, .dashboard-container, #tx-hub, #missions-panel,
+              .trash-hub-content, #gfa-panel .gfa-caja)
+  :is([class*="-section"], [class*="_section"], [class*="-card"], [class*="-row"], [class*="-item"], .section):not(button):not([class*="title"]) {
+  background-color: var(--gfh-fondo-2) !important;
+  border-color: var(--gfh-borde-suave) !important;
+}
+html body :is(.skills-container, .nft-container, .notif-container, .crafting-container, .furnace-container,
+              .sound-hub-container, #hub-panel_101, .dashboard-container, #tx-hub, #missions-panel,
+              .trash-hub-content, #gfa-panel .gfa-caja)
+  :is([class*="section-title"], [class*="section_title"], .section-title, h3, h4) {
+  color: var(--gfh-oro-claro) !important;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .7) !important;
+}
+html body :is(.skills-container, .nft-container, .crafting-container, #hub-panel_101, .notif-container)
+  :is([class*="-val"], [class*="stat-level"], [class*="lvl"]) {
+  background: linear-gradient(180deg, rgba(255, 215, 122, .28), rgba(201, 138, 44, .2)) !important;
+  border-color: rgba(255, 226, 160, .5) !important;
+  color: var(--gfh-oro-claro) !important;
+}
+html body :is(.skills-container, .nft-container, .notif-container, .crafting-container, .furnace-container,
+              .sound-hub-container, #hub-panel_101, .dashboard-container, #tx-hub, #missions-panel,
+              .trash-hub-content) :is(p, span, label, li, td):not([class*="badge"]):not([class*="pip"]) {
+  border-color: var(--gfh-borde-suave) !important;
+}
+
+/* ──────────────────────────────────────────────────── EL CRAFTEO */
+/* "Repara el diseño del crafting: hay cosas que no están en su lugar o mal
+   posicionadas" (2026-10-05). Lo que se veía:
+     · una cuña de colores cruzando el panel en diagonal: un conic-gradient
+       decorativo del panel antiguo, que con este tema es una mancha;
+     · dentro de cada receta, una caja oscura detrás del nombre y otra detrás
+       de la fila del nivel: la regla de arriba que da fondo a todo lo que se
+       llame "*-item" pillaba también los trozos de la tarjeta;
+     · en el teléfono vertical, la fila del nivel apilada en columna y la ✕
+       pisando el borde; y la ficha de la receta, transparente, dejaba ver la
+       lista de detrás;
+     · en el teléfono apaisado, las categorías y la barra de abajo se comían
+       el alto y no cabía ni una receta. */
+html body .crafting-container::before { display: none !important; }
+/* `.recipe-item.recipe-item`: la regla genérica de "LO DE DENTRO DE LOS
+   PANELES" pesa (1,3,3) por el `#gfa-panel .gfa-caja` de su lista; con la
+   clase repetida esta pesa (1,4,2) y gana. */
+html body #crafting-hub .crafting-container .recipe-item.recipe-item :is(.recipe-item-img, .recipe-item-info, .recipe-item-name,
+     .recipe-item-meta, .recipe-item-level, .recipe-item-status, .level-badge) {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+html body #crafting-hub .recipe-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 10px 12px !important;
+  min-height: 68px !important;
+  /* La lista es un flex en columna de alto fijo: sin esto las tarjetas se
+     encogen para caber y se montan unas encima de otras. */
+  flex: 0 0 auto !important;
+  opacity: 1 !important;
+}
+html body #crafting-hub .recipe-item-img { width: 48px !important; height: 48px !important; flex: 0 0 auto !important; }
+html body #crafting-hub .recipe-item-info {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 5px !important;
+}
+html body #crafting-hub .recipe-item-name {
+  margin: 0 !important;
+  padding: 0 !important;
+  color: var(--gfh-texto) !important;
+  font-size: 14px !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+html body #crafting-hub .recipe-item-meta {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+html body #crafting-hub .recipe-item-level { color: var(--gfh-texto-2) !important; font-size: 11px !important; white-space: nowrap !important; }
+html body #crafting-hub .crafting-container .recipe-item.recipe-item .recipe-item-category {
+  font-size: 11px !important;
+  padding: 1px 6px !important;
+  border-radius: 6px !important;
+  background: rgba(255, 226, 160, .08) !important;
+  border: 1px solid var(--gfh-borde-suave) !important;
+}
+html body #crafting-hub .recipe-item-status { margin-left: auto !important; font-size: 12px !important; }
+html body #crafting-hub .recipe-item.selected { color: var(--gfh-texto) !important; }
+
+/* La ficha de la receta en el teléfono vertical: opaca, con el tema. */
+html body #recipe-overlay {
+  background: linear-gradient(165deg, #2a2242 0%, #181428 52%, #0e0c19 100%) !important;
+  border: 1.5px solid var(--gfh-borde) !important;
+  border-radius: var(--gfh-radio) !important;
+  box-shadow: var(--gfh-sombra) !important;
+  color: var(--gfh-texto) !important;
+  font-family: var(--gfh-fuente) !important;
+}
+html body #recipe-overlay .overlay-header {
+  background: linear-gradient(180deg, rgba(255, 226, 160, .10), rgba(255, 226, 160, .02)) !important;
+  border-bottom: 1px solid var(--gfh-borde-suave) !important;
+}
+html body #recipe-overlay .overlay-back-btn {
+  padding: 7px 14px !important;
+  border-radius: 999px !important;
+  border: 1.5px solid var(--gfh-borde) !important;
+  background: radial-gradient(circle at 34% 26%, #4d4172, #1b1630 70%) !important;
+  color: var(--gfh-oro-claro) !important;
+  font: 700 12px/1 var(--gfh-fuente) !important;
+}
+html body #recipe-overlay :is(.recipe-name, h3, h4) { color: var(--gfh-oro-claro) !important; }
+html body #recipe-overlay .recipe-meta { display: flex !important; flex-wrap: wrap !important; gap: 4px 12px !important; }
+
+/* El teléfono apaisado (poco alto): una fila de categorías que se desliza,
+   sin el título ni la barra de abajo, para que quepan las recetas. */
+@media (max-height: 520px) {
+  html body #crafting-hub .crafting-header { padding: 6px 12px !important; }
+  html body #crafting-hub .filter-title,
+  html body #crafting-hub .crafting-status { display: none !important; }
+  html body #crafting-hub .crafting-filters { padding: 6px 10px !important; }
+  html body #crafting-hub .filter-buttons {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    gap: 6px !important;
+    scrollbar-width: none;
+  }
+  html body #crafting-hub .filter-btn { flex: 0 0 auto !important; min-height: 0 !important; padding: 6px 12px !important; font-size: 11px !important; }
+  html body #crafting-hub .crafting-search { padding: 4px 10px !important; }
+  html body #crafting-hub .search-input { padding-top: 6px !important; padding-bottom: 6px !important; }
+  html body #crafting-hub .recipe-item-img { width: 40px !important; height: 40px !important; }
+  html body #crafting-hub .recipe-item { min-height: 58px !important; padding: 8px 10px !important; }
+}
+
+/* ─────────────────────────────────────────────────── LA TIENDA */
+/* "El panel de la tienda no se adaptó bien al diseño de los paneles, se ve
+   feo" (2026-10-05). La caja y la cabecera ya iban con el tema, pero el
+   cuerpo seguía en el violeta chillón de antes: la banda del buscador, la
+   rejilla, las tarjetas, el panel de detalles y el pie. Ahora es el mismo
+   cristal oscuro con oro que el resto. Las tarjetas LIMITADAS conservan su
+   borde de rayas amarillo (dice algo) y las bloqueadas por nivel, su candado. */
+html body #tienda-hub .tienda-controls {
+  background: linear-gradient(180deg, rgba(255, 226, 160, .06), rgba(255, 226, 160, .015)) !important;
+  border-bottom: 1px solid var(--gfh-borde-suave) !important;
+  box-shadow: none !important;
+}
+html body #tienda-hub .tienda-search,
+html body #tienda-hub .tienda-select {
+  background-color: rgba(0, 0, 0, .35) !important;
+  border: 1px solid var(--gfh-borde-suave) !important;
+  color: var(--gfh-texto) !important;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .45) !important;
+  font-family: var(--gfh-fuente) !important;
+}
+html body #tienda-hub .tienda-search::placeholder { color: var(--gfh-texto-2) !important; }
+html body #tienda-hub .tienda-search:focus,
+html body #tienda-hub .tienda-select:focus {
+  border-color: var(--gfh-borde) !important;
+  outline: none !important;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .45), 0 0 0 3px rgba(242, 195, 92, .18) !important;
+}
+html body #tienda-hub .tienda-select option { background: #1b1630 !important; color: var(--gfh-texto) !important; }
+html body #tienda-hub .tienda-saldo {
+  background: rgba(0, 0, 0, .35) !important;
+  border: 1px solid var(--gfh-borde) !important;
+}
+html body #tienda-hub .tienda-apartados {
+  background: rgba(0, 0, 0, .18) !important;
+  border-bottom: 1px solid var(--gfh-borde-suave) !important;
+}
+html body #tienda-hub .items-panel,
+html body #tienda-hub .sidebar-panel {
+  background: rgba(0, 0, 0, .22) !important;
+  border: 1px solid var(--gfh-borde-suave) !important;
+  border-radius: 14px !important;
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, .35) !important;
+}
+html body #tienda-hub .item-card {
+  background: linear-gradient(180deg, rgba(62, 50, 96, .9), rgba(28, 22, 46, .92)) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .07) !important;
+  transition: transform .15s cubic-bezier(.2, .9, .3, 1.4), border-color .15s ease, box-shadow .15s ease !important;
+}
+html body #tienda-hub .item-card:not(.limited) { border: 1px solid var(--gfh-borde-suave) !important; }
+@media (hover: hover) {
+  html body #tienda-hub .item-card:hover {
+    transform: translateY(-2px) !important;
+    border-color: var(--gfh-oro-claro) !important;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, .45), 0 0 14px rgba(255, 200, 90, .25) !important;
+  }
+}
+html body #tienda-hub .item-card.selected {
+  border-color: var(--gfh-oro-claro) !important;
+  box-shadow: 0 0 0 2px rgba(255, 200, 90, .45), 0 0 16px rgba(255, 200, 90, .35) !important;
+}
+html body #tienda-hub .item-card .item-name { color: var(--gfh-texto) !important; }
+html body #tienda-hub .item-card .item-price { color: var(--gfh-oro-claro) !important; }
+html body #tienda-hub .sidebar-tabs {
+  background: rgba(0, 0, 0, .3) !important;
+  border-bottom: 1px solid var(--gfh-borde-suave) !important;
+}
+html body #tienda-hub .sidebar-tab {
+  background: transparent !important;
+  color: var(--gfh-texto-2) !important;
+  border: 0 !important;
+}
+html body #tienda-hub .sidebar-tab.active {
+  background: linear-gradient(180deg, rgba(255, 210, 120, .24), rgba(255, 210, 120, .06)) !important;
+  color: var(--gfh-oro-claro) !important;
+  box-shadow: inset 0 -2px 0 var(--gfh-oro) !important;
+}
+html body #tienda-hub .detail-title-simple { color: var(--gfh-oro-claro) !important; }
+html body #tienda-hub .detail-image-simple {
+  background: rgba(0, 0, 0, .3) !important;
+  border: 1px solid var(--gfh-borde-suave) !important;
+}
+html body #tienda-hub .interact-btn-pc {
+  background: linear-gradient(180deg, #ffd77a, #c98a2c) !important;
+  border: 1px solid #ffe9b0 !important;
+  color: #2a1606 !important;
+  font-weight: 800 !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .4) !important;
+  box-shadow: 0 3px 0 #7a4f17, 0 6px 12px rgba(0, 0, 0, .35) !important;
+}
+html body #tienda-hub .interact-btn-pc:disabled {
+  background: rgba(255, 238, 205, .08) !important;
+  border-color: var(--gfh-borde-suave) !important;
+  color: var(--gfh-texto-2) !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+}
+html body #tienda-hub .tienda-footer {
+  background: linear-gradient(180deg, rgba(255, 226, 160, .02), rgba(255, 226, 160, .07)) !important;
+  border-top: 1px solid var(--gfh-borde-suave) !important;
+  color: var(--gfh-texto-2) !important;
+}
+html body #tienda-hub .tienda-footer .help-btn {
+  background: radial-gradient(circle at 34% 26%, #4d4172, #1b1630 70%) !important;
+  border: 1.5px solid var(--gfh-borde) !important;
+  color: var(--gfh-oro-claro) !important;
+}
+/* El detalle de un objeto en el teléfono (la tienda lo abre en un modal). */
+html body .mobile-item-modal,
+html body .mobile-historial-modal {
+  background: var(--gfh-fondo) !important;
+  border: 1.5px solid var(--gfh-borde) !important;
+  border-radius: var(--gfh-radio) !important;
+  box-shadow: var(--gfh-sombra) !important;
+  color: var(--gfh-texto) !important;
+}
+html body .mobile-item-name { color: var(--gfh-oro-claro) !important; }
+html body .mobile-action-button {
+  background: linear-gradient(180deg, #ffd77a, #c98a2c) !important;
+  border: 1px solid #ffe9b0 !important;
+  color: #2a1606 !important;
+  box-shadow: 0 3px 0 #7a4f17, 0 6px 12px rgba(0, 0, 0, .35) !important;
+}
+
+/* ─────────────────────────────────────────────── AL ABRIR UN PANEL */
+/* Cada panel se abre quitándole su clase de oculto: la caja entra con un
+   pequeño salto. Solo se anima la CAJA, nunca el velo de fondo. */
+html body #furnace-panel:not(.furnace-hidden) .furnace-container,
+html body #notif-panel:not(.notif-panel-hidden) .notif-container,
+html body #skills-panel:not(.skills-panel-hidden) .skills-container,
+html body #nft-panel:not(.nft-panel-hidden) .nft-container,
+html body #crafting-hub:not(.crafting-hub-hidden) .crafting-container,
+html body #sound-hub-panel:not(.sound-hub-hidden) .sound-hub-container,
+html body #trash-hub:not(.trash-hub-hidden) .trash-hub-content,
+html body #tienda-hub:not(.tienda-hub-hidden) .tienda-panel,
+html body #tx-hub:not(.tx-hub-hidden),
+html body #missions-panel:not(.hidden),
+html body #gfa-panel.abierto .gfa-caja,
+html body #gf-pet-panel.abierto #gf-pet-card,
+html body #hub-panel_101.visible {
+  animation: gfh-abre .32s cubic-bezier(.2, .9, .3, 1.25) backwards !important;
+}
+@keyframes gfh-abre {
+  from { opacity: 0; transform: translateY(14px) scale(.95); filter: blur(2px); }
+}
+
+/* ─────────────────────────────────────────────────────────── MÓVIL */
+@media (max-width: 640px), (pointer: coarse) and (max-height: 520px) {
+  /* La columna acaba POR ENCIMA del chat (que en el teléfono vive abajo a la
+     derecha, ver styless.css) y, si no cabe, se parte en una segunda columna
+     hacia la izquierda en vez de meterse debajo del chat y de la barra. */
+  html body #game-hud .round-buttons {
+    bottom: calc(126px + env(safe-area-inset-bottom, 0px)) !important;
+    flex-wrap: wrap-reverse !important;
+    align-content: flex-start !important;
+    column-gap: 8px !important;
+  }
+  html body #game-hud .round-buttons .round-btn { width: 44px !important; height: 44px !important; }
+  html body #game-hud .round-buttons .round-btn img { width: 28px !important; height: 28px !important; }
+  html body #game-hud .round-buttons .round-btn .label-badge { display: none !important; }
+  html body .quick-slot,
+  html body #inventory-grid .inv-slot { border-radius: 9px !important; }
+  html body #inventory-panel,
+  html body .notif-container,
+  html body .skills-container,
+  html body .nft-container,
+  html body .crafting-container,
+  html body .furnace-container,
+  html body #gfa-panel .gfa-caja { border-radius: 14px !important; max-width: 96vw !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body #game-hud .round-buttons .round-btn,
+  html body .quick-slot,
+  html body #inventory-grid .inv-slot,
+  html body [class*="container"],
+  html body #inventory-panel { animation: none !important; transition-duration: .01s !important; }
+}

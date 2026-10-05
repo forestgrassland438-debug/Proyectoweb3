@@ -55,6 +55,9 @@
   'use strict';
 
   var RUTA = './Game/Sprites/animales/';
+  /* Los sprites se regeneran (tools/sombrear-animales.py): con la versión en
+     la URL el navegador no se queda con los de antes. */
+  var VERSION_ARTE = '?v=20261004';
   var ESCALA = 2;                   // igual que el jugador y el perro
   /* Profundidad volando.
    *
@@ -320,13 +323,13 @@
     if (!scene || !scene.load) return 0;
     var n = 0;
     for (var q = 0; q < PROPS.length; q++) {
-      scene.load.image('gfa_' + PROPS[q], RUTA + PROPS[q] + '.png');
+      scene.load.image('gfa_' + PROPS[q], RUTA + PROPS[q] + '.png' + VERSION_ARTE);
       n++;
     }
     for (var e in FICHA) {
       var fs = fotogramas(e);
       for (var i = 0; i < fs.length; i++) {
-        scene.load.image(fs[i].clave, RUTA + fs[i].archivo);
+        scene.load.image(fs[i].clave, RUTA + fs[i].archivo + VERSION_ARTE);
         n++;
       }
     }
@@ -379,6 +382,15 @@
     var borde = 40;
     if (x < borde || y < borde || x > lim.w - borde || y > lim.h - borde) {
       return false;
+    }
+    /* LAS AVES NO PISAN EL AGUA (2026-10-05). Pueden cruzar el río volando,
+       pero no bajar a caminar ni a comer encima: ni en el río del pueblo ni
+       en el mar de la isla. La máscara es la del agua animada (gf-agua.js). */
+    if (a && a.grupo === 'ave') {
+      try {
+        if (window.GFAgua && window.GFAgua.claseEn && window.GFAgua.claseEn(scene, x, y) > 0) return false;
+        if (typeof scene._esTierraEnPixeles === 'function' && !scene._esTierraEnPixeles(x, y)) return false;
+      } catch (e) {}
     }
     if (typeof scene._chocaConEscenario !== 'function') return true;
     // La caja va a los PIES: el sprite se dibuja con origen (0.5, 1), así que
@@ -2388,7 +2400,91 @@
    * respawn es instantáneo. El animal deja de contar para todo lo demás
    * mientras `muerto` esté puesto.
    */
+  /**
+   * LA MUERTE SE VE (2026-10-05) — "que al matar un animal se descomponga por
+   * transparencia, así como mueren en las batallas".
+   *
+   * Lo de dentro sigue igual: el animal de verdad se esconde en el acto y
+   * cuenta como muerto. Lo que se ve es una COPIA de su dibujo en un lienzo
+   * propio: un destello rojo, cae de lado con su rebote (como el KO de la
+   * arena) y luego se deshace píxel a píxel, con tramado, mientras de lo que
+   * se va salen motas de su color que suben y se apagan. Se borra todo al
+   * acabar, textura incluida.
+   */
+  function efectoMuerte(st, a) {
+    var scene = st.scene, s = a.spr;
+    if (!s || !s.visible || !s.frame || document.hidden) return;
+    try {
+      var fr = s.frame, fuente = fr.source && fr.source.image;
+      if (!fuente) return;
+      var w = fr.cutWidth, h = fr.cutHeight;
+      st.muertes = (st.muertes || 0) + 1;
+      var clave = 'gfa_muerte_' + st.muertes;
+      var ct = scene.textures.createCanvas(clave, w, h);
+      var ctx = ct.getContext();
+      ctx.drawImage(fuente, fr.cutX, fr.cutY, w, h, 0, 0, w, h);
+      ct.refresh();
+      var datos = ctx.getImageData(0, 0, w, h);
+      if (!scene.textures.exists('gfa_mota_muerte')) {
+        var cm = scene.textures.createCanvas('gfa_mota_muerte', 2, 2);
+        cm.getContext().fillStyle = '#fff'; cm.getContext().fillRect(0, 0, 2, 2); cm.refresh();
+      }
+      var copia = scene.add.image(s.x, s.y, clave).setOrigin(s.originX, s.originY)
+        .setScale(s.scaleX, s.scaleY).setFlipX(s.flipX).setDepth(s.depth).setTint(0xff8a7a);
+      var esAve = a.grupo === 'ave';
+      var lado = s.flipX ? -1 : 1;
+      var BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+      var limpiar = function () {
+        try { copia.destroy(); } catch (e) {}
+        try { if (scene.textures.exists(clave)) scene.textures.remove(clave); } catch (e) {}
+      };
+      var disolver = function () {
+        if (!copia.scene) return limpiar();
+        copia.clearTint();
+        var paso = 0, PASOS = 14;
+        var reloj = scene.time.addEvent({ delay: 65, repeat: PASOS - 1, callback: function () {
+          paso++;
+          var k = paso / PASOS, d = datos.data, motas = 0;
+          for (var y = 0; y < h; y++) {
+            for (var x = 0; x < w; x++) {
+              var o = (y * w + x) * 4;
+              if (!d[o + 3]) continue;
+              // De arriba abajo y tramado: se va como ceniza, no como un fundido.
+              var umbral = (BAY[(y & 3) * 4 + (x & 3)] / 16) * 0.7 + (1 - y / h) * 0.3;
+              if (umbral < k) {
+                if (motas < 3 && Math.random() < 0.08) {
+                  motas++;
+                  var cx = copia.x + (x - w * copia.originX) * copia.scaleX * (s.flipX ? -1 : 1);
+                  var cy = copia.y + (y - h * copia.originY) * copia.scaleY;
+                  var m = scene.add.image(cx, cy, 'gfa_mota_muerte').setDepth(copia.depth + 1)
+                    .setTint((d[o] << 16) | (d[o + 1] << 8) | d[o + 2]).setScale(1.3);
+                  scene.tweens.add({ targets: m, y: cy - 16 - Math.random() * 18, x: cx + (Math.random() - 0.5) * 14,
+                    alpha: 0, duration: 520 + Math.random() * 300, onComplete: (function (mm) { return function () { mm.destroy(); }; })(m) });
+                }
+                d[o + 3] = 0;
+              }
+            }
+          }
+          ctx.putImageData(datos, 0, 0);
+          ct.refresh();
+          copia.setAlpha(1 - k * 0.35);
+          if (paso >= PASOS) limpiar();
+        } });
+        void reloj;
+      };
+      if (esAve) {
+        // El ave cae al suelo dando vueltas y allí se deshace.
+        scene.tweens.add({ targets: copia, y: copia.y + 26, angle: lado * 160, duration: 380, ease: 'Quad.easeIn', onComplete: disolver });
+      } else {
+        scene.tweens.add({ targets: copia, angle: lado * 82, y: copia.y + 2, duration: 360, ease: 'Bounce.easeOut', onComplete: disolver });
+      }
+    } catch (e) {
+      log(scene, 'efecto de muerte:', e && e.message);
+    }
+  }
+
   function morirAnimal(st, a, ahora) {
+    efectoMuerte(st, a);
     a.muerto = true;
     a.fase = 'muerto';
 
@@ -3084,7 +3180,7 @@
   var FAMILIAS_MARIPOSA = [
     ['sprite_flor_formado1_ect', 19], ['sprite_flor_formado2_ect', 20],
     ['sprite_flor_formado3_ect', 19], ['sprite_flor_formado4_ect', 18],
-    ['sprite_arbustos_', 28], ['sprite_arbusto_ect', 18],
+    ['sprite_arbustos_', 28], ['sprite_arbusto_ect', 19],
     ['sprite_piedras_', 34]
   ];
   /* Dónde se posa dentro del DIBUJO de la flor, contando desde su borde de
@@ -3907,6 +4003,362 @@
     }
   }
 
+  // ============================================================== HORMIGAS
+  /* LAS HORMIGAS (2026-10-04)
+
+     "Que haya hormigas en el juego subiendo a los árboles, o espantándose por
+     un momento, y que a veces aparezcan y a veces no."
+
+     QUÉ SON: un hormiguero que sale al pie de un árbol cerca del jugador, con
+     una fila de hormigas que sube por el tronco hasta la copa y baja por el
+     otro carril. Si el jugador o su mascota se acercan, o truena, se ESPANTAN:
+     se desperdigan corriendo en zigzag un par de segundos y luego vuelven,
+     cada una a su sitio de la fila.
+
+     A VECES SÍ Y A VECES NO: no hay hormigueros fijos. Cada cierto tiempo se
+     tira un dado: puede salir uno al pie de un árbol cercano, o ninguno. Cada
+     hormiguero dura uno o dos minutos; después las hormigas se van metiendo y
+     el montoncito se borra. De noche, con lluvia o con nieve no sale ninguno,
+     y los que haya se recogen.
+
+     El TRONCO se busca en la textura del árbol (las columnas pintadas de
+     abajo) y la COPA es donde la silueta se ensancha: así la fila sube por el
+     tronco de verdad y se mete entre las hojas, en cualquier árbol.
+
+     Ningún PNG: la hormiga (dos fotogramas, las patas alternas) y el
+     hormiguero se dibujan con canvas. Sin física y sin servidor. */
+  var HORMIGA_MAX_COLONIAS = 3;
+  var HORMIGA_CADA     = [14000, 30000];
+  var HORMIGA_PROB     = 0.55;
+  var HORMIGA_VIDA     = [60000, 140000];
+  var HORMIGA_N        = [9, 15];
+  var HORMIGA_VEL      = [16, 26];
+  var HORMIGA_SUSTO_RADIO = 70;
+  var HORMIGA_SUSTO_MS = [1200, 2200];
+  var HORMIGA_BUSCA    = 650;
+  var _troncos = {};
+
+  function texturasHormiga(scene) {
+    var claves = ['gfa_hormiga_0', 'gfa_hormiga_1'];
+    for (var f = 0; f < 2; f++) {
+      if (scene.textures.exists(claves[f])) continue;
+      try {
+        var c = scene.textures.createCanvas(claves[f], 10, 7);
+        var x = c.getContext();
+        // Las patas: tres pares que se cruzan de un fotograma a otro.
+        x.strokeStyle = 'rgba(30,17,10,0.95)';
+        x.lineWidth = 1;
+        var cruza = f ? 1 : -1;
+        [3.2, 4.8, 6.2].forEach(function (px, i) {
+          var s = (i % 2 ? -cruza : cruza);
+          x.beginPath(); x.moveTo(px, 3.5); x.lineTo(px + s, 0.5); x.stroke();
+          x.beginPath(); x.moveTo(px, 3.5); x.lineTo(px - s, 6.5); x.stroke();
+        });
+        // Abdomen, tórax, cabeza y antenas.
+        x.fillStyle = 'rgba(42,22,14,1)';
+        x.beginPath(); x.ellipse(2.3, 3.5, 1.9, 1.5, 0, 0, 6.284); x.fill();
+        x.beginPath(); x.ellipse(5, 3.5, 1.1, 0.9, 0, 0, 6.284); x.fill();
+        x.beginPath(); x.ellipse(7.4, 3.5, 1.2, 1.1, 0, 0, 6.284); x.fill();
+        x.beginPath(); x.moveTo(8.2, 3); x.lineTo(9.6, 1.6); x.moveTo(8.2, 4); x.lineTo(9.6, 5.4); x.stroke();
+        x.fillStyle = 'rgba(120,80,60,0.6)';
+        x.fillRect(1, 2.6, 1, 1);
+        c.refresh();
+      } catch (e) { return null; }
+    }
+    return claves;
+  }
+
+  function texturaHormiguero(scene) {
+    var clave = 'gfa_hormiguero';
+    if (scene.textures.exists(clave)) return clave;
+    try {
+      var c = scene.textures.createCanvas(clave, 22, 11);
+      var x = c.getContext();
+      var g = x.createRadialGradient(11, 6, 1, 11, 7, 11);
+      g.addColorStop(0, 'rgba(150,112,70,1)');
+      g.addColorStop(0.7, 'rgba(110,80,48,0.95)');
+      g.addColorStop(1, 'rgba(90,64,38,0)');
+      x.fillStyle = g;
+      x.beginPath(); x.ellipse(11, 7, 10.5, 4.2, 0, 0, 6.284); x.fill();
+      x.fillStyle = 'rgba(28,18,10,0.95)';
+      x.beginPath(); x.ellipse(11, 5.6, 1.8, 1.1, 0, 0, 6.284); x.fill();
+      x.fillStyle = 'rgba(200,170,120,0.8)';
+      [[5, 7], [8, 9], [15, 8], [17, 6], [13, 9], [7, 5]].forEach(function (p) { x.fillRect(p[0], p[1], 1, 1); });
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  /**
+   * Dónde está el tronco y dónde empieza la copa, en (u, v) de la textura.
+   * Se lee el fotograma a 32 columnas, una vez por textura.
+   */
+  function troncoDe(spr) {
+    var fr = spr && spr.frame;
+    var img = fr && fr.source && fr.source.image;
+    if (!img) return null;
+    var clave = spr.texture.key + '|' + fr.name;
+    if (_troncos[clave] !== undefined) return _troncos[clave];
+    var res = null, lec = null;
+    try {
+      var cols = 32;
+      var rows = Math.max(16, Math.round(cols * fr.cutHeight / Math.max(1, fr.cutWidth)));
+      lec = document.createElement('canvas');
+      lec.width = cols; lec.height = rows;
+      var ctx = lec.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, fr.cutX, fr.cutY, fr.cutWidth, fr.cutHeight, 0, 0, cols, rows);
+      var d = ctx.getImageData(0, 0, cols, rows).data;
+      var lleno = function (x, y) { return d[(y * cols + x) * 4 + 3] > 60; };
+      var anchoFila = function (y) {
+        var a = -1, b = -1;
+        for (var x = 0; x < cols; x++) if (lleno(x, y)) { if (a < 0) a = x; b = x; }
+        return a < 0 ? null : { a: a, b: b, ancho: b - a + 1 };
+      };
+      // El tronco: el centro de lo pintado en el 8 % de abajo.
+      var suma = 0, n = 0, ancho = 0, y;
+      for (y = rows - 1; y >= Math.floor(rows * 0.92); y--) {
+        var fila = anchoFila(y);
+        if (!fila) continue;
+        suma += (fila.a + fila.b) / 2; n++; ancho = Math.max(ancho, fila.ancho);
+      }
+      if (n) {
+        var u = (suma / n + 0.5) / cols;
+        // La copa: subiendo, la primera fila mucho más ancha que el tronco.
+        var tope = 0.55;
+        for (y = Math.floor(rows * 0.9); y > 0; y--) {
+          var f2 = anchoFila(y);
+          if (f2 && f2.ancho > Math.max(3, ancho * 2.4)) { tope = (y + 1.5) / rows; break; }
+        }
+        res = { u: u, vTope: Math.max(0.25, Math.min(0.92, tope)), ancho: ancho / cols };
+      }
+    } catch (e) { res = null; }
+    finally { if (lec) { lec.width = 0; lec.height = 0; } }
+    _troncos[clave] = res;
+    return res;
+  }
+
+  function puntoDelArbol(spr, u, v) {
+    var uu = spr.flipX ? 1 - u : u;
+    return {
+      x: spr.x - spr.displayWidth * spr.originX + uu * spr.displayWidth,
+      y: spr.y - spr.displayHeight * spr.originY + v * spr.displayHeight
+    };
+  }
+
+  /** Dónde está una hormiga que lleva `d` px andados por la fila. */
+  function puntoDeFila(col, d) {
+    var L1 = col.L1, L2 = col.L2, L = L1 + L2;
+    d = ((d % (2 * L)) + 2 * L) % (2 * L);
+    var vuelta = d >= L;
+    var k = vuelta ? 2 * L - d : d;            // lo andado desde el hormiguero
+    var carril = vuelta ? 2 : -2;              // sube por un lado, baja por el otro
+    if (k <= L1) {
+      var t = L1 ? k / L1 : 1;
+      return { x: col.x + (col.bx - col.x) * t + carril * 0.5, y: col.y + (col.by - col.y) * t,
+               enTronco: false, vuelta: vuelta };
+    }
+    return { x: col.bx + carril, y: col.by - (k - L1), enTronco: true, vuelta: vuelta, k: k };
+  }
+
+  function nuevaColonia(hs, scene, clave, spr, ahora) {
+    var tr = troncoDe(spr);
+    var tex = texturasHormiga(scene), monte = texturaHormiguero(scene);
+    if (!tr || !tex || !monte) return null;
+    var base = puntoDelArbol(spr, tr.u, 0.985);
+    var tope = puntoDelArbol(spr, tr.u, tr.vTope);
+    if (base.y - tope.y < 20) return null;
+    var lado = Math.random() < 0.5 ? -1 : 1;
+    var col = {
+      clave: clave, arbol: spr,
+      x: base.x + lado * az(18, 30), y: base.y + az(4, 10),
+      bx: base.x, by: base.y - 2, ty: tope.y,
+      nace: ahora, muere: ahora + az(HORMIGA_VIDA[0], HORMIGA_VIDA[1]),
+      fase: 'activa', hormigas: [], sustoHasta: 0, ultimoSusto: 0, truenoVisto: hs.st.trueno || 0,
+      monte: null
+    };
+    col.L1 = Math.hypot(col.bx - col.x, col.by - col.y);
+    col.L2 = col.by - col.ty;
+    try {
+      col.monte = scene.add.image(col.x, col.y, monte).setDepth(col.y - 6).setAlpha(0);
+      var n = Math.floor(az(HORMIGA_N[0], HORMIGA_N[1] + 1));
+      for (var i = 0; i < n; i++) {
+        var s = scene.add.image(col.x, col.y, tex[0]).setScale(1.3).setAlpha(0);
+        col.hormigas.push({ spr: s, d: 0, sale: ahora + i * az(450, 800), vel: az(HORMIGA_VEL[0], HORMIGA_VEL[1]),
+                            paso: az(0, 1), susto: null, vuelve: false, dentro: false });
+      }
+    } catch (e) { soltarColonia(col); return null; }
+    log(scene, 'hormiguero junto a', clave, 'con', col.hormigas.length, 'hormigas');
+    return col;
+  }
+
+  function soltarColonia(col) {
+    if (!col) return;
+    col.hormigas.forEach(function (h) { destruirObjeto(h.spr); h.spr = null; });
+    col.hormigas.length = 0;
+    destruirObjeto(col.monte); col.monte = null;
+  }
+
+  /** Las espanta a todas, alejándolas de (ox, oy). */
+  function espantarColonia(col, ox, oy, ahora) {
+    col.ultimoSusto = ahora;
+    for (var i = 0; i < col.hormigas.length; i++) {
+      var h = col.hormigas[i];
+      if (!h.spr || h.dentro || ahora < h.sale) continue;
+      var a = Math.atan2(h.spr.y - oy, h.spr.x - ox) + az(-0.9, 0.9);
+      var v = az(55, 85);
+      h.susto = { vx: Math.cos(a) * v, vy: Math.sin(a) * v, hasta: ahora + az(HORMIGA_SUSTO_MS[0], HORMIGA_SUSTO_MS[1]),
+                  quiebro: ahora + az(150, 320), enTronco: h.enTronco };
+      h.vuelve = false;
+    }
+  }
+
+  function moverColonia(hs, col, ahora, dt, amenaza) {
+    var scene = hs.st.scene;
+    var vivas = 0, i;
+    var fuera = !col.arbol || !col.arbol.scene || col.arbol.active === false ||
+                (scene.treeStumps && scene.treeStumps[col.clave]);
+    if (fuera || ahora >= col.muere || hs.recoger) col.fase = 'recoge';
+
+    // El hormiguero: aparece y, recogidas todas, se borra.
+    if (col.monte) {
+      var objetivo = col.fase === 'recoge' && col.hormigas.every(function (h) { return h.dentro || ahora < h.sale; }) ? 0 : 0.95;
+      col.monte.alpha += (objetivo - col.monte.alpha) * Math.min(1, dt * 1.5);
+      if (objetivo === 0 && col.monte.alpha < 0.03) return false;
+    }
+
+    // ¿Las espanta algo? El jugador, su mascota o un trueno.
+    if (amenaza && ahora - col.ultimoSusto > 3000) {
+      for (var a = 0; a < amenaza.length; a++) {
+        var am = amenaza[a];
+        if (Math.hypot(am.x - col.x, am.y - col.y) < HORMIGA_SUSTO_RADIO ||
+            Math.hypot(am.x - col.bx, am.y - col.by) < HORMIGA_SUSTO_RADIO) {
+          espantarColonia(col, am.x, am.y, ahora);
+          break;
+        }
+      }
+    }
+    if (hs.st.trueno && hs.st.trueno !== col.truenoVisto) {
+      col.truenoVisto = hs.st.trueno;
+      espantarColonia(col, col.bx, col.by - 30, ahora);
+    }
+
+    var alto = col.arbol && col.arbol.depth != null ? col.arbol.depth : col.by;
+    for (i = 0; i < col.hormigas.length; i++) {
+      var h = col.hormigas[i];
+      if (!h.spr) continue;
+      if (h.dentro) { h.spr.setAlpha(0); continue; }
+      if (ahora < h.sale) {
+        if (col.fase === 'recoge') h.dentro = true;     // ni llegó a salir
+        h.spr.setAlpha(0); continue;
+      }
+      vivas++;
+      h.paso += dt * (h.susto ? 14 : 8);
+      h.spr.setTexture(Math.floor(h.paso) % 2 ? 'gfa_hormiga_1' : 'gfa_hormiga_0');
+      var x0 = h.spr.x, y0 = h.spr.y;
+
+      if (h.susto) {
+        // Corren en zigzag: cada poco, un quiebro.
+        if (ahora >= h.susto.quiebro) {
+          var giro = az(-1.1, 1.1), c = Math.cos(giro), s = Math.sin(giro);
+          var nvx = h.susto.vx * c - h.susto.vy * s, nvy = h.susto.vx * s + h.susto.vy * c;
+          h.susto.vx = nvx; h.susto.vy = nvy; h.susto.quiebro = ahora + az(150, 320);
+        }
+        var nx = x0 + h.susto.vx * dt, ny = y0 + h.susto.vy * dt;
+        if (h.susto.enTronco) { nx = col.bx + Math.max(-5, Math.min(5, nx - col.bx)); ny = Math.max(col.ty, Math.min(col.by, ny)); }
+        h.spr.setPosition(nx, ny);
+        if (ahora >= h.susto.hasta) { h.susto = null; h.vuelve = true; }
+      } else if (h.vuelve) {
+        // De vuelta a SU sitio de la fila, sin prisa pero sin pausa.
+        var p0 = puntoDeFila(col, h.d);
+        var dx = p0.x - x0, dy = p0.y - y0, dist = Math.hypot(dx, dy);
+        if (dist < 3) h.vuelve = false;
+        else h.spr.setPosition(x0 + dx / dist * 40 * dt, y0 + dy / dist * 40 * dt);
+      } else {
+        var antes = h.d;
+        h.d += h.vel * dt;
+        var L = col.L1 + col.L2;
+        // Recogiendo: la que llega al hormiguero, entra y no vuelve a salir.
+        if (col.fase === 'recoge' && Math.floor(antes / (2 * L)) !== Math.floor(h.d / (2 * L))) {
+          h.dentro = true; h.spr.setAlpha(0); continue;
+        }
+        var p = puntoDeFila(col, h.d);
+        h.enTronco = p.enTronco;
+        h.spr.setPosition(p.x, p.y);
+      }
+
+      var mx = h.spr.x - x0, my = h.spr.y - y0;
+      if (mx || my) h.spr.setRotation(Math.atan2(my, mx));
+      var enTronco = h.enTronco && !(h.susto && !h.susto.enTronco);
+      h.spr.setDepth(enTronco ? alto + 0.6 : h.spr.y);
+      // Se meten entre las hojas al llegar arriba: se van borrando.
+      var alfa = 1;
+      if (enTronco) alfa = Math.max(0, Math.min(1, (h.spr.y - col.ty) / 10));
+      h.spr.setAlpha(alfa);
+    }
+    return vivas > 0 || col.fase !== 'recoge' || (col.monte && col.monte.alpha > 0.03);
+  }
+
+  function arbolesParaHormigas(scene, p) {
+    var out = [], tocones = scene.treeStumps || {};
+    var fam = [['sprite_arbolx', 18], ['sprite_pinos', 45]];
+    for (var f = 0; f < fam.length; f++) {
+      for (var i = 1; i <= fam[f][1]; i++) {
+        var clave = fam[f][0] + i;
+        if (tocones[clave]) continue;
+        var spr = scene[clave];
+        if (!spr || spr.active === false || spr.visible === false || typeof spr.x !== 'number') continue;
+        if (Math.hypot(spr.x - p.x, spr.y - p.y) > HORMIGA_BUSCA) continue;
+        out.push({ clave: clave, spr: spr });
+      }
+    }
+    return out;
+  }
+
+  function actualizarHormigas(st, ahora, delta) {
+    var scene = st.scene;
+    if (!scene || !scene.player) return;
+    var hs = st.hormigas || (st.hormigas = { st: st, colonias: [], proximo: ahora + az(4000, 9000), recoger: false });
+    var dt = Math.min(delta || 16, 100) / 1000;
+    var t = releerTiempo(ahora);
+    var malo = !!(t && t.activo && (t.lluvia > 0.1 || t.nieve > 0.1));
+    hs.recoger = malo || esDeNoche();
+
+    // ¿Sale un hormiguero nuevo? A veces sí y a veces no.
+    if (!hs.recoger && ahora >= hs.proximo) {
+      hs.proximo = ahora + az(HORMIGA_CADA[0], HORMIGA_CADA[1]);
+      if (hs.colonias.length < HORMIGA_MAX_COLONIAS && (hs.forzar || Math.random() < HORMIGA_PROB)) {
+        hs.forzar = false;
+        var cand = arbolesParaHormigas(scene, scene.player).filter(function (a) {
+          return !hs.colonias.some(function (c) { return c.clave === a.clave; });
+        });
+        if (cand.length) {
+          var a = elegir(cand);
+          var col = nuevaColonia(hs, scene, a.clave, a.spr, ahora);
+          if (col) hs.colonias.push(col);
+        }
+      }
+    }
+    if (!hs.colonias.length) return;
+
+    var amenaza = [{ x: scene.player.x, y: scene.player.y + 40 }];
+    var perro = scene.dog && scene.dog.sprite;
+    if (perro && perro.visible) amenaza.push({ x: perro.x, y: perro.y + 10 });
+    for (var i = hs.colonias.length - 1; i >= 0; i--) {
+      if (!moverColonia(hs, hs.colonias[i], ahora, dt, amenaza)) {
+        soltarColonia(hs.colonias[i]);
+        hs.colonias.splice(i, 1);
+      }
+    }
+  }
+
+  function desmontarHormigas(st) {
+    var hs = st && st.hormigas;
+    if (!hs) return;
+    hs.colonias.forEach(soltarColonia);
+    hs.colonias.length = 0;
+    st.hormigas = null;
+  }
+
   function montar(scene, opciones) {
     opciones = opciones || {};
     if (!scene || !scene.add || !scene.textures || !scene.events || !scene.time) return null;
@@ -3935,7 +4387,11 @@
       return null;
     }
 
-    st.onUpdate = function (t, d) { actualizar(st, t, d); };
+    st.onUpdate = function (t, d) {
+      actualizar(st, t, d);
+      // Las hormigas van aparte: no son animales del elenco, son un detalle.
+      try { actualizarHormigas(st, t, d); } catch (e) { log(scene, 'hormigas:', e); }
+    };
     scene.events.on('update', st.onUpdate);
     st.onApagar = function () { desmontar(scene); };
     scene.events.once('shutdown', st.onApagar);
@@ -3975,6 +4431,7 @@
     if (st.onUpdate) scene.events.off('update', st.onUpdate);
     if (st.onApagar) { scene.events.off('shutdown', st.onApagar); scene.events.off('destroy', st.onApagar); }
     if (st.soltarTrueno) { try { st.soltarTrueno(); } catch (e) {} st.soltarTrueno = null; }
+    desmontarHormigas(st);
     st.animales.forEach(function (an) {
       desemparejar(an);
       ['spr', 'zzz', 'madriguera', 'barraFondo', 'barraVida', 'hielo', 'sombra'].forEach(function (key) {
@@ -4045,6 +4502,57 @@
     estado: estado,
     /** Qué tiempo cree la fauna que hace ahora mismo. Para depurar. */
     tiempo: function () { return releerTiempo(Date.now()); },
+    /**
+     * UN ESPADAZO (2026-10-05, gf-espada.js). Daña a los animales que estén
+     * en el arco de delante del jugador: a menos de `alcance` px y a menos de
+     * 75° de hacia donde mira. Los de tierra huyen del golpe y las aves
+     * levantan el vuelo. Devuelve cuántos tocó y cuántos mató.
+     */
+    golpear: function (scene, x, y, dir, alcance, dano) {
+      var st = scene && scene.__gfFauna;
+      var out = { tocados: 0, muertos: 0, puntos: [] };
+      if (!st || !(dano > 0)) return out;
+      var v = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[dir] || [1, 0];
+      for (var i = 0; i < st.animales.length; i++) {
+        var a = st.animales[i];
+        if (!a.spr || a.muerto || !a.spr.visible) continue;
+        var ax = a.spr.x, ay = a.spr.y - (a.spr.displayHeight || 30) * 0.45;
+        var dx = ax - x, dy = ay - y;
+        var d = Math.hypot(dx, dy);
+        var radio = (a.spr.displayWidth || 30) * 0.4;
+        if (d - radio > alcance) continue;
+        if (d > 8 && (dx * v[0] + dy * v[1]) / d < Math.cos(75 * Math.PI / 180)) continue;
+        danarAnimal(st, a, dano);
+        out.tocados++;
+        out.puntos.push({ x: ax, y: ay });
+        if (a.muerto) { out.muertos++; continue; }
+        try {
+          if (a.grupo === 'ave' && typeof huirAve === 'function') huirAve(st, a);
+          else huirDe(st, a, x, y);
+        } catch (e) {}
+      }
+      return out;
+    },
+    /** Las hormigas: cuántos hormigueros hay y cuántas hormigas fuera. */
+    hormigas: function () {
+      var st = escenaConFauna();
+      var hs = st && st.hormigas;
+      if (!hs) return [];
+      return hs.colonias.map(function (c) {
+        return { arbol: c.clave, fase: c.fase, x: Math.round(c.x), y: Math.round(c.y),
+                 fuera: c.hormigas.filter(function (h) { return !h.dentro && h.spr && h.spr.alpha > 0; }).length,
+                 espantadas: c.hormigas.filter(function (h) { return !!h.susto; }).length };
+      });
+    },
+    /** Que salga un hormiguero ya, para verlo sin esperar al dado. */
+    forzarHormigas: function () {
+      var st = escenaConFauna();
+      if (!st) return false;
+      st.hormigas = st.hormigas || { st: st, colonias: [], proximo: 0, recoger: false };
+      st.hormigas.forzar = true;
+      st.hormigas.proximo = 0;
+      return true;
+    },
     /** Un trueno de mentira, para ver los sobresaltos sin esperar. */
     tronar: function () {
       var st = escenaConFauna();
@@ -4103,6 +4611,10 @@
       REFUGIO_ENTRA: REFUGIO_ENTRA, REFUGIO_SALE: REFUGIO_SALE,
       SENSIBLE: SENSIBLE, SENSIBLE_GRUPO: SENSIBLE_GRUPO,
       ANTE_EL_AGUA: ANTE_EL_AGUA, ANTE_EL_AGUA_GRUPO: ANTE_EL_AGUA_GRUPO,
+      // las hormigas
+      troncoDe: troncoDe, puntoDeFila: puntoDeFila, nuevaColonia: nuevaColonia,
+      moverColonia: moverColonia, espantarColonia: espantarColonia,
+      actualizarHormigas: actualizarHormigas, desmontarHormigas: desmontarHormigas,
       // la caché del escenario
       cacheDe: cacheDe, cacheVale: cacheVale, olvidarSitios: olvidarSitios,
       puntoPosadero: puntoPosadero, puntoFlor: puntoFlor

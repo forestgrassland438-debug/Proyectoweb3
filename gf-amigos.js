@@ -663,6 +663,33 @@
       if (abierto && pestana === 'online') pintar();
     });
 
+    /* "IR CON EL": el servidor dice donde esta (mundo y punto) y GFViaje
+       (gf-lands.js) hace el viaje. Si ya estamos en la misma escena, solo se
+       mueve al jugador. */
+    poner('friends:ir', function (d) {
+      if (!d) return;
+      var n = desescapar(d.nombre || d.playerName || 'That player');
+      if (!d.ok) {
+        var porque = {
+          no_conectado: n + ' is not online right now.',
+          otro_canal:   n + ' is playing in channel ' + d.canal + '. Switch to that channel to join them.',
+          ocupado:      d.zona === 'battle' ? n + ' is in a battle right now.'
+                                            : n + ' is on the move. Try again in a moment.'
+        };
+        aviso(porque[d.motivo] || 'Could not find ' + n + '.', 'error');
+        return;
+      }
+      var V = global.GFViaje;
+      var mundo = V && V.MUNDO_DE_ZONA[d.zona];
+      if (!mundo) { aviso('You cannot travel there.', 'error'); return; }
+      cerrarPanel();
+      aviso('Travelling to ' + n + '…', 'info');
+      if (!V.viajar({ mundo: mundo, x: d.x, y: d.y,
+                      islaDe: d.islaDe, islaDeNombre: desescapar(d.islaDeNombre || '') })) {
+        aviso('You cannot travel right now.', 'error');
+      }
+    });
+
     poner('friends:search', function (d) {
       if (!d || !d.ok) return;
       buscados = d.jugadores || [];
@@ -863,6 +890,35 @@
   }
 
   function pedirEstado()  { if (enlazar()) socket.emit('friends:state'); }
+
+  /** Pregunta al servidor donde esta, y alli se va (ver 'friends:ir'). */
+  function irCon(j) {
+    if (!global.GFViaje) { aviso('Travelling is not available here.', 'error'); return; }
+    if (!enlazar()) { aviso('Not connected. Try again in a moment.', 'error'); return; }
+    socket.emit('friends:ir', { playerName: j.playerName });
+  }
+
+  /** A su isla, aunque el no este en ella: se ve lo que ha construido. */
+  function visitarIsla(j) {
+    var V = global.GFViaje;
+    if (!V) { aviso('Travelling is not available here.', 'error'); return; }
+    var n = desescapar(j.username || j.playerName);
+    cerrarPanel();
+    aviso('Visiting ' + n + "'s island…", 'info');
+    if (!V.viajar({ mundo: 4, islaDe: j.playerName, islaDeNombre: n })) {
+      aviso('You cannot travel right now.', 'error');
+    }
+  }
+
+  function botonIrCon(j) {
+    return { icono: '📍', clase: 'ok', titulo: 'Go to where they are',
+             al: function () { irCon(j); } };
+  }
+
+  function botonVisitarIsla(j) {
+    return { icono: '🏝', titulo: 'Visit their island',
+             al: function () { visitarIsla(j); } };
+  }
   function pedirEnLinea() { if (enlazar()) socket.emit('friends:online'); }
   function pedirBandeja() { if (enlazar()) socket.emit('friends:inbox'); }
 
@@ -1285,6 +1341,12 @@
     else if (j.online) partes.push('Online');
     else partes.push('Offline');
     if (j.zona === 'shop') partes.push('in the shop');
+    if (j.zona === 'mine') partes.push('in the mine');
+    if (j.zona === 'battle') partes.push('in a battle');
+    if (j.zona === 'island') {
+      partes.push(!j.islaDe || j.islaDe === j.playerName ? 'on their island'
+        : 'on ' + desescapar(j.islaDeNombre || j.islaDe) + "'s island");
+    }
     if (opciones.sub) partes.push(opciones.sub);
     datos.appendChild(el('div', 'gfa-sub', partes.join(' · ')));
     f.appendChild(datos);
@@ -1393,14 +1455,14 @@
     }
 
     estado.amigos.forEach(function (a) {
-      L.appendChild(filaJugador(a, {
-        botones: [
-          { icono: '✉', titulo: 'Send a private message',
-            al: function () { abrirChatCon(a.playerName, a.username); } },
-          { icono: '✕', clase: 'mal', titulo: 'Remove friend',
-            al: function () { quitar(a.playerName, desescapar(a.username)); } }
-        ]
-      }));
+      var botones = [];
+      if (a.online) botones.push(botonIrCon(a));
+      botones.push(botonVisitarIsla(a));
+      botones.push({ icono: '✉', titulo: 'Send a private message',
+                     al: function () { abrirChatCon(a.playerName, a.username); } });
+      botones.push({ icono: '✕', clase: 'mal', titulo: 'Remove friend',
+                     al: function () { quitar(a.playerName, desescapar(a.username)); } });
+      L.appendChild(filaJugador(a, { botones: botones }));
     });
   }
 
@@ -1423,7 +1485,8 @@
     }
 
     enLinea.jugadores.forEach(function (j) {
-      var botones = [];
+      // Los dos viajes van primero: es para lo que se abre esta pestaña.
+      var botones = [botonIrCon(j), botonVisitarIsla(j)];
       if (j.esAmigo) {
         botones.push({ icono: '✉', titulo: 'Send a private message',
                        al: function () { abrirChatCon(j.playerName, j.username); } });

@@ -16,7 +16,13 @@
  *   - al entrar en GameScene y en tiendajuego
  *   - al volver a la pestaña, si la última sincronización ya tiene 30 minutos
  *     (dormir el portátil puede congelar el cronómetro monótono)
+ *   - al momento, cuando el administrador mueve la hora en climas.html (el
+ *     servidor manda 'worldTime' por el socket)
  *   Nada más. No hay sondeo por frame ni por segundo.
+ *
+ * HORA QUIETA
+ *   Si el administrador la fija (modo manual), la respuesta trae
+ *   `congelado: true` y aquí no se extrapola: la hora se queda donde está.
  *
  * QUÉ PINTA
  *   - el reloj del HUD, a la izquierda de la moneda de oro
@@ -146,8 +152,18 @@
 
   function ahoraMundo() {
     if (!ancla) return null;
+    // Hora fijada por el administrador: no corre.
+    if (ancla.congelado) return ancla.servidorMs;
     // El delta lo da el cronómetro monótono, no el reloj del sistema.
     return ancla.servidorMs + (performance.now() - ancla.monotonicoMs);
+  }
+
+  /** Pone el ancla con una respuesta del servidor (de la peticion o del socket). */
+  function anclar(d, t0, t1) {
+    ancla = { servidorMs: d.ahora + (d.congelado ? 0 : (t1 - t0) / 2), monotonicoMs: t1,
+      epocaMs: d.epocaMs, cicloMs: d.cicloMs, diaMs: d.diaMs, nocheMs: d.nocheMs,
+      congelado: d.congelado === true, sincronizadoEn: t1 };
+    pintarHud(); avisarFase();
   }
 
   /* Misma cuenta que estadoDelMundo() en server2.js. Se repite aquí para poder
@@ -239,10 +255,7 @@
       }).then(function (d) {
         if (consulta !== req) return;
         if (!datosValidos(d)) throw new Error('Invalid world clock response');
-        var t1 = performance.now();
-        ancla = { servidorMs: d.ahora + (t1 - t0) / 2, monotonicoMs: t1,
-          epocaMs: d.epocaMs, cicloMs: d.cicloMs, diaMs: d.diaMs, nocheMs: d.nocheMs, sincronizadoEn: t1 };
-        pintarHud(); avisarFase();
+        anclar(d, t0, performance.now());
         req.terminar(estado());
       }).catch(fallo);
     });
@@ -672,6 +685,42 @@
     st.postes.length = 0; st.resplandores.length = 0;
   }
 
+  // ----------------------------------------------------------- el socket
+  /* Cuando el administrador mueve la hora, el servidor manda 'worldTime' a
+     todos. El socket del juego (window.globalSocket) se tira y se vuelve a
+     crear al cambiar de escena o tras un corte, asi que se comprueba cada dos
+     segundos A CUAL se esta escuchando y se cambia si hace falta (el mismo
+     criterio que gf-clima.js), soltando los oyentes del anterior. */
+  var socketHora = null, oyenteHora = null, oyenteConexionHora = null, timerSocket = null;
+
+  function soltarSocketHora() {
+    if (!socketHora) return;
+    try {
+      if (typeof socketHora.off === 'function') {
+        if (oyenteHora) socketHora.off('worldTime', oyenteHora);
+        if (oyenteConexionHora) socketHora.off('connect', oyenteConexionHora);
+      }
+    } catch (e) {}
+    socketHora = oyenteHora = oyenteConexionHora = null;
+  }
+
+  function engancharSocketHora() {
+    var s = window.globalSocket && window.globalSocket.on ? window.globalSocket : null;
+    if (!s) { soltarSocketHora(); return; }
+    if (s === socketHora) return;
+    soltarSocketHora();
+    socketHora = s;
+    oyenteHora = function (d) {
+      if (!datosValidos(d)) return;
+      var t = performance.now();
+      anclar(d, t, t);
+      log('el administrador ha movido la hora');
+    };
+    oyenteConexionHora = function () { sincronizarSiHaceFalta('reconexión', 60 * 1000); };
+    s.on('worldTime', oyenteHora);
+    s.on('connect', oyenteConexionHora);
+  }
+
   // --------------------------------------------------------------- arranque
   function alVolver() {
     if (document.visibilityState === 'visible') sincronizarSiHaceFalta('vuelta a la pestaña');
@@ -683,6 +732,7 @@
     sincronizar('arranque');
     timerSync = setInterval(function () { sincronizar('periódico'); }, SYNC_MS);
     timerHud = setInterval(function () { pintarHud(); avisarFase(); }, 1000);
+    timerSocket = setInterval(engancharSocketHora, 2000);
     document.addEventListener('visibilitychange', alVolver);
   }
   function detener() {
@@ -690,7 +740,9 @@
     document.removeEventListener('DOMContentLoaded', arrancar);
     document.removeEventListener('visibilitychange', alVolver);
     clearInterval(timerSync); clearInterval(timerHud); clearTimeout(timerReintento);
-    timerSync = timerHud = timerReintento = null;
+    clearInterval(timerSocket);
+    timerSync = timerHud = timerReintento = timerSocket = null;
+    soltarSocketHora();
     if (consulta) {
       var req = consulta; req.terminar(null);
       if (req.ctrl) req.ctrl.abort();

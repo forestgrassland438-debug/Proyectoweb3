@@ -2,76 +2,119 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Banco de pruebas — franjas de profundidad</title>
+<title>Banco de pruebas — casas L, W y E</title>
 <style>
   html,body{margin:0;background:#101408;color:#dfe7d8;font:12px/1.4 system-ui,sans-serif}
   #panel{position:fixed;right:6px;top:6px;z-index:9;background:rgba(8,12,8,.93);
-         padding:8px 10px;border-radius:8px;width:250px;white-space:pre-wrap}
+         padding:8px 10px;border-radius:8px;width:270px;white-space:pre-wrap}
+  #planos{position:fixed;left:6px;top:6px;z-index:9;display:flex;gap:6px}
+  #planos a{color:#dfe7d8;background:rgba(8,12,8,.9);padding:5px 10px;border-radius:6px;
+            text-decoration:none;border:1px solid #3a4a30}
+  #planos a.activo{background:#4c6b2a;border-color:#a6d36b}
   b{color:#f0e6a0}  .ok{color:#7fe08d}  .mal{color:#ff8a7a}
 </style>
 </head>
 <body>
 <div id="juego"></div>
+<div id="planos">
+  <a href="#L">L</a><a href="#W">W</a><a href="#E">E</a><a href="#recta">recta</a><a href="#pino">pino</a>
+</div>
 <div id="panel">…</div>
 
 <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
-<script src="./gf-profundidad.js?v=10"></script>
+<script src="./gf-profundidad.js?v=11"></script>
 <script>
-/* Banco de pruebas del Y-SORT POR FRANJAS con el módulo REAL.
-   Se monta una casa en L y unas colisiones que imitan la planta de una casa
-   así: el ala izquierda (el porche) sobresale hacia el SUR y el ala derecha se
-   queda al NORTE. Con una sola línea de suelo es imposible acertar en las dos.
-   El personaje pasea por delante del ala derecha, que es el caso que fallaba. */
+/* BANCO DE PRUEBAS DE LAS CASAS EN L, W Y E: COLISIÓN Y PROFUNDIDAD.
+ *
+ * QUÉ ARREGLA (2026-10-03) — "las colisiones L, W, E no sirven":
+ *
+ *   · En #W y #E se dibujaba LA CASA EN L con unas colisiones de W o de E
+ *     que no tenían nada que ver con el dibujo. Las franjas cortaban la L
+ *     por sitios absurdos y la E salía con 4 franjas en vez de 5, porque la
+ *     sonda se recorta con el dibujo y la L no tiene ahí ningún ala.
+ *   · El personaje se movía solo, en línea recta, y lo atravesaba TODO: no
+ *     había colisión ninguna en la página.
+ *
+ * Ahora cada planta tiene SU dibujo, compuesto con trozos de la casa en L DE
+ * VERDAD del juego (`casa L arreglado.png`): el hastial que sobresale, el ala
+ * que queda atrás y los aleros. Las colisiones se sacan de esos mismos trozos,
+ * así que coinciden con el dibujo. Y el personaje se maneja con flechas o
+ * WASD y choca como en el juego (caja de los pies, eje a eje). Con P vuelve a
+ * pasearse solo por delante de la fachada.
+ *
+ * Plantas (ancla de la URL): #L · #W · #E · #recta · #pino
+ */
 
-var escena, casa, jugador, colisiones = [];
-// Planta elegida por el ancla de la URL:  #L (por defecto) · #W · #recta
+var escena, casa, jugador, colisiones = [], teclas, paseo = false, chocando = false;
 window.PLANTA = (location.hash || '#L').slice(1);
+window.addEventListener('hashchange', function () { location.reload(); });
+document.querySelectorAll('#planos a').forEach(function (a) {
+  if (a.getAttribute('href') === '#' + window.PLANTA) a.classList.add('activo');
+});
 
-// Planta de la casa: dos alas a distinta altura. (mundo)
-function montarColisiones(caja) {
-  var w = caja.ancho, x = caja.x, abajo = caja.abajo;
-  if (window.PLANTA === 'pino') {
-    /* EL CASO DEL ÁRBOL, que es el que se veía roto en el juego.
+/* Los trozos de `casa L arreglado.png` (355 x 255), medidos en su perfil de
+   fondo (tools/casa-l-perfil.json):
+     A  0..44    alero izquierdo y el porche, que baja hasta 206
+     G  44..214  el hastial, que SOBRESALE: su fachada baja hasta 254
+     R  214..287 el ala derecha, RETRASADA: su fachada baja hasta 206
+     Z  287..355 el alero derecho, sin fachada                               */
+var TROZOS = {
+  A: { x: 0,   w: 44,  fondo: 206, solido: [28, 44] },
+  G: { x: 44,  w: 170, fondo: 254, solido: [3, 167] },
+  R: { x: 214, w: 73,  fondo: 206, solido: [0, 73] },
+  Z: { x: 287, w: 68,  fondo: 0,   solido: null }
+};
+// Cada planta = trozos de izquierda a derecha ('~' = voltear en horizontal).
+var PLANOS = {
+  L:     ['A', 'G', 'R', 'Z'],
+  W:     ['~Z', '~R', 'G', 'R', 'Z'],
+  E:     ['A', 'G', 'R', 'G', 'R', 'G', '~A'],
+  recta: ['A', 'G', '~A']
+};
+var ESCALA = { L: 1.6, W: 1.4, E: 1.0, recta: 1.6, pino: 2.4 };
+var FONDO_PIES = 20;   // alto de la colisión de cada ala (px de imagen)
 
-       Un pino tiene el tronco en el centro y nada más tocando el suelo; pero
-       en el mapa, a su izquierda y a su derecha, hay OTROS árboles cuyas
-       colisiones caen dentro de su caja. Eso es lo que hacía creer a la sonda
-       que el pino tenía planta ancha y lo partía en franjas.
+/* Compone la textura de la planta en un lienzo, con los píxeles del juego. */
+function componerCasa(scene, plano) {
+  var src = scene.textures.get('casaL').getSourceImage();
+  var ancho = plano.reduce(function (n, t) { return n + TROZOS[t.replace('~', '')].w; }, 0);
+  var lienzo = scene.textures.createCanvas('casa_' + window.PLANTA, ancho, src.height);
+  var ctx = lienzo.getContext();
+  ctx.imageSmoothingEnabled = false;
+  var x = 0, piezas = [];
+  plano.forEach(function (t) {
+    var voltear = t.charAt(0) === '~';
+    var k = TROZOS[t.replace('~', '')];
+    ctx.save();
+    if (voltear) {
+      ctx.translate(x + k.w, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(src, k.x, 0, k.w, src.height, 0, 0, k.w, src.height);
+    } else {
+      ctx.drawImage(src, k.x, 0, k.w, src.height, x, 0, k.w, src.height);
+    }
+    ctx.restore();
+    var s = k.solido && (voltear ? [k.w - k.solido[1], k.w - k.solido[0]] : k.solido);
+    piezas.push({ x: x, w: k.w, fondo: k.fondo, solido: s });
+    x += k.w;
+  });
+  lienzo.refresh();
+  return { clave: 'casa_' + window.PLANTA, piezas: piezas, alto: src.height };
+}
 
-       Con el arreglo NO debe partirse: 'franjas de la casa' tiene que quedar
-       en 1 por mucho que estas colisiones digan lo contrario. */
-    colisiones = [
-      { x: x,             y: abajo - 30,  width: w * 0.30, height: 28 },  // vecino izq.
-      { x: x + w * 0.42,  y: abajo - 22,  width: w * 0.16, height: 20 },  // su tronco
-      { x: x + w * 0.72,  y: abajo - 120, width: w * 0.28, height: 118 }  // vecino der.
-    ];
-  } else if (window.PLANTA === 'W') {
-    // Tres alas: hundida, saliente, hundida. El caso peor.
-    colisiones = [
-      { x: x,              y: abajo - 130, width: w * 0.30, height: 60 },
-      { x: x + w * 0.30,   y: abajo - 130, width: w * 0.36, height: 128 },
-      { x: x + w * 0.66,   y: abajo - 130, width: w * 0.34, height: 74 }
-    ];
-  } else if (window.PLANTA === 'E') {
-    // Planta en E: tres dientes salientes y dos entrantes. Cinco franjas.
-    colisiones = [
-      { x: x,             y: abajo - 140, width: w * 0.18, height: 138 },
-      { x: x + w * 0.18,  y: abajo - 140, width: w * 0.16, height: 60 },
-      { x: x + w * 0.34,  y: abajo - 140, width: w * 0.20, height: 138 },
-      { x: x + w * 0.54,  y: abajo - 140, width: w * 0.16, height: 60 },
-      { x: x + w * 0.70,  y: abajo - 140, width: w * 0.30, height: 138 }
-    ];
-  } else if (window.PLANTA === 'recta') {
-    // Fachada recta: NO debe partirse.
-    colisiones = [{ x: x, y: abajo - 120, width: w, height: 118 }];
-  } else {
-    colisiones = [
-      // ala izquierda / porche: la fachada baja hasta casi el pie del sprite
-      { x: x,             y: abajo - 120, width: w * 0.42, height: 118 },
-      // ala derecha: su fachada se queda MUCHO más arriba
-      { x: x + w * 0.42,  y: abajo - 120, width: w * 0.58, height: 52 }
-    ];
-  }
+/* Las colisiones salen de las MISMAS piezas: cada ala choca en su franja de
+   suelo, desde su fachada hacia el norte. */
+function colisionesDePiezas(piezas, alto, caja, escala) {
+  var lista = [];
+  piezas.forEach(function (p) {
+    if (!p.solido) return;
+    var x0 = caja.x + (p.x + p.solido[0]) * escala;
+    var x1 = caja.x + (p.x + p.solido[1]) * escala;
+    var abajo = caja.y + (p.fondo + 1) * escala;               // la fachada
+    var arriba = caja.y + (p.fondo + 1 - FONDO_PIES - (p.fondo - 150)) * escala;
+    lista.push({ x: x0, y: arriba, width: x1 - x0, height: abajo - arriba });
+  });
+  return lista;
 }
 
 function chocaConEscenario(x, y, w, h) {
@@ -82,36 +125,52 @@ function chocaConEscenario(x, y, w, h) {
   return false;
 }
 
+/* La caja de los pies, como en el juego: ancha como el cuerpo y baja. El
+   personaje va con el origen abajo (0.5, 1), así que los pies están en `y`. */
+function cajaPies(x, y) { return { x: x - 12, y: y - 12, w: 24, h: 12 }; }
+
 var Escena = {
   preload: function () {
     escena = this;
-    this.load.image('casa', window.PLANTA === 'pino'
-      ? './Game/Objetos/arbol_pinos.png'
-      : './Game/Objetos/casa forma L.png');
+    this.load.image('casaL', './Game/Objetos/casa L arreglado.png');
+    this.load.image('pino', './Game/Objetos/arbol_pinos.png');
     this.load.image('suelo', './recortadas/low/tile_r0_c0_id1_low.png');
     for (var i = 1; i <= 7; i++) {
       this.load.image('run' + i, './Game/Sprites/Soulbound/personaje1/abajo/run_' + i + '.png');
     }
   },
   create: function () {
-    this.add.image(0, 0, 'suelo').setOrigin(0).setDisplaySize(1200, 700).setDepth(-10);
+    this.add.image(0, 0, 'suelo').setOrigin(0).setDisplaySize(1400, 800).setDepth(-10);
+    var escala = ESCALA[window.PLANTA] || 1.6;
 
-    // Mismo origen (0,1) y mismo marcado que los objetos del mapa del juego.
-    casa = this.add.image(90, 380, 'casa').setOrigin(0, 1).setScale(2.4);
+    if (window.PLANTA === 'pino') {
+      /* EL CASO DEL ÁRBOL: tronco fino y vecinos que meten su colisión en la
+         caja. NO debe partirse ('franjas' = 1). */
+      casa = this.add.image(120, 420, 'pino').setOrigin(0, 1).setScale(escala);
+      var cajaP = GFProfundidad._interno.cajaMundo(casa);
+      var w = cajaP.ancho, x = cajaP.x, abajo = cajaP.abajo;
+      colisiones = [
+        { x: x,             y: abajo - 30,  width: w * 0.30, height: 28 },
+        { x: x + w * 0.42,  y: abajo - 22,  width: w * 0.16, height: 20 },
+        { x: x + w * 0.72,  y: abajo - 120, width: w * 0.28, height: 118 }
+      ];
+    } else {
+      var comp = componerCasa(this, PLANOS[window.PLANTA] || PLANOS.L);
+      casa = this.add.image(60, 60 + comp.alto * escala, comp.clave).setOrigin(0, 1).setScale(escala);
+      colisiones = colisionesDePiezas(comp.piezas, comp.alto, { x: 60, y: 60 }, escala);
+      casa.__piezas = comp.piezas;
+    }
     casa.setData('optimized', true);
-    casa.setDepth(380);
-
-    var caja = GFProfundidad._interno.cajaMundo(casa);
-    montarColisiones(caja);
+    casa.setDepth(casa.y);
 
     // Lo que el módulo necesita de la escena para poder SONDEAR.
     this._chocaConEscenario = chocaConEscenario;
     this._idxColision = true;
     this.collisionRectangles = colisiones;
 
-    // Se pintan las colisiones para poder verlas.
-    var g = this.add.graphics().setDepth(20000).setAlpha(0.28);
-    g.lineStyle(2, 0xff4444);
+    // Las colisiones, a la vista.
+    var g = this.add.graphics().setDepth(20000);
+    g.lineStyle(2, 0xff4444, 0.7);
     colisiones.forEach(function (r) { g.strokeRect(r.x, r.y, r.width, r.height); });
 
     this.anims.create({
@@ -119,46 +178,70 @@ var Escena = {
       frames: [1,2,3,4,5,6,7].map(function (i) { return { key: 'run' + i }; }),
       frameRate: 10, repeat: -1
     });
-    jugador = this.add.sprite(200, 330, 'run1').setOrigin(0.5, 1).setScale(1.6);
-    jugador.play('andar');
+    jugador = this.add.sprite(casa.x + 80, casa.y + 70, 'run1').setOrigin(0.5, 1).setScale(1.6);
+    this.cajaJugador = this.add.graphics().setDepth(20001);
+
+    teclas = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,P');
+    teclas.P.on('down', function () { paseo = !paseo; });
 
     // AQUÍ se monta el módulo real.
     GFProfundidad.montar(this, { porFrame: 8 });
 
-    this.cameras.main.setZoom(1.15);
-    this.cameras.main.centerOn(360, 260);
+    this.cameras.main.setBounds(0, 0, 1400, 800);
+    this.cameras.main.startFollow(jugador, true, 0.15, 0.15);
     window.casa = casa; window.jugador = jugador; window.escena = this;
   },
-  update: function () {
-    if (!window.PARADO) {
-      // Pasea de izquierda a derecha justo por delante del ala derecha.
-      var t = this.time.now / 1000;
-      jugador.x = 150 + (Math.sin(t / 3) * 0.5 + 0.5) * 480;
+  update: function (t, dt) {
+    var seg = Math.min(dt, 50) / 1000;
+    var dx = 0, dy = 0;
+    if (paseo) {
+      // Pasea por delante de la fachada, de punta a punta.
+      var ancho = casa.displayWidth;
+      var objetivo = casa.x + 20 + (Math.sin(t / 2500) * 0.5 + 0.5) * (ancho - 40);
+      dx = Math.sign(objetivo - jugador.x);
+    } else {
+      if (teclas.LEFT.isDown || teclas.A.isDown) dx -= 1;
+      if (teclas.RIGHT.isDown || teclas.D.isDown) dx += 1;
+      if (teclas.UP.isDown || teclas.W.isDown) dy -= 1;
+      if (teclas.DOWN.isDown || teclas.S.isDown) dy += 1;
     }
-    jugador.setDepth(GFProfundidad.piesDe(this, jugador));
+    var largo = Math.hypot(dx, dy);
+    if (largo > 1) { dx /= largo; dy /= largo; }
 
-    /* MECE LA CASA como gf-viento mece los árboles. Sirve para comprobar que
-       las franjas giran TODAS a la vez: si alguna se quedara quieta, el objeto
-       se partiría por el corte y se vería al instante. */
-    if (window.MECER) {
-      casa.rotation = Math.sin(this.time.now / 500) * 0.06;
-    }
+    // Eje a eje, como el juego: así se desliza por las paredes.
+    var vel = 170, px = jugador.x, py = jugador.y;
+    chocando = false;
+    var nx = px + dx * vel * seg;
+    var c = cajaPies(nx, py);
+    if (chocaConEscenario(c.x, c.y, c.w, c.h)) { nx = px; chocando = true; }
+    var ny = py + dy * vel * seg;
+    c = cajaPies(nx, ny);
+    if (chocaConEscenario(c.x, c.y, c.w, c.h)) { ny = py; chocando = true; }
+    jugador.setPosition(nx, ny);
+    if (dx || dy) { if (!jugador.anims.isPlaying) jugador.play('andar'); }
+    else jugador.anims.stop();
+
+    jugador.setDepth(GFProfundidad.piesDe(this, jugador));
+    c = cajaPies(jugador.x, jugador.y);
+    this.cajaJugador.clear().lineStyle(1, chocando ? 0xff4444 : 0x7fe08d, 1).strokeRect(c.x, c.y, c.w, c.h);
 
     var e = GFProfundidad.estado(this);
     var tr = casa.__gfFranjas || [];
-    var lineas = [Math.round(casa.depth)].concat(tr.map(function (t) { return Math.round(t.depth); }));
+    var lineas = [Math.round(casa.depth)].concat(tr.map(function (f) { return Math.round(f.depth); }));
     document.getElementById('panel').innerHTML =
+      'planta: <b>' + window.PLANTA + '</b>   (flechas/WASD · P = pasear solo)\n' +
       'calibrados: <b>' + (e ? e.hechos : 0) + '</b>  partidos: <b>' + (e ? e.partidos : 0) + '</b>\n' +
       'franjas de la casa: <b>' + (casa.__gfFranjasN || 1) + '</b>\n' +
       'profundidad por franja: <b>' + lineas.join(' · ') + '</b>\n' +
       'pies del jugador: <b>' + Math.round(jugador.depth) + '</b>\n' +
-      'jugador x: <b>' + Math.round(jugador.x) + '</b>';
+      'colisión: ' + (chocando ? '<b class="mal">choca</b>' : '<b class="ok">libre</b>') +
+      '   x <b>' + Math.round(jugador.x) + '</b> y <b>' + Math.round(jugador.y) + '</b>';
   }
 };
 
 new Phaser.Game({
   type: Phaser.AUTO, parent: 'juego',
-  width: 780, height: 470,
+  width: 900, height: 560,
   backgroundColor: '#243018', pixelArt: true, roundPixels: true,
   scene: Escena
 });

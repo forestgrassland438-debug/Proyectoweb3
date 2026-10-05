@@ -64,6 +64,40 @@
 
   var LS_ELEGIDO = 'gf_soulbound_elegido';
 
+  /* LOS NOMBRES (2026-10-04). La carpeta es un nombre de ARCHIVO
+     ("personaje2"), no el de un personaje: en el panel salia tal cual. Cada
+     personaje lleva aqui su nombre en ingles, elegido por su aspecto:
+
+       personaje1  chico de pelo castano revuelto, jersey negro  -> Oliver
+       personaje2  chica elfa, con un brote de hoja en el pelo   -> Ivy
+
+     Un personaje nuevo sin entrada aqui sale como "Wanderer N" (nunca con el
+     nombre de su carpeta) hasta que se le ponga el suyo en esta lista. */
+  var FICHAS = {
+    personaje1: { nombre: 'Oliver', genero: 'male' },
+    personaje2: { nombre: 'Ivy',    genero: 'female' },
+    // Los del pack (2026-10-05, tools/instalar-personajes-soulbound.py). El
+    // género es el de su cuerpo base (el 1 o el 2).
+    personaje3:  { nombre: 'Ember',   genero: 'male' },
+    personaje4:  { nombre: 'Sol',     genero: 'female' },
+    personaje5:  { nombre: 'Frost',   genero: 'male' },
+    personaje6:  { nombre: 'Willow',  genero: 'female' },
+    personaje7:  { nombre: 'Noctua',  genero: 'male' },
+    personaje8:  { nombre: 'Tide',    genero: 'male' },
+    personaje9:  { nombre: 'Storm',   genero: 'female' },
+    personaje10: { nombre: 'Anchor',  genero: 'male' },
+    personaje11: { nombre: 'Reed',    genero: 'female' },
+    personaje12: { nombre: 'Mist',    genero: 'male' },
+    personaje13: { nombre: 'Abyss',   genero: 'female' }
+  };
+
+  /** Nombre y genero de un personaje: { nombre, genero } (genero puede ser ''). */
+  function ficha(id) {
+    if (FICHAS[id]) return FICHAS[id];
+    var n = /(\d+)$/.exec(String(id || ''));
+    return { nombre: 'Wanderer' + (n ? ' ' + n[1] : ''), genero: '' };
+  }
+
   // ── Estado ────────────────────────────────────────────────────────────────
   var elegido     = null;    // id del personaje activo
   var lista       = null;    // array de ids descubiertos
@@ -620,15 +654,19 @@
         // createElement + textContent en vez de innerHTML: el id nunca se
         // interpola como HTML (idValido ya lo limita a [A-Za-z0-9_-], pero no
         // se confía en una sola barrera).
+        var f = ficha(id);
         var btn = global.document.createElement('button');
         btn.type = 'button';
-        btn.className = 'sb-char';
-        btn.title = id;
-        btn.setAttribute('aria-label', id);
+        btn.className = 'sb-card';
+        btn.setAttribute('data-id', id);
+        btn.title = f.nombre;
+        btn.setAttribute('aria-label', f.nombre);
 
+        var aro = global.document.createElement('span');
+        aro.className = 'sb-char';
         var img = global.document.createElement('img');
         img.src = rutaPerfil(id);
-        img.alt = id;
+        img.alt = '';
         // Si el retrato no carga, el personaje no está realmente disponible
         // (carpeta a medias, archivo con otro nombre): se retira el botón en vez
         // de dejar un círculo vacío que al pulsarlo dejaría al jugador sin
@@ -636,7 +674,13 @@
         img.onerror = function () {
           if (btn.parentNode) btn.parentNode.removeChild(btn);
         };
-        btn.appendChild(img);
+        aro.appendChild(img);
+        btn.appendChild(aro);
+
+        var nombre = global.document.createElement('span');
+        nombre.className = 'sb-card-name';
+        nombre.textContent = f.nombre;
+        btn.appendChild(nombre);
 
         btn.onclick = function () { equiparDesdePanel(id, scene); };
         cont.appendChild(btn);
@@ -654,15 +698,22 @@
 
     var cont = doc.getElementById('sb-list');
     if (cont) {
-      Array.prototype.forEach.call(cont.querySelectorAll('.sb-char'), function (b) {
-        if (b.title === quien) b.classList.add('sb-active');
-        else                   b.classList.remove('sb-active');
+      Array.prototype.forEach.call(cont.querySelectorAll('.sb-card'), function (b) {
+        var activo = b.getAttribute('data-id') === quien;
+        b.classList.toggle('sb-active', activo);
+        b.setAttribute('aria-pressed', activo ? 'true' : 'false');
       });
     }
+    var f = ficha(quien);
     var img  = doc.getElementById('sb-current-img');
     var name = doc.getElementById('sb-current-name');
+    var gen  = doc.getElementById('sb-current-gender');
     if (img)  img.src = rutaPerfil(quien);
-    if (name) name.textContent = quien;
+    if (name) name.textContent = f.nombre;
+    if (gen) {
+      gen.textContent = f.genero === 'female' ? '♀ Female' : (f.genero === 'male' ? '♂ Male' : '');
+      gen.className = 'sb-current-gender' + (f.genero ? ' sb-' + f.genero : '');
+    }
   }
 
   function equiparDesdePanel(id, scene) {
@@ -672,7 +723,7 @@
     montando = true;
 
     var cont = global.document.getElementById('sb-list');
-    var botones = cont ? cont.querySelectorAll('.sb-char') : [];
+    var botones = cont ? cont.querySelectorAll('.sb-card') : [];
     Array.prototype.forEach.call(botones, function (b) { b.classList.add('sb-busy'); });
 
     elegir(id, scene)
@@ -694,6 +745,7 @@
     animRemota:        animRemota,
     personajeListo:    listo,
     POR_DEFECTO:   POR_DEFECTO,
+    ficha:         ficha,
     actual:        actual,
     fijar:         fijar,
     idValido:      idValido,
