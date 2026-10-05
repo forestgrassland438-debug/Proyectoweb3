@@ -64,9 +64,19 @@ class BattleScene extends Phaser.Scene {
   static ARENAS = ['pradera', 'ruinas', 'rio', 'nieve', 'canon'];
   static RETRATO_MASCOTA = './Game/Sprites/mascota/derecha/run_1.png';
 
-  /* Cuántas casillas se ven como mínimo. El zoom es ENTERO (en pixel art un
-     zoom de 2,5 deja medio píxel en cada borde de casilla y salen costuras):
-     se elige el mayor que todavía deje ver esto. */
+  /* LO QUE SE VE, IGUAL PARA TODOS (2026-10-05) — "un zoom justo para los
+     jugadores de móvil y pc en diferentes resoluciones".
+
+     Antes el zoom era ENTERO y salía de dividir la pantalla: un PC de
+     1366x768 veía 21x12 casillas, uno de 1920x1080 20x11, y un móvil EN
+     VERTICAL veía la arena casi entera de arriba abajo (24x53). Quien veía más
+     sabía dónde estaba el otro antes de que el otro le viera a él.
+
+     Ahora es al revés: se fija lo que se ve —como mucho `ancho` casillas en el
+     lado LARGO de la pantalla y `alto` en el corto— y el zoom sale de ahí,
+     con decimales. Así en vertical se ven 19 de alto y 11 de ancho, nunca más.
+     Lo que impedía los decimales eran las rayas entre casillas: el tileset de
+     la arena va EXTRUIDO (GFSuelo.extruir) y ya no salen. */
   static VISTA = { ancho: 19, alto: 11 };
   static RETRASO_INTERP = 110;     // ms "en el pasado" a los que se pinta a los demás
   static ENVIO_MS = 50;            // 20 posiciones por segundo al servidor
@@ -369,7 +379,9 @@ class BattleScene extends Phaser.Scene {
       console.warn('⚠️ Arena: el mapa ' + clave + ' no se pudo leer:', e);
       return this.construirArenaDeRespaldo(res, filas);
     }
-    const ts = mapa.addTilesetImage(hoja.nombre, T);
+    // Extruido: con el zoom con decimales (ver VISTA) no salen rayas.
+    const Tx = window.GFSuelo && window.GFSuelo.extruir ? window.GFSuelo.extruir(this, T, C) : null;
+    const ts = Tx ? mapa.addTilesetImage(hoja.nombre, Tx, C, C, 1, 2) : mapa.addTilesetImage(hoja.nombre, T);
     res.mapa = mapa;
     res.ancho = mapa.width;
     res.alto = mapa.height;
@@ -542,10 +554,15 @@ class BattleScene extends Phaser.Scene {
     const w = this.scale.width, h = this.scale.height;
     const m2 = BattleScene.MARCO * 64;
     const anchoArena = (this.R ? this.R.anchoPx : 960) + m2, altoArena = (this.R ? this.R.altoPx : 704) + m2;
-    let z = Math.floor(Math.min(w / (BattleScene.VISTA.ancho * 32), h / (BattleScene.VISTA.alto * 32)));
+    /* Lo bastante cerca para que el lado largo no enseñe más de VISTA.ancho
+       casillas ni el corto más de VISTA.alto. Se redondea HACIA ARRIBA a
+       dieciseisavos: nunca se ve más de lo justo, y el valor no tiembla. */
+    const largo = Math.max(w, h), corto = Math.min(w, h);
+    let z = Math.max(largo / (BattleScene.VISTA.ancho * 32), corto / (BattleScene.VISTA.alto * 32));
     // Nunca tan lejos que se vea fuera de la arena.
-    z = Math.max(z, Math.ceil(w / anchoArena), Math.ceil(h / altoArena));
-    z = Math.max(1, Math.min(8, z));
+    z = Math.max(z, w / anchoArena, h / altoArena);
+    z = Math.ceil(z * 16) / 16;
+    z = Math.max(0.5, Math.min(8, z));
     this._zoom = z;
     cam.setZoom(z);
     cam.setRoundPixels(true);
@@ -570,7 +587,8 @@ class BattleScene extends Phaser.Scene {
     const out = [];
     for (let i = 1; i <= n; i++) {
       const base = E.via === 'cuervo' ? './Game/Sprites/cuervo/' : './Game/Sprites/animales/';
-      out.push(['bz_esp_' + id + '_' + pose + '_' + i, base + E.pre + pose + '_' + i + '.png']);
+      // Con versión: los sprites de la fauna se regeneran (tools/sombrear-animales.py).
+      out.push(['bz_esp_' + id + '_' + pose + '_' + i, base + E.pre + pose + '_' + i + '.png?v=20261004']);
     }
     return out;
   }
@@ -1961,16 +1979,23 @@ class BattleScene extends Phaser.Scene {
     const premios = [];
     const yoFila = (d.tabla || []).find((f) => f.id === d.yo);
     if (this.modo !== 'practica') premios.push(['+' + (d.puntos || 0) + ' pts', (d.puntos || 0) > 0 ? 'oro' : '']);
-    // La arena da EXP al personaje, y el perro tiene su nivel (uno solo en
-    // todo el juego: ver nivelMascotaEfectivo en server2.js).
+    // La arena da EXP al personaje y, desde 2026-10-03, también a la MASCOTA,
+    // que tiene su propio nivel (ver nivelMascotaEfectivo en server2.js).
     if (d.exp > 0) premios.push(['+' + d.exp + ' EXP', 'verde']);
+    if (d.petExpGanada > 0) premios.push(['🐾 +' + d.petExpGanada + ' pet EXP', 'verde']);
     if (d.petLevel) {
-      const antes = Number(this.datosJugador.nivel) || 0;
+      // El servidor manda el nivel de ANTES de la partida: compararlo con el
+      // del luchador daba "Level up" falsos, porque ese era el del personaje.
       const yo = this.vistas.get(this.yoId);
-      const nivelAntes = yo ? Number(yo.datos.nivel) || antes : antes;
-      if (d.petLevel > nivelAntes) premios.push(['⭐ Level up! Lv.' + d.petLevel, 'verde']);
+      const nivelAntes = Number.isFinite(Number(d.petLevelAntes)) && d.petLevelAntes !== null
+        ? Number(d.petLevelAntes)
+        : (yo ? Number(yo.datos.nivel) || 0 : Number(this.datosJugador.nivel) || 0);
+      if (d.petLevel > nivelAntes) premios.push(['⭐ Pet level up! Lv.' + d.petLevel, 'verde']);
       // El mapa se pone al día ya (también llega por 'petLevelUpdate').
       window.globalPetLevel = d.petLevel;
+      if (d.petExp !== null && d.petExp !== undefined) {
+        window.globalPetExp = { petExp: d.petExp, petExpBase: d.petExpBase, petExpSiguiente: d.petExpSiguiente };
+      }
     }
     if (d.daily) premios.push(['Daily ' + d.daily.done + '/' + d.daily.max, '']);
     if (yoFila) {

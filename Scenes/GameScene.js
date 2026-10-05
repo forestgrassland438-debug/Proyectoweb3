@@ -2539,24 +2539,15 @@ showNotification(message, type = 'info') {
 
     // siembra tierra seca
 
-    this.load.image('tierra_seca', './Game/Objetos/tierra_seca.png');
-    this.load.image('tierra_mojada', './Game/Objetos/tierra_mojada.png');
+    // Las texturas del huerto van en _precargarTexturasCultivo(): la isla
+    // (LandsScene) también siembra y tiene su propio preload.
+    this._precargarTexturasCultivo();
 
     // interacciones de siembra con planta 1
 
     
-    this.load.image('tierra_seca_plant', './Game/Objetos/Plantas/planta_zanahorias/1.png');
-    this.load.image('tierra_mojada_plant', './Game/Objetos/Plantas/planta_zanahorias/2.png');
-    this.load.image('tierra_mojada_plant2', './Game/Objetos/Plantas/planta_zanahorias/3.png');
-    this.load.image('tierra_mojada_plant3', './Game/Objetos/Plantas/planta_zanahorias/4.png');
-    this.load.image('tierra_muerta_plant4', './Game/Objetos/Plantas/planta_zanahorias/5.png');
 
         
-    this.load.image('tierra_seca_plant_tomate', './Game/Objetos/Plantas/planta_tomates/1.png');
-    this.load.image('tierra_mojada_plant_tomate', './Game/Objetos/Plantas/planta_tomates/2.png');
-    this.load.image('tierra_mojada_plant2_tomate', './Game/Objetos/Plantas/planta_tomates/3.png');
-    this.load.image('tierra_mojada_plant3_tomate', './Game/Objetos/Plantas/planta_tomates/4.png');
-    this.load.image('tierra_muerta_plant4_tomate', './Game/Objetos/Plantas/planta_tomates/5.png');
     // Cuervos. 13 fotogramas sueltos, todos de 30x24: el juego monta las
     // animaciones con texturas independientes, no con hojas de sprites.
     this.load.image('cuervo_quieto_1', './Game/Sprites/cuervo/cuervo_quieto_1.png');
@@ -2589,24 +2580,9 @@ showNotification(message, type = 'info') {
     if (window.GFAudio) window.GFAudio.precargar(this, { tipo: 'campo' });
     // Fresa. 1 = sembrada sin regar · 2 = regada · 3 = creciendo ·
     // 4 = lista para cosechar · 5 = se murio.
-    this.load.image('tierra_seca_plant_fresa', './Game/Objetos/Plantas/planta_fresa/1.png');
-    this.load.image('tierra_mojada_plant_fresa', './Game/Objetos/Plantas/planta_fresa/2.png');
-    this.load.image('tierra_mojada_plant2_fresa', './Game/Objetos/Plantas/planta_fresa/3.png');
-    this.load.image('tierra_mojada_plant3_fresa', './Game/Objetos/Plantas/planta_fresa/4.png');
-    this.load.image('tierra_muerta_plant4_fresa', './Game/Objetos/Plantas/planta_fresa/5.png');
-
-    this.load.image('tierra_seca_plant_trigo', './Game/Objetos/Plantas/planta_trigo/1.png');
-    this.load.image('tierra_mojada_plant_trigo', './Game/Objetos/Plantas/planta_trigo/2.png');
-    this.load.image('tierra_mojada_plant2_trigo', './Game/Objetos/Plantas/planta_trigo/3.png');
-    this.load.image('tierra_mojada_plant3_trigo', './Game/Objetos/Plantas/planta_trigo/4.png');
-    this.load.image('tierra_muerta_plant4_trigo', './Game/Objetos/Plantas/planta_trigo/5.png');
 
 
-    this.load.image('tierra_seca_plant_calabaza', './Game/Objetos/Plantas/planta_calabaza/1.png');
-    this.load.image('tierra_mojada_plant_calabaza', './Game/Objetos/Plantas/planta_calabaza/2.png');
-    this.load.image('tierra_mojada_plant2_calabaza', './Game/Objetos/Plantas/planta_calabaza/3.png');
-    this.load.image('tierra_mojada_plant3_calabaza', './Game/Objetos/Plantas/planta_calabaza/4.png');
-    this.load.image('tierra_muerta_plant4_calabaza', './Game/Objetos/Plantas/planta_calabaza/5.png');
+
 
 
 
@@ -2827,6 +2803,19 @@ liberarMemoriaPesada() {
     // A qué sala del servidor se va al salir (ver _salaAlSalir). Se rearma en
     // cada entrada: Phaser reutiliza la instancia de la escena.
     this._salaDestino = null;
+    // Pescando o golpeando con la espada (ver el update): nunca al entrar.
+    this._accionPersonaje = null;
+    /* EL TELETRANSPORTE DEL PANEL DE AMIGOS (GFViaje, en gf-lands.js): si se
+       viene a ponerse al lado de alguien, se aparece ahí y no donde dijera la
+       partida. `loadPlayerData()` respeta `_anclaPropia` -como en la mina y
+       en la isla- y suelta esta en cuanto la usa. Se rearma en cada entrada. */
+    this._anclaPropia = null;
+    {
+      const _viaje = window.GFViaje ? window.GFViaje.tomar(1) : null;
+      if (_viaje && Number.isFinite(_viaje.x) && Number.isFinite(_viaje.y)) {
+        this._anclaPropia = { x: _viaje.x, y: _viaje.y, unaVez: true };
+      }
+    }
     this._cleanupSceneDone = false;
     this._shutdownDone = false;
     // Registrar antes del primer await: la autenticación puede terminar
@@ -3300,7 +3289,9 @@ this.player.on('pointerdown', (pointer) => {
   const imageMappingxxx1 = {
     mapa_principalx: {
       carpeta: 'recortadas',
-      json: 'recortadas/mapa.json',
+      // Con versión: el manifiesto también se guardaba en caché (ver la
+      // versión del recorte en lib/tileManager.js, resolveTileURL).
+      json: 'recortadas/mapa.json?v=20261004',
       targetProp: 'tileManagerMapa'
     }
   };
@@ -3500,6 +3491,12 @@ const imagexMappingx = {
   arbusto_formadox18: {
     spriteKey: 'arbusto_formado2_png',
     targetProp: 'sprite_arbusto_ect18',
+  },
+  // El 19 estaba en el mapa (capa centro_ect, en 3530,2102) pero no aqui: el
+  // objeto existia y no se pintaba nada.
+  arbusto_formadox19: {
+    spriteKey: 'arbusto_formado2_png',
+    targetProp: 'sprite_arbusto_ect19',
   },
   arbusto_formado1: {
     spriteKey: 'arbusto_formado_png',
@@ -8916,6 +8913,52 @@ _asegurarIndiceColisiones() {
 }
 
 /**
+ * LOS CHOQUES DEL JUGADOR, EJE A EJE, Y DESATASCAR.               (2026-10-05)
+ *
+ * "Si un animal me ataca y estoy pegado a una colisión, me quedo trancado."
+ * El choque se resuelve eje a eje: si mover en X choca, X vuelve atrás; luego
+ * lo mismo con Y. Eso funciona MIENTRAS el jugador esté fuera de todo lo que
+ * frena. Si sus pies acaban DENTRO de un rectángulo (un salto de fotograma
+ * con el juego trabado por el golpe, una recolocación, aparecer en un sitio
+ * que ya no está libre...), cualquier paso en cualquier dirección sigue
+ * dentro, los dos ejes vuelven atrás y no hay salida: trancado para siempre.
+ *
+ * Ahora, si ya estaba dentro: un paso que le deje FUERA se acepta tal cual, y
+ * si no, se le saca al hueco libre más cercano (hasta 96 px). Fuera de ese
+ * caso, todo sigue igual que antes.
+ *
+ * `alto` es el de la caja de los pies de cada escena (15 en el pueblo, 26 en
+ * la mina, la isla y las casas).
+ */
+_resolverChoqueJugador(prevX, prevY, alto) {
+  const p = this.player;
+  if (!p) return;
+  const choca = (x, y) => this._chocaConEscenario(x - 15, y + 25, 30, alto);
+  if (choca(prevX, prevY)) {
+    if (!choca(p.x, p.y)) return;               // el paso le saca: vale
+    const h = this._huecoLibreCerca(prevX, prevY, alto);
+    if (h) { p.x = h.x; p.y = h.y; }
+    // Sin hueco cerca (no debería pasar) se le deja moverse: al menos
+    // puede salir andando.
+    return;
+  }
+  if (choca(p.x, prevY)) p.x = prevX;
+  if (choca(p.x, p.y)) p.y = prevY;
+}
+
+/** El sitio libre más cercano a (x, y) para la caja de los pies, o null. */
+_huecoLibreCerca(x, y, alto) {
+  for (let r = 4; r <= 96; r += 4) {
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r;
+      if (!this._chocaConEscenario(px - 15, py + 25, 30, alto)) return { x: px, y: py };
+    }
+  }
+  return null;
+}
+
+/**
  * ¿Choca este rectángulo con el escenario? (colisión general + entrada tienda)
  * Sin reservar memoria y mirando solo las celdas que ocupa.
  */
@@ -9013,23 +9056,19 @@ setupResourceLockSocket() {
   // El backend recalcula el nivel de la mascota al terminar cada batalla.
   // Antes solo se leía en /api/load, así que tu propio perro seguía mostrando
   // el nivel viejo hasta que recargabas la página.
-  this.socket.on('petLevelUpdate', ({ petLevel, expTotal }) => {
-    // La arena da EXP (el perro tiene tu nivel). Si volviste al mapa antes de
-    // que acabara la partida, tu exp local va por detrás: se adopta la total.
-    const total = Number(expTotal);
+  this.socket.on('petLevelUpdate', (d) => {
+    const datos = d || {};
+    // La arena da EXP al PERSONAJE: si volviste al mapa antes de que acabara
+    // la partida, tu exp local va por detrás y se adopta la total.
+    const total = Number(datos.expTotal);
     if (Number.isFinite(total) && total > (Number(this.nivel_exp) || 0)) {
       this.nivel_exp = total;
       this._nivelDesdeExp();
-      return;
     }
-    const n = Math.max(1, Number(petLevel) || 1);
-    // Compartido con la tienda: sin esto, al cambiar de escena el perro volvía
-    // a mostrarse en Lv.1 hasta que /api/load respondiera (o nunca).
-    window.globalPetLevel = n;
-    if (this.petLevel === n) return;
-    this.petLevel = n;
-    console.log(`🐶 Nivel de la mascota actualizado: ${n}`);
-    if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
+    // Y a la MASCOTA la suya. Antes había un `return` justo encima y, cuando
+    // llegaba exp nueva, el nivel del perro no se aplicaba nunca.
+    this._aplicarNivelMascota(datos);
+    console.log(`🐶 Nivel de la mascota: ${this.petLevel}`);
   });
 
   this.socket.on('mineLocked', ({ mineKey, lockedUntil }) => {
@@ -9677,12 +9716,103 @@ _playerLabelText(nombre, nivel) {
   return Number.isFinite(n) ? `${etiqueta} (Lv.${Math.max(0, Math.floor(n))})` : etiqueta;
 }
 
+
+/**
+ * LAS TEXTURAS DEL HUERTO, EN UN SOLO SITIO.                      (2026-10-03)
+ *
+ * La tierra de cada cuadro y los cinco dibujos de cada planta (sembrada,
+ * regada, creciendo, lista y muerta). El sistema de cultivos los cambia con
+ * `setTexture` según lo que mande el servidor, así que tienen que estar
+ * cargados en cualquier escena que siembre. Vivían sueltos en el preload de
+ * GameScene; desde que la isla tiene parcelas (LandsScene), su preload los
+ * pide también, y con una lista sola no puede faltarle una planta a ninguna.
+ *
+ * Pedir una clave que ya está cargada no la vuelve a bajar (el cargador de
+ * Phaser la salta), así que llamar a esto de más no cuesta nada.
+ */
+_precargarTexturasCultivo() {
+  const TEXTURAS = [
+    ['tierra_seca', './Game/Objetos/tierra_seca.png'],
+    ['tierra_mojada', './Game/Objetos/tierra_mojada.png'],
+    ['tierra_seca_plant', './Game/Objetos/Plantas/planta_zanahorias/1.png'],
+    ['tierra_mojada_plant', './Game/Objetos/Plantas/planta_zanahorias/2.png'],
+    ['tierra_mojada_plant2', './Game/Objetos/Plantas/planta_zanahorias/3.png'],
+    ['tierra_mojada_plant3', './Game/Objetos/Plantas/planta_zanahorias/4.png'],
+    ['tierra_muerta_plant4', './Game/Objetos/Plantas/planta_zanahorias/5.png'],
+    ['tierra_seca_plant_tomate', './Game/Objetos/Plantas/planta_tomates/1.png'],
+    ['tierra_mojada_plant_tomate', './Game/Objetos/Plantas/planta_tomates/2.png'],
+    ['tierra_mojada_plant2_tomate', './Game/Objetos/Plantas/planta_tomates/3.png'],
+    ['tierra_mojada_plant3_tomate', './Game/Objetos/Plantas/planta_tomates/4.png'],
+    ['tierra_muerta_plant4_tomate', './Game/Objetos/Plantas/planta_tomates/5.png'],
+    ['tierra_seca_plant_fresa', './Game/Objetos/Plantas/planta_fresa/1.png'],
+    ['tierra_mojada_plant_fresa', './Game/Objetos/Plantas/planta_fresa/2.png'],
+    ['tierra_mojada_plant2_fresa', './Game/Objetos/Plantas/planta_fresa/3.png'],
+    ['tierra_mojada_plant3_fresa', './Game/Objetos/Plantas/planta_fresa/4.png'],
+    ['tierra_muerta_plant4_fresa', './Game/Objetos/Plantas/planta_fresa/5.png'],
+    ['tierra_seca_plant_trigo', './Game/Objetos/Plantas/planta_trigo/1.png'],
+    ['tierra_mojada_plant_trigo', './Game/Objetos/Plantas/planta_trigo/2.png'],
+    ['tierra_mojada_plant2_trigo', './Game/Objetos/Plantas/planta_trigo/3.png'],
+    ['tierra_mojada_plant3_trigo', './Game/Objetos/Plantas/planta_trigo/4.png'],
+    ['tierra_muerta_plant4_trigo', './Game/Objetos/Plantas/planta_trigo/5.png'],
+    ['tierra_seca_plant_calabaza', './Game/Objetos/Plantas/planta_calabaza/1.png'],
+    ['tierra_mojada_plant_calabaza', './Game/Objetos/Plantas/planta_calabaza/2.png'],
+    ['tierra_mojada_plant2_calabaza', './Game/Objetos/Plantas/planta_calabaza/3.png'],
+    ['tierra_mojada_plant3_calabaza', './Game/Objetos/Plantas/planta_calabaza/4.png'],
+    ['tierra_muerta_plant4_calabaza', './Game/Objetos/Plantas/planta_calabaza/5.png']
+  ];
+  for (const [clave, ruta] of TEXTURAS) {
+    if (!this.textures.exists(clave)) this.load.image(clave, ruta);
+  }
+}
+
 // Sincroniza la etiqueta que flota sobre el perro (nombre y/o nivel).
 _updateDogNameLabel() {
     if (!this.dogNameText) return;
     this.dogNameText.setText(this._dogLabelText(this.petName, this.petLevel));
     const dogVisible = !!(this.dog && this.dog.sprite && this.dog.sprite.visible);
     this.dogNameText.setVisible(dogVisible);
+}
+
+/**
+ * EL NIVEL DE LA MASCOTA LO DECIDE EL SERVIDOR, Y ES SUYO.        (2026-10-03)
+ *
+ * Hasta hoy la escena le copiaba al perro el nivel del PERSONAJE
+ * (_nivelDesdeExp) y por eso "siempre salía nivel 5 y nunca subía": las
+ * batallas no lo movían. Ahora la mascota tiene su propia experiencia, que se
+ * gana en la arena (ver nivelMascotaEfectivo / expMascotaDeArena en
+ * server2.js), y su nivel llega del servidor en /api/load y en el aviso
+ * 'petLevelUpdate' de cada batalla. Este es el ÚNICO sitio que lo aplica: el
+ * cartel del perro, la barra del panel de la mascota y lo que se comparte con
+ * las otras escenas (window.globalPetLevel / globalPetExp).
+ *
+ * @param {object} d  { petLevel, petExp, petExpBase, petExpSiguiente,
+ *                      petExpGanada? }  (petExpGanada solo viene de una batalla)
+ */
+_aplicarNivelMascota(d) {
+  if (!d) return;
+  const n = Number(d.petLevel);
+  if (Number.isFinite(n) && n >= 1) {
+    const antes = Number(this.petLevel) || 1;
+    this.petLevel = n;
+    window.globalPetLevel = n;
+    if (n !== antes && typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
+    if (n > antes && d.petExpGanada !== undefined) {
+      const quien = (this.petName && this.petName !== '---') ? this.petName : 'Your pet';
+      try { this.playSFX && this.playSFX('level_up_sound'); } catch (_) {}
+      try {
+        if (this.notifications && typeof this.notifications.show === 'function') {
+          this.notifications.show(`🐾 ${quien} reached level ${n}!`, 'success');
+        }
+      } catch (_) {}
+    }
+  }
+  if (d.petExp !== undefined && d.petExp !== null && Number.isFinite(Number(d.petExp))) {
+    this.petExp = Number(d.petExp);
+    this.petExpBase = Number(d.petExpBase) || 0;
+    this.petExpSiguiente = Number(d.petExpSiguiente) || this.petExp;
+    window.globalPetExp = { petExp: this.petExp, petExpBase: this.petExpBase, petExpSiguiente: this.petExpSiguiente };
+  }
+  try { if (window.GFMascota && window.GFMascota.repintar) window.GFMascota.repintar(); } catch (_) {}
 }
 
 setupSettingsPanel() {
@@ -10337,7 +10467,15 @@ openTrashHub() {
   // Inicializar sistema si no está inicializado
   if (!this.trashSystemInitialized) {
     this.initTrashSystem();
+  } else if (window.__gfBasuraDe !== this) {
+    // EL PANEL ES DE LA PÁGINA, LAS ESCENAS NO (2026-10-05). El bote de la
+    // isla (LandsScene) abre este mismo panel, y sus botones llevan el
+    // `onclick` de la ÚLTIMA escena que los enganchó: si fue otra, "cerrar"
+    // llamaba a SU closeTrashHub y este panel no se cerraba nunca.
+    this.setupTrashHubEvents();
+    this.setupQuantitySelectorEvents();
   }
+  window.__gfBasuraDe = this;
   
   // Mostrar el hub
   const trashHub = document.getElementById('trash-hub');
@@ -10520,9 +10658,11 @@ initTrashSlots() {
     slot.innerHTML = '';
     slot.classList.remove('has-item');
     
-    // Agregar listener de clic
-    // EN LA FUNCIÓN initTrashSlots(), REEMPLAZA el event listener del slot:
-slot.addEventListener('click', (e) => {
+    // Agregar listener de clic. UNO: se quita el de la apertura anterior
+    // (2026-10-05). Antes se SUMABA uno por apertura, y con el bote de la isla
+    // también los de otra escena, cada uno con su propio inventario.
+    if (slot.__gfClicBasura) slot.removeEventListener('click', slot.__gfClicBasura);
+slot.__gfClicBasura = (e) => {
   // Si se hace clic en el botón de remover, no hacer nada
   if (e.target.classList.contains('trash-slot-remove')) {
     return;
@@ -10592,7 +10732,8 @@ slot.addEventListener('click', (e) => {
       this.showNotification('Select an item from inventory first', 'warning');
     }
   }
-});
+};
+slot.addEventListener('click', slot.__gfClicBasura);
 
   });
 }
@@ -11241,7 +11382,20 @@ getItemDisplayName(itemId) {
     'trigo_mala': 'Trigo Podrido',
     'calabaza_buena': 'Calabaza',
     'calabaza_corta': 'Calabaza Corta',
-    'calabaza_mala': 'Calabaza Podrida'
+    'calabaza_mala': 'Calabaza Podrida',
+    'espada_madera': 'Wooden Sword',
+    'espada_cobre': 'Copper Sword',
+    'espada_hierro': 'Iron Sword',
+    'cana_pescar': 'Fishing Rod',
+    'espantapajaros': 'Scarecrow',
+    'basura': 'Trash Can',
+    'cofre1': 'Wooden Chest',
+    'cofre2': 'Reinforced Chest',
+    'cofre3': 'Magic Chest',
+    'cofre4': 'Legendary Chest',
+    'pes1': 'Brown Trout',
+    'pes2': 'Common Carp',
+    'pes3': 'Golden Trout'
   };
   
   return displayNames[itemId] || itemId;
@@ -12584,6 +12738,12 @@ handlePlotClick(plotId, pointer) {
   }
 
   const selectedItem = this.STATE.selectedItem;
+
+  // EL ESPANTAPÁJAROS (2026-10-05): se planta en la parcela sembrada.
+  if (selectedItem.id === 'espantapajaros') {
+    if (window.GFEspantapajaros) window.GFEspantapajaros.colocar(this, plotId);
+    return;
+  }
   
   if (this.cropTypes[selectedItem.id]) {
     if (!cropData) {
@@ -14101,6 +14261,12 @@ _getFruitDisplayNameEN(itemId) {
     fresa_buena: 'Good Strawberry', fresa_corta: 'Unripe Strawberry', fresa_mala: 'Rotten Strawberry',
     pocion_mascota: 'Pet Potion', pocion_mascota_grande: 'Great Pet Potion',
     elixir_revivir: 'Revival Elixir',
+    parcela: 'Land Plot', pala_construccion: 'Construction Shovel',
+    basura: 'Trash Can', cofre1: 'Wooden Chest', cofre2: 'Reinforced Chest',
+    cofre3: 'Magic Chest', cofre4: 'Legendary Chest',
+    espada_madera: 'Wooden Sword', espada_cobre: 'Copper Sword', espada_hierro: 'Iron Sword',
+    cana_pescar: 'Fishing Rod', espantapajaros: 'Scarecrow',
+    pes1: 'Brown Trout', pes2: 'Common Carp', pes3: 'Golden Trout',
     // Minerales (reutilizado también por la minería on-chain, ver _agregarFrutoOnChain).
     // Ojo con los nombres: mineral_cobre/mineral_hierro son los LINGOTES que
     // salen del horno; lo que se pica ahora es la piedra en bruto.
@@ -15963,19 +16129,14 @@ _nivelDesdeExp() {
   if (this.nivel_exp !== exp) this.nivel_exp = exp;
   const objetivo = this._nivelPorExp(exp);
   const actual = Number(this.nivel);
-  if (actual === objetivo && Number(this.petLevel) === Math.max(1, objetivo)) return;
+  if (actual === objetivo) return;
 
   const subio = Number.isFinite(actual) && objetivo > actual;
   this.nivel = objetivo;
   if (subio) this.playSFX('level_up_sound');
   this.actualizarBarraVida(this.vidaPorcentaje);
-
-  const pet = Math.max(1, objetivo);
-  if (Number(this.petLevel) !== pet) {
-    this.petLevel = pet;
-    window.globalPetLevel = pet;
-    if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
-  }
+  // El perro YA NO copia este nivel (2026-10-03): tiene el suyo, que manda
+  // el servidor. Ver _aplicarNivelMascota.
 }
 
 /**
@@ -16004,7 +16165,10 @@ _sumarExpHabilidad(clave, cantidad) {
   const HABILIDADES = {
     agricultura:  'Farming',
     mineria:      'Mining',
-    deforestacion:'Woodcutting'
+    deforestacion:'Woodcutting',
+    // 2026-10-05: la pesca (gf-pesca.js) y la fuerza (los espadazos, gf-espada.js).
+    pesca:        'Fishing',
+    fuerza:       'Strength'
   };
   if (!HABILIDADES[clave]) return;
 
@@ -16319,9 +16483,11 @@ _setupZoomKeeper() {
       // tuyo. Con el id puesto, esa red de seguridad vuelve a funcionar.
       this.myId = this.socket.id;
       
-      // Unirse a la sala de la tienda solo si no estamos ya en ella
-      if (this.currentRoom !== 'game') {
-        this.joinRoom('game');
+      // La sala de ESTA escena: 'game' aqui, 'mina' en la mina y la de su
+      // dueño en la isla (ver `_salaDeEscena`).
+      const _salaPropia = this._salaDeEscena();
+      if (this.currentRoom !== _salaPropia) {
+        this.joinRoom(_salaPropia);
       }
     }
 
@@ -17546,6 +17712,20 @@ removeOtherPlayer(playerId) {
       return this._salaDestino || 'fuera';
     }
 
+    /**
+     * La sala del servidor en la que se ENTRA al montar el socket.
+     *
+     * FALLO QUE ESTO ARREGLA (2026-10-04): `initSocket()` hacia siempre
+     * `joinRoom('game')`, y la mina y la isla lo heredan. Asi que bajo tierra
+     * y en la isla el servidor te tenia en el mapa de fuera: los del pueblo
+     * te veian plantado en las coordenadas de la cueva, y el panel de amigos
+     * decia "en el mundo" de alguien que estaba en la mina. MinaScene y
+     * LandsScene sobrescriben esto con la suya.
+     */
+    _salaDeEscena() {
+      return 'game';
+    }
+
     leaveRoom() {
       console.log('🚪 Saliendo de sala game...');
 
@@ -17640,7 +17820,7 @@ removeOtherPlayer(playerId) {
       this.setupSceneSocketListeners();
       // La sala apuntada mientras no había línea manda sobre la que recordara
       // la escena: es la última que se pidió de verdad.
-      var _sala = s._salaPendiente || this.currentRoom || 'game';
+      var _sala = s._salaPendiente || this.currentRoom || this._salaDeEscena();
       s._salaPendiente = null;
       this.joinRoom(_sala);
       s._necesitaJoin = false;
@@ -17707,7 +17887,7 @@ removeOtherPlayer(playerId) {
         if (typeof this.clearOtherPlayers === 'function') this.clearOtherPlayers();
         this.lastJoinTime = 0;              // sin cooldown: hay que reentrar ya
         this.setupSceneSocketListeners();
-        this.joinRoom(this.currentRoom || 'game');
+        this.joinRoom(this.currentRoom || this._salaDeEscena());
         if (typeof this.appendSystemMessage === 'function') {
           this.appendSystemMessage('Reconnected.');
         }
@@ -23314,6 +23494,8 @@ async loadPlayerData() {
       // el cartel del jugador y la muestra del dashboard.
       'nameColor', 'petNameColor'
     ];
+    // La experiencia de la mascota NO va en la lista: la aplica
+    // _aplicarNivelMascota, más abajo, junto con su nivel.
     playerProps.forEach(prop => {
       if (data[prop] !== undefined && data[prop] !== null) this[prop] = data[prop];
     });
@@ -23334,6 +23516,11 @@ async loadPlayerData() {
     }
     // El nivel del perro viaja a la tienda por aquí (ver tiendajuego.js).
     window.globalPetLevel = this.petLevel;
+    // Y su barra de experiencia (la mascota tiene nivel propio desde 2026-10-03).
+    this._aplicarNivelMascota({
+      petLevel: this.petLevel, petExp: data.petExp,
+      petExpBase: data.petExpBase, petExpSiguiente: data.petExpSiguiente
+    });
 
     // Nombre de mascota: '---' = aún sin fijar (regla de nombre único)
     if (!this.petName) this.petName = '---';
@@ -23388,6 +23575,9 @@ async loadPlayerData() {
       if (this._anclaPropia) {
         this.posicionplayerx = this._anclaPropia.x;
         this.posicionplayery = this._anclaPropia.y;
+        // La del teletransporte vale para UNA llegada; las de la mina y la
+        // isla son su entrada y se quedan.
+        if (this._anclaPropia.unaVez) this._anclaPropia = null;
       }
 
       this.player.setPosition(this.posicionplayerx, this.posicionplayery);
@@ -24627,6 +24817,30 @@ _cleanupTutorial() {
         console.log('✅ Hub de error de token mostrado');
     }
 
+
+/**
+ * EL SUELO PINTADO EN LAS ESCENAS QUE HEREDAN (2026-10-05): la isla y la mina
+ * pintan su suelo con trozos (gf-suelo.js), como el pueblo. Cuando el primer
+ * trozo está en pantalla, la capa de casillas se esconde y se abre el zoom a
+ * 0.5x, que con casillas enseñaba rayas. Si los trozos no llegan, nada cambia.
+ */
+_montarSueloPintado(carpeta, prefijo, capas, alListo) {
+  if (!window.GFSuelo) return null;
+  return window.GFSuelo.montar(this, {
+    carpeta, prefijo, capas,
+    alListo: () => {
+      if (typeof alListo === 'function') { try { alListo(); } catch (e) { console.warn('suelo:', e); } }
+      const niveles = Array.isArray(this._nivelesDeZoom) ? this._nivelesDeZoom : [1.0, 2.0];
+      if (niveles.indexOf(0.5) < 0) this._nivelesDeZoom = [0.5].concat(niveles);
+      if (Array.isArray(this.zoomValues) && this.zoomValues.indexOf(0.5) < 0) {
+        const actual = this.zoomValues[this.currentZoomIndex];
+        this.zoomValues = [0.5].concat(this.zoomValues);
+        const i = this.zoomValues.indexOf(actual);
+        this.currentZoomIndex = i >= 0 ? i : this.zoomValues.indexOf(1.0);
+      }
+    }
+  });
+}
 
 createImagesFromObjectLayer1(scene, map, objectLayerName, nameMapping) {
   if (typeof TileManager === 'undefined') {
@@ -25988,7 +26202,10 @@ CONSUMABLES_FOOD = {
   zanahoria_buena: 2, tomate_buena: 5, trigo_buena: 5, calabaza_buena: 5,
   fresa_buena: 5,
   zanahoria_mala: 1, tomate_mala: 2, trigo_mala: 2, calabaza_mala: 2,
-  fresa_mala: 2
+  fresa_mala: 2,
+  // Los peces del río (2026-10-05): se pescan y se comen; cuanto más raro,
+  // más alimenta.
+  pes1: 6, pes2: 10, pes3: 18
 };
 CONSUMABLES_WATER = { balde_con_agua: 20 };
 
@@ -26457,7 +26674,7 @@ async openBattleLeaderboard() {
   const cuerpo = document.getElementById('battleRankBody');
   const meta = document.getElementById('battleRankSeason');
   const miFila = document.getElementById('battleRankMe');
-  if (cuerpo) cuerpo.innerHTML = '<tr><td colspan="7" class="rank-loading">Loading…</td></tr>';
+  if (cuerpo) cuerpo.innerHTML = '<tr><td colspan="9" class="rank-loading">Loading…</td></tr>';
 
   try {
     const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/battle/leaderboard?limit=50`, { method: 'GET', signal: request.signal });
@@ -26474,17 +26691,24 @@ async openBattleLeaderboard() {
 
     if (cuerpo) {
       if (!data.rows.length) {
-        cuerpo.innerHTML = '<tr><td colspan="7" class="rank-loading">No ranked players yet this season.</td></tr>';
+        cuerpo.innerHTML = '<tr><td colspan="9" class="rank-loading">No ranked players yet this season.</td></tr>';
       } else {
+        /* Ganadas, perdidas y puntos, cada cosa en su columna (2026-10-04):
+           antes iban juntas ("12/3") y no se leia de un vistazo cuantas
+           batallas se habian ganado o perdido. Todo pasa por _numRank: son
+           numeros del servidor, pero se pintan con innerHTML. */
+        const n = (v) => this._numRank(v);
         cuerpo.innerHTML = data.rows.map(r => `
           <tr${data.me && r.playerName === data.me.playerName ? ' class="rank-self"' : ''}>
-            <td class="rank-pos">${r.rank}</td>
+            <td class="rank-pos">${n(r.rank)}</td>
             <td class="rank-name">${this._escapeRankHtml(r.playerName)}</td>
             <td class="rank-pet">${this._escapeRankHtml(r.petName)}</td>
             <td class="rank-addr">${this._escapeRankHtml(this._shortAddr(r.address))}</td>
-            <td class="rank-num">${r.points}</td>
-            <td class="rank-num">${r.wins}/${r.losses}</td>
-            <td class="rank-num">${r.bestStreak}</td>
+            <td class="rank-num rank-pts">${n(r.points)}</td>
+            <td class="rank-num rank-won">${n(r.wins)}</td>
+            <td class="rank-num rank-lost">${n(r.losses)}</td>
+            <td class="rank-num">${n(r.battles != null ? r.battles : (Number(r.wins) || 0) + (Number(r.losses) || 0))}</td>
+            <td class="rank-num rank-racha">${n(r.bestStreak)}</td>
           </tr>
         `).join('');
       }
@@ -26492,9 +26716,19 @@ async openBattleLeaderboard() {
 
     if (miFila) {
       if (data.me) {
-        miFila.textContent = data.me.rank
-          ? `You: #${data.me.rank} · ${data.me.points} pts · ${data.me.wins}W ${data.me.losses}L`
-          : `You: ${data.me.points} pts · ${data.me.missingBattles} more battle(s) to enter the ranking`;
+        /* Tu fila, con las tres cifras por separado: puntos, ganadas y
+           perdidas (y cuantas batallas te faltan para entrar). */
+        const n = (v) => this._numRank(v);
+        const m = data.me;
+        const batallas = m.battles != null ? m.battles : (Number(m.wins) || 0) + (Number(m.losses) || 0);
+        miFila.innerHTML =
+          '<span class="rank-me-label">You</span>' +
+          (m.rank ? `<span class="rank-chip rank-chip-pos">#${n(m.rank)}</span>` : '') +
+          `<span class="rank-chip rank-chip-pts">${n(m.points)} points</span>` +
+          `<span class="rank-chip rank-chip-won">${n(m.wins)} won</span>` +
+          `<span class="rank-chip rank-chip-lost">${n(m.losses)} lost</span>` +
+          `<span class="rank-chip">${n(batallas)} battle${batallas === 1 ? '' : 's'}</span>` +
+          (m.rank ? '' : `<span class="rank-me-falta">${n(m.missingBattles)} more battle(s) to enter the ranking</span>`);
       } else {
         miFila.textContent = '';
       }
@@ -26502,7 +26736,7 @@ async openBattleLeaderboard() {
   } catch (e) {
     if (!isCurrent()) return;
     console.error('❌ Error cargando la clasificación:', e);
-    if (cuerpo) cuerpo.innerHTML = '<tr><td colspan="7" class="rank-loading">Could not load the leaderboard.</td></tr>';
+    if (cuerpo) cuerpo.innerHTML = '<tr><td colspan="9" class="rank-loading">Could not load the leaderboard.</td></tr>';
   }
 }
 
@@ -26515,6 +26749,12 @@ closeBattleLeaderboard() {
 _shortAddr(addr) {
   if (!addr || typeof addr !== 'string' || addr.length < 10) return '—';
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+}
+
+/** Un numero entero y no negativo para la tabla (nunca texto de fuera). */
+_numRank(v) {
+  const x = Math.floor(Number(v));
+  return Number.isFinite(x) && x >= 0 ? String(x) : '0';
 }
 
 _escapeRankHtml(s) {
@@ -28457,6 +28697,32 @@ getPlayerIntentDirection() {
       if (window.GFNieve && window.GFNieve.montar) {
         window.GFNieve.montar(this);
       }
+      /* La pesca en el río (2026-10-05): lee la capa de casillas del mapa
+         para saber dónde está la orilla. Ver gf-pesca.js. */
+      if (window.GFPesca && window.GFPesca.montar) {
+        window.GFPesca.montar(this);
+      }
+      /* Los espantapájaros que tenga puestos (gf-espantapajaros.js). */
+      if (window.GFEspantapajaros && window.GFEspantapajaros.montar) {
+        window.GFEspantapajaros.montar(this);
+      }
+      /* La espada: botón junto a la bolsa y ESPACIO para el tajo
+         (gf-espada.js). La mina y la isla la montan en su create(). */
+      if (window.GFEspada && window.GFEspada.montar) {
+        window.GFEspada.montar(this);
+      }
+      /* EL RÍO QUE SE MUEVE (gf-agua.js): el agua animada encima del suelo
+         pintado, con la técnica de la mina, y su vida (peces, hojas,
+         piedras, nenúfares, juncos). Lee los datos de la capa del mapa. */
+      if (window.GFAgua && window.GFAgua.montar) {
+        window.GFAgua.montar(this, { capa: 'mapa_principal', textura: 'tiles', vida: 'rio' });
+      }
+      /* LAS PUERTAS DE LAS CASAS (gf-casas.js): el cartel "Enter" y la
+         entrada a InteriorScene. Solo en el pueblo: la mina y la isla no
+         pasan por aqui. */
+      if (window.GFCasas && window.GFCasas.montar && this.sys.settings.key === 'GameScene') {
+        window.GFCasas.montar(this);
+      }
     }
 
     // Obtener las coordenadas en el mapa
@@ -28516,18 +28782,8 @@ getPlayerIntentDirection() {
     const prevX = this.previousPosition?.x ?? this.player.x;
     const prevY = this.previousPosition?.y ?? this.player.y;
 
-    const nextX = this.player.x;
-    const nextY = this.player.y;
-
-    // Probar colisión solo en X
-    if (this._chocaConEscenario(nextX - 15, prevY + 25, 30, 15)) {
-      this.player.x = prevX;
-    }
-
-    // Probar colisión solo en Y
-    if (this._chocaConEscenario(this.player.x - 15, nextY + 25, 30, 15)) {
-      this.player.y = prevY;
-    }
+    // Eje a eje, y si estaba atrapado, fuera (ver _resolverChoqueJugador).
+    this._resolverChoqueJugador(prevX, prevY, 15);
 
     // ===== Decisión ÚNICA de animación del jugador para este frame =====
     // Se calcula acá, después de resolver colisiones por eje (blockedX/blockedY),
@@ -28536,7 +28792,9 @@ getPlayerIntentDirection() {
     // como la vieja lógica de "slide animation", evitando que dos bloques
     // distintos llamen a anims.play() con direcciones distintas en el mismo
     // frame (eso era lo que congelaba la animación al colisionar en diagonal).
-    {
+    /* Pescando (gf-pesca.js) o dando un espadazo (gf-espada.js), la
+       animación la lleva ese módulo: aquí no se toca la textura. */
+    if (!this._accionPersonaje) {
       const finalDx = this.player.x - prevX;
       const finalDy = this.player.y - prevY;
       const EPS = 0.05;
@@ -29690,30 +29948,38 @@ getPlayerIntentDirection() {
   }
 
   // =========================================================================
-  // NFT + PET PANEL
+  // NFT PANEL — personaje Soulbound y "My NFTs"
   // =========================================================================
+  //
+  // El apartado "My Pet" (ocultar o retirar el perro) se quitó el 2026-10-04:
+  // la mascota tiene su propio panel y su barra, y la que se ve es la que está
+  // viva (gf-mascota.js). Con él se fueron _loadPetData, _togglePetVisibility,
+  // _removePet, _renderPetPreview y _savePetData, que solo usaba ese apartado.
 
   openNFTPanel() {
     const panel = document.getElementById('nft-panel');
     if (!panel) return;
+    panel.classList.remove('nft-panel-hidden');
     panel.classList.add('nft-panel-visible');
     panel.style.display = 'flex';
     this._setupNFTPanel();
-    this._loadPetData();
     this._renderSoulboundList();
+    if (window.GFNft) {
+      window.GFNft.cablear(this);
+      window.GFNft.montarPanel(this);
+    }
   }
 
   closeNFTPanel() {
     const panel = document.getElementById('nft-panel');
     if (!panel) return;
     panel.classList.remove('nft-panel-visible');
+    panel.classList.add('nft-panel-hidden');
     panel.style.display = 'none';
   }
 
   _setupNFTPanel() {
     this._onclickCompartido(document.getElementById('nft-close'), () => this.closeNFTPanel());
-    this._onclickCompartido(document.getElementById('nft-pet-toggle'), () => this._togglePetVisibility());
-    this._onclickCompartido(document.getElementById('nft-pet-remove'), () => this._removePet());
   }
 
   // =========================================================================
@@ -29736,144 +30002,6 @@ getPlayerIntentDirection() {
     }
     window.GFSoulbound.montarPanel(this);
   }
-  _togglePetVisibility() {
-    if (!this.petData) this.petData = { type: 'perro', visible: true, equipped: true };
-    // Only allow toggling if pet is equipped
-    if (this.petData.equipped === false) return;
-    this.petData.visible = !this.petData.visible;
-    const vis = this.petData.visible;
-    window.globalPetData = this.petData;
-    // The dog object is {sprite, shadowContainer} — handle it specifically
-    if (this.dog) {
-      if (this.dog.sprite) this.dog.sprite.setVisible(vis);
-      if (this.dog.shadowContainer) this.dog.shadowContainer.setVisible(vis);
-    }
-    // Also check legacy references
-    if (this.dogSprite) this.dogSprite.setVisible(vis);
-    const btn = document.getElementById('nft-pet-toggle');
-    if (btn) btn.textContent = vis ? 'Hide Pet' : 'Show Pet';
-    this._savePetData();
-    console.log('🐾 Pet visibility toggled to:', vis);
-  }
-
-  _removePet() {
-    this.petData = { type: null, visible: false, equipped: false };
-    window.globalPetData = this.petData; // persist across scene switches
-    // Hide actual dog sprite in game
-    if (this.dogSprite) { this.dogSprite.setVisible(false); this.dogSprite.setActive(false); }
-    if (this.dog) { this.dog.sprite && this.dog.sprite.setVisible(false); }
-    // Hide dog shadow container so it doesn't keep following the player
-    if (this.dog && this.dog.shadowContainer && this.dog.shadowContainer.setVisible) {
-      this.dog.shadowContainer.setVisible(false);
-    }
-    if (this.dogSprite && this.dogSprite.shadowContainer && this.dogSprite.shadowContainer.setVisible) {
-      this.dogSprite.shadowContainer.setVisible(false);
-    }
-    // Search all possible dog references
-    ['dog', 'dogSprite', 'perro', 'pet', 'mascota'].forEach(k => {
-      if (this[k] && this[k].setVisible) this[k].setVisible(false);
-      if (this[k] && this[k].sprite && this[k].sprite.setVisible) this[k].sprite.setVisible(false);
-      if (this[k] && this[k].shadowContainer && this[k].shadowContainer.setVisible) this[k].shadowContainer.setVisible(false);
-    });
-    const nameEl = document.getElementById('nft-pet-name');
-    const emptyEl = document.getElementById('nft-pet-empty');
-    const canvas = document.getElementById('nft-pet-canvas');
-    if (nameEl) nameEl.textContent = '—';
-    if (emptyEl) emptyEl.style.display = 'block';
-    if (canvas) canvas.style.display = 'none';
-    this._savePetData();
-    console.log('🐾 Pet removed and hidden in game');
-  }
-
-  async _loadPetData() {
-    if (!this.playerName) return;
-    // If petData was saved cross-scene use that state — don't overwrite with server data
-    if (window.globalPetData !== undefined) {
-      this.petData = window.globalPetData;
-      // Un solo sitio decide si el perro se ve, y mira también si está muerta.
-      this._aplicarVisibilidadPerro();
-      this._renderPetPreview();
-      return;
-    }
-    try {
-      const res = await fetch(`${this.serverBase}/api/pet/${encodeURIComponent(this.playerName)}`, {
-        credentials: 'include'
-      });
-      if (res.ok) {
-        const data = await res.json();
-        this.petData = data.pet || { type: 'perro', visible: true, equipped: true };
-        window.globalPetData = this.petData; // persist for next scene
-        this._aplicarVisibilidadPerro();
-        this._renderPetPreview();
-      }
-    } catch (_) {
-      this.petData = this.petData || { type: 'perro', visible: true, equipped: true };
-      window.globalPetData = this.petData;
-      this._aplicarVisibilidadPerro();
-      this._renderPetPreview();
-    }
-  }
-
-  /**
-   * Enseña o esconde el perro según lo que diga `petData`.
-   *
-   * HACE FALTA PORQUE EL PERRO YA NACE ESCONDIDO. Esta rama de `_loadPetData`
-   * —la que pregunta al servidor la primera vez que entras— guardaba el estado
-   * y pintaba la ficha del dashboard, pero NO tocaba el sprite: se apoyaba en
-   * que el perro ya estuviera puesto. Ahora que nace invisible (para que no
-   * asome mientras la cámara encuadra), si nadie lo enseña no sale nunca.
-   */
-  _aplicarVisibilidadPerro() {
-    if (!this.dog || !this.dog.sprite) return;
-    const d = this.petData || {};
-    const hay = d.equipped !== false && d.visible !== false &&
-                !(window.globalPetData && window.globalPetData.alive === false);
-    this.dog.sprite.setVisible(hay);
-    if (this.dog.shadowContainer) this.dog.shadowContainer.setVisible(hay);
-    if (this.dogNameText) {
-      if (!hay) this.dogNameText.setVisible(false);
-      else if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
-    }
-  }
-
-  _renderPetPreview() {
-    const nameEl = document.getElementById('nft-pet-name');
-    const emptyEl = document.getElementById('nft-pet-empty');
-    const canvas  = document.getElementById('nft-pet-canvas');
-    if (!this.petData || !this.petData.equipped) {
-      if (nameEl) nameEl.textContent = '—';
-      if (emptyEl) emptyEl.style.display = 'block';
-      if (canvas) canvas.style.display = 'none';
-      return;
-    }
-    if (nameEl) nameEl.textContent = this.petData.type === 'perro' ? '🐕 Dog' : this.petData.type;
-    if (emptyEl) emptyEl.style.display = 'none';
-    if (canvas) {
-      canvas.style.display = 'block';
-      // Draw pet sprite on canvas using Phaser texture
-      try {
-        const tex = this.textures.get('perro_derecha_1');
-        if (tex && tex.source && tex.source[0]) {
-          const ctx = canvas.getContext('2d');
-          ctx.clearRect(0, 0, 128, 128);
-          ctx.imageSmoothingEnabled = false;
-          ctx.drawImage(tex.source[0].image, 0, 0, 128, 128);
-        }
-      } catch (_) {}
-    }
-  }
-
-  async _savePetData() {
-    if (!this.playerName || !this.petData) return;
-    try {
-      await fetch(`${this.serverBase}/api/pet/${encodeURIComponent(this.playerName)}`, {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken() },
-        body: JSON.stringify({ pet: this.petData })
-      });
-    } catch (_) {}
-  }
-
   // =========================================================================
   // FURNACE PANEL — EL HORNO
   // =========================================================================
@@ -31144,9 +31272,9 @@ this.dog.targetY = this.dog.y;
    largos que tarda la cámara en encuadrar. Justo el rato en el que se mira.
 
    Nacer escondido es además lo correcto: una mascota que nadie ha confirmado
-   no existe. Lo enseña `_loadPetData()` cuando llega la respuesta, y
-   gf-mascota.js cuando sabe si está viva. Si no tienes perro, no aparece
-   nunca; si lo tienes, aparece un instante después, que no molesta a nadie. */
+   no existe. Lo enseña gf-mascota.js cuando sabe si está viva. Si no tienes
+   perro, no aparece nunca; si lo tienes, aparece un instante después, que no
+   molesta a nadie. */
 this.dog.sprite = this.add.sprite(this.dog.x, this.dog.y, 'perro_derecha_1')
     .setScale(2)
     .setDepth(this.player.y + 8) // Empieza con un depth similar
@@ -31177,7 +31305,7 @@ this.dogNameText = this.add.text(this.dog.x, this.dog.y - 30, '', {
 }).setOrigin(0.5, 1).setDepth(this.player.y + 9).setVisible(false);
 if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
 
-// ── Synchronously apply saved pet state BEFORE the async _loadPetData call ──
+// ── El estado de la mascota que ya se sabe (de otra escena), al momento ──
 // This prevents a 1-frame flash of the dog when returning from tiendajuego
 if (window.globalPetData) {
   this.petData = window.globalPetData;
@@ -31383,6 +31511,37 @@ if (window.globalPetData) {
           pocion_mascota:        { src: "./Game/Objetos/pociones/pocion_mascota.png",        maxStack: 20, tipo: "pocion_mascota",        usos: null },
           pocion_mascota_grande: { src: "./Game/Objetos/pociones/pocion_mascota_grande.png", maxStack: 10, tipo: "pocion_mascota_grande", usos: null },
           elixir_revivir:        { src: "./Game/Objetos/pociones/elixir_revivir.png",        maxStack: 5,  tipo: "elixir_revivir",        usos: null },
+
+          // CONSTRUCCIÓN (2026-10-03). La parcela que se compra en la tienda
+          // (apartado Construction) y se coloca en la isla. 20 por casilla:
+          // es el perInvoiceLimit de su tabla `parcelas`, así una casilla es
+          // siempre UNA factura. Iconos: tools/generar-parcela.py.
+          parcela:               { src: "./Game/Objetos/construccion/parcela.png",           maxStack: 20, tipo: "parcelas",              usos: null },
+          // La pala de construcción (2026-10-04): con ella se recoge lo que se
+          // construyó en la isla. Herramienta que no se gasta; una por casilla
+          // (perInvoiceLimit 1 de su tabla `pala_contrucion`).
+          pala_construccion:     { src: "./Game/Objetos/construccion/pala_construccion.png", maxStack: 1,  tipo: "pala_contrucion",       usos: null },
+          // EL BOTE DE BASURA Y LOS COFRES DE LA ISLA (2026-10-05). Se colocan en
+          // Lands como la parcela. Tablas `basura` y `cofre1..4`; el cofre1 se
+          // compra, los otros tres solo se craftean. Arte: tools/generar-cofres.py.
+          basura:  { src: "./Game/Objetos/cofres/basura.png", maxStack: 10, tipo: "basura", usos: null },
+          cofre1:  { src: "./Game/Objetos/cofres/cofre1.png", maxStack: 5,  tipo: "cofre1", usos: null },
+          cofre2:  { src: "./Game/Objetos/cofres/cofre2.png", maxStack: 5,  tipo: "cofre2", usos: null },
+          cofre3:  { src: "./Game/Objetos/cofres/cofre3.png", maxStack: 5,  tipo: "cofre3", usos: null },
+          cofre4:  { src: "./Game/Objetos/cofres/cofre4.png", maxStack: 5,  tipo: "cofre4", usos: null },
+          // EQUIPO, GRANJA Y PESCA (2026-10-05). Arte de Game/newpro.
+          // Las espadas viven en las tablas `madera`, `cobre` y `hierro`; la
+          // caña en `caña_pescar` y el espantapájaros en `espantapajaros`.
+          // Los peces (`pes1..3`) SOLO los acuña el servidor al pescar (ver
+          // TABLAS_SOLO_ACUNA_SERVIDOR en server2.js): se comen o se venden.
+          espada_madera:  { src: "./Game/Objetos/armas/espada_madera.png",     maxStack: 1,  tipo: "madera",         usos: null, arma: { dano: 12, alcance: 46 } },
+          espada_cobre:   { src: "./Game/Objetos/armas/espada_cobre.png",      maxStack: 1,  tipo: "cobre",          usos: null, arma: { dano: 20, alcance: 50 } },
+          espada_hierro:  { src: "./Game/Objetos/armas/espada_hierro.png",     maxStack: 1,  tipo: "hierro",         usos: null, arma: { dano: 32, alcance: 54 } },
+          cana_pescar:    { src: "./Game/Objetos/pesca/cana_pescar.png",       maxStack: 1,  tipo: "caña_pescar",    usos: null },
+          espantapajaros: { src: "./Game/Objetos/granja/espantapajaros.png",   maxStack: 10, tipo: "espantapajaros", usos: null },
+          pes1:           { src: "./Game/Objetos/pesca/pes1.png",              maxStack: 20, tipo: "pes1",           usos: null },
+          pes2:           { src: "./Game/Objetos/pesca/pes2.png",              maxStack: 20, tipo: "pes2",           usos: null },
+          pes3:           { src: "./Game/Objetos/pesca/pes3.png",              maxStack: 20, tipo: "pes3",           usos: null },
           fresa_corta: { src: "./Game/Objetos/Plantas/planta_fresa/item_planta.png", maxStack: 20 , tipo: "fresa_corta", usos: null},
           fresa_mala: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_podrida.png", maxStack: 20 , tipo: "fresa_mala", usos: null},
 
@@ -31560,6 +31719,16 @@ if (window.globalPetData) {
 
     // 7. El socket, con el mismo retraso que GameScene: se enchufa DESPUES de
     //    tener cargado lo basico.
+    /* Y ESTA ESCENA ES LA QUE ATIENDE AL SOCKET (2026-10-04). Los avisos
+       globales de 'connect' y 'rejoinRequired' (setupGlobalSocketEvents) se
+       los dan a `window.activeScene`, y eso solo lo ponian el mapa y la
+       tienda: cargando la pagina estando en la isla o en la mina, o tras un
+       corte de red alli, el join se quedaba apuntado sin que nadie lo saldara
+       y el socket seguia fuera de la sala. `cleanupScene()` la suelta al salir. */
+    window.activeScene = this;
+    this.currentRoom = null;
+    this.lastJoinTime = 0;
+    if (typeof this.joinCooldown !== 'number') this.joinCooldown = 1000;
     this.time.delayedCall(500, () => {
       try { this.initSocket(); } catch (e) { console.warn('⛏️ socket:', e); }
     });
@@ -31584,7 +31753,7 @@ if (window.globalPetData) {
    * POR QUE SE PIDEN PRESTADOS LOS METODOS EN VEZ DE COPIARLOS
    * -------------------------------------------------------------------------
    * La sincronizacion de verdad vive en `LoadingScenegame`, y arrastra seis
-   * metodos mas (`_buildSyncMaps`, `_applySyncToSlots`, `_tipoToItemId`...):
+   * metodos mas (`_buildSyncMaps`, `_reconciliarCasillas`, `_tipoToItemId`...):
    * unas cuatrocientas lineas. Copiarlas aqui seria repetir el error que este
    * proyecto ya paga con `ItemDefinitions`, que esta duplicado en GameScene y
    * en tiendajuego y donde un objeto que le falte a una copia corta el pintado
@@ -31611,9 +31780,9 @@ if (window.globalPetData) {
     if (!this.address || !this.isAuthenticated) return;
 
     const prestados = [
-      'syncInventoryWithBlockchain', '_buildSyncMaps', '_applySyncToSlots',
-      '_addMissingBlockchainItems', '_ensureRelayClient', '_syncFallback',
-      '_tipoToItemId'
+      'syncInventoryWithBlockchain', '_buildSyncMaps', '_reconciliarCasillas',
+      '_leerCasillasDeCadena', '_addMissingBlockchainItems', '_ensureRelayClient',
+      '_syncFallback', '_tipoToItemId'
     ];
     for (const nombre of prestados) {
       if (typeof cargador[nombre] === 'function' && typeof this[nombre] !== 'function') {
@@ -31715,6 +31884,58 @@ if (window.globalPetData) {
         });
       } catch (e) { console.warn('joystick:', e); }
     }
+  }
+
+  /**
+   * LA ENTRADA DE CAMARA de la mina y de la isla (2026-10-04).
+   *
+   * La misma que el mapa de fuera y la tienda: la pantalla arranca en negro,
+   * la camara empieza cerca (el doble del zoom de juego) y se ALEJA en dos
+   * segundos mientras aparece la imagen; al terminar, la escena ensena el
+   * HUD. Las dos escenas entraban de golpe y con el HUD ya puesto.
+   *
+   * Devuelve una promesa: `true` al terminar, `false` si la escena se apago a
+   * mitad (nadie se queda esperando).
+   *
+   * OJO AL ORDEN: se llama DESPUES de `_montarZoom()`. Asi el zoom de juego
+   * (`currentZoomIndex`) ya esta decidido —y se respeta el que el jugador
+   * eligio en una visita anterior— y `_reapplyZoom()` no pelea con la
+   * animacion, porque se aparta mientras `cam.zoomEffect.isRunning`.
+   */
+  _entradaDeCamara(sceneRunId) {
+    const cam = this.cameras && this.cameras.main;
+    if (!cam) return Promise.resolve(true);
+    const destino = (this.zoomValues && this.zoomValues[this.currentZoomIndex]) || 1;
+    return new Promise((resolve) => {
+      let hecho = false;
+      let red = null;
+      const fin = () => {
+        if (hecho) return;
+        hecho = true;
+        if (red) clearTimeout(red);
+        cam.off('camerazoomcomplete', fin);
+        this.events.off('shutdown', fin);
+        if (this._sceneStopped || this._sceneRunId !== sceneRunId) { resolve(false); return; }
+        // El valor EXACTO: la animacion puede quedarse en 0.99999 y con pixel
+        // art eso devuelve las costuras entre casillas.
+        try { this._applyZoomIndex(this.currentZoomIndex, 0); } catch (e) {}
+        resolve(true);
+      };
+      cam.fadeOut(0, 0, 0, 0);
+      cam.setZoom(destino * 2);
+      cam.zoomTo(destino, 2000);
+      cam.once('camerazoomcomplete', fin);
+      this.events.once('shutdown', fin);
+      // La imagen aparece de 0,8 s a 2 s: acaba a la vez que el alejamiento.
+      // No depende de `fin`: si la red de seguridad salto antes (pestana
+      // oculta), el fundido llega igual cuando el reloj de Phaser vuelva.
+      this.time.delayedCall(800, () => {
+        if (!this._sceneStopped && this._sceneRunId === sceneRunId) cam.fadeIn(1200, 0, 0, 0);
+      });
+      // Red de seguridad con reloj de la PAGINA: con la pestana oculta el de
+      // Phaser se para, y el HUD no puede depender de que vuelva.
+      red = setTimeout(fin, 6000);
+    });
   }
 
   /**

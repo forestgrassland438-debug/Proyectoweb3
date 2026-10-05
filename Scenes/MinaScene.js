@@ -72,14 +72,37 @@
  * juego. Treinta y dos objetos es un precio que se paga con gusto; novecientos
  * no. Ver `_montarPiezas()`.
  *
- * La lava sigue la misma regla. Son 136 rectangulos en el mapa, pero no se
- * crean 136 objetos: se crean DOS tileSprite (el flujo y el brillo) sobre el
- * rectangulo que los engloba a todos, recortados con una mascara de geometria
- * construida con esos 136 rectangulos. Dos llamadas de dibujo para toda la
- * lava del mapa, en vez de 272.
+ * La lava y el agua siguen la misma regla, y desde 2026-10-04 sin un solo
+ * objeto: van en la capa de tiles `mina_bordes` con su propio tileset, y se
+ * ANIMAN cambiando la imagen de ese tileset cada pocos fotogramas
+ * (`tileset.setImage`). Antes un tileSprite se deslizaba encima del interior
+ * del lago y la orilla se quedaba quieta: se veia la costura en todo el
+ * perimetro. Ver `_animarLiquidos()`.
  */
 
 /* global GameScene, Phaser */
+
+/* Los liquidos animados: cuantos fotogramas tiene cada uno y a que ritmo.
+   TIENEN QUE COINCIDIR con FOTOS_LAVA/FPS_LAVA y FOTOS_AGUA/FPS_AGUA de
+   tools/generar-mina.py (lo comprueba tools/mina-prueba.js): si aqui hubiera
+   mas fotogramas que PNG, la carga pediria ficheros que no existen. */
+const ARTE_MINA_V = '20261004';
+
+const LIQUIDOS_MINA = {
+  lava: { fotogramas: 6, fps: 6 },
+  agua: { fotogramas: 4, fps: 4 }
+};
+
+/* Las luces de la capa `luces` del mapa, por tipo. `vibra` es cuanto
+   parpadea (0..1) y `vel` lo rapido. */
+const LUCES_MINA = {
+  lava:           { color: 0xff6418, alfa: 0.42, vibra: 0.10, vel: 1.1 },
+  lava_foco:      { color: 0xff9632, alfa: 0.26, vibra: 0.30, vel: 2.3 },
+  antorcha:       { color: 0xffa040, alfa: 0.46, vibra: 0.16, vel: 7.0 },
+  cristal_azul:   { color: 0x3c9cff, alfa: 0.34, vibra: 0.12, vel: 1.6 },
+  cristal_morado: { color: 0xb058ff, alfa: 0.32, vibra: 0.12, vel: 1.4 },
+  cristal_verde:  { color: 0x38e08a, alfa: 0.32, vibra: 0.12, vel: 1.5 }
+};
 
 // eslint-disable-next-line no-unused-vars
 class MinaScene extends GameScene {
@@ -109,7 +132,8 @@ class MinaScene extends GameScene {
        cae en un numero entero de pixeles de pantalla y no hay costuras.
        tiendajuego usa estos dos niveles desde hace tiempo, por lo mismo. */
     this._nivelesDeZoom = [1.0, 2.0];          // datos del mapa (capas, rectangulos)
-    this._lavaCapas = [];      // los tileSprite del flujo y del brillo
+    this._liquidosAnim = [];   // los tilesets de la lava y el agua que se animan
+    this._luces = [];          // las luces ADD (lava, antorchas, cristales)
     this._burbujas = [];       // burbujas que revientan en la lava
     this._salidaArmada = false;
   }
@@ -163,20 +187,32 @@ class MinaScene extends GameScene {
     // tiendajuego usan 'tilemap' y 'tilemapx': si la mina reutilizara 'tilemap'
     // pisaria el del mapa de fuera en la cache, que es compartida, y al volver
     // arriba se cargaria la mina otra vez.
-    this.load.image('tiles_mina', './Game/MAPAS/Mina/tileset_mina.png');
-    this.load.tilemapTiledJSON('tilemap_mina', './Maps/mina.json');
+    /* `?v=` EN TODO LO DE LA MINA. El mapa, el tileset y sus fotogramas van
+       JUNTOS: un mina.json nuevo con un tileset viejo de la cache del
+       navegador pinta casillas equivocadas por todo el mapa. Al regenerar el
+       arte se sube ARTE_MINA_V y se piden todos de nuevo. */
+    const v = '?v=' + ARTE_MINA_V;
+    this.load.image('tiles_mina', './Game/MAPAS/Mina/tileset_mina.png' + v);
+    this.load.tilemapTiledJSON('tilemap_mina', './Maps/mina.json' + v);
 
     // ── Las texturas de la lava ────────────────────────────────────────────
     // El atlas de piezas grandes: pedruscos, racimos de cristal, vagonetas y
     // arcos de apuntalar. Una textura y una peticion para las dieciseis.
-    this.load.atlas('piezas_mina', './Game/MAPAS/Mina/piezas.png',
-                    './Game/MAPAS/Mina/piezas.json');
+    this.load.atlas('piezas_mina', './Game/MAPAS/Mina/piezas.png' + v,
+                    './Game/MAPAS/Mina/piezas.json' + v);
 
-    this.load.image('lava_flujo', './Game/MAPAS/Mina/lava_flujo.png');
-    this.load.image('lava_brillo', './Game/MAPAS/Mina/lava_brillo.png');
-    this.load.image('agua_flujo', './Game/MAPAS/Mina/agua_flujo.png');
-    this.load.spritesheet('lava_burbuja', './Game/MAPAS/Mina/lava_burbuja.png',
-                          { frameWidth: 16, frameHeight: 16 });
+    /* LA LAVA Y EL AGUA, UN PNG POR FOTOGRAMA. Todos con el mismo orden de
+       tiles: la escena los va poniendo como imagen del tileset y el lago
+       entero —orilla incluida— cambia de fotograma a la vez. */
+    Object.keys(LIQUIDOS_MINA).forEach(m => {
+      for (let f = 0; f < LIQUIDOS_MINA[m].fotogramas; f++) {
+        this.load.image('mina_' + m + '_' + f, './Game/MAPAS/Mina/tileset_' + m + '_' + f + '.png' + v);
+      }
+    });
+    /* 32x32, no 16. La hoja son 6 burbujas de 32 px; cortada a 16 salian
+       cuartos de burbuja (las tres primeras, troceadas). */
+    this.load.spritesheet('lava_burbuja', './Game/MAPAS/Mina/lava_burbuja.png' + v,
+                          { frameWidth: 32, frameHeight: 32 });
 
     // ── Sonido ─────────────────────────────────────────────────────────────
     // `tipo: 'tienda'` es el modo "bajo techo" de gf-audio: no carga pajaros,
@@ -336,9 +372,13 @@ class MinaScene extends GameScene {
     this._faseMina = 'estado de la escena';
     this.mundo = 3;
     this._cambiandoEscena = false;
+    // La sala a la que se va al salir: la apunta cada salida. Sin rearmarla,
+    // la de la visita anterior (p. ej. 'isla') se quedaba puesta.
+    this._salaDestino = null;
     this._salidaArmada = false;
     this._graphicsOcultado = false;
-    this._lavaCapas = [];
+    this._liquidosAnim = [];
+    this._luces = [];
     this._burbujas = [];
     this.speed = 240;
     this.socket = window.globalSocket || null;
@@ -414,6 +454,44 @@ class MinaScene extends GameScene {
     }
     this.backgroundLayer.setDepth(0);
 
+    /* LA CAPA DE BORDES: la grava, la lava y el agua con sus orillas, ENCIMA
+       del suelo (que sigue entero debajo). Mezcla tres tilesets: el fijo, y
+       los de la lava y el agua, que se animan. Si faltara la imagen de un
+       liquido, `addTilesetImage` da null y esos tiles simplemente no se
+       dibujan: la mina sigue montando. */
+    const tilesetsBordes = [tileset];
+    this._liquidosAnim = [];
+    Object.keys(LIQUIDOS_MINA).forEach(m => {
+      const cfg = LIQUIDOS_MINA[m];
+      const clave0 = 'mina_' + m + '_0';
+      if (!this.textures.exists(clave0)) {
+        console.warn('⛏️ sin la imagen del ' + m + ': va sin animar');
+        return;
+      }
+      /* EXTRUIDOS (2026-10-05): cada fotograma se copia con el borde de cada
+         tile repetido un píxel (margen 1, separación 2). Con el suelo en
+         trozos la mina baja a 0.5x, y una capa de casillas sin extruir
+         enseña ahí rayas entre tile y tile; el líquido es lo único que
+         sigue siendo capa de casillas. */
+      const ex = this._extruirTileset(clave0, 32);
+      const ts = ex ? this.map.addTilesetImage('tileset_' + m, ex, 32, 32, 1, 2)
+                    : this.map.addTilesetImage('tileset_' + m, clave0, 32, 32);
+      if (!ts) return;
+      tilesetsBordes.push(ts);
+      const claves = [];
+      for (let f = 0; f < cfg.fotogramas; f++) {
+        const k = 'mina_' + m + '_' + f;
+        if (this.textures.exists(k)) {
+          this.textures.get(k).setFilter(Phaser.Textures.FilterMode.NEAREST);
+          const kx = ex ? this._extruirTileset(k, 32) : null;
+          claves.push(kx || k);
+        }
+      }
+      this._liquidosAnim.push({ ts, claves, paso: 1000 / cfg.fps, acc: 0, i: 0 });
+    });
+    this.capaBordes = this.map.createLayer('mina_bordes', tilesetsBordes, 0, 0);
+    if (this.capaBordes) this.capaBordes.setDepth(0.5);
+
     /* La capa de SOMBRAS: la mancha oscura que el muro echa sobre el suelo que
        tiene delante. Va entre el suelo y los cacharros.
 
@@ -431,6 +509,19 @@ class MinaScene extends GameScene {
     this.capaObjetos = this.map.createLayer('mina_objetos', tileset, 0, 0);
     if (this.capaObjetos) this.capaObjetos.setDepth(2);
 
+    /* EL SUELO PINTADO (gf-suelo.js): el suelo, los bordes fijos, las sombras
+       y los objetos de la mina, en trozos (tools/captura-escena.html?escena=mina).
+       Cuando llegan se esconden esas capas, y de la de bordes solo quedan los
+       líquidos, que son los que se animan. */
+    const firstLiquido = Math.min.apply(null, (this.map.tilesets || [])
+      .filter(t => /^tileset_(lava|agua)$/.test(t.name)).map(t => t.firstgid).concat([Infinity]));
+    this._montarSueloPintado('recortadas_mina', 'mina',
+      [this.backgroundLayer, this.capaSombras, this.capaObjetos],
+      () => {
+        if (!this.capaBordes) return;
+        this.capaBordes.forEachTile(t => { if (t && t.index > 0 && t.index < firstLiquido) t.setVisible(false); });
+      });
+
     this.physics.world.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
 
     // ── Colisiones ─────────────────────────────────────────────────────────
@@ -441,6 +532,15 @@ class MinaScene extends GameScene {
     // dejaria a la mina sin colisiones y sin ningun error en consola.
     this._faseMina = 'colisiones';
     this.collisionRectangles = this._rectsDeCapa('area_colision_general');
+
+    /* EL AGUA TAMBIEN FRENA (2026-10-03) — "las colisiones ... no sirven".
+       El generador del mapa mete la LAVA en la capa de colision, pero las
+       charcas de la sala de cristales no: se caminaba por encima del agua
+       como si fuera suelo. Sus rectangulos (`area_agua`, la forma entera de
+       cada charca) se suman aqui. Comprobado con un relleno por inundacion
+       sobre el mapa: los 58 puntos de mineral y la salida siguen al alcance
+       desde la aparicion; solo se pierden las casillas de agua. */
+    this.collisionRectangles = this.collisionRectangles.concat(this._rectsDeCapa('area_agua'));
 
     /* LA SALIDA VA APARTE, Y NO EN `collisionRectangles1`.
        ESTO ERA LO QUE IMPEDIA SALIR DE LA MINA. El indice espacial heredado
@@ -460,7 +560,17 @@ class MinaScene extends GameScene {
 
     // ── El jugador ─────────────────────────────────────────────────────────
     this._faseMina = 'jugador';
-    const inicio = this._puntoDeAparicion();
+    let inicio = this._puntoDeAparicion();
+    /* EL TELETRANSPORTE DEL PANEL DE AMIGOS (GFViaje, en gf-lands.js): se
+       aparece junto a quien se ha venido a buscar, si ese punto no es roca. */
+    {
+      const v = window.GFViaje ? window.GFViaje.tomar(3) : null;
+      if (v && Number.isFinite(v.x) && Number.isFinite(v.y) &&
+          v.x > 0 && v.y > 0 && v.x < this.map.widthInPixels && v.y < this.map.heightInPixels &&
+          !this._chocaConEscenario(v.x - 15, v.y + 25, 30, 26)) {
+        inicio = { x: v.x, y: v.y };
+      }
+    }
     this.posicionplayerx = inicio.x;
     this.posicionplayery = inicio.y;
 
@@ -540,6 +650,11 @@ class MinaScene extends GameScene {
        ni rueda, ni pellizco, ni botones de mas y menos. Ver `_montarZoom()`. */
     this._montarZoom();
 
+    /* LA ENTRADA DE CAMARA (2026-10-04), la misma del mapa de fuera y de la
+       tienda: negro, la camara se aleja en dos segundos y al terminar sale el
+       HUD. Despues de `_montarZoom()` a proposito: ver `_entradaDeCamara()`. */
+    const entrada = this._entradaDeCamara(sceneRunId);
+
     // Oscuridad de cueva: un rectangulo azulado en MULTIPLY sobre todo el mapa.
     //
     // Es UNA llamada de dibujo y no toca ningun shader. La alternativa —luces
@@ -585,20 +700,20 @@ class MinaScene extends GameScene {
        quedaba sin enganchar por esa via. Ahora va primero. */
     try { this._setupChatDom(); } catch (e) { console.warn('chat:', e); }
 
-    /* EL HUD SE ENSENA ANTES DE IR A LA RED.
-       Estaba DESPUES de `_arrancarSistemas()`, que hace media docena de
-       peticiones: dos o tres segundos mirando el mapa sin barras, sin monedas
-       y sin botones. Ahora se pinta en cuanto el mundo esta montado y los
-       datos van llegando encima. Se vuelve a llamar al terminar porque
-       `_cablearHUD()` necesita cosas que solo existen despues (el catalogo de
-       objetos, el hub de avisos): la segunda llamada es idempotente. */
-    this._mostrarHUD();
-
+    /* EL HUD SALE AL TERMINAR LA ENTRADA DE CAMARA, SIN ESPERAR A LA RED.
+       `_arrancarSistemas()` hace media docena de peticiones y puede tardar
+       mas que la animacion: el HUD no la espera (eso eran dos o tres segundos
+       mirando el mapa sin barras). Se vuelve a llamar cuando acaban la red Y
+       la entrada, porque `_cablearHUD()` necesita cosas que solo existen
+       despues (el catalogo de objetos, el hub de avisos): es idempotente. */
+    entrada.then((ok) => { if (ok) this._mostrarHUD(); });
     await this._arrancarSistemas();
     if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
 
     // ── El HUD ─────────────────────────────────────────────────────────────
     this._faseMina = 'HUD';
+    await entrada;
+    if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
     this._mostrarHUD();
 
     // ── Los modulos que SI van bajo tierra ─────────────────────────────────
@@ -617,6 +732,7 @@ class MinaScene extends GameScene {
     if (window.GFChatSocial)  window.GFChatSocial.montar(this);
     if (window.GFNombreColor) window.GFNombreColor.montar(this);
     if (window.GFSoulbound)   window.GFSoulbound.sincronizar(this);
+    if (window.GFEspada)      window.GFEspada.montar(this);   // botón de la espada y ESPACIO
     /* `interior: true` tambien aqui, y por un motivo que costo encontrar:
        `GFPost` pregunta la oscuridad a `GFCiclo.oscuridad()`, que es el
        reloj GLOBAL de la partida. No le importa que nadie haya montado el
@@ -792,95 +908,112 @@ class MinaScene extends GameScene {
   }
 
   /**
-   * La lava y el agua.
-   *
-   * COMO SE ANIMA LA LAVA, Y POR QUE ASI
-   * ------------------------------------------------------------------------
-   * Phaser 3 NO reproduce solo las animaciones de tile de Tiled (hace falta un
-   * plugin), y cambiar el indice de cada tile de lava en cada fotograma sobre
-   * un mapa de 313x313 es tirar el fotograma a la basura.
-   *
-   * Lo que se hace es poner por encima del lago dos tileSprite con texturas que
-   * TEJEN y moverles `tilePosition`. Un tileSprite repite su textura en el
-   * shader, asi que moverla no cuesta nada: no se redibuja ni un pixel, solo
-   * cambia una coordenada.
-   *
-   * Y se mueven a VELOCIDADES DISTINTAS a proposito. Con las dos capas a la
-   * misma velocidad la lava parece una alfombra que se desliza; con el brillo
-   * yendo mas despacio que la costra, la vista lee las dos capas como
-   * profundidad y parece que la lava CORRE.
-   *
-   * La mascara es lo que evita crear 136 objetos: los dos tileSprite cubren el
-   * rectangulo que engloba toda la lava y una mascara de geometria construida
-   * con los 136 rectangulos del mapa recorta lo que sobra.
+   * La lava y el agua: las burbujas y las luces. El liquido en si ya esta en
+   * la capa `mina_bordes`; lo que lo mueve es `_animarLiquidos()`.
    */
   _montarLiquidos() {
-    // OJO CON LA CAPA: se usa `area_lava_interior`, no `area_lava`.
-    //
-    // FALLO QUE ESTO ARREGLA, y que solo se vio con el mapa montado en Phaser:
-    // los rectangulos de `area_lava` cubren TODAS las casillas de lava,
-    // incluidas las del borde, que llevan las piezas de transicion con su
-    // contorno ondulado. El tileSprite del brillo es un rectangulo, asi que
-    // remataba el lago con un filo RECTO por encima de esa onda: se veia el
-    // escalon del tile en todo el perimetro.
-    //
-    // `area_lava_interior` solo trae las casillas rodeadas de lava. El brillo
-    // se queda una casilla adentro y el borde del lago lo dibuja unicamente la
-    // pieza de transicion, que para eso esta.
-    this._montarLiquido('area_lava_interior', 'lava_flujo', 'lava_brillo', 4, 10);
-    this._montarLiquido('area_agua_interior', 'agua_flujo', null, 5, 0);
     this._montarBurbujas();
+    try { this._montarLuces(); } catch (e) { console.warn('⛏️ luces:', e); }
   }
 
-  _montarLiquido(capaNombre, texturaFlujo, texturaBrillo, profundidad, velocidad) {
-    const capa = this.map.getObjectLayer(capaNombre);
-    if (!capa || !capa.objects.length) return;
-
-    // Rectangulo que engloba todos los trozos.
-    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    capa.objects.forEach(o => {
-      x0 = Math.min(x0, o.x); y0 = Math.min(y0, o.y);
-      x1 = Math.max(x1, o.x + o.width); y1 = Math.max(y1, o.y + o.height);
-    });
-    const ancho = x1 - x0;
-    const alto = y1 - y0;
-
-    // La mascara: un Graphics con los trozos de verdad. `make.graphics` lo crea
-    // FUERA de la lista de dibujo, asi que la mascara no se ve por si misma.
-    const forma = this.make.graphics({ x: 0, y: 0, add: false });
-    forma.fillStyle(0xffffff);
-    capa.objects.forEach(o => forma.fillRect(o.x, o.y, o.width, o.height));
-    const mascara = forma.createGeometryMask();
-
-    const flujo = this.add.tileSprite(x0, y0, ancho, alto, texturaFlujo)
-      .setOrigin(0, 0)
-      .setDepth(profundidad)
-      .setMask(mascara);
-    // Que la textura arranque alineada con el tile de debajo: los dos se
-    // dibujaron con el mismo campo de grietas y el mismo periodo, asi que
-    // cuadran si el desfase inicial es el del rectangulo.
-    flujo.tilePositionX = x0;
-    flujo.tilePositionY = y0;
-    this._lavaCapas.push({ obj: flujo, vx: velocidad * 0.35, vy: velocidad });
-
-    if (texturaBrillo) {
-      const brillo = this.add.tileSprite(x0, y0, ancho, alto, texturaBrillo)
-        .setOrigin(0, 0)
-        .setDepth(profundidad + 1)
-        .setAlpha(0.75)
-        .setMask(mascara);
-      brillo.setBlendMode(Phaser.BlendModes.ADD);
-      brillo.tilePositionX = x0;
-      brillo.tilePositionY = y0;
-      // Mas despacio y en diagonal contraria: es lo que da la sensacion de
-      // que la costra flota sobre algo que se mueve por debajo.
-      this._lavaCapas.push({ obj: brillo, vx: -velocidad * 0.18, vy: velocidad * 0.42 });
+  /**
+   * ANIMA LA LAVA Y EL AGUA cambiando la imagen de su tileset.
+   *
+   * POR QUE ASI. Phaser 3 no reproduce solo las animaciones de tile de Tiled,
+   * y cambiar el indice de cada casilla de lava cada fotograma es tirar el
+   * fotograma. Lo que hace esto es cambiar UNA referencia: `setImage` apunta
+   * el tileset a otra textura del mismo tamano y todas las casillas que lo
+   * usan se dibujan con el fotograma nuevo. Cero objetos, cero pixeles
+   * redibujados, y el borde del lago va con el interior.
+   */
+  /**
+   * Copia de un tileset con cada tile EXTRUIDO un píxel (margen 1, separación
+   * 2): el borde de cada tile repetido por fuera. Es el arreglo de siempre
+   * para las rayas entre casillas cuando el zoom no es entero. Se hace una
+   * vez por textura y se guarda (`<clave>_x`).
+   */
+  _extruirTileset(clave, T) {
+    const kx = clave + '_x';
+    if (this.textures.exists(kx)) return kx;
+    try {
+      const img = this.textures.get(clave).getSourceImage();
+      if (!img || !img.width) return null;
+      const cols = Math.floor(img.width / T), filas = Math.floor(img.height / T);
+      const ct = this.textures.createCanvas(kx, cols * (T + 2), filas * (T + 2));
+      const ctx = ct.getContext();
+      for (let j = 0; j < filas; j++) {
+        for (let i = 0; i < cols; i++) {
+          const sx = i * T, sy = j * T, dx = i * (T + 2) + 1, dy = j * (T + 2) + 1;
+          ctx.drawImage(img, sx, sy, T, T, dx, dy, T, T);
+          ctx.drawImage(img, sx, sy, T, 1, dx, dy - 1, T, 1);
+          ctx.drawImage(img, sx, sy + T - 1, T, 1, dx, dy + T, T, 1);
+          ctx.drawImage(img, sx, sy, 1, T, dx - 1, dy, 1, T);
+          ctx.drawImage(img, sx + T - 1, sy, 1, T, dx + T, dy, 1, T);
+        }
+      }
+      ct.refresh();
+      ct.setFilter(Phaser.Textures.FilterMode.NEAREST);
+      return kx;
+    } catch (e) {
+      console.warn('⛏️ no se pudo extruir ' + clave + ':', e);
+      return null;
     }
+  }
 
-    // El Graphics de la mascara hay que guardarlo para destruirlo al apagar:
-    // no esta en la lista de dibujo, asi que la escena no lo limpia sola.
-    this._mascaras = this._mascaras || [];
-    this._mascaras.push(forma);
+  _animarLiquidos(delta) {
+    for (let i = 0; i < this._liquidosAnim.length; i++) {
+      const a = this._liquidosAnim[i];
+      if (a.claves.length < 2) continue;
+      a.acc += delta;
+      if (a.acc < a.paso) continue;
+      a.acc %= a.paso;
+      a.i = (a.i + 1) % a.claves.length;
+      const tex = this.textures.get(a.claves[a.i]);
+      if (tex && tex.key !== '__MISSING') a.ts.setImage(tex);
+    }
+  }
+
+  /**
+   * LAS LUCES: lagos de lava, antorchas y racimos de cristal.
+   *
+   * La cueva va oscurecida con una penumbra en MULTIPLY (depth 9000), que
+   * apaga TODO por igual: la lava quedaba tan mate como la roca. Encima va
+   * una imagen por luz, en modo ADD, con un degradado radial de lienzo: se
+   * suma a lo que hay debajo, incluido el jugador cuando pasa al lado.
+   *
+   * Una sola textura de 128x128 compartida y el mismo modo de mezcla: Phaser
+   * las dibuja todas en la misma tanda. El parpadeo lo hace `update` con un
+   * seno por luz (sin un tween por cada una).
+   */
+  _montarLuces() {
+    this._luces = [];
+    const capa = this.map.getObjectLayer('luces');
+    if (!capa || !capa.objects.length) return;
+    const CLAVE = 'mina_luz';
+    if (!this.textures.exists(CLAVE)) {
+      const lz = this.textures.createCanvas(CLAVE, 128, 128);
+      const cx = lz.getContext();
+      const g = cx.createRadialGradient(64, 64, 2, 64, 64, 64);
+      g.addColorStop(0.00, 'rgba(255,255,255,1)');
+      g.addColorStop(0.25, 'rgba(255,255,255,0.55)');
+      g.addColorStop(0.55, 'rgba(255,255,255,0.18)');
+      g.addColorStop(1.00, 'rgba(255,255,255,0)');
+      cx.fillStyle = g;
+      cx.fillRect(0, 0, 128, 128);
+      lz.refresh();
+    }
+    capa.objects.forEach((o, k) => {
+      const tipo = LUCES_MINA[o.name];
+      if (!tipo || !(o.width > 0) || !(o.height > 0)) return;
+      const img = this.add.image(o.x + o.width / 2, o.y + o.height / 2, CLAVE)
+        .setDisplaySize(o.width, o.height)
+        .setTint(tipo.color)
+        .setAlpha(tipo.alfa)
+        .setDepth(9100)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      this._luces.push({ img, base: tipo.alfa, vibra: tipo.vibra, vel: tipo.vel, fase: k * 1.7 });
+    });
+    console.log('⛏️ luces:', this._luces.length);
   }
 
   /**
@@ -1034,7 +1167,9 @@ class MinaScene extends GameScene {
   }
 
   _montarBurbujas() {
-    const capa = this.map.getObjectLayer('area_lava');
+    // `area_lava_interior`: una burbuja en la orilla reventaria encima del
+    // labio de basalto, que es piedra.
+    const capa = this.map.getObjectLayer('area_lava_interior') || this.map.getObjectLayer('area_lava');
     if (!capa || !capa.objects.length) return;
     const trozos = capa.objects;
 
@@ -1078,8 +1213,8 @@ class MinaScene extends GameScene {
       try {
         const t = trozos[Phaser.Math.Between(0, trozos.length - 1)];
         spr.setPosition(
-          t.x + Phaser.Math.Between(0, Math.max(0, t.width - 16)) + 8,
-          t.y + Phaser.Math.Between(0, Math.max(0, t.height - 16)) + 8
+          t.x + Phaser.Math.Between(0, Math.max(0, t.width - 32)) + 16,
+          t.y + Phaser.Math.Between(0, Math.max(0, t.height - 32)) + 16
         );
         spr.setVisible(true);
         spr.play('lava_burbuja_anim');
@@ -1091,7 +1226,7 @@ class MinaScene extends GameScene {
 
     for (let i = 0; i < 8; i++) {
       const spr = this.add.sprite(0, 0, 'lava_burbuja', 0)
-        .setDepth(6).setScale(1.5).setVisible(false);
+        .setDepth(6).setVisible(false);
       spr.on('animationcomplete', () => {
         spr.setVisible(false);
         this.time.delayedCall(Phaser.Math.Between(400, 2200), () => {
@@ -1193,12 +1328,8 @@ class MinaScene extends GameScene {
        acababa en `y + 40` y los ultimos once pixeles del personaje se metian
        DENTRO de la pared. Se alarga por abajo y no se mueve: el borde de
        arriba sigue igual, asi que no se empieza a chocar antes de costado. */
-    if (this._chocaConEscenario(this.player.x - 15, prevY + 25, 30, 26)) {
-      this.player.x = prevX;
-    }
-    if (this._chocaConEscenario(this.player.x - 15, this.player.y + 25, 30, 26)) {
-      this.player.y = prevY;
-    }
+    // Eje a eje, y si estaba atrapado, fuera (GameScene._resolverChoqueJugador).
+    this._resolverChoqueJugador(prevX, prevY, 26);
 
     // ── Animacion: UNA sola decision por fotograma ─────────────────────────
     //
@@ -1228,16 +1359,33 @@ class MinaScene extends GameScene {
     // ── La mascota (metodo heredado) ───────────────────────────────────────
     try { this._actualizarMascota(); } catch (e) { /* sin perro, sin drama */ }
 
-    // ── La lava ────────────────────────────────────────────────────────────
-    const seg = delta / 1000;
-    for (let i = 0; i < this._lavaCapas.length; i++) {
-      const c = this._lavaCapas[i];
-      c.obj.tilePositionX += c.vx * seg;
-      c.obj.tilePositionY += c.vy * seg;
+    /* Que los demas mineros le vean moverse. La mina no mandaba nada: su
+       socket estaba en la sala del mapa de fuera (ver `_salaDeEscena`). */
+    if (this.dog) { try { this.sendPlayerMovement(); } catch (e) {} }
+
+    // ── La lava, el agua y las luces ───────────────────────────────────────
+    this._animarLiquidos(delta);
+    if (this._luces.length) {
+      const t = time / 1000;
+      for (let i = 0; i < this._luces.length; i++) {
+        const l = this._luces[i];
+        const v = Math.sin(t * l.vel + l.fase) * 0.6 + Math.sin(t * l.vel * 2.7 + l.fase * 1.3) * 0.4;
+        l.img.setAlpha(l.base * (1 + l.vibra * v));
+      }
     }
 
     // ── La salida ──────────────────────────────────────────────────────────
     this._comprobarSalida();
+  }
+
+  /**
+   * La sala del servidor de la mina. `initSocket()` (heredado) entraba en
+   * 'game': bajo tierra el servidor te tenia en el mapa de fuera, los del
+   * pueblo te veian en las coordenadas de la cueva y el panel de amigos no
+   * sabia que estabas aqui. Ver `_salaDeEscena` en GameScene.
+   */
+  _salaDeEscena() {
+    return 'mina';
   }
 
 
@@ -1358,8 +1506,9 @@ class MinaScene extends GameScene {
     (this._mascaras || []).forEach(g => { try { g.destroy(); } catch (e) {} });
     this._mascaras = [];
 
-    this._lavaCapas.forEach(c => { try { c.obj.destroy(); } catch (e) {} });
-    this._lavaCapas = [];
+    this._liquidosAnim = [];
+    this._luces.forEach(l => { try { l.img.destroy(); } catch (e) {} });
+    this._luces = [];
 
     this._burbujas.forEach(s => { try { s.destroy(); } catch (e) {} });
     this._burbujas = [];
@@ -1368,12 +1517,16 @@ class MinaScene extends GameScene {
     this._piezas = [];
 
     try { if (this.backgroundLayer) this.backgroundLayer.destroy(); } catch (e) {}
+    try { if (this.capaBordes) this.capaBordes.destroy(); } catch (e) {}
+    try { if (this.capaSombras) this.capaSombras.destroy(); } catch (e) {}
     try { if (this.capaObjetos) this.capaObjetos.destroy(); } catch (e) {}
     try { if (this.penumbra) this.penumbra.destroy(); } catch (e) {}
     try {
       if (this.textures.exists('mina_penumbra')) this.textures.remove('mina_penumbra');
     } catch (e) {}
     this.backgroundLayer = null;
+    this.capaBordes = null;
+    this.capaSombras = null;
     this.capaObjetos = null;
     this.penumbra = null;
 
@@ -1385,8 +1538,11 @@ class MinaScene extends GameScene {
     this.collisionRectangles1 = [];
     this.collisionRectangles2 = [];
 
-    ['tiles_mina', 'piezas_mina', 'lava_flujo', 'lava_brillo', 'agua_flujo',
-     'lava_burbuja']
+    const texturasMina = ['tiles_mina', 'piezas_mina', 'lava_burbuja', 'mina_luz'];
+    Object.keys(LIQUIDOS_MINA).forEach(m => {
+      for (let f = 0; f < LIQUIDOS_MINA[m].fotogramas; f++) texturasMina.push('mina_' + m + '_' + f);
+    });
+    texturasMina
       .forEach(clave => {
         try { if (this.textures.exists(clave)) this.textures.remove(clave); } catch (e) {}
       });

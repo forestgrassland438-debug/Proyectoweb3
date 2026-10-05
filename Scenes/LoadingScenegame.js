@@ -23,7 +23,8 @@
  *      en blockchain, o cuya cantidad difiera, es corregido antes de que la
  *      escena transite a GameScene.
  *  • _buildSyncMaps(): parseo robusto del snapshot RPC.
- *  • _applySyncToSlots(): lógica de corrección y log detallado.
+ *  • _reconciliarCasillas(): cuadra cada casilla con su factura SIN moverla
+ *    de sitio (antes las vaciaba y el objeto acababa en la primera libre).
  *  • _syncFallback(): usa batchVerifySlots() como alternativa si el contrato
  *      aún no tiene getUserInventorySnapshot().
  *  • Toda la sincronización es no-bloqueante: si falla, registra el error y
@@ -163,6 +164,29 @@ class LoadingScenegame extends Phaser.Scene {
             pocion_mascota_grande: { src: './Game/Objetos/pociones/pocion_mascota_grande.png', maxStack: 10 },
             elixir_revivir:        { src: './Game/Objetos/pociones/elixir_revivir.png',        maxStack: 5  },
 
+            // Construcción (2026-10-03). El `tipo` va escrito porque la tabla
+            // se llama `parcelas` y la clave `parcela`: sin él, _tipoToItemId
+            // no la encontraría y una parcela comprada en otro dispositivo se
+            // descartaría al entrar ("sin itemId → omitiendo").
+            parcela:               { src: './Game/Objetos/construccion/parcela.png',           maxStack: 20, tipo: 'parcelas' },
+            pala_construccion:     { src: './Game/Objetos/construccion/pala_construccion.png', maxStack: 1,  tipo: 'pala_contrucion' },
+            // El bote de basura y los cofres de la isla (2026-10-05).
+            basura: { src: './Game/Objetos/cofres/basura.png', maxStack: 10, tipo: 'basura' },
+            cofre1: { src: './Game/Objetos/cofres/cofre1.png', maxStack: 5,  tipo: 'cofre1' },
+            cofre2: { src: './Game/Objetos/cofres/cofre2.png', maxStack: 5,  tipo: 'cofre2' },
+            cofre3: { src: './Game/Objetos/cofres/cofre3.png', maxStack: 5,  tipo: 'cofre3' },
+            cofre4: { src: './Game/Objetos/cofres/cofre4.png', maxStack: 5,  tipo: 'cofre4' },
+            // Equipo, granja y pesca (2026-10-05). Sin estas líneas, lo que esté
+            // en la cadena y no en la BD se descartaría al entrar.
+            espada_madera:  { src: './Game/Objetos/armas/espada_madera.png',    maxStack: 1,  tipo: 'madera' },
+            espada_cobre:   { src: './Game/Objetos/armas/espada_cobre.png',     maxStack: 1,  tipo: 'cobre' },
+            espada_hierro:  { src: './Game/Objetos/armas/espada_hierro.png',    maxStack: 1,  tipo: 'hierro' },
+            cana_pescar:    { src: './Game/Objetos/pesca/cana_pescar.png',      maxStack: 1,  tipo: 'caña_pescar' },
+            espantapajaros: { src: './Game/Objetos/granja/espantapajaros.png',  maxStack: 10, tipo: 'espantapajaros' },
+            pes1:           { src: './Game/Objetos/pesca/pes1.png',             maxStack: 20, tipo: 'pes1' },
+            pes2:           { src: './Game/Objetos/pesca/pes2.png',             maxStack: 20, tipo: 'pes2' },
+            pes3:           { src: './Game/Objetos/pesca/pes3.png',             maxStack: 20, tipo: 'pes3' },
+
             palo:             { src: './Game/Source/palo.png',           maxStack: 20 },
             tablon_de_madera: { src: './Game/Source/madera.png',         maxStack: 20 },
             madera_pinos:     { src: './Game/Source/madera_oscura.png',  maxStack: 50 },
@@ -218,6 +242,16 @@ class LoadingScenegame extends Phaser.Scene {
             'mineral_piedra_hierro': 'mineral_piedra_hierro',
             'mineral_carbon':        'mineral_carbon',
             'carbon':                'carbon',
+            'parcelas':              'parcela',
+            'pala_contrucion':       'pala_construccion',
+            'basura': 'basura',
+            'cofre1': 'cofre1', 'cofre2': 'cofre2', 'cofre3': 'cofre3', 'cofre4': 'cofre4',
+            'madera':                'espada_madera',
+            'cobre':                 'espada_cobre',
+            'hierro':                'espada_hierro',
+            'caña_pescar':           'cana_pescar',
+            'espantapajaros':        'espantapajaros',
+            'pes1': 'pes1', 'pes2': 'pes2', 'pes3': 'pes3',
             'tablon de madera': 'tablon_de_madera',
             'madera pinos':     'madera_pinos',
             'madera con hojas': 'madera_con_hojas',
@@ -933,67 +967,141 @@ class LoadingScenegame extends Phaser.Scene {
     }
 
     /**
-     * Aplica las correcciones del sync a un array de slots.
-     * @param {Array}  slots       - this.STATE.slots o this.STATE.quickSlots
-     * @param {string} label       - 'inv' | 'quick' para logs
-     * @param {Map}    invoiceById - mapa construido por _buildSyncMaps
-     * @returns {number} Número de correcciones aplicadas
+     * Cuadra las casillas con las facturas de la cadena SIN MOVER NADA DE SITIO.
+     *
+     * EL FALLO QUE ESTO ARREGLA (2026-10-03) — "siempre se desordenan los
+     * items":
+     *
+     * la versión anterior (`_applySyncToSlots`) VACIABA toda casilla cuyo
+     * `idx`/`idm` no coincidiera exactamente con una factura viva, y después
+     * `_addMissingBlockchainItems` volvía a meter esa misma factura en la
+     * PRIMERA casilla libre. Y los `idx` basura son lo normal, no la excepción:
+     * `addItem` rellena `idx` con el NÚMERO DE CASILLA cuando nadie le pasa un
+     * id, y el `manualId` acaba valiendo el nombre del objeto (ver memoria
+     * "la cadena manda en el inventario"). Resultado: en cada entrada al mapa,
+     * todo objeto con un id viejo saltaba al principio del inventario.
+     *
+     * Ahora una casilla solo se vacía si en la cadena NO queda ninguna factura
+     * que pueda ser suya. Tres pasadas, de más a menos segura, y una factura
+     * solo puede ser de UNA casilla (antes dos casillas con el mismo idx
+     * enseñaban el mismo objeto dos veces):
+     *
+     *   1. el idx y el manualId coinciden → es esa (se corrige la cantidad);
+     *   2. el manualId coincide con otra factura → se re-enlaza el idx;
+     *   3. hay una factura LIBRE del mismo objeto → se re-enlaza a ella,
+     *      prefiriendo la de la misma cantidad.
+     *
+     * La casilla se queda donde estaba en las tres. La cadena sigue siendo la
+     * verdad de QUÉ y CUÁNTO hay; la casilla guardada, de DÓNDE.
+     *
+     * @param {Map} invoiceById - id → {id, manualId, cantidad, tipo}
+     * @returns {{ inv:number, quick:number }} correcciones en cada lista
      */
-    _applySyncToSlots(slots, label, invoiceById) {
-        let fixed = 0;
-
-        for (let i = 0; i < slots.length; i++) {
-            const slot = slots[i];
-            if (!slot) continue;
-
-            const idx = (slot.idx !== null && slot.idx !== undefined) ? Number(slot.idx) : null;
-            const idm = slot.idm  || null;
-
-            // ── Caso 1: sin idx o sin idm → el servidor ya debería haberlo filtrado,
-            //            pero si llegó hasta aquí significa que es un ítem sin
-            //            registro blockchain → limpiar.
-            if (idx === null || !idm) {
-                console.warn(`🗑️ [sync] ${label}[${i}] sin idx/idm → limpiando (sin registro blockchain)`);
-                slots[i] = null;
-                fixed++;
-                continue;
-            }
-
-            const onChain = invoiceById.get(idx);
-
-            // ── Caso 2: el idx no existe en blockchain → factura eliminada o IDX cambiado.
-            if (!onChain) {
-                console.warn(`🗑️ [sync] ${label}[${i}] idx=${idx} NO existe en blockchain → limpiando`);
-                slots[i] = null;
-                fixed++;
-                continue;
-            }
-
-            // ── Caso 3: el manualId no coincide → IDX fue reutilizado por otra factura
-            //            o el dato local está corrompido.
-            if (onChain.manualId !== idm) {
-                console.warn(
-                    `🗑️ [sync] ${label}[${i}] idx=${idx} manualId NO coincide`,
-                    `local="${idm}" blockchain="${onChain.manualId}" → limpiando`
-                );
-                slots[i] = null;
-                fixed++;
-                continue;
-            }
-
-            // ── Caso 4: todo coincide pero la cantidad difiere → blockchain es la fuente de verdad.
-            if (slot.count !== onChain.cantidad) {
-                console.warn(
-                    `🔧 [sync] ${label}[${i}] idx=${idx} cantidad corregida:`,
-                    `local=${slot.count} → blockchain=${onChain.cantidad}`
-                );
-                slot.count = onChain.cantidad;
-                fixed++;
-            }
-            // Caso 5: todo correcto → no tocar.
+    _reconciliarCasillas(invoiceById) {
+        const reclamadas = new Set();
+        const porManual = new Map();
+        const objetoDe = new Map();            // invoiceId → itemId del juego
+        for (const [id, inv] of invoiceById) {
+            if (inv.manualId) porManual.set(inv.manualId, inv);
+            objetoDe.set(id, this._tipoToItemId(inv.tipo));
         }
 
-        return fixed;
+        const listas = [['inv', this.STATE.slots], ['quick', this.STATE.quickSlots]];
+        const arreglos = { inv: 0, quick: 0 };
+        const resueltas = new Set();           // 'inv:3', 'quick:0'…
+
+        const enlazar = (label, lista, i, inv, motivo) => {
+            const s = lista[i];
+            const cambia = Number(s.idx) !== inv.id || s.idm !== inv.manualId ||
+                           s.count !== inv.cantidad;
+            const objeto = objetoDe.get(inv.id);
+            if (objeto && s.id !== objeto) s.id = objeto;
+            s.idx = inv.id;
+            s.idm = inv.manualId;
+            s.count = inv.cantidad;
+            reclamadas.add(inv.id);
+            resueltas.add(label + ':' + i);
+            if (cambia) {
+                arreglos[label]++;
+                console.log(`🔗 [sync] ${label}[${i}] ${motivo} → factura ${inv.id} x${inv.cantidad} (se queda en su casilla)`);
+            }
+        };
+
+        // 1. id y manualId exactos
+        for (const [label, lista] of listas) {
+            for (let i = 0; i < lista.length; i++) {
+                const s = lista[i];
+                if (!s || s.idx === null || s.idx === undefined || !s.idm) continue;
+                const inv = invoiceById.get(Number(s.idx));
+                if (inv && !reclamadas.has(inv.id) && inv.manualId === s.idm && objetoDe.get(inv.id)) {
+                    enlazar(label, lista, i, inv, 'cantidad');
+                }
+            }
+        }
+        // 2. por manualId
+        for (const [label, lista] of listas) {
+            for (let i = 0; i < lista.length; i++) {
+                const s = lista[i];
+                if (!s || resueltas.has(label + ':' + i) || !s.idm) continue;
+                const inv = porManual.get(s.idm);
+                if (inv && !reclamadas.has(inv.id) && objetoDe.get(inv.id)) {
+                    enlazar(label, lista, i, inv, 'id viejo, mismo manualId');
+                }
+            }
+        }
+        // 3. por objeto: una factura libre del mismo objeto
+        for (const [label, lista] of listas) {
+            for (let i = 0; i < lista.length; i++) {
+                const s = lista[i];
+                if (!s || resueltas.has(label + ':' + i)) continue;
+                let mejor = null;
+                for (const [id, inv] of invoiceById) {
+                    if (reclamadas.has(id) || objetoDe.get(id) !== s.id) continue;
+                    if (!mejor || (inv.cantidad === s.count && mejor.cantidad !== s.count)) mejor = inv;
+                    if (mejor.cantidad === s.count) break;
+                }
+                if (mejor) enlazar(label, lista, i, mejor, 'id basura, mismo objeto');
+            }
+        }
+        // Lo que queda sin factura no existe en la cadena: fuera.
+        for (const [label, lista] of listas) {
+            for (let i = 0; i < lista.length; i++) {
+                if (!lista[i] || resueltas.has(label + ':' + i)) continue;
+                console.warn(`🗑️ [sync] ${label}[${i}] "${lista[i].id}" sin ninguna factura en la cadena → limpiando`);
+                lista[i] = null;
+                arreglos[label]++;
+            }
+        }
+        return arreglos;
+    }
+
+    /**
+     * En qué casilla guardó la cadena cada factura (contrato v3, ver
+     * `setInvoiceSlotsBatch` en el contrato y `/api/inventory/casillas` en el
+     * servidor). Con un contrato v2 o un servidor viejo devuelve {} y todo
+     * funciona como antes. Nunca lanza.
+     *
+     * @returns {Promise<Object<string, number>>} invoiceId → código de casilla
+     *          (1..9999 = inventario n-1 · 10001..19999 = cofre n-10001)
+     */
+    async _leerCasillasDeCadena() {
+        // Las facturas guardadas en los cofres de la isla (2026-10-05): vienen
+        // en la misma respuesta. Ver syncInventoryWithBlockchain.
+        this._facturasEnCofres = new Set();
+        try {
+            if (!this.serverBase) return {};
+            const r = await fetch(`${this.serverBase}/api/inventory/casillas`, {
+                credentials: 'include', headers: { 'Accept': 'application/json' }
+            });
+            if (!r.ok) return {};
+            const d = await r.json();
+            if (d && Array.isArray(d.enCofres)) {
+                this._facturasEnCofres = new Set(d.enCofres.map(Number).filter(n => n > 0));
+            }
+            return (d && d.soportado && d.casillas && typeof d.casillas === 'object') ? d.casillas : {};
+        } catch (_) {
+            return {};
+        }
     }
 
     /**
@@ -1069,9 +1177,14 @@ class LoadingScenegame extends Phaser.Scene {
             const canonical   = Number(canonicalQtArr[i] || 0);
 
             if (!isValid) {
-                console.warn(`🗑️ [sync-fallback] ${prefix}[${slotIndex}] idx=${idx} inválido en blockchain → limpiando`);
-                slotArr[slotIndex] = null;
-                fixed++;
+                /* YA NO SE BORRA. Este camino solo se usa cuando el snapshot
+                   falló, o sea sin saber QUÉ facturas tiene el jugador: un
+                   idx viejo no dice que el objeto no exista, dice que se
+                   guardó con otro id. Borrarlo aquí era quitarlo de su
+                   casilla y que la siguiente sincronización buena lo metiera
+                   en la primera libre (otra vía del "se desordenan"). Se deja
+                   para la próxima sincronización completa. */
+                console.warn(`⚠️ [sync-fallback] ${prefix}[${slotIndex}] idx=${idx} no cuadra; se deja para la próxima sincronización completa`);
             } else if (slotArr[slotIndex] && slotArr[slotIndex].count !== canonical) {
                 console.warn(
                     `🔧 [sync-fallback] ${prefix}[${slotIndex}] idx=${idx} cantidad:`,
@@ -1097,6 +1210,13 @@ class LoadingScenegame extends Phaser.Scene {
         if (!tipo) return null;
         const tipoNorm = tipo.trim().toLowerCase();
 
+        // Tablas del contrato que NO son objetos del inventario: las barras,
+        // la experiencia, el nivel y el nombre, y lo construido en la isla.
+        // Viven en las mismas facturas del jugador, así que pasan por aquí en
+        // cada carga; se descartan sin llenar la consola de avisos.
+        if (['vida', 'agua', 'comida', 'oro', 'plata', 'exp',
+             'nivel', 'nombre', 'cons_parcelas'].indexOf(tipoNorm) !== -1) return null;
+
         // 1. Mapa explícito TIPO_TO_ITEM_ID
         if (this.TIPO_TO_ITEM_ID && this.TIPO_TO_ITEM_ID[tipoNorm]) {
             return this.TIPO_TO_ITEM_ID[tipoNorm];
@@ -1121,12 +1241,25 @@ class LoadingScenegame extends Phaser.Scene {
     /**
      * Agrega al inventario local los ítems que existen en blockchain
      * pero NO están en ningún slot local (ni por IDX ni por manualId).
-     * Primero rellena slots de inventario (40), luego cofre (7).
+     * Si la cadena recuerda su casilla (contrato v3) y está libre, va ahí; si
+     * no, a la primera libre del inventario (40) y luego del cofre (7).
      * @param {Map} invoiceById - mapa id→{id,manualId,cantidad,tipo,active}
+     * @param {Object} [casillas] - invoiceId → código de casilla de la cadena
      * @returns {number} cantidad de ítems nuevos agregados
      */
-    _addMissingBlockchainItems(invoiceById) {
+    _addMissingBlockchainItems(invoiceById, casillas) {
         if (!invoiceById || invoiceById.size === 0) return 0;
+        const recordadas = casillas || {};
+        const casillaDe = (invoiceId) => {
+            const c = Number(recordadas[invoiceId]) || 0;
+            if (c >= 1 && c <= this.STATE.slots.length) return { lista: this.STATE.slots, i: c - 1, label: 'slots' };
+            if (c >= 10001 && c - 10001 < this.STATE.quickSlots.length) return { lista: this.STATE.quickSlots, i: c - 10001, label: 'quickSlots' };
+            return null;
+        };
+        // Primero las que tienen casilla recordada: si no, una sin casilla
+        // podría quedarse el hueco de otra solo por llegar antes en la lista.
+        const orden = [...invoiceById.entries()].sort((a, b) =>
+            (casillaDe(a[0]) ? 0 : 1) - (casillaDe(b[0]) ? 0 : 1));
 
         // Colectar todos los idx y manualIds ya presentes localmente
         const usedIdx    = new Set();
@@ -1144,7 +1277,7 @@ class LoadingScenegame extends Phaser.Scene {
 
         let added = 0;
 
-        for (const [invoiceId, invoice] of invoiceById) {
+        for (const [invoiceId, invoice] of orden) {
             // Ya está cubierto en algún slot
             if (usedIdx.has(invoiceId) || usedManual.has(invoice.manualId)) continue;
 
@@ -1155,7 +1288,7 @@ class LoadingScenegame extends Phaser.Scene {
             }
 
             // FIX: antes se recortaba a maxStack. Pero un hueco representa UNA
-            // factura entera: `_applySyncToSlots` pone siempre la cantidad de
+            // factura entera: `_reconciliarCasillas` pone siempre la cantidad de
             // la cadena, así que el recorte duraba solo esta carga — savegg
             // guardaba 50 de una factura de 60 y en la siguiente entrada
             // "reaparecían" 10. Y con una cantidad ilegible salía NaN en el
@@ -1167,8 +1300,19 @@ class LoadingScenegame extends Phaser.Scene {
                 continue;
             }
 
-            // Intentar inventario principal primero, luego cofre
+            // La casilla que recuerda la cadena, si está libre.
             let placed = false;
+            const recordada = casillaDe(invoiceId);
+            if (recordada && recordada.lista[recordada.i] === null) {
+                recordada.lista[recordada.i] = { id: itemId, idx: invoiceId, idm: invoice.manualId, count: cantidad };
+                usedIdx.add(invoiceId);
+                usedManual.add(invoice.manualId);
+                placed = true;
+                added++;
+                console.log(`➕ [sync] Invoice id=${invoiceId} tipo="${invoice.tipo}" → ${recordada.label}[${recordada.i}] (casilla guardada en la cadena)`);
+            }
+
+            // Si no, inventario principal primero, luego cofre
 
             for (let i = 0; i < this.STATE.slots.length && !placed; i++) {
                 if (this.STATE.slots[i] === null) {
@@ -1264,6 +1408,9 @@ class LoadingScenegame extends Phaser.Scene {
         //    Llamamos /api/relay/call-view directamente para obtener el array
         //    completo y parsearlo nosotros con _buildSyncMaps.
         let syncOk = false;
+        // A la vez que el snapshot: en qué casilla guardó la cadena cada
+        // factura (contrato v3). Si no hay, {} y no cambia nada.
+        const casillasPromesa = this._leerCasillasDeCadena();
 
         try {
             const snapResp = await this.fetchWithTokenRetry(
@@ -1293,9 +1440,20 @@ class LoadingScenegame extends Phaser.Scene {
 
             console.log(`🔗 [sync] Snapshot recibido: ${invoiceById.size} facturas activas`);
 
-            const fixedInv   = this._applySyncToSlots(this.STATE.slots,      'inv',   invoiceById);
-            const fixedQuick = this._applySyncToSlots(this.STATE.quickSlots,  'quick', invoiceById);
-            const addedNew   = this._addMissingBlockchainItems(invoiceById);
+            const casillas   = await casillasPromesa;
+            // LO GUARDADO EN UN COFRE DE LA ISLA NO ESTÁ EN LA MOCHILA. La
+            // factura sigue a nombre del jugador, así que sale en el snapshot:
+            // sin quitarla aquí, `_addMissingBlockchainItems` la volvería a
+            // meter en una casilla libre (y `_reconciliarCasillas` podría
+            // enlazar con ella una casilla del mismo objeto).
+            if (this._facturasEnCofres && this._facturasEnCofres.size) {
+                for (const id of this._facturasEnCofres) invoiceById.delete(id);
+                console.log(`📦 [sync] ${this._facturasEnCofres.size} factura(s) guardadas en cofres: no se reponen`);
+            }
+            const arreglos   = this._reconciliarCasillas(invoiceById);
+            const fixedInv   = arreglos.inv;
+            const fixedQuick = arreglos.quick;
+            const addedNew   = this._addMissingBlockchainItems(invoiceById, casillas);
 
             const totalFixed = fixedInv + fixedQuick + addedNew;
             console.log(
@@ -2043,7 +2201,9 @@ class LoadingScenegame extends Phaser.Scene {
             1: 'GameScene',
             2: 'tiendajuego',
             3: 'MinaScene',
-            4: 'LandsScene'
+            4: 'LandsScene',
+            // Dentro de una casa del pueblo (gf-casas.js, 2026-10-05).
+            5: 'InteriorScene'
         };
 
         let nextScene = ESCENA_DE_MUNDO[this.mundo];
@@ -2065,6 +2225,15 @@ class LoadingScenegame extends Phaser.Scene {
             this.mundo = 1;
         } else if (!this.scene.get(nextScene)) {
             console.warn('🌍 ' + nextScene + ' no esta registrada: se va al mapa');
+            nextScene = 'GameScene';
+            this.mundo = 1;
+        } else if (nextScene === 'InteriorScene' &&
+                   (window.__gfCasaRota || !(window.GFCasas && window.GFCasas.nota()))) {
+            /* DENTRO DE UNA CASA, PERO SIN SABER DE CUAL (se borro la nota, o
+               la casa ya fallo en esta sesion): al pueblo. La posicion
+               guardada es la de delante de su puerta (gf-casas la guarda al
+               entrar), asi que se aparece ahi. */
+            console.warn('🌍 casa sin nota o rota: se va al mapa');
             nextScene = 'GameScene';
             this.mundo = 1;
         } else if (nextScene === 'MinaScene' && window.__gfMinaRota) {
@@ -2093,7 +2262,7 @@ class LoadingScenegame extends Phaser.Scene {
            les pasa la de esta pantalla, que acaba de comprobarse arriba. Sin
            esto se autenticarian de cero y saldria el cartel de SESSION
            EXPIRED, que es justo el fallo que ya costo una vuelta. */
-        if (nextScene === 'MinaScene' || nextScene === 'LandsScene') {
+        if (nextScene === 'MinaScene' || nextScene === 'LandsScene' || nextScene === 'InteriorScene') {
             this.scene.start(nextScene, {
                 sesion: {
                     playerName:      this.playerName,

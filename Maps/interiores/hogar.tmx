@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.11.0" orientation="orthogonal" renderorder="right-down" width="40" height="28" tilewidth="32" tileheight="32" infinite="0" nextlayerid="10" nextobjectid="43">
+ <properties>
+  <property name="titulo" value="Home"/>
+  <property name="version" value="20261006"/>
+  <property name="escala" value="2"/>
+ </properties>
+ <tileset firstgid="1" name="interiores" tilewidth="64" tileheight="64" tilecount="310" columns="16">
+  <image source="../../Game/MAPAS/Interiores/interiores_64.png" width="1024" height="1280"/>
+ </tileset>
+ <tileset firstgid="311" name="muebles_interior" tilewidth="522" tileheight="540" tilecount="62" columns="0">
+  <grid orientation="orthogonal" width="1" height="1"/>
+  <tile id="0"><image source="../../Game/MAPAS/Interiores/muebles/alfombra_azul.png" width="218" height="108"/></tile>
+  <tile id="1"><image source="../../Game/MAPAS/Interiores/muebles/alfombra_morada.png" width="522" height="84"/></tile>
+  <tile id="2"><image source="../../Game/MAPAS/Interiores/muebles/alfombra_pasillo.png" width="84" height="540"/></tile>
+  <tile id="3"><image source="../../Game/MAPAS/Interiores/muebles/alfombra_roja.png" width="216" height="108"/></tile>
+  <tile id="4"><image source="../../Game/MAPAS/Interiores/muebles/alfombra_verde.png" width="218" height="108"/></tile>
+  <tile id="5"><image source="../../Game/MAPAS/Interiores/muebles/aplique.png" width="28" height="52"/></tile>
+  <tile id="6"><image source="../../Game/MAPAS/Interiores/muebles/armario.png" width="100" height="172"/></tile>
+  <tile id="7"><image source="../../Game/MAPAS/Interiores/muebles/armero.png" width="128" height="148"/></tile>
+  <tile id="8"><image source="../../Game/MAPAS/Interiores/muebles/barra.png" width="278" height="172"/></tile>
+  <tile id="9"><image source="../../Game/MAPAS/Interiores/muebles/barra2.png" width="278" height="172"/></tile>
+  <tile id="10"><image source="../../Game/MAPAS/Interiores/muebles/barril.png" width="108" height="120"/></tile>
+  <tile id="11"><image source="../../Game/MAPAS/Interiores/muebles/barril_abierto.png" width="108" height="120"/></tile>
+  <tile id="12"><image source="../../Game/MAPAS/Interiores/muebles/brasero_1.png" width="100" height="128"/></tile>
+  <tile id="13"><image source="../../Game/MAPAS/Interiores/muebles/brasero_2.png" width="100" height="116"/></tile>
+  <tile id="14"><image source="../../Game/MAPAS/Interiores/muebles/cajon.png" width="116" height="96"/></tile>
+  <tile id="15"><image source="../../Game/MAPAS/Interiores/muebles/caldero.png" width="108" height="100"/></tile>
+  <tile id="16"><image source="../../Game/MAPAS/Interiores/muebles/caldero_fuego_1.png" width="148" height="100"/></tile>
+  <tile id="17"><image source="../../Game/MAPAS/Interiores/muebles/caldero_fuego_2.png" width="152" height="100"/></tile>
+  <tile id="18"><image source="../../Game/MAPAS/Interiores/muebles/cama_azul.png" width="104" height="156"/></tile>
+  <tile id="19"><image source="../../Game/MAPAS/Interiores/muebles/cama_roja.png" width="104" height="156"/></tile>
+  <tile id="20"><image source="../../Game/MAPAS/Interiores/muebles/cama_verde.png" width="104" height="156"/></tile>
+  <tile id="21"><image source="../../Game/MAPAS/Interiores/muebles/carbon.png" width="74" height="76"/></tile>
+  <tile id="22"><image source="../../Game/MAPAS/Interiores/muebles/cesta.png" width="64" height="70"/></tile>
+  <tile id="23"><image source="../../Game/MAPAS/Interiores/muebles/chimenea.png" width="104" height="138"/></tile>
+  <tile id="24"><image source="../../Game/MAPAS/Interiores/muebles/cofre.png" width="54" height="54"/></tile>
+  <tile id="25"><image source="../../Game/MAPAS/Interiores/muebles/cristales.png" width="80" height="100"/></tile>
+  <tile id="26"><image source="../../Game/MAPAS/Interiores/muebles/cuadro_bosque.png" width="180" height="98"/></tile>
+  <tile id="27"><image source="../../Game/MAPAS/Interiores/muebles/cuadro_dia.png" width="180" height="98"/></tile>
+  <tile id="28"><image source="../../Game/MAPAS/Interiores/muebles/cuadro_noche.png" width="180" height="98"/></tile>
+  <tile id="29"><image source="../../Game/MAPAS/Interiores/muebles/cubo.png" width="84" height="92"/></tile>
+  <tile id="30"><image source="../../Game/MAPAS/Interiores/muebles/escalera.png" width="130" height="136"/></tile>
+  <tile id="31"><image source="../../Game/MAPAS/Interiores/muebles/escoba.png" width="32" height="134"/></tile>
+  <tile id="32"><image source="../../Game/MAPAS/Interiores/muebles/estante_frascos.png" width="84" height="110"/></tile>
+  <tile id="33"><image source="../../Game/MAPAS/Interiores/muebles/estante_herramientas.png" width="96" height="150"/></tile>
+  <tile id="34"><image source="../../Game/MAPAS/Interiores/muebles/estante_herramientas2.png" width="96" height="150"/></tile>
+  <tile id="35"><image source="../../Game/MAPAS/Interiores/muebles/estante_libros.png" width="116" height="184"/></tile>
+  <tile id="36"><image source="../../Game/MAPAS/Interiores/muebles/estante_libros2.png" width="116" height="184"/></tile>
+  <tile id="37"><image source="../../Game/MAPAS/Interiores/muebles/estante_pociones.png" width="252" height="282"/></tile>
+  <tile id="38"><image source="../../Game/MAPAS/Interiores/muebles/expositor_fruta.png" width="94" height="122"/></tile>
+  <tile id="39"><image source="../../Game/MAPAS/Interiores/muebles/expositor_pociones.png" width="94" height="122"/></tile>
+  <tile id="40"><image source="../../Game/MAPAS/Interiores/muebles/expositor_verdura.png" width="94" height="122"/></tile>
+  <tile id="41"><image source="../../Game/MAPAS/Interiores/muebles/farol_1.png" width="34" height="104"/></tile>
+  <tile id="42"><image source="../../Game/MAPAS/Interiores/muebles/farol_2.png" width="34" height="104"/></tile>
+  <tile id="43"><image source="../../Game/MAPAS/Interiores/muebles/farol_pared.png" width="128" height="154"/></tile>
+  <tile id="44"><image source="../../Game/MAPAS/Interiores/muebles/fragua.png" width="84" height="188"/></tile>
+  <tile id="45"><image source="../../Game/MAPAS/Interiores/muebles/mesa_comida.png" width="164" height="88"/></tile>
+  <tile id="46"><image source="../../Game/MAPAS/Interiores/muebles/mesa_espada.png" width="96" height="76"/></tile>
+  <tile id="47"><image source="../../Game/MAPAS/Interiores/muebles/mesa_larga.png" width="104" height="204"/></tile>
+  <tile id="48"><image source="../../Game/MAPAS/Interiores/muebles/mesa_vela.png" width="96" height="100"/></tile>
+  <tile id="49"><image source="../../Game/MAPAS/Interiores/muebles/mostrador.png" width="152" height="72"/></tile>
+  <tile id="50"><image source="../../Game/MAPAS/Interiores/muebles/nasas.png" width="180" height="128"/></tile>
+  <tile id="51"><image source="../../Game/MAPAS/Interiores/muebles/pila_lena.png" width="172" height="104"/></tile>
+  <tile id="52"><image source="../../Game/MAPAS/Interiores/muebles/planta_alta.png" width="62" height="132"/></tile>
+  <tile id="53"><image source="../../Game/MAPAS/Interiores/muebles/planta_cactus.png" width="48" height="80"/></tile>
+  <tile id="54"><image source="../../Game/MAPAS/Interiores/muebles/planta_flores.png" width="102" height="126"/></tile>
+  <tile id="55"><image source="../../Game/MAPAS/Interiores/muebles/planta_pequena.png" width="48" height="80"/></tile>
+  <tile id="56"><image source="../../Game/MAPAS/Interiores/muebles/red_pesca.png" width="180" height="144"/></tile>
+  <tile id="57"><image source="../../Game/MAPAS/Interiores/muebles/silla.png" width="48" height="90"/></tile>
+  <tile id="58"><image source="../../Game/MAPAS/Interiores/muebles/silla_b.png" width="48" height="90"/></tile>
+  <tile id="59"><image source="../../Game/MAPAS/Interiores/muebles/taburete.png" width="84" height="76"/></tile>
+  <tile id="60"><image source="../../Game/MAPAS/Interiores/muebles/taburete_bar.png" width="46" height="52"/></tile>
+  <tile id="61"><image source="../../Game/MAPAS/Interiores/muebles/yunque.png" width="100" height="88"/></tile>
+ </tileset>
+ <layer id="1" name="suelo" width="40" height="28">
+  <data encoding="csv">
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+1,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,3,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+4,0,5,0,6,0,7,0,8,0,7,0,9,0,10,0,11,0,12,0,8,0,7,0,6,0,13,0,14,0,15,0,16,0,7,0,6,0,17,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+4,0,18,0,19,0,20,0,21,0,20,0,22,0,23,0,24,0,25,0,21,0,20,0,19,0,26,0,23,0,24,0,27,0,20,0,19,0,17,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+4,0,28,0,29,0,30,0,31,0,30,0,29,0,32,0,33,0,30,0,31,0,30,0,29,0,28,0,34,0,35,0,31,0,30,0,29,0,17,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+4,0,36,0,37,0,38,0,39,0,40,0,41,0,42,0,43,0,44,0,45,0,46,0,47,0,48,0,49,0,50,0,51,0,52,0,53,0,17,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+4,0,54,0,55,0,56,0,57,0,58,0,59,0,60,0,61,0,62,0,63,0,64,0,65,0,66,0,67,0,68,0,69,0,70,0,71,0,17,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+4,0,72,0,73,0,36,0,37,0,38,0,39,0,40,0,41,0,42,0,43,0,44,0,45,0,46,0,47,0,48,0,49,0,50,0,51,0,17,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+4,0,74,0,75,0,54,0,55,0,56,0,57,0,58,0,59,0,60,0,61,0,62,0,63,0,64,0,65,0,66,0,67,0,68,0,69,0,17,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+4,0,76,0,77,0,72,0,73,0,36,0,37,0,38,0,39,0,40,0,41,0,42,0,43,0,44,0,45,0,46,0,47,0,48,0,49,0,17,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+4,0,78,0,79,0,74,0,75,0,54,0,55,0,56,0,57,0,58,0,59,0,60,0,61,0,62,0,63,0,64,0,65,0,66,0,67,0,17,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+4,0,80,0,81,0,76,0,77,0,72,0,73,0,36,0,37,0,38,0,39,0,40,0,41,0,42,0,43,0,44,0,45,0,46,0,47,0,17,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+4,0,52,0,53,0,78,0,79,0,74,0,75,0,54,0,55,0,56,0,57,0,58,0,59,0,60,0,61,0,62,0,63,0,64,0,65,0,17,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+4,0,70,0,71,0,80,0,81,0,76,0,77,0,72,0,73,0,82,0,83,0,38,0,39,0,40,0,41,0,42,0,43,0,44,0,45,0,17,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+84,0,85,0,85,0,85,0,85,0,85,0,85,0,85,0,85,0,86,0,87,0,85,0,85,0,85,0,85,0,85,0,85,0,85,0,85,0,88,0
+</data>
+ </layer>
+ <objectgroup id="43" name="muebles">
+  <object id="1" name="armario" x="80" y="304" gid="317" width="100" height="172"/>
+  <object id="2" name="cama_roja" x="196" y="428" gid="330" width="104" height="156"><properties><property name="pie" type="int" value="120"/></properties></object>
+  <object id="3" name="mesa_vela" x="312" y="352" gid="359" width="96" height="100"><properties><property name="anim" type="string" value="vela"/><property name="fx" type="int" value="16"/><property name="fy" type="int" value="12"/></properties></object>
+  <object id="4" name="cofre" x="208" y="480" gid="335" width="54" height="54"/>
+  <object id="5" name="chimenea" x="580" y="320" gid="334" width="104" height="138"><properties><property name="anim" type="string" value="fuego"/><property name="fx" type="int" value="52"/><property name="fy" type="int" value="106"/></properties></object>
+  <object id="6" name="aplique" x="424" y="200" gid="316" width="28" height="52"><properties><property name="plano" type="bool" value="true"/><property name="anim" type="string" value="vela"/><property name="fx" type="int" value="14"/><property name="fy" type="int" value="6"/></properties></object>
+  <object id="7" name="aplique" x="808" y="200" gid="316" width="28" height="52"><properties><property name="plano" type="bool" value="true"/><property name="anim" type="string" value="vela"/><property name="fx" type="int" value="14"/><property name="fy" type="int" value="6"/></properties></object>
+  <object id="8" name="estante_libros" x="1068" y="308" gid="346" width="116" height="184"/>
+  <object id="9" name="alfombra_roja" x="500" y="660" gid="314" width="216" height="108"><properties><property name="plano" type="bool" value="true"/></properties></object>
+  <object id="10" name="mesa_comida" x="840" y="676" gid="356" width="164" height="88"/>
+  <object id="11" name="silla" x="788" y="688" gid="368" width="48" height="90"/>
+  <object id="12" name="silla_b" x="1012" y="688" gid="369" width="48" height="90"/>
+  <object id="13" name="planta_alta" x="1132" y="808" gid="363" width="62" height="132"/>
+  <object id="14" name="planta_pequena" x="88" y="808" gid="366" width="48" height="80"/>
+  <object id="15" name="cesta" x="1032" y="800" gid="333" width="64" height="70"/>
+  <object id="16" name="escoba" x="1172" y="472" gid="342" width="32" height="134"/>
+ </objectgroup>
+ <objectgroup id="44" name="colisiones">
+  <object id="17" name="" x="0" y="0" width="1280" height="260"/>
+  <object id="18" name="" x="0" y="0" width="68" height="896"/>
+  <object id="19" name="" x="1212" y="0" width="68" height="896"/>
+  <object id="20" name="" x="0" y="840" width="584" height="56"/>
+  <object id="21" name="" x="696" y="840" width="584" height="56"/>
+  <object id="22" name="" x="86" y="256" width="88" height="48"/>
+  <object id="23" name="" x="202" y="308" width="92" height="120"/>
+  <object id="24" name="" x="318" y="320" width="84" height="32"/>
+  <object id="25" name="" x="214" y="460" width="42" height="20"/>
+  <object id="26" name="" x="586" y="276" width="92" height="44"/>
+  <object id="27" name="" x="1074" y="260" width="104" height="48"/>
+  <object id="28" name="" x="846" y="648" width="152" height="28"/>
+  <object id="29" name="" x="794" y="660" width="36" height="28"/>
+  <object id="30" name="" x="1018" y="660" width="36" height="28"/>
+  <object id="31" name="" x="1138" y="766" width="50" height="42"/>
+  <object id="32" name="" x="94" y="783" width="36" height="25"/>
+  <object id="33" name="" x="1038" y="778" width="52" height="22"/>
+  <object id="34" name="" x="1178" y="430" width="20" height="42"/>
+ </objectgroup>
+ <objectgroup id="45" name="salida">
+  <object id="35" name="salida" x="588" y="836" width="104" height="52"/>
+ </objectgroup>
+ <objectgroup id="46" name="aparicion">
+  <object id="36" name="aparicion" x="640" y="704"><point/></object>
+ </objectgroup>
+ <objectgroup id="47" name="luces">
+  <object id="37" name="ventana" x="456" y="256" width="152" height="300"/>
+  <object id="38" name="ventana" x="904" y="256" width="152" height="300"/>
+  <object id="39" name="vela" x="328" y="264"><point/><properties><property name="radio" type="int" value="108"/></properties></object>
+  <object id="40" name="fuego" x="632" y="288"><point/><properties><property name="radio" type="int" value="240"/></properties></object>
+  <object id="41" name="vela" x="438" y="154"><point/><properties><property name="radio" type="int" value="108"/></properties></object>
+  <object id="42" name="vela" x="822" y="154"><point/><properties><property name="radio" type="int" value="108"/></properties></object>
+ </objectgroup>
+</map>

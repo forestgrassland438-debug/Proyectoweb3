@@ -422,7 +422,8 @@ showNotification(message, type = 'info') {
         this.textures.remove('tiles');
       }
 
-      this.load.image('tiles', './Game/MAPAS/tiles2.png');
+      // Con versión: el tileset se regenera (tools/mejorar-tiles-escenas.py).
+      this.load.image('tiles', './Game/MAPAS/tiles2.png?v=20261004');
       this.load.image('tiles1', './Game/MAPAS/Tileset_Road.png');
       this.load.tilemapTiledJSON('tilemapx', './Maps/tienda_nueva.json');
   
@@ -722,6 +723,12 @@ this.errorReporter = new PhaserErrorReporter(
       this.map = this.make.tilemap({ key: 'tilemapx' });
       const tileset = this.map.addTilesetImage('Patron_tienda', 'tiles', 16, 16);
       this.backgroundLayer = this.map.createLayer('mapa_tiendax', tileset, 0, 0);
+      /* EL SUELO PINTADO (gf-suelo.js, 2026-10-05): la tienda en trozos con
+         su pase de detalle (sombra de las paredes, yeso, tono de la madera:
+         tools/detallar-escena.py tienda). Al llegar, se esconde la capa. */
+      if (window.GFSuelo && this.backgroundLayer) {
+        window.GFSuelo.montar(this, { carpeta: 'recortadas_tienda', prefijo: 'tienda', capas: [this.backgroundLayer] });
+      }
       this.textures.get('tiles').setFilter(Phaser.Textures.FilterMode.NEAREST);
 
 
@@ -2119,6 +2126,7 @@ this.anims.create({
     if (window.GFAmigos)      window.GFAmigos.montar(this);
     if (window.GFChatSocial)  window.GFChatSocial.montar(this);
     if (window.GFNombreColor) window.GFNombreColor.montar(this);
+    if (window.GFEspada)      window.GFEspada.montar(this);   // botón de la espada y ESPACIO
     /* El botón redondo de Lands. Esta escena NO hereda de GameScene, así que
        no tiene `_bindDomClick`; gf-lands.js lo detecta y cae a `.onclick`, que
        también pisa el manejador anterior en vez de acumularlo. Con esta línea
@@ -2168,6 +2176,8 @@ this.anims.create({
         // la rellenaba nunca desde aquí. Es el mismo fallo que ya tuvieron
         // las habilidades. Ahora la tienda usa el MISMO camino que GameScene.
         if (window.GFSoulbound) window.GFSoulbound.montarPanel(this);
+        // "My NFTs": la colección de admin.html, leída de la cartera.
+        if (window.GFNft) { window.GFNft.cablear(this); window.GFNft.montarPanel(this); }
 
         // Setup close button
         // En CADA apertura (sin la marca `_wired`): el mapa también pone su
@@ -2369,6 +2379,37 @@ this.anims.create({
           pocion_mascota:        { src: "./Game/Objetos/pociones/pocion_mascota.png",        maxStack: 20, tipo: "pocion_mascota",        usos: null },
           pocion_mascota_grande: { src: "./Game/Objetos/pociones/pocion_mascota_grande.png", maxStack: 10, tipo: "pocion_mascota_grande", usos: null },
           elixir_revivir:        { src: "./Game/Objetos/pociones/elixir_revivir.png",        maxStack: 5,  tipo: "elixir_revivir",        usos: null },
+
+          // CONSTRUCCIÓN (2026-10-03). La parcela que se compra en la tienda
+          // (apartado Construction) y se coloca en la isla. 20 por casilla:
+          // es el perInvoiceLimit de su tabla `parcelas`, así una casilla es
+          // siempre UNA factura. Iconos: tools/generar-parcela.py.
+          parcela:               { src: "./Game/Objetos/construccion/parcela.png",           maxStack: 20, tipo: "parcelas",              usos: null },
+          // La pala de construcción (2026-10-04): con ella se recoge lo que se
+          // construyó en la isla. Herramienta que no se gasta; una por casilla
+          // (perInvoiceLimit 1 de su tabla `pala_contrucion`).
+          pala_construccion:     { src: "./Game/Objetos/construccion/pala_construccion.png", maxStack: 1,  tipo: "pala_contrucion",       usos: null },
+          // EL BOTE DE BASURA Y LOS COFRES DE LA ISLA (2026-10-05). Se colocan en
+          // Lands como la parcela. Tablas `basura` y `cofre1..4`; el cofre1 se
+          // compra, los otros tres solo se craftean. Arte: tools/generar-cofres.py.
+          basura:  { src: "./Game/Objetos/cofres/basura.png", maxStack: 10, tipo: "basura", usos: null },
+          cofre1:  { src: "./Game/Objetos/cofres/cofre1.png", maxStack: 5,  tipo: "cofre1", usos: null },
+          cofre2:  { src: "./Game/Objetos/cofres/cofre2.png", maxStack: 5,  tipo: "cofre2", usos: null },
+          cofre3:  { src: "./Game/Objetos/cofres/cofre3.png", maxStack: 5,  tipo: "cofre3", usos: null },
+          cofre4:  { src: "./Game/Objetos/cofres/cofre4.png", maxStack: 5,  tipo: "cofre4", usos: null },
+          // EQUIPO, GRANJA Y PESCA (2026-10-05). Arte de Game/newpro.
+          // Las espadas viven en las tablas `madera`, `cobre` y `hierro`; la
+          // caña en `caña_pescar` y el espantapájaros en `espantapajaros`.
+          // Los peces (`pes1..3`) SOLO los acuña el servidor al pescar (ver
+          // TABLAS_SOLO_ACUNA_SERVIDOR en server2.js): se comen o se venden.
+          espada_madera:  { src: "./Game/Objetos/armas/espada_madera.png",     maxStack: 1,  tipo: "madera",         usos: null, arma: { dano: 12, alcance: 46 } },
+          espada_cobre:   { src: "./Game/Objetos/armas/espada_cobre.png",      maxStack: 1,  tipo: "cobre",          usos: null, arma: { dano: 20, alcance: 50 } },
+          espada_hierro:  { src: "./Game/Objetos/armas/espada_hierro.png",     maxStack: 1,  tipo: "hierro",         usos: null, arma: { dano: 32, alcance: 54 } },
+          cana_pescar:    { src: "./Game/Objetos/pesca/cana_pescar.png",       maxStack: 1,  tipo: "caña_pescar",    usos: null },
+          espantapajaros: { src: "./Game/Objetos/granja/espantapajaros.png",   maxStack: 10, tipo: "espantapajaros", usos: null },
+          pes1:           { src: "./Game/Objetos/pesca/pes1.png",              maxStack: 20, tipo: "pes1",           usos: null },
+          pes2:           { src: "./Game/Objetos/pesca/pes2.png",              maxStack: 20, tipo: "pes2",           usos: null },
+          pes3:           { src: "./Game/Objetos/pesca/pes3.png",              maxStack: 20, tipo: "pes3",           usos: null },
 
           fresa_corta: { src: "./Game/Objetos/Plantas/planta_fresa/item_planta.png", maxStack: 20 , tipo: "fresa_corta", usos: null},
           fresa_mala: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_podrida.png", maxStack: 20 , tipo: "fresa_mala", usos: null},
@@ -3625,20 +3666,17 @@ handleMouseMovement(delta) {
         // hasta recargar la página.
         {
           event: 'petLevelUpdate',
-          handler: ({ petLevel, expTotal }) => {
-            // La arena da EXP: si quien llega aquí se fue de la partida antes
-            // de acabar, su exp local va por detrás de la del servidor.
-            const total = Number(expTotal);
+          handler: (d) => {
+            const datos = d || {};
+            // La arena da EXP al personaje: si quien llega aquí se fue de la
+            // partida antes de acabar, su exp local va por detrás.
+            const total = Number(datos.expTotal);
             if (Number.isFinite(total) && total > (Number(this.nivel_exp) || 0)) {
               this.nivel_exp = total;
               this._nivelDesdeExp();
-              return;
             }
-            const n = Math.max(1, Number(petLevel) || 1);
-            window.globalPetLevel = n;
-            if (this.petLevel === n) return;
-            this.petLevel = n;
-            if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
+            // Y la mascota, su nivel y su barra (ver _aplicarNivelMascota).
+            this._aplicarNivelMascota(datos);
           }
         }
       ];
@@ -10064,6 +10102,11 @@ async loadPlayerData() {
     }
     window.globalPetLevel = this.petLevel;
     if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
+    // Y la barra de experiencia de la mascota (nivel propio desde 2026-10-03).
+    this._aplicarNivelMascota({
+      petLevel: this.petLevel, petExp: data.petExp,
+      petExpBase: data.petExpBase, petExpSiguiente: data.petExpSiguiente
+    });
     // Lock del panel de nombre (window._acttov) según la regla de nombre único
     window._acttov = (typeof this.Username === 'string' && this.Username.trim() !== '' && this.Username !== '---') ? 1 : 0;
 
@@ -10080,6 +10123,16 @@ async loadPlayerData() {
       if (data.vidaPorcentaje   > 0) this.vidaPorcentaje   = data.vidaPorcentaje;
       if (data.aguaPorcentaje   > 0) this.aguaPorcentaje   = data.aguaPorcentaje;
       if (data.comidaPorcentaje > 0) this.comidaPorcentaje = data.comidaPorcentaje;
+    }
+
+    /* EL TELETRANSPORTE DEL PANEL DE AMIGOS (GFViaje, en gf-lands.js): si se
+       viene a ponerse al lado de alguien, manda su punto sobre el guardado. */
+    {
+      const _viaje = window.GFViaje ? window.GFViaje.tomar(2) : null;
+      if (_viaje && Number.isFinite(_viaje.x) && Number.isFinite(_viaje.y)) {
+        this.posicionplayerx = _viaje.x;
+        this.posicionplayery = _viaje.y;
+      }
     }
 
     // Posicionar al jugador si existe
@@ -10336,19 +10389,13 @@ _nivelDesdeExp() {
   if (this.nivel_exp !== exp) this.nivel_exp = exp;
   const objetivo = this._nivelPorExp(exp);
   const actual = Number(this.nivel);
-  if (actual === objetivo && Number(this.petLevel) === Math.max(1, objetivo)) return;
+  if (actual === objetivo) return;
 
   const subio = Number.isFinite(actual) && objetivo > actual;
   this.nivel = objetivo;
   if (subio) this.playSFX('level_up_sound');
   this.actualizarBarraVida(this.vidaPorcentaje);
-
-  const pet = Math.max(1, objetivo);
-  if (Number(this.petLevel) !== pet) {
-    this.petLevel = pet;
-    window.globalPetLevel = pet;
-    if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
-  }
+  // El perro ya no copia este nivel: tiene el suyo (ver _aplicarNivelMascota).
 }
 
 /**
@@ -12170,7 +12217,10 @@ CONSUMABLES_FOOD = {
   zanahoria_buena: 2, tomate_buena: 5, trigo_buena: 5, calabaza_buena: 5,
   fresa_buena: 5,
   zanahoria_mala: 1, tomate_mala: 2, trigo_mala: 2, calabaza_mala: 2,
-  fresa_mala: 2
+  fresa_mala: 2,
+  // Los peces del río (2026-10-05): se pescan y se comen; cuanto más raro,
+  // más alimenta.
+  pes1: 6, pes2: 10, pes3: 18
 };
 CONSUMABLES_WATER = { balde_con_agua: 20 };
 
@@ -13516,6 +13566,34 @@ if (this.dogNameText) {
     this.dogNameText.setText(this._dogLabelText(this.petName, this.petLevel));
     const dogVisible = !!(this.dog && this.dog.sprite && this.dog.sprite.visible);
     this.dogNameText.setVisible(dogVisible);
+  }
+
+  // COPIA de GameScene._aplicarNivelMascota (allí está la explicación).
+  _aplicarNivelMascota(d) {
+    if (!d) return;
+    const n = Number(d.petLevel);
+    if (Number.isFinite(n) && n >= 1) {
+      const antes = Number(this.petLevel) || 1;
+      this.petLevel = n;
+      window.globalPetLevel = n;
+      if (n !== antes && typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
+      if (n > antes && d.petExpGanada !== undefined) {
+        const quien = (this.petName && this.petName !== '---') ? this.petName : 'Your pet';
+        try { this.playSFX && this.playSFX('level_up_sound'); } catch (_) {}
+        try {
+          if (this.notifications && typeof this.notifications.show === 'function') {
+            this.notifications.show(`🐾 ${quien} reached level ${n}!`, 'success');
+          }
+        } catch (_) {}
+      }
+    }
+    if (d.petExp !== undefined && d.petExp !== null && Number.isFinite(Number(d.petExp))) {
+      this.petExp = Number(d.petExp);
+      this.petExpBase = Number(d.petExpBase) || 0;
+      this.petExpSiguiente = Number(d.petExpSiguiente) || this.petExp;
+      window.globalPetExp = { petExp: this.petExp, petExpBase: this.petExpBase, petExpSiguiente: this.petExpSiguiente };
+    }
+    try { if (window.GFMascota && window.GFMascota.repintar) window.GFMascota.repintar(); } catch (_) {}
   }
 
   _syncMonedas() {
