@@ -367,9 +367,47 @@ POSE = [
     (4.0,   3.4,  -145,   20,   4.0),     # 2 armar
     (5.2,   4.2,   -28,   20,   3.5),     # 3 lanzar
     (5.6,   5.8,     2,   21,   3.5),     # 4 soltar
-    (4.6,   5.6,   -46,   20,   4.0),     # 5 esperar
-    (4.6,   5.6,   -43,   20,   4.0),     # 6 esperar (rebote del corcho)
+    # La espera, con las manos A LA CINTURA (2026-10-05): con el puno a la
+    # altura del pecho los dos antebrazos quedaban cruzados por encima de la
+    # cana, "los brazos estan arriba de ella".
+    (5.2,   9.0,   -40,   20,   4.0),     # 5 esperar
+    (5.2,   9.0,   -37,   20,   4.0),     # 6 esperar (la punta cabecea)
 ]
+
+# DE FRENTE Y DE ESPALDAS (2026-10-05). "La forma de pescar hacia abajo se ve
+# como si pescara de lado, y la de arriba, tomando la caña con las manos en la
+# espalda." Las cuatro direcciones usaban la pose de PERFIL: de frente la caña
+# salía de lado, y de espaldas los brazos se doblaban hasta un puño pintado
+# ENCIMA de la espalda.
+#
+# DE FRENTE (abajo) la caña apunta al que mira: se ve en escorzo, corta, y
+# hacia ABAJO (un poco a la derecha para que se lea). Las manos, juntas a la
+# altura de la cintura. Al armar pasa por detrás de la cabeza (DETRAS).
+POSE_FRENTE = [
+    # pu_x  pu_y   ang  largo  manos
+    (2.0,   5.0,   -70,   19,   4.0),     # 1 preparado: arriba, a un lado de la cara
+    (-1.0,  3.0,  -126,   21,   4.0),     # 2 armar: hacia atrás, asomando tras la cabeza
+    (2.5,   6.0,   -34,   15,   3.5),     # 3 lanzar: viene hacia delante
+    (2.5,   8.0,    62,   14,   3.5),     # 4 soltar: hacia el agua, en escorzo
+    (2.5,   9.0,    58,   14,   4.0),     # 5 esperar
+    (2.5,   9.0,    61,   14,   4.0),     # 6 esperar (la punta cabecea)
+]
+# DE ESPALDAS (arriba) la caña está DELANTE del personaje, o sea más lejos de
+# quien mira: va DETRÁS del cuerpo en el dibujo y asoma por encima del hombro,
+# hacia el agua. Las manos no se ven (están delante del pecho): se quitan los
+# antebrazos y queda la parte de arriba del brazo.
+POSE_ESPALDA = [
+    # (la cabeza tapa casi todo lo vertical: la caña va siempre a un lado)
+    (4.0,   6.0,   -64,   24,   0.0),     # 1 preparado
+    (-4.0,  4.0,  -118,   24,   0.0),     # 2 armar: inclinada hacia atrás, al otro lado
+    (4.5,   6.0,   -70,   24,   0.0),     # 3 lanzar
+    (5.0,   7.0,   -60,   24,   0.0),     # 4 soltar: hacia el agua
+    (5.0,   8.0,   -56,   24,   0.0),     # 5 esperar
+    (5.0,   8.0,   -54,   24,   0.0),     # 6 esperar
+]
+POSES = {'derecha': POSE, 'abajo': POSE_FRENTE, 'arriba': POSE_ESPALDA}
+# Fotogramas con la caña DETRÁS del cuerpo (del dibujo).
+DETRAS = {'abajo': {1}, 'arriba': {0, 1, 2, 3, 4, 5}}
 
 
 def tira_de_brazo(li, m):
@@ -574,11 +612,84 @@ def aclara(c, d=0.13):
     return A.de_hsv(h, sa * 0.94, min(1.0, v + d))
 
 
-def dibuja(li_base, ana, direccion, frame, rampa_manga, rampa_piel):
-    """Un fotograma de pesca."""
+def _cana(W, H, puno, ex, ey, largo, sep_manos, talon_ref=None):
+    """La caña: madera con el puño forrado. Devuelve (capa, punta)."""
+    talon_ref = talon_ref or puno
+    talon = (talon_ref[0] - ex * 2.2, talon_ref[1] - ey * 2.2)
+    lg = float(largo)
+    while lg > 9 and not (1 <= puno[0] + ex * lg < W - 1 and 1 <= puno[1] + ey * lg < H - 1):
+        lg -= 1
+    punta = (puno[0] + ex * lg, puno[1] + ey * lg)
+    capa = Lienzo(W, H)
+    m_cana = Mascara(W, H)
+    _linea_gruesa(m_cana, talon[0], talon[1], punta[0], punta[1], 2.4, 1.0)
+    m_forro = Mascara(W, H)
+    _linea_gruesa(m_forro, talon[0], talon[1],
+                  talon[0] + ex * (sep_manos + 2), talon[1] + ey * (sep_manos + 2), 2.6, 2.2)
+    for x, y in m_cana.borde(True).puntos():
+        capa.set(x, y, (0, 0, 0))
+    caja = m_cana.caja()
+    for x, y in m_cana.puntos():
+        t = (x - caja[0]) / float(max(1, caja[2] - caja[0]))
+        capa.set(x, y, MADERA[min(4, 1 + int(t * 2.4))])
+    for x, y in m_forro.puntos():
+        capa.set(x, y, PUNO[1] if (x + y) % 2 else PUNO[2])
+    return capa, punta
+
+
+def _dibuja_espalda(li_base, ana, direccion, frame):
+    """
+    De espaldas: el cuerpo tal cual SIN los antebrazos (las manos están
+    delante del pecho, tapadas) y la caña DETRÁS, asomando por encima del
+    hombro hacia el agua.
+    """
     W = ana['w'] + MARGEN_X * 2
     H = ana['h'] + MARGEN_Y * 2
-    pu_x, pu_y, ang_g, largo, sep_manos = POSE[frame]
+    pu_x, pu_y, ang_g, largo, sep_manos = POSE_ESPALDA[frame]
+    cx = (ana['tx0'] + ana['tx1']) / 2.0 + MARGEN_X
+    yh = ana['y_sep'] + MARGEN_Y
+    quita = Mascara(ana['w'], ana['h'])
+    for m in ana['brazos']:
+        caja = m.caja()
+        if not caja:
+            continue
+        x0, y0, x1, y1 = caja
+        corte = y0 + max(HOMBRO_FIJO + 2, int((y1 - y0 + 1) * 0.55))
+        for x, y in m.puntos():
+            if y >= corte:
+                quita.set(x, y)
+    cuerpo = Lienzo(W, H)
+    for y in range(ana['h']):
+        for x in range(ana['w']):
+            c = li_base.get(x, y)
+            if c[3] and not quita.get(x, y):
+                cuerpo.set(x + MARGEN_X, y + MARGEN_Y, c)
+    # El extremo del brazo cortado, con su contorno.
+    for x, y in quita.puntos():
+        arriba = li_base.get(x, y - 1) if y > 0 else (0, 0, 0, 0)
+        if not quita.get(x, y - 1) and arriba[3] and arriba[:3] != (0, 0, 0):
+            cuerpo.set(x + MARGEN_X, y + MARGEN_Y, NEG)
+    ang = math.radians(ang_g)
+    ex, ey = math.cos(ang), math.sin(ang)
+    puno = (cx + pu_x, yh + pu_y)
+    capa_cana, punta = _cana(W, H, puno, ex, ey, largo, 3.0)
+    li = Lienzo(W, H)
+    li.pegar(capa_cana)
+    li.pegar(cuerpo)
+    _limpia_contorno(li)
+    PUNTAS[direccion].append([round(punta[0] - W / 2.0, 1), round(punta[1] - H / 2.0, 1)])
+    return li
+
+
+def dibuja(li_base, ana, direccion, frame, rampa_manga, rampa_piel):
+    """Un fotograma de pesca."""
+    if direccion == 'arriba':
+        return _dibuja_espalda(li_base, ana, direccion, frame)
+    W = ana['w'] + MARGEN_X * 2
+    H = ana['h'] + MARGEN_Y * 2
+    fuente = 'derecha' if direccion == 'izquierda' else direccion
+    pu_x, pu_y, ang_g, largo, sep_manos = POSES.get(fuente, POSE)[frame]
+    detras = frame in DETRAS.get(fuente, ())
     espejo = direccion == 'izquierda'
 
     cx_cuerpo = (ana['tx0'] + ana['tx1']) / 2.0 + MARGEN_X
@@ -633,47 +744,60 @@ def dibuja(li_base, ana, direccion, frame, rampa_manga, rampa_piel):
             mano_atras = acerca(atras['junta'], puno, alcance_de(atras['tira']))
 
     # --- la cana --------------------------------------------------------------
-    talon_ref = mano_atras or puno
-    talon = (talon_ref[0] - ex * 2.2, talon_ref[1] - ey * 2.2)
-    lg = float(largo)
-    while lg > 9 and not (1 <= puno[0] + ex * lg < W - 1 and 1 <= puno[1] + ey * lg < H - 1):
-        lg -= 1
-    punta = (puno[0] + ex * lg, puno[1] + ey * lg)
+    capa_cana, punta = _cana(W, H, puno, ex, ey, largo, sep_manos, mano_atras or puno)
+    # SIN SEDAL NI CORCHO PINTADOS (2026-10-05). El juego (gf-pesca.js) tira
+    # el sedal desde la punta hasta el corcho del agua; con los dos, salian
+    # dos sedales y dos corchos. La punta se apunta en pesca_anim.json.
 
-    capa_cana = Lienzo(W, H)
-    m_cana = Mascara(W, H)
-    _linea_gruesa(m_cana, talon[0], talon[1], punta[0], punta[1], 2.4, 1.0)
-    m_forro = Mascara(W, H)
-    _linea_gruesa(m_forro, talon[0], talon[1],
-                  talon[0] + ex * (sep_manos + 2), talon[1] + ey * (sep_manos + 2), 2.6, 2.2)
-    for x, y in m_cana.borde(True).puntos():
-        capa_cana.set(x, y, (0, 0, 0))
-    caja = m_cana.caja()
-    for x, y in m_cana.puntos():
-        t = (x - caja[0]) / float(max(1, caja[2] - caja[0]))
-        capa_cana.set(x, y, MADERA[min(4, 1 + int(t * 2.4))])
-    for x, y in m_forro.puntos():
-        capa_cana.set(x, y, PUNO[1] if (x + y) % 2 else PUNO[2])
-    _sedal(capa_cana, punta, frame, W, H, 1)
-
-    # --- montaje: cuerpo, cana, brazos ---------------------------------------
+    # --- montaje: cuerpo, mangas, cana, MANOS ---------------------------------
+    # La cana va ENCIMA de las mangas y DEBAJO de las manos: asi las manos la
+    # agarran. Antes iba debajo de todo el brazo y la manga la tapaba.
     li = Lienzo(W, H)
+    # Con la caña por DETRÁS (de frente, al armar: pasa tras la cabeza), va
+    # la primera; las mangas y las manos, encima.
+    if detras:
+        li.pegar(capa_cana)
     li.pegar(cuerpo)
-    li.pegar(capa_cana)
     fijos = Mascara(W, H)
     for p in piezas:
         for x, y in p['fijo'].puntos():
             fijos.set(x + MARGEN_X, y + MARGEN_Y)
+    brazos = []
     for p in piezas:
         objetivo = puno if p['delante'] else (mano_atras or puno)
         manga, mano = articula(p['tira'], p['junta'], objetivo, cx_cuerpo,
                                p['manos'])
-        _pega_brazo(li, manga, mano, fijos, rampa_manga, p['delante'])
+        brazos.append((manga, mano, p['delante']))
+        _pega_brazo(li, manga, [], fijos, rampa_manga, p['delante'])
+    if not detras:
+        li.pegar(capa_cana)
+    for manga, mano, delante in brazos:
+        _pega_mano(li, mano)
 
     _limpia_contorno(li)
     if espejo:
         li = li.espejo_h()
+    pt = (W - 1 - punta[0], punta[1]) if espejo else punta
+    PUNTAS[direccion].append([round(pt[0] - W / 2.0, 1), round(pt[1] - H / 2.0, 1)])
     return li
+
+
+PUNTAS = {d: [] for d in ['abajo', 'arriba', 'derecha', 'izquierda']}
+
+
+def _pega_mano(li, mano):
+    """La mano encima de la cana, con su contorno: es lo que la agarra."""
+    if not mano:
+        return
+    m = Mascara(li.w, li.h)
+    for x, y, _ in mano:
+        m.set(x, y)
+    for x, y in m.borde(True).puntos():
+        if not m.get(x, y):
+            li.set(x, y, (0, 0, 0))
+    for x, y, c in mano:
+        if c[3]:
+            li.set(x, y, c)
 
 
 def _cuerpo_sin(li_base, movil, W, H):
@@ -823,8 +947,10 @@ def main():
     hoja = '--hoja' in sys.argv
     cat = []
     muestras = []
+    puntas_de = {}
     for ident, carpeta, base in personajes():
         n = 0
+        for k in PUNTAS: PUNTAS[k] = []
         for d in DIRS:
             # izquierda es el espejo exacto de derecha en los dos cuerpos base
             # (comprobado pixel a pixel), asi que se dibuja una vez
@@ -839,7 +965,8 @@ def main():
                 n += 1
                 if f in (0, 3, 4) and d in ('abajo', 'derecha'):
                     muestras.append(ruta)
-        cat.append({'id': ident, 'cuerpo_base': base, 'fotogramas': n,
+        puntas_de[ident] = {k: list(v) for k, v in PUNTAS.items()}
+        cat.append({'id': ident, 'cuerpo_base': base, 'fotogramas': n, 'puntas': puntas_de[ident],
                     'tam': [Lienzo.desde(os.path.join(DESTINO, ident, 'abajo',
                                                       'pescar_1.png')).w,
                             Lienzo.desde(os.path.join(DESTINO, ident, 'abajo',
@@ -852,7 +979,7 @@ def main():
             'pack': 'newpro/pesca_anim', 'version': 2, 'base_web': WEB,
             'descripcion': 'Animacion de lanzar la cana, 6 fotogramas x 4 direcciones.',
             'fotogramas': [{'n': i + 1, 'nombre': NOMBRES[i],
-                            'angulo_cana': POSE[i][2]} for i in range(6)],
+                            'angulo_cana': {d: POSES[d][i][2] for d in POSES}} for i in range(6)],
             'bucle': {'lanzamiento': [1, 2, 3, 4], 'espera': [5, 6]},
             'brazo': {'hombro_fijo': HOMBRO_FIJO,
                       'nota': ('el hombro no se mueve y el codo se resuelve para '

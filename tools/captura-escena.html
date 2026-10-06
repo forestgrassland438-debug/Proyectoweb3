@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<title>Captura de escena</title>
+<style>html,body{margin:0;background:#111;color:#ddd;font:14px sans-serif}#estado{position:fixed;top:8px;left:8px}</style>
+</head>
+<body>
+<div id="estado">Cargando el mapa…</div>
+<script src="../vendor/phaser.min.js?v=e92ddef111ba"></script>
+<script>
+/* LA CAPTURA DEL SUELO DE LA ISLA, LA TIENDA Y LA MINA        (2026-10-05)
+
+   Lo mismo que tools/captura-mapa.html hace con el mapa del pueblo, para las
+   otras tres escenas: sus capas de casillas se dibujan con Phaser —el mismo
+   motor y las mismas reglas que en el juego, incluidos los tiles de 32 px de
+   la mina sobre su rejilla de 16— en una RenderTexture del tamaño del mapa,
+   y se descarga como `mapa_exportado.png`.
+
+     captura-escena.html?escena=lands    Maps/mapa_lands.json   capa Terrain
+     captura-escena.html?escena=tienda   Maps/tienda_nueva.json capa mapa_tiendax
+     captura-escena.html?escena=mina     Maps/mina.json         mina + bordes
+                                         (SIN los líquidos) + sombras + objetos
+
+   LA LAVA Y EL AGUA DE LA MINA NO ENTRAN: se animan cambiando la imagen de
+   su tileset (MinaScene._animarLiquidos), así que siguen siendo una capa de
+   casillas viva encima de la captura. Aquí ni se cargan sus tilesets, y
+   Phaser no dibuja una casilla cuyo tileset no tiene.
+
+   Lo lanza tools/captura-mapa.mjs con URL_CAPTURA apuntando aquí; luego
+   tools/detallar-escena.py y tools/trocear-escena.py. */
+const ESCENAS = {
+  lands: {
+    mapa: '../Maps/mapa_lands.json',
+    tilesets: [['isla_32', 'tiles_isla', '../Game/MAPAS/isla_32.png', 32]],
+    capas: [['Terrain', ['isla_32']]]
+  },
+  tienda: {
+    mapa: '../Maps/tienda_nueva.json',
+    tilesets: [['Patron_tienda', 'tiles', '../Game/MAPAS/tiles2.png', 16]],
+    capas: [['mapa_tiendax', ['Patron_tienda']]]
+  },
+  mina: {
+    mapa: '../Maps/mina.json',
+    tilesets: [['tileset_mina', 'tiles_mina', '../Game/MAPAS/Mina/tileset_mina.png', 32]],
+    capas: [['mina', ['tileset_mina']], ['mina_bordes', ['tileset_mina']],
+            ['mina_sombras', ['tileset_mina']], ['mina_objetos', ['tileset_mina']]]
+  }
+};
+const nombre = new URLSearchParams(location.search).get('escena') || 'lands';
+const cfg = ESCENAS[nombre];
+
+class CapturaEscena extends Phaser.Scene {
+  constructor() { super({ key: 'CapturaEscena' }); }
+
+  preload() {
+    const v = '?v=' + Date.now();
+    cfg.tilesets.forEach(t => this.load.image(t[1], t[2] + v));
+    this.load.tilemapTiledJSON('mapa', cfg.mapa + v);
+  }
+
+  create() {
+    const map = this.make.tilemap({ key: 'mapa' });
+    const ts = {};
+    cfg.tilesets.forEach(t => {
+      this.textures.get(t[1]).setFilter(Phaser.Textures.FilterMode.NEAREST);
+      ts[t[0]] = map.addTilesetImage(t[0], t[1], t[3], t[3]);
+    });
+    const rt = this.add.renderTexture(0, 0, map.widthInPixels, map.heightInPixels);
+    cfg.capas.forEach(c => {
+      const capa = map.createLayer(c[0], c[1].map(n => ts[n]).filter(Boolean), 0, 0);
+      if (capa) { rt.draw(capa); capa.setVisible(false); }
+    });
+    this.time.delayedCall(150, () => {
+      rt.snapshot(async (image) => {
+        /* Por Blob y no por la data: URL. La de la mina (5008 x 5008 con
+           todo el detalle) pasa de diez megas en base64 y Edge cancelaba
+           la descarga a medias. */
+        const blob = await (await fetch(image.src)).blob();
+        /* Y ni siquiera así: Edge sin ventana cancela las descargas grandes.
+           Se deja el PNG en base64 en la página y tools/captura-mapa.mjs lo
+           lee a trozos por el protocolo de depuración (b64: true). */
+        window.__capturaB64 = image.src.slice(image.src.indexOf(',') + 1);
+        window.__capturaHecha = { escena: nombre, ancho: image.width, alto: image.height, bytes: blob.size, b64: true };
+        document.getElementById('estado').textContent = nombre + ': ' + image.width + ' x ' + image.height;
+      });
+    });
+  }
+}
+
+window.addEventListener('load', () => {
+  if (!cfg) { document.getElementById('estado').textContent = 'escena desconocida: ' + nombre; return; }
+  new Phaser.Game({
+    type: Phaser.WEBGL, width: 64, height: 64,
+    backgroundColor: '#000000', pixelArt: true, transparent: true,
+    scene: [CapturaEscena]
+  });
+});
+</script>
+</body>
+</html>

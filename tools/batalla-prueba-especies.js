@@ -74,6 +74,8 @@ function hacerEscena({ tardanza = 40, quePngFalten = [] } = {}) {
     _especiesPendientes: new Map(),
     _battleRun: 1,
     _cleaned: false,
+    _faltan: new Set(),
+    _relojes: new Set(),
     cargados: [],
     arranques: 0,
     textures: {
@@ -121,7 +123,7 @@ if (typeof global.window === 'undefined') global.window = global;
 
 // Se montan los metodos reales sobre la escena de mentira.
 // Los metodos de clase se pegan como miembros de un objeto: hacen falta comas.
-const cuerpo = ['_rutasEspecie', 'cargarEspecie', '_framesDe'].map(metodo).join(',\n\n');
+const cuerpo = ['_rutasEspecie', 'cargarEspecie', '_fotogramas', '_reloj'].map(metodo).join(',\n\n');
 const Fabrica = new Function('BattleScene', 'return { ' + cuerpo.replace(/^\s*/, '') + ' };');
 const metodos = Fabrica({ ESPECIES });
 
@@ -141,7 +143,7 @@ console.log('=== LOS DOS LUCHADORES SE TIENEN QUE VER ===\n');
   ok(rb === true, 'y la SEGUNDA tambien (era la que se perdia)',
      'resultado: ' + rb);
 
-  const framesConejo = e._framesDe('conejo', 'quieto');
+  const framesConejo = e._fotogramas('conejo', 'quieto', 1);
   ok(framesConejo.length > 0, 'el conejo tiene fotogramas para dibujarse',
      framesConejo.length + ' fotogramas');
 
@@ -157,11 +159,13 @@ console.log('=== LOS DOS LUCHADORES SE TIENEN QUE VER ===\n');
 
   // ── 3. vestirLuchador nunca esconde al luchador ───────────────────────
   console.log('\n3) Un luchador sin textura no se esconde');
-  const vestir = metodo('vestirLuchador');
-  ok(!/L\.spr\.setVisible\(false\)/.test(vestir),
-     'ya no hay ningun setVisible(false) en vestirLuchador');
-  ok(/bfp_perro_quieto_1/.test(vestir),
+  const vestir = metodo('_vestir');
+  ok(!/setVisible\(false\)/.test(vestir),
+     'ya no hay ningun setVisible(false) al vestir a un luchador');
+  ok(/_fotogramas\('perro'/.test(vestir),
      'usa como respaldo el perro que carga la propia BattleScene');
+  ok(/bz_bloque/.test(vestir),
+     'y si ni el perro ha cargado, un bloque de color: nunca un hueco');
 
   console.log('\n' + '='.repeat(60));
   console.log('Pasan: ' + pasadas + '   Fallan: ' + fallos);

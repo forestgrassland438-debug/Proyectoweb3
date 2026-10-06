@@ -205,7 +205,9 @@ const EXCEPCIONES = {
   'Scenes/LoadingScenegame.js#create':
     'intervalId lo para _pararRelojes al apagar la escena (turno/vigente)',
   'Scenes/LoadingScenegame.js#setupActivityTracking':
-    '_actividadTimer y los oyentes de window los suelta _pararSeguimientoActividad en shutdown/destroy'
+    '_actividadTimer y los oyentes de window los suelta _pararSeguimientoActividad en shutdown/destroy',
+  'Scenes/LandsScene.js#_crearObjetoDeIsla':
+    'los oyentes van EN el sprite del cofre o del bote, que se destruye con _destruirVisualConstruccion y con la escena'
 };
 function exceptuado(fichero, F) {
   const clave = fichero.split(path.sep).join('/') + '#' + nombreFuncion(F);

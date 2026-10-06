@@ -78,7 +78,8 @@ function montar(opciones) {
     }
   };
   s.sys = { isActive: () => activa.clave === 'BattleScene' };
-  s.el = { status: { textContent: '' } };
+  s.el = { busqTitulo: { textContent: '' }, busqTexto: { textContent: '' },
+           busqueda: { classList: { add() {}, remove() {} } } };
   s.ui = { classList: { add() {}, remove() {} } };
   s.limpiar = () => {
     registro.limpiado = (registro.limpiado || 0) + 1;
@@ -156,21 +157,23 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
     const { s, registro } = montar({ volverA: 'Nada', escenas: ['BattleScene'] });
     s.volverAlMapa();
     ok(registro.start.length === 0, 'sin ninguna escena de destino no se pide un cambio imposible');
-    ok(/Could not return to the map/.test(s.el.status.textContent),
-       'se le DICE al jugador que recargue, en ingles', JSON.stringify(s.el.status.textContent));
+    ok(/Could not return to the map/.test(s.el.busqTitulo.textContent) && /Reload/.test(s.el.busqTexto.textContent),
+       'se le DICE al jugador que recargue, en ingles', JSON.stringify(s.el.busqTitulo.textContent));
     ok(s._volviendo === false, 'y el boton queda libre para volver a intentarlo');
   }
 
-  // 7) Rendirse fuera de combate sale directo; en combate avisa al servidor
-  //    pero NO se queda esperando para siempre.
+  // 7) Rendirse: avisa al servidor y sale AL MOMENTO, sin esperar respuesta.
+  //    En la arena el servidor ya da por caído a quien se va (y guarda su
+  //    resultado él solo), así que no hay nada que esperar — y esperar era
+  //    justo lo que dejaba encerrado a la gente cuando la respuesta no llegaba.
   {
-    const { s, registro, activa } = montar({});
+    const { s, activa } = montar({});
     const enviados = [];
     s.socket = { connected: true, emit: (ev) => enviados.push(ev) };
     s.estado = 'fin';
     s.rendirse();
     ok(activa.clave === 'LoadingScenegame', 'rendirse con la partida acabada sale al momento');
-    ok(enviados.indexOf('battle:forfeit') >= 0, 'y avisa al servidor por si el candado seguia puesto');
+    ok(enviados.indexOf('brawl:salir') >= 0, 'y avisa al servidor por si el candado seguia puesto');
   }
   {
     const { s, activa } = montar({});
@@ -178,11 +181,18 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
     s.socket = { connected: true, emit: (ev) => enviados.push(ev) };
     s.estado = 'combate';
     s.rendirse();
-    ok(enviados.indexOf('battle:forfeit') >= 0, 'rendirse en combate manda battle:forfeit');
-    ok(activa.clave === 'BattleScene', 'y espera un momento a que el servidor conteste');
-    await esperar(4500);
-    ok(activa.clave === 'LoadingScenegame',
-       'si el servidor NO contesta, a los 4 s se sale igual (antes: colgado para siempre)');
+    ok(enviados.indexOf('brawl:salir') >= 0, 'rendirse en combate manda brawl:salir');
+    ok(activa.clave === 'LoadingScenegame', 'y vuelve al mapa sin quedarse esperando al servidor');
+  }
+  {
+    const { s, activa } = montar({});
+    const enviados = [];
+    s.socket = { connected: true, emit: (ev) => enviados.push(ev) };
+    s.estado = 'buscando';
+    s.rendirse();
+    ok(enviados.indexOf('brawl:salirCola') >= 0 && enviados.indexOf('brawl:salir') >= 0,
+       'cancelar la búsqueda sale de la cola (brawl:salirCola) y suelta el candado');
+    ok(activa.clave === 'LoadingScenegame', 'y vuelve al mapa');
   }
 
   // 8) El boton de rendirse pide confirmacion en combate y sale directo fuera.

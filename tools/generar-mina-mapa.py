@@ -47,6 +47,20 @@ LA LAVA TAMBIEN FRENA
 Los lagos entran en la capa de colision ademas de en `area_lava`. Si no, se
 puede cruzar la lava andando y el lago pasa de ser un obstaculo a ser una
 alfombra naranja.
+
+LAS CAPAS DE TILES (2026-10-04)
+---------------------------------------------------------------------------
+    mina          el suelo (parche de 8x8), el muro, la roca, la tarima, los
+                  puentes y la via. Debajo de la lava, el agua y la grava
+                  tambien hay SUELO: sus bordes son transparentes por fuera.
+    mina_bordes   la grava, la lava y el agua, con sus orillas. Usa TRES
+                  tilesets: el fijo (grava) y los de la lava y el agua, que la
+                  escena anima cambiando su imagen.
+    mina_sombras  la sombra del muro sobre el suelo.
+    mina_objetos  lo plano que se pisa: cascote, huesos, setas, montones.
+
+Y una capa de objetos `luces`: donde brilla algo (lagos de lava, antorchas,
+racimos de cristal) para que la escena ponga su luz en modo ADD.
 """
 
 import io
@@ -355,6 +369,13 @@ def excavar():
     for i, (cx, cy, rx, ry) in enumerate(CHARCAS):
         elipse(cx, cy, rx, ry, AGUA, 800 + i * 7)
 
+    # 4a. Sin salientes de UNA casilla. Una casilla de lava con suelo arriba Y
+    #     abajo no tiene pieza de borde que le sirva (el juego de 13 piezas
+    #     solo sabe de UN lado por eje): salia con un canto recto cortado a
+    #     cuchillo. Se devuelven al suelo hasta que no quede ninguna.
+    limpiar_finos(g, LAVA, SUELO)
+    limpiar_finos(g, AGUA, SUELO)
+
     # 4b. La tarima de la entrada y las pasarelas sobre la lava. Van las
     #     ultimas: la tarima tapa el suelo de piedra y las pasarelas tapan la
     #     lava, que es justo lo que las hace cruzables.
@@ -428,8 +449,32 @@ def excavar():
             sueltas.append((x, y))
     for (x, y) in sueltas:
         g[y][x] = SUELO
+    limpiar_finos(g, GRAVA, SUELO)
 
     return g, zonas, carriles
+
+
+def limpiar_finos(g, material, sustituto):
+    """
+    Quita las casillas de `material` que tienen otra cosa a los DOS lados de
+    un mismo eje (arriba y abajo, o izquierda y derecha). Repite hasta que no
+    quede ninguna, porque quitar una puede dejar fina a su vecina.
+    """
+    def otro(x, y):
+        return not (0 <= x < W and 0 <= y < H) or g[y][x] != material
+
+    cambio = True
+    vueltas = 0
+    while cambio and vueltas < 20:
+        cambio = False
+        vueltas += 1
+        for y in range(H):
+            for x in range(W):
+                if g[y][x] != material:
+                    continue
+                if (otro(x, y - 1) and otro(x, y + 1)) or (otro(x - 1, y) and otro(x + 1, y)):
+                    g[y][x] = sustituto
+                    cambio = True
 
 
 def poner_carriles(g, carriles):
@@ -529,15 +574,50 @@ def _lado(g, x, y, material):
         return 'iSE'
     return 'C'
 
-def pintar(g, ix, zonas, parche, ALTO_MURO, parche_muro, parche_roca, via):
+def pintar(g, ix, zonas, ficha, ALTO_MURO, parche_muro, parche_roca, via, gids):
     """
-    Convierte la rejilla de materiales en la capa de tiles.
+    Convierte la rejilla de materiales en DOS capas de tiles: la de abajo
+    (suelo, muro, roca, tarima, via) y la de bordes (grava, lava y agua).
+
+    Devuelve (capa, bordes) con GIDS de Tiled, no indices: la capa de bordes
+    mezcla tres tilesets y cada uno empieza en su `firstgid`.
 
     Las paredes se autoentejan con las 9 piezas del acantilado: la fila depende
     de si el hueco esta arriba o abajo de la roca, y la columna de si esta a un
     lado. Es lo mismo que hace el mapa de fuera con sus montanas.
     """
     capa = [0] * (W * H)
+    bordes = [0] * (W * H)
+    ps = ficha['parche_suelo']['lado']
+    pg = ficha['parche_grava']['lado']
+    pt = ficha['parche_tabla']['lado']
+    pl = ficha['parche_lava']['lado']
+    pa = ficha['parche_agua']['lado']
+    ix_lava = ficha['liquidos']['lava']['indices']
+    ix_agua = ficha['liquidos']['agua']['indices']
+    g_mina, g_lava, g_agua = gids['mina'], gids['lava'], gids['agua']
+
+    # Que casillas de tarima son PUENTE, y que fila del puente les toca.
+    fila_puente = {}
+    for (x0, y0, x1, y1) in PASARELAS:
+        if (y1 - y0) != 3:
+            continue
+        for y in range(max(0, y0), min(H, y1)):
+            for x in range(max(0, x0), min(W, x1)):
+                fila_puente[(x, y)] = ('n', 'c', 's')[y - y0]
+
+    def suelo_en(x, y):
+        return g_mina + ix['suelo_p%d%d' % (x % ps, y % ps)]
+
+    def pieza(indices, nombre):
+        # Los bordes se dibujan A MEDIDA de este mapa (ver generar-mina.py,
+        # BORDES A MEDIDA): si falta uno es que el plano cambio despues de
+        # generar el tileset. Mejor pararse aqui que pintar un hueco.
+        if nombre not in indices:
+            raise SystemExit('falta la pieza %s en el tileset: corre primero '
+                             'tools/generar-mina.py y despues este' % nombre)
+        return indices[nombre]
+
     solido = [[g[y][x] == ROCA for x in range(W)] for y in range(H)]
 
     def es_suelo(x, y):
@@ -616,25 +696,25 @@ def pintar(g, ix, zonas, parche, ALTO_MURO, parche_muro, parche_roca, via):
                     clave = 'veta_macizo_%s' % t if t in (
                         'piedra', 'cobre', 'hierro', 'carbon', 'oro') else None
                     if clave and clave in ix and ruido(x, y, 77) > 0.976:
-                        capa[i] = ix[clave] + 1
+                        capa[i] = g_mina + ix[clave]
                     elif es_suelo(x, y - 1):
                         # Toca el hueco por arriba: se le pone el canto, o el
                         # lomo y el suelo se juntarian sin linea y el mapa se
                         # veria plano (no se ve la cara del muro por el norte).
-                        capa[i] = ix['roca_canto_N'] + 1
+                        capa[i] = g_mina + ix['roca_canto_N']
                     elif es_suelo(x - 1, y):
-                        capa[i] = ix['roca_canto_O'] + 1
+                        capa[i] = g_mina + ix['roca_canto_O']
                     elif es_suelo(x + 1, y):
-                        capa[i] = ix['roca_canto_E'] + 1
+                        capa[i] = g_mina + ix['roca_canto_E']
                     else:
-                        capa[i] = ix['roca_top_%d%d' % (x % parche_roca, y % parche_roca)] + 1
+                        capa[i] = g_mina + ix['roca_top_%d%d' % (x % parche_roca, y % parche_roca)]
                     continue
 
                 # Los cantos: donde el muro se acaba y dobla hacia atras.
                 if not (0 <= x - 1 < W) or g[y][x - 1] != ROCA:
-                    capa[i] = ix['muro_izq_%d' % fila] + 1
+                    capa[i] = g_mina + ix['muro_izq_%d' % fila]
                 elif not (0 <= x + 1 < W) or g[y][x + 1] != ROCA:
-                    capa[i] = ix['muro_der_%d' % fila] + 1
+                    capa[i] = g_mina + ix['muro_der_%d' % fila]
                 else:
                     # La columna sale de la POSICION en el mapa, no de un
                     # sorteo: asi las hiladas del parche de 256 px corren de
@@ -643,47 +723,46 @@ def pintar(g, ix, zonas, parche, ALTO_MURO, parche_muro, parche_roca, via):
                     r = ruido(x, y, 55)
                     t = tema_cerca(x, y)
                     if fila == 1 and r > 0.962 and ('veta_%s' % t) in ix:
-                        capa[i] = ix['veta_%s' % t] + 1
+                        capa[i] = g_mina + ix['veta_%s' % t]
                     else:
-                        capa[i] = ix['muro_%d_%d' % (fila, col)] + 1
+                        capa[i] = g_mina + ix['muro_%d_%d' % (fila, col)]
 
             elif m == LAVA:
+                # Abajo, el suelo; encima, la lava. El tile depende de la
+                # POSICION (x mod 4, y mod 4) tambien en la orilla, asi que la
+                # lava cruza del interior al borde sin costura.
+                capa[i] = suelo_en(x, y)
                 lado = _lado(g, x, y, LAVA)
                 if lado == 'C':
-                    # El parche: el tile depende de la POSICION, para que las
-                    # grietas continuen de una casilla a la de al lado. El lado
-                    # del parche lo dice el propio tileset, no se escribe aqui
-                    # a mano: cuando paso de 4x4 a 8x8, este codigo no cambio.
-                    capa[i] = ix['lava_p%d%d' % (x % parche, y % parche)] + 1
+                    bordes[i] = g_lava + ix_lava['lava_p%d%d' % (x % pl, y % pl)]
                 else:
-                    capa[i] = ix['trans_lava_%s' % lado] + 1
+                    bordes[i] = g_lava + pieza(ix_lava, 'lava_b_%s_%d%d' % (lado, x % pl, y % pl))
 
             elif m == AGUA:
+                capa[i] = suelo_en(x, y)
                 lado = _lado(g, x, y, AGUA)
                 if lado == 'C':
-                    capa[i] = ix['agua_brillo' if ruido(x, y, 93) > 0.88
-                                 else 'agua_hondo'] + 1
+                    bordes[i] = g_agua + ix_agua['agua_p%d%d' % (x % pa, y % pa)]
                 else:
-                    capa[i] = ix['trans_agua_%s' % lado] + 1
+                    bordes[i] = g_agua + pieza(ix_agua, 'agua_b_%s_%d%d' % (lado, x % pa, y % pa))
 
             elif m == TABLA:
-                # Pesado hacia las dos variantes lisas (1 y 2): el remate de
-                # tabla solo aparece en una casilla de cada ocho.
-                r = ruido(x, y, 12)
-                n = 3 if r > 0.94 else 4 if r > 0.88 else (1 if r > 0.44 else 2)
-                capa[i] = ix['tabla_%d' % n] + 1
+                fp = fila_puente.get((x, y))
+                if fp:
+                    capa[i] = g_mina + ix['puente_%s_%d' % (fp, x % pt)]
+                else:
+                    capa[i] = g_mina + ix['tabla_p%d%d' % (x % pt, y % pt)]
 
             elif m == GRAVA:
                 # Con las piezas de borde, no cuadrados recortados: una mancha
                 # de grava suelta tiene que fundirse con el suelo, igual que la
                 # lava y el agua.
+                capa[i] = suelo_en(x, y)
                 lado = _lado(g, x, y, GRAVA)
                 if lado == 'C':
-                    capa[i] = ix['grava_deco_%d' % (1 + int(ruido(x, y, 21) * 4) % 4)
-                                 if ruido(x, y, 22) > 0.86
-                                 else 'grava_%d' % (1 + int(ruido(x, y, 23) * 4) % 4)] + 1
+                    bordes[i] = g_mina + ix['grava_p%d%d' % (x % pg, y % pg)]
                 else:
-                    capa[i] = ix['trans_grava_%s' % lado] + 1
+                    bordes[i] = g_mina + pieza(ix, 'grava_b_%s_%d%d' % (lado, x % pg, y % pg))
 
             elif m == CARRIL:
                 # La mitad de la pieza que toca la decidio `poner_carriles` al
@@ -691,15 +770,12 @@ def pintar(g, ix, zonas, parche, ALTO_MURO, parche_muro, parche_roca, via):
                 # vecinos, como hacia la version anterior, fallaba en las
                 # curvas y dejaba medio tramo con la orientacion cambiada.
                 orient, k = via.get((x, y), ('h', 0))
-                capa[i] = ix['via_%s_%d' % (orient, k)] + 1
+                capa[i] = g_mina + ix['via_%s_%d' % (orient, k)]
 
-            else:   # SUELO
-                clave = ('suelo_deco_%d' % (1 + int(ruido(x, y, 31) * 4) % 4)
-                         if ruido(x, y, 32) > 0.90
-                         else 'suelo_%d' % (1 + int(ruido(x, y, 33) * 4) % 4))
-                capa[i] = ix[clave] + 1
+            else:   # SUELO: el parche de 8x8, por posicion
+                capa[i] = suelo_en(x, y)
 
-    return capa
+    return capa, bordes
 
 
 # ===========================================================================
@@ -790,6 +866,23 @@ def decorar(g, ix, zonas, antorchas, vigas):
             if not pegado:
                 continue
             poner(x, y, 'grava_deco_%d' % (1 + int(ruido(x, y, 45) * 4) % 4))
+
+    # Lo que se deja caer por el suelo de las salas: cascote, algun hueso,
+    # setas de cueva (mas en la sala de cristales) y grietas con su charquito.
+    # Va AQUI y no en la capa de suelo: el parche de suelo de 8x8 no se
+    # interrumpe, y la casilla de deco es transparente salvo el objeto.
+    for nombre, z in sorted(zonas.items()):
+        for (x, y) in z['celdas']:
+            if g[y][x] != SUELO or capa[y * W + x]:
+                continue
+            if ruido(x, y, 46) < 0.955:
+                continue
+            q = ruido(x, y, 47)
+            if z['tema'] == 'cristal':
+                k = 3 if q < 0.5 else 1 if q < 0.8 else 4
+            else:
+                k = 1 if q < 0.5 else 4 if q < 0.78 else 2 if q < 0.9 else 3
+            poner(x, y, 'suelo_deco_%d' % k)
 
     return capa
 
@@ -1093,7 +1186,9 @@ def main():
     with io.open(FICHA_TILESET, encoding='utf-8') as fh:
         ficha = json.load(fh)
     ix = ficha['indices']
-    parche = ficha['parche_lava']['lado']
+    if 'liquidos' not in ficha or 'parche_suelo' not in ficha:
+        raise SystemExit('el tileset es de la version anterior: corre primero '
+                         'tools/generar-mina.py')
     alto_muro = ficha['muro']['alto_tiles']
     ancho_muro = ficha['muro']['ancho_tiles']
     parche_roca = ficha['parche_roca']['lado']
@@ -1103,7 +1198,13 @@ def main():
 
     g, zonas, carriles = excavar()
     puestos_rail, via = poner_carriles(g, carriles)
-    capa = pintar(g, ix, zonas, parche, alto_muro, ancho_muro, parche_roca, via)
+    # Los firstgid de los tres tilesets, en el orden en que van en el mapa.
+    liq = ficha['liquidos']
+    gids = {'mina': 1}
+    gids['lava'] = gids['mina'] + ficha['tiles']
+    gids['agua'] = gids['lava'] + liq['lava']['tiles']
+    capa, capa_bordes = pintar(g, ix, zonas, ficha, alto_muro, ancho_muro,
+                               parche_roca, via, gids)
 
     # ── Colisiones: la roca y la lava ───────────────────────────────────────
     marca = [[g[y][x] in (ROCA, LAVA) for x in range(W)] for y in range(H)]
@@ -1218,6 +1319,31 @@ def main():
         g, ficha, capa_objetos, antorchas, ocupado)
     objs_piezas += objs_puntales + objs_antorchas
 
+    # ── Las luces ───────────────────────────────────────────────────────────
+    # La escena pone una luz en modo ADD por cada una, por ENCIMA de la
+    # penumbra de la cueva: sin ellas la lava y las antorchas quedaban tan
+    # apagadas como la roca. `name` es el tipo de luz; el rectangulo es la
+    # elipse que ilumina.
+    luces = []
+    for (cx, cy, rx, ry) in LAGOS_LAVA:
+        luces.append(obj_rect((cx - rx * 1.45) * TILE, (cy - ry * 1.6) * TILE,
+                              rx * 2.9 * TILE, ry * 3.2 * TILE, 'lava'))
+    # Y FOCOS sueltos por dentro de cada lago, de tamano e intensidad
+    # distintos. La lava es un parche de 128 px que se repite: en un lago de
+    # diez casillas se le notaba el periodo. Unos focos repartidos sin orden
+    # rompen esa regularidad (y cada uno parpadea a su aire).
+    for k, (x, y) in enumerate((x, y) for y in range(H) for x in range(W)
+                               if g[y][x] == LAVA and ruido(x, y, 71) > 0.93):
+        r = (2.2 + ruido(x, y, 72) * 2.6) * TILE
+        luces.append(obj_rect((x + 0.5) * TILE - r, (y + 0.5) * TILE - r,
+                              2 * r, 2 * r, 'lava_foco'))
+    for o in objs_piezas:
+        if o['name'] == 'antorcha':
+            luces.append(obj_rect(o['x'] - 130, o['y'] - 52 - 130, 260, 260, 'antorcha'))
+        elif o['name'].startswith('racimo_'):
+            color = o['name'].split('_', 1)[1]
+            luces.append(obj_rect(o['x'] - 95, o['y'] - 48 - 80, 190, 160, 'cristal_' + color))
+
     mapa = {
         'compressionlevel': -1,
         'height': HM,
@@ -1234,6 +1360,9 @@ def main():
         'width': WM,
         'layers': [
             {'data': expandir(capa), 'height': HM, 'id': 1, 'name': 'mina',
+             'opacity': 1, 'type': 'tilelayer', 'visible': True,
+             'width': WM, 'x': 0, 'y': 0},
+            {'data': expandir(capa_bordes), 'height': HM, 'id': 5, 'name': 'mina_bordes',
              'opacity': 1, 'type': 'tilelayer', 'visible': True,
              'width': WM, 'x': 0, 'y': 0},
             {'data': expandir(capa_sombras), 'height': HM, 'id': 4, 'name': 'mina_sombras',
@@ -1253,10 +1382,14 @@ def main():
             capa_obj('antorchas', antorchas),
             capa_obj('vigas', vigas),
             capa_obj('piezas', objs_piezas),
+            capa_obj('luces', luces),
         ],
+        # TRES tilesets, todos embebidos y con su imagen en una ruta que
+        # existe. Los de la lava y el agua apuntan a su fotograma 0: la escena
+        # cambia la imagen en marcha (tileset.setImage) para animarlos.
         'tilesets': [{
             'columns': ficha['columnas'],
-            'firstgid': 1,
+            'firstgid': gids['mina'],
             'image': '../Game/MAPAS/Mina/tileset_mina.png',
             'imageheight': ficha['filas'] * TILE,
             'imagewidth': ficha['columnas'] * TILE,
@@ -1266,7 +1399,19 @@ def main():
             'tilecount': ficha['tiles'],
             'tileheight': TILE,
             'tilewidth': TILE,
-        }],
+        }] + [{
+            'columns': liq[m]['columnas'],
+            'firstgid': gids[m],
+            'image': '../' + liq[m]['imagenes'][0],
+            'imageheight': liq[m]['filas'] * TILE,
+            'imagewidth': liq[m]['columnas'] * TILE,
+            'margin': 0,
+            'name': 'tileset_' + m,
+            'spacing': 0,
+            'tilecount': liq[m]['tiles'],
+            'tileheight': TILE,
+            'tilewidth': TILE,
+        } for m in ('lava', 'agua')],
     }
 
     carpeta = os.path.dirname(DESTINO_MAPA)
@@ -1291,7 +1436,9 @@ def main():
     print('  minerales     %d puntos' % len(minerales))
     print('  antorchas     %d puntos' % len(antorchas))
     print('  vigas         %d puntos' % len(vigas))
+    print('  capa bordes   %d tiles' % sum(1 for v in capa_bordes if v))
     print('  capa sombras  %d tiles' % sum(1 for v in capa_sombras if v))
+    print('  luces         %d' % len(luces))
     print('  capa objetos  %d tiles' % sum(1 for v in capa_objetos if v))
     print('  piezas grandes %d + %d arcos + %d antorchas (%d sprites en 2.5D)'
           % (n_grandes, n_puntales, n_antorchas, len(objs_piezas)))

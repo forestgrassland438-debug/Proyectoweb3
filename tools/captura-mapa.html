@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<title>Captura del mapa</title>
+<style>html,body{margin:0;background:#111;color:#ddd;font:14px sans-serif}#estado{position:fixed;top:8px;left:8px}</style>
+</head>
+<body>
+<div id="estado">Cargando el mapa…</div>
+<script src="../vendor/phaser.min.js?v=e92ddef111ba"></script>
+<script>
+/* LA CAPTURA DEL SUELO DEL MAPA PRINCIPAL.
+
+   Es el bloque que está COMENTADO en GameScene.create(), justo donde se
+   declara el tilemap ("1. Crear el render texture y dibujar sobre él…"),
+   puesto en una escena sola: la capa de casillas de Maps/mapa_principal.json
+   con Game/MAPAS/tiles.png se dibuja en una RenderTexture del tamaño del mapa
+   y se descarga como `mapa_exportado.png`.
+
+   De ahí sale recortar/mapa_principal.png → recortar.js → bin/recortadas,
+   que es lo que el juego pinta de suelo (el juego no dibuja la capa de
+   casillas: la tiene comentada). Lo lanza tools/captura-mapa.mjs. */
+class CapturaMapa extends Phaser.Scene {
+  constructor() { super({ key: 'CapturaMapa' }); }
+
+  preload() {
+    const v = '?v=' + Date.now();
+    this.load.image('tiles', '../Game/MAPAS/tiles.png' + v);
+    this.load.tilemapTiledJSON('tilemap', '../Maps/mapa_principal.json' + v);
+  }
+
+  create() {
+    this.textures.get('tiles').setFilter(Phaser.Textures.FilterMode.NEAREST);
+
+    // Cargar el tilemap y el conjunto de tiles (como en GameScene)
+    this.map = this.make.tilemap({ key: 'tilemap' });
+    const tileset = this.map.addTilesetImage('Tileset_mapa', 'tiles', 16, 16);
+    this.backgroundLayer = this.map.createLayer('mapa_principal', tileset, 0, 0);
+
+    // 1. Crear el render texture y dibujar sobre él
+    const rt = this.add.renderTexture(0, 0, this.map.widthInPixels, this.map.heightInPixels);
+    rt.draw(this.backgroundLayer);
+
+    // 2. Esperar a que todo se dibuje antes de exportar
+    this.time.delayedCall(100, () => {
+      // 3. Usar snapshot directamente del renderTexture
+      rt.snapshot((image) => {
+        // 4. Crear un enlace para descargar
+        const a = document.createElement('a');
+        a.href = image.src; // image es un HTMLImageElement
+        a.download = 'mapa_exportado.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.__capturaHecha = { ancho: image.width, alto: image.height };
+        document.getElementById('estado').textContent =
+          'Captura descargada: ' + image.width + ' x ' + image.height;
+      });
+    });
+  }
+}
+
+window.addEventListener('load', () => {
+  new Phaser.Game({
+    type: Phaser.WEBGL,
+    width: 64, height: 64,
+    backgroundColor: '#000000',
+    pixelArt: true,
+    transparent: true,
+    scene: [CapturaMapa]
+  });
+});
+</script>
+</body>
+</html>

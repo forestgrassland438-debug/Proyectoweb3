@@ -1121,6 +1121,160 @@ function bicho(especie, v) {
 }
 
 // ===========================================================================
+// 11. LA ARENA  (los efectos de la batalla en tiempo real)
+// ===========================================================================
+/*
+ * Cortos y con la nota bien cerrada antes del final del búfer: `sumar()`
+ * escribe en circular (para que la música empalme), así que una cola que se
+ * pasara del final sonaría al principio del efecto.
+ *
+ * Pesan poco a propósito: Web Audio guarda cada sonido DESCODIFICADO a 48 kHz
+ * en 32 bits (ver la memoria "audio-memoria-y-rangos"), así que un efecto de
+ * 0,2 s son unos 38 KB en memoria. Los nueve juntos no llegan a 1 MB.
+ */
+
+/** ¡Guau! Golpe de pulso que cae de tono deprisa, con un poco de aire. */
+function arenaLadrido(v) {
+  const sr = SR_EFECTO;
+  const buf = lienzo(sr, 0.24);
+  const f = v === 1 ? 410 : 470;
+  tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.25, f, ini: 0, dur: 0.16, vol: 0.55,
+                       a: 0.004, d: 0.35, s: 0.45, r: 0.45, caida: 9 });
+  tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.5, f: f / 2, ini: 0.005, dur: 0.14, vol: 0.30,
+                       a: 0.004, d: 0.40, s: 0.30, r: 0.50, caida: 7 });
+  tocarNota(buf, sr, { onda: 'ruido', ruidoP: 3, f: 1, ini: 0, dur: 0.07, vol: 0.20,
+                       a: 0.001, d: 0.60, s: 0.10, r: 0.30, filtro: 0.35 });
+  return { sr, buf, pico: 0.80 };
+}
+
+/** El súper del perro: un aullido que sube y se deja caer. */
+function arenaAullido() {
+  const sr = SR_EFECTO;
+  const buf = lienzo(sr, 0.80);
+  tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.25, f: 300, ini: 0, dur: 0.30, vol: 0.40,
+                       a: 0.10, d: 0.10, s: 0.90, r: 0.05, caida: -7, vibrato: 0.012 });
+  tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.25, f: 450, ini: 0.30, dur: 0.45, vol: 0.40,
+                       a: 0.02, d: 0.20, s: 0.75, r: 0.45, caida: 8, vibrato: 0.018, vibratoHz: 6.5 });
+  tocarNota(buf, sr, { onda: 'triangulo', f: 150, ini: 0, dur: 0.75, vol: 0.30,
+                       a: 0.10, d: 0.20, s: 0.70, r: 0.35, caida: 2 });
+  return { sr, buf, pico: 0.82 };
+}
+
+/** Un golpe que entra: sordo, con un chasquido arriba. */
+function arenaGolpe() {
+  const sr = SR_EFECTO;
+  const buf = lienzo(sr, 0.16);
+  tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.5, f: 150, ini: 0, dur: 0.11, vol: 0.55,
+                       a: 0.001, d: 0.50, s: 0.20, r: 0.40, caida: 14 });
+  tocarNota(buf, sr, { onda: 'ruido', ruidoP: 2, f: 1, ini: 0, dur: 0.06, vol: 0.40,
+                       a: 0.001, d: 0.60, s: 0.10, r: 0.30, filtroAlto: 0.30 });
+  return { sr, buf, pico: 0.85 };
+}
+
+/** Una caja que se rompe: tres crujidos de madera y un golpe hueco. */
+function arenaCaja() {
+  const sr = SR_EFECTO;
+  const buf = lienzo(sr, 0.36);
+  [0, 0.05, 0.12].forEach((t, i) => {
+    tocarNota(buf, sr, { onda: 'ruido', ruidoP: 4 + i * 2, f: 1, ini: t, dur: 0.08, vol: 0.45 - i * 0.08,
+                         a: 0.001, d: 0.50, s: 0.15, r: 0.40, filtro: 0.45 });
+  });
+  tocarNota(buf, sr, { onda: 'triangulo', f: 120, ini: 0, dur: 0.20, vol: 0.40,
+                       a: 0.002, d: 0.40, s: 0.20, r: 0.50, caida: 10 });
+  return { sr, buf, pico: 0.82 };
+}
+
+/** Coger un hueso de poder: un arpegio que sube. */
+function arenaHueso() {
+  const sr = SR_EFECTO;
+  const buf = lienzo(sr, 0.34);
+  ['C6', 'E6', 'G6', 'C7'].forEach((n, i) => {
+    tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.125, f: nota(n), ini: i * 0.055, dur: 0.09, vol: 0.32,
+                         a: 0.002, d: 0.30, s: 0.50, r: 0.40 });
+  });
+  return { sr, buf, pico: 0.75 };
+}
+
+/** Alguien cae: un tono que se hunde y un soplo. */
+function arenaKO() {
+  const sr = SR_EFECTO;
+  const buf = lienzo(sr, 0.60);
+  tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.25, f: nota('G4'), ini: 0, dur: 0.50, vol: 0.45,
+                       a: 0.002, d: 0.20, s: 0.70, r: 0.40, caida: 14 });
+  tocarNota(buf, sr, { onda: 'ruido', ruidoP: 10, f: 1, ini: 0.05, dur: 0.40, vol: 0.18,
+                       a: 0.05, d: 0.30, s: 0.40, r: 0.50, filtro: 0.20 });
+  return { sr, buf, pico: 0.80 };
+}
+
+/** La cuenta atrás (3, 2, 1) y el ¡ya! */
+function arenaPitido(final) {
+  const sr = SR_EFECTO;
+  const buf = lienzo(sr, final ? 0.34 : 0.16);
+  const f = nota(final ? 'A5' : 'A4');
+  tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.5, f, ini: 0, dur: final ? 0.30 : 0.12, vol: 0.40,
+                       a: 0.002, d: 0.10, s: 0.80, r: 0.30 });
+  if (final) tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.25, f: f * 1.5, ini: 0, dur: 0.30, vol: 0.22,
+                                   a: 0.002, d: 0.10, s: 0.80, r: 0.30 });
+  return { sr, buf, pico: 0.75 };
+}
+
+/** Fanfarria corta de victoria / caída triste de derrota. */
+function arenaFinal(gano) {
+  const sr = SR_EFECTO;
+  const notas = gano
+    ? [['C5', 0, 0.12], ['E5', 0.12, 0.12], ['G5', 0.24, 0.12], ['C6', 0.36, 0.20], ['G5', 0.56, 0.10], ['C6', 0.66, 0.50]]
+    : [['G4', 0, 0.20], ['F4', 0.22, 0.20], ['E4', 0.44, 0.20], ['C4', 0.66, 0.50]];
+  const buf = lienzo(sr, gano ? 1.25 : 1.25);
+  notas.forEach(([n, t, d]) => {
+    tocarNota(buf, sr, { onda: 'pulso', ciclo: gano ? 0.5 : 0.25, f: nota(n), ini: t, dur: d, vol: 0.38,
+                         a: 0.003, d: 0.15, s: 0.70, r: 0.30 });
+    tocarNota(buf, sr, { onda: 'triangulo', f: nota(n) / 2, ini: t, dur: d, vol: 0.30,
+                         a: 0.003, d: 0.15, s: 0.70, r: 0.30 });
+  });
+  return { sr, buf, pico: 0.80 };
+}
+
+/** Un barril que explota: estallido de ruido que se apaga y un golpe grave
+    que se hunde. Es el sonido más gordo de la arena, a propósito. */
+function arenaBoom() {
+  const sr = SR_EFECTO;
+  const buf = lienzo(sr, 0.90);
+  tocarNota(buf, sr, { onda: 'ruido', ruidoP: 6, f: 1, ini: 0, dur: 0.70, vol: 0.60,
+                       a: 0.001, d: 0.25, s: 0.35, r: 0.60, filtro: 0.28 });
+  tocarNota(buf, sr, { onda: 'ruido', ruidoP: 2, f: 1, ini: 0, dur: 0.12, vol: 0.45,
+                       a: 0.001, d: 0.50, s: 0.10, r: 0.30, filtroAlto: 0.25 });
+  tocarNota(buf, sr, { onda: 'triangulo', f: 95, ini: 0, dur: 0.55, vol: 0.55,
+                       a: 0.002, d: 0.30, s: 0.45, r: 0.50, caida: 6 });
+  return { sr, buf, pico: 0.90 };
+}
+
+/** Comer carne: dos notas suaves que suben, como un "ñam". */
+function arenaCura() {
+  const sr = SR_EFECTO;
+  const buf = lienzo(sr, 0.40);
+  [['E5', 0], ['A5', 0.09], ['C#6', 0.18]].forEach(([n, t]) => {
+    tocarNota(buf, sr, { onda: 'triangulo', f: nota(n), ini: t, dur: 0.16, vol: 0.40,
+                         a: 0.004, d: 0.25, s: 0.60, r: 0.45 });
+    tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.125, f: nota(n) * 2, ini: t, dur: 0.08, vol: 0.12,
+                         a: 0.002, d: 0.40, s: 0.30, r: 0.40 });
+  });
+  return { sr, buf, pico: 0.72 };
+}
+
+/** La niebla empieza a cerrar: dos tonos graves de alarma. */
+function arenaAlarma() {
+  const sr = SR_EFECTO;
+  const buf = lienzo(sr, 0.70);
+  [0, 0.32].forEach((t) => {
+    tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.5, f: nota('D4'), ini: t, dur: 0.14, vol: 0.38,
+                         a: 0.003, d: 0.10, s: 0.80, r: 0.30 });
+    tocarNota(buf, sr, { onda: 'pulso', ciclo: 0.5, f: nota('A3'), ini: t + 0.15, dur: 0.14, vol: 0.38,
+                         a: 0.003, d: 0.10, s: 0.80, r: 0.30 });
+  });
+  return { sr, buf, pico: 0.75 };
+}
+
+// ===========================================================================
 // 12. QUÉ SE GENERA
 // ===========================================================================
 
@@ -1146,6 +1300,22 @@ const CATALOGO = [
   ['centella_2.wav',  () => trueno(97, false)],
   ['chispa_1.wav',    () => chispa(0)],
   ['chispa_2.wav',    () => chispa(1)],
+
+  // --- la arena (Scenes/BattleScene.js, tabla SONIDOS) ---
+  ['bz_ladrido_1.wav', () => arenaLadrido(1)],
+  ['bz_ladrido_2.wav', () => arenaLadrido(2)],
+  ['bz_aullido.wav',   arenaAullido],
+  ['bz_golpe.wav',     arenaGolpe],
+  ['bz_caja.wav',      arenaCaja],
+  ['bz_hueso.wav',     arenaHueso],
+  ['bz_ko.wav',        arenaKO],
+  ['bz_cuenta.wav',    () => arenaPitido(false)],
+  ['bz_ya.wav',        () => arenaPitido(true)],
+  ['bz_victoria.wav',  () => arenaFinal(true)],
+  ['bz_derrota.wav',   () => arenaFinal(false)],
+  ['bz_boom.wav',      arenaBoom],
+  ['bz_cura.wav',      arenaCura],
+  ['bz_alarma.wav',    arenaAlarma],
 ];
 
 /* LAS PISADAS ESTÁN APAGADAS.

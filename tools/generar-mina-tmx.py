@@ -104,9 +104,10 @@ def main():
     with io.open(ORIGEN, encoding='utf-8') as fh:
         m = json.load(fh)
 
-    ts = m['tilesets'][0]
-    # El .tmx vive JUNTO al PNG, asi que la ruta es solo el nombre.
-    imagen = os.path.basename(ts['image'])
+    # El .tmx vive JUNTO a los PNG, asi que la ruta es solo el nombre. Desde
+    # 2026-10-04 son TRES tilesets (el fijo, la lava y el agua); los de los
+    # liquidos apuntan a su fotograma 0, que es lo que se ve en Tiled.
+    imagen = os.path.basename(m['tilesets'][0]['image'])
 
     out = ['<?xml version="1.0" encoding="UTF-8"?>\n']
     out.append('<!-- Generado por tools/generar-mina-tmx.py a partir de '
@@ -121,15 +122,16 @@ def main():
         at('nextobjectid', m.get('nextobjectid', 90000)),
     ]))
 
-    out.append(' <tileset %s>\n' % ' '.join([
-        at('firstgid', ts['firstgid']), at('name', ts['name']),
-        at('tilewidth', ts['tilewidth']), at('tileheight', ts['tileheight']),
-        at('tilecount', ts['tilecount']), at('columns', ts['columns']),
-    ]))
-    out.append('  <image %s %s %s/>\n' % (
-        at('source', imagen),
-        at('width', ts['imagewidth']), at('height', ts['imageheight'])))
-    out.append(' </tileset>\n')
+    for ts in m['tilesets']:
+        out.append(' <tileset %s>\n' % ' '.join([
+            at('firstgid', ts['firstgid']), at('name', ts['name']),
+            at('tilewidth', ts['tilewidth']), at('tileheight', ts['tileheight']),
+            at('tilecount', ts['tilecount']), at('columns', ts['columns']),
+        ]))
+        out.append('  <image %s %s %s/>\n' % (
+            at('source', os.path.basename(ts['image'])),
+            at('width', ts['imagewidth']), at('height', ts['imageheight'])))
+        out.append(' </tileset>\n')
 
     for l in m['layers']:
         if l['type'] == 'tilelayer':
