@@ -104,6 +104,27 @@ const LUCES_MINA = {
   cristal_verde:  { color: 0x38e08a, alfa: 0.32, vibra: 0.12, vel: 1.5 }
 };
 
+/* EL TAMAÑO DE LAS PIEZAS ALTAS (2026-10-05). "En la mina hay objetos más
+   pequeños que el personaje." Las piezas del atlas están dibujadas a 1 píxel
+   por píxel, y el personaje va a 2: un arco de apuntalar medía 64 px de alto
+   y el minero que pasaba por debajo, 100; la vagoneta era de juguete. Se
+   escalan desde su pie (el origen es abajo al centro, así que siguen en su
+   sitio) y su colisión, que sale de `displayWidth`, crece con ellas.
+     · el arco, para que se pase POR DEBAJO (112 px de alto);
+     · vagonetas, pedruscos, cristales y estalagmitas, a escala de mina;
+     · la antorcha no: va colgada del muro y ya mide lo que una antorcha. */
+const ESCALA_PIEZAS_MINA = [
+  [/^puntal$/, 1.75],
+  [/^vagoneta$/, 1.5],
+  [/^pena_/, 1.5],
+  [/^racimo_/, 1.5],
+  [/^estalagmita_/, 1.5]
+];
+function escalaPiezaMina(nombre) {
+  for (const [re, k] of ESCALA_PIEZAS_MINA) if (re.test(nombre)) return k;
+  return 1;
+}
+
 // eslint-disable-next-line no-unused-vars
 class MinaScene extends GameScene {
 
@@ -824,6 +845,7 @@ class MinaScene extends GameScene {
       }
       const spr = this.add.image(o.x, o.y, 'piezas_mina', o.name)
         .setOrigin(0.5, 1)
+        .setScale(escalaPiezaMina(o.name))
         .setDepth(o.y);
 
       /* LA MARCA QUE LOS SISTEMAS DEL JUEGO BUSCAN.
@@ -1362,6 +1384,8 @@ class MinaScene extends GameScene {
     /* Que los demas mineros le vean moverse. La mina no mandaba nada: su
        socket estaba en la sala del mapa de fuera (ver `_salaDeEscena`). */
     if (this.dog) { try { this.sendPlayerMovement(); } catch (e) {} }
+    // Los demás que lleven 5 minutos quietos se ocultan (gf-reposo.js).
+    try { this.cleanInactivePlayers(); } catch (e) {}
 
     // ── La lava, el agua y las luces ───────────────────────────────────────
     this._animarLiquidos(delta);

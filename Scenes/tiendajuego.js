@@ -4153,6 +4153,9 @@ createOtherPlayer(playerInfo) {
   ).setOrigin(0.5, 1);
   remotePlayer.dog._petLevel = playerInfo.petLevel;
   remotePlayer.dog.nameText.setVisible(true);
+
+  // Si llevaba 5 minutos quieto, no se le ve (gf-reposo.js).
+  if (window.GFReposo) window.GFReposo.alCrear(remotePlayer, playerInfo);
 }
 
 
@@ -4166,6 +4169,8 @@ updateOtherPlayer(playerInfo) {
     this.createOtherPlayer(playerInfo);
     return;
   }
+  // Modo reposo (gf-reposo.js): si de verdad se movió, se despierta.
+  if (window.GFReposo) window.GFReposo.alRecibir(player, playerInfo);
   if (player._chatContainer) {
     const sprH = player.sprite.displayHeight || 64;
     player._chatContainer.setPosition(playerInfo.x, playerInfo.y - sprH*0.5 - 50);
@@ -4358,6 +4363,8 @@ updateOtherPlayer(playerInfo) {
   }
 
   player.lastUpdate = Date.now();
+  // Si el paquete no era movimiento (una re-sincronización), sigue oculto.
+  if (window.GFReposo) window.GFReposo.trasRecibir(player);
 }
 
 removeOtherPlayer(playerId) {
@@ -4694,17 +4701,14 @@ removeOtherPlayer(playerId) {
       }
     }
 
+    /* MODO REPOSO (2026-10-05). Aquí se BORRABA a los 30 s sin paquetes a
+       cualquiera, y un jugador quieto no manda paquetes: a los 30 s de pararse
+       desaparecía con su perro y su mensaje hasta que diera un paso. Ahora es
+       igual que en el resto del juego: a los 5 minutos sin moverse se OCULTA
+       (sigue en la sala) y vuelve a verse en cuanto se mueve. Los que se van
+       de verdad los quita `playerLeft` / `playerDisconnected`. */
     cleanInactivePlayers() {
-      const now = Date.now();
-      const inactiveTimeout = 30000; // 30 segundos
-      
-      Object.keys(this.otherPlayers).forEach(playerId => {
-        const player = this.otherPlayers[playerId];
-        if (now - player.lastUpdate > inactiveTimeout) {
-          console.log(`🕐 Jugador ${playerId} inactivo, removiendo...`);
-          this.removeOtherPlayer(playerId);
-        }
-      });
+      if (window.GFReposo) window.GFReposo.revisar(this);
     }
 
     // ================================
@@ -5138,6 +5142,8 @@ removeOtherPlayer(playerId) {
     const op = this.otherPlayers && this.otherPlayers[playerId];
     if (!op || !op.sprite) return;
     op._lastChatMsg = text;
+    // En reposo no se le ve: un bocadillo sin nadie debajo (gf-reposo.js).
+    if (window.GFReposo && !window.GFReposo.visible(op)) return;
     if (op._chatContainer) { op._chatContainer.destroy(); op._chatContainer = null; }
     if (op._typingContainer) { op._typingContainer.destroy(); op._typingContainer = null; }
     clearTimeout(op._chatTimer);
@@ -5158,7 +5164,7 @@ removeOtherPlayer(playerId) {
     if (!op || !op.sprite) return;
     if (op._typingContainer) { op._typingContainer.destroy(); op._typingContainer = null; }
     clearTimeout(op._typingHideTimer);
-    if (!show) return;
+    if (!show || (window.GFReposo && !window.GFReposo.visible(op))) return;
     const sprH = op.sprite.displayHeight || 64;
     // Dots appear between name and message: just below name line (-14)
     const dotsY = op.sprite.y - sprH*0.5 - 26;

@@ -606,6 +606,23 @@ class TiendaSistema {
                     limiteDiario: 0,
                     descripcion: 'The building tool for your island. Hold it and click something you built twice to dig it up: it goes back to your bag (a plot can only be dug up when nothing is planted on it). It never breaks.'
                 },
+                /* EL ESPANTAPÁJAROS (2026-10-05): ahora es una construcción de la
+                 * isla. Su tabla (`espantapajaros`) ya existía y se da de alta
+                 * sola: no espera al administrador (`tablaSola`). */
+                {
+                    id: 'espantapajaros',
+                    name: 'Scarecrow',
+                    image: './Game/Objetos/granja/espantapajaros.png',
+                    buyPrice: 120,
+                    sellPrice: 60,
+                    currency: 'silver',
+                    categoria: 'construccion',
+                    tabla: 'espantapajaros',
+                    tablaSola: true,
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'Build it on your island (Lands → Build): it guards every crop within 4 tiles for good, and crows perch on it instead of eating. Dig it up with the Construction Shovel to move it. In the village garden, use it on a planted plot to guard it for 2 hours.'
+                },
                 /* EL BOTE DE BASURA Y LOS COFRES (2026-10-05). Sus tablas
                  * (`basura`, `cofre1..4`) se dan de alta SOLAS con la primera
                  * compra o el primer crafteo, así que no se bloquean esperando
@@ -685,8 +702,9 @@ class TiendaSistema {
                     descripcion: 'The finest chest in the land, with 20 slots. It cannot be bought: craft it from a Magic Chest.'
                 }
             ],
-            /* EQUIPO (2026-10-05): las tres espadas, la caña de pescar y el
-             * espantapájaros. Cada uno en su tabla del contrato. */
+            /* EQUIPO (2026-10-05): las tres espadas y la caña de pescar, cada
+             * una en su tabla del contrato. (El espantapájaros pasó a
+             * CONSTRUCCIÓN: se construye en la isla.) */
             equipo: [
                 {
                     id: 'espada_madera',
@@ -735,18 +753,6 @@ class TiendaSistema {
                     comision: 10,
                     limiteDiario: 0,
                     descripcion: 'Walk to the village river with it in your bag and fish: trout, carp and, with luck, a golden trout. It never breaks.'
-                },
-                {
-                    id: 'espantapajaros',
-                    name: 'Scarecrow',
-                    image: './Game/Objetos/granja/espantapajaros.png',
-                    buyPrice: 120,
-                    sellPrice: 60,
-                    currency: 'silver',
-                    categoria: 'equipo',
-                    comision: 10,
-                    limiteDiario: 0,
-                    descripcion: 'Put it on a planted plot (village or island): crows land on it instead of eating your crop. Lasts 2 hours.'
                 }
             ],
             /*

@@ -49,7 +49,7 @@
 
 /* global GameScene, Phaser */
 
-const INTERIOR_V = '20261006a';
+const INTERIOR_V = '20261007a';
 
 /* Los PNG de muebles que puede pedir cualquier sala. Se cargan todos (son
    pequenos: el mayor, la estanteria de pociones, mide 126x141) para no tener
@@ -57,7 +57,7 @@ const INTERIOR_V = '20261006a';
 const MUEBLES_INTERIOR = [
   'alfombra_azul', 'alfombra_morada', 'alfombra_pasillo', 'alfombra_roja', 'alfombra_verde', 'aplique', 'armario', 'armero', 'barra', 'barra2',
   'barril', 'barril_abierto', 'brasero_1', 'brasero_2', 'cajon', 'caldero', 'caldero_fuego_1', 'caldero_fuego_2',
-  'cama_azul', 'cama_roja', 'cama_verde', 'carbon', 'cesta', 'chimenea', 'cofre', 'cristales', 'cuadro_bosque',
+  'cama_azul', 'cama_roja', 'cama_verde', 'carbon', 'cesta', 'chimenea', 'cofre', 'cuadro_bosque',
   'cuadro_dia', 'cuadro_noche', 'cubo', 'escalera', 'escoba', 'estante_frascos', 'estante_herramientas',
   'estante_herramientas2', 'estante_libros', 'estante_libros2', 'estante_pociones', 'expositor_fruta',
   'expositor_pociones', 'expositor_verdura', 'farol_1', 'farol_2', 'farol_pared', 'fragua', 'mesa_comida',
@@ -420,7 +420,10 @@ class InteriorScene extends GameScene {
 
   _animar(tipo, spr, fx, fy, o) {
     const ADD = Phaser.BlendModes.ADD;
-    const k = this._k || 1;
+    /* El tamaño del efecto es el de SU mueble (propiedad `k` del mapa, 2026-10-05):
+       desde que cada mueble tiene su escala, una chimenea a 1.5 no puede
+       llevar las llamas de una a 2. Sin la propiedad, la de la sala. */
+    const k = Number(this._prop(o, 'k', this._k || 1)) || this._k || 1;
     if (tipo === 'fuego' || tipo === 'fragua') {
       const n = tipo === 'fragua' ? 3 : 4;
       const llamas = [];
@@ -430,7 +433,7 @@ class InteriorScene extends GameScene {
         if (tipo === 'fragua') l.setTint(0xff7a3a);
         llamas.push(l);
       }
-      this._animados.push({ tipo, llamas, fx, fy, base: spr.depth, prox: 0, fase: Math.random() * 6 });
+      this._animados.push({ tipo, llamas, fx, fy, k, base: spr.depth, prox: 0, fase: Math.random() * 6 });
     } else if (tipo === 'caldero') {
       // El fuego de debajo: dos fotogramas de newpro. Cada fotograma es el
       // caldero ENTERO con sus llamas a los lados (10 px mas ancho en el
@@ -441,7 +444,7 @@ class InteriorScene extends GameScene {
         ? this.textures.get('int_caldero_fuego_1').getSourceImage().width : spr.width;
       const fuego = this.add.image(spr.x - (anchoFuego - spr.width) / 2, spr.y, 'int_caldero_fuego_1')
         .setOrigin(0, 1).setDepth(spr.depth - 0.1);
-      this._animados.push({ tipo, spr, fuego, fx, fy, prox: 0, foto: 0, burbujas: [] });
+      this._animados.push({ tipo, spr, fuego, fx, fy, k, prox: 0, foto: 0, burbujas: [] });
     } else if (tipo === 'brasero' || tipo === 'farol') {
       const claves = tipo === 'brasero' ? ['int_brasero_1', 'int_brasero_2'] : ['int_farol_1', 'int_farol_2'];
       this._animados.push({ tipo, spr, claves, foto: 0, prox: 0 });
@@ -507,6 +510,7 @@ class InteriorScene extends GameScene {
     const K = this._k || 1;
     for (let i = 0; i < this._animados.length; i++) {
       const a = this._animados[i];
+      const K = a.k || this._k || 1;
       if (a.tipo === 'fuego' || a.tipo === 'fragua') {
         a.llamas.forEach((l, k) => {
           const v = Math.sin(t * (7 + k * 1.3) + a.fase + k) * 0.5 + Math.sin(t * (13 + k) + k * 2) * 0.5;
@@ -636,6 +640,8 @@ class InteriorScene extends GameScene {
     }
     try { this._actualizarMascota(); } catch (e) {}
     if (this.dog) { try { this.sendPlayerMovement(); } catch (e) {} }
+    // Los demás que lleven 5 minutos quietos se ocultan (gf-reposo.js).
+    try { this.cleanInactivePlayers(); } catch (e) {}
     this._moverAnimados(time);
     this._ajustarCamara();
     this._comprobarSalida();

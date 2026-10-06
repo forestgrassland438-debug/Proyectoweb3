@@ -16641,6 +16641,9 @@ _setupZoomKeeper() {
     cleanInactivePlayers() {
       // Players removed only on real disconnect — NOT on idle timeout.
       // Ensures messages/sprites stay while player is connected but still.
+      // Lo que SÍ pasa a los 5 minutos quieto es que se OCULTA (gf-reposo.js):
+      // sigue en la sala y vuelve a verse en cuanto se mueve.
+      if (window.GFReposo) window.GFReposo.revisar(this);
     }
 
 
@@ -16987,11 +16990,18 @@ sendPlayerMovement() {
 
   const isMoving = keyboardMoving || mouseMoving;
 
+  /* LA PESCA SE VE (2026-10-05). gf-pesca.js deja en `_pescaRemota` lo que
+     los demás tienen que ver (lanzar, corcho en el agua, picada, lucha) con
+     una `firma` que cambia en cada uno de esos momentos. Pescando no se anda,
+     así que sin esto no salía ni un paquete y los demás te veían parado. */
+  const _pescaFirma = this._pescaRemota ? this._pescaRemota.firma : '';
+  const _cambioPesca = _pescaFirma !== (this._pescaFirmaEnviada || '');
+
   // Solo enviar si hay cambios significativos
   if (this.lastSentPosition &&
       Math.abs(this.player.x - this.lastSentPosition.x) < 0.5 &&
       Math.abs(this.player.y - this.lastSentPosition.y) < 0.5 &&
-      this.lastMovingState === isMoving) {
+      this.lastMovingState === isMoving && !_cambioPesca) {
     return;
   }
 
@@ -17009,7 +17019,7 @@ sendPlayerMovement() {
   // —empezar a andar, pararse, cambiar de dirección— NO se retrasan nunca: esos
   // se mandan al instante, porque son los que se notarían.
   const _ahoraEnvio = (this.time && this.time.now) ? this.time.now : Date.now();
-  const _cambioEstado = (this.lastMovingState !== isMoving);
+  const _cambioEstado = (this.lastMovingState !== isMoving) || _cambioPesca;
   if (!_cambioEstado && this._ultimoEnvioMov && (_ahoraEnvio - this._ultimoEnvioMov) < 33) {
     return;
   }
@@ -17023,6 +17033,7 @@ sendPlayerMovement() {
     this.lastSentPosition = { x: this.player.x, y: this.player.y };
   }
   this.lastMovingState = isMoving;
+  this._pescaFirmaEnviada = _pescaFirma;
 
   // Determinar dirección basada en movimiento real
   let currentDirection = this.lastDirection;
@@ -17089,7 +17100,9 @@ sendPlayerMovement() {
        El servidor reenvía el payload tal cual (spread de data), así que basta
        con añadir el campo aquí y leerlo al recibir. */
     ghost: !!(window.GFMascota && window.GFMascota.estado &&
-              window.GFMascota.estado().ghost)
+              window.GFMascota.estado().ghost),
+    // La pesca (null si no pesca): ver _pescaFirma más arriba.
+    pesca: this._pescaRemota ? this._pescaRemota.datos : null
   });
 }
 
@@ -17150,6 +17163,9 @@ _soltarJugadorRemoto(p) {
     // ESTA era la que faltaba en clearOtherPlayers: el nombre de la mascota.
     fuera(p.dog.nameText);
   }
+
+  // El sedal y el corcho si estaba pescando (gf-pesca.js).
+  try { if (window.GFPesca && window.GFPesca.soltarRemoto) window.GFPesca.soltarRemoto(p); } catch (_) {}
 }
 
 clearOtherPlayers() {
@@ -17345,6 +17361,13 @@ createOtherPlayer(playerInfo) {
   ).setOrigin(0.5, 1);
   remotePlayer.dog._petLevel = playerInfo.petLevel;
   remotePlayer.dog.nameText.setVisible(true);
+
+  // Si ya estaba pescando cuando llegué, se le ve pescando (gf-pesca.js).
+  if (playerInfo.pesca && window.GFPesca && window.GFPesca.remoto) {
+    try { window.GFPesca.remoto(this, remotePlayer, playerInfo.pesca); } catch (_) {}
+  }
+  // Y si llevaba 5 minutos quieto, no se le ve (gf-reposo.js).
+  if (window.GFReposo) window.GFReposo.alCrear(remotePlayer, playerInfo);
 }
 
 updateOtherPlayer(playerInfo) {
@@ -17360,6 +17383,11 @@ updateOtherPlayer(playerInfo) {
     this.createOtherPlayer(playerInfo);
     return;
   }
+
+  /* MODO REPOSO (gf-reposo.js): si de verdad se movió, se despierta ANTES de
+     pintar el paquete, para que lo de abajo (perro, fantasma…) decida como
+     siempre qué se ve. */
+  if (window.GFReposo) window.GFReposo.alRecibir(player, playerInfo);
 
   // Mover burbujas de chat/typing junto con el sprite
   if (player._chatText) {
@@ -17468,7 +17496,18 @@ updateOtherPlayer(playerInfo) {
     const _quieto = (dir) => _SB ? _SB.texturaRemota(_sbId, dir)
                                  : (dir === 'left' ? 'player_left_1' : 'player_right_1');
 
-    if (isMoving) {
+    /* ¿Está pescando? Entonces manda la caña: ni la animación de andar ni
+       la de quieto. gf-pesca.js le pone sus fotogramas de pescar, el sedal y
+       el corcho, y los suelta cuando llega un paquete sin pesca. */
+    let _pescando = false;
+    try {
+      _pescando = !!(window.GFPesca && window.GFPesca.remoto &&
+                     window.GFPesca.remoto(this, player, playerInfo.pesca));
+    } catch (_) { _pescando = false; }
+
+    if (_pescando) {
+      // El fotograma lo pone el bucle de gf-pesca.
+    } else if (isMoving) {
       const claveAnim = _anim(direction);
       if (this.anims.exists(claveAnim)) {
         player.sprite.anims.play(claveAnim, true);
@@ -17618,6 +17657,8 @@ updateOtherPlayer(playerInfo) {
   }
 
   player.lastUpdate = Date.now();
+  // Si el paquete no era movimiento (una re-sincronización), sigue oculto.
+  if (window.GFReposo) window.GFReposo.trasRecibir(player);
 }
 
 removeOtherPlayer(playerId) {
@@ -18529,6 +18570,8 @@ removeOtherPlayer(playerId) {
     const op = this.otherPlayers && this.otherPlayers[playerId];
     if (!op || !op.sprite) return;
     op._lastChatMsg = text;
+    // En reposo no se le ve: un bocadillo sin nadie debajo (gf-reposo.js).
+    if (window.GFReposo && !window.GFReposo.visible(op)) return;
     // Destroy any existing chat container and typing indicator
     if (op._chatContainer) { op._chatContainer.destroy(); op._chatContainer = null; }
     if (op._typingContainer) { op._typingContainer.destroy(); op._typingContainer = null; }
@@ -18556,7 +18599,7 @@ removeOtherPlayer(playerId) {
     // Always destroy previous typing container
     if (op._typingContainer) { op._typingContainer.destroy(); op._typingContainer = null; }
     clearTimeout(op._typingHideTimer);
-    if (!show) return;
+    if (!show || (window.GFReposo && !window.GFReposo.visible(op))) return;
     const sprH = op.sprite.displayHeight || 64;
     // Dots appear above the sprite, just below where a message would be (origin=1 top of msg zone)
     // Name is at -14, message at -50 (origin 1 = bottom of text), dots go just below name

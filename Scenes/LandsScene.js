@@ -68,9 +68,13 @@ const MSG_SIN_PALA = 'You need a Construction Shovel to dig it up. Buy one in th
    El bote y los cofres son OBJETOS: su dibujo al doble, como el bote del
    pueblo, ordenado por profundidad con el jugador y con la base que frena.
    La parcela es suelo (la tierra del huerto). */
-const COLOCABLES = ['parcela', 'basura', 'cofre1', 'cofre2', 'cofre3', 'cofre4'];
+/* EL ESPANTAPÁJAROS (2026-10-05) también se construye: "quiero que esté en la
+   tienda para construcción sobre la Lands". Guarda las parcelas de alrededor
+   (gf-espantapajaros.js, GUARDA_CASILLAS) y su base es solo el palo (`base`). */
+const COLOCABLES = ['parcela', 'espantapajaros', 'basura', 'cofre1', 'cofre2', 'cofre3', 'cofre4'];
 const COLOCABLE = {
   parcela: { nombre: 'Land Plot',        icono: './Game/Objetos/construccion/parcela.png', ancho: 2, alto: 2 },
+  espantapajaros: { nombre: 'Scarecrow', icono: './Game/Objetos/granja/espantapajaros.png', ancho: 2, alto: 2, objeto: true, base: 22 },
   basura:  { nombre: 'Trash Can',        icono: './Game/Objetos/cofres/basura.png', ancho: 2, alto: 2, objeto: true },
   cofre1:  { nombre: 'Wooden Chest',     icono: './Game/Objetos/cofres/cofre1.png', ancho: 2, alto: 2, objeto: true, capacidad: 5 },
   cofre2:  { nombre: 'Reinforced Chest', icono: './Game/Objetos/cofres/cofre2.png', ancho: 2, alto: 2, objeto: true, capacidad: 7 },
@@ -80,6 +84,7 @@ const COLOCABLE = {
 /* De donde sale cada uno: va en el aviso de "no tienes". */
 const COMO_CONSEGUIR = {
   parcela: 'Buy them in the shop → Construction.',
+  espantapajaros: 'Buy one in the shop → Construction.',
   basura: 'Buy one in the shop → Construction.',
   cofre1: 'Buy one in the shop → Construction.',
   cofre2: 'Craft it from a Wooden Chest (Crafting → Chests).',
@@ -1074,9 +1079,15 @@ class LandsScene extends GameScene {
     /* LA BASE FRENA, como el bote del pueblo: un cofre no se atraviesa. Si el
        jugador esta justo encima al ponerlo, se espera a que se aparte; si no,
        se quedaria encerrado dentro sin poder moverse. */
-    const ancho = Math.max(16, Math.min(reg.w - 12, s.displayWidth - 10));
+    const def = COLOCABLE[reg.tipo] || {};
+    const ancho = def.base || Math.max(16, Math.min(reg.w - 12, s.displayWidth - 10));
     reg.colision = new Phaser.Geom.Rectangle(reg.cx - ancho / 2, pie - 18, ancho, 16);
     this._activarColisionObjeto(reg);
+    /* El espantapájaros: se mece con el viento, enseña su radio al acercarse
+       y guarda las parcelas de alrededor (gf-espantapajaros.js). */
+    if (reg.tipo === 'espantapajaros' && window.GFEspantapajaros && window.GFEspantapajaros.guardar) {
+      try { window.GFEspantapajaros.guardar(this, 'cons_' + reg.gx + '_' + reg.gy, s, { x: reg.cx, y: reg.cy }); } catch (e) {}
+    }
   }
 
   _activarColisionObjeto(reg) {
@@ -1140,6 +1151,11 @@ class LandsScene extends GameScene {
     const def = COLOCABLE[reg.tipo] || {};
     if (this._islaDe) {
       this._avisoConstruccion('This ' + (def.nombre || 'object') + ' belongs to the owner of the island.', 'info');
+      return;
+    }
+    if (reg.tipo === 'espantapajaros') {
+      const n = (window.GFEspantapajaros && window.GFEspantapajaros.GUARDA_CASILLAS) || 4;
+      this._avisoConstruccion('🧑‍🌾 This scarecrow guards every crop within ' + n + ' tiles: crows perch on it instead of eating.', 'info');
       return;
     }
     if (this._distanciaAObjeto(reg) > ALCANCE_OBJETO) {
@@ -1416,6 +1432,9 @@ class LandsScene extends GameScene {
   _destruirVisualConstruccion(reg) {
     if (!reg) return;
     this._quitarColisionObjeto(reg);
+    if (reg.tipo === 'espantapajaros' && window.GFEspantapajaros && window.GFEspantapajaros.soltarGuarda) {
+      try { window.GFEspantapajaros.soltarGuarda(this, 'cons_' + reg.gx + '_' + reg.gy); } catch (e) {}
+    }
     if (this._cofreAbierto && this._cofreAbierto.reg === reg) this._cerrarCofre();
     try { if (reg.sprite) reg.sprite.destroy(); } catch (e) {}
     reg.sprite = null;
@@ -2090,7 +2109,7 @@ class LandsScene extends GameScene {
     let texto;
     if (this._modoConstruir === 'colocar') texto = (COLOCABLE[this._tipoColocar] || COLOCABLE.parcela).nombre + ' · Esc or ✖ to stop.';
     else if (this._modoConstruir === 'quitar') texto = 'Plots with a crop and chests with things inside can’t be dug up.';
-    else if (COLOCABLES.every((t) => this._contarEnBolsa(t) <= 0)) texto = 'Buy plots, chests and trash cans in the shop → Construction.';
+    else if (COLOCABLES.every((t) => this._contarEnBolsa(t) <= 0)) texto = 'Buy plots, scarecrows, chests and trash cans in the shop → Construction.';
     else if (this._contarPalasEnInventario() <= 0) texto = 'A Construction Shovel digs things up.';
     else texto = (this._construcciones ? this._construcciones.size : 0) + ' / ' + this._maxConstrucciones + ' built';
     if (ayuda.textContent !== texto) ayuda.textContent = texto;
@@ -2192,6 +2211,8 @@ class LandsScene extends GameScene {
     /* Que los demas de la isla le vean moverse. La isla no lo mandaba: su
        socket estaba en la sala del mapa de fuera (ver `_salaDeEscena`). */
     if (this.dog) { try { this.sendPlayerMovement(); } catch (e) {} }
+    // Los demás que lleven 5 minutos quietos se ocultan (gf-reposo.js).
+    try { this.cleanInactivePlayers(); } catch (e) {}
 
     this._comprobarSalida();
   }

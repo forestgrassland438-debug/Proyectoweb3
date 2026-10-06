@@ -11003,6 +11003,37 @@ html, body {
 .chat-emoji-btn:active { transform: translateY(1px); }
 .chat-emoji-btn.open { background: rgba(0, 255, 0, .28); }
 
+/* ── EL TRADUCTOR DEL CHAT (2026-10-05, gf-traductor.js) ─────────────────
+   El botón 🌐 lleva una marca con el idioma al que traduce (ES / EN) y la
+   traducción va debajo de cada mensaje, más pequeña y en cursiva, para que
+   se vea que no es lo que escribió el otro jugador. */
+.gft-boton { position: relative; }
+.gft-boton .gft-globo { display: inline-block; line-height: 1; }
+.gft-boton .gft-marca {
+  position: absolute; right: -4px; bottom: -4px;
+  min-width: 18px; padding: 1px 3px; border-radius: 7px;
+  font: 800 9px/1.1 'Segoe UI', system-ui, sans-serif; letter-spacing: .02em;
+  background: #f2c35c; color: #2a1606; box-shadow: 0 1px 3px rgba(0, 0, 0, .5);
+  pointer-events: none;
+}
+.gft-boton .gft-marca:empty { display: none; }
+.gft-boton.activo { border-color: #ffe2a0 !important; box-shadow: 0 0 0 2px rgba(242, 195, 92, .35), 0 0 10px rgba(255, 200, 90, .35) !important; }
+.gft-trad {
+  display: block;
+  margin: 2px 0 1px;
+  padding-left: 8px;
+  border-left: 2px solid rgba(242, 195, 92, .55);
+  font-family: 'Segoe UI', system-ui, sans-serif, 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji';
+  font-size: 11px;
+  font-style: italic;
+  line-height: 1.35;
+  color: #ffe2a0;
+  opacity: .92;
+  word-break: break-word;
+}
+.gft-trad.cargando { opacity: .5; }
+.gfa-burbuja .gft-trad { font-size: 11px; color: #ffe8b8; }
+
 .chat-emoji-picker {
   margin-top: 6px;
   border: 1px solid rgba(0, 255, 0, .45);
