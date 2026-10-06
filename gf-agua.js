@@ -487,11 +487,35 @@
       }
       return true;
     }
+    /* LAS ESQUINAS DEL RÍO (2026-10-05): "en las esquinas del río hay
+       vegetación, piedras y algas duplicadas o mal puestas". Era verdad: en
+       los recodos un junco o unos nenúfares quedaban metidos en el rincón,
+       pegados a dos orillas a la vez, y una piedra y un junco podían salir uno
+       encima del otro (de distinto tipo bastaban 48 px). Ahora nada se pone
+       en un recodo. Mirando a `D` px en las ocho direcciones:
+         - tierra en un eje Y en el otro: está entre dos orillas;
+         - tierra a un lado pero no en sus dos diagonales: esa orilla DOBLA
+           cerca (justo debajo o encima de un escalón);
+         - tierra solo en una diagonal: la punta de tierra de un recodo.
+       Y entre cosas distintas hay ESPACIO_MIXTO px. */
+    var D_ESQ = Math.max(80, T * 5), ESPACIO_MIXTO = 110;
+    function seco(qx, qy) { return claseEn(st, qx, qy) !== 2; }
+    function enEsquina(px, py) {
+      var D = D_ESQ;
+      var w = seco(px - D, py), e = seco(px + D, py), n = seco(px, py - D), s = seco(px, py + D);
+      if ((w || e) && (n || s)) return true;
+      var nw = seco(px - D, py - D), ne = seco(px + D, py - D), sw = seco(px - D, py + D), se = seco(px + D, py + D);
+      if (w && !(nw && sw)) return true;
+      if (e && !(ne && se)) return true;
+      if (n && !(nw && ne)) return true;
+      if (s && !(sw && se)) return true;
+      return !(w || e || n || s) && (nw || ne || sw || se);
+    }
     var puestos = [];
     function libre(px, py, sep, tipo) {
       for (var k = 0; k < puestos.length; k++) {
         var d = Math.hypot(puestos[k][0] - px, puestos[k][1] - py);
-        if (d < (puestos[k][2] === tipo ? sep : 48)) return false;
+        if (d < (puestos[k][2] === tipo ? sep : ESPACIO_MIXTO)) return false;
       }
       return true;
     }
@@ -508,7 +532,7 @@
     var ex = scene.textures.exists.bind(scene.textures);
     // Piedras asomando, cada una con su anillo de espuma. Lejos de la orilla.
     poner(hondas, mar ? 5 : 10, 260, 'piedra', function (px, py) {
-      return enAgua(px, py, 24, 12, 2);
+      return enAgua(px, py, 24, 12, 3) && !enEsquina(px, py);
     }, function (px, py) {
       var n = 1 + Math.floor(rnd() * 3), k = 'gfa_piedra_' + n;
       if (!ex(k)) return;
@@ -519,12 +543,12 @@
     if (!mar) {
       // Nenúfares en grupitos, en el agua mansa: cada hoja entera en el agua.
       poner(medias, 8, 220, 'nenufar', function (px, py) {
-        return enAgua(px, py, 16, 8, 2);
+        return enAgua(px, py, 30, 14, 3) && !enEsquina(px, py);
       }, function (px, py) {
         var cuantos = 2 + Math.floor(rnd() * 2);
         for (var q = 0; q < cuantos; q++) {
           var qx = px + (rnd() - 0.5) * 40, qy = py + (rnd() - 0.5) * 18;
-          if (!enAgua(qx, qy, 10, 6, 2)) continue;
+          if (!enAgua(qx, qy, 10, 6, 3) || enEsquina(qx, qy)) continue;
           var k = rnd() < 0.28 ? 'gfa_nenufar_flor' : 'gfa_nenufar';
           if (!ex(k)) continue;
           var s = scene.add.image(qx, qy, k).setScale(escala * (0.8 + rnd() * 0.3)).setDepth(PROF_PLANO).setFlipX(rnd() < 0.5);
@@ -534,8 +558,16 @@
       /* Juncos en el agua somera, UNO por sitio (ver arriba), con su anillo
          de agua al pie. El pie entero tiene que estar en el agua: en la
          primera franja (la que toca la arena) salían medio en seco. */
-      poner(someras, 12, 180, 'junco', function (px, py) {
-        return enAgua(px, py + 3, 10, 5, 2);
+      /* El junco crece HACIA ARRIBA desde su pie: con solo el pie en el agua,
+         en la orilla de arriba de un tramo su dibujo se subía encima de la
+         tierra. Se mira también la punta (alto del dibujo a escala máxima). */
+      var altoJunco = 30;
+      try {
+        if (ex('gfa_juncos')) altoJunco = scene.textures.get('gfa_juncos').getSourceImage().height || 30;
+      } catch (e) {}
+      altoJunco = altoJunco * escala * 1.15;
+      poner(someras, 8, 220, 'junco', function (px, py) {
+        return enAgua(px, py + 3, 10, 5, 2) && enAgua(px, py + 3 - altoJunco, 10, 4, 1) && !enEsquina(px, py);
       }, function (px, py) {
         if (!ex('gfa_juncos')) return;
         var pie = scene.add.image(px, py - 1, 'gfa_onda').setDepth(PROF_PLANO).setAlpha(0.35).setScale(0.9, 0.7);
@@ -544,7 +576,7 @@
       });
       // Troncos flotando, anclados en un remanso.
       poner(medias, 2, 600, 'tronco', function (px, py) {
-        return enAgua(px, py, 26, 10, 2);
+        return enAgua(px, py, 30, 12, 3) && !enEsquina(px, py);
       }, function (px, py) {
         if (!ex('gfa_tronco')) return;
         var s = scene.add.image(px, py, 'gfa_tronco').setScale(escala).setDepth(PROF_PLANO + 0.01).setRotation((rnd() - 0.5) * 0.5);

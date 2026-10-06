@@ -497,6 +497,13 @@
 
     chatCab.appendChild(volver);
     chatCab.appendChild(chatNom);
+    /* Traducir los mensajes (gf-traductor.js): el mismo ajuste que el 🌐 del
+       chat general. */
+    if (global.GFTraductor) {
+      var tradBtn = global.GFTraductor.boton(null, 'gfa-mini gfa-trad');
+      tradBtn.id = 'gfa-chat-trad';
+      chatCab.appendChild(tradBtn);
+    }
     chatCab.appendChild(menuBtn);
     chat.appendChild(chatCab);
 
@@ -811,6 +818,13 @@
              lo que el desplazamiento daba un salto. */
           if (me2._txt) {
             me2._txt.textContent = desescapar(d.texto);
+            if (global.GFTraductor) {
+              try {
+                var yo2 = (estado.yo && estado.yo.playerName) || null;
+                global.GFTraductor.traducirEn(me2._txt, desescapar(d.texto),
+                  { mio: yo2 ? (me2.de === yo2) : (me2.para === chatCon) });
+              } catch (e) {}
+            }
             var reloj = me2._nodo && me2._nodo.querySelector('.t');
             if (reloj) reloj.textContent = hora(me2.ts) + ' · edited';
           } else if (abierto && chatCon) {
@@ -1645,6 +1659,10 @@
 
     m._nodo = b;
     m._txt  = textoEl;
+    // Su traducción, si el 🌐 está encendido (las mías no).
+    if (global.GFTraductor) {
+      try { global.GFTraductor.traducirEn(textoEl, desescapar(m.texto), { mio: mio }); } catch (e) {}
+    }
     return b;
   }
 

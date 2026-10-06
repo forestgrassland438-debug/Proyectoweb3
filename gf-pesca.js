@@ -270,9 +270,10 @@
 
   function clave(per, dir, n) { return 'gfp_' + per + '_' + dir + '_' + n; }
 
-  /** Carga los fotogramas de pescar del personaje (y los peces). Nunca falla. */
-  function cargarFotogramas(scene) {
-    var per = personaje();
+  /** Carga los fotogramas de pescar del personaje (y los peces). Nunca falla.
+      `quien` es otro personaje (el de un jugador remoto); sin él, el mío. */
+  function cargarFotogramas(scene, quien, sinPeces) {
+    var per = quien || personaje();
     var faltan = [];
     Object.keys(DIRS).forEach(function (d) {
       for (var n = 1; n <= 6; n++) {
@@ -280,7 +281,7 @@
         if (!scene.textures.exists(k)) faltan.push([k, './Game/Sprites/Soulbound/' + per + '/' + DIRS[d] + '/pescar_' + n + '.png' + V_FOTOS]);
       }
     });
-    ['pes1', 'pes2', 'pes3'].forEach(function (p) {
+    if (!sinPeces) ['pes1', 'pes2', 'pes3'].forEach(function (p) {
       if (!scene.textures.exists('gfp_' + p)) faltan.push(['gfp_' + p, './Game/Objetos/pesca/' + p + '.png']);
     });
     if (!faltan.length) return Promise.resolve(true);
@@ -492,6 +493,26 @@
     });
   }
 
+  /* LOS DEMÁS ME VEN PESCAR (2026-10-05). "Si otros jugadores están pescando
+     no puedo ver su animación: los veo parados." Era literal: la pesca solo
+     cambiaba MI sprite, y como pescando no se anda, no salía ni un paquete.
+     Ahora el estado viaja en el mismo `playerMove` de siempre (el servidor lo
+     reenvía tal cual y lo guarda en la sala, así que el que llega después
+     también lo ve): GameScene.sendPlayerMovement lee `scene._pescaRemota` y
+     manda un paquete en cuanto cambia su `firma`. Solo cambia en los momentos
+     que se ven: lanzar, el corcho en el agua, la picada, la lucha y el final. */
+  function difundir(st, fase, destino) {
+    var scene = st.scene;
+    if (!scene) return;
+    if (!fase) { scene._pescaRemota = null; return; }
+    var datos = {
+      n: st.runId, dir: st.dir, fase: fase,
+      cx: destino ? Math.round(destino.x) : null,
+      cy: destino ? Math.round(destino.y) : null
+    };
+    scene._pescaRemota = { firma: [datos.n, datos.dir, fase, datos.cx, datos.cy].join('|'), datos: datos };
+  }
+
   function fotograma(st, n) {
     var scene = st.scene, k = clave(personaje(), st.dir, n);
     st.foto = n;
@@ -509,6 +530,7 @@
     st.origen = { x: p.x, y: p.y };
     st.fase = 'esperando';
     pintarBoton(st);
+    difundir(st, 'lanza', destino);
 
     // El lance: fotogramas 1-4 a 8 por segundo y después la espera (5-6).
     var n = 1;
@@ -551,6 +573,7 @@
     }, onComplete: function () {
       if (!st.corcho) return;
       st.flotando = true;
+      if (st.fase === 'esperando') difundir(st, 'espera', destino);
       onda(st, destino.x, destino.y, 0.9);
       salpicar(st, destino.x, destino.y, 5);
     } });
@@ -644,6 +667,7 @@
     var scene = st.scene;
     st.fase = 'luchando';
     pintarBoton(st);
+    difundir(st, 'lucha', st.destino);
     if (st.exclamacion) { try { st.exclamacion.destroy(); } catch (e) {} st.exclamacion = null; }
     var el = panelLucha();
     var src = './Game/Objetos/pesca/' + especie + '.png';
@@ -862,6 +886,7 @@
     st.efectos.length = 0;
     st.flotando = false; st.recogiendo = false; st.sesion = null; st.exclamacion = null;
     st.fase = 'nada'; st.esperaPaso = 0;
+    difundir(st, null);
     if (scene && scene._accionPersonaje === 'pesca') {
       scene._accionPersonaje = null;
       try {
@@ -925,6 +950,7 @@
         if (ahora >= st.picaEn) {
           st.fase = 'pica';
           pintarBoton(st);
+          difundir(st, 'pica', st.destino);
           exclamacion(st);
           salpicar(st, st.corcho.x, base, 6);
           onda(st, st.corcho.x, base, 1.1);
@@ -936,6 +962,147 @@
         if (ahora > st.picaEn + st.ventanaMs + 300) enganchar(st);   // se le pasó: el servidor dirá "tarde"
       }
     }
+  }
+
+  // ─────────────────────────────────────── LOS DEMÁS PESCANDO
+  /* Lo que se ve de un jugador REMOTO que pesca: sus propios fotogramas de
+     pescar (los de SU personaje Soulbound, con la caña), el sedal desde la
+     punta de su caña y el corcho donde él lo echó, flotando, hundiéndose al
+     picar y dando tirones en la lucha. Todo sale de lo que manda `difundir`;
+     la hora la pone cada uno (no viaja), así que el lance se ve entero aunque
+     el paquete llegue tarde. Quien llega con la pesca ya empezada lo ve
+     directamente con el corcho en el agua. */
+  var FASES_REMOTAS = { lanza: 1, espera: 1, pica: 1, lucha: 1 };
+  var LEJOS_REMOTO = 420;      // un corcho más lejos que esto del pescador es basura
+
+  function perDe(p) {
+    var SB = window.GFSoulbound;
+    if (SB && SB.idValido && SB.idValido(p._soulbound)) return p._soulbound;
+    // Sin personaje propio se le pinta con las texturas globales, que son las
+    // del personaje que llevo yo: se pesca con ese mismo para que no cambie.
+    return personaje();
+  }
+
+  function puntaRemota(p, r) {
+    var tabla = PUNTAS[r.per] || PUNTAS.personaje1;
+    var fila = tabla[DIRS[r.dir] || 'derecha'] || tabla.derecha;
+    var v = fila[Math.max(0, Math.min(5, (r.foto || 5) - 1))];
+    var esc = Math.abs(p.sprite.scaleX) || 2;
+    return { x: p.sprite.x + v[0] * esc, y: p.sprite.y + v[1] * esc };
+  }
+
+  function soltarRemoto(p) {
+    var r = p && p._pesca;
+    if (!r) return;
+    try { if (r.corcho) r.corcho.destroy(); } catch (e) {}
+    try { if (r.linea) r.linea.destroy(); } catch (e) {}
+    p._pesca = null;
+  }
+
+  function pasoRemoto(scene, p, r, ahora) {
+    if (!p.sprite || !p.sprite.scene) { soltarRemoto(p); return; }
+    var per = perDe(p);
+    if (per !== r.per) { r.per = per; cargarFotogramas(scene, per, true); }
+    var dt = ahora - r.t0;
+    var n = dt < 500 ? Math.min(4, 1 + Math.floor(dt / 125)) : 5 + (Math.floor((dt - 500) / 330) % 2);
+    r.foto = n;
+    var k = clave(r.per, r.dir, n);
+    if (scene.textures.exists(k) && p.sprite.texture && p.sprite.texture.key !== k) {
+      try { if (p.sprite.anims) p.sprite.anims.stop(); p.sprite.setTexture(k); } catch (e) {}
+    }
+    var ve = p.sprite.visible !== false;
+    if (!r.hayCorcho || dt < 375) {
+      if (r.corcho) r.corcho.setVisible(false);
+      if (r.linea) { r.linea.clear(); r.linea.setVisible(false); }
+      return;
+    }
+    if (!r.corcho) r.corcho = scene.add.image(r.cx, r.cy, 'gfp_corcho').setScale(2);
+    if (!r.linea) r.linea = scene.add.graphics();
+    var punta = puntaRemota(p, r);
+    var vuelo = Math.min(1, (dt - 375) / 420);
+    var x = r.cx, y = r.cy;
+    if (vuelo < 1) {
+      var e = Math.sin(vuelo * Math.PI / 2);                 // Sine.easeOut, como el mío
+      x = punta.x + (r.cx - punta.x) * e;
+      y = punta.y + (r.cy - punta.y) * e - Math.sin(vuelo * Math.PI) * 46;
+    } else if (r.fase === 'pica') {
+      y = r.cy + 4 + Math.abs(Math.sin(ahora / 70)) * 3;
+    } else if (r.fase === 'lucha') {
+      x = r.cx + Math.sin(ahora / 60) * 3;
+      y = r.cy + 5 + Math.abs(Math.sin(ahora / 90)) * 3;
+    } else {
+      y = r.cy + Math.sin(ahora / 320) * 1.5;
+    }
+    r.corcho.setPosition(x, y).setDepth(Math.max(2, r.cy)).setVisible(ve);
+    var g = r.linea;
+    g.clear();
+    g.setVisible(ve);
+    if (!ve) return;
+    g.setDepth((p.sprite.depth || 0) + 2);
+    var b = { x: x, y: y - 4 };
+    g.lineStyle(1, 0xf2f2f2, 0.85);
+    var curva = new Phaser.Curves.QuadraticBezier(
+      new Phaser.Math.Vector2(punta.x, punta.y),
+      new Phaser.Math.Vector2((punta.x + b.x) / 2, Math.max(punta.y, b.y) + 10),
+      new Phaser.Math.Vector2(b.x, b.y));
+    curva.draw(g, 16);
+  }
+
+  /* Un solo `update` por escena para todos los que pescan; se quita al apagar
+     la escena (Phaser la reutiliza: si no, se sumaría uno por visita). */
+  function bucleRemoto(scene) {
+    if (scene.__gfPescaRemotos) return;
+    var fn = function (t) {
+      var ps = scene.otherPlayers;
+      if (!ps) return;
+      for (var id in ps) {
+        if (!Object.prototype.hasOwnProperty.call(ps, id)) continue;
+        var p = ps[id];
+        if (p && p._pesca) pasoRemoto(scene, p, p._pesca, t);
+      }
+    };
+    var fuera = function () {
+      scene.events.off('update', fn);
+      scene.__gfPescaRemotos = null;
+    };
+    scene.__gfPescaRemotos = fn;
+    scene.events.on('update', fn);
+    scene.events.once('shutdown', fuera);
+    scene.events.once('destroy', fuera);
+  }
+
+  /**
+   * Lo llama updateOtherPlayer/createOtherPlayer con lo que llegó en el
+   * paquete. Devuelve true si el jugador está pescando (y entonces la escena no
+   * le pone la animación de andar ni la de quieto encima).
+   */
+  function remoto(scene, p, info) {
+    if (!scene || !p || !p.sprite || !scene.add) return false;
+    var vale = info && typeof info === 'object' && DIRV[info.dir] && FASES_REMOTAS[info.fase];
+    if (!vale) { if (p._pesca) soltarRemoto(p); return false; }
+    var cx = Number(info.cx), cy = Number(info.cy);
+    var hayCorcho = info.cx !== null && info.cy !== null && isFinite(cx) && isFinite(cy) &&
+                    Math.hypot(cx - p.sprite.x, cy - p.sprite.y) < LEJOS_REMOTO;
+    var r = p._pesca;
+    if (!r || r.n !== info.n) {
+      soltarRemoto(p);
+      var per = perDe(p);
+      r = p._pesca = {
+        n: info.n, per: per, dir: info.dir, fase: info.fase,
+        // Si llega con el lance ya hecho, el corcho ya está en el agua.
+        t0: (scene.time ? scene.time.now : performance.now()) - (info.fase === 'lanza' ? 0 : 1500),
+        cx: cx, cy: cy, hayCorcho: hayCorcho, corcho: null, linea: null, foto: 1
+      };
+      texturas(scene);
+      cargarFotogramas(scene, per, true);
+      bucleRemoto(scene);
+    } else {
+      r.fase = info.fase;
+      r.dir = info.dir;
+      if (hayCorcho) { r.cx = cx; r.cy = cy; r.hayCorcho = true; }
+    }
+    pasoRemoto(scene, p, r, scene.time ? scene.time.now : performance.now());
+    return true;
   }
 
   // ─────────────────────────────────────────────────────── MONTAJE
@@ -1000,6 +1167,8 @@
   window.GFPesca = {
     montar: montar,
     desmontar: desmontar,
+    remoto: remoto,
+    soltarRemoto: soltarRemoto,
     estado: function (scene) {
       var st = scene && scene.__gfPesca;
       return st ? { fase: st.fase, puede: st.puede, dir: st.dir || null } : null;

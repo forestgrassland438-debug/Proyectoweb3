@@ -13,9 +13,9 @@
   <title>GRASSLAND FOREST</title>
   <link rel="icon" href="favicon.png" type="image/png" />
   <!-- v17: rediseño del panel de misiones + altura real del viewport en móvil -->
-  <link rel="stylesheet" href="styless.css?v=21.31" />
+  <link rel="stylesheet" href="styless.css?v=21.4" />
   <!-- El HUD nuevo (2026-10-05): viste lo de arriba sin cambiar ni un id. -->
-  <link rel="stylesheet" href="gf-hud.css?v=21.14" />
+  <link rel="stylesheet" href="gf-hud.css?v=21.17" />
 
   <!-- ============================
        CONTENT-SECURITY-POLICY (meta for testing / development)..
@@ -87,10 +87,12 @@
   <script src="./gf-profundidad.js?v=20.2" defer></script>
   <script src="./gf-sombras.js?v=19.1" defer></script>
   <script src="./gf-nieve.js?v=20.93" defer></script>
-  <script src="./gf-pesca.js?v=21.31" defer></script>
-  <script src="./gf-espantapajaros.js?v=21.0" defer></script>
+  <script src="./gf-pesca.js?v=21.4" defer></script>
+  <!-- Los demas a los 5 minutos quietos se ocultan (2026-10-05). -->
+  <script src="./gf-reposo.js?v=21.4" defer></script>
+  <script src="./gf-espantapajaros.js?v=21.41" defer></script>
   <script src="./gf-espada.js?v=21.1" defer></script>
-  <script src="./gf-agua.js?v=21.3" defer></script>
+  <script src="./gf-agua.js?v=21.41" defer></script>
   <script src="./gf-suelo.js?v=21.1" defer></script>
   <script src="./gf-casas.js?v=21.3" defer></script>
   <script src="./gf-ciclo-dia.js?v=20.8" defer></script>
@@ -98,7 +100,7 @@
   <!-- Cazador de micro-parones. Inerte hasta que se le llama a mano desde la
        consola con GFTirones.empezar(). No vigila nada por su cuenta. -->
   <script src="./gf-tirones.js?v=19.1" defer></script>
-  <script src="./gf-cuervo.js?v=21.2" defer></script>
+  <script src="./gf-cuervo.js?v=21.41" defer></script>
   <script src="./gf-animales.js?v=21.2" defer></script>
   <script src="./gf-mascota.js?v=20.8" defer></script>
   <script src="./gf-muerte.js?v=20.1" defer></script>
@@ -140,24 +142,26 @@
   <!-- SOCIAL: amistades, reacciones del chat y color del nombre.
        Van ANTES de las escenas porque GameScene y tiendajuego los montan en su
        create(); con `defer` el orden de estas etiquetas es el de ejecución. -->
-  <script src="./gf-amigos.js?v=20.8" defer></script>
-  <script src="./gf-chat-social.js?v=19.8" defer></script>
+  <!-- El traductor del chat (2026-10-05): antes que el chat y los privados. -->
+  <script src="./gf-traductor.js?v=21.4" defer></script>
+  <script src="./gf-amigos.js?v=21.4" defer></script>
+  <script src="./gf-chat-social.js?v=21.4" defer></script>
   <script src="./gf-nombre-color.js?v=19.1" defer></script>
 
   <script src="./Scenes/MenuScene.js?v=20.3" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=19.8" defer></script>
-  <script src="./Scenes/tiendajuego.js?v=21.3" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=21.4" defer></script>
   <script src="./Scenes/LoadingScenegame.js?v=21.3" defer></script>
-  <script src="./Scenes/GameScene.js?v=21.31" defer></script>
+  <script src="./Scenes/GameScene.js?v=21.4" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
        basta con dejarla en esta linea y no antes. -->
-  <script src="./Scenes/MinaScene.js?v=21.3" defer></script>
+  <script src="./Scenes/MinaScene.js?v=21.42" defer></script>
   <!-- La isla de las parcelas. Hereda de GameScene igual que la mina,
        asi que tambien tiene que ir DESPUES de ella. -->
-  <script src="./Scenes/LandsScene.js?v=21.33" defer></script>
-  <script src="./Scenes/InteriorScene.js?v=21.31" defer></script>
+  <script src="./Scenes/LandsScene.js?v=21.41" defer></script>
+  <script src="./Scenes/InteriorScene.js?v=21.42" defer></script>
   <script src="./Scenes/BattleScene.js?v=21.1" defer></script>
   <script src="./Scenes/sacar_mapa.js?v=19.1" defer></script>
 
@@ -184,7 +188,7 @@
   <script src="./TransactionHub.js?v=19.8" defer></script>
   <script src="./SystemaTransaccion.js?v=19.8" defer></script>
   <script src="./CraftingHub.js?v=21.31" defer></script>
-  <script src="./tienda_sistema.js?v=21.3" defer></script>
+  <script src="./tienda_sistema.js?v=21.41" defer></script>
   <script src="./phaser-relay-library.js?v=19.8" defer></script>
   <script src="./hub.js?v=19.8" defer></script>
 
@@ -1495,6 +1499,9 @@
     <div class="chat-input-row">
       <input type="text" id="chat-input" placeholder="Write your message..." maxlength="140" autocomplete="off" />
       <button type="button" id="chat-emoji-btn" class="chat-emoji-btn" aria-label="Emojis" title="Emojis">&#128512;</button>
+      <!-- Traducir los mensajes de los demás: apagado → español → inglés.
+           Lo engancha gf-traductor.js (y es el mismo ajuste que el de los privados). -->
+      <button type="button" id="chat-trad-btn" class="chat-emoji-btn chat-trad-btn" aria-label="Translate messages" title="Translate messages (English ⇄ Spanish)">&#127760;</button>
       <!-- Botón de enviar: en el móvil no siempre hay una tecla Enter cómoda, y
            sin él la única forma de mandar el mensaje era el teclado. -->
       <button type="button" id="chat-send-btn" class="chat-send-btn" aria-label="Send message" title="Send">Send</button>

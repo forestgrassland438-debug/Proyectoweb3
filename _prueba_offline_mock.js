@@ -39,7 +39,7 @@
     // factura, lo que guarda cada cofre ('gx,gy' -> [...]) y las facturas que
     // están dentro de alguno (no salen en /api/load).
     colocables: { basura: 1, cofre1: 2, cofre3: 1 },
-    facturaDe: { parcela: 109, basura: 114, cofre1: 115, cofre3: 116 },
+    facturaDe: { parcela: 109, basura: 114, cofre1: 115, cofre3: 116, espantapajaros: 113 },
     cofres: {},
     enCofres: {},
     // ?palas=0 entra sin la pala de construccion (para probar que se pide).
@@ -269,10 +269,12 @@
       cofre1: { ancho: 2, alto: 2, itemId: 'cofre1', capacidad: 5 },
       cofre2: { ancho: 2, alto: 2, itemId: 'cofre2', capacidad: 7 },
       cofre3: { ancho: 2, alto: 2, itemId: 'cofre3', capacidad: 13 },
-      cofre4: { ancho: 2, alto: 2, itemId: 'cofre4', capacidad: 20 }
+      cofre4: { ancho: 2, alto: 2, itemId: 'cofre4', capacidad: 20 },
+      espantapajaros: { ancho: 2, alto: 2, itemId: 'espantapajaros' }
     };
-    var cuantos = function (t) { return t === 'parcela' ? estado.parcelas : (estado.colocables[t] || 0); };
-    var sumar = function (t, n) { if (t === 'parcela') estado.parcelas += n; else estado.colocables[t] = (estado.colocables[t] || 0) + n; };
+    // El espantapajaros construido sale de la misma casilla que el de las parcelas.
+    var cuantos = function (t) { return t === 'parcela' ? estado.parcelas : t === 'espantapajaros' ? estado.espantapajaros : (estado.colocables[t] || 0); };
+    var sumar = function (t, n) { if (t === 'parcela') estado.parcelas += n; else if (t === 'espantapajaros') estado.espantapajaros += n; else estado.colocables[t] = (estado.colocables[t] || 0) + n; };
     if (ruta === '/api/lands/construcciones') {
       return { ok: true, isla: { ancho: 128, alto: 96, casilla: 32 },
                tipos: TIPOS, maximo: 200,
@@ -378,6 +380,18 @@
       return { ok: true, itemId: pez, exp: 25, factura: { invoiceId: 700 + Math.floor(Math.random() * 99), manualId: pez + '#m', cantidad: 1 } };
     }
     // ── El espantapájaros (ver /api/espantapajaros en server2.js) ────────
+    // ── El traductor del chat (ver /api/chat/traducir en server2.js) ──────
+    if (ruta === '/api/chat/traducir' && metodo === 'POST') {
+      b = cuerpo(init);
+      estado.traducciones = (estado.traducciones || 0) + 1;
+      if (b.a !== 'es' && b.a !== 'en') return { error: 'idioma_invalido' };
+      return { ok: true, a: b.a, traducciones: (b.textos || []).slice(0, 25).map(function (t) {
+        t = String(t || '').trim();
+        if (!t) return null;
+        var de = /\b(hola|amigo|vamos|gracias|quieres|pescar)\b/i.test(t) ? 'es' : 'en';
+        return { t: de === b.a ? t : '[' + b.a + '] ' + t, de: de };
+      }) };
+    }
     if (ruta === '/api/espantapajaros' && metodo === 'GET') {
       return { ok: true, ahora: Date.now(), duracionMs: 7200000,
                lista: estado.espantas.filter(function (e) { return e.hasta > Date.now(); }) };
@@ -558,6 +572,17 @@
     if (evento === 'friends:online') {
       setTimeout(function () {
         s._fire('friends:online', { ok: true, canal: 1, jugadores: [aria, ficha('Bram', 9, 'mine'), ficha('Cid', 3, 'world')] });
+      }, 20);
+    }
+    if (evento === 'friends:dm:history' && datos) {
+      setTimeout(function () {
+        var t0 = Date.now() - 600000;
+        s._fire('friends:dm:history', { ok: true, con: datos.con, ficha: aria, mensajes: [
+          { id: 'dm1', de: datos.con, para: JUGADOR, texto: 'Hello! Do you want to go fishing?', ts: t0 },
+          { id: 'dm2', de: JUGADOR, para: datos.con, texto: 'Sure, see you at the river', ts: t0 + 60000 },
+          { id: 'dm3', de: datos.con, para: JUGADOR, texto: 'hola amigo, vamos a la mina', ts: t0 + 120000 },
+          { id: 'dm4', de: datos.con, para: JUGADOR, texto: '🎣🐟', ts: t0 + 180000 }
+        ] });
       }, 20);
     }
     if (evento === 'friends:ir' && datos) {

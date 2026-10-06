@@ -24,6 +24,16 @@
  * CÓMO SE ENGANCHA
  *   GameScene (update, una vez) y LandsScene.create:  GFEspantapajaros.montar(this)
  *   handlePlotClick con el espantapájaros en la mano: GFEspantapajaros.colocar
+ *
+ * EN LA ISLA ES UNA CONSTRUCCIÓN (2026-10-05)
+ *   "Quiero que el espantapájaros esté en la tienda para construir sobre la
+ *   Lands." En la isla ya no se clava en una parcela: se coloca desde el menú
+ *   Build como el bote o los cofres, se queda para siempre (hasta sacarlo con
+ *   la pala) y GUARDA todas las parcelas a su alrededor (GUARDA_CASILLAS, el
+ *   mismo radio que comprueba el servidor). LandsScene lo apunta aquí con
+ *   `guardar()`; `activoEn`, `perchaDe` y `perchas` lo cuentan igual que a
+ *   los de dos horas, así que el cuervo se posa en él sin más cambios. En el
+ *   pueblo sigue como siempre: dos horas en una parcela sembrada.
  * ======================================================================== */
 (function () {
   'use strict';
@@ -31,6 +41,11 @@
   var TEX = 'gfe_espanta', TEX_VIENTO = 'gfe_espanta_viento';
   var ESCALA = 1.4;
   var CERCA = 110;                 // a esta distancia se ve cuánto le queda
+  /* El radio que guarda uno de la isla, en casillas de construcción (32 px)
+     del centro del espantapájaros al centro de la parcela. El servidor usa el
+     mismo número (ESPANTAPAJAROS_GUARDA_CASILLAS en server2.js). */
+  var GUARDA_CASILLAS = 4, CASILLA = 32;
+  var GUARDA_PX = GUARDA_CASILLAS * CASILLA;
 
   function aviso(scene, texto, tipo) {
     try { if (scene.notifications && scene.notifications.show) { scene.notifications.show(texto, tipo || 'info'); return; } } catch (e) {}
@@ -169,6 +184,20 @@
       var reloj = Date.now();
       st.mapa.forEach(function (e, plotId) { if (e.hasta <= reloj) quitar(st, plotId, true); });
     }
+    st.guardas.forEach(function (gd) {
+      if (!gd.spr.active) return;
+      gd.fase += 0.016 * (1 + v * 3);
+      var texG = conViento ? TEX_VIENTO : TEX;
+      if (gd.spr.texture.key !== texG && scene.textures.exists(texG)) gd.spr.setTexture(texG);
+      gd.spr.rotation = Math.sin(gd.fase * 1.7) * (0.012 + v * 0.05);
+      // Cerca de él se ve hasta dónde guarda.
+      var verlo = !!(p && Math.hypot(p.x - gd.cx, p.y + 45 - gd.cy) < GUARDA_PX + 40);
+      if (verlo !== gd.visto) {
+        gd.visto = verlo;
+        scene.tweens.killTweensOf(gd.anillo);
+        scene.tweens.add({ targets: gd.anillo, alpha: verlo ? 1 : 0, duration: 260 });
+      }
+    });
     st.mapa.forEach(function (e) {
       if (!e.spr.active) return;
       e.fase += 0.016 * (1 + v * 3);
@@ -187,7 +216,7 @@
   function montar(scene) {
     if (!scene || !scene.add || !scene.events) return null;
     if (scene.__gfEspanta) return scene.__gfEspanta;
-    var st = { scene: scene, mapa: new Map(), pendientes: new Map(), ultimoRepaso: 0, colocando: false };
+    var st = { scene: scene, mapa: new Map(), pendientes: new Map(), guardas: new Map(), ultimoRepaso: 0, colocando: false };
     scene.__gfEspanta = st;
     st.onUpdate = function (t) { try { actualizar(st, t); } catch (e) {} };
     st.onApagar = function () { desmontar(scene); };
@@ -212,25 +241,83 @@
     scene.events.off('shutdown', st.onApagar);
     scene.events.off('destroy', st.onApagar);
     Array.from(st.mapa.keys()).forEach(function (k) { quitar(st, k, false); });
+    Array.from(st.guardas.keys()).forEach(function (k) { soltarGuarda(scene, k, true); });
     st.pendientes.clear();
     st.scene = null;
+  }
+
+  // ─────────────────────────────────────────── LOS DE LA ISLA (GUARDAS)
+  /**
+   * Un espantapájaros CONSTRUIDO en la isla. `spr` lo crea y lo destruye
+   * LandsScene (es una construcción más); aquí solo se anima, se enseña su
+   * radio y se cuenta para el cuervo. `centro` = el centro de su sitio.
+   */
+  function guardar(scene, clave, spr, centro) {
+    // Si la isla lo pinta antes de montar el módulo, se monta ya (es idempotente).
+    var st = scene && (scene.__gfEspanta || montar(scene));
+    if (!st || !spr || !centro) return;
+    soltarGuarda(scene, clave, false);
+    var anillo = scene.add.graphics().setDepth(3).setAlpha(0);
+    anillo.lineStyle(2, 0xfff1c4, 0.55);
+    anillo.strokeEllipse(centro.x, centro.y, GUARDA_PX * 2, GUARDA_PX * 2);
+    anillo.fillStyle(0xfff1c4, 0.07);
+    anillo.fillEllipse(centro.x, centro.y, GUARDA_PX * 2, GUARDA_PX * 2);
+    st.guardas.set(clave, { spr: spr, cx: centro.x, cy: centro.y, anillo: anillo, fase: Math.random() * 6.28, visto: false });
+    scene['espanta_' + clave] = spr;
+  }
+
+  function soltarGuarda(scene, clave, todo) {
+    var st = scene && scene.__gfEspanta;
+    var gd = st && st.guardas.get(clave);
+    if (!gd) return;
+    st.guardas.delete(clave);
+    if (scene['espanta_' + clave] === gd.spr) delete scene['espanta_' + clave];
+    try { gd.anillo.destroy(); } catch (x) {}
+    void todo;
+  }
+
+  /** El de la isla que guarda esa parcela (el más cercano), o null. */
+  function guardaDe(scene, plotId) {
+    var st = scene && scene.__gfEspanta;
+    if (!st || !st.guardas.size) return null;
+    var img = scene.plotImages && scene.plotImages.get ? scene.plotImages.get(plotId) : null;
+    if (!img || !img.active) return null;
+    var b = img.getBounds(), mejor = null, dmin = Infinity;
+    st.guardas.forEach(function (gd, clave) {
+      if (!gd.spr || !gd.spr.active) return;
+      var d = Math.hypot(b.centerX - gd.cx, b.centerY - gd.cy);
+      if (d <= GUARDA_PX + 0.5 && d < dmin) { dmin = d; mejor = { clave: 'espanta_' + clave, spr: gd.spr }; }
+    });
+    return mejor;
   }
 
   window.GFEspantapajaros = {
     montar: montar,
     desmontar: desmontar,
     colocar: colocar,
-    /** ¿Hay uno vivo en esa parcela? (lo pregunta el cuervo) */
+    guardar: guardar,
+    soltarGuarda: soltarGuarda,
+    GUARDA_CASILLAS: GUARDA_CASILLAS,
+    /** ¿Hay uno vivo en esa parcela, o uno de la isla que la guarde? (lo pregunta el cuervo) */
     activoEn: function (scene, plotId) {
       var st = scene && scene.__gfEspanta;
       var e = st && st.mapa.get(plotId);
-      return !!(e && e.hasta > Date.now() && e.spr && e.spr.active);
+      if (e && e.hasta > Date.now() && e.spr && e.spr.active) return true;
+      return !!guardaDe(scene, plotId);
+    },
+    /** Dónde se posa el cuervo que baja a esa parcela guardada: { clave, spr } o null. */
+    perchaDe: function (scene, plotId) {
+      var st = scene && scene.__gfEspanta;
+      var e = st && st.mapa.get(plotId);
+      if (e && e.hasta > Date.now() && e.spr && e.spr.active) return { clave: 'espanta_' + plotId, spr: e.spr };
+      return guardaDe(scene, plotId);
     },
     /** Los espantapájaros como posaderos: [{ clave, spr }] (los usa el cuervo). */
     perchas: function (scene) {
       var st = scene && scene.__gfEspanta, out = [];
       if (!st) return out;
       st.mapa.forEach(function (e, plotId) { if (e.spr && e.spr.active) out.push({ clave: 'espanta_' + plotId, spr: e.spr }); });
+      st.guardas.forEach(function (gd, clave) { if (gd.spr && gd.spr.active) out.push({ clave: 'espanta_' + clave, spr: gd.spr }); });
       return out;
     },
     estado: function (scene) {
@@ -238,7 +325,7 @@
       if (!st) return null;
       var out = [];
       st.mapa.forEach(function (e, k) { out.push({ plotId: k, quedaMin: Math.round((e.hasta - Date.now()) / 60000) }); });
-      return { activos: out, pendientes: st.pendientes.size };
+      return { activos: out, pendientes: st.pendientes.size, guardas: Array.from(st.guardas.keys()) };
     }
   };
 })();

@@ -642,9 +642,21 @@
     /* EL ESPANTAPÁJAROS: si la parcela tiene uno, el cuervo se posa en su
        cabeza y no come. Es justo lo que hace un cuervo de verdad con uno: lo
        usa de percha. */
-    if (protegida(scene, elegida.clave) && scene['espanta_' + elegida.clave]) {
+    /* El que la guarda puede ser el de la propia parcela (dos horas) o uno
+       CONSTRUIDO en la isla que la tiene dentro de su radio: se posa en ese. */
+    var guarda = null;
+    if (protegida(scene, elegida.clave)) {
+      try {
+        guarda = (window.GFEspantapajaros && window.GFEspantapajaros.perchaDe)
+          ? window.GFEspantapajaros.perchaDe(scene, elegida.clave) : null;
+      } catch (e) { guarda = null; }
+      if (!guarda && scene['espanta_' + elegida.clave]) {
+        guarda = { clave: 'espanta_' + elegida.clave, spr: scene['espanta_' + elegida.clave] };
+      }
+    }
+    if (guarda && guarda.spr) {
       c.parcela = null;
-      volarA(st, c, posadero(scene['espanta_' + elegida.clave]), 'posado', 'espanta_' + elegida.clave);
+      volarA(st, c, posadero(guarda.spr), 'posado', guarda.clave);
       return;
     }
     /* Solo se apunta la parcela SI TIENE HAMBRE.

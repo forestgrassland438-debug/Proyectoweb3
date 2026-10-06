@@ -690,6 +690,19 @@
       if (c) nombreEl.style.setProperty('color', c, 'important');
     }
 
+    /* EL TRADUCTOR (gf-traductor.js, 2026-10-05). Aquí y no en las escenas:
+       esta función es la única que llaman a la vez el pueblo y la tienda.
+       Los mensajes propios no se traducen. */
+    if (textoEl && global.GFTraductor) {
+      try {
+        var sk = socketVivo(scene);
+        var yo = miNombre(scene);
+        var mio = !!((sk && msg.id && msg.id === sk.id) ||
+                     (yo && desescapar(msg.playerName || '') === yo));
+        global.GFTraductor.traducirEn(textoEl, textoEl.textContent, { mio: mio, dentro: linea });
+      } catch (e) { log('traductor:', e); }
+    }
+
     if (!msg.mid || !textoEl) return;   // mensaje de un servidor antiguo
 
     var reg = { linea: linea, textoEl: textoEl, msg: msg };

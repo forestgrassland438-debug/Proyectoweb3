@@ -48,9 +48,24 @@
 }
 
 /* ─────────────────────────────────────────────────── LOS BOTONES REDONDOS */
+/* EL TAMAÑO SEGÚN LA PANTALLA (2026-10-05). "En algunas resoluciones los
+   botones redondos se ven grandes." Medían 50 px SIEMPRE: con la columna
+   empezando a 130 px, los nueve no caben por debajo de ~720 px de alto
+   (a 1280×600 el último se salía de la pantalla) y en el teléfono tumbado
+   formaban un bloque de 3×3. Ahora el tamaño sale del alto que hay: nueve
+   botones y sus huecos entre `--gfh-rb-top` y el borde de abajo, con 50 px
+   como mucho (pantallas grandes, igual que antes) y 30 como poco. El icono
+   es siempre el 64 % del botón. Las reglas del teléfono, más abajo. */
+html body #game-hud .round-buttons {
+  --gfh-rb-top: clamp(88px, 17vh, 130px);
+  --gfh-rb-gap: clamp(5px, 1.1vh, 10px);
+  --gfh-rb: clamp(30px, calc((100vh - var(--gfh-rb-top) - 24px - 8 * var(--gfh-rb-gap)) / 9), 50px);
+  top: var(--gfh-rb-top) !important;
+  gap: var(--gfh-rb-gap) !important;
+}
 html body #game-hud .round-buttons .round-btn {
-  width: 50px !important;
-  height: 50px !important;
+  width: var(--gfh-rb) !important;
+  height: var(--gfh-rb) !important;
   border-radius: 50% !important;
   overflow: visible !important;
   background: radial-gradient(circle at 34% 26%, #4d4172 0%, #261f3e 52%, #141120 100%) !important;
@@ -67,8 +82,8 @@ html body #game-hud .round-buttons .round-btn::before {
   background-size: 220% 100% !important;
 }
 html body #game-hud .round-buttons .round-btn img {
-  width: 32px !important;
-  height: 32px !important;
+  width: calc(var(--gfh-rb) * .64) !important;
+  height: calc(var(--gfh-rb) * .64) !important;
   object-fit: contain !important;
   image-rendering: auto !important;
   filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .55)) !important;
@@ -881,8 +896,11 @@ html body #hub-panel_101.visible {
     align-content: flex-start !important;
     column-gap: 8px !important;
   }
-  html body #game-hud .round-buttons .round-btn { width: 44px !important; height: 44px !important; }
-  html body #game-hud .round-buttons .round-btn img { width: 28px !important; height: 28px !important; }
+  /* De pie: una columna, un poco más estrecha cuanto más estrecho el teléfono. */
+  html body #game-hud .round-buttons { --gfh-rb: clamp(36px, 10.5vw, 44px); --gfh-rb-gap: 8px; }
+  /* El mínimo de 44 px "para el dedo" de styless.css (max-width: 768px) los
+     dejaba en 44 dijera lo que dijera el tamaño de arriba. */
+  html body #game-hud .round-buttons .round-btn { min-width: 0 !important; min-height: 0 !important; }
   html body #game-hud .round-buttons .round-btn .label-badge { display: none !important; }
   html body .quick-slot,
   html body #inventory-grid .inv-slot { border-radius: 9px !important; }
@@ -893,6 +911,37 @@ html body #hub-panel_101.visible {
   html body .crafting-container,
   html body .furnace-container,
   html body #gfa-panel .gfa-caja { border-radius: 14px !important; max-width: 96vw !important; }
+}
+
+/* EL TELÉFONO TUMBADO (ancho > 640 pero poco alto, dedo). Ahí el chat va
+   abajo a la IZQUIERDA y la barra de casillas en el centro: la esquina de
+   abajo a la derecha está libre, así que la columna baja hasta el borde y
+   cabe en DOS columnas de botones más pequeños en vez de un bloque de 3×3
+   de 44 px. */
+@media (min-width: 641px) and (pointer: coarse) and (max-height: 520px) {
+  html body #game-hud .round-buttons {
+    --gfh-rb-top: 88px;
+    --gfh-rb-gap: 6px;
+    /* Cinco por columna como mucho: así nunca pasan de dos columnas. */
+    --gfh-rb: clamp(34px, calc((100vh - 88px - 12px - 4 * 6px) / 5), 40px);
+    top: 88px !important;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+    column-gap: 6px !important;
+  }
+}
+
+/* En pantallas bajas styless.css pone la columna en REJILLA (filas fijas de
+   40 px y alto máximo `100vh - 150px`): con eso a 360 px de alto salían tres
+   columnas aunque los botones cupieran en dos. La rejilla sigue, pero con
+   el tamaño de arriba y hasta el borde de abajo. */
+@media (max-height: 560px) {
+  html body #game-hud .round-buttons:not(.hidden) {
+    grid-template-rows: repeat(auto-fill, var(--gfh-rb)) !important;
+    grid-auto-columns: var(--gfh-rb) !important;
+    gap: var(--gfh-rb-gap) !important;
+    max-height: calc(100vh - var(--gfh-rb-top) - 14px) !important;
+    max-height: calc(100dvh - var(--gfh-rb-top) - 14px) !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
