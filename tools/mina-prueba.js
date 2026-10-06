@@ -115,9 +115,21 @@ comprueba('el arte sigue en tiles de 32 (una tile = 2x2 casillas)',
 comprueba('es ortogonal y no infinito',
   mapa.orientation === 'orthogonal' && mapa.infinite === false);
 
-comprueba('lleva UN solo tileset y va embebido (sin .tsx externos)',
-  mapa.tilesets.length === 1 && !mapa.tilesets[0].source,
+// TRES tilesets desde 2026-10-04: el fijo, y los de la lava y el agua, que
+// la escena anima cambiando su imagen. Todos embebidos: un .tsx externo es lo
+// que hace que Tiled pregunte cuarenta veces por ficheros que no existen.
+comprueba('lleva sus tres tilesets embebidos (sin .tsx externos)',
+  mapa.tilesets.length === 3 && mapa.tilesets.every(t => !t.source) &&
+  mapa.tilesets.map(t => t.name).join(',') === 'tileset_mina,tileset_lava,tileset_agua',
   JSON.stringify(mapa.tilesets.map(t => t.source || t.name)));
+
+comprueba('las imagenes de los tres tilesets existen',
+  mapa.tilesets.every(t => fs.existsSync(path.resolve(path.dirname(MAPA), t.image))),
+  mapa.tilesets.map(t => t.image).join(' '));
+
+comprueba('los firstgid no se pisan',
+  mapa.tilesets[1].firstgid === mapa.tilesets[0].firstgid + mapa.tilesets[0].tilecount &&
+  mapa.tilesets[2].firstgid === mapa.tilesets[1].firstgid + mapa.tilesets[1].tilecount);
 
 const ts = mapa.tilesets[0];
 const rutaImagen = path.resolve(path.dirname(MAPA), ts.image);
@@ -141,6 +153,78 @@ comprueba('ningun gid de la capa de suelo se sale del tileset',
 const huecosSuelo = capaMina.data.filter(g => g === 0).length;
 comprueba('la capa de suelo no tiene agujeros',
   huecosSuelo === 0, huecosSuelo + ' casillas vacias');
+
+// La capa de bordes: la grava, la lava y el agua con sus orillas. Cada gid
+// tiene que caer en ALGUNO de los tres tilesets, y cada casilla de lava del
+// mapa tiene que llevar un tile del tileset de la lava (si no, el lago se
+// veria como suelo y se podria creer pisable).
+const capaBordes = capas['mina_bordes'];
+const rangos = mapa.tilesets.map(t => [t.firstgid, t.firstgid + t.tilecount - 1, t.name]);
+const enRango = (g, nombre) => rangos.some(r => g >= r[0] && g <= r[1] && (!nombre || r[2] === nombre));
+comprueba('existe la capa de bordes y no se sale de los tilesets',
+  !!capaBordes && capaBordes.data.length === W * H &&
+  capaBordes.data.every(g => g === 0 || enRango(g)),
+  capaBordes ? '' : 'no existe');
+
+if (capaBordes) {
+  let lavaSinTile = 0;
+  capas['area_lava'].objects.forEach(o => {
+    for (let y = o.y / TILE; y < (o.y + o.height) / TILE; y++) {
+      for (let x = o.x / TILE; x < (o.x + o.width) / TILE; x++) {
+        if (!enRango(capaBordes.data[y * W + x], 'tileset_lava')) lavaSinTile++;
+      }
+    }
+  });
+  comprueba('cada casilla de lava lleva un tile de la lava en la capa de bordes',
+    lavaSinTile === 0, lavaSinTile + ' casillas de lava sin su tile');
+}
+
+// Los liquidos se animan con un PNG por fotograma. La escena pide
+// `fotogramas` PNG con LIQUIDOS_MINA: si no coincide con lo que genero
+// generar-mina.py, la carga pediria ficheros que no existen (o se dejaria
+// fotogramas sin usar).
+const fuenteMina = fs.readFileSync(path.join(RAIZ, 'Scenes', 'MinaScene.js'), 'utf8');
+['lava', 'agua'].forEach(m => {
+  const liq = ficha.liquidos && ficha.liquidos[m];
+  const re = new RegExp(m + ':\\s*\\{\\s*fotogramas:\\s*(\\d+),\\s*fps:\\s*(\\d+)');
+  const enEscena = fuenteMina.match(re);
+  comprueba('MinaScene anima la ' + m + ' con los fotogramas que hay',
+    !!liq && !!enEscena && Number(enEscena[1]) === liq.fotogramas && Number(enEscena[2]) === liq.fps,
+    'escena: ' + (enEscena ? enEscena[1] + ' a ' + enEscena[2] + ' fps' : '?') +
+    ' / generados: ' + (liq ? liq.fotogramas + ' a ' + liq.fps + ' fps' : '?'));
+  comprueba('existen los ' + (liq ? liq.fotogramas : '?') + ' PNG de la ' + m + ', todos del mismo tamano',
+    !!liq && liq.imagenes.every(r => fs.existsSync(path.join(RAIZ, r))) &&
+    new Set(liq.imagenes.map(r => fs.statSync(path.join(RAIZ, r)).size > 0 &&
+      fs.readFileSync(path.join(RAIZ, r)).readUInt32BE(16) + 'x' +
+      fs.readFileSync(path.join(RAIZ, r)).readUInt32BE(20))).size === 1);
+});
+
+// La burbuja: 6 fotogramas de 32 px. Cortada a 16 salian cuartos de burbuja.
+{
+  const png = fs.readFileSync(path.join(RAIZ, 'Game', 'MAPAS', 'Mina', 'lava_burbuja.png'));
+  const alto = png.readUInt32BE(20);
+  const m = fuenteMina.match(/spritesheet\('lava_burbuja'[\s\S]{0,160}frameWidth:\s*(\d+),\s*frameHeight:\s*(\d+)/);
+  comprueba('la burbuja se corta al tamano de sus fotogramas',
+    !!m && Number(m[1]) === alto && Number(m[2]) === alto,
+    'PNG de ' + alto + ' px de alto, cortado a ' + (m ? m[1] + 'x' + m[2] : '?'));
+}
+
+// Cada tipo de luz del mapa tiene que existir en LUCES_MINA: la escena se
+// salta en silencio las que no conoce (asi se perdieron los focos de lava).
+{
+  const tipos = new Set((capas['luces'] ? capas['luces'].objects : []).map(o => o.name));
+  const sinTipo = [...tipos].filter(t => !new RegExp('\\n\\s*' + t + ':\\s*\\{ color:').test(fuenteMina));
+  comprueba('la escena conoce todos los tipos de luz del mapa',
+    sinTipo.length === 0, 'sin dar de alta en LUCES_MINA: ' + sinTipo.join(', '));
+}
+
+comprueba('hay luces en el mapa (lava, antorchas, cristales)',
+  !!capas['luces'] && capas['luces'].objects.length > 20 &&
+  ['lava', 'antorcha'].every(n => capas['luces'].objects.some(o => o.name === n)),
+  capas['luces'] ? capas['luces'].objects.length + ' luces' : 'no existe');
+
+comprueba('el arte de la mina va con version (la cache no mezcla mapa nuevo y tileset viejo)',
+  /tileset_mina\.png' \+ v/.test(fuenteMina) && /mina\.json' \+ v/.test(fuenteMina));
 
 // La capa de sombras: es lo que separa la pared del suelo a la vista. Si
 // faltara, las paredes volverian a verse "pegadas al suelo".
@@ -421,6 +505,7 @@ const minaScene = soloCodigo(path.join('Scenes', 'MinaScene.js'));
 const landsScene = soloCodigo(path.join('Scenes', 'LandsScene.js'));
 const gfLands = soloCodigo('gf-lands.js');
 const fuenteGen = fs.readFileSync(path.join(RAIZ, 'tools', 'generar-mina.py'), 'utf8');
+const fuentePro = fs.readFileSync(path.join(RAIZ, 'tools', 'gf_mina_pro.py'), 'utf8');
 const fuenteAudio = soloCodigo('gf-audio.js');
 const fuentePost  = soloCodigo('gf-postproceso.js');
 
@@ -706,6 +791,22 @@ comprueba('el HUD se ensena antes de esperar a la red',
   /_mostrarHUD\(\);[\s\S]{0,60}await this\._arrancarSistemas\(\)/.test(landsScene),
   'estaba despues: dos o tres segundos de mapa sin barras ni botones');
 
+// La entrada de camara (negro, la camara se aleja en 2 s y entonces sale el
+// HUD), la misma que el mapa de fuera y la tienda.
+comprueba('GameScene trae la entrada de camara compartida',
+  /_entradaDeCamara\(sceneRunId\)\s*\{[\s\S]{0,1600}zoomTo\(destino, 2000\)/.test(gameScene) &&
+  /_entradaDeCamara[\s\S]{0,2600}camerazoomcomplete/.test(gameScene));
+
+comprueba('la mina y la isla entran con la animacion de camara, despues del zoom',
+  [minaScene, landsScene].every(src =>
+    /this\._montarZoom\(\);[\s\S]{0,400}const entrada = this\._entradaDeCamara\(sceneRunId\)/.test(src)),
+  'antes de _montarZoom el indice de zoom no esta decidido');
+
+comprueba('el HUD sale al terminar la entrada, sin esperar a la red',
+  [minaScene, landsScene].every(src =>
+    /entrada\.then\(\(ok\) => \{ if \(ok\) this\._mostrarHUD\(\); \}\);\s*await this\._arrancarSistemas\(\)/.test(src) &&
+    /await entrada;[\s\S]{0,120}this\._mostrarHUD\(\)/.test(src)));
+
 comprueba('el chat se monta antes de cablear el HUD',
   /_setupChatDom\(\)[\s\S]{0,700}_mostrarHUD\(\)/.test(minaScene) &&
   /_setupChatDom\(\)[\s\S]{0,700}_mostrarHUD\(\)/.test(landsScene),
@@ -825,9 +926,12 @@ comprueba('la sincronizacion PIDE PRESTADOS los metodos, no los copia',
   'copiarlos serian 400 lineas duplicadas, como ya pasa con ItemDefinitions');
 
 // --- colisiones -----------------------------------------------------------
+// Con el ayudante de GameScene (2026-10-05, _resolverChoqueJugador, que
+// además saca al jugador si se queda atrapado) la caja se le pasa por alto.
+const cajaDe26 = /_chocaConEscenario\(this\.player\.x - 15, prevY \+ 25, 30, 26\)|_resolverChoqueJugador\(prevX, prevY, 26\)/;
 comprueba('la caja de pies llega hasta los pies (26 de alto, no 15)',
-  /_chocaConEscenario\(this\.player\.x - 15, prevY \+ 25, 30, 26\)/.test(minaScene) &&
-  /_chocaConEscenario\(this\.player\.x - 15, prevY \+ 25, 30, 26\)/.test(landsScene),
+  cajaDe26.test(minaScene) && cajaDe26.test(landsScene) &&
+  /_resolverChoqueJugador\(prevX, prevY, alto\)\s*\{[\s\S]{0,400}_chocaConEscenario\(x - 15, y \+ 25, 30, alto\)/.test(gameScene),
   'el sprite es 23x51 a escala 2: los pies caen en y+51, no en y+40');
 
 // Y frenan EN LA LISTA BUENA: `_reconstruirIndiceColisiones()` solo indexa
@@ -862,14 +966,15 @@ comprueba('el cartel de la salida se suelta al apagar',
 
 // --- el arte, a la escala a la que se juega -------------------------------
 comprueba('los tablones son de 16 px, no de 8',
-  /franjas = \[\(0, 16\), \(16, T\)\]/.test(fuenteGen),
+  /def tablas_parche\(lado, s, alto=16\)/.test(fuentePro) &&
+  !/tablas_parche\([^)]*alto=8/.test(fuenteGen),
   'cuatro tablas en una casilla de 32 es el dibujo de un suelo de 16');
 
-comprueba('los sillares del muro son de 32, no de 16',
-  /alto=18, ancho=\(22, 34\)/.test(fuenteGen));
+comprueba('las hiladas del muro son de 13 a 20 px (escala del personaje)',
+  /alto = 13 \+ int\(h01\(hilada, 1, s\) \* 7\)/.test(fuentePro));
 
 comprueba('las traviesas de la via dividen la casilla (no dan salto)',
-  /range\(2, W, 16\)/.test(fuenteGen) && /range\(2, H, 16\)/.test(fuenteGen));
+  /for t0 in range\(3, largo, 16\)/.test(fuentePro));
 
 console.log('\n=== RENDIMIENTO ===\n');
 

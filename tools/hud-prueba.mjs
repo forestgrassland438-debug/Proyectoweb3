@@ -605,38 +605,44 @@ async function combateCompleto(rendirse) {
   if (!b) throw new Error('el hub de batallas no enseña el botón de la batalla diaria');
   if (b.tapado) throw new Error('botón de batalla diaria tapado por ' + b.tapado);
   await pulsar(b.x, b.y);
-  await hasta(activa('BattleScene', "s.estado === 'combate' && s.puedeJugar"), 'primer turno del combate', 30000);
+  // La arena en tiempo real: se espera al final de la cuenta atrás.
+  await hasta(activa('BattleScene', "s.estado === 'combate'"), 'la arena empieza', 30000);
   // Móvil en vertical: el aviso de girar el teléfono tapa la batalla; se usa su
   // botón "Play in portrait", igual que haría un jugador con el giro bloqueado.
   const seguir = await ev(`(function(){ var a = document.getElementById('battleRotateNotice');
     return a && !a.classList.contains('hidden') ? __H.punto('#battleRotateSeguir') : null; })()`);
   if (seguir) { await pulsar(seguir.x, seguir.y); await dormir(600); }
-  const ui = await ev(`(function(){ var h = document.querySelectorAll('#bfHand > *'); return { cartas: h.length }; })()`);
-  informe.combate.push({ rendirse, cartas: ui.cartas });
+  const ui = await ev(`(function(){ var s = game.scene.getScene('BattleScene'); return { luchadores: s.vistas ? s.vistas.size : 0, tactil: !!s._tactil }; })()`);
+  informe.combate.push({ rendirse, luchadores: ui.luchadores, tactil: ui.tactil });
   if (rendirse) {
-    const s = await ev(`__H.punto('#bfLeave') || __H.punto('#bfSurrender')`);
+    const s = await ev(`__H.punto('#bzSalir')`);
     if (!s) throw new Error('no se ve el botón de rendirse');
+    if (s.tapado) throw new Error('el botón de rendirse está tapado por ' + s.tapado);
     await pulsar(s.x, s.y); await dormir(500);
     // Pide confirmación: segunda pulsación.
-    const s2 = await ev(`__H.punto('#bfLeave') || __H.punto('#bfSurrender')`);
+    const s2 = await ev(`__H.punto('#bzSalir')`);
     if (s2) await pulsar(s2.x, s2.y);
   } else {
-    for (let turno = 0; turno < 12; turno++) {
+    // Pelear con el apuntado automático hasta que acabe: el disparo táctil
+    // (un toque en la zona derecha) o la barra espaciadora en PC.
+    const t0 = Date.now();
+    while (Date.now() - t0 < 160000) {
       const fin = await ev(`(function(){ var s = game.scene.getScene('BattleScene'); return !s || !s.sys.isActive() || s.estado === 'fin'; })()`);
       if (fin) break;
-      await hasta(activa('BattleScene', "s.puedeJugar || s.estado === 'fin'"), 'turno ' + (turno + 1), 15000);
-      if (await ev(`game.scene.getScene('BattleScene').estado === 'fin'`)) break;
-      // Dos cartas de ataque (índices 0 y 3 = Claw + Bite) y "End turn".
-      for (const i of [0, 3]) {
-        const c = await ev(`(function(){ var el = document.querySelectorAll('#bfHand > *')[${i}]; if (!el || !__H.vis(el)) return null;
-          var r = el.getBoundingClientRect(); return { x: r.left + r.width/2, y: r.top + r.height/2 }; })()`);
-        if (c) { await pulsar(c.x, c.y); await dormir(250); }
+      if (MODO === 'movil') {
+        const z = await ev(`__H.punto('#bzZonaDisparo')`);
+        if (z) await pulsar(z.x + 40, z.y + 40);
+      } else {
+        await ev(`window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ' })), window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Space', key: ' ' })), true`);
       }
-      const e = await ev(`__H.punto('#bfEndTurn')`);
-      if (!e) throw new Error('no se ve "End turn"');
-      await pulsar(e.x, e.y);
-      await dormir(1800);
+      await dormir(450);
     }
+    await hasta(`(function(){ var s = game.scene.getScene('BattleScene'); return !!(s && s._resultado); })()`, 'resultados de la arena', 20000);
+    await dormir(600);
+    const v = await ev(`__H.punto('#bzVolver')`);
+    if (!v) throw new Error('no se ve "Back to map" en los resultados');
+    if (v.tapado) throw new Error('"Back to map" tapado por ' + v.tapado);
+    await pulsar(v.x, v.y);
   }
   await hasta(MAPA_NUEVO, 'mapa tras el combate', 30000);
   await esperarHud('mapa tras el combate');

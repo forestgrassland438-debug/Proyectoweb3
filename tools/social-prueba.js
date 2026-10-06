@@ -573,8 +573,10 @@ console.log('\n8) El botón de Friends está puesto sin descolocar a los demás'
 {
   const c = SRC.html;
   ok(/id="friends-btn"/.test(c), 'el botón existe en index.html');
-  ok(/amistades\.png/.test(c), 'y usa su icono');
-  ok(hay(path.join(BIN, 'Game', 'Source', 'amistades.png')),
+  // El HUD nuevo (2026-10-05, gf-hud.css) le puso su icono de Game/Source/hud.
+  const icono = (/<button[^>]*id="friends-btn"[\s\S]{0,200}?src="\.\/(Game\/Source\/(?:hud\/amigos|amistades)\.png)"/.exec(c) || [])[1];
+  ok(!!icono, 'y usa su icono');
+  ok(!!icono && hay(path.join(BIN, ...icono.split('/'))),
      'el icono existe en el disco');
 
   /* EL ORDEN IMPORTA MÁS DE LO QUE PARECE. tiendajuego.js engancha varios de
