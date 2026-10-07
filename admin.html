@@ -341,10 +341,11 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
 
   <!-- ══════════════════════════════════════════════════════════════════════
        TABLAS DEL CONTRATO
-       Las tablas que el servidor necesita y que se crean A MANO con
-       setLimit(tabla, limit, perInvoiceLimit) desde la cartera dueña del
-       contrato. Si falta una, lo que depende de ella se salta sin romper el
-       juego; aquí se ve cuál falta y si los límites son los recomendados.
+       Las tablas que el servidor necesita. Desde 2026-10-05 SE CREAN SOLAS:
+       si falta una, el servidor la crea con sus límites al arrancar, cada 15
+       minutos, cuando algo la necesita y al abrir esta tabla. Para eso el
+       relayer tiene que ser admin del contrato. Las que ya existen no se
+       cambian: aquí se ve si sus límites son los recomendados.
        ══════════════════════════════════════════════════════════════════════ -->
   <section>
     <div class="section-head">
@@ -825,7 +826,8 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
       cuerpo.innerHTML = filas.map(function (t) {
         var c = t.cadena;
         var estado = !c ? '<span class="pill warn">sin leer</span>'
-          : (t.existe ? '<span class="pill">creada</span>' : '<span class="pill warn">FALTA CREARLA</span>');
+          : (t.existe ? (t.creadaAhora ? '<span class="pill">creada ahora</span>' : '<span class="pill">creada</span>')
+                      : '<span class="pill warn">no se pudo crear · ¿el relayer es admin?</span>');
         var limite = c && t.existe ? numero(c.limit) : '<span class="dim">' + numero(t.limit) + ' (recom.)</span>';
         var porFactura = c && t.existe ? numero(c.perInvoiceLimit) : '<span class="dim">' + numero(t.perInvoiceLimit) + ' (recom.)</span>';
         var avisos = (t.avisos || []).map(function (a) { return '<span class="pill warn">' + esc(a) + '</span>'; }).join(' ');
@@ -843,7 +845,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
       var faltan = filas.filter(function (t) { return t.cadena && !t.existe; }).length;
       $('tablasInfo').textContent = 'Contrato ' + corto(d.contrato || '') + ' · v' + (d.version || '?') +
         (d.casillasEnCadena ? ' · guarda las casillas del inventario' : ' · sin casillas (v2)') +
-        (faltan ? ' · faltan ' + faltan + ' por crear' : '');
+        (faltan ? ' · ' + faltan + ' sin crear (se reintenta sola cada pocos minutos)' : '');
     } catch (e) {
       cuerpo.innerHTML = '<tr><td colspan="8" class="empty">No se pudo leer: ' + esc(e.message) + '</td></tr>';
       $('tablasInfo').textContent = '';

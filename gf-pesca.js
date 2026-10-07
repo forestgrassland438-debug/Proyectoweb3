@@ -825,7 +825,10 @@
     var desde = st.corcho ? { x: st.corcho.x, y: st.corcho.y } : { x: p.x + 40, y: p.y };
     var k = 'gfp_' + itemId;
     if (!scene.textures.exists(k)) return;
-    var pez = scene.add.image(desde.x, desde.y, k).setScale(2).setDepth(9000);
+    /* El dibujo del pez mira a la IZQUIERDA: si vuela hacia la derecha (el
+       pescador está a la derecha del corcho) se le da la vuelta, o llegaba
+       de espaldas, con la cola por delante. */
+    var pez = scene.add.image(desde.x, desde.y, k).setScale(2).setDepth(9000).setFlipX(p.x > desde.x);
     st.efectos.push(pez);
     salpicar(st, desde.x, desde.y, 8);
     onda(st, desde.x, desde.y, 1.2);

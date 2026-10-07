@@ -691,7 +691,10 @@
     if (!scene.textures.exists(k)) return;
     p.salta = true;
     var x0 = s.x, y0 = s.y, dir = p.vx >= 0 ? 1 : -1, largo = az(26, 46), alto = az(22, 40);
-    var pez = scene.add.image(x0, y0, k).setScale(st.T >= 32 ? 1.1 : 0.9).setDepth(y0 + 40).setFlipX(dir < 0);
+    /* Los dibujos de los peces (pesca/pes*.png) MIRAN A LA IZQUIERDA: hay
+       que darle la vuelta cuando salta hacia la DERECHA. Al revés saltaba de
+       espaldas, con la cola por delante ("a veces el pez brinca de espalda"). */
+    var pez = scene.add.image(x0, y0, k).setScale(st.T >= 32 ? 1.1 : 0.9).setDepth(y0 + 40).setFlipX(dir > 0);
     s.setAlpha(0);
     anillo(st, x0, y0, 1.1, 650, 0.85); salpicon(st, x0, y0, 4);
     scene.tweens.addCounter({ from: 0, to: 1, duration: 620, onUpdate: function (tw) {
