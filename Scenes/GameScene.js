@@ -9405,7 +9405,18 @@ handleMouseMovement(delta) {
            cualquier cambio, la espera no terminaba nunca, `savegg()` no llegaba
            a ejecutarse y el cambio se perdia. Con setTimeout el guardado sale
            igual aunque la escena ya se este cerrando. */
+        const vaciadosAntes = this._vaciadosGuardado || 0;
         await new Promise(resolve => setTimeout(resolve, wait));
+
+        /* Si mientras se esperaba la escena se cerró y `flushGuardado` ya
+           guardó, esta tanda está dentro de ese guardado. Repetirla no añade
+           nada y SÍ puede estropear: saldría después, con la foto vieja de una
+           escena apagada, y podría pisar lo que la pantalla de carga acaba de
+           sincronizar con la cadena. */
+        if ((this._vaciadosGuardado || 0) !== vaciadosAntes) {
+          console.log('💾 La tanda ya salió en el guardado de cierre; no se repite.');
+          continue;
+        }
 
         console.log(`en cola hubieron ${batch.length} llamadas y fueron eliminadas y procesado este console log.`, batch);
         try {
@@ -9429,6 +9440,7 @@ handleMouseMovement(delta) {
       try {
         if (this._queue) this._queue.length = 0;
         this._guardadoPendiente = false;
+        this._vaciadosGuardado = (this._vaciadosGuardado || 0) + 1;
         console.log('💾 Guardando lo pendiente antes de ' + (motivo || 'salir'));
         await this.savegg();
         return true;
@@ -17807,6 +17819,16 @@ removeOtherPlayer(playerId) {
       // escena sin vaciarla es perder ese cambio: es lo que hacia que un objeto
       // vendido reapareciera al volver al mapa.
       try { this.flushGuardado && this.flushGuardado('cerrar el mapa'); } catch (e) {}
+      // Lo que el StatsSync tenga en cola o en vuelo (el cobro de una compra,
+      // la plata de una venta) se manda YA, y la pantalla de carga lo espera
+      // por el TxGate: si no, la carga leía de la cadena el saldo de antes.
+      try {
+        const ss = this.statsSync;
+        if (ss && typeof ss._flushUpdates === 'function' &&
+            window.GFTxGate && typeof window.GFTxGate.track === 'function') {
+          window.GFTxGate.track('Saving your coins', ss._flushUpdates()).catch(() => {});
+        }
+      } catch (e) { /* al salir da igual */ }
       
       // Tell the server we are leaving this room BEFORE clearing socket
       if (this.socket && this.socket.connected) {
@@ -24491,7 +24513,32 @@ _cleanupTutorial() {
 }
 
 // 4) Save game state
+    /**
+     * Guarda en el servidor, y la pantalla de carga lo ESPERA.
+     *
+     * FALLO QUE ESTO ARREGLA — "compro, me lo da, y al volver al mapa no
+     * está": al salir de la escena, `flushGuardado` lanza el último guardado
+     * sin esperarlo (el apagado de Phaser no es asíncrono) y la pantalla de
+     * carga de la escena siguiente pedía /api/load en paralelo. Si la carga
+     * llegaba antes que el guardado, la escena nueva arrancaba con el
+     * inventario de ANTES, y su siguiente guardado lo dejaba así para siempre.
+     *
+     * El guardado se apunta en el TxGate (tx-gate.js), igual que las
+     * transacciones en vuelo: LoadingScenegame / LoadingSceneshop esperan a
+     * que termine antes de cargar.
+     */
     async savegg() {
+        const fin = (window.GFTxGate && typeof window.GFTxGate.begin === 'function')
+            ? window.GFTxGate.begin('Saving your progress')
+            : null;
+        try {
+            return await this._guardarEnServidor();
+        } finally {
+            if (fin) fin();
+        }
+    }
+
+    async _guardarEnServidor() {
         console.log('💾 Iniciando guardado del juego...');
         
         // Verificar que tenemos los datos necesarios

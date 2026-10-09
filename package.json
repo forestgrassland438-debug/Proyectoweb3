@@ -3,7 +3,8 @@
   "scripts": {
     "build:vendor": "node tools/build-vendor.cjs",
     "test:engine": "node --test tools/engine-lifecycle.test.cjs tools/memory-diagnostics.test.cjs tools/app-lifecycle.test.cjs tools/perf-subsystems.test.cjs",
-    "test:web3": "node --test tools/web3-seguridad-prueba.cjs tools/hub-lifecycle.test.cjs",
+    "test:web3": "node --test tools/web3-seguridad-prueba.cjs tools/hub-lifecycle.test.cjs tools/tienda-compra-sync.test.cjs tools/guardado-salida.test.cjs",
+    "test:tienda": "node tools/tienda-prueba-compra.js && node tools/tienda-prueba-cola.js && node tools/tienda-prueba-venta.js",
     "build:mina": "python tools/generar-mina.py && python tools/generar-mina-mapa.py && python tools/generar-mina-tmx.py",
     "test:mina": "node tools/mina-prueba.js",
     "test:environment": "node --test tools/environment-lifecycle.test.cjs tools/environment-resources.test.cjs",

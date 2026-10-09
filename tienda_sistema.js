@@ -150,7 +150,8 @@ class TiendaSistema {
                 // después de comprar, el cobro se quedaba en la cola y no
                 // llegaba nunca a la cadena — parecía que la compra fuera solo
                 // del backend.
-                if (this.scene && this.scene.statsSync) this.scene.statsSync.set('plata', normalized, true);
+                // _statsSync(): el de la escena o, si ya se cerró, uno propio.
+                this._statsSync()?.set('plata', normalized, true);
             } else {
                 this.playerMoneda = normalized;
                 if (this.scene) this.scene.moneda = normalized;
@@ -162,7 +163,7 @@ class TiendaSistema {
                 // Transacción blockchain real del oro (factura on-chain).
                 // immediate=true por el mismo motivo que la plata: sin esto el
                 // cobro esperaba 1,5 s y se perdía si el jugador salía antes.
-                if (this.scene && this.scene.statsSync) this.scene.statsSync.set('oro', normalized, true);
+                this._statsSync()?.set('oro', normalized, true);
             }
         };
         this.formatCurrencyAmount = (amount, currency) => {
@@ -2633,23 +2634,38 @@ class TiendaSistema {
         return Math.max(0, this.getItemCountInInventory(itemId) - this._comprometido(itemId));
     }
 
+    /* ═══════════════════════════════════════════════════════════════════════
+       LO QUE SE REEMBOLSA LO DECIDE LA CADENA, NO LA PANTALLA
+       ───────────────────────────────────────────────────────────────────────
+       Antes se contaba el inventario ANTES y DESPUÉS de la transacción y se
+       reembolsaba la diferencia. Eso mezcla dos cosas distintas —"¿se acuñó en
+       la blockchain?" y "¿lo pinté en una casilla?"— y fallaba justo al salir
+       de la tienda con una compra en vuelo: la escena ya no existía, el
+       recuento daba 0 y se DEVOLVÍA el dinero de algo que la cadena sí había
+       entregado (objeto gratis), o el pintado reventaba a medias.
+
+       Ahora `Additemblockchains` devuelve cuántas unidades confirmó la cadena,
+       y solo lo que NO confirmó se reembolsa. Si la escena ya no está, el
+       objeto lo repone la sincronización de la pantalla de carga al entrar al
+       mapa (`_addMissingBlockchainItems`), que lee la cadena. */
     async _runOnchainPurchase(item, quantity, transactionInfo) {
         const mapping = this._getOnchainTableFor(item.id);
-        if (!mapping) return; // producto sin seguimiento on-chain
+        let added = 0;
 
-        const [rutaTabla, limite] = mapping;
-        const before = this.getItemCountInInventory(item.id);
-
-        try {
-            await this.ejecutarDivision(rutaTabla, item.id, limite, quantity);
-        } catch (err) {
-            console.error(`❌ ejecutarDivision falló para ${item.id}:`, err);
+        if (!mapping) {
+            // Sin tipo on-chain no hay forma de entregarlo: antes se salía sin
+            // más y el jugador perdía el dinero sin recibir nada.
+            console.error(`❌ ${item.id} no tiene tipo on-chain en ItemDefinitions: se reembolsa la compra.`);
+        } else {
+            const [rutaTabla, limite] = mapping;
+            try {
+                const resultado = await this.ejecutarDivision(rutaTabla, item.id, limite, quantity);
+                added = Number(resultado && resultado.confirmadas) || 0;
+            } catch (err) {
+                console.error(`❌ ejecutarDivision falló para ${item.id}:`, err);
+            }
         }
-
-        // Verificar cuántas unidades se confirmaron realmente (mismo patrón
-        // que usa GameScene con las semillas: comparar inventario antes/después)
-        const after = this.getItemCountInInventory(item.id);
-        const added = Math.max(0, after - before);
+        added = Math.min(quantity, Math.max(0, added));
 
         if (added < quantity) {
             // REEMBOLSO automático de lo no confirmado: el dinero solo se
@@ -2659,7 +2675,9 @@ class TiendaSistema {
             const currency = transactionInfo.currency || this.getItemCurrency(item);
 
             if (refund > 0) {
-                const saldoAntesReembolso = Math.floor(Number(this.getBalanceByCurrency(currency)) || 0);
+                // El saldo de verdad es window.playerStats (lo que guarda
+                // /api/save); el de la tienda es una copia que puede ir atrás.
+                const saldoAntesReembolso = this._saldoCanonico(currency);
                 this.setBalanceByCurrency(currency, saldoAntesReembolso + refund);
                 // El reembolso también se verifica: es dinero que se devuelve
                 // y tiene que aparecer de verdad, no solo en pantalla.
@@ -2675,11 +2693,43 @@ class TiendaSistema {
                 'error'
             );
             console.warn(`⚠️ Compra parcial: ${added}/${quantity} ${item.id} confirmados — reembolso ${refund}`);
+
+            // El reembolso tiene que LLEGAR a la cadena antes de soltar el
+            // TxGate: si no, la pantalla de carga lee el saldo viejo de la
+            // cadena y el dinero devuelto se pierde al entrar al mapa.
+            if (refund > 0) {
+                try { await this._statsSync()?._flushUpdates?.(); } catch (e) { /* lo reintenta StatsSync */ }
+            }
         } else {
             console.log(`✅ Compra on-chain confirmada: ${quantity}x ${item.id}`);
         }
 
         this.updateMonedaDisplay?.();
+    }
+
+    /** El saldo bueno: window.playerStats manda; la copia de la tienda, si no hay. */
+    _saldoCanonico(currency) {
+        const stat = currency === 'silver' ? 'plata' : 'oro';
+        const ps = window.playerStats;
+        const v = (ps && typeof ps[stat] === 'number') ? ps[stat] : this.getBalanceByCurrency(currency);
+        return Math.max(0, Math.floor(Number(v) || 0));
+    }
+
+    /**
+     * El StatsSync con el que se mueven las monedas en la cadena.
+     *
+     * Es el de la escena mientras la tienda está abierta. Si la escena ya se
+     * cerró (el jugador salió con una compra en vuelo y hay que reembolsar),
+     * antes no había ninguno y el reembolso se quedaba en pantalla sin llegar
+     * a la cadena. Se crea uno propio, que no depende de ninguna escena.
+     */
+    _statsSync() {
+        if (this.scene && this.scene.statsSync) return this.scene.statsSync;
+        if (typeof window.StatsSync !== 'function') return null;
+        if (!this._statsSyncPropio) {
+            this._statsSyncPropio = new window.StatsSync({ serverBase: this._resolveApiBase() });
+        }
+        return this._statsSyncPropio;
     }
 
 
@@ -2757,10 +2807,14 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
   // que aquí nunca hay dos a la vez; el flag queda solo como red de seguridad.
   if (this._addItemBlockchainBusy) {
     console.warn('Transacción de agregar item ya en progreso. Ignorando nueva petición.');
-    return;
+    return { confirmadas: 0 };
   }
   this._addItemBlockchainBusy = true;
   this._transactionInProgress = true;
+
+  // Unidades que la CADENA confirmó. Es lo que devuelve esta función y lo
+  // único que mira `_runOnchainPurchase` para decidir el reembolso (ver allí).
+  let confirmadas = 0;
 
   // Helpers locales (autocontenidos para no depender de funciones externas)
   const self = this;
@@ -2945,9 +2999,10 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
     const auth = await this.relayClient.checkAuth();
     if (!auth || !auth.success) {
       this.relayClient.showError('❌ Debes estar autenticado. Vuelve al juego e inicia sesión.', 5000);
-      return;
+      return { confirmadas };
     }
     console.log('🔑 Usuario autenticado:', auth.address);
+    const miDireccion = String(auth.address || '').toLowerCase();
 
     // Establecer usuario en el hub (si no se ha hecho antes)
     if (window.hub && this.playerName) {
@@ -2960,16 +3015,40 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
       contract = await this.relayClient.findContract('ItemContract');
     } catch (error) {
       this.relayClient.showError('❌ Error conectando al backend: ' + (error.message || error), 5000);
-      return;
+      return { confirmadas };
     }
     if (!contract) {
       this.relayClient.showError('❌ Contrato ItemContract no encontrado', 3000);
-      return;
+      return { confirmadas };
     }
     console.log('📄 Contrato encontrado:', contract.address);
 
+    /* Lee una factura de la cadena (null = no está o no se pudo leer). Solo
+       sirve si es DEL JUGADOR y sigue activa: las demás no se tocan. */
+    const relay = this.relayClient;
+    const facturaMia = async (lector, clave) => {
+      if (typeof relay[lector] !== 'function') return undefined;   // librería vieja: no se sabe
+      try {
+        const f = await relay[lector](contract.address, clave);
+        if (!f || !f.activa) return null;
+        if (miDireccion && f.owner && f.owner !== miDireccion) return null;
+        return f;
+      } catch (e) {
+        return undefined;                                            // el nodo no contesta
+      }
+    };
+    const mismoTipo = (f) => String(f.tipo || '').trim().toLowerCase() === String(ruta_tabla).trim().toLowerCase();
+
     // ===== SIMULADOR =====
-    const reporte = this.simulateAddItem(producto, cantidad);
+    // Sin escena (el jugador salió de la tienda con la compra en cola) no hay
+    // casillas que simular: todo va a facturas NUEVAS, y la pantalla de carga
+    // las coloca en el inventario al entrar al mapa. Antes aquí se leía
+    // `this.STATE.quickSlots` de una escena que ya no existía y la compra
+    // reventaba con un TypeError.
+    const hayInventario = !!(this.STATE && Array.isArray(this.STATE.slots) && Array.isArray(this.STATE.quickSlots));
+    const reporte = hayInventario
+      ? this.simulateAddItem(producto, cantidad)
+      : this._planSoloFacturasNuevas(producto, cantidad);
     console.log('Reporte completo:', reporte);
 
     // Bloquear slots implicados (si vienen)
@@ -2987,16 +3066,40 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
 
     // ===== MERGES: aumentar cantidad en facturas existentes =====
     const merges = (reporte.operations || []).filter(op => op.type === 'merge');
+    // Fusiones que no se pueden hacer en SU factura y pasan a factura nueva.
+    const convertidasANuevas = [];
     for (const op of merges) {
       const cantidadOp = Number(op.amountAdded) || 0;
       const idx = Number(op.idx) || 0;
       const manual = op.manualid || '';
 
-      // Seguridad: idx === 0 no es válido (contrato usa 0 como 'no existe')
+      /* ANTES DE SUMAR, SE MIRA LA FACTURA.
+
+         El `idx` sale de la casilla, y las casillas guardan a menudo un id que
+         no es el suyo: el NÚMERO DE CASILLA que pone `addItem` cuando nadie le
+         pasa uno, o el de una factura que ya se gastó. Con eso,
+         `increaseInvoiceQuantity(idx)` sumaba las unidades compradas a OTRA
+         factura (otro objeto, o una vacía) o revertía. En pantalla salía el
+         objeto; al volver al mapa la sincronización ponía la cantidad de la
+         cadena y la compra "desaparecía".
+
+         Ahora solo se suma a una factura del jugador, activa, del MISMO tipo y
+         con sitio. Si no, esas unidades van a una factura nueva. Un id 0 (el
+         contrato usa 0 como "no existe") tampoco se pierde ya: también pasa a
+         factura nueva en vez de saltarse sin reembolsar ni entregar. */
+      let antes = null;
       if (idx === 0) {
-        console.error('Se detectó idx = 0 en merge; se ignora para evitar borrado/colisión:', op);
+        console.warn('Merge con idx = 0: esas unidades van a una factura nueva.', op);
+        convertidasANuevas.push({ type: 'new', amountAdded: cantidadOp });
         continue;
       }
+      const f = await facturaMia('leerFactura', idx);
+      if (f === null || (f && (!mismoTipo(f) || f.cantidad + cantidadOp > (Number(this.ItemDefinitions?.[producto]?.maxStack) || Infinity)))) {
+        console.warn(`Merge en factura ${idx} no válido (${f ? 'otro tipo o sin sitio' : 'no es del jugador o no existe'}): va a factura nueva.`);
+        convertidasANuevas.push({ type: 'new', amountAdded: cantidadOp });
+        continue;
+      }
+      if (f) antes = f.cantidad;
 
       console.error(`Procesando MERGE para idx ${idx} con cantidad a añadir ${cantidadOp}`);
 
@@ -3031,7 +3134,18 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
         accion: 'enviar'
       };
 
-      const res = await _sendAndWaitWithRetries(this.relayClient, contract.address, accionObj, 3);
+      let res = await _sendAndWaitWithRetries(this.relayClient, contract.address, accionObj, 3);
+
+      // Un "no confirmado" por tiempo NO es un revert: la transacción puede
+      // haber entrado igual. Si la factura ya tiene las unidades, se cuenta
+      // como hecha (si no, se reembolsaría algo que la cadena sí entregó).
+      if (!res.success && antes !== null) {
+        const despues = await facturaMia('leerFactura', idx);
+        if (despues && despues.cantidad >= antes + cantidadOp) {
+          console.warn(`increaseInvoiceQuantity(${idx}) no se confirmó a tiempo, pero la factura ya tiene las unidades.`);
+          res = { success: true, txHash: res.txHash || ('verificada-' + idx + '-' + Date.now()) };
+        }
+      }
 
       if (!res.success) {
         // Eliminar pendiente y añadir revertida
@@ -3062,11 +3176,15 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
         });
       }
 
+      // La cadena ya lo tiene: esto es lo que cuenta para el reembolso.
+      confirmadas += cantidadOp;
+
       // Actualizar frontend: addItemWithCheck(producto, cantidad, invoiceId, manualId)
       try {
         if (typeof this.addItemWithCheck === 'function') {
-          await this.addItemWithCheck(producto, cantidadOp, idx, manual);
-          console.error(`addItemWithCheck OK (merge) para invoice ${idx} cantidad ${cantidadOp}`);
+          const pintado = await this.addItemWithCheck(producto, cantidadOp, idx, manual);
+          if (pintado) console.log(`addItemWithCheck OK (merge) para invoice ${idx} cantidad ${cantidadOp}`);
+          else console.warn(`Merge ${idx} confirmado en la cadena; se verá al entrar al mapa (la sincronización lo coloca).`);
         } else {
           console.error('addItemWithCheck no encontrada; omitiendo actualización local para merge idx', idx);
         }
@@ -3076,9 +3194,10 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
     }
 
     // ===== NUEVOS STACKS: crear facturas y añadir items localmente =====
-    const nuevosStacks = (reporte.operations || []).filter(op => op.type === 'new');
+    const nuevosStacks = (reporte.operations || []).filter(op => op.type === 'new').concat(convertidasANuevas);
     for (const op of nuevosStacks) {
       const amountAdded = Number(op.amountAdded) || 0;
+      if (amountAdded <= 0) continue;
       const manualGenerado = generarCodigoLocal();
 
       // Datos para posible reintento
@@ -3129,7 +3248,18 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
         accion: 'enviar'
       };
 
-      const resCrear = await _sendAndWaitWithRetries(this.relayClient, contract.address, accionCrear, 3);
+      let resCrear = await _sendAndWaitWithRetries(this.relayClient, contract.address, accionCrear, 3);
+
+      // Igual que en las fusiones: "no confirmado a tiempo" no es "revertido".
+      // El manualId es único, así que si la factura existe, la compra entró.
+      let facturaCreada = null;
+      if (!resCrear.success) {
+        facturaCreada = await facturaMia('leerFacturaPorManualId', manualGenerado);
+        if (facturaCreada && facturaCreada.id > 0) {
+          console.warn(`createInvoice(${manualGenerado}) no se confirmó a tiempo, pero la factura ${facturaCreada.id} existe.`);
+          resCrear = { success: true, txHash: resCrear.txHash || ('verificada-' + manualGenerado) };
+        }
+      }
 
       if (!resCrear.success) {
         if (window.hub) {
@@ -3147,6 +3277,10 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
         continue;
       }
 
+      // La cadena ya lo tiene: esto es lo que cuenta para el reembolso, pase lo
+      // que pase después al pintarlo.
+      confirmadas += amountAdded;
+
       // Éxito en createInvoice: actualizamos la transacción pendiente a confirmada con el hash real
       if (window.hub) {
         window.hub.removeTransaction(tempHash);
@@ -3161,26 +3295,34 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
         });
       }
 
-      // Obtener la factura por manualId (view)
-      let lastMessage;
-      try {
-        lastMessage = await this.relayClient.accion(contract.address, {
-          funcion: 'getInvoiceByManualId',
-          _manualId: manualGenerado,
-          accion: 'obtener'
-        });
-      } catch (err) {
-        console.error('Error llamando getInvoiceByManualId:', err);
-        continue;
-      }
+      // Obtener la factura por manualId (view). Primero con el lector de la
+      // librería, que entiende todas las formas en que llega la tupla; el
+      // parser de aquí queda de respaldo para una librería vieja.
+      if (!facturaCreada) facturaCreada = await facturaMia('leerFacturaPorManualId', manualGenerado);
+      let lastMessage = null;
+      let parsed;
+      if (facturaCreada && facturaCreada.id > 0) {
+        parsed = { invoiceId: facturaCreada.id, manualId: facturaCreada.manualId, cantidadx: facturaCreada.cantidad, raw: facturaCreada };
+      } else {
+        try {
+          lastMessage = await this.relayClient.accion(contract.address, {
+            funcion: 'getInvoiceByManualId',
+            _manualId: manualGenerado,
+            accion: 'obtener'
+          });
+        } catch (err) {
+          console.error('Error llamando getInvoiceByManualId (la compra SÍ está en la cadena; se verá al entrar al mapa):', err);
+          continue;
+        }
 
-      if (!lastMessage) {
-        console.warn('getInvoiceByManualId devolvió vacío para manualId:', manualGenerado);
-        continue;
-      }
+        if (!lastMessage) {
+          console.warn('getInvoiceByManualId devolvió vacío para manualId:', manualGenerado);
+          continue;
+        }
 
-      // Parsear robustamente
-      const parsed = _getInvoiceFieldsFromResponse(lastMessage);
+        // Parsear robustamente
+        parsed = _getInvoiceFieldsFromResponse(lastMessage);
+      }
       console.log('Parsed invoice response:', parsed);
 
       let { invoiceId, manualId, cantidadx } = parsed;
@@ -3224,11 +3366,15 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
         });
       }
 
-      // Finalmente actualizar frontend
+      // Finalmente actualizar frontend. `nuevaCasilla`: es una factura NUEVA y
+      // va a su propia casilla; si se fundiera en un montón a medias, esa
+      // casilla contaría unidades de dos facturas y la sincronización las
+      // separaría (o las perdería de vista) al volver al mapa.
       try {
         if (typeof this.addItemWithCheck === 'function') {
-          await this.addItemWithCheck(producto, cantidadx, invoiceId, manualId);
-          console.error(`addItemWithCheck OK (new) para invoice ${invoiceId} cantidad ${cantidadx}`);
+          const pintado = await this.addItemWithCheck(producto, cantidadx, invoiceId, manualId, { nuevaCasilla: true });
+          if (pintado) console.log(`addItemWithCheck OK (new) para invoice ${invoiceId} cantidad ${cantidadx}`);
+          else console.warn(`Factura ${invoiceId} creada en la cadena; se verá al entrar al mapa (la sincronización la coloca).`);
         } else {
           console.error('addItemWithCheck no encontrada; omitiendo actualización local para invoiceId', invoiceId);
         }
@@ -3253,6 +3399,30 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
     this._transactionInProgress = false;
     this._addItemBlockchainBusy = false;
   }
+  return { confirmadas };
+}
+
+
+/**
+ * Plan de compra cuando no hay inventario que mirar (la escena de la tienda ya
+ * se cerró): todo en facturas NUEVAS de, como mucho, `maxStack` unidades. Tiene
+ * la misma forma que el reporte de `simulateAddItem`.
+ */
+_planSoloFacturasNuevas(itemId, quantity = 1) {
+  const maxStack = Math.max(1, Number(this.ItemDefinitions?.[itemId]?.maxStack) || 1);
+  const operations = [];
+  let remaining = Math.max(0, Math.floor(Number(quantity) || 0));
+  while (remaining > 0) {
+    const amountAdded = Math.min(maxStack, remaining);
+    operations.push({ type: 'new', amountAdded, location: null });
+    remaining -= amountAdded;
+  }
+  return {
+    success: true,
+    remaining: 0,
+    operations,
+    summary: { totalMerged: 0, totalNewStacks: quantity, newStacksCount: operations.length, slotsUsed: { quick: 0, inv: 0 } }
+  };
 }
 
 
@@ -4438,12 +4608,22 @@ async EliitemWithCheck(itemId, amountToRemove = 1, invoiceIdx = null, manualId =
  * @param {string|null} [customIdm] - ID manual para TODOS los stacks creados (opcional).
  * @returns {boolean}              - true si se agregó todo, false si faltó espacio.
  */
-addItemWithCheck(itemId, quantity = 1, customIdx = null, customIdm = null) {
-  const defs = this.ItemDefinitions[itemId];
+addItemWithCheck(itemId, quantity = 1, customIdx = null, customIdm = null, opciones = {}) {
+  // Sin escena no hay inventario donde pintar (el jugador salió de la tienda
+  // con la compra en vuelo). No es un error: la factura ya está en la cadena y
+  // la pantalla de carga la coloca al entrar al mapa. Antes esto lanzaba un
+  // TypeError con `this.STATE.selectedItem`.
+  if (!this.STATE || !Array.isArray(this.STATE.slots) || !Array.isArray(this.STATE.quickSlots)) {
+    return false;
+  }
+  const defs = this.ItemDefinitions?.[itemId];
   if (!defs) {
     console.warn(`Item "${itemId}" no definido en ItemDefinitions`);
     return false;
   }
+  // Una factura NUEVA va a su propia casilla: no se funde en montones a medias
+  // (cada casilla es UNA factura; ver Additemblockchains).
+  const soloCasillaNueva = !!(opciones && opciones.nuevaCasilla);
 
   const maxStack = defs.maxStack;
   let remaining = quantity;
@@ -4460,7 +4640,7 @@ addItemWithCheck(itemId, quantity = 1, customIdx = null, customIdm = null) {
   const isOccupied = (type, index) => occupiedSlots.has(`${type}-${index}`);
 
   // 1) COFRE – completar stacks parciales (sin modificar idx/idm)
-  for (let i = 0; i < this.STATE.quickSlots.length && remaining > 0; i++) {
+  for (let i = 0; !soloCasillaNueva && i < this.STATE.quickSlots.length && remaining > 0; i++) {
     if (isOccupied('quick', i)) continue;
     const slot = this.STATE.quickSlots[i];
     if (slot && slot.id === itemId && slot.count < maxStack) {
@@ -4473,7 +4653,7 @@ addItemWithCheck(itemId, quantity = 1, customIdx = null, customIdm = null) {
   }
 
   // 2) INVENTARIO – completar stacks parciales
-  if (remaining > 0) {
+  if (remaining > 0 && !soloCasillaNueva) {
     for (let i = 0; i < this.STATE.slots.length && remaining > 0; i++) {
       if (isOccupied('inv', i)) continue;
       const slot = this.STATE.slots[i];

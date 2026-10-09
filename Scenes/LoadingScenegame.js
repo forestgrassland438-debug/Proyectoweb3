@@ -195,14 +195,27 @@ class LoadingScenegame extends Phaser.Scene {
 
             balde_vacio:    { src: './Game/Source/item_pozo1.png', maxStack: 5 },
             balde_con_agua: { src: './Game/Source/item_pozo2.png', maxStack: 5 },
-            Regaderax:      { src: './Game/Source/recurso2.png',   maxStack: 1 },
-            Tijerasx:       { src: './Game/Source/tijeras.png',    maxStack: 1 },
+            Regaderax:      { src: './Game/Source/recurso2.png',   maxStack: 1, tipo: 'Regaderax' },
+            Tijerasx:       { src: './Game/Source/tijeras.png',    maxStack: 1, tipo: 'Tijerasx' },
 
-            Semillax:  { src: './Game/Objetos/Plantas/planta_zanahorias/item_saco.png',           maxStack: 50 },
-            Semillax1: { src: './Game/Objetos/Plantas/planta_tomates/semillas_tomate.png',        maxStack: 50 },
-            Semillax2: { src: './Game/Objetos/Plantas/planta_trigo/item_semilla_trigo.png',       maxStack: 50 },
-            Semillax3: { src: './Game/Objetos/Plantas/planta_calabaza/item_semilla_calabaza.png', maxStack: 50 },
-            Semillax4: { src: './Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png',       maxStack: 50 },
+            /* LAS SEMILLAS LLEVAN SU `tipo` ON-CHAIN, Y NO SE PARECE A SU CLAVE.
+
+               FALLO QUE ESTO ARREGLA — "compro semillas en la tienda, me las
+               da, y al volver al mapa desaparecen":
+
+               la tienda crea la factura con el `tipo` de su catálogo, que para
+               las semillas es "bolsa zanahorias", "bolsa de tomates"… Aquí no
+               había ni `tipo` ni entrada en TIPO_TO_ITEM_ID, así que
+               `_tipoToItemId` devolvía null. Con eso `_reconciliarCasillas` no
+               podía enlazar la casilla con su factura, la daba por "sin ninguna
+               factura en la cadena" y la VACIABA — y `savegg` guardaba el hueco.
+               La compra sí había llegado a la blockchain: lo que fallaba era la
+               vuelta de "tipo de la cadena" a "objeto del juego". */
+            Semillax:  { src: './Game/Objetos/Plantas/planta_zanahorias/item_saco.png',           maxStack: 50, tipo: 'bolsa zanahorias' },
+            Semillax1: { src: './Game/Objetos/Plantas/planta_tomates/semillas_tomate.png',        maxStack: 50, tipo: 'bolsa de tomates' },
+            Semillax2: { src: './Game/Objetos/Plantas/planta_trigo/item_semilla_trigo.png',       maxStack: 50, tipo: 'bolsa de trigo' },
+            Semillax3: { src: './Game/Objetos/Plantas/planta_calabaza/item_semilla_calabaza.png', maxStack: 50, tipo: 'bolsa de calabazas' },
+            Semillax4: { src: './Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png',       maxStack: 50, tipo: 'bolsa_de_fresas' },
 
             zanahoria_buena: { src: './Game/Objetos/Plantas/planta_zanahorias/item_zanahoria_buena.png',          maxStack: 20 },
             zanahoria_corta: { src: './Game/Objetos/Plantas/planta_zanahorias/planta_crecimiento_zanahoria.png',  maxStack: 20 },
@@ -273,6 +286,14 @@ class LoadingScenegame extends Phaser.Scene {
             'calabaza buena':   'calabaza_buena',
             'calabaza corta':   'calabaza_corta',
             'calabaza mala':    'calabaza_mala',
+            // Las bolsas de semillas (ver el comentario en ItemDefinitions).
+            'bolsa zanahorias':   'Semillax',
+            'bolsa de tomates':   'Semillax1',
+            'bolsa de trigo':     'Semillax2',
+            'bolsa de calabazas': 'Semillax3',
+            'bolsa_de_fresas':    'Semillax4',
+            'regaderax':          'Regaderax',
+            'tijerasx':           'Tijerasx',
         };
 
         console.log('LoadingScenegame initialized');
@@ -1027,13 +1048,31 @@ class LoadingScenegame extends Phaser.Scene {
             }
         };
 
+        // Tablas de la cadena que NO son objetos (barras, monedas, nivel…).
+        // Mismo listado que `_tipoToItemId`; va aquí en línea porque GameScene
+        // toma prestado este método y un ayudante nuevo no viajaría con él.
+        const NO_OBJETO = ['vida', 'agua', 'comida', 'oro', 'plata', 'exp',
+                           'nivel', 'nombre', 'cons_parcelas'];
+        const esTablaDeObjetos = (inv) =>
+            NO_OBJETO.indexOf(String(inv.tipo || '').trim().toLowerCase()) === -1;
+
         // 1. id y manualId exactos
+        //
+        //    Si la casilla apunta EXACTAMENTE a una factura viva (mismo id y
+        //    mismo manualId, que es un código aleatorio de 19 letras), es suya
+        //    aunque este catálogo no sepa traducir el `tipo` de la factura.
+        //    Antes se exigía además `objetoDe` y, con un `tipo` desconocido, la
+        //    casilla acababa en "sin ninguna factura en la cadena → limpiando":
+        //    se borraba un objeto que SÍ estaba en la blockchain (así se
+        //    perdían las semillas compradas en la tienda). Ahora se conserva
+        //    con su objeto de siempre; solo se corrige la cantidad.
         for (const [label, lista] of listas) {
             for (let i = 0; i < lista.length; i++) {
                 const s = lista[i];
                 if (!s || s.idx === null || s.idx === undefined || !s.idm) continue;
                 const inv = invoiceById.get(Number(s.idx));
-                if (inv && !reclamadas.has(inv.id) && inv.manualId === s.idm && objetoDe.get(inv.id)) {
+                if (inv && !reclamadas.has(inv.id) && inv.manualId === s.idm &&
+                    (objetoDe.get(inv.id) || esTablaDeObjetos(inv))) {
                     enlazar(label, lista, i, inv, 'cantidad');
                 }
             }
@@ -1229,6 +1268,27 @@ class LoadingScenegame extends Phaser.Scene {
         // 3. Buscar por campo tipo dentro de ItemDefinitions
         for (const [key, def] of Object.entries(this.ItemDefinitions)) {
             if (def.tipo && def.tipo.toLowerCase() === tipoNorm) return key;
+        }
+
+        // 3b. Y en los catálogos de las escenas que CREAN las facturas. La
+        //     tienda y el mapa escriben en la cadena el `tipo` de SU catálogo:
+        //     si un objeto nuevo se añade allí y se olvida aquí, se encuentra
+        //     igual en vez de acabar vaciado por `_reconciliarCasillas`.
+        //     Va en línea (sin método auxiliar) porque GameScene toma prestado
+        //     `_tipoToItemId` con su propio `this`: un ayudante nuevo no
+        //     viajaría con él.
+        const catalogos = [];
+        try {
+            const mgr = this.scene && typeof this.scene.get === 'function' ? this.scene : null;
+            for (const clave of ['GameScene', 'tiendajuego']) {
+                const esc = mgr ? mgr.get(clave) : null;
+                if (esc && esc !== this && esc.ItemDefinitions) catalogos.push(esc.ItemDefinitions);
+            }
+        } catch (_) { /* sin gestor de escenas: solo el catálogo propio */ }
+        for (const defs of catalogos) {
+            for (const [key, def] of Object.entries(defs)) {
+                if (def && def.tipo && String(def.tipo).trim().toLowerCase() === tipoNorm) return key;
+            }
         }
 
         // 4. Intentar el tipo tal cual como clave directa
@@ -2725,13 +2785,18 @@ class StatsSync {
      */
     async _flushUpdates() {
         clearTimeout(this._timer);
-        for (let intento = 0; intento < 6; intento++) {
-            if (!Object.keys(this._pending).length) return;
+        /* También se espera al envío que YA está en vuelo (`_updating`). Antes,
+           con la cola vacía se volvía en el acto aunque el cobro de una compra
+           siguiera viajando: la pantalla de carga leía de la cadena el saldo
+           de antes del cobro. ~7 s de tope; el resto lo cubren los reintentos. */
+        for (let intento = 0; intento < 20; intento++) {
+            const hayPendiente = Object.keys(this._pending).length > 0;
+            if (!hayPendiente && !this._updating) return;
             const playerName = window.currentPlayer;
             const libre = playerName && !this._updating && !window[`statsFlush_${playerName}`];
-            if (libre) {
+            if (hayPendiente && libre) {
                 await this._flush();
-                if (!Object.keys(this._pending).length) return;
+                if (!Object.keys(this._pending).length && !this._updating) return;
             }
             await new Promise(r => setTimeout(r, 350));
         }
