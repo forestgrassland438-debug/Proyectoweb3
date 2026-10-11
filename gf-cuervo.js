@@ -755,17 +755,32 @@
        pies en vez de flotando sobre su cabeza. */
     if (y < c.spr.y) y = c.spr.y;
 
-    c.sombra.setPosition(c.spr.x, y);
+    var x = c.spr.x;
+    if (!alto && window.GFProfundidad && window.GFProfundidad.medir && c.spr.texture) {
+      var m = window.GFProfundidad.medir(scene, c.spr.texture.key);
+      if (m && m.leida && m.alto && m.ancho) {
+        var ox = typeof c.spr.originX === 'number' ? c.spr.originX : 0.5;
+        var oy = typeof c.spr.originY === 'number' ? c.spr.originY : 1;
+        var pieX = typeof m.pieX === 'number' ? m.pieX : m.ancho / 2;
+        x += (c.spr.flipX ? m.ancho - pieX - ox * m.ancho : pieX - ox * m.ancho) * Math.abs(c.spr.scaleX || 1);
+        y += (m.abajo + 1 - oy * m.alto) * Math.abs(c.spr.scaleY || 1);
+      }
+    }
+    c.sombra.setPosition(x, y);
     c.sombra.setDepth(y - 1);
     c.sombra.setAlpha(alto ? 0.12 : 0.26);
     c.sombra.setScale(alto ? 0.6 : 1);
   }
 
   function actualizarCuervo(st, c, dt) {
+    try { moverCuervo(st, c, dt); }
+    finally { if (c.spr && c.spr.active) actualizarSombraCuervo(c); }
+  }
+
+  function moverCuervo(st, c, dt) {
     var scene = st.scene;
     var spr = c.spr;
     if (!spr || !spr.active) return;
-    actualizarSombraCuervo(c);
     encoger(c, dt);
     var ahora = scene.time.now;
     var p = scene.player;

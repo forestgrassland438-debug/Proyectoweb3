@@ -578,7 +578,7 @@
   function lienzoTileset(st) {
     if (st.lienzo) { st.lienzoUsado = Date.now(); return st.lienzo; }
     try {
-      var tex = st.scene.textures.get('tiles');
+      var tex = st.scene.textures.get(st.texturaSuelo || 'tiles');
       if (!tex || !tex.getSourceImage) return null;
       var img = tex.getSourceImage();
       if (!img || !img.width) return null;
@@ -1420,6 +1420,10 @@
       interior: op.interior === true,
       tipo: op.tipo || 'campo',
       suelo: op.suelo || (op.tipo === 'tienda' ? 'madera' : null),
+      // La textura del tileset del suelo, para adivinar lo que se pisa. El
+      // pueblo usa 'tiles'; un mapa con su propio tileset (el salvaje) la
+      // pasa aquí: con 'tiles' leería los gid de su suelo en el del pueblo.
+      texturaSuelo: op.texturaSuelo || 'tiles',
       bucles: {}, reserva: {}, faltan: {},
       objetivo: { lluvia: 0, viento: 0, arboles: 0, soleado: 0, noche: 0, nieve: 0 },
       clima: null, climaLeido: 0, vectorViento: { dir: 1, fuerza: 0 },

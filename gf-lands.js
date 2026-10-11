@@ -350,12 +350,13 @@
    * Si ya estas en la misma escena (los dos en el mapa, o en la misma isla),
    * no hay pantalla de carga: se mueve al jugador alli mismo.
    */
-  var ESCENA_DE_MUNDO = { 1: 'GameScene', 2: 'tiendajuego', 3: 'MinaScene', 4: CLAVE_ISLA };
-  var SALA_DE_MUNDO   = { 1: 'game', 2: 'tienda', 3: 'mina', 4: 'isla' };
-  var MUNDO_DE_ZONA   = { world: 1, shop: 2, mine: 3, island: 4 };
+  // 6 = el mapa salvaje del oeste (Scenes/SalvajeScene.js, 2026-10-11).
+  var ESCENA_DE_MUNDO = { 1: 'GameScene', 2: 'tiendajuego', 3: 'MinaScene', 4: CLAVE_ISLA, 6: 'SalvajeScene' };
+  var SALA_DE_MUNDO   = { 1: 'game', 2: 'tienda', 3: 'mina', 4: 'isla', 6: 'salvaje' };
+  var MUNDO_DE_ZONA   = { world: 1, shop: 2, mine: 3, island: 4, wild: 6 };
   // Sin punto conocido (alguien que acaba de entrar y no se ha movido), la
   // entrada de siempre de cada sitio. La mina y la isla ya tienen la suya.
-  var ENTRADA_DE_MUNDO = { 1: { x: PLAZA_X, y: PLAZA_Y }, 2: { x: 1041, y: 1778 } };
+  var ENTRADA_DE_MUNDO = { 1: { x: PLAZA_X, y: PLAZA_Y }, 2: { x: 1041, y: 1778 }, 6: { x: 4896, y: 2208 } };
   var CADUCIDAD_VIAJE = 90 * 1000;
 
   function numero(v) {

@@ -13,7 +13,7 @@
   <title>GRASSLAND FOREST</title>
   <link rel="icon" href="favicon.png" type="image/png" />
   <!-- v17: rediseño del panel de misiones + altura real del viewport en móvil -->
-  <link rel="stylesheet" href="styless.css?v=21.4" />
+  <link rel="stylesheet" href="styless.css?v=22.1" />
   <!-- El HUD nuevo (2026-10-05): viste lo de arriba sin cambiar ni un id. -->
   <link rel="stylesheet" href="gf-hud.css?v=21.17" />
 
@@ -97,7 +97,14 @@
   <script src="./gf-espantapajaros.js?v=21.41" defer></script>
   <script src="./gf-espada.js?v=21.5" defer></script>
   <!-- Los zombis de la mina y su guardián (los monta MinaScene). -->
-  <script src="./gf-mina-zombis.js?v=21.5" defer></script>
+  <!-- Caminos para los monstruos (rodean las paredes). Antes que los que lo usan. -->
+  <script src="./gf-rutas.js?v=22.1" defer></script>
+  <script src="./gf-mina-zombis.js?v=22.1" defer></script>
+  <!-- La serpiente de magma de la mina (la monta MinaScene). -->
+  <script src="./gf-mina-serpiente.js?v=22.1" defer></script>
+  <!-- El mapa salvaje: sus monstruos, la espada entre jugadores en la zona
+       PvP y lo que se suelta en el suelo (lo monta SalvajeScene). -->
+  <script src="./gf-salvaje.js?v=22.4" defer></script>
   <script src="./gf-agua.js?v=21.43" defer></script>
   <script src="./gf-suelo.js?v=21.1" defer></script>
   <script src="./gf-casas.js?v=21.3" defer></script>
@@ -106,8 +113,8 @@
   <!-- Cazador de micro-parones. Inerte hasta que se le llama a mano desde la
        consola con GFTirones.empezar(). No vigila nada por su cuenta. -->
   <script src="./gf-tirones.js?v=19.1" defer></script>
-  <script src="./gf-cuervo.js?v=21.41" defer></script>
-  <script src="./gf-animales.js?v=21.2" defer></script>
+  <script src="./gf-cuervo.js?v=22.3" defer></script>
+  <script src="./gf-animales.js?v=22.3" defer></script>
   <script src="./gf-mascota.js?v=22.1" defer></script>
   <script src="./gf-muerte.js?v=20.1" defer></script>
   <script src="./gf-alquimista.js?v=19.1" defer></script>
@@ -156,19 +163,21 @@
 
   <script src="./Scenes/MenuScene.js?v=20.3" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=19.8" defer></script>
-  <script src="./Scenes/tiendajuego.js?v=22.2" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=22.3" defer></script>
   <script src="./Scenes/LoadingScenegame.js?v=22.2" defer></script>
-  <script src="./Scenes/GameScene.js?v=22.2" defer></script>
+  <script src="./Scenes/GameScene.js?v=22.3" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
        basta con dejarla en esta linea y no antes. -->
-  <script src="./Scenes/MinaScene.js?v=22.0" defer></script>
+  <script src="./Scenes/MinaScene.js?v=22.1" defer></script>
   <!-- La isla de las parcelas. Hereda de GameScene igual que la mina,
        asi que tambien tiene que ir DESPUES de ella. -->
   <script src="./Scenes/LandsScene.js?v=21.41" defer></script>
-  <script src="./Scenes/InteriorScene.js?v=21.42" defer></script>
-  <script src="./Scenes/BattleScene.js?v=22.0" defer></script>
+  <script src="./Scenes/InteriorScene.js?v=22.1" defer></script>
+  <!-- El mapa salvaje del oeste. Hereda de GameScene: después de ella. -->
+  <script src="./Scenes/SalvajeScene.js?v=22.4" defer></script>
+  <script src="./Scenes/BattleScene.js?v=22.1" defer></script>
   <script src="./Scenes/sacar_mapa.js?v=19.1" defer></script>
 
   <!-- tienda marketplace p2p -->
@@ -194,8 +203,8 @@
   <script src="./TransactionHub.js?v=19.8" defer></script>
   <script src="./SystemaTransaccion.js?v=22.1" defer></script>
   <script src="./CraftingHub.js?v=22.1" defer></script>
-  <script src="./tienda_sistema.js?v=22.0" defer></script>
-  <script src="./phaser-relay-library.js?v=21.5" defer></script>
+  <script src="./tienda_sistema.js?v=22.3" defer></script>
+  <script src="./phaser-relay-library.js?v=22.3" defer></script>
   <script src="./hub.js?v=19.8" defer></script>
 
 
@@ -845,6 +854,8 @@
       <p id="bzBusquedaTexto">Be the last dog standing.</p>
       <div class="bz-sala" id="bzSala" aria-live="polite"></div>
       <div class="bz-busqueda-tiempo" id="bzBusquedaTiempo">0:00</div>
+      <!-- La sala de espera: quién ha entrado y quién está listo (2026-10-10). -->
+      <ul class="bz-lobby hidden" id="bzLobby" aria-live="polite"></ul>
       <ul class="bz-consejos" id="bzConsejos">
         <li><b>Move</b> WASD / left stick</li>
         <li><b>Bark</b> click / right stick · 3 charges that reload</li>
@@ -852,6 +863,7 @@
         <li><b>Hide</b> in tall grass · <b>bones</b> make you stronger</li>
       </ul>
       <div class="bz-busqueda-botones">
+        <button type="button" id="bzListo" class="bz-btn bz-btn-listo hidden" aria-pressed="false">Ready</button>
         <button type="button" id="bzPracticar" class="bz-btn bz-btn-sec">Practice vs bots</button>
         <button type="button" id="bzCancelar" class="bz-btn bz-btn-ghost">Cancel</button>
       </div>

@@ -1357,6 +1357,7 @@
     else partes.push('Offline');
     if (j.zona === 'shop') partes.push('in the shop');
     if (j.zona === 'mine') partes.push('in the mine');
+    if (j.zona === 'wild') partes.push('in the wild lands');
     if (j.zona === 'battle') partes.push('in a battle');
     if (j.zona === 'island') {
       partes.push(!j.islaDe || j.islaDe === j.playerName ? 'on their island'

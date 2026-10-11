@@ -1602,6 +1602,7 @@
     var spr = scene.add.sprite(punto.x, punto.y,
                                'gfa_' + especie + '_quieto_1');
     a.spr = spr;
+    if (f.grupo === 'ave') a.banoDisponibleEn = scene.time.now + az(25000, 80000);
     spr.setOrigin(0.5, 1);
     spr.setScale(ESCALA);
     spr.setDepth(punto.y);
@@ -2018,22 +2019,29 @@
        esperado. */
     var mojado = sueloMojado(tiempo());
 
-    if (!mojado && r < 0.30) {
+    var ahora = scene.time.now;
+    var banando = st.animales.filter(function (otra) {
+      return otra !== a && (otra.fase === 'bana' || (otra.fase === 'volando' && otra.alFinal === 'bana'));
+    });
+    var puedeBanarse = !mojado && ahora >= (a.banoDisponibleEn || 0) && banando.length < 2;
+    if (puedeBanarse && r < 0.08) {
       var ch = charcoParaBanarse(scene, p, a);
       if (ch) {
         a.fuente = null;                 // charco: no hay que ponerse delante de nada
+        a.banoDisponibleEn = ahora + az(90000, 180000);
         volarA(st, a, { x: ch.x, y: ch.y }, 'bana', null);
         return;
       }
     }
 
     // ── BAÑARSE EN LA FUENTE ───────────────────────────────────────────────
-    if (!mojado && r < 0.38) {
+    if (puedeBanarse && r < 0.08) {
       var f = fuenteDe(scene);
-      if (f && (!p || Math.hypot(f.x - p.x, f.y - p.y) > a.ficha.huye * 1.3)) {
+      if (f && !banando.some(function (otra) { return otra.fuente === f.clave; }) && (!p || Math.hypot(f.x - p.x, f.y - p.y) > a.ficha.huye * 1.3)) {
         // Se apunta EN QUE fuente se va a bañar: al llegar hace falta para
         // ponerse por delante de ella (ver el aterrizaje en 'bana').
         a.fuente = f.clave;
+        a.banoDisponibleEn = ahora + az(90000, 180000);
         volarA(st, a, { x: f.x, y: f.y }, 'bana', null);
         return;
       }
@@ -2049,6 +2057,16 @@
         return;
       }
     }
+
+    // Se acicalan y observan desde una rama; no necesitan volver a volar
+    // ni bajar a la fuente en cada decisión. Cada ave mantiene su propio reloj.
+    if (a.fase === 'posado' && a.soporte && r < 0.52) {
+      a.actividad = r < 0.40 ? 'acicala' : 'observa';
+      a.accionEn = ahora; a.hasta = ahora + az(3500, 7500);
+      anim(a, 'quieto');
+      return;
+    }
+    a.actividad = null;
 
     if (!sitios.length) {
       // Mapa sin árboles, postes ni casas: en vez de quedarse clavada en el
@@ -2077,7 +2095,8 @@
     // baja al suelo, a picotear o a dar unos pasos
     var punto = sueloCerca(st, a, a.spr, 240);
     if (!punto) { a.hasta = scene.time.now + 1500; return; }
-    volarA(st, a, punto, (r < 0.78 && sabeComer(a)) ? 'come' : 'camina', null);
+    var accion = r < 0.72 && sabeComer(a) ? 'come' : r < 0.87 ? 'explora' : 'salta';
+    volarA(st, a, punto, accion, null);
   }
 
   function huirAve(st, a) {
@@ -2150,11 +2169,12 @@
           }
           spr.setDepth(prof);
           anim(a, a.alFinal === 'come' ? 'come'
-                 : a.alFinal === 'bana' ? 'bana' : 'camina');
+                 : a.alFinal === 'bana' ? 'bana' : a.alFinal === 'salta' ? 'quieto' : 'camina');
           a.hasta = ahora + (a.alFinal === 'bana'
                              ? az(ESPERA_BANO[0], ESPERA_BANO[1])
                              : az(ESPERA_SUELO_AVE[0], ESPERA_SUELO_AVE[1]));
           a.rumbo = Math.random() < 0.5 ? -1 : 1;
+          a.accionEn = ahora;
         }
         return;
       }
@@ -2183,8 +2203,25 @@
 
     // Con pareja al lado, se giran el uno hacia el otro.
     if (a.fase === 'posado' && a.mirarA) cortejar(a);
+    if (a.fase === 'posado' && a.actividad && ahora >= (a.accionEn || 0)) {
+      spr.setFlipX(!spr.flipX);
+      anim(a, a.actividad === 'acicala' && a._anim !== 'come' ? 'come' : 'quieto');
+      a.accionEn = ahora + (a.actividad === 'acicala' ? az(450, 900) : az(1400, 2400));
+    }
 
-    if (a.fase === 'camina') {
+    if (a.fase === 'salta' && ahora >= (a.accionEn || 0)) {
+      var saltoX = spr.x + a.rumbo * az(8, 16), saltoY = spr.y + az(-6, 6);
+      if (libre(scene, a, saltoX, saltoY) && libre(scene, a, (spr.x + saltoX) / 2, (spr.y + saltoY) / 2)) spr.setPosition(saltoX, saltoY);
+      else a.rumbo *= -1;
+      spr.setFlipX(a.rumbo < 0); spr.setDepth(spr.y);
+      a.accionEn = ahora + az(400, 850);
+    }
+
+    if (a.fase === 'camina' || a.fase === 'explora') {
+      if (a.fase === 'explora' && ahora >= (a.accionEn || 0)) {
+        a.rumbo *= -1; a.accionEn = ahora + az(800, 1900);
+        anim(a, sabeComer(a) && Math.random() < 0.5 ? 'come' : 'camina');
+      }
       var nx = spr.x + a.rumbo * a.ficha.vel * dt;
       if (libre(scene, a, nx, spr.y)) {
         spr.x = nx;
@@ -3197,9 +3234,48 @@
       Ver el comentario de la caché en `posaderos`: lo que se guarda es el
       centro, y el sorteo se hace aquí, al elegir. */
   function puntoFlor(s) {
-    return { clave: s.clave, base: s.base,
+    if (s.spr && (s.spr.active === false || s.spr.visible === false)) return null;
+    var base = s.spr && typeof s.spr.depth === 'number' ? s.spr.depth : s.base;
+    if (s.spr && s.scene && window.GFProfundidad && window.GFProfundidad.medir) {
+      var m = window.GFProfundidad.medir(s.scene, s.spr.texture.key);
+      if (m && m.leida && m.superior && m.ancho && m.alto) {
+        var b = s.spr.getBounds();
+        for (var intento = 0; intento < 12; intento++) {
+          var columna = Math.round(az(m.izq, m.der));
+          var fila = m.superior[columna];
+          if (fila < 0) continue;
+          var x = b.x + (s.spr.flipX ? m.ancho - columna - 0.5 : columna + 0.5) * b.width / m.ancho;
+          var y = b.y + (s.spr.flipY ? m.alto - fila - 0.5 : fila + 0.5) * b.height / m.alto;
+          if (!tapado(s.scene, x, y, s.spr, base + 2)) return { clave: s.clave, base: base, x: x, y: y };
+        }
+        return null;
+      }
+    }
+    return { clave: s.clave, base: base,
              x: s.x + (s.jit ? az(-s.jit, s.jit) : 0),
              y: s.y0 + s.alto * az(s.a0, s.a1) };
+  }
+
+  // Una flor situada detrás de una casa no ofrece un punto visible de apoyo.
+  // Solo consulta contornos ya medidos; no lee píxeles ni crea objetos por frame.
+  function tapado(scene, x, y, soporte, profundidad) {
+    if (!window.GFProfundidad || !window.GFProfundidad.medir) return false;
+    var lista = scene.children && scene.children.list || [];
+    for (var i = 0; i < lista.length; i++) {
+      var obj = lista[i];
+      if (!obj || obj === soporte || obj.active === false || obj.visible === false || obj.alpha === 0 ||
+          !(obj.depth > profundidad) || !obj.texture || !obj.getBounds || /^gfa_|^cuervo_|^gfb_/.test(obj.texture.key)) continue;
+      var b = obj.getBounds();
+      if (x < b.x || x >= b.x + b.width || y < b.y || y >= b.y + b.height) continue;
+      var m = window.GFProfundidad.medir(scene, obj.texture.key);
+      if (!m || !m.leida || !m.superior || !m.perfil) return true;
+      var col = Math.floor((x - b.x) / b.width * m.ancho);
+      if (obj.flipX) col = m.ancho - 1 - col;
+      var fila = (y - b.y) / b.height * m.alto;
+      if (obj.flipY) fila = m.alto - 1 - fila;
+      if (m.superior[col] >= 0 && fila >= m.superior[col] && fila <= m.perfil[col] + 1) return true;
+    }
+    return false;
   }
 
   function floresYPiedras(scene) {
@@ -3217,7 +3293,7 @@
            el relleno transparente y queda flotando al lado de la flor. */
         var b = cajaDibujada(scene, spr);
         if (!b) continue;
-        out.push({ clave: clave,
+        out.push({ clave: clave, spr: spr, scene: scene,
                    // Centro y márgenes; el sorteo lo hace `puntoFlor`.
                    x: b.centerX, jit: b.width * 0.22,
                    y: b.top + b.height * (MAR_ALTURA[0] + MAR_ALTURA[1]) / 2,
@@ -3233,7 +3309,7 @@
       if (!t || t.active === false) continue;
       var bt = cajaDibujada(scene, t);
       if (!bt) continue;
-      out.push({ clave: 'sprite_tronco_acostado_' + i + 'png',
+      out.push({ clave: 'sprite_tronco_acostado_' + i + 'png', spr: t, scene: scene,
                  x: bt.centerX, jit: bt.width * 0.3,
                  y: bt.top + bt.height * 0.35,
                  y0: bt.top, alto: bt.height, a0: 0.3, a1: 0.4,
@@ -3255,7 +3331,12 @@
       if (p && Math.hypot(sitios[i].x - p.x, sitios[i].y - p.y) < m.ficha.huye * 1.3) continue;
       cerca.push(sitios[i]);
     }
-    if (!cerca.length) {
+    var s2 = null;
+    while (cerca.length && !s2) {
+      var indice = Math.floor(Math.random() * cerca.length);
+      s2 = puntoFlor(cerca.splice(indice, 1)[0]);
+    }
+    if (!s2) {
       /* Sin nada donde posarse, sigue revoloteando por ahí.
 
          SE BORRA EL SOPORTE, Y ESTE ES EL ARREGLO DE "LAS MARIPOSAS DUERMEN
@@ -3280,20 +3361,23 @@
         y: Math.min(limD.h - 30, Math.max(30, m.spr.y + az(-120, 120)))
       };
       m.hasta = scene.time.now + az(MAR_VUELO[0], MAR_VUELO[1]);
+      m.spr.setDepth(PROF_VUELO);
       return;
     }
-    var s2 = puntoFlor(elegir(cerca));
     m.fase = 'revolotea';
     anim(m, 'vuela');
     m.destino = { x: s2.x, y: s2.y };
     m.soporte = s2.clave;
     m.baseSoporte = s2.base;
+    m.spr.setDepth(PROF_VUELO);
     /* CON SOL, MÁS VUELO Y MENOS PARADA.
 
        Una mariposa es un termómetro con alas: al sol no para quieta y con el
        cielo tapado se queda posada esperando. Como el vuelo dura `MAR_VUELO` y
        la parada `MAR_POSADA`, basta con estirar el uno y encoger la otra. */
-    m.hasta = scene.time.now + az(MAR_VUELO[0], MAR_VUELO[1]) * animoDelSol(scene);
+    m.hasta = scene.time.now + Math.max(
+      az(MAR_VUELO[0], MAR_VUELO[1]) * animoDelSol(scene),
+      Math.hypot(s2.x - m.spr.x, s2.y - m.spr.y) / m.ficha.vel * 1000 + 2000);
   }
 
   /**
@@ -3341,7 +3425,10 @@
         return;
       }
       // Posada va por delante de la flor, si no se pierde entre los pétalos.
-      m.spr.setDepth((m.baseSoporte || m.spr.y) + 2);
+      var apoyo = scene[m.soporte];
+      var base = typeof apoyo.depth === 'number' ? apoyo.depth : m.spr.y;
+      if (tapado(scene, m.spr.x, m.spr.y, apoyo, base + 2)) { decidirMariposa(st, m); return; }
+      m.spr.setDepth(base + 2);
       if (ahora >= m.hasta) decidirMariposa(st, m);
       return;
     }
@@ -3354,9 +3441,18 @@
 
     if (dist < 5 || paso >= dist) {
       m.spr.setPosition(d.x, d.y);
-      if (m.soporte) {
+      if (m.soporte && scene[m.soporte] && scene[m.soporte].active !== false &&
+          !tapado(scene, d.x, d.y, scene[m.soporte], (scene[m.soporte].depth || m.baseSoporte || d.y) + 2)) {
         m.fase = 'posada';
         anim(m, 'posa');
+        // La imagen de la mariposa también contiene margen bajo las patas.
+        // Corrige el origen, conservando el punto de apoyo que ya se eligió.
+        var P = window.GFProfundidad;
+        if (P && P.medir && m.spr.texture) {
+          var medida = P.medir(scene, m.spr.texture.key);
+          if (medida && medida.leida && medida.alto) m.spr.setOrigin(0.5, (medida.abajo + 1) / medida.alto);
+        }
+        m.spr.setDepth((scene[m.soporte].depth || m.baseSoporte || d.y) + 2);
         // Al sol se para menos; encapotado, más. Ver `animoDelSol`.
         m.hasta = ahora + az(MAR_POSADA[0], MAR_POSADA[1]) / animoDelSol(scene);
       } else {
@@ -3378,7 +3474,7 @@
     m.spr.y = Math.min(lim.h - 20, Math.max(20,
               m.spr.y + (dy / dist) * paso + py * lat -
               Math.cos(m.vaiven * 0.7) * 6 * dt));
-    m.spr.setDepth(m.spr.y + 40);      // por encima de la hierba y los arbustos
+    m.spr.setDepth(PROF_VUELO);
     if (ahora >= m.hasta) decidirMariposa(st, m);
   }
 

@@ -242,10 +242,34 @@
       b = cuerpo(init); estado.guardado = b; return { success: true };
     }
     if (/^\/api\/stats\/[^/]+\/sync$/.test(ruta)) return { success: true, stats: estado.stats, source: 'mock' };
+    // El botín de los monstruos (ver /api/monstruos/* en server2.js).
+    if (ruta === '/api/monstruos/derrotado' && metodo === 'POST') {
+      b = cuerpo(init);
+      var BOT = { serpiente_mina: [['mineral_piedra_cobre', 3], ['carbon', 4], ['mineral_piedra_hierro', 2]] }[b.tipo] ||
+                [['mineral_piedra', 2], ['madera_pinos', 3]];
+      estado.botin = estado.botin || {};
+      var lista = BOT.map(function (x, i) {
+        var id = 'b' + Date.now().toString(36) + i;
+        estado.botin[id] = { itemId: x[0], cantidad: x[1] };
+        return { id: id, itemId: x[0], cantidad: x[1] };
+      });
+      estado.derrotados = (estado.derrotados || []).concat([b.tipo]);
+      return { ok: true, tipo: b.tipo, exp: 450, expTotal: 4500 + 450 * estado.derrotados.length, botin: lista, caducaMs: 600000 };
+    }
+    if (ruta === '/api/monstruos/botin/recoger' && metodo === 'POST') {
+      b = cuerpo(init);
+      var bt = estado.botin && estado.botin[b.id];
+      if (!bt) return { ok: false, motivo: 'no_existe' };
+      delete estado.botin[b.id];
+      estado.recogidos = (estado.recogidos || 0) + 1;
+      return { ok: true, itemId: bt.itemId, cantidad: bt.cantidad,
+               factura: { invoiceId: 900 + estado.recogidos, manualId: bt.itemId + '#b' + estado.recogidos, cantidad: bt.cantidad } };
+    }
     // El daño que pone el servidor (costesDeAccion en server2.js).
     if (/^\/api\/stats\/[^/]+\/consume$/.test(ruta)) {
       b = cuerpo(init);
-      var DANOS = { animal_bite: 6, zombi_mina: 5, jefe_mina: 12 };
+      var DANOS = { animal_bite: 6, zombi_mina: 5, jefe_mina: 12, serpiente_fuego: 9, serpiente_terremoto: 7,
+                    serpiente_mordisco: 14, monstruo_golpe: 8, monstruo_poder: 11 };
       if (DANOS[b.reason]) {
         estado.stats.vida = Math.max(0, estado.stats.vida - DANOS[b.reason]);
         estado.golpes = (estado.golpes || []).concat([b.reason]).slice(-50);
@@ -678,12 +702,36 @@
       }
       var modo = evento === 'brawl:bot' ? 'bot' : (evento === 'brawl:practica' ? 'practica' : 'pvp');
       if (modo === 'pvp') {
-        setTimeout(function () { s._fire('brawl:enCola', { posicion: 1, enCola: 1 }); }, 30);
-        setTimeout(function () { s._fire('brawl:sala', { jugadores: 3, max: 6, empiezaEnMs: 1500 }); }, 600);
-        var espera = setTimeout(function () { arrancarArena(s, modo); }, 2100);
-        brawl = { P: { fase: 'cola' }, esperando: espera };
+        /* La sala de espera con lista y "Ready" (ver brawlAvisarSala en
+           server2.js): Aria y Bram se ponen listos solos; se empieza cuando
+           el jugador le da a Ready (o a los 20 s, como red). */
+        var sala = [
+          { nombre: JUGADOR, mascota: 'Firulais', nivel: 6, listo: false, yo: true },
+          { nombre: 'Aria', mascota: 'Luna', nivel: 5, listo: false, yo: false },
+          { nombre: 'Bram', mascota: 'Rex', nivel: 7, listo: false, yo: false }
+        ];
+        var avisar = function () {
+          s._fire('brawl:sala', { jugadores: sala.length, max: 6, listos: sala.filter(function (x) { return x.listo; }).length,
+                                  empiezaEnMs: 20000, lista: JSON.parse(JSON.stringify(sala)) });
+        };
+        setTimeout(function () { s._fire('brawl:enCola', { posicion: 1, enCola: 1, empiezaEnMs: 20000 }); }, 30);
+        setTimeout(avisar, 600);
+        setTimeout(function () { sala[1].listo = true; avisar(); }, 1200);
+        setTimeout(function () { sala[2].listo = true; avisar(); }, 1800);
+        var espera = setTimeout(function () { arrancarArena(s, modo); }, 20000);
+        brawl = { P: { fase: 'cola' }, esperando: espera, sala: sala, avisar: avisar, socket: s };
       } else {
         setTimeout(function () { arrancarArena(s, modo); }, 250);
+      }
+      return;
+    }
+    if (brawl && brawl.P && brawl.P.fase === 'cola' && evento === 'brawl:listo' && brawl.sala) {
+      brawl.sala[0].listo = !!(datos && datos.listo);
+      brawl.avisar();
+      if (brawl.sala.every(function (x) { return x.listo; })) {
+        clearTimeout(brawl.esperando);
+        estado.salaLista = true;
+        setTimeout(function () { arrancarArena(s, 'pvp'); }, 300);
       }
       return;
     }

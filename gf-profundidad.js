@@ -222,17 +222,27 @@
          completa: cuesta lo mismo que las pasadas de arriba y se hace UNA vez
          por textura (queda en cacheMedidas). */
       var perfil = new Array(w);
+      var superior = new Array(w);
       for (x = 0; x < w; x++) {
         var ultima = -1;
         for (y = abajo; y >= arriba; y--) {
           if (datos[(y * w + x) * 4 + 3] >= ALFA_MIN) { ultima = y; break; }
         }
         perfil[x] = ultima;
+        var primera = -1;
+        for (y = arriba; y <= abajo; y++) {
+          if (datos[(y * w + x) * 4 + 3] >= ALFA_MIN) { primera = y; break; }
+        }
+        superior[x] = primera;
       }
 
+      var sumaPies = 0, puntosPies = 0;
+      for (x = 0; x < w; x++) {
+        if (perfil[x] >= abajo - 1) { sumaPies += x + 0.5; puntosPies++; }
+      }
       caja = { ancho: w, alto: h, arriba: arriba, abajo: abajo,
                izq: Math.min(izq, w - 1), der: Math.max(der, 0),
-               perfil: perfil, leida: true };
+               perfil: perfil, superior: superior, pieX: puntosPies ? sumaPies / puntosPies : w / 2, leida: true };
     } catch (e) {
       // Textura ilegible: se da por buena entera. Es lo que había antes.
       var t2 = null;

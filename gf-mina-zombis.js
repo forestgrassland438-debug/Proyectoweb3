@@ -287,6 +287,34 @@
     return movido;
   }
 
+  /* Hacia (tx, ty) por un CAMINO (gf-rutas.js) y no en línea recta: con una
+     pared en medio, el zombi la rodea en vez de quedarse pegado. La ruta se
+     pide como mucho cada 700 ms; de cerca se va derecho. */
+  function haciaConRuta(st, z, tx, ty, vel, seg) {
+    var ahora = st.scene.time.now;
+    var dDirecto = Math.hypot(tx - z.x, ty - z.y);
+    var obj = { x: tx, y: ty };
+    if (dDirecto > 60 && window.GFRutas) {
+      if (!(ahora <= z.rutaEn)) {          // (sin rutaEn todavía, también)
+        z.rutaEn = ahora + 700;
+        z.ruta = window.GFRutas.siguiente(st.scene, { x: z.x, y: z.y }, { x: tx, y: ty }, {
+          clave: z.jefe ? 'jefe' : 'zombi',
+          libre: function (x, y) { return libre(st.scene, x, y, z.jefe); }
+        });
+      }
+      if (z.ruta) {
+        if (Math.hypot(z.ruta.x - z.x, z.ruta.y - z.y) <= 8) z.rutaEn = 0;   // llegó: el siguiente
+        else obj = z.ruta;
+      }
+    }
+    var ddx = obj.x - z.x, ddy = obj.y - z.y, d = Math.hypot(ddx, ddy) || 1;
+    var x0 = z.x, y0 = z.y;
+    var ok = mover(st, z, ddx / d * vel, ddy / d * vel, seg);
+    // Atascado (no avanzó nada): ruta nueva en el siguiente fotograma.
+    if (Math.abs(z.x - x0) + Math.abs(z.y - y0) < 0.01 && z.ruta) { z.rutaEn = Math.min(z.rutaEn, st.scene.time.now + 250); z.ruta = null; }
+    return ok;
+  }
+
   function colocar(z) {
     // El tambaleo del zombi: un leve vaivén al andar.
     var vaiven = z.anim ? Math.sin(z.spr.scene.time.now / (z.jefe ? 260 : 190) + z.fase) * (z.jefe ? 0.04 : 0.07) : 0;
@@ -343,8 +371,8 @@
       el = st.barraJefe = document.createElement('div');
       el.id = 'gf-jefe-mina';
       el.setAttribute('role', 'status');
-      el.style.cssText = 'position:fixed;left:50%;top:64px;transform:translateX(-50%);z-index:9000;' +
-        'width:min(420px,calc(100vw - 32px));pointer-events:none;font:700 13px/1.2 inherit;color:#f3e3ff;' +
+      el.style.cssText = 'position:fixed;left:50%;top:74px;transform:translateX(-50%);z-index:9000;' +
+        'width:min(280px,calc(100vw - 300px));min-width:150px;pointer-events:none;font:700 12px/1.2 inherit;color:#f3e3ff;' +
         'text-align:center;text-shadow:0 1px 2px #000;display:none';
       el.innerHTML = '<div class="gfj-nombre">💀 The Mine Warden</div>' +
         '<div style="margin-top:4px;height:10px;border-radius:6px;background:rgba(10,4,20,.75);border:1px solid #b78cff;overflow:hidden">' +
@@ -436,7 +464,7 @@
       if (ahora - z.mordioEn > MORDISCO_MS * 1.3) { z.mordioEn = ahora; golpearAlJugador(st, 'jefe_mina'); }
       return;
     }
-    mover(st, z, -dx / dist * vel, -dy / dist * vel, seg);
+    haciaConRuta(st, z, p.x, (p.y + 45) - z.alto * 0.5, vel, seg);
   }
 
   function saltar(st, z) {
@@ -527,7 +555,7 @@
           jugarAnim(z, z.dir, false);
           if (ahora - z.mordioEn > MORDISCO_MS) { z.mordioEn = ahora; golpearAlJugador(st, 'zombi_mina'); }
         } else {
-          mover(st, z, dx / dist * VEL_CAZA * (z.furia ? 1.2 : 1), dy / dist * VEL_CAZA * (z.furia ? 1.2 : 1), seg);
+          haciaConRuta(st, z, p.x, py - z.alto * 0.5, VEL_CAZA * (z.furia ? 1.2 : 1), seg);
         }
       }
       if (z.estado !== 'salta') colocar(z);
