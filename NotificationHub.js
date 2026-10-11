@@ -79,6 +79,8 @@ class NotificationHub {
             this.config = Object.assign({}, defaults, options);
 
             this.isInitialized = false;
+            this._destroyed = false;
+            this._readyHandler = null;
             this.notifications = new Map();
             this.notificationCounter = 0;
             this.pools = new Map();
@@ -87,6 +89,8 @@ class NotificationHub {
             this._styleId = 'notification-hub-styles';
             this._debug = !!this.config.debug;
             this._cleanupInterval = null;
+            this._animationFrames = new Set();
+            this._animationTimers = new Set();
             
             if (this.config.autoCleanup) {
                 this._startAutoCleanup();
@@ -119,7 +123,7 @@ class NotificationHub {
                 }
                 
                 for (const field of this.config.duplicateCheckFields) {
-                    if (field !== 'message' && field !== 'type' && field !== 'pool' && options[field]) {
+                    if (field !== 'message' && field !== 'type' && field !== 'pool' && Object.prototype.hasOwnProperty.call(options, field)) {
                         parts.push(`${field}:${options[field]}`);
                     }
                 }
@@ -337,9 +341,12 @@ class NotificationHub {
 
     initialize() {
         try {
-            if (this.isInitialized) return;
-            if (typeof document === 'undefined' || !document.body) {
-                document.addEventListener('DOMContentLoaded', () => this.initialize(), { once: true });
+            if (this.isInitialized || this._destroyed || typeof document === 'undefined') return;
+            if (!document.body) {
+                if (!this._readyHandler) {
+                    this._readyHandler = () => { this._readyHandler = null; this.initialize(); };
+                    document.addEventListener('DOMContentLoaded', this._readyHandler, { once: true });
+                }
                 return;
             }
 
@@ -825,8 +832,10 @@ class NotificationHub {
      * Muestra una notificación
      */
     show(message = 'Notificación', type = 'info', options = {}) {
+        if (this._destroyed) return null;
         try {
             this.initialize();
+            if (!this.isInitialized) return null;
 
             // Historial para el panel de control (se guarda SIEMPRE, aunque el
             // tipo esté oculto). Es COMPARTIDO entre instancias: ver _prefs.
@@ -894,11 +903,16 @@ class NotificationHub {
             this._hubElement.appendChild(notificationElement);
 
             // Aplicar animación de entrada después de un frame
-            requestAnimationFrame(() => {
-                setTimeout(() => {
-                    notificationElement.classList.add('show');
+            const frame = requestAnimationFrame(() => {
+                this._animationFrames.delete(frame);
+                if (this._destroyed || !this.notifications.has(notificationId)) return;
+                const timer = setTimeout(() => {
+                    this._animationTimers.delete(timer);
+                    if (!this._destroyed && this.notifications.has(notificationId)) notificationElement.classList.add('show');
                 }, 10);
+                this._animationTimers.add(timer);
             });
+            this._animationFrames.add(frame);
 
             // Crear objeto de notificación
             const notification = {
@@ -914,6 +928,7 @@ class NotificationHub {
                 timer: null,
                 isActive: true
             };
+            notification.duplicateKey = this._generateDuplicateKey(message, type, opts.pool, opts);
 
             // Guardar en Map
             this.notifications.set(notificationId, notification);
@@ -971,13 +986,8 @@ class NotificationHub {
 
             // Eliminar del tracker de duplicados
             if (this.config.preventDuplicates) {
-                const duplicateKey = this._generateDuplicateKey(
-                    notification.message, 
-                    notification.type, 
-                    notification.pool, 
-                    notification.data
-                );
-                this.duplicateTracker.delete(duplicateKey);
+                const duplicateKey = notification.duplicateKey;
+                if (this.duplicateTracker.get(duplicateKey) === notificationId) this.duplicateTracker.delete(duplicateKey);
             }
 
             // Llamar callback si existe
@@ -1008,13 +1018,8 @@ class NotificationHub {
 
             // Eliminar del tracker de duplicados
             if (this.config.preventDuplicates) {
-                const duplicateKey = this._generateDuplicateKey(
-                    notification.message, 
-                    notification.type, 
-                    notification.pool, 
-                    notification.data
-                );
-                this.duplicateTracker.delete(duplicateKey);
+                const duplicateKey = notification.duplicateKey;
+                if (this.duplicateTracker.get(duplicateKey) === notificationId) this.duplicateTracker.delete(duplicateKey);
             }
 
             // Limpiar timer
@@ -1030,11 +1035,16 @@ class NotificationHub {
             notification.element.classList.add('hide');
 
             // Eliminar del DOM después de animación
-            setTimeout(() => {
+            const removeElement = () => {
                 if (notification.element && notification.element.parentNode) {
                     notification.element.parentNode.removeChild(notification.element);
                 }
-            }, this.config.animationDuration);
+            };
+            if (this._destroyed) removeElement();
+            else {
+                const timer = setTimeout(() => { this._animationTimers.delete(timer); removeElement(); }, this.config.animationDuration);
+                this._animationTimers.add(timer);
+            }
 
             // Eliminar del pool
             if (this.pools.has(notification.pool)) {
@@ -1217,8 +1227,14 @@ class NotificationHub {
      */
     destroy() {
         try {
+            if (this._destroyed) return;
+            this._destroyed = true;
+            if (this._readyHandler && typeof document !== 'undefined') document.removeEventListener('DOMContentLoaded', this._readyHandler);
+            this._readyHandler = null;
             this._stopAutoCleanup();
             this.hideAllNotifications();
+            this._animationFrames.forEach(cancelAnimationFrame); this._animationFrames.clear();
+            this._animationTimers.forEach(clearTimeout); this._animationTimers.clear();
 
             /* SOLO LO PROPIO. Antes se quitaba `getElementById('notification-hub')`
                —el PRIMERO con ese id, que podía ser el de otra instancia viva (la
@@ -1381,7 +1397,7 @@ class NotificationHub {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
                 const viva = NotificationHub._ultima;
-                (viva && !viva._destroyed ? viva : this).openSettingsPanel();
+                if (viva && !viva._destroyed) viva.openSettingsPanel();
             });
             container.appendChild(btn);
         } catch (e) { /* no crítico */ }

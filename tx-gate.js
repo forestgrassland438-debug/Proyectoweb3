@@ -61,15 +61,17 @@
    * @param {string} etiqueta  para poder decir al jugador qué se está esperando
    * @returns {function} llámala al terminar (es idempotente)
    */
-  function begin(etiqueta) {
+  function begin(etiqueta, opciones) {
     var id = siguienteId++;
+    var tope = opciones && Number.isFinite(opciones.timeout)
+      ? Math.max(1000, Math.min(900000, opciones.timeout)) : TOPE_POR_TRABAJO_MS;
     var temporizador = setTimeout(function () {
       if (trabajos.has(id)) {
         console.warn('[TxGate] El trabajo "' + etiqueta + '" superó el tope de tiempo; se da de baja solo.');
         trabajos.delete(id);
         avisarSiVacio();
       }
-    }, TOPE_POR_TRABAJO_MS);
+    }, tope);
 
     trabajos.set(id, { etiqueta: String(etiqueta || 'tx'), desde: Date.now(), temporizador: temporizador });
 
@@ -111,7 +113,7 @@
   function whenIdle(opciones) {
     opciones = opciones || {};
     var tope = Number.isFinite(opciones.timeout) && opciones.timeout >= 0
-      ? Math.min(opciones.timeout, TOPE_POR_TRABAJO_MS) : 90000;
+      ? Math.min(opciones.timeout, 900000) : 90000;
     var inicio = Date.now();
 
     if (trabajos.size === 0) {

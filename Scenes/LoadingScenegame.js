@@ -653,6 +653,7 @@ class LoadingScenegame extends Phaser.Scene {
 
             const data = await response.json();
             console.log('✅ Datos del jugador recibidos');
+            this._inventoryLoadedAt = data.inventoryLoadedAt || new Date().toISOString();
 
             // Inicializar STATE limpio
             if (!this.STATE) {
@@ -1631,9 +1632,10 @@ class LoadingScenegame extends Phaser.Scene {
             tipo:     'cofre'
         }));
 
-        this.moneda = Math.floor(this.moneda || this.monto_moneda);
+        this.moneda = Math.floor(this.moneda ?? this.monto_moneda ?? 0);
 
         const payload = {
+            inventoryLoadedAt: this._inventoryLoadedAt || null,
             posicionplayerx: this.posicionplayerx,
             posicionplayery: this.posicionplayery,
             vidaPorcentaje:  this.vidaPorcentaje,
@@ -1980,7 +1982,7 @@ class LoadingScenegame extends Phaser.Scene {
      * El contador vive en `window.GFTxGate` (tx-gate.js), fuera de las escenas,
      * precisamente porque la escena que lanzó la transacción ya no existe.
      *
-     * NUNCA deja al jugador atrapado: si pasan 90 segundos se sigue igualmente
+     * NUNCA deja al jugador atrapado: si pasan cuatro minutos se sigue igualmente
      * y se avisa por consola. Es preferible entrar al juego con una
      * transacción rezagada que quedarse en una pantalla de carga eterna.
      */
@@ -2774,4 +2776,3 @@ class StatsSync {
 
 window.LoadingScenegame = LoadingScenegame;
 window.StatsSync        = StatsSync;
-

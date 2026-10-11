@@ -1,6 +1,9 @@
 {
   "private": true,
   "scripts": {
+    "audit:libraries": "node tools/audit-libraries.cjs",
+    "test:libraries": "node --test tools/libraries-stability.test.cjs",
+    "test:libraries:browser": "node tools/libraries-browser-stability.cjs",
     "build:vendor": "node tools/build-vendor.cjs",
     "test:engine": "node --test tools/engine-lifecycle.test.cjs tools/memory-diagnostics.test.cjs tools/app-lifecycle.test.cjs tools/perf-subsystems.test.cjs",
     "test:web3": "node --test tools/web3-seguridad-prueba.cjs tools/hub-lifecycle.test.cjs",
@@ -11,7 +14,7 @@
   },
   "overrides": {
     "socket.io-parser": "4.2.7",
-    "i18next-http-backend": "3.0.5",
+    "i18next-http-backend": "4.0.2",
     "@metamask/utils": { "uuid": "11.1.1" }
   },
   "devDependencies": {

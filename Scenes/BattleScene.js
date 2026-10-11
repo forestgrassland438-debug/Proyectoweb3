@@ -1192,14 +1192,13 @@ class BattleScene extends Phaser.Scene {
         this.volverEnBreve(2600);
       });
     });
-    // En PvP, a los 4 minutos sin rival se para (y se ofrece practicar).
+    // La búsqueda dura 150 s; el servidor completa las plazas con bots.
     if (this.modo === 'pvp' && !this._pvpDeadlineScheduled) {
       this._pvpDeadlineScheduled = true;
-      this._reloj(240000, () => {
+      this._reloj(170000, () => {
         if (this._battleRun !== run || this.estado !== 'buscando' || this.matchId || this.modo !== 'pvp') return;
-        this._colaAgotada = true;
-        this.estadoBusqueda('No players right now', 'Try again later — or practice against bots meanwhile.');
-        this._emitir('brawl:salirCola');
+        this.estadoBusqueda('Preparing the arena…', 'Waiting for the server to complete the remaining places with bots.');
+        this._emitir('brawl:cola');
       });
     }
   }
@@ -1222,14 +1221,17 @@ class BattleScene extends Phaser.Scene {
       this._respuestaCola = true;
       if (this.estado !== 'buscando' || this.modo !== 'pvp') return;
       this.estadoBusqueda('Searching for players…', 'Be the last dog standing. Up to 6 players.');
-      if (this.el.sala) this.el.sala.textContent = d.enCola > 1 ? (d.enCola + ' players searching') : '';
+      this._busquedaTerminaEn = Date.now() + (Number.isFinite(d.empiezaEnMs) ? d.empiezaEnMs : 150000);
+      this._jugadoresBuscando = Number(d.enCola) || 1;
     });
     this.on('brawl:sala', (d) => {
       this._respuestaCola = true;
       if (this.estado !== 'buscando' || this.modo !== 'pvp') return;
       const n = Number(d.jugadores) || 2, max = Number(d.max) || 6;
       const seg = Math.ceil((Number(d.empiezaEnMs) || 0) / 1000);
-      this.estadoBusqueda('Players found!', 'Waiting a few seconds for more to join…');
+      this._busquedaTerminaEn = Date.now() + (Number(d.empiezaEnMs) || 0);
+      this._jugadoresBuscando = n;
+      this.estadoBusqueda('Players found!', 'Searching for more players. Empty places will be filled with bots.');
       if (this.el.sala) {
         let puntos = '';
         for (let i = 0; i < max; i++) puntos += '<i class="' + (i < n ? 'lleno' : '') + '"></i>';
@@ -1564,7 +1566,16 @@ class BattleScene extends Phaser.Scene {
       this.municion = (Number(y.m) || 0) / 100;
       this.superCarga = (Number(y.s) || 0) / 100;
       const yo = this.vistas.get(this.yoId);
-      if (yo) { yo.hp = y.hp; this._pintarVidaHUD(yo.hp, yo.maxHp); }
+      if (yo) {
+        yo.hp = y.hp;
+        if (Number(y.v) > 0) yo.datos.vel = Number(y.v);
+        this._pintarVidaHUD(yo.hp, yo.maxHp);
+        if (this.el?.huesos) {
+          const status = '🦴 ' + yo.potencia + (y.e > 0 ? ' · 🛡 ' + Math.ceil(y.ed / 1000) + 's' : '') +
+            (y.r > 0 ? ' · » ' + Math.ceil(y.r / 1000) + 's' : '');
+          if (this.el.huesos.textContent !== status) this.el.huesos.textContent = status;
+        }
+      }
       if (Number(y.c) > this.cAplicada) {
         if (y.x != null && y.y != null) this._recolocar(Number(y.x), Number(y.y));
         this.cAplicada = Number(y.c);
@@ -1815,10 +1826,15 @@ class BattleScene extends Phaser.Scene {
     const A = window.GFBatallaArte;
     const T = this._texArena || BattleScene.TILESET;
     const carne = d.tipo === 'carne';
+    const poderes = { escudo: [0x66baff, 'S'], rapidez: [0x7bf0d4, '»'], municion: [0xffc777, 'M'], super: [0xcd8cff, '★'] };
+    const poder = poderes[d.tipo];
     const brillo = (A && this.textures.exists(A.pieza('brillo')))
-      ? this.add.image(d.x, d.y, A.pieza('brillo')).setTint(carne ? 0xff8a6a : BattleScene.COLOR.oro).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(34, 22).setAlpha(0.7).setDepth(d.y - 21)
+      ? this.add.image(d.x, d.y, A.pieza('brillo')).setTint(poder ? poder[0] : (carne ? 0xff8a6a : BattleScene.COLOR.oro)).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(34, 22).setAlpha(0.7).setDepth(d.y - 21)
       : null;
-    const img = this.textures.exists(T)
+    const img = poder
+      ? this.add.container(d.x, d.y, [this.add.rectangle(0, 0, 20, 20, poder[0]).setStrokeStyle(2, 0xffffff),
+          this.add.text(0, 0, poder[1], { fontFamily: 'Arial', fontSize: '14px', fontStyle: 'bold', color: '#182238' }).setOrigin(0.5)]).setDepth(d.y - 20)
+      : this.textures.exists(T)
       ? this.add.image(d.x, d.y, T, carne ? cat.carne : cat.hueso).setDepth(d.y - 20)
       : this.add.rectangle(d.x, d.y, 16, carne ? 12 : 6, carne ? 0xc4552f : 0xf3ecd8).setDepth(d.y - 20);
     img.setScale(0.1);
@@ -1844,6 +1860,18 @@ class BattleScene extends Phaser.Scene {
       v.potencia = d.potencia;
       v.maxHp = d.maxHp;
       v.hp = d.hp;
+      if (['escudo', 'rapidez', 'municion', 'super'].includes(d.tipo)) {
+        if (v.yo) {
+          if (d.vel) v.datos.vel = d.vel;
+          if (Number.isFinite(d.m)) this.municion = d.m;
+          if (Number.isFinite(d.s)) this.superCarga = d.s;
+          const nombres = { escudo: 'SHIELD · 8s', rapidez: 'SPEED +20% · 8s', municion: '+AMMO', super: '+35% SUPER' };
+          this.aviso(nombres[d.tipo], { peque: true, ms: 1600 });
+          this._pintarSuperHUD(this.superCarga);
+          this._sonar('hueso');
+        }
+        return;
+      }
       if (d.tipo === 'carne') {
         if (!document.hidden) this._numero(v.x, v.y - (v.altoSprite || 28), '+' + (d.cura || ''), '#7dff8a', true);
         if (v.yo) {
@@ -2309,6 +2337,11 @@ class BattleScene extends Phaser.Scene {
   // =========================================================================
   update(time, delta) {
     if (this._cleaned) return;
+    if (this.estado === 'buscando' && this.modo === 'pvp' && this._busquedaTerminaEn && this.el?.sala) {
+      const seconds = Math.max(0, Math.ceil((this._busquedaTerminaEn - Date.now()) / 1000));
+      const text = (this._jugadoresBuscando || 1) + ' / 6 · ' + Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0') + ' · then bots fill empty places';
+      if (this.el.sala.textContent !== text) this.el.sala.textContent = text;
+    }
     const dt = Math.min(50, Math.max(0, delta || 16)) / 1000;
     const ahora = performance.now();
     const M = window.GFBrawlMotor;

@@ -10046,10 +10046,9 @@ async loadPlayerData() {
        reaparecía porque en la base de datos nunca se había ido. GameScene la
        manda desde hace tiempo; aquí faltaba.
 
-       Se apunta ANTES de tocar nada: si el market escribe justo mientras esta
-       carga está en vuelo, la marca queda "antigua" y el servidor protege el
-       inventario, que es el lado seguro del error. */
-    this._inventoryLoadedAt = new Date().toISOString();
+       Se usa la revisión que acompaña a la respuesta del servidor, incluso
+       cuando el reloj del navegador difiere del reloj del backend. */
+    this._inventoryLoadedAt = data.inventoryLoadedAt || new Date().toISOString();
     
     // INICIALIZAR STATE solo si no existe - ¡ESTO ES CLAVE!
     if (!this.STATE) {

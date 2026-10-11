@@ -46,6 +46,32 @@ class TransactionSystem {
         this.userData = null;
         this._sendQueue = Promise.resolve();
         this._destroyed = false;
+        this._requests = new Set();
+        const events = scene?.events;
+        if (events?.once) {
+            this._sceneExit = () => this.destroy();
+            events.once('shutdown', this._sceneExit); events.once('destroy', this._sceneExit);
+        }
+    }
+
+    async _request(url, options = {}, format = 'json', timeoutMs = 15000) {
+        if (this._destroyed) throw new Error('Sistema de transacciones cerrado');
+        const controller = new AbortController();
+        this._requests.add(controller);
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const response = await fetch(url, { ...options, signal: controller.signal });
+            const data = await response[format]();
+            if (this._destroyed || controller.signal.aborted) throw new Error('Solicitud cancelada');
+            return { response, data };
+        } finally {
+            clearTimeout(timer); this._requests.delete(controller);
+        }
+    }
+
+    _tokenActual(token) {
+        return !this._destroyed && this.accessToken === token &&
+            (typeof sessionStorage === 'undefined' || JSON.parse(sessionStorage.getItem('authTokens') || '{}').accessToken === token);
     }
 
     /**
@@ -64,6 +90,7 @@ class TransactionSystem {
             
             await this.loadServerConfig();
             await this.setupAuthentication();
+            if (this._destroyed) return false;
             this.initializeTransactionHub();
             this.connectSocket();
             
@@ -79,11 +106,10 @@ class TransactionSystem {
     async loadServerConfig() {
         try {
             const baseUrl = this._baseUrl();
-            const resp = await fetch(`${baseUrl}/api/config`);
+            const { response: resp, data: cfg } = await this._request(`${baseUrl}/api/config`);
             
             if (!resp.ok) throw new Error('No se pudo cargar la configuración');
             
-            const cfg = await resp.json();
             
             this.config = {
                 rpcUrl: cfg.rpcUrl,
@@ -100,6 +126,7 @@ class TransactionSystem {
             return cfg;
             
         } catch (error) {
+            if (this._destroyed) return null;
             console.warn('⚠️ No se pudo cargar configuración del servidor:', error.message);
             this.config = {
                 rpcUrl: "https://liteforge.rpc.caldera.xyz/http",
@@ -113,8 +140,10 @@ class TransactionSystem {
     }
 
     async setupAuthentication() {
+        if (this._destroyed) return;
         const tokens = JSON.parse(sessionStorage.getItem('authTokens') || '{}');
         this.accessToken = tokens.accessToken || null;
+        const token = this.accessToken;
         
         if (!this.accessToken) {
             console.log('🔐 Usuario no autenticado - Modo lectura');
@@ -123,13 +152,13 @@ class TransactionSystem {
         }
 
         try {
-            await this.fetchUserData();
+            const data = await this.fetchUserData();
+            if (!data || this._destroyed) return;
             this.isAuthenticated = true;
             console.log('✅ Usuario autenticado:', this.currentAccount);
         } catch (error) {
             console.error('❌ Error en autenticación:', error);
-            this.isAuthenticated = false;
-            sessionStorage.removeItem('authTokens');
+            if (this._tokenActual(token)) this.isAuthenticated = false;
         }
     }
 
@@ -139,13 +168,15 @@ class TransactionSystem {
         }
 
         const baseUrl = this._baseUrl();
-        const resp = await fetch(`${baseUrl}/api/user/data`, {
+        const token = this.accessToken;
+        const { response: resp, data: userData } = await this._request(`${baseUrl}/api/user/data`, {
             method: 'GET',
             headers: { 
-                'Authorization': 'Bearer ' + this.accessToken,
+                'Authorization': 'Bearer ' + token,
                 'Content-Type': 'application/json'
             }
         });
+        if (!this._tokenActual(token)) return null;
 
         if (!resp.ok) {
             if (resp.status === 401) {
@@ -155,7 +186,6 @@ class TransactionSystem {
             throw new Error('Error del servidor: ' + resp.status);
         }
 
-        const userData = await resp.json();
         
         this.currentAccount = userData.address;
         this.playerName = userData.playerName;
@@ -211,8 +241,10 @@ class TransactionSystem {
             this.txHub.showPending('Enviando transacción...');
         }
 
+        const token = this.accessToken;
         try {
             const result = await this.executeTransaction(transactionData);
+            if (!this._tokenActual(token)) return result;
             
             if (result.success && result.newNonce) {
                 this.updateNonceFromResponse(result.newNonce);
@@ -223,7 +255,7 @@ class TransactionSystem {
             return result;
             
         } catch (error) {
-            await this.handleTransactionError(error, payload);
+            if (this._tokenActual(token)) await this.handleTransactionError(error, payload);
             throw error;
         }
     }
@@ -300,16 +332,14 @@ class TransactionSystem {
         
         console.log('📤 Enviando transacción:', transactionData);
         
-        const resp = await fetch(`${baseUrl}/api/transaction/execute`, {
+        const { response: resp, data: responseText } = await this._request(`${baseUrl}/api/transaction/execute`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': 'Bearer ' + this.accessToken
             },
             body: JSON.stringify(transactionData)
-        });
-
-        const responseText = await resp.text();
+        }, 'text', 900000);
         console.log('📡 Respuesta del servidor:', responseText);
 
         let result;
@@ -356,7 +386,7 @@ class TransactionSystem {
         }
         
         if (this._destroyed) return;
-        await this.fetchUserData().catch(e => 
+        await this.fetchUserData().catch(e =>
             console.error('Error recargando datos de usuario:', e)
         );
     }
@@ -518,25 +548,23 @@ class TransactionSystem {
     }
 
     destroy() {
-        try {
+            if (this._destroyed) return;
             this._destroyed = true;
-            if (this.socket) {
-                this.socket.removeAllListeners();
-                this.socket.disconnect();
-                this.socket = null;
-            }
-            
-            if (this.txHub && this.txHub.destroy) {
-                this.txHub.destroy();
-            }
+            for (const request of this._requests) request.abort();
+            this._requests.clear();
+            this.scene?.events?.off('shutdown', this._sceneExit);
+            this.scene?.events?.off('destroy', this._sceneExit);
+            this._sceneExit = null;
+            try { this.socket?.removeAllListeners(); } catch (error) { console.warn('Limpieza de socket:', error); }
+            try { this.socket?.disconnect(); } catch (error) { console.warn('Desconexión de socket:', error); }
+            this.socket = null;
+            try { this.txHub?.destroy?.(); } catch (error) { console.warn('Limpieza de transacciones:', error); }
             this.txHub = null;
             this.isAuthenticated = false;
             this.accessToken = this.currentAccount = this.playerName = this.userNonce = this.userData = null;
             this.scene = null;
+            this.allowedContracts = {}; this.contracts = {};
             
             console.log('♻️ TransactionSystem destruido');
-        } catch (error) {
-            console.error('❌ Error destruyendo TransactionSystem:', error);
-        }
     }
 }

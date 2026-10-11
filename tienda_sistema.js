@@ -2590,6 +2590,17 @@ class TiendaSistema {
     }
 
     async processPurchase(item, quantity) {
+        quantity = Number(quantity);
+        if (!item || !Number.isSafeInteger(quantity) || quantity <= 0 ||
+            !Number.isFinite(Number(item.buyPrice)) || Number(item.buyPrice) <= 0 ||
+            !this._getOnchainTableFor(item.id)) {
+            throw new Error('Invalid purchase');
+        }
+        if (!this.STATE || this._escena()?._inventarioCargado === false) {
+            throw new Error('Wait for your inventory to finish loading');
+        }
+        if (this.STATE.selectedItem) throw new Error('Place the item in your inventory before buying');
+        if (!this.simulateAddItem(item.id, quantity).success) throw new Error('Not enough inventory space');
         // Los peces solo se venden: los acuña el servidor al pescar.
         if (item && item.soloVenta) {
             throw new Error('This item cannot be bought: catch it yourself!');
@@ -2646,8 +2657,7 @@ class TiendaSistema {
 
         console.log('🛒 SHOP TRANSACTION (PURCHASE)', transactionInfo);
 
-        this.addToHistorial('compra', item, quantity, totalCost);
-        this.showTransactionAnimation('compra', item, quantity, totalCost);
+        this.showNotification?.(`⏳ Buying ${quantity}x ${item.name} — waiting for confirmation…`, 'info');
 
         try { this.scene?.queuedAction && this.scene.queuedAction({ type: 'forSpam2' }); } catch (err) { /* ignorar */ }
         console.log(`✅ Purchase recorded: ${quantity}x ${item.name} for ${totalCost} ${this.getCurrencyLabel(currency)}`);
@@ -2692,7 +2702,7 @@ class TiendaSistema {
        ═══════════════════════════════════════════════════════════════════════ */
     _encolarTrabajoTienda(etiqueta, trabajo) {
         const finTx = (window.GFTxGate && window.GFTxGate.begin)
-            ? window.GFTxGate.begin(etiqueta)
+            ? window.GFTxGate.begin(etiqueta, { timeout: 900000 })
             : null;
 
         this._trabajosEnCola = (this._trabajosEnCola || 0) + 1;
@@ -2784,6 +2794,8 @@ class TiendaSistema {
 
         const [rutaTabla, limite] = mapping;
         const before = this.getItemCountInInventory(item.id);
+        this._confirmedPurchaseQuantity = null;
+        this._confirmedPurchaseInvoices = [];
 
         try {
             await this.ejecutarDivision(rutaTabla, item.id, limite, quantity);
@@ -2794,7 +2806,18 @@ class TiendaSistema {
         // Verificar cuántas unidades se confirmaron realmente (mismo patrón
         // que usa GameScene con las semillas: comparar inventario antes/después)
         const after = this.getItemCountInInventory(item.id);
-        const added = Math.max(0, after - before);
+        const added = Math.min(quantity, this._confirmedPurchaseQuantity == null
+            ? Math.max(0, after - before) : this._confirmedPurchaseQuantity);
+        let persisted = false;
+        if (added > 0) {
+            try {
+                await this._persistConfirmedPurchase(item.id);
+                persisted = true;
+            } catch (err) {
+                console.error('❌ Compra confirmada, sincronización pendiente:', err);
+                this.showNotification?.('Your purchase is confirmed on-chain. Inventory sync is pending; reopen the map to recover it.', 'info');
+            }
+        }
 
         if (added < quantity) {
             // REEMBOLSO automático de lo no confirmado: el dinero solo se
@@ -2820,11 +2843,63 @@ class TiendaSistema {
                 'error'
             );
             console.warn(`⚠️ Compra parcial: ${added}/${quantity} ${item.id} confirmados — reembolso ${refund}`);
-        } else {
+        } else if (persisted) {
+            this.showNotification?.(`✓ ${added}x ${item.name} purchased and saved`, 'success');
             console.log(`✅ Compra on-chain confirmada: ${quantity}x ${item.id}`);
         }
 
+        if (persisted) {
+            try {
+                this.addToHistorial('compra', item, added, added * transactionInfo.unitPrice);
+                this.showTransactionAnimation('compra', item, added, added * transactionInfo.unitPrice);
+            } catch (err) { console.warn('Purchase saved; shop display could not refresh:', err); }
+        }
         this.updateMonedaDisplay?.();
+    }
+
+    async _persistConfirmedPurchase(itemId) {
+        const e = this._escena();
+        const url = `${this._resolveApiBase()}/api/inventory/reconcile`;
+        let lastError;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const controller = new AbortController();
+            const deadline = setTimeout(() => controller.abort(), 20000);
+            try {
+                const options = { method: 'POST', credentials: 'include',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': e?.csrfToken || '' },
+                    body: JSON.stringify({ itemId, expectedInvoices: this._confirmedPurchaseInvoices || [] }), signal: controller.signal };
+                const resp = typeof e?.fetchWithTokenRetry === 'function'
+                    ? await e.fetchWithTokenRetry(url, options, 2) : await fetch(url, options);
+                const data = await resp.json();
+                if (!resp.ok || !data.success) throw new Error(data.error || `Inventory sync HTTP ${resp.status}`);
+                // Todas las escenas de mapas usan estos mismos arrays. También
+                // actualiza el mapa activo si la compra terminó tras salir.
+                const active = window.activeScene;
+                const target = this._escenaViva() ? e : active;
+                if (target?.STATE && target._inventarioCargado !== false && !target.STATE.selectedItem) {
+                    const anteriores = new Map([...(target.STATE.slots || []), ...(target.STATE.quickSlots || [])]
+                        .filter(s => s?.idx != null).map(s => [`${s.idx}:${s.idm}`, s]));
+                    for (const [field, saved] of [['slots', data.inventory], ['quickSlots', data.chest]]) {
+                        if (!Array.isArray(saved) || !Array.isArray(target.STATE[field])) continue;
+                        const slots = Array(target.STATE[field].length).fill(null);
+                        for (const s of saved) {
+                            if (!s?.objeto || !Number.isInteger(s.id) || s.id < 0 || s.id >= slots.length) continue;
+                            const anterior = anteriores.get(`${s.IDX}:${s.Manualid}`);
+                            slots[s.id] = { ...(anterior?.id === s.objeto ? anterior : {}),
+                                id: s.objeto, count: s.cantidad, idx: s.IDX, idm: s.Manualid };
+                        }
+                        target.STATE[field] = slots;
+                    }
+                    target._inventoryLoadedAt = data.inventoryLoadedAt;
+                    target.rebuildPlayerInventoryFromState?.();
+                    if (target.sys?.isActive?.()) target.renderAllSlots?.();
+                }
+                return data;
+            } catch (err) { lastError = err; }
+            finally { clearTimeout(deadline); }
+            if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+        }
+        throw lastError;
     }
 
 
@@ -2850,7 +2925,7 @@ async ejecutarDivision(ruta_tabla, producto, limitacion, cantidad) {
   // LoadingScenegame espera a que esta transacción termine antes de entrar al
   // mundo, en vez de destruir la escena con la compra a medias. Ver tx-gate.js.
   const finTx = (window.GFTxGate && window.GFTxGate.begin)
-    ? window.GFTxGate.begin(`Shop purchase: ${cantidad}x ${producto}`)
+    ? window.GFTxGate.begin(`Shop purchase: ${cantidad}x ${producto}`, { timeout: 900000 })
     : null;
 
   this._addItemQueue = (this._addItemQueue || Promise.resolve())
@@ -2894,6 +2969,8 @@ unlockAllSlots() {
 // FUNCIÓN PRINCIPAL ADDITEMBLOCKCHAINS (sin cambios, pero se incluye completa)
 // ------------------------------------------------------------------
 async Additemblockchains(ruta_tabla, producto, cantidad) {
+  this._confirmedPurchaseQuantity = 0;
+  this._confirmedPurchaseInvoices = [];
   // Bandera EXCLUSIVA de "agregar item por blockchain". Antes se usaba
   // this._transactionInProgress, que también lo tocan el drag&drop del
   // inventario y ejecutarDivisionRemove (ventas): si cualquiera de esos lo
@@ -3195,6 +3272,8 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
         continue;
       }
 
+      this._confirmedPurchaseQuantity += cantidadOp;
+      this._confirmedPurchaseInvoices.push({ id: idx, manualId: String(manual), cantidad: Number(op.finalCount) || cantidadOp });
       // Éxito: eliminar pendiente y añadir confirmada con el hash real
       if (window.hub) {
         window.hub.removeTransaction(tempHash);
@@ -3292,6 +3371,8 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
         continue;
       }
 
+      this._confirmedPurchaseQuantity += amountAdded;
+      this._confirmedPurchaseInvoices.push({ manualId: String(manualGenerado), cantidad: amountAdded });
       // Éxito en createInvoice: actualizamos la transacción pendiente a confirmada con el hash real
       if (window.hub) {
         window.hub.removeTransaction(tempHash);
@@ -4608,7 +4689,8 @@ addItemWithCheck(itemId, quantity = 1, customIdx = null, customIdm = null) {
   for (let i = 0; i < this.STATE.quickSlots.length && remaining > 0; i++) {
     if (isOccupied('quick', i)) continue;
     const slot = this.STATE.quickSlots[i];
-    if (slot && slot.id === itemId && slot.count < maxStack) {
+    if (slot && slot.id === itemId && slot.count < maxStack &&
+        (customIdx == null || (Number(slot.idx) === Number(customIdx) && slot.idm === customIdm))) {
       const espacio = maxStack - slot.count;
       const suma = Math.min(espacio, remaining);
       slot.count += suma;
@@ -4622,7 +4704,8 @@ addItemWithCheck(itemId, quantity = 1, customIdx = null, customIdm = null) {
     for (let i = 0; i < this.STATE.slots.length && remaining > 0; i++) {
       if (isOccupied('inv', i)) continue;
       const slot = this.STATE.slots[i];
-      if (slot && slot.id === itemId && slot.count < maxStack) {
+      if (slot && slot.id === itemId && slot.count < maxStack &&
+          (customIdx == null || (Number(slot.idx) === Number(customIdx) && slot.idm === customIdm))) {
         const espacio = maxStack - slot.count;
         const suma = Math.min(espacio, remaining);
         slot.count += suma;

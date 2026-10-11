@@ -21,10 +21,13 @@ class LoadingSystem {
     this._hidePauseTimeout = null; // FIX #4: referencia al outer timeout de hide()
     this.animationId      = null;
     this.currentProgress  = 0;
+    this._destroyed = false;
+    this._readyHandler = null;
 
     // FIX #3: no instanciar en carga si el DOM aún no existe
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => this.init(), { once: true });
+      this._readyHandler = () => { this._readyHandler = null; this.init(); };
+      document.addEventListener('DOMContentLoaded', this._readyHandler, { once: true });
     } else {
       this.init();
     }
@@ -33,6 +36,7 @@ class LoadingSystem {
   // ─── Inicialización ───────────────────────────────────────────────────────
 
   init() {
+    if (this._destroyed) return;
     if (!document.getElementById('loading-overlay')) {
       this.createOverlay();
     }
@@ -111,13 +115,14 @@ class LoadingSystem {
   // ─── API pública ──────────────────────────────────────────────────────────
 
   show(options = {}) {
+    if (this._destroyed) return { update() {}, hide: () => Promise.resolve() };
     const opts = Object.assign({
       message:         'Cargando...',
       initialProgress: 0,
       allowCancel:     false
     }, options);
 
-    if (!this.overlay) this.init();
+    if (!this.overlay || !document.body.contains(this.overlay)) this.init();
 
     // FIX WARN#3: lanzar error claro si el overlay sigue siendo null
     if (!this.overlay) {
@@ -127,7 +132,11 @@ class LoadingSystem {
     // FIX: un hide() anterior todavía en marcha (300 ms de pausa + el
     // fundido) escondía ESTA pantalla recién abierta al dispararse, y el
     // progreso volvía a 0 debajo de la nueva carga. Se cancela aquí.
+    this.cancelAnimation();
+    const previousOwner = this.overlay.__gfLoadingOwner;
+    if (previousOwner && previousOwner !== this) previousOwner.cancelAnimation();
     this._cancelarOcultado();
+    if (this.overlay) this.overlay.__gfLoadingOwner = this;
 
     this.currentProgress = opts.initialProgress;
 
@@ -155,6 +164,7 @@ class LoadingSystem {
   }
 
   update(progress = 0) {
+    if (this._destroyed || (this.overlay?.__gfLoadingOwner && this.overlay.__gfLoadingOwner !== this)) return false;
     progress = Math.max(0, Math.min(1, progress));
 
     if (progress < this.currentProgress) {
@@ -283,19 +293,21 @@ class LoadingSystem {
     this.hideTimeout       = null;
     const pendientes = S.resolvers;
     S.resolvers = [];
+    S.owner = null;
     pendientes.forEach((r) => { try { r(); } catch (e) { /* nada */ } });
   }
 
   // MEJ#1: hide() devuelve Promise que resuelve cuando el fade termina
   hide(fadeOutMs = 500) {
     return new Promise(resolve => {
-      if (!this.overlay) { resolve(); return; }
+      if (this._destroyed || !this.overlay || (this.overlay.__gfLoadingOwner && this.overlay.__gfLoadingOwner !== this)) { resolve(); return; }
 
       this.update(1);
 
       // FIX #4: cancelar AMBOS timeouts pendientes (y soltar a quien esperaba)
       this._cancelarOcultado();
       const S = LoadingSystem.ocultado;
+      S.owner = this;
       S.resolvers = [resolve];
 
       // FIX #4: guardar referencia al outer timeout
@@ -323,16 +335,20 @@ class LoadingSystem {
   // FIX #5: cancelar animación previa antes de iniciar una nueva
   // FIX #2: actualizar animationId dentro del loop
   showTimed(durationMs = 3000, message = 'Cargando...', incremental = true) {
+    if (this._destroyed) return Promise.resolve();
+    durationMs = Math.max(1, Number(durationMs) || 3000);
     return new Promise(resolve => {
       // FIX #5: limpiar animaciones y timeouts previos antes de empezar
       this.cancelAnimation();
       this._cancelarOcultado();
 
       this.show({ message, initialProgress: 0 });
+      this._timedResolve = resolve;
 
       const start = Date.now();
 
       const tick = () => {
+        if (this._destroyed || this.overlay?.__gfLoadingOwner !== this) { this.cancelAnimation(); return; }
         const t = Math.min(1, (Date.now() - start) / durationMs);
 
         if (incremental) {
@@ -347,7 +363,7 @@ class LoadingSystem {
         } else {
           this.animationId = null;
           this.update(1);
-          this.hide(500).then(resolve);
+          this.hide(500).then(() => { if (this._timedResolve === resolve) this._timedResolve = null; resolve(); });
         }
       };
 
@@ -360,6 +376,10 @@ class LoadingSystem {
     if (this.animationId) {
       cancelAnimationFrame(this.animationId);
       this.animationId = null;
+    }
+    if (this._timedResolve) {
+      this._timedResolve();
+      this._timedResolve = null;
     }
   }
 
@@ -381,10 +401,14 @@ class LoadingSystem {
   }
 
   destroy() {
+    if (this._destroyed) return;
+    this._destroyed = true;
+    if (this._readyHandler) document.removeEventListener('DOMContentLoaded', this._readyHandler);
+    this._readyHandler = null;
     this.cancelAnimation();
-    this._cancelarOcultado();
+    if (!LoadingSystem.ocultado.owner || LoadingSystem.ocultado.owner === this) this._cancelarOcultado();
 
-    if (this.overlay && this.overlay.parentNode) {
+    if (this.overlay && this.overlay.parentNode && (!this.overlay.__gfLoadingOwner || this.overlay.__gfLoadingOwner === this)) {
       this.overlay.parentNode.removeChild(this.overlay);
     }
 

@@ -1697,10 +1697,10 @@ class MinaScene extends GameScene {
     this._mascaras = [];
 
     this._liquidosAnim = [];
-    this._luces.forEach(l => { try { l.img.destroy(); } catch (e) {} });
+    (this._luces || []).forEach(l => { try { l.img.destroy(); } catch (e) {} });
     this._luces = [];
 
-    this._burbujas.forEach(s => { try { s.destroy(); } catch (e) {} });
+    (this._burbujas || []).forEach(s => { try { s.destroy(); } catch (e) {} });
     this._burbujas = [];
 
     (this._piezas || []).forEach(s => { try { s.destroy(); } catch (e) {} });

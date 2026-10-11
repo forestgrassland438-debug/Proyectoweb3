@@ -23437,14 +23437,6 @@ async loadPlayerData() {
       return;
     }
     
-    // Momento en el que se pide la copia del inventario. Viaja luego en cada
-    // /api/save para que el servidor sepa si esta copia es anterior a una
-    // compra hecha en el market (ver `marketWriteAt` en server2.js). Se apunta
-    // ANTES de la petición: si el market escribe justo mientras esta carga está
-    // en vuelo, la marca queda "antigua" y el servidor protegerá el inventario,
-    // que es el lado seguro del error.
-    this._inventoryLoadedAt = new Date().toISOString();
-
     // Usar fetchWithTokenRetry que ya maneja tokens CSRF
     const response = await this.fetchWithTokenRetry(
       `${this.serverBase}/api/load/${encodeURIComponent(this.playerName)}`,
@@ -23470,6 +23462,9 @@ async loadPlayerData() {
     
     const data = await response.json();
   if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+    // La revisión pertenece a esta respuesta del servidor. Así un guardado
+    // anterior a una compra no puede borrar lo que acaba de entregarse.
+    this._inventoryLoadedAt = data.inventoryLoadedAt || new Date().toISOString();
     console.log('✅ Datos del jugador recibidos');
     
     // INICIALIZAR STATE solo si no existe - ¡ESTO ES CLAVE!
