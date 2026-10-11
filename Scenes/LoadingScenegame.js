@@ -186,6 +186,13 @@ class LoadingScenegame extends Phaser.Scene {
             pes1:           { src: './Game/Objetos/pesca/pes1.png',             maxStack: 20, tipo: 'pes1' },
             pes2:           { src: './Game/Objetos/pesca/pes2.png',             maxStack: 20, tipo: 'pes2' },
             pes3:           { src: './Game/Objetos/pesca/pes3.png',             maxStack: 20, tipo: 'pes3' },
+            // Cinco peces más (2026-10-10): sin estas líneas, lo pescado se
+            // descartaría al entrar al mapa ("sin itemId → omitiendo").
+            pes4:           { src: './Game/Objetos/pesca/pes4.png',             maxStack: 20, tipo: 'pes4' },
+            pes5:           { src: './Game/Objetos/pesca/pes5.png',             maxStack: 20, tipo: 'pes5' },
+            pes6:           { src: './Game/Objetos/pesca/pes6.png',             maxStack: 20, tipo: 'pes6' },
+            pes7:           { src: './Game/Objetos/pesca/pes7.png',             maxStack: 20, tipo: 'pes7' },
+            pes8:           { src: './Game/Objetos/pesca/pes8.png',             maxStack: 20, tipo: 'pes8' },
 
             palo:             { src: './Game/Source/palo.png',           maxStack: 20 },
             tablon_de_madera: { src: './Game/Source/madera.png',         maxStack: 20 },
@@ -252,6 +259,7 @@ class LoadingScenegame extends Phaser.Scene {
             'caña_pescar':           'cana_pescar',
             'espantapajaros':        'espantapajaros',
             'pes1': 'pes1', 'pes2': 'pes2', 'pes3': 'pes3',
+            'pes4': 'pes4', 'pes5': 'pes5', 'pes6': 'pes6', 'pes7': 'pes7', 'pes8': 'pes8',
             'tablon de madera': 'tablon_de_madera',
             'madera pinos':     'madera_pinos',
             'madera con hojas': 'madera_con_hojas',
@@ -721,6 +729,23 @@ class LoadingScenegame extends Phaser.Scene {
                     this[prop] = data[prop];
                 }
             });
+
+            /* LA NOTA DE VIAJE MANDA (2026-10-10). Si una puerta acaba de dejar
+               dicho a dónde se va (GFViaje, gf-lands.js), eso pesa más que lo
+               guardado, que puede ser un guardado viejo que llegó tarde: salías
+               de la tienda y te devolvía a ella. No se recoge: la recoge la
+               escena de llegada. */
+            {
+                const _nota = (window.GFViaje && typeof window.GFViaje.mirar === 'function')
+                    ? window.GFViaje.mirar() : null;
+                if (_nota && Number(_nota.mundo) >= 1) {
+                    this.mundo = Number(_nota.mundo);
+                    if (Number.isFinite(_nota.x) && Number.isFinite(_nota.y)) {
+                        this.posicionplayerx = _nota.x;
+                        this.posicionplayery = _nota.y;
+                    }
+                }
+            }
 
             // Marca de que las habilidades YA vienen de la base de datos. savegg()
             // solo las manda si esto es true: si por lo que sea se guardara antes
@@ -1967,8 +1992,11 @@ class LoadingScenegame extends Phaser.Scene {
         console.log(`⏳ ${gate.pending()} transacción(es) en vuelo — esperando antes de cargar`);
 
         const texto = this.loadingSystem && this.loadingSystem.textElement;
+        /* Hasta 4 minutos: una compra de la tienda puede esperar a la cadena
+           2 minutos por intento. Con 90 s se seguía cargando con la compra a
+           medias, y el objeto no aparecía en el mapa hasta la carga siguiente. */
         const resultado = await gate.whenIdle({
-            timeout: 90000,
+            timeout: 240000,
             onTick: (n, etiquetas) => {
                 if (!texto) return;
                 texto.textContent = n === 1

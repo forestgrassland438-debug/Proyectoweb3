@@ -3291,7 +3291,7 @@ this.player.on('pointerdown', (pointer) => {
       carpeta: 'recortadas',
       // Con versión: el manifiesto también se guardaba en caché (ver la
       // versión del recorte en lib/tileManager.js, resolveTileURL).
-      json: 'recortadas/mapa.json?v=20261004',
+      json: 'recortadas/mapa.json?v=20261007b',
       targetProp: 'tileManagerMapa'
     }
   };
@@ -11395,7 +11395,12 @@ getItemDisplayName(itemId) {
     'cofre4': 'Legendary Chest',
     'pes1': 'Brown Trout',
     'pes2': 'Common Carp',
-    'pes3': 'Golden Trout'
+    'pes3': 'Golden Trout',
+    'pes4': 'River Perch',
+    'pes5': 'Bream',
+    'pes6': 'Sturgeon',
+    'pes7': 'Poison Eel',
+    'pes8': 'Lionfish'
   };
   
   return displayNames[itemId] || itemId;
@@ -14267,6 +14272,7 @@ _getFruitDisplayNameEN(itemId) {
     espada_madera: 'Wooden Sword', espada_cobre: 'Copper Sword', espada_hierro: 'Iron Sword',
     cana_pescar: 'Fishing Rod', espantapajaros: 'Scarecrow',
     pes1: 'Brown Trout', pes2: 'Common Carp', pes3: 'Golden Trout',
+    pes4: 'River Perch', pes5: 'Bream', pes6: 'Sturgeon', pes7: 'Poison Eel', pes8: 'Lionfish',
     // Minerales (reutilizado también por la minería on-chain, ver _agregarFrutoOnChain).
     // Ojo con los nombres: mineral_cobre/mineral_hierro son los LINGOTES que
     // salen del horno; lo que se pica ahora es la piedra en bruto.
@@ -23543,6 +23549,24 @@ async loadPlayerData() {
       if (data[prop] !== undefined && data[prop] !== null) this[prop] = data[prop];
     });
 
+    /* LA ESCENA MANDA EN `mundo` (2026-10-10). Lo que diga la partida puede
+       ser un guardado viejo que llegó tarde al servidor (el de la tienda, por
+       ejemplo). Copiado tal cual, el siguiente guardado escribía "estoy en la
+       tienda" estando en el mapa, y al recargar aparecías allí. Cada escena
+       sabe en qué mundo está. */
+    // (Saliendo ya por una puerta no: manda lo que dejó la salida.)
+    if (!this._cambiandoEscena) {
+      const _clave = this.sys && this.sys.settings ? this.sys.settings.key : '';
+      const _mundoDeEscena = { GameScene: 1, MinaScene: 3, LandsScene: 4, InteriorScene: 5 }[_clave];
+      const _mundoGuardado = Number(data.mundo);
+      if (_mundoDeEscena) this.mundo = _mundoDeEscena;
+      // En el mapa con coordenadas DE DENTRO de la tienda: a su puerta de fuera.
+      if (_mundoDeEscena === 1 && _mundoGuardado === 2 && !this._anclaPropia) {
+        this.posicionplayerx = 1552;
+        this.posicionplayery = 1531;
+      }
+    }
+
     // Las habilidades empiezan en 1, no en 0 (el backend las crea con default 0
     // y el panel pinta `|| 1`; sin esto, un jugador nuevo veía 1 en pantalla y
     // guardaba 0, y la barra de progreso no cuadraba nunca).
@@ -26248,7 +26272,9 @@ CONSUMABLES_FOOD = {
   fresa_mala: 2,
   // Los peces del río (2026-10-05): se pescan y se comen; cuanto más raro,
   // más alimenta.
-  pes1: 6, pes2: 10, pes3: 18
+  pes1: 6, pes2: 10, pes3: 18,
+  // Los de 2026-10-10. La anguila (pes7) y el pez león (pes8) NO: son venenosos.
+  pes4: 7, pes5: 9, pes6: 25
 };
 CONSUMABLES_WATER = { balde_con_agua: 20 };
 
@@ -28745,6 +28771,12 @@ getPlayerIntentDirection() {
       if (window.GFPesca && window.GFPesca.montar) {
         window.GFPesca.montar(this);
       }
+      /* EL MONTE (2026-10-10): hierba alta que se abre al pasar por encima
+         (gf-monte.js). Solo en el pueblo: el módulo descarta las escenas
+         hijas (mina, isla, casas) por su clave. */
+      if (window.GFMonte && window.GFMonte.montar) {
+        window.GFMonte.montar(this);
+      }
       /* Los espantapájaros que tenga puestos (gf-espantapajaros.js). */
       if (window.GFEspantapajaros && window.GFEspantapajaros.montar) {
         window.GFEspantapajaros.montar(this);
@@ -28959,6 +28991,9 @@ getPlayerIntentDirection() {
           this.posicionplayery = 1778;
           this.inicio = 0;
           this.mundo = 2;
+          // NOTA DE VIAJE (2026-10-10): la tienda aparece en su puerta aunque
+          // este guardado no llegue a tiempo (ver create() de tiendajuego).
+          window.__gfViaje = { mundo: 2, x: 1041, y: 1778, islaDe: null, islaDeNombre: null, t: Date.now() };
           
               this.savegg();
               this.saveTimer = 0;
@@ -31585,6 +31620,13 @@ if (window.globalPetData) {
           pes1:           { src: "./Game/Objetos/pesca/pes1.png",              maxStack: 20, tipo: "pes1",           usos: null },
           pes2:           { src: "./Game/Objetos/pesca/pes2.png",              maxStack: 20, tipo: "pes2",           usos: null },
           pes3:           { src: "./Game/Objetos/pesca/pes3.png",              maxStack: 20, tipo: "pes3",           usos: null },
+          // Cinco peces más (2026-10-10). pes7 y pes8 son VENENOSOS: al sacarlos
+          // pican (el servidor quita vida poco a poco) y no se comen.
+          pes4:           { src: "./Game/Objetos/pesca/pes4.png",              maxStack: 20, tipo: "pes4",           usos: null },
+          pes5:           { src: "./Game/Objetos/pesca/pes5.png",              maxStack: 20, tipo: "pes5",           usos: null },
+          pes6:           { src: "./Game/Objetos/pesca/pes6.png",              maxStack: 20, tipo: "pes6",           usos: null },
+          pes7:           { src: "./Game/Objetos/pesca/pes7.png",              maxStack: 20, tipo: "pes7",           usos: null, veneno: true },
+          pes8:           { src: "./Game/Objetos/pesca/pes8.png",              maxStack: 20, tipo: "pes8",           usos: null, veneno: true },
           fresa_corta: { src: "./Game/Objetos/Plantas/planta_fresa/item_planta.png", maxStack: 20 , tipo: "fresa_corta", usos: null},
           fresa_mala: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_podrida.png", maxStack: 20 , tipo: "fresa_mala", usos: null},
 

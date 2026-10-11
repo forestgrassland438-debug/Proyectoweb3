@@ -617,6 +617,30 @@ showNotification(message, type = 'info') {
     this._cambiandoEscena = false;
     this._puertaArmada    = false;
 
+    /* DÓNDE SE APARECE (2026-10-10). "A veces entro de GameScene a la tienda
+       y mi personaje se lanza a lo oscuro del mapa y no sale en la puerta."
+
+       La posición salía de /api/load, o sea, de lo ÚLTIMO QUE SE GUARDÓ. Si
+       el guardado de la puerta aún no había llegado al servidor (o no se hizo:
+       savegg no guarda hasta tener el inventario cargado), la tienda recibía
+       una coordenada DEL MAPA DE FUERA, que mide 5008, y colocaba al jugador
+       ahí: recortada contra el borde, en el negro que rodea la sala. Y
+       mientras llegaba la carga, el sprite nacía donde lo dejó la visita
+       anterior (Phaser reutiliza la escena).
+
+       Ahora la puerta deja una NOTA DE VIAJE (GFViaje, gf-lands.js) con el
+       punto de llegada y la tienda la recoge aquí: manda sobre lo guardado.
+       Sin nota (recargar la página dentro de la tienda) vale lo guardado,
+       pero solo si cae DENTRO de la sala; si no, la puerta. */
+    this._anclaPropia = null;
+    this._posicionDeLaVisita = false;
+    {
+      const _viaje = window.GFViaje ? window.GFViaje.tomar(2) : null;
+      if (_viaje && Number.isFinite(_viaje.x) && Number.isFinite(_viaje.y)) {
+        this._anclaPropia = { x: _viaje.x, y: _viaje.y };
+      }
+    }
+
     // ── Reloj del mundo ─────────────────────────────────────────────────────
     // La tienda es interior, así que no se oscurece; pero el reloj del HUD
     // sigue a la vista, y al entrar se aprovecha para refrescar la hora si la
@@ -743,6 +767,13 @@ this.errorReporter = new PhaserErrorReporter(
       this.physics.world.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
   
       // Crear el personaje (Inicialmente con la imagen de correr hacia abajo)
+      // Mientras llega /api/load: la nota de la puerta o, si lo que quedó de
+      // la visita anterior no es un sitio de la sala, la puerta.
+      {
+        const ini = this._anclaPropia || this._puntoDeLlegadaTienda(this.posicionplayerx, this.posicionplayery);
+        this.posicionplayerx = ini.x;
+        this.posicionplayery = ini.y;
+      }
       this.player = this.physics.add.sprite(this.posicionplayerx, this.posicionplayery, 'player_right_1');
       this.player.setScale(2);
       this.player.setCollideWorldBounds(true); // Evita que el jugador salga del mundo
@@ -2410,6 +2441,13 @@ this.anims.create({
           pes1:           { src: "./Game/Objetos/pesca/pes1.png",              maxStack: 20, tipo: "pes1",           usos: null },
           pes2:           { src: "./Game/Objetos/pesca/pes2.png",              maxStack: 20, tipo: "pes2",           usos: null },
           pes3:           { src: "./Game/Objetos/pesca/pes3.png",              maxStack: 20, tipo: "pes3",           usos: null },
+          // Cinco peces más (2026-10-10). pes7 y pes8 son VENENOSOS: al sacarlos
+          // pican (el servidor quita vida poco a poco) y no se comen.
+          pes4:           { src: "./Game/Objetos/pesca/pes4.png",              maxStack: 20, tipo: "pes4",           usos: null },
+          pes5:           { src: "./Game/Objetos/pesca/pes5.png",              maxStack: 20, tipo: "pes5",           usos: null },
+          pes6:           { src: "./Game/Objetos/pesca/pes6.png",              maxStack: 20, tipo: "pes6",           usos: null },
+          pes7:           { src: "./Game/Objetos/pesca/pes7.png",              maxStack: 20, tipo: "pes7",           usos: null, veneno: true },
+          pes8:           { src: "./Game/Objetos/pesca/pes8.png",              maxStack: 20, tipo: "pes8",           usos: null, veneno: true },
 
           fresa_corta: { src: "./Game/Objetos/Plantas/planta_fresa/item_planta.png", maxStack: 20 , tipo: "fresa_corta", usos: null},
           fresa_mala: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_podrida.png", maxStack: 20 , tipo: "fresa_mala", usos: null},
@@ -4554,7 +4592,11 @@ removeOtherPlayer(playerId) {
       this.map = null;
       this.backgroundLayer = null;
       this.chunkObjectsMap?.clear();
-      if (window.tiendaSistema?.scene === this) window.tiendaSistema.scene = null;
+      /* Aquí se ponía `window.tiendaSistema.scene = null` a mano, AUNQUE
+         quedaran compras en cola: la siguiente reventaba sin inventario
+         ("Cannot read properties of undefined (reading 'quickSlots')") y el
+         objeto no llegaba. Lo suelta `soltarEscena`, al final de este método,
+         y solo cuando la cola está vacía. */
       if (this._hubPanel && window.hubPanel === this._hubPanel) {
         this._hubPanel.init(null);
         window.hubPanel = null;
@@ -10131,20 +10173,43 @@ async loadPlayerData() {
       if (data.comidaPorcentaje > 0) this.comidaPorcentaje = data.comidaPorcentaje;
     }
 
-    /* EL TELETRANSPORTE DEL PANEL DE AMIGOS (GFViaje, en gf-lands.js): si se
-       viene a ponerse al lado de alguien, manda su punto sobre el guardado. */
-    {
+    /* DÓNDE SE APARECE (ver create): la nota de viaje —la de la puerta o la
+       del panel de amigos— manda; si no hay, lo guardado, pero solo si es un
+       sitio de la sala. Y solo en la PRIMERA carga de la visita: una recarga
+       posterior (p. ej. tras una compra del market) no mueve al jugador. */
+    const _mundoGuardado = Number(data.mundo);
+    // En la tienda la partida dice "tienda" (igual que GameScene.loadPlayerData):
+    // un guardado viejo con otro mundo no puede colarse en el siguiente. Salvo
+    // saliendo ya por la puerta: entonces manda lo que puso la salida.
+    if (this._cambiandoEscena) {
+      // nada: la salida ya dejó mundo y posición para el mapa
+    } else if (this._posicionDeLaVisita && this.player) {
+      this.mundo = 2;
+      this.posicionplayerx = this.player.x;
+      this.posicionplayery = this.player.y;
+    } else {
+      this.mundo = 2;
+      // Una nota que llegó después de create() también vale.
       const _viaje = window.GFViaje ? window.GFViaje.tomar(2) : null;
       if (_viaje && Number.isFinite(_viaje.x) && Number.isFinite(_viaje.y)) {
-        this.posicionplayerx = _viaje.x;
-        this.posicionplayery = _viaje.y;
+        this._anclaPropia = { x: _viaje.x, y: _viaje.y };
       }
+      let _p;
+      if (this._anclaPropia) _p = this._anclaPropia;
+      else if (_mundoGuardado && _mundoGuardado !== 2) _p = this._puntoDeLlegadaTienda(NaN, NaN); // coordenada de otro mapa
+      else _p = this._puntoDeLlegadaTienda(this.posicionplayerx, this.posicionplayery);
+      this.posicionplayerx = _p.x;
+      this.posicionplayery = _p.y;
+      this._anclaPropia = null;
+      this._posicionDeLaVisita = true;
     }
 
     // Posicionar al jugador si existe
     if (this.player) {
       this.player.setVisible(true);
       this.player.setPosition(this.posicionplayerx, this.posicionplayery);
+      // Y el cuerpo físico con él, sin velocidad que arrastre de antes.
+      try { if (this.player.body && this.player.body.reset) this.player.body.reset(this.posicionplayerx, this.posicionplayery); } catch (_) {}
       // El perro tiene que ir CON el jugador, no detrás de él.
       this._pegarPerroAlJugador();
     }
@@ -10914,6 +10979,29 @@ _cleanupTutorial() {
 }
 
 // 4) Save game state
+    /**
+     * ¿(x, y) es un sitio DENTRO de la sala? Si no, la entrada (1041, 1778,
+     * justo encima de la puerta). Fuera de la sala todo es el tile 64 de
+     * 'mapa_tiendax', el negro que la rodea; se mira el punto y los pies.
+     */
+    _puntoDeLlegadaTienda(x, y) {
+      const ENTRADA = { x: 1041, y: 1778 };
+      const TILE_NEGRO = 64;
+      x = Number(x); y = Number(y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return ENTRADA;
+      const m = this.map;
+      if (!m || x < 0 || y < 0 || x >= m.widthInPixels || y >= m.heightInPixels) return ENTRADA;
+      try {
+        const capa = this.backgroundLayer;
+        if (!capa || typeof capa.getTileAtWorldXY !== 'function') return { x, y };
+        const pies = Math.min(m.heightInPixels - 1, y + 24);
+        const a = capa.getTileAtWorldXY(x, y, true);
+        const b = capa.getTileAtWorldXY(x, pies, true);
+        if (!a || !b || a.index < 0 || b.index < 0 || a.index === TILE_NEGRO || b.index === TILE_NEGRO) return ENTRADA;
+      } catch (_) { return ENTRADA; }
+      return { x, y };
+    }
+
     async savegg() {
         console.log('💾 Iniciando guardado del juego...');
         
@@ -12226,7 +12314,9 @@ CONSUMABLES_FOOD = {
   fresa_mala: 2,
   // Los peces del río (2026-10-05): se pescan y se comen; cuanto más raro,
   // más alimenta.
-  pes1: 6, pes2: 10, pes3: 18
+  pes1: 6, pes2: 10, pes3: 18,
+  // Los de 2026-10-10. La anguila (pes7) y el pez león (pes8) NO: son venenosos.
+  pes4: 7, pes5: 9, pes6: 25
 };
 CONSUMABLES_WATER = { balde_con_agua: 20 };
 
@@ -13183,6 +13273,10 @@ if (this.dogNameText) {
             this.posicionplayery = 1531;
             this.inicio = 0;
             this.mundo = 1;
+            // NOTA DE VIAJE (ver create): la pantalla de carga elige el mapa
+            // y GameScene aparece en esta puerta aunque el guardado llegue
+            // tarde o lo pise otro más viejo.
+            window.__gfViaje = { mundo: 1, x: 1552, y: 1531, islaDe: null, islaDeNombre: null, t: Date.now() };
 
 
                 // ✅ Token aún válido, usarlo directamente

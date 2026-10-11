@@ -96,12 +96,26 @@ const LIQUIDOS_MINA = {
 /* Las luces de la capa `luces` del mapa, por tipo. `vibra` es cuanto
    parpadea (0..1) y `vel` lo rapido. */
 const LUCES_MINA = {
-  lava:           { color: 0xff6418, alfa: 0.42, vibra: 0.10, vel: 1.1 },
-  lava_foco:      { color: 0xff9632, alfa: 0.26, vibra: 0.30, vel: 2.3 },
-  antorcha:       { color: 0xffa040, alfa: 0.46, vibra: 0.16, vel: 7.0 },
-  cristal_azul:   { color: 0x3c9cff, alfa: 0.34, vibra: 0.12, vel: 1.6 },
-  cristal_morado: { color: 0xb058ff, alfa: 0.32, vibra: 0.12, vel: 1.4 },
-  cristal_verde:  { color: 0x38e08a, alfa: 0.32, vibra: 0.12, vel: 1.5 }
+  // `alumbra`: el color con el que esa luz ABRE la oscuridad (casi blanco:
+  // deja ver los colores de verdad, con un tinte) y `radio`, cuánto llega
+  // respecto a su rectángulo del mapa. Ver _montarOscuridad.
+  lava:           { color: 0xff6418, alfa: 0.42, vibra: 0.10, vel: 1.1, alumbra: 0xffb27a, radio: 0.75 },
+  lava_foco:      { color: 0xff9632, alfa: 0.26, vibra: 0.30, vel: 2.3, alumbra: 0xffc48c, radio: 0.95 },
+  antorcha:       { color: 0xffa040, alfa: 0.46, vibra: 0.16, vel: 7.0, alumbra: 0xffdca6, radio: 1.15 },
+  cristal_azul:   { color: 0x3c9cff, alfa: 0.34, vibra: 0.12, vel: 1.6, alumbra: 0xa8ccff, radio: 0.9 },
+  cristal_morado: { color: 0xb058ff, alfa: 0.32, vibra: 0.12, vel: 1.4, alumbra: 0xd6b4ff, radio: 0.9 },
+  cristal_verde:  { color: 0x38e08a, alfa: 0.32, vibra: 0.12, vel: 1.5, alumbra: 0xaef0c8, radio: 0.9 }
+};
+
+/* LA OSCURIDAD DE LA CUEVA (2026-10-10). "La mina debe estar oscura pero
+   respetando la luz de las antorchas y la lava, con la del personaje."
+   `ambiente` es lo que se ve donde no llega ninguna luz (multiplica: 0x26
+   es un 15 % de brillo) y `jugador`, la luz que lleva encima el minero. */
+const OSCURIDAD_MINA = {
+  escala: 8,                       // un píxel del mapa de luz = 8x8 del mundo
+  ambiente: 0x1e2538,
+  jugador: { radio: 230, color: 0xfff1da },
+  otros: { radio: 150, color: 0xffe8c4 }
 };
 
 /* EL TAMAÑO DE LAS PIEZAS ALTAS (2026-10-05). "En la mina hay objetos más
@@ -653,6 +667,11 @@ class MinaScene extends GameScene {
     this._faseMina = 'liquidos';
     this._montarLiquidos();
 
+    // ── Los zombis y su guardián (gf-mina-zombis.js, 2026-10-10) ───────────
+    this._faseMina = 'zombis';
+    try { if (window.GFMinaZombis) window.GFMinaZombis.montar(this); }
+    catch (e) { console.warn('⛏️ zombis:', e); }
+
     // ── Que se VEA por donde se sale ─────────────────────────────
     this._faseMina = 'salida visible';
     try { this._montarSalidaVisible(); } catch (e) { console.warn('salida:', e); }
@@ -696,20 +715,13 @@ class MinaScene extends GameScene {
      * Una IMAGEN si respeta la mezcla. Se usa una textura minima de 4x4 del
      * color y se estira al tamano del mapa: sigue siendo una sola llamada de
      * dibujo y cuatro pixeles de memoria de video. */
-    const CLAVE_PEN = 'mina_penumbra';
-    if (!this.textures.exists(CLAVE_PEN)) {
-      const lz = this.textures.createCanvas(CLAVE_PEN, 4, 4);
-      const cx = lz.getContext();
-      cx.fillStyle = '#4a5a78';
-      cx.fillRect(0, 0, 4, 4);
-      lz.refresh();
-    }
-    this.penumbra = this.add.image(0, 0, CLAVE_PEN)
-      .setOrigin(0, 0)
-      .setDisplaySize(this.map.widthInPixels, this.map.heightInPixels)
-      .setDepth(9000)
-      .setAlpha(0.42);
-    this.penumbra.setBlendMode(Phaser.BlendModes.MULTIPLY);
+    /* 2026-10-10: LA PENUMBRA YA NO ES PLANA. Era un velo azul al 42 % que
+       apagaba todo por igual: ni oscuro de verdad ni respetaba las luces (una
+       antorcha solo sumaba un brillo naranja encima). Ahora es un MAPA DE
+       LUZ: ver _montarOscuridad. Sigue en `this.penumbra` y en depth 9000,
+       así que todo lo que ya se colocaba por encima (la luz de la salida) o
+       por debajo sigue igual. */
+    this._montarOscuridad();
 
     // ── LOS SISTEMAS DE JUEGO ──────────────────────────────────────────────
     // Inventario, cofre, monedas, cadena, socket, misiones. Va ANTES del HUD
@@ -829,8 +841,7 @@ class MinaScene extends GameScene {
    */
   _montarPiezas() {
     this._piezas = [];
-    const capa = this.map.getObjectLayer('piezas');
-    if (!capa || !capa.objects.length) return;
+    const capa = this.map.getObjectLayer('piezas') || { objects: [] };
 
     // Las que se atraviesan a proposito: ver el porque mas abajo.
     const SIN_COLISION = new Set(['antorcha', 'puntal']);
@@ -882,6 +893,49 @@ class MinaScene extends GameScene {
           spr.x - ancho / 2, spr.y - 16, ancho, 16));
       }
     });
+
+    /* LOS CACHARROS QUE ERAN PLANOS, EN 2.5D (2026-10-10). "Hay objetos 2D
+       en las minas y el juego es 2.5D." Los montones de mineral y las peñas
+       pequeñas iban PINTADOS en la capa de tiles `mina_objetos`: el minero
+       les pasaba por encima como si fueran una alfombra, sin sombra y sin
+       poder ponerse detrás. Son pocos (unos veinte), así que se pasan a
+       sprite como las piezas altas: se quitan sus cuatro casillas de la capa
+       y en su sitio va la pieza del atlas, con su pie sólido, ordenada por Y
+       y con su sombra (gf-sombras / gf-profundidad, abajo). Las motas del
+       suelo (suelo_deco, grava_deco) se quedan en la capa: son suelo. */
+    try {
+      const PLANAS = ['pena_pequena', 'monton_piedra', 'monton_cobre', 'monton_hierro', 'monton_carbon', 'monton_oro'];
+      const BASE = 416 + 1;                       // indice del tileset + firstgid de Tiled
+      const capaT = this.capaObjetos;
+      let planas = 0;
+      if (capaT && textura) {
+        const T = this.map.tileWidth || 32;
+        const esquinas = [];
+        capaT.forEachTile((t) => {
+          const k = t.index - BASE;
+          if (k >= 0 && k < PLANAS.length * 4 && k % 4 === 0) esquinas.push({ x: t.x, y: t.y, nombre: PLANAS[k / 4], k });
+        });
+        esquinas.forEach((e) => {
+          if (!textura.has(e.nombre)) return;
+          // Sus cuatro casillas fuera (solo las que son de ESTA pieza).
+          [[0, 0], [1, 0], [0, 1], [1, 1]].forEach(([dx, dy], j) => {
+            const t = capaT.getTileAt(e.x + dx, e.y + dy);
+            if (t && t.index === BASE + e.k + j) capaT.removeTileAt(e.x + dx, e.y + dy);
+          });
+          const px = (e.x + 1) * T, py = (e.y + 2) * T;
+          const spr = this.add.image(px, py, 'piezas_mina', e.nombre)
+            .setOrigin(0.5, 1)
+            .setScale(e.nombre === 'pena_pequena' ? 1.35 : 1.15)
+            .setDepth(py);
+          spr.setData('optimized', true);
+          this._piezas.push(spr);
+          const ancho = spr.displayWidth * 0.62;
+          solidas.push(new Phaser.Geom.Rectangle(px - ancho / 2, py - 14, ancho, 14));
+          planas++;
+        });
+      }
+      if (planas) console.log('⛏️ cacharros planos pasados a 2.5D:', planas);
+    } catch (e) { console.warn('⛏️ cacharros planos:', e); }
 
     /* VAN EN `collisionRectangles`, la lista buena.
        El primer intento las puso en `collisionRectangles2` pensando que era
@@ -1033,9 +1087,119 @@ class MinaScene extends GameScene {
         .setAlpha(tipo.alfa)
         .setDepth(9100)
         .setBlendMode(Phaser.BlendModes.ADD);
-      this._luces.push({ img, base: tipo.alfa, vibra: tipo.vibra, vel: tipo.vel, fase: k * 1.7 });
+      this._luces.push({ img, base: tipo.alfa, vibra: tipo.vibra, vel: tipo.vel, fase: k * 1.7,
+                         x: o.x + o.width / 2, y: o.y + o.height / 2,
+                         r: Math.max(o.width, o.height) * 0.5 * (tipo.radio || 1),
+                         alumbra: tipo.alumbra || 0xffffff });
+      // El brillo de color, más suave: ahora la luz de verdad la pone el
+      // mapa de luz y esto queda como el resplandor de encima.
+      img.setAlpha(tipo.alfa * 0.6);
+      this._luces[this._luces.length - 1].base = tipo.alfa * 0.6;
     });
     console.log('⛏️ luces:', this._luces.length);
+  }
+
+  /**
+   * EL MAPA DE LUZ DE LA CUEVA (2026-10-10).
+   *
+   * Una RenderTexture del tamaño del mapa partido por 8 (626x626: 1,5 MB de
+   * memoria de vídeo, no los 100 MB de una del tamaño del mapa) estirada x8
+   * con filtro LINEAL, en MULTIPLY por encima de todo. Cada fotograma:
+   *   1. se llena del color de AMBIENTE (casi negro azulado): la cueva a
+   *      oscuras;
+   *   2. se pinta encima, en blanco con un tinte, la luz de cada antorcha,
+   *      lago de lava y racimo de cristal QUE SE VE, la del jugador y la de
+   *      los demás mineros.
+   * Multiplicar por blanco deja el color de verdad; por el ambiente, lo
+   * oscurece. O sea: oscuro, y cada luz abre su círculo y deja ver lo que
+   * alumbra. El filtro lineal hace el degradado del borde gratis.
+   *
+   * Las luces son unos sellos ya horneados de varios tamaños (se pinta el
+   * más cercano al radio): batchDrawFrame no escala, y así son todos de UNA
+   * tanda. Solo se pintan las que caen cerca de la cámara.
+   */
+  _montarOscuridad() {
+    const O = OSCURIDAD_MINA;
+    const E = O.escala;
+    const w = Math.ceil(this.map.widthInPixels / E);
+    const h = Math.ceil(this.map.heightInPixels / E);
+    // Los sellos: diámetros (en píxeles del mapa de luz) de 6 a 96.
+    this._sellosLuz = [];
+    [6, 10, 16, 24, 34, 48, 64, 80, 96].forEach((d) => {
+      const k = 'mina_lz_' + d;
+      if (!this.textures.exists(k)) {
+        const t = this.textures.createCanvas(k, d, d);
+        const cx = t.getContext();
+        const g = cx.createRadialGradient(d / 2, d / 2, 0, d / 2, d / 2, d / 2);
+        g.addColorStop(0.00, 'rgba(255,255,255,1)');
+        g.addColorStop(0.40, 'rgba(255,255,255,0.88)');
+        g.addColorStop(0.75, 'rgba(255,255,255,0.38)');
+        g.addColorStop(1.00, 'rgba(255,255,255,0)');
+        cx.fillStyle = g;
+        cx.fillRect(0, 0, d, d);
+        t.refresh();
+        t.setFilter(Phaser.Textures.FilterMode.LINEAR);
+      }
+      this._sellosLuz.push({ d, k });
+    });
+    const rt = this.add.renderTexture(0, 0, w, h)
+      .setOrigin(0, 0)
+      .setScale(E)
+      .setDepth(9000);
+    rt.setBlendMode(Phaser.BlendModes.MULTIPLY);
+    try { rt.texture.setFilter(Phaser.Textures.FilterMode.LINEAR); } catch (e) {}
+    this.penumbra = rt;
+    this._oscuridad = { rt, E };
+  }
+
+  /** El sello cuyo diámetro se acerca más a `diam` (en píxeles del mapa de luz). */
+  _selloLuz(diam) {
+    const s = this._sellosLuz;
+    let mejor = s[0];
+    for (let i = 1; i < s.length; i++) {
+      if (Math.abs(s[i].d - diam) < Math.abs(mejor.d - diam)) mejor = s[i];
+    }
+    return mejor;
+  }
+
+  _pintarOscuridad() {
+    const o = this._oscuridad;
+    if (!o || !o.rt || !o.rt.scene || !this.cameras || !this.cameras.main) return;
+    const rt = o.rt, E = o.E, O = OSCURIDAD_MINA;
+    const v = this.cameras.main.worldView;
+    const M = 140;
+    rt.clear();
+    rt.fill(O.ambiente, 1);
+    rt.beginDraw();
+    const luz = (x, y, r, color, alfa) => {
+      if (!(r > 0)) return;
+      if (x + r < v.x - M || x - r > v.right + M || y + r < v.y - M || y - r > v.bottom + M) return;
+      const s = this._selloLuz((r * 2) / E);
+      rt.batchDrawFrame(s.k, undefined, x / E - s.d / 2, y / E - s.d / 2, alfa, color);
+    };
+    for (let i = 0; i < this._luces.length; i++) {
+      const l = this._luces[i];
+      luz(l.x, l.y, l.r, l.alumbra, Math.max(0.55, Math.min(1, 0.92 + (l.vibra || 0) * (l.parpadeo || 0) * 0.5)));
+    }
+    // La del minero, a la altura del pecho, con un temblor de farol.
+    const p = this.player;
+    if (p && p.active) {
+      const tiembla = 1 + Math.sin(this.time.now / 140) * 0.015;
+      luz(p.x, p.y + 6, O.jugador.radio * tiembla, O.jugador.color, 1);
+    }
+    // Los demás mineros llevan la suya.
+    const otros = this.otherPlayers;
+    if (otros) {
+      for (const id in otros) {
+        const s = otros[id] && otros[id].sprite;
+        if (s && s.active && s.visible) luz(s.x, s.y + 6, O.otros.radio, O.otros.color, 0.9);
+      }
+    }
+    // Y lo que traigan los zombis y su jefe (gf-mina-zombis.js): ojos, antorchas.
+    if (typeof this._lucesExtra === 'function') {
+      try { this._lucesExtra(luz); } catch (e) {}
+    }
+    rt.endDraw();
   }
 
   /**
@@ -1395,8 +1559,10 @@ class MinaScene extends GameScene {
         const l = this._luces[i];
         const v = Math.sin(t * l.vel + l.fase) * 0.6 + Math.sin(t * l.vel * 2.7 + l.fase * 1.3) * 0.4;
         l.img.setAlpha(l.base * (1 + l.vibra * v));
+        l.parpadeo = v;
       }
     }
+    this._pintarOscuridad();
 
     // ── La salida ──────────────────────────────────────────────────────────
     this._comprobarSalida();
@@ -1545,6 +1711,12 @@ class MinaScene extends GameScene {
     try { if (this.capaSombras) this.capaSombras.destroy(); } catch (e) {}
     try { if (this.capaObjetos) this.capaObjetos.destroy(); } catch (e) {}
     try { if (this.penumbra) this.penumbra.destroy(); } catch (e) {}
+    this._oscuridad = null;
+    // Los sellos del mapa de luz son pocos KB, pero son de lienzo: fuera.
+    (this._sellosLuz || []).forEach(s => {
+      try { if (this.textures.exists(s.k)) this.textures.remove(s.k); } catch (e) {}
+    });
+    this._sellosLuz = [];
     try {
       if (this.textures.exists('mina_penumbra')) this.textures.remove('mina_penumbra');
     } catch (e) {}
