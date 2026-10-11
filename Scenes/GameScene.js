@@ -8137,8 +8137,6 @@ console.log('📊 Tree types:', Object.keys(TREE_TYPE_CONFIG));
         
               
 
-      this.initialize();
-
       /* EL CERROJO SE REARMA AQUÍ. Ver el comentario largo de `savegg()`.
          La instancia de la escena se REUTILIZA, así que `_inventarioCargado`
          llegaba hasta aquí valiendo true de la vez anterior — y justo debajo se
@@ -8161,6 +8159,7 @@ console.log('📊 Tree types:', Object.keys(TREE_TYPE_CONFIG));
       this.initInventory();
 
       this.rebuildPlayerInventoryFromState();
+      this.initialize();
       
         // 2) Escuchar tecla “I” para abrir/cerrar inventario
         this.input.keyboard.on('keydown-I', () => {
@@ -23462,6 +23461,8 @@ async loadPlayerData() {
     
     const data = await response.json();
   if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+    // Una compra puede haberse confirmado mientras esta petición estaba en vuelo.
+    if (Date.parse(this._inventoryLoadedAt) > Date.parse(data.inventoryLoadedAt)) return;
     // La revisión pertenece a esta respuesta del servidor. Así un guardado
     // anterior a una compra no puede borrar lo que acaba de entregarse.
     this._inventoryLoadedAt = data.inventoryLoadedAt || new Date().toISOString();
@@ -23712,6 +23713,12 @@ async loadPlayerData() {
 async renderInventoryAfterLoad() {
   const sceneRunId = this._sceneRunId;
   if (typeof this.renderSlot !== 'function') return;
+  const pintar = () => {
+    if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+    this.renderAllSlots();
+  };
+  // Mostrar la mochila antes de esperar los usos de herramientas del servidor.
+  pintar();
 
   // Recolectar todos los invoiceIds de herramientas presentes en el inventario
   const toolIds = [];
@@ -23722,11 +23729,16 @@ async renderInventoryAfterLoad() {
 
   // Pedir al backend los usos de todas las herramientas en una sola llamada
   if (toolIds.length > 0) {
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), 15000);
+    const cancelar = () => controller.abort();
+    this.events?.once('shutdown', cancelar);
+    this.events?.once('destroy', cancelar);
     try {
       const r = await this.fetchWithTokenRetry(`${this.serverBase}/api/tool/uses/bulk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invoiceIds: toolIds })
+        body: JSON.stringify({ invoiceIds: toolIds }), signal: controller.signal
       });
   if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
       const data = await r.json();
@@ -23741,12 +23753,15 @@ async renderInventoryAfterLoad() {
     } catch (e) {
   if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
       console.warn('⚠️ No se pudo cargar usos de herramientas al iniciar:', e);
+    } finally {
+      clearTimeout(deadline);
+      this.events?.off('shutdown', cancelar);
+      this.events?.off('destroy', cancelar);
     }
   }
 
   console.log('🖼️ Renderizando slots del inventario...');
-  for (let i = 0; i < 40; i++) this.renderSlot(i);
-  for (let i = 0; i < 7; i++) this.renderSlot(i);
+  pintar();
 }
 
 // ============================================================================
@@ -31719,10 +31734,9 @@ if (window.globalPetData) {
      * lo decia en la cara y no lo vi: "Cargando 22 items del inventario" y,
      * dos lineas mas abajo, "objetos en el inventario: 0".
      *
-     * GameScene no lo sufre por casualidad: alli `initialize()` va SIN await,
-     * asi que los datos llegan despues de que `initInventory()` haya barrido.
-     * Eso es una carrera que funciona de milagro; aqui se hace bien, creando
-     * las casillas primero y pintando cuando los datos ya estan. */
+     * GameScene también inicia su carga después de crear las casillas. Así
+     * ninguna respuesta cargada puede perderse al construir el inventario.
+     * Las escenas comparten ese orden: casillas primero y datos después. */
     try {
       this.initInventory();
     } catch (e) { console.error('⛏️ casillas del inventario:', e); }
@@ -31852,6 +31866,7 @@ if (window.globalPetData) {
    * inventario nunca se contrastaba con la cadena.
    */
   async _sincronizarInventarioConLaCadena() {
+    const sceneRunId = this._sceneRunId;
     const cargador = this.scene.get('LoadingScenegame');
     if (!cargador) {
       console.warn('sin LoadingScenegame a mano: no se sincroniza con la cadena');
@@ -31870,11 +31885,15 @@ if (window.globalPetData) {
       }
     }
     if (this._ITEM_CONTRACT_NAME == null) {
-      this._ITEM_CONTRACT_NAME = cargador._ITEM_CONTRACT_NAME;
+        this._ITEM_CONTRACT_NAME = cargador._ITEM_CONTRACT_NAME;
     }
+    if (!this.TIPO_TO_ITEM_ID) this.TIPO_TO_ITEM_ID = cargador.TIPO_TO_ITEM_ID;
 
     if (typeof this.syncInventoryWithBlockchain !== 'function') return;
     await this.syncInventoryWithBlockchain();
+    if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+    this.rebuildPlayerInventoryFromState?.();
+    this.renderAllSlots?.();
   }
 
   /**

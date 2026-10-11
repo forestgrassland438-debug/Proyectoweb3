@@ -205,11 +205,13 @@ class LoadingScenegame extends Phaser.Scene {
             Regaderax:      { src: './Game/Source/recurso2.png',   maxStack: 1 },
             Tijerasx:       { src: './Game/Source/tijeras.png',    maxStack: 1 },
 
-            Semillax:  { src: './Game/Objetos/Plantas/planta_zanahorias/item_saco.png',           maxStack: 50 },
-            Semillax1: { src: './Game/Objetos/Plantas/planta_tomates/semillas_tomate.png',        maxStack: 50 },
-            Semillax2: { src: './Game/Objetos/Plantas/planta_trigo/item_semilla_trigo.png',       maxStack: 50 },
-            Semillax3: { src: './Game/Objetos/Plantas/planta_calabaza/item_semilla_calabaza.png', maxStack: 50 },
-            Semillax4: { src: './Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png',       maxStack: 50 },
+            // Los nombres del contrato son distintos de las claves del juego.
+            // Sin tipo, la sincronización borraba las cinco semillas compradas.
+            Semillax:  { src: './Game/Objetos/Plantas/planta_zanahorias/item_saco.png',           maxStack: 50, tipo: 'bolsa zanahorias' },
+            Semillax1: { src: './Game/Objetos/Plantas/planta_tomates/semillas_tomate.png',        maxStack: 50, tipo: 'bolsa de tomates' },
+            Semillax2: { src: './Game/Objetos/Plantas/planta_trigo/item_semilla_trigo.png',       maxStack: 50, tipo: 'bolsa de trigo' },
+            Semillax3: { src: './Game/Objetos/Plantas/planta_calabaza/item_semilla_calabaza.png', maxStack: 50, tipo: 'bolsa de calabazas' },
+            Semillax4: { src: './Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png',       maxStack: 50, tipo: 'bolsa_de_fresas' },
 
             zanahoria_buena: { src: './Game/Objetos/Plantas/planta_zanahorias/item_zanahoria_buena.png',          maxStack: 20 },
             zanahoria_corta: { src: './Game/Objetos/Plantas/planta_zanahorias/planta_crecimiento_zanahoria.png',  maxStack: 20 },
@@ -629,6 +631,8 @@ class LoadingScenegame extends Phaser.Scene {
     // =========================================================================
 
     async loadPlayerData() {
+        const run = this._sceneRunId, turno = this._turnoCreate;
+        const vigente = () => !this._sceneStopped && this._sceneRunId === run && this._turnoCreate === turno;
         console.log('📥 Cargando datos del jugador...');
 
         try {
@@ -641,6 +645,7 @@ class LoadingScenegame extends Phaser.Scene {
                 `${this.serverBase}/api/load/${encodeURIComponent(this.playerName)}`,
                 { method: 'GET', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' } }
             );
+            if (!vigente()) return null;
 
             if (!response.ok) {
                 const errorText = await response.text();
@@ -652,6 +657,8 @@ class LoadingScenegame extends Phaser.Scene {
             }
 
             const data = await response.json();
+            if (!vigente()) return null;
+            if (Date.parse(this._inventoryLoadedAt) > Date.parse(data.inventoryLoadedAt)) return null;
             console.log('✅ Datos del jugador recibidos');
             this._inventoryLoadedAt = data.inventoryLoadedAt || new Date().toISOString();
 
@@ -912,84 +919,56 @@ class LoadingScenegame extends Phaser.Scene {
         const invoiceById       = new Map();
         const invoiceByManualId = new Map();
 
-        if (!rawData) return { invoiceById, invoiceByManualId };
-
-        // ── Normalizar a array de invoices ─────────────────────────────────
-        // Formatos posibles según backend/relay:
-        //  A) [{id:"1", manualId:"...", tipo:"hacha de madera", cantidad:"5", active:true}, ...]
-        //  B) [["1","g33...","0x85...","hacha de madera","5",true,"..."], ...]
-        //  C) { result: <A|B> }  (wrapper del relay)
-        //  D) { id:"1", ... }    (bug: relay solo captura primer invoice del tuple[])
-
         const looksLikeInvoice = (x) =>
             x && typeof x === 'object' && !Array.isArray(x) &&
             (x.id !== undefined || x['0'] !== undefined);
-
-        let arr = [];
-
-        if (Array.isArray(rawData)) {
-            if (rawData.length === 0) {
-                arr = [];
-            } else if (Array.isArray(rawData[0]) || looksLikeInvoice(rawData[0])) {
-                arr = rawData; // ya es array de invoices (A o B)
-            } else {
-                // Array de primitivos = campos de UN invoice (bug relay)
-                arr = [rawData];
-            }
-        } else if (rawData && typeof rawData === 'object') {
-            const vals = Object.values(rawData);
-            if (vals.length === 0) {
-                arr = [];
-            } else if (Array.isArray(vals[0])) {
-                const inner = vals[0];
-                if (inner.length === 0) {
-                    arr = [];
-                } else if (Array.isArray(inner[0]) || looksLikeInvoice(inner[0])) {
-                    arr = inner; // array de invoices dentro del wrapper
-                } else {
-                    arr = [inner]; // inner = campos de un solo invoice
-                }
-            } else if (looksLikeInvoice(rawData)) {
-                arr = [rawData]; // el rawData mismo es un solo invoice
-            } else {
-                arr = vals.filter(v => v && typeof v === 'object');
-            }
+        // Una respuesta ilegible no significa "inventario vacío". Una factura
+        // suelta del relay antiguo tampoco prueba que las demás hayan desaparecido.
+        let raw = rawData;
+        for (let depth = 0; depth < 4 && raw && !Array.isArray(raw); depth++) {
+            if (Object.prototype.hasOwnProperty.call(raw, 'result')) raw = raw.result;
+            else if (!looksLikeInvoice(raw) && Array.isArray(raw['0'])) raw = raw['0'];
+            else break;
+        }
+        let arr, complete;
+        if (Array.isArray(raw)) {
+            complete = raw.length === 0 || Array.isArray(raw[0]) || looksLikeInvoice(raw[0]);
+            arr = complete ? raw : [raw];
+        } else if (looksLikeInvoice(raw)) {
+            arr = [raw]; complete = false;
+        } else {
+            throw new Error('inventory_snapshot_invalid');
         }
 
-        for (const raw of arr) {
-            if (!raw) continue;
-
-            let id, manualId, tipo, cantidad, active;
-
-            if (Array.isArray(raw)) {
-                // Formato B: [id, manualId, owner, tipo, cantidad, active, createdAt]
-                id       = Number(raw[0]);
-                manualId = String(raw[1] !== undefined ? raw[1] : '');
-                tipo     = String(raw[3] !== undefined ? raw[3] : '');
-                cantidad = Number(raw[4]);
-                active   = raw[5] !== false && raw[5] !== 'false' && raw[5] !== 0;
-            } else if (typeof raw === 'object') {
-                // Formato A: objeto nombrado
-                id       = Number(raw.id      !== undefined ? raw.id      : (raw['0'] || 0));
-                manualId = String(raw.manualId !== undefined ? raw.manualId: (raw['1'] || ''));
-                tipo     = String(raw.tipo     !== undefined ? raw.tipo    : (raw['3'] || ''));
-                cantidad = Number(raw.cantidad !== undefined ? raw.cantidad : (raw['4'] || 0));
-                active   = raw.active !== undefined
-                    ? (raw.active !== false && raw.active !== 'false' && raw.active !== 0)
-                    : (raw['5'] !== false);
-            } else {
-                continue;
+        const seen = new Set();
+        for (const row of arr) {
+            if (!row || typeof row !== 'object') throw new Error('inventory_snapshot_invalid');
+            const field = (name, i) => row[name] !== undefined ? row[name] : row[i];
+            const id = Number(field('id', 0));
+            const manualId = field('manualId', 1);
+            const owner = field('owner', 2);
+            const tipo = field('tipo', 3);
+            const cantidad = Number(field('cantidad', 4));
+            const flag = field('active', 5);
+            if (!Number.isSafeInteger(id) || id < 1 || typeof manualId !== 'string' || !manualId ||
+                typeof tipo !== 'string' || !tipo || !Number.isSafeInteger(cantidad) || cantidad < 0 ||
+                ![true, false, 'true', 'false', 0, 1, '0', '1'].includes(flag) || seen.has(id)) {
+                throw new Error('inventory_snapshot_invalid');
             }
-
-            if (!id || isNaN(id) || id === 0 || !active) continue;
-
+            seen.add(id);
+            const active = [true, 'true', 1, '1'].includes(flag);
+            if (owner != null && (typeof owner !== 'string' ||
+                (this.address && owner.toLowerCase() !== this.address.toLowerCase()))) {
+                throw new Error('inventory_snapshot_wrong_owner');
+            }
+            if (!active) continue;
             const entry = { id, manualId, cantidad, tipo, active: true };
             invoiceById.set(id, entry);
             if (manualId) invoiceByManualId.set(manualId, entry);
         }
 
         console.log(`[sync] _buildSyncMaps: ${invoiceById.size} facturas activas parseadas`);
-        return { invoiceById, invoiceByManualId };
+        return { invoiceById, invoiceByManualId, complete };
     }
 
     /**
@@ -1023,7 +1002,7 @@ class LoadingScenegame extends Phaser.Scene {
      * @param {Map} invoiceById - id → {id, manualId, cantidad, tipo}
      * @returns {{ inv:number, quick:number }} correcciones en cada lista
      */
-    _reconciliarCasillas(invoiceById) {
+    _reconciliarCasillas(invoiceById, complete = true) {
         const reclamadas = new Set();
         const porManual = new Map();
         const objetoDe = new Map();            // invoiceId → itemId del juego
@@ -1059,7 +1038,7 @@ class LoadingScenegame extends Phaser.Scene {
                 const s = lista[i];
                 if (!s || s.idx === null || s.idx === undefined || !s.idm) continue;
                 const inv = invoiceById.get(Number(s.idx));
-                if (inv && !reclamadas.has(inv.id) && inv.manualId === s.idm && objetoDe.get(inv.id)) {
+                if (inv && inv.cantidad > 0 && !reclamadas.has(inv.id) && inv.manualId === s.idm) {
                     enlazar(label, lista, i, inv, 'cantidad');
                 }
             }
@@ -1070,7 +1049,7 @@ class LoadingScenegame extends Phaser.Scene {
                 const s = lista[i];
                 if (!s || resueltas.has(label + ':' + i) || !s.idm) continue;
                 const inv = porManual.get(s.idm);
-                if (inv && !reclamadas.has(inv.id) && objetoDe.get(inv.id)) {
+                if (inv && inv.cantidad > 0 && !reclamadas.has(inv.id) && objetoDe.get(inv.id)) {
                     enlazar(label, lista, i, inv, 'id viejo, mismo manualId');
                 }
             }
@@ -1082,7 +1061,7 @@ class LoadingScenegame extends Phaser.Scene {
                 if (!s || resueltas.has(label + ':' + i)) continue;
                 let mejor = null;
                 for (const [id, inv] of invoiceById) {
-                    if (reclamadas.has(id) || objetoDe.get(id) !== s.id) continue;
+                    if (inv.cantidad <= 0 || reclamadas.has(id) || objetoDe.get(id) !== s.id) continue;
                     if (!mejor || (inv.cantidad === s.count && mejor.cantidad !== s.count)) mejor = inv;
                     if (mejor.cantidad === s.count) break;
                 }
@@ -1092,7 +1071,7 @@ class LoadingScenegame extends Phaser.Scene {
         // Lo que queda sin factura no existe en la cadena: fuera.
         for (const [label, lista] of listas) {
             for (let i = 0; i < lista.length; i++) {
-                if (!lista[i] || resueltas.has(label + ':' + i)) continue;
+                if (!complete || !lista[i] || resueltas.has(label + ':' + i)) continue;
                 console.warn(`🗑️ [sync] ${label}[${i}] "${lista[i].id}" sin ninguna factura en la cadena → limpiando`);
                 lista[i] = null;
                 arreglos[label]++;
@@ -1104,8 +1083,8 @@ class LoadingScenegame extends Phaser.Scene {
     /**
      * En qué casilla guardó la cadena cada factura (contrato v3, ver
      * `setInvoiceSlotsBatch` en el contrato y `/api/inventory/casillas` en el
-     * servidor). Con un contrato v2 o un servidor viejo devuelve {} y todo
-     * funciona como antes. Nunca lanza.
+     * servidor). Un contrato v2 devuelve {}. Un fallo de lectura devuelve
+     * null para posponer la conciliación y no duplicar los objetos de cofres.
      *
      * @returns {Promise<Object<string, number>>} invoiceId → código de casilla
      *          (1..9999 = inventario n-1 · 10001..19999 = cofre n-10001)
@@ -1113,20 +1092,27 @@ class LoadingScenegame extends Phaser.Scene {
     async _leerCasillasDeCadena() {
         // Las facturas guardadas en los cofres de la isla (2026-10-05): vienen
         // en la misma respuesta. Ver syncInventoryWithBlockchain.
-        this._facturasEnCofres = new Set();
+        const run = this._sceneRunId, turno = this._turnoCreate;
+        const vigente = () => !this._sceneStopped && this._sceneRunId === run && this._turnoCreate === turno;
+        const controller = new AbortController();
+        const deadline = setTimeout(() => controller.abort(), 15000);
         try {
-            if (!this.serverBase) return {};
+            if (!this.serverBase) return null;
             const r = await fetch(`${this.serverBase}/api/inventory/casillas`, {
-                credentials: 'include', headers: { 'Accept': 'application/json' }
+                credentials: 'include', headers: { 'Accept': 'application/json' }, signal: controller.signal
             });
-            if (!r.ok) return {};
+            if (!r.ok) return null;
             const d = await r.json();
+            if (!vigente() || !d || typeof d !== 'object') return null;
+            this._facturasEnCofres = new Set();
             if (d && Array.isArray(d.enCofres)) {
                 this._facturasEnCofres = new Set(d.enCofres.map(Number).filter(n => n > 0));
             }
             return (d && d.soportado && d.casillas && typeof d.casillas === 'object') ? d.casillas : {};
         } catch (_) {
-            return {};
+            return null;
+        } finally {
+            clearTimeout(deadline);
         }
     }
 
@@ -1137,7 +1123,7 @@ class LoadingScenegame extends Phaser.Scene {
      * batchVerifySlots(uint256[] slotIds, string[] slotManualIds)
      *   → (bool[] valid, uint256[] canonicalQty)
      */
-    async _syncFallback(contract) {
+    async _syncFallback(contract, vigente = () => true) {
         console.log('🔗 [sync-fallback] Usando batchVerifySlots...');
 
         // Recopilar todos los slots no nulos
@@ -1176,6 +1162,7 @@ class LoadingScenegame extends Phaser.Scene {
             console.error('❌ [sync-fallback] batchVerifySlots falló:', err.message || err);
             return;
         }
+        if (!vigente()) return;
 
         if (!result) {
             console.warn('⚠️ [sync-fallback] batchVerifySlots devolvió vacío');
@@ -1195,12 +1182,15 @@ class LoadingScenegame extends Phaser.Scene {
             validArr       = result.valid       || result['0'] || [];
             canonicalQtArr = result.canonicalQty || result['1'] || [];
         }
+        if (!Array.isArray(validArr) || !Array.isArray(canonicalQtArr) ||
+            validArr.length !== allSlots.length || canonicalQtArr.length !== allSlots.length) return;
 
         let fixed = 0;
         for (let i = 0; i < allSlots.length; i++) {
             const { slotArr, slotIndex, prefix, idx } = allSlots[i];
-            const isValid     = !!validArr[i];
-            const canonical   = Number(canonicalQtArr[i] || 0);
+            const isValid     = [true, 'true', 1, '1'].includes(validArr[i]);
+            const canonical   = Number(canonicalQtArr[i]);
+            if (!Number.isSafeInteger(canonical) || canonical < 1) continue;
 
             if (!isValid) {
                 /* YA NO SE BORRA. Este camino solo se usa cuando el snapshot
@@ -1378,11 +1368,15 @@ class LoadingScenegame extends Phaser.Scene {
      * Verifica TODOS los slots del inventario y del cofre contra la blockchain
      * antes de transicionar a GameScene. Usa getUserInventorySnapshot() si
      * está disponible en el contrato (1 llamada RPC), o batchVerifySlots()
-     * como fallback.
+     * como fallback. Solo un listado completo y válido puede eliminar casillas.
      *
      * No lanza excepciones hacia afuera — si falla, registra el error y continúa.
      */
     async syncInventoryWithBlockchain() {
+        const run = this._sceneRunId, turno = this._turnoCreate;
+        const state = this.STATE, revision = this._inventoryLoadedAt, address = this.address;
+        const vigente = () => !this._sceneStopped && this._sceneRunId === run && this._turnoCreate === turno &&
+            this.STATE === state && this._inventoryLoadedAt === revision && this.address === address;
         if (!this.address || !this.isAuthenticated) {
             console.warn('⚠️ [sync] Saltando sync: usuario no autenticado');
             return;
@@ -1393,6 +1387,7 @@ class LoadingScenegame extends Phaser.Scene {
 
         // ── 1. Inicializar relay client ─────────────────────────────────────
         const relay = await this._ensureRelayClient();
+        if (!vigente()) return;
         if (!relay) {
             console.warn('⚠️ [sync] Relay client no disponible, saltando sync');
             return;
@@ -1402,6 +1397,7 @@ class LoadingScenegame extends Phaser.Scene {
         let auth;
         try {
             auth = await relay.checkAuth();
+            if (!vigente()) return;
         } catch (e) {
             console.warn('⚠️ [sync] Error al verificar auth del relay:', e.message || e);
             return;
@@ -1416,6 +1412,7 @@ class LoadingScenegame extends Phaser.Scene {
         let contract;
         try {
             contract = await relay.findContract(this._ITEM_CONTRACT_NAME);
+            if (!vigente()) return;
         } catch (e) {
             console.warn(`⚠️ [sync] No se encontró el contrato "${this._ITEM_CONTRACT_NAME}":`, e.message || e);
             return;
@@ -1436,7 +1433,7 @@ class LoadingScenegame extends Phaser.Scene {
         let syncOk = false;
         // A la vez que el snapshot: en qué casilla guardó la cadena cada
         // factura (contrato v3). Si no hay, {} y no cambia nada.
-        const casillasPromesa = this._leerCasillasDeCadena();
+        const casillasPromesa = this._leerCasillasDeCadena().catch(() => null);
 
         try {
             const snapResp = await this.fetchWithTokenRetry(
@@ -1456,17 +1453,20 @@ class LoadingScenegame extends Phaser.Scene {
             }
 
             const snapData = await snapResp.json();
+            if (!vigente()) return;
             if (!snapData.success) {
                 throw new Error(snapData.error || 'getUserInventorySnapshot devolvió error');
             }
 
             // snapData.result = [{id, manualId, tipo, cantidad, active, ...}, ...]
             // (array de objetos nombrados gracias al fix en convertBigIntToString)
-            const { invoiceById } = this._buildSyncMaps(snapData.result);
+            const { invoiceById, complete } = this._buildSyncMaps(snapData.result);
 
             console.log(`🔗 [sync] Snapshot recibido: ${invoiceById.size} facturas activas`);
 
             const casillas   = await casillasPromesa;
+            if (!vigente()) return;
+            if (casillas === null) throw new Error('inventory_chest_locations_unavailable');
             // LO GUARDADO EN UN COFRE DE LA ISLA NO ESTÁ EN LA MOCHILA. La
             // factura sigue a nombre del jugador, así que sale en el snapshot:
             // sin quitarla aquí, `_addMissingBlockchainItems` la volvería a
@@ -1476,7 +1476,7 @@ class LoadingScenegame extends Phaser.Scene {
                 for (const id of this._facturasEnCofres) invoiceById.delete(id);
                 console.log(`📦 [sync] ${this._facturasEnCofres.size} factura(s) guardadas en cofres: no se reponen`);
             }
-            const arreglos   = this._reconciliarCasillas(invoiceById);
+            const arreglos   = this._reconciliarCasillas(invoiceById, complete);
             const fixedInv   = arreglos.inv;
             const fixedQuick = arreglos.quick;
             const addedNew   = this._addMissingBlockchainItems(invoiceById, casillas);
@@ -1510,8 +1510,9 @@ class LoadingScenegame extends Phaser.Scene {
 
         // ── 5. Fallback: batchVerifySlots ───────────────────────────────────
         if (!syncOk) {
+            if (!vigente()) return;
             try {
-                await this._syncFallback(contract);
+                await this._syncFallback(contract, vigente);
             } catch (fbErr) {
                 console.error('❌ [sync] Fallback sync también falló:', fbErr.message || fbErr);
                 // No bloqueamos: el juego sigue con los datos de BD

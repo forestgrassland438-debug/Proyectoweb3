@@ -2478,9 +2478,6 @@ this.anims.create({
         // this.authenticate(); pedimos otro token
 
         
-        this.initialize();
-
-
         /* EL CERROJO DEL INVENTARIO. Ver `savegg()` más abajo.
 
            Phaser REUTILIZA la instancia de la escena, así que al volver a
@@ -2505,6 +2502,7 @@ this.anims.create({
         this.initInventory();
 
         this.rebuildPlayerInventoryFromState();
+        this.initialize();
 
         // 2) Escuchar tecla “I” para abrir/cerrar inventario
         this.input.keyboard.on('keydown-I', () => {
@@ -10030,6 +10028,8 @@ async loadPlayerData() {
     
     const data = await response.json();
   if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+    // Una respuesta anterior a la compra no debe reemplazar sus casillas nuevas.
+    if (Date.parse(this._inventoryLoadedAt) > Date.parse(data.inventoryLoadedAt)) return;
     console.log('✅ Datos del jugador recibidos');
 
     /* CUÁNDO SE CARGÓ ESTA COPIA DEL INVENTARIO.
@@ -10252,6 +10252,12 @@ async loadPlayerData() {
 async renderInventoryAfterLoad() {
   const sceneRunId = this._sceneRunId;
   if (typeof this.renderSlot !== 'function') return;
+  const pintar = () => {
+    if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+    this.renderAllSlots();
+  };
+  // Las semillas y demás objetos se dibujan sin esperar los usos de herramientas.
+  pintar();
 
   // Recolectar todos los invoiceIds de herramientas presentes en el inventario
   const toolIds = [];
@@ -10262,11 +10268,16 @@ async renderInventoryAfterLoad() {
 
   // Pedir al backend los usos de todas las herramientas en una sola llamada
   if (toolIds.length > 0) {
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), 15000);
+    const cancelar = () => controller.abort();
+    this.events?.once('shutdown', cancelar);
+    this.events?.once('destroy', cancelar);
     try {
       const r = await this.fetchWithTokenRetry(`${this.serverBase}/api/tool/uses/bulk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invoiceIds: toolIds })
+        body: JSON.stringify({ invoiceIds: toolIds }), signal: controller.signal
       });
   if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
       const data = await r.json();
@@ -10281,12 +10292,15 @@ async renderInventoryAfterLoad() {
     } catch (e) {
   if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
       console.warn('⚠️ No se pudo cargar usos de herramientas al iniciar:', e);
+    } finally {
+      clearTimeout(deadline);
+      this.events?.off('shutdown', cancelar);
+      this.events?.off('destroy', cancelar);
     }
   }
 
   console.log('🖼️ Renderizando slots del inventario...');
-  for (let i = 0; i < 40; i++) this.renderSlot(i);
-  for (let i = 0; i < 7; i++) this.renderSlot(i);
+  pintar();
 }
 
 // ============================================================================
