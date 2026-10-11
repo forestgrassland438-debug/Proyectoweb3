@@ -49,7 +49,7 @@
 
 /* global GameScene, Phaser */
 
-const INTERIOR_V = '20261007a';
+const INTERIOR_V = '20261011a';  // 2026-10-11: muebles planos redibujados en 2.5D
 
 /* Los PNG de muebles que puede pedir cualquier sala. Se cargan todos (son
    pequenos: el mayor, la estanteria de pociones, mide 126x141) para no tener

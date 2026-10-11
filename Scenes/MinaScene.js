@@ -671,6 +671,10 @@ class MinaScene extends GameScene {
     this._faseMina = 'zombis';
     try { if (window.GFMinaZombis) window.GFMinaZombis.montar(this); }
     catch (e) { console.warn('⛏️ zombis:', e); }
+    // Y la serpiente de magma (gf-mina-serpiente.js, 2026-10-11).
+    this._lucesExtras = [];
+    try { if (window.GFMinaSerpiente) window.GFMinaSerpiente.montar(this); }
+    catch (e) { console.warn('⛏️ serpiente:', e); }
 
     // ── Que se VEA por donde se sale ─────────────────────────────
     this._faseMina = 'salida visible';
@@ -1198,6 +1202,13 @@ class MinaScene extends GameScene {
     // Y lo que traigan los zombis y su jefe (gf-mina-zombis.js): ojos, antorchas.
     if (typeof this._lucesExtra === 'function') {
       try { this._lucesExtra(luz); } catch (e) {}
+    }
+    // Y las de los demás módulos (la serpiente de magma, 2026-10-11): una
+    // lista, para que ninguno pise la función del otro.
+    if (Array.isArray(this._lucesExtras)) {
+      for (let i = 0; i < this._lucesExtras.length; i++) {
+        try { this._lucesExtras[i](luz); } catch (e) {}
+      }
     }
     rt.endDraw();
   }

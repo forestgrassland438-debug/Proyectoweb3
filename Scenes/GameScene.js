@@ -1888,7 +1888,14 @@ showNotification(message, type = 'info') {
     }
     
     // NUEVO: Método para refrescar token de autenticación CORREGIDO
-    async refreshAuthToken() {
+    refreshAuthToken() {
+        if (!this._refreshAuthPromise) {
+            this._refreshAuthPromise = GameScene.prototype._refreshAuthToken.call(this).finally(() => { this._refreshAuthPromise = null; });
+        }
+        return this._refreshAuthPromise;
+    }
+
+    async _refreshAuthToken() {
         // Evitar múltiples refrescos simultáneos
         if (this.refreshInProgress) {
             console.log('🔄 Refresh ya en progreso, omitiendo...');
@@ -1901,7 +1908,9 @@ showNotification(message, type = 'info') {
         try {
             console.log('🔄 Refrescando token de autenticación...');
             
-            const response = await fetch(`${this.serverBase}/api/auth/refresh`, {
+            const response = window.PhaserRelay?.refreshSession
+                ? await window.PhaserRelay.refreshSession(this.serverBase)
+                : await fetch(`${this.serverBase}/api/auth/refresh`, {
                 method: 'POST',
                 credentials: 'include',
                 headers: {
@@ -3188,6 +3197,15 @@ liberarMemoriaPesada() {
     // sin esto el primer frame te devolvería abajo. Empieza DESARMADA y se
     // arma en cuanto el jugador sale del rectángulo.
     this._minaArmada = false;
+
+    // ── EL CAMINO DEL OESTE: AL MAPA SALVAJE (2026-10-11) ────────────────
+    // El camino de piedra que muere en el borde izquierdo del mapa (de y 2128
+    // a 2320). Una franja de 40 px pegada al borde: al tocarla se va al mapa
+    // salvaje (Scenes/SalvajeScene.js). Como las otras puertas, es un
+    // disparador y no un muro (fuera del índice de colisiones), y empieza
+    // DESARMADA: al volver de allí se aparece en este mismo camino, a 90 px.
+    this._puertaSalvaje = new Phaser.Geom.Rectangle(0, 2134, 40, 180);
+    this._salvajeArmada = false;
 
     // Rejilla espacial sobre los 325 rectángulos que se acaban de crear. Es lo
     // que evita recorrerlos uno a uno en cada consulta de colisión (jugador y
@@ -20567,7 +20585,7 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
 
   try {
     // Inicializar relayClient si hace falta
-    if (!this.relayClient) {
+    if (!this.relayClient || this.relayClient._destroyed) {
       this.relayClient = new PhaserRelay({
         apiBase: this.serverBase,
         debug: true,
@@ -20588,7 +20606,7 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
     // Auth
     const auth = await this.relayClient.checkAuth();
     if (!auth || !auth.success) {
-      this.relayClient.showError('❌ Debes estar autenticado. Por favor, inicia sesión de nuevo.', 5000);
+      this.relayClient.showError(this.relayClient.authErrorMessage(auth), 5000);
       return;
     }
     console.log('🔑 Usuario autenticado:', auth.address);
@@ -21279,7 +21297,7 @@ async mergeItemsBlockchain(origin, destType, destIndex) {
   // ───────────────────────────────────────────────────────────────────────────
 
   // Inicializar relayClient si es necesario
-  if (!this.relayClient) {
+  if (!this.relayClient || this.relayClient._destroyed) {
     this.relayClient = new PhaserRelay({
       apiBase: this.serverBase,
       debug: true,
@@ -22444,7 +22462,7 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
 
   try {
     // Inicializar relayClient si hace falta
-    if (!this.relayClient) {
+    if (!this.relayClient || this.relayClient._destroyed) {
       this.relayClient = new PhaserRelay({
         apiBase: this.serverBase,
         debug: true,
@@ -22460,7 +22478,7 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
     // Auth
     const auth = await this.relayClient.checkAuth();
     if (!auth || !auth.success) {
-      this.relayClient.showError('❌ Debes estar autenticado. Por favor, inicia sesión de nuevo.', 5000);
+      this.relayClient.showError(this.relayClient.authErrorMessage(auth), 5000);
       return false;
     }
     console.log('🔑 Usuario autenticado:', auth.address);
@@ -23553,13 +23571,19 @@ async loadPlayerData() {
     // (Saliendo ya por una puerta no: manda lo que dejó la salida.)
     if (!this._cambiandoEscena) {
       const _clave = this.sys && this.sys.settings ? this.sys.settings.key : '';
-      const _mundoDeEscena = { GameScene: 1, MinaScene: 3, LandsScene: 4, InteriorScene: 5 }[_clave];
+      const _mundoDeEscena = { GameScene: 1, MinaScene: 3, LandsScene: 4, InteriorScene: 5, SalvajeScene: 6 }[_clave];
       const _mundoGuardado = Number(data.mundo);
       if (_mundoDeEscena) this.mundo = _mundoDeEscena;
       // En el mapa con coordenadas DE DENTRO de la tienda: a su puerta de fuera.
       if (_mundoDeEscena === 1 && _mundoGuardado === 2 && !this._anclaPropia) {
         this.posicionplayerx = 1552;
         this.posicionplayery = 1531;
+      }
+      // Con coordenadas del mapa salvaje (157 casillas de 32, otro mapa): al
+      // camino del oeste, por donde se vuelve de allí.
+      if (_mundoDeEscena === 1 && _mundoGuardado === 6 && !this._anclaPropia) {
+        this.posicionplayerx = 90;
+        this.posicionplayery = 2224;
       }
     }
 
@@ -28975,6 +28999,17 @@ getPlayerIntentDirection() {
       }
     }
 
+    // ── EL CAMINO AL MAPA SALVAJE ─────────────────────────────────────────
+    // Los mismos dos candados que la mina (ver arriba).
+    if (this._puertaSalvaje && this.playerRect) {
+      if (!Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, this._puertaSalvaje)) {
+        this._salvajeArmada = true;
+      } else if (this._salvajeArmada && !this._cambiandoEscena) {
+        this._salvajeArmada = false;
+        this.entrarEnSalvaje();
+      }
+    }
+
     const _tocandoPuerta = this.collisionRectangles1.some(r =>
       r && Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, r));
     if (!_tocandoPuerta) this._puertaArmada = true;
@@ -31514,6 +31549,46 @@ if (window.globalPetData) {
        Sin `playerData`: esa pantalla no tiene `init()` y no lo lee nadie
        (ver el comentario de `_dejarPartidaEnElMapa`). Lo que manda es lo que
        se acaba de guardar. */
+    this.scene.start('LoadingScenegame');
+  }
+
+  /**
+   * Al mapa salvaje por el camino del oeste (2026-10-11). Es `entrarEnLaMina`
+   * con otro mundo (6) y otra sala ('salvaje'), y por lo mismo: por la
+   * pantalla de carga y con el guardado ESPERADO. Además deja la nota de
+   * viaje (GFViaje) con el punto de llegada, el borde este del mapa salvaje,
+   * en su camino: si el guardado llega tarde, la nota manda.
+   */
+  async entrarEnSalvaje() {
+    if (this._cambiandoEscena) return;
+    if (!this.scene.get('SalvajeScene')) {
+      console.warn('SalvajeScene no esta registrada: no se puede ir al mapa salvaje');
+      return;
+    }
+    this._cambiandoEscena = true;
+    console.log('🌲 camino del oeste: al mapa salvaje');
+    try { this._cancelarArrastre(); } catch (e) {}
+    try { this.player.anims.stop(); } catch (e) {}
+
+    this.mundo = 6;
+    window.__gfViaje = { mundo: 6, x: 4896, y: 2208, islaDe: null, islaDeNombre: null, t: Date.now() };
+    try { await this.savegg(); } catch (e) { console.warn('guardado antes del mapa salvaje:', e); }
+    this.saveTimer = 0;
+
+    try { this._ocultarHUD(); } catch (e) {}
+    try { this.removeListener(); } catch (e) {}
+    try { this._unbindAllDomClicks(); } catch (e) {}
+    try { this.stopMusicSafely(); } catch (e) {}
+
+    this._salaDestino = 'salvaje';
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('joinRoom', {
+        room: 'salvaje',
+        username: this.Username || '---',
+        lastScene: 'GameScene'
+      });
+    }
+    try { this.cleanupScene(); } catch (e) { console.warn('limpieza:', e); }
     this.scene.start('LoadingScenegame');
   }
 

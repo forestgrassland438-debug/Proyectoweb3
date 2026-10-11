@@ -796,6 +796,7 @@ class BattleScene extends Phaser.Scene {
       feed: $('bzFeed'), aviso: $('bzAviso'), dolor: $('bzDolor'),
       busqueda: $('bzBusqueda'), busqTitulo: $('bzBusquedaTitulo'), busqTexto: $('bzBusquedaTexto'),
       sala: $('bzSala'), busqTiempo: $('bzBusquedaTiempo'), practicar: $('bzPracticar'), cancelar: $('bzCancelar'),
+      lobby: $('bzLobby'), listo: $('bzListo'),
       tactil: $('bzTactil'), zonaMover: $('bzZonaMover'), stickMover: $('bzStickMover'),
       zonaDisparo: $('bzZonaDisparo'), stickDisparo: $('bzStickDisparo'), superBtn: $('bzSuper'), superAnillo: $('bzSuperAnillo'),
       pie: $('bzPie'), superBarra: $('bzSuperBarra'), superRelleno: $('bzSuperRelleno'), superTexto: $('bzSuperTexto'),
@@ -825,6 +826,10 @@ class BattleScene extends Phaser.Scene {
     if (e.practicar) e.practicar.classList.toggle('hidden', this.modo !== 'pvp');
     if (e.sala) e.sala.textContent = '';
     if (e.busqTiempo) e.busqTiempo.textContent = '';
+    // La sala de espera (2026-10-10): vacía hasta que el servidor mande la lista.
+    this._listo = false;
+    if (e.lobby) { e.lobby.textContent = ''; e.lobby.classList.add('hidden'); }
+    this._pintarBotonListo(false);
     this.estadoBusqueda(
       this.modo === 'bot' ? 'Preparing your daily battle…' : (this.modo === 'practica' ? 'Preparing practice…' : 'Searching for players…'),
       this.modo === 'pvp' ? 'Be the last dog standing. Up to 6 players.' : 'Get ready!'
@@ -833,11 +838,69 @@ class BattleScene extends Phaser.Scene {
     this._escucharDOM(e.salir, 'click', () => this.pedirRendicion(e.salir));
     this._escucharDOM(e.cancelar, 'click', () => this.rendirse());
     this._escucharDOM(e.practicar, 'click', () => this.pasarAPractica());
+    this._escucharDOM(e.listo, 'click', () => this._alternarListo());
     this._escucharDOM(e.mirar, 'click', () => { if (e.caido) e.caido.classList.add('hidden'); });
     this._escucharDOM(e.volverCaido, 'click', () => this.rendirse());
     this._escucharDOM(e.volver, 'click', () => this.volverAlMapa());
     this._escucharDOM(e.otraVez, 'click', () => this.jugarOtraVez());
     this._cancelarConfirmacion();
+  }
+
+  /* LA SALA DE ESPERA (2026-10-10). "En el PvP no puedo ver a los otros
+     jugadores que entraron conmigo; quiero un botón de listo para que, si
+     todos los unidos le dan, podamos jugar, y el resto sean bots." El
+     servidor manda la lista en `brawl:sala` (ver brawlAvisarSala); aquí se
+     pinta y el botón "Ready" manda `brawl:listo`. Los nombres van con
+     textContent: los escribe cada jugador. */
+  _pintarSala(d) {
+    const e = this.el;
+    if (!e) return;
+    const lista = Array.isArray(d && d.lista) ? d.lista : [];
+    if (e.lobby) {
+      e.lobby.textContent = '';
+      e.lobby.classList.toggle('hidden', !lista.length);
+      lista.forEach((x) => {
+        const li = document.createElement('li');
+        li.className = 'bz-lobby-fila' + (x.listo ? ' listo' : '') + (x.yo ? ' yo' : '');
+        const nom = document.createElement('span');
+        nom.className = 'bz-lobby-nombre';
+        nom.textContent = String(x.nombre || 'Player').slice(0, 24) + (x.yo ? ' (you)' : '');
+        const pet = document.createElement('span');
+        pet.className = 'bz-lobby-mascota';
+        pet.textContent = String(x.mascota || 'Pet').slice(0, 20) + ' · Lv.' + (Number(x.nivel) || 1);
+        const est = document.createElement('span');
+        est.className = 'bz-lobby-estado';
+        est.textContent = x.listo ? '✔ Ready' : 'Not ready';
+        li.appendChild(nom); li.appendChild(pet); li.appendChild(est);
+        e.lobby.appendChild(li);
+      });
+      const libres = Math.max(0, (Number(d && d.max) || 6) - lista.length);
+      if (libres && lista.length) {
+        const li = document.createElement('li');
+        li.className = 'bz-lobby-fila bots';
+        li.textContent = '🤖 ' + libres + (libres === 1 ? ' place' : ' places') + ' for bots';
+        e.lobby.appendChild(li);
+      }
+    }
+    const yo = lista.find((x) => x.yo);
+    this._listo = !!(yo && yo.listo);
+    this._pintarBotonListo(lista.length > 0);
+  }
+
+  _pintarBotonListo(ver) {
+    const b = this.el && this.el.listo;
+    if (!b) return;
+    b.classList.toggle('hidden', !ver);
+    b.textContent = this._listo ? '✔ Ready — tap to cancel' : 'Ready';
+    b.classList.toggle('activo', !!this._listo);
+    b.setAttribute('aria-pressed', this._listo ? 'true' : 'false');
+  }
+
+  _alternarListo() {
+    if (this.estado !== 'buscando' || this.modo !== 'pvp') return;
+    this._listo = !this._listo;
+    this._pintarBotonListo(true);
+    this._emitir('brawl:listo', { listo: this._listo });
   }
 
   estadoBusqueda(titulo, texto) {
@@ -1212,6 +1275,9 @@ class BattleScene extends Phaser.Scene {
     if (this.el && this.el.practicar) this.el.practicar.classList.add('hidden');
     if (this.el && this.el.modo) this.el.modo.textContent = 'Practice';
     if (this.el && this.el.sala) this.el.sala.textContent = '';
+    if (this.el && this.el.lobby) { this.el.lobby.textContent = ''; this.el.lobby.classList.add('hidden'); }
+    this._listo = false;
+    this._pintarBotonListo(false);
     this.estadoBusqueda('Preparing practice…', 'You against 3 bots. No points — just training.');
     this._pedirPartida();
   }
@@ -1231,12 +1297,12 @@ class BattleScene extends Phaser.Scene {
       const seg = Math.ceil((Number(d.empiezaEnMs) || 0) / 1000);
       this._busquedaTerminaEn = Date.now() + (Number(d.empiezaEnMs) || 0);
       this._jugadoresBuscando = n;
-      this.estadoBusqueda('Players found!', 'Searching for more players. Empty places will be filled with bots.');
-      if (this.el.sala) {
-        let puntos = '';
-        for (let i = 0; i < max; i++) puntos += '<i class="' + (i < n ? 'lleno' : '') + '"></i>';
-        this.el.sala.innerHTML = n + ' / ' + max + ' · starting in ' + seg + 's <span class="puntos">' + puntos + '</span>';
-      }
+      this.estadoBusqueda(n > 1 ? 'Players found!' : 'Lobby',
+        'Press Ready when you are set. When everyone here is ready the battle starts at once; empty places are filled with bots.');
+      // (Antes: una fila de puntitos con los ocupados. Ahora la lista con los
+      //  nombres; la cuenta atrás la escribe update() en bzSala.)
+      if (this.el.sala && !this._busquedaTerminaEn) this.el.sala.textContent = n + ' / ' + max + ' · ' + seg + 's';
+      this._pintarSala(d);
     });
     this.on('brawl:fueraCola', () => {});
     this.on('brawl:inicio', (d) => this.montarPartida(d));
@@ -2339,7 +2405,7 @@ class BattleScene extends Phaser.Scene {
     if (this._cleaned) return;
     if (this.estado === 'buscando' && this.modo === 'pvp' && this._busquedaTerminaEn && this.el?.sala) {
       const seconds = Math.max(0, Math.ceil((this._busquedaTerminaEn - Date.now()) / 1000));
-      const text = (this._jugadoresBuscando || 1) + ' / 6 · ' + Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0') + ' · then bots fill empty places';
+      const text = (this._jugadoresBuscando || 1) + ' / 6 · ' + Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0') + ' · or when everyone is Ready';
       if (this.el.sala.textContent !== text) this.el.sala.textContent = text;
     }
     const dt = Math.min(50, Math.max(0, delta || 16)) / 1000;

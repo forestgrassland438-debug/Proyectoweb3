@@ -2,7 +2,7 @@
 <map version="1.10" tiledversion="1.11.0" orientation="orthogonal" renderorder="right-down" width="40" height="28" tilewidth="32" tileheight="32" infinite="0" nextlayerid="10" nextobjectid="73">
  <properties>
   <property name="titulo" value="Home"/>
-  <property name="version" value="20261007"/>
+  <property name="version" value="20261011"/>
   <property name="escala" value="2"/>
  </properties>
  <tileset firstgid="1" name="interiores" tilewidth="64" tileheight="64" tilecount="296" columns="16">
@@ -24,14 +24,14 @@
   <tile id="11"><image source="../../Game/MAPAS/Interiores/muebles/barril_abierto.png" width="54" height="60"/></tile>
   <tile id="12"><image source="../../Game/MAPAS/Interiores/muebles/brasero_1.png" width="50" height="64"/></tile>
   <tile id="13"><image source="../../Game/MAPAS/Interiores/muebles/brasero_2.png" width="50" height="58"/></tile>
-  <tile id="14"><image source="../../Game/MAPAS/Interiores/muebles/cajon.png" width="58" height="48"/></tile>
+  <tile id="14"><image source="../../Game/MAPAS/Interiores/muebles/cajon.png" width="50" height="46"/></tile>
   <tile id="15"><image source="../../Game/MAPAS/Interiores/muebles/caldero.png" width="54" height="50"/></tile>
   <tile id="16"><image source="../../Game/MAPAS/Interiores/muebles/caldero_fuego_1.png" width="74" height="50"/></tile>
   <tile id="17"><image source="../../Game/MAPAS/Interiores/muebles/caldero_fuego_2.png" width="76" height="50"/></tile>
   <tile id="18"><image source="../../Game/MAPAS/Interiores/muebles/cama_azul.png" width="78" height="117"/></tile>
   <tile id="19"><image source="../../Game/MAPAS/Interiores/muebles/cama_roja.png" width="78" height="117"/></tile>
   <tile id="20"><image source="../../Game/MAPAS/Interiores/muebles/cama_verde.png" width="78" height="117"/></tile>
-  <tile id="21"><image source="../../Game/MAPAS/Interiores/muebles/carbon.png" width="46" height="48"/></tile>
+  <tile id="21"><image source="../../Game/MAPAS/Interiores/muebles/carbon.png" width="48" height="42"/></tile>
   <tile id="22"><image source="../../Game/MAPAS/Interiores/muebles/cesta.png" width="40" height="44"/></tile>
   <tile id="23"><image source="../../Game/MAPAS/Interiores/muebles/chimenea.png" width="78" height="104"/></tile>
   <tile id="24"><image source="../../Game/MAPAS/Interiores/muebles/cofre.png" width="34" height="34"/></tile>
@@ -58,7 +58,7 @@
   <tile id="45"><image source="../../Game/MAPAS/Interiores/muebles/mesa_espada.png" width="60" height="48"/></tile>
   <tile id="46"><image source="../../Game/MAPAS/Interiores/muebles/mesa_larga.png" width="65" height="128"/></tile>
   <tile id="47"><image source="../../Game/MAPAS/Interiores/muebles/mesa_vela.png" width="60" height="62"/></tile>
-  <tile id="48"><image source="../../Game/MAPAS/Interiores/muebles/mostrador.png" width="95" height="45"/></tile>
+  <tile id="48"><image source="../../Game/MAPAS/Interiores/muebles/mostrador.png" width="95" height="48"/></tile>
   <tile id="49"><image source="../../Game/MAPAS/Interiores/muebles/nasas.png" width="90" height="64"/></tile>
   <tile id="50"><image source="../../Game/MAPAS/Interiores/muebles/pila_lena.png" width="86" height="52"/></tile>
   <tile id="51"><image source="../../Game/MAPAS/Interiores/muebles/planta_alta.png" width="39" height="82"/></tile>
@@ -123,7 +123,7 @@
   <object id="16" name="aplique" x="820" y="200" gid="302" width="18" height="32"><properties><property name="plano" type="bool" value="true"/><property name="anim" type="string" value="vela"/><property name="fx" type="int" value="9"/><property name="fy" type="int" value="4"/><property name="k" type="float" value="1.25"/></properties></object>
   <object id="17" name="alfombra_pasillo" x="614" y="830" gid="299" width="52" height="338"><properties><property name="plano" type="bool" value="true"/></properties></object>
   <object id="18" name="expositor_verdura" x="880" y="318" gid="336" width="59" height="76"><properties><property name="pie" type="int" value="22"/></properties></object>
-  <object id="19" name="cajon" x="950" y="306" gid="311" width="58" height="48"/>
+  <object id="19" name="cajon" x="950" y="306" gid="311" width="50" height="46"/>
   <object id="20" name="barril" x="1020" y="310" gid="307" width="54" height="60"/>
   <object id="21" name="barril_abierto" x="1080" y="310" gid="308" width="54" height="60"/>
   <object id="22" name="cesta" x="1150" y="300" gid="319" width="40" height="44"/>
@@ -157,7 +157,7 @@
   <object id="48" name="" x="534" y="420" width="18" height="20"/>
   <object id="49" name="" x="728" y="420" width="18" height="20"/>
   <object id="50" name="" x="886" y="296" width="47" height="22"/>
-  <object id="51" name="" x="956" y="286" width="46" height="20"/>
+  <object id="51" name="" x="956" y="286" width="38" height="20"/>
   <object id="52" name="" x="1026" y="290" width="42" height="20"/>
   <object id="53" name="" x="1086" y="290" width="42" height="20"/>
   <object id="54" name="" x="1156" y="280" width="28" height="20"/>

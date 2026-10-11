@@ -2234,7 +2234,9 @@ class LoadingScenegame extends Phaser.Scene {
             3: 'MinaScene',
             4: 'LandsScene',
             // Dentro de una casa del pueblo (gf-casas.js, 2026-10-05).
-            5: 'InteriorScene'
+            5: 'InteriorScene',
+            // El mapa salvaje del oeste (2026-10-11).
+            6: 'SalvajeScene'
         };
 
         let nextScene = ESCENA_DE_MUNDO[this.mundo];
@@ -2293,7 +2295,8 @@ class LoadingScenegame extends Phaser.Scene {
            les pasa la de esta pantalla, que acaba de comprobarse arriba. Sin
            esto se autenticarian de cero y saldria el cartel de SESSION
            EXPIRED, que es justo el fallo que ya costo una vuelta. */
-        if (nextScene === 'MinaScene' || nextScene === 'LandsScene' || nextScene === 'InteriorScene') {
+        if (nextScene === 'MinaScene' || nextScene === 'LandsScene' || nextScene === 'InteriorScene' ||
+            nextScene === 'SalvajeScene') {
             this.scene.start(nextScene, {
                 sesion: {
                     playerName:      this.playerName,

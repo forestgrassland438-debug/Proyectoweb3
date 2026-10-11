@@ -6993,7 +6993,7 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
 
   try {
     // Inicializar relayClient si hace falta
-    if (!this.relayClient) {
+    if (!this.relayClient || this.relayClient._destroyed) {
       this.relayClient = new PhaserRelay({
         apiBase: this.serverBase,
         debug: true,
@@ -7014,7 +7014,7 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
     // Auth
     const auth = await this.relayClient.checkAuth();
     if (!auth || !auth.success) {
-      this.relayClient.showError('❌ Debes estar autenticado. Por favor, inicia sesión de nuevo.', 5000);
+      this.relayClient.showError(this.relayClient.authErrorMessage(auth), 5000);
       return;
     }
     console.log('🔑 Usuario autenticado:', auth.address);
@@ -7621,7 +7621,7 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
 
   try {
     // Inicializar relayClient si hace falta
-    if (!this.relayClient) {
+    if (!this.relayClient || this.relayClient._destroyed) {
       this.relayClient = new PhaserRelay({
         apiBase: this.serverBase,
         debug: true,
@@ -7637,7 +7637,7 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
     // Auth
     const auth = await this.relayClient.checkAuth();
     if (!auth || !auth.success) {
-      this.relayClient.showError('❌ Debes estar autenticado. Por favor, inicia sesión de nuevo.', 5000);
+      this.relayClient.showError(this.relayClient.authErrorMessage(auth), 5000);
       return false;
     }
     console.log('🔑 Usuario autenticado:', auth.address);
@@ -8635,7 +8635,7 @@ async mergeItemsBlockchain(origin, destType, destIndex) {
   // ───────────────────────────────────────────────────────────────────────────
 
   // Inicializar relayClient si es necesario
-  if (!this.relayClient) {
+  if (!this.relayClient || this.relayClient._destroyed) {
     this.relayClient = new PhaserRelay({
       apiBase: this.serverBase,
       debug: true,
