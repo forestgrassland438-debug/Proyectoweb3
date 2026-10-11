@@ -195,9 +195,8 @@
         || null;
 
       if (!apiBase) {
-        // Auto-detectar: si estamos en HTTPS, usar HTTPS; si en HTTP, HTTP
-        const isSecure = typeof location !== 'undefined' && location.protocol === 'https:';
-        apiBase = isSecure ? 'https://127.0.0.1:8080' : 'http://127.0.0.1:8080';
+        const localPage = typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+        apiBase = localPage ? 'http://127.0.0.1:8080' : 'https://api.grasslandforest.com';
       }
 
       const base = new URL(apiBase, typeof location !== 'undefined' ? location.href : undefined);
@@ -317,7 +316,12 @@
 
     // ── INICIALIZACIÓN Y AUTENTICACIÓN ────────────────────────────────────
 
-    async initialize() {
+    initialize() {
+      if (!this._initializePromise) this._initializePromise = this._initialize();
+      return this._initializePromise;
+    }
+
+    async _initialize() {
       this.csrfToken = this._getCookie('csrf-token') || null;
       this.authToken = this._getCookie('session')    || null;
 
@@ -373,10 +377,22 @@
       }
     }
 
-    async checkAuth() {
+    checkAuth() {
+      if (!this._authPromise) {
+        this._authPromise = this._checkAuth().finally(() => { this._authPromise = null; });
+      }
+      return this._authPromise;
+    }
+
+    authErrorMessage(result) {
+      if (result && result.requiresReauth) return 'Tu sesión caducó. Inicia sesión otra vez para comprar.';
+      return 'No se pudo comprobar tu sesión. Reintenta cuando la conexión esté disponible.';
+    }
+
+    async _checkAuth() {
       try {
         const resp = await this._apiRequest('/api/auth/me', 'GET');
-        if (!this._destroyed && resp && resp.authenticated) {
+        if (!this._destroyed && resp && resp.authenticated && _isValidAddress(resp.address)) {
           this.auth = {
             authenticated: true,
             address:    resp.address,
@@ -389,10 +405,10 @@
           return { success: true, ...this.auth };
         }
         this.auth = { authenticated: false, address: null, playerName: null };
-        return { success: false, error: (resp && resp.error) || 'Not authenticated' };
+        return { success: false, requiresReauth: resp && resp.authenticated === false, error: (resp && resp.error) || 'Invalid authentication response' };
       } catch (e) {
         this.auth = { authenticated: false, address: null, playerName: null };
-        return { success: false, error: e.message || String(e) };
+        return { success: false, status: e.status, requiresReauth: e.status === 401, error: e.message || String(e) };
       }
     }
 
@@ -475,7 +491,7 @@
         headers,
         credentials: 'include',
         mode:        'cors',
-        cache:       'no-cache'
+        cache:       'no-store'
       };
 
       if (body !== null && method !== 'GET' && method !== 'HEAD') {
@@ -518,7 +534,9 @@
 
         if (!response.ok) {
           const msg = (parsed && (parsed.error || parsed.message)) || `HTTP ${response.status}: ${response.statusText}`;
-          throw new Error(msg);
+          const error = new Error(msg);
+          error.status = response.status;
+          throw error;
         }
 
         this.lastActivityTime = Date.now();
@@ -532,19 +550,11 @@
     // ── REFRESH Y CSRF ────────────────────────────────────────────────────
 
     async _refreshToken() {
-      if (this._refreshInProgress) return false;
       this._refreshInProgress = true;
 
       try {
-        const response = await this._fetch(
-          `${this.config.apiBase}/api/auth/refresh`,
-          {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
-          },
-          this.config.timeout
-        );
+        const response = await PhaserRelay.refreshSession(this.config.apiBase, this.config.timeout);
+        if (this._destroyed) return false;
 
         if (response.ok) {
           const data = await response.json().catch(() => ({}));
@@ -565,6 +575,27 @@
         this._refreshInProgress = false;
         return false;
       }
+    }
+
+    // Todos los relays y mapas comparten la renovación de la misma cookie.
+    // El servidor rota el refresh token: dos renovaciones simultáneas pueden
+    // invalidar entre sí la sesión que acaba de recibirse.
+    static refreshSession(apiBase, timeout = 15000) {
+      const base = new URL(apiBase);
+      if (base.username || base.password || base.search || base.hash ||
+          (base.protocol !== 'https:' && !(base.protocol === 'http:' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(base.hostname)))) {
+        return Promise.reject(new Error('Invalid session API URL'));
+      }
+      const key = base.href.replace(/\/$/, '');
+      const pending = PhaserRelay._sessionRefreshes || (PhaserRelay._sessionRefreshes = new Map());
+      if (!pending.has(key)) {
+        const request = _fetchWithTimeout(key + '/api/auth/refresh', {
+          method: 'POST', credentials: 'include', cache: 'no-store',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
+        }, Math.min(timeout, 30000)).finally(() => pending.delete(key));
+        pending.set(key, request);
+      }
+      return pending.get(key);
     }
 
     async _getCSRFToken() {

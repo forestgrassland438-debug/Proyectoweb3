@@ -3140,7 +3140,7 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
 
   try {
     // Inicializar relayClient si hace falta
-    if (!this.relayClient) {
+    if (!this.relayClient || this.relayClient._destroyed) {
       this.relayClient = new PhaserRelay({
         // FIX "Debes estar autenticado": antes apiBase estaba fijo en
         // http://127.0.0.1:3001. En producción (game.grasslandforest.com) eso
@@ -3154,19 +3154,10 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
       await this.relayClient.initialize();
     }
 
-    // debugBackendConnection puede intentar /ping; capturamos errores pero seguimos
-    try {
-      const debugInfo = await this.relayClient.debugBackendConnection();
-      console.log('🔍 Debug info:', debugInfo);
-    } catch (dbgErr) {
-      // ignora 404 /ping u otros inconvenientes de debug, solo registra
-      console.warn('debugBackendConnection fallo (ignorable):', dbgErr && dbgErr.message ? dbgErr.message : dbgErr);
-    }
-
     // Auth
     const auth = await this.relayClient.checkAuth();
     if (!auth || !auth.success) {
-      this.relayClient.showError('❌ Debes estar autenticado. Vuelve al juego e inicia sesión.', 5000);
+      this.relayClient.showError(this.relayClient.authErrorMessage(auth), 5000);
       return;
     }
     console.log('🔑 Usuario autenticado:', auth.address);
@@ -3983,7 +3974,7 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
 
   try {
     // Inicializar relayClient si hace falta
-    if (!this.relayClient) {
+    if (!this.relayClient || this.relayClient._destroyed) {
       this.relayClient = new PhaserRelay({
         // FIX "Debes estar autenticado": ver nota en Additemblockchains.
         apiBase: this._resolveApiBase(),
@@ -3994,13 +3985,11 @@ async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
     }
 
     // Debug backend
-    const debugInfo = await this.relayClient.debugBackendConnection();
-    console.log('🔍 Debug info:', debugInfo);
 
     // Auth
     const auth = await this.relayClient.checkAuth();
     if (!auth || !auth.success) {
-      this.relayClient.showError('❌ Debes estar autenticado. Vuelve al juego e inicia sesión.', 5000);
+      this.relayClient.showError(this.relayClient.authErrorMessage(auth), 5000);
       this._ultimoMotivoFallo = 'no hay sesión iniciada';
       return this._recuentoVacio(cantidad, this._ultimoMotivoFallo);
     }

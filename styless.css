@@ -13822,3 +13822,19 @@ html.gf-teclado-abierto #chat-panel {
 .gf-espada-opcion.sin { opacity: .45; cursor: not-allowed; filter: grayscale(.7); }
 .gf-espada-opcion.sin small { color: #c9b8a0; }
 .gf-espada-opcion.activa small { color: #8cff9a; }
+
+/* ── La sala de espera del PvP (2026-10-10): quién está y quién está listo ── */
+.bz-lobby { list-style: none; margin: 12px auto 4px; padding: 0; max-width: 360px; display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.bz-lobby.hidden { display: none; }
+.bz-lobby-fila { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "nombre estado" "mascota estado"; gap: 0 10px; align-items: center;
+  padding: 7px 12px; border-radius: 10px; background: rgba(10, 18, 34, .72); border: 1px solid rgba(255, 255, 255, .14); }
+.bz-lobby-fila.yo { border-color: rgba(255, 210, 74, .55); }
+.bz-lobby-fila.listo { background: rgba(28, 74, 40, .78); border-color: rgba(130, 230, 140, .55); }
+.bz-lobby-fila.bots { display: block; text-align: center; font-size: 12px; color: #c8d3e6; background: rgba(10, 18, 34, .45); border-style: dashed; }
+.bz-lobby-nombre { grid-area: nombre; font-weight: 800; font-size: 14px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bz-lobby-mascota { grid-area: mascota; font-size: 12px; color: #c8d3e6; }
+.bz-lobby-estado { grid-area: estado; font-weight: 800; font-size: 12px; color: #ffcf7a; }
+.bz-lobby-fila.listo .bz-lobby-estado { color: #9dff9f; }
+.bz-btn-listo { background: linear-gradient(180deg, #4fd36a, #279a3e); color: #062a10; border-color: rgba(190, 255, 190, .55); }
+.bz-btn-listo.activo { background: linear-gradient(180deg, #2b6b3a, #1d4d29); color: #c9ffd0; }
+.bz-btn-listo.hidden { display: none; }
