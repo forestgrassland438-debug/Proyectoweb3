@@ -18,7 +18,54 @@ class TiendaSistema {
     // Antes this.STATE era undefined porque nunca se asignó en el constructor,
     // causando "Cannot read properties of undefined (reading 'quickSlots')"
     get STATE() {
-        return this.scene?.STATE;
+        return this._escena()?.STATE;
+    }
+
+    /* LA ESCENA DE CADA TRABAJO (2026-10-09). "Compro en la tienda, salgo y
+       sale «Error crítico: Cannot read properties of undefined (reading
+       'quickSlots')», y en el mapa no tengo los objetos."
+
+       Las compras y ventas van a una cola y se hacen en segundo plano. Si el
+       jugador salía de la tienda con una en cola, al apagarse la escena se
+       borraba `this.scene` (tiendajuego lo ponía a null a mano, saltándose
+       `soltarEscena`), y la compra que tocaba después arrancaba sin
+       inventario: reventaba en `simulateAddItem` ANTES de crear el objeto en
+       la cadena. El objeto no llegaba nunca y el reembolso tampoco salía a la
+       cadena (la sincronización de las monedas también colgaba de la escena).
+
+       Ahora cada trabajo se queda con la escena (y su inventario) del momento
+       en que se encoló, haya pasado lo que haya pasado con la tienda. Con la
+       escena ya apagada se sigue haciendo lo IMPORTANTE (la transacción, el
+       cobro, el reembolso), pero no se pintan casillas ni se guarda desde ella:
+       la pantalla de carga espera a la cola (tx-gate.js) y después recoge el
+       objeto de la cadena, que es la que manda. */
+    _escena() {
+        return this._escenaTrabajo || this.scene || null;
+    }
+
+    /** ¿La escena del trabajo sigue en pantalla? (si no, nada de DOM ni guardados) */
+    _escenaViva() {
+        const e = this._escena();
+        try { return !!(e && e.STATE && e.sys && typeof e.sys.isActive === 'function' && e.sys.isActive()); }
+        catch (_) { return false; }
+    }
+
+    /* Un StatsSync que no depende de ninguna escena: lo usa el cobro o el
+       reembolso de un trabajo cuya tienda ya se cerró. StatsSync escribe en
+       window.playerStats y en el servidor, nada de la escena es necesario. */
+    _statsSyncDeRespaldo() {
+        if (TiendaSistema._statsRespaldo) return TiendaSistema._statsRespaldo;
+        if (typeof window.StatsSync !== 'function') return null;
+        try {
+            TiendaSistema._statsRespaldo = new window.StatsSync({ serverBase: this._resolveApiBase(), csrfToken: '' });
+            TiendaSistema._statsRespaldo.scene = null;
+        } catch (e) { return null; }
+        return TiendaSistema._statsRespaldo;
+    }
+
+    _statsSync() {
+        const e = this._escena();
+        return (e && e.statsSync) || this._statsSyncDeRespaldo();
     }
 
     /* EL CATALOGO DE OBJETOS ES EL DE LA ESCENA, NO UNA TERCERA COPIA.
@@ -35,14 +82,14 @@ class TiendaSistema {
        Ahora se lee la de la escena, que es la que usa el juego entero, con la
        copia local solo de respaldo. Una verdad, no tres. */
     get ItemDefinitions() {
-        return this.scene?.ItemDefinitions || this._ItemDefinitionsRespaldo;
+        return this._escena()?.ItemDefinitions || this._ItemDefinitionsRespaldo;
     }
 
     // FIX: getter playerName para que _owner en createInvoice no sea null.
     // TiendaSistema nunca asignaba this.playerName, así que el contrato recibía
     // args=["hacha de madera","1","manualId"] (3 args) en vez de 4 → "no matching fragment"
     get playerName() {
-        return this.scene?.playerName ?? null;
+        return this._escena()?.playerName ?? null;
     }
 
     // FIX: delegadores a la escena activa.
@@ -60,10 +107,14 @@ class TiendaSistema {
        `queuedAction` y `rebuildPlayerInventoryFromState`, que van justo
        debajo, SI son delegadoras vivas: esas no estan duplicadas. */
     queuedAction(payload) {
-        if (typeof this.scene?.queuedAction === 'function') return this.scene.queuedAction(payload);
+        if (!this._escenaViva()) return;
+        const e = this._escena();
+        if (typeof e?.queuedAction === 'function') return e.queuedAction(payload);
     }
     rebuildPlayerInventoryFromState() {
-        if (typeof this.scene?.rebuildPlayerInventoryFromState === 'function') return this.scene.rebuildPlayerInventoryFromState();
+        if (!this._escenaViva()) return;
+        const e = this._escena();
+        if (typeof e?.rebuildPlayerInventoryFromState === 'function') return e.rebuildPlayerInventoryFromState();
     }
 
     /* GUARDAR EN EL SERVIDOR. FALTABA, Y POR ESO LO VENDIDO VOLVIA.
@@ -82,7 +133,16 @@ class TiendaSistema {
        no lo es, asi que no salia ni un aviso en consola. Ahora se delega, y si
        algun dia tampoco existe en la escena se dice a gritos. */
     async savegg() {
-        if (typeof this.scene?.savegg === 'function') return this.scene.savegg();
+        /* Con la tienda ya cerrada NO se guarda desde ella: su guardado lleva
+           la posición y el mundo de la tienda, y pisaría lo que ya guardó el
+           mapa (se aparecería dentro de la tienda, o en lo oscuro). Lo que
+           cambió lo recoge la carga desde la cadena. */
+        if (!this._escenaViva()) {
+            console.log('🛒 Tienda cerrada: el guardado lo hará la carga del mapa (la cadena manda).');
+            return true;
+        }
+        const e = this._escena();
+        if (typeof e?.savegg === 'function') return e.savegg();
         console.error('❌ savegg no existe ni en TiendaSistema ni en la escena: ' +
                       'lo que acabas de hacer NO se ha guardado en el servidor.');
         return false;
@@ -117,7 +177,8 @@ class TiendaSistema {
         // si no existe, decide por el hostname actual. NUNCA hardcodea :3001,
         // que era la causa del error "Debes estar autenticado" al comprar.
         this._resolveApiBase = () => {
-            const fromScene = this.scene && (this.scene.serverBase || this.scene.serverclient1);
+            const esc = (this._escenaTrabajo || this.scene);
+            const fromScene = esc && (esc.serverBase || esc.serverclient1);
             if (fromScene) return String(fromScene).replace(/\/api\/?$/, '');
             const h = location.hostname;
             return (h === 'localhost' || h === '127.0.0.1')
@@ -136,9 +197,10 @@ class TiendaSistema {
             const normalized = Math.max(0, Math.floor(Number(value) || 0));
             if (currency === 'silver') {
                 this.playerMonedaPlata = normalized;
-                if (this.scene) this.scene.moneda_plata = normalized;
-                if (this.scene) this.scene.monedaPlata = normalized;
-                if (this.scene) this.scene.playerMonedaPlata = normalized;
+                const escP = this._escena();
+                if (escP) escP.moneda_plata = normalized;
+                if (escP) escP.monedaPlata = normalized;
+                if (escP) escP.playerMonedaPlata = normalized;
                 // FIX DESCUENTO REAL: window.playerStats es la fuente canónica
                 // (savegg y /api/save la priorizan sobre this.moneda). Sin esta
                 // línea, el descuento local se PERDÍA en el siguiente guardado.
@@ -150,19 +212,22 @@ class TiendaSistema {
                 // después de comprar, el cobro se quedaba en la cola y no
                 // llegaba nunca a la cadena — parecía que la compra fuera solo
                 // del backend.
-                if (this.scene && this.scene.statsSync) this.scene.statsSync.set('plata', normalized, true);
+                const ssP = this._statsSync();
+                if (ssP) ssP.set('plata', normalized, true);
             } else {
                 this.playerMoneda = normalized;
-                if (this.scene) this.scene.moneda = normalized;
-                if (this.scene) this.scene.monto_moneda = normalized;
-                if (this.scene) this.scene.playerMoneda = normalized;
+                const escO = this._escena();
+                if (escO) escO.moneda = normalized;
+                if (escO) escO.monto_moneda = normalized;
+                if (escO) escO.playerMoneda = normalized;
                 // FIX DESCUENTO REAL (ver nota arriba): sin actualizar
                 // window.playerStats.oro, /api/save restauraba el oro viejo.
                 if (window.playerStats) window.playerStats.oro = normalized;
                 // Transacción blockchain real del oro (factura on-chain).
                 // immediate=true por el mismo motivo que la plata: sin esto el
                 // cobro esperaba 1,5 s y se perdía si el jugador salía antes.
-                if (this.scene && this.scene.statsSync) this.scene.statsSync.set('oro', normalized, true);
+                const ssO = this._statsSync();
+                if (ssO) ssO.set('oro', normalized, true);
             }
         };
         this.formatCurrencyAmount = (amount, currency) => {
@@ -228,6 +293,11 @@ class TiendaSistema {
           pes1: { src: "./Game/Objetos/pesca/pes1.png", maxStack: 20, tipo: "pes1", usos: null },
           pes2: { src: "./Game/Objetos/pesca/pes2.png", maxStack: 20, tipo: "pes2", usos: null },
           pes3: { src: "./Game/Objetos/pesca/pes3.png", maxStack: 20, tipo: "pes3", usos: null },
+          pes4: { src: "./Game/Objetos/pesca/pes4.png", maxStack: 20, tipo: "pes4", usos: null },
+          pes5: { src: "./Game/Objetos/pesca/pes5.png", maxStack: 20, tipo: "pes5", usos: null },
+          pes6: { src: "./Game/Objetos/pesca/pes6.png", maxStack: 20, tipo: "pes6", usos: null },
+          pes7: { src: "./Game/Objetos/pesca/pes7.png", maxStack: 20, tipo: "pes7", usos: null, veneno: true },
+          pes8: { src: "./Game/Objetos/pesca/pes8.png", maxStack: 20, tipo: "pes8", usos: null, veneno: true },
 
           palo: { src: "./Game/Source/palo.png", maxStack: 20 , tipo: "palo", usos: null},
           tablon_de_madera: { src: "./Game/Source/madera.png", maxStack: 20 , tipo: "tablon_de_madera", usos: null},
@@ -559,6 +629,73 @@ class TiendaSistema {
                     comision: 2,
                     limiteDiario: 0,
                     descripcion: 'A rare golden trout. Few anglers ever see one. Restores 18% food.'
+                },
+                /* CINCO PECES MÁS (2026-10-10): tres buenos y dos venenosos.
+                 * Los venenosos no se comen; se pagan mejor por el riesgo. */
+                {
+                    id: 'pes4',
+                    name: 'River Perch',
+                    image: './Game/Objetos/pesca/pes4.png',
+                    buyPrice: 0,
+                    sellPrice: 10,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'A striped river perch. The easiest fish to land. Restores 7% food.'
+                },
+                {
+                    id: 'pes5',
+                    name: 'Bream',
+                    image: './Game/Objetos/pesca/pes5.png',
+                    buyPrice: 0,
+                    sellPrice: 16,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'A broad, calm bream. Easy to catch. Restores 9% food.'
+                },
+                {
+                    id: 'pes6',
+                    name: 'Sturgeon',
+                    image: './Game/Objetos/pesca/pes6.png',
+                    buyPrice: 0,
+                    sellPrice: 95,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'An ancient river giant. The hardest fight in the river. Restores 25% food.'
+                },
+                {
+                    id: 'pes7',
+                    name: 'Poison Eel',
+                    image: './Game/Objetos/pesca/pes7.png',
+                    buyPrice: 0,
+                    sellPrice: 40,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'Poisonous! It stings when you unhook it and drains 12% life over a few seconds. Not edible.'
+                },
+                {
+                    id: 'pes8',
+                    name: 'Lionfish',
+                    image: './Game/Objetos/pesca/pes8.png',
+                    buyPrice: 0,
+                    sellPrice: 75,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'Poisonous spines! Its sting drains 20% life over half a minute. Hard to catch, not edible.'
                 }
             ],
 
@@ -2228,18 +2365,19 @@ class TiendaSistema {
     
     // Obtener cantidad de un item en el inventario
     getItemCountInInventory(itemId) {
-        if (!this.scene || !this.scene.STATE) return 0;
+        const ST = this.STATE;   // el inventario del trabajo en curso (ver _escena)
+        if (!ST) return 0;
         
         let count = 0;
         
         try {
-            (this.scene.STATE.slots || []).forEach(slot => {
+            (ST.slots || []).forEach(slot => {
                 if (slot && slot.id === itemId) {
                     count += slot.count || 1;
                 }
             });
             
-            (this.scene.STATE.quickSlots || []).forEach(slot => {
+            (ST.quickSlots || []).forEach(slot => {
                 if (slot && slot.id === itemId) {
                     count += slot.count || 1;
                 }
@@ -2558,11 +2696,18 @@ class TiendaSistema {
             : null;
 
         this._trabajosEnCola = (this._trabajosEnCola || 0) + 1;
+        // La escena del momento de encolar (ver _escena).
+        const escenaDelTrabajo = this.scene;
 
         if (!this._colaTienda) this._colaTienda = Promise.resolve();
         this._colaTienda = this._colaTienda
             .catch(() => {})                 // un fallo anterior no para la cola
-            .then(() => trabajo())
+            .then(() => {
+                this._escenaTrabajo = escenaDelTrabajo || this._escenaTrabajo || null;
+                return Promise.resolve()
+                    .then(() => trabajo())
+                    .finally(() => { this._escenaTrabajo = null; });
+            })
             .catch(err => console.error(`❌ Error en la cola de la tienda (${etiqueta}):`, err))
             .then(() => {
                 this._trabajosEnCola = Math.max(0, (this._trabajosEnCola || 1) - 1);
@@ -4538,8 +4683,9 @@ addItemWithCheck(itemId, quantity = 1, customIdx = null, customIdm = null) {
   }
 
   // FIX: delegar a la escena activa — TiendaSistema no tiene estos métodos propios
-  if (typeof this.scene?.queuedAction === 'function') this.scene.queuedAction({ type: 'forSpam2' });
-  if (typeof this.scene?.rebuildPlayerInventoryFromState === 'function') this.scene.rebuildPlayerInventoryFromState();
+  // (los delegadores ya no hacen nada si la tienda se cerró: ver _escenaViva).
+  this.queuedAction({ type: 'forSpam2' });
+  this.rebuildPlayerInventoryFromState();
   return true;
 }
 
@@ -4579,6 +4725,10 @@ getOccupiedSlots() {
 
 
 renderSlot(index) {
+  // Las casillas del DOM son de la página, no de la tienda: con la tienda ya
+  // cerrada son las del MAPA, y no se pintan con el inventario de una escena
+  // que ya no está (ver _escena).
+  if (!this._escenaViva()) return;
   // Helper: añade barra de durabilidad si el item es una herramienta con usos definidos
   const _addUsosIndicator = (container, itemObj) => {
     const def = this.ItemDefinitions[itemObj?.id];
@@ -4970,7 +5120,8 @@ renderSlot(index) {
         this.updateMobileHistorialDisplay?.();
         this._refrescarDisponibles();
 
-        try { this.scene?.queuedAction && this.scene.queuedAction({ type: 'forSpam2' }); } catch (err) { /* ignorar */ }
+        // Por el delegador: con la tienda ya cerrada no hace nada (ver _escenaViva).
+        try { this.queuedAction({ type: 'forSpam2' }); } catch (err) { /* ignorar */ }
         console.log(`✅ Sale recorded: ${vendidas}x ${item.name} for ${finalPrice} ${this.getCurrencyLabel(currency)} (fee: ${commission} ${this.getCurrencyLabel(currency)})`);
     }
     

@@ -117,6 +117,18 @@
     }
   }
 
+  // Clave para que el servidor reconozca una transacción repetida (ver
+  // sendTransaction). 24 caracteres hexadecimales al azar.
+  function _idemNuevo() {
+    try {
+      const arr = new Uint32Array(3);
+      crypto.getRandomValues(arr);
+      return Array.from(arr, n => n.toString(16).padStart(8, '0')).join('');
+    } catch (e) {
+      return Date.now().toString(16) + Math.random().toString(16).slice(2, 14);
+    }
+  }
+
   // Valida que una dirección Ethereum tenga formato correcto (0x + 40 hex).
   // No verifica EIP-55 checksum — eso lo hace el backend — pero sí el
   // formato para evitar parámetros malformados o inyecciones.
@@ -439,7 +451,7 @@
 
     // ── PETICIÓN HTTP CON TIMEOUT, CSRF Y REINTENTOS ──────────────────────
 
-    async _apiRequest(path, method = 'GET', body = null, retryCount = 0) {
+    async _apiRequest(path, method = 'GET', body = null, retryCount = 0, timeoutMs = 0) {
       if (this._destroyed) throw new Error('PhaserRelay has been cleaned up');
       const url = `${this.config.apiBase}${path}`;
 
@@ -472,7 +484,7 @@
 
       try {
         // FIX #4: Todas las peticiones tienen timeout via AbortController
-        const response = await this._fetch(url, opts, this.config.timeout);
+        const response = await this._fetch(url, opts, timeoutMs > 0 ? timeoutMs : this.config.timeout);
         const text     = await response.text();
 
         let parsed;
@@ -488,7 +500,7 @@
           const ok = await this._refreshToken();
           if (ok) {
             await new Promise(r => setTimeout(r, this.config.retryDelay * (retryCount + 1)));
-            return this._apiRequest(path, method, body, retryCount + 1);
+            return this._apiRequest(path, method, body, retryCount + 1, timeoutMs);
           }
         }
 
@@ -499,7 +511,7 @@
             const ok = await this._getCSRFToken();
             if (ok) {
               await new Promise(r => setTimeout(r, this.config.retryDelay * (retryCount + 1)));
-              return this._apiRequest(path, method, body, retryCount + 1);
+              return this._apiRequest(path, method, body, retryCount + 1, timeoutMs);
             }
           }
         }
@@ -835,10 +847,35 @@
       Object.keys(paramsObj).filter(k => /^\d+$/.test(k)).forEach(k => { cleaned[k] = paramsObj[k]; });
       paramsObj = cleaned;
 
-      const body = { contractAddress, functionName, parameters: paramsObj, metadata, priority: 'normal' };
+      /* LA MISMA TRANSACCIÓN NO SE MANDA DOS VECES (2026-10-10).
+         Si la petición se queda sin respuesta (se agotan los 30 s, se corta la
+         red), NO se sabe si llegó: el servidor puede haberla firmado ya. Antes
+         se devolvía un fallo y quien llamaba la REENVIABA: objeto duplicado o
+         cobro doble. Ahora se repite aquí, con la MISMA clave `idem`, y el
+         servidor (server2.js, /api/relay/transaction) devuelve lo que ya hizo
+         en vez de hacerla otra vez. Quien llama puede pasar su propia clave en
+         `metadata.idem` para que valga también entre sus reintentos. */
+      const idem = (metadata && typeof metadata.idem === 'string' && /^[A-Za-z0-9_-]{8,80}$/.test(metadata.idem))
+        ? metadata.idem : _idemNuevo();
+      const body = { contractAddress, functionName, parameters: paramsObj, metadata, priority: 'normal', idem };
 
       try {
-        const resp = await this._apiRequest('/api/relay/transaction', 'POST', body);
+        let resp = null;
+        for (let intento = 0; ; intento++) {
+          try {
+            // Más margen que una lectura: con muchas transacciones a la vez el
+            // servidor puede tardar en firmar (la cola del nonce es una).
+            resp = await this._apiRequest('/api/relay/transaction', 'POST', body, 0,
+                                          Math.max(this.config.timeout, 75000));
+            break;
+          } catch (e) {
+            const ambiguo = !!e && (e.code === 'REQUEST_TIMEOUT' || e.name === 'TypeError' ||
+                                    /failed to fetch|networkerror|network error|load failed/i.test(String(e.message || '')));
+            if (!ambiguo || intento >= 2 || this._destroyed) throw e;
+            if (this.config.debug) console.warn('[PhaserRelay] Sin respuesta al enviar; se repite con la misma clave:', e.message);
+            await new Promise(r => setTimeout(r, 1500 * (intento + 1)));
+          }
+        }
         if (!resp || !resp.success) {
           return { success: false, error: (resp && (resp.error || resp.message)) || 'relay transaction failed', details: resp };
         }
@@ -861,6 +898,8 @@
           txHash:        resp.txHash,
           estimatedCost: resp.estimatedCost,
           explorerUrl:   resp.explorerUrl,
+          // Encolada en el servidor para reintento: el id sirve igual para esperarla.
+          queued:        !!resp.queued,
           message:       resp.message || 'Transaction sent successfully'
         };
       } catch (e) {
@@ -907,6 +946,13 @@
       const TERMINAL = new Set(['confirmed', 'failed', 'reverted']);
       const startTime = Date.now();
       let attempts    = 0;
+
+      // Sin id no hay nada que esperar: antes se sondeaba
+      // /api/relay/transaction/undefined hasta agotar el tiempo (un servidor
+      // viejo contestaba así a lo que mandaba a su cola).
+      if (transactionId === undefined || transactionId === null || transactionId === '') {
+        throw new Error('waitForTransaction: no transactionId to wait for');
+      }
 
       while (true) {
         // Tras cleanup() no hay nada que esperar: antes se seguía sondeando
