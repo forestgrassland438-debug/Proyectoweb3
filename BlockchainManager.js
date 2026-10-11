@@ -26,14 +26,51 @@
 class BlockchainManager {
     constructor(scene) {
         this.scene = scene;
+        this._destroyed = false;
+        this._requests = new Set();
+        this._authRevision = 0;
         this.currentNetwork = 'litvm';
         this.contracts = new Map();
         this.currentAccount = null;
         this.userNonce = null;
         this.isAuthenticated = false;
         this.playerName = null;
+        const events = scene?.events;
+        if (events?.once) {
+            this._sceneExit = () => this.destroy();
+            events.once('shutdown', this._sceneExit); events.once('destroy', this._sceneExit);
+        }
         
         console.log('🔄 BlockchainManager inicializado');
+    }
+
+    async _request(url, options = {}, format = 'json', timeoutMs = 15000) {
+        if (this._destroyed) throw new Error('BlockchainManager cerrado');
+        const controller = new AbortController();
+        this._requests.add(controller);
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const response = await fetch(url, { ...options, signal: controller.signal });
+            const data = await response[format]();
+            if (this._destroyed || controller.signal.aborted) throw new Error('Solicitud cancelada');
+            return { response, data };
+        } finally {
+            clearTimeout(timer); this._requests.delete(controller);
+        }
+    }
+
+    destroy() {
+        if (this._destroyed) return;
+        this._destroyed = true;
+        this._authRevision++;
+        for (const request of this._requests) request.abort();
+        this._requests.clear();
+        this.scene?.events?.off('shutdown', this._sceneExit);
+        this.scene?.events?.off('destroy', this._sceneExit);
+        this._sceneExit = null;
+        this.contracts.clear(); this.scene = null;
+        this.currentAccount = this.userNonce = this.playerName = null;
+        this.isAuthenticated = false;
     }
 
     // ==================== CONFIGURACIÓN AUTOMÁTICA ====================
@@ -44,10 +81,9 @@ class BlockchainManager {
     async autoConfig() {
         try {
             const baseUrl = this._baseUrl();
-            const response = await fetch(`${baseUrl}/api/config`);
+            const { response, data: config } = await this._request(`${baseUrl}/api/config`);
             
             if (response.ok) {
-                const config = await response.json();
                 
                 // Configurar contrato principal automáticamente
                 this.registerContract('SimpleMessageLogger', {
@@ -66,6 +102,7 @@ class BlockchainManager {
                 return true;
             }
         } catch (error) {
+            if (this._destroyed) return false;
             console.warn('⚠️ No se pudo cargar configuración automática:', error);
             
             // Configuración por defecto
@@ -171,6 +208,8 @@ class BlockchainManager {
      * Configurar usuario de forma simplificada
      */
     setUser(authData) {
+        if (this._destroyed) return this;
+        this._authRevision++;
         this.currentAccount = authData.address;
         this.userNonce = authData.nonce;
         this.playerName = authData.playerName;
@@ -184,6 +223,7 @@ class BlockchainManager {
      * Actualizar nonce automáticamente
      */
     updateNonce(newNonce) {
+        if (this._destroyed) return this;
         this.userNonce = newNonce;
         return this;
     }
@@ -241,6 +281,8 @@ class BlockchainManager {
     // ==================== GESTIÓN DE TRANSACCIONES ====================
 
     async sendTransaction(payload, contract) {
+        if (this._destroyed) throw new Error('BlockchainManager cerrado');
+        const revision = this._authRevision;
         const tokens = JSON.parse(sessionStorage.getItem('authTokens') || '{}');
         const accessToken = tokens.accessToken;
 
@@ -256,16 +298,14 @@ class BlockchainManager {
 
         try {
             const baseUrl = this._baseUrl();
-            const response = await fetch(`${baseUrl}/api/transaction/execute`, {
+            const { response, data: responseText } = await this._request(`${baseUrl}/api/transaction/execute`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': 'Bearer ' + accessToken
                 },
                 body: JSON.stringify(payload)
-            });
-
-            const responseText = await response.text();
+            }, 'text', 900000);
             let result;
             
             try {
@@ -279,7 +319,7 @@ class BlockchainManager {
             }
 
             // Actualizar nonce desde backend
-            if (result.newNonce !== undefined && result.newNonce !== null) {
+            if (revision === this._authRevision && JSON.parse(sessionStorage.getItem('authTokens') || '{}').accessToken === accessToken && result.newNonce !== undefined && result.newNonce !== null) {
                 this.updateNonce(result.newNonce);
             }
 
@@ -288,7 +328,7 @@ class BlockchainManager {
         } catch (error) {
             // Solo revertir la reserva de ESTA petición. No alterar un nonce
             // más reciente de una transacción concurrente ni revertir dos veces.
-            if (this.userNonce === payload.userNonce) this.revertNonce();
+            if (!this._destroyed && revision === this._authRevision && this.userNonce === payload.userNonce) this.revertNonce();
             throw error;
         }
     }
@@ -335,10 +375,10 @@ class BlockchainManager {
     async checkStatus() {
         try {
             const baseUrl = this._baseUrl();
-            const response = await fetch(`${baseUrl}/api/health`);
+            const { response, data } = await this._request(`${baseUrl}/api/health`);
             
             if (response.ok) {
-                return await response.json();
+                return data;
             }
         } catch (error) {
             console.error('Error verificando estado:', error);
@@ -350,6 +390,7 @@ class BlockchainManager {
      * Obtener información del usuario
      */
     async fetchUserData() {
+        const revision = this._authRevision;
         try {
             const tokens = JSON.parse(sessionStorage.getItem('authTokens') || '{}');
             const accessToken = tokens.accessToken;
@@ -357,14 +398,14 @@ class BlockchainManager {
             if (!accessToken) return null;
 
             const baseUrl = this._baseUrl();
-            const response = await fetch(`${baseUrl}/api/user/data`, {
+            const { response, data: userData } = await this._request(`${baseUrl}/api/user/data`, {
                 headers: {
                     'Authorization': 'Bearer ' + accessToken
                 }
             });
 
             if (response.ok) {
-                const userData = await response.json();
+                if (revision !== this._authRevision || JSON.parse(sessionStorage.getItem('authTokens') || '{}').accessToken !== accessToken) return null;
                 this.setUser(userData);
                 return userData;
             }

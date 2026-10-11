@@ -32,8 +32,19 @@
   var TOPE_BYTES = 200 * 1024;          // un JSON de metadatos no pesa más
   var PARALELO = 4;
 
-  var metaCache = {};                   // contrato:id -> {nombre, imagen}
+  var metaCache = new Map();            // contrato:id:uri -> {nombre, imagen}
+  var TOPE_CACHE = 500;
+  var bytesCache = 0;
+  var TOPE_BYTES_CACHE = 8 * 1024 * 1024;
   var cargando = null;                  // promesa en vuelo del panel
+  var propietario = '';
+  var revision = 0;
+  var descargas = new Set();
+
+  function cancelarDescargas() {
+    descargas.forEach(function (ctl) { ctl.abort(); });
+    descargas.clear();
+  }
 
   function $(id) { return doc.getElementById(id); }
 
@@ -50,45 +61,83 @@
     return urlSegura(s);
   }
 
-  function conTope(promesa, ms) {
-    return Promise.race([promesa, new Promise(function (_, no) {
-      setTimeout(function () { no(new Error('timeout')); }, ms);
-    })]);
+  async function descargarJson(url, opciones, run, limite) {
+    limite = limite || TOPE_BYTES;
+    if (run !== revision) throw new Error('cancelled');
+    var ctl = new AbortController();
+    descargas.add(ctl);
+    var reloj = setTimeout(function () { ctl.abort(); }, TOPE_MS);
+    var reader;
+    try {
+      var r = await global.fetch(url, Object.assign({}, opciones, { signal: ctl.signal }));
+      if (ctl.signal.aborted || run !== revision) throw new Error('cancelled');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (Number(r.headers && r.headers.get('content-length') || 0) > limite) throw new Error('demasiado grande');
+      var txt;
+      if (r.body && typeof r.body.getReader === 'function') {
+        reader = r.body.getReader();
+        var partes = [], largo = 0;
+        while (true) {
+          var bloque = await reader.read();
+          if (ctl.signal.aborted || run !== revision) throw new Error('cancelled');
+          if (bloque.done) break;
+          largo += bloque.value.byteLength;
+          if (largo > limite) throw new Error('demasiado grande');
+          partes.push(bloque.value);
+        }
+        var bytes = new Uint8Array(largo), posicion = 0;
+        partes.forEach(function (p) { bytes.set(p, posicion); posicion += p.byteLength; });
+        txt = new TextDecoder().decode(bytes);
+      } else {
+        txt = await r.text();
+        if (txt.length > limite || ctl.signal.aborted || run !== revision) throw new Error('demasiado grande');
+      }
+      return JSON.parse(txt);
+    } catch (e) {
+      ctl.abort();
+      if (reader) { try { await reader.cancel(); } catch (_) {} }
+      throw e;
+    } finally {
+      clearTimeout(reloj); descargas.delete(ctl);
+      if (reader) { try { reader.releaseLock(); } catch (_) {} }
+    }
   }
 
   /** Los metadatos de un token: data:application/json (en la cadena) o una URL. */
-  function metadatos(contrato, token) {
-    var clave = contrato + ':' + token.id;
-    if (metaCache[clave]) return Promise.resolve(metaCache[clave]);
+  function metadatos(contrato, token, run) {
     var uri = String(token.uri || '');
+    if (uri.length > TOPE_BYTES * 1.4) return Promise.resolve({ nombre: '#' + token.id, imagen: '' });
+    var hash = 2166136261;
+    for (var h = 0; h < uri.length; h++) hash = Math.imul(hash ^ uri.charCodeAt(h), 16777619);
+    var clave = contrato + ':' + token.id + ':' + uri.length + ':' + (hash >>> 0);
+    if (metaCache.has(clave)) return Promise.resolve(metaCache.get(clave).datos);
     var p;
     var m = /^data:application\/json(;base64)?,(.*)$/i.exec(uri);
     if (m) {
       p = Promise.resolve().then(function () {
         var txt = m[1] ? global.atob(m[2]) : decodeURIComponent(m[2]);
+        if (txt.length > TOPE_BYTES) throw new Error('demasiado grande');
         return JSON.parse(txt);
       });
     } else {
       var url = urlSegura(uri);
       if (!url) return Promise.resolve({ nombre: '#' + token.id, imagen: '' });
-      p = conTope(global.fetch(url, { credentials: 'omit', mode: 'cors', referrerPolicy: 'no-referrer' }), TOPE_MS)
-        .then(function (r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          var largo = Number(r.headers.get('content-length') || 0);
-          if (largo > TOPE_BYTES) throw new Error('demasiado grande');
-          return r.text();
-        })
-        .then(function (txt) {
-          if (txt.length > TOPE_BYTES) throw new Error('demasiado grande');
-          return JSON.parse(txt);
-        });
+      p = descargarJson(url, { credentials: 'omit', mode: 'cors', referrerPolicy: 'no-referrer' }, run);
     }
     return p.then(function (j) {
       var res = {
         nombre: String((j && (j.name || j.title)) || ('#' + token.id)).slice(0, 80),
         imagen: imagenSegura(j && (j.image || j.image_url || j.imageUrl))
       };
-      metaCache[clave] = res;
+      if (run === revision) {
+        if (metaCache.has(clave)) bytesCache -= metaCache.get(clave).bytes;
+        var peso = 2 * (clave.length + res.nombre.length + res.imagen.length);
+        metaCache.set(clave, { datos: res, bytes: peso }); bytesCache += peso;
+        while (metaCache.size > TOPE_CACHE || bytesCache > TOPE_BYTES_CACHE) {
+          var primero = metaCache.keys().next().value;
+          bytesCache -= metaCache.get(primero).bytes; metaCache.delete(primero);
+        }
+      }
       return res;
     }).catch(function () {
       return { nombre: '#' + token.id, imagen: '' };
@@ -150,23 +199,26 @@
     if (!lista) return Promise.resolve(false);
     var esc = escenaConSesion(scene);
     if (!esc) { estado('Sign in to see your NFTs.'); return Promise.resolve(false); }
-    if (cargando && !refrescar) return cargando;
+    var cuenta = String(esc.serverBase) + ':' + String(esc.currentAccount || esc.walletAddress || esc.playerName || '');
+    if (cargando && !refrescar && propietario === cuenta) return cargando;
+    propietario = cuenta;
+    var run = ++revision;
+    cancelarDescargas();
 
     var cab = $('nft-collection-name');
     var dir = $('nft-wallet');
     estado('Reading your wallet…', 'nft-cargando');
 
-    cargando = global.fetch(esc.serverBase + '/api/nft/mios' + (refrescar ? '?refrescar=1' : ''),
-                             { credentials: 'include', mode: 'cors' })
-      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, d: d }; }); })
-      .then(function (res) {
-        var d = res.d || {};
-        if (!res.ok) { estado(d.message || 'Could not read your NFTs right now. Try again in a moment.', 'nft-error'); return false; }
+    // El listado admite más bytes que un metadato; el backend lo limita.
+    cargando = descargarJson(esc.serverBase + '/api/nft/mios' + (refrescar ? '?refrescar=1' : ''),
+                             { credentials: 'include', mode: 'cors' }, run, 4 * 1024 * 1024)
+      .then(function (d) {
+        if (run !== revision) return false;
         var col = d.coleccion || {};
         if (cab) cab.textContent = col.nombre || '—';
         if (dir) dir.textContent = d.address ? corto(d.address) : '';
         if (!d.configurada) { estado('No NFT collection has been set up yet.'); return true; }
-        var tokens = Array.isArray(d.tokens) ? d.tokens : [];
+        var tokens = Array.isArray(d.tokens) ? d.tokens.slice(0, 500) : [];
         if (!tokens.length) { estado('You don’t own any “' + (col.nombre || 'collection') + '” NFT in this wallet yet.'); return true; }
 
         lista.textContent = '';
@@ -186,10 +238,10 @@
         // Los metadatos, de PARALELO en PARALELO.
         var i = 0;
         function siguiente() {
-          if (i >= tarjetas.length) return Promise.resolve();
+          if (run !== revision || i >= tarjetas.length) return Promise.resolve();
           var x = tarjetas[i++];
-          return metadatos(col.contrato, x.t).then(function (m) {
-            if (!doc.body.contains(x.c)) return;
+          return metadatos(col.contrato, x.t, run).then(function (m) {
+            if (run !== revision || !doc.body.contains(x.c)) return;
             var p = x.c.__partes;
             p.nombre.textContent = m.nombre;
             x.c.title = m.nombre + ' (#' + x.t.id + ')';
@@ -207,18 +259,20 @@
         return Promise.all(hilos).then(function () { return true; });
       })
       .catch(function () {
-        estado('Could not reach the server. Try again in a moment.', 'nft-error');
+        if (run === revision) estado('Could not reach the server. Try again in a moment.', 'nft-error');
         return false;
       })
-      .then(function (ok) { cargando = null; return ok; });
+      .then(function (ok) { if (run === revision) cargando = null; return ok; });
     return cargando;
   }
 
   /** El botón de volver a mirar. Se engancha con onclick (no se acumula). */
   function cablear(scene) {
     var b = $('nft-refresh');
-    if (b) b.onclick = function () { montarPanel(scene, true); };
+    if (b) b.onclick = function () { montarPanel(null, true); };
   }
 
-  global.GFNft = { montarPanel: montarPanel, cablear: cablear };
+  global.GFNft = { montarPanel: montarPanel, cablear: cablear,
+    cancelar: function () { ++revision; cancelarDescargas(); cargando = null; },
+    _interno: { cache: metaCache, descargas: descargas } };
 })(window);

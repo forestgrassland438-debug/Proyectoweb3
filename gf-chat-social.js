@@ -813,6 +813,7 @@
     }
   }
 
+  var ciclosEscena = new WeakMap();
   function montar(scene) {
     // La escena viva se apunta ANTES de enlazar: si el socket ya estaba
     // enganchado, `enlazar` se va sin hacer nada y esta es la única línea que
@@ -821,8 +822,14 @@
       escenaViva = scene;
       // Y se suelta al apagarse: si no, la escena que se fue sigue en memoria
       // hasta que otra vuelva a montar.
-      if (scene.events && scene.events.once) {
-        scene.events.once('shutdown', function () { if (escenaViva === scene) escenaViva = null; });
+      if (scene.events && scene.events.once && !ciclosEscena.has(scene)) {
+        var soltar = function () {
+          scene.events.off('shutdown', soltar); scene.events.off('destroy', soltar);
+          ciclosEscena.delete(scene);
+          if (escenaViva === scene) escenaViva = null;
+        };
+        ciclosEscena.set(scene, soltar);
+        scene.events.once('shutdown', soltar); scene.events.once('destroy', soltar);
       }
     }
     estilos();

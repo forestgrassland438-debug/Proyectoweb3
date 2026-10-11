@@ -77,10 +77,10 @@
 
   <!-- Personajes Soulbound. Va ANTES de las escenas porque sus preload()
        le piden las rutas de los sprites del jugador. -->
-  <script src="./gf-soulbound.js?v=21.3" defer></script>
+  <script src="./gf-soulbound.js?v=22.1" defer></script>
   <!-- "My NFTs" del panel NFT: la colección que se elige en admin.html. -->
-  <script src="./gf-nft.js?v=20.7" defer></script>
-  <script src="./gf-lands.js?v=21.5" defer></script>
+  <script src="./gf-nft.js?v=22.1" defer></script>
+  <script src="./gf-lands.js?v=22.1" defer></script>
 
   <!-- Canales (10 × 50 jugadores). El canal lo asigna el servidor al conectar
        el socket, UNA sola vez por pestaña; este módulo solo lo recuerda y
@@ -88,8 +88,8 @@
   <script src="./gf-canales.js?v=19.8" defer></script>
   <script src="./gf-profundidad.js?v=20.2" defer></script>
   <script src="./gf-sombras.js?v=19.1" defer></script>
-  <script src="./gf-nieve.js?v=20.93" defer></script>
-  <script src="./gf-pesca.js?v=21.5" defer></script>
+  <script src="./gf-nieve.js?v=22.0" defer></script>
+  <script src="./gf-pesca.js?v=22.1" defer></script>
   <!-- El monte del pueblo: hierba alta que se abre al pasar (Maps/monte.json). -->
   <script src="./gf-monte.js?v=21.5" defer></script>
   <!-- Los demas a los 5 minutos quietos se ocultan (2026-10-05). -->
@@ -108,7 +108,7 @@
   <script src="./gf-tirones.js?v=19.1" defer></script>
   <script src="./gf-cuervo.js?v=21.41" defer></script>
   <script src="./gf-animales.js?v=21.2" defer></script>
-  <script src="./gf-mascota.js?v=20.8" defer></script>
+  <script src="./gf-mascota.js?v=22.1" defer></script>
   <script src="./gf-muerte.js?v=20.1" defer></script>
   <script src="./gf-alquimista.js?v=19.1" defer></script>
   <script src="./gf-viento.js?v=19.1" defer></script>
@@ -142,33 +142,33 @@
   <!-- El motor de la arena: las MISMAS colisiones, balas y reglas que usa el
        servidor (server2.js lleva una copia incrustada). BattleScene lo usa para
        mover a tu perro sin esperar a la red. -->
-  <script src="./gf-brawl-motor.js?v=20.3" defer></script>
+  <script src="./gf-brawl-motor.js?v=22.0" defer></script>
 
   <!-- Scenes -->
   <!-- SOCIAL: amistades, reacciones del chat y color del nombre.
        Van ANTES de las escenas porque GameScene y tiendajuego los montan en su
        create(); con `defer` el orden de estas etiquetas es el de ejecución. -->
   <!-- El traductor del chat (2026-10-05): antes que el chat y los privados. -->
-  <script src="./gf-traductor.js?v=21.5" defer></script>
-  <script src="./gf-amigos.js?v=21.4" defer></script>
-  <script src="./gf-chat-social.js?v=21.4" defer></script>
+  <script src="./gf-traductor.js?v=22.1" defer></script>
+  <script src="./gf-amigos.js?v=22.1" defer></script>
+  <script src="./gf-chat-social.js?v=22.1" defer></script>
   <script src="./gf-nombre-color.js?v=19.1" defer></script>
 
   <script src="./Scenes/MenuScene.js?v=20.3" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=19.8" defer></script>
-  <script src="./Scenes/tiendajuego.js?v=21.5" defer></script>
-  <script src="./Scenes/LoadingScenegame.js?v=21.5" defer></script>
-  <script src="./Scenes/GameScene.js?v=21.5" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=22.0" defer></script>
+  <script src="./Scenes/LoadingScenegame.js?v=22.0" defer></script>
+  <script src="./Scenes/GameScene.js?v=22.0" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
        basta con dejarla en esta linea y no antes. -->
-  <script src="./Scenes/MinaScene.js?v=21.5" defer></script>
+  <script src="./Scenes/MinaScene.js?v=22.0" defer></script>
   <!-- La isla de las parcelas. Hereda de GameScene igual que la mina,
        asi que tambien tiene que ir DESPUES de ella. -->
   <script src="./Scenes/LandsScene.js?v=21.41" defer></script>
   <script src="./Scenes/InteriorScene.js?v=21.42" defer></script>
-  <script src="./Scenes/BattleScene.js?v=21.1" defer></script>
+  <script src="./Scenes/BattleScene.js?v=22.0" defer></script>
   <script src="./Scenes/sacar_mapa.js?v=19.1" defer></script>
 
   <!-- tienda marketplace p2p -->
@@ -187,14 +187,14 @@
        El tamaño del lienzo lo gestiona el gestor de resize de app.js. -->
   <script src="./phaser-rpg-perf.js?v=19.8" defer></script>
   <script src="./Phaser-camera.js?v=19.8" defer></script>
-  <script src="./LoadingSystem.js?v=19.8" defer></script>
+  <script src="./LoadingSystem.js?v=22.1" defer></script>
 
   <!-- blockchain / transaction -->
-  <script src="./BlockchainManager.js?v=19.8" defer></script>
+  <script src="./BlockchainManager.js?v=22.1" defer></script>
   <script src="./TransactionHub.js?v=19.8" defer></script>
-  <script src="./SystemaTransaccion.js?v=19.8" defer></script>
-  <script src="./CraftingHub.js?v=21.31" defer></script>
-  <script src="./tienda_sistema.js?v=21.5" defer></script>
+  <script src="./SystemaTransaccion.js?v=22.1" defer></script>
+  <script src="./CraftingHub.js?v=22.1" defer></script>
+  <script src="./tienda_sistema.js?v=22.0" defer></script>
   <script src="./phaser-relay-library.js?v=21.5" defer></script>
   <script src="./hub.js?v=19.8" defer></script>
 
@@ -206,7 +206,7 @@
        como type="module" ejecutaba el archivo completo dos veces (doble parse
        y doble descarga). Eliminada. -->
 
-  <script src="./NotificationHub.js?v=19.8" defer></script>
+  <script src="./NotificationHub.js?v=22.1" defer></script>
 
   <!-- tileManager: if it uses import/export, keep module -->
   <script type="module" src="lib/tileManager.js?v=21.12" defer></script>
@@ -216,7 +216,7 @@
 
   <!-- Contador global de transacciones on-chain en vuelo. Debe cargarse ANTES
        que las escenas para que ninguna transacción se quede sin registrar. -->
-  <script src="./tx-gate.js?v=19.1" defer></script>
+  <script src="./tx-gate.js?v=22.0" defer></script>
 
   <!-- GF Wallet SDK — wallet embebida para quien entró con Google/Facebook/Apple.
        Va después de ethers (lo necesita para firmar) y su arranque solo instala
@@ -239,7 +239,7 @@
   <!-- Ajustes de gráficos: calidad y distancia de visión (chunks).
        Va DESPUÉS de app.js porque usa window.game y window.gfResizeGame,
        que app.js publica al crear el juego. -->
-  <script src="./gf-graphics-settings.js?v=19.8" defer></script>
+  <script src="./gf-graphics-settings.js?v=22.1" defer></script>
 
   <!-- ============================
        END HEAD

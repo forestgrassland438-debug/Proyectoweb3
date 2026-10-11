@@ -79,6 +79,27 @@
   // ── Estado ─────────────────────────────────────────────────────────────────
 
   var ajustes = { calidad: 'alta', chunks: 12 };
+  var revisionAjustes = 0;
+  var lectura = null;
+  var escritura = null;
+  var pendienteCuenta = '';
+  var reintentarEn = 0;
+  var fallosGuardado = 0;
+  var cargarEn = 0;
+
+  function claveSesion(esc) { return esc ? esc.serverBase + ':' + esc.playerName : ''; }
+
+  async function solicitar(url, opciones, leerJson) {
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, 10000);
+    try {
+      var response = await fetch(url, Object.assign({}, opciones, { signal: controller.signal }));
+      var datos = leerJson && response.ok ? await response.json() : null;
+      if (!leerJson || !response.ok) await response.text();
+      if (controller.signal.aborted) throw new Error('Solicitud cancelada');
+      return { ok: response.ok, datos: datos };
+    } finally { clearTimeout(timer); }
+  }
 
   // ── PERSISTENCIA EN EL SERVIDOR ────────────────────────────────────────────
   //
@@ -100,26 +121,30 @@
 
   function leerCookie(nombre) {
     var m = doc.cookie.match(new RegExp('(?:^|;\\s*)' + nombre + '=([^;]*)'));
-    return m ? decodeURIComponent(m[1]) : null;
+    try { return m ? decodeURIComponent(m[1]) : null; } catch (e) { return null; }
   }
 
   /** Trae los ajustes guardados. Si no hay sesión aún, no hace nada. */
   function cargar() {
     var esc = escenaConSesion();
     if (!esc) return Promise.resolve(false);
-
-    return fetch(esc.serverBase + '/api/graphics/' + encodeURIComponent(esc.playerName),
-                 { credentials: 'include', mode: 'cors' })
-      .then(function (r) { return r.ok ? r.json() : null; })
+    if (lectura) return lectura;
+    var cuenta = claveSesion(esc), revision = revisionAjustes;
+    lectura = solicitar(esc.serverBase + '/api/graphics/' + encodeURIComponent(esc.playerName),
+                 { credentials: 'include', mode: 'cors' }, true)
+      .then(function (r) { return r.datos; })
       .then(function (d) {
-        if (!d || !d.ok) return false;
+        if (!d || !d.ok || claveSesion(escenaConSesion()) !== cuenta) return false;
+        if (revision !== revisionAjustes || (pendienteDeGuardar && (!pendienteCuenta || pendienteCuenta === cuenta))) return true;
         if (CALIDADES[d.calidad]) ajustes.calidad = d.calidad;
         if (typeof d.chunks === 'number') {
           ajustes.chunks = Math.min(CHUNK_MAX, Math.max(CHUNK_MIN, Math.round(d.chunks)));
         }
         return true;
       })
-      .catch(function () { return false; });   // sin red: valores por defecto
+      .catch(function () { return false; })
+      .finally(function () { lectura = null; });
+    return lectura;
   }
 
   /**
@@ -132,19 +157,45 @@
   var pendienteDeGuardar = false;
 
   function guardar() {
+    revisionAjustes++;
+    pendienteDeGuardar = true;
+    pendienteCuenta = claveSesion(escenaConSesion());
+    reintentarEn = 0;
+    return guardarPendientes();
+  }
+
+  function guardarPendientes() {
+    if (escritura) return escritura;
     var esc = escenaConSesion();
-    if (!esc) { pendienteDeGuardar = true; return Promise.resolve(false); }
+    if (!esc || !pendienteDeGuardar || Date.now() < reintentarEn) return Promise.resolve(false);
+    var cuenta = claveSesion(esc);
+    if (pendienteCuenta && pendienteCuenta !== cuenta) { pendienteDeGuardar = false; return Promise.resolve(false); }
+    var revision = revisionAjustes;
 
     var csrf = leerCookie('csrf-token');
     var cabeceras = { 'Content-Type': 'application/json' };
     if (csrf) cabeceras['X-CSRF-Token'] = csrf;
 
-    return fetch(esc.serverBase + '/api/graphics/' + encodeURIComponent(esc.playerName), {
+    escritura = solicitar(esc.serverBase + '/api/graphics/' + encodeURIComponent(esc.playerName), {
       method: 'POST', credentials: 'include', mode: 'cors', headers: cabeceras,
       body: JSON.stringify({ calidad: ajustes.calidad, chunks: ajustes.chunks })
     })
-      .then(function (r) { pendienteDeGuardar = !r.ok; return r.ok; })
-      .catch(function () { pendienteDeGuardar = true; return false; });
+      .then(function (r) { return r.ok; })
+      .catch(function () { return false; })
+      .then(function (ok) {
+        if (cuenta !== claveSesion(escenaConSesion())) return ok;
+        if (ok) {
+          fallosGuardado = 0; reintentarEn = 0;
+          if (revision === revisionAjustes) pendienteDeGuardar = false;
+        } else {
+          reintentarEn = Date.now() + Math.min(60000, 2000 * Math.pow(2, fallosGuardado++));
+        }
+        return ok;
+      }).finally(function () {
+        escritura = null;
+        if (pendienteDeGuardar && Date.now() >= reintentarEn) guardarPendientes();
+      });
+    return escritura;
   }
 
   // ── Acceso al juego ────────────────────────────────────────────────────────
@@ -421,7 +472,8 @@
     bucle = global.setInterval(function () {
       // Si un guardado no pudo salir (aún sin sesión, o falló la red), se
       // reintenta aquí en vez de perder el ajuste del jugador.
-      if (pendienteDeGuardar && escenaConSesion()) { pendienteDeGuardar = false; guardar(); }
+      if (pendienteDeGuardar && escenaConSesion()) guardarPendientes();
+      cargarCuandoHayaSesion();
 
       escenasActivas().forEach(function (esc) {
         try {
@@ -590,13 +642,15 @@
   // hay que pedírselos al servidor, y para eso hace falta que el jugador ya
   // tenga sesión. Como esta librería carga antes que la escena, se espera a que
   // aparezca en vez de dar por perdida la carga.
-  var yaCargadoDelServidor = false;
+  var yaCargadoDelServidor = '';
 
   function cargarCuandoHayaSesion() {
-    if (yaCargadoDelServidor) return;
+    var cuenta = claveSesion(escenaConSesion());
+    if (!cuenta || cuenta === yaCargadoDelServidor || lectura || Date.now() < cargarEn) return;
+    cargarEn = Date.now() + 10000;
     cargar().then(function (ok) {
       if (!ok) return;
-      yaCargadoDelServidor = true;
+      yaCargadoDelServidor = cuenta;
       // Con los valores reales en la mano se repinta el panel y se aplica todo.
       if (typeof global.__gfGfxPintar === 'function') global.__gfGfxPintar();
       aplicarTodo();

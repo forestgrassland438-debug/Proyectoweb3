@@ -294,6 +294,7 @@
     else ir(escena);
   }
 
+  var ciclosEscena = new WeakMap();
   function montar(escena) {
     var b = boton();
     if (!b) {
@@ -306,10 +307,14 @@
     pintarIcono(enLaIsla);
     escenaBoton = escena;
     enLaIslaBoton = enLaIsla;
-    if (escena.events && escena.events.once) {
-      escena.events.once('shutdown', function () {
+    if (escena.events && escena.events.once && !ciclosEscena.has(escena)) {
+      var soltar = function () {
+        escena.events.off('shutdown', soltar); escena.events.off('destroy', soltar);
+        ciclosEscena.delete(escena);
         if (escenaBoton === escena) escenaBoton = null;
-      });
+      };
+      ciclosEscena.set(escena, soltar);
+      escena.events.once('shutdown', soltar); escena.events.once('destroy', soltar);
     }
 
     // `_bindDomClick` (GameScene y herederas) ya es idempotente y lo suelta al

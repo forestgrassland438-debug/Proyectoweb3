@@ -290,12 +290,21 @@
     if (!faltan.length) return Promise.resolve(true);
     return new Promise(function (ok) {
       var listo = false;
-      var fin = function () { if (!listo) { listo = true; ok(true); } };
-      faltan.forEach(function (f) { scene.load.image(f[0], f[1]); });
-      scene.load.once('complete', fin);
-      scene.load.once('loaderror', function () {});
-      setTimeout(fin, 6000);
-      scene.load.start();
+      var reloj = null;
+      var fin = function (exito) {
+        if (listo) return;
+        listo = true; clearTimeout(reloj);
+        scene.load.off('complete', completo);
+        scene.events.off('shutdown', cancelar); scene.events.off('destroy', cancelar);
+        ok(exito);
+      };
+      var completo = function () { fin(faltan.every(function (f) { return scene.textures.exists(f[0]); })); };
+      var cancelar = function () { fin(false); };
+      faltan.forEach(function (f) { scene.load.image(f[0], f[1], { timeout: 6000 }); });
+      scene.load.once('complete', completo);
+      scene.events.once('shutdown', cancelar); scene.events.once('destroy', cancelar);
+      reloj = setTimeout(cancelar, 6000);
+      try { scene.load.start(); } catch (e) { cancelar(); }
     });
   }
 
@@ -474,6 +483,7 @@
     Promise.all([api(scene, '/api/pesca/lanzar', pies), cargarFotogramas(scene)]).then(function (res) {
       var r = res[0];
       if (run !== st.runId || !st.scene) return;
+      if (!res[1]) { terminar(st); aviso(scene, 'Fishing images could not load. Try again.', 'warning'); return; }
       if (!r.ok || !r.datos || !r.datos.ok) {
         var e = r.datos && r.datos.error;
         var textos = {
@@ -1252,7 +1262,7 @@
       var st = scene && scene.__gfPesca;
       return st ? { fase: st.fase, puede: st.puede, dir: st.dir || null } : null;
     },
-    _interno: { mapaDeAgua: mapaDeAgua, enLaOrilla: enLaOrilla, puntoDelCorcho: puntoDelCorcho,
+    _interno: { cargarFotogramas: cargarFotogramas, mapaDeAgua: mapaDeAgua, enLaOrilla: enLaOrilla, puntoDelCorcho: puntoDelCorcho,
                 destinoDelLance: destinoDelLance, LANCE_MIN: LANCE_MIN, LANCE_MAX: LANCE_MAX, RADIO_MOVERSE: RADIO_MOVERSE,
                 clasificarTileset: clasificarTileset, meterFactura: meterFactura, NOMBRES: NOMBRES }
   };

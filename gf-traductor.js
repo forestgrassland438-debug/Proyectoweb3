@@ -55,6 +55,9 @@
   var vigilados = new Set();      // los <span> de texto que se traducen
   var cache = new Map();          // 'a\u0001texto' -> { t, de } | null (no hace falta)
   var cola = new Map();           // 'a\u0001texto' -> [nodos que esperan]
+  var enCurso = new Map();
+  var lotes = [];
+  var loteActivo = false;
   var relojLote = null;
   var pausaHasta = 0;
   var avisadoFallo = 0;
@@ -162,7 +165,9 @@
     });
     // Que pulsarlo no le quite el foco al campo de escribir en el teléfono.
     b.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    botones = botones.filter(function (v) { return v.isConnected; });
     botones.push(b);
+    if (botones.length > 500) botones.shift();
     pintarBoton(b);
     return b;
   }
@@ -214,9 +219,14 @@
     }
     if (Date.now() < pausaHasta) { quitarTraduccion(el); return; }
     ponerTraduccion(el, '', 'cargando');
+    var trabajo = enCurso.get(k);
+    if (trabajo) { if (trabajo.nodos.indexOf(el) < 0) trabajo.nodos.push(el); return; }
     var esperan = cola.get(k);
     if (esperan) { if (esperan.indexOf(el) < 0) esperan.push(el); }
-    else cola.set(k, [el]);
+    else {
+      if (cola.size + enCurso.size >= 500) { quitarTraduccion(el); return; }
+      cola.set(k, [el]);
+    }
     if (!relojLote) relojLote = setTimeout(vaciarCola, ESPERA_LOTE);
   }
 
@@ -234,14 +244,32 @@
     // Por idioma: si el jugador cambió de modo a medias, cada lote va al suyo.
     var porIdioma = {};
     cola.forEach(function (nodos, k) {
+      nodos = nodos.filter(function (el) { return el.isConnected; });
+      if (!nodos.length) return;
       var i = k.indexOf('\u0001');
       var a = k.slice(0, i), t = k.slice(i + 1);
-      (porIdioma[a] = porIdioma[a] || []).push({ k: k, t: t, nodos: nodos });
+      var trabajo = { k: k, t: t, nodos: nodos };
+      enCurso.set(k, trabajo);
+      (porIdioma[a] = porIdioma[a] || []).push(trabajo);
     });
     cola.clear();
     Object.keys(porIdioma).forEach(function (a) {
       var lista = porIdioma[a];
-      for (var j = 0; j < lista.length; j += LOTE) pedirLote(a, lista.slice(j, j + LOTE));
+      for (var j = 0; j < lista.length; j += LOTE) lotes.push({ a: a, trozo: lista.slice(j, j + LOTE) });
+    });
+    bombearLotes();
+  }
+
+  function bombearLotes() {
+    if (loteActivo || !lotes.length) return;
+    loteActivo = true;
+    var lote = lotes.shift();
+    pedirLote(lote.a, lote.trozo).catch(function () {
+      lote.trozo.forEach(function (x) { x.nodos.forEach(quitarTraduccion); });
+    }).finally(function () {
+      lote.trozo.forEach(function (x) { enCurso.delete(x.k); });
+      loteActivo = false;
+      bombearLotes();
     });
   }
 
@@ -257,6 +285,8 @@
     function siguiente() {
       if (i >= trozo.length) return Promise.resolve();
       var x = trozo[i++];
+      x.nodos = x.nodos.filter(function (el) { return el.isConnected; });
+      if (!x.nodos.length || !modo) return siguiente();
       if (Date.now() < directoPausa || typeof fetch !== 'function') { fallidos.push(x); return siguiente(); }
       return directo(x.t, a).then(function (r) {
         fallosDirectos = 0;
@@ -269,14 +299,14 @@
     }
     var hilos = [];
     for (var h = 0; h < Math.min(A_LA_VEZ, trozo.length); h++) hilos.push(siguiente());
-    Promise.all(hilos).then(function () {
-      if (fallidos.length) pedirAlServidor(a, fallidos);
+    return Promise.all(hilos).then(function () {
+      if (fallidos.length) return pedirAlServidor(a, fallidos);
     });
   }
 
   /** El respaldo: POST /api/chat/traducir con todo el lote. */
   function pedirAlServidor(a, trozo) {
-    api({ a: a, textos: trozo.map(function (x) { return x.t; }) }).then(function (r) {
+    return api({ a: a, textos: trozo.map(function (x) { return x.t; }) }).then(function (r) {
       var d = r && r.datos;
       if (!r || !r.ok || !d || !d.ok || !Array.isArray(d.traducciones)) throw new Error((d && d.error) || ('http ' + (r && r.status)));
       trozo.forEach(function (x, i) {
@@ -326,6 +356,7 @@
     vigilados.add(el);
     if (vigilados.size > 500) {
       vigilados.forEach(function (v) { if (!v.isConnected) vigilados.delete(v); });
+      while (vigilados.size > 500) vigilados.delete(vigilados.values().next().value);
     }
     // Recién creado, el nodo aún puede no estar en la página: se espera un
     // instante a que la escena lo cuelgue.
@@ -346,7 +377,7 @@
     modo: function () { return modo; },
     ponerModo: function (m) { ponerModo(m, false); },
     refrescar: refrescar,
-    _interno: { cache: cache, cola: cola, vigilados: vigilados, merece: merece, igualesSinMas: igualesSinMas,
+    _interno: { cache: cache, cola: cola, enCurso: enCurso, lotes: lotes, vigilados: vigilados, merece: merece, igualesSinMas: igualesSinMas,
                 directo: directo, mismoIdioma: mismoIdioma,
                 pausa: function () { return pausaHasta; },
                 pausaDirecta: function () { return directoPausa; } }

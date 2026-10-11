@@ -98,11 +98,15 @@
 
   function cookie(nombre) {
     var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + nombre + '=([^;]*)'));
-    return m ? decodeURIComponent(m[1]) : null;
+    try { return m ? decodeURIComponent(m[1]) : null; } catch (e) { return null; }
   }
 
   function api(ruta, cuerpo) {
+    var origen = base().replace(/\/$/, '');
+    var jugador = String(escenaDelJuego()?.playerName || '');
+    var controller = new AbortController();
     var opts = { credentials: 'include', mode: 'cors' };
+    opts.signal = controller.signal;
     if (cuerpo !== undefined) {
       var csrf = cookie('csrf-token');
       opts.method = 'POST';
@@ -110,13 +114,17 @@
       if (csrf) opts.headers['X-CSRF-Token'] = csrf;
       opts.body = JSON.stringify(cuerpo || {});
     }
-    return fetch(base().replace(/\/$/, '') + ruta, opts).then(function (r) {
+    var timer = setTimeout(function () { controller.abort(); }, 15000);
+    return fetch(origen + ruta, opts).then(function (r) {
       return r.json().then(function (d) {
+        if (controller.signal.aborted) throw new Error('Solicitud cancelada');
+        if (origen !== base().replace(/\/$/, '') || jugador !== String(escenaDelJuego()?.playerName || '')) return { ok: false, status: 409, datos: null };
         return { ok: r.ok, status: r.status, datos: d };
-      }).catch(function () {
+      }).catch(function (error) {
+        if (controller.signal.aborted) throw error;
         return { ok: r.ok, status: r.status, datos: null };
       });
-    });
+    }).finally(function () { clearTimeout(timer); });
   }
 
   function aplicar(d) {

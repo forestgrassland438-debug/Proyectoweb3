@@ -13,6 +13,8 @@
 
 class CraftingSystem {
   constructor(phaserScene) {
+    this._destroyed = false;
+    this._domBindings = [];
     this.scene = phaserScene;
     this.playerLevel = this.getPlayerLevelFromScene();
     this.selectedRecipe = null;
@@ -45,6 +47,64 @@ class CraftingSystem {
     ];
     this._maxStackSize = 99;
     this.initialize();
+  }
+
+  get scene() { return this._sceneActual || null; }
+  set scene(value) { this.setScene(value); }
+
+  setScene(scene) {
+    if (this._destroyed && scene) return;
+    if (scene === this._sceneActual) return;
+    // Una operación ya enviada termina sobre su inventario de origen.
+    if (this._craftPending > 0) {
+      this._unbindNextScene?.();
+      this._nextScene = scene;
+      this._hasNextScene = true;
+      if (scene?.events?.once) {
+        const expire = () => { this._unbindNextScene?.(); this._nextScene = null; };
+        this._unbindNextScene = () => { scene.events.off('shutdown', expire); scene.events.off('destroy', expire); this._unbindNextScene = null; };
+        scene.events.once('shutdown', expire); scene.events.once('destroy', expire);
+      }
+      return;
+    }
+    if (this._sceneActual) this.hide();
+    this._unbindScene?.();
+    this._unbindNextScene?.();
+    this._sceneActual = scene || null;
+    this._hasNextScene = false;
+    this._nextScene = null;
+    const events = scene?.events;
+    if (events?.once) {
+      const release = () => {
+        this._unbindScene?.();
+        this.hide();
+        if (this._craftPending > 0) {
+          if (!this._hasNextScene) { this._hasNextScene = true; this._nextScene = null; }
+        } else this._sceneActual = null;
+      };
+      this._unbindScene = () => {
+        events.off('shutdown', release); events.off('destroy', release);
+        this._unbindScene = null;
+      };
+      events.once('shutdown', release); events.once('destroy', release);
+    }
+  }
+
+  _listen(target, event, callback, options) {
+    if (!target) return;
+    target.addEventListener(event, callback, options);
+    this._domBindings.push([target, event, callback, options]);
+  }
+
+  destroy() {
+    if (this._destroyed) return;
+    this.hide();
+    this._destroyed = true;
+    this._unbindScene?.();
+    for (const [target, event, callback, options] of this._domBindings) target.removeEventListener(event, callback, options);
+    this._domBindings.length = 0;
+    this._listenersAttached = false;
+    this.setScene(null);
   }
 
   // FIX 5: Escapar HTML
@@ -245,51 +305,51 @@ class CraftingSystem {
 
   // FIX 1: setupEventListeners usa delegación — NO busca elementos directos en init
   setupEventListeners() {
-    if (this._listenersAttached) return;
+    if (this._listenersAttached || this._destroyed) return;
     this._listenersAttached = true;
 
-    document.getElementById('crafting-close')?.addEventListener('click', (e) => {
+    this._listen(document.getElementById('crafting-close'), 'click', (e) => {
       e.preventDefault(); e.stopPropagation(); this.hide();
     });
-    document.getElementById('overlay-back')?.addEventListener('click', (e) => {
+    this._listen(document.getElementById('overlay-back'), 'click', (e) => {
       e.preventDefault(); e.stopPropagation(); this.closeOverlay();
     });
-    document.querySelector('.close-details-btn')?.addEventListener('click', () => {
+    this._listen(document.querySelector('.close-details-btn'), 'click', () => {
       this.hideDetailsPanel();
     });
     document.querySelectorAll('.filter-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => this.setCategory(e.currentTarget.dataset.category));
+      this._listen(btn, 'click', (e) => this.setCategory(e.currentTarget.dataset.category));
     });
 
     const searchInput = document.getElementById('crafting-search-input');
     if (searchInput) {
-      searchInput.addEventListener('input', (e) => {
+      this._listen(searchInput, 'input', (e) => {
         this.searchTerm = e.target.value.toLowerCase(); this.filterRecipes();
       });
-      searchInput.addEventListener('focus', () => { this.disablePhaserInput(); this._attachDocumentKeyCapture(); });
-      searchInput.addEventListener('blur', () => { this._detachDocumentKeyCapture(); if (!this.isVisible()) this.enablePhaserInput(); });
-      searchInput.addEventListener('keydown', (e) => { if (e.key==='Escape'){this.hide();e.preventDefault();} e.stopPropagation(); }, false);
+      this._listen(searchInput, 'focus', () => { this.disablePhaserInput(); this._attachDocumentKeyCapture(); });
+      this._listen(searchInput, 'blur', () => { this._detachDocumentKeyCapture(); if (!this.isVisible()) this.enablePhaserInput(); });
+      this._listen(searchInput, 'keydown', (e) => { if (e.key==='Escape'){this.hide();e.preventDefault();} e.stopPropagation(); }, false);
     }
 
     // FIX 1: Delegación sobre el hub — funciona aunque los botones se creen después
     const hub = document.getElementById('crafting-hub');
     if (hub) {
-      hub.addEventListener('click', (e) => {
+      this._listen(hub, 'click', (e) => {
         const btn = e.target.closest('button');
         if (!btn) return;
         if (btn.id==='decrease-qty') { e.preventDefault(); e.stopPropagation(); this.adjustQuantity(-1); }
         else if (btn.id==='increase-qty') { e.preventDefault(); e.stopPropagation(); this.adjustQuantity(1); }
         else if (btn.id==='craft-button') { this.craftItem(); }
       });
-      hub.addEventListener('input', (e) => {
+      this._listen(hub, 'input', (e) => {
         if (e.target.id!=='crafting-qty') return;
         const max = this._getDisplayedMax();
         this._setQuantityNoRecalc(Math.max(1, Math.min(max||1, parseInt(e.target.value)||1)));
       });
-      hub.addEventListener('keydown', (e) => { if (e.target.id==='crafting-qty') e.stopPropagation(); });
+      this._listen(hub, 'keydown', (e) => { if (e.target.id==='crafting-qty') e.stopPropagation(); });
     }
 
-    document.addEventListener('keydown', (e) => {
+    this._listen(document, 'keydown', (e) => {
       if (e.key==='Escape' && this.isVisible()) {
         const ov = document.getElementById('recipe-overlay');
         if (ov && !ov.classList.contains('hidden')) this.closeOverlay();
@@ -580,6 +640,7 @@ class CraftingSystem {
   // los crafteos se ejecutan uno tras otro, en orden. Mismo criterio que la
   // cola de transacciones de ejecutarDivision() en GameScene.
   async craftItem() {
+    if (this._destroyed || !this.scene || this._hasNextScene) return false;
     // Siendo fantasma no se craftea (ver GFMuerte.bloquear).
     if (window.GFMuerte && window.GFMuerte.bloquear(this.scene, 'craft')) return false;
     if(!this.selectedRecipe){this.showFeedback('No recipe selected','error');return;}
@@ -622,7 +683,7 @@ class CraftingSystem {
     // el jugador se va a la tienda con un crafteo pendiente, la pantalla de
     // carga lo espera en vez de destruir la escena a medias (ver tx-gate.js).
     const finTx = (window.GFTxGate && window.GFTxGate.begin)
-      ? window.GFTxGate.begin(`Crafting ${peticion.quantity}x ${peticion.recipe.name}`)
+      ? window.GFTxGate.begin(`Crafting ${peticion.quantity}x ${peticion.recipe.name}`, 900000)
       : null;
 
     this._craftQueue=(this._craftQueue||Promise.resolve())
@@ -633,6 +694,7 @@ class CraftingSystem {
         this._aplicarReserva(peticion, -1);
         this._craftPending=Math.max(0,(this._craftPending||1)-1);
         this._setCraftButtonBusy(this._craftPending>0);
+        if (!this._craftPending && this._hasNextScene) this.setScene(this._nextScene);
       });
 
     return this._craftQueue;
@@ -939,10 +1001,12 @@ class CraftingSystem {
   // notificación del juego. Es lo que faltaba, por ejemplo, al intentar
   // craftear sin recursos suficientes.
   showFeedback(message,type) {
+    if (this._destroyed) return;
+    clearTimeout(this._feedbackTimer);
     const fb=document.getElementById('crafting-feedback');
     if(fb){
       fb.textContent=message; fb.className=`crafting-feedback feedback-${type}`;
-      setTimeout(()=>{if(fb.textContent===message)fb.textContent='';},3000);
+      this._feedbackTimer=setTimeout(()=>{this._feedbackTimer=null;if(fb.textContent===message)fb.textContent='';},3000);
     }
     try{
       this.scene?.notifications?.show(message, type==='info'?'info':type);
@@ -1168,6 +1232,7 @@ class CraftingSystem {
 
   // FIX 1: adjuntar listeners aquí (DOM existe)
   show() {
+    if (this._destroyed || !this.scene || this._hasNextScene) return;
     const hub=document.getElementById('crafting-hub');
     if(!hub) return;
     this.setupEventListeners(); // adjunta solo la primera vez
@@ -1183,7 +1248,8 @@ class CraftingSystem {
     this.updateInventoryPreview(); this.updateRecipesList(); this.updatePlayerLevelDisplay();
     this.hideDetailsPanel(); this.disablePhaserInput(); this._releaseAllKeys(); this._attachDocumentKeyCapture();
     this._startLevelWatch();
-    setTimeout(()=>{const s=document.getElementById('crafting-search-input');if(s){s.focus();s.select();}},100);
+    clearTimeout(this._focusTimer);
+    this._focusTimer=setTimeout(()=>{this._focusTimer=null;if(!this.isVisible()||this._destroyed)return;const s=document.getElementById('crafting-search-input');if(s){s.focus();s.select();}},100);
     console.log(`🔨 Panel ABIERTO — Nivel: ${this.playerLevel}`);
   }
 
@@ -1215,14 +1281,17 @@ class CraftingSystem {
 
   // FIX 8: resetear cantidad al cerrar
   hide() {
+    this._stopLevelWatch();
+    clearTimeout(this._focusTimer); this._focusTimer=null;
+    clearTimeout(this._feedbackTimer); this._feedbackTimer=null;
+    this._detachDocumentKeyCapture(); this._releaseAllKeys();
     const hub=document.getElementById('crafting-hub');
-    if(!hub) return;
+    if(!hub) { this.enablePhaserInput(); return; }
     // ¿Estaba realmente abierto? (para no disparar el confirm del tutorial en vano)
     const wasVisible = !hub.classList.contains('crafting-hub-hidden');
     hub.classList.add('crafting-hub-hidden');
     hub.classList.remove('crafting-hub-visible');
-    this._stopLevelWatch();
-    this._detachDocumentKeyCapture(); this.enablePhaserInput(); this._releaseAllKeys();
+    this.enablePhaserInput();
     const s=document.getElementById('crafting-search-input');
     if(s){s.value='';s.blur();}
     this.searchTerm=''; this.selectedRecipe=null; this.selectedOptional=null;
@@ -1249,7 +1318,7 @@ class CraftingSystem {
 
   disablePhaserInput() {
     if(!this.scene?.input?.keyboard) return;
-    try{this._phaserInputPreviouslyEnabled=this.scene.input.keyboard.enabled;this.scene.input.keyboard.enabled=false;}
+    try{if(this._phaserInputPreviouslyEnabled===null)this._phaserInputPreviouslyEnabled=this.scene.input.keyboard.enabled;this.scene.input.keyboard.enabled=false;}
     catch(e){console.warn('No se pudo desactivar input de Phaser:',e);}
   }
 

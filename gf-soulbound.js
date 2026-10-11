@@ -63,6 +63,26 @@
   var FRAME_RATE = 9;
 
   var LS_ELEGIDO = 'gf_soulbound_elegido';
+  var revisionEleccion = 0;
+  var secuenciaCarga = 0;
+  var guardados = new Map();
+
+  async function solicitar(url, opciones, scene, leerJson) {
+    var controller = new AbortController();
+    var cancelar = function () { controller.abort(); };
+    var timer = setTimeout(cancelar, 15000);
+    scene?.events?.once('shutdown', cancelar); scene?.events?.once('destroy', cancelar);
+    try {
+      var r = await fetch(url, Object.assign({}, opciones, { signal: controller.signal }));
+      var d = leerJson && r.ok ? await r.json() : null;
+      if (!leerJson || !r.ok) await r.text();
+      if (controller.signal.aborted) throw new Error('Solicitud cancelada');
+      return { ok: r.ok, datos: d };
+    } finally {
+      clearTimeout(timer);
+      scene?.events?.off('shutdown', cancelar); scene?.events?.off('destroy', cancelar);
+    }
+  }
 
   /* LOS NOMBRES (2026-10-04). La carpeta es un nombre de ARCHIVO
      ("personaje2"), no el de un personaje: en el panel salia tal cual. Cada
@@ -155,6 +175,7 @@
     if (!idValido(id)) return false;
     if (elegido === id) return false;
     elegido = id;
+    revisionEleccion++;
     escribirLS(LS_ELEGIDO, id);
     return true;
   }
@@ -163,8 +184,10 @@
   function existeImagen(url) {
     return new Promise(function (resolve) {
       var img = new Image();
-      img.onload  = function () { resolve(true);  };
-      img.onerror = function () { resolve(false); };
+      var timer = setTimeout(function () { fin(false); }, 8000);
+      var fin = function (ok) { clearTimeout(timer); img.onload = img.onerror = null; if (!ok) img.src = ''; resolve(ok); };
+      img.onload  = function () { fin(true);  };
+      img.onerror = function () { fin(false); };
       img.src = url;
     });
   }
@@ -213,8 +236,8 @@
 
   /** index.json opcional. Si no existe (404), se ignora en silencio. */
   function manifiesto() {
-    return fetch(BASE + '/index.json', { cache: 'no-cache' })
-      .then(function (r) { return r.ok ? r.json() : null; })
+    return solicitar(BASE + '/index.json', { cache: 'no-cache' }, null, true)
+      .then(function (r) { return r.datos; })
       .then(function (d) {
         if (!Array.isArray(d)) return null;
         return d.filter(idValido);
@@ -295,6 +318,31 @@
     return new Promise(function (resolve) {
       if (!scene || !scene.load || !scene.textures || !scene.anims) return resolve(false);
       var quien = idValido(id) ? id : actual();
+      var revision = revisionEleccion;
+      var terminado = false, timer = null, archivos = [];
+      var fin = function (ok) {
+        if (terminado) return;
+        terminado = true; clearTimeout(timer);
+        if (completar) scene.load.off('complete', completar);
+        scene.events?.off('shutdown', cancelar); scene.events?.off('destroy', cancelar);
+        if (!ok) {
+          // Los archivos ya en vuelo pueden terminar después del cierre.
+          // Se impide que incorporen sus texturas temporales a la caché global.
+          archivos.forEach(function (file) {
+            file.addToCache = function () {};
+            try { if (file.xhrLoader && file.xhrLoader.readyState !== 4) file.xhrLoader.abort(); } catch (e) {}
+          });
+          ['list', 'inflight', 'queue'].forEach(function (nombre) {
+            scene.load[nombre]?.each(function (file) {
+              if (String(file.key).indexOf(PREFIJO_TMP) === 0) file.addToCache = function () {};
+            });
+          });
+          limpiarTemporales(scene, claves, PREFIJO_TMP);
+        }
+        archivos.length = 0;
+        resolve(ok);
+      };
+      var cancelar = function () { fin(false); };
 
       // Clave real -> URL nueva
       var mapa = { imagen_Perfil: rutaPerfil(quien), player: ruta('derecha', 1, quien) };
@@ -306,15 +354,18 @@
       });
 
       var claves = Object.keys(mapa);
-      var PREFIJO_TMP = '__sb_tmp__';
+      var PREFIJO_TMP = '__sb_tmp_' + (++secuenciaCarga) + '__';
 
       try {
         claves.forEach(function (clave) {
-          scene.load.image(PREFIJO_TMP + clave, mapa[clave]);
+          scene.load.image(PREFIJO_TMP + clave, mapa[clave], { timeout: 20000 });
         });
-      } catch (e) { return resolve(false); }
+        scene.load.list?.each(function (file) { if (String(file.key).indexOf(PREFIJO_TMP) === 0) archivos.push(file); });
+      } catch (e) { return fin(false); }
 
-      scene.load.once('complete', function () {
+      var completar = function () {
+        if (terminado) return;
+        if (revision !== revisionEleccion) return fin(false);
         var aparcados = [];
         try {
           // Todo o nada: si falta alguna imagen, abortar SIN tocar el juego.
@@ -325,7 +376,7 @@
             console.warn('[Soulbound] "' + quien + '" no se aplicó: faltan ' +
                          faltan.length + ' imágenes. Se mantiene el personaje actual.');
             limpiarTemporales(scene, claves, PREFIJO_TMP);
-            return resolve(false);
+            return fin(false);
           }
 
           // 0. Anotar estado y aparcar los sprites fuera de las texturas que
@@ -360,17 +411,20 @@
           if (typeof scene.actualizarImagenJugador === 'function') {
             scene.actualizarImagenJugador(rutaPerfil(quien));
           }
-          resolve(true);
+          fin(true);
         } catch (e) {
           // Pase lo que pase, ningún sprite se queda aparcado en '__MISSING'.
           console.warn('[Soulbound] aplicarEnEscena falló:', e);
           try { restaurarSprites(aparcados); } catch (e2) {}
           limpiarTemporales(scene, claves, PREFIJO_TMP);
-          resolve(false);
+          fin(false);
         }
-      });
+      };
+      scene.load.once('complete', completar);
+      scene.events?.once('shutdown', cancelar); scene.events?.once('destroy', cancelar);
+      timer = setTimeout(cancelar, 20000);
 
-      try { scene.load.start(); } catch (e) { resolve(false); }
+      try { scene.load.start(); } catch (e) { fin(false); }
     });
   }
 
@@ -454,10 +508,13 @@
     var esc = scene || escenaConSesion();
     if (!esc || !esc.playerName || !esc.serverBase) return Promise.resolve(false);
 
-    return fetch(esc.serverBase + '/api/soulbound/' + encodeURIComponent(esc.playerName),
-                 { credentials: 'include', mode: 'cors' })
-      .then(function (r) { return r.ok ? r.json() : null; })
+    var revision = revisionEleccion;
+    var cuenta = esc.playerName;
+    return solicitar(esc.serverBase + '/api/soulbound/' + encodeURIComponent(cuenta),
+                 { credentials: 'include', mode: 'cors' }, esc, true)
+      .then(function (r) { return r.datos; })
       .then(function (d) {
+        if (revision !== revisionEleccion || esc.playerName !== cuenta) return false;
         if (!d || !idValido(d.character)) return false;
         if (d.character === actual()) return false;
         fijar(d.character);
@@ -471,6 +528,10 @@
     var esc = scene || escenaConSesion();
     if (!esc || !esc.playerName || !esc.serverBase) return Promise.resolve(false);
 
+    var cuenta = esc.serverBase + ':' + esc.playerName;
+    var anterior = guardados.get(cuenta);
+    if (anterior) { anterior.id = id; return anterior.promesa; }
+    var pendiente = { id: id, promesa: null };
     var cabeceras = { 'Content-Type': 'application/json' };
     try {
       if (typeof global.getCsrfToken === 'function') {
@@ -478,15 +539,17 @@
       }
     } catch (e) {}
 
-    return fetch(esc.serverBase + '/api/soulbound/' + encodeURIComponent(esc.playerName), {
-      method: 'POST',
-      credentials: 'include',
-      mode: 'cors',
-      headers: cabeceras,
-      body: JSON.stringify({ character: id })
-    })
-      .then(function (r) { return r.ok; })
-      .catch(function () { return false; });
+    var url = esc.serverBase + '/api/soulbound/' + encodeURIComponent(esc.playerName);
+    var enviar = function () {
+      var elegidoAhora = pendiente.id;
+      return solicitar(url, { method: 'POST', credentials: 'include', mode: 'cors', headers: cabeceras,
+        body: JSON.stringify({ character: elegidoAhora }) }, null, false)
+        .then(function (r) { return r.ok; }).catch(function () { return false; })
+        .then(function (ok) { return pendiente.id !== elegidoAhora ? enviar() : ok; });
+    };
+    pendiente.promesa = enviar().finally(function () { guardados.delete(cuenta); });
+    guardados.set(cuenta, pendiente);
+    return pendiente.promesa;
   }
 
   // ── API principal ─────────────────────────────────────────────────────────
@@ -502,6 +565,7 @@
     var enPantalla = esc ? aplicarEnEscena(esc, id) : Promise.resolve(false);
 
     return enPantalla.then(function (ok) {
+      if (id !== actual()) return false;
       // El guardado en servidor va aparte: si la red falla, el jugador ya ve
       // su personaje y la elección sigue viva en el navegador.
       guardarEnServidor(id, esc);

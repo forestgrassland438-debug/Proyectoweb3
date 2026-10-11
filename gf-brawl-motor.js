@@ -249,9 +249,9 @@
    *    movía al principio: con la cámara siguiendo al perro y partidas de 1
    *    contra 1 que acababan en un minuto, no se llegaba a ver nunca ("la zona
    *    que se cierra no está"). Ahora el anillo de la PRÓXIMA zona segura se
-   *    ve desde el primer segundo, la niebla entra a los 15 s, cada fase
+   *    ve desde el primer segundo, la niebla entra a los 45 s, cada fase
    *    mueve el centro a un sitio al azar (hay que moverse, no basta con
-   *    quedarse en medio) y pega más que la anterior. Todo cerrado a los 80 s.
+   *    quedarse en medio) y pega más que la anterior. Todo cerrado a los 195 s.
    *  · La VIDA se REGENERA sola a los 3 s sin pegar ni recibir: premia saber
    *    retirarse, y castiga quedarse a pegar con poca vida.
    *  · BARRILES ('x'): aguantan dos golpes y al romperse EXPLOTAN — quitan
@@ -276,15 +276,19 @@
        final); `dano` = vida máxima que quita por segundo a quien está fuera,
        desde que empieza esa fase hasta que empieza la siguiente. */
     ZONA_FASES: [
-      { desde: 15000, hasta: 30000, frac: 0.72, dano: 0.05 },
-      { desde: 42000, hasta: 57000, frac: 0.40, dano: 0.08 },
-      { desde: 67000, hasta: 80000, frac: 0,    dano: 0.12 }
+      { desde: 45000, hasta: 75000, frac: 0.72, dano: 0.04 },
+      { desde: 105000, hasta: 135000, frac: 0.40, dano: 0.06 },
+      { desde: 160000, hasta: 195000, frac: 0,    dano: 0.10 }
     ],
-    ZONA_INICIO_MS: 15000,       // = la primera fase (el reloj del cliente lo usa)
-    ZONA_FIN_MS: 80000,          // cerrada del todo
-    DURACION_MAX_MS: 115000,
-    ZONA_RADIO_FINAL: 80,
-    ZONA_DANO_FINAL_S: 0.16,     // cuando ya se ha cerrado del todo
+    ZONA_INICIO_MS: 45000,
+    ZONA_FIN_MS: 195000,
+    DURACION_MAX_MS: 240000,
+    ZONA_RADIO_FINAL: 100,
+    ZONA_DANO_FINAL_S: 0.12,
+    CAJAS_EXTRA: 10,
+    PODER_DURACION_MS: 8000,
+    PODER_VELOCIDAD_MULT: 1.20,
+    ESCUDO_VIDA: 0.25,
     BARRIL_VIDA: 2,
     BARRIL_RADIO: 76,
     BARRIL_DANO: 0.32,           // de la vida máxima, en el centro (0,14 en el borde)
@@ -587,6 +591,7 @@
       P.luchadores.push(crearLuchador(P, spec, i + 1, (ap[0] + 0.5) * R.celda, (ap[1] + 0.5) * R.celda));
     }
     P.luchadores.forEach(function (l) { P.porId[l.id] = l; });
+    agregarCajas(P);
 
     /* `x`/`y` además de `cx`/`cy`: dist2() lee x e y. Sin ellos la distancia a
        la zona salía NaN, "fuera de la niebla" no era nunca verdad y la niebla
@@ -610,6 +615,33 @@
 
     P.luchadores.forEach(function (l) { enviarInicio(P, l); });
     return P;
+  }
+
+  function agregarCajas(P) {
+    if (!ARENAS[P.arenaId]) return;
+    var R = P.R, candidatos = [];
+    for (var y = 2; y < R.alto - 2; y++) for (var x = 2; x < R.ancho - 2; x++) {
+      var idx = y * R.ancho + x;
+      if (R.celdas[idx] !== '.') continue;
+      var p = celdaCentro(R, x, y);
+      if (P.luchadores.some(function (l) { return dist2(l, p) < Math.pow(R.celda * 2.5, 2); })) continue;
+      var libres = [idx - 1, idx + 1, idx - R.ancho, idx + R.ancho].filter(function (i) { return R.celdas[i] === '.' || R.celdas[i] === '*'; });
+      // Solo espacios abiertos: no se tapan puentes ni pasillos.
+      if (libres.length === 4) candidatos.push(idx);
+    }
+    for (var i = candidatos.length - 1; i > 0; i--) {
+      var j = Math.floor(P.azar() * (i + 1)), tmp = candidatos[i]; candidatos[i] = candidatos[j]; candidatos[j] = tmp;
+    }
+    var puestos = [];
+    for (var k = 0; k < candidatos.length && puestos.length < REGLAS.CAJAS_EXTRA; k++) {
+      var at = candidatos[k], pt = celdaCentro(R, at % R.ancho, Math.floor(at / R.ancho));
+      if (puestos.some(function (p) { return dist2(p, pt) < Math.pow(R.celda * 3, 2); })) continue;
+      var oro = puestos.length % 3 === 0;
+      R.celdas[at] = oro ? 'o' : 'c';
+      var vida = oro ? REGLAS.CAJA_ORO_VIDA : REGLAS.CAJA_VIDA;
+      R.cajas[at] = { vida: vida, max: vida, oro: oro };
+      puestos.push(pt);
+    }
   }
 
   /**
@@ -698,6 +730,12 @@
       ataque: Math.max(1, Number(s.ataque) || 12),
       x: x, y: y, r: REGLAS.RADIO,
       vel: REGLAS.VEL * esp.vel,
+      velBase: REGLAS.VEL * esp.vel,
+      rapidezHasta: 0,
+      escudoHasta: 0,
+      escudo: 0,
+      fraccionNiebla: 0,
+      fraccionRegen: 0,
       arma: ARMAS[esp.arma],
       armaId: esp.arma,
       superArma: ARMAS[esp.super],
@@ -1049,6 +1087,8 @@
     for (var i = 0; i < P.luchadores.length; i++) {
       var l = P.luchadores[i];
       if (!l.vivo) continue;
+      l.vel = l.velBase * (t < l.rapidezHasta ? REGLAS.PODER_VELOCIDAD_MULT : 1);
+      if (t >= l.escudoHasta) l.escudo = 0;
       // munición
       if (l.municion < REGLAS.MUNICION) {
         l.municion = Math.min(REGLAS.MUNICION, l.municion + REGLAS.TICK_MS / l.arma.recarga);
@@ -1068,13 +1108,16 @@
       var z = P.zona;
       var fuera = z.activa && Math.sqrt(dist2(l, z)) > z.r;
       if (fuera) {
-        var d = Math.max(1, Math.round(l.maxHp * z.dano * dt));
+        l.fraccionNiebla += l.maxHp * z.dano * dt;
+        var d = Math.floor(l.fraccionNiebla); l.fraccionNiebla -= d;
         l.hp -= d;
         l.regenDesde = t + REGLAS.REGEN_ESPERA_MS;
         if (l.hp <= 0) { l.hp = 0; caer(P, l, null); continue; }
       } else if (t >= l.regenDesde && l.hp < l.maxHp) {
         // regeneración
-        l.hp = Math.min(l.maxHp, l.hp + Math.max(1, Math.round(l.maxHp * REGLAS.REGEN_POR_S * dt)));
+        l.fraccionRegen += l.maxHp * REGLAS.REGEN_POR_S * dt;
+        var curaRegen = Math.floor(l.fraccionRegen); l.fraccionRegen -= curaRegen;
+        l.hp = Math.min(l.maxHp, l.hp + curaRegen);
       }
     }
 
@@ -1178,6 +1221,9 @@
   function golpear(P, b, duenio, l, t) {
     b.golpeados[l.id] = true;
     var d = b.dano;
+    if (l.escudo > 0 && t < l.escudoHasta) {
+      var absorbido = Math.min(l.escudo, d); l.escudo -= absorbido; d -= absorbido;
+    }
     l.hp = Math.max(0, l.hp - d);
     l.regenDesde = t + REGLAS.REGEN_ESPERA_MS;
     l.reveladoHasta = t + REGLAS.REVELA_MS;
@@ -1214,6 +1260,7 @@
     if (rota) romperCaja(P.R, idx);
     difundir(P, 'brawl:caja', { i: idx, vida: Math.max(0, c.vida), max: c.max, rota: rota ? 1 : 0, oro: c.oro ? 1 : 0, barril: c.barril ? 1 : 0 });
     if (rota && c.oro) soltarHuesos(P, x, y, 1);
+    if (rota && !c.barril) soltarSuministro(P, x, y, c.oro);
     if (rota && c.barril) explotar(P, x, y, b.duenio, t);
   }
 
@@ -1238,6 +1285,9 @@
       if (d > rad + l.r || !lineaDeTiro(R, x, y, l.x, l.y)) continue;
       var k = 1 - 0.55 * Math.min(1, d / rad);
       var dano = Math.max(1, Math.round(l.maxHp * REGLAS.BARRIL_DANO * k));
+      if (l.escudo > 0 && t < l.escudoHasta) {
+        var absorbido = Math.min(l.escudo, dano); l.escudo -= absorbido; dano -= absorbido;
+      }
       l.hp = Math.max(0, l.hp - dano);
       l.regenDesde = t + REGLAS.REGEN_ESPERA_MS;
       l.reveladoHasta = t + REGLAS.REVELA_MS;
@@ -1301,6 +1351,9 @@
         // La carne solo la coge quien está herido: pasar por encima con la
         // vida llena no la gasta (si no, se "robaría" para que no cure a otro).
         if (esCarne && l.hp >= l.maxHp) continue;
+        if (o.tipo === 'municion' && l.municion >= REGLAS.MUNICION) continue;
+        if (o.tipo === 'super' && l.superCarga >= 1) continue;
+        if (o.tipo === 'hueso' && l.potencia >= REGLAS.HUESO_MAX) continue;
         var rr = l.r + REGLAS.HUESO_RADIO * 0.5;
         if (dist2(l, o) <= rr * rr) { quien = l; break; }
       }
@@ -1311,6 +1364,15 @@
         var cu = P.curas[o.cura];
         if (cu) { cu.objeto = 0; cu.proxima = (t - P.tCombate) + REGLAS.CURA_CADA_MS; }
         difundir(P, 'brawl:recoger', { id: o.id, por: quien.id, tipo: 'carne', cura: cura, potencia: quien.potencia, maxHp: quien.maxHp, hp: quien.hp });
+        continue;
+      }
+      if (o.tipo !== 'hueso') {
+        if (o.tipo === 'escudo') { quien.escudo = Math.round(quien.maxHp * REGLAS.ESCUDO_VIDA); quien.escudoHasta = t + REGLAS.PODER_DURACION_MS; }
+        if (o.tipo === 'rapidez') { quien.rapidezHasta = t + REGLAS.PODER_DURACION_MS; quien.vel = quien.velBase * REGLAS.PODER_VELOCIDAD_MULT; }
+        if (o.tipo === 'municion') quien.municion = Math.min(REGLAS.MUNICION, quien.municion + 1.5);
+        if (o.tipo === 'super') quien.superCarga = Math.min(1, quien.superCarga + 0.35);
+        difundir(P, 'brawl:recoger', { id: o.id, por: quien.id, tipo: o.tipo, potencia: quien.potencia,
+          maxHp: quien.maxHp, hp: quien.hp, vel: quien.vel, m: quien.municion, s: quien.superCarga });
         continue;
       }
       if (quien.potencia < REGLAS.HUESO_MAX) {
@@ -1324,6 +1386,15 @@
       difundir(P, 'brawl:recoger', { id: o.id, por: quien.id, tipo: 'hueso', potencia: quien.potencia, maxHp: quien.maxHp, hp: quien.hp });
     }
     P.objetos = quedan;
+  }
+
+  function soltarSuministro(P, x, y, oro) {
+    var tipos = ['carne', 'escudo', 'rapidez', 'municion', 'super'];
+    var tipo = tipos[Math.floor(P.azar() * tipos.length)];
+    var p = moverCirculo(P.R, x, y, oro ? 18 : 0, 0, 8);
+    var o = { id: P.sigObjeto++, x: p[0], y: p[1], tipo: tipo };
+    P.objetos.push(o);
+    difundir(P, 'brawl:objeto', { id: o.id, x: o.x, y: o.y, tipo: tipo });
   }
 
   function caer(P, l, asesino) {
@@ -1423,6 +1494,10 @@
         c: yo.correccion,
         hp: yo.hp
       };
+      y.v = redondea(yo.vel, 2);
+      y.e = yo.escudo;
+      y.r = Math.max(0, yo.rapidezHasta - ahora);
+      y.ed = Math.max(0, yo.escudoHasta - ahora);
       /* La posición buena va en TODAS las instantáneas hasta que el cliente
          confirme (con la `c` de sus entradas) que ya la ha aplicado. Mandarla
          una sola vez bastaría con una red perfecta; con una pestaña que se
@@ -1660,11 +1735,14 @@
     var R = P.R, mejor = null, md = Infinity;
     Object.keys(R.cajas).forEach(function (k) {
       var c = R.cajas[k];
-      if (!c.oro) return;
+      if (c.barril) return;
       var i = Number(k);
       var pt = celdaCentro(R, i % R.ancho, Math.floor(i / R.ancho));
       var d = dist2(l, pt);
-      if (d < md && d <= l.arma.alcance * l.arma.alcance * 0.8 && lineaDeTiro(R, l.x, l.y, pt.x, pt.y)) {
+      var distancia = Math.sqrt(d) || 1;
+      var bordeX = pt.x - (pt.x - l.x) / distancia * (R.celda * 0.72);
+      var bordeY = pt.y - (pt.y - l.y) / distancia * (R.celda * 0.72);
+      if (d < md && d <= l.arma.alcance * l.arma.alcance * 0.8 && dentroDeZona(P, pt, l.r) && lineaDeTiro(R, l.x, l.y, bordeX, bordeY)) {
         md = d; mejor = pt;
       }
     });
@@ -1801,6 +1879,12 @@
     for (var h = 0; h < P.objetos.length; h++) {
       var o = P.objetos[h];
       if (tipo && o.tipo !== tipo) continue;
+      if (o.tipo === 'carne' && l.hp >= l.maxHp) continue;
+      if (o.tipo === 'hueso' && l.potencia >= REGLAS.HUESO_MAX) continue;
+      if (o.tipo === 'municion' && l.municion >= REGLAS.MUNICION) continue;
+      if (o.tipo === 'super' && l.superCarga >= 1) continue;
+      if (o.tipo === 'escudo' && l.escudo > 0) continue;
+      if (o.tipo === 'rapidez' && l.rapidezHasta > P.tUltimo) continue;
       var d = dist2(l, o);
       if (d < md) { md = d; mejor = o; }
     }
@@ -2016,8 +2100,10 @@
       irHacia(P, l, ia.recuerdo.x, ia.recuerdo.y, t);
       return;
     }
-    var hueso = objetoCerca(P, l, 'hueso', R.celda * 7);
+    var hueso = objetoCerca(P, l, null, R.celda * 7);
     if (hueso && dentroDeZona(P, hueso, l.r)) { ia.modo = 'recurso'; irHacia(P, l, hueso.x, hueso.y, t); return; }
+    var suministro = cajaOroCerca(P, l);
+    if (suministro && l.municion >= 2) { ia.modo = 'recurso'; irHacia(P, l, suministro.x, suministro.y, t); return; }
 
     // Explorar: a un sitio libre dentro de la zona buena (los listos, por la
     // hierba). Al llegar, a veces se para a mirar un momento.
@@ -2101,7 +2187,7 @@
   function dentroDeZona(P, p, margen) {
     var z = P.zona;
     if (Math.sqrt(dist2(p, z)) > z.r - margen) return false;
-    if (z.sig) {
+    if (z.sig && (z.estado === 1 || z.cambioEn - (P.tUltimo - P.tCombate) <= 8000)) {
       var dx = p.x - z.sig.x, dy = p.y - z.sig.y;
       if (Math.sqrt(dx * dx + dy * dy) > z.sig.r - margen) return false;
     }

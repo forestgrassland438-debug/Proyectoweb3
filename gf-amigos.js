@@ -1169,7 +1169,7 @@
     p.style.left = x + 'px';
     p.style.top = y + 'px';
 
-    setTimeout(function () { doc.addEventListener('pointerdown', cerrarPaletaSiFuera, true); }, 0);
+    setTimeout(function () { if (doc.getElementById('gfa-paleta-reac') === p) doc.addEventListener('pointerdown', cerrarPaletaSiFuera, true); }, 0);
   }
 
   function cerrarPaletaSiFuera(e) {
@@ -1318,6 +1318,7 @@
     m.style.top = Math.max(8, Math.min(r.bottom + 6, global.innerHeight - mr.height - 8)) + 'px';
 
     setTimeout(function () {
+      if (doc.getElementById('gfa-menu-conv') !== m) return;
       doc.addEventListener('pointerdown', cerrarMenuConvSiFuera, true);
     }, 0);
   }
@@ -1889,6 +1890,7 @@
 
     // Un tic después: si no, el mismo toque que lo abre lo cerraría.
     setTimeout(function () {
+      if (doc.getElementById('gfa-menu-jugador') !== menu) return;
       doc.addEventListener('pointerdown', cerrarMenuSiFuera, true);
       doc.addEventListener('keydown', cerrarMenuConEsc);
     }, 0);
@@ -1954,8 +1956,17 @@
    * que hace falta, porque el HUD sobrevive al cambio de escena pero sus
    * manejadores apuntan a la escena que los puso — y esa puede estar ya muerta.
    */
+  var ciclosEscena = new WeakMap();
   function montar(scene) {
     escena = scene || escena;
+    if (scene?.events?.once && !ciclosEscena.has(scene)) {
+      var soltar = function () {
+        scene.events.off('shutdown', soltar); scene.events.off('destroy', soltar);
+        ciclosEscena.delete(scene); desmontar(scene);
+      };
+      ciclosEscena.set(scene, soltar);
+      scene.events.once('shutdown', soltar); scene.events.once('destroy', soltar);
+    }
     construir();
     engancharBoton();
     enlazar();
@@ -1975,7 +1986,9 @@
     /* NO se toca el socket ni se destruye el panel: los dos son de la PÁGINA y
        la siguiente escena los va a querer intactos. Lo único que se suelta es
        la referencia a la escena, para no dejar viva una escena muerta. */
-    if (escena === scene) escena = null;
+    var soltar = scene && ciclosEscena.get(scene);
+    if (soltar) { scene.events.off('shutdown', soltar); scene.events.off('destroy', soltar); ciclosEscena.delete(scene); }
+    if (escena === scene) { escena = null; cerrarMenuJugador(); cerrarMenuConversacion(); cerrarPaletaReaccion(); }
   }
 
   // ── API ───────────────────────────────────────────────────────────────────

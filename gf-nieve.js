@@ -582,6 +582,11 @@
 
   /** Un sitio nevado A LA VISTA: la cresta de una capa, o dentro de una mancha. */
   function sitioNevado(st, vista) {
+    function enVista(x, y) {
+      if (!vista) return true;
+      if (typeof vista.contains === 'function') return vista.contains(x, y);
+      return x >= vista.x && y >= vista.y && x <= vista.x + vista.width && y <= vista.y + vista.height;
+    }
     for (var intento = 0; intento < 6; intento++) {
       if (Math.random() < 0.65 && st.capas.length) {
         var d = st.capas[Math.floor(Math.random() * st.capas.length)];
@@ -592,7 +597,7 @@
         var u = d.spr.flipX ? 1 - p.u : p.u;
         var x = d.spr.x - d.spr.displayWidth * d.spr.originX + u * d.spr.displayWidth;
         var y = d.spr.y - d.spr.displayHeight * d.spr.originY + p.v * d.spr.displayHeight + az(0, 3);
-        if (vista && !vista.contains(x, y)) continue;
+        if (!enVista(x, y)) continue;
         return { x: x, y: y, prof: d.spr.depth + 0.05 };
       }
       var vivas = st.manchas.filter(function (m) { return m.viva; });
@@ -600,7 +605,7 @@
       var m = vivas[Math.floor(Math.random() * vivas.length)];
       var mx = m.spr.x + az(-0.3, 0.3) * m.spr.displayWidth;
       var my = m.spr.y + az(-0.25, 0.25) * m.spr.displayHeight;
-      if (vista && !vista.contains(mx, my)) continue;
+      if (!enVista(mx, my)) continue;
       return { x: mx, y: my, prof: PROF_MANCHA + 0.2 };
     }
     return null;
