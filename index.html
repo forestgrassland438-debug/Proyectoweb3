@@ -56,6 +56,8 @@
 
   <!-- Socket.IO client rebuilt with the patched parser from package-lock.json -->
   <script src="./vendor/socket.io.min.js?v=870d83168a0e" defer integrity="sha384-YcYLaFXXR/8FhGSjB8IL//yNuj3jIcW9XDTrHLppVdjuPbsYm9l2B4+bsInmrSOO"></script>
+  <!-- Una sola partida por cuenta: envuelve io() y fetch. Va JUSTO después del cliente de Socket.IO. -->
+  <script src="./gf-sesion-unica.js?v=21.5" defer></script>
 
   <!-- Ethers -->
   <script src="./vendor/ethers.umd.min.js?v=532950515fd2" defer integrity="sha384-lApM4ELRuFNT7NgNqnXB2zFWgSDdhVvmnOHov2DPJz/2zuNpZImXBeklFr18ilvi"></script>
@@ -78,7 +80,7 @@
   <script src="./gf-soulbound.js?v=21.3" defer></script>
   <!-- "My NFTs" del panel NFT: la colección que se elige en admin.html. -->
   <script src="./gf-nft.js?v=20.7" defer></script>
-  <script src="./gf-lands.js?v=21.1" defer></script>
+  <script src="./gf-lands.js?v=21.5" defer></script>
 
   <!-- Canales (10 × 50 jugadores). El canal lo asigna el servidor al conectar
        el socket, UNA sola vez por pestaña; este módulo solo lo recuerda y
@@ -87,11 +89,15 @@
   <script src="./gf-profundidad.js?v=20.2" defer></script>
   <script src="./gf-sombras.js?v=19.1" defer></script>
   <script src="./gf-nieve.js?v=20.93" defer></script>
-  <script src="./gf-pesca.js?v=21.43" defer></script>
+  <script src="./gf-pesca.js?v=21.5" defer></script>
+  <!-- El monte del pueblo: hierba alta que se abre al pasar (Maps/monte.json). -->
+  <script src="./gf-monte.js?v=21.5" defer></script>
   <!-- Los demas a los 5 minutos quietos se ocultan (2026-10-05). -->
   <script src="./gf-reposo.js?v=21.4" defer></script>
   <script src="./gf-espantapajaros.js?v=21.41" defer></script>
-  <script src="./gf-espada.js?v=21.1" defer></script>
+  <script src="./gf-espada.js?v=21.5" defer></script>
+  <!-- Los zombis de la mina y su guardián (los monta MinaScene). -->
+  <script src="./gf-mina-zombis.js?v=21.5" defer></script>
   <script src="./gf-agua.js?v=21.43" defer></script>
   <script src="./gf-suelo.js?v=21.1" defer></script>
   <script src="./gf-casas.js?v=21.3" defer></script>
@@ -143,21 +149,21 @@
        Van ANTES de las escenas porque GameScene y tiendajuego los montan en su
        create(); con `defer` el orden de estas etiquetas es el de ejecución. -->
   <!-- El traductor del chat (2026-10-05): antes que el chat y los privados. -->
-  <script src="./gf-traductor.js?v=21.4" defer></script>
+  <script src="./gf-traductor.js?v=21.5" defer></script>
   <script src="./gf-amigos.js?v=21.4" defer></script>
   <script src="./gf-chat-social.js?v=21.4" defer></script>
   <script src="./gf-nombre-color.js?v=19.1" defer></script>
 
   <script src="./Scenes/MenuScene.js?v=20.3" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=19.8" defer></script>
-  <script src="./Scenes/tiendajuego.js?v=21.4" defer></script>
-  <script src="./Scenes/LoadingScenegame.js?v=21.3" defer></script>
-  <script src="./Scenes/GameScene.js?v=21.44" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=21.5" defer></script>
+  <script src="./Scenes/LoadingScenegame.js?v=21.5" defer></script>
+  <script src="./Scenes/GameScene.js?v=21.5" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
        basta con dejarla en esta linea y no antes. -->
-  <script src="./Scenes/MinaScene.js?v=21.42" defer></script>
+  <script src="./Scenes/MinaScene.js?v=21.5" defer></script>
   <!-- La isla de las parcelas. Hereda de GameScene igual que la mina,
        asi que tambien tiene que ir DESPUES de ella. -->
   <script src="./Scenes/LandsScene.js?v=21.41" defer></script>
@@ -188,8 +194,8 @@
   <script src="./TransactionHub.js?v=19.8" defer></script>
   <script src="./SystemaTransaccion.js?v=19.8" defer></script>
   <script src="./CraftingHub.js?v=21.31" defer></script>
-  <script src="./tienda_sistema.js?v=21.41" defer></script>
-  <script src="./phaser-relay-library.js?v=19.8" defer></script>
+  <script src="./tienda_sistema.js?v=21.5" defer></script>
+  <script src="./phaser-relay-library.js?v=21.5" defer></script>
   <script src="./hub.js?v=19.8" defer></script>
 
 

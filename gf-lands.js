@@ -377,6 +377,13 @@
     return v;
   }
 
+  /** La nota, SIN recogerla: la pantalla de carga elige escena con ella. */
+  function mirar() {
+    var v = root.__gfViaje;
+    if (!v || Date.now() - (v.t || 0) > CADUCIDAD_VIAJE) return null;
+    return v;
+  }
+
   /** Sin cambiar de escena: el jugador aparece alli. */
   function moverEnSitio(escena, x, y) {
     var p = escena.player;
@@ -460,6 +467,7 @@
   root.GFViaje = {
     viajar: viajar,
     tomar: tomar,
+    mirar: mirar,
     moverEnSitio: moverEnSitio,
     MUNDO_DE_ZONA: MUNDO_DE_ZONA
   };

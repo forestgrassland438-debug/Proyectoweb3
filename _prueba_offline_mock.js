@@ -242,6 +242,16 @@
       b = cuerpo(init); estado.guardado = b; return { success: true };
     }
     if (/^\/api\/stats\/[^/]+\/sync$/.test(ruta)) return { success: true, stats: estado.stats, source: 'mock' };
+    // El daño que pone el servidor (costesDeAccion en server2.js).
+    if (/^\/api\/stats\/[^/]+\/consume$/.test(ruta)) {
+      b = cuerpo(init);
+      var DANOS = { animal_bite: 6, zombi_mina: 5, jefe_mina: 12 };
+      if (DANOS[b.reason]) {
+        estado.stats.vida = Math.max(0, estado.stats.vida - DANOS[b.reason]);
+        estado.golpes = (estado.golpes || []).concat([b.reason]).slice(-50);
+      }
+      return { ok: true, spent: DANOS[b.reason] ? { vida: DANOS[b.reason] } : {}, stats: { vida: estado.stats.vida, agua: estado.stats.agua, comida: estado.stats.comida } };
+    }
     if (/^\/api\/stats\/[^/]+\/update$/.test(ruta)) {
       b = cuerpo(init);
       Object.keys(b.stats || {}).forEach(function (k) { estado.stats[k] = b.stats[k]; });
@@ -361,8 +371,14 @@
       if (Date.now() > pe.picaEn + 2600) { estado.pesca = null; return { ok: false, motivo: 'tarde' }; }
       var DIF = { pes1: { tam: 0.42, vel: 0.32, nervio: 0.70, mengua: 0, rafaga: 0 },
                   pes2: { tam: 0.32, vel: 0.54, nervio: 1.20, mengua: 0.12, rafaga: 0.16 },
-                  pes3: { tam: 0.29, vel: 0.60, nervio: 1.35, mengua: 0.22, rafaga: 0.22 } };
-      pe.especie = (/[?&]pez=(pes[123])/.exec(location.search) || [])[1] || ['pes1', 'pes2', 'pes3'][Math.floor(Math.random() * 3)];
+                  pes3: { tam: 0.29, vel: 0.60, nervio: 1.35, mengua: 0.22, rafaga: 0.22 },
+                  pes4: { tam: 0.45, vel: 0.28, nervio: 0.60, mengua: 0.00, rafaga: 0.00 },
+                  pes5: { tam: 0.40, vel: 0.36, nervio: 0.80, mengua: 0.04, rafaga: 0.04 },
+                  pes7: { tam: 0.33, vel: 0.48, nervio: 1.70, mengua: 0.10, rafaga: 0.18 },
+                  pes8: { tam: 0.28, vel: 0.62, nervio: 1.40, mengua: 0.20, rafaga: 0.24 },
+                  pes6: { tam: 0.26, vel: 0.66, nervio: 1.50, mengua: 0.25, rafaga: 0.26 } };
+      var PECES = ['pes1', 'pes2', 'pes3', 'pes4', 'pes5', 'pes6', 'pes7', 'pes8'];
+      pe.especie = (/[?&]pez=(pes[1-8])/.exec(location.search) || [])[1] || PECES[Math.floor(Math.random() * PECES.length)];
       pe.enganchadoEn = Date.now();
       return { ok: true, especie: pe.especie, dificultad: DIF[pe.especie], maxMs: 45000 };
     }
@@ -372,7 +388,19 @@
       if (ps.enganchadoEn) {
         b = cuerpo(init);
         if (b.exito !== true || Date.now() - ps.enganchadoEn < 1900) return { ok: false, motivo: 'escapo' };
-        return { ok: true, itemId: ps.especie, exp: 25, factura: { invoiceId: 700 + Math.floor(Math.random() * 99), manualId: ps.especie + '#m', cantidad: 1 } };
+        // Los venenosos (ver PESCA_VENENO en server2.js): pinchazos por el socket.
+        var VEN = { pes7: [12, 2000], pes8: [20, 1500] }[ps.especie];
+        if (VEN) {
+          var resta = VEN[0];
+          var pinchar = function () {
+            estado.stats.vida = Math.max(0, estado.stats.vida - 1); resta--;
+            try { window.globalSocket._fire('vitales:veneno', { stats: { vida: estado.stats.vida, agua: estado.stats.agua, comida: estado.stats.comida }, restante: resta, dano: 1 }); } catch (e) {}
+            if (resta > 0 && estado.stats.vida > 0) setTimeout(pinchar, VEN[1]);
+          };
+          setTimeout(pinchar, 600);
+        }
+        return { ok: true, itemId: ps.especie, exp: 25, veneno: VEN ? { total: VEN[0], duracionMs: VEN[0] * VEN[1] } : null,
+                 factura: { invoiceId: 700 + Math.floor(Math.random() * 99), manualId: ps.especie + '#m', cantidad: 1 } };
       }
       if (Date.now() < ps.picaEn - 150) return { ok: false, motivo: 'pronto' };
       if (Date.now() > ps.picaEn + 2600) return { ok: false, motivo: 'tarde' };
@@ -464,6 +492,16 @@
     var url = typeof entrada === 'string' ? entrada : (entrada && entrada.url) || String(entrada);
     var u;
     try { u = new URL(url, location.href); } catch (e) { return fetchNativo(entrada, init); }
+    // El traductor del chat llama a Google DIRECTAMENTE desde el navegador
+    // (gf-traductor.js): eso va a la red de verdad. Con
+    // window.__gfMockSinGoogle = true se simula una red que bloquea Google
+    // (429), para probar el respaldo del servidor.
+    if (/^(translate\.googleapis\.com|clients5\.google\.com)$/.test(u.hostname)) {
+      if (window.__gfMockSinGoogle) {
+        return Promise.resolve(new Response('[]', { status: 429, headers: { 'Content-Type': 'application/json' } }));
+      }
+      return fetchNativo(entrada, init);
+    }
     var esBackend = u.origin !== location.origin || u.pathname.indexOf('/api/') === 0 || u.pathname === '/ping';
     if (!esBackend) return fetchNativo(entrada, init);
     var metodo = String((init && init.method) || 'GET').toUpperCase();
@@ -743,10 +781,13 @@
   function ioFalso() { return new SocketFalso(); }
   ioFalso.connect = ioFalso;
   ioFalso.io = ioFalso;
+  var ioActual = ioFalso;
   Object.defineProperty(window, 'io', {
     configurable: true,
-    get: function () { return ioFalso; },
-    set: function () { /* el socket.io real no se usa aquí */ }
+    get: function () { return ioActual; },
+    // El socket.io real no se usa aquí; los envoltorios del juego
+    // (gf-sesion-unica.js) sí, para poder probarlos.
+    set: function (v) { if (typeof v === 'function' && v.__gfSesion) ioActual = v; }
   });
 
   /* MOTOR MANUAL. Con la pestaña oculta el navegador no da fotogramas y el

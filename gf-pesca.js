@@ -76,7 +76,10 @@
   var CARGA_MS = 1100;              // lo que tarda en llenarse la barra
   var RADIO_MOVERSE = 72;           // cuánto se puede andar pescando
   var DIRV = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
-  var NOMBRES = { pes1: 'Brown Trout', pes2: 'Common Carp', pes3: 'Golden Trout' };
+  var NOMBRES = { pes1: 'Brown Trout', pes2: 'Common Carp', pes3: 'Golden Trout',
+                  // Los de 2026-10-10 (pes7 y pes8, venenosos: ver el veneno, abajo).
+                  pes4: 'River Perch', pes5: 'Bream', pes6: 'Sturgeon', pes7: 'Poison Eel', pes8: 'Lionfish' };
+  var PECES = ['pes1', 'pes2', 'pes3', 'pes4', 'pes5', 'pes6', 'pes7', 'pes8'];
   var DIRS = { left: 'izquierda', right: 'derecha', up: 'arriba', down: 'abajo' };
   var V_FOTOS = '?v=20261006a';   // fotogramas nuevos de frente y de espaldas
   /* Dónde está la punta de la caña en cada fotograma (px desde el centro del
@@ -281,7 +284,7 @@
         if (!scene.textures.exists(k)) faltan.push([k, './Game/Sprites/Soulbound/' + per + '/' + DIRS[d] + '/pescar_' + n + '.png' + V_FOTOS]);
       }
     });
-    if (!sinPeces) ['pes1', 'pes2', 'pes3'].forEach(function (p) {
+    if (!sinPeces) PECES.forEach(function (p) {
       if (!scene.textures.exists('gfp_' + p)) faltan.push(['gfp_' + p, './Game/Objetos/pesca/' + p + '.png']);
     });
     if (!faltan.length) return Promise.resolve(true);
@@ -803,7 +806,14 @@
         saltarPez(st, d.itemId);
         meterFactura(scene, d.itemId, d.factura);
         try { if (scene._sumarExpHabilidad) scene._sumarExpHabilidad('pesca', d.exp || 15); } catch (e) {}
-        aviso(scene, '🎣 You caught a ' + (NOMBRES[d.itemId] || d.itemId) + '!', 'success');
+        if (d.veneno) {
+          // Venenoso: te pica al desengancharlo. La vida la quita el SERVIDOR
+          // poco a poco y la barra baja con cada aviso (ver el veneno, abajo).
+          aviso(scene, '☠️ You caught a ' + (NOMBRES[d.itemId] || d.itemId) + '… and it stung you! You are poisoned.', 'warning');
+          enVeneno(scene, true);
+        } else {
+          aviso(scene, '🎣 You caught a ' + (NOMBRES[d.itemId] || d.itemId) + '!', 'success');
+        }
         try { scene.playSFX && scene.playSFX('item_pickup'); } catch (e) {}
       } else {
         var m = d.motivo;
@@ -819,6 +829,72 @@
       terminar(st);
     });
   }
+
+  /* ─────────────────────────────────────────────────── EL VENENO (2026-10-10)
+     Los peces venenosos (pes7, pes8) pican al sacarlos. El servidor quita la
+     vida poco a poco y avisa por el socket con `vitales:veneno`; aquí solo se
+     PINTA: la barra (con el camino de siempre, _adoptarVitalesDelServidor),
+     un destello verde en el personaje y, si la vida llega a 0, la muerte de
+     siempre. Vale en cualquier escena: el socket es uno por pestaña, y el
+     veneno sigue aunque entres en la tienda. */
+  var VERDE_VENENO = 0x8dff6a;
+
+  function escenaVivaDelJuego() {
+    var g = window.game;
+    if (!g || !g.scene || !g.scene.getScenes) return null;
+    var lista = g.scene.getScenes(true) || [];
+    for (var i = 0; i < lista.length; i++) {
+      if (lista[i] && lista[i].player && lista[i].sys && lista[i].sys.settings.key !== 'LoadingScenegame') return lista[i];
+    }
+    return null;
+  }
+
+  function enVeneno(scene, si) {
+    var p = scene && scene.player;
+    if (!p || !p.setTint) return;
+    try {
+      if (si) {
+        p.setTint(VERDE_VENENO);
+        if (scene._gfVenenoReloj) clearTimeout(scene._gfVenenoReloj);
+        scene._gfVenenoReloj = setTimeout(function () {
+          scene._gfVenenoReloj = null;
+          try { if (p.active) p.clearTint(); } catch (e) {}
+        }, 220);
+      } else {
+        p.clearTint();
+      }
+    } catch (e) {}
+  }
+
+  function alPinchazo(d) {
+    if (!d || !d.stats) return;
+    var scene = escenaVivaDelJuego();
+    if (!scene) return;
+    try {
+      if (typeof scene._adoptarVitalesDelServidor === 'function') scene._adoptarVitalesDelServidor(d.stats);
+      else if (typeof d.stats.vida === 'number') {
+        // La tienda no tiene ese método: la barra a mano.
+        if (window.playerStats) window.playerStats.vida = d.stats.vida;
+        scene.vidaPorcentaje = d.stats.vida;
+        if (typeof scene.actualizarBarraVida === 'function') scene.actualizarBarraVida(d.stats.vida);
+      }
+    } catch (e) {}
+    if (d.dano > 0) enVeneno(scene, true);
+    if (d.restante <= 0) aviso(scene, 'The poison wore off.', 'info');
+    if (typeof d.stats.vida === 'number' && d.stats.vida <= 0 &&
+        window.GFMascota && typeof window.GFMascota.declararMuerte === 'function') {
+      window.GFMascota.declararMuerte();
+    }
+  }
+
+  // Se engancha al socket de la página (y al nuevo, si se rehace).
+  function engancharVeneno() {
+    var s = window.globalSocket;
+    if (!s || s.__gfVeneno || typeof s.on !== 'function') return;
+    s.__gfVeneno = true;
+    s.on('vitales:veneno', alPinchazo);
+  }
+  setInterval(engancharVeneno, 2000);
 
   function saltarPez(st, itemId) {
     var scene = st.scene, p = scene.player;

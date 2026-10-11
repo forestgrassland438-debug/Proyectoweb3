@@ -33,6 +33,7 @@
   var CLAVE_LS = 'gf_espada';
 
   var equipada = null;
+  var objetivos = [];               // otros a los que da el tajo (ver golpe)
   try { var g = localStorage.getItem(CLAVE_LS); if (ESPADAS[g]) equipada = g; } catch (e) {}
 
   function guardar() { try { if (equipada) localStorage.setItem(CLAVE_LS, equipada); else localStorage.removeItem(CLAVE_LS); } catch (e) {} }
@@ -261,6 +262,18 @@
     var res = window.GFAnimales && window.GFAnimales.golpear
       ? window.GFAnimales.golpear(scene, cx, cy, dir, def.alcance + 18, def.dano)
       : { tocados: 0, muertos: 0, puntos: [] };
+    /* Y los demás que se hayan apuntado (2026-10-10): los zombis de la mina
+       (gf-mina-zombis.js), los monstruos y los jugadores de la zona PVP. Cada
+       uno devuelve lo mismo que GFAnimales.golpear y se suma. */
+    objetivos.slice().forEach(function (fn) {
+      try {
+        var r2 = fn(scene, cx, cy, dir, def.alcance + 18, def.dano);
+        if (!r2) return;
+        res.tocados += r2.tocados || 0;
+        res.muertos += r2.muertos || 0;
+        if (Array.isArray(r2.puntos)) res.puntos = res.puntos.concat(r2.puntos);
+      } catch (e) {}
+    });
     res.puntos.forEach(function (pt) {
       var ch = scene.add.image(pt.x, pt.y, 'gfs_chispa').setDepth(9000).setScale(1.6);
       if (ch.setBlendMode && window.Phaser && Phaser.BlendModes) ch.setBlendMode(Phaser.BlendModes.ADD);
@@ -324,6 +337,9 @@
     equipada: function () { return equipada; },
     equipar: function (id) { if (id === null || ESPADAS[id]) { equipada = id; guardar(); } return equipada; },
     golpear: function (scene) { var st = scene && scene.__gfEspada; if (st) golpe(st); },
+    /** fn(scene, cx, cy, dir, alcance, dano) -> { tocados, muertos, puntos } */
+    agregarObjetivo: function (fn) { if (typeof fn === 'function' && objetivos.indexOf(fn) < 0) objetivos.push(fn); },
+    quitarObjetivo: function (fn) { var i = objetivos.indexOf(fn); if (i >= 0) objetivos.splice(i, 1); },
     ESPADAS: ESPADAS
   };
 })();
