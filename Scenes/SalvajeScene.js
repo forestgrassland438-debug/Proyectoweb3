@@ -11,11 +11,25 @@
  * monstruos, climas como GameScene, los árboles nuevos y 3 caminos para más
  * mapas a futuro."
  *
- * EL MAPA: Maps/salvaje.json (tools/generar-salvaje.py), 157 x 157 casillas
- * de 32 px con el atlas lands_pradera_32 de tileset_nuevos. El ESTE es zona
- * neutral (se llega del pueblo por su borde este); un río con un puente lo
- * separa del OESTE, la zona PvP (ver gf-salvaje.js). Salidas cerradas al
- * norte, sur y oeste ("Coming soon") para los mapas que vengan.
+ * EL MAPA: Maps/salvaje.json (tools/generar-salvaje.py), 314 x 314 casillas
+ * de 16 px con el MISMO tileset que el pueblo (Game/MAPAS/tiles.png) y sus
+ * mismas reglas de orillas, caminos y bordillos. El ESTE es zona neutral (se
+ * llega del pueblo por su borde este, por el camino de ladrillo que sigue al
+ * suyo); un río con un puente lo separa del OESTE, la zona PvP (ver
+ * gf-salvaje.js). Salidas cerradas al norte, sur y oeste ("Coming soon").
+ *
+ * EL SUELO COMO EL DEL PUEBLO (2026-10-11): "el mapa nuevo debe ir también
+ * recortado como la mina y los demás mapas; el agua debe ser como la de
+ * GameScene y también su piso; no tiene el monte; y el zoom igual que
+ * GameScene". Así que:
+ *   · el suelo son TROZOS pintados (recortadas_salvaje, gf-suelo.js) con el
+ *     detalle del pueblo (tools/detallar-captura-mapa.py);
+ *   · el agua es la del pueblo que se mueve (gf-agua.js, 'rio': peces,
+ *     hojas, piedras, juncos), leída de la capa de casillas;
+ *   · el puente es un dibujo encima del agua, con la baranda de delante por
+ *     encima de quien cruza (Game/MAPAS/salvaje/puente*.png);
+ *   · el monte (gf-monte.js, Maps/monte_salvaje.json);
+ *   · y el zoom de GameScene: 0.5x, 1x y 2x.
  *
  * HEREDA DE GameScene, como la mina y la isla: HUD, inventario, chat,
  * amigos, mascota... sin copiar nada. Lo propio de aquí: el mapa, los
@@ -30,7 +44,7 @@
 
 /* global GameScene, Phaser */
 
-const SALVAJE_V = '20261011a';
+const SALVAJE_V = '20261011c';
 const SALVAJE_ARBOLES = ['abedul', 'abeto', 'arbol_ancestral', 'arbol_seco', 'cerezo', 'pino',
   'roble_ancho', 'roble_curvado', 'roble_otono', 'roble_redondo'];
 // Al volver al pueblo: en su camino del borde oeste, un poco hacia dentro.
@@ -44,9 +58,9 @@ class SalvajeScene extends GameScene {
     // registraría como 'GameScene'.
     super({ key: 'SalvajeScene' });
     this.esSalvaje = true;
-    // Sin 0.5x: es una capa de casillas y a medio zoom salen costuras (ver
-    // LandsScene, por lo mismo).
-    this._nivelesDeZoom = [1.0, 2.0];
+    // El zoom del pueblo: el suelo son trozos pintados, como allí, así que a
+    // 0.5x no salen costuras entre casillas.
+    this._nivelesDeZoom = [0.5, 1.0, 2.0];
     this._arboles = [];
   }
 
@@ -74,8 +88,12 @@ class SalvajeScene extends GameScene {
       this.load.image('perro_izquierda_' + i, './Game/Sprites/mascota/izquierda/run_' + i + '.png');
     }
     const v = '?v=' + SALVAJE_V;
-    // Claves PROPIAS: la caché de Phaser es compartida entre escenas.
-    this.load.image('tiles_salvaje', './Game/MAPAS/salvaje/terreno_32.png' + v);
+    // Claves PROPIAS: la caché de Phaser es compartida entre escenas. El
+    // tileset es el del pueblo, pero con su clave: al salir se libera sin
+    // tocar el 'tiles' de GameScene.
+    this.load.image('tiles_salvaje', './Game/MAPAS/tiles.png' + v);
+    this.load.image('sv_puente', './Game/MAPAS/salvaje/puente.png' + v);
+    this.load.image('sv_puente_baranda', './Game/MAPAS/salvaje/puente_baranda.png' + v);
     this.load.tilemapTiledJSON('tilemap_salvaje', './Maps/salvaje.json' + v);
     SALVAJE_ARBOLES.forEach((n) => {
       if (!this.textures.exists('sv_arbol_' + n)) this.load.image('sv_arbol_' + n, './Game/MAPAS/salvaje/arboles/' + n + '.png' + v);
@@ -143,11 +161,20 @@ class SalvajeScene extends GameScene {
 
     // ── El mapa ────────────────────────────────────────────────────────────
     this.map = this.make.tilemap({ key: 'tilemap_salvaje' });
-    const tileset = this.map.addTilesetImage('terreno_32', 'tiles_salvaje', 32, 32);
+    const tileset = this.map.addTilesetImage('Tileset_mapa', 'tiles_salvaje', 16, 16);
     this.textures.get('tiles_salvaje').setFilter(Phaser.Textures.FilterMode.NEAREST);
     this.backgroundLayer = this.map.createLayer('suelo', tileset, 0, 0);
     if (this.backgroundLayer) this.backgroundLayer.setDepth(0);
     this.physics.world.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
+    /* EL AGUA DEL PUEBLO (gf-agua.js): se mueve, con espuma en la orilla,
+       peces, hojas y sus piedras y juncos. Lee la capa `suelo`; debajo del
+       puente no pone nada fijo (saldría por encima de las tablas). */
+    const puente = this._rectDelPuente();
+    if (window.GFAgua) window.GFAgua.montar(this, { capa: 'suelo', textura: 'tiles_salvaje', vida: 'rio', excluir: puente ? [puente] : [] });
+    /* EL SUELO PINTADO (gf-suelo.js): los trozos de recortadas_salvaje. Al
+       llegar el primero se esconde la capa de casillas. */
+    this._montarSueloPintado('recortadas_salvaje', 'salvaje', [this.backgroundLayer]);
+    this._montarPuente();
 
     // ── Colisiones (agua, troncos, vallas) y salidas ─────────────────────────
     this.collisionRectangles = this._rectsDeCapa('colisiones');
@@ -231,6 +258,8 @@ class SalvajeScene extends GameScene {
     if (window.GFNombreColor) window.GFNombreColor.montar(this);
     if (window.GFSoulbound)   window.GFSoulbound.sincronizar(this);
     if (window.GFEspada)      window.GFEspada.montar(this);
+    // La hierba alta que se abre al pasar, como en el pueblo (gf-monte.js).
+    if (window.GFMonte)       window.GFMonte.montar(this);
     try {
       if (window.GFCiclo) {
         window.GFCiclo.sincronizarSiHaceFalta('entrar en el mapa salvaje');
@@ -240,6 +269,8 @@ class SalvajeScene extends GameScene {
     // Los monstruos, la espada contra jugadores en la zona PvP, los objetos
     // en el suelo y los carteles (gf-salvaje.js).
     try { if (window.GFSalvaje) window.GFSalvaje.montar(this); } catch (e) { console.warn('🌲 salvaje:', e); }
+    // Las antorchas que pone la gente, con su luz de noche (gf-antorchas.js).
+    try { if (window.GFAntorchas) window.GFAntorchas.montar(this); } catch (e) { console.warn('🌲 antorchas:', e); }
 
     if (window.tiendaSistema) window.tiendaSistema.scene = this;
     console.log('🌲 mapa salvaje listo');
@@ -254,6 +285,31 @@ class SalvajeScene extends GameScene {
     return capa.objects
       .filter((o) => o.width > 0 && o.height > 0)
       .map((o) => new Phaser.Geom.Rectangle(o.x, o.y, o.width, o.height));
+  }
+
+  /** El rectángulo del dibujo del puente (capa `puente` del mapa), o null. */
+  _rectDelPuente() {
+    const capa = this.map && this.map.getObjectLayer('puente');
+    const o = capa && capa.objects.find((p) => p.name === 'puente');
+    return o ? { x: o.x, y: o.y, width: o.width, height: o.height } : null;
+  }
+
+  /**
+   * El puente: el tablero (con la baranda de atrás) va encima del agua que se
+   * mueve (0.5) y debajo de todo lo que pisa; la baranda de DELANTE se ordena
+   * por su base, así tapa los pies de quien cruza, como en 2.5D.
+   */
+  _montarPuente() {
+    this._puenteImgs = [];
+    const capa = this.map && this.map.getObjectLayer('puente');
+    if (!capa) return;
+    capa.objects.forEach((o) => {
+      if (o.name === 'puente' && this.textures.exists('sv_puente')) {
+        this._puenteImgs.push(this.add.image(o.x, o.y, 'sv_puente').setOrigin(0, 0).setDepth(0.7));
+      } else if (o.name === 'baranda' && this.textures.exists('sv_puente_baranda')) {
+        this._puenteImgs.push(this.add.image(o.x, o.y, 'sv_puente_baranda').setOrigin(0, 0).setDepth(o.y + o.height));
+      }
+    });
   }
 
   _puntoDeAparicion() {
@@ -454,6 +510,8 @@ class SalvajeScene extends GameScene {
     console.log('🌲 apagando el mapa salvaje');
     (this._arboles || []).forEach((a) => { try { a.spr.destroy(); a.sombra.destroy(); } catch (e) {} });
     this._arboles = [];
+    (this._puenteImgs || []).forEach((im) => { try { im.destroy(); } catch (e) {} });
+    this._puenteImgs = [];
     try { if (this.backgroundLayer) this.backgroundLayer.destroy(); } catch (e) {}
     try { if (this.map) this.map.destroy(); } catch (e) {}
     this.map = null;
@@ -464,9 +522,12 @@ class SalvajeScene extends GameScene {
     this.collisionRectangles2 = [];
     // Las texturas del mapa y de los árboles: fuera de aquí no pintan nada en
     // memoria de vídeo (el problema que ya costó caro en este proyecto).
-    ['tiles_salvaje', 'sv_sombra_arbol'].concat(SALVAJE_ARBOLES.map((n) => 'sv_arbol_' + n)).forEach((k) => {
-      try { if (this.textures.exists(k)) this.textures.remove(k); } catch (e) {}
-    });
+    // (Y los fotogramas del agua animada de aquí, que gf-agua deja hechos.)
+    const delAgua = this.textures.getTextureKeys().filter((k) => k.indexOf('gfa_tiles_salvaje_') === 0);
+    ['tiles_salvaje', 'sv_sombra_arbol', 'sv_puente', 'sv_puente_baranda']
+      .concat(SALVAJE_ARBOLES.map((n) => 'sv_arbol_' + n), delAgua).forEach((k) => {
+        try { if (this.textures.exists(k)) this.textures.remove(k); } catch (e) {}
+      });
     try { this._unbindAllDomClicks(); } catch (e) {}
   }
 }

@@ -675,6 +675,12 @@ class MinaScene extends GameScene {
     this._lucesExtras = [];
     try { if (window.GFMinaSerpiente) window.GFMinaSerpiente.montar(this); }
     catch (e) { console.warn('⛏️ serpiente:', e); }
+    try { if (window.GFMinaEspectros) window.GFMinaEspectros.montar(this); }
+    catch (e) { console.warn('⛏️ espectros:', e); }
+    // Las antorchas que pone la gente (gf-antorchas.js, 2026-10-11): después
+    // de vaciar `_lucesExtras`, que su luz también abre la oscuridad.
+    try { if (window.GFAntorchas) window.GFAntorchas.montar(this); }
+    catch (e) { console.warn('⛏️ antorchas:', e); }
 
     // ── Que se VEA por donde se sale ─────────────────────────────
     this._faseMina = 'salida visible';
@@ -1268,6 +1274,27 @@ class MinaScene extends GameScene {
      * donde apagarse dentro de la textura y no lo corte el borde. */
     const W = Math.round(r.width) + 160;
     const H = Math.round(r.height) + 224;
+    const escaleraKey = 'mina_salida_escaleras';
+    if (this.textures.exists(escaleraKey)) this.textures.remove(escaleraKey);
+    const esc = this.textures.createCanvas(escaleraKey, 80, 96), ec = esc.getContext();
+    ec.imageSmoothingEnabled = false;
+    ec.fillStyle = '#151b23'; ec.fillRect(6, 0, 68, 90);
+    for (let i = 0; i < 9; i++) {
+      const y = 6 + i * 9, x = 23 - Math.floor(i * 1.7), width = 34 + i * 3;
+      ec.fillStyle = i % 2 ? '#545c62' : '#60696b'; ec.fillRect(x, y, width, 5);
+      ec.fillStyle = '#858c7f'; ec.fillRect(x, y, width, 1);
+      ec.fillStyle = '#303c45'; ec.fillRect(x, y + 5, width, 4);
+      ec.fillStyle = '#92968a'; ec.fillRect(x + 4, y + 2, 8, 1);
+      ec.fillStyle = '#3f4b41'; ec.fillRect(x + width - 8, y + 1, 4, 2);
+      ec.fillStyle = '#272c35'; ec.fillRect(x + 16 + i % 3, y + 2, 1, 3);
+    }
+    for (let y = 4; y < 88; y += 8) {
+      ec.fillStyle = y % 16 ? '#465052' : '#374344'; ec.fillRect(5, y, 7, 7); ec.fillRect(68, y, 7, 7);
+      ec.fillStyle = '#798075'; ec.fillRect(5, y, 2, 7); ec.fillRect(68, y, 2, 7);
+    }
+    ec.fillStyle = '#0b1018'; ec.fillRect(24, 0, 32, 6);
+    esc.refresh(); esc.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    this._salidaEscaleras = this.add.image(r.centerX, r.y - 12, escaleraKey).setOrigin(0.5, 0).setDisplaySize(Math.max(80, r.width + 24), Math.max(108, r.height + 60)).setDepth(1.6);
 
     const CLAVE = 'mina_salida_luz';
     if (this.textures.exists(CLAVE)) this.textures.remove(CLAVE);
@@ -1320,8 +1347,8 @@ class MinaScene extends GameScene {
 
     this.tweens.add({
       targets: this._salidaLuz,
-      alpha: { from: 0.72, to: 1 },
-      duration: 1900,
+      alpha: { from: 0.12, to: 0.18 },
+      duration: 4500,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut'
@@ -1699,8 +1726,10 @@ class MinaScene extends GameScene {
     try { if (this._salidaLuz) this._salidaLuz.destroy(); } catch (e) {}
     (this._salidaFlechas || []).forEach(f => { try { f.destroy(); } catch (e) {} });
     this._salidaLuz = null;
+    if (this._salidaEscaleras) this._salidaEscaleras.destroy();
+    this._salidaEscaleras = null;
     this._salidaFlechas = [];
-    ['mina_salida_luz', 'mina_salida_flecha'].forEach(k => {
+    ['mina_salida_luz', 'mina_salida_flecha', 'mina_salida_escaleras'].forEach(k => {
       try { if (this.textures.exists(k)) this.textures.remove(k); } catch (e) {}
     });
 

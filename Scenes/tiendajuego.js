@@ -2409,7 +2409,7 @@ this.anims.create({
           // inventario de la tienda.
           pocion_mascota:        { src: "./Game/Objetos/pociones/pocion_mascota.png",        maxStack: 20, tipo: "pocion_mascota",        usos: null },
           pocion_mascota_grande: { src: "./Game/Objetos/pociones/pocion_mascota_grande.png", maxStack: 10, tipo: "pocion_mascota_grande", usos: null },
-          elixir_revivir:        { src: "./Game/Objetos/pociones/elixir_revivir.png",        maxStack: 5,  tipo: "elixir_revivir",        usos: null },
+          pocion_vida: { src: "./Game/newpro/pociones/pocion_vida.png", maxStack: 20, tipo: "pocion_vida", usos: null },          pocion_antidoto: { src: "./Game/newpro/pociones/pocion_energia.png", maxStack: 20, tipo: "pocion_antidoto", usos: null },          elixir_revivir:        { src: "./Game/Objetos/pociones/elixir_revivir.png",        maxStack: 5,  tipo: "elixir_revivir",        usos: null },
 
           // CONSTRUCCIÓN (2026-10-03). La parcela que se compra en la tienda
           // (apartado Construction) y se coloca en la isla. 20 por casilla:
@@ -2438,6 +2438,7 @@ this.anims.create({
           espada_hierro:  { src: "./Game/Objetos/armas/espada_hierro.png",     maxStack: 1,  tipo: "hierro",         usos: null, arma: { dano: 32, alcance: 54 } },
           cana_pescar:    { src: "./Game/Objetos/pesca/cana_pescar.png",       maxStack: 1,  tipo: "caña_pescar",    usos: null },
           espantapajaros: { src: "./Game/Objetos/granja/espantapajaros.png",   maxStack: 10, tipo: "espantapajaros", usos: null },
+          antorcha:       { src: "./Game/Objetos/antorcha/antorcha.png",       maxStack: 20, tipo: "antorcha",       usos: null },
           pes1:           { src: "./Game/Objetos/pesca/pes1.png",              maxStack: 20, tipo: "pes1",           usos: null },
           pes2:           { src: "./Game/Objetos/pesca/pes2.png",              maxStack: 20, tipo: "pes2",           usos: null },
           pes3:           { src: "./Game/Objetos/pesca/pes3.png",              maxStack: 20, tipo: "pes3",           usos: null },
@@ -2448,6 +2449,13 @@ this.anims.create({
           pes6:           { src: "./Game/Objetos/pesca/pes6.png",              maxStack: 20, tipo: "pes6",           usos: null },
           pes7:           { src: "./Game/Objetos/pesca/pes7.png",              maxStack: 20, tipo: "pes7",           usos: null, veneno: true },
           pes8:           { src: "./Game/Objetos/pesca/pes8.png",              maxStack: 20, tipo: "pes8",           usos: null, veneno: true },
+          // Seis peces más (2026-10-11). pes14, el pez globo, es VENENOSO.
+          pes9:           { src: "./Game/Objetos/pesca/pes9.png",              maxStack: 20, tipo: "pes9",           usos: null },
+          pes10:          { src: "./Game/Objetos/pesca/pes10.png",             maxStack: 20, tipo: "pes10",          usos: null },
+          pes11:          { src: "./Game/Objetos/pesca/pes11.png",             maxStack: 20, tipo: "pes11",          usos: null },
+          pes12:          { src: "./Game/Objetos/pesca/pes12.png",             maxStack: 20, tipo: "pes12",          usos: null },
+          pes13:          { src: "./Game/Objetos/pesca/pes13.png",             maxStack: 20, tipo: "pes13",          usos: null },
+          pes14:          { src: "./Game/Objetos/pesca/pes14.png",             maxStack: 20, tipo: "pes14",          usos: null, veneno: true },
 
           fresa_corta: { src: "./Game/Objetos/Plantas/planta_fresa/item_planta.png", maxStack: 20 , tipo: "fresa_corta", usos: null},
           fresa_mala: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_podrida.png", maxStack: 20 , tipo: "fresa_mala", usos: null},
@@ -10344,6 +10352,12 @@ _skillsDeLaEscena() {
 
 /** Vuelca los valores en el panel #skills-panel (mismos ids que GameScene). */
 _pintarSkillsTienda(skills) {
+  /* LOS PUNTOS DEL PERSONAJE TAMBIÉN AQUÍ (2026-10-11): "en todas las escenas,
+     en Skills, una opción de mejorar fuerza, defensa, sabiduría, paciencia,
+     farming, talar, pesca o combate por cada nivel". GameScene ya lo pintaba
+     (_renderSkillsPanel); la tienda no. Mismo módulo, misma tabla en la
+     cadena (player_<habilidad>, /api/player/skills). */
+  if (window.GFCharacterSkills) { try { window.GFCharacterSkills.render(this); } catch (e) { console.warn('skills:', e); } }
   const mapaIds = {
     level: 'sk-level', farming: 'sk-farming', mining: 'sk-mining',
     fishing: 'sk-fishing', cooking: 'sk-cooking',
@@ -12329,7 +12343,9 @@ CONSUMABLES_FOOD = {
   // más alimenta.
   pes1: 6, pes2: 10, pes3: 18,
   // Los de 2026-10-10. La anguila (pes7) y el pez león (pes8) NO: son venenosos.
-  pes4: 7, pes5: 9, pes6: 25
+  pes4: 7, pes5: 9, pes6: 25,
+  // Los de 2026-10-11. El pez globo (pes14) NO: es venenoso.
+  pes9: 14, pes10: 12, pes11: 10, pes12: 30, pes13: 20
 };
 CONSUMABLES_WATER = { balde_con_agua: 20 };
 
@@ -12351,6 +12367,9 @@ _countItemLocal(id) {
 }
 
 _consumeItemOnPlayer(itemId) {
+  if ((itemId === 'pocion_vida' || itemId === 'pocion_antidoto') && window.GFCharacterSkills) {
+    return window.GFCharacterSkills.usePotion(this, itemId);
+  }
   const info = this._consumableInfo(itemId);
   if (!info) return;
   if (this._consumingItem) return;

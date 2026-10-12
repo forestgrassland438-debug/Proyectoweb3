@@ -1846,6 +1846,7 @@ showNotification(message, type = 'info') {
     // NUEVO: Sistema de auto-refresh CORREGIDO
     startAutoRefresh() {
         if (!this.autoRefreshEnabled || !this.isAuthenticated || this._sceneStopped) return;
+        if (window.GFSessionAPI) return;
         // Solo datos escalares: el temporizador de página no retiene escenas.
         let service = window.__gfAuthRefreshService;
         if (!service) {
@@ -11405,6 +11406,7 @@ getItemDisplayName(itemId) {
     'espada_hierro': 'Iron Sword',
     'cana_pescar': 'Fishing Rod',
     'espantapajaros': 'Scarecrow',
+    'antorcha': 'Torch',
     'basura': 'Trash Can',
     'cofre1': 'Wooden Chest',
     'cofre2': 'Reinforced Chest',
@@ -11417,7 +11419,13 @@ getItemDisplayName(itemId) {
     'pes5': 'Bream',
     'pes6': 'Sturgeon',
     'pes7': 'Poison Eel',
-    'pes8': 'Lionfish'
+    'pes8': 'Lionfish',
+    'pes9': 'Silver Pike',
+    'pes10': 'Zander',
+    'pes11': 'Ice Trout',
+    'pes12': 'Rainbow Fish',
+    'pes13': 'King Salmon',
+    'pes14': 'Pufferfish'
   };
   
   return displayNames[itemId] || itemId;
@@ -14287,9 +14295,10 @@ _getFruitDisplayNameEN(itemId) {
     basura: 'Trash Can', cofre1: 'Wooden Chest', cofre2: 'Reinforced Chest',
     cofre3: 'Magic Chest', cofre4: 'Legendary Chest',
     espada_madera: 'Wooden Sword', espada_cobre: 'Copper Sword', espada_hierro: 'Iron Sword',
-    cana_pescar: 'Fishing Rod', espantapajaros: 'Scarecrow',
+    cana_pescar: 'Fishing Rod', espantapajaros: 'Scarecrow', antorcha: 'Torch',
     pes1: 'Brown Trout', pes2: 'Common Carp', pes3: 'Golden Trout',
     pes4: 'River Perch', pes5: 'Bream', pes6: 'Sturgeon', pes7: 'Poison Eel', pes8: 'Lionfish',
+    pes9: 'Silver Pike', pes10: 'Zander', pes11: 'Ice Trout', pes12: 'Rainbow Fish', pes13: 'King Salmon', pes14: 'Pufferfish',
     // Minerales (reutilizado también por la minería on-chain, ver _agregarFrutoOnChain).
     // Ojo con los nombres: mineral_cobre/mineral_hierro son los LINGOTES que
     // salen del horno; lo que se pica ahora es la piedra en bruto.
@@ -26308,7 +26317,9 @@ CONSUMABLES_FOOD = {
   // más alimenta.
   pes1: 6, pes2: 10, pes3: 18,
   // Los de 2026-10-10. La anguila (pes7) y el pez león (pes8) NO: son venenosos.
-  pes4: 7, pes5: 9, pes6: 25
+  pes4: 7, pes5: 9, pes6: 25,
+  // Los de 2026-10-11. El pez globo (pes14) NO: es venenoso.
+  pes9: 14, pes10: 12, pes11: 10, pes12: 30, pes13: 20
 };
 CONSUMABLES_WATER = { balde_con_agua: 20 };
 
@@ -26321,6 +26332,10 @@ _consumableInfo(itemId) {
 
 // Clic en el personaje con un consumible: abre el panel de cantidad.
 async _consumeItemOnPlayer(itemId) {
+  if ((itemId === 'pocion_vida' || itemId === 'pocion_antidoto') && window.GFCharacterSkills) {
+    await window.GFCharacterSkills.usePotion(this, itemId);
+    return;
+  }
   const info = this._consumableInfo(itemId);
   if (!info) return;
   if (this._consumingItem) return;
@@ -28811,6 +28826,12 @@ getPlayerIntentDirection() {
       if (window.GFMonte && window.GFMonte.montar) {
         window.GFMonte.montar(this);
       }
+      /* LAS ANTORCHAS (2026-10-11): las que pone la gente en el pueblo, con
+         su luz de noche (gf-antorchas.js). Solo el pueblo, la mina y el mapa
+         salvaje: el módulo descarta las demás escenas por su clave. */
+      if (window.GFAntorchas && window.GFAntorchas.montar) {
+        window.GFAntorchas.montar(this);
+      }
       /* Los espantapájaros que tenga puestos (gf-espantapajaros.js). */
       if (window.GFEspantapajaros && window.GFEspantapajaros.montar) {
         window.GFEspantapajaros.montar(this);
@@ -30000,6 +30021,7 @@ getPlayerIntentDirection() {
   }
 
   _renderSkillsPanel(skills) {
+    if (window.GFCharacterSkills) window.GFCharacterSkills.render(this);
     // Nivel + skills REALES, cada una con su experiencia integrada.
     const statMap = {
       level: 'sk-level', farming: 'sk-farming', mining: 'sk-mining',
@@ -31673,7 +31695,7 @@ if (window.globalPetData) {
           // desde su hub, no haciendo clic en el inventario.
           pocion_mascota:        { src: "./Game/Objetos/pociones/pocion_mascota.png",        maxStack: 20, tipo: "pocion_mascota",        usos: null },
           pocion_mascota_grande: { src: "./Game/Objetos/pociones/pocion_mascota_grande.png", maxStack: 10, tipo: "pocion_mascota_grande", usos: null },
-          elixir_revivir:        { src: "./Game/Objetos/pociones/elixir_revivir.png",        maxStack: 5,  tipo: "elixir_revivir",        usos: null },
+          pocion_vida: { src: "./Game/newpro/pociones/pocion_vida.png", maxStack: 20, tipo: "pocion_vida", usos: null },          pocion_antidoto: { src: "./Game/newpro/pociones/pocion_energia.png", maxStack: 20, tipo: "pocion_antidoto", usos: null },          elixir_revivir:        { src: "./Game/Objetos/pociones/elixir_revivir.png",        maxStack: 5,  tipo: "elixir_revivir",        usos: null },
 
           // CONSTRUCCIÓN (2026-10-03). La parcela que se compra en la tienda
           // (apartado Construction) y se coloca en la isla. 20 por casilla:
@@ -31702,6 +31724,7 @@ if (window.globalPetData) {
           espada_hierro:  { src: "./Game/Objetos/armas/espada_hierro.png",     maxStack: 1,  tipo: "hierro",         usos: null, arma: { dano: 32, alcance: 54 } },
           cana_pescar:    { src: "./Game/Objetos/pesca/cana_pescar.png",       maxStack: 1,  tipo: "caña_pescar",    usos: null },
           espantapajaros: { src: "./Game/Objetos/granja/espantapajaros.png",   maxStack: 10, tipo: "espantapajaros", usos: null },
+          antorcha:       { src: "./Game/Objetos/antorcha/antorcha.png",       maxStack: 20, tipo: "antorcha",       usos: null },
           pes1:           { src: "./Game/Objetos/pesca/pes1.png",              maxStack: 20, tipo: "pes1",           usos: null },
           pes2:           { src: "./Game/Objetos/pesca/pes2.png",              maxStack: 20, tipo: "pes2",           usos: null },
           pes3:           { src: "./Game/Objetos/pesca/pes3.png",              maxStack: 20, tipo: "pes3",           usos: null },
@@ -31712,6 +31735,13 @@ if (window.globalPetData) {
           pes6:           { src: "./Game/Objetos/pesca/pes6.png",              maxStack: 20, tipo: "pes6",           usos: null },
           pes7:           { src: "./Game/Objetos/pesca/pes7.png",              maxStack: 20, tipo: "pes7",           usos: null, veneno: true },
           pes8:           { src: "./Game/Objetos/pesca/pes8.png",              maxStack: 20, tipo: "pes8",           usos: null, veneno: true },
+          // Seis peces más (2026-10-11). pes14, el pez globo, es VENENOSO.
+          pes9:           { src: "./Game/Objetos/pesca/pes9.png",              maxStack: 20, tipo: "pes9",           usos: null },
+          pes10:          { src: "./Game/Objetos/pesca/pes10.png",             maxStack: 20, tipo: "pes10",          usos: null },
+          pes11:          { src: "./Game/Objetos/pesca/pes11.png",             maxStack: 20, tipo: "pes11",          usos: null },
+          pes12:          { src: "./Game/Objetos/pesca/pes12.png",             maxStack: 20, tipo: "pes12",          usos: null },
+          pes13:          { src: "./Game/Objetos/pesca/pes13.png",             maxStack: 20, tipo: "pes13",          usos: null },
+          pes14:          { src: "./Game/Objetos/pesca/pes14.png",             maxStack: 20, tipo: "pes14",          usos: null, veneno: true },
           fresa_corta: { src: "./Game/Objetos/Plantas/planta_fresa/item_planta.png", maxStack: 20 , tipo: "fresa_corta", usos: null},
           fresa_mala: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_podrida.png", maxStack: 20 , tipo: "fresa_mala", usos: null},
 

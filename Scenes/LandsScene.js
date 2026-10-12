@@ -459,6 +459,7 @@ class LandsScene extends GameScene {
     if (window.GFNombreColor) window.GFNombreColor.montar(this);
     if (window.GFSoulbound)   window.GFSoulbound.sincronizar(this);
     if (window.GFEspada)      window.GFEspada.montar(this);   // botón de la espada y ESPACIO
+    if (window.GFPesca)       window.GFPesca.montar(this);
 
     if (window.tiendaSistema) window.tiendaSistema.scene = this;
 

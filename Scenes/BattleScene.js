@@ -281,6 +281,7 @@ class BattleScene extends Phaser.Scene {
     this.gApunte = this.add.graphics().setDepth(39000);
 
     this.montarUI();
+    if (window.GFCharacterSkills) window.GFCharacterSkills.battle(this);
     this.montarControles();
     this.avisoHorizontal();
     this._ajustarZoom();

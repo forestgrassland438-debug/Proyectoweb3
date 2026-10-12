@@ -162,7 +162,7 @@ class LoadingScenegame extends Phaser.Scene {
 
             pocion_mascota:        { src: './Game/Objetos/pociones/pocion_mascota.png',        maxStack: 20 },
             pocion_mascota_grande: { src: './Game/Objetos/pociones/pocion_mascota_grande.png', maxStack: 10 },
-            elixir_revivir:        { src: './Game/Objetos/pociones/elixir_revivir.png',        maxStack: 5  },
+            pocion_vida: { src: "./Game/newpro/pociones/pocion_vida.png", maxStack: 20, tipo: "pocion_vida", usos: null },            pocion_antidoto: { src: "./Game/newpro/pociones/pocion_energia.png", maxStack: 20, tipo: "pocion_antidoto", usos: null },            elixir_revivir:        { src: './Game/Objetos/pociones/elixir_revivir.png',        maxStack: 5  },
 
             // Construcción (2026-10-03). El `tipo` va escrito porque la tabla
             // se llama `parcelas` y la clave `parcela`: sin él, _tipoToItemId
@@ -183,6 +183,7 @@ class LoadingScenegame extends Phaser.Scene {
             espada_hierro:  { src: './Game/Objetos/armas/espada_hierro.png',    maxStack: 1,  tipo: 'hierro' },
             cana_pescar:    { src: './Game/Objetos/pesca/cana_pescar.png',      maxStack: 1,  tipo: 'caña_pescar' },
             espantapajaros: { src: './Game/Objetos/granja/espantapajaros.png',  maxStack: 10, tipo: 'espantapajaros' },
+            antorcha:       { src: './Game/Objetos/antorcha/antorcha.png',      maxStack: 20, tipo: 'antorcha' },
             pes1:           { src: './Game/Objetos/pesca/pes1.png',             maxStack: 20, tipo: 'pes1' },
             pes2:           { src: './Game/Objetos/pesca/pes2.png',             maxStack: 20, tipo: 'pes2' },
             pes3:           { src: './Game/Objetos/pesca/pes3.png',             maxStack: 20, tipo: 'pes3' },
@@ -193,6 +194,13 @@ class LoadingScenegame extends Phaser.Scene {
             pes6:           { src: './Game/Objetos/pesca/pes6.png',             maxStack: 20, tipo: 'pes6' },
             pes7:           { src: './Game/Objetos/pesca/pes7.png',             maxStack: 20, tipo: 'pes7' },
             pes8:           { src: './Game/Objetos/pesca/pes8.png',             maxStack: 20, tipo: 'pes8' },
+            // Seis más (2026-10-11).
+            pes9:           { src: './Game/Objetos/pesca/pes9.png',             maxStack: 20, tipo: 'pes9' },
+            pes10:          { src: './Game/Objetos/pesca/pes10.png',            maxStack: 20, tipo: 'pes10' },
+            pes11:          { src: './Game/Objetos/pesca/pes11.png',            maxStack: 20, tipo: 'pes11' },
+            pes12:          { src: './Game/Objetos/pesca/pes12.png',            maxStack: 20, tipo: 'pes12' },
+            pes13:          { src: './Game/Objetos/pesca/pes13.png',            maxStack: 20, tipo: 'pes13' },
+            pes14:          { src: './Game/Objetos/pesca/pes14.png',            maxStack: 20, tipo: 'pes14' },
 
             palo:             { src: './Game/Source/palo.png',           maxStack: 20 },
             tablon_de_madera: { src: './Game/Source/madera.png',         maxStack: 20 },
@@ -260,8 +268,10 @@ class LoadingScenegame extends Phaser.Scene {
             'hierro':                'espada_hierro',
             'caña_pescar':           'cana_pescar',
             'espantapajaros':        'espantapajaros',
+            'antorcha':              'antorcha',
             'pes1': 'pes1', 'pes2': 'pes2', 'pes3': 'pes3',
             'pes4': 'pes4', 'pes5': 'pes5', 'pes6': 'pes6', 'pes7': 'pes7', 'pes8': 'pes8',
+            'pes9': 'pes9', 'pes10': 'pes10', 'pes11': 'pes11', 'pes12': 'pes12', 'pes13': 'pes13', 'pes14': 'pes14',
             'tablon de madera': 'tablon_de_madera',
             'madera pinos':     'madera_pinos',
             'madera con hojas': 'madera_con_hojas',
@@ -1225,6 +1235,7 @@ class LoadingScenegame extends Phaser.Scene {
     _tipoToItemId(tipo) {
         if (!tipo) return null;
         const tipoNorm = tipo.trim().toLowerCase();
+        if (tipoNorm.indexOf('player_') === 0) return null;
 
         // Tablas del contrato que NO son objetos del inventario: las barras,
         // la experiencia, el nivel y el nombre, y lo construido en la isla.
