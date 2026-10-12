@@ -1,0 +1,194 @@
+{
+ "frames": {
+  "ataque_1": {
+   "frame": {
+    "h": 30,
+    "w": 44,
+    "x": 0,
+    "y": 32
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 30,
+    "w": 44
+   },
+   "spriteSourceSize": {
+    "h": 30,
+    "w": 44,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "ataque_2": {
+   "frame": {
+    "h": 30,
+    "w": 44,
+    "x": 46,
+    "y": 32
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 30,
+    "w": 44
+   },
+   "spriteSourceSize": {
+    "h": 30,
+    "w": 44,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "ataque_3": {
+   "frame": {
+    "h": 30,
+    "w": 44,
+    "x": 92,
+    "y": 32
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 30,
+    "w": 44
+   },
+   "spriteSourceSize": {
+    "h": 30,
+    "w": 44,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "camina_1": {
+   "frame": {
+    "h": 30,
+    "w": 44,
+    "x": 0,
+    "y": 0
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 30,
+    "w": 44
+   },
+   "spriteSourceSize": {
+    "h": 30,
+    "w": 44,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "camina_2": {
+   "frame": {
+    "h": 30,
+    "w": 44,
+    "x": 46,
+    "y": 0
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 30,
+    "w": 44
+   },
+   "spriteSourceSize": {
+    "h": 30,
+    "w": 44,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "camina_3": {
+   "frame": {
+    "h": 30,
+    "w": 44,
+    "x": 92,
+    "y": 0
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 30,
+    "w": 44
+   },
+   "spriteSourceSize": {
+    "h": 30,
+    "w": 44,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "camina_4": {
+   "frame": {
+    "h": 30,
+    "w": 44,
+    "x": 138,
+    "y": 0
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 30,
+    "w": 44
+   },
+   "spriteSourceSize": {
+    "h": 30,
+    "w": 44,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "quieto_1": {
+   "frame": {
+    "h": 30,
+    "w": 44,
+    "x": 138,
+    "y": 32
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 30,
+    "w": 44
+   },
+   "spriteSourceSize": {
+    "h": 30,
+    "w": 44,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "quieto_2": {
+   "frame": {
+    "h": 30,
+    "w": 44,
+    "x": 0,
+    "y": 64
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 30,
+    "w": 44
+   },
+   "spriteSourceSize": {
+    "h": 30,
+    "w": 44,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  }
+ },
+ "meta": {
+  "app": "tools/generar-monstruos.py",
+  "format": "RGBA8888",
+  "image": "lobo.png",
+  "scale": "1",
+  "size": {
+   "h": 96,
+   "w": 184
+  }
+ }
+}
