@@ -20,6 +20,22 @@
  * CÓMO SE ENGANCHA
  *   Cualquier escena con jugador:  GFEspada.montar(this)
  *   (GameScene, la tienda, la mina y la isla; solo hay animales en el mapa).
+ *
+ * LOS PODERES CÓMODOS (2026-10-11): "los botones V, B, N están muy incómodos
+ * para PC y móviles, haz que sean cómodos". Eran tres círculos con una letra,
+ * sueltos en medio de la pantalla y lejos del botón de golpe. Ahora:
+ *   · EN EL MÓVIL van en abanico alrededor del botón de golpe, en la esquina
+ *     del pulgar: golpe y poderes sin mover la mano.
+ *   · EN EL PC son una barra de habilidades pegada a la derecha de la barra
+ *     rápida, a su altura, como en cualquier juego de rol: se miran sin
+ *     apartar la vista de los objetos y se pulsan con V, B y N.
+ *   · Cada uno con su dibujo (remolino, estocada, escudo), su tecla en una
+ *     esquina y la espera como un reloj que se vacía, con los segundos.
+ *   · Su sitio se calcula midiendo la barra y la columna de botones redondos
+ *     (colocarPanel), y gf-hud-ajuste.js comprueba que no pisan nada.
+ *
+ * SIENDO FANTASMA NO SE PELEA (2026-10-11): ni tajo ni poderes; se avisa con
+ * GFMuerte.bloquear(scene, 'attack') y los botones se ven apagados.
  * ======================================================================== */
 (function () {
   'use strict';
@@ -30,7 +46,20 @@
     espada_hierro: { nombre: 'Iron Sword',   dano: 32, alcance: 54, enfria: 380, color: 0xdfe8f0 }
   };
   var ORDEN = ['espada_hierro', 'espada_cobre', 'espada_madera'];
+  var PODERES = {
+    v: { nombre: 'Whirlwind', espera: 6500, alcance: 1.35, dano: 0.9, arco: Math.PI },
+    b: { nombre: 'Piercing thrust', espera: 4500, alcance: 2.1, dano: 1.5, arco: 0.55 },
+    n: { nombre: 'Guard', espera: 12000, guardia: true }
+  };
   var CLAVE_LS = 'gf_espada';
+  // Los dibujos de los botones: trazos, sin puntos.
+  var SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+  var ICONOS = {
+    v: SVG + '<path d="M20 12a8 8 0 0 1-13.6 5.7"/><path d="M4 12a8 8 0 0 1 13.6-5.7"/><path d="M17.6 2.8v3.5h-3.5"/><path d="M6.4 21.2v-3.5h3.5"/><path d="M9.5 12h5M12 9.5v5"/></svg>',
+    b: SVG + '<path d="M20.5 3.5L10 14"/><path d="M15.8 3.5h4.7v4.7"/><path d="M7.5 11.5l5 5"/><path d="M10 14l-5.5 5.5"/><path d="M3 8.5h4M4.5 5h4"/></svg>',
+    n: SVG + '<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8-7.5 9.5-4.3-1.5-7.5-4.9-7.5-9.5V6z"/><path d="M12 7.5v9.5M8.5 11h7"/></svg>',
+    tajo: SVG + '<path d="M3.5 13.5a9 9 0 0 1 10-10"/><path d="M20.5 3.5L9 15"/><path d="M15.8 3.5h4.7v4.7"/><path d="M6.5 12.5l5 5"/><path d="M9 15l-5 5"/></svg>'
+  };
 
   var equipada = null;
   var objetivos = [];               // otros a los que da el tajo (ver golpe)
@@ -125,7 +154,7 @@
       tajo.type = 'button';
       tajo.className = 'gf-tajo-btn';
       tajo.setAttribute('aria-label', 'Swing the sword');
-      tajo.innerHTML = '<span>⚔</span>';
+      tajo.innerHTML = ICONOS.tajo;
       document.body.appendChild(tajo);
     }
     /* Que no se quede con el foco: si no, el ESPACIO del tajo "pulsaría" el
@@ -137,7 +166,88 @@
     if (tajo._gfe) tajo.removeEventListener('pointerdown', tajo._gfe);
     tajo._gfe = function (e) { e.stopPropagation(); e.preventDefault(); golpe(st); };
     tajo.addEventListener('pointerdown', tajo._gfe);
-    st.boton = b; st.botonTajo = tajo;
+    st.boton = b; st.botonTajo = tajo; st.onEquipo = b._gfe; st.onTajo = tajo._gfe;
+    var poderes = document.getElementById('gf-espada-poderes');
+    if (!poderes) { poderes = document.createElement('div'); poderes.id = 'gf-espada-poderes'; document.body.appendChild(poderes); }
+    poderes.innerHTML = '';
+    poderes.setAttribute('role', 'toolbar');
+    poderes.setAttribute('aria-label', 'Sword powers');
+    st.botonesPoder = [];
+    Object.keys(PODERES).forEach(function (tecla) {
+      var boton = document.createElement('button'); boton.type = 'button'; boton.tabIndex = -1;
+      boton.className = 'gf-poder';
+      boton.setAttribute('data-tecla', tecla);
+      boton.setAttribute('aria-label', PODERES[tecla].nombre + ' (' + tecla.toUpperCase() + ')');
+      boton.title = PODERES[tecla].nombre + ' — ' + tecla.toUpperCase();
+      // El dibujo, la tecla en una esquina, el reloj de la espera y sus segundos.
+      boton.innerHTML = ICONOS[tecla] + '<span class="gf-poder-tecla">' + tecla.toUpperCase() + '</span>' +
+        '<span class="gf-poder-reloj"></span><span class="gf-poder-seg"></span>';
+      var activar = function (e) { e.preventDefault(); e.stopPropagation(); usarPoder(st, tecla); };
+      boton.addEventListener('pointerdown', activar); poderes.appendChild(boton);
+      st.botonesPoder.push({ boton: boton, activar: activar, tecla: tecla, reloj: boton.querySelector('.gf-poder-reloj'), seg: boton.querySelector('.gf-poder-seg') });
+    });
+    /* El botón de golpe va DENTRO del panel: en el móvil el abanico de poderes
+       se dibuja a su alrededor y los dos se mueven juntos (gf-hud-ajuste). */
+    poderes.appendChild(tajo);
+    st.panelPoderes = poderes;
+  }
+
+  function esTactil() { return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); }
+
+  function caja(id) {
+    var e = document.getElementById(id);
+    if (!e || e.hidden) return null;
+    var r = e.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 ? r : null;
+  }
+
+  /**
+   * Dónde va el panel. PC: a la derecha de la barra rápida y a su altura (si
+   * no cabe antes de la columna de botones redondos, encima de su extremo
+   * derecho). Móvil: en la esquina del pulgar, a la izquierda de la columna
+   * redonda y encima de la barra (o a ras de suelo si la barra no llega).
+   * Se escribe en dos variables de CSS; si aun así pisara algo, gf-hud-ajuste
+   * lo aparta.
+   */
+  function colocarPanel(st) {
+    var panel = st.panelPoderes;
+    if (!panel || !panel.isConnected || panel.hidden) return;
+    var W = window.innerWidth, H = window.innerHeight;
+    var tactil = esTactil();
+    panel.classList.toggle('gf-tactil', tactil);
+    var barra = caja('quick-slots-bar'), col = caja('round-buttons-container'), espada = caja('gf-espada-btn');
+    var ancho = panel.offsetWidth || 180, alto = panel.offsetHeight || 64;
+    var right = null, bottom = null;
+    if (!tactil) {
+      if (barra && (!col || barra.right + 12 + ancho <= col.left - 10)) {
+        right = W - (barra.right + 12 + ancho);
+        bottom = H - barra.bottom + Math.max(0, (barra.height - alto) / 2);
+      } else if (barra) {
+        // Encima de su extremo derecho (y del botón de la espada, si flota
+        // encima de la bolsa como en las ventanas estrechas).
+        var tope = barra.top;
+        if (espada && espada.bottom <= barra.top + 4 && espada.right > barra.right - ancho) tope = Math.min(tope, espada.top);
+        right = W - barra.right;
+        bottom = H - tope + 10;
+      }
+    } else {
+      right = col ? W - col.left + 8 : 14;
+      var x0 = W - right - ancho;
+      var techo = H;
+      // La barra (y el botón de la espada, que en el teléfono flota encima de
+      // la bolsa) solo cuentan si quedan debajo del panel.
+      [barra, espada].forEach(function (r) { if (r && r.right > x0 && r.left < W - right) techo = Math.min(techo, r.top); });
+      bottom = H - techo + 8;
+    }
+    if (right === null) return;
+    var r = Math.max(4, Math.round(right)) + 'px', b = Math.max(4, Math.round(bottom)) + 'px';
+    if (panel.style.getPropertyValue('--gfe-right') !== r) panel.style.setProperty('--gfe-right', r);
+    if (panel.style.getPropertyValue('--gfe-bottom') !== b) panel.style.setProperty('--gfe-bottom', b);
+    if (window.GFHudAjuste && window.GFHudAjuste.ajustar) { try { window.GFHudAjuste.ajustar(); } catch (e) {} }
+  }
+
+  function fantasma(scene) {
+    return !!(window.GFMuerte && window.GFMuerte.muerto && window.GFMuerte.muerto(scene));
   }
 
   function pintar(st) {
@@ -154,8 +264,36 @@
     else { img.removeAttribute('src'); img.hidden = true; }
     b.title = lista ? ESPADAS[equipada].nombre + ' equipped (SPACE to swing) — click to change'
                        : 'Equip a sword';
-    var tactil = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    var tactil = esTactil();
     if (st.botonTajo) st.botonTajo.hidden = !(lista && tactil);
+    var muerto = fantasma(st.scene);
+    if (st.panelPoderes) {
+      var antes = st.panelPoderes.hidden;
+      st.panelPoderes.hidden = !lista;
+      st.panelPoderes.classList.toggle('gf-fantasma', muerto);
+      // Al aparecer (o al cambiar de PC a táctil) se vuelve a medir su sitio.
+      if (lista && (antes || st.panelTactil !== tactil)) { st.panelTactil = tactil; colocarPanel(st); }
+    }
+    st.enfriando = false;
+    (st.botonesPoder || []).forEach(function (p) {
+      var espera = Math.max(0, ((st.poderEn || {})[p.tecla] || 0) - st.scene.time.now);
+      var total = (st.poderTotal || {})[p.tecla] || PODERES[p.tecla].espera || 1;
+      var listo = espera <= 0;
+      if (!listo) st.enfriando = true;
+      p.boton.disabled = !listo || muerto;
+      p.boton.classList.toggle('esperando', !listo);
+      // El reloj: la parte oscura es lo que falta.
+      var frac = listo ? 0 : Math.min(1, espera / total);
+      var f = frac.toFixed(3);
+      if (p.reloj && p.reloj.style.getPropertyValue('--p') !== f) p.reloj.style.setProperty('--p', f);
+      var txt = listo ? '' : String(Math.ceil(espera / 1000));
+      if (p.seg && p.seg.textContent !== txt) p.seg.textContent = txt;
+      // Al quedar listo, un destello (una vez).
+      if (listo && p.esperaba) {
+        p.boton.classList.remove('listo'); void p.boton.offsetWidth; p.boton.classList.add('listo');
+      }
+      p.esperaba = !listo;
+    });
   }
 
   function cerrarMenu() {
@@ -219,35 +357,80 @@
   }
 
   // ───────────────────────────────────────────────────────── EL GOLPE
-  function golpe(st) {
+  function mostrarDano(scene, x, y, valor) {
+    if (!scene || !scene.add || !scene.add.text || !(valor > 0)) return;
+    var texto = scene.add.text(x, y - 14, String(Math.round(valor * 10) / 10), {
+      fontFamily: 'monospace', fontSize: '18px', fontStyle: 'bold', color: '#fff3bd', stroke: '#231723', strokeThickness: 3
+    }).setOrigin(0.5).setDepth(9600);
+    scene.tweens.add({ targets: texto, y: y - 62, alpha: 0, duration: 720, onComplete: function () { if (texto.scene) texto.destroy(); } });
+  }
+
+  function usarPoder(st, tecla) {
+    var poder = PODERES[tecla], scene = st.scene;
+    if (!poder || !scene || !equipada || cuantas(scene, equipada) <= 0 || scene._cambiandoEscena || scene._accionPersonaje === 'pesca') return false;
+    if (fantasma(scene)) { window.GFMuerte.bloquear(scene, 'attack'); return false; }
+    st.poderEn = st.poderEn || {};
+    st.poderTotal = st.poderTotal || {};
+    if (scene.time.now < (st.poderEn[tecla] || 0) || scene.time.now < st.listoEn) return false;
+    var espera = poder.guardia ? poder.espera : poder.espera * (1 - Math.min(0.3, (Number((scene.skillAllocations || {}).wisdom) || 0) * 0.02));
+    st.poderEn[tecla] = scene.time.now + espera;
+    st.poderTotal[tecla] = espera;
+    if (poder.guardia) {
+      st.listoEn = scene.time.now + 300;
+      var api = window.GFMascota && window.GFMascota.api;
+      if (!api) return false;
+      api('/api/player/sword-power', { ability: 'guard' }).then(function (r) {
+        if (scene.__gfEspada !== st || !r.ok) { if (scene.__gfEspada === st) st.poderEn.n = 0; return; }
+        var p = scene.player;
+        var escudo = scene.add.ellipse(p.x, p.y - 14, 58, 66, 0x7fb8e8, 0.12).setStrokeStyle(2, 0xc8eeff, 0.85).setDepth((p.depth || p.y) + 1);
+        st.escudo = escudo; st.guardiaHasta = scene.time.now + 3000;
+      }).catch(function () { if (scene.__gfEspada === st) st.poderEn.n = 0; });
+    } else golpe(st, poder, tecla);
+    pintar(st); return true;
+  }
+
+  function golpe(st, poder, tecla) {
     var scene = st.scene, p = scene && scene.player;
     if (!p || !p.scene || !equipada || scene._cambiandoEscena) return;
     if (cuantas(scene, equipada) <= 0) return;          // vendida o aún sin cargar
     if (scene._accionPersonaje === 'pesca') return;
-    var def = ESPADAS[equipada];
+    // Siendo fantasma no se pelea (y se dice por qué).
+    if (fantasma(scene)) { window.GFMuerte.bloquear(scene, 'attack'); return; }
+    var def = Object.assign({}, ESPADAS[equipada]);
+    var mejoras = scene.skillAllocations || {};
+    def.dano *= 1 + Math.min(1, (Number(mejoras.strength) || 0) * 0.04);
+    def.alcance *= 1 + Math.min(0.35, (Number(mejoras.combat) || 0) * 0.015);
+    if (poder) { def.alcance *= poder.alcance; def.dano *= poder.dano; }
     var ahora = scene.time.now;
     if (ahora < st.listoEn) return;
     st.listoEn = ahora + def.enfria;
     texturas(scene);
     var dir = ['left', 'right', 'up', 'down'].indexOf(scene.lastDirection) >= 0 ? scene.lastDirection : 'right';
+    // Que los demás de la sala lo vean (la mina y el mapa salvaje).
+    if (window.GFMobsRed && window.GFMobsRed.anunciarTajo) {
+      try { window.GFMobsRed.anunciarTajo(scene, dir, equipada, tecla || null); } catch (e) {}
+    }
     var ang = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 }[dir];
-    var cx = p.x, cy = p.y - 6;
+    var mano = { right: [14, 7], left: [-14, 7], up: [-8, 0], down: [10, 12] }[dir];
+    var cx = p.x + mano[0], cy = p.y + mano[1];
 
     // La espada barre el arco desde la mano.
     var k = 'gfs_' + equipada;
     var arma = scene.textures.exists(k) ? scene.add.image(cx, cy, k).setOrigin(0.15, 0.85).setScale(2.2) : null;
     var prof = dir === 'up' ? (p.depth || p.y) - 1 : (p.depth || p.y) + 1;
     if (arma) arma.setDepth(prof);
-    var desde = ang - 1.3, hasta = ang + 1.3;
-    if (dir === 'left') { desde = ang + 1.3; hasta = ang - 1.3; }
+    var barrido = poder ? poder.arco : 1.3;
+    var desde = ang - barrido, hasta = ang + barrido;
+    if (dir === 'left') { desde = ang + barrido; hasta = ang - barrido; }
     // El dibujo de la espada apunta arriba a la derecha (45°): se compensa.
     var BASE = -Math.PI / 4;
     if (arma) arma.rotation = desde - BASE;
     scene.tweens.addCounter({ from: 0, to: 1, duration: 170, ease: 'Cubic.easeOut', onUpdate: function (tw) {
       if (!arma || !arma.scene) return;
       var t = tw.getValue();
-      arma.setPosition(p.x, p.y - 6);
-      arma.rotation = desde + (hasta - desde) * t - BASE;
+      var estocada = poder && poder.arco < 1 ? Math.sin(t * Math.PI) * 30 : 0;
+      arma.setPosition(p.x + mano[0] + Math.cos(ang) * estocada, p.y + mano[1] + Math.sin(ang) * estocada);
+      arma.rotation = estocada ? ang - BASE : desde + (hasta - desde) * t - BASE;
     }, onComplete: function () {
       if (arma && arma.scene) scene.tweens.add({ targets: arma, alpha: 0, duration: 90, onComplete: function () { arma.destroy(); } });
     } });
@@ -257,17 +440,21 @@
       .setRotation(ang).setDepth(prof + 0.5).setScale(def.alcance / 44).setAlpha(0.95).setTint(def.color);
     if (tajo.setBlendMode && window.Phaser && Phaser.BlendModes) tajo.setBlendMode(Phaser.BlendModes.ADD);
     scene.tweens.add({ targets: tajo, alpha: 0, scale: tajo.scale * 1.15, duration: 230, ease: 'Quad.easeOut', onComplete: function () { tajo.destroy(); } });
+    if (poder && poder.arco >= Math.PI) {
+      var rueda = scene.add.circle(cx, cy, def.alcance, def.color, 0.08).setStrokeStyle(2, def.color, 0.8).setDepth(prof + 0.5);
+      scene.tweens.add({ targets: rueda, alpha: 0, scale: 1.15, duration: 260, onComplete: function () { rueda.destroy(); } });
+    }
 
     // El daño.
     var res = window.GFAnimales && window.GFAnimales.golpear
-      ? window.GFAnimales.golpear(scene, cx, cy, dir, def.alcance + 18, def.dano)
+      ? window.GFAnimales.golpear(scene, cx, cy, dir, def.alcance + 18, def.dano, poder)
       : { tocados: 0, muertos: 0, puntos: [] };
     /* Y los demás que se hayan apuntado (2026-10-10): los zombis de la mina
        (gf-mina-zombis.js), los monstruos y los jugadores de la zona PVP. Cada
        uno devuelve lo mismo que GFAnimales.golpear y se suma. */
     objetivos.slice().forEach(function (fn) {
       try {
-        var r2 = fn(scene, cx, cy, dir, def.alcance + 18, def.dano);
+        var r2 = fn(scene, cx, cy, dir, def.alcance + 18, def.dano, poder);
         if (!r2) return;
         res.tocados += r2.tocados || 0;
         res.muertos += r2.muertos || 0;
@@ -275,6 +462,7 @@
       } catch (e) {}
     });
     res.puntos.forEach(function (pt) {
+      if (pt.dano > 0) mostrarDano(scene, pt.x, pt.y, pt.dano);
       var ch = scene.add.image(pt.x, pt.y, 'gfs_chispa').setDepth(9000).setScale(1.6);
       if (ch.setBlendMode && window.Phaser && Phaser.BlendModes) ch.setBlendMode(Phaser.BlendModes.ADD);
       scene.tweens.add({ targets: ch, scale: 0.2, alpha: 0, rotation: 1, duration: 260, onComplete: function () { ch.destroy(); } });
@@ -300,6 +488,7 @@
     scene.__gfEspada = st;
     botones(st);
     pintar(st);
+    if (window.GFCharacterSkills) window.GFCharacterSkills.montar(scene);
     try { texturas(scene); } catch (e) {}
     st.onTecla = function (ev) {
       var el = document.activeElement;
@@ -310,8 +499,25 @@
       golpe(st);
     };
     if (scene.input && scene.input.keyboard) scene.input.keyboard.on('keydown-SPACE', st.onTecla);
-    st.onUpdate = function (t) { if (t - st.ultimo > 1000) { st.ultimo = t; pintar(st); } };
+    st.teclasPoder = {};
+    if (scene.input && scene.input.keyboard) Object.keys(PODERES).forEach(function (tecla) {
+      var fn = function (ev) { var el = document.activeElement; if (ev && ev.repeat || el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return; usarPoder(st, tecla); };
+      st.teclasPoder[tecla] = fn; scene.input.keyboard.on('keydown-' + tecla.toUpperCase(), fn);
+    });
+    st.onUpdate = function (t) {
+      if (st.escudo) {
+        if (t >= st.guardiaHasta) { st.escudo.destroy(); st.escudo = null; }
+        else if (scene.player) st.escudo.setPosition(scene.player.x, scene.player.y - 14);
+      }
+      // Con un poder esperando, el reloj se repinta más a menudo (suave).
+      if (t - st.ultimo > (st.enfriando ? 100 : 250)) { st.ultimo = t; pintar(st); }
+      // El sitio del panel, cada segundo (el HUD cambia al abrir paneles).
+      if (t - (st.ultimoSitio || 0) > 1000) { st.ultimoSitio = t; colocarPanel(st); }
+    };
     scene.events.on('update', st.onUpdate);
+    st.onVentana = function () { colocarPanel(st); };
+    window.addEventListener('resize', st.onVentana);
+    window.addEventListener('orientationchange', st.onVentana);
     st.onApagar = function () { desmontar(scene); };
     scene.events.once('shutdown', st.onApagar);
     scene.events.once('destroy', st.onApagar);
@@ -322,7 +528,18 @@
     var st = scene && scene.__gfEspada;
     if (!st) return;
     scene.__gfEspada = null;
+    if (st.onVentana) {
+      window.removeEventListener('resize', st.onVentana);
+      window.removeEventListener('orientationchange', st.onVentana);
+    }
     if (scene.input && scene.input.keyboard) scene.input.keyboard.off('keydown-SPACE', st.onTecla);
+    if (scene.input && scene.input.keyboard) Object.keys(st.teclasPoder || {}).forEach(function (tecla) { scene.input.keyboard.off('keydown-' + tecla.toUpperCase(), st.teclasPoder[tecla]); });
+    (st.botonesPoder || []).forEach(function (p) { p.boton.removeEventListener('pointerdown', p.activar); });
+    if (st.botonTajo && st.panelPoderes && st.botonTajo.parentNode === st.panelPoderes) document.body.appendChild(st.botonTajo);
+    if (st.panelPoderes) st.panelPoderes.remove();
+    if (st.escudo) st.escudo.destroy();
+    if (st.boton && st.boton._gfe === st.onEquipo) { st.boton.removeEventListener('click', st.onEquipo); st.boton._gfe = null; }
+    if (st.botonTajo && st.botonTajo._gfe === st.onTajo) { st.botonTajo.removeEventListener('pointerdown', st.onTajo); st.botonTajo._gfe = null; }
     scene.events.off('update', st.onUpdate);
     scene.events.off('shutdown', st.onApagar);
     scene.events.off('destroy', st.onApagar);
@@ -341,5 +558,6 @@
     agregarObjetivo: function (fn) { if (typeof fn === 'function' && objetivos.indexOf(fn) < 0) objetivos.push(fn); },
     quitarObjetivo: function (fn) { var i = objetivos.indexOf(fn); if (i >= 0) objetivos.splice(i, 1); },
     ESPADAS: ESPADAS
+    , mostrarDano: mostrarDano, usarPoder: function (scene, tecla) { var st = scene && scene.__gfEspada; return st ? usarPoder(st, tecla) : false; }, PODERES: PODERES
   };
 })();

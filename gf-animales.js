@@ -1144,6 +1144,7 @@
       }
       if (!mej) { a.reaccionaEn = ahora + 3000; return false; }
       var pf = puntoFlor(mej);
+      if (!pf) { a.reaccionaEn = ahora + 3000; return false; }
       a.refugio = { x: pf.x, y: pf.y, clave: pf.clave, base: pf.base };
       a.soporte = pf.clave;
       a.baseSoporte = pf.base;
@@ -2422,7 +2423,9 @@
     // Un mordisco levanta a cualquiera.
     if (a.durmiendo) despertar(st, a);
     crearBarra(st, a);
+    var vidaAntes = a.vida;
     a.vida = Math.max(0, a.vida - cuanto);
+    if (window.GFEspada && window.GFEspada.mostrarDano) window.GFEspada.mostrarDano(st.scene, a.spr.x, a.spr.y, vidaAntes - a.vida);
     a.barraHasta = ahora + BARRA_VISIBLE_MS;
     // parpadeo rojo, para que el golpe se vea
     if (a.spr.setTint) a.spr.setTint(0xff7d6a);
@@ -2657,8 +2660,14 @@
    * es como si no estuviera y van directos al personaje.
    *
    * A un jugador que ya es fantasma no se le muerde: está muerto.
+   *
+   * EN MODO FANTASMA NADIE PELEA (2026-10-11): "en modo fantasma no debería
+   * matar con espada ni por modo attack en mascota". Siendo fantasma la
+   * mascota tampoco es objetivo: si los animales fueran a por ella, el perro
+   * (en modo attack) les devolvería los golpes y seguiría matando.
    */
   function objetivoDe(scene) {
+    if (jugadorFantasma()) return null;
     if (modoMascota() === 'attack' && mascotaViva()) {
       var d = scene.dog && scene.dog.sprite;
       if (d && d.active !== false && d.visible !== false) {
@@ -2715,6 +2724,7 @@
    */
   function mascotaPelea(st, a, ahora) {
     if (modoMascota() !== 'attack' || !mascotaViva()) return;
+    if (jugadorFantasma()) return;                       // fantasma: no pelea nadie
     var scene = st.scene;
     var d = scene.dog && scene.dog.sprite;
     if (!d || d.visible === false) return;
@@ -4604,7 +4614,7 @@
      * 75° de hacia donde mira. Los de tierra huyen del golpe y las aves
      * levantan el vuelo. Devuelve cuántos tocó y cuántos mató.
      */
-    golpear: function (scene, x, y, dir, alcance, dano) {
+    golpear: function (scene, x, y, dir, alcance, dano, poder) {
       var st = scene && scene.__gfFauna;
       var out = { tocados: 0, muertos: 0, puntos: [] };
       if (!st || !(dano > 0)) return out;
@@ -4617,11 +4627,14 @@
         var d = Math.hypot(dx, dy);
         var radio = (a.spr.displayWidth || 30) * 0.4;
         if (d - radio > alcance) continue;
-        if (d > 8 && (dx * v[0] + dy * v[1]) / d < Math.cos(75 * Math.PI / 180)) continue;
+        if (d > 8 && (dx * v[0] + dy * v[1]) / d < Math.cos(poder && poder.arco || 75 * Math.PI / 180)) continue;
         danarAnimal(st, a, dano);
         out.tocados++;
         out.puntos.push({ x: ax, y: ay });
         if (a.muerto) { out.muertos++; continue; }
+        var emp = 14;
+        var ex = a.spr.x + dx / (d || 1) * emp, ey = a.spr.y + dy / (d || 1) * emp;
+        if (libre(scene, a, ex, ey)) a.spr.setPosition(ex, ey);
         try {
           if (a.grupo === 'ave' && typeof huirAve === 'function') huirAve(st, a);
           else huirDe(st, a, x, y);

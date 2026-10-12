@@ -55,11 +55,15 @@
    formaban un bloque de 3×3. Ahora el tamaño sale del alto que hay: nueve
    botones y sus huecos entre `--gfh-rb-top` y el borde de abajo, con 50 px
    como mucho (pantallas grandes, igual que antes) y 30 como poco. El icono
-   es siempre el 64 % del botón. Las reglas del teléfono, más abajo. */
+   es siempre el 64 % del botón. Las reglas del teléfono, más abajo.
+   CUÁNTOS (2026-10-11): ya no son nueve fijos —con "Skills" son diez y a
+   600 px de alto "Store" se salía—: `--gfh-rb-n` lo pone gf-hud-ajuste.js
+   contando los que se ven (10 hasta que se ejecute). */
 html body #game-hud .round-buttons {
+  --gfh-rb-n: 10;
   --gfh-rb-top: clamp(88px, 17vh, 130px);
   --gfh-rb-gap: clamp(5px, 1.1vh, 10px);
-  --gfh-rb: clamp(30px, calc((100vh - var(--gfh-rb-top) - 24px - 8 * var(--gfh-rb-gap)) / 9), 50px);
+  --gfh-rb: clamp(30px, calc((100vh - var(--gfh-rb-top) - 24px - (var(--gfh-rb-n) - 1) * var(--gfh-rb-gap)) / var(--gfh-rb-n)), 50px);
   top: var(--gfh-rb-top) !important;
   gap: var(--gfh-rb-gap) !important;
 }
@@ -922,8 +926,9 @@ html body #hub-panel_101.visible {
   html body #game-hud .round-buttons {
     --gfh-rb-top: 88px;
     --gfh-rb-gap: 6px;
-    /* Cinco por columna como mucho: así nunca pasan de dos columnas. */
-    --gfh-rb: clamp(34px, calc((100vh - 88px - 12px - 4 * 6px) / 5), 40px);
+    /* La mitad por columna como mucho: así nunca pasan de dos columnas
+       (`--gfh-rb-filas` lo pone gf-hud-ajuste.js; 5 hasta entonces). */
+    --gfh-rb: clamp(34px, calc((100vh - 88px - 12px - (var(--gfh-rb-filas, 5) - 1) * 6px) / var(--gfh-rb-filas, 5)), 40px);
     top: 88px !important;
     bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
     column-gap: 6px !important;

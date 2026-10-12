@@ -612,6 +612,19 @@
                   vista, z, 0.96 * fuerza, 'gf_luz_jugador');
     }
 
+    /* LAS LUCES DE OTROS MÓDULOS (2026-10-11): las antorchas que pone la
+       gente (gf-antorchas.js) recortan la noche como las farolas. Cada uno
+       deja una función en `scene._lucesNoche` que recibe
+       luz(x, y, radio, fuerza 0..1) y pinta las suyas que se vean. */
+    var extras = scene._lucesNoche;
+    if (Array.isArray(extras) && extras.length) {
+      var luzExtra = function (x, y, r, a) {
+        if (!(r > 0) || x < vista.x - r || x > vista.right + r || y < vista.y - r || y > vista.bottom + r) return;
+        recortarLuz(st, x, y, r, vista, z, clamp(a, 0, 1) * fuerza, 'gf_luz_poste');
+      };
+      for (var k = 0; k < extras.length; k++) { try { extras[k](luzExtra); } catch (e) {} }
+    }
+
     if (!st.encendidos) return;
 
     var margen = RADIO_POSTE * 1.2;

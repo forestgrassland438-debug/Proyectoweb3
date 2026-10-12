@@ -1873,7 +1873,8 @@
       if (c.y > h + (pl.posa ? 12 : 40)) {
         if (pl.posa) posarNieve(st, c.x, h - m - az(0, (h - m * 2) * 0.5), L);
         reponerCopo(st, c, w, h, false);
-      } else if (c.x < -80 || c.x > w + 80) {
+      } else if (c.x < -Math.max(100, Math.max(0, st.inclina || 0) * h * 2.2 + 60) ||
+                 c.x > w + Math.max(100, Math.max(0, -(st.inclina || 0)) * h * 2.2 + 60)) {
         reponerCopo(st, c, w, h, false);
       }
     }
@@ -2426,7 +2427,7 @@
       var r = st.rayosSol[i];
       var s = r.spr;
       // Respira: abre y cierra el ángulo y sube y baja la intensidad.
-      var b = Math.sin(ahora * 0.001 * r.ritmo + r.fase);
+      var b = Math.sin(ahora * 0.00035 * r.ritmo + r.fase);
       s.setPosition(sx, sy);
       s.setRotation(SOL_ANGULO + r.desvio + b * 0.045);
       s.setDisplaySize(Math.max(18, 90 * r.ancho * (1 + b * 0.10)),
