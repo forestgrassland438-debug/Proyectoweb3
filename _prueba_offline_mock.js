@@ -31,7 +31,7 @@
   })();
 
   var estado = {
-    stats: { vida: 100, agua: 80, comida: 70, oro: 50, plata: 500, exp: 10, invoiceIds: {} },
+    stats: { vida: 100, agua: 80, comida: 70, oro: 50, plata: 500, exp: 4500, invoiceIds: {} },
     // Construcción en la isla: lo colocado y las parcelas que quedan.
     construcciones: [],
     parcelas: 5,
@@ -47,6 +47,9 @@
     cultivos: [],
     espantapajaros: 3,
     espantas: [],
+    // Las antorchas (2026-10-11): las de la mochila (factura 117) y las puestas.
+    antorchas: 4,
+    antorchasPuestas: [],
     pesca: null,
     guardado: null,
     log: [],
@@ -198,6 +201,7 @@
       ].concat(estado.palas > 0 ? [hueco(8, 'pala_construccion', estado.palas, 110)] : [])
        .concat([hueco(9, 'cana_pescar', 1, 111), hueco(10, 'espada_madera', 1, 112),
                 hueco(11, 'espantapajaros', estado.espantapajaros, 113)])
+       .concat(estado.antorchas > 0 ? [hueco(15, 'antorcha', estado.antorchas, 117)] : [])
        .concat(['basura', 'cofre1', 'cofre3'].map(function (t, k) {
          return estado.colocables[t] > 0 ? hueco(12 + k, t, estado.colocables[t], estado.facturaDe[t]) : null;
        }).filter(Boolean)),
@@ -255,6 +259,55 @@
       });
       estado.derrotados = (estado.derrotados || []).concat([b.tipo]);
       return { ok: true, tipo: b.tipo, exp: 450, expTotal: 4500 + 450 * estado.derrotados.length, botin: lista, caducaMs: 600000 };
+    }
+    // Las invitaciones (ver /api/invitaciones/* en server2.js).
+    if (ruta === '/api/invitaciones/mia') {
+      estado.inv = estado.inv || { discord: '', invitadoPor: null };
+      return { ok: true, codigo: 'K7QW2MZP', wallet: DIRECCION.toLowerCase(), invitadoPor: estado.inv.invitadoPor,
+               invitados: [{ nombre: 'Bram', nivel: 9, desde: Date.now() - 86400000 * 3, horas: 5.2, activo: true },
+                           { nombre: 'Cid', nivel: 2, desde: Date.now() - 86400000, horas: 0.2, activo: false }],
+               total: 2, activos: 1, discord: estado.inv.discord, puedeReclamar: !estado.inv.invitadoPor, diasParaReclamar: 14 };
+    }
+    if (ruta === '/api/invitaciones/reclamar' && metodo === 'POST') {
+      b = cuerpo(init);
+      estado.inv = estado.inv || { discord: '', invitadoPor: null };
+      estado.reclamos = (estado.reclamos || []).concat([b.codigo]);
+      if (b.codigo === 'K7QW2MZP') return { error: 'propio', message: 'You cannot use your own invite code.' };
+      if (estado.inv.invitadoPor) return { error: 'ya_invitado', message: 'You already joined with an invite.' };
+      estado.inv.invitadoPor = { nombre: 'Aria', wallet: '0x1234567890abcdef1234567890abcdef12345678', desde: Date.now() };
+      return { ok: true, invitadoPor: estado.inv.invitadoPor };
+    }
+    if (ruta === '/api/invitaciones/discord' && metodo === 'POST') {
+      b = cuerpo(init);
+      estado.inv = estado.inv || { discord: '', invitadoPor: null };
+      if (b.discord && !/^[a-z0-9_.]{2,32}$/i.test(b.discord)) return { error: 'discord_invalido', message: 'Use your Discord username: 2-32 letters, numbers, dots or underscores.' };
+      estado.inv.discord = b.discord;
+      return { ok: true, discord: b.discord };
+    }
+    // El suelo del mapa salvaje (ver /api/salvaje/* en server2.js).
+    if (ruta === '/api/salvaje/suelo') {
+      estado.suelo = estado.suelo || {};
+      return { ok: true, lista: Object.keys(estado.suelo).map(function (k) { return estado.suelo[k]; }), ahora: Date.now() };
+    }
+    if (ruta === '/api/salvaje/soltar' && metodo === 'POST') {
+      b = cuerpo(init);
+      estado.suelo = estado.suelo || {};
+      var mt = { id: 's' + Date.now().toString(36), itemId: b.itemId, cantidad: Math.max(1, Number(b.cantidad) || 1),
+                 x: Math.round(b.x), y: Math.round(b.y), deNombre: 'Tester', caducaEn: Date.now() + 600000 };
+      estado.suelo[mt.id] = mt;
+      estado.soltados = (estado.soltados || []).concat([b]);
+      setTimeout(function () { try { window.globalSocket._fire('suelo:nuevo', mt); } catch (e) {} }, 30);
+      return { ok: true, monton: mt, gastado: { itemId: b.itemId, invoiceId: b.invoiceId, manualId: 'x', cantidadRestante: 0 } };
+    }
+    if (ruta === '/api/salvaje/recoger' && metodo === 'POST') {
+      b = cuerpo(init);
+      var ms = estado.suelo && estado.suelo[b.id];
+      if (!ms) return { ok: false, motivo: 'no_existe' };
+      delete estado.suelo[b.id];
+      estado.recogidos = (estado.recogidos || 0) + 1;
+      setTimeout(function () { try { window.globalSocket._fire('suelo:fuera', { id: b.id, por: 'Tester' }); } catch (e) {} }, 30);
+      return { ok: true, itemId: ms.itemId, cantidad: ms.cantidad, deNombre: ms.deNombre,
+               factura: { invoiceId: 950 + estado.recogidos, manualId: ms.itemId + '#s' + estado.recogidos, cantidad: ms.cantidad } };
     }
     if (ruta === '/api/monstruos/botin/recoger' && metodo === 'POST') {
       b = cuerpo(init);
@@ -400,9 +453,15 @@
                   pes5: { tam: 0.40, vel: 0.36, nervio: 0.80, mengua: 0.04, rafaga: 0.04 },
                   pes7: { tam: 0.33, vel: 0.48, nervio: 1.70, mengua: 0.10, rafaga: 0.18 },
                   pes8: { tam: 0.28, vel: 0.62, nervio: 1.40, mengua: 0.20, rafaga: 0.24 },
-                  pes6: { tam: 0.26, vel: 0.66, nervio: 1.50, mengua: 0.25, rafaga: 0.26 } };
-      var PECES = ['pes1', 'pes2', 'pes3', 'pes4', 'pes5', 'pes6', 'pes7', 'pes8'];
-      pe.especie = (/[?&]pez=(pes[1-8])/.exec(location.search) || [])[1] || PECES[Math.floor(Math.random() * PECES.length)];
+                  pes6: { tam: 0.26, vel: 0.66, nervio: 1.50, mengua: 0.25, rafaga: 0.26 },
+                  pes9: { tam: 0.31, vel: 0.56, nervio: 1.25, mengua: 0.16, rafaga: 0.22 },
+                  pes10: { tam: 0.36, vel: 0.42, nervio: 0.75, mengua: 0.08, rafaga: 0.12 },
+                  pes11: { tam: 0.38, vel: 0.40, nervio: 0.90, mengua: 0.06, rafaga: 0.06 },
+                  pes12: { tam: 0.27, vel: 0.64, nervio: 1.45, mengua: 0.24, rafaga: 0.22 },
+                  pes13: { tam: 0.30, vel: 0.58, nervio: 1.10, mengua: 0.18, rafaga: 0.20 },
+                  pes14: { tam: 0.29, vel: 0.50, nervio: 1.60, mengua: 0.18, rafaga: 0.16 } };
+      var PECES = ['pes1', 'pes2', 'pes3', 'pes4', 'pes5', 'pes6', 'pes7', 'pes8', 'pes9', 'pes10', 'pes11', 'pes12', 'pes13', 'pes14'];
+      pe.especie = (/[?&]pez=(pes(?:1[0-4]|[1-9]))/.exec(location.search) || [])[1] || PECES[Math.floor(Math.random() * PECES.length)];
       pe.enganchadoEn = Date.now();
       return { ok: true, especie: pe.especie, dificultad: DIF[pe.especie], maxMs: 45000 };
     }
@@ -413,7 +472,7 @@
         b = cuerpo(init);
         if (b.exito !== true || Date.now() - ps.enganchadoEn < 1900) return { ok: false, motivo: 'escapo' };
         // Los venenosos (ver PESCA_VENENO en server2.js): pinchazos por el socket.
-        var VEN = { pes7: [12, 2000], pes8: [20, 1500] }[ps.especie];
+        var VEN = { pes7: [12, 2000], pes8: [20, 1500], pes14: [16, 2000] }[ps.especie];
         if (VEN) {
           var resta = VEN[0];
           var pinchar = function () {
@@ -430,6 +489,37 @@
       if (Date.now() > ps.picaEn + 2600) return { ok: false, motivo: 'tarde' };
       var pez = ['pes1', 'pes2', 'pes3'][Math.floor(Math.random() * 3)];
       return { ok: true, itemId: pez, exp: 25, factura: { invoiceId: 700 + Math.floor(Math.random() * 99), manualId: pez + '#m', cantidad: 1 } };
+    }
+    // ── Los puntos del personaje (ver /api/player/skills en server2.js) ──
+    if (ruta === '/api/player/skills' && metodo === 'GET') {
+      estado.reparto = estado.reparto || { strength: 0, defense: 0, wisdom: 0, patience: 0, farming: 0, woodcutting: 0, fishing: 0, combat: 0 };
+      var gastados = Object.keys(estado.reparto).reduce(function (s2, k) { return s2 + estado.reparto[k]; }, 0);
+      return { ok: true, level: 6, available: Math.max(0, 6 - gastados), allocations: estado.reparto };
+    }
+    if (ruta === '/api/player/skills/allocate' && metodo === 'POST') {
+      b = cuerpo(init);
+      estado.reparto = estado.reparto || { strength: 0, defense: 0, wisdom: 0, patience: 0, farming: 0, woodcutting: 0, fishing: 0, combat: 0 };
+      var usados = Object.keys(estado.reparto).reduce(function (s2, k) { return s2 + estado.reparto[k]; }, 0);
+      if (!(b.skill in estado.reparto)) return { error: 'unknown_skill' };
+      if (usados >= 6) return { error: 'no_points' };
+      estado.reparto[b.skill]++;
+      return { ok: true, level: 6, available: 6 - usados - 1, allocations: estado.reparto };
+    }
+    // ── Las antorchas (ver "LAS ANTORCHAS" en server2.js) ───────────────
+    if (ruta === '/api/antorchas' && metodo === 'GET') {
+      var zonaA = consulta && consulta.get ? consulta.get('zona') : '';
+      return { ok: true, ahora: Date.now(), duracionMs: 1800000,
+               lista: estado.antorchasPuestas.filter(function (a) { return a.zona === zonaA && a.hasta > Date.now(); }) };
+    }
+    if (ruta === '/api/antorchas/poner' && metodo === 'POST') {
+      b = cuerpo(init);
+      if (estado.antorchas <= 0) return { error: 'no_tienes', message: 'You have no torch.' };
+      estado.antorchas--;
+      var nueva = { id: 'a' + Date.now().toString(36), zona: b.zona, x: Math.round(b.x), y: Math.round(b.y),
+                    hasta: Date.now() + 1800000, deNombre: 'Tester' };
+      estado.antorchasPuestas.push(nueva);
+      return { ok: true, antorcha: nueva, duracionMs: 1800000,
+               gastado: { itemId: 'antorcha', invoiceId: 117, manualId: 'antorcha#117', cantidadRestante: estado.antorchas } };
     }
     // ── El espantapájaros (ver /api/espantapajaros en server2.js) ────────
     // ── El traductor del chat (ver /api/chat/traducir en server2.js) ──────
@@ -566,10 +656,94 @@
     });
   };
 
+
+  /* LA SALA ENTRE PESTAÑAS (2026-10-11). Para probar los monstruos
+     compartidos (gf-mobs-red.js) con DOS pestañas de esta página: cada una es
+     un jugador y se hablan por BroadcastChannel, haciendo lo que hace el
+     servidor de verdad ("LOS MONSTRUOS COMPARTIDOS" en server2.js): se ven
+     moverse, se elige anfitrión (el que dijo 'mobs:hola' antes) y se
+     reenvían la foto, los anuncios, los golpes y los tajos. */
+  var canalRed = (typeof BroadcastChannel === 'function') ? new BroadcastChannel('gf-mock-sala') : null;
+  var redSala = { holas: {}, conocidos: {}, host: null };
+  function socketVivo() { var s = window.globalSocket; return s && s._fire ? s : null; }
+  function baseDe(sala) { return String(sala || '').split('#')[0]; }
+  function redHost(s) {
+    var mejor = null, t = Infinity;
+    Object.keys(redSala.holas).forEach(function (id) { if (redSala.holas[id] < t) { t = redSala.holas[id]; mejor = id; } });
+    if (mejor !== redSala.host) { redSala.host = mejor; if (s) s._fire('mobs:host', { host: mejor }); }
+    return mejor;
+  }
+  function redEnviar(m) { if (canalRed) try { canalRed.postMessage(m); } catch (e) {} }
+  function redSalida(self, evento, datos) {
+    if (!canalRed) return;
+    if (evento === 'joinRoom') {
+      self._sala = baseDe(datos && datos.room);
+      redSala.holas = {}; redSala.host = null; redSala.conocidos = {};
+      redEnviar({ t: 'join', id: self.id, sala: self._sala, nombre: (datos && datos.username) || 'Otro', x: datos && datos.x, y: datos && datos.y });
+      return;
+    }
+    if (!self._sala) return;
+    if (evento === 'playerMove') { redEnviar({ t: 'move', id: self.id, sala: self._sala, d: datos }); return; }
+    if (evento === 'mobs:hola') {
+      if (!redSala.holas[self.id]) redSala.holas[self.id] = self._t0;
+      redEnviar({ t: 'hola', id: self.id, sala: self._sala, t0: self._t0 });
+      var h = redHost(null);
+      setTimeout(function () { self._fire('mobs:host', { host: h }); }, 10);
+      return;
+    }
+    if (evento === 'mobs:estado' || evento === 'mobs:evento' || evento === 'mobs:golpe') {
+      redEnviar({ t: evento, id: self.id, sala: self._sala, d: datos });
+      return;
+    }
+    if (evento === 'combate:tajo') redEnviar({ t: evento, id: self.id, sala: self._sala, d: datos });
+  }
+  if (canalRed) {
+    canalRed.onmessage = function (ev) {
+      var m = ev.data || {}, s = socketVivo();
+      if (!s || !s._sala || m.sala !== s._sala || m.id === s.id) return;
+      if (m.t === 'join' || m.t === 'yo-tambien') {
+        if (!redSala.conocidos[m.id]) {
+          redSala.conocidos[m.id] = true;
+          s._fire('newPlayer', { id: m.id, x: Number(m.x) || 2150, y: Number(m.y) || 2380, username: m.nombre,
+            direction: 'right', directionx: 'stop_right', nivel: 5, petLevel: 1, dogName: '' });
+        }
+        if (m.t === 'join') {
+          var yo = window.game && window.game.scene && window.game.scene.getScenes(true).filter(function (sc) { return sc.player; })[0];
+          redEnviar({ t: 'yo-tambien', id: s.id, sala: s._sala, nombre: (yo && yo.Username) || 'Otro',
+                      x: yo && yo.player ? yo.player.x : 0, y: yo && yo.player ? yo.player.y : 0 });
+          if (redSala.holas[s.id]) redEnviar({ t: 'hola', id: s.id, sala: s._sala, t0: s._t0 });
+        }
+        return;
+      }
+      if (m.t === 'move') { s._fire('playerMoved', Object.assign({}, m.d, { id: m.id })); return; }
+      if (m.t === 'leave') {
+        delete redSala.conocidos[m.id]; delete redSala.holas[m.id];
+        s._fire('playerLeft', { id: m.id });
+        redHost(s);
+        return;
+      }
+      if (m.t === 'hola') {
+        var nuevo = !redSala.holas[m.id];
+        redSala.holas[m.id] = m.t0;
+        var h = redHost(s);
+        if (nuevo && h === s.id) s._fire('mobs:pideFoto', { para: m.id });
+        if (nuevo && redSala.holas[s.id]) redEnviar({ t: 'hola', id: s.id, sala: s._sala, t0: s._t0 });
+        return;
+      }
+      if (m.t === 'mobs:estado' || m.t === 'mobs:evento') { s._fire(m.t, Object.assign({}, m.d, { de: m.id })); return; }
+      if (m.t === 'mobs:golpe') { if (redSala.host === s.id) s._fire('mobs:golpe', Object.assign({}, m.d, { de: m.id })); return; }
+      if (m.t === 'combate:tajo') s._fire('combate:tajo', Object.assign({}, m.d, { id: m.id }));
+    };
+    window.addEventListener('pagehide', function () {
+      var s = socketVivo();
+      if (s && s._sala) redEnviar({ t: 'leave', id: s.id, sala: s._sala });
+    });
+  }
   var sockets = [];
   function SocketFalso() {
     Emisor.call(this);
     this.id = 'sock-' + Math.random().toString(36).slice(2, 8);
+    this._t0 = Date.now() + Math.random();
     this.connected = false;
     this.disconnected = true;
     this.active = true;
@@ -606,8 +780,16 @@
       }, 30);
     }
     if (/^(battle|brawl):/.test(evento)) combateFalso(self, evento, datos);
+    // La espada entre jugadores (ver 'pvp:golpe' en server2.js): el mock da
+    // siempre por bueno el golpe y avisa a la "sala" con el impacto.
+    if (evento === 'pvp:golpe') {
+      estado.pvp = (estado.pvp || []).concat([datos]).slice(-50);
+      setTimeout(function () { self._fire('pvp:impacto', { id: datos.victima, de: self.id, muerto: false }); }, 30);
+    }
+    if (evento === 'pvp:tajo') estado.tajos = (estado.tajos || 0) + 1;
     huertoFalso(self, evento, datos);
     amigosFalsos(self, evento, datos);
+    redSalida(self, evento, datos);
     var cb = typeof ack === 'function' ? ack : (typeof datos === 'function' ? datos : null);
     if (cb) setTimeout(function () { try { cb({ ok: true, success: true }); } catch (e) {} }, 10);
     return this;
@@ -931,6 +1113,18 @@
       var s = window.globalSocket;
       if (s && s._fire) s._fire('newPlayer', { id: id || 'otro1', x: x || 2150, y: y || 2380, username: 'Amigo',
         direction: 'right', directionx: 'stop_right', nivel: 3, petLevel: 2, dogName: 'Toby' });
+    },
+    // Otro jugador te da un espadazo (como lo mandaría el servidor).
+    meHieren: function (dano, deX, deY) {
+      var s = window.globalSocket;
+      estado.stats.vida = Math.max(0, estado.stats.vida - (dano || 6));
+      if (s && s._fire) s._fire('pvp:herido', { de: 'otro1', deNombre: 'Amigo', dano: dano || 6, muerto: estado.stats.vida <= 0,
+        stats: { vida: estado.stats.vida, agua: estado.stats.agua, comida: estado.stats.comida }, x: deX || 0, y: deY || 0 });
+    },
+    // Otro jugador mueve la espada (solo se ve).
+    tajoDe: function (id, dir) {
+      var s = window.globalSocket;
+      if (s && s._fire) s._fire('pvp:tajo', { id: id || 'otro1', dir: dir || 'left', arma: 'espada_hierro' });
     },
     seVaOtro: function (id) {
       var s = window.globalSocket;
