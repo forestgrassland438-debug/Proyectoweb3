@@ -49,6 +49,13 @@
  * CÓMO SE ENGANCHA
  *   GameScene (update, una vez):   GFAgua.montar(this, { capa: 'mapa_principal', textura: 'tiles', vida: 'rio' })
  *   LandsScene.create:             GFAgua.montar(this, { capa: 'Terrain', textura: 'tiles_isla', vida: 'mar' })
+ *   SalvajeScene.create:           GFAgua.montar(this, { capa: 'suelo', textura: 'tiles_salvaje', vida: 'rio',
+ *                                                        excluir: [<el puente>] })
+ *
+ *   `excluir` (2026-10-11): rectángulos del mundo donde NO se pone nada
+ *   fijo (piedras, juncos, troncos) ni salta un pez: el puente del mapa
+ *   salvaje va encima del agua y lo de debajo saldría por encima de él.
+ *   El agua sigue debajo (las hojas y los peces pasan por debajo, tapados).
  *   Se desmonta solo al apagarse la escena.
  * ======================================================================== */
 (function () {
@@ -513,6 +520,7 @@
     }
     var puestos = [];
     function libre(px, py, sep, tipo) {
+      if (excluido(st, px, py, 70)) return false;
       for (var k = 0; k < puestos.length; k++) {
         var d = Math.hypot(puestos[k][0] - px, puestos[k][1] - py);
         if (d < (puestos[k][2] === tipo ? sep : ESPACIO_MIXTO)) return false;
@@ -683,8 +691,22 @@
     }
   }
 
+  /** ¿Cae (x, y) dentro de alguna zona excluida, con `m` px de margen? */
+  function excluido(st, x, y, m) {
+    var zs = st.excluir;
+    if (!zs || !zs.length) return false;
+    m = m || 0;
+    for (var i = 0; i < zs.length; i++) {
+      var z = zs[i];
+      if (x > z.x - m && x < z.x + z.width + m && y > z.y - m && y < z.y + z.height + m) return true;
+    }
+    return false;
+  }
+
   function saltarPez(st, v) {
-    var cand = st.peces.filter(function (p) { return p.colocado && !p.salta && v && v.contains(p.spr.x, p.spr.y); });
+    var cand = st.peces.filter(function (p) {
+      return p.colocado && !p.salta && v && v.contains(p.spr.x, p.spr.y) && !excluido(st, p.spr.x, p.spr.y, 50);
+    });
     if (!cand.length) return;
     var p = cand[Math.floor(Math.random() * cand.length)], s = p.spr, scene = st.scene;
     var k = Math.random() < 0.6 ? 'gfa_pez' : 'gfa_pez2';
@@ -801,6 +823,9 @@
     if (!scene || !scene.add || !scene.events || !scene.map) return null;
     if (scene.__gfAgua) return scene.__gfAgua;
     var st = { scene: scene, vida: opts.vida || null };
+    st.excluir = (Array.isArray(opts.excluir) ? opts.excluir : []).filter(function (z) {
+      return z && Number.isFinite(z.x) && Number.isFinite(z.y) && z.width > 0 && z.height > 0;
+    });
     var ok = false;
     try { ok = construir(scene, st, opts); } catch (e) { console.warn('[agua] no se pudo montar el agua animada:', e); }
     if (!ok) return null;

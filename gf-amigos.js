@@ -1973,14 +1973,20 @@
     enlazar();
     pedirEstado();
 
-    /* Vigilante: el socket puede llegar tarde (la escena lo crea después) o
-       cambiar tras una reconexión. Barato — un `!==` cada dos segundos. */
-    if (!global.__gfaVigilante) {
-      global.__gfaVigilante = setInterval(function () {
-        if (enlazar()) { /* enganchado */ }
-      }, 2000);
-    }
+    arrancarVigilante();
     return true;
+  }
+
+  /* Vigilante: el socket puede llegar tarde (la escena lo crea después) o
+     cambiar tras una reconexión. Barato — un `!==` cada dos segundos.
+     FUERA de montar() a propósito (2026-10-11): dentro, su cierre compartía
+     el contexto de `soltar`, que guarda `scene`, y el intervalo (que vive
+     toda la partida) retenía para siempre la primera escena que lo montó. */
+  function arrancarVigilante() {
+    if (global.__gfaVigilante) return;
+    global.__gfaVigilante = setInterval(function () {
+      if (enlazar()) { /* enganchado */ }
+    }, 2000);
   }
 
   function desmontar(scene) {

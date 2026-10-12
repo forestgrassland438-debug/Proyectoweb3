@@ -284,6 +284,13 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   box-sizing: border-box;
 }
 .cfg-field input:focus { border-color: var(--moss); }
+/* El desplegable de orden de "Player activity" (2026-10-11), igual que los campos. */
+.cfg-field select {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; color: var(--text);
+  font-size: 14px; padding: 9px 11px; outline: none; width: 100%; box-sizing: border-box;
+}
+.cfg-field select:focus { border-color: var(--moss); }
+.act-pistas { display: flex; gap: 4px; flex-wrap: wrap; white-space: normal; min-width: 160px; }
 .cfg-field small { font-size: 11.5px; line-height: 1.5; }
 .cfg-field.cfg-check {
   flex-direction: row;
@@ -525,6 +532,64 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
         <tr><td colspan="6" class="empty">Pon un número y pulsa «Ver clasificación».</td></tr>
       </tbody>
     </table>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       LA ACTIVIDAD DE CADA JUGADOR (2026-10-11)
+       Para ver bots: tiempo jugado, wallet, nombre, primera y última partida,
+       tiempo pescando, minando y con la tienda abierta, quién le invitó y a
+       cuántos invitó. Lo cuenta el servidor (GET /api/admin/actividad).
+       ══════════════════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="section-head">
+      <h2>🕵️ Player activity (bot check)</h2>
+      <span class="dim" id="actInfo"></span>
+    </div>
+
+    <div class="cfg-grid">
+      <label class="cfg-field">
+        <span>Search</span>
+        <input type="text" id="actQ" placeholder="name, username, wallet or Discord" autocomplete="off">
+      </label>
+      <label class="cfg-field">
+        <span>Sort by</span>
+        <select id="actOrden">
+          <option value="tiempo">Time played</option>
+          <option value="ultima">Last played</option>
+          <option value="primera">First played</option>
+          <option value="pesca">Fishing time</option>
+          <option value="mina">Mining time</option>
+          <option value="tienda">Shop time</option>
+          <option value="salvaje">Wild lands time</option>
+          <option value="capturas">Fish caught</option>
+          <option value="monstruos">Monsters defeated</option>
+        </select>
+        <small class="dim">Shop time = inside the shop + with the shop panel open. Flags are hints, not proof.</small>
+      </label>
+    </div>
+
+    <div class="cfg-actions">
+      <button class="btn btn-primary" id="actBtn">Load</button>
+      <button class="btn" id="actPrev" aria-label="Previous page">◀</button>
+      <span class="dim" id="actPagina">Page 1</span>
+      <button class="btn" id="actNext" aria-label="Next page">▶</button>
+      <button class="btn" id="actCsv">Export CSV</button>
+    </div>
+
+    <div class="table-wrap" style="margin-top:12px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Player</th><th>Wallet</th><th>Discord</th><th>Time played</th>
+            <th>First played</th><th>Last played</th><th>Fishing</th><th>Mining</th>
+            <th>Shop</th><th>Wild lands</th><th>Invited by</th><th>Invites</th><th>Flags</th>
+          </tr>
+        </thead>
+        <tbody id="actBody">
+          <tr><td colspan="13" class="empty">Press «Load».</td></tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 
   <!-- ══════════════════════════════════════════════════════════════════════
@@ -911,6 +976,91 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
         esc(e.message) + '</td></tr>';
     }
   }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     LA ACTIVIDAD DE CADA JUGADOR (2026-10-11)
+
+     GET /api/admin/actividad?page=N&q=texto&orden=campo — 50 por página. Las
+     "pistas" las calcula el servidor (muchas horas al día, casi todo el tiempo
+     pescando o minando, capturas demasiado rápidas, misma IP que su
+     invitador). Todo lo que viene de jugadores se escapa con esc().
+     ══════════════════════════════════════════════════════════════════════════ */
+  var act = { page: 1, filas: [], total: 0, porPagina: 50 };
+
+  async function cargarActividad() {
+    var cuerpo = $('actBody');
+    cuerpo.innerHTML = '<tr><td colspan="13" class="empty">Loading\u2026</td></tr>';
+    try {
+      var d = await pedir('/api/admin/actividad?page=' + act.page +
+        '&orden=' + encodeURIComponent($('actOrden').value) +
+        '&q=' + encodeURIComponent(($('actQ').value || '').trim()));
+      act.filas = (d && d.jugadores) || [];
+      act.total = d.total || 0;
+      act.porPagina = d.porPagina || 50;
+      var paginas = Math.max(1, Math.ceil(act.total / act.porPagina));
+      $('actPagina').textContent = 'Page ' + act.page + ' / ' + paginas;
+      $('actInfo').textContent = act.total + ' players';
+      if (!act.filas.length) {
+        cuerpo.innerHTML = '<tr><td colspan="13" class="empty">No players match.</td></tr>';
+        return;
+      }
+      cuerpo.innerHTML = act.filas.map(function (j) {
+        var nombre = j.username && j.username !== '---' ? j.username : j.playerName;
+        var pistas = (j.pistas || []).map(function (p) { return '<span class="pill warn">' + esc(p) + '</span>'; }).join('');
+        return '<tr>' +
+          '<td><div class="name-cell"><span class="primary">' + esc(nombre) + (j.conectado ? ' \u{1F7E2}' : '') + '</span>' +
+            '<span class="secondary">' + esc(j.playerName) + ' \u00b7 Lv. ' + esc(j.nivel) + '</span></div></td>' +
+          '<td class="addr" title="' + esc(j.wallet) + '">' + esc(corto(j.wallet)) + '</td>' +
+          '<td>' + esc(j.discord || '\u2014') + '</td>' +
+          '<td class="num">' + esc(tiempoLargo(j.tiempoJugadoMs)) + '</td>' +
+          '<td>' + esc(fecha(j.primeraPartida)) + '</td>' +
+          '<td>' + esc(fecha(j.ultimaPartida)) + '</td>' +
+          '<td class="num">' + esc(tiempoLargo(j.tiempoPescaMs)) + ' \u00b7 ' + esc(j.capturas) + ' fish</td>' +
+          '<td class="num">' + esc(tiempoLargo(j.tiempoMinaMs)) + '</td>' +
+          '<td class="num">' + esc(tiempoLargo(j.tiempoTiendaMs)) + '</td>' +
+          '<td class="num">' + esc(tiempoLargo(j.tiempoSalvajeMs)) + ' \u00b7 ' + esc(j.monstruos) + ' mobs</td>' +
+          '<td>' + esc(j.invitadoPor || '\u2014') + '</td>' +
+          '<td class="num">' + esc(j.invitados) + '</td>' +
+          '<td><div class="act-pistas">' + (pistas || '\u2014') + '</div></td>' +
+          '</tr>';
+      }).join('');
+    } catch (e) {
+      cuerpo.innerHTML = '<tr><td colspan="13" class="empty">Could not load: ' + esc(e.message) + '</td></tr>';
+    }
+  }
+
+  /** La página que se ve, en CSV (se genera aquí: no sale nada del navegador). */
+  function csvActividad() {
+    if (!act.filas.length) { aviso('Load the table first.', 'warn'); return; }
+    var cab = ['playerName', 'username', 'wallet', 'discord', 'nivel', 'tiempoJugadoMin', 'primeraPartida', 'ultimaPartida',
+               'pescaMin', 'capturas', 'minaMin', 'tiendaMin', 'salvajeMin', 'monstruos', 'invitadoPor', 'invitados', 'pistas'];
+    var min = function (ms) { return Math.round((ms || 0) / 60000); };
+    var celda = function (v) { v = String(v === null || v === undefined ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var lineas = [cab.join(',')].concat(act.filas.map(function (j) {
+      return [j.playerName, j.username, j.wallet, j.discord, j.nivel, min(j.tiempoJugadoMs), j.primeraPartida || '', j.ultimaPartida || '',
+              min(j.tiempoPescaMs), j.capturas, min(j.tiempoMinaMs), min(j.tiempoTiendaMs), min(j.tiempoSalvajeMs), j.monstruos,
+              j.invitadoPor, j.invitados, (j.pistas || []).join(' | ')].map(celda).join(',');
+    }));
+    var blob = new Blob([lineas.join('\n')], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'player-activity-page' + act.page + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+
+  (function engancharActividad() {
+    $('actBtn').onclick = function () { act.page = 1; cargarActividad(); };
+    $('actPrev').onclick = function () { if (act.page > 1) { act.page--; cargarActividad(); } };
+    $('actNext').onclick = function () {
+      if (act.page * act.porPagina < act.total) { act.page++; cargarActividad(); }
+    };
+    $('actCsv').onclick = csvActividad;
+    $('actOrden').onchange = function () { act.page = 1; cargarActividad(); };
+    $('actQ').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); act.page = 1; cargarActividad(); }
+    });
+  })();
 
   (function engancharTop() {
     var b = $('topBtn');

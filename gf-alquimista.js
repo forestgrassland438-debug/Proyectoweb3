@@ -119,7 +119,7 @@
     p.innerHTML =
       '<div id="gf-alq-card">' +
         '<h3>Alchemist</h3>' +
-        '<p id="gf-alq-sub">Potions for your pet</p>' +
+        '<p id="gf-alq-sub">Potions for you and your pet</p>' +
         '<p id="gf-alq-plata">Silver: —</p>' +
         '<p id="gf-alq-pet">Pet: —</p>' +
         '<div id="gf-alq-lista"></div>' +
@@ -138,6 +138,8 @@
   }
 
   var IMG = {
+    pocion_vida: './Game/newpro/pociones/pocion_vida.png',
+    pocion_antidoto: './Game/newpro/pociones/pocion_energia.png',
     pocion_mascota: './Game/Objetos/pociones/pocion_mascota.png',
     pocion_mascota_grande: './Game/Objetos/pociones/pocion_mascota_grande.png',
     elixir_revivir: './Game/Objetos/pociones/elixir_revivir.png'
@@ -160,14 +162,15 @@
       fila.className = 'gf-alq-item';
       var puede = catalogo.silver >= it.price;
       // Curar solo sirve con la mascota viva y herida; revivir, solo muerta.
-      var usable = it.revives
+      var player = catalogo.player || {};
+      var usable = it.target === 'player' ? (it.owned > 0 && player.alive !== false && (it.curesPoison ? player.poisoned : player.health < 100)) : it.revives
         ? (it.owned > 0 && pet.alive === false)
         : (it.owned > 0 && pet.alive !== false && pet.health < pet.maxHealth);
       // Todo lo que sale del catálogo del servidor va escapado: ver `esc`.
       fila.innerHTML =
         '<img src="' + esc(IMG[it.id] || '') + '" alt="">' +
         '<div class="gf-alq-info"><b>' + esc(it.name) + '</b>' +
-          '<span>' + (it.revives ? 'Brings your pet back' : 'Heals ' + esc(it.heals) + ' HP') +
+          '<span>' + (it.curesPoison ? 'Cures your poison' : it.revives ? 'Brings your pet back' : 'Heals ' + esc(it.heals) + ' HP' + (it.target === 'player' ? ' — you' : ' — pet')) +
           '  ·  you have ' + esc(it.owned) + '</span></div>' +
         '<div class="gf-alq-acc">' +
           '<button class="comprar"' + (puede ? '' : ' disabled') + '>' +
@@ -200,6 +203,7 @@
         // El HUD tiene que enterarse del cobro; statsSync es quien pinta las
         // monedas en el resto del juego.
         if (montado && r.datos.stats) refrescarHud(montado.scene, r.datos.stats);
+        if (montado && montado.scene._sincronizarInventarioConLaCadena) montado.scene._sincronizarInventarioConLaCadena().catch(function () {});
         if (r.datos.partial) aviso('Your bag was almost full — only part of it fit.');
         return refrescar();
       }
@@ -217,7 +221,13 @@
     aviso('');
     var m = window.GFMascota;
     if (!m) return;
-    var accion = it.revives ? m.revivirMascota() : m.curar(it.id);
+    var accion = it.target === 'player' ? api('/api/alchemist/use', { itemId: it.id }).then(function (r) {
+      if (r.ok && montado) {
+        if (window.GFCharacterSkills) window.GFCharacterSkills.applyStats(montado.scene, r.datos.stats);
+        if (montado.scene._sincronizarInventarioConLaCadena) montado.scene._sincronizarInventarioConLaCadena().catch(function () {});
+      }
+      return { ok: r.ok, error: r.datos && r.datos.error };
+    }) : it.revives ? m.revivirMascota() : m.curar(it.id);
     return accion.then(function (r) {
       if (!r.ok) {
         aviso(r.error === 'inventario_desfasado'
