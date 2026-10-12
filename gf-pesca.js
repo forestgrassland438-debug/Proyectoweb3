@@ -78,8 +78,12 @@
   var DIRV = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
   var NOMBRES = { pes1: 'Brown Trout', pes2: 'Common Carp', pes3: 'Golden Trout',
                   // Los de 2026-10-10 (pes7 y pes8, venenosos: ver el veneno, abajo).
-                  pes4: 'River Perch', pes5: 'Bream', pes6: 'Sturgeon', pes7: 'Poison Eel', pes8: 'Lionfish' };
-  var PECES = ['pes1', 'pes2', 'pes3', 'pes4', 'pes5', 'pes6', 'pes7', 'pes8'];
+                  pes4: 'River Perch', pes5: 'Bream', pes6: 'Sturgeon', pes7: 'Poison Eel', pes8: 'Lionfish',
+                  // Los de 2026-10-11 (pes14, el pez globo, venenoso).
+                  pes9: 'Silver Pike', pes10: 'Zander', pes11: 'Ice Trout', pes12: 'Rainbow Fish',
+                  pes13: 'King Salmon', pes14: 'Pufferfish' };
+  var PECES = ['pes1', 'pes2', 'pes3', 'pes4', 'pes5', 'pes6', 'pes7', 'pes8',
+               'pes9', 'pes10', 'pes11', 'pes12', 'pes13', 'pes14'];
   var DIRS = { left: 'izquierda', right: 'derecha', up: 'arriba', down: 'abajo' };
   var V_FOTOS = '?v=20261006a';   // fotogramas nuevos de frente y de espaldas
   /* Dónde está la punta de la caña en cada fotograma (px desde el centro del
@@ -165,6 +169,16 @@
   function mapaDeAgua(scene) {
     if (scene.__gfPescaAgua) return scene.__gfPescaAgua;
     var mapa = scene.map;
+    if (mapa && Array.isArray(scene.gidsAgua)) {
+      var isla = mapa.getLayer('Terrain');
+      if (!isla || !isla.data) return null;
+      var mar = new Uint8Array(isla.width * isla.height);
+      for (var iy = 0; iy < isla.height; iy++) for (var ix = 0; ix < isla.width; ix++) {
+        if (isla.data[iy] && isla.data[iy][ix] && scene.gidsAgua.indexOf(isla.data[iy][ix].index) >= 0) mar[iy * isla.width + ix] = 2;
+      }
+      scene.__gfPescaAgua = { w: isla.width, h: isla.height, m: mar, tileSize: mapa.tileWidth || 64 };
+      return scene.__gfPescaAgua;
+    }
     var capa = mapa && mapa.getLayer ? mapa.getLayer('mapa_principal') : null;
     var ratio = clasificarTileset(scene);
     if (!capa || !capa.data || !ratio) return null;
@@ -181,7 +195,8 @@
   }
 
   function celda(agua, px, py) {
-    var x = Math.floor(px / CASILLA), y = Math.floor(py / CASILLA);
+    var tam = agua.tileSize || CASILLA;
+    var x = Math.floor(px / tam), y = Math.floor(py / tam);
     if (x < 0 || y < 0 || x >= agua.w || y >= agua.h) return 0;
     return agua.m[y * agua.w + x];
   }
@@ -691,6 +706,7 @@
     el.hidden = false;
     el.classList.remove('fin', 'ganada', 'perdida');
     var tam = Math.max(0.16, Math.min(0.5, Number(dif.tam) || 0.32));
+    tam = Math.min(0.65, tam + Math.min(0.15, (Number((st.scene.skillAllocations || {}).fishing) || 0) * 0.005));
     var L = st.lucha = {
       especie: especie, t0: performance.now(), maxMs: maxMs,
       tam: tam, vel: Number(dif.vel) || 0.7, nervio: Number(dif.nervio) || 1.2,
@@ -741,7 +757,8 @@
     L.anzuelo += L.vAnz * dt;
     if (L.anzuelo < 0) { L.anzuelo = 0; L.vAnz *= -0.3; }
     if (L.anzuelo > 1 - LUCHA.anzuelo) { L.anzuelo = 1 - LUCHA.anzuelo; L.vAnz *= -0.3; }
-    var dentro = L.anzuelo >= L.pez - 0.004 && L.anzuelo + LUCHA.anzuelo <= L.pez + tamAhora + 0.004;
+    var margen = 0.004 + Math.min(0.08, (Number((st.scene.skillAllocations || {}).patience) || 0) * 0.003);
+    var dentro = L.anzuelo >= L.pez - margen && L.anzuelo + LUCHA.anzuelo <= L.pez + tamAhora + margen;
     L.progreso = Math.max(0, Math.min(1, L.progreso + (dentro ? LUCHA.gana : -LUCHA.pierde) * dt));
     // Pintar.
     L.elPez.style.top = (L.pez * 100) + '%';
@@ -841,7 +858,7 @@
   }
 
   /* ─────────────────────────────────────────────────── EL VENENO (2026-10-10)
-     Los peces venenosos (pes7, pes8) pican al sacarlos. El servidor quita la
+     Los peces venenosos (pes7, pes8, pes14) pican al sacarlos. El servidor quita la
      vida poco a poco y avisa por el socket con `vitales:veneno`; aquí solo se
      PINTA: la barra (con el camino de siempre, _adoptarVitalesDelServidor),
      un destello verde en el personaje y, si la vida llega a 0, la muerte de

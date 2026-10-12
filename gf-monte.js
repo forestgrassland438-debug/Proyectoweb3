@@ -32,14 +32,24 @@
  *
  * CÓMO SE ENGANCHA
  *   GameScene.create():  window.GFMonte && window.GFMonte.montar(this);
- *   (solo en el pueblo: la mina, la isla y las casas heredan de GameScene y
- *   aquí se descartan por su clave)
+ *   (en el pueblo y en el mapa salvaje: la mina, la isla y las casas heredan
+ *   de GameScene y aquí se descartan por su clave)
+ *
+ * EL MAPA SALVAJE (2026-10-11): "no tiene el monte". Cada escena lee SU
+ *   lista: el pueblo Maps/monte.json (tools/generar-monte.py) y el salvaje
+ *   Maps/monte_salvaje.json (tools/generar-salvaje.py). Las texturas son las
+ *   mismas para las dos.
  * ======================================================================== */
 (function () {
   'use strict';
 
-  var VERSION = '20261010a';
-  var RUTA = './Maps/monte.json?v=' + VERSION;
+  // 20261011c: sin las matas delante de la puerta de la mina.
+  var VERSION = '20261011c';
+  // La lista de matas de cada escena (por su clave).
+  var RUTAS = {
+    GameScene: './Maps/monte.json?v=' + VERSION,
+    SalvajeScene: './Maps/monte_salvaje.json?v=20261011c'
+  };
   var W = 28, H = 42;                       // cada manojo, en px del mundo
   var VARIANTES = 4;
   var PARTES = ['izq', 'cen', 'der'];
@@ -50,8 +60,8 @@
   var DENTRO_X = 24, DENTRO_Y = 14;         // dónde se abre
   var MARGEN_VISTA = 80;
 
-  var datos = null;                         // la lista de matas (una vez)
-  var pidiendo = null;
+  var datos = {};                           // ruta -> la lista de matas (una vez)
+  var pidiendo = {};
 
   function log() {
     if (!window.GF_MONTE_DEBUG) return;
@@ -167,21 +177,21 @@
   }
 
   // ─────────────────────────────────────────────────────────── DATOS
-  function cargarDatos() {
-    if (datos) return Promise.resolve(datos);
-    if (pidiendo) return pidiendo;
-    pidiendo = fetch(RUTA, { cache: 'force-cache' }).then(function (r) {
+  function cargarDatos(ruta) {
+    if (datos[ruta]) return Promise.resolve(datos[ruta]);
+    if (pidiendo[ruta]) return pidiendo[ruta];
+    pidiendo[ruta] = fetch(ruta, { cache: 'force-cache' }).then(function (r) {
       if (!r.ok) throw new Error('http ' + r.status);
       return r.json();
     }).then(function (d) {
-      datos = (d && Array.isArray(d.matas)) ? d.matas : [];
-      return datos;
+      datos[ruta] = (d && Array.isArray(d.matas)) ? d.matas : [];
+      return datos[ruta];
     }).catch(function (e) {
       log('sin monte:', e && e.message);
-      pidiendo = null;
+      pidiendo[ruta] = null;
       return [];
     });
-    return pidiendo;
+    return pidiendo[ruta];
   }
 
   // ─────────────────────────────────────────────────────────── ESCENA
@@ -298,14 +308,15 @@
   function montar(scene) {
     if (!scene || !scene.add || !scene.events || scene.__gfMonte) return;
     var clave = scene.sys && scene.sys.settings && scene.sys.settings.key;
-    if (clave !== 'GameScene') return;          // solo el pueblo
+    var ruta = RUTAS[clave];
+    if (!ruta) return;                          // el pueblo y el mapa salvaje
     var st = { scene: scene, matas: [], vivas: [], pies: [], ultimaVista: 0, viento: 0, vivo: true };
     scene.__gfMonte = st;
     st.onUpdate = function (time) { if (st.vivo) actualizar(st, time); };
     st.onApagar = function () { desmontar(scene); };
     scene.events.once('shutdown', st.onApagar);
     scene.events.once('destroy', st.onApagar);
-    cargarDatos().then(function (lista) {
+    cargarDatos(ruta).then(function (lista) {
       // La escena pudo apagarse mientras llegaba el JSON.
       if (!st.vivo || scene.__gfMonte !== st || !lista.length) return;
       if (!texturas(scene)) { log('sin texturas'); return; }

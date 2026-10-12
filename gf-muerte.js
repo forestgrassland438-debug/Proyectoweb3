@@ -347,7 +347,8 @@
   var QUE = {
     plant: 'plant', water: 'water crops', harvest: 'harvest', cut: 'cut crops',
     chop: 'chop trees', mine: 'mine', craft: 'craft', mission: 'complete missions',
-    furnace: 'use the furnace', collect: 'collect water', buy: 'get new items'
+    furnace: 'use the furnace', collect: 'collect water', buy: 'get new items',
+    attack: 'fight', torch: 'light a torch'
   };
   var avisadoEn = 0;
 

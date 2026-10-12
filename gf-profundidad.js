@@ -1079,6 +1079,7 @@
       if ((!hayColisiones || !hayIndice) && !opciones.sinEsperarColisiones) return;
 
       var n = Math.min(st.porFrame, st.pendientes.length);
+      var limiteFrame = (typeof performance !== 'undefined' ? performance.now() : Date.now()) + 3;
       for (var i = 0; i < n; i++) {
         var spr = st.pendientes.shift();
         if (!spr || !spr.active) continue;
@@ -1092,6 +1093,7 @@
           }
           st.hechos++;
         } catch (e) { /* un objeto raro no puede parar a los demás */ }
+        if ((typeof performance !== 'undefined' ? performance.now() : Date.now()) >= limiteFrame) break;
       }
       if (!st.pendientes.length) {
         log('calibrados', st.hechos, 'objetos:', JSON.stringify(st.porFuente));

@@ -11,8 +11,10 @@
  *   Una cabeza y dieciséis anillos de obsidiana con la tripa al rojo, que se
  *   siguen unos a otros por el rastro de la cabeza (el cuerpo serpentea solo).
  *   Cada anillo se ordena por su Y y lleva su sombra: con el jugador entre sus
- *   anillos se ve por delante de unos y por detrás de otros (2.5D). Todo se
- *   DIBUJA aquí en lienzos (sin PNG nuevos), liso, con bandas y sin motas.
+ *   anillos se ve por delante de unos y por detrás de otros (2.5D). Desde
+ *   2026-10-11 sus piezas son PNG en pixel art (Game/Sprites/monstruos/
+ *   serpiente, tools/generar-monstruos.py), lisas, con bandas y sin motas;
+ *   aquí solo quedan los brillos y el polvo, que son luz, no monstruo.
  *
  * LO QUE HACE
  *   · ACECHA bajo tierra cerca de su guarida. Si te acercas, GRITA (suena y
@@ -29,6 +31,11 @@
  *     prepara el botín (/api/monstruos/derrotado): unos montones en el suelo
  *     que se acuñan al pisarlos (/api/monstruos/botin/recoger). Vuelve a los
  *     20 minutos.
+ *
+ * LA MISMA PARA TODOS (2026-10-11, gf-mobs-red.js): uno de la sala piensa por
+ * ella (va al jugador más cercano, sea quien sea) y anuncia cada cosa que
+ * hace; los demás la ven donde él dice. Cada uno mira si le muerde, le quema
+ * o le cae una piedra a ÉL, y el botín es solo para quien la mata.
  *
  * EL DAÑO lo pone el servidor (serpiente_fuego / _terremoto / _mordisco en
  * costesDeAccion). La ESPADA le da (GFEspada.agregarObjetivo), más en la
@@ -49,6 +56,11 @@
   var SUPERFICIE_MS = [6500, 9000];
   var VUELVE_MS = 20 * 60 * 1000;
   var QUIETO_MS = 2000;
+  // Las piezas en PNG son de pixel art (a la escala de los animales): estas
+  // escalas las dejan del mismo tamaño en pantalla que las de antes.
+  var ESC_ANILLO = 2.1, ESC_CABEZA = 2.2;
+  var PIEZAS_PNG = ['gfsp_cabeza', 'gfsp_cabeza_abierta', 'gfsp_anillo', 'gfsp_monticulo',
+                    'gfsp_agujero', 'gfsp_grieta', 'gfsp_bola'];
 
   function log() {
     if (!window.GF_SERPIENTE_DEBUG) return;
@@ -72,103 +84,29 @@
     if (scene.textures.exists(clave)) return;
     var c = scene.textures.createCanvas(clave, w, h);
     pinta(c.getContext(), w, h);
+    if (!lineal) {
+      var ctx = c.getContext(), pixels = ctx.getImageData(0,0,w,h);
+      for (var py=0;py<h;py+=2) for(var px=0;px<w;px+=2) {
+        var base = (py*w+px)*4;
+        for(var yy=py;yy<Math.min(h,py+2);yy++) for(var xx=px;xx<Math.min(w,px+2);xx++) for(var ch=0;ch<4;ch++) pixels.data[(yy*w+xx)*4+ch] = ch===3 ? (pixels.data[base+ch]>100?255:0) : Math.round(pixels.data[base+ch]/12)*12;
+      }
+      ctx.putImageData(pixels,0,0);
+    }
     c.refresh();
     if (!lineal) c.setFilter(Phaser.Textures.FilterMode.NEAREST);
   }
 
+  /**
+   * Las piezas del cuerpo y la bola de fuego se CARGAN (PNG, ver
+   * gf-monstruos-arte.js); aquí solo se pintan la estela, la sombra, el polvo,
+   * la onda y el brillo. Devuelve la promesa de la carga.
+   */
   function texturas(scene) {
-    // Un anillo del cuerpo visto desde arriba en 3/4: obsidiana con el lomo
-    // iluminado arriba a la izquierda y la tripa de magma abajo.
-    lienzo(scene, 'gfsp_anillo', 40, 34, function (x, w, h) {
-      var g = x.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, '#5a3a4e'); g.addColorStop(0.35, '#33202e'); g.addColorStop(0.7, '#1c1119'); g.addColorStop(1, '#120a10');
-      x.fillStyle = g;
-      x.beginPath(); x.ellipse(w / 2, h / 2, w / 2 - 1, h / 2 - 1, 0, 0, Math.PI * 2); x.fill();
-      // La tripa al rojo: una banda curva, lisa.
-      x.save(); x.beginPath(); x.ellipse(w / 2, h / 2, w / 2 - 1, h / 2 - 1, 0, 0, Math.PI * 2); x.clip();
-      var t = x.createLinearGradient(0, h * 0.62, 0, h);
-      t.addColorStop(0, 'rgba(255,120,40,0)'); t.addColorStop(0.45, 'rgba(255,128,40,0.95)'); t.addColorStop(1, 'rgba(255,200,90,1)');
-      x.fillStyle = t; x.fillRect(0, h * 0.62, w, h * 0.38);
-      // El brillo del lomo: una franja, no un punto.
-      var b = x.createLinearGradient(0, 0, w, 0);
-      b.addColorStop(0, 'rgba(255,255,255,0)'); b.addColorStop(0.35, 'rgba(210,170,200,0.45)'); b.addColorStop(0.7, 'rgba(255,255,255,0)');
-      x.fillStyle = b; x.fillRect(4, 5, w - 8, 4);
-      x.restore();
-      x.strokeStyle = '#0b0609'; x.lineWidth = 2;
-      x.beginPath(); x.ellipse(w / 2, h / 2, w / 2 - 1, h / 2 - 1, 0, 0, Math.PI * 2); x.stroke();
-    });
-    // La cabeza, mirando a la DERECHA: cerrada y abierta.
-    [false, true].forEach(function (abierta) {
-      lienzo(scene, abierta ? 'gfsp_cabeza_abierta' : 'gfsp_cabeza', 64, 48, function (x, w, h) {
-        var cy = h / 2;
-        // Cuernos hacia atrás.
-        x.fillStyle = '#2a1a22';
-        x.beginPath(); x.moveTo(14, cy - 8); x.lineTo(2, cy - 20); x.lineTo(20, cy - 12); x.closePath(); x.fill();
-        x.beginPath(); x.moveTo(14, cy + 8); x.lineTo(2, cy + 20); x.lineTo(20, cy + 12); x.closePath(); x.fill();
-        var g = x.createLinearGradient(0, 0, 0, h);
-        g.addColorStop(0, '#6a4458'); g.addColorStop(0.4, '#3a2434'); g.addColorStop(1, '#140b12');
-        x.fillStyle = g;
-        var ab = abierta ? 9 : 0;
-        // Mandíbula de arriba.
-        x.beginPath();
-        x.moveTo(10, cy - 13); x.quadraticCurveTo(40, cy - 20, 62, cy - 3 - ab);
-        x.lineTo(60, cy - ab * 0.4); x.quadraticCurveTo(36, cy - 2, 10, cy + 2); x.closePath(); x.fill();
-        // Mandíbula de abajo.
-        x.beginPath();
-        x.moveTo(10, cy - 2); x.quadraticCurveTo(36, cy + 2 + ab * 0.3, 58, cy + 3 + ab);
-        x.lineTo(54, cy + 9 + ab); x.quadraticCurveTo(32, cy + 16, 10, cy + 13); x.closePath(); x.fill();
-        if (abierta) {
-          // La garganta de fuego.
-          var f = x.createRadialGradient(40, cy, 2, 40, cy, 22);
-          f.addColorStop(0, 'rgba(255,240,160,1)'); f.addColorStop(0.5, 'rgba(255,140,40,0.95)'); f.addColorStop(1, 'rgba(255,90,20,0)');
-          x.fillStyle = f;
-          x.beginPath(); x.moveTo(22, cy); x.quadraticCurveTo(44, cy - ab - 1, 60, cy - ab * 0.6); x.lineTo(56, cy + ab); x.quadraticCurveTo(40, cy + ab * 0.6, 22, cy + 1); x.closePath(); x.fill();
-        }
-        // Borde.
-        x.strokeStyle = '#0b0609'; x.lineWidth = 2;
-        x.beginPath(); x.moveTo(10, cy - 13); x.quadraticCurveTo(40, cy - 20, 62, cy - 3 - ab); x.stroke();
-        x.beginPath(); x.moveTo(10, cy + 13); x.quadraticCurveTo(32, cy + 16, 54, cy + 9 + ab); x.stroke();
-        // Los ojos: dos rasgos de brasa (alargados, no redondos).
-        x.fillStyle = '#ffb02e';
-        x.beginPath(); x.ellipse(36, cy - 11, 5, 2, -0.25, 0, Math.PI * 2); x.fill();
-        x.fillStyle = '#fff1b0';
-        x.fillRect(35, cy - 12, 3, 1);
-        // La línea de la boca.
-        x.strokeStyle = '#ff7a2a'; x.lineWidth = 1;
-        x.beginPath(); x.moveTo(22, cy); x.lineTo(56, cy - ab * 0.3); x.stroke();
-      });
-    });
-    lienzo(scene, 'gfsp_bola', 28, 28, function (x, w, h) {
-      var g = x.createRadialGradient(w / 2, h / 2, 1, w / 2, h / 2, w / 2);
-      g.addColorStop(0, 'rgba(255,250,210,1)'); g.addColorStop(0.35, 'rgba(255,190,70,1)');
-      g.addColorStop(0.7, 'rgba(255,90,20,0.7)'); g.addColorStop(1, 'rgba(255,60,10,0)');
-      x.fillStyle = g; x.fillRect(0, 0, w, h);
-    }, true);
     lienzo(scene, 'gfsp_estela', 40, 16, function (x, w, h) {
       var g = x.createLinearGradient(0, 0, w, 0);
       g.addColorStop(0, 'rgba(255,90,20,0)'); g.addColorStop(1, 'rgba(255,170,60,0.8)');
       x.fillStyle = g;
       x.beginPath(); x.moveTo(0, h / 2); x.lineTo(w, 2); x.lineTo(w, h - 2); x.closePath(); x.fill();
-    }, true);
-    lienzo(scene, 'gfsp_monticulo', 60, 30, function (x, w, h) {
-      var g = x.createRadialGradient(w / 2, h * 0.45, 2, w / 2, h / 2, w / 2);
-      g.addColorStop(0, '#7a5a42'); g.addColorStop(0.6, '#4e3828'); g.addColorStop(1, 'rgba(40,28,20,0)');
-      x.fillStyle = g;
-      x.beginPath(); x.ellipse(w / 2, h / 2, w / 2, h / 2, 0, 0, Math.PI * 2); x.fill();
-      x.strokeStyle = 'rgba(30,20,14,0.8)'; x.lineWidth = 2;
-      x.beginPath(); x.moveTo(12, h / 2); x.lineTo(26, h / 2 - 3); x.lineTo(34, h / 2 + 2); x.lineTo(48, h / 2 - 2); x.stroke();
-    }, true);
-    lienzo(scene, 'gfsp_agujero', 72, 38, function (x, w, h) {
-      var g = x.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2);
-      g.addColorStop(0, '#050303'); g.addColorStop(0.6, '#1a1210'); g.addColorStop(0.85, '#3e2c22'); g.addColorStop(1, 'rgba(62,44,34,0)');
-      x.fillStyle = g;
-      x.beginPath(); x.ellipse(w / 2, h / 2, w / 2, h / 2, 0, 0, Math.PI * 2); x.fill();
-    }, true);
-    lienzo(scene, 'gfsp_grieta', 110, 26, function (x, w, h) {
-      x.strokeStyle = 'rgba(20,12,10,0.9)'; x.lineWidth = 3; x.lineJoin = 'round';
-      x.beginPath(); x.moveTo(4, 14); x.lineTo(22, 10); x.lineTo(36, 16); x.lineTo(54, 8); x.lineTo(70, 15); x.lineTo(88, 9); x.lineTo(106, 13); x.stroke();
-      x.strokeStyle = 'rgba(255,120,40,0.55)'; x.lineWidth = 1;
-      x.beginPath(); x.moveTo(22, 10); x.lineTo(36, 16); x.lineTo(54, 8); x.lineTo(70, 15); x.stroke();
     }, true);
     lienzo(scene, 'gfsp_sombra', 48, 18, function (x, w, h) {
       x.save(); x.scale(1, h / w);
@@ -192,6 +130,7 @@
       g.addColorStop(0, 'rgba(255,240,180,0.9)'); g.addColorStop(1, 'rgba(255,200,90,0)');
       x.fillStyle = g; x.fillRect(0, 0, w, h);
     }, true);
+    return window.GFMonstruosArte ? window.GFMonstruosArte.cargar(scene, [], PIEZAS_PNG) : Promise.resolve(false);
   }
 
   // ─────────────────────────────────────────────────────── EL GRITO
@@ -229,6 +168,9 @@
       gn.gain.exponentialRampToValueAtTime(0.22 * vol, t0 + 0.05);
       gn.gain.exponentialRampToValueAtTime(0.0001, t0 + dur * 0.85);
       ruido.connect(bp); bp.connect(gn); gn.connect(ctx.destination);
+      var nodes=[osc,lfo,ruido,lp,g,lfoG,bp,gn], voices=scene.__gfSerpSounds||(scene.__gfSerpSounds=[]);
+      var voice={nodes:nodes,sources:[osc,lfo,ruido]};voices.push(voice);
+      osc.onended=function(){nodes.forEach(function(node){try{node.disconnect();}catch(e){}});var at=voices.indexOf(voice);if(at>=0)voices.splice(at,1);};
       osc.start(t0); lfo.start(t0); ruido.start(t0);
       osc.stop(t0 + dur); lfo.stop(t0 + dur); ruido.stop(t0 + dur);
     } catch (e) { /* sin sonido, sin drama */ }
@@ -282,17 +224,18 @@
       estado: 'oculta', estadoDesde: scene.time.now, rastro: [], anillos: [], sombras: [],
       cabeza: null, sombraCabeza: null, monticulo: null, agujero: null,
       destino: null, siguienteAtaque: 0, superficieHasta: 0, furia: false, vivo: true,
-      muertaHasta: 0, ultimoMordisco: 0, gritoEn: 0, polvoEn: 0, heridaEn: 0
+      muertaHasta: 0, ultimoMordisco: 0, gritoEn: 0, polvoEn: 0, heridaEn: 0,
+      cargaEn: 0, cargaHasta: 0, cargaAng: 0, objX: st.guarida.x, objY: st.guarida.y, objAng: 0
     };
     for (var i = 0; i < ANILLOS; i++) {
       var k = 1 - i / ANILLOS * 0.55;           // la cola, más fina
-      s.anillos.push(scene.add.image(s.x, s.y, 'gfsp_anillo').setScale(k * 1.15).setVisible(false));
+      s.anillos.push(scene.add.image(s.x, s.y, 'gfsp_anillo').setScale(k * ESC_ANILLO).setVisible(false));
       s.sombras.push(scene.add.image(s.x, s.y, 'gfsp_sombra').setScale(k * 1.1).setVisible(false).setAlpha(0.8));
     }
-    s.cabeza = scene.add.image(s.x, s.y, 'gfsp_cabeza').setOrigin(0.4, 0.5).setScale(1.25).setVisible(false);
+    s.cabeza = scene.add.image(s.x, s.y, 'gfsp_cabeza').setOrigin(0.4, 0.5).setScale(ESC_CABEZA).setVisible(false);
     s.sombraCabeza = scene.add.image(s.x, s.y, 'gfsp_sombra').setScale(1.4).setVisible(false).setAlpha(0.8);
-    s.monticulo = scene.add.image(s.x, s.y, 'gfsp_monticulo').setVisible(false);
-    s.agujero = scene.add.image(s.x, s.y, 'gfsp_agujero').setVisible(false).setScale(1.2);
+    s.monticulo = scene.add.image(s.x, s.y, 'gfsp_monticulo').setVisible(false).setScale(1.9);
+    s.agujero = scene.add.image(s.x, s.y, 'gfsp_agujero').setVisible(false).setScale(2.4);
     [s.cabeza].concat(s.anillos).forEach(function (o) { o.setData('optimized', true); });
     reiniciarRastro(s);
   }
@@ -343,13 +286,13 @@
       // Ondula un poco aunque esté quieta: está viva.
       var vaiven = Math.sin(t * 3 + i * 0.6) * 1.5;
       var px = p.x + Math.cos(p.ang + Math.PI / 2) * vaiven, py = p.y + Math.sin(p.ang + Math.PI / 2) * vaiven;
-      var k = (1 - i / ANILLOS * 0.55) * 1.15 * (0.4 + 0.6 * a);
+      var k = (1 - i / ANILLOS * 0.55) * ESC_ANILLO * (0.4 + 0.6 * a);
       an.setPosition(px, py - 10 * a).setRotation(p.ang).setScale(k).setDepth(py + 0.01 * i);
       so.setPosition(px, py + 2).setScale(k * 0.95).setDepth(py - 1);
     }
     var flip = Math.cos(s.ang) < 0;
     s.cabeza.setPosition(s.x, s.y - 14 * a).setRotation(s.ang).setFlipY(flip)
-      .setScale(1.25 * (0.4 + 0.6 * a)).setDepth(s.y + 1);
+      .setScale(ESC_CABEZA * (0.4 + 0.6 * a)).setDepth(s.y + 1);
     s.sombraCabeza.setPosition(s.x, s.y + 3).setDepth(s.y - 1).setScale(1.4 * (0.4 + 0.6 * a));
   }
 
@@ -408,13 +351,31 @@
       if (s.vida <= 0 && window.GFMascota.declararMuerte) window.GFMascota.declararMuerte();
     }).catch(function () {});
   }
+  /* ¿Mi jugador está muerto (fantasma o con la vida a 0)? Entonces ni le ve
+     ni le hace daño (2026-10-11: "me golpean estando en fantasma"). */
   function fantasma() {
-    try { var e = window.GFMascota && window.GFMascota.estado && window.GFMascota.estado(); return !!(e && e.ghost); }
-    catch (e2) { return false; }
+    try {
+      if (window.GFMuerte && window.GFMuerte.muerto) return !!window.GFMuerte.muerto();
+      var e = window.GFMascota && window.GFMascota.estado && window.GFMascota.estado(); return !!(e && e.ghost);
+    } catch (e2) { return false; }
   }
   function piesJugador(scene) {
     var p = scene.player;
     return { x: p.x, y: p.y + 45 };
+  }
+
+  // Walking moves sprite coordinates directly; Arcade velocity can stay zero.
+  function velocidadJugador(scene) {
+    var p = scene.player, prev = scene.previousPosition;
+    var ms = Math.max(4, Math.min(100, Number(scene.game && scene.game.loop && scene.game.loop.delta) || 16.667));
+    var max = (Number(scene.speed) || 240) * 1.5;
+    if (prev && Number.isFinite(prev.x) && Number.isFinite(prev.y)) {
+      var vx = (p.x - prev.x) * 1000 / ms, vy = (p.y - prev.y) * 1000 / ms;
+      // A scene transition or teleport must not send the attack across the map.
+      return Math.hypot(vx, vy) <= max ? { x: vx, y: vy } : { x: 0, y: 0 };
+    }
+    var v = p.body && p.body.velocity;
+    return v && Number.isFinite(v.x) && Number.isFinite(v.y) && Math.hypot(v.x, v.y) <= max ? { x: v.x, y: v.y } : { x: 0, y: 0 };
   }
 
   // ─────────────────────────────────────────────────────── LA BARRA
@@ -440,18 +401,60 @@
   }
 
   // ─────────────────────────────────────────────────────── LOS ESTADOS
+  /*
+   * LA MISMA PARA TODOS (2026-10-11, gf-mobs-red.js). Piensa el anfitrión: a
+   * quién va (el jugador más cercano, sea quien sea), cuándo sale, se hunde,
+   * escupe, hace temblar o embiste; lo anuncia y manda su foto. Los demás la
+   * dibujan donde dice. Cada uno mira si le muerde, le quema o le cae una
+   * piedra A ÉL: las piedras del terremoto caen sobre quien esté cerca.
+   */
+  var ESTADOS = ['oculta', 'cava', 'sale', 'superficie', 'repta', 'escupe', 'terremoto', 'embiste', 'hunde', 'muerta'];
+  var FUERA = ['superficie', 'repta', 'escupe', 'terremoto', 'embiste', 'sale', 'hunde'];
+
   function cambiar(st, estado) {
     st.s.estado = estado;
     st.s.estadoDesde = st.scene.time.now;
   }
 
-  function sitioDeSalida(st) {
-    var scene = st.scene, pj = piesJugador(scene);
+  function cercaDeMi(st, x, y, r) {
+    var pj = piesJugador(st.scene);
+    return Math.hypot(pj.x - x, pj.y - y) < (r || 800);
+  }
+
+  function anunciar(st, d) { if (st.red) st.red.evento(d); }
+
+  function alguienCerca(st, x, y, r) {
+    var lista = window.GFMobsRed ? window.GFMobsRed.jugadores(st.scene) : [piesJugador(st.scene)];
+    for (var i = 0; i < lista.length; i++) if (Math.hypot(lista[i].x - x, lista[i].y - y) < r) return true;
+    return false;
+  }
+
+  /** Anfitrión: el jugador más cercano a (x, y) y si lleva un rato quieto. */
+  function blanco(st, x, y, max) {
+    var scene = st.scene, ahora = scene.time.now;
+    var lista = window.GFMobsRed ? window.GFMobsRed.jugadores(scene)
+      : (fantasma() ? [] : [{ id: null, x: scene.player.x, y: scene.player.y + 45, local: true }]);
+    var mejor = null, md = max || Infinity;
+    for (var i = 0; i < lista.length; i++) {
+      var d = Math.hypot(lista[i].x - x, lista[i].y - y);
+      if (d < md) { md = d; mejor = lista[i]; }
+    }
+    if (!mejor) return null;
+    mejor.d = md;
+    var k = mejor.id || 'yo', paso = st.pasos[k];
+    if (!paso || Math.hypot(mejor.x - paso.x, mejor.y - paso.y) > 6) paso = st.pasos[k] = { x: mejor.x, y: mejor.y, t: ahora };
+    mejor.quieto = ahora - paso.t > QUIETO_MS;
+    mejor.vel = mejor.local ? velocidadJugador(scene) : { x: 0, y: 0 };
+    return mejor;
+  }
+
+  function sitioDeSalida(st, b) {
+    var scene = st.scene;
     var mejor = null;
     // Mejor si hay una pared al lado: sale DE LA PARED.
     for (var k = 0; k < 24; k++) {
       var a = Math.random() * Math.PI * 2, r = 150 + Math.random() * 90;
-      var x = pj.x + Math.cos(a) * r, y = pj.y + Math.sin(a) * r * 0.75;
+      var x = b.x + Math.cos(a) * r, y = b.y + Math.sin(a) * r * 0.75;
       if (!libre(scene, x, y, 60)) continue;
       var pared = hayParedCerca(scene, x, y);
       if (pared) return { x: x, y: y, pared: pared };
@@ -460,42 +463,44 @@
     return mejor;
   }
 
-  function empezarACavar(st, haciaJugador) {
-    var s = st.s, scene = st.scene;
+  function empezarACavar(st, b) {
+    var s = st.s;
     cambiar(st, 'cava');
     verCuerpo(s, false);
     barra(st, false);
-    s.destino = haciaJugador ? sitioDeSalida(st) : { x: st.guarida.x, y: st.guarida.y, pared: null, aCasa: true };
+    s.destino = b ? sitioDeSalida(st, b) : null;
     if (!s.destino) s.destino = { x: st.guarida.x, y: st.guarida.y, pared: null, aCasa: true };
     s.monticulo.setPosition(s.x, s.y).setVisible(true).setDepth(s.y);
   }
 
-  function salir(st) {
+  /** Sale del suelo (o de la pared `pared`) mirando hacia `ang`. En todos. */
+  function salir(st, ang, pared) {
     var s = st.s, scene = st.scene;
     cambiar(st, 'sale');
     s.monticulo.setVisible(false);
     s.agujero.setPosition(s.x, s.y + 6).setDepth(s.y - 2).setVisible(true).setAlpha(1);
-    var pj = piesJugador(scene);
-    s.ang = Math.atan2(pj.y - s.y, pj.x - s.x);
+    s.ang = ang; s.objAng = ang;
     reiniciarRastro(s);
     // El rastro, hacia DENTRO de la pared (o del agujero): el cuerpo sale de ahí.
-    var dir = s.destino && s.destino.pared;
     for (var i = 0; i < s.rastro.length; i++) {
-      s.rastro[i] = dir ? { x: s.x + dir.x * i * 4, y: s.y + dir.y * i * 4 }
-                        : { x: s.x - Math.cos(s.ang) * i * 2, y: s.y - Math.sin(s.ang) * i * 2 };
+      s.rastro[i] = pared ? { x: s.x + pared.x * i * 4, y: s.y + pared.y * i * 4 }
+                          : { x: s.x - Math.cos(s.ang) * i * 2, y: s.y - Math.sin(s.ang) * i * 2 };
     }
     verCuerpo(s, true);
     colocarCuerpo(st, 0);
-    gritar(scene, 1);
-    temblar(st, 650, 0.014);
     onda(st, s.x, s.y + 4, 1.1);
     polvo(st, s.x, s.y, 1.4);
-    cascotes(st, s.x, s.y, dir);
-    if (!st.vista) {
-      st.vista = true;
-      aviso(scene, '🐍 The Magma Serpent bursts out of the rock!', 'warning');
+    cascotes(st, s.x, s.y, pared);
+    if (cercaDeMi(st, s.x, s.y, 900)) {
+      gritar(scene, 1);
+      temblar(st, 650, 0.014);
+      if (!st.vista) {
+        st.vista = true;
+        aviso(scene, '🐍 The Magma Serpent bursts out of the rock!', 'warning');
+      }
+      barra(st, true);
     }
-    barra(st, true);
+    var pj = piesJugador(scene);
     if (Math.hypot(pj.x - s.x, pj.y - s.y) < 70 && !fantasma()) golpearAlJugador(st, 'serpiente_mordisco');
   }
 
@@ -506,41 +511,58 @@
     polvo(st, s.x, s.y, 1);
   }
 
-  function escupir(st) {
+  /** `n` bolas de fuego desde la boca hacia `base`. Cada uno mira si le dan. */
+  function escupir(st, base, n) {
     var s = st.s, scene = st.scene;
     cambiar(st, 'escupe');
+    s.ultimoPoder = 'fuego';
     s.cabeza.setTexture('gfsp_cabeza_abierta');
-    var n = s.furia ? 5 : 3;
     scene.time.delayedCall(420, function () {
       if (!st.vivo || !s.vivo || s.estado !== 'escupe') return;
-      var pj = piesJugador(scene);
-      var base = Math.atan2(pj.y - 30 - (s.y - 14), pj.x - s.x);
       for (var i = 0; i < n; i++) {
         var a = base + (i - (n - 1) / 2) * 0.22;
         var bx = s.x + Math.cos(s.ang) * 30, by = s.y - 14 + Math.sin(s.ang) * 30;
-        var b = scene.add.image(bx, by, 'gfsp_bola').setScale(1.4).setDepth(by + 40);
-        b.setBlendMode(Phaser.BlendModes.ADD);
+        var b = scene.add.image(bx, by, 'gfsp_bola').setScale(2.4).setDepth(by + 40);
         var e = scene.add.image(bx, by, 'gfsp_estela').setOrigin(1, 0.5).setRotation(a).setDepth(by + 39);
         e.setBlendMode(Phaser.BlendModes.ADD);
-        st.bolas.push({ spr: b, estela: e, x: bx, y: by, vx: Math.cos(a) * 270, vy: Math.sin(a) * 270, hasta: scene.time.now + 2600 });
+        if (st.bolas.length < 18) st.bolas.push({ spr: b, estela: e, x: bx, y: by, vx: Math.cos(a) * 270, vy: Math.sin(a) * 270, hasta: scene.time.now + 2600 });
+        else { b.destroy(); e.destroy(); }
       }
-      gritar(scene, 0.35);
+      if (cercaDeMi(st, s.x, s.y, 900)) gritar(scene, 0.35);
       scene.time.delayedCall(380, function () { if (s.cabeza && s.cabeza.scene) s.cabeza.setTexture('gfsp_cabeza'); if (s.estado === 'escupe') cambiar(st, 'superficie'); });
     });
   }
 
+  /** Anfitrión: hacia dónde escupe (al blanco, adelantándose a su paso). */
+  function apuntarFuego(st, b) {
+    var s = st.s;
+    var travel = Math.min(0.65, Math.hypot(b.x - s.x, b.y - s.y) / 270);
+    return Math.atan2(b.y - 30 + b.vel.y * travel * 0.65 - (s.y - 14), b.x + b.vel.x * travel * 0.65 - s.x);
+  }
+
+  /**
+   * El terremoto: tiembla todo y caen piedras del techo... sobre CADA jugador
+   * que esté cerca (cada navegador las tira sobre el suyo, con su aviso).
+   */
   function terremoto(st) {
     var s = st.s, scene = st.scene;
     cambiar(st, 'terremoto');
+    s.ultimoPoder = 'terremoto';
     s.cabeza.setTexture('gfsp_cabeza_abierta');
+    scene.time.delayedCall(1700, function () {
+      if (s.cabeza && s.cabeza.scene) s.cabeza.setTexture('gfsp_cabeza');
+      if (s.estado === 'terremoto') cambiar(st, 'superficie');
+    });
+    var pj = piesJugador(scene);
+    if (Math.hypot(pj.x - s.x, pj.y - s.y) > 700) return;
     gritar(scene, 1.1);
     temblar(st, 1500, s.furia ? 0.02 : 0.015);
+    if (fantasma()) return;
     aviso(scene, '💥 The ground shakes!', 'warning');
-    var pj = piesJugador(scene);
     // Grietas que se abren hacia el jugador.
     for (var g = 0; g < 2; g++) {
       var gx = (s.x + pj.x) / 2 + (Math.random() - 0.5) * 120, gy = (s.y + pj.y) / 2 + (Math.random() - 0.5) * 80;
-      var gr = scene.add.image(gx, gy, 'gfsp_grieta').setDepth(3).setRotation(Math.atan2(pj.y - s.y, pj.x - s.x) + (Math.random() - 0.5) * 0.6).setAlpha(0);
+      var gr = scene.add.image(gx, gy, 'gfsp_grieta').setScale(2).setDepth(3).setRotation(Math.atan2(pj.y - s.y, pj.x - s.x) + (Math.random() - 0.5) * 0.6).setAlpha(0);
       scene.tweens.add({ targets: gr, alpha: 1, duration: 200, yoyo: true, hold: 2200, onComplete: function (tw, t) { t[0].destroy(); } });
     }
     // Y del techo caen piedras donde estás (con su sombra de aviso).
@@ -570,10 +592,46 @@
         });
       })(i);
     }
-    scene.time.delayedCall(1700, function () {
-      if (s.cabeza && s.cabeza.scene) s.cabeza.setTexture('gfsp_cabeza');
-      if (s.estado === 'terremoto') cambiar(st, 'superficie');
-    });
+  }
+
+  function embestir(st, ang) {
+    var s = st.s, scene = st.scene;
+    cambiar(st, 'embiste'); s.ultimoPoder = 'embestida'; s.cargaEn = scene.time.now + 700; s.cargaHasta = s.cargaEn + 650;
+    s.cargaAng = ang;
+    if (s.aviso) s.aviso.destroy();
+    s.aviso = scene.add.ellipse(s.x + Math.cos(ang) * 100, s.y + Math.sin(ang) * 100, 50, 150, 0xff7b35, 0.16)
+      .setRotation(ang - Math.PI / 2).setStrokeStyle(2, 0xffb551, 0.8).setDepth(s.y + 1);
+    s.cabeza.setTexture('gfsp_cabeza_abierta');
+  }
+
+  /** Mordiscos: si la cabeza está pegada a MI jugador, me muerde a mí. */
+  function mordiscos(st) {
+    var s = st.s, scene = st.scene;
+    if (!s || !s.vivo || fantasma()) return;
+    if (['superficie', 'repta', 'embiste', 'escupe', 'terremoto'].indexOf(s.estado) < 0) return;
+    var ahora = scene.time.now;
+    if (s.estado === 'embiste' && ahora < s.cargaEn) return;
+    var pj = piesJugador(scene);
+    if (Math.hypot(pj.x - s.x, pj.y - s.y) >= (s.estado === 'embiste' ? 65 : 64) || ahora - s.ultimoMordisco <= 1100) return;
+    s.ultimoMordisco = ahora;
+    if (s.estado === 'superficie' || s.estado === 'repta') {
+      s.cabeza.setTexture('gfsp_cabeza_abierta');
+      scene.time.delayedCall(220, function () { if (s.cabeza && s.cabeza.scene && (s.estado === 'superficie' || s.estado === 'repta')) s.cabeza.setTexture('gfsp_cabeza'); });
+    }
+    golpearAlJugador(st, 'serpiente_mordisco');
+  }
+
+  function enfurecer(st) {
+    var s = st.s, scene = st.scene;
+    if (s.furia) return;
+    s.furia = true;
+    if (cercaDeMi(st, s.x, s.y, 1000)) {
+      gritar(scene, 1.2);
+      temblar(st, 700, 0.012);
+      aviso(scene, '🔥 The Magma Serpent is enraged!', 'warning');
+    }
+    var nom = st.barra && st.barra.querySelector('.gfs-nombre');
+    if (nom) nom.textContent = '🔥 The Magma Serpent (enraged)';
   }
 
   // ─────────────────────────────────────────────────────── EL PASO
@@ -584,48 +642,57 @@
     var seg = Math.min(0.05, delta / 1000);
     var ahora = scene.time.now;
     var pj = piesJugador(scene);
-
-    // ¿Está quieto el jugador?
-    if (!st.ultimoPaso || Math.hypot(pj.x - st.ultimoPaso.x, pj.y - st.ultimoPaso.y) > 6) {
-      st.ultimoPaso = { x: pj.x, y: pj.y, t: ahora };
-    }
-    var quieto = ahora - st.ultimoPaso.t > QUIETO_MS;
+    if (st.red) st.red.tick(time);
 
     actualizarBolas(st, seg, ahora);
     actualizarBotin(st, pj);
 
+    if (st.red && !st.red.esHost()) { seguir(st, seg, ahora); mordiscos(st); barraTic(st); return; }
+
     if (!s.vivo) {
-      if (Date.now() > s.muertaHasta && Math.hypot(pj.x - st.guarida.x, pj.y - st.guarida.y) > 900) revivir(st);
+      if (Date.now() > s.muertaHasta && !alguienCerca(st, st.guarida.x, st.guarida.y, 900)) {
+        revivir(st);
+        anunciar(st, { e: 'revive' });
+      }
       return;
     }
-    var dist = Math.hypot(pj.x - s.x, pj.y - s.y);
-    var muerto = fantasma();
+    var oculta = s.estado === 'oculta';
+    var b = blanco(st, oculta ? st.guarida.x : s.x, oculta ? st.guarida.y : s.y, OLVIDA + 200);
+    var dist = b ? b.d : Infinity;
 
     switch (s.estado) {
       case 'oculta':
-        if (!muerto && Math.hypot(pj.x - st.guarida.x, pj.y - st.guarida.y) < DESPIERTA) {
-          gritar(scene, 0.8);
-          temblar(st, 900, 0.006);
-          aviso(scene, '🐍 Something huge is digging toward you…', 'warning');
-          empezarACavar(st, true);
+        if (b && dist < DESPIERTA) {
+          if (cercaDeMi(st, st.guarida.x, st.guarida.y, DESPIERTA + 150)) {
+            gritar(scene, 0.8);
+            temblar(st, 900, 0.006);
+            aviso(scene, '🐍 Something huge is digging toward you…', 'warning');
+          }
+          anunciar(st, { e: 'despierta' });
+          empezarACavar(st, b);
         }
         break;
 
       case 'cava': {
-        if (s.destino && !s.destino.aCasa && (muerto || dist > OLVIDA)) {
+        if (s.destino && !s.destino.aCasa && (!b || dist > OLVIDA)) {
           s.destino = { x: st.guarida.x, y: st.guarida.y, aCasa: true };
         }
-        // Sigue al jugador mientras cava (el sitio de salida se recoloca).
-        if (s.destino && !s.destino.aCasa && ahora - s.estadoDesde > 600 &&
-            Math.hypot(s.destino.x - pj.x, s.destino.y - pj.y) > 320) {
-          var nuevo = sitioDeSalida(st);
+        // Sigue al blanco mientras cava (el sitio de salida se recoloca).
+        if (b && s.destino && !s.destino.aCasa && ahora - s.estadoDesde > 600 &&
+            Math.hypot(s.destino.x - b.x, s.destino.y - b.y) > 320) {
+          var nuevo = sitioDeSalida(st, b);
           if (nuevo) s.destino = nuevo;
         }
         var d = s.destino;
         var ddx = d.x - s.x, ddy = d.y - s.y, dd = Math.hypot(ddx, ddy);
         if (dd < 12) {
           if (d.aCasa) { s.monticulo.setVisible(false); cambiar(st, 'oculta'); }
-          else salir(st);
+          else {
+            var ang = b ? Math.atan2(b.y - s.y, b.x - s.x) : s.ang;
+            salir(st, ang, d.pared);
+            anunciar(st, { e: 'sale', x: Math.round(s.x), y: Math.round(s.y), a: Number(ang.toFixed(3)),
+                           px: d.pared ? d.pared.x : null, py: d.pared ? d.pared.y : null });
+          }
           break;
         }
         // Bajo tierra NO hay paredes: pasa de pared a pared.
@@ -634,7 +701,7 @@
         s.y += ddy / dd * Math.min(dd, v * seg);
         s.monticulo.setPosition(s.x + Math.sin(ahora / 70) * 2, s.y).setDepth(s.y).setVisible(true);
         if (ahora > s.polvoEn) { s.polvoEn = ahora + 180; polvo(st, s.x, s.y, 0.55); }
-        if (dist < 420 && ahora > (st.rumorEn || 0)) { st.rumorEn = ahora + 500; temblar(st, 300, 0.0025); }
+        if (cercaDeMi(st, s.x, s.y, 420) && ahora > (st.rumorEn || 0)) { st.rumorEn = ahora + 500; temblar(st, 300, 0.0025); }
         break;
       }
 
@@ -658,42 +725,57 @@
 
       case 'superficie':
       case 'repta': {
-        if (muerto || dist > OLVIDA) { hundirse(st); break; }
-        // Mira siempre hacia el jugador.
-        var objetivo = Math.atan2(pj.y - s.y, pj.x - s.x);
+        if (!b || dist > OLVIDA) { hundirse(st); anunciar(st, { e: 'hunde' }); break; }
+        // Mira siempre hacia su blanco.
+        var objetivo = Math.atan2(b.y - s.y, b.x - s.x);
         var dif = Math.atan2(Math.sin(objetivo - s.ang), Math.cos(objetivo - s.ang));
         s.ang += dif * Math.min(1, seg * 4);
-        if (dist < 64 && ahora - s.ultimoMordisco > 1100) {
-          s.ultimoMordisco = ahora;
-          s.cabeza.setTexture('gfsp_cabeza_abierta');
-          scene.time.delayedCall(220, function () { if (s.cabeza && s.cabeza.scene) s.cabeza.setTexture('gfsp_cabeza'); });
-          golpearAlJugador(st, 'serpiente_mordisco');
-        }
-        if (quieto || s.estado === 'repta') {
-          // Te quedaste quieto: viene reptando (con su ondulación).
+        if (b.quieto || s.estado === 'repta') {
+          // Se quedó quieto: viene reptando (con su ondulación).
           if (s.estado !== 'repta') cambiar(st, 'repta');
-          if (!quieto && ahora - s.estadoDesde > 1500) { cambiar(st, 'superficie'); break; }
+          if (!b.quieto && ahora - s.estadoDesde > 1500) { cambiar(st, 'superficie'); break; }
           var onda2 = Math.sin(ahora / 160) * 0.6;
           var mv = s.ang + onda2;
           var vx = Math.cos(mv) * VEL_REPTA, vy = Math.sin(mv) * VEL_REPTA;
           var nx = s.x + vx * seg, ny = s.y + vy * seg;
           if (dist > 50) {
             if (libre(scene, nx, ny, 34)) { s.x = nx; s.y = ny; }
-            else if (ahora - s.estadoDesde > 800) { hundirse(st); break; }   // una pared: por debajo
+            else if (ahora - s.estadoDesde > 800) { hundirse(st); anunciar(st, { e: 'hunde' }); break; }   // una pared: por debajo
           }
           apuntarRastro(s);
         } else if (ahora > s.siguienteAtaque) {
           s.siguienteAtaque = ahora + (s.furia ? 1700 : 2400) + Math.random() * 900;
-          if (Math.random() < (s.furia ? 0.35 : 0.3)) terremoto(st); else escupir(st);
+          if (dist < 330 && dist > 90 && s.ultimoPoder !== 'embestida') {
+            var ca = Math.atan2(b.y + b.vel.y * 0.3 - s.y, b.x + b.vel.x * 0.3 - s.x);
+            embestir(st, ca);
+            anunciar(st, { e: 'embiste', a: Number(ca.toFixed(3)) });
+          } else if (s.ultimoPoder !== 'terremoto' && (dist < 180 || s.ultimoPoder === 'fuego' || Math.random() < 0.3)) {
+            terremoto(st);
+            anunciar(st, { e: 'terremoto' });
+          } else {
+            var base = apuntarFuego(st, b), n = s.furia ? 5 : 3;
+            escupir(st, base, n);
+            anunciar(st, { e: 'escupe', a: Number(base.toFixed(3)), n: n });
+          }
         }
         colocarCuerpo(st, 1);
-        if (ahora > s.superficieHasta && s.estado === 'superficie') hundirse(st);
+        if (ahora > s.superficieHasta && s.estado === 'superficie') { hundirse(st); anunciar(st, { e: 'hunde' }); }
         break;
       }
 
       case 'escupe':
       case 'terremoto':
         colocarCuerpo(st, 1);
+        break;
+      case 'embiste':
+        s.ang = s.cargaAng;
+        if (ahora >= s.cargaEn) {
+          if (s.aviso) { s.aviso.destroy(); s.aviso = null; }
+          var dxCarga = Math.cos(s.cargaAng) * 280 * seg, dyCarga = Math.sin(s.cargaAng) * 280 * seg;
+          if (libre(scene, s.x + dxCarga, s.y + dyCarga, 34)) { s.x += dxCarga; s.y += dyCarga; apuntarRastro(s); } else s.cargaHasta = ahora;
+        }
+        colocarCuerpo(st, 1);
+        if (ahora >= s.cargaHasta) { s.cabeza.setTexture('gfsp_cabeza'); cambiar(st, 'superficie'); }
         break;
 
       case 'hunde': {
@@ -702,12 +784,66 @@
         if (th >= 1) {
           verCuerpo(s, false);
           scene.tweens.add({ targets: s.agujero, alpha: 0, duration: 900, onComplete: function () { s.agujero.setVisible(false); } });
-          empezarACavar(st, !muerto && dist < OLVIDA);
+          empezarACavar(st, b && dist < OLVIDA ? b : null);
         }
         break;
       }
     }
+    s.objX = s.x; s.objY = s.y; s.objAng = s.ang;
+    mordiscos(st);
     barraTic(st);
+  }
+
+  /** Invitado: la dibuja donde dice la foto del anfitrión, suavizando. */
+  function seguir(st, seg, ahora) {
+    var s = st.s, scene = st.scene;
+    if (!s.vivo) return;
+    var dx = s.objX - s.x, dy = s.objY - s.y, d = Math.hypot(dx, dy);
+    if (d > 300) { s.x = s.objX; s.y = s.objY; reiniciarRastro(s); }
+    else if (d > 0.3) { var k = Math.min(1, seg * 9); s.x += dx * k; s.y += dy * k; }
+    var dif = Math.atan2(Math.sin(s.objAng - s.ang), Math.cos(s.objAng - s.ang));
+    s.ang += dif * Math.min(1, seg * 8);
+    if (s.estado === 'embiste') {
+      s.ang = s.cargaAng;
+      if (ahora >= s.cargaEn && s.aviso) { s.aviso.destroy(); s.aviso = null; }
+      if (ahora >= s.cargaHasta) { s.cabeza.setTexture('gfsp_cabeza'); cambiar(st, 'superficie'); }
+    }
+    switch (s.estado) {
+      case 'oculta':
+        verCuerpo(s, false); s.monticulo.setVisible(false);
+        break;
+      case 'cava':
+        verCuerpo(s, false);
+        s.monticulo.setPosition(s.x + Math.sin(ahora / 70) * 2, s.y).setDepth(s.y).setVisible(true);
+        if (ahora > s.polvoEn) { s.polvoEn = ahora + 180; polvo(st, s.x, s.y, 0.55); }
+        break;
+      case 'sale': {
+        var t = Math.min(1, (ahora - s.estadoDesde) / 800);
+        apuntarRastro(s);
+        colocarCuerpo(st, t);
+        s.agujero.setAlpha(1 - t * 0.4);
+        if (t >= 1) {
+          cambiar(st, 'superficie');
+          scene.tweens.add({ targets: s.agujero, alpha: 0, duration: 1200, onComplete: function () { s.agujero.setVisible(false); } });
+        }
+        break;
+      }
+      case 'hunde': {
+        var th = Math.min(1, (ahora - s.estadoDesde) / 650);
+        colocarCuerpo(st, 1 - th);
+        if (th >= 1) {
+          verCuerpo(s, false);
+          scene.tweens.add({ targets: s.agujero, alpha: 0, duration: 900, onComplete: function () { s.agujero.setVisible(false); } });
+          cambiar(st, 'cava');
+        }
+        break;
+      }
+      default:
+        apuntarRastro(s);
+        colocarCuerpo(st, 1);
+    }
+    var verBarra = FUERA.indexOf(s.estado) >= 0 && cercaDeMi(st, s.x, s.y, 1100);
+    if (verBarra !== !!st.barraVista) { st.barraVista = verBarra; barra(st, verBarra); }
   }
 
   function barraTic(st) {
@@ -735,12 +871,97 @@
     }
   }
 
+  // ── LA RED ───────────────────────────────────────────────────────────────
+  function exportar(st) {
+    var s = st.s;
+    if (!s) return [];
+    return [[0, Math.round(s.x), Math.round(s.y), (s.vivo ? 1 : 0) | (s.furia ? 2 : 0),
+             Math.max(0, Math.round(s.vida)), Math.round(s.ang * 100), Math.max(0, ESTADOS.indexOf(s.estado))]];
+  }
+
+  function importar(st, lista) {
+    var s = st.s, f = lista && lista[0];
+    if (!s || !Array.isArray(f)) return;
+    var ahora = st.scene.time.now;
+    s.objX = Number(f[1]) || s.x; s.objY = Number(f[2]) || s.y;
+    s.objAng = (Number(f[5]) || 0) / 100;
+    s.vida = Math.min(s.max, Math.max(0, Number(f[4]) || 0));
+    if ((f[3] & 2) && !s.furia && s.vivo) enfurecer(st);
+    var vivo = !!(f[3] & 1);
+    if (vivo && !s.vivo) { revivir(st); s.x = s.objX; s.y = s.objY; }
+    else if (!vivo && s.vivo) { morir(st, null); return; }
+    if (!s.vivo) return;
+    // El estado, por si se perdió un anuncio (sin pisar una salida o un
+    // hundimiento que aún se está dibujando).
+    var est = ESTADOS[f[6]];
+    var transicion = (s.estado === 'sale' || s.estado === 'hunde' || s.estado === 'embiste') && ahora - s.estadoDesde < 1400;
+    if (!est || est === s.estado || transicion || est === 'muerta') return;
+    if (est === 'sale' || est === 'hunde' || est === 'embiste') return;      // esos llegan por anuncio
+    var antes = FUERA.indexOf(s.estado) >= 0, ahoraFuera = FUERA.indexOf(est) >= 0;
+    cambiar(st, est);
+    if (ahoraFuera && !antes) {
+      s.x = s.objX; s.y = s.objY; s.ang = s.objAng;
+      reiniciarRastro(s); verCuerpo(s, true); s.monticulo.setVisible(false);
+    } else if (!ahoraFuera && antes) {
+      verCuerpo(s, false);
+    }
+    if (est !== 'cava') s.monticulo.setVisible(false);
+  }
+
+  function alEvento(st, d) {
+    var s = st.s, scene = st.scene;
+    if (!s) return;
+    if (d.e === 'revive') { if (!s.vivo) revivir(st); return; }
+    if (d.e === 'muere') { if (s.vivo) morir(st, d.por || null); return; }
+    if (!s.vivo) return;
+    if (d.e === 'herido') {
+      s.cabeza.setTintFill(0xffffff);
+      scene.time.delayedCall(70, function () { if (s.cabeza && s.cabeza.scene) s.cabeza.clearTint(); });
+      return;
+    }
+    if (d.e === 'furia') { enfurecer(st); return; }
+    if (d.e === 'despierta') {
+      if (cercaDeMi(st, st.guarida.x, st.guarida.y, DESPIERTA + 150)) {
+        gritar(scene, 0.8);
+        temblar(st, 900, 0.006);
+        aviso(scene, '🐍 Something huge is digging toward you…', 'warning');
+      }
+      cambiar(st, 'cava');
+      return;
+    }
+    if (d.e === 'sale') {
+      s.x = s.objX = Number(d.x) || s.x; s.y = s.objY = Number(d.y) || s.y;
+      salir(st, Number(d.a) || 0, d.px !== null && d.px !== undefined ? { x: Number(d.px), y: Number(d.py) } : null);
+      return;
+    }
+    if (d.e === 'hunde') { hundirse(st); return; }
+    if (d.e === 'escupe') { escupir(st, Number(d.a) || 0, Math.max(1, Math.min(5, Number(d.n) || 3))); return; }
+    if (d.e === 'terremoto') { terremoto(st); return; }
+    if (d.e === 'embiste') { embestir(st, Number(d.a) || 0); }
+  }
+
   // ─────────────────────────────────────────────────────── LA ESPADA
-  function recibirTajo(st, scene, cx, cy, dir, alcance, dano) {
+  /** El anfitrión resta (un tajo suyo o de otro: `por`). */
+  function aplicarDano(st, dano, ux, uy, por) {
+    var s = st.s, scene = st.scene;
+    if (!s || !s.vivo) return 0;
+    var recibido = Math.min(s.vida, dano);
+    s.vida -= recibido;
+    s.heridaEn = scene.time.now;
+    var L = Math.hypot(ux, uy) || 1;
+    var nx = s.x + ux / L * 6, ny = s.y + uy / L * 6;
+    if (FUERA.indexOf(s.estado) >= 0 && libre(scene, nx, ny, 34)) { s.x = nx; s.y = ny; apuntarRastro(s); colocarCuerpo(st, 1); }
+    anunciar(st, { e: 'herido' });
+    if (!s.furia && s.vida < s.max * 0.5) { enfurecer(st); anunciar(st, { e: 'furia' }); }
+    if (s.vida <= 0) { morir(st, por); anunciar(st, { e: 'muere', por: por || null }); }
+    return recibido;
+  }
+
+  function recibirTajo(st, scene, cx, cy, dir, alcance, dano, poder) {
     var out = { tocados: 0, muertos: 0, puntos: [] };
     var s = st.s;
     if (!st.vivo || !s || !s.vivo || scene !== st.scene) return out;
-    if (['superficie', 'repta', 'escupe', 'terremoto', 'sale'].indexOf(s.estado) < 0) return out;
+    if (['superficie', 'repta', 'escupe', 'terremoto', 'embiste', 'sale'].indexOf(s.estado) < 0) return out;
     var ang = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 }[dir] || 0;
     var partes = [{ o: s.cabeza, k: 1.6 }].concat(s.anillos.map(function (a) { return { o: a, k: 1 }; }));
     var mejor = null;
@@ -750,56 +971,63 @@
       var da = Math.atan2(dy, dx) - ang;
       while (da > Math.PI) da -= Math.PI * 2;
       while (da < -Math.PI) da += Math.PI * 2;
-      if (Math.abs(da) > 1.35 && d > 28) return;
+      if (Math.abs(da) > (poder && poder.arco || 1.35) && d > 28) return;
       if (!mejor || pt.k > mejor.k || d < mejor.d) mejor = { o: pt.o, k: pt.k, d: d };
     });
     if (!mejor) return out;
-    s.vida -= dano * mejor.k;
-    s.heridaEn = scene.time.now;
+    var golpe = dano * mejor.k;
     out.tocados = 1;
-    out.puntos.push({ x: mejor.o.x, y: mejor.o.y });
     mejor.o.setTintFill(0xffffff);
     scene.time.delayedCall(70, function () { if (mejor.o.scene) mejor.o.clearTint(); });
-    if (!s.furia && s.vida < s.max * 0.5) {
-      s.furia = true;
-      gritar(scene, 1.2);
-      temblar(st, 700, 0.012);
-      aviso(scene, '🔥 The Magma Serpent is enraged!', 'warning');
-      var nom = st.barra && st.barra.querySelector('.gfs-nombre');
-      if (nom) nom.textContent = '🔥 The Magma Serpent (enraged)';
+    if (!st.red || st.red.esHost()) {
+      var recibido = aplicarDano(st, golpe, s.x - cx, s.y - cy, st.red ? st.red.miId() : null);
+      out.puntos.push({ x: mejor.o.x, y: mejor.o.y, dano: recibido });
+      if (!s.vivo) out.muertos = 1;
+    } else {
+      out.puntos.push({ x: mejor.o.x, y: mejor.o.y, dano: Math.min(s.vida, golpe) });
+      st.red.golpe({ id: 0, dano: Math.round(golpe * 10) / 10, ux: Math.round(s.x - cx), uy: Math.round(s.y - cy) });
     }
-    if (s.vida <= 0) { out.muertos = 1; morir(st); }
     return out;
   }
 
   // ─────────────────────────────────────────────────────── LA MUERTE Y EL BOTÍN
-  function morir(st) {
+  /** Muere en todos; cobra (nivel y botín) solo quien la mató: `por`. */
+  function morir(st, por) {
     var s = st.s, scene = st.scene;
+    if (!s.vivo) return;
     s.vivo = false;
+    s.vida = 0;
     s.muertaHasta = Date.now() + VUELVE_MS;
     cambiar(st, 'muerta');
     barra(st, false);
-    gritar(scene, 1.3);
-    temblar(st, 1200, 0.016);
+    st.barraVista = false;
+    if (s.aviso) { s.aviso.destroy(); s.aviso = null; }
+    s.monticulo.setVisible(false);
+    var cerca = cercaDeMi(st, s.x, s.y, 1100);
+    if (cerca) { gritar(scene, 1.3); temblar(st, 1200, 0.016); }
     var hx = s.x, hy = s.y;
     // Revienta anillo a anillo, de la cola a la cabeza.
     var piezas = s.anillos.slice().reverse().concat([s.cabeza]);
     piezas.forEach(function (o, i) {
       scene.time.delayedCall(i * 70, function () {
         if (!o.scene) return;
-        onda(st, o.x, o.y, 0.5);
-        polvo(st, o.x, o.y, 0.7);
-        var br = scene.add.image(o.x, o.y, 'gfsp_brillo').setDepth(o.y + 5).setScale(1.2);
-        br.setBlendMode(Phaser.BlendModes.ADD);
-        scene.tweens.add({ targets: br, scale: 3, alpha: 0, duration: 420, onComplete: function () { br.destroy(); } });
+        if (o.visible) {
+          onda(st, o.x, o.y, 0.5);
+          polvo(st, o.x, o.y, 0.7);
+          var br = scene.add.image(o.x, o.y, 'gfsp_brillo').setDepth(o.y + 5).setScale(1.2);
+          br.setBlendMode(Phaser.BlendModes.ADD);
+          scene.tweens.add({ targets: br, scale: 3, alpha: 0, duration: 420, onComplete: function () { br.destroy(); } });
+        }
         o.setVisible(false);
       });
     });
     s.sombras.forEach(function (o) { o.setVisible(false); });
     s.sombraCabeza.setVisible(false);
+    var mia = st.red ? (por && st.red.soy(por)) : true;
     scene.time.delayedCall(piezas.length * 70 + 150, function () {
-      try { scene.cameras.main.flash(500, 255, 170, 90); } catch (e) {}
-      cobrar(st, hx, hy);
+      if (cerca) { try { scene.cameras.main.flash(500, 255, 170, 90); } catch (e) {} }
+      if (mia) cobrar(st, hx, hy);
+      else if (cerca) aviso(scene, '⚔ The Magma Serpent was defeated!', 'info');
     });
   }
 
@@ -876,6 +1104,7 @@
         api('/api/monstruos/botin/recoger', { id: mm.id }).then(function (r) {
           var d = (r && r.datos) || {};
           if (d.ok && d.factura) {
+            if (!st.vivo) return;
             meterFactura(scene, d.itemId, d.factura);
             var nombre = (scene._getFruitDisplayNameEN && scene._getFruitDisplayNameEN(d.itemId)) || d.itemId;
             aviso(scene, '+' + d.cantidad + ' ' + nombre, 'success');
@@ -926,7 +1155,9 @@
     var s = st.s;
     s.vida = s.max; s.vivo = true; s.furia = false;
     s.x = st.guarida.x; s.y = st.guarida.y;
+    s.objX = s.x; s.objY = s.y;
     st.vista = false;
+    st.barraVista = false;
     var nom = st.barra && st.barra.querySelector('.gfs-nombre');
     if (nom) nom.textContent = '🐍 The Magma Serpent';
     s.anillos.concat([s.cabeza]).forEach(function (o) { o.clearTint(); });
@@ -949,21 +1180,49 @@
   // ─────────────────────────────────────────────────────── MONTAJE
   function montar(scene) {
     if (!scene || !scene.add || !scene.map || scene.__gfSerpiente) return;
-    var st = { scene: scene, vivo: true, bolas: [], botin: [], barra: null, ultimoGolpe: 0, vista: false };
+    var st = { scene: scene, vivo: true, bolas: [], botin: [], barra: null, ultimoGolpe: 0, vista: false,
+               pasos: {}, red: null, barraVista: false };
     scene.__gfSerpiente = st;
     st.onApagar = function () { desmontar(scene); };
     scene.events.once('shutdown', st.onApagar);
     scene.events.once('destroy', st.onApagar);
-    try { texturas(scene); } catch (e) { console.warn('🐍 texturas:', e); return; }
+    // Las piezas son PNG: hasta que no lleguen no se crea el bicho.
+    st.arte = null;
+    try {
+      texturas(scene).then(function (ok) { st.arte = ok ? 'si' : 'no'; });
+    } catch (e) { console.warn('🐍 texturas:', e); return; }
     // La guarida se elige un poco después: así ya está la del guardián zombi.
-    scene.time.delayedCall(1200, function () {
+    var esperarGuardianHasta = scene.time.now + 18000;
+    scene.time.delayedCall(1200, function iniciarSerpiente() {
       if (!st.vivo || scene.__gfSerpiente !== st) return;
+      if ((st.arte === null || scene.__gfZombis && !scene.__gfZombis.preparado) && scene.time.now < esperarGuardianHasta) {
+        scene.time.delayedCall(250, iniciarSerpiente);
+        return;
+      }
+      if (st.arte !== 'si') { console.warn('🐍 faltan las piezas de la serpiente (Game/Sprites/monstruos/serpiente)'); return; }
       st.guarida = elegirGuarida(scene);
       if (!st.guarida) { log('sin sitio para la guarida'); return; }
       crear(st);
+      // Compartida con los demás de la mina (gf-mobs-red.js).
+      if (window.GFMobsRed) {
+        st.red = window.GFMobsRed.crear(scene, 'serpiente', {
+          exportar: function () { return exportar(st); },
+          importar: function (l) { if (st.vivo) importar(st, l); },
+          alEvento: function (d) { if (st.vivo) alEvento(st, d); },
+          alGolpe: function (d) {
+            if (st.vivo && st.s && st.s.vivo) aplicarDano(st, Math.min(250, Number(d.dano) || 0), Number(d.ux) || 0, Number(d.uy) || 0, d.de);
+          },
+          alCambiarHost: function (soyYo) {
+            var s = st.s;
+            if (!s) return;
+            if (soyYo) { if (s.estado === 'embiste' && s.aviso) { s.aviso.destroy(); s.aviso = null; } if (s.estado === 'embiste') cambiar(st, 'superficie'); }
+            else { s.objX = s.x; s.objY = s.y; s.objAng = s.ang; }
+          }
+        });
+      }
       st.onUpdate = function (t, d) { if (st.vivo) actualizar(st, t, d); };
       scene.events.on('update', st.onUpdate);
-      st.objetivo = function (sc, cx, cy, dir, alcance, dano) { return recibirTajo(st, sc, cx, cy, dir, alcance, dano); };
+      st.objetivo = function (sc, cx, cy, dir, alcance, dano, poder) { return recibirTajo(st, sc, cx, cy, dir, alcance, dano, poder); };
       if (window.GFEspada && window.GFEspada.agregarObjetivo) window.GFEspada.agregarObjetivo(st.objetivo);
       st.luces = function (luz) { luces(st, luz); };
       if (!Array.isArray(scene._lucesExtras)) scene._lucesExtras = [];
@@ -980,6 +1239,7 @@
     scene.events.off('shutdown', st.onApagar);
     scene.events.off('destroy', st.onApagar);
     if (st.objetivo && window.GFEspada && window.GFEspada.quitarObjetivo) window.GFEspada.quitarObjetivo(st.objetivo);
+    if (st.red) { st.red.cerrar(); st.red = null; }
     if (Array.isArray(scene._lucesExtras)) {
       var i = scene._lucesExtras.indexOf(st.luces);
       if (i >= 0) scene._lucesExtras.splice(i, 1);
@@ -991,17 +1251,20 @@
     st.botin.slice().forEach(function (m) { quitarMonton(st, m); });
     var s = st.s;
     if (s) {
+      if (s.aviso) s.aviso.destroy();
       s.anillos.concat(s.sombras, [s.cabeza, s.sombraCabeza, s.monticulo, s.agujero]).forEach(function (o) {
         try { if (o && o.scene) o.destroy(); } catch (e) {}
       });
     }
     st.s = null;
+    (scene.__gfSerpSounds||[]).slice().forEach(function(v){v.sources.forEach(function(n){try{n.stop();}catch(e){}});v.nodes.forEach(function(n){try{n.disconnect();}catch(e){}});});scene.__gfSerpSounds=[];
     scene.__gfSerpiente = null;
   }
 
   window.GFMinaSerpiente = {
+    _botin: { crear: soltarMonton, actualizar: actualizarBotin, texturas: texturas, limpiar: function (st) { st.botin.slice().forEach(function (m) { quitarMonton(st,m); }); } },
     montar: montar,
     desmontar: desmontar,
-    _interno: { estado: function (s) { return s && s.__gfSerpiente; }, gritar: gritar }
+    _interno: { estado: function (s) { return s && s.__gfSerpiente; }, gritar: gritar, velocidadJugador: velocidadJugador }
   };
 })();

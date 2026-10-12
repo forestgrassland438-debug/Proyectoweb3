@@ -1,0 +1,55 @@
+/* ===========================================================================
+ * La pestaña "Invites" del dashboard (gf-invitaciones.js)          (2026-10-11)
+ * Usa las tarjetas del dashboard (dash-card_101, dash-input-row_101); aquí
+ * solo lo propio: el enlace, el código, los totales y la lista.
+ * ======================================================================== */
+#hub-panel_101 .gfi-enlace {
+  font: 12px/1.3 ui-monospace, Consolas, monospace;
+  text-overflow: ellipsis;
+}
+#hub-panel_101 .gfi-codigo {
+  flex: 1; min-width: 0;
+  font: 700 18px/1.2 ui-monospace, Consolas, monospace;
+  letter-spacing: 2px;
+  color: #ffe8b0;
+  padding: 6px 0;
+}
+#hub-panel_101 .gfi-wallet {
+  flex: 1; min-width: 0;
+  font: 13px/1.3 ui-monospace, Consolas, monospace;
+  color: rgba(230, 240, 255, .88);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 6px 0;
+}
+#hub-panel_101 .gfi-nombre {
+  font-weight: 700; font-size: 15px; color: #fff4dd; margin: 2px 0 6px;
+  overflow-wrap: anywhere;
+}
+#hub-panel_101 .gfi-totales {
+  display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px;
+}
+#hub-panel_101 .gfi-total {
+  flex: 1 1 110px; min-width: 0;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 8px 6px; border-radius: 10px;
+  background: rgba(0, 0, 0, .28); border: 1px solid rgba(242, 195, 92, .22);
+}
+#hub-panel_101 .gfi-total strong { font-size: 20px; color: #ffe08a; }
+#hub-panel_101 .gfi-total span { font-size: 11px; opacity: .8; text-align: center; }
+#hub-panel_101 .gfi-lista {
+  max-height: 220px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 4px;
+}
+#hub-panel_101 .gfi-invitado {
+  display: flex; gap: 8px; align-items: center;
+  padding: 6px 8px; border-radius: 8px;
+  background: rgba(255, 255, 255, .04);
+  font-size: 12px;
+}
+#hub-panel_101 .gfi-invitado.activo { border-left: 3px solid #6fd08c; }
+#hub-panel_101 .gfi-inv-nombre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+#hub-panel_101 .gfi-inv-dato { flex: 0 0 auto; opacity: .8; }
+@media (max-width: 420px) {
+  #hub-panel_101 .gfi-invitado .gfi-inv-dato:last-child { display: none; }
+  #hub-panel_101 .gfi-codigo { font-size: 16px; letter-spacing: 1px; }
+}

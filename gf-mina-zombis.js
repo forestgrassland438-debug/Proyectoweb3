@@ -7,9 +7,10 @@
  * cosas extraordinarias."
  *
  * LOS ZOMBIS
- *   Son los personajes del juego (las carpetas de Soulbound), PODRIDOS: al
- *   montar se cargan sus fotogramas de andar y se repintan en un lienzo —la
- *   piel pasa a verde ceniza y la ropa se apaga y se ensucia—, así que tienen
+ *   Son los personajes del juego (las carpetas de Soulbound), PODRIDOS: desde
+ *   2026-10-11 son PNG (Game/Sprites/monstruos/zombi_*.png, los escribe
+ *   tools/generar-monstruos.py) y ya no se repintan aquí en un lienzo —la
+ *   piel verde ceniza, la ropa apagada, los ojos amarillos—, así que tienen
  *   el mismo dibujo, el mismo tamaño y las mismas cuatro direcciones que un
  *   jugador. Pasean despacio cerca de su sitio; si te ven, te persiguen
  *   arrastrando los pies (más lentos que tú: se puede huir) y muerden. En la
@@ -34,14 +35,19 @@
  *   Se engancha a gf-espada.js (GFEspada.agregarObjetivo): el tajo que da a
  *   los animales del pueblo da también a los zombis aquí abajo.
  *
- * CADA UNO VE LOS SUYOS
- *   Los zombis viven en el navegador de cada jugador, no en el servidor (el
- *   daño sí lo decide el servidor).
+ * LOS MISMOS PARA TODOS (2026-10-11, gf-mobs-red.js)
+ *   "Los enemigos en la mina deben salirle a los demás en la misma ubicación
+ *   que a mí." Los sitios salen de una semilla fija (los mismos en todos los
+ *   navegadores) y UNO de la sala, el anfitrión, piensa por ellos: persiguen
+ *   al jugador más cercano, sea quien sea, y los demás los ven donde él dice.
+ *   Los mordiscos los mira cada uno (un zombi que caza pegado a MI jugador me
+ *   muerde a mí); el salto del guardián y su furia se anuncian a todos, y las
+ *   piedras caen sobre quien esté cerca. El daño lo sigue poniendo el
+ *   servidor. Muerto (fantasma), no te ven ni te muerden.
  *
  * RENDIMIENTO Y FUGAS
- *   Lejos (más de 1.000 px) un zombi no piensa ni se dibuja. Las texturas
- *   repintadas se hacen UNA vez por personaje y se reutilizan; las de origen
- *   se sueltan al acabar. Al apagar la escena se quita todo: oyentes, la
+ *   Lejos (más de 1.000 px) un zombi no piensa ni se dibuja. Los atlas se
+ *   cargan UNA vez por partida (gf-monstruos-arte.js) y se reutilizan. Al apagar la escena se quita todo: oyentes, la
  *   barra del jefe (DOM) y el objetivo de la espada.
  *
  * CÓMO SE ENGANCHA
@@ -50,10 +56,10 @@
 (function () {
   'use strict';
 
-  var PERSONAJES = ['personaje1', 'personaje3', 'personaje5', 'personaje8'];
-  var PERSONAJE_JEFE = 'personaje6';
-  var DIRS = { derecha: 'right', izquierda: 'left', arriba: 'up', abajo: 'down' };
-  var FOTOS = 7;
+  // Cuatro caras distintas y el jefe (atlas de gf-monstruos-arte.js).
+  var PERSONAJES = ['zombi_a', 'zombi_b', 'zombi_c', 'zombi_d'];
+  var PERSONAJE_JEFE = 'zombi_jefe';
+  var DIR_ES = { right: 'derecha', left: 'izquierda', up: 'arriba', down: 'abajo' };
   var N_ZOMBIS = 12;
   var VIDA_ZOMBI = 60, VIDA_JEFE = 720;
   var VEL_PASEO = 36, VEL_CAZA = 76, VEL_JEFE = 64;
@@ -78,96 +84,8 @@
   }
 
   // ─────────────────────────────────────────────────────── LAS TEXTURAS
-  function claveOrigen(per, dir, n) { return 'gfz_src_' + per + '_' + dir + '_' + n; }
-  function claveZombi(per, dir, n, jefe) { return 'gfz_' + (jefe ? 'j_' : '') + per + '_' + dir + '_' + n; }
-
-  /** Carga los fotogramas de andar que falten. Nunca falla: resuelve igual. */
-  function cargarOrigen(scene, lista) {
-    var faltan = 0;
-    lista.forEach(function (per) {
-      Object.keys(DIRS).forEach(function (dir) {
-        for (var n = 1; n <= FOTOS; n++) {
-          var k = claveOrigen(per, dir, n);
-          if (scene.textures.exists(k) || scene.textures.exists(claveZombi(per, dir, n, per === PERSONAJE_JEFE))) continue;
-          scene.load.image(k, './Game/Sprites/Soulbound/' + per + '/' + dir + '/run_' + n + '.png');
-          faltan++;
-        }
-      });
-    });
-    if (!faltan) return Promise.resolve();
-    return new Promise(function (ok) {
-      var listo = false;
-      var fin = function () { if (!listo) { listo = true; ok(); } };
-      scene.load.once('complete', fin);
-      setTimeout(fin, 15000);
-      scene.load.start();
-    });
-  }
-
-  /** Repinta un fotograma: piel podrida, ropa apagada. `jefe`: morado. */
-  function podrir(scene, per, dir, n, jefe) {
-    var kz = claveZombi(per, dir, n, jefe);
-    if (scene.textures.exists(kz)) return true;
-    var ko = claveOrigen(per, dir, n);
-    if (!scene.textures.exists(ko)) return false;
-    var img = scene.textures.get(ko).getSourceImage();
-    if (!img || !img.width) return false;
-    var w = img.width, h = img.height;
-    var c = scene.textures.createCanvas(kz, w, h);
-    var ctx = c.getContext();
-    ctx.drawImage(img, 0, 0);
-    var d = ctx.getImageData(0, 0, w, h);
-    var p = d.data;
-    for (var i = 0; i < p.length; i += 4) {
-      if (p[i + 3] === 0) continue;
-      var r = p[i], g = p[i + 1], b = p[i + 2];
-      var lum = 0.3 * r + 0.59 * g + 0.11 * b;
-      var piel = r > 115 && r > g + 12 && g > b - 6 && (r - b) > 38 && (r - b) < 150;
-      if (piel) {
-        if (jefe) { r = lum * 0.62 + 34; g = lum * 0.44 + 18; b = lum * 0.72 + 40; }
-        else { r = lum * 0.56 + 22; g = lum * 0.80 + 30; b = lum * 0.50 + 16; }
-      } else {
-        var k = 0.6;
-        r = (r * (1 - k) + lum * k) * (jefe ? 0.66 : 0.76);
-        g = (g * (1 - k) + lum * k) * (jefe ? 0.58 : 0.84);
-        b = (b * (1 - k) + lum * k) * (jefe ? 0.80 : 0.72);
-      }
-      p[i] = Math.max(0, Math.min(255, r));
-      p[i + 1] = Math.max(0, Math.min(255, g));
-      p[i + 2] = Math.max(0, Math.min(255, b));
-    }
-    ctx.putImageData(d, 0, 0);
-    c.refresh();
-    c.setFilter(Phaser.Textures.FilterMode.NEAREST);
-    return true;
-  }
-
-  function prepararPersonaje(scene, per, jefe) {
-    var ok = true;
-    Object.keys(DIRS).forEach(function (dir) {
-      for (var n = 1; n <= FOTOS; n++) ok = podrir(scene, per, dir, n, jefe) && ok;
-      var anim = 'gfz_' + (jefe ? 'j_' : '') + per + '_' + DIRS[dir];
-      if (!scene.anims.exists(anim)) {
-        var frames = [];
-        for (var m = 1; m <= FOTOS; m++) {
-          var k = claveZombi(per, dir, m, jefe);
-          if (scene.textures.exists(k)) frames.push({ key: k });
-        }
-        // Una animación sin fotogramas nace vacía y tumba el bucle (ver la
-        // memoria "animaciones globales"): sin fotogramas, no se crea.
-        if (frames.length) scene.anims.create({ key: anim, frames: frames, frameRate: jefe ? 5 : 6, repeat: -1 });
-      }
-    });
-    // Los de origen ya no hacen falta.
-    Object.keys(DIRS).forEach(function (dir) {
-      for (var n = 1; n <= FOTOS; n++) {
-        var ko = claveOrigen(per, dir, n);
-        try { if (scene.textures.exists(ko)) scene.textures.remove(ko); } catch (e) {}
-      }
-    });
-    return ok;
-  }
-
+  /* Los cuerpos son PNG (gf-monstruos-arte.js). Aquí solo quedan la sombra,
+     la onda y el polvo: luz y aire, no monstruos. */
   function texturasSueltas(scene) {
     if (!scene.textures.exists('gfz_sombra')) {
       var s = scene.textures.createCanvas('gfz_sombra', 48, 16);
@@ -242,20 +160,23 @@
   }
 
   // ─────────────────────────────────────────────────────── LOS BICHOS
-  function crearBicho(st, sitio, per, jefe) {
+  function crearBicho(st, sitio, per, jefe, id) {
     var scene = st.scene;
+    var A = window.GFMonstruosArte;
     var esc = jefe ? ESCALA_JEFE : ESCALA;
-    var anim = 'gfz_' + (jefe ? 'j_' : '') + per + '_down';
-    var k0 = claveZombi(per, 'abajo', 1, jefe);
-    if (!scene.textures.exists(k0)) return null;
-    var spr = scene.add.sprite(sitio.x, sitio.y, k0).setScale(esc);
+    if (!A || !scene.textures.exists(A.clave(per))) return null;
+    var spr = scene.add.sprite(sitio.x, sitio.y, A.clave(per), 'abajo_1').setScale(esc);
+    // `y` es el centro del CUERPO, como el del jugador (el cuadro del atlas
+    // es más alto: sitio para la cola y el báculo de otros monstruos).
+    A.origenHumanoide(spr);
     var sombra = scene.add.image(sitio.x, sitio.y, 'gfz_sombra').setScale(jefe ? 2.2 : 1.1).setAlpha(0.8);
     var z = {
-      spr: spr, sombra: sombra, per: per, jefe: jefe, casa: { x: sitio.x, y: sitio.y },
-      x: sitio.x, y: sitio.y, alto: spr.displayHeight, vida: jefe ? VIDA_JEFE : VIDA_ZOMBI,
+      id: id, spr: spr, sombra: sombra, per: per, jefe: jefe, casa: { x: sitio.x, y: sitio.y },
+      x: sitio.x, y: sitio.y, alto: A.ALTO_CUERPO * esc, vida: jefe ? VIDA_JEFE : VIDA_ZOMBI,
       max: jefe ? VIDA_JEFE : VIDA_ZOMBI, estado: jefe ? 'guarda' : 'pasea', destino: null,
-      ideaEn: 0, mordioEn: 0, dir: 'down', anim: null, barra: null, heridoEn: 0,
-      muertoHasta: 0, vivo: true, saltoEn: 0, furia: false, rugio: false, fase: Math.random() * 6
+      ideaEn: 0, mordioEn: 0, dir: 'down', anim: null, andando: false, barra: null, heridoEn: 0,
+      muertoHasta: 0, vivo: true, saltoEn: 0, furia: false, rugio: false, fase: Math.random() * 6,
+      objX: sitio.x, objY: sitio.y
     };
     spr.setData('optimized', true);
     jugarAnim(z, 'down', false);
@@ -263,12 +184,12 @@
   }
 
   function jugarAnim(z, dir, andando) {
-    var k = 'gfz_' + (z.jefe ? 'j_' : '') + z.per + '_' + dir;
+    z.andando = !!andando;
+    var k = window.GFMonstruosArte.anim(z.per, dir);
     if (!andando) {
       if (z.anim) { z.spr.anims.stop(); z.anim = null; }
-      var d = { right: 'derecha', left: 'izquierda', up: 'arriba', down: 'abajo' }[dir];
-      var k1 = claveZombi(z.per, d, 1, z.jefe);
-      if (z.spr.texture.key !== k1 && z.spr.scene.textures.exists(k1)) z.spr.setTexture(k1);
+      var f = DIR_ES[dir] + '_1';
+      if (z.spr.frame && z.spr.frame.name !== f) z.spr.setFrame(f);
       return;
     }
     if (z.anim !== k && z.spr.scene.anims.exists(k)) { z.spr.play(k, true); z.anim = k; }
@@ -341,7 +262,7 @@
   function golpearAlJugador(st, motivo) {
     var scene = st.scene;
     var nombre = scene.playerName;
-    if (!nombre || !window.GFMascota || !window.GFMascota.api) return;
+    if (!nombre || !window.GFMascota || !window.GFMascota.api || fantasma()) return;
     var ahora = Date.now();
     if (ahora - st.ultimoGolpe < 850) return;   // el mismo freno que el servidor
     st.ultimoGolpe = ahora;
@@ -359,9 +280,38 @@
       }).catch(function () {});
   }
 
+  /* ¿Mi jugador está muerto (fantasma o con la vida a 0)? Entonces no le ven
+     ni le muerden (2026-10-11: "me golpean estando en fantasma"). */
   function fantasma() {
-    try { var e = window.GFMascota && window.GFMascota.estado && window.GFMascota.estado(); return !!(e && e.ghost); }
-    catch (e2) { return false; }
+    try {
+      if (window.GFMuerte && window.GFMuerte.muerto) return !!window.GFMuerte.muerto();
+      var e = window.GFMascota && window.GFMascota.estado && window.GFMascota.estado(); return !!(e && e.ghost);
+    } catch (e2) { return false; }
+  }
+
+  /**
+   * LOS MORDISCOS LOS MIRA CADA UNO (2026-10-11). El anfitrión solo los lleva
+   * hasta alguien; si un zombi que caza está pegado a MI jugador, me muerde a
+   * mí, lo haya traído quien lo haya traído. Así un mordisco nunca se pierde
+   * por la red ni se lo lleva el que no estaba.
+   */
+  function mordiscos(st) {
+    var scene = st.scene, p = scene.player;
+    if (!p || !p.active || fantasma()) return;
+    var ahora = scene.time.now, px = p.x, py = p.y + 45;
+    for (var i = 0; i < st.bichos.length; i++) {
+      var z = st.bichos[i];
+      if (!z.vivo || z.estado !== 'caza') continue;
+      var alcance = z.jefe ? ALCANCE_MORDISCO + 34 : ALCANCE_MORDISCO;
+      if (Math.hypot(px - z.x, py - pies(z)) > alcance) continue;
+      var cada = z.jefe ? MORDISCO_MS * 1.3 : MORDISCO_MS;
+      if (ahora - z.mordioEn < cada) continue;
+      z.mordioEn = ahora;
+      // Que mire hacia mí mientras muerde.
+      var dx = px - z.x, dy = py - pies(z);
+      z.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+      golpearAlJugador(st, z.jefe ? 'jefe_mina' : 'zombi_mina');
+    }
   }
 
   // ─────────────────────────────────────────────────────── EL GUARDIÁN
@@ -392,7 +342,12 @@
     scene.tweens.add({ targets: p, scale: 3.4, alpha: 0, y: y - 30, duration: 900, ease: 'Sine.easeOut', onComplete: function () { p.destroy(); } });
   }
 
-  /** Del techo caen piedras sobre el jugador: primero la sombra, luego la piedra. */
+  function cercaDeMi(st, x, y, r) {
+    var p = st.scene.player;
+    return !!(p && Math.hypot(p.x - x, p.y + 45 - y) < (r || 700));
+  }
+
+  /** Del techo caen piedras sobre MI jugador: primero la sombra, luego la piedra. */
   function lluviaDePiedras(st, cuantas) {
     var scene = st.scene, p = scene.player;
     if (!p || !scene.textures.exists('piezas_mina')) return;
@@ -418,26 +373,36 @@
     }
   }
 
-  function pensarJefe(st, z, seg, dist, dx, dy) {
+  /** Despierta: lo dice y tiembla (si está cerca de mí). */
+  function despertar(st, z) {
+    var scene = st.scene;
+    z.estado = 'caza';
+    if (!z.rugio) {
+      z.rugio = true;
+      if (cercaDeMi(st, z.x, pies(z), 1000)) {
+        aviso(scene, '💀 The Mine Warden awakens!', 'warning');
+        try { scene.cameras.main.shake(600, 0.008); } catch (e) {}
+      }
+    }
+    if (cercaDeMi(st, z.x, pies(z), 1100)) barraJefe(st, true);
+  }
+
+  /** Anfitrión: el guardián piensa con el jugador más cercano de su guarida. */
+  function pensarJefe(st, z, seg, b) {
     var scene = st.scene;
     var ahora = scene.time.now;
-    var p = scene.player;
     var vel = VEL_JEFE * (z.furia ? 1.35 : 1);
     var lejosDeCasa = Math.hypot(z.x - z.casa.x, z.y - z.casa.y);
-    var jugadorEnGuarida = Math.hypot(p.x - z.casa.x, p.y - z.casa.y) < GUARDIA + 120;
+    var enGuarida = b && Math.hypot(b.x - z.casa.x, (b.y - 45) - z.casa.y) < GUARDIA + 120;
+    var dist = b ? b.d : Infinity;
 
     if (z.estado === 'agacha' || z.estado === 'salta') return;   // los mueve su tween
 
     if (z.estado === 'guarda') {
-      if (!fantasma() && dist < VISTA_JEFE && jugadorEnGuarida) {
-        z.estado = 'caza';
+      if (b && dist < VISTA_JEFE && enGuarida) {
         z.saltoEn = ahora + 1800;
-        if (!z.rugio) {
-          z.rugio = true;
-          aviso(scene, '💀 The Mine Warden awakens!', 'warning');
-          try { scene.cameras.main.shake(600, 0.008); } catch (e) {}
-        }
-        barraJefe(st, true);
+        despertar(st, z);
+        if (st.red) st.red.evento({ e: 'despierta', id: z.id });
         return;
       }
       // Patrulla: de un punto a otro alrededor de la guarida.
@@ -451,38 +416,45 @@
       return;
     }
 
-    // Persiguiendo. Si te vas lejos de su guarida, vuelve a ella.
-    if (fantasma() || lejosDeCasa > GUARDIA * 2.4 || (!jugadorEnGuarida && dist > VISTA_JEFE * 1.6)) {
+    // Persiguiendo. Si se van lejos de su guarida, vuelve a ella.
+    if (!b || lejosDeCasa > GUARDIA * 2.4 || (!enGuarida && dist > VISTA_JEFE * 1.6)) {
       z.estado = 'guarda';
       z.destino = { x: z.casa.x, y: z.casa.y };
       barraJefe(st, false);
       return;
     }
-    if (ahora > z.saltoEn && dist < 520) { saltar(st, z); return; }
-    if (dist < ALCANCE_MORDISCO + 34) {
-      jugarAnim(z, z.dir, false);
-      if (ahora - z.mordioEn > MORDISCO_MS * 1.3) { z.mordioEn = ahora; golpearAlJugador(st, 'jefe_mina'); }
+    if (ahora > z.saltoEn && dist < 520) {
+      var hasta = destinoDelSalto(st, z, b);
+      saltar(st, z, hasta);
+      if (st.red) st.red.evento({ e: 'salta', id: z.id, x: Math.round(hasta.x), y: Math.round(hasta.y) });
       return;
     }
-    haciaConRuta(st, z, p.x, (p.y + 45) - z.alto * 0.5, vel, seg);
+    if (dist < ALCANCE_MORDISCO + 34) { jugarAnim(z, z.dir, false); return; }   // muerde (mordiscos)
+    haciaConRuta(st, z, b.x, b.y - z.alto * 0.5, vel, seg);
   }
 
-  function saltar(st, z) {
-    var scene = st.scene, p = scene.player;
+  /** A dónde salta (hacia el blanco), sin caer dentro de una pared. */
+  function destinoDelSalto(st, z, b) {
+    var scene = st.scene;
+    var desde = { x: z.x, y: z.y };
+    var hasta = { x: b.x, y: b.y - z.alto * 0.5 };
+    for (var k = 0; k < 6 && !libre(scene, hasta.x, hasta.y, true); k++) {
+      hasta.x = desde.x + (hasta.x - desde.x) * 0.75;
+      hasta.y = desde.y + (hasta.y - desde.y) * 0.75;
+    }
+    if (!libre(scene, hasta.x, hasta.y, true)) hasta = desde;
+    return hasta;
+  }
+
+  /** El salto (en todos los navegadores): se agacha y cae en `hasta`. */
+  function saltar(st, z, hasta) {
+    var scene = st.scene;
     z.estado = 'agacha';
     jugarAnim(z, z.dir, false);
     var esc = ESCALA_JEFE;
-    // Se agacha (aviso), y salta hacia donde estabas.
     scene.tweens.add({ targets: z.spr, scaleY: esc * 0.72, scaleX: esc * 1.12, duration: 420, yoyo: false, onComplete: function () {
       if (!st.vivo || !z.vivo) return;
       var desde = { x: z.x, y: z.y };
-      var hasta = { x: p.x, y: p.y - (z.alto * 0.5 - 51) };
-      // Que no caiga dentro de una pared: se acorta el salto hasta un sitio libre.
-      for (var k = 0; k < 6 && !libre(scene, hasta.x, hasta.y, true); k++) {
-        hasta.x = desde.x + (hasta.x - desde.x) * 0.75;
-        hasta.y = desde.y + (hasta.y - desde.y) * 0.75;
-      }
-      if (!libre(scene, hasta.x, hasta.y, true)) hasta = desde;
       z.estado = 'salta';
       z.spr.setScale(esc);
       scene.tweens.addCounter({ from: 0, to: 1, duration: 640, ease: 'Sine.easeInOut', onUpdate: function (tw) {
@@ -496,15 +468,18 @@
       }, onComplete: function () {
         if (!st.vivo || !z.vivo) return;
         z.estado = 'caza';
+        z.objX = z.x; z.objY = z.y;
         z.saltoEn = scene.time.now + (z.furia ? 3200 : 4600) + Math.random() * 1200;
         colocar(z);
         z.sombra.setScale(2.2);
-        // EL GOLPE: tiembla la cueva, onda, y caen piedras.
-        try { scene.cameras.main.shake(420, z.furia ? 0.016 : 0.011); } catch (e) {}
+        // EL GOLPE: tiembla la cueva, onda, y caen piedras (sobre quien esté cerca).
         onda(st, z.x, pies(z));
-        var pj = scene.player;
-        if (pj && !fantasma() && Math.hypot(pj.x - z.x, (pj.y + 45) - pies(z)) < 105) golpearAlJugador(st, 'jefe_mina');
-        lluviaDePiedras(st, z.furia ? 4 : 2);
+        if (cercaDeMi(st, z.x, pies(z), 650)) {
+          try { scene.cameras.main.shake(420, z.furia ? 0.016 : 0.011); } catch (e) {}
+          var pj = scene.player;
+          if (pj && !fantasma() && Math.hypot(pj.x - z.x, (pj.y + 45) - pies(z)) < 105) golpearAlJugador(st, 'jefe_mina');
+          lluviaDePiedras(st, z.furia ? 4 : 2);
+        }
       } });
     } });
   }
@@ -515,26 +490,53 @@
     var p = scene.player;
     if (!p || !p.active || scene._cambiandoEscena) return;
     var seg = Math.min(0.05, delta / 1000);
+    if (st.red) st.red.tick(time);
+    if (st.red && !st.red.esHost()) actualizarInvitado(st, seg);
+    else actualizarAnfitrion(st, seg);
+    mordiscos(st);
+    if (st.jefe && st.barraJefe && st.barraJefe.style.display !== 'none') {
+      var v = st.barraJefe.querySelector('.gfj-vida');
+      if (v) v.style.width = Math.max(0, st.jefe.vida / st.jefe.max * 100).toFixed(1) + '%';
+    }
+  }
+
+  function alguienCerca(st, x, y, r) {
+    var lista = window.GFMobsRed ? window.GFMobsRed.jugadores(st.scene) : [{ x: st.scene.player.x, y: st.scene.player.y + 45 }];
+    for (var i = 0; i < lista.length; i++) if (Math.hypot(lista[i].x - x, lista[i].y - y) < r) return true;
+    return false;
+  }
+
+  function blancoDe(st, z, max) {
+    var scene = st.scene;
+    if (window.GFMobsRed) return window.GFMobsRed.masCercano(scene, z.x, pies(z), max);
+    var p = scene.player;
+    if (fantasma()) return null;
+    var d = Math.hypot(p.x - z.x, p.y + 45 - pies(z));
+    return d < max ? { x: p.x, y: p.y + 45, d: d, local: true } : null;
+  }
+
+  function actualizarAnfitrion(st, seg) {
+    var scene = st.scene, p = scene.player;
     var ahora = scene.time.now;
-    var py = p.y + 45;
-    var muerto = fantasma();
     for (var i = 0; i < st.bichos.length; i++) {
       var z = st.bichos[i];
       if (!z.vivo) {
-        if (Date.now() > z.muertoHasta && Math.hypot(p.x - z.casa.x, p.y - z.casa.y) > 500) revivir(st, z);
+        if (Date.now() > z.muertoHasta && !alguienCerca(st, z.casa.x, z.casa.y, 500)) {
+          revivir(st, z);
+          if (st.red) st.red.evento({ e: 'revive', id: z.id });
+        }
         continue;
       }
-      var dx = p.x - z.x, dy = py - pies(z);
-      var dist = Math.hypot(dx, dy) || 1;
-      var cerca = dist < LEJOS;
-      if (cerca !== z.spr.visible) { z.spr.setVisible(cerca); z.sombra.setVisible(cerca); }
-      if (!cerca) continue;
+      var miD = Math.hypot(p.x - z.x, p.y + 45 - pies(z));
+      var b = blancoDe(st, z, LEJOS);
+      var ver = miD < LEJOS;
+      if (ver !== z.spr.visible) { z.spr.setVisible(ver); z.sombra.setVisible(ver); }
+      if (!ver && !b) continue;                 // nadie cerca: ni piensa
 
       if (z.jefe) {
-        // `dx` al revés aquí: pensarJefe mueve con -dx/dist (del jefe hacia ti).
-        pensarJefe(st, z, seg, dist, -dx, -dy);
+        pensarJefe(st, z, seg, b);
       } else if (z.estado === 'pasea') {
-        if (!muerto && dist < VISTA) {
+        if (b && b.d < VISTA) {
           z.estado = 'caza';
         } else {
           if (!z.destino || ahora > z.ideaEn || Math.hypot(z.destino.x - z.x, z.destino.y - z.y) < 6) {
@@ -549,35 +551,54 @@
           else jugarAnim(z, z.dir, false);
         }
       } else {
-        // Caza.
-        if (muerto || dist > OLVIDA) { z.estado = 'pasea'; z.destino = null; }
-        else if (dist < ALCANCE_MORDISCO) {
-          jugarAnim(z, z.dir, false);
-          if (ahora - z.mordioEn > MORDISCO_MS) { z.mordioEn = ahora; golpearAlJugador(st, 'zombi_mina'); }
-        } else {
-          haciaConRuta(st, z, p.x, py - z.alto * 0.5, VEL_CAZA * (z.furia ? 1.2 : 1), seg);
-        }
+        // Caza: hasta el blanco; pegado, para (el mordisco lo mira cada uno).
+        if (!b || b.d > OLVIDA) { z.estado = 'pasea'; z.destino = null; }
+        else if (b.d < ALCANCE_MORDISCO) jugarAnim(z, z.dir, false);
+        else haciaConRuta(st, z, b.x, b.y - z.alto * 0.5, VEL_CAZA * (z.furia ? 1.2 : 1), seg);
       }
       if (z.estado !== 'salta') colocar(z);
       pintarBarra(st, z);
     }
-    if (st.jefe && st.barraJefe && st.barraJefe.style.display !== 'none') {
-      var v = st.barraJefe.querySelector('.gfj-vida');
-      if (v) v.style.width = Math.max(0, st.jefe.vida / st.jefe.max * 100).toFixed(1) + '%';
+  }
+
+  /** Invitado: no piensa. Sigue la foto del anfitrión, suavizando. */
+  function actualizarInvitado(st, seg) {
+    var p = st.scene.player;
+    for (var i = 0; i < st.bichos.length; i++) {
+      var z = st.bichos[i];
+      if (!z.vivo) continue;
+      if (z.estado !== 'agacha' && z.estado !== 'salta') {
+        var dx = z.objX - z.x, dy = z.objY - z.y, d = Math.hypot(dx, dy);
+        if (d > 240) { z.x = z.objX; z.y = z.objY; }
+        else if (d > 0.3) { var k = Math.min(1, seg * 9); z.x += dx * k; z.y += dy * k; }
+        jugarAnim(z, z.dir, z.andandoRed);
+      }
+      var ver = Math.hypot(p.x - z.x, p.y + 45 - pies(z)) < LEJOS;
+      if (ver !== z.spr.visible) { z.spr.setVisible(ver); z.sombra.setVisible(ver); }
+      if (z.estado !== 'salta') colocar(z);
+      pintarBarra(st, z);
     }
   }
 
   function revivir(st, z) {
     z.vida = z.max; z.vivo = true; z.furia = false; z.rugio = false;
     z.x = z.casa.x; z.y = z.casa.y; z.estado = z.jefe ? 'guarda' : 'pasea'; z.destino = null;
-    z.spr.setAlpha(1).setVisible(true).clearTint();
-    z.sombra.setVisible(true).setAlpha(0.8);
+    z.objX = z.x; z.objY = z.y;
+    z.spr.setAlpha(1).setVisible(true).clearTint().setScale(z.jefe ? ESCALA_JEFE : ESCALA);
+    z.sombra.setVisible(true).setAlpha(0.8).setScale(z.jefe ? 2.2 : 1.1);
+    if (z.jefe) {
+      var nombre = st.barraJefe && st.barraJefe.querySelector('.gfj-nombre');
+      if (nombre) nombre.textContent = '💀 The Mine Warden';
+    }
     colocar(z);
   }
 
-  function morir(st, z) {
+  /** Muere. El premio del guardián, solo para quien lo mató (`por`). */
+  function morir(st, z, por) {
     var scene = st.scene;
+    if (!z.vivo) return;
     z.vivo = false;
+    z.vida = 0;
     z.muertoHasta = Date.now() + (z.jefe ? VUELVE_JEFE_MS : VUELVE_ZOMBI_MS);
     if (z.barra) z.barra.setVisible(false);
     var p = scene.add.image(z.x, pies(z) - 20, 'gfz_polvo').setDepth(pies(z) + 3).setScale(z.jefe ? 2.2 : 1.1);
@@ -587,18 +608,71 @@
     } });
     if (z.jefe) {
       barraJefe(st, false);
-      try { scene.cameras.main.flash(500, 220, 180, 255); scene.cameras.main.shake(700, 0.012); } catch (e) {}
-      aviso(scene, '🏆 You defeated the Mine Warden! +300 strength XP', 'success');
-      try { if (scene._sumarExpHabilidad) scene._sumarExpHabilidad('fuerza', 300); } catch (e) {}
-      // Los zombis cercanos se deshacen con él.
-      st.bichos.forEach(function (o) { if (!o.jefe && o.vivo && Math.hypot(o.x - z.x, o.y - z.y) < 600) morir(st, o); });
+      var mio = st.red ? (por && st.red.soy(por)) : true;
+      if (cercaDeMi(st, z.x, pies(z), 1200)) {
+        try { scene.cameras.main.flash(500, 220, 180, 255); scene.cameras.main.shake(700, 0.012); } catch (e) {}
+      }
+      if (mio) {
+        aviso(scene, '🏆 You defeated the Mine Warden! +300 strength XP', 'success');
+        try { if (scene._sumarExpHabilidad) scene._sumarExpHabilidad('fuerza', 300); } catch (e) {}
+      } else if (cercaDeMi(st, z.x, pies(z), 1200)) {
+        aviso(scene, '⚔ The Mine Warden was defeated!', 'info');
+      }
+      // Los zombis cercanos se deshacen con él (lo decide el anfitrión).
+      if (!st.red || st.red.esHost()) {
+        st.bichos.forEach(function (o) {
+          if (o.jefe || !o.vivo || Math.hypot(o.x - z.x, o.y - z.y) >= 600) return;
+          morir(st, o, por);
+          if (st.red) st.red.evento({ e: 'muere', id: o.id, por: por || null });
+        });
+      }
     }
   }
 
+  function destello(st, z) {
+    z.spr.setTintFill(0xffffff);
+    st.scene.time.delayedCall(70, function () { if (z.spr.active) { if (z.furia) z.spr.setTint(0xff9a9a); else z.spr.clearTint(); } });
+  }
+
+  /** El anfitrión resta: un tajo suyo o el de otro (`por`). */
+  function aplicarDano(st, z, dano, ux, uy, por) {
+    var scene = st.scene;
+    if (!z.vivo) return 0;
+    var recibido = Math.min(z.vida, dano);
+    z.vida -= dano;
+    z.heridoEn = scene.time.now;
+    // Retrocede un poco (el jefe casi nada). Por pasos de 4 px que se paran
+    // ANTES de la pared: de un salto de 16 se podía cruzar una pared fina.
+    var L = Math.hypot(ux, uy) || 1, emp = z.jefe ? 4 : 16;
+    ux /= L; uy /= L;
+    for (var paso = 0; paso < emp; paso += 4) {
+      if (!libre(scene, z.x + ux * 4, z.y + uy * 4, z.jefe)) break;
+      z.x += ux * 4; z.y += uy * 4;
+    }
+    destello(st, z);
+    if (st.red) st.red.evento({ e: 'herido', id: z.id });
+    if (!z.jefe) z.estado = 'caza';
+    if (z.jefe && z.estado === 'guarda') {
+      z.saltoEn = scene.time.now + 1500;
+      despertar(st, z);
+      if (st.red) st.red.evento({ e: 'despierta', id: z.id });
+    }
+    if (z.jefe && !z.furia && z.vida < z.max * 0.5) {
+      enfurecer(st, z);
+      if (st.red) st.red.evento({ e: 'furia', id: z.id });
+    }
+    if (z.vida <= 0) {
+      morir(st, z, por);
+      if (st.red) st.red.evento({ e: 'muere', id: z.id, por: por || null });
+    }
+    return recibido;
+  }
+
   /** El tajo de la espada (gf-espada.js): a quién da y cuánto. */
-  function recibirTajo(st, scene, cx, cy, dir, alcance, dano) {
+  function recibirTajo(st, scene, cx, cy, dir, alcance, dano, poder) {
     var out = { tocados: 0, muertos: 0, puntos: [] };
     if (!st.vivo || scene !== st.scene) return out;
+    var anfitrion = !st.red || st.red.esHost();
     var ang = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 }[dir] || 0;
     st.bichos.forEach(function (z) {
       if (!z.vivo || !z.spr.visible) return;
@@ -609,37 +683,39 @@
       var da = Math.atan2(dy, dx) - ang;
       while (da > Math.PI) da -= Math.PI * 2;
       while (da < -Math.PI) da += Math.PI * 2;
-      if (Math.abs(da) > 1.35 && d > 26) return;
-      z.vida -= dano;
-      z.heridoEn = scene.time.now;
+      if (Math.abs(da) > (poder && poder.arco || 1.35) && d > 26) return;
       out.tocados++;
-      out.puntos.push({ x: zx, y: zy - 10 });
-      // Retrocede un poco (el jefe casi nada).
-      var emp = z.jefe ? 4 : 16;
-      if (libre(scene, z.x + dx / (d || 1) * emp, z.y + dy / (d || 1) * emp, z.jefe)) { z.x += dx / (d || 1) * emp; z.y += dy / (d || 1) * emp; }
-      z.spr.setTintFill(0xffffff);
-      scene.time.delayedCall(70, function () { if (z.spr.active) { if (z.furia) z.spr.setTint(0xff9a9a); else z.spr.clearTint(); } });
-      if (!z.jefe) z.estado = 'caza';
-      if (z.jefe && z.estado === 'guarda') { z.estado = 'caza'; z.saltoEn = scene.time.now + 1500; barraJefe(st, true); }
-      if (z.jefe && !z.furia && z.vida < z.max * 0.5) enfurecer(st, z);
-      if (z.vida <= 0) { out.muertos++; morir(st, z); }
+      if (anfitrion) {
+        var recibido = aplicarDano(st, z, dano, dx, dy, st.red ? st.red.miId() : null);
+        out.puntos.push({ x: zx, y: zy - 10, dano: recibido });
+        if (!z.vivo) out.muertos++;
+      } else {
+        out.puntos.push({ x: zx, y: zy - 10, dano: Math.min(z.vida, dano) });
+        destello(st, z);
+        z.heridoEn = scene.time.now;
+        st.red.golpe({ id: z.id, dano: Math.round(dano * 10) / 10, ux: Math.round(dx), uy: Math.round(dy) });
+      }
     });
     return out;
   }
 
   function enfurecer(st, z) {
     var scene = st.scene;
+    if (z.furia) return;
     z.furia = true;
     z.spr.setTint(0xff9a9a);
-    aviso(scene, '💢 The Mine Warden is enraged!', 'warning');
-    try { scene.cameras.main.shake(500, 0.01); } catch (e) {}
+    if (cercaDeMi(st, z.x, pies(z), 1100)) {
+      aviso(scene, '💢 The Mine Warden is enraged!', 'warning');
+      try { scene.cameras.main.shake(500, 0.01); } catch (e) {}
+    }
     var nombre = st.barraJefe && st.barraJefe.querySelector('.gfj-nombre');
     if (nombre) nombre.textContent = '💢 The Mine Warden (enraged)';
-    // Llama a dos de los suyos.
+    // Llama a dos de los suyos (los mueve el anfitrión; los demás lo ven en la foto).
+    if (st.red && !st.red.esHost()) return;
     var llamados = 0;
     st.bichos.forEach(function (o) {
       if (llamados >= 2 || o.jefe) return;
-      if (!o.vivo) revivir(st, o);
+      if (!o.vivo) { revivir(st, o); if (st.red) st.red.evento({ e: 'revive', id: o.id }); }
       for (var k = 0; k < 8; k++) {
         var a = Math.random() * Math.PI * 2;
         var x = z.x + Math.cos(a) * 130, y = z.y + Math.sin(a) * 100;
@@ -648,34 +724,103 @@
     });
   }
 
+  // ── LA RED ───────────────────────────────────────────────────────────────
+  var DIRS = ['down', 'up', 'left', 'right'];
+  var ESTADOS = ['pasea', 'caza', 'guarda', 'agacha', 'salta'];
+
+  function exportar(st) {
+    return st.bichos.map(function (z) {
+      return [z.id, Math.round(z.x), Math.round(z.y),
+              (z.vivo ? 1 : 0) | (z.andando ? 2 : 0) | (z.furia ? 4 : 0),
+              Math.max(0, Math.round(z.vida)), Math.max(0, DIRS.indexOf(z.dir)), Math.max(0, ESTADOS.indexOf(z.estado))];
+    });
+  }
+
+  function importar(st, lista) {
+    lista.forEach(function (f) {
+      var z = st.porId[f[0]];
+      if (!z || !Array.isArray(f)) return;
+      var vivo = !!(f[3] & 1);
+      z.objX = Number(f[1]) || z.x; z.objY = Number(f[2]) || z.y;
+      z.andandoRed = !!(f[3] & 2);
+      z.vida = Math.min(z.max, Math.max(0, Number(f[4]) || 0));
+      z.dir = DIRS[f[5]] || z.dir;
+      var estado = ESTADOS[f[6]] || z.estado;
+      // El salto lo lleva su tween aquí: no se pisa con la foto.
+      if (z.estado !== 'agacha' && z.estado !== 'salta') z.estado = estado === 'agacha' || estado === 'salta' ? 'caza' : estado;
+      if ((f[3] & 4) && !z.furia && z.vivo) enfurecer(st, z);
+      if (vivo && !z.vivo) { revivir(st, z); z.x = z.objX; z.y = z.objY; }
+      else if (!vivo && z.vivo) morir(st, z, null);
+      if (z.jefe && z.vivo) barraJefe(st, z.estado !== 'guarda' && cercaDeMi(st, z.x, pies(z), 1100));
+    });
+  }
+
+  function alEvento(st, d) {
+    var z = st.porId[d.id];
+    if (!z) return;
+    if (d.e === 'revive') { if (!z.vivo) revivir(st, z); return; }
+    if (d.e === 'muere') { if (z.vivo) morir(st, z, d.por || null); return; }
+    if (!z.vivo) return;
+    if (d.e === 'herido') { destello(st, z); z.heridoEn = st.scene.time.now; return; }
+    if (d.e === 'despierta') { despertar(st, z); return; }
+    if (d.e === 'furia') { enfurecer(st, z); return; }
+    if (d.e === 'salta' && z.estado !== 'agacha' && z.estado !== 'salta') {
+      saltar(st, z, { x: Number(d.x) || z.x, y: Number(d.y) || z.y });
+    }
+  }
+
+  function alCambiarHost(st, soyYo) {
+    st.bichos.forEach(function (z) {
+      if (soyYo) { z.ruta = null; z.destino = null; if (z.estado === 'agacha' || z.estado === 'salta') z.estado = 'caza'; }
+      else { z.objX = z.x; z.objY = z.y; }
+    });
+  }
+
   // ─────────────────────────────────────────────────────── MONTAJE
   function montar(scene) {
     if (!scene || !scene.add || !scene.map || scene.__gfZombis) return;
-    var st = { scene: scene, bichos: [], jefe: null, vivo: true, ultimoGolpe: 0, barraJefe: null };
+    var st = { scene: scene, bichos: [], porId: {}, red: null, jefe: null, vivo: true, preparado: false, ultimoGolpe: 0, barraJefe: null };
     scene.__gfZombis = st;
     st.onApagar = function () { desmontar(scene); };
     scene.events.once('shutdown', st.onApagar);
     scene.events.once('destroy', st.onApagar);
     var lista = PERSONAJES.concat([PERSONAJE_JEFE]);
-    cargarOrigen(scene, lista).then(function () {
+    // Los PNG ya están pintados: cargar el atlas es lo único (sin repintar
+    // fotograma a fotograma, que era lo que daba tirones al entrar).
+    var cargado = window.GFMonstruosArte ? window.GFMonstruosArte.cargar(scene, lista) : Promise.resolve(false);
+    cargado.then(function (ready) {
       if (!st.vivo || scene.__gfZombis !== st) return;
+      if (!ready) console.warn('[zombis] faltan dibujos de Game/Sprites/monstruos: algunos no saldrán');
       texturasSueltas(scene);
-      PERSONAJES.forEach(function (per) { prepararPersonaje(scene, per, false); });
-      prepararPersonaje(scene, PERSONAJE_JEFE, true);
+      // Los sitios salen de una semilla fija y del mapa: los mismos para todos.
       var sitios = elegirSitios(scene);
       sitios.zombis.forEach(function (s, i) {
-        var z = crearBicho(st, s, PERSONAJES[i % PERSONAJES.length], false);
-        if (z) { st.bichos.push(z); colocar(z); }
+        var z = crearBicho(st, s, PERSONAJES[i % PERSONAJES.length], false, i);
+        if (z) { st.bichos.push(z); st.porId[i] = z; colocar(z); }
       });
       if (sitios.guarida) {
-        var j = crearBicho(st, sitios.guarida, PERSONAJE_JEFE, true);
-        if (j) { st.bichos.push(j); st.jefe = j; colocar(j); }
+        var j = crearBicho(st, sitios.guarida, PERSONAJE_JEFE, true, 100);
+        if (j) { st.bichos.push(j); st.porId[100] = j; st.jefe = j; colocar(j); }
       }
+      st.preparado = true;
       log('zombis:', st.bichos.length - (st.jefe ? 1 : 0), 'guardián:', !!st.jefe, sitios.guarida);
+      // Compartidos con los demás de la mina (gf-mobs-red.js).
+      if (window.GFMobsRed) {
+        st.red = window.GFMobsRed.crear(scene, 'zombis', {
+          exportar: function () { return exportar(st); },
+          importar: function (l) { if (st.vivo) importar(st, l); },
+          alEvento: function (d) { if (st.vivo) alEvento(st, d); },
+          alGolpe: function (d) {
+            var z = st.porId[d.id];
+            if (st.vivo && z && z.vivo) aplicarDano(st, z, Math.min(250, Number(d.dano) || 0), Number(d.ux) || 0, Number(d.uy) || 0, d.de);
+          },
+          alCambiarHost: function (soyYo) { if (st.vivo) alCambiarHost(st, soyYo); }
+        });
+      }
       st.onUpdate = function (t, d) { if (st.vivo) actualizar(st, t, d); };
       scene.events.on('update', st.onUpdate);
       // La espada les da.
-      st.objetivo = function (sc, cx, cy, dir, alcance, dano) { return recibirTajo(st, sc, cx, cy, dir, alcance, dano); };
+      st.objetivo = function (sc, cx, cy, dir, alcance, dano, poder) { return recibirTajo(st, sc, cx, cy, dir, alcance, dano, poder); };
       if (window.GFEspada && window.GFEspada.agregarObjetivo) window.GFEspada.agregarObjetivo(st.objetivo);
       // Sus ojos en la oscuridad (MinaScene._pintarOscuridad).
       scene._lucesExtra = function (luz) {
@@ -698,12 +843,14 @@
     scene.events.off('shutdown', st.onApagar);
     scene.events.off('destroy', st.onApagar);
     if (st.objetivo && window.GFEspada && window.GFEspada.quitarObjetivo) window.GFEspada.quitarObjetivo(st.objetivo);
+    if (st.red) { st.red.cerrar(); st.red = null; }
     if (st.barraJefe && st.barraJefe.parentNode) st.barraJefe.parentNode.removeChild(st.barraJefe);
     st.barraJefe = null;
     st.bichos.forEach(function (z) {
       [z.spr, z.sombra, z.barra].forEach(function (o) { try { if (o && o.scene) o.destroy(); } catch (e) {} });
     });
     st.bichos.length = 0;
+    st.porId = {};
     st.jefe = null;
     if (scene._lucesExtra) scene._lucesExtra = null;
     scene.__gfZombis = null;
@@ -712,6 +859,6 @@
   window.GFMinaZombis = {
     montar: montar,
     desmontar: desmontar,
-    _interno: { estado: function (s) { return s && s.__gfZombis; }, podrir: podrir, elegirSitios: elegirSitios }
+    _interno: { estado: function (s) { return s && s.__gfZombis; }, elegirSitios: elegirSitios }
   };
 })();
