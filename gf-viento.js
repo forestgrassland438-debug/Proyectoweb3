@@ -791,7 +791,11 @@
     // otoño, las hojas no se paran en seco, se quedan cayendo despacio.
     if (st.fuerza < suelo) st.fuerza = suelo;
 
-    moverHojas(st, dt, w, h, ahora);
+    var climaActual = window.GFClima && window.GFClima.estado ? window.GFClima.estado() : null;
+    var coposVisibles = st.scene.__gfClima && st.scene.__gfClima.fuerzaNieve > 0.01;
+    if (coposVisibles || climaActual && climaActual.activo && climaActual.nieve) {
+      for (var hoja = 0; hoja < st.hojas.length; hoja++) if (st.hojas[hoja].spr.alpha !== 0) st.hojas[hoja].spr.setAlpha(0);
+    } else moverHojas(st, dt, w, h, ahora);
     moverRafagas(st, dt, w, h);
     mecerArboles(st, ahora);
 

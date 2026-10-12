@@ -114,7 +114,8 @@ const ITEM_CATALOG = {
   espada_cobre:   { name: 'Copper Sword', category: 'herramientas', icon: '/Game/Objetos/armas/espada_cobre.png',    maxStack: 1 },
   espada_hierro:  { name: 'Iron Sword',   category: 'herramientas', icon: '/Game/Objetos/armas/espada_hierro.png',   maxStack: 1 },
   cana_pescar:    { name: 'Fishing Rod',  category: 'herramientas', icon: '/Game/Objetos/pesca/cana_pescar.png',     maxStack: 1 },
-  espantapajaros: { name: 'Scarecrow',    category: 'herramientas', icon: '/Game/Objetos/granja/espantapajaros.png', maxStack: 10 }
+  espantapajaros: { name: 'Scarecrow',    category: 'herramientas', icon: '/Game/Objetos/granja/espantapajaros.png', maxStack: 10 },
+  antorcha:       { name: 'Torch',        category: 'herramientas', icon: '/Game/Objetos/antorcha/antorcha.png',     maxStack: 20 }
 };
 
 const CATEGORIES = [
