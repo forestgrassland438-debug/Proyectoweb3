@@ -46,7 +46,9 @@
   // un campo de texto enfocado o la altura se haya desplomado, se sigue usando
   // esa altura estable y NO se avisa al juego de ningún cambio de tamaño.
   var alturaEstable = 0;
-  var ultimoAncho = 0;
+  // Seed before the first real resize: synthetic startup events are intentionally ignored.
+  // Otherwise the first rotation was mistaken for a keyboard and retained the old height.
+  var ultimoAncho = anchoReal();
 
   function hayCampoEnfocado() {
     var a = doc.activeElement;

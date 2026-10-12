@@ -415,6 +415,7 @@
     // ── AUTO-REFRESH DE TOKEN ─────────────────────────────────────────────
 
     startAutoRefresh() {
+      if (typeof window !== 'undefined' && window.GFSessionAPI) return;
       if (this._autoRefreshInterval) {
         clearInterval(this._autoRefreshInterval);
         this._autoRefreshInterval = null;

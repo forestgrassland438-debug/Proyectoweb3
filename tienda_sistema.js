@@ -290,6 +290,7 @@ class TiendaSistema {
           espada_hierro:  { src: "./Game/Objetos/armas/espada_hierro.png",   maxStack: 1,  tipo: "hierro",         usos: null },
           cana_pescar:    { src: "./Game/Objetos/pesca/cana_pescar.png",     maxStack: 1,  tipo: "caña_pescar",    usos: null },
           espantapajaros: { src: "./Game/Objetos/granja/espantapajaros.png", maxStack: 10, tipo: "espantapajaros", usos: null },
+          antorcha:       { src: "./Game/Objetos/antorcha/antorcha.png",     maxStack: 20, tipo: "antorcha",       usos: null },
           pes1: { src: "./Game/Objetos/pesca/pes1.png", maxStack: 20, tipo: "pes1", usos: null },
           pes2: { src: "./Game/Objetos/pesca/pes2.png", maxStack: 20, tipo: "pes2", usos: null },
           pes3: { src: "./Game/Objetos/pesca/pes3.png", maxStack: 20, tipo: "pes3", usos: null },
@@ -298,6 +299,12 @@ class TiendaSistema {
           pes6: { src: "./Game/Objetos/pesca/pes6.png", maxStack: 20, tipo: "pes6", usos: null },
           pes7: { src: "./Game/Objetos/pesca/pes7.png", maxStack: 20, tipo: "pes7", usos: null, veneno: true },
           pes8: { src: "./Game/Objetos/pesca/pes8.png", maxStack: 20, tipo: "pes8", usos: null, veneno: true },
+          pes9: { src: "./Game/Objetos/pesca/pes9.png", maxStack: 20, tipo: "pes9", usos: null },
+          pes10: { src: "./Game/Objetos/pesca/pes10.png", maxStack: 20, tipo: "pes10", usos: null },
+          pes11: { src: "./Game/Objetos/pesca/pes11.png", maxStack: 20, tipo: "pes11", usos: null },
+          pes12: { src: "./Game/Objetos/pesca/pes12.png", maxStack: 20, tipo: "pes12", usos: null },
+          pes13: { src: "./Game/Objetos/pesca/pes13.png", maxStack: 20, tipo: "pes13", usos: null },
+          pes14: { src: "./Game/Objetos/pesca/pes14.png", maxStack: 20, tipo: "pes14", usos: null, veneno: true },
 
           palo: { src: "./Game/Source/palo.png", maxStack: 20 , tipo: "palo", usos: null},
           tablon_de_madera: { src: "./Game/Source/madera.png", maxStack: 20 , tipo: "tablon_de_madera", usos: null},
@@ -696,6 +703,85 @@ class TiendaSistema {
                     comision: 2,
                     limiteDiario: 0,
                     descripcion: 'Poisonous spines! Its sting drains 20% life over half a minute. Hard to catch, not edible.'
+                },
+                /* SEIS PECES MÁS (2026-10-11): cinco buenos y el pez globo, venenoso. */
+                {
+                    id: 'pes9',
+                    name: 'Silver Pike',
+                    image: './Game/Objetos/pesca/pes9.png',
+                    buyPrice: 0,
+                    sellPrice: 32,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'A fast lake hunter with a silver stripe. Fights in bursts. Restores 14% food.'
+                },
+                {
+                    id: 'pes10',
+                    name: 'Zander',
+                    image: './Game/Objetos/pesca/pes10.png',
+                    buyPrice: 0,
+                    sellPrice: 24,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'A banded river zander. A fair fight. Restores 12% food.'
+                },
+                {
+                    id: 'pes11',
+                    name: 'Ice Trout',
+                    image: './Game/Objetos/pesca/pes11.png',
+                    buyPrice: 0,
+                    sellPrice: 18,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'A pale trout from cold water. Easy to land. Restores 10% food.'
+                },
+                {
+                    id: 'pes12',
+                    name: 'Rainbow Fish',
+                    image: './Game/Objetos/pesca/pes12.png',
+                    buyPrice: 0,
+                    sellPrice: 160,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'Almost a legend: very rare and very hard to land. Restores 30% food.'
+                },
+                {
+                    id: 'pes13',
+                    name: 'King Salmon',
+                    image: './Game/Objetos/pesca/pes13.png',
+                    buyPrice: 0,
+                    sellPrice: 55,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'The king of the river. Strong and stubborn. Restores 20% food.'
+                },
+                {
+                    id: 'pes14',
+                    name: 'Pufferfish',
+                    image: './Game/Objetos/pesca/pes14.png',
+                    buyPrice: 0,
+                    sellPrice: 85,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'Poisonous! It stings when you unhook it and drains 16% life over half a minute. Not edible.'
                 }
             ],
 
@@ -759,6 +845,24 @@ class TiendaSistema {
                     comision: 10,
                     limiteDiario: 0,
                     descripcion: 'Build it on your island (Lands → Build): it guards every crop within 4 tiles for good, and crows perch on it instead of eating. Dig it up with the Construction Shovel to move it. In the village garden, use it on a planted plot to guard it for 2 hours.'
+                },
+                /* LA ANTORCHA (2026-10-11): la de la mina, para clavarla en el
+                 * suelo del pueblo, de la mina o del mapa salvaje. Arde 30
+                 * minutos y se apaga poco a poco (gf-antorchas.js). Su tabla
+                 * (`antorcha`) se da de alta sola (`tablaSola`). */
+                {
+                    id: 'antorcha',
+                    name: 'Torch',
+                    image: './Game/Objetos/antorcha/antorcha.png',
+                    buyPrice: 40,
+                    sellPrice: 20,
+                    currency: 'silver',
+                    categoria: 'construccion',
+                    tabla: 'antorcha',
+                    tablaSola: true,
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'The same torch as in the mine. Pick it in your bag and click the ground near you (village, mine or wild lands): it burns for 30 minutes, lights the night and the caves for everyone, and fades out slowly when it runs out. Up to 20 per slot.'
                 },
                 /* EL BOTE DE BASURA Y LOS COFRES (2026-10-05). Sus tablas
                  * (`basura`, `cofre1..4`) se dan de alta SOLAS con la primera
