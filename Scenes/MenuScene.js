@@ -550,27 +550,17 @@ class MenuScene extends Phaser.Scene {
 
   // Función para cargar y aplicar los ajustes de volumen desde localStorage
   loadVolumeSettings() {
-    // Para la música
-    let cachedMusicVolume = localStorage.getItem('musicVolume');
-    if (cachedMusicVolume !== null) {
-      cachedMusicVolume = parseFloat(cachedMusicVolume);
-      // Aplica el volumen guardado a la música
-      this.musica.setVolume(cachedMusicVolume);
-    } else {
-      cachedMusicVolume = this.musica.volume;
-    }
-    // Guarda el valor de la música en una propiedad para usar en el panel
-    this.musicVolume = cachedMusicVolume;
-
-    // Para los SFX
-    let cachedSfxVolume = localStorage.getItem('sfxVolume');
-    if (cachedSfxVolume !== null) {
-      cachedSfxVolume = parseFloat(cachedSfxVolume);
-      this.sfxVolume = cachedSfxVolume;
-    } else {
-      cachedSfxVolume = 1;
-      this.sfxVolume = 1;
-    }
+    const read = (key, fallback) => {
+      let value = null;
+      try { value = localStorage.getItem(key); } catch (_) {}
+      const number = value !== null && String(value).trim() !== '' ? Number(value) : fallback;
+      return Number.isFinite(number) ? Math.max(0, Math.min(1, number)) : fallback;
+    };
+    const current = this.musica && this.musica.volume;
+    const fallback = Number.isFinite(current) ? Math.max(0, Math.min(1, current)) : 1;
+    this.musicVolume = read('musicVolume', fallback);
+    if (this.musica && typeof this.musica.setVolume === 'function') this.musica.setVolume(this.musicVolume);
+    this.sfxVolume = read('sfxVolume', 1);
   }
 
   openVolumePanel() {

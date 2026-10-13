@@ -316,13 +316,17 @@ class LoadingScenegame extends Phaser.Scene {
 
     async loadx() {
         console.log('🔍 Iniciando verificación de autenticación...');
+        const turno = this._turnoCreate;
+        const vigente = () => turno === this._turnoCreate;
 
         try {
             await this.getCSRFToken();
+            if (!vigente()) return false;
 
             const response = await this.fetchWithTokenRetry(`${this.serverBase}/api/auth/me`, {
                 method: 'GET'
             });
+            if (!vigente()) return false;
 
             console.log('📊 Response status de /api/auth/me:', response.status);
 
@@ -331,12 +335,15 @@ class LoadingScenegame extends Phaser.Scene {
 
                 if (response.status === 401) {
                     const refreshSuccess = await this.refreshAuthToken();
+                    if (!vigente()) return false;
                     if (refreshSuccess) {
                         const retryResponse = await this.fetchWithTokenRetry(
                             `${this.serverBase}/api/auth/me`, { method: 'GET' }
                         );
+                        if (!vigente()) return false;
                         if (retryResponse.ok) {
                             const data = await retryResponse.json();
+                            if (!vigente()) return false;
                             return this.handleAuthSuccess(data);
                         }
                     }
@@ -347,9 +354,11 @@ class LoadingScenegame extends Phaser.Scene {
             }
 
             const data = await response.json();
+            if (!vigente()) return false;
             return this.handleAuthSuccess(data);
 
         } catch (error) {
+            if (!vigente()) return false;
             console.error('❌ Error en loadx:', error);
             this.showTokenErrorHub();
             return false;
@@ -379,15 +388,21 @@ class LoadingScenegame extends Phaser.Scene {
     }
 
     async getCSRFToken() {
+        const turno = this._turnoCreate;
+        if (this._csrfController) this._csrfController.abort();
+        const controller = this._csrfController = new AbortController();
+        const deadline = setTimeout(() => controller.abort(), 15000);
         try {
             console.log('🛡️ Obteniendo token CSRF...');
             const response = await fetch(`${this.serverBase}/api/auth/csrf-token`, {
                 method: 'GET',
+                signal: controller.signal,
                 credentials: 'include'
             });
 
             if (response.ok) {
                 const data = await response.json();
+                if (controller.signal.aborted || turno !== this._turnoCreate) return false;
                 this.csrfToken = data.csrfToken;
                 window.csrfToken = data.csrfToken; // Compartir con StatsSync
                 console.log('✅ Token CSRF obtenido:', this.csrfToken ? 'Sí' : 'No');
@@ -399,6 +414,9 @@ class LoadingScenegame extends Phaser.Scene {
         } catch (error) {
             console.error('❌ Error obteniendo CSRF token:', error);
             return false;
+        } finally {
+            clearTimeout(deadline);
+            if (this._csrfController === controller) this._csrfController = null;
         }
     }
 
@@ -423,10 +441,9 @@ class LoadingScenegame extends Phaser.Scene {
     // =========================================================================
 
     startAutoRefresh() {
-        if (this.autoRefreshInterval) {
-            clearInterval(this.autoRefreshInterval);
-            this.autoRefreshInterval = null;
-        }
+        this.stopAutoRefresh();
+        const generation = this._autoRefreshGeneration;
+        const vigente = () => generation === this._autoRefreshGeneration;
 
         if (!this.autoRefreshEnabled || !this.isAuthenticated) {
             console.log('🔄 Auto-refresh deshabilitado o usuario no autenticado');
@@ -454,6 +471,7 @@ class LoadingScenegame extends Phaser.Scene {
                 const inactiveTime = now - this.lastActivityTime;
                 if (inactiveTime < 30 * 60 * 1000) {
                     const success = await this.refreshAuthToken();
+                    if (!vigente()) return;
 
                     if (success) {
                         console.log('✅ Auto-refresh exitoso');
@@ -466,6 +484,7 @@ class LoadingScenegame extends Phaser.Scene {
                         if (this.currentRefreshAttempts >= this.maxRefreshAttempts) {
                             console.error('❌ Demasiados intentos fallidos de auto-refresh');
                             const authStatus = await this.checkAuthStatus();
+                            if (!vigente()) return;
                             if (!authStatus) {
                                 console.log('🔐 Autenticación perdida, mostrando error');
                                 this.showTokenErrorHub();
@@ -485,6 +504,7 @@ class LoadingScenegame extends Phaser.Scene {
     }
 
     stopAutoRefresh() {
+        this._autoRefreshGeneration = (this._autoRefreshGeneration || 0) + 1;
         if (this.autoRefreshInterval) {
             clearInterval(this.autoRefreshInterval);
             this.autoRefreshInterval = null;
@@ -499,12 +519,19 @@ class LoadingScenegame extends Phaser.Scene {
         }
 
         this.refreshInProgress = true;
+        const turno = this._turnoCreate;
+        const playerName = this.playerName;
+        const controller = new AbortController();
+        this._authRefreshController = controller;
+        const deadline = setTimeout(() => controller.abort(), 15000);
+        const vigente = () => !controller.signal.aborted && turno === this._turnoCreate && playerName === this.playerName;
 
         try {
             console.log('🔄 Refrescando token de autenticación...');
 
             const response = await fetch(`${this.serverBase}/api/auth/refresh`, {
                 method: 'POST',
+                signal: controller.signal,
                 credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
@@ -516,6 +543,7 @@ class LoadingScenegame extends Phaser.Scene {
 
             if (response.ok) {
                 const data = await response.json();
+                if (!vigente()) return false;
                 if (data.csrfToken) {
                     this.csrfToken = data.csrfToken;
                     window.csrfToken = data.csrfToken;
@@ -533,8 +561,13 @@ class LoadingScenegame extends Phaser.Scene {
             }
         } catch (error) {
             console.error('❌ Error al refrescar token:', error);
-            this.refreshInProgress = false;
             return false;
+        } finally {
+            clearTimeout(deadline);
+            if (this._authRefreshController === controller) {
+                this._authRefreshController = null;
+                this.refreshInProgress = false;
+            }
         }
     }
 
@@ -543,6 +576,15 @@ class LoadingScenegame extends Phaser.Scene {
     // =========================================================================
 
     async fetchWithTokenRetry(url, options = {}, maxRetries = 2) {
+        const turno = this._turnoCreate;
+        const assertActive = () => {
+            if (turno !== this._turnoCreate || options.signal?.aborted) {
+                const error = new Error('Loading request cancelled');
+                error.name = 'AbortError';
+                throw error;
+            }
+        };
+        maxRetries = Number.isFinite(maxRetries) ? Math.max(0, Math.min(5, Math.floor(maxRetries))) : 2;
         const defaultOptions = {
             credentials: 'include',
             headers: {
@@ -566,9 +608,11 @@ class LoadingScenegame extends Phaser.Scene {
 
         while (retries <= maxRetries) {
             try {
+                assertActive();
                 console.log(`📤 Fetch ${url} (intento ${retries + 1}/${maxRetries + 1})`);
 
                 const response = await fetch(url, fetchOptions);
+                assertActive();
                 lastResponse = response;
 
                 if (response.ok) return response;
@@ -578,16 +622,18 @@ class LoadingScenegame extends Phaser.Scene {
 
                     let errorBody = {};
                     try { errorBody = await response.json(); } catch (e) { /* noop */ }
+                    assertActive();
 
-                    const isTokenError = errorBody.error && (
+                    const isTokenError = errorBody.canRefresh === true || (typeof errorBody.error === 'string' && (
                         errorBody.error.includes('token_expired') ||
                         errorBody.error.includes('invalid_session') ||
                         errorBody.error.includes('authentication_required') ||
                         errorBody.canRefresh === true
-                    );
+                    ));
 
                     if (isTokenError && retries < maxRetries) {
                         const refreshSuccess = await this.refreshAuthToken();
+                        assertActive();
                         if (refreshSuccess) {
                             fetchOptions.headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
                             retries++;
@@ -605,6 +651,7 @@ class LoadingScenegame extends Phaser.Scene {
                     console.log('🔐 Error 403, verificando CSRF...');
                     if (retries < maxRetries) {
                         await this.getCSRFToken();
+                        assertActive();
                         if (this.csrfToken) {
                             fetchOptions.headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
                             retries++;
@@ -626,6 +673,7 @@ class LoadingScenegame extends Phaser.Scene {
                 }
 
             } catch (error) {
+                if (error?.name === 'AbortError' || turno !== this._turnoCreate || options.signal?.aborted) throw error;
                 console.error(`❌ Error de red (intento ${retries + 1}):`, error);
                 retries++;
                 if (retries > maxRetries) throw error;
@@ -817,6 +865,8 @@ class LoadingScenegame extends Phaser.Scene {
      * No-bloqueante: si falla, continúa con los valores cargados desde BD.
      */
     async syncStatsWithBlockchain() {
+        const turno = this._turnoCreate, playerName = this.playerName, address = this.address;
+        const vigente = () => turno === this._turnoCreate && playerName === this.playerName && address === this.address;
         if (!this.address || !this.isAuthenticated || !this.playerName) {
             console.warn('⚠️ [stats-sync] Saltando: usuario no autenticado');
             return;
@@ -832,6 +882,7 @@ class LoadingScenegame extends Phaser.Scene {
                     body: JSON.stringify({ address: this.address })
                 }
             );
+            if (!vigente()) return;
 
             if (!resp || !resp.ok) {
                 const errText = resp ? await resp.text().catch(() => '') : 'sin respuesta';
@@ -840,6 +891,7 @@ class LoadingScenegame extends Phaser.Scene {
             }
 
             const data = await resp.json();
+            if (!vigente()) return;
             const stats = data.stats;
 
             if (!stats) {
@@ -1775,6 +1827,7 @@ class LoadingScenegame extends Phaser.Scene {
 
     async create() {
         console.log('🚀 Iniciando LoadingScenegame...');
+        if (this._createFin) this._createFin();
 
         /* ESTA PASADA POR create() PUEDE QUEDAR ANTICUADA.
          *
@@ -1793,120 +1846,153 @@ class LoadingScenegame extends Phaser.Scene {
             return st !== Phaser.Scenes.SHUTDOWN && st !== Phaser.Scenes.DESTROYED;
         };
         const pararRelojes = () => {
-            if (this._turnoCreate === turno) this._turnoCreate++;
-            this._pararRelojes();
+            if (this._turnoCreate === turno) {
+                this._turnoCreate++;
+                this._pararRelojes();
+            }
+            if (this._createFin === fin) this._createFin = null;
         };
-        this.events.once('shutdown', pararRelojes);
-        this.events.once('destroy',  pararRelojes);
+        const fin = this._createFin = this._onceLoadingEnd(pararRelojes);
 
-        const isAuthenticated = await this.loadx();
-        if (!vigente()) { this._pararRelojes(); return; }
+        try {
+            const isAuthenticated = await this.loadx();
+            if (!vigente()) return;
 
-        if (!isAuthenticated) {
-            console.error('❌ No se pudo autenticar al usuario');
-            return;
+            if (!isAuthenticated) {
+                console.error('❌ No se pudo autenticar al usuario');
+                return;
+            }
+
+            if (!this.playerName) {
+                console.error('❌ No player name available');
+                this.showTokenErrorHub();
+                return;
+            }
+
+            console.log('🎮 Player name disponible:', this.playerName);
+
+            // ── 0. ESPERAR A LAS TRANSACCIONES EN VUELO ─────────────────────────
+            // Si el jugador acaba de comprar algo en la tienda y salió corriendo,
+            // esa transacción sigue viva en el contador global (tx-gate.js) aunque
+            // la escena de la tienda ya se haya destruido. Cargar los datos del
+            // jugador AHORA leería un inventario que todavía no incluye la compra,
+            // y todo lo que viene después (sync con blockchain, guardado) partiría
+            // de datos viejos. Así que primero se espera a que no quede nada.
+            // ── LOS MENSAJES SON PARA EL JUGADOR, NO PARA EL PROGRAMADOR ────────
+            // Antes se leía "Syncing with blockchain...", "Checking your items
+            // on-chain...", "Syncing player stats...". Eso es el nombre interno de
+            // lo que hace el código, y a quien está esperando para jugar no le dice
+            // nada: solo le recuerda que hay maquinaria complicada por detrás.
+            // Ahora se cuenta lo mismo en el idioma del juego — sigue siendo cierto
+            // (se están recuperando sus cosas, su granja, su mundo), pero se lee
+            // como parte de la partida.
+            this.loadingSystem.show({ message: 'Waking up the forest…', initialProgress: 0 });
+            this._arrancarConsejosDeCarga();
+            this._paso('datos', 'activo', 'Waking up the forest…', 0.05);
+            await this._esperarTransaccionesPendientes();
+            if (!vigente()) return;
+
+            // ── 1. Cargar datos del jugador desde la BD ─────────────────────────
+            this._paso('datos', 'activo', 'Finding your farm…', 0.2);
+
+            await this.loadPlayerData();
+            if (!vigente()) return;
+            this._paso('datos', 'hecho');
+
+            // ── 2. Sincronizar inventario contra blockchain ──────────────────────
+            //      RECONCILIACIÓN (no destructiva): la sync deja intactos los ítems
+            //      cuyo (idx, manualId, cantidad) coincide con la blockchain, corrige
+            //      las cantidades que difieran y ELIMINA de la BD lo que no exista
+            //      on-chain. No se borra la siembra ni se vacía el cache.
+            this._paso('blockchain', 'activo', 'Opening your chest…', 0.45);
+
+            // ── 3. Sincronizar stats vitales PRIMERO (antes del inventario)
+            // Así oro/plata quedan en 0 antes de que el save del inventario los guarde.
+            this._paso('stats', 'activo', 'Counting your coins…', 0.62);
+            await this.syncStatsWithBlockchain();
+            if (!vigente()) return;
+            this._paso('stats', 'hecho');
+
+            // ── Luego sincronizar inventario con blockchain ──
+            this._paso('blockchain', 'activo', 'Dusting off your tools…', 0.75);
+            await this.syncInventoryWithBlockchain();
+            if (!vigente()) return;
+            this._paso('blockchain', 'hecho');
+
+            // ── 4. Barra de progreso final ───────────────────────────────────────
+            this._paso('mundo', 'activo', 'Growing the grass…', 0.9);
+            await this.loadResources();
+            if (!vigente()) return;
+            this._paso('mundo', 'hecho', 'Everything is ready. Have fun!', 1);
+
+            // ── 4. Fondo animado ─────────────────────────────────────────────────
+            this.stars    = [];
+            this.graphics = this.add.graphics();
+
+            this.createStarLayer(15, 1, 50,  80);
+            this.createStarLayer(20, 2, 100, 150);
+            this.createStarLayer(15, 3, 150, 250);
+
+            // ── 5. Iniciar ciclo de transición ───────────────────────────────────
+            this.intervalId = setInterval(() => this.checkTransition(), 2000);
+
+            this.setupActivityTracking();
+
+            /* Y LOS RELOJES SE PARAN AL APAGAR LA ESCENA.
+             *
+             * FUGA QUE ESTO ARREGLA: los dos relojes de esta pantalla —el sondeo de
+             * transición cada 2 s y el auto-refresco del token— solo se paraban por
+             * los caminos "buenos" de `checkTransition`. Por cualquier otro (el hub
+             * de error, una escena que se arranca desde fuera, una recarga de
+             * sesión) se quedaban corriendo PARA SIEMPRE sobre una escena que ya no
+             * existe, y con ella colgando de la referencia.
+             *
+             * Aquí solo se paran los relojes. El `relayClient` NO se toca a
+             * propósito: su `cleanup()` tira las transacciones pendientes, y esta
+             * pantalla lanza transacciones on-chain que pueden seguir en vuelo
+             * cuando ya se ha pasado a GameScene (para eso está
+             * `esperarTransaccionesEnVuelo`). Matarlas aquí sería peor que la fuga.
+             *
+             * (Los `once('shutdown'/'destroy')` que los paran se ponen al PRINCIPIO
+             * de create(): ver `vigente`.)
+             */
+        } catch (error) {
+            if (!vigente()) return;
+            console.error('❌ LoadingScenegame: carga interrumpida:', error);
+            fin();
+            this.loadingSystem?.show?.({ message: 'Loading failed. Reload to try again.' });
+            return false;
         }
-
-        if (!this.playerName) {
-            console.error('❌ No player name available');
-            this.showTokenErrorHub();
-            return;
-        }
-
-        console.log('🎮 Player name disponible:', this.playerName);
-
-        // ── 0. ESPERAR A LAS TRANSACCIONES EN VUELO ─────────────────────────
-        // Si el jugador acaba de comprar algo en la tienda y salió corriendo,
-        // esa transacción sigue viva en el contador global (tx-gate.js) aunque
-        // la escena de la tienda ya se haya destruido. Cargar los datos del
-        // jugador AHORA leería un inventario que todavía no incluye la compra,
-        // y todo lo que viene después (sync con blockchain, guardado) partiría
-        // de datos viejos. Así que primero se espera a que no quede nada.
-        // ── LOS MENSAJES SON PARA EL JUGADOR, NO PARA EL PROGRAMADOR ────────
-        // Antes se leía "Syncing with blockchain...", "Checking your items
-        // on-chain...", "Syncing player stats...". Eso es el nombre interno de
-        // lo que hace el código, y a quien está esperando para jugar no le dice
-        // nada: solo le recuerda que hay maquinaria complicada por detrás.
-        // Ahora se cuenta lo mismo en el idioma del juego — sigue siendo cierto
-        // (se están recuperando sus cosas, su granja, su mundo), pero se lee
-        // como parte de la partida.
-        this.loadingSystem.show({ message: 'Waking up the forest…', initialProgress: 0 });
-        this._arrancarConsejosDeCarga();
-        this._paso('datos', 'activo', 'Waking up the forest…', 0.05);
-        await this._esperarTransaccionesPendientes();
-        if (!vigente()) return;
-
-        // ── 1. Cargar datos del jugador desde la BD ─────────────────────────
-        this._paso('datos', 'activo', 'Finding your farm…', 0.2);
-
-        await this.loadPlayerData();
-        if (!vigente()) return;
-        this._paso('datos', 'hecho');
-
-        // ── 2. Sincronizar inventario contra blockchain ──────────────────────
-        //      RECONCILIACIÓN (no destructiva): la sync deja intactos los ítems
-        //      cuyo (idx, manualId, cantidad) coincide con la blockchain, corrige
-        //      las cantidades que difieran y ELIMINA de la BD lo que no exista
-        //      on-chain. No se borra la siembra ni se vacía el cache.
-        this._paso('blockchain', 'activo', 'Opening your chest…', 0.45);
-
-        // ── 3. Sincronizar stats vitales PRIMERO (antes del inventario)
-        // Así oro/plata quedan en 0 antes de que el save del inventario los guarde.
-        this._paso('stats', 'activo', 'Counting your coins…', 0.62);
-        await this.syncStatsWithBlockchain();
-        if (!vigente()) return;
-        this._paso('stats', 'hecho');
-
-        // ── Luego sincronizar inventario con blockchain ──
-        this._paso('blockchain', 'activo', 'Dusting off your tools…', 0.75);
-        await this.syncInventoryWithBlockchain();
-        if (!vigente()) return;
-        this._paso('blockchain', 'hecho');
-
-        // ── 4. Barra de progreso final ───────────────────────────────────────
-        this._paso('mundo', 'activo', 'Growing the grass…', 0.9);
-        await this.loadResources();
-        if (!vigente()) return;
-        this._paso('mundo', 'hecho', 'Everything is ready. Have fun!', 1);
-
-        // ── 4. Fondo animado ─────────────────────────────────────────────────
-        this.stars    = [];
-        this.graphics = this.add.graphics();
-
-        this.createStarLayer(15, 1, 50,  80);
-        this.createStarLayer(20, 2, 100, 150);
-        this.createStarLayer(15, 3, 150, 250);
-
-        // ── 5. Iniciar ciclo de transición ───────────────────────────────────
-        this.intervalId = setInterval(() => this.checkTransition(), 2000);
-
-        this.setupActivityTracking();
-
-        /* Y LOS RELOJES SE PARAN AL APAGAR LA ESCENA.
-         *
-         * FUGA QUE ESTO ARREGLA: los dos relojes de esta pantalla —el sondeo de
-         * transición cada 2 s y el auto-refresco del token— solo se paraban por
-         * los caminos "buenos" de `checkTransition`. Por cualquier otro (el hub
-         * de error, una escena que se arranca desde fuera, una recarga de
-         * sesión) se quedaban corriendo PARA SIEMPRE sobre una escena que ya no
-         * existe, y con ella colgando de la referencia.
-         *
-         * Aquí solo se paran los relojes. El `relayClient` NO se toca a
-         * propósito: su `cleanup()` tira las transacciones pendientes, y esta
-         * pantalla lanza transacciones on-chain que pueden seguir en vuelo
-         * cuando ya se ha pasado a GameScene (para eso está
-         * `esperarTransaccionesEnVuelo`). Matarlas aquí sería peor que la fuga.
-         *
-         * (Los `once('shutdown'/'destroy')` que los paran se ponen al PRINCIPIO
-         * de create(): ver `vigente`.)
-         */
     }
 
     /** Para los relojes de esta pantalla. Idempotente. */
     _pararRelojes() {
         if (this.intervalId) { clearInterval(this.intervalId); this.intervalId = null; }
         this.stopAutoRefresh();
+        if (this._authRefreshController) this._authRefreshController.abort();
+        if (this._csrfController) this._csrfController.abort();
+        if (this._gateWaitController) this._gateWaitController.abort();
+        if (this._consejosFin) this._consejosFin();
         this._pararSeguimientoActividad();
+    }
+
+    /** Shutdown and destroy are alternatives; remove the unused listener too. */
+    _onceLoadingEnd(callback) {
+        let done = false;
+        const detach = () => {
+            this.events.off('shutdown', finish);
+            this.events.off('destroy', finish);
+        };
+        const finish = () => {
+            if (done) return;
+            done = true;
+            detach();
+            callback();
+        };
+        finish.cancel = () => { done = true; detach(); };
+        this.events.once('shutdown', finish);
+        this.events.once('destroy', finish);
+        return finish;
     }
 
     // =========================================================================
@@ -1982,9 +2068,9 @@ class LoadingScenegame extends Phaser.Scene {
         // elemento oculto durante toda la partida (ver la auditoría de fugas).
         const parar = () => {
             if (this._consejosTimer) { clearInterval(this._consejosTimer); this._consejosTimer = null; }
+            this._consejosFin = null;
         };
-        this.events.once('shutdown', parar);
-        this.events.once('destroy',  parar);
+        this._consejosFin = this._onceLoadingEnd(parar);
     }
 
     /**
@@ -2006,18 +2092,22 @@ class LoadingScenegame extends Phaser.Scene {
         console.log(`⏳ ${gate.pending()} transacción(es) en vuelo — esperando antes de cargar`);
 
         const texto = this.loadingSystem && this.loadingSystem.textElement;
+        const controller = this._gateWaitController = new AbortController();
         /* Hasta 4 minutos: una compra de la tienda puede esperar a la cadena
            2 minutos por intento. Con 90 s se seguía cargando con la compra a
            medias, y el objeto no aparecía en el mapa hasta la carga siguiente. */
         const resultado = await gate.whenIdle({
             timeout: 240000,
+            signal: controller.signal,
             onTick: (n, etiquetas) => {
-                if (!texto) return;
+                if (!texto || controller.signal.aborted) return;
                 texto.textContent = n === 1
                     ? `Finishing 1 pending transaction… (${etiquetas[0] || ''})`
                     : `Finishing ${n} pending transactions…`;
             }
         });
+        if (this._gateWaitController === controller) this._gateWaitController = null;
+        if (resultado.cancelled || controller.signal.aborted) return;
 
         if (texto) texto.textContent = 'Loading player data...';
         if (!resultado.idle) {
@@ -2036,11 +2126,14 @@ class LoadingScenegame extends Phaser.Scene {
         // "retroceso" y soltaba 8 avisos en consola en cada carga. Ahora se
         // avanza desde donde esté. Y el texto va protegido: sin el elemento en
         // el HTML, el TypeError tumbaba create() entero y la carga no terminaba.
+        const turno = this._turnoCreate;
+        const vigente = () => turno === this._turnoCreate;
         const desde = Math.min(1, this.loadingSystem.currentProgress || 0);
         const texto = (t) => { if (this.loadingSystem.textElement) this.loadingSystem.textElement.textContent = t; };
 
         for (let i = 0; i <= steps; i++) {
             await new Promise(resolve => setTimeout(resolve, stepDelay));
+            if (!vigente()) return;
 
             const progress     = i / steps;
             const easedProgress = this.loadingSystem.easeOutCubic(progress);
@@ -2060,6 +2153,7 @@ class LoadingScenegame extends Phaser.Scene {
         texto('Loaded successfully!');
 
         await new Promise(resolve => setTimeout(resolve, 700));
+        if (!vigente()) return;
         this.loadingSystem.hide(600);
     }
 
@@ -2101,12 +2195,13 @@ class LoadingScenegame extends Phaser.Scene {
         }, 5 * 60 * 1000);
 
         const parar = () => this._pararSeguimientoActividad();
-        this.events.once('shutdown', parar);
-        this.events.once('destroy',  parar);
+        this._actividadFin = this._onceLoadingEnd(parar);
     }
 
     /** Suelta los manejadores y el reloj del seguimiento de actividad. */
     _pararSeguimientoActividad() {
+        if (this._actividadFin) this._actividadFin.cancel();
+        this._actividadFin = null;
         if (this._actividadHandler && this._actividadEventos) {
             this._actividadEventos.forEach((ev) => {
                 try { window.removeEventListener(ev, this._actividadHandler); } catch (e) { /* ya no estaba */ }
@@ -2343,6 +2438,8 @@ class LoadingScenegame extends Phaser.Scene {
      *     que todo lo de dentro era código muerto y los relojes seguían vivos.
      */
     limpiezaCompleta() {
+        if (this._createFin) this._createFin();
+        else this._turnoCreate = (this._turnoCreate || 0) + 1;
         this._pararRelojes();
 
         // Limpiar relay client

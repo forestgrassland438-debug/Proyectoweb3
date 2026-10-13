@@ -475,25 +475,31 @@ class SalvajeScene extends GameScene {
     }
   }
 
-  _volverAlPueblo() {
-    console.log('🌲 de vuelta al pueblo');
-    try { this._cancelarArrastre(); } catch (e) {}
-    try { this.player.anims.stop(); } catch (e) {}
-    const destino = { x: SALVAJE_VUELTA.x, y: SALVAJE_VUELTA.y, mundo: 1 };
-    // La nota de viaje: el pueblo aparece en su camino del borde oeste aunque
-    // el guardado llegue tarde (ver tiendajuego/GameScene).
-    window.__gfViaje = { mundo: 1, x: destino.x, y: destino.y, islaDe: null, islaDeNombre: null, t: Date.now() };
-    this._dejarPartidaEnElMapa(destino.x, destino.y);
-    this._ocultarHUD();
-    try { this.removeListener(); } catch (e) {}
-    try { this._unbindAllDomClicks(); } catch (e) {}
-    try { this.stopMusicSafely(); } catch (e) {}
-    this._salaDestino = 'game';
-    if (this.socket && this.socket.connected) {
-      this.socket.emit('joinRoom', { room: 'game', username: this.Username || '---', lastScene: 'SalvajeScene', x: destino.x, y: destino.y });
+  async _volverAlPueblo() {
+    if (this._salidaGuardando) return;
+    const salida = this._salidaGuardando = {};
+    try {
+        console.log('🌲 de vuelta al pueblo');
+        try { this._cancelarArrastre(); } catch (e) {}
+        try { this.player.anims.stop(); } catch (e) {}
+        const destino = { x: SALVAJE_VUELTA.x, y: SALVAJE_VUELTA.y, mundo: 1 };
+        // La nota de viaje: el pueblo aparece en su camino del borde oeste aunque
+        // el guardado llegue tarde (ver tiendajuego/GameScene).
+        if (!await this._confirmarSalidaAlMapa(destino.x, destino.y)) return;
+        window.__gfViaje = { mundo: 1, x: destino.x, y: destino.y, islaDe: null, islaDeNombre: null, t: Date.now() };
+        this._ocultarHUD();
+        try { this.removeListener(); } catch (e) {}
+        try { this._unbindAllDomClicks(); } catch (e) {}
+        try { this.stopMusicSafely(); } catch (e) {}
+        this._salaDestino = 'game';
+        if (this.socket && this.socket.connected) {
+          this.socket.emit('joinRoom', { room: 'game', username: this.Username || '---', lastScene: 'SalvajeScene', x: destino.x, y: destino.y });
+        }
+        try { this.cleanupScene(); } catch (e) { console.warn('limpieza:', e); }
+        this.scene.start('LoadingScenegame', { targetScene: 'GameScene', playerData: destino });
+    } finally {
+      if (this._salidaGuardando === salida) this._salidaGuardando = null;
     }
-    try { this.cleanupScene(); } catch (e) { console.warn('limpieza:', e); }
-    this.scene.start('LoadingScenegame', { targetScene: 'GameScene', playerData: destino });
   }
 
   // =========================================================================

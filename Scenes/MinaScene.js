@@ -1647,54 +1647,60 @@ class MinaScene extends GameScene {
     this._volverAlMapa();
   }
 
-  _volverAlMapa() {
-    console.log('⛏️ saliendo de la mina');
+  async _volverAlMapa() {
+    if (this._salidaGuardando) return;
+    const salida = this._salidaGuardando = {};
+    try {
+        console.log('⛏️ saliendo de la mina');
 
-    // Soltar el item que se llevara en la mano: el div del arrastre es DOM
-    // compartido y se quedaria pegado al cursor en la escena siguiente.
-    try { this._cancelarArrastre(); } catch (e) {}
-    try { this.player.anims.stop(); } catch (e) {}
+        // Soltar el item que se llevara en la mano: el div del arrastre es DOM
+        // compartido y se quedaria pegado al cursor en la escena siguiente.
+        try { this._cancelarArrastre(); } catch (e) {}
+        try { this.player.anims.stop(); } catch (e) {}
 
-    // Donde se reaparece arriba: justo DEBAJO del hueco de la puerta de la
-    // mina, en el pasillo que dejan los dos muros de la entrada (x 3305..3363,
-    // y ~730). Si se pusiera dentro del rectangulo de la puerta, el candado
-    // `_puertaArmada` de GameScene lo resolveria, pero el jugador apareceria
-    // encima del batiente.
-    const destino = { x: 3334, y: 760, mundo: 1 };
+        // Donde se reaparece arriba: justo DEBAJO del hueco de la puerta de la
+        // mina, en el pasillo que dejan los dos muros de la entrada (x 3305..3363,
+        // y ~730). Si se pusiera dentro del rectangulo de la puerta, el candado
+        // `_puertaArmada` de GameScene lo resolveria, pero el jugador apareceria
+        // encima del batiente.
+        const destino = { x: 3334, y: 760, mundo: 1 };
 
-    /* GUARDAR CON EL MUNDO YA CORREGIDO, y no `savegg()` a secas.
-       `savegg()` guarda `mundo: this.mundo`, que aqui vale 3. Guardando tal
-       cual, la partida quedaba como "esta en la mina" y la pantalla de carga
-       -que ignora el `playerData` de abajo y lee siempre de /api/load- te
-       devolvia a la mina. El `playerData` del scene.start se deja porque es
-       lo que hacen las otras transiciones del juego, pero quien manda de
-       verdad es esta linea. */
-    this._dejarPartidaEnElMapa(destino.x, destino.y);
+        /* GUARDAR CON EL MUNDO YA CORREGIDO, y no `savegg()` a secas.
+           `savegg()` guarda `mundo: this.mundo`, que aqui vale 3. Guardando tal
+           cual, la partida quedaba como "esta en la mina" y la pantalla de carga
+           -que ignora el `playerData` de abajo y lee siempre de /api/load- te
+           devolvia a la mina. El `playerData` del scene.start se deja porque es
+           lo que hacen las otras transiciones del juego, pero quien manda de
+           verdad es esta linea. */
+        if (!await this._confirmarSalidaAlMapa(destino.x, destino.y)) return;
 
-    this._ocultarHUD();
-    try { this.removeListener(); } catch (e) {}
-    try { this._unbindAllDomClicks(); } catch (e) {}
-    try { this.stopMusicSafely(); } catch (e) {}
+        this._ocultarHUD();
+        try { this.removeListener(); } catch (e) {}
+        try { this._unbindAllDomClicks(); } catch (e) {}
+        try { this.stopMusicSafely(); } catch (e) {}
 
-    // El apagado heredado de GameScene entra en `_salaAlSalir()`: que sea la
-    // del mapa, la misma que se pide aquí, y no 'fuera'.
-    this._salaDestino = 'game';
-    if (this.socket && this.socket.connected) {
-      this.socket.emit('joinRoom', {
-        room: 'game',
-        username: this.Username || '---',
-        lastScene: 'MinaScene',
-        x: destino.x,
-        y: destino.y
-      });
+        // El apagado heredado de GameScene entra en `_salaAlSalir()`: que sea la
+        // del mapa, la misma que se pide aquí, y no 'fuera'.
+        this._salaDestino = 'game';
+        if (this.socket && this.socket.connected) {
+          this.socket.emit('joinRoom', {
+            room: 'game',
+            username: this.Username || '---',
+            lastScene: 'MinaScene',
+            x: destino.x,
+            y: destino.y
+          });
+        }
+
+        try { this.cleanupScene(); } catch (e) { console.warn('limpieza:', e); }
+
+        this.scene.start('LoadingScenegame', {
+          targetScene: 'GameScene',
+          playerData: destino
+        });
+    } finally {
+      if (this._salidaGuardando === salida) this._salidaGuardando = null;
     }
-
-    try { this.cleanupScene(); } catch (e) { console.warn('limpieza:', e); }
-
-    this.scene.start('LoadingScenegame', {
-      targetScene: 'GameScene',
-      playerData: destino
-    });
   }
 
 
@@ -1776,7 +1782,12 @@ class MinaScene extends GameScene {
 
     const texturasMina = ['tiles_mina', 'piezas_mina', 'lava_burbuja', 'mina_luz'];
     Object.keys(LIQUIDOS_MINA).forEach(m => {
-      for (let f = 0; f < LIQUIDOS_MINA[m].fotogramas; f++) texturasMina.push('mina_' + m + '_' + f);
+      for (let f = 0; f < LIQUIDOS_MINA[m].fotogramas; f++) {
+        // (2026-10-11) Y su copia EXTRUIDA (`_x`, de lienzo, ver
+        // _extruirTileset): se quedaba en el pueblo, ~11 MB de memoria de
+        // vídeo entre la lava y el agua. Se rehace al volver a entrar.
+        texturasMina.push('mina_' + m + '_' + f, 'mina_' + m + '_' + f + '_x');
+      }
     });
     texturasMina
       .forEach(clave => {

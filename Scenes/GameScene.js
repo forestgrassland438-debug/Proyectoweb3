@@ -2499,11 +2499,11 @@ showNotification(message, type = 'info') {
     // gallo 
 
     
-    this.load.image('gallo_1', './Game/Sprites/Chiken/1.png');
-    this.load.image('gallo_2', './Game/Sprites/Chiken/2.png');
-    this.load.image('gallo_3', './Game/Sprites/Chiken/3.png');
-    this.load.image('gallo_4', './Game/Sprites/Chiken/4.png');
-    this.load.image('gallo_5', './Game/Sprites/Chiken/5.png');
+    this.load.image('gallo_1', './Game/Sprites/gallo3d/1.png');
+    this.load.image('gallo_2', './Game/Sprites/gallo3d/2.png');
+    this.load.image('gallo_3', './Game/Sprites/gallo3d/3.png');
+    this.load.image('gallo_4', './Game/Sprites/gallo3d/4.png');
+    this.load.image('gallo_5', './Game/Sprites/gallo3d/5.png');
 
     //perro
 
@@ -2560,19 +2560,21 @@ showNotification(message, type = 'info') {
         
     // Cuervos. 13 fotogramas sueltos, todos de 30x24: el juego monta las
     // animaciones con texturas independientes, no con hojas de sprites.
-    this.load.image('cuervo_quieto_1', './Game/Sprites/cuervo/cuervo_quieto_1.png');
-    this.load.image('cuervo_quieto_2', './Game/Sprites/cuervo/cuervo_quieto_2.png');
-    this.load.image('cuervo_camina_1', './Game/Sprites/cuervo/cuervo_camina_1.png');
-    this.load.image('cuervo_camina_2', './Game/Sprites/cuervo/cuervo_camina_2.png');
-    this.load.image('cuervo_camina_3', './Game/Sprites/cuervo/cuervo_camina_3.png');
-    this.load.image('cuervo_camina_4', './Game/Sprites/cuervo/cuervo_camina_4.png');
-    this.load.image('cuervo_come_1', './Game/Sprites/cuervo/cuervo_come_1.png');
-    this.load.image('cuervo_come_2', './Game/Sprites/cuervo/cuervo_come_2.png');
-    this.load.image('cuervo_come_3', './Game/Sprites/cuervo/cuervo_come_3.png');
-    this.load.image('cuervo_vuela_1', './Game/Sprites/cuervo/cuervo_vuela_1.png');
-    this.load.image('cuervo_vuela_2', './Game/Sprites/cuervo/cuervo_vuela_2.png');
-    this.load.image('cuervo_vuela_3', './Game/Sprites/cuervo/cuervo_vuela_3.png');
-    this.load.image('cuervo_vuela_4', './Game/Sprites/cuervo/cuervo_vuela_4.png');
+    // (2026-10-12) Cuervo y gallo en 2.5D: remodelados en 3D con el mismo
+    // tamaño y nombre (tools/generar-animales3d.py -> cuervo3d/, gallo3d/).
+    this.load.image('cuervo_quieto_1', './Game/Sprites/cuervo3d/cuervo_quieto_1.png');
+    this.load.image('cuervo_quieto_2', './Game/Sprites/cuervo3d/cuervo_quieto_2.png');
+    this.load.image('cuervo_camina_1', './Game/Sprites/cuervo3d/cuervo_camina_1.png');
+    this.load.image('cuervo_camina_2', './Game/Sprites/cuervo3d/cuervo_camina_2.png');
+    this.load.image('cuervo_camina_3', './Game/Sprites/cuervo3d/cuervo_camina_3.png');
+    this.load.image('cuervo_camina_4', './Game/Sprites/cuervo3d/cuervo_camina_4.png');
+    this.load.image('cuervo_come_1', './Game/Sprites/cuervo3d/cuervo_come_1.png');
+    this.load.image('cuervo_come_2', './Game/Sprites/cuervo3d/cuervo_come_2.png');
+    this.load.image('cuervo_come_3', './Game/Sprites/cuervo3d/cuervo_come_3.png');
+    this.load.image('cuervo_vuela_1', './Game/Sprites/cuervo3d/cuervo_vuela_1.png');
+    this.load.image('cuervo_vuela_2', './Game/Sprites/cuervo3d/cuervo_vuela_2.png');
+    this.load.image('cuervo_vuela_3', './Game/Sprites/cuervo3d/cuervo_vuela_3.png');
+    this.load.image('cuervo_vuela_4', './Game/Sprites/cuervo3d/cuervo_vuela_4.png');
 
     // Fauna del mapa (zorros, vaca, cerdos, cocodrilo, serpientes, palomas
     // y pájaros): 78 texturas. Las carga el propio módulo para no meter 78
@@ -32441,9 +32443,31 @@ if (window.globalPetData) {
     this._cambiandoEscena = true;
 
     try {
-      this.savegg();
+      return this.savegg();
     } catch (e) {
       console.warn('guardado al salir:', e);
+      return false;
+    }
+  }
+
+  async _confirmarSalidaAlMapa(x, y) {
+    const run = this._sceneRunId;
+    const previo = { mundo: this.mundo, x: this.posicionplayerx, y: this.posicionplayery };
+    const vigente = () => !this._sceneStopped && this._sceneRunId === run;
+    try {
+      const saved = await this._dejarPartidaEnElMapa(x, y);
+      if (!vigente()) return false;
+      if (saved === false) throw new Error('Save was not completed');
+      return true;
+    } catch (error) {
+      if (!vigente()) return false;
+      this.mundo = previo.mundo;
+      this.posicionplayerx = previo.x; this.posicionplayery = previo.y;
+      this._cambiandoEscena = false;
+      this._salidaArmada = false;
+      console.warn('guardado antes de volver al mapa:', error);
+      try { this.notifications?.show('Unable to save your return. Try again.', 'error'); } catch (_) {}
+      return false;
     }
   }
 

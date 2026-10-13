@@ -2385,10 +2385,11 @@ class LandsScene extends GameScene {
       window.GFLands.volver(this);
     } else {
       // Sin gf-lands.js cargado: la vuelta a mano, a la plaza.
-      this._dejarPartidaEnElMapa(2097, 2359);
-      this.scene.start('LoadingScenegame', {
-        targetScene: 'GameScene',
-        playerData: { x: 2097, y: 2359, mundo: 1 }
+      this._confirmarSalidaAlMapa(2097, 2359).then(saved => {
+        if (saved) this.scene.start('LoadingScenegame', {
+          targetScene: 'GameScene',
+          playerData: { x: 2097, y: 2359, mundo: 1 }
+        });
       });
     }
   }

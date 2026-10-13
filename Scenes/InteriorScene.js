@@ -683,24 +683,30 @@ class InteriorScene extends GameScene {
     this._volverAlMapa();
   }
 
-  _volverAlMapa() {
-    console.log('🏠 saliendo de', this._casaId);
-    try { this._cancelarArrastre(); } catch (e) {}
-    try { this.player.anims.stop(); } catch (e) {}
-    const p = this._casa.puerta;
-    // Delante de la puerta, mirando al pueblo (los pies, 90 px por debajo).
-    const destino = { x: p.x, y: p.y + 40, mundo: 1 };
-    this._dejarPartidaEnElMapa(destino.x, destino.y);
-    this._ocultarHUD();
-    try { this.removeListener(); } catch (e) {}
-    try { this._unbindAllDomClicks(); } catch (e) {}
-    try { this.stopMusicSafely(); } catch (e) {}
-    this._salaDestino = 'game';
-    if (this.socket && this.socket.connected) {
-      this.socket.emit('joinRoom', { room: 'game', username: this.Username || '---', lastScene: 'InteriorScene', x: destino.x, y: destino.y });
+  async _volverAlMapa() {
+    if (this._salidaGuardando) return;
+    const salida = this._salidaGuardando = {};
+    try {
+        console.log('🏠 saliendo de', this._casaId);
+        try { this._cancelarArrastre(); } catch (e) {}
+        try { this.player.anims.stop(); } catch (e) {}
+        const p = this._casa.puerta;
+        // Delante de la puerta, mirando al pueblo (los pies, 90 px por debajo).
+        const destino = { x: p.x, y: p.y + 40, mundo: 1 };
+        if (!await this._confirmarSalidaAlMapa(destino.x, destino.y)) return;
+        this._ocultarHUD();
+        try { this.removeListener(); } catch (e) {}
+        try { this._unbindAllDomClicks(); } catch (e) {}
+        try { this.stopMusicSafely(); } catch (e) {}
+        this._salaDestino = 'game';
+        if (this.socket && this.socket.connected) {
+          this.socket.emit('joinRoom', { room: 'game', username: this.Username || '---', lastScene: 'InteriorScene', x: destino.x, y: destino.y });
+        }
+        try { this.cleanupScene(); } catch (e) { console.warn('limpieza:', e); }
+        this.scene.start('LoadingScenegame', { targetScene: 'GameScene', playerData: destino });
+    } finally {
+      if (this._salidaGuardando === salida) this._salidaGuardando = null;
     }
-    try { this.cleanupScene(); } catch (e) { console.warn('limpieza:', e); }
-    this.scene.start('LoadingScenegame', { targetScene: 'GameScene', playerData: destino });
   }
 
   // =========================================================================

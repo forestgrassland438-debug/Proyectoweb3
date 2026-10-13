@@ -60,6 +60,7 @@ async _esperarTransaccionesPendientes() {
   const texto = this.loadingSystem && this.loadingSystem.textElement;
   const resultado = await gate.whenIdle({
     timeout: 90000,
+    signal: this._gateWaitController && this._gateWaitController.signal,
     onTick: (n, etiquetas) => {
       if (!texto) return;
       texto.textContent = n === 1
@@ -67,6 +68,7 @@ async _esperarTransaccionesPendientes() {
         : `Finishing ${n} pending transactions…`;
     }
   });
+  if (resultado.cancelled) return;
 
   if (!resultado.idle) {
     console.warn('⚠️ Se entró a la tienda con transacciones aún pendientes:', gate.labels());
@@ -179,10 +181,25 @@ async loadResources() {
     }
 
     create() {
-        // Un apagado invalida la carga en curso (ver loadResources).
-        this.events.once('shutdown', () => { this._turnoCarga = (this._turnoCarga || 0) + 1; });
+        if (this._cargaFin) this._cargaFin();
+        const controller = this._gateWaitController = new AbortController();
+        const fin = () => {
+            this.events.off('shutdown', fin);
+            this.events.off('destroy', fin);
+            if (this._cargaFin !== fin) return;
+            this._cargaFin = null;
+            this._turnoCarga = (this._turnoCarga || 0) + 1;
+            controller.abort();
+            if (this._gateWaitController === controller) this._gateWaitController = null;
+        };
+        this._cargaFin = fin;
+        this.events.once('shutdown', fin);
+        this.events.once('destroy', fin);
 
-        this.loadResources().catch((err) => {
+        const pending = this.loadResources();
+        const turno = this._turnoCarga;
+        pending.catch((err) => {
+            if (controller.signal.aborted || turno !== this._turnoCarga) return;
             // Sin esto el fallo era un "unhandled rejection" y la pantalla de
             // carga se quedaba puesta: se entra a la tienda igualmente.
             console.error('❌ LoadingSceneshop: la carga falló, se entra igual a la tienda:', err);

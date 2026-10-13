@@ -1,4 +1,4 @@
-// eslint-disable-next-line no-unused-
+// eslint-disable-next-line no-unused-vars
 class GameScene1 extends Phaser.Scene {
   constructor() {
     super({ key: 'GameScene1' });

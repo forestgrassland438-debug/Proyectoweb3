@@ -587,9 +587,10 @@ class BattleScene extends Phaser.Scene {
     if (!E || E.via === 'mascota') return [];
     const out = [];
     for (let i = 1; i <= n; i++) {
-      const base = E.via === 'cuervo' ? './Game/Sprites/cuervo/' : './Game/Sprites/animales/';
-      // Con versión: los sprites de la fauna se regeneran (tools/sombrear-animales.py).
-      out.push(['bz_esp_' + id + '_' + pose + '_' + i, base + E.pre + pose + '_' + i + '.png?v=20261004']);
+      // (2026-10-12) Los animales, los de 2.5D (tools/generar-animales3d.py).
+      const base = E.via === 'cuervo' ? './Game/Sprites/cuervo3d/' : './Game/Sprites/animales3d/';
+      // Con versión: los sprites de la fauna se regeneran.
+      out.push(['bz_esp_' + id + '_' + pose + '_' + i, base + E.pre + pose + '_' + i + '.png?v=20261012']);
     }
     return out;
   }
@@ -1298,8 +1299,11 @@ class BattleScene extends Phaser.Scene {
       const seg = Math.ceil((Number(d.empiezaEnMs) || 0) / 1000);
       this._busquedaTerminaEn = Date.now() + (Number(d.empiezaEnMs) || 0);
       this._jugadoresBuscando = n;
-      this.estadoBusqueda(n > 1 ? 'Players found!' : 'Lobby',
-        'Press Ready when you are set. When everyone here is ready the battle starts at once; empty places are filled with bots.');
+      // Solo en la sala, "Ready" ya no lanza la partida (2026-10-11): se espera
+      // a los demás (ver brawlComprobarListos en server2.js). Se dice.
+      this.estadoBusqueda(n > 1 ? 'Players found!' : 'Waiting for players…',
+        n > 1 ? 'Press Ready when you are set. When everyone here is ready the battle starts at once; empty places are filled with bots.'
+              : 'Players who search now join this lobby. With two or more ready it starts at once; if not, when the timer ends, with bots in the empty places.');
       // (Antes: una fila de puntitos con los ocupados. Ahora la lista con los
       //  nombres; la cuenta atrás la escribe update() en bzSala.)
       if (this.el.sala && !this._busquedaTerminaEn) this.el.sala.textContent = n + ' / ' + max + ' · ' + seg + 's';
