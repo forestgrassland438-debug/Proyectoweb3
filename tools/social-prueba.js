@@ -609,8 +609,8 @@ console.log('\n9) La venta en la tienda llega al servidor');
 {
   ok(/inventoryLoadedAt: this\._inventoryLoadedAt \|\| null/.test(SRC.tienda),
      'tiendajuego manda inventoryLoadedAt (sin eso el servidor descarta el inventario)');
-  ok(/this\._inventoryLoadedAt = new Date\(\)\.toISOString\(\)/.test(SRC.tienda),
-     'y lo apunta al cargar');
+  ok(/this\._inventoryLoadedAt = data\.inventoryLoadedAt \|\| new Date\(\)\.toISOString\(\)/.test(SRC.tienda),
+     'y conserva la revisión del servidor al cargar (con respaldo para servidores antiguos)');
   ok(/if \(resData && resData\.inventoryStale\)/.test(SRC.tienda),
      'y hace caso cuando el servidor dice que su copia manda');
   ok(/if \(this\._inventarioCargado !== true\)/.test(SRC.tienda),

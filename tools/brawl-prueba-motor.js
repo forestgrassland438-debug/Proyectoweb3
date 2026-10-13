@@ -253,7 +253,8 @@ console.log('\n=== 5. EL COMBATE ===');
   ok(J.P.R.celdas[1 * 8 + 2] === '.', 'dos ladridos rompen una caja (y deja de bloquear)', J.P.R.celdas[10]);
   for (let i = 0; i < 4; i++) { a.ultimoDisparo = 0; a.municion = 3; M.disparar(J.P, 1, { a: 0 }); J.avanzar(500); }
   ok(J.P.R.celdas[1 * 8 + 5] === '.', 'cuatro rompen la dorada');
-  ok(J.de(1, 'brawl:objeto').length === 1, 'y la dorada suelta un hueso');
+  ok(J.de(1, 'brawl:objeto').some(e => e[2].tipo === 'hueso') && J.de(1, 'brawl:objeto').length === 3,
+    'y la dorada suelta un hueso y un suministro');
 }
 {
   // La hierba alta esconde.

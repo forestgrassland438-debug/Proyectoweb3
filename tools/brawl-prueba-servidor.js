@@ -170,7 +170,12 @@ const programarIdentidadEnCadena = (n) => { identidadProgramada.push(n); };
 const battleTodayKey = () => '2026-10-02';
 // lo que toca la purga
 const vacios = { plantSpamTracker: new Map(), _gatherLastByPlayer: new Map(), _verifierCooldown: new Map(),
-  _cuervoUltimo: new Map(), chatHistory: new Map(), rooms: {}, _adminAddrCache: new Map() };
+  _cuervoUltimo: new Map(), chatHistory: new Map(), rooms: {}, _adminAddrCache: new Map(),
+  // (2026-10-12) La purga barre ya más mapas (pesca, casillas, espadas PvP,
+  // caché de fantasmas, traductor, NFT): aquí van vacíos, con sus plazos.
+  _pescaUltimo: new Map(), _casillasUltimoEnvio: new Map(), _pescaSesiones: new Map(), _pvpEspadas: new Map(),
+  _cacheFantasma: new Map(), _tradUso: new Map(), _nftCacheJugador: new Map(),
+  PESCA_SESION_MS: 90 * 1000, FANTASMA_CACHE_MS: 3000 };
 
 // ── sockets de mentira ─────────────────────────────────────────────────────
 const conexiones = [];
@@ -206,7 +211,7 @@ const valores = [io, GamePlayer, BattleScore, BattleLog, BattleDaily, PlayerAuth
   battleTodayKey, consola, FakeDate, falsos.setTimeout, falsos.setInterval, falsos.clearTimeout, falsos.clearInterval]
   .concat(Object.values(vacios));
 const fabrica = new Function(...nombres, PIEZAS + '\n\n' + BLOQUE +
-  '\nreturn { GFBrawlMotor, battleMatches, socketMatch, battleQueue, battleAdmissions, purgarMapasEnMemoria, nivelMascotaEfectivo, nivelPorExperiencia, expDeArena, expMascotaDeArena, expMascotaParaNivel, nivelMascotaPorExp, progresoMascota, brawlSalaActual: () => brawlSala };');
+  '\nreturn { GFBrawlMotor, battleMatches, socketMatch, battleQueue, battleAdmissions, purgarMapasEnMemoria, nivelMascotaEfectivo, nivelPorExperiencia, expDeArena, expMascotaDeArena, expMascotaParaNivel, nivelMascotaPorExp, progresoMascota, brawlBotsDeRelleno, battleStatsForLevel, brawlSalaActual: () => brawlSala };');
 const S = fabrica(...valores);
 const M = S.GFBrawlMotor;
 
@@ -357,15 +362,26 @@ async function main() {
   const a = jugador('Alba', 2000), b = jugador('Bruno', 2000), c = jugador('Carla', 2500);
   a.mandar('brawl:cola'); await avanzarAsync(50);
   ok(!!a.ultimo('brawl:enCola'), 'Alba entra en la cola');
-  ok(!S.brawlSalaActual(), 'sola no hay sala');
+  // Desde 2026-10-10 la sala se abre ya con uno: así se ve en la lista y
+  // puede darle a "Ready" (ver brawlAvisarSala).
+  ok(!!S.brawlSalaActual() && S.brawlSalaActual().regs.length === 1, 'sola ya tiene su sala (se ve en la lista)');
+  const salaSola = a.ultimo('brawl:sala');
+  ok(salaSola && Array.isArray(salaSola.lista) && salaSola.lista.length === 1 && salaSola.lista[0].yo === true && salaSola.lista[0].listo === false,
+     'y en la lista sale ella, marcada como "yo" y sin estar lista', salaSola);
   b.mandar('brawl:cola'); await avanzarAsync(50);
   ok(!!S.brawlSalaActual() && S.brawlSalaActual().regs.length === 2, 'con dos, se abre la sala');
   ok(!!a.ultimo('brawl:sala') && a.ultimo('brawl:sala').jugadores === 2, 'a los dos se les avisa');
   c.mandar('brawl:cola'); await avanzarAsync(50);
   ok(S.brawlSalaActual() && S.brawlSalaActual().regs.length === 3, 'un tercero entra en la sala');
-  await avanzarAsync(8200);
+  await avanzarAsync(149700);
+  ok(!a.ultimo('brawl:inicio'), 'la búsqueda incompleta continúa antes de los 150 segundos');
+  await avanzarAsync(200);
   const iniA = a.ultimo('brawl:inicio'), iniC = c.ultimo('brawl:inicio');
-  ok(iniA && iniA.modo === 'pvp' && iniA.luchadores.length === 3, 'empieza con los tres', iniA && iniA.luchadores.length);
+  ok(iniA && iniA.modo === 'pvp' && iniA.luchadores.length === 6 && iniA.luchadores.filter(l => l.bot).length === 3,
+    'empieza con tres humanos y completa las otras tres plazas con bots', iniA && iniA.luchadores.length);
+  // El resto de este caso examina rendición/puntos entre los tres humanos.
+  const matchTres = S.battleMatches.get(iniA.matchId);
+  for (const l of matchTres.P.luchadores.filter(l => l.bot)) S.GFBrawlMotor.abandonar(matchTres.P, l.id);
   ok(iniA && iniC && iniA.matchId === iniC.matchId && iniA.arena.id === iniC.arena.id, 'misma partida y misma arena para todos');
   ok(iniA && iniC && iniA.yo !== iniC.yo, 'cada uno sabe cuál es él');
   // Teletransporte: Alba manda una posición a 300 px.
@@ -398,7 +414,8 @@ async function main() {
   d1.mandar('brawl:cola'); d2.mandar('brawl:cola'); await avanzarAsync(100);
   ok(!!S.brawlSalaActual(), 'sala de dos');
   d2.desconectar(); await avanzarAsync(100);
-  ok(!S.brawlSalaActual() && S.battleQueue.length === 1, 'si uno se desconecta, el otro vuelve a la cola', S.battleQueue.length);
+  ok(!!S.brawlSalaActual() && S.brawlSalaActual().regs.length === 1 && S.battleQueue.length === 0,
+     'si uno se desconecta, el otro se queda en la sala (de uno)', [S.brawlSalaActual() && S.brawlSalaActual().regs.length, S.battleQueue.length]);
   await avanzarAsync(9000);
   ok(!d1.ultimo('brawl:inicio'), 'y no empieza ninguna partida de uno');
   d1.mandar('brawl:practica'); await avanzarAsync(100);
@@ -408,6 +425,49 @@ async function main() {
   const scoresAntes = DB.scores.length + DB.scores.reduce((t, s) => t + s.battles, 0);
   d1.mandar('brawl:salir'); await avanzarAsync(300);
   ok(DB.scores.length + DB.scores.reduce((t, s) => t + s.battles, 0) === scoresAntes, 'la práctica no da puntos ni cuenta batallas');
+
+  console.log('\n=== 4a. "READY": SI TODOS LOS DE LA SALA ESTÁN LISTOS, SE EMPIEZA YA ===');
+  const r1 = jugador('Rita', 2000), r2 = jugador('Raul', 2000);
+  DB.players.Rita.Username = 'RitaR';
+  r1.mandar('brawl:cola'); r2.mandar('brawl:cola'); await avanzarAsync(100);
+  const salaR = r1.ultimo('brawl:sala');
+  ok(salaR && salaR.lista && salaR.lista.length === 2 && salaR.lista.some(x => x.nombre === 'RitaR' && x.yo) &&
+     salaR.lista.some(x => x.nombre === 'Raul' && !x.yo), 'cada uno ve a los demás de la sala por su nombre', salaR && salaR.lista);
+  r1.mandar('brawl:listo', { listo: true }); await avanzarAsync(100);
+  ok(!r1.ultimo('brawl:inicio') && r2.ultimo('brawl:sala').listos === 1, 'con uno listo, se espera al otro');
+  r1.mandar('brawl:listo', { listo: false }); await avanzarAsync(50);
+  ok(r2.ultimo('brawl:sala').listos === 0, 'y se puede quitar el listo');
+  r1.mandar('brawl:listo', { listo: true }); r2.mandar('brawl:listo', { listo: true }); await avanzarAsync(100);
+  const iniR = r1.ultimo('brawl:inicio');
+  ok(iniR && iniR.modo === 'pvp' && iniR.luchadores.length === 6 && iniR.luchadores.filter(l => l.bot).length === 4,
+     'los dos listos: empieza YA, sin esperar los 150 s, y las otras 4 plazas son bots', iniR && iniR.luchadores.length);
+  const matchR = iniR && S.battleMatches.get(iniR.matchId);
+  const botsR = matchR ? matchR.P.luchadores.filter(l => l.bot) : [];
+  const humR = matchR ? matchR.P.luchadores.find(l => !l.bot) : null;
+  ok(botsR.length && botsR.every(l => l.ia && l.ia.astucia >= 0.28 && l.ia.astucia <= 0.58),
+     'los bots de relleno, ni buenos ni malos (astucia 0,28-0,58)', botsR.map(l => l.ia && l.ia.astucia));
+  const fichaBot = S.brawlBotsDeRelleno([{ player: { level: 5 } }], 1)[0], statsNivel5 = S.battleStatsForLevel(5);
+  ok(fichaBot.maxHp < statsNivel5.maxHp && fichaBot.attack < statsNivel5.attack,
+     'y con algo menos de vida y ataque que un jugador de su nivel', [fichaBot, statsNivel5]);
+  const media = (l) => l.reduce((t, b) => t + b.astucia, 0) / l.length;
+  ok(media(S.brawlBotsDeRelleno([{ player: { level: 5, record: { wins: 40, battles: 50 } } }], 3)) >=
+     media(S.brawlBotsDeRelleno([{ player: { level: 5, record: { wins: 1, battles: 30 } } }], 3)) + 0.15,
+     'al que gana mucho le tocan bots más listos; al que pierde, más torpes');
+  r1.mandar('brawl:salir'); r2.mandar('brawl:salir'); await avanzarAsync(250000);
+  ok(!S.battleAdmissions.size && !S.socketMatch.size && !S.battleMatches.size, 'todo suelto al acabar');
+
+  console.log('\n=== 4b. UN HUMANO SOLO: 150 SEGUNDOS Y CINCO BOTS ===');
+  const solo = jugador('Solo', 2000);
+  const empezoSolo = RELOJ;
+  solo.mandar('brawl:cola'); await avanzarAsync(100);
+  await avanzarAsync(149800);
+  ok(!solo.ultimo('brawl:inicio'), 'un jugador solo sigue buscando a los 149,9 segundos');
+  await avanzarAsync(100);
+  const inicioSolo = solo.ultimo('brawl:inicio');
+  ok(inicioSolo && RELOJ - empezoSolo === 150000 && inicioSolo.luchadores.filter(l => l.bot).length === 5,
+    'exactamente a los 150 segundos se completa la arena con cinco bots');
+  solo.mandar('brawl:salir'); await avanzarAsync(250000);
+  ok(!S.battleAdmissions.size && !S.socketMatch.size && !S.battleMatches.size, 'la partida de relleno libera admisiones, sockets y memoria');
 
   // ═════════════════════════════════════════════════════════════════════════
   console.log('\n=== 5. CANDADOS Y PAQUETES RAROS ===');

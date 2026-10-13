@@ -109,6 +109,10 @@ const elMove        = sacar('  socket.on("playerMove", (data) => {',
 const elAdios       = sacar('  socket.on("disconnect", () => {', '\n  });\n', 'disconnect');
 
 const montar = new Function('io', 'rooms', 'sockets', 'NOMBRE_SOULBOUND_VALIDO', 'console', `
+// (2026-10-11) joinRoom apunta ya el tiempo por sala (LAS INVITACIONES Y LA
+// ACTIVIDAD, en otro tramo del servidor): aquí no hace falta, se deja mudo.
+function anotarCambioDeSala() {}
+function anotarTiempoDeSala() {}
 ${bloqueCanales}
 function conectar(socket) {
   socket.playerData = { id: socket.id, room: null, username: '---', lastScene: null, canal: null };

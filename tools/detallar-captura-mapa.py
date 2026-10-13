@@ -21,6 +21,17 @@ lo que una casilla NO puede tener, porque depende de dónde está en el mundo:
 
 Determinista: la misma captura da siempre la misma salida. No toca nada que
 no sea hierba, tierra, piedra o agua (contornos, flores y bordes se quedan).
+
+SIN PUNTOS NI TRAMAS (2026-10-05). "En el césped hay muchos puntos y sufro de
+tripofobia." El tono iba con tramado de Bayer (cuadritos de un píxel en cada
+cambio de zona), la sombra de los caminos acababa en otro tramado, y había
+"matas" de cuatro píxeles, florecillas de UN píxel y guijarros de dos
+sembrados por todo el mapa. Ahora:
+  1. las zonas de tono son MANCHAS LISAS de bordes limpios (sin tramado) y un
+     filtro de mayoría borra cualquier isla de pocos píxeles;
+  2. la sombra de la piedra va en escalones lisos;
+  3. en vez de puntos, MATAS DE BRIZNAS (trazos de 3 a 6 px), pocas y
+     separadas entre sí; sin florecillas sueltas ni guijarros.
 """
 import sys
 import numpy as np
@@ -45,6 +56,23 @@ def ruido(h, w, paso, rng):
     return top + (bot - top) * fy[:, None]
 
 
+def caja(a, r):
+    """Suma de `a` en una ventana de (2r+1) x (2r+1) alrededor de cada píxel."""
+    p = np.pad(a.astype(np.int32), r, mode='edge')
+    c = np.cumsum(np.cumsum(p, 0), 1)
+    c = np.pad(c, ((1, 0), (1, 0)))
+    k = 2 * r + 1
+    return c[k:, k:] - c[:-k, k:] - c[k:, :-k] + c[:-k, :-k]
+
+
+def mayoria(nivel, valores, lado):
+    """Cada píxel toma el nivel que más abunda a su alrededor: borra las islas
+    de pocos píxeles que deja un umbral sobre el ruido."""
+    r = lado // 2
+    cuentas = np.stack([caja(nivel == v, r) for v in valores])
+    return np.array(valores, np.int8)[np.argmax(cuentas, axis=0)]
+
+
 def main(entrada, salida):
     rng = np.random.default_rng(SEMILLA)
     im = np.array(Image.open(entrada).convert('RGBA')).astype(np.int16)
@@ -60,16 +88,15 @@ def main(entrada, salida):
     print('hierba %.0f%%  agua %.0f%%  tierra %.0f%%  piedra %.0f%%' % (
         hierba.mean() * 100, agua.mean() * 100, tierra.mean() * 100, piedra.mean() * 100))
 
-    # ── 1. tono a gran escala, tramado ────────────────────────────────────
+    # ── 1. tono a gran escala: manchas lisas, sin tramado ─────────────────
     n = ruido(h, w, 300, rng) * 0.7 + ruido(h, w, 110, rng) * 0.3
-    umbral = np.tile(BAYER, (h // 4 + 1, w // 4 + 1))[:h, :w]
-    # Cinco niveles (-2..2): con tres no se llegaba a ver la variación.
     nivel = np.zeros((h, w), np.int8)
-    nivel[n > 0.10 + 0.22 * umbral] = 1
-    nivel[n > 0.42 + 0.22 * umbral] = 2
-    nivel[n < -0.10 - 0.22 * umbral] = -1
-    nivel[n < -0.42 - 0.22 * umbral] = -2
-    for masc, paso in ((hierba, (6, 11, 5)), (tierra, (7, 6, 5)), (agua, (4, 6, 7))):
+    nivel[n > 0.16] = 1
+    nivel[n > 0.48] = 2
+    nivel[n < -0.16] = -1
+    nivel[n < -0.48] = -2
+    nivel = mayoria(nivel, (-2, -1, 0, 1, 2), 9)
+    for masc, paso in ((hierba, (5, 9, 4)), (tierra, (6, 5, 4)), (agua, (4, 6, 7))):
         for k in range(3):
             im[..., k] += (nivel * paso[k] * masc).astype(np.int16)
 
@@ -80,10 +107,8 @@ def main(entrada, salida):
         s[dy:, dx:] = piedra[:-dy, :-dx]
         sombra = np.maximum(sombra, s * peso)
     suelo = hierba | tierra
-    oscurece = np.where(sombra > 0.6, 0.72, np.where(sombra > 0.35, 0.82, np.where(sombra > 0.2, 0.91, 1.0)))
-    # El último escalón, tramado: así la sombra se deshace sin franja.
-    tramo = (sombra > 0.2) & (sombra <= 0.35) & (umbral > 0.5)
-    oscurece = np.where(tramo, 1.0, oscurece)
+    # Escalones lisos (el último, muy suave): sin tramado.
+    oscurece = np.where(sombra > 0.6, 0.72, np.where(sombra > 0.35, 0.82, np.where(sombra > 0.2, 0.93, 1.0)))
     for k in range(3):
         im[..., k] = np.where(suelo, (im[..., k] * oscurece).astype(np.int16), im[..., k])
 
@@ -91,44 +116,46 @@ def main(entrada, salida):
     def libre(m, y, x, rad):
         return m[max(0, y - rad):y + rad + 1, max(0, x - rad):x + rad + 1].all()
 
-    MATAS = [
-        [(0, 0, 'c'), (1, 0, 'o'), (0, 1, 'c2'), (-1, 1, 'c')],
-        [(0, 0, 'c2'), (0, 1, 'o'), (1, -1, 'c'), (1, 0, 'o'), (-1, -1, 'c')],
-        [(0, 0, 'c'), (0, 1, 'o'), (-1, 0, 'c'), (1, 1, 'c2'), (1, 2, 'o')],
-    ]
-    def pinta_mata(y, x, forma):
+    # Una mata: de 3 a 5 briznas que salen de un mismo pie, cada una un
+    # trazo de 3 a 6 px un poco inclinado, oscuro abajo y claro en la punta.
+    # Son RAYAS, no puntos, y van sueltas: nunca en grupos apretados.
+    def pinta_mata(y, x, rr):
         base = im[y, x, :3].copy()
-        tonos = {'c': base + (14, 22, 10), 'c2': base + (26, 38, 18), 'o': base + (-12, -20, -11)}
-        for dy, dx, t in forma:
-            yy, xx = y + dy, x + dx
-            if 0 <= yy < h and 0 <= xx < w and hierba[yy, xx]:
-                im[yy, xx, :3] = tonos[t]
+        osc, med, cla = base + (-12, -20, -11), base + (8, 13, 6), base + (18, 28, 12)
+        for b in range(int(rr.integers(3, 6))):
+            alto = int(rr.integers(3, 7))
+            dx0 = int(rr.integers(-2, 3))
+            incl = float(rr.uniform(-0.5, 0.5)) + dx0 * 0.18
+            for k in range(alto):
+                yy = y - k
+                xx = x + dx0 + int(round(incl * k))
+                if not (0 <= yy < h and 0 <= xx < w) or not hierba[yy, xx]:
+                    break
+                im[yy, xx, :3] = osc if k == 0 else (cla if k >= alto - 2 else med)
 
     n_hierba, n_tierra, n_agua = int(hierba.sum()), int(tierra.sum()), int(agua.sum())
     total = 0
-    n_matas = n_hierba // 1400
-    ys = rng.integers(3, h - 3, n_matas * 3); xs = rng.integers(3, w - 3, n_matas * 3)
+    n_matas = n_hierba // 9000
+    SEP = 34                                   # px entre mata y mata, como poco
+    rejilla = {}
+    def lejos_de_otras(y, x):
+        cy, cx = y // SEP, x // SEP
+        for j in (cy - 1, cy, cy + 1):
+            for i in (cx - 1, cx, cx + 1):
+                for (oy, ox) in rejilla.get((j, i), ()):
+                    if (oy - y) ** 2 + (ox - x) ** 2 < SEP * SEP:
+                        return False
+        return True
+    ys = rng.integers(8, h - 8, n_matas * 6); xs = rng.integers(8, w - 8, n_matas * 6)
     for y, x in zip(ys, xs):
         if total >= n_matas: break
-        if not hierba[y, x] or not libre(hierba, y, x, 3): continue
-        pinta_mata(y, x, MATAS[int(rng.integers(0, len(MATAS)))])
+        y, x = int(y), int(x)
+        if not hierba[y, x] or not libre(hierba, y - 4, x, 4) or not lejos_de_otras(y, x): continue
+        pinta_mata(y, x, rng)
+        rejilla.setdefault((y // SEP, x // SEP), []).append((y, x))
         total += 1
     flores = 0
-    COLORES = [(250, 250, 240), (245, 225, 70), (232, 140, 210), (160, 200, 255)]
-    for y, x in zip(rng.integers(3, h - 3, 4000), rng.integers(3, w - 3, 4000)):
-        if flores >= n_hierba // 26000: break
-        if not hierba[y, x] or not libre(hierba, y, x, 3): continue
-        c = COLORES[int(rng.integers(0, len(COLORES)))]
-        im[y, x, :3] = c
-        im[y + 1, x, :3] = im[y + 1, x, :3] + (-14, -22, -12)
-        flores += 1
     piedras = 0
-    for y, x in zip(rng.integers(3, h - 3, 9000), rng.integers(3, w - 3, 9000)):
-        if piedras >= n_tierra // 2600: break
-        if not tierra[y, x] or not libre(tierra, y, x, 2): continue
-        im[y, x, :3] = (214, 190, 168); im[y, x + 1, :3] = (190, 162, 140)
-        im[y + 1, x, :3] = (132, 98, 78); im[y + 1, x + 1, :3] = (118, 88, 70)
-        piedras += 1
 
     # ── 4. destellos en el agua ───────────────────────────────────────────
     brillos = 0

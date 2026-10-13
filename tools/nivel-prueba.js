@@ -75,12 +75,14 @@ function probarEscena(archivo) {
 
   const b = nueva({ nivel_exp: 4500 });
   b._nivelDesdeExp();
-  ok(b.nivel === 6 && b.petLevel === 6, '4500 de exp = nivel 6, y el perro también 6', [b.nivel, b.petLevel]);
+  // Desde 2026-10-03 el perro NO copia el nivel del personaje: el suyo lo
+  // manda el servidor (nivelMascotaEfectivo, _aplicarNivelMascota).
+  ok(b.nivel === 6 && b.petLevel === undefined, '4500 de exp = nivel 6 (y el perro no se toca aquí)', [b.nivel, b.petLevel]);
   ok(b._sonidos.length === 0, 'al cargar no suena el "subes de nivel"');
 
   const c = nueva({ nivel: 34, nivel_exp: 4500, petLevel: 34 });
   c._nivelDesdeExp();
-  ok(c.nivel === 6 && c.petLevel === 6, 'un 34 que la exp no paga se CORRIGE a 6', [c.nivel, c.petLevel]);
+  ok(c.nivel === 6 && c.petLevel === 34, 'un 34 que la exp no paga se CORRIGE a 6 (el perro, lo que diga el servidor)', [c.nivel, c.petLevel]);
   ok(c._sonidos.length === 0, 'y corregir hacia abajo no suena');
 
   const d = nueva({ nivel: 5, nivel_exp: '3400', petLevel: 5 });
@@ -93,7 +95,7 @@ function probarEscena(archivo) {
   const e = nueva({ nivel: 6, nivel_exp: 5590, petLevel: 6 });
   e.nivel_exp += 50;
   e._nivelDesdeExp();
-  ok(e.nivel === 7 && e._sonidos.length === 1 && e.petLevel === 7, 'al pasar de 5600 sube a 7, suena una vez y el perro sube con él');
+  ok(e.nivel === 7 && e._sonidos.length === 1 && e.petLevel === 6, 'al pasar de 5600 sube a 7 y suena una vez (el perro, del servidor)');
   e._nivelDesdeExp();
   ok(e._sonidos.length === 1 && e._barras.length === 1, 'sin cambios no repinta ni vuelve a sonar');
 
@@ -136,7 +138,7 @@ if (fs.existsSync(SERVIDOR)) {
 
   const nme = TXT.indexOf('function nivelMascotaEfectivo(gp) {');
   const cuerpo = TXT.slice(nme, TXT.indexOf('\n}', nme) + 2);
-  const efectivo = new Function('nivelPorExperiencia', 'MAX_LEVEL_PERSONAJE', cuerpo + '\nreturn nivelMascotaEfectivo;')(nivelServidor, 150);
+  const efectivo = new Function('nivelPorExperiencia', 'MAX_LEVEL_PERSONAJE', 'MAX_LEVEL_MASCOTA', cuerpo + '\nreturn nivelMascotaEfectivo;')(nivelServidor, 150, 150);
   ok(efectivo({ nivel_exp: 4500, petLevel: 34, petWins: 80, petBattles: 160 }) === 6,
      'servidor: el perro de un nivel 6 es nivel 6 aunque tenga 160 batallas y un 34 guardado');
 } else {

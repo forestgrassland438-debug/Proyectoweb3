@@ -63,6 +63,8 @@ function escena(arboles) {
   return s;
 }
 
+// gf-cuervo y gf-animales miran `window.GFProfundidad` si existe (2026-10).
+if (typeof global.window === 'undefined') global.window = {};
 let fallos = 0, pasadas = 0;
 const ok = (c, m, x) => { if (c) { pasadas++; console.log('  OK   ' + m); }
                           else { fallos++; console.log('  FALLO ' + m + (x ? '  -> ' + x : '')); } };

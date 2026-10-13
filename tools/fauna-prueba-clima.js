@@ -337,8 +337,10 @@ ok(Object.values(cobayas).every((a) => !a.muerto), 'reviven');
 for (const g in cobayas) {
   const a = cobayas[g];
   const poses = GFA._interno.posesDe(a.especie);
-  const pose = a._anim;
-  ok(!!poses[pose], g + ' revive con una pose que EXISTE (' + a.especie + ' → ' + pose + ')');
+  // (2026-10-12) La animación puede llevar la vista ('camina_abajo' = la pose
+  // 'camina' de frente): la pose es lo de antes del sufijo.
+  const pose = String(a._anim || '').replace(/_(abajo|arriba)$/, '');
+  ok(!!poses[pose], g + ' revive con una pose que EXISTE (' + a.especie + ' → ' + a._anim + ')');
 }
 const ave = cobayas.ave;
 if (ave) ok(Math.abs(ave.rumbo) <= 1.0001, 'el ave revive con rumbo de ave (' +

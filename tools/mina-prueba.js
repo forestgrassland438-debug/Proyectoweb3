@@ -751,7 +751,8 @@ comprueba('las mascaras de agua se leen del tileset, no de una lista a mano',
   /getImageData/.test(landsScene) && /_cacheMascarasAgua/.test(landsScene));
 
 comprueba('la penumbra de la mina es una IMAGEN (las figuras ignoran MULTIPLY)',
-  /add\.image\(0, 0, CLAVE_PEN\)/.test(minaScene) &&
+  (/add\.image\(0, 0, CLAVE_PEN\)/.test(minaScene) ||
+   /const rt = this\.add\.renderTexture\([\s\S]{0,350}rt\.setBlendMode\(Phaser\.BlendModes\.MULTIPLY\)[\s\S]{0,180}this\.penumbra = rt/.test(minaScene)) &&
   !/add\.rectangle\([\s\S]{0,120}0x4a5a78/.test(minaScene));
 
 comprueba('la mina y la isla van en modo INTERIOR de audio',

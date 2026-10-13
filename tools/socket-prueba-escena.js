@@ -129,6 +129,7 @@ class EscenaDePrueba {
     this.time = { delayedCall: (ms, fn) => { this._ultimoRetardo = fn; return { remove() {} }; } };
     this.events = { once: (ev, fn) => { this._eventosUnaVez[ev] = fn; } };
   }
+  _salaDeEscena() { return this._salaPrueba || 'game'; }
   clearOtherPlayers() { this.jugadoresBorrados++; }
   appendSystemMessage(t) { this.mensajesSistema.push(t); }
   _isNameSet(n) { return !!n; }

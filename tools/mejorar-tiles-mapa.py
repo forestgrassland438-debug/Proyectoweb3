@@ -34,6 +34,16 @@ SIN COSTURAS
 MISMA REJILLA, MISMOS ÍNDICES
   El archivo mide lo mismo y cada casilla sigue en su sitio: el TMX y el JSON
   del mapa no cambian. El rojo de las casillas sin usar no se toca.
+
+SIN PUNTOS (2026-10-05)
+  "En el césped hay muchos puntos y sufro de tripofobia." Las motas sueltas
+  (unos diez píxeles por casilla de hierba), las briznas de dos píxeles, las
+  hojitas de la hierba oscura, las motas y piedrecitas de la tierra y el
+  grano de la piedra se repetían en las doce mil casillas: un salpicado de
+  puntos por todo el suelo. Ya no se pinta NADA de eso (MATERIALES_CON_DETALLE
+  solo deja el agua, que además va tapada por el agua animada). La variación
+  del suelo la pone detallar-captura-mapa.py a escala de mundo, con manchas
+  lisas y matas de briznas sueltas, nunca puntos.
 """
 import os
 import random
@@ -52,6 +62,8 @@ AGUA = (86, 134, 168)
 TIERRA = (177, 133, 105)
 PIEDRAS = {(116, 114, 111), (108, 117, 113), (117, 123, 121), (122, 115, 109)}
 SIN_USO = (136, 0, 21)
+# Qué materiales reciben detalle. Ver SIN PUNTOS arriba.
+MATERIALES_CON_DETALLE = {'agua'}
 
 
 def tono(c, d):
@@ -80,7 +92,7 @@ def detallar_casilla(px, ox, oy, semilla):
     hay = lambda col: cuenta.get(col, 0)
 
     # ── hierba: briznas (claro arriba, oscuro abajo) y alguna mota ─────────
-    if hay(HIERBA) >= 40:
+    if 'hierba' in MATERIALES_CON_DETALLE and hay(HIERBA) >= 40:
         ok = {HIERBA}
         claro, claro2, oscuro = tono(HIERBA, (12, 19, 9)), tono(HIERBA, (22, 33, 16)), tono(HIERBA, (-12, -19, -11))
         for _ in range(max(2, hay(HIERBA) // 28)):
@@ -98,7 +110,7 @@ def detallar_casilla(px, ox, oy, semilla):
 
     # ── hierba oscura (las manchas de matorral): hojitas en grupo ─────────
     for osc in (HIERBA_OSC, HIERBA_OSC2):
-        if hay(osc) >= 40:
+        if 'hierba' in MATERIALES_CON_DETALLE and hay(osc) >= 40:
             ok = {osc}
             for _ in range(max(2, hay(osc) // 36)):
                 x, y = rnd.randint(2, T - 3), rnd.randint(2, T - 3)
@@ -109,7 +121,7 @@ def detallar_casilla(px, ox, oy, semilla):
                 poner(rnd.randrange(T), rnd.randrange(T), tono(osc, (-5, -8, -5)), ok)
 
     # ── agua: destellos horizontales con sombra debajo ────────────────────
-    if hay(AGUA) >= 40:
+    if 'agua' in MATERIALES_CON_DETALLE and hay(AGUA) >= 40:
         ok = {AGUA}
         brillo, brillo2, sombra = tono(AGUA, (14, 14, 12)), tono(AGUA, (30, 30, 24)), tono(AGUA, (-8, -10, -10))
         for _ in range(max(1, hay(AGUA) // 90)):
@@ -123,7 +135,7 @@ def detallar_casilla(px, ox, oy, semilla):
             poner(rnd.randrange(T), rnd.randrange(T), tono(AGUA, (-4, -6, -6)), ok)
 
     # ── tierra: motas y alguna piedrecita ─────────────────────────────────
-    if hay(TIERRA) >= 40:
+    if 'tierra' in MATERIALES_CON_DETALLE and hay(TIERRA) >= 40:
         ok = {TIERRA}
         for _ in range(hay(TIERRA) // 18):
             poner(rnd.randrange(T), rnd.randrange(T),
@@ -137,11 +149,109 @@ def detallar_casilla(px, ox, oy, semilla):
 
     # ── piedra: grano ─────────────────────────────────────────────────────
     for p in PIEDRAS:
-        if hay(p) >= 30:
+        if 'piedra' in MATERIALES_CON_DETALLE and hay(p) >= 30:
             ok = {p}
             for _ in range(hay(p) // 14):
                 poner(rnd.randrange(T), rnd.randrange(T),
                       tono(p, 7) if rnd.random() < 0.5 else tono(p, -7), ok)
+
+
+def limpiar_racimos(px, w, h):
+    """
+    SIN RACIMOS (2026-10-05, tripofobia). El tileset original trae adornos con
+    racimos de cosas pequeñas: piedrecitas grises sueltas sobre la hierba y la
+    tierra, y HOYITOS ovalados oscuros en la tierra. Repetidos por el mapa se
+    leen como un salpicado de agujeros. Aquí se quitan y se pintan del color
+    del suelo que los rodea.
+
+    Se mira la imagen ENTERA y no casilla a casilla: esos adornos están
+    dibujados a caballo entre casillas (se ponen juntas en el mapa).
+
+      · piedrecita: mancha gris (poca saturación, no casi blanca) de como
+        mucho MAX_PIEDRA px, con su sombrita verde oscura;
+      · hoyo: mancha marrón más oscura que la tierra, de como mucho MAX_HOYO
+        px y rodeada SOLO de tierra (así no se tocan los bordes de los
+        caminos ni las orillas).
+    Las flores (color vivo o casi blancas) y las piedras grandes se quedan.
+    """
+    MAX_PIEDRA, MAX_PIEDRA_TIERRA, MAX_HOYO = 40, 110, 260
+    SUELOS = (HIERBA, TIERRA)
+
+    def rgb(x, y):
+        return px[x, y][:3]
+
+    def es_gris(c):
+        return (max(c) - min(c)) < 30 and max(c) < 205 and c != SIN_USO
+
+    def es_hoyo(c):
+        # El hoyo y su borde (más oscuro O más claro que la tierra): cualquier
+        # marrón que no sea la tierra lisa. Los bordes de los caminos también
+        # son marrones, pero tocan la hierba: el "rodeado solo de tierra" de
+        # abajo los deja fuera.
+        return c != TIERRA and c[0] >= c[1] >= c[2] - 4 and (max(c) - min(c)) >= 18
+
+    def manchas(prueba):
+        visto = bytearray(w * h)
+        for y0 in range(h):
+            for x0 in range(w):
+                k = y0 * w + x0
+                if visto[k] or px[x0, y0][3] == 0 or not prueba(rgb(x0, y0)):
+                    continue
+                pila, comp = [(x0, y0)], []
+                visto[k] = 1
+                while pila:
+                    x, y = pila.pop()
+                    comp.append((x, y))
+                    for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                        if 0 <= nx < w and 0 <= ny < h and not visto[ny * w + nx]                                 and px[nx, ny][3] > 0 and prueba(rgb(nx, ny)):
+                            visto[ny * w + nx] = 1
+                            pila.append((nx, ny))
+                yield comp
+
+    def vecinos(comp):
+        dentro = set(comp)
+        out = []
+        for x, y in comp:
+            for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                if 0 <= nx < w and 0 <= ny < h and (nx, ny) not in dentro:
+                    out.append((nx, ny))
+        return out
+
+    def pintar(comp, color):
+        for x, y in comp:
+            px[x, y] = color + (px[x, y][3],)
+
+    quitadas = 0
+    for comp in list(manchas(es_gris)):
+        if len(comp) > MAX_PIEDRA_TIERRA:
+            continue
+        alrededor = [rgb(x, y) for x, y in vecinos(comp)]
+        suelo = [c for c in alrededor if c in SUELOS]
+        if len(suelo) < len(alrededor) * 0.5:
+            continue                       # no está suelta sobre el suelo
+        base = max(set(suelo), key=suelo.count)
+        # Sobre la hierba solo las chicas (las rocas con contorno se quedan);
+        # sobre la tierra iban en grupos de cuatro a seis: fuera todas las
+        # pequeñas y medianas.
+        if base == HIERBA and len(comp) > MAX_PIEDRA:
+            continue
+        pintar(comp, base)
+        # y su sombrita (el verde oscuro pegado abajo y a la derecha)
+        for x, y in comp:
+            for dx, dy in ((0, 1), (1, 1), (0, 2), (1, 2), (2, 2)):
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < w and 0 <= ny < h and rgb(nx, ny) in (HIERBA_OSC, HIERBA_OSC2):
+                    px[nx, ny] = base + (px[nx, ny][3],)
+        quitadas += 1
+    for comp in list(manchas(es_hoyo)):
+        if len(comp) > MAX_HOYO:
+            continue
+        alrededor = [rgb(x, y) for x, y in vecinos(comp)]
+        if not alrededor or any(c != TIERRA for c in alrededor):
+            continue
+        pintar(comp, TIERRA)
+        quitadas += 1
+    return quitadas
 
 
 def main():
@@ -154,6 +264,7 @@ def main():
     px = im.load()
     cols = w // T
     n = 0
+    quitadas_total = [limpiar_racimos(px, w, h)]
     for ty in range(h // T):
         for tx in range(cols):
             ox, oy = tx * T, ty * T
@@ -162,7 +273,7 @@ def main():
             detallar_casilla(px, ox, oy, semilla=ty * cols + tx + 1)
             n += 1
     im.save(DESTINO, optimize=True)
-    print('casillas detalladas:', n, '->', DESTINO)
+    print('casillas detalladas:', n, '· racimos quitados:', quitadas_total[0], '->', DESTINO)
 
 
 if __name__ == '__main__':

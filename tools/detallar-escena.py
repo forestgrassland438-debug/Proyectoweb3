@@ -18,7 +18,9 @@ lo que esto escribe lo trocea tools/trocear-escena.py.
           · ARENA MOJADA: lo que está a menos de 14 px del agua, más oscuro y
             más saturado, tramado.
           · la hierba un poco más alta que la arena: sombra de 1-3 px.
-          · tono a gran escala, matas, florecillas, conchas y guijarros.
+          · tono a gran escala LISO y matas de briznas. Desde 2026-10-11, sin
+            motas: los píxeles sueltos de las casillas se igualan, sin
+            tramado, y sin flores, conchas ni guijarros (tripofobia).
   tienda  · sombra de las paredes sobre el suelo (oclusión) y bajo los muebles
             empotrados, tramada; tono a gran escala en la madera; las paredes
             de yeso, más claras arriba y más oscuras abajo.
@@ -108,6 +110,34 @@ def libre(m, y, x, rad):
     return m[max(0, y - rad):y + rad + 1, max(0, x - rad):x + rad + 1].all()
 
 
+def caja(a, r):
+    """Suma de `a` en una ventana de (2r+1) x (2r+1) alrededor de cada píxel."""
+    p = np.pad(a.astype(np.int32), r, mode='edge')
+    c = np.cumsum(np.cumsum(p, 0), 1)
+    c = np.pad(c, ((1, 0), (1, 0)))
+    k = 2 * r + 1
+    return c[k:, k:] - c[:-k, k:] - c[k:, :-k] + c[:-k, :-k]
+
+
+def mayoria(nivel, valores, lado):
+    """Cada píxel toma el nivel que más abunda a su alrededor: borra las islas
+    de pocos píxeles que deja un umbral sobre el ruido (y que serían puntos)."""
+    r = lado // 2
+    cuentas = np.stack([caja(nivel == v, r) for v in valores])
+    return np.array(valores, np.int8)[np.argmax(cuentas, axis=0)]
+
+
+def moda(im, masc):
+    """El color que más se repite dentro de `masc`."""
+    c = im[masc][:, :3].astype(np.int32)
+    if not len(c):
+        return None
+    clave = (c[:, 0] << 16) | (c[:, 1] << 8) | c[:, 2]
+    v, n = np.unique(clave, return_counts=True)
+    k = int(v[np.argmax(n)])
+    return np.array([(k >> 16) & 255, (k >> 8) & 255, k & 255], np.int16)
+
+
 MATAS = [
     [(0, 0, 'c'), (1, 0, 'o'), (0, 1, 'c2'), (-1, 1, 'c')],
     [(0, 0, 'c2'), (0, 1, 'o'), (1, -1, 'c'), (1, 0, 'o'), (-1, -1, 'c')],
@@ -153,19 +183,50 @@ def lands(im, rng):
     arena = (arena & ~a_hierba) | a_arena
     print('escalones: %d px a arena, %d px a hierba' % (a_arena.sum(), a_hierba.sum()))
 
-    u = umbral_bayer(h, w)
-    # ── 2. tono a gran escala ────────────────────────────────────────────
-    n = ruido(h, w, 220, rng) * 0.7 + ruido(h, w, 90, rng) * 0.3
-    nivel = niveles(n, u)
-    tono(im, hierba, nivel, (6, 11, 5))
-    tono(im, arena, nivel, (7, 6, 4))
+    # ── 1b. SIN MOTAS (2026-10-11) ───────────────────────────────────────
+    # "Repara el piso de la Lands como hiciste con el de GameScene" (sufre de
+    # tripofobia). Las casillas de la isla traen la hierba y la arena
+    # salpicadas de píxeles sueltos de otros tonos: el 13 % de la hierba y el
+    # 9 % de la arena eran motas. Se igualan al tono BASE de su material
+    # (el que más se repite); la variedad la ponen el tono a gran escala (2),
+    # liso, y las matas de briznas (5). El borde entre hierba y arena (3 px)
+    # se deja: es el perfil de la orilla, una raya, no motas.
+    # Las marquitas claras de la arena (#f6ecd6) no entran en la máscara de
+    # arena por ser casi blancas: las que están rodeadas de arena, también.
+    crema = (im[..., 0] > 230) & (im[..., 1] > 215) & (im[..., 2] > 190) & ~agua & (caja(arena, 2) >= 12)
+    arena_y_marcas = arena | crema
+    for masc in (hierba, arena_y_marcas):
+        base = moda(im, masc & ~crema)
+        if base is None:
+            continue
+        dentro = masc & (distancia(~masc, 3) >= 3)
+        im[dentro, 0] = base[0]; im[dentro, 1] = base[1]; im[dentro, 2] = base[2]
+
+    # ── 2. tono a gran escala: manchas LISAS (sin tramado) ───────────────
+    # Antes los cinco niveles se cortaban con un tramado de Bayer: una
+    # rejilla de puntos por toda la isla. Ahora, umbral liso y la mayoría de
+    # 9 px se lleva los grupitos sueltos que deja el corte. La octava fina
+    # pesa poco (0,12): es la que hacía manchitas redondas sueltas.
+    n = ruido(h, w, 220, rng) * 0.88 + ruido(h, w, 90, rng) * 0.12
+    nivel = np.zeros((h, w), np.int8)
+    nivel[n > 0.16] = 1
+    nivel[n > 0.48] = 2
+    nivel[n < -0.16] = -1
+    nivel[n < -0.48] = -2
+    nivel = mayoria(nivel, (-2, -1, 0, 1, 2), 9)
+    # Y dos pasadas anchas (21 px): fuera las manchitas redondas sueltas; las
+    # manchas que quedan son grandes y de borde suave.
+    nivel = mayoria(mayoria(nivel, (-2, -1, 0, 1, 2), 21), (-2, -1, 0, 1, 2), 21)
+    tono(im, hierba, nivel, (5, 9, 4))
+    tono(im, arena, nivel, (6, 5, 3))
 
     # ── 3. arena mojada junto al agua ────────────────────────────────────
     d = distancia(agua, 14)
     moja = arena & (d <= 14)
     k = np.clip(1.0 - (d - 1) / 13.0, 0, 1)
-    # Tramado: el borde de la parte mojada se deshace en puntos, sin franja.
-    k = np.where(k + (u - 0.5) * 0.35 > 0.5, k, k * 0.45)
+    # En tres franjas lisas paralelas al agua (antes se deshacía en puntos
+    # con un tramado: justo lo que no puede haber).
+    k = np.where(k > 0.66, 1.0, np.where(k > 0.33, 0.62, np.where(k > 0, 0.3, 0.0)))
     for c, f in ((0, 0.78), (1, 0.80), (2, 0.86)):
         im[..., c] = np.where(moja, (im[..., c] * (1 - (1 - f) * k)).astype(np.int16), im[..., c])
 
@@ -183,39 +244,49 @@ def lands(im, rng):
     for c, s in ((0, 10), (1, 18), (2, 8)):
         im[..., c] = np.where(canto, im[..., c] + s, im[..., c])
 
-    # ── 5. matas, flores, conchas y guijarros ────────────────────────────
-    def pinta_mata(y, x, forma):
+    # ── 5. matas de briznas (como en el pueblo) ──────────────────────────
+    # Antes: matas de 4-6 píxeles, florecillas de un píxel de color, conchas
+    # y guijarros de 2x2. Con la isla al doble eran PUNTOS repartidos por
+    # todas partes. Ahora solo matas de 3 a 5 briznas que salen de un mismo
+    # pie: RAYAS de 3 a 6 px, oscuras abajo y claras en la punta, sueltas
+    # (34 px entre una y otra como poco). Ni flores, ni conchas, ni guijarros.
+    def pinta_mata(y, x, rr):
         base = im[y, x, :3].copy()
-        tonos = {'c': base + (14, 22, 10), 'c2': base + (26, 38, 18), 'o': base + (-12, -20, -11)}
-        for dy, dx, t in forma:
-            yy, xx = y + dy, x + dx
-            if 0 <= yy < h and 0 <= xx < w and hierba[yy, xx]:
-                im[yy, xx, :3] = tonos[t]
-    nh, na = int(hierba.sum()), int(arena.sum())
+        osc, med, cla = base + (-12, -20, -11), base + (8, 13, 6), base + (18, 28, 12)
+        for _b in range(int(rr.integers(3, 6))):
+            alto = int(rr.integers(3, 7))
+            dx0 = int(rr.integers(-2, 3))
+            incl = float(rr.uniform(-0.5, 0.5)) + dx0 * 0.18
+            for kk in range(alto):
+                yy = y - kk
+                xx = x + dx0 + int(round(incl * kk))
+                if not (0 <= yy < h and 0 <= xx < w) or not hierba[yy, xx]:
+                    break
+                im[yy, xx, :3] = osc if kk == 0 else (cla if kk >= alto - 2 else med)
+
+    nh = int(hierba.sum())
     matas = 0
-    for y, x in zip(rng.integers(3, h - 3, nh // 300), rng.integers(3, w - 3, nh // 300)):
-        if matas >= nh // 900: break
-        if not hierba[y, x] or not libre(hierba, y, x, 3): continue
-        pinta_mata(y, x, MATAS[int(rng.integers(0, len(MATAS)))]); matas += 1
+    n_matas = nh // 9000
+    SEP = 34
+    rejilla = {}
+
+    def lejos_de_otras(y, x):
+        cy, cx = y // SEP, x // SEP
+        for jj in (cy - 1, cy, cy + 1):
+            for ii in (cx - 1, cx, cx + 1):
+                for (oy, ox) in rejilla.get((jj, ii), ()):
+                    if (oy - y) ** 2 + (ox - x) ** 2 < SEP * SEP:
+                        return False
+        return True
+    for y, x in zip(rng.integers(8, h - 8, n_matas * 6), rng.integers(8, w - 8, n_matas * 6)):
+        if matas >= n_matas: break
+        y, x = int(y), int(x)
+        if not hierba[y, x] or not libre(hierba, y - 4, x, 4) or not lejos_de_otras(y, x): continue
+        pinta_mata(y, x, rng)
+        rejilla.setdefault((y // SEP, x // SEP), []).append((y, x))
+        matas += 1
     flores = 0
-    COLORES = [(250, 250, 240), (245, 225, 70), (232, 140, 210), (160, 200, 255), (255, 160, 90)]
-    for y, x in zip(rng.integers(3, h - 3, 6000), rng.integers(3, w - 3, 6000)):
-        if flores >= nh // 5200: break
-        if not hierba[y, x] or not libre(hierba, y, x, 3): continue
-        c = COLORES[int(rng.integers(0, len(COLORES)))]
-        im[y, x, :3] = c; im[y + 1, x, :3] = im[y + 1, x, :3] + (-14, -22, -12)
-        flores += 1
     conchas = 0
-    for y, x in zip(rng.integers(3, h - 3, 6000), rng.integers(3, w - 3, 6000)):
-        if conchas >= na // 2400: break
-        if not arena[y, x] or not libre(arena, y, x, 2): continue
-        if rng.random() < 0.5:     # concha
-            im[y, x, :3] = (252, 238, 222); im[y, x + 1, :3] = (240, 206, 196)
-            im[y + 1, x, :3] = (206, 160, 140); im[y + 1, x + 1, :3] = (190, 150, 132)
-        else:                      # guijarro
-            im[y, x, :3] = (170, 160, 150); im[y, x + 1, :3] = (150, 140, 130)
-            im[y + 1, x, :3] = (110, 100, 92); im[y + 1, x + 1, :3] = (98, 90, 84)
-        conchas += 1
     print('matas', matas, 'flores', flores, 'conchas/guijarros', conchas)
 
 

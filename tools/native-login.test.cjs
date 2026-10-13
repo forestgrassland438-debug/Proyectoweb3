@@ -15,3 +15,10 @@ test('la autorización exige consentimiento y CSRF y nunca manda la cuenta elegi
   await assert.rejects(approvePairing(fetch,'https://api.grasslandforest.com',args));assert.equal(called,0);
   await approvePairing(fetch,'https://api.grasslandforest.com',{...args,confirmed:true});assert.equal(called,1);
 });
+test('la vinculación Android conserva el código aunque exista una sesión guardada',async()=>{
+  const {nativeContext,pairingInfo}=await modulePromise;
+  const link=nativeContext({search:'?native_client=android',hash:'#native_pair='+'b'.repeat(32)});
+  assert.equal(link.kind,'android-pair');assert.equal(link.id,'b'.repeat(32));
+  const info=await pairingInfo(async()=>({ok:true,json:async()=>({code:'123456',platform:'android'})}),'https://api.grasslandforest.com',link.id);
+  assert.equal(info.code,'123456');
+});

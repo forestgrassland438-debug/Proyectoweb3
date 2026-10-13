@@ -3,7 +3,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createNativePairing } = require('./native-pairing-server.cjs');
 const file = path.join(process.env.USERPROFILE, 'Desktop/server2.js');
-const old = fs.readFileSync(file, 'utf8');
+const original = fs.readFileSync(file);
+const old = original.toString('latin1');
 const start = '// GF_NATIVE_PAIRING_BEGIN';
 const end = '// GF_NATIVE_PAIRING_END';
 const block = `${start}
@@ -11,6 +12,7 @@ const block = `${start}
 // sin copiar cookies del navegador, refresh tokens, claves ni frases semilla.
 const gfCreateNativePairing = ${createNativePairing.toString()};
 const gfNativePairing = gfCreateNativePairing({ crypto, checkAccess: checkGameAccess,
+  getPlayer: async address => (await GamePlayer.findOne({ address }).lean().exec()) || {},
   issueSession: async (address, req, res) => {
     const accessToken = jwt.sign({ address, type: 'access', jti: uuidv4() }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES });
     const refresh = jwt.sign({ address, type: 'refresh', jti: uuidv4() }, JWT_SECRET, { expiresIn: REFRESH_TOKEN_TTL_DAYS + 'd' });
@@ -47,6 +49,9 @@ ${end}
 let next;
 if (old.includes(start)) { const from = old.indexOf(start), to = old.indexOf(end, from) + end.length; next = old.slice(0, from) + block + old.slice(to); }
 else { const marker = '// Logout\r\napp.post'; const pos = old.indexOf(marker); if (pos < 0) throw Error('No se encontró anclaje de auth'); next = old.slice(0,pos) + block + '\r\n' + old.slice(pos); }
-if (!fs.existsSync(file + '.bak-native-pairing')) fs.copyFileSync(file, file + '.bak-native-pairing');
-fs.writeFileSync(file, next, 'utf8');
+if (!fs.existsSync(file + '.bak-native-1.1.2')) fs.copyFileSync(file, file + '.bak-native-1.1.2');
+// Conserva exactamente los bytes del backend fuera del bloque sustituido.
+const from = old.indexOf(start), to = old.indexOf(end, from) + end.length;
+if (from < 0 || to < end.length) throw Error('No se encontró el bloque nativo existente');
+fs.writeFileSync(file, Buffer.concat([original.subarray(0, from), Buffer.from(block, 'utf8'), original.subarray(to)]));
 console.log('server2.js: autorización nativa incorporada, sin archivo extra de runtime.');

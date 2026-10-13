@@ -1,6 +1,6 @@
 'use strict';
 // La misma función se incrusta en server2.js: el backend sigue siendo un archivo.
-function createNativePairing({ crypto, now = Date.now, limit = 1000, issueSession, checkAccess }) {
+function createNativePairing({ crypto, now = Date.now, limit = 1000, issueSession, checkAccess, getPlayer = async () => ({}) }) {
   const pending = new Map();
   const ttl = 10 * 60 * 1000;
   const idPattern = /^[a-f0-9]{32}$/;
@@ -8,7 +8,7 @@ function createNativePairing({ crypto, now = Date.now, limit = 1000, issueSessio
   function find(id) { prune(); return typeof id === 'string' && idPattern.test(id) ? pending.get(id) : null; }
   function start({ challenge, platform }) {
     prune();
-    if (typeof challenge !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(challenge) || !['win32','linux','darwin'].includes(platform)) return { status: 400, error: 'invalid_request' };
+    if (typeof challenge !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(challenge) || !['win32','linux','darwin','android'].includes(platform)) return { status: 400, error: 'invalid_request' };
     if (pending.size >= limit) return { status: 503, error: 'pairing_capacity' };
     const id = crypto.randomBytes(16).toString('hex');
     const code = String(crypto.randomInt(100000, 1000000));
@@ -40,7 +40,10 @@ function createNativePairing({ crypto, now = Date.now, limit = 1000, issueSessio
     pending.delete(id);
     const access = await checkAccess(entry.address);
     if (!access.allowed) return { status: 403, error: access.error || 'access_denied' };
-    const player = await issueSession(entry.address, req, res);
+    // Android ejecuta el juego en el mismo Custom Tab/TWA que autorizó.
+    // Conserva la cookie de ese navegador; no emite una cookie sin destino
+    // hacia el cliente HTTP de Java ni copia credenciales al lanzador.
+    const player = entry.platform === 'android' ? await getPlayer(entry.address) : await issueSession(entry.address, req, res);
     return { status: 200, authenticated: true, address: entry.address, playerName: player.playerName || entry.address, walletKind: entry.walletKind };
   }
   return { start, info, approve, poll, clear: () => pending.clear(), size: () => { prune(); return pending.size; } };

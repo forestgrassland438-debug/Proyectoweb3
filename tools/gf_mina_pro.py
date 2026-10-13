@@ -670,104 +670,159 @@ METAL_VIA = rampa('#16181b', '#23262a', '#33373c', '#454a50', '#5a6067', '#737a8
 # Cada fotograma es el mismo campo con la "fase" movida un poco en circulo: el
 # ultimo enlaza con el primero, y la lava BULLE en vez de deslizarse.
 
-def _campo_lava_f(x, y, P, s, fase):
-    a = 2 * math.pi * fase
-    r = 2.6
-    wx = fbm(x + r * math.cos(a), y + r * math.sin(a), P, s + 5, ((32, 0.6), (16, 0.4))) - 0.5
-    wy = fbm(x + 50 - r * math.sin(a), y + 90 + r * math.cos(a), P, s + 7,
-             ((32, 0.6), (16, 0.4))) - 0.5
-    # El detalle manda y la octava grande pesa poco. Con la de 64 (y despues
-    # con la de 32 al 50 %%) salian unas pocas manchas grandes por parche, y en
-    # un lago de diez casillas se veian repetidas cada 128 px como una reja.
-    # Con el peso en 16 y 8 el parche es TEXTURA, no dibujo: no se le ve el
-    # periodo.
-    return fbm(x + wx * 20 + 1.6 * math.cos(a + 1.0), y + wy * 16 + 1.6 * math.sin(a + 1.0),
-               P, s, ((8, 0.42), (16, 0.38), (32, 0.20)))
+def _campo_lava_f(x, y, P, s, fase=0.0):
+    """
+    El campo de la lava: vetas ALARGADAS en el sentido de la corriente (de
+    izquierda a derecha), que serpentean un poco. Ruido anisotropo (celdas de
+    4x1) en tres capas: nada de celdas redondas ni de manchas sueltas.
+    `fase` no se usa: el movimiento lo pone lava_fotogramas desplazando x.
+    """
+    wy = fbm(x, y, P, s + 7, ((64, 0.6), (32, 0.4))) - 0.5
+    yy = y + wy * 22.0
+    return (0.55 * ruido_aniso(x, yy, 64, 16, P, s) +
+            0.30 * ruido_aniso(x + 9.0, yy, 32, 8, P, s + 11) +
+            0.15 * ruido_aniso(x + 3.0, yy, 16, 5, P, s + 23))
+
+
+# Las bandas de color de la lava: (hasta este valor, tono). Sin tramado: el
+# tramado ordenado deja una rejilla de PUNTOS, y la lava tiene que verse lisa.
+_BANDAS_LAVA = ((0.11, 1), (0.21, 2), (0.26, 4), (0.42, 5), (0.60, 6),
+                (0.77, 7), (0.90, 8), (1.01, 9))
+
+
+def _banda_lava(v):
+    for k, (hasta, _t) in enumerate(_BANDAS_LAVA):
+        if v < hasta:
+            return k
+    return len(_BANDAS_LAVA) - 1
+
+
+def _limpiar_bandas(b, P, pasadas=2):
+    """
+    Filtro de MODA 3x3 con el parche envuelto (teje): quita los pixeles y
+    grupitos sueltos que deja el borde entre dos bandas. Un pixel claro suelto
+    sobre la costra es justo el "puntito" que no puede haber.
+    """
+    for _ in range(pasadas):
+        n = [[0] * P for _ in range(P)]
+        for y in range(P):
+            fila_a, fila, fila_b = b[(y - 1) % P], b[y], b[(y + 1) % P]
+            for x in range(P):
+                cuenta = {}
+                for f in (fila_a, fila, fila_b):
+                    for dx in (-1, 0, 1):
+                        k = f[(x + dx) % P]
+                        cuenta[k] = cuenta.get(k, 0) + 1
+                mejor = fila[x]
+                if cuenta.get(mejor, 0) < 4:
+                    mejor = max(cuenta.items(), key=lambda kv: (kv[1], -abs(kv[0] - fila[x])))[0]
+                n[y][x] = mejor
+        b = n
+    return b
+
+
+def _sin_islas(b, P, minimo=160):
+    """
+    Quita las ISLAS pequenas de cada banda (componentes de menos de `minimo`
+    px, con el parche envuelto): un ojito naranja dentro de la costra, o una
+    mota oscura en lo fundido, se lee como un AGUJERO. Cada isla toma el tono
+    que mas la rodea.
+    """
+    visto = [[False] * P for _ in range(P)]
+    for y0 in range(P):
+        for x0 in range(P):
+            if visto[y0][x0]:
+                continue
+            k = b[y0][x0]
+            pila = [(x0, y0)]
+            visto[y0][x0] = True
+            comp = []
+            vecinos = {}
+            while pila:
+                x, y = pila.pop()
+                comp.append((x, y))
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nx, ny = (x + dx) % P, (y + dy) % P
+                    kk = b[ny][nx]
+                    if kk == k:
+                        if not visto[ny][nx]:
+                            visto[ny][nx] = True
+                            pila.append((nx, ny))
+                    else:
+                        vecinos[kk] = vecinos.get(kk, 0) + 1
+            if len(comp) < minimo and vecinos:
+                nuevo = max(vecinos.items(), key=lambda kv: kv[1])[0]
+                for x, y in comp:
+                    b[y][x] = nuevo
+    return b
 
 
 def lava_fotogramas(lado, s, F):
     """
     `F` fotogramas del parche de lava de `lado` x `lado` casillas.
     Devuelve [fotograma][fila][columna] -> tile.
+
+    REHECHA EL 2026-10-10: "repara la lava de la cueva porque sufro de
+    tripofobia". La de antes era un mosaico de PLACAS (Voronoi) con las juntas
+    al rojo, chispas sueltas y burbujas: celdas y puntos agrupados, justo lo
+    que no se puede mirar. Ahora es un RIO de lava: vetas largas y lisas que
+    corren de izquierda a derecha, con la costra oscura en franjas alargadas
+    y el filo encendido como una sola linea continua.
+
+    EL BUCLE SIN SALTO: cada fotograma mezcla el campo corrido `t*D` px (con
+    peso 1-t) y corrido `(t-1)*D` (con peso t). En t=0 es el campo tal cual y
+    en t=1 vuelve a serlo: el ultimo fotograma enlaza con el primero y la
+    lava avanza 2 px por fotograma sin dar el tiron de vuelta.
     """
     P = lado * T
-    rango = normalizador(lambda x, y: _campo_lava_f(x, y, P, s, 0.0), P)
-    CORTEZA = 0.40
+    rango = normalizador(lambda x, y: _campo_lava_f(x, y, P, s), P)
+    D = 12.0
     fotos = []
     for f in range(F):
-        fase = f / float(F)
+        t = f / float(F)
+        bandas = []
+        for y in range(P):
+            fila = []
+            for x in range(P):
+                a = _campo_lava_f(x - t * D, y, P, s)
+                b = _campo_lava_f(x - (t - 1.0) * D, y, P, s)
+                fila.append(_banda_lava(rango(a * (1.0 - t) + b * t)))
+            bandas.append(fila)
+        bandas = _limpiar_bandas(bandas, P)
+        # Dos pasadas: al tapar una isla puede quedar otra mas pequena dentro.
+        bandas = _sin_islas(_sin_islas(bandas, P), P)
         li = Lienzo(P, P)
         for y in range(P):
             for x in range(P):
-                v = rango(_campo_lava_f(x, y, P, s, fase))
-                d1, d2, ide, vx, vy = voronoi_mov(x, y, 15, P, s + 3, fase, 1.4, 1.15)
-                junta = d2 - d1
-                if v < CORTEZA:
-                    # COSTRA: placas de basalto con la junta al rojo. Cada
-                    # placa "respira": su grieta se enciende y se apaga con
-                    # su propio desfase.
-                    pulso = math.sin(2 * math.pi * (fase + h01(ide, 9, s)))
-                    if junta < 1.2:
-                        c = LAVA[8] if (junta < 0.55 and pulso > 0.2) else LAVA[6] if junta < 0.55 else LAVA[5]
-                    elif junta < 2.1:
-                        c = LAVA[3] if pulso > 0.5 else LAVA[2]
-                    else:
-                        k = 1 + int(h01(ide, 2, s) * 2)
-                        if (vx + vy) < -0.25 and junta < 3.4:
-                            k += 1                       # el canto con luz
-                        elif (vx + vy) > 0.25 and junta < 3.0:
-                            k = max(0, k - 1)
-                        c = LAVA[k]
-                    if v > CORTEZA - 0.035:
-                        c = LAVA[4]                      # el filo, casi fundido
-                else:
-                    calor = (v - CORTEZA) / (1.0 - CORTEZA)
-                    corriente = math.sin(2 * math.pi * (3 * x + 1 * y) / float(P) +
-                                         (fbm(x, y, P, s + 13, ((32, 1.0),)) - 0.37) * 9.0 +
-                                         2 * math.pi * fase)
-                    if corriente > 0.84:
-                        calor += 0.20
-                    elif corriente < -0.88:
-                        calor -= 0.14
-                    c = tono(LAVA, 0.08 + calor * 0.92, x, y, 5, 9)
-                    if calor > 0.93 and h01(x, y, s + 3 + f) > 0.7:
-                        c = LAVA[10]
-                    if v < CORTEZA + 0.03:
-                        c = LAVA[5]
-                li.set(x, y, c)
+                li.set(x, y, LAVA[_BANDAS_LAVA[bandas[y][x]][1]])
         fotos.append([[_recortar(li, i * T, j * T) for i in range(lado)] for j in range(lado)])
     return fotos
 
 
 def burbujas_lava():
-    """Seis fotogramas de 32x32: sube, se hincha y revienta en salpicaduras."""
+    """
+    Seis fotogramas de 32x32: una LENGUA DE CALOR que sube de la lava y se
+    apaga. Antes era una burbuja redonda que reventaba en un anillo de
+    puntos; con varias a la vez en el lago eran racimos de circulos (ver
+    lava_fotogramas). Ahora es una llama estrecha y lisa, sin puntos.
+    """
     out = []
-    for f in range(6):
+    # (alto, ancho, tono del borde, tono del centro, cuanto ha subido)
+    pasos = ((5, 2.0, 6, 8, 0), (9, 2.6, 6, 8, 1), (12, 3.0, 7, 9, 2),
+             (13, 2.8, 7, 9, 4), (9, 2.0, 5, 7, 7), (5, 1.4, 4, 6, 10))
+    for alto, ancho, borde, centro, sube in pasos:
         t = Lienzo(T, T)
-        if f < 4:
-            r = 2.6 + f * 2.0
-            cy = 21 - f * 2.0
-            for y in range(T):
-                for x in range(T):
-                    dx, dy = (x - 16) / r, (y - cy) / (r * 0.85)
-                    d = dx * dx + dy * dy
-                    if d > 1:
-                        continue
-                    luz = -dx * 0.5 - dy * 0.8
-                    if d > 0.7:
-                        c = LAVA[4] if luz < 0 else LAVA[7]
-                    else:
-                        c = LAVA[8] if luz > 0.3 else LAVA[6]
-                    t.set(x, y, c)
-            t.set(int(16 - r * 0.35), int(cy - r * 0.45), LAVA[10])
-        else:
-            r = 8.0 + (f - 4) * 4.5
-            for i in range(10):
-                a = i / 10.0 * 6.283 + f
-                px = 16 + math.cos(a) * r
-                py = 15 + math.sin(a) * r * 0.7 - (f - 4) * 2
-                t.set(int(px), int(py), LAVA[9] if f == 4 else LAVA[6])
-                t.set(int(px) + 1, int(py), LAVA[7] if f == 4 else LAVA[5])
+        base = 24 - sube
+        for y in range(max(0, base - alto), base + 1):
+            k = (base - y) / float(alto)               # 0 abajo, 1 en la punta
+            medio = ancho * (1.0 - k) ** 0.7 * (0.55 + 0.45 * math.sin(min(1.0, k * 3.0 + 0.2) * 1.5708))
+            # La punta se inclina un pelin, como si la empujara el aire caliente.
+            cx = 16.0 + 1.2 * k * k
+            for x in range(T):
+                d = abs(x + 0.5 - cx)
+                if d > medio:
+                    continue
+                t.set(x, y, LAVA[centro] if d < medio * 0.45 else LAVA[borde])
         out.append(t)
     return out
 
@@ -946,18 +1001,17 @@ def borde_capa(lado, piel, material, s, f=0):
     for (x, y), d in df.items():
         if material == 'lava':
             if d == 1:
-                t.set(x, y, LAVA[1] if h01(x, y, s) > 0.35 else LAVA[0])
+                t.set(x, y, LAVA[1])                      # el basalto del labio, liso
             elif d == 2:
-                if h01(x, y, s + 5 + f) > 0.93:
-                    t.set(x, y, LAVA[7])                  # una brasa
-                else:
-                    t.set(x, y, (14, 6, 4, 165))
+                # (Antes, al azar, una "brasa": un pixel encendido suelto. Con
+                # todo el perimetro eran puntos en fila: fuera, 2026-10-10.)
+                t.set(x, y, (14, 6, 4, 165))
             elif d == 3:
                 t.set(x, y, (60, 14, 6, 95))
             elif d == 4:
                 t.set(x, y, (120, 34, 10, 52))
-            elif d == 5 and tramar(0.5, x, y):
-                t.set(x, y, (150, 48, 14, 30))
+            elif d == 5:
+                t.set(x, y, (150, 48, 14, 16))         # liso, sin tramado
         elif material == 'agua':
             if d == 1:
                 t.set(x, y, (6, 16, 22, 175))
@@ -978,7 +1032,7 @@ def borde_capa(lado, piel, material, s, f=0):
         c = t.get(x, y)
         if material == 'lava':
             if d == 1:
-                t.set(x, y, LAVA[2] if h01(x, y, s) > 0.4 else LAVA[1])
+                t.set(x, y, LAVA[2])                      # el labio, de un tono (sin moteado)
             elif d == 2:
                 t.set(x, y, LAVA[3] if c[0] < 150 else LAVA[6])
             elif d == 3 and c[0] > 200:

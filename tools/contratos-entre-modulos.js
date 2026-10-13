@@ -26,6 +26,8 @@ const ctx = {
   Math, Date, JSON, Object, Array, Number, String, Boolean, Set, Map, Promise,
   isFinite, parseFloat, parseInt, Infinity, NaN, Error, RegExp, Symbol,
   setTimeout: () => 0, clearTimeout: nada, setInterval: () => 0, clearInterval: nada,
+  requestAnimationFrame: () => 0, cancelAnimationFrame: nada,
+  addEventListener: nada, removeEventListener: nada, AbortController,
   fetch: () => Promise.reject(new Error('sin red')),
   document: {
     createElement: () => ({ getContext: () => null, style: {}, classList: { add: nada, remove: nada } }),

@@ -33,6 +33,8 @@ async function main() {
           // Los snaps del fixture no sobrescriben la visual que examinamos.
           b.socket.off('brawl:snap', b._listeners.find(x => x[0] === 'brawl:snap')?.[1]);
           b.alSnap = () => {};
+          ['escudo', 'rapidez', 'municion', 'super'].forEach((tipo, i) =>
+            b.alObjeto({ id: 'visual-' + tipo, tipo, x: p.x - 70 + i * 45, y: p.y - 45 }));
         });
         await page.waitForTimeout(500);
         const stats = await page.evaluate(() => {
@@ -40,13 +42,23 @@ async function main() {
           return { cloud: !!b.nieblaNubes, fogVisible: b.nieblaRT?.visible,
             children: b.children.list.length, textures: game.textures.getTextureKeys().length,
             fogTextures: game.textures.getTextureKeys().filter(k => k.includes('niebla')).length,
+            powers: ['escudo', 'rapidez', 'municion', 'super'].filter(t => b.huesosVista.get('visual-' + t)?.img?.list?.length === 2).length,
             renderer: game.renderer.type };
         });
         assert.equal(stats.cloud, true); assert.equal(stats.fogVisible, true);
+        assert.equal(stats.powers, 4);
         samples.push({ mobile, run, ...stats });
         if (!run) { await page.waitForTimeout(1100); await page.locator('#mando').evaluate(el => el.style.display = 'none');
           await page.screenshot({ path: path.join(dist, `battle-fog-${mobile ? 'android' : 'desktop'}.png`) });
           await page.locator('#mando').evaluate(el => el.style.display = ''); }
+        await page.evaluate(() => {
+          const b = game.scene.getScene('BattleScene'), v = b.vistas.get(b.yoId);
+          window.__powersVisual = ['escudo', 'rapidez', 'municion', 'super'].map(tipo => b.huesosVista.get('visual-' + tipo));
+          ['escudo', 'rapidez', 'municion', 'super'].forEach(tipo =>
+            b.alRecoger({ id: 'visual-' + tipo, tipo, por: b.yoId, potencia: v.potencia, maxHp: v.maxHp, hp: v.hp, vel: v.datos.vel, m: 3, s: 0.5 }));
+        });
+        await page.waitForFunction(() => window.__powersVisual.every(p => !p.img.scene && (!p.brillo || !p.brillo.scene)));
+        assert.equal(await page.evaluate(() => game.scene.getScene('BattleScene').huesosVista.has('visual-super')), false);
         await page.evaluate(() => game.scene.getScene('BattleScene').rendirse());
         await page.waitForFunction(() => game.scene.isActive('LoadingScenegame'));
         assert.equal(await page.evaluate(() => game.textures.exists('bfx_niebla')), false);
@@ -55,7 +67,7 @@ async function main() {
     }
     assert.deepEqual(errors, []);
     fs.writeFileSync(path.join(dist, 'battle-visual-verification.json'), JSON.stringify({ fixtureOnly: true, errors, samples, cycles: 6, releasedAfterExit: true }, null, 2));
-    console.log('OK: niebla animada en PC/móvil, seis entradas/salidas, texturas liberadas, sin errores JS.');
+    console.log('OK: niebla y cuatro poderes en PC/móvil, seis entradas/salidas, texturas y objetos liberados, sin errores JS.');
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 }
 main().catch(e => { console.error(e); process.exitCode = 1; });

@@ -195,8 +195,12 @@ function parteCliente() {
     const cuerpo = metodo(src, firma);
     if (!cuerpo) { ok(false, firma + ': no encuentro el método'); continue; }
     // Lo primero que hace (saltando comentarios y líneas en blanco) es preguntar.
-    const primera = cuerpo.split('\n').map((l) => l.trim())
-      .filter((l) => l && !l.startsWith('//') && !l.startsWith('/*') && !l.startsWith('*'))[0] || '';
+    // (2026-10-11) Se admite antes UNA guarda de "esta escena ya no vale"
+    // (`if (this._destroyed ...) return`): no hace nada, solo sale.
+    const lineas = cuerpo.split('\n').map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('//') && !l.startsWith('/*') && !l.startsWith('*'));
+    const guarda = /^if\s*\(\s*this\._destroyed\b.*\)\s*return\b/.test(lineas[0] || '');
+    const primera = (guarda ? lineas[1] : lineas[0]) || '';
     ok(/GFMuerte\.bloquear\(/.test(primera), firma.replace('async ', '') + '()');
   }
 }

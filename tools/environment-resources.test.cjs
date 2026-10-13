@@ -122,7 +122,7 @@ test('snow stays allocation-free at strength zero, deduplicates candidates, rele
   for (let cycle = 0; cycle < 5; cycle++) {
     api.forzar(1);
     for (let t = 0; t < 41000; t += 100) s.tick(t);
-    assert.equal(st.capas.length, 1); assert.equal(s.sc.textures.map.size, 6);
+    assert.equal(st.capas.length, 1); assert.equal(s.sc.textures.map.size, 11);
     api.forzar(0);
     for (let t = 0; t < 91000; t += 100) s.tick(t);
     assert.equal(st.capas.length, 0); assert.equal(st.manchas.length, 0);

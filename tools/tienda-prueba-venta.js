@@ -82,6 +82,8 @@ class EscenaFalsa {
     for (let i = 0; i < 24; i++) { this.STATE.slots.push(null); this.STATE.ghostSlots.inv.push(null); }
     for (let i = 0; i < 7; i++) { this.STATE.quickSlots.push(null); this.STATE.ghostSlots.quick.push(null); }
     this.scene = { key: 'tiendajuego' };
+    // Una escena de Phaser en pantalla (la tienda no guarda desde una apagada).
+    this.sys = { isActive: () => true };
   }
   poner(idx, id, count, invoiceId) {
     this.STATE.slots[idx] = { id, count, idx: invoiceId, idm: id + '#' + invoiceId };

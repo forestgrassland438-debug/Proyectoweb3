@@ -41,3 +41,13 @@ test('una cuenta baneada después de aprobar no obtiene cookies', async () => {
   assert.equal((await f.service.poll({id:f.pair.id,verifier:f.verifier})).error,'banned');
   assert.equal(f.sessions(),0); assert.equal(f.service.size(),0);
 });
+test('Android muestra el mismo código y consume PKCE sin sacar la cookie del navegador TWA',async()=>{
+  const f=fixture({getPlayer:async()=>({playerName:'Android Player'})});
+  const pair=f.service.start({challenge:f.challenge,platform:'android'});
+  assert.equal(pair.status,200);assert.equal(f.service.info(pair.id).platform,'android');assert.match(pair.code,/^\d{6}$/);
+  assert.equal((await f.service.poll({id:pair.id,verifier:f.verifier})).status,202);
+  f.service.approve({id:pair.id,address,walletKind:'social'});
+  assert.equal((await f.service.poll({id:pair.id,verifier:'b'.repeat(43)})).status,403);
+  const result=await f.service.poll({id:pair.id,verifier:f.verifier});assert.equal(result.authenticated,true);assert.equal(result.playerName,'Android Player');
+  assert.equal(f.sessions(),0);assert.equal((await f.service.poll({id:pair.id,verifier:f.verifier})).status,410);
+});

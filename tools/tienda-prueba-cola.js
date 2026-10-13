@@ -476,6 +476,37 @@ function precioNeto(item, unidades) {
        String(b.tienda.getBalanceByCurrency('silver')));
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log('\nX) Comprar y SALIR de la tienda con la compra en cola');
+  {
+    /* "Compro en la tienda y me salgo: sale «Error crítico: Cannot read
+       properties of undefined (reading 'quickSlots')» y en el mapa no tengo
+       los objetos." La compra que esperaba turno arrancaba sin inventario. */
+    const b = banco.montar(BIN, { retrasoTx: 3 });
+    const item = banco.itemTienda(b.tienda, 'Semillax') || banco.itemTienda(b.tienda, 'Regaderax');
+    b.tienda.playerMonedaPlata = 5000; b.tienda.playerMoneda = 5000;
+    const errores = [];
+    await enSilencio(async () => {
+      const errOrig = console.error;
+      console.error = (...a) => errores.push(a.map(String).join(' '));
+      try {
+        await b.tienda.processPurchase(item, 1);
+        await b.tienda.processPurchase(item, 1);     // la segunda espera turno
+        b.escena.salir(b.tienda);                    // y el jugador se va ya
+        b.tienda.scene = null;                       // el caso peor: nadie apunta ya a la escena
+        await esperarCola(b.tienda, 60000);
+      } finally { console.error = errOrig; }
+    });
+    const tabla = b.tienda._getOnchainTableFor(item.id)[0];
+    ok(!errores.some(e => /quickSlots|crítico/.test(e)), 'sin el error de quickSlots',
+       errores.filter(e => /quickSlots|crítico/.test(e)).join(' | ').slice(0, 200));
+    ok(b.cadena.totalDe(tabla) === 2, 'las DOS compras llegan a la cadena', String(b.cadena.totalDe(tabla)));
+    ok(!b.tienda.avisos.some(a => /refunded/i.test(a)), 'y no se reembolsa nada sin motivo',
+       b.tienda.avisos.join(' | ').slice(0, 200));
+    ok(b.escena.guardados === 0, 'la escena ya apagada no guarda (el mapa recoge el objeto de la cadena)',
+       String(b.escena.guardados));
+  }
+
   console.log('\n' + '='.repeat(62));
   console.log('Pasan: ' + pasadas + '   Fallan: ' + fallos);
   if (fallos) { console.log('\nHay fallos en la tienda.'); process.exit(1); }

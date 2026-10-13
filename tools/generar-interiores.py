@@ -78,7 +78,7 @@ R = 16            # lado de una casilla del MAPA, al diseñar
 ESC = 2           # todo se escribe al doble (ver AL DOBLE)
 TE = T * ESC      # lado de una tile del tileset que se escribe
 RE = R * ESC      # lado de una casilla del mapa que se escribe
-VERSION = '20261007'
+VERSION = '20261011'
 # Lo intermedio (la sala con su luz, que luego trocea trocear-escena.py, y las
 # vistas previas) va fuera del proyecto: `--tmp <carpeta>` o la temporal.
 TMP = sys.argv[sys.argv.index('--tmp') + 1] if '--tmp' in sys.argv else os.path.join(tempfile.gettempdir(), 'gf-interiores')
@@ -543,6 +543,26 @@ def construir_muebles():
     m['armero'] = armero([os.path.join(armas, 'espada_' + n + '.png') for n in ('hierro', 'cobre', 'madera')])
     m['mesa_comida'] = mesa_con_comida()
     m['aplique'] = aplique()
+    # LOS QUE ERAN PLANOS, EN 2.5D (2026-10-11, ver tools/gf_muebles_25d.py):
+    # piezas cenitales de la tienda y cuatro racimos de agujeros, redibujados
+    # con tapa y frente. Mismo tamaño aproximado: las salas no se mueven.
+    import gf_muebles_25d as M25
+    icono = lambda r, a: M25._icono(os.path.join(BIN, r), a)
+    m['mostrador'] = M25.mostrador()
+    m['mesa_larga'] = M25.mesa_larga(os.path.join(BIN, 'Game', 'newpro', 'cocina'))
+    m['expositor_fruta'] = M25.expositor([icono('Game/Objetos/Plantas/planta_tomates/item_tomate_bueno.png', 10),
+                                          icono('Game/Objetos/Plantas/planta_fresa/item_fresa_buena.png', 10)])
+    m['expositor_verdura'] = M25.expositor([icono('Game/Objetos/Plantas/planta_zanahorias/item_zanahoria_buena.png', 10),
+                                            icono('Game/Objetos/Plantas/planta_calabaza/item_calabaza_buena.png', 10)])
+    m['expositor_pociones'] = M25.expositor([icono('Game/Objetos/pociones/pocion_mascota.png', 11),
+                                             icono('Game/Objetos/pociones/pocion_mascota_grande.png', 11),
+                                             icono('Game/Objetos/pociones/elixir_revivir.png', 11)])
+    m['cajon'] = M25.cajon()
+    m['escalera'] = M25.escalera()
+    m['carbon'] = M25.carbon()
+    m['pila_lena'] = M25.pila_lena()
+    m['nasas'] = M25.nasas()
+    m['red_pesca'] = M25.red_pesca()
     m['alfombra_pasillo'] = recorta(png(os.path.join(OBJ, 'alfombra5.png')))
     # A su tamaño en el juego (ver ESCALA_MUEBLE): lo que se guarda y lo que
     # se coloca. Vecino más cercano: es pixel art.

@@ -68,7 +68,7 @@ test('las posiciones son volátiles y no se acumulan sin conexión', () => {
 test('reintentar la búsqueda no acumula plazos PvP y practicar invalida el anterior', () => {
   const { s, sent, clocks } = scene();
   s._pedirPartida(); s._pedirPartida();
-  assert.equal(clocks.filter(c => c.ms === 240000).length, 1);
-  s.modo = 'practica'; clocks.find(c => c.ms === 240000).fn();
+  assert.equal(clocks.filter(c => c.ms === 170000).length, 1);
+  s.modo = 'practica'; clocks.find(c => c.ms === 170000).fn();
   assert.equal(sent.some(([ev]) => ev === 'brawl:salirCola'), false);
 });

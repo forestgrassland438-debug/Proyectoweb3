@@ -497,6 +497,15 @@ class EscenaFalsa {
       selectedItem: null
     };
     this.scene = { key: 'tiendajuego' };
+    // ¿Sigue en pantalla? La tienda no pinta ni guarda desde una escena que ya
+    // se apagó (ver TiendaSistema._escenaViva). `salir()` lo imita.
+    this.activa = true;
+    this.sys = { isActive: () => this.activa };
+  }
+  /** El jugador sale de la tienda: la escena se apaga (como tiendajuego.shutdown). */
+  salir(tienda) {
+    this.activa = false;
+    if (tienda && typeof tienda.soltarEscena === 'function') tienda.soltarEscena(this);
   }
   /** Pone un objeto en un hueco. `invoiceId`/`manual` pueden ser BASURA a propósito. */
   poner(hueco, id, count, invoiceId, manual) {
