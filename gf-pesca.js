@@ -792,9 +792,15 @@
     L.el.classList.add('fin', gana ? 'ganada' : 'perdida');
     // El servidor pide una pelea creíble: si se ganó rapidísimo, se espera.
     var espera = gana ? Math.max(0, LUCHA.minMs - dura) : 0;
-    setTimeout(function () {
-      if (st.lucha === L) st.lucha = null;
-      setTimeout(function () { L.el.hidden = true; }, 600);
+    L.relojRecoger = setTimeout(function () {
+      L.relojRecoger = null;
+      if (!st.scene || st.lucha !== L) return;
+      L.relojOcultar = setTimeout(function () {
+        L.relojOcultar = null;
+        if (st.lucha !== L) return;
+        L.el.hidden = true;
+        st.lucha = null;
+      }, 600);
       recoger(st, gana);
     }, espera);
   }
@@ -802,6 +808,9 @@
   function cerrarLucha(st) {
     var L = st.lucha;
     if (!L) return;
+    clearTimeout(L.relojRecoger);
+    clearTimeout(L.relojOcultar);
+    L.relojRecoger = L.relojOcultar = null;
     st.lucha = null;
     if (!L.terminada) {
       L.terminada = true;
@@ -1169,6 +1178,8 @@
     };
     var fuera = function () {
       scene.events.off('update', fn);
+      scene.events.off('shutdown', fuera);
+      scene.events.off('destroy', fuera);
       scene.__gfPescaRemotos = null;
     };
     scene.__gfPescaRemotos = fn;
@@ -1279,7 +1290,7 @@
       var st = scene && scene.__gfPesca;
       return st ? { fase: st.fase, puede: st.puede, dir: st.dir || null } : null;
     },
-    _interno: { cargarFotogramas: cargarFotogramas, mapaDeAgua: mapaDeAgua, enLaOrilla: enLaOrilla, puntoDelCorcho: puntoDelCorcho,
+    _interno: { bucleRemoto: bucleRemoto, finLucha: finLucha, cerrarLucha: cerrarLucha, cargarFotogramas: cargarFotogramas, mapaDeAgua: mapaDeAgua, enLaOrilla: enLaOrilla, puntoDelCorcho: puntoDelCorcho,
                 destinoDelLance: destinoDelLance, LANCE_MIN: LANCE_MIN, LANCE_MAX: LANCE_MAX, RADIO_MOVERSE: RADIO_MOVERSE,
                 clasificarTileset: clasificarTileset, meterFactura: meterFactura, NOMBRES: NOMBRES }
   };

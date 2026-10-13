@@ -47,25 +47,27 @@
 
   var ESPECIES = {
     golem_salvaje: {
-      arte: 'golem', nombre: 'Stone Golem', vida: 200, escala: 2.6, sombra: 1.9,
+      // (2026-10-11) Arte en 3 vistas a la densidad del personaje: escala 2.
+      arte: 'golem', nombre: 'Stone Golem', vida: 200, escala: 2, sombra: 1.9,
       vel: 40, velCaza: 66, vista: 380, olvida: 760, correa: 720,
       golpe: { alcance: 76, cada: 1900 }, poder: [5200, 7800], ancho: 56, alto: 20, cabeza: 128,
       vuelveMs: 6 * 60 * 1000, color: 0xffb84a
     },
     lobo_salvaje: {
-      arte: 'lobo', nombre: 'Shadow Wolf', vida: 90, escala: 2.5, sombra: 1.4,
+      arte: 'lobo', nombre: 'Shadow Wolf', vida: 90, escala: 2, sombra: 1.4,
       vel: 58, velCaza: 150, vista: 440, olvida: 820, correa: 820,
       golpe: { alcance: 60, cada: 1300 }, poder: [3800, 5800], ancho: 40, alto: 14, cabeza: 76,
       vuelveMs: 4 * 60 * 1000, color: 0xffd23f
     },
     arana_salvaje: {
-      arte: 'arana', nombre: 'Thorn Spider', vida: 110, escala: 2.4, sombra: 1.5,
+      arte: 'arana', nombre: 'Thorn Spider', vida: 110, escala: 2, sombra: 1.5,
       vel: 52, velCaza: 96, vista: 420, olvida: 780, correa: 720, distancia: 210,
-      golpe: { alcance: 56, cada: 1500 }, poder: [3300, 5000], ancho: 44, alto: 14, cabeza: 74,
+      golpe: { alcance: 56, cada: 1500 }, poder: [3300, 5000], ancho: 44, alto: 14, cabeza: 66,
       vuelveMs: 5 * 60 * 1000, color: 0xff6a3d
     },
     brujo_salvaje: {
-      arte: 'brujo', nombre: 'Storm Wraith', vida: 170, escala: 2.3, sombra: 1.2, humanoide: true,
+      // (2026-10-12) A la escala del jugador (2), como los de la mina.
+      arte: 'brujo', nombre: 'Storm Wraith', vida: 170, escala: 2, sombra: 1.2, humanoide: true,
       vel: 42, velCaza: 80, vista: 500, olvida: 860, correa: 760, distancia: 240,
       golpe: null, poder: [3600, 5400], ancho: 34, alto: 14, cabeza: 152,
       vuelveMs: 12 * 60 * 1000, color: 0x8ce9ff
@@ -281,6 +283,9 @@
     if (!def || !A || !scene.textures.exists(A.clave(def.arte))) return null;
     var spr = scene.add.sprite(punto.x, punto.y, A.clave(def.arte), A.fotograma(def.arte, def.humanoide ? 'down' : 'quieto'))
       .setOrigin(0.5, 1).setScale(def.escala);
+    // Las bestias traen su punto de apoyo en el fotograma (de frente, las
+    // patas de delante caen más abajo que el centro).
+    if (!def.humanoide) spr.setOriginFromFrame();
     spr.setData('optimized', true);
     var sombra = scene.add.image(punto.x, punto.y, 'gfsv_sombra').setScale(def.sombra).setAlpha(0.85).setDepth(2.5);
     var m = {
@@ -301,12 +306,17 @@
     return m;
   }
 
-  /** Cambia la animación si hace falta. Bestias: acción; espectro: dirección. */
+  /** Cambia la animación si hace falta. Bestias: acción (y su vista de frente
+      o de espaldas al ir hacia abajo o arriba); espectro: dirección. */
   function animar(m, accion) {
     var A = window.GFMonstruosArte, spr = m.spr;
     if (!spr || !spr.scene) return;
     m.accionNombre = accion;
     var key = m.def.humanoide ? A.anim(m.def.arte, m.dir) : A.anim(m.def.arte, accion);
+    if (!m.def.humanoide && (m.dir === 'down' || m.dir === 'up')) {
+      var vista = A.anim(m.def.arte, accion + (m.dir === 'down' ? '_abajo' : '_arriba'));
+      if (spr.scene.anims.exists(vista)) key = vista;
+    }
     if (m.anim === key && spr.anims.isPlaying) return;
     if (spr.scene.anims.exists(key)) { spr.play(key, true); m.anim = key; }
   }
@@ -316,8 +326,11 @@
     if (m.def.humanoide) {
       var d = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
       if (d !== m.dir) { m.dir = d; m.anim = null; }
-    } else if (Math.abs(dx) > 0.5) {
-      m.spr.setFlipX(dx < 0);          // los dibujos miran a la derecha
+    } else {
+      if (Math.abs(dx) > 0.5) m.spr.setFlipX(dx < 0);          // los dibujos miran a la derecha
+      // La vista: de perfil, o de frente/espaldas si va claramente en vertical.
+      var dv = Math.abs(dy) > Math.abs(dx) * 1.3 ? (dy > 0 ? 'down' : 'up') : (dx < 0 ? 'left' : 'right');
+      if (dv !== m.dir) { m.dir = dv; m.anim = null; }
     }
   }
 
@@ -456,7 +469,8 @@
     scene.time.delayedCall(350, function () {
       if (!st.vivo || !m.vivo) return;
       var x0 = m.x, y0 = m.y - 110;
-      var roca = efimero(st, scene.add.image(x0, y0, 'gfm_roca').setScale(2.4).setDepth(9000));
+      // (2026-10-12) Los proyectiles van al doble de resolución: la mitad de escala.
+      var roca = efimero(st, scene.add.image(x0, y0, 'gfm_roca').setScale(1.2).setDepth(9000));
       scene.tweens.addCounter({ from: 0, to: 1, duration: 700, ease: 'Linear', onUpdate: function (tw) {
         if (!roca.scene) return;
         var t = tw.getValue();
@@ -533,7 +547,7 @@
       for (var i = -1; i <= 1; i++) {
         if (st.proyectiles.length >= 24) break;
         var a = base + i * 0.2;
-        var spr = scene.add.image(bx, by, 'gfm_espina').setScale(2.2).setRotation(a).setDepth(m.y + 1);
+        var spr = scene.add.image(bx, by, 'gfm_espina').setScale(1.1).setRotation(a).setDepth(m.y + 1);
         st.proyectiles.push({ spr: spr, x: bx, y: by, vx: Math.cos(a) * 380, vy: Math.sin(a) * 380, hasta: scene.time.now + 1600, alto: 30, motivo: 'monstruo_poder' });
       }
     });
@@ -546,7 +560,7 @@
     marca(st, tx, ty, 48, 18, 0xc99a3a, 800);
     m.accion = { hasta: t0 + 600, cada: function () {} };
     var x0 = m.x, y0 = m.y - 30;
-    var gota = efimero(st, scene.add.image(x0, y0, 'gfm_savia').setScale(0.6).setDepth(9000));
+    var gota = efimero(st, scene.add.image(x0, y0, 'gfm_savia').setScale(0.3).setDepth(9000));
     scene.tweens.addCounter({ from: 0, to: 1, duration: 800, onUpdate: function (tw) {
       if (!gota.scene) return;
       var t = tw.getValue();
@@ -555,7 +569,7 @@
       soltarEfimero(st, gota);
       if (!st.vivo) return;
       if (st.charcos.length >= 6) { var viejo = st.charcos.shift(); soltarEfimero(st, viejo.img); }
-      var img = efimero(st, scene.add.image(tx, ty, 'gfm_savia').setScale(2.4).setDepth(2.6).setAlpha(0.95));
+      var img = efimero(st, scene.add.image(tx, ty, 'gfm_savia').setScale(1.2).setDepth(2.6).setAlpha(0.95));
       st.charcos.push({ x: tx, y: ty, hasta: scene.time.now + 6000, img: img, picado: false });
     } });
   }
@@ -571,7 +585,7 @@
       if (cercaDeMi(st, puntos[0][0], puntos[0][1], 700)) { try { scene.cameras.main.flash(60, 200, 240, 255); } catch (e) {} }
       var dado = false;
       puntos.forEach(function (pt) {
-        var rayo = efimero(st, scene.add.image(pt[0], pt[1], 'gfm_rayo').setOrigin(0.5, 1).setScale(2).setDepth(9000).setAlpha(1));
+        var rayo = efimero(st, scene.add.image(pt[0], pt[1], 'gfm_rayo').setOrigin(0.5, 1).setScale(1).setDepth(9000).setAlpha(1));
         scene.tweens.add({ targets: rayo, alpha: 0, duration: 260, delay: 80, onComplete: function () { soltarEfimero(st, rayo); } });
         onda(st, pt[0], pt[1], 0.5);
         var p = pies(scene);
@@ -1100,12 +1114,98 @@
 
   function alImpacto(st, d) {
     var scene = st.scene, o = d && scene.otherPlayers && scene.otherPlayers[d.id];
+    if (d && Number.isFinite(Number(d.vida))) st.vidasPvp[d.id] = { v: Number(d.vida), t: Date.now() };
     if (o && o.sprite && o.sprite.active) {
       var s = o.sprite;
       s.setTintFill(0xffffff);
       scene.time.delayedCall(80, function () { if (s.active) s.clearTint(); });
+      // Quien pega ve cuánto quitó (el número lo pone el servidor).
+      var sock = socketDe(scene);
+      if (sock && d.de === sock.id && d.dano > 0 && window.GFEspada && window.GFEspada.mostrarDano) {
+        window.GFEspada.mostrarDano(scene, s.x, s.y - 70, d.dano);
+      }
     }
     if (d && d.muerto) aviso(scene, '⚔ ' + nombreDe(scene, d.de) + ' knocked out ' + nombreDe(scene, d.id) + '!', 'info');
+  }
+
+  // ── EL SOCKET Y LA VIDA DE LOS DEMÁS ─────────────────────────────────────
+  /* El socket puede cambiar (reconexión, o que aún no existiera al montar):
+     se mira cada segundo y se vuelve a atar. Sin esto, tras un corte no
+     llegaban ni los golpes recibidos ni los montones del suelo. */
+  function atarSocket(st) {
+    var scene = st.scene, sock = socketDe(scene);
+    if (sock === st.socket) return;
+    soltarSocket(st);
+    if (!sock || !sock.on) return;
+    st.socket = sock;
+    st.oyentes = {
+      'pvp:tajo': function (d) { if (st.vivo) verTajoRemoto(st, d); },
+      'pvp:herido': function (d) { if (st.vivo) alHerido(st, d); },
+      'pvp:impacto': function (d) { if (st.vivo) alImpacto(st, d); },
+      'pvp:vidas': function (d) {
+        if (!st.vivo || !d || !d.lista) return;
+        var ahora = Date.now();
+        Object.keys(d.lista).forEach(function (id) { st.vidasPvp[id] = { v: Number(d.lista[id]) || 0, t: ahora }; });
+      },
+      'pvp:rechazado': function (d) {
+        if (!st.vivo || !d) return;
+        if (d.motivo === 'sin_espada') { aviso(scene, 'You need a sword in your bag to fight other players.', 'info'); return; }
+        var ahora = Date.now();
+        if (d.motivo === 'zona' && ahora - st.avisoZonaEn > 4000) {
+          st.avisoZonaEn = ahora;
+          aviso(scene, '🛡 Only inside the PvP zone (west of the river) can players hit each other.', 'info');
+        }
+      },
+      'suelo:nuevo': function (d) { if (st.vivo) ponerMonton(st, d); },
+      'suelo:fuera': function (d) { if (st.vivo && d) quitarMonton(st, d.id, !!d.por); },
+      'connect': function () { setTimeout(function () { if (st.vivo) cargarSuelo(st); }, 1500); }
+    };
+    Object.keys(st.oyentes).forEach(function (ev) { sock.on(ev, st.oyentes[ev]); });
+  }
+  function soltarSocket(st) {
+    if (st.socket && st.oyentes) Object.keys(st.oyentes).forEach(function (ev) { try { st.socket.off(ev, st.oyentes[ev]); } catch (e) {} });
+    st.socket = null; st.oyentes = null;
+  }
+
+  /**
+   * LA VIDA DE LOS DEMÁS EN LA ZONA PVP (2026-10-11): "no dice la vida del
+   * otro usuario". Encima de cada jugador que está al oeste del río, una
+   * barra con su vida (la que dice el servidor: 'pvp:vidas' cada 2,5 s y la
+   * del último impacto). Fuera de la zona, nada.
+   */
+  function barrasPvp(st, t) {
+    var scene = st.scene, otros = scene.otherPlayers || {};
+    if (typeof scene.enZonaPvp !== 'function') return;
+    var alguien = false, vivos = {};
+    Object.keys(otros).forEach(function (id) {
+      var o = otros[id], s = o && o.sprite;
+      vivos[id] = true;
+      var g = st.barrasPvp[id];
+      var info = st.vidasPvp[id];
+      var ver = !!(s && s.active && s.visible && scene.enZonaPvp(s.x, s.y));
+      if (ver) alguien = true;
+      if (!ver || !info) { if (g) g.setVisible(false); return; }
+      if (!g) g = st.barrasPvp[id] = scene.add.graphics();
+      var v = Math.max(0, Math.min(100, info.v));
+      var w = 44, x = s.x - w / 2, y = s.y - 82;
+      var color = v > 60 ? 0x6fdc6a : v > 30 ? 0xf2c14e : 0xe2574c;
+      g.clear().setVisible(true).setDepth((s.depth || s.y) + 3);
+      g.fillStyle(0x000000, 0.7).fillRect(x - 1, y - 1, w + 2, 7);
+      g.fillStyle(color, 1).fillRect(x, y, w * v / 100, 5);
+    });
+    // Los que se fueron: su barra fuera.
+    Object.keys(st.barrasPvp).forEach(function (id) {
+      if (vivos[id]) return;
+      try { st.barrasPvp[id].destroy(); } catch (e) {}
+      delete st.barrasPvp[id];
+      delete st.vidasPvp[id];
+    });
+    // Pedir las vidas mientras haya alguien en la zona (el servidor frena igual).
+    var sock = st.socket;
+    if (alguien && sock && sock.connected && t - st.pidioVidasEn > 2500) {
+      st.pidioVidasEn = t;
+      sock.emit('pvp:vidas');
+    }
   }
 
   // ─────────────────────────────────────────────────────── EL SUELO
@@ -1352,6 +1452,7 @@
     if (!scene || !scene.add || !scene.map || scene.__gfSalvaje) return;
     var st = {
       scene: scene, vivo: true, bichos: [], porId: {}, red: null, proyectiles: [], charcos: [], efimeros: [], botin: [],
+      vidasPvp: {}, barrasPvp: {}, pidioVidasEn: 0, socketMiradoEn: 0, avisoZonaEn: 0,
       suelo: {}, carteles: [], ultimoGolpe: 0, avisoPvpEn: 0, enPvp: null, dialogo: null, socket: null
     };
     scene.__gfSalvaje = st;
@@ -1365,23 +1466,7 @@
     // ── La espada contra jugadores y los avisos de la sala ──
     st.objetivoPvp = function (sc, cx, cy, dir, alcance, dano, poder) { return tajoPvp(st, sc, cx, cy, dir, alcance, dano, poder); };
     if (window.GFEspada && window.GFEspada.agregarObjetivo) window.GFEspada.agregarObjetivo(st.objetivoPvp);
-    var sock = socketDe(scene);
-    if (sock && sock.on) {
-      st.socket = sock;
-      st.oyentes = {
-        'pvp:tajo': function (d) { if (st.vivo) verTajoRemoto(st, d); },
-        'pvp:herido': function (d) { if (st.vivo) alHerido(st, d); },
-        'pvp:impacto': function (d) { if (st.vivo) alImpacto(st, d); },
-        'pvp:rechazado': function (d) {
-          if (!st.vivo || !d || d.motivo !== 'sin_espada') return;
-          aviso(scene, 'You need a sword in your bag to fight other players.', 'info');
-        },
-        'suelo:nuevo': function (d) { if (st.vivo) ponerMonton(st, d); },
-        'suelo:fuera': function (d) { if (st.vivo && d) quitarMonton(st, d.id, !!d.por); },
-        'connect': function () { setTimeout(function () { if (st.vivo) cargarSuelo(st); }, 1500); }
-      };
-      Object.keys(st.oyentes).forEach(function (ev) { sock.on(ev, st.oyentes[ev]); });
-    }
+    atarSocket(st);
     // Lo que ya había en el suelo (después del joinRoom: la sala tiene que saber que estás).
     st.relojSuelo = setTimeout(function () { if (st.vivo) cargarSuelo(st); }, 1500);
     st.onClic = function (pointer) { if (st.vivo) alClicMundo(st, pointer); };
@@ -1427,6 +1512,8 @@
       actualizar(st, t, d);
       if (scene.player) recogerCercanos(st, pies(scene));
       vigilarZona(st);
+      if (t - st.socketMiradoEn > 1000) { st.socketMiradoEn = t; atarSocket(st); }
+      barrasPvp(st, t);
     };
     scene.events.on('update', st.onUpdate);
   }
@@ -1444,8 +1531,10 @@
       if (st.objetivo) window.GFEspada.quitarObjetivo(st.objetivo);
       if (st.objetivoPvp) window.GFEspada.quitarObjetivo(st.objetivoPvp);
     }
-    if (st.socket && st.oyentes) Object.keys(st.oyentes).forEach(function (ev) { st.socket.off(ev, st.oyentes[ev]); });
-    st.oyentes = null;
+    soltarSocket(st);
+    Object.keys(st.barrasPvp).forEach(function (id) { try { st.barrasPvp[id].destroy(); } catch (e) {} });
+    st.barrasPvp = {};
+    st.vidasPvp = {};
     if (st.red) { st.red.cerrar(); st.red = null; }
     st.porId = {};
     cerrarDialogo(st);

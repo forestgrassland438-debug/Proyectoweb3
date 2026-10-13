@@ -22,6 +22,7 @@
   var API_BASE = esLocal ? 'http://127.0.0.1:8080' : 'https://api.grasslandforest.com';
   var APP_NAME = 'Grassland Forest';
   var POR_PAGINA = 50;
+  var peticiones = new Set(), cerrado = false, revisionErrores = 0, revisionRelay = 0, revisionCarga = 0;
 
   function api(p) { return API_BASE.replace(/\/$/, '') + p; }
   function $(id) { return document.getElementById(id); }
@@ -46,7 +47,8 @@
 
   function leerCookie(nombre) {
     var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + nombre + '=([^;]*)'));
-    return m ? decodeURIComponent(m[1]) : null;
+    if (!m) return null;
+    try { return decodeURIComponent(m[1]); } catch (e) { return null; }
   }
 
   function cuando(fecha) {
@@ -77,8 +79,9 @@
   }
 
   // ── Peticiones ─────────────────────────────────────────────────────────────
-  function pedir(ruta, opciones) {
-    opciones = opciones || {};
+  async function pedir(ruta, opciones) {
+    if (cerrado) throw new Error('Reporter closed');
+    opciones = Object.assign({}, opciones || {});
     opciones.credentials = 'include';
     opciones.mode = 'cors';
     var csrf = leerCookie('csrf-token');
@@ -87,16 +90,16 @@
       csrf ? { 'X-CSRF-Token': csrf } : {},
       opciones.headers || {}
     );
-    return fetch(api(ruta), opciones).then(function (r) {
-      return r.json().catch(function () { return {}; }).then(function (d) {
-        if (!r.ok) {
-          var e = new Error(d.message || d.error || ('HTTP ' + r.status));
-          e.status = r.status;
-          throw e;
-        }
-        return d;
-      });
-    });
+    var ctl = new AbortController();
+    peticiones.add(ctl); opciones.signal = ctl.signal;
+    var timer = setTimeout(function () { ctl.abort(); }, 15000);
+    try {
+      var r = await fetch(api(ruta), opciones);
+      var d = await r.json().catch(function () { return {}; });
+      if (ctl.signal.aborted || cerrado) throw new Error('Report request cancelled');
+      if (!r.ok) { var error = new Error(d.message || d.error || ('HTTP ' + r.status)); error.status = r.status; throw error; }
+      return d;
+    } finally { clearTimeout(timer); peticiones.delete(ctl); }
   }
 
   // ── Entrada con la cartera ─────────────────────────────────────────────────
@@ -108,11 +111,12 @@
   }
 
   async function pedirCsrf() {
-    try { await fetch(api('/api/auth/csrf-token'), { credentials: 'include', mode: 'cors' }); }
+    try { await pedir('/api/auth/csrf-token'); }
     catch (e) { /* si falla, el login lo reintenta sin cabecera */ }
   }
 
   async function conectar() {
+    if ($('btnConnect').disabled || cerrado) return;
     var prov = proveedor();
     if (!prov) { aviso('No wallet detected. Install MetaMask to continue.', 'err'); return; }
 
@@ -126,10 +130,8 @@
       await pedirCsrf();
 
       aviso('Requesting nonce…');
-      var nr = await fetch(api('/api/auth/nonce?address=' + encodeURIComponent(cuenta.toLowerCase())),
-                           { credentials: 'include', mode: 'cors' });
-      if (!nr.ok) throw new Error('Could not get a nonce from the server');
-      var nonce = (await nr.json()).nonce;
+      var nr = await pedir('/api/auth/nonce?address=' + encodeURIComponent(cuenta.toLowerCase()));
+      var nonce = nr.nonce;
 
       var token = nonce + ':' + Math.floor(Date.now() / 1000);
       var mensaje = 'Signing in to ' + APP_NAME + ': ' + b64(token);
@@ -142,17 +144,12 @@
       if (csrf) cabeceras['X-CSRF-Token'] = csrf;
 
       aviso('Verifying…');
-      var lr = await fetch(api('/api/auth/login'), {
+      await pedir('/api/auth/login', {
         method: 'POST', credentials: 'include', mode: 'cors', headers: cabeceras,
         body: JSON.stringify({
           address: cuenta.toLowerCase(), signature: firma, token: token, message: mensaje
         })
       });
-      if (!lr.ok) {
-        var cuerpo = {}; try { cuerpo = await lr.json(); } catch (e) {}
-        throw new Error(cuerpo.message || cuerpo.error || 'Sign-in failed');
-      }
-
       await comprobarSesion();
     } catch (e) {
       // 4001 = el usuario rechazó la firma en la cartera.
@@ -190,6 +187,7 @@
   // ── Errores del cliente ────────────────────────────────────────────────────
 
   async function cargarErrores() {
+    var run = ++revisionErrores;
     var q = $('q').value.trim();
     var t = $('fType').value;
     var ruta = '/api/admin/client-errors?limit=' + POR_PAGINA + '&skip=' + estado.errores.skip +
@@ -197,6 +195,7 @@
                (t ? '&type=' + encodeURIComponent(t) : '');
 
     var d = await pedir(ruta);
+    if (cerrado || run !== revisionErrores) return;
     estado.errores.total = d.total || 0;
 
     $('mUnique').textContent = d.total || 0;
@@ -311,7 +310,9 @@
   // ── Fallos de relay ────────────────────────────────────────────────────────
 
   async function cargarRelay() {
+    var run = ++revisionRelay;
     var d = await pedir('/api/admin/relay-failures?limit=' + POR_PAGINA + '&skip=' + estado.relay.skip);
+    if (cerrado || run !== revisionRelay) return;
     estado.relay.total = d.total || 0;
 
     $('mRelay').textContent      = d.total || 0;
@@ -360,10 +361,12 @@
   // ── Orquestación ───────────────────────────────────────────────────────────
 
   async function recargarTodo() {
+    var run = ++revisionCarga;
     try {
       if (estado.pestana === 'errors') await cargarErrores();
       else await cargarRelay();
     } catch (e) {
+      if (cerrado || run !== revisionCarga) return;
       if (e.status === 401 || e.status === 403) {
         // La sesión caducó mientras el panel estaba abierto.
         $('panel').classList.add('hidden');
@@ -425,4 +428,9 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar);
   else iniciar();
+  window.addEventListener('pagehide', function (e) {
+    if (e.persisted) return;
+    cerrado = true; clearTimeout(toastTimer);
+    peticiones.forEach(function (ctl) { ctl.abort(); }); peticiones.clear();
+  });
 })();

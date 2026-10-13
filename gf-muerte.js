@@ -184,33 +184,35 @@
      a una cortina gris suave — no desatura, pero apaga el mundo lo suficiente
      para que se entienda. */
   function grisear(scene, activar) {
+    var propietaria = scene && scene.__gfMuerte;
+    if (!propietaria) return;
     var cam = scene.cameras && scene.cameras.main;
     if (!cam) return;
     try {
       if (cam.postFX && typeof cam.postFX.addColorMatrix === 'function') {
         if (activar) {
-          if (!montado.matriz) {
-            montado.matriz = cam.postFX.addColorMatrix();
-            montado.matriz.grayscale(1);
+          if (!propietaria.matriz) {
+            propietaria.matriz = cam.postFX.addColorMatrix();
+            propietaria.matriz.grayscale(1);
           }
-        } else if (montado.matriz) {
-          cam.postFX.remove(montado.matriz);
-          montado.matriz = null;
+        } else if (propietaria.matriz) {
+          cam.postFX.remove(propietaria.matriz);
+          propietaria.matriz = null;
         }
         return;
       }
     } catch (e) { /* sin postFX: se usa la cortina */ }
 
     if (activar) {
-      if (!montado.cortina && scene.add.rectangle) {
-        montado.cortina = scene.add.rectangle(
+      if (!propietaria.cortina && scene.add.rectangle) {
+        propietaria.cortina = scene.add.rectangle(
           cam.width / 2, cam.height / 2, cam.width, cam.height, 0x8a8f9c, 0.42);
-        montado.cortina.setScrollFactor(0);
-        montado.cortina.setDepth(8500);       // sobre el mundo, bajo el HUD
+        propietaria.cortina.setScrollFactor(0);
+        propietaria.cortina.setDepth(8500);       // sobre el mundo, bajo el HUD
       }
-    } else if (montado.cortina) {
-      montado.cortina.destroy();
-      montado.cortina = null;
+    } else if (propietaria.cortina) {
+      propietaria.cortina.destroy();
+      propietaria.cortina = null;
     }
   }
 
@@ -305,7 +307,7 @@
     // Al entrar a la escena se pregunta el estado: si te fuiste muerto, sigues
     // muerto al volver.
     mascota().sincronizar('entrar en ' + (scene.scene && scene.scene.key))
-      .then(function () { revisar(); pintar(); });
+      .then(function () { if (scene.__gfMuerte === st && montado === st) { revisar(); pintar(); } });
 
     log('montado');
     return st;
@@ -327,6 +329,7 @@
     if (p) p.classList.remove('abierto');
     scene.__gfMuerte = null;
     if (montado === st) montado = null;
+    st.scene = st.onApagar = st.quitarOyente = null;
   }
 
   // ------------------------------------------------- lo que un fantasma NO hace

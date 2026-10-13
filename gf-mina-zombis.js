@@ -65,7 +65,9 @@
   var VEL_PASEO = 36, VEL_CAZA = 76, VEL_JEFE = 64;
   var VISTA = 290, OLVIDA = 560;
   var VISTA_JEFE = 400, GUARDIA = 320;
-  var ESCALA = 2, ESCALA_JEFE = 3.4;
+  // (2026-10-12) "Son muy grandes: que sean como el jugador": los zombis a la
+  // escala del jugador (2) y el guardián, algo mayor por ser el jefe.
+  var ESCALA = 2, ESCALA_JEFE = 2.6;
   var MORDISCO_MS = 1150, ALCANCE_MORDISCO = 38;
   var VUELVE_ZOMBI_MS = 75 * 1000, VUELVE_JEFE_MS = 10 * 60 * 1000;
   var LEJOS = 1000;

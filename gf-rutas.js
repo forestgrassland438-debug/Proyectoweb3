@@ -27,10 +27,15 @@
   function cache(scene, clave) {
     var c = scene.__gfRutas;
     if (!c) {
-      c = scene.__gfRutas = {};
+      c = scene.__gfRutas = Object.create(null);
       try {
-        scene.events.once('shutdown', function () { scene.__gfRutas = null; });
-        scene.events.once('destroy', function () { scene.__gfRutas = null; });
+        var soltar = function () {
+          scene.events.off('shutdown', soltar);
+          scene.events.off('destroy', soltar);
+          if (scene.__gfRutas === c) scene.__gfRutas = null;
+        };
+        scene.events.once('shutdown', soltar);
+        scene.events.once('destroy', soltar);
       } catch (e) {}
     }
     if (!c[clave]) c[clave] = new Map();

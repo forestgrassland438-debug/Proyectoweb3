@@ -113,7 +113,7 @@
 
   /** Nombre y genero de un personaje: { nombre, genero } (genero puede ser ''). */
   function ficha(id) {
-    if (FICHAS[id]) return FICHAS[id];
+    if (Object.prototype.hasOwnProperty.call(FICHAS, id)) return FICHAS[id];
     var n = /(\d+)$/.exec(String(id || ''));
     return { nombre: 'Wanderer' + (n ? ' ' + n[1] : ''), genero: '' };
   }
@@ -600,8 +600,8 @@
   //
   // Se cargan una sola vez por personaje y se reutilizan para todos los
   // jugadores que lleven ese mismo personaje.
-  var cargados   = {};   // id -> true cuando sus texturas y animaciones existen
-  var cargandose = {};   // id -> promesa en vuelo (evita cargas duplicadas)
+  var cargados   = Object.create(null);   // id -> true cuando sus texturas y animaciones existen
+  var cargandose = Object.create(null);   // id -> promesa en vuelo (evita cargas duplicadas)
 
   /** Clave de textura de un personaje concreto. */
   function texturaDe(id, carpeta, n) {
@@ -621,11 +621,22 @@
    */
   function asegurarPersonaje(scene, id) {
     if (!scene || !idValido(id)) return Promise.resolve(false);
-    if (cargados[id]) return Promise.resolve(true);
+    if (cargados[id] && scene.textures.exists(texturaDe(id, 'derecha', 1))) return Promise.resolve(true);
+    delete cargados[id];
     if (cargandose[id]) return cargandose[id];
 
-    cargandose[id] = new Promise(function (resolve) {
+    var pending = new Promise(function (resolve) {
       var pendientes = [];
+      var terminado = false, timer = null;
+      function fin(ok) {
+        if (terminado) return;
+        terminado = true;
+        clearTimeout(timer);
+        if (typeof rematar === 'function') scene.load.off('complete', rematar);
+        scene.events?.off('shutdown', cancelar); scene.events?.off('destroy', cancelar);
+        resolve(ok);
+      }
+      function cancelar() { fin(false); }
       try {
         Object.keys(DIRECCIONES).forEach(function (carpeta) {
           for (var i = 1; i <= FOTOGRAMAS; i++) {
@@ -636,9 +647,10 @@
             }
           }
         });
-      } catch (e) { cargandose[id] = null; return resolve(false); }
+      } catch (e) { return fin(false); }
 
       var rematar = function () {
+        if (terminado) return;
         try {
           // Si falta alguna imagen no se registran animaciones a medias: el
           // jugador remoto se queda con la textura de reserva y no desaparece.
@@ -646,8 +658,7 @@
           if (faltan.length) {
             console.warn('[Soulbound] personaje remoto "' + id + '": faltan ' +
                          faltan.length + ' imágenes; se usa el de reserva.');
-            cargandose[id] = null;
-            return resolve(false);
+            return fin(false);
           }
           ANIMACIONES.forEach(function (a) {
             var clave = animDe(id, a.key);
@@ -659,21 +670,22 @@
             scene.anims.create({ key: clave, frames: frames, frameRate: FRAME_RATE, repeat: -1 });
           });
           cargados[id] = true;
-          cargandose[id] = null;
-          resolve(true);
+          fin(true);
         } catch (e) {
           console.warn('[Soulbound] no se pudo preparar el personaje remoto ' + id, e);
-          cargandose[id] = null;
-          resolve(false);
+          fin(false);
         }
       };
 
       if (!pendientes.length) return rematar();
       scene.load.once('complete', rematar);
-      try { scene.load.start(); } catch (e) { cargandose[id] = null; resolve(false); }
+      scene.events?.once('shutdown', cancelar); scene.events?.once('destroy', cancelar);
+      timer = setTimeout(cancelar, 20000);
+      try { scene.load.start(); } catch (e) { fin(false); }
     });
-
-    return cargandose[id];
+    cargandose[id] = pending;
+    pending.then(function () { if (cargandose[id] === pending) delete cargandose[id]; });
+    return pending;
   }
 
   /**

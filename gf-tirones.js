@@ -39,9 +39,14 @@
   var redEnVuelo  = 0;
   var texturasAntes = 0;
   var ultimaTextura = { clave: null, en: 0 };
+  var MAX_REGISTROS = 2000;
+  var generacion = 0;
+  var gestorTexturas = null;
+  var alTextura = null;
 
   // ── Enganches ligeros (solo mientras se vigila) ──────────────────────────
   var fetchOriginal = null;
+  var fetchPropio = null;
 
   function juego() {
     return global.game || (global.phaserScaler && global.phaserScaler.game) || null;
@@ -69,35 +74,52 @@
 
   function engancharRed() {
     if (fetchOriginal) return;
+    if (typeof global.fetch !== 'function') return;
     fetchOriginal = global.fetch;
-    global.fetch = function () {
+    var original = fetchOriginal, turno = generacion;
+    fetchPropio = function () {
+      // Otros instrumentos pueden conservar este wrapper después de parar.
+      if (!vigilando || turno !== generacion) return original.apply(this, arguments);
       redEnVuelo++;
-      var fin = function () { redEnVuelo = Math.max(0, redEnVuelo - 1); };
+      var fin = function () { if (turno === generacion) redEnVuelo = Math.max(0, redEnVuelo - 1); };
       var p;
-      try { p = fetchOriginal.apply(this, arguments); }
+      try { p = original.apply(this, arguments); }
       catch (e) { fin(); throw e; }
       return p.then(function (r) { fin(); return r; },
                     function (e) { fin(); throw e; });
     };
+    global.fetch = fetchPropio;
   }
   function soltarRed() {
     if (!fetchOriginal) return;
-    global.fetch = fetchOriginal;
+    if (global.fetch === fetchPropio) global.fetch = fetchOriginal;
     fetchOriginal = null;
+    fetchPropio = null;
+  }
+
+  function soltarTexturas() {
+    if (gestorTexturas && alTextura) gestorTexturas.off('addtexture', alTextura);
+    gestorTexturas = null;
+    alTextura = null;
   }
 
   function engancharTexturas() {
     var esc = escenaViva();
-    if (!esc || !esc.textures || esc.textures._gfTironesEnganchado) return;
-    esc.textures._gfTironesEnganchado = true;
-    esc.textures.on('addtexture', function (clave) {
+    var gestor = esc && esc.textures;
+    if (gestor === gestorTexturas) return;
+    soltarTexturas();
+    if (!gestor || typeof gestor.on !== 'function' || typeof gestor.off !== 'function') return;
+    gestorTexturas = gestor;
+    alTextura = function (clave) {
       ultimaTextura = { clave: clave, en: global.performance.now() };
-    });
+    };
+    gestor.on('addtexture', alTextura);
   }
 
   // ── Bucle de vigilancia ──────────────────────────────────────────────────
   function tick() {
     if (!vigilando) return;
+    engancharTexturas();
     var ahora = global.performance.now();
     var dur = ahora - ultimo;
 
@@ -127,6 +149,7 @@
         causaProbable: causa.join(' + ')
       };
       tirones.push(t);
+      if (tirones.length > MAX_REGISTROS) tirones.shift();
       console.warn('[GFTirones] parón de ' + t.ms + ' ms en el segundo ' +
                    t.segundo + ' — ' + t.causaProbable);
       texturasAntes = texturas;
@@ -143,7 +166,10 @@
     /** Empieza a vigilar. `umbral` en ms (por defecto 45). */
     empezar: function (umbral) {
       if (vigilando) { console.log('[GFTirones] ya estaba vigilando'); return; }
-      if (typeof umbral === 'number' && umbral > 16) UMBRAL_MS = umbral;
+      if (typeof umbral === 'number' && Number.isFinite(umbral) && umbral > 16) UMBRAL_MS = umbral;
+      generacion++;
+      redEnVuelo = 0;
+      ultimaTextura = { clave: null, en: 0 };
       vigilando = true;
       tirones = [];
       t0 = ultimo = global.performance.now();
@@ -158,9 +184,12 @@
 
     parar: function () {
       vigilando = false;
-      if (rafId) global.cancelAnimationFrame(rafId);
+      generacion++;
+      redEnVuelo = 0;
+      if (rafId !== null) global.cancelAnimationFrame(rafId);
       rafId = null;
       soltarRed();
+      soltarTexturas();
       console.log('[GFTirones] parado. ' + tirones.length + ' parones registrados.');
     },
 

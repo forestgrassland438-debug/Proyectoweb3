@@ -12,9 +12,12 @@
  *   siguen unos a otros por el rastro de la cabeza (el cuerpo serpentea solo).
  *   Cada anillo se ordena por su Y y lleva su sombra: con el jugador entre sus
  *   anillos se ve por delante de unos y por detrás de otros (2.5D). Desde
- *   2026-10-11 sus piezas son PNG en pixel art (Game/Sprites/monstruos/
- *   serpiente, tools/generar-monstruos.py), lisas, con bandas y sin motas;
- *   aquí solo quedan los brillos y el polvo, que son luz, no monstruo.
+ *   2026-10-12 la cabeza y los anillos son un MODELO 3D fotografiado en 16
+ *   direcciones (atlas gfm_serpiente, tools/gf_serpiente3d.py): cuernos,
+ *   cejas en cresta, ojos de brasa, escudo y púa en cada anillo y la línea de
+ *   magma de los costados, con la luz siempre arriba a la izquierda. El
+ *   terreno (montículo, agujero, grieta) y la bola son PNG sueltos; aquí solo
+ *   quedan los brillos y el polvo, que son luz, no monstruo.
  *
  * LO QUE HACE
  *   · ACECHA bajo tierra cerca de su guarida. Si te acercas, GRITA (suena y
@@ -56,11 +59,14 @@
   var SUPERFICIE_MS = [6500, 9000];
   var VUELVE_MS = 20 * 60 * 1000;
   var QUIETO_MS = 2000;
-  // Las piezas en PNG son de pixel art (a la escala de los animales): estas
-  // escalas las dejan del mismo tamaño en pantalla que las de antes.
-  var ESC_ANILLO = 2.1, ESC_CABEZA = 2.2;
-  var PIEZAS_PNG = ['gfsp_cabeza', 'gfsp_cabeza_abierta', 'gfsp_anillo', 'gfsp_monticulo',
-                    'gfsp_agujero', 'gfsp_grieta', 'gfsp_bola'];
+  // (2026-10-12) "La serpiente no es 2.5D ni tiene gráficos altamente
+  // detallados": cabeza y anillos son un modelo 3D fotografiado en DIECISÉIS
+  // direcciones (atlas gfm_serpiente, tools/gf_serpiente3d.py) a la densidad
+  // del personaje (x2). Ya no se gira un dibujo plano (giraba también su luz):
+  // se elige la foto de la dirección y solo se gira lo que falta (±11°).
+  var ESC_ANILLO = 2, ESC_CABEZA = 2;
+  var DIRS = 16, PASO_DIR = Math.PI * 2 / DIRS;
+  var PIEZAS_PNG = ['gfsp_monticulo', 'gfsp_agujero', 'gfsp_grieta', 'gfsp_bola'];
 
   function log() {
     if (!window.GF_SERPIENTE_DEBUG) return;
@@ -130,7 +136,7 @@
       g.addColorStop(0, 'rgba(255,240,180,0.9)'); g.addColorStop(1, 'rgba(255,200,90,0)');
       x.fillStyle = g; x.fillRect(0, 0, w, h);
     }, true);
-    return window.GFMonstruosArte ? window.GFMonstruosArte.cargar(scene, [], PIEZAS_PNG) : Promise.resolve(false);
+    return window.GFMonstruosArte ? window.GFMonstruosArte.cargar(scene, ['serpiente'], PIEZAS_PNG) : Promise.resolve(false);
   }
 
   // ─────────────────────────────────────────────────────── EL GRITO
@@ -229,12 +235,13 @@
     };
     for (var i = 0; i < ANILLOS; i++) {
       var k = 1 - i / ANILLOS * 0.55;           // la cola, más fina
-      s.anillos.push(scene.add.image(s.x, s.y, 'gfsp_anillo').setScale(k * ESC_ANILLO).setVisible(false));
+      s.anillos.push(scene.add.image(s.x, s.y, 'gfm_serpiente', 'anillo_0').setScale(k * ESC_ANILLO).setVisible(false));
       s.sombras.push(scene.add.image(s.x, s.y, 'gfsp_sombra').setScale(k * 1.1).setVisible(false).setAlpha(0.8));
     }
-    s.cabeza = scene.add.image(s.x, s.y, 'gfsp_cabeza').setOrigin(0.4, 0.5).setScale(ESC_CABEZA).setVisible(false);
+    s.cabeza = scene.add.image(s.x, s.y, 'gfm_serpiente', 'cabeza_0').setScale(ESC_CABEZA).setVisible(false);
+    s.boca = false;
     s.sombraCabeza = scene.add.image(s.x, s.y, 'gfsp_sombra').setScale(1.4).setVisible(false).setAlpha(0.8);
-    s.monticulo = scene.add.image(s.x, s.y, 'gfsp_monticulo').setVisible(false).setScale(1.9);
+    s.monticulo = scene.add.image(s.x, s.y, 'gfsp_monticulo').setVisible(false).setScale(1.8);
     s.agujero = scene.add.image(s.x, s.y, 'gfsp_agujero').setVisible(false).setScale(2.4);
     [s.cabeza].concat(s.anillos).forEach(function (o) { o.setData('optimized', true); });
     reiniciarRastro(s);
@@ -270,6 +277,24 @@
     return { x: u.x, y: u.y, ang: s.ang };
   }
 
+  /** La foto de la dirección `ang` (0..15) y lo que falta girar hasta él. */
+  function direccion(ang) {
+    var i = Math.round(ang / PASO_DIR);
+    return { i: ((i % DIRS) + DIRS) % DIRS, resto: ang - i * PASO_DIR };
+  }
+  /** Pone a la pieza la foto de su dirección (solo si cambia) y el resto de giro. */
+  function orientar(o, prefijo, ang) {
+    var d = direccion(ang), f = prefijo + d.i;
+    if (!o.frame || o.frame.name !== f) o.setFrame(f);
+    o.setRotation(d.resto);
+  }
+  /** Boca abierta (escupe, muerde, embiste) o cerrada. */
+  function ponerCabeza(s, abierta) {
+    if (!s || !s.cabeza || !s.cabeza.scene) return;
+    s.boca = !!abierta;
+    orientar(s.cabeza, s.boca ? 'abierta_' : 'cabeza_', s.ang);
+  }
+
   function verCuerpo(s, ver) {
     s.cabeza.setVisible(ver); s.sombraCabeza.setVisible(ver);
     for (var i = 0; i < ANILLOS; i++) { s.anillos[i].setVisible(ver); s.sombras[i].setVisible(ver); }
@@ -287,11 +312,12 @@
       var vaiven = Math.sin(t * 3 + i * 0.6) * 1.5;
       var px = p.x + Math.cos(p.ang + Math.PI / 2) * vaiven, py = p.y + Math.sin(p.ang + Math.PI / 2) * vaiven;
       var k = (1 - i / ANILLOS * 0.55) * ESC_ANILLO * (0.4 + 0.6 * a);
-      an.setPosition(px, py - 10 * a).setRotation(p.ang).setScale(k).setDepth(py + 0.01 * i);
+      orientar(an, 'anillo_', p.ang);
+      an.setPosition(px, py - 10 * a).setScale(k).setDepth(py + 0.01 * i);
       so.setPosition(px, py + 2).setScale(k * 0.95).setDepth(py - 1);
     }
-    var flip = Math.cos(s.ang) < 0;
-    s.cabeza.setPosition(s.x, s.y - 14 * a).setRotation(s.ang).setFlipY(flip)
+    orientar(s.cabeza, s.boca ? 'abierta_' : 'cabeza_', s.ang);
+    s.cabeza.setPosition(s.x, s.y - 14 * a)
       .setScale(ESC_CABEZA * (0.4 + 0.6 * a)).setDepth(s.y + 1);
     s.sombraCabeza.setPosition(s.x, s.y + 3).setDepth(s.y - 1).setScale(1.4 * (0.4 + 0.6 * a));
   }
@@ -516,20 +542,21 @@
     var s = st.s, scene = st.scene;
     cambiar(st, 'escupe');
     s.ultimoPoder = 'fuego';
-    s.cabeza.setTexture('gfsp_cabeza_abierta');
+    ponerCabeza(s, true);
     scene.time.delayedCall(420, function () {
       if (!st.vivo || !s.vivo || s.estado !== 'escupe') return;
       for (var i = 0; i < n; i++) {
         var a = base + (i - (n - 1) / 2) * 0.22;
         var bx = s.x + Math.cos(s.ang) * 30, by = s.y - 14 + Math.sin(s.ang) * 30;
-        var b = scene.add.image(bx, by, 'gfsp_bola').setScale(2.4).setDepth(by + 40);
+        // (2026-10-12) La bola va al doble de resolución: la mitad de escala.
+        var b = scene.add.image(bx, by, 'gfsp_bola').setScale(1.2).setDepth(by + 40);
         var e = scene.add.image(bx, by, 'gfsp_estela').setOrigin(1, 0.5).setRotation(a).setDepth(by + 39);
         e.setBlendMode(Phaser.BlendModes.ADD);
         if (st.bolas.length < 18) st.bolas.push({ spr: b, estela: e, x: bx, y: by, vx: Math.cos(a) * 270, vy: Math.sin(a) * 270, hasta: scene.time.now + 2600 });
         else { b.destroy(); e.destroy(); }
       }
       if (cercaDeMi(st, s.x, s.y, 900)) gritar(scene, 0.35);
-      scene.time.delayedCall(380, function () { if (s.cabeza && s.cabeza.scene) s.cabeza.setTexture('gfsp_cabeza'); if (s.estado === 'escupe') cambiar(st, 'superficie'); });
+      scene.time.delayedCall(380, function () { ponerCabeza(s, false); if (s.estado === 'escupe') cambiar(st, 'superficie'); });
     });
   }
 
@@ -548,9 +575,9 @@
     var s = st.s, scene = st.scene;
     cambiar(st, 'terremoto');
     s.ultimoPoder = 'terremoto';
-    s.cabeza.setTexture('gfsp_cabeza_abierta');
+    ponerCabeza(s, true);
     scene.time.delayedCall(1700, function () {
-      if (s.cabeza && s.cabeza.scene) s.cabeza.setTexture('gfsp_cabeza');
+      ponerCabeza(s, false);
       if (s.estado === 'terremoto') cambiar(st, 'superficie');
     });
     var pj = piesJugador(scene);
@@ -601,7 +628,7 @@
     if (s.aviso) s.aviso.destroy();
     s.aviso = scene.add.ellipse(s.x + Math.cos(ang) * 100, s.y + Math.sin(ang) * 100, 50, 150, 0xff7b35, 0.16)
       .setRotation(ang - Math.PI / 2).setStrokeStyle(2, 0xffb551, 0.8).setDepth(s.y + 1);
-    s.cabeza.setTexture('gfsp_cabeza_abierta');
+    ponerCabeza(s, true);
   }
 
   /** Mordiscos: si la cabeza está pegada a MI jugador, me muerde a mí. */
@@ -615,8 +642,8 @@
     if (Math.hypot(pj.x - s.x, pj.y - s.y) >= (s.estado === 'embiste' ? 65 : 64) || ahora - s.ultimoMordisco <= 1100) return;
     s.ultimoMordisco = ahora;
     if (s.estado === 'superficie' || s.estado === 'repta') {
-      s.cabeza.setTexture('gfsp_cabeza_abierta');
-      scene.time.delayedCall(220, function () { if (s.cabeza && s.cabeza.scene && (s.estado === 'superficie' || s.estado === 'repta')) s.cabeza.setTexture('gfsp_cabeza'); });
+      ponerCabeza(s, true);
+      scene.time.delayedCall(220, function () { if (s.estado === 'superficie' || s.estado === 'repta') ponerCabeza(s, false); });
     }
     golpearAlJugador(st, 'serpiente_mordisco');
   }
@@ -775,7 +802,7 @@
           if (libre(scene, s.x + dxCarga, s.y + dyCarga, 34)) { s.x += dxCarga; s.y += dyCarga; apuntarRastro(s); } else s.cargaHasta = ahora;
         }
         colocarCuerpo(st, 1);
-        if (ahora >= s.cargaHasta) { s.cabeza.setTexture('gfsp_cabeza'); cambiar(st, 'superficie'); }
+        if (ahora >= s.cargaHasta) { ponerCabeza(s, false); cambiar(st, 'superficie'); }
         break;
 
       case 'hunde': {
@@ -806,7 +833,7 @@
     if (s.estado === 'embiste') {
       s.ang = s.cargaAng;
       if (ahora >= s.cargaEn && s.aviso) { s.aviso.destroy(); s.aviso = null; }
-      if (ahora >= s.cargaHasta) { s.cabeza.setTexture('gfsp_cabeza'); cambiar(st, 'superficie'); }
+      if (ahora >= s.cargaHasta) { ponerCabeza(s, false); cambiar(st, 'superficie'); }
     }
     switch (s.estado) {
       case 'oculta':

@@ -138,6 +138,7 @@ class LoadingSystem {
     this._cancelarOcultado();
     if (this.overlay) this.overlay.__gfLoadingOwner = this;
 
+    opts.initialProgress = Number.isFinite(opts.initialProgress) ? Math.max(0, Math.min(1, opts.initialProgress)) : 0;
     this.currentProgress = opts.initialProgress;
 
     this.overlay.style.display    = 'flex';
@@ -165,6 +166,7 @@ class LoadingSystem {
 
   update(progress = 0) {
     if (this._destroyed || (this.overlay?.__gfLoadingOwner && this.overlay.__gfLoadingOwner !== this)) return false;
+    if (!Number.isFinite(progress)) return false;
     progress = Math.max(0, Math.min(1, progress));
 
     if (progress < this.currentProgress) {
@@ -299,6 +301,7 @@ class LoadingSystem {
 
   // MEJ#1: hide() devuelve Promise que resuelve cuando el fade termina
   hide(fadeOutMs = 500) {
+    fadeOutMs = Number.isFinite(fadeOutMs) && fadeOutMs >= 0 ? Math.min(fadeOutMs, 30000) : 500;
     return new Promise(resolve => {
       if (this._destroyed || !this.overlay || (this.overlay.__gfLoadingOwner && this.overlay.__gfLoadingOwner !== this)) { resolve(); return; }
 
@@ -336,7 +339,7 @@ class LoadingSystem {
   // FIX #2: actualizar animationId dentro del loop
   showTimed(durationMs = 3000, message = 'Cargando...', incremental = true) {
     if (this._destroyed) return Promise.resolve();
-    durationMs = Math.max(1, Number(durationMs) || 3000);
+    durationMs = Number.isFinite(durationMs) && durationMs > 0 ? Math.min(durationMs, 900000) : 3000;
     return new Promise(resolve => {
       // FIX #5: limpiar animaciones y timeouts previos antes de empezar
       this.cancelAnimation();
@@ -373,7 +376,7 @@ class LoadingSystem {
   }
 
   cancelAnimation() {
-    if (this.animationId) {
+    if (this.animationId !== null) {
       cancelAnimationFrame(this.animationId);
       this.animationId = null;
     }

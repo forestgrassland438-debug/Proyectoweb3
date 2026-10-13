@@ -885,13 +885,14 @@
     // Los árboles son del MAPA, no míos: se les devuelve su rotación.
     enderezarArboles(st);
     var i;
-    for (i = 0; i < st.hojas.length; i++)   st.hojas[i].spr.destroy();
-    for (i = 0; i < st.rafagas.length; i++) st.rafagas[i].spr.destroy();
+    for (i = 0; i < st.hojas.length; i++)   { try { st.hojas[i].spr.destroy(); } catch (e) {} }
+    for (i = 0; i < st.rafagas.length; i++) { try { st.rafagas[i].spr.destroy(); } catch (e) {} }
     st.hojas.length = 0; st.rafagas.length = 0; st.arboles.length = 0;
-    if (st.capa && st.capa.destroy) st.capa.destroy();
+    try { if (st.capa && st.capa.destroy) st.capa.destroy(); } catch (e) {}
     st.capa = null;
     scene.__gfViento = null;
     if (montado === st) montado = null;
+    st.scene = st.onUpdate = st.onApagar = null;
   }
 
   /* La escena donde está montado.

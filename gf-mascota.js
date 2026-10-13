@@ -151,8 +151,9 @@
   }
 
   function avisar() {
-    for (var i = 0; i < oyentes.length; i++) {
-      try { oyentes[i](estado); } catch (e) { /* un oyente roto no rompe el resto */ }
+    var actuales = oyentes.slice();
+    for (var i = 0; i < actuales.length; i++) {
+      try { actuales[i](estado); } catch (e) { /* un oyente roto no rompe el resto */ }
     }
   }
 
@@ -188,6 +189,8 @@
      ritmo mínimo, así que mandar más no serviría de nada. */
   function golpear(n) {
     if (!estado.alive) return;
+    if (!Number.isFinite(Number(n)) || Number(n) <= 0) return;
+    n = Math.min(100, Number(n));
     danoPendiente += Math.max(1, Math.round(Number(n) || 1));
     // Se pinta ya el descuento para que la barra responda al instante; el
     // servidor manda la última palabra en la respuesta.
@@ -732,14 +735,17 @@
     }
     var perro = scene.dog && scene.dog.sprite;
     if (perro && st.onToque && perro.off) perro.off('pointerdown', st.onToque);
-    if (st.barraFondo) st.barraFondo.destroy();
-    if (st.barraVida) st.barraVida.destroy();
+    try { if (st.barraFondo) st.barraFondo.destroy(); } catch (e) {}
+    try { if (st.barraVida) st.barraVida.destroy(); } catch (e) {}
+    clearTimeout(scene._parpadeoDano);
+    scene._parpadeoDano = null;
     // Se le devuelve la visibilidad al perro: quien la vuelva a ocultar será el
     // montaje siguiente si sigue muerta. Dejarla invisible aquí la perdía para
     // siempre al cambiar de escena.
     if (perro && perro.setVisible) perro.setVisible(true);
     scene.__gfMascota = null;
     cerrarMenu();
+    st.scene = st.barraFondo = st.barraVida = st.onToque = st.onUpdate = st.onApagar = null;
   }
 
   window.GFMascota = {

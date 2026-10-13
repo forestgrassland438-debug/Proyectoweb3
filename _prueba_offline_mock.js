@@ -664,12 +664,16 @@
      moverse, se elige anfitrión (el que dijo 'mobs:hola' antes) y se
      reenvían la foto, los anuncios, los golpes y los tajos. */
   var canalRed = (typeof BroadcastChannel === 'function') ? new BroadcastChannel('gf-mock-sala') : null;
-  var redSala = { holas: {}, conocidos: {}, host: null };
+  var redSala = { holas: {}, conocidos: {}, host: null, dormidos: {} };
   function socketVivo() { var s = window.globalSocket; return s && s._fire ? s : null; }
   function baseDe(sala) { return String(sala || '').split('#')[0]; }
   function redHost(s) {
     var mejor = null, t = Infinity;
-    Object.keys(redSala.holas).forEach(function (id) { if (redSala.holas[id] < t) { t = redSala.holas[id]; mejor = id; } });
+    // Como el servidor (2026-10-11): manda el más antiguo de los DESPIERTOS.
+    var ids = Object.keys(redSala.holas);
+    var despiertos = ids.filter(function (id) { return !redSala.dormidos[id]; });
+    if (despiertos.length && redSala.host && redSala.holas[redSala.host] && !redSala.dormidos[redSala.host]) return redSala.host;
+    (despiertos.length ? despiertos : ids).forEach(function (id) { if (redSala.holas[id] < t) { t = redSala.holas[id]; mejor = id; } });
     if (mejor !== redSala.host) { redSala.host = mejor; if (s) s._fire('mobs:host', { host: mejor }); }
     return mejor;
   }
@@ -691,6 +695,12 @@
       setTimeout(function () { self._fire('mobs:host', { host: h }); }, 10);
       return;
     }
+    if (evento === 'mobs:dormido') {
+      redSala.dormidos[self.id] = !!(datos && datos.si);
+      redEnviar({ t: 'dormido', id: self.id, sala: self._sala, si: !!(datos && datos.si) });
+      redHost(self);
+      return;
+    }
     if (evento === 'mobs:estado' || evento === 'mobs:evento' || evento === 'mobs:golpe') {
       redEnviar({ t: evento, id: self.id, sala: self._sala, d: datos });
       return;
@@ -704,8 +714,12 @@
       if (m.t === 'join' || m.t === 'yo-tambien') {
         if (!redSala.conocidos[m.id]) {
           redSala.conocidos[m.id] = true;
-          s._fire('newPlayer', { id: m.id, x: Number(m.x) || 2150, y: Number(m.y) || 2380, username: m.nombre,
-            direction: 'right', directionx: 'stop_right', nivel: 5, petLevel: 1, dogName: '' });
+          // Después del currentPlayers vacío del joinRoom (que limpia la sala).
+          setTimeout(function () {
+            if (!redSala.conocidos[m.id]) return;
+            s._fire('newPlayer', { id: m.id, x: Number(m.x) || 2150, y: Number(m.y) || 2380, username: m.nombre,
+              direction: 'right', directionx: 'stop_right', nivel: 5, petLevel: 1, dogName: '' });
+          }, 250);
         }
         if (m.t === 'join') {
           var yo = window.game && window.game.scene && window.game.scene.getScenes(true).filter(function (sc) { return sc.player; })[0];
@@ -716,8 +730,9 @@
         return;
       }
       if (m.t === 'move') { s._fire('playerMoved', Object.assign({}, m.d, { id: m.id })); return; }
+      if (m.t === 'dormido') { redSala.dormidos[m.id] = !!m.si; redHost(s); return; }
       if (m.t === 'leave') {
-        delete redSala.conocidos[m.id]; delete redSala.holas[m.id];
+        delete redSala.conocidos[m.id]; delete redSala.holas[m.id]; delete redSala.dormidos[m.id];
         s._fire('playerLeft', { id: m.id });
         redHost(s);
         return;
@@ -730,9 +745,15 @@
         if (nuevo && redSala.holas[s.id]) redEnviar({ t: 'hola', id: s.id, sala: s._sala, t0: s._t0 });
         return;
       }
-      if (m.t === 'mobs:estado' || m.t === 'mobs:evento') { s._fire(m.t, Object.assign({}, m.d, { de: m.id })); return; }
+      // Como el servidor: solo pasa lo que manda el anfitrión.
+      if (m.t === 'mobs:estado' || m.t === 'mobs:evento') { if (m.id === redSala.host) s._fire(m.t, Object.assign({}, m.d, { de: m.id })); return; }
       if (m.t === 'mobs:golpe') { if (redSala.host === s.id) s._fire('mobs:golpe', Object.assign({}, m.d, { de: m.id })); return; }
       if (m.t === 'combate:tajo') s._fire('combate:tajo', Object.assign({}, m.d, { id: m.id }));
+      if (m.t === 'pvp:herido' && m.victima === s.id) {
+        estado.stats.vida = Math.max(0, Number(m.vida) || 0);
+        s._fire('pvp:herido', { de: m.id, deNombre: 'Otro', dano: 4, muerto: estado.stats.vida <= 0,
+          stats: { vida: estado.stats.vida, agua: estado.stats.agua, comida: estado.stats.comida } });
+      }
     };
     window.addEventListener('pagehide', function () {
       var s = socketVivo();
@@ -784,7 +805,17 @@
     // siempre por bueno el golpe y avisa a la "sala" con el impacto.
     if (evento === 'pvp:golpe') {
       estado.pvp = (estado.pvp || []).concat([datos]).slice(-50);
-      setTimeout(function () { self._fire('pvp:impacto', { id: datos.victima, de: self.id, muerto: false }); }, 30);
+      estado.vidasPvp = estado.vidasPvp || {};
+      var vidaV = estado.vidasPvp[datos.victima] = Math.max(0, (estado.vidasPvp[datos.victima] == null ? 100 : estado.vidasPvp[datos.victima]) - 4);
+      setTimeout(function () { self._fire('pvp:impacto', { id: datos.victima, de: self.id, muerto: vidaV <= 0, dano: 4, vida: vidaV }); }, 30);
+      redEnviar({ t: 'pvp:herido', id: self.id, sala: self._sala, victima: datos.victima, vida: vidaV });
+    }
+    if (evento === 'pvp:vidas') {
+      setTimeout(function () {
+        var lista = {};
+        Object.keys(redSala.conocidos).forEach(function (id) { lista[id] = (estado.vidasPvp || {})[id] == null ? 100 : estado.vidasPvp[id]; });
+        self._fire('pvp:vidas', { lista: lista });
+      }, 20);
     }
     if (evento === 'pvp:tajo') estado.tajos = (estado.tajos || 0) + 1;
     huertoFalso(self, evento, datos);

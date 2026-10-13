@@ -60,7 +60,7 @@
   <script src="./gf-sesion-unica.js?v=21.5" defer></script>
   <!-- Las invitaciones: pronto a propósito, para guardar el ?ref= del enlace
        antes de que el login se lleve al jugador. Pinta la pestaña "Invites". -->
-  <script src="./gf-invitaciones.js?v=22.5.1fb78486f85d" defer></script>
+  <script src="./gf-invitaciones.js?v=22.5.aff4a97d1485" defer></script>
 
   <!-- Ethers -->
   <script src="./vendor/ethers.umd.min.js?v=532950515fd2" defer integrity="sha384-lApM4ELRuFNT7NgNqnXB2zFWgSDdhVvmnOHov2DPJz/2zuNpZImXBeklFr18ilvi"></script>
@@ -81,6 +81,9 @@
   <!-- Personajes Soulbound. Va ANTES de las escenas porque sus preload()
        le piden las rutas de los sprites del jugador. -->
   <script src="./gf-soulbound.js?v=22.1" defer></script>
+  <!-- Relieve 2.5D de personajes, NPC y mascota (2026-10-12): se aplica al
+       cargar cada textura; los PNG no se tocan. -->
+  <script src="./gf-relieve.js?v=22.5.3d466577f1b3" defer></script>
   <!-- "My NFTs" del panel NFT: la colección que se elige en admin.html. -->
   <script src="./gf-nft.js?v=22.1" defer></script>
   <script src="./gf-lands.js?v=22.5.22c40db6147f" defer></script>
@@ -100,9 +103,9 @@
   <script src="./gf-espantapajaros.js?v=21.41" defer></script>
   <script src="./gf-antorchas.js?v=22.5.f55bd9bc0ada" defer></script>
   <link rel="stylesheet" href="./gf-espada-poderes.css?v=22.5.6d2f33f797b7">
-  <link rel="stylesheet" href="./gf-character-skills.css?v=22.4.44b8c03b2bab">
-  <link rel="stylesheet" href="./gf-invitaciones.css?v=22.5.3372cfdf931a">
-  <script src="./gf-character-skills.js?v=22.4.00b94e2236aa" defer></script>
+  <link rel="stylesheet" href="./gf-character-skills.css?v=22.5.282c5eb793ab">
+  <link rel="stylesheet" href="./gf-invitaciones.css?v=22.5.2dce2eb76426">
+  <script src="./gf-character-skills.js?v=22.5.3148224940b9" defer></script>
   <script src="./gf-espada.js?v=22.5.2a68ff2d503e" defer></script>
   <!-- Que ningún botón del HUD quede encima de otro (columna redonda, V/B/N,
        tajo). Detrás de la espada: aparta sus botones si hace falta. -->
@@ -112,15 +115,15 @@
   <script src="./gf-rutas.js?v=22.1" defer></script>
   <!-- El arte de TODOS los monstruos: carga sus PNG (Game/Sprites/monstruos,
        tools/generar-monstruos.py) y crea sus animaciones. Antes que ellos. -->
-  <script src="./gf-monstruos-arte.js?v=22.5.2717a1d35dcb" defer></script>
-  <script src="./gf-mobs-red.js?v=22.5.9a398d404c42" defer></script>
-  <script src="./gf-mina-zombis.js?v=22.5.a1afac54a201" defer></script>
+  <script src="./gf-monstruos-arte.js?v=22.5.04fc0cec8f54" defer></script>
+  <script src="./gf-mobs-red.js?v=22.5.1f58e6d359d3" defer></script>
+  <script src="./gf-mina-zombis.js?v=22.5.b0a3bdf3c7e1" defer></script>
   <!-- La serpiente de magma de la mina (la monta MinaScene). -->
-  <script src="./gf-mina-serpiente.js?v=22.5.9ec03085db9c" defer></script>
-  <script src="./gf-mina-espectros.js?v=22.5.4a634daa567f" defer></script>
+  <script src="./gf-mina-serpiente.js?v=22.5.93654fea264d" defer></script>
+  <script src="./gf-mina-espectros.js?v=22.5.6a8022f5c916" defer></script>
   <!-- El mapa salvaje: sus monstruos, la espada entre jugadores en la zona
        PvP y lo que se suelta en el suelo (lo monta SalvajeScene). -->
-  <script src="./gf-salvaje.js?v=22.5.5023787be2d3" defer></script>
+  <script src="./gf-salvaje.js?v=22.5.64e816d30314" defer></script>
   <script src="./gf-agua.js?v=22.5.856f716f9dfa" defer></script>
   <script src="./gf-suelo.js?v=21.1" defer></script>
   <script src="./gf-casas.js?v=21.3" defer></script>
@@ -129,8 +132,8 @@
   <!-- Cazador de micro-parones. Inerte hasta que se le llama a mano desde la
        consola con GFTirones.empezar(). No vigila nada por su cuenta. -->
   <script src="./gf-tirones.js?v=19.1" defer></script>
-  <script src="./gf-cuervo.js?v=22.4.dacd2ac5a382" defer></script>
-  <script src="./gf-animales.js?v=22.5.6fe29dbc3c3f" defer></script>
+  <script src="./gf-cuervo.js?v=22.5.5a4d68c01eb1" defer></script>
+  <script src="./gf-animales.js?v=22.5.7d4893abf799" defer></script>
   <script src="./gf-mascota.js?v=22.1" defer></script>
   <script src="./gf-muerte.js?v=22.5.2570e568316d" defer></script>
   <script src="./gf-alquimista.js?v=22.4.689fe15d320b" defer></script>
@@ -181,19 +184,19 @@
   <script src="./Scenes/LoadingSceneshop.js?v=19.8" defer></script>
   <script src="./Scenes/tiendajuego.js?v=22.5.ba4ef7224b7e" defer></script>
   <script src="./Scenes/LoadingScenegame.js?v=22.5.aa09133be027" defer></script>
-  <script src="./Scenes/GameScene.js?v=22.5.ebd8b1d15caa" defer></script>
+  <script src="./Scenes/GameScene.js?v=22.5.67a2a4fa5575" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
        basta con dejarla en esta linea y no antes. -->
-  <script src="./Scenes/MinaScene.js?v=22.5.b63c1287e02d" defer></script>
+  <script src="./Scenes/MinaScene.js?v=22.5.88a4cbe304d7" defer></script>
   <!-- La isla de las parcelas. Hereda de GameScene igual que la mina,
        asi que tambien tiene que ir DESPUES de ella. -->
   <script src="./Scenes/LandsScene.js?v=22.4.38e9ee08feed" defer></script>
   <script src="./Scenes/InteriorScene.js?v=22.1" defer></script>
   <!-- El mapa salvaje del oeste. Hereda de GameScene: después de ella. -->
   <script src="./Scenes/SalvajeScene.js?v=22.5.ee080f51cf10" defer></script>
-  <script src="./Scenes/BattleScene.js?v=22.4.2e8773ed2281" defer></script>
+  <script src="./Scenes/BattleScene.js?v=22.5.55ade67ac35b" defer></script>
   <script src="./Scenes/sacar_mapa.js?v=19.1" defer></script>
 
   <!-- tienda marketplace p2p -->

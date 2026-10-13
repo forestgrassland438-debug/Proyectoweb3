@@ -16,17 +16,19 @@
  * globales"). Así que se cargan la primera vez que hacen falta y se quedan;
  * la memoria no crece por entrar y salir.
  *
- *   GFMonstruosArte.cargar(scene, ['zombi_a', 'lobo'], ['gfsp_cabeza'])
+ *   GFMonstruosArte.cargar(scene, ['zombi_a', 'lobo', 'serpiente'], ['gfsp_bola'])
  *       -> Promise<boolean>  (true si está todo lo pedido)
  *   GFMonstruosArte.anim('lobo', 'camina')       -> 'gfm_lobo_camina'
  *   GFMonstruosArte.anim('mago', 'down')         -> 'gfm_mago_down'
  *   GFMonstruosArte.fotograma('mago', 'down')    -> 'abajo_1'
  *   GFMonstruosArte.origenHumanoide(sprite)      pies en la base del cuerpo
+ *   Las bestias (lobo, araña, gólem) llevan su punto de apoyo en cada
+ *   fotograma del atlas (`pivot`): Phaser lo usa de origen solo.
  * ======================================================================== */
 (function () {
   'use strict';
 
-  var V = '20261011b';
+  var V = '20261012g';   // (2026-10-12) la serpiente de la mina en 3D (16 direcciones) y la capa de las brujas, más estrecha
   var RUTA = './Game/Sprites/monstruos/';
   // Humanoides: tipo -> fotogramas por segundo al andar.
   var HUMANOIDES = { zombi_a: 6, zombi_b: 6, zombi_c: 6, zombi_d: 6, zombi_jefe: 5, espectro: 6, mago: 6, brujo: 7 };
@@ -36,11 +38,12 @@
     arana: { camina: [4, 12, -1], ataque: [3, 10, 0], quieto: [2, 2, -1] },
     golem: { camina: [4, 6, -1],  ataque: [3, 7, 0],  quieto: [2, 1.5, -1] }
   };
+  // Atlas sin animaciones (fotogramas que el juego elige): la serpiente de la
+  // mina, su cabeza y sus anillos en 16 direcciones ('cabeza_<i>',
+  // 'abierta_<i>', 'anillo_<i>'; tools/gf_serpiente3d.py).
+  var PIEZAS = { serpiente: true };
   // Piezas sueltas: clave de textura -> archivo.
   var SUELTAS = {
-    gfsp_cabeza: 'serpiente/cabeza.png',
-    gfsp_cabeza_abierta: 'serpiente/cabeza_abierta.png',
-    gfsp_anillo: 'serpiente/anillo.png',
     gfsp_monticulo: 'serpiente/monticulo.png',
     gfsp_agujero: 'serpiente/agujero.png',
     gfsp_grieta: 'serpiente/grieta.png',
@@ -69,6 +72,10 @@
     var k = clave(tipo);
     if (!scene.textures.exists(k)) return false;
     var tex = scene.textures.get(k);
+    if (PIEZAS[tipo]) {
+      try { tex.setFilter(Phaser.Textures.FilterMode.NEAREST); } catch (e) {}
+      return tex.has('cabeza_0');
+    }
     var hechas = 0;
     var crear = function (nombre, nombres, fps, repetir) {
       if (scene.anims.exists(nombre)) { hechas++; return; }
@@ -84,10 +91,15 @@
         crear(anim(tipo, en), lista, HUMANOIDES[tipo], -1);
       });
     } else if (BESTIAS[tipo]) {
+      // De perfil ('camina'), y (2026-10-11) de frente y de espaldas
+      // ('camina_abajo', 'camina_arriba'), si el atlas las trae.
       Object.keys(BESTIAS[tipo]).forEach(function (acc) {
-        var d = BESTIAS[tipo][acc], lista = [];
-        for (var n = 1; n <= d[0]; n++) lista.push(acc + '_' + n);
-        crear(anim(tipo, acc), lista, d[1], d[2]);
+        var d = BESTIAS[tipo][acc];
+        ['', '_abajo', '_arriba'].forEach(function (suf) {
+          var lista = [];
+          for (var n = 1; n <= d[0]; n++) lista.push(acc + suf + '_' + n);
+          crear(anim(tipo, acc + suf), lista, d[1], d[2]);
+        });
       });
     }
     return hechas > 0;
@@ -103,7 +115,7 @@
     sueltas = sueltas || [];
     var faltan = 0;
     tipos.forEach(function (t) {
-      if (!HUMANOIDES[t] && !BESTIAS[t]) return;
+      if (!HUMANOIDES[t] && !BESTIAS[t] && !PIEZAS[t]) return;
       if (scene.textures.exists(clave(t))) return;
       scene.load.atlas(clave(t), RUTA + t + '.png?v=' + V, RUTA + t + '.json?v=' + V);
       faltan++;
@@ -164,6 +176,6 @@
     fotograma: fotograma,
     origenHumanoide: origenHumanoide,
     ALTO_CUERPO: ALTO_CUERPO,
-    _interno: { HUMANOIDES: HUMANOIDES, BESTIAS: BESTIAS, SUELTAS: SUELTAS, crearAnims: crearAnims }
+    _interno: { HUMANOIDES: HUMANOIDES, BESTIAS: BESTIAS, PIEZAS: PIEZAS, SUELTAS: SUELTAS, crearAnims: crearAnims }
   };
 })();

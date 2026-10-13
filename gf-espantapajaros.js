@@ -63,10 +63,21 @@
     if (!scene.textures.exists(TEX_VIENTO)) faltan.push([TEX_VIENTO, './Game/Objetos/granja/espantapajaros_viento.png']);
     if (!faltan.length) return Promise.resolve();
     return new Promise(function (ok) {
-      var hecho = false, fin = function () { if (!hecho) { hecho = true; ok(); } };
+      var hecho = false, reloj = null;
+      var fin = function () {
+        if (hecho) return;
+        hecho = true;
+        clearTimeout(reloj);
+        scene.load.off('complete', fin);
+        scene.events.off('shutdown', fin);
+        scene.events.off('destroy', fin);
+        ok();
+      };
       faltan.forEach(function (f) { scene.load.image(f[0], f[1]); });
       scene.load.once('complete', fin);
-      setTimeout(fin, 5000);
+      scene.events.once('shutdown', fin);
+      scene.events.once('destroy', fin);
+      reloj = setTimeout(fin, 5000);
       scene.load.start();
     });
   }
@@ -241,7 +252,13 @@
     scene.events.off('shutdown', st.onApagar);
     scene.events.off('destroy', st.onApagar);
     Array.from(st.mapa.keys()).forEach(function (k) { quitar(st, k, false); });
-    Array.from(st.guardas.keys()).forEach(function (k) { soltarGuarda(scene, k, true); });
+    // El alias de la escena ya se retiró: soltarGuarda() no puede buscarlo.
+    st.guardas.forEach(function (gd, k) {
+      if (scene['espanta_' + k] === gd.spr) delete scene['espanta_' + k];
+      try { scene.tweens.killTweensOf(gd.anillo); } catch (e) {}
+      try { gd.anillo.destroy(); } catch (e) {}
+    });
+    st.guardas.clear();
     st.pendientes.clear();
     st.scene = null;
   }
@@ -292,6 +309,7 @@
   }
 
   window.GFEspantapajaros = {
+    _interno: { cargarTexturas: cargarTexturas },
     montar: montar,
     desmontar: desmontar,
     colocar: colocar,

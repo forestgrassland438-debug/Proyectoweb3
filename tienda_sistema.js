@@ -3132,6 +3132,12 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
   // (reenviar crearía duplicados). También se amplía el timeout a 2 minutos.
   async function _sendAndWaitWithRetries(relayClient, contractAddress, accionObj, maxAttempts = 3) {
     let pendingTransactionId = null; // guardamos el id si ya se envió
+    // A lost response may already have minted/increased the invoice. Keep
+    // one server idempotency key through every retry of this logical action.
+    const metadata = { ...(accionObj._metadata || {}) };
+    if (!metadata.idem) metadata.idem = typeof window.PhaserRelay?.createIdempotencyKey === 'function'
+      ? window.PhaserRelay.createIdempotencyKey() : generarCodigoLocal(24);
+    const requestAction = { ...accionObj, _metadata: metadata };
 
     const isTimeoutError = (val) => {
       const msg = (typeof val === 'string' ? val : val?.error || val?.message || '').toLowerCase();
@@ -3144,7 +3150,7 @@ async Additemblockchains(ruta_tabla, producto, cantidad) {
 
         // Solo enviamos la tx si aún no tenemos un transactionId pendiente
         if (!transactionId) {
-          const sendResult = await relayClient.accion(contractAddress, accionObj);
+          const sendResult = await relayClient.accion(contractAddress, requestAction);
           if (!sendResult || !sendResult.success) {
             console.warn(`Attempt ${attempt}: sendResult no exitoso`, sendResult);
             if (attempt === maxAttempts) return { success: false, error: sendResult?.error || 'sendFailed' };

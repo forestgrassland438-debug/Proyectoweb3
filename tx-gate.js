@@ -115,6 +115,11 @@
     var tope = Number.isFinite(opciones.timeout) && opciones.timeout >= 0
       ? Math.min(opciones.timeout, 900000) : 90000;
     var inicio = Date.now();
+    var signal = opciones.signal;
+
+    if (signal && signal.aborted) {
+      return Promise.resolve({ idle: trabajos.size === 0, cancelled: true, waitedMs: 0, remaining: trabajos.size });
+    }
 
     if (trabajos.size === 0) {
       return Promise.resolve({ idle: true, waitedMs: 0, remaining: 0 });
@@ -125,18 +130,21 @@
       var latido = null;
       var limite = null;
 
-      function acabar(idle) {
+      function acabar(idle, cancelled) {
         if (terminado) return;
         terminado = true;
         if (latido !== null) clearInterval(latido);
         if (limite !== null) clearTimeout(limite);
+        if (signal) signal.removeEventListener('abort', alCancelar);
         var i = oyentes.indexOf(alVaciarse);
         if (i !== -1) oyentes.splice(i, 1);
-        resolve({ idle: idle, waitedMs: Date.now() - inicio, remaining: trabajos.size });
+        resolve({ idle: idle, cancelled: !!cancelled, waitedMs: Date.now() - inicio, remaining: trabajos.size });
       }
 
       function alVaciarse() { acabar(true); }
+      function alCancelar() { acabar(false, true); }
       oyentes.push(alVaciarse);
+      if (signal) signal.addEventListener('abort', alCancelar, { once: true });
 
       limite = setTimeout(function () {
         console.warn('[TxGate] Se agotó la espera con ' + trabajos.size + ' trabajo(s) pendiente(s):', labels());

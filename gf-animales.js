@@ -54,10 +54,13 @@
 (function () {
   'use strict';
 
-  var RUTA = './Game/Sprites/animales/';
-  /* Los sprites se regeneran (tools/sombrear-animales.py): con la versión en
-     la URL el navegador no se queda con los de antes. */
-  var VERSION_ARTE = '?v=20261004';
+  /* (2026-10-12) Los animales en 2.5D: remodelados en 3D con el mismo tamaño
+     de cuadro y el mismo nombre (tools/generar-animales3d.py). La carpeta de
+     siempre, Game/Sprites/animales/, se queda como estaba. */
+  var RUTA = './Game/Sprites/animales3d/';
+  /* Los sprites se regeneran: con la versión en la URL el navegador no se
+     queda con los de antes. */
+  var VERSION_ARTE = '?v=20261012b';
   var ESCALA = 2;                   // igual que el jugador y el perro
   /* Profundidad volando.
    *
@@ -106,6 +109,25 @@
     // Las aves se bañan en la fuente y duermen de noche en su rama.
     paloma: { bana: 3, duerme: 2 }, pajaro: { bana: 3, duerme: 2 }
   };
+
+  /* LAS CUATRO DIRECCIONES (2026-10-12): "los animales no se mueven para sus
+     4 lados, solo para dos". Estas especies tienen también sus poses de
+     frente ('_abajo') y de espaldas ('_arriba') (tools/generar-animales3d.py);
+     se elige la vista según hacia dónde se ha movido de verdad (orientarVista).
+     Las aves andan de lado a lado y las mariposas se ven desde arriba. */
+  var CUATRO_LADOS = {
+    vaca: ['camina', 'quieto', 'come'], cerdo: ['camina', 'quieto', 'come'],
+    zorro: ['camina', 'quieto', 'come', 'ataque'], zorra: ['camina', 'quieto', 'come', 'ataque'],
+    cocodrilo: ['camina', 'quieto', 'come', 'ataque'],
+    conejo: ['camina', 'corre', 'quieto', 'come', 'lleva'], topo: ['camina', 'quieto', 'come'],
+    serpiente_verde: ['repta', 'quieto', 'ataque'], serpiente_coral: ['repta', 'quieto', 'ataque'],
+    serpiente_vibora: ['repta', 'quieto', 'ataque']
+  };
+  var VISTAS = ['abajo', 'arriba'];
+  function tieneVista(especie, pose) {
+    var l = CUATRO_LADOS[especie];
+    return !!l && l.indexOf(pose) >= 0;
+  }
 
   /** Todas las poses de una especie: las de su grupo más las suyas propias. */
   function posesDe(especie) {
@@ -312,6 +334,15 @@
                    archivo: especie + '_' + p + '_' + i + '.png',
                    pose: p });
       }
+      // Y de frente y de espaldas, si la especie las tiene.
+      if (!tieneVista(especie, p)) continue;
+      for (var v = 0; v < VISTAS.length; v++) {
+        for (var j = 1; j <= poses[p]; j++) {
+          out.push({ clave: 'gfa_' + especie + '_' + p + '_' + VISTAS[v] + '_' + j,
+                     archivo: especie + '_' + p + '_' + VISTAS[v] + '_' + j + '.png',
+                     pose: p });
+        }
+      }
     }
     return out;
   }
@@ -366,6 +397,21 @@
         key: clave, frames: frames,
         frameRate: Math.max(1, RITMO[p] * (f.ritmo || 1)), repeat: -1
       });
+      // De frente y de espaldas (las mismas reglas).
+      if (!tieneVista(especie, p)) continue;
+      for (var v = 0; v < VISTAS.length; v++) {
+        var claveV = clave + '_' + VISTAS[v];
+        if (scene.anims.exists(claveV)) continue;
+        var fv = [];
+        for (var j = 1; j <= poses[p]; j++) {
+          var kv = 'gfa_' + especie + '_' + p + '_' + VISTAS[v] + '_' + j;
+          if (scene.textures.exists(kv)) fv.push({ key: kv });
+        }
+        if (!fv.length) continue;               // una animación vacía tumba el bucle
+        if (p === 'quieto') fv.push({ key: fv[0].key });
+        scene.anims.create({ key: claveV, frames: fv,
+          frameRate: Math.max(1, RITMO[p] * (f.ritmo || 1)), repeat: -1 });
+      }
     }
   }
 
@@ -1604,7 +1650,9 @@
                                'gfa_' + especie + '_quieto_1');
     a.spr = spr;
     if (f.grupo === 'ave') a.banoDisponibleEn = scene.time.now + az(25000, 80000);
-    spr.setOrigin(0.5, 1);
+    // La mariposa (vista desde arriba) va por su centro, también volando: así
+    // al posarse no da un salto (ver actualizarMariposa).
+    spr.setOrigin(0.5, f.grupo === 'mariposa' ? 0.5 : 1);
     spr.setScale(ESCALA);
     spr.setDepth(punto.y);
     // Sin cuerpo de física a propósito: así no puede colisionar con nada.
@@ -1651,9 +1699,44 @@
   }
 
   function anim(a, pose) {
-    if (a._anim === pose) return;
-    a._anim = pose;
-    if (a.spr && a.spr.anims) a.spr.play('gfa_' + a.especie + '_' + pose, true);
+    // De frente o de espaldas si va en vertical y la especie tiene esa pose.
+    var vista = (a.vista === 'abajo' || a.vista === 'arriba') && tieneVista(a.especie, pose) ? a.vista : '';
+    var clave = vista ? pose + '_' + vista : pose;
+    if (a._anim === clave) return;
+    if (vista && a.spr && a.spr.scene && !a.spr.scene.anims.exists('gfa_' + a.especie + '_' + clave)) {
+      clave = pose;                             // sin esa vista cargada: la de lado
+      if (a._anim === clave) return;
+    }
+    a._anim = clave;
+    if (a.spr && a.spr.anims) a.spr.play('gfa_' + a.especie + '_' + clave, true);
+  }
+
+  /** La pose que lleva, sin la vista ('camina_abajo' -> 'camina'). */
+  function poseActual(a) { return String(a._anim || '').replace(/_(abajo|arriba)$/, ''); }
+
+  /**
+   * HACIA DÓNDE MIRA (2026-10-12): por lo que se ha movido DE VERDAD desde el
+   * fotograma anterior. En vertical claro, de frente o de espaldas; si no, de
+   * lado (el volteo lo sigue poniendo quien lo mueve). Quieto, se queda como
+   * estaba. Al cambiar, se repite la pose con la vista nueva.
+   */
+  function orientarVista(a) {
+    if (!CUATRO_LADOS[a.especie] || !a.spr) return;
+    var x = a.spr.x, y = a.spr.y;
+    if (a._ultX === undefined) { a._ultX = x; a._ultY = y; a.vista = a.vista || 'lado'; return; }
+    var dx = x - a._ultX, dy = y - a._ultY;
+    a._ultX = x; a._ultY = y;
+    if (Math.abs(dx) + Math.abs(dy) < 0.2 || Math.abs(dx) + Math.abs(dy) > 120) return;
+    var v = a.vista || 'lado';
+    if (Math.abs(dy) > Math.abs(dx) * 1.3) v = dy > 0 ? 'abajo' : 'arriba';
+    else if (Math.abs(dx) > Math.abs(dy) * 0.9) v = 'lado';
+    if (v !== a.vista) {
+      a.vista = v;
+      var pose = poseActual(a);
+      if (pose) anim(a, pose);
+    }
+    // De frente o de espaldas no se voltea: la luz sigue arriba a la izquierda.
+    if (a.vista !== 'lado' && a.spr.flipX) a.spr.setFlipX(false);
   }
 
   /** La pose de andar se llama distinto en las serpientes. */
@@ -2206,7 +2289,7 @@
     if (a.fase === 'posado' && a.mirarA) cortejar(a);
     if (a.fase === 'posado' && a.actividad && ahora >= (a.accionEn || 0)) {
       spr.setFlipX(!spr.flipX);
-      anim(a, a.actividad === 'acicala' && a._anim !== 'come' ? 'come' : 'quieto');
+      anim(a, a.actividad === 'acicala' && poseActual(a) !== 'come' ? 'come' : 'quieto');
       a.accionEn = ahora + (a.actividad === 'acicala' ? az(450, 900) : az(1400, 2400));
     }
 
@@ -3252,8 +3335,14 @@
         var b = s.spr.getBounds();
         for (var intento = 0; intento < 12; intento++) {
           var columna = Math.round(az(m.izq, m.der));
-          var fila = m.superior[columna];
-          if (fila < 0) continue;
+          var arriba = m.superior[columna];
+          if (arriba < 0) continue;
+          /* (2026-10-12) "Las mariposas se paran más arriba de las flores": se
+             apoyaba en el borde de ARRIBA de la silueta y, como la mariposa se
+             ve desde arriba, quedaba por encima. Ahora el punto va DENTRO del
+             dibujo, en el tercio de arriba de esa columna (el pétalo). */
+          var abajoC = m.perfil && m.perfil[columna] >= arriba ? m.perfil[columna] : arriba;
+          var fila = arriba + (abajoC - arriba) * az(s.a0 || 0.12, s.a1 || 0.42);
           var x = b.x + (s.spr.flipX ? m.ancho - columna - 0.5 : columna + 0.5) * b.width / m.ancho;
           var y = b.y + (s.spr.flipY ? m.alto - fila - 0.5 : fila + 0.5) * b.height / m.alto;
           if (!tapado(s.scene, x, y, s.spr, base + 2)) return { clave: s.clave, base: base, x: x, y: y };
@@ -3455,12 +3544,12 @@
           !tapado(scene, d.x, d.y, scene[m.soporte], (scene[m.soporte].depth || m.baseSoporte || d.y) + 2)) {
         m.fase = 'posada';
         anim(m, 'posa');
-        // La imagen de la mariposa también contiene margen bajo las patas.
-        // Corrige el origen, conservando el punto de apoyo que ya se eligió.
+        // La mariposa se ve desde ARRIBA: se apoya por el centro de su dibujo
+        // (no por los "pies"), sobre el punto de la flor que ya se eligió.
         var P = window.GFProfundidad;
         if (P && P.medir && m.spr.texture) {
           var medida = P.medir(scene, m.spr.texture.key);
-          if (medida && medida.leida && medida.alto) m.spr.setOrigin(0.5, (medida.abajo + 1) / medida.alto);
+          if (medida && medida.leida && medida.alto) m.spr.setOrigin(0.5, (medida.arriba + medida.abajo + 1) / 2 / medida.alto);
         }
         m.spr.setDepth((scene[m.soporte].depth || m.baseSoporte || d.y) + 2);
         // Al sol se para menos; encapotado, más. Ver `animoDelSol`.
@@ -4018,6 +4107,7 @@
       else if (a.grupo === 'topo') actualizarTopo(st, a, ahora, dt);
       else if (a.grupo === 'conejo') actualizarConejo(st, a, ahora, dt);
       else actualizarTierra(st, a, ahora, dt);
+      orientarVista(a);
     }
 
     /* El balanceo va AL FINAL y siempre, dormidas incluidas.

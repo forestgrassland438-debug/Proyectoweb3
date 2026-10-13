@@ -600,7 +600,7 @@
                    (quienes.length > 12 ? ' and ' + (quienes.length - 12) + ' more' : '');
       chip.addEventListener('click', function (e) {
         e.stopPropagation();
-        reaccionar(scene, reg.msg.mid, r.emoji);
+        reaccionar(escenaViva, reg.msg.mid, r.emoji);
       });
       fila.appendChild(chip);
     });
@@ -623,7 +623,7 @@
       b.title = 'React with ' + e;
       b.addEventListener('click', function (ev) {
         ev.stopPropagation();
-        reaccionar(scene, mid, e);
+        reaccionar(escenaViva, mid, e);
         cerrarPaleta();
       });
       p.appendChild(b);
@@ -642,6 +642,7 @@
 
     // Un tic después, o el mismo clic que la abre la cierra.
     setTimeout(function () {
+      if (doc.getElementById('gfcs-paleta') !== p) return;
       doc.addEventListener('pointerdown', cerrarSiFuera, true);
     }, 0);
   }
@@ -730,7 +731,7 @@
     reaccionar1.setAttribute('aria-label', 'React to this message');
     reaccionar1.addEventListener('click', function (e) {
       e.stopPropagation();
-      abrirPaleta(scene, msg.mid, reaccionar1);
+      abrirPaleta(escenaViva, msg.mid, reaccionar1);
     });
     barra.appendChild(reaccionar1);
 

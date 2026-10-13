@@ -158,6 +158,7 @@
       const res = await fetch(url, Object.assign({ redirect: 'error', referrerPolicy: 'no-referrer' }, opts, { signal: controller.signal }));
       // Keep the deadline while reading the body too: fetch resolves at headers.
       const body = await res.text();
+      if (controller.signal.aborted) throw Object.assign(new Error('Request aborted'), { name: 'AbortError' });
       return {
         ok: res.ok, status: res.status, statusText: res.statusText, headers: res.headers,
         text: async () => body, json: async () => JSON.parse(body)
@@ -289,6 +290,16 @@
       return _fetchWithTimeout(url, Object.assign({}, options, { signal: this._abortController.signal }), timeout);
     }
 
+    _delay(ms) {
+      const signal = this._abortController.signal;
+      if (this._destroyed || signal.aborted) return Promise.reject(new Error('PhaserRelay has been cleaned up'));
+      return new Promise((resolve, reject) => {
+        const cancel = () => { clearTimeout(timer); signal.removeEventListener('abort', cancel); reject(new Error('PhaserRelay has been cleaned up')); };
+        const timer = setTimeout(() => { signal.removeEventListener('abort', cancel); resolve(); }, ms);
+        signal.addEventListener('abort', cancel, { once: true });
+      });
+    }
+
     _notify(type, message, duration = 4000) {
       try {
         if (this._notificationHub) {
@@ -353,7 +364,7 @@
       for (let i = 0; i < cookies.length; i++) {
         let c = cookies[i].trim();
         if (c.startsWith(nameEq)) {
-          return decodeURIComponent(c.slice(nameEq.length));
+          try { return decodeURIComponent(c.slice(nameEq.length)); } catch (e) { return null; }
         }
         // Compatibilidad con cookies no codificadas
         if (c.startsWith(name + '=')) {
@@ -516,7 +527,7 @@
           if (this.config.debug) console.log('[PhaserRelay] 401 — intentando refresh...');
           const ok = await this._refreshToken();
           if (ok) {
-            await new Promise(r => setTimeout(r, this.config.retryDelay * (retryCount + 1)));
+            await this._delay(this.config.retryDelay * (retryCount + 1));
             return this._apiRequest(path, method, body, retryCount + 1, timeoutMs);
           }
         }
@@ -527,7 +538,7 @@
             if (this.config.debug) console.log('[PhaserRelay] CSRF inválido — obteniendo nuevo token...');
             const ok = await this._getCSRFToken();
             if (ok) {
-              await new Promise(r => setTimeout(r, this.config.retryDelay * (retryCount + 1)));
+              await this._delay(this.config.retryDelay * (retryCount + 1));
               return this._apiRequest(path, method, body, retryCount + 1, timeoutMs);
             }
           }
@@ -537,6 +548,10 @@
           const msg = (parsed && (parsed.error || parsed.message)) || `HTTP ${response.status}: ${response.statusText}`;
           const error = new Error(msg);
           error.status = response.status;
+          if (parsed && parsed.details) {
+            error.code = parsed.details.code;
+            error.reason = parsed.details.reason;
+          }
           throw error;
         }
 
@@ -593,7 +608,7 @@
         const request = _fetchWithTimeout(key + '/api/auth/refresh', {
           method: 'POST', credentials: 'include', cache: 'no-store',
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
-        }, Math.min(timeout, 30000)).finally(() => pending.delete(key));
+        }, Number.isFinite(timeout) && timeout > 0 ? Math.min(timeout, 30000) : 15000).finally(() => pending.delete(key));
         pending.set(key, request);
       }
       return pending.get(key);
@@ -694,7 +709,7 @@
     // ── MÉTODO ACCIÓN UNIFICADO ───────────────────────────────────────────
 
     async accion(contractAddress, options = {}) {
-      const { funcion, accion: tipoOverride, ...params } = options;
+      const { funcion, accion: tipoOverride, _metadata = {}, ...params } = options;
       if (!funcion) throw new Error('Se requiere el nombre de la función (funcion)');
 
       // FIX #6: Validar nombre de función
@@ -718,7 +733,7 @@
       } else if (tipoAccion === 'enviar') {
         const indexedParams = {};
         parametrosOrdenados.forEach((v, i) => { indexedParams[i] = v; });
-        return this.sendTransaction(contractAddress, funcion, indexedParams);
+        return this.sendTransaction(contractAddress, funcion, indexedParams, _metadata);
       } else {
         throw new Error(`Acción no reconocida: "${tipoAccion}". Use "obtener" o "enviar"`);
       }
@@ -744,12 +759,13 @@
           valor = this._getDefaultValue(input.type, input.name, funcName);
         }
 
-        result.push(this._convertParameter(valor, input.type));
+        result.push(this._convertParameter(valor, input.type, input));
       }
       return result;
     }
 
     _getDefaultValue(type, name, functionName) {
+      if (/\[\d*\]$/.test(type)) return [];
       if (functionName === 'logMessage') {
         if (name === '_user' || name === 'user' || type === 'address') {
           return this.auth.address || '0x0000000000000000000000000000000000000000';
@@ -770,8 +786,18 @@
       return null;
     }
 
-    _convertParameter(value, type) {
+    _convertParameter(value, type, definition = {}) {
       if (value === null || value === undefined) return value;
+      const array = /^(.*)\[(\d*)\]$/.exec(type);
+      if (array) {
+        if (!Array.isArray(value)) throw new Error(`Expected an array for ${definition.name || type}`);
+        if (array[2] && value.length !== Number(array[2])) throw new Error(`Incorrect array length for ${definition.name || type}`);
+        return value.map(item => this._convertParameter(item, array[1], definition));
+      }
+      if (type === 'tuple' && Array.isArray(definition.components)) {
+        return definition.components.map((component, i) => this._convertParameter(
+          Array.isArray(value) ? value[i] : value[component.name], component.type, component));
+      }
       if (type.includes('uint') || type.includes('int')) return String(value);
       if (type === 'address') {
         if (typeof value === 'string' && value.startsWith('0x')) return value.toLowerCase();
@@ -905,7 +931,7 @@
                                     /failed to fetch|networkerror|network error|load failed/i.test(String(e.message || '')));
             if (!ambiguo || intento >= 2 || this._destroyed) throw e;
             if (this.config.debug) console.warn('[PhaserRelay] Sin respuesta al enviar; se repite con la misma clave:', e.message);
-            await new Promise(r => setTimeout(r, 1500 * (intento + 1)));
+            await this._delay(1500 * (intento + 1));
           }
         }
         if (!resp || !resp.success) {
@@ -936,9 +962,12 @@
         };
       } catch (e) {
         if (this.config.debug) console.error('[PhaserRelay] sendTransaction error:', e);
-        return { success: false, error: e.message || String(e), code: e.code || 'UNKNOWN_ERROR' };
+        return { success: false, error: e.message || String(e), code: e.code || 'UNKNOWN_ERROR',
+                 idem, uncertain: PhaserRelay._esFalloDeRed(e) };
       }
     }
+
+    static createIdempotencyKey() { return _idemNuevo(); }
 
     // ── GESTIÓN DE TRANSACCIONES PENDIENTES ───────────────────────────────
 
@@ -971,9 +1000,9 @@
     //  nunca devuelve un estado terminal ('confirmed', 'failed', 'reverted').
     //
     async waitForTransaction(transactionId, options = {}) {
-      const interval    = (typeof options.interval    === 'number' && options.interval    > 0) ? options.interval    : 3000;
-      const timeout     = (typeof options.timeout     === 'number' && options.timeout     > 0) ? options.timeout     : 60000; // FIX: 60 s por defecto
-      const maxAttempts = (typeof options.maxAttempts === 'number' && options.maxAttempts > 0) ? options.maxAttempts : 0;
+      const interval    = (Number.isFinite(options.interval) && options.interval > 0) ? Math.min(options.interval, 60000) : 3000;
+      const timeout     = (Number.isFinite(options.timeout) && options.timeout > 0) ? Math.min(options.timeout, 900000) : 60000;
+      const maxAttempts = (Number.isFinite(options.maxAttempts) && options.maxAttempts > 0) ? Math.min(Math.floor(options.maxAttempts), 10000) : 0;
 
       const TERMINAL = new Set(['confirmed', 'failed', 'reverted']);
       const startTime = Date.now();
@@ -1001,10 +1030,10 @@
         }
 
         try {
-          const status = await this.getTransactionStatus(transactionId);
+          const status = await this.getTransactionStatus(transactionId, Math.max(1, Math.min(this.config.timeout, timeout - elapsed)));
 
           if (!status || typeof status !== 'object' || status.success === false) {
-            await new Promise(r => setTimeout(r, interval));
+            await this._delay(Math.min(interval, Math.max(1, timeout - (Date.now() - startTime))));
             continue;
           }
 
@@ -1016,7 +1045,7 @@
               }
               return { success: false, error: status.error || `Transacción ${status.status}`, txHash: status.txHash, receipt: status.receipt || null, transactionId };
             }
-            await new Promise(r => setTimeout(r, interval));
+            await this._delay(Math.min(interval, Math.max(1, timeout - (Date.now() - startTime))));
             continue;
           }
 
@@ -1028,10 +1057,10 @@
               : { success: false, error: 'Transaction reverted', txHash: status.txHash, receipt: status.receipt, transactionId };
           }
 
-          await new Promise(r => setTimeout(r, interval));
+          await this._delay(Math.min(interval, Math.max(1, timeout - (Date.now() - startTime))));
         } catch (e) {
           if (this.config.debug) console.warn(`[PhaserRelay] waitForTransaction intento ${attempts}:`, e.message);
-          await new Promise(r => setTimeout(r, interval));
+          await this._delay(Math.min(interval, Math.max(1, timeout - (Date.now() - startTime))));
         }
       }
     }
@@ -1165,6 +1194,12 @@
       );
     }
 
+    static _esFacturaAusente(e) {
+      if (!e || PhaserRelay._esFalloDeRed(e)) return false;
+      const text = String(e.reason || e.shortMessage || e.message || '');
+      return e.code === 'CALL_EXCEPTION' || /execution reverted|call_exception|invoice.*(?:not found|does not exist|inactive|invalid)|factura.*(?:no existe|no encontrada|inactiva)/i.test(text);
+    }
+
     /**
      * Lee una factura por su id.
      *   objeto → la factura
@@ -1182,7 +1217,7 @@
       } catch (e) {
         // getInvoice revierte cuando la factura no existe: eso NO es un fallo
         // de red, es la respuesta.
-        if (PhaserRelay._esFalloDeRed(e)) throw e;
+        if (!PhaserRelay._esFacturaAusente(e)) throw e;
         return null;
       }
     }
@@ -1197,7 +1232,7 @@
         });
         return this._leerCamposFactura(raw);
       } catch (e) {
-        if (PhaserRelay._esFalloDeRed(e)) throw e;
+        if (!PhaserRelay._esFacturaAusente(e)) throw e;
         return null;
       }
     }
@@ -1285,17 +1320,18 @@
     async misFacturas(contractAddress, opciones = {}) {
       const ahora = Date.now();
       const forzar = !!opciones.forzar;
+      const auth = await this.checkAuth();
+      if (!auth || !auth.success || !auth.address || this._destroyed) return null;
+      const owner = String(auth.address).toLowerCase();
       if (!forzar && this._facturasCache &&
           this._facturasCache.contrato === contractAddress &&
+          this._facturasCache.owner === owner &&
           (ahora - this._facturasCache.cuando) < 4000) {
         return this._facturasCache.lista;
       }
 
       const funcion = await this._funcionDeInventario(contractAddress);
       if (!funcion) return undefined;          // este contrato no sabe enumerar
-
-      const auth = await this.checkAuth();
-      if (!auth || !auth.success || !auth.address) return null;
 
       let crudo;
       try {
@@ -1316,7 +1352,8 @@
       }
 
       const lista = PhaserRelay._facturasDeSnapshot(crudo, this._leerCamposFactura.bind(this));
-      this._facturasCache = { contrato: contractAddress, cuando: ahora, lista: lista };
+      if (this._destroyed || String(this.auth.address || '').toLowerCase() !== owner) return null;
+      this._facturasCache = { contrato: contractAddress, owner, cuando: ahora, lista: lista };
       return lista;
     }
 
@@ -1607,7 +1644,8 @@
       /* 6) Plan B: el borrado de toda la vida. Solo cuando se quería vaciar la
             factura entera — si solo había que quitar una parte, borrarla sería
             quemar de más, y eso es peor que fallar. */
-      if (vaciarFactura || quitar >= f.cantidad) {
+      const funcionAusente = /function.*not found|no matching fragment|not a function|funci[oó]n.*(?:no encontrada|no existe)/i.test(String(error));
+      if ((vaciarFactura || quitar >= f.cantidad) && funcionAusente && !(res && res.uncertain)) {
         try {
           const res2 = await this.sendTransaction(contractAddress, 'deleteInvoice',
                                                   { 0: String(f.id) });
@@ -1723,13 +1761,18 @@
       const tupla = this._tuplaConNombres(raw, functionAbi);
       if (tupla) return tupla;
 
+      if (functionAbi.outputs.length === 1 && /\[\d*\]$/.test(functionAbi.outputs[0].type || '') && Array.isArray(raw)) {
+        const output = functionAbi.outputs[0];
+        return { [output.name || 'out0']: this._convertBigInts(raw) };
+      }
+
       if (Array.isArray(raw)) {
         const out = {};
         functionAbi.outputs.forEach((o, i) => {
           const k   = (o.name && o.name.length) ? o.name : `out${i}`;
           let val   = raw[i];
           if (val && val._isBigNumber) val = val.toString();
-          out[k] = val;
+          out[k] = this._convertBigInts(val);
         });
         return out;
       }
@@ -1740,7 +1783,7 @@
           const k   = (o.name && o.name.length) ? o.name : `out${i}`;
           let val   = Object.prototype.hasOwnProperty.call(raw, k) ? raw[k] : raw[i];
           if (val && val._isBigNumber) val = val.toString();
-          out[k] = val;
+          out[k] = this._convertBigInts(val);
         });
         return out;
       }
@@ -1843,11 +1886,13 @@
       attempts = 8,
       delayMs  = 3000
     }) {
+      attempts = Number.isFinite(attempts) && attempts >= 0 ? Math.min(64, Math.floor(attempts)) : 8;
+      delayMs = Number.isFinite(delayMs) && delayMs >= 0 ? Math.min(30000, delayMs) : 3000;
       let initial = null;
       try { initial = await this.readView(contractAddress, readFunctionNameOrNull, readParams); } catch (e) {}
 
       for (let i = 0; i < attempts; i++) {
-        await new Promise(r => setTimeout(r, delayMs));
+        await this._delay(delayMs);
         if (this._destroyed) break;
         try {
           const current = await this.readView(contractAddress, readFunctionNameOrNull, readParams);
@@ -1861,9 +1906,9 @@
       return { verified: false, initial };
     }
 
-    async getTransactionStatus(transactionId) {
+    async getTransactionStatus(transactionId, timeoutMs = 0) {
       try {
-        const resp = await this._apiRequest(`/api/relay/transaction/${transactionId}`, 'GET');
+        const resp = await this._apiRequest(`/api/relay/transaction/${encodeURIComponent(String(transactionId))}`, 'GET', null, 0, timeoutMs);
         if (resp && resp.success === true && resp.transaction) return resp.transaction;
         return resp;
       } catch (e) {
@@ -1911,6 +1956,7 @@
       this.stopAutoRefresh();
       this.pendingTransactions.clear();
       this.contractsCache.clear();
+      this._facturasCache = this._funcInvCache = null;
       this.authToken = this.csrfToken = null;
       this.auth = { authenticated: false, address: null, playerName: null };
       if (this.readProvider && typeof this.readProvider.destroy === 'function') {

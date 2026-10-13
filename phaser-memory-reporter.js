@@ -44,12 +44,75 @@
   function nowISO(){ return (new Date()).toISOString(); }
   function safe(fn, fallback){ try { return fn(); } catch(e){ return fallback; } }
 
+  // Instrumentation must not keep the resources it is measuring alive.
+  class WeakResourceSet {
+    constructor() { this.index = new WeakMap(); this.refs = new Set(); }
+    add(resource) {
+      if (!resource || this.index.has(resource) || typeof WeakRef === 'undefined') return this;
+      const ref = new WeakRef(resource);
+      this.index.set(resource, ref);
+      this.refs.add(ref);
+      if (this.refs.size > 2000) this.prune();
+      return this;
+    }
+    delete(resource) {
+      const ref = this.index.get(resource);
+      this.index.delete(resource);
+      return ref ? this.refs.delete(ref) : false;
+    }
+    has(resource) { return this.index.has(resource); }
+    prune() { for (const ref of this.refs) if (!ref.deref()) this.refs.delete(ref); }
+    get size() { this.prune(); return this.refs.size; }
+    *[Symbol.iterator]() {
+      for (const ref of this.refs) {
+        const resource = ref.deref();
+        if (resource) yield resource;
+        else this.refs.delete(ref);
+      }
+    }
+  }
+  class WeakResourceMap {
+    constructor() { this.index = new WeakMap(); this.records = new Set(); }
+    set(resource, value) {
+      if (!resource || typeof WeakRef === 'undefined') return this;
+      let rec = this.index.get(resource);
+      if (rec) rec.value = value;
+      else {
+        rec = { ref: new WeakRef(resource), value };
+        this.index.set(resource, rec);
+        this.records.add(rec);
+      }
+      return this;
+    }
+    get(resource) { const rec = this.index.get(resource); return rec && rec.value; }
+    has(resource) { return this.index.has(resource); }
+    delete(resource) { const rec = this.index.get(resource); this.index.delete(resource); return rec ? this.records.delete(rec) : false; }
+    *values() {
+      for (const rec of this.records) {
+        if (rec.ref.deref()) yield rec.value;
+        else this.records.delete(rec);
+      }
+    }
+  }
+  const MAX_DETAILS = 2000, MAX_SAMPLES = 100;
+  function appendBounded(list, value, max = MAX_SAMPLES) {
+    list.push(value);
+    if (list.length > max) list.splice(0, list.length - max);
+  }
+  function pruneResourceDetails() {
+    for (const [id, rec] of instr.imageList) if (rec.ref && !rec.ref.deref()) instr.imageList.delete(id);
+    instr.audioBufferList = instr.audioBufferList.filter(rec => !rec.ref || rec.ref.deref());
+    while (instr.imageList.size > MAX_DETAILS) instr.imageList.delete(instr.imageList.keys().next().value);
+    if (instr.audioBufferList.length > MAX_DETAILS) instr.audioBufferList.splice(0, instr.audioBufferList.length - MAX_DETAILS);
+  }
+
   // --- Instrumentation state (extendido) ---
   const instr = {
     ctxIdCounter: 1,
     glState: new WeakMap(),
-    glContexts: new Set(),
-    canvases: new Set(),
+    glContexts: new WeakResourceSet(),
+    canvases: new WeakResourceSet(),
+    offscreenCanvases: new WeakResourceSet(),
     offscreenBytes: 0,
     canvasBytes: 0,
     imagesTracked: new WeakSet(),
@@ -57,9 +120,9 @@
     imageIdCounter: 1,
     audioBuffers: new WeakMap(),
     audioBufferList: [],
-    wsSockets: new Set(),
+    wsSockets: new WeakResourceSet(),
     wsStats: { sent:0, recv:0 },
-    workers: new Set(),
+    workers: new WeakResourceSet(),
     workerMessageBytes: 0,
     manualNotes: [],
     // new:
@@ -196,7 +259,7 @@
           try{
             const t = (type||'').toString().toLowerCase();
             if (t.includes('webgl')) wrapGLContext(ctx);
-            if (this.width && this.height) instr.offscreenBytes += (this.width * this.height * BYTES_PER_PIXEL);
+            instr.offscreenCanvases.add(this);
           }catch(e){}
           return ctx;
         };
@@ -206,7 +269,9 @@
       try{
         const list = document.getElementsByTagName('canvas');
         for (let c of list){
-          try{ instr.canvases.add(c); const gl = c.getContext('webgl')||c.getContext('webgl2')||c.getContext('experimental-webgl'); if (gl) wrapGLContext(gl); }catch(e){}
+          // Asking an unrelated canvas for WebGL can prevent its owner from
+          // ever creating a 2D context. Only observe contexts requested by owners.
+          try{ instr.canvases.add(c); }catch(e){}
         }
       }catch(e){}
     }catch(e){}
@@ -413,7 +478,9 @@
               let texMeta = null;
               if (texture && s.textures.has(texture)) texMeta = s.textures.get(texture);
               const attach = { attachment, texMeta: texMeta || null, bytes: texMeta?texMeta.bytes:0 };
-              fbMeta.attachments.push(attach);
+              const previous = fbMeta.attachments.findIndex(item => item.attachment === attachment);
+              if (previous !== -1) fbMeta.attachments.splice(previous, 1);
+              if (texture) fbMeta.attachments.push(attach);
               s.framebuffers.set(fb, fbMeta);
             }
           }catch(e){}
@@ -475,11 +542,11 @@
         id: instr.ctxIdCounter++,
         boundTexture: new Map(),
         boundBuffer: new Map(),
-        textures: new Map(),
+        textures: new WeakResourceMap(),
         pseudoTextures: new Map(),
-        buffers: new Map(),
-        framebuffers: new Map(),
-        renderbuffers: new Map(),
+        buffers: new WeakResourceMap(),
+        framebuffers: new WeakResourceMap(),
+        renderbuffers: new WeakResourceMap(),
         nextResId: 1,
         _wrapped: false
       };
@@ -501,6 +568,8 @@
         }catch(e){}
       }
       instr.canvasBytes = total;
+      instr.offscreenBytes = 0;
+      for (const canvas of instr.offscreenCanvases) instr.offscreenBytes += (canvas.width || 0) * (canvas.height || 0) * BYTES_PER_PIXEL;
       return total;
     }catch(e){ return 0; }
   }
@@ -514,18 +583,20 @@
         try{
           const id = instr.imageIdCounter++;
           instr.imagesTracked.add(img);
-          const rec = { id, width: 0, height: 0, bytes: 0, src: '' };
+          const rec = { id, width: 0, height: 0, bytes: 0, src: '', ref: typeof WeakRef !== 'undefined' ? new WeakRef(img) : null };
           instr.imageList.set(id, rec);
+          pruneResourceDetails();
           img.__mr_id = id;
           img.addEventListener('load', function(){
             try{
               const iw = img.naturalWidth || img.width || 0;
               const ih = img.naturalHeight || img.height || 0;
-              rec.width = iw; rec.height = ih; rec.bytes = iw * ih * BYTES_PER_PIXEL; rec.src = img.src || rec.src;
+              rec.width = iw; rec.height = ih; rec.bytes = iw * ih * BYTES_PER_PIXEL; rec.src = String(img.src || rec.src).slice(0,512);
               instr.imageList.set(id, rec);
+              pruneResourceDetails();
               // dataURI detection
               if (rec.src && rec.src.startsWith('data:')){
-                instr.dataUriImages.push({ src: rec.src.slice(0,200), bytesEstimate: rec.bytes, id });
+                appendBounded(instr.dataUriImages, { src: rec.src.slice(0,200), bytesEstimate: rec.bytes, id });
               }
             }catch(e){}
           });
@@ -544,9 +615,10 @@
             const iw = el.naturalWidth || el.width || 0;
             const ih = el.naturalHeight || el.height || 0;
             const src = el.currentSrc || el.src || '';
-            instr.imageList.set(id, { id, width: iw, height: ih, bytes: iw*ih*BYTES_PER_PIXEL, src });
+            instr.imageList.set(id, { id, width: iw, height: ih, bytes: iw*ih*BYTES_PER_PIXEL, src: String(src).slice(0,512), ref: typeof WeakRef !== 'undefined' ? new WeakRef(el) : null });
+            pruneResourceDetails();
             el.__mr_id = id;
-            if (src && src.startsWith && src.startsWith('data:')) instr.dataUriImages.push({ src: src.slice(0,200), bytesEstimate: iw*ih*BYTES_PER_PIXEL, id });
+            if (src && src.startsWith && src.startsWith('data:')) appendBounded(instr.dataUriImages, { src: src.slice(0,200), bytesEstimate: iw*ih*BYTES_PER_PIXEL, id });
           }
         }
       }catch(e){}
@@ -564,15 +636,10 @@
       const origDecode = proto.decodeAudioData;
       if (origDecode){
         proto.decodeAudioData = function(arrayBuffer, success, error){
-          try{
-            const p = origDecode.call(this, arrayBuffer, function(buffer){
+          return origDecode.call(this, arrayBuffer, function(buffer){
               try{ registerAudioBuffer(buffer, 'decodeAudioData'); }catch(e){}
               if (typeof success === 'function') success(buffer);
             }, error);
-            return p;
-          }catch(e){
-            return origDecode.call(this, arrayBuffer, success, error);
-          }
         };
       }
       const origCreateBuffer = proto.createBuffer;
@@ -594,7 +661,7 @@
       const channels = buffer.numberOfChannels || AUDIO_CHANNELS;
       const bytes = Math.round(len * channels * 4);
       instr.audioBuffers.set(buffer, bytes);
-      instr.audioBufferList.push({ bytes, duration: buffer.duration || (len/(buffer.sampleRate||AUDIO_SAMPLE_RATE)), reason, createdAt: nowISO() });
+      appendBounded(instr.audioBufferList, { bytes, duration: buffer.duration || (len/(buffer.sampleRate||AUDIO_SAMPLE_RATE)), reason, createdAt: nowISO(), ref: typeof WeakRef !== 'undefined' ? new WeakRef(buffer) : null }, MAX_DETAILS);
     }catch(e){}
   }
 
@@ -630,12 +697,14 @@
               ws.__mr_recv += size; instr.wsStats.recv += size;
             }catch(e){}
           });
+          ws.addEventListener('close', () => instr.wsSockets.delete(ws), { once: true });
           const origClose = ws.close;
           ws.close = function(){ instr.wsSockets.delete(ws); return origClose.apply(this, arguments); };
         }catch(e){}
         return ws;
       }
       WrappedWS.prototype = NativeWS.prototype;
+      Object.setPrototypeOf(WrappedWS, NativeWS);
       window.WebSocket = WrappedWS;
       instr.manualNotes.push('WebSocket wrapped');
     }catch(e){}
@@ -668,6 +737,7 @@
         return w;
       }
       WrappedWorker.prototype = NativeWorker.prototype;
+      Object.setPrototypeOf(WrappedWorker, NativeWorker);
       window.Worker = WrappedWorker;
       instr.manualNotes.push('Worker wrapped');
     }catch(e){}
@@ -727,11 +797,14 @@
   function phaserEstimateAudio(game){
     try{
       let totalBytes = 0; const items = [];
+      const seen = new WeakSet();
       if (game && game.sound && game.sound.sounds && Array.isArray(game.sound.sounds)){
         for (const s of game.sound.sounds){
           try{
             const buffer = s.buffer || (s.source && s.source.buffer) || (s.audio && s.audio.buffer);
             if (buffer && buffer.length && buffer.sampleRate){
+              if (seen.has(buffer)) continue;
+              seen.add(buffer);
               const bytes = buffer.length * (buffer.numberOfChannels || AUDIO_CHANNELS) * 4;
               totalBytes += bytes;
               items.push({ key: s.key, duration: buffer.duration || (buffer.length / buffer.sampleRate), bytes });
@@ -739,7 +812,13 @@
           }catch(e){}
         }
       }
-      for (const b of instr.audioBufferList){ totalBytes += b.bytes; items.push({ key: b.reason || 'AudioBuffer', duration: b.duration || 0, bytes: b.bytes }); }
+      for (const b of instr.audioBufferList){
+        const buffer = b.ref && b.ref.deref();
+        if (b.ref && !buffer || buffer && seen.has(buffer)) continue;
+        if (buffer) seen.add(buffer);
+        totalBytes += b.bytes;
+        items.push({ key: b.reason || 'AudioBuffer', duration: b.duration || 0, bytes: b.bytes });
+      }
       return { totalBytes, items };
     }catch(e){ return { totalBytes:0, items:[] }; }
   }
@@ -835,7 +914,7 @@
           const src = el.currentSrc || el.src || '';
           if (src && src.startsWith && src.startsWith('data:')){
             dataUriCount++;
-            instr.dataUriImages.push({ src: src.slice(0,200), estimatedBytes: ((el.naturalWidth||el.width||0)*(el.naturalHeight||el.height||0)*BYTES_PER_PIXEL) || 0 });
+            appendBounded(instr.dataUriImages, { src: src.slice(0,200), estimatedBytes: ((el.naturalWidth||el.width||0)*(el.naturalHeight||el.height||0)*BYTES_PER_PIXEL) || 0 });
           }
         }catch(e){}
       }
@@ -861,9 +940,10 @@
 
   // --- Build snapshot (ampliado) ---
   function buildSnapshot(game){
+    pruneResourceDetails();
     const heap = (performance && performance.memory) ? { limit: performance.memory.jsHeapSizeLimit, total: performance.memory.totalJSHeapSize, used: performance.memory.usedJSHeapSize } : null;
     const phTextures = game ? phaserEstimateTextures(game) : { totalBytes:0, totalTextures:0, texturesInfo:[] };
-    const phAudio = game ? phaserEstimateAudio(game) : { totalBytes:0, items:[] };
+    const phAudio = phaserEstimateAudio(game);
     const cache = game ? phaserEstimateCache(game) : {};
     const dom = { nodes: document.getElementsByTagName('*').length, bytes: document.getElementsByTagName('*').length * BYTES_PER_NODE };
     const gos = game ? phaserCountGameObjects(game) : 0;
@@ -881,7 +961,7 @@
       const fallback = phTextures.totalBytes || 0;
       const safeEstimate = Math.max(fallback, Math.min(glTotals.texturesBytes, fallback * 8 || (100 * 1024 * 1024)));
       glAdjusted.adjustedTexturesBytes = safeEstimate || glTotals.texturesBytes;
-      instr.manualNotes.push(`GL totals suspicious (${prettyBytes(glTotals.texturesBytes)}). Applied heuristic adjustedTexturesBytes=${prettyBytes(glAdjusted.adjustedTexturesBytes)}`);
+      appendBounded(instr.manualNotes, `GL totals suspicious (${prettyBytes(glTotals.texturesBytes)}). Applied heuristic adjustedTexturesBytes=${prettyBytes(glAdjusted.adjustedTexturesBytes)}`);
     }
 
     // images outside Phaser
@@ -957,6 +1037,7 @@
       notes: [
         "FULL-coverage attempt with improved dedup + heuristic clamp for absurd GL totals.",
         "Added timers/listeners/created-node heuristics and data-uri detection.",
+        typeof WeakRef === 'undefined' ? "WeakRef unavailable: native resource liveness omitted; image/audio history is limited to 2000 records." : "Resource tracking uses weak references; samples are bounded.",
         ...instr.manualNotes
       ],
       raw: {
@@ -1092,12 +1173,17 @@
 
   // --- Reporter API (mejorado) ---
   const Reporter = {
-    _game: null, _intervalId: null, _opts: { interval:2000, logToConsole:true },
+    _game: null, _intervalId: null, _onGameDestroy: null, _opts: { interval:2000, logToConsole:true },
     attach: function(game, opts){
+      this.detach();
       this._game = game || (window.game || null);
       this._opts = Object.assign({}, this._opts, opts || {});
       if (!this._game) { console.warn('PhaserMemoryReporterV3.1: no game provided and window.game not found.'); return; }
       if (this._intervalId) clearInterval(this._intervalId);
+      if (this._game.events && this._game.events.once) {
+        this._onGameDestroy = () => this.detach();
+        this._game.events.once('destroy', this._onGameDestroy);
+      }
       this._intervalId = setInterval(()=> {
         try{
           const snap = buildSnapshot(this._game);
@@ -1111,9 +1197,16 @@
       const g = window.game || null;
       if (g) this.attach(g, opts); else console.warn('PhaserMemoryReporterV3.1.autoInit(): window.game not found. Call attach(game).');
     },
-    detach: function(){ if (this._intervalId) clearInterval(this._intervalId); this._intervalId = null; this._game = null; console.info('PhaserMemoryReporterV3.1 stopped.'); },
+    detach: function(){
+      if (this._intervalId !== null) clearInterval(this._intervalId);
+      if (this._game && this._game.events && this._onGameDestroy) this._game.events.off('destroy', this._onGameDestroy);
+      this._intervalId = null;
+      this._onGameDestroy = null;
+      this._game = null;
+      console.info('PhaserMemoryReporterV3.1 stopped.');
+    },
     snapshot: function(){ return buildSnapshot(this._game || (window.game || null)); },
-    note: function(text){ instr.manualNotes.push(text); },
+    note: function(text){ appendBounded(instr.manualNotes, String(text).slice(0,2000)); },
     registerAudioBuffer: function(buffer, tag){ try{ registerAudioBuffer(buffer, tag || 'manual'); }catch(e){} },
     getInstrumentationState: function(){ return instr; },
     // nuevo: generar snapshot + imprimir explicación en consola (para ejecutar 1 sola vez)

@@ -40,6 +40,7 @@ class TransactionHub {
             this._normalizeConfig();
 
             this.isInitialized = false;
+            this._destroyed = false;
             this.currentNotification = null;
 
             // Control de visibilidad: usamos token + interval para medir tiempo con performance.now()
@@ -114,7 +115,7 @@ class TransactionHub {
 
     initialize() {
         try {
-            if (this.isInitialized) return;
+            if (this.isInitialized || this._destroyed) return;
             if (typeof document === 'undefined') return;
             if (!document.body) {
                 if (!this._readyHandler) {
@@ -423,16 +424,18 @@ class TransactionHub {
 
     destroy() {
         try {
+            if (this._destroyed) return;
+            this._destroyed = true;
             this._cancelVisibilityCountdown();
             this._cancelAnimations();
             if (this._readyHandler) document.removeEventListener('DOMContentLoaded', this._readyHandler);
             this._readyHandler = null;
 
             // El panel de ESTA instancia, no el primero que tenga el id.
-            const hub = this._hubElement || document.getElementById('transaction-hub');
+            const hub = this._hubElement;
             if (hub) hub.remove();
             const styleTag = document.getElementById(this._styleId);
-            if (styleTag) styleTag.remove();
+            if (styleTag && !document.getElementById('transaction-hub')) styleTag.remove();
 
             this.currentNotification = null;
             this._hubElement = null;

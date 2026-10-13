@@ -23,8 +23,11 @@
   var ENLAZADO = false;
   var PINTADO  = false;
   var secretoTimer = null;
+  var secretoRevision = 0;
+  var renderRevision = 0;
 
   function limpiarSecretos() {
+    secretoRevision++;
     if (secretoTimer !== null) clearTimeout(secretoTimer);
     secretoTimer = null;
     ['gfw-w-code-out', 'gfw-w-pk-out'].forEach(function (id) {
@@ -200,8 +203,9 @@
       '</div>';
   }
 
-  function pintarIntegrada(cuerpo, wallet) {
+  function pintarIntegrada(cuerpo, wallet, run) {
     cuerpo.innerHTML = plantilla();
+    function actual() { return run === renderRevision && window.gfWallet === wallet && cuerpo.isConnected; }
 
     var dir = wallet.getAddress();
     $('gfw-w-addr').textContent = dir;
@@ -239,10 +243,12 @@
     function poner(id, texto) { var el = $(id); if (el) el.textContent = texto; }
     function refrescarSaldo() {
       return wallet.getBalance().then(function (b) {
+        if (!actual()) return;
         poner('gfw-w-bal', Number(b.formatted).toFixed(4));
         poner('gfw-w-sym', b.symbol);
         poner('gfw-w-net', b.chainName + ' (id ' + b.chainId + ')');
       }).catch(function () {
+        if (!actual()) return;
         poner('gfw-w-bal', '—');
         poner('gfw-w-net', 'Network unavailable');
       });
@@ -250,6 +256,7 @@
     refrescarSaldo();
 
     wallet.getActivity(12).then(function (r) {
+      if (!actual()) return;
       var caja = $('gfw-w-acts');
       if (!caja) return;
       if (!r || !Array.isArray(r.txs) || !r.txs.length) {
@@ -272,6 +279,7 @@
     // ── Enviar ──
     $('gfw-w-send-go').onclick = function () {
       var btn = this;
+      if (btn.disabled || !actual()) return;
       var destino  = ($('gfw-w-to').value || '').trim();
       var cantidad = ($('gfw-w-amt').value || '').trim();
       var secreto  = $('gfw-w-secret').value || '';
@@ -282,11 +290,13 @@
       btn.disabled = true;
       mensaje('Checking your key...');
       wallet.sendNative(destino, cantidad, secreto).then(function (r) {
+        if (!actual()) return;
         mensaje('Sent. Transaction: ' + corta(r.hash), 'ok');
         $('gfw-w-secret').value = '';
         $('gfw-w-amt').value = '';
         return refrescarSaldo();
       }).catch(function (e) {
+        if (!actual()) return;
         mensaje(e && e.message ? e.message : 'Could not send', 'err');
       }).then(function () { btn.disabled = false; });
     };
@@ -294,6 +304,7 @@
     // ── Código → Clave ──
     $('gfw-w-setkey').onclick = function () {
       var btn = this;
+      if (btn.disabled || !actual()) return;
       var codigo = ($('gfw-w-code-in').value || '').trim();
       var clave  = $('gfw-w-key-new').value || '';
       if (!codigo || !clave) { mensaje('Enter your recovery code and the new key', 'err'); return; }
@@ -301,10 +312,12 @@
       btn.disabled = true;
       mensaje('Saving...');
       wallet.setPassphrase(codigo, clave).then(function () {
+        if (!actual()) return;
         mensaje('Key saved. From now on you can use it instead of the code.', 'ok');
         $('gfw-w-code-in').value = '';
         $('gfw-w-key-new').value = '';
       }).catch(function (e) {
+        if (!actual()) return;
         mensaje(e && e.message ? e.message : 'Could not save the key', 'err');
       }).then(function () { btn.disabled = false; });
     };
@@ -312,6 +325,8 @@
     // ── Clave → Código ──
     $('gfw-w-getcode').onclick = function () {
       var btn = this;
+      if (btn.disabled || !actual()) return;
+      var secretRun = secretoRevision;
       var clave = $('gfw-w-key-in').value || '';
       if (!clave) { mensaje('Type your key', 'err'); return; }
 
@@ -319,13 +334,14 @@
       mensaje('Checking...');
       wallet.revealCodeWithPassphrase(clave).then(function (codigo) {
         var out = $('gfw-w-code-out');
-        if (!out || document.hidden) return;
+        if (!actual() || secretRun !== secretoRevision || !out || document.hidden) return;
         out.style.display = 'block';
         out.textContent = codigo;
         ocultarSecretoDespues();
         mensaje('This is your recovery code. Keep it somewhere safe.', 'ok');
         $('gfw-w-key-in').value = '';
       }).catch(function (e) {
+        if (!actual() || secretRun !== secretoRevision) return;
         mensaje(e && e.message ? e.message : 'Wrong key', 'err');
       }).then(function () { btn.disabled = false; });
     };
@@ -333,6 +349,8 @@
     // ── Clave privada ──
     $('gfw-w-showpk').onclick = function () {
       var btn = this;
+      if (btn.disabled || !actual()) return;
+      var secretRun = secretoRevision;
       var secreto = $('gfw-w-pk-secret').value || '';
       if (!secreto) { mensaje('Type your key or your recovery code', 'err'); return; }
 
@@ -340,13 +358,14 @@
       mensaje('Checking...');
       wallet.exportPrivateKey(secreto).then(function (r) {
         var out = $('gfw-w-pk-out');
-        if (!out || document.hidden) return;
+        if (!actual() || secretRun !== secretoRevision || !out || document.hidden) return;
         out.style.display = 'block';
         out.textContent = r.privateKey;
         ocultarSecretoDespues();
         mensaje('Anyone with this key owns your wallet. Never paste it anywhere.', 'err');
         $('gfw-w-pk-secret').value = '';
       }).catch(function (e) {
+        if (!actual() || secretRun !== secretoRevision) return;
         mensaje(e && e.message ? e.message : 'Wrong key or code', 'err');
       }).then(function () { btn.disabled = false; });
     };
@@ -356,12 +375,14 @@
     var cuerpo = $('gfw-wallet-body');
     if (!cuerpo || PINTADO) return;
     PINTADO = true;
+    var run = ++renderRevision;
 
     cuerpo.innerHTML = '<div class="gfw-w-card"><div class="gfw-w-sub">Loading wallet...</div></div>';
 
     prepararWallet().then(function (w) {
+      if (run !== renderRevision || !cuerpo.isConnected) return;
       try {
-        if (w) pintarIntegrada(cuerpo, w);
+        if (w) pintarIntegrada(cuerpo, w, run);
         else   pintarMetaMask(cuerpo);
       } catch (e) {
         console.error('[gf-wallet-dashboard] error pintando la cartera:', e);
@@ -426,6 +447,7 @@
   // que se abriera el panel), se vuelve a pintar con los datos buenos.
   window.addEventListener('gfWalletReady', function () {
     limpiarSecretos();
+    renderRevision++;
     PINTADO = false;
     // Si la pestaña de la cartera está abierta ahora mismo, se repinta ya: si
     // no, seguía enseñando "Loading wallet..." o el aviso de MetaMask hasta que

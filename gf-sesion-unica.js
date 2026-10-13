@@ -156,12 +156,12 @@
   }
 
   function conSesion(opts) {
-    opts = opts || {};
+    opts = Object.assign({}, opts || {});
     var a = opts.auth;
     if (typeof a === 'function') {
       opts.auth = function (cb) {
         a(function (datos) {
-          datos = datos || {};
+          datos = Object.assign({}, datos || {});
           datos.sesion = SESION;
           cb(datos);
         });
@@ -199,13 +199,20 @@
   // ─────────────────────────────────────────────────────────── EL FETCH
   var fetchOriginal = window.fetch ? window.fetch.bind(window) : null;
   if (fetchOriginal) {
+    var apiOrigen;
+    try {
+      var apiBase = typeof window.GF_API_BASE === 'string' ? window.GF_API_BASE
+        : typeof window.serverBase === 'string' ? window.serverBase
+        : /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? 'http://127.0.0.1:8080' : 'https://api.grasslandforest.com';
+      apiOrigen = new URL(apiBase, location.href).origin;
+    } catch (e) { apiOrigen = null; }
     window.fetch = function (entrada, init) {
-      var url = typeof entrada === 'string' ? entrada : (entrada && entrada.url) || '';
+      var url = typeof entrada === 'string' || entrada instanceof URL ? entrada : (entrada && entrada.url) || '';
       var esApi = false;
-      try { esApi = new URL(url, location.href).pathname.indexOf('/api/') === 0; } catch (e) {}
-      if (esApi && cabecera && typeof entrada === 'string') {
+      try { var destino = new URL(url, location.href); esApi = destino.origin === apiOrigen && destino.pathname.indexOf('/api/') === 0; } catch (e) {}
+      if (esApi && cabecera) {
         init = init ? Object.assign({}, init) : {};
-        var h = new Headers(init.headers || {});
+        var h = new Headers(init.headers || (entrada && entrada.headers) || {});
         h.set('X-GF-Sesion', SESION);
         init.headers = h;
       }

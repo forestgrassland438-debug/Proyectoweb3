@@ -64,6 +64,9 @@
   var miColorMascota = null;
   var escena = null;
   var socket = null;
+  var oyentesSocket = null;
+  var relojMirar = null;
+  var alApagar = null;
 
   /* LAS DOS TARJETAS SON LA MISMA MÁQUINA.
      El personaje y la mascota se eligen igual, se guardan igual y se pintan
@@ -149,10 +152,13 @@
   // ── Guardar ───────────────────────────────────────────────────────────────
 
   function poner(color, silencioso, quien) {
-    var q = QUIEN[quien || 'personaje'];
+    var tipo = quien || 'personaje';
+    if (!Object.prototype.hasOwnProperty.call(QUIEN, tipo)) return false;
+    var q = QUIEN[tipo];
     var c = valido(color);
     // Cadena vacía o null = volver al blanco de siempre.
     q.poner(c);
+    if (escena) escena[q.campo] = c;
     q.aplicar();
     pintarTarjeta();
 
@@ -269,30 +275,52 @@
 
   function enlazar() {
     var s = socketVivo();
-    if (!s || socket === s) return s;
+    if (socket === s) return s;
+    soltarSocket();
+    if (!s || typeof s.on !== 'function') return null;
     socket = s;
 
-    s.on('player:nameColor', function (d) {
-      if (!d || !d.ok) return;
+    oyentesSocket = {};
+    oyentesSocket['player:nameColor'] = function (d) {
+      if (socket !== s || !escena || !d || !d.ok) return;
       miColor = valido(d.color);
+      escena.nameColor = miColor;
       aplicarAlLocal();
       pintarTarjeta();
-    });
+    };
 
-    s.on('player:petNameColor', function (d) {
-      if (!d || !d.ok) return;
+    oyentesSocket['player:petNameColor'] = function (d) {
+      if (socket !== s || !escena || !d || !d.ok) return;
       miColorMascota = valido(d.color);
+      escena.petNameColor = miColorMascota;
       aplicarAlLocal();
       pintarTarjeta();
-    });
+    };
+    Object.keys(oyentesSocket).forEach(function (ev) { s.on(ev, oyentesSocket[ev]); });
 
     return s;
+  }
+
+  function soltarSocket() {
+    if (socket && oyentesSocket && typeof socket.off === 'function') {
+      Object.keys(oyentesSocket).forEach(function (ev) { socket.off(ev, oyentesSocket[ev]); });
+    }
+    socket = null;
+    oyentesSocket = null;
   }
 
   // ── Montaje ───────────────────────────────────────────────────────────────
 
   function montar(scene) {
+    if (scene && scene !== escena) desmontar(escena);
     escena = scene || escena;
+    if (!escena) return false;
+    if (!alApagar && escena.events) {
+      var propietaria = escena;
+      alApagar = function () { desmontar(propietaria); };
+      escena.events.once('shutdown', alApagar);
+      escena.events.once('destroy', alApagar);
+    }
     enlazar();
     engancharTarjeta();
 
@@ -311,13 +339,16 @@
 
     var intentos = 0;
     var mirar = function () {
+      relojMirar = null;
+      if (!escena) { global.__gfncMirando = false; return; }
+      enlazar();
       intentos++;
       var cambio = false;
       try {
         var c = valido(escena && escena.nameColor);
-        if (c && c !== miColor) { miColor = c; cambio = true; }
+        if (escena.nameColor !== undefined && c !== miColor) { miColor = c; cambio = true; }
         var p = valido(escena && escena.petNameColor);
-        if (p && p !== miColorMascota) { miColorMascota = p; cambio = true; }
+        if (escena.petNameColor !== undefined && p !== miColorMascota) { miColorMascota = p; cambio = true; }
       } catch (e) {}
       if (cambio) pintarTarjeta();
       /* Se reaplica SIEMPRE, no solo cuando cambia: los carteles del personaje
@@ -325,7 +356,7 @@
          terminar después de esto. Si solo se pintara al cambiar, el primer
          cartel nacería en blanco y ahí se quedaría. */
       aplicarAlLocal();
-      if (intentos < 6) setTimeout(mirar, 1200);
+      if (intentos < 6) relojMirar = setTimeout(mirar, 1200);
       else global.__gfncMirando = false;   // la próxima escena puede volver a mirar
     };
     mirar();
@@ -334,7 +365,17 @@
   }
 
   function desmontar(scene) {
-    if (escena === scene) escena = null;
+    if (scene && escena !== scene) return;
+    clearTimeout(relojMirar);
+    relojMirar = null;
+    global.__gfncMirando = false;
+    if (escena && escena.events && alApagar) {
+      escena.events.off('shutdown', alApagar);
+      escena.events.off('destroy', alApagar);
+    }
+    alApagar = null;
+    soltarSocket();
+    escena = null;
   }
 
   global.GFNombreColor = {

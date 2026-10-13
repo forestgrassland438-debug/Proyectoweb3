@@ -362,7 +362,9 @@
     vaca:      { vel: 0.90, vida: 1.15, arma: 'colmillos',  super: 'embestida', etiqueta: 'Bull' }
   };
 
-  function especie(id) { return ESPECIES[id] || ESPECIES.perro; }
+  function propia(tabla, clave) { return Object.prototype.hasOwnProperty.call(tabla, clave); }
+  function finito(valor, respaldo, min, max) { var n = Number(valor); return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : respaldo; }
+  function especie(id) { return propia(ESPECIES, id) ? ESPECIES[id] : ESPECIES.perro; }
 
   // =========================================================================
   // LA REJILLA
@@ -378,7 +380,9 @@
        '+' comedero  se pisa; de vez en cuando sale carne que cura
        '.' libre */
   function crearRejilla(def) {
-    var W = def.ancho | 0, Hh = def.alto | 0, C = def.celda || 32;
+    if (!def || !Number.isInteger(def.ancho) || !Number.isInteger(def.alto) || def.ancho < 1 || def.alto < 1 || def.ancho * def.alto > 65536) throw new TypeError('dimensiones de arena inválidas');
+    var W = def.ancho, Hh = def.alto, C = def.celda === undefined ? 32 : Number(def.celda);
+    if (!Number.isFinite(C) || C <= 0 || C > 1024) throw new TypeError('tamaño de casilla inválido');
     var celdas = new Array(W * Hh);
     var cajas = {};
     var curas = [];
@@ -405,7 +409,7 @@
   }
 
   function celdaEn(R, cx, cy) {
-    if (cx < 0 || cy < 0 || cx >= R.ancho || cy >= R.alto) return '#';
+    if (!Number.isInteger(cx) || !Number.isInteger(cy) || cx < 0 || cy < 0 || cx >= R.ancho || cy >= R.alto) return '#';
     return R.celdas[cy * R.ancho + cx];
   }
 
@@ -476,7 +480,12 @@
    * lado a lado en un fotograma lento.
    */
   function moverCirculo(R, x, y, dx, dy, r) {
+    if (![x, y, dx, dy, r].every(Number.isFinite) || r <= 0) {
+      return [finito(x, R.anchoPx / 2, 0, R.anchoPx), finito(y, R.altoPx / 2, 0, R.altoPx)];
+    }
     var largo = Math.max(Math.abs(dx), Math.abs(dy));
+    var limite = Math.min(Math.max(R.anchoPx, R.altoPx) * 2, r * 0.9 * 4096);
+    if (largo > limite) { dx *= limite / largo; dy *= limite / largo; largo = limite; }
     var pasos = Math.max(1, Math.ceil(largo / (r * 0.9)));
     var sx = dx / pasos, sy = dy / pasos;
     var p = [x, y];
@@ -496,6 +505,8 @@
    * (El choque con los luchadores lo hace el servidor aparte.)
    */
   function avanzarBala(R, b, dist, alPaso) {
+    if (!b || ![b.x, b.y, b.dx, b.dy, b.resto, dist].every(Number.isFinite) || dist < 0) return { fin: true };
+    dist = Math.min(dist, Math.max(0, b.resto) + 6, Math.max(R.anchoPx, R.altoPx) * 2);
     var n = Math.max(1, Math.ceil(dist / 6));
     var paso = dist / n;
     for (var i = 0; i < n; i++) {
@@ -516,6 +527,7 @@
 
   /** ¿Pasa una bala de A a B? (los arbustos y el agua no tapan). */
   function lineaDeTiro(R, x0, y0, x1, y1) {
+    if (![x0, y0, x1, y1].every(Number.isFinite) || x0 < 0 || y0 < 0 || x1 < 0 || y1 < 0 || x0 > R.anchoPx || x1 > R.anchoPx || y0 > R.altoPx || y1 > R.altoPx) return false;
     var dx = x1 - x0, dy = y1 - y0;
     var largo = Math.sqrt(dx * dx + dy * dy);
     var n = Math.max(1, Math.ceil(largo / 8));
@@ -544,9 +556,10 @@
    * }
    */
   function crearPartida(op) {
+    if (!op || !Array.isArray(op.luchadores) || op.luchadores.length < 1 || op.luchadores.length > 64 || op.luchadores.some(function (s) { return !s || typeof s !== 'object'; })) throw new TypeError('luchadores inválidos');
     var ahora = op.ahora || function () { return Date.now(); };
     var azar = op.azar || Math.random;
-    var def = typeof op.arena === 'string' ? ARENAS[op.arena] : op.arena;
+    var def = typeof op.arena === 'string' ? (propia(ARENAS, op.arena) ? ARENAS[op.arena] : null) : op.arena;
     if (!def) throw new Error('arena desconocida: ' + op.arena);
     var R = crearRejilla(def);
     var t0 = ahora();
@@ -559,7 +572,7 @@
       def: def,
       R: R,
       luchadores: [],
-      porId: {},
+      porId: Object.create(null),
       balas: [],
       sigBala: 1,
       objetos: [],
@@ -618,7 +631,7 @@
   }
 
   function agregarCajas(P) {
-    if (!ARENAS[P.arenaId]) return;
+    if (!propia(ARENAS, P.arenaId)) return;
     var R = P.R, candidatos = [];
     for (var y = 2; y < R.alto - 2; y++) for (var x = 2; x < R.ancho - 2; x++) {
       var idx = y * R.ancho + x;
@@ -712,7 +725,7 @@
        mascota). Si encima se les sumara el extra de su especie, el cocodrilo
        de la ronda 5 se pasaría de ese techo. */
     var multVida = s.vidaFija ? 1 : esp.vida;
-    var maxHp = Math.max(1, Math.round((Number(s.maxHp) || 92) * REGLAS.ESCALA_VIDA * multVida));
+    var maxHp = Math.max(1, Math.round(finito(s.maxHp, 92, 1, 1000000) * REGLAS.ESCALA_VIDA * multVida));
     var salud = Number.isFinite(Number(s.salud)) ? Math.max(0, Math.min(1, Number(s.salud))) : 1;
     salud = Math.max(REGLAS.SALUD_MINIMA_ENTRADA, salud);
     var l = {
@@ -723,11 +736,11 @@
       playerName: String(s.playerName || 'Player').slice(0, 40),
       petName: String(s.petName || 'Pet').slice(0, 24),
       address: String(s.address || ''),
-      especie: ESPECIES[s.especie] ? s.especie : 'perro',
-      nivel: Math.max(1, Number(s.nivel) || 1),
+      especie: propia(ESPECIES, s.especie) ? s.especie : 'perro',
+      nivel: finito(s.nivel, 1, 1, 1000000),
       maxHp: maxHp,
       hp: Math.max(1, Math.round(maxHp * salud)),
-      ataque: Math.max(1, Number(s.ataque) || 12),
+      ataque: finito(s.ataque, 12, 1, 100000),
       x: x, y: y, r: REGLAS.RADIO,
       vel: REGLAS.VEL * esp.vel,
       velBase: REGLAS.VEL * esp.vel,
@@ -1061,6 +1074,7 @@
   function paso(P) {
     if (!P || P.fase === 'fin') return;
     var ahora = P.ahora();
+    if (!Number.isFinite(ahora)) return;
     if (P.fase === 'cuenta') {
       if (ahora < P.tCombate) return;
       P.fase = 'combate';
@@ -1598,6 +1612,7 @@
 
   /** Camino por casillas (BFS con diagonales que no muerden esquinas). */
   function buscarRuta(R, x0, y0, x1, y1, maxNodos) {
+    if (![x0, y0, x1, y1].every(Number.isFinite) || x0 < 0 || y0 < 0 || x0 >= R.anchoPx || y0 >= R.altoPx) return null;
     var W = R.ancho, Hh = R.alto;
     var a = Math.floor(x0 / R.celda) + Math.floor(y0 / R.celda) * W;
     var bx = Math.floor(x1 / R.celda), by = Math.floor(y1 / R.celda);
@@ -2151,6 +2166,7 @@
 
   /** ¿Se puede ir andando en línea recta? (con el ancho del cuerpo) */
   function lineaLibre(R, x0, y0, x1, y1, r) {
+    if (![x0, y0, x1, y1, r].every(Number.isFinite) || x0 < 0 || y0 < 0 || x1 < 0 || y1 < 0 || x0 > R.anchoPx || x1 > R.anchoPx || y0 > R.altoPx || y1 > R.altoPx) return false;
     var dx = x1 - x0, dy = y1 - y0;
     var largo = Math.sqrt(dx * dx + dy * dy);
     if (largo < 1) return true;

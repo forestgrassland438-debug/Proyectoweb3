@@ -53,3 +53,53 @@
   #hub-panel_101 .gfi-invitado .gfi-inv-dato:last-child { display: none; }
   #hub-panel_101 .gfi-codigo { font-size: 16px; letter-spacing: 1px; }
 }
+
+/* ===========================================================================
+ * EL DASHBOARD BIEN COLOCADO                                       (2026-10-11)
+ * "En el dashboard los apartados están mal posicionados." Tres cosas:
+ *   · las cuatro pestañas no cabían en el panel (la de Invites salía cortada):
+ *     ahora son una rejilla de cuatro columnas iguales que encogen;
+ *   · Invites y Channels no eran zona de desplazamiento como General y
+ *     Wallet: se desplazaba el panel entero (cabecera y pestañas incluidas) y
+ *     salía además una barra horizontal;
+ *   · nada se sale por los lados.
+ * ======================================================================== */
+#hub-panel_101 { overflow-x: hidden; }
+#hub-panel_101 .hub-cats_101 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  padding: 10px 0 0;
+}
+#hub-panel_101 .hub-cat_101 {
+  min-width: 0;
+  padding: 6px 2px;
+  font-size: 12px;
+  line-height: 1.25;
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#hub-panel_101 > #gfw-cat-invites,
+#hub-panel_101 > #gfw-cat-canales {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(64,160,255,.45) rgba(10,30,70,.45);
+}
+#hub-panel_101 > #gfw-cat-invites::-webkit-scrollbar,
+#hub-panel_101 > #gfw-cat-canales::-webkit-scrollbar { width: 8px; }
+#hub-panel_101 > #gfw-cat-invites::-webkit-scrollbar-thumb,
+#hub-panel_101 > #gfw-cat-canales::-webkit-scrollbar-thumb { background: rgba(64, 160, 255, .45); border-radius: 8px; }
+#hub-panel_101 .gfi-tarjeta { box-sizing: border-box; max-width: 100%; }
+#hub-panel_101 .gfi-tarjeta .dash-input-row_101 { align-items: center; }
+#hub-panel_101 .gfi-enlace { min-width: 0; }
+@media (max-width: 360px) {
+  #hub-panel_101 .hub-cat_101 { font-size: 11px; }
+}

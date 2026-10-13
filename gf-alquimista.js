@@ -42,6 +42,7 @@
 
   var montado = null;
   var catalogo = null;
+  var revisionCatalogo = 0;
 
   /* ESCAPADO DE HTML.
    *
@@ -189,15 +190,19 @@
   }
 
   function refrescar() {
+    var propietaria = montado, revision = ++revisionCatalogo;
     return api('/api/alchemist/catalog').then(function (r) {
+      if (revision !== revisionCatalogo || montado !== propietaria) return null;
       if (r.ok && r.datos && r.datos.ok) { catalogo = r.datos; pintar(); }
       return catalogo;
-    });
+    }).catch(function () { if (revision === revisionCatalogo && montado === propietaria) aviso('Connection problem. Try again.'); return null; });
   }
 
   function comprar(itemId) {
+    var propietaria = montado;
     aviso('');
     return api('/api/alchemist/buy', { itemId: itemId, qty: 1 }).then(function (r) {
+      if (montado !== propietaria) return null;
       if (r.ok && r.datos && r.datos.ok) {
         log('comprado', itemId, 'por', r.datos.paid);
         // El HUD tiene que enterarse del cobro; statsSync es quien pinta las
@@ -214,21 +219,23 @@
           : e === 'acunado_fallido'  ? 'The purchase could not be minted. Try again.'
           : 'Could not buy that right now.');
       return null;
-    });
+    }).catch(function () { if (montado === propietaria) aviso('Connection problem. Try again.'); return null; });
   }
 
   function usar(it) {
+    var propietaria = montado;
     aviso('');
     var m = window.GFMascota;
     if (!m) return;
     var accion = it.target === 'player' ? api('/api/alchemist/use', { itemId: it.id }).then(function (r) {
-      if (r.ok && montado) {
+      if (r.ok && montado && montado === propietaria) {
         if (window.GFCharacterSkills) window.GFCharacterSkills.applyStats(montado.scene, r.datos.stats);
         if (montado.scene._sincronizarInventarioConLaCadena) montado.scene._sincronizarInventarioConLaCadena().catch(function () {});
       }
       return { ok: r.ok, error: r.datos && r.datos.error };
     }) : it.revives ? m.revivirMascota() : m.curar(it.id);
     return accion.then(function (r) {
+      if (montado !== propietaria) return null;
       if (!r.ok) {
         aviso(r.error === 'inventario_desfasado'
                 ? 'Save your game and try again.'
@@ -237,7 +244,7 @@
             : 'Could not use that.');
       }
       return refrescar();
-    });
+    }).catch(function () { if (montado === propietaria) aviso('Connection problem. Try again.'); return null; });
   }
 
   function refrescarHud(scene, st) {
@@ -352,10 +359,11 @@
       if (st.onSobre) st.casa.off('pointerover', st.onSobre);
       if (st.onFuera) st.casa.off('pointerout', st.onFuera);
     }
-    if (st.borde) st.borde.destroy();
-    cerrar();
+    try { if (st.borde) st.borde.destroy(); } catch (e) {}
+    if (montado === st) { cerrar(); revisionCatalogo++; catalogo = null; }
     scene.__gfAlquimista = null;
     if (montado === st) montado = null;
+    st.scene = st.casa = st.borde = null;
   }
 
   window.GFAlquimista = {

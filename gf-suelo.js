@@ -42,13 +42,14 @@
     var TM = claseGestor();
     if (!scene || !scene.load || !TM || !opts.carpeta) return null;
     if (scene.__gfSuelo) desmontar(scene);
-    var st = { scene: scene, tm: null, capas: (opts.capas || []).filter(Boolean), escondidas: false, vivo: true };
+    var st = { scene: scene, tm: null, capas: (opts.capas || []).filter(Boolean), ocultadas: [], escondidas: false, vivo: true, loader: scene.load };
     scene.__gfSuelo = st;
     var clave = 'gfsuelo_' + opts.carpeta;
     if (scene.cache.json.exists(clave)) scene.cache.json.remove(clave);
     scene.load.json(clave, opts.carpeta + '/mapa.json?v=' + Date.now().toString(36).slice(0, 6));
     var alCargar = function () {
-      if (!st.vivo) return;
+      if (!st.vivo || scene.__gfSuelo !== st) return;
+      soltarCarga(st);
       var meta = scene.cache.json.get(clave);
       if (!meta || !Array.isArray(meta.tiles)) { console.warn('🧱 suelo: sin ' + opts.carpeta + '/mapa.json — se queda la capa de casillas'); return; }
       try {
@@ -85,22 +86,42 @@
           st.tm.updateVisible(c);
           if (!st.escondidas && st.tm.visibleCount() > 0) {
             st.escondidas = true;
-            st.capas.forEach(function (l) { try { l.setVisible(false); } catch (e) {} });
+            st.capas.forEach(function (l) {
+              if (l.visible === false) return;
+              try { l.setVisible(false); st.ocultadas.push(l); } catch (e) {}
+            });
             if (typeof opts.alListo === 'function') { try { opts.alListo(); } catch (e) {} }
           }
         } });
         console.log('🧱 suelo pintado: ' + opts.carpeta + ' (' + meta.tiles.length + ' trozos)');
       } catch (e) {
         console.warn('🧱 suelo: no se pudo montar ' + opts.carpeta, e);
+        desmontar(scene);
       }
     };
-    scene.load.once('filecomplete-json-' + clave, alCargar);
-    scene.load.once('loaderror', function (f) { if (f && f.key === clave) console.warn('🧱 suelo: no se pudo bajar', f.src); });
-    scene.load.start();
+    st.eventoCarga = 'filecomplete-json-' + clave;
+    st.alCargar = alCargar;
+    st.alError = function (f) {
+      if (!f || f.key !== clave || !st.vivo) return;
+      soltarCarga(st);
+      console.warn('🧱 suelo: no se pudo bajar', f.src);
+    };
     st.onApagar = function () { desmontar(scene); };
     scene.events.once('shutdown', st.onApagar);
     scene.events.once('destroy', st.onApagar);
+    scene.load.once(st.eventoCarga, st.alCargar);
+    scene.load.on('loaderror', st.alError);
+    try { scene.load.start(); } catch (e) { desmontar(scene); console.warn('🧱 suelo: no se pudo iniciar la carga', e); }
     return st;
+  }
+
+  function soltarCarga(st) {
+    if (!st.loader) return;
+    st.loader.off(st.eventoCarga, st.alCargar);
+    st.loader.off('loaderror', st.alError);
+    st.loader = null;
+    st.alCargar = null;
+    st.alError = null;
   }
 
   function desmontar(scene) {
@@ -108,6 +129,7 @@
     if (!st) return;
     scene.__gfSuelo = null;
     st.vivo = false;
+    soltarCarga(st);
     try { scene.events.off('shutdown', st.onApagar); scene.events.off('destroy', st.onApagar); } catch (e) {}
     try { if (st.evento) st.evento.remove(false); } catch (e) {}
     try { if (st.onUpdate) scene.events.off('update', st.onUpdate); } catch (e) {}
@@ -119,6 +141,9 @@
       try { st.tm.destroy(); } catch (e) {}
     }
     st.tm = null;
+    st.ocultadas.forEach(function (l) { try { l.setVisible(true); } catch (e) {} });
+    st.ocultadas.length = 0;
+    st.capas.length = 0;
     st.scene = null;
   }
 
@@ -129,13 +154,17 @@
    * por textura (`<clave>_x`) y se reutiliza. Devuelve la clave o null.
    */
   function extruir(scene, clave, T) {
+    if (!scene || !scene.textures || !Number.isInteger(T) || T <= 0) return null;
     var kx = clave + '_x';
     if (scene.textures.exists(kx)) return kx;
+    var ct = null;
     try {
       var img = scene.textures.get(clave).getSourceImage();
       if (!img || !img.width) return null;
       var cols = Math.floor(img.width / T), filas = Math.floor(img.height / T);
-      var ct = scene.textures.createCanvas(kx, cols * (T + 2), filas * (T + 2));
+      var ancho = cols * (T + 2), alto = filas * (T + 2);
+      if (!Number.isSafeInteger(ancho) || !Number.isSafeInteger(alto) || ancho <= 0 || alto <= 0 || ancho > 16384 || alto > 16384 || ancho * alto > 67108864) return null;
+      ct = scene.textures.createCanvas(kx, ancho, alto);
       var ctx = ct.getContext();
       for (var j = 0; j < filas; j++) {
         for (var i = 0; i < cols; i++) {
@@ -145,12 +174,17 @@
           ctx.drawImage(img, sx, sy + T - 1, T, 1, dx, dy + T, T, 1);
           ctx.drawImage(img, sx, sy, 1, T, dx - 1, dy, 1, T);
           ctx.drawImage(img, sx + T - 1, sy, 1, T, dx + T, dy, 1, T);
+          ctx.drawImage(img, sx, sy, 1, 1, dx - 1, dy - 1, 1, 1);
+          ctx.drawImage(img, sx + T - 1, sy, 1, 1, dx + T, dy - 1, 1, 1);
+          ctx.drawImage(img, sx, sy + T - 1, 1, 1, dx - 1, dy + T, 1, 1);
+          ctx.drawImage(img, sx + T - 1, sy + T - 1, 1, 1, dx + T, dy + T, 1, 1);
         }
       }
       ct.refresh();
       if (window.Phaser) ct.setFilter(Phaser.Textures.FilterMode.NEAREST);
       return kx;
     } catch (e) {
+      try { if (ct && scene.textures.exists(kx) && scene.textures.get(kx) === ct) scene.textures.remove(kx); } catch (ignorado) {}
       console.warn('🧱 no se pudo extruir ' + clave, e);
       return null;
     }

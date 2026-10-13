@@ -7,10 +7,18 @@
  * Discord. Las reglas las pone el servidor (/api/invitaciones/*, ver
  * "LAS INVITACIONES Y LA ACTIVIDAD DE CADA JUGADOR" en server2.js).
  *
- * EL ENLACE: el juego con `?ref=CÓDIGO`. Al abrirlo, esto guarda el código
- * (localStorage `gf_ref`) ANTES de que el login se lleve al jugador, y lo
- * reclama solo en cuanto hay partida. Se quita de la barra de direcciones
- * para que nadie comparta sin querer el código de otro.
+ * EL ENLACE (2026-10-11): el LOGIN, https://app.grasslandforest.com/?ref=CÓDIGO
+ * (lo da el servidor en /api/invitaciones/mia). El login pasa el código al
+ * juego al redirigir; aquí se guarda (localStorage `gf_ref`) y se reclama en
+ * cuanto hay partida como `origen: 'enlace'`, que el servidor SOLO acepta en
+ * una cuenta recién creada: a quien ya jugaba y abre un enlace no le vale.
+ * Se quita de la barra de direcciones para que nadie lo comparta sin querer.
+ *
+ * SIN CÓDIGO A MANO (2026-10-12): "no quiero que la persona ponga en un input
+ * quién la invitó; que el sistema lo detecte solo según su código". El campo
+ * de Invites → Invited by se quitó (y el servidor ya no acepta un código
+ * escrito): quién te invitó sale SOLO del código del enlace con el que te
+ * diste de alta.
  *
  * Y una cosa más, para el panel del administrador: mientras el panel de la
  * tienda está abierto, cada 30 s se avisa al servidor ('actividad:tienda').
@@ -23,6 +31,7 @@
 
   var CLAVE_REF = 'gf_ref';
   var CODIGO_RE = /^[A-HJ-NP-Z2-9]{8}$/;
+  var LOGIN_URL = 'https://app.grasslandforest.com/';
 
   // ── 1. El código del enlace, nada más cargar ─────────────────────────────
   (function capturar() {
@@ -82,36 +91,43 @@
     try { document.execCommand('copy'); hecho(); } catch (e) { aviso('Could not copy. Select it and copy by hand.', 'warning'); }
     t.remove();
   }
-  function enlaceDe(codigo) {
-    return location.origin + location.pathname + '?ref=' + encodeURIComponent(codigo);
+  /** El enlace para invitar: el del LOGIN (el que da el servidor si lo da). */
+  function enlaceDe(codigo, delServidor) {
+    if (delServidor && /^https:\/\//.test(delServidor)) return delServidor;
+    return LOGIN_URL + '?ref=' + encodeURIComponent(codigo);
   }
 
   // ── 2. Reclamar el código guardado, cuando haya partida ──────────────────
-  var reclamado = false, intentosReclamo = 0, relojReclamo = null;
+  var reclamado = false, reclamoEnCurso = false, intentosReclamo = 0, relojReclamo = null;
   function reclamarPendiente() {
     var c;
     try { c = localStorage.getItem(CLAVE_REF); } catch (e) { c = null; }
     if (!c || reclamado) { parar(); return; }
+    if (reclamoEnCurso) return;
     if (!escenaConJugador()) return;                  // todavía en el login o cargando
     if (++intentosReclamo > 5) { parar(); return; }
-    reclamado = true;
-    api('/api/invitaciones/reclamar', { codigo: c }).then(function (r) {
+    reclamoEnCurso = true;
+    api('/api/invitaciones/reclamar', { codigo: c, origen: 'enlace' }).then(function (r) {
       var d = (r && r.datos) || {};
       if (r && r.ok && d.ok) {
+        reclamado = true;
         try { localStorage.removeItem(CLAVE_REF); } catch (e) {}
         aviso('🎟️ You joined with ' + (d.invitadoPor && d.invitadoPor.nombre || 'a friend') + "'s invite!", 'success');
         datos = null;
         parar();
+        if (cuerpo() && cuerpo().childNodes.length) cargar();   // la pestaña abierta: que lo muestre
         return;
       }
       // Lo que no se arreglará reintentando: se olvida el código.
-      if (['ya_invitado', 'propio', 'tarde', 'codigo_desconocido', 'codigo_invalido', 'circular'].indexOf(d.error) >= 0) {
+      if (['ya_invitado', 'propio', 'tarde', 'no_nuevo', 'codigo_desconocido', 'codigo_invalido', 'circular'].indexOf(d.error) >= 0) {
         try { localStorage.removeItem(CLAVE_REF); } catch (e) {}
+        // Una cuenta que ya jugaba abrió un enlace: se le dice por qué no cuenta.
+        if (d.error === 'no_nuevo') aviso('🎟️ Invite links only count for new accounts.', 'info');
         parar();
+        if (datos) pintar();
         return;
       }
-      reclamado = false;                               // la red: otra vez en un rato
-    }).catch(function () { reclamado = false; });
+    }).catch(function () {}).finally(function () { reclamoEnCurso = false; });
   }
   function parar() { if (relojReclamo) { clearInterval(relojReclamo); relojReclamo = null; } }
   relojReclamo = setInterval(reclamarPendiente, 4000);
@@ -178,16 +194,16 @@
     c.textContent = '';
 
     // El enlace y el código.
-    var enlace = enlaceDe(d.codigo);
+    var enlace = enlaceDe(d.codigo, d.enlace);
     var inEnlace = campo(enlace, true, 'Your invite link');
     inEnlace.className = 'gfi-enlace';
     var codigoBonito = d.codigo.slice(0, 4) + '-' + d.codigo.slice(4);
     c.appendChild(tarjeta(
       el('label', 'hub-label_101', '🎟️ Your invite link'),
       fila(inEnlace, boton('Copy link', function (b) { copiar(enlace, b); })),
-      fila(el('div', 'gfi-codigo', codigoBonito), boton('Copy code', function (b) { copiar(d.codigo, b); }, false)),
-      el('div', 'dash-hint_101', 'Share the link (or the code). New players have ' + d.diasParaReclamar +
-         ' days to enter a code after they start playing.')
+      fila(el('div', 'gfi-codigo', codigoBonito)),
+      el('div', 'dash-hint_101', 'New players who sign up with your link are linked to you automatically: ' +
+         'the code in the link tells us who invited them. Nobody has to type anything.')
     ));
 
     // La wallet de quien invita: la tuya.
@@ -197,7 +213,10 @@
       el('div', 'dash-hint_101', 'Everyone who joins with your invite is linked to this wallet.')
     ));
 
-    // Quién te invitó, o el campo para escribir un código.
+    // Quién te invitó: lo detecta el sistema por el código del enlace (ya no
+    // hay campo para escribirlo).
+    var pendiente = null;
+    try { pendiente = localStorage.getItem(CLAVE_REF); } catch (e) {}
     if (d.invitadoPor) {
       c.appendChild(tarjeta(
         el('div', 'hub-label_101', '🤝 Invited by'),
@@ -206,32 +225,15 @@
              d.invitadoPor.wallet ? boton('Copy', function (b) { copiar(d.invitadoPor.wallet, b); }, false) : null),
         d.invitadoPor.desde ? el('div', 'dash-hint_101', 'Since ' + fecha(d.invitadoPor.desde)) : null
       ));
-    } else if (d.puedeReclamar) {
-      var inCodigo = campo('', false, 'Invite code', 'ABCD-2345');
-      inCodigo.maxLength = 9;
-      var msg = el('div', 'dash-hint_101', 'Did a friend invite you? Enter their code.');
-      var aplicar = function (b) {
-        var cod = inCodigo.value.replace(/[\s-]/g, '').toUpperCase();
-        if (!CODIGO_RE.test(cod)) { msg.textContent = 'That code is not valid: 8 letters and numbers.'; return; }
-        b.disabled = true;
-        api('/api/invitaciones/reclamar', { codigo: cod }).then(function (r) {
-          b.disabled = false;
-          var x = (r && r.datos) || {};
-          if (r && r.ok && x.ok) {
-            try { localStorage.removeItem(CLAVE_REF); } catch (e) {}
-            aviso('🎟️ You joined with ' + (x.invitadoPor && x.invitadoPor.nombre || 'a friend') + "'s invite!", 'success');
-            cargar();
-          } else {
-            msg.textContent = x.message || 'Could not use that code.';
-          }
-        }).catch(function () { b.disabled = false; msg.textContent = 'Connection problem. Try again.'; });
-      };
-      inCodigo.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); aplicar(btn); } });
-      var btn = boton('Apply', aplicar);
-      c.appendChild(tarjeta(el('label', 'hub-label_101', '🤝 Invited by'), fila(inCodigo, btn), msg));
+    } else if (pendiente && !reclamado && intentosReclamo <= 5) {
+      // El código del enlace aún se está comprobando (se reclama solo al entrar).
+      c.appendChild(tarjeta(el('div', 'hub-label_101', '🤝 Invited by'),
+        el('div', 'muted', 'Checking your invite link…')));
+      reclamarPendiente();
     } else {
       c.appendChild(tarjeta(el('div', 'hub-label_101', '🤝 Invited by'),
-        el('div', 'muted', 'You did not join with an invite.')));
+        el('div', 'muted', 'You did not join with an invite link.'),
+        el('div', 'dash-hint_101', 'Who invited you is detected automatically from the link you signed up with.')));
     }
 
     // Los totales y la lista.
@@ -256,6 +258,7 @@
     inDiscord.maxLength = 40;
     var msgD = el('div', 'dash-hint_101', 'So we can find you on our Discord (rewards, events).');
     var guardar = function (b) {
+      if (b.disabled) return;
       var v = inDiscord.value.trim().replace(/^@/, '');
       b.disabled = true;
       api('/api/invitaciones/discord', { discord: v }).then(function (r) {

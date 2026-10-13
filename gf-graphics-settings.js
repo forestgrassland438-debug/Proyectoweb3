@@ -136,8 +136,8 @@
       .then(function (d) {
         if (!d || !d.ok || claveSesion(escenaConSesion()) !== cuenta) return false;
         if (revision !== revisionAjustes || (pendienteDeGuardar && (!pendienteCuenta || pendienteCuenta === cuenta))) return true;
-        if (CALIDADES[d.calidad]) ajustes.calidad = d.calidad;
-        if (typeof d.chunks === 'number') {
+        if (Object.prototype.hasOwnProperty.call(CALIDADES, d.calidad)) ajustes.calidad = d.calidad;
+        if (Number.isFinite(d.chunks)) {
           ajustes.chunks = Math.min(CHUNK_MAX, Math.max(CHUNK_MIN, Math.round(d.chunks)));
         }
         return true;
@@ -683,7 +683,7 @@
   // ── API pública ────────────────────────────────────────────────────────────
   global.GFGraphics = {
     get:      function () { return { calidad: ajustes.calidad, chunks: ajustes.chunks }; },
-    setCalidad: function (c) { if (CALIDADES[c]) { ajustes.calidad = c; guardar(); aplicarTodo(); } },
+    setCalidad: function (c) { if (Object.prototype.hasOwnProperty.call(CALIDADES, c)) { ajustes.calidad = c; guardar(); aplicarTodo(); } },
     setChunks:  function (n) {
       ajustes.chunks = Math.min(CHUNK_MAX, Math.max(CHUNK_MIN, Math.round(n) || CHUNK_MIN));
       guardar(); aplicarTodo();

@@ -37,7 +37,8 @@
 (function () {
   'use strict';
 
-  var RUTA = './Game/Sprites/cuervo/';
+  // (2026-10-12) El cuervo en 2.5D (tools/generar-animales3d.py).
+  var RUTA = './Game/Sprites/cuervo3d/';
   var CANTIDAD = 2;                 // cuervos a la vez
   var ESCALA = 2;                   // igual que el jugador y el perro
 
@@ -322,11 +323,13 @@
     var sombra = null;
     if (scene.add.ellipse) {
       sombra = scene.add.ellipse(inicio.x, inicio.y, 18, 8, 0x000000, 1);
+      st.parciales.push(sombra);
       sombra.setAlpha(0.26);
       sombra.setDepth(inicio.y - 1);
     }
 
     var spr = scene.add.sprite(inicio.x, inicio.y, CLAVES.quieto[0]);
+    st.parciales.push(spr);
     spr.setOrigin(0.5, 1);          // las patas en el punto de apoyo
     // Escala del mundo, la misma que el jugador y el perro. Sin ella el cuervo
     // (30x24) salia mas pequeno que una paloma (26x20 a x2), y un cuervo es
@@ -364,6 +367,7 @@
     c.truenoVisto = 0;
     c.huyeEn = 0;
     posarse(st, c, inicio);
+    st.parciales.length = 0;
     return c;
   }
 
@@ -904,10 +908,12 @@
       return null;
     }
 
-    var st = { scene: scene, cuervos: [] };
+    var st = { scene: scene, cuervos: [], parciales: [] };
+    scene.__gfCuervos = st;
     try {
       crearAnimaciones(scene);
-      var n = opciones.cantidad != null ? opciones.cantidad : CANTIDAD;
+      var n = opciones.cantidad != null ? Number(opciones.cantidad) : CANTIDAD;
+      n = Number.isFinite(n) ? Math.max(0, Math.min(32, Math.floor(n))) : CANTIDAD;
       for (var i = 0; i < n; i++) st.cuervos.push(nuevoCuervo(st));
     } catch (e) {
       console.warn('[cuervo] no se pudo crear:', e);
@@ -917,7 +923,7 @@
 
     scene.__gfCuervos = st;
     st.onUpdate = function (t, delta) {
-      var dt = Math.min(delta || 16, 100) / 1000;   // sin saltos si hay tirón
+      var dt = Number.isFinite(delta) && delta >= 0 ? Math.min(delta, 100) / 1000 : 0;
       for (var i = 0; i < st.cuervos.length; i++) {
         try { actualizarCuervo(st, st.cuervos[i], dt); } catch (e) { /* nunca romper el frame */ }
       }
@@ -954,15 +960,15 @@
         scene.events.off('shutdown', st.onApagar);
         scene.events.off('destroy', st.onApagar);
       }
-      if (st.soltarTrueno) { st.soltarTrueno(); st.soltarTrueno = null; }
-      for (var i = 0; i < st.cuervos.length; i++) {
-        var c = st.cuervos[i];
-        if (c && c.spr && c.spr.destroy) c.spr.destroy();
-        if (c && c.sombra && c.sombra.destroy) c.sombra.destroy();
-      }
+      if (st.soltarTrueno) { try { st.soltarTrueno(); } catch (e) {} st.soltarTrueno = null; }
     } catch (e) { /* al apagar la escena da igual */ }
+    var soltar = function (o) { try { if (o && o.destroy) o.destroy(); } catch (e) {} };
+    st.cuervos.forEach(function (c) { if (c) { soltar(c.spr); soltar(c.sombra); } });
+    st.parciales.forEach(soltar);
+    st.parciales.length = 0;
     st.cuervos = [];
     scene.__gfCuervos = null;
+    st.scene = null;
   }
 
   function estado(scene) {

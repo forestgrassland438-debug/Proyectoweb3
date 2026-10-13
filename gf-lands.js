@@ -98,7 +98,7 @@
    * exista, se llama. Es preferible a cuatro copias de esta funcion, cada una
    * con la lista de metodos de su escena.
    */
-  function apagarHUD(escena) {
+  function apagarHUD(escena, yaGuardado) {
     var $ = function (id) { return document.getElementById(id); };
     var hud = $('game-hud');
     if (hud) {
@@ -118,7 +118,7 @@
     if (ui) ui.style.display = 'none';
 
     try { if (escena._cancelarArrastre) escena._cancelarArrastre(); } catch (e) {}
-    try { if (escena.savegg) escena.savegg(); } catch (e) { log('guardado:', e); }
+    try { if (!yaGuardado && escena.savegg) Promise.resolve(escena.savegg()).catch(function (e) { log('guardado:', e); }); } catch (e) { log('guardado:', e); }
     try { if (escena.removeListener) escena.removeListener(); } catch (e) {}
     try { if (escena._unbindAllDomClicks) escena._unbindAllDomClicks(); } catch (e) {}
     try { if (escena.hideHudElements) escena.hideHudElements(); } catch (e) {}
@@ -167,6 +167,34 @@
     }
   }
 
+  function estadoAntesDeSalir(escena) {
+    return { mundo: escena.mundo, x: escena.posicionplayerx, y: escena.posicionplayery,
+             cambiando: escena._cambiandoEscena, sala: escena._salaDestino,
+             viaje: root.__gfViaje, vuelta: root.__gfLandsVuelta };
+  }
+
+  function cancelarSalida(escena, anterior, error) {
+    if (escena._sceneStopped) return;
+    escena.mundo = anterior.mundo;
+    escena.posicionplayerx = anterior.x; escena.posicionplayery = anterior.y;
+    escena._cambiandoEscena = anterior.cambiando;
+    escena._salaDestino = anterior.sala;
+    root.__gfViaje = anterior.viaje; root.__gfLandsVuelta = anterior.vuelta;
+    log('viaje cancelado: no se pudo guardar', error || '');
+    try {
+      var texto = 'Could not save your progress. Check your connection and try travelling again.';
+      if (escena.notifications && typeof escena.notifications.show === 'function') escena.notifications.show(texto, 'warning');
+      else if (typeof escena.showNotification === 'function') escena.showNotification(texto, 'warning');
+    } catch (e) {}
+  }
+
+  function esperarGuardado(guardado, escena, anterior, continuar) {
+    Promise.resolve(guardado).then(function (resultado) {
+      if (resultado === false) cancelarSalida(escena, anterior);
+      else continuar();
+    }, function (error) { cancelarSalida(escena, anterior, error); });
+  }
+
   /**
    * A la isla POR LA PANTALLA DE CARGA, igual que a la mina y a la tienda.
    *
@@ -192,6 +220,7 @@
       log('LandsScene no esta registrada: no se puede ir a la isla');
       return;
     }
+    var anterior = estadoAntesDeSalir(escena);
     escena._cambiandoEscena = true;
     // A MI isla: una nota de viaje que se hubiera quedado sin recoger (un
     // "visitar su isla" que no llego a salir) no puede llevarme a la de otro.
@@ -205,21 +234,21 @@
 
     escena.mundo = 4;
     var irYa = function () {
-      apagarHUD(escena);
+      if (escena._sceneStopped) return;
+      apagarHUD(escena, true);
       escena.scene.start('LoadingScenegame');
     };
     try {
       var p = escena.savegg && escena.savegg();
-      if (p && typeof p.then === 'function') p.then(irYa, irYa);
-      else irYa();
+      esperarGuardado(p, escena, anterior, irYa);
     } catch (e) {
-      log('guardado antes de la isla:', e);
-      irYa();
+      cancelarSalida(escena, anterior, e);
     }
   }
 
   function volver(escena) {
     if (escena._cambiandoEscena) return;
+    var anterior = estadoAntesDeSalir(escena);
     escena._cambiandoEscena = true;
     log('de vuelta al mapa');
     // Al apagarse, la escena entra en la sala de su destino (_salaAlSalir).
@@ -230,11 +259,16 @@
        DOS guardados en vuelo -uno diciendo "esta en la isla" y otro diciendo
        "esta en el mapa"- y cual de los dos llega el ultimo al servidor no lo
        decide nadie. Poniendolo aqui, los dos guardan lo mismo. */
-    if (typeof escena._dejarPartidaEnElMapa === 'function') {
-      escena._dejarPartidaEnElMapa(PLAZA_X, PLAZA_Y);
-    }
-
-    apagarHUD(escena);
+    var guardado;
+    try {
+      if (typeof escena._dejarPartidaEnElMapa === 'function') {
+        guardado = escena._dejarPartidaEnElMapa(PLAZA_X, PLAZA_Y);
+      } else {
+        escena.mundo = 1;
+        escena.posicionplayerx = PLAZA_X; escena.posicionplayery = PLAZA_Y;
+        guardado = escena.savegg && escena.savegg();
+      }
+    } catch (e) { cancelarSalida(escena, anterior, e); return; }
 
     /* SIEMPRE a GameScene, aunque se hubiera venido de la tienda o de la mina.
        Es lo que se pidio, y ademas es lo unico que no deja al jugador en un
@@ -260,10 +294,15 @@
        nadie lo lee, y la posicion y el mundo salen siempre de /api/load. Quien
        de verdad decide donde apareces es el `_dejarPartidaEnElMapa()` de
        arriba, que lo deja guardado antes de irse. */
-    escena.scene.start('LoadingScenegame', {
-      targetScene: 'GameScene',
-      playerData: { x: PLAZA_X, y: PLAZA_Y, mundo: 1 }
-    });
+    var volverYa = function () {
+      if (escena._sceneStopped) return;
+      apagarHUD(escena, true);
+      escena.scene.start('LoadingScenegame', {
+        targetScene: 'GameScene',
+        playerData: { x: PLAZA_X, y: PLAZA_Y, mundo: 1 }
+      });
+    };
+    esperarGuardado(guardado, escena, anterior, volverYa);
   }
 
   /**
@@ -434,6 +473,7 @@
       return moverEnSitio(escena, x, y);
     }
 
+    var anterior = estadoAntesDeSalir(escena);
     root.__gfViaje = {
       mundo: mundo,
       x: conSitio ? x : null,
@@ -456,16 +496,15 @@
     // Igual que `ir()`: se ESPERA al guardado, porque la pantalla de carga
     // elige la escena leyendo el mundo de /api/load.
     var irYa = function () {
-      apagarHUD(escena);
+      if (escena._sceneStopped) return;
+      apagarHUD(escena, true);
       escena.scene.start('LoadingScenegame');
     };
     try {
       var p = escena.savegg && escena.savegg();
-      if (p && typeof p.then === 'function') p.then(irYa, irYa);
-      else irYa();
+      esperarGuardado(p, escena, anterior, irYa);
     } catch (e) {
-      log('guardado antes del viaje:', e);
-      irYa();
+      cancelarSalida(escena, anterior, e);
     }
     return true;
   }

@@ -129,11 +129,16 @@ const CATEGORIES = [
 ];
 
 function catalogMeta(itemId) {
-  return ITEM_CATALOG[itemId] || { name: itemId, category: 'otros', icon: '', maxStack: 20 };
+  return Object.prototype.hasOwnProperty.call(ITEM_CATALOG, itemId) ? ITEM_CATALOG[itemId]
+    : { name: itemId, category: 'otros', icon: '', maxStack: 20 };
 }
 
 function round2(n) {
   return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+}
+
+function validMarketAmount(n) {
+  return Number.isFinite(n) && n > 0 && Number.isSafeInteger(Math.round(n * 100));
 }
 
 function escapeRegex(str) {
@@ -285,13 +290,17 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
   // jugador: primero rellena stacks existentes del mismo ítem, y usa slots
   // vacíos (0-39) para el resto. Devuelve null si no hay espacio suficiente.
   function computeInsertPlan(inventory, itemId, qty, maxStack) {
+    if (!Array.isArray(inventory) || !Number.isSafeInteger(qty) || qty < 1 ||
+        !Number.isSafeInteger(maxStack) || maxStack < 1) return null;
     const ops = [];
     let remaining = qty;
-    const usedIds = new Set((inventory || []).map(e => e.id));
+    const usedIds = new Set(inventory.filter(e => e && Number.isInteger(e.id)).map(e => e.id));
 
     for (const entry of inventory || []) {
       if (remaining <= 0) break;
-      if (entry.objeto === itemId && Number(entry.cantidad) < maxStack) {
+      if (entry && Number.isInteger(entry.id) && entry.id >= 0 && entry.id < 40 &&
+          entry.objeto === itemId && Number.isSafeInteger(Number(entry.cantidad)) &&
+          Number(entry.cantidad) >= 0 && Number(entry.cantidad) < maxStack) {
         const space = maxStack - Number(entry.cantidad);
         const add = Math.min(space, remaining);
         if (add > 0) {
@@ -460,10 +469,10 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
       if (!itemId || typeof itemId !== 'string') {
         return res.status(400).json({ error: 'invalid_item' });
       }
-      if (!Number.isInteger(qty) || qty < 1) {
+      if (!Number.isSafeInteger(qty) || qty < 1) {
         return res.status(400).json({ error: 'invalid_qty' });
       }
-      if (!(pricePerUnit > 0)) {
+      if (!validMarketAmount(pricePerUnit) || !validMarketAmount(round2(qty * pricePerUnit))) {
         return res.status(400).json({ error: 'invalid_price' });
       }
       if (!['oro', 'plata'].includes(currency)) {
@@ -619,7 +628,7 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
       }
 
       let qty = req.body && req.body.qty ? Math.floor(Number(req.body.qty)) : listing.qty;
-      if (!Number.isInteger(qty) || qty < 1 || qty > listing.qty) {
+      if (!Number.isSafeInteger(qty) || qty < 1 || qty > listing.qty) {
         return res.status(400).json({ error: 'invalid_qty' });
       }
 
@@ -635,6 +644,7 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
       }
 
       const totalPrice = round2(qty * listing.pricePerUnit);
+      if (!validMarketAmount(totalPrice)) return res.status(400).json({ error: 'invalid_price' });
       const fee = round2(totalPrice * MARKET_FEE_BPS / 10000);
       const sellerReceives = round2(totalPrice - fee);
       const field = currencyField(listing.currency);
@@ -966,10 +976,10 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
       const pricePerUnit = round2(Number(req.body && req.body.pricePerUnit));
       const message = String((req.body && req.body.message) || '').replace(/<[^>]*>/g, '').trim().slice(0, 140);
 
-      if (!Number.isInteger(qty) || qty < 1 || qty > listing.qty) {
+      if (!Number.isSafeInteger(qty) || qty < 1 || qty > listing.qty) {
         return res.status(400).json({ error: 'invalid_qty' });
       }
-      if (!Number.isFinite(pricePerUnit) || pricePerUnit <= 0) {
+      if (!validMarketAmount(pricePerUnit) || !validMarketAmount(round2(qty * pricePerUnit))) {
         return res.status(400).json({ error: 'invalid_price' });
       }
 
@@ -1313,7 +1323,7 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
       const note = String(b.note || '').replace(/<[^>]*>/g, '').trim().slice(0, 160);
 
       if (!Number.isInteger(qty) || qty < 1 || qty > 1000000) return res.status(400).json({ error: 'invalid_qty' });
-      if (!Number.isFinite(pricePerUnit) || pricePerUnit <= 0) return res.status(400).json({ error: 'invalid_price' });
+      if (!validMarketAmount(pricePerUnit) || !validMarketAmount(round2(qty * pricePerUnit))) return res.status(400).json({ error: 'invalid_price' });
 
       const meta = catalogMeta(itemId);
       const doc = await LimitedListing.create({
@@ -1349,7 +1359,8 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
       if (b.active !== undefined) doc.active = !!b.active;
       if (b.pricePerUnit !== undefined) {
         const p = round2(Number(b.pricePerUnit));
-        if (Number.isFinite(p) && p > 0) doc.pricePerUnit = p;
+        if (!validMarketAmount(p)) return res.status(400).json({ error: 'invalid_price' });
+        doc.pricePerUnit = p;
       }
       if (b.addQty !== undefined) {
         const add = Math.floor(Number(b.addQty));
@@ -1404,6 +1415,7 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
       if (new Date(doc.endsAt).getTime() <= ahora)  return res.status(409).json({ error: 'ended', message: 'Esta oferta limitada ya terminó' });
 
       const qty = Math.max(1, Math.floor(Number((req.body && req.body.qty) || 1)));
+      if (!Number.isSafeInteger(qty)) return res.status(400).json({ error: 'invalid_qty' });
       if (qty > doc.remaining) return res.status(409).json({ error: 'not_enough_stock', remaining: doc.remaining });
 
       const gp = await getGamePlayerByAddress(address);
@@ -1426,6 +1438,7 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
       if (!plan) return res.status(400).json({ error: 'inventory_full', message: 'Tu inventario está lleno' });
 
       const total = round2(qty * doc.pricePerUnit);
+      if (!validMarketAmount(total)) return res.status(400).json({ error: 'invalid_price' });
       const field = currencyField(doc.currency);
       await getOrCreateStats(gp.playerName, address, gp);
 

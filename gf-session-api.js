@@ -3,9 +3,11 @@
 (function () {
   'use strict';
   if (window.GFSessionAPI || typeof window.fetch !== 'function') return;
-  var original = window.fetch.bind(window), suspended = false, timer = null, vitalRevision = 0;
-  var base = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)
-    ? 'http://127.0.0.1:8080' : 'https://api.grasslandforest.com';
+  var original = window.fetch.bind(window), suspended = false, destroyed = false, timer = null, vitalRevision = 0;
+  var base = typeof window.GF_API_BASE === 'string' ? window.GF_API_BASE
+    : typeof window.serverBase === 'string' ? window.serverBase
+    : /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? 'http://127.0.0.1:8080' : 'https://api.grasslandforest.com';
+  base = new URL(base || '/', location.href).href.replace(/\/$/, '');
   function owned(input) {
     try { var url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url, location.href); return url.origin === new URL(base).origin && url.pathname.indexOf('/api/') === 0 ? url : null; }
     catch (e) { return null; }
@@ -37,21 +39,24 @@
     }
     var mutation = /\/stats\/.*\/(consume|update|refill)$|\/alchemist\/(buy|use)$/.test(url.pathname);
     if (mutation) vitalRevision++;
+    var signal = init && init.signal || input && input.signal;
+    // Preserve the Request's signal as well as init.signal before renewal.
     var copy = typeof input === 'string' || input instanceof URL ? input : input.clone();
     var response;
     try { response = await original(input, init); } finally { if (mutation) vitalRevision++; }
-    if (response.status !== 401 || suspended || (init && init.signal && init.signal.aborted)) return response;
+    if (response.status !== 401 || suspended || destroyed || (signal && signal.aborted)) return response;
     try {
       var result = await refresh();
-      if (!result.ok || suspended) return response;
+      if (!result.ok || suspended || destroyed || (signal && signal.aborted)) return response;
       var body = await result.json();
       try { return await original(copy, optionsWithCSRF(copy, init, body.csrfToken)); } finally { if (mutation) vitalRevision++; }
     } catch (e) { return response; }
   }
-  async function tick() { if (!suspended && document.visibilityState !== 'hidden' && playing()) { try { await refresh(); } catch (e) {} } }
+  async function tick() { if (!suspended && !destroyed && document.visibilityState !== 'hidden' && playing()) { try { await refresh(); } catch (e) {} } }
   function visible() { if (document.visibilityState === 'visible') tick(); }
   function destroy(event) {
     if (event && event.persisted) return;
+    destroyed = true;
     clearInterval(timer); timer = null;
     document.removeEventListener('visibilitychange', visible); window.removeEventListener('pagehide', destroy);
     if (window.fetch === wrapped) window.fetch = original;

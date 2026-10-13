@@ -44,16 +44,31 @@
     }).finally(function () { st.potionPending = null; });
     return st.potionPending;
   }
+  // (2026-10-12) "El apartado de puntos no se une al diseño del panel": ahora
+  // es una sección más del panel (.skills-section) con las mismas filas que
+  // las habilidades: icono, nombre con su efecto, valor en píldora y el +1.
+  var ICONS = { strength: '💪', defense: '🛡️', wisdom: '📘', patience: '⏳', farming: '🌿', woodcutting: '🌲', fishing: '🌊', combat: '⚔️' };
   function draw(st) {
     var panel = st.panel; if (!panel || !valid(st)) return;
     panel.replaceChildren();
-    var title = document.createElement('p'); title.textContent = st.data ? 'Character points: ' + st.data.available : 'Loading character points…'; panel.appendChild(title);
-    if (st.message) { var msg = document.createElement('p'); msg.textContent = st.message; panel.appendChild(msg); }
+    var title = document.createElement('div'); title.className = 'skills-section-title gf-cp-title';
+    title.textContent = '✨ Character points';
+    var free = document.createElement('span'); free.className = 'skill-stat-val gf-cp-free';
+    free.textContent = st.data ? String(st.data.available) : '…'; free.title = 'Points to spend';
+    title.appendChild(free); panel.appendChild(title);
+    if (st.message || !st.data) {
+      var msg = document.createElement('p'); msg.className = 'gf-cp-msg';
+      msg.textContent = st.message || 'Loading character points…'; panel.appendChild(msg);
+    }
+    var list = document.createElement('div'); list.className = 'skills-stats-grid';
+    panel.appendChild(list);
     Object.keys(KEYS).forEach(function (key) {
-      var row = document.createElement('div'); row.className = 'gf-character-row';
-      var label = document.createElement('span'); label.textContent = KEYS[key] + ': ' + (st.data && st.data.allocations[key] || 0);
+      var row = document.createElement('div'); row.className = 'skill-stat-row gf-character-row';
+      var icon = document.createElement('span'); icon.className = 'skill-stat-icon'; icon.textContent = ICONS[key];
+      var label = document.createElement('span'); label.className = 'skill-stat-name'; label.textContent = KEYS[key];
       var hint = document.createElement('small'); hint.textContent = EFFECTS[key]; label.appendChild(hint);
-      var b = document.createElement('button'); b.textContent = '+1'; b.type = 'button'; b.setAttribute('aria-label', 'Improve ' + KEYS[key]);
+      var value = document.createElement('span'); value.className = 'skill-stat-val'; value.textContent = String(st.data && st.data.allocations[key] || 0);
+      var b = document.createElement('button'); b.className = 'gf-cp-plus'; b.textContent = '+1'; b.type = 'button'; b.setAttribute('aria-label', 'Improve ' + KEYS[key]);
       b.disabled = !st.data || !st.data.available || !!st.spending;
       b.onclick = function () {
         if (st.spending || !valid(st)) return;
@@ -64,15 +79,24 @@
           else st.message = 'Could not confirm the upgrade. Try again.';
         }).catch(function () { if (valid(st)) st.message = 'Connection problem. Try again.'; }).finally(function () { st.spending = false; if (valid(st)) draw(st); });
       };
-      row.append(label, b); panel.appendChild(row);
+      row.append(icon, label, value, b); list.appendChild(row);
     });
   }
   function render(scene) {
     var st = montar(scene); if (!st) return;
     var anchor = document.getElementById('sk-strength'); if (!anchor) return;
-    var parent = anchor.closest('.skills-panel') || document.getElementById('skills-panel') || anchor.parentNode.parentNode;
     var old = document.getElementById('gf-character-upgrades'); if (old) old.remove();
-    st.panel = document.createElement('div'); st.panel.id = 'gf-character-upgrades'; parent.appendChild(st.panel); draw(st); load(st);
+    st.panel = document.createElement('div'); st.panel.id = 'gf-character-upgrades'; st.panel.className = 'skills-section gf-character-section';
+    // Dentro del cuerpo del panel, justo después de "Player level" (antes se
+    // pegaba al velo de fondo, fuera de la caja).
+    var body = anchor.closest('.skills-body');
+    if (body) {
+      var first = body.querySelector('.skills-section');
+      body.insertBefore(st.panel, first ? first.nextSibling : body.firstChild);
+    } else {
+      (document.getElementById('skills-panel') || anchor.parentNode.parentNode).appendChild(st.panel);
+    }
+    draw(st); load(st);
   }
   function montar(scene) {
     if (!scene || !scene.events) return null;
@@ -102,7 +126,7 @@
       var modal = document.createElement('div'); modal.className = 'gf-character-modal';
       var close = document.createElement('button'); close.textContent = 'Close'; close.onclick = function () { modal.remove(); st.modal = null; st.panel = null; };
       var title = document.createElement('p'); title.textContent = 'Character skills'; modal.append(title, close);
-      st.panel = document.createElement('div'); st.panel.id = 'gf-character-upgrades'; modal.appendChild(st.panel); document.body.appendChild(modal); st.modal = modal; draw(st); load(st);
+      st.panel = document.createElement('div'); st.panel.id = 'gf-character-upgrades'; st.panel.className = 'skills-section gf-character-section'; modal.appendChild(st.panel); document.body.appendChild(modal); st.modal = modal; draw(st); load(st);
     };
   }
   window.GFCharacterSkills = { montar: montar, render: render, applyStats: applyStats, battle: battle, usePotion: usePotion };

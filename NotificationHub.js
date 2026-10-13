@@ -81,6 +81,8 @@ class NotificationHub {
             this.isInitialized = false;
             this._destroyed = false;
             this._readyHandler = null;
+            this._settingsTimer = null;
+            this._settingsPanel = null;
             this.notifications = new Map();
             this.notificationCounter = 0;
             this.pools = new Map();
@@ -1231,6 +1233,10 @@ class NotificationHub {
             this._destroyed = true;
             if (this._readyHandler && typeof document !== 'undefined') document.removeEventListener('DOMContentLoaded', this._readyHandler);
             this._readyHandler = null;
+            if (this._settingsTimer !== null) clearTimeout(this._settingsTimer);
+            this._settingsTimer = null;
+            if (this._settingsPanel) this._settingsPanel.remove();
+            this._settingsPanel = null;
             this._stopAutoCleanup();
             this.hideAllNotifications();
             this._animationFrames.forEach(cancelAnimationFrame); this._animationFrames.clear();
@@ -1255,6 +1261,9 @@ class NotificationHub {
             }
 
             this.notifications.clear();
+            for (const [name, instance] of NotificationHub.instances) {
+                if (instance === this) NotificationHub.instances.delete(name);
+            }
             this.pools.clear();
             this.duplicateTracker.clear();
             this._hubElement = null;
@@ -1289,7 +1298,7 @@ class NotificationHub {
      * Obtiene o crea una instancia con nombre
      */
     static getInstance(name = 'default', options = {}) {
-        if (!NotificationHub.instances.has(name)) {
+        if (!NotificationHub.instances.has(name) || NotificationHub.instances.get(name)._destroyed) {
             NotificationHub.instances.set(name, new NotificationHub(options));
         }
         return NotificationHub.instances.get(name);
@@ -1369,6 +1378,7 @@ class NotificationHub {
     // tapado por el botón de chat.
     _ensureSettingsButton(attempt) {
         try {
+            if (this._destroyed) return;
             if (typeof document === 'undefined' || !document.body) return;
 
             // Limpieza del botón FLOTANTE de la versión anterior (quedaba
@@ -1382,7 +1392,9 @@ class NotificationHub {
             if (!container) {
                 // El HUD todavía no existe: reintentar un rato (sin bloquear).
                 const n = (attempt || 0) + 1;
-                if (n <= 20) setTimeout(() => this._ensureSettingsButton(n), 500);
+                if (n <= 20 && this._settingsTimer === null) this._settingsTimer = setTimeout(() => {
+                    this._settingsTimer = null; this._ensureSettingsButton(n);
+                }, 500);
                 return;
             }
 
@@ -1405,11 +1417,13 @@ class NotificationHub {
 
     openSettingsPanel() {
         try {
+            if (this._destroyed) return;
             const existing = document.getElementById('gf-notif-panel');
             if (existing) { existing.remove(); return; } // toggle
             const tipos = NotificationHub._prefs.enabledTypes;
 
             const el = document.createElement('div');
+            this._settingsPanel = el;
             el.id = 'gf-notif-panel';
             // Anclado arriba-derecha bajo la columna del HUD en pantallas grandes;
             // en móvil (<=760px) se centra y ocupa casi todo el ancho.

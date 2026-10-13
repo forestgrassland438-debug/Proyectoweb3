@@ -38,7 +38,8 @@
 (function () {
   'use strict';
 
-  var ESCALA = 2.3;
+  // (2026-10-12) A la escala del jugador (2): "eran muy grandes".
+  var ESCALA = 2;
   var N = 4;                              // dos fantasmas y dos magos
   var DIR_ES = { right: 'derecha', left: 'izquierda', up: 'arriba', down: 'abajo' };
   var DIRS = ['down', 'up', 'left', 'right'];
@@ -242,7 +243,8 @@
       for (var j = -1; j <= 1; j++) {
         if (st.shots.length >= 12) break;
         var a2 = aim + j * 0.15;
-        var b = s.add.image(m.x, m.y - 55, 'gfm_orbe_mago').setScale(2).setDepth(m.y + 1);
+        // (2026-10-12) El orbe va al doble de resolución: la mitad de escala.
+        var b = s.add.image(m.x, m.y - 55, 'gfm_orbe_mago').setScale(1).setDepth(m.y + 1);
         st.shots.push({ sprite: b, x: m.x, y: m.y - 55, vx: Math.cos(a2) * 210, vy: Math.sin(a2) * 210, until: s.time.now + 2500 });
       }
     });
@@ -411,7 +413,9 @@
     var st = { scene: scene, vivo: true, mobs: [], porId: {}, red: null, shots: [], warnings: [], botin: [], hurtAt: 0, spawn: null };
     scene.__gfEspectros = st;
     st.close = function () {
+      if (!st.vivo) return;
       st.vivo = false;
+      scene.__gfEspectros = null;
       if (st.spawn) st.spawn.remove(false);
       if (st.tick) scene.events.off('update', st.tick);
       scene.events.off('shutdown', st.close);
@@ -420,13 +424,15 @@
       if (st.red) { st.red.cerrar(); st.red = null; }
       var li = scene._lucesExtras && scene._lucesExtras.indexOf(st.light);
       if (li >= 0) scene._lucesExtras.splice(li, 1);
-      st.mobs.forEach(function (m) { [m.sprite, m.shadow, m.bar, m.warning].forEach(function (o) { if (o) o.destroy(); }); });
-      st.shots.forEach(function (b) { b.sprite.destroy(); });
-      st.warnings.forEach(function (o) { o.destroy(); });
+      var soltar = function (o) { try { if (o && o.destroy) o.destroy(); } catch (e) {} };
+      st.mobs.forEach(function (m) { [m.sprite, m.shadow, m.bar, m.warning].forEach(soltar); });
+      st.shots.forEach(function (b) { soltar(b.sprite); });
+      st.warnings.forEach(soltar);
       if (window.GFMinaSerpiente) window.GFMinaSerpiente._botin.limpiar(st);
       scene.__gfEspectros = null;
       st.mobs.length = st.shots.length = st.warnings.length = 0;
       st.porId = {};
+      st.scene = st.tick = st.light = st.target = st.spawn = null;
     };
     scene.events.once('shutdown', st.close);
     scene.events.once('destroy', st.close);

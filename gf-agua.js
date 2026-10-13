@@ -432,10 +432,21 @@
     var faltan = lista.filter(function (e) { return !scene.textures.exists(e[0]); });
     if (!faltan.length) return Promise.resolve();
     return new Promise(function (ok) {
-      var hecho = false, fin = function () { if (!hecho) { hecho = true; ok(); } };
+      var hecho = false, reloj = null;
+      var fin = function () {
+        if (hecho) return;
+        hecho = true;
+        clearTimeout(reloj);
+        scene.load.off('complete', fin);
+        scene.events.off('shutdown', fin);
+        scene.events.off('destroy', fin);
+        ok();
+      };
       faltan.forEach(function (e) { scene.load.image(e[0], e[1]); });
       scene.load.once('complete', fin);
-      setTimeout(fin, 6000);
+      scene.events.once('shutdown', fin);
+      scene.events.once('destroy', fin);
+      reloj = setTimeout(fin, 6000);
       scene.load.start();
     });
   }
@@ -881,6 +892,6 @@
                peces: st.peces ? st.peces.filter(function (p) { return p.colocado; }).length : 0,
                adornos: st.adornos ? st.adornos.length : 0 };
     },
-    _interno: { infoGid: infoGid, patrones: patrones, paleta: paleta, ruido: ruido }
+    _interno: { infoGid: infoGid, patrones: patrones, paleta: paleta, ruido: ruido, cargarImagenes: cargarImagenes }
   };
 })();

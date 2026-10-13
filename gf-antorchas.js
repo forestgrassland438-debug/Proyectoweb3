@@ -71,11 +71,23 @@
     };
     if (scene.textures.exists(TEX)) return Promise.resolve(hacerAnim());
     return new Promise(function (ok) {
-      var listo = false;
-      var fin = function () { if (listo) return; listo = true; scene.load.off('complete', fin); ok(hacerAnim()); };
+      var listo = false, reloj = null;
+      var fin = function (vivo) {
+        if (listo) return;
+        listo = true;
+        clearTimeout(reloj);
+        scene.load.off('complete', completo);
+        scene.events.off('shutdown', apagar);
+        scene.events.off('destroy', apagar);
+        ok(vivo ? hacerAnim() : false);
+      };
+      var completo = function () { fin(true); };
+      var apagar = function () { fin(false); };
       scene.load.atlas(TEX, './Game/Objetos/antorcha/antorcha_suelo.png?v=' + V, './Game/Objetos/antorcha/antorcha_suelo.json?v=' + V);
-      scene.load.once('complete', fin);
-      setTimeout(fin, 8000);
+      scene.load.once('complete', completo);
+      scene.events.once('shutdown', apagar);
+      scene.events.once('destroy', apagar);
+      reloj = setTimeout(completo, 8000);
       scene.load.start();
     });
   }
@@ -325,6 +337,6 @@
   window.GFAntorchas = {
     montar: montar,
     desmontar: desmontar,
-    _interno: { estado: function (s) { return s && s.__gfAntorchas; }, crear: crear, DESVANECE_MS: DESVANECE_MS }
+    _interno: { estado: function (s) { return s && s.__gfAntorchas; }, crear: crear, texturas: texturas, DESVANECE_MS: DESVANECE_MS }
   };
 })();

@@ -24,6 +24,16 @@
  *   estaban. Sin red (o sin servidor nuevo) cada uno es anfitrión de los
  *   suyos, como antes.
  *
+ *   EL ANFITRIÓN DORMIDO (2026-10-11): "en la mina los zombis y los demás
+ *   monstruos no hacen daño". Con la pestaña oculta (o el móvil bloqueado)
+ *   Phaser para su bucle, pero el socket sigue vivo: el servidor lo seguía
+ *   teniendo por anfitrión, nadie movía a los monstruos y los de los demás se
+ *   quedaban quietos, sin perseguir ni morder. Ahora:
+ *     · al ocultarse la pestaña se avisa ('mobs:dormido') y el servidor pasa
+ *       el mando a otro que esté despierto;
+ *     · y si de todos modos no llega foto del anfitrión en HUERFANO_MS, este
+ *       navegador piensa por sus monstruos (sin mandar nada) hasta que vuelva.
+ *
  * USO (un módulo de monstruos)
  *   var red = GFMobsRed.crear(scene, 'zombis', {
  *     exportar: function () { return [[id, x, y, ...], ...]; },   // anfitrión
@@ -41,7 +51,11 @@
   'use strict';
 
   var ESTADO_MS = 160;              // cada cuánto manda la foto el anfitrión
+  var HUERFANO_MS = 3000;           // sin foto del anfitrión en este tiempo: se piensa aquí
   var SALAS = { MinaScene: true, SalvajeScene: true };
+  // Los compartidos vivos, para el aviso de "pestaña oculta" (un solo oyente
+  // de document para todos: ninguno se queda atado a una escena muerta).
+  var vivos = [];
 
   function socketDe(scene) { return window.globalSocket || (scene && scene.socket) || null; }
 
@@ -97,10 +111,35 @@
     return c.host === s.id;
   }
 
+  /** Hay anfitrión, no soy yo, y hace HUERFANO_MS que no manda foto de este
+      grupo (pestaña oculta, se le colgó el juego…): se piensa aquí. */
+  function huerfano(red) {
+    var c = red.c, s = c.socket;
+    if (!s || !s.connected || !c.hostConocido || !c.host || c.host === s.id) return false;
+    var ahora = Date.now();
+    return ahora - red.fotoEn > HUERFANO_MS && ahora - c.hostDesde > HUERFANO_MS;
+  }
+  /** ¿Mueve este navegador a los monstruos de `red`? (anfitrión o huérfano) */
+  function piensaAqui(red) { return esHost(red.c) || huerfano(red); }
+
+  /** Pestaña oculta o visible: se le dice al servidor para que el mando lo
+      tenga alguien despierto. */
+  function avisarSueno(c) {
+    var s = c.socket;
+    if (!c.vivo || !s || !s.connected) return;
+    try { s.emit('mobs:dormido', { si: !!document.hidden }); } catch (e) {}
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('visibilitychange', function () {
+      vivos.slice().forEach(avisarSueno);
+    });
+  }
+
   function compartido(scene) {
     if (scene.__gfMobsRed) return scene.__gfMobsRed;
     var c = scene.__gfMobsRed = { scene: scene, redes: {}, socket: null, oyentes: null, host: null,
-                                  hostConocido: false, saludadoEn: 0, miradoEn: -1e9, vivo: true, efimeros: [] };
+                                  hostConocido: false, hostDesde: 0, saludadoEn: 0, miradoEn: -1e9, vivo: true, efimeros: [] };
+    vivos.push(c);
     c.onUpdate = function (t) { if (c.vivo) revisar(c, t); };
     c.onApagar = function () { cerrarCompartido(scene); };
     scene.events.on('update', c.onUpdate);
@@ -120,7 +159,7 @@
     // joinRoom de la escena), se repite cada 3 s hasta que conteste.
     if (!c.saludadoEn || (!c.hostConocido && t - c.saludadoEn > 3000)) {
       c.saludadoEn = t || 1;
-      c.socket.emit('mobs:hola');
+      c.socket.emit('mobs:hola', { dormido: typeof document !== 'undefined' && !!document.hidden });
     }
   }
 
@@ -134,14 +173,19 @@
     c.hostConocido = false; c.host = null; c.saludadoEn = 0;
     c.oyentes = {
       'mobs:host': function (d) {
+        var nuevo = d && d.host ? String(d.host) : null;
+        if (nuevo !== c.host || !c.hostConocido) c.hostDesde = Date.now();
         c.hostConocido = true;
-        c.host = d && d.host ? String(d.host) : null;
+        c.host = nuevo;
         avisarRedes(c);
       },
       'mobs:estado': function (d) {
         if (!d || !c.redes[d.g]) return;
         // Quien manda la foto es el anfitrión, diga lo que diga lo de antes.
-        if (d.de && d.de !== c.host) { c.host = String(d.de); c.hostConocido = true; avisarRedes(c); }
+        if (d.de && d.de !== c.host) { c.host = String(d.de); c.hostConocido = true; c.hostDesde = Date.now(); }
+        // Antes de mirar si se piensa aquí: con foto nueva ya no hay huérfano.
+        c.redes[d.g].fotoEn = Date.now();
+        avisarRedes(c);
         if (esHost(c)) return;
         try { c.redes[d.g].h.importar(d.l || []); } catch (e) { console.warn('[red] foto ' + d.g, e); }
       },
@@ -171,6 +215,8 @@
     var c = scene.__gfMobsRed;
     if (!c) return;
     c.vivo = false;
+    var i = vivos.indexOf(c);
+    if (i >= 0) vivos.splice(i, 1);
     soltar(c);
     scene.events.off('update', c.onUpdate);
     scene.events.off('shutdown', c.onApagar);
@@ -184,13 +230,13 @@
   // ─────────────────────────────────────────────────────── UNA RED
   function crear(scene, grupo, h) {
     var c = compartido(scene);
-    var red = { c: c, grupo: grupo, h: h || {}, ultimoEnvio: -1e9, eraHost: null, forzar: false };
+    var red = { c: c, grupo: grupo, h: h || {}, ultimoEnvio: -1e9, eraHost: null, forzar: false, fotoEn: Date.now() };
     c.redes[grupo] = red;
-    red.esHost = function () { return esHost(c); };
+    red.esHost = function () { return piensaAqui(red); };
     red.miId = function () { return c.socket && c.socket.connected ? c.socket.id : 'local'; };
     red.soy = function (id) { return !id || id === red.miId(); };
     red.revisarHost = function () {
-      var ahora = esHost(c);
+      var ahora = piensaAqui(red);
       if (ahora === red.eraHost) return;
       red.eraHost = ahora;
       red.forzar = ahora;
@@ -199,7 +245,8 @@
     /** Cada fotograma (lo llama el módulo): manda la foto si toca. */
     red.tick = function (t) {
       red.revisarHost();
-      if (!red.eraHost || !c.socket || !c.socket.connected || !c.hostConocido) return;
+      // El huérfano piensa pero no manda: el servidor no se lo aceptaría.
+      if (!red.eraHost || !esHost(c) || !c.socket || !c.socket.connected || !c.hostConocido) return;
       if (!red.forzar && (t - red.ultimoEnvio < ESTADO_MS || !hayOtros(scene))) return;
       red.forzar = false;
       red.ultimoEnvio = t;
@@ -216,7 +263,9 @@
     /** Un espadazo a un monstruo: el anfitrión lo aplica; los demás se lo mandan. */
     red.golpe = function (d) {
       d.g = grupo;
-      if (esHost(c)) { d.de = red.miId(); try { red.h.alGolpe && red.h.alGolpe(d); } catch (e) {} return; }
+      // Anfitrión o huérfano: se aplica aquí (y el huérfano no lo manda, que
+      // el anfitrión dormido lo contaría otra vez al despertar).
+      if (piensaAqui(red)) { d.de = red.miId(); try { red.h.alGolpe && red.h.alGolpe(d); } catch (e) {} return; }
       if (c.socket && c.socket.connected) c.socket.emit('mobs:golpe', d);
     };
     red.cerrar = function () { if (c.redes[grupo] === red) delete c.redes[grupo]; };
@@ -283,6 +332,7 @@
     masCercano: masCercano,
     anunciarTajo: anunciarTajo,
     muertoLocal: muertoLocal,
-    _interno: { compartido: function (s) { return s && s.__gfMobsRed; }, esHost: esHost, verTajo: verTajo }
+    _interno: { compartido: function (s) { return s && s.__gfMobsRed; }, esHost: esHost, verTajo: verTajo,
+                huerfano: huerfano, HUERFANO_MS: HUERFANO_MS }
   };
 })();

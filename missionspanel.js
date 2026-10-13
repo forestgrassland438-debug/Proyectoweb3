@@ -30,6 +30,9 @@
 class missionspanel {
   constructor(gameScene) {
     this.gameScene = gameScene;
+    this.destroyed = false;
+    this._viewRevision = 0;
+    this._refreshing = false;
     this.panel = document.getElementById('missions-panel');
     this.overlay = document.getElementById('missions-overlay');
     this.npcTitle = document.getElementById('missions-npc-title');
@@ -42,7 +45,8 @@ class missionspanel {
     // FIX: si el HTML de la página no incluye el panel de misiones, no
     // adjuntar listeners (antes lanzaba TypeError sobre null y rompía la
     // inicialización de la escena que construía este panel).
-    if (!this.panel || !this.overlay || !this.closeButton || !this.refreshButton) {
+    if (!this.panel || !this.overlay || !this.closeButton || !this.refreshButton ||
+        !this.npcTitle || !this.resetTime || !this.progress || !this.missionsList) {
       console.warn('missionspanel: elementos del panel de misiones no encontrados en el DOM — panel desactivado');
       this.disabled = true;
       return;
@@ -113,13 +117,16 @@ class missionspanel {
 
   /** Tira el panel: suelta los manejadores y la referencia a la escena. */
   destroy() {
+    if (this.destroyed) return;
+    this._viewRevision++;
     this.destroyEvents();
     this.gameScene = null;
     this.destroyed = true;
   }
 
   async show(npcId) {
-    if (this.disabled) return;
+    if (this.disabled || this.destroyed) return;
+    const revision = ++this._viewRevision;
 
     // El panel se abre SIEMPRE. Antes solo se abría si loadDailyMissions
     // devolvía algo, así que cuando el NPC no tenía misiones para hoy (o la
@@ -135,7 +142,7 @@ class missionspanel {
 
     // La carga es asíncrona: si mientras tanto se cambió de escena, este panel
     // ya se destruyó (gameScene = null) y render() reventaría con un TypeError.
-    if (this.destroyed || !this.gameScene) return;
+    if (this.destroyed || !this.gameScene || revision !== this._viewRevision) return;
     this.render(!loaded);
     this.panel.classList.remove('hidden');
     this.overlay.classList.remove('hidden');
@@ -143,6 +150,7 @@ class missionspanel {
 
   close() {
     if (this.disabled) return;
+    this._viewRevision++;
     this.panel.classList.add('hidden');
     this.overlay.classList.add('hidden');
 
@@ -159,16 +167,22 @@ class missionspanel {
   }
 
   async refreshMissions() {
-    if (!this.gameScene) return;
+    if (!this.gameScene || this.destroyed || this._refreshing) return;
+    const revision = this._viewRevision;
+    const scene = this.gameScene;
     if (this.gameScene.currentNpcMission) {
+      this._refreshing = true;
       if (this.refreshButton) {
         this.refreshButton.disabled = true;
         this.refreshButton.classList.add('loading');
       }
       try {
         await this.gameScene.loadDailyMissions(this.gameScene.currentNpcMission);
-        if (!this.destroyed && this.gameScene) this.render();
+        if (!this.destroyed && this.gameScene === scene && revision === this._viewRevision) this.render();
+      } catch (e) {
+        if (!this.destroyed && revision === this._viewRevision) console.warn('missionspanel: fallo actualizando misiones:', e && e.message);
       } finally {
+        this._refreshing = false;
         if (this.refreshButton) {
           this.refreshButton.disabled = false;
           this.refreshButton.classList.remove('loading');
@@ -297,10 +311,10 @@ class missionspanel {
     // FIX: tolerar respuestas incompletas del backend — antes cualquier campo
     // faltante (missions, userProgress, completedMissions) lanzaba TypeError.
     const missions = Array.isArray(this.gameScene.dailyMissionsData.missions)
-      ? this.gameScene.dailyMissionsData.missions : [];
+      ? this.gameScene.dailyMissionsData.missions.filter(m => m && typeof m === 'object') : [];
     const userProgress = this.gameScene.dailyMissionsData.userProgress || {};
     const completedIds = new Set(
-      (userProgress.completedMissions || []).map(m => m.missionId)
+      (Array.isArray(userProgress.completedMissions) ? userProgress.completedMissions : []).filter(m => m && typeof m === 'object').map(m => m.missionId)
     );
 
     // Actualizar título
@@ -575,6 +589,7 @@ class missionspanel {
     // Agregar evento al botón si no está completado
     if (!completada) {
       boton.addEventListener('click', async () => {
+        if (boton.disabled || this.destroyed) return;
         boton.disabled = true;
         const textoOriginal = boton.textContent;
         boton.textContent = esEspanol ? 'ENVIANDO…' : 'SENDING…';
@@ -582,6 +597,7 @@ class missionspanel {
           const escena = this.gameScene;
           if (!escena) return;
           const hasItems = await escena.checkMissionRequirements(mission.missionId);
+          if (this.destroyed || this.gameScene !== escena) return;
 
           if (hasItems) {
             await escena.completeMission(mission.missionId);
