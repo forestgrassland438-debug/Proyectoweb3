@@ -42,7 +42,7 @@
   function diagnosticText(diagnostic, previousError) {
     diagnostic = diagnostic || {};
     if (String(diagnostic.code) === '14031' || diagnostic.codeName === 'OutOfDiskSpace' || /^14031(?:\b|:)/.test(String(previousError || ''))) {
-      return 'MongoDB respondió 14031 (OutOfDiskSpace): no dispone de espacio para escribir la auditoría o crear sus índices. En Railway, revisa y amplía el volumen del servicio MongoDB; después vuelve a pulsar analizarCC. La conexión puede seguir disponible.';
+      return 'MongoDB respondió 14031 (OutOfDiskSpace): la operación no dispone del espacio libre requerido; la conexión puede seguir disponible. En Railway, contrasta el disco que ve MongoDB con el volumen y la reserva mínima de índices. Un error guardado puede ser anterior. Consulta el diagnóstico actual antes de ampliar el volumen y vuelve a intentar analizarCC tras resolver la causa.';
     }
     var text = diagnostic.message || previousError;
     if (!text) return '';
@@ -160,6 +160,7 @@
     var summaryWork = null, scanWork = null, userWork = null, refreshWork = null;
     var controllers = new Set(), userController = null, userRequestId = 0;
     var reportSummary = null, lastUsers = null, generatingReport = false;
+    var scanStartDiagnostic = null;
     function controller() { var c = new AbortController(); controllers.add(c); return c; }
     function failure(e, message, expectedEpoch) {
       if (!active || expectedEpoch !== epoch || e.name === 'AbortError') return;
@@ -212,8 +213,9 @@
       if (/^(complete|completed)$/.test(scan.status || '') && scan.historyComplete === false) setText('impactScanStatus', 'Análisis completado · cobertura histórica parcial');
       $('analizarCC').disabled = running(scan);
       var detail = [];
-      var diagnostic = scan.initializationDiagnostic || scan.errorDiagnostic || scan.legacyImportDiagnostic;
-      var previousError = scan.lastError || scan.error || scan.legacyImportError;
+      if (running(scan) || /^(complete|completed)$/.test(scan.status || '')) scanStartDiagnostic = null;
+      var diagnostic = scanStartDiagnostic || scan.initializationDiagnostic || scan.errorDiagnostic || scan.legacyImportDiagnostic;
+      var previousError = diagnostic ? null : (scan.lastError || scan.error || scan.legacyImportError);
       var reason = diagnosticText(diagnostic, previousError);
       if (reason && !running(scan) && !/^(complete|completed)$/.test(scan.status || '')) {
         setText('impactScanStatus', String(diagnostic && diagnostic.code) === '14031' || /^14031/.test(String(previousError || ''))
@@ -325,6 +327,7 @@
       if (!active) return;
       var expectedEpoch = epoch, c = controller();
       $('analizarCC').disabled = true; setText('impactScanStatus', 'Solicitando análisis al backend…');
+      scanStartDiagnostic = null;
       try {
         var data = await options.request(BASE + '/scan', { method: 'POST', body: JSON.stringify({}), signal: c.signal });
         if (!active || expectedEpoch !== epoch) return;
@@ -333,6 +336,7 @@
         await loadSummary();
       } catch (e) {
         if (active && epoch === expectedEpoch) {
+          scanStartDiagnostic = e.diagnostic || { message: e.message };
           $('analizarCC').disabled = false;
           setText('impactScanStatus', 'No se pudo iniciar analizarCC');
           setText('impactScanDetail', diagnosticText(e.diagnostic, e.message) || 'Vuelve a consultar el estado del análisis.');
@@ -424,6 +428,7 @@
       active = false; epoch++; clearTimeout(summaryTimer); clearTimeout(scanTimer); clearTimeout(searchTimer);
       controllers.forEach(function (c) { c.abort(); }); controllers.clear();
       summaryWork = scanWork = userWork = refreshWork = null; userController = null; summary = reportSummary = lastUsers = null; generatingReport = false;
+      scanStartDiagnostic = null;
       $('impactKpis').innerHTML = '<div class="kpi"><span class="label">Métricas verificables</span><div class="value">—</div></div>';
       ['impactContract', 'impactRelayer', 'impactGas', 'impactNonce', 'impactSigned', 'impactSponsored', 'impactRelayerStatus', 'impactUpdated', 'impactUserInfo', 'impactPage', 'impactScanStatus', 'impactScanDetail'].forEach(function (id) { setText(id, '—'); });
       $('impactUserRows').innerHTML = '<tr><td colspan="7" class="empty">Esperando autenticación…</td></tr>';
