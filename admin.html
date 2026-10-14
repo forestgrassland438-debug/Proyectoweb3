@@ -727,7 +727,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
 
 <div id="toast"></div>
 
-<script src="./admin-impact.js"></script>
+<script src="./admin-impact.js?v=20261014-r2"></script>
 <script>
 (function () {
   'use strict';
@@ -758,6 +758,20 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   }
 
   var state = { csrf: null, address: null, page: 1, q: '', actual: null, cambios: {}, adminVerified: false, connectionWarningShown: false };
+  var authEpoch = 0, authGeneration = 0, renewalWork = null, csrfWork = null, renewalTimer = null;
+  var renewalRetryAt = 0, renewalError = null;
+  var observedCsrfCookie = null;
+  function csrfActual() {
+    var cookie = readCookie('csrf-token');
+    // Another tab can rotate a shared cookie. Host-only API cookies may instead only be readable through the JSON response.
+    if (cookie && cookie !== observedCsrfCookie) { observedCsrfCookie = cookie; state.csrf = cookie; }
+    return state.csrf || cookie;
+  }
+  function guardarCsrf(value) {
+    observedCsrfCookie = readCookie('csrf-token');
+    state.csrf = value || observedCsrfCookie || null;
+    return state.csrf;
+  }
 
   // ── Avisos ───────────────────────────────────────────────────────────────
   var toastTimer = null;
@@ -789,36 +803,111 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
     });
   }
 
-  function pedir(ruta, opciones) {
-    opciones = opciones || {};
-    opciones.credentials = 'include';
-    opciones.mode = 'cors';
-    var csrf = readCookie('csrf-token') || state.csrf;
-    opciones.headers = Object.assign(
-      opciones.body != null ? { 'Content-Type': 'application/json' } : {},
-      csrf ? { 'X-CSRF-Token': csrf } : {},
-      opciones.headers || {}
-    );
-    return solicitarApi(ruta, opciones).then(function (r) {
-      return r.json().catch(function () { return {}; }).then(function (d) {
-        if (!r.ok) {
-          var e = new Error(d.message || d.error || ('La API respondió HTTP ' + r.status));
-          e.status = r.status; e.code = d.error;
-          e.diagnostic = d.diagnostic || { code: d.code, codeName: d.details && d.details.codeName, stage: d.stage, message: d.message };
-          if (state.adminVerified && (r.status === 401 || e.code === 'not_admin')) cerrarAcceso();
-          throw e;
+  function apiError(r, d) {
+    var e = new Error(d.message || d.error || ('La API respondió HTTP ' + r.status));
+    e.status = r.status; e.code = d.error;
+    e.diagnostic = d.diagnostic || { code: d.code, codeName: d.details && d.details.codeName, stage: d.stage, message: d.message };
+    return e;
+  }
+  function requestOptions(opciones) {
+    var result = Object.assign({}, opciones || {}, { credentials: 'include', mode: 'cors' });
+    var csrf = csrfActual();
+    result.headers = Object.assign(result.body != null ? { 'Content-Type': 'application/json' } : {}, result.headers || {});
+    Object.keys(result.headers).forEach(function (name) { if (name.toLowerCase() === 'x-csrf-token') delete result.headers[name]; });
+    if (csrf) result.headers['X-CSRF-Token'] = csrf;
+    return result;
+  }
+  function abortIfChanged(expectedEpoch, opciones) {
+    if (expectedEpoch !== authEpoch || (opciones && opciones.signal && opciones.signal.aborted)) {
+      var e = new Error('La solicitud pertenece a una sesión anterior.'); e.name = 'AbortError'; throw e;
+    }
+  }
+  function programarRenovacion(delay) {
+    clearTimeout(renewalTimer);
+    if (!state.adminVerified) return;
+    renewalTimer = setTimeout(function () {
+      renovarSesion().catch(function (e) {
+        if (state.adminVerified && e.name !== 'AbortError') {
+          aviso('La sesión no se pudo renovar por un fallo temporal; volveré a intentarlo.', 'warn');
+          programarRenovacion(30000);
         }
-        return d;
       });
+    }, delay || 240000);
+  }
+  function renovarSesion() {
+    if (renewalWork) return renewalWork;
+    if (renewalError && Date.now() < renewalRetryAt) return Promise.reject(renewalError);
+    var expectedEpoch = authEpoch;
+    renewalWork = solicitarApi('/api/auth/refresh', requestOptions({ method: 'POST', body: '{}' })).then(async function (r) {
+      var d = await r.json().catch(function () { return {}; });
+      abortIfChanged(expectedEpoch);
+      if (!r.ok) {
+        if (r.status === 401 || d.error === 'not_admin') cerrarAcceso();
+        throw apiError(r, d);
+      }
+      // Refresh rotates both credential cookies and the CSRF token. Never reuse the old header.
+      guardarCsrf(d.csrfToken);
+      renewalError = null; renewalRetryAt = 0;
+      authGeneration++;
+      programarRenovacion();
+    }).catch(function (e) {
+      if (e.status !== 401 && e.code !== 'not_admin' && e.name !== 'AbortError') {
+        renewalError = e; renewalRetryAt = Date.now() + 30000;
+      }
+      throw e;
+    }).finally(function () { renewalWork = null; });
+    return renewalWork;
+  }
+  function renovarCsrf() {
+    if (csrfWork) return csrfWork;
+    var expectedEpoch = authEpoch;
+    csrfWork = solicitarApi('/api/auth/csrf-token', requestOptions()).then(async function (r) {
+      var d = await r.json().catch(function () { return {}; });
+      abortIfChanged(expectedEpoch);
+      if (!r.ok) throw apiError(r, d);
+      guardarCsrf(d.csrfToken);
+      if (!state.csrf) throw new Error('La API no devolvió un token CSRF válido.');
+    }).finally(function () { csrfWork = null; });
+    return csrfWork;
+  }
+  async function pedirRespuesta(ruta, opciones) {
+    var expectedEpoch = authEpoch, generation = authGeneration;
+    var isAdmin = ruta.indexOf('/api/admin/') === 0, renewed = false, csrfRetried = false;
+    if (isAdmin && renewalWork) { await renewalWork; generation = authGeneration; }
+    while (true) {
+      abortIfChanged(expectedEpoch, opciones);
+      var r = await solicitarApi(ruta, requestOptions(opciones));
+      if (r.ok) return r;
+      var d = await r.json().catch(function () { return {}; });
+      abortIfChanged(expectedEpoch, opciones);
+      if (d.error === 'not_admin') { cerrarAcceso(); throw apiError(r, d); }
+      if (isAdmin && r.status === 401 && !renewed) {
+        renewed = true;
+        // Concurrent requests may finish with old 401s after another request already renewed.
+        if (authGeneration === generation) await renovarSesion();
+        continue;
+      }
+      if (isAdmin && r.status === 403 && d.error === 'csrf_token_invalid' && !csrfRetried) {
+        csrfRetried = true; await renovarCsrf(); continue;
+      }
+      if (isAdmin && r.status === 401) cerrarAcceso();
+      throw apiError(r, d);
+    }
+  }
+  function pedir(ruta, opciones) {
+    return pedirRespuesta(ruta, opciones).then(function (r) {
+      return r.json().catch(function () { return {}; });
     });
   }
 
   var impact = window.AdminImpactPanel.create({
-    request: pedir, api: api, notice: aviso,
-    csrf: function () { return readCookie('csrf-token') || state.csrf; },
+    request: pedir, requestResponse: pedirRespuesta, api: api, notice: aviso,
+    onRefresh: function () { return cargarResumen(); },
+    csrf: csrfActual,
     onUnauthorized: function () { cerrarAcceso(); }
   });
   function cerrarAcceso() {
+    authEpoch++; clearTimeout(renewalTimer);
     state.adminVerified = false;
     impact.stop();
     cerrarFicha();
@@ -839,7 +928,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
 
   async function getCsrf() {
     var d = await pedir('/api/auth/csrf-token');
-    state.csrf = readCookie('csrf-token') || d.csrfToken || null;
+    guardarCsrf(d.csrfToken);
     if (!state.csrf) throw new Error('La API no devolvió un token CSRF válido. Comprueba el backend publicado antes de volver a conectar.');
     return state.csrf;
   }
@@ -859,7 +948,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
     var firma = await provider.request({ method: 'personal_sign', params: [mensaje, cuenta] });
 
     var cabeceras = { 'Content-Type': 'application/json' };
-    var csrf = readCookie('csrf-token') || state.csrf;
+    var csrf = csrfActual();
     if (csrf) cabeceras['X-CSRF-Token'] = csrf;
 
     var lr = await solicitarApi('/api/auth/login', {
@@ -901,9 +990,10 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
         aviso('Entrada rechazada: ' + ((r.cuerpo && (r.cuerpo.message || r.cuerpo.error)) || r.status), 'err');
         return;
       }
-      if (r.cuerpo && r.cuerpo.csrfToken) state.csrf = r.cuerpo.csrfToken;
+      if (r.cuerpo && r.cuerpo.csrfToken) guardarCsrf(r.cuerpo.csrfToken);
 
       state.address = cuenta.toLowerCase();
+      renewalError = null; renewalRetryAt = 0;
       await comprobarAdmin();
     } catch (e) {
       aviso('No se pudo entrar: ' + (e.message || e), 'err');
@@ -918,15 +1008,15 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
     try {
       var d = await pedir('/api/admin/whoami');
       await getCsrf();
-      state.address = d.address || state.address;
+      state.address = String(d.address || state.address || '').toLowerCase();
       $('walletChip').innerHTML = '<span class="dot"></span><span>' + esc(corto(state.address)) + '</span>';
       $('gate').classList.add('hidden');
       $('panel').classList.remove('hidden');
       $('reloadBtn').classList.remove('hidden');
       state.adminVerified = true;
+      programarRenovacion();
       impact.start();
       await Promise.all([
-        cargarResumen(),
         cargarTablas(),
         cargarColeccionNft(),
         cargarJugadores(),
@@ -1603,7 +1693,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   $('saveBtn').addEventListener('click', guardar);
   $('reloadBtn').addEventListener('click', function () {
     impact.refresh();
-    cargarResumen(); cargarTablas(); cargarColeccionNft(); cargarJugadores();
+    cargarTablas(); cargarColeccionNft(); cargarJugadores();
     cargarConfigSiembra(); cargarConfigClasificacion();
   });
   $('tablasBtn').addEventListener('click', cargarTablas);
@@ -1619,6 +1709,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   window.addEventListener('pageshow', function (e) {
     if (e.persisted) comprobarAdmin(true).catch(function () {});
   });
+  window.addEventListener('pagehide', function () { clearTimeout(renewalTimer); });
   var adminProvider = getProvider();
   if (adminProvider && adminProvider.on) {
     adminProvider.on('accountsChanged', function (accounts) {
@@ -1628,7 +1719,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
       }
     });
     adminProvider.on('disconnect', function () {
-      if (state.adminVerified) cerrarAcceso();
+      if (state.adminVerified) aviso('La cartera perdió conexión con su RPC. Tu sesión administrativa sigue activa.', 'warn');
     });
   }
 

@@ -2,8 +2,7 @@
 (function (global) {
   'use strict';
   var BASE = '/api/admin/impact';
-  var SUMMARY_INTERVAL = 45000;
-  var SCAN_INTERVAL = 8000;
+  var SUMMARY_INTERVAL = 10000;
 
   function escapeHtml(value) {
     return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
@@ -143,6 +142,10 @@
       '',
       en ? '5. VERIFIABILITY AND COVERAGE' : '5. VERIFICABILIDAD Y COBERTURA',
       field(en ? 'Historical analysis status' : 'Estado del análisis histórico', summary.scan && summary.scan.status),
+      field(en ? 'Coverage starts at block' : 'Cobertura desde el bloque', summary.scan && summary.scan.coverageStartBlock),
+      summary.scan && summary.scan.coverageBasis === 'verified_first_create' ?
+        (en ? 'Execution coverage starts at a verified deployment anchor. Possible transfers to the address before contract creation are outside this range.' :
+          'La cobertura de ejecución parte de un despliegue verificado. Posibles envíos a la dirección anteriores a su creación quedan fuera de este rango.') : '',
       en ? 'CSV evidence contains the full player audit and recorded hash history. JSON evidence contains the current contract, Relayer and coverage snapshot. Hashes can be checked on the configured LitVM explorer.' : 'La evidencia CSV incluye la auditoría completa de jugadores y el historial de hashes registrados. La evidencia JSON incluye la instantánea del contrato, del Relayer y su cobertura. Los hashes pueden verificarse en el explorador LitVM configurado.',
       field(en ? 'Transaction explorer base' : 'Base del explorador de transacciones', summary.explorerTxBase),
       en ? 'Counts use unique canonical transaction hashes. Successful player actions, reverted transactions and pending submissions are reported separately. Multiple decoded operations can belong to one transaction; their action counts should not be added to infer transaction volume.' : 'Los conteos utilizan hashes únicos de transacciones canónicas. Las acciones exitosas, revertidas y pendientes se presentan por separado. Varias operaciones decodificadas pueden pertenecer a una misma transacción; no se deben sumar las acciones para deducir el volumen de transacciones.',
@@ -156,7 +159,7 @@
   function create(options) {
     var $ = function (id) { return document.getElementById(id); };
     var active = false, epoch = 0, summary = null, page = 1, limit = 50, total = 0;
-    var summaryTimer = null, scanTimer = null, searchTimer = null;
+    var summaryTimer = null, searchTimer = null;
     var summaryWork = null, scanWork = null, userWork = null, refreshWork = null;
     var controllers = new Set(), userController = null, userRequestId = 0;
     var reportSummary = null, lastUsers = null, generatingReport = false;
@@ -194,10 +197,11 @@
       setText('impactSponsored', number(relayer.sponsoredContractTransactions) + ' minadas · ' + number(relayer.sponsoredUniqueRegisteredPlayers) + ' jugadores con éxitos');
       setText('impactRelayerStatus', (relayer.status || 'Sin lectura') + ' · chain ' + (contract.chainId == null ? '—' : contract.chainId));
       setText('impactNonceNote', 'El nonce corresponde a toda la actividad de la wallet; el volumen del contrato se cuenta por hashes únicos. ' + (relayer.note || ''));
-      setText('impactUpdated', 'Instantánea: ' + timestamp(data.generatedAt) + ' · actualización cada 45 s');
+      setText('impactUpdated', 'Instantánea: ' + timestamp(data.generatedAt) + ' · actualización cada 10 s');
       var notes = qualityNotes(data);
       if (users.activeDefinition) notes.push('Usuarios activos: ' + users.activeDefinition);
       if (relayer.sponsorshipCoverage) notes.push(relayer.sponsorshipCoverage);
+      if (relayer.observedAt) notes.push('Saldo y nonce del RPC observados: ' + timestamp(relayer.observedAt) + '. Su lectura puede preceder a la instantánea del resumen.');
       notes.push('Firmas observadas: hashes únicos del Relayer actual guardados en el ledger para este contrato (firmadas, pendientes, exitosas o revertidas), incluido historial recuperado. No contabiliza todos los intentos locales de firma.');
       if (retention.definition) notes.push('Retención D7: ' + retention.definition);
       notes.push('— indica que la fuente no ofrece un valor verificable. Los ceros se muestran solamente cuando el backend los devuelve.');
@@ -210,7 +214,8 @@
       scan = scan || {};
       var labels = { idle: 'Sin iniciar', running: 'Analizando en el backend', scanning: 'Analizando en el backend', starting: 'Preparando análisis', queued: 'En cola', retrying: 'Reintentando lectura RPC', completed: 'Análisis completado', complete: 'Análisis completado', failed: 'Análisis detenido con error', error: 'Análisis detenido con error · puedes reanudar con analizarCC', interrupted: 'Análisis interrumpido · puedes reanudar con analizarCC', paused: 'Análisis pausado', stopped: 'Análisis detenido' };
       setText('impactScanStatus', labels[scan.status] || scan.status || 'Sin estado disponible');
-      if (/^(complete|completed)$/.test(scan.status || '') && scan.historyComplete === false) setText('impactScanStatus', 'Análisis completado · cobertura histórica parcial');
+      if (/^(complete|completed)$/.test(scan.status || '') && scan.historyComplete === false) setText('impactScanStatus',
+        scan.contractExecutionHistoryComplete ? 'Análisis completado · desde despliegue verificado' : 'Análisis completado · cobertura histórica parcial');
       $('analizarCC').disabled = running(scan);
       var detail = [];
       if (running(scan) || /^(complete|completed)$/.test(scan.status || '')) scanStartDiagnostic = null;
@@ -219,15 +224,19 @@
       var reason = diagnosticText(diagnostic, previousError);
       if (reason && !running(scan) && !/^(complete|completed)$/.test(scan.status || '')) {
         setText('impactScanStatus', String(diagnostic && diagnostic.code) === '14031' || /^14031/.test(String(previousError || ''))
-          ? 'Análisis bloqueado por falta de espacio en MongoDB' : 'Análisis pendiente de resolver un error');
+          ? 'Error de espacio registrado en MongoDB · comprueba el diagnóstico actual' : 'Análisis pendiente de resolver un error');
       }
       if (scan.nextBlock != null) detail.push('Siguiente bloque: ' + number(scan.nextBlock));
       if (scan.targetBlock != null) detail.push('Objetivo: ' + number(scan.targetBlock));
+      if (scan.deploymentBlock != null && scan.coverageBasis === 'verified_first_create') detail.push('Cobertura de ejecución desde despliegue verificado: ' + number(scan.deploymentBlock));
       var processedBlocks = scan.processedBlocks != null ? scan.processedBlocks : scan.scannedBlocks;
       if (processedBlocks != null) detail.push('Lecturas de bloques procesadas: ' + number(processedBlocks));
       if (scan.indexedTransactions != null) detail.push('Tx indexadas: ' + number(scan.indexedTransactions));
       if (scan.confirmations != null) detail.push('Confirmaciones requeridas: ' + number(scan.confirmations));
       if (scan.updatedAt) detail.push('Guardado: ' + timestamp(scan.updatedAt));
+      if (scan.nextRetryAt) detail.push('Próximo intento RPC: ' + timestamp(scan.nextRetryAt));
+      var retries = scan.retryCount != null ? scan.retryCount : scan.retryAttempt;
+      if (retries) detail.push('Reintentos: ' + number(retries));
       if (reason) detail.push(reason);
       if (scan.message) detail.push(scan.message);
       setText('impactScanDetail', detail.join(' · ') || 'El análisis lee la cadena y guarda el progreso en la base de datos. La cobertura histórica depende del RPC y la evidencia disponible.');
@@ -239,8 +248,6 @@
       }
       $('impactScanProgress').hidden = progress == null || !Number.isFinite(Number(progress));
       if (!$('impactScanProgress').hidden) $('impactScanProgress').value = Math.min(100, Math.max(0, Number(progress)));
-      clearTimeout(scanTimer);
-      if (active) scanTimer = setTimeout(function () { loadScan(); }, running(scan) ? SCAN_INTERVAL : SUMMARY_INTERVAL);
     }
     function renderUsers(data) {
       page = Math.max(1, Number(data.page) || page); limit = Math.max(1, Number(data.limit) || 50); total = Number(data.total) || 0;
@@ -317,7 +324,6 @@
         if (active && epoch === expectedEpoch) renderScan(data.scan || data);
       }).catch(function (e) {
         failure(e, 'No se pudo leer el progreso del análisis', expectedEpoch);
-        if (active && epoch === expectedEpoch) { clearTimeout(scanTimer); scanTimer = setTimeout(loadScan, SUMMARY_INTERVAL); }
       }).finally(function () {
         controllers.delete(c); if (expectedEpoch === epoch) scanWork = null;
       });
@@ -351,7 +357,7 @@
       try {
         var csrf = options.csrf(), headers = { Accept: accept };
         if (csrf) headers['X-CSRF-Token'] = csrf;
-        var response = await fetch(options.api(BASE + path), { credentials: 'include', mode: 'cors', headers: headers, signal: c.signal });
+        var response = await options.requestResponse(BASE + path, { headers: headers, signal: c.signal });
         if (!response.ok) {
           var body = await response.json().catch(function () { return {}; });
           var error = new Error(body.message || body.error || 'HTTP ' + response.status); error.status = response.status; error.code = body.error; throw error;
@@ -416,7 +422,10 @@
       if (refreshWork) return refreshWork;
       var expectedEpoch = epoch;
       clearTimeout(summaryTimer);
-      refreshWork = Promise.all([loadSummary(), loadUsers()]).finally(function () {
+      // The summary already carries scan status. One polling cycle avoids a second scan timer/RPC path.
+      refreshWork = Promise.all([loadSummary().then(function (data) {
+        if (active && epoch === expectedEpoch && (!data || !data.scan)) return loadScan();
+      }), loadUsers(), options.onRefresh ? options.onRefresh() : Promise.resolve()]).finally(function () {
         if (epoch !== expectedEpoch) return;
         refreshWork = null;
         clearTimeout(summaryTimer);
@@ -425,7 +434,7 @@
       return refreshWork;
     }
     function stop() {
-      active = false; epoch++; clearTimeout(summaryTimer); clearTimeout(scanTimer); clearTimeout(searchTimer);
+      active = false; epoch++; clearTimeout(summaryTimer); clearTimeout(searchTimer);
       controllers.forEach(function (c) { c.abort(); }); controllers.clear();
       summaryWork = scanWork = userWork = refreshWork = null; userController = null; summary = reportSummary = lastUsers = null; generatingReport = false;
       scanStartDiagnostic = null;
@@ -439,7 +448,7 @@
     function start() {
       if (active) return refresh();
       active = true; epoch++; page = 1; $('analizarCC').disabled = false;
-      loadScan(); return refresh();
+      return refresh();
     }
     $('impactRefresh').addEventListener('click', refresh);
     $('analizarCC').addEventListener('click', startScan);
@@ -459,7 +468,7 @@
     ['impactDiscord', 'impactTwitter', 'impactCommunity'].forEach(function (id) { $(id).addEventListener('input', renderReport); });
     $('impactCopy').addEventListener('click', copyReport); $('impactPrint').addEventListener('click', printReport);
     window.addEventListener('pagehide', stop);
-    document.addEventListener('visibilitychange', function () { if (active && !document.hidden) { refresh(); loadScan(); } });
+    document.addEventListener('visibilitychange', function () { if (active && !document.hidden) refresh(); });
     stop();
     return { start: start, stop: stop, refresh: refresh };
   }
