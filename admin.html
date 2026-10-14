@@ -757,7 +757,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
     return isNaN(d) ? '—' : d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
-  var state = { csrf: null, address: null, page: 1, q: '', actual: null, cambios: {}, adminVerified: false };
+  var state = { csrf: null, address: null, page: 1, q: '', actual: null, cambios: {}, adminVerified: false, connectionWarningShown: false };
 
   // ── Avisos ───────────────────────────────────────────────────────────────
   var toastTimer = null;
@@ -780,20 +780,29 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   });
 
   // ── Peticiones ───────────────────────────────────────────────────────────
+  function solicitarApi(ruta, opciones) {
+    return fetch(api(ruta), opciones).catch(function (causa) {
+      if (causa && causa.name === 'AbortError') throw causa;
+      var e = new Error('No se pudo conectar con la API. Comprueba que el backend publicado esté activo y permita el acceso desde este dominio.');
+      e.code = 'api_unreachable';
+      throw e;
+    });
+  }
+
   function pedir(ruta, opciones) {
     opciones = opciones || {};
     opciones.credentials = 'include';
     opciones.mode = 'cors';
     var csrf = readCookie('csrf-token') || state.csrf;
     opciones.headers = Object.assign(
-      { 'Content-Type': 'application/json' },
+      opciones.body != null ? { 'Content-Type': 'application/json' } : {},
       csrf ? { 'X-CSRF-Token': csrf } : {},
       opciones.headers || {}
     );
-    return fetch(api(ruta), opciones).then(function (r) {
+    return solicitarApi(ruta, opciones).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (d) {
         if (!r.ok) {
-          var e = new Error(d.message || d.error || ('HTTP ' + r.status));
+          var e = new Error(d.message || d.error || ('La API respondió HTTP ' + r.status));
           e.status = r.status; e.code = d.error;
           if (state.adminVerified && (r.status === 401 || e.code === 'not_admin')) cerrarAcceso();
           throw e;
@@ -828,18 +837,16 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   }
 
   async function getCsrf() {
-    try {
-      var r = await fetch(api('/api/auth/csrf-token'), { credentials: 'include', mode: 'cors' });
-      var d = await r.json();
-      state.csrf = readCookie('csrf-token') || d.csrfToken || null;
-    } catch (e) { /* se intenta igual */ }
+    var d = await pedir('/api/auth/csrf-token');
+    state.csrf = readCookie('csrf-token') || d.csrfToken || null;
+    if (!state.csrf) throw new Error('La API no devolvió un token CSRF válido. Comprueba el backend publicado antes de volver a conectar.');
     return state.csrf;
   }
 
   // Un ciclo completo: pedir nonce → firmar → login. Devuelve la respuesta.
   async function cicloDeEntrada(provider, cuenta) {
     aviso('Pidiendo nonce…');
-    var nr = await fetch(api('/api/auth/nonce?address=' + encodeURIComponent(cuenta.toLowerCase())),
+    var nr = await solicitarApi('/api/auth/nonce?address=' + encodeURIComponent(cuenta.toLowerCase()),
                          { credentials: 'include', mode: 'cors' });
     if (!nr.ok) throw new Error('No se pudo obtener el nonce');
     var nonce = (await nr.json()).nonce;
@@ -854,7 +861,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
     var csrf = readCookie('csrf-token') || state.csrf;
     if (csrf) cabeceras['X-CSRF-Token'] = csrf;
 
-    var lr = await fetch(api('/api/auth/login'), {
+    var lr = await solicitarApi('/api/auth/login', {
       method: 'POST', credentials: 'include', mode: 'cors', headers: cabeceras,
       body: JSON.stringify({ address: cuenta.toLowerCase(), signature: firma, token: token, message: mensaje })
     });
@@ -905,7 +912,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   }
 
   // `silencioso` = es el sondeo del arranque, no una acción del usuario. Ahí no
-  // se avisa de nada: que no haya sesión todavía es lo normal, no un error.
+  // No tener sesión es normal; una API inaccesible se avisa una vez.
   async function comprobarAdmin(silencioso) {
     try {
       var d = await pedir('/api/admin/whoami');
@@ -926,7 +933,13 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
         cargarConfigClasificacion()
       ]);
     } catch (e) {
-      if (silencioso) return;
+      if (silencioso) {
+        if (e.code === 'api_unreachable' && !state.connectionWarningShown) {
+          state.connectionWarningShown = true;
+          aviso(e.message, 'err');
+        }
+        return;
+      }
       if (e.code === 'not_admin') {
         aviso('Esa cartera no es administradora. Añádela a ADMIN_ADDRESSES o dale admin en el contrato.', 'err');
       } else if (e.status === 401) {
