@@ -314,6 +314,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   .cfg-actions .btn { flex: 1; min-width: 140px; }
 }
 </style>
+<link rel="stylesheet" href="./admin-impact.css">
 </head>
 <body>
 
@@ -341,6 +342,66 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
 
 <!-- Panel -->
 <main id="panel" class="hidden">
+  <section id="impactPanel" aria-labelledby="impactTitle">
+    <div class="section-head impact-heading">
+      <div><h2 id="impactTitle">Impacto del juego · LitVM</h2><p class="dim impact-subtitle">Jugadores del backend y actividad verificable del contrato único.</p></div>
+      <span class="dim" id="impactUpdated" role="status">Esperando datos…</span>
+      <button class="btn btn-sm" id="impactRefresh">Actualizar métricas</button>
+    </div>
+    <div class="kpis impact-kpis" id="impactKpis"><div class="kpi"><span class="label">Métricas verificables</span><div class="value">—</div></div></div>
+    <div class="impact-network">
+      <div class="impact-network-item"><span class="dim">Contrato único</span><span class="mono impact-address" id="impactContract">—</span></div>
+      <div class="impact-network-item"><span class="dim">Wallet Relayer</span><span class="mono impact-address" id="impactRelayer">—</span></div>
+      <div class="impact-network-item"><span class="dim">Gas disponible (zkLTC)</span><span class="mono" id="impactGas">—</span></div>
+      <div class="impact-network-item"><span class="dim">Nonce minado / pendiente</span><span class="mono" id="impactNonce">—</span></div>
+      <div class="impact-network-item"><span class="dim">Firmas del Relayer · ledger observado</span><span class="mono" id="impactSigned">—</span></div>
+      <div class="impact-network-item"><span class="dim">Tx patrocinadas · wallet actual</span><span class="mono" id="impactSponsored">—</span></div>
+      <div class="impact-network-item"><span class="dim">Estado Relayer · red</span><span id="impactRelayerStatus">—</span></div>
+    </div>
+    <p class="dim impact-footnote" id="impactNonceNote">El nonce corresponde a toda la actividad de la wallet; el volumen del contrato se cuenta por hashes únicos.</p>
+    <details class="impact-quality"><summary>Cobertura y metodología de las métricas</summary><div id="impactQuality">Esperando datos del backend.</div></details>
+    <div class="impact-scan">
+      <div class="impact-scan-head"><div><h3>Recuperación histórica del contrato</h3><p class="dim">El backend conserva el progreso para continuar el análisis al cerrar esta página.</p></div><button class="btn btn-primary" id="analizarCC">analizarCC</button></div>
+      <div id="impactScanStatus" role="status" aria-live="polite">Esperando estado…</div>
+      <progress id="impactScanProgress" max="100" value="0" aria-label="Progreso de recuperación histórica" hidden></progress>
+      <p class="dim impact-footnote" id="impactScanDetail"></p>
+    </div>
+    <div class="cfg-actions impact-export-actions">
+      <button class="btn" id="impactExportCsv">Exportar Auditoría de Usuarios (CSV)</button>
+      <button class="btn" id="impactExportJson">Exportar Resumen On-Chain (JSON)</button>
+      <button class="btn btn-primary" id="impactGenerate">Generar Reporte de Impacto (LitVM Grant &amp; Airdrop)</button>
+    </div>
+    <p class="dim impact-footnote">Las exportaciones incluyen todos los registros autorizados, aunque la tabla tenga filtros o varias páginas. No incluyen contraseñas ni claves privadas.</p>
+  </section>
+
+  <section aria-labelledby="impactAuditTitle">
+    <div class="section-head"><h2 id="impactAuditTitle">Auditoría · Relayer → jugador real</h2><span class="dim" id="impactUserInfo" role="status">—</span></div>
+    <div class="search-bar impact-search">
+      <label class="impact-search-field"><span class="impact-sr-only">Buscar jugador por ID, nombre o billetera</span><input type="search" id="impactQ" placeholder="Buscar por ID, nombre o billetera…" autocomplete="off"></label>
+      <label class="impact-sort"><span class="dim">Ordenar por</span><select id="impactSort"><option value="txCount">Más transacciones</option><option value="playtime">Más tiempo jugado</option></select></label>
+      <button class="btn" id="impactSearch">Buscar</button><button class="btn" id="impactClear">Limpiar</button>
+    </div>
+    <div class="table-wrap" style="margin-top:12px">
+      <table class="impact-audit"><caption class="impact-sr-only">Auditoría de jugadores con hashes y operaciones del contrato atribuidas por el backend.</caption><thead><tr><th>ID / Jugador / Billetera</th><th>Registro / última conexión</th><th>Tiempo total</th><th>Tx del actor / asociadas</th><th>Acciones del actor</th><th>Tx / hora · actividad</th><th>Último Tx Hash</th></tr></thead><tbody id="impactUserRows"><tr><td colspan="7" class="empty">Esperando autenticación…</td></tr></tbody></table>
+    </div>
+    <div class="pager"><button class="btn btn-sm" id="impactPrev" disabled>‹ Anterior</button><span class="dim mono" id="impactPage">—</span><button class="btn btn-sm" id="impactNext" disabled>Siguiente ›</button></div>
+    <p class="dim impact-footnote">“Actividad Orgánica Humana” es un indicio de comportamiento, no demuestra que una cuenta sea humana. El actor requiere un caller autenticado o un emisor registrado; las asociaciones históricas al inventario no prueban quién originó la operación y se muestran aparte. Un hash se cuenta una vez por actor; una transacción puede contener varias operaciones. Los usuarios del backend no equivalen a wallets únicas on-chain.</p>
+  </section>
+
+  <section id="impactReportPanel" class="hidden" aria-labelledby="impactReportTitle">
+    <div class="section-head"><h2 id="impactReportTitle">LitVM Impact Report</h2><span class="dim" id="impactReportSnapshot"></span></div>
+    <div class="cfg-grid">
+      <label class="cfg-field"><span>Idioma del informe</span><select id="impactReportLanguage"><option value="en">English</option><option value="es">Español</option></select></label>
+      <label class="cfg-field"><span>Discord · miembros actuales</span><input type="text" id="impactDiscord" maxlength="120" placeholder="Añadir cifra y fecha de medición" autocomplete="off"><small class="dim">Dato aportado por el administrador.</small></label>
+      <label class="cfg-field"><span>X / Twitter · seguidores actuales</span><input type="text" id="impactTwitter" maxlength="120" placeholder="Añadir cifra y fecha de medición" autocomplete="off"><small class="dim">Dato aportado por el administrador.</small></label>
+      <label class="cfg-field"><span>Crecimiento · fuentes y contexto</span><input type="text" id="impactCommunity" maxlength="1000" placeholder="Enlaces, periodo de crecimiento, publicaciones…" autocomplete="off"></label>
+    </div>
+    <label class="impact-report-label" for="impactReportText">Informe editable listo para copiar</label>
+    <textarea id="impactReportText" class="impact-report-text" spellcheck="false" rows="24"></textarea>
+    <div class="cfg-actions"><button class="btn" id="impactRegenerate">Regenerar con datos actuales</button><button class="btn btn-primary" id="impactCopy">Copiar reporte</button><button class="btn" id="impactPrint">Imprimir / Guardar PDF</button></div>
+    <p class="dim impact-footnote">El informe conserva la fecha de la instantánea. Al regenerarlo se reemplaza el texto editado. Para crear el PDF, elige “Guardar como PDF” en el diálogo de impresión.</p>
+  </section>
+
   <section>
     <div class="section-head"><h2>Resumen</h2></div>
     <div class="kpis" id="kpis"></div>
@@ -521,7 +582,8 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
       <button class="btn btn-primary" id="topBtn">Ver clasificación</button>
     </div>
 
-    <table class="tabla" style="margin-top:14px;">
+    <div class="table-wrap" style="margin-top:14px;">
+    <table class="tabla">
       <thead>
         <tr>
           <th>#</th><th>Jugador</th><th>Tiempo jugado</th>
@@ -532,6 +594,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
         <tr><td colspan="6" class="empty">Pon un número y pulsa «Ver clasificación».</td></tr>
       </tbody>
     </table>
+    </div>
   </section>
 
   <!-- ══════════════════════════════════════════════════════════════════════
@@ -664,6 +727,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
 
 <div id="toast"></div>
 
+<script src="./admin-impact.js"></script>
 <script>
 (function () {
   'use strict';
@@ -693,7 +757,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
     return isNaN(d) ? '—' : d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
-  var state = { csrf: null, address: null, page: 1, q: '', actual: null, cambios: {} };
+  var state = { csrf: null, address: null, page: 1, q: '', actual: null, cambios: {}, adminVerified: false };
 
   // ── Avisos ───────────────────────────────────────────────────────────────
   var toastTimer = null;
@@ -731,11 +795,27 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
         if (!r.ok) {
           var e = new Error(d.message || d.error || ('HTTP ' + r.status));
           e.status = r.status; e.code = d.error;
+          if (state.adminVerified && (r.status === 401 || e.code === 'not_admin')) cerrarAcceso();
           throw e;
         }
         return d;
       });
     });
+  }
+
+  var impact = window.AdminImpactPanel.create({
+    request: pedir, api: api, notice: aviso,
+    csrf: function () { return readCookie('csrf-token') || state.csrf; },
+    onUnauthorized: function () { cerrarAcceso(); }
+  });
+  function cerrarAcceso() {
+    state.adminVerified = false;
+    impact.stop();
+    cerrarFicha();
+    $('gate').classList.remove('hidden');
+    $('panel').classList.add('hidden');
+    $('reloadBtn').classList.add('hidden');
+    $('walletChip').innerHTML = '<span class="dot off"></span><span>Vuelve a conectar</span>';
   }
 
   // ── Entrada con cartera admin ────────────────────────────────────────────
@@ -829,11 +909,14 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   async function comprobarAdmin(silencioso) {
     try {
       var d = await pedir('/api/admin/whoami');
+      await getCsrf();
       state.address = d.address || state.address;
       $('walletChip').innerHTML = '<span class="dot"></span><span>' + esc(corto(state.address)) + '</span>';
       $('gate').classList.add('hidden');
       $('panel').classList.remove('hidden');
       $('reloadBtn').classList.remove('hidden');
+      state.adminVerified = true;
+      impact.start();
       await Promise.all([
         cargarResumen(),
         cargarTablas(),
@@ -1505,6 +1588,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   });
   $('saveBtn').addEventListener('click', guardar);
   $('reloadBtn').addEventListener('click', function () {
+    impact.refresh();
     cargarResumen(); cargarTablas(); cargarColeccionNft(); cargarJugadores();
     cargarConfigSiembra(); cargarConfigClasificacion();
   });
@@ -1518,6 +1602,21 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   $('prevBtn').addEventListener('click', function () { if (state.page > 1) { state.page--; cargarJugadores(); } });
   $('nextBtn').addEventListener('click', function () { state.page++; cargarJugadores(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrarFicha(); });
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) comprobarAdmin(true).catch(function () {});
+  });
+  var adminProvider = getProvider();
+  if (adminProvider && adminProvider.on) {
+    adminProvider.on('accountsChanged', function (accounts) {
+      if (state.adminVerified && (!accounts[0] || accounts[0].toLowerCase() !== state.address)) {
+        cerrarAcceso();
+        aviso('La cartera cambió. Conecta la cuenta administradora para volver a entrar.', 'warn');
+      }
+    });
+    adminProvider.on('disconnect', function () {
+      if (state.adminVerified) cerrarAcceso();
+    });
+  }
 
   // Si ya había sesión de admin abierta, se entra directo sin volver a firmar.
   comprobarAdmin(true).catch(function () {});
