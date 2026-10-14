@@ -804,6 +804,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
         if (!r.ok) {
           var e = new Error(d.message || d.error || ('La API respondió HTTP ' + r.status));
           e.status = r.status; e.code = d.error;
+          e.diagnostic = d.diagnostic || { code: d.code, codeName: d.details && d.details.codeName, stage: d.stage, message: d.message };
           if (state.adminVerified && (r.status === 401 || e.code === 'not_admin')) cerrarAcceso();
           throw e;
         }

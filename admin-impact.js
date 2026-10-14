@@ -39,6 +39,15 @@
     } catch (_) { return null; }
   }
   function running(scan) { return scan && /^(running|scanning|starting|retrying|queued)$/i.test(scan.status || ''); }
+  function diagnosticText(diagnostic, previousError) {
+    diagnostic = diagnostic || {};
+    if (String(diagnostic.code) === '14031' || diagnostic.codeName === 'OutOfDiskSpace' || /^14031(?:\b|:)/.test(String(previousError || ''))) {
+      return 'MongoDB respondió 14031 (OutOfDiskSpace): no dispone de espacio para escribir la auditoría o crear sus índices. En Railway, revisa y amplía el volumen del servicio MongoDB; después vuelve a pulsar analizarCC. La conexión puede seguir disponible.';
+    }
+    var text = diagnostic.message || previousError;
+    if (!text) return '';
+    return String(text) + (diagnostic.stage ? ' · Etapa: ' + diagnostic.stage : '');
+  }
   function qualityNotes(summary) {
     var notes = (summary.quality && summary.quality.notes || []).map(function (n) {
       return typeof n === 'string' ? n : n.message || n.note || JSON.stringify(n);
@@ -203,6 +212,13 @@
       if (/^(complete|completed)$/.test(scan.status || '') && scan.historyComplete === false) setText('impactScanStatus', 'Análisis completado · cobertura histórica parcial');
       $('analizarCC').disabled = running(scan);
       var detail = [];
+      var diagnostic = scan.initializationDiagnostic || scan.errorDiagnostic || scan.legacyImportDiagnostic;
+      var previousError = scan.lastError || scan.error || scan.legacyImportError;
+      var reason = diagnosticText(diagnostic, previousError);
+      if (reason && !running(scan) && !/^(complete|completed)$/.test(scan.status || '')) {
+        setText('impactScanStatus', String(diagnostic && diagnostic.code) === '14031' || /^14031/.test(String(previousError || ''))
+          ? 'Análisis bloqueado por falta de espacio en MongoDB' : 'Análisis pendiente de resolver un error');
+      }
       if (scan.nextBlock != null) detail.push('Siguiente bloque: ' + number(scan.nextBlock));
       if (scan.targetBlock != null) detail.push('Objetivo: ' + number(scan.targetBlock));
       var processedBlocks = scan.processedBlocks != null ? scan.processedBlocks : scan.scannedBlocks;
@@ -210,7 +226,7 @@
       if (scan.indexedTransactions != null) detail.push('Tx indexadas: ' + number(scan.indexedTransactions));
       if (scan.confirmations != null) detail.push('Confirmaciones requeridas: ' + number(scan.confirmations));
       if (scan.updatedAt) detail.push('Guardado: ' + timestamp(scan.updatedAt));
-      if (scan.lastError || scan.error) detail.push('Detalle: ' + (scan.lastError || scan.error));
+      if (reason) detail.push(reason);
       if (scan.message) detail.push(scan.message);
       setText('impactScanDetail', detail.join(' · ') || 'El análisis lee la cadena y guarda el progreso en la base de datos. La cobertura histórica depende del RPC y la evidencia disponible.');
       var progress = scan.progressPercent;
@@ -316,7 +332,11 @@
         options.notice('El análisis está en el backend; su progreso permanece guardado aunque cierres el panel.');
         await loadSummary();
       } catch (e) {
-        if (active && epoch === expectedEpoch) { $('analizarCC').disabled = false; setText('impactScanStatus', 'No se pudo iniciar; vuelve a consultar el estado.'); }
+        if (active && epoch === expectedEpoch) {
+          $('analizarCC').disabled = false;
+          setText('impactScanStatus', 'No se pudo iniciar analizarCC');
+          setText('impactScanDetail', diagnosticText(e.diagnostic, e.message) || 'Vuelve a consultar el estado del análisis.');
+        }
         failure(e, 'No se pudo iniciar analizarCC', expectedEpoch);
       } finally { controllers.delete(c); }
     }
