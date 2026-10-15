@@ -337,6 +337,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
     <p>Conecta la cartera de administrador para abrir el registro de jugadores.
        Se te pedirá firmar un mensaje; no autoriza ninguna transacción.</p>
     <button class="btn btn-primary" id="connectBtn">Conectar cartera</button>
+    <p id="adminAccessStatus" class="hidden" role="status" aria-live="polite"></p>
   </div>
 </div>
 
@@ -760,6 +761,8 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   var state = { csrf: null, address: null, page: 1, q: '', actual: null, cambios: {}, adminVerified: false, connectionWarningShown: false };
   var authEpoch = 0, authGeneration = 0, renewalWork = null, csrfWork = null, renewalTimer = null;
   var renewalRetryAt = 0, renewalError = null;
+  var verificationTimer = null, verificationWork = null, verificationController = null;
+  var verificationGeneration = 0, verificationAttempts = 0, verificationPending = false, verificationRetryAt = 0;
   var observedCsrfCookie = null;
   function csrfActual() {
     var cookie = readCookie('csrf-token');
@@ -806,6 +809,9 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   function apiError(r, d) {
     var e = new Error(d.message || d.error || ('La API respondió HTTP ' + r.status));
     e.status = r.status; e.code = d.error;
+    var retryAfter = r.headers && r.headers.get('Retry-After');
+    var retryMs = retryAfter && (/^\d+(\.\d+)?$/.test(retryAfter) ? Number(retryAfter) * 1000 : Date.parse(retryAfter) - Date.now());
+    e.retryAfterMs = Number.isFinite(retryMs) && retryMs > 0 ? retryMs : Number(d.retryAfterMs || (d.retryAfterSeconds || d.retryAfter) * 1000) || 10000;
     e.diagnostic = d.diagnostic || { code: d.code, codeName: d.details && d.details.codeName, stage: d.stage, message: d.message };
     return e;
   }
@@ -908,6 +914,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   });
   function cerrarAcceso() {
     authEpoch++; clearTimeout(renewalTimer);
+    cancelarVerificacion();
     state.adminVerified = false;
     impact.stop();
     cerrarFicha();
@@ -960,9 +967,15 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   }
 
   async function conectar() {
+    if (verificationPending) {
+      if (Date.now() < verificationRetryAt) return;
+      verificationAttempts = 0;
+      return comprobarAdmin();
+    }
     var provider = getProvider();
     if (!provider) { aviso('No se detectó MetaMask. Instálalo para continuar.', 'err'); return; }
 
+    cancelarVerificacion();
     $('connectBtn').disabled = true;
     try {
       aviso('Conectando cartera…');
@@ -998,47 +1011,106 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
     } catch (e) {
       aviso('No se pudo entrar: ' + (e.message || e), 'err');
     } finally {
-      $('connectBtn').disabled = false;
+      $('connectBtn').disabled = verificationPending && Date.now() < verificationRetryAt;
     }
   }
 
-  // `silencioso` = es el sondeo del arranque, no una acción del usuario. Ahí no
-  // No tener sesión es normal; una API inaccesible se avisa una vez.
-  async function comprobarAdmin(silencioso) {
-    try {
-      var d = await pedir('/api/admin/whoami');
-      await getCsrf();
-      state.address = String(d.address || state.address || '').toLowerCase();
-      $('walletChip').innerHTML = '<span class="dot"></span><span>' + esc(corto(state.address)) + '</span>';
-      $('gate').classList.add('hidden');
-      $('panel').classList.remove('hidden');
-      $('reloadBtn').classList.remove('hidden');
-      state.adminVerified = true;
-      programarRenovacion();
-      impact.start();
-      await Promise.all([
-        cargarTablas(),
-        cargarColeccionNft(),
-        cargarJugadores(),
-        cargarConfigSiembra(),
-        cargarConfigClasificacion()
-      ]);
-    } catch (e) {
-      if (silencioso) {
-        if (e.code === 'api_unreachable' && !state.connectionWarningShown) {
-          state.connectionWarningShown = true;
-          aviso(e.message, 'err');
+  function cancelarVerificacion() {
+    clearTimeout(verificationTimer); verificationTimer = null;
+    if (verificationController) verificationController.abort();
+    verificationController = null; verificationWork = null;
+    verificationGeneration++; verificationPending = false; verificationAttempts = 0; verificationRetryAt = 0;
+    $('adminAccessStatus').classList.add('hidden');
+    $('connectBtn').textContent = 'Conectar cartera';
+    $('connectBtn').disabled = false;
+  }
+  function accesoTemporal(e) {
+    return e.code === 'admin_verification_unavailable' || e.code === 'admin_rpc_unavailable' || e.status === 429 || e.status === 503;
+  }
+  function reintentarVerificacion(e) {
+    verificationPending = true;
+    var delay = Math.min(30000, Math.max(10000, e.retryAfterMs || 10000));
+    var autoRetry = verificationAttempts < 6;
+    verificationRetryAt = autoRetry ? Date.now() + delay : 0;
+    $('walletChip').innerHTML = '<span class="dot off"></span><span>Verificando acceso</span>';
+    $('connectBtn').textContent = autoRetry ? 'Verificando acceso…' : 'Reintentar verificación';
+    $('connectBtn').disabled = autoRetry;
+    $('adminAccessStatus').classList.remove('hidden');
+    $('adminAccessStatus').textContent = autoRetry
+      ? 'Tu sesión sigue activa. El RPC no pudo verificar el permiso de administrador; reintentaré en ' + Math.ceil(delay / 1000) + ' segundos. No necesitas volver a firmar.'
+      : 'El RPC todavía no permite verificar el acceso. Tu sesión sigue activa; pulsa Reintentar verificación para comprobarla sin volver a firmar.';
+    clearTimeout(verificationTimer);
+    if (autoRetry) verificationTimer = setTimeout(function () {
+      verificationTimer = null; comprobarAdmin().catch(function () {});
+    }, delay);
+  }
+
+  // La verificación reusa la sesión y tiene un solo vuelo; un fallo RPC nunca inicia otra firma.
+  // `silencioso` es el sondeo de arranque: no tener sesión ahí es normal.
+  function comprobarAdmin(silencioso) {
+    if (verificationWork) return verificationWork;
+    clearTimeout(verificationTimer); verificationTimer = null;
+    var expectedEpoch = authEpoch, generation = verificationGeneration;
+    var controller = new AbortController(); verificationController = controller;
+    var work = (async function () {
+      try {
+        verificationAttempts++;
+        var d = await pedir('/api/admin/whoami', { signal: controller.signal });
+        abortIfChanged(expectedEpoch, { signal: controller.signal });
+        if (generation !== verificationGeneration) return;
+        await getCsrf();
+        abortIfChanged(expectedEpoch, { signal: controller.signal });
+        if (generation !== verificationGeneration) return;
+        verificationPending = false; verificationAttempts = 0; verificationRetryAt = 0;
+        $('adminAccessStatus').classList.add('hidden');
+        $('connectBtn').textContent = 'Conectar cartera';
+        state.address = String(d.address || state.address || '').toLowerCase();
+        $('walletChip').innerHTML = '<span class="dot"></span><span>' + esc(corto(state.address)) + '</span>';
+        $('gate').classList.add('hidden');
+        $('panel').classList.remove('hidden');
+        $('reloadBtn').classList.remove('hidden');
+        state.adminVerified = true;
+        programarRenovacion();
+        impact.start();
+        await Promise.all([
+          cargarTablas(),
+          cargarColeccionNft(),
+          cargarJugadores(),
+          cargarConfigSiembra(),
+          cargarConfigClasificacion()
+        ]);
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        // Terminal auth errors already canceled verification through cerrarAcceso; retain their original notice.
+        if (generation !== verificationGeneration && e.code !== 'not_admin' && e.status !== 401) return;
+        if (accesoTemporal(e)) { reintentarVerificacion(e); return; }
+        verificationPending = false; verificationAttempts = 0; verificationRetryAt = 0;
+        $('adminAccessStatus').classList.add('hidden');
+        $('connectBtn').textContent = 'Conectar cartera';
+        if (silencioso) {
+          if (e.code === 'api_unreachable' && !state.connectionWarningShown) {
+            state.connectionWarningShown = true;
+            aviso(e.message, 'err');
+          }
+          return;
         }
-        return;
+        if (e.code === 'not_admin') {
+          aviso('Esa cartera no es administradora. Añádela a ADMIN_ADDRESSES o dale admin en el contrato.', 'err');
+        } else if (e.status === 401) {
+          aviso('Conecta la cartera de administrador para entrar.', 'warn');
+        } else {
+          aviso('No se pudo comprobar el acceso: ' + (e.message || e), 'err');
+        }
+      } finally {
+        if (generation === verificationGeneration) {
+          verificationController = null;
+          $('connectBtn').disabled = verificationPending && Date.now() < verificationRetryAt;
+        }
       }
-      if (e.code === 'not_admin') {
-        aviso('Esa cartera no es administradora. Añádela a ADMIN_ADDRESSES o dale admin en el contrato.', 'err');
-      } else if (e.status === 401) {
-        aviso('Conecta la cartera de administrador para entrar.', 'warn');
-      } else {
-        aviso('No se pudo comprobar el acceso: ' + (e.message || e), 'err');
-      }
-    }
+    })();
+    verificationWork = work;
+    work.finally(function () { if (verificationWork === work) verificationWork = null; });
+    return work;
   }
 
   // ── Resumen ──────────────────────────────────────────────────────────────
@@ -1709,11 +1781,11 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   window.addEventListener('pageshow', function (e) {
     if (e.persisted) comprobarAdmin(true).catch(function () {});
   });
-  window.addEventListener('pagehide', function () { clearTimeout(renewalTimer); });
+  window.addEventListener('pagehide', function () { clearTimeout(renewalTimer); cancelarVerificacion(); });
   var adminProvider = getProvider();
   if (adminProvider && adminProvider.on) {
     adminProvider.on('accountsChanged', function (accounts) {
-      if (state.adminVerified && (!accounts[0] || accounts[0].toLowerCase() !== state.address)) {
+      if ((state.adminVerified || verificationPending || verificationWork) && (!accounts[0] || accounts[0].toLowerCase() !== state.address)) {
         cerrarAcceso();
         aviso('La cartera cambió. Conecta la cuenta administradora para volver a entrar.', 'warn');
       }
