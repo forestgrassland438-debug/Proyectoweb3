@@ -116,11 +116,39 @@
   var LARGO_EDIFICIO = 0.50;
   var ALFA_EDIFICIO  = 0.90;
 
-  /* Las texturas de sombra ya dibujadas: clave nueva → dónde cae el pie dentro
-     de ella. Vive en el módulo y no en la escena porque las texturas viven en
-     game.textures, que sobrevive a los cambios de escena: al volver al mapa no
-     hay que volver a dibujar ninguna. */
+  /* El horno pertenece al TextureManager. Una escena que recalcula sus sombras
+     nunca sustituye una textura que otra escena todavía está dibujando. */
   var horneadas = {};
+  var hornosPorGestor = new WeakMap(), serieHorno = 0;
+  function hornosDe(scene) {
+    var r = hornosPorGestor.get(scene.textures);
+    if (!r) { r = { cache: Object.create(null), escenas: new Set(), propias: new Map() }; hornosPorGestor.set(scene.textures, r); }
+    horneadas = r.cache;
+    return r;
+  }
+  function limpiarHornos(scene) {
+    var r = hornosPorGestor.get(scene.textures);
+    if (!r) return;
+    var usadas = new Set(), clavesUsadas = new Set();
+    r.escenas.forEach(function (sc) {
+      var st = sc.__gfSombras;
+      if (st) st.sombras.forEach(function (d) { if (d.horno) { usadas.add(d.horno); clavesUsadas.add(d.horno.clave); } });
+    });
+    Object.keys(r.cache).forEach(function (receta) {
+      var horno = r.cache[receta];
+      if (usadas.has(horno)) return;
+      delete r.cache[receta];
+    });
+    r.propias.forEach(function (textura, clave) {
+      if (clavesUsadas.has(clave)) return;
+      try { if (scene.textures.get(clave) === textura) scene.textures.remove(clave); } catch (e) {}
+      r.propias.delete(clave);
+    });
+    if (!r.escenas.size) {
+      if (horneadas === r.cache) horneadas = {};
+      hornosPorGestor.delete(scene.textures);
+    }
+  }
 
   function log() {
     if (!window.GF_SOMBRAS_DEBUG) return;
@@ -218,13 +246,16 @@
    */
   function hornear(scene, claveOrigen, largo, nombreFrame) {
     var esFrame = !!(nombreFrame && nombreFrame !== '__BASE');
-    var clave = 'gfsom_' + claveOrigen + (esFrame ? '_' + nombreFrame : '') +
-                '_' + Math.round(largo * 1000);
-    if (horneadas[clave] && scene.textures.exists(clave)) return horneadas[clave];
-
     var tex = scene.textures.get(claveOrigen);
     var img = tex && tex.getSourceImage ? tex.getSourceImage() : null;
     if (!img || !img.width || !img.height) return null;
+    var cache = hornosDe(scene).cache;
+    var receta = JSON.stringify([claveOrigen, esFrame ? nombreFrame : '', largo, GIRO, DIFUMINA, COLOR,
+      scene.__gfSombras ? scene.__gfSombras.revisionHorno || 0 : 0]);
+    var previa = cache[receta];
+    if (previa && previa.origen === tex && scene.textures.get(previa.clave) === previa.textura) return previa;
+    var clave;
+    do { clave = 'gfsom_' + (++serieHorno); } while (scene.textures.exists(clave));
 
     var fx = 0, fy = 0;
     var w = img.width, h = img.height;
@@ -260,6 +291,7 @@
     var margen = Math.ceil(DIFUMINA * 3) + 2;      // sitio para el difuminado
     var W = Math.max(1, Math.ceil(maxX - minX) + margen * 2);
     var H = Math.max(1, Math.ceil(maxY - minY) + margen * 2);
+    if (!Number.isFinite(W) || !Number.isFinite(H) || W > 8192 || H > 8192 || W * H > 16777216) return null;
     var offX = -minX + margen;
     var offY = -minY + margen;
 
@@ -268,7 +300,7 @@
       cv = document.createElement('canvas');
       cv.width = W; cv.height = H;
       ctx = cv.getContext('2d');
-      if (!ctx) return null;
+      if (!ctx) { cv.width = cv.height = 0; return null; }
 
       /* 1. La silueta, ya cizallada y difuminada. Se dibuja en color: de esta
             pasada lo que interesa es el ALFA. */
@@ -288,13 +320,15 @@
       ctx.fillRect(0, 0, W, H);
       ctx.globalCompositeOperation = 'source-over';
     } catch (e) {
+      if (cv) cv.width = cv.height = 0;
       log('no se pudo dibujar la sombra de', claveOrigen, e && e.message);
       return null;
     }
 
     try {
-      if (scene.textures.exists(clave)) scene.textures.remove(clave);
       var t = scene.textures.addCanvas(clave, cv);
+      if (!t) { cv.width = cv.height = 0; return null; }
+      hornosDe(scene).propias.set(clave, t);
       /* Filtro suave SOLO para las sombras. El juego va en pixel art con
          NEAREST, pero una sombra difuminada escalada con NEAREST recupera el
          borde de escalera que se acaba de quitar. */
@@ -303,18 +337,22 @@
         t.setFilter(Phaser.Textures.FilterMode.LINEAR);
       }
     } catch (e) {
+      try { if (t && scene.textures.get(clave) === t) scene.textures.remove(clave); } catch (ignorado) {}
+      if (cv) cv.width = cv.height = 0;
+      hornosDe(scene).propias.delete(clave);
       log('no se pudo registrar', clave, e && e.message);
       return null;
     }
 
-    horneadas[clave] = {
+    cache[receta] = {
       clave: clave,
+      origen: tex, textura: t,
       // Dónde cae el pie dentro de la textura nueva, normalizado.
       ox: offX / W, oy: offY / H,
       // Y dónde está ese mismo pie en la textura ORIGINAL, para colocarla.
       pieX: gx / w, pieY: gy / h
     };
-    return horneadas[clave];
+    return cache[receta];
   }
 
   /** Crea la sombra de un objeto. */
@@ -479,7 +517,7 @@
 
   function montar(scene, opciones) {
     opciones = opciones || {};
-    if (!scene || !scene.add) return null;
+    if (!scene || !scene.add || !scene.textures || !scene.events) return null;
     if (scene.__gfSombras) { recalcular(scene); return scene.__gfSombras; }
 
     var st = {
@@ -495,6 +533,7 @@
       porFrame: opciones.porFrame || POR_FRAME
     };
     scene.__gfSombras = st;
+    hornosDe(scene).escenas.add(scene);
 
     st.onUpdate = function () {
       var i, d;
@@ -572,9 +611,10 @@
     }
     st.pendientes.length = 0;
     scene.__gfSombras = null;
-    /* Las texturas dibujadas NO se borran a propósito: son pocas y pequeñas
-       (una por textura y longitud), viven en game.textures y así al volver al
-       mapa las sombras aparecen sin volver a dibujar nada. */
+    var hornos = hornosPorGestor.get(scene.textures);
+    if (hornos) hornos.escenas.delete(scene);
+    limpiarHornos(scene);
+    st.scene = st.onUpdate = st.onApagar = null;
   }
 
   function recalcular(scene) {
@@ -588,8 +628,8 @@
   /** Vuelve a dibujarlas todas. Hace falta al cambiar el ángulo o la longitud. */
   function rehornear(scene) {
     var st = scene && scene.__gfSombras;
-    horneadas = {};
     if (!st) return 0;
+    st.revisionHorno = (st.revisionHorno || 0) + 1;
     for (var i = 0; i < st.sombras.length; i++) {
       var d = st.sombras[i];
       if (!d.spr) continue;
@@ -600,6 +640,7 @@
       d.spr.setTexture(horno.clave);
       d.spr.setOrigin(horno.ox, horno.oy);
     }
+    limpiarHornos(scene);
     return st.sombras.length;
   }
 
@@ -612,11 +653,11 @@
     ajustar: function (op, scene) {
       op = op || {};
       var rehacerTodo = false;
-      if (typeof op.giro === 'number')     { GIRO = op.giro;         rehacerTodo = true; }
-      if (typeof op.largo === 'number')    { LARGO = op.largo;       rehacerTodo = true; }
-      if (typeof op.difumina === 'number') { DIFUMINA = op.difumina; rehacerTodo = true; }
+      if (Number.isFinite(op.giro))     { GIRO = op.giro;         rehacerTodo = true; }
+      if (Number.isFinite(op.largo) && op.largo >= 0)    { LARGO = op.largo;       rehacerTodo = true; }
+      if (Number.isFinite(op.difumina) && op.difumina >= 0) { DIFUMINA = op.difumina; rehacerTodo = true; }
       if (typeof op.color === 'string')    { COLOR = op.color;       rehacerTodo = true; }
-      if (typeof op.alfa === 'number')     ALFA = op.alfa;   // no hace falta rehornear
+      if (Number.isFinite(op.alfa))     ALFA = Math.min(1, Math.max(0, op.alfa));   // no hace falta rehornear
       if (rehacerTodo && scene) rehornear(scene);
       return { giro: GIRO, largo: LARGO, alfa: ALFA,
                difumina: DIFUMINA, color: COLOR };
@@ -625,7 +666,8 @@
       var st = scene && scene.__gfSombras;
       if (!st) return null;
       var n = 0, k;
-      for (k in horneadas) if (horneadas.hasOwnProperty(k)) n++;
+      var cache = hornosDe(scene).cache;
+      for (k in cache) if (Object.prototype.hasOwnProperty.call(cache, k)) n++;
       return { hechas: st.hechas, vivas: st.sombras.length,
                pendientes: st.pendientes.length,
                texturasDibujadas: n,
