@@ -29,6 +29,7 @@ class BlockchainManager {
         this._destroyed = false;
         this._requests = new Set();
         this._authRevision = 0;
+        this._executionQueue = Promise.resolve();
         this.currentNetwork = 'litvm';
         this.contracts = new Map();
         this.currentAccount = null;
@@ -163,6 +164,18 @@ class BlockchainManager {
      * Ejecutar función de contrato - MÉTODO PRINCIPAL
      */
     async execute(contractId, functionName, parameters = {}) {
+        const revision = this._authRevision;
+        const accessToken = this._getAccessToken();
+        const pending = this._executionQueue.then(() => {
+            if (this._destroyed || revision !== this._authRevision || accessToken !== this._getAccessToken()) throw new Error('La sesión cambió');
+            return this._execute(contractId, functionName, parameters);
+        });
+        // Una transacción fallida no bloquea las siguientes reservas de nonce.
+        this._executionQueue = pending.catch(() => {});
+        return pending;
+    }
+
+    async _execute(contractId, functionName, parameters = {}) {
         // Validaciones esenciales
         if (!this.isAuthenticated) {
             throw new Error('Usuario no autenticado. Inicia sesión primero.');
@@ -180,6 +193,10 @@ class BlockchainManager {
         // Preparar y validar parámetros
         const preparedParams = this.prepareParameters(contract.functions[functionName], parameters);
         this.validateParameters(contract.functions[functionName], preparedParams);
+
+        // Validar storage antes de reservar un nonce; JSON corrupto o el
+        // acceso bloqueado por el navegador no debe consumir una reserva.
+        if (!this._getAccessToken()) throw new Error('Token de acceso no disponible');
 
         // Incrementar nonce localmente
         const userNonce = this.incrementLocalNonce();
@@ -209,9 +226,10 @@ class BlockchainManager {
      */
     setUser(authData) {
         if (this._destroyed) return this;
+        const nonce = this._normalizeNonce(authData.nonce);
         this._authRevision++;
         this.currentAccount = authData.address;
-        this.userNonce = authData.nonce;
+        this.userNonce = nonce;
         this.playerName = authData.playerName;
         this.isAuthenticated = true;
         
@@ -224,7 +242,7 @@ class BlockchainManager {
      */
     updateNonce(newNonce) {
         if (this._destroyed) return this;
-        this.userNonce = newNonce;
+        this.userNonce = this._normalizeNonce(newNonce);
         return this;
     }
 
@@ -283,20 +301,14 @@ class BlockchainManager {
     async sendTransaction(payload, contract) {
         if (this._destroyed) throw new Error('BlockchainManager cerrado');
         const revision = this._authRevision;
-        const tokens = JSON.parse(sessionStorage.getItem('authTokens') || '{}');
-        const accessToken = tokens.accessToken;
-
-        if (!accessToken) {
-            throw new Error('Token de acceso no disponible');
-        }
-
-        // Mostrar en UI de transacciones
-        if (typeof window.showTxHubItem === 'function') {
-            window.showTxHubItem(null, 'sent', 
-                `📤 ${contract.name}.${payload.action} (nonce: ${payload.userNonce})`);
-        }
-
         try {
+            const accessToken = this._getAccessToken();
+            if (!accessToken) throw new Error('Token de acceso no disponible');
+            // Un error del panel no cancela una transacción válida.
+            try {
+                if (typeof window.showTxHubItem === 'function') window.showTxHubItem(null, 'sent',
+                    `📤 ${contract.name}.${payload.action} (nonce: ${payload.userNonce})`);
+            } catch (_) {}
             const baseUrl = this._baseUrl();
             const { response, data: responseText } = await this._request(`${baseUrl}/api/transaction/execute`, {
                 method: 'POST',
@@ -319,7 +331,7 @@ class BlockchainManager {
             }
 
             // Actualizar nonce desde backend
-            if (revision === this._authRevision && JSON.parse(sessionStorage.getItem('authTokens') || '{}').accessToken === accessToken && result.newNonce !== undefined && result.newNonce !== null) {
+            if (revision === this._authRevision && this._getAccessToken() === accessToken && result.newNonce !== undefined && result.newNonce !== null) {
                 this.updateNonce(result.newNonce);
             }
 
@@ -335,11 +347,33 @@ class BlockchainManager {
 
     // ==================== MANEJO DE NONCE ====================
 
+    _getAccessToken() {
+        try {
+            const tokens = JSON.parse(sessionStorage.getItem('authTokens') || '{}');
+            return tokens && typeof tokens.accessToken === 'string' ? tokens.accessToken : null;
+        } catch (_) { return null; }
+    }
+
+    _normalizeNonce(value) {
+        // El protocolo histórico usa cadenas hex sin prefijo; los números
+        // JS sí representan una cantidad decimal. Conservar esa distinción.
+        if (typeof value === 'number') {
+            if (!Number.isSafeInteger(value) || value < 0) throw new Error('Nonce inválido');
+            return BigInt(value).toString(16);
+        }
+        if (typeof value === 'bigint') {
+            if (value < 0n) throw new Error('Nonce inválido');
+            return value.toString(16);
+        }
+        if (typeof value !== 'string' || !/^(?:0x)?[0-9a-f]{1,64}$/i.test(value)) throw new Error('Nonce inválido');
+        return BigInt('0x' + value.replace(/^0x/i, '')).toString(16);
+    }
+
     incrementLocalNonce() {
-        if (!this.userNonce) return null;
+        if (this.userNonce === null || this.userNonce === undefined) return null;
         
         try {
-            const currentNonce = BigInt('0x' + this.userNonce);
+            const currentNonce = BigInt('0x' + this._normalizeNonce(this.userNonce));
             const newNonce = (currentNonce + 1n).toString(16);
             this.userNonce = newNonce.replace(/^0+/, '') || '0';
             return this.userNonce;
@@ -353,7 +387,7 @@ class BlockchainManager {
         if (!this.userNonce) return;
 
         try {
-            const currentNonce = BigInt('0x' + this.userNonce);
+            const currentNonce = BigInt('0x' + this._normalizeNonce(this.userNonce));
             // Nunca bajar de 0: un nonce negativo ("-1" en hex) haría que el
             // siguiente BigInt('0x-1') lanzara y dejara el nonce corrupto.
             if (currentNonce <= 0n) {
@@ -392,8 +426,7 @@ class BlockchainManager {
     async fetchUserData() {
         const revision = this._authRevision;
         try {
-            const tokens = JSON.parse(sessionStorage.getItem('authTokens') || '{}');
-            const accessToken = tokens.accessToken;
+            const accessToken = this._getAccessToken();
             
             if (!accessToken) return null;
 
@@ -405,7 +438,7 @@ class BlockchainManager {
             });
 
             if (response.ok) {
-                if (revision !== this._authRevision || JSON.parse(sessionStorage.getItem('authTokens') || '{}').accessToken !== accessToken) return null;
+                if (revision !== this._authRevision || this._getAccessToken() !== accessToken) return null;
                 this.setUser(userData);
                 return userData;
             }

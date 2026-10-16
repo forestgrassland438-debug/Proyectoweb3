@@ -156,9 +156,20 @@
     return out.join('\n');
   }
 
+  var currentPanel = null;
   function create(options) {
+    if (currentPanel) currentPanel.destroy();
     var $ = function (id) { return document.getElementById(id); };
-    var active = false, epoch = 0, summary = null, page = 1, limit = 50, total = 0;
+    var active = false, destroyed = false, epoch = 0, summary = null, page = 1, limit = 50, total = 0;
+    var listeners = [], downloads = new Set();
+    function listen(target, type, fn) {
+      if (!target) return;
+      target.addEventListener(type, fn);
+      listeners.push(function () { target.removeEventListener(type, fn); });
+    }
+    function setHtml(id, value) { var el = $(id); if (el) el.innerHTML = value; }
+    function setDisabled(id, value) { var el = $(id); if (el) el.disabled = value; }
+    function valueOf(id, fallback) { var el = $(id); return el ? el.value : (fallback || ''); }
     var summaryTimer = null, searchTimer = null;
     var summaryWork = null, scanWork = null, userWork = null, refreshWork = null;
     var controllers = new Set(), userController = null, userRequestId = 0;
@@ -170,7 +181,7 @@
       if (e.status === 401 || e.code === 'not_admin') { options.onUnauthorized(); return; }
       options.notice(message + ': ' + (e.message || e), 'err');
     }
-    function setText(id, value) { $(id).textContent = value == null || value === '' ? '—' : value; }
+    function setText(id, value) { var el = $(id); if (el) el.textContent = value == null || value === '' ? '—' : value; }
     function renderSummary(data) {
       var users = data.users || {}, play = data.playtime || {}, contract = data.contract || {}, relayer = data.relayer || {};
       var retention = users.retention7d || {};
@@ -188,9 +199,9 @@
         ['Tx sin atribución', number(contract.unattributedTransactions), 'No asignadas a un jugador por suposición'],
         ['Retención · D7', retention.percent == null ? '—' : number(retention.percent, 2) + '%', retention.percent == null ? 'Historial de cohortes insuficiente' : number(retention.returning) + ' / ' + number(retention.eligible) + ' jugadores elegibles']
       ];
-      $('impactKpis').innerHTML = cards.map(function (c) {
+      setHtml('impactKpis', cards.map(function (c) {
         return '<div class="kpi"><span class="label">' + escapeHtml(c[0]) + '</span><div class="value' + (c[3] ? ' accent' : '') + '">' + escapeHtml(c[1]) + '</div><small class="detail">' + escapeHtml(c[2]) + '</small></div>';
-      }).join('');
+      }).join(''));
       setText('impactContract', contract.address); setText('impactRelayer', relayer.address);
       setText('impactGas', relayer.balanceNative); setText('impactNonce', number(relayer.nonceLatest) + ' / ' + number(relayer.noncePending));
       setText('impactSigned', number(relayer.ledgerSignedTransactions));
@@ -205,10 +216,10 @@
       notes.push('Firmas observadas: hashes únicos del Relayer actual guardados en el ledger para este contrato (firmadas, pendientes, exitosas o revertidas), incluido historial recuperado. No contabiliza todos los intentos locales de firma.');
       if (retention.definition) notes.push('Retención D7: ' + retention.definition);
       notes.push('— indica que la fuente no ofrece un valor verificable. Los ceros se muestran solamente cuando el backend los devuelve.');
-      $('impactQuality').innerHTML = '<ul>' + notes.map(function (n) { return '<li>' + escapeHtml(n) + '</li>'; }).join('') + '</ul>';
+      setHtml('impactQuality', '<ul>' + notes.map(function (n) { return '<li>' + escapeHtml(n) + '</li>'; }).join('') + '</ul>');
       if (data.scan && !scanWork) renderScan(data.scan);
       if (lastUsers) renderUsers(lastUsers);
-      ['impactExportCsv', 'impactExportJson', 'impactGenerate'].forEach(function (id) { $(id).disabled = false; });
+      ['impactExportCsv', 'impactExportJson', 'impactGenerate'].forEach(function (id) { setDisabled(id, false); });
     }
     function renderScan(scan) {
       scan = scan || {};
@@ -216,7 +227,7 @@
       setText('impactScanStatus', labels[scan.status] || scan.status || 'Sin estado disponible');
       if (/^(complete|completed)$/.test(scan.status || '') && scan.historyComplete === false) setText('impactScanStatus',
         scan.contractExecutionHistoryComplete ? 'Análisis completado · desde despliegue verificado' : 'Análisis completado · cobertura histórica parcial');
-      $('analizarCC').disabled = running(scan);
+      setDisabled('analizarCC', running(scan));
       var detail = [];
       if (running(scan) || /^(complete|completed)$/.test(scan.status || '')) scanStartDiagnostic = null;
       var diagnostic = scanStartDiagnostic || scan.initializationDiagnostic || scan.errorDiagnostic || scan.legacyImportDiagnostic;
@@ -246,15 +257,18 @@
         var count = Number(scan.targetBlock) - Number(startBlock) + 1;
         progress = count > 0 ? (Number(scan.nextBlock) - Number(startBlock)) / count * 100 : null;
       }
-      $('impactScanProgress').hidden = progress == null || !Number.isFinite(Number(progress));
-      if (!$('impactScanProgress').hidden) $('impactScanProgress').value = Math.min(100, Math.max(0, Number(progress)));
+      var progressEl = $('impactScanProgress');
+      if (progressEl) {
+        progressEl.hidden = progress == null || !Number.isFinite(Number(progress));
+        if (!progressEl.hidden) progressEl.value = Math.min(100, Math.max(0, Number(progress)));
+      }
     }
     function renderUsers(data) {
       page = Math.max(1, Number(data.page) || page); limit = Math.max(1, Number(data.limit) || 50); total = Number(data.total) || 0;
       var pages = Math.max(1, Math.ceil(total / limit)), rows = data.rows || [];
       setText('impactUserInfo', number(total) + ' jugadores · tx exitosas con evidencia atribuida');
-      setText('impactPage', page + ' / ' + pages); $('impactPrev').disabled = page <= 1; $('impactNext').disabled = page * limit >= total;
-      $('impactUserRows').innerHTML = rows.map(function (row) {
+      setText('impactPage', page + ' / ' + pages); setDisabled('impactPrev', page <= 1); setDisabled('impactNext', page * limit >= total);
+      setHtml('impactUserRows', rows.map(function (row) {
         var actions = Object.entries(row.actions || {}).map(function (entry) {
           return '<span class="impact-action">' + escapeHtml(entry[0]) + ': ' + escapeHtml(number(entry[1])) + '</span>';
         }).join('');
@@ -275,13 +289,13 @@
           '<td><span class="mono">' + escapeHtml(number(row.txPerHour, 2)) + ' tx/h</span><span class="impact-secondary"><span class="pill' + (warn ? ' warn' : '') + '">' + escapeHtml(label) + '</span></span>' +
           '<span class="impact-secondary">' + escapeHtml(row.activityReason || 'Indicio de comportamiento; no prueba que sea una persona.') + '</span></td>' +
           '<td>' + hash + associatedHash + '</td></tr>';
-      }).join('') || '<tr><td colspan="7" class="empty">No hay jugadores que coincidan con la búsqueda.</td></tr>';
+      }).join('') || '<tr><td colspan="7" class="empty">No hay jugadores que coincidan con la búsqueda.</td></tr>');
     }
     function loadSummary() {
       if (!active) return Promise.resolve();
       if (summaryWork) return summaryWork;
       var expectedEpoch = epoch, c = controller();
-      $('impactRefresh').disabled = true;
+      setDisabled('impactRefresh', true);
       summaryWork = options.request(BASE + '/summary', { signal: c.signal }).then(function (data) {
         if (!active || epoch !== expectedEpoch) return;
         summary = data; renderSummary(data); return data;
@@ -292,7 +306,7 @@
       }).finally(function () {
         controllers.delete(c);
         if (expectedEpoch !== epoch) return;
-        summaryWork = null; $('impactRefresh').disabled = false;
+        summaryWork = null; setDisabled('impactRefresh', false);
       });
       return summaryWork;
     }
@@ -302,7 +316,7 @@
       var c = controller(), expectedEpoch = epoch, requestId = ++userRequestId;
       userController = c;
       setText('impactUserInfo', 'Cargando auditoría…');
-      var route = BASE + '/users?page=' + page + '&limit=' + limit + '&sort=' + encodeURIComponent($('impactSort').value) + '&q=' + encodeURIComponent($('impactQ').value.trim());
+      var route = BASE + '/users?page=' + page + '&limit=' + limit + '&sort=' + encodeURIComponent(valueOf('impactSort', 'txCount')) + '&q=' + encodeURIComponent(valueOf('impactQ').trim());
       userWork = options.request(route, { signal: c.signal }).then(function (data) {
         if (!active || expectedEpoch !== epoch || requestId !== userRequestId) return;
         lastUsers = data; renderUsers(data);
@@ -332,7 +346,7 @@
     async function startScan() {
       if (!active) return;
       var expectedEpoch = epoch, c = controller();
-      $('analizarCC').disabled = true; setText('impactScanStatus', 'Solicitando análisis al backend…');
+      setDisabled('analizarCC', true); setText('impactScanStatus', 'Solicitando análisis al backend…');
       scanStartDiagnostic = null;
       try {
         var data = await options.request(BASE + '/scan', { method: 'POST', body: JSON.stringify({}), signal: c.signal });
@@ -343,7 +357,7 @@
       } catch (e) {
         if (active && epoch === expectedEpoch) {
           scanStartDiagnostic = e.diagnostic || { message: e.message };
-          $('analizarCC').disabled = false;
+          setDisabled('analizarCC', false);
           setText('impactScanStatus', 'No se pudo iniciar analizarCC');
           setText('impactScanDetail', diagnosticText(e.diagnostic, e.message) || 'Vuelve a consultar el estado del análisis.');
         }
@@ -353,7 +367,7 @@
     async function download(path, id, filename, accept) {
       if (!active) return;
       var expectedEpoch = epoch, c = controller(), button = $(id);
-      button.disabled = true;
+      if (button) button.disabled = true;
       try {
         var csrf = options.csrf(), headers = { Accept: accept };
         if (csrf) headers['X-CSRF-Token'] = csrf;
@@ -366,45 +380,52 @@
         if (!active || expectedEpoch !== epoch) return;
         var url = URL.createObjectURL(blob), a = document.createElement('a');
         a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+        var downloadJob = { url: url, timer: null };
+        downloads.add(downloadJob);
+        downloadJob.timer = setTimeout(function () { URL.revokeObjectURL(url); downloads.delete(downloadJob); }, 30000);
         options.notice('Exportación completa descargada desde el backend.');
       } catch (e) { failure(e, 'No se pudo exportar', expectedEpoch); }
-      finally { controllers.delete(c); if (active && epoch === expectedEpoch) button.disabled = false; }
+      finally { controllers.delete(c); if (button && active && epoch === expectedEpoch) button.disabled = false; }
     }
     function renderReport() {
       if (!reportSummary) return;
-      $('impactReportText').value = buildReport(reportSummary, $('impactReportLanguage').value, { discord: $('impactDiscord').value, twitter: $('impactTwitter').value, context: $('impactCommunity').value });
+      var report = $('impactReportText');
+      if (report) report.value = buildReport(reportSummary, valueOf('impactReportLanguage'), { discord: valueOf('impactDiscord'), twitter: valueOf('impactTwitter'), context: valueOf('impactCommunity') });
       setText('impactReportSnapshot', 'Instantánea: ' + timestamp(reportSummary.generatedAt));
     }
     async function generateReport() {
       if (!active || generatingReport) return;
       var expectedEpoch = epoch;
       generatingReport = true;
-      $('impactGenerate').disabled = true; $('impactRegenerate').disabled = true;
+      setDisabled('impactGenerate', true); setDisabled('impactRegenerate', true);
       try {
         // Request an explicit fresh snapshot. A failed refresh must not silently generate a report from stale data.
         var data = await loadSummary();
         if (!data) return;
         if (!active || epoch !== expectedEpoch) return;
         summary = data; reportSummary = data; renderSummary(data); renderReport();
-        $('impactReportPanel').classList.remove('hidden');
-        $('impactReportPanel').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+        var panel = $('impactReportPanel');
+        if (panel) {
+          panel.classList.remove('hidden');
+          panel.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+        }
       } catch (e) { failure(e, 'No se pudo obtener una instantánea para el reporte', expectedEpoch); }
-      finally { if (epoch === expectedEpoch) { generatingReport = false; if (active) { $('impactGenerate').disabled = false; $('impactRegenerate').disabled = false; } } }
+      finally { if (epoch === expectedEpoch) { generatingReport = false; if (active) { setDisabled('impactGenerate', false); setDisabled('impactRegenerate', false); } } }
     }
     async function copyReport() {
-      var text = $('impactReportText').value;
+      var report = $('impactReportText'), text = report && report.value, expectedEpoch = epoch;
       if (!active || !text) return;
       try {
         if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('clipboard_unavailable');
-        await navigator.clipboard.writeText(text); options.notice('Reporte copiado.');
+        await navigator.clipboard.writeText(text); if (active && epoch === expectedEpoch) options.notice('Reporte copiado.');
       } catch (_) {
-        $('impactReportText').focus(); $('impactReportText').select();
+        if (!active || epoch !== expectedEpoch) return;
+        report.focus(); report.select();
         options.notice('Seleccioné el reporte; pulsa Ctrl+C para copiarlo.', 'warn');
       }
     }
     function printReport() {
-      if (!active || !$('impactReportText').value) return;
+      if (!active || !valueOf('impactReportText')) return;
       var popup = window.open('', '_blank');
       if (!popup) { options.notice('Permite la ventana de impresión para guardar el PDF.', 'warn'); return; }
       var doc = popup.document;
@@ -412,7 +433,7 @@
       var style = doc.createElement('style');
       style.textContent = '@page { size: A4; margin: 18mm; } body { margin: 24px; color: #18231c; font: 11pt/1.55 Arial,sans-serif; } pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }';
       doc.head.appendChild(style);
-      var pre = doc.createElement('pre'); pre.textContent = $('impactReportText').value; doc.body.appendChild(pre);
+      var pre = doc.createElement('pre'); pre.textContent = valueOf('impactReportText'); doc.body.appendChild(pre);
       var p = doc.createElement('p'); p.textContent = 'Grassland Forest · LitVM · ' + timestamp(reportSummary && reportSummary.generatedAt); p.style.fontSize = '9pt'; doc.body.appendChild(p);
       popup.focus(); popup.print();
     }
@@ -438,39 +459,52 @@
       controllers.forEach(function (c) { c.abort(); }); controllers.clear();
       summaryWork = scanWork = userWork = refreshWork = null; userController = null; summary = reportSummary = lastUsers = null; generatingReport = false;
       scanStartDiagnostic = null;
-      $('impactKpis').innerHTML = '<div class="kpi"><span class="label">Métricas verificables</span><div class="value">—</div></div>';
+      setHtml('impactKpis', '<div class="kpi"><span class="label">Métricas verificables</span><div class="value">—</div></div>');
       ['impactContract', 'impactRelayer', 'impactGas', 'impactNonce', 'impactSigned', 'impactSponsored', 'impactRelayerStatus', 'impactUpdated', 'impactUserInfo', 'impactPage', 'impactScanStatus', 'impactScanDetail'].forEach(function (id) { setText(id, '—'); });
-      $('impactUserRows').innerHTML = '<tr><td colspan="7" class="empty">Esperando autenticación…</td></tr>';
-      $('impactQuality').textContent = 'Esperando datos del backend.'; $('impactReportText').value = ''; $('impactReportPanel').classList.add('hidden');
-      $('impactScanProgress').hidden = true;
-      ['impactExportCsv', 'impactExportJson', 'impactGenerate', 'analizarCC', 'impactPrev', 'impactNext'].forEach(function (id) { $(id).disabled = true; });
+      setHtml('impactUserRows', '<tr><td colspan="7" class="empty">Esperando autenticación…</td></tr>');
+      setText('impactQuality', 'Esperando datos del backend.');
+      var report = $('impactReportText'), panel = $('impactReportPanel'), progress = $('impactScanProgress');
+      if (report) report.value = '';
+      if (panel) panel.classList.add('hidden');
+      if (progress) progress.hidden = true;
+      ['impactExportCsv', 'impactExportJson', 'impactGenerate', 'analizarCC', 'impactPrev', 'impactNext'].forEach(function (id) { setDisabled(id, true); });
     }
     function start() {
+      if (destroyed) return Promise.resolve();
       if (active) return refresh();
-      active = true; epoch++; page = 1; $('analizarCC').disabled = false;
+      active = true; epoch++; page = 1; setDisabled('analizarCC', false);
       return refresh();
     }
-    $('impactRefresh').addEventListener('click', refresh);
-    $('analizarCC').addEventListener('click', startScan);
-    $('impactSearch').addEventListener('click', search);
-    $('impactClear').addEventListener('click', function () { $('impactQ').value = ''; search(); });
-    $('impactQ').addEventListener('input', function () { clearTimeout(searchTimer); searchTimer = setTimeout(search, 300); });
-    $('impactQ').addEventListener('keydown', function (e) { if (e.key === 'Enter') search(); });
-    $('impactSort').addEventListener('change', search);
-    $('impactPrev').addEventListener('click', function () { if (page > 1) { page--; loadUsers(); } });
-    $('impactNext').addEventListener('click', function () { if (page * limit < total) { page++; loadUsers(); } });
+    function destroy() {
+      if (destroyed) return;
+      destroyed = true; stop();
+      listeners.splice(0).forEach(function (remove) { remove(); });
+      downloads.forEach(function (job) { clearTimeout(job.timer); URL.revokeObjectURL(job.url); }); downloads.clear();
+      if (currentPanel === api) currentPanel = null;
+    }
+    listen($('impactRefresh'), 'click', refresh);
+    listen($('analizarCC'), 'click', startScan);
+    listen($('impactSearch'), 'click', search);
+    listen($('impactClear'), 'click', function () { var input = $('impactQ'); if (input) input.value = ''; search(); });
+    listen($('impactQ'), 'input', function () { clearTimeout(searchTimer); searchTimer = setTimeout(search, 300); });
+    listen($('impactQ'), 'keydown', function (e) { if (e.key === 'Enter') search(); });
+    listen($('impactSort'), 'change', search);
+    listen($('impactPrev'), 'click', function () { if (page > 1) { page--; loadUsers(); } });
+    listen($('impactNext'), 'click', function () { if (page * limit < total) { page++; loadUsers(); } });
     function exportDay() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' }); }
-    $('impactExportCsv').addEventListener('click', function () { download('/export/users.csv', 'impactExportCsv', 'grassland-user-audit-' + exportDay() + '.csv', 'text/csv'); });
-    $('impactExportJson').addEventListener('click', function () { download('/export/onchain.json', 'impactExportJson', 'grassland-onchain-evidence-' + exportDay() + '.json', 'application/json'); });
-    $('impactGenerate').addEventListener('click', generateReport);
-    $('impactRegenerate').addEventListener('click', generateReport);
-    $('impactReportLanguage').addEventListener('change', renderReport);
-    ['impactDiscord', 'impactTwitter', 'impactCommunity'].forEach(function (id) { $(id).addEventListener('input', renderReport); });
-    $('impactCopy').addEventListener('click', copyReport); $('impactPrint').addEventListener('click', printReport);
-    window.addEventListener('pagehide', stop);
-    document.addEventListener('visibilitychange', function () { if (active && !document.hidden) refresh(); });
+    listen($('impactExportCsv'), 'click', function () { download('/export/users.csv', 'impactExportCsv', 'grassland-user-audit-' + exportDay() + '.csv', 'text/csv'); });
+    listen($('impactExportJson'), 'click', function () { download('/export/onchain.json', 'impactExportJson', 'grassland-onchain-evidence-' + exportDay() + '.json', 'application/json'); });
+    listen($('impactGenerate'), 'click', generateReport);
+    listen($('impactRegenerate'), 'click', generateReport);
+    listen($('impactReportLanguage'), 'change', renderReport);
+    ['impactDiscord', 'impactTwitter', 'impactCommunity'].forEach(function (id) { listen($(id), 'input', renderReport); });
+    listen($('impactCopy'), 'click', copyReport); listen($('impactPrint'), 'click', printReport);
+    listen(window, 'pagehide', stop);
+    listen(document, 'visibilitychange', function () { if (active && !document.hidden) refresh(); });
     stop();
-    return { start: start, stop: stop, refresh: refresh };
+    var api = { start: start, stop: stop, refresh: refresh, destroy: destroy };
+    currentPanel = api;
+    return api;
   }
   global.AdminImpactPanel = { create: create, buildReport: buildReport };
 })(window);

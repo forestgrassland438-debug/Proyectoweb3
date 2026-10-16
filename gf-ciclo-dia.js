@@ -40,6 +40,31 @@
 (function () {
   'use strict';
 
+  // Solo se liberan lienzos creados por este módulo y tras la última escena
+  // que comparte su TextureManager; una textura ajena con la misma clave se respeta.
+  var recursosTextura = new WeakMap();
+  function recursosDe(scene) {
+    var gestor = scene.textures, r = recursosTextura.get(gestor);
+    if (!r) { r = { escenas: new Set(), propias: new Map() }; recursosTextura.set(gestor, r); }
+    return r;
+  }
+  function crearLienzo(scene, clave, ancho, alto) {
+    var textura = scene.textures.createCanvas(clave, ancho, alto);
+    if (textura) recursosDe(scene).propias.set(clave, textura);
+    return textura;
+  }
+  function soltarTexturas(scene) {
+    var gestor = scene.textures, r = recursosTextura.get(gestor);
+    if (!r) return;
+    r.escenas.delete(scene);
+    if (r.escenas.size) return;
+    r.propias.forEach(function (textura, clave) {
+      try { if (gestor.exists(clave) && gestor.get(clave) === textura) gestor.remove(clave); } catch (e) {}
+    });
+    r.propias.clear();
+    recursosTextura.delete(gestor);
+  }
+
   var SYNC_MS       = 30 * 60 * 1000;  // cada media hora, como pide el encargo
   var REINTENTO_MS  = 60 * 1000;       // si falla la petición
   var PROFUNDIDAD   = 9000;            // por encima del mundo, debajo del HUD DOM
@@ -391,7 +416,7 @@
     // necesita un canvas de 1400x1400 para cada farol: se interpola al ampliar.
     var d = Math.min(256, radio * 2);
     radio = d / 2;
-    var canvas = scene.textures.createCanvas(clave, d, d);
+    var canvas = crearLienzo(scene, clave, d, d);
     var ctx = canvas.getContext();
     var g = ctx.createRadialGradient(radio, radio, 0, radio, radio, radio);
     // El centro borra del todo y el borde no borra nada: así la luz se difumina
@@ -426,6 +451,7 @@
 
     scene.__gfCiclo = st;
     escenas.add(scene);
+    recursosDe(scene).escenas.add(scene);
     try {
       texturaLuz(scene, 'gf_luz_poste', RADIO_POSTE);
       texturaLuz(scene, 'gf_luz_jugador', RADIO_JUGADOR);
@@ -511,7 +537,7 @@
     var scene = st.scene;
     if (!scene.textures.exists('gf_resplandor')) {
       var r = 26, d = r * 2;
-      var canvas = scene.textures.createCanvas('gf_resplandor', d, d);
+      var canvas = crearLienzo(scene, 'gf_resplandor', d, d);
       var ctx = canvas.getContext();
       var g = ctx.createRadialGradient(r, r, 0, r, r, r);
       g.addColorStop(0.00, 'rgba(255,236,170,1)');
@@ -696,6 +722,7 @@
     st.resplandores.forEach(destruirObjeto);
     st.rt = st.pincel = st.jugador = st.scene = st.onUpdate = st.onApagar = null;
     st.postes.length = 0; st.resplandores.length = 0;
+    soltarTexturas(scene);
   }
 
   // ----------------------------------------------------------- el socket

@@ -238,6 +238,13 @@
     }
   }
 
+  function quitarTrabajoFallido(trabajo) {
+    trabajo.nodos.forEach(function (el) {
+      // Una respuesta antigua no borra una traducción de otro idioma/texto.
+      if (modo + '\u0001' + el.__gftTexto === trabajo.k) quitarTraduccion(el);
+    });
+  }
+
   function vaciarCola() {
     relojLote = null;
     if (!cola.size) return;
@@ -265,7 +272,7 @@
     loteActivo = true;
     var lote = lotes.shift();
     pedirLote(lote.a, lote.trozo).catch(function () {
-      lote.trozo.forEach(function (x) { x.nodos.forEach(quitarTraduccion); });
+      lote.trozo.forEach(quitarTrabajoFallido);
     }).finally(function () {
       lote.trozo.forEach(function (x) { enCurso.delete(x.k); });
       loteActivo = false;
@@ -313,12 +320,13 @@
         var tr = d.traducciones[i];
         if (tr && typeof tr.t === 'string') guardar(x.k, { t: tr.t, de: tr.de || null });
         else if (tr === null) guardar(x.k, null);
-        else { x.nodos.forEach(quitarTraduccion); return; }   // ese no salió: sin reintentar en bucle
+        else { quitarTrabajoFallido(x); return; }   // ese no salió: sin reintentar en bucle
         x.nodos.forEach(aplicar);
       });
     }).catch(function (e) {
+      trozo.forEach(quitarTrabajoFallido);
+      if (modo !== a) return;
       pausaHasta = Date.now() + PAUSA_FALLO;
-      trozo.forEach(function (x) { x.nodos.forEach(quitarTraduccion); });
       if (Date.now() - avisadoFallo > PAUSA_FALLO) {
         avisadoFallo = Date.now();
         var limite = /demasiad|limite|429/.test(String(e && e.message));

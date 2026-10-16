@@ -3,7 +3,10 @@
   'use strict';
   var KEYS = { strength: 'Strength', defense: 'Defense', wisdom: 'Wisdom', patience: 'Patience', farming: 'Farming', woodcutting: 'Woodcutting', fishing: 'Fishing', combat: 'Combat' };
   var EFFECTS = { strength: '+4% sword damage', defense: '-2% damage taken', wisdom: '-2% ability cooldown', patience: 'Steadier fishing', farming: '-2% farming cost', woodcutting: '-2% chopping cost', fishing: 'Larger fishing target', combat: '+1.5% sword reach' };
-  function api(route, body) { return window.GFMascota.api(route, body); }
+  function api(route, body) {
+    if (!window.GFMascota || typeof window.GFMascota.api !== 'function') return Promise.resolve({ ok: false, datos: null });
+    return window.GFMascota.api(route, body);
+  }
   function valid(st) { return st.scene && st.scene.__gfCharacter === st && st.name === st.scene.playerName; }
   function applyStats(scene, stats) {
     if (!stats) return;
@@ -49,7 +52,11 @@
   // las habilidades: icono, nombre con su efecto, valor en píldora y el +1.
   var ICONS = { strength: '💪', defense: '🛡️', wisdom: '📘', patience: '⏳', farming: '🌿', woodcutting: '🌲', fishing: '🌊', combat: '⚔️' };
   function draw(st) {
-    var panel = st.panel; if (!panel || !valid(st)) return;
+    if (!valid(st)) return;
+    if (st.panel) drawPanel(st, st.panel);
+    if (st.modalPanel) drawPanel(st, st.modalPanel);
+  }
+  function drawPanel(st, panel) {
     panel.replaceChildren();
     var title = document.createElement('div'); title.className = 'skills-section-title gf-cp-title';
     title.textContent = '✨ Character points';
@@ -112,7 +119,7 @@
       }).catch(function () {}).finally(function () { st.polling = false; });
     };
     st.timer = setInterval(st.poll, 6000);
-    st.close = function () { clearInterval(st.timer); scene.events.off('shutdown', st.close); scene.events.off('destroy', st.close); if (st.panel) st.panel.remove(); if (st.modal) st.modal.remove(); if (st.button) st.button.remove(); scene.__gfCharacter = null; st.scene = null; };
+    st.close = function () { clearInterval(st.timer); scene.events.off('shutdown', st.close); scene.events.off('destroy', st.close); if (st.panel) st.panel.remove(); if (st.modal) st.modal.remove(); if (st.button) st.button.remove(); st.panel = st.modal = st.modalPanel = st.button = null; scene.__gfCharacter = null; st.scene = null; };
     scene.events.once('shutdown', st.close); scene.events.once('destroy', st.close);
     if (window.GFMascota && st.name) load(st);
     return st;
@@ -124,9 +131,9 @@
     button.onclick = function () {
       if (!valid(st)) return; if (st.modal) st.modal.remove();
       var modal = document.createElement('div'); modal.className = 'gf-character-modal';
-      var close = document.createElement('button'); close.textContent = 'Close'; close.onclick = function () { modal.remove(); st.modal = null; st.panel = null; };
+      var close = document.createElement('button'); close.textContent = 'Close'; close.onclick = function () { modal.remove(); if (st.modal === modal) st.modal = st.modalPanel = null; };
       var title = document.createElement('p'); title.textContent = 'Character skills'; modal.append(title, close);
-      st.panel = document.createElement('div'); st.panel.id = 'gf-character-upgrades'; st.panel.className = 'skills-section gf-character-section'; modal.appendChild(st.panel); document.body.appendChild(modal); st.modal = modal; draw(st); load(st);
+      st.modalPanel = document.createElement('div'); st.modalPanel.className = 'skills-section gf-character-section'; modal.appendChild(st.modalPanel); document.body.appendChild(modal); st.modal = modal; draw(st); load(st);
     };
   }
   window.GFCharacterSkills = { montar: montar, render: render, applyStats: applyStats, battle: battle, usePotion: usePotion };

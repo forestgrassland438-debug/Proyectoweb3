@@ -58,6 +58,12 @@
   var pintados = new Map();
   var TOPE_REGISTRO = 300;
 
+  function podarDesconectados() {
+    pintados.forEach(function (reg, mid) {
+      if (reg.linea.isConnected === false) pintados.delete(mid);
+    });
+  }
+
   /* TOPE DE RENGLONES EN PANTALLA.
 
      `chatMessages.appendChild(line)` no quitaba nunca nada: una partida de tres
@@ -442,6 +448,7 @@
       if (!d || !d.mid) return;
       var reg = pintados.get(d.mid);
       if (!reg) return;
+      if (reg.linea.isConnected === false) { pintados.delete(d.mid); return; }
       reg.msg.reacciones = d.reacciones || [];
       pintarReacciones(escenaViva, reg);
     });
@@ -524,20 +531,34 @@
    * Una sola vez por página: el panel es DOM que sobrevive a los cambios de
    * escena, así que un observador por escena se iría acumulando.
    */
+  var observadorChat = null, chatObservado = null, botonObservado = null;
+  function soltarVigilanciaChat() {
+    if (observadorChat) observadorChat.disconnect();
+    if (botonObservado && botonObservado._gfcsApaga) {
+      botonObservado.removeEventListener('click', botonObservado._gfcsApaga);
+      delete botonObservado._gfcsApaga;
+    }
+    observadorChat = chatObservado = botonObservado = null;
+    global.__gfcsVigilaChat = false;
+  }
   function vigilarChat() {
-    if (global.__gfcsVigilaChat) return;
     var p = panelChat();
+    if (observadorChat && chatObservado === p) return;
+    soltarVigilanciaChat();
     if (!p || !global.MutationObserver) return;
     global.__gfcsVigilaChat = true;
 
-    var obs = new global.MutationObserver(function () {
+    observadorChat = new global.MutationObserver(function () {
+      podarDesconectados();
       if (chatAbierto()) apagarAviso();
     });
-    obs.observe(p, { attributes: true, attributeFilter: ['class', 'style'] });
+    chatObservado = p;
+    observadorChat.observe(p, { attributes: true, attributeFilter: ['class', 'style'], childList: true, subtree: true });
 
     // Y por si el navegador no diera el aviso a tiempo: al pulsar el botón
     // también se apaga. Es idempotente, no estorba.
     var b = botonChat();
+    botonObservado = b;
     if (b && !b._gfcsApaga) {
       b._gfcsApaga = function () { setTimeout(apagarAviso, 0); };
       b.addEventListener('click', b._gfcsApaga);
@@ -673,7 +694,8 @@
     if (!msg || !linea) return;
     // Cada mensaje llega desde la escena que lo pinta: es la señal más fresca
     // de cuál está viva.
-    if (scene) escenaViva = scene;
+    if (scene) usarEscena(scene);
+    podarDesconectados();
     estilos();
     enlazar(scene);
 
@@ -815,7 +837,7 @@
   }
 
   var ciclosEscena = new WeakMap();
-  function montar(scene) {
+  function usarEscena(scene) {
     // La escena viva se apunta ANTES de enlazar: si el socket ya estaba
     // enganchado, `enlazar` se va sin hacer nada y esta es la única línea que
     // corre — y es justo la que hace falta.
@@ -827,12 +849,20 @@
         var soltar = function () {
           scene.events.off('shutdown', soltar); scene.events.off('destroy', soltar);
           ciclosEscena.delete(scene);
-          if (escenaViva === scene) escenaViva = null;
+          if (escenaViva === scene) {
+            escenaViva = null;
+            olvidar();
+            soltarVigilanciaChat();
+          }
         };
         ciclosEscena.set(scene, soltar);
         scene.events.once('shutdown', soltar); scene.events.once('destroy', soltar);
       }
     }
+  }
+  function montar(scene) {
+    usarEscena(scene);
+    podarDesconectados();
     estilos();
     enlazar(scene);
     precalentarEmojis();

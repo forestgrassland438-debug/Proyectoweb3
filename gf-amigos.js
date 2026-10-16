@@ -104,12 +104,32 @@
      mucho, una cada tres segundos. */
   var LEIDO_FRENO_MS = 3000;
   var leidoUltimo = 0;
+  var lecturaPendiente = null;
+
+  function terminarLecturaPendiente(enviar) {
+    if (!lecturaPendiente) return;
+    var lectura = lecturaPendiente;
+    lecturaPendiente = null;
+    clearTimeout(lectura.reloj);
+    if (enviar && lectura.socket === socket) {
+      leidoUltimo = Date.now();
+      lectura.socket.emit('friends:dm:history', { con: lectura.con });
+    }
+  }
 
   function marcarLeido() {
+    if (!socket || !chatCon) return;
     var ahora = Date.now();
-    if (ahora - leidoUltimo < LEIDO_FRENO_MS) return;
+    if (ahora - leidoUltimo < LEIDO_FRENO_MS) {
+      if (!lecturaPendiente) {
+        lecturaPendiente = { socket: socket, con: chatCon };
+        lecturaPendiente.reloj = setTimeout(function () { terminarLecturaPendiente(true); }, LEIDO_FRENO_MS - (ahora - leidoUltimo));
+      }
+      return;
+    }
+    terminarLecturaPendiente(false);
     leidoUltimo = ahora;
-    if (socket && chatCon) socket.emit('friends:dm:history', { con: chatCon });
+    socket.emit('friends:dm:history', { con: chatCon });
   }
 
   function log() {
@@ -770,9 +790,9 @@
       if (!m) return;
       if (chatCon && m.para === chatCon && abierto) {
         // Ya lo pintamos en optimista al enviarlo; solo se refresca si no está.
-        for (var i = conversacion.length - 1; i >= 0; i--) {
-          if (conversacion[i].id === m.id) return;
-          if (conversacion[i]._pendiente && conversacion[i].texto === m.texto) {
+        for (var j = 0; j < conversacion.length; j++) if (conversacion[j].id === m.id) return;
+        for (var i = 0; i < conversacion.length; i++) {
+          if (conversacion[i]._pendiente && conversacion[i].texto === desescapar(m.texto)) {
             /* El eco del servidor sustituye la copia optimista. Se cambia SOLO
                esa burbuja --ahora ya tiene id, así que le salen los botones de
                reaccionar y editar-- y no la conversación entera. */
@@ -961,6 +981,8 @@
    * roba el foco. Además así se ve como el resto del juego.
    */
   function confirmar(texto, alSi, textoBoton) {
+    var anterior = doc.getElementById('gfa-confirmar');
+    if (anterior) anterior.remove();
     var fondo = el('div');
     fondo.id = 'gfa-confirmar';
     fondo.style.cssText = 'position:fixed;inset:0;background:rgba(0,8,24,0.72);z-index:10030;' +
@@ -1006,6 +1028,8 @@
 
   function abrirChatCon(playerName, nombreVisible) {
     if (!playerName) return;
+    terminarLecturaPendiente(true);
+    leidoUltimo = 0;
     construir();
     chatCon = playerName;
     chatFicha = { playerName: playerName, username: nombreVisible || playerName };
@@ -1020,6 +1044,7 @@
   }
 
   function cerrarConversacion() {
+    terminarLecturaPendiente(true);
     cerrarPaletaReaccion();
     cerrarMenuConversacion();
     alternarEmojis(false);
@@ -1624,7 +1649,7 @@
     var b = el('div', 'gfa-burbuja ' + (mio ? 'mia' : 'suya'));
 
     // El texto en su propio nodo: sin él no se puede sustituir al editar.
-    var textoEl = el('span', 'gfa-burbuja-txt', desescapar(m.texto));
+    var textoEl = el('span', 'gfa-burbuja-txt', m._pendiente ? m.texto : desescapar(m.texto));
     b.appendChild(textoEl);
 
     var t = el('span', 't',
@@ -1765,6 +1790,7 @@
 
   function cerrarPanel() {
     if (!listo) return;
+    terminarLecturaPendiente(true);
     abierto = false;
     chatCon = null;
     buscados = null;
@@ -1911,7 +1937,12 @@
    */
   function habilitarEnSprite(scene, sprite, dameInfo) {
     if (!sprite || !sprite.setInteractive) return;
+    var previa = sprite.__gfaInteraccion;
+    if (previa && previa.scene === scene) { previa.dameInfo = dameInfo; return; }
+    if (previa) previa.soltar();
     try { sprite.setInteractive({ useHandCursor: true }); } catch (e) { return; }
+    var interaccion = { scene: scene, dameInfo: dameInfo };
+    sprite.__gfaInteraccion = interaccion;
 
     // Área de toque generosa: el personaje es estrecho y con el dedo se falla.
     try {
@@ -1922,15 +1953,15 @@
     var DOBLE_MS = 600, DOBLE_PX = 70;
     var ultimo = null;
 
-    sprite.on('pointerdown', function (pointer) {
+    interaccion.onClic = function (pointer) {
       var info = null;
-      try { info = dameInfo(); } catch (e) {}
+      try { info = interaccion.dameInfo(); } catch (e) {}
       if (!info) return;
 
       var ev = (pointer && pointer.event) ? pointer.event : null;
 
       if (pointer && typeof pointer.rightButtonDown === 'function' && pointer.rightButtonDown()) {
-        menuJugador(scene, info, ev);
+        menuJugador(interaccion.scene, info, ev);
         return;
       }
 
@@ -1940,11 +1971,29 @@
                   (Math.abs(x - ultimo.x) + Math.abs(y - ultimo.y)) < DOBLE_PX;
       if (doble) {
         ultimo = null;
-        menuJugador(scene, info, ev || { clientX: x, clientY: y });
+        menuJugador(interaccion.scene, info, ev || { clientX: x, clientY: y });
         return;
       }
       ultimo = { t: ahora, x: x, y: y };
-    });
+    };
+    interaccion.soltar = function () {
+      sprite.off('pointerdown', interaccion.onClic);
+      sprite.off('destroy', interaccion.soltar);
+      var dueña = interaccion.scene;
+      if (dueña && dueña.events) {
+        dueña.events.off('shutdown', interaccion.soltar);
+        dueña.events.off('destroy', interaccion.soltar);
+      }
+      if (sprite.__gfaInteraccion === interaccion) delete sprite.__gfaInteraccion;
+      interaccion.scene = interaccion.dameInfo = null;
+      ultimo = null;
+    };
+    sprite.on('pointerdown', interaccion.onClic);
+    if (sprite.once) sprite.once('destroy', interaccion.soltar);
+    if (scene && scene.events) {
+      scene.events.once('shutdown', interaccion.soltar);
+      scene.events.once('destroy', interaccion.soltar);
+    }
   }
 
   // ── Montaje desde las escenas ─────────────────────────────────────────────

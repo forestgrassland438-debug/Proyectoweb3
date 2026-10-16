@@ -1089,6 +1089,7 @@
   }
 
   function soltarMonton(st, b, x0, y0, x, y, caducaMs) {
+    if (!st.vivo || !st.scene) return;
     var scene = st.scene;
     var clave = 'gfsp_item_' + b.itemId;
     var ponerlo = function () {
@@ -1096,27 +1097,45 @@
       var halo = scene.add.image(x, y, 'gfsp_brillo').setDepth(y - 1).setScale(1.3).setAlpha(0.8);
       halo.setBlendMode(Phaser.BlendModes.ADD);
       var spr = scene.add.image(x0, y0, scene.textures.exists(clave) ? clave : 'gfsp_brillo').setOrigin(0.5, 1).setScale(2).setDepth(y);
-      scene.tweens.addCounter({ from: 0, to: 1, duration: 600, ease: 'Quad.easeOut', onUpdate: function (tw) {
+      var salto = scene.tweens.addCounter({ from: 0, to: 1, duration: 600, ease: 'Quad.easeOut', onUpdate: function (tw) {
+        if (!st.vivo || !spr.scene) return;
         var t = tw.getValue();
         spr.x = x0 + (x - x0) * t; spr.y = y0 + (y - y0) * t - Math.sin(t * Math.PI) * 50;
       } });
-      var m = { id: b.id, itemId: b.itemId, cantidad: b.cantidad, x: x, y: y, spr: spr, halo: halo, hasta: Date.now() + caducaMs, recogiendo: false };
+      var m = { id: b.id, itemId: b.itemId, cantidad: b.cantidad, x: x, y: y, spr: spr, halo: halo, salto: salto, hasta: Date.now() + caducaMs, recogiendo: false };
       m.flota = scene.tweens.add({ targets: halo, alpha: 0.35, duration: 700, yoyo: true, repeat: -1 });
       st.botin.push(m);
     };
     if (scene.textures.exists(clave)) { ponerlo(); return; }
     var src = imagenDe(scene, b.itemId);
     if (!src) { ponerlo(); return; }
-    scene.load.image(clave, src);
-    scene.load.once('complete', ponerlo);
-    scene.load.start();
+    var cargas = st.cargasBotin || (st.cargasBotin = new Set());
+    var evento = 'filecomplete-image-' + clave;
+    var soltarCarga = function () {
+      scene.load.off(evento, alCargar); scene.load.off('loaderror', alError); cargas.delete(soltarCarga);
+    };
+    var alCargar = function () { soltarCarga(); ponerlo(); };
+    var alError = function (archivo) { if (archivo && archivo.key === clave) soltarCarga(); };
+    cargas.add(soltarCarga);
+    try {
+      scene.load.image(clave, src);
+      scene.load.once(evento, alCargar); scene.load.on('loaderror', alError);
+      scene.load.start();
+    } catch (e) { soltarCarga(); }
   }
 
   function quitarMonton(st, m) {
     try { if (m.flota) m.flota.stop(); } catch (e) {}
+    try { if (m.salto) m.salto.stop(); } catch (e) {}
+    m.flota = m.salto = null;
     [m.spr, m.halo].forEach(function (o) { try { if (o && o.scene) o.destroy(); } catch (e) {} });
     var i = st.botin.indexOf(m);
     if (i >= 0) st.botin.splice(i, 1);
+  }
+
+  function limpiarBotin(st) {
+    if (st.cargasBotin) { Array.from(st.cargasBotin).forEach(function (soltar) { soltar(); }); st.cargasBotin.clear(); }
+    st.botin.slice().forEach(function (m) { quitarMonton(st, m); });
   }
 
   function actualizarBotin(st, pj) {
@@ -1275,7 +1294,7 @@
     st.barra = null;
     st.bolas.forEach(function (b) { try { b.spr.destroy(); b.estela.destroy(); } catch (e) {} });
     st.bolas.length = 0;
-    st.botin.slice().forEach(function (m) { quitarMonton(st, m); });
+    limpiarBotin(st);
     var s = st.s;
     if (s) {
       if (s.aviso) s.aviso.destroy();
@@ -1289,7 +1308,7 @@
   }
 
   window.GFMinaSerpiente = {
-    _botin: { crear: soltarMonton, actualizar: actualizarBotin, texturas: texturas, limpiar: function (st) { st.botin.slice().forEach(function (m) { quitarMonton(st,m); }); } },
+    _botin: { crear: soltarMonton, actualizar: actualizarBotin, texturas: texturas, limpiar: limpiarBotin },
     montar: montar,
     desmontar: desmontar,
     _interno: { estado: function (s) { return s && s.__gfSerpiente; }, gritar: gritar, velocidadJugador: velocidadJugador }

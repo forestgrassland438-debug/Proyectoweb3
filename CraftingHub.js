@@ -101,10 +101,15 @@ class CraftingSystem {
     this.hide();
     this._destroyed = true;
     this._unbindScene?.();
+    this._unbindNextScene?.();
     for (const [target, event, callback, options] of this._domBindings) target.removeEventListener(event, callback, options);
     this._domBindings.length = 0;
     this._listenersAttached = false;
-    this.setScene(null);
+    // setScene difiere cambios mientras hay cola; destroy debe liberar
+    // inmediatamente ambas escenas y no ejecutar nuevos crafteos en ellas.
+    this._sceneActual = null;
+    this._nextScene = null;
+    this._hasNextScene = false;
   }
 
   // FIX 5: Escapar HTML
@@ -683,7 +688,7 @@ class CraftingSystem {
     // el jugador se va a la tienda con un crafteo pendiente, la pantalla de
     // carga lo espera en vez de destruir la escena a medias (ver tx-gate.js).
     const finTx = (window.GFTxGate && window.GFTxGate.begin)
-      ? window.GFTxGate.begin(`Crafting ${peticion.quantity}x ${peticion.recipe.name}`, 900000)
+      ? window.GFTxGate.begin(`Crafting ${peticion.quantity}x ${peticion.recipe.name}`, { timeout: 900000 })
       : null;
 
     this._craftQueue=(this._craftQueue||Promise.resolve())
@@ -750,6 +755,7 @@ class CraftingSystem {
 
   // FIX 7: anti-double-craft con try/finally
   async _craftItemInterno({recipe,quantity,optional}) {
+    if (this._destroyed || !this.scene) return false;
     // Siendo fantasma no se craftea (ver GFMuerte.bloquear).
     if (window.GFMuerte && window.GFMuerte.bloquear(this.scene, 'craft')) return false;
     if(!recipe) return;
@@ -862,6 +868,14 @@ class CraftingSystem {
       }
 
       if(!(await this.addPlayerItem(recipe.resultItem,resultQty))){
+        if (this._destroyed) return false;
+        // Si una parte ya llegó, una devolución íntegra regalaría esos
+        // resultados junto con todos los materiales de origen.
+        const parciales = Math.max(0, contarReal(recipe.resultItem) - antesResultado);
+        if (parciales > 0) {
+          this.showFeedback(`Only ${parciales} of ${resultQty} ${recipe.name} were confirmed. Recheck your inventory.`, 'warning');
+          return false;
+        }
         // Los materiales YA se gastaron: hay que devolverlos.
         await this._devolverMateriales(materialesConsumidos);
         this.showFeedback('❌ Inventory full — your materials were returned','error');
@@ -941,6 +955,7 @@ class CraftingSystem {
   // comprueba craftItem() antes de meterlo en la cola, contando además lo que
   // ya han reservado los crafteos que siguen esperando su turno.
   _setCraftButtonBusy(busy) {
+    if (this._destroyed) return;
     try {
       const pendientes = this._craftPending || 0;
       ['craft-button', 'overlay-craft-button'].forEach(id => {
@@ -1031,6 +1046,7 @@ class CraftingSystem {
   }
 
   async removePlayerItem(itemId,quantity) {
+    if (this._destroyed || !Number.isSafeInteger(quantity) || quantity <= 0) return false;
     // NUEVO: si el item tiene seguimiento on-chain (ItemDefinitions[...].tipo
     // en GameScene), se manda la transacción real que lo descuenta del
     // contrato, en vez de solo borrarlo del inventario local/servidor. Se
@@ -1042,6 +1058,7 @@ class CraftingSystem {
         const antes=typeof this.scene.contarItemEnInventario==='function'
           ?this.scene.contarItemEnInventario(itemId):this.countPlayerItem(itemId);
         await this.scene.ejecutarDivisionRemove(def.tipo,itemId,def.maxStack||50,quantity);
+        if (this._destroyed || !this.scene) return false;
         const despues=typeof this.scene.contarItemEnInventario==='function'
           ?this.scene.contarItemEnInventario(itemId):this.countPlayerItem(itemId);
         const removidas=Math.max(0,antes-despues);
@@ -1088,31 +1105,25 @@ class CraftingSystem {
   }
 
   async addPlayerItem(itemId,quantity) {
+    if (this._destroyed || !Number.isSafeInteger(quantity) || quantity <= 0) return false;
     const isStackable=this.isItemStackable(itemId);
 
-    // NUEVO: si lo crafteado tiene seguimiento on-chain, se manda la
-    // transacción real que lo agrega al contrato (con respaldo off-chain
-    // si la transacción no se puede confirmar, para no perder el item ya
-    // que los materiales ya se descontaron).
+    // Un objeto on-chain solo se entrega desde el estado confirmado.
     const def=this.scene?.ItemDefinitions?.[itemId];
     if(this.scene&&def&&def.tipo&&typeof this.scene.ejecutarDivision==='function'){
       try{
         const antes=typeof this.scene.contarItemEnInventario==='function'
           ?this.scene.contarItemEnInventario(itemId):this.countPlayerItem(itemId);
         await this.scene.ejecutarDivision(def.tipo,itemId,def.maxStack||50,quantity);
+        if (this._destroyed || !this.scene) return false;
         const despues=typeof this.scene.contarItemEnInventario==='function'
           ?this.scene.contarItemEnInventario(itemId):this.countPlayerItem(itemId);
         const agregadas=Math.max(0,despues-antes);
         if(agregadas>=quantity) return true;
-        const faltan=quantity-agregadas;
-        console.warn(`⚠️ Crafteo: solo se confirmaron ${agregadas} de ${quantity} ${itemId} on-chain, agregando ${faltan} de respaldo`);
-        if(faltan>0&&typeof this.scene.addItemWithCheck==='function'){
-          return this.scene.addItemWithCheck(itemId,faltan)&&true;
-        }
-        return agregadas>0;
+        console.warn(`⚠️ Crafteo: solo se confirmaron ${agregadas} de ${quantity} ${itemId} on-chain`);
+        return false;
       }catch(err){
         console.error('❌ Error agregando item crafteado on-chain:',err);
-        if(typeof this.scene.addItemWithCheck==='function') return this.scene.addItemWithCheck(itemId,quantity);
         return false;
       }
     }

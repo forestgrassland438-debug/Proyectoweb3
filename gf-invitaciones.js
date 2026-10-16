@@ -57,6 +57,10 @@
     for (var i = 0; i < l.length; i++) if (l[i] && l[i].playerName && l[i].player) return l[i];
     return null;
   }
+  function identidad() {
+    var s = escenaConJugador();
+    return s ? String(s.playerName) + '|' + String(s.address || s.currentAccount || '') + '|' + String(s.serverBase || '') : '';
+  }
   function aviso(texto, tipo) {
     var s = escenaConJugador();
     try { if (s && s.notifications && s.notifications.show) { s.notifications.show(texto, tipo || 'info'); return; } } catch (e) {}
@@ -111,7 +115,7 @@
       var d = (r && r.datos) || {};
       if (r && r.ok && d.ok) {
         reclamado = true;
-        try { localStorage.removeItem(CLAVE_REF); } catch (e) {}
+        try { if (localStorage.getItem(CLAVE_REF) === c) localStorage.removeItem(CLAVE_REF); } catch (e) {}
         aviso('🎟️ You joined with ' + (d.invitadoPor && d.invitadoPor.nombre || 'a friend') + "'s invite!", 'success');
         datos = null;
         parar();
@@ -120,7 +124,7 @@
       }
       // Lo que no se arreglará reintentando: se olvida el código.
       if (['ya_invitado', 'propio', 'tarde', 'no_nuevo', 'codigo_desconocido', 'codigo_invalido', 'circular'].indexOf(d.error) >= 0) {
-        try { localStorage.removeItem(CLAVE_REF); } catch (e) {}
+        try { if (localStorage.getItem(CLAVE_REF) === c) localStorage.removeItem(CLAVE_REF); } catch (e) {}
         // Una cuenta que ya jugaba abrió un enlace: se le dice por qué no cuenta.
         if (d.error === 'no_nuevo') aviso('🎟️ Invite links only count for new accounts.', 'info');
         parar();
@@ -134,16 +138,21 @@
   setTimeout(parar, 5 * 60 * 1000);                    // como mucho cinco minutos
 
   // ── 3. La pestaña ────────────────────────────────────────────────────────
-  var datos = null, cargando = false;
+  var datos = null, cargando = false, propietarioDatos = null, cargaDe = null, cargaRevision = 0;
 
   function cuerpo() { return document.getElementById('gfi-cuerpo'); }
 
   function cargar() {
-    var c = cuerpo();
-    if (!c || cargando) return;
+    var c = cuerpo(), propietaria = identidad();
+    if (!c || !propietaria || (cargando && cargaDe === propietaria)) return;
+    if (propietarioDatos !== propietaria) { datos = null; propietarioDatos = propietaria; }
+    var revision = ++cargaRevision;
+    cargaDe = propietaria;
+    function actual() { return revision === cargaRevision && identidad() === propietaria && cuerpo() === c && c.isConnected; }
     cargando = true;
     if (!datos) { c.textContent = ''; c.appendChild(tarjeta(el('div', 'muted', 'Loading invites…'))); }
     api('/api/invitaciones/mia').then(function (r) {
+      if (!actual()) return;
       cargando = false;
       var d = r && r.datos;
       if (!r || !r.ok || !d || !d.ok) {
@@ -154,10 +163,11 @@
       datos = d;
       pintar();
     }).catch(function () {
+      if (!actual()) return;
       cargando = false;
       c.textContent = '';
       c.appendChild(tarjeta(el('div', 'muted', 'Could not load your invites. Try again in a moment.')));
-    });
+    }).finally(function () { if (revision === cargaRevision) cargando = false; });
   }
 
   function tarjeta() {
@@ -189,8 +199,10 @@
 
   function pintar() {
     var c = cuerpo();
-    if (!c || !datos) return;
+    if (!c || !datos || propietarioDatos !== identidad()) return;
     var d = datos;
+    var propietaria = propietarioDatos;
+    function actual() { return datos === d && propietarioDatos === propietaria && identidad() === propietaria && cuerpo() === c && c.isConnected; }
     c.textContent = '';
 
     // El enlace y el código.
@@ -258,15 +270,16 @@
     inDiscord.maxLength = 40;
     var msgD = el('div', 'dash-hint_101', 'So we can find you on our Discord (rewards, events).');
     var guardar = function (b) {
-      if (b.disabled) return;
+      if (b.disabled || !actual()) return;
       var v = inDiscord.value.trim().replace(/^@/, '');
       b.disabled = true;
       api('/api/invitaciones/discord', { discord: v }).then(function (r) {
         b.disabled = false;
+        if (!actual()) return;
         var x = (r && r.datos) || {};
         if (r && r.ok && x.ok) { d.discord = x.discord; msgD.textContent = v ? 'Saved.' : 'Removed.'; }
         else msgD.textContent = x.message || 'Could not save it.';
-      }).catch(function () { b.disabled = false; msgD.textContent = 'Connection problem. Try again.'; });
+      }).catch(function () { b.disabled = false; if (actual()) msgD.textContent = 'Connection problem. Try again.'; });
     };
     var btnD = boton('Save', guardar);
     inDiscord.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); guardar(btnD); } });

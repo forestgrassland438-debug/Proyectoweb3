@@ -47,6 +47,31 @@
 (function () {
   'use strict';
 
+  // Solo se liberan lienzos creados por este módulo y tras la última escena
+  // que comparte su TextureManager; una textura ajena con la misma clave se respeta.
+  var recursosTextura = new WeakMap();
+  function recursosDe(scene) {
+    var gestor = scene.textures, r = recursosTextura.get(gestor);
+    if (!r) { r = { escenas: new Set(), propias: new Map() }; recursosTextura.set(gestor, r); }
+    return r;
+  }
+  function crearLienzo(scene, clave, ancho, alto) {
+    var textura = scene.textures.createCanvas(clave, ancho, alto);
+    if (textura) recursosDe(scene).propias.set(clave, textura);
+    return textura;
+  }
+  function soltarTexturas(scene) {
+    var gestor = scene.textures, r = recursosTextura.get(gestor);
+    if (!r) return;
+    r.escenas.delete(scene);
+    if (r.escenas.size) return;
+    r.propias.forEach(function (textura, clave) {
+      try { if (gestor.exists(clave) && gestor.get(clave) === textura) gestor.remove(clave); } catch (e) {}
+    });
+    r.propias.clear();
+    recursosTextura.delete(gestor);
+  }
+
   var ESCALA = 2;                    // la del jugador, el perro y el cuervo
 
   /* Cuándo llega y cuándo se va, medido en la oscuridad de gf-ciclo-dia (0 a 1).
@@ -159,7 +184,7 @@
     var alto = rejilla.length;
     ancho = ancho || rejilla[0].length;
     try {
-      var t = scene.textures.createCanvas(clave, ancho, alto);
+      var t = crearLienzo(scene, clave, ancho, alto);
       var ctx = t.getContext();
       ctx.clearRect(0, 0, ancho, alto);
       for (var y = 0; y < alto; y++) {
@@ -196,7 +221,7 @@
        que salir de la cuenta, no de un número puesto a ojo. */
     var W = 32, H = 16;
     try {
-      var t = scene.textures.createCanvas(clave, W, H);
+      var t = crearLienzo(scene, clave, W, H);
       var ctx = t.getContext();
       ctx.clearRect(0, 0, W, H);
 
@@ -244,7 +269,7 @@
     if (scene.textures.exists(clave)) return clave;
     var W = 24, H = 12;
     try {
-      var t = scene.textures.createCanvas(clave, W, H);
+      var t = crearLienzo(scene, clave, W, H);
       var ctx = t.getContext();
       ctx.clearRect(0, 0, W, H);
       // Los ojos del dibujo están en las columnas 4-6 y 9-11 de 16; aquí, al
@@ -371,12 +396,14 @@
       y: destino.y - az(180, 320)
     };
 
-    var spr = scene.add.sprite(desde.x, desde.y, 'gfb_vuela_2');
+    var spr = null, ojos = null;
+    try {
+    spr = scene.add.sprite(desde.x, desde.y, 'gfb_vuela_2');
     spr.setOrigin(0.5, 1);
     spr.setScale(st.escala);
     spr.setDepth(PROF_VUELO);
 
-    var ojos = scene.add.image(desde.x, desde.y, 'gfb_ojos');
+    ojos = scene.add.image(desde.x, desde.y, 'gfb_ojos');
     ojos.setOrigin(0.5, 0.5);
     ojos.setScale(st.escala * 0.7);
     ojos.setDepth(PROF_OJOS);
@@ -393,6 +420,11 @@
     };
     log('llega desde', Math.round(desde.x), 'a', arbol.clave);
     return b;
+    } catch (e) {
+      try { if (spr) spr.destroy(); } catch (ignorado) {}
+      try { if (ojos) ojos.destroy(); } catch (ignorado) {}
+      throw e;
+    }
   }
 
   function irse(st, b) {
@@ -439,6 +471,9 @@
     }
 
     if (b.fase === 'posado') {
+      var soporte = b.arbol && scene[b.arbol];
+      if (b.posX == null) { b.posX = spr.x; b.posY = spr.y; }
+      spr.x = b.posX + (soporte && soporte.rotation ? Math.sin(soporte.rotation) * (soporte.y - b.posY) : 0);
       // ── posado: parpadea, ulula, y vigila si te acercas ──
       var p = scene.player;
       if (p) {
@@ -490,7 +525,7 @@
          busca otro en vez de quedarse flotando sobre un tocón. */
       var arbol = b.arbol ? scene[b.arbol] : null;
       if (!arbol || !arbol.active || (scene.treeStumps && scene.treeStumps[b.arbol])) {
-        volarA(st, b, 200);
+        if (!volarA(st, b, 200)) irse(st, b);
       }
       return;
     }
@@ -506,6 +541,7 @@
       spr.setPosition(b.destino.x, b.destino.y);
       spr.setTexture('gfb_posado');
       b.fase = 'posado';
+      b.posX = b.destino.x; b.posY = b.destino.y;
       b.parpadeando = false;
       b.proximoParpadeo = ahora + az(PARPADEO[0], PARPADEO[1]);
       /* Ordenado por Y como el resto del mundo, un pelo por delante del árbol
@@ -571,9 +607,10 @@
 
   function montar(scene, op) {
     op = op || {};
-    if (!scene || !scene.add || !scene.add.sprite) return null;
+    if (!scene || !scene.add || !scene.add.sprite || !scene.textures || !scene.events || !scene.time) return null;
     if (scene.__gfBuho) return scene.__gfBuho;
-    if (!dibujos(scene)) return null;
+    recursosDe(scene).escenas.add(scene);
+    if (!dibujos(scene)) { soltarTexturas(scene); return null; }
 
     var st = {
       scene: scene, buho: null, escala: op.escala || ESCALA,
@@ -586,7 +623,7 @@
 
     st.onUpdate = function (ahora, delta) {
       try {
-        var dt = Math.min(delta, 100) / 1000;
+        var dt = Number.isFinite(delta) && delta >= 0 ? Math.min(delta, 100) / 1000 : 0;
         var n = noche(st);
 
         if (!st.buho) {
@@ -629,6 +666,8 @@
     }
     if (st.buho) retirar(st, st.buho);
     scene.__gfBuho = null;
+    soltarTexturas(scene);
+    st.scene = st.onUpdate = st.onApagar = null;
     if (montado === st) montado = null;
   }
 

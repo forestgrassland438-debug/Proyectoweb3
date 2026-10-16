@@ -22,6 +22,7 @@
   'use strict';
   // Sin DOM de verdad (las herramientas de tools/ cargan esto en Node), nada.
   if (typeof MutationObserver === 'undefined' || typeof document === 'undefined') return;
+  if (window.GFHudAjuste && window.GFHudAjuste.destroy) window.GFHudAjuste.destroy();
 
   // Lo que se aparta (en este orden) y de lo que hay que apartarse.
   var MOVIBLES = ['#gf-espada-poderes', '#gf-tajo-btn'];
@@ -111,9 +112,9 @@
     MOVIBLES.forEach(function (s) { apartar(s, colocados); });
   }
 
-  var pedido = 0;
+  var pedido = 0, montado = false, observadorCuerpo = null;
   function pronto() {
-    if (pedido) return;
+    if (!montado || pedido) return;
     pedido = requestAnimationFrame(function () { pedido = 0; ajustar(); });
   }
 
@@ -145,28 +146,49 @@
     });
   }
 
+  function delHud(e) {
+    var t = e.target;
+    if (!t || !t.closest) return;
+    if (t.closest('#game-hud, #quick-slots-bar, #gf-espada-poderes, #gf-tajo-btn')) pronto();
+  }
+  function alSalir(e) { if (!e.persisted) destroy(); }
   function montar() {
+    if (montado || !document.body) return;
+    montado = true;
     vigilar();
     window.addEventListener('resize', pronto);
     window.addEventListener('orientationchange', pronto);
+    window.addEventListener('pagehide', alSalir);
     // Los botones redondos ENTRAN con una animación (crecen desde pequeños):
     // medidos a mitad, no pisan nada y luego sí. Se vuelve a mirar cuando
     // termina una animación o transición del HUD (no las del resto del juego).
-    var delHud = function (e) {
-      var t = e.target;
-      if (!t || !t.closest) return;
-      if (t.closest('#game-hud, #quick-slots-bar, #gf-espada-poderes, #gf-tajo-btn')) pronto();
-    };
     document.addEventListener('animationend', delHud, true);
     document.addEventListener('transitionend', delHud, true);
     // Los botones de la espada se crean al montar cada escena: el cuerpo
     // avisa cuando entra un hijo nuevo (solo hijos directos: barato).
-    new MutationObserver(function () { vigilar(); pronto(); }).observe(document.body, { childList: true });
+    observadorCuerpo = new MutationObserver(function () { if (montado) { vigilar(); pronto(); } });
+    observadorCuerpo.observe(document.body, { childList: true });
     ajustar();
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', montar);
+  function destroy() {
+    montado = false;
+    if (pedido) cancelAnimationFrame(pedido);
+    pedido = 0;
+    observador.disconnect();
+    if (observadorCuerpo) observadorCuerpo.disconnect();
+    observadorCuerpo = null;
+    vigilados = new WeakSet();
+    window.removeEventListener('resize', pronto);
+    window.removeEventListener('orientationchange', pronto);
+    window.removeEventListener('pagehide', alSalir);
+    document.removeEventListener('animationend', delHud, true);
+    document.removeEventListener('transitionend', delHud, true);
+    document.removeEventListener('DOMContentLoaded', montar);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', montar, { once: true });
   else montar();
 
-  window.GFHudAjuste = { ajustar: ajustar };
+  window.GFHudAjuste = { ajustar: ajustar, montar: montar, destroy: destroy };
 })();

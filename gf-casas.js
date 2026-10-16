@@ -85,6 +85,8 @@
   async function entrar(scene, id) {
     var casa = CASAS[id];
     if (!casa || !scene || scene._cambiandoEscena) return;
+    var propietaria = scene.__gfCasas;
+    if (!propietaria) return;
     if (!scene.scene.get('InteriorScene')) { console.warn('🏠 InteriorScene no está registrada'); return; }
     scene._cambiandoEscena = true;
     console.log('🏠 entrando en', id);
@@ -97,6 +99,9 @@
     scene.posicionplayerx = casa.puerta.x;
     scene.posicionplayery = casa.puerta.y + 40;
     try { await scene.savegg(); } catch (e) { console.warn('🏠 guardado antes de entrar:', e); }
+    // El guardado puede terminar después del cierre o de un nuevo montaje.
+    if (scene.__gfCasas !== propietaria || !scene.sys ||
+        (typeof scene.sys.isActive === 'function' && !scene.sys.isActive())) return;
     scene.saveTimer = 0;
 
     try { scene._ocultarHUD && scene._ocultarHUD(); } catch (e) {}
@@ -115,9 +120,9 @@
   // ─────────────────────────────────────────── LAS PUERTAS EN EL PUEBLO
   function montar(scene) {
     if (!scene || !scene.add || !scene.events || scene.__gfCasas) return;
-    var st = { scene: scene, carteles: {}, cerca: null, armada: {} };
+    var st = { scene: scene, carteles: {}, cerca: null, armada: {}, casasIds: Object.keys(CASAS), cartelIds: Object.keys(SOLO_CARTEL), proximaCueva: 0 };
     scene.__gfCasas = st;
-    Object.keys(CASAS).forEach(function (id) {
+    st.casasIds.forEach(function (id) {
       var p = CASAS[id].puerta;
       var t = scene.add.text(p.x, p.y - 74, '▲ Enter', {
         fontFamily: '"PressStart2P", monospace', fontSize: '9px', color: '#fff6dc',
@@ -129,7 +134,7 @@
     });
     // Los que solo llevan cartel (la tienda y la cueva), cada uno con el suyo.
     st.soloCartel = {};
-    Object.keys(SOLO_CARTEL).forEach(function (id) { st.soloCartel[id] = SOLO_CARTEL[id]; });
+    st.cartelIds.forEach(function (id) { st.soloCartel[id] = SOLO_CARTEL[id]; });
     function cartelSolo(id) {
       var c = st.soloCartel[id];
       st.carteles['_' + id] = scene.add.text(c.puerta.x, c.puerta.y - c.alto, '▲ Enter', {
@@ -137,23 +142,25 @@
         backgroundColor: '#2a1a10dd', padding: { x: 6, y: 4 }, resolution: 3
       }).setOrigin(0.5, 1).setDepth(9500).setVisible(false);
     }
-    Object.keys(st.soloCartel).forEach(cartelSolo);
+    st.cartelIds.forEach(cartelSolo);
     /* La puerta de la cueva: el rectángulo del objeto `puerta_mina`, que
        GameScene saca del mapa en su create(). Se busca en el update por si
        este módulo se monta antes de que exista. */
-    function buscarCueva() {
-      if (st.soloCartel.cueva) return;
+    function buscarCueva(time) {
+      if (st.soloCartel.cueva || time < st.proximaCueva) return;
+      st.proximaCueva = time + 500;
       var r = Array.isArray(scene.collisionRectangles3) && scene.collisionRectangles3[0];
       if (!r || !(r.width > 0)) return;
       st.soloCartel.cueva = { puerta: { x: r.x + r.width / 2, y: r.y + r.height }, alto: r.height + 14 };
+      st.cartelIds.push('cueva');
       cartelSolo('cueva');
     }
     st.onUpdate = function (time) {
       var p = scene.player;
       if (!p || !p.active || scene._cambiandoEscena) return;
-      buscarCueva();
+      buscarCueva(time);
       var pies = p.y + 51;
-      Object.keys(st.soloCartel).forEach(function (id) {
+      st.cartelIds.forEach(function (id) {
         var c = st.soloCartel[id], t = st.carteles['_' + id];
         if (!t) return;
         var cerca = Math.abs(p.x - c.puerta.x) < CERCA && pies - c.puerta.y > -30 && pies - c.puerta.y < CERCA + 40;
@@ -168,7 +175,7 @@
                  (joy && joy.force > 0 && Math.sin((joy.angle || 0) * Math.PI / 180) < -0.3) ||
                  (p.body && p.body.velocity && p.body.velocity.y < -10) ||
                  (scene.previousPosition && p.y < scene.previousPosition.y - 0.3);
-      Object.keys(CASAS).forEach(function (id) {
+      st.casasIds.forEach(function (id) {
         var d = CASAS[id].puerta, t = st.carteles[id];
         var dx = p.x - d.x, dy = pies - d.y;
         var cerca = Math.abs(dx) < CERCA && dy > -30 && dy < CERCA;

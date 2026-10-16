@@ -120,6 +120,10 @@
 
   (function ensureWeakMap() {
     if (typeof root.WeakMap !== 'undefined') return;
+    // Compatibilidad antigua: esto NO reproduce la recolección débil nativa.
+    // Los valores viven en las claves; con claves duraderas hay que llamar a
+    // delete(key) antes de descartar el mapa. Los navegadores soportados usan
+    // WeakMap nativo; tampoco se admiten claves congeladas en este fallback.
     root.WeakMap = function GFWeakMap() {
       this._id = '__gf_wm_' + Date.now().toString(36) + Math.random().toString(36).slice(2);
     };
@@ -130,8 +134,8 @@
       Object.defineProperty(k, this._id, { value: v, writable: true, configurable: true });
       return this;
     };
-    Wp.get    = function (k) { return k && k[this._id]; };
-    Wp.has    = function (k) { return k != null && this._id in Object(k); };
+    Wp.get    = function (k) { return this.has(k) ? k[this._id] : undefined; };
+    Wp.has    = function (k) { return k != null && Object.prototype.hasOwnProperty.call(k, this._id); };
     Wp.delete = function (k) {
       if (!this.has(k)) return false;
       delete k[this._id];
@@ -323,15 +327,17 @@
     if (runtime) runtime.dispose();
     try { destroyGame(game); } catch (e) { Logger.error('Game cleanup failed:', e); }
   }
-  function renderSize() {
+  function renderSize(css) {
     var vf = root.gfViewportFix, vv = root.visualViewport;
     function dimension(value, fallback, minimum) {
       return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.max(minimum, Math.min(8192, Math.round(value))) : fallback;
     }
-    var width = root.innerWidth, height = root.innerHeight;
+    var width = css ? css.w : root.innerWidth, height = css ? css.h : root.innerHeight;
     try {
-      if (vf && typeof vf.width === 'function' && typeof vf.height === 'function') { width = vf.width(); height = vf.height(); }
-      else if (vv) { width = vv.width; height = vv.height; }
+      if (!css) {
+        if (vf && typeof vf.width === 'function' && typeof vf.height === 'function') { width = vf.width(); height = vf.height(); }
+        else if (vv) { width = vv.width; height = vv.height; }
+      }
     } catch (e) {}
     var w = dimension(width, 800, 320), h = dimension(height, 600, 240);
     var dpr = typeof root.devicePixelRatio === 'number' && Number.isFinite(root.devicePixelRatio) ? root.devicePixelRatio : 1;
@@ -1376,7 +1382,7 @@
      * de gama baja (un dpr de 3 son 9 veces más píxeles que rellenar que uno
      * de 1). Por defecto no limita nada para no cambiar cómo se ve hoy.
      */
-    _gameSize: function () { return renderSize(); },
+    _gameSize: function (css) { return renderSize(css); },
 
     handle: function () {
       var runtime = bootRuntime;

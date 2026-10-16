@@ -139,6 +139,7 @@
     chispa:   0.30,
     musica:   1.00      // se multiplica por el control de música del panel
   };
+  var MEZCLA_INICIAL = Object.freeze(Object.assign({}, MEZCLA));
 
   /* ── HASTA DÓNDE SE OYE CADA COSA ───────────────────────────────────────
 
@@ -796,7 +797,7 @@
         return tope(window.GFCiclo.oscuridad(), 0, 1);
       }
     } catch (e) {}
-    return st.tipo === 'tienda' ? 0 : 0;   // sin reloj, de día
+    return 0;   // sin reloj, de día
   }
 
   // ========================================================================
@@ -1269,6 +1270,9 @@
     var pendiente = st.porCargar.indexOf(archivo);
     if (pendiente >= 0) st.porCargar.splice(pendiente, 1);
     if (st.cargando[archivo]) st.cargando[archivo].cancelar();
+    // En el campo el clima vuelve a cambiar: conservar el buffer evita volver
+    // a descargar y decodificar cada racha. desmontar() lo libera al salir.
+    if (st.tipo === 'campo') return;
     if (!st.scene.cache.audio.exists(clave)) return;
     if (!usadasPorOtra(st.scene, clave)) soltar(st.scene, [clave]);
   }
@@ -1620,10 +1624,11 @@
     /** Sube o baja TODO lo de este módulo sin tocar el panel. 0..2 */
     ganancia: function (v) {
       if (v === undefined) return MEZCLA;
-      var k, f = tope(v, 0, 2) / (MEZCLA._base || 1);
+      var k, f = tope(v, 0, 2);
+      if (!Number.isFinite(f)) return MEZCLA;
       MEZCLA._base = tope(v, 0, 2);
       for (k in MEZCLA) {
-        if (MEZCLA.hasOwnProperty(k) && k !== '_base' && typeof MEZCLA[k] === 'number') MEZCLA[k] *= f;
+        if (Object.prototype.hasOwnProperty.call(MEZCLA_INICIAL, k)) MEZCLA[k] = MEZCLA_INICIAL[k] * f;
       }
       return MEZCLA;
     },

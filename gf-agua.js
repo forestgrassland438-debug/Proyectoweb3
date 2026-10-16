@@ -61,6 +61,31 @@
 (function () {
   'use strict';
 
+  // Solo se liberan lienzos creados por este módulo y tras la última escena
+  // que comparte su TextureManager; una textura ajena con la misma clave se respeta.
+  var recursosTextura = new WeakMap();
+  function recursosDe(scene) {
+    var gestor = scene.textures, r = recursosTextura.get(gestor);
+    if (!r) { r = { escenas: new Set(), propias: new Map() }; recursosTextura.set(gestor, r); }
+    return r;
+  }
+  function crearLienzo(scene, clave, ancho, alto) {
+    var textura = scene.textures.createCanvas(clave, ancho, alto);
+    if (textura) recursosDe(scene).propias.set(clave, textura);
+    return textura;
+  }
+  function soltarTexturas(scene) {
+    var gestor = scene.textures, r = recursosTextura.get(gestor);
+    if (!r) return;
+    r.escenas.delete(scene);
+    if (r.escenas.size) return;
+    r.propias.forEach(function (textura, clave) {
+      try { if (gestor.exists(clave) && gestor.get(clave) === textura) gestor.remove(clave); } catch (e) {}
+    });
+    r.propias.clear();
+    recursosTextura.delete(gestor);
+  }
+
   var PERIODO = 128;         // px: el dibujo se repite cada 128 (sin costura)
   var FOTOS = 8;             // fotogramas del bucle
   var FPS = 7;
@@ -101,9 +126,8 @@
   function az(a, b) { return a + Math.random() * (b - a); }
 
   // ────────────────────────────────────────────── QUÉ PÍXEL ES AGUA
-  var _lecturas = {};      // por textura: { w, h, datos }
+  var serieAgua = 0;
   function leerTextura(scene, clave) {
-    if (_lecturas[clave]) return _lecturas[clave];
     var tex = scene.textures.get(clave);
     var img = tex && tex.key !== '__MISSING' && tex.getSourceImage ? tex.getSourceImage() : null;
     if (!img || !img.width) return null;
@@ -113,7 +137,6 @@
     c.drawImage(img, 0, 0);
     var out = { w: img.width, h: img.height, datos: c.getImageData(0, 0, img.width, img.height).data, gids: {} };
     lienzo.width = lienzo.height = 0;
-    _lecturas[clave] = out;
     return out;
   }
   function esAzul(r, g, b, a) { return a > 40 && b > 110 && b > r + 35 && b > g + 10; }
@@ -330,15 +353,18 @@
     // Los fotogramas: un lienzo por fotograma con todas las casillas.
     var N = lista.length, cols = Math.ceil(Math.sqrt(N)), filas = Math.ceil(N / cols);
     var TW = cols * (T + 2), TH = filas * (T + 2);
-    var id = 'gfa_' + opts.textura + '_' + T + '_' + N;
+    // Dos mapas pueden tener N parejas distintas: no deben reutilizar el atlas
+    // solo porque coincidan la textura base y el número de casillas.
+    var id = 'gfa_' + opts.textura + '_' + T + '_' + N + '_' + (++serieAgua);
     var claves = [];
+    st.claves = claves;
     var faltan = false;
     for (var f = 0; f < FOTOS; f++) { claves.push(id + '_' + f); if (!scene.textures.exists(id + '_' + f)) faltan = true; }
     if (faltan) {
       var pats = patrones(pal, 7);
       for (f = 0; f < FOTOS; f++) {
         if (scene.textures.exists(claves[f])) scene.textures.remove(claves[f]);
-        var ct = scene.textures.createCanvas(claves[f], TW, TH);
+        var ct = crearLienzo(scene, claves[f], TW, TH);
         var ctx = ct.getContext();
         var img = ctx.createImageData(TW, TH);
         for (var k = 0; k < N; k++) {
@@ -352,6 +378,7 @@
     }
 
     var tm = scene.make.tilemap({ data: datos, tileWidth: T, tileHeight: T, insertNull: true });
+    st.tm = tm;
     var ts = tm.addTilesetImage('gf_agua', claves[0], T, T, 1, 2, 0);
     var layer = tm.createLayer(0, ts, x0 * T, y0 * T);
     if (!layer) { tm.destroy(); return false; }
@@ -397,7 +424,7 @@
   function texturasVida(scene) {
     function lienzo(clave, w, h, pintar) {
       if (scene.textures.exists(clave)) return;
-      var ct = scene.textures.createCanvas(clave, w, h);
+      var ct = crearLienzo(scene, clave, w, h);
       pintar(ct.getContext(), w, h);
       ct.refresh();
     }
@@ -635,6 +662,7 @@
   }
 
   function anillo(st, x, y, escala, dura, alfa) {
+    if (!st.scene) return;
     var a = null;
     for (var i = 0; i < st.anillos.length; i++) if (!st.anillos[i].vivo) { a = st.anillos[i]; break; }
     if (!a) return;
@@ -642,10 +670,11 @@
     var s = a.spr;
     s.setPosition(x, y).setVisible(true).setAlpha(alfa || 0.8).setScale(0.15 * escala, 0.15 * escala);
     st.scene.tweens.add({ targets: s, scaleX: escala, scaleY: escala * 0.92, alpha: 0, duration: dura || 700, ease: 'Quad.easeOut',
-      onComplete: function () { s.setVisible(false); a.vivo = false; } });
+      onComplete: function () { if (!st.scene) return; s.setVisible(false); a.vivo = false; } });
   }
 
   function salpicon(st, x, y, n) {
+    if (!st.scene) return;
     for (var i = 0, k = 0; i < st.gotas.length && k < n; i++) {
       var g = st.gotas[i];
       if (g.vivo) continue;
@@ -653,11 +682,12 @@
       (function (g) {
         var s = g.spr, vx = az(-26, 26), alto = az(10, 26);
         s.setPosition(x, y).setVisible(true).setAlpha(0.95).setScale(az(0.7, 1.2));
-        st.scene.tweens.addCounter({ from: 0, to: 1, duration: az(320, 480), onUpdate: function (tw) {
+        g.tween = st.scene.tweens.addCounter({ from: 0, to: 1, duration: az(320, 480), onUpdate: function (tw) {
+          if (!st.scene) return;
           var t = tw.getValue();
           s.setPosition(x + vx * t, y - alto * 4 * t * (1 - t));
           s.setAlpha(0.95 * (1 - t * 0.6));
-        }, onComplete: function () { s.setVisible(false); g.vivo = false; } });
+        }, onComplete: function () { g.tween = null; if (!st.scene) return; s.setVisible(false); g.vivo = false; } });
       })(g);
     }
   }
@@ -715,6 +745,7 @@
   }
 
   function saltarPez(st, v) {
+    if (!st.scene) return;
     var cand = st.peces.filter(function (p) {
       return p.colocado && !p.salta && v && v.contains(p.spr.x, p.spr.y) && !excluido(st, p.spr.x, p.spr.y, 50);
     });
@@ -728,15 +759,20 @@
        que darle la vuelta cuando salta hacia la DERECHA. Al revés saltaba de
        espaldas, con la cola por delante ("a veces el pez brinca de espalda"). */
     var pez = scene.add.image(x0, y0, k).setScale(st.T >= 32 ? 1.1 : 0.9).setDepth(y0 + 40).setFlipX(dir > 0);
+    p.pezSalto = pez;
     s.setAlpha(0);
     anillo(st, x0, y0, 1.1, 650, 0.85); salpicon(st, x0, y0, 4);
-    scene.tweens.addCounter({ from: 0, to: 1, duration: 620, onUpdate: function (tw) {
+    p.tween = scene.tweens.addCounter({ from: 0, to: 1, duration: 620, onUpdate: function (tw) {
+      if (!st.scene) return;
       var t = tw.getValue();
       pez.setPosition(x0 + dir * largo * t, y0 - alto * 4 * t * (1 - t));
       pez.rotation = dir * (-0.9 + 1.8 * t);
     }, onComplete: function () {
+      p.tween = null;
+      if (!st.scene) return;
       var xf = x0 + dir * largo;
       pez.destroy();
+      p.pezSalto = null;
       anillo(st, xf, y0, 1.3, 800, 0.9); salpicon(st, xf, y0, 6);
       if (claseEn(st, xf, y0) === 2) s.setPosition(xf, y0);
       p.salta = false;
@@ -834,15 +870,18 @@
     if (!scene || !scene.add || !scene.events || !scene.map) return null;
     if (scene.__gfAgua) return scene.__gfAgua;
     var st = { scene: scene, vida: opts.vida || null };
+    scene.__gfAgua = st;
+    recursosDe(scene).escenas.add(scene);
     st.excluir = (Array.isArray(opts.excluir) ? opts.excluir : []).filter(function (z) {
       return z && Number.isFinite(z.x) && Number.isFinite(z.y) && z.width > 0 && z.height > 0;
     });
     var ok = false;
     try { ok = construir(scene, st, opts); } catch (e) { console.warn('[agua] no se pudo montar el agua animada:', e); }
-    if (!ok) return null;
+    if (!ok) { desmontar(scene); return null; }
     scene.__gfAgua = st;
     if (st.vida) { try { montarVida(st); } catch (e) { console.warn('[agua] vida:', e); } }
     st.onUpdate = function (t, delta) {
+      if (!Number.isFinite(delta) || delta < 0) return;
       try {
         st.acc += delta;
         var paso = 1000 / FPS;
@@ -868,14 +907,28 @@
     var st = scene && scene.__gfAgua;
     if (!st) return;
     scene.__gfAgua = null;
-    scene.events.off('update', st.onUpdate);
-    scene.events.off('shutdown', st.onApagar);
-    scene.events.off('destroy', st.onApagar);
-    var matar = function (o) { try { if (o && o.destroy) o.destroy(); } catch (e) {} };
-    ['anillos', 'gotas', 'peces', 'hojas', 'destellos'].forEach(function (k) { (st[k] || []).forEach(function (o) { matar(o.spr); }); });
+    if (st.onUpdate) scene.events.off('update', st.onUpdate);
+    if (st.onApagar) { scene.events.off('shutdown', st.onApagar); scene.events.off('destroy', st.onApagar); }
+    st.scene = null;
+    var matar = function (o) {
+      try { if (o && scene.tweens && scene.tweens.killTweensOf) scene.tweens.killTweensOf(o); } catch (e) {}
+      try { if (o && o.destroy) o.destroy(); } catch (e) {}
+    };
+    ['anillos', 'gotas', 'peces', 'hojas', 'destellos'].forEach(function (k) { (st[k] || []).forEach(function (o) {
+      try { if (o.tween) o.tween.stop(); } catch (e) {}
+      o.tween = null; matar(o.pezSalto); o.pezSalto = null; matar(o.spr);
+    }); if (st[k]) st[k].length = 0; });
     (st.adornos || []).forEach(function (a) { matar(a.spr); matar(a.anillo); });
     try { st.tm.destroy(); } catch (e) {}
-    st.scene = null;
+    var recursos = recursosDe(scene);
+    (st.claves || []).forEach(function (clave) {
+      var textura = recursos.propias.get(clave);
+      try { if (textura && scene.textures.get(clave) === textura) scene.textures.remove(clave); } catch (e) {}
+      recursos.propias.delete(clave);
+    });
+    soltarTexturas(scene);
+    st.tm = st.ts = st.layer = st.clase = st.lejos = st.onUpdate = st.onApagar = null;
+    if (st.adornos) st.adornos.length = 0;
   }
 
   window.GFAgua = {
@@ -892,6 +945,7 @@
                peces: st.peces ? st.peces.filter(function (p) { return p.colocado; }).length : 0,
                adornos: st.adornos ? st.adornos.length : 0 };
     },
-    _interno: { infoGid: infoGid, patrones: patrones, paleta: paleta, ruido: ruido, cargarImagenes: cargarImagenes }
+    _interno: { infoGid: infoGid, patrones: patrones, paleta: paleta, ruido: ruido, cargarImagenes: cargarImagenes,
+      saltarPez: saltarPez, salpicon: salpicon, leerTextura: leerTextura }
   };
 })();

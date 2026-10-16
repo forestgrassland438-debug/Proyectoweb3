@@ -228,11 +228,12 @@
     var m = window.GFMascota;
     if (!m) return;
     var accion = it.target === 'player' ? api('/api/alchemist/use', { itemId: it.id }).then(function (r) {
-      if (r.ok && montado && montado === propietaria) {
+      var exito = !!(r && r.ok && r.datos && r.datos.ok);
+      if (exito && montado && montado === propietaria) {
         if (window.GFCharacterSkills) window.GFCharacterSkills.applyStats(montado.scene, r.datos.stats);
         if (montado.scene._sincronizarInventarioConLaCadena) montado.scene._sincronizarInventarioConLaCadena().catch(function () {});
       }
-      return { ok: r.ok, error: r.datos && r.datos.error };
+      return { ok: exito, error: r && r.datos && r.datos.error };
     }) : it.revives ? m.revivirMascota() : m.curar(it.id);
     return accion.then(function (r) {
       if (montado !== propietaria) return null;
@@ -334,10 +335,13 @@
     scene.__gfAlquimista = st;
     montado = st;
 
-    st.onUpdate = function () {
-      // La casa no existe en el primer frame; se reintenta hasta que aparezca.
-      // El NPC no existe en el primer frame; se reintenta hasta que aparezca.
-      if (!st.enganchado) st.enganchado = engancharCasa(st);
+    st.proximoIntento = 0;
+    st.onUpdate = function (time) {
+      // También admite NPC cargado tarde, sin recorrer el mapa a 60 FPS.
+      if (time < st.proximoIntento) return;
+      st.proximoIntento = time + 500;
+      st.enganchado = engancharCasa(st);
+      if (st.enganchado) scene.events.off('update', st.onUpdate);
     };
     scene.events.on('update', st.onUpdate);
     st.onApagar = function () { desmontar(scene); };

@@ -459,8 +459,8 @@
       var desde = { x: z.x, y: z.y };
       z.estado = 'salta';
       z.spr.setScale(esc);
-      scene.tweens.addCounter({ from: 0, to: 1, duration: 640, ease: 'Sine.easeInOut', onUpdate: function (tw) {
-        if (!z.vivo) return;
+      z.saltoTween = scene.tweens.addCounter({ from: 0, to: 1, duration: 640, ease: 'Sine.easeInOut', onUpdate: function (tw) {
+        if (!st.vivo || !z.vivo) return;
         var t = tw.getValue();
         z.x = desde.x + (hasta.x - desde.x) * t;
         z.y = desde.y + (hasta.y - desde.y) * t;
@@ -468,6 +468,7 @@
         z.spr.y = z.y - Math.sin(t * Math.PI) * 150;     // el arco: la sombra se queda en el suelo
         z.sombra.setScale(2.2 * (1 - Math.sin(t * Math.PI) * 0.45));
       }, onComplete: function () {
+        z.saltoTween = null;
         if (!st.vivo || !z.vivo) return;
         z.estado = 'caza';
         z.objX = z.x; z.objY = z.y;
@@ -849,6 +850,12 @@
     if (st.barraJefe && st.barraJefe.parentNode) st.barraJefe.parentNode.removeChild(st.barraJefe);
     st.barraJefe = null;
     st.bichos.forEach(function (z) {
+      z.vivo = false;
+      try { if (z.saltoTween) z.saltoTween.stop(); } catch (e) {}
+      z.saltoTween = null;
+      [z.spr, z.sombra, z.barra].forEach(function (o) {
+        try { if (o && scene.tweens && scene.tweens.killTweensOf) scene.tweens.killTweensOf(o); } catch (e) {}
+      });
       [z.spr, z.sombra, z.barra].forEach(function (o) { try { if (o && o.scene) o.destroy(); } catch (e) {} });
     });
     st.bichos.length = 0;
@@ -856,6 +863,7 @@
     st.jefe = null;
     if (scene._lucesExtra) scene._lucesExtra = null;
     scene.__gfZombis = null;
+    st.scene = st.onUpdate = st.onApagar = st.objetivo = null;
   }
 
   window.GFMinaZombis = {

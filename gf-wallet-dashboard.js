@@ -25,6 +25,12 @@
   var secretoTimer = null;
   var secretoRevision = 0;
   var renderRevision = 0;
+  var walletPintada = null, direccionPintada = null;
+
+  function direccionWallet(wallet) {
+    try { return wallet && typeof wallet.getAddress === 'function' ? wallet.getAddress() : null; }
+    catch (e) { return null; }
+  }
 
   function limpiarSecretos() {
     secretoRevision++;
@@ -205,9 +211,10 @@
 
   function pintarIntegrada(cuerpo, wallet, run) {
     cuerpo.innerHTML = plantilla();
-    function actual() { return run === renderRevision && window.gfWallet === wallet && cuerpo.isConnected; }
+    function actual() { return run === renderRevision && window.gfWallet === wallet && direccionWallet(wallet) === dir && cuerpo.isConnected; }
 
     var dir = wallet.getAddress();
+    walletPintada = wallet; direccionPintada = dir;
     $('gfw-w-addr').textContent = dir;
     $('gfw-w-recv-addr').textContent = dir;
 
@@ -217,9 +224,9 @@
     $('gfw-w-copy').onclick = function () {
       try {
         Promise.resolve(navigator.clipboard.writeText(dir))
-          .then(function () { mensaje('Address copied', 'ok'); })
-          .catch(function () { mensaje('Could not copy', 'err'); });
-      } catch (e) { mensaje('Could not copy', 'err'); }
+          .then(function () { if (actual()) mensaje('Address copied', 'ok'); })
+          .catch(function () { if (actual()) mensaje('Could not copy', 'err'); });
+      } catch (e) { if (actual()) mensaje('Could not copy', 'err'); }
     };
 
     // Las tres secciones se abren y cierran como un acordeón: en el móvil el
@@ -373,14 +380,19 @@
 
   function pintar() {
     var cuerpo = $('gfw-wallet-body');
-    if (!cuerpo || PINTADO) return;
+    if (!cuerpo) return;
+    if (PINTADO && walletPintada === window.gfWallet && direccionPintada === direccionWallet(window.gfWallet)) return;
+    limpiarSecretos();
     PINTADO = true;
     var run = ++renderRevision;
+    var walletSolicitada = window.gfWallet;
+    walletPintada = walletSolicitada; direccionPintada = direccionWallet(walletSolicitada);
 
     cuerpo.innerHTML = '<div class="gfw-w-card"><div class="gfw-w-sub">Loading wallet...</div></div>';
 
     prepararWallet().then(function (w) {
       if (run !== renderRevision || !cuerpo.isConnected) return;
+      if (walletSolicitada !== window.gfWallet) { PINTADO = false; pintar(); return; }
       try {
         if (w) pintarIntegrada(cuerpo, w, run);
         else   pintarMetaMask(cuerpo);

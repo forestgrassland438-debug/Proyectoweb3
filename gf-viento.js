@@ -32,6 +32,28 @@
 (function () {
   'use strict';
 
+  var recursosTextura = new WeakMap();
+  function recursosDe(scene) {
+    var gestor = scene.textures, r = recursosTextura.get(gestor);
+    if (!r) { r = { escenas: new Set(), propias: new Map() }; recursosTextura.set(gestor, r); }
+    return r;
+  }
+  function crearLienzo(scene, clave, ancho, alto) {
+    var textura = scene.textures.createCanvas(clave, ancho, alto);
+    if (textura) recursosDe(scene).propias.set(clave, textura);
+    return textura;
+  }
+  function soltarTexturas(scene) {
+    var gestor = scene.textures, r = recursosTextura.get(gestor);
+    if (!r) return;
+    r.escenas.delete(scene);
+    if (r.escenas.size) return;
+    r.propias.forEach(function (textura, clave) {
+      try { if (gestor.exists(clave) && gestor.get(clave) === textura) gestor.remove(clave); } catch (e) {}
+    });
+    r.propias.clear(); recursosTextura.delete(gestor);
+  }
+
   var RUTA = './Game/Objetos/viento/';
   var RAFAGAS = ['rafaga_1', 'rafaga_2', 'rafaga_3'];
 
@@ -224,7 +246,7 @@
     if (scene.textures.exists(clave)) return clave;
     var T = 16;
     try {
-      var c = scene.textures.createCanvas(clave, T, T);
+      var c = crearLienzo(scene, clave, T, T);
       var ctx = c.getContext();
       ctx.clearRect(0, 0, T, T);
 
@@ -279,7 +301,7 @@
     if (scene.textures.exists(clave)) return clave;
     var W = 12, H = 6;
     try {
-      var c = scene.textures.createCanvas(clave, W, H);
+      var c = crearLienzo(scene, clave, W, H);
       var ctx = c.getContext();
       ctx.clearRect(0, 0, W, H);
       var g = ctx.createLinearGradient(0, 0, W, 0);
@@ -325,7 +347,7 @@
     if (scene.textures.exists(clave)) return clave;
     var W = 96, H = 28;
     try {
-      var c = scene.textures.createCanvas(clave, W, H);
+      var c = crearLienzo(scene, clave, W, H);
       var ctx = c.getContext();
       ctx.clearRect(0, 0, W, H);
 
@@ -825,9 +847,11 @@
 
   function montar(scene, opciones) {
     opciones = opciones || {};
-    if (!scene || !scene.add) return null;
+    if (!scene || !scene.add || !scene.textures || !scene.events || !scene.time || !scene.cameras || !scene.cameras.main) return null;
     if (scene.__gfViento) return scene.__gfViento;
+    recursosDe(scene).escenas.add(scene);
     if (!hayTexturas(scene)) {
+      soltarTexturas(scene);
       console.warn('[viento] faltan las texturas: no se monta. ' +
                    'Revisa GFViento.precargar() en el preload.');
       return null;
@@ -846,6 +870,8 @@
     };
     scene.__gfViento = st;
     montado = st;
+    var existentes = scene.children && scene.children.list ? new Set(scene.children.list) : null;
+    try {
 
     /* Un solo contenedor para hojas y ráfagas: una transformación por frame en
        vez de treinta. Dentro manda el orden de inserción, no el depth. */
@@ -872,6 +898,14 @@
     log('montado; primera racha en',
         Math.round((st.proximaEn - scene.time.now) / 60000), 'min');
     return st;
+    } catch (e) {
+      desmontar(scene);
+      if (existentes && scene.children && scene.children.list) scene.children.list.slice().forEach(function (obj) {
+        try { if (!existentes.has(obj) && obj.destroy) obj.destroy(); } catch (ignorado) {}
+      });
+      console.warn('[viento] no se pudo montar:', e);
+      return null;
+    }
   }
 
   function desmontar(scene) {
@@ -893,6 +927,7 @@
     scene.__gfViento = null;
     if (montado === st) montado = null;
     st.scene = st.onUpdate = st.onApagar = null;
+    soltarTexturas(scene);
   }
 
   /* La escena donde está montado.

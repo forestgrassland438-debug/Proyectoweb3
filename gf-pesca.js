@@ -108,7 +108,7 @@
   // `amort`: lo que queda de la velocidad al cabo de un segundo.
   var LUCHA = { anzuelo: 0.13, sube: 2.6, baja: 2.0, amort: 0.08, gana: 0.30, pierde: 0.20, inicio: 0.35, minMs: 2250 };
 
-  var _ratioPorGid = null;          // gid -> 0 seco, 1 orilla, 2 agua llena
+  var _ratioPorImagen = new WeakMap(); // imagen -> gid: 0 seco, 1 orilla, 2 agua llena
 
   function log() {
     if (!window.GF_PESCA_DEBUG) return;
@@ -138,12 +138,13 @@
 
   // ─────────────────────────────────────────────────────────────── EL AGUA
   function clasificarTileset(scene) {
-    if (_ratioPorGid) return _ratioPorGid;
     var tex = scene.textures.get('tiles');
     var img = tex && tex.getSourceImage ? tex.getSourceImage() : null;
     if (!img || !img.width) return null;
+    if (_ratioPorImagen.has(img)) return _ratioPorImagen.get(img);
     var lec = document.createElement('canvas');
     lec.width = img.width; lec.height = img.height;
+    try {
     var c = lec.getContext('2d', { willReadFrequently: true });
     c.drawImage(img, 0, 0);
     var d = c.getImageData(0, 0, img.width, img.height).data;
@@ -161,9 +162,10 @@
       var ratio = n / (CASILLA * CASILLA);
       out[t + 1] = ratio >= 0.9 ? 2 : (ratio >= 0.35 ? 1 : 0);
     }
-    lec.width = lec.height = 0;
-    _ratioPorGid = out;
+    _ratioPorImagen.set(img, out);
     return out;
+    } catch (e) { return null; }
+    finally { lec.width = lec.height = 0; }
   }
 
   function mapaDeAgua(scene) {
@@ -515,7 +517,7 @@
       st.sesion = r.datos.sesion;
       empezarAnimacion(st, destino, r.datos.picaEnMs, r.datos.ventanaMs);
     }).catch(function () {
-      if (run !== st.runId) return;
+      if (run !== st.runId || st.scene !== scene) return;
       aviso(scene, 'Connection problem. Try again.', 'error');
       terminar(st);
     });
@@ -586,6 +588,30 @@
     return { x: p.x + v[0] * esc, y: p.y + v[1] * esc };
   }
 
+  function contador(st, config) {
+    var scene = st.scene, run = st.runId;
+    var contadores = st.contadores || (st.contadores = new Set());
+    var update = config.onUpdate, complete = config.onComplete;
+    config.onUpdate = function (tw) { if (st.scene === scene && st.runId === run && update) update(tw); };
+    config.onComplete = function () {
+      contadores.delete(tween);
+      if (st.scene === scene && st.runId === run && complete) complete();
+    };
+    var tween = scene.tweens.addCounter(config);
+    contadores.add(tween);
+    return tween;
+  }
+
+  function finalizarDespues(st, delay) {
+    var scene = st.scene, run = st.runId;
+    if (st.relojFinal) st.relojFinal.remove(false);
+    st.relojFinal = scene.time.delayedCall(delay, function () {
+      if (st.scene !== scene || st.runId !== run) return;
+      st.relojFinal = null;
+      terminar(st);
+    });
+  }
+
   function soltarCorcho(st, destino) {
     var scene = st.scene;
     var punta = puntaDeLaCana(st);
@@ -593,13 +619,13 @@
     st.corcho = c;
     st.destino = destino;
     var t0 = scene.time.now;
-    scene.tweens.addCounter({ from: 0, to: 1, duration: 420, ease: 'Sine.easeOut', onUpdate: function (tw) {
+    contador(st, { from: 0, to: 1, duration: 420, ease: 'Sine.easeOut', onUpdate: function (tw) {
       var k = tw.getValue();
-      if (!st.corcho) return;
+      if (st.corcho !== c) return;
       c.x = punta.x + (destino.x - punta.x) * k;
       c.y = punta.y + (destino.y - punta.y) * k - Math.sin(k * Math.PI) * 46;
     }, onComplete: function () {
-      if (!st.corcho) return;
+      if (st.corcho !== c) return;
       st.flotando = true;
       if (st.fase === 'esperando') difundir(st, 'espera', destino);
       onda(st, destino.x, destino.y, 0.9);
@@ -640,27 +666,28 @@
 
   // ─────────────────────────────────────────────────────── LA LUCHA
   function enganchar(st) {
-    var scene = st.scene;
+    var scene = st.scene, run = st.runId;
     if (!st.sesion || st.enganchando) return;
     st.enganchando = true;
     var antes = st.fase;
     st.fase = 'enganchando';
     pintarBoton(st);
     api(scene, '/api/pesca/enganchar', { sesion: st.sesion }).then(function (r) {
+      if (st.scene !== scene || st.runId !== run) return;
       st.enganchando = false;
-      if (!st.scene) return;
       var d = r.datos || {};
-      if (!d.ok) {
+      if (!r.ok || !d.ok) {
         var m = d.motivo;
         aviso(scene, m === 'pronto' ? (antes === 'esperando' ? 'Too soon! The fish got scared.' : 'Too soon!')
           : m === 'tarde' ? 'Too late… it got away.' : (d.message || 'Nothing this time.'), 'warning');
         if (st.corcho) salpicar(st, st.corcho.x, st.corcho.y, 3);
         st.sesion = null;
-        scene.time.delayedCall(250, function () { terminar(st); });
+        finalizarDespues(st, 250);
         return;
       }
       empezarLucha(st, d.especie, d.dificultad || {}, Number(d.maxMs) || 45000);
     }).catch(function () {
+      if (st.scene !== scene || st.runId !== run) return;
       st.enganchando = false;
       aviso(scene, 'Connection problem. Try again.', 'error');
       terminar(st);
@@ -825,7 +852,7 @@
   }
 
   function recoger(st, exito) {
-    var scene = st.scene;
+    var scene = st.scene, run = st.runId;
     if (!st.sesion || st.recogiendo) return;
     st.recogiendo = true;
     var sesion = st.sesion;
@@ -836,9 +863,9 @@
     var cuerpo = { sesion: sesion };
     if (typeof exito === 'boolean') cuerpo.exito = exito;
     api(scene, '/api/pesca/recoger', cuerpo).then(function (r) {
-      if (!st.scene) return;
+      if (st.scene !== scene || st.runId !== run) return;
       var d = r.datos || {};
-      if (d.ok && d.itemId) {
+      if (r.ok && d.ok && d.itemId) {
         saltarPez(st, d.itemId);
         meterFactura(scene, d.itemId, d.factura);
         try { if (scene._sumarExpHabilidad) scene._sumarExpHabilidad('pesca', d.exp || 15); } catch (e) {}
@@ -859,8 +886,9 @@
           : (d.message || 'Nothing this time.'), m === 'escapo' || m === 'tarde' ? 'warning' : 'info');
         if (st.corcho) salpicar(st, st.corcho.x, st.corcho.y, 3);
       }
-      scene.time.delayedCall(d.ok ? 650 : 250, function () { terminar(st); });
+      finalizarDespues(st, r.ok && d.ok ? 650 : 250);
     }).catch(function () {
+      if (st.scene !== scene || st.runId !== run) return;
       aviso(scene, 'Connection problem. Try again.', 'error');
       terminar(st);
     });
@@ -944,7 +972,7 @@
     st.efectos.push(pez);
     salpicar(st, desde.x, desde.y, 8);
     onda(st, desde.x, desde.y, 1.2);
-    scene.tweens.addCounter({ from: 0, to: 1, duration: 620, ease: 'Sine.easeInOut', onUpdate: function (tw) {
+    contador(st, { from: 0, to: 1, duration: 620, ease: 'Sine.easeInOut', onUpdate: function (tw) {
       var t = tw.getValue();
       pez.x = desde.x + (p.x - desde.x) * t;
       pez.y = desde.y + (p.y - 40 - desde.y) * t - Math.sin(t * Math.PI) * 70;
@@ -994,10 +1022,18 @@
     if (st.rango) { try { st.rango.destroy(); } catch (e) {} st.rango = null; }
     st.origen = null;
     st.enganchando = false;
-    ['reloj', 'relojEspera'].forEach(function (k) { if (st[k]) { try { st[k].remove(false); } catch (e) {} st[k] = null; } });
-    if (st.corcho) { try { st.corcho.destroy(); } catch (e) {} st.corcho = null; }
+    ['reloj', 'relojEspera', 'relojFinal'].forEach(function (k) { if (st[k]) { try { st[k].remove(false); } catch (e) {} st[k] = null; } });
+    if (st.contadores) {
+      st.contadores.forEach(function (tw) { try { tw.remove(); } catch (e) {} });
+      st.contadores.clear();
+    }
+    function destruirEfecto(o) {
+      try { if (scene && scene.tweens) scene.tweens.killTweensOf(o); } catch (e) {}
+      try { o.destroy(); } catch (e) {}
+    }
+    if (st.corcho) { destruirEfecto(st.corcho); st.corcho = null; }
     if (st.linea) { try { st.linea.destroy(); } catch (e) {} st.linea = null; }
-    st.efectos.forEach(function (o) { try { o.destroy(); } catch (e) {} });
+    st.efectos.forEach(destruirEfecto);
     st.efectos.length = 0;
     st.flotando = false; st.recogiendo = false; st.sesion = null; st.exclamacion = null;
     st.fase = 'nada'; st.esperaPaso = 0;

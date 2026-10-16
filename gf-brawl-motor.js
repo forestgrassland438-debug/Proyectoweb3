@@ -889,8 +889,11 @@
     var ahora = P.ahora();
     var seq = Number(datos.s);
     var x = Number(datos.x), y = Number(datos.y);
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(seq)) return;
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isSafeInteger(seq)) return;
     if (seq <= l.seq) return;                        // viejo o repetido
+    // Un salto no puede consumir todo el espacio de secuencias y congelar
+    // las entradas posteriores. 1200 tolera un minuto de paquetes perdidos.
+    if (seq - l.seq > 1200) return;
     // Tope de paquetes: 40 por segundo bastan para 20 Hz con margen.
     if (ahora - l.ventanaEntradas > 1000) { l.ventanaEntradas = ahora; l.entradasSegundo = 0; }
     if (++l.entradasSegundo > 40) return;
@@ -903,9 +906,10 @@
        corregirle otra vez: el efecto goma. Cada entrada lleva el número de la
        última corrección que el cliente ha aplicado (`c`); si va por detrás, se
        ignora hasta que se ponga al día. */
-    var c = Number(datos.c);
-    if (Number.isFinite(c)) l.cAck = Math.max(l.cAck, c);
-    if (Number.isFinite(c) && c < l.correccion) return;
+    var c = Number.isSafeInteger(datos.c) && datos.c >= 0 ? datos.c : -1;
+    // Un ACK del futuro no prueba haber aplicado la corrección actual.
+    if (c < l.correccion || c > l.correccion) return;
+    l.cAck = Math.max(l.cAck, c);
 
     var dt = Math.max(0, Math.min(REGLAS.PRESUPUESTO_MS, ahora - (l.ultimaEntrada || ahora)));
     l.ultimaEntrada = ahora;
@@ -926,7 +930,7 @@
     l.x = p[0]; l.y = p[1];
     var fallo = Math.max(Math.abs(p[0] - x), Math.abs(p[1] - y));
     if (fallo > REGLAS.CORRECCION_MIN) { l.correccion++; l.corregir = true; }
-    if (Number.isFinite(Number(datos.a))) l.apunta = Number(datos.a);
+    if (Number.isFinite(Number(datos.a))) l.apunta = Math.atan2(Math.sin(Number(datos.a)), Math.cos(Number(datos.a)));
   }
 
   /**
@@ -939,7 +943,9 @@
     if (!l || !l.vivo || l.fuera || l.sinConexion || P.fase !== 'combate' || !datos) return false;
     var a = Number(datos.a);
     if (!Number.isFinite(a)) return false;
-    return dispararAngulo(P, l, a, !!datos.sup, datos.s);
+    a = Math.atan2(Math.sin(a), Math.cos(a));
+    var seqDisparo = Number.isSafeInteger(datos.s) && datos.s >= 0 ? datos.s : null;
+    return dispararAngulo(P, l, a, !!datos.sup, seqDisparo);
   }
 
   function dispararAngulo(P, l, a, sup, seqCliente) {

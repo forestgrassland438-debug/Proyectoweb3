@@ -96,6 +96,7 @@
   function crear(st, d) {
     if (!d || !d.id || d.zona !== st.zona) return;
     var e = st.mapa[d.id];
+    if (e && e.adios && Number(d.hasta) > Date.now() + st.desfase) { destruir(st, e); e = null; }
     if (e) { e.hasta = Number(d.hasta) || e.hasta; return; }
     if (!st.arte) { st.pendientes[d.id] = d; return; }
     var scene = st.scene, x = Number(d.x), y = Number(d.y);
@@ -121,7 +122,7 @@
     [e.palo, e.llama, e.brillo, e.sombra, e.humo].forEach(function (o) {
       try { if (o && o.scene) { st.scene.tweens.killTweensOf(o); o.destroy(); } } catch (x) {}
     });
-    delete st.mapa[e.id];
+    if (st.mapa[e.id] === e) delete st.mapa[e.id];
   }
 
   /** Se consumió: una voluta de humo sube y el palo se desvanece. */
@@ -250,14 +251,14 @@
     if (!ev || !(ev.target === canvas || canvas.contains(ev.target))) return;
     try { if ((scene.input.hitTestPointer(pointer) || []).length) return; } catch (e) {}
     var w = scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
-    // La antorcha vuelve a su casilla: la bolsa cambia cuando lo diga el servidor.
-    try { scene.clearSelectedItem(); } catch (e) {}
     if (window.GFMuerte && window.GFMuerte.bloquear && window.GFMuerte.bloquear(scene, 'torch')) return;
     var p = scene.player;
     if (!p) return;
     if (Math.hypot(w.x - p.x, w.y - (p.y + 45)) > ALCANCE) { aviso(scene, 'Too far — put the torch closer to you.', 'info'); return; }
     if (!sitioLibre(scene, w.x, w.y)) { aviso(scene, 'A torch cannot go there.', 'info'); return; }
     if (st.poniendo) return;
+    // Solo un intento válido devuelve la antorcha a su casilla.
+    try { scene.clearSelectedItem(); } catch (e) {}
     st.poniendo = true;
     api('/api/antorchas/poner', { zona: st.zona, x: Math.round(w.x), y: Math.round(w.y) }).then(function (r) {
       var d = (r && r.datos) || {};
@@ -272,7 +273,7 @@
       if (d.gastado) ajustarFacturaLocal(scene, d.gastado.invoiceId, Number(d.gastado.cantidadRestante));
       aviso(scene, '🔥 Torch lit — it burns for 30 minutes.', 'success');
     }).catch(function () {
-      aviso(scene, 'Connection problem. Try again.', 'error');
+      if (st.vivo) aviso(scene, 'Connection problem. Try again.', 'error');
     }).then(function () { st.poniendo = false; });
   }
 

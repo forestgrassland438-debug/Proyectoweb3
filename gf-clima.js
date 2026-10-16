@@ -43,6 +43,31 @@
 (function () {
   'use strict';
 
+  // Solo se liberan lienzos creados por este módulo y tras la última escena
+  // que comparte su TextureManager; una textura ajena con la misma clave se respeta.
+  var recursosTextura = new WeakMap();
+  function recursosDe(scene) {
+    var gestor = scene.textures, r = recursosTextura.get(gestor);
+    if (!r) { r = { escenas: new Set(), propias: new Map() }; recursosTextura.set(gestor, r); }
+    return r;
+  }
+  function crearLienzo(scene, clave, ancho, alto) {
+    var textura = scene.textures.createCanvas(clave, ancho, alto);
+    if (textura) recursosDe(scene).propias.set(clave, textura);
+    return textura;
+  }
+  function soltarTexturas(scene) {
+    var gestor = scene.textures, r = recursosTextura.get(gestor);
+    if (!r) return;
+    r.escenas.delete(scene);
+    if (r.escenas.size) return;
+    r.propias.forEach(function (textura, clave) {
+      try { if (gestor.exists(clave) && gestor.get(clave) === textura) gestor.remove(clave); } catch (e) {}
+    });
+    r.propias.clear();
+    recursosTextura.delete(gestor);
+  }
+
   var RUTA = './Game/Objetos/clima/';
   var GOTAS   = ['gota_1', 'gota_2', 'gota_3'];
   var SALPICA = ['salpica_1', 'salpica_2', 'salpica_3'];
@@ -208,7 +233,7 @@
     var clave = 'gfc_blanco';
     if (scene.textures.exists(clave)) return clave;
     try {
-      var c = scene.textures.createCanvas(clave, 4, 4);
+      var c = crearLienzo(scene, clave, 4, 4);
       var ctx = c.getContext();
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, 4, 4);
@@ -268,7 +293,7 @@
     if (scene.textures.exists(clave)) return clave;
     var W = 64, H = 256;
     try {
-      var c = scene.textures.createCanvas(clave, W, H);
+      var c = crearLienzo(scene, clave, W, H);
       var ctx = c.getContext();
 
       // A lo ancho: el canto se apaga. Un haz con borde recto no es un haz.
@@ -338,7 +363,7 @@
   function dibujarRayo(scene, clave, semilla) {
     if (scene.textures.exists(clave)) return clave;
     try {
-      var c = scene.textures.createCanvas(clave, RAYO_W, RAYO_H);
+      var c = crearLienzo(scene, clave, RAYO_W, RAYO_H);
       var ctx = c.getContext();
       ctx.clearRect(0, 0, RAYO_W, RAYO_H);
 
@@ -476,7 +501,7 @@
     var W = 72, H = 34;
     var crec = etapa / (ETAPAS_CHARCO - 1);           // 0 = recién nacido, 1 = entero
     try {
-      var c = scene.textures.createCanvas(clave, W, H);
+      var c = crearLienzo(scene, clave, W, H);
       var ctx = c.getContext();
       ctx.clearRect(0, 0, W, H);
 
@@ -627,7 +652,7 @@
     if (scene.textures.exists(clave)) return clave;
     var T = 192;
     try {
-      var c = scene.textures.createCanvas(clave, T, T);
+      var c = crearLienzo(scene, clave, T, T);
       var ctx = c.getContext();
       var g = ctx.createRadialGradient(T / 2, T / 2, 0, T / 2, T / 2, T / 2);
       g.addColorStop(0.00, 'rgba(255,255,255,0.95)');
@@ -657,7 +682,7 @@
     if (scene.textures.exists(clave)) return clave;
     var T = 256;
     try {
-      var c = scene.textures.createCanvas(clave, T, T);
+      var c = crearLienzo(scene, clave, T, T);
       var ctx = c.getContext();
       var g = ctx.createRadialGradient(T / 2, T / 2, 0, T / 2, T / 2, T / 2);
       g.addColorStop(0.00, 'rgba(255,236,170,0.95)');
@@ -697,7 +722,7 @@
     if (scene.textures.exists(clave)) return clave;
     var T = 16;
     try {
-      var c = scene.textures.createCanvas(clave, T, T);
+      var c = crearLienzo(scene, clave, T, T);
       var ctx = c.getContext();
       var g = ctx.createRadialGradient(T / 2, T / 2, 0, T / 2, T / 2, T / 2);
       g.addColorStop(0.00, 'rgba(255,252,232,1)');
@@ -859,7 +884,7 @@
     ];
     var receta = RECETAS[variante % RECETAS.length];
     try {
-      var c = scene.textures.createCanvas(clave, T, T);
+      var c = crearLienzo(scene, clave, T, T);
       var ctx = c.getContext();
       ctx.clearRect(0, 0, T, T);
       for (var i = 0; i < receta.length; i++) {
@@ -1004,7 +1029,7 @@
     if (scene.textures.exists(clave)) return clave;
     var T = 256;
     try {
-      var c = scene.textures.createCanvas(clave, T, T);
+      var c = crearLienzo(scene, clave, T, T);
       var ctx = c.getContext();
       var g = ctx.createRadialGradient(T / 2, T / 2, 0, T / 2, T / 2, T / 2);
       g.addColorStop(0.00, 'rgba(255,252,236,0.95)');
@@ -1025,7 +1050,7 @@
       var vertical = (clave === 'gfc_borde_v');
       var N = 64;
       try {
-        var c = scene.textures.createCanvas(clave, vertical ? 1 : N, vertical ? N : 1);
+        var c = crearLienzo(scene, clave, vertical ? 1 : N, vertical ? N : 1);
         var ctx = c.getContext();
         var g = vertical ? ctx.createLinearGradient(0, 0, 0, N)
                          : ctx.createLinearGradient(0, 0, N, 0);
@@ -1781,7 +1806,7 @@
     var rama  = [2, 2, 3, 3][n % 4];
     var diagonales = n % 4 !== 1;
     try {
-      var c = scene.textures.createCanvas(clave, T, T);
+      var c = crearLienzo(scene, clave, T, T);
       var ctx = c.getContext();
       var px = function (x, y, a) {
         if (x < 0 || y < 0 || x >= T || y >= T) return;
@@ -1816,7 +1841,7 @@
     if (scene.textures.exists(clave)) return clave;
     var T = 32;
     try {
-      var c = scene.textures.createCanvas(clave, T, T);
+      var c = crearLienzo(scene, clave, T, T);
       var ctx = c.getContext();
       var g = ctx.createRadialGradient(T / 2, T / 2, 0, T / 2, T / 2, T / 2);
       g.addColorStop(0.00, 'rgba(255,255,255,0.90)');
@@ -2715,7 +2740,7 @@
   function texturasVidaCharco(scene) {
     function lienzo(clave, w, h, pintar) {
       if (scene.textures.exists(clave)) return;
-      try { var ct = scene.textures.createCanvas(clave, w, h); pintar(ct.getContext(), w, h); ct.refresh(); }
+      try { var ct = crearLienzo(scene, clave, w, h); pintar(ct.getContext(), w, h); ct.refresh(); }
       catch (e) { log('textura ' + clave, e); }
     }
     lienzo('gfc_charco_brillo', 20, 5, function (x, w, h) {
@@ -2743,6 +2768,7 @@
   }
 
   function ondaEnCharco(st, x, y, escala, dura) {
+    if (!st.scene) return;
     var o = null;
     for (var i = 0; i < st.ondasCharco.length; i++) if (!st.ondasCharco[i].vivo) { o = st.ondasCharco[i]; break; }
     if (!o) return;
@@ -2750,10 +2776,11 @@
     var s = o.spr;
     s.setPosition(x, y).setVisible(true).setAlpha(0.75).setScale(0.2 * escala);
     st.scene.tweens.add({ targets: s, scaleX: escala, scaleY: escala, alpha: 0, duration: dura || 480, ease: 'Quad.easeOut',
-      onComplete: function () { s.setVisible(false); o.vivo = false; } });
+      onComplete: function () { if (!st.scene) return; s.setVisible(false); o.vivo = false; } });
   }
 
   function chapoteo(st, x, y, prof) {
+    if (!st.scene) return;
     ondaEnCharco(st, x, y, 1.6, 560);
     for (var i = 0, n = 0; i < st.gotitasCharco.length && n < 4; i++) {
       var g = st.gotitasCharco[i];
@@ -2762,10 +2789,11 @@
       (function (g) {
         var s = g.spr, vx = az(-18, 18), alto = az(6, 16), x0 = x + az(-5, 5);
         s.setPosition(x0, y).setDepth(prof).setVisible(true).setAlpha(0.9);
-        st.scene.tweens.addCounter({ from: 0, to: 1, duration: az(260, 380), onUpdate: function (tw) {
+        g.tween = st.scene.tweens.addCounter({ from: 0, to: 1, duration: az(260, 380), onUpdate: function (tw) {
+          if (!st.scene) return;
           var t = tw.getValue();
           s.setPosition(x0 + vx * t, y - alto * 4 * t * (1 - t));
-        }, onComplete: function () { s.setVisible(false); g.vivo = false; } });
+        }, onComplete: function () { g.tween = null; if (!st.scene) return; s.setVisible(false); g.vivo = false; } });
       })(g);
     }
   }
@@ -3053,7 +3081,7 @@
   var N_CENIZAS     = 14;
   var N_HUMO_DENSO  = 5;
   var QUEMADURA_MS  = 45000;
-  var _copasLeidas  = {};          // clave de textura -> [{u, v}] (se lee una vez)
+  var _copasLeidas  = new WeakMap(); // frame -> [{u, v}], sin retener texturas descartadas
 
   function aditivo(obj) {
     if (obj && obj.setBlendMode && window.Phaser && Phaser.BlendModes) obj.setBlendMode(Phaser.BlendModes.ADD);
@@ -3073,7 +3101,7 @@
       if (scene.textures.exists(clave)) continue;
       var W = 32, H = 56;
       try {
-        var c = scene.textures.createCanvas(clave, W, H);
+        var c = crearLienzo(scene, clave, W, H);
         var ctx = c.getContext();
         var capas = [
           { ancho: 13, alto: 0.98, color0: 'rgba(255,92,24,0.85)',  color1: 'rgba(200,40,10,0)' },
@@ -3115,7 +3143,7 @@
   function texturaPunto(scene, clave, T, paradas) {
     if (scene.textures.exists(clave)) return clave;
     try {
-      var c = scene.textures.createCanvas(clave, T, T);
+      var c = crearLienzo(scene, clave, T, T);
       var ctx = c.getContext();
       var g = ctx.createRadialGradient(T / 2, T / 2, 0, T / 2, T / 2, T / 2);
       for (var i = 0; i < paradas.length; i++) g.addColorStop(paradas[i][0], paradas[i][1]);
@@ -3130,7 +3158,7 @@
     var clave = 'gfc_hoja_ardiendo';
     if (scene.textures.exists(clave)) return clave;
     try {
-      var c = scene.textures.createCanvas(clave, 8, 6);
+      var c = crearLienzo(scene, clave, 8, 6);
       var ctx = c.getContext();
       ctx.fillStyle = 'rgba(70,30,12,0.95)';
       ctx.beginPath(); ctx.ellipse(4, 3, 3.6, 2.4, 0.3, 0, Math.PI * 2); ctx.fill();
@@ -3149,7 +3177,7 @@
     if (scene.textures.exists(clave)) return clave;
     var T = 64;
     try {
-      var c = scene.textures.createCanvas(clave, T, T);
+      var c = crearLienzo(scene, clave, T, T);
       var ctx = c.getContext();
       var bolas = [[32, 36, 22], [22, 30, 15], [42, 28, 16], [30, 20, 14], [40, 42, 13], [20, 42, 12]];
       for (var i = 0; i < bolas.length; i++) {
@@ -3172,7 +3200,7 @@
     if (scene.textures.exists(clave)) return clave;
     var W = 96, H = 48;
     try {
-      var c = scene.textures.createCanvas(clave, W, H);
+      var c = crearLienzo(scene, clave, W, H);
       var ctx = c.getContext();
       for (var i = 0; i < 14; i++) {
         var a = (i / 14) * Math.PI * 2;
@@ -3209,8 +3237,7 @@
     var fr = spr && spr.frame;
     var img = fr && fr.source && fr.source.image;
     if (!img) return [];
-    var clave = spr.texture.key + '|' + fr.name;
-    if (_copasLeidas[clave]) return _copasLeidas[clave];
+    if (_copasLeidas.has(fr)) return _copasLeidas.get(fr);
     var out = [];
     var lec = null;
     try {
@@ -3229,7 +3256,7 @@
       }
     } catch (e) { out = []; }
     finally { if (lec) { lec.width = 0; lec.height = 0; } }
-    _copasLeidas[clave] = out;
+    _copasLeidas.set(fr, out);
     return out;
   }
 
@@ -3734,6 +3761,7 @@
     scene.__gfClima = st;
     montado = st;
     escenas.add(scene);
+    recursosDe(scene).escenas.add(scene);
     var existentes = scene.children && scene.children.list ? new Set(scene.children.list) : null;
     try {
 
@@ -3983,13 +4011,21 @@
     apagarIncendio(st);
     ['gotas', 'salpicas', 'copos', 'posas', 'bordes', 'charcos', 'rayosSol', 'motas', 'nubes', 'quemaduras',
      'brillosCharco', 'ondasCharco', 'gotitasCharco'].forEach(function (key) {
-      (st[key] || []).forEach(function (obj) { destruirObjeto(obj.spr || obj); });
+      (st[key] || []).forEach(function (obj) {
+        try { if (obj.tween) obj.tween.stop(); } catch (e) {}
+        obj.tween = null;
+        var spr = obj.spr || obj;
+        try { if (scene.tweens && scene.tweens.killTweensOf) scene.tweens.killTweensOf(spr); } catch (e) {}
+        destruirObjeto(spr);
+      });
       if (st[key]) st[key].length = 0;
     });
     ['resplandorSol', 'filtro', 'cortina', 'fogonazo', 'rayo', 'impacto', 'capa'].forEach(function (key) {
       destruirObjeto(st[key]); st[key] = null;
     });
     st.scene = st.onUpdate = st.onApagar = null;
+    soltarTexturas(scene);
+    if (!escenas.size) _copasLeidas = new WeakMap();
     if (montado === st) montado = escenas.size ? Array.from(escenas).pop().__gfClima : null;
   }
   function detener() {
@@ -4002,6 +4038,7 @@
     }
     soltarSocket();
     Array.from(escenas).forEach(desmontar);
+    _copasLeidas = new WeakMap();
     oyentesTrueno.length = 0;
   }
 
@@ -4142,6 +4179,7 @@
       RAYOS_DIBUJADOS: RAYOS_DIBUJADOS, CHARCOS_DIBUJADOS: CHARCOS_DIBUJADOS,
       HIELOS_DIBUJADOS: HIELOS_DIBUJADOS, ALCANCE_RAYO: ALCANCE_RAYO,
       charcosParaBanarse: charcosParaBanarse,
+      ondaEnCharco: ondaEnCharco, chapoteo: chapoteo,
       tiempoAhora: tiempoAhora, avisarDelTrueno: avisarDelTrueno
     }
   };

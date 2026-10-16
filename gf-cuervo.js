@@ -226,13 +226,20 @@
 
   /** Un sitio seco cerca de `p` (o null): se prueba alrededor. */
   function secoCerca(scene, p, radio) {
-    if (!esAgua(scene, p.x, p.y)) return p;
+    if (sueloLibre(scene, p.x, p.y)) return p;
     for (var i = 0; i < 16; i++) {
       var a = az(0, 6.283), r = az(20, radio || 160);
       var q = { x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r };
-      if (!esAgua(scene, q.x, q.y)) return q;
+      if (sueloLibre(scene, q.x, q.y)) return q;
     }
     return null;
+  }
+
+  function sueloLibre(scene, x, y) {
+    var mapa = scene.map, ancho = mapa && mapa.widthInPixels, alto = mapa && mapa.heightInPixels;
+    if (x < 8 || y < 8 || (ancho > 0 && x > ancho - 8) || (alto > 0 && y > alto - 8)) return false;
+    if (esAgua(scene, x, y)) return false;
+    return typeof scene._chocaConEscenario !== 'function' || !scene._chocaConEscenario(x - 6, y - 6, 12, 6);
   }
 
   /** ¿Guarda esa parcela un espantapájaros? */
@@ -616,8 +623,7 @@
     if (hambre && parcelas(scene).length) r = r * 0.35 + 0.65;
 
     // 45% cambiar de árbol · 30% bajar a caminar · 25% picotear una parcela
-    if (r < 0.45 || !scene.player) {
-      if (!arboles.length) { c.hasta = scene.time.now + 3000; return; }
+    if (arboles.length && (r < 0.45 || !scene.player)) {
       var libres = lejosDelJugador(scene, deLaZona(arboles, c), DIST_SUSTO_ARBOL * 1.5);
       var destino = elegir(libres);
       volarA(st, c, posadero(destino.spr), 'posado', destino.clave);
@@ -886,8 +892,9 @@
 
     if (c.fase === 'camina') {
       // pasitos cortos de un lado a otro; delante del agua, media vuelta
-      if (esAgua(scene, spr.x + c.rumbo * 14, spr.y)) c.rumbo *= -1;
-      spr.x += c.rumbo * VEL_ANDAR * dt;
+      var siguiente = spr.x + c.rumbo * VEL_ANDAR * dt;
+      if (!sueloLibre(scene, spr.x + c.rumbo * 14, spr.y) || !sueloLibre(scene, siguiente, spr.y)) c.rumbo *= -1;
+      else spr.x = siguiente;
       spr.setFlipX(c.rumbo < 0);
       spr.setDepth(spr.y);
       if (Math.random() < 0.012) c.rumbo *= -1;

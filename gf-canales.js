@@ -86,7 +86,7 @@
 
     poner('canalesEstado', function (d) {
       if (!d) return;
-      if (d.canal) { canal = d.canal; try { global.__gfCanalActual = canal; } catch (e) {} }
+      if (d.canal && d.canal !== canal) { canal = d.canal; avisar(); }
       total   = d.total || total;
       cupo    = d.cupo  || cupo;
       canales = d.canales || canales;
@@ -195,10 +195,11 @@
          distinguía tienda/mapa, así que cambiar de canal dentro de la mina
          metía al jugador en la sala del mapa: un fantasma allí, y en la mina
          nadie. */
-      var clave = esc.scene && esc.scene.key;
-      var sala = clave === 'tiendajuego' ? 'tienda'
-               : clave === 'MinaScene'   ? 'mina'
-               : 'game';
+      // Las escenas resuelven también islas visitadas y cada casa concreta.
+      var clave = (esc.scene && esc.scene.key) || (esc.sys && esc.sys.settings && esc.sys.settings.key);
+      var salas = { GameScene: 'game', tiendajuego: 'tienda', MinaScene: 'mina', SalvajeScene: 'salvaje' };
+      var sala = typeof esc._salaDeEscena === 'function' ? esc._salaDeEscena() : salas[clave] || esc.currentRoom;
+      if (!sala) return;
       esc.currentRoom  = null;
       esc.lastJoinTime = 0;
       if (typeof esc.clearOtherPlayers === 'function') esc.clearOtherPlayers();
@@ -304,7 +305,9 @@
     lista:       function () { return canales.slice(); },
     montarPanel: montarPanel,
     refrescar:   pedirEstado,
-    cambiar:     cambiar
+    cambiar:     cambiar,
+    detener:     detener,
+    iniciar:     iniciar
   };
 
   // El socket lo crea la escena, que arranca después que este script. Se vigila
@@ -313,17 +316,31 @@
   // El reloj NO se para al primer enganche: sigue comprobando —barato, un
   // `!==` cada dos segundos— por si el juego sustituyera el socket. Antes se
   // paraba, y a partir de ahi el modulo se quedaba escuchando al socket viejo.
-  var intentos = 0;
-  var reloj = setInterval(function () {
+  var reloj = null, demora = null;
+
+  function detener() {
+    clearInterval(reloj); clearTimeout(demora);
+    reloj = demora = null;
+    soltarOyentes(); socket = null; enlazado = false;
+  }
+
+  function iniciar() {
+    if (reloj !== null) return;
     enlazar();
-    intentos++;
-  }, 300);
+    reloj = setInterval(enlazar, 300);
 
   // Tras el primer minuto la comprobacion se espacia: ya no hace falta mirar
   // tres veces por segundo, solo estar atento a un cambio de socket.
-  setTimeout(function () {
-    try { clearInterval(reloj); } catch (e) {}
-    setInterval(enlazar, 2000);
-  }, 60000);
+    demora = setTimeout(function () {
+      clearInterval(reloj);
+      reloj = setInterval(enlazar, 2000);
+      demora = null;
+    }, 60000);
+  }
+  if (global.addEventListener) {
+    global.addEventListener('pagehide', detener);
+    global.addEventListener('pageshow', iniciar);
+  }
+  iniciar();
 
 })(window);

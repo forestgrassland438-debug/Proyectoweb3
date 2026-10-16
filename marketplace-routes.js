@@ -145,21 +145,94 @@ function escapeRegex(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-module.exports = function registerMarketplaceRoutes(app, ctx) {
+// Session propagation is local to this module: other game queries do not
+// inherit a market transaction or any global Mongoose setting.
+function createMarketAtomic(mongoose) {
+  const { AsyncLocalStorage } = require('node:async_hooks');
+  const scope = new AsyncLocalStorage();
+  const queryMethods = new Set(['find', 'findOne', 'findById', 'findOneAndUpdate',
+    'findOneAndDelete', 'updateOne', 'updateMany', 'deleteOne', 'deleteMany', 'countDocuments']);
+  async function transaction(work) {
+    if (scope.getStore()) return work();
+    const session = await mongoose.startSession();
+    try {
+      return await session.withTransaction(() => scope.run(session, work), {
+        readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' }, readPreference: 'primary'
+      });
+    } finally {
+      // Cleanup cannot turn a committed payment into an apparent failure.
+      try { await session.endSession(); } catch (error) { console.warn('⚠️ Marketplace session cleanup failed:', error.code || error.name); }
+    }
+  }
+  function model(raw) {
+    return new Proxy(raw, {
+      get(target, key) {
+        const value = Reflect.get(target, key, target);
+        if (typeof value !== 'function') return value;
+        return function (...args) {
+          const session = scope.getStore();
+          if (!session) return value.apply(target, args);
+          if (key === 'create') {
+            const multiple = Array.isArray(args[0]);
+            return target.create(multiple ? args[0] : [args[0]], { ...args[1], session })
+              .then(docs => multiple ? docs : docs[0]);
+          }
+          if (key === 'insertMany') return target.insertMany(args[0], { ...args[1], session });
+          if (!queryMethods.has(key)) throw new Error('Unsupported transactional market operation: ' + String(key));
+          return value.apply(target, args).session(session);
+        };
+      }
+    });
+  }
+  function handler(work) {
+    return async function (req, res, next) {
+      let result;
+      const aborted = new Error('marketplace_request_aborted');
+      try {
+        await transaction(async () => {
+          // withTransaction may retry: never send an HTTP response from its
+          // callback, and reconstruct its response on every attempt.
+          result = { status: 200, body: undefined };
+          const draft = { status(code) { result.status = code; return draft; },
+            commitStatus(code) { result.status = code; result.commitOnError = true; return draft; },
+            json(body) { result.body = body; return draft; } };
+          await work(req, draft, next);
+          if (result.status >= 400 && !result.commitOnError) throw aborted;
+        });
+      } catch (error) {
+        if (error !== aborted) {
+          console.error('❌ Marketplace transaction rolled back:', error.code || error.name || 'database_error');
+          return res.status(503).json({ error: 'marketplace_transaction_unavailable',
+            message: 'No se completó la operación. El mercado necesita una base de datos con transacciones disponibles.' });
+        }
+      }
+      return res.status(result.status).json(result.body);
+    };
+  }
+  return { transaction, model, handler };
+}
+
+module.exports = function registerMarketplaceRoutes(rawApp, ctx) {
+  const atomic = createMarketAtomic(ctx.mongoose);
+  const app = { get: (...args) => rawApp.get(...args) };
+  for (const method of ['post', 'patch', 'delete']) app[method] = (...args) => {
+    const work = args.pop(); return rawApp[method](...args, atomic.handler(work));
+  };
   const {
     mongoose,
     authMiddleware,
     csrfProtection,
     apiLimiter,
     strictLimiter,
-    GamePlayer,
-    PlayerStats,
-    Listing,
+    GamePlayer: RawGamePlayer,
+    PlayerStats: RawPlayerStats,
+    Listing: RawListing,
     // Comprobador de admin de server2.js (env ADMIN_ADDRESSES o isAdmin
     // on-chain). Si no llega, NADIE es admin: es preferible que el panel de
     // productos limitados no exista a que lo pueda usar cualquiera.
     isAdminAddress = async () => false
   } = ctx;
+  const GamePlayer = atomic.model(RawGamePlayer), PlayerStats = atomic.model(RawPlayerStats), Listing = atomic.model(RawListing);
 
   const writeLimiter = strictLimiter || apiLimiter;
 
@@ -247,8 +320,8 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
 
   // Reutiliza el modelo si ya está registrado (evita OverwriteModelError si el
   // módulo se carga más de una vez).
-  const MarketHistory = mongoose.models.MarketHistory
-    || mongoose.model('MarketHistory', marketHistorySchema);
+  const MarketHistory = atomic.model(mongoose.models.MarketHistory
+    || mongoose.model('MarketHistory', marketHistorySchema));
 
   function serializeHistory(h) {
     return {
@@ -332,21 +405,19 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
     // Va ANTES de insertar: si el guardado del juego llegara justo en medio,
     // es preferible que vea la marca de más y recargue, a que no la vea y
     // borre el ítem.
-    try {
-      await GamePlayer.updateOne({ address }, { $set: { marketWriteAt: new Date() } }).exec();
-    } catch (e) {
-      console.warn('⚠️ market: no se pudo marcar marketWriteAt:', e.message);
-    }
+    const marked = await GamePlayer.updateOne({ address }, { $set: { marketWriteAt: new Date() } }).exec();
+    if (marked.matchedCount !== 1) throw new Error('market_inventory_missing');
 
     for (const op of ops) {
       if (op.type === 'inc') {
-        await GamePlayer.updateOne(
-          { address, 'inventory.id': op.id },
+        const updated = await GamePlayer.updateOne(
+          { address, inventory: { $elemMatch: { id: op.id, objeto: itemId } } },
           { $inc: { 'inventory.$.cantidad': op.amount } }
         ).exec();
+        if (updated.matchedCount !== 1) throw new Error('market_inventory_changed');
       } else {
-        await GamePlayer.updateOne(
-          { address },
+        const updated = await GamePlayer.updateOne(
+          { address, 'inventory.id': { $ne: op.id } },
           {
             $push: {
               inventory: {
@@ -360,6 +431,7 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
             }
           }
         ).exec();
+        if (updated.matchedCount !== 1) throw new Error('market_inventory_changed');
       }
     }
   }
@@ -689,10 +761,11 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
       }
 
       // 4) Pagar al vendedor (95% — 5% queda como comisión del mercado)
-      await PlayerStats.updateOne(
+      const sellerPaid = await PlayerStats.updateOne(
         { address: listing.owner },
         { $inc: { [field]: sellerReceives } }
       ).exec();
+      if (sellerPaid.matchedCount !== 1) throw new Error('market_seller_stats_missing');
 
       // 5) Entregar el ítem al comprador
       await applyInsertPlan(address, listing.itemId, plan);
@@ -890,8 +963,8 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
     resolvedAt:   { type: Date, default: null }
   }, { collection: 'market_offers' });
 
-  const MarketOffer = mongoose.models.MarketOffer
-    || mongoose.model('MarketOffer', marketOfferSchema);
+  const MarketOffer = atomic.model(mongoose.models.MarketOffer
+    || mongoose.model('MarketOffer', marketOfferSchema));
 
   function serializeOffer(o, listing) {
     const meta = catalogMeta(o.itemId);
@@ -920,15 +993,22 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
   }
 
   /** Devuelve el dinero retenido de una oferta. Idempotente por `status`. */
-  async function devolverRetencion(offer) {
-    const field = currencyField(offer.currency);
-    const gp = await GamePlayer.findOne({ address: offer.buyer }).lean();
-    if (!gp) return false;
-    await PlayerStats.updateOne(
-      { playerName: gp.playerName },
-      { $inc: { [field]: offer.total } }
-    ).exec();
-    return true;
+  async function devolverRetencion(offer, resolution = 'cancelled') {
+    return atomic.transaction(async () => {
+      // Claim and credit commit together. Stale copies from the expiry
+      // worker or a second HTTP request cannot refund the same escrow twice.
+      const claimed = await MarketOffer.findOneAndUpdate(
+        { _id: offer._id, status: 'pending' },
+        { $set: { status: resolution, resolvedAt: new Date() } }, { new: true }).exec();
+      if (!claimed) return false;
+      const field = currencyField(claimed.currency);
+      const gp = await GamePlayer.findOne({ address: claimed.buyer }).lean();
+      if (!gp) throw new Error('market_refund_player_missing');
+      const refunded = await PlayerStats.updateOne(
+        { playerName: gp.playerName }, { $inc: { [field]: claimed.total } }).exec();
+      if (refunded.matchedCount !== 1) throw new Error('market_refund_stats_missing');
+      return true;
+    });
   }
 
   /** Caduca las ofertas pasadas de fecha y devuelve el dinero retenido. */
@@ -940,10 +1020,7 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
 
     for (const o of vencidas) {
       try {
-        await devolverRetencion(o);
-        o.status = 'expired';
-        o.resolvedAt = new Date();
-        await o.save();
+        await devolverRetencion(o, 'expired');
       } catch (e) {
         console.warn('⚠️ No se pudo caducar la oferta', String(o._id), e.message);
       }
@@ -991,9 +1068,6 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
       const previa = await MarketOffer.findOne({ listingId, buyer: address, status: 'pending' });
       if (previa) {
         await devolverRetencion(previa);
-        previa.status = 'cancelled';
-        previa.resolvedAt = new Date();
-        await previa.save();
       }
 
       const total = round2(qty * pricePerUnit);
@@ -1083,16 +1157,14 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
       if (offer.seller !== address) return res.status(403).json({ error: 'not_your_offer' });
       if (offer.status !== 'pending') return res.status(409).json({ error: 'offer_not_pending' });
       if (offer.expiresAt <= new Date()) {
-        await devolverRetencion(offer);
-        offer.status = 'expired'; offer.resolvedAt = new Date(); await offer.save();
-        return res.status(409).json({ error: 'offer_expired' });
+        await devolverRetencion(offer, 'expired');
+        return res.commitStatus(409).json({ error: 'offer_expired' });
       }
 
       const listing = await Listing.findById(offer.listingId).exec();
       if (!listing) {
         await devolverRetencion(offer);
-        offer.status = 'cancelled'; offer.resolvedAt = new Date(); await offer.save();
-        return res.status(409).json({ error: 'listing_gone', message: 'Esa publicación ya no existe. Se devolvió el dinero al comprador.' });
+        return res.commitStatus(409).json({ error: 'listing_gone', message: 'Esa publicación ya no existe. Se devolvió el dinero al comprador.' });
       }
 
       const meta = catalogMeta(offer.itemId);
@@ -1129,10 +1201,11 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
       const sellerReceives = round2(offer.total - fee);
       const field = currencyField(offer.currency);
 
-      await PlayerStats.updateOne(
+      const sellerPaid = await PlayerStats.updateOne(
         { address: offer.seller },
         { $inc: { [field]: sellerReceives } }
       ).exec();
+      if (sellerPaid.matchedCount !== 1) throw new Error('market_seller_stats_missing');
 
       await applyInsertPlan(offer.buyer, offer.itemId, plan);
 
@@ -1189,10 +1262,9 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
       if (offer.status !== 'pending') return res.status(409).json({ error: 'offer_not_pending' });
 
       // Sea quien sea el que la cierra, el dinero retenido vuelve al comprador.
-      await devolverRetencion(offer);
-      offer.status = quien === 'seller' ? 'rejected' : 'cancelled';
-      offer.resolvedAt = new Date();
-      await offer.save();
+      const resolution = quien === 'seller' ? 'rejected' : 'cancelled';
+      if (!(await devolverRetencion(offer, resolution))) return res.status(409).json({ error: 'offer_not_pending' });
+      offer.status = resolution;
 
       const gp = await getGamePlayerByAddress(address);
       const stats = gp ? await PlayerStats.findOne({ playerName: gp.playerName }).lean() : null;
@@ -1235,8 +1307,8 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
     createdAt:    { type: Date, default: Date.now }
   }, { collection: 'market_limited' });
 
-  const LimitedListing = mongoose.models.LimitedListing
-    || mongoose.model('LimitedListing', limitedListingSchema);
+  const LimitedListing = atomic.model(mongoose.models.LimitedListing
+    || mongoose.model('LimitedListing', limitedListingSchema));
 
   // Cuántas unidades lleva compradas cada jugador de cada lote (para el tope).
   const limitedPurchaseSchema = new mongoose.Schema({
@@ -1245,8 +1317,8 @@ module.exports = function registerMarketplaceRoutes(app, ctx) {
     qty:       { type: Number, default: 0 }
   }, { collection: 'market_limited_purchases' });
 
-  const LimitedPurchase = mongoose.models.LimitedPurchase
-    || mongoose.model('LimitedPurchase', limitedPurchaseSchema);
+  const LimitedPurchase = atomic.model(mongoose.models.LimitedPurchase
+    || mongoose.model('LimitedPurchase', limitedPurchaseSchema));
 
   function serializeLimited(d, comprado) {
     const meta = catalogMeta(d.itemId);

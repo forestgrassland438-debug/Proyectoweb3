@@ -89,6 +89,11 @@
     if (!e && crear) {
       e = { arenas: [], efectos: [] };
       r.escenas.set(scene, e);
+      if (scene.events && scene.events.once) {
+        e.salir = function () { olvidar(scene); };
+        scene.events.once('shutdown', e.salir);
+        scene.events.once('destroy', e.salir);
+      }
     }
     return e ? e[tipo] : [];
   }
@@ -366,14 +371,18 @@
     ctx.fillStyle = halo;
     ctx.fillRect(ax - rAstro * 7, ay - rAstro * 7, rAstro * 14, rAstro * 14);
     ctx.fillStyle = rgba(cfg.luz, 0.95);
-    ctx.beginPath(); ctx.arc(ax, ay, rAstro, 0, Math.PI * 2); ctx.fill();
     if (cfg.astro === 'luna') {
-      // La luna se hace con una mordida: un círculo del color del cielo encima.
-      ctx.fillStyle = rgba(cfg.cielo[0], 1);
+      // La intersección par/impar recorta el disco sin pintar sobre el
+      // degradado, las estrellas ni el halo que ya hay detrás.
+      ctx.save();
       ctx.beginPath();
+      ctx.arc(ax, ay, rAstro, 0, Math.PI * 2);
+      ctx.moveTo(ax + rAstro * 1.34, ay - rAstro * 0.30);
       ctx.arc(ax + rAstro * 0.42, ay - rAstro * 0.30, rAstro * 0.92, 0, Math.PI * 2);
-      ctx.fill();
-    }
+      ctx.clip('evenodd');
+      ctx.beginPath(); ctx.arc(ax, ay, rAstro, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    } else { ctx.beginPath(); ctx.arc(ax, ay, rAstro, 0, Math.PI * 2); ctx.fill(); }
 
     // ── NUBES ──
     if (!cfg.estrellas) {
@@ -624,7 +633,16 @@
 
   /** Llamar después de destruir los sprites que usan este arte. */
   function olvidar(scene) {
-    return olvidarArenas(scene) + olvidarEfectos(scene);
+    var r = recursos(scene, false), e = r && r.escenas.get(scene);
+    var n = olvidarArenas(scene) + olvidarEfectos(scene);
+    if (e) {
+      if (e.salir && scene.events && scene.events.off) {
+        scene.events.off('shutdown', e.salir);
+        scene.events.off('destroy', e.salir);
+      }
+      r.escenas.delete(scene);
+    }
+    return n;
   }
 
   /** Un escenario estable para una batalla concreta. */

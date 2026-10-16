@@ -54,6 +54,31 @@
 (function () {
   'use strict';
 
+  // Solo se liberan lienzos creados por este módulo y tras la última escena
+  // que comparte su TextureManager; una textura ajena con la misma clave se respeta.
+  var recursosTextura = new WeakMap();
+  function recursosDe(scene) {
+    var gestor = scene.textures, r = recursosTextura.get(gestor);
+    if (!r) { r = { escenas: new Set(), propias: new Map() }; recursosTextura.set(gestor, r); }
+    return r;
+  }
+  function crearLienzo(scene, clave, ancho, alto) {
+    var textura = scene.textures.createCanvas(clave, ancho, alto);
+    if (textura) recursosDe(scene).propias.set(clave, textura);
+    return textura;
+  }
+  function soltarTexturas(scene) {
+    var gestor = scene.textures, r = recursosTextura.get(gestor);
+    if (!r) return;
+    r.escenas.delete(scene);
+    if (r.escenas.size) return;
+    r.propias.forEach(function (textura, clave) {
+      try { if (gestor.exists(clave) && gestor.get(clave) === textura) gestor.remove(clave); } catch (e) {}
+    });
+    r.propias.clear();
+    recursosTextura.delete(gestor);
+  }
+
   /* (2026-10-12) Los animales en 2.5D: remodelados en 3D con el mismo tamaño
      de cuadro y el mismo nombre (tools/generar-animales3d.py). La carpeta de
      siempre, Game/Sprites/animales/, se queda como estaba. */
@@ -1531,7 +1556,8 @@
       c.moveTo(31, 11); c.lineTo(37, 11); c.lineTo(27, 27); c.lineTo(22, 27);
       c.closePath(); c.fill();
 
-      scene.textures.addCanvas(CLAVE_HIELO, cv);
+      var textura = scene.textures.addCanvas(CLAVE_HIELO, cv);
+      if (textura) recursosDe(scene).propias.set(CLAVE_HIELO, textura);
       return CLAVE_HIELO;
     } catch (e) { return null; }
   }
@@ -2534,38 +2560,53 @@
    * se va salen motas de su color que suben y se apagan. Se borra todo al
    * acabar, textura incluida.
    */
+  var serieMuerte = 0;
   function efectoMuerte(st, a) {
     var scene = st.scene, s = a.spr;
     if (!s || !s.visible || !s.frame || document.hidden) return;
+    var clave = null, copia = null, reloj = null, datos = null;
+    var motasVivas = new Set(), cerrada = false, disuelta = false;
+    var pendientes = st.efectosMuerte || (st.efectosMuerte = new Set());
+    var limpiar = function () {
+      if (cerrada) return;
+      cerrada = true;
+      pendientes.delete(limpiar);
+      try { if (reloj) reloj.remove(false); } catch (e) {}
+      [copia].concat(Array.from(motasVivas)).forEach(function (obj) {
+        try { if (obj && scene.tweens && scene.tweens.killTweensOf) scene.tweens.killTweensOf(obj); } catch (e) {}
+        destruirObjeto(obj);
+      });
+      motasVivas.clear();
+      try { if (clave && scene.textures.exists(clave)) scene.textures.remove(clave); } catch (e) {}
+      datos = null;
+    };
+    pendientes.add(limpiar);
     try {
       var fr = s.frame, fuente = fr.source && fr.source.image;
-      if (!fuente) return;
+      if (!fuente) return limpiar();
       var w = fr.cutWidth, h = fr.cutHeight;
       st.muertes = (st.muertes || 0) + 1;
-      var clave = 'gfa_muerte_' + st.muertes;
+      clave = 'gfa_muerte_' + (++serieMuerte);
       var ct = scene.textures.createCanvas(clave, w, h);
       var ctx = ct.getContext();
       ctx.drawImage(fuente, fr.cutX, fr.cutY, w, h, 0, 0, w, h);
       ct.refresh();
-      var datos = ctx.getImageData(0, 0, w, h);
+      datos = ctx.getImageData(0, 0, w, h);
       if (!scene.textures.exists('gfa_mota_muerte')) {
-        var cm = scene.textures.createCanvas('gfa_mota_muerte', 2, 2);
+        var cm = crearLienzo(scene, 'gfa_mota_muerte', 2, 2);
         cm.getContext().fillStyle = '#fff'; cm.getContext().fillRect(0, 0, 2, 2); cm.refresh();
       }
-      var copia = scene.add.image(s.x, s.y, clave).setOrigin(s.originX, s.originY)
+      copia = scene.add.image(s.x, s.y, clave).setOrigin(s.originX, s.originY)
         .setScale(s.scaleX, s.scaleY).setFlipX(s.flipX).setDepth(s.depth).setTint(0xff8a7a);
       var esAve = a.grupo === 'ave';
       var lado = s.flipX ? -1 : 1;
       var BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
-      var limpiar = function () {
-        try { copia.destroy(); } catch (e) {}
-        try { if (scene.textures.exists(clave)) scene.textures.remove(clave); } catch (e) {}
-      };
       var disolver = function () {
-        if (!copia.scene) return limpiar();
+        if (cerrada || !st.scene || !copia.scene) return limpiar();
         copia.clearTint();
         var paso = 0, PASOS = 14;
-        var reloj = scene.time.addEvent({ delay: 65, repeat: PASOS - 1, callback: function () {
+        reloj = scene.time.addEvent({ delay: 65, repeat: PASOS - 1, callback: function () {
+          if (cerrada || !st.scene) return limpiar();
           paso++;
           var k = paso / PASOS, d = datos.data, motas = 0;
           for (var y = 0; y < h; y++) {
@@ -2581,8 +2622,11 @@
                   var cy = copia.y + (y - h * copia.originY) * copia.scaleY;
                   var m = scene.add.image(cx, cy, 'gfa_mota_muerte').setDepth(copia.depth + 1)
                     .setTint((d[o] << 16) | (d[o + 1] << 8) | d[o + 2]).setScale(1.3);
+                  motasVivas.add(m);
                   scene.tweens.add({ targets: m, y: cy - 16 - Math.random() * 18, x: cx + (Math.random() - 0.5) * 14,
-                    alpha: 0, duration: 520 + Math.random() * 300, onComplete: (function (mm) { return function () { mm.destroy(); }; })(m) });
+                    alpha: 0, duration: 520 + Math.random() * 300, onComplete: (function (mm) { return function () {
+                      destruirObjeto(mm); motasVivas.delete(mm); if (disuelta && !motasVivas.size) limpiar();
+                    }; })(m) });
                 }
                 d[o + 3] = 0;
               }
@@ -2591,7 +2635,13 @@
           ctx.putImageData(datos, 0, 0);
           ct.refresh();
           copia.setAlpha(1 - k * 0.35);
-          if (paso >= PASOS) limpiar();
+          if (paso >= PASOS) {
+            disuelta = true;
+            destruirObjeto(copia);
+            try { if (scene.textures.exists(clave)) scene.textures.remove(clave); } catch (e) {}
+            datos = null;
+            if (!motasVivas.size) limpiar();
+          }
         } });
         void reloj;
       };
@@ -2602,6 +2652,7 @@
         scene.tweens.add({ targets: copia, angle: lado * 82, y: copia.y + 2, duration: 360, ease: 'Bounce.easeOut', onComplete: disolver });
       }
     } catch (e) {
+      limpiar();
       log(scene, 'efecto de muerte:', e && e.message);
     }
   }
@@ -3074,7 +3125,7 @@
      el agua, siempre. De ahí salen el centro y el ancho reales del agua, y el
      pájaro se posa dentro. Se mide una vez por textura y se guarda.
      ══════════════════════════════════════════════════════════════════════ */
-  var cacheAgua = {};
+  var cacheAgua = new WeakMap();
 
   /**
    * Devuelve, en fracciones de la textura (0..1):
@@ -3082,10 +3133,11 @@
    * null si la textura no se puede leer o no tiene nada azul.
    */
   function medirAgua(scene, clave) {
-    if (Object.prototype.hasOwnProperty.call(cacheAgua, clave)) return cacheAgua[clave];
+    var tex = scene.textures.get(clave);
+    if (!tex || (typeof tex !== 'object' && typeof tex !== 'function')) return null;
+    if (cacheAgua.has(tex)) return cacheAgua.get(tex);
     var r = null;
     try {
-      var tex = scene.textures.get(clave);
       var img = tex && tex.getSourceImage ? tex.getSourceImage() : null;
       if (!img || !img.width) throw new Error('sin imagen');
       var w = img.width, h = img.height;
@@ -3132,7 +3184,7 @@
     } catch (e) {
       r = null;   // textura de otro dominio, o una fuente sin agua pintada
     }
-    cacheAgua[clave] = r;
+    cacheAgua.set(tex, r);
     return r;
   }
 
@@ -3420,6 +3472,7 @@
 
   function decidirMariposa(st, m) {
     var scene = st.scene;
+    m.spr.setOrigin(0.5, 0.5);
     var p = scene.player;
     var sitios = floresYPiedras(scene);
 
@@ -3451,6 +3504,7 @@
 
          Volando no hay soporte. Punto. */
       m.fase = 'revolotea';
+      m.spr.setOrigin(0.5, 0.5);
       anim(m, 'vuela');
       m.soporte = null;
       m.baseSoporte = null;
@@ -3505,6 +3559,7 @@
       // Se espanta: sale revoloteando al lado contrario.
       var ang = Math.atan2(m.spr.y - p.y, m.spr.x - p.x);
       m.fase = 'revolotea';
+      m.spr.setOrigin(0.5, 0.5);
       anim(m, 'vuela');
       m.soporte = null;
       var limF = limites(scene);
@@ -3526,7 +3581,10 @@
       // Posada va por delante de la flor, si no se pierde entre los pétalos.
       var apoyo = scene[m.soporte];
       var base = typeof apoyo.depth === 'number' ? apoyo.depth : m.spr.y;
-      if (tapado(scene, m.spr.x, m.spr.y, apoyo, base + 2)) { decidirMariposa(st, m); return; }
+      if (!m.revisarApoyoEn || ahora >= m.revisarApoyoEn) {
+        m.revisarApoyoEn = ahora + 1000;
+        if (tapado(scene, m.spr.x, m.spr.y, apoyo, base + 2)) { decidirMariposa(st, m); return; }
+      }
       m.spr.setDepth(base + 2);
       if (ahora >= m.hasta) decidirMariposa(st, m);
       return;
@@ -3543,6 +3601,7 @@
       if (m.soporte && scene[m.soporte] && scene[m.soporte].active !== false &&
           !tapado(scene, d.x, d.y, scene[m.soporte], (scene[m.soporte].depth || m.baseSoporte || d.y) + 2)) {
         m.fase = 'posada';
+        m.revisarApoyoEn = ahora + 1000;
         anim(m, 'posa');
         // La mariposa se ve desde ARRIBA: se apoya por el centro de su dibujo
         // (no por los "pies"), sobre el punto de la flor que ya se eligió.
@@ -4232,14 +4291,14 @@
   var HORMIGA_SUSTO_RADIO = 70;
   var HORMIGA_SUSTO_MS = [1200, 2200];
   var HORMIGA_BUSCA    = 650;
-  var _troncos = {};
+  var _troncos = new WeakMap();
 
   function texturasHormiga(scene) {
     var claves = ['gfa_hormiga_0', 'gfa_hormiga_1'];
     for (var f = 0; f < 2; f++) {
       if (scene.textures.exists(claves[f])) continue;
       try {
-        var c = scene.textures.createCanvas(claves[f], 10, 7);
+        var c = crearLienzo(scene, claves[f], 10, 7);
         var x = c.getContext();
         // Las patas: tres pares que se cruzan de un fotograma a otro.
         x.strokeStyle = 'rgba(30,17,10,0.95)';
@@ -4268,7 +4327,7 @@
     var clave = 'gfa_hormiguero';
     if (scene.textures.exists(clave)) return clave;
     try {
-      var c = scene.textures.createCanvas(clave, 22, 11);
+      var c = crearLienzo(scene, clave, 22, 11);
       var x = c.getContext();
       var g = x.createRadialGradient(11, 6, 1, 11, 7, 11);
       g.addColorStop(0, 'rgba(150,112,70,1)');
@@ -4293,8 +4352,7 @@
     var fr = spr && spr.frame;
     var img = fr && fr.source && fr.source.image;
     if (!img) return null;
-    var clave = spr.texture.key + '|' + fr.name;
-    if (_troncos[clave] !== undefined) return _troncos[clave];
+    if (_troncos.has(fr)) return _troncos.get(fr);
     var res = null, lec = null;
     try {
       var cols = 32;
@@ -4329,7 +4387,7 @@
       }
     } catch (e) { res = null; }
     finally { if (lec) { lec.width = 0; lec.height = 0; } }
-    _troncos[clave] = res;
+    _troncos.set(fr, res);
     return res;
   }
 
@@ -4573,6 +4631,7 @@
        hechos hasta el fallo se quedaban sueltos en la escena sin que nadie los
        tuviera apuntados: imposibles de mover, de borrar y de encontrar. */
     scene.__gfFauna = st;
+    recursosDe(scene).escenas.add(scene);
     tiempoSello = -1;
     releerTiempo(scene.time.now);
     try {
@@ -4627,6 +4686,7 @@
     if (st.onUpdate) scene.events.off('update', st.onUpdate);
     if (st.onApagar) { scene.events.off('shutdown', st.onApagar); scene.events.off('destroy', st.onApagar); }
     if (st.soltarTrueno) { try { st.soltarTrueno(); } catch (e) {} st.soltarTrueno = null; }
+    if (st.efectosMuerte) { Array.from(st.efectosMuerte).forEach(function (limpiar) { limpiar(); }); st.efectosMuerte.clear(); }
     desmontarHormigas(st);
     st.animales.forEach(function (an) {
       desemparejar(an);
@@ -4640,6 +4700,8 @@
     st.hoyos.length = 0;
     Object.keys(st.nidos).forEach(function (key) { destruirObjeto(st.nidos[key]); });
     st.nidos = Object.create(null);
+    soltarTexturas(scene);
+    _troncos = new WeakMap(); cacheAgua = new WeakMap();
     st.scene = st.onUpdate = st.onApagar = null;
     scene.__gfFaunaSitios = null;
     tiempoUltimo = TIEMPO_SECO; tiempoSello = -1;
