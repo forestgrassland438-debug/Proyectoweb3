@@ -1,0 +1,391 @@
+{
+  "generatedAt": "2026-10-16T06:28:18.512Z",
+  "files": 42,
+  "changes": [
+    {
+      "file": "admin-impact.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\admin-impact.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\admin-impact.js",
+      "beforeBytes": 44605,
+      "afterBytes": 46015,
+      "beforeSha256": "449f3b9e1df84f7318b75ec9243b7a76110c9ba20a5c7b8c1433446911573498",
+      "afterSha256": "35c06104c64a3c8420a75ca57ebf449c8c5d9059bdc05fc7f1ff123171316976"
+    },
+    {
+      "file": "admin.html",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\admin.html",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\admin.html",
+      "beforeBytes": 92648,
+      "afterBytes": 92663,
+      "beforeSha256": "8aa8252d39b0efb899c3fd08ba9c44b00e82a8536385dc508e43ef44062b04d8",
+      "afterSha256": "68fe5df59c4650eaf9bc0cd97495e392c9954cb849ff367057c51a0ed382949b"
+    },
+    {
+      "file": "app.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\app.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\app.js",
+      "beforeBytes": 76689,
+      "afterBytes": 77126,
+      "beforeSha256": "9b0418b680fd058a0602c9b7df9796b668988f278c1d9787483553be70859fa3",
+      "afterSha256": "0ae7986abe7213faa16e378994dc116f90d71cfa7d5b32b925b44ae2595ac0c9"
+    },
+    {
+      "file": "backend-impact/server2.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\backend-impact\\server2.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\backend-impact\\server2.js",
+      "beforeBytes": 1311351,
+      "afterBytes": 1311825,
+      "beforeSha256": "0d608ec35765b141cb26f1f20c3172df465d4ca55e7a9ed81a44a86989f9ab83",
+      "afterSha256": "1aef5f15f7806e25055abc909add1742415529a6d1918dd022b2a537f975c3e5"
+    },
+    {
+      "file": "BlockchainManager.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\BlockchainManager.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\BlockchainManager.js",
+      "beforeBytes": 15351,
+      "afterBytes": 17198,
+      "beforeSha256": "001946463640bc090ac6df6b60c6165e9639f74fa20dc8bb31e97669b8a66d78",
+      "afterSha256": "d02f83458d19350afc170e769e371048d312aa789b4fdfd0c41f750de998103e"
+    },
+    {
+      "file": "CraftingHub.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\CraftingHub.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\CraftingHub.js",
+      "beforeBytes": 78806,
+      "afterBytes": 79376,
+      "beforeSha256": "0dcb48b508b7dbe8aaff1b705161b9bb2638477d5e96022cdc4e89b2b175fa9b",
+      "afterSha256": "b3910d3aaee5bb6c26f66534d01f3a48b680183def0781ed73d0808390eeec31"
+    },
+    {
+      "file": "external-Desktop/marketplace-routes.js",
+      "target": "C:\\Users\\pc\\Desktop\\marketplace-routes.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\external-Desktop\\marketplace-routes.js",
+      "beforeBytes": 70767,
+      "afterBytes": 75342,
+      "beforeSha256": "4888707c9102c29a505590a03bd7045a1863ea5ce015e85b4eae2679fd082ee2",
+      "afterSha256": "0c53439e903688f40c3d7471de5253f599df725fd5538b8109ba2475c8b0ad52"
+    },
+    {
+      "file": "external-Desktop/server2.js",
+      "target": "C:\\Users\\pc\\Desktop\\server2.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\external-Desktop\\server2.js",
+      "beforeBytes": 1311351,
+      "afterBytes": 1311825,
+      "beforeSha256": "0d608ec35765b141cb26f1f20c3172df465d4ca55e7a9ed81a44a86989f9ab83",
+      "afterSha256": "1aef5f15f7806e25055abc909add1742415529a6d1918dd022b2a537f975c3e5"
+    },
+    {
+      "file": "gf-agua.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-agua.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-agua.js",
+      "beforeBytes": 44142,
+      "afterBytes": 46548,
+      "beforeSha256": "80f442f02512daa51e0774462b3d257bfe44a5f32ac9743e82412372a4cd98c5",
+      "afterSha256": "32f634fd10381682425f9e36aa7e5e407ca1e39e973ad220312ef63f5e208937"
+    },
+    {
+      "file": "gf-alquimista.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-alquimista.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-alquimista.js",
+      "beforeBytes": 16344,
+      "afterBytes": 16489,
+      "beforeSha256": "bb896be7ad48e542ba19a821ca5a538515885feb827027964a8ab5963dc609ee",
+      "afterSha256": "6fe7e70abdaf9295443422aa9c413ebf0239c2d8e21869da40e954e8ac56960f"
+    },
+    {
+      "file": "gf-amigos.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-amigos.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-amigos.js",
+      "beforeBytes": 88834,
+      "afterBytes": 90916,
+      "beforeSha256": "592a13a1f85695fb0eabaac57d432e6ecd132ba9a705a59f2ff48eea6378a168",
+      "afterSha256": "ed8b1a045afa0a1a57ec652cbf37cb06f030b5c049eb8d97d07396e6b6404cc6"
+    },
+    {
+      "file": "gf-animales.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-animales.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-animales.js",
+      "beforeBytes": 216011,
+      "afterBytes": 218788,
+      "beforeSha256": "7d4893abf799a0f493591a8923bcf85e59d1f52b8fe4233022298c8490d86a63",
+      "afterSha256": "0fe8732d2d25150f48c82f98433ac46e5ea9c1fd7b051e01778bdc2dc6d3b82b"
+    },
+    {
+      "file": "gf-antorchas.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-antorchas.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-antorchas.js",
+      "beforeBytes": 16980,
+      "afterBytes": 17098,
+      "beforeSha256": "7d8d7b725417a937a73ef69136d76a0f32d77e9e2503dc3ad75e2f7f787467cb",
+      "afterSha256": "ccd89b711ea04aaa7c9b89121eae836b567f8b2ea1c92c092686edc8f31d1aa4"
+    },
+    {
+      "file": "gf-audio.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-audio.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-audio.js",
+      "beforeBytes": 70905,
+      "afterBytes": 71160,
+      "beforeSha256": "40461ad19755d37ee2fda00ee3b802b67380a974f1d8d35d6ae79be4f4a830c6",
+      "afterSha256": "ff10b8a28f16b5c7bbc4ee8c8a15b9ffffc8d20a6f576203bb90c06ba2321835"
+    },
+    {
+      "file": "gf-batalla-arte.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-batalla-arte.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-batalla-arte.js",
+      "beforeBytes": 47180,
+      "afterBytes": 47916,
+      "beforeSha256": "7c584c347e6a2eadd6104a610baf0817582b34a2038185daa14dd1e4ace06031",
+      "afterSha256": "d1934b134ee56d4a499ab209c4a85475de59ea969ccd32edf227dd0b2439512d"
+    },
+    {
+      "file": "gf-brawl-motor.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-brawl-motor.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-brawl-motor.js",
+      "beforeBytes": 101050,
+      "afterBytes": 101518,
+      "beforeSha256": "122197c5dde7eefad5a38d13994081906e4fc8209b254e3b4585d86a6ae0ab87",
+      "afterSha256": "8cb3bac3c4b051f31de1e3fdfb52c3830f897891a153ed06496414f73bf4a274"
+    },
+    {
+      "file": "gf-buho.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-buho.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-buho.js",
+      "beforeBytes": 26687,
+      "afterBytes": 28451,
+      "beforeSha256": "ebdbabfb6772a1ffed119553b1533b237576a0d9aac85950ab7a8ca0919d6f40",
+      "afterSha256": "8b7ee87197d9ecaa10bf8a3e10d906086db6063aa65bf0f15f1cc8479b3049d1"
+    },
+    {
+      "file": "gf-canales.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-canales.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-canales.js",
+      "beforeBytes": 13371,
+      "afterBytes": 14054,
+      "beforeSha256": "e6ca5b2d41daed35e5ef48b1f7c4b094d03320908f489ea958adb7c643226518",
+      "afterSha256": "2e1f1c8ab26ef7b56232362a616ace94598165fd202dbd2894ab4409d733defd"
+    },
+    {
+      "file": "gf-casas.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-casas.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-casas.js",
+      "beforeBytes": 10564,
+      "afterBytes": 10986,
+      "beforeSha256": "3c3b085a59a6c7c0ab4922be20f29edb02617acd0b8694e1f562491d4ba29ac3",
+      "afterSha256": "43b5f4af6e5fd8e35ae876520a5f2ae533e7c8c739b2364449808c320b5ac04f"
+    },
+    {
+      "file": "gf-character-skills.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-character-skills.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-character-skills.js",
+      "beforeBytes": 9105,
+      "afterBytes": 9393,
+      "beforeSha256": "3148224940b9f9c6b3b08fc95f21bbaeaa608d8a5225aa5f3a15788440a2f56c",
+      "afterSha256": "681a3bfdf7f5560b1cac605c8f5a5b044e94d54d5016c3a26d37bc6ff9004a12"
+    },
+    {
+      "file": "gf-chat-social.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-chat-social.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-chat-social.js",
+      "beforeBytes": 41315,
+      "afterBytes": 42385,
+      "beforeSha256": "aeb3673fd8e04d264628c55c29cbe48265af5020948c3b6a8bb7dd03f903f34f",
+      "afterSha256": "a95b426a909f5c8b73fa2039cc7cafeaa93dd36bf1e68ae481611dce07ae86e5"
+    },
+    {
+      "file": "gf-ciclo-dia.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-ciclo-dia.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-ciclo-dia.js",
+      "beforeBytes": 33011,
+      "afterBytes": 34096,
+      "beforeSha256": "220b2af167191439a02ef5f23f1ef62dbfcb7e26df5243cd7ba6a73d15d59632",
+      "afterSha256": "d83c0bf831ea425380a4cd5dd8d8e9093a22753b5e56441169f5f8ce83328195"
+    },
+    {
+      "file": "gf-clima.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-clima.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-clima.js",
+      "beforeBytes": 192786,
+      "afterBytes": 194259,
+      "beforeSha256": "e0f2e8a21c94a0d6916f8b294019729ce928b7847901cb8491c4f523010091f8",
+      "afterSha256": "4ab981fc077214bcf8ededf85016cd305944bc1ab44600a6b32cad620f923ec8"
+    },
+    {
+      "file": "gf-cuervo.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-cuervo.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-cuervo.js",
+      "beforeBytes": 44190,
+      "afterBytes": 44633,
+      "beforeSha256": "5a4d68c01eb1a175b023e84e4ec3391545b69d59f16d64deb7adae09f6cc314c",
+      "afterSha256": "fdb07ddc57ee998d90faa46ae903fc5e43f21faa699bf59d689e713a781a636c"
+    },
+    {
+      "file": "gf-hud-ajuste.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-hud-ajuste.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-hud-ajuste.js",
+      "beforeBytes": 7719,
+      "afterBytes": 8729,
+      "beforeSha256": "39a218945e70b8ec6461d951a56d8dfb2078a911c14b402b5b54c434be597cba",
+      "afterSha256": "5449686877a3231588a504aad1192b91e905e4f0539b5aed0ad236441dfff8fc"
+    },
+    {
+      "file": "gf-invitaciones.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-invitaciones.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-invitaciones.js",
+      "beforeBytes": 14122,
+      "afterBytes": 15227,
+      "beforeSha256": "aff4a97d148598a62f808537629839cf01c80ef2ae738a0d3b9203727ac0fa74",
+      "afterSha256": "13cf4b40b0974ee134f22bd37dea571ace20b8afc2b9d842eec319c2b1a74b7f"
+    },
+    {
+      "file": "gf-mina-serpiente.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-mina-serpiente.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-mina-serpiente.js",
+      "beforeBytes": 62919,
+      "afterBytes": 63754,
+      "beforeSha256": "93654fea264dc02e448a485dcbea0371aab84d2e473acac200a07abf3a9ed9ee",
+      "afterSha256": "547058bb8d348fe77583251e2cbe008e0a5dd6b9280f68954d8f2be92ead5e8e"
+    },
+    {
+      "file": "gf-mina-zombis.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-mina-zombis.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-mina-zombis.js",
+      "beforeBytes": 40927,
+      "afterBytes": 41338,
+      "beforeSha256": "b0a3bdf3c7e1c56251cab883d84a8c7e590253db56f6ca506071da13909550a0",
+      "afterSha256": "5f4a8b73e949d35b00be371c8e028faffe94f8ffada3c09196cd4c5569148424"
+    },
+    {
+      "file": "gf-pesca.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-pesca.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-pesca.js",
+      "beforeBytes": 64472,
+      "afterBytes": 65898,
+      "beforeSha256": "b608f84d06ed5c26e1b6e4e0112b377bf7a0482e6cdc75990e48ce0cb591e70b",
+      "afterSha256": "fc6936ed3a9295820b3714b88b930b94da3061cdc5a1c392f63378f9ddeecf5f"
+    },
+    {
+      "file": "gf-sombras.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-sombras.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-sombras.js",
+      "beforeBytes": 27731,
+      "afterBytes": 29704,
+      "beforeSha256": "c7c5c25a33b827353901cc9b0a9b96ff8569aeb0f834eb9faf4988d13ea503aa",
+      "afterSha256": "9c7d5050d6e83b0dcf817568dcf3b0693f62ad56e2c363b18c4cad24e097198f"
+    },
+    {
+      "file": "gf-traductor.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-traductor.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-traductor.js",
+      "beforeBytes": 17175,
+      "afterBytes": 17388,
+      "beforeSha256": "8948d4a1c3d3e954d40789aba8799005ceb9949f9100bf3323ef42b9325de5d7",
+      "afterSha256": "0a04d6c20da20a4388a45137e4a0f1a51522fbfc1839ad72c117e7f6166591ee"
+    },
+    {
+      "file": "gf-viento.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-viento.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-viento.js",
+      "beforeBytes": 45010,
+      "afterBytes": 46520,
+      "beforeSha256": "db22713988ec3fda181ba785a41a40c90710c469d779a273e613e2db4f84b352",
+      "afterSha256": "dec462b19c1a73f9b2df5be50a89fcb787c956b3e3a0633f67e1fb56e37a4c5a"
+    },
+    {
+      "file": "gf-wallet-dashboard.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-wallet-dashboard.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\gf-wallet-dashboard.js",
+      "beforeBytes": 21088,
+      "afterBytes": 21808,
+      "beforeSha256": "f4fa1666908a66f5893120bb54b493d61762fce8a1e1f9dc55e6e171183a6a3f",
+      "afterSha256": "f6c303d71a2c7afb48e7c6ba5875c73b5bdaf1685277fb6a97a362a501c02e79"
+    },
+    {
+      "file": "GrasslandBuild/package-lock.json",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\package-lock.json",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\GrasslandBuild\\package-lock.json",
+      "beforeBytes": 131770,
+      "afterBytes": 128971,
+      "beforeSha256": "fd9a81ee0ba388f4cea1e5b300a01ef5b40c2765683bdf0376052d80f6bfccc2",
+      "afterSha256": "6e09df87637d70eed600b344da77b4522dfa49b7bac364764e705c8a29973b8d"
+    },
+    {
+      "file": "GrasslandBuild/package.json",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\package.json",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\GrasslandBuild\\package.json",
+      "beforeBytes": 1814,
+      "afterBytes": 1900,
+      "beforeSha256": "425ca9359ed12eb276eea76cc3f256eb9487a4d3000b70cff340667e1e23e00a",
+      "afterSha256": "e3b2ea6d84264e7798498673779ba0f1d5601f8e65c12edcd70a02e708d48b43"
+    },
+    {
+      "file": "GrasslandBuild/repositories/backend/package-lock.json",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\repositories\\backend\\package-lock.json",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\GrasslandBuild\\repositories\\backend\\package-lock.json",
+      "beforeBytes": 579914,
+      "afterBytes": 579548,
+      "beforeSha256": "ce6bd800049ad28ba6223fba77430bbb8c410f1461afbdb4d2e79414c4ee7251",
+      "afterSha256": "e49b1ff1f01e6a81f0313c79b5a3d9f8dd8b81837c8390ff45570a054af126e0"
+    },
+    {
+      "file": "GrasslandBuild/repositories/backend/package.json",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\repositories\\backend\\package.json",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\GrasslandBuild\\repositories\\backend\\package.json",
+      "beforeBytes": 2678,
+      "afterBytes": 2819,
+      "beforeSha256": "10ed70d1dce1190c5e4436f5a6b5ef191f4d7208ba0747e7e6fe0af4734ad736",
+      "afterSha256": "29c472697a3da8a1b06fff60c0d80310f08d827e936996b2886cbfb5563468fb"
+    },
+    {
+      "file": "GrasslandBuild/repositories/backend/server2.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\repositories\\backend\\server2.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\GrasslandBuild\\repositories\\backend\\server2.js",
+      "beforeBytes": 938643,
+      "afterBytes": 945712,
+      "beforeSha256": "1aad2af10698a686ba91303001193390eac0b20103a648dd9c895529a574fff9",
+      "afterSha256": "dedd8d8d87f4d66c8ec178344498a00c17ee51a5037951406befd1ff4a1e4dea"
+    },
+    {
+      "file": "GrasslandBuild/scripts/package-backend.py",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\scripts\\package-backend.py",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\GrasslandBuild\\scripts\\package-backend.py",
+      "beforeBytes": 2356,
+      "afterBytes": 2830,
+      "beforeSha256": "1b61c35c39f473346502730a54517043a37925241aa31fcfc2ea46595abd98e2",
+      "afterSha256": "b1be23199def7ba6c373569b7921d2a32a7c0ce0e94bb9abf6dafb3786483ba6"
+    },
+    {
+      "file": "index.html",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\index.html",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\index.html",
+      "beforeBytes": 89697,
+      "afterBytes": 90092,
+      "beforeSha256": "21e98ae766cf74d0188b625b09d526a140542f000f19b3b9638e440feff7e90a",
+      "afterSha256": "aba3292e5f130ed8e28a1426543701f314f22b4d0e0e50883c3c5cd19279db29"
+    },
+    {
+      "file": "marketplace-routes.js",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\marketplace-routes.js",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\marketplace-routes.js",
+      "beforeBytes": 70767,
+      "afterBytes": 75342,
+      "beforeSha256": "4888707c9102c29a505590a03bd7045a1863ea5ce015e85b4eae2679fd082ee2",
+      "afterSha256": "0c53439e903688f40c3d7471de5253f599df725fd5538b8109ba2475c8b0ad52"
+    },
+    {
+      "file": "package.json",
+      "target": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\package.json",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\package.json",
+      "beforeBytes": 1982,
+      "afterBytes": 2095,
+      "beforeSha256": "3ee4710e1a10e1fcd7102c92496214bb67e8638092d8254620983c57c1e176c5",
+      "afterSha256": "9acfecb7ed097c1143a01ed66ba3cf7a26b474e108d111de4138fee348b33bd3"
+    }
+  ],
+  "preservedUserChanges": [
+    {
+      "file": "_prueba_3d.html",
+      "change": "deleted_by_user",
+      "backup": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\pre-txt-audit-2026-10-16\\_prueba_3d.html"
+    }
+  ]
+}

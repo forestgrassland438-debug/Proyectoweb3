@@ -1,0 +1,1520 @@
+/*!
+ * ============================================================================
+ * Grassland Forest © 2025 JEAN LARREAL - TODOS LOS DERECHOS RESERVADOS
+ * ============================================================================
+ * 
+ * GRASSLAND FOREST v13
+ * Desarrollado y Publicado por: Jean Larreal
+ * CONTACTO PARA PERMISOS:
+ * Jean Larreal
+ * Email: [killerhackcodeup@gmail.com]
+ * Sitio Web: [grasslandforest.xyz]
+ * 
+ * VERSIÓN: v13.0.1-pixel
+ * GENERADO: 19/20/2025
+ * ============================================================================
+ */
+
+
+// NotificationHub.js - Librería de notificaciones con diseño pixel art RPG y sistema anti-duplicados
+
+/* ESCAPADO DE HTML.
+ *
+ * AGUJERO QUE ESTO CIERRA: el cuerpo de la notificación se monta con
+ * `innerHTML` y el mensaje se metía CRUDO. Y por aquí pasa texto que no es
+ * nuestro: `showNotification(\`Error: ${error.message}\`)` mete el mensaje de
+ * error tal cual, y ese mensaje puede venir del servidor o de una respuesta de
+ * red. Cualquier `<img src=x onerror=…>` que llegara ahí se ejecutaba en la
+ * página del juego — con la sesión del jugador y su cartera dentro.
+ *
+ * No rompe a nadie: se revisaron todas las llamadas a `show()` del proyecto y
+ * ninguna pasa etiquetas a propósito; todas mandan texto plano.
+ *
+ * El mismo escapado ya existía suelto dentro del panel de historial (era la
+ * única parte que sí escapaba). Ahora es uno solo y lo usan los dos. */
+const _escNotif = (s) => String(s === null || s === undefined ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+/* Y el TIPO no se cuela en un atributo `class` sin mirar: solo se aceptan los
+   cuatro que entiende la hoja de estilos. Cualquier otra cosa pasa a 'info'.
+   Así un tipo con comillas dentro no puede cerrar el atributo y abrir otro. */
+const _TIPOS_NOTIF = { success: 1, error: 1, warning: 1, info: 1 };
+const _tipoNotif = (t) => (_TIPOS_NOTIF[t] ? t : 'info');
+
+class NotificationHub {
+    /**
+     * options:
+     *  - width: number (px)
+     *  - animationDuration: number (ms)
+     *  - visibleDuration: number (ms)
+     *  - maxNotifications: number
+     *  - spacing: number
+     *  - debug: boolean
+     *  - autoCleanup: boolean
+     *  - preventDuplicates: boolean (si true, evita notificaciones duplicadas)
+     *  - duplicateCheckFields: array (campos para verificar duplicados)
+     *  - pixelArtMode: boolean (activa diseño pixel art RPG)
+     *  - position: string (top-left, top-right, bottom-left, bottom-right)
+     */
+    constructor(options = {}) {
+        try {
+            const defaults = {
+                width: 320,
+                animationDuration: 400,
+                visibleDuration: 5000,
+                maxNotifications: 5,
+                spacing: 8,
+                debug: false,
+                autoCleanup: true,
+                preventDuplicates: true,
+                duplicateCheckFields: ['message', 'type', 'pool'],
+                pixelArtMode: true,
+                position: 'top-left',
+                pixelSize: 3,
+                font: "'Press Start 2P', 'Courier New', monospace",
+                backgroundColor: '#0f172a',
+                borderColor: '#475569'
+            };
+            this.config = Object.assign({}, defaults, options);
+
+            this.isInitialized = false;
+            this._destroyed = false;
+            this._readyHandler = null;
+            this._settingsTimer = null;
+            this._settingsPanel = null;
+            this.notifications = new Map();
+            this.notificationCounter = 0;
+            this.pools = new Map();
+            this.duplicateTracker = new Map();
+
+            this._styleId = 'notification-hub-styles';
+            this._debug = !!this.config.debug;
+            this._cleanupInterval = null;
+            this._animationFrames = new Set();
+            this._animationTimers = new Set();
+            
+            if (this.config.autoCleanup) {
+                this._startAutoCleanup();
+            }
+        } catch (e) {
+            console.error('NotificationHub.constructor error:', e);
+            throw e;
+        }
+    }
+
+    /**
+     * Genera una clave única para verificar duplicados
+     * @private
+     */
+    _generateDuplicateKey(message, type, pool, options = {}) {
+        try {
+            if (this.config.duplicateCheckFields && this.config.duplicateCheckFields.length > 0) {
+                const parts = [];
+                
+                if (this.config.duplicateCheckFields.includes('message')) {
+                    parts.push(`msg:${message}`);
+                }
+                
+                if (this.config.duplicateCheckFields.includes('type')) {
+                    parts.push(`type:${type}`);
+                }
+                
+                if (this.config.duplicateCheckFields.includes('pool')) {
+                    parts.push(`pool:${pool}`);
+                }
+                
+                for (const field of this.config.duplicateCheckFields) {
+                    if (field !== 'message' && field !== 'type' && field !== 'pool' && Object.prototype.hasOwnProperty.call(options, field)) {
+                        parts.push(`${field}:${options[field]}`);
+                    }
+                }
+                
+                return parts.join('|');
+            }
+            
+            return `${message}|${type}|${pool}`;
+        } catch (e) {
+            return `${message}|${type}|${pool}`;
+        }
+    }
+
+    /**
+     * Verifica si ya existe una notificación duplicada
+     * @private
+     */
+    _checkForDuplicate(message, type, pool, options = {}) {
+        if (!this.config.preventDuplicates) return null;
+        
+        try {
+            const duplicateKey = this._generateDuplicateKey(message, type, pool, options);
+            
+            if (this.duplicateTracker.has(duplicateKey)) {
+                const notificationId = this.duplicateTracker.get(duplicateKey);
+                const notification = this.notifications.get(notificationId);
+                
+                if (notification && notification.isActive) {
+                    return notificationId;
+                } else {
+                    this.duplicateTracker.delete(duplicateKey);
+                }
+            }
+            
+            return null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /**
+     * Actualiza una notificación existente en lugar de crear una nueva
+     * @private
+     */
+    _updateExistingNotification(notificationId, message, type, options = {}) {
+        try {
+            const notification = this.notifications.get(notificationId);
+            if (!notification) return null;
+            
+            // Actualizar contenido
+            if (notification.message !== message && notification.element) {
+                notification.message = message;
+                const messageEl = notification.element.querySelector('.notification-message');
+                if (messageEl) {
+                    messageEl.textContent = message;
+                    
+                    // Efecto de actualización
+                    messageEl.style.animation = 'none';
+                    setTimeout(() => {
+                        messageEl.style.animation = 'textUpdate 0.3s ease';
+                    }, 10);
+                }
+            }
+            
+            // Actualizar tipo si es diferente
+            if (notification.type !== type && notification.element) {
+                notification.type = type;
+                const oldClass = notification.element.className.replace(/notification-item\s+/, '').split(' ')[0];
+                notification.element.className = notification.element.className.replace(oldClass, type);
+                
+                const iconEl = notification.element.querySelector('.notification-icon');
+                if (iconEl) {
+                    iconEl.className = `notification-icon ${type}`;
+                }
+                
+                // Efecto visual de cambio
+                notification.element.style.borderColor = this._getBorderColor(type);
+                notification.element.style.animation = 'pixelFlash 0.5s';
+            }
+            
+            // Reiniciar temporizador
+            if (notification.timer) {
+                clearTimeout(notification.timer);
+            }
+            
+            const displayDuration = this._duracion(options.duration);
+            notification.expiresAt = displayDuration > 0 ? Date.now() + displayDuration : null;
+            
+            if (displayDuration > 0) {
+                notification.timer = setTimeout(() => {
+                    this._expireNotification(notificationId);
+                }, displayDuration);
+            }
+            
+            // Actualizar datos
+            if (options.data) {
+                notification.data = { ...notification.data, ...options.data };
+            }
+            
+            if (options.onExpire) {
+                notification.onExpire = options.onExpire;
+            }
+            
+            // Actualizar tiempo de creación para mantenerla "fresca"
+            notification.createdAt = Date.now();
+            
+            if (this._debug) {
+                console.log(`NotificationHub: Actualizada notificación duplicada [${notificationId}]`, {
+                    message,
+                    type
+                });
+            }
+            
+            return notificationId;
+        } catch (e) {
+            this._handleError('_updateExistingNotification', e);
+            return null;
+        }
+    }
+
+    /**
+     * Cuánto dura una notificación.
+     *
+     * FIX: antes era `duration !== null ? duration : visibleDuration`. Con un
+     * `{ duration: undefined }` (una variable sin valor en quien llama) salía
+     * `undefined`: no se ponía temporizador ni caducidad y la notificación se
+     * quedaba en pantalla PARA SIEMPRE — y al repetirse, la ya visible perdía
+     * su temporizador y también. Un 0 explícito sigue significando "no se va
+     * sola".
+     * @private
+     */
+    _duracion(d) {
+        return (typeof d === 'number' && Number.isFinite(d) && d >= 0) ? d : this.config.visibleDuration;
+    }
+
+    /**
+     * Obtiene el color del borde según el tipo
+     * @private
+     */
+    _getBorderColor(type) {
+        const colors = {
+            'info': '#3b82f6',
+            'success': '#10b981',
+            'warning': '#f59e0b',
+            'error': '#ef4444'
+        };
+        return colors[type] || colors.info;
+    }
+
+    /**
+     * Inicia el intervalo de limpieza automática
+     * @private
+     */
+    _startAutoCleanup() {
+        if (this._cleanupInterval) return;
+        
+        this._cleanupInterval = setInterval(() => {
+            this._cleanupExpiredNotifications();
+        }, 1000);
+    }
+
+    /**
+     * Detiene la limpieza automática
+     * @private
+     */
+    _stopAutoCleanup() {
+        if (this._cleanupInterval) {
+            clearInterval(this._cleanupInterval);
+            this._cleanupInterval = null;
+        }
+    }
+
+    /**
+     * Limpia notificaciones expiradas
+     * @private
+     */
+    _cleanupExpiredNotifications() {
+        // BATERÍA: sin nada que caducar, este temporizador se apaga solo.
+        //
+        // Antes se creaba en el constructor y latía cada segundo durante TODA la
+        // partida, hubiera notificaciones o no. Son 3.600 despertares del
+        // procesador por hora para recorrer un mapa casi siempre vacío: poca
+        // cosa por sí solo, pero es justo el tipo de latido que impide que el
+        // teléfono baje a su modo de bajo consumo entre fotograma y fotograma.
+        //
+        // Ahora se para en cuanto no queda nada pendiente. `show()` lo vuelve a
+        // arrancar (ver línea ~1127), así que no se pierde ninguna limpieza.
+        if (!this.notifications || this.notifications.size === 0) {
+            this._stopAutoCleanup();
+            return;
+        }
+
+        const now = Date.now();
+
+        for (const [notificationId, notification] of this.notifications.entries()) {
+            if (!notification.timer && notification.expiresAt && notification.expiresAt <= now) {
+                this._removeNotification(notificationId);
+            }
+        }
+    }
+
+    _handleError(context, err) {
+        try {
+            const hub = document.getElementById('notification-hub');
+            if (hub) hub.setAttribute('data-last-error', `${context}: ${String(err && err.message ? err.message : err)}`);
+            
+            if (this._debug) {
+                console.error(`NotificationHub error [${context}]:`, err);
+                if (err && err.stack) console.error(err.stack);
+            }
+        } catch (e) {
+            console.error('NotificationHub._handleError fallback error:', e);
+        }
+    }
+
+    initialize() {
+        try {
+            if (this.isInitialized || this._destroyed || typeof document === 'undefined') return;
+            if (!document.body) {
+                if (!this._readyHandler) {
+                    this._readyHandler = () => { this._readyHandler = null; this.initialize(); };
+                    document.addEventListener('DOMContentLoaded', this._readyHandler, { once: true });
+                }
+                return;
+            }
+
+            if (!document.getElementById(this._styleId)) this.injectStyles();
+
+            const hub = document.createElement('div');
+            hub.id = 'notification-hub';
+            hub.style.display = 'block';
+            hub.setAttribute('aria-live', 'polite');
+            hub.setAttribute('role', 'status');
+            document.body.appendChild(hub);
+
+            this.isInitialized = true;
+            this._hubElement = hub;
+            this._destroyed = false;
+            NotificationHub._vivos.add(this);
+            NotificationHub._ultima = this;
+            // La posición que eligió el jugador vale para todas las instancias.
+            if (NotificationHub._prefs.position) this._aplicarPosicion(NotificationHub._prefs.position);
+
+            // Botón flotante ⚙️/🔔 para abrir el panel de control (una sola vez global).
+            this._ensureSettingsButton();
+
+            if (this._debug) {
+                console.log('NotificationHub: Inicializado');
+            }
+        } catch (e) {
+            this._handleError('initialize', e);
+        }
+    }
+
+    injectStyles() {
+        try {
+            // Determinar posición según configuración
+            let positionCSS = '';
+            switch (this.config.position) {
+                case 'top-right':
+                    positionCSS = 'right: 1%; top: 28%; left: auto;';
+                    break;
+                case 'bottom-right':
+                    positionCSS = 'right: 1%; bottom: 1%; top: auto; left: auto;';
+                    break;
+                case 'bottom-left':
+                    positionCSS = 'left: 1%; bottom: 1%; top: auto; right: auto;';
+                    break;
+                case 'top-left':
+                default:
+                    positionCSS = 'left: 1%; top: 28%; right: auto;';
+                    break;
+            }
+
+            let css = '';
+            
+            if (this.config.pixelArtMode) {
+                // Diseño PIXEL ART RPG MEJORADO
+                css = `
+                    /* La fuente pixel art se carga en LOCAL desde styless.css
+                       (@font-face 'PressStart2P' → ./fonts/PressStart2P-*).
+                       El @import a fonts.googleapis.com que había aquí lo
+                       bloqueaba la CSP del juego ("style-src 'self'"), así que
+                       solo servía para ensuciar la consola con un error en
+                       cada arranque. */
+
+                    #notification-hub { 
+                        position: fixed; 
+                        ${positionCSS}
+                        z-index: 10000; 
+                        font-family: ${this.config.font}; 
+                        pointer-events: none; 
+                    }
+                    
+                    /* Estilo base de notificación - Pixel RPG */
+                    .notification-item { 
+                        width: ${this.config.width}px; 
+                        padding: ${this.config.pixelSize * 4}px; 
+                        background: rgba(15, 23, 42, 0.95); 
+                        border: ${this.config.pixelSize}px solid ${this.config.borderColor}; 
+                        border-radius: 4px; 
+                        box-shadow: 0 ${this.config.pixelSize * 2}px ${this.config.pixelSize * 4}px rgba(0, 0, 0, 0.5),
+                                    inset 0 0 0 ${this.config.pixelSize}px rgba(255, 255, 255, 0.1); 
+                        transform: translateX(-400px); 
+                        opacity: 0; 
+                        transition: all ${this.config.animationDuration}ms cubic-bezier(0.4, 0, 0.2, 1); 
+                        pointer-events: auto; 
+                        margin-bottom: ${this.config.spacing}px;
+                        position: relative;
+                        overflow: hidden;
+                        backdrop-filter: blur(2px);
+                    }
+                    
+                    /* Efecto de borde de píxeles */
+                    .notification-item::before {
+                        content: '';
+                        position: absolute;
+                        top: -${this.config.pixelSize}px;
+                        left: -${this.config.pixelSize}px;
+                        right: -${this.config.pixelSize}px;
+                        bottom: -${this.config.pixelSize}px;
+                        background: repeating-linear-gradient(
+                            0deg,
+                            transparent,
+                            transparent ${this.config.pixelSize}px,
+                            rgba(255, 255, 255, 0.05) ${this.config.pixelSize}px,
+                            rgba(255, 255, 255, 0.05) ${this.config.pixelSize * 2}px
+                        );
+                        z-index: -1;
+                        opacity: 0.3;
+                    }
+                    
+                    /* Efecto de brillo interior */
+                    .notification-item::after {
+                        content: '';
+                        position: absolute;
+                        top: ${this.config.pixelSize}px;
+                        left: ${this.config.pixelSize}px;
+                        right: ${this.config.pixelSize}px;
+                        bottom: ${this.config.pixelSize}px;
+                        background: linear-gradient(
+                            135deg,
+                            rgba(255, 255, 255, 0.03) 0%,
+                            rgba(255, 255, 255, 0) 50%,
+                            rgba(255, 255, 255, 0.03) 100%
+                        );
+                        pointer-events: none;
+                    }
+                    
+                    /* Animación de entrada */
+                    .notification-item.show { 
+                        transform: translateX(0); 
+                        opacity: 1; 
+                    }
+                    
+                    /* Animación de salida */
+                    .notification-item.hide { 
+                        transform: translateX(-400px); 
+                        opacity: 0; 
+                        margin-bottom: 0;
+                    }
+                    
+                    /* Efecto de parpadeo para notificaciones nuevas */
+                    @keyframes pixelAppear {
+                        0% { 
+                            transform: translateX(-400px) scale(0.8); 
+                            opacity: 0; 
+                        }
+                        70% { 
+                            transform: translateX(20px) scale(1.05); 
+                            opacity: 1; 
+                        }
+                        100% { 
+                            transform: translateX(0) scale(1); 
+                            opacity: 1; 
+                        }
+                    }
+                    
+                    .notification-item.show {
+                        animation: pixelAppear ${this.config.animationDuration}ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+                    }
+                    
+                    /* Estilos por tipo con temática RPG */
+                    .notification-item.info { 
+                        border-color: #3b82f6;
+                        background: linear-gradient(
+                            135deg,
+                            rgba(15, 23, 42, 0.95) 0%,
+                            rgba(30, 58, 138, 0.8) 100%
+                        );
+                        box-shadow: 0 ${this.config.pixelSize * 2}px ${this.config.pixelSize * 4}px rgba(59, 130, 246, 0.3),
+                                    inset 0 0 0 ${this.config.pixelSize}px rgba(59, 130, 246, 0.2);
+                    }
+                    
+                    .notification-item.success { 
+                        border-color: #10b981;
+                        background: linear-gradient(
+                            135deg,
+                            rgba(15, 23, 42, 0.95) 0%,
+                            rgba(6, 95, 70, 0.8) 100%
+                        );
+                        box-shadow: 0 ${this.config.pixelSize * 2}px ${this.config.pixelSize * 4}px rgba(16, 185, 129, 0.3),
+                                    inset 0 0 0 ${this.config.pixelSize}px rgba(16, 185, 129, 0.2);
+                    }
+                    
+                    .notification-item.warning { 
+                        border-color: #f59e0b;
+                        background: linear-gradient(
+                            135deg,
+                            rgba(15, 23, 42, 0.95) 0%,
+                            rgba(146, 64, 14, 0.8) 100%
+                        );
+                        box-shadow: 0 ${this.config.pixelSize * 2}px ${this.config.pixelSize * 4}px rgba(245, 158, 11, 0.3),
+                                    inset 0 0 0 ${this.config.pixelSize}px rgba(245, 158, 11, 0.2);
+                    }
+                    
+                    .notification-item.error { 
+                        border-color: #ef4444;
+                        background: linear-gradient(
+                            135deg,
+                            rgba(15, 23, 42, 0.95) 0%,
+                            rgba(127, 29, 29, 0.8) 100%
+                        );
+                        box-shadow: 0 ${this.config.pixelSize * 2}px ${this.config.pixelSize * 4}px rgba(239, 68, 68, 0.3),
+                                    inset 0 0 0 ${this.config.pixelSize}px rgba(239, 68, 68, 0.2);
+                    }
+                    
+                    /* Cabecera de notificación */
+                    .notification-header { 
+                        display: flex; 
+                        align-items: center; 
+                        margin-bottom: ${this.config.pixelSize * 3}px;
+                        position: relative;
+                    }
+                    
+                    /* Icono pixel art */
+                    .notification-icon { 
+                        width: ${this.config.pixelSize * 5}px; 
+                        height: ${this.config.pixelSize * 5}px; 
+                        margin-right: ${this.config.pixelSize * 3}px; 
+                        flex-shrink: 0; 
+                        position: relative;
+                        background-size: ${this.config.pixelSize}px ${this.config.pixelSize}px;
+                        image-rendering: pixelated;
+                    }
+                    
+                    /* Pixel art para iconos */
+                    .notification-icon.info { 
+                        background-color: #3b82f6; 
+                        box-shadow: 0 0 ${this.config.pixelSize * 3}px rgba(59, 130, 246, 0.5),
+                                    inset 0 0 0 ${this.config.pixelSize}px rgba(255, 255, 255, 0.3); 
+                        border: ${this.config.pixelSize}px solid #1d4ed8;
+                    }
+                    
+                    .notification-icon.success { 
+                        background-color: #10b981; 
+                        box-shadow: 0 0 ${this.config.pixelSize * 3}px rgba(16, 185, 129, 0.5),
+                                    inset 0 0 0 ${this.config.pixelSize}px rgba(255, 255, 255, 0.3); 
+                        border: ${this.config.pixelSize}px solid #047857;
+                        animation: pixelPulse 2s infinite;
+                    }
+                    
+                    .notification-icon.warning { 
+                        background-color: #f59e0b; 
+                        box-shadow: 0 0 ${this.config.pixelSize * 3}px rgba(245, 158, 11, 0.5),
+                                    inset 0 0 0 ${this.config.pixelSize}px rgba(255, 255, 255, 0.3); 
+                        border: ${this.config.pixelSize}px solid #b45309;
+                        animation: pixelFlash 1s infinite;
+                    }
+                    
+                    .notification-icon.error { 
+                        background-color: #ef4444; 
+                        box-shadow: 0 0 ${this.config.pixelSize * 3}px rgba(239, 68, 68, 0.5),
+                                    inset 0 0 0 ${this.config.pixelSize}px rgba(255, 255, 255, 0.3); 
+                        border: ${this.config.pixelSize}px solid #b91c1c;
+                        animation: pixelGlitch 0.5s infinite;
+                    }
+                    
+                    /* Mensaje con estilo pixel art */
+                    .notification-message { 
+                        font-size: ${this.config.pixelSize * 3.5}px; 
+                        color: #f1f5f9; 
+                        flex: 1; 
+                        line-height: 1.4;
+                        text-shadow: ${this.config.pixelSize}px ${this.config.pixelSize}px 0 rgba(0, 0, 0, 0.5);
+                        letter-spacing: 0.5px;
+                    }
+                    
+                    /* Temporizador debug */
+                    .notification-timer { 
+                        position: absolute;
+                        top: ${this.config.pixelSize}px;
+                        right: ${this.config.pixelSize}px;
+                        font-size: ${this.config.pixelSize * 2.5}px;
+                        color: rgba(255, 255, 255, 0.6);
+                        font-family: ${this.config.font};
+                        text-shadow: 1px 1px 0 #000;
+                    }
+                    
+                    /* Animaciones pixel art */
+                    @keyframes pixelPulse { 
+                        0%, 100% { 
+                            transform: scale(1); 
+                            box-shadow: 0 0 ${this.config.pixelSize * 3}px rgba(16, 185, 129, 0.5);
+                        } 
+                        50% { 
+                            transform: scale(1.1); 
+                            box-shadow: 0 0 ${this.config.pixelSize * 5}px rgba(16, 185, 129, 0.8);
+                        } 
+                    }
+                    
+                    @keyframes pixelFlash {
+                        0%, 100% { 
+                            opacity: 1; 
+                            background-color: #f59e0b;
+                        }
+                        50% { 
+                            opacity: 0.7; 
+                            background-color: #fbbf24;
+                        }
+                    }
+                    
+                    @keyframes pixelGlitch {
+                        0%, 100% { 
+                            transform: translateX(0); 
+                            background-color: #ef4444;
+                        }
+                        10% { 
+                            transform: translateX(${this.config.pixelSize}px); 
+                            background-color: #dc2626;
+                        }
+                        20% { 
+                            transform: translateX(-${this.config.pixelSize}px); 
+                            background-color: #ef4444;
+                        }
+                        30% { 
+                            transform: translateX(0); 
+                            background-color: #dc2626;
+                        }
+                    }
+                    
+                    @keyframes pixelFlash {
+                        0%, 100% { 
+                            border-color: ${this.config.borderColor};
+                        }
+                        50% { 
+                            border-color: rgba(255, 255, 255, 0.8);
+                        }
+                    }
+                    
+                    @keyframes textUpdate {
+                        0% { 
+                            transform: translateY(0); 
+                            opacity: 1;
+                        }
+                        50% { 
+                            transform: translateY(-${this.config.pixelSize * 2}px); 
+                            opacity: 0.5;
+                        }
+                        100% { 
+                            transform: translateY(0); 
+                            opacity: 1;
+                        }
+                    }
+                    
+                    /* Efecto de partículas para notificaciones importantes */
+                    .notification-item.error .notification-icon::after {
+                        content: '';
+                        position: absolute;
+                        top: -${this.config.pixelSize * 2}px;
+                        left: -${this.config.pixelSize * 2}px;
+                        right: -${this.config.pixelSize * 2}px;
+                        bottom: -${this.config.pixelSize * 2}px;
+                        background: radial-gradient(circle, transparent 30%, rgba(239, 68, 68, 0.2) 70%);
+                        animation: particlePulse 1s infinite;
+                    }
+                    
+                    @keyframes particlePulse {
+                        0% { transform: scale(0.8); opacity: 0.5; }
+                        100% { transform: scale(1.2); opacity: 0; }
+                    }
+                    
+                    /* Efecto de desvanecimiento suave para salida */
+                    @keyframes pixelDisappear {
+                        0% { 
+                            transform: translateX(0) scale(1); 
+                            opacity: 1;
+                        }
+                        100% { 
+                            transform: translateX(-400px) scale(0.8); 
+                            opacity: 0;
+                        }
+                    }
+                    
+                    .notification-item.hide {
+                        animation: pixelDisappear ${this.config.animationDuration}ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+                    }
+                `;
+            } else {
+                // Estilo original (modo no pixel art)
+                css = `
+                    #notification-hub { 
+                        position: fixed; 
+                        ${positionCSS}
+                        z-index: 10000; 
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                        pointer-events: none; 
+                    }
+                    .notification-item { 
+                        width: ${this.config.width}px; 
+                        padding: 16px; 
+                        background: rgba(15, 23, 42, 0.95); 
+                        backdrop-filter: blur(10px); 
+                        border: 1px solid rgba(71, 85, 105, 0.4); 
+                        border-radius: 8px; 
+                        box-shadow: 0 8px 20px rgba(0,0,0,0.5); 
+                        transform: translateX(-400px); 
+                        opacity: 0; 
+                        transition: all ${this.config.animationDuration}ms cubic-bezier(0.4,0,0.2,1); 
+                        pointer-events: auto; 
+                        margin-bottom: ${this.config.spacing}px;
+                    }
+                    .notification-item.show { 
+                        transform: translateX(0); 
+                        opacity: 1; 
+                    }
+                    .notification-item.hide { 
+                        transform: translateX(-400px); 
+                        opacity: 0; 
+                        margin-bottom: 0;
+                    }
+                    .notification-item.info { 
+                        border-left: 4px solid #3b82f6; 
+                    }
+                    .notification-item.success { 
+                        border-left: 4px solid #10b981; 
+                    }
+                    .notification-item.warning { 
+                        border-left: 4px solid #f59e0b; 
+                    }
+                    .notification-item.error { 
+                        border-left: 4px solid #ef4444; 
+                    }
+                    .notification-header { 
+                        display:flex; 
+                        align-items:center; 
+                    }
+                    .notification-icon { 
+                        width:12px; 
+                        height:12px; 
+                        border-radius:50%; 
+                        margin-right:12px; 
+                        flex-shrink:0; 
+                    }
+                    .notification-icon.info { 
+                        background:#3b82f6; 
+                        box-shadow:0 0 8px rgba(59,130,246,0.5); 
+                    }
+                    .notification-icon.success { 
+                        background:#10b981; 
+                        box-shadow:0 0 8px rgba(16,185,129,0.5); 
+                    }
+                    .notification-icon.warning { 
+                        background:#f59e0b; 
+                        box-shadow:0 0 8px rgba(245,158,11,0.5); 
+                    }
+                    .notification-icon.error { 
+                        background:#ef4444; 
+                        box-shadow:0 0 8px rgba(239,68,68,0.45); 
+                    }
+                    .notification-message { 
+                        font-size:14px; 
+                        font-weight:600; 
+                        color:#f1f5f9; 
+                        flex:1; 
+                        line-height:1.4;
+                    }
+                    .notification-timer { 
+                        position: absolute;
+                        top: 5px;
+                        right: 5px;
+                        font-size: 10px;
+                        color: rgba(255, 255, 255, 0.6);
+                        font-family: monospace;
+                    }
+                    @keyframes notification-pulse { 
+                        0%,100% { opacity:1; } 
+                        50% { opacity:0.5; } 
+                    }
+                    .notification-item.warning .notification-icon { 
+                        animation: notification-pulse 2s infinite; 
+                    }
+                `;
+            }
+            
+            const styleTag = document.createElement('style');
+            styleTag.id = this._styleId;
+            styleTag.appendChild(document.createTextNode(css));
+            document.head.appendChild(styleTag);
+        } catch (e) {
+            this._handleError('injectStyles', e);
+        }
+    }
+
+    /**
+     * Muestra una notificación
+     */
+    show(message = 'Notificación', type = 'info', options = {}) {
+        if (this._destroyed) return null;
+        try {
+            this.initialize();
+            if (!this.isInitialized) return null;
+
+            // Historial para el panel de control (se guarda SIEMPRE, aunque el
+            // tipo esté oculto). Es COMPARTIDO entre instancias: ver _prefs.
+            const prefs = NotificationHub._prefs;
+            prefs.history.unshift({ message: String(message), type, at: Date.now() });
+            if (prefs.history.length > 60) prefs.history.length = 60;
+
+            // Filtro por tipo (panel de control): si el jugador desactivó este
+            // tipo, no se muestra (pero sí queda en el historial).
+            if (prefs.enabledTypes[type] === false) return null;
+
+            // Validar y mezclar opciones
+            const defaultOptions = {
+                duration: null,
+                pool: 'default',
+                onExpire: null,
+                data: {}
+            };
+            const opts = Object.assign({}, defaultOptions, typeof options === 'number' ? { duration: options } : options);
+
+            // Verificar si es duplicado
+            if (this.config.preventDuplicates) {
+                const duplicateId = this._checkForDuplicate(message, type, opts.pool, opts);
+                if (duplicateId) {
+                    return this._updateExistingNotification(duplicateId, message, type, opts);
+                }
+            }
+
+            // Limitar el número total de notificaciones
+            if (this.notifications.size >= this.config.maxNotifications) {
+                let oldestId = null;
+                let oldestTime = Infinity;
+                
+                for (const [id, notification] of this.notifications.entries()) {
+                    if (notification.createdAt < oldestTime) {
+                        oldestTime = notification.createdAt;
+                        oldestId = id;
+                    }
+                }
+                
+                if (oldestId) {
+                    this._removeNotification(oldestId);
+                }
+            }
+
+            const notificationId = `notification-${++this.notificationCounter}`;
+            const displayDuration = this._duracion(opts.duration);
+
+            // Crear elemento
+            const notificationElement = document.createElement('div');
+            const tipoSeguro = _tipoNotif(type);
+            notificationElement.id = notificationId;
+            notificationElement.className = `notification-item ${tipoSeguro}`;
+            notificationElement.setAttribute('role', 'region');
+            notificationElement.setAttribute('aria-label', 'Notification');
+            // El mensaje va ESCAPADO: ver `_escNotif` arriba.
+            notificationElement.innerHTML = `
+                <div class="notification-header">
+                    <div class="notification-icon ${tipoSeguro}" aria-hidden="true"></div>
+                    <div class="notification-message">${_escNotif(message)}</div>
+                </div>
+                ${this._debug ? `<div class="notification-timer">${notificationId.split('-')[1]}</div>` : ''}
+            `;
+
+            this._hubElement.appendChild(notificationElement);
+
+            // Aplicar animación de entrada después de un frame
+            const frame = requestAnimationFrame(() => {
+                this._animationFrames.delete(frame);
+                if (this._destroyed || !this.notifications.has(notificationId)) return;
+                const timer = setTimeout(() => {
+                    this._animationTimers.delete(timer);
+                    if (!this._destroyed && this.notifications.has(notificationId)) notificationElement.classList.add('show');
+                }, 10);
+                this._animationTimers.add(timer);
+            });
+            this._animationFrames.add(frame);
+
+            // Crear objeto de notificación
+            const notification = {
+                id: notificationId,
+                element: notificationElement,
+                message: message,
+                type: type,
+                pool: opts.pool,
+                data: opts.data,
+                onExpire: opts.onExpire,
+                createdAt: Date.now(),
+                expiresAt: displayDuration > 0 ? Date.now() + displayDuration : null,
+                timer: null,
+                isActive: true
+            };
+            notification.duplicateKey = this._generateDuplicateKey(message, type, opts.pool, opts);
+
+            // Guardar en Map
+            this.notifications.set(notificationId, notification);
+
+            // El barrido de caducadas se para solo cuando no queda nada (ver
+            // _cleanupExpiredNotifications, que es lo que evita un latido cada
+            // segundo durante toda la partida). Aquí vuelve a arrancar, porque a
+            // partir de ahora sí hay algo que vigilar.
+            if (this.config.autoCleanup) this._startAutoCleanup();
+
+            // Registrar para detección de duplicados
+            if (this.config.preventDuplicates) {
+                const duplicateKey = this._generateDuplicateKey(message, type, opts.pool, opts);
+                this.duplicateTracker.set(duplicateKey, notificationId);
+            }
+
+            // Añadir al pool
+            if (!this.pools.has(opts.pool)) {
+                this.pools.set(opts.pool, new Set());
+            }
+            this.pools.get(opts.pool).add(notificationId);
+
+            // Configurar temporizador si hay duración
+            if (displayDuration > 0) {
+                notification.timer = setTimeout(() => {
+                    this._expireNotification(notificationId);
+                }, displayDuration);
+            }
+
+            if (this._debug) {
+                console.log(`NotificationHub: Mostrada [${notificationId}] en pool "${opts.pool}"`, {
+                    message,
+                    type,
+                    duration: displayDuration,
+                    total: this.notifications.size
+                });
+            }
+
+            return notificationId;
+
+        } catch (e) {
+            this._handleError('show', e);
+            return null;
+        }
+    }
+
+    /**
+     * Maneja la expiración de una notificación
+     * @private
+     */
+    _expireNotification(notificationId) {
+        try {
+            const notification = this.notifications.get(notificationId);
+            if (!notification) return;
+
+            // Eliminar del tracker de duplicados
+            if (this.config.preventDuplicates) {
+                const duplicateKey = notification.duplicateKey;
+                if (this.duplicateTracker.get(duplicateKey) === notificationId) this.duplicateTracker.delete(duplicateKey);
+            }
+
+            // Llamar callback si existe
+            if (notification.onExpire && typeof notification.onExpire === 'function') {
+                try {
+                    notification.onExpire(notification);
+                } catch (e) {
+                    this._handleError('onExpire callback', e);
+                }
+            }
+
+            // Eliminar la notificación
+            this._removeNotification(notificationId);
+            
+        } catch (e) {
+            this._handleError('_expireNotification', e);
+        }
+    }
+
+    /**
+     * Elimina una notificación específica
+     * @private
+     */
+    _removeNotification(notificationId) {
+        try {
+            const notification = this.notifications.get(notificationId);
+            if (!notification) return;
+
+            // Eliminar del tracker de duplicados
+            if (this.config.preventDuplicates) {
+                const duplicateKey = notification.duplicateKey;
+                if (this.duplicateTracker.get(duplicateKey) === notificationId) this.duplicateTracker.delete(duplicateKey);
+            }
+
+            // Limpiar timer
+            if (notification.timer) {
+                clearTimeout(notification.timer);
+            }
+
+            // Marcar como inactiva
+            notification.isActive = false;
+
+            // Animación de salida
+            notification.element.classList.remove('show');
+            notification.element.classList.add('hide');
+
+            // Eliminar del DOM después de animación
+            const removeElement = () => {
+                if (notification.element && notification.element.parentNode) {
+                    notification.element.parentNode.removeChild(notification.element);
+                }
+            };
+            if (this._destroyed) removeElement();
+            else {
+                const timer = setTimeout(() => { this._animationTimers.delete(timer); removeElement(); }, this.config.animationDuration);
+                this._animationTimers.add(timer);
+            }
+
+            // Eliminar del pool
+            if (this.pools.has(notification.pool)) {
+                const poolSet = this.pools.get(notification.pool);
+                poolSet.delete(notificationId);
+                
+                if (poolSet.size === 0) {
+                    this.pools.delete(notification.pool);
+                }
+            }
+
+            // Eliminar del Map principal
+            this.notifications.delete(notificationId);
+
+            if (this._debug) {
+                console.log(`NotificationHub: Eliminada [${notificationId}]`, {
+                    remaining: this.notifications.size
+                });
+            }
+
+        } catch (e) {
+            this._handleError('_removeNotification', e);
+        }
+    }
+
+    /**
+     * Métodos de conveniencia con soporte para pools
+     */
+    showInfo(message, duration = null, pool = 'default') {
+        return this.show(message, 'info', { duration, pool });
+    }
+
+    showSuccess(message, duration = null, pool = 'default') {
+        return this.show(message, 'success', { duration, pool });
+    }
+
+    showWarning(message, duration = null, pool = 'default') {
+        return this.show(message, 'warning', { duration, pool });
+    }
+
+    showError(message, duration = null, pool = 'default') {
+        return this.show(message, 'error', { duration, pool });
+    }
+
+    /**
+     * Muestra notificación con opciones completas
+     */
+    showAdvanced(message, type = 'info', options = {}) {
+        return this.show(message, type, options);
+    }
+
+    /**
+     * Oculta una notificación específica
+     */
+    hideNotification(notificationId) {
+        this._removeNotification(notificationId);
+    }
+
+    /**
+     * Oculta todas las notificaciones de un pool específico
+     */
+    hidePool(poolName) {
+        try {
+            if (!this.pools.has(poolName)) return;
+
+            const poolNotifications = Array.from(this.pools.get(poolName));
+            poolNotifications.forEach(notificationId => {
+                this._removeNotification(notificationId);
+            });
+
+            if (this._debug) {
+                console.log(`NotificationHub: Pool "${poolName}" ocultado`, {
+                    eliminadas: poolNotifications.length
+                });
+            }
+        } catch (e) {
+            this._handleError('hidePool', e);
+        }
+    }
+
+    /**
+     * Oculta todas las notificaciones
+     */
+    hideAllNotifications() {
+        try {
+            // Limpiar tracker de duplicados
+            this.duplicateTracker.clear();
+            
+            const allIds = Array.from(this.notifications.keys());
+            allIds.forEach(id => {
+                this._removeNotification(id);
+            });
+        } catch (e) {
+            this._handleError('hideAllNotifications', e);
+        }
+    }
+
+    /**
+     * Obtiene todas las notificaciones activas
+     */
+    getActiveNotifications() {
+        return Array.from(this.notifications.values());
+    }
+
+    /**
+     * Obtiene notificaciones de un pool específico
+     */
+    getNotificationsByPool(poolName) {
+        if (!this.pools.has(poolName)) return [];
+        
+        const poolSet = this.pools.get(poolName);
+        const notifications = [];
+        
+        for (const notificationId of poolSet) {
+            const notification = this.notifications.get(notificationId);
+            if (notification) {
+                notifications.push(notification);
+            }
+        }
+        
+        return notifications;
+    }
+
+    /**
+     * Obtiene información de una notificación específica
+     */
+    getNotification(notificationId) {
+        return this.notifications.get(notificationId) || null;
+    }
+
+    /**
+     * Verifica si una notificación existe y está activa
+     */
+    hasNotification(notificationId) {
+        const notification = this.notifications.get(notificationId);
+        return notification && notification.isActive;
+    }
+
+    /**
+     * Verifica si existe una notificación duplicada
+     */
+    hasDuplicate(message, type = 'info', pool = 'default', options = {}) {
+        if (!this.config.preventDuplicates) return false;
+        return this._checkForDuplicate(message, type, pool, options) !== null;
+    }
+
+    /**
+     * Actualiza la configuración
+     */
+    updateConfig(newConfig = {}) {
+        try {
+            this.config = Object.assign({}, this.config, newConfig);
+            
+            // Actualizar autoCleanup si cambió
+            if (newConfig.autoCleanup !== undefined) {
+                if (newConfig.autoCleanup) {
+                    this._startAutoCleanup();
+                } else {
+                    this._stopAutoCleanup();
+                }
+            }
+            
+            // Si se cambia preventDuplicates, limpiar tracker si se desactiva
+            if (newConfig.preventDuplicates === false) {
+                this.duplicateTracker.clear();
+            }
+            
+            const styleTag = document.getElementById(this._styleId);
+            if (styleTag) {
+                styleTag.parentNode.removeChild(styleTag);
+                this.injectStyles();
+            }
+        } catch (e) {
+            this._handleError('updateConfig', e);
+        }
+    }
+
+    /**
+     * Destruye la instancia
+     */
+    destroy() {
+        try {
+            if (this._destroyed) return;
+            this._destroyed = true;
+            if (this._readyHandler && typeof document !== 'undefined') document.removeEventListener('DOMContentLoaded', this._readyHandler);
+            this._readyHandler = null;
+            if (this._settingsTimer !== null) clearTimeout(this._settingsTimer);
+            this._settingsTimer = null;
+            if (this._settingsPanel) this._settingsPanel.remove();
+            this._settingsPanel = null;
+            this._stopAutoCleanup();
+            this.hideAllNotifications();
+            this._animationFrames.forEach(cancelAnimationFrame); this._animationFrames.clear();
+            this._animationTimers.forEach(clearTimeout); this._animationTimers.clear();
+
+            /* SOLO LO PROPIO. Antes se quitaba `getElementById('notification-hub')`
+               —el PRIMERO con ese id, que podía ser el de otra instancia viva (la
+               del relay, la de la otra escena)— y la hoja de estilos compartida,
+               con lo que las notificaciones de las demás se quedaban sin estilo
+               hasta recargar. */
+            if (this._hubElement && this._hubElement.parentNode) this._hubElement.remove();
+            this._destroyed = true;
+            NotificationHub._vivos.delete(this);
+            if (NotificationHub._ultima === this) {
+                let otra = null;
+                NotificationHub._vivos.forEach((h) => { otra = h; });
+                NotificationHub._ultima = otra;
+            }
+            if (NotificationHub._vivos.size === 0) {
+                const styleTag = document.getElementById(this._styleId);
+                if (styleTag) styleTag.remove();
+            }
+
+            this.notifications.clear();
+            for (const [name, instance] of NotificationHub.instances) {
+                if (instance === this) NotificationHub.instances.delete(name);
+            }
+            this.pools.clear();
+            this.duplicateTracker.clear();
+            this._hubElement = null;
+            this.isInitialized = false;
+        } catch (e) {
+            this._handleError('destroy', e);
+        }
+    }
+
+    /**
+     * Métodos estáticos para gestión global
+     */
+    static instances = new Map();
+
+    /* Instancias con hub montado, y la última que se montó. La campana del HUD
+       se crea UNA vez y sobrevive a las escenas: si abriera el panel de la
+       instancia que la creó, tras cambiar de escena los ajustes se aplicarían
+       a un hub ya destruido y no harían nada. Abre el de la instancia viva. */
+    static _vivos = new Set();
+    static _ultima = null;
+
+    /* Preferencias del panel (tipos visibles, posición e historial). Son de la
+       SESIÓN, no de una escena: antes vivían en cada instancia y se perdían en
+       cada ida y vuelta a la tienda. Siguen sin guardarse en el navegador. */
+    static _prefs = {
+        enabledTypes: { success: true, error: true, warning: true, info: true },
+        history: [],
+        position: null
+    };
+
+    /**
+     * Obtiene o crea una instancia con nombre
+     */
+    static getInstance(name = 'default', options = {}) {
+        if (!NotificationHub.instances.has(name) || NotificationHub.instances.get(name)._destroyed) {
+            NotificationHub.instances.set(name, new NotificationHub(options));
+        }
+        return NotificationHub.instances.get(name);
+    }
+
+    /**
+     * Destruye una instancia específica
+     */
+    static destroyInstance(name = 'default') {
+        const instance = NotificationHub.instances.get(name);
+        if (instance) {
+            instance.destroy();
+            NotificationHub.instances.delete(name);
+        }
+    }
+
+    /**
+     * Obtiene todas las instancias
+     */
+    static getAllInstances() {
+        return Array.from(NotificationHub.instances.values());
+    }
+
+    /**
+     * Método especial para juegos RPG pixel art
+     */
+    static createRPGNotification(message, type = 'info', options = {}) {
+        const rpgOptions = {
+            pixelArtMode: true,
+            width: 300,
+            pixelSize: 3,
+            position: 'top-left',
+            preventDuplicates: true,
+            backgroundColor: '#0a0a1a',
+            borderColor: '#4a5568',
+            font: "'Press Start 2P', monospace",
+            ...options
+        };
+        
+        const instance = NotificationHub.getInstance('rpg', rpgOptions);
+        return instance.show(message, type, { duration: 4000, ...options });
+    }
+
+    // ─── PANEL DE CONTROL DE NOTIFICACIONES ──────────────────────────────────
+    // Nota: las preferencias son POR SESIÓN (no se guardan en localStorage,
+    // pedido del usuario de no usar storage). Se reinician al recargar.
+    setTypeEnabled(type, on) {
+        if (!_TIPOS_NOTIF[type]) return;
+        NotificationHub._prefs.enabledTypes[type] = !!on;
+    }
+    getHistory() { return NotificationHub._prefs.history.slice(); }
+    setPosition(pos) {
+        const valid = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+        if (valid.indexOf(pos) === -1) return;
+        NotificationHub._prefs.position = pos;
+        // A todas las instancias vivas: todas pintan en la misma esquina.
+        NotificationHub._vivos.forEach((h) => { if (h !== this) h._aplicarPosicion(pos); });
+        this._aplicarPosicion(pos);
+    }
+    _aplicarPosicion(pos) {
+        this.config.position = pos;
+        if (this._hubElement) {
+            const s = this._hubElement.style;
+            s.left = s.right = s.top = s.bottom = 'auto';
+            if (pos === 'top-right')          { s.right = '1%'; s.top = '28%'; }
+            else if (pos === 'bottom-right')  { s.right = '1%'; s.bottom = '1%'; }
+            else if (pos === 'bottom-left')   { s.left = '1%'; s.bottom = '1%'; }
+            else                              { s.left = '1%'; s.top = '28%'; }
+        }
+    }
+
+    // Inserta la campana 🔔 como UN BOTÓN MÁS del HUD (#round-buttons-container).
+    // Así hereda el estilo/tamaño responsivo de .round-btn (PC y móvil), se
+    // OCULTA solo mientras el mapa carga (el juego pone .hud-hidden → display:none
+    // en #game-hud) y REAPARECE al entrar a la escena nueva, sin código extra.
+    // Antes era un botón flotante fijo abajo-izquierda: quedaba fuera del HUD y
+    // tapado por el botón de chat.
+    _ensureSettingsButton(attempt) {
+        try {
+            if (this._destroyed) return;
+            if (typeof document === 'undefined' || !document.body) return;
+
+            // Limpieza del botón FLOTANTE de la versión anterior (quedaba
+            // abajo-izquierda, tapado por el chat, y NO se ocultaba al cargar).
+            const legacy = document.getElementById('gf-notif-settings-btn');
+            if (legacy) legacy.remove();
+
+            if (document.getElementById('gf-notif-btn')) return; // ya está
+
+            const container = document.getElementById('round-buttons-container');
+            if (!container) {
+                // El HUD todavía no existe: reintentar un rato (sin bloquear).
+                const n = (attempt || 0) + 1;
+                if (n <= 20 && this._settingsTimer === null) this._settingsTimer = setTimeout(() => {
+                    this._settingsTimer = null; this._ensureSettingsButton(n);
+                }, 500);
+                return;
+            }
+
+            const btn = document.createElement('button');
+            btn.id = 'gf-notif-btn';
+            btn.className = 'round-btn';
+            btn.setAttribute('tabindex', '-1');
+            btn.setAttribute('aria-label', 'Notifications');
+            btn.innerHTML =
+                '<span style="font-size:20px;display:flex;align-items:center;justify-content:center;width:100%;height:100%">🔔</span>' +
+                '<span class="label-badge">Notifications</span>';
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const viva = NotificationHub._ultima;
+                if (viva && !viva._destroyed) viva.openSettingsPanel();
+            });
+            container.appendChild(btn);
+        } catch (e) { /* no crítico */ }
+    }
+
+    openSettingsPanel() {
+        try {
+            if (this._destroyed) return;
+            const existing = document.getElementById('gf-notif-panel');
+            if (existing) { existing.remove(); return; } // toggle
+            const tipos = NotificationHub._prefs.enabledTypes;
+
+            const el = document.createElement('div');
+            this._settingsPanel = el;
+            el.id = 'gf-notif-panel';
+            // Anclado arriba-derecha bajo la columna del HUD en pantallas grandes;
+            // en móvil (<=760px) se centra y ocupa casi todo el ancho.
+            const isSmall = (window.innerWidth || 1024) <= 760;
+            const posCSS = isSmall
+                ? 'left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,360px);'
+                : 'right:86px;top:120px;width:340px;';
+            el.style.cssText = 'position:fixed;' + posCSS + 'z-index:99999;max-height:70vh;overflow:auto;background:rgba(11,61,46,0.97);border:3px solid #ffd23f;border-radius:14px;color:#fff;font-family:Arial,sans-serif;font-size:14px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.5);';
+
+            const esc = _escNotif;      // el mismo de arriba, uno solo para todo el módulo
+            const TYPES = [['success', 'Success'], ['error', 'Errors'], ['warning', 'Warnings'], ['info', 'Info']];
+            let typesHtml = '';
+            for (const [t, label] of TYPES) {
+                const on = tipos[t] !== false;
+                typesHtml += `<label style="display:flex;align-items:center;gap:8px;margin:4px 0;cursor:pointer;">
+                    <input type="checkbox" data-type="${t}" ${on ? 'checked' : ''}/> Show ${label}
+                </label>`;
+            }
+            const POS = [['top-left', 'Top left'], ['top-right', 'Top right'], ['bottom-left', 'Bottom left'], ['bottom-right', 'Bottom right']];
+            let posHtml = '';
+            for (const [p, label] of POS) posHtml += `<option value="${p}" ${this.config.position === p ? 'selected' : ''}>${label}</option>`;
+
+            const hist = this.getHistory().slice(0, 30);
+            const COLORS = { success: '#6fcf97', error: '#ff8a8a', warning: '#ffd23f', info: '#8cb0ff' };
+            let histHtml = hist.length ? '' : '<div style="color:#9fb6d6;">No notifications yet.</div>';
+            for (const h of hist) {
+                const time = new Date(h.at).toLocaleTimeString();
+                histHtml += `<div style="border-bottom:1px solid rgba(255,255,255,.08);padding:5px 0;">
+                    <span style="color:${COLORS[h.type] || '#fff'};font-weight:bold;">●</span>
+                    <span style="color:#9fb6d6;font-size:11px;">${time}</span><br>${esc(h.message)}
+                </div>`;
+            }
+
+            el.innerHTML = `
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <b>🔔 Notifications</b>
+                    <button id="gf-notif-close" style="background:transparent;border:none;color:#ffd23f;font-size:20px;cursor:pointer;">✕</button>
+                </div>
+                <div style="margin-bottom:10px;">${typesHtml}</div>
+                <label style="display:block;margin-bottom:6px;color:#cfe0ff;">Position</label>
+                <select id="gf-notif-pos" style="width:100%;padding:8px;border-radius:8px;background:#0e1626;color:#fff;border:1px solid #2c3d5e;margin-bottom:12px;">${posHtml}</select>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <b style="font-size:13px;">History</b>
+                    <button id="gf-notif-clearhist" style="background:#1b2740;border:1px solid #2c3d5e;color:#fff;border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer;">Clear</button>
+                </div>
+                <div style="max-height:34vh;overflow:auto;">${histHtml}</div>`;
+
+            // Dentro de #game-hud para que se oculte junto con el HUD mientras el
+            // mapa carga (el juego le pone .hud-hidden → display:none).
+            const hudHost = document.getElementById('game-hud') || document.body;
+            hudHost.appendChild(el);
+            el.querySelector('#gf-notif-close').addEventListener('click', () => el.remove());
+            el.querySelectorAll('input[type=checkbox][data-type]').forEach(cb => {
+                cb.addEventListener('change', () => this.setTypeEnabled(cb.getAttribute('data-type'), cb.checked));
+            });
+            el.querySelector('#gf-notif-pos').addEventListener('change', (e) => this.setPosition(e.target.value));
+            el.querySelector('#gf-notif-clearhist').addEventListener('click', () => {
+                NotificationHub._prefs.history = [];
+                el.remove();              // cerrar y volver a abrir ya vacío
+                this.openSettingsPanel();
+            });
+        } catch (e) { console.warn('No se pudo abrir el panel de notificaciones:', e); }
+    }
+}
+
+// Exportación y métodos globales
+if (typeof window !== 'undefined') {
+    window.NotificationHub = NotificationHub;
+    
+    // Métodos rápidos para juegos RPG
+    window.showGameAlert = (message, type = 'info', duration = 4000) => {
+        return NotificationHub.createRPGNotification(message, type, { duration });
+    };
+    
+    window.showQuestUpdate = (message) => {
+        return NotificationHub.createRPGNotification(`🎮 ${message}`, 'success', { duration: 5000 });
+    };
+    
+    window.showDamageAlert = (message) => {
+        return NotificationHub.createRPGNotification(`⚔️ ${message}`, 'error', { duration: 3000 });
+    };
+    
+    window.showItemFound = (message) => {
+        return NotificationHub.createRPGNotification(`📦 ${message}`, 'info', { duration: 4000 });
+    };
+    
+    window.showXPUpdate = (message) => {
+        return NotificationHub.createRPGNotification(`⭐ ${message}`, 'success', { duration: 3500 });
+    };
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = NotificationHub;
+}

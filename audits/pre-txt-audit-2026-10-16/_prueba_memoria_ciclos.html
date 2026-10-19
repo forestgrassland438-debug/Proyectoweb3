@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><title>Regresión de memoria — Phaser real</title>
+<style>body{background:#14201b;color:#def1e7;font:14px monospace;padding:20px}button{padding:12px}pre{white-space:pre-wrap}canvas{max-width:100%}</style>
+<h1>Prueba local de ciclos de efectos</h1>
+<p>20 entradas y salidas con lluvia, noche, nieve y huellas. Usa recursos locales y un reloj simulado; no inicia sesión ni envía transacciones.</p>
+<button id="run">Ejecutar 20 ciclos</button><pre id="out">Listo.</pre><div id="game"></div>
+<script>
+// Solo esta página de pruebas sustituye las dos lecturas del mundo.
+let night = true;
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (url, options) => {
+  const route = new URL(typeof url === 'string' ? url : url.url, location.href).pathname;
+  if (route === '/api/world/time') return Promise.resolve(new Response(JSON.stringify({ok:true,ahora:night?18000:6000,epocaMs:0,cicloMs:24000,diaMs:12000,nocheMs:12000})));
+  if (route === '/api/world/weather') return Promise.resolve(new Response(JSON.stringify({ok:true,ahora:Date.now(),activo:false,lluvia:false})));
+  return nativeFetch(url, options);
+};
+window.GFGraphics = { get: () => ({ calidad: 'alta' }) };
+</script>
+<script src="vendor/phaser.min.js"></script>
+<script src="gf-ciclo-dia.js"></script><script src="gf-clima.js"></script>
+<script src="gf-nieve.js"></script><script src="gf-pisadas.js"></script><script src="gf-postproceso.js"></script>
+<script>
+const out = document.getElementById('out');
+const failures = [];
+function check(condition, message) { if (!condition) throw new Error(message); }
+function line(text) { out.textContent += text + '\n'; }
+window.addEventListener('error', e => { failures.push(e.message); line('ERROR: ' + e.message); });
+const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+let ready;
+class Probe extends Phaser.Scene {
+  constructor() { super('Probe'); }
+  preload() { GFClima.precargar(this); }
+  create() {
+    if (!this.textures.exists('test_arbol')) {
+      const g = this.make.graphics({add:false});
+      g.fillStyle(0x387a39).fillRect(0,0,32,48).generateTexture('test_arbol',32,48); g.destroy();
+    }
+    this.player = this.add.image(220,220,'test_arbol');
+    this.sprite_arbolx1 = this.add.image(360,190,'test_arbol');
+    this.cameras.main.setBackgroundColor('#31543a');
+    ready(this);
+  }
+}
+document.getElementById('run').onclick = async function () {
+  this.disabled = true; out.textContent = ''; failures.length = 0;
+  let game;
+  try {
+    game = new Phaser.Game({type:Phaser.WEBGL,width:640,height:400,parent:'game',banner:false,audio:{noAudio:true},scene:[]});
+    await new Promise(resolve => { if (game.isBooted) resolve(); else game.events.once('ready',resolve); });
+    game.scene.add('Probe',Probe,false);
+    let baseline;
+    for (let cycle=1;cycle<=20;cycle++) {
+      const sceneReady = new Promise(resolve => { ready = resolve; });
+      game.scene.start('Probe'); const scene = await sceneReady;
+      night = true; await GFCiclo.sincronizar();
+      GFClima.probar('lluvia'); GFNieve.forzar(1);
+      check(GFCiclo.montarEscena(scene), 'No montó noche');
+      check(GFClima.montar(scene), 'No montó lluvia');
+      check(GFNieve.montar(scene), 'No montó nieve');
+      check(GFPisadas.montar(scene,{forzar:true}), 'No montó huellas');
+      check(GFPost.montar(scene), 'No montó postproceso WebGL');
+      const advance = (count,move) => {
+        for(let i=0;i<count;i++) {
+          scene.time.now += 100;
+          if(move) scene.player.x = 220 + (i%10)*8;
+          scene.events.emit('update',scene.time.now,100);
+        }
+      };
+      advance(410,true); await frame();
+      check(scene.__gfCiclo.rt, 'No se creó la capa de noche');
+      check(scene.__gfNieveSt.capas.length > 0, 'No se acumuló nieve');
+      night = false; await GFCiclo.sincronizar();
+      GFClima.probar('despejado'); GFNieve.forzar(0);
+      advance(1000,false); await frame();
+      check(scene.__gfCiclo.rt === null, 'La textura nocturna sobrevivió al amanecer');
+      check(scene.__gfNieveSt.capas.length === 0, 'Persisten capas de nieve derretida');
+      const phaseState = scene.__gfClima;
+      game.scene.stop('Probe'); await frame();
+      check(!scene.__gfCiclo && !scene.__gfClima && !scene.__gfNieveSt && !scene.__gfPisadas && !scene.__gfPost, 'Persisten módulos tras apagar');
+      check(phaseState.scene === null, 'El clima retuvo la escena');
+      check(scene.children.list.length === 0, 'Persisten objetos en el display list');
+      const sample = {
+        textures:game.textures.getTextureKeys().length,
+        listeners:scene.events.eventNames().reduce((n,e)=>n+scene.events.listenerCount(e),0)
+      };
+      if (!baseline) baseline = sample;
+      check(sample.textures === baseline.textures && sample.listeners === baseline.listeners,
+        'Los recursos crecieron: '+JSON.stringify({baseline,sample}));
+      line('Ciclo '+cycle+': 0 objetos; '+sample.textures+' texturas compartidas; '+sample.listeners+' listeners de motor.');
+      check(failures.length === 0,'Errores de navegador');
+    }
+    line('CORRECTO: 20 ciclos sin crecimiento de recursos retenidos.');
+  } catch(error) { line('FALLO: '+error.stack); }
+  finally {
+    GFCiclo.detener(); GFClima.detener(); GFNieve.forzar(null);
+    if(game) game.destroy(true);
+    this.disabled = false;
+  }
+};
+</script></html>

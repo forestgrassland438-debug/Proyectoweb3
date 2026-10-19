@@ -1,0 +1,27 @@
+
+> grassland-forest-sandbox@1.1.2 test
+> node --test tests/*.test.cjs
+
+✔ solo se abre el login fijo, sin argumentos del usuario ni flags inseguros (3.3503ms)
+✔ se detectan navegadores instalados en rutas conocidas para los tres SO (2.2554ms)
+✔ el controlador no ejecuta un shell y la vista remota no tiene preload (2.3861ms)
+✔ ningún frame remoto o secundario puede utilizar el puente local (43.3263ms)
+✔ el juego usa una vista aislada sin preload y solo permite su origen HTTPS (20.162ms)
+✔ reabrir o reconectar no acumula vistas ni listeners de descarga (5.9042ms)
+✔ una sesión nativa guardada abre el juego directamente dentro de la app (4.0732ms)
+✔ el acceso caducado se renueva antes de pedir otra autenticación (1.1534ms)
+✔ Check saved session sin cookie inicia vinculación con el navegador elegido en los tres SO (5.1828ms)
+✔ una caída de red al verificar no abre un navegador ni crea otra vinculación (1.1572ms)
+✔ login externo se sigue, valida la cookie recibida y abre el juego nativo una vez (5.4798ms)
+✔ cancelar libera el temporizador y una aprobación antigua no abre una partida (1.0598ms)
+✔ los destinos rechazan hosts parecidos, credenciales y esquemas nativos (2.1076ms)
+✔ cerrar sesión cancela la espera, revoca con CSRF y elimina las cookies del cliente (1.5709ms)
+✔ cerrar sesión sin red elimina la sesión local y cambiar de cuenta exige elegirla en el login (2.249ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 439.2233

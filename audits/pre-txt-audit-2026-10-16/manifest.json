@@ -1,0 +1,1367 @@
+[
+  {
+    "path": "_prueba_3d.html",
+    "sha256": "1D9A6CAA2761FC380284E2747361EE6C868837194DAB34F3E59D1FD6C4E389D9",
+    "bytes": 4440657
+  },
+  {
+    "path": "_prueba_audio_memoria.html",
+    "sha256": "4485B09F639FC7B1A2E0089EFB64A26412C96AAE9E7091C665D6F35943BAE836",
+    "bytes": 5482
+  },
+  {
+    "path": "_prueba_batalla.html",
+    "sha256": "15340EBF26ADE12D7D3E9DEE4033189CDAF45DB52304814BD7CA638081FED74E",
+    "bytes": 3465
+  },
+  {
+    "path": "_prueba_chunks.html",
+    "sha256": "CBD0BBF56C58E3B2C05F0E9C5B37F2C3BB904FF3FA8A6BE81B6079516D94CC1D",
+    "bytes": 2955
+  },
+  {
+    "path": "_prueba_clima2.html",
+    "sha256": "85D8D2F4B47120E92ACF11F71C19BF5AA1E78A9C90B13DA128C0182D864B85D9",
+    "bytes": 5676
+  },
+  {
+    "path": "_prueba_combate.html",
+    "sha256": "8673C77CDCA0B95B7C542387BB44CFE4604CEBD4C17FFCDEE1EFC0013CB81620",
+    "bytes": 11142
+  },
+  {
+    "path": "_prueba_fauna_clima.html",
+    "sha256": "11078D98114A0BFEB08ECD512B65F2CC50E1E02FA9C9DAE13C7FB6C54CBCC331",
+    "bytes": 12064
+  },
+  {
+    "path": "_prueba_franjas.html",
+    "sha256": "33638408589C60B28DEAEEA330E96F573ACE32AA1B108C176BF63825EC63C6B4",
+    "bytes": 10867
+  },
+  {
+    "path": "_prueba_horno.html",
+    "sha256": "7C65E0423C649F9EAB435CC6E127766A717BF8D54D637861843606323F4325A1",
+    "bytes": 14681
+  },
+  {
+    "path": "_prueba_memoria_ciclos.html",
+    "sha256": "97A409CA278D43200250D73E4F559F344611796F7C325F93F9844A2452BA8FD6",
+    "bytes": 5416
+  },
+  {
+    "path": "_prueba_mina.html",
+    "sha256": "E42D7B2C66519B6EF212E00E079D2023AEA747597385E223120B9C924B85138C",
+    "bytes": 12679
+  },
+  {
+    "path": "_prueba_nublado.html",
+    "sha256": "19F7399AC5A300917AB3606A35339C6E81A1875250AF691615113DDB3C373A3E",
+    "bytes": 3163
+  },
+  {
+    "path": "_prueba_nublado.js",
+    "sha256": "8DD1EBE0CA7637D24D7B828ACB44401FD0841B87138815360BF8BAE90C7354B0",
+    "bytes": 7661
+  },
+  {
+    "path": "_prueba_offline_mock.js",
+    "sha256": "EEE5C9982BA39C8E76A6C33BDD86BC34343AD1724C6CEE75CC67D38F317E1027",
+    "bytes": 65204
+  },
+  {
+    "path": "_prueba_offline.html",
+    "sha256": "F30C388B97A558573D408DAE2C6AF638DC3D5802CCA186AE9F65C0808E076BC8",
+    "bytes": 90893
+  },
+  {
+    "path": "_prueba_pisadas.html",
+    "sha256": "CB6459F84FA0C5C4E41EF740FBA7F812B13C189C7361366C1A01EA4A5727214F",
+    "bytes": 3974
+  },
+  {
+    "path": "_prueba_post.html",
+    "sha256": "26764FF4CC8E3F6114D3CBDDB8DF02F2DD52144E4497C3845D4EB54DA2AEBB9F",
+    "bytes": 5878
+  },
+  {
+    "path": "_prueba_relay.js",
+    "sha256": "BEEFC25D29D2280F446369D4602416E32B54086E3864B9A330E8924F723AFB4E",
+    "bytes": 20571
+  },
+  {
+    "path": "_prueba_rendirse.html",
+    "sha256": "CF06523C3BB70E09E92580673D50C7131EA1E8F065F6A4E2AD3FCB4CF276DFFF",
+    "bytes": 509
+  },
+  {
+    "path": "_prueba_social.html",
+    "sha256": "04B9FDD3E335BD663C0CB23D17C460270D51C72F069BA55464356811D390BDB3",
+    "bytes": 8139
+  },
+  {
+    "path": "_prueba_social.js",
+    "sha256": "130EB58A38B788B0185F47F71395E728BF8A56EB6117C8F3460E9E81E3072DC1",
+    "bytes": 18871
+  },
+  {
+    "path": "_prueba_sol_nieve.html",
+    "sha256": "3605151472D999A7FEC68540DB145FAA8D8910BBB3A09CB9D361C6EC2AAC0BBA",
+    "bytes": 3601
+  },
+  {
+    "path": "_prueba_sombras.html",
+    "sha256": "A32C4324BC54D3596A8E026F98286754B05C4501B3B4C22781BBE9FBE2A5D47B",
+    "bytes": 5589
+  },
+  {
+    "path": "_prueba_sonido.html",
+    "sha256": "2B3A31EBB9EE13056FE2606E9ECCA0F1BB20CD03DBC41214FBA25A90BB1F1707",
+    "bytes": 13550
+  },
+  {
+    "path": "_prueba_viento.html",
+    "sha256": "78B11ACB68225CF0E5BD3BDA78917385579FBF9E041CC34D58A10692742D9285",
+    "bytes": 8962
+  },
+  {
+    "path": "_prueba_vram_pantalla.html",
+    "sha256": "CB913EA12C0D967B74F5FE19963AF518495CA4D038AA767A5ABDA28850EA1194",
+    "bytes": 6387
+  },
+  {
+    "path": "admin-impact.css",
+    "sha256": "5123E76C901875CE770E65834F7126680475FE452F52D9A3AE0B9AA8BCA8DAFB",
+    "bytes": 3980
+  },
+  {
+    "path": "admin-impact.js",
+    "sha256": "449F3B9E1DF84F7318B75EC9243B7A76110C9BA20A5C7B8C1433446911573498",
+    "bytes": 44605
+  },
+  {
+    "path": "admin.html",
+    "sha256": "8AA8252D39B0EFB899C3FD08BA9C44B00E82A8536385DC508E43EF44062B04D8",
+    "bytes": 92648
+  },
+  {
+    "path": "app.js",
+    "sha256": "9B0418B680FD058A0602C9B7DF9796B668988F278C1D9787483553BE70859FA3",
+    "bytes": 76689
+  },
+  {
+    "path": "BlockchainManager.js",
+    "sha256": "001946463640BC090AC6DF6B60C6165E9639F74FA20DC8BB31E97669B8A66D78",
+    "bytes": 15351
+  },
+  {
+    "path": "climas.html",
+    "sha256": "B8F07FED60E413E4002CF8E7273F5F9E12479307D2BB0FFAB67749B490682B68",
+    "bytes": 33074
+  },
+  {
+    "path": "consola-reportes.html",
+    "sha256": "613526E393EA5726AB569347BCBF7C699C934444CE97797863EB0E9CF8E58060",
+    "bytes": 44459
+  },
+  {
+    "path": "contrato-stats.html",
+    "sha256": "1F18568DCAF2D4AFCB64429A5173FBF3F34C0B33F65EB4B419388C180E99F348",
+    "bytes": 59867
+  },
+  {
+    "path": "CraftingHub.js",
+    "sha256": "0DCB48B508B7DBE8AAFF1B705161B9BB2638477D5E96022CDC4E89B2B175FA9B",
+    "bytes": 78806
+  },
+  {
+    "path": "game.html",
+    "sha256": "F057D6C69C508D0B755A31BEE9410F1FD9BE2782CDA63C07DE9660FC18F69E41",
+    "bytes": 1663
+  },
+  {
+    "path": "gf-agua.js",
+    "sha256": "80F442F02512DAA51E0774462B3D257BFE44A5F32AC9743E82412372A4CD98C5",
+    "bytes": 44142
+  },
+  {
+    "path": "gf-alquimista.js",
+    "sha256": "BB896BE7AD48E542BA19A821CA5A538515885FEB827027964A8AB5963DC609EE",
+    "bytes": 16344
+  },
+  {
+    "path": "gf-amigos.js",
+    "sha256": "592A13A1F85695FB0EABAAC57D432E6ECD132BA9A705A59F2FF48EEA6378A168",
+    "bytes": 88834
+  },
+  {
+    "path": "gf-animales.js",
+    "sha256": "7D4893ABF799A0F493591A8923BCF85E59D1F52B8FE4233022298C8490D86A63",
+    "bytes": 216011
+  },
+  {
+    "path": "gf-antorchas.js",
+    "sha256": "7D8D7B725417A937A73EF69136D76A0F32D77E9E2503DC3AD75E2F7F787467CB",
+    "bytes": 16980
+  },
+  {
+    "path": "gf-audio.js",
+    "sha256": "40461AD19755D37EE2FDA00EE3B802B67380A974F1D8D35D6AE79BE4F4A830C6",
+    "bytes": 70905
+  },
+  {
+    "path": "gf-batalla-arte.js",
+    "sha256": "7C584C347E6A2EADD6104A610BAF0817582B34A2038185DAA14DD1E4ACE06031",
+    "bytes": 47180
+  },
+  {
+    "path": "gf-brawl-motor.js",
+    "sha256": "122197C5DDE7EEFAD5A38D13994081906E4FC8209B254E3B4585D86A6AE0AB87",
+    "bytes": 101050
+  },
+  {
+    "path": "gf-buho.js",
+    "sha256": "EBDBABFB6772A1FFED119553B1533B237576A0D9AAC85950AB7A8CA0919D6F40",
+    "bytes": 26687
+  },
+  {
+    "path": "gf-canales.js",
+    "sha256": "E6CA5B2D41DAED35E5EF48B1F7C4B094D03320908F489EA958ADB7C643226518",
+    "bytes": 13371
+  },
+  {
+    "path": "gf-casas.js",
+    "sha256": "3C3B085A59A6C7C0AB4922BE20F29EDB02617ACD0B8694E1F562491D4BA29AC3",
+    "bytes": 10564
+  },
+  {
+    "path": "gf-character-skills.css",
+    "sha256": "282C5EB793AB4AA5B127D0C9E8B8D5A0B1F9C93DC4A0F8EB15D646FA4DC402DE",
+    "bytes": 1288
+  },
+  {
+    "path": "gf-character-skills.js",
+    "sha256": "3148224940B9F9C6B3B08FC95F21BBAEAA608D8A5225AA5F3A15788440A2F56C",
+    "bytes": 9105
+  },
+  {
+    "path": "gf-chat-social.js",
+    "sha256": "AEB3673FD8E04D264628C55C29CBE48265AF5020948C3B6A8BB7DD03F903F34F",
+    "bytes": 41315
+  },
+  {
+    "path": "gf-ciclo-dia.js",
+    "sha256": "220B2AF167191439A02EF5F23F1EF62DBFCB7E26DF5243CD7BA6A73D15D59632",
+    "bytes": 33011
+  },
+  {
+    "path": "gf-clima.js",
+    "sha256": "E0F2E8A21C94A0D6916F8B294019729CE928B7847901CB8491C4F523010091F8",
+    "bytes": 192786
+  },
+  {
+    "path": "gf-cuervo.js",
+    "sha256": "5A4D68C01EB1A175B023E84E4EC3391545B69D59F16D64DEB7ADAE09F6CC314C",
+    "bytes": 44190
+  },
+  {
+    "path": "gf-espada-poderes.css",
+    "sha256": "6D2F33F797B7A8B00DC2D501EB5DD9CF9C8B04825A3DAD98BD1BDEEBB2166707",
+    "bytes": 6388
+  },
+  {
+    "path": "gf-espada.js",
+    "sha256": "2A68FF2D503E4B0B9EF37D44030EECB8D51D9CE278F6BBE86B8047BAD544B188",
+    "bytes": 30757
+  },
+  {
+    "path": "gf-espantapajaros.js",
+    "sha256": "588F0D5CF9B5FF5B512DE3A3C455141AD607BFA9D407B2B9469F4B0230B5E8F7",
+    "bytes": 16575
+  },
+  {
+    "path": "gf-graphics-settings.js",
+    "sha256": "FE0448E24CC13985B07047C2EAC55A2E9576CEB709F59387F5EBC3A328D98951",
+    "bytes": 30358
+  },
+  {
+    "path": "gf-hud-ajuste.js",
+    "sha256": "39A218945E70B8EC6461D951A56D8DFB2078A911C14B402B5B54C434BE597CBA",
+    "bytes": 7719
+  },
+  {
+    "path": "gf-hud.css",
+    "sha256": "E34CB288157878A7DDB1AFB456388AE8952E62EE16AD08381686F531A010EB7E",
+    "bytes": 46204
+  },
+  {
+    "path": "gf-invitaciones.css",
+    "sha256": "2DCE2EB76426C87C10D0700A927295682ABD44238CEF8800DE82F318D20EA798",
+    "bytes": 4240
+  },
+  {
+    "path": "gf-invitaciones.js",
+    "sha256": "AFF4A97D148598A62F808537629839CF01C80EF2AE738A0D3B9203727AC0FA74",
+    "bytes": 14122
+  },
+  {
+    "path": "gf-lands.js",
+    "sha256": "6B16003ED19BC5701DE6FB7D6839667B2EA4B6FAA593676297A8110C701C41F3",
+    "bytes": 22231
+  },
+  {
+    "path": "gf-mascota.js",
+    "sha256": "59C0FD5494E8099367A20082ACAEFDBB2591A6F402B7A4F729C4CF155DC882FC",
+    "bytes": 33673
+  },
+  {
+    "path": "gf-mina-espectros.js",
+    "sha256": "6A8022F5C916B382EDD02C3CDA85009B415CD29ECDF34741542FE9A72D2C0095",
+    "bytes": 24164
+  },
+  {
+    "path": "gf-mina-serpiente.js",
+    "sha256": "93654FEA264DC02E448A485DCBEA0371AAB84D2E473ACAC200A07ABF3A9ED9EE",
+    "bytes": 62919
+  },
+  {
+    "path": "gf-mina-zombis.js",
+    "sha256": "B0A3BDF3C7E1C56251CAB883D84A8C7E590253DB56F6CA506071DA13909550A0",
+    "bytes": 40927
+  },
+  {
+    "path": "gf-mobs-red.js",
+    "sha256": "1F58E6D359D3ADA16CAF2887CE4C9F245D516724D2DF703A9F578D56B159BB6C",
+    "bytes": 16249
+  },
+  {
+    "path": "gf-monstruos-arte.js",
+    "sha256": "04FC0CEC8F5441CE165ECAF54D6B975A9FB67F975D31ABEAC48343E4B51AB97A",
+    "bytes": 8025
+  },
+  {
+    "path": "gf-monte.js",
+    "sha256": "077D85A03E35D5C2AA80CAAAB132867F715DD0A3081A088CA9A0B96FF9B0C092",
+    "bytes": 14573
+  },
+  {
+    "path": "gf-muerte.js",
+    "sha256": "672E4A2B8DA7CC2D90B4E22FE6062CC87AFD87B1597DB894DDB486FD25FACE94",
+    "bytes": 16394
+  },
+  {
+    "path": "gf-nft.js",
+    "sha256": "B846103481F9D6E8C062DC35F5F9EC1494DD24690A30200F2D9F2D83DE84E0EC",
+    "bytes": 11564
+  },
+  {
+    "path": "gf-nieve.js",
+    "sha256": "E7DF07E16C1C3A045E15EC31436D2BB71E4FCBADB2B300397DE82AFF1A32B2BD",
+    "bytes": 39052
+  },
+  {
+    "path": "gf-nombre-color.js",
+    "sha256": "50FF68E2019D4E95FB316D30958EBF0768D4EB513D8C5C542E7EDB42E6BA90A2",
+    "bytes": 16094
+  },
+  {
+    "path": "gf-pesca.js",
+    "sha256": "B608F84D06ED5C26E1B6E4E0112B377BF7A0482E6CDC75990E48CE0CB591E70B",
+    "bytes": 64472
+  },
+  {
+    "path": "gf-pisadas.js",
+    "sha256": "B82F4405255E02F703D2325961356DEF607ADE2BF28DF1C3F7A3F1EAA36233D5",
+    "bytes": 22421
+  },
+  {
+    "path": "gf-postproceso.js",
+    "sha256": "1EEDA233C8E0A075A3389324A553CC7302BDCDBCEA2E328C504B52C722EC95CA",
+    "bytes": 34018
+  },
+  {
+    "path": "gf-profundidad.js",
+    "sha256": "AC6AD4766B40461197ABBD0FCF4DBC7537936F7E03F630AA774CA46990F3D6A2",
+    "bytes": 55718
+  },
+  {
+    "path": "gf-redirect.js",
+    "sha256": "28A72BAF56454B5C9504823A0C8F34D511D7F324B9FE2B2C39D4B8C68FBAEBE9",
+    "bytes": 568
+  },
+  {
+    "path": "gf-relieve.js",
+    "sha256": "3D466577F1B3D0022EE3FAF08290ACB50E6F3811684AAAB942160578DB6D6930",
+    "bytes": 20426
+  },
+  {
+    "path": "gf-reposo.js",
+    "sha256": "E8822B0982AE08D2B96F233D1C1F7AE18BE68534BC92B4A9F026CF18BA21B682",
+    "bytes": 6001
+  },
+  {
+    "path": "gf-rutas.js",
+    "sha256": "C237FEF560C7D511970C1CAAA64A4800724DF9435C15FE136B7BF6BD87D4DB31",
+    "bytes": 5558
+  },
+  {
+    "path": "gf-salvaje.js",
+    "sha256": "64E816D303144FF72A09E0843F2F8E6D96BEE700C668B122ADA519DF8E793A3D",
+    "bytes": 78292
+  },
+  {
+    "path": "gf-sesion-unica.js",
+    "sha256": "D2DC7115673BDDB47DFEC4ACF1E90BC2F91A3580D5F300AD58664DFD9B910069",
+    "bytes": 10556
+  },
+  {
+    "path": "gf-session-api.js",
+    "sha256": "123F8EFBFB96C17366810BFA1FDF29DE78FE88B0E1AEDC8459FA84CAD92C7189",
+    "bytes": 4313
+  },
+  {
+    "path": "gf-sombras.js",
+    "sha256": "C7C5C25A33B827353901CC9B0A9B96FF8569AEB0F834EB9FAF4988D13EA503AA",
+    "bytes": 27731
+  },
+  {
+    "path": "gf-soulbound.js",
+    "sha256": "D0FF6A9F544CEDF89D0DA4C4A8D3965CD666A713E3A42CCB51F06E2665C2F09A",
+    "bytes": 37000
+  },
+  {
+    "path": "gf-suelo.js",
+    "sha256": "1769043B2030521A43AFA73A4EF15E16E49BB47E46651526A1248F7DF81AF76B",
+    "bytes": 9102
+  },
+  {
+    "path": "gf-tirones.js",
+    "sha256": "CCDC78818F1B680A44D46CCD47B168D867D6CAAB2D9CAE07DE0C5DDA415DFEB7",
+    "bytes": 9167
+  },
+  {
+    "path": "gf-traductor.js",
+    "sha256": "8948D4A1C3D3E954D40789ABA8799005CEB9949F9100BF3323EF42B9325DE5D7",
+    "bytes": 17175
+  },
+  {
+    "path": "gf-viento.js",
+    "sha256": "DB22713988EC3FDA181BA785A41A40C90710C469D779A273E613E2DB4F84B352",
+    "bytes": 45010
+  },
+  {
+    "path": "gf-wallet-boot.js",
+    "sha256": "3E44E0FA00C6C92FFEC52D9A3E61F2B6C3BBB2D847FAC219C6EE7AB03C240C20",
+    "bytes": 4772
+  },
+  {
+    "path": "gf-wallet-dashboard.js",
+    "sha256": "F4FA1666908A66F5893120BB54B493D61762FCE8A1E1F9DC55E6E171183A6A3F",
+    "bytes": 21088
+  },
+  {
+    "path": "hub.js",
+    "sha256": "AACE3A86DD0AD735FFAB104293E704225A038872A4AE3A10BAB87E5725CC0B2A",
+    "bytes": 20472
+  },
+  {
+    "path": "index.html",
+    "sha256": "21E98AE766CF74D0188B625B09D526A140542F000F19B3B9638E440FEFF7E90A",
+    "bytes": 89697
+  },
+  {
+    "path": "keycode.json",
+    "sha256": "1B29BFAD5D783E492C6AF7B0782CDF6D3A087A5446905BB6063245B45F162B87",
+    "bytes": 1517
+  },
+  {
+    "path": "LoadingSystem.js",
+    "sha256": "FC3DD5E31C1400ACCACC1753029829AEE46324C9A9241E119E7A4FBB04A1A38B",
+    "bytes": 17618
+  },
+  {
+    "path": "market.html",
+    "sha256": "61CDBC286E719DAFA830C4584351E757D56A9D649F999EE5427AF0106FF61267",
+    "bytes": 115076
+  },
+  {
+    "path": "marketplace-routes.js",
+    "sha256": "4888707C9102C29A505590A03BD7045A1863EA5CE015E85B4EAE2679FD082EE2",
+    "bytes": 70767
+  },
+  {
+    "path": "memory-fix.js",
+    "sha256": "FEE9136A55A98A6D9EB400A8EB65A3FFF8F07321253E33477429D17ED424FAB9",
+    "bytes": 4784
+  },
+  {
+    "path": "misiones.html",
+    "sha256": "1BE3413AE6FD9D8A3D645D9C0BE27529FB9676109D7C7F8796164D61F482F4D7",
+    "bytes": 34251
+  },
+  {
+    "path": "missionspanel.js",
+    "sha256": "FECC3667D843241EA59DF6350C97D31E25DF818B6B2F5CFDED5DBD9D208396B2",
+    "bytes": 25864
+  },
+  {
+    "path": "NotificationHub.js",
+    "sha256": "1F744425EC12E2ED9FC745FA16070FAED0DD87B579E8B913F5150A9A2773AEAC",
+    "bytes": 65143
+  },
+  {
+    "path": "obfuscator-config.json",
+    "sha256": "7BB765F17AA16192A4502A2C340A2B3DA979CC67DD11738C46AFB013C6758465",
+    "bytes": 686
+  },
+  {
+    "path": "package-lock.json",
+    "sha256": "53580A028415A1DAA203FC2CEDD6E5F8D3D47F7EA351F9F4033F11A0F749A0EF",
+    "bytes": 100055
+  },
+  {
+    "path": "package.json",
+    "sha256": "3EE4710E1A10E1FCD7102C92496214BB67E8638092D8254620983C57C1E176C5",
+    "bytes": 1982
+  },
+  {
+    "path": "Phaser-camera.js",
+    "sha256": "85FE422BF49448DAB723464A5E7DF617C0194B1FA199F66DF03C9D853AA5907A",
+    "bytes": 20161
+  },
+  {
+    "path": "phaser-canvas-scaler.js",
+    "sha256": "9AB20330A3D458E6FD0840B29831CB52FE7217550B87BFB1143A28F93389BC20",
+    "bytes": 29251
+  },
+  {
+    "path": "phaser-memory-cleaner.js",
+    "sha256": "1D68E3AE9A2D47DD2332CD3994CE9B81C1135EB0516669D9BF69D18CEF6EE0C6",
+    "bytes": 18649
+  },
+  {
+    "path": "phaser-memory-reporter.js",
+    "sha256": "CF84E51B172A8AAE7EAC0B7720F5CE33CDF73E991BEBA66157BAD4DAA60D43FF",
+    "bytes": 57956
+  },
+  {
+    "path": "phaser-relay-library.js",
+    "sha256": "5B6E9FC21821D6D0E3607C1DE7820EC0AF4D55A93400BD54E81656DC9D8ADDD5",
+    "bytes": 90942
+  },
+  {
+    "path": "phaser-rpg-perf.js",
+    "sha256": "2AB933167846D3DD06157C57143E8E8614129784E6CD3BFB93A33B44060EF4D0",
+    "bytes": 136470
+  },
+  {
+    "path": "puerta_login.html",
+    "sha256": "A55E40E41051D247C929656ED8AEF6A080CE726A06769B631C3ED9750BF1799B",
+    "bytes": 14704
+  },
+  {
+    "path": "register-scenes.js",
+    "sha256": "CC710D3DD014ECBFA5DA371F5A7E8EC6C543397A750BC022BDD2FEC6B8B33879",
+    "bytes": 19817
+  },
+  {
+    "path": "reporter.html",
+    "sha256": "953A9999B66B190F883D0A08DAB8352F75ABA6EF06DA9704CFC47EC6E76FF05C",
+    "bytes": 11838
+  },
+  {
+    "path": "reporter.js",
+    "sha256": "5852079A4EF1CE696A6D502580A4341D2004D18C50DB1A8C3A9BA2B9A48D8A4F",
+    "bytes": 17297
+  },
+  {
+    "path": "styless.css",
+    "sha256": "BC4A712F73442052C5482A81E131B0EDC353185560DB3A8A616FBD5D42D5A16A",
+    "bytes": 393047
+  },
+  {
+    "path": "SystemaTransaccion.js",
+    "sha256": "862ADC1707CFCDDB1C9FAB4D4204B60D59088EB21CFDF7EEB6015D7F293311B9",
+    "bytes": 20664
+  },
+  {
+    "path": "tienda_sistema.js",
+    "sha256": "7EAE07DA39E32AC3946F98674D1BB674D28E8DFA9879399DE8915C812AA81A53",
+    "bytes": 245456
+  },
+  {
+    "path": "TransactionHub.js",
+    "sha256": "1EB4C8A9F5C6C68E95FB02A9A0266E60BA223249FF26C12CE96FFB3B51D29A18",
+    "bytes": 20437
+  },
+  {
+    "path": "tx-gate.js",
+    "sha256": "6D14FC1716C7DFFA275A3D00329B197D808DB445355BF30D888AD1ED0522BD97",
+    "bytes": 6620
+  },
+  {
+    "path": "ui-image-fallbacks.js",
+    "sha256": "A4B8188CFDE42F888C7F0520F4248E249610C93EDDF8D406159E3BB25C02A0F4",
+    "bytes": 482
+  },
+  {
+    "path": "viewport-fix.js",
+    "sha256": "A4E37828640E4DDBF50C7887790DE55C8AA81DF172C59F62BEAFA1E8C0B855D9",
+    "bytes": 14598
+  },
+  {
+    "path": "Scenes\\.eslintrc.json",
+    "sha256": "785A1239BAA0CA019652D0B85FE21DF8C4D50EF4CF1BE34A2758CFE6A377663B",
+    "bytes": 423
+  },
+  {
+    "path": "Scenes\\BattleScene.js",
+    "sha256": "55ADE67AC35B6122955B3A8ABC2A58EFF2B88E6C9A33E82EDEBC36EF3A9FB437",
+    "bytes": 134843
+  },
+  {
+    "path": "Scenes\\GameScene.js",
+    "sha256": "67A2A4FA55751E5FD8E2C3C50DBAB9EE389CE4FF9AF089D0F49B9ED657F188C1",
+    "bytes": 1291789
+  },
+  {
+    "path": "Scenes\\InteriorScene.js",
+    "sha256": "47009270E74A619634559E8C7E416E85A4A2859B0156919DCD78711452DD7620",
+    "bytes": 37324
+  },
+  {
+    "path": "Scenes\\LandsScene.js",
+    "sha256": "608951E3C81ED27BE420DA1B79F1DFC4BF65E5B95F6E4FF9A9C72C1586A426CD",
+    "bytes": 108891
+  },
+  {
+    "path": "Scenes\\LoadingScenegame.js",
+    "sha256": "A1F1F9DCB10F6E65F60B808E65EF0F76C7D5B6A32A3F4D020BC433B4668F5C3A",
+    "bytes": 136599
+  },
+  {
+    "path": "Scenes\\LoadingSceneshop.js",
+    "sha256": "26DB4CC6B1678C03188DF5AE88B3C671A1A18B2EDFCD6C1A9DC95BBF264C751A",
+    "bytes": 7273
+  },
+  {
+    "path": "Scenes\\MenuScene.js",
+    "sha256": "2B55DFE3A54EB578377A81FAF93B09DBDEB37DE76BA83476F0226A99B30C6770",
+    "bytes": 28513
+  },
+  {
+    "path": "Scenes\\MinaScene.js",
+    "sha256": "A8253ED2887B19E5DA36014C935395BE399600FCAE02146D362C9BAEC03E89EC",
+    "bytes": 86344
+  },
+  {
+    "path": "Scenes\\sacar_mapa.js",
+    "sha256": "625B3EB513FAAC66F2B4CD8D54DD42453809C97EC70A7582152FD31641CAB801",
+    "bytes": 1491
+  },
+  {
+    "path": "Scenes\\SalvajeScene.js",
+    "sha256": "9E80DC055BD254690E040C92DC85406DFCB97652B02119137295D41A8B6A5E41",
+    "bytes": 26150
+  },
+  {
+    "path": "Scenes\\ShopScene.js",
+    "sha256": "4385704C3485C3C8664BFFD53CFBD469C6FEC4212095118EB7556AA654C90AF9",
+    "bytes": 14878
+  },
+  {
+    "path": "Scenes\\tiendajuego.js",
+    "sha256": "BA4EF7224B7E03A85CB543DE4B901C0BB9631836A53E2AA2E41339AEEB33D70E",
+    "bytes": 535579
+  },
+  {
+    "path": "lib\\tileManager.js",
+    "sha256": "33838A0319AE07317DCB9B07E8694776845D57CCC13C25CAAE65606BDC1E790E",
+    "bytes": 60068
+  },
+  {
+    "path": "lib\\tileMonitor.js",
+    "sha256": "2F0B59A8508246809C37507F1D1131A3ABF78315823C196879965A8F7FC8AC74",
+    "bytes": 11386
+  },
+  {
+    "path": "gf-wallet-sdk\\gf-wallet.js",
+    "sha256": "E95770C6377B7AA8BBDF5FB2A5EE42CA3CD8B31091147A7EFE2AAAD351F6356F",
+    "bytes": 64967
+  },
+  {
+    "path": "backend-impact\\litvm-chain-audit.cjs",
+    "sha256": "68BA31F1CB7DD9727EC19C8C9EAE9CED10AD1B8326AEE467EDEBAD205A34B89B",
+    "bytes": 54303
+  },
+  {
+    "path": "backend-impact\\litvm-chain-audit.test.cjs",
+    "sha256": "28DF5BBF54459C2B9DF9334184109B1B27C7757DDDBBED05F9248E1F5ABA3D74",
+    "bytes": 48630
+  },
+  {
+    "path": "backend-impact\\litvm-impact-analytics.cjs",
+    "sha256": "3ABA7B44EE378C8E9414C15BF36C4308402428557F0CA32D50D3D78F01693E32",
+    "bytes": 52372
+  },
+  {
+    "path": "backend-impact\\server2.js",
+    "sha256": "0D608EC35765B141CB26F1F20C3172DF465D4CA55E7A9ED81A44A86989F9AB83",
+    "bytes": 1311351
+  },
+  {
+    "path": "GrasslandBuild\\desktop\\browser-host.cjs",
+    "sha256": "27ACA8FC3F21AC1CC2F818193D8C92967D4AA49152C674C7D11A11A750E37703",
+    "bytes": 2724
+  },
+  {
+    "path": "GrasslandBuild\\desktop\\launcher.js",
+    "sha256": "F7B4DE91F10841540DE1DF5EA4E7EAE376D60FD22CBACAA201CBD19418C11E0E",
+    "bytes": 2124
+  },
+  {
+    "path": "GrasslandBuild\\desktop\\main.cjs",
+    "sha256": "6A33937A0113DFCDD037DA978095B292A64E7C6A0920483FEE396BB1ACFA0B20",
+    "bytes": 7447
+  },
+  {
+    "path": "GrasslandBuild\\desktop\\native-session.cjs",
+    "sha256": "F389E4119909CD26360245DCD35BF4540F6D33D9410041DFD846EB26B8B4D50C",
+    "bytes": 8418
+  },
+  {
+    "path": "GrasslandBuild\\desktop\\preload.cjs",
+    "sha256": "6F624067AAFEFABF30AD7D4611A2753587B3082B4A839E074E7D0A6B75DCD630",
+    "bytes": 715
+  },
+  {
+    "path": "GrasslandBuild\\tests\\browser-host.test.cjs",
+    "sha256": "060CB7B84EBC02521F3887622385D4464D41296BB4FE3827BA0991E16F3B9698",
+    "bytes": 1362
+  },
+  {
+    "path": "GrasslandBuild\\tests\\launcher-security.test.cjs",
+    "sha256": "A2C882F59ED851EB6875B628E2196A6E080EF97B54D2D014F69F759CBD52CD22",
+    "bytes": 5049
+  },
+  {
+    "path": "GrasslandBuild\\tests\\native-session.test.cjs",
+    "sha256": "2C903299BF99D9AF745F85541DB3021B8E4F13B3A932DCA0999A2517881A34F3",
+    "bytes": 5263
+  },
+  {
+    "path": "tools\\_sin-comentarios.js",
+    "sha256": "1D62169D6A38334982B0E3634A0F084E26F82EA468E8B0921AA5C7361206F0CD",
+    "bytes": 3384
+  },
+  {
+    "path": "tools\\add-player-potions.cjs",
+    "sha256": "4270C30801348A3BBCB53DC4097122FD2CF575A8A45A345E08A7CDA5CA565971",
+    "bytes": 580
+  },
+  {
+    "path": "tools\\admin-auth-rpc.test.cjs",
+    "sha256": "F982F9E1DDBBBB26187276270EAA56A7AA876BB9201958DB5E7344B48C40076B",
+    "bytes": 12514
+  },
+  {
+    "path": "tools\\admin-impact-browser.test.cjs",
+    "sha256": "60B4FDE765B25BECBD620FB61EC041F4023D4C80DE997AEE276A2A3C0C792673",
+    "bytes": 38710
+  },
+  {
+    "path": "tools\\app-lifecycle.test.cjs",
+    "sha256": "71AB63DC5CCFAA7C612C34E9DAABCC41AF971311DEF989F077B78A717B4FF209",
+    "bytes": 10735
+  },
+  {
+    "path": "tools\\audio-footprints-lifecycle.test.cjs",
+    "sha256": "32DD2A9AA0BC8A669D8D95D5B67F101CA82F6AABDFA8B596ED28E3255BBA8159",
+    "bytes": 10474
+  },
+  {
+    "path": "tools\\audio-prueba-rango-memoria.js",
+    "sha256": "08E0DBA7E1EE9AFD61005547996F83833217D53C009A1E5293136543F9515A88",
+    "bytes": 12408
+  },
+  {
+    "path": "tools\\audit-libraries.cjs",
+    "sha256": "860F3C17E96ACA4BE4188D83DE5C2D65ABA5B7B5A03631E7E35C61A1412013CF",
+    "bytes": 3974
+  },
+  {
+    "path": "tools\\audit-project-deep.cjs",
+    "sha256": "D605536129BC15E8E63FC48D995420DA07AE0825FC14984AC7C791FBDB2CBD4D",
+    "bytes": 4294
+  },
+  {
+    "path": "tools\\backend-deep-stability.test.cjs",
+    "sha256": "2C8C610EE46F26E36B902DDE26069A11FA8CA04E66AB8881404AA06456E626FF",
+    "bytes": 18548
+  },
+  {
+    "path": "tools\\backend-http-regression.cjs",
+    "sha256": "FDCE6F1CCA5A2599CAB7E59836380BC6A7F133105D6A56444AE435611B448B14",
+    "bytes": 3111
+  },
+  {
+    "path": "tools\\backend-inventory-sync.js",
+    "sha256": "BB57128700E669BF111EF031B850B04B3E78AB0599276D32960A46849B803F7A",
+    "bytes": 5282
+  },
+  {
+    "path": "tools\\batalla-conexion.test.cjs",
+    "sha256": "67374CAACBB1E91F0B2E5F9B6B71A00E3CEAF7D35645A5BA8B302B8D19ABE8F8",
+    "bytes": 3430
+  },
+  {
+    "path": "tools\\batalla-prueba-arenas.js",
+    "sha256": "FA393CD5F6A694E82E319ECDAB6A9D70DDE11D956C0CCA9C55023ECF15A0CFE3",
+    "bytes": 4363
+  },
+  {
+    "path": "tools\\batalla-prueba-especies.js",
+    "sha256": "6AE9A5C59C4D7842354ECC29828C1EE7C9623D8A1D52F045639A76742B811F81",
+    "bytes": 7639
+  },
+  {
+    "path": "tools\\batalla-prueba-niveles.js",
+    "sha256": "97EC06F68403D575BC1E0AF2DB74883BDB61735B25B7D91C1997E275F0F1630A",
+    "bytes": 8268
+  },
+  {
+    "path": "tools\\batalla-prueba-salida.js",
+    "sha256": "E9A92B4EE58966B245E3003095C5F18B4ABE590EE527D6CCF14AB5D7E649FFCE",
+    "bytes": 10226
+  },
+  {
+    "path": "tools\\battle-art-lifecycle.test.cjs",
+    "sha256": "F239E779F22C382483F6DECD1E283EFBA8BAD663564DFBCB721E75F4D7038736",
+    "bytes": 6179
+  },
+  {
+    "path": "tools\\battle-supplies.test.cjs",
+    "sha256": "0A3D8A960F48B9F418217EFE380EFAE59617DA9E4E222D7B11508FEC126C5521",
+    "bytes": 3659
+  },
+  {
+    "path": "tools\\battle-upgrade-visual.cjs",
+    "sha256": "96EB75894A7066512F823CB8889BC210240EA218C51D98609CBC542D5799A258",
+    "bytes": 5422
+  },
+  {
+    "path": "tools\\battle-upgrade.test.cjs",
+    "sha256": "06304771DA4ED2EA6B1500FA5953E3B35AE189ACB2EFCC602E2B26650C5C4BF0",
+    "bytes": 3568
+  },
+  {
+    "path": "tools\\brawl-a-servidor.js",
+    "sha256": "5FBB625B78E2ADA104F7D3FC163100C1AFB0DA7F21529DF8BEC460CF0540B4B0",
+    "bytes": 5449
+  },
+  {
+    "path": "tools\\brawl-prueba-motor.js",
+    "sha256": "715678436360061EECB348844094AAE96B346BBD9EBE9E01D110F8FCE8D5A41D",
+    "bytes": 30585
+  },
+  {
+    "path": "tools\\brawl-prueba-navegador.mjs",
+    "sha256": "E2DFF9EAC8743015422A6FCC24AB4DBC27E4727E3D0B100C5C6F8E33BD06B279",
+    "bytes": 16149
+  },
+  {
+    "path": "tools\\brawl-prueba-servidor.js",
+    "sha256": "EEEF02A46BD00648102FAB743AC2AB6A4ACC6EE3D8B3FB720A95E8C4A3CB4866",
+    "bytes": 35522
+  },
+  {
+    "path": "tools\\build-impact-backend.cjs",
+    "sha256": "2744B0179BED5856AB37410DE3BD5497B08F3871EAF476D8C46034393E8BCFDA",
+    "bytes": 3304
+  },
+  {
+    "path": "tools\\build-metamask.cjs",
+    "sha256": "923C6051ACAE0E6F67569579CE2730C69F54F6D9A90D5D7422911642237187D9",
+    "bytes": 1021
+  },
+  {
+    "path": "tools\\build-vendor.cjs",
+    "sha256": "FF42B7F4A2EDF52F2EE94896D38C9643211FD707D34F060FDB7E69234E3EC440",
+    "bytes": 3815
+  },
+  {
+    "path": "tools\\captura-mapa.mjs",
+    "sha256": "DD7BBE0B16F8D5EC65FDC43A9F46BF775775698074BA2EDE0EFF2A9DAADFA42C",
+    "bytes": 5697
+  },
+  {
+    "path": "tools\\casa-l-perfil.json",
+    "sha256": "F079251150895CE34D5957E439455CA41400FD52DB7BB9FE1F959528A3369FBA",
+    "bytes": 1428
+  },
+  {
+    "path": "tools\\character-potions-client.test.cjs",
+    "sha256": "70643528155974B1E1A27704207BAA00D64A62F634B638A56EB895EF7FCF63D0",
+    "bytes": 2058
+  },
+  {
+    "path": "tools\\character-world-server.js",
+    "sha256": "AA127604CB4F80D75FFF47AA176507E369032774E8C1864CACFBA296C55A7F11",
+    "bytes": 11580
+  },
+  {
+    "path": "tools\\character-world.test.cjs",
+    "sha256": "5EEBCA832C6B6072730AB7B5821F47314860AED911B8E8DD176B4ED1D527DD8B",
+    "bytes": 8076
+  },
+  {
+    "path": "tools\\contexto-retenido.js",
+    "sha256": "8FB58C306C49C604DFCCDF38E0AD4B7550A66BCC420B762D77EE405A8C788514",
+    "bytes": 13266
+  },
+  {
+    "path": "tools\\contratos-entre-modulos.js",
+    "sha256": "22CB6DB9F67FFA6CABF3E3C615CCED6BCC574174DB4248BF2C1FAFFC01D1E7B3",
+    "bytes": 6853
+  },
+  {
+    "path": "tools\\dom-ids-fantasma.js",
+    "sha256": "ED81A47353238902BB793A457456180197CD0AC28734569726A776E3409B7E92",
+    "bytes": 5939
+  },
+  {
+    "path": "tools\\embed-native-pairing.cjs",
+    "sha256": "315691B022BDC3E9CB8D260093C1C5F0BF581ED8A7C92DFAAA71949D024442CD",
+    "bytes": 3998
+  },
+  {
+    "path": "tools\\engine-deep-stability.test.cjs",
+    "sha256": "83BE50D40F2C3206011349217FE509963A834388D51424C071AFDE85E56C0155",
+    "bytes": 27811
+  },
+  {
+    "path": "tools\\engine-lifecycle.test.cjs",
+    "sha256": "DF2A596A032310981DE338B7ECF7BA98B59A87BDFC5AAAC33B7E282366E58D13",
+    "bytes": 13366
+  },
+  {
+    "path": "tools\\environment-lifecycle.test.cjs",
+    "sha256": "C71D062E5813719F86F538439C5B0A6B353873F3ED5E383A1C5B059C895CD1C3",
+    "bytes": 12323
+  },
+  {
+    "path": "tools\\environment-resources.test.cjs",
+    "sha256": "CFF84608D40492E6E0179479B0AA6E5130CFDF5AEDCF62A796D480F312E06491",
+    "bytes": 11341
+  },
+  {
+    "path": "tools\\escapado-prueba.js",
+    "sha256": "B9698996EEEC13A1CD1AED83379E45C0A7975BAD9FA3FDC3C8BD4C4BCB76C171",
+    "bytes": 4607
+  },
+  {
+    "path": "tools\\fantasma-prueba.js",
+    "sha256": "CC17EE9157237178517156BBF6BF701B1108A7957F0CDD88B4104F9E088598D8",
+    "bytes": 11557
+  },
+  {
+    "path": "tools\\fauna-banco.js",
+    "sha256": "11E5E1EBD62A7D93E1F1FE9CAEA6E40BB8736BA5A6DB09615284FA1798626A6C",
+    "bytes": 9384
+  },
+  {
+    "path": "tools\\fauna-landing-actions.test.cjs",
+    "sha256": "D40FE1C3CA465B70FA081461B83DFA195D046E834A3323762FB7BC2EF2C306C6",
+    "bytes": 6204
+  },
+  {
+    "path": "tools\\fauna-medir-cava.js",
+    "sha256": "F4C3786BB4A7604A8B6EF030067AF29E4B908310AA85D2D94900EB6B60894CB0",
+    "bytes": 2097
+  },
+  {
+    "path": "tools\\fauna-medir-sol.js",
+    "sha256": "B4C09476758CAD84E3BC2C33BC00127AE1516790E93F0D89A60CEFB089E54E2F",
+    "bytes": 2687
+  },
+  {
+    "path": "tools\\fauna-prueba-aves.js",
+    "sha256": "7AA7DCC3920539DAA924E838396EFD6E59C751143274B9EA7662F55C7C5F61C3",
+    "bytes": 9778
+  },
+  {
+    "path": "tools\\fauna-prueba-clima.js",
+    "sha256": "B60BECFF09760967012F10589CD08A3233BE4A3E7E9E373C25DD498B7541DE6D",
+    "bytes": 19358
+  },
+  {
+    "path": "tools\\generar-lods.js",
+    "sha256": "6DC63D5FA1389975001992123BEB936EE51D89D9E37417299BD5FEB80F7D2FC9",
+    "bytes": 14634
+  },
+  {
+    "path": "tools\\generar-prueba-offline.js",
+    "sha256": "104ED7F48949E0E904E000ED5166BD6E22CDB172698AEDCEF362B97033703E71",
+    "bytes": 1509
+  },
+  {
+    "path": "tools\\generar-sonidos.js",
+    "sha256": "9E6D260BEDB022CCB0ADBF47CCE87E0297A70A784D3CBC9320A40E8C56A6AA80",
+    "bytes": 62230
+  },
+  {
+    "path": "tools\\gf-banco-tienda.js",
+    "sha256": "FC5FE9540C624A76E2CCBB06A84B1ADAB1A08BD918C2534533194D4C282D09B5",
+    "bytes": 25652
+  },
+  {
+    "path": "tools\\handlers-inline-huerfanos.js",
+    "sha256": "EE477253A1DC01471D0B9819C7A9EE8E19B28CAA4DB09D270BF5CFD6CBE789E8",
+    "bytes": 3911
+  },
+  {
+    "path": "tools\\heap-escenas.mjs",
+    "sha256": "C20B3346FED07331EE82663F7D7731A39290167F6A61FABEEBD6C8CCFCB8CDF8",
+    "bytes": 7994
+  },
+  {
+    "path": "tools\\horno-prueba.js",
+    "sha256": "E987A9F82D9C7184FCDC8A1BE70955B0A635613E213E0CFDECC8F6B838F40716",
+    "bytes": 23577
+  },
+  {
+    "path": "tools\\hub-lifecycle.test.cjs",
+    "sha256": "C4D6CE9DDBEF2E30336E5C700DB1E41FFE29F6D3AE709908CF4C0A9C14BD5339",
+    "bytes": 11623
+  },
+  {
+    "path": "tools\\hud-prueba.mjs",
+    "sha256": "E9975D4B74A611FD70FBAF36F168775841938F00F18F6FF948A8CC048982AC49",
+    "bytes": 43115
+  },
+  {
+    "path": "tools\\hud-solapes.js",
+    "sha256": "678111DF327269E9AA02482B0F3043EA18B07F8C1B4F1CB8DD6133D8AD446498",
+    "bytes": 3938
+  },
+  {
+    "path": "tools\\impact-backend-bundle.test.cjs",
+    "sha256": "07EE118B8F33549DC66C0DE7CD273FD8DDFCE6006C1C03992B3E89DC3349C0F2",
+    "bytes": 5281
+  },
+  {
+    "path": "tools\\impact-real-dependency-boot-check.cjs",
+    "sha256": "0074201D9D088530998F896ACDCFC6A70AEE090DAC08980352B84369A448ED51",
+    "bytes": 7548
+  },
+  {
+    "path": "tools\\impact-rpc-transport.test.cjs",
+    "sha256": "E79A5CB37720BD1A160A831C8072337421BEC9EBB468217DCDECBD7409B936DA",
+    "bytes": 2183
+  },
+  {
+    "path": "tools\\inventario-catalogos.js",
+    "sha256": "D144EFDE7D34E2A761F1DDDA8FC7EE4CC0B2F619236B4E6EE70A8CE441E99EE2",
+    "bytes": 7629
+  },
+  {
+    "path": "tools\\inventario-prueba-orden.js",
+    "sha256": "76BDA3416242DB62F5063AA909541C0AE0E4BAE2ABEF4CA6F28ACAD3F73609C1",
+    "bytes": 7996
+  },
+  {
+    "path": "tools\\inventario-prueba-pintado.js",
+    "sha256": "C5562051E609686A60F163116271530AAE129654D7D16E6AC67F6BA5326B72B0",
+    "bytes": 7347
+  },
+  {
+    "path": "tools\\inventory-browser-verification.cjs",
+    "sha256": "41250F5C50EFA3B3EEE1FC985FDC73133AF88975C9299C2B493D574DEB806EA6",
+    "bytes": 21070
+  },
+  {
+    "path": "tools\\inventory-load.test.cjs",
+    "sha256": "B3FF26FD05D94A94E4C37458CF31B9A0D0B36DD7E0872C5E1D6CFEFB1E7E7141",
+    "bytes": 2349
+  },
+  {
+    "path": "tools\\inventory-transitions.test.cjs",
+    "sha256": "0B6C2518DC768C40AFBC44168D2B7A0C473B034F4F1BCEA18D8722509FEE8192",
+    "bytes": 11980
+  },
+  {
+    "path": "tools\\invitaciones.test.cjs",
+    "sha256": "749AB71B216129497234748089C1A2B79CC242292C01E2E6B4FD385CD68AFA5A",
+    "bytes": 13335
+  },
+  {
+    "path": "tools\\libraries-browser-stability.cjs",
+    "sha256": "8E89A9EC0DA1DA3C961A521AACDECEFA956284A70569B298C7BF5145A119C453",
+    "bytes": 7715
+  },
+  {
+    "path": "tools\\libraries-stability.test.cjs",
+    "sha256": "E71B530246993A2D8F6E92CB2016A2D958AA1521D0BD0ABD6CEE9F4B4FB023E3",
+    "bytes": 25041
+  },
+  {
+    "path": "tools\\litvm-impact-analytics.test.cjs",
+    "sha256": "4890F505288110EA8E91F56346163925D7433AEBB08A01D5DB71E517AED025F7",
+    "bytes": 28238
+  },
+  {
+    "path": "tools\\loading-deep-stability.test.cjs",
+    "sha256": "F7012F38C4FE94215A602780B6E18D3F9EDC0DA7420174FEE39620B3C9CA33DC",
+    "bytes": 10182
+  },
+  {
+    "path": "tools\\login-lifecycle.test.cjs",
+    "sha256": "D25C3EB6CE8B0D1435497981D6770376EBF0C381AEB468C0CFC001E6C19F78D6",
+    "bytes": 4191
+  },
+  {
+    "path": "tools\\mapa-prueba-colisiones.js",
+    "sha256": "EEEDADBAAD5F8268D8239F098A972A5406C127199A95D2313BB828E7573FC6F9",
+    "bytes": 5850
+  },
+  {
+    "path": "tools\\memory-diagnostics.test.cjs",
+    "sha256": "63CDB616BDDC44B1288506E078C021BB35D0E682C945D584C136D449D1ABFD5D",
+    "bytes": 3275
+  },
+  {
+    "path": "tools\\menu-stability.test.cjs",
+    "sha256": "D3E9E267855535D31F25B25E2173CC99C79792E5052C3715A992B200FE35CD1B",
+    "bytes": 1186
+  },
+  {
+    "path": "tools\\metamask-adapter.mjs",
+    "sha256": "4C56F533FA4565639B0D6EDB092D757338E2744D0F4EFD5F92BB59F727E54303",
+    "bytes": 2206
+  },
+  {
+    "path": "tools\\metamask-adapter.test.mjs",
+    "sha256": "C4B0AAC5158AC726C94CF803F6A53D707FA2083BD67AABF985B32BF7BB7BFE61",
+    "bytes": 3223
+  },
+  {
+    "path": "tools\\metamask-entry.mjs",
+    "sha256": "A562255DE859C9179D172E626E7F9025ABEE35142C8886998D2EA473CC86691A",
+    "bytes": 359
+  },
+  {
+    "path": "tools\\metodos-inexistentes.js",
+    "sha256": "CAA3911EF4163731B5244F6A87124CFEC7700186803DE4C8A9818C1C664B66F4",
+    "bytes": 7516
+  },
+  {
+    "path": "tools\\mina-prueba.js",
+    "sha256": "F99C37BF4CE2BF8762596FD4BEC8A2D414AB48DF6D473BF5EB6FBCB043A12E2C",
+    "bytes": 49532
+  },
+  {
+    "path": "tools\\mine-prediction.test.cjs",
+    "sha256": "B56563C6EFE7F5AD4A50A1F6E1FB0BCBD1AEF40A6B5B5D6DF2B8FE2AF1A4A670",
+    "bytes": 772
+  },
+  {
+    "path": "tools\\minerales-prueba.js",
+    "sha256": "2FB0DB5D7B784D0942F80E79C413ADE747FC075D8726530CA4EAA363424DD054",
+    "bytes": 11113
+  },
+  {
+    "path": "tools\\mirar-memoria.js",
+    "sha256": "9050DBD620104A737F4FACC1FB2C8C3D9C29EBC58498AEA31BA2C9FB3D677D90",
+    "bytes": 11117
+  },
+  {
+    "path": "tools\\mobs-red.test.cjs",
+    "sha256": "F52C17F3F26B6EECF7C86542CDF85B01ED212642969EB71C372E5D0A32C8E8D0",
+    "bytes": 9397
+  },
+  {
+    "path": "tools\\native-login.test.cjs",
+    "sha256": "E880D2CD89255B7EEA6CE4EF6AAAF80FBB6F21215397D3B55A5B349E8F309269",
+    "bytes": 2132
+  },
+  {
+    "path": "tools\\native-pairing-server.cjs",
+    "sha256": "E935DA0110EE0A8F69C139447C87DBAA35B50EED23502B01F7ED70A1C547B3E1",
+    "bytes": 3493
+  },
+  {
+    "path": "tools\\native-pairing.test.cjs",
+    "sha256": "80804983E913F66AAB4735A742D15C298478123EF7B90DE540D978D08BCF8213",
+    "bytes": 3822
+  },
+  {
+    "path": "tools\\network-deep-stability.test.cjs",
+    "sha256": "A8D44B1D14500790E07CEA2E87274583B0EBFC0DCCDD780A2033133F5857C0A4",
+    "bytes": 25098
+  },
+  {
+    "path": "tools\\nivel-prueba.js",
+    "sha256": "19AE3AF3B9461A5D7CADD0732E6C9505B00B4061E92B21BBB4BF733A426CF6B6",
+    "bytes": 7156
+  },
+  {
+    "path": "tools\\patch-character-world.cjs",
+    "sha256": "C076851F8ED043B7B9C535032ABE803253F3897A457F87DC03FA5E0427BE7D3C",
+    "bytes": 7251
+  },
+  {
+    "path": "tools\\perf-subsystems.test.cjs",
+    "sha256": "D1C96C2832E68725E56FA42B4A8CA327F2FCE3E40CEC77C3B0FE6D624FE819ED",
+    "bytes": 15391
+  },
+  {
+    "path": "tools\\profundidad-casas.test.cjs",
+    "sha256": "C59122FE48751153F1CA69C93A6AC1314DA1E3405170C51A8D8250034FF54FD6",
+    "bytes": 2787
+  },
+  {
+    "path": "tools\\profundidad-prueba-suelo.js",
+    "sha256": "44CCA466A81B89AF665CC8A123BC4C3042CC1D5FC8541EE8B1282A20902D9BD4",
+    "bytes": 5717
+  },
+  {
+    "path": "tools\\prueba-franjas.js",
+    "sha256": "EF25D74DF24008EF571DB08524CA29835F888207E9DAE8D2BB34835BE831C379",
+    "bytes": 2403
+  },
+  {
+    "path": "tools\\redirect-wallet.test.cjs",
+    "sha256": "591A7FD1DC986E71C6857D7883B1C7CD73941E44F9F2BD931C8C2444E9901955",
+    "bytes": 1235
+  },
+  {
+    "path": "tools\\relieve.test.cjs",
+    "sha256": "44C937C2BD9C6E2909F85144812F27847377314BF30253258A86B66208B1F36C",
+    "bytes": 7393
+  },
+  {
+    "path": "tools\\repair-native-auth.cjs",
+    "sha256": "4028A62D3CFF4E63DA7609C4BF4A43693EF98818DB99396404A5A99505A990AD",
+    "bytes": 2577
+  },
+  {
+    "path": "tools\\repair-shop-pvp.cjs",
+    "sha256": "815FB68BFFC8DF6B686326F68C2DE46930C7039C9B65B230F8E0252A1B4636DF",
+    "bytes": 6176
+  },
+  {
+    "path": "tools\\reparar-backend-batallas.cjs",
+    "sha256": "A77EB67D3B9459830991A5DF14F3FACA69EA8B143EA2A7452F8E11F3C92CE512",
+    "bytes": 3656
+  },
+  {
+    "path": "tools\\retenedores-heap.mjs",
+    "sha256": "BFA66156439D1F35024ACAEC1DD963EB20E7F6CDB0D5A16CF98A0DA2C27F558F",
+    "bytes": 4583
+  },
+  {
+    "path": "tools\\scene-memory-lifecycle.test.cjs",
+    "sha256": "88DE9523CE0AE4C1138AC7BD57079F8BD17896280BD07576E3DBD4AA09D443AE",
+    "bytes": 10987
+  },
+  {
+    "path": "tools\\scene-transition-panels.test.cjs",
+    "sha256": "805415B8DE5E7F939254C22703DC9436B83BA42F5C449BB3284E4CAB61C03D46",
+    "bytes": 7657
+  },
+  {
+    "path": "tools\\session-api.test.cjs",
+    "sha256": "BB14CCD588F664542E8B1ED83F5744BF11C3F0C274CEDCA7255391A8027CA52C",
+    "bytes": 2950
+  },
+  {
+    "path": "tools\\shop-auth-session.test.cjs",
+    "sha256": "DDD2D6733D584EB752828A992C8B367FF052B987A23CBEBBCF82EC36A0EA6458",
+    "bytes": 4421
+  },
+  {
+    "path": "tools\\shop-lifecycle.test.cjs",
+    "sha256": "17878722A76A5F127417306C7F45A025E3DCA1041EDB40DC075C8483DBB7B73A",
+    "bytes": 4399
+  },
+  {
+    "path": "tools\\shop-persistence.test.cjs",
+    "sha256": "34858A7E2AAAA47E8FAECAECA96A6DCAE2FFAD9033FF00D56546C3667C72C325",
+    "bytes": 10802
+  },
+  {
+    "path": "tools\\snow-leaf-transition.test.cjs",
+    "sha256": "8372CC486E5E78F0F4290A36228770B756D9CBFB2F6BFC720F8DC720B15C0480",
+    "bytes": 923
+  },
+  {
+    "path": "tools\\social-prueba.js",
+    "sha256": "077769066DB6F7030DC920800174B35C4D91E38A37CD36811E0892CD2F57E2A3",
+    "bytes": 34794
+  },
+  {
+    "path": "tools\\socket-prueba-escena.js",
+    "sha256": "D85A3FD61F81868F8C3B9EF39724249BBEA4B4ADF642BC41193AA60BA3F7514F",
+    "bytes": 17356
+  },
+  {
+    "path": "tools\\socket-prueba-salas.js",
+    "sha256": "7F751DE6593CFC0586CA9208DB172CEDD547E9B767E9948021A2E90E3C414F5F",
+    "bytes": 10175
+  },
+  {
+    "path": "tools\\sombras-prueba-suelo.js",
+    "sha256": "8A9AAE06B126A46F61115E22B388E54144FD5E6F43950974349FCAE3620101AB",
+    "bytes": 8523
+  },
+  {
+    "path": "tools\\sonidos-prueba-catalogo.js",
+    "sha256": "10B7C93218FC27BC1048EBB440717425C3136E74DA8AE8A07A6BD7FD7D775C6C",
+    "bytes": 4277
+  },
+  {
+    "path": "tools\\tienda-prueba-cola.js",
+    "sha256": "EB76B7CCEFF25D9561D5E1BD862021F8324A6A0862E9A1C41F71EFD5C483B2EA",
+    "bytes": 27417
+  },
+  {
+    "path": "tools\\tienda-prueba-venta.js",
+    "sha256": "1927ED140E58B0C1FE8940D01480444CCAFF495EAF0A23A8C8F04010684B60D1",
+    "bytes": 13931
+  },
+  {
+    "path": "tools\\tiles-prueba-limpieza.mjs",
+    "sha256": "3B0027F815F4DE3011A73031C72FB4CDE91FC154C4499566B616459A83887CCF",
+    "bytes": 5763
+  },
+  {
+    "path": "tools\\update-character-world.cjs",
+    "sha256": "C329D83995878576283C5276B3B770B0577DB6674708AD4087C9E30E82D60D8D",
+    "bytes": 1986
+  },
+  {
+    "path": "tools\\update-release-docs.cjs",
+    "sha256": "DE38F6B8A4C43DF4B131771442A3E9C306D03B30BBCB65E1BC823BFD024FDB9D",
+    "bytes": 7990
+  },
+  {
+    "path": "tools\\update-release-entry.cjs",
+    "sha256": "6674E3D7694B7CFC1A74205C9FBF79379E4639EAB7DB0DD4AE9DF5265F8CF8A5",
+    "bytes": 1545
+  },
+  {
+    "path": "tools\\viewport-first-resize.test.cjs",
+    "sha256": "2166A3C48A8AB32E27F0A330610F8C89B8171D368B0FAD8C852D14FAF59206E9",
+    "bytes": 1328
+  },
+  {
+    "path": "tools\\vram-prefx.js",
+    "sha256": "6E70C5C29D399D2B668936C7C8910FBA857C59B382E484A7FADC428817B19436",
+    "bytes": 5798
+  },
+  {
+    "path": "tools\\web3-seguridad-prueba.cjs",
+    "sha256": "D6C93EC125729E50775780B70BF42C6909750684A97DC0520C7512DEB1A35389",
+    "bytes": 14394
+  }
+]

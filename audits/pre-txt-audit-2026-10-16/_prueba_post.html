@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Banco de pruebas — post-procesado</title>
+<style>
+  html,body{margin:0;background:#0d1108;color:#dfe7d8;font:12px/1.5 system-ui,sans-serif}
+  #panel{position:fixed;right:6px;top:6px;z-index:9;background:rgba(8,12,8,.94);
+         padding:8px 10px;border-radius:8px;width:260px;white-space:pre-wrap}
+  #botones{position:fixed;left:6px;top:6px;z-index:9}
+  button{margin:2px;padding:4px 8px;border:0;border-radius:5px;background:#2c3a20;color:#dfe7d8;cursor:pointer}
+  button.on{background:#6d8f3a;color:#0d1108}
+  b{color:#f0e6a0} .mal{color:#ff8a7a} .ok{color:#7fe08d}
+</style>
+</head>
+<body>
+<div id="juego"></div>
+<div id="botones"></div>
+<div id="panel">…</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script>
+/* Clima y ciclo de día FALSOS: el módulo real lee de ellos, así que aquí se
+   les pone un doble para poder pedirle cualquier tiempo sin servidor. */
+var clima = { activo: true, estacion: 'verano',
+              lluvia: false, nieve: false, soleado: false, viento: false, truenos: false,
+              lluviaFuerza: 1, nieveFuerza: 1, soleadoFuerza: 1 };
+var noche = 0;
+window.GFClima = { estado: function () { return clima; } };
+window.GFCiclo = { oscuridad: function () { return noche; } };
+window.GFGraphics = { get: function () { return { calidad: 'alta' }; } };
+window.GF_POST_DEBUG = true;
+</script>
+<script src="./gf-postproceso.js?v=1"></script>
+<script>
+var escena, jugador, parado = false;
+
+var Escena = {
+  preload: function () {
+    escena = this;
+    this.load.image('suelo', './recortadas/low/tile_r0_c0_id1_low.png');
+    this.load.image('pino', './Game/Objetos/arbol_pinos.png');
+    this.load.image('casa', './Game/Objetos/casa forma L.png');
+    for (var i = 1; i <= 7; i++) {
+      this.load.image('run' + i, './Game/Sprites/Soulbound/personaje1/abajo/run_' + i + '.png');
+    }
+  },
+  create: function () {
+    // Un suelo repetido y unos cuantos objetos, para poder juzgar el revelado
+    // sobre arte de verdad y no sobre un degradado.
+    for (var y = 0; y < 5; y++) for (var x = 0; x < 8; x++) {
+      this.add.image(x * 128, y * 128, 'suelo').setOrigin(0).setDisplaySize(128, 128).setDepth(-10);
+    }
+    for (var i = 0; i < 9; i++) {
+      this.add.image(60 + i * 105, 180 + (i % 3) * 130, 'pino')
+        .setOrigin(0.5, 1).setScale(1.5 + (i % 3) * 0.35).setDepth(180 + (i % 3) * 130);
+    }
+    this.add.image(430, 460, 'casa').setOrigin(0.5, 1).setScale(2).setDepth(460);
+
+    this.anims.create({ key: 'andar',
+      frames: [1,2,3,4,5,6,7].map(function (i) { return { key: 'run' + i }; }),
+      frameRate: 10, repeat: -1 });
+    jugador = this.add.sprite(400, 380, 'run1').setOrigin(0.5, 1).setScale(2).setDepth(380);
+    jugador.play('andar');
+    this.player = jugador;              // el módulo lo busca aquí
+
+    this.cameras.main.setZoom(1.1).centerOn(400, 300);
+    window.GFPost.montar(this);
+    window.escena = this;
+  },
+  update: function () {
+    if (!parado) jugador.x = 240 + Math.sin(this.time.now / 2200) * 190;
+
+    var e = window.GFPost.estado();
+    var v = e.valores || {};
+    var n = function (x) { return (typeof x === 'number') ? x.toFixed(2) : '—'; };
+    document.getElementById('panel').innerHTML =
+      'tubería: <b>' + (e.clave || '<span class="mal">NINGUNA</span>') + '</b>\n' +
+      'desenfoque: <b>' + (e.conDesenfoque ? 'sí' : 'no') + '</b>   ' +
+      'jugador quieto: <b>' + (e.quieto ? 'sí' : 'no') + '</b>\n' +
+      '\nenfoque  nítido<' + n(v.focoDe) + '  todo>' + n(v.focoA) + '  radio ' + n(v.radio) + 'px\n' +
+      'viñeta   desde ' + n(v.vinEn) + '  fuerza ' + n(v.vinF) + '\n' +
+      'revelado sat ' + n(v.sat) + '  con ' + n(v.con) + '  bri ' + n(v.bri) + '\n' +
+      'tinte    ' + n(v.tinR) + ' ' + n(v.tinG) + ' ' + n(v.tinB) + '  ×' + n(v.tinF) + '\n' +
+      'extras   destello ' + n(v.destello) + '  grano ' + n(v.grano) +
+      '  aberr. ' + n(v.aberracion) + '\n' +
+      'pulso    ' + n(v.pulso) + '\n' +
+      '\nestación <b>' + clima.estacion + '</b>   noche <b>' + noche.toFixed(2) + '</b>';
+  }
+};
+
+new Phaser.Game({
+  type: Phaser.WEBGL, parent: 'juego',
+  width: 820, height: 480,
+  backgroundColor: '#243018', pixelArt: true, roundPixels: true,
+  scene: Escena
+});
+
+// ── botonera ────────────────────────────────────────────────────────────
+function poner(txt, fn) {
+  var b = document.createElement('button');
+  b.textContent = txt; b.onclick = fn;
+  document.getElementById('botones').appendChild(b);
+  return b;
+}
+function tiempo(que) {
+  clima.lluvia = clima.nieve = clima.soleado = clima.viento = clima.truenos = false;
+  if (que === 'lluvia')   clima.lluvia = true;
+  if (que === 'tormenta') { clima.lluvia = true; clima.truenos = true; }
+  if (que === 'nieve')    clima.nieve = true;
+  if (que === 'soleado')  clima.soleado = true;
+  if (que === 'viento')   clima.viento = true;
+}
+['normal','soleado','lluvia','tormenta','nieve','viento'].forEach(function (q) {
+  poner(q, function () { tiempo(q); });
+});
+document.getElementById('botones').appendChild(document.createElement('br'));
+['primavera','verano','otono','invierno'].forEach(function (e) {
+  poner(e, function () { clima.estacion = e; });
+});
+document.getElementById('botones').appendChild(document.createElement('br'));
+poner('noche +', function () { noche = Math.min(1, noche + 0.25); });
+poner('noche −', function () { noche = Math.max(0, noche - 0.25); });
+poner('⚡ pulso', function () { window.GFPost.pulso(1); });
+poner('parar/andar', function () { parado = !parado; });
+poner('post ON/OFF', function () {
+  if (escena.__gfPost) window.GFPost.desmontar(escena);
+  else window.GFPost.montar(escena);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+{
+  "selfContainedDeployment": true,
+  "utf8NoNullBytes": true,
+  "desktopMirrorsExact": true,
+  "frontendDeployMirrorsExact": true,
+  "patchProofSourceUnchanged": true,
+  "checks": {
+    "automatedTestsPassed": 81,
+    "browserGroupsPassed": 12,
+    "exactNodeVersion": "v18.20.8",
+    "realDependenciesIsolated": true,
+    "productionDeploymentPending": true
+  },
+  "entries": [
+    {
+      "file": "admin.html",
+      "bytes": 83584,
+      "sha256": "39f421effe2dc419906b999fdb765533dfe7a39846547f9796c67bdb79f72313"
+    },
+    {
+      "file": "admin-impact.js",
+      "bytes": 41649,
+      "sha256": "07b6df800506ce6cf3f0c48a30e409501fa21158c8b8c0208eaca390110ad71b"
+    },
+    {
+      "file": "admin-impact.css",
+      "bytes": 3980,
+      "sha256": "5123e76c901875ce770e65834f7126680475fe452f52d9a3ae0b9aa8bca8dafb"
+    },
+    {
+      "file": "backend-impact/server2.js",
+      "bytes": 1276833,
+      "sha256": "cc80fa2ff142f234a579aeb7fab2ba848437f1fa0ae27bdcf73e4bdce91ffe28"
+    },
+    {
+      "file": "backend-impact/litvm-chain-audit.cjs",
+      "bytes": 37903,
+      "sha256": "33b106fbfba9917b9545025120148025e8542dbe12d815135ec8e41aca216b9f"
+    },
+    {
+      "file": "backend-impact/litvm-impact-analytics.cjs",
+      "bytes": 39938,
+      "sha256": "f8f2ee99e401db08b025a21f6d02cef3f90dfa47c574f64dc12f63f9b04e0e75"
+    },
+    {
+      "file": "backend-impact/server2.integration.patch",
+      "bytes": 82921,
+      "sha256": "cd3c666d656ae7171ae750dabd287c86364a44ca20001ab2492a59bc6cb6edfe"
+    },
+    {
+      "file": "tools/build-impact-backend.cjs",
+      "bytes": 3304,
+      "sha256": "2744b0179bed5856ab37410de3bd5497b08f3871eaf476d8c46034393e8bcfda"
+    }
+  ]
+}

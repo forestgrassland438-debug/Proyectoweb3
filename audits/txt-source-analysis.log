@@ -1,0 +1,2 @@
+{"files":110,"lines":168884,"errors":0,"warnings":1}
+backend-impact/server2.js:26420 no-unreachable-loop: Invalid loop. Its body allows only one iteration.

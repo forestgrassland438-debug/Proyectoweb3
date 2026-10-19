@@ -1,0 +1,229 @@
+✔ verified nonce-zero CREATE skips predeployment blocks without claiming genesis coverage or deleting saved rows (45.8302ms)
+✔ a mismatched deployment proof never jumps over the durable checkpoint or claims complete execution history (21.4337ms)
+✔ an RPC quota failure while proving deployment preserves the old checkpoint and schedules a safe retry (19.1118ms)
+✔ a replacement worker revalidates the saved deployment proof and retains its resumed coverage range (42.3982ms)
+✔ a changed canonical deployment block rebuilds from the reverified creation without duplicating ledger hashes (51.2139ms)
+✔ explicit genesis mode ignores configured and persisted deployment shortcuts and widens coverage safely (47.4103ms)
+✔ wrapped ethers bandwidth errors expose the real RPC code without endpoint credentials (4.9237ms)
+✔ audit RPC reads use a separate provider, remain serialized and paced, and never delay broadcasts (124.2785ms)
+✔ bandwidth cooldown keeps the last complete block and resumes after a new worker starts without duplicate hashes (112.8642ms)
+✔ a rate limit during initial validation persists scan intent and retries exponentially across restarts (145.3974ms)
+✔ automatic recovery of an expired worker preserves a partial coverage range and ledger data (17.2524ms)
+✔ Mongo 14031 explains disk exhaustion and retries indexes after storage recovers without resetting data (12.7125ms)
+✔ numeric diagnostics from older deployments are explained read-only and clear when import succeeds (5.7511ms)
+✔ diagnostics preserve zero and signed codes, stage and names while removing endpoint credentials and signed bytes (0.9347ms)
+✔ collection creation failures retain their Mongo stage and recover on the next request (12.355ms)
+✔ real Mongoose/MongoDB index failure 14031 recovers with the unique ledger and existing rows intact (8598.1562ms)
+✔ one transaction with multiple events; historical owner; reverts; repeated scan and live capture do not double count (10.4511ms)
+✔ multi-user transfer remains ambiguous, backend verified caller takes precedence, system calls explicit (6.5639ms)
+✔ registered direct sender is the verified actor rather than the transferred-to owner (3.8291ms)
+✔ authenticated withPlayer context is durable and retained when receipt later reconciles (4.7748ms)
+✔ live audit cannot delay gameplay if Mongo initialization never resolves (1.3714ms)
+✔ live hook forwards original broadcast but excludes transactions signed for a different network (1.7273ms)
+✔ legacy import never pretends receipt confirmation and does not mutate legacy documents (1.1313ms)
+✔ wrong RPC chain or empty configured contract is rejected before historical scan (1.8118ms)
+✔ partial-history scan widening to genesis really processes earlier blocks (5.3181ms)
+✔ changed checkpoint anchor forces full rebuild, orphan rows retained without counting (7.6677ms)
+✔ same-block fork invoice ownership cannot leak from old fork into rebuilt later transaction (8.0346ms)
+✔ Mongo lease prevents concurrent process scan and resume after error keeps checkpoint (4.2258ms)
+✔ missing receipt stops before checkpoint, retry recovers without losing indexed rows or double counting (11.9629ms)
+✔ RPC unsafe integers and ambiguous names never fabricate exact user attribution (0.4668ms)
+✔ receipt hash mismatch is rejected without advancing checkpoint or creating a bogus ledger row (2.28ms)
+✔ expired worker blocked in attribution cannot overwrite replacement worker or advance its checkpoint (11.4068ms)
+✔ generation predicate fences a stale historical write even after its earlier lease check succeeded (7.6667ms)
+✔ concurrent admin checks share a bounded read and a short verified cache (91.7929ms)
+✔ RPC bandwidth failure remains unknown with 503, singleflight and cooldown, then recovers (8.7949ms)
+✔ an expired positive cache cannot authorize unknown state or become a false revocation (3.281ms)
+✔ environment admins are immediate and never need RPC, including during an RPC cooldown (3.4038ms)
+✔ timeout denies unknown admin state without hanging requests or bypassing CSRF (29.2618ms)
+✔ synchronous configuration errors are retryable after cooldown and never cache a rejected init promise (6.6391ms)
+✔ administrative reads remain independent of an overloaded audit endpoint and an outdated deployed ABI (18.7565ms)
+✔ a misconfigured administrative RPC cannot authorize a role on the wrong network (2.7865ms)
+✔ administrative diagnostics preserve the RPC error code while redacting connection secrets (3.4421ms)
+✔ valid cookie admin checks still enforce CSRF, and invalid/wrong-type JWTs cannot call the RPC (3.2842ms)
+✔ legacy Bearer admin authorization preserves JWT roles and never uses an unverified wallet result (4.9716ms)
+✔ explicit access-cache invalidation discards verified roles and prevents stale in-flight results repopulating the cache (15.2053ms)
+✔ un timeout de confirmación conserva el hash pendiente y permite confirmación tardía (19.298ms)
+✔ un rechazo de confirmación no pisa un estado terminal ya observado (5.5812ms)
+✔ el timeout protege el estado terminal escrito por otro documento concurrente (16.404ms)
+✔ recovery no vuelve a ejecutar una operación cuyo hash sigue sin receipt (4.7681ms)
+✔ reprocesar un documento con hash solo reconcilia ese hash (6.6365ms)
+✔ una caída RPC no puede retener una cola ilimitada ni cuerpos de 1 MB (62.5835ms)
+✔ un fallo RPC ambiguo reenvía los mismos bytes y firma una sola vez (13.0456ms)
+✔ agotado el transporte queda hash pendiente, sin pedir nonce nuevo ni reencolar (3.6001ms)
+✔ un rechazo definitivo del mempool se propaga como fallo (2.8319ms)
+✔ un rechazo posterior no prueba ausencia después de un primer envío ambiguo (2.952ms)
+✔ el wrapper Express4 pasa rechazos y excepciones a next una sola vez (63.0871ms)
+✔ los intervalos async no se solapan y se liberan después de error (2.3119ms)
+✔ el saneado de Mongo elimina operadores profundos sin agotar pila y admite ciclos (15.5503ms)
+✔ el lookup de ítems no acepta claves heredadas como tipos on-chain (2.0117ms)
+✔ evicción NFT destruye proveedores y separa chainId incluso con RPC idéntico (16.5502ms)
+✔ fallo del stream de traducción después de cabeceras rechaza sin error huérfano (3.0672ms)
+✔ lecturas fallidas de las tablas de servidor nunca habilitan la acuñación (2.5879ms)
+✔ whitelist del contrato no delega privilegios administrativos a jugadores (2.6694ms)
+✔ el nonce inicial no se inventa en cero ni rebaja una reserva concurrente (2.5599ms)
+✔ joinRoom rechaza paquetes vacíos y no resucita salas tras desconectarse (71.7696ms)
+✔ dos joins superpuestos solo publican la sala de la última solicitud (30.254ms)
+✔ la purga recupera cachés de cuentas que abandonaron el juego (14.8927ms)
+✔ marketplace rechaza importes infinitos e inseguros y catálogos heredados (7.2174ms)
+✔ plan de marketplace tolera entradas nulas y evita stacks corruptos y qty insegura (13.4524ms)
+✔ deployed server loads both analytics factories with sidecar and npm access denied (27.1513ms)
+✔ embedded module source is current, reproducible and valid ES2022 for Node 18 (235.84ms)
+✔ analytics initializes normally and maintenance starts once (3.841ms)
+✔ analytics constructor failure cannot prevent core startup or bypass admin authorization (2.2884ms)
+✔ failed analytics mount disposes the partial worker and keeps connection secrets out of diagnostics (1.9119ms)
+✔ actual ethers read transport sends one non-batched request on HTTP429 without hidden retry or network-bootstrap loops (1258.9334ms)
+✔ relayer observations coalesce concurrent viewers, expire at ten seconds and isolate wallet rotations (16.7126ms)
+✔ RPC partial snapshots back off across ten-second UI refreshes and recover when quota returns (1.5588ms)
+✔ RPC bandwidth errors identify retryable quota exhaustion instead of admin authentication or Mongo failure (4.1692ms)
+✔ CSV export neutralizes spreadsheet formulas even after whitespace and escapes quoted/newline names (0.7004ms)
+✔ new server segments persist no raw authentication token and retry the same identity/time idempotently (4.2457ms)
+✔ invalid, future and overlong playtime does not enter measured sessions (1.4145ms)
+✔ session audit merges duplicate and overlapping sockets, excludes idle gaps, splits after 30 minutes (1.008ms)
+✔ missing historical session evidence stays unavailable, not zero or an invented mean (0.5984ms)
+✔ a transient DB initialization failure is retryable, while concurrent callers share a single attempt (19.1331ms)
+✔ protected JSON export reconciles contract and sponsor counters with its own proof rows despite newer summary observations (34.4895ms)
+✔ CSV route exports the complete hash history beyond the UI preview and keeps inferred ownership separate (16.0786ms)
+✔ POST scan names Mongo storage/index failures and RPC failures without exposing driver secrets (3.7557ms)
+✔ existing measurement coverage remains readable when MongoDB has no write capacity (0.6023ms)
+✔ admin diagnostics read Mongo storage and RPC independently without starting a scanner or writing metadata (2.8398ms)
+✔ diagnostics distinguish a denied dbStats permission from an online Mongo ping and a failing RPC (11.3229ms)
+✔ Mongo diagnostic timeout stays a database error; a wrong RPC chain stays a configuration error (1.3587ms)
+✔ 8 GiB capacity and 209 MiB used reports sufficient current headroom without claiming a stored 14031 is current (0.8555ms)
+✔ concurrent 401 retries share renewal and retain POST bodies with rotated CSRF (103.4305ms)
+✔ third party requests and explicit logout never renew; URL objects work and cleanup removes all listeners (4.1928ms)
+✔ active battles renew cookies and vital mutation revisions change through response completion (14.9871ms)
+inventory/reconcile: purchase_not_visible_on_chain
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+[SIMULATE] Iteración 1, remaining=3
+[SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+[SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+💰 Compra de 3x Carrot Seed: saldo verificado (1000 → 970 SL)
+🛒 SHOP TRANSACTION (PURCHASE) {
+  type: 'compra',
+  itemId: 'Semillax',
+  itemName: 'Carrot Seed',
+  quantity: 3,
+  unitPrice: 10,
+  totalCost: 30,
+  currency: 'silver',
+  fee: 0,
+  remainingGold: 0,
+  remainingSilver: 970
+}
+✅ Purchase recorded: 3x Carrot Seed for 30 SL
+🔑 Usuario autenticado: 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+📄 Contrato encontrado: 0x1111111111111111111111111111111111111111
+[SIMULATE] Iteración 1, remaining=3
+[SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+[SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+Reporte completo: {
+  success: true,
+  remaining: 0,
+  operations: [
+    { type: 'new', location: [Object], amountAdded: 3, finalCount: 3 }
+  ],
+  summary: {
+    totalMerged: 0,
+    totalNewStacks: 3,
+    newStacksCount: 1,
+    slotsUsed: { quick: 1, inv: 0 }
+  }
+}
+Parsed invoice response: {
+  invoiceId: 1,
+  manualId: 'wbeUYPF7BkBrATf143T',
+  cantidadx: 3,
+  raw: [
+    '1',
+    'wbeUYPF7BkBrATf143T',
+    '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    'bolsa zanahorias',
+    '3',
+    true,
+    '1'
+  ]
+}
+addItemWithCheck OK (new) para invoice 1 cantidad 3
+Additemblockchains: procesamiento finalizado.
+✅ Compra on-chain confirmada: 3x Semillax
+✔ el backend recupera compras huérfanas, conserva las facturas distintas y reutiliza huecos vacíos (11.0932ms)
+✔ un guardado antiguo nunca borra una compra; la copia recién cargada sí puede guardarse (3.9275ms)
+✔ una mochila llena conserva lo comprado en cadena y no confirma una entrega inexistente (7.9072ms)
+✔ una lectura de cadena anterior a la compra no entrega, borra ni confirma objetos (8.0979ms)
+✔ la conciliación reintenta si otro guardado cambia las casillas mientras lee la cadena (3.7859ms)
+✔ actualizar una compra conserva los usos de los objetos que ya tenía el jugador (37.428ms)
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+[SIMULATE] Iteración 1, remaining=3
+[SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+[SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+💰 Compra de 3x Carrot Seed: saldo verificado (1000 → 970 SL)
+🛒 SHOP TRANSACTION (PURCHASE) {
+  type: 'compra',
+  itemId: 'Semillax',
+  itemName: 'Carrot Seed',
+  quantity: 3,
+  unitPrice: 10,
+  totalCost: 30,
+  currency: 'silver',
+  fee: 0,
+  remainingGold: 0,
+  remainingSilver: 970
+}
+✅ Purchase recorded: 3x Carrot Seed for 30 SL
+❌ Compra confirmada, sincronización pendiente: Error: network
+    at f.tienda._persistConfirmedPurchase (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\shop-persistence.test.cjs:177:60)
+    at TiendaSistema._runOnchainPurchase (eval at cargarFuentes (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\gf-banco-tienda.js:550:5), <anonymous>:2918:28)
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+[SIMULATE] Iteración 1, remaining=3
+[SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+[SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+💰 Compra de 3x Carrot Seed: saldo verificado (1000 → 970 SL)
+🛒 SHOP TRANSACTION (PURCHASE) {
+  type: 'compra',
+  itemId: 'Semillax',
+  itemName: 'Carrot Seed',
+  quantity: 3,
+  unitPrice: 10,
+  totalCost: 30,
+  currency: 'silver',
+  fee: 0,
+  remainingGold: 0,
+  remainingSilver: 970
+}
+✅ Purchase recorded: 3x Carrot Seed for 30 SL
+💰 Reembolso de 1x Carrot Seed: saldo verificado (970 → 980 SL)
+⚠️ Compra parcial: 2/3 Semillax confirmados — reembolso 10
+✔ comprar y salir antes de confirmar entrega y guarda sin retener la escena de tienda (210.0859ms)
+✔ el inventario local nunca agrega unidades de una factura a otra del mismo objeto (7.8724ms)
+✔ una compra acuñada no se reembolsa si falla la lectura posterior o el guardado (12.8471ms)
+✔ una compra parcial registra lo entregado y devuelve solo el precio de lo que no confirmó (9.2557ms)
+✔ History hub attaches CSRF to mutations, encodes IDs and discards stale account history (13.6806ms)
+✔ TxGate removes timeout listeners and clears heartbeat after each timed-out wait (6.7553ms)
+✔ TransactionHub rejects active explorer URLs and malformed transaction hashes (4.7831ms)
+✔ TransactionHub does not hide a new notification from an older timer; destroy clears all jobs (5.346ms)
+✔ TransactionHub bounds style/timer inputs instead of accepting CSS strings or Infinity (2.6567ms)
+✔ BlockchainManager rolls a failed reservation back only once and rejects inherited functions (20.663ms)
+✔ TransactionSystem serializes automatic nonces and rejects invalid payloads (15.5974ms)
+✔ Wallet validates transport endpoints, hex and exact recovery code length (12.3472ms)
+✔ Wallet provider supports prototype-like event names, preserves listeners on init and validates accounts (4.5871ms)
+✔ Wallet OAuth ignores matching origin/state from any window except its popup (10.6018ms)
+✔ Wallet clears previous key material and autolock timer on lock (5.408ms)
+✔ Wallet closes IndexedDB connections when creating a transaction throws or aborts (6.9119ms)
+✔ Relay cleanup aborts pending requests, destroys providers and cannot restart refresh (9.8543ms)
+✔ Relay timeout stays active until the response body finishes (6.9334ms)
+ℹ tests 119
+ℹ suites 0
+ℹ pass 119
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9681.424

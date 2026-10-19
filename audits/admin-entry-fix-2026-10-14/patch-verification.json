@@ -1,0 +1,10 @@
+{
+  "patchAppliesToOriginal": true,
+  "roundtripExact": true,
+  "selfContained": true,
+  "source": "C:/Users/pc/Desktop/server2.js",
+  "backup": "C:/Users/pc/Desktop/server2.before-litvm-impact-20261014-061744.js",
+  "originalSha256": "260028706234d9c96016493c2ba9bbb36704b8ca0dc63c075d3a605db658f520",
+  "updatedSha256": "0d608ec35765b141cb26f1f20c3172df465d4ca55e7a9ed81a44a86989f9ab83",
+  "patchSha256": "3a3737cfe0bcc70d06de0ad1e8bdc7542aa49456e58ed370d9d87daeb5c86928"
+}

@@ -1,0 +1,23 @@
+✔ solo se abre el login fijo, sin argumentos del usuario ni flags inseguros (3.8477ms)
+✔ se detectan navegadores instalados en rutas conocidas para los tres SO (2.8835ms)
+✔ el controlador no ejecuta un shell y la vista remota no tiene preload (3.8568ms)
+✔ ningún frame remoto o secundario puede utilizar el puente local (31.7595ms)
+✔ el juego usa una vista aislada sin preload y solo permite su origen HTTPS (11.7823ms)
+✔ reabrir o reconectar no acumula vistas ni listeners de descarga (7.6835ms)
+✔ una sesión nativa guardada abre el juego directamente dentro de la app (5.7964ms)
+✔ el acceso caducado se renueva antes de pedir otra autenticación (2.1308ms)
+✔ Check saved session sin cookie inicia vinculación con el navegador elegido en los tres SO (3.7381ms)
+✔ una caída de red al verificar no abre un navegador ni crea otra vinculación (0.6502ms)
+✔ login externo se sigue, valida la cookie recibida y abre el juego nativo una vez (3.7957ms)
+✔ cancelar libera el temporizador y una aprobación antigua no abre una partida (1.4607ms)
+✔ los destinos rechazan hosts parecidos, credenciales y esquemas nativos (2.0342ms)
+✔ cerrar sesión cancela la espera, revoca con CSRF y elimina las cookies del cliente (1.43ms)
+✔ cerrar sesión sin red elimina la sesión local y cambiar de cuenta exige elegirla en el login (1.3859ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 390.2693

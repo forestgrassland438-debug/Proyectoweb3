@@ -1,0 +1,5499 @@
+/**
+ * SISTEMA DE TIENDA RPG MEJORADO - v6.3 CORREGIDO PARA PC
+ * Sistema completo de tienda para Grassland Forest
+ * Autor: Jean Larreal
+ * Características:
+ * - Diseño responsive PC/móvil
+ * - En PC: Detalles solo muestra imagen, nombre y botón "Interactuar"
+ * - En PC: Modal separado para transacciones con todos los detalles
+ * - En móvil: Funciona igual que antes
+ * - Historial funcional en ambos dispositivos
+ * - Sin interferencia con controles WASD
+ * - Precios separados de compra (buyPrice) y venta (sellPrice)
+ * - Modal de confirmación personalizado para limpiar historial
+ */
+
+class TiendaSistema {
+    // FIX: getter STATE para que this.STATE apunte siempre a this.scene.STATE.
+    // Antes this.STATE era undefined porque nunca se asignó en el constructor,
+    // causando "Cannot read properties of undefined (reading 'quickSlots')"
+    get STATE() {
+        return this._escena()?.STATE;
+    }
+
+    /* LA ESCENA DE CADA TRABAJO (2026-10-09). "Compro en la tienda, salgo y
+       sale «Error crítico: Cannot read properties of undefined (reading
+       'quickSlots')», y en el mapa no tengo los objetos."
+
+       Las compras y ventas van a una cola y se hacen en segundo plano. Si el
+       jugador salía de la tienda con una en cola, al apagarse la escena se
+       borraba `this.scene` (tiendajuego lo ponía a null a mano, saltándose
+       `soltarEscena`), y la compra que tocaba después arrancaba sin
+       inventario: reventaba en `simulateAddItem` ANTES de crear el objeto en
+       la cadena. El objeto no llegaba nunca y el reembolso tampoco salía a la
+       cadena (la sincronización de las monedas también colgaba de la escena).
+
+       Ahora cada trabajo se queda con la escena (y su inventario) del momento
+       en que se encoló, haya pasado lo que haya pasado con la tienda. Con la
+       escena ya apagada se sigue haciendo lo IMPORTANTE (la transacción, el
+       cobro, el reembolso), pero no se pintan casillas ni se guarda desde ella:
+       la pantalla de carga espera a la cola (tx-gate.js) y después recoge el
+       objeto de la cadena, que es la que manda. */
+    _escena() {
+        return this._escenaTrabajo || this.scene || null;
+    }
+
+    /** ¿La escena del trabajo sigue en pantalla? (si no, nada de DOM ni guardados) */
+    _escenaViva() {
+        const e = this._escena();
+        try { return !!(e && e.STATE && e.sys && typeof e.sys.isActive === 'function' && e.sys.isActive()); }
+        catch (_) { return false; }
+    }
+
+    /* Un StatsSync que no depende de ninguna escena: lo usa el cobro o el
+       reembolso de un trabajo cuya tienda ya se cerró. StatsSync escribe en
+       window.playerStats y en el servidor, nada de la escena es necesario. */
+    _statsSyncDeRespaldo() {
+        if (TiendaSistema._statsRespaldo) return TiendaSistema._statsRespaldo;
+        if (typeof window.StatsSync !== 'function') return null;
+        try {
+            TiendaSistema._statsRespaldo = new window.StatsSync({ serverBase: this._resolveApiBase(), csrfToken: '' });
+            TiendaSistema._statsRespaldo.scene = null;
+        } catch (e) { return null; }
+        return TiendaSistema._statsRespaldo;
+    }
+
+    _statsSync() {
+        const e = this._escena();
+        return (e && e.statsSync) || this._statsSyncDeRespaldo();
+    }
+
+    /* EL CATALOGO DE OBJETOS ES EL DE LA ESCENA, NO UNA TERCERA COPIA.
+
+       FALLO QUE ESTO ARREGLA — "no puedo vender fresa_buena":
+
+       habia TRES ItemDefinitions (GameScene, tiendajuego y esta), y la de la
+       tienda se habia quedado con 37 de los 44 objetos. Le faltaban carbon,
+       fresa_buena, fresa_corta, fresa_mala, pocion_mascota,
+       pocion_mascota_grande y elixir_revivir. Y de aqui salen el tipo on-chain
+       y el maxStack con los que se quita un objeto al venderlo: sin ficha, la
+       tienda no sabe ni como se llama esa fresa en la cadena.
+
+       Ahora se lee la de la escena, que es la que usa el juego entero, con la
+       copia local solo de respaldo. Una verdad, no tres. */
+    get ItemDefinitions() {
+        return this._escena()?.ItemDefinitions || this._ItemDefinitionsRespaldo;
+    }
+
+    // FIX: getter playerName para que _owner en createInvoice no sea null.
+    // TiendaSistema nunca asignaba this.playerName, así que el contrato recibía
+    // args=["hacha de madera","1","manualId"] (3 args) en vez de 4 → "no matching fragment"
+    get playerName() {
+        return this._escena()?.playerName ?? null;
+    }
+
+    // FIX: delegadores a la escena activa.
+    // TiendaSistema.addItemWithCheck tiene su propia lógica (usa this.STATE, this.ItemDefinitions),
+    // pero al final llama a renderSlot, queuedAction y rebuildPlayerInventoryFromState
+    // que solo existen en la escena. Se delegan aquí para no romper la cadena.
+    /* Aqui habia una `renderSlot` delegadora a la escena, y estaba MUERTA:
+       mas abajo, en esta misma clase, hay otra `renderSlot` con la
+       implementacion entera, y en una clase de JavaScript el segundo metodo
+       con el mismo nombre pisa al primero sin avisar. Se ha borrado la
+       delegadora —no se ejecutaba— y no cambia nada: lo que ya corria es la
+       de abajo, que ademas tiene a mano lo que necesita (`this.STATE` y
+       `this.ItemDefinitions` existen en TiendaSistema).
+
+       `queuedAction` y `rebuildPlayerInventoryFromState`, que van justo
+       debajo, SI son delegadoras vivas: esas no estan duplicadas. */
+    queuedAction(payload) {
+        if (!this._escenaViva()) return;
+        const e = this._escena();
+        if (typeof e?.queuedAction === 'function') return e.queuedAction(payload);
+    }
+    rebuildPlayerInventoryFromState() {
+        if (!this._escenaViva()) return;
+        const e = this._escena();
+        if (typeof e?.rebuildPlayerInventoryFromState === 'function') return e.rebuildPlayerInventoryFromState();
+    }
+
+    /* GUARDAR EN EL SERVIDOR. FALTABA, Y POR ESO LO VENDIDO VOLVIA.
+
+       FALLO QUE ESTO ARREGLA — "vendo 5 zanahorias, me dice que las vendio, y
+       al salir del mapa las sigo teniendo":
+
+       EliitemWithCheck termina con `if (typeof this.savegg === 'function')
+       await this.savegg();`. Pero `savegg` esta definida en la ESCENA
+       (tiendajuego), no en TiendaSistema — y ahi `this` es TiendaSistema. La
+       comprobacion daba false, el `if` se saltaba entero y NADIE guardaba: el
+       inventario cambiaba en pantalla, se cobraba el dinero, y al recargar el
+       mapa volvia el que tenia el servidor, con las zanahorias dentro.
+
+       Era mudo por partida doble: el `typeof` disfrazaba de "opcional" algo que
+       no lo es, asi que no salia ni un aviso en consola. Ahora se delega, y si
+       algun dia tampoco existe en la escena se dice a gritos. */
+    async savegg() {
+        /* Con la tienda ya cerrada NO se guarda desde ella: su guardado lleva
+           la posición y el mundo de la tienda, y pisaría lo que ya guardó el
+           mapa (se aparecería dentro de la tienda, o en lo oscuro). Lo que
+           cambió lo recoge la carga desde la cadena. */
+        if (!this._escenaViva()) {
+            console.log('🛒 Tienda cerrada: el guardado lo hará la carga del mapa (la cadena manda).');
+            return true;
+        }
+        const e = this._escena();
+        if (typeof e?.savegg === 'function') return e.savegg();
+        console.error('❌ savegg no existe ni en TiendaSistema ni en la escena: ' +
+                      'lo que acabas de hacer NO se ha guardado en el servidor.');
+        return false;
+    }
+
+    constructor(scene) {
+        this.scene = scene;
+        this.isOpen = false;
+        this.selectedItem = null;
+        this.currentCategory = 'todas';
+        this.searchQuery = '';
+        this.transactionType = 'compra';
+        this.historial = [];
+        this.dailyLimits = {};
+        this.playerMoneda = 0;
+        this.playerMonedaPlata = 0;
+        this.isMobile = false;
+        this.lastTapTime = 0;
+        this.tapTimeout = null;
+        
+        // Compatibilidad: si el método no está disponible en algún build,
+        // se usa un render mínimo para evitar que la tienda se rompa al abrir.
+        const protoFilterItems = TiendaSistema.prototype.filterItems;
+        if (typeof protoFilterItems === 'function') {
+            this.filterItems = (...args) => protoFilterItems.apply(this, args);
+        } else {
+            this.filterItems = () => {};
+        }
+        
+        // Resuelve la URL base de la API igual que lo hacen las escenas:
+        // usa el serverBase ya calculado de la escena (local vs producción) y,
+        // si no existe, decide por el hostname actual. NUNCA hardcodea :3001,
+        // que era la causa del error "Debes estar autenticado" al comprar.
+        this._resolveApiBase = () => {
+            const esc = (this._escenaTrabajo || this.scene);
+            const fromScene = esc && (esc.serverBase || esc.serverclient1);
+            if (fromScene) return String(fromScene).replace(/\/api\/?$/, '');
+            const h = location.hostname;
+            return (h === 'localhost' || h === '127.0.0.1')
+                ? 'http://127.0.0.1:8080'
+                : 'https://api.grasslandforest.com';
+        };
+
+        // Helpers de moneda
+        this.getItemCurrency = (item) => (item?.currency === 'silver' ? 'silver' : 'gold');
+        this.getCurrencyLabel = (currency) => (currency === 'silver' ? 'SL' : 'GL');
+        this.getCurrencyIconPath = (currency) => (currency === 'silver'
+            ? './Game/Source/moneda de plata.png'
+            : './Game/Source/moneda de oro.png');
+        this.getBalanceByCurrency = (currency) => (currency === 'silver' ? this.playerMonedaPlata : this.playerMoneda);
+        this.setBalanceByCurrency = (currency, value) => {
+            const normalized = Math.max(0, Math.floor(Number(value) || 0));
+            if (currency === 'silver') {
+                this.playerMonedaPlata = normalized;
+                const escP = this._escena();
+                if (escP) escP.moneda_plata = normalized;
+                if (escP) escP.monedaPlata = normalized;
+                if (escP) escP.playerMonedaPlata = normalized;
+                // FIX DESCUENTO REAL: window.playerStats es la fuente canónica
+                // (savegg y /api/save la priorizan sobre this.moneda). Sin esta
+                // línea, el descuento local se PERDÍA en el siguiente guardado.
+                if (window.playerStats) window.playerStats.plata = normalized;
+                // statsSync.set dispara la transacción blockchain real que
+                // descuenta la factura on-chain de plata (vía /api/stats/update).
+                // immediate=true: el cobro sale YA, sin esperar el debounce de
+                // 1,5 s. Con el retraso, si el jugador salía de la tienda justo
+                // después de comprar, el cobro se quedaba en la cola y no
+                // llegaba nunca a la cadena — parecía que la compra fuera solo
+                // del backend.
+                const ssP = this._statsSync();
+                if (ssP) ssP.set('plata', normalized, true);
+            } else {
+                this.playerMoneda = normalized;
+                const escO = this._escena();
+                if (escO) escO.moneda = normalized;
+                if (escO) escO.monto_moneda = normalized;
+                if (escO) escO.playerMoneda = normalized;
+                // FIX DESCUENTO REAL (ver nota arriba): sin actualizar
+                // window.playerStats.oro, /api/save restauraba el oro viejo.
+                if (window.playerStats) window.playerStats.oro = normalized;
+                // Transacción blockchain real del oro (factura on-chain).
+                // immediate=true por el mismo motivo que la plata: sin esto el
+                // cobro esperaba 1,5 s y se perdía si el jugador salía antes.
+                const ssO = this._statsSync();
+                if (ssO) ssO.set('oro', normalized, true);
+            }
+        };
+        this.formatCurrencyAmount = (amount, currency) => {
+            const label = this.getCurrencyLabel(currency);
+            const icon = this.getCurrencyIconPath(currency);
+            return `<img src="${icon}" alt="${label}" class="moneda-icon"> ${amount} ${label}`;
+        };
+
+        // Detectar si es móvil
+        this.checkMobile();
+
+
+
+        /* RESPALDO, NO LA VERDAD. Ver el getter `ItemDefinitions` de arriba:
+           el catalogo bueno es el de la escena. Esta copia solo se usa si la
+           tienda se instanciara sin escena, que hoy no pasa. */
+        this._ItemDefinitionsRespaldo = {
+          Semillax: { src: "./Game/Objetos/Plantas/planta_zanahorias/item_saco.png", maxStack: 50, tipo: "bolsa zanahorias", usos: null },
+          Semillax1: { src: "./Game/Objetos/Plantas/planta_tomates/semillas_tomate.png", maxStack: 50 , tipo: "bolsa de tomates", usos: null},
+          
+          Semillax2: { src: "./Game/Objetos/Plantas/planta_trigo/item_semilla_trigo.png", maxStack: 50 , tipo: "bolsa de trigo", usos: null},
+          Semillax3: { src: "./Game/Objetos/Plantas/planta_calabaza/item_semilla_calabaza.png", maxStack: 50, tipo: "bolsa de calabazas", usos: null },
+          Semillax4: { src: "./Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png", maxStack: 50, tipo: "bolsa_de_fresas", usos: null },
+
+          Regaderax: { src: "./Game/Source/recurso2.png", maxStack: 1 , tipo: "Regaderax", usos: 20 },
+          Tijerasx: { src: "./Game/Source/tijeras.png", maxStack: 1 , tipo: "Tijerasx", usos: 20 },
+
+          mineral_piedra: { src: "./Game/Source/piedra.png", maxStack: 20 , tipo: "mineral_piedra", usos: null },
+
+          /* LOS DOS LINGOTES. Ya no salen de picar: ahora se FUNDEN en el horno
+             a partir de la piedra en bruto (ver FURNACE_RECIPES más abajo). El
+             dibujo es una barra de 16x9, no una roca — siempre fueron lingotes
+             aunque el nombre dijera "mineral". */
+          mineral_cobre: { src: "./Game/Source/cobre.png", maxStack: 20 , tipo: "mineral_cobre", usos: null },
+          mineral_hierro: { src: "./Game/Source/hierro.png", maxStack: 20 , tipo: "mineral_hierro", usos: null },
+
+          /* PIEDRA EN BRUTO — lo que suelta la mina desde 2026-09-08.
+             Sus tablas on-chain son mineral_piedra_cobre / mineral_piedra_hierro
+             / mineral_carbon, y NO se pueden confundir con las de los lingotes
+             (mineral_cobre / mineral_hierro): son tablas distintas del contrato,
+             con su propio cupo y sus propias facturas. */
+          mineral_piedra_cobre:  { src: "./Game/Source/piedra_cobre.png",  maxStack: 20, tipo: "mineral_piedra_cobre",  usos: null },
+          mineral_piedra_hierro: { src: "./Game/Source/piedra_hierro.png", maxStack: 20, tipo: "mineral_piedra_hierro", usos: null },
+          mineral_carbon:        { src: "./Game/Source/piedra_carbon.png", maxStack: 20, tipo: "mineral_carbon",        usos: null },
+          // El carbón suelto: es el combustible del horno y faltaba en esta
+          // copia de respaldo (la de las escenas sí lo tiene desde 2026-08-05).
+          carbon: { src: "./Game/Objetos/carbon.png", maxStack: 20 , tipo: "carbon", usos: null },
+          // La parcela de construcción (2026-10-03): tabla `parcelas`, 20 por casilla.
+          parcela: { src: "./Game/Objetos/construccion/parcela.png", maxStack: 20, tipo: "parcelas", usos: null },
+          pala_construccion: { src: "./Game/Objetos/construccion/pala_construccion.png", maxStack: 1, tipo: "pala_contrucion", usos: null },
+          // El bote de basura y los cofres de la isla (2026-10-05).
+          basura: { src: "./Game/Objetos/cofres/basura.png", maxStack: 10, tipo: "basura", usos: null },
+          cofre1: { src: "./Game/Objetos/cofres/cofre1.png", maxStack: 5, tipo: "cofre1", usos: null },
+          cofre2: { src: "./Game/Objetos/cofres/cofre2.png", maxStack: 5, tipo: "cofre2", usos: null },
+          cofre3: { src: "./Game/Objetos/cofres/cofre3.png", maxStack: 5, tipo: "cofre3", usos: null },
+          cofre4: { src: "./Game/Objetos/cofres/cofre4.png", maxStack: 5, tipo: "cofre4", usos: null },
+          // Equipo, granja y pesca (2026-10-05).
+          espada_madera:  { src: "./Game/Objetos/armas/espada_madera.png",   maxStack: 1,  tipo: "madera",         usos: null },
+          espada_cobre:   { src: "./Game/Objetos/armas/espada_cobre.png",    maxStack: 1,  tipo: "cobre",          usos: null },
+          espada_hierro:  { src: "./Game/Objetos/armas/espada_hierro.png",   maxStack: 1,  tipo: "hierro",         usos: null },
+          cana_pescar:    { src: "./Game/Objetos/pesca/cana_pescar.png",     maxStack: 1,  tipo: "caña_pescar",    usos: null },
+          espantapajaros: { src: "./Game/Objetos/granja/espantapajaros.png", maxStack: 10, tipo: "espantapajaros", usos: null },
+          antorcha:       { src: "./Game/Objetos/antorcha/antorcha.png",     maxStack: 20, tipo: "antorcha",       usos: null },
+          pes1: { src: "./Game/Objetos/pesca/pes1.png", maxStack: 20, tipo: "pes1", usos: null },
+          pes2: { src: "./Game/Objetos/pesca/pes2.png", maxStack: 20, tipo: "pes2", usos: null },
+          pes3: { src: "./Game/Objetos/pesca/pes3.png", maxStack: 20, tipo: "pes3", usos: null },
+          pes4: { src: "./Game/Objetos/pesca/pes4.png", maxStack: 20, tipo: "pes4", usos: null },
+          pes5: { src: "./Game/Objetos/pesca/pes5.png", maxStack: 20, tipo: "pes5", usos: null },
+          pes6: { src: "./Game/Objetos/pesca/pes6.png", maxStack: 20, tipo: "pes6", usos: null },
+          pes7: { src: "./Game/Objetos/pesca/pes7.png", maxStack: 20, tipo: "pes7", usos: null, veneno: true },
+          pes8: { src: "./Game/Objetos/pesca/pes8.png", maxStack: 20, tipo: "pes8", usos: null, veneno: true },
+          pes9: { src: "./Game/Objetos/pesca/pes9.png", maxStack: 20, tipo: "pes9", usos: null },
+          pes10: { src: "./Game/Objetos/pesca/pes10.png", maxStack: 20, tipo: "pes10", usos: null },
+          pes11: { src: "./Game/Objetos/pesca/pes11.png", maxStack: 20, tipo: "pes11", usos: null },
+          pes12: { src: "./Game/Objetos/pesca/pes12.png", maxStack: 20, tipo: "pes12", usos: null },
+          pes13: { src: "./Game/Objetos/pesca/pes13.png", maxStack: 20, tipo: "pes13", usos: null },
+          pes14: { src: "./Game/Objetos/pesca/pes14.png", maxStack: 20, tipo: "pes14", usos: null, veneno: true },
+
+          palo: { src: "./Game/Source/palo.png", maxStack: 20 , tipo: "palo", usos: null},
+          tablon_de_madera: { src: "./Game/Source/madera.png", maxStack: 20 , tipo: "tablon_de_madera", usos: null},
+          madera_pinos: { src: "./Game/Source/madera_oscura.png", maxStack: 50 , tipo: "madera pinos", usos: null},
+          madera_con_hojas: { src: "./Game/Source/madera de hoja.png", maxStack: 50 , tipo: "madera con hojas", usos: null},
+          madera_seca: { src: "./Game/Source/madera seca.png", maxStack: 50 , tipo: "madera seca", usos: null},
+
+          balde_vacio: { src: "./Game/Source/item_pozo1.png", maxStack: 5 , tipo: "balde_vacio", usos: null },
+          balde_con_agua: { src: "./Game/Source/item_pozo2.png", maxStack: 5 , tipo: "balde_con_agua", usos: 1 },
+
+          
+          hacha_de_madera: { src: "./Game/Source/pico_y_hacha/hacha_de_madera.png", maxStack: 5, tipo: "hacha de madera", usos: 5  },
+          hacha_de_piedra: { src: "./Game/Source/pico_y_hacha/hacha_de_piedra.png", maxStack: 5, tipo: "hacha de piedra", usos: 10 },
+          hacha_de_cobre:  { src: "./Game/Source/pico_y_hacha/hacha_de_cobre.png",  maxStack: 5, tipo: "hacha de cobre", usos: 15 },
+          hacha_de_hierro: { src: "./Game/Source/pico_y_hacha/hacha_de_hierro.png", maxStack: 5, tipo: "hacha de hierro", usos: 20 },
+
+          pico_de_madera: { src: "./Game/Source/pico_y_hacha/pico_de_madera.png", maxStack: 5, tipo: "pico de madera", usos: 5  },
+          pico_de_piedra: { src: "./Game/Source/pico_y_hacha/pico_de_piedra.png", maxStack: 5, tipo: "pico de piedra", usos: 10 },
+          pico_de_cobre:  { src: "./Game/Source/pico_y_hacha/pico_de_cobre.png",  maxStack: 5, tipo: "pico de cobre", usos: 15 },
+          pico_de_hierro: { src: "./Game/Source/pico_y_hacha/pico_de_hierro.png", maxStack: 5, tipo: "pico de hierro", usos: 20 },
+          
+          zanahoria_buena: { src: "./Game/Objetos/Plantas/planta_zanahorias/item_zanahoria_buena.png", maxStack: 20 , tipo: "zanahoria_buena", usos: null },
+          zanahoria_corta: { src: "./Game/Objetos/Plantas/planta_zanahorias/planta_crecimiento_zanahoria.png", maxStack: 20 , tipo: "zanahoria_corta", usos: null},
+          zanahoria_mala: { src: "./Game/Objetos/Plantas/planta_zanahorias/item_zanahoria_podrida.png", maxStack: 20 , tipo: "zanahoria_mala", usos: null},
+
+          tomate_buena: { src: "./Game/Objetos/Plantas/planta_tomates/item_tomate_bueno.png", maxStack: 20, tipo: "tomate_buena", usos: null },
+          tomate_corta: { src: "./Game/Objetos/Plantas/planta_tomates/item_planta.png", maxStack: 20 , tipo: "tomate_corta", usos: null},
+          tomate_mala: { src: "./Game/Objetos/Plantas/planta_tomates/item_tomate_malo.png", maxStack: 20 , tipo: "tomate_mala", usos: null},
+
+          
+
+          trigo_buena: { src: "./Game/Objetos/Plantas/planta_trigo/item_trigo_bueno.png", maxStack: 20 , tipo: "trigo_buena", usos: null},
+          trigo_corta: { src: "./Game/Objetos/Plantas/planta_trigo/item_planta_trigo.png", maxStack: 20 , tipo: "trigo_corta", usos: null},
+          trigo_mala: { src: "./Game/Objetos/Plantas/planta_trigo/item_trigo_podrido.png", maxStack: 20 , tipo: "trigo_mala", usos: null},
+
+          calabaza_buena: { src: "./Game/Objetos/Plantas/planta_calabaza/item_calabaza_buena.png", maxStack: 20 , tipo: "calabaza_buena", usos: null},
+          calabaza_corta: { src: "./Game/Objetos/Plantas/planta_calabaza/item_planta_calabaza.png", maxStack: 20, tipo: "calabaza_corta", usos: null},
+          calabaza_mala: { src: "./Game/Objetos/Plantas/planta_calabaza/item_calabaza_podrida.png", maxStack: 20, tipo: "calabaza_mala", usos: null },
+
+
+        
+          // Agrega más definiciones según sea necesario
+        };
+        
+        // Configuración de objetos de la tienda (con precios separados)
+        this.itemsTienda = {
+            semillas: [
+                {
+                    id: 'Semillax',
+                    name: 'Carrot Seed',
+                    image: './Game/Objetos/Plantas/planta_zanahorias/item_saco.png',
+                    buyPrice: 10,
+                    sellPrice: 5,
+                    currency: 'silver',
+                    categoria: 'semillas',
+                    comision: 5,
+                    limiteDiario: 0,
+                    descripcion: 'Seed used to grow carrots. Growth time: 5 minutes.'
+                },
+                {
+                    id: 'Semillax1',
+                    name: 'Tomato Seed',
+                    image: './Game/Objetos/Plantas/planta_tomates/semillas_tomate.png',
+                    buyPrice: 15,
+                    sellPrice: 7,
+                    currency: 'silver',
+                    categoria: 'semillas',
+                    comision: 5,
+                    limiteDiario: 0,
+                    nivelRequerido: 3,
+                    descripcion: 'Seed used to grow tomatoes. Growth time: 8 minutes.'
+                },
+                {
+                    id: 'Semillax2',
+                    name: 'Wheat Seed',
+                    image: './Game/Objetos/Plantas/planta_trigo/item_semilla_trigo.png',
+                    buyPrice: 8,
+                    sellPrice: 3,
+                    currency: 'silver',
+                    categoria: 'semillas',
+                    comision: 5,
+                    limiteDiario: 0,
+                    nivelRequerido: 5,
+                    descripcion: 'Seed used to grow wheat. Growth time: 3 minutes.'
+                },
+                {
+                    id: 'Semillax3',
+                    name: 'Pumpkin Seed',
+                    image: './Game/Objetos/Plantas/planta_calabaza/item_semilla_calabaza.png',
+                    buyPrice: 25,
+                    sellPrice: 12,
+                    currency: 'silver',
+                    categoria: 'semillas',
+                    comision: 5,
+                    limiteDiario: 0,
+                    nivelRequerido: 6,
+                    descripcion: 'Seed used to grow pumpkins. Growth time: 10 minutes.'
+                },
+                {
+                    id: 'Semillax4',
+                    name: 'Strawberry Seed',
+                    image: './Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png',
+                    buyPrice: 20,
+                    sellPrice: 10,
+                    currency: 'silver',
+                    categoria: 'semillas',
+                    comision: 5,
+                    limiteDiario: 0,
+                    nivelRequerido: 3,
+                    descripcion: 'Seed used to grow strawberries. Growth time: 5 minutes.'
+                }
+            ],
+            
+            herramientas: [
+                {
+                    id: 'Regaderax',
+                    name: 'Watering Can',
+                    image: './Game/Source/recurso2.png',
+                    buyPrice: 120,
+                    sellPrice: 60,
+                    currency: 'silver',
+                    categoria: 'herramientas',
+                    comision: 10,
+                    limiteDiario: 3,
+                    descripcion: 'Essential tool for watering plants. Durability: 100 uses.'
+                },
+                {
+                    id: 'Tijerasx',
+                    name: 'Shears',
+                    image: './Game/Source/tijeras.png',
+                    buyPrice: 200,
+                    sellPrice: 100,
+                    currency: 'silver',
+                    categoria: 'herramientas',
+                    comision: 10,
+                    limiteDiario: 3,
+                    descripcion: 'Shears for harvesting mature crops. Durability: 150 uses.'
+                },
+                {
+                    id: 'hacha_de_madera',
+                    name: 'Wood Axe',
+                    image: './Game/Source/pico_y_hacha/hacha_de_madera.png',
+                    buyPrice: 300,
+                    sellPrice: 150,
+                    currency: 'silver',
+                    categoria: 'herramientas',
+                    comision: 10,
+                    limiteDiario: 2,
+                    descripcion: 'Basic axe for cutting small trees. Efficiency: 1x.'
+                },
+                {
+                    id: 'pico_de_madera',
+                    name: 'Wood Pickaxe',
+                    image: './Game/Source/pico_y_hacha/pico_de_madera.png',
+                    buyPrice: 400,
+                    sellPrice: 200,
+                    currency: 'silver',
+                    categoria: 'herramientas',
+                    comision: 10,
+                    limiteDiario: 2,
+                    descripcion: 'Basic pickaxe for mining stone. Efficiency: 1x.'
+                }
+            ],
+
+            /*
+            minerales: [
+                {
+                    id: 'mineral_piedra',
+                    name: 'Mineral de Piedra',
+                    image: './Game/Source/piedra.png',
+                    buyPrice: 5,
+                    sellPrice: 2,
+                    categoria: 'minerales',
+                    comision: 3,
+                    limiteDiario: 0,
+                    descripcion: 'Piedra común utilizada en construcción y herramientas básicas.'
+                },
+                {
+                    id: 'mineral_cobre',
+                    name: 'Mineral de Cobre',
+                    image: './Game/Source/cobre.png',
+                    buyPrice: 25,
+                    sellPrice: 12,
+                    categoria: 'minerales',
+                    comision: 5,
+                    limiteDiario: 0,
+                    descripcion: 'Cobre de buena calidad para herramientas y decoración.'
+                },
+                {
+                    id: 'mineral_hierro',
+                    name: 'Mineral de Hierro',
+                    image: './Game/Source/hierro.png',
+                    buyPrice: 50,
+                    sellPrice: 24,
+                    categoria: 'minerales',
+                    comision: 7,
+                    limiteDiario: 0,
+                    descripcion: 'Hierro resistente para equipo avanzado y construcción.'
+                }
+            ],
+
+            */
+            
+            alimentos: [
+                {
+                    id: 'zanahoria_buena',
+                    name: 'Fresh Carrot',
+                    image: './Game/Objetos/Plantas/planta_zanahorias/item_zanahoria_buena.png',
+                    buyPrice: 20,
+                    sellPrice: 14,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'Freshly harvested carrot. Restores 2% food.'
+                },
+                {
+                    id: 'tomate_buena',
+                    name: 'Fresh Tomato',
+                    image: './Game/Objetos/Plantas/planta_tomates/item_tomate_bueno.png',
+                    buyPrice: 28,
+                    sellPrice: 20,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'Juicy tomato, perfect for salads. Restores 5% food.'
+                },
+                /* LAS TRES COSECHAS QUE FALTABAN.
+                 *
+                 * "no puedo vender fresa_buena": el trigo, la calabaza y la
+                 * fresa se pueden plantar, regar, cosechar y comer, pero no
+                 * estaban en el catalogo de la tienda — asi que no habia forma
+                 * de venderlas. Solo estaban la zanahoria y el tomate.
+                 *
+                 * PRECIOS: no me los he inventado sueltos. Los dos que ya
+                 * habia valen 2,85 veces su semilla (semilla 5 -> zanahoria 14;
+                 * semilla 7 -> tomate 20). Se mantiene esa proporcion con el
+                 * precio de cada semilla: trigo 3, fresa 10, calabaza 12. La
+                 * compra queda, como en los otros dos, un 40% por encima de la
+                 * venta. Si quieres otros numeros, se cambian aqui y ya. */
+                {
+                    id: 'trigo_buena',
+                    name: 'Fresh Wheat',
+                    image: './Game/Objetos/Plantas/planta_trigo/item_trigo_bueno.png',
+                    buyPrice: 13,
+                    sellPrice: 9,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'Golden wheat, just harvested. Restores 5% food.'
+                },
+                {
+                    id: 'fresa_buena',
+                    name: 'Fresh Strawberry',
+                    image: './Game/Objetos/Plantas/planta_fresa/item_fresa_buena.png',
+                    buyPrice: 40,
+                    sellPrice: 28,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'Sweet ripe strawberry. Restores 5% food.'
+                },
+                {
+                    id: 'calabaza_buena',
+                    name: 'Fresh Pumpkin',
+                    image: './Game/Objetos/Plantas/planta_calabaza/item_calabaza_buena.png',
+                    buyPrice: 48,
+                    sellPrice: 34,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'A big ripe pumpkin. Restores 5% food.'
+                },
+                {
+                    id: 'balde_con_agua',
+                    name: 'Bucket of Water',
+                    image: './Game/Source/item_pozo2.png',
+                    buyPrice: 8,
+                    sellPrice: 3,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'Fresh water for hydration. Restores 20% water.'
+                },
+                /* LOS PECES DEL RÍO (2026-10-05): se pescan en el río del
+                 * pueblo con la caña. SOLO SE VENDEN (`soloVenta`): no salen
+                 * en la lista de compra y la compra los rechaza, porque solo
+                 * el servidor los acuña al pescar. */
+                {
+                    id: 'pes1',
+                    name: 'Brown Trout',
+                    image: './Game/Objetos/pesca/pes1.png',
+                    buyPrice: 0,
+                    sellPrice: 12,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'A common river trout. Caught with a fishing rod. Restores 6% food.'
+                },
+                {
+                    id: 'pes2',
+                    name: 'Common Carp',
+                    image: './Game/Objetos/pesca/pes2.png',
+                    buyPrice: 0,
+                    sellPrice: 22,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'A heavy, bronze river carp. Restores 10% food.'
+                },
+                {
+                    id: 'pes3',
+                    name: 'Golden Trout',
+                    image: './Game/Objetos/pesca/pes3.png',
+                    buyPrice: 0,
+                    sellPrice: 70,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'A rare golden trout. Few anglers ever see one. Restores 18% food.'
+                },
+                /* CINCO PECES MÁS (2026-10-10): tres buenos y dos venenosos.
+                 * Los venenosos no se comen; se pagan mejor por el riesgo. */
+                {
+                    id: 'pes4',
+                    name: 'River Perch',
+                    image: './Game/Objetos/pesca/pes4.png',
+                    buyPrice: 0,
+                    sellPrice: 10,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'A striped river perch. The easiest fish to land. Restores 7% food.'
+                },
+                {
+                    id: 'pes5',
+                    name: 'Bream',
+                    image: './Game/Objetos/pesca/pes5.png',
+                    buyPrice: 0,
+                    sellPrice: 16,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'A broad, calm bream. Easy to catch. Restores 9% food.'
+                },
+                {
+                    id: 'pes6',
+                    name: 'Sturgeon',
+                    image: './Game/Objetos/pesca/pes6.png',
+                    buyPrice: 0,
+                    sellPrice: 95,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'An ancient river giant. The hardest fight in the river. Restores 25% food.'
+                },
+                {
+                    id: 'pes7',
+                    name: 'Poison Eel',
+                    image: './Game/Objetos/pesca/pes7.png',
+                    buyPrice: 0,
+                    sellPrice: 40,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'Poisonous! It stings when you unhook it and drains 12% life over a few seconds. Not edible.'
+                },
+                {
+                    id: 'pes8',
+                    name: 'Lionfish',
+                    image: './Game/Objetos/pesca/pes8.png',
+                    buyPrice: 0,
+                    sellPrice: 75,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'Poisonous spines! Its sting drains 20% life over half a minute. Hard to catch, not edible.'
+                },
+                /* SEIS PECES MÁS (2026-10-11): cinco buenos y el pez globo, venenoso. */
+                {
+                    id: 'pes9',
+                    name: 'Silver Pike',
+                    image: './Game/Objetos/pesca/pes9.png',
+                    buyPrice: 0,
+                    sellPrice: 32,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'A fast lake hunter with a silver stripe. Fights in bursts. Restores 14% food.'
+                },
+                {
+                    id: 'pes10',
+                    name: 'Zander',
+                    image: './Game/Objetos/pesca/pes10.png',
+                    buyPrice: 0,
+                    sellPrice: 24,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'A banded river zander. A fair fight. Restores 12% food.'
+                },
+                {
+                    id: 'pes11',
+                    name: 'Ice Trout',
+                    image: './Game/Objetos/pesca/pes11.png',
+                    buyPrice: 0,
+                    sellPrice: 18,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'A pale trout from cold water. Easy to land. Restores 10% food.'
+                },
+                {
+                    id: 'pes12',
+                    name: 'Rainbow Fish',
+                    image: './Game/Objetos/pesca/pes12.png',
+                    buyPrice: 0,
+                    sellPrice: 160,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'Almost a legend: very rare and very hard to land. Restores 30% food.'
+                },
+                {
+                    id: 'pes13',
+                    name: 'King Salmon',
+                    image: './Game/Objetos/pesca/pes13.png',
+                    buyPrice: 0,
+                    sellPrice: 55,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'The king of the river. Strong and stubborn. Restores 20% food.'
+                },
+                {
+                    id: 'pes14',
+                    name: 'Pufferfish',
+                    image: './Game/Objetos/pesca/pes14.png',
+                    buyPrice: 0,
+                    sellPrice: 85,
+                    currency: 'silver',
+                    categoria: 'alimentos',
+                    soloVenta: true,
+                    comision: 2,
+                    limiteDiario: 0,
+                    descripcion: 'Poisonous! It stings when you unhook it and drains 16% life over half a minute. Not edible.'
+                }
+            ],
+
+            /* CONSTRUCCIÓN (2026-10-03). Lo que se coloca en la isla (Lands).
+             *
+             * Cada objeto de aquí vive en su tabla del contrato (la parcela,
+             * en `parcelas`, 20 por factura = 20 por casilla) y, al colocarlo,
+             * pasa a la tabla de lo construido (`cons_parcelas`) con su
+             * posición. Esas tablas las crea el administrador a mano: hasta
+             * que existan, este apartado se ve pero no deja comprar (ver
+             * _comprobarConstruccion), para no cobrar una compra que la
+             * cadena iba a rechazar.
+             *
+             * Precio: una parcela es un cuadro de huerto PERMANENTE, así que
+             * cuesta lo que la regadera y media (120) y se revende a la mitad,
+             * como el resto de herramientas. La pala no se gasta nunca: cuesta
+             * algo más y se revende a la mitad.
+             *
+             * `tabla` es la tabla del contrato de cada objeto: el apartado se
+             * bloquea OBJETO A OBJETO según exista o no la suya. */
+            construccion: [
+                {
+                    id: 'parcela',
+                    name: 'Land Plot',
+                    image: './Game/Objetos/construccion/parcela.png',
+                    buyPrice: 200,
+                    sellPrice: 100,
+                    currency: 'silver',
+                    categoria: 'construccion',
+                    tabla: 'parcelas',
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'A farm plot for your island (Lands), the same soil as the village garden. Select it in your inventory and place it on the island: then plant any seed, water and harvest on it. Up to 20 per slot.'
+                },
+                {
+                    id: 'pala_construccion',
+                    name: 'Construction Shovel',
+                    image: './Game/Objetos/construccion/pala_construccion.png',
+                    buyPrice: 300,
+                    sellPrice: 150,
+                    currency: 'silver',
+                    categoria: 'construccion',
+                    tabla: 'pala_contrucion',
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'The building tool for your island. Hold it and click something you built twice to dig it up: it goes back to your bag (a plot can only be dug up when nothing is planted on it). It never breaks.'
+                },
+                /* EL ESPANTAPÁJAROS (2026-10-05): ahora es una construcción de la
+                 * isla. Su tabla (`espantapajaros`) ya existía y se da de alta
+                 * sola: no espera al administrador (`tablaSola`). */
+                {
+                    id: 'espantapajaros',
+                    name: 'Scarecrow',
+                    image: './Game/Objetos/granja/espantapajaros.png',
+                    buyPrice: 120,
+                    sellPrice: 60,
+                    currency: 'silver',
+                    categoria: 'construccion',
+                    tabla: 'espantapajaros',
+                    tablaSola: true,
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'Build it on your island (Lands → Build): it guards every crop within 4 tiles for good, and crows perch on it instead of eating. Dig it up with the Construction Shovel to move it. In the village garden, use it on a planted plot to guard it for 2 hours.'
+                },
+                /* LA ANTORCHA (2026-10-11): la de la mina, para clavarla en el
+                 * suelo del pueblo, de la mina o del mapa salvaje. Arde 30
+                 * minutos y se apaga poco a poco (gf-antorchas.js). Su tabla
+                 * (`antorcha`) se da de alta sola (`tablaSola`). */
+                {
+                    id: 'antorcha',
+                    name: 'Torch',
+                    image: './Game/Objetos/antorcha/antorcha.png',
+                    buyPrice: 40,
+                    sellPrice: 20,
+                    currency: 'silver',
+                    categoria: 'construccion',
+                    tabla: 'antorcha',
+                    tablaSola: true,
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'The same torch as in the mine. Pick it in your bag and click the ground near you (village, mine or wild lands): it burns for 30 minutes, lights the night and the caves for everyone, and fades out slowly when it runs out. Up to 20 per slot.'
+                },
+                /* EL BOTE DE BASURA Y LOS COFRES (2026-10-05). Sus tablas
+                 * (`basura`, `cofre1..4`) se dan de alta SOLAS con la primera
+                 * compra o el primer crafteo, así que no se bloquean esperando
+                 * al administrador (`tablaSola`). Los cofres 2, 3 y 4 no se
+                 * compran: se craftean, y aquí solo se venden. */
+                {
+                    id: 'basura',
+                    name: 'Trash Can',
+                    image: './Game/Objetos/cofres/basura.png',
+                    buyPrice: 120,
+                    sellPrice: 60,
+                    currency: 'silver',
+                    categoria: 'construccion',
+                    tabla: 'basura',
+                    tablaSola: true,
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'A trash can for your island. Place it in Lands and click it to throw away what you no longer want, just like the one in the village.'
+                },
+                {
+                    id: 'cofre1',
+                    name: 'Wooden Chest',
+                    image: './Game/Objetos/cofres/cofre1.png',
+                    buyPrice: 150,
+                    sellPrice: 75,
+                    currency: 'silver',
+                    categoria: 'construccion',
+                    tabla: 'cofre1',
+                    tablaSola: true,
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'A simple chest for your island: it keeps 5 stacks. Place it in Lands and click it to store things. Craft it into better chests (7, 13 and 20 slots).'
+                },
+                {
+                    id: 'cofre2',
+                    name: 'Reinforced Chest',
+                    image: './Game/Objetos/cofres/cofre2.png',
+                    buyPrice: 0,
+                    sellPrice: 250,
+                    soloVenta: true,
+                    currency: 'silver',
+                    categoria: 'construccion',
+                    tabla: 'cofre2',
+                    tablaSola: true,
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'An iron-bound chest with 7 slots. It cannot be bought: craft it from a Wooden Chest.'
+                },
+                {
+                    id: 'cofre3',
+                    name: 'Magic Chest',
+                    image: './Game/Objetos/cofres/cofre3.png',
+                    buyPrice: 0,
+                    sellPrice: 700,
+                    soloVenta: true,
+                    currency: 'silver',
+                    categoria: 'construccion',
+                    tabla: 'cofre3',
+                    tablaSola: true,
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'A glowing chest with 13 slots. It cannot be bought: craft it from a Reinforced Chest.'
+                },
+                {
+                    id: 'cofre4',
+                    name: 'Legendary Chest',
+                    image: './Game/Objetos/cofres/cofre4.png',
+                    buyPrice: 0,
+                    sellPrice: 2000,
+                    soloVenta: true,
+                    currency: 'silver',
+                    categoria: 'construccion',
+                    tabla: 'cofre4',
+                    tablaSola: true,
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'The finest chest in the land, with 20 slots. It cannot be bought: craft it from a Magic Chest.'
+                }
+            ],
+            /* EQUIPO (2026-10-05): las tres espadas y la caña de pescar, cada
+             * una en su tabla del contrato. (El espantapájaros pasó a
+             * CONSTRUCCIÓN: se construye en la isla.) */
+            equipo: [
+                {
+                    id: 'espada_madera',
+                    name: 'Wooden Sword',
+                    image: './Game/Objetos/armas/espada_madera.png',
+                    buyPrice: 80,
+                    sellPrice: 40,
+                    currency: 'silver',
+                    categoria: 'equipo',
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'A training sword. Equip it next to your bag and press SPACE to swing. Damage 12.'
+                },
+                {
+                    id: 'espada_cobre',
+                    name: 'Copper Sword',
+                    image: './Game/Objetos/armas/espada_cobre.png',
+                    buyPrice: 250,
+                    sellPrice: 125,
+                    currency: 'silver',
+                    categoria: 'equipo',
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'A sharp copper blade. Equip it and press SPACE to swing. Damage 20.'
+                },
+                {
+                    id: 'espada_hierro',
+                    name: 'Iron Sword',
+                    image: './Game/Objetos/armas/espada_hierro.png',
+                    buyPrice: 600,
+                    sellPrice: 300,
+                    currency: 'silver',
+                    categoria: 'equipo',
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'A heavy iron sword for seasoned adventurers. Damage 32.'
+                },
+                {
+                    id: 'cana_pescar',
+                    name: 'Fishing Rod',
+                    image: './Game/Objetos/pesca/cana_pescar.png',
+                    buyPrice: 150,
+                    sellPrice: 75,
+                    currency: 'silver',
+                    categoria: 'equipo',
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'Walk to the village river with it in your bag and fish: trout, carp and, with luck, a golden trout. It never breaks.'
+                }
+            ],
+            /*
+            equipo_viejo: [
+                {
+                    id: 'pico_de_hierro',
+                    name: 'Pico de Hierro',
+                    image: './Game/Source/pico_y_hacha/pico_de_hierro.png',
+                    buyPrice: 200,
+                    sellPrice: 90,
+                    categoria: 'equipo',
+                    comision: 15,
+                    limiteDiario: 1,
+                    descripcion: 'Pico resistente para minería avanzada. Eficiencia: 3x.'
+                },
+                {
+                    id: 'hacha_de_hierro',
+                    name: 'Hacha de Hierro',
+                    image: './Game/Source/pico_y_hacha/hacha_de_hierro.png',
+                    buyPrice: 180,
+                    sellPrice: 80,
+                    categoria: 'equipo',
+                    comision: 15,
+                    limiteDiario: 1,
+                    descripcion: 'Hacha fuerte para árboles grandes. Eficiencia: 3x.'
+                },
+                {
+                    id: 'instrumento-pesca',
+                    name: 'Caña de Pescar',
+                    image: './Game/Source/pesca-instrumento.png',
+                    buyPrice: 150,
+                    sellPrice: 70,
+                    categoria: 'equipo',
+                    comision: 12,
+                    limiteDiario: 2,
+                    descripcion: 'Caña profesional para pesca en río. Durabilidad: 200 usos.'
+                }
+            ],
+
+            
+            especial: [
+                {
+                    id: 'cofre_especial',
+                    name: 'Cofre Misterioso',
+                    image: './Game/Objetos/cofre.png',
+                    buyPrice: 500,
+                    sellPrice: 220,
+                    categoria: 'especial',
+                    comision: 20,
+                    limiteDiario: 3,
+                    descripcion: 'Cofre misterioso que puede contener objetos raros o valiosos.'
+                },
+                {
+                    id: 'pocion_vida',
+                    name: 'Poción de Vida',
+                    image: './Game/Source/pocion_vida.png',
+                    buyPrice: 100,
+                    sellPrice: 45,
+                    categoria: 'especial',
+                    comision: 8,
+                    limiteDiario: 3,
+                    descripcion: 'Poción que restaura 50% de vida instantáneamente.'
+                },
+                {
+                    id: 'pocion_energia',
+                    name: 'Poción de Energía',
+                    image: './Game/Source/pocion_energia.png',
+                    buyPrice: 80,
+                    sellPrice: 36,
+                    categoria: 'especial',
+                    comision: 8,
+                    limiteDiario: 3,
+                    descripcion: 'Poción que restaura 50% de energía y resistencia.'
+                }
+            ]
+                */
+        };
+
+        // Inicializar desde localStorage
+        this.loadDailyLimits();
+        this.loadHistorial();
+        
+        // Inicializar eventos
+        this.initEvents();
+        
+        console.log('🏪 Sistema de tienda inicializado v6.3');
+    }
+    
+    // Detectar si es dispositivo móvil
+    checkMobile() {
+        this.isMobile = window.innerWidth <= 768;
+        window.addEventListener('resize', () => {
+            this.isMobile = window.innerWidth <= 768;
+            if (this.isOpen) {
+                this.filterItems?.();
+            }
+        });
+    }
+    
+    // Inicializar eventos del DOM
+    initEvents() {
+        // Cerrar tienda
+        document.getElementById('cerrar-tienda')?.addEventListener('click', () => this.close());
+        
+        // Overlay para cerrar
+        document.getElementById('tienda-overlay')?.addEventListener('click', () => this.close());
+        
+        // Búsqueda
+        const searchInput = document.getElementById('tienda-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                this.searchQuery = e.target.value.toLowerCase();
+                this.filterItems?.();
+            });
+            
+            // Prevenir propagación de teclas WASD
+            searchInput.addEventListener('keydown', (e) => {
+                const wasdKeys = ['w', 'a', 's', 'd', 'W', 'A', 'S', 'D'];
+                if (wasdKeys.includes(e.key)) {
+                    e.stopPropagation();
+                }
+                
+                if (e.key === 'Escape') {
+                    this.close();
+                }
+                
+                if (e.key === 'Enter' && this.selectedItem && !this.isMobile) {
+                    this.openPcModal();
+                }
+            });
+        }
+        
+        // Filtros
+        document.getElementById('tienda-categoria')?.addEventListener('change', (e) => {
+            this.currentCategory = e.target.value;
+            this._pintarApartados();
+            this.filterItems?.();
+        });
+
+        // Apartados (los botones de encima de la rejilla). Hacen lo mismo que
+        // el desplegable y los dos se mantienen iguales: el desplegable sigue
+        // ahí para quien ya lo usaba, y en el móvil, donde un <select> abre
+        // la lista del sistema, los botones son un toque.
+        document.querySelectorAll('#tienda-apartados .tienda-apartado').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const cat = btn.dataset.cat || 'todas';
+                this.currentCategory = cat;
+                const sel = document.getElementById('tienda-categoria');
+                if (sel) sel.value = cat;
+                this._pintarApartados();
+                this.filterItems?.();
+            });
+        });
+        
+        document.getElementById('tienda-tipo')?.addEventListener('change', (e) => {
+            this.handleTransactionTypeChange(e.target.value);
+        });
+        
+        // Botón de interactuar (PC)
+        document.getElementById('interact-button-pc')?.addEventListener('click', () => {
+            this.openPcModal();
+        });
+        
+        // Controles de cantidad (PC Modal) — con repetición al mantener pulsado.
+        this._botonDeCantidad('pc-quantity-up',   () => this.changePcModalQuantity(1));
+        this._botonDeCantidad('pc-quantity-down', () => this.changePcModalQuantity(-1));
+
+        const pcQuantityInput = document.getElementById('pc-quantity-input');
+        if (pcQuantityInput) {
+            pcQuantityInput.addEventListener('input', (e) => {
+                let value = parseInt(e.target.value) || 1;
+                if (value < 1) value = 1;
+                if (value > 99) value = 99;
+                e.target.value = value;
+                this.updatePcModalTotalPrice();
+            });
+            
+            // Permitir Enter para confirmar transacción
+            pcQuantityInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    this.executePcModalTransaction();
+                }
+            });
+        }
+        
+        // Botón de acción (PC Modal)
+        document.getElementById('pc-action-button')?.addEventListener('click', () => this.executePcModalTransaction());
+        
+        // Cerrar modal PC
+        document.getElementById('close-pc-modal')?.addEventListener('click', () => this.closePcModal());
+        
+        // Controles de cantidad (Móvil) — con repetición al mantener pulsado.
+        this._botonDeCantidad('mobile-quantity-up',   () => this.changeMobileQuantity(1));
+        this._botonDeCantidad('mobile-quantity-down', () => this.changeMobileQuantity(-1));
+
+        const mobileQuantityInput = document.getElementById('mobile-quantity-input');
+        if (mobileQuantityInput) {
+            mobileQuantityInput.addEventListener('input', (e) => {
+                let value = parseInt(e.target.value) || 1;
+                if (value < 1) value = 1;
+                if (value > 99) value = 99;
+                e.target.value = value;
+                this.updateMobileTotalPrice();
+            });
+        }
+        
+        // Botón de acción (Móvil)
+        document.getElementById('mobile-action-button')?.addEventListener('click', () => {
+            this.executeMobileTransaction();
+            this.closeMobileModal();
+        });
+        
+        // Botón de historial en móvil
+        document.getElementById('mobile-historial-btn')?.addEventListener('click', () => {
+            this.openMobileHistorialModal();
+        });
+        
+        // Cerrar modal móvil de detalles
+        document.getElementById('close-mobile-modal')?.addEventListener('click', () => this.closeMobileModal());
+        
+        // Cerrar modal móvil de historial
+        document.getElementById('close-mobile-historial')?.addEventListener('click', () => this.closeMobileHistorialModal());
+        
+        // Limpiar historial móvil
+        document.getElementById('clear-mobile-historial')?.addEventListener('click', () => this.clearHistorial());
+        
+        // Pestañas (PC)
+        document.querySelectorAll('.sidebar-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const tabName = e.target.dataset.tab;
+                this.switchTab(tabName);
+            });
+        });
+        
+        // Limpiar historial (PC)
+        document.getElementById('clear-historial-pc')?.addEventListener('click', () => this.clearHistorial());
+        
+        // Ayuda
+        document.getElementById('tienda-help-btn')?.addEventListener('click', () => this.showHelp());
+        document.getElementById('close-help')?.addEventListener('click', () => this.hideHelp());
+        
+        // Eventos táctiles para móvil
+        this.initMobileTouchEvents();
+    }
+
+    // =========================================================================
+    // BOTONES + / − DE CANTIDAD
+    // =========================================================================
+    /**
+     * Engancha un botón de cantidad para que responda AL INSTANTE y para que se
+     * pueda MANTENER PULSADO.
+     *
+     * BUG QUE ESTO ARREGLA — "en el teléfono el + y el − de la tienda van
+     * lentísimos":
+     *
+     *   1. Estaban enganchados a 'click'. En un móvil el navegador no dispara
+     *      'click' cuando levantas el dedo: espera a ver si viene un segundo
+     *      toque (doble toque para hacer zoom). Ese retraso —hasta ~300 ms— se
+     *      notaba en CADA pulsación, y encima se sumaba a que el modal de la
+     *      tienda no traía `touch-action` que lo desactivara.
+     *   2. No había repetición: para comprar 40 semillas había que dar 40
+     *      toques, cada uno con su retraso. Casi veinte segundos de dedo.
+     *
+     * Ahora se usa 'pointerdown', que llega en cuanto el dedo toca: la primera
+     * unidad entra sin ninguna espera. Y si se mantiene pulsado, la cantidad
+     * sigue subiendo sola: arranca despacio (400 ms de margen para que un toque
+     * normal siga siendo de uno en uno) y va ACELERANDO — 140 ms entre pasos,
+     * luego 70, luego 35— así que llegar a 99 son un par de segundos.
+     *
+     * `setPointerCapture` mantiene el botón activo aunque el dedo se mueva un
+     * poco, que en una pantalla táctil pasa siempre. El teclado (Enter/Espacio)
+     * y los lectores de pantalla siguen funcionando por el 'click' de respaldo.
+     */
+    _botonDeCantidad(elementId, accion) {
+        const boton = document.getElementById(elementId);
+        if (!boton || boton._gfRepeatBound) return;
+        boton._gfRepeatBound = true;
+
+        // Quita el retraso del doble toque también desde JS, por si el CSS del
+        // modal no llega a este botón.
+        boton.style.touchAction = 'manipulation';
+
+        const RETRASO_INICIAL = 400;   // ms antes de empezar a repetir
+        const PASOS = [140, 70, 35];   // intervalos: va acelerando
+        let timerInicio = null;
+        let timerRepe   = null;
+        let repeticiones = 0;
+        let pulsando = false;
+
+        const parar = () => {
+            pulsando = false;
+            repeticiones = 0;
+            if (timerInicio) { clearTimeout(timerInicio);  timerInicio = null; }
+            if (timerRepe)   { clearTimeout(timerRepe);    timerRepe   = null; }
+        };
+
+        const siguienteIntervalo = () => {
+            const i = Math.min(Math.floor(repeticiones / 6), PASOS.length - 1);
+            return PASOS[i];
+        };
+
+        const repetir = () => {
+            if (!pulsando) return;
+            accion();
+            repeticiones++;
+            timerRepe = setTimeout(repetir, siguienteIntervalo());
+        };
+
+        let ultimoPuntero = 0;   // cuándo atendió por última vez un pointerdown
+
+        const empezar = (e) => {
+            // Solo el botón principal / el dedo. Nada de menús contextuales.
+            if (e && e.button != null && e.button !== 0) return;
+            if (e) e.preventDefault();
+            if (boton.disabled) return;
+
+            parar();
+            ultimoPuntero = Date.now();
+            pulsando = true;
+            accion();                       // la primera, inmediata
+            try { if (e && e.pointerId != null) boton.setPointerCapture(e.pointerId); } catch (_) {}
+            timerInicio = setTimeout(repetir, RETRASO_INICIAL);
+        };
+
+        boton.addEventListener('pointerdown',   empezar);
+        boton.addEventListener('pointerup',     parar);
+        boton.addEventListener('pointercancel', parar);
+        boton.addEventListener('pointerleave',  parar);
+        boton.addEventListener('blur',          parar);
+        window.addEventListener('pointerup',    parar);
+
+        // Respaldo para el teclado (Enter/Espacio sobre el botón enfocado) y para
+        // navegadores sin eventos de puntero.
+        //
+        // El 'click' llega SIEMPRE detrás de un toque o de un clic de ratón, así
+        // que hay que distinguirlo del pulsado real o cada toque contaría dos
+        // veces. No sirve mirar `event.detail` (los navegadores móviles no se
+        // ponen de acuerdo en su valor para un toque): se mira si acaba de haber
+        // un pointerdown en este mismo botón. Si lo hubo, ya está atendido.
+        boton.addEventListener('click', () => {
+            if (Date.now() - ultimoPuntero < 1000) return;
+            accion();
+        });
+    }
+
+    // Manejar cambio de tipo de transacción
+    handleTransactionTypeChange(newType) {
+        console.log(`🔄 Cambiando tipo de transacción de ${this.transactionType} a ${newType}`);
+        
+        const oldType = this.transactionType;
+        this.transactionType = newType;
+        
+        // Limpiar item seleccionado al cambiar modos
+        if (oldType !== newType) {
+            this.selectedItem = null;
+            
+            // Limpiar selección de todas las tarjetas
+            document.querySelectorAll('.item-card.selected').forEach(card => {
+                card.classList.remove('selected');
+            });
+            
+            // Cerrar cualquier modal abierto
+            if (this.isMobile) {
+                this.closeMobileModal();
+            } else {
+                this.closePcModal();
+            }
+        }
+        
+        // Actualizar UI
+        this.filterItems?.();
+        
+        if (!this.isMobile) {
+            this.updatePcSimpleDetail();
+        }
+        
+        console.log(`✅ Tipo de transacción cambiado a ${this.transactionType}`);
+    }
+    
+    // Inicializar eventos táctiles para móvil
+    initMobileTouchEvents() {
+        const itemsContainer = document.getElementById('tienda-items');
+        if (!itemsContainer) return;
+        
+        let tapCount = 0;
+        let tapTimer = null;
+        
+        itemsContainer.addEventListener('click', (e) => {
+            const itemCard = e.target.closest('.item-card');
+            if (!itemCard || itemCard.classList.contains('sold-out')) return;
+            
+            tapCount++;
+            
+            if (tapCount === 1) {
+                tapTimer = setTimeout(() => {
+                    const itemId = itemCard.dataset.itemId;
+                    if (itemId) {
+                        this.selectItem(itemId);
+                    }
+                    tapCount = 0;
+                }, 300);
+            } else if (tapCount === 2) {
+                clearTimeout(tapTimer);
+                const itemId = itemCard.dataset.itemId;
+                if (itemId) {
+                    this.selectItem(itemId);
+                    this.openMobileModal();
+                }
+                tapCount = 0;
+            }
+        });
+        
+        itemsContainer.addEventListener('touchstart', (e) => {
+            if (!this.isMobile) return;
+            const itemCard = e.target.closest('.item-card');
+            if (itemCard && !itemCard.classList.contains('sold-out')) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            this.setupItemTouchEvents();
+        });
+    }
+    
+    // Configurar eventos táctiles para items individuales
+    setupItemTouchEvents() {
+        const setupEvents = () => {
+            const itemCards = document.querySelectorAll('.item-card');
+            itemCards.forEach(card => {
+                const newCard = card.cloneNode(true);
+                card.parentNode.replaceChild(newCard, card);
+            });
+            
+            const freshCards = document.querySelectorAll('.item-card');
+            freshCards.forEach(card => {
+                card.addEventListener('dblclick', (e) => this.handleDoubleClick(e));
+                card.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
+            });
+        };
+        
+        setTimeout(setupEvents, 100);
+    }
+    
+    // Manejar doble click
+    handleDoubleClick(e) {
+        const itemCard = e.currentTarget;
+        if (!itemCard || itemCard.classList.contains('sold-out')) return;
+        
+        const itemId = itemCard.dataset.itemId;
+        if (itemId) {
+            this.selectItem(itemId);
+            if (this.isMobile) {
+                this.openMobileModal();
+            }
+        }
+        
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    // Manejar toque táctil para doble toque
+    handleTouchStart(e) {
+        if (!this.isMobile) return;
+        
+        const itemCard = e.currentTarget;
+        if (!itemCard || itemCard.classList.contains('sold-out')) return;
+        
+        const currentTime = new Date().getTime();
+        const timeSinceLastTap = currentTime - this.lastTapTime;
+        
+        if (timeSinceLastTap < 300 && timeSinceLastTap > 0) {
+            const itemId = itemCard.dataset.itemId;
+            if (itemId) {
+                this.selectItem(itemId);
+                this.openMobileModal();
+            }
+            
+            e.preventDefault();
+            e.stopPropagation();
+            this.lastTapTime = 0;
+        } else {
+            this.lastTapTime = currentTime;
+            
+            if (this.tapTimeout) {
+                clearTimeout(this.tapTimeout);
+            }
+            
+            this.tapTimeout = setTimeout(() => {
+                const itemId = itemCard.dataset.itemId;
+                if (itemId) {
+                    this.selectItem(itemId);
+                }
+                this.lastTapTime = 0;
+            }, 300);
+        }
+    }
+    
+    // Abrir modal de historial en móvil
+    openMobileHistorialModal() {
+        if (!this.isMobile) return;
+        document.getElementById('mobile-historial-modal')?.classList.remove('hidden');
+        this.updateMobileHistorialDisplay();
+        console.log('📱 Modal de historial móvil abierto');
+    }
+    
+    // Cerrar modal de historial en móvil
+    closeMobileHistorialModal() {
+        document.getElementById('mobile-historial-modal')?.classList.add('hidden');
+        console.log('📱 Modal de historial móvil cerrado');
+    }
+    
+    // Actualizar display de historial en móvil
+    updateMobileHistorialDisplay() {
+        const container = document.getElementById('historial-list-mobile');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        
+        if (this.historial.length === 0) {
+            container.innerHTML = '<div class="historial-empty-mobile">No recent transactions</div>';
+            return;
+        }
+        
+        this.historial.forEach(transaction => {
+            const item = document.createElement('div');
+            item.className = `historial-item-mobile ${transaction.type}`;
+            
+            item.innerHTML = `
+                <div class="historial-header-mobile">
+                    <span class="historial-type-mobile">${transaction.type === 'compra' ? 'BUY' : 'SELL'}</span>
+                    <span class="historial-time-mobile">${transaction.timestamp}</span>
+                </div>
+                <div class="historial-content-mobile">
+                    <img src="${transaction.itemImage}" alt="${transaction.itemName}" class="historial-img-mobile">
+                    <div class="historial-details-mobile">
+                        <div class="historial-name-mobile">${transaction.itemName}</div>
+                        <div class="historial-qty-mobile">Qty: ${transaction.quantity}</div>
+                    </div>
+                    <div class="historial-price-mobile">
+                        <img src="${this.getCurrencyIconPath(transaction.currency || 'gold')}" alt="${this.getCurrencyLabel(transaction.currency || 'gold')}" class="moneda-icon">
+                        ${transaction.price} ${this.getCurrencyLabel(transaction.currency || 'gold')}
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(item);
+        });
+    }
+    
+    // Abrir modal de PC
+    openPcModal() {
+        if (this.isMobile || !this.selectedItem) return;
+        
+        document.getElementById('pc-item-modal').classList.remove('hidden');
+        this.updatePcModal();
+        
+        console.log('💻 Modal de PC abierto');
+    }
+    
+    // Cerrar modal de PC
+    closePcModal() {
+        document.getElementById('pc-item-modal').classList.add('hidden');
+        console.log('💻 Modal de PC cerrado');
+    }
+    
+    // Actualizar modal de PC (muestra precio según tipo de transacción)
+    updatePcModal() {
+        if (!this.selectedItem) return;
+        
+        const item = this.selectedItem;
+        const purchasedToday = this.dailyLimits[item.id] || 0;
+        // Al vender se enseña lo que queda LIBRE: lo que ya está en la cola de
+        // ventas no se puede volver a vender (ver disponibleParaVenta).
+        const disponible = this.transactionType === 'compra' 
+            ? (item.limiteDiario ? item.limiteDiario - purchasedToday : 99)
+            : this.disponibleParaVenta(item.id);
+        
+        const categorias = {
+            'semillas': 'Seeds',
+            'herramientas': 'Tools',
+            'minerales': 'Minerals',
+            'alimentos': 'Food',
+            'equipo': 'Equipment',
+            'especial': 'Special',
+            'construccion': 'Construction'
+        };
+        
+        document.getElementById('pc-item-name').textContent = item.name;
+        document.getElementById('pc-item-img').src = item.image;
+        document.getElementById('pc-item-img').alt = item.name;
+        
+        // Mostrar precio según tipo de transacción
+        const priceLabel = document.getElementById('pc-modal-price');
+        if (priceLabel) {
+            const priceAmount = this.transactionType === 'compra' ? item.buyPrice : item.sellPrice;
+            priceLabel.innerHTML = this.formatCurrencyAmount(priceAmount, this.getItemCurrency(item));
+        }
+        
+        document.getElementById('pc-item-desc').textContent = item.descripcion;
+        document.getElementById('pc-category-value').textContent = categorias[item.categoria] || item.categoria;
+        document.getElementById('pc-item-stock').textContent = 
+            item.limiteDiario ? `${item.limiteDiario - purchasedToday} remaining` : '∞';
+        document.getElementById('pc-item-disponible').textContent = 
+            this.transactionType === 'compra' ? `${disponible} available` : `${disponible} in inventory`;
+        document.getElementById('pc-item-comision').textContent = 
+            this.transactionType === 'venta' ? `${item.comision}%` : '0%';
+        
+        const maxQuantity = this.getMaxQuantity();
+        document.getElementById('pc-max-value').textContent = maxQuantity;
+        
+        const qtyInput = document.getElementById('pc-quantity-input');
+        if (qtyInput) {
+            qtyInput.value = Math.max(1, Math.min(1, maxQuantity));
+            qtyInput.max = maxQuantity;
+        }
+        
+        this.updatePcModalTotalPrice();
+        this.updatePcModalActionButton();
+    }
+    
+    // Cambiar cantidad en modal de PC
+    changePcModalQuantity(delta) {
+        const input = document.getElementById('pc-quantity-input');
+        if (!input) return;
+        let current = parseInt(input.value) || 1;
+        let newValue = current + delta;
+        
+        const max = this.getMaxQuantity();
+        if (newValue > max) newValue = max;
+        if (newValue < 1) newValue = 1;
+        
+        input.value = newValue;
+        this.updatePcModalTotalPrice();
+        this.updatePcModalActionButton();
+    }
+    
+    // Actualizar precio total en modal de PC (usa buyPrice para compras, sellPrice para ventas)
+    updatePcModalTotalPrice() {
+        if (!this.selectedItem) return;
+        
+        const item = this.selectedItem;
+        const quantity = parseInt(document.getElementById('pc-quantity-input')?.value) || 1;
+        
+        const currency = this.getItemCurrency(item);
+        let total;
+        if (this.transactionType === 'compra') {
+            total = item.buyPrice * quantity;
+        } else {
+            total = item.sellPrice * quantity;
+        }
+        
+        const totalEl = document.getElementById('pc-action-total');
+        if (totalEl) {
+            totalEl.innerHTML = `Total: ${this.formatCurrencyAmount(total, currency)}`;
+        }
+    }
+    
+    // Actualizar botón de acción en modal de PC
+    updatePcModalActionButton() {
+        const button = document.getElementById('pc-action-button');
+        const actionText = document.getElementById('pc-action-text');
+        if (!button || !this.selectedItem || !actionText) return;
+        
+        const item = this.selectedItem;
+        const quantity = parseInt(document.getElementById('pc-quantity-input')?.value) || 1;
+        const purchasedToday = this.dailyLimits[item.id] || 0;
+        
+        let enabled = true;
+        let text = '';
+        let icon = '💰';
+        
+        if (this.transactionType === 'compra') {
+            text = 'Buy';
+            const totalCost = item.buyPrice * quantity;
+            if (totalCost > this.getBalanceByCurrency(this.getItemCurrency(item))) {
+                enabled = false;
+                text = 'Insufficient funds';
+            }
+            
+            if (item.limiteDiario > 0 && (purchasedToday + quantity) > item.limiteDiario) {
+                enabled = false;
+                text = 'Limit exceeded';
+            }
+            
+            if (item.limiteDiario > 0 && purchasedToday >= item.limiteDiario) {
+                enabled = false;
+                text = 'Sold out today';
+            }
+        } else {
+            text = 'Sell';
+            icon = '💵';
+            
+            const playerCount = this.disponibleParaVenta(item.id);
+            if (quantity > playerCount) {
+                enabled = false;
+                text = 'Not enough items';
+            }
+        }
+        
+        button.disabled = !enabled;
+        actionText.textContent = text;
+        const iconEl = document.querySelector('.pc-action-icon');
+        if (iconEl) iconEl.textContent = icon;
+    }
+    
+    // Ejecutar transacción desde modal de PC
+    async executePcModalTransaction() {
+        if (!this.selectedItem) return;
+
+        // Anti-bot: prevent rapid double-clicks / bot spam
+        if (this._transactionLock) {
+            console.warn('⚠️ Transaction blocked: cooldown active');
+            return;
+        }
+        this._transactionLock = true;
+        const btn = document.getElementById('pc-action-button');
+        if (btn) btn.disabled = true;
+        
+        const item = this.selectedItem;
+        const quantity = parseInt(document.getElementById('pc-quantity-input').value) || 1;
+        
+        try {
+            if (this.transactionType === 'compra') {
+                await this.processPurchase(item, quantity);
+            } else {
+                await this.processSale(item, quantity);
+            }
+            
+            // Do NOT call loadPlayerMoneda() here — it would re-read stale scene values
+            // and overwrite the local deduction. The balance is already updated.
+            this.updateMonedaDisplay();
+            this.filterItems?.();
+            
+            this.updatePcSimpleDetail();
+            
+            this.closePcModal();
+            
+            this.updateHistorialDisplay();
+            this.updateMobileHistorialDisplay();
+            
+        } catch (error) {
+            console.error('Error in transaction:', error);
+            this.showNotification(`Error: ${error.message}`, 'error');
+        } finally {
+            setTimeout(() => {
+                this._transactionLock = false;
+                this.updatePcModalActionButton();
+            }, 600);
+        }
+    }
+    
+    // Cargar límites diarios desde localStorage
+    loadDailyLimits() {
+        const today = new Date().toDateString();
+        try {
+            const savedLimits = localStorage.getItem(`tienda_limits_${this.scene?.playerName || 'guest'}_${today}`);
+            if (savedLimits) {
+                this.dailyLimits = JSON.parse(savedLimits);
+            } else {
+                this.dailyLimits = {};
+                localStorage.setItem(`tienda_limits_${this.scene?.playerName || 'guest'}_${today}`, JSON.stringify(this.dailyLimits));
+            }
+        } catch (err) {
+            this.dailyLimits = {};
+        }
+    }
+    
+    // Guardar límites diarios
+    saveDailyLimits() {
+        const today = new Date().toDateString();
+        try {
+            localStorage.setItem(`tienda_limits_${this.scene?.playerName || 'guest'}_${today}`, JSON.stringify(this.dailyLimits));
+        } catch (err) {
+            console.warn('No se pudo guardar límites diarios:', err);
+        }
+    }
+    
+    // Cargar historial
+    loadHistorial() {
+        try {
+            const savedHistorial = localStorage.getItem(`tienda_historial_${this.scene?.playerName || 'guest'}`);
+            if (savedHistorial) {
+                this.historial = JSON.parse(savedHistorial);
+            }
+        } catch (err) {
+            this.historial = [];
+        }
+        this.updateHistorialDisplay();
+    }
+    
+    // Guardar historial
+    saveHistorial() {
+        try {
+            if (this.historial.length > 100) {
+                this.historial = this.historial.slice(-100);
+            }
+            localStorage.setItem(`tienda_historial_${this.scene?.playerName || 'guest'}`, JSON.stringify(this.historial));
+        } catch (err) {
+            console.warn('No se pudo guardar historial:', err);
+        }
+    }
+    
+    // Agregar al historial
+    addToHistorial(type, item, quantity, totalPrice) {
+        const transaction = {
+            type: type,
+            itemId: item.id,
+            itemName: item.name,
+            itemImage: item.image,
+            quantity: quantity,
+            price: totalPrice,
+            currency: this.getItemCurrency(item),
+            timestamp: new Date().toLocaleString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            }),
+            date: new Date().toLocaleDateString('en-US')
+        };
+        
+        this.historial.unshift(transaction);
+        this.saveHistorial();
+        this.updateHistorialDisplay();
+        this.updateMobileHistorialDisplay();
+    }
+    
+    // Limpiar historial con modal de confirmación personalizado
+    async clearHistorial() {
+        const confirmed = await this.createConfirmationModal('Are you sure you want to clear your transaction history? This action cannot be undone.');
+        if (!confirmed) return;
+        
+        this.historial = [];
+        try {
+            localStorage.removeItem(`tienda_historial_${this.scene?.playerName || 'guest'}`);
+        } catch (err) { /* ignore */ }
+        
+        this.updateHistorialDisplay();
+        this.updateMobileHistorialDisplay();
+        this.showNotification('History cleared successfully', 'success');
+    }
+    
+    // Crear modal de confirmación personalizado que devuelve una Promise<boolean>
+    createConfirmationModal(message) {
+        return new Promise((resolve) => {
+            // Crear overlay
+            const overlay = document.createElement('div');
+            overlay.className = 'confirmation-overlay';
+            overlay.style.cssText = `
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,0.6);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10010;
+            `;
+            
+            // Crear caja del modal
+            const box = document.createElement('div');
+            box.className = 'confirmation-box';
+            box.style.cssText = `
+                background: #0f1724;
+                color: #fff;
+                padding: 20px;
+                border-radius: 8px;
+                width: 90%;
+                max-width: 420px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+                font-family: Arial, sans-serif;
+                text-align: center;
+            `;
+            
+            const text = document.createElement('div');
+            text.style.marginBottom = '16px';
+            text.textContent = message;
+            
+            const buttons = document.createElement('div');
+            buttons.style.display = 'flex';
+            buttons.style.justifyContent = 'center';
+            buttons.style.gap = '12px';
+            
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.style.cssText = `
+                padding: 8px 14px;
+                border-radius: 6px;
+                border: none;
+                background: #374151;
+                color: white;
+                cursor: pointer;
+            `;
+            
+            const confirmBtn = document.createElement('button');
+            confirmBtn.textContent = 'Confirm';
+            confirmBtn.style.cssText = `
+                padding: 8px 14px;
+                border-radius: 6px;
+                border: none;
+                background: #06b6d4;
+                color: #042029;
+                cursor: pointer;
+                font-weight: bold;
+            `;
+            
+            buttons.appendChild(cancelBtn);
+            buttons.appendChild(confirmBtn);
+            
+            box.appendChild(text);
+            box.appendChild(buttons);
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
+            
+            const cleanup = () => {
+                try { overlay.remove(); } catch (err) { /* ignorar */ }
+            };
+            
+            cancelBtn.addEventListener('click', () => {
+                cleanup();
+                resolve(false);
+            });
+            
+            confirmBtn.addEventListener('click', () => {
+                cleanup();
+                resolve(true);
+            });
+            
+            // También cerrar al hacer clic en overlay (tratar como cancelar)
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    cleanup();
+                    resolve(false);
+                }
+            });
+        });
+    }
+    
+    // Abrir la tienda
+    async open() {
+        if (this.isOpen) return;
+        
+        // Pausar escena de Phaser de forma segura
+        if (this.scene && this.scene.scene && typeof this.scene.scene.pause === 'function') {
+            try {
+                let sceneKey = null;
+                if (this.scene.sys && this.scene.sys.settings && this.scene.sys.settings.key) {
+                    sceneKey = this.scene.sys.settings.key;
+                }
+                if (!sceneKey && this.scene.scene && this.scene.scene.key) {
+                    sceneKey = this.scene.scene.key;
+                }
+                if (!sceneKey && this.scene.sys && this.scene.sys.config && this.scene.sys.config.key) {
+                    sceneKey = this.scene.sys.config.key;
+                }
+                
+                if (sceneKey && typeof this.scene.scene.isActive === 'function' && this.scene.scene.isActive(sceneKey)) {
+                    this.scene.scene.pause(sceneKey);
+                }
+            } catch (err) {
+                console.warn('No se pudo pausar la escena de forma segura:', err);
+            }
+            
+            try {
+                if (this.scene.input && this.scene.input.keyboard) {
+                    this.scene.input.keyboard.enabled = false;
+                }
+            } catch (err) { /* ignorar */ }
+        }
+        
+        await this.loadPlayerMoneda();
+        // Sin esperar: la tienda se abre ya y el apartado se repinta solo
+        // cuando llegue la respuesta.
+        this._comprobarConstruccion();
+        this._pintarApartados();
+        
+        document.getElementById('tienda-hub')?.classList.remove('tienda-hub-hidden');
+        document.getElementById('tienda-overlay')?.classList.remove('tienda-overlay-hidden');
+        
+        this.isOpen = true;
+        
+        this.filterItems?.();
+        this.updateMonedaDisplay();
+        this.selectedItem = null;
+        
+        if (!this.isMobile) {
+            setTimeout(() => {
+                document.getElementById('tienda-search')?.focus();
+            }, 300);
+        }
+        
+        console.log('🏪 Tienda abierta - Modo:', this.isMobile ? 'Móvil' : 'PC');
+    }
+    
+    // Cerrar la tienda
+    close() {
+        if (!this.isOpen) return;
+
+        /* AVISO, NO CANDADO. Las ventas y compras encoladas siguen su camino
+           aunque se cierre la tienda: viven en `window.tiendaSistema` y están
+           anotadas en el TxGate, así que la pantalla de carga las espera antes
+           de entrar al mapa (ver tx-gate.js). Al jugador se le dice para que no
+           crea que ha perdido algo si cierra el juego a lo bruto. */
+        const pendientes = this.trabajosPendientes();
+        if (pendientes > 0) {
+            this.showNotification?.(
+                `⏳ ${pendientes} transaction(s) still finishing. They will complete on their own — ` +
+                `do not close the game yet.`,
+                'info'
+            );
+            console.log(`🏪 La tienda se cierra con ${pendientes} trabajo(s) en cola: siguen en marcha.`);
+        }
+
+        if (this.scene && this.scene.scene && typeof this.scene.scene.resume === 'function') {
+            try {
+                let sceneKey = null;
+                if (this.scene.sys && this.scene.sys.settings && this.scene.sys.settings.key) {
+                    sceneKey = this.scene.sys.settings.key;
+                }
+                if (!sceneKey && this.scene.scene && this.scene.scene.key) {
+                    sceneKey = this.scene.scene.key;
+                }
+                if (!sceneKey && this.scene.sys && this.scene.sys.config && this.scene.sys.config.key) {
+                    sceneKey = this.scene.sys.config.key;
+                }
+                
+                if (sceneKey && typeof this.scene.scene.isPaused === 'function' && this.scene.scene.isPaused(sceneKey)) {
+                    this.scene.scene.resume(sceneKey);
+                }
+            } catch (err) {
+                console.warn('No se pudo reanudar la escena de forma segura:', err);
+            }
+            
+            try {
+                if (this.scene.input && this.scene.input.keyboard) {
+                    this.scene.input.keyboard.enabled = true;
+                }
+            } catch (err) { /* ignorar */ }
+        }
+        
+        this.closeMobileModal();
+        this.closeMobileHistorialModal();
+        this.closePcModal();
+        
+        document.getElementById('tienda-hub')?.classList.add('tienda-hub-hidden');
+        document.getElementById('tienda-overlay')?.classList.add('tienda-overlay-hidden');
+        
+        document.getElementById('tienda-search')?.blur();
+
+        // Al cerrar la tienda hay que soltar la bandera cursorOverUI de la
+        // escena: en móvil, el toque que abrió/usó la tienda la dejó en true y
+        // sin un 'out' táctil que la limpie, así que el jugador no podía volver
+        // a moverse. (La red de seguridad del pointerdown también lo cubre, pero
+        // esto lo deja resuelto de inmediato, sin esperar al primer toque.)
+        try {
+            if (this.scene && this.scene.mouseMovement) {
+                this.scene.mouseMovement.cursorOverUI = false;
+            }
+        } catch (err) { /* no crítico */ }
+
+        this.isOpen = false;
+        this.selectedItem = null;
+
+        console.log('🏪 Tienda cerrada');
+
+        // Tutorial: avisar a la escena que la tienda se cerró (muestra la
+        // confirmación ✓/✗ si el jugador está en la fase de compra del tutorial).
+        try {
+            if (this.scene && typeof this.scene._onShopClosed === 'function') {
+                this.scene._onShopClosed();
+            }
+        } catch (err) { /* no crítico */ }
+    }
+    
+    // Abrir modal móvil
+    openMobileModal() {
+        if (!this.isMobile || !this.selectedItem) return;
+        
+        document.getElementById('mobile-item-modal')?.classList.remove('hidden');
+        this.updateMobileModal();
+        
+        console.log('📱 Modal móvil abierto');
+    }
+    
+    // Cerrar modal móvil
+    closeMobileModal() {
+        document.getElementById('mobile-item-modal')?.classList.add('hidden');
+        console.log('📱 Modal móvil cerrado');
+    }
+    
+    // Actualizar modal móvil (muestra precio según tipo de transacción)
+    updateMobileModal() {
+        if (!this.selectedItem) return;
+        
+        const item = this.selectedItem;
+        const purchasedToday = this.dailyLimits[item.id] || 0;
+        // Al vender se enseña lo que queda LIBRE: lo que ya está en la cola de
+        // ventas no se puede volver a vender (ver disponibleParaVenta).
+        const disponible = this.transactionType === 'compra' 
+            ? (item.limiteDiario ? item.limiteDiario - purchasedToday : 99)
+            : this.disponibleParaVenta(item.id);
+        
+        document.getElementById('mobile-item-name').textContent = item.name;
+        document.getElementById('mobile-item-img').src = item.image;
+        document.getElementById('mobile-item-img').alt = item.name;
+        
+        // Mostrar precio según tipo de transacción
+        const mobilePriceEl = document.getElementById('mobile-item-price');
+        if (mobilePriceEl) {
+            const priceAmount = this.transactionType === 'compra' ? item.buyPrice : item.sellPrice;
+            mobilePriceEl.innerHTML = this.formatCurrencyAmount(priceAmount, this.getItemCurrency(item));
+        }
+        
+        document.getElementById('mobile-item-desc').textContent = item.descripcion;
+        document.getElementById('mobile-item-stock').textContent = 
+            item.limiteDiario ? `${item.limiteDiario - purchasedToday} remaining` : '∞';
+        document.getElementById('mobile-item-disponible').textContent = 
+            this.transactionType === 'compra' ? `${disponible} available` : `${disponible} in inventory`;
+        document.getElementById('mobile-item-comision').textContent = 
+            this.transactionType === 'venta' ? `${item.comision}%` : '0%';
+        
+        const actionText = document.getElementById('mobile-action-text');
+        actionText && (actionText.textContent = this.transactionType === 'compra' ? 'Buy' : 'Sell');
+        
+        const mobileQtyInput = document.getElementById('mobile-quantity-input');
+        if (mobileQtyInput) mobileQtyInput.value = 1;
+        
+        this.updateMobileTotalPrice();
+        this.updateMobileActionButton();
+    }
+    
+    // Cargar moneda del jugador
+    async loadPlayerMoneda() {
+        const scene = this.scene || {};
+
+        const goldFromScene = scene.moneda ?? scene.monto_moneda ?? scene.playerMoneda ?? null;
+        const silverFromScene = scene.moneda_plata ?? scene.monedaPlata ?? scene.playerMonedaPlata ?? null;
+
+        if (goldFromScene !== null && goldFromScene !== undefined) {
+            this.playerMoneda = Math.floor(Number(goldFromScene) || 0);
+        }
+        if (silverFromScene !== null && silverFromScene !== undefined) {
+            this.playerMonedaPlata = Math.floor(Number(silverFromScene) || 0);
+        }
+
+        if ((goldFromScene === null || goldFromScene === undefined) && scene.serverBase && scene.playerName) {
+            try {
+                const response = await fetch(`${scene.serverBase}/load/${encodeURIComponent(scene.playerName)}`, {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': window.getCsrfToken(scene.csrfToken)
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.playerMoneda = Number(data.moneda ?? data.monto_moneda ?? 0) || 0;
+                    this.playerMonedaPlata = Number(data.moneda_plata ?? data.monedaPlata ?? 0) || 0;
+                } else {
+                    this.playerMoneda = 0;
+                    this.playerMonedaPlata = 0;
+                }
+            } catch (error) {
+                console.error('Error cargando moneda:', error);
+                this.playerMoneda = 0;
+                this.playerMonedaPlata = 0;
+            }
+        }
+    }
+    
+    // Filtrar items
+    //
+    // ITEMS DUPLICADOS EN LA TIENDA (arreglado 2026-08-05)
+    // ---------------------------------------------------------------------
+    // La rejilla se VACIABA al instante pero se RELLENABA 300 ms después,
+    // dentro de un setTimeout. Si en esos 300 ms se llamaba otra vez a
+    // filterItems() —y pasa constantemente: al abrir la tienda, al cambiar de
+    // Buy a Sell, al terminar una compra, o al aparecer el teclado del móvil,
+    // que dispara el `resize`— ocurría esto:
+    //
+    //    llamada A: vacía la rejilla ······ (300 ms) ······ mete 11 tarjetas
+    //    llamada B: vacía la rejilla ············ (300 ms) ··· mete 11 MÁS
+    //
+    // El vaciado de B pasaba ANTES de que A pintara, así que las dos tandas
+    // acababan en la rejilla: 22 tarjetas con el contador diciendo "11 items
+    // available". Por eso "a veces se multiplican y a veces no": dependía de
+    // si las dos llamadas caían dentro de la misma ventana de 300 ms.
+    //
+    // ARREGLO: cada llamada se queda con un número de turno. El temporizador
+    // anterior se cancela, y el que llega a pintar comprueba que sigue siendo
+    // el último y vacía la rejilla JUSTO ANTES de rellenarla. Así nunca puede
+    // haber dos tandas dentro.
+    filterItems() {
+        const itemsContainer = document.getElementById('tienda-items');
+        const loadingElement = document.getElementById('tienda-loading');
+        const emptyElement = document.getElementById('tienda-empty');
+        const totalItemsElement = document.getElementById('tienda-total-items');
+        const filtroElement = document.getElementById('tienda-filtro');
+
+        if (!itemsContainer) return;
+
+        // Turno de este render y cancelación del pintado anterior.
+        this._renderToken = (this._renderToken || 0) + 1;
+        const miTurno = this._renderToken;
+        clearTimeout(this._renderTimer);
+
+        if (loadingElement) loadingElement.style.display = 'flex';
+        if (emptyElement) emptyElement.style.display = 'none';
+        itemsContainer.innerHTML = '';
+
+        let allItems = [];
+        if (this.currentCategory === 'todas') {
+            Object.values(this.itemsTienda).forEach(category => {
+                allItems = allItems.concat(category);
+            });
+        } else if (this.itemsTienda[this.currentCategory]) {
+            allItems = this.itemsTienda[this.currentCategory];
+        }
+        
+        if (this.searchQuery) {
+            allItems = allItems.filter(item => 
+                item.name.toLowerCase().includes(this.searchQuery) ||
+                item.id.toLowerCase().includes(this.searchQuery) ||
+                item.descripcion.toLowerCase().includes(this.searchQuery)
+            );
+        }
+        
+        // Lo que solo se vende (los peces) no sale en la lista de compra.
+        if (this.transactionType === 'compra') {
+            allItems = allItems.filter(item => !item.soloVenta);
+        }
+
+        if (this.transactionType === 'venta') {
+            allItems = allItems.filter(item => {
+                // Un objeto entero en la cola de ventas deja de ofrecerse:
+                // volver a venderlo no encontraría nada que quemar.
+                const count = this.disponibleParaVenta(item.id);
+                return count > 0;
+            });
+        }
+        
+        const totalItems = allItems.length;
+        if (totalItemsElement) totalItemsElement.textContent = totalItems;
+        
+        let filtroTexto = '';
+        if (this.currentCategory === 'todas') {
+            filtroTexto = 'All items';
+        } else {
+            const categorias = {
+                'semillas': 'Seeds',
+                'herramientas': 'Tools',
+                'minerales': 'Minerals',
+                'alimentos': 'Food',
+                'equipo': 'Equipment',
+                'especial': 'Special',
+                'construccion': 'Construction'
+            };
+            filtroTexto = categorias[this.currentCategory] || this.currentCategory;
+        }
+        
+        if (this.searchQuery) {
+            filtroTexto += ` - Search: "${this.searchQuery}"`;
+        }
+        
+        if (filtroElement) filtroElement.textContent = filtroTexto;
+        
+        this._renderTimer = setTimeout(() => {
+            // Llegó otro filterItems() mientras esperábamos: este pintado ya no
+            // vale y NO debe añadir sus tarjetas encima de las del nuevo.
+            if (miTurno !== this._renderToken) return;
+
+            if (loadingElement) loadingElement.style.display = 'none';
+
+            if (totalItems === 0) {
+                itemsContainer.innerHTML = '';
+                if (emptyElement) emptyElement.style.display = 'flex';
+                return;
+            }
+
+            // Vaciar AQUÍ, pegado al relleno: es lo que garantiza que la
+            // rejilla contiene exactamente una tanda de tarjetas.
+            itemsContainer.innerHTML = '';
+            allItems.forEach(item => {
+                const itemCard = this.createItemCard(item);
+                itemsContainer.appendChild(itemCard);
+            });
+
+            this.setupItemTouchEvents();
+        }, 300);
+    }
+    
+    // Nivel actual del jugador (desde la escena). 0 si no está disponible.
+    _playerLevel() {
+        const n = this.scene && this.scene.nivel;
+        return (typeof n === 'number' && !isNaN(n)) ? n : 0;
+    }
+
+    // Un ítem está bloqueado por nivel solo al COMPRAR, si define nivelRequerido
+    // y el jugador aún no lo alcanza (tomate=3, trigo=5, calabaza=6).
+    _isLockedByLevel(item) {
+        return this.transactionType === 'compra'
+            && item && item.nivelRequerido > 0
+            && this._playerLevel() < item.nivelRequerido;
+    }
+
+    // Crear tarjeta de item (muestra precio según tipo de transacción)
+    createItemCard(item) {
+        const card = document.createElement('div');
+        card.className = 'item-card';
+        card.dataset.itemId = item.id;
+        
+        const purchasedToday = this.dailyLimits[item.id] || 0;
+        const isLimited = item.limiteDiario > 0 && this.transactionType === 'compra';
+        const isSoldOut = isLimited && purchasedToday >= item.limiteDiario;
+        
+        if (isLimited) card.classList.add('limited');
+        if (isSoldOut) card.classList.add('sold-out');
+        
+        const img = document.createElement('img');
+        img.src = item.image;
+        img.alt = item.name;
+        img.className = 'item-image';
+        img.loading = 'lazy';
+        
+        const name = document.createElement('div');
+        name.className = 'item-name';
+        name.textContent = item.name;
+        
+        const price = document.createElement('div');
+        price.className = 'item-price';
+        
+        const currency = this.getItemCurrency(item);
+        const monedaIcon = document.createElement('img');
+        monedaIcon.src = this.getCurrencyIconPath(currency);
+        monedaIcon.alt = this.getCurrencyLabel(currency);
+        monedaIcon.className = 'moneda-icon';
+        
+        const priceValue = document.createElement('span');
+        const priceAmount = this.transactionType === 'compra' ? item.buyPrice : item.sellPrice;
+        priceValue.textContent = `${priceAmount} ${this.getCurrencyLabel(currency)}`;
+        priceValue.title = this.transactionType === 'compra' ? 'Purchase price' : 'Sale price';
+        
+        price.appendChild(monedaIcon);
+        price.appendChild(priceValue);
+        
+        if (isLimited) {
+            const limit = document.createElement('div');
+            limit.className = 'item-limit';
+            limit.textContent = `${purchasedToday}/${item.limiteDiario} per day`;
+            card.appendChild(limit);
+        }
+        
+        card.appendChild(img);
+        card.appendChild(name);
+        card.appendChild(price);
+
+        // Construcción sin habilitar (faltan sus tablas en el contrato).
+        if (this._construccionBloqueada(item) && this.transactionType === 'compra') {
+            card.classList.add('locked-by-level');
+            card.style.position = 'relative';
+            card.style.opacity = '0.78';
+            img.style.filter = 'grayscale(1) brightness(0.6)';
+            const soon = document.createElement('div');
+            soon.className = 'item-lock-badge';
+            soon.textContent = '🔒 Soon';
+            soon.title = 'Construction is not enabled on the contract yet.';
+            soon.style.cssText = 'position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.78);color:#ffd23f;font-size:11px;font-weight:bold;padding:2px 6px;border-radius:6px;pointer-events:none;z-index:2;';
+            card.appendChild(soon);
+        }
+
+        // Bloqueo por nivel: se ve el ítem pero en gris con candado y 'Lv. N'.
+        if (this._isLockedByLevel(item)) {
+            card.classList.add('locked-by-level');
+            card.style.position = 'relative';
+            card.style.opacity = '0.78';
+            img.style.filter = 'grayscale(1) brightness(0.6)';
+            const lock = document.createElement('div');
+            lock.className = 'item-lock-badge';
+            lock.textContent = `🔒 Lv. ${item.nivelRequerido}`;
+            lock.style.cssText = 'position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.78);color:#ffd23f;font-size:11px;font-weight:bold;padding:2px 6px;border-radius:6px;pointer-events:none;z-index:2;';
+            card.appendChild(lock);
+        }
+
+        if (this.isMobile) {
+            // móvil: toque manejado globalmente
+        } else {
+            card.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectItem(item.id);
+            });
+        }
+
+        return card;
+    }
+    
+    // Seleccionar un item
+    selectItem(itemId) {
+        document.querySelectorAll('.item-card.selected').forEach(card => {
+            card.classList.remove('selected');
+        });
+        
+        let selectedItemData = null;
+        for (const category of Object.values(this.itemsTienda)) {
+            const found = category.find(item => item.id === itemId);
+            if (found) {
+                selectedItemData = found;
+                break;
+            }
+        }
+        
+        if (!selectedItemData) return;
+
+        // Bloqueo por nivel: no se puede seleccionar/comprar hasta alcanzar el nivel.
+        if (this._isLockedByLevel(selectedItemData)) {
+            const msg = `Requires level ${selectedItemData.nivelRequerido} to buy ${selectedItemData.name}.`;
+            if (this.scene && this.scene.notifications && typeof this.scene.notifications.show === 'function') {
+                this.scene.notifications.show(msg, 'error');
+            } else {
+                console.warn('🔒 ' + msg);
+            }
+            return;
+        }
+
+        const card = document.querySelector(`.item-card[data-item-id="${itemId}"]`);
+        if (card) card.classList.add('selected');
+        
+        this.selectedItem = selectedItemData;
+        
+        if (this.isMobile) {
+            this.updateMobileModal();
+        } else {
+            this.updatePcSimpleDetail();
+        }
+        
+        console.log('✅ Item seleccionado:', selectedItemData.name);
+    }
+    
+    // Actualizar detalles simples en PC (solo imagen, nombre y precio - según tipo de transacción)
+    updatePcSimpleDetail() {
+        const detailImg = document.getElementById('detail-img-simple');
+        const detailName = document.getElementById('detail-name-simple');
+        const priceContainer = document.getElementById('detail-price-simple');
+        const interactBtn = document.getElementById('interact-button-pc');
+        
+        if (!this.selectedItem) {
+            if (detailImg) detailImg.src = './Game/Source/moneda de oro.png';
+            if (detailName) detailName.textContent = 'Select an item';
+            if (priceContainer) priceContainer.innerHTML = `<img src="./Game/Source/moneda de oro.png" alt="GL" class="moneda-icon"> 0 GL`;
+            if (interactBtn) interactBtn.disabled = true;
+            return;
+        }
+        
+        const item = this.selectedItem;
+        const currency = this.getItemCurrency(item);
+        const priceAmount = this.transactionType === 'compra' ? item.buyPrice : item.sellPrice;
+
+        if (detailImg) { detailImg.src = item.image; detailImg.alt = item.name; }
+        if (detailName) detailName.textContent = item.name;
+
+        // Fix: use innerHTML so the coin icon + label are always correct — no more double GL
+        if (priceContainer) {
+            priceContainer.innerHTML = this.formatCurrencyAmount(priceAmount, currency);
+        }
+        
+        if (interactBtn) interactBtn.disabled = false;
+        
+        const tabDetalles = document.getElementById('tab-detalles');
+        if (tabDetalles && !tabDetalles.classList.contains('active')) {
+            this.switchTab('detalles');
+        }
+    }
+    
+    // Obtener cantidad de un item en el inventario
+    getItemCountInInventory(itemId) {
+        const ST = this.STATE;   // el inventario del trabajo en curso (ver _escena)
+        if (!ST) return 0;
+        
+        let count = 0;
+        
+        try {
+            (ST.slots || []).forEach(slot => {
+                if (slot && slot.id === itemId) {
+                    count += slot.count || 1;
+                }
+            });
+            
+            (ST.quickSlots || []).forEach(slot => {
+                if (slot && slot.id === itemId) {
+                    count += slot.count || 1;
+                }
+            });
+        } catch (err) {
+            return 0;
+        }
+        
+        return count;
+    }
+    
+    // Cambiar cantidad (Móvil)
+    changeMobileQuantity(delta) {
+        const input = document.getElementById('mobile-quantity-input');
+        if (!input) return;
+        let current = parseInt(input.value) || 1;
+        let newValue = current + delta;
+        
+        const max = this.getMaxQuantity();
+        if (newValue > max) newValue = max;
+        if (newValue < 1) newValue = 1;
+        
+        input.value = newValue;
+        this.updateMobileTotalPrice();
+        this.updateMobileActionButton();
+    }
+    
+    // Obtener cantidad máxima permitida
+    getMaxQuantity() {
+        if (!this.selectedItem) return 99;
+        
+        const item = this.selectedItem;
+        
+        if (this.transactionType === 'compra') {
+            const balance = this.getBalanceByCurrency(this.getItemCurrency(item));
+            const price = this.transactionType === 'compra' ? item.buyPrice : item.sellPrice;
+            const maxByMoney = price > 0 ? Math.floor(balance / price) : 99;
+            const purchasedToday = this.dailyLimits[item.id] || 0;
+            const maxByLimit = item.limiteDiario > 0 ? (item.limiteDiario - purchasedToday) : 99;
+            
+            return Math.max(0, Math.min(maxByMoney, maxByLimit, 99));
+        } else {
+            return Math.max(0, this.disponibleParaVenta(item.id));
+        }
+    }
+    
+    // Actualizar precio total (Móvil)
+    updateMobileTotalPrice() {
+        if (!this.selectedItem) return;
+        
+        const item = this.selectedItem;
+        const quantity = parseInt(document.getElementById('mobile-quantity-input')?.value) || 1;
+        
+        const currency = this.getItemCurrency(item);
+        let total;
+        if (this.transactionType === 'compra') {
+            total = item.buyPrice * quantity;
+        } else {
+            total = item.sellPrice * quantity;
+        }
+        
+        const totalEl = document.getElementById('mobile-action-total');
+        if (totalEl) {
+            totalEl.innerHTML = `Total: ${this.formatCurrencyAmount(total, currency)}`;
+        }
+    }
+    
+    // Actualizar botón de acción (Móvil)
+    updateMobileActionButton() {
+        const button = document.getElementById('mobile-action-button');
+        const actionText = document.getElementById('mobile-action-text');
+        if (!button || !this.selectedItem || !actionText) return;
+        
+        const item = this.selectedItem;
+        const quantity = parseInt(document.getElementById('mobile-quantity-input')?.value) || 1;
+        const purchasedToday = this.dailyLimits[item.id] || 0;
+        
+        let enabled = true;
+        let text = '';
+        
+        if (this.transactionType === 'compra') {
+            text = 'Buy';
+            const totalCost = item.buyPrice * quantity;
+            if (totalCost > this.getBalanceByCurrency(this.getItemCurrency(item))) {
+                enabled = false;
+                text = 'Insufficient funds';
+            }
+            
+            if (item.limiteDiario > 0 && (purchasedToday + quantity) > item.limiteDiario) {
+                enabled = false;
+                text = 'Limit exceeded';
+            }
+            
+            if (item.limiteDiario > 0 && purchasedToday >= item.limiteDiario) {
+                enabled = false;
+                text = 'Sold out today';
+            }
+        } else {
+            text = 'Sell';
+            const playerCount = this.disponibleParaVenta(item.id);
+            if (quantity > playerCount) {
+                enabled = false;
+                text = 'Not enough items';
+            }
+        }
+        
+        button.disabled = !enabled;
+        actionText.textContent = text;
+        const iconEl = document.querySelector('.mobile-action-icon');
+        if (iconEl) iconEl.textContent = this.transactionType === 'compra' ? '💰' : '💵';
+    }
+    
+    // Ejecutar transacción (Móvil)
+    async executeMobileTransaction() {
+        if (!this.selectedItem) return;
+
+        // Anti-bot: prevent rapid double-taps / bot spam
+        if (this._transactionLock) {
+            console.warn('⚠️ Transaction blocked: cooldown active');
+            return;
+        }
+        this._transactionLock = true;
+        const btn = document.getElementById('mobile-action-button');
+        if (btn) btn.disabled = true;
+        
+        const item = this.selectedItem;
+        const quantity = parseInt(document.getElementById('mobile-quantity-input').value) || 1;
+        
+        try {
+            if (this.transactionType === 'compra') {
+                await this.processPurchase(item, quantity);
+            } else {
+                await this.processSale(item, quantity);
+            }
+            
+            // Do NOT call loadPlayerMoneda() here — it would overwrite the local deduction.
+            this.updateMonedaDisplay();
+            this.filterItems?.();
+            
+            if (this.isMobile) {
+                this.updateMobileModal();
+                this.updateMobileActionButton();
+            } else {
+                this.updatePcSimpleDetail();
+            }
+            
+            this.updateHistorialDisplay();
+            this.updateMobileHistorialDisplay();
+            
+        } catch (error) {
+            console.error('Error in transaction:', error);
+            this.showNotification(`Error: ${error.message}`, 'error');
+        } finally {
+            setTimeout(() => {
+                this._transactionLock = false;
+                if (this.isMobile) this.updateMobileActionButton();
+            }, 600);
+        }
+    }
+    
+    // Procesar compra usando buyPrice
+    /**
+     * ¿Están creadas las tablas de construcción en el contrato?
+     *
+     * Las crea el administrador a mano (ver server2.js, TABLAS_MANUALES). Si
+     * todavía no existen, comprar una parcela COBRARÍA y luego la cadena
+     * rechazaría la factura (TipoNotConfigured) y habría que reembolsar: el
+     * jugador vería su dinero bajar y volver. Se pregunta una vez al abrir la
+     * tienda; `null` = no se sabe (servidor viejo, red caída) y no bloquea.
+     */
+    async _comprobarConstruccion() {
+        if (this._comprobandoConstruccion) return;
+        this._comprobandoConstruccion = true;
+        try {
+            const base = this._resolveApiBase();
+            const r = await fetch(`${base}/api/lands/construcciones`, { credentials: 'include' });
+            if (!r.ok) { this._construccionDisponible = null; return; }
+            const d = await r.json();
+            const antes = this._construccionDisponible;
+            this._construccionDisponible = !!(d && d.tablas && d.tablas.parcelas);
+            // Qué tablas existen, una a una: cada objeto se bloquea por la SUYA.
+            this._construccionTablas = (d && d.tablas && typeof d.tablas === 'object') ? d.tablas : null;
+            if (antes !== this._construccionDisponible && this.isOpen) this.filterItems?.();
+        } catch (_) {
+            this._construccionDisponible = null;
+        } finally {
+            this._comprobandoConstruccion = false;
+        }
+    }
+
+    _construccionBloqueada(item) {
+        if (!item || item.categoria !== 'construccion') return false;
+        // Tablas que se crean solas al comprar (bote y cofres): nunca esperan.
+        if (item.tablaSola) return false;
+        const tablas = this._construccionTablas;
+        if (tablas && item.tabla && Object.prototype.hasOwnProperty.call(tablas, item.tabla)) {
+            return tablas[item.tabla] === false;
+        }
+        return this._construccionDisponible === false;
+    }
+
+    /** Marca el apartado activo en la barra de encima de la rejilla. */
+    _pintarApartados() {
+        const actual = this.currentCategory || 'todas';
+        document.querySelectorAll('#tienda-apartados .tienda-apartado').forEach((btn) => {
+            const activo = (btn.dataset.cat || 'todas') === actual;
+            btn.classList.toggle('activo', activo);
+            btn.setAttribute('aria-selected', activo ? 'true' : 'false');
+        });
+    }
+
+    async processPurchase(item, quantity) {
+        quantity = Number(quantity);
+        if (!item || !Number.isSafeInteger(quantity) || quantity <= 0 ||
+            !Number.isFinite(Number(item.buyPrice)) || Number(item.buyPrice) <= 0 ||
+            !this._getOnchainTableFor(item.id)) {
+            throw new Error('Invalid purchase');
+        }
+        if (!this.STATE || this._escena()?._inventarioCargado === false) {
+            throw new Error('Wait for your inventory to finish loading');
+        }
+        if (this.STATE.selectedItem) throw new Error('Place the item in your inventory before buying');
+        if (!this.simulateAddItem(item.id, quantity).success) throw new Error('Not enough inventory space');
+        // Los peces solo se venden: los acuña el servidor al pescar.
+        if (item && item.soloVenta) {
+            throw new Error('This item cannot be bought: catch it yourself!');
+        }
+        if (this._construccionBloqueada(item)) {
+            throw new Error('Construction is not available yet. Try again later.');
+        }
+        const currency = this.getItemCurrency(item);
+        const totalCost = item.buyPrice * quantity;
+        const balance = this.getBalanceByCurrency(currency);
+        
+        if (totalCost > balance) {
+            throw new Error('Insufficient funds for this purchase');
+        }
+        
+        const purchasedToday = this.dailyLimits[item.id] || 0;
+        if (item.limiteDiario > 0 && (purchasedToday + quantity) > item.limiteDiario) {
+            throw new Error('Daily purchase limit exceeded');
+        }
+        
+        this.setBalanceByCurrency(currency, balance - totalCost);
+        // VERIFICACIÓN DEL COBRO (2026-08-03): comprobar que al jugador se le
+        // descontó EXACTAMENTE el precio. Si el saldo no cuadra (porque algún
+        // eslabón de setBalanceByCurrency no llegó a aplicarse), se corrige
+        // aquí mismo antes de seguir con la compra.
+        this._verificarMovimientoMonedas(currency, balance, -totalCost, `Compra de ${quantity}x ${item.name}`);
+
+        if (item.limiteDiario > 0) {
+            this.dailyLimits[item.id] = (this.dailyLimits[item.id] || 0) + quantity;
+            this.saveDailyLimits();
+        }
+        
+        const transactionInfo = {
+            type: 'compra',
+            itemId: item.id,
+            itemName: item.name,
+            quantity,
+            unitPrice: item.buyPrice,
+            totalCost,
+            currency,
+            fee: 0,
+            remainingGold: this.playerMoneda,
+            remainingSilver: this.playerMonedaPlata
+        };
+
+        // FIX UI NO BLOQUEANTE: antes se hacía `await ejecutarDivision(...)`
+        // aquí mismo, así que el modal quedaba trancado hasta que la
+        // transacción blockchain confirmara (minutos en el peor caso). Ahora
+        // la parte on-chain se ENCOLA en segundo plano (una compra tras otra,
+        // para no pisar nonces ni el lock interno) y el jugador queda libre
+        // para seguir comprando de inmediato. Si la transacción no confirma,
+        // _runOnchainPurchase reembolsa el dinero automáticamente.
+        this._enqueueOnchainPurchase(item, quantity, transactionInfo);
+
+        console.log('🛒 SHOP TRANSACTION (PURCHASE)', transactionInfo);
+
+        this.showNotification?.(`⏳ Buying ${quantity}x ${item.name} — waiting for confirmation…`, 'info');
+
+        try { this.scene?.queuedAction && this.scene.queuedAction({ type: 'forSpam2' }); } catch (err) { /* ignorar */ }
+        console.log(`✅ Purchase recorded: ${quantity}x ${item.name} for ${totalCost} ${this.getCurrencyLabel(currency)}`);
+    }
+
+    // Tabla de seguimiento on-chain por producto: itemId → [ruta_tabla, límite de stack]
+    /**
+     * [tipoOnChain, maxStack] de un item, sacado de ItemDefinitions.
+     *
+     * FALLO QUE ESTO ARREGLA: aqui habia una lista escrita a mano con 12
+     * entradas, y el catalogo de la tienda no tiene por que caber en ella. Un
+     * item que se pusiera a la venta sin acordarse de añadirlo aqui se vendia
+     * "a ciegas": se cobraba y no se quitaba nada. Y los tipos estaban
+     * duplicados, asi que una errata de una letra rompia la venta en silencio.
+     *
+     * ItemDefinitions ya tiene el tipo y el maxStack de cada objeto, y es lo
+     * que usan CraftingHub y el resto del juego. Con esto hay una sola verdad.
+     */
+    _getOnchainTableFor(itemId) {
+        const def = this.ItemDefinitions?.[itemId];
+        if (!def || !def.tipo) return null;
+        return [def.tipo, Number(def.maxStack) || 1];
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       LA COLA DE LA TIENDA — UNA SOLA, PARA COMPRAS Y VENTAS
+       ───────────────────────────────────────────────────────────────────────
+       Antes había DOS colas independientes: `_purchaseQueue` para las compras
+       y, para las ventas, nada — la venta esperaba a la cadena con la
+       interfaz trancada.
+
+       Dos colas separadas no solo van lentas: se pisan. `_runOnchainPurchase`
+       decide cuánto se confirmó comparando el inventario ANTES y DESPUÉS de su
+       transacción; si mientras tanto se ejecuta una venta del mismo objeto, esa
+       resta sale mal y la compra se REEMBOLSA sin motivo. Con una sola cola no
+       hay dos trabajos de la tienda a la vez, y de paso las transacciones no
+       compiten por el nonce del relayer.
+
+       Y cada trabajo se anota en el TxGate DESDE QUE SE ENCOLA, no desde que le
+       toca el turno: si el jugador cierra la tienda con tres ventas esperando,
+       la pantalla de carga espera a las tres (ver tx-gate.js).
+       ═══════════════════════════════════════════════════════════════════════ */
+    _encolarTrabajoTienda(etiqueta, trabajo) {
+        const finTx = (window.GFTxGate && window.GFTxGate.begin)
+            ? window.GFTxGate.begin(etiqueta, { timeout: 900000 })
+            : null;
+
+        this._trabajosEnCola = (this._trabajosEnCola || 0) + 1;
+        // La escena del momento de encolar (ver _escena).
+        const escenaDelTrabajo = this.scene;
+
+        if (!this._colaTienda) this._colaTienda = Promise.resolve();
+        this._colaTienda = this._colaTienda
+            .catch(() => {})                 // un fallo anterior no para la cola
+            .then(() => {
+                this._escenaTrabajo = escenaDelTrabajo || this._escenaTrabajo || null;
+                return Promise.resolve()
+                    .then(() => trabajo())
+                    .finally(() => { this._escenaTrabajo = null; });
+            })
+            .catch(err => console.error(`❌ Error en la cola de la tienda (${etiqueta}):`, err))
+            .then(() => {
+                this._trabajosEnCola = Math.max(0, (this._trabajosEnCola || 1) - 1);
+                if (finTx) finTx();
+            });
+
+        return this._colaTienda;
+    }
+
+    /** ¿Queda algo por hacer? Lo usa el aviso al cerrar la tienda. */
+    trabajosPendientes() { return this._trabajosEnCola || 0; }
+
+    /* LA TIENDA ES UNA POR PÁGINA; LA ESCENA NO. `window.tiendaSistema` vive
+       siempre y guardaba en `this.scene` la última tienda visitada: al salir,
+       esa escena entera se quedaba en memoria hasta la visita siguiente. Se
+       suelta al apagarse, pero NO mientras quede una compra o venta en vuelo
+       (siguen escribiendo en ella): entonces se espera a que la cola se vacíe. */
+    soltarEscena(scene) {
+        if (!scene || this.scene !== scene) return;
+        const libre = () => this.trabajosPendientes() === 0;
+        if (libre() && !this._addItemQueue) { this.scene = null; return; }
+        Promise.all([this._colaTienda, this._addItemQueue])
+            .catch(() => {})
+            .then(() => { if (this.scene === scene && libre()) this.scene = null; });
+    }
+
+    // Encola la parte blockchain de una compra. Las compras se procesan en
+    // serie (una promesa encadenada) pero SIN bloquear la interfaz.
+    _enqueueOnchainPurchase(item, quantity, transactionInfo) {
+        this._purchaseQueue = this._encolarTrabajoTienda(
+            `Shop purchase: ${quantity}x ${item.id}`,
+            () => this._runOnchainPurchase(item, quantity, transactionInfo)
+        );
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       UNIDADES COMPROMETIDAS EN VENTAS QUE TODAVÍA NO HAN SALIDO
+       ───────────────────────────────────────────────────────────────────────
+       Con la venta en cola, el objeto SIGUE en el inventario hasta que la
+       cadena lo quema — y tiene que seguir, porque hasta entonces es del
+       jugador. Pero si la tienda contara esas unidades como disponibles, se
+       podrían vender DOS VECES: la segunda venta no encontraría nada que
+       quemar y acabaría en "no se confirmó" después de haber dicho que sí.
+
+       Así que se apuntan aparte. `getItemCountInInventory` sigue diciendo lo
+       que hay de verdad (lo usan el quitado y el cuadre); `disponibleParaVenta`
+       descuenta lo ya comprometido, y es lo que mira la tienda para ofrecer,
+       para el máximo del contador y para el botón de vender.
+       ═══════════════════════════════════════════════════════════════════════ */
+    _comprometido(itemId) {
+        return (this._ventasComprometidas && this._ventasComprometidas[itemId]) || 0;
+    }
+
+    _comprometer(itemId, unidades) {
+        if (!this._ventasComprometidas) this._ventasComprometidas = {};
+        this._ventasComprometidas[itemId] = this._comprometido(itemId) + (Number(unidades) || 0);
+    }
+
+    _descomprometer(itemId, unidades) {
+        if (!this._ventasComprometidas) return;
+        const queda = this._comprometido(itemId) - (Number(unidades) || 0);
+        if (queda > 0) this._ventasComprometidas[itemId] = queda;
+        else delete this._ventasComprometidas[itemId];
+    }
+
+    /** Lo que el jugador puede poner a la venta AHORA (sin contar lo ya encolado). */
+    disponibleParaVenta(itemId) {
+        return Math.max(0, this.getItemCountInInventory(itemId) - this._comprometido(itemId));
+    }
+
+    async _runOnchainPurchase(item, quantity, transactionInfo) {
+        const mapping = this._getOnchainTableFor(item.id);
+        if (!mapping) return; // producto sin seguimiento on-chain
+
+        const [rutaTabla, limite] = mapping;
+        const before = this.getItemCountInInventory(item.id);
+        this._confirmedPurchaseQuantity = null;
+        this._confirmedPurchaseInvoices = [];
+
+        try {
+            await this.ejecutarDivision(rutaTabla, item.id, limite, quantity);
+        } catch (err) {
+            console.error(`❌ ejecutarDivision falló para ${item.id}:`, err);
+        }
+
+        // Verificar cuántas unidades se confirmaron realmente (mismo patrón
+        // que usa GameScene con las semillas: comparar inventario antes/después)
+        const after = this.getItemCountInInventory(item.id);
+        const added = Math.min(quantity, this._confirmedPurchaseQuantity == null
+            ? Math.max(0, after - before) : this._confirmedPurchaseQuantity);
+        let persisted = false;
+        if (added > 0) {
+            try {
+                await this._persistConfirmedPurchase(item.id);
+                persisted = true;
+            } catch (err) {
+                console.error('❌ Compra confirmada, sincronización pendiente:', err);
+                this.showNotification?.('Your purchase is confirmed on-chain. Inventory sync is pending; reopen the map to recover it.', 'info');
+            }
+        }
+
+        if (added < quantity) {
+            // REEMBOLSO automático de lo no confirmado: el dinero solo se
+            // queda descontado si la transacción blockchain entregó el item.
+            const missing = quantity - added;
+            const refund = missing * (transactionInfo.unitPrice || item.buyPrice || 0);
+            const currency = transactionInfo.currency || this.getItemCurrency(item);
+
+            if (refund > 0) {
+                const saldoAntesReembolso = Math.floor(Number(this.getBalanceByCurrency(currency)) || 0);
+                this.setBalanceByCurrency(currency, saldoAntesReembolso + refund);
+                // El reembolso también se verifica: es dinero que se devuelve
+                // y tiene que aparecer de verdad, no solo en pantalla.
+                this._verificarMovimientoMonedas(currency, saldoAntesReembolso, refund, `Reembolso de ${missing}x ${item.name}`);
+                this.updateMonedaDisplay?.();
+            }
+            if (item.limiteDiario > 0) {
+                this.dailyLimits[item.id] = Math.max(0, (this.dailyLimits[item.id] || 0) - missing);
+                this.saveDailyLimits();
+            }
+            this.showNotification?.(
+                `⚠️ ${missing}x ${item.name} could not be confirmed on-chain. ${refund} ${this.getCurrencyLabel(currency)} refunded`,
+                'error'
+            );
+            console.warn(`⚠️ Compra parcial: ${added}/${quantity} ${item.id} confirmados — reembolso ${refund}`);
+        } else if (persisted) {
+            this.showNotification?.(`✓ ${added}x ${item.name} purchased and saved`, 'success');
+            console.log(`✅ Compra on-chain confirmada: ${quantity}x ${item.id}`);
+        }
+
+        if (persisted) {
+            try {
+                this.addToHistorial('compra', item, added, added * transactionInfo.unitPrice);
+                this.showTransactionAnimation('compra', item, added, added * transactionInfo.unitPrice);
+            } catch (err) { console.warn('Purchase saved; shop display could not refresh:', err); }
+        }
+        this.updateMonedaDisplay?.();
+    }
+
+    async _persistConfirmedPurchase(itemId) {
+        const e = this._escena();
+        const url = `${this._resolveApiBase()}/api/inventory/reconcile`;
+        let lastError;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const controller = new AbortController();
+            const deadline = setTimeout(() => controller.abort(), 20000);
+            try {
+                const options = { method: 'POST', credentials: 'include',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': e?.csrfToken || '' },
+                    body: JSON.stringify({ itemId, expectedInvoices: this._confirmedPurchaseInvoices || [] }), signal: controller.signal };
+                const resp = typeof e?.fetchWithTokenRetry === 'function'
+                    ? await e.fetchWithTokenRetry(url, options, 2) : await fetch(url, options);
+                const data = await resp.json();
+                if (!resp.ok || !data.success) throw new Error(data.error || `Inventory sync HTTP ${resp.status}`);
+                // Todas las escenas de mapas usan estos mismos arrays. También
+                // actualiza el mapa activo si la compra terminó tras salir.
+                const active = window.activeScene;
+                const target = this._escenaViva() ? e : active;
+                if (target?.STATE && target._inventarioCargado !== false && !target.STATE.selectedItem) {
+                    const anteriores = new Map([...(target.STATE.slots || []), ...(target.STATE.quickSlots || [])]
+                        .filter(s => s?.idx != null).map(s => [`${s.idx}:${s.idm}`, s]));
+                    for (const [field, saved] of [['slots', data.inventory], ['quickSlots', data.chest]]) {
+                        if (!Array.isArray(saved) || !Array.isArray(target.STATE[field])) continue;
+                        const slots = Array(target.STATE[field].length).fill(null);
+                        for (const s of saved) {
+                            if (!s?.objeto || !Number.isInteger(s.id) || s.id < 0 || s.id >= slots.length) continue;
+                            const anterior = anteriores.get(`${s.IDX}:${s.Manualid}`);
+                            slots[s.id] = { ...(anterior?.id === s.objeto ? anterior : {}),
+                                id: s.objeto, count: s.cantidad, idx: s.IDX, idm: s.Manualid };
+                        }
+                        target.STATE[field] = slots;
+                    }
+                    target._inventoryLoadedAt = data.inventoryLoadedAt;
+                    target.rebuildPlayerInventoryFromState?.();
+                    if (target.sys?.isActive?.()) target.renderAllSlots?.();
+                }
+                return data;
+            } catch (err) { lastError = err; }
+            finally { clearTimeout(deadline); }
+            if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+        }
+        throw lastError;
+    }
+
+
+
+
+
+// ------------------------------------------------------------------
+// FUNCIÓN EJECUTAR DIVISIÓN CORREGIDA
+// ------------------------------------------------------------------
+async ejecutarDivision(ruta_tabla, producto, limitacion, cantidad) {
+  // Validaciones rápidas
+  if (limitacion <= 0 || cantidad <= 0) return;
+
+  // FIX (comprar varias cosas y que solo se haga UNA transacción):
+  // antes, si ya había una transacción en curso la petición se DESCARTABA
+  // (return sin hacer nada), así que la segunda compra en adelante nunca
+  // llegaba a la blockchain: _runOnchainPurchase veía que no se agregó nada
+  // y reembolsaba. Ahora se ENCOLA, igual que ejecutarDivision() de
+  // GameScene: cada compra espera a que termine la anterior y se ejecuta,
+  // en orden. Ninguna se pierde.
+  // TxGate (2026-08-04): la compra queda anotada en el contador global de
+  // transacciones en vuelo. Si el jugador compra y sale corriendo de la tienda,
+  // LoadingScenegame espera a que esta transacción termine antes de entrar al
+  // mundo, en vez de destruir la escena con la compra a medias. Ver tx-gate.js.
+  const finTx = (window.GFTxGate && window.GFTxGate.begin)
+    ? window.GFTxGate.begin(`Shop purchase: ${cantidad}x ${producto}`, { timeout: 900000 })
+    : null;
+
+  this._addItemQueue = (this._addItemQueue || Promise.resolve())
+    .then(() => this.Additemblockchains(ruta_tabla, producto, cantidad))
+    .catch(err => console.error('❌ Error procesando compra en cola:', err))
+    .finally(() => { if (finTx) finTx(); });
+
+  return this._addItemQueue;
+}
+
+// ------------------------------------------------------------------
+// GENERADOR DE manualId (se mantiene igual)
+// ------------------------------------------------------------------
+generarCodigo(longitud = 19) {
+  const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let resultado = '';
+  for (let i = 0; i < longitud; i++) {
+    resultado += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+  }
+  return resultado;
+}
+
+// ------------------------------------------------------------------
+// BLOQUEO VISUAL DE SLOTS (se mantiene igual)
+// ------------------------------------------------------------------
+lockSlot(type, index) {
+  const selector = type === 'inv'
+    ? `.inv-slot[data-slot-index="${index}"]`
+    : `.quick-slot[data-slot-index="${index}"]`;
+  const slot = document.querySelector(selector);
+  if (slot) slot.classList.add('slot-locked');
+}
+
+unlockAllSlots() {
+  document.querySelectorAll('.inv-slot, .quick-slot').forEach(slot => {
+    slot.classList.remove('slot-locked');
+  });
+}
+
+// ------------------------------------------------------------------
+// FUNCIÓN PRINCIPAL ADDITEMBLOCKCHAINS (sin cambios, pero se incluye completa)
+// ------------------------------------------------------------------
+async Additemblockchains(ruta_tabla, producto, cantidad) {
+  this._confirmedPurchaseQuantity = 0;
+  this._confirmedPurchaseInvoices = [];
+  // Bandera EXCLUSIVA de "agregar item por blockchain". Antes se usaba
+  // this._transactionInProgress, que también lo tocan el drag&drop del
+  // inventario y ejecutarDivisionRemove (ventas): si cualquiera de esos lo
+  // dejaba en true, TODAS las compras siguientes se descartaban en silencio.
+  // Además ya no hace falta descartar nada: ejecutarDivision() encola, así
+  // que aquí nunca hay dos a la vez; el flag queda solo como red de seguridad.
+  if (this._addItemBlockchainBusy) {
+    console.warn('Transacción de agregar item ya en progreso. Ignorando nueva petición.');
+    return;
+  }
+  this._addItemBlockchainBusy = true;
+  this._transactionInProgress = true;
+
+  // Helpers locales (autocontenidos para no depender de funciones externas)
+  const self = this;
+
+  function generarCodigoLocal(longitud = 19) {
+    const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let resultado = '';
+    for (let i = 0; i < longitud; i++) {
+      resultado += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+    }
+    return resultado;
+  }
+
+  function lockSlotLocal(type, index) {
+    try {
+      const selector = type === 'inv'
+        ? `.inv-slot[data-slot-index="${index}"]`
+        : `.quick-slot[data-slot-index="${index}"]`;
+      const slot = document.querySelector(selector);
+      if (slot) slot.classList.add('slot-locked');
+    } catch (e) {
+      console.warn('lockSlotLocal fallo:', e);
+    }
+  }
+
+  function unlockAllSlotsLocal() {
+    try {
+      document.querySelectorAll('.inv-slot, .quick-slot').forEach(slot => {
+        slot.classList.remove('slot-locked');
+      });
+    } catch (e) {
+      console.warn('unlockAllSlotsLocal fallo:', e);
+    }
+  }
+
+  async function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+  }
+
+  // Reintentos: enviar acción y esperar confirmación
+  // FIX: si el error es timeout (la tx ya está en blockchain con txHash),
+  // se re-espera el MISMO transactionId en vez de reenviar una nueva transacción
+  // (reenviar crearía duplicados). También se amplía el timeout a 2 minutos.
+  async function _sendAndWaitWithRetries(relayClient, contractAddress, accionObj, maxAttempts = 3) {
+    let pendingTransactionId = null; // guardamos el id si ya se envió
+    // A lost response may already have minted/increased the invoice. Keep
+    // one server idempotency key through every retry of this logical action.
+    const metadata = { ...(accionObj._metadata || {}) };
+    if (!metadata.idem) metadata.idem = typeof window.PhaserRelay?.createIdempotencyKey === 'function'
+      ? window.PhaserRelay.createIdempotencyKey() : generarCodigoLocal(24);
+    const requestAction = { ...accionObj, _metadata: metadata };
+
+    const isTimeoutError = (val) => {
+      const msg = (typeof val === 'string' ? val : val?.error || val?.message || '').toLowerCase();
+      return msg.includes('timeout');
+    };
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        let transactionId = pendingTransactionId;
+
+        // Solo enviamos la tx si aún no tenemos un transactionId pendiente
+        if (!transactionId) {
+          const sendResult = await relayClient.accion(contractAddress, requestAction);
+          if (!sendResult || !sendResult.success) {
+            console.warn(`Attempt ${attempt}: sendResult no exitoso`, sendResult);
+            if (attempt === maxAttempts) return { success: false, error: sendResult?.error || 'sendFailed' };
+            await sleep(800 * attempt);
+            continue;
+          }
+          transactionId = sendResult.transactionId;
+          pendingTransactionId = transactionId; // guardar por si hay timeout
+        } else {
+          console.warn(`Attempt ${attempt}: re-esperando tx existente ${transactionId} (no se reenvía)`);
+        }
+
+        // Esperar confirmación con timeout explícito de 2 minutos
+        const final = await relayClient.waitForTransaction(transactionId, {
+          interval: 3000,
+          timeout: 120000
+        });
+
+        if (final && final.success) {
+          pendingTransactionId = null;
+          return { success: true, txHash: final.txHash, transactionId };
+        } else {
+          const timedOut = isTimeoutError(final);
+          console.warn(`Attempt ${attempt}: confirmación fallida (${timedOut ? 'timeout — reintentando misma tx' : 'error'})`, final);
+          if (attempt === maxAttempts) return { success: false, error: final?.error || 'confirmFailed' };
+          if (!timedOut) pendingTransactionId = null;
+          await sleep(timedOut ? 2000 : 800 * attempt);
+          continue;
+        }
+      } catch (err) {
+        const timedOut = isTimeoutError(err);
+        console.error(`Attempt ${attempt} error:`, err);
+        if (attempt === maxAttempts) return { success: false, error: err.message || String(err) };
+        if (!timedOut) pendingTransactionId = null;
+        await sleep(timedOut ? 2000 : 800 * attempt);
+      }
+    }
+    return { success: false, error: 'unknown' };
+  }
+
+  // Parser robusto para getInvoiceByManualId
+  function _getInvoiceFieldsFromResponse(lastMessage) {
+    try {
+      // Si es array -> mapeo por posiciones esperadas del struct de tu contrato
+      if (Array.isArray(lastMessage)) {
+        const invoiceId = Number(lastMessage[0]) || 0;
+        const manualId = lastMessage[1] || '';
+        const cantidadx = Number(lastMessage[4] ?? lastMessage[3] ?? 0) || 0;
+        return { invoiceId, manualId, cantidadx, raw: lastMessage };
+      }
+
+      // Si es objeto: intentar formar un array a partir de keys '0','1' o 'out0','out1'
+      if (lastMessage && typeof lastMessage === 'object') {
+        const indexed = [];
+        for (const k of Object.keys(lastMessage)) {
+          let m = null;
+          if (/^\d+$/.test(k)) {
+            m = Number(k);
+          } else {
+            const mo = k.match(/^out(\d+)$/i);
+            if (mo) m = Number(mo[1]);
+          }
+          if (m !== null) indexed[m] = lastMessage[k];
+        }
+        if (indexed.length > 0) {
+          const invoiceId = Number(indexed[0]) || 0;
+          const manualId = indexed[1] || '';
+          const cantidadx = Number(indexed[4] ?? indexed[3] ?? 0) || 0;
+          return { invoiceId, manualId, cantidadx, raw: indexed };
+        }
+
+        // Fallback: buscar por nombres de campo conocidos
+        const pick = (names) => {
+          for (const n of names) {
+            if (lastMessage[n] !== undefined) return lastMessage[n];
+            const lower = n.toLowerCase();
+            if (lastMessage[lower] !== undefined) return lastMessage[lower];
+          }
+          return undefined;
+        };
+
+        const invoiceIdRaw = pick(['invoiceId', 'id', 'InvoiceId', '_id']);
+        const manualIdRaw = pick(['manualId', '_manualId', 'manualID']);
+        const cantidadRaw = pick(['cantidad', 'quantity', '_cantidad', 'amount']);
+
+        const invoiceId = invoiceIdRaw !== undefined ? Number(invoiceIdRaw) : 0;
+        const manualId = manualIdRaw !== undefined ? String(manualIdRaw) : '';
+        const cantidadx = cantidadRaw !== undefined ? Number(cantidadRaw) : 0;
+
+        return { invoiceId: invoiceId || 0, manualId, cantidadx, raw: lastMessage };
+      }
+    } catch (err) {
+      console.error('_getInvoiceFieldsFromResponse error:', err, 'lastMessage:', lastMessage);
+    }
+    return { invoiceId: 0, manualId: '', cantidadx: 0, raw: lastMessage };
+  }
+
+  try {
+    // Inicializar relayClient si hace falta
+    if (!this.relayClient || this.relayClient._destroyed) {
+      this.relayClient = new PhaserRelay({
+        // FIX "Debes estar autenticado": antes apiBase estaba fijo en
+        // http://127.0.0.1:3001. En producción (game.grasslandforest.com) eso
+        // apunta al localhost del jugador → checkAuth() siempre fallaba y toda
+        // compra mostraba el error. Usamos el serverBase ya resuelto de la
+        // escena (local → 127.0.0.1:8080, prod → api.grasslandforest.com).
+        apiBase: this._resolveApiBase(),
+        debug: true,
+        forceLocalhostTo127: true
+      });
+      await this.relayClient.initialize();
+    }
+
+    // Auth
+    const auth = await this.relayClient.checkAuth();
+    if (!auth || !auth.success) {
+      this.relayClient.showError(this.relayClient.authErrorMessage(auth), 5000);
+      return;
+    }
+    console.log('🔑 Usuario autenticado:', auth.address);
+
+    // Establecer usuario en el hub (si no se ha hecho antes)
+    if (window.hub && this.playerName) {
+      window.hub.setUser(this.playerName, auth.address);
+    }
+
+    // Encontrar contrato
+    let contract;
+    try {
+      contract = await this.relayClient.findContract('ItemContract');
+    } catch (error) {
+      this.relayClient.showError('❌ Error conectando al backend: ' + (error.message || error), 5000);
+      return;
+    }
+    if (!contract) {
+      this.relayClient.showError('❌ Contrato ItemContract no encontrado', 3000);
+      return;
+    }
+    console.log('📄 Contrato encontrado:', contract.address);
+
+    // ===== SIMULADOR =====
+    const reporte = this.simulateAddItem(producto, cantidad);
+    console.log('Reporte completo:', reporte);
+
+    // Bloquear slots implicados (si vienen)
+    if (Array.isArray(reporte.operations)) {
+      reporte.operations.forEach(op => {
+        try {
+          if (op && op.location && op.location.type && op.location.index !== undefined && op.location.index !== null) {
+            lockSlotLocal(op.location.type, op.location.index);
+          }
+        } catch (e) {
+          console.warn('Error lockSlotLocal por operación:', op, e);
+        }
+      });
+    }
+
+    // ===== MERGES: aumentar cantidad en facturas existentes =====
+    const merges = (reporte.operations || []).filter(op => op.type === 'merge');
+    for (const op of merges) {
+      const cantidadOp = Number(op.amountAdded) || 0;
+      const idx = Number(op.idx) || 0;
+      const manual = op.manualid || '';
+
+      // Seguridad: idx === 0 no es válido (contrato usa 0 como 'no existe')
+      if (idx === 0) {
+        console.error('Se detectó idx = 0 en merge; se ignora para evitar borrado/colisión:', op);
+        continue;
+      }
+
+      console.error(`Procesando MERGE para idx ${idx} con cantidad a añadir ${cantidadOp}`);
+
+      // Datos para posible reintento (categoría 'items', nombre = ruta_tabla)
+      const hiddenData = {
+        type: 'merge',
+        producto: producto,
+        cantidad: cantidadOp,
+        idx: idx,
+        manualid: manual,
+        ruta_tabla: ruta_tabla
+      };
+
+      // Hash temporal para la transacción pendiente
+      const tempHash = 'temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+
+      // Añadir transacción pendiente al hub (categoría 'items')
+      if (window.hub) {
+        window.hub.addTransaction('items', {
+          name: ruta_tabla,               // nombre = ruta_tabla
+          quantity: cantidadOp,
+          hash: tempHash,
+          status: 'pending',
+          hiddenData: hiddenData
+        });
+      }
+
+      const accionObj = {
+        funcion: 'increaseInvoiceQuantity',
+        _id: idx,
+        _increaseAmount: cantidadOp,
+        accion: 'enviar'
+      };
+
+      const res = await _sendAndWaitWithRetries(this.relayClient, contract.address, accionObj, 3);
+
+      if (!res.success) {
+        // Eliminar pendiente y añadir revertida
+        if (window.hub) {
+          window.hub.removeTransaction(tempHash);
+          window.hub.addTransaction('items', {
+            name: ruta_tabla,
+            quantity: cantidadOp,
+            hash: 'reverted-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+            status: 'reverted',
+            hiddenData: hiddenData
+          });
+        }
+        console.error('No se pudo confirmar increaseInvoiceQuantity para idx', idx, 'error:', res.error);
+        this.relayClient.showError && this.relayClient.showError(`❌ increaseInvoiceQuantity falló para id ${idx}`, 4000);
+        continue;
+      }
+
+      this._confirmedPurchaseQuantity += cantidadOp;
+      this._confirmedPurchaseInvoices.push({ id: idx, manualId: String(manual), cantidad: Number(op.finalCount) || cantidadOp });
+      // Éxito: eliminar pendiente y añadir confirmada con el hash real
+      if (window.hub) {
+        window.hub.removeTransaction(tempHash);
+        window.hub.addTransaction('items', {
+          name: ruta_tabla,
+          quantity: cantidadOp,
+          hash: res.txHash,
+          status: 'confirmed',
+          hiddenData: hiddenData
+        });
+      }
+
+      // Actualizar frontend: addItemWithCheck(producto, cantidad, invoiceId, manualId)
+      try {
+        if (typeof this.addItemWithCheck === 'function') {
+          await this.addItemWithCheck(producto, cantidadOp, idx, manual);
+          console.error(`addItemWithCheck OK (merge) para invoice ${idx} cantidad ${cantidadOp}`);
+        } else {
+          console.error('addItemWithCheck no encontrada; omitiendo actualización local para merge idx', idx);
+        }
+      } catch (err) {
+        console.error('Error ejecutando addItemWithCheck tras increaseInvoiceQuantity:', err, 'idx:', idx);
+      }
+    }
+
+    // ===== NUEVOS STACKS: crear facturas y añadir items localmente =====
+    const nuevosStacks = (reporte.operations || []).filter(op => op.type === 'new');
+    for (const op of nuevosStacks) {
+      const amountAdded = Number(op.amountAdded) || 0;
+      const manualGenerado = generarCodigoLocal();
+
+      // Datos para posible reintento
+      const hiddenData = {
+        type: 'new',
+        producto: producto,
+        cantidad: amountAdded,
+        ruta_tabla: ruta_tabla
+        // idx y manualid se conocerán después de crear
+      };
+
+      const tempHash = 'temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+
+      // Añadir transacción pendiente (categoría 'items')
+      if (window.hub) {
+        window.hub.addTransaction('items', {
+          name: ruta_tabla,
+          quantity: amountAdded,
+          hash: tempHash,
+          status: 'pending',
+          hiddenData: hiddenData
+        });
+      }
+
+      /* EL DUEÑO DE LA FACTURA ES UNA DIRECCIÓN, NO UN NOMBRE.
+
+         `createInvoice(address _owner, …)` espera una dirección, y aquí iba
+         `this.playerName`, que es el APODO del jugador en cuanto se pone uno
+         (/api/auth/me devuelve `playerName: player.playerName || address`, y
+         el juego guarda `data.playerName || data.address`). Con un apodo, la
+         transacción ni sale: ethers no puede codificar "Kuro" como address.
+
+         Y si saliera sería peor: el relay comprueba que la factura sea del
+         jugador antes de firmar cualquier `decreaseInvoiceQuantity`
+         (verifyInvoiceOwnership en server2.js), así que una factura con otro
+         dueño NO SE PODRÍA VENDER NUNCA.
+
+         Se usa la dirección autenticada, que es la que compara el servidor. El
+         apodo queda de respaldo solo por si `checkAuth` no la trajo. */
+      const duenoFactura = (auth && auth.address) ? auth.address : this.playerName;
+
+      const accionCrear = {
+        funcion: 'createInvoice',
+        _owner: duenoFactura,
+        _tipo: ruta_tabla,
+        _cantidad: amountAdded,
+        _manualId: manualGenerado,
+        accion: 'enviar'
+      };
+
+      const resCrear = await _sendAndWaitWithRetries(this.relayClient, contract.address, accionCrear, 3);
+
+      if (!resCrear.success) {
+        if (window.hub) {
+          window.hub.removeTransaction(tempHash);
+          window.hub.addTransaction('items', {
+            name: ruta_tabla,
+            quantity: amountAdded,
+            hash: 'reverted-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+            status: 'reverted',
+            hiddenData: hiddenData
+          });
+        }
+        console.error('createInvoice falló para nuevo stack (cantidad):', amountAdded, 'error:', resCrear.error);
+        this.relayClient.showError && this.relayClient.showError(`❌ createInvoice falló para ${amountAdded}`, 4000);
+        continue;
+      }
+
+      this._confirmedPurchaseQuantity += amountAdded;
+      this._confirmedPurchaseInvoices.push({ manualId: String(manualGenerado), cantidad: amountAdded });
+      // Éxito en createInvoice: actualizamos la transacción pendiente a confirmada con el hash real
+      if (window.hub) {
+        window.hub.removeTransaction(tempHash);
+        // Aún no tenemos idx/manualid, los añadiremos después de obtenerlos
+        // Por ahora guardamos la confirmada sin esos datos, pero luego la actualizaremos o añadiremos otra
+        window.hub.addTransaction('items', {
+          name: ruta_tabla,
+          quantity: amountAdded,
+          hash: resCrear.txHash,
+          status: 'confirmed',
+          hiddenData: hiddenData   // se completará más abajo con idx/manualid
+        });
+      }
+
+      // Obtener la factura por manualId (view)
+      let lastMessage;
+      try {
+        lastMessage = await this.relayClient.accion(contract.address, {
+          funcion: 'getInvoiceByManualId',
+          _manualId: manualGenerado,
+          accion: 'obtener'
+        });
+      } catch (err) {
+        console.error('Error llamando getInvoiceByManualId:', err);
+        continue;
+      }
+
+      if (!lastMessage) {
+        console.warn('getInvoiceByManualId devolvió vacío para manualId:', manualGenerado);
+        continue;
+      }
+
+      // Parsear robustamente
+      const parsed = _getInvoiceFieldsFromResponse(lastMessage);
+      console.log('Parsed invoice response:', parsed);
+
+      let { invoiceId, manualId, cantidadx } = parsed;
+
+      // Si invoiceId sigue 0, intentar extraer keys directas como out0 o '0'
+      if ((!invoiceId || Number(invoiceId) === 0) && lastMessage && typeof lastMessage === 'object') {
+        for (const k of Object.keys(lastMessage)) {
+          if (/^out?0$/i.test(k) || /^0$/.test(k)) {
+            invoiceId = Number(lastMessage[k]) || invoiceId;
+            break;
+          }
+        }
+      }
+
+      // Validar invoiceId
+      if (!invoiceId || Number(invoiceId) === 0) {
+        console.error('InvoiceId inválido o 0 tras todos los intentos — ignorando. lastMessage:', lastMessage, 'parsed:', parsed);
+        continue;
+      }
+
+      // Normalizar cantidad y manualId
+      invoiceId = Number(invoiceId);
+      cantidadx = Number(cantidadx) || amountAdded || 0;
+      manualId = manualId || manualGenerado;
+
+      // Ahora que tenemos idx y manualid, actualizamos hiddenData de la transacción confirmada
+      // Como no podemos modificar la transacción ya añadida, podríamos eliminarla y volver a añadir con los datos completos,
+      // o simplemente dejar la que ya está (la información principal ya está). Para mantener consistencia, la reemplazamos.
+      if (window.hub) {
+        // Buscar la transacción con ese hash y actualizar hiddenData (si el hub lo permitiera)
+        // Pero como no tenemos método de actualización, eliminamos y volvemos a añadir.
+        window.hub.removeTransaction(resCrear.txHash);
+        hiddenData.idx = invoiceId;
+        hiddenData.manualid = manualId;
+        window.hub.addTransaction('items', {
+          name: ruta_tabla,
+          quantity: cantidadx,
+          hash: resCrear.txHash,
+          status: 'confirmed',
+          hiddenData: hiddenData
+        });
+      }
+
+      // Finalmente actualizar frontend
+      try {
+        if (typeof this.addItemWithCheck === 'function') {
+          await this.addItemWithCheck(producto, cantidadx, invoiceId, manualId);
+          console.error(`addItemWithCheck OK (new) para invoice ${invoiceId} cantidad ${cantidadx}`);
+        } else {
+          console.error('addItemWithCheck no encontrada; omitiendo actualización local para invoiceId', invoiceId);
+        }
+      } catch (err) {
+        console.error('Error ejecutando addItemWithCheck tras createInvoice:', err, 'invoiceId:', invoiceId, 'manualId:', manualId);
+      }
+    }
+
+    console.log('Additemblockchains: procesamiento finalizado.');
+  } catch (error) {
+    console.error('❌ Error crítico en Additemblockchains:', error);
+    if (this.relayClient && typeof this.relayClient.showError === 'function') {
+      this.relayClient.showError(`❌ Error crítico: ${error.message}`, 5000);
+    }
+  } finally {
+    // Liberar bloqueo visual y bandera de transacción
+    try {
+      unlockAllSlotsLocal();
+    } catch (e) {
+      console.warn('unlockAllSlotsLocal fallo en finally:', e);
+    }
+    this._transactionInProgress = false;
+    this._addItemBlockchainBusy = false;
+  }
+}
+
+
+/**
+ * Simula la adición de 'quantity' unidades del ítem 'itemId' al inventario,
+ * completando stacks parciales y creando nuevos stacks hasta agotar la cantidad.
+ *
+ * @param {string} itemId      - Clave del ítem en ItemDefinitions.
+ * @param {number} quantity    - Cantidad a agregar (por defecto 1).
+ * @returns {Object}           - Reporte con operaciones y resumen.
+ */
+simulateAddItem(itemId, quantity = 1) {
+  const def = this.ItemDefinitions?.[itemId];
+  if (!def) {
+    console.error(`Item "${itemId}" no definido en ItemDefinitions`);
+    return {
+      success: false,
+      remaining: quantity,
+      operations: [],
+      summary: { totalMerged: 0, totalNewStacks: 0, newStacksCount: 0, slotsUsed: { quick: 0, inv: 0 } }
+    };
+  }
+
+  const maxStack = def.maxStack;
+  let remaining = quantity;
+
+  // Clonar los slots para simular sin tocar los reales
+  const simQuick = this.STATE.quickSlots.map(s => s ? { ...s } : null);
+  const simInv = this.STATE.slots.map(s => s ? { ...s } : null);
+
+  // Evitar tocar el ítem seleccionado (fantasma)
+  const occupied = new Set();
+  if (this.STATE.selectedItem) {
+    const sel = this.STATE.selectedItem;
+    if (sel.originType === 'inv') occupied.add(`inv-${sel.originIndex}`);
+    else if (sel.originType === 'quick') occupied.add(`quick-${sel.originIndex}`);
+  }
+  const isOccupied = (type, idx) => occupied.has(`${type}-${idx}`);
+
+  const operations = [];
+
+  // --------------------------------------------------------
+  // Función interna: completar stacks parciales existentes
+  // --------------------------------------------------------
+  const completePartialStacks = (slots, type) => {
+    let mergedAny = false;
+    for (let i = 0; i < slots.length; i++) {
+      if (remaining <= 0) break;
+      if (isOccupied(type, i)) continue;
+
+      const slot = slots[i];
+      if (slot && slot.id === itemId && slot.count < maxStack) {
+        const espacio = maxStack - slot.count;
+        const add = Math.min(espacio, remaining);
+        const prev = slot.count;
+        slot.count += add;
+        remaining -= add;
+        mergedAny = true;
+
+        const slotReal = type === 'quick' ? this.STATE.quickSlots[i] : this.STATE.slots[i];
+        console.log(`[SIMULATE] Merge en ${type} slot ${i}: prev=${prev}, add=${add}, final=${slot.count}, remaining=${remaining}`);
+
+        operations.push({
+          type: 'merge',
+          location: { type, index: i },
+          amountAdded: add,
+          previousCount: prev,
+          finalCount: slot.count,
+          usedStackLimit: slot.count === maxStack,
+          idx: slotReal ? slotReal.idx : null,
+          manualid: slotReal ? slotReal.idm : null
+        });
+      }
+    }
+    return mergedAny;
+  };
+
+  // --------------------------------------------------------
+  // Función interna: crear nuevos stacks en slots vacíos
+  // --------------------------------------------------------
+  const createNewStacks = (slots, type) => {
+    let createdAny = false;
+    for (let i = 0; i < slots.length && remaining > 0; i++) {
+      if (isOccupied(type, i)) continue;
+      if (!slots[i]) {
+        const add = Math.min(maxStack, remaining);
+        slots[i] = { id: itemId, count: add, idx: i, idm: itemId };
+        remaining -= add;
+        createdAny = true;
+
+        console.log(`[SIMULATE] Nuevo stack en ${type} slot ${i}: add=${add}, remaining=${remaining}`);
+
+        operations.push({
+          type: 'new',
+          location: { type, index: i },
+          amountAdded: add,
+          finalCount: add
+        });
+      }
+    }
+    return createdAny;
+  };
+
+  // --------------------------------------------------------
+  // Bucle principal: iterar hasta que no quede remaining
+  // --------------------------------------------------------
+  let iteration = 0;
+  while (remaining > 0) {
+    iteration++;
+    console.log(`[SIMULATE] Iteración ${iteration}, remaining=${remaining}`);
+
+    // 1️⃣ Completar stacks parciales
+    const mergedQuick = completePartialStacks(simQuick, 'quick');
+    const mergedInv = completePartialStacks(simInv, 'inv');
+
+    // 2️⃣ Crear stacks nuevos si queda remaining
+    const newQuick = createNewStacks(simQuick, 'quick');
+    const newInv = createNewStacks(simInv, 'inv');
+
+    // 3️⃣ Si no hubo merge ni nuevos stacks → no hay más espacio
+    if (!mergedQuick && !mergedInv && !newQuick && !newInv) {
+      console.log(`[SIMULATE] No hay más espacio para agregar los ${remaining} restantes`);
+      break;
+    }
+  }
+
+  const success = remaining === 0;
+
+  // --------------------------------------------------------
+  // Resumen
+  // --------------------------------------------------------
+  let totalMerged = 0, totalNew = 0;
+  const newStacksCount = operations.filter(op => op.type === 'new').length;
+  operations.forEach(op => {
+    if (op.type === 'merge') totalMerged += op.amountAdded;
+    else totalNew += op.amountAdded;
+  });
+
+  const slotsUsed = { quick: 0, inv: 0 };
+  operations.filter(op => op.type === 'new').forEach(op => {
+    slotsUsed[op.location.type]++;
+  });
+
+  console.log(`[SIMULATE] Resultado final: success=${success}, remaining=${remaining}, totalMerged=${totalMerged}, totalNewStacks=${totalNew}, newStacksCount=${newStacksCount}`);
+
+  return {
+    success,
+    remaining,
+    operations,
+    summary: { totalMerged, totalNewStacks: totalNew, newStacksCount, slotsUsed }
+  };
+}
+
+
+
+
+
+// ---------------------------
+// VERIFICAR ROMPIMIENTO DE HERRAMIENTA
+// ---------------------------
+/**
+ * Descuenta 1 uso a la herramienta con el invoiceId dado.
+ * Si los usos llegan a 0: notifica, console.log, y ejecuta ejecutarDivisionRemove para quitar 1 del stack.
+ * No toca el cursor ni bloquea nada.
+ *
+ * @param {Object} itemRef  — objeto de slot o selectedItem con .id e .idx
+ */
+async verificarRompimiento(itemRef) {
+  try {
+    if (!itemRef || !itemRef.idx) return;
+    const toolDef = this.ItemDefinitions[itemRef.id];
+    if (!toolDef || toolDef.usos == null) return; // sin usos definidos → no es herramienta
+
+    // 1) Consultar usos actuales en backend
+    const usosRes = await this.fetchWithTokenRetry(
+      `${this.serverBase}/api/tool/uses/${itemRef.idx}`, { method: 'GET' }
+    );
+    const usosData = await usosRes.json();
+    const usosActuales = typeof usosData.usos === 'number' ? usosData.usos : toolDef.usos;
+    const usosNuevos = usosActuales - 1;
+
+    // 2) Registrar el descuento en backend
+    await this.fetchWithTokenRetry(`${this.serverBase}/api/tool/uses/decrease`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) },
+      body: JSON.stringify({ invoiceId: itemRef.idx, maxUsos: toolDef.usos })
+    });
+
+    if (usosNuevos <= 0) {
+      // ── Buscar casilla del item (solo para el log) ──
+      let slotRoto = null;
+      let slotTipo = null;
+      for (let i = 0; i < this.STATE.slots.length; i++) {
+        if (this.STATE.slots[i]?.idx === itemRef.idx) { slotRoto = i; slotTipo = 'inventario'; break; }
+      }
+      if (slotRoto === null) {
+        for (let i = 0; i < this.STATE.quickSlots.length; i++) {
+          if (this.STATE.quickSlots[i]?.idx === itemRef.idx) { slotRoto = i; slotTipo = 'quickslot'; break; }
+        }
+      }
+
+      console.log(`💀 Objeto "${itemRef.id}" en casilla ${slotTipo}[${slotRoto}] se rompió (idx=${itemRef.idx})`);
+      this.notifications.show(`Your ${itemRef.id} broke!`, 'error');
+
+      // ── Quitar 1 del stack en blockchain + local ──
+      /* EL TIPO ON-CHAIN, NO LA PALABRA 'slots'. Ese argumento acaba en
+         `quitarDeFactura({ tipo })`, que lo compara con el tipo de la factura
+         para no quemar la equivocada. Con 'slots' la comparacion fallaba
+         siempre y la respuesta era "esa factura ya no estaba": la herramienta
+         rota desaparecia de la pantalla pero seguia entera en la cadena.
+         Mismo fallo que tenia la venta de la tienda. */
+      const tipoOnchain = (toolDef && toolDef.tipo) || itemRef.id;
+      await this.ejecutarDivisionRemove.call(this, tipoOnchain, itemRef.id, toolDef.maxStack || 5, 1);
+
+      // ── Borrar el registro de usos para que las unidades restantes del stack empiecen frescos ──
+      try {
+        await this.fetchWithTokenRetry(`${this.serverBase}/api/tool/uses/${itemRef.idx}`, {
+          method: 'DELETE',
+          headers: { 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) }
+        });
+      } catch (delErr) {
+        console.warn('⚠️ No se pudo borrar registro de usos tras rompimiento:', delErr);
+      }
+
+    } else {
+      // Actualizar usos restantes en el estado local (para la barra visual)
+      for (const s of [...this.STATE.slots, ...this.STATE.quickSlots]) {
+        if (s?.idx === itemRef.idx) { s.usosRestantes = usosNuevos; break; }
+      }
+      console.log(`🪓 ${itemRef.id} usó 1 uso. Restantes: ${usosNuevos}/${toolDef.usos}`);
+    }
+
+    this.renderAllSlots();
+  } catch (err) {
+    console.warn('⚠️ Error en verificarRompimiento:', err);
+  }
+}
+
+// ---------------------------
+// EJECUTAR DIVISIÓN (ELIMINAR) - CORREGIDA
+// ---------------------------
+/* CUÁNTAS UNIDADES SE QUITARON DE VERDAD, Y DE QUÉ MANERA.
+
+   Antes esto no devolvía nada útil (`RemoveItemBlockchains` daba un booleano
+   que además se perdía por el camino), así que la venta tenía que ADIVINARLO
+   comparando el inventario antes y después. Esa cuenta miente en cuanto algo
+   más toca el inventario a la vez — y con la cola de ventas eso pasa —, y
+   encima confundía "ya estaba gastado en la cadena" con "se ha vendido", que
+   es la diferencia entre cuadrar un hueco y pagar dinero.
+
+   Ahora el recuento sube desde donde se sabe:
+     confirmadas → unidades quemadas en la cadena en ESTA operación (se pagan)
+     yaGastadas  → la factura ya no estaba; se cuadra el hueco y NO se paga
+     fallidas    → no se pudo; el objeto se queda donde está */
+_recuentoVacio(fallidas = 0, motivo = null) {
+    return { confirmadas: 0, yaGastadas: 0, fallidas: Number(fallidas) || 0, motivo: motivo };
+}
+
+async ejecutarDivisionRemove(ruta_tabla, producto, limitacion, cantidad) {
+    if (limitacion <= 0 || cantidad <= 0) return this._recuentoVacio(0, 'cantidad inválida');
+
+    // Mismo criterio que ejecutarDivision: se ENCOLA en vez de descartar, para
+    // que vender varias cosas seguidas no pierda ninguna transacción.
+    // TxGate: y se anota fuera de la escena para que salir de la tienda no la
+    // deje huérfana (ver tx-gate.js).
+    const finTx = (window.GFTxGate && window.GFTxGate.begin)
+        ? window.GFTxGate.begin(`Shop sale: ${cantidad}x ${producto}`)
+        : null;
+
+    /* SE DEVUELVE EL RESULTADO DE ESTA LLAMADA, NO EL DE LA COLA ENTERA.
+
+       Antes se devolvía `this._removeItemQueue`, que es la cadena COMPLETA: si
+       mientras tanto entraba otra venta, quien esperaba aquí recibía el
+       resultado de la otra. Con la cola de ventas eso pasa constantemente.
+       `mia` es la promesa de ESTA operación; la cola se sigue encadenando a
+       ella para que el orden no cambie. */
+    const mia = (this._removeItemQueue || Promise.resolve())
+        .catch(() => {})            // un fallo anterior no arrastra al siguiente
+        .then(() => this._ejecutarDivisionRemoveInterno(ruta_tabla, producto, limitacion, cantidad));
+
+    /* La cola NUNCA se queda rechazada: si lo hiciera, el navegador sacaría un
+       "unhandled rejection" y el siguiente trabajo heredaría el fallo. Quien
+       llamó recibe `mia` y ya trata el error por su cuenta. */
+    this._removeItemQueue = mia
+        .catch(err => { console.error('❌ Error en la cola de quitar objetos:', err); })
+        .finally(() => { if (finTx) finTx(); });
+
+    return mia;
+}
+
+async _ejecutarDivisionRemoveInterno(ruta_tabla, producto, limitacion, cantidad) {
+    if (limitacion <= 0 || cantidad <= 0) return this._recuentoVacio(0, 'cantidad inválida');
+
+    if (this._removeItemBlockchainBusy) {
+        console.warn('Transacción de eliminar item ya en progreso. Ignorando nueva petición.');
+        return this._recuentoVacio(cantidad, 'ya había otra operación en curso');
+    }
+    this._removeItemBlockchainBusy = true;
+
+    try {
+        // ── Si hay un item en el cursor, devolverlo a su casilla de origen antes de proceder ──
+        if (this.STATE?.selectedItem?.isGhost) {
+            const cursorItem = this.STATE.selectedItem;
+            const slotArr  = cursorItem.originType === 'inv' ? this.STATE.slots      : this.STATE.quickSlots;
+            const ghostArr = cursorItem.originType === 'inv' ? this.STATE.ghostSlots.inv : this.STATE.ghostSlots.quick;
+
+            slotArr[cursorItem.originIndex] = {
+                id:    cursorItem.id,
+                count: cursorItem.count,
+                idx:   cursorItem.idx  ?? null,
+                idm:   cursorItem.idm  ?? null
+            };
+            ghostArr[cursorItem.originIndex] = null;
+            this.STATE.selectedItem = null;
+            this.stopDrag && this.stopDrag();
+            this.renderSlot(cursorItem.originIndex);
+            console.log(`↩️ Item "${cursorItem.id}" devuelto a ${cursorItem.originType}[${cursorItem.originIndex}] antes de eliminar`);
+        }
+
+        /* NUNCA LANZA HACIA ARRIBA. Quien llama es la cola de la tienda, y una
+           promesa rechazada ahí se convierte en un "unhandled rejection" que no
+           arregla nada y esconde el motivo. El fallo se devuelve como recuento,
+           que es lo que la venta sabe interpretar. */
+        const recuento = await this.RemoveItemBlockchains(ruta_tabla, producto, cantidad);
+        return (recuento && typeof recuento === 'object')
+            ? recuento
+            : this._recuentoVacio(cantidad, 'la operación no devolvió recuento');
+    } catch (err) {
+        console.error('❌ Error quitando ' + producto + ' de la cadena:', err);
+        return this._recuentoVacio(cantidad, (err && (err.message || String(err))) || 'error inesperado');
+    } finally {
+        // Sin este finally la bandera se quedaba en true y toda venta
+        // posterior se descartaba en silencio.
+        this._removeItemBlockchainBusy = false;
+    }
+}
+
+// ---------------------------------
+// SIMULADOR: eliminar items (mirror) - SIN CAMBIOS
+// ---------------------------------
+/**
+ * Simula la eliminación de 'quantity' unidades del ítem 'itemId' del inventario,
+ * sin modificar el estado real. Retorna un reporte con operaciones 'remove'.
+ *
+ * Cada operación incluye:
+ * - type: 'remove'
+ * - location: { type: 'inv'|'quick', index }
+ * - amountRemoved
+ * - previousCount
+ * - finalCount
+ * - idx (id de la factura / invoice id)  <-- importante para llamadas al contrato
+ * - manualid (manualId)                  <-- para mostrar / debug
+ */
+simulateRemoveItem(itemId, quantity = 1) {
+  const def = this.ItemDefinitions?.[itemId];
+  if (!def) {
+    console.warn(`Item "${itemId}" no definido en ItemDefinitions`);
+    return {
+      success: false,
+      remaining: quantity,
+      operations: [],
+      summary: { totalRemoved: 0, stacksAffected: 0, slotsFreed: 0 }
+    };
+  }
+
+  let remaining = quantity;
+
+  // Clonar slots para simular sin modificar el original
+  const simQuick = this.STATE.quickSlots.map(s => s ? { ...s } : null);
+  const simInv = this.STATE.slots.map(s => s ? { ...s } : null);
+
+  // Slots ocupados por el ítem seleccionado (fantasma)
+  const occupied = new Set();
+  if (this.STATE.selectedItem) {
+    const sel = this.STATE.selectedItem;
+    if (sel.originType === 'inv') occupied.add(`inv-${sel.originIndex}`);
+    else if (sel.originType === 'quick') occupied.add(`quick-${sel.originIndex}`);
+  }
+  const isOccupied = (type, idx) => occupied.has(`${type}-${idx}`);
+
+  const operations = [];
+
+  // 1) Quitar de quickSlots (cofre/inmediato) primero - preferencia puede cambiar
+  for (let i = 0; i < simQuick.length && remaining > 0; i++) {
+    if (isOccupied('quick', i)) continue;
+    const slot = simQuick[i];
+    if (slot && slot.id === itemId && slot.count > 0) {
+      const remove = Math.min(slot.count, remaining);
+      const prev = slot.count;
+      slot.count -= remove;
+      remaining -= remove;
+
+      const slotReal = this.STATE.quickSlots[i];
+
+      operations.push({
+        type: 'remove',
+        location: { type: 'quick', index: i },
+        amountRemoved: remove,
+        previousCount: prev,
+        finalCount: slot.count,
+        idx: slotReal ? slotReal.idx : null,
+        manualid: slotReal ? slotReal.idm : null
+      });
+    }
+  }
+
+  // 2) Quitar de inventario normal
+  for (let i = 0; i < simInv.length && remaining > 0; i++) {
+    if (isOccupied('inv', i)) continue;
+    const slot = simInv[i];
+    if (slot && slot.id === itemId && slot.count > 0) {
+      const remove = Math.min(slot.count, remaining);
+      const prev = slot.count;
+      slot.count -= remove;
+      remaining -= remove;
+
+      const slotReal = this.STATE.slots[i];
+
+      operations.push({
+        type: 'remove',
+        location: { type: 'inv', index: i },
+        amountRemoved: remove,
+        previousCount: prev,
+        finalCount: slot.count,
+        idx: slotReal ? slotReal.idx : null,
+        manualid: slotReal ? slotReal.idm : null
+      });
+    }
+  }
+
+  const success = remaining === 0;
+
+  // Resumen
+  let totalRemoved = 0;
+  let stacksAffected = operations.length;
+  let slotsFreed = operations.filter(op => op.finalCount === 0).length;
+  operations.forEach(op => totalRemoved += op.amountRemoved);
+
+  return {
+    success,
+    remaining,
+    operations,
+    summary: {
+      totalRemoved,
+      stacksAffected,
+      slotsFreed
+    }
+  };
+}
+
+// ---------------------------------
+// RemoveItemBlockchains - SIN CAMBIOS (se incluye completo)
+// ---------------------------------
+async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
+  // small helper sleep to avoid race conditions
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  // Funciones auxiliares para bloquear slots
+  const lockSlotLocal = (type, index) => {
+    try {
+      const selector = type === 'inv'
+        ? `.inv-slot[data-slot-index="${index}"]`
+        : `.quick-slot[data-slot-index="${index}"]`;
+      const slot = document.querySelector(selector);
+      if (slot) slot.classList.add('slot-locked');
+    } catch (e) {
+      console.warn('lockSlotLocal fallo:', e);
+    }
+  };
+
+  const unlockAllSlotsLocal = () => {
+    try {
+      document.querySelectorAll('.inv-slot, .quick-slot').forEach(slot => {
+        slot.classList.remove('slot-locked');
+      });
+    } catch (e) {
+      console.warn('unlockAllSlotsLocal fallo:', e);
+    }
+  };
+
+  // Helper para eliminar transacciones de items asociadas a una factura
+  const removeAssociatedAddTransactions = (idx, manualid) => {
+    if (!window.hub || !window.hub.transactions) return;
+    const items = window.hub.transactions.items || [];
+    items.forEach(tx => {
+      if (tx.hiddenData && tx.hiddenData.idx === idx && 
+          (tx.hiddenData.manualid === manualid || (!manualid && !tx.hiddenData.manualid))) {
+        window.hub.removeTransaction(tx.hash);
+      }
+    });
+  };
+
+  /* EL RECUENTO VIVE FUERA DEL try: el `catch` de abajo también lo lee, y lo
+     que ya se quemó en la cadena hay que pagarlo aunque la operación reviente
+     a mitad. Declararlo dentro sería un ReferenceError en el peor momento. */
+  let confirmadas = 0, yaGastadas = 0, fallidas = 0;
+
+  /* El motivo del fallo es de ESTA operación. Sin limpiarlo, una venta que
+     falla enseña el motivo de la anterior — y con la cola de ventas eso es lo
+     habitual, no una rareza. */
+  this._ultimoMotivoFallo = null;
+
+  try {
+    // Inicializar relayClient si hace falta
+    if (!this.relayClient || this.relayClient._destroyed) {
+      this.relayClient = new PhaserRelay({
+        // FIX "Debes estar autenticado": ver nota en Additemblockchains.
+        apiBase: this._resolveApiBase(),
+        debug: true,
+        forceLocalhostTo127: true
+      });
+      await this.relayClient.initialize();
+    }
+
+    // Debug backend
+
+    // Auth
+    const auth = await this.relayClient.checkAuth();
+    if (!auth || !auth.success) {
+      this.relayClient.showError(this.relayClient.authErrorMessage(auth), 5000);
+      this._ultimoMotivoFallo = 'no hay sesión iniciada';
+      return this._recuentoVacio(cantidad, this._ultimoMotivoFallo);
+    }
+    console.log('🔑 Usuario autenticado:', auth.address);
+
+    // Establecer usuario en el hub
+    if (window.hub && this.playerName) {
+      window.hub.setUser(this.playerName, auth.address);
+    }
+
+    // Encontrar contrato
+    let contract;
+    try {
+      contract = await this.relayClient.findContract('ItemContract');
+    } catch (error) {
+      this.relayClient.showError('❌ Error conectando al backend: ' + (error.message || error), 5000);
+      this._ultimoMotivoFallo = 'no se pudo conectar con el servidor';
+      return this._recuentoVacio(cantidad, this._ultimoMotivoFallo);
+    }
+    if (!contract) {
+      this.relayClient.showError('❌ Contrato ItemContract no encontrado', 3000);
+      this._ultimoMotivoFallo = 'no se encontró el contrato';
+      return this._recuentoVacio(cantidad, this._ultimoMotivoFallo);
+    }
+    console.log('📄 Contrato encontrado:', contract.address);
+
+    // --- SIMULACIÓN: qué removemos ---
+    const reporte = this.simulateRemoveItem(producto, cantidad);
+    console.log('Reporte (simulateRemoveItem):', reporte);
+
+    if (!reporte || !Array.isArray(reporte.operations) || reporte.operations.length === 0) {
+      if (reporte && reporte.remaining > 0) {
+        this.relayClient.showWarning(`⚠️ No hay suficiente cantidad para eliminar. Falta: ${reporte.remaining}`, 4000);
+        this._ultimoMotivoFallo = 'no hay bastante en el inventario';
+      } else {
+        this.relayClient.showInfo('ℹ️ No hay operaciones a ejecutar (nada que remover).', 3000);
+        this._ultimoMotivoFallo = 'no había nada que quitar';
+      }
+      return this._recuentoVacio(cantidad, this._ultimoMotivoFallo);
+    }
+
+    // ===== BLOQUEAR SLOTS IMPLICADOS =====
+    reporte.operations.forEach(op => {
+      try {
+        if (op && op.location && op.location.type && op.location.index !== undefined && op.location.index !== null) {
+          lockSlotLocal(op.location.type, op.location.index);
+        }
+      } catch (e) {
+        console.warn('Error lockSlotLocal por operación:', op, e);
+      }
+    });
+
+    let anyProcessed = false;
+
+    // Procesar cada operación de forma secuencial
+    for (const originalOp of reporte.operations) {
+      // Clone safe copy of op to avoid accidental mutation
+      const op = { ...originalOp };
+      // Normalize numeric idx if it's a string
+      if (op.idx !== undefined && op.idx !== null && typeof op.idx === 'string' && op.idx.trim() !== '') {
+        const n = Number(op.idx);
+        if (!Number.isNaN(n)) op.idx = n;
+      }
+
+      // If no idx but manualid is present, try to resolve it via contract view
+      if ((op.idx === undefined || op.idx === null) && op.manualid) {
+        try {
+          const lookup = await this.relayClient.accion(contract.address, {
+            funcion: 'getInvoiceByManualId',
+            _manualId: op.manualid,
+            accion: 'obtener'
+          });
+          if (lookup) {
+            if (typeof lookup === 'object' && lookup.id !== undefined) {
+              op.idx = Number(lookup.id);
+            } else if (Array.isArray(lookup) && lookup.length > 0) {
+              op.idx = Number(lookup[0]);
+            } else {
+              const keys = Object.keys(lookup || {});
+              for (const k of keys) {
+                if (k.toLowerCase().includes('id')) {
+                  const candidate = Number(lookup[k]);
+                  if (!Number.isNaN(candidate)) {
+                    op.idx = candidate;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn(`⚠️ No se pudo resolver manualId ${op.manualid} a idx:`, err);
+        }
+      }
+
+      /* SIN idx NO SE ABANDONA: SE SIGUE POR EL TIPO.
+
+         FALLO QUE ESTO ARREGLA — "puedo comprar pero no vender".
+
+         Aquí había un `continue` que descartaba la operación entera cuando el
+         hueco no traía un id de factura utilizable. Y eso pasa a menudo:
+         `/api/load` manda `idx: s.IDX ?? s.id`, así que un objeto sin IDX en la
+         base de datos se queda con el NÚMERO DE HUECO — y el hueco 0 da
+         `idx = 0`, que en JavaScript es falso. Un objeto guardado en la primera
+         casilla del inventario NO SE PODÍA VENDER NUNCA. Tampoco los que
+         llegaron con `idx: null`.
+
+         Y no era un fallo ruidoso: al saltarse la operación no se enviaba nada,
+         no se apuntaba ningún motivo, y la venta terminaba con el cartel genérico
+         "la cadena no lo confirmó". Nada que mirar.
+
+         `quitarDeFactura` YA SABE resolver esto: si el id no vale, busca por
+         manualId y, si tampoco, mira las facturas vivas del jugador y coge una
+         del tipo que se está gastando. Lo único que hacía falta era dejarla
+         intentarlo. El id se manda como 0 —que es lo que ella entiende por "no
+         tengo id"— y el `tipo` hace el trabajo. */
+      if (!op.idx) {
+        console.warn('Operación sin id de factura utilizable: se buscará por tipo (' +
+                     ruta_tabla + ') en el inventario del jugador.', op);
+        op.idx = 0;
+      }
+
+      // normalize amountRemoved
+      const amount = Number(op.amountRemoved || op.amountRemoved === 0 ? op.amountRemoved : op.remove || 0);
+      if (!amount || amount <= 0) {
+        console.warn('Operación con amountRemoved inválido - ignorando:', op);
+        continue;
+      }
+
+      anyProcessed = true;
+
+      // Datos comunes para hiddenData
+      const hiddenDataBase = {
+        producto: producto,
+        cantidad: amount,
+        idx: op.idx,
+        manualid: op.manualid || '',
+        ruta_tabla: ruta_tabla
+      };
+
+      // Si finalCount === 0 => eliminar factura (deleteInvoice)
+      if (op.finalCount === 0) {
+        console.log(`🔻 Eliminando invoice id=${op.idx} manualId=${op.manualid} cantidad=${amount}`);
+
+        const hiddenData = { ...hiddenDataBase, type: 'delete' };
+        const tempHash = 'temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+
+        // Añadir transacción pendiente en categoría 'interaction' con nombre 'Remove Items'
+        if (window.hub) {
+          window.hub.addTransaction('interaction', {
+            name: 'Remove Items',
+            quantity: amount,
+            hash: tempHash,
+            status: 'pending',
+            hiddenData: hiddenData
+          });
+        }
+
+        /* SE QUITA POR EL CAMINO RESISTENTE (ver quitarDeFactura en
+           phaser-relay-library.js). Antes aqui se mandaba `deleteInvoice(idx)`
+           a pelo y cualquier tropiezo -- un id viejo, un hueco que nunca tuvo
+           factura, una cantidad que no cuadra -- acababa en el mismo cartel
+           rojo "Error borrando invoice N", que es justo lo que le salia al
+           jugador al craftear y al llenar el balde en la fuente.
+
+           Ahora primero se MIRA la factura, se busca por su manualId si el id
+           no vale, y se quita con decreaseInvoiceQuantity, que borra la factura
+           el solo al llegar a cero y nunca quema de mas. */
+        let sendResult;
+        let quitado;
+        try {
+          quitado = await this.relayClient.quitarDeFactura(contract.address, {
+            idx: op.idx,
+            manualid: op.manualid,
+            cantidad: amount,
+            tipo: ruta_tabla,
+            vaciarFactura: true
+          });
+        } catch (err) {
+          console.error('❌ Excepcion quitando de la factura:', err);
+          quitado = { ok: false, error: (err && (err.message || String(err))) || 'excepcion' };
+        }
+
+        /* YA NO ESTABA. No es un fallo: la factura ya se habia gastado por otro
+           camino y el inventario local iba retrasado. Se cuadra el hueco en
+           silencio y se sigue -- asustar al jugador con una cruz roja por algo
+           que ya estaba hecho era la mitad del problema. */
+        if (quitado && quitado.ok && quitado.ya) {
+          console.warn('La factura', op.idx, 'ya no estaba (' + quitado.motivo + '): se cuadra el inventario.');
+          if (window.hub) window.hub.removeTransaction(tempHash);
+          removeAssociatedAddTransactions(op.idx, op.manualid);
+          if (typeof this.EliitemWithCheck === 'function') {
+            try { await this.EliitemWithCheck(producto, amount, op.idx, op.manualid); }
+            catch (ex) { console.error('Error cuadrando el inventario:', ex); }
+          }
+          /* NO CUENTA COMO VENDIDO. La factura ya no estaba: el hueco iba
+             retrasado y se cuadra, pero en la cadena no ha salido nada AHORA,
+             así que pagarlo sería dinero de la nada. La venta lo cuenta aparte
+             y se lo dice al jugador. */
+          yaGastadas += amount;
+          await sleep(200);
+          continue;
+        }
+
+        if (!quitado || !quitado.ok) {
+          const motivo = (quitado && quitado.error) || 'motivo desconocido';
+          // Se guarda para que el aviso de la venta pueda decir POR QUÉ falló:
+          // "no se confirmó" a secas no le sirve a nadie para saber qué mirar.
+          this._ultimoMotivoFallo = motivo;
+          console.error('❌ No se pudo quitar de la factura:', quitado);
+          // El motivo REAL, no "Error borrando invoice N".
+          this.relayClient.showError(`❌ No se pudo gastar ${producto}: ${motivo}`, 5000);
+          if (window.hub) {
+            window.hub.removeTransaction(tempHash);
+            window.hub.addTransaction('interaction', {
+              name: 'Remove Items',
+              quantity: amount,
+              hash: 'reverted-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+              status: 'reverted',
+              hiddenData: hiddenData
+            });
+          }
+          fallidas += amount;
+          await sleep(500);
+          continue;
+        }
+
+        // A partir de aqui todo sigue igual que siempre.
+        sendResult = quitado;
+        op.idx = quitado.id || op.idx;
+        hiddenData.idx = op.idx;
+
+        this.relayClient.showSuccess(`Transacción ${quitado.funcion} enviada, esperando confirmación...`);
+
+        try {
+          const final = await this.relayClient.waitForTransaction(sendResult.transactionId, { interval: 3000 });
+          if (final && final.success) {
+            this.relayClient.showSuccess(`✅ Delete confirmada! TX: ${final.txHash?.substring(0,10) || '...'} `);
+
+            // Actualizar hub: eliminar pendiente y añadir confirmada
+            if (window.hub) {
+              window.hub.removeTransaction(tempHash);
+              window.hub.addTransaction('interaction', {
+                name: 'Remove Items',
+                quantity: amount,
+                hash: final.txHash,
+                status: 'confirmed',
+                hiddenData: hiddenData
+              });
+            }
+
+            // Eliminar las transacciones de items asociadas a esta factura
+            removeAssociatedAddTransactions(op.idx, op.manualid);
+
+            // Quemado de verdad en la cadena: ESTO es lo que se paga.
+            confirmadas += Math.min(amount, Number(quitado.cantidad) || amount);
+
+            // Actualiza estado local con la eliminación
+            if (typeof this.EliitemWithCheck === 'function') {
+              try {
+                const ok = await this.EliitemWithCheck(producto, amount, op.idx, op.manualid);
+                if (!ok) {
+                  console.warn('EliitemWithCheck no pudo completar la eliminación local para', op);
+                }
+              } catch (ex) {
+                console.error('Error ejecutando EliitemWithCheck tras delete:', ex);
+              }
+            } else {
+              console.warn('EliitemWithCheck no definida, por favor implementa el handler local de eliminación.');
+            }
+          } else {
+            fallidas += amount;
+            this._ultimoMotivoFallo = (final && final.error) || 'la transacción no se confirmó';
+            this.relayClient.showError(`❌ Delete falló: ${final?.error || 'unknown'}`);
+            if (window.hub) {
+              window.hub.removeTransaction(tempHash);
+              window.hub.addTransaction('interaction', {
+                name: 'Remove Items',
+                quantity: amount,
+                hash: 'reverted-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                status: 'reverted',
+                hiddenData: hiddenData
+              });
+            }
+          }
+        } catch (err) {
+          fallidas += amount;
+          this._ultimoMotivoFallo = 'se agotó la espera de la confirmación';
+          this.relayClient.showError(`⏰ Error esperando confirmación deleteInvoice: ${err.message || err}`);
+          if (window.hub) {
+            window.hub.removeTransaction(tempHash);
+            window.hub.addTransaction('interaction', {
+              name: 'Remove Items',
+              quantity: amount,
+              hash: 'reverted-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+              status: 'reverted',
+              hiddenData: hiddenData
+            });
+          }
+        }
+
+      } else {
+        // finalCount > 0 => decrease parcial
+        console.log(`🔻 Decreasing invoice id=${op.idx} manualId=${op.manualid} by ${amount}`);
+
+        const hiddenData = { ...hiddenDataBase, type: 'decrease' };
+        const tempHash = 'temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+
+        if (window.hub) {
+          window.hub.addTransaction('interaction', {
+            name: 'Remove Items',
+            quantity: amount,
+            hash: tempHash,
+            status: 'pending',
+            hiddenData: hiddenData
+          });
+        }
+
+        // Mismo camino resistente que el borrado, pero quitando solo una parte:
+        // aqui NUNCA se cae al plan B de borrar la factura entera.
+        let sendResult;
+        let quitado;
+        try {
+          quitado = await this.relayClient.quitarDeFactura(contract.address, {
+            idx: op.idx,
+            manualid: op.manualid,
+            cantidad: amount,
+            tipo: ruta_tabla,
+            vaciarFactura: false
+          });
+        } catch (err) {
+          console.error('❌ Excepcion disminuyendo la factura:', err);
+          quitado = { ok: false, error: (err && (err.message || String(err))) || 'excepcion' };
+        }
+
+        if (quitado && quitado.ok && quitado.ya) {
+          console.warn('La factura', op.idx, 'ya no estaba (' + quitado.motivo + '): se cuadra el inventario.');
+          if (window.hub) window.hub.removeTransaction(tempHash);
+          removeAssociatedAddTransactions(op.idx, op.manualid);
+          if (typeof this.EliitemWithCheck === 'function') {
+            try { await this.EliitemWithCheck(producto, amount, op.idx, op.manualid); }
+            catch (ex) { console.error('Error cuadrando el inventario:', ex); }
+          }
+          /* NO CUENTA COMO VENDIDO. La factura ya no estaba: el hueco iba
+             retrasado y se cuadra, pero en la cadena no ha salido nada AHORA,
+             así que pagarlo sería dinero de la nada. La venta lo cuenta aparte
+             y se lo dice al jugador. */
+          yaGastadas += amount;
+          await sleep(200);
+          continue;
+        }
+
+        if (!quitado || !quitado.ok) {
+          const motivo = (quitado && quitado.error) || 'motivo desconocido';
+          this._ultimoMotivoFallo = motivo;
+          console.error('❌ No se pudo disminuir la factura:', quitado);
+          this.relayClient.showError(`❌ No se pudo gastar ${producto}: ${motivo}`, 5000);
+          if (window.hub) {
+            window.hub.removeTransaction(tempHash);
+            window.hub.addTransaction('interaction', {
+              name: 'Remove Items',
+              quantity: amount,
+              hash: 'reverted-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+              status: 'reverted',
+              hiddenData: hiddenData
+            });
+          }
+          fallidas += amount;
+          await sleep(500);
+          continue;
+        }
+
+        sendResult = quitado;
+        op.idx = quitado.id || op.idx;
+        hiddenData.idx = op.idx;
+
+        this.relayClient.showSuccess(`Transacción ${quitado.funcion} enviada, esperando confirmación...`);
+
+        try {
+          const final = await this.relayClient.waitForTransaction(sendResult.transactionId, { interval: 3000 });
+          if (final && final.success) {
+            this.relayClient.showSuccess(`✅ Decrease confirmada! TX: ${final.txHash?.substring(0,10) || '...'} `);
+
+            if (window.hub) {
+              window.hub.removeTransaction(tempHash);
+              window.hub.addTransaction('interaction', {
+                name: 'Remove Items',
+                quantity: amount,
+                hash: final.txHash,
+                status: 'confirmed',
+                hiddenData: hiddenData
+              });
+            }
+
+            // Eliminar las transacciones de items asociadas a esta factura
+            removeAssociatedAddTransactions(op.idx, op.manualid);
+
+            // Quemado de verdad en la cadena: ESTO es lo que se paga.
+            confirmadas += Math.min(amount, Number(quitado.cantidad) || amount);
+
+            // Actualiza estado local con la disminución
+            if (typeof this.EliitemWithCheck === 'function') {
+              try {
+                const ok = await this.EliitemWithCheck(producto, amount, op.idx, op.manualid);
+                if (!ok) {
+                  console.warn('EliitemWithCheck no pudo completar la actualización local para', op);
+                }
+              } catch (ex) {
+                console.error('Error ejecutando EliitemWithCheck tras decrease:', ex);
+              }
+            } else {
+              console.warn('EliitemWithCheck no definida, por favor implementa el handler local de eliminación.');
+            }
+          } else {
+            fallidas += amount;
+            this._ultimoMotivoFallo = (final && final.error) || 'la transacción no se confirmó';
+            this.relayClient.showError(`❌ Decrease falló: ${final?.error || 'unknown'}`);
+            if (window.hub) {
+              window.hub.removeTransaction(tempHash);
+              window.hub.addTransaction('interaction', {
+                name: 'Remove Items',
+                quantity: amount,
+                hash: 'reverted-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                status: 'reverted',
+                hiddenData: hiddenData
+              });
+            }
+          }
+        } catch (err) {
+          fallidas += amount;
+          this._ultimoMotivoFallo = 'se agotó la espera de la confirmación';
+          this.relayClient.showError(`⏰ Error esperando confirmación decreaseInvoiceQuantity: ${err.message || err}`);
+          if (window.hub) {
+            window.hub.removeTransaction(tempHash);
+            window.hub.addTransaction('interaction', {
+              name: 'Remove Items',
+              quantity: amount,
+              hash: 'reverted-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+              status: 'reverted',
+              hiddenData: hiddenData
+            });
+          }
+        }
+      }
+
+      // short delay to reduce chance of race conditions / nonce issues
+      await sleep(400);
+    } // end for
+
+    // Si quedó restante en el reporte, notificar
+    if (!reporte.success && reporte.remaining > 0) {
+      this.relayClient.showWarning(`⚠️ No se pudo remover toda la cantidad. Falta: ${reporte.remaining}`, 5000);
+      fallidas += reporte.remaining;
+      if (!this._ultimoMotivoFallo) this._ultimoMotivoFallo = 'no hay bastante en el inventario';
+    }
+
+    console.log(`📊 Quitar ${producto}: ${confirmadas} quemadas, ${yaGastadas} ya estaban gastadas, ` +
+                `${fallidas} sin poder (pedidas ${cantidad}).`, anyProcessed ? '' : '(ninguna operación llegó a enviarse)');
+
+    return {
+      confirmadas: confirmadas,
+      yaGastadas:  yaGastadas,
+      fallidas:    fallidas,
+      motivo:      this._ultimoMotivoFallo || null
+    };
+
+  } catch (error) {
+    console.error('❌ Error crítico en RemoveItemBlockchains:', error);
+    if (this.relayClient) {
+      this.relayClient.showError(`❌ Error crítico: ${error.message || error}`, 5000);
+    }
+    this._ultimoMotivoFallo = (error && (error.message || String(error))) || 'error inesperado';
+    /* Lo ya confirmado NO se tira: si la primera factura se quemó y la segunda
+       reventó, el jugador tiene que cobrar la primera. Antes esto devolvía
+       `false` y esas unidades se perdían sin pagar. */
+    return {
+      confirmadas: confirmadas,
+      yaGastadas:  yaGastadas,
+      fallidas:    Math.max(0, cantidad - confirmadas - yaGastadas),
+      motivo:      this._ultimoMotivoFallo
+    };
+  } finally {
+    // Liberar bloqueo visual de todos los slots
+    unlockAllSlotsLocal();
+  }
+}
+
+// ---------------------------------
+// EliitemWithCheck - SIN CAMBIOS
+// ---------------------------------
+/**
+ * EliitemWithCheck
+ * Elimina una cantidad del item identificado por invoiceId/manualId (si están),
+ * actualiza slots (quick/inv/chest), limpia idx/idm y persiste estado.
+ *
+ * @param {string} itemId
+ * @param {number} amountToRemove
+ * @param {number|null} invoiceIdx
+ * @param {string|null} manualId
+ * @returns {Promise<boolean>}
+ */
+async EliitemWithCheck(itemId, amountToRemove = 1, invoiceIdx = null, manualId = null) {
+  if (!itemId || !amountToRemove || amountToRemove <= 0) return false;
+
+  let remaining = Number(amountToRemove);
+
+  /* EL OBJETO MANDA; EL idx SOLO ELIGE QUÉ MONTÓN. Dos pasadas.
+
+     DOS FALLOS QUE ESTO ARREGLA:
+
+     1) SE PODÍA BORRAR OTRA COSA. La condición de antes aceptaba un hueco si
+        coincidía el `idx` O el `idm`, SIN mirar de qué objeto era. Y los `idx`
+        de los huecos son números de hueco muy a menudo (3, 7, 12…), repetidos
+        entre inventario y cofre rápido. Vender 5 zanahorias con `idx = 3`
+        podía vaciar el hueco 3 del cofre —donde estaba el hacha—. Ahora un
+        hueco solo entra si `slot.id === itemId`: nunca se toca otro objeto.
+
+     2) SE QUEMABA EN LA CADENA Y NO EN EL INVENTARIO. Si ningún hueco tenía
+        ese `idx` ni ese `idm` (lo normal cuando `quitarDeFactura` encuentra la
+        factura buena por el tipo y devuelve OTRO id), no se quitaba nada en
+        local: la factura desaparecía de la cadena y el objeto seguía en
+        pantalla. Ahora hay una segunda pasada: si con las pistas no se
+        completó, se quita de cualquier montón de ESE MISMO objeto.
+
+     `soloPreferidos = true`  → solo los huecos que casan con idx/manualId.
+     `soloPreferidos = false` → cualquier hueco de ese objeto. */
+  const processSlotsArray = (slotsArray, slotType, soloPreferidos) => {
+    // Un id 0 o un manualId vacío no son pistas: son "no tengo".
+    const hayPista = (invoiceIdx !== null && invoiceIdx !== undefined && Number(invoiceIdx) > 0) ||
+                     (manualId !== null && manualId !== undefined && String(manualId) !== '');
+
+    for (let i = 0; i < slotsArray.length && remaining > 0; i++) {
+      const slot = slotsArray[i];
+      if (!slot) continue;
+
+      // NUNCA otro objeto: esta es la condición que no se puede saltar.
+      if (slot.id !== itemId) continue;
+
+      const matchesIdx = invoiceIdx !== null && Number(invoiceIdx) > 0 &&
+                         (slot.idx === invoiceIdx || Number(slot.idx) === Number(invoiceIdx));
+      const matchesManual = manualId !== null && String(manualId) !== '' &&
+                            (slot.idm === manualId || String(slot.idm) === String(manualId));
+
+      // En la primera pasada solo valen los huecos señalados por las pistas.
+      if (soloPreferidos && hayPista && !(matchesIdx || matchesManual)) continue;
+
+      // Encontrado un slot válido para reducir
+      const slotCount = Number(slot.count || slot.quantity || 0);
+      if (slotCount <= 0) {
+        // slot vacío por seguridad
+        slotsArray[i] = null;
+        this.renderSlot(i);
+        continue;
+      }
+
+      if (slotCount > remaining) {
+        // Reducir parcialmente
+        const newCount = slotCount - remaining;
+        // Mantener formato consistente (algunos slots usan 'count' o 'quantity')
+        if ('count' in slot) slot.count = newCount;
+        else slot.quantity = newCount;
+
+        // Si el slot tenía idx/idm y ahora sigue >0, mantenemos idx/idm
+        remaining = 0;
+        this.renderSlot(i);
+      } else {
+        // Consumir todo el slot
+        remaining -= slotCount;
+        // limpiar completamente el slot y sus metadatos
+        slotsArray[i] = null;
+        this.renderSlot(i);
+      }
+    }
+  };
+
+  // Se recorre TODO con las pistas puestas y, si aún falta, se repite sin
+  // ellas. El orden entre montones no cambia: cofre rápido, inventario, cofre.
+  const recorrerTodo = (soloPreferidos) => {
+    // 1) Prioridad: quickSlots (hotbar / cofre rápido)
+    if (remaining > 0 && this.STATE && Array.isArray(this.STATE.quickSlots)) {
+      processSlotsArray(this.STATE.quickSlots, 'quick', soloPreferidos);
+    }
+
+    // 2) Inventario principal
+    if (remaining > 0 && this.STATE && Array.isArray(this.STATE.slots)) {
+      processSlotsArray(this.STATE.slots, 'inv', soloPreferidos);
+    }
+
+    // 3) Chest / cofre extra (si existe)
+    if (remaining > 0 && this.STATE && Array.isArray(this.STATE.chestSlots)) {
+      processSlotsArray(this.STATE.chestSlots, 'chest', soloPreferidos);
+    }
+
+    // 4) Como respaldo, si aún queda y existen otros arrays (casillas, casillasExtra)
+    if (remaining > 0 && Array.isArray(this.casillas)) {
+      processSlotsArray(this.casillas, 'casillas', soloPreferidos);
+    }
+    if (remaining > 0 && Array.isArray(this.casillasExtra)) {
+      processSlotsArray(this.casillasExtra, 'casillasExtra', soloPreferidos);
+    }
+  };
+
+  recorrerTodo(true);
+  if (remaining > 0) recorrerTodo(false);
+
+  // Persistir / UI
+  try {
+    this.queuedAction && this.queuedAction({ type: 'forSpam2' });
+    this.rebuildPlayerInventoryFromState && this.rebuildPlayerInventoryFromState();
+
+    /* GUARDAR NO ES OPCIONAL: es lo que hace que el cambio exista.
+       El `typeof` de antes convertia un fallo grave —no hay a quien pedirle el
+       guardado— en un silencio. Ahora se intenta siempre y se grita si falla:
+       si esto no ocurre, el objeto reaparece en cuanto se recarga el mapa. */
+    try {
+      /* SE MIRA LO QUE CONTESTA, NO SOLO SI EXPLOTA.
+
+         `savegg()` no siempre lanza cuando no guarda: devuelve `false` cuando
+         se pospone (el inventario todavia no ha cargado) y cuando el servidor
+         conserva SU copia porque el market escribio despues (`inventoryStale`).
+         Antes solo se miraba la excepcion, asi que los dos casos silenciosos
+         pasaban por buenos — y son exactamente los dos que hacen que lo vendido
+         reaparezca al salir del mapa. Ahora se avisa. */
+      const guardado = await this.savegg();
+      if (guardado === false) {
+        console.error('❌ El cambio de ' + itemId + ' NO llego al servidor (savegg devolvio false).');
+        this.showNotification?.(
+          '⚠️ That change has not been saved yet. Do not close the game until it syncs.',
+          'error'
+        );
+      }
+    } catch (e) {
+      console.error('❌ savegg fallo al guardar la eliminacion de ' + itemId + ':', e);
+      this.showNotification?.(
+        '⚠️ The change could not be saved. Check your connection before trading again.',
+        'error'
+      );
+    }
+  } catch (e) {
+    console.error('⚠️ Error actualizando UI/state tras EliitemWithCheck:', e);
+  }
+
+  if (remaining > 0) {
+    console.warn(`⚠️ No se pudo remover toda la cantidad. Falta: ${remaining}`);
+    return false;
+  }
+
+  return true;
+}
+
+
+
+
+/**
+ * Agrega 'quantity' unidades del ítem 'itemId' al inventario, priorizando el cofre.
+ * Primero completa stacks parciales; luego abre nuevos stacks en slots vacíos.
+ *
+ * @param {string} itemId           - Clave del ítem en ItemDefinitions.
+ * @param {number} quantity        - Cantidad a agregar (por defecto 1).
+ * @param {number|null} [customIdx] - Índice fijo para TODOS los stacks creados (opcional).
+ * @param {string|null} [customIdm] - ID manual para TODOS los stacks creados (opcional).
+ * @returns {boolean}              - true si se agregó todo, false si faltó espacio.
+ */
+addItemWithCheck(itemId, quantity = 1, customIdx = null, customIdm = null) {
+  const defs = this.ItemDefinitions[itemId];
+  if (!defs) {
+    console.warn(`Item "${itemId}" no definido en ItemDefinitions`);
+    return false;
+  }
+
+  const maxStack = defs.maxStack;
+  let remaining = quantity;
+
+  // Slots ocupados por fantasmas
+  const occupiedSlots = new Set();
+  if (this.STATE.selectedItem) {
+    if (this.STATE.selectedItem.originType === 'inv') {
+      occupiedSlots.add(`inv-${this.STATE.selectedItem.originIndex}`);
+    } else if (this.STATE.selectedItem.originType === 'quick') {
+      occupiedSlots.add(`quick-${this.STATE.selectedItem.originIndex}`);
+    }
+  }
+  const isOccupied = (type, index) => occupiedSlots.has(`${type}-${index}`);
+
+  // 1) COFRE – completar stacks parciales (sin modificar idx/idm)
+  for (let i = 0; i < this.STATE.quickSlots.length && remaining > 0; i++) {
+    if (isOccupied('quick', i)) continue;
+    const slot = this.STATE.quickSlots[i];
+    if (slot && slot.id === itemId && slot.count < maxStack &&
+        (customIdx == null || (Number(slot.idx) === Number(customIdx) && slot.idm === customIdm))) {
+      const espacio = maxStack - slot.count;
+      const suma = Math.min(espacio, remaining);
+      slot.count += suma;
+      remaining -= suma;
+      this.renderSlot(i);
+    }
+  }
+
+  // 2) INVENTARIO – completar stacks parciales
+  if (remaining > 0) {
+    for (let i = 0; i < this.STATE.slots.length && remaining > 0; i++) {
+      if (isOccupied('inv', i)) continue;
+      const slot = this.STATE.slots[i];
+      if (slot && slot.id === itemId && slot.count < maxStack &&
+          (customIdx == null || (Number(slot.idx) === Number(customIdx) && slot.idm === customIdm))) {
+        const espacio = maxStack - slot.count;
+        const suma = Math.min(espacio, remaining);
+        slot.count += suma;
+        remaining -= suma;
+        this.renderSlot(i);
+      }
+    }
+  }
+
+  // 3) COFRE VACÍO – crear nuevos stacks
+  if (remaining > 0) {
+    for (let i = 0; i < this.STATE.quickSlots.length && remaining > 0; i++) {
+      if (isOccupied('quick', i)) continue;
+      if (this.STATE.quickSlots[i] === null) {
+        const paraEste = Math.min(maxStack, remaining);
+        
+        const idx = (customIdx !== null) ? customIdx : i;
+        const idm = (customIdm !== null) ? customIdm : itemId;
+
+        this.STATE.quickSlots[i] = {
+          id: itemId,
+          count: paraEste,
+          invIndex: null,
+          idx: idx,
+          idm: idm
+        };
+        remaining -= paraEste;
+        this.renderSlot(i);
+      }
+    }
+  }
+
+  // 4) INVENTARIO VACÍO – crear nuevos stacks
+  if (remaining > 0) {
+    for (let i = 0; i < this.STATE.slots.length && remaining > 0; i++) {
+      if (isOccupied('inv', i)) continue;
+      if (this.STATE.slots[i] === null) {
+        const paraEste = Math.min(maxStack, remaining);
+        
+        const idx = (customIdx !== null) ? customIdx : i;
+        const idm = (customIdm !== null) ? customIdm : itemId;
+
+        this.STATE.slots[i] = {
+          id: itemId,
+          count: paraEste,
+          idx: idx,
+          idm: idm
+        };
+        remaining -= paraEste;
+        this.renderSlot(i);
+      }
+    }
+  }
+
+  if (remaining > 0) {
+    console.warn(`No hubo espacio para ${remaining} unidades de "${itemId}".`);
+    return false;
+  }
+
+  // FIX: delegar a la escena activa — TiendaSistema no tiene estos métodos propios
+  // (los delegadores ya no hacen nada si la tienda se cerró: ver _escenaViva).
+  this.queuedAction({ type: 'forSpam2' });
+  this.rebuildPlayerInventoryFromState();
+  return true;
+}
+
+
+
+/**
+ * Obtiene los índices de todos los slots ocupados (con fantasmas)
+ * @returns {Set<number>} - Conjunto de índices de slots ocupados
+ */
+getOccupiedSlots() {
+  const occupiedSlots = new Set();
+  
+  // Slots de inventario con fantasmas
+  this.STATE.ghostSlots.inv.forEach((ghost, index) => {
+    if (ghost) occupiedSlots.add(index);
+  });
+  
+  // Slots de quick-slot con fantasmas
+  this.STATE.ghostSlots.quick.forEach((ghost, index) => {
+    if (ghost) occupiedSlots.add(index);
+  });
+  
+  // También considerar slots que tienen items seleccionados actualmente
+  if (this.STATE.selectedItem) {
+    if (this.STATE.selectedItem.originType === 'inv' && 
+        this.STATE.selectedItem.originIndex !== undefined) {
+      occupiedSlots.add(this.STATE.selectedItem.originIndex);
+    }
+    if (this.STATE.selectedItem.originType === 'quick' && 
+        this.STATE.selectedItem.originIndex !== undefined) {
+      occupiedSlots.add(this.STATE.selectedItem.originIndex);
+    }
+  }
+  
+  return occupiedSlots;
+}
+
+
+renderSlot(index) {
+  // Las casillas del DOM son de la página, no de la tienda: con la tienda ya
+  // cerrada son las del MAPA, y no se pintan con el inventario de una escena
+  // que ya no está (ver _escena).
+  if (!this._escenaViva()) return;
+  // Helper: añade barra de durabilidad si el item es una herramienta con usos definidos
+  const _addUsosIndicator = (container, itemObj) => {
+    const def = this.ItemDefinitions[itemObj?.id];
+    if (!def || def.usos == null) return;
+    const maxU = def.usos;
+    const restantes = typeof itemObj.usosRestantes === 'number' ? itemObj.usosRestantes : maxU;
+    const rota = restantes <= 0;
+    const pct  = rota ? 0 : Math.round((restantes / maxU) * 100);
+    // barra de durabilidad
+    const bar = document.createElement('div');
+    bar.style.cssText = `
+      position:absolute; bottom:2px; left:2px; right:2px; height:3px;
+      background:#333; border-radius:2px; overflow:hidden; pointer-events:none;
+    `;
+    const fill = document.createElement('div');
+    fill.style.cssText = `
+      height:100%; width:${pct}%;
+      background:${pct > 50 ? '#4caf50' : pct > 20 ? '#ff9800' : '#f44336'};
+      border-radius:2px; transition:width .2s;
+    `;
+    bar.appendChild(fill);
+    container.style.position = 'relative';
+    container.appendChild(bar);
+  };
+
+  // Render inventario
+  const invDiv = document.querySelector(`.inv-slot[data-slot-index="${index}"]`);
+  if (invDiv) {
+    invDiv.innerHTML = "";
+    if (this.STATE.ghostSlots.inv[index]) {
+      invDiv.classList.add("empty");
+      invDiv.classList.remove("highlight");
+    } else {
+      const itemObj = this.STATE.slots[index];
+      if (itemObj) {
+        const img = document.createElement("img");
+        img.src = this.ItemDefinitions[itemObj.id].src;
+        img.alt = itemObj.id;
+        invDiv.appendChild(img);
+        if (itemObj.count > 1) {
+          const span = document.createElement("span");
+          span.classList.add("item-count");
+          span.textContent = "x" + itemObj.count;
+          invDiv.appendChild(span);
+        }
+        _addUsosIndicator(invDiv, itemObj);
+        invDiv.classList.remove("empty");
+      } else {
+        invDiv.classList.add("empty");
+      }
+      invDiv.classList.remove("highlight");
+    }
+  }
+
+  // Render quick-slot
+  const quickDiv = document.querySelector(`.quick-slot[data-slot-index="${index}"]`);
+  if (quickDiv) {
+    quickDiv.innerHTML = "";
+    if (this.STATE.ghostSlots.quick[index]) {
+      quickDiv.classList.add("empty");
+      quickDiv.classList.remove("highlight");
+    } else {
+      const itemObj = this.STATE.quickSlots[index];
+      if (itemObj) {
+        const img = document.createElement("img");
+        img.src = this.ItemDefinitions[itemObj.id].src;
+        img.alt = itemObj.id;
+        quickDiv.appendChild(img);
+        if (itemObj.count > 1) {
+          const span = document.createElement("span");
+          span.classList.add("item-count");
+          span.textContent = "x" + itemObj.count;
+          quickDiv.appendChild(span);
+        }
+        _addUsosIndicator(quickDiv, itemObj);
+        quickDiv.classList.remove("empty");
+      } else {
+        quickDiv.classList.add("empty");
+      }
+      quickDiv.classList.remove("highlight");
+    }
+  }
+}
+
+
+
+
+
+
+
+
+    
+    // ------------------------------------------------------------------
+    // VERIFICACIÓN DEL COBRO / PAGO  (2026-08-03)
+    // ------------------------------------------------------------------
+    // Pedido: "quiero que siempre verifiques en la tienda después de comprar
+    // o vender, para que realmente se haya cobrado o dado el dinero según el
+    // precio".
+    //
+    // setBalanceByCurrency() escribe el saldo en varios sitios a la vez
+    // (this.playerMoneda, la escena, window.playerStats y statsSync, que es
+    // quien manda la transacción real). Si cualquiera de esos pasos se pierde,
+    // el jugador veía el precio descontado en pantalla pero su oro real seguía
+    // igual — o al revés, cobraba dos veces.
+    //
+    // Esta comprobación mira el saldo ANTES y DESPUÉS y exige que la
+    // diferencia sea EXACTAMENTE el precio. Si no cuadra, lo corrige dejando
+    // el saldo esperado y avisa en consola y en pantalla.
+    //
+    // @param {'gold'|'silver'} currency
+    // @param {number} saldoAntes    saldo justo antes del movimiento
+    // @param {number} delta         negativo si se cobra, positivo si se paga
+    // @returns {boolean} true si el movimiento cuadró a la primera
+    _verificarMovimientoMonedas(currency, saldoAntes, delta, etiqueta) {
+        const esperado = Math.max(0, Math.floor(saldoAntes + delta));
+        const real = Math.floor(Number(this.getBalanceByCurrency(currency)) || 0);
+
+        if (real === esperado) {
+            console.log(`💰 ${etiqueta}: saldo verificado (${saldoAntes} → ${real} ${this.getCurrencyLabel(currency)})`);
+            return true;
+        }
+
+        console.error(
+            `❌ ${etiqueta}: el saldo NO cuadra. Esperado ${esperado}, encontrado ${real} ` +
+            `(${this.getCurrencyLabel(currency)}). Se corrige al valor esperado.`
+        );
+        // Reaplicar el valor correcto: esto vuelve a disparar statsSync, que es
+        // el que manda la transacción real de monedas.
+        this.setBalanceByCurrency(currency, esperado);
+
+        const reintento = Math.floor(Number(this.getBalanceByCurrency(currency)) || 0);
+        if (reintento !== esperado) {
+            this.showNotification?.(
+                `⚠️ Your ${this.getCurrencyLabel(currency)} balance could not be verified. Reopen the shop before trading again.`,
+                'error'
+            );
+            return false;
+        }
+        this.updateMonedaDisplay?.();
+        return true;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       VENDER — SE ENCOLA Y SE DEVUELVE EL MANDO AL JUGADOR
+       ───────────────────────────────────────────────────────────────────────
+       ANTES: `processSale` hacía `await` de la transacción entera. El botón se
+       quedaba desactivado y el modal abierto hasta que la cadena confirmara —
+       de unos segundos a un minuto largo, y hasta dos si había que esperar el
+       tope de `waitForTransaction`. Vender diez cosas era esperar diez veces,
+       una detrás de otra, sin poder tocar nada. Es exactamente lo que ya se
+       arregló en la compra y aquí se había quedado sin hacer.
+
+       AHORA, igual que la compra:
+         1. Se comprueba lo que se puede comprobar EN EL ACTO (que el objeto
+            tiene tipo on-chain y que quedan bastantes unidades sin comprometer).
+         2. Se COMPROMETEN esas unidades para que no se puedan vender dos veces
+            mientras esperan turno.
+         3. El trabajo de cadena se mete en la cola de la tienda y se vuelve.
+            El jugador puede seguir vendiendo o comprando al instante.
+         4. Cuando le toca, se quita de la cadena y SOLO ENTONCES se paga, por
+            las unidades que se quemaron de verdad. Si falla, no se cobra nada
+            y las unidades se sueltan.
+
+       LO QUE NO CAMBIA, Y ES LO IMPORTANTE: primero se quita el objeto de la
+       cadena y después se paga. Al revés —pagar y luego intentar quitar— es
+       dinero de la nada en cuanto una transacción falle, y ya pasó una vez.
+       ═══════════════════════════════════════════════════════════════════════ */
+    async processSale(item, quantity) {
+        const cantidad = Math.max(0, Math.floor(Number(quantity) || 0));
+        if (!item || cantidad <= 0) return;
+
+        /* SIN TIPO ON-CHAIN NO SE VENDE. Un objeto sin tabla se daba antes por
+           vendido a ciegas (`vendidas = quantity`): se pagaba y no se quitaba
+           nada de ningún sitio. Bastaba con poner a la venta un mineral que se
+           hubiera olvidado en ItemDefinitions para regalar dinero. */
+        const tabla = this._getOnchainTableFor(item.id);
+        if (!tabla) {
+            this.showNotification?.(
+                `⚠️ ${item.name} cannot be sold yet: it has no on-chain record.`,
+                'error'
+            );
+            console.error(`❌ Venta cancelada: ${item.id} no tiene tipo on-chain (ItemDefinitions).`);
+            return;
+        }
+
+        /* NI GRATIS NI POR ERROR. Un objeto con `sellPrice` a 0 (o sin él, que
+           es lo mismo tras el `Number(...) || 0`) se quemaría en la cadena a
+           cambio de nada. Es un fallo del catálogo, no una oferta: se corta
+           aquí en vez de dejar que el jugador pierda el objeto. */
+        if (!(Number(item.sellPrice) > 0)) {
+            this.showNotification?.(
+                `⚠️ ${item.name} has no sale price: it cannot be sold.`,
+                'error'
+            );
+            console.error(`❌ Venta cancelada: ${item.id} no tiene sellPrice (${item.sellPrice}).`);
+            return;
+        }
+
+        /* NO SE PUEDE VENDER DOS VECES LO MISMO. Mientras una venta espera su
+           turno el objeto sigue en el inventario, así que sin esta cuenta el
+           jugador podría venderlo otra vez: la segunda no encontraría nada que
+           quemar y acabaría en "no se confirmó" después de haber dicho que sí. */
+        const disponible = this.disponibleParaVenta(item.id);
+        if (cantidad > disponible) {
+            const enCola = this._comprometido(item.id);
+            this.showNotification?.(
+                enCola > 0
+                    ? `⚠️ You only have ${disponible} ${item.name} free to sell (${enCola} already in the sale queue).`
+                    : `⚠️ You do not have ${cantidad} ${item.name}.`,
+                'error'
+            );
+            return;
+        }
+
+        this._comprometer(item.id, cantidad);
+
+        // La tienda ya puede seguir: se refresca lo que depende del disponible.
+        this.showNotification?.(`⏳ Selling ${cantidad}x ${item.name}…`, 'info');
+        this._refrescarDisponibles();
+
+        this._encolarTrabajoTienda(
+            `Shop sale: ${cantidad}x ${item.id}`,
+            () => this._ejecutarVenta(item, cantidad, tabla)
+        );
+
+        console.log(`🧾 Venta encolada: ${cantidad}x ${item.id} (en cola: ${this.trabajosPendientes()})`);
+    }
+
+    /** Repinta lo que depende de cuántas unidades quedan libres para vender. */
+    _refrescarDisponibles() {
+        /* CON LA TIENDA CERRADA NO SE TOCA NADA. Una venta encolada puede
+           confirmarse mucho después de salir de la tienda, y `updatePcSimpleDetail`
+           llama a `switchTab('detalles')`: repintar entonces sería mover la
+           pantalla del jugador por algo que ya no está mirando. */
+        if (!this.isOpen) return;
+        try {
+            if (this.transactionType === 'venta') this.filterItems?.();
+            if (this.selectedItem) {
+                if (this.isMobile) {
+                    this.updateMobileActionButton?.();
+                    this.updateMobileTotalPrice?.();
+                } else {
+                    this.updatePcModalActionButton?.();
+                }
+                this.updatePcSimpleDetail?.();
+            }
+        } catch (e) {
+            console.warn('No se pudo refrescar la tienda tras encolar la venta:', e);
+        }
+    }
+
+    /* El trabajo de verdad de una venta. Corre dentro de la cola de la tienda,
+       nunca desde el botón: aquí sí se puede esperar a la cadena. */
+    async _ejecutarVenta(item, cantidad, tabla) {
+        /* LAS UNIDADES COMPROMETIDAS SE SUELTAN SIEMPRE, PASE LO QUE PASE.
+
+           Si una excepción se colara antes del `finally` de abajo, esas
+           unidades se quedarían apuntadas para siempre y el jugador no podría
+           volver a venderlas EN TODA LA SESIÓN — sin ningún aviso, porque el
+           objeto seguiría en el inventario pero la tienda no lo ofrecería.
+           `soltar` es idempotente: se llama en cuanto termina la cadena (para
+           que la pantalla se refresque con el número bueno) y otra vez al
+           salir, como red. */
+        let soltado = false;
+        const soltar = () => {
+            if (soltado) return;
+            soltado = true;
+            this._descomprometer(item.id, cantidad);
+        };
+
+        try {
+            return await this._ventaEnCadena(item, cantidad, tabla, soltar);
+        } finally {
+            soltar();
+        }
+    }
+
+    async _ventaEnCadena(item, cantidad, tabla, soltar) {
+        const currency    = this.getItemCurrency(item);
+        const unitGross   = Number(item.sellPrice) || 0;
+        const comisionPct = Number(item.comision) || 0;
+        const [tipoOnchain, limite] = tabla;
+
+        let recuento = null;
+        const antes = this.getItemCountInInventory(item.id);
+
+        try {
+            /* EL PRIMER ARGUMENTO ES EL TIPO ON-CHAIN, NO LA PALABRA 'slots'.
+
+               Ese argumento acaba en `quitarDeFactura({ tipo })`, que lo compara
+               con el tipo de la factura del contrato para no quemar la factura
+               equivocada. Cuando aquí iba el literal 'slots' la comparación
+               fallaba SIEMPRE y la respuesta era "esa factura ya no estaba" — o
+               sea: te pagaban, el objeto desaparecía de la pantalla, en la
+               cadena seguía intacto, y al volver al mapa reaparecía. */
+            recuento = await this.ejecutarDivisionRemove(tipoOnchain, item.id, limite, cantidad);
+        } catch (err) {
+            console.error(`❌ Error quitando ${item.id} en la venta:`, err);
+            recuento = null;
+        } finally {
+            // Ya no están en vuelo: la tienda puede volver a ofrecerlas si la
+            // venta no salió, o dejar de contarlas si salió.
+            soltar();
+        }
+
+        const despues       = this.getItemCountInInventory(item.id);
+        const porInventario = Math.max(0, antes - despues);
+
+        /* CUÁNTAS SE PAGAN. Se prefiere lo que dice la cadena (`confirmadas`);
+           la resta del inventario queda solo de respaldo para cuando el
+           recuento no llega, porque con la cola esa resta puede incluir lo que
+           haya hecho otro trabajo. Nunca más de lo pedido. */
+        const confirmadas = (recuento && Number.isFinite(recuento.confirmadas))
+            ? recuento.confirmadas
+            : porInventario;
+        const vendidas   = Math.max(0, Math.min(cantidad, confirmadas));
+        const yaGastadas = (recuento && Number.isFinite(recuento.yaGastadas)) ? recuento.yaGastadas : 0;
+
+        /* "YA ESTABA GASTADO" NO SE PAGA. La factura ya no estaba en la cadena:
+           el hueco iba retrasado y se ha cuadrado, pero ahora mismo no ha salido
+           nada de la cadena. Pagarlo sería crear dinero. Se le dice al jugador
+           para que no parezca que le han robado el objeto. */
+        if (yaGastadas > 0) {
+            this.showNotification?.(
+                `ℹ️ ${yaGastadas}x ${item.name} had already been spent elsewhere. ` +
+                `Your inventory was corrected and they were not paid.`,
+                'info'
+            );
+        }
+
+        if (vendidas <= 0) {
+            /* CON EL MOTIVO. "No se confirmó" a secas no le dice al jugador si
+               es que se le cayó la red, si el contrato no encuentra su factura o
+               si la transacción se quedó esperando — y sin eso no puede ni
+               decidir si reintentar ni contarlo bien. */
+            const motivo = (recuento && recuento.motivo) || this._ultimoMotivoFallo;
+            const porQue = motivo ? ` (${motivo})` : '';
+            if (yaGastadas <= 0) {
+                this.showNotification?.(
+                    `⚠️ ${item.name} was not sold: the blockchain did not confirm it${porQue}. Nothing was charged or paid.`,
+                    'error'
+                );
+            }
+            console.warn(`⚠️ Venta no confirmada: 0/${cantidad} ${item.id}`,
+                         motivo || '(sin motivo apuntado)');
+            this._refrescarDisponibles();
+            return;
+        }
+
+        const grossPrice = unitGross * vendidas;
+        const commission = Math.max(0, Math.ceil(grossPrice * (comisionPct / 100)));
+        const finalPrice = Math.max(0, grossPrice - commission);
+
+        const saldoAntes = Math.floor(Number(this.getBalanceByCurrency(currency)) || 0);
+        this.setBalanceByCurrency(currency, saldoAntes + finalPrice);
+        // VERIFICACIÓN: el dinero tiene que haberse abonado exactamente.
+        this._verificarMovimientoMonedas(currency, saldoAntes, finalPrice, `Venta de ${vendidas}x ${item.name}`);
+
+        const transactionInfo = {
+            type: 'venta',
+            itemId: item.id,
+            itemName: item.name,
+            quantity: vendidas,
+            unitPrice: unitGross,
+            totalGain: finalPrice,
+            grossPrice,
+            fee: commission,
+            currency,
+            remainingGold: this.playerMoneda,
+            remainingSilver: this.playerMonedaPlata
+        };
+        console.log('🛒 SHOP TRANSACTION (SALE)', transactionInfo);
+
+        if (vendidas < cantidad) {
+            const perdidas = cantidad - vendidas - yaGastadas;
+            if (perdidas > 0) {
+                this.showNotification?.(
+                    `⚠️ Only ${vendidas} of ${cantidad} ${item.name} were confirmed on-chain. ` +
+                    `You were paid for ${vendidas}; the rest are still yours.`,
+                    'error'
+                );
+            }
+        }
+
+        this.addToHistorial('venta', item, vendidas, finalPrice);
+        this.showTransactionAnimation('venta', item, vendidas, finalPrice, commission);
+        this.updateMonedaDisplay?.();
+        this.updateHistorialDisplay?.();
+        this.updateMobileHistorialDisplay?.();
+        this._refrescarDisponibles();
+
+        // Por el delegador: con la tienda ya cerrada no hace nada (ver _escenaViva).
+        try { this.queuedAction({ type: 'forSpam2' }); } catch (err) { /* ignorar */ }
+        console.log(`✅ Sale recorded: ${vendidas}x ${item.name} for ${finalPrice} ${this.getCurrencyLabel(currency)} (fee: ${commission} ${this.getCurrencyLabel(currency)})`);
+    }
+    
+    // Mostrar animación de transacción
+    showTransactionAnimation(type, item, quantity, total, commission = 0) {
+        const notification = document.createElement('div');
+        notification.className = `transaction-notification ${type}`;
+        
+        const icon = type === 'compra' ? '💰' : '💵';
+        const actionText = type === 'compra' ? 'Purchased' : 'Sold';
+        const currency = this.getItemCurrency(item);
+        
+        notification.innerHTML = `
+            <div class="transaction-icon">${icon}</div>
+            <div class="transaction-details">
+                <strong>${actionText}: ${quantity}x ${item.name}</strong>
+                <div class="transaction-price">
+                    <img src="${this.getCurrencyIconPath(currency)}" alt="${this.getCurrencyLabel(currency)}" class="moneda-icon">
+                    ${total} ${this.getCurrencyLabel(currency)}
+                </div>
+                ${commission > 0 ? `<div class="transaction-commission">Fee: ${commission} ${this.getCurrencyLabel(currency)}</div>` : ''}
+            </div>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => notification.classList.add('show'), 10);
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
+    }
+    
+    // Cambiar pestaña (PC) o abrir historial móvil
+    switchTab(tabName) {
+        if (this.isMobile) {
+            if (tabName === 'historial') this.openMobileHistorialModal();
+            return;
+        }
+        
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        document.querySelectorAll('.sidebar-tab').forEach(tab => tab.classList.remove('active'));
+        
+        const tabElement = document.getElementById(`tab-${tabName}`);
+        if (tabElement) tabElement.classList.add('active');
+        
+        const tabButton = document.querySelector(`.sidebar-tab[data-tab="${tabName}"]`);
+        if (tabButton) tabButton.classList.add('active');
+        
+        if (tabName === 'historial') this.updateHistorialDisplay();
+    }
+    
+    // Actualizar display de moneda
+    updateMonedaDisplay() {
+        const gold = document.getElementById('tienda-moneda');
+        const silver = document.getElementById('tienda-moneda-plata');
+        const goldFallback = document.getElementById('info-text-left');
+        const silverFallback = document.getElementById('info-text-right');
+
+        if (gold) gold.textContent = `${this.playerMoneda ?? 0}`;
+        if (silver) silver.textContent = `${this.playerMonedaPlata ?? 0}`;
+        if (goldFallback) goldFallback.textContent = `${this.playerMoneda ?? 0}`;
+        if (silverFallback) silverFallback.textContent = `${this.playerMonedaPlata ?? 0}`;
+    }
+    
+    // Actualizar display de historial (PC)
+    updateHistorialDisplay() {
+        const container = document.getElementById('historial-list-pc');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        
+        if (this.historial.length === 0) {
+            container.innerHTML = '<div class="historial-empty-pc">No recent transactions</div>';
+            return;
+        }
+        
+        this.historial.forEach(transaction => {
+            const item = document.createElement('div');
+            item.className = `historial-item-pc ${transaction.type}`;
+            
+            item.innerHTML = `
+                <div class="historial-header-pc">
+                    <span class="historial-type-pc">${transaction.type === 'compra' ? 'BUY' : 'SELL'}</span>
+                    <span class="historial-time-pc">${transaction.timestamp}</span>
+                </div>
+                <div class="historial-content-pc">
+                    <img src="${transaction.itemImage}" alt="${transaction.itemName}" class="historial-img-pc">
+                    <div class="historial-details-pc">
+                        <div class="historial-name-pc">${transaction.itemName}</div>
+                        <div class="historial-qty-pc">Qty: ${transaction.quantity}</div>
+                    </div>
+                    <div class="historial-price-pc">
+                        <img src="${this.getCurrencyIconPath(transaction.currency || 'gold')}" alt="${this.getCurrencyLabel(transaction.currency || 'gold')}" class="moneda-icon">
+                        ${transaction.price} ${this.getCurrencyLabel(transaction.currency || 'gold')}
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(item);
+        });
+        
+        if (!this.isMobile && document.getElementById('tab-historial')?.classList.contains('active')) {
+            setTimeout(() => { container.scrollTop = 0; }, 10);
+        }
+    }
+    
+    // Mostrar ayuda
+    showHelp() {
+        document.getElementById('tienda-help-modal')?.classList.remove('hidden');
+    }
+    
+    // Ocultar ayuda
+    hideHelp() {
+        document.getElementById('tienda-help-modal')?.classList.add('hidden');
+    }
+    
+    // Mostrar notificación
+    showNotification(message, type = 'info') {
+        if (this.scene && typeof this.scene.showNotification === 'function') {
+            this.scene.showNotification(message, type);
+        } else {
+            console.log(`[Tienda] ${type}: ${message}`);
+            
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 15px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: ${type === 'error' ? '#ff4757' : type === 'success' ? '#00b09b' : '#6a11cb'};
+                color: white;
+                padding: 10px 20px;
+                border-radius: 8px;
+                z-index: 1004;
+                font-family: '"PressStart2P"', monospace;
+                font-size: 0.8rem;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                animation: fadeInOut 3s ease;
+                text-align: center;
+                max-width: 90%;
+            `;
+            
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => notification.remove(), 300);
+            }, 2700);
+        }
+    }
+}
+
+// Inicializar tienda global
+window.tiendaSistema = null;
+
+// Función para inicializar la tienda
+function initTienda(scene) {
+    if (!window.tiendaSistema) {
+        window.tiendaSistema = new TiendaSistema(scene);
+        console.log('🏪 Sistema de tienda inicializado v6.3');
+    } else {
+        // FIX: si la tienda ya existe, actualizar la escena activa para que
+        // this.STATE (getter) apunte al STATE correcto de la escena actual.
+        window.tiendaSistema.scene = scene;
+        console.log('🏪 TiendaSistema: escena activa actualizada →', scene.scene?.key || scene.sys?.settings?.key || 'unknown');
+    }
+    return window.tiendaSistema;
+}
+
+// Función para abrir la tienda desde NPC
+function abrirTiendaDesdeNPC() {
+    if (window.tiendaSistema) {
+        window.tiendaSistema.open();
+        return true;
+    } else {
+        console.error('❌ Tienda no inicializada. Llama a initTienda() primero.');
+        return false;
+    }
+}
+
+// Función para agregar CSS si no está cargado
+function cargarCSSTienda() {
+    if (!document.querySelector('#tienda-css')) {
+        const link = document.createElement('link');
+        link.id = 'tienda-css';
+        link.rel = 'stylesheet';
+        link.href = './tienda_hub.css';
+        document.head.appendChild(link);
+        console.log('🎨 CSS de tienda cargado');
+    }
+}

@@ -1,0 +1,1 @@
+60 ciclos de paneles (escritorio/móvil), 20 ciclos WebGL y cero errores de JavaScript.

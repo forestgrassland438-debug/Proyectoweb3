@@ -1,0 +1,21 @@
+✔ concurrent admin checks share a bounded read and a short verified cache (45.5528ms)
+✔ RPC bandwidth failure remains unknown with 503, singleflight and cooldown, then recovers (11.6139ms)
+✔ an expired positive cache cannot authorize unknown state or become a false revocation (4.0435ms)
+✔ environment admins are immediate and never need RPC, including during an RPC cooldown (3.3092ms)
+✔ timeout denies unknown admin state without hanging requests or bypassing CSRF (29.2288ms)
+✔ synchronous configuration errors are retryable after cooldown and never cache a rejected init promise (5.4428ms)
+✔ administrative reads remain independent of an overloaded audit endpoint and an outdated deployed ABI (7.1254ms)
+✔ a misconfigured administrative RPC cannot authorize a role on the wrong network (4.333ms)
+✔ administrative diagnostics preserve the RPC error code while redacting connection secrets (5.4465ms)
+✔ valid cookie admin checks still enforce CSRF, and invalid/wrong-type JWTs cannot call the RPC (3.6491ms)
+✔ legacy Bearer admin authorization preserves JWT roles and never uses an unverified wallet result (3.2112ms)
+✔ explicit access-cache invalidation discards verified roles and prevents stale in-flight results repopulating the cache (39.3544ms)
+✔ actual ethers read transport sends one non-batched request on HTTP429 without hidden retry or network-bootstrap loops (1253.4876ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3501.4332

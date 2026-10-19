@@ -1,0 +1,27 @@
+✔ TXT 1: water readback is local and never reuses pixels after the source changes (6.2908ms)
+✔ TXT 2-4: water stops counter and target tweens, destroys airborne fish and ignores stale callbacks (2284.1684ms)
+✔ TXT 3: distinct water scenes get distinct atlases and release only their own frames (4142.232ms)
+✔ water rolls back generated frames if tilemap construction fails (2031.7076ms)
+✔ TXT 10,13: death effects have unique keys across shared scenes and tear down timers, copies and textures (6.6009ms)
+✔ TXT 11-12: perched butterflies throttle occlusion checks and restore their center on escape (5.7214ms)
+✔ TXT 23-24: owl and eyes follow branch sway, release shared textures last, and depart if the last tree vanishes (6.6522ms)
+✔ owl creation rolls back its body when allocating its eyes fails (3.4202ms)
+✔ TXT 41: night textures survive another scene and preexisting external textures remain owned externally (5.1865ms)
+✔ TXT 42-43: weather canvas ownership follows scenes and stopped counter callbacks cannot touch destroyed sprites (55.1438ms)
+✔ TXT 13,44: frame caches distinguish textures with equal keys and release cached measurements on stop (8.7465ms)
+✔ wind rolls back partial allocation and shares procedural textures until its last scene exits (9.4565ms)
+✔ mine loot cleanup stops its jump counter and halo loop before destroying their sprites (4.8729ms)
+✔ mine loot removes pending file and failure listeners on cleanup and on a failed download (13.7921ms)
+✔ zombie teardown stops the boss jump and all sprite tweens and releases scene references (4.1247ms)
+✔ shadow rebaking preserves another scene and releases every obsolete canvas after its last user (6.0993ms)
+✔ shadow caches distinguish equal source keys in separate TextureManagers (2.3536ms)
+✔ TXT 45: walking crow turns before solid obstacles and map edges (4.543ms)
+✔ TXT 46: crow without trees chooses ground movement even with a low random draw and no player (2.9602ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8787.3324

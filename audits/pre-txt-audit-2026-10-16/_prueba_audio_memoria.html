@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cuanta memoria ocupa el audio</title>
+<style>
+  body { margin:0; padding:16px; background:#0d1117; color:#e6edf3;
+         font:13px ui-monospace, Menlo, Consolas, monospace; }
+  h1 { font-size:15px; margin:0 0 4px; }
+  p.sub { color:#8b949e; margin:0 0 14px; }
+  button { background:#238636; color:#fff; border:0; border-radius:6px;
+           padding:8px 16px; font:inherit; font-weight:700; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  table { border-collapse:collapse; margin-top:14px; width:100%; max-width:900px; }
+  th,td { text-align:right; padding:3px 10px; border-bottom:1px solid #21262d; }
+  th:first-child, td:first-child { text-align:left; }
+  th { color:#8b949e; font-weight:600; }
+  tr.total td { border-top:2px solid #30363d; font-weight:800; color:#7ee787; }
+  tr.grupo td { color:#79c0ff; font-weight:700; }
+  .aviso { color:#f0883e; }
+  #res { white-space:pre-wrap; margin-top:14px; }
+</style></head><body>
+
+<h1>Cuanta memoria ocupa el audio del juego</h1>
+<p class="sub">Descarga y descodifica exactamente lo que carga el juego, y mide el
+tamano REAL de cada AudioBuffer en memoria. Sirve para saber que recortar.</p>
+<button id="ir">Medir</button>
+<div id="res"></div>
+
+<script>
+/* Lo que el juego carga de verdad:
+   - Los WAV de gf-audio.js (temas, ambientes, voces, rayos).
+   - Principal.ogg, que carga GameScene.preload.
+   - tienda.ogg, que carga tiendajuego.preload.
+   Los otros cuatro OGG estan en la carpeta pero NADIE los carga. */
+const RUTA = './Game/MUSIC/';
+
+const GRUPOS = [
+  ['temas de gf-audio', ['gf_pradera','gf_noche','gf_tienda']],
+  ['ambientes (bucles)', ['amb_lluvia','amb_nieve','amb_viento','amb_arboles','amb_soleado','amb_noche']],
+  ['voces de animales', [
+    'an_pajaro_1','an_pajaro_2','an_pajaro_3','an_paloma_1','an_paloma_2',
+    'an_cuervo_1','an_cuervo_2','an_buho_1','an_buho_2','an_conejo_1','an_conejo_2',
+    'an_cerdo_1','an_cerdo_2','an_zorro_1','an_zorro_2','an_vaca_1','an_vaca_2',
+    'an_cocodrilo_1','an_serpiente_1','an_serpiente_2','an_topo_1']],
+  ['rayos y chispas', ['rayo_1','rayo_2','rayo_3','centella_1','centella_2','chispa_1','chispa_2']],
+  ['efectos del juego', ['abrir_menus','accion_de_barras','agua','arbol_cortado','arbol_golpe',
+                         'levelup','mision_aceptadas','personaje_muerto','pescado_escapado']],
+  ['musica vieja (ogg)', ['Principal.ogg','tienda.ogg']],
+  ['ogg que nadie carga', ['castillo.ogg','cueva.ogg','pelea.ogg','pelea2.ogg']]
+];
+
+const MB = (b) => (b / 1048576);
+
+document.getElementById('ir').onclick = async function () {
+  this.disabled = true;
+  const res = document.getElementById('res');
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+  let html = '<p>AudioContext a <b>' + ctx.sampleRate + ' Hz</b>. ' +
+             'Web Audio REMUESTREA todo a esa frecuencia y lo guarda en Float32 por canal, ' +
+             'asi que un WAV de 8 bits a 11 kHz ocupa lo mismo en RAM que uno de 16 bits a 48 kHz: ' +
+             'lo que manda es <b>duracion x canales</b>.</p>';
+  html += '<table><tr><th>fichero</th><th>ch</th><th>Hz orig</th><th>seg</th>' +
+          '<th>disco KB</th><th>RAM MB</th><th>factor</th></tr>';
+
+  let granTotal = 0, granDisco = 0, cargadoTotal = 0;
+
+  for (const [grupo, ficheros] of GRUPOS) {
+    let gRam = 0, gDisco = 0;
+    const filas = [];
+    for (const f of ficheros) {
+      const url = RUTA + (f.includes('.') ? f : f + '.wav');
+      try {
+        const r = await fetch(url, { cache: 'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const bytes = await r.arrayBuffer();
+        const disco = bytes.byteLength;
+        // La frecuencia original se lee de la cabecera antes de descodificar.
+        const dv = new DataView(bytes);
+        let hzOrig = '-';
+        if (dv.byteLength > 28 && dv.getUint32(0, false) === 0x52494646) hzOrig = dv.getUint32(24, true);
+        const buf = await ctx.decodeAudioData(bytes.slice(0));
+        const ram = buf.length * buf.numberOfChannels * 4;
+        gRam += ram; gDisco += disco;
+        filas.push('<tr><td>' + f + '</td><td>' + buf.numberOfChannels + '</td><td>' + hzOrig +
+                   '</td><td>' + buf.duration.toFixed(1) + '</td><td>' + (disco/1024).toFixed(0) +
+                   '</td><td>' + MB(ram).toFixed(2) + '</td><td>x' + (ram/disco).toFixed(0) + '</td></tr>');
+      } catch (e) {
+        filas.push('<tr><td>' + f + '</td><td colspan="6" class="aviso">no se pudo: ' + e.message + '</td></tr>');
+      }
+    }
+    html += '<tr class="grupo"><td>' + grupo + '</td><td colspan="3"></td><td>' +
+            (gDisco/1024).toFixed(0) + '</td><td>' + MB(gRam).toFixed(1) + '</td><td></td></tr>';
+    html += filas.join('');
+    granTotal += gRam; granDisco += gDisco;
+    if (grupo !== 'ogg que nadie carga') cargadoTotal += gRam;
+  }
+
+  html += '<tr class="total"><td>TODO</td><td colspan="3"></td><td>' +
+          (granDisco/1024).toFixed(0) + '</td><td>' + MB(granTotal).toFixed(1) + '</td><td></td></tr>';
+  html += '<tr class="total"><td>LO QUE EL JUEGO CARGA</td><td colspan="4"></td><td>' +
+          MB(cargadoTotal).toFixed(1) + '</td><td></td></tr>';
+  html += '</table>';
+
+  res.innerHTML = html;
+  window.__medida = { sampleRate: ctx.sampleRate, cargado: cargadoTotal, todo: granTotal };
+  ctx.close();
+};
+</script>
+</body></html>

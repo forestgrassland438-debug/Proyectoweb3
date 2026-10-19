@@ -1,0 +1,64 @@
+{
+  "generatedAt": "2026-10-15T00:51:19.370Z",
+  "revision": "admin-entry-recovery-20261014-r3",
+  "selfContainedDeployment": true,
+  "desktopMirrorsExact": true,
+  "frontendDeployMirrorsExact": true,
+  "patchProofSourceUnchanged": true,
+  "checks": {
+    "automatedTestsPassed": 119,
+    "browserGroupsPassed": 21,
+    "exactNodeVersion": "v18.20.8",
+    "authAndTransportTestsOnNode18": 13,
+    "productionDeploymentPending": true,
+    "productionVariablesUnchanged": true
+  },
+  "verifiedAdminAddress": "0x1dda2cdc8e35908d27ce7f1622d30839d15510ae",
+  "entries": [
+    {
+      "file": "admin.html",
+      "bytes": 92648,
+      "sha256": "8aa8252d39b0efb899c3fd08ba9c44b00e82a8536385dc508e43ef44062b04d8"
+    },
+    {
+      "file": "admin-impact.js",
+      "bytes": 44605,
+      "sha256": "449f3b9e1df84f7318b75ec9243b7a76110c9ba20a5c7b8c1433446911573498"
+    },
+    {
+      "file": "admin-impact.css",
+      "bytes": 3980,
+      "sha256": "5123e76c901875ce770e65834f7126680475fe452f52d9a3ae0b9aa8bca8dafb"
+    },
+    {
+      "file": "backend-impact/server2.js",
+      "bytes": 1311351,
+      "sha256": "0d608ec35765b141cb26f1f20c3172df465d4ca55e7a9ed81a44a86989f9ab83"
+    },
+    {
+      "file": "backend-impact/litvm-chain-audit.cjs",
+      "bytes": 54303,
+      "sha256": "68ba31f1cb7dd9727ec19c8c9eae9ced10ad1b8326aee467edebad205a34b89b"
+    },
+    {
+      "file": "backend-impact/litvm-impact-analytics.cjs",
+      "bytes": 52372,
+      "sha256": "3aba7b44ee378c8e9414c15bf36c4308402428557f0ca32d50d3d78f01693e32"
+    },
+    {
+      "file": "backend-impact/server2.integration.patch",
+      "bytes": 122302,
+      "sha256": "3a3737cfe0bcc70d06de0ad1e8bdc7542aa49456e58ed370d9d87daeb5c86928"
+    },
+    {
+      "file": "backend-impact/README.md",
+      "bytes": 23238,
+      "sha256": "10f997008fd75bfbdcac84f42ecb973370971bbe3634a0ac257c36e4560c215c"
+    },
+    {
+      "file": "tools/admin-auth-rpc.test.cjs",
+      "bytes": 12514,
+      "sha256": "f982f9e1ddbbbb26187276270eaa56a7aa876bb9201958db5e7344b48c40076b"
+    }
+  ]
+}

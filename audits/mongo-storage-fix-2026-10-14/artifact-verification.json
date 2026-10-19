@@ -1,0 +1,64 @@
+{
+  "generatedAt": "2026-10-14T21:12:27.543Z",
+  "revision": "mongo-storage-diagnostics-20261014-r1",
+  "selfContainedDeployment": true,
+  "utf8NoNullBytes": true,
+  "desktopMirrorsExact": true,
+  "frontendDeployMirrorsExact": true,
+  "patchProofSourceUnchanged": true,
+  "checks": {
+    "automatedTestsPassed": 92,
+    "browserGroupsPassed": 13,
+    "exactNodeVersion": "v18.20.8",
+    "realDependenciesIsolated": true,
+    "localMongoRecoveryVersion": "4.4.31",
+    "productionDeploymentPending": true
+  },
+  "entries": [
+    {
+      "file": "admin.html",
+      "bytes": 83722,
+      "sha256": "065f46b4a34ca1445cb097364db8c75f206dbc8a25289daf1556c98f05b55d12"
+    },
+    {
+      "file": "admin-impact.js",
+      "bytes": 43480,
+      "sha256": "47e550e42a2dd4f6cae77d6dbcba8abd026776f2df765a7f868b7ce0865ce265"
+    },
+    {
+      "file": "admin-impact.css",
+      "bytes": 3980,
+      "sha256": "5123e76c901875ce770e65834f7126680475fe452f52d9a3ae0b9aa8bca8dafb"
+    },
+    {
+      "file": "backend-impact/server2.js",
+      "bytes": 1291540,
+      "sha256": "e518216045a95aacd273b756ed4f83bffcd41a793953d3b54fcb681a5e1a9291"
+    },
+    {
+      "file": "backend-impact/litvm-chain-audit.cjs",
+      "bytes": 42127,
+      "sha256": "f945d7b5217f519fbfc05cf94b992e7f8449fe328e8202425efc2becd6ccf350"
+    },
+    {
+      "file": "backend-impact/litvm-impact-analytics.cjs",
+      "bytes": 50242,
+      "sha256": "27bc34c096fe51ebfa876d7cbc3c6a554f92f59bd6956546c9bfb84ce5faaa07"
+    },
+    {
+      "file": "backend-impact/server2.integration.patch",
+      "bytes": 97628,
+      "sha256": "5048d42a3e1bba5a9f78694de1ffe8326c1d2239c6297404ec603a847d00c09a"
+    },
+    {
+      "file": "backend-impact/README.md",
+      "bytes": 16766,
+      "sha256": "4c984ae887622a6d2e4d6b7ad8d14b2057736c2afe5f39637931bbec090e99b8"
+    },
+    {
+      "file": "tools/build-impact-backend.cjs",
+      "bytes": 3304,
+      "sha256": "2744b0179bed5856ab37410de3bd5497b08f3871eaf476d8c46034393e8bcfda"
+    }
+  ]
+}

@@ -1,0 +1,123 @@
+/* ===========================================================================
+ * LOS PODERES DE LA ESPADA (V, B, N) Y EL BOTÓN DE GOLPE         (2026-10-11)
+ *
+ * "Los botones V, B, N están muy incómodos para PC y móviles: haz que sean
+ * cómodos." Su sitio exacto lo calcula gf-espada.js (colocarPanel) en
+ * --gfe-right / --gfe-bottom; si aun así pisaran algo, gf-hud-ajuste.js los
+ * aparta (escribe `bottom`/`right` en línea, que mandan sobre esto).
+ *
+ *   PC     una barra de habilidades a la derecha de la barra rápida.
+ *   MÓVIL  un abanico alrededor del botón de golpe, en la esquina del pulgar.
+ * ======================================================================== */
+#gf-espada-poderes {
+  position: fixed;
+  right: var(--gfe-right, max(90px, calc(env(safe-area-inset-right) + 90px)));
+  bottom: var(--gfe-bottom, max(18px, calc(env(safe-area-inset-bottom) + 18px)));
+  z-index: 2000;
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(29, 52, 45, .86), rgba(17, 30, 26, .9));
+  border: 2px solid rgba(211, 189, 133, .75);
+  box-shadow: 0 4px 0 rgba(10, 16, 12, .8), 0 6px 16px rgba(0, 0, 0, .35);
+  user-select: none; -webkit-user-select: none;
+}
+#gf-espada-poderes[hidden] { display: none; }
+
+/* ── Cada poder ─────────────────────────────────────────────────────────── */
+#gf-espada-poderes .gf-poder {
+  position: relative;
+  width: 48px; height: 48px; padding: 0;
+  border-radius: 50%;
+  border: 2px solid #d3bd85;
+  background: radial-gradient(circle at 35% 30%, #2f5446, #172b24 72%);
+  color: #fff5ce;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 3px 0 #0f1a14, inset 0 2px 0 rgba(255, 255, 255, .14);
+  cursor: pointer;
+  touch-action: none; -webkit-tap-highlight-color: transparent;
+  transition: transform .08s, border-color .15s, filter .15s;
+}
+#gf-espada-poderes .gf-poder svg { width: 58%; height: 58%; pointer-events: none; }
+#gf-espada-poderes .gf-poder:hover:not(:disabled) { border-color: #ffe6a6; filter: brightness(1.12); }
+#gf-espada-poderes .gf-poder:active:not(:disabled) { transform: scale(.92); }
+#gf-espada-poderes .gf-poder:disabled { cursor: default; }
+/* Su tecla, en la esquina (en el PC es lo que se pulsa). */
+#gf-espada-poderes .gf-poder-tecla {
+  position: absolute; right: -5px; bottom: -5px;
+  min-width: 17px; height: 17px; padding: 0 3px; box-sizing: border-box;
+  border-radius: 5px; border: 1px solid #d3bd85;
+  background: #241a10; color: #ffe6a6;
+  font: bold 11px/15px monospace; text-align: center;
+  pointer-events: none;
+}
+/* El reloj de la espera: la parte oscura es lo que falta (sin tramas). */
+#gf-espada-poderes .gf-poder-reloj {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(rgba(8, 12, 10, .72) calc(var(--p, 0) * 360deg), transparent 0);
+  pointer-events: none;
+}
+#gf-espada-poderes .gf-poder-seg {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font: bold 17px monospace; color: #fff;
+  text-shadow: 0 1px 0 #000, 0 0 4px #000;
+  pointer-events: none;
+}
+#gf-espada-poderes .gf-poder.esperando svg { opacity: .45; }
+#gf-espada-poderes .gf-poder.listo { animation: gfPoderListo .45s ease-out; }
+@keyframes gfPoderListo {
+  0% { box-shadow: 0 3px 0 #0f1a14, 0 0 0 0 rgba(255, 230, 166, .9); }
+  100% { box-shadow: 0 3px 0 #0f1a14, 0 0 0 12px rgba(255, 230, 166, 0); }
+}
+/* Siendo fantasma no se pelea: apagados. */
+#gf-espada-poderes.gf-fantasma .gf-poder,
+#gf-espada-poderes.gf-fantasma .gf-tajo-btn { filter: grayscale(1) brightness(.7); }
+
+/* En el PC el botón de golpe no se ve (es el ESPACIO). */
+#gf-espada-poderes .gf-tajo-btn svg { width: 54%; height: 54%; pointer-events: none; }
+
+/* ── EL MÓVIL: abanico alrededor del botón de golpe ─────────────────────── */
+#gf-espada-poderes.gf-tactil {
+  display: block;
+  width: 172px; height: 172px;
+  padding: 0; border: 0; border-radius: 0;
+  background: none; box-shadow: none;
+  /* La caja vacía no tapa el juego: solo los botones reciben toques. */
+  pointer-events: none;
+}
+#gf-espada-poderes.gf-tactil .gf-poder,
+#gf-espada-poderes.gf-tactil .gf-tajo-btn { pointer-events: auto; }
+#gf-espada-poderes.gf-tactil .gf-poder { position: absolute; width: 54px; height: 54px; }
+/* El golpe abajo a la derecha (74 px); los poderes a 100 px de su centro:
+   V a la izquierda, B en la diagonal, N encima. */
+#gf-espada-poderes.gf-tactil .gf-tajo-btn {
+  position: absolute; right: 0; bottom: 0; left: auto; top: auto;
+  width: 74px; height: 74px;
+}
+#gf-espada-poderes.gf-tactil .gf-poder[data-tecla="v"] { left: 8px; top: 108px; }
+#gf-espada-poderes.gf-tactil .gf-poder[data-tecla="b"] { left: 37px; top: 37px; }
+#gf-espada-poderes.gf-tactil .gf-poder[data-tecla="n"] { left: 108px; top: 8px; }
+/* En el táctil la letra estorba poco, pero se queda pequeña. */
+#gf-espada-poderes.gf-tactil .gf-poder-tecla { min-width: 15px; height: 15px; font-size: 10px; line-height: 13px; }
+
+/* Pantallas bajas (el teléfono tumbado): todo un poco más pequeño. */
+@media (pointer: coarse) and (max-height: 500px) {
+  #gf-espada-poderes.gf-tactil { width: 148px; height: 148px; }
+  #gf-espada-poderes.gf-tactil .gf-tajo-btn { width: 64px; height: 64px; }
+  #gf-espada-poderes.gf-tactil .gf-poder { width: 46px; height: 46px; }
+  #gf-espada-poderes.gf-tactil .gf-poder[data-tecla="v"] { left: 6px; top: 94px; }
+  #gf-espada-poderes.gf-tactil .gf-poder[data-tecla="b"] { left: 33px; top: 33px; }
+  #gf-espada-poderes.gf-tactil .gf-poder[data-tecla="n"] { left: 94px; top: 6px; }
+}
+@media (pointer: coarse) and (max-width: 360px) {
+  #gf-espada-poderes.gf-tactil { width: 152px; height: 152px; }
+  #gf-espada-poderes.gf-tactil .gf-tajo-btn { width: 66px; height: 66px; }
+  #gf-espada-poderes.gf-tactil .gf-poder { width: 48px; height: 48px; }
+  #gf-espada-poderes.gf-tactil .gf-poder[data-tecla="v"] { left: 6px; top: 96px; }
+  #gf-espada-poderes.gf-tactil .gf-poder[data-tecla="b"] { left: 33px; top: 33px; }
+  #gf-espada-poderes.gf-tactil .gf-poder[data-tecla="n"] { left: 96px; top: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #gf-espada-poderes .gf-poder.listo { animation: none; }
+}

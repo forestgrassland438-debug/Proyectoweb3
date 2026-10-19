@@ -1,0 +1,12 @@
+{
+  "observedAt": "2026-10-15T00:48:53.603Z",
+  "rpcUrl": "https://liteforge.rpc.caldera.xyz/http",
+  "chainId": 4441,
+  "contractAddress": "0x686e17d89bf97247fadc04c3a3f0dfd02f914115",
+  "address": "0x1dda2cdc8e35908d27ce7f1622d30839d15510ae",
+  "owner": "0x1dda2cdc8e35908d27ce7f1622d30839d15510ae",
+  "isAdmin": true,
+  "ownerMatches": true,
+  "readOnly": true,
+  "transactionsSent": 0
+}

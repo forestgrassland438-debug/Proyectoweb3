@@ -1,0 +1,605 @@
+
+> test:regression
+> node --test tools/*.test.cjs tools/web3-seguridad-prueba.cjs
+
+✔ concurrent admin checks share a bounded read and a short verified cache (133.4695ms)
+✔ RPC bandwidth failure remains unknown with 503, singleflight and cooldown, then recovers (11.1137ms)
+✔ an expired positive cache cannot authorize unknown state or become a false revocation (8.234ms)
+✔ environment admins are immediate and never need RPC, including during an RPC cooldown (4.7276ms)
+✔ timeout denies unknown admin state without hanging requests or bypassing CSRF (98.3048ms)
+✔ synchronous configuration errors are retryable after cooldown and never cache a rejected init promise (4.0773ms)
+✔ administrative reads remain independent of an overloaded audit endpoint and an outdated deployed ABI (9.181ms)
+✔ a misconfigured administrative RPC cannot authorize a role on the wrong network (3.8798ms)
+✔ administrative diagnostics preserve the RPC error code while redacting connection secrets (4.2274ms)
+✔ valid cookie admin checks still enforce CSRF, and invalid/wrong-type JWTs cannot call the RPC (5.3071ms)
+✔ legacy Bearer admin authorization preserves JWT roles and never uses an unverified wallet result (3.0311ms)
+✔ explicit access-cache invalidation discards verified roles and prevents stale in-flight results repopulating the cache (45.2657ms)
+Authenticated entry; real counters; unknown retention/session shown as unavailable; decimal gas preserved; escaped player/action data; official hash link.
+Search, backend sort, next/previous pagination.
+CSRF-protected background scan request, durable progress after reload, completion and progress bar.
+Authenticated full CSV and JSON downloads from backend, independent of current table filter/page.
+Fresh English and Spanish technical report, editable community fields, clipboard copy, text-safe PDF print rendering.
+Mobile 390px viewport: no page-level horizontal overflow; large evidence table scrolls inside its container.
+Metrics refresh automatically every 10 seconds with a single nonoverlapping cycle; summary scan status avoids a redundant polling route.
+Mongo 14031 in legacy scan state and HTTP 507 identifies Railway storage, preserves admin access and allows a successful manual retry.
+Concurrent expired-session metrics and CSV export share one renewal, including delayed old 401 responses; retry uses rotated CSRF and keeps the panel visible.
+A stale CSRF token is renewed and the rejected scan request retries once without ending the admin session.
+RPC 429/503 and a temporary refresh failure preserve the session; a cooldown prevents repeated refresh requests.
+A network failure during session renewal preserves the panel and its last verified metrics.
+Revoked refresh credentials gate the panel, clear sensitive evidence and stop polling after one renewal attempt.
+Wallet account removal and revoked admin role gate evidence; provider RPC disconnect preserves session; back-forward cache restore revalidates admin.
+Anonymous viewers never request protected impact endpoints.
+Initial RPC503 after wallet login honors Retry-After and rechecks the existing session automatically; recovery opens admin without another nonce, login or signature.
+Pending permission retries stop on wallet account removal and pagehide; back-forward restoration rechecks the existing session safely.
+Permission retries stop after six attempts; manual reverification then opens admin without wallet signing or restarting login.
+Login precheck network: clear diagnosis, no nonce/signature/login or protected metrics; connect button recovers.
+Login precheck http503: clear diagnosis, no nonce/signature/login or protected metrics; connect button recovers.
+Login precheck missingCsrf: clear diagnosis, no nonce/signature/login or protected metrics; connect button recovers.
+PASS: 21 end-to-end verification groups; zero JavaScript errors; fixtures only.
+✔ tools\admin-impact-browser.test.cjs (70791.2624ms)
+✔ concurrent/manual/automatic starts create one game and never restart an already advanced scene (82.0165ms)
+✔ scene registration waits for the SceneManager, not merely Game.isBooted (8.2558ms)
+✔ destroy releases app listeners/timers/global aliases and supports a clean restart (8.8414ms)
+✔ destruction during optional perf wait settles boot and never revives delayed work (5.5652ms)
+✔ hung boot has a finite deadline and releases its partial game (230.4862ms)
+✔ a final resize inside the throttle interval is still applied (5.7169ms)
+✔ battery switching updates the running TimeStep callback and expires on destruction (9.1402ms)
+✔ scene registry rejects prototype names and does not mistake inherited scene keys for registrations (70.134ms)
+✔ renderer size rejects invalid inputs and applies mobile DPR cap at initial allocation (10.552ms)
+✔ cancelled navigation and BFCache do not tear down a running game; permanent pagehide does (6.1056ms)
+✔ a failed WebGL constructor releases its captured partial instance before Canvas fallback (4.5344ms)
+✔ footprints expire in creation order even with different random values and terrain changes (12.5893ms)
+✔ a full footprint pool recycles the oldest marks, including several born in the same frame (35.0416ms)
+✔ footprints use the scene clock after returning from another scene and water rings start at the feet (7.8146ms)
+✔ footprints release departed actors, partial allocations and every object when a destructor fails (4.2959ms)
+✔ audio teardown aborts fetches and late decodes cannot restore buffers or retain a departed scene (12.5382ms)
+✔ rain audio loads only when needed, fades out, releases its buffer and reloads on the next rain (48.4401ms)
+✔ audio cancellation during rain loading does not mark it missing or repopulate the cache (5.4537ms)
+✔ twenty audio scene transitions return sounds, buffers, timers and listeners to baseline (28.2585ms)
+✔ unmounting one scene preserves shared audio still owned by another mounted scene (9.747ms)
+✔ sound pools discard externally destroyed sounds instead of returning dead voices (8.9554ms)
+✔ un timeout de confirmación conserva el hash pendiente y permite confirmación tardía (14.7166ms)
+✔ un rechazo de confirmación no pisa un estado terminal ya observado (5.3995ms)
+✔ el timeout protege el estado terminal escrito por otro documento concurrente (4.7245ms)
+✔ recovery no vuelve a ejecutar una operación cuyo hash sigue sin receipt (4.217ms)
+✔ reprocesar un documento con hash solo reconcilia ese hash (73.6901ms)
+✔ una caída RPC no puede retener una cola ilimitada ni cuerpos de 1 MB (21.1492ms)
+✔ un fallo RPC ambiguo reenvía los mismos bytes y firma una sola vez (21.6073ms)
+✔ agotado el transporte queda hash pendiente, sin pedir nonce nuevo ni reencolar (10.2178ms)
+✔ un rechazo definitivo del mempool se propaga como fallo (24.2504ms)
+✔ un rechazo posterior no prueba ausencia después de un primer envío ambiguo (4.1036ms)
+✔ el wrapper Express4 pasa rechazos y excepciones a next una sola vez (21.0201ms)
+✔ los intervalos async no se solapan y se liberan después de error (2.882ms)
+✔ el saneado de Mongo elimina operadores profundos sin agotar pila y admite ciclos (63.602ms)
+✔ el lookup de ítems no acepta claves heredadas como tipos on-chain (5.5349ms)
+✔ evicción NFT destruye proveedores y separa chainId incluso con RPC idéntico (3.021ms)
+✔ fallo del stream de traducción después de cabeceras rechaza sin error huérfano (7.1507ms)
+✔ lecturas fallidas de las tablas de servidor nunca habilitan la acuñación (10.2834ms)
+✔ whitelist del contrato no delega privilegios administrativos a jugadores (4.0354ms)
+✔ el nonce inicial no se inventa en cero ni rebaja una reserva concurrente (56.2157ms)
+✔ joinRoom rechaza paquetes vacíos y no resucita salas tras desconectarse (113.2534ms)
+✔ dos joins superpuestos solo publican la sala de la última solicitud (112.1423ms)
+✔ la purga recupera cachés de cuentas que abandonaron el juego (3.6505ms)
+✔ marketplace rechaza importes infinitos e inseguros y catálogos heredados (5.5119ms)
+✔ plan de marketplace tolera entradas nulas y evita stacks corruptos y qty insegura (9.1438ms)
+⏳ La arena no contestó; se repite la petición
+✔ reconectar durante la búsqueda vuelve a pedir la cola (21.3001ms)
+✔ el plazo de una solicitud anterior no cancela un reintento nuevo (11.5806ms)
+✔ si realmente vence el plazo se cancela también la admisión pendiente (6.0021ms)
+✔ una cuenta atrás sin datos pide resincronización (5.9583ms)
+✔ las posiciones son volátiles y no se acumulan sin conexión (10.4419ms)
+✔ reintentar la búsqueda no acumula plazos PvP y practicar invalida el anterior (8.6201ms)
+⏳ La arena no contestó; se repite la petición
+✔ twenty battles release every owned arena and effect texture (194.2717ms)
+✔ recreating a Phaser game keeps each texture manager independent (39.4872ms)
+✔ one scene cannot release an arena or effects still used by another (5.1349ms)
+✔ LRU evicts old ownership without destroying another scene background (92.0386ms)
+✔ unknown arena identifiers use the canonical meadow key (4.1497ms)
+✔ cleanup preserves pre-existing and externally replaced textures (5.7438ms)
+✔ a failed canvas render rolls back allocations and can retry (97.5195ms)
+✔ painter exception preserves an external texture replacement (4.1602ms)
+✔ empty cleanup cannot erase another manager resource registry (6.8333ms)
+✔ lost texture manager fails gracefully without deleting foreign data (4.312ms)
+✔ los cuatro poderes modifican el combate y expiran con el reloj del servidor (81.8771ms)
+✔ el escudo absorbe daño real de proyectiles antes de reducir la vida (6.4738ms)
+✔ la niebla respeta el porcentaje por segundo incluso para mascotas de poca vida (81.1307ms)
+✔ las cinco arenas añaden suministros sin cajas sobre las apariciones (16.8601ms)
+✔ un bot puede romper una caja y no se atasca buscando un recurso que no necesita (58.3389ms)
+✔ el bot elige un flanco con duración y un destino distinto del rival (95.7769ms)
+✔ incluso el agresivo se retira sin disparar para cargar munición (5.5943ms)
+✔ perder un rival escondido conserva su última posición vista (8.2397ms)
+✔ con poca vida guarda el plan de recuperación sin reiniciar su plazo (2.1419ms)
+✔ la cámara respeta movimiento reducido y limita los impactos consecutivos (10.786ms)
+✔ double tapping a player potion confirms once and refreshes authoritative inventory and vitals (8.2787ms)
+✔ a potion reply after leaving the scene cannot overwrite the next scene HUD (3.0004ms)
+✔ one point per character level; concurrent allocation cannot overspend or touch pets (1189.0527ms)
+✔ unknown skills, missing auth and failing table creation never spend points (3.3727ms)
+✔ guard requires a sword and its cooldown is server owned (4.715ms)
+✔ full water/food heal gradually without offline credit, resurrection or poison healing (2.9981ms)
+✔ player potion burns a confirmed canonical invoice, then heals; failed burn has no effect (6.2625ms)
+✔ antidote cancels poison only after consuming the owned invoice (5.2094ms)
+✔ alchemist serializes purchases; mint failure refunds silver without adding fake items (87.5334ms)
+✔ backend Lands water matches the map and rejects interior land and invalid map coordinates (3095.352ms)
+[cuervo] no se pudo crear: Error: sprite budget exhausted
+    at scene.add.sprite (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\engine-deep-stability.test.cjs:293:62)
+    at nuevoCuervo (gf-cuervo.js:331:25)
+    at Object.montar (gf-cuervo.js:917:51)
+    at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\engine-deep-stability.test.cjs:294:29)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1325:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+    at Test.postRun (node:internal/test_runner/test:1465:19)
+    at Test.run (node:internal/test_runner/test:1390:12)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:911:7)
+📋 Metadata recibida: {
+  tilesCount: 1,
+  width: 16,
+  height: 16,
+  tileSize: 16,
+  totalTiles: undefined,
+  lods: [ 'hd' ]
+}
+❌ Error creando sprite: Error: origin unavailable
+    at Object.setOrigin (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\engine-deep-stability.test.cjs:312:72)
+    at TileManager._createTileSprite (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\lib\tileManager.js:753:11)
+    at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\engine-deep-stability.test.cjs:327:37)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1325:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+    at Test.postRun (node:internal/test_runner/test:1465:19)
+    at Test.run (node:internal/test_runner/test:1390:12)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+  key: 'tile_hd_r0_c0',
+  row: 0,
+  col: 0,
+  x: 0,
+  y: 0,
+  w: 16,
+  h: 16,
+  _generation: 0,
+  _bitmap: null
+}
+📍 Dimensiones calculadas: 16x16, Usando: 16x16
+🎯 TileManager: Mapa 16x16, LOD: hd, Tiles: 1
+🔄 Inicializando TileManager...
+✅ TileManager inicializado: 1 tiles indexados, 0 tiles sin LOD, Grid: 1x1
+✔ painted ground cancels every owned loader callback across thirty abandoned mounts (72.4817ms)
+✔ ground restores only layers it hid and rolls back a failed scene clock allocation (8.0113ms)
+✔ tileset extrusion frees a failed canvas, rejects invalid sizes and preserves a replacement (6.2119ms)
+✔ frame diagnostics release texture hooks and keep wrappers installed by another owner usable (4.8508ms)
+✔ old requests cannot decrement a new diagnostics session and long sessions have bounded reports (65.1833ms)
+✔ scarecrow teardown releases every island guard ring and scene alias (7.6552ms)
+✔ water, torches and scarecrow texture waits settle and release clocks and hooks at every terminal event (65.7317ms)
+✔ name colours detach prior sockets and scene clocks and do not revert an acknowledged preference (8.3232ms)
+✔ remote fishing releases both lifecycle hooks across thirty visits and cancels delayed fight results (7.2826ms)
+✔ crow allocation rollback and teardown tolerate partial creation and a broken destructor (228.5422ms)
+✔ TileManager preserves replacement textures and rolls back an image rejected after allocation (74.7189ms)
+✔ memory reporter observes resources weakly, bounds metadata and preserves native constructor constants (56.5845ms)
+✔ reporter without WeakRef omits native liveness without holding canvases strongly (71.0478ms)
+✔ arena engine rejects inherited selectors, invalid maps and numeric inputs without hanging physics or routing (18.0943ms)
+✔ alchemist ignores stale catalogues and purchase replies belonging to a departed scene (4.6305ms)
+✔ death effects release the camera owned by each scene and ignore an old synchronization reply (4.8165ms)
+✔ pet observer dispatch survives self-unsubscription and invalid damage cannot poison the shared state (17.9765ms)
+✔ specter shutdown clears all resources and registration even when the first destructor throws (8.6052ms)
+✔ wind teardown releases every later allocation when one leaf destructor fails (5.2515ms)
+✔ graphics quality rejects inherited names before changing settings or starting persistence (5.3951ms)
+✔ late bitmap after emergency cleanup cannot corrupt a new request with the same key (30.2716ms)
+✔ LOD switches close decoded tiles awaiting upload and rebuild the metadata index (4.8647ms)
+✔ destroy aborts fetch, detaches native loader callbacks and prevents abandoned texture caching (15.4434ms)
+✔ cached textures borrowed from another owner survive manager destruction (5.2068ms)
+✔ tile asset paths reject encoded traversal and URL normalization bypasses (5.5511ms)
+✔ memory cleanup preserves Phaser lifecycle hooks and destroys aliased resources once (14.6834ms)
+✔ memory cleanup wakes a sleeping Phaser loop so deferred destruction can complete (5.1309ms)
+✔ CanvasScaler destroy before async initialization settles ready and never creates a game (10.767ms)
+✔ CanvasScaler releases timers, canvas listeners and DOM references on repeated destroy (19.9103ms)
+✔ EnhancedEventManager distinguishes object contexts, deduplicates and detaches old scenes (15.7622ms)
+✔ performance helpers release scene listeners on shutdown and destroy with their game (9.3271ms)
+✔ TileMonitor detaches only its own keyboard listeners and pending feedback on scene shutdown (4.4077ms)
+[fauna] no se pudo montar: Error: shadow allocation failed
+    at scene.add.ellipse (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\environment-lifecycle.test.cjs:129:89)
+    at crearSombra (gf-animales.js:2386:26)
+    at nuevo (gf-animales.js:1663:33)
+    at poblar (gf-animales.js:4196:11)
+    at Object.montar (gf-animales.js:4579:7)
+    at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\environment-lifecycle.test.cjs:130:36)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1325:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+    at Test.postRun (node:internal/test_runner/test:1465:19)
+[fauna] especie desconocida: __proto__
+✔ clock requests settle on timeout, abort and ignore late responses without clearing a newer request (18.8932ms)
+✔ clock rejects invalid cycle durations and preserves the last valid anchor (7.5688ms)
+✔ clock start/stop removes timers, retries, visibility hooks and pending fetches (3.9684ms)
+✔ phase listeners can unsubscribe during dispatch without skipping other listeners (4.0977ms)
+✔ night layer partial construction releases its texture and scene references (4.3571ms)
+✔ night resize rolls back failed allocations and repeated teardown releases all owned objects (12.6545ms)
+✔ weather timeout cannot apply obsolete data or release a replacement request (19.3625ms)
+✔ weather validates HTTP status, clamps strength, preserves zero and rejects inherited seasons (21.6516ms)
+✔ weather switches sockets, releases absent sockets and stops retry timers and pending work (9.3526ms)
+✔ thunder unsubscribe is idempotent and dispatch tolerates listeners leaving (16.7332ms)
+✔ weather teardown continues after one object destructor throws (7.2259ms)
+✔ a partially constructed lightning fire releases its own images and preserves the tree (9.9333ms)
+✔ animal partial construction rolls back already allocated sprites and thunder subscriptions (9.0804ms)
+✔ animal teardown clears references and remaining objects even after one destructor fails (3.5082ms)
+✔ animal counts, frame delta and damage reject values that freeze or corrupt the simulation (9.1984ms)
+✔ daybreak releases the night render target and each subsequent night recreates only one (18.4053ms)
+✔ snow stays allocation-free at strength zero, deduplicates candidates, releases after melting and returns (2911.7101ms)
+✔ snow textures are shared until the last scene exits and teardown survives a throwing destructor (53.7494ms)
+✔ snow caps large generated canvases and frees the temporary pixel readback (74.1078ms)
+✔ weather does not spawn pending lightning or thunder while rain fades after disabling it (181.8313ms)
+✔ postprocessing registers for each renderer and cleanup preserves unrelated camera effects (16.699ms)
+✔ el baño tiene descanso por ave, una plaza por fuente y dos plazas por mapa (13.7113ms)
+✔ observar, acicalarse, explorar y saltar producen acciones sin nuevos temporizadores (7.2114ms)
+✔ las mariposas se apoyan sobre píxeles visibles, también con sprites espejados (8.7356ms)
+✔ una casa que cubre la flor impide aterrizar; un soporte eliminado tampoco retiene a la mariposa (9.8581ms)
+✔ la sombra del cuervo en Lands sigue sus patas en el mismo frame y refleja el giro (4.6718ms)
+✔ retry catches a rejected callback, keeps the log and permits an explicit later attempt (9.2515ms)
+✔ retry catches synchronous callback errors and explicit cancellation (4.5687ms)
+✔ callback rejection re-enables the current button after a pending row was rerendered (5.3277ms)
+✔ retry runs once across repeated clicks and rerenders, then removes only its own record (2.8098ms)
+✔ a failed history deletion after retry never re-enables transaction submission (3.1006ms)
+✔ account switch while retry is pending never deletes history under the new account (2.6254ms)
+✔ latest refresh wins and aborts its predecessor even if old transport ignores abort (3.1849ms)
+✔ old account failures cannot overwrite a new account status (3.1145ms)
+✔ an old refresh cannot overwrite a newly added optimistic transaction (4.1851ms)
+✔ account switch during CSRF handshake prevents the pending write from being sent (3.9738ms)
+✔ destroy cancels request, drag handlers and feedback timers without disturbing unrelated listeners (2.6539ms)
+✔ timeout remains active until JSON body completes and clears its timer after abort (2.1416ms)
+✔ clipboard fallback removes its textarea on failure and schedules bounded feedback (4.1181ms)
+✔ deployed server loads both analytics factories with sidecar and npm access denied (66.9747ms)
+✔ embedded module source is current, reproducible and valid ES2022 for Node 18 (757.0709ms)
+✔ analytics initializes normally and maintenance starts once (3.95ms)
+✔ analytics constructor failure cannot prevent core startup or bypass admin authorization (2.8835ms)
+✔ failed analytics mount disposes the partial worker and keeps connection secrets out of diagnostics (2.4791ms)
+✔ actual ethers read transport sends one non-batched request on HTTP429 without hidden retry or network-bootstrap loops (1298.3754ms)
+✔ GameScene carga objetos y la revisión del servidor sin depender del reloj local (164.708ms)
+✔ tiendajuego carga objetos y la revisión del servidor sin depender del reloj local (122.0241ms)
+✔ MinaScene carga objetos y la revisión del servidor sin depender del reloj local (140.3976ms)
+✔ LandsScene carga objetos y la revisión del servidor sin depender del reloj local (88.4875ms)
+✔ InteriorScene carga objetos y la revisión del servidor sin depender del reloj local (71.8662ms)
+✔ LoadingScenegame carga objetos y la revisión del servidor sin depender del reloj local (46.9138ms)
+✔ el cargador reconoce TODOS los tipos canónicos que el backend entrega (305.2132ms)
+✔ compras anteriores y nuevas sobreviven tienda → cargador → mapa → tienda → mina → Lands (211.1827ms)
+✔ una respuesta ilegible de la cadena no vacía ni guarda la mochila (109.224ms)
+✔ las compras antiguas borradas de Mongo se recuperan desde la cadena sin comprar otra vez (99.9598ms)
+✔ snapshot objetos conserva las casillas y cantidades confirmadas (156.9035ms)
+✔ snapshot tuplas conserva las casillas y cantidades confirmadas (64.99ms)
+✔ snapshot wrapper conserva las casillas y cantidades confirmadas (66.0887ms)
+✔ snapshot facturaSuelta conserva las casillas y cantidades confirmadas (98.8811ms)
+✔ snapshot inválido se conserva sin guardado destructivo: null (53.508ms)
+✔ snapshot inválido se conserva sin guardado destructivo: {} (147.4323ms)
+✔ snapshot inválido se conserva sin guardado destructivo: [{"id":"10","manualId":"compra-10","owner":"0xaaa","tipo":"bolsa zanahorias","cantidad":"3","active":true},{}] (116.605ms)
+✔ snapshot inválido se conserva sin guardado destructivo: [{"id":"10","manualId":"compra-10","owner":"0xaaa","tipo":"bolsa zanahorias","cantidad":"NaN","active":true}] (97.9791ms)
+✔ snapshot inválido se conserva sin guardado destructivo: [{"id":"10","manualId":"compra-10","owner":"0xotro","tipo":"bolsa zanahorias","cantidad":"3","active":true}] (92.8717ms)
+✔ las semillas guardadas en cofres de Lands no se duplican en la mochila (93.4302ms)
+✔ si no se pueden leer los cofres no se reintroducen sus objetos ni se vacía la mochila (84.0377ms)
+✔ una sincronización pendiente no modifica otra entrada de la misma escena (236.0288ms)
+✔ GameScene: una carga anterior no sobrescribe una compra que acaba de confirmarse (35.7636ms)
+✔ tiendajuego: una carga anterior no sobrescribe una compra que acaba de confirmarse (55.1991ms)
+✔ MinaScene: una carga anterior no sobrescribe una compra que acaba de confirmarse (37.5938ms)
+✔ LandsScene: una carga anterior no sobrescribe una compra que acaba de confirmarse (98.9667ms)
+✔ InteriorScene: una carga anterior no sobrescribe una compra que acaba de confirmarse (55.5692ms)
+✔ LoadingScenegame: una carga anterior no sobrescribe una compra que acaba de confirmarse (50.0859ms)
+✔ GameScene: las semillas se pintan antes de recibir los usos de herramientas (37.2255ms)
+✔ tiendajuego: las semillas se pintan antes de recibir los usos de herramientas (60.1181ms)
+✔ MinaScene: las semillas se pintan antes de recibir los usos de herramientas (43.4222ms)
+✔ LandsScene: las semillas se pintan antes de recibir los usos de herramientas (61.917ms)
+✔ InteriorScene: las semillas se pintan antes de recibir los usos de herramientas (70.6829ms)
+✔ al salir del mapa se cancela la lectura de usos y no se pinta la siguiente escena (34.1474ms)
+✔ invitaciones: código único y estable, enlace y totales (20.2298ms)
+✔ invitaciones: reclamar con todas sus reglas (22.5188ms)
+✔ invitaciones: el usuario de Discord se valida y se puede borrar (5.4824ms)
+✔ actividad: el tiempo por sala lo cuenta el servidor; la pesca y el panel de la tienda (29.55ms)
+✔ admin: actividad con sus pistas de bot (28.4066ms)
+✔ BlockchainManager: el cierre aborta incluso un cuerpo HTTP pendiente y no recupera datos tardíos (11.7502ms)
+✔ BlockchainManager: una respuesta de otro token no cambia el usuario (3.7667ms)
+✔ BlockchainManager: la configuración tardía no resucita el sistema destruido (5.7225ms)
+✔ TransactionSystem: el cierre aborta incluso un cuerpo HTTP pendiente y no recupera datos tardíos (8.0921ms)
+✔ TransactionSystem: una respuesta de otro token no cambia el usuario (3.2356ms)
+✔ TransactionSystem: la configuración tardía no resucita el sistema destruido (3.2857ms)
+✔ TransactionSystem: un 401 de una sesión anterior y los fallos de red conservan el token actual (6.8183ms)
+✔ TransactionSystem: un fallo al desconectar no impide liberar panel, escena y solicitudes (4.4744ms)
+✔ Crafting: 30 cambios de escena liberan referencias y los listeners de ciclo de vida (29.2363ms)
+✔ Crafting: al destruir el panel se eliminan sus escuchas globales y DOM (6.9608ms)
+✔ Crafting: cerrar sin DOM detiene vigilancia y reactivación del teclado (5.204ms)
+✔ Crafting: una operación pendiente termina sobre su escena antes del relevo (9.2341ms)
+✔ Crafting: una escena de relevo que ya cerró no se vuelve a retener (11.7096ms)
+✔ LoadingSystem: cancelar o destruir una animación resuelve la espera y libera RAF (7.2089ms)
+✔ LoadingSystem: destruir una instancia anterior respeta el overlay de la nueva (4.2048ms)
+✔ LoadingSystem: una animación antigua tampoco puede actualizar ni ocultar la carga nueva (3.7698ms)
+✔ LoadingSystem y NotificationHub: el cierre antes de DOMContentLoaded impide reinicializar (7.683ms)
+✔ NotificationHub: destruir elimina todas las animaciones pendientes (10.9896ms)
+✔ NotificationHub: los campos de duplicados personalizados se liberan al quitar la notificación (12.2442ms)
+✔ NFT: refrescar cancela lecturas anteriores e ignora respuestas viejas (4.9335ms)
+✔ NFT: cambiar de cuenta inicia una lectura nueva aunque la anterior siga pendiente (3.1075ms)
+✔ NFT: los metadatos sin Content-Length se interrumpen al superar 200 KiB (6.1617ms)
+✔ NFT: una URI nueva del mismo token actualiza la caché y esta conserva como máximo 500 entradas (427.8623ms)
+✔ Traductor: cien mensajes y lotes nuevos comparten un máximo de tres descargas (76.0966ms)
+✔ Traductor: registros y colas tienen límite incluso con mil nodos vivos (106.6379ms)
+✔ Gráficos: un deslizador rápido conserva un único guardado y envía el último valor después (11.7965ms)
+✔ Gráficos: una carga lenta no pisa el ajuste que el jugador acaba de cambiar (4.7998ms)
+✔ Gráficos: los fallos de red usan espera progresiva y no reintentan cada 220 ms (6.0694ms)
+✔ Gráficos: cambiar de cuenta descarta la lectura anterior (3.8617ms)
+✔ Gráficos: un guardado fallido del usuario anterior permite cargar los ajustes del nuevo (6.0511ms)
+✔ Cookies: un CSRF mal codificado no rompe los paneles ni deja temporizadores (7.1388ms)
+✔ Soulbound: cancelar 20 cargas suelta los listeners, las esperas y las texturas tardías (18.5983ms)
+✔ Soulbound: el plazo de carga libera una operación aunque el loader nunca termine (3.6551ms)
+✔ Soulbound: el cambio completo retira las texturas temporales y sus listeners (5.1088ms)
+✔ Soulbound: una sincronización antigua no deshace una elección nueva (4.2657ms)
+✔ Mascota: el límite de petición cubre el cuerpo y no aplica respuestas de otra cuenta (4.4796ms)
+✔ Pesca: la carga abortada libera sus eventos sin dejar loaderror acumulados (29.7789ms)
+✔ Dependencia i18next: mantiene traducciones válidas y rechaza rutas con esquema inyectado (178.3301ms)
+✔ relayer observations coalesce concurrent viewers, expire at ten seconds and isolate wallet rotations (61.0962ms)
+✔ RPC partial snapshots back off across ten-second UI refreshes and recover when quota returns (3.1305ms)
+✔ RPC bandwidth errors identify retryable quota exhaustion instead of admin authentication or Mongo failure (2.5571ms)
+✔ CSV export neutralizes spreadsheet formulas even after whitespace and escapes quoted/newline names (1.1063ms)
+✔ new server segments persist no raw authentication token and retry the same identity/time idempotently (2.4718ms)
+✔ invalid, future and overlong playtime does not enter measured sessions (2.505ms)
+✔ session audit merges duplicate and overlapping sockets, excludes idle gaps, splits after 30 minutes (6.7345ms)
+✔ missing historical session evidence stays unavailable, not zero or an invented mean (0.8513ms)
+✔ a transient DB initialization failure is retryable, while concurrent callers share a single attempt (11.0012ms)
+✔ protected JSON export reconciles contract and sponsor counters with its own proof rows despite newer summary observations (25.5488ms)
+✔ CSV route exports the complete hash history beyond the UI preview and keeps inferred ownership separate (11.6638ms)
+✔ POST scan names Mongo storage/index failures and RPC failures without exposing driver secrets (14.6918ms)
+✔ existing measurement coverage remains readable when MongoDB has no write capacity (0.7588ms)
+✔ admin diagnostics read Mongo storage and RPC independently without starting a scanner or writing metadata (2.8409ms)
+✔ diagnostics distinguish a denied dbStats permission from an online Mongo ping and a failing RPC (3.5425ms)
+✔ Mongo diagnostic timeout stays a database error; a wrong RPC chain stays a configuration error (3.9859ms)
+✔ 8 GiB capacity and 209 MiB used reports sufficient current headroom without claiming a stored 14031 is current (0.7924ms)
+✔ twenty loading restarts release both lifecycle listeners, tips and activity timers (105.9902ms)
+✔ an older loading create cannot stop the new run timers (45.3345ms)
+✔ stopping loading prevents a late refresh from replacing the shared CSRF token (26.767ms)
+✔ a stopped automatic refresh cannot open an expired-session panel later (28.375ms)
+✔ map return exposes the save promise so callers can wait for durable state (76.3839ms)
+✔ shop loading releases paired listeners and ignores a rejection from an old run (58.3432ms)
+✔ leaving loading cancels only the gate waiter and releases its scene callbacks (25.9325ms)
+✔ late initial authentication cannot start refresh or change the new account (32.1989ms)
+✔ late initial CSRF and stat bodies cannot overwrite the new scene shared state (27.3033ms)
+✔ an aborted loading request is never retried or delayed (41.0367ms)
+✔ an unexpected loading failure settles create and releases its lifecycle resources (28.2772ms)
+✔ MinaScene: map return waits for save and coalesces repeated exits (35.1944ms)
+✔ MinaScene: failed save preserves the current world and allows a later exit (41.0471ms)
+✔ MinaScene: a save from a previous scene entry cannot start a new transition (23.6489ms)
+✔ InteriorScene: map return waits for save and coalesces repeated exits (67.3166ms)
+✔ InteriorScene: failed save preserves the current world and allows a later exit (53.1291ms)
+✔ InteriorScene: a save from a previous scene entry cannot start a new transition (35.0102ms)
+✔ SalvajeScene: map return waits for save and coalesces repeated exits (70.978ms)
+✔ SalvajeScene: failed save preserves the current world and allows a later exit (59.3851ms)
+✔ SalvajeScene: a save from a previous scene entry cannot start a new transition (48.8936ms)
+✔ el refresco consulta la conexión actual, aunque la función naciera desconectada (2.5733ms)
+✔ un refresh pendiente no vuelve a crear temporizadores después de desmontar (1.4482ms)
+✔ los oyentes se eliminan del proveedor original incluso si cambia window.ethereum (1.9365ms)
+✔ cambiar cuenta invalida la autenticación y usa el estado actual del listener (0.9122ms)
+✔ Memory diagnostics report buffers instead of silently estimating every node as zero (28.8417ms)
+✔ Aggressive diagnostics require explicit targets and cannot automatically destroy live caches (20.3903ms)
+✔ Property names are never executed and object inspection avoids getters (54.5836ms)
+✔ Reporter drops completed timeout records, including callbacks that throw (6.5884ms)
+✔ missing menu music and unavailable storage still produce usable volume values (37.4564ms)
+✔ invalid saved volumes cannot send NaN, Infinity or out-of-range values to audio (15.1669ms)
+✔ mine attacks anticipate coordinate based walking without anticipating teleports or motion into a wall (13.2736ms)
+✔ servidor: el anfitrión que se duerme pasa el mando a uno despierto (37.0837ms)
+✔ servidor: el que entra con la pestaña oculta no se queda el mando (38.2495ms)
+✔ cliente: sin foto del anfitrión en 3 s se piensa aquí, y sin mandar nada (9.2493ms)
+✔ cliente: la pestaña oculta se avisa al servidor (y al saludar) (10.1585ms)
+✔ solo reconoce enlaces nativos válidos; enlaces desktop dañados nunca redirigen como web (3.6081ms)
+✔ la autorización exige consentimiento y CSRF y nunca manda la cuenta elegida en el cliente (1.36ms)
+✔ la vinculación Android conserva el código aunque exista una sesión guardada (0.9376ms)
+✔ sesión nueva solo tras aprobar y presentar PKCE; un uso incluso con polls simultáneos (12.6532ms)
+✔ un tercero con el id público no recibe sesión, y no sustituye una aprobación (1.0414ms)
+✔ caducidad, capacidad y datos inválidos mantienen memoria acotada (1.1801ms)
+✔ una cuenta baneada después de aprobar no obtiene cookies (3.9513ms)
+✔ Android muestra el mismo código y consume PKCE sin sacar la cookie del navegador TWA (1.8482ms)
+✔ pathfinding releases both lifecycle listeners over 100 scene restarts and supports prototype-like cache names (95.9808ms)
+✔ a slow invite claim keeps its retry interval alive, does not overlap, and retries a network failure (7.2932ms)
+✔ TxGate abort removes all wait timers and listeners without cancelling the actual transaction (6.5106ms)
+✔ single-session fetch handles URL and Request inputs and never sends its identifier to third-party APIs (10.3697ms)
+✔ session renewal respects an aborted Request signal and the explicit API base (6.8851ms)
+✔ destroying an uninitialized TransactionHub preserves the existing hub and cannot recreate its DOM later (4.5325ms)
+✔ relay converts multidimensional ABI arrays and tuple arrays without flattening them (18.731ms)
+✔ relay normalizes all elements and nested bigint values in a single array output (6.9198ms)
+✔ authentication and malformed ABI errors never mean an invoice is absent; a definite revert does (7.3102ms)
+✔ inventory cache is scoped to the authenticated owner and cleared on relay cleanup (5.5797ms)
+✔ an ambiguous decrease never falls back to a second delete transaction (8.9623ms)
+✔ relay cleanup immediately releases polling delays even with a long interval (22.57ms)
+✔ returning from an island waits for persistence and saves only once before loading (6.0981ms)
+✔ a late private key reveal cannot repopulate the dashboard after a tab switch (13.1981ms)
+✔ notification destruction cancels the delayed settings button and releases named instances (5.6752ms)
+✔ remote character cancellation settles its promise, removes all listeners and permits a fresh load (7.357ms)
+✔ closing a mission panel prevents a slow show from reopening it; refresh network rejection is handled (6.9226ms)
+✔ a requirement check completed after scene destruction cannot submit a mission (5.6494ms)
+✔ chat reaction controls from a previous scene use the current scene and do not reattach a closed palette listener (6.1321ms)
+✔ relay polling bounds invalid attempts and delay values instead of polling forever (5.6052ms)
+✔ reporter load ignores an older query and keeps the timeout active through the response body (20.4702ms)
+✔ an island return whose save fails keeps the scene playable and restores its world and position (9.1394ms)
+✔ the shop retry helper preserves one idempotency key through an ambiguous submission failure (15.0889ms)
+✔ loading rejects invalid progress and uses a finite duration when given Infinity (30.9685ms)
+✔ vault shares exactly one key initialization across concurrent callers and destroys late keys (12.4812ms)
+✔ encrypted writes fail closed without crypto while explicit preferences survive new instances (4.17ms)
+✔ late encrypted writes cannot resurrect removed settings or overwrite a newer write (8.9426ms)
+✔ texture cache borrows shared textures, preserves same-key reinsertion and rejects oversized entries (3.3941ms)
+✔ owned texture eviction never removes a replacement texture installed by another owner (2.8565ms)
+✔ shrinking a pool retains every active object and disables dormant physics bodies (4.6351ms)
+✔ pools reject unbounded sizes and do not mutate foreign objects (2.8058ms)
+✔ culling restores original physics/visibility on remove, disable and destroy (3.8946ms)
+✔ culling releases a destroyed target and does not enable initially hidden objects (3.665ms)
+✔ layer refresh releases old GPU owners, preserves original hidden state and rolls back failed redraws (4.3101ms)
+✔ layer size validation prevents unbounded allocations and target destruction releases the cache (2.492ms)
+✔ late chunk failure after unload cannot remove a fresh chunk with the same coordinates (4.0888ms)
+✔ chunk destroy cancels retry delays and pending throttle work without creating another container (3.5966ms)
+✔ chunk radius and dimensions remain finite when configuration is invalid (2.1722ms)
+✔ external emitter destruction releases maps and cleanup lets stopped particles drain (3.2582ms)
+✔ retry disposal settles waits, circuit breaker stops retrying and metrics maps are bounded (8.1855ms)
+✔ measurement averages use completed durations and prototype-like names are plain data (14.1322ms)
+✔ scene registrar preserves shared classes, rejects prototype keys and cancels pending retries (6.334ms)
+✔ camera clamp is unique per scene, clamps zoom even without scrolling and detaches on shutdown (11.0502ms)
+✔ options cannot replace prototypes or select inherited adaptive quality tiers (3.2637ms)
+✔ un hueco entre dos alas usa la columna sólida más cercana (8.2975ms)
+✔ casa L real: la fachada derecha se ordena por encima de la izquierda (172.2069ms)
+✔ el enlace antiguo conserva la selección MetaMask y la cuenta (3.9336ms)
+✔ la alternativa a replace conserva los mismos parámetros (2.1903ms)
+✔ a qué texturas: personajes, mascota, NPC, árboles y casas; rocas, pozo y monstruos no (5.9456ms)
+✔ con menos fuerza, el relieve cambia menos (las casas) (31.2606ms)
+✔ no cambia la silueta ni el contorno, y da luz y sombra (17.4244ms)
+✔ sin motas: ningún píxel de relleno distinto de sus cuatro vecinos de su color (21.9319ms)
+✔ casas: el faldón de la luz se aclara, el otro se oscurece; sombra bajo el tejado y cristal hundido (15.8311ms)
+✔ determinista (24.6351ms)
+✔ DOM groups, properties and paired teardown listeners stay bounded across twenty restarts (93.2888ms)
+✔ late cleanup from a previous HUD owner does not remove the current click handler (33.7057ms)
+✔ chat, send button and emoji grid bind to each new scene and detach on exit (38.155ms)
+✔ the sound panel may reopen repeatedly without retaining input or Escape handlers (29.8594ms)
+✔ completed, stopped and failed SFX are destroyed while another scene retains its sound (36.9643ms)
+✔ leaving GameScene, shop, mine or lands during create cannot revive that entry (49.2266ms)
+✔ late authentication and inventory responses do not mount stale systems or overwrite a restarted scene (48.4209ms)
+✔ session refresh has one timer across scene instances and releases it with the game (59.0762ms)
+✔ map shutdown drops tile data, pending labels and collision indices even when one resource throws (40.1451ms)
+✔ battle hub buttons belong to the current scene and release DOM/socket listeners over twenty transitions (117.5693ms)
+✔ leaderboard refresh aborts the previous read and late responses cannot overwrite new or closed panels (37.8607ms)
+✔ vital refresh requests do not overlap and a departing scene cannot write stats after entering battle (215.7285ms)
+✔ a restarted scene accepts current vital stats and rejects JSON still pending from its previous visit (29.2869ms)
+✔ shop notification controls rebind after cleanup without retaining a previous shop (40.8201ms)
+✔ concurrent 401 retries share renewal and retain POST bodies with rotated CSRF (100.3969ms)
+✔ third party requests and explicit logout never renew; URL objects work and cleanup removes all listeners (4.3326ms)
+✔ active battles renew cookies and vital mutation revisions change through response completion (7.354ms)
+✔ la tienda usa la API de producción y espera la inicialización compartida (15.78ms)
+✔ renovar desde dos relays y la escena de tienda a la vez rota la cookie una sola vez (123.287ms)
+✔ un corte de red o servidor ocupado no pide volver a iniciar sesión (7.9385ms)
+✔ liberar un relay mientras otro renueva no restaura sus credenciales ni cancela al otro (8.4416ms)
+✔ 30 entradas y salidas liberan máscaras y gráficos sin borrar listeners ajenos (32.5947ms)
+✔ la compra usa el ítem original aunque cambie la selección y acota el texto/timer (4.5704ms)
+✔ una respuesta de wallet de una entrada anterior no altera la nueva escena (4.5321ms)
+inventory/reconcile: purchase_not_visible_on_chain
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+[SIMULATE] Iteración 1, remaining=3
+[SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+[SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+💰 Compra de 3x Carrot Seed: saldo verificado (1000 → 970 SL)
+🛒 SHOP TRANSACTION (PURCHASE) {
+  type: 'compra',
+  itemId: 'Semillax',
+  itemName: 'Carrot Seed',
+  quantity: 3,
+  unitPrice: 10,
+  totalCost: 30,
+  currency: 'silver',
+  fee: 0,
+  remainingGold: 0,
+  remainingSilver: 970
+}
+✅ Purchase recorded: 3x Carrot Seed for 30 SL
+🔑 Usuario autenticado: 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+📄 Contrato encontrado: 0x1111111111111111111111111111111111111111
+[SIMULATE] Iteración 1, remaining=3
+[SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+[SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+Reporte completo: {
+  success: true,
+  remaining: 0,
+  operations: [
+    { type: 'new', location: [Object], amountAdded: 3, finalCount: 3 }
+  ],
+  summary: {
+    totalMerged: 0,
+    totalNewStacks: 3,
+    newStacksCount: 1,
+    slotsUsed: { quick: 1, inv: 0 }
+  }
+}
+Parsed invoice response: {
+  invoiceId: 1,
+  manualId: 'edHwUdgIi0IOVqtVKMp',
+  cantidadx: 3,
+  raw: [
+    '1',
+    'edHwUdgIi0IOVqtVKMp',
+    '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    'bolsa zanahorias',
+    '3',
+    true,
+    '1'
+  ]
+}
+addItemWithCheck OK (new) para invoice 1 cantidad 3
+Additemblockchains: procesamiento finalizado.
+✅ Compra on-chain confirmada: 3x Semillax
+✔ el backend recupera compras huérfanas, conserva las facturas distintas y reutiliza huecos vacíos (15.2172ms)
+✔ un guardado antiguo nunca borra una compra; la copia recién cargada sí puede guardarse (3.5723ms)
+✔ una mochila llena conserva lo comprado en cadena y no confirma una entrega inexistente (4.4077ms)
+✔ una lectura de cadena anterior a la compra no entrega, borra ni confirma objetos (4.7397ms)
+✔ la conciliación reintenta si otro guardado cambia las casillas mientras lee la cadena (4.2065ms)
+✔ actualizar una compra conserva los usos de los objetos que ya tenía el jugador (36.6996ms)
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+[SIMULATE] Iteración 1, remaining=3
+[SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+[SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+💰 Compra de 3x Carrot Seed: saldo verificado (1000 → 970 SL)
+🛒 SHOP TRANSACTION (PURCHASE) {
+  type: 'compra',
+  itemId: 'Semillax',
+  itemName: 'Carrot Seed',
+  quantity: 3,
+  unitPrice: 10,
+  totalCost: 30,
+  currency: 'silver',
+  fee: 0,
+  remainingGold: 0,
+  remainingSilver: 970
+}
+✅ Purchase recorded: 3x Carrot Seed for 30 SL
+❌ Compra confirmada, sincronización pendiente: Error: network
+    at f.tienda._persistConfirmedPurchase (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\shop-persistence.test.cjs:177:60)
+    at TiendaSistema._runOnchainPurchase (eval at cargarFuentes (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\gf-banco-tienda.js:550:5), <anonymous>:2918:28)
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+[SIMULATE] Iteración 1, remaining=3
+[SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+[SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+💰 Compra de 3x Carrot Seed: saldo verificado (1000 → 970 SL)
+🛒 SHOP TRANSACTION (PURCHASE) {
+  type: 'compra',
+  itemId: 'Semillax',
+  itemName: 'Carrot Seed',
+  quantity: 3,
+  unitPrice: 10,
+  totalCost: 30,
+  currency: 'silver',
+  fee: 0,
+  remainingGold: 0,
+  remainingSilver: 970
+}
+✅ Purchase recorded: 3x Carrot Seed for 30 SL
+💰 Reembolso de 1x Carrot Seed: saldo verificado (970 → 980 SL)
+⚠️ Compra parcial: 2/3 Semillax confirmados — reembolso 10
+✔ comprar y salir antes de confirmar entrega y guarda sin retener la escena de tienda (212.5789ms)
+✔ el inventario local nunca agrega unidades de una factura a otra del mismo objeto (9.5183ms)
+✔ una compra acuñada no se reembolsa si falla la lectura posterior o el guardado (11.3473ms)
+✔ una compra parcial registra lo entregado y devuelve solo el precio de lo que no confirmó (12.0429ms)
+✔ leaves remain hidden while old snowflakes fade after switching the weather (4.4241ms)
+✔ first landscape resize releases the startup height without shrinking for a keyboard (4.7609ms)
+✔ History hub attaches CSRF to mutations, encodes IDs and discards stale account history (15.3623ms)
+✔ TxGate removes timeout listeners and clears heartbeat after each timed-out wait (6.1861ms)
+✔ TransactionHub rejects active explorer URLs and malformed transaction hashes (5.1713ms)
+✔ TransactionHub does not hide a new notification from an older timer; destroy clears all jobs (6.3585ms)
+✔ TransactionHub bounds style/timer inputs instead of accepting CSS strings or Infinity (3.3099ms)
+✔ BlockchainManager rolls a failed reservation back only once and rejects inherited functions (6.3614ms)
+✔ TransactionSystem serializes automatic nonces and rejects invalid payloads (6.9585ms)
+✔ Wallet validates transport endpoints, hex and exact recovery code length (6.57ms)
+✔ Wallet provider supports prototype-like event names, preserves listeners on init and validates accounts (6.3057ms)
+✔ Wallet OAuth ignores matching origin/state from any window except its popup (6.1718ms)
+✔ Wallet clears previous key material and autolock timer on lock (3.4141ms)
+✔ Wallet closes IndexedDB connections when creating a transaction throws or aborts (9.119ms)
+✔ Relay cleanup aborts pending requests, destroys providers and cannot restart refresh (11.199ms)
+✔ Relay timeout stays active until the response body finishes (7.9345ms)
+ℹ tests 412
+ℹ suites 0
+ℹ pass 412
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 70925.4707

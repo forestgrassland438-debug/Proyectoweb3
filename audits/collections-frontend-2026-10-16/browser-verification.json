@@ -1,0 +1,20 @@
+{
+  "fixtureOnly": true,
+  "checks": [
+    "Existing admin session opens without a signature; collection and NFT metadata remain text-safe.",
+    "Catalog selections preserve full database identity and large onchain IDs; two selected pieces become two distribution rows.",
+    "Repeated CSV pieces and pieces already in the distribution queue are rejected before any request or signature.",
+    "NFT details preserve large invoice IDs; optional names, individual royalties and arbitrary attribute rows save through the protected API.",
+    "Two selected images are counted, previewed and uploaded; final numbers come from the API, with optional names and per-image attribute overrides.",
+    "Observed holders and transfer relationships render; configured rates, transfers and unverified or pending payments do not invent royalty income.",
+    "Registering a native payment sends exact price wei, previews 4.29% of 1 as 0.0429, shows only a verified receipt in table/chart, handles the same hash idempotently and never requests a wallet signature or transaction.",
+    "Desktop and 390px mobile layouts render without page-level horizontal overflow.",
+    "Concurrent expired administrative reads share one session refresh without another wallet signature.",
+    "Temporary refresh unavailability preserves the verified panel and recovers without requiring wallet login.",
+    "Removing the wallet locks access and clears previous catalog details from the DOM.",
+    "A stored transaction hash recovers by confirmation only; reloading and clicking again does not prepare, sign or submit the completed NFT a second time.",
+    "Catalog pagination requests the next offset, appends a token with an exact 78-digit invoice ID and removes its load button when all records are present.",
+    "A different collection delegate makes NFT and collection editors read-only; attempted form submission makes no mutation and preserves the admin session.",
+    "Anonymous startup keeps the catalog locked without requesting wallet signatures."
+  ]
+}

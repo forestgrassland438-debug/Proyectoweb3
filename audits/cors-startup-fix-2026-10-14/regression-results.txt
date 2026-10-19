@@ -1,0 +1,191 @@
+✔ one transaction with multiple events; historical owner; reverts; repeated scan and live capture do not double count (38.0066ms)
+✔ multi-user transfer remains ambiguous, backend verified caller takes precedence, system calls explicit (10.477ms)
+✔ registered direct sender is the verified actor rather than the transferred-to owner (4.5135ms)
+✔ authenticated withPlayer context is durable and retained when receipt later reconciles (26.3175ms)
+✔ live audit cannot delay gameplay if Mongo initialization never resolves (1.6791ms)
+✔ live hook forwards original broadcast but excludes transactions signed for a different network (2.8534ms)
+✔ legacy import never pretends receipt confirmation and does not mutate legacy documents (3.7266ms)
+✔ wrong RPC chain or empty configured contract is rejected before historical scan (1.3243ms)
+✔ partial-history scan widening to genesis really processes earlier blocks (5.8693ms)
+✔ changed checkpoint anchor forces full rebuild, orphan rows retained without counting (10.3213ms)
+✔ same-block fork invoice ownership cannot leak from old fork into rebuilt later transaction (9.0859ms)
+✔ Mongo lease prevents concurrent process scan and resume after error keeps checkpoint (6.0965ms)
+✔ missing receipt stops before checkpoint, retry recovers without losing indexed rows or double counting (11.2041ms)
+✔ RPC unsafe integers and ambiguous names never fabricate exact user attribution (0.5122ms)
+✔ receipt hash mismatch is rejected without advancing checkpoint or creating a bogus ledger row (3.4087ms)
+✔ expired worker blocked in attribution cannot overwrite replacement worker or advance its checkpoint (10.7228ms)
+✔ generation predicate fences a stale historical write even after its earlier lease check succeeded (10.5587ms)
+✔ un timeout de confirmación conserva el hash pendiente y permite confirmación tardía (7.1617ms)
+✔ un rechazo de confirmación no pisa un estado terminal ya observado (2.4521ms)
+✔ el timeout protege el estado terminal escrito por otro documento concurrente (3.0497ms)
+✔ recovery no vuelve a ejecutar una operación cuyo hash sigue sin receipt (2.1974ms)
+✔ reprocesar un documento con hash solo reconcilia ese hash (2.6444ms)
+✔ una caída RPC no puede retener una cola ilimitada ni cuerpos de 1 MB (11.1374ms)
+✔ un fallo RPC ambiguo reenvía los mismos bytes y firma una sola vez (6.3315ms)
+✔ agotado el transporte queda hash pendiente, sin pedir nonce nuevo ni reencolar (2.9775ms)
+✔ un rechazo definitivo del mempool se propaga como fallo (14.3832ms)
+✔ un rechazo posterior no prueba ausencia después de un primer envío ambiguo (2.3962ms)
+✔ el wrapper Express4 pasa rechazos y excepciones a next una sola vez (12.8678ms)
+✔ los intervalos async no se solapan y se liberan después de error (2.2162ms)
+✔ el saneado de Mongo elimina operadores profundos sin agotar pila y admite ciclos (13.4431ms)
+✔ el lookup de ítems no acepta claves heredadas como tipos on-chain (1.794ms)
+✔ evicción NFT destruye proveedores y separa chainId incluso con RPC idéntico (1.8166ms)
+✔ fallo del stream de traducción después de cabeceras rechaza sin error huérfano (2.0717ms)
+✔ lecturas fallidas de las tablas de servidor nunca habilitan la acuñación (2.1631ms)
+✔ whitelist del contrato no delega privilegios administrativos a jugadores (2.338ms)
+✔ el nonce inicial no se inventa en cero ni rebaja una reserva concurrente (2.3917ms)
+✔ joinRoom rechaza paquetes vacíos y no resucita salas tras desconectarse (35.5746ms)
+✔ dos joins superpuestos solo publican la sala de la última solicitud (24.9279ms)
+✔ la purga recupera cachés de cuentas que abandonaron el juego (4.578ms)
+✔ marketplace rechaza importes infinitos e inseguros y catálogos heredados (5.3576ms)
+✔ plan de marketplace tolera entradas nulas y evita stacks corruptos y qty insegura (3.1661ms)
+✔ deployed server loads both analytics factories with sidecar and npm access denied (8.0758ms)
+✔ embedded module source is current, reproducible and valid ES2022 for Node 18 (134.8952ms)
+✔ analytics initializes normally and maintenance starts once (4.0327ms)
+✔ analytics constructor failure cannot prevent core startup or bypass admin authorization (2.945ms)
+✔ failed analytics mount disposes the partial worker and keeps connection secrets out of diagnostics (2.2044ms)
+✔ CSV export neutralizes spreadsheet formulas even after whitespace and escapes quoted/newline names (2.33ms)
+✔ new server segments persist no raw authentication token and retry the same identity/time idempotently (4.4142ms)
+✔ invalid, future and overlong playtime does not enter measured sessions (1.3259ms)
+✔ session audit merges duplicate and overlapping sockets, excludes idle gaps, splits after 30 minutes (0.8189ms)
+✔ missing historical session evidence stays unavailable, not zero or an invented mean (0.7753ms)
+✔ a transient DB initialization failure is retryable, while concurrent callers share a single attempt (13.1259ms)
+✔ protected JSON export reconciles contract and sponsor counters with its own proof rows despite newer summary observations (11.6575ms)
+✔ CSV route exports the complete hash history beyond the UI preview and keeps inferred ownership separate (21.9655ms)
+✔ concurrent 401 retries share renewal and retain POST bodies with rotated CSRF (83.4094ms)
+✔ third party requests and explicit logout never renew; URL objects work and cleanup removes all listeners (4.5575ms)
+✔ active battles renew cookies and vital mutation revisions change through response completion (4.8571ms)
+inventory/reconcile: purchase_not_visible_on_chain
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+[SIMULATE] Iteración 1, remaining=3
+[SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+[SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+💰 Compra de 3x Carrot Seed: saldo verificado (1000 → 970 SL)
+🛒 SHOP TRANSACTION (PURCHASE) {
+  type: 'compra',
+  itemId: 'Semillax',
+  itemName: 'Carrot Seed',
+  quantity: 3,
+  unitPrice: 10,
+  totalCost: 30,
+  currency: 'silver',
+  fee: 0,
+  remainingGold: 0,
+  remainingSilver: 970
+}
+✅ Purchase recorded: 3x Carrot Seed for 30 SL
+🔑 Usuario autenticado: 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+📄 Contrato encontrado: 0x1111111111111111111111111111111111111111
+[SIMULATE] Iteración 1, remaining=3
+[SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+[SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+Reporte completo: {
+  success: true,
+  remaining: 0,
+  operations: [
+    { type: 'new', location: [Object], amountAdded: 3, finalCount: 3 }
+  ],
+  summary: {
+    totalMerged: 0,
+    totalNewStacks: 3,
+    newStacksCount: 1,
+    slotsUsed: { quick: 1, inv: 0 }
+  }
+}
+Parsed invoice response: {
+  invoiceId: 1,
+  manualId: 'kSEFsVHsUb0gIEzeBkd',
+  cantidadx: 3,
+  raw: [
+    '1',
+    'kSEFsVHsUb0gIEzeBkd',
+    '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    'bolsa zanahorias',
+    '3',
+    true,
+    '1'
+  ]
+}
+addItemWithCheck OK (new) para invoice 1 cantidad 3
+Additemblockchains: procesamiento finalizado.
+✅ Compra on-chain confirmada: 3x Semillax
+✔ el backend recupera compras huérfanas, conserva las facturas distintas y reutiliza huecos vacíos (17.5258ms)
+✔ un guardado antiguo nunca borra una compra; la copia recién cargada sí puede guardarse (4.4514ms)
+✔ una mochila llena conserva lo comprado en cadena y no confirma una entrega inexistente (5.9841ms)
+✔ una lectura de cadena anterior a la compra no entrega, borra ni confirma objetos (4.1783ms)
+✔ la conciliación reintenta si otro guardado cambia las casillas mientras lee la cadena (3.7785ms)
+✔ actualizar una compra conserva los usos de los objetos que ya tenía el jugador (122.2345ms)
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+[SIMULATE] Iteración 1, remaining=3
+[SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+[SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+💰 Compra de 3x Carrot Seed: saldo verificado (1000 → 970 SL)
+🛒 SHOP TRANSACTION (PURCHASE) {
+  type: 'compra',
+  itemId: 'Semillax',
+  itemName: 'Carrot Seed',
+  quantity: 3,
+  unitPrice: 10,
+  totalCost: 30,
+  currency: 'silver',
+  fee: 0,
+  remainingGold: 0,
+  remainingSilver: 970
+}
+✅ Purchase recorded: 3x Carrot Seed for 30 SL
+❌ Compra confirmada, sincronización pendiente: Error: network
+    at f.tienda._persistConfirmedPurchase (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\shop-persistence.test.cjs:177:60)
+    at TiendaSistema._runOnchainPurchase (eval at cargarFuentes (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\gf-banco-tienda.js:550:5), <anonymous>:2918:28)
+✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+🏪 Sistema de tienda inicializado v6.3
+[SIMULATE] Iteración 1, remaining=3
+[SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+[SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+💰 Compra de 3x Carrot Seed: saldo verificado (1000 → 970 SL)
+🛒 SHOP TRANSACTION (PURCHASE) {
+  type: 'compra',
+  itemId: 'Semillax',
+  itemName: 'Carrot Seed',
+  quantity: 3,
+  unitPrice: 10,
+  totalCost: 30,
+  currency: 'silver',
+  fee: 0,
+  remainingGold: 0,
+  remainingSilver: 970
+}
+✅ Purchase recorded: 3x Carrot Seed for 30 SL
+💰 Reembolso de 1x Carrot Seed: saldo verificado (970 → 980 SL)
+⚠️ Compra parcial: 2/3 Semillax confirmados — reembolso 10
+✔ comprar y salir antes de confirmar entrega y guarda sin retener la escena de tienda (221.9781ms)
+✔ el inventario local nunca agrega unidades de una factura a otra del mismo objeto (11.7505ms)
+✔ una compra acuñada no se reembolsa si falla la lectura posterior o el guardado (15.524ms)
+✔ una compra parcial registra lo entregado y devuelve solo el precio de lo que no confirmó (16.4665ms)
+✔ History hub attaches CSRF to mutations, encodes IDs and discards stale account history (17.0449ms)
+✔ TxGate removes timeout listeners and clears heartbeat after each timed-out wait (8.2724ms)
+✔ TransactionHub rejects active explorer URLs and malformed transaction hashes (5.078ms)
+✔ TransactionHub does not hide a new notification from an older timer; destroy clears all jobs (6.3963ms)
+✔ TransactionHub bounds style/timer inputs instead of accepting CSS strings or Infinity (3.1022ms)
+✔ BlockchainManager rolls a failed reservation back only once and rejects inherited functions (9.2707ms)
+✔ TransactionSystem serializes automatic nonces and rejects invalid payloads (7.1494ms)
+✔ Wallet validates transport endpoints, hex and exact recovery code length (67.733ms)
+✔ Wallet provider supports prototype-like event names, preserves listeners on init and validates accounts (4.903ms)
+✔ Wallet OAuth ignores matching origin/state from any window except its popup (6.0175ms)
+✔ Wallet clears previous key material and autolock timer on lock (3.5761ms)
+✔ Wallet closes IndexedDB connections when creating a transaction throws or aborts (7.4697ms)
+✔ Relay cleanup aborts pending requests, destroys providers and cannot restart refresh (16.8612ms)
+✔ Relay timeout stays active until the response body finishes (6.2115ms)
+ℹ tests 81
+ℹ suites 0
+ℹ pass 81
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4341.3424

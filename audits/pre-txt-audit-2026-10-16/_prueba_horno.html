@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prueba: el horno</title>
+<!-- =========================================================================
+     BANCO DE PRUEBAS DEL HORNO — LA PARTE QUE NO SE VE EN NODE
+
+     `tools/horno-prueba.js` ya comprueba la lógica contra la cadena: que se
+     quema el mineral, que SE GASTA el carbón, que el lingote sale al recoger y
+     que las tablas no se cruzan. Lo que esa prueba NO puede ver es la pantalla:
+     si las casillas enseñan el icono bueno, si el reloj cuenta, si el botón
+     cambia de "Smelt" a "Collect" y si el panel entra en un móvil.
+
+     Aquí se carga el MISMO panel de index.html con el MISMO styless.css, y los
+     métodos reales del horno sacados de Scenes/GameScene.js. La cadena y el
+     servidor son de mentira (nada sale a la red), y los tiempos se pueden
+     acortar para no esperar cinco minutos a ver el hierro.
+
+     No necesita backend ni sesión.
+     ====================================================================== -->
+<link rel="stylesheet" href="./styless.css">
+<style>
+  body { margin:0; background:#0d1117; color:#c9d1d9;
+         font:13px system-ui, sans-serif; padding:12px; }
+  h1 { font-size:15px; margin:0 0 4px; color:#a8d8ff; }
+  p.sub { margin:0 0 10px; color:#8b949e; font-size:12px; max-width:820px; line-height:1.55; }
+  .btns { margin:10px 0; display:flex; gap:6px; flex-wrap:wrap; }
+  button.ctl { background:#1b2b45; border:1px solid #2f4d7a; color:#cfe6ff;
+               border-radius:7px; padding:7px 12px; font-size:12px; cursor:pointer; }
+  button.ctl:hover { background:#25406b; }
+  pre { background:#161b22; border:1px solid #30363d; border-radius:6px; padding:9px;
+        font-size:11px; line-height:1.5; max-height:240px; overflow:auto; white-space:pre-wrap; }
+  /* El panel del juego se muestra en línea, no como modal a pantalla completa.
+     Hay que quitarle también el `width:100vw` del modal: dejándolo, el panel se
+     sale por la derecha en móvil y parecería un fallo del juego cuando es solo
+     de esta página. La caja de dentro (.furnace-container, 95% / máx. 420 px)
+     no se toca: es la que hay que mirar. */
+  #furnace-panel { position:static !important; transform:none !important;
+                   inset:auto !important; margin:0 0 12px;
+                   width:100% !important; height:auto !important;
+                   background:transparent !important; }
+</style>
+</head>
+<body>
+<h1>El horno</h1>
+<p class="sub">
+  Panel real + métodos reales de <code>GameScene</code>, contra una cadena de
+  mentira. Empiezas con 5 piedras de cobre, 3 de hierro y 4 carbones.
+  «Acortar tiempos» pone el cobre en 3 s y el hierro en 8 s para poder ver el
+  ciclo entero; el botón de abajo dice en todo momento qué hay en la cadena.
+</p>
+
+<div class="btns">
+  <button class="ctl" id="btn-cobre">Poner piedra de cobre + carbón</button>
+  <button class="ctl" id="btn-hierro">Poner piedra de hierro + carbón</button>
+  <button class="ctl" id="btn-rapido">Acortar tiempos (3 s / 8 s)</button>
+  <button class="ctl" id="btn-real">Tiempos reales (1 min / 5 min)</button>
+  <button class="ctl" id="btn-estado">Ver la cadena</button>
+</div>
+
+<!-- ===== El panel, copiado tal cual de index.html ===== -->
+<div id="furnace-panel" class="furnace-visible" style="z-index: 1;">
+  <div class="furnace-container">
+    <div class="furnace-header">
+      <h2 class="furnace-title">🔥 Furnace</h2>
+      <button id="furnace-close" class="furnace-close-btn">✕</button>
+    </div>
+    <div class="furnace-body">
+      <div class="furnace-slots-row">
+        <div class="furnace-slot-box">
+          <div class="furnace-slot" id="furnace-slot-ore" data-type="ore">
+            <span class="furnace-slot-label">Ore</span>
+          </div>
+          <div class="furnace-slot" id="furnace-slot-coal" data-type="coal">
+            <span class="furnace-slot-label">Coal</span>
+          </div>
+        </div>
+        <div class="furnace-arrow">▶</div>
+        <div class="furnace-result-box">
+          <div class="furnace-slot result" id="furnace-slot-result">
+            <span class="furnace-slot-label">Result</span>
+          </div>
+          <div id="furnace-timer" class="furnace-timer" style="display:none">⏱️ <span id="furnace-time-display">--</span></div>
+        </div>
+      </div>
+      <div id="furnace-status" class="furnace-status">Pick up ore, click the top slot; pick up coal, click the bottom one</div>
+      <div class="furnace-recipes">
+        <div class="furnace-recipes-title">📋 Recipes</div>
+        <div id="furnace-recipe-list" class="furnace-recipe-list">
+          <!-- Nada de 🪵 aquí: es Unicode 13 y Windows 10 se quedó en la 12, así
+               que sale como un cuadrado vacío. ⬛ es de toda la vida. -->
+          <div class="furnace-recipe-row">
+            <span>🟤 Copper Ore</span><span>+</span><span>⬛ Coal x1</span><span>→</span><span>🟠 Copper Ingot · 1 min</span>
+          </div>
+          <div class="furnace-recipe-row">
+            <span>⚫ Iron Ore</span><span>+</span><span>⬛ Coal x1</span><span>→</span><span>⚪ Iron Ingot · 5 min</span>
+          </div>
+        </div>
+      </div>
+      <div class="furnace-footer">
+        <button id="furnace-smelt-btn" class="furnace-btn-smelt" disabled>🔥 Smelt</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<pre id="informe">cargando…</pre>
+
+<script>
+// ── CADENA DE MENTIRA ───────────────────────────────────────────────────────
+// Una factura por tipo, con la misma regla que importa: quitar baja la cantidad
+// y a cero la factura se cierra; acuñar crea una nueva.
+const cadena = {
+  mineral_piedra_cobre: 5,
+  mineral_piedra_hierro: 3,
+  carbon: 4,
+  mineral_carbon: 0,
+  mineral_cobre: 0,
+  mineral_hierro: 0
+};
+const registro = [];
+
+// ── LA ESCENA DE MENTIRA ────────────────────────────────────────────────────
+// Solo lo que el horno toca. El motor on-chain de verdad ya está probado en
+// tools/horno-prueba.js; aquí interesa la PANTALLA, así que quitar y acuñar se
+// resuelven en el acto contra el objeto `cadena`.
+const escena = {
+  playerName: 'prueba',
+  serverBase: '',
+  guardado: null,
+  notifications: { show(m) { anotar('🔔 ' + m); } },
+
+  ItemDefinitions: {
+    mineral_piedra_cobre:  { src: './Game/Source/piedra_cobre.png',  maxStack: 20, tipo: 'mineral_piedra_cobre' },
+    mineral_piedra_hierro: { src: './Game/Source/piedra_hierro.png', maxStack: 20, tipo: 'mineral_piedra_hierro' },
+    mineral_carbon:        { src: './Game/Source/piedra_carbon.png', maxStack: 20, tipo: 'mineral_carbon' },
+    carbon:                { src: './Game/Objetos/carbon.png',       maxStack: 20, tipo: 'carbon' },
+    mineral_cobre:         { src: './Game/Source/cobre.png',         maxStack: 20, tipo: 'mineral_cobre' },
+    mineral_hierro:        { src: './Game/Source/hierro.png',        maxStack: 20, tipo: 'mineral_hierro' }
+  },
+
+  STATE: { slots: [], quickSlots: [], selectedItem: null },
+
+  _escHtml(t) {
+    return String(t === null || t === undefined ? '' : t)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  },
+  _getFruitDisplayNameEN(id) {
+    return ({
+      mineral_piedra_cobre: 'Copper Ore', mineral_piedra_hierro: 'Iron Ore',
+      mineral_carbon: 'Coal Ore', carbon: 'Coal',
+      mineral_cobre: 'Copper Ingot', mineral_hierro: 'Iron Ingot'
+    })[id] || id;
+  },
+
+  // Quitar y acuñar, resueltos al momento contra la cadena de mentira.
+  async ejecutarDivisionRemove(tipo, itemId, max, cantidad) {
+    await new Promise(r => setTimeout(r, 250));      // que se vea el "Sending…"
+    const hay = cadena[itemId] || 0;
+    const quita = Math.min(hay, cantidad);
+    cadena[itemId] = hay - quita;
+    escena._quitarDeSlots(itemId, quita);
+    anotar(`⛏️ quemado ${quita}x ${itemId} (quedan ${cadena[itemId]})`);
+  },
+  async ejecutarDivision(tipo, itemId, max, cantidad) {
+    await new Promise(r => setTimeout(r, 250));
+    cadena[itemId] = (cadena[itemId] || 0) + cantidad;
+    escena._ponerEnSlots(itemId, cantidad);
+    anotar(`🪙 acuñado ${cantidad}x ${itemId} (ahora ${cadena[itemId]})`);
+  },
+  // El inventario local espeja la cadena: aquí no hay desajuste que probar.
+  _quitarDeSlots(itemId, n) {
+    for (const s of escena.STATE.slots) {
+      if (n <= 0) break;
+      if (s && s.id === itemId) { const q = Math.min(s.count, n); s.count -= q; n -= q; }
+    }
+    escena.STATE.slots = escena.STATE.slots.filter(s => !s || s.count > 0);
+  },
+  _ponerEnSlots(itemId, n) {
+    const s = escena.STATE.slots.find(x => x && x.id === itemId);
+    if (s) s.count += n; else escena.STATE.slots.push({ id: itemId, count: n, idx: 1, idm: itemId });
+  },
+
+  // El relay: aquí solo se usa para la comprobación previa (¿lo tiene de verdad?)
+  relayClient: {
+    async findContract() { return { address: '0x' + '1'.repeat(40) }; },
+    async misFacturas() {
+      return Object.entries(cadena)
+        .filter(([, n]) => n > 0)
+        .map(([tipo, n], i) => ({ id: i + 1, manualId: tipo, owner: '', tipo, cantidad: n, activa: true }));
+    }
+  }
+};
+
+// El estado del horno se guarda en memoria, con la MISMA forma que
+// /api/furnace/:playerName (oreItem, coalItem, timestamp) para que el
+// reconstructor sea el mismo que en el juego.
+escena.fetchGuardado = () => escena.guardado || { oreItem: null, coalItem: null, timestamp: 0 };
+
+function anotar(t) {
+  registro.unshift(new Date().toLocaleTimeString() + '  ' + t);
+  pintarInforme();
+}
+function pintarInforme() {
+  const inv = Object.entries(cadena).map(([k, v]) => `${k}: ${v}`).join('\n  ');
+  document.getElementById('informe').textContent =
+    'EN LA CADENA\n  ' + inv +
+    '\n\nHORNO: ' + JSON.stringify(escena._hornoEstado || { fase: 'vacio' }) +
+    '\n\nREGISTRO\n  ' + registro.slice(0, 14).join('\n  ');
+}
+
+// ── SE CARGAN LOS MÉTODOS REALES DEL HORNO ──────────────────────────────────
+// Se sacan de Scenes/GameScene.js por su nombre, para que esta página no tenga
+// una copia del horno que se quede vieja.
+const METODOS = ['FURNACE_RECIPES', '_esCombustibleHorno', '_contarParaFundir',
+  '_existenciasEnCadena', '_estadoDesdeGuardado', '_cargarHorno', '_guardarHorno',
+  '_pararRelojHorno', '_pintarHorno', '_avisoHorno', '_iniciarFundido',
+  '_recogerDelHorno', '_setupFurnacePanel', 'openFurnacePanel', 'closeFurnacePanel'];
+
+function extraer(txt, nombre) {
+  let m = new RegExp('\\n( +(?:async +)?' + nombre + '\\([^)]*\\)\\s*\\{)').exec(txt)
+       || new RegExp('\\n( +get +' + nombre + '\\(\\)\\s*\\{)').exec(txt);
+  if (!m) throw new Error('no encuentro ' + nombre);
+  const ini = m.index + 1;
+  let i = m.index + m[0].length - 1, prof = 0, cadenaTxt = null, bloque = false, linea = false;
+  while (i < txt.length) {
+    const c = txt[i], dos = txt.substr(i, 2);
+    if (linea) { if (c === '\n') linea = false; }
+    else if (bloque) { if (dos === '*/') { bloque = false; i += 2; continue; } }
+    else if (cadenaTxt) { if (c === '\\') { i += 2; continue; } if (c === cadenaTxt) cadenaTxt = null; }
+    else {
+      if (dos === '//') { linea = true; i += 2; continue; }
+      if (dos === '/*') { bloque = true; i += 2; continue; }
+      if (c === '"' || c === "'" || c === '`') cadenaTxt = c;
+      else if (c === '{') prof++;
+      else if (c === '}') { if (--prof === 0) return txt.slice(ini, i + 1); }
+    }
+    i++;
+  }
+  throw new Error('llaves sin cerrar en ' + nombre);
+}
+
+(async () => {
+  const fuente = (await (await fetch('./Scenes/GameScene.js')).text()).replace(/\r\n/g, '\n');
+  const Horno = eval('(class Horno {\n' + METODOS.map(n => extraer(fuente, n)).join('\n') + '\n})');
+  Object.getOwnPropertyNames(Horno.prototype).forEach(n => {
+    if (n === 'constructor') return;
+    const d = Object.getOwnPropertyDescriptor(Horno.prototype, n);
+    Object.defineProperty(escena, n, d);
+  });
+
+  // El guardado va a memoria, no a la red: se cambia `fetch` solo para
+  // /api/furnace, que es lo único que el horno pide al servidor.
+  const fetchReal = window.fetch.bind(window);
+  window.fetch = (url, opts) => {
+    if (String(url).includes('/api/furnace/')) {
+      if (opts && opts.method === 'POST') {
+        escena.guardado = JSON.parse(opts.body);
+        return Promise.resolve({ ok: true, json: async () => ({ success: true }) });
+      }
+      return Promise.resolve({ ok: true, json: async () => escena.fetchGuardado() });
+    }
+    return fetchReal(url, opts);
+  };
+  window.getCsrfToken = () => 'x';
+
+  escena.STATE.slots = [
+    { id: 'mineral_piedra_cobre',  count: 5, idx: 1, idm: 'a' },
+    { id: 'mineral_piedra_hierro', count: 3, idx: 2, idm: 'b' },
+    { id: 'carbon',                count: 4, idx: 3, idm: 'c' }
+  ];
+  escena._setupFurnacePanel();
+
+  const meter = (casilla, itemId) => {
+    escena.STATE.selectedItem = { id: itemId, idx: null, idm: null, image: '' };
+    document.getElementById(casilla).onclick();
+    escena.STATE.selectedItem = null;
+  };
+  document.getElementById('btn-cobre').onclick = () => {
+    meter('furnace-slot-ore', 'mineral_piedra_cobre'); meter('furnace-slot-coal', 'carbon'); pintarInforme();
+  };
+  document.getElementById('btn-hierro').onclick = () => {
+    meter('furnace-slot-ore', 'mineral_piedra_hierro'); meter('furnace-slot-coal', 'carbon'); pintarInforme();
+  };
+  document.getElementById('btn-rapido').onclick = () => {
+    Object.defineProperty(escena, 'FURNACE_RECIPES', { configurable: true, get: () => ({
+      mineral_piedra_cobre:  { resultado: 'mineral_cobre',  segundos: 3, carbon: 1 },
+      mineral_piedra_hierro: { resultado: 'mineral_hierro', segundos: 8, carbon: 1 }
+    }) });
+    anotar('⏩ tiempos acortados: cobre 3 s, hierro 8 s');
+  };
+  document.getElementById('btn-real').onclick = () => {
+    delete escena.FURNACE_RECIPES;
+    Object.defineProperty(escena, 'FURNACE_RECIPES',
+      Object.getOwnPropertyDescriptor(Horno.prototype, 'FURNACE_RECIPES'));
+    anotar('⏱️ tiempos reales: cobre 60 s, hierro 300 s');
+  };
+  document.getElementById('btn-estado').onclick = pintarInforme;
+
+  setInterval(pintarInforme, 1000);
+  anotar('listo — el horno real está cargado');
+})().catch(e => {
+  document.getElementById('informe').textContent = 'EXPLOTÓ: ' + (e && e.message) + '\n' + (e && e.stack);
+});
+</script>
+</body>
+</html>

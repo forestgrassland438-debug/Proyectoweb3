@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Grassland Forest — Access Gate (Admin)</title>
+<style>
+  :root { --bg:#0b1220; --card:#111a2e; --panel:#0e1626; --border:#233; --accent:#ffd23f; --green:#2e7d32; --red:#b23b3b; --muted:#8ba0c0; --text:#eaf2ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:linear-gradient(160deg,#0a1020,#0b1628); color:var(--text); font-family:Arial,Helvetica,sans-serif; min-height:100vh; }
+  .wrap { max-width:820px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:20px; }
+  .card { background:var(--card); border:1px solid #1e2c46; border-radius:14px; padding:18px; margin-bottom:18px; box-shadow:0 8px 30px rgba(0,0,0,.35); }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  button { background:#1b2740; color:var(--text); border:1px solid #2c3d5e; border-radius:9px; padding:9px 16px; font-size:14px; font-weight:bold; cursor:pointer; }
+  button:hover { background:#233252; }
+  button.primary { background:var(--accent); color:#20160a; border-color:var(--accent); }
+  button.green { background:var(--green); border-color:#2e7d32; color:#fff; }
+  button.red { background:var(--red); border-color:var(--red); color:#fff; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  input, select, textarea { background:var(--panel); color:var(--text); border:1px solid #2c3d5e; border-radius:8px; padding:9px 10px; font-size:14px; width:100%; }
+  input::placeholder, textarea::placeholder { color:#5f74a0; }
+  label { font-size:12px; color:var(--muted); display:block; margin:0 0 4px; }
+  .status { font-size:13px; padding:10px 12px; border-radius:9px; margin:10px 0; display:none; }
+  .status.show { display:block; }
+  .status.ok { background:rgba(46,125,50,.18); border:1px solid #2e7d32; }
+  .status.err { background:rgba(178,59,59,.18); border:1px solid #b23b3b; }
+  .status.info { background:rgba(140,170,255,.12); border:1px solid #3a4d7a; }
+  .list { margin-top:10px; }
+  .item { display:flex; gap:10px; align-items:center; justify-content:space-between; background:var(--panel); border:1px solid #22314e; border-radius:9px; padding:8px 10px; margin-bottom:6px; }
+  .item .addr { font-family:monospace; font-size:13px; word-break:break-all; }
+  .item .meta { color:var(--muted); font-size:12px; }
+  .mode-pills { display:flex; gap:8px; }
+  .pill { padding:8px 14px; border-radius:999px; border:1px solid #2c3d5e; cursor:pointer; font-size:13px; background:var(--panel); }
+  .pill.active { background:var(--accent); color:#20160a; border-color:var(--accent); font-weight:bold; }
+  .hidden { display:none !important; }
+  .grid2 { display:grid; grid-template-columns:1fr auto; gap:8px; align-items:end; }
+  .muted { color:var(--muted); font-size:12px; }
+  code { background:#0a1424; padding:1px 6px; border-radius:5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔐 Access Gate — Admin Panel</h1>
+  <div class="sub">Grassland Forest · control who can enter the game (whitelist / bans). Admin wallet only.</div>
+
+  <div id="status" class="status"></div>
+
+  <!-- Sign-in -->
+  <div class="card" id="authCard">
+    <div class="row" style="justify-content:space-between;">
+      <div>
+        <div style="font-weight:bold;">Admin sign-in</div>
+        <div class="muted" id="whoami">Not connected.</div>
+      </div>
+      <div class="row">
+        <button class="primary" id="btnConnect">Connect &amp; sign in</button>
+        <button id="btnLogout" class="hidden">Disconnect</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel (hidden until admin) -->
+  <div id="panel" class="hidden">
+    <div class="card">
+      <label>Access mode</label>
+      <div class="mode-pills" id="modePills">
+        <div class="pill" data-mode="all">Everyone (except banned)</div>
+        <div class="pill" data-mode="whitelist">Whitelist only</div>
+      </div>
+      <div class="muted" style="margin-top:8px;">In <b>Whitelist only</b>, only the addresses below can enter. Bans always apply in both modes.</div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:bold; margin-bottom:8px;">Whitelist</div>
+      <div class="grid2">
+        <div>
+          <label>Wallet address (0x…)</label>
+          <input id="wlInput" placeholder="0x..." autocomplete="off" />
+        </div>
+        <button class="green" id="wlAdd">Add</button>
+      </div>
+      <div class="list" id="wlList"></div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:bold; margin-bottom:8px;">Bans</div>
+      <div>
+        <label>Wallet address (0x…)</label>
+        <input id="banAddr" placeholder="0x..." autocomplete="off" />
+        <label style="margin-top:8px;">Reason</label>
+        <textarea id="banReason" rows="2" placeholder="Reason for the ban (shown to the user)"></textarea>
+        <div class="row" style="margin-top:8px; justify-content:flex-end;">
+          <button class="red" id="banAdd">Add ban</button>
+        </div>
+      </div>
+      <div class="list" id="banList"></div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between;">
+        <div class="muted">Changes are only saved when you press <b>Save</b>.</div>
+        <div class="row">
+          <button id="btnReload">Reload</button>
+          <button class="primary" id="btnSave">Save changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // Ajusta si tu API vive en otro host.
+  var API_BASE = "https://api.grasslandforest.com";
+  var APP_NAME = "Grassland Forest";
+
+  var state = { account: null, csrf: null, mode: 'all', whitelist: [], banned: [] };
+
+  var $ = function (id) { return document.getElementById(id); };
+  function showStatus(msg, kind) {
+    var el = $('status');
+    el.textContent = msg;
+    el.className = 'status show ' + (kind || 'info');
+  }
+  function api(path) { return API_BASE.replace(/\/$/, '') + path; }
+  function isAddr(a) { return /^0x[a-fA-F0-9]{40}$/.test(String(a || '').trim()); }
+  function b64(str) { try { return btoa(unescape(encodeURIComponent(str))); } catch (e) { return btoa(String(str)); } }
+  function readCookie(name) {
+    var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + name.replace(/[.$?*|{}()[\]\\/+^]/g, '\\$&') + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
+  function getProvider() {
+    if (window.ethereum && window.ethereum.isMetaMask) return window.ethereum;
+    if (window.ethereum && window.ethereum.providers) {
+      var p = window.ethereum.providers.find(function (x) { return x.isMetaMask; });
+      if (p) return p;
+    }
+    return window.ethereum || null;
+  }
+
+  async function getCsrf() {
+    try {
+      var r = await fetch(api('/api/auth/csrf-token'), { credentials: 'include', mode: 'cors' });
+      var d = await r.json();
+      state.csrf = readCookie('csrf-token') || d.csrfToken || null;
+    } catch (e) { /* ignore */ }
+    return state.csrf;
+  }
+
+  async function signInFlow() {
+    var provider = getProvider();
+    if (!provider) { showStatus('MetaMask not detected. Install it to continue.', 'err'); return false; }
+    showStatus('Connecting wallet…', 'info');
+    var accounts = await provider.request({ method: 'eth_requestAccounts' });
+    var account = accounts && accounts[0];
+    if (!account) { showStatus('No account selected.', 'err'); return false; }
+    state.account = account;
+
+    await getCsrf();
+
+    showStatus('Requesting nonce…', 'info');
+    var nr = await fetch(api('/api/auth/nonce?address=' + encodeURIComponent(account.toLowerCase())), { credentials: 'include', mode: 'cors' });
+    if (!nr.ok) { showStatus('Could not get nonce.', 'err'); return false; }
+    var nd = await nr.json();
+    var nonce = nd.nonce;
+
+    var timestamp = Math.floor(Date.now() / 1000);
+    var token = nonce + ':' + timestamp;
+    var message = 'Signing in to ' + APP_NAME + ': ' + b64(token);
+
+    showStatus('Sign the message in your wallet…', 'info');
+    var signature = await provider.request({ method: 'personal_sign', params: [message, account] });
+
+    var headers = { 'Content-Type': 'application/json' };
+    if (state.csrf) headers['X-CSRF-Token'] = state.csrf;
+    var lr = await fetch(api('/api/auth/login'), {
+      method: 'POST', credentials: 'include', mode: 'cors', headers: headers,
+      body: JSON.stringify({ address: account.toLowerCase(), signature: signature, token: token, message: message })
+    });
+    if (!lr.ok) {
+      var err = {}; try { err = await lr.json(); } catch (e) {}
+      if (err.error === 'banned') showStatus('This wallet is banned, so it cannot sign in.', 'err');
+      else if (err.error === 'not_whitelisted') showStatus('This wallet is not whitelisted.', 'err');
+      else showStatus('Sign-in failed: ' + (err.error || lr.status), 'err');
+      return false;
+    }
+    var ld = {}; try { ld = await lr.json(); } catch (e) {}
+    if (ld.csrfToken) state.csrf = ld.csrfToken;
+    return true;
+  }
+
+  async function loadAccess() {
+    var r = await fetch(api('/api/access'), { credentials: 'include', mode: 'cors' });
+    if (r.status === 403) { showStatus('This wallet is not an admin. Access denied.', 'err'); return false; }
+    if (!r.ok) { showStatus('Could not load access config (' + r.status + ').', 'err'); return false; }
+    var d = await r.json();
+    state.mode = d.mode || 'all';
+    state.whitelist = Array.isArray(d.whitelist) ? d.whitelist.slice() : [];
+    state.banned = Array.isArray(d.banned) ? d.banned.slice() : [];
+    renderAll();
+    return true;
+  }
+
+  async function saveAccess() {
+    await getCsrf();
+    var headers = { 'Content-Type': 'application/json' };
+    if (state.csrf) headers['X-CSRF-Token'] = state.csrf;
+    var r = await fetch(api('/api/access'), {
+      method: 'POST', credentials: 'include', mode: 'cors', headers: headers,
+      body: JSON.stringify({ mode: state.mode, whitelist: state.whitelist, banned: state.banned })
+    });
+    if (!r.ok) {
+      var e = {}; try { e = await r.json(); } catch (x) {}
+      showStatus('Save failed: ' + (e.error || r.status), 'err');
+      return;
+    }
+    var d = await r.json();
+    state.mode = d.mode; state.whitelist = d.whitelist || []; state.banned = d.banned || [];
+    renderAll();
+    showStatus('Saved.', 'ok');
+  }
+
+  function renderMode() {
+    var pills = document.querySelectorAll('#modePills .pill');
+    pills.forEach(function (p) { p.classList.toggle('active', p.getAttribute('data-mode') === state.mode); });
+  }
+  function renderWL() {
+    var c = $('wlList'); c.innerHTML = '';
+    if (!state.whitelist.length) { c.innerHTML = '<div class="muted">No addresses whitelisted.</div>'; return; }
+    state.whitelist.forEach(function (a, i) {
+      var d = document.createElement('div'); d.className = 'item';
+      var s = document.createElement('div'); s.className = 'addr'; s.textContent = a;
+      var b = document.createElement('button'); b.className = 'red'; b.textContent = 'Remove';
+      b.onclick = function () { state.whitelist.splice(i, 1); renderWL(); };
+      d.appendChild(s); d.appendChild(b); c.appendChild(d);
+    });
+  }
+  function renderBans() {
+    var c = $('banList'); c.innerHTML = '';
+    if (!state.banned.length) { c.innerHTML = '<div class="muted">No bans.</div>'; return; }
+    state.banned.forEach(function (ban, i) {
+      var d = document.createElement('div'); d.className = 'item';
+      var left = document.createElement('div');
+      var s = document.createElement('div'); s.className = 'addr'; s.textContent = ban.address;
+      var m = document.createElement('div'); m.className = 'meta';
+      var when = ban.date ? new Date(ban.date).toLocaleString('en-US') : '';
+      m.textContent = (ban.reason || 'No reason') + (when ? '  ·  ' + when : '');
+      left.appendChild(s); left.appendChild(m);
+      var b = document.createElement('button'); b.className = 'green'; b.textContent = 'Unban';
+      b.onclick = function () { state.banned.splice(i, 1); renderBans(); };
+      d.appendChild(left); d.appendChild(b); c.appendChild(d);
+    });
+  }
+  function renderAll() { renderMode(); renderWL(); renderBans(); }
+
+  // Events
+  $('btnConnect').onclick = async function () {
+    $('btnConnect').disabled = true;
+    try {
+      var ok = await signInFlow();
+      if (ok) {
+        $('whoami').textContent = 'Signed in as ' + state.account;
+        $('btnConnect').classList.add('hidden');
+        $('btnLogout').classList.remove('hidden');
+        var admin = await loadAccess();
+        if (admin) { $('panel').classList.remove('hidden'); showStatus('Loaded. You are admin.', 'ok'); }
+      }
+    } catch (e) {
+      showStatus('Error: ' + (e && e.message ? e.message : e), 'err');
+    } finally { $('btnConnect').disabled = false; }
+  };
+  $('btnLogout').onclick = async function () {
+    try {
+      var headers = {}; if (state.csrf) headers['X-CSRF-Token'] = state.csrf;
+      await fetch(api('/api/auth/logout'), { method: 'POST', credentials: 'include', mode: 'cors', headers: headers });
+      var provider = getProvider();
+      if (provider && provider.request) { try { await provider.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] }); } catch (e) {} }
+    } catch (e) {}
+    state = { account: null, csrf: null, mode: 'all', whitelist: [], banned: [] };
+    $('panel').classList.add('hidden');
+    $('btnLogout').classList.add('hidden');
+    $('btnConnect').classList.remove('hidden');
+    $('whoami').textContent = 'Not connected.';
+    showStatus('Signed out.', 'info');
+  };
+  document.querySelectorAll('#modePills .pill').forEach(function (p) {
+    p.onclick = function () { state.mode = p.getAttribute('data-mode'); renderMode(); };
+  });
+  $('wlAdd').onclick = function () {
+    var v = $('wlInput').value.trim().toLowerCase();
+    if (!isAddr(v)) { showStatus('Enter a valid 0x address.', 'err'); return; }
+    if (state.whitelist.indexOf(v) === -1) state.whitelist.push(v);
+    $('wlInput').value = ''; renderWL();
+  };
+  $('banAdd').onclick = function () {
+    var v = $('banAddr').value.trim().toLowerCase();
+    if (!isAddr(v)) { showStatus('Enter a valid 0x address to ban.', 'err'); return; }
+    var reason = $('banReason').value.trim();
+    state.banned = state.banned.filter(function (b) { return String(b.address).toLowerCase() !== v; });
+    state.banned.push({ address: v, reason: reason, date: new Date().toISOString() });
+    $('banAddr').value = ''; $('banReason').value = ''; renderBans();
+  };
+  $('btnSave').onclick = saveAccess;
+  $('btnReload').onclick = loadAccess;
+})();
+</script>
+</body>
+</html>

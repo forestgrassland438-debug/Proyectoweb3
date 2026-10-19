@@ -1,0 +1,116 @@
+
+=== 1. LA COPIA DEL SERVIDOR ===
+  OK    server2.js lleva exactamente gf-brawl-motor.js
+
+=== 2. LOS MAPAS DE TILED CASAN CON EL MOTOR ===
+  OK    pradera: la rejilla del mapa es la del motor
+  OK    pradera: las 6 apariciones coinciden
+  OK    pradera: ninguna aparición está bloqueada
+  OK    ruinas: la rejilla del mapa es la del motor
+  OK    ruinas: las 6 apariciones coinciden
+  OK    ruinas: ninguna aparición está bloqueada
+  OK    rio: la rejilla del mapa es la del motor
+  OK    rio: las 6 apariciones coinciden
+  OK    rio: ninguna aparición está bloqueada
+  OK    nieve: la rejilla del mapa es la del motor
+  OK    nieve: las 6 apariciones coinciden
+  OK    nieve: ninguna aparición está bloqueada
+  OK    canon: la rejilla del mapa es la del motor
+  OK    canon: las 6 apariciones coinciden
+  OK    canon: ninguna aparición está bloqueada
+
+=== 3. LA FÍSICA ===
+  OK    paseo aleatorio de 120.000 pasos: nunca dentro de un muro, el agua o una caja
+  OK    y nunca fuera de la arena
+  OK    contra un muro en diagonal, resbala de lado
+  OK    el agua no se cruza
+  OK    por el puente sí
+  OK    una bala cruza el agua sin chocar
+  OK    y para en el primer muro
+  OK    mismas entradas, mismo resultado (cliente = servidor)
+
+=== 4. ANTI-TRAMPAS ===
+  OK    un teletransporte de 500 px se queda en lo que da tiempo a andar
+  OK    y se le manda corregir
+  OK    la instantánea lleva la posición buena
+  OK    una entrada que no ha visto la corrección (c viejo) se ignora
+  OK    en cuanto confirma la corrección, vuelve a moverse
+  OK    una entrada con número viejo (desordenada) se ignora
+  OK    paquetes basura no rompen nada
+  OK    ir más rápido de la cuenta no cuela (recorrido 393 px en 3 s)
+  OK    la cadencia no deja disparar diez veces de golpe
+  OK    la munición se gasta
+  OK    sin súper cargada, no hay súper
+  OK    un ángulo raro no dispara
+  OK    un luchador que no existe no hace nada
+
+=== 5. EL COMBATE ===
+  OK    cada uno en su aparición
+  OK    un ladrido a tiro quita vida y se avisa a todos
+  OK    el daño es ataque × 12 × el del arma
+  OK    acertar carga la súper
+  OK    con la súper cargada, sale
+  OK    la súper pega fuerte y empuja
+  OK    al empujado se le manda su posición nueva
+  OK    pasados 3 s sin pelear, se regenera
+  OK    a cero, cae
+  OK    y con uno solo en pie, gana
+  OK    el KO dice quién lo hizo
+  OK    el caído suelta huesos
+  OK    pisar un hueso: +1 de poder y más vida máxima
+  OK    y se avisa
+  OK    dos ladridos rompen una caja (y deja de bloquear)
+  OK    cuatro rompen la dorada
+  OK    y la dorada suelta un hueso y un suministro
+  OK    el que está en la hierba NO llega en tu instantánea
+  OK    él sí se ve a sí mismo
+  OK    disparar desde la hierba te delata un momento
+  OK    y luego vuelve a esconderte
+  OK    muy cerca, se ve aunque esté en la hierba
+  OK    la instantánea lleva la niebla entera (8 números)
+  OK    desde el primer segundo se sabe cuál será la zona segura (anillo siguiente, más pequeño)
+  OK    y cuánto falta para que entre la niebla
+  OK    el inicio trae el plan de las fases
+  OK    antes de que entre, la niebla no hace nada
+  OK    la niebla cierra
+  OK    quien se queda fuera pierde vida (o cae)
+  OK    al final de la niebla solo queda el círculo final
+  OK    cada fase pega más que la anterior
+  OK    la partida acaba siempre
+  OK    cada zona nueva cae dentro de la anterior y sobre suelo pisable (180 fases)
+  OK    y el centro se mueve casi siempre (178/180)
+  OK    dos ladridos al barril: explota, y el de al lado salta en cadena
+  OK    los dos dejan de bloquear
+  OK    quien estaba al lado pierde vida y sale despedido
+  OK    el que estaba detrás del muro no se lleva nada
+  OK    el daño se le apunta a quien rompió el barril
+  OK    antes de su hora no hay carne
+  OK    a su hora sale, y se avisa
+  OK    con la vida llena, pasar por encima no la gasta
+  OK    herido, la coge y cura un 35 %
+  OK    y al rato vuelve a salir
+  OK    se cae la conexión: el perro sigue en la partida
+  OK    mientras tanto no se le manda nada
+  OK    la práctica sigue, y el piloto lo mueve
+  OK    vuelve
+  OK    y recibe la partida tal y como va (reanudar)
+  OK    con su posición buena para recolocarse
+  OK    lo que mande antes de recolocarse no vale (c viejo)
+  OK    en cuanto se recoloca, vuelve a mandar él (y su cuenta empieza en 0)
+  OK    a un bot no se le "desconecta"
+  OK    el único humano se va: la práctica termina
+
+=== 6. LOS BOTS ===
+  OK    en 30 s el bot encuentra y le pega a un jugador quieto (13/12)
+  OK    ningún bot se queda atascado
+  OK    las 50 partidas solo de bots terminan todas
+  OK    y nadie acaba nunca dentro de un muro
+  OK    en 30/30 prácticas los bots se pegan entre ellos (648 golpes entre bots, 412 a ti)
+  OK    un bot listo esquiva algunas balas, no todas (47 % le dan)
+  OK    y uno torpe esquiva menos (63 % le dan)
+
+=== 7. EQUILIBRIO ENTRE ESPECIES (perro contra cada una, mismo nivel y astucia) ===
+  el perro gana: conejo 55% · cerdo 30% · cuervo 60% · zorro 38% · cocodrilo 35% · vibora 65% · topo 25% · vaca 28%
+  con la vida de las diarias: conejo 48% · cerdo 38% · cuervo 55% · zorro 43% · cocodrilo 43%
+
+98 bien, 0 mal

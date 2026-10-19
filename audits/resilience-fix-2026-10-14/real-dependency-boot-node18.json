@@ -1,0 +1,84 @@
+{
+  "passed": true,
+  "generatedAt": "2026-10-14T21:55:19.151Z",
+  "nodeVersion": "v18.20.8",
+  "backend": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\backend-impact\\server2.js",
+  "backendSha256": "643a4f79e954e0c9c9aa546ceb8e9565bb3031217f038fef496e5e9e2ee5df11",
+  "dependencies": {
+    "mongoose": "7.8.8",
+    "ethers": "6.16.0",
+    "express": "4.22.1"
+  },
+  "factories": [
+    "cargarLitvmChainAuditIntegrado",
+    "cargarLitvmImpactAnalyticsIntegrado"
+  ],
+  "externalRequires": 0,
+  "builtinRequires": [
+    "node:crypto",
+    "node:async_hooks",
+    "node:crypto"
+  ],
+  "networkCalls": 0,
+  "mongooseConnectionState": 0,
+  "ledgerSchemaPaths": 40,
+  "invoiceUpdateTipoSchemaType": "String",
+  "models": [
+    "IsolatedPlayer",
+    "IsolatedActivity",
+    "IsolatedPlaytime",
+    "IsolatedRelay",
+    "LitvmChainTransaction",
+    "LitvmChainScan",
+    "ImpactPlaySegment",
+    "ImpactAnalyticsMeta"
+  ],
+  "routes": [
+    {
+      "path": "/api/admin/impact/summary",
+      "methods": [
+        "get"
+      ]
+    },
+    {
+      "path": "/api/admin/impact/users",
+      "methods": [
+        "get"
+      ]
+    },
+    {
+      "path": "/api/admin/impact/scan",
+      "methods": [
+        "get"
+      ]
+    },
+    {
+      "path": "/api/admin/impact/diagnostics",
+      "methods": [
+        "get"
+      ]
+    },
+    {
+      "path": "/api/admin/impact/scan",
+      "methods": [
+        "post"
+      ]
+    },
+    {
+      "path": "/api/admin/impact/export/users.csv",
+      "methods": [
+        "get"
+      ]
+    },
+    {
+      "path": "/api/admin/impact/export/onchain.json",
+      "methods": [
+        "get"
+      ]
+    }
+  ],
+  "mounted": true,
+  "unhandledRejections": [],
+  "disconnectedMongoInitializationCaught": true,
+  "validationScope": "Analytics factories only. No full server startup, dotenv, live database, HTTP listener or RPC transaction."
+}

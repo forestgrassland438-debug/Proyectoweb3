@@ -1,0 +1,18 @@
+✖ real Mongoose/MongoDB index failure 14031 recovers with the unique ledger and existing rows intact (21437.4754ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 21615.5922
+
+✖ failing tests:
+
+test at backend-impact\litvm-chain-audit.test.cjs:215:1
+✖ real Mongoose/MongoDB index failure 14031 recovers with the unique ledger and existing rows intact (21437.4754ms)
+  Error: isolated_mongod_stopped 
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\backend-impact\litvm-chain-audit.test.cjs:234:40)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3)

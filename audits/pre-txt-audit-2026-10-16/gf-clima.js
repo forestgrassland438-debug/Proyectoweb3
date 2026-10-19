@@ -1,0 +1,4154 @@
+/* ===========================================================================
+ * CLIMA: LLUVIA, TRUENOS Y MANDO DEL VIENTO
+ *
+ * QUÉ HACE
+ *   Pregunta al servidor qué tiempo hace y lo pinta: lluvia con salpicaduras,
+ *   relámpagos que iluminan la pantalla y truenos que sacuden la cámara. Y le
+ *   dice al viento (gf-viento.js) si tiene que soplar o no.
+ *
+ * EL CLIMA ES DEL MUNDO, NO DE TU NAVEGADOR
+ *   Lo decide el backend (/api/world/weather) y se configura desde climas.html
+ *   con cartera de administrador. Si cada cliente sorteara su propio tiempo,
+ *   dos jugadores en la misma plaza verían cosas distintas. Aquí solo se pinta
+ *   lo que diga el servidor.
+ *
+ * NO TOCA NADA DEL JUEGO
+ *   Gotas, salpicaduras, relámpagos y la cortina de tormenta son sprites SIN
+ *   cuerpo de física, pegados a la cámara. El único efecto sobre el juego es la
+ *   sacudida de cámara del trueno, que es de la propia cámara y se le pasa
+ *   sola.
+ *
+ * CÓMO SE ENGANCHA
+ *   GameScene.preload():  window.GFClima && window.GFClima.precargar(this);
+ *   GameScene.create():   window.GFClima && window.GFClima.montar(this);
+ *
+ * QUIEN QUIERA REACCIONAR AL TIEMPO, QUE USE `ahora()`
+ *   `estado()` devuelve lo que MANDA el servidor: booleanos. `ahora()` devuelve
+ *   lo que se VE, ya interpolado (la lluvia tarda cinco segundos en arreciar).
+ *   La diferencia importa: con `estado()`, un pájaro dejaría de bañarse en el
+ *   mismo milisegundo en que el administrador pulsa el botón, con el cielo
+ *   todavía despejado. Lo usa gf-animales para refugiar a la fauna.
+ *
+ * API
+ *   GFClima.montar(scene) / desmontar(scene)
+ *   GFClima.sincronizar()        vuelve a preguntar al servidor
+ *   GFClima.estado()             lo que manda el servidor
+ *   GFClima.ahora()              lo que se ve: { lluvia, nieve, sol, viento,
+ *                                nublado, truenos, tormenta, estacion,
+ *                                activo }, de 0 a 1
+ *   GFClima.charcos(scene)       los charcos en los que se puede uno bañar
+ *   GFClima.alTronar(fn)         avisa cuando RETUMBA (devuelve la baja)
+ *   GFClima.probar('lluvia'|'tormenta'|'viento'|'nublado'|'despejado')  para ver
+ * ======================================================================== */
+(function () {
+  'use strict';
+
+  var RUTA = './Game/Objetos/clima/';
+  var GOTAS   = ['gota_1', 'gota_2', 'gota_3'];
+  var SALPICA = ['salpica_1', 'salpica_2', 'salpica_3'];
+  // (los rayos ya no salen de PNG: se dibujan, ver RAYOS_DIBUJADOS más abajo)
+  var COPOS   = ['copo_1', 'copo_2', 'copo_3', 'copo_4'];
+  var POSAS   = ['posa_1', 'posa_2', 'posa_3'];
+  // (los charcos ya no salen de PNG: se dibujan, ver CHARCOS_DIBUJADOS)
+  var FUEGOS  = ['fuego_1', 'fuego_2', 'fuego_3', 'fuego_4'];
+  var HUMOS   = ['humo_1', 'humo_2', 'humo_3'];
+  var BRASAS  = ['brasa_1', 'brasa_2', 'brasa_3'];
+
+  /* CADA CUANTO SE PREGUNTA EL TIEMPO SI EL SOCKET FALLA.
+
+     Estaba en 3 minutos, y con eso un administrador lanzaba una tormenta desde
+     climas.html y en el juego no pasaba nada durante tres minutos largos —
+     tiempo mas que de sobra para dar por hecho que no funcionaba. Ahora 45
+     segundos: sigue siendo una consulta muy barata y el peor caso deja de
+     parecer una averia. */
+  var SYNC_MS   = 45 * 1000;
+  var ENTRA_MS  = 5000;            // lo que tarda en arreciar / amainar
+
+  var N_GOTAS    = 120;   // más gotas y más finas: se lee mejor como lluvia
+  var N_SALPICA  = 14;
+  var N_COPOS    = 110;   // la nieve necesita más piezas: caen mucho más lento
+  var N_POSAS    = 18;
+
+  var VEL_COPO   = 62;    // px/s; un copo baja como diez veces más lento que una gota
+  var VAIVEN_COPO = [0.5, 1.9];   // cada copo se mece a su ritmo
+
+  /* LA NIEVE EN TRES PLANOS (2026-10-04).
+
+     Los 110 copos de PNG eran todos del mismo tamaño y caían a la misma
+     distancia: se leía como un fondo de pantalla. Ahora hay profundidad:
+
+       png      los de siempre: el grueso de la nevada, a media distancia
+       cristal  copos con su ESTRELLA de brazos y ramitas, en pixel art
+                dibujado con canvas
+       cerca    pocos, grandes y DESENFOCADOS, que pasan rápido por delante de
+                la cámara: es lo que da la sensación de estar dentro de la
+                nevada y no mirándola
+
+     Y LA RÁFAGA: cada pocos segundos el viento arrecia un momento, los copos
+     se tumban y se arremolinan, y vuelve la calma. */
+  var N_CRISTALES   = 26;
+  var N_COPOS_CERCA = 14;
+  var PLANO_COPO = {
+    png:     { vel: 1.00, alfa: 1.00, posa: true  },
+    cristal: { vel: 0.85, alfa: 0.95, posa: true  },
+    cerca:   { vel: 2.10, alfa: 0.40, posa: false }
+  };
+
+  /* ESTACIONES.
+
+     El filtro es lo que hace que un mismo mapa se lea como otoño o como
+     invierno sin repintar un solo tile: se multiplica el mundo entero por un
+     color. Multiplicar y no superponer es la diferencia entre "el mundo es de
+     otro color" y "hay un cristal de color delante"; lo segundo apaga el arte
+     y se nota mucho.
+
+     El verano no lleva filtro a propósito: es el aspecto con el que está
+     pintado el juego, así que cualquier tinte solo lo empeoraría. */
+  /* EL TINTE DE LA ESTACIÓN, Y CUÁNDO PEGA FUERTE.
+   *
+   * EL FALLO QUE ARREGLA: "el mundo se ve muy anaranjado; eso tiene que pasar
+   * en atardeceres o mañanitas, a mediodía no".
+   *
+   * Y tenía razón. El filtro de otoño era un naranja al 42 % multiplicando la
+   * pantalla entera DE SOL A SOL. A las doce del mediodía, con el sol
+   * vertical, un mundo naranja no es otoño: es un filtro de móvil. El naranja
+   * de otoño existe, pero es luz RASANTE — la del amanecer y la del atardecer,
+   * cuando la luz atraviesa mucha más atmósfera y se le cae el azul.
+   *
+   * Por eso cada estación tiene ahora DOS alfas:
+   *   `alfa`  a mediodía, con el sol arriba: casi nada
+   *   `borde` a primera y a última hora: el color de la estación, entero
+   *
+   * Entre uno y otro se interpola con la altura del sol (ver `calidezDelDia`).
+   * El resultado es que el mundo cambia de color a lo largo del día, que es
+   * justo lo que hace de verdad, en vez de llevar una gelatina puesta.
+   */
+  var ESTACIONES = {
+    primavera: { color: 0xdcffe4, alfa: 0.05, borde: 0.20 },
+    verano:    { color: 0xffffff, alfa: 0.00, borde: 0.00 },
+    otono:     { color: 0xffb15c, alfa: 0.10, borde: 0.46 },
+    invierno:  { color: 0xbcd4ff, alfa: 0.12, borde: 0.40 }
+  };
+
+  /* El color rasante del amanecer y el atardecer, para las estaciones que no
+     traen naranja propio. Se mezcla ENCIMA del de la estación. */
+  var COLOR_RASANTE = 0xffb072;
+
+  /**
+   * CUÁNTA LUZ RASANTE HAY AHORA MISMO: 0 a mediodía, 1 al ras del horizonte.
+   *
+   * Sale de la hora del mundo, que la lleva gf-ciclo-dia y viene del servidor
+   * (el cliente no se la inventa). El día va de las 5 a las 19; la altura del
+   * sol es un seno sobre ese tramo, máxima a las 12. La calidez es lo que le
+   * falta a esa altura, al cuadrado para que el tramo de mediodía sea ancho y
+   * plano —de 10 a 14 casi no cambia nada— y el color se dispare solo en la
+   * última hora larga de cada punta.
+   *
+   * De noche devuelve 0: la noche ya tiene su propio azul (gf-ciclo-dia
+   * multiplica con COLOR_NOCHE) y sumarle naranja encima la ensuciaría.
+   */
+  function calidezDelDia() {
+    var C = window.GFCiclo;
+    if (!C || !C.hayHora || !C.hayHora() || !C.estado) return 0.35;   // sin reloj, término medio
+    var e;
+    try { e = C.estado(); } catch (x) { return 0.35; }
+    if (!e || typeof e.hora !== 'number') return 0.35;
+
+    var t = e.hora + (e.minuto || 0) / 60;
+    if (t <= 5 || t >= 19) return 0;                  // de noche manda el azul
+    var altura = Math.sin(Math.PI * (t - 5) / 14);    // 0 al alba y al ocaso, 1 a las 12
+    var c = 1 - altura;
+    return c * c;
+  }
+  var ESTACION_MS = 2500;          // lo que tarda en pasar de una a otra
+
+  /* MULTIPLY.
+
+     Se lee de Phaser si esta, y si no se usa el 2, que es el valor de MULTIPLY
+     en Phaser 3. El respaldo NO es por capricho: con un `if (window.Phaser)`
+     delante, cargar Phaser de otra forma —como modulo, o en las pruebas sin
+     navegador— dejaba el filtro en modo normal SIN avisar, y la diferencia
+     entre multiplicar y superponer es la diferencia entre tenir el mundo y
+     echarle un velo por encima. */
+  var MULTIPLICAR = (window.Phaser && window.Phaser.BlendModes &&
+                     window.Phaser.BlendModes.MULTIPLY != null)
+                    ? window.Phaser.BlendModes.MULTIPLY : 2;
+
+  // Por encima del mundo y por DEBAJO de la capa de noche (9000), igual que las
+  // hojas del viento y los pájaros: si fuera por encima, de noche la lluvia se
+  // vería iluminada sobre un mundo a oscuras.
+  var PROF_LLUVIA   = 8100;
+  var PROF_CORTINA  = 8050;
+  var PROF_RAYO     = 8600;
+  var PROF_FOGONAZO = 8650;
+  // El filtro de la estación va DEBAJO de todo lo demás del clima: la nieve no
+  // puede salir de color ámbar en otoño, es agua helada.
+  var PROF_ESTACION = 8030;
+
+  /* CÓMO SE CREA UN RECTÁNGULO QUE LUEGO SE ENCIENDE Y SE APAGA.
+
+     scene.add.rectangle(x, y, w, h, color, alfa) NO pone el alpha del objeto:
+     pone el fillAlpha del RELLENO. Phaser dibuja con fillAlpha × alpha, así que
+     un rectángulo creado con 0 no pinta nada por mucho que luego se le suba el
+     alpha con setAlpha().
+
+     Aquí estaban los cuatro así —cortina, fogonazo, marco y filtro— y ninguno
+     se veía: existían, se les cambiaba el alpha en cada frame y no salían en
+     pantalla. Se crean con el relleno a tope y se apagan con setAlpha(0). */
+  /**
+   * Textura blanca de 4x4 para estirarla por la pantalla.
+   *
+   * POR QUÉ UNA IMAGEN Y NO UN RECTÁNGULO: Phaser NO aplica los modos de mezcla
+   * a las figuras (Rectangle, Graphics). Ni en canvas ni en WebGL: el
+   * MULTIPLY se ignora y la figura se dibuja como NORMAL, o sea, un velo de
+   * color por encima que aplasta el arte en vez de teñirlo. Las imágenes sí lo
+   * respetan, así que el filtro de la estación va con textura y tinte.
+   */
+  function texturaBlanca(scene) {
+    var clave = 'gfc_blanco';
+    if (scene.textures.exists(clave)) return clave;
+    try {
+      var c = scene.textures.createCanvas(clave, 4, 4);
+      var ctx = c.getContext();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 4, 4);
+      c.refresh();
+    } catch (e) {
+      return null;
+    }
+    return clave;
+  }
+
+  /**
+   * Dos tiras de degradado blanco, una vertical y otra horizontal.
+   *
+   * POR QUÉ: el marco de la centella eran cuatro RECTÁNGULOS planos, y se veía
+   * lo que es: cuatro cuadrados blancos pegados a los bordes, con un corte
+   * recto donde acababan. Un resplandor no tiene borde; se apaga.
+   *
+   * Con una tira de blanco que va de opaco a transparente, estirada contra
+   * cada lado, el marco se desvanece hacia el centro y ya no se ve dónde
+   * termina. Dos texturas y no una para no tener que girar nada: girar un
+   * sprite obliga a cuadrar origen y medidas al revés y se presta a errores
+   * tontos de un píxel.
+   *
+   * El degradado no es lineal: cae rápido al principio y luego se arrastra
+   * (0.45 a la mitad del recorrido), que es como se apaga la luz de verdad.
+   */
+  /* ══════════════════════════════════════════════════════════════════════
+     RAYOS DE SOL
+     ──────────────────────────────────────────────────────────────────────
+     Entran por la esquina de ARRIBA A LA IZQUIERDA. No es un capricho: es de
+     donde viene la luz en todo el arte del juego y hacia donde apunta el sol
+     que calcula gf-sombras.js. Si los rayos vinieran de otro lado, el mundo
+     tendría dos soles y se notaría al instante.
+
+     CÓMO SE HACE QUE PAREZCAN LUZ Y NO TIRAS BLANCAS. Tres cosas:
+
+       · MEZCLA ADITIVA. La luz SUMA, no tapa. Una tira blanca normal encima
+         del mundo es un plástico; la misma tira sumando es un haz.
+       · BORDES QUE SE APAGAN. El haz se difumina a lo ancho y se va perdiendo
+         a lo largo, porque un rayo de sol no tiene canto.
+       · NUNCA QUIETOS. Cada haz respira con su propio ritmo —abre y cierra un
+         poco el ángulo y sube y baja la intensidad—, que es lo que hace el
+         polvo del aire de verdad. Un haz fijo se lee como un dibujo pegado.
+
+     Y de noche no hay rayos: la intensidad se multiplica por la luz del día,
+     así que al atardecer se apagan solos.                                  */
+  var N_RAYOS      = 7;
+  var SOL_ANGULO   = -0.95;      // radianes: hacia abajo y a la derecha
+  var SOL_ABANICO  = 0.30;       // cuánto se abren unos de otros
+  var SOL_ALFA     = 0.16;       // por haz, ya con la mezcla aditiva
+  var SOL_ENTRA_MS = 3500;       // lo que tarda en entrar y en irse
+  var PROF_SOL     = 8020;       // sobre el mundo, bajo la cortina de lluvia
+
+  /** El haz: blanco por el centro, apagado a los lados y hacia la punta. */
+  function texturaRayo(scene) {
+    var clave = 'gfc_rayo_sol';
+    if (scene.textures.exists(clave)) return clave;
+    var W = 64, H = 256;
+    try {
+      var c = scene.textures.createCanvas(clave, W, H);
+      var ctx = c.getContext();
+
+      // A lo ancho: el canto se apaga. Un haz con borde recto no es un haz.
+      var gx = ctx.createLinearGradient(0, 0, W, 0);
+      gx.addColorStop(0.00, 'rgba(255,246,214,0)');
+      gx.addColorStop(0.30, 'rgba(255,249,226,0.55)');
+      gx.addColorStop(0.50, 'rgba(255,253,240,1)');
+      gx.addColorStop(0.70, 'rgba(255,249,226,0.55)');
+      gx.addColorStop(1.00, 'rgba(255,246,214,0)');
+      ctx.fillStyle = gx;
+      ctx.fillRect(0, 0, W, H);
+
+      /* A lo largo: se va perdiendo. `destination-in` conserva el color que ya
+         hay y le aplica ESTE alfa — es la forma de cruzar dos degradados sin
+         que el segundo repinte el primero. */
+      ctx.globalCompositeOperation = 'destination-in';
+      var gy = ctx.createLinearGradient(0, 0, 0, H);
+      gy.addColorStop(0.00, 'rgba(0,0,0,0.85)');
+      gy.addColorStop(0.35, 'rgba(0,0,0,1)');
+      gy.addColorStop(1.00, 'rgba(0,0,0,0)');
+      ctx.fillStyle = gy;
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'source-over';
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     LOS RAYOS, DIBUJADOS AQUÍ
+     ──────────────────────────────────────────────────────────────────────
+     LO QUE HABÍA: tres PNG de 46×210 con una raya quebrada blanca. Y dos
+     problemas que el jugador vio enseguida — "el rayo al caer se ve cortado,
+     aparece en medio de la pantalla y pasa tan rápido que no se ve lo
+     cortado, pero sí lo está":
+
+       1. El dibujo TERMINA A HACHA en el borde de abajo del PNG. No se afina,
+          no se apaga: la raya llega al píxel 210 y deja de existir. Un rayo
+          que acaba en el aire con un corte recto se lee como un error, y a
+          150 ms de exposición el ojo no lo razona pero lo nota.
+       2. Con 210 px de alto escalados por 1,4–2,6 el rayo no llegaba a
+          ninguna parte: colgaba desde arriba y se quedaba flotando por la
+          mitad de la pantalla, sin tocar nada.
+
+     LO QUE HAY AHORA: se dibujan con canvas, altos (512 px), y con tres
+     cosas que los PNG no tenían:
+
+       - RAMAS. Un rayo de verdad se bifurca. Sin ramas es una grieta.
+       - HALO. Tres pasadas —halo ancho y flojo, cuerpo medio, núcleo blanco
+         de dos píxeles— porque lo que hace que un rayo parezca luz y no
+         pintura es el resplandor de alrededor, no la línea.
+       - PUNTA. El último tramo se estrecha Y se desvanece, así que el rayo
+         acaba en un punto en vez de en un corte. Y ese punto es DONDE CAE:
+         ahí se pone el fogonazo de impacto y ahí, si hay un árbol cerca, se
+         prende el fuego (ver `relampago` y `prenderArbol`).
+
+     Se dibujan en lugar de cargarse por lo de siempre en este proyecto: un
+     PNG que alguien no sube a producción es un sistema que no arranca, y con
+     el clima ya pasó una vez. */
+  var RAYOS_DIBUJADOS = ['gfc_rayo_d1', 'gfc_rayo_d2', 'gfc_rayo_d3'];
+  var RAYO_W = 128, RAYO_H = 512;
+
+  /**
+   * Un rayo. `semilla` hace que los tres salgan distintos y siempre iguales a
+   * sí mismos: se dibujan una vez y se quedan en la caché de texturas.
+   */
+  function dibujarRayo(scene, clave, semilla) {
+    if (scene.textures.exists(clave)) return clave;
+    try {
+      var c = scene.textures.createCanvas(clave, RAYO_W, RAYO_H);
+      var ctx = c.getContext();
+      ctx.clearRect(0, 0, RAYO_W, RAYO_H);
+
+      // Azar propio y repetible: dos rayos iguales delatarían el truco.
+      var s = semilla * 7919 + 13;
+      function r() { s = (s * 16807) % 2147483647; return s / 2147483647; }
+      function az2(a, b) { return a + r() * (b - a); }
+
+      /* EL CAMINO. Baja a tramos cortos, y cada tramo se desvía un poco del
+         anterior. La desviación se estrecha con la altura (`aprieta`) para
+         que la punta no acabe en la otra punta del lienzo. */
+      function camino(x0, y0, y1, ancho, pasos) {
+        var p = [[x0, y0]];
+        var x = x0, y = y0;
+        var dy = (y1 - y0) / pasos;
+        for (var i = 0; i < pasos; i++) {
+          var aprieta = 1 - (i / pasos) * 0.55;
+          x += az2(-ancho, ancho) * aprieta;
+          y += dy * az2(0.72, 1.28);
+          if (y > y1) y = y1;
+          p.push([x, y]);
+        }
+        return p;
+      }
+
+      /* Tres pasadas sobre el MISMO camino. El orden importa: primero lo
+         ancho y flojo, encima lo estrecho y fuerte. Al revés, el halo se
+         comería el núcleo. */
+      function trazar(p, capas) {
+        for (var k = 0; k < capas.length; k++) {
+          ctx.beginPath();
+          ctx.moveTo(p[0][0], p[0][1]);
+          for (var i = 1; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]);
+          ctx.strokeStyle = capas[k][0];
+          ctx.lineWidth = capas[k][1];
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.stroke();
+        }
+      }
+
+      var CAPAS_TRONCO = [
+        ['rgba(120,170,255,0.20)', 22],   // halo lejano, azul
+        ['rgba(170,205,255,0.38)', 11],   // halo cercano
+        ['rgba(228,240,255,0.85)', 4.5],  // cuerpo
+        ['rgba(255,255,255,1.00)', 1.8]   // núcleo
+      ];
+      var CAPAS_RAMA = [
+        ['rgba(140,185,255,0.16)', 12],
+        ['rgba(210,232,255,0.55)', 3.2],
+        ['rgba(255,255,255,0.90)', 1.2]
+      ];
+
+      var tronco = camino(RAYO_W / 2, 0, RAYO_H, RAYO_W * 0.20, 22);
+      trazar(tronco, CAPAS_TRONCO);
+
+      /* LAS RAMAS salen de un punto del tronco y se van hacia un lado, más
+         cortas y más finas. Nunca de la parte de abajo: una rama que naciera
+         a un palmo de la punta se vería como una horquilla. */
+      var nRamas = 2 + Math.floor(r() * 3);
+      for (var b = 0; b < nRamas; b++) {
+        var desde = tronco[3 + Math.floor(r() * (tronco.length * 0.55))];
+        var largo = az2(RAYO_H * 0.12, RAYO_H * 0.30);
+        var rama = camino(desde[0], desde[1], desde[1] + largo, RAYO_W * 0.16, 7);
+        // se la lleva de lado, para que se despegue del tronco
+        var lado = r() < 0.5 ? -1 : 1;
+        for (var i = 0; i < rama.length; i++) {
+          rama[i][0] += lado * (i / rama.length) * az2(10, 28);
+        }
+        trazar(rama, CAPAS_RAMA);
+      }
+
+      /* Y AQUÍ SE ARREGLA EL CORTE. `destination-in` conserva lo pintado y le
+         aplica ESTE alfa: entero durante casi todo el recorrido, y apagándose
+         en el último quinto. Arriba también se difumina un poco — el rayo
+         sale de una nube, no de una tapa. */
+      ctx.globalCompositeOperation = 'destination-in';
+      var g = ctx.createLinearGradient(0, 0, 0, RAYO_H);
+      g.addColorStop(0.00, 'rgba(0,0,0,0.35)');
+      g.addColorStop(0.06, 'rgba(0,0,0,1)');
+      g.addColorStop(0.78, 'rgba(0,0,0,1)');
+      g.addColorStop(0.92, 'rgba(0,0,0,0.55)');
+      g.addColorStop(1.00, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, RAYO_W, RAYO_H);
+      ctx.globalCompositeOperation = 'source-over';
+
+      c.refresh();
+      return clave;
+    } catch (e) {
+      console.warn('[clima] no se pudo dibujar el rayo', clave, e);
+      return null;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     LOS CHARCOS, TAMBIÉN DIBUJADOS
+     ──────────────────────────────────────────────────────────────────────
+     Los cuatro PNG que había eran manchas oscuras de 22×11 a 46×20: sobre la
+     hierba se leían como sombras sucias, no como agua. Lo que hace que un
+     charco parezca agua son tres cosas que aquellos no tenían:
+
+       - EL BORDE MÁS OSCURO que el centro. Un charco es una lente: por el
+         canto se ve el barro del fondo y por el medio se ve el cielo.
+       - EL REFLEJO. Una banda clara y alargada, descentrada. Es lo que
+         convierte una mancha en una superficie.
+       - LA FORMA IRREGULAR. Una elipse limpia parece un adorno; un charco de
+         verdad tiene el contorno abollado.
+
+     Y con `hielo` en lugar de agua salen los charcos HELADOS, que es lo que se
+     pinta cuando nieva encima: mismo contorno, azul pálido, reflejo mucho más
+     duro y unas grietas. Ver `helarCharcos`.
+  */
+  var CHARCOS_DIBUJADOS = ['gfc_charco_d1', 'gfc_charco_d2', 'gfc_charco_d3', 'gfc_charco_d4'];
+  var HIELOS_DIBUJADOS  = ['gfc_hielo_d1', 'gfc_hielo_d2', 'gfc_hielo_d3', 'gfc_hielo_d4'];
+
+  /* LOS CHARCOS SE EXTIENDEN (2026-10-05) — "quiero que se puedan esparcir".
+     Cada charco tiene ETAPAS dibujos con el MISMO contorno creciendo: no se
+     escala entero como un globo, sino que el agua avanza por el suelo y saca
+     lóbulos hacia donde el terreno baja (dos o tres por charco, siempre los
+     mismos para ese charco). Al secarse se recorre al revés: se encoge por
+     los bordes y lo último en irse es el centro. La última etapa usa la clave
+     de siempre (gfc_charco_dN), así que nada de fuera cambia. */
+  var ETAPAS_CHARCO = 6;
+  function claveEtapa(base, e) { return e >= ETAPAS_CHARCO - 1 ? base : base + '_e' + e; }
+
+  function dibujarCharco(scene, clave, semilla, helado, etapa) {
+    if (etapa === undefined) etapa = ETAPAS_CHARCO - 1;
+    clave = claveEtapa(clave, etapa);
+    if (scene.textures.exists(clave)) return clave;
+    /* 72×34 de lienzo para que quepan los lóbulos; el cuerpo del charco mide
+       lo mismo que antes (56×26). El primer intento salía a 230×125 px —más
+       ancho que alto el jugador— y el jugador lo dijo: "los charcos se ven muy
+       falsos". Un charco de este mapa tiene que caber en dos o tres losas. */
+    var W = 72, H = 34;
+    var crec = etapa / (ETAPAS_CHARCO - 1);           // 0 = recién nacido, 1 = entero
+    try {
+      var c = scene.textures.createCanvas(clave, W, H);
+      var ctx = c.getContext();
+      ctx.clearRect(0, 0, W, H);
+
+      var s = semilla * 2654 + 7;
+      function r() { s = (s * 16807) % 2147483647; return s / 2147483647; }
+      function az2(a, b) { return a + r() * (b - a); }
+
+      // ── el contorno, abollado ──
+      var cx = W / 2, cy = H / 2;
+      var rx = W * az2(0.31, 0.36), ry = H * az2(0.30, 0.36);
+      /* Los lóbulos: hacia dónde se extiende este charco. Salen del azar con
+         semilla, así que son los mismos en todas sus etapas. */
+      var lobulos = [];
+      for (var l = 0, nl = 2 + Math.floor(r() * 2); l < nl; l++) lobulos.push([az2(0, Math.PI * 2), az2(0.22, 0.4), az2(0.32, 0.5)]);
+      var tam = 0.42 + 0.58 * crec;
+      var N = 36, pts = [];
+      for (var i = 0; i < N; i++) {
+        var a = (i / N) * Math.PI * 2;
+        /* Dos ondas de distinta frecuencia sobre el radio: una sola daría una
+           forma de flor, y dos que no casan dan un borde creíble. */
+        var k = 1 + 0.11 * Math.sin(a * 3 + semilla) + 0.07 * Math.sin(a * 5 - semilla * 2);
+        for (var lb = 0; lb < lobulos.length; lb++) {
+          var da = Math.atan2(Math.sin(a - lobulos[lb][0]), Math.cos(a - lobulos[lb][0]));
+          k += lobulos[lb][1] * crec * crec * Math.exp(-(da * da) / (2 * lobulos[lb][2] * lobulos[lb][2]));
+        }
+        var px0 = cx + Math.cos(a) * rx * k * tam, py0 = cy + Math.sin(a) * ry * k * tam;
+        pts.push([Math.max(2, Math.min(W - 2, px0)), Math.max(2, Math.min(H - 2, py0))]);
+      }
+      function contorno(esc) {
+        esc = esc || 1;
+        var q = function (p) { return [cx + (p[0] - cx) * esc, cy + (p[1] - cy) * esc]; };
+        ctx.beginPath();
+        var p0 = q(pts[0]);
+        ctx.moveTo(p0[0], p0[1]);
+        for (var j = 1; j <= N; j++) {
+          var p1 = q(pts[j % N]), p2 = q(pts[(j + 1) % N]);
+          ctx.quadraticCurveTo(p1[0], p1[1], (p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2);
+        }
+        ctx.closePath();
+      }
+
+      /* EL SUELO EMPAPADO alrededor: un halo oscuro y suave por fuera del
+         agua. Es lo que dice que el agua ha ido avanzando por la tierra y no
+         que es una pegatina puesta encima. El hielo no lo lleva. */
+      if (!helado) {
+        contorno(1.2); ctx.fillStyle = 'rgba(22,16,10,0.10)'; ctx.fill();
+        contorno(1.09); ctx.fillStyle = 'rgba(22,16,10,0.12)'; ctx.fill();
+      }
+
+      /* EL CUERPO ES OSCURO Y CASI PLANO.
+       *
+       * Aquí estaba el error de bulto del primer intento: un degradado radial
+       * que iba de un azul CLARO en el centro a oscuro por fuera. Sobre la
+       * plaza de piedra —que es gris oscuro— eso pinta una mancha más clara
+       * que el suelo, con el borde difuminado. No parece agua: parece niebla,
+       * o una linterna.
+       *
+       * El agua quieta sobre suelo oscuro es un ESPEJO OSCURO: se ve más
+       * negra que lo que la rodea, y lo único claro es el brillo puntual del
+       * cielo. Así que el cuerpo va oscuro y casi liso, y la luz se mete
+       * después y en poca cantidad.
+       */
+      contorno();
+      var g = ctx.createLinearGradient(0, cy - ry * 1.3, 0, cy + ry * 1.3);
+      if (helado) {
+        // El hielo SÍ es más claro que el suelo: es opaco y difunde la luz.
+        g.addColorStop(0.00, 'rgba(196,222,242,0.90)');
+        g.addColorStop(0.55, 'rgba(158,192,218,0.90)');
+        g.addColorStop(1.00, 'rgba(120,152,180,0.90)');
+      } else {
+        g.addColorStop(0.00, 'rgba(38,58,74,0.80)');
+        g.addColorStop(0.55, 'rgba(28,44,60,0.86)');
+        g.addColorStop(1.00, 'rgba(20,32,46,0.90)');
+      }
+      ctx.fillStyle = g;
+      ctx.fill();
+
+      ctx.save();
+      contorno();
+      ctx.clip();                                   // nada se sale del charco
+
+      /* EL CANTO DE ARRIBA, encendido. Es el menisco: el borde del agua
+         recoge la luz del cielo en una línea fina. Con esto el charco deja de
+         ser una mancha y pasa a tener superficie. */
+      ctx.globalCompositeOperation = 'lighter';
+      var canto = ctx.createLinearGradient(0, cy - ry, 0, cy - ry * 0.15);
+      canto.addColorStop(0, helado ? 'rgba(255,255,255,0.46)' : 'rgba(150,190,225,0.30)');
+      canto.addColorStop(1, 'rgba(150,190,225,0)');
+      ctx.fillStyle = canto;
+      ctx.fillRect(0, 0, W, H);
+
+      /* EL BRILLO. Una raya corta y estrecha, descentrada, NO una elipse
+         enorme y difusa. El reflejo del cielo en un charco es pequeño; si
+         ocupa medio charco se convierte en la niebla de antes. */
+      ctx.beginPath();
+      ctx.ellipse(cx + az2(-rx * 0.28, rx * 0.10), cy - ry * 0.30,
+                  rx * az2(0.26, 0.38), ry * 0.11, az2(-0.12, 0.12), 0, Math.PI * 2);
+      ctx.fillStyle = helado ? 'rgba(255,255,255,0.50)' : 'rgba(190,222,255,0.27)';
+      ctx.fill();
+
+      ctx.globalCompositeOperation = 'source-over';
+      if (helado) {
+        /* GRIETAS. Tres rayas finas y claras. Son lo que dice "esto está
+           congelado" y no "esto es un charco muy claro". */
+        ctx.strokeStyle = 'rgba(248,253,255,0.55)';
+        ctx.lineWidth = 1;
+        for (var q = 0; q < 3; q++) {
+          var a0 = az2(0, Math.PI * 2);
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          var px = cx, py = cy;
+          for (var p = 0; p < 4; p++) {
+            px += Math.cos(a0 + az2(-0.5, 0.5)) * rx * 0.26;
+            py += Math.sin(a0 + az2(-0.5, 0.5)) * ry * 0.26;
+            ctx.lineTo(px, py);
+          }
+          ctx.stroke();
+        }
+      } else {
+        /* Y una sombra por dentro del canto de ABAJO: es el suelo mojado que
+           se ve a través del agua por el lado que no da la luz. Remata el
+           volumen sin aclarar nada. */
+        ctx.strokeStyle = 'rgba(10,18,28,0.45)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + ry * 0.10, rx * 0.92, ry * 0.86, 0, 0.25, Math.PI - 0.25);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      c.refresh();
+      return clave;
+    } catch (e) {
+      console.warn('[clima] no se pudo dibujar el charco', clave, e);
+      return null;
+    }
+  }
+
+  /**
+   * EL FOGONAZO DE IMPACTO: donde acaba el rayo.
+   *
+   * Sin esto la punta del rayo se apaga en el aire y sigue faltando el final.
+   * Un disco aditivo blanco-azulado en el punto de caída cierra la lectura:
+   * el rayo baja, llega ahí, y ahí revienta.
+   */
+  function texturaImpacto(scene) {
+    var clave = 'gfc_impacto';
+    if (scene.textures.exists(clave)) return clave;
+    var T = 192;
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      var g = ctx.createRadialGradient(T / 2, T / 2, 0, T / 2, T / 2, T / 2);
+      g.addColorStop(0.00, 'rgba(255,255,255,0.95)');
+      g.addColorStop(0.16, 'rgba(226,240,255,0.70)');
+      g.addColorStop(0.42, 'rgba(150,195,255,0.28)');
+      g.addColorStop(1.00, 'rgba(110,160,255,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, T, T);
+      c.refresh();
+      return clave;
+    } catch (e) { return null; }
+  }
+
+  /* EL HALO DEL FUEGO.
+
+     Lo que hace que un fuego parezca fuego no son las llamas: es la LUZ que
+     tira alrededor. Sin halo, tres dibujitos naranjas encima de un árbol son
+     tres dibujitos naranjas. Con halo —un círculo cálido en modo aditivo que
+     tiembla al ritmo de las llamas— el árbol se enciende de verdad y la hierba
+     de al lado se pone dorada.
+
+     Va aparte del resplandor del sol porque el color es otro: el sol es
+     blanco-crema y el fuego es naranja-rojo. Reutilizar el del sol dejaba el
+     incendio pálido. */
+  function texturaHalo(scene) {
+    var clave = 'gfc_halo_fuego';
+    if (scene.textures.exists(clave)) return clave;
+    var T = 256;
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      var g = ctx.createRadialGradient(T / 2, T / 2, 0, T / 2, T / 2, T / 2);
+      g.addColorStop(0.00, 'rgba(255,236,170,0.95)');
+      g.addColorStop(0.18, 'rgba(255,186,88,0.55)');
+      g.addColorStop(0.45, 'rgba(238,120,40,0.20)');
+      g.addColorStop(0.75, 'rgba(180,64,20,0.06)');
+      g.addColorStop(1.00, 'rgba(150,50,16,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, T, T);
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     LAS MOTAS DE POLVO
+     ──────────────────────────────────────────────────────────────────────
+     Un día soleado no es "el mismo día pero con haces de luz dibujados". Lo
+     que hace que una escena se lea como un día de sol es que se VE el aire:
+     motas de polvo y de polen flotando, encendidas por la luz, subiendo
+     despacio y apagándose cuando salen del haz.
+
+     Son treinta puntitos de dos píxeles. Cuesta nada y es, con diferencia, lo
+     que más cambia un día soleado.
+
+     VAN EN EL MUNDO, no pegadas a la cámara: una mota está a metro y medio de
+     tu cara, así que si andas, se queda atrás. Pegadas a la pantalla se ven
+     como suciedad en el monitor — que es exactamente lo que el jugador dijo de
+     las gotas.
+     ══════════════════════════════════════════════════════════════════════ */
+  var N_MOTAS    = 30;
+  var PROF_MOTA  = 8010;      // sobre el mundo, bajo los haces de sol (8020)
+  var MOTA_VEL   = [-9, -26]; // suben (px/s): el aire caliente tira hacia arriba
+
+  function texturaMota(scene) {
+    var clave = 'gfc_mota';
+    if (scene.textures.exists(clave)) return clave;
+    var T = 16;
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      var g = ctx.createRadialGradient(T / 2, T / 2, 0, T / 2, T / 2, T / 2);
+      g.addColorStop(0.00, 'rgba(255,252,232,1)');
+      g.addColorStop(0.35, 'rgba(255,246,206,0.55)');
+      g.addColorStop(1.00, 'rgba(255,240,190,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, T, T);
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  function nuevaMota(st, clave) {
+    var s = st.scene.add.image(0, 0, clave);
+    s.setDepth(PROF_MOTA);
+    s.setAlpha(0);
+    if (s.setBlendMode && window.Phaser && Phaser.BlendModes) {
+      s.setBlendMode(Phaser.BlendModes.ADD);
+    }
+    return { spr: s, x: 0, y: 0, vy: 0, vx: 0, fase: az(0, 6.283),
+             vaiven: az(0.25, 0.9), amplitud: az(3, 14),
+             tam: az(0.18, 0.55), brillo: az(0.25, 0.75), sembrada: false };
+  }
+
+  /** Coloca una mota en un sitio al azar de lo que se ve ahora mismo. */
+  function sembrarMota(st, m, dentro) {
+    var v = st.scene.cameras.main.worldView;
+    m.x = v.x + az(-40, v.width + 40);
+    m.y = dentro ? v.y + az(0, v.height) : v.bottom + az(4, 90);
+    m.vy = az(MOTA_VEL[0], MOTA_VEL[1]);
+    m.vx = az(-6, 10);
+    m.sembrada = true;
+    m.spr.setPosition(m.x, m.y);
+    m.spr.setScale(m.tam);
+  }
+
+  function moverMotas(st, dt, fuerza) {
+    if (!st.motas || !st.motas.length) return;
+    if (fuerza <= 0.01) {
+      for (var k = 0; k < st.motas.length; k++) st.motas[k].spr.setAlpha(0);
+      return;
+    }
+    var v = st.scene.cameras.main.worldView;
+    // El viento también las lleva: son lo más ligero que hay en el mapa.
+    var lado = (st.inclina || 0) * 26;
+    for (var i = 0; i < st.motas.length; i++) {
+      var m = st.motas[i];
+      if (!m.sembrada) sembrarMota(st, m, true);
+      m.fase += dt * m.vaiven;
+      m.x += (m.vx + Math.sin(m.fase) * m.amplitud + lado) * dt;
+      m.y += m.vy * dt;
+      m.spr.setPosition(m.x, m.y);
+      /* Titilan: una mota solo se ve cuando gira y le da la luz de canto. Ese
+         parpadeo lento es lo que las hace parecer polvo y no puntos pegados. */
+      var brillo = 0.45 + 0.55 * Math.sin(m.fase * 1.7 + i);
+      m.spr.setAlpha(fuerza * m.brillo * brillo);
+      if (m.y < v.y - 120 || m.x < v.x - 120 || m.x > v.right + 120) {
+        sembrarMota(st, m, false);
+      }
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     NUBLADO: LAS SOMBRAS DE LAS NUBES CRUZANDO EL MUNDO
+     ──────────────────────────────────────────────────────────────────────
+     QUÉ ES
+     Un día que por lo demás está despejado —no cae nada, no hay cortina, el
+     mundo se ve igual de nítido— pero por el que van pasando las sombras de
+     las nubes. Es el efecto que más cambia un campo abierto sin tocar ni un
+     tile: el suelo deja de ser una superficie plana y uniforme y pasa a tener
+     una hora del día.
+
+     VAN EN EL MUNDO, NO PEGADAS A LA CÁMARA. Esto es lo único que importa de
+     verdad, y es lo que las distingue de cualquier "filtro oscuro":
+
+       · pegadas a la cámara, la mancha se queda quieta sobre la pantalla
+         mientras andas. Se lee como suciedad en el monitor — es el mismo
+         defecto que ya se corrigió con las motas de polvo del día soleado.
+       · en el mundo, si te quedas quieto, la sombra te pasa por encima; y si
+         andas, la atraviesas tú a ella. Las dos cosas se leen como una sombra
+         de verdad porque las dos pasan de verdad.
+
+     Por eso `sombra.x/y` son coordenadas de MUNDO y no hay setScrollFactor(0)
+     en ninguna parte de este bloque. Lo mismo que hacen las motas.
+
+     POR QUÉ MULTIPLY Y NO UN RECTÁNGULO NEGRO CON ALFA
+     Una sombra no añade negro: quita luz. Superponer negro al 20 % apaga por
+     igual el césped y el tejado rojo y aplana la escena; multiplicar mantiene
+     el color de cada cosa y solo lo baja. Y se hace con una IMAGEN de textura
+     de lienzo, no con un Graphics: las figuras de Phaser ignoran el modo de
+     mezcla, así que un `fillEllipse` en MULTIPLY se pinta en normal y se ve
+     una mancha gris opaca en vez de una sombra.
+
+     LA PROFUNDIDAD, 6200
+     Por encima de los sprites del mundo (que se ordenan por su línea de pies,
+     y el mapa más alto son 5008 px) y por encima de las sombras proyectadas de
+     gf-sombras (6000), pero por debajo del filtro de la estación (8030) y de
+     la lluvia (8100). O sea: la nube ensombrece el suelo, los árboles, las
+     casas y a los jugadores, que es lo que hace una nube; y no ensombrece los
+     carteles ni el interfaz.
+     ══════════════════════════════════════════════════════════════════════ */
+  var N_NUBES   = 7;
+  var PROF_NUBE = 6200;
+  var NUBE_VEL  = [11, 27];      // px/s: una nube tarda medio minuto en cruzar
+  /* EL TAMAÑO, MEDIDO CONTRA LO QUE SE VE DE VERDAD.
+
+     La primera versión iba de 460 a 1180 px y era demasiado. El juego se juega
+     con zoom 2 casi siempre, así que la cámara ve unos 500 x 300 px de MUNDO:
+     una nube de 1180 tapaba dos pantallas y media y no se leía como una sombra
+     que pasa, sino como que la pantalla entera se apaga y se aclara.
+
+     De 320 a 820 cada nube ocupa entre media pantalla y pantalla y media: se ve
+     entrar por un lado, cruzar y salir, que es lo que hace una nube. */
+  var NUBE_TAM  = [320, 820];    // px de lado
+  /* CUÁNTO APAGAN EN SU CENTRO.
+
+     MEDIDO, NO ESTIMADO. Con los primeros valores (0.14–0.32 sobre una textura
+     que como mucho llegaba al 55 % de opacidad) la sombra oscurecía el suelo un
+     5 %: sobre la hierba del juego, invisible. Se comprobó leyendo el píxel del
+     lienzo con y sin nube en el banco de pruebas (_prueba_nublado.html).
+
+     Con estos valores y la textura llegando al 100 % en el centro, el núcleo de
+     la sombra baja el suelo un 20-25 %, que es lo que se ve como una sombra de
+     nube y no como una mancha ni como un filtro. */
+  var NUBE_ALFA = [0.30, 0.55];
+  var NUBE_COLOR = 0x64748f;     // gris azulado; el color de una sombra al aire
+  var NUBLADO_ENTRA_MS = 9000;   // se nubla despacio, como se nubla de verdad
+
+  /**
+   * La mancha de una nube: manchones redondos superpuestos, blancos y con el
+   * borde desvanecido.
+   *
+   * Blanca a propósito: el color lo pone `setTint` al sprite, así que con una
+   * sola textura por variante valen todas las nubes y se puede oscurecer más o
+   * menos sin repintar nada.
+   *
+   * El contorno NO es un círculo. Una sombra de nube redonda se lee como una
+   * viñeta o como una mancha de suciedad; lo que la hace creíble es que tenga
+   * golfos y salientes. Los manchones van colocados con una secuencia FIJA por
+   * variante (no al azar) para que las tres texturas sean siempre las mismas:
+   * si se sortearan, cada partida tendría nubes distintas y no habría forma de
+   * comparar un cambio con el anterior.
+   */
+  function texturaNube(scene, variante) {
+    var clave = 'gfc_nube_' + variante;
+    if (scene.textures.exists(clave)) return clave;
+    var T = 256;
+    // Tres recetas de manchones: [x, y, radio] en tanto por uno del lienzo.
+    var RECETAS = [
+      [[0.42, 0.46, 0.30], [0.62, 0.40, 0.22], [0.30, 0.56, 0.20],
+       [0.56, 0.62, 0.24], [0.72, 0.55, 0.16], [0.22, 0.40, 0.14],
+       [0.48, 0.30, 0.17]],
+      [[0.50, 0.50, 0.26], [0.28, 0.44, 0.22], [0.70, 0.52, 0.23],
+       [0.44, 0.66, 0.19], [0.60, 0.34, 0.15], [0.80, 0.44, 0.12],
+       [0.34, 0.62, 0.13]],
+      [[0.46, 0.52, 0.32], [0.66, 0.46, 0.19], [0.32, 0.38, 0.17],
+       [0.54, 0.70, 0.16], [0.24, 0.58, 0.15], [0.74, 0.62, 0.13],
+       [0.40, 0.28, 0.12]]
+    ];
+    var receta = RECETAS[variante % RECETAS.length];
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      ctx.clearRect(0, 0, T, T);
+      for (var i = 0; i < receta.length; i++) {
+        var cx = receta[i][0] * T, cy = receta[i][1] * T, r = receta[i][2] * T;
+        var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        /* El desvanecido es LARGO (empieza a caer al 45 % del radio). Un borde
+           corto deja un canto duro y la sombra parece un sello; las sombras de
+           nube de verdad no tienen contorno. */
+        g.addColorStop(0.00, 'rgba(255,255,255,1.00)');
+        g.addColorStop(0.45, 'rgba(255,255,255,0.80)');
+        g.addColorStop(0.78, 'rgba(255,255,255,0.26)');
+        g.addColorStop(1.00, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  function nuevaNube(st, indice) {
+    var clave = texturaNube(st.scene, indice % 3);
+    if (!clave) return null;
+    var s = st.scene.add.image(0, 0, clave);
+    s.setDepth(PROF_NUBE);
+    s.setAlpha(0);
+    s.setTint(NUBE_COLOR);
+    if (s.setBlendMode) s.setBlendMode(MULTIPLICAR);
+    return {
+      spr: s, x: 0, y: 0,
+      vx: az(NUBE_VEL[0], NUBE_VEL[1]),
+      vy: az(-3, 7),
+      tam: az(NUBE_TAM[0], NUBE_TAM[1]),
+      // Cada nube apaga lo suyo: si todas tuvieran el mismo alfa se vería que
+      // son la misma mancha repetida.
+      fuerza: az(NUBE_ALFA[0], NUBE_ALFA[1]),
+      giro: az(0, Math.PI * 2),
+      // Se deforman un poco al ir: una nube no es un sello rígido.
+      fase: az(0, Math.PI * 2),
+      respira: az(0.05, 0.14),
+      sembrada: false
+    };
+  }
+
+  /**
+   * Coloca una nube.
+   *
+   * `dentro` = repartidas por lo que se ve (al montar, para que no haya que
+   * esperar medio minuto a que entre la primera). Si no, entra por el lado
+   * contrario al que va: como se mueven hacia la derecha, aparecen por la
+   * izquierda, siempre fuera de cuadro.
+   *
+   * Que la siembra se haga respecto de la cámara NO las ancla a ella: solo dice
+   * DÓNDE nacen. A partir de ahí la nube vive en coordenadas de mundo y la
+   * cámara le da igual. Y una nube que se queda muy atrás se reaprovecha
+   * poniéndola delante, cosa que nunca se ve porque pasa a pantalla y media de
+   * distancia.
+   */
+  function sembrarNube(st, n, dentro) {
+    var v = st.scene.cameras.main.worldView;
+
+    /* EL MARGEN VA CON LO QUE SE VE, NO CON EL TAMAÑO DE LA NUBE.
+
+       FALLO QUE ESTO ARREGLA — "el nublado está puesto y no se ve ninguna
+       sombra": el margen era `n.tam * 0.75`, o sea hasta 885 px con las nubes
+       grandes. Repartidas por una franja de más de 2500 px alrededor de una
+       cámara que ve 760, la mayoría caían fuera de cuadro y podías estar un
+       minuto sin ver una sola. Y no daba ningún error: el clima decía que
+       estaba nublado y la pantalla estaba despejada.
+
+       Atándolo al ancho de lo que se ve, las nubes se reparten SIEMPRE
+       alrededor de la pantalla, mida lo que mida y con el zoom que sea. */
+    var margenX = v.width  * 0.45;
+    var margenY = v.height * 0.45;
+
+    if (dentro) {
+      n.x = v.x + az(-margenX, v.width  + margenX);
+      n.y = v.y + az(-margenY, v.height + margenY);
+    } else {
+      // Entra por la izquierda, que es hacia donde NO van: siempre fuera de
+      // cuadro, para que nunca se vea aparecer una sombra de la nada.
+      n.x = v.x - n.tam * 0.6 - az(0, v.width * 0.5);
+      n.y = v.y + az(-margenY, v.height + margenY);
+    }
+    n.sembrada = true;
+    n.spr.setPosition(n.x, n.y);
+  }
+
+  function moverNubes(st, dt, fuerza) {
+    if (!st.nubes || !st.nubes.length) return;
+
+    if (fuerza <= 0.01) {
+      for (var k = 0; k < st.nubes.length; k++) st.nubes[k].spr.setVisible(false);
+      return;
+    }
+
+    var v = st.scene.cameras.main.worldView;
+    /* El viento las empuja. `st.inclina` es la inclinación que ya calcula el
+       clima a partir de gf-viento, así que las nubes soplan en la misma
+       dirección que la lluvia y que las hojas — no cada una por su lado. */
+    var empuje = (st.inclina || 0) * 34;
+
+    /* CUÁNTAS SE VEN depende de la fuerza. Con 0.2 (cuatro nubes altas) no
+       tiene sentido pintar las siete al 14 % cada una: se ve un velo gris
+       constante en vez de nubes sueltas. Se apagan las últimas del todo. */
+    var cuantas = Math.max(2, Math.round(N_NUBES * Math.min(1, fuerza / 1.4)));
+
+    for (var i = 0; i < st.nubes.length; i++) {
+      var n = st.nubes[i];
+      if (i >= cuantas) { n.spr.setVisible(false); continue; }
+      if (!n.sembrada) sembrarNube(st, n, true);
+
+      n.x += (n.vx + empuje) * dt;
+      n.y += n.vy * dt;
+      n.fase += dt * n.respira;
+
+      // Respiración: la mancha se estira y se encoge muy poco, lo justo para
+      // que no parezca una calcomanía arrastrada.
+      var estira = 1 + Math.sin(n.fase) * 0.07;
+      n.spr.setPosition(n.x, n.y);
+      n.spr.setDisplaySize(n.tam * estira, n.tam * (2 - estira) * 0.72);
+      n.spr.setRotation(n.giro);
+      n.spr.setVisible(true);
+      n.spr.setAlpha(Math.min(0.72, n.fuerza * Math.min(1.6, fuerza)));
+
+      /* Se ha ido del todo: vuelve a entrar por la izquierda. El umbral se
+         mide desde el borde de lo que se ve MÁS el tamaño de la nube, para que
+         el salto ocurra siempre lejos de la vista y no se pille nunca. */
+      if (n.x - n.tam > v.right + v.width * 0.5 ||
+          n.y - n.tam > v.bottom + v.height * 0.5 ||
+          n.y + n.tam < v.y - v.height * 0.5) {
+        sembrarNube(st, n, false);
+      }
+    }
+  }
+
+  /** El resplandor de la esquina: de donde salen los haces. */
+  function texturaResplandor(scene) {
+    var clave = 'gfc_resplandor';
+    if (scene.textures.exists(clave)) return clave;
+    var T = 256;
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      var g = ctx.createRadialGradient(T / 2, T / 2, 0, T / 2, T / 2, T / 2);
+      g.addColorStop(0.00, 'rgba(255,252,236,0.95)');
+      g.addColorStop(0.25, 'rgba(255,244,206,0.45)');
+      g.addColorStop(0.60, 'rgba(255,238,190,0.14)');
+      g.addColorStop(1.00, 'rgba(255,236,186,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, T, T);
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  function texturasBorde(scene) {
+    var hecho = true;
+    ['gfc_borde_v', 'gfc_borde_h'].forEach(function (clave) {
+      if (scene.textures.exists(clave)) return;
+      var vertical = (clave === 'gfc_borde_v');
+      var N = 64;
+      try {
+        var c = scene.textures.createCanvas(clave, vertical ? 1 : N, vertical ? N : 1);
+        var ctx = c.getContext();
+        var g = vertical ? ctx.createLinearGradient(0, 0, 0, N)
+                         : ctx.createLinearGradient(0, 0, N, 0);
+        g.addColorStop(0.00, 'rgba(255,255,255,1)');
+        g.addColorStop(0.18, 'rgba(255,255,255,0.86)');
+        g.addColorStop(0.50, 'rgba(255,255,255,0.45)');
+        g.addColorStop(0.78, 'rgba(255,255,255,0.14)');
+        g.addColorStop(1.00, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, vertical ? 1 : N, vertical ? N : 1);
+        c.refresh();
+      } catch (e) { hecho = false; }
+    });
+    return hecho;
+  }
+
+  function lienzoRect(scene, x, y, w, h, color) {
+    var r = scene.add.rectangle(x, y, w, h, color, 1);
+    r.setScrollFactor(0);
+    r.setAlpha(0);
+    return r;
+  }
+
+  var VEL_GOTA  = 900;             // px/s con la lluvia al máximo
+
+  /* CUÁNTO CAE DE LADO.
+
+     EL FALLO QUE ARREGLA: era un número fijo, 0.34, y la gota se DIBUJABA con
+     setRotation(+0.34) mientras se MOVÍA hacia (+0.34, +1). En Phaser el eje Y
+     va hacia abajo, así que una rotación positiva inclina el sprite hacia
+     abajo-IZQUIERDA: la raya apuntaba a un lado y la gota viajaba al otro. Por
+     eso "las gotas salen mal de lado".
+
+     Ahora la inclinación la marca el VIENTO (dirección y fuerza) y el dibujo se
+     saca de ella, no al revés: rotación = -atan(inclinación). El menos deshace
+     el eje invertido y el arco tiene en cuenta que la gota también cae. */
+  var INCLINA_MIN = 0.14;          // sin viento el agua cae casi a plomo
+  var INCLINA_MAX = 0.66;          // con vendaval
+
+  /* Sobrante alrededor de la pantalla, por la sacudida del trueno. Sin él, al
+     temblar la cámara asomaba el borde de todo lo pegado a ella. */
+  var MARGEN = 96;
+
+  /* EL LIENZO DE PANTALLA. setScrollFactor(0) libra del SCROLL pero NO del
+     ZOOM: la cámara sigue dibujando  pantalla = (p - centro)·zoom + centro.
+     Con el zoom a 0.5 la lluvia se encogía al cuadrado del medio y los bordes
+     quedaban secos. Se mete todo en un contenedor con escala 1/zoom colocado
+     para que su esquina caiga en (-MARGEN,-MARGEN) de la pantalla; dentro se
+     sigue trabajando en píxeles de pantalla. */
+  function lienzo(cam) {
+    var z = (cam && Number.isFinite(cam.zoom) && cam.zoom > 0) ? cam.zoom : 1;
+    var W = Number.isFinite(cam.width) && cam.width > 0 ? cam.width : 1;
+    var H = Number.isFinite(cam.height) && cam.height > 0 ? cam.height : 1;
+    return {
+      z: z, m: MARGEN,
+      w: W + MARGEN * 2, h: H + MARGEN * 2,
+      escala: 1 / z,
+      x: W / 2 - (W / 2 + MARGEN) / z,
+      y: H / 2 - (H / 2 + MARGEN) / z
+    };
+  }
+
+  /** Hacia dónde y cuánto se tuerce la lluvia, según lo que haga el viento. */
+  function inclinacion(st) {
+    var V = window.GFViento;
+    var dir = 1, f = 0;
+    if (V && V.vector) {
+      var v = V.vector(st._v || (st._v = {}));
+      dir = v.dir || 1;
+      f = Math.max(0, Math.min(1, v.fuerza || 0));
+    }
+    return dir * (INCLINA_MIN + (INCLINA_MAX - INCLINA_MIN) * f);
+  }
+
+  /* CHARCOS.
+
+     Van en el MUNDO, no pegados a la cámara como la lluvia: un charco se queda
+     donde está y tienes que poder rodearlo. Aparecen despacio mientras llueve,
+     crecen, y se secan poco a poco cuando escampa.
+
+     Se colocan mirando las colisiones del mapa: nada de charcos dentro de una
+     pared, encima de una casa o flotando en el agua. */
+  var N_CHARCOS     = 26;
+  var CHARCO_CADA   = [900, 2600];   // ms entre charco y charco
+  var CHARCO_CRECE  = 26000;         // lo que tarda en llegar a su tamaño
+  var CHARCO_SECA   = 22000;         // lo que tarda en secarse
+  var CHARCO_RADIO  = 620;           // alrededor del jugador
+  var PROF_CHARCO   = 1;             // pegado al suelo: todo pasa por encima
+
+  /* INCENDIO POR RAYO.
+
+     Cuando cae un rayo con trazo, a veces le da a un árbol. El árbol arde un
+     minuto y luego se cae solo: se queda el tocón y entra en el respawn normal
+     del juego. NO da recompensa a nadie — no lo ha talado nadie, se ha quemado.
+     Eso se consigue avisando al servidor por /api/tree/lock, que es la ruta que
+     bloquea el árbol y avisa a todos, y que no reparte nada. */
+  var PROB_INCENDIO = 0.30;          // de los rayos con trazo
+  var ARDE_MS       = 60000;         // un minuto ardiendo
+  var BRASAS_MS     = 9000;          // y un rato de rescoldos
+  var FUEGO_FPS     = 9;
+
+  var TRUENO_CADA  = [9000, 26000]; // ms entre relámpagos
+  var CENTELLA_CADA = [1800, 7000]; // ms entre centellas (mucho más seguidas)
+  var RAYO_SEPARA  = 0.28;          // fracción del ancho que ha de moverse el rayo
+
+  var estado = {
+    activo: false, modo: 'auto',
+    viento: false, vientoFuerza: 1,
+    lluvia: false, lluviaFuerza: 1,
+    nieve: false, nieveFuerza: 1,
+    soleado: false, soleadoFuerza: 1,
+    nublado: false, nubladoFuerza: 1,
+    truenos: true, estacion: 'verano', cargado: false
+  };
+  var montado = null;
+
+  /* ══════════════════════════════════════════════════════════════════════
+     EL TIEMPO QUE HACE AHORA MISMO, PARA QUIEN LO NECESITE
+     ──────────────────────────────────────────────────────────────────────
+     `estado()` devuelve lo que ha MANDADO el servidor: un booleano y una
+     fuerza. Pero la lluvia no entra de golpe — arrecia y amaina en cinco
+     segundos (ENTRA_MS), y lo que de verdad se ve en pantalla es
+     `st.fuerzaLluvia`, que es el valor ya interpolado.
+
+     La diferencia importa para quien REACCIONA al tiempo. Los animales, sin
+     ir más lejos: con `estado()` un pájaro dejaría de bañarse en el mismo
+     milisegundo en que el administrador pulsa el botón, con el cielo todavía
+     despejado. Con esto se refugia mientras el chaparrón arrecia, que es lo
+     que se ve.
+
+     Quien quiera el mando del servidor sigue teniendo `estado()`. Quien
+     quiera lo que se ve, usa esto.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /* Se reaprovecha SIEMPRE el mismo objeto. Los animales lo piden una vez por
+     fotograma y fabricar un objeto nuevo cada vez es basura para nada. Quien
+     necesite guardárselo, que copie los campos. */
+  var elTiempo = {
+    activo: false, cargado: false, estacion: 'verano',
+    lluvia: 0, nieve: 0, sol: 0, viento: 0, nublado: 0,
+    truenos: false, tormenta: false
+  };
+  var vectorViento = { dir: 1, fuerza: 0 };
+
+  function tiempoAhora() {
+    var st = montado;
+    var t = elTiempo;
+    t.activo   = !!estado.activo;
+    t.cargado  = !!estado.cargado;
+    t.estacion = estado.estacion;
+
+    if (st) {
+      /* Lo que se está pintando de verdad. */
+      t.lluvia = st.fuerzaLluvia || 0;
+      t.nieve  = st.fuerzaNieve  || 0;
+      t.sol    = st.fuerzaSol    || 0;
+      t.nublado = st.fuerzaNublado || 0;
+    } else {
+      /* Sin escena montada (todavía no ha arrancado, o se está cambiando de
+         mapa) no hay valor interpolado: se devuelve el mandado, que es la
+         mejor respuesta posible y no deja a nadie sin tiempo. */
+      t.lluvia = (estado.activo && estado.lluvia) ? fuerza(estado.lluviaFuerza) : 0;
+      t.nieve  = (estado.activo && estado.nieve)  ? (Number(estado.nieveFuerza)  || 1) : 0;
+      t.sol    = (estado.activo && estado.soleado) ? fuerza(estado.soleadoFuerza) : 0;
+      t.nublado = (estado.activo && estado.nublado) ? fuerza(estado.nubladoFuerza) : 0;
+    }
+
+    t.viento = 0;
+    try {
+      if (window.GFViento && window.GFViento.vector) {
+        window.GFViento.vector(vectorViento);
+        t.viento = Math.max(0, Math.min(2, vectorViento.fuerza || 0));
+      }
+    } catch (e) { /* sin viento montado, cero */ }
+
+    /* TORMENTA no es lo mismo que LLUVIA. Llueve con truenos y llueve sin
+       ellos, y no se comporta igual un animal bajo un chaparrón que bajo una
+       tormenta eléctrica. Se pide que llueva de verdad (no las últimas gotas)
+       para que el rato de amainar no cuente como tormenta. */
+    t.truenos  = !!(estado.activo && estado.lluvia && estado.truenos);
+    t.tormenta = t.truenos && t.lluvia > 0.45;
+    return t;
+  }
+
+  /* ── EL SOBRESALTO DEL TRUENO ────────────────────────────────────────────
+     Cuando retumba, todo bicho que esté a la intemperie pega un bote. Es la
+     reacción más reconocible que tiene una tormenta y no cuesta nada: aquí
+     solo se avisa, y cada módulo decide qué hace con el aviso.
+
+     Se guarda ADEMÁS el instante del último trueno (`ultimoTrueno`), para
+     quien se enganche tarde o prefiera mirarlo en su propio bucle en vez de
+     llevar un callback. */
+  var oyentesTrueno = [];
+  var ultimoTrueno = 0;
+  var fuerzaUltimoTrueno = 0;
+
+  function avisarDelTrueno(cerca, fuerza) {
+    ultimoTrueno = Date.now();
+    fuerzaUltimoTrueno = fuerza || 1;
+    var lista = oyentesTrueno.slice();
+    for (var i = 0; i < lista.length; i++) {
+      /* Un oyente que reviente NO puede tumbar el trueno de los demás ni el
+         fotograma: por eso cada uno va en su try. */
+      try { lista[i](!!cerca, fuerzaUltimoTrueno); } catch (e) {}
+    }
+  }
+
+  var timerSync = null;
+  var timerSocket = null;
+  var pidiendo = null;
+  var ultimoFallo = null;
+  var ultimaRespuesta = 0;
+  var avisadoDelFallo = false;
+  var redArrancada = false;
+  var timerViento = null;
+  var timerArranque = null;
+  var consulta = null;
+  var escenas = new Set();
+
+  function destruirObjeto(obj) {
+    try { if (obj && obj.destroy) obj.destroy(); } catch (e) { log('no se pudo liberar un objeto', e); }
+  }
+  function fuerza(v) {
+    var n = Number(v);
+    return v == null || !Number.isFinite(n) ? 1 : Math.max(0, Math.min(2, n));
+  }
+
+  function log() {
+    if (!window.GF_CLIMA_DEBUG) return;
+    var a = Array.prototype.slice.call(arguments);
+    a.unshift('[clima]');
+    console.log.apply(console, a);
+  }
+
+  function az(a, b) { return a + Math.random() * (b - a); }
+  function elegir(l) { return l[Math.floor(Math.random() * l.length)]; }
+
+  // ------------------------------------------------------------------- red
+  function base() {
+    // Mismo criterio que gf-mascota.js: la escena viva es quien sabe de verdad
+    // dónde está el backend (en local es el 8080, no el 3001).
+    var g = window.game || (window.phaserScaler && window.phaserScaler.game);
+    try {
+      if (g && g.scene && g.scene.getScenes) {
+        var ss = g.scene.getScenes(true) || [];
+        for (var i = 0; i < ss.length; i++) {
+          if (typeof ss[i].serverBase === 'string') return ss[i].serverBase;
+        }
+      }
+    } catch (e) {}
+    if (typeof window.serverBase === 'string')  return window.serverBase;
+    if (typeof window.GF_API_BASE === 'string') return window.GF_API_BASE;
+    var h = window.location.hostname;
+    if (h === 'localhost' || h === '127.0.0.1') return 'http://127.0.0.1:8080';
+    return 'https://api.grasslandforest.com';
+  }
+
+  /* LO ÚLTIMO QUE SE APLICÓ, PARA NO IR HACIA ATRÁS.
+
+     EL FALLO QUE ARREGLA — "a veces lanzo un clima a mano y no lo procesa, a
+     veces lo cambio y no cambia":
+
+     El tiempo entra por DOS caminos a la vez. El socket lo empuja en cuanto el
+     administrador toca algo, y además se pregunta por HTTP cada 45 segundos.
+     Las dos respuestas se aplicaban tal cual, sin mirar cuál era más nueva.
+
+     Así que bastaba con que hubiera una consulta EN VUELO cuando el
+     administrador lanzaba el clima: llegaba el empujón del socket con la
+     tormenta, se pintaba, y medio segundo después aterrizaba la respuesta de
+     la consulta —que salió ANTES del cambio y trae el tiempo viejo— y lo
+     borraba. Desde el panel se veía "Lanzado", y en el juego no pasaba nada.
+
+     El servidor ya daba lo necesario para evitarlo y no se estaba usando: cada
+     respuesta trae `ahora` (su reloj) y `rev` (un contador que sube con cada
+     cambio). Con eso, una respuesta más vieja que la última aplicada se tira.
+
+     Se compara `ahora` contra `ahora`, siempre del mismo reloj (el del
+     servidor), nunca contra la hora del navegador: así da igual que el
+     jugador tenga el reloj mal. Y si el servidor se reinicia, `rev` vuelve a
+     empezar pero `ahora` sigue subiendo, así que no se queda atascado. */
+  var ultimoAhora = 0;
+  var ultimoRev   = 0;
+  var descartados = 0;
+
+  function aplicar(d) {
+    if (!d || d.ok !== true) return false;
+
+    var suAhora = Number(d.ahora) || 0;
+    var suRev   = Number(d.rev) || 0;
+    if (!Number.isFinite(suAhora) || !Number.isFinite(suRev) || suAhora < 0 || suRev < 0) return false;
+    if (suAhora && ultimoAhora && suAhora < ultimoAhora) {
+      descartados++;
+      log('respuesta vieja descartada (' + (ultimoAhora - suAhora) + ' ms tarde)');
+      return false;
+    }
+    if (suAhora && suAhora === ultimoAhora && suRev < ultimoRev) {
+      descartados++;
+      return false;
+    }
+    if (suAhora) ultimoAhora = suAhora;
+    if (suRev)   ultimoRev = suRev;
+
+    estado.activo       = !!d.activo;
+    estado.modo         = d.modo === 'manual' ? 'manual' : 'auto';
+    estado.viento       = !!d.viento;
+    estado.vientoFuerza = fuerza(d.vientoFuerza);
+    estado.lluvia       = !!d.lluvia;
+    estado.lluviaFuerza = fuerza(d.lluviaFuerza);
+    estado.nieve        = !!d.nieve;
+    estado.nieveFuerza  = fuerza(d.nieveFuerza);
+    estado.soleado      = !!d.soleado;
+    estado.soleadoFuerza = fuerza(d.soleadoFuerza);
+    estado.nublado      = !!d.nublado;
+    estado.nubladoFuerza = fuerza(d.nubladoFuerza);
+    estado.truenos      = !!d.truenos;
+    if (Object.prototype.hasOwnProperty.call(ESTACIONES, d.estacion)) estado.estacion = d.estacion;
+    estado.cargado      = true;
+    mandarAlViento();
+    log('tiempo:', estado.lluvia ? 'lluvia'
+                 : (estado.nieve ? 'nieve'
+                 : (estado.soleado ? 'soleado'
+                 : (estado.nublado ? 'nublado'
+                 : (estado.viento ? 'viento' : 'despejado')))));
+    return true;
+  }
+
+  /* Cuánto se espera una consulta antes de darla por perdida.
+
+     EL FALLO QUE ARREGLA: `if (pidiendo) return pidiendo;` impide que se pisen
+     dos consultas, que está bien. Pero `pidiendo` solo se soltaba en el
+     `.then` o en el `.catch`, y un `fetch` puede quedarse colgado SIN
+     resolverse nunca — la pestaña se duerme, el móvil cambia de wifi a datos,
+     el servidor acepta la conexión y no contesta. En cuanto pasaba eso,
+     `pidiendo` se quedaba puesto para siempre y el sondeo de cada 45 segundos
+     no volvía a preguntar EN TODA LA PARTIDA. Segunda causa de "a veces no
+     cambia": el socket se cae, la consulta de seguridad está muerta desde hace
+     rato, y el juego se queda con el tiempo de hace media hora. */
+  var ESPERA_MAX = 12000;
+
+  function sincronizar() {
+    if (pidiendo) return pidiendo;
+    var url = base().replace(/\/$/, '') + '/api/world/weather';
+    var req = { ctrl: typeof AbortController === 'function' ? new AbortController() : null, timer: null };
+    consulta = req;
+    pidiendo = new Promise(function (resolve) {
+      req.terminar = function () {
+        if (consulta !== req) return;
+        clearTimeout(req.timer);
+        consulta = null; pidiendo = null;
+        resolve(estado);
+      };
+      function fallo(e) {
+        if (consulta !== req) return;
+        ultimoFallo = (e && e.message) || 'error';
+        if (!avisadoDelFallo) {
+          avisadoDelFallo = true;
+          console.warn('[clima] no se pudo consultar el tiempo: ' + ultimoFallo);
+        }
+        req.terminar();
+      }
+      req.timer = setTimeout(function () {
+        fallo(new Error('sin respuesta en ' + ESPERA_MAX + ' ms'));
+        if (req.ctrl) req.ctrl.abort();
+      }, ESPERA_MAX);
+      Promise.resolve().then(function () {
+        return fetch(url, { credentials: 'omit', mode: 'cors', cache: 'no-store', signal: req.ctrl ? req.ctrl.signal : undefined });
+      }).then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).then(function (d) {
+        if (consulta !== req) return;
+        if (!d || d.ok !== true) throw new Error('Invalid weather response');
+        aplicar(d);
+        ultimoFallo = null; ultimaRespuesta = Date.now();
+        req.terminar();
+      }).catch(fallo);
+    });
+    return pidiendo;
+  }
+
+  /**
+   * Se engancha al socket del juego para enterarse AL MOMENTO.
+   *
+   * EL FALLO QUE ARREGLA: el tiempo solo se preguntaba cada 3 minutos, así que
+   * lo que se cambiaba en climas.html no se veía hasta recargar la página.
+   *
+   * El socket lo crea el juego al conectarse, que puede ser después de que
+   * este módulo se monte; por eso montar() reintenta hasta que aparece.
+   */
+  /**
+   * Se engancha al socket del juego para enterarse AL MOMENTO.
+   *
+   * EL FALLO GORDO QUE ARREGLA — "lanzo una tormenta desde climas.html, dice
+   * lanzado y en el juego no pasa nada":
+   *
+   *   GameScene monta este modulo ANTES de crear el socket. Asi que al montar
+   *   no habia socket, se arrancaba un reintento cada 1,5 s, se enganchaba al
+   *   primero que apareciera... y ahi se paraba el reintento PARA SIEMPRE.
+   *
+   *   Pero `window.globalSocket` no es uno para toda la partida: initSocket()
+   *   lo TIRA Y LO VUELVE A CREAR cada vez que lo encuentra desconectado — al
+   *   volver de la tienda, tras un corte de red, al cambiar de escena. Desde
+   *   ese momento el modulo se quedaba escuchando a un socket muerto y no se
+   *   enteraba de nada mas. Como ademas la consulta de seguridad era cada 3
+   *   minutos, parecia que el clima sencillamente no funcionaba.
+   *
+   * Ahora se guarda A CUAL se engancho y se comprueba que siga siendo ese. Si
+   * cambia, se engancha al nuevo. La comprobacion es un `!==` cada dos
+   * segundos: no cuesta nada y no hay forma de que se quede colgado.
+   */
+  var socketEnganchado = null;
+
+  function socketDelJuego() {
+    // El global es el de siempre; el de la escena vale de respaldo por si
+    // alguna escena se creara el suyo sin publicarlo.
+    if (window.globalSocket && window.globalSocket.on) return window.globalSocket;
+    try {
+      var g = window.game || (window.phaserScaler && window.phaserScaler.game);
+      var ss = (g && g.scene && g.scene.getScenes) ? (g.scene.getScenes(true) || []) : [];
+      for (var i = 0; i < ss.length; i++) {
+        if (ss[i] && ss[i].socket && ss[i].socket.on) return ss[i].socket;
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  /* Los dos oyentes que se le ponen al socket, guardados aparte.
+
+     FUGA QUE ARREGLA: cada vez que el juego tiraba el socket y creaba otro
+     —al volver de la tienda, tras un corte de red— aquí se enganchaban DOS
+     oyentes nuevos al socket nuevo y no se quitaba ninguno del viejo. El
+     socket viejo se quedaba retenido por sus propias retrollamadas, y con él
+     todo lo que la clausura tocara. En una sesión larga, entrando y saliendo
+     de la tienda, eso se va sumando.
+
+     Ahora se guardan las funciones y se le quitan al anterior antes de
+     enganchar al nuevo. `off` existe en socket.io desde la v3; si la versión
+     fuera más vieja no pasa nada, se comprueba antes de llamarlo. */
+  var oyenteTiempo = null;
+  var oyenteConexion = null;
+
+  function soltarSocket() {
+    if (!socketEnganchado) return;
+    try {
+      if (typeof socketEnganchado.off === 'function') {
+        if (oyenteTiempo)   socketEnganchado.off('worldWeather', oyenteTiempo);
+        if (oyenteConexion) socketEnganchado.off('connect', oyenteConexion);
+      }
+    } catch (e) { /* socket ya destruido: no hay nada que soltar */ }
+    socketEnganchado = null;
+    oyenteTiempo = null;
+    oyenteConexion = null;
+  }
+
+  function engancharSocket() {
+    var s = socketDelJuego();
+    if (!s) { soltarSocket(); return false; }
+    if (s === socketEnganchado) return true;      // ya es este
+
+    soltarSocket();                               // fuera los del anterior
+    socketEnganchado = s;
+
+    oyenteTiempo = function (d) {
+      log('el servidor manda tiempo nuevo');
+      aplicar(d);
+    };
+    /* Al (re)conectar se pregunta: mientras estuvo caido pudo perderse un
+       aviso, y ademas un socket recien creado no ha recibido nada todavia. */
+    oyenteConexion = function () { sincronizar(); };
+
+    s.on('worldWeather', oyenteTiempo);
+    s.on('connect', oyenteConexion);
+    sincronizar();
+    log('enganchado al socket', s.id || '(sin id todavia)');
+    return true;
+  }
+
+  /**
+   * Le dice al viento lo que manda el servidor.
+   *
+   * CON REINTENTO, y hace falta. El clima se monta DESPUES del viento en
+   * GameScene, pero la respuesta del servidor puede llegar en cualquier
+   * momento: al cargar el mapa, al volver de la tienda, o justo mientras se
+   * esta cambiando de escena, cuando no hay ningun viento montado. Si en ese
+   * hueco se soltaba la orden, se perdia y no se volvia a intentar hasta la
+   * siguiente consulta — 45 segundos, o NUNCA si el clima es manual, porque el
+   * servidor no vuelve a avisar hasta que el administrador toque algo. Se
+   * reintenta cada segundo hasta que el viento la coge.
+   */
+  function mandarAlViento() {
+    var V = window.GFViento;
+    if (!V || !V.forzar) { reintentarViento(); return; }
+    var ok = V.forzar(estado.activo && estado.viento, estado.vientoFuerza);
+    if (ok && timerViento) { clearInterval(timerViento); timerViento = null; }
+    if (!ok) reintentarViento();
+  }
+
+  function reintentarViento() {
+    if (timerViento || !redArrancada) return;
+    timerViento = setInterval(function () {
+      var V = window.GFViento;
+      if (V && V.forzar && V.forzar(estado.activo && estado.viento, estado.vientoFuerza)) {
+        clearInterval(timerViento);
+        timerViento = null;
+      }
+    }, 1000);
+  }
+
+  // ------------------------------------------------------------------ carga
+  function precargar(scene) {
+    if (!scene || !scene.load) return 0;
+    var n = 0, i;
+    for (i = 0; i < GOTAS.length; i++)   { scene.load.image('gfc_' + GOTAS[i],   RUTA + GOTAS[i] + '.png'); n++; }
+    for (i = 0; i < SALPICA.length; i++) { scene.load.image('gfc_' + SALPICA[i], RUTA + SALPICA[i] + '.png'); n++; }
+    /* Los rayos ya NO se cargan: se dibujan al montar (ver `dibujarRayo`). Los
+       tres PNG viejos siguen en Game/Objetos/clima por si alguien los quiere
+       mirar, pero el juego no los toca — son tres archivos menos de los que
+       depender en producción. */
+    for (i = 0; i < COPOS.length; i++)   { scene.load.image('gfc_' + COPOS[i],   RUTA + COPOS[i] + '.png'); n++; }
+    for (i = 0; i < POSAS.length; i++)   { scene.load.image('gfc_' + POSAS[i],   RUTA + POSAS[i] + '.png'); n++; }
+    // (los charcos tampoco se cargan ya: se dibujan, ver dibujarCharco)
+    for (i = 0; i < FUEGOS.length; i++)  { scene.load.image('gfc_' + FUEGOS[i],  RUTA + FUEGOS[i] + '.png'); n++; }
+    for (i = 0; i < HUMOS.length; i++)   { scene.load.image('gfc_' + HUMOS[i],   RUTA + HUMOS[i] + '.png'); n++; }
+    for (i = 0; i < BRASAS.length; i++)  { scene.load.image('gfc_' + BRASAS[i],  RUTA + BRASAS[i] + '.png'); n++; }
+    return n;
+  }
+
+  /** ¿Están TODAS las texturas de una familia? */
+  function hay(scene, lista) {
+    for (var i = 0; i < lista.length; i++) {
+      if (!scene.textures.exists('gfc_' + lista[i])) return false;
+    }
+    return true;
+  }
+
+  /** Las que faltan, por nombre, para poder decirlo en la consola. */
+  function faltan(scene) {
+    // RAYOS ya no está: los rayos se dibujan, no se cargan.
+    var todas = [].concat(GOTAS, SALPICA, COPOS, POSAS,
+                          FUEGOS, HUMOS, BRASAS);
+    var out = [];
+    for (var i = 0; i < todas.length; i++) {
+      if (!scene.textures.exists('gfc_' + todas[i])) out.push(todas[i] + '.png');
+    }
+    return out;
+  }
+
+  /**
+   * ¿Se puede montar el clima?
+   *
+   * SOLO SE EXIGE LA LLUVIA, y este cambio arregla un fallo grande.
+   *
+   * EL FALLO: antes se exigían CINCO familias (gotas, copos, rayos, CHARCOS y
+   * FUEGOS) y, si faltaba UNA sola imagen, montar() devolvía null y el clima
+   * entero se quedaba sin montar. Pasó de verdad: en producción faltaban por
+   * subir los 14 PNG de charcos, fuego, humo y brasas. Resultado: NUNCA llovía,
+   * nunca nevaba y nunca caía un rayo, por muchas tormentas que se lanzaran
+   * desde climas.html — y lo único que se seguía viendo eran las rachas de
+   * viento, que son de otro módulo y se sortean solas. De ahí "solo funcionan
+   * los climas automáticos".
+   *
+   * Un charco que falta debe costar los charcos, no la lluvia. Ahora cada
+   * adorno comprueba lo suyo por separado (ver montar) y lo que falte
+   * sencillamente no aparece.
+   */
+  function hayTexturas(scene) {
+    return hay(scene, GOTAS);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     DE LA PANTALLA AL MUNDO
+     ──────────────────────────────────────────────────────────────────────
+     La lluvia CAE pegada a la pantalla, y eso está bien: el agua está en el
+     aire, entre tus ojos y el pueblo, así que tiene que seguirte. Lo que NO
+     puede seguirte es lo que ya ha CAÍDO. Una salpicadura es agua que ha dado
+     contra el suelo, y el suelo no se mueve contigo: se queda en su charquito
+     mientras tú te vas. Igual la nieve que se posa.
+
+     EL FALLO QUE ESTO ARREGLA: salpicaduras y montoncitos de nieve vivían en
+     el lienzo de pantalla, con scrollFactor 0, así que al andar se DESLIZABAN
+     por el suelo acompañando a la cámara. Se veía justo como lo describió el
+     jugador: "no queda cada gota exactamente donde cayó porque está pegada a
+     la cámara".
+
+     Esta función traduce un punto del lienzo (píxeles de pantalla, con el
+     MARGEN sumado) al punto del MUNDO donde de verdad está. Con eso, la
+     salpicadura se crea como un objeto normal del mundo y se queda quieta.
+     Los charcos ya funcionaban así desde siempre; ahora todo lo que toca el
+     suelo funciona igual. */
+  function aMundo(st, L, x, y) {
+    var cam = st.scene.cameras.main;
+    if (!cam || typeof cam.getWorldPoint !== 'function') return { x: x, y: y };
+    return cam.getWorldPoint(x - L.m, y - L.m);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     LA LLUVIA TIENE FONDO
+     ──────────────────────────────────────────────────────────────────────
+     Una cortina de gotas todas iguales se lee como una textura moviéndose, no
+     como agua cayendo. Lo que le da cuerpo a la lluvia de verdad es que unas
+     gotas están CERCA y otras LEJOS: las de cerca son largas, rápidas y se
+     ven; las del fondo son finas, lentas y casi no están. Tres planos bastan
+     para que el ojo lo lea como volumen.
+
+     Cada plano es [escala, velocidad, alfa]. No cuesta ni un sprite más: es
+     el mismo número de gotas, repartidas. */
+  var PLANOS_GOTA = [
+    { escala: [0.55, 0.85], vel: [0.55, 0.80], alfa: 0.26, peso: 0.34 },  // fondo
+    { escala: [0.85, 1.30], vel: [0.85, 1.15], alfa: 0.46, peso: 0.40 },  // medio
+    { escala: [1.30, 1.95], vel: [1.20, 1.60], alfa: 0.68, peso: 0.26 }   // frente
+  ];
+
+  function planoAlAzar() {
+    var r = Math.random(), acum = 0;
+    for (var i = 0; i < PLANOS_GOTA.length; i++) {
+      acum += PLANOS_GOTA[i].peso;
+      if (r <= acum) return i;
+    }
+    return PLANOS_GOTA.length - 1;
+  }
+
+  // ------------------------------------------------------------------ gotas
+  function nuevaGota(st) {
+    var L = lienzo(st.scene.cameras.main);
+    var s = st.scene.add.image(0, 0, 'gfc_' + elegir(GOTAS));
+    // El scrollFactor va en el HIJO aunque viva dentro del contenedor: Phaser
+    // lo lee del hijo al montar la matriz de cámara, no del padre.
+    s.setScrollFactor(0);
+    var n = planoAlAzar();
+    var P = PLANOS_GOTA[n];
+    /* Escala moderada: a x2.6 sobre una textura de 18 px de alto salían
+       rayas de casi 50 px que parecían arañazos en la pantalla, no lluvia.
+       Y la del fondo, más fina todavía: es lo que la manda lejos. */
+    var e = az(P.escala[0], P.escala[1]);
+    /* Estirada a lo largo de la caída y estrechada a lo ancho: una gota en
+       movimiento no es una gota, es una raya. Es el mismo truco que usa
+       cualquier motion blur, hecho a mano y gratis. */
+    s.setScale(e * az(0.62, 0.85), e * az(1.15, 1.55));
+    s.setAlpha(0);
+    if (st.capa) st.capa.add(s);
+    var g = { spr: s, plano: n, vel: az(P.vel[0], P.vel[1]), alfa: P.alfa, x: 0, y: 0 };
+    reponerGota(st, g, L.w, L.h, true);
+    return g;
+  }
+
+  /**
+   * Devuelve una gota arriba del todo, por el lado de BARLOVENTO.
+   *
+   * Con la inclinación fija bastaba con desplazar el borde izquierdo. Ahora que
+   * puede torcerse a los dos lados hay que ensanchar el lado del que VIENE: si
+   * no, con viento de poniente la mitad derecha de la pantalla se queda seca
+   * porque ninguna gota nace lo bastante a la derecha.
+   */
+  function reponerGota(st, g, w, h, dentro) {
+    /* Cuántas veces ha vuelto a empezar esta gota. No lo usa el juego: sirve
+       para poder AFIRMAR desde fuera si una gota se ha reciclado. Sin esto una
+       prueba solo puede adivinarlo por el salto de posición, y adivinarlo sale
+       mal: una gota reciclada da un salto enorme hacia arriba que parece que
+       vuela en vez de caer. Es el mismo contador que llevan las hojas del
+       viento, y por el mismo motivo. */
+    g.vueltas = (g.vueltas || 0) + (dentro ? 0 : 1);
+    var corr = (st.inclina || 0) * h;      // cuánto se desplaza en toda la caída
+    var lo = corr > 0 ? -corr - 20 : -20;
+    var hi = corr > 0 ? w + 20 : w - corr + 20;
+    g.x = dentro ? az(0, w) : az(lo, hi);
+    g.y = dentro ? az(-40, h) : az(-90, -10);
+    g.spr.setPosition(g.x, g.y);
+  }
+
+  function moverGotas(st, dt, w, h, m, L) {
+    // La raya se dibuja hacia donde va la gota. atan() y no la pendiente a
+    // secas: a 0.66 la diferencia ya son 7 grados y se nota.
+    var rot = -Math.atan(st.inclina);
+    for (var i = 0; i < st.gotas.length; i++) {
+      var g = st.gotas[i];
+      var v = VEL_GOTA * g.vel * st.fuerzaLluvia;
+      g.y += v * dt;
+      g.x += v * st.inclina * dt;
+      g.spr.setPosition(g.x, g.y);
+      g.spr.setRotation(rot);
+      // Translúcidas: el agua no es blanca opaca. A 0.8 tapaban el mundo.
+      // Y cada plano con la suya: el fondo casi no está, el frente sí.
+      g.spr.setAlpha(st.fuerzaLluvia * g.alfa);
+      if (g.y > h + 20) {
+        /* La salpicadura, dentro de lo que se VE: el lienzo sobra por los
+           bordes y una salpicadura en el sobrante no la ve nadie.
+
+           Solo salpica el plano de DELANTE. Las gotas del fondo están, por
+           definición, mucho más allá del suelo que se ve: si salpicaran, el
+           agua reventaría en el aire y se vería el truco. */
+        if (g.plano === PLANOS_GOTA.length - 1) {
+          salpicar(st, g.x, h - m - az(0, (h - m * 2) * 0.55), L);
+        }
+        reponerGota(st, g, w, h, false);
+      } else if (g.x < -80 || g.x > w + 80) {
+        // Se la ha llevado el viento de lado: vuelve arriba sin salpicar.
+        reponerGota(st, g, w, h, false);
+      }
+    }
+  }
+
+  // ------------------------------------------------------------------ nieve
+  /**
+   * Un copo.
+   *
+   * No es una gota lenta: cae diez veces más despacio, se mece de lado a lado
+   * con su propio ritmo y el viento lo empuja MUCHO más que a la lluvia — un
+   * copo pesa nada. Esa diferencia de comportamiento es lo que hace que se lea
+   * como nieve y no como lluvia blanca.
+   */
+  function nuevoCopo(st, tipo) {
+    var L = lienzo(st.scene.cameras.main);
+    var clave = 'gfc_' + elegir(COPOS);
+    if (tipo === 'cristal') clave = texturaCristal(st.scene, Math.floor(Math.random() * 4));
+    else if (tipo === 'cerca') clave = texturaCopoCerca(st.scene);
+    if (!clave) return null;
+    var s = st.scene.add.image(0, 0, clave);
+    s.setScrollFactor(0);
+    // Sin escalar: los copos están dibujados al tamaño del tileset (2..7 px) y
+    // agrandarlos los convertiría en pelotas de papel. Los dibujados sí llevan
+    // su escala: el cristal se encoge un poco y el de cerca crece.
+    if (tipo === 'cristal') s.setScale(Math.random() < 0.7 ? 1 : 2);
+    if (tipo === 'cerca') s.setScale(az(0.28, 0.6));
+    s.setAlpha(0);
+    if (st.capa) st.capa.add(s);
+    var c = {
+      spr: s,
+      plano: PLANO_COPO[tipo] || PLANO_COPO.png,
+      vel: az(0.55, 1.5),
+      vaiven: az(VAIVEN_COPO[0], VAIVEN_COPO[1]),
+      fase: az(0, Math.PI * 2),
+      amplitud: tipo === 'cerca' ? az(20, 50) : az(9, 30),
+      // Sin giro: un pixel art girado a medio grado se deshace en dientes.
+      giro: 0,
+      x: 0, y: 0, vueltas: 0
+    };
+    reponerCopo(st, c, L.w, L.h, true);
+    return c;
+  }
+
+  /**
+   * Un copo de verdad, en PIXEL ART: brazos en las ocho direcciones con sus
+   * ramitas, píxel a píxel y con filtro NEAREST. Dibujado con líneas suaves se
+   * veía como una mancha borrosa al ampliar la cámara; así queda nítido como
+   * el resto del juego. Cuatro variantes (brazos más o menos largos, con o sin
+   * diagonales, ramitas en distinto sitio) para que no caigan dos iguales.
+   */
+  function texturaCristal(scene, n) {
+    var clave = 'gfc_copo_cristal_' + n;
+    if (scene.textures.exists(clave)) return clave;
+    var T = 11, c0 = 5;
+    var largo = [4, 3, 4, 5][n % 4];
+    var rama  = [2, 2, 3, 3][n % 4];
+    var diagonales = n % 4 !== 1;
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      var px = function (x, y, a) {
+        if (x < 0 || y < 0 || x >= T || y >= T) return;
+        ctx.fillStyle = 'rgba(240,248,255,' + a + ')';
+        ctx.fillRect(x, y, 1, 1);
+      };
+      var dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      if (diagonales) dirs.push([1, 1], [-1, -1], [1, -1], [-1, 1]);
+      for (var d = 0; d < dirs.length; d++) {
+        var dx = dirs[d][0], dy = dirs[d][1];
+        var diag = dx && dy;
+        var L = diag ? Math.max(2, largo - 1) : largo;
+        for (var k = 1; k <= L; k++) px(c0 + dx * k, c0 + dy * k, k === L ? 0.7 : 0.95);
+        if (!diag && rama <= L) {
+          // Las ramitas: un píxel a cada lado del brazo, hacia fuera.
+          var bx = c0 + dx * rama, by = c0 + dy * rama;
+          px(bx + dy + dx, by + dx + dy, 0.8);
+          px(bx - dy + dx, by - dx + dy, 0.8);
+        }
+      }
+      px(c0, c0, 1);
+      c.refresh();
+      var t = scene.textures.get(clave);
+      if (t && t.setFilter && window.Phaser && Phaser.Textures) t.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  /** El copo que pasa por delante de la cámara: grande, blando, sin forma. */
+  function texturaCopoCerca(scene) {
+    var clave = 'gfc_copo_cerca';
+    if (scene.textures.exists(clave)) return clave;
+    var T = 32;
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      var g = ctx.createRadialGradient(T / 2, T / 2, 0, T / 2, T / 2, T / 2);
+      g.addColorStop(0.00, 'rgba(255,255,255,0.90)');
+      g.addColorStop(0.30, 'rgba(248,252,255,0.62)');
+      g.addColorStop(0.70, 'rgba(232,242,255,0.16)');
+      g.addColorStop(1.00, 'rgba(232,242,255,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, T, T);
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  function reponerCopo(st, c, w, h, dentro) {
+    c.vueltas = (c.vueltas || 0) + (dentro ? 0 : 1);
+    // El viento arrastra al copo durante toda la caída, así que hay que
+    // sembrarlos bien a barlovento o el lado de sotavento se queda vacío.
+    var corr = (st.inclina || 0) * h * 2.2;
+    var lo = corr > 0 ? -corr - 30 : -30;
+    var hi = corr > 0 ? w + 30 : w - corr + 30;
+    c.x = dentro ? az(0, w) : az(lo, hi);
+    c.y = dentro ? az(-40, h) : az(-70, -6);
+    c.spr.setPosition(c.x, c.y);
+  }
+
+  function moverCopos(st, dt, w, h, m, L) {
+    /* LA RÁFAGA. Un valor de 0 a 1 que va hacia una meta que cambia cada
+       pocos segundos: casi siempre calma, a veces un golpe de viento. Se llega
+       a la meta poco a poco: el viento arrecia, no se enciende. */
+    st.rafagaEn = (st.rafagaEn || 0) - dt;
+    if (st.rafagaEn <= 0) {
+      st.rafagaMeta = Math.random() < 0.35 ? az(0.6, 1) : az(0, 0.2);
+      st.rafagaEn = az(2.5, 6.5);
+    }
+    st.rafaga = (st.rafaga || 0) + ((st.rafagaMeta || 0) - (st.rafaga || 0)) * Math.min(1, dt * 0.9);
+    var rafaga = st.rafaga;
+
+    for (var i = 0; i < st.copos.length; i++) {
+      var c = st.copos[i];
+      var pl = c.plano || PLANO_COPO.png;
+      var v = VEL_COPO * c.vel * pl.vel * st.fuerzaNieve;
+      c.fase += dt * c.vaiven;
+      c.y += v * dt;
+      // El vaivén va aparte del viento: uno es el aire quieto moviéndolo, el
+      // otro es el aire empujándolo. Sumados dan el revoloteo que se ve. En la
+      // ráfaga el arrastre crece y aparece el remolino, que depende de la
+      // altura: los copos de arriba y los de abajo giran a destiempo.
+      var arrastre = v * st.inclina * 2.2 * (1 + rafaga * 1.6);
+      var remolino = rafaga * Math.sin(c.y * 0.02 + c.fase * 0.5) * 26 * pl.vel;
+      c.x += (Math.sin(c.fase) * c.amplitud + arrastre + remolino) * dt;
+      c.spr.setPosition(c.x, c.y);
+      if (c.giro) c.spr.rotation += c.giro * dt * (1 + rafaga);
+      c.spr.setAlpha(st.fuerzaNieve * 0.92 * pl.alfa);
+      if (c.y > h + (pl.posa ? 12 : 40)) {
+        if (pl.posa) posarNieve(st, c.x, h - m - az(0, (h - m * 2) * 0.5), L);
+        reponerCopo(st, c, w, h, false);
+      } else if (c.x < -Math.max(100, Math.max(0, st.inclina || 0) * h * 2.2 + 60) ||
+                 c.x > w + Math.max(100, Math.max(0, -(st.inclina || 0)) * h * 2.2 + 60)) {
+        reponerCopo(st, c, w, h, false);
+      }
+    }
+  }
+
+  /**
+   * Marca un montoncito de nieve posada. Se deshace solo.
+   *
+   * Va en el MUNDO por el mismo motivo que la salpicadura: la nieve que ya ha
+   * caído está EN EL SUELO. Pegada a la cámara, el manto entero patinaba por
+   * el pueblo cada vez que el jugador daba un paso.
+   */
+  function posarNieve(st, x, y, L) {
+    if (Math.random() > 0.3 * st.fuerzaNieve) return;
+    for (var i = 0; i < st.posas.length; i++) {
+      var p = st.posas[i];
+      if (p.hasta > st.scene.time.now) continue;
+      var q = L ? aMundo(st, L, x, y) : { x: x, y: y };
+      p.spr.setTexture('gfc_' + elegir(POSAS));
+      p.spr.setPosition(q.x, q.y);
+      p.spr.setScale(az(0.9, 1.6));
+      p.hasta = st.scene.time.now + az(1400, 3200);
+      p.nace = st.scene.time.now;
+      return;
+    }
+  }
+
+  function nuevaPosa(st) {
+    var s = st.scene.add.image(0, 0, 'gfc_' + POSAS[0]);
+    s.setAlpha(0);
+    s.setDepth(PROF_SALPICA);
+    return { spr: s, hasta: 0, nace: 0 };
+  }
+
+  function moverPosas(st, ahora) {
+    for (var i = 0; i < st.posas.length; i++) {
+      var p = st.posas[i];
+      var queda = p.hasta - ahora;
+      if (queda <= 0) { p.spr.setAlpha(0); continue; }
+      // aparece de golpe y se derrite despacio
+      var t = (ahora - p.nace) / Math.max(1, p.hasta - p.nace);
+      p.spr.setAlpha((1 - t) * 0.85 * st.fuerzaNieve);
+    }
+  }
+
+  // ----------------------------------------------------------- salpicaduras
+  /* La salpicadura vive en el MUNDO (ver aMundo), a ras de suelo y por debajo
+     de todo lo demás: es agua en el barro, tiene que pisarse. Misma altura que
+     los charcos, que llevan ahí desde siempre. */
+  var PROF_SALPICA = PROF_CHARCO + 1;
+  var SALPICA_MS   = 300;
+
+  function nuevaSalpica(st) {
+    var s = st.scene.add.image(0, 0, 'gfc_' + SALPICA[0]);
+    s.setScale(2);
+    s.setAlpha(0);
+    s.setDepth(PROF_SALPICA);
+    return { spr: s, hasta: 0, paso: 0, nace: 0, escala: 2 };
+  }
+
+  /**
+   * Marca una salpicadura libre para que empiece su animación aquí.
+   *
+   * `x, y` vienen en píxeles del LIENZO (pantalla). Aquí se traducen al mundo
+   * una sola vez, al nacer: a partir de ese momento la salpicadura ya no se
+   * mueve nunca más, se queda donde cayó el agua aunque el jugador se vaya.
+   */
+  function salpicar(st, x, y, L) {
+    if (Math.random() > 0.8 * st.fuerzaLluvia) return;
+    for (var i = 0; i < st.salpicas.length; i++) {
+      var sp = st.salpicas[i];
+      if (sp.hasta > st.scene.time.now) continue;
+      var p = L ? aMundo(st, L, x, y) : { x: x, y: y };
+      sp.spr.setPosition(p.x, p.y);
+      /* Cada salpicadura de su tamaño y girada a su aire. Todas iguales y
+         mirando al mismo lado se veían como un sello repetido por el suelo. */
+      sp.escala = az(1.4, 2.4);
+      sp.spr.setScale(sp.escala);
+      sp.spr.setRotation(az(-0.25, 0.25));
+      sp.paso = 0;
+      sp.nace = st.scene.time.now;
+      sp.hasta = sp.nace + SALPICA_MS;
+      return;
+    }
+  }
+
+  function moverSalpicas(st, ahora) {
+    for (var i = 0; i < st.salpicas.length; i++) {
+      var sp = st.salpicas[i];
+      var queda = sp.hasta - ahora;
+      if (queda <= 0) { if (sp.spr.alpha) sp.spr.setAlpha(0); continue; }
+      var paso = queda > SALPICA_MS * 0.62 ? 1 : (queda > SALPICA_MS * 0.3 ? 2 : 3);
+      if (paso !== sp.paso) {
+        sp.paso = paso;
+        sp.spr.setTexture('gfc_salpica_' + paso);
+      }
+      /* LA ONDA SE ABRE. La corona de agua no se queda del mismo tamaño: sale
+         disparada hacia arriba y se derrama hacia fuera. Creciendo un 45 %
+         mientras se desvanece, tres dibujos fijos pasan a leerse como una
+         salpicadura de verdad. */
+      var t = 1 - queda / SALPICA_MS;                 // 0 al nacer, 1 al morir
+      sp.spr.setScale(sp.escala * (1 + t * 0.45));
+      sp.spr.setAlpha(Math.min(1, queda / (SALPICA_MS * 0.62)) * 0.85 * st.fuerzaLluvia);
+    }
+  }
+
+  // -------------------------------------------------------- rayos y truenos
+  /**
+   * Un relámpago.
+   *
+   * Se hace en tres capas porque un rayo de verdad se ve así: primero el cielo
+   * entero se ilumina (el fogonazo), luego se ve el trazo, y la sacudida de la
+   * cámara llega con el trueno, un poco después.
+   */
+  /**
+   * Dónde cae el próximo rayo.
+   *
+   * EL FALLO QUE ARREGLA: la x salía de un sorteo limpio, así que dos rayos
+   * seguidos podían caer casi en el mismo sitio y parecía que la tormenta se
+   * había quedado enganchada. Ahora se sortea hasta encontrar un sitio que esté
+   * al menos a RAYO_SEPARA del anterior; si a la sexta no lo encuentra —puede
+   * pasar con una pantalla estrecha— se queda con el último, que es mejor que
+   * girar en el bucle.
+   */
+  function sitioDelRayo(st, L) {
+    var izq = L.m + (L.w - L.m * 2) * 0.12;
+    var der = L.m + (L.w - L.m * 2) * 0.88;
+    var minSep = (der - izq) * RAYO_SEPARA;
+    var p = st.ultimoRayoX;
+    var x;
+
+    if (p == null) {
+      x = az(izq, der);
+    } else {
+      /* Se sortea DENTRO de lo permitido, no se sortea y se comprueba.
+
+         Antes se tiraba al azar y se repetía hasta acertar, con seis intentos
+         de tope. Con la banda prohibida ocupando más de la mitad de la
+         pantalla, uno de cada treinta sorteos agotaba los seis intentos y se
+         quedaba con el último — justo el que no valía. En 200 rayos eso son
+         media docena de repeticiones: exactamente lo que se quería evitar.
+
+         Repartiendo por LONGITUD entre el trozo de la izquierda y el de la
+         derecha sale uniforme dentro de lo válido y no falla nunca. */
+      var iz = Math.max(0, (p - minSep) - izq);
+      var de = Math.max(0, der - (p + minSep));
+      if (iz + de <= 0) {
+        // No cabe la separación (pantalla estrechísima): al extremo más lejano.
+        x = (p - izq > der - p) ? izq : der;
+      } else if (Math.random() * (iz + de) < iz) {
+        x = az(izq, izq + iz);
+      } else {
+        x = az(der - de, der);
+      }
+    }
+    st.ultimoRayoX = x;
+    return x;
+  }
+
+  /**
+   * Una CENTELLA: el resplandor sin el trazo.
+   *
+   * En una tormenta de verdad la mayoría de los relámpagos no se ven como un
+   * rayo dibujado: se ve el cielo encenderse y los bordes de todo blanquear un
+   * instante. Solo unos pocos enseñan el trazo. Antes aquí solo había rayos, y
+   * una tormenta entera de rayos con nombre y apellidos cansa y se nota falsa.
+   *
+   * La centella es barata: no mueve el sprite del rayo, solo enciende el
+   * fogonazo flojo y el marco blanco de los bordes. A veces sacude un poco,
+   * a veces nada — que no todas suenan.
+   */
+  function centella(st) {
+    var ahora = st.scene.time.now;
+    var fuerte = Math.random() < 0.45;
+
+    st.fogonazo.setAlpha(fuerte ? 0.34 : 0.18);
+    st.fogonazoHasta = ahora + (fuerte ? 110 : 70);
+
+    st.bordeAlfa = fuerte ? 0.8 : 0.45;
+    st.bordeHasta = ahora + az(120, 260);
+    // Una centella es un rayo lejano: el mismo golpe de luz, mas flojo.
+    if (window.GFPost && window.GFPost.pulso) window.GFPost.pulso(fuerte ? 0.5 : 0.28);
+
+    /* El chisporroteo eléctrico va CON la luz, no con el retumbo: es lo poco
+       que se oye al instante de una descarga lejana. Solo en las fuertes, que
+       si no la tormenta parece una freidora. */
+    if (fuerte && window.GFAudio && window.GFAudio.chispa) {
+      try { window.GFAudio.chispa(0.45); } catch (e) {}
+    }
+
+    // Una de cada tres retumba, y flojito.
+    if (fuerte && Math.random() < 0.35) {
+      st.truenoEn = ahora + az(260, 900);
+      st.truenoFuerza = az(0.25, 0.5);
+      st.truenoCerca = false;      // centella: solo retumbo, sin crujido
+      /* SIN SITIO, A PROPÓSITO. Una centella es un resplandor lejano del que
+         no se sabe dónde ha caído: su retumbo llega de todas partes. Y si no
+         se borrasen, aquí seguirían las coordenadas del ÚLTIMO rayo con trazo
+         y el retumbo saldría de un punto que ya no tiene nada que ver. */
+      st.truenoX = null;
+      st.truenoY = null;
+    }
+    st.proximaCentella = ahora + az(CENTELLA_CADA[0], CENTELLA_CADA[1]) / st.fuerzaLluvia;
+  }
+
+  /** Pinta el marco blanco de los bordes de la pantalla. */
+  function moverBorde(st, ahora, w, h, m) {
+    var queda = st.bordeHasta - ahora;
+    var i, b;
+    if (queda <= 0) {
+      for (i = 0; i < st.bordes.length; i++) st.bordes[i].setAlpha(0);
+      return;
+    }
+    var a = Math.min(1, queda / 160) * st.bordeAlfa;
+    // Grosor: la centella fuerte abre más el marco. Se mide sobre la pantalla,
+    // no sobre el lienzo, o en pantallas anchas el marco se comería medio mapa.
+    var g = (h - m * 2) * (0.10 + 0.16 * st.bordeAlfa);
+
+    if (st.bordeSuave) {
+      /* Cada tira pegada a su lado y estirada hacia dentro. El origen ya está
+         puesto en el lado que toca, así que basta con colocar y estirar. */
+      var lados = [
+        [w / 2,     m,         w, g],      // arriba
+        [w / 2,     h - m,     w, g],      // abajo
+        [m,         h / 2,     g, h],      // izquierda
+        [w - m,     h / 2,     g, h]       // derecha
+      ];
+      for (i = 0; i < st.bordes.length; i++) {
+        b = st.bordes[i];
+        b.setPosition(lados[i][0], lados[i][1]);
+        b.setDisplaySize(lados[i][2], lados[i][3]);
+        b.setAlpha(a);
+      }
+      return;
+    }
+
+    // respaldo recto
+    var rectos = [
+      [w / 2, m + g / 2, w, g], [w / 2, h - m - g / 2, w, g],
+      [m + g / 2, h / 2, g, h], [w - m - g / 2, h / 2, g, h]
+    ];
+    for (i = 0; i < st.bordes.length; i++) {
+      b = st.bordes[i];
+      b.setPosition(rectos[i][0], rectos[i][1]);
+      if (b.setSize) b.setSize(rectos[i][2], rectos[i][3]);
+      b.setAlpha(a);
+    }
+  }
+
+  function relampago(st) {
+    var scene = st.scene;
+    var cam = scene.cameras.main;
+    var ahora = scene.time.now;
+
+    var L = lienzo(cam);
+    if (!st.rayo) { centella(st); return; }   // sin dibujo de rayo: solo fogonazo
+
+    /* PRIMERO SE DECIDE DÓNDE CAE, Y DESPUÉS SE DIBUJA HASTA AHÍ.
+       Antes era al revés: se colgaba el dibujo desde arriba y luego se buscaba
+       un árbol "por donde más o menos había caído". De ahí salían las dos
+       quejas a la vez — el rayo cortado en el aire y el árbol ardiendo sin que
+       le hubiera dado nada. */
+    var cx = sitioDelRayo(st, L);
+    var cy = L.m + L.h * az(0.52, 0.80);       // dentro de lo que se ve
+    var arriba = L.m - 40;                     // sale del borde de arriba
+
+    /* ¿Hay un árbol donde ha caído? Si lo hay, el rayo se DESVÍA hasta él: es
+       lo que hace un rayo de verdad, buscar lo más alto. Y así el fuego sale
+       exactamente donde se ha visto el impacto. */
+    var punto = aMundo(st, L, cx, cy);
+    var arbol = arbolBajoElRayo(scene, punto);
+    if (arbol && Math.random() < PROB_INCENDIO) {
+      var b = null;
+      try { b = arbol.spr.getBounds(); } catch (e) {}
+      if (b) {
+        /* De mundo a lienzo, que es donde vive la capa del clima. Es la
+           inversa exacta de `aMundo()`: allí local−margen se pasa por
+           getWorldPoint, así que aquí (mundo−esquina)·zoom+margen. */
+        cx = (b.centerX - cam.worldView.x) * cam.zoom + L.m;
+        cy = (b.top + b.height * 0.18 - cam.worldView.y) * cam.zoom + L.m;
+      }
+      prenderArbol(st, arbol);
+    }
+
+    st.rayo.setTexture(elegir(RAYOS_DIBUJADOS));
+    st.rayo.setPosition(cx, arriba);
+    /* Se estira EXACTAMENTE hasta el punto de caída. El ancho se mueve un poco
+       para que dos rayos seguidos no salgan calcados. */
+    var alto = Math.max(120, cy - arriba);
+    st.rayo.setDisplaySize(RAYO_W * az(0.75, 1.25) * (alto / RAYO_H) * 1.6, alto);
+    st.rayo.setFlipX(Math.random() < 0.5);
+    st.rayo.setAlpha(1);
+    st.rayoHasta = ahora + az(110, 210);
+
+    // Y el reventón donde acaba, que es lo que cierra la lectura del golpe.
+    if (st.impacto) {
+      st.impacto.setPosition(cx, cy);
+      st.impacto.setScale(az(0.55, 1.05));
+      st.impacto.setAlpha(0.95);
+      st.impactoHasta = ahora + az(130, 220);
+    }
+
+    st.fogonazo.setAlpha(0.72);
+    st.fogonazoHasta = ahora + 130;
+    st.bordeAlfa = 1;
+    st.bordeHasta = ahora + az(180, 320);
+    st.truenoFuerza = az(0.8, 1.3);
+
+    /* Y el fotograma entero reacciona: el post-procesado sube el brillo, se
+       lleva el color por delante y abre la vinneta durante un instante, que es
+       lo que hace un rayo con un ojo de verdad. Si el modulo no esta (canvas,
+       calidad baja) no pasa nada: sigue habiendo fogonazo. */
+    if (window.GFPost && window.GFPost.pulso) window.GFPost.pulso(1);
+
+    /* (El incendio ya se ha decidido arriba, ANTES de dibujar, para que el
+       rayo caiga sobre el árbol que arde y no en la otra punta.) */
+
+    /* DÓNDE HA CAÍDO, EN COORDENADAS DE MUNDO.
+       Se recalcula AQUÍ y no antes a propósito: si el rayo se ha desviado
+       hasta un árbol, `cx/cy` ya son los del árbol, y el sonido tiene que
+       salir de donde se ha VISTO el impacto, no de donde iba a caer.
+
+       Sirve para que el chasquido y el trueno suenen desde ahí: más flojos y
+       hacia un lado si el rayo ha caído lejos. Antes los dos sonaban centrados
+       y a pleno volumen cayera donde cayera. */
+    var impacto = aMundo(st, L, cx, cy);
+    st.truenoX = impacto.x;
+    st.truenoY = impacto.y;
+
+    /* Y suena. El chasquido eléctrico va aquí, pegado al fogonazo; el trueno
+       llega luego, con el mismo retardo con el que sacude la cámara. */
+    if (window.GFAudio && window.GFAudio.chispa) {
+      try { window.GFAudio.chispa(1, impacto.x, impacto.y); } catch (e) {}
+    }
+
+    var retardo = az(180, 700);
+    st.truenoEn = ahora + retardo;
+    st.truenoCerca = true;         // rayo con trazo: crujido y retumbo
+    st.proximoTrueno = ahora + az(TRUENO_CADA[0], TRUENO_CADA[1]) / st.fuerzaLluvia;
+    log('relámpago; trueno en', Math.round(retardo), 'ms');
+  }
+
+  function sacudir(st) {
+    var cam = st.scene.cameras && st.scene.cameras.main;
+    if (!cam || !cam.shake) return;
+    /* Corta y suave: sacudir mucho marea y estorba para jugar.
+
+       La fuerza VARÍA (st.truenoFuerza): el trueno de un rayo cercano retumba y
+       el de una centella lejana apenas se nota. Todos iguales sonaba a efecto
+       enlatado. El tope se queda en 0.006 · fuerza para no pasarse del sobrante
+       que llevan las capas (ver MARGEN). */
+    var f = st.truenoFuerza == null ? 1 : st.truenoFuerza;
+    var dur = 220 + 180 * f;
+    try { cam.shake(dur, 0.006 * f * st.fuerzaLluvia); } catch (e) {}
+  }
+
+  // ------------------------------------------------------------------ bucle
+  function actualizar(st, ahora, delta) {
+    var scene = st && st.scene;
+    if (!scene || !scene.cameras || !scene.cameras.main) return;
+    if (!Number.isFinite(ahora) || !Number.isFinite(delta) || delta < 0) return;
+    delta = Math.min(delta, 100);
+    var cam = scene.cameras.main;
+    /* Se recalcula cada frame: el jugador puede cambiar el zoom o el tamaño de
+       la ventana en cualquier momento, y hasta ahora la lluvia se quedaba con
+       la medida del arranque. */
+    var L = lienzo(cam);
+    var w = L.w, h = L.h;
+    if (st.capa) { st.capa.setPosition(L.x, L.y); st.capa.setScale(L.escala); }
+    st.inclina = inclinacion(st);
+    var dt = Math.min(delta, 100) / 1000;
+
+    // La lluvia y la nieve arrecian y amainan poco a poco: entrar de golpe canta.
+    var paso = delta / ENTRA_MS;
+    st.fuerzaLluvia = hacia(st.fuerzaLluvia,
+                            (estado.activo && estado.lluvia) ? estado.lluviaFuerza : 0, paso);
+    st.fuerzaNieve  = hacia(st.fuerzaNieve,
+                            (estado.activo && estado.nieve) ? estado.nieveFuerza : 0, paso);
+
+    /* NUBLADO. Va antes que el sol porque son opuestos y así el sol pinta
+       encima: si por lo que sea llegaran los dos encendidos, mandan los rayos.
+       Se nubla y se despeja despacio (NUBLADO_ENTRA_MS), como todo lo demás. */
+    st.fuerzaNublado = hacia(st.fuerzaNublado,
+                             (estado.activo && estado.nublado) ? estado.nubladoFuerza : 0,
+                             delta / NUBLADO_ENTRA_MS);
+    moverNubes(st, dt, st.fuerzaNublado);
+
+    moverSol(st, ahora, delta, w, h);
+    filtroEstacion(st, delta, w, h);
+
+    var lloviendo = st.fuerzaLluvia > 0.01;
+    var nevando   = st.fuerzaNieve > 0.01;
+
+    // La cortina la levantan las dos: nevando el mundo también se apaga, pero
+    // hacia el blanco frío en vez del gris de tormenta.
+    st.cortina.setPosition(w / 2, h / 2);
+    if (st.cortina.setSize) st.cortina.setSize(w, h);
+    if (nevando && !lloviendo) {
+      st.cortina.fillColor = 0x9fb4cf;
+      st.cortina.setAlpha(st.fuerzaNieve * 0.16);
+    } else {
+      st.cortina.fillColor = 0x37475e;
+      st.cortina.setAlpha(lloviendo ? st.fuerzaLluvia * 0.20 : 0);
+    }
+
+    /* Charcos e incendio van SIEMPRE, llueva o no: los charcos tienen que
+       poder secarse cuando escampa, y un arbol encendido tiene que acabar de
+       arder aunque la tormenta ya haya pasado. Por eso van ANTES del `return`
+       de "no llueve" que hay mas abajo. */
+    moverCharcos(st, ahora, delta);
+    try { vidaCharcos(st, ahora); } catch (e) { log('vida de los charcos:', e); }
+    moverIncendio(st, ahora, delta);
+    moverQuemaduras(st, ahora);
+
+    var i, j;
+    if (nevando) {
+      moverCopos(st, dt, w, h, L.m, L);
+      moverPosas(st, ahora);
+    } else {
+      for (i = 0; i < st.copos.length; i++) st.copos[i].spr.setAlpha(0);
+      for (i = 0; i < st.posas.length; i++) st.posas[i].spr.setAlpha(0);
+    }
+
+    if (!lloviendo) {
+      for (i = 0; i < st.gotas.length; i++) st.gotas[i].spr.setAlpha(0);
+      for (j = 0; j < st.salpicas.length; j++) st.salpicas[j].spr.setAlpha(0);
+      if (st.rayo) st.rayo.setAlpha(0);
+      if (st.impacto) st.impacto.setAlpha(0);
+      st.rayoHasta = st.impactoHasta = st.fogonazoHasta = st.truenoEn = st.proximoTrueno = st.proximaCentella = 0;
+      st.bordeHasta = st.bordeAlfa = 0;
+      st.fogonazo.setAlpha(0);
+      for (i = 0; i < st.bordes.length; i++) st.bordes[i].setAlpha(0);
+      return;
+    }
+
+    moverGotas(st, dt, w, h, L.m, L);
+    moverSalpicas(st, ahora);
+
+    /* RELÁMPAGOS Y CENTELLAS.
+       Los rayos con trazo son los pocos; las centellas —el resplandor sin
+       dibujo— van mucho más seguidas. Es la proporción de una tormenta de
+       verdad, y hace que la de aquí no parezca una feria de rayos. */
+    if (estado.activo && estado.lluvia && estado.truenos) {
+      if (!st.proximoTrueno) st.proximoTrueno = ahora + az(3000, 9000);
+      if (ahora >= st.proximoTrueno) relampago(st);
+      if (!st.proximaCentella) st.proximaCentella = ahora + az(800, 4000);
+      // Nunca a la vez que un rayo: se pisarían y se vería un parpadeo raro.
+      if (ahora >= st.proximaCentella && !st.rayoHasta) centella(st);
+    } else {
+      // Amainar tarda unos segundos. En ese intervalo ya no deben nacer
+      // rayos ni sonar truenos pendientes de una tormenta desactivada.
+      st.proximoTrueno = st.proximaCentella = st.truenoEn = 0;
+    }
+    if (st.rayoHasta && ahora >= st.rayoHasta) {
+      if (st.rayo) st.rayo.setAlpha(0);
+      st.rayoHasta = 0;
+    }
+    /* El reventón del impacto se apaga solo, y MÁS DESPACIO que el trazo: la
+       luz de un golpe se queda un instante después de que el rayo ya no está.
+       Si se apagaran a la vez, el golpe no se leería como golpe. */
+    if (st.impactoHasta && st.impacto) {
+      var qi = st.impactoHasta - ahora;
+      if (qi <= 0) { st.impacto.setAlpha(0); st.impactoHasta = 0; }
+      else st.impacto.setAlpha(Math.min(1, qi / 160) * 0.95);
+    }
+    if (st.fogonazoHasta) {
+      var q = st.fogonazoHasta - ahora;
+      var pico = st.fogonazo.alpha;
+      st.fogonazo.setAlpha(q > 0 ? Math.max(0, q / 130) * Math.max(pico, 0.18) : 0);
+      st.fogonazo.setPosition(w / 2, h / 2);
+      if (st.fogonazo.setSize) st.fogonazo.setSize(w, h);
+      if (q <= 0) st.fogonazoHasta = 0;
+    }
+    moverBorde(st, ahora, w, h, L.m);
+    if (st.truenoEn && ahora >= st.truenoEn) {
+      sacudir(st);
+      /* El trueno SUENA en el mismo instante en que sacude, que es lo que ya
+         se había calculado bien: el destello va por delante y el ruido llega
+         detrás. gf-audio pone el sonido; si no está, sigue habiendo sacudida
+         y no se rompe nada. */
+      if (window.GFAudio && window.GFAudio.trueno) {
+        /* Con el sitio del impacto: el trueno tiene un alcance enorme (ver
+           ALCANCE_TRUENO en gf-audio) pero ya no suena idéntico cayera donde
+           cayera. Si no hubo rayo dibujado, `truenoX` es undefined y gf-audio
+           lo suelta centrado, que es lo que era hasta ahora. */
+        try {
+          window.GFAudio.trueno(st.truenoCerca !== false, st.truenoFuerza,
+                                st.truenoX, st.truenoY);
+        } catch (e) {}
+      }
+      /* Y LA FAUNA SE SOBRESALTA.
+
+         Va aquí y no con el fogonazo a propósito: lo que asusta a un animal es
+         el ESTAMPIDO, no la luz. Entre el relámpago y el trueno pasan de dos
+         a siete décimas, y en ese hueco el mundo sigue tranquilo; luego
+         retumba y salta todo a la vez. Puesto con el destello se veía a los
+         bichos botar antes de oírse nada. */
+      avisarDelTrueno(st.truenoCerca !== false, st.truenoFuerza);
+      st.truenoEn = 0;
+    }
+  }
+
+  /**
+   * Los haces de sol.
+   *
+   * El sol se pone FUERA del lienzo, arriba a la izquierda, y cada haz sale de
+   * ahí girado un poco distinto. La intensidad se multiplica por la luz del día
+   * (gf-ciclo-dia): al atardecer los rayos se van solos, porque un rayo de sol
+   * de noche no tiene sentido y quedaría como una linterna.
+   */
+  function moverSol(st, ahora, delta, w, h) {
+    if (!st.rayosSol || !st.rayosSol.length) return;
+
+    var quiere = (estado.activo && estado.soleado) ? estado.soleadoFuerza : 0;
+    st.fuerzaSol = hacia(st.fuerzaSol, quiere, delta / SOL_ENTRA_MS);
+
+    // La luz del día. Sin el módulo del ciclo se da por hecho que es de día.
+    var dia = 1;
+    var C = window.GFCiclo;
+    if (C && C.oscuridad) {
+      try {
+        var o = C.oscuridad();
+        if (typeof o === 'number' && isFinite(o)) dia = Math.max(0, 1 - o);
+      } catch (e) {}
+    }
+    var f = st.fuerzaSol * dia;
+
+    /* Las motas de polvo van con el sol y con la luz del dia: si no hay sol no
+       hay haz que las encienda, y de noche no se ve el polvo. */
+    moverMotas(st, Math.min(delta, 100) / 1000, f);
+
+    if (st.resplandorSol) {
+      var t = Math.min(w, h) * 1.5;
+      st.resplandorSol.setPosition(w * 0.06, h * 0.02);
+      st.resplandorSol.setDisplaySize(t, t);
+      st.resplandorSol.setAlpha(Math.min(0.5, f * 0.30));
+      st.resplandorSol.setVisible(f > 0.01);
+    }
+
+    if (f <= 0.01) {
+      for (var k = 0; k < st.rayosSol.length; k++) st.rayosSol[k].spr.setAlpha(0);
+      return;
+    }
+
+    // De dónde salen: un punto fuera de cuadro, arriba a la izquierda.
+    var sx = -w * 0.10, sy = -h * 0.14;
+    var largoBase = Math.sqrt(w * w + h * h) * 1.25;
+
+    for (var i = 0; i < st.rayosSol.length; i++) {
+      var r = st.rayosSol[i];
+      var s = r.spr;
+      // Respira: abre y cierra el ángulo y sube y baja la intensidad.
+      var b = Math.sin(ahora * 0.00035 * r.ritmo + r.fase);
+      s.setPosition(sx, sy);
+      s.setRotation(SOL_ANGULO + r.desvio + b * 0.045);
+      s.setDisplaySize(Math.max(18, 90 * r.ancho * (1 + b * 0.10)),
+                       largoBase * r.largo);
+      s.setAlpha(SOL_ALFA * r.alfa * f * (0.78 + 0.22 * b));
+    }
+  }
+
+  /** Acerca `v` a `meta` como mucho `paso`. */
+  function hacia(v, meta, paso) {
+    if (v < meta) return Math.min(meta, v + paso);
+    if (v > meta) return Math.max(meta, v - paso);
+    return v;
+  }
+
+  /**
+   * El color de la estación.
+   *
+   * Se cruza poco a poco de una estación a otra (ESTACION_MS): cambiar el color
+   * del mundo de un frame al siguiente se ve como un fallo de render, no como
+   * que ha entrado el otoño.
+   */
+  /** Mezcla dos colores 0xRRGGBB. `t` de 0 (el primero) a 1 (el segundo). */
+  function mezclarColor(a, b, t) {
+    t = t < 0 ? 0 : (t > 1 ? 1 : t);
+    var ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+    var br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+    return ((Math.round(ar + (br - ar) * t) << 16) |
+            (Math.round(ag + (bg - ag) * t) << 8) |
+             Math.round(ab + (bb - ab) * t));
+  }
+
+  /** Cuánto se parecen dos colores, en suma de canales. */
+  function distanciaColor(a, b) {
+    if (a == null || b == null) return 999;
+    return Math.abs(((a >> 16) & 255) - ((b >> 16) & 255)) +
+           Math.abs(((a >> 8) & 255) - ((b >> 8) & 255)) +
+           Math.abs((a & 255) - (b & 255));
+  }
+
+  function ponerColorFiltro(st, color) {
+    st.filtroColor = color;
+    if (st.filtro.setTint) st.filtro.setTint(color);
+    else st.filtro.fillColor = color;
+  }
+
+  function filtroEstacion(st, delta, w, h) {
+    if (!st.filtro) return;
+    var e = ESTACIONES[estado.estacion] || ESTACIONES.verano;
+    var paso = delta / ESTACION_MS;
+
+    /* CUÁNTO TINTE TOCA AHORA. Ya no es un número fijo por estación: se mueve
+       entre el de mediodía y el de las puntas del día según lo rasante que
+       venga la luz. Lo mismo con el COLOR: al amanecer y al atardecer se le
+       mete el naranja rasante encima del color de la estación, así que hasta
+       en verano —que no tiñe nada— hay hora dorada. */
+    var c = calidezDelDia();
+    var alfaAhora = e.alfa + (e.borde - e.alfa) * c;
+    var colorAhora = mezclarColor(e.color, COLOR_RASANTE, c * 0.75);
+
+    if (st.filtroColor !== colorAhora) {
+      /* Al CAMBIAR DE ESTACIÓN se baja a cero con el color viejo y se sube con
+         el nuevo: mezclar dos colores a medio camino da tonos que no son de
+         ninguna de las dos.
+
+         Pero el color de la hora cambia despacito y a todas horas, y bajar a
+         cero cada vez sería un parpadeo continuo. Por eso solo se hace el
+         relevo cuando el salto es GRANDE (otra estación); los pasitos del sol
+         se aplican directos. */
+      if (distanciaColor(st.filtroColor, colorAhora) > 40) {
+        st.filtroAlfa = Math.max(0, st.filtroAlfa - paso);
+        if (st.filtroAlfa <= 0.001) ponerColorFiltro(st, colorAhora);
+      } else {
+        ponerColorFiltro(st, colorAhora);
+        st.filtroAlfa = hacia(st.filtroAlfa, alfaAhora, paso);
+      }
+    } else {
+      st.filtroAlfa = hacia(st.filtroAlfa, alfaAhora, paso);
+    }
+    st.filtro.setAlpha(st.filtroAlfa);
+    st.filtro.setPosition(w / 2, h / 2);
+    // Imagen: se estira. Rectángulo (el respaldo): se redimensiona.
+    if (st.filtro.setDisplaySize) st.filtro.setDisplaySize(w, h);
+    else if (st.filtro.setSize) st.filtro.setSize(w, h);
+  }
+
+
+  // ═══════════════════════════════════════════════════════════ CHARCOS
+  /**
+   * ¿Se puede poner un charco aquí?
+   *
+   * Se pregunta a la escena por sus colisiones — el mismo camino que usan los
+   * animales para no meterse en las paredes. Si la escena no lo expone, se dice
+   * que no a todo: mejor sin charcos que con charcos dentro de una casa.
+   */
+  function sueloLibre(scene, x, y) {
+    if (typeof scene._chocaConEscenario !== 'function') return false;
+    try {
+      // Se mira el punto y sus cuatro esquinas: un charco ocupa sitio, y
+      // comprobando solo el centro se colaba medio charco bajo una pared.
+      var r = 14;
+      return !scene._chocaConEscenario(x, y) &&
+             !scene._chocaConEscenario(x - r, y) &&
+             !scene._chocaConEscenario(x + r, y) &&
+             !scene._chocaConEscenario(x, y - 6) &&
+             !scene._chocaConEscenario(x, y + 6);
+    } catch (e) { return false; }
+  }
+
+  function nuevoCharco(st) {
+    var s = st.scene.add.image(0, 0, CHARCOS_DIBUJADOS[0]);
+    s.setOrigin(0.5, 0.5);
+    s.setDepth(PROF_CHARCO);
+    // Valor de arranque; el de verdad se lo pone brotarCharco al encenderlo.
+    s.setScale(1.2);
+    s.setAlpha(0);
+    s.setVisible(false);
+    /* El brillo que se pasea por encima: el cielo reflejado se mueve un poco
+       con el viento y el charco deja de ser una calcomanía quieta. */
+    var b = null;
+    if (st.scene.textures.exists('gfc_charco_brillo')) {
+      b = st.scene.add.image(0, 0, 'gfc_charco_brillo').setDepth(PROF_CHARCO + 0.02).setVisible(false);
+      if (window.Phaser && Phaser.BlendModes) b.setBlendMode(Phaser.BlendModes.ADD);
+      (st.brillosCharco = st.brillosCharco || []).push({ spr: b });
+    }
+    return { spr: s, brillo: b, vivo: false, nace: 0, tam: 0, helado: false, prog: 0, etapa: -1,
+             sx: 1, sy: 1, fase: Math.random() * 6.28 };
+  }
+
+  /** Busca sitio y enciende un charco. */
+  function brotarCharco(st) {
+    var scene = st.scene;
+    var p = scene.player;
+    if (!p) return;
+    var libre = null;
+    for (var i = 0; i < st.charcos.length; i++) {
+      if (!st.charcos[i].vivo) { libre = st.charcos[i]; break; }
+    }
+    if (!libre) return;
+
+    // Ocho intentos: si no hay sitio, se deja para la próxima vuelta.
+    for (var t = 0; t < 8; t++) {
+      var ang = az(0, Math.PI * 2);
+      var d = az(120, CHARCO_RADIO);
+      var x = p.x + Math.cos(ang) * d;
+      var y = p.y + Math.sin(ang) * d;
+      if (!sueloLibre(scene, x, y)) continue;
+      // Ni encima de otro charco.
+      var pegado = false;
+      for (var k = 0; k < st.charcos.length; k++) {
+        var c = st.charcos[k];
+        if (c.vivo && Math.hypot(c.spr.x - x, c.spr.y - y) < 46) { pegado = true; break; }
+      }
+      if (pegado) continue;
+
+      libre.vivo = true;
+      libre.nace = scene.time.now;
+      libre.tam = Math.floor(az(0, CHARCOS_DIBUJADOS.length));
+      libre.helado = false;
+      libre.prog = 0;
+      libre.etapa = 0;
+      libre.spr.setTexture(claveEtapa(CHARCOS_DIBUJADOS[libre.tam], 0));
+      /* Cada charco con su tamaño y su giro, pero CON LÍMITES.
+       *
+       * DOS COSAS QUE ESTABAN MAL Y SE VEÍAN EN LA CAPTURA:
+       *
+       *   - La escala llegaba a 2,4 sobre una textura que ya era de 96 px:
+       *     charcos de 230 px de ancho, más que el jugador de alto. Ahora la
+       *     textura son 56 px y la escala 0,9–1,7 → entre 50 y 95 px, que es
+       *     lo que medían los charcos originales del juego.
+       *
+       *   - El giro era de 0 a 360°. Un charco está TUMBADO en el suelo: si lo
+       *     giras 90° se pone de canto y se lee como una mancha vertical
+       *     flotando, que es justo lo que se veía. Ahora se mueve ±20°, lo
+       *     justo para que no salgan dos iguales.
+       *
+       * La escala en X e Y va casi pareja (±15 %) por lo mismo: estirarlo el
+       * doble en una dirección deshace la forma de charco. */
+      var tam = az(0.9, 1.5);
+      libre.sx = tam * az(0.9, 1.15); libre.sy = tam * az(0.9, 1.1);
+      libre.spr.setScale(libre.sx * 0.85, libre.sy * 0.85);
+      libre.spr.setRotation(az(-0.35, 0.35));
+      libre.spr.setPosition(Math.round(x), Math.round(y));
+      libre.spr.setVisible(true);
+      libre.spr.setAlpha(0);
+      return;
+    }
+  }
+
+  function moverCharcos(st, ahora, delta) {
+    var lloviendo = st.fuerzaLluvia > 0.05;
+    var nevando = st.fuerzaNieve > 0.25;
+
+    if (lloviendo) {
+      if (!st.proximoCharco) st.proximoCharco = ahora + az(CHARCO_CADA[0], CHARCO_CADA[1]);
+      if (ahora >= st.proximoCharco) {
+        brotarCharco(st);
+        st.proximoCharco = ahora + az(CHARCO_CADA[0], CHARCO_CADA[1]) / st.fuerzaLluvia;
+      }
+    }
+
+    for (var i = 0; i < st.charcos.length; i++) {
+      var c = st.charcos[i];
+      if (!c.vivo) continue;
+
+      /* SE HIELAN CUANDO NIEVA, uno a uno y no todos de golpe.
+         Cada charco lleva su propio reloj (`helarEn`), así que la helada
+         avanza por el mapa en vez de encenderse como un interruptor. Y al
+         dejar de nevar se deshielan igual de escalonados. */
+      if (nevando && !c.helado) {
+        if (!c.helarEn) c.helarEn = ahora + az(2000, 14000);
+        else if (ahora >= c.helarEn) {
+          c.helado = true;
+          c.helarEn = 0;
+          c.spr.setTexture(claveEtapa(HIELOS_DIBUJADOS[c.tam], Math.max(0, c.etapa)));
+        }
+      } else if (!nevando && c.helado) {
+        if (!c.helarEn) c.helarEn = ahora + az(3000, 16000);
+        else if (ahora >= c.helarEn) {
+          c.helado = false;
+          c.helarEn = 0;
+          c.spr.setTexture(claveEtapa(CHARCOS_DIBUJADOS[c.tam], Math.max(0, c.etapa)));
+        }
+      }
+
+      /* MIENTRAS NIEVA, EL CHARCO NO SE SECA. Da igual que ya esté helado o
+         que aún esté por helar: el agua no se evapora a esa temperatura, se
+         queda.
+
+         EL FALLO QUE ARREGLA: esto decía `(c.helado && nevando)`, o sea que un
+         charco todavía sin helar SÍ se secaba. Y como helarse tarda entre 2 y
+         14 segundos y secarse tarda 22, en la prueba se murieron veintiuno de
+         veintitrés antes de llegar a hielo: dejaba de llover, empezaba a
+         nevar, y los charcos desaparecían en vez de congelarse. */
+      var crece = lloviendo || nevando;
+      /* Lo que avanza es `prog` (0..1): el contorno se extiende por etapas y
+         el charco engorda un poco. La transparencia solo cuenta al nacer y al
+         irse del todo. Un charco helado no crece: el hielo no avanza. */
+      var paso = delta / (crece ? CHARCO_CRECE : -CHARCO_SECA);
+      if (!(c.helado && crece)) c.prog = Math.max(0, Math.min(1, c.prog + paso));
+      var e = Math.min(ETAPAS_CHARCO - 1, Math.floor(c.prog * ETAPAS_CHARCO));
+      if (e !== c.etapa) {
+        c.etapa = e;
+        c.spr.setTexture(claveEtapa(c.helado ? HIELOS_DIBUJADOS[c.tam] : CHARCOS_DIBUJADOS[c.tam], e));
+      }
+      c.spr.setScale(c.sx * (0.85 + 0.15 * c.prog), c.sy * (0.85 + 0.15 * c.prog));
+      c.spr.alpha = (c.helado ? 0.92 : 0.84) * Math.min(1, c.prog * 3);
+      if (!crece && c.prog <= 0.001) {
+        c.vivo = false;
+        c.helado = false;
+        c.helarEn = 0;
+        c.spr.setVisible(false);
+        if (c.brillo) c.brillo.setVisible(false);
+      }
+    }
+  }
+
+  /**
+   * LOS CHARCOS QUE HAY AHORA MISMO, para quien los quiera usar.
+   *
+   * Lo pide gf-animales: cuando escampa, los pájaros bajan a bañarse. Se
+   * devuelven solo los que ya han crecido lo bastante para verse y los que NO
+   * están helados — en un charco congelado no se baña nadie.
+   */
+  function charcosParaBanarse(scene) {
+    var st = scene && scene.__gfClima;
+    var out = [];
+    if (!st || !st.charcos) return out;
+    for (var i = 0; i < st.charcos.length; i++) {
+      var c = st.charcos[i];
+      if (!c.vivo || c.helado) continue;
+      if (c.spr.alpha < 0.35) continue;          // todavía es una mancha
+      out.push({ x: c.spr.x, y: c.spr.y,
+                 ancho: Math.abs(c.spr.displayWidth), alto: Math.abs(c.spr.displayHeight) });
+    }
+    return out;
+  }
+
+  /* ── LA VIDA DE LOS CHARCOS (2026-10-05) ──────────────────────────────
+     Tres cosas que los hacen agua y no un dibujo en el suelo:
+       · el brillo del cielo que se pasea (con el viento),
+       · los anillos de la lluvia cayendo dentro mientras llueve,
+       · el CHAPOTEO: al pisar uno andando salta agua y se abre un anillo.
+     Todo con grupos fijos que se reciclan: cero objetos nuevos por gota. */
+  function texturasVidaCharco(scene) {
+    function lienzo(clave, w, h, pintar) {
+      if (scene.textures.exists(clave)) return;
+      try { var ct = scene.textures.createCanvas(clave, w, h); pintar(ct.getContext(), w, h); ct.refresh(); }
+      catch (e) { log('textura ' + clave, e); }
+    }
+    lienzo('gfc_charco_brillo', 20, 5, function (x, w, h) {
+      var g = x.createLinearGradient(0, 0, w, 0);
+      g.addColorStop(0, 'rgba(200,228,255,0)'); g.addColorStop(0.5, 'rgba(220,238,255,0.9)'); g.addColorStop(1, 'rgba(200,228,255,0)');
+      x.fillStyle = g; x.beginPath(); x.ellipse(w / 2, h / 2, w / 2, h / 2 - 0.5, 0, 0, Math.PI * 2); x.fill();
+    });
+    lienzo('gfc_onda_charco', 18, 8, function (x, w, h) {
+      x.strokeStyle = 'rgba(214,234,252,0.95)'; x.lineWidth = 1;
+      x.beginPath(); x.ellipse(w / 2, h / 2, w / 2 - 1, h / 2 - 1, 0, 0, Math.PI * 2); x.stroke();
+    });
+    lienzo('gfc_gotita', 2, 2, function (x) { x.fillStyle = 'rgba(214,236,255,1)'; x.fillRect(0, 0, 2, 2); });
+  }
+
+  function montarVidaCharcos(st) {
+    var scene = st.scene, i;
+    st.ondasCharco = []; st.gotitasCharco = [];
+    if (scene.textures.exists('gfc_onda_charco')) {
+      for (i = 0; i < 18; i++) st.ondasCharco.push({ spr: scene.add.image(0, 0, 'gfc_onda_charco').setDepth(PROF_CHARCO + 0.05).setVisible(false), vivo: false });
+    }
+    if (scene.textures.exists('gfc_gotita')) {
+      for (i = 0; i < 14; i++) st.gotitasCharco.push({ spr: scene.add.image(0, 0, 'gfc_gotita').setVisible(false), vivo: false });
+    }
+    st.proximaOndaCharco = 0; st.proximoChapoteo = 0;
+  }
+
+  function ondaEnCharco(st, x, y, escala, dura) {
+    var o = null;
+    for (var i = 0; i < st.ondasCharco.length; i++) if (!st.ondasCharco[i].vivo) { o = st.ondasCharco[i]; break; }
+    if (!o) return;
+    o.vivo = true;
+    var s = o.spr;
+    s.setPosition(x, y).setVisible(true).setAlpha(0.75).setScale(0.2 * escala);
+    st.scene.tweens.add({ targets: s, scaleX: escala, scaleY: escala, alpha: 0, duration: dura || 480, ease: 'Quad.easeOut',
+      onComplete: function () { s.setVisible(false); o.vivo = false; } });
+  }
+
+  function chapoteo(st, x, y, prof) {
+    ondaEnCharco(st, x, y, 1.6, 560);
+    for (var i = 0, n = 0; i < st.gotitasCharco.length && n < 4; i++) {
+      var g = st.gotitasCharco[i];
+      if (g.vivo) continue;
+      g.vivo = true; n++;
+      (function (g) {
+        var s = g.spr, vx = az(-18, 18), alto = az(6, 16), x0 = x + az(-5, 5);
+        s.setPosition(x0, y).setDepth(prof).setVisible(true).setAlpha(0.9);
+        st.scene.tweens.addCounter({ from: 0, to: 1, duration: az(260, 380), onUpdate: function (tw) {
+          var t = tw.getValue();
+          s.setPosition(x0 + vx * t, y - alto * 4 * t * (1 - t));
+        }, onComplete: function () { s.setVisible(false); g.vivo = false; } });
+      })(g);
+    }
+  }
+
+  /** El charco (vivo, de agua, ya visible) que hay en ese punto. */
+  function charcoEn(st, x, y) {
+    for (var i = 0; i < st.charcos.length; i++) {
+      var c = st.charcos[i];
+      if (!c.vivo || c.helado || c.spr.alpha < 0.3) continue;
+      var rx = Math.abs(c.spr.displayWidth) * 0.36, ry = Math.abs(c.spr.displayHeight) * 0.34;
+      var dx = (x - c.spr.x) / rx, dy = (y - c.spr.y) / ry;
+      if (dx * dx + dy * dy <= 1) return c;
+    }
+    return null;
+  }
+
+  function piesDeCharco(scene, spr) {
+    try { if (window.GFProfundidad && window.GFProfundidad.piesDe) return window.GFProfundidad.piesDe(scene, spr); } catch (e) {}
+    var oy = (spr.originY === undefined) ? 0.5 : spr.originY;
+    return spr.y + (spr.displayHeight || 0) * (1 - oy);
+  }
+
+  function vidaCharcos(st, ahora) {
+    if (!st.ondasCharco) return;
+    var scene = st.scene, cam = scene.cameras && scene.cameras.main, v = cam && cam.worldView;
+    if (!v) return;
+    var viento = 0;
+    try { viento = tiempoAhora().viento || 0; } catch (e) {}
+    var i, c;
+    // El brillo que se pasea.
+    for (i = 0; i < st.charcos.length; i++) {
+      c = st.charcos[i];
+      if (!c.brillo) continue;
+      var ver = c.vivo && !c.helado && c.spr.alpha > 0.25 && v.contains(c.spr.x, c.spr.y);
+      c.brillo.setVisible(ver);
+      if (!ver) continue;
+      var w = Math.abs(c.spr.displayWidth);
+      c.brillo.setPosition(c.spr.x + Math.sin(ahora * (0.0007 + viento * 0.0009) + c.fase) * w * 0.14,
+                           c.spr.y - Math.abs(c.spr.displayHeight) * 0.13);
+      c.brillo.setScale(w / 46, 1);
+      c.brillo.setAlpha(c.spr.alpha * (0.14 + 0.12 * (0.5 + 0.5 * Math.sin(ahora * 0.0021 + c.fase * 2))));
+    }
+    // La lluvia dentro de los charcos.
+    if (st.fuerzaLluvia > 0.05 && ahora >= st.proximaOndaCharco) {
+      st.proximaOndaCharco = ahora + 70 / st.fuerzaLluvia;
+      for (var k = 0; k < 4; k++) {
+        c = st.charcos[Math.floor(Math.random() * st.charcos.length)];
+        if (!c || !c.vivo || c.helado || c.spr.alpha < 0.3 || !v.contains(c.spr.x, c.spr.y)) continue;
+        var a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random());
+        ondaEnCharco(st, c.spr.x + Math.cos(a) * rr * Math.abs(c.spr.displayWidth) * 0.3,
+                     c.spr.y + Math.sin(a) * rr * Math.abs(c.spr.displayHeight) * 0.28, az(0.7, 1.1), 420);
+        break;
+      }
+    }
+    // El chapoteo: el jugador y su mascota, si andan por encima.
+    if (ahora < st.proximoChapoteo) return;
+    st.proximoChapoteo = ahora + 90;
+    var quienes = [scene.player, scene.dog];
+    st._ultPos = st._ultPos || [];
+    for (i = 0; i < quienes.length; i++) {
+      var q = quienes[i];
+      if (!q || !q.active) continue;
+      var ant = st._ultPos[i], movio = ant && (Math.abs(q.x - ant[0]) + Math.abs(q.y - ant[1]) > 1.5);
+      st._ultPos[i] = [q.x, q.y];
+      if (!movio) continue;
+      var py = piesDeCharco(scene, q) - 3;
+      if (!charcoEn(st, q.x, py)) continue;
+      if (ahora - (q.__gfChapoteo || 0) < 260) continue;
+      q.__gfChapoteo = ahora;
+      chapoteo(st, q.x, py, (q.depth || py) + 1);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════ INCENDIO
+  /** Los árboles que se ven y no son ya un tocón. */
+  function arbolesAlcanzables(scene) {
+    var out = [];
+    var vista = scene.cameras && scene.cameras.main && scene.cameras.main.worldView;
+    var tocones = scene.treeStumps || {};
+    var fam = [['sprite_arbolx', 18], ['sprite_pinos', 45]];
+    for (var f = 0; f < fam.length; f++) {
+      for (var i = 1; i <= fam[f][1]; i++) {
+        var clave = fam[f][0] + i;
+        if (tocones[clave]) continue;
+        var spr = scene[clave];
+        if (!spr || spr.active === false) continue;
+        // Solo lo que se ve: quemar un árbol al otro lado del mapa no lo vería
+        // nadie y encima lo bloquearía sin motivo.
+        if (vista && (spr.x < vista.x - 60 || spr.x > vista.right + 60 ||
+                      spr.y < vista.y - 60 || spr.y > vista.bottom + 60)) continue;
+        out.push({ clave: clave, spr: spr });
+      }
+    }
+    return out;
+  }
+
+  /** El rayo le ha dado a un árbol: empieza a arder. */
+  /* HASTA DÓNDE "ALCANZA" UN RAYO PARA PRENDER UN ÁRBOL.
+     Un rayo busca lo más alto de su alrededor, pero de su alrededor: no salta
+     media pantalla. 150 px de mundo son unos tres árboles de ancho. */
+  var ALCANCE_RAYO = 150;
+
+  /**
+   * El árbol al que le daría un rayo que cae en `punto` (coordenadas de mundo),
+   * o null si ahí no hay ninguno cerca.
+   *
+   * EL FALLO QUE ARREGLA: "a veces el rayo no cae en el árbol, el árbol se
+   * incendia". Antes se cogía el árbol con la X más parecida a la del rayo,
+   * SIN TOPE de distancia y SIN mirar la Y: bastaba con que existiera un árbol
+   * en pantalla para que ardiera, aunque el rayo hubiera caído en la otra
+   * esquina. Ahora, si no hay árbol dentro del alcance, no hay incendio — y el
+   * rayo se queda en un rayo, que también está bien.
+   */
+  function arbolBajoElRayo(scene, punto) {
+    var cand = arbolesAlcanzables(scene);
+    var mejor = null, mejorD = ALCANCE_RAYO * ALCANCE_RAYO;
+    for (var i = 0; i < cand.length; i++) {
+      var spr = cand[i].spr;
+      var b;
+      try { b = spr.getBounds(); } catch (e) { continue; }
+      /* Se mide contra la COPA, no contra el pie: es lo alto lo que se lleva
+         el rayo, y el sprite está anclado abajo. */
+      var dx = b.centerX - punto.x;
+      var dy = (b.top + b.height * 0.25) - punto.y;
+      var d = dx * dx + dy * dy;
+      if (d < mejorD) { mejorD = d; mejor = cand[i]; }
+    }
+    return mejor;
+  }
+
+  function prenderArbol(st, arbol) {
+    var scene = st.scene;
+    if (st.incendio) return;                       // uno a la vez
+    if (!arbol || !arbol.spr) return;
+    if (!scene.textures.exists('gfc_' + FUEGOS[0])) return;
+
+    var mejor = arbol;
+    var spr = mejor.spr;
+    var alto = spr.displayHeight || 80;
+    var ancho = spr.displayWidth || 40;
+    var base = spr.y;                              // origen (0,1)
+    var cx = spr.x + ancho / 2;
+
+    var inc = {
+      clave: mejor.clave, spr: spr, nace: scene.time.now,
+      llamas: [], humos: [], pavesas: [], halo: null, objetos: [],
+      cx: cx, base: base, alto: alto, ancho: ancho,
+      baseRot: spr.rotation || 0,
+      fase: 'arde', paso: 0, proximoPaso: 0
+    };
+
+    st.incendio = inc;
+    function imagen(x, y, clave) {
+      var obj = scene.add.image(x, y, clave);
+      inc.objetos.push(obj);
+      return obj;
+    }
+    try {
+    /* EL HALO, LO PRIMERO Y LO MÁS ABAJO.
+
+       Va por DEBAJO de las llamas y por debajo del propio árbol: es la luz que
+       el fuego echa sobre el suelo y sobre lo que tiene alrededor, no un
+       adorno delante. En aditivo, así que suma luz en vez de pintar naranja
+       encima — la diferencia entre "está iluminado" y "le han puesto un filtro". */
+    var claveHalo = texturaHalo(scene);
+    if (claveHalo) {
+      var halo = imagen(cx, base - alto * 0.30, claveHalo);
+      halo.setDepth(Math.max(0, spr.depth - 1));
+      if (halo.setBlendMode && window.Phaser && Phaser.BlendModes) {
+        halo.setBlendMode(Phaser.BlendModes.ADD);
+      }
+      halo.setAlpha(0);
+      inc.halo = halo;
+    }
+
+    /* SEIS LLAMAS, NO TRES, Y CADA UNA A SU AIRE.
+
+       Con tres el fuego se leía como tres pegatinas: las tres del mismo
+       tamaño, las tres cambiando de dibujo A LA VEZ (mismo `paso`), las tres
+       quietas en su sitio. Un fuego real no tiene dos lenguas iguales ni dos
+       que hagan lo mismo al mismo tiempo.
+
+       Ahora cada llama lleva su propio desfase de animación, su propio ritmo
+       de parpadeo, su propia amplitud de vaivén y su propia altura. Y las de
+       abajo son grandes y las de arriba pequeñas, que es como arde un árbol:
+       la base es una hoguera y la copa son lenguas sueltas. */
+    var sitios = [
+      [cx,                    base - alto * 0.06, 2.5, 1.00],
+      [cx - ancho * 0.20,     base - alto * 0.14, 2.1, 0.92],
+      [cx + ancho * 0.22,     base - alto * 0.12, 2.0, 0.88],
+      [cx - ancho * 0.12,     base - alto * 0.40, 1.6, 0.74],
+      [cx + ancho * 0.16,     base - alto * 0.46, 1.4, 0.68],
+      [cx + ancho * 0.02,     base - alto * 0.64, 1.1, 0.55]
+    ];
+    for (var k = 0; k < sitios.length; k++) {
+      var ll = imagen(sitios[k][0], sitios[k][1], 'gfc_' + elegir(FUEGOS));
+      ll.setOrigin(0.5, 1).setScale(sitios[k][2]);
+      ll.setDepth(spr.depth + 2 + k);
+      if (ll.setBlendMode && window.Phaser && Phaser.BlendModes) {
+        // Aditivo: dos lenguas que se cruzan dan más luz, no una mancha opaca.
+        ll.setBlendMode(Phaser.BlendModes.ADD);
+      }
+      inc.llamas.push({
+        spr: ll,
+        x0: sitios[k][0], y0: sitios[k][1], escala: sitios[k][2],
+        brillo: sitios[k][3],
+        desfase: Math.floor(az(0, FUEGOS.length)),   // no cambian todas a la vez
+        ritmo: az(0.7, 1.6),                          // ni al mismo ritmo
+        fase: az(0, Math.PI * 2),
+        vaiven: az(1.6, 4.2),
+        amplitud: az(1.5, 5.0)
+      });
+    }
+
+    /* Cuatro columnas de humo en vez de dos, y cada una con su vida: nace
+       pequeña y opaca junto a la llama, sube, se ensancha y se deshace. Antes
+       las dos subían a la misma velocidad y volvían al mismo sitio, y se veía
+       el bucle. */
+    if (scene.textures.exists('gfc_' + HUMOS[0])) {
+      for (var h = 0; h < 4; h++) {
+        var hu = imagen(cx, base - alto * 0.5, 'gfc_' + elegir(HUMOS));
+        hu.setOrigin(0.5, 1).setDepth(spr.depth + 9).setAlpha(0);
+        inc.humos.push({
+          spr: hu,
+          x0: cx + az(-ancho * 0.22, ancho * 0.22),
+          vida: az(0, 1),                 // escalonadas: no salen todas a la vez
+          dura: az(2200, 4200),
+          sube: az(16, 34),               // px/s
+          giro: az(-0.5, 0.5),
+          escala: az(1.5, 2.8)
+        });
+      }
+    }
+
+    /* PAVESAS: los puntitos de brasa que suben del fuego. Es el detalle que
+       más "fuego real" da por lo poco que cuesta — ocho imágenes de tres
+       píxeles subiendo en espiral y apagándose. */
+    if (scene.textures.exists('gfc_' + BRASAS[0])) {
+      for (var b = 0; b < 10; b++) {
+        var pv = imagen(cx, base, 'gfc_' + elegir(BRASAS));
+        pv.setDepth(spr.depth + 8).setAlpha(0);
+        if (pv.setBlendMode && window.Phaser && Phaser.BlendModes) {
+          pv.setBlendMode(Phaser.BlendModes.ADD);
+        }
+        inc.pavesas.push({ spr: pv, vida: 1, dura: 1, x: cx, y: base,
+                           vx: 0, vy: 0, fase: 0, vaiven: 0 });
+      }
+    }
+
+    // Lo dibujado: la copa que prende, las chispas, las hojas y la ceniza.
+    montarFuegoDibujado(st, inc);
+
+    } catch (e) {
+      apagarIncendio(st);
+      log('no se pudo crear el incendio', e);
+      return;
+    }
+    log('rayo en', mejor.clave, '— arde', ARDE_MS / 1000, 's');
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     EL FUEGO DIBUJADO                                           (2026-10-04)
+     ──────────────────────────────────────────────────────────────────────
+     "Quiero el fuego de cuando le cae a un árbol más detallado". Lo que ya
+     había —las seis lenguas PNG, el halo, el humo y las pavesas— se queda: es
+     la hoguera del tronco. Encima va ahora:
+
+       · LENGUAS SOBRE LA COPA. Se lee la silueta del árbol (los píxeles de su
+         textura) y se reparten llamas por donde HAY hojas. Y no se encienden
+         todas a la vez: prenden desde el punto donde cayó el rayo hacia fuera,
+         así que el fuego se PROPAGA por la copa en unos segundos.
+       · El ESTALLIDO de chispas del impacto, y después chasquidos sueltos.
+       · HOJAS ARDIENDO que se desprenden y caen girando hasta el suelo.
+       · CENIZA gris que sube flotando.
+       · HUMO DENSO, oscuro abajo y más claro al subir.
+       · Una QUEMADURA en el suelo cuando el árbol cae, que se borra sola.
+
+     Todo con canvas: ningún PNG nuevo que olvidar subir al servidor.
+     ══════════════════════════════════════════════════════════════════════ */
+  var LLAMA_FOTOS   = 6;
+  var N_LENGUAS     = 16;
+  var PROPAGA_MS    = 7000;
+  var N_CHISPAS     = 22;
+  var N_HOJAS       = 10;
+  var N_CENIZAS     = 14;
+  var N_HUMO_DENSO  = 5;
+  var QUEMADURA_MS  = 45000;
+  var _copasLeidas  = {};          // clave de textura -> [{u, v}] (se lee una vez)
+
+  function aditivo(obj) {
+    if (obj && obj.setBlendMode && window.Phaser && Phaser.BlendModes) obj.setBlendMode(Phaser.BlendModes.ADD);
+    return obj;
+  }
+
+  /**
+   * Los fotogramas de una lengua de fuego: tres capas encajadas (rojo
+   * anaranjado fuera, naranja amarillo en medio y un corazón casi blanco),
+   * con los bordes ondulados y la punta que se mueve de un fotograma a otro.
+   */
+  function texturasLlama(scene) {
+    var claves = [];
+    for (var f = 0; f < LLAMA_FOTOS; f++) {
+      var clave = 'gfc_llama_d' + f;
+      claves.push(clave);
+      if (scene.textures.exists(clave)) continue;
+      var W = 32, H = 56;
+      try {
+        var c = scene.textures.createCanvas(clave, W, H);
+        var ctx = c.getContext();
+        var capas = [
+          { ancho: 13, alto: 0.98, color0: 'rgba(255,92,24,0.85)',  color1: 'rgba(200,40,10,0)' },
+          { ancho: 9,  alto: 0.78, color0: 'rgba(255,170,48,0.95)', color1: 'rgba(255,110,30,0)' },
+          { ancho: 5,  alto: 0.52, color0: 'rgba(255,246,200,1)',   color1: 'rgba(255,214,110,0)' }
+        ];
+        var fase = f * (Math.PI * 2 / LLAMA_FOTOS);
+        for (var k = 0; k < capas.length; k++) {
+          var cp = capas[k];
+          var base = H - 4, alto = (H - 6) * cp.alto;
+          ctx.beginPath();
+          var N = 18, i, t, w, dx;
+          for (i = 0; i <= N; i++) {               // lado izquierdo, subiendo
+            t = i / N;
+            w = cp.ancho * Math.pow(1 - t, 0.75) * (0.86 + 0.14 * Math.sin(t * 7 + fase));
+            dx = Math.sin(t * 4.2 + fase) * 3.2 * t;
+            ctx.lineTo(W / 2 + dx - w, base - t * alto);
+          }
+          for (i = N; i >= 0; i--) {               // lado derecho, bajando
+            t = i / N;
+            w = cp.ancho * Math.pow(1 - t, 0.75) * (0.86 + 0.14 * Math.sin(t * 6.1 + fase + 1.3));
+            dx = Math.sin(t * 4.2 + fase) * 3.2 * t;
+            ctx.lineTo(W / 2 + dx + w, base - t * alto);
+          }
+          ctx.closePath();
+          var g = ctx.createLinearGradient(0, base, 0, base - alto);
+          g.addColorStop(0, cp.color0);
+          g.addColorStop(0.55, cp.color0);
+          g.addColorStop(1, cp.color1);
+          ctx.fillStyle = g;
+          ctx.fill();
+        }
+        c.refresh();
+      } catch (e) { return null; }
+    }
+    return claves;
+  }
+
+  function texturaPunto(scene, clave, T, paradas) {
+    if (scene.textures.exists(clave)) return clave;
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      var g = ctx.createRadialGradient(T / 2, T / 2, 0, T / 2, T / 2, T / 2);
+      for (var i = 0; i < paradas.length; i++) g.addColorStop(paradas[i][0], paradas[i][1]);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, T, T);
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  function texturaHojaArdiendo(scene) {
+    var clave = 'gfc_hoja_ardiendo';
+    if (scene.textures.exists(clave)) return clave;
+    try {
+      var c = scene.textures.createCanvas(clave, 8, 6);
+      var ctx = c.getContext();
+      ctx.fillStyle = 'rgba(70,30,12,0.95)';
+      ctx.beginPath(); ctx.ellipse(4, 3, 3.6, 2.4, 0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,150,40,1)';
+      ctx.beginPath(); ctx.ellipse(4, 3, 2.4, 1.4, 0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,236,170,1)';
+      ctx.fillRect(3, 2, 2, 1);
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  /** Humo denso: varias bolas blandas superpuestas, nunca un círculo. */
+  function texturaHumoDenso(scene) {
+    var clave = 'gfc_humo_denso';
+    if (scene.textures.exists(clave)) return clave;
+    var T = 64;
+    try {
+      var c = scene.textures.createCanvas(clave, T, T);
+      var ctx = c.getContext();
+      var bolas = [[32, 36, 22], [22, 30, 15], [42, 28, 16], [30, 20, 14], [40, 42, 13], [20, 42, 12]];
+      for (var i = 0; i < bolas.length; i++) {
+        var b = bolas[i];
+        var g = ctx.createRadialGradient(b[0], b[1], 0, b[0], b[1], b[2]);
+        g.addColorStop(0, 'rgba(255,255,255,0.55)');
+        g.addColorStop(0.6, 'rgba(255,255,255,0.22)');
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, T, T);
+      }
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  /** La quemadura del suelo: una elipse carbonizada de borde irregular. */
+  function texturaQuemadura(scene) {
+    var clave = 'gfc_quemadura';
+    if (scene.textures.exists(clave)) return clave;
+    var W = 96, H = 48;
+    try {
+      var c = scene.textures.createCanvas(clave, W, H);
+      var ctx = c.getContext();
+      for (var i = 0; i < 14; i++) {
+        var a = (i / 14) * Math.PI * 2;
+        var bx = W / 2 + Math.cos(a) * 26 * (0.6 + 0.4 * Math.sin(i * 2.3));
+        var by = H / 2 + Math.sin(a) * 11 * (0.6 + 0.4 * Math.cos(i * 1.7));
+        var r = 10 + 6 * Math.abs(Math.sin(i * 3.1));
+        var g = ctx.createRadialGradient(bx, by, 0, bx, by, r);
+        g.addColorStop(0, 'rgba(24,14,8,0.45)');
+        g.addColorStop(1, 'rgba(24,14,8,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+      }
+      var g2 = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 30);
+      g2.addColorStop(0, 'rgba(12,8,6,0.75)');
+      g2.addColorStop(0.6, 'rgba(30,18,10,0.35)');
+      g2.addColorStop(1, 'rgba(30,18,10,0)');
+      ctx.fillStyle = g2;
+      ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(1, 0.5); ctx.translate(-W / 2, -H / 2);
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+      c.refresh();
+    } catch (e) { return null; }
+    return clave;
+  }
+
+  /**
+   * Dónde HAY hojas en el árbol: puntos (u, v) de 0 a 1 sobre su textura.
+   *
+   * Se lee el fotograma a 24 columnas (lo justo para encontrar la copa) y se
+   * quedan las celdas con píxeles pintados en el 72 % de arriba —lo de abajo
+   * es el tronco, que ya arde con la hoguera—. Una vez por textura.
+   */
+  function puntosDeCopa(spr) {
+    var fr = spr && spr.frame;
+    var img = fr && fr.source && fr.source.image;
+    if (!img) return [];
+    var clave = spr.texture.key + '|' + fr.name;
+    if (_copasLeidas[clave]) return _copasLeidas[clave];
+    var out = [];
+    var lec = null;
+    try {
+      var cols = 24;
+      var rows = Math.max(8, Math.round(cols * fr.cutHeight / Math.max(1, fr.cutWidth)));
+      lec = document.createElement('canvas');
+      lec.width = cols; lec.height = rows;
+      var ctx = lec.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, fr.cutX, fr.cutY, fr.cutWidth, fr.cutHeight, 0, 0, cols, rows);
+      var d = ctx.getImageData(0, 0, cols, rows).data;
+      var hasta = Math.floor(rows * 0.72);
+      for (var y = 0; y < hasta; y++) {
+        for (var x = 0; x < cols; x++) {
+          if (d[(y * cols + x) * 4 + 3] > 60) out.push({ u: (x + 0.5) / cols, v: (y + 0.5) / rows });
+        }
+      }
+    } catch (e) { out = []; }
+    finally { if (lec) { lec.width = 0; lec.height = 0; } }
+    _copasLeidas[clave] = out;
+    return out;
+  }
+
+  /** De (u, v) de la textura a coordenadas de mundo, con origen y volteo. */
+  function aMundoDelArbol(spr, p) {
+    var u = spr.flipX ? 1 - p.u : p.u;
+    return {
+      x: spr.x - spr.displayWidth * spr.originX + u * spr.displayWidth,
+      y: spr.y - spr.displayHeight * spr.originY + p.v * spr.displayHeight
+    };
+  }
+
+  function montarFuegoDibujado(st, inc) {
+    var scene = st.scene, spr = inc.spr;
+    var claves = texturasLlama(scene);
+    inc.lenguas = []; inc.chispas = []; inc.hojas = []; inc.cenizas = []; inc.humoDenso = [];
+    inc.proximaChispa = 0; inc.proximaHoja = 0;
+    function poner(clave) { var o = scene.add.image(0, 0, clave); inc.objetos.push(o); return o; }
+
+    // El punto del rayo: lo alto de la copa (el mismo sitio donde se dibuja).
+    var b = null;
+    try { b = spr.getBounds(); } catch (e) {}
+    var rayo = b ? { x: b.centerX, y: b.top + b.height * 0.18 } : { x: inc.cx, y: inc.base - inc.alto * 0.8 };
+    inc.puntoRayo = rayo;
+
+    // ── lenguas sobre la copa, repartidas y encendiéndose desde el rayo ──
+    if (claves) {
+      var copa = puntosDeCopa(spr).slice();
+      for (var s = copa.length - 1; s > 0; s--) {         // barajar
+        var r = Math.floor(Math.random() * (s + 1)); var tmp = copa[s]; copa[s] = copa[r]; copa[r] = tmp;
+      }
+      var elegidos = [], separa = Math.max(10, inc.ancho * 0.12);
+      for (var i = 0; i < copa.length && elegidos.length < N_LENGUAS; i++) {
+        var w = aMundoDelArbol(spr, copa[i]);
+        var cerca = false;
+        for (var j = 0; j < elegidos.length; j++) {
+          if (Math.abs(elegidos[j].x - w.x) + Math.abs(elegidos[j].y - w.y) < separa) { cerca = true; break; }
+        }
+        if (!cerca) elegidos.push({ x: w.x, y: w.y, v: copa[i].v });
+      }
+      var lejos = 1;
+      elegidos.forEach(function (p) { lejos = Math.max(lejos, Math.hypot(p.x - rayo.x, p.y - rayo.y)); });
+      var tam = Math.max(0.45, Math.min(1.6, inc.alto / 190));
+      elegidos.forEach(function (p, k) {
+        /* Mezcla NORMAL, no aditiva: sobre el verde de la copa, sumar luz
+           blanqueaba la llama a un amarillo pálido. Así se ve el rojo, el
+           naranja y el corazón claro tal como están dibujados; la luz la
+           pone el halo, que sí es aditivo. */
+        var ll = poner(claves[k % claves.length]);
+        ll.setOrigin(0.5, 0.92).setDepth(spr.depth + 3 + (k % 4) * 0.1).setAlpha(0);
+        inc.lenguas.push({
+          spr: ll, x0: p.x, y0: p.y,
+          escala: tam * az(0.55, 0.95) * (0.75 + 0.5 * p.v),
+          enciende: (Math.hypot(p.x - rayo.x, p.y - rayo.y) / lejos) * PROPAGA_MS * az(0.85, 1.15),
+          desfase: Math.floor(az(0, LLAMA_FOTOS)), ritmo: az(0.8, 1.7),
+          fase: az(0, Math.PI * 2), vaiven: az(2, 5), amplitud: az(1, 3.5)
+        });
+      });
+    }
+
+    // ── el estallido del impacto ─────────────────────────────────────────
+    var chispa = texturaPunto(scene, 'gfc_chispa', 6,
+      [[0, 'rgba(255,255,236,1)'], [0.45, 'rgba(255,214,120,0.9)'], [1, 'rgba(255,140,40,0)']]);
+    if (chispa) {
+      for (var c = 0; c < N_CHISPAS; c++) {
+        var ch = aditivo(poner(chispa));
+        ch.setDepth(spr.depth + 12);
+        var ang = az(-Math.PI * 0.95, -Math.PI * 0.05);        // hacia arriba y a los lados
+        var vel = az(70, 190);
+        inc.chispas.push({ spr: ch, x: rayo.x, y: rayo.y, vx: Math.cos(ang) * vel, vy: Math.sin(ang) * vel,
+                           vida: 0, dura: az(450, 1100) });
+        ch.setPosition(rayo.x, rayo.y).setScale(az(0.6, 1.3));
+      }
+    }
+
+    // ── hojas ardiendo, ceniza y humo denso (se sueltan mientras arde) ───
+    var hoja = texturaHojaArdiendo(scene);
+    if (hoja) for (var h = 0; h < N_HOJAS; h++) {
+      var hj = aditivo(poner(hoja)); hj.setAlpha(0).setDepth(spr.depth + 11);
+      inc.hojas.push({ spr: hj, viva: false });
+    }
+    var ceniza = texturaPunto(scene, 'gfc_ceniza', 4, [[0, 'rgba(190,186,180,0.9)'], [1, 'rgba(150,146,140,0)']]);
+    if (ceniza) for (var z = 0; z < N_CENIZAS; z++) {
+      var cz = poner(ceniza); cz.setAlpha(0).setDepth(spr.depth + 10);
+      inc.cenizas.push({ spr: cz, vida: az(0, 1), dura: az(4000, 7000), x: 0, y: 0, fase: az(0, 6.28) });
+    }
+    var humo = texturaHumoDenso(scene);
+    if (humo) for (var u = 0; u < N_HUMO_DENSO; u++) {
+      var hd = poner(humo); hd.setAlpha(0).setDepth(spr.depth + 9.5);
+      inc.humoDenso.push({ spr: hd, vida: u / N_HUMO_DENSO, dura: az(3200, 5200),
+                           x0: inc.cx + az(-inc.ancho * 0.25, inc.ancho * 0.25), giro: az(-0.4, 0.4) });
+    }
+  }
+
+  function moverFuegoDibujado(st, inc, ahora, dt, t, vigor, pulso, empuje) {
+    var i;
+    // ── lenguas de la copa ──────────────────────────────────────────────
+    var encendidas = [];
+    for (i = 0; i < (inc.lenguas || []).length; i++) {
+      var ll = inc.lenguas[i];
+      if (t < ll.enciende) { ll.spr.setAlpha(0); continue; }
+      var crece = Math.min(1, (t - ll.enciende) / 1200);
+      encendidas.push(ll);
+      ll.spr.setTexture('gfc_llama_d' + (Math.floor(inc.paso * ll.ritmo + ll.desfase) % LLAMA_FOTOS));
+      ll.fase += dt * ll.vaiven;
+      var bb = Math.sin(ll.fase);
+      var p = pulso * (0.7 + 0.3 * Math.sin(ll.fase * 0.6 + i));
+      ll.spr.setPosition(ll.x0 + bb * ll.amplitud + empuje * 10, ll.y0);
+      var e = ll.escala * crece * vigor;
+      ll.spr.setScale(e * (0.85 + 0.2 * p) || 0.0001, e * (0.75 + 0.4 * p) || 0.0001);
+      ll.spr.setRotation(bb * 0.08 + empuje * 0.3);
+      ll.spr.setAlpha(Math.min(1, (0.6 + 0.4 * p) * crece * vigor));
+    }
+
+    // ── chispas: primero el estallido, luego chasquidos sueltos ─────────
+    if (inc.chispas && encendidas.length && vigor > 0.2 && ahora >= inc.proximaChispa) {
+      inc.proximaChispa = ahora + az(250, 900);
+      var libres = inc.chispas.filter(function (c) { return c.vida >= 1; });
+      var origen = encendidas[Math.floor(Math.random() * encendidas.length)];
+      for (var n = 0; n < Math.min(libres.length, 1 + Math.floor(Math.random() * 3)); n++) {
+        var cs = libres[n];
+        var a = az(-Math.PI * 0.85, -Math.PI * 0.15), v = az(40, 110);
+        cs.x = origen.x0; cs.y = origen.y0 - 6; cs.vx = Math.cos(a) * v; cs.vy = Math.sin(a) * v;
+        cs.vida = 0; cs.dura = az(350, 800);
+      }
+    }
+    for (i = 0; i < (inc.chispas || []).length; i++) {
+      var c = inc.chispas[i];
+      if (c.vida >= 1) { c.spr.setAlpha(0); continue; }
+      c.vida += dt * 1000 / c.dura;
+      c.vy += 170 * dt;                      // caen: son brasas, pesan
+      c.x += (c.vx + empuje * 30) * dt; c.y += c.vy * dt;
+      c.spr.setPosition(c.x, c.y);
+      c.spr.setAlpha(Math.max(0, 1 - c.vida) * (0.7 + 0.3 * Math.sin(c.vida * 40)));
+    }
+
+    // ── hojas ardiendo que caen ─────────────────────────────────────────
+    if (inc.hojas && encendidas.length && vigor > 0.25 && ahora >= inc.proximaHoja) {
+      inc.proximaHoja = ahora + az(500, 1300);
+      for (i = 0; i < inc.hojas.length; i++) {
+        var hl = inc.hojas[i];
+        if (hl.viva) continue;
+        var o = encendidas[Math.floor(Math.random() * encendidas.length)];
+        hl.viva = true; hl.x = o.x0 + az(-6, 6); hl.y = o.y0; hl.vy = az(22, 46);
+        hl.fase = az(0, 6.28); hl.giro = az(-5, 5); hl.vida = 0; hl.dura = az(2400, 4200);
+        hl.suelo = inc.base + az(-4, 10);
+        hl.spr.setScale(az(0.9, 1.6));
+        break;
+      }
+    }
+    for (i = 0; i < (inc.hojas || []).length; i++) {
+      var hj = inc.hojas[i];
+      if (!hj.viva) { hj.spr.setAlpha(0); continue; }
+      hj.vida += dt * 1000 / hj.dura;
+      hj.fase += dt * 3;
+      if (hj.y < hj.suelo) {
+        hj.y += hj.vy * dt;
+        hj.x += (Math.sin(hj.fase) * 22 + empuje * 40) * dt;
+        hj.spr.rotation += hj.giro * dt;
+      }
+      hj.spr.setPosition(hj.x, hj.y);
+      // Brilla en el aire y se apaga (se vuelve ceniza) al llegar abajo.
+      hj.spr.setAlpha(Math.max(0, 1 - hj.vida) * (0.75 + 0.25 * Math.sin(hj.fase * 4)));
+      if (hj.vida >= 1) hj.viva = false;
+    }
+
+    // ── ceniza que sube ─────────────────────────────────────────────────
+    for (i = 0; i < (inc.cenizas || []).length; i++) {
+      var cz = inc.cenizas[i];
+      cz.vida += dt * 1000 / cz.dura;
+      if (cz.vida >= 1) {
+        cz.vida = 0;
+        cz.x = inc.cx + az(-inc.ancho * 0.35, inc.ancho * 0.35);
+        cz.y = inc.base - inc.alto * az(0.4, 0.9);
+      }
+      cz.fase += dt * 1.3;
+      cz.x += (Math.sin(cz.fase) * 9 + empuje * 50) * dt;
+      cz.y -= 14 * dt;
+      cz.spr.setPosition(cz.x, cz.y);
+      cz.spr.setAlpha(Math.min(cz.vida * 4, 1 - cz.vida) * 0.7 * Math.max(vigor, 0.3));
+    }
+
+    // ── humo denso: oscuro al nacer, más claro y más ancho al subir ─────
+    for (i = 0; i < (inc.humoDenso || []).length; i++) {
+      var hd = inc.humoDenso[i];
+      hd.vida += dt * 1000 / hd.dura;
+      if (hd.vida >= 1) { hd.vida = 0; hd.x0 = inc.cx + az(-inc.ancho * 0.25, inc.ancho * 0.25); }
+      var vh = hd.vida;
+      hd.spr.setPosition(hd.x0 + empuje * 80 * vh * vh + Math.sin(vh * 5 + i) * 5,
+                         inc.base - inc.alto * (0.55 + vh * 0.9));
+      var esc = (inc.ancho / 64) * (0.7 + vh * 1.6);
+      hd.spr.setScale(esc);
+      hd.spr.setRotation(hd.giro * vh);
+      var gris = Math.round(40 + vh * 90);
+      hd.spr.setTint((gris << 16) | (gris << 8) | gris);
+      hd.spr.setAlpha(Math.min(vh * 4, 1 - vh) * 0.65 * Math.max(vigor, 0.2));
+    }
+  }
+
+  /** El árbol cae: fuera las llamas de la copa y queda la quemadura. */
+  function caerFuegoDibujado(st, inc) {
+    ['lenguas', 'hojas'].forEach(function (k) {
+      (inc[k] || []).forEach(function (o) { destruirObjeto(o.spr); });
+      inc[k] = [];
+    });
+    var clave = texturaQuemadura(st.scene);
+    if (!clave) return;
+    try {
+      var q = st.scene.add.image(inc.cx, inc.base - 2, clave);
+      q.setDisplaySize(Math.max(70, inc.ancho * 1.25), Math.max(34, inc.ancho * 0.6));
+      q.setDepth(PROF_CHARCO + 0.6);
+      q.setAlpha(0.9);
+      (st.quemaduras = st.quemaduras || []).push({ spr: q, nace: st.scene.time.now });
+    } catch (e) { log('quemadura:', e); }
+  }
+
+  /** Las quemaduras se van borrando solas (la hierba vuelve). */
+  function moverQuemaduras(st, ahora) {
+    var q = st.quemaduras;
+    if (!q || !q.length) return;
+    for (var i = q.length - 1; i >= 0; i--) {
+      var t = (ahora - q[i].nace) / QUEMADURA_MS;
+      if (t >= 1) { destruirObjeto(q[i].spr); q.splice(i, 1); continue; }
+      q[i].spr.setAlpha(0.9 * (1 - t * t));
+    }
+  }
+
+  /** Reinicia una pavesa en la base del fuego, con su empujón y su vida. */
+  function soltarPavesa(inc, p, ahora) {
+    p.x = inc.cx + az(-inc.ancho * 0.24, inc.ancho * 0.24);
+    p.y = inc.base - inc.alto * az(0.02, 0.22);
+    p.vy = -az(26, 62);                    // px/s hacia arriba
+    p.vx = az(-8, 8);
+    p.fase = az(0, Math.PI * 2);
+    p.vaiven = az(1.5, 4);
+    p.dura = az(900, 2100);
+    p.vida = 0;
+    p.nace = ahora;
+    p.spr.setScale(az(1.2, 2.4));
+  }
+
+  /** Avisa al servidor de que el árbol ha caído. Nadie se lleva nada. */
+  function avisarArbolQuemado(scene, clave) {
+    var tipo = null;
+    if (clave.indexOf('sprite_pinos') === 0) tipo = 'pinos';
+    else if (clave.indexOf('sprite_arbustos') === 0) tipo = 'arbustos';
+    else if (clave.indexOf('sprite_arbolx') === 0) tipo = 'arbolx';
+    if (!tipo) return;
+    var M = window.GFMascota;
+    if (!M || !M.api) return;
+    /* /api/tree/lock es la ruta que bloquea el árbol y avisa a TODOS por
+       socket. No entrega nada a nadie, que es justo lo que se quiere: el árbol
+       se ha quemado, no lo ha talado un jugador. Y el respawn que aplica es el
+       normal del juego, con su deforestación y todo. */
+    M.api('/api/tree/lock', { treeKey: clave, treeType: tipo })
+     .then(function (r) { log('árbol quemado avisado:', clave, r && r.ok); });
+  }
+
+  function moverIncendio(st, ahora, delta) {
+    var inc = st.incendio;
+    if (!inc) return;
+    var scene = st.scene;
+    var t = ahora - inc.nace;
+    var dt = Math.min(delta || 16, 100) / 1000;
+    var i;
+
+    /* EL PULSO DEL FUEGO.
+
+       Un solo seno se ve como un latido de máquina. Tres senos con periodos
+       que no son múltiplos entre sí no se repiten nunca a ojo: es el truco
+       clásico para que algo parpadee "como una llama" y no "como un LED".
+       Sale entre 0 y 1, casi siempre alto y de vez en cuando bajo. */
+    var pulso = 0.62
+      + 0.20 * Math.sin(ahora * 0.0130)
+      + 0.11 * Math.sin(ahora * 0.0291 + 1.7)
+      + 0.07 * Math.sin(ahora * 0.0533 + 4.2);
+    if (pulso < 0) pulso = 0; else if (pulso > 1) pulso = 1;
+
+    // El viento también empuja el fuego: las lenguas se tumban a sotavento.
+    var empuje = (st.inclina || 0) * 0.55;
+
+    // Cuánto queda de fuego: entra rápido y, al final, se apaga solo.
+    var vigor = inc.fase === 'arde'
+      ? Math.min(1, t / 900) * (1 - Math.max(0, (t - (ARDE_MS - 7000)) / 7000))
+      : 0;
+    if (vigor < 0) vigor = 0;
+
+    // ── llamas ──────────────────────────────────────────────────────────
+    if (ahora >= inc.proximoPaso) {
+      inc.proximoPaso = ahora + 1000 / FUEGO_FPS;
+      inc.paso++;
+      for (i = 0; i < inc.humos.length; i++) {
+        // El humo cambia de dibujo mucho más despacio que la llama.
+        if (inc.paso % 3 === 0) {
+          inc.humos[i].spr.setTexture('gfc_' + elegir(HUMOS));
+        }
+      }
+    }
+    for (i = 0; i < inc.llamas.length; i++) {
+      var ll = inc.llamas[i];
+      /* Cada lengua avanza su animación a SU ritmo y desde SU fotograma. Ese
+         desfase es lo que rompe el "todas iguales" de antes. */
+      var cuadro = Math.floor(inc.paso * ll.ritmo + ll.desfase) % FUEGOS.length;
+      ll.spr.setTexture('gfc_' + FUEGOS[cuadro]);
+
+      ll.fase += dt * ll.vaiven;
+      var b = Math.sin(ll.fase);
+      var p = pulso * (0.75 + 0.25 * Math.sin(ll.fase * 0.7 + 1.1));
+      // Se bambolea, se estira y se encoge: el fuego nunca está quieto.
+      ll.spr.setPosition(ll.x0 + b * ll.amplitud + empuje * 14 * ll.brillo,
+                         ll.y0 + Math.sin(ll.fase * 1.7) * 1.5);
+      ll.spr.setScale(ll.escala * (0.86 + 0.20 * p) * vigor || 0.0001,
+                      ll.escala * (0.78 + 0.34 * p) * vigor || 0.0001);
+      ll.spr.setRotation(b * 0.06 + empuje * 0.22);
+      ll.spr.setAlpha(Math.min(1, (0.55 + 0.45 * p) * ll.brillo * vigor));
+    }
+
+    // ── halo: la luz que echa el fuego alrededor ────────────────────────
+    if (inc.halo) {
+      var radio = inc.alto * (1.5 + 0.16 * pulso) * (0.4 + 0.6 * vigor);
+      inc.halo.setDisplaySize(radio, radio);
+      inc.halo.setPosition(inc.cx, inc.base - inc.alto * 0.26);
+      inc.halo.setAlpha((0.30 + 0.22 * pulso) * vigor);
+      /* De noche el fuego se ve MUCHO más: es la única luz que hay. Se le
+         sube el halo con la oscuridad del ciclo de día, si está. */
+      var C = window.GFCiclo;
+      if (C && C.oscuridad) {
+        try {
+          var o = C.oscuridad();
+          if (typeof o === 'number' && isFinite(o)) {
+            inc.halo.setAlpha(inc.halo.alpha * (1 + o * 1.1));
+          }
+        } catch (e) {}
+      }
+    }
+
+    // ── humo: nace, sube, se ensancha y se va ───────────────────────────
+    for (i = 0; i < inc.humos.length; i++) {
+      var hm = inc.humos[i];
+      hm.vida += dt * 1000 / hm.dura;
+      if (hm.vida >= 1) { hm.vida = 0; hm.spr.setTexture('gfc_' + elegir(HUMOS)); }
+      var vh = hm.vida;
+      /* Sube derecho al principio y luego se lo lleva el viento, que es lo que
+         hace una columna de humo de verdad: recta hasta que gana el aire. */
+      hm.spr.setPosition(hm.x0 + empuje * 60 * vh * vh + Math.sin(vh * 6 + i) * 6,
+                         inc.base - inc.alto * 0.45 - hm.sube * vh * 3.2);
+      hm.spr.setScale(hm.escala * (0.5 + vh * 1.5));
+      hm.spr.setRotation(hm.giro * vh);
+      // Aparece deprisa y se deshace despacio.
+      hm.spr.setAlpha(Math.min(vh * 5, 1 - vh) * 0.55 * Math.max(vigor, 0.25));
+    }
+
+    // ── pavesas: chispas que suben y se apagan ──────────────────────────
+    for (i = 0; i < inc.pavesas.length; i++) {
+      var pv = inc.pavesas[i];
+      pv.vida += dt * 1000 / pv.dura;
+      if (pv.vida >= 1) {
+        // Solo se sueltan chispas mientras haya fuego que las suelte.
+        if (vigor > 0.05 && Math.random() < 0.6) soltarPavesa(inc, pv, ahora);
+        else { pv.spr.setAlpha(0); pv.vida = 1; continue; }
+      }
+      pv.fase += dt * pv.vaiven;
+      // La chispa pierde fuerza al subir (el aire caliente se enfría).
+      pv.vy += 26 * dt;
+      pv.x += (pv.vx + Math.sin(pv.fase) * 12 + empuje * 40) * dt;
+      pv.y += pv.vy * dt;
+      pv.spr.setPosition(pv.x, pv.y);
+      pv.spr.setAlpha((1 - pv.vida) * (0.55 + 0.45 * Math.sin(pv.fase * 3)));
+    }
+
+    moverFuegoDibujado(st, inc, ahora, dt, t, vigor, pulso, empuje);
+
+    if (inc.fase === 'arde') {
+      // el árbol se va tiznando
+      var q = Math.min(1, t / ARDE_MS);
+      if (inc.spr.setTint) {
+        /* Y no solo se oscurece: primero coge el color del fuego (se pone
+           anaranjado por la luz que le da) y solo después se vuelve carbón.
+           Pasar directo de verde a gris se veía como si le bajaran el brillo. */
+        var calor = Math.max(0, 1 - q * 2.2);
+        var v = Math.round(255 - 165 * q);
+        var r = Math.min(255, Math.round(v + 70 * calor * pulso));
+        var g2 = Math.round(v + 24 * calor * pulso);
+        inc.spr.setTint((r << 16) | (Math.min(255, g2) << 8) | v);
+      }
+      /* Y tiembla un poco: el aire caliente y la madera que cruje. Muy poco
+         —dos centésimas de radián— pero el ojo lo nota y el árbol deja de
+         parecer una calcomanía con fuego encima. */
+      if (typeof inc.spr.rotation === 'number') {
+        inc.spr.rotation = inc.baseRot +
+          Math.sin(ahora * 0.021) * 0.010 * vigor +
+          Math.sin(ahora * 0.047) * 0.006 * vigor;
+      }
+      if (t >= ARDE_MS) {
+        /* SE CAE. Solo queda el tocón, y entra en el respawn normal.
+           showTreeStump es el mismo camino que usa el juego al talar, así que
+           el tocón sale con la textura, la posición y la profundidad buenas. */
+        if (typeof scene.showTreeStump === 'function') scene.showTreeStump(inc.clave);
+        if (inc.spr.clearTint) inc.spr.clearTint();
+        // Se le devuelve la rotación que tenía: el temblor era prestado.
+        if (typeof inc.spr.rotation === 'number') inc.spr.rotation = inc.baseRot;
+        avisarArbolQuemado(scene, inc.clave);
+        // las llamas se apagan y quedan rescoldos en el suelo
+        for (i = 0; i < inc.llamas.length; i++) inc.llamas[i].spr.destroy();
+        inc.llamas.length = 0;
+        caerFuegoDibujado(st, inc);
+        /* TRES RESCOLDOS EN EL SUELO, no uno. Un árbol que se cae deja una
+           mancha de brasas, no un puntito. Y quedan a ras de suelo, con la
+           profundidad del tocón, para que se pueda pasar por delante. */
+        inc.brasas = [];
+        for (var rb = 0; rb < 3; rb++) {
+          var brasa = scene.add.image(
+            inc.cx + az(-inc.ancho * 0.25, inc.ancho * 0.25),
+            inc.base + az(-3, 3), 'gfc_' + elegir(BRASAS));
+          brasa.setOrigin(0.5, 1).setScale(az(1.4, 2.3));
+          brasa.setDepth(inc.spr.depth + 1);
+          if (brasa.setBlendMode && window.Phaser && Phaser.BlendModes) {
+            brasa.setBlendMode(Phaser.BlendModes.ADD);
+          }
+          inc.brasas.push({ spr: brasa, fase: az(0, 6.28), ritmo: az(1.2, 3.0) });
+        }
+        inc.fase = 'brasas';
+        inc.nace = ahora;
+        log('el árbol', inc.clave, 'se ha caído; queda el tocón');
+      }
+      return;
+    }
+
+    /* RESCOLDOS: se apagan y se acabó.
+       El halo sigue un rato, cada vez más bajo y más rojo: unas brasas dan
+       luz mucho después de que ya no haya llama. Es lo que remata el efecto. */
+    if (inc.halo) {
+      var res = Math.max(0, 1 - t / BRASAS_MS);
+      inc.halo.setDisplaySize(inc.alto * 0.9 * res, inc.alto * 0.9 * res);
+      inc.halo.setPosition(inc.cx, inc.base - 6);
+      inc.halo.setAlpha(res * res * (0.14 + 0.08 * pulso));
+    }
+    if (inc.brasas) {
+      for (i = 0; i < inc.brasas.length; i++) {
+        var br = inc.brasas[i];
+        br.fase += dt * br.ritmo;
+        br.spr.setTexture('gfc_' + BRASAS[Math.floor(inc.paso * 0.4 + i) % BRASAS.length]);
+        // Respiran: se avivan y se apagan, como brasas de verdad.
+        br.spr.setAlpha(Math.max(0, 1 - t / BRASAS_MS) * (0.55 + 0.45 * Math.sin(br.fase)));
+      }
+    }
+    if (t >= BRASAS_MS) {
+      apagarIncendio(st);
+    }
+  }
+
+  function apagarIncendio(st) {
+    var inc = st.incendio;
+    if (!inc) return;
+    st.incendio = null;
+    var objetos = new Set(inc.objetos || []);
+    ['llamas', 'humos', 'pavesas', 'brasas', 'lenguas', 'chispas', 'hojas', 'cenizas', 'humoDenso'].forEach(function (key) {
+      (inc[key] || []).forEach(function (obj) { objetos.add(obj.spr); });
+      if (inc[key]) inc[key].length = 0;
+    });
+    objetos.add(inc.brasa); objetos.add(inc.halo);
+    objetos.forEach(destruirObjeto);
+    if (inc.objetos) inc.objetos.length = 0;
+    try {
+      if (inc.spr && inc.spr.clearTint) inc.spr.clearTint();
+      if (inc.spr && typeof inc.spr.rotation === 'number') inc.spr.rotation = inc.baseRot || 0;
+    } catch (e) { /* The borrowed tree may already have been destroyed. */ }
+    inc.brasa = inc.halo = inc.spr = null;
+  }
+
+  // ---------------------------------------------------------------- montaje
+  function montar(scene, opciones) {
+    opciones = opciones || {};
+    if (!scene || !scene.add || !scene.cameras || !scene.cameras.main || !scene.events) return null;
+    if (scene.__gfClima) return scene.__gfClima;
+    if (!hayTexturas(scene)) {
+      console.warn('[clima] falta la textura de la lluvia (' + RUTA +
+                   'gota_*.png): no se monta. Revisa GFClima.precargar().');
+      return null;
+    }
+    /* Se avisa de lo que falte, pero se sigue: lo que no esté, no se pinta. */
+    var ausentes = faltan(scene);
+    if (ausentes.length) {
+      console.warn('[clima] faltan ' + ausentes.length + ' imágenes en ' + RUTA +
+                   ' — esos adornos no se verán: ' + ausentes.join(', '));
+    }
+    var cam = scene.cameras.main;
+    var L = lienzo(cam);
+    var st = {
+      scene: scene, gotas: [], salpicas: [], copos: [], posas: [], bordes: [],
+      motas: [],
+      charcos: [], proximoCharco: 0, incendio: null, quemaduras: [],
+      fuerzaLluvia: 0, fuerzaNieve: 0,
+      proximoTrueno: 0, proximaCentella: 0, truenoEn: 0, truenoFuerza: 1,
+      // true = rayo con trazo (crujido + retumbo), false = centella lejana.
+      truenoCerca: true,
+      rayoHasta: 0, impactoHasta: 0, fogonazoHasta: 0, ultimoRayoX: null,
+      bordeAlfa: 0, bordeHasta: 0,
+      filtroColor: ESTACIONES.verano.color, filtroAlfa: 0,
+      inclina: INCLINA_MIN
+    };
+    scene.__gfClima = st;
+    montado = st;
+    escenas.add(scene);
+    var existentes = scene.children && scene.children.list ? new Set(scene.children.list) : null;
+    try {
+
+    /* TODO EN UN CONTENEDOR.
+       Una sola transformación por frame para las ~270 piezas, y el zoom se
+       resuelve en un sitio. Dentro manda el ORDEN de inserción: filtro de la
+       estación, cortina, gotas, copos, salpicaduras, nieve posada, rayo, marco
+       y por último el fogonazo. */
+    if (scene.add.container) {
+      st.capa = scene.add.container(0, 0);
+      st.capa.setScrollFactor(0);
+      st.capa.setDepth(PROF_LLUVIA);
+    }
+
+    /* Filtro de la estación, el primero de todos: es el color del MUNDO, así
+       que la lluvia y la nieve van por encima sin teñirse. Multiplica en vez de
+       superponerse — ver ESTACIONES. */
+    var blanco = texturaBlanca(scene);
+    if (blanco) {
+      st.filtro = scene.add.image(L.w / 2, L.h / 2, blanco);
+      st.filtro.setScrollFactor(0);
+      st.filtro.setDisplaySize(L.w, L.h);
+      st.filtro.setTint(ESTACIONES.verano.color);
+      st.filtro.setAlpha(0);
+      if (st.filtro.setBlendMode) st.filtro.setBlendMode(MULTIPLICAR);
+    } else {
+      // Sin canvas de texturas: se cae a un rectángulo. Se verá como un velo
+      // en vez de como un tinte, pero es mejor que no tener estaciones.
+      st.filtro = lienzoRect(scene, L.w / 2, L.h / 2, L.w, L.h,
+                             ESTACIONES.verano.color);
+    }
+    if (st.capa) st.capa.add(st.filtro); else st.filtro.setDepth(PROF_ESTACION);
+
+    // Cortina gris de tormenta: apaga el mundo mientras llueve.
+    st.cortina = lienzoRect(scene, L.w / 2, L.h / 2, L.w, L.h, 0x37475e);
+    if (st.capa) st.capa.add(st.cortina); else st.cortina.setDepth(PROF_CORTINA);
+
+    /* SOL. Va aquí, entre la cortina y las gotas, y no es indiferente: la luz
+       está en el aire, así que tiene que quedar por encima del mundo pero por
+       DEBAJO de la lluvia y de la nieve — si no, los haces se dibujarían encima
+       de los copos y parecerían un cristal delante de la pantalla. */
+    /* LAS SOMBRAS DE LAS NUBES. Fuera del contenedor `st.capa` a propósito:
+       ese contenedor lleva setScrollFactor(0), o sea que va pegado a la
+       pantalla, y una sombra pegada a la pantalla no es una sombra. Estas van
+       en coordenadas de mundo, como las motas de polvo. */
+    st.nubes = [];
+    st.fuerzaNublado = 0;
+    for (var nn = 0; nn < N_NUBES; nn++) {
+      var nube = nuevaNube(st, nn);
+      if (nube) st.nubes.push(nube);
+    }
+
+    var i;
+    st.rayosSol = [];
+    st.fuerzaSol = 0;
+    var claveRayo = texturaRayo(scene);
+    if (claveRayo) {
+      /* El sol está FUERA de la pantalla, arriba a la izquierda: los haces
+         salen de un punto que no se ve, que es lo que hace que se lean como
+         algo que entra por la ventana y no como un abanico dibujado. */
+      for (i = 0; i < N_RAYOS; i++) {
+        var r = scene.add.image(0, 0, claveRayo);
+        r.setOrigin(0.5, 0);          // el pie del haz es el sol
+        r.setScrollFactor(0);
+        r.setAlpha(0);
+        if (r.setBlendMode && window.Phaser && Phaser.BlendModes) {
+          r.setBlendMode(Phaser.BlendModes.ADD);
+        }
+        if (st.capa) st.capa.add(r); else r.setDepth(PROF_SOL);
+        st.rayosSol.push({
+          spr: r,
+          // Cada haz con su sitio, su grosor y su ritmo: si respiraran todos
+          // igual se vería la cuadrícula.
+          desvio: (i / (N_RAYOS - 1) - 0.5) * 2 * SOL_ABANICO,
+          ancho: az(0.5, 1.6),
+          largo: az(1.1, 1.9),
+          alfa: az(0.55, 1.15),
+          fase: az(0, Math.PI * 2),
+          ritmo: az(0.10, 0.28)
+        });
+      }
+      /* Las motas de polvo del día soleado. Van en el MUNDO, así que no entran
+         en el contenedor de pantalla; se crean aquí, junto al sol, porque son
+         parte del mismo efecto y se apagan con él. */
+      var claveMota = texturaMota(scene);
+      st.motas = [];
+      if (claveMota) {
+        for (var mm = 0; mm < N_MOTAS; mm++) st.motas.push(nuevaMota(st, claveMota));
+      }
+
+      var claveRes = texturaResplandor(scene);
+      if (claveRes) {
+        st.resplandorSol = scene.add.image(0, 0, claveRes);
+        st.resplandorSol.setScrollFactor(0);
+        st.resplandorSol.setAlpha(0);
+        if (st.resplandorSol.setBlendMode && window.Phaser && Phaser.BlendModes) {
+          st.resplandorSol.setBlendMode(Phaser.BlendModes.ADD);
+        }
+        if (st.capa) st.capa.add(st.resplandorSol);
+        else st.resplandorSol.setDepth(PROF_SOL);
+      }
+    }
+
+    /* Cada familia se crea SOLO si tiene sus imágenes. Los bucles de
+       actualizar() recorren estos arrays, así que uno vacío simplemente no
+       pinta nada — no hace falta ningún `if` más abajo. */
+    for (i = 0; i < N_GOTAS; i++)   st.gotas.push(nuevaGota(st));
+    if (hay(scene, COPOS))   for (i = 0; i < N_COPOS; i++)   st.copos.push(nuevoCopo(st));
+    /* Los cristales y los de cerca se dibujan con canvas: van aunque falten
+       los PNG de los copos. Los de cerca, los ÚLTIMOS en el contenedor, para
+       pasar por delante de todos los demás. */
+    for (i = 0; i < N_CRISTALES; i++)   { var cr = nuevoCopo(st, 'cristal'); if (cr) st.copos.push(cr); }
+    for (i = 0; i < N_COPOS_CERCA; i++) { var ce = nuevoCopo(st, 'cerca');   if (ce) st.copos.push(ce); }
+    if (hay(scene, SALPICA)) for (i = 0; i < N_SALPICA; i++) st.salpicas.push(nuevaSalpica(st));
+    if (hay(scene, POSAS))   for (i = 0; i < N_POSAS; i++)   st.posas.push(nuevaPosa(st));
+    // Los charcos NO van en el contenedor: viven en el mundo, no en la pantalla.
+    /* Los charcos y su versión helada se dibujan aquí; ya no salen de los
+       cuatro PNG viejos. */
+    var hayCharco = true;
+    for (i = 0; i < CHARCOS_DIBUJADOS.length; i++) {
+      for (var et = 0; et < ETAPAS_CHARCO; et++) {
+        if (!dibujarCharco(scene, CHARCOS_DIBUJADOS[i], i + 1, false, et)) hayCharco = false;
+        dibujarCharco(scene, HIELOS_DIBUJADOS[i], i + 1, true, et);
+      }
+    }
+    texturasVidaCharco(scene);
+    if (hayCharco) {
+      for (i = 0; i < N_CHARCOS; i++) st.charcos.push(nuevoCharco(st));
+      montarVidaCharcos(st);
+    }
+
+    // Rayo, marco y fogonazo al final: van por encima de todo lo que cae.
+    /* El rayo con TRAZO necesita sus imágenes. Sin ellas se pierde el dibujo
+       del rayo, pero el fogonazo, el marco encendido y el trueno siguen — que
+       es casi toda la tormenta. */
+    /* Los tres rayos se DIBUJAN aquí mismo (ver `dibujarRayo`), así que ya no
+       dependen de que nadie haya subido un PNG. Si por lo que sea el canvas
+       fallara, no hay dibujo de rayo pero siguen el fogonazo, el marco
+       encendido y el trueno — que es casi toda la tormenta. */
+    var hayRayo = false;
+    for (var nr = 0; nr < RAYOS_DIBUJADOS.length; nr++) {
+      if (dibujarRayo(scene, RAYOS_DIBUJADOS[nr], nr + 1)) hayRayo = true;
+    }
+    if (hayRayo) {
+      st.rayo = scene.add.image(0, 0, RAYOS_DIBUJADOS[0]);
+      st.rayo.setScrollFactor(0).setOrigin(0.5, 0).setAlpha(0);
+      if (st.capa) st.capa.add(st.rayo); else st.rayo.setDepth(PROF_RAYO);
+
+      // El reventón del punto de caída. Aditivo: es luz, no pintura.
+      var claveImp = texturaImpacto(scene);
+      if (claveImp) {
+        st.impacto = scene.add.image(0, 0, claveImp);
+        st.impacto.setScrollFactor(0).setOrigin(0.5, 0.5).setAlpha(0);
+        if (st.impacto.setBlendMode && window.Phaser && Phaser.BlendModes) {
+          st.impacto.setBlendMode(Phaser.BlendModes.ADD);
+        }
+        if (st.capa) st.capa.add(st.impacto); else st.impacto.setDepth(PROF_RAYO + 1);
+      }
+    }
+
+    /* Marco de los bordes, lo que enciende una centella. Cuatro tiras de
+       degradado, cada una anclada a su lado y desvaneciéndose hacia dentro.
+       El orden es arriba, abajo, izquierda, derecha — igual que en moverBorde. */
+    st.bordeSuave = texturasBorde(scene);
+    var lados = st.bordeSuave
+      ? [['gfc_borde_v', 0.5, 0, false, false],   // arriba
+         ['gfc_borde_v', 0.5, 1, false, true],    // abajo  (volteada)
+         ['gfc_borde_h', 0,   0.5, false, false], // izquierda
+         ['gfc_borde_h', 1,   0.5, true,  false]] // derecha (volteada)
+      : null;
+    for (i = 0; i < 4; i++) {
+      var b;
+      if (lados) {
+        b = scene.add.image(0, 0, lados[i][0]);
+        b.setOrigin(lados[i][1], lados[i][2]);
+        b.setFlipX(lados[i][3]);
+        b.setFlipY(lados[i][4]);
+        b.setScrollFactor(0);
+        b.setAlpha(0);
+      } else {
+        // Sin canvas de texturas: el marco recto de antes, que es mejor que nada.
+        b = lienzoRect(scene, 0, 0, 10, 10, 0xffffff);
+      }
+      if (st.capa) st.capa.add(b); else b.setDepth(PROF_RAYO + 1);
+      st.bordes.push(b);
+    }
+
+    st.fogonazo = lienzoRect(scene, L.w / 2, L.h / 2, L.w, L.h, 0xdfe9ff);
+    if (st.capa) st.capa.add(st.fogonazo); else st.fogonazo.setDepth(PROF_FOGONAZO);
+
+    st.onUpdate = function (t, d) { actualizar(st, t, d); };
+    scene.events.on('update', st.onUpdate);
+    st.onApagar = function () { desmontar(scene); };
+    scene.events.once('shutdown', st.onApagar);
+    scene.events.once('destroy', st.onApagar);
+
+    if (!opciones.sinRed) arrancarRed();
+    // Y se reenvia al viento lo ultimo que se sepa: al entrar a una escena
+    // nueva el viento nace sin orden y hay que volver a darsela.
+    if (estado.cargado) mandarAlViento();
+    log('montado');
+    return st;
+    } catch (e) {
+      desmontar(scene);
+      // Factory/setter failures can occur before an object enters a pool.
+      if (existentes && scene.children && scene.children.list) {
+        scene.children.list.slice().forEach(function (obj) { if (!existentes.has(obj)) destruirObjeto(obj); });
+      }
+      console.warn('[clima] no se pudo montar:', e);
+      return null;
+    }
+  }
+
+  /**
+   * Arranca la consulta periodica y el enganche al socket.
+   *
+   * VA APARTE DE montar() A PROPOSITO. Antes esto vivia dentro de montar(), asi
+   * que si la escena no llegaba a montar el clima —falta una textura, se esta
+   * en la tienda, el mapa aun no ha terminado de crearse— el juego se quedaba
+   * SIN PREGUNTAR NUNCA que tiempo hace, y sin escuchar los avisos del
+   * servidor. Un aviso perdido con el clima en MANUAL no se recupera solo,
+   * porque el servidor no vuelve a mandar nada hasta que el administrador
+   * toque algo: por eso "solo funcionaban los climas automaticos".
+   *
+   * La red sobrevive a los cambios de escena y se detiene al destruir el juego: cuesta
+   * una consulta cada 45 s y una comprobacion cada 2 s.
+   */
+  function arrancarRed() {
+    clearTimeout(timerArranque); timerArranque = null;
+    if (redArrancada) return;
+    redArrancada = true;
+    sincronizar();
+    if (!timerSync) timerSync = setInterval(sincronizar, SYNC_MS);
+    /* El vigilante NO se para al conseguirlo: sigue mirando por si el juego
+       cambia de socket. Pararlo era justo el fallo. */
+    engancharSocket();
+    if (!timerSocket) timerSocket = setInterval(engancharSocket, 2000);
+  }
+
+  function desmontar(scene) {
+    var st = scene && scene.__gfClima;
+    if (!st) return;
+    scene.__gfClima = null;
+    escenas.delete(scene);
+    if (st.onUpdate) scene.events.off('update', st.onUpdate);
+    if (st.onApagar) { scene.events.off('shutdown', st.onApagar); scene.events.off('destroy', st.onApagar); }
+    apagarIncendio(st);
+    ['gotas', 'salpicas', 'copos', 'posas', 'bordes', 'charcos', 'rayosSol', 'motas', 'nubes', 'quemaduras',
+     'brillosCharco', 'ondasCharco', 'gotitasCharco'].forEach(function (key) {
+      (st[key] || []).forEach(function (obj) { destruirObjeto(obj.spr || obj); });
+      if (st[key]) st[key].length = 0;
+    });
+    ['resplandorSol', 'filtro', 'cortina', 'fogonazo', 'rayo', 'impacto', 'capa'].forEach(function (key) {
+      destruirObjeto(st[key]); st[key] = null;
+    });
+    st.scene = st.onUpdate = st.onApagar = null;
+    if (montado === st) montado = escenas.size ? Array.from(escenas).pop().__gfClima : null;
+  }
+  function detener() {
+    redArrancada = false;
+    clearTimeout(timerArranque); clearInterval(timerSync); clearInterval(timerSocket); clearInterval(timerViento);
+    timerArranque = timerSync = timerSocket = timerViento = null;
+    if (consulta) {
+      var req = consulta; req.terminar();
+      if (req.ctrl) req.ctrl.abort();
+    }
+    soltarSocket();
+    Array.from(escenas).forEach(desmontar);
+    oyentesTrueno.length = 0;
+  }
+
+  window.GFClima = {
+    arrancar: arrancarRed,
+    detener: detener,
+    precargar: precargar,
+    montar: montar,
+    desmontar: desmontar,
+    sincronizar: sincronizar,
+    engancharSocket: engancharSocket,
+    estado: function () { return estado; },
+    /* Cuánta luz RASANTE hay ahora (0 a mediodía, 1 al ras del horizonte).
+       La usa gf-postproceso para no teñir de ámbar a las doce del mediodía. */
+    calidez: calidezDelDia,
+    /* Los charcos donde se puede uno bañar. Lo pide gf-animales cuando
+       escampa, para bajar a los pájaros al agua. */
+    charcos: charcosParaBanarse,
+
+    /* EL TIEMPO QUE SE VE AHORA MISMO, ya interpolado (0 a 1 cada cosa):
+         { activo, cargado, estacion, lluvia, nieve, sol, viento,
+           truenos, tormenta }
+       Lo piden los animales para saber si refugiarse. OJO: se devuelve
+       SIEMPRE EL MISMO OBJETO, que se reescribe en cada llamada; quien
+       necesite guardárselo tiene que copiar los campos. */
+    ahora: tiempoAhora,
+
+    /* Avisa cuando RETUMBA un trueno (no cuando destella el rayo: lo que
+       asusta es el estampido). El oyente recibe (cerca, fuerza).
+         var quitar = GFClima.alTronar(function (cerca, f) { ... });
+         quitar();   // para dejar de escuchar
+       Devuelve la función de baja: quien se engancha tiene que llamarla al
+       apagar su escena o el oyente se queda vivo para siempre. */
+    alTronar: function (fn) {
+      if (typeof fn !== 'function') return function () {};
+      oyentesTrueno.push(fn);
+      var activo = true;
+      return function () {
+        if (!activo) return;
+        activo = false;
+        var i = oyentesTrueno.indexOf(fn);
+        if (i >= 0) oyentesTrueno.splice(i, 1);
+      };
+    },
+    /** Cuándo retumbó el último trueno (Date.now()), para quien prefiera
+        mirarlo desde su propio bucle en vez de engancharse. 0 si ninguno. */
+    ultimoTrueno: function () { return ultimoTrueno; },
+    /**
+     * Para mirar desde la consola por que no se ve el tiempo.
+     *   GFClima.diagnostico()
+     */
+    /** Vuelve a pedir el tiempo AHORA y lo aplica. Para probarlo a mano. */
+    refrescar: function () { return sincronizar(); },
+    /** Reenvia al viento lo ultimo que dijo el servidor. */
+    reaplicar: function () { mandarAlViento(); return estado; },
+    diagnostico: function () {
+      var st = montado;
+      return {
+        montado: !!st,
+        redArrancada: redArrancada,
+        socket: !!socketEnganchado,
+        socketVivo: !!(socketEnganchado && socketEnganchado.connected),
+        servidor: base(),
+        ultimoFallo: ultimoFallo,
+        segundosDesdeRespuesta: ultimaRespuesta
+          ? Math.round((Date.now() - ultimaRespuesta) / 1000) : null,
+        /* Para cuando alguien diga "lo lanzo y no entra": `rev` tiene que
+           subir con cada cambio del panel. Si el panel dice que guardó y aquí
+           el rev no se mueve, el cambio no está llegando (caché, otro
+           servidor). Si sube y aun así no se ve, el fallo es de pintado.
+           `descartadas` cuenta las respuestas viejas que se han tirado. */
+        rev: ultimoRev,
+        relojServidor: ultimoAhora || null,
+        respuestasViejasDescartadas: descartados,
+        consultaEnVuelo: !!pidiendo,
+        viento: (window.GFViento && window.GFViento.estado)
+          ? window.GFViento.estado() : null,
+        estado: estado,
+        fuerzaLluvia: st ? Number(st.fuerzaLluvia.toFixed(2)) : null,
+        fuerzaSol: st ? Number((st.fuerzaSol || 0).toFixed(2)) : null,
+        fuerzaNieve: st ? Number(st.fuerzaNieve.toFixed(2)) : null,
+        piezas: st ? { gotas: st.gotas.length, copos: st.copos.length,
+                       salpicas: st.salpicas.length, posas: st.posas.length,
+                       charcos: st.charcos.length, rayo: !!st.rayo } : null,
+        texturasQueFaltan: st ? faltan(st.scene) : null,
+        gotas: st ? st.gotas.length : 0,
+        charcos: st ? st.charcos.filter(function (c) { return c.vivo; }).length : 0
+      };
+    },
+    /** Pinta un tiempo concreto SIN tocar el servidor. Solo para mirarlo. */
+    probar: function (que) {
+      estado.activo = true;
+      estado.lluvia = (que === 'lluvia' || que === 'tormenta');
+      estado.viento = (que === 'viento' || que === 'tormenta' || que === 'nieve');
+      estado.nieve  = (que === 'nieve');
+      estado.soleado = (que === 'soleado');
+      estado.nublado = (que === 'nublado');
+      estado.truenos = (que === 'tormenta');
+      mandarAlViento();
+      return estado;
+    },
+    /** Cambia la estación SIN tocar el servidor. Solo para mirarla. */
+    probarEstacion: function (e) {
+      if (Object.prototype.hasOwnProperty.call(ESTACIONES, e)) estado.estacion = e;
+      return estado.estacion;
+    },
+    _interno: {
+      lienzo: lienzo, inclinacion: inclinacion, MARGEN: MARGEN,
+      INCLINA_MIN: INCLINA_MIN, INCLINA_MAX: INCLINA_MAX,
+      aplicar: aplicar, actualizar: actualizar, relampago: relampago,
+      mandarAlViento: mandarAlViento, salpicar: salpicar, sacudir: sacudir,
+      centella: centella, sitioDelRayo: sitioDelRayo, ESTACIONES: ESTACIONES,
+      moverCharcos: moverCharcos, brotarCharco: brotarCharco,
+      sueloLibre: sueloLibre, prenderArbol: prenderArbol,
+      moverSol: moverSol, texturaRayo: texturaRayo,
+      texturaHalo: texturaHalo, texturaMota: texturaMota,
+      moverMotas: moverMotas, sembrarMota: sembrarMota, N_MOTAS: N_MOTAS,
+      texturaNube: texturaNube, nuevaNube: nuevaNube, sembrarNube: sembrarNube,
+      moverNubes: moverNubes, N_NUBES: N_NUBES, PROF_NUBE: PROF_NUBE,
+      aMundo: aMundo, PLANOS_GOTA: PLANOS_GOTA,
+      texturaResplandor: texturaResplandor,
+      arrancarRed: arrancarRed, reintentarViento: reintentarViento,
+      hay: hay, faltan: faltan,
+      moverIncendio: moverIncendio, apagarIncendio: apagarIncendio,
+      texturasLlama: texturasLlama, puntosDeCopa: puntosDeCopa, moverQuemaduras: moverQuemaduras,
+      texturaCristal: texturaCristal, texturaCopoCerca: texturaCopoCerca, PLANO_COPO: PLANO_COPO,
+      arbolesAlcanzables: arbolesAlcanzables, ARDE_MS: ARDE_MS,
+      PROB_INCENDIO: PROB_INCENDIO, N_CHARCOS: N_CHARCOS,
+      lienzoRect: lienzoRect, texturaBlanca: texturaBlanca,
+      texturasBorde: texturasBorde, moverBorde: moverBorde,
+      MULTIPLICAR: MULTIPLICAR,
+      filtroEstacion: filtroEstacion, moverCopos: moverCopos,
+      RAYO_SEPARA: RAYO_SEPARA,
+      // lo que se dibuja ahora con canvas (lo usa _prueba_clima2.html)
+      dibujarRayo: dibujarRayo, texturaImpacto: texturaImpacto,
+      dibujarCharco: dibujarCharco, arbolBajoElRayo: arbolBajoElRayo,
+      calidezDelDia: calidezDelDia, mezclarColor: mezclarColor,
+      RAYOS_DIBUJADOS: RAYOS_DIBUJADOS, CHARCOS_DIBUJADOS: CHARCOS_DIBUJADOS,
+      HIELOS_DIBUJADOS: HIELOS_DIBUJADOS, ALCANCE_RAYO: ALCANCE_RAYO,
+      charcosParaBanarse: charcosParaBanarse,
+      tiempoAhora: tiempoAhora, avisarDelTrueno: avisarDelTrueno
+    }
+  };
+
+  /* La red arranca sola, sin esperar a ninguna escena. Con un respiro para que
+     el resto de modulos (y `window.game`) esten en pie y `base()` acierte con
+     el servidor. */
+  timerArranque = setTimeout(arrancarRed, 1200);
+  if (window.addEventListener) window.addEventListener('pagehide', function (e) { if (!e.persisted) detener(); });
+})();

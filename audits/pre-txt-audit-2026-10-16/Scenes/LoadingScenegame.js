@@ -1,0 +1,2890 @@
+/*!
+ * ============================================================================
+ * Grassland Forest © 2025 JEAN LARREAL - TODOS LOS DERECHOS RESERVADOS
+ * ============================================================================
+ *
+ * GRASSLAND FOREST v13
+ * Desarrollado y Publicado por: Jean Larreal
+ * CONTACTO PARA PERMISOS:
+ * Jean Larreal
+ * Email: [killerhackcodeup@gmail.com]
+ * Sitio Web: [grasslandforest.xyz]
+ *
+ * VERSIÓN: v13.1.0-release  (blockchain inventory sync)
+ * GENERADO: 30/03/2026
+ * ============================================================================
+ *
+ * CAMBIOS v13.1.0
+ * ──────────────────────────────────────────────────────────────────────────
+ *  • syncInventoryWithBlockchain():
+ *      Sincronización slot-por-slot al cargar. Llama a getUserInventorySnapshot()
+ *      (1 sola llamada RPC) o batchVerifySlots() para verificar los 47 slots
+ *      (40 inventario + 7 cofre). Cualquier slot cuyo idx o manualId no exista
+ *      en blockchain, o cuya cantidad difiera, es corregido antes de que la
+ *      escena transite a GameScene.
+ *  • _buildSyncMaps(): parseo robusto del snapshot RPC.
+ *  • _reconciliarCasillas(): cuadra cada casilla con su factura SIN moverla
+ *    de sitio (antes las vaciaba y el objeto acababa en la primera libre).
+ *  • _syncFallback(): usa batchVerifySlots() como alternativa si el contrato
+ *      aún no tiene getUserInventorySnapshot().
+ *  • Toda la sincronización es no-bloqueante: si falla, registra el error y
+ *      continúa hacia GameScene sin romper el flujo de carga.
+ * ============================================================================
+ */
+
+// ─── BootScene ─────────────────────────────────────────────────────────────
+class BootScene extends Phaser.Scene {
+    constructor() {
+        super({ key: 'BootScene' });
+    }
+
+    preload() {
+        window.showLoadingOverlay({
+            message: 'Cargando Phaser...',
+            initialProgress: 0.1
+        });
+
+        this.load.on('progress', (value) => {
+            window.updateLoadingProgress(value);
+        });
+
+        this.load.on('complete', () => {
+            window.hideLoadingOverlay();
+        });
+    }
+
+    create() {
+        this.scene.start('LoadingScenegame');
+    }
+}
+
+// ─── LoadingScenegame ───────────────────────────────────────────────────────
+class LoadingScenegame extends Phaser.Scene {
+    constructor() {
+        super({ key: 'LoadingScenegame' });
+
+        // FIX: "elipeticiones" se fijaba a 0 y se comprobaba "=== 0" en el
+        // mismo bloque, y nunca se incrementaba en ningún otro punto del
+        // archivo → la condición siempre era true y serverBase terminaba
+        // SIEMPRE en 127.0.0.1:3001, incluso en producción (de ahí el
+        // ERR_CONNECTION_REFUSED al pedir csrf-token y auth/me).
+        // Ahora se decide según el host real donde corre el juego.
+        const _host = window.location.hostname;
+        const _isLocal = _host === 'localhost' || _host === '127.0.0.1';
+        this.serverBase = _isLocal
+            ? 'http://127.0.0.1:8080'   // ajusta el puerto si tu server2.js local usa otro (ver PORT en tu .env)
+            : 'https://api.grasslandforest.com';
+
+        this.playerName = null;
+        this.address    = null;
+        this.csrfToken  = null;
+        this.isAuthenticated = false;
+
+        // Relay client para sincronización blockchain
+        this.relayClient = null;
+        // Nombre del contrato registrado en el backend
+        this._ITEM_CONTRACT_NAME = 'ItemContract';
+
+        this.transactionSystem = null;
+
+        this.stars         = [];
+        this.starFieldDepth = 3;
+        this.graphics      = null;
+
+        this.STATE = {
+            slots:      new Array(40).fill(null),
+            quickSlots: new Array(7).fill(null),
+            selectedItem: null
+        };
+
+        // Propiedades del jugador
+        this.posicionplayerx  = 2097;
+        this.posicionplayery  = 2359;
+        this.vidaPorcentaje   = 10000;
+        this.aguaPorcentaje   = 10000;
+        this.comidaPorcentaje = 10000;
+        this.speed    = 2.7;
+        this.mundo    = 1;
+        this.moneda   = 10000;
+        this.nivel    = 0;
+        this.nivel_exp = 0;
+        this.sabiduria    = 0;
+        this.sabiduria_exp = 0;
+        this.fuerza       = 0;
+        this.fuerza_exp   = 0;
+        this.agricultura  = 0;
+        this.agricultura_exp = 0;
+        this.misiones = 0;
+        this.Username = '---';
+        this.moneda_plata = 0;  // moneda de plata sincronizada con contrato
+
+        this.mineria      = 0;
+        this.mineria_exp  = 0;
+        this.pesca        = 0;
+        this.pesca_exp    = 0;
+        this.cocina       = 0;
+        this.cocina_exp   = 0;
+        this.deforestacion     = 0;
+        this.deforestacion_exp = 0;
+
+        // ── ItemDefinitions: todos los ítems del juego ──────────────────────
+        this.ItemDefinitions = {
+            item_1: { src: './Game/Source/recurso.png',  maxStack: 10 },
+            item_2: { src: './Game/Source/recurso2.png', maxStack: 5  },
+            item_3: { src: './Game/Source/tijeras.png',  maxStack: 20 },
+
+            hacha_de_madera: { src: './Game/Source/pico_y_hacha/hacha_de_madera.png', maxStack: 5,  usos: 5  },
+            hacha_de_piedra: { src: './Game/Source/pico_y_hacha/hacha_de_piedra.png', maxStack: 5,  usos: 10 },
+            hacha_de_cobre:  { src: './Game/Source/pico_y_hacha/hacha_de_cobre.png',  maxStack: 5,  usos: 20 },
+            hacha_de_hierro: { src: './Game/Source/pico_y_hacha/hacha_de_hierro.png', maxStack: 5,  usos: 40 },
+            pico_de_madera:  { src: './Game/Source/pico_y_hacha/pico_de_madera.png',  maxStack: 5,  usos: 5  },
+            pico_de_piedra:  { src: './Game/Source/pico_y_hacha/pico_de_piedra.png',  maxStack: 5,  usos: 10 },
+            pico_de_cobre:   { src: './Game/Source/pico_y_hacha/pico_de_cobre.png',   maxStack: 5,  usos: 20 },
+            pico_de_hierro:  { src: './Game/Source/pico_y_hacha/pico_de_hierro.png',  maxStack: 5,  usos: 40 },
+
+            mineral_piedra:   { src: './Game/Source/piedra.png',         maxStack: 20 },
+            mineral_cobre:    { src: './Game/Source/cobre.png',          maxStack: 20 },
+            mineral_hierro:   { src: './Game/Source/hierro.png',         maxStack: 20 },
+
+            /* ESTE CATÁLOGO TAMBIÉN CUENTA, Y SE OLVIDA CON FACILIDAD.
+               `_addMissingBlockchainItems` repone al entrar al mapa lo que hay
+               en la cadena y no está en el inventario guardado, y para eso
+               traduce el `tipo` de la factura a una clave DE AQUÍ. Un ítem que
+               no esté en esta lista se descarta con "sin itemId → omitiendo":
+               existe en la cadena pero el jugador no lo ve nunca.
+
+               Al carbón y a las pociones les pasaba eso desde que se añadieron;
+               se arregla de paso. */
+            mineral_piedra_cobre:  { src: './Game/Source/piedra_cobre.png',  maxStack: 20 },
+            mineral_piedra_hierro: { src: './Game/Source/piedra_hierro.png', maxStack: 20 },
+            mineral_carbon:        { src: './Game/Source/piedra_carbon.png', maxStack: 20 },
+            carbon:                { src: './Game/Objetos/carbon.png',       maxStack: 20 },
+
+            pocion_mascota:        { src: './Game/Objetos/pociones/pocion_mascota.png',        maxStack: 20 },
+            pocion_mascota_grande: { src: './Game/Objetos/pociones/pocion_mascota_grande.png', maxStack: 10 },
+            pocion_vida: { src: "./Game/newpro/pociones/pocion_vida.png", maxStack: 20, tipo: "pocion_vida", usos: null },            pocion_antidoto: { src: "./Game/newpro/pociones/pocion_energia.png", maxStack: 20, tipo: "pocion_antidoto", usos: null },            elixir_revivir:        { src: './Game/Objetos/pociones/elixir_revivir.png',        maxStack: 5  },
+
+            // Construcción (2026-10-03). El `tipo` va escrito porque la tabla
+            // se llama `parcelas` y la clave `parcela`: sin él, _tipoToItemId
+            // no la encontraría y una parcela comprada en otro dispositivo se
+            // descartaría al entrar ("sin itemId → omitiendo").
+            parcela:               { src: './Game/Objetos/construccion/parcela.png',           maxStack: 20, tipo: 'parcelas' },
+            pala_construccion:     { src: './Game/Objetos/construccion/pala_construccion.png', maxStack: 1,  tipo: 'pala_contrucion' },
+            // El bote de basura y los cofres de la isla (2026-10-05).
+            basura: { src: './Game/Objetos/cofres/basura.png', maxStack: 10, tipo: 'basura' },
+            cofre1: { src: './Game/Objetos/cofres/cofre1.png', maxStack: 5,  tipo: 'cofre1' },
+            cofre2: { src: './Game/Objetos/cofres/cofre2.png', maxStack: 5,  tipo: 'cofre2' },
+            cofre3: { src: './Game/Objetos/cofres/cofre3.png', maxStack: 5,  tipo: 'cofre3' },
+            cofre4: { src: './Game/Objetos/cofres/cofre4.png', maxStack: 5,  tipo: 'cofre4' },
+            // Equipo, granja y pesca (2026-10-05). Sin estas líneas, lo que esté
+            // en la cadena y no en la BD se descartaría al entrar.
+            espada_madera:  { src: './Game/Objetos/armas/espada_madera.png',    maxStack: 1,  tipo: 'madera' },
+            espada_cobre:   { src: './Game/Objetos/armas/espada_cobre.png',     maxStack: 1,  tipo: 'cobre' },
+            espada_hierro:  { src: './Game/Objetos/armas/espada_hierro.png',    maxStack: 1,  tipo: 'hierro' },
+            cana_pescar:    { src: './Game/Objetos/pesca/cana_pescar.png',      maxStack: 1,  tipo: 'caña_pescar' },
+            espantapajaros: { src: './Game/Objetos/granja/espantapajaros.png',  maxStack: 10, tipo: 'espantapajaros' },
+            antorcha:       { src: './Game/Objetos/antorcha/antorcha.png',      maxStack: 20, tipo: 'antorcha' },
+            pes1:           { src: './Game/Objetos/pesca/pes1.png',             maxStack: 20, tipo: 'pes1' },
+            pes2:           { src: './Game/Objetos/pesca/pes2.png',             maxStack: 20, tipo: 'pes2' },
+            pes3:           { src: './Game/Objetos/pesca/pes3.png',             maxStack: 20, tipo: 'pes3' },
+            // Cinco peces más (2026-10-10): sin estas líneas, lo pescado se
+            // descartaría al entrar al mapa ("sin itemId → omitiendo").
+            pes4:           { src: './Game/Objetos/pesca/pes4.png',             maxStack: 20, tipo: 'pes4' },
+            pes5:           { src: './Game/Objetos/pesca/pes5.png',             maxStack: 20, tipo: 'pes5' },
+            pes6:           { src: './Game/Objetos/pesca/pes6.png',             maxStack: 20, tipo: 'pes6' },
+            pes7:           { src: './Game/Objetos/pesca/pes7.png',             maxStack: 20, tipo: 'pes7' },
+            pes8:           { src: './Game/Objetos/pesca/pes8.png',             maxStack: 20, tipo: 'pes8' },
+            // Seis más (2026-10-11).
+            pes9:           { src: './Game/Objetos/pesca/pes9.png',             maxStack: 20, tipo: 'pes9' },
+            pes10:          { src: './Game/Objetos/pesca/pes10.png',            maxStack: 20, tipo: 'pes10' },
+            pes11:          { src: './Game/Objetos/pesca/pes11.png',            maxStack: 20, tipo: 'pes11' },
+            pes12:          { src: './Game/Objetos/pesca/pes12.png',            maxStack: 20, tipo: 'pes12' },
+            pes13:          { src: './Game/Objetos/pesca/pes13.png',            maxStack: 20, tipo: 'pes13' },
+            pes14:          { src: './Game/Objetos/pesca/pes14.png',            maxStack: 20, tipo: 'pes14' },
+
+            palo:             { src: './Game/Source/palo.png',           maxStack: 20 },
+            tablon_de_madera: { src: './Game/Source/madera.png',         maxStack: 20 },
+            madera_pinos:     { src: './Game/Source/madera_oscura.png',  maxStack: 50 },
+            madera_con_hojas: { src: './Game/Source/madera de hoja.png', maxStack: 50 },
+            madera_seca:      { src: './Game/Source/madera seca.png',    maxStack: 50 },
+
+            balde_vacio:    { src: './Game/Source/item_pozo1.png', maxStack: 5 },
+            balde_con_agua: { src: './Game/Source/item_pozo2.png', maxStack: 5 },
+            Regaderax:      { src: './Game/Source/recurso2.png',   maxStack: 1 },
+            Tijerasx:       { src: './Game/Source/tijeras.png',    maxStack: 1 },
+
+            // Los nombres del contrato son distintos de las claves del juego.
+            // Sin tipo, la sincronización borraba las cinco semillas compradas.
+            Semillax:  { src: './Game/Objetos/Plantas/planta_zanahorias/item_saco.png',           maxStack: 50, tipo: 'bolsa zanahorias' },
+            Semillax1: { src: './Game/Objetos/Plantas/planta_tomates/semillas_tomate.png',        maxStack: 50, tipo: 'bolsa de tomates' },
+            Semillax2: { src: './Game/Objetos/Plantas/planta_trigo/item_semilla_trigo.png',       maxStack: 50, tipo: 'bolsa de trigo' },
+            Semillax3: { src: './Game/Objetos/Plantas/planta_calabaza/item_semilla_calabaza.png', maxStack: 50, tipo: 'bolsa de calabazas' },
+            Semillax4: { src: './Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png',       maxStack: 50, tipo: 'bolsa_de_fresas' },
+
+            zanahoria_buena: { src: './Game/Objetos/Plantas/planta_zanahorias/item_zanahoria_buena.png',          maxStack: 20 },
+            zanahoria_corta: { src: './Game/Objetos/Plantas/planta_zanahorias/planta_crecimiento_zanahoria.png',  maxStack: 20 },
+            zanahoria_mala:  { src: './Game/Objetos/Plantas/planta_zanahorias/item_zanahoria_podrida.png',        maxStack: 20 },
+            tomate_buena:    { src: './Game/Objetos/Plantas/planta_tomates/item_tomate_bueno.png',                maxStack: 20 },
+            tomate_corta:    { src: './Game/Objetos/Plantas/planta_tomates/item_planta.png',                      maxStack: 20 },
+            tomate_mala:     { src: './Game/Objetos/Plantas/planta_tomates/item_tomate_malo.png',                 maxStack: 20 },
+            fresa_buena:     { src: './Game/Objetos/Plantas/planta_fresa/item_fresa_buena.png',                   maxStack: 20 },
+            fresa_corta:     { src: './Game/Objetos/Plantas/planta_fresa/item_planta.png',                        maxStack: 20 },
+            fresa_mala:      { src: './Game/Objetos/Plantas/planta_fresa/item_fresa_podrida.png',                 maxStack: 20 },
+            trigo_buena:     { src: './Game/Objetos/Plantas/planta_trigo/item_trigo_bueno.png',                   maxStack: 20 },
+            trigo_corta:     { src: './Game/Objetos/Plantas/planta_trigo/item_planta_trigo.png',                  maxStack: 20 },
+            trigo_mala:      { src: './Game/Objetos/Plantas/planta_trigo/item_trigo_podrido.png',                 maxStack: 20 },
+            calabaza_buena:  { src: './Game/Objetos/Plantas/planta_calabaza/item_calabaza_buena.png',             maxStack: 20 },
+            calabaza_corta:  { src: './Game/Objetos/Plantas/planta_calabaza/item_planta_calabaza.png',            maxStack: 20 },
+            calabaza_mala:   { src: './Game/Objetos/Plantas/planta_calabaza/item_calabaza_podrida.png',           maxStack: 20 },
+        };
+
+        // Mapa tipo blockchain → key de ItemDefinitions
+        // El tipo en el contrato es como "hacha de madera"; el key del juego es "hacha_de_madera".
+        this.TIPO_TO_ITEM_ID = {
+            'hacha de madera':  'hacha_de_madera',
+            'hacha de piedra':  'hacha_de_piedra',
+            'hacha de cobre':   'hacha_de_cobre',
+            'hacha de hierro':  'hacha_de_hierro',
+            'pico de madera':   'pico_de_madera',
+            'pico de piedra':   'pico_de_piedra',
+            'pico de cobre':    'pico_de_cobre',
+            'pico de hierro':   'pico_de_hierro',
+            'mineral piedra':   'mineral_piedra',
+            'mineral cobre':    'mineral_cobre',
+            'mineral hierro':   'mineral_hierro',
+            // Piedra en bruto y carbón: sus tablas ya se llaman igual que la
+            // clave del juego, así que la conversión automática de
+            // `_tipoToItemId` bastaría; se dejan escritas para que se vean.
+            'mineral_piedra_cobre':  'mineral_piedra_cobre',
+            'mineral_piedra_hierro': 'mineral_piedra_hierro',
+            'mineral_carbon':        'mineral_carbon',
+            'carbon':                'carbon',
+            'parcelas':              'parcela',
+            'pala_contrucion':       'pala_construccion',
+            'basura': 'basura',
+            'cofre1': 'cofre1', 'cofre2': 'cofre2', 'cofre3': 'cofre3', 'cofre4': 'cofre4',
+            'madera':                'espada_madera',
+            'cobre':                 'espada_cobre',
+            'hierro':                'espada_hierro',
+            'caña_pescar':           'cana_pescar',
+            'espantapajaros':        'espantapajaros',
+            'antorcha':              'antorcha',
+            'pes1': 'pes1', 'pes2': 'pes2', 'pes3': 'pes3',
+            'pes4': 'pes4', 'pes5': 'pes5', 'pes6': 'pes6', 'pes7': 'pes7', 'pes8': 'pes8',
+            'pes9': 'pes9', 'pes10': 'pes10', 'pes11': 'pes11', 'pes12': 'pes12', 'pes13': 'pes13', 'pes14': 'pes14',
+            'tablon de madera': 'tablon_de_madera',
+            'madera pinos':     'madera_pinos',
+            'madera con hojas': 'madera_con_hojas',
+            'madera seca':      'madera_seca',
+            'balde vacio':      'balde_vacio',
+            'balde con agua':   'balde_con_agua',
+            'zanahoria buena':  'zanahoria_buena',
+            'zanahoria corta':  'zanahoria_corta',
+            'zanahoria mala':   'zanahoria_mala',
+            'tomate buena':     'tomate_buena',
+            'tomate corta':     'tomate_corta',
+            'tomate mala':      'tomate_mala',
+            'fresa buena':      'fresa_buena',
+            'fresa corta':      'fresa_corta',
+            'fresa mala':       'fresa_mala',
+            'trigo buena':      'trigo_buena',
+            'trigo corta':      'trigo_corta',
+            'trigo mala':       'trigo_mala',
+            'calabaza buena':   'calabaza_buena',
+            'calabaza corta':   'calabaza_corta',
+            'calabaza mala':    'calabaza_mala',
+        };
+
+        console.log('LoadingScenegame initialized');
+
+        this.loadingSystem = new LoadingSystem();
+
+        // Auto-refresh de token
+        this.autoRefreshInterval   = null;
+        this.autoRefreshEnabled    = true;
+        this.lastActivityTime      = Date.now();
+        this.refreshInProgress     = false;
+        this.maxRefreshAttempts    = 3;
+        this.currentRefreshAttempts = 0;
+        this.lastRefreshTime       = 0;
+        this.minRefreshInterval    = 30000;
+    }
+
+    // =========================================================================
+    //  AUTENTICACIÓN
+    // =========================================================================
+
+    async loadx() {
+        console.log('🔍 Iniciando verificación de autenticación...');
+        const turno = this._turnoCreate;
+        const vigente = () => turno === this._turnoCreate;
+
+        try {
+            await this.getCSRFToken();
+            if (!vigente()) return false;
+
+            const response = await this.fetchWithTokenRetry(`${this.serverBase}/api/auth/me`, {
+                method: 'GET'
+            });
+            if (!vigente()) return false;
+
+            console.log('📊 Response status de /api/auth/me:', response.status);
+
+            if (!response.ok) {
+                console.error('❌ Error de autenticación:', response.status);
+
+                if (response.status === 401) {
+                    const refreshSuccess = await this.refreshAuthToken();
+                    if (!vigente()) return false;
+                    if (refreshSuccess) {
+                        const retryResponse = await this.fetchWithTokenRetry(
+                            `${this.serverBase}/api/auth/me`, { method: 'GET' }
+                        );
+                        if (!vigente()) return false;
+                        if (retryResponse.ok) {
+                            const data = await retryResponse.json();
+                            if (!vigente()) return false;
+                            return this.handleAuthSuccess(data);
+                        }
+                    }
+                }
+
+                this.showTokenErrorHub();
+                return false;
+            }
+
+            const data = await response.json();
+            if (!vigente()) return false;
+            return this.handleAuthSuccess(data);
+
+        } catch (error) {
+            if (!vigente()) return false;
+            console.error('❌ Error en loadx:', error);
+            this.showTokenErrorHub();
+            return false;
+        }
+    }
+
+    handleAuthSuccess(data) {
+        if (data.authenticated && data.address) {
+            this.isAuthenticated = true;
+            this.address    = data.address;
+            this.playerName = data.playerName || data.address;
+
+            console.log('✅ Usuario autenticado:', {
+                address:    this.address.substring(0, 10) + '...',
+                playerName: this.playerName,
+                hasPlayerName: !!data.playerName
+            });
+
+            this.lastActivityTime = Date.now();
+            this.startAutoRefresh();
+            return true;
+        } else {
+            console.error('❌ Usuario no autenticado o sin address');
+            this.showTokenErrorHub();
+            return false;
+        }
+    }
+
+    async getCSRFToken() {
+        const turno = this._turnoCreate;
+        if (this._csrfController) this._csrfController.abort();
+        const controller = this._csrfController = new AbortController();
+        const deadline = setTimeout(() => controller.abort(), 15000);
+        try {
+            console.log('🛡️ Obteniendo token CSRF...');
+            const response = await fetch(`${this.serverBase}/api/auth/csrf-token`, {
+                method: 'GET',
+                signal: controller.signal,
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (controller.signal.aborted || turno !== this._turnoCreate) return false;
+                this.csrfToken = data.csrfToken;
+                window.csrfToken = data.csrfToken; // Compartir con StatsSync
+                console.log('✅ Token CSRF obtenido:', this.csrfToken ? 'Sí' : 'No');
+                return true;
+            } else {
+                console.warn('⚠️ No se pudo obtener token CSRF, status:', response.status);
+                return false;
+            }
+        } catch (error) {
+            console.error('❌ Error obteniendo CSRF token:', error);
+            return false;
+        } finally {
+            clearTimeout(deadline);
+            if (this._csrfController === controller) this._csrfController = null;
+        }
+    }
+
+    async checkAuthStatus() {
+        try {
+            const response = await this.fetchWithTokenRetry(
+                `${this.serverBase}/api/auth/me`, { method: 'GET' }
+            );
+            if (response.ok) {
+                const data = await response.json();
+                return data.authenticated === true;
+            }
+            return false;
+        } catch (error) {
+            console.error('❌ Error verificando estado de autenticación:', error);
+            return false;
+        }
+    }
+
+    // =========================================================================
+    //  AUTO-REFRESH DE TOKEN
+    // =========================================================================
+
+    startAutoRefresh() {
+        this.stopAutoRefresh();
+        const generation = this._autoRefreshGeneration;
+        const vigente = () => generation === this._autoRefreshGeneration;
+
+        if (!this.autoRefreshEnabled || !this.isAuthenticated) {
+            console.log('🔄 Auto-refresh deshabilitado o usuario no autenticado');
+            return;
+        }
+
+        console.log('🔄 Iniciando sistema de auto-refresh mejorado...');
+
+        this.autoRefreshInterval = setInterval(async () => {
+            try {
+                if (!this.isAuthenticated || !this.playerName) {
+                    console.log('🔄 Usuario no autenticado, deteniendo auto-refresh');
+                    this.stopAutoRefresh();
+                    return;
+                }
+
+                const now = Date.now();
+                const timeSinceLastRefresh = now - this.lastRefreshTime;
+
+                if (timeSinceLastRefresh < 120000) {
+                    console.log(`🔄 Esperando, refrescado hace ${Math.floor(timeSinceLastRefresh / 1000)} segundos`);
+                    return;
+                }
+
+                const inactiveTime = now - this.lastActivityTime;
+                if (inactiveTime < 30 * 60 * 1000) {
+                    const success = await this.refreshAuthToken();
+                    if (!vigente()) return;
+
+                    if (success) {
+                        console.log('✅ Auto-refresh exitoso');
+                        this.lastRefreshTime = now;
+                        this.currentRefreshAttempts = 0;
+                    } else {
+                        console.warn('⚠️ Auto-refresh falló');
+                        this.currentRefreshAttempts++;
+
+                        if (this.currentRefreshAttempts >= this.maxRefreshAttempts) {
+                            console.error('❌ Demasiados intentos fallidos de auto-refresh');
+                            const authStatus = await this.checkAuthStatus();
+                            if (!vigente()) return;
+                            if (!authStatus) {
+                                console.log('🔐 Autenticación perdida, mostrando error');
+                                this.showTokenErrorHub();
+                            }
+                            this.currentRefreshAttempts = 0;
+                        }
+                    }
+                } else {
+                    console.log('⏰ Usuario inactivo, omitiendo auto-refresh');
+                }
+            } catch (error) {
+                console.error('❌ Error en auto-refresh:', error);
+            }
+        }, 240000);
+
+        console.log('✅ Sistema de auto-refresh iniciado (cada 4 minutos)');
+    }
+
+    stopAutoRefresh() {
+        this._autoRefreshGeneration = (this._autoRefreshGeneration || 0) + 1;
+        if (this.autoRefreshInterval) {
+            clearInterval(this.autoRefreshInterval);
+            this.autoRefreshInterval = null;
+            console.log('🛑 Auto-refresh detenido');
+        }
+    }
+
+    async refreshAuthToken() {
+        if (this.refreshInProgress) {
+            console.log('🔄 Refresh ya en progreso, omitiendo...');
+            return false;
+        }
+
+        this.refreshInProgress = true;
+        const turno = this._turnoCreate;
+        const playerName = this.playerName;
+        const controller = new AbortController();
+        this._authRefreshController = controller;
+        const deadline = setTimeout(() => controller.abort(), 15000);
+        const vigente = () => !controller.signal.aborted && turno === this._turnoCreate && playerName === this.playerName;
+
+        try {
+            console.log('🔄 Refrescando token de autenticación...');
+
+            const response = await fetch(`${this.serverBase}/api/auth/refresh`, {
+                method: 'POST',
+                signal: controller.signal,
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            });
+
+            console.log(`📊 Respuesta de refresh: ${response.status}`);
+
+            if (response.ok) {
+                const data = await response.json();
+                if (!vigente()) return false;
+                if (data.csrfToken) {
+                    this.csrfToken = data.csrfToken;
+                    window.csrfToken = data.csrfToken;
+                    console.log('✅ Token CSRF actualizado');
+                }
+                this.lastActivityTime = Date.now();
+                this.refreshInProgress = false;
+                this.currentRefreshAttempts = 0;
+                return true;
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                console.warn('⚠️ Falló el refresh del token:', response.status, errorData);
+                this.refreshInProgress = false;
+                return false;
+            }
+        } catch (error) {
+            console.error('❌ Error al refrescar token:', error);
+            return false;
+        } finally {
+            clearTimeout(deadline);
+            if (this._authRefreshController === controller) {
+                this._authRefreshController = null;
+                this.refreshInProgress = false;
+            }
+        }
+    }
+
+    // =========================================================================
+    //  FETCH WRAPPER CON REINTENTOS
+    // =========================================================================
+
+    async fetchWithTokenRetry(url, options = {}, maxRetries = 2) {
+        const turno = this._turnoCreate;
+        const assertActive = () => {
+            if (turno !== this._turnoCreate || options.signal?.aborted) {
+                const error = new Error('Loading request cancelled');
+                error.name = 'AbortError';
+                throw error;
+            }
+        };
+        maxRetries = Number.isFinite(maxRetries) ? Math.max(0, Math.min(5, Math.floor(maxRetries))) : 2;
+        const defaultOptions = {
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-Token': window.getCsrfToken(this.csrfToken)
+            }
+        };
+
+        const fetchOptions = {
+            ...defaultOptions,
+            ...options,
+            headers: {
+                ...defaultOptions.headers,
+                ...(options.headers || {})
+            }
+        };
+
+        let retries = 0;
+        let lastResponse = null;
+
+        while (retries <= maxRetries) {
+            try {
+                assertActive();
+                console.log(`📤 Fetch ${url} (intento ${retries + 1}/${maxRetries + 1})`);
+
+                const response = await fetch(url, fetchOptions);
+                assertActive();
+                lastResponse = response;
+
+                if (response.ok) return response;
+
+                if (response.status === 401) {
+                    console.log('🔐 Error 401 detectado, intentando refresh...');
+
+                    let errorBody = {};
+                    try { errorBody = await response.json(); } catch (e) { /* noop */ }
+                    assertActive();
+
+                    const isTokenError = errorBody.canRefresh === true || (typeof errorBody.error === 'string' && (
+                        errorBody.error.includes('token_expired') ||
+                        errorBody.error.includes('invalid_session') ||
+                        errorBody.error.includes('authentication_required') ||
+                        errorBody.canRefresh === true
+                    ));
+
+                    if (isTokenError && retries < maxRetries) {
+                        const refreshSuccess = await this.refreshAuthToken();
+                        assertActive();
+                        if (refreshSuccess) {
+                            fetchOptions.headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
+                            retries++;
+                            await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+                            continue;
+                        } else {
+                            console.error('❌ No se pudo refrescar el token');
+                            break;
+                        }
+                    } else {
+                        console.error(`❌ Error ${response.status} no manejable por refresh`);
+                        break;
+                    }
+                } else if (response.status === 403) {
+                    console.log('🔐 Error 403, verificando CSRF...');
+                    if (retries < maxRetries) {
+                        await this.getCSRFToken();
+                        assertActive();
+                        if (this.csrfToken) {
+                            fetchOptions.headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
+                            retries++;
+                            await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+                            continue;
+                        } else {
+                            console.error('❌ No se pudo obtener nuevo token CSRF');
+                            break;
+                        }
+                    }
+                    // FIX: con los reintentos agotados no había salida: el
+                    // while volvía a pedir la misma URL con el mismo contador
+                    // y un 403 persistente se convertía en un bucle infinito
+                    // de peticiones contra el servidor.
+                    break;
+                } else {
+                    console.error(`❌ Error HTTP ${response.status}`);
+                    break;
+                }
+
+            } catch (error) {
+                if (error?.name === 'AbortError' || turno !== this._turnoCreate || options.signal?.aborted) throw error;
+                console.error(`❌ Error de red (intento ${retries + 1}):`, error);
+                retries++;
+                if (retries > maxRetries) throw error;
+                await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+            }
+        }
+
+        return lastResponse;
+    }
+
+    // =========================================================================
+    //  CARGA DE DATOS DEL JUGADOR
+    // =========================================================================
+
+    async loadPlayerData() {
+        const run = this._sceneRunId, turno = this._turnoCreate;
+        const vigente = () => !this._sceneStopped && this._sceneRunId === run && this._turnoCreate === turno;
+        console.log('📥 Cargando datos del jugador...');
+
+        try {
+            if (!this.playerName || !this.isAuthenticated) {
+                console.error('❌ No se puede cargar datos: jugador no autenticado');
+                return null;
+            }
+
+            const response = await this.fetchWithTokenRetry(
+                `${this.serverBase}/api/load/${encodeURIComponent(this.playerName)}`,
+                { method: 'GET', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' } }
+            );
+            if (!vigente()) return null;
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('❌ Error al cargar datos del jugador:', {
+                    status: response.status,
+                    error: errorText
+                });
+                return null;
+            }
+
+            const data = await response.json();
+            if (!vigente()) return null;
+            if (Date.parse(this._inventoryLoadedAt) > Date.parse(data.inventoryLoadedAt)) return null;
+            console.log('✅ Datos del jugador recibidos');
+            this._inventoryLoadedAt = data.inventoryLoadedAt || new Date().toISOString();
+
+            // Inicializar STATE limpio
+            if (!this.STATE) {
+                this.STATE = {
+                    slots:      new Array(40).fill(null),
+                    quickSlots: new Array(7).fill(null),
+                    selectedItem: null
+                };
+                console.log('🆕 STATE inicializado desde cero');
+            }
+
+            this.STATE.slots.fill(null);
+            this.STATE.quickSlots.fill(null);
+
+            // Cargar inventario desde BD
+            if (data.inventory && Array.isArray(data.inventory)) {
+                console.log(`📦 Cargando ${data.inventory.length} items del inventario`);
+                data.inventory.forEach(s => {
+                    if (typeof s.id === 'number' && s.objeto && s.id < 40) {
+                        this.STATE.slots[s.id] = {
+                            id:    s.objeto,
+                            idx:   s.IDX  ?? s.id,
+                            idm:   s.Manualid ?? s.objeto,
+                            count: s.cantidad || 1
+                        };
+                    }
+                });
+            }
+
+            // Cargar cofre (quickSlots) desde BD
+            if (data.chest && Array.isArray(data.chest)) {
+                console.log(`🎁 Cargando ${data.chest.length} items del cofre`);
+                data.chest.forEach(s => {
+                    if (typeof s.id === 'number' && s.objeto && s.id < 7) {
+                        this.STATE.quickSlots[s.id] = {
+                            id:    s.objeto,
+                            idx:   s.IDX  ?? s.id,
+                            idm:   s.Manualid ?? s.objeto,
+                            count: s.cantidad || 1
+                        };
+                    }
+                });
+            }
+
+            // Propiedades del jugador
+            // ── HABILIDADES: LEERLAS AQUÍ NO ES OPCIONAL ────────────────────
+            // BUG GRAVE QUE ESTO ARREGLA — "las skills nunca suben" / "vuelven
+            // a cero solas":
+            //
+            // Esta escena nace con `mineria = pesca = cocina = deforestacion =
+            // fuerza = agricultura = 0` (ver el constructor) y su savegg() manda
+            // ESOS CEROS en el cuerpo de /api/save. Como esta lista —la única
+            // que copia la respuesta de /api/load a la escena— no incluía las
+            // habilidades, los ceros nunca se sustituían por los valores reales.
+            //
+            // Y savegg() aquí no es un caso raro: se llama en cada arranque en
+            // el que la sincronización con la blockchain corrige o añade algún
+            // ítem (lo normal), y esta escena es además la que se atraviesa al
+            // VOLVER DE UNA BATALLA. Resultado: farming, mining y woodcutting se
+            // borraban solas cada dos por tres, por mucho que el jugador
+            // trabajara. Leyéndolas, el guardado devuelve lo que ya había.
+            const playerProps = [
+                'posicionplayerx', 'posicionplayery',
+                'vidaPorcentaje', 'aguaPorcentaje', 'comidaPorcentaje',
+                'speed', 'mundo', 'moneda', 'moneda_plata',
+                'nivel', 'nivel_exp', 'misiones', 'Username', 'lenguaje',
+                'agricultura', 'agricultura_exp', 'mineria', 'mineria_exp',
+                'deforestacion', 'deforestacion_exp',
+                'pesca', 'pesca_exp', 'cocina', 'cocina_exp', 'fuerza', 'fuerza_exp'
+            ];
+
+            playerProps.forEach(prop => {
+                if (data[prop] !== undefined && data[prop] !== null) {
+                    this[prop] = data[prop];
+                }
+            });
+
+            /* LA NOTA DE VIAJE MANDA (2026-10-10). Si una puerta acaba de dejar
+               dicho a dónde se va (GFViaje, gf-lands.js), eso pesa más que lo
+               guardado, que puede ser un guardado viejo que llegó tarde: salías
+               de la tienda y te devolvía a ella. No se recoge: la recoge la
+               escena de llegada. */
+            {
+                const _nota = (window.GFViaje && typeof window.GFViaje.mirar === 'function')
+                    ? window.GFViaje.mirar() : null;
+                if (_nota && Number(_nota.mundo) >= 1) {
+                    this.mundo = Number(_nota.mundo);
+                    if (Number.isFinite(_nota.x) && Number.isFinite(_nota.y)) {
+                        this.posicionplayerx = _nota.x;
+                        this.posicionplayery = _nota.y;
+                    }
+                }
+            }
+
+            // Marca de que las habilidades YA vienen de la base de datos. savegg()
+            // solo las manda si esto es true: si por lo que sea se guardara antes
+            // de cargar, se dejan fuera del cuerpo en vez de escribir los ceros
+            // del constructor encima del progreso real.
+            this._skillsCargadas = true;
+
+            if (this.player) {
+                this.player.setVisible(true);
+                this.player.setPosition(this.posicionplayerx, this.posicionplayery);
+            }
+
+            // Publicar address y playerName globalmente para que las escenas los usen
+            // NOTA: window.playerStats se setea en syncStatsWithBlockchain con los
+            // valores canónicos del contrato — no lo sobreescribir aquí con valores de BD.
+            window.currentPlayer  = this.playerName;
+            window.currentAddress = this.address;
+            // Solo inicializar si aún no existe (no sobreescribir valores del contrato)
+            if (!window.playerStats) {
+                window.playerStats = {
+                    vida:   this.vidaPorcentaje || 0,
+                    agua:   this.aguaPorcentaje || 0,
+                    comida: this.comidaPorcentaje || 0,
+                    oro:    this.moneda         || 0,
+                    plata:  this.moneda_plata   || 0,
+                    exp:    this.nivel_exp      || 0,
+                    invoiceIds: {}
+                };
+                console.log('📊 window.playerStats inicializado (primera vez, desde BD):', window.playerStats);
+            }
+
+            console.log('✅ Datos del jugador cargados exitosamente');
+            return data;
+
+        } catch (error) {
+            console.error('❌ Error de red al cargar datos del jugador:', error);
+            return null;
+        }
+    }
+
+
+    // =========================================================================
+    //  SINCRONIZACIÓN DE STATS VITALES (vida/agua/comida/oro/plata)
+    // =========================================================================
+
+    /**
+     * Sincroniza las 5 tablas de stats (vida, agua, comida, oro, plata) con el
+     * smart contract InvoiceSystem. Si no existen facturas únicas para el jugador,
+     * las crea con valores por defecto (100000/100000/100000/0/0).
+     * Actualiza window.playerStats con los valores canónicos del contrato.
+     * No-bloqueante: si falla, continúa con los valores cargados desde BD.
+     */
+    async syncStatsWithBlockchain() {
+        const turno = this._turnoCreate, playerName = this.playerName, address = this.address;
+        const vigente = () => turno === this._turnoCreate && playerName === this.playerName && address === this.address;
+        if (!this.address || !this.isAuthenticated || !this.playerName) {
+            console.warn('⚠️ [stats-sync] Saltando: usuario no autenticado');
+            return;
+        }
+
+        console.log('🔗 [stats-sync] Iniciando sincronización de stats...');
+
+        try {
+            const resp = await this.fetchWithTokenRetry(
+                `${this.serverBase}/api/stats/${encodeURIComponent(this.playerName)}/sync`,
+                {
+                    method: 'POST',
+                    body: JSON.stringify({ address: this.address })
+                }
+            );
+            if (!vigente()) return;
+
+            if (!resp || !resp.ok) {
+                const errText = resp ? await resp.text().catch(() => '') : 'sin respuesta';
+                console.warn('⚠️ [stats-sync] Sync falló, usando valores de BD:', errText);
+                return;
+            }
+
+            const data = await resp.json();
+            if (!vigente()) return;
+            const stats = data.stats;
+
+            if (!stats) {
+                console.warn('⚠️ [stats-sync] Respuesta sin stats');
+                return;
+            }
+
+            // Aplicar los valores del contrato a las propiedades locales
+            this.vidaPorcentaje   = typeof stats.vida   === 'number' ? stats.vida   : this.vidaPorcentaje;
+            this.aguaPorcentaje   = typeof stats.agua   === 'number' ? stats.agua   : this.aguaPorcentaje;
+            this.comidaPorcentaje = typeof stats.comida === 'number' ? stats.comida : this.comidaPorcentaje;
+            // oro/plata: usar el valor del contrato siempre (0 si no hay factura)
+            this.moneda       = typeof stats.oro   === 'number' ? stats.oro   : 0;
+            this.moneda_plata = typeof stats.plata === 'number' ? stats.plata : 0;
+            // exp: tiene su propia tabla en el contrato, igual que oro y plata.
+            // Solo se pisa el valor local cuando la factura de exp ya existe;
+            // si todavía no se creó, el backend la sembrará con este valor.
+            if (typeof stats.exp === 'number' && stats.invoiceIds && stats.invoiceIds.exp) {
+                this.nivel_exp = stats.exp;
+            }
+
+            // Actualizar window.playerStats con valores canónicos del contrato
+            window.playerStats = {
+                vida:       this.vidaPorcentaje,
+                agua:       this.aguaPorcentaje,
+                comida:     this.comidaPorcentaje,
+                oro:        this.moneda,       // ya es 0 si no hay factura
+                plata:      this.moneda_plata, // ya es 0 si no hay factura
+                exp:        this.nivel_exp || 0,
+                invoiceIds: stats.invoiceIds || {}
+            };
+            if (data.pending && data.pending.length) {
+                console.warn('⏳ [stats-sync] Sin factura todavía:', data.pending.join(', '));
+            }
+            // Actualizar display de monedas inmediatamente
+            const elLeft  = document.getElementById('info-text-left');
+            const elRight = document.getElementById('info-text-right');
+            if (elLeft)  elLeft.textContent  = `${this.moneda}`;
+            if (elRight) elRight.textContent = `${this.moneda_plata}`;
+
+            console.log('✅ [stats-sync] Stats sincronizados desde contrato:', window.playerStats,
+                '| fuente:', data.source || 'chain');
+
+        } catch (err) {
+            console.warn('⚠️ [stats-sync] Error al sincronizar stats:', err.message || err);
+            // Continuar con los valores actuales de BD — no romper el flujo
+        }
+    }
+
+    // =========================================================================
+    //  SINCRONIZACIÓN CON BLOCKCHAIN
+    // =========================================================================
+
+    /**
+     * Inicializa un PhaserRelay instance reutilizable en LoadingScenegame.
+     * Si ya existe y está autenticado, lo reutiliza.
+     */
+    async _ensureRelayClient() {
+        if (this.relayClient) return this.relayClient;
+
+        if (typeof PhaserRelay === 'undefined') {
+            console.warn('⚠️ PhaserRelay no disponible. ¿Cargaste phaser-relay-library.js?');
+            return null;
+        }
+
+        try {
+            this.relayClient = new PhaserRelay({
+                apiBase: this.serverBase,
+                debug:   false
+            });
+            await this.relayClient.initialize();
+        } catch (err) {
+            console.warn('⚠️ Error inicializando PhaserRelay:', err.message || err);
+            this.relayClient = null;
+        }
+
+        return this.relayClient;
+    }
+
+    /**
+     * Parsea el snapshot de getUserInventorySnapshot() o getInvoicesSafe()
+     * y construye:
+     *   - invoiceById:       Map<number, {id, manualId, cantidad, tipo, active}>
+     *   - invoiceByManualId: Map<string, misma estructura>
+     */
+    _buildSyncMaps(rawData) {
+        const invoiceById       = new Map();
+        const invoiceByManualId = new Map();
+
+        const looksLikeInvoice = (x) =>
+            x && typeof x === 'object' && !Array.isArray(x) &&
+            (x.id !== undefined || x['0'] !== undefined);
+        // Una respuesta ilegible no significa "inventario vacío". Una factura
+        // suelta del relay antiguo tampoco prueba que las demás hayan desaparecido.
+        let raw = rawData;
+        for (let depth = 0; depth < 4 && raw && !Array.isArray(raw); depth++) {
+            if (Object.prototype.hasOwnProperty.call(raw, 'result')) raw = raw.result;
+            else if (!looksLikeInvoice(raw) && Array.isArray(raw['0'])) raw = raw['0'];
+            else break;
+        }
+        let arr, complete;
+        if (Array.isArray(raw)) {
+            complete = raw.length === 0 || Array.isArray(raw[0]) || looksLikeInvoice(raw[0]);
+            arr = complete ? raw : [raw];
+        } else if (looksLikeInvoice(raw)) {
+            arr = [raw]; complete = false;
+        } else {
+            throw new Error('inventory_snapshot_invalid');
+        }
+
+        const seen = new Set();
+        for (const row of arr) {
+            if (!row || typeof row !== 'object') throw new Error('inventory_snapshot_invalid');
+            const field = (name, i) => row[name] !== undefined ? row[name] : row[i];
+            const id = Number(field('id', 0));
+            const manualId = field('manualId', 1);
+            const owner = field('owner', 2);
+            const tipo = field('tipo', 3);
+            const cantidad = Number(field('cantidad', 4));
+            const flag = field('active', 5);
+            if (!Number.isSafeInteger(id) || id < 1 || typeof manualId !== 'string' || !manualId ||
+                typeof tipo !== 'string' || !tipo || !Number.isSafeInteger(cantidad) || cantidad < 0 ||
+                ![true, false, 'true', 'false', 0, 1, '0', '1'].includes(flag) || seen.has(id)) {
+                throw new Error('inventory_snapshot_invalid');
+            }
+            seen.add(id);
+            const active = [true, 'true', 1, '1'].includes(flag);
+            if (owner != null && (typeof owner !== 'string' ||
+                (this.address && owner.toLowerCase() !== this.address.toLowerCase()))) {
+                throw new Error('inventory_snapshot_wrong_owner');
+            }
+            if (!active) continue;
+            const entry = { id, manualId, cantidad, tipo, active: true };
+            invoiceById.set(id, entry);
+            if (manualId) invoiceByManualId.set(manualId, entry);
+        }
+
+        console.log(`[sync] _buildSyncMaps: ${invoiceById.size} facturas activas parseadas`);
+        return { invoiceById, invoiceByManualId, complete };
+    }
+
+    /**
+     * Cuadra las casillas con las facturas de la cadena SIN MOVER NADA DE SITIO.
+     *
+     * EL FALLO QUE ESTO ARREGLA (2026-10-03) — "siempre se desordenan los
+     * items":
+     *
+     * la versión anterior (`_applySyncToSlots`) VACIABA toda casilla cuyo
+     * `idx`/`idm` no coincidiera exactamente con una factura viva, y después
+     * `_addMissingBlockchainItems` volvía a meter esa misma factura en la
+     * PRIMERA casilla libre. Y los `idx` basura son lo normal, no la excepción:
+     * `addItem` rellena `idx` con el NÚMERO DE CASILLA cuando nadie le pasa un
+     * id, y el `manualId` acaba valiendo el nombre del objeto (ver memoria
+     * "la cadena manda en el inventario"). Resultado: en cada entrada al mapa,
+     * todo objeto con un id viejo saltaba al principio del inventario.
+     *
+     * Ahora una casilla solo se vacía si en la cadena NO queda ninguna factura
+     * que pueda ser suya. Tres pasadas, de más a menos segura, y una factura
+     * solo puede ser de UNA casilla (antes dos casillas con el mismo idx
+     * enseñaban el mismo objeto dos veces):
+     *
+     *   1. el idx y el manualId coinciden → es esa (se corrige la cantidad);
+     *   2. el manualId coincide con otra factura → se re-enlaza el idx;
+     *   3. hay una factura LIBRE del mismo objeto → se re-enlaza a ella,
+     *      prefiriendo la de la misma cantidad.
+     *
+     * La casilla se queda donde estaba en las tres. La cadena sigue siendo la
+     * verdad de QUÉ y CUÁNTO hay; la casilla guardada, de DÓNDE.
+     *
+     * @param {Map} invoiceById - id → {id, manualId, cantidad, tipo}
+     * @returns {{ inv:number, quick:number }} correcciones en cada lista
+     */
+    _reconciliarCasillas(invoiceById, complete = true) {
+        const reclamadas = new Set();
+        const porManual = new Map();
+        const objetoDe = new Map();            // invoiceId → itemId del juego
+        for (const [id, inv] of invoiceById) {
+            if (inv.manualId) porManual.set(inv.manualId, inv);
+            objetoDe.set(id, this._tipoToItemId(inv.tipo));
+        }
+
+        const listas = [['inv', this.STATE.slots], ['quick', this.STATE.quickSlots]];
+        const arreglos = { inv: 0, quick: 0 };
+        const resueltas = new Set();           // 'inv:3', 'quick:0'…
+
+        const enlazar = (label, lista, i, inv, motivo) => {
+            const s = lista[i];
+            const cambia = Number(s.idx) !== inv.id || s.idm !== inv.manualId ||
+                           s.count !== inv.cantidad;
+            const objeto = objetoDe.get(inv.id);
+            if (objeto && s.id !== objeto) s.id = objeto;
+            s.idx = inv.id;
+            s.idm = inv.manualId;
+            s.count = inv.cantidad;
+            reclamadas.add(inv.id);
+            resueltas.add(label + ':' + i);
+            if (cambia) {
+                arreglos[label]++;
+                console.log(`🔗 [sync] ${label}[${i}] ${motivo} → factura ${inv.id} x${inv.cantidad} (se queda en su casilla)`);
+            }
+        };
+
+        // 1. id y manualId exactos
+        for (const [label, lista] of listas) {
+            for (let i = 0; i < lista.length; i++) {
+                const s = lista[i];
+                if (!s || s.idx === null || s.idx === undefined || !s.idm) continue;
+                const inv = invoiceById.get(Number(s.idx));
+                if (inv && inv.cantidad > 0 && !reclamadas.has(inv.id) && inv.manualId === s.idm) {
+                    enlazar(label, lista, i, inv, 'cantidad');
+                }
+            }
+        }
+        // 2. por manualId
+        for (const [label, lista] of listas) {
+            for (let i = 0; i < lista.length; i++) {
+                const s = lista[i];
+                if (!s || resueltas.has(label + ':' + i) || !s.idm) continue;
+                const inv = porManual.get(s.idm);
+                if (inv && inv.cantidad > 0 && !reclamadas.has(inv.id) && objetoDe.get(inv.id)) {
+                    enlazar(label, lista, i, inv, 'id viejo, mismo manualId');
+                }
+            }
+        }
+        // 3. por objeto: una factura libre del mismo objeto
+        for (const [label, lista] of listas) {
+            for (let i = 0; i < lista.length; i++) {
+                const s = lista[i];
+                if (!s || resueltas.has(label + ':' + i)) continue;
+                let mejor = null;
+                for (const [id, inv] of invoiceById) {
+                    if (inv.cantidad <= 0 || reclamadas.has(id) || objetoDe.get(id) !== s.id) continue;
+                    if (!mejor || (inv.cantidad === s.count && mejor.cantidad !== s.count)) mejor = inv;
+                    if (mejor.cantidad === s.count) break;
+                }
+                if (mejor) enlazar(label, lista, i, mejor, 'id basura, mismo objeto');
+            }
+        }
+        // Lo que queda sin factura no existe en la cadena: fuera.
+        for (const [label, lista] of listas) {
+            for (let i = 0; i < lista.length; i++) {
+                if (!complete || !lista[i] || resueltas.has(label + ':' + i)) continue;
+                console.warn(`🗑️ [sync] ${label}[${i}] "${lista[i].id}" sin ninguna factura en la cadena → limpiando`);
+                lista[i] = null;
+                arreglos[label]++;
+            }
+        }
+        return arreglos;
+    }
+
+    /**
+     * En qué casilla guardó la cadena cada factura (contrato v3, ver
+     * `setInvoiceSlotsBatch` en el contrato y `/api/inventory/casillas` en el
+     * servidor). Un contrato v2 devuelve {}. Un fallo de lectura devuelve
+     * null para posponer la conciliación y no duplicar los objetos de cofres.
+     *
+     * @returns {Promise<Object<string, number>>} invoiceId → código de casilla
+     *          (1..9999 = inventario n-1 · 10001..19999 = cofre n-10001)
+     */
+    async _leerCasillasDeCadena() {
+        // Las facturas guardadas en los cofres de la isla (2026-10-05): vienen
+        // en la misma respuesta. Ver syncInventoryWithBlockchain.
+        const run = this._sceneRunId, turno = this._turnoCreate;
+        const vigente = () => !this._sceneStopped && this._sceneRunId === run && this._turnoCreate === turno;
+        const controller = new AbortController();
+        const deadline = setTimeout(() => controller.abort(), 15000);
+        try {
+            if (!this.serverBase) return null;
+            const r = await fetch(`${this.serverBase}/api/inventory/casillas`, {
+                credentials: 'include', headers: { 'Accept': 'application/json' }, signal: controller.signal
+            });
+            if (!r.ok) return null;
+            const d = await r.json();
+            if (!vigente() || !d || typeof d !== 'object') return null;
+            this._facturasEnCofres = new Set();
+            if (d && Array.isArray(d.enCofres)) {
+                this._facturasEnCofres = new Set(d.enCofres.map(Number).filter(n => n > 0));
+            }
+            return (d && d.soportado && d.casillas && typeof d.casillas === 'object') ? d.casillas : {};
+        } catch (_) {
+            return null;
+        } finally {
+            clearTimeout(deadline);
+        }
+    }
+
+    /**
+     * Fallback de sincronización usando batchVerifySlots() cuando
+     * getUserInventorySnapshot() no está disponible en el contrato.
+     *
+     * batchVerifySlots(uint256[] slotIds, string[] slotManualIds)
+     *   → (bool[] valid, uint256[] canonicalQty)
+     */
+    async _syncFallback(contract, vigente = () => true) {
+        console.log('🔗 [sync-fallback] Usando batchVerifySlots...');
+
+        // Recopilar todos los slots no nulos
+        const allSlots = [];
+
+        const collectSlots = (arr, prefix) => {
+            for (let i = 0; i < arr.length; i++) {
+                if (!arr[i]) continue;
+                const idx = Number(arr[i].idx);
+                const idm = arr[i].idm || '';
+                if (!idx || !idm) continue;
+                allSlots.push({ slotArr: arr, slotIndex: i, prefix, idx, idm });
+            }
+        };
+
+        collectSlots(this.STATE.slots,      'inv');
+        collectSlots(this.STATE.quickSlots, 'quick');
+
+        if (allSlots.length === 0) {
+            console.log('🔗 [sync-fallback] No hay slots para verificar.');
+            return;
+        }
+
+        const slotIds       = allSlots.map(s => String(s.idx));
+        const slotManualIds = allSlots.map(s => s.idm);
+
+        let result;
+        try {
+            result = await this.relayClient.accion(contract.address, {
+                funcion:        'batchVerifySlots',
+                slotIds:        slotIds,
+                slotManualIds:  slotManualIds,
+                accion:         'obtener'
+            });
+        } catch (err) {
+            console.error('❌ [sync-fallback] batchVerifySlots falló:', err.message || err);
+            return;
+        }
+        if (!vigente()) return;
+
+        if (!result) {
+            console.warn('⚠️ [sync-fallback] batchVerifySlots devolvió vacío');
+            return;
+        }
+
+        // Normalizar resultado → arrays valid[] y canonicalQty[]
+        let validArr       = [];
+        let canonicalQtArr = [];
+
+        if (Array.isArray(result)) {
+            // Resultado como tuple: [valid[], canonicalQty[]]
+            validArr        = Array.isArray(result[0]) ? result[0] : [];
+            canonicalQtArr  = Array.isArray(result[1]) ? result[1] : [];
+        } else if (result && typeof result === 'object') {
+            // Resultado como objeto nombrado: { valid: [...], canonicalQty: [...] }
+            validArr       = result.valid       || result['0'] || [];
+            canonicalQtArr = result.canonicalQty || result['1'] || [];
+        }
+        if (!Array.isArray(validArr) || !Array.isArray(canonicalQtArr) ||
+            validArr.length !== allSlots.length || canonicalQtArr.length !== allSlots.length) return;
+
+        let fixed = 0;
+        for (let i = 0; i < allSlots.length; i++) {
+            const { slotArr, slotIndex, prefix, idx } = allSlots[i];
+            const isValid     = [true, 'true', 1, '1'].includes(validArr[i]);
+            const canonical   = Number(canonicalQtArr[i]);
+            if (!Number.isSafeInteger(canonical) || canonical < 1) continue;
+
+            if (!isValid) {
+                /* YA NO SE BORRA. Este camino solo se usa cuando el snapshot
+                   falló, o sea sin saber QUÉ facturas tiene el jugador: un
+                   idx viejo no dice que el objeto no exista, dice que se
+                   guardó con otro id. Borrarlo aquí era quitarlo de su
+                   casilla y que la siguiente sincronización buena lo metiera
+                   en la primera libre (otra vía del "se desordenan"). Se deja
+                   para la próxima sincronización completa. */
+                console.warn(`⚠️ [sync-fallback] ${prefix}[${slotIndex}] idx=${idx} no cuadra; se deja para la próxima sincronización completa`);
+            } else if (slotArr[slotIndex] && slotArr[slotIndex].count !== canonical) {
+                console.warn(
+                    `🔧 [sync-fallback] ${prefix}[${slotIndex}] idx=${idx} cantidad:`,
+                    `local=${slotArr[slotIndex].count} → blockchain=${canonical}`
+                );
+                slotArr[slotIndex].count = canonical;
+                fixed++;
+            }
+        }
+
+        console.log(`✅ [sync-fallback] Finalizado. ${fixed} correcciones aplicadas.`);
+    }
+
+    // =========================================================================
+    //  HELPERS DE SINCRONIZACIÓN BLOCKCHAIN
+    // =========================================================================
+
+    /**
+     * Convierte el campo `tipo` del contrato al key de ItemDefinitions.
+     * Ej: "hacha de madera" → "hacha_de_madera"
+     */
+    _tipoToItemId(tipo) {
+        if (!tipo) return null;
+        const tipoNorm = tipo.trim().toLowerCase();
+        if (tipoNorm.indexOf('player_') === 0) return null;
+
+        // Tablas del contrato que NO son objetos del inventario: las barras,
+        // la experiencia, el nivel y el nombre, y lo construido en la isla.
+        // Viven en las mismas facturas del jugador, así que pasan por aquí en
+        // cada carga; se descartan sin llenar la consola de avisos.
+        if (['vida', 'agua', 'comida', 'oro', 'plata', 'exp',
+             'nivel', 'nombre', 'cons_parcelas'].indexOf(tipoNorm) !== -1) return null;
+
+        // 1. Mapa explícito TIPO_TO_ITEM_ID
+        if (this.TIPO_TO_ITEM_ID && this.TIPO_TO_ITEM_ID[tipoNorm]) {
+            return this.TIPO_TO_ITEM_ID[tipoNorm];
+        }
+
+        // 2. Conversión automática: "hacha de madera" → "hacha_de_madera"
+        const autoKey = tipoNorm.replace(/\s+/g, '_');
+        if (this.ItemDefinitions[autoKey]) return autoKey;
+
+        // 3. Buscar por campo tipo dentro de ItemDefinitions
+        for (const [key, def] of Object.entries(this.ItemDefinitions)) {
+            if (def.tipo && def.tipo.toLowerCase() === tipoNorm) return key;
+        }
+
+        // 4. Intentar el tipo tal cual como clave directa
+        if (this.ItemDefinitions[tipo]) return tipo;
+
+        console.warn(`[sync] No se encontró itemId para tipo="${tipo}"`);
+        return null;
+    }
+
+    /**
+     * Agrega al inventario local los ítems que existen en blockchain
+     * pero NO están en ningún slot local (ni por IDX ni por manualId).
+     * Si la cadena recuerda su casilla (contrato v3) y está libre, va ahí; si
+     * no, a la primera libre del inventario (40) y luego del cofre (7).
+     * @param {Map} invoiceById - mapa id→{id,manualId,cantidad,tipo,active}
+     * @param {Object} [casillas] - invoiceId → código de casilla de la cadena
+     * @returns {number} cantidad de ítems nuevos agregados
+     */
+    _addMissingBlockchainItems(invoiceById, casillas) {
+        if (!invoiceById || invoiceById.size === 0) return 0;
+        const recordadas = casillas || {};
+        const casillaDe = (invoiceId) => {
+            const c = Number(recordadas[invoiceId]) || 0;
+            if (c >= 1 && c <= this.STATE.slots.length) return { lista: this.STATE.slots, i: c - 1, label: 'slots' };
+            if (c >= 10001 && c - 10001 < this.STATE.quickSlots.length) return { lista: this.STATE.quickSlots, i: c - 10001, label: 'quickSlots' };
+            return null;
+        };
+        // Primero las que tienen casilla recordada: si no, una sin casilla
+        // podría quedarse el hueco de otra solo por llegar antes en la lista.
+        const orden = [...invoiceById.entries()].sort((a, b) =>
+            (casillaDe(a[0]) ? 0 : 1) - (casillaDe(b[0]) ? 0 : 1));
+
+        // Colectar todos los idx y manualIds ya presentes localmente
+        const usedIdx    = new Set();
+        const usedManual = new Set();
+
+        const scanSlots = (arr) => {
+            for (const s of arr) {
+                if (!s) continue;
+                if (s.idx != null) usedIdx.add(Number(s.idx));
+                if (s.idm)         usedManual.add(s.idm);
+            }
+        };
+        scanSlots(this.STATE.slots);
+        scanSlots(this.STATE.quickSlots);
+
+        let added = 0;
+
+        for (const [invoiceId, invoice] of orden) {
+            // Ya está cubierto en algún slot
+            if (usedIdx.has(invoiceId) || usedManual.has(invoice.manualId)) continue;
+
+            const itemId = this._tipoToItemId(invoice.tipo);
+            if (!itemId) {
+                console.warn(`🚫 [sync] invoice id=${invoiceId} tipo="${invoice.tipo}" sin itemId → omitiendo`);
+                continue;
+            }
+
+            // FIX: antes se recortaba a maxStack. Pero un hueco representa UNA
+            // factura entera: `_reconciliarCasillas` pone siempre la cantidad de
+            // la cadena, así que el recorte duraba solo esta carga — savegg
+            // guardaba 50 de una factura de 60 y en la siguiente entrada
+            // "reaparecían" 10. Y con una cantidad ilegible salía NaN en el
+            // hueco. La cadena manda: se usa su cantidad y se ignoran las
+            // facturas vacías.
+            const cantidad = Number(invoice.cantidad);
+            if (!Number.isFinite(cantidad) || cantidad <= 0) {
+                console.warn(`🚫 [sync] invoice id=${invoiceId} cantidad="${invoice.cantidad}" → omitiendo`);
+                continue;
+            }
+
+            // La casilla que recuerda la cadena, si está libre.
+            let placed = false;
+            const recordada = casillaDe(invoiceId);
+            if (recordada && recordada.lista[recordada.i] === null) {
+                recordada.lista[recordada.i] = { id: itemId, idx: invoiceId, idm: invoice.manualId, count: cantidad };
+                usedIdx.add(invoiceId);
+                usedManual.add(invoice.manualId);
+                placed = true;
+                added++;
+                console.log(`➕ [sync] Invoice id=${invoiceId} tipo="${invoice.tipo}" → ${recordada.label}[${recordada.i}] (casilla guardada en la cadena)`);
+            }
+
+            // Si no, inventario principal primero, luego cofre
+
+            for (let i = 0; i < this.STATE.slots.length && !placed; i++) {
+                if (this.STATE.slots[i] === null) {
+                    this.STATE.slots[i] = { id: itemId, idx: invoiceId, idm: invoice.manualId, count: cantidad };
+                    usedIdx.add(invoiceId);
+                    usedManual.add(invoice.manualId);
+                    placed = true;
+                    added++;
+                    console.log(`➕ [sync] Invoice id=${invoiceId} tipo="${invoice.tipo}" → slots[${i}] "${itemId}" x${cantidad}`);
+                }
+            }
+
+            if (!placed) {
+                for (let i = 0; i < this.STATE.quickSlots.length && !placed; i++) {
+                    if (this.STATE.quickSlots[i] === null) {
+                        this.STATE.quickSlots[i] = { id: itemId, idx: invoiceId, idm: invoice.manualId, count: cantidad };
+                        usedIdx.add(invoiceId);
+                        usedManual.add(invoice.manualId);
+                        placed = true;
+                        added++;
+                        console.log(`➕ [sync] Invoice id=${invoiceId} tipo="${invoice.tipo}" → quickSlots[${i}] "${itemId}" x${cantidad}`);
+                    }
+                }
+            }
+
+            if (!placed) {
+                console.warn(`⚠️ [sync] Invoice id=${invoiceId}: inventario y cofre llenos, no se pudo agregar`);
+            }
+        }
+
+        return added;
+    }
+
+    /**
+     * MÉTODO PRINCIPAL DE SINCRONIZACIÓN
+     *
+     * Verifica TODOS los slots del inventario y del cofre contra la blockchain
+     * antes de transicionar a GameScene. Usa getUserInventorySnapshot() si
+     * está disponible en el contrato (1 llamada RPC), o batchVerifySlots()
+     * como fallback. Solo un listado completo y válido puede eliminar casillas.
+     *
+     * No lanza excepciones hacia afuera — si falla, registra el error y continúa.
+     */
+    async syncInventoryWithBlockchain() {
+        const run = this._sceneRunId, turno = this._turnoCreate;
+        const state = this.STATE, revision = this._inventoryLoadedAt, address = this.address;
+        const vigente = () => !this._sceneStopped && this._sceneRunId === run && this._turnoCreate === turno &&
+            this.STATE === state && this._inventoryLoadedAt === revision && this.address === address;
+        if (!this.address || !this.isAuthenticated) {
+            console.warn('⚠️ [sync] Saltando sync: usuario no autenticado');
+            return;
+        }
+
+        // Siempre sincronizamos: blockchain puede tener ítems que aún no están en BD
+        console.log('🔗 [sync] Iniciando sincronización blockchain del inventario...');
+
+        // ── 1. Inicializar relay client ─────────────────────────────────────
+        const relay = await this._ensureRelayClient();
+        if (!vigente()) return;
+        if (!relay) {
+            console.warn('⚠️ [sync] Relay client no disponible, saltando sync');
+            return;
+        }
+
+        // ── 2. Verificar auth del relay ─────────────────────────────────────
+        let auth;
+        try {
+            auth = await relay.checkAuth();
+            if (!vigente()) return;
+        } catch (e) {
+            console.warn('⚠️ [sync] Error al verificar auth del relay:', e.message || e);
+            return;
+        }
+
+        if (!auth || !auth.success) {
+            console.warn('⚠️ [sync] Relay no autenticado. Saltando sync blockchain.');
+            return;
+        }
+
+        // ── 3. Localizar contrato ───────────────────────────────────────────
+        let contract;
+        try {
+            contract = await relay.findContract(this._ITEM_CONTRACT_NAME);
+            if (!vigente()) return;
+        } catch (e) {
+            console.warn(`⚠️ [sync] No se encontró el contrato "${this._ITEM_CONTRACT_NAME}":`, e.message || e);
+            return;
+        }
+
+        if (!contract || !contract.address) {
+            console.warn(`⚠️ [sync] Contrato "${this._ITEM_CONTRACT_NAME}" no disponible`);
+            return;
+        }
+
+        console.log(`🔗 [sync] Contrato encontrado: ${contract.address}`);
+
+        // ── 4. Llamar getUserInventorySnapshot directamente al backend ──────
+        //    NOTA: relay.accion() usa _normalizeResult() internamente, que para
+        //    funciones que retornan tuple[] solo captura raw[0] (primer invoice).
+        //    Llamamos /api/relay/call-view directamente para obtener el array
+        //    completo y parsearlo nosotros con _buildSyncMaps.
+        let syncOk = false;
+        // A la vez que el snapshot: en qué casilla guardó la cadena cada
+        // factura (contrato v3). Si no hay, {} y no cambia nada.
+        const casillasPromesa = this._leerCasillasDeCadena().catch(() => null);
+
+        try {
+            const snapResp = await this.fetchWithTokenRetry(
+                `${this.serverBase}/api/relay/call-view`,
+                {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        contractAddress: contract.address,
+                        functionName:    'getUserInventorySnapshot',
+                        parameters:      { '0': this.address }
+                    })
+                }
+            );
+
+            if (!snapResp || !snapResp.ok) {
+                throw new Error(`call-view HTTP ${snapResp ? snapResp.status : 'sin respuesta'}`);
+            }
+
+            const snapData = await snapResp.json();
+            if (!vigente()) return;
+            if (!snapData.success) {
+                throw new Error(snapData.error || 'getUserInventorySnapshot devolvió error');
+            }
+
+            // snapData.result = [{id, manualId, tipo, cantidad, active, ...}, ...]
+            // (array de objetos nombrados gracias al fix en convertBigIntToString)
+            const { invoiceById, complete } = this._buildSyncMaps(snapData.result);
+
+            console.log(`🔗 [sync] Snapshot recibido: ${invoiceById.size} facturas activas`);
+
+            const casillas   = await casillasPromesa;
+            if (!vigente()) return;
+            if (casillas === null) throw new Error('inventory_chest_locations_unavailable');
+            // LO GUARDADO EN UN COFRE DE LA ISLA NO ESTÁ EN LA MOCHILA. La
+            // factura sigue a nombre del jugador, así que sale en el snapshot:
+            // sin quitarla aquí, `_addMissingBlockchainItems` la volvería a
+            // meter en una casilla libre (y `_reconciliarCasillas` podría
+            // enlazar con ella una casilla del mismo objeto).
+            if (this._facturasEnCofres && this._facturasEnCofres.size) {
+                for (const id of this._facturasEnCofres) invoiceById.delete(id);
+                console.log(`📦 [sync] ${this._facturasEnCofres.size} factura(s) guardadas en cofres: no se reponen`);
+            }
+            const arreglos   = this._reconciliarCasillas(invoiceById, complete);
+            const fixedInv   = arreglos.inv;
+            const fixedQuick = arreglos.quick;
+            const addedNew   = this._addMissingBlockchainItems(invoiceById, casillas);
+
+            const totalFixed = fixedInv + fixedQuick + addedNew;
+            console.log(
+                `✅ [sync] Sincronización completada.`,
+                `Inventario: ${fixedInv} correcciones, Cofre: ${fixedQuick} correcciones,`,
+                `Nuevos de blockchain: ${addedNew}. Total: ${totalFixed}`
+            );
+
+            // Guardar estado corregido/aumentado en BD para que GameScene lo cargue limpio
+            if (totalFixed > 0) {
+                console.log(`💾 [sync] ${totalFixed} cambio(s) → guardando en BD...`);
+                try {
+                    await this.savegg();
+                    console.log('✅ [sync] Estado guardado en BD.');
+                } catch (saveErr) {
+                    console.error('❌ [sync] Error al guardar en BD:', saveErr.message || saveErr);
+                }
+            }
+
+            syncOk = true;
+
+        } catch (snapshotErr) {
+            console.warn(
+                '⚠️ [sync] getUserInventorySnapshot falló (¿contrato viejo?), usando batchVerifySlots...',
+                snapshotErr.message || snapshotErr
+            );
+        }
+
+        // ── 5. Fallback: batchVerifySlots ───────────────────────────────────
+        if (!syncOk) {
+            if (!vigente()) return;
+            try {
+                await this._syncFallback(contract, vigente);
+            } catch (fbErr) {
+                console.error('❌ [sync] Fallback sync también falló:', fbErr.message || fbErr);
+                // No bloqueamos: el juego sigue con los datos de BD
+            }
+        }
+    }
+
+    // =========================================================================
+    //  RENDER
+    // =========================================================================
+
+    renderInventoryAfterLoad() {
+        // En LoadingScenegame no existen aún los DOM slots del juego,
+        // pero renderSlot maneja gracefully el caso en que no exista el elemento.
+        if (typeof this.renderSlot === 'function') {
+            console.log('🖼️ Renderizando slots del inventario...');
+            for (let i = 0; i < 40; i++) this.renderSlot(i);
+            for (let i = 0; i < 7; i++)  this.renderSlot(i);
+        }
+    }
+
+    renderSlot(index) {
+        const ghostInv   = this.STATE.ghostSlots ? this.STATE.ghostSlots.inv   : {};
+        const ghostQuick = this.STATE.ghostSlots ? this.STATE.ghostSlots.quick : {};
+
+        // Render inventario
+        const invDiv = document.querySelector(`.inv-slot[data-slot-index="${index}"]`);
+        if (invDiv) {
+            invDiv.innerHTML = '';
+            if (ghostInv[index]) {
+                invDiv.classList.add('empty');
+                invDiv.classList.remove('highlight');
+            } else {
+                const itemObj = this.STATE.slots[index];
+                if (itemObj) {
+                    const img = document.createElement('img');
+                    img.src = this.ItemDefinitions[itemObj.id].src;
+                    img.alt = itemObj.id;
+                    invDiv.appendChild(img);
+                    if (itemObj.count > 1) {
+                        const span = document.createElement('span');
+                        span.classList.add('item-count');
+                        span.textContent = 'x' + itemObj.count;
+                        invDiv.appendChild(span);
+                    }
+                    invDiv.classList.remove('empty');
+                } else {
+                    invDiv.classList.add('empty');
+                }
+                invDiv.classList.remove('highlight');
+            }
+        }
+
+        // Render quick-slot (cofre)
+        const quickDiv = document.querySelector(`.quick-slot[data-slot-index="${index}"]`);
+        if (quickDiv) {
+            quickDiv.innerHTML = '';
+            if (ghostQuick[index]) {
+                quickDiv.classList.add('empty');
+                quickDiv.classList.remove('highlight');
+            } else {
+                const itemObj = this.STATE.quickSlots[index];
+                if (itemObj) {
+                    const img = document.createElement('img');
+                    img.src = this.ItemDefinitions[itemObj.id].src;
+                    img.alt = itemObj.id;
+                    quickDiv.appendChild(img);
+                    if (itemObj.count > 1) {
+                        const span = document.createElement('span');
+                        span.classList.add('item-count');
+                        span.textContent = 'x' + itemObj.count;
+                        quickDiv.appendChild(span);
+                    }
+                    quickDiv.classList.remove('empty');
+                } else {
+                    quickDiv.classList.add('empty');
+                }
+                quickDiv.classList.remove('highlight');
+            }
+        }
+    }
+
+    // =========================================================================
+    //  GUARDADO
+    // =========================================================================
+
+    async savegg() {
+        console.log('💾 Iniciando guardado del juego...');
+
+        if (!this.playerName || !this.isAuthenticated) {
+            console.error('❌ No se puede guardar: falta playerName o autenticación');
+            return;
+        }
+
+        if (!this.csrfToken) {
+            await this.getCSRFToken();
+            if (!this.csrfToken) {
+                console.error('❌ No se pudo obtener token CSRF para guardar');
+                return;
+            }
+        }
+
+        const inventoryData = this.STATE.slots.map((s, i) => ({
+            id:       i,
+            IDX:      s?.idx   ?? null,
+            Manualid: s?.idm   ?? null,
+            objeto:   s?.id    ?? null,
+            cantidad: s?.count ?? 0,
+            tipo:     'inventario'
+        }));
+
+        const chestData = this.STATE.quickSlots.map((s, i) => ({
+            id:       i,
+            IDX:      s?.idx   ?? null,
+            Manualid: s?.idm   ?? null,
+            objeto:   s?.id    ?? null,
+            cantidad: s?.count ?? 0,
+            tipo:     'cofre'
+        }));
+
+        this.moneda = Math.floor(this.moneda ?? this.monto_moneda ?? 0);
+
+        const payload = {
+            inventoryLoadedAt: this._inventoryLoadedAt || null,
+            posicionplayerx: this.posicionplayerx,
+            posicionplayery: this.posicionplayery,
+            vidaPorcentaje:  this.vidaPorcentaje,
+            aguaPorcentaje:  this.aguaPorcentaje,
+            comidaPorcentaje: this.comidaPorcentaje,
+            lenguaje:        this.lenguaje,
+            nivel:           this.nivel,
+            nivel_exp:       this.nivel_exp,
+            speed:           this.speed,
+            mundo:           this.mundo,
+            moneda:          this.moneda,
+            moneda_plata:    this.moneda_plata,
+            Username:        this.Username,
+            misiones:        this.misiones,
+            inventory:       inventoryData,
+            chest:           chestData
+        };
+
+        // HABILIDADES: solo se mandan si de verdad se cargaron de /api/load.
+        // Esta escena existe sobre todo para sincronizar el inventario con la
+        // blockchain; no toca ni una sola habilidad, así que mandarlas sin
+        // haberlas leído solo puede hacer daño (era exactamente lo que borraba
+        // farming/mining/woodcutting en cada arranque y al volver de batalla).
+        if (this._skillsCargadas) {
+            payload.mineria           = this.mineria;
+            payload.mineria_exp       = this.mineria_exp;
+            payload.pesca             = this.pesca;
+            payload.pesca_exp         = this.pesca_exp;
+            payload.cocina            = this.cocina;
+            payload.cocina_exp        = this.cocina_exp;
+            payload.deforestacion     = this.deforestacion;
+            payload.deforestacion_exp = this.deforestacion_exp;
+            payload.fuerza            = this.fuerza;
+            payload.fuerza_exp        = this.fuerza_exp;
+            payload.agricultura       = this.agricultura;
+            payload.agricultura_exp   = this.agricultura_exp;
+        }
+
+        console.log('📤 Payload para guardar:', {
+            playerName:     this.playerName,
+            moneda:         this.moneda,
+            inventoryItems: inventoryData.filter(item => item.objeto).length,
+            chestItems:     chestData.filter(item => item.objeto).length
+        });
+
+        try {
+            const resp = await this.fetchWithTokenRetry(
+                `${this.serverBase}/api/save/${encodeURIComponent(this.playerName)}`,
+                { method: 'POST', body: JSON.stringify(payload) },
+                2
+            );
+
+            console.log('📊 Status de guardado:', resp.status);
+
+            if (!resp.ok) {
+                const errorText = await resp.text().catch(() => 'No se pudo leer el error');
+                console.error('❌ Error al guardar:', { status: resp.status, error: errorText });
+                if (resp.status === 401 || resp.status === 403) {
+                    console.warn('⚠️ Token expirado o inválido después de reintentos');
+                    this.showTokenErrorHub();
+                }
+                return;
+            }
+
+            const resData = await resp.json().catch(() => ({}));
+            console.log('✅ Datos guardados correctamente:', resData);
+        } catch (e) {
+            console.error('❌ Error de red al guardar:', e);
+        }
+    }
+
+    // =========================================================================
+    //  MISIONES
+    // =========================================================================
+
+    async createDailyMission() {
+        try {
+            const response = await fetch(`${this.serverBase}/api/missions/daily/admin/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    npcId: 'granjero',
+                    day:   '2025-12-22',
+                    dailyResetHour: 0,
+                    adminKey: '12345678',
+                    missions: [
+                        {
+                            missionId:      'carrot_collector_001',
+                            itemId:         'zanahoria_buena',
+                            requiredAmount: 5,
+                            expReward:      25,
+                            rewardItemId:   'moneda',
+                            rewardAmount:   15,
+                            texts: {
+                                'en-US':  { title: 'Carrot Collector',         description: 'Collect 5 good quality carrots from the farm', itemName: 'Carrot',    rewardName: 'Coins'   },
+                                'es-419': { title: 'Recolector de Zanahorias', description: 'Recoge 5 zanahorias de buena calidad de la granja',  itemName: 'Zanahoria', rewardName: 'Monedas' }
+                            }
+                        }
+                    ]
+                })
+            });
+
+            const result = await response.json();
+            console.log('Misiones creadas:', result);
+
+            if (result.success) {
+                alert(`¡Éxito! ${result.createdCount} misiones creadas para hoy.`);
+            } else {
+                alert('Error: ' + result.error);
+            }
+        } catch (err) {
+            console.error('Error creando misiones:', err);
+            alert('Error al crear misiones: ' + err.message);
+        }
+    }
+
+    // =========================================================================
+    //  CICLO DE VIDA PHASER
+    // =========================================================================
+
+    preload() {
+        // Assets de precarga si son necesarios
+    }
+
+    async create() {
+        console.log('🚀 Iniciando LoadingScenegame...');
+        if (this._createFin) this._createFin();
+
+        /* ESTA PASADA POR create() PUEDE QUEDAR ANTICUADA.
+         *
+         * create() es asíncrono y Phaser no lo espera: entre await y await la
+         * escena puede apagarse (logout, recarga de sesión, otra escena que la
+         * para). Antes los relojes se paraban con un `once('shutdown')` puesto
+         * AL FINAL, así que un apagado a mitad de la carga no lo oía nadie: la
+         * carga seguía, arrancaba el sondeo de transición y el auto-refresco
+         * sobre una escena muerta, y a los 2 s hacía `scene.start` por su
+         * cuenta. Ahora se escucha desde el principio y cada paso comprueba
+         * que sigue siendo la pasada vigente. */
+        const turno = this._turnoCreate = (this._turnoCreate || 0) + 1;
+        const vigente = () => {
+            if (this._turnoCreate !== turno || !this.sys || !this.sys.settings) return false;
+            const st = this.sys.settings.status;
+            return st !== Phaser.Scenes.SHUTDOWN && st !== Phaser.Scenes.DESTROYED;
+        };
+        const pararRelojes = () => {
+            if (this._turnoCreate === turno) {
+                this._turnoCreate++;
+                this._pararRelojes();
+            }
+            if (this._createFin === fin) this._createFin = null;
+        };
+        const fin = this._createFin = this._onceLoadingEnd(pararRelojes);
+
+        try {
+            const isAuthenticated = await this.loadx();
+            if (!vigente()) return;
+
+            if (!isAuthenticated) {
+                console.error('❌ No se pudo autenticar al usuario');
+                return;
+            }
+
+            if (!this.playerName) {
+                console.error('❌ No player name available');
+                this.showTokenErrorHub();
+                return;
+            }
+
+            console.log('🎮 Player name disponible:', this.playerName);
+
+            // ── 0. ESPERAR A LAS TRANSACCIONES EN VUELO ─────────────────────────
+            // Si el jugador acaba de comprar algo en la tienda y salió corriendo,
+            // esa transacción sigue viva en el contador global (tx-gate.js) aunque
+            // la escena de la tienda ya se haya destruido. Cargar los datos del
+            // jugador AHORA leería un inventario que todavía no incluye la compra,
+            // y todo lo que viene después (sync con blockchain, guardado) partiría
+            // de datos viejos. Así que primero se espera a que no quede nada.
+            // ── LOS MENSAJES SON PARA EL JUGADOR, NO PARA EL PROGRAMADOR ────────
+            // Antes se leía "Syncing with blockchain...", "Checking your items
+            // on-chain...", "Syncing player stats...". Eso es el nombre interno de
+            // lo que hace el código, y a quien está esperando para jugar no le dice
+            // nada: solo le recuerda que hay maquinaria complicada por detrás.
+            // Ahora se cuenta lo mismo en el idioma del juego — sigue siendo cierto
+            // (se están recuperando sus cosas, su granja, su mundo), pero se lee
+            // como parte de la partida.
+            this.loadingSystem.show({ message: 'Waking up the forest…', initialProgress: 0 });
+            this._arrancarConsejosDeCarga();
+            this._paso('datos', 'activo', 'Waking up the forest…', 0.05);
+            await this._esperarTransaccionesPendientes();
+            if (!vigente()) return;
+
+            // ── 1. Cargar datos del jugador desde la BD ─────────────────────────
+            this._paso('datos', 'activo', 'Finding your farm…', 0.2);
+
+            await this.loadPlayerData();
+            if (!vigente()) return;
+            this._paso('datos', 'hecho');
+
+            // ── 2. Sincronizar inventario contra blockchain ──────────────────────
+            //      RECONCILIACIÓN (no destructiva): la sync deja intactos los ítems
+            //      cuyo (idx, manualId, cantidad) coincide con la blockchain, corrige
+            //      las cantidades que difieran y ELIMINA de la BD lo que no exista
+            //      on-chain. No se borra la siembra ni se vacía el cache.
+            this._paso('blockchain', 'activo', 'Opening your chest…', 0.45);
+
+            // ── 3. Sincronizar stats vitales PRIMERO (antes del inventario)
+            // Así oro/plata quedan en 0 antes de que el save del inventario los guarde.
+            this._paso('stats', 'activo', 'Counting your coins…', 0.62);
+            await this.syncStatsWithBlockchain();
+            if (!vigente()) return;
+            this._paso('stats', 'hecho');
+
+            // ── Luego sincronizar inventario con blockchain ──
+            this._paso('blockchain', 'activo', 'Dusting off your tools…', 0.75);
+            await this.syncInventoryWithBlockchain();
+            if (!vigente()) return;
+            this._paso('blockchain', 'hecho');
+
+            // ── 4. Barra de progreso final ───────────────────────────────────────
+            this._paso('mundo', 'activo', 'Growing the grass…', 0.9);
+            await this.loadResources();
+            if (!vigente()) return;
+            this._paso('mundo', 'hecho', 'Everything is ready. Have fun!', 1);
+
+            // ── 4. Fondo animado ─────────────────────────────────────────────────
+            this.stars    = [];
+            this.graphics = this.add.graphics();
+
+            this.createStarLayer(15, 1, 50,  80);
+            this.createStarLayer(20, 2, 100, 150);
+            this.createStarLayer(15, 3, 150, 250);
+
+            // ── 5. Iniciar ciclo de transición ───────────────────────────────────
+            this.intervalId = setInterval(() => this.checkTransition(), 2000);
+
+            this.setupActivityTracking();
+
+            /* Y LOS RELOJES SE PARAN AL APAGAR LA ESCENA.
+             *
+             * FUGA QUE ESTO ARREGLA: los dos relojes de esta pantalla —el sondeo de
+             * transición cada 2 s y el auto-refresco del token— solo se paraban por
+             * los caminos "buenos" de `checkTransition`. Por cualquier otro (el hub
+             * de error, una escena que se arranca desde fuera, una recarga de
+             * sesión) se quedaban corriendo PARA SIEMPRE sobre una escena que ya no
+             * existe, y con ella colgando de la referencia.
+             *
+             * Aquí solo se paran los relojes. El `relayClient` NO se toca a
+             * propósito: su `cleanup()` tira las transacciones pendientes, y esta
+             * pantalla lanza transacciones on-chain que pueden seguir en vuelo
+             * cuando ya se ha pasado a GameScene (para eso está
+             * `esperarTransaccionesEnVuelo`). Matarlas aquí sería peor que la fuga.
+             *
+             * (Los `once('shutdown'/'destroy')` que los paran se ponen al PRINCIPIO
+             * de create(): ver `vigente`.)
+             */
+        } catch (error) {
+            if (!vigente()) return;
+            console.error('❌ LoadingScenegame: carga interrumpida:', error);
+            fin();
+            this.loadingSystem?.show?.({ message: 'Loading failed. Reload to try again.' });
+            return false;
+        }
+    }
+
+    /** Para los relojes de esta pantalla. Idempotente. */
+    _pararRelojes() {
+        if (this.intervalId) { clearInterval(this.intervalId); this.intervalId = null; }
+        this.stopAutoRefresh();
+        if (this._authRefreshController) this._authRefreshController.abort();
+        if (this._csrfController) this._csrfController.abort();
+        if (this._gateWaitController) this._gateWaitController.abort();
+        if (this._consejosFin) this._consejosFin();
+        this._pararSeguimientoActividad();
+    }
+
+    /** Shutdown and destroy are alternatives; remove the unused listener too. */
+    _onceLoadingEnd(callback) {
+        let done = false;
+        const detach = () => {
+            this.events.off('shutdown', finish);
+            this.events.off('destroy', finish);
+        };
+        const finish = () => {
+            if (done) return;
+            done = true;
+            detach();
+            callback();
+        };
+        finish.cancel = () => { done = true; detach(); };
+        this.events.once('shutdown', finish);
+        this.events.once('destroy', finish);
+        return finish;
+    }
+
+    // =========================================================================
+    //  PANTALLA DE CARGA — ESTADO VISIBLE PARA EL JUGADOR
+    // -------------------------------------------------------------------------
+    //  Antes la carga era una barra y una frase. Como sincronizar con la cadena
+    //  puede tardar bastante, el jugador se quedaba mirando una barra parada sin
+    //  saber si el juego seguía vivo o se había colgado.
+    //
+    //  Ahora hay cuatro pasos visibles (datos, cadena, stats, mundo) que se van
+    //  marcando, un porcentaje en números y consejos que van rotando. Todo es
+    //  OPCIONAL: si algún elemento no existe en el HTML, estos métodos no hacen
+    //  nada y la carga funciona igual que siempre.
+    // =========================================================================
+
+    /**
+     * Marca un paso de la carga y, de paso, actualiza texto y barra.
+     *
+     * @param {string} clave    'datos' | 'blockchain' | 'stats' | 'mundo'
+     * @param {string} estado   'pendiente' | 'activo' | 'hecho'
+     * @param {string} [texto]  mensaje grande (si se omite, no se toca)
+     * @param {number} [avance] 0..1 para la barra (si se omite, no se toca)
+     */
+    _paso(clave, estado, texto, avance) {
+        try {
+            if (typeof texto === 'string' && this.loadingSystem && this.loadingSystem.textElement) {
+                this.loadingSystem.textElement.textContent = texto;
+            }
+
+            // El porcentaje y el crecimiento de la planta NO se tocan aquí: los
+            // mueve LoadingSystem._updateProgressBar, que es el único punto por
+            // el que pasa el progreso. Así el dibujo y el número no pueden
+            // desacompasarse.
+            if (typeof avance === 'number' && this.loadingSystem) {
+                this.loadingSystem.update(avance);
+            }
+        } catch (e) { /* la carga nunca debe romperse por la decoración */ }
+    }
+
+    /**
+     * Consejos rotativos mientras se carga. Son texto plano y se escriben con
+     * textContent (nunca innerHTML), así que no hay forma de inyectar nada.
+     */
+    _arrancarConsejosDeCarga() {
+        const caja = document.getElementById('gf-load-tip');
+        if (!caja || this._consejosTimer) return;
+
+        // Consejos en el idioma del JUEGO. Nada de hablar de transacciones,
+        // sincronización ni cadenas: quien espera para jugar quiere saber cómo
+        // jugar mejor, no cómo está hecho el juego por dentro.
+        const CONSEJOS = [
+            'Chop trees and mine ore to raise your Woodcutting and Mining.',
+            'Water your crops before they dry out — a thirsty plant gives less.',
+            'Tools wear out. Always keep a spare axe in your quick slots.',
+            'A better pickaxe needs fewer swings and finds more ore.',
+            'Every swing costs water and food. Eat and drink often.',
+            'Your pet grows stronger with every battle. Five are waiting today.',
+            'Farmer Joe has new tasks for you every single day.',
+            'The game feeling heavy on your phone? Lower the graphics quality.',
+            'Prune your crops with the shears — bare hands ruin the harvest.',
+            'Coal only shows up in two rocks. Bring a good pickaxe.'
+        ];
+
+        let i = Math.floor(Math.random() * CONSEJOS.length);
+        const pintar = () => {
+            caja.textContent = CONSEJOS[i % CONSEJOS.length];
+            i++;
+        };
+        pintar();
+        this._consejosTimer = setInterval(pintar, 4200);
+
+        // Se para al apagar la escena: si no, seguiría corriendo sobre un
+        // elemento oculto durante toda la partida (ver la auditoría de fugas).
+        const parar = () => {
+            if (this._consejosTimer) { clearInterval(this._consejosTimer); this._consejosTimer = null; }
+            this._consejosFin = null;
+        };
+        this._consejosFin = this._onceLoadingEnd(parar);
+    }
+
+    /**
+     * Espera a que terminen las transacciones on-chain que quedaron en vuelo
+     * al cambiar de escena (compras de la tienda, tala, crafteo, siembra…).
+     *
+     * El contador vive en `window.GFTxGate` (tx-gate.js), fuera de las escenas,
+     * precisamente porque la escena que lanzó la transacción ya no existe.
+     *
+     * NUNCA deja al jugador atrapado: si pasan cuatro minutos se sigue igualmente
+     * y se avisa por consola. Es preferible entrar al juego con una
+     * transacción rezagada que quedarse en una pantalla de carga eterna.
+     */
+    async _esperarTransaccionesPendientes() {
+        const gate = window.GFTxGate;
+        if (!gate || typeof gate.whenIdle !== 'function') return;
+        if (gate.pending() === 0) return;
+
+        console.log(`⏳ ${gate.pending()} transacción(es) en vuelo — esperando antes de cargar`);
+
+        const texto = this.loadingSystem && this.loadingSystem.textElement;
+        const controller = this._gateWaitController = new AbortController();
+        /* Hasta 4 minutos: una compra de la tienda puede esperar a la cadena
+           2 minutos por intento. Con 90 s se seguía cargando con la compra a
+           medias, y el objeto no aparecía en el mapa hasta la carga siguiente. */
+        const resultado = await gate.whenIdle({
+            timeout: 240000,
+            signal: controller.signal,
+            onTick: (n, etiquetas) => {
+                if (!texto || controller.signal.aborted) return;
+                texto.textContent = n === 1
+                    ? `Finishing 1 pending transaction… (${etiquetas[0] || ''})`
+                    : `Finishing ${n} pending transactions…`;
+            }
+        });
+        if (this._gateWaitController === controller) this._gateWaitController = null;
+        if (resultado.cancelled || controller.signal.aborted) return;
+
+        if (texto) texto.textContent = 'Loading player data...';
+        if (!resultado.idle) {
+            console.warn('⚠️ Se entró al juego con transacciones aún pendientes:', gate.labels());
+        } else {
+            console.log(`✅ Transacciones terminadas en ${resultado.waitedMs} ms`);
+        }
+    }
+
+    async loadResources() {
+        const steps     = 10;
+        const stepDelay = 200;
+
+        // FIX: la barra ya va por el 90 % cuando se llega aquí (ver _paso), y
+        // esto la empujaba desde el 50 %: LoadingSystem rechazaba cada paso por
+        // "retroceso" y soltaba 8 avisos en consola en cada carga. Ahora se
+        // avanza desde donde esté. Y el texto va protegido: sin el elemento en
+        // el HTML, el TypeError tumbaba create() entero y la carga no terminaba.
+        const turno = this._turnoCreate;
+        const vigente = () => turno === this._turnoCreate;
+        const desde = Math.min(1, this.loadingSystem.currentProgress || 0);
+        const texto = (t) => { if (this.loadingSystem.textElement) this.loadingSystem.textElement.textContent = t; };
+
+        for (let i = 0; i <= steps; i++) {
+            await new Promise(resolve => setTimeout(resolve, stepDelay));
+            if (!vigente()) return;
+
+            const progress     = i / steps;
+            const easedProgress = this.loadingSystem.easeOutCubic(progress);
+
+            this.loadingSystem.update(desde + easedProgress * (1 - desde));
+
+            if (progress < 0.4) {
+                texto('Loading resources...');
+            } else if (progress < 0.8) {
+                texto('Processing data...');
+            } else {
+                texto('Finalizing...');
+            }
+        }
+
+        this.loadingSystem.update(1);
+        texto('Loaded successfully!');
+
+        await new Promise(resolve => setTimeout(resolve, 700));
+        if (!vigente()) return;
+        this.loadingSystem.hide(600);
+    }
+
+    /**
+     * Apunta cuándo fue la última vez que el jugador tocó algo.
+     *
+     * FUGA QUE ESTO ARREGLA: aquí se colgaban CUATRO manejadores de `window`
+     * y un `setInterval` de cinco minutos, y no se quitaba ninguno de los
+     * cinco. Los tres problemas que trae eso:
+     *
+     *   1. `window` no se destruye nunca, y cada manejador cierra sobre `this`
+     *      — o sea sobre la escena de carga ENTERA, con sus estrellas, su
+     *      loadingSystem y todo lo que cuelgue de ella. Mientras haya un
+     *      listener puesto, esa escena no se puede recoger jamás.
+     *   2. El de 'mousemove' se dispara en CADA movimiento del ratón durante
+     *      toda la partida, para apuntar una fecha que ya no mira nadie.
+     *   3. Si se vuelve a entrar en la pantalla de carga (Phaser reutiliza la
+     *      instancia, y se vuelve a pasar por aquí al recargar sesión), se
+     *      añaden otros cuatro encima de los anteriores.
+     *
+     * Se sigue el mismo patrón que ya usa `_consejosTimer` unas líneas más
+     * arriba: se guarda lo que se registra y se suelta al apagar la escena.
+     */
+    setupActivityTracking() {
+        // Por si se vuelve a entrar: primero se suelta lo de la vez anterior.
+        this._pararSeguimientoActividad();
+
+        const updateActivityTime = () => { this.lastActivityTime = Date.now(); };
+        const eventos = ['mousemove', 'keydown', 'click', 'touchstart'];
+        eventos.forEach((ev) => window.addEventListener(ev, updateActivityTime, { passive: true }));
+
+        this._actividadHandler = updateActivityTime;
+        this._actividadEventos = eventos;
+        this._actividadTimer = setInterval(() => {
+            const inactiveTime = Date.now() - this.lastActivityTime;
+            if (inactiveTime > 30 * 60 * 1000) {
+                console.log('⏰ Usuario inactivo por más de 30 minutos');
+            }
+        }, 5 * 60 * 1000);
+
+        const parar = () => this._pararSeguimientoActividad();
+        this._actividadFin = this._onceLoadingEnd(parar);
+    }
+
+    /** Suelta los manejadores y el reloj del seguimiento de actividad. */
+    _pararSeguimientoActividad() {
+        if (this._actividadFin) this._actividadFin.cancel();
+        this._actividadFin = null;
+        if (this._actividadHandler && this._actividadEventos) {
+            this._actividadEventos.forEach((ev) => {
+                try { window.removeEventListener(ev, this._actividadHandler); } catch (e) { /* ya no estaba */ }
+            });
+        }
+        this._actividadHandler = null;
+        this._actividadEventos = null;
+        if (this._actividadTimer) { clearInterval(this._actividadTimer); this._actividadTimer = null; }
+    }
+
+    // =========================================================================
+    //  FONDO ANIMADO (ESTRELLAS)
+    // =========================================================================
+
+    createStarLayer(count, size, minSpeed, maxSpeed) {
+        for (let i = 0; i < count; i++) {
+            const star = {
+                x:             Phaser.Math.Between(0, this.game.config.width),
+                y:             Phaser.Math.Between(0, this.game.config.height),
+                speed:         Phaser.Math.Between(minSpeed, maxSpeed),
+                size,
+                brightness:    Phaser.Math.Between(180, 255),
+                rotation:      Phaser.Math.Between(0, 360) * (Math.PI / 180),
+                rotationSpeed: Phaser.Math.FloatBetween(-2, 2),
+                alpha:         Phaser.Math.FloatBetween(0.7, 1.0),
+                trailLength:   size * 0.5,
+                originalY:     0
+            };
+            star.originalY = star.y;
+            this.stars.push(star);
+        }
+    }
+
+    update(time, delta) {
+        if (!this.graphics) return;
+
+        const deltaTime = delta / 1000;
+        this.graphics.clear();
+
+        this.stars.forEach(star => {
+            const previousY = star.y;
+
+            star.y        += star.speed * deltaTime;
+            star.rotation += star.rotationSpeed * deltaTime;
+
+            if (star.size >= 2 && star.trailLength > 0) {
+                this.graphics.fillStyle(0xffffff, star.alpha * 0.3);
+                this.graphics.fillRect(
+                    star.x - star.size / 2,
+                    previousY - star.size / 2,
+                    star.size,
+                    (star.y - previousY) + star.size
+                );
+            }
+
+            if (star.y > this.game.config.height + 10) {
+                star.y        = -10;
+                star.x        = Phaser.Math.Between(0, this.game.config.width);
+                star.originalY = star.y;
+                star.alpha    = Phaser.Math.FloatBetween(0.7, 1.0);
+                star.brightness = Phaser.Math.Between(180, 255);
+            }
+
+            this.drawStar(star.x, star.y, star.size, star.brightness, star.rotation, star.alpha);
+        });
+    }
+
+    drawStar(x, y, size, brightness, rotation, alpha) {
+        const points      = 5;
+        const outerRadius = size * 2;
+        const innerRadius = size * 0.6;
+
+        const color = Phaser.Display.Color.GetColor(brightness, brightness, brightness);
+        this.graphics.fillStyle(color, alpha);
+        this.graphics.beginPath();
+
+        for (let i = 0; i < points * 2; i++) {
+            const angle  = rotation + (i * Math.PI) / points;
+            const radius = i % 2 === 0 ? outerRadius : innerRadius;
+            const px     = x + Math.cos(angle) * radius;
+            const py     = y + Math.sin(angle) * radius;
+
+            if (i === 0) {
+                this.graphics.moveTo(px, py);
+            } else {
+                this.graphics.lineTo(px, py);
+            }
+        }
+
+        this.graphics.closePath();
+        this.graphics.fillPath();
+
+        if (size >= 2) {
+            this.graphics.fillStyle(0xffffff, alpha * 0.8);
+            this.graphics.fillCircle(x, y, size * 0.3);
+        }
+    }
+
+    // =========================================================================
+    //  TRANSICIÓN Y DESTRUCCIÓN
+    // =========================================================================
+
+    checkTransition() {
+        console.log('🌍 Mundo actual:', this.mundo);
+
+        const errorHub = document.getElementById('token-error-hub');
+        if (errorHub) {
+            console.log('🔒 Hub de error activo - bloqueando transición');
+            clearInterval(this.intervalId);
+            return;
+        }
+
+        if (!this.isAuthenticated || !this.playerName) {
+            console.log('🔒 No autenticado - bloqueando transición');
+            clearInterval(this.intervalId);
+            return;
+        }
+
+        /* A QUE ESCENA VA CADA MUNDO.
+         *
+         * ESTO ERA UN `if (mundo === 1 || mundo === 2)` Y DEJABA EL JUEGO EN
+         * NEGRO. `savegg()` guarda `mundo` tal cual (en GameScene: `mundo:
+         * this.mundo`), y la mina se marca como mundo 3 y la isla como mundo 4.
+         * En cuanto el jugador entraba en la mina y volvia a pasar por esta
+         * pantalla -recargar la pagina, volver a entrar- la partida venia con
+         * mundo 3, ninguna de las dos ramas se cumplia, no se llamaba a
+         * `scene.start` NUNCA y la pantalla de carga se quedaba colgada para
+         * siempre. Sin error en consola: solo negro.
+         *
+         * Ahora es una tabla, que es lo que siempre debio ser: anadir un mundo
+         * es anadir una linea, y olvidarse de tocar esta funcion ya no cuelga
+         * el juego. */
+        const ESCENA_DE_MUNDO = {
+            1: 'GameScene',
+            2: 'tiendajuego',
+            3: 'MinaScene',
+            4: 'LandsScene',
+            // Dentro de una casa del pueblo (gf-casas.js, 2026-10-05).
+            5: 'InteriorScene',
+            // El mapa salvaje del oeste (2026-10-11).
+            6: 'SalvajeScene'
+        };
+
+        let nextScene = ESCENA_DE_MUNDO[this.mundo];
+
+        /* DOS REDES DE SEGURIDAD, y las dos terminan en GameScene.
+         *
+         * La primera, un mundo que no este en la tabla (una partida vieja, un
+         * valor raro de la base de datos). La segunda, un mundo valido cuya
+         * escena no este registrada: si algun dia MinaScene.js no se sube, o
+         * register-scenes.js no la da de alta. En los dos casos es preferible
+         * aparecer en el mapa que quedarse en la pantalla de carga: el jugador
+         * sigue jugando y puede volver a entrar por su puerta.
+         *
+         * Se corrige tambien `this.mundo` para que el primer `savegg()` de
+         * GameScene deje la partida coherente y no se repita el desvio. */
+        if (!nextScene) {
+            console.warn('🌍 mundo ' + this.mundo + ' desconocido: se va al mapa');
+            nextScene = 'GameScene';
+            this.mundo = 1;
+        } else if (!this.scene.get(nextScene)) {
+            console.warn('🌍 ' + nextScene + ' no esta registrada: se va al mapa');
+            nextScene = 'GameScene';
+            this.mundo = 1;
+        } else if (nextScene === 'InteriorScene' &&
+                   (window.__gfCasaRota || !(window.GFCasas && window.GFCasas.nota()))) {
+            /* DENTRO DE UNA CASA, PERO SIN SABER DE CUAL (se borro la nota, o
+               la casa ya fallo en esta sesion): al pueblo. La posicion
+               guardada es la de delante de su puerta (gf-casas la guarda al
+               entrar), asi que se aparece ahi. */
+            console.warn('🌍 casa sin nota o rota: se va al mapa');
+            nextScene = 'GameScene';
+            this.mundo = 1;
+        } else if (nextScene === 'MinaScene' && window.__gfMinaRota) {
+            /* LA MINA YA SE ROMPIO UNA VEZ EN ESTA SESION.
+               Sin esto hay bucle: la partida dice mundo 3, esta pantalla manda
+               a la mina, la mina no monta, se rescata volviendo aqui, y vuelta
+               a empezar. La bandera la pone `MinaScene._rescatar()` y solo vive
+               mientras la pestana este abierta: recargando se vuelve a
+               intentar, que es lo razonable si lo que fallaba era un archivo
+               que no habia terminado de subirse. */
+            console.warn('🌍 la mina fallo antes en esta sesion (' +
+                         window.__gfMinaRota + '): se va al mapa');
+            nextScene = 'GameScene';
+            this.mundo = 1;
+        }
+
+        console.log(`🚀 Transicionando a: ${nextScene}`);
+
+        if (window.perf && typeof window.perf.init === 'function' && !this.sys.settings.__perfInitialized) {
+            window.perf.init(this, { debug: false });
+            this.sys.settings.__perfInitialized = true;
+        }
+
+        /* La mina y la isla esperan la sesion de la escena anterior en
+           `datos.sesion`. Viniendo de aqui no hay escena anterior, asi que se
+           les pasa la de esta pantalla, que acaba de comprobarse arriba. Sin
+           esto se autenticarian de cero y saldria el cartel de SESSION
+           EXPIRED, que es justo el fallo que ya costo una vuelta. */
+        if (nextScene === 'MinaScene' || nextScene === 'LandsScene' || nextScene === 'InteriorScene' ||
+            nextScene === 'SalvajeScene') {
+            this.scene.start(nextScene, {
+                sesion: {
+                    playerName:      this.playerName,
+                    address:         this.address,
+                    currentAccount:  this.currentAccount || this.playerName,
+                    isAuthenticated: true,
+                    csrfToken:       this.csrfToken || window.csrfToken || null,
+                    serverBase:      this.serverBase,
+                    serverclient:    this.serverclient,
+                    serverclient1:   this.serverclient1
+                }
+            });
+        } else {
+            this.scene.start(nextScene);
+        }
+        clearInterval(this.intervalId);
+    }
+
+    /**
+     * Limpieza COMPLETA, incluido el cliente del relay.
+     *
+     * OJO, NO SE LLAMA SOLA, y es a propósito: tira las transacciones que
+     * `relayClient` tenga pendientes, y esta pantalla lanza transacciones que
+     * pueden seguir en vuelo cuando ya se ha pasado a GameScene. Lo que sí se
+     * hace solo al apagar la escena es parar los relojes (`_pararRelojes`).
+     * Esto es para tirar la pantalla de carga de verdad, a mano.
+     *
+     * SE LLAMABA `destroy()` Y ESO ERA UN FALLO DOBLE:
+     *   · `Phaser.Scene` no tiene ningún `destroy()`, así que el `super.destroy()`
+     *     del final reventaba con un TypeError en cuanto alguien la llamara.
+     *   · Y el nombre hacía pensar que Phaser la llamaba al apagar la escena.
+     *     No lo hace —Phaser llama a `Systems.destroy()`, que es otra cosa— así
+     *     que todo lo de dentro era código muerto y los relojes seguían vivos.
+     */
+    limpiezaCompleta() {
+        if (this._createFin) this._createFin();
+        else this._turnoCreate = (this._turnoCreate || 0) + 1;
+        this._pararRelojes();
+
+        // Limpiar relay client
+        if (this.relayClient && typeof this.relayClient.cleanup === 'function') {
+            this.relayClient.cleanup();
+            this.relayClient = null;
+        }
+
+        if (this.graphics) {
+            this.graphics.destroy();
+            this.graphics = null;
+        }
+
+        this.stars = [];
+
+        console.log('🧹 LoadingScenegame limpiado');
+    }
+
+    // =========================================================================
+    //  ERROR HUB (SESIÓN EXPIRADA)
+    // =========================================================================
+
+    showTokenErrorHub() {
+        console.log('🔒 Mostrando hub de error de token...');
+
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+        }
+
+        this.stopAutoRefresh();
+        this.scene.pause();
+
+        const existingHub = document.getElementById('token-error-hub');
+        if (existingHub) existingHub.remove();
+
+        const errorHub = document.createElement('div');
+        errorHub.id = 'token-error-hub';
+        errorHub.style.cssText = `
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); display: flex; justify-content: center;
+            align-items: center; z-index: 10000; font-family: Arial, sans-serif;
+        `;
+
+        // Una sola hoja de estilo: antes se añadía un <style> nuevo al <head>
+        // cada vez que se mostraba el aviso (y el auto-refresh puede mostrarlo
+        // más de una vez), sin quitar nunca los anteriores.
+        if (!document.getElementById('token-error-hub-style')) {
+            const style = document.createElement('style');
+            style.id = 'token-error-hub-style';
+            style.textContent = `
+                @keyframes errorPulse {
+                    0%   { box-shadow: 0 15px 40px rgba(255,77,77,0.4); }
+                    50%  { box-shadow: 0 20px 50px rgba(255,77,77,0.7); }
+                    100% { box-shadow: 0 15px 40px rgba(255,77,77,0.4); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        const contentBox = document.createElement('div');
+        contentBox.style.cssText = `
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 3px solid #ff4d4d; border-radius: 20px; padding: 50px 40px;
+            max-width: 550px; width: 90%; text-align: center;
+            box-shadow: 0 15px 40px rgba(255,77,77,0.4); animation: errorPulse 2s infinite;
+        `;
+
+        const icon    = document.createElement('div');
+        icon.innerHTML = '🔒';
+        icon.style.cssText = 'font-size: 60px; margin-bottom: 20px;';
+
+        const title   = document.createElement('h2');
+        title.textContent = '⚠️ SESSION EXPIRED';
+        title.style.cssText = `
+            color: #ff4d4d; margin-bottom: 25px; font-size: 32px;
+            text-shadow: 0 3px 8px rgba(255,77,77,0.6);
+            font-weight: bold; letter-spacing: 1px;
+        `;
+
+        const message = document.createElement('p');
+        message.textContent = 'Your access token has expired or is invalid. For security reasons, you need to log in again to continue playing.';
+        message.style.cssText = 'color: #ffffff; font-size: 18px; line-height: 1.6; margin-bottom: 35px; padding: 0 10px;';
+
+        const subMessage = document.createElement('p');
+        subMessage.textContent = 'All your game progress is saved and will be available after you log back in.';
+        subMessage.style.cssText = 'color: #cccccc; font-size: 16px; line-height: 1.4; margin-bottom: 40px; font-style: italic;';
+
+        const button  = document.createElement('button');
+        button.textContent = 'RETURN TO LOGIN';
+        button.style.cssText = `
+            background: linear-gradient(to right, #ff416c, #ff4b2b);
+            color: white; border: none; padding: 18px 50px; font-size: 20px;
+            border-radius: 50px; cursor: pointer; transition: all 0.3s ease;
+            font-weight: bold; letter-spacing: 1.5px; text-transform: uppercase;
+            box-shadow: 0 5px 20px rgba(255,65,108,0.5);
+        `;
+
+        button.onmouseover = () => {
+            button.style.background  = 'linear-gradient(to right, #ff4b2b, #ff416c)';
+            button.style.transform   = 'scale(1.08)';
+            button.style.boxShadow   = '0 8px 25px rgba(255,65,108,0.7)';
+        };
+        button.onmouseout = () => {
+            button.style.background  = 'linear-gradient(to right, #ff416c, #ff4b2b)';
+            button.style.transform   = 'scale(1)';
+            button.style.boxShadow   = '0 5px 20px rgba(255,65,108,0.5)';
+        };
+
+        button.onclick = async () => {
+            try {
+                await fetch(`${this.serverBase}/api/auth/logout`, {
+                    method: 'POST', credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            } catch (e) {
+                console.error('Error durante logout:', e);
+            }
+            // Login REAL. La ruta relativa anterior acababa en
+            // game.grasslandforest.com/Grassland_Forest_Game/index.html, que no
+            // es el login. Misma constante que usa el resto del código.
+            window.location.href = window.GF_LOGIN_URL || 'https://app.grasslandforest.com/';
+        };
+
+        contentBox.appendChild(icon);
+        contentBox.appendChild(title);
+        contentBox.appendChild(message);
+        contentBox.appendChild(subMessage);
+        contentBox.appendChild(button);
+        errorHub.appendChild(contentBox);
+        document.body.appendChild(errorHub);
+
+        console.log('✅ Hub de error de token mostrado');
+    }
+}
+
+
+// =============================================================================
+// TOKEN CSRF — la COOKIE es la fuente de verdad
+// =============================================================================
+// El backend usa double-submit: compara la cabecera X-CSRF-Token con la cookie
+// `csrf-token`, y esa cookie se emite con httpOnly:false justamente para que
+// el navegador la pueda leer.
+//
+// El problema que resuelve esto: el servidor REGENERA la cookie csrf en cada
+// /api/auth/refresh (ver server2.js). Y hay tres sitios que refrescan por su
+// cuenta — GameScene, tiendajuego y phaser-relay-library —, cada uno con su
+// propia copia guardada del token. En cuanto uno refrescaba (por ejemplo la
+// librería del relay al enviar una transacción de comer o beber), la cookie
+// cambiaba y las copias de los otros dos quedaban obsoletas: a partir de ahí
+// todos sus POST se iban en 403 `csrf_token_invalid`, en silencio.
+//
+// Eso es exactamente lo que se veía en el log del servidor justo después de una
+// transacción del relay:
+//     ❌ CSRF attempt ... Path: /api/stats/<addr>/update Method: POST
+// y por eso el agua y la comida dejaban de guardarse.
+//
+// Leyendo SIEMPRE la cookie en el momento del envío, da igual cuántas veces
+// rote el token ni quién lo rote.
+window.getCsrfToken = function getCsrfToken(fallback) {
+    try {
+        const m = document.cookie.match(/(?:^|;\s*)csrf-token=([^;]+)/);
+        if (m && m[1]) {
+            const t = decodeURIComponent(m[1]);
+            window.csrfToken = t;   // se mantiene al día para el resto del código
+            return t;
+        }
+    } catch (_) {}
+    return fallback || window.csrfToken || '';
+};
+
+// =============================================================================
+// StatsSync — utilitaria para GameScene y tiendajuego
+// Permite actualizar stats en el contrato con bajo costo (debounced 1.5s).
+// Usa increase/decreaseInvoiceQuantity según la diferencia.
+// =============================================================================
+class StatsSync {
+    /**
+     * @param {Phaser.Scene} scene - Escena Phaser activa (GameScene o tiendajuego)
+     */
+    constructor(scene) {
+        this.scene       = scene;
+        this.serverBase  = window.serverBase || scene.serverBase || 'http://127.0.0.1:8080';
+        this._pending    = {};   // stat → nuevo valor pendiente de enviar
+        this._updating   = false;
+        this._timer      = null;
+    }
+
+    /** Lee el valor actual de un stat desde window.playerStats */
+    get(stat) {
+        // La escala de las vitales es 0..100 (las barras pintan `${valor}%` sin
+        // dividir). El 100000 de antes era el default viejo y, si se usaba,
+        // mandaba al backend un valor imposible.
+        const DEFAULTS = { vida: 100, agua: 100, comida: 100, oro: 0, plata: 0, exp: 0 };
+        return (window.playerStats && window.playerStats[stat] !== undefined)
+            ? window.playerStats[stat]
+            : (DEFAULTS[stat] ?? 0);
+    }
+
+    /**
+     * Establece el valor de un stat localmente y encola actualización al backend.
+     * @param {string}  stat      - 'vida'|'agua'|'comida'|'oro'|'plata'|'exp'
+     * @param {number}  value     - nuevo valor
+     * @param {boolean} immediate - si true, envía sin esperar debounce
+     */
+    set(stat, value, immediate = false) {
+        const VALID = ['vida', 'agua', 'comida', 'oro', 'plata', 'exp'];
+        if (!VALID.includes(stat)) return;
+
+        const VITALES = ['vida', 'agua', 'comida'];
+        let rounded = Math.round(Math.max(0, value));
+        // Las vitales son un porcentaje: nunca más de 100.
+        if (VITALES.includes(stat)) rounded = Math.min(100, rounded);
+
+        if (!window.playerStats) window.playerStats = { vida: 100, agua: 100, comida: 100, oro: 0, plata: 0, exp: 0, invoiceIds: {} };
+        window.playerStats[stat] = rounded;
+        this._pending[stat] = rounded;
+
+        if (immediate) {
+            this._flush();
+        } else {
+            clearTimeout(this._timer);
+            this._timer = setTimeout(() => this._flush(), 1500);
+        }
+    }
+
+    /**
+     * Vuelve a intentarlo DENTRO DE UN MOMENTO, sin gastar reintentos.
+     *
+     * Es para los choques: otro envío en vuelo, el cerrojo global cogido por la
+     * otra instancia de StatsSync (el mapa y la tienda tienen una cada uno), o
+     * `window.currentPlayer` que todavía no ha llegado. Nada de eso es un
+     * fallo: es "ahora no, en un momento".
+     *
+     * LO QUE ARREGLA: antes estas tres situaciones se iban con un `return` seco
+     * y lo pendiente se quedaba SIN NINGÚN TEMPORIZADOR. Solo salía si el
+     * jugador cambiaba otro stat después. Con `immediate:true` —que es como
+     * cobra la tienda— eso significaba que el oro bajaba en pantalla y en la
+     * base de datos, y a la cadena no llegaba nunca.
+     */
+    _reintentarPronto() {
+        if (!Object.keys(this._pending).length) return;
+        clearTimeout(this._timer);
+        this._timer = setTimeout(() => this._flush(), 400);
+    }
+
+    /** Envía todos los cambios pendientes al backend */
+    async _flush() {
+        if (this._updating) { this._reintentarPronto(); return; }
+        const toSend = { ...this._pending };
+        if (!Object.keys(toSend).length) return;
+
+        // Lock global por jugador para evitar doble-TX desde múltiples instancias
+        const playerName = window.currentPlayer;
+        if (!playerName) { this._reintentarPronto(); return; }
+        const lockKey = `statsFlush_${playerName}`;
+        if (window[lockKey]) {
+            // Ya hay un flush en curso — re-encolar Y VOLVER A INTENTARLO.
+            // El `return` sin reloj de antes era el agujero por el que se
+            // perdía el cobro de la tienda.
+            Object.assign(this._pending, toSend);
+            this._reintentarPronto();
+            return;
+        }
+        window[lockKey] = true;
+        this._updating = true;
+        this._pending  = {};
+
+        try {
+            // La cookie csrf NO es httpOnly: se lee en el momento del envío.
+            // El valor guardado en window.csrfToken queda obsoleto en cuanto
+            // cualquier otra parte del cliente refresca la sesión.
+            const csrfToken = window.getCsrfToken(
+                (this.scene && this.scene.csrfToken) || ''
+            );
+
+            if (!csrfToken) {
+                console.warn('⚠️ StatsSync: sin CSRF token, reintentando más tarde');
+                Object.assign(this._pending, toSend);
+                window[lockKey] = false;
+                this._updating = false;
+                // FIX: "más tarde" no llegaba nunca — era la cuarta salida sin
+                // temporizador: lo pendiente (el oro de una compra, el agua que
+                // se acaba de beber) se quedaba en el navegador hasta que otro
+                // cambio de stats lo arrastrara.
+                this._programarReintento();
+                return;
+            }
+
+            const res = await fetch(
+                `${this.serverBase}/api/stats/${encodeURIComponent(playerName)}/update`,
+                {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+                    body: JSON.stringify({ stats: toSend })
+                }
+            );
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.stats && data.stats.invoiceIds && window.playerStats) {
+                    window.playerStats.invoiceIds = { ...window.playerStats.invoiceIds, ...data.stats.invoiceIds };
+                }
+                // El backend responde con lo que quedó REALMENTE en la factura.
+                // Si una TX falló, ese valor no es el que pedimos, y hay que
+                // hacerle caso ya: antes la barra seguía mostrando el valor
+                // pedido y el jugador solo descubría el verdadero al recargar
+                // la página ("recargué 30 de agua y volvió a 12").
+                if (data.errors && data.errors.length) {
+                    console.warn('⚠️ El contrato rechazó parte del update:', data.errors);
+                }
+                this._adoptServerStats(data.stats);
+                console.log('✅ Stats actualizados en contrato:', toSend);
+                this._reintentos = 0;
+            } else {
+                // Re-encolar para reintentar
+                Object.assign(this._pending, toSend);
+                console.warn(`⚠️ Stats update falló (${res.status}), se reintentará`);
+                this._programarReintento();
+            }
+        } catch (e) {
+            Object.assign(this._pending, toSend);
+            console.warn('⚠️ StatsSync error:', e.message || e);
+            this._programarReintento();
+        } finally {
+            this._updating = false;
+            if (window[lockKey]) window[lockKey] = false;
+        }
+    }
+
+    /**
+     * Reintenta un envío fallido por su cuenta, con espera creciente.
+     *
+     * Antes lo pendiente se re-encolaba y ahí se quedaba: no se volvía a
+     * intentar hasta que el jugador hiciera OTRO cambio de stats. Si el nodo
+     * estaba caído (o saltaba un 403), el agua, la comida, el oro o la exp de
+     * ese momento no llegaban nunca a la cadena y se perdían al recargar.
+     */
+    _programarReintento() {
+        if (!Object.keys(this._pending).length) return;
+        this._reintentos = (this._reintentos || 0) + 1;
+        if (this._reintentos > 6) {
+            /* Se para la escalada, pero NO se tira lo pendiente: se deja un
+               reloj lento puesto. Lo que hay aquí puede ser el oro de una
+               compra, y perderlo en silencio es peor que insistir cada medio
+               minuto. */
+            console.warn('⚠️ StatsSync: 6 reintentos fallidos; se sigue insistiendo despacio con:',
+                         Object.keys(this._pending).join(', '));
+            this._reintentos = 0;
+            clearTimeout(this._timer);
+            this._timer = setTimeout(() => this._flush(), 30000);
+            return;
+        }
+        const espera = Math.min(2000 * Math.pow(2, this._reintentos - 1), 30000);
+        console.log(`🔁 StatsSync: reintento ${this._reintentos} en ${espera}ms`);
+        clearTimeout(this._retryTimer);
+        this._retryTimer = setTimeout(() => this._flush(), espera);
+    }
+
+    /**
+     * Copia a la escena los valores canónicos que devolvió el backend.
+     * Un stat con un cambio local más nuevo todavía en cola NO se pisa.
+     */
+    _adoptServerStats(serverStats) {
+        if (!serverStats || !window.playerStats) return;
+        const CAMPOS = {
+            vida:   'vidaPorcentaje',
+            agua:   'aguaPorcentaje',
+            comida: 'comidaPorcentaje',
+            oro:    'moneda',
+            plata:  'moneda_plata',
+            exp:    'nivel_exp',
+        };
+        let corregido = false;
+        for (const [stat, prop] of Object.entries(CAMPOS)) {
+            const valor = serverStats[stat];
+            if (typeof valor !== 'number') continue;
+            if (this._pending[stat] !== undefined) continue; // hay algo más nuevo en cola
+            if (window.playerStats[stat] !== valor) corregido = true;
+            window.playerStats[stat] = valor;
+            if (this.scene) this.scene[prop] = valor;
+            // Realinear el testigo de exp de la escena, si no volvería a
+            // mandar el valor viejo en el siguiente tick.
+            if (stat === 'exp' && this.scene && this.scene._lastExpSynced !== undefined) {
+                this.scene._lastExpSynced = valor;
+            }
+        }
+        if (corregido && this.scene && typeof this.scene._refreshBarrasUI === 'function') {
+            this.scene._refreshBarrasUI();
+        }
+    }
+
+    /** Fuerza la lectura de stats desde el backend (llama /api/stats/:playerName) */
+    async forceRefresh() {
+        const playerName = window.currentPlayer;
+        if (!playerName) return;
+        try {
+            const res = await fetch(
+                `${this.serverBase}/api/stats/${encodeURIComponent(playerName)}`,
+                { method: 'GET', credentials: 'include' }
+            );
+            if (res.ok) {
+                const data = await res.json();
+                if (data.stats && window.playerStats) {
+                    ['vida','agua','comida','oro','plata','exp'].forEach(s => {
+                        if (data.stats[s] !== undefined) window.playerStats[s] = Number(data.stats[s]);
+                    });
+                    if (data.stats.invoiceIds) window.playerStats.invoiceIds = data.stats.invoiceIds;
+                }
+                console.log('🔄 Stats refrescados desde backend:', window.playerStats);
+            }
+        } catch (e) {
+            console.warn('StatsSync.forceRefresh error:', e.message || e);
+        }
+    }
+
+    /**
+     * Vacía inmediatamente el buffer pendiente — se llama al salir de escena.
+     *
+     * ES LA ÚLTIMA OPORTUNIDAD, así que no vale con intentarlo una vez: si hay
+     * un envío en vuelo o el cerrojo global está cogido, se espera un poco y se
+     * vuelve. Antes bastaba un choque en ese instante para que el cobro de la
+     * tienda se quedara en el navegador y no llegara nunca a la cadena.
+     */
+    async _flushUpdates() {
+        clearTimeout(this._timer);
+        for (let intento = 0; intento < 6; intento++) {
+            if (!Object.keys(this._pending).length) return;
+            const playerName = window.currentPlayer;
+            const libre = playerName && !this._updating && !window[`statsFlush_${playerName}`];
+            if (libre) {
+                await this._flush();
+                if (!Object.keys(this._pending).length) return;
+            }
+            await new Promise(r => setTimeout(r, 350));
+        }
+        if (Object.keys(this._pending).length) {
+            console.warn('⚠️ StatsSync: quedaba algo por enviar al salir de la escena:',
+                         Object.keys(this._pending).join(', '));
+            // Se deja con reloj puesto: la instancia sigue viva en la página.
+            this._reintentarPronto();
+        }
+    }
+}
+
+window.LoadingScenegame = LoadingScenegame;
+window.StatsSync        = StatsSync;

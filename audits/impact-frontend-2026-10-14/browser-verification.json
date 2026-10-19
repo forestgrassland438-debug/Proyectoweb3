@@ -1,0 +1,27 @@
+{
+  "fixtureOnly": true,
+  "checks": [
+    "Authenticated entry; real counters; unknown retention/session shown as unavailable; decimal gas preserved; escaped player/action data; official hash link.",
+    "Search, backend sort, next/previous pagination.",
+    "CSRF-protected background scan request, durable progress after reload, completion and progress bar.",
+    "Authenticated full CSV and JSON downloads from backend, independent of current table filter/page.",
+    "Fresh English and Spanish technical report, editable community fields, clipboard copy, text-safe PDF print rendering.",
+    "Mobile 390px viewport: no page-level horizontal overflow; large evidence table scrolls inside its container.",
+    "Metrics refresh automatically every 10 seconds with a single nonoverlapping cycle; summary scan status avoids a redundant polling route.",
+    "Mongo 14031 in legacy scan state and HTTP 507 identifies Railway storage, preserves admin access and allows a successful manual retry.",
+    "Concurrent expired-session metrics and CSV export share one renewal, including delayed old 401 responses; retry uses rotated CSRF and keeps the panel visible.",
+    "A stale CSRF token is renewed and the rejected scan request retries once without ending the admin session.",
+    "RPC 429/503 and a temporary refresh failure preserve the session; a cooldown prevents repeated refresh requests.",
+    "A network failure during session renewal preserves the panel and its last verified metrics.",
+    "Revoked refresh credentials gate the panel, clear sensitive evidence and stop polling after one renewal attempt.",
+    "Wallet account removal and revoked admin role gate evidence; provider RPC disconnect preserves session; back-forward cache restore revalidates admin.",
+    "Anonymous viewers never request protected impact endpoints.",
+    "Initial RPC503 after wallet login honors Retry-After and rechecks the existing session automatically; recovery opens admin without another nonce, login or signature.",
+    "Pending permission retries stop on wallet account removal and pagehide; back-forward restoration rechecks the existing session safely.",
+    "Permission retries stop after six attempts; manual reverification then opens admin without wallet signing or restarting login.",
+    "Login precheck network: clear diagnosis, no nonce/signature/login or protected metrics; connect button recovers.",
+    "Login precheck http503: clear diagnosis, no nonce/signature/login or protected metrics; connect button recovers.",
+    "Login precheck missingCsrf: clear diagnosis, no nonce/signature/login or protected metrics; connect button recovers."
+  ],
+  "errors": []
+}

@@ -1,0 +1,24 @@
+{
+  "env": {
+    "browser": true,
+    "es6": true,
+    "es2021": true
+  },
+  "globals": {
+    "Phaser": "readonly"
+  },
+  "extends": [
+    "eslint:recommended",
+    "plugin:security/recommended",
+    "plugin:no-unsanitized/DOM"
+  ],
+  "plugins": [
+    "security",
+    "no-unsanitized"
+  ],
+  "rules": {
+    "no-unused-vars": ["warn", { "varsIgnorePattern": "^_" }],
+    "no-eval": "error",
+    "no-new-func": "error"
+  }
+}

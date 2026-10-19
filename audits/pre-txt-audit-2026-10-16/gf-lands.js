@@ -1,0 +1,528 @@
+/*!
+ * ============================================================================
+ * Grassland Forest © 2026 JEAN LARREAL - TODOS LOS DERECHOS RESERVADOS
+ * ============================================================================
+ *
+ * GF LANDS — el boton redondo de las parcelas
+ *
+ * ============================================================================
+ *
+ * QUE HACE
+ * ---------------------------------------------------------------------------
+ * Un solo boton del HUD con DOS estados:
+ *
+ *    fuera de la isla   icono de la parcela   ->  lleva a LandsScene
+ *    dentro de la isla  icono con la flecha   ->  devuelve a GameScene
+ *
+ * POR QUE UN MODULO Y NO CODIGO EN CADA ESCENA
+ * ---------------------------------------------------------------------------
+ * El boton tiene que funcionar en CUATRO escenas: el mapa, la tienda, la mina
+ * y la propia isla. Tres de ellas comparten clase (GameScene y sus herederas),
+ * pero `tiendajuego` no: es una clase aparte con su propio HUD. Poniendo la
+ * logica en cada una habria cuatro copias del mismo boton, y la del icono —que
+ * es la parte facil de olvidar— se quedaria desincronizada a la primera.
+ *
+ * Aqui esta una vez, y cada escena solo dice `GFLands.montar(this)`.
+ *
+ * POR QUE EL BOTON VA EL ULTIMO EN EL HTML
+ * ---------------------------------------------------------------------------
+ * Porque `tiendajuego.js` engancha varios botones redondos por su POSICION en
+ * la NodeList (`roundButtons[3]` son las transacciones, `[6]` la tienda).
+ * Meterlo en medio del HTML correria todos esos indices y los botones de la
+ * tienda pasarian a hacer lo del de al lado. Es el mismo motivo por el que
+ * "Friends" tambien va el ultimo. Donde se VE lo decide el `order` del CSS
+ * (`#lands-btn { order: 0 }`), que lo pone el primero, encima de Dashboard.
+ *
+ * EL ENGANCHE ES IDEMPOTENTE
+ * ---------------------------------------------------------------------------
+ * El HUD es DOM de la PAGINA: sobrevive al cambio de escena, pero sus
+ * manejadores apuntan a la escena que los puso. Si esa escena muere, el boton
+ * sigue ahi y al pulsarlo revienta. Por eso `montar` se llama en cada create()
+ * y en cada 'wake', y siempre quita el manejador anterior antes de poner el
+ * nuevo.
+ */
+
+(function (root) {
+  'use strict';
+
+  // Los del HUD nuevo (tools/generar-iconos-hud.py, 2026-10-05).
+  var ICONO_IR     = './Game/Source/hud/lands.png';
+  var ICONO_VOLVER = './Game/Source/hud/lands_volver.png';
+
+  var CLAVE_ISLA = 'LandsScene';
+
+  /* LA PLAZA: donde nace toda cuenta nueva, y adonde devuelve la isla.
+     El valor esta escrito igual en LoadingScenegame.js y en GameScene.js
+     (`this.posicionplayerx = 2097; this.posicionplayery = 2359;`). Si algun
+     dia se mueve la plaza, hay que cambiarlo en los tres sitios. */
+  var PLAZA_X = 2097;
+  var PLAZA_Y = 2359;
+
+  function log() {
+    if (root.console && console.log) {
+      console.log.apply(console, ['[gf-lands]'].concat([].slice.call(arguments)));
+    }
+  }
+
+  function boton() {
+    return document.getElementById('lands-btn');
+  }
+
+  /**
+   * Pone el icono y el texto que tocan segun donde estes.
+   *
+   * El `alt` y la chapita tambien cambian: el boton es el mismo nodo, asi que
+   * si solo cambiara la imagen, un lector de pantalla seguiria diciendo
+   * "Lands" cuando el boton ya sirve para volver.
+   */
+  function pintarIcono(enLaIsla) {
+    var b = boton();
+    if (!b) return;
+    var img = b.querySelector('img');
+    var chapa = b.querySelector('.label-badge');
+    var ruta = enLaIsla ? ICONO_VOLVER : ICONO_IR;
+    if (img && img.getAttribute('src') !== ruta) {
+      img.setAttribute('src', ruta);
+      img.setAttribute('alt', enLaIsla ? 'Volver al mapa' : 'Lands');
+    }
+    if (chapa) chapa.textContent = enLaIsla ? 'Back' : 'Lands';
+    b.setAttribute('aria-label', enLaIsla ? 'Volver al mapa' : 'Ir a mis parcelas');
+    b.classList.toggle('lands-activo', !!enLaIsla);
+  }
+
+  /**
+   * Apaga el HUD de la pagina antes de cambiar de escena.
+   *
+   * Todo va con `?.` / comprobaciones: esto lo usan cuatro escenas distintas y
+   * no todas tienen los mismos metodos. Lo que no exista, se salta; lo que
+   * exista, se llama. Es preferible a cuatro copias de esta funcion, cada una
+   * con la lista de metodos de su escena.
+   */
+  function apagarHUD(escena, yaGuardado) {
+    var $ = function (id) { return document.getElementById(id); };
+    var hud = $('game-hud');
+    if (hud) {
+      hud.classList.remove('hud-visible');
+      hud.classList.add('hud-hidden');
+    }
+    ['hub', 'quick-slots-bar', 'open-chat-btn'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.classList.add('hidden');
+    });
+    document.querySelectorAll('.quick-slot').forEach(function (s) {
+      s.style.display = 'none';
+    });
+    var izq = $('info-text-left');
+    if (izq) izq.textContent = '';
+    var ui = $('game-ui-text');
+    if (ui) ui.style.display = 'none';
+
+    try { if (escena._cancelarArrastre) escena._cancelarArrastre(); } catch (e) {}
+    try { if (!yaGuardado && escena.savegg) Promise.resolve(escena.savegg()).catch(function (e) { log('guardado:', e); }); } catch (e) { log('guardado:', e); }
+    try { if (escena.removeListener) escena.removeListener(); } catch (e) {}
+    try { if (escena._unbindAllDomClicks) escena._unbindAllDomClicks(); } catch (e) {}
+    try { if (escena.hideHudElements) escena.hideHudElements(); } catch (e) {}
+    try { if (escena.stopMusicSafely) escena.stopMusicSafely(); } catch (e) {}
+    try { if (escena.cleanupScene) escena.cleanupScene(); } catch (e) { log('limpieza:', e); }
+  }
+
+  /**
+   * Empaqueta la sesion para pasarsela a la isla.
+   *
+   * Las escenas que heredan de GameScene traen `_capturarSesion()`.
+   * `tiendajuego` no hereda, asi que se compone a mano con lo que tenga — y
+   * si le falta algo, la isla lo resuelve sola llamando a `loadx()`.
+   *
+   * POR QUE ESTO IMPORTA: cambiar de escena crea una instancia NUEVA, y la
+   * isla se autenticaba de cero. Eso dio el cartel de SESSION EXPIRED, porque
+   * `serverBase` se rellena en el preload() de GameScene y la isla tiene el
+   * suyo propio: la peticion salia a `undefined/api/auth/me`.
+   */
+  function sesionDe(escena) {
+    if (typeof escena._capturarSesion === 'function') {
+      try { return escena._capturarSesion(); } catch (e) {}
+    }
+    return {
+      playerName:      escena.playerName,
+      address:         escena.address,
+      currentAccount:  escena.currentAccount,
+      isAuthenticated: escena.isAuthenticated === true,
+      csrfToken:       escena.csrfToken || root.csrfToken || null,
+      serverBase:      escena.serverBase,
+      serverclient:    escena.serverclient,
+      serverclient1:   escena.serverclient1
+    };
+  }
+
+  /** De donde se vino, para poder devolver al jugador a su sitio. */
+  function recordarVuelta(escena) {
+    try {
+      root.__gfLandsVuelta = {
+        escena: escena.sys.settings.key,
+        x: escena.player ? Math.round(escena.player.x) : null,
+        y: escena.player ? Math.round(escena.player.y) : null
+      };
+    } catch (e) {
+      root.__gfLandsVuelta = null;
+    }
+  }
+
+  function estadoAntesDeSalir(escena) {
+    return { mundo: escena.mundo, x: escena.posicionplayerx, y: escena.posicionplayery,
+             cambiando: escena._cambiandoEscena, sala: escena._salaDestino,
+             viaje: root.__gfViaje, vuelta: root.__gfLandsVuelta };
+  }
+
+  function cancelarSalida(escena, anterior, error) {
+    if (escena._sceneStopped) return;
+    escena.mundo = anterior.mundo;
+    escena.posicionplayerx = anterior.x; escena.posicionplayery = anterior.y;
+    escena._cambiandoEscena = anterior.cambiando;
+    escena._salaDestino = anterior.sala;
+    root.__gfViaje = anterior.viaje; root.__gfLandsVuelta = anterior.vuelta;
+    log('viaje cancelado: no se pudo guardar', error || '');
+    try {
+      var texto = 'Could not save your progress. Check your connection and try travelling again.';
+      if (escena.notifications && typeof escena.notifications.show === 'function') escena.notifications.show(texto, 'warning');
+      else if (typeof escena.showNotification === 'function') escena.showNotification(texto, 'warning');
+    } catch (e) {}
+  }
+
+  function esperarGuardado(guardado, escena, anterior, continuar) {
+    Promise.resolve(guardado).then(function (resultado) {
+      if (resultado === false) cancelarSalida(escena, anterior);
+      else continuar();
+    }, function (error) { cancelarSalida(escena, anterior, error); });
+  }
+
+  /**
+   * A la isla POR LA PANTALLA DE CARGA, igual que a la mina y a la tienda.
+   *
+   * DOS MOTIVOS, y el segundo es un fallo de verdad:
+   *
+   *   1. Consistencia: es el mismo viaje que hace el resto del juego, con su
+   *      pantalla de carga y su sincronizacion del inventario con la cadena.
+   *
+   *   2. LA ISLA NO SE GUARDABA. `LandsScene` se marca como `mundo = 4` en su
+   *      create, pero eso solo vive en la instancia: hasta que algo llamara a
+   *      `savegg()` con ese valor puesto, la partida seguia diciendo "mundo 1".
+   *      Recargar la pagina te sacaba al mapa como si nunca hubieras ido.
+   *      Ahora el mundo se guarda ANTES de irse, y se ESPERA a que el guardado
+   *      termine: la pantalla de carga decide a donde va leyendo /api/load, y
+   *      si el guardado sigue en vuelo cuando pregunta, lee el mundo viejo.
+   *
+   * `sesionDe()` ya no hace falta aqui: viniendo de la pantalla de carga, es
+   * ella la que le pasa su sesion a la isla.
+   */
+  function ir(escena) {
+    if (escena._cambiandoEscena) return;
+    if (!escena.scene.get(CLAVE_ISLA)) {
+      log('LandsScene no esta registrada: no se puede ir a la isla');
+      return;
+    }
+    var anterior = estadoAntesDeSalir(escena);
+    escena._cambiandoEscena = true;
+    // A MI isla: una nota de viaje que se hubiera quedado sin recoger (un
+    // "visitar su isla" que no llego a salir) no puede llevarme a la de otro.
+    root.__gfViaje = null;
+    recordarVuelta(escena);
+    log('a la isla desde', escena.sys.settings.key);
+    // Al apagarse, la escena entra en la sala de su destino (ver
+    // _salaAlSalir en GameScene y tiendajuego). Sin esto, el jugador que se
+    // iba a la isla quedaba como fantasma en la tienda o en el mapa.
+    escena._salaDestino = 'isla';
+
+    escena.mundo = 4;
+    var irYa = function () {
+      if (escena._sceneStopped) return;
+      apagarHUD(escena, true);
+      escena.scene.start('LoadingScenegame');
+    };
+    try {
+      var p = escena.savegg && escena.savegg();
+      esperarGuardado(p, escena, anterior, irYa);
+    } catch (e) {
+      cancelarSalida(escena, anterior, e);
+    }
+  }
+
+  function volver(escena) {
+    if (escena._cambiandoEscena) return;
+    var anterior = estadoAntesDeSalir(escena);
+    escena._cambiandoEscena = true;
+    log('de vuelta al mapa');
+    // Al apagarse, la escena entra en la sala de su destino (_salaAlSalir).
+    escena._salaDestino = 'game';
+
+    /* EL MUNDO SE CORRIGE ANTES DE APAGAR EL HUD, y el orden no es un detalle:
+       `apagarHUD()` tambien llama a `savegg()`. Corrigiendolo despues habria
+       DOS guardados en vuelo -uno diciendo "esta en la isla" y otro diciendo
+       "esta en el mapa"- y cual de los dos llega el ultimo al servidor no lo
+       decide nadie. Poniendolo aqui, los dos guardan lo mismo. */
+    var guardado;
+    try {
+      if (typeof escena._dejarPartidaEnElMapa === 'function') {
+        guardado = escena._dejarPartidaEnElMapa(PLAZA_X, PLAZA_Y);
+      } else {
+        escena.mundo = 1;
+        escena.posicionplayerx = PLAZA_X; escena.posicionplayery = PLAZA_Y;
+        guardado = escena.savegg && escena.savegg();
+      }
+    } catch (e) { cancelarSalida(escena, anterior, e); return; }
+
+    /* SIEMPRE a GameScene, aunque se hubiera venido de la tienda o de la mina.
+       Es lo que se pidio, y ademas es lo unico que no deja al jugador en un
+       sitio raro: volver a la tienda significaria reaparecer dentro de un
+       edificio al que ya no se sabe por donde se entro.
+
+       Y SIEMPRE A LA PLAZA. Antes se devolvia al jugador a las coordenadas
+       exactas desde las que habia pulsado el boton (`__gfLandsVuelta`). Suena
+       mejor de lo que es: desde la tienda o desde la mina esa posicion no
+       existe en el mapa de fuera, y desde el mapa te devolvia pegado a
+       cualquier sitio, a veces dentro de una colision. La plaza es el punto
+       de partida de toda cuenta nueva (LoadingScenegame y GameScene lo tienen
+       igual: 2097, 2359), asi que siempre es suelo pisable y siempre es un
+       sitio reconocible.
+
+       `__gfLandsVuelta` se sigue guardando: no se usa para colocar al
+       jugador, pero dice en el log de donde se vino. */
+    var vuelta = root.__gfLandsVuelta || {};
+    log('vuelta a la plaza (se venia de', vuelta.escena || 'ningun sitio', ')');
+
+    /* El `playerData` de aqui abajo es DECORATIVO y se deja solo por parecerse
+       a las demas transiciones del juego: LoadingScenegame no tiene `init()`,
+       nadie lo lee, y la posicion y el mundo salen siempre de /api/load. Quien
+       de verdad decide donde apareces es el `_dejarPartidaEnElMapa()` de
+       arriba, que lo deja guardado antes de irse. */
+    var volverYa = function () {
+      if (escena._sceneStopped) return;
+      apagarHUD(escena, true);
+      escena.scene.start('LoadingScenegame', {
+        targetScene: 'GameScene',
+        playerData: { x: PLAZA_X, y: PLAZA_Y, mundo: 1 }
+      });
+    };
+    esperarGuardado(guardado, escena, anterior, volverYa);
+  }
+
+  /**
+   * Engancha el boton a ESTA escena y le pone el icono que toca.
+   * Lo llaman los create() de GameScene, tiendajuego, MinaScene y LandsScene.
+   */
+  /* EL BOTÓN APUNTA A LA ESCENA VIVA, NO A LA QUE LO ENGANCHÓ.
+
+     FALLO QUE ESTO ARREGLA: el manejador era un cierre sobre `escena`. En la
+     tienda (que no tiene `_bindDomClick`) se ponía con `b.onclick = accion`, y
+     al volver al mapa GameScene añadía el suyo con addEventListener SIN quitar
+     aquel `onclick`. Desde entonces cada clic en el botón de las islas lanzaba
+     DOS viajes: uno desde el mapa y otro desde la tienda ya destruida. Y ese
+     `onclick` viejo mantenía la tienda entera en memoria (visto en un heap
+     snapshot: #lands-btn → onclick → accion → escena).
+
+     Ahora el manejador es del módulo y mira `escenaBoton` en el momento; el
+     `onclick` se borra siempre que se engancha por `_bindDomClick`, y la
+     escena se suelta al apagarse. */
+  var escenaBoton = null;
+  var enLaIslaBoton = false;
+
+  function accionBoton(ev) {
+    if (ev && ev.stopPropagation) ev.stopPropagation();
+    var escena = escenaBoton;
+    if (!escena || !escena.sys) return;
+    if (enLaIslaBoton) volver(escena);
+    else ir(escena);
+  }
+
+  var ciclosEscena = new WeakMap();
+  function montar(escena) {
+    var b = boton();
+    if (!b) {
+      log('no existe #lands-btn en el HTML');
+      return;
+    }
+    var enLaIsla = false;
+    try { enLaIsla = escena.sys.settings.key === CLAVE_ISLA; } catch (e) {}
+
+    pintarIcono(enLaIsla);
+    escenaBoton = escena;
+    enLaIslaBoton = enLaIsla;
+    if (escena.events && escena.events.once && !ciclosEscena.has(escena)) {
+      var soltar = function () {
+        escena.events.off('shutdown', soltar); escena.events.off('destroy', soltar);
+        ciclosEscena.delete(escena);
+        if (escenaBoton === escena) escenaBoton = null;
+      };
+      ciclosEscena.set(escena, soltar);
+      escena.events.once('shutdown', soltar); escena.events.once('destroy', soltar);
+    }
+
+    // `_bindDomClick` (GameScene y herederas) ya es idempotente y lo suelta al
+    // apagar la escena. `tiendajuego` no lo tiene, asi que alli se usa
+    // `onclick`, que pisa el anterior en vez de acumularlo.
+    if (typeof escena._bindDomClick === 'function') {
+      b.onclick = null;
+      escena._bindDomClick(b, 'lands', accionBoton);
+    } else {
+      b.onclick = accionBoton;
+    }
+  }
+
+  // =========================================================================
+  // EL TELETRANSPORTE DEL PANEL DE AMIGOS                       (2026-10-04)
+  // =========================================================================
+  /*
+   * "Ir con el" y "visitar su isla" (gf-amigos.js, pestanas Online y Friends).
+   *
+   * EL VIAJE ES EL MISMO QUE EL DEL BOTON DE LAS ISLAS -guardar, apagar el
+   * HUD, pantalla de carga-, porque es el unico camino que ya funciona desde
+   * las cuatro escenas. Lo que se anade es el DESTINO, en dos partes:
+   *
+   *   . el MUNDO (1 mapa, 2 tienda, 3 mina, 4 isla) va GUARDADO en la
+   *     partida: es lo unico que lee la pantalla de carga para elegir escena
+   *     (LoadingScenegame no tiene init()).
+   *   . el PUNTO exacto y, en la isla, DE QUIEN es, van en `__gfViaje`, una
+   *     nota de pagina que la escena de llegada recoge con `tomar()` y borra.
+   *     Caduca al minuto y medio, y se tira tambien si la recoge una escena
+   *     de otro mundo (el viaje fallo): una nota olvidada no puede soltarte
+   *     en un sitio raro la siguiente vez que entres.
+   *
+   * Si ya estas en la misma escena (los dos en el mapa, o en la misma isla),
+   * no hay pantalla de carga: se mueve al jugador alli mismo.
+   */
+  // 6 = el mapa salvaje del oeste (Scenes/SalvajeScene.js, 2026-10-11).
+  var ESCENA_DE_MUNDO = { 1: 'GameScene', 2: 'tiendajuego', 3: 'MinaScene', 4: CLAVE_ISLA, 6: 'SalvajeScene' };
+  var SALA_DE_MUNDO   = { 1: 'game', 2: 'tienda', 3: 'mina', 4: 'isla', 6: 'salvaje' };
+  var MUNDO_DE_ZONA   = { world: 1, shop: 2, mine: 3, island: 4, wild: 6 };
+  // Sin punto conocido (alguien que acaba de entrar y no se ha movido), la
+  // entrada de siempre de cada sitio. La mina y la isla ya tienen la suya.
+  var ENTRADA_DE_MUNDO = { 1: { x: PLAZA_X, y: PLAZA_Y }, 2: { x: 1041, y: 1778 }, 6: { x: 4896, y: 2208 } };
+  var CADUCIDAD_VIAJE = 90 * 1000;
+
+  function numero(v) {
+    var n = Number(v);
+    return v !== null && v !== '' && isFinite(n) ? n : null;
+  }
+
+  /** La escena en la que esta el jugador: la ultima que monto el boton. */
+  function escenaActual() {
+    var e = escenaBoton;
+    try { return e && e.sys && e.sys.isActive() ? e : null; } catch (err) { return null; }
+  }
+
+  /** Lo que deja la escena de llegada. null si no hay nada para ella. */
+  function tomar(mundo) {
+    var v = root.__gfViaje;
+    if (!v) return null;
+    root.__gfViaje = null;
+    if (Date.now() - (v.t || 0) > CADUCIDAD_VIAJE) return null;
+    if (Number(v.mundo) !== Number(mundo)) {
+      log('nota de viaje para el mundo', v.mundo, 'recogida en el', mundo, ': se tira');
+      return null;
+    }
+    return v;
+  }
+
+  /** La nota, SIN recogerla: la pantalla de carga elige escena con ella. */
+  function mirar() {
+    var v = root.__gfViaje;
+    if (!v || Date.now() - (v.t || 0) > CADUCIDAD_VIAJE) return null;
+    return v;
+  }
+
+  /** Sin cambiar de escena: el jugador aparece alli. */
+  function moverEnSitio(escena, x, y) {
+    var p = escena.player;
+    if (!p) return false;
+    try { if (escena.stopMouseMovement) escena.stopMouseMovement(); } catch (e) {}
+    p.setPosition(x, y);
+    try { if (p.body && p.body.reset) p.body.reset(x, y); } catch (e) {}
+    escena.posicionplayerx = x;
+    escena.posicionplayery = y;
+    escena.previousPosition = { x: x, y: y };
+    try { if (escena._pegarPerroAlJugador) escena._pegarPerroAlJugador(); } catch (e) {}
+    try { escena.cameras.main.flash(250, 255, 255, 255); } catch (e) {}
+    try { if (escena.sendPlayerMovement) escena.sendPlayerMovement(); } catch (e) {}
+    log('teletransporte en el sitio a', Math.round(x) + ',' + Math.round(y));
+    return true;
+  }
+
+  /**
+   * Viaja. `destino` = { mundo, x?, y?, islaDe?, islaDeNombre? }.
+   * Devuelve false si el viaje no puede ni empezar (ya se esta cambiando de
+   * escena, o no hay escena viva).
+   */
+  function viajar(destino) {
+    var escena = escenaActual();
+    if (!escena || !destino) { log('viaje: no hay escena activa'); return false; }
+    if (escena._cambiandoEscena) return false;
+    var mundo = Number(destino.mundo);
+    var clave = ESCENA_DE_MUNDO[mundo];
+    if (!clave || !escena.scene.get(clave)) { log('viaje: mundo sin escena', mundo); return false; }
+
+    var x = numero(destino.x), y = numero(destino.y);
+    var conSitio = x !== null && y !== null && (x > 0 || y > 0);
+    if (!conSitio && ENTRADA_DE_MUNDO[mundo]) {
+      x = ENTRADA_DE_MUNDO[mundo].x; y = ENTRADA_DE_MUNDO[mundo].y; conSitio = true;
+    }
+    var islaDe = null;
+    if (mundo === 4 && destino.islaDe && destino.islaDe !== escena.playerName) islaDe = String(destino.islaDe);
+
+    // La misma escena (y, en la isla, la misma isla): sin pantalla de carga.
+    if (escena.sys.settings.key === clave && conSitio &&
+        (mundo !== 4 || (escena._islaDe || null) === islaDe)) {
+      return moverEnSitio(escena, x, y);
+    }
+
+    var anterior = estadoAntesDeSalir(escena);
+    root.__gfViaje = {
+      mundo: mundo,
+      x: conSitio ? x : null,
+      y: conSitio ? y : null,
+      islaDe: islaDe,
+      islaDeNombre: islaDe ? String(destino.islaDeNombre || islaDe) : null,
+      t: Date.now()
+    };
+    escena._cambiandoEscena = true;
+    recordarVuelta(escena);
+    escena._salaDestino = SALA_DE_MUNDO[mundo];
+    escena.mundo = mundo;
+    if (conSitio) {
+      escena.posicionplayerx = x;
+      escena.posicionplayery = y;
+    }
+    log('viaje a', clave, islaDe ? '(isla de ' + islaDe + ')' : '',
+        conSitio ? Math.round(x) + ',' + Math.round(y) : '(entrada)');
+
+    // Igual que `ir()`: se ESPERA al guardado, porque la pantalla de carga
+    // elige la escena leyendo el mundo de /api/load.
+    var irYa = function () {
+      if (escena._sceneStopped) return;
+      apagarHUD(escena, true);
+      escena.scene.start('LoadingScenegame');
+    };
+    try {
+      var p = escena.savegg && escena.savegg();
+      esperarGuardado(p, escena, anterior, irYa);
+    } catch (e) {
+      cancelarSalida(escena, anterior, e);
+    }
+    return true;
+  }
+
+  root.GFViaje = {
+    viajar: viajar,
+    tomar: tomar,
+    mirar: mirar,
+    moverEnSitio: moverEnSitio,
+    MUNDO_DE_ZONA: MUNDO_DE_ZONA
+  };
+
+  root.GFLands = {
+    montar: montar,
+    ir: ir,
+    volver: volver,
+    pintarIcono: pintarIcono,
+    boton: boton,
+    CLAVE_ISLA: CLAVE_ISLA
+  };
+})(window);

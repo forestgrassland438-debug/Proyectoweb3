@@ -1,0 +1,30 @@
+✔ twenty loading restarts release both lifecycle listeners, tips and activity timers (55.6583ms)
+✔ an older loading create cannot stop the new run timers (17.7071ms)
+✔ stopping loading prevents a late refresh from replacing the shared CSRF token (19.0174ms)
+✔ a stopped automatic refresh cannot open an expired-session panel later (17.1677ms)
+✔ map return exposes the save promise so callers can wait for durable state (16.6592ms)
+✔ shop loading releases paired listeners and ignores a rejection from an old run (17.7013ms)
+✔ leaving loading cancels only the gate waiter and releases its scene callbacks (19.0267ms)
+✔ late initial authentication cannot start refresh or change the new account (16.2449ms)
+✔ late initial CSRF and stat bodies cannot overwrite the new scene shared state (18.4072ms)
+✔ an aborted loading request is never retried or delayed (20.0059ms)
+✔ an unexpected loading failure settles create and releases its lifecycle resources (17.166ms)
+✔ MinaScene: map return waits for save and coalesces repeated exits (17.5496ms)
+✔ MinaScene: failed save preserves the current world and allows a later exit (15.6904ms)
+✔ MinaScene: a save from a previous scene entry cannot start a new transition (16.6854ms)
+✔ InteriorScene: map return waits for save and coalesces repeated exits (16.6523ms)
+✔ InteriorScene: failed save preserves the current world and allows a later exit (16.4215ms)
+✔ InteriorScene: a save from a previous scene entry cannot start a new transition (16.2932ms)
+✔ SalvajeScene: map return waits for save and coalesces repeated exits (17.7256ms)
+✔ SalvajeScene: failed save preserves the current world and allows a later exit (14.9959ms)
+✔ SalvajeScene: a save from a previous scene entry cannot start a new transition (17.1525ms)
+✔ missing menu music and unavailable storage still produce usable volume values (5.5017ms)
+✔ invalid saved volumes cannot send NaN, Infinity or out-of-range values to audio (10.2673ms)
+ℹ tests 22
+ℹ suites 0
+ℹ pass 22
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 593.437

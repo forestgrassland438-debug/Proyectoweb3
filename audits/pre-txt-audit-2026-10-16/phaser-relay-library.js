@@ -1,0 +1,1977 @@
+/*!
+ * ============================================================================
+ * Grassland Forest © 2026 JEAN LARREAL - TODOS LOS DERECHOS RESERVADOS
+ * ============================================================================
+ *
+ * PhaserRelay — Librería genérica para lectura/escritura a contratos
+ * vía Relay backend. v13.0.0-release
+ * Para permisos y contacto, ver documentación interna del proyecto.
+ *
+ * ============================================================================
+ *
+ * CORRECCIONES APLICADAS EN ESTA VERSIÓN:
+ *
+ *  1. waitForTransaction — timeout por defecto de 60 s (era 0 = infinito).
+ *     Un bucle while(true) sin salida congela la ejecución si el backend
+ *     nunca responde con un estado terminal.
+ *
+ *  2. URL base — se detecta el protocolo actual de la página y se fuerza
+ *     HTTPS en producción. HTTP en una página HTTPS provoca mixed-content
+ *     bloqueado por el navegador sin ningún error visible al desarrollador.
+ *
+ *  3. Spread ...config eliminado del constructor — cualquier clave del
+ *     objeto config pasado por el llamador podía sobrescribir propiedades
+ *     internas como apiBase, maxRetries, credentials, etc.
+ *
+ *  4. AbortController en fetch — todas las peticiones HTTP tienen un
+ *     timeout configurable (por defecto 30 s). Sin él, un fetch puede
+ *     quedar pendiente indefinidamente bloqueando el flujo async.
+ *
+ *  5. Validación de contractAddress — se verifica el formato EIP-55
+ *     (0x + 40 hex) antes de enviar al backend. Una dirección mal
+ *     formada podría causar errores opacos en el contrato o la red.
+ *
+ *  6. Validación de functionName — solo se permiten identificadores
+ *     válidos de Solidity ([a-zA-Z_$][a-zA-Z0-9_$]*). Evita inyecciones
+ *     de caracteres especiales en los parámetros de la petición.
+ *
+ *  7. pendingTransactions con límite y expiración — el Map crecía sin
+ *     límite. Ahora tiene un máximo de 200 entradas y se purgan las que
+ *     tienen más de 24 h de antigüedad automáticamente.
+ *
+ *  8. window.PhaserRelay no-enumerable — el original lo asignaba como
+ *     propiedad enumerable, visible en Object.keys(window). Ahora usa
+ *     defineProperty con enumerable: false.
+ *
+ *  9. Nonce criptográfico — _getDefaultValue usaba Math.random() para
+ *     generar nonces blockchain. Los nonces predecibles son un vector de
+ *     ataque en contratos que los usan para replay protection. Ahora usa
+ *     crypto.getRandomValues() con fallback.
+ *
+ * 10. verifyByPolling con timeout — el loop de polling no tenía salida
+ *     si readView fallaba repetidamente. Ahora el número de intentos y
+ *     el delay son los únicos límites, igual que antes, pero se documenta
+ *     claramente el límite máximo de espera.
+ *
+ * 11. Guard de doble carga — evita que el script inicialice PhaserRelay
+ *     dos veces si se incluye accidentalmente dos veces en el HTML.
+ * ============================================================================
+ */
+
+(function (root, factory) {
+  'use strict';
+
+  // ── Guard de doble carga ──────────────────────────────────────────────────
+  if (root && root.__GF_RELAY_LOADED__) return;
+
+  var PhaserRelay = factory();
+
+  // ── Exportación — no-enumerable en window ─────────────────────────────────
+  if (typeof root !== 'undefined') {
+    try {
+      Object.defineProperty(root, 'PhaserRelay', {
+        value:        PhaserRelay,
+        writable:     false,
+        enumerable:   false, // no aparece en Object.keys(window)
+        configurable: false
+      });
+      Object.defineProperty(root, 'createPhaserRelay', {
+        value:        function (cfg) { return new PhaserRelay(cfg); },
+        writable:     false,
+        enumerable:   false,
+        configurable: false
+      });
+      Object.defineProperty(root, '__GF_RELAY_LOADED__', {
+        value:        true,
+        writable:     false,
+        enumerable:   false,
+        configurable: false
+      });
+    } catch (e) {
+      // Fallback si defineProperty no está disponible
+      root.PhaserRelay       = PhaserRelay;
+      root.createPhaserRelay = function (cfg) { return new PhaserRelay(cfg); };
+    }
+  }
+
+  // CommonJS / Node.js
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = PhaserRelay;
+  }
+
+})(typeof window !== 'undefined' ? window : (typeof global !== 'undefined' ? global : null), function () {
+  'use strict';
+
+  // ── HELPERS INTERNOS ──────────────────────────────────────────────────────
+
+  // Genera un nonce criptográficamente seguro como string decimal.
+  // Evita Math.random() que es predecible y no apto para replay protection.
+  function _secureNonce() {
+    try {
+      const arr = new Uint32Array(2);
+      crypto.getRandomValues(arr);
+      // Combinar dos uint32 para mayor entropía (64 bits efectivos)
+      return (BigInt(arr[0]) * 4294967296n + BigInt(arr[1])).toString();
+    } catch (e) {
+      throw new Error('WebCrypto is required to generate transaction nonces');
+    }
+  }
+
+  // Clave para que el servidor reconozca una transacción repetida (ver
+  // sendTransaction). 24 caracteres hexadecimales al azar.
+  function _idemNuevo() {
+    try {
+      const arr = new Uint32Array(3);
+      crypto.getRandomValues(arr);
+      return Array.from(arr, n => n.toString(16).padStart(8, '0')).join('');
+    } catch (e) {
+      return Date.now().toString(16) + Math.random().toString(16).slice(2, 14);
+    }
+  }
+
+  // Valida que una dirección Ethereum tenga formato correcto (0x + 40 hex).
+  // No verifica EIP-55 checksum — eso lo hace el backend — pero sí el
+  // formato para evitar parámetros malformados o inyecciones.
+  function _isValidAddress(addr) {
+    if (typeof addr !== 'string') return false;
+    return /^0x[0-9a-fA-F]{40}$/.test(addr);
+  }
+
+  // Valida que un nombre de función sea un identificador Solidity válido.
+  function _isValidFunctionName(name) {
+    if (typeof name !== 'string' || !name.length) return false;
+    return /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(name);
+  }
+
+  // Fetch con AbortController y timeout.
+  // Lanza un error 'REQUEST_TIMEOUT' si la petición supera el límite.
+  async function _fetchWithTimeout(url, opts, timeoutMs) {
+    const controller = new AbortController();
+    const externalSignal = opts && opts.signal;
+    const abort = () => controller.abort();
+    if (externalSignal) {
+      if (externalSignal.aborted) controller.abort();
+      else externalSignal.addEventListener('abort', abort, { once: true });
+    }
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, Object.assign({ redirect: 'error', referrerPolicy: 'no-referrer' }, opts, { signal: controller.signal }));
+      // Keep the deadline while reading the body too: fetch resolves at headers.
+      const body = await res.text();
+      if (controller.signal.aborted) throw Object.assign(new Error('Request aborted'), { name: 'AbortError' });
+      return {
+        ok: res.ok, status: res.status, statusText: res.statusText, headers: res.headers,
+        text: async () => body, json: async () => JSON.parse(body)
+      };
+    } catch (e) {
+      if (e.name === 'AbortError' && !(externalSignal && externalSignal.aborted)) {
+        const err = new Error(`Request timeout after ${timeoutMs}ms`);
+        err.code  = 'REQUEST_TIMEOUT';
+        throw err;
+      }
+      throw e;
+    } finally {
+      clearTimeout(timer);
+      if (externalSignal) externalSignal.removeEventListener('abort', abort);
+    }
+  }
+
+  // ── CLASE PRINCIPAL ───────────────────────────────────────────────────────
+
+  class PhaserRelay {
+    constructor(config = {}) {
+      // ── Resolución de URL base ────────────────────────────────────────────
+      //
+      //  FIX #2: Se detecta el protocolo actual de la página.
+      //  En producción (HTTPS), nunca se usa HTTP para el backend porque
+      //  el navegador bloquea mixed-content sin error visible.
+      //
+      //  Orden de prioridad:
+      //    1. config.apiBase si se provee explícitamente
+      //    2. Variable de entorno __RELAY_API_BASE__ inyectada en build
+      //    3. Fallback: mismo origen (relativo), o localhost en desarrollo
+      //
+      let apiBase = config.apiBase
+        || (typeof __RELAY_API_BASE__ !== 'undefined' ? __RELAY_API_BASE__ : null)
+        || null;
+
+      if (!apiBase) {
+        const localPage = typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+        apiBase = localPage ? 'http://127.0.0.1:8080' : 'https://api.grasslandforest.com';
+      }
+
+      const base = new URL(apiBase, typeof location !== 'undefined' ? location.href : undefined);
+      const local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(base.hostname);
+      if ((base.protocol !== 'https:' && !(base.protocol === 'http:' && local)) || base.username || base.password || base.search || base.hash) {
+        throw new Error('PhaserRelay requires an HTTPS API URL (HTTP is allowed only on localhost)');
+      }
+      apiBase = base.href.replace(/\/$/, '');
+
+      // ── Config interna — SIN spread de config externo ─────────────────────
+      //
+      //  FIX #3: El original hacía `...config` al final, lo que permitía
+      //  que el llamador sobrescribiera cualquier propiedad interna pasando
+      //  una clave con el mismo nombre en el objeto config.
+      //  Ahora solo se leen las claves conocidas y con tipado esperado.
+      //
+      this.config = {
+        apiBase,
+        debug:              !!config.debug,
+        timeout:            (Number.isFinite(config.timeout) && config.timeout > 0) ? Math.min(config.timeout, 300000) : 30000,
+        maxRetries:         (Number.isFinite(config.maxRetries) && config.maxRetries >= 0) ? Math.min(Math.floor(config.maxRetries), 5) : 3,
+        retryDelay:         (Number.isFinite(config.retryDelay) && config.retryDelay >= 0) ? Math.min(config.retryDelay, 30000) : 1000,
+        useNotificationHub: config.useNotificationHub !== false,
+        ethersProviderUrl:  typeof config.ethersProviderUrl === 'string' ? config.ethersProviderUrl : null
+        // No se acepta ninguna otra clave de config para evitar sobrescrituras.
+      };
+
+      // ── Estado de autenticación ───────────────────────────────────────────
+      this.auth = { authenticated: false, address: null, playerName: null };
+      this._destroyed = false;
+      this._abortController = new AbortController();
+      this.csrfToken = null;
+      this.authToken = null;
+
+      // ── Caché de contratos ────────────────────────────────────────────────
+      this.contractsCache = new Map();
+
+      // ── Transacciones pendientes (con límite) ─────────────────────────────
+      //
+      //  FIX #7: El Map original crecía sin límite. Ahora tiene un máximo
+      //  de MAX_PENDING_TX entradas. Cuando se supera, se eliminan las más
+      //  antiguas. Las entradas con más de TX_TTL_MS se purgan en cada
+      //  llamada a _purgeStaleTx().
+      //
+      this.pendingTransactions = new Map();
+      this._MAX_PENDING_TX    = 200;
+      this._TX_TTL_MS         = 24 * 60 * 60 * 1000; // 24 horas
+
+      // ── Sistema de auto-refresh ───────────────────────────────────────────
+      this._autoRefreshInterval = null;
+      this.autoRefreshEnabled   = true;
+      this.lastActivityTime     = Date.now();
+      this._refreshInProgress   = false;
+      this._refreshAttempts     = 0;
+      this._maxRefreshAttempts  = 3;
+      this._lastRefreshTime     = 0;
+      this._minRefreshInterval  = 120000; // mínimo 2 min entre refrescos
+
+      // ── NotificationHub (sin fuentes externas) ────────────────────────────
+      this._notificationHub = null;
+      if (this.config.useNotificationHub) {
+        try {
+          const NH = typeof window !== 'undefined' && window.NotificationHub;
+          if (NH) this._notificationHub = new NH({ debug: this.config.debug, fontFamily: 'Arial, sans-serif' });
+        } catch (e) {
+          if (this.config.debug) console.warn('[PhaserRelay] NotificationHub no disponible:', e.message);
+        }
+      }
+
+      // ── Proveedor ethers de solo lectura ──────────────────────────────────
+      this.readProvider = null;
+      if (this.config.ethersProviderUrl && typeof ethers !== 'undefined') {
+        try {
+          this.readProvider = new ethers.JsonRpcProvider(this.config.ethersProviderUrl);
+        } catch (e) {
+          if (this.config.debug) console.warn('[PhaserRelay] readProvider no pudo iniciarse:', e.message);
+        }
+      }
+
+      if (this.config.debug) console.log('[PhaserRelay] Construido. apiBase:', this.config.apiBase);
+
+      // Inicializar de forma asíncrona sin bloquear el constructor
+      this.initialize().catch(() => {});
+    }
+
+    // ── NOTIFICACIONES ────────────────────────────────────────────────────
+
+    _fetch(url, options, timeout) {
+      if (this._destroyed) return Promise.reject(new Error('PhaserRelay has been cleaned up'));
+      return _fetchWithTimeout(url, Object.assign({}, options, { signal: this._abortController.signal }), timeout);
+    }
+
+    _delay(ms) {
+      const signal = this._abortController.signal;
+      if (this._destroyed || signal.aborted) return Promise.reject(new Error('PhaserRelay has been cleaned up'));
+      return new Promise((resolve, reject) => {
+        const cancel = () => { clearTimeout(timer); signal.removeEventListener('abort', cancel); reject(new Error('PhaserRelay has been cleaned up')); };
+        const timer = setTimeout(() => { signal.removeEventListener('abort', cancel); resolve(); }, ms);
+        signal.addEventListener('abort', cancel, { once: true });
+      });
+    }
+
+    _notify(type, message, duration = 4000) {
+      try {
+        if (this._notificationHub) {
+          const m = {
+            success: 'showSuccess', error: 'showError',
+            warning: 'showWarning', info:  'showInfo'
+          }[type];
+          if (m && typeof this._notificationHub[m] === 'function') {
+            this._notificationHub[m](message, duration);
+            return;
+          }
+        }
+        // Fallback a console
+        const prefix = { success: '[OK]', error: '[ERR]', warning: '[WARN]', info: '[INFO]' }[type] || '';
+        if (this.config.debug) console.log(prefix, message);
+      } catch (e) {
+        try { console.log(type, message); } catch (e2) {}
+      }
+    }
+
+    showSuccess(msg, d) { this._notify('success', msg, d); }
+    showError(msg, d)   { this._notify('error',   msg, d); }
+    showWarning(msg, d) { this._notify('warning', msg, d); }
+    showInfo(msg, d)    { this._notify('info',    msg, d); }
+
+    // ── INICIALIZACIÓN Y AUTENTICACIÓN ────────────────────────────────────
+
+    initialize() {
+      if (!this._initializePromise) this._initializePromise = this._initialize();
+      return this._initializePromise;
+    }
+
+    async _initialize() {
+      this.csrfToken = this._getCookie('csrf-token') || null;
+      this.authToken = this._getCookie('session')    || null;
+
+      if (this.config.debug) {
+        console.log('[PhaserRelay] Tokens de cookie:', {
+          csrfToken: this.csrfToken ? 'PRESENTE' : 'AUSENTE',
+          authToken: this.authToken ? 'PRESENTE' : 'AUSENTE'
+        });
+      }
+
+      try {
+        await this._pingBackend();
+        await this.checkAuth().catch(() => {});
+        if (this.config.debug && this.auth.authenticated) {
+          this.showInfo('PhaserRelay inicializado', 1500);
+        }
+      } catch (e) {
+        if (this.config.debug) console.warn('[PhaserRelay] Inicialización parcial:', e.message);
+      }
+
+      return true;
+    }
+
+    _getCookie(name) {
+      if (typeof document === 'undefined') return null;
+      // Parseo robusto: evita colisiones con nombres parciales
+      const nameEq = encodeURIComponent(name) + '=';
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        let c = cookies[i].trim();
+        if (c.startsWith(nameEq)) {
+          try { return decodeURIComponent(c.slice(nameEq.length)); } catch (e) { return null; }
+        }
+        // Compatibilidad con cookies no codificadas
+        if (c.startsWith(name + '=')) {
+          return c.slice(name.length + 1);
+        }
+      }
+      return null;
+    }
+
+    async _pingBackend() {
+      try {
+        const res = await this._fetch(
+          `${this.config.apiBase}/ping`,
+          { method: 'GET', credentials: 'include', mode: 'cors' },
+          5000 // 5 s para ping, independiente del timeout general
+        );
+        return res.ok;
+      } catch (e) {
+        if (this.config.debug) console.warn('[PhaserRelay] Ping fallido:', e.message);
+        return false;
+      }
+    }
+
+    checkAuth() {
+      if (!this._authPromise) {
+        this._authPromise = this._checkAuth().finally(() => { this._authPromise = null; });
+      }
+      return this._authPromise;
+    }
+
+    authErrorMessage(result) {
+      if (result && result.requiresReauth) return 'Tu sesión caducó. Inicia sesión otra vez para comprar.';
+      return 'No se pudo comprobar tu sesión. Reintenta cuando la conexión esté disponible.';
+    }
+
+    async _checkAuth() {
+      try {
+        const resp = await this._apiRequest('/api/auth/me', 'GET');
+        if (!this._destroyed && resp && resp.authenticated && _isValidAddress(resp.address)) {
+          this.auth = {
+            authenticated: true,
+            address:    resp.address,
+            playerName: resp.playerName || resp.address
+          };
+          // Solo si no estaba ya en marcha. checkAuth() se llama antes de CADA
+          // transacción, y startAutoRefresh() reinicia el reloj de 4 minutos:
+          // talando o minando seguido, el refresco no llegaba a dispararse nunca.
+          if (!this._autoRefreshInterval) this.startAutoRefresh();
+          return { success: true, ...this.auth };
+        }
+        this.auth = { authenticated: false, address: null, playerName: null };
+        return { success: false, requiresReauth: resp && resp.authenticated === false, error: (resp && resp.error) || 'Invalid authentication response' };
+      } catch (e) {
+        this.auth = { authenticated: false, address: null, playerName: null };
+        return { success: false, status: e.status, requiresReauth: e.status === 401, error: e.message || String(e) };
+      }
+    }
+
+    // ── AUTO-REFRESH DE TOKEN ─────────────────────────────────────────────
+
+    startAutoRefresh() {
+      if (typeof window !== 'undefined' && window.GFSessionAPI) return;
+      if (this._autoRefreshInterval) {
+        clearInterval(this._autoRefreshInterval);
+        this._autoRefreshInterval = null;
+      }
+
+      if (this._destroyed || !this.autoRefreshEnabled || !this.auth.authenticated) return;
+
+      // Refrescar cada 4 minutos (token de sesión dura 15 min típicamente)
+      this._autoRefreshInterval = setInterval(async () => {
+        try {
+          if (!this.auth.authenticated || !this.auth.address) {
+            this.stopAutoRefresh();
+            return;
+          }
+
+          const now = Date.now();
+          if (now - this._lastRefreshTime < this._minRefreshInterval) return;
+
+          // Solo refrescar si el usuario estuvo activo en los últimos 30 min
+          const inactive = now - this.lastActivityTime;
+          if (inactive >= 30 * 60 * 1000) {
+            if (this.config.debug) console.log('[PhaserRelay] Usuario inactivo, omitiendo refresh');
+            return;
+          }
+
+          const ok = await this._refreshToken();
+          if (ok) {
+            this._lastRefreshTime   = now;
+            this._refreshAttempts   = 0;
+          } else {
+            this._refreshAttempts++;
+            if (this._refreshAttempts >= this._maxRefreshAttempts) {
+              const authStatus = await this.checkAuth();
+              if (!authStatus.success) this.showError('Sesión expirada. Vuelve a iniciar sesión.');
+              this._refreshAttempts = 0;
+            }
+          }
+        } catch (e) {
+          if (this.config.debug) console.error('[PhaserRelay] Error en auto-refresh:', e);
+        }
+      }, 240000); // 4 minutos
+    }
+
+    stopAutoRefresh() {
+      if (this._autoRefreshInterval) {
+        clearInterval(this._autoRefreshInterval);
+        this._autoRefreshInterval = null;
+      }
+    }
+
+    // ── PETICIÓN HTTP CON TIMEOUT, CSRF Y REINTENTOS ──────────────────────
+
+    async _apiRequest(path, method = 'GET', body = null, retryCount = 0, timeoutMs = 0) {
+      if (this._destroyed) throw new Error('PhaserRelay has been cleaned up');
+      const url = `${this.config.apiBase}${path}`;
+
+      const headers = {
+        'Accept':       'application/json',
+        'Content-Type': 'application/json'
+      };
+
+      // CSRF: leer de cookie en cada petición (puede haber rotado)
+      const csrf = this._getCookie('csrf-token') || this.csrfToken;
+      if (csrf && method !== 'GET' && method !== 'OPTIONS' && method !== 'HEAD') {
+        headers['X-CSRF-Token'] = csrf;
+      }
+
+      if (this.authToken) {
+        headers['Authorization'] = `Bearer ${this.authToken}`;
+      }
+
+      const opts = {
+        method,
+        headers,
+        credentials: 'include',
+        mode:        'cors',
+        cache:       'no-store'
+      };
+
+      if (body !== null && method !== 'GET' && method !== 'HEAD') {
+        opts.body = JSON.stringify(body);
+      }
+
+      try {
+        // FIX #4: Todas las peticiones tienen timeout via AbortController
+        const response = await this._fetch(url, opts, timeoutMs > 0 ? timeoutMs : this.config.timeout);
+        const text     = await response.text();
+
+        let parsed;
+        try {
+          parsed = text ? JSON.parse(text) : {};
+        } catch (e) {
+          parsed = { raw: text, error: 'Invalid JSON response' };
+        }
+
+        // 401 → token expirado → intentar refresh y reintentar
+        if (response.status === 401 && retryCount < this.config.maxRetries) {
+          if (this.config.debug) console.log('[PhaserRelay] 401 — intentando refresh...');
+          const ok = await this._refreshToken();
+          if (ok) {
+            await this._delay(this.config.retryDelay * (retryCount + 1));
+            return this._apiRequest(path, method, body, retryCount + 1, timeoutMs);
+          }
+        }
+
+        // 403 csrf_token_invalid → obtener nuevo CSRF y reintentar
+        if (response.status === 403 && retryCount < this.config.maxRetries) {
+          if (parsed && parsed.error === 'csrf_token_invalid') {
+            if (this.config.debug) console.log('[PhaserRelay] CSRF inválido — obteniendo nuevo token...');
+            const ok = await this._getCSRFToken();
+            if (ok) {
+              await this._delay(this.config.retryDelay * (retryCount + 1));
+              return this._apiRequest(path, method, body, retryCount + 1, timeoutMs);
+            }
+          }
+        }
+
+        if (!response.ok) {
+          const msg = (parsed && (parsed.error || parsed.message)) || `HTTP ${response.status}: ${response.statusText}`;
+          const error = new Error(msg);
+          error.status = response.status;
+          if (parsed && parsed.details) {
+            error.code = parsed.details.code;
+            error.reason = parsed.details.reason;
+          }
+          throw error;
+        }
+
+        this.lastActivityTime = Date.now();
+        return parsed;
+      } catch (e) {
+        if (this.config.debug) console.error('[PhaserRelay] API error:', path, e.message);
+        throw e;
+      }
+    }
+
+    // ── REFRESH Y CSRF ────────────────────────────────────────────────────
+
+    async _refreshToken() {
+      this._refreshInProgress = true;
+
+      try {
+        const response = await PhaserRelay.refreshSession(this.config.apiBase, this.config.timeout);
+        if (this._destroyed) return false;
+
+        if (response.ok) {
+          const data = await response.json().catch(() => ({}));
+          if (data.csrfToken) this.csrfToken = data.csrfToken;
+          this.authToken        = this._getCookie('session');
+          this.csrfToken        = this._getCookie('csrf-token') || this.csrfToken;
+          this.lastActivityTime = Date.now();
+          this._refreshInProgress = false;
+          this._refreshAttempts   = 0;
+          return true;
+        }
+
+        if (this.config.debug) console.warn('[PhaserRelay] Refresh fallido:', response.status);
+        this._refreshInProgress = false;
+        return false;
+      } catch (e) {
+        if (this.config.debug) console.error('[PhaserRelay] Error en refresh:', e.message);
+        this._refreshInProgress = false;
+        return false;
+      }
+    }
+
+    // Todos los relays y mapas comparten la renovación de la misma cookie.
+    // El servidor rota el refresh token: dos renovaciones simultáneas pueden
+    // invalidar entre sí la sesión que acaba de recibirse.
+    static refreshSession(apiBase, timeout = 15000) {
+      const base = new URL(apiBase);
+      if (base.username || base.password || base.search || base.hash ||
+          (base.protocol !== 'https:' && !(base.protocol === 'http:' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(base.hostname)))) {
+        return Promise.reject(new Error('Invalid session API URL'));
+      }
+      const key = base.href.replace(/\/$/, '');
+      const pending = PhaserRelay._sessionRefreshes || (PhaserRelay._sessionRefreshes = new Map());
+      if (!pending.has(key)) {
+        const request = _fetchWithTimeout(key + '/api/auth/refresh', {
+          method: 'POST', credentials: 'include', cache: 'no-store',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
+        }, Number.isFinite(timeout) && timeout > 0 ? Math.min(timeout, 30000) : 15000).finally(() => pending.delete(key));
+        pending.set(key, request);
+      }
+      return pending.get(key);
+    }
+
+    async _getCSRFToken() {
+      try {
+        const response = await this._fetch(
+          `${this.config.apiBase}/api/auth/csrf-token`,
+          { method: 'GET', credentials: 'include' },
+          this.config.timeout
+        );
+        if (response.ok) {
+          const data = await response.json().catch(() => ({}));
+          this.csrfToken = data.csrfToken || this.csrfToken;
+          return true;
+        }
+        return false;
+      } catch (e) {
+        if (this.config.debug) console.error('[PhaserRelay] Error obteniendo CSRF:', e.message);
+        return false;
+      }
+    }
+
+    // ── GESTIÓN DE CONTRATOS ──────────────────────────────────────────────
+
+    _toKey(addr) { return typeof addr === 'string' ? addr.toLowerCase() : ''; }
+
+    async fetchContractList() {
+      try {
+        const resp = await this._apiRequest('/api/relay/contracts', 'GET');
+        if (resp && Array.isArray(resp.contracts)) {
+          resp.contracts.forEach(c => {
+            const key = this._toKey(c.contractAddress || c.address);
+            if (key) {
+              this.contractsCache.set(key, {
+                address:     c.contractAddress || c.address,
+                name:        c.contractName || c.name,
+                abi:         c.abi,
+                description: c.description
+              });
+            }
+          });
+        }
+        return Array.from(this.contractsCache.values());
+      } catch (e) {
+        if (this.config.debug) console.warn('[PhaserRelay] fetchContractList error:', e.message);
+        return Array.from(this.contractsCache.values());
+      }
+    }
+
+    async fetchABI(contractAddress) {
+      // FIX #5: Validar formato de dirección antes de hacer fetch
+      if (!_isValidAddress(contractAddress)) {
+        throw new Error(`Dirección de contrato inválida: "${contractAddress}". Se esperaba 0x + 40 caracteres hex.`);
+      }
+
+      const key = this._toKey(contractAddress);
+      const cached = this.contractsCache.get(key);
+      if (cached && cached.abi) return cached.abi;
+
+      try {
+        const resp = await this._apiRequest(`/api/relay/contract/${contractAddress}/abi`, 'GET');
+        if (resp && Array.isArray(resp.abi)) {
+          this.contractsCache.set(key, { address: contractAddress, name: resp.name || null, abi: resp.abi });
+          return resp.abi;
+        }
+        // Respuesta sin ABI: antes se devolvía `undefined` y quien llamaba
+        // reventaba después con "abi.find is not a function". Se trata como un
+        // fallo para pasar por la lista de contratos.
+        throw new Error('respuesta sin ABI');
+      } catch (e) {
+        await this.fetchContractList().catch(() => {});
+        const fresh = this.contractsCache.get(key);
+        if (fresh && fresh.abi) return fresh.abi;
+        throw new Error('ABI no disponible: ' + e.message);
+      }
+    }
+
+    async findContract(nameOrAddress) {
+      if (nameOrAddress && nameOrAddress.startsWith('0x')) {
+        if (!_isValidAddress(nameOrAddress)) throw new Error(`Dirección inválida: ${nameOrAddress}`);
+        const key = this._toKey(nameOrAddress);
+        if (this.contractsCache.has(key)) return this.contractsCache.get(key);
+        const abi = await this.fetchABI(nameOrAddress);
+        return { address: nameOrAddress, name: null, abi };
+      }
+
+      await this.fetchContractList();
+      const entries = Array.from(this.contractsCache.values());
+      return (
+        entries.find(e => e.name && e.name.toLowerCase() === nameOrAddress.toLowerCase()) ||
+        entries.find(e => e.name && e.name.toLowerCase().includes(nameOrAddress.toLowerCase())) ||
+        (entries.length > 0 ? entries[0] : null)
+      );
+    }
+
+    // ── MÉTODO ACCIÓN UNIFICADO ───────────────────────────────────────────
+
+    async accion(contractAddress, options = {}) {
+      const { funcion, accion: tipoOverride, _metadata = {}, ...params } = options;
+      if (!funcion) throw new Error('Se requiere el nombre de la función (funcion)');
+
+      // FIX #6: Validar nombre de función
+      if (!_isValidFunctionName(funcion)) {
+        throw new Error(`Nombre de función inválido: "${funcion}". Solo se permiten identificadores Solidity válidos.`);
+      }
+
+      const abi        = await this.fetchABI(contractAddress);
+      const funcionAbi = abi.find(item => item.type === 'function' && item.name === funcion);
+      if (!funcionAbi) throw new Error(`Función "${funcion}" no encontrada en el contrato`);
+
+      const tipoAccion = tipoOverride || (
+        (funcionAbi.stateMutability === 'view' || funcionAbi.stateMutability === 'pure')
+          ? 'obtener' : 'enviar'
+      );
+
+      const parametrosOrdenados = this._buildOrderedParams(funcionAbi, params, funcion);
+
+      if (tipoAccion === 'obtener') {
+        return this.readView(contractAddress, funcion, parametrosOrdenados);
+      } else if (tipoAccion === 'enviar') {
+        const indexedParams = {};
+        parametrosOrdenados.forEach((v, i) => { indexedParams[i] = v; });
+        return this.sendTransaction(contractAddress, funcion, indexedParams, _metadata);
+      } else {
+        throw new Error(`Acción no reconocida: "${tipoAccion}". Use "obtener" o "enviar"`);
+      }
+    }
+
+    _buildOrderedParams(funcionAbi, params, funcName) {
+      const result = [];
+      if (!funcionAbi.inputs || !funcionAbi.inputs.length) return result;
+
+      for (let i = 0; i < funcionAbi.inputs.length; i++) {
+        const input = funcionAbi.inputs[i];
+        let valor   = undefined;
+
+        if (Object.prototype.hasOwnProperty.call(params, input.name)) {
+          valor = params[input.name];
+        } else if (input.name.startsWith('_') && Object.prototype.hasOwnProperty.call(params, input.name.slice(1))) {
+          valor = params[input.name.slice(1)];
+        } else if (!input.name.startsWith('_') && Object.prototype.hasOwnProperty.call(params, '_' + input.name)) {
+          valor = params['_' + input.name];
+        } else if (Object.prototype.hasOwnProperty.call(params, String(i))) {
+          valor = params[String(i)];
+        } else {
+          valor = this._getDefaultValue(input.type, input.name, funcName);
+        }
+
+        result.push(this._convertParameter(valor, input.type, input));
+      }
+      return result;
+    }
+
+    _getDefaultValue(type, name, functionName) {
+      if (/\[\d*\]$/.test(type)) return [];
+      if (functionName === 'logMessage') {
+        if (name === '_user' || name === 'user' || type === 'address') {
+          return this.auth.address || '0x0000000000000000000000000000000000000000';
+        }
+        if (name === '_message' || name === 'message' || type === 'string') {
+          return `Mensaje desde PhaserRelay ${new Date().toISOString()}`;
+        }
+        if (name === '_userNonce' || name === 'userNonce' ||
+            (type.includes('uint') && type.includes('256'))) {
+          // FIX #9: Nonce criptográficamente seguro
+          return _secureNonce();
+        }
+      }
+      if (type.includes('uint') || type.includes('int')) return '0';
+      if (type.includes('address')) return '0x0000000000000000000000000000000000000000';
+      if (type.includes('string') || type.includes('bytes')) return '';
+      if (type === 'bool') return false;
+      return null;
+    }
+
+    _convertParameter(value, type, definition = {}) {
+      if (value === null || value === undefined) return value;
+      const array = /^(.*)\[(\d*)\]$/.exec(type);
+      if (array) {
+        if (!Array.isArray(value)) throw new Error(`Expected an array for ${definition.name || type}`);
+        if (array[2] && value.length !== Number(array[2])) throw new Error(`Incorrect array length for ${definition.name || type}`);
+        return value.map(item => this._convertParameter(item, array[1], definition));
+      }
+      if (type === 'tuple' && Array.isArray(definition.components)) {
+        return definition.components.map((component, i) => this._convertParameter(
+          Array.isArray(value) ? value[i] : value[component.name], component.type, component));
+      }
+      if (type.includes('uint') || type.includes('int')) return String(value);
+      if (type === 'address') {
+        if (typeof value === 'string' && value.startsWith('0x')) return value.toLowerCase();
+      }
+      if (type === 'bool') {
+        if (typeof value === 'string') return value.toLowerCase() === 'true' || value === '1';
+        return !!value;
+      }
+      return value;
+    }
+
+    // ── LECTURA (view/pure) ───────────────────────────────────────────────
+
+    async readView(contractAddress, functionName = null, params = []) {
+      if (functionName && !_isValidFunctionName(functionName)) {
+        throw new Error(`Nombre de función inválido: "${functionName}"`);
+      }
+
+      const abi = await this.fetchABI(contractAddress);
+
+      let functionAbi = null;
+      if (functionName) {
+        functionAbi = abi.find(it =>
+          it.type === 'function' && it.name === functionName &&
+          (it.stateMutability === 'view' || it.stateMutability === 'pure')
+        );
+      } else {
+        functionAbi =
+          abi.find(it => (it.stateMutability === 'view' || it.stateMutability === 'pure') &&
+            (!it.inputs || !it.inputs.length) && it.outputs && it.outputs.length) ||
+          abi.find(it => (it.stateMutability === 'view' || it.stateMutability === 'pure') &&
+            it.outputs && it.outputs.length) ||
+          null;
+      }
+
+      const buildIndexed = (arr) => {
+        const obj = {};
+        arr.forEach((p, i) => { obj[i] = p; });
+        return obj;
+      };
+
+      if (!functionAbi) {
+        const indexedParams = buildIndexed(Array.isArray(params) ? params : []);
+        const resp = await this._apiRequest('/api/relay/call-view', 'POST', {
+          contractAddress, functionName: functionName || '', parameters: indexedParams
+        });
+        if (!resp || !resp.success) throw new Error((resp && resp.error) || 'call-view failed');
+        return this._normalizeResult(resp.result, null);
+      }
+
+      const args = Array.isArray(params) ? params
+        : (typeof params === 'object' ? functionAbi.inputs.map(inp => params[inp.name]) : []);
+
+      try {
+        if (this.readProvider && typeof ethers !== 'undefined') {
+          const contract = new ethers.Contract(contractAddress, abi, this.readProvider);
+          const raw      = await contract[functionAbi.name](...args);
+          return this._normalizeResult(raw, functionAbi);
+        }
+
+        const resp = await this._apiRequest('/api/relay/call-view', 'POST', {
+          contractAddress, functionName: functionAbi.name, parameters: buildIndexed(args)
+        });
+        if (!resp || !resp.success) throw new Error((resp && resp.error) || 'call-view failed');
+        return this._normalizeResult(resp.result, functionAbi);
+      } catch (e) {
+        if (this.config.debug) console.error('[PhaserRelay] readView error:', e);
+        throw e;
+      }
+    }
+
+    // ── ESCRITURA (transacción relay) ─────────────────────────────────────
+
+    async sendTransaction(contractAddress, functionName, parameters = {}, metadata = {}) {
+      // FIX #5 y #6: Validar antes de enviar al backend
+      if (!_isValidAddress(contractAddress)) {
+        return { success: false, error: `Dirección de contrato inválida: ${contractAddress}` };
+      }
+      if (!_isValidFunctionName(functionName)) {
+        return { success: false, error: `Nombre de función inválido: ${functionName}` };
+      }
+
+      const authResult = await this.checkAuth();
+      if (!authResult.success) return { success: false, error: 'Not authenticated' };
+
+      // Normalizar parameters a objeto con claves numéricas
+      let paramsObj = {};
+      if (Array.isArray(parameters)) {
+        parameters.forEach((p, i) => { paramsObj[i] = p; });
+      } else if (typeof parameters === 'object' && parameters !== null) {
+        const keys      = Object.keys(parameters);
+        const allNumeric= keys.every(k => /^\d+$/.test(k));
+        if (allNumeric) {
+          paramsObj = parameters;
+        } else {
+          if (this.config.debug) console.warn('[PhaserRelay] Convirtiendo claves no numéricas a indexado');
+          Object.values(parameters).forEach((v, i) => { paramsObj[i] = v; });
+        }
+      } else {
+        paramsObj = { '0': parameters };
+      }
+
+      // Eliminar claves no numéricas
+      const cleaned = {};
+      Object.keys(paramsObj).filter(k => /^\d+$/.test(k)).forEach(k => { cleaned[k] = paramsObj[k]; });
+      paramsObj = cleaned;
+
+      /* LA MISMA TRANSACCIÓN NO SE MANDA DOS VECES (2026-10-10).
+         Si la petición se queda sin respuesta (se agotan los 30 s, se corta la
+         red), NO se sabe si llegó: el servidor puede haberla firmado ya. Antes
+         se devolvía un fallo y quien llamaba la REENVIABA: objeto duplicado o
+         cobro doble. Ahora se repite aquí, con la MISMA clave `idem`, y el
+         servidor (server2.js, /api/relay/transaction) devuelve lo que ya hizo
+         en vez de hacerla otra vez. Quien llama puede pasar su propia clave en
+         `metadata.idem` para que valga también entre sus reintentos. */
+      const idem = (metadata && typeof metadata.idem === 'string' && /^[A-Za-z0-9_-]{8,80}$/.test(metadata.idem))
+        ? metadata.idem : _idemNuevo();
+      const body = { contractAddress, functionName, parameters: paramsObj, metadata, priority: 'normal', idem };
+
+      try {
+        let resp = null;
+        for (let intento = 0; ; intento++) {
+          try {
+            // Más margen que una lectura: con muchas transacciones a la vez el
+            // servidor puede tardar en firmar (la cola del nonce es una).
+            resp = await this._apiRequest('/api/relay/transaction', 'POST', body, 0,
+                                          Math.max(this.config.timeout, 75000));
+            break;
+          } catch (e) {
+            const ambiguo = !!e && (e.code === 'REQUEST_TIMEOUT' || e.name === 'TypeError' ||
+                                    /failed to fetch|networkerror|network error|load failed/i.test(String(e.message || '')));
+            if (!ambiguo || intento >= 2 || this._destroyed) throw e;
+            if (this.config.debug) console.warn('[PhaserRelay] Sin respuesta al enviar; se repite con la misma clave:', e.message);
+            await this._delay(1500 * (intento + 1));
+          }
+        }
+        if (!resp || !resp.success) {
+          return { success: false, error: (resp && (resp.error || resp.message)) || 'relay transaction failed', details: resp };
+        }
+
+        // FIX #7: Registrar transacción con timestamp y purgar antiguas
+        if (resp.transactionId) {
+          this._registerPendingTx(resp.transactionId, {
+            contractAddress, functionName,
+            parameters:    paramsObj,
+            txHash:        resp.txHash    || null,
+            transactionId: resp.transactionId,
+            createdAt:     Date.now(),
+            explorerUrl:   resp.explorerUrl
+          });
+        }
+
+        return {
+          success:       true,
+          transactionId: resp.transactionId,
+          txHash:        resp.txHash,
+          estimatedCost: resp.estimatedCost,
+          explorerUrl:   resp.explorerUrl,
+          // Encolada en el servidor para reintento: el id sirve igual para esperarla.
+          queued:        !!resp.queued,
+          message:       resp.message || 'Transaction sent successfully'
+        };
+      } catch (e) {
+        if (this.config.debug) console.error('[PhaserRelay] sendTransaction error:', e);
+        return { success: false, error: e.message || String(e), code: e.code || 'UNKNOWN_ERROR',
+                 idem, uncertain: PhaserRelay._esFalloDeRed(e) };
+      }
+    }
+
+    static createIdempotencyKey() { return _idemNuevo(); }
+
+    // ── GESTIÓN DE TRANSACCIONES PENDIENTES ───────────────────────────────
+
+    _registerPendingTx(id, data) {
+      // Purgar entradas antiguas primero
+      this._purgeStaleTx();
+
+      // Si seguimos al límite, eliminar la más antigua
+      if (this.pendingTransactions.size >= this._MAX_PENDING_TX) {
+        const oldest = this.pendingTransactions.keys().next().value;
+        this.pendingTransactions.delete(oldest);
+      }
+
+      this.pendingTransactions.set(id, data);
+    }
+
+    _purgeStaleTx() {
+      const cutoff = Date.now() - this._TX_TTL_MS;
+      for (const [id, tx] of this.pendingTransactions) {
+        if (tx.createdAt && tx.createdAt < cutoff) {
+          this.pendingTransactions.delete(id);
+        }
+      }
+    }
+
+    // ── ESPERAR CONFIRMACIÓN DE TRANSACCIÓN ───────────────────────────────
+    //
+    //  FIX #1: timeout por defecto de 60 s. El original tenía 0 (infinito).
+    //  Un while(true) sin salida garantizada congela el flujo si el backend
+    //  nunca devuelve un estado terminal ('confirmed', 'failed', 'reverted').
+    //
+    async waitForTransaction(transactionId, options = {}) {
+      const interval    = (Number.isFinite(options.interval) && options.interval > 0) ? Math.min(options.interval, 60000) : 3000;
+      const timeout     = (Number.isFinite(options.timeout) && options.timeout > 0) ? Math.min(options.timeout, 900000) : 60000;
+      const maxAttempts = (Number.isFinite(options.maxAttempts) && options.maxAttempts > 0) ? Math.min(Math.floor(options.maxAttempts), 10000) : 0;
+
+      const TERMINAL = new Set(['confirmed', 'failed', 'reverted']);
+      const startTime = Date.now();
+      let attempts    = 0;
+
+      // Sin id no hay nada que esperar: antes se sondeaba
+      // /api/relay/transaction/undefined hasta agotar el tiempo (un servidor
+      // viejo contestaba así a lo que mandaba a su cola).
+      if (transactionId === undefined || transactionId === null || transactionId === '') {
+        throw new Error('waitForTransaction: no transactionId to wait for');
+      }
+
+      while (true) {
+        // Tras cleanup() no hay nada que esperar: antes se seguía sondeando
+        // (cada petición fallaba al instante) hasta agotar el minuto entero.
+        if (this._destroyed) throw new Error('PhaserRelay has been cleaned up');
+        attempts++;
+        const elapsed = Date.now() - startTime;
+
+        if (timeout > 0 && elapsed > timeout) {
+          throw new Error(`Timeout: transacción ${transactionId} no confirmada en ${timeout}ms`);
+        }
+        if (maxAttempts > 0 && attempts > maxAttempts) {
+          throw new Error(`Máximo de intentos (${maxAttempts}) alcanzado para transacción ${transactionId}`);
+        }
+
+        try {
+          const status = await this.getTransactionStatus(transactionId, Math.max(1, Math.min(this.config.timeout, timeout - elapsed)));
+
+          if (!status || typeof status !== 'object' || status.success === false) {
+            await this._delay(Math.min(interval, Math.max(1, timeout - (Date.now() - startTime))));
+            continue;
+          }
+
+          // Backend con campo 'status' explícito (forma recomendada)
+          if (status.status) {
+            if (TERMINAL.has(status.status)) {
+              if (status.status === 'confirmed') {
+                return { success: true, txHash: status.txHash, receipt: status.receipt || null, transactionId, explorerUrl: status.explorerUrl };
+              }
+              return { success: false, error: status.error || `Transacción ${status.status}`, txHash: status.txHash, receipt: status.receipt || null, transactionId };
+            }
+            await this._delay(Math.min(interval, Math.max(1, timeout - (Date.now() - startTime))));
+            continue;
+          }
+
+          // Fallback: backend antiguo sin campo 'status' (compatibilidad)
+          if (status.txHash && status.receipt) {
+            const ok = status.receipt.status === 1;
+            return ok
+              ? { success: true,  txHash: status.txHash, receipt: status.receipt, transactionId }
+              : { success: false, error: 'Transaction reverted', txHash: status.txHash, receipt: status.receipt, transactionId };
+          }
+
+          await this._delay(Math.min(interval, Math.max(1, timeout - (Date.now() - startTime))));
+        } catch (e) {
+          if (this.config.debug) console.warn(`[PhaserRelay] waitForTransaction intento ${attempts}:`, e.message);
+          await this._delay(Math.min(interval, Math.max(1, timeout - (Date.now() - startTime))));
+        }
+      }
+    }
+
+    // ── ENVIAR Y ESPERAR ──────────────────────────────────────────────────
+
+    async sendTransactionAndWait(contractAddress, functionName, parameters = {}, metadata = {}, waitOptions = {}) {
+      const sendResult = await this.sendTransaction(contractAddress, functionName, parameters, metadata);
+      if (!sendResult.success) return sendResult;
+
+      try {
+        const finalResult = await this.waitForTransaction(sendResult.transactionId, waitOptions);
+        return { ...sendResult, ...finalResult, success: finalResult.success };
+      } catch (e) {
+        return {
+          success:       false,
+          error:         e.message || String(e),
+          transactionId: sendResult.transactionId,
+          txHash:        sendResult.txHash,
+          explorerUrl:   sendResult.explorerUrl
+        };
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       QUITAR CANTIDAD DE UNA FACTURA, SIN QUE SE PIERDA LA ACCIÓN
+       ───────────────────────────────────────────────────────────────────
+       EL FALLO QUE ESTO ARREGLA — "❌ Error borrando invoice 1764":
+
+       Al craftear o al llenar el balde en la fuente, el juego mandaba
+       `deleteInvoice(id)` a pelo con el id que tenía guardado en el hueco del
+       inventario. Ese envío se cae por tres motivos distintos, y los tres
+       daban EL MISMO mensaje, que además no dice nada:
+
+         1. El id ya no vale. Los huecos guardan `IDX`, y ese número se queda
+            viejo en cuanto la factura se gasta por otro camino (una compra,
+            una misión, otra pestaña abierta). El servidor lee la factura
+            antes de firmar y responde `ownership_check_failed: invoice N is
+            inactive` o `... not found on-chain`. El jugador ve "Error
+            borrando invoice N" y no puede hacer nada.
+
+         2. El hueco nunca tuvo id de verdad. `addItem()` rellena `idx` con el
+            NÚMERO DE HUECO cuando nadie le pasa uno, así que un objeto que
+            entró por un camino que no crea factura acaba con idx 3, o 12.
+            Mandar `deleteInvoice(3)` es pedir borrar la factura de OTRO
+            jugador, y el anti-trampa del servidor lo corta — con razón.
+
+         3. La cantidad no cuadra. `deleteInvoice` borra la factura ENTERA,
+            valga lo que valga. Si en la cadena quedaban 3 y el inventario
+            creía que quedaba 1, se quemaban los 3.
+
+       LO QUE HACE AHORA
+         a) MIRA la factura antes de tocarla (`getInvoice`, que es una lectura
+            y no gasta gas). Si el id no vale, la busca por su `manualId`, que
+            es el nombre único que sí viaja con el objeto.
+         b) Si de verdad ya no existe —o ya no es del jugador—, NO es un
+            error: es que ya estaba quitada. Se devuelve `ya: true` para que
+            quien llame cuadre su inventario en silencio en vez de asustar al
+            jugador con una cruz roja.
+         c) Para quitar usa `decreaseInvoiceQuantity`, NUNCA `deleteInvoice`.
+            Hacen lo mismo cuando la cantidad llega a cero —el contrato borra
+            la factura él solo, con su evento y liberando el manualId— pero
+            `decrease` solo quita lo que se le pide y se conforma con lo que
+            haya (`actualDecrease = min(pedido, cantidad)`), así que ni quema
+            de más ni revienta si los números no cuadran al píxel.
+            `deleteInvoice` se queda como plan B por si el `decrease` no sale.
+         d) Y si algo falla de verdad, devuelve el motivo REAL para poder
+            enseñarlo, en vez de "Error borrando invoice N".
+
+       Devuelve:
+         { ok, ya, funcion, id, transactionId, txHash, error, motivo }
+       ═══════════════════════════════════════════════════════════════════ */
+
+    /** Saca los campos de una factura venga como venga del normalizador. */
+    _leerCamposFactura(raw) {
+      if (!raw || typeof raw !== 'object') return null;
+      // El normalizador mete la tupla sin nombre en `out0`; ethers a veces la
+      // da como array y a veces como objeto. Se acepta todo.
+      let f = raw;
+      if (f.out0 !== undefined && typeof f.out0 === 'object') f = f.out0;
+      const coge = (...claves) => {
+        for (const k of claves) {
+          if (f && f[k] !== undefined && f[k] !== null) return f[k];
+        }
+        return undefined;
+      };
+      const id       = coge('id', 0);
+      const owner    = coge('owner', 2);
+      const tipo     = coge('tipo', 3);
+      const cantidad = coge('cantidad', 4);
+      const activa   = coge('active', 'activo', 5);
+      if (id === undefined && owner === undefined) return null;
+      return {
+        id:       Number(id || 0),
+        manualId: String(coge('manualId', 1) || ''),
+        owner:    String(owner || '').toLowerCase(),
+        tipo:     String(tipo || ''),
+        cantidad: Number(cantidad || 0),
+        activa:   (activa === true || activa === 'true' || activa === 1 || activa === '1')
+      };
+    }
+
+    /* ¿ESTE FALLO ES DEL NODO O ES LA RESPUESTA?
+
+       Distinguirlo es imprescindible, y no es un detalle fino: si el nodo no
+       contesta y damos por hecho "la factura no existe", el juego borra el
+       objeto del inventario del jugador SIN quemarlo en la cadena. No se pierde
+       nada de verdad —al recargar vuelve—, pero el jugador ve desaparecer su
+       balde y luego reaparecer, y eso parece un juego roto.
+
+       Un revert del contrato (la factura de verdad no está) sí es la respuesta,
+       y ahí sí se puede afirmar. */
+    static _esFalloDeRed(e) {
+      if (!e) return false;
+      const code = String(e.code || '').toUpperCase();
+      if (['NETWORK_ERROR', 'SERVER_ERROR', 'TIMEOUT', 'ECONNRESET',
+           'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN'].includes(code)) return true;
+      // Un revert nunca es de red, aunque el texto se le parezca.
+      if (code === 'CALL_EXCEPTION' || e.reason || e.revert) return false;
+      const m = String(e.shortMessage || e.message || '').toLowerCase();
+      if (!m) return false;
+      if (m.includes('execution reverted') || m.includes('call_exception')) return false;
+      return (
+        m.includes('failed to fetch')   || m.includes('fetch failed')      ||
+        m.includes('network')           || m.includes('timeout')           ||
+        m.includes('timed out')         || m.includes('abort')             ||
+        m.includes('could not detect')  || m.includes('socket hang up')    ||
+        m.includes('bad gateway')       || m.includes('service unavailable')||
+        m.includes('502') || m.includes('503') || m.includes('504')        ||
+        m.includes('http 5')
+      );
+    }
+
+    static _esFacturaAusente(e) {
+      if (!e || PhaserRelay._esFalloDeRed(e)) return false;
+      const text = String(e.reason || e.shortMessage || e.message || '');
+      return e.code === 'CALL_EXCEPTION' || /execution reverted|call_exception|invoice.*(?:not found|does not exist|inactive|invalid)|factura.*(?:no existe|no encontrada|inactiva)/i.test(text);
+    }
+
+    /**
+     * Lee una factura por su id.
+     *   objeto → la factura
+     *   null   → el contrato dice que no está
+     *   lanza  → no se pudo preguntar (el nodo no contesta)
+     */
+    async leerFactura(contractAddress, id) {
+      const n = Number(id);
+      if (!Number.isFinite(n) || n <= 0) return null;
+      try {
+        const raw = await this.accion(contractAddress, {
+          funcion: 'getInvoice', _id: n, accion: 'obtener'
+        });
+        return this._leerCamposFactura(raw);
+      } catch (e) {
+        // getInvoice revierte cuando la factura no existe: eso NO es un fallo
+        // de red, es la respuesta.
+        if (!PhaserRelay._esFacturaAusente(e)) throw e;
+        return null;
+      }
+    }
+
+    /** Lee una factura por su manualId. Mismas reglas que leerFactura. */
+    async leerFacturaPorManualId(contractAddress, manualId) {
+      const m = String(manualId || '').trim();
+      if (!m) return null;
+      try {
+        const raw = await this.accion(contractAddress, {
+          funcion: 'getInvoiceByManualId', _manualId: m, accion: 'obtener'
+        });
+        return this._leerCamposFactura(raw);
+      } catch (e) {
+        if (!PhaserRelay._esFacturaAusente(e)) throw e;
+        return null;
+      }
+    }
+
+    /**
+     * ¿POR QUÉ FUNCIÓN SE PUEDEN LISTAR MIS FACTURAS EN ESTE CONTRATO?
+     *
+     * No todos los despliegues tienen la misma. `getUserInventorySnapshot` es la
+     * buena y es la que usa la pantalla de carga, pero ya hubo contratos sin
+     * ella (por eso LoadingScenegame trae un plan B con `batchVerifySlots`).
+     *
+     * Así que en vez de dar por hecho un nombre, se MIRA EL ABI: primero los
+     * nombres conocidos y, si no está ninguno, cualquier función de lectura que
+     * reciba UNA dirección y devuelva una lista. Si no hay ninguna, se devuelve
+     * null y quien llama sabe que en este contrato no se puede enumerar — que
+     * es distinto de "lo intenté y falló".
+     */
+    async _funcionDeInventario(contractAddress) {
+      const key = this._toKey(contractAddress);
+      if (this._funcInvCache && this._funcInvCache.key === key) {
+        return this._funcInvCache.nombre;
+      }
+
+      let abi = null;
+      try { abi = await this.fetchABI(contractAddress); } catch (e) { return undefined; }
+      if (!Array.isArray(abi)) return undefined;
+
+      const esLectura = (f) => f.stateMutability === 'view' || f.stateMutability === 'pure';
+      const unaDireccion = (f) => Array.isArray(f.inputs) && f.inputs.length === 1 &&
+                                  f.inputs[0].type === 'address';
+
+      const CONOCIDAS = ['getUserInventorySnapshot', 'getInvoicesSafe',
+                         'getUserInvoices', 'getInvoicesOf', 'invoicesOf'];
+
+      let elegida = null;
+      for (const nombre of CONOCIDAS) {
+        const f = abi.find(x => x.type === 'function' && x.name === nombre &&
+                                esLectura(x) && unaDireccion(x));
+        if (f) { elegida = nombre; break; }
+      }
+
+      if (!elegida) {
+        const f = abi.find(x => x.type === 'function' && esLectura(x) && unaDireccion(x) &&
+                                /invoice|inventor/i.test(x.name || '') &&
+                                Array.isArray(x.outputs) && x.outputs.length === 1 &&
+                                /\[\]$/.test(String(x.outputs[0].type || '')));
+        if (f) elegida = f.name;
+      }
+
+      this._funcInvCache = { key: key, nombre: elegida || null };
+      return this._funcInvCache.nombre;
+    }
+
+    /**
+     * TODAS MIS FACTURAS VIVAS, DE UNA SOLA LECTURA.
+     *
+     * POR QUÉ HACE FALTA — "vendo 5 zanahorias, me las paga, salgo al mapa y
+     * tengo las 10 otra vez":
+     *
+     * `quitarDeFactura` busca la factura por el `idx` del hueco y, si no vale,
+     * por su `manualId`. Los dos pueden ser basura, y de hecho lo son a menudo:
+     * `addItem` rellena `idx` con el NÚMERO DE HUECO cuando nadie le pasa un id
+     * de factura, y `manualId` acaba valiendo el nombre del objeto
+     * ("zanahoria_buena") cuando el guardado no traía uno. Con los dos malos,
+     * `getInvoice` revertía, y eso se interpretaba como "la factura ya no
+     * está" — o sea: se quitaba el objeto EN LOCAL, se cobraba la venta, y en
+     * la cadena la factura seguía intacta.
+     *
+     * Al volver al mapa, `LoadingScenegame.syncInventoryWithBlockchain()` lee la
+     * cadena y REPONE lo que sigue habiendo allí. De ahí las diez zanahorias.
+     *
+     * Con esta lectura hay una tercera vía —y la buena—: preguntar qué facturas
+     * tiene el jugador DE VERDAD y coger la del tipo que se está gastando.
+     *
+     * TRES RESPUESTAS, y las tres importan:
+     *   array      → estas son sus facturas vivas
+     *   null       → la función existe pero la lectura falló (nodo caído): NO se
+     *                puede afirmar nada
+     *   undefined  → este contrato no permite enumerar; quien llama tendrá que
+     *                decidir con lo que tenga
+     *
+     * SE CACHEA UNOS SEGUNDOS porque una venta de varios huecos la pide una vez
+     * por hueco. La caché se tira en cuanto se quita algo.
+     */
+    async misFacturas(contractAddress, opciones = {}) {
+      const ahora = Date.now();
+      const forzar = !!opciones.forzar;
+      const auth = await this.checkAuth();
+      if (!auth || !auth.success || !auth.address || this._destroyed) return null;
+      const owner = String(auth.address).toLowerCase();
+      if (!forzar && this._facturasCache &&
+          this._facturasCache.contrato === contractAddress &&
+          this._facturasCache.owner === owner &&
+          (ahora - this._facturasCache.cuando) < 4000) {
+        return this._facturasCache.lista;
+      }
+
+      const funcion = await this._funcionDeInventario(contractAddress);
+      if (!funcion) return undefined;          // este contrato no sabe enumerar
+
+      let crudo;
+      try {
+        const resp = await this._apiRequest('/api/relay/call-view', 'POST', {
+          contractAddress,
+          functionName: funcion,
+          parameters:   { '0': auth.address }
+        });
+        if (!resp || !resp.success) return null;
+        crudo = resp.result;
+      } catch (e) {
+        // Sin lectura no se puede afirmar nada: se devuelve null y quien llama
+        // tratará el caso como "no lo sé", nunca como "no tiene nada".
+        if (this.config && this.config.debug) {
+          console.warn('[PhaserRelay] misFacturas:', e && e.message);
+        }
+        return null;
+      }
+
+      const lista = PhaserRelay._facturasDeSnapshot(crudo, this._leerCamposFactura.bind(this));
+      if (this._destroyed || String(this.auth.address || '').toLowerCase() !== owner) return null;
+      this._facturasCache = { contrato: contractAddress, owner, cuando: ahora, lista: lista };
+      return lista;
+    }
+
+    /** Se tira la foto guardada: algo ha cambiado en la cadena. */
+    _olvidarFacturas() { this._facturasCache = null; }
+
+    /**
+     * Normaliza lo que devuelve la función de inventario.
+     *
+     * El relay entrega la misma información de cuatro formas distintas según
+     * por dónde pase (array de objetos, array de tuplas, envuelto en `result`,
+     * o —cuando el normalizador se queda corto— los campos sueltos de UNA sola
+     * factura). Es la misma casuística que ya documenta
+     * `LoadingScenegame._buildSyncMaps`; aquí se repite porque esta librería no
+     * puede depender de una escena del juego.
+     */
+    static _facturasDeSnapshot(crudo, leerCampos) {
+      const salida = [];
+      if (!crudo) return salida;
+
+      const pareceFactura = (x) =>
+        x && typeof x === 'object' && !Array.isArray(x) &&
+        (x.id !== undefined || x['0'] !== undefined);
+
+      let arr = [];
+      if (Array.isArray(crudo)) {
+        if (!crudo.length) arr = [];
+        else if (Array.isArray(crudo[0]) || pareceFactura(crudo[0])) arr = crudo;
+        else arr = [crudo];                       // los campos de UNA factura
+      } else if (typeof crudo === 'object') {
+        const vals = Object.values(crudo);
+        if (!vals.length) arr = [];
+        else if (Array.isArray(vals[0])) {
+          const dentro = vals[0];
+          if (!dentro.length) arr = [];
+          else if (Array.isArray(dentro[0]) || pareceFactura(dentro[0])) arr = dentro;
+          else arr = [dentro];
+        } else if (pareceFactura(crudo)) arr = [crudo];
+        else arr = vals.filter(v => v && typeof v === 'object');
+      }
+
+      for (const bruto of arr) {
+        if (!bruto) continue;
+        let f = null;
+        if (Array.isArray(bruto)) {
+          // [id, manualId, owner, tipo, cantidad, activa, creadaEn]
+          f = {
+            id:       Number(bruto[0] || 0),
+            manualId: String(bruto[1] != null ? bruto[1] : ''),
+            owner:    String(bruto[2] || '').toLowerCase(),
+            tipo:     String(bruto[3] != null ? bruto[3] : ''),
+            cantidad: Number(bruto[4] || 0),
+            activa:   (bruto[5] !== false && bruto[5] !== 'false' && bruto[5] !== 0)
+          };
+        } else {
+          f = leerCampos(bruto);
+        }
+        if (f && f.id > 0 && f.activa && f.cantidad > 0) salida.push(f);
+      }
+      return salida;
+    }
+
+    async quitarDeFactura(contractAddress, opciones = {}) {
+      const { idx, manualid, cantidad, tipo, vaciarFactura = false } = opciones;
+
+      /* SI ESTO NO SALE, LA FOTO DEL INVENTARIO DEJA DE VALER.
+
+         `misFacturas` guarda unos segundos lo que le contesto la cadena para
+         no preguntarlo una vez por hueco en una venta de varios montones. Pero
+         esa foto se quedaba puesta TAMBIEN cuando la operacion fallaba, asi
+         que un reintento inmediato —lo primero que hace cualquiera cuando le
+         sale un error— repetia la misma respuesta vieja y volvia a fallar,
+         aunque entretanto la cadena hubiera cambiado (otra pestaña, una
+         mision, la propia transaccion que si llego a entrar).
+
+         Todo camino de fallo pasa ahora por aqui y tira la foto: el siguiente
+         intento vuelve a preguntar de verdad. */
+      const noSePudo = (respuesta) => { this._olvidarFacturas(); return respuesta; };
+
+      const auth = await this.checkAuth();
+      if (!auth || !auth.success) {
+        return noSePudo({ ok: false, error: 'No hay sesión iniciada' });
+      }
+      const yo = String(auth.address || '').toLowerCase();
+      const tipoPedido = String(tipo || '').trim();
+
+      /* ¿ESTA FACTURA ES LA QUE BUSCO?
+
+         Además de existir, estar viva y ser mía, tiene que ser DEL MISMO TIPO
+         de objeto. Esa última condición es la que impide un destrozo silencioso:
+         un hueco del inventario puede llevar un `idx` que no es un id de
+         factura (ver addItem: cuando nadie le pasa uno, rellena con el NÚMERO
+         DE HUECO, o sea 3, 7, 12…). Sin comprobar el tipo, gastar ese objeto
+         quemaba la factura número 3 del jugador — que podía ser cualquier otra
+         cosa, sus lingotes o su hacha. Con la comprobación, un id que no cuadra
+         sencillamente no vale y se busca por manualId. */
+      const suya = (f) => f && f.activa && f.id > 0 &&
+                          (!yo || !f.owner || f.owner === yo) &&
+                          (!tipoPedido || !f.tipo || f.tipo === tipoPedido);
+
+      /* Las dos lecturas van envueltas: si el nodo no contesta, esto NO puede
+         acabar en "la factura ya no estaba" (ver _esFalloDeRed). Se devuelve un
+         error de verdad y el jugador conserva su objeto; ya lo volverá a
+         intentar cuando el nodo vuelva, que es lo que pasa siempre. */
+      let f = null;
+      /* undefined = todavía no se ha mirado · null = no se pudo leer ·
+         array = estas son sus facturas.  `sinEnumerar` marca el caso distinto:
+         este contrato NO tiene forma de listar el inventario. */
+      let miInventario = undefined;
+      let misDelTipo   = null;      // mis facturas vivas del tipo que se gasta
+      let sinEnumerar  = false;
+      try {
+        // 1) Por el id que trae el hueco.
+        f = await this.leerFactura(contractAddress, idx);
+
+        // 2) Si no vale, por el nombre único del objeto.
+        if (!suya(f) && manualid) {
+          const porNombre = await this.leerFacturaPorManualId(contractAddress, manualid);
+          if (suya(porNombre)) f = porNombre;
+        }
+
+        /* 3) TERCERA VÍA: MIS FACTURAS DE ESE TIPO.
+
+           ESTA ES LA QUE ARREGLA "vendo y al salir del mapa lo sigo teniendo".
+           El `idx` del hueco no es de fiar —`addItem` lo rellena con el número
+           de hueco cuando nadie le pasa un id de factura— y el `manualId`
+           tampoco. Con los dos malos se daba por hecho que la factura ya no
+           estaba, se borraba el objeto en local y se cobraba… con la factura
+           viva en la cadena. Al volver al mapa, el cuadre contra la cadena
+           reponía el objeto.
+
+           Aquí se pregunta qué tiene el jugador DE VERDAD y se coge una factura
+           suya del mismo tipo. Se prefiere la que tenga cantidad suficiente
+           para no partir la venta en dos transacciones cuando no hace falta;
+           si no hay ninguna así, la más grande. */
+        if (!suya(f) && tipoPedido) {
+          miInventario = await this.misFacturas(contractAddress);
+          if (miInventario === undefined) sinEnumerar = true;
+          if (Array.isArray(miInventario)) {
+            const pedido = Number(cantidad) || 0;
+            misDelTipo = miInventario
+              .filter(x => x.tipo === tipoPedido && (!yo || !x.owner || x.owner === yo))
+              .sort((a, b) => b.cantidad - a.cantidad);
+            const cabe = misDelTipo.find(x => x.cantidad >= pedido);
+            const elegida = cabe || misDelTipo[0] || null;
+            if (suya(elegida)) {
+              f = elegida;
+              if (this.config && this.config.debug) {
+                console.log('[PhaserRelay] la factura', idx, 'no valía; se usa la',
+                            f.id, 'de', tipoPedido, 'con', f.cantidad);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        return noSePudo({
+          ok: false, ya: false, id: Number(idx) || 0,
+          error: 'no se pudo leer la factura (¿el nodo está caído?): ' +
+                 (e && (e.message || String(e)))
+        });
+      }
+
+      // 4) Ya no está: no es un error, es que ya se quitó.
+      if (!suya(f)) {
+        /* CUIDADO CON LO QUE SE LLAMA "YA NO ESTABA".
+
+           `ya: true` significa para quien llama: "eso ya se gastó, cuadra tu
+           inventario" — y el cliente BORRA el objeto de la pantalla. Solo puede
+           decirse cuando de verdad no queda factura que gastar.
+
+           FALLO QUE ESTO ARREGLA — "vendo 5 zanahorias, me las paga, y al
+           salir del mapa las sigo teniendo": si el tipo pedido no cuadra con el
+           de la factura, NO sabemos que se haya gastado nada; lo que sabemos es
+           que estamos mirando la factura equivocada. Devolver `ya: true` ahí
+           hacía que el cliente borrase el objeto en local mientras en la cadena
+           seguía intacto — y encima cobraba la venta. Dinero de la nada.
+
+           Un tipo que no cuadra es un ERROR: el jugador conserva su objeto y no
+           se le paga nada. Lo mismo si la factura es de otro jugador, que
+           tampoco es "ya gastada". */
+        if (f && f.activa) {
+          if (tipoPedido && f.tipo && f.tipo !== tipoPedido) {
+            return noSePudo({
+              ok: false, ya: false, id: Number(idx) || 0,
+              error: 'ese id es de otro objeto (' + f.tipo + '), no de ' + tipoPedido
+            });
+          }
+          if (yo && f.owner && f.owner !== yo) {
+            return noSePudo({
+              ok: false, ya: false, id: Number(idx) || 0,
+              error: 'la factura es de otro jugador'
+            });
+          }
+        }
+
+        /* "YA SE GASTÓ" SOLO SI DE VERDAD NO LE QUEDA NINGUNA.
+
+           `ya:true` autoriza a quien llama a BORRAR el objeto del inventario
+           sin tocar la cadena. Decirlo a la ligera es justo lo que hacía que se
+           vendieran zanahorias que seguían existiendo en la cadena. Así que
+           antes de afirmarlo se comprueba en el inventario real del jugador:
+
+             · si le quedan facturas vivas de ese tipo → NO se ha gastado; lo
+               que ha pasado es que no hemos sabido cuál era, y eso es un error,
+               no un "ya estaba hecho";
+             · si no se ha podido leer la cadena (`null`) tampoco se afirma
+               nada: se devuelve error y el jugador conserva su objeto. */
+        if (tipoPedido) {
+          /* SE REUTILIZA lo que ya miró la tercera vía. Volver a filtrar aquí
+             con el mismo criterio no podía dar nunca un resultado distinto —si
+             hubiera encontrado algo, la tercera vía ya lo habría usado— y eran
+             dos criterios que podían separarse con el tiempo. */
+          if (misDelTipo === null && miInventario === undefined) {
+            miInventario = await this.misFacturas(contractAddress);
+            if (miInventario === undefined) sinEnumerar = true;
+            if (Array.isArray(miInventario)) {
+              misDelTipo = miInventario.filter(
+                x => x.tipo === tipoPedido && (!yo || !x.owner || x.owner === yo));
+            }
+          }
+
+          /* ESTE CONTRATO NO SABE ENUMERAR. No se puede comprobar nada, así que
+             se decide con lo único que hay: lo que contestó el contrato al
+             preguntar por la factura. Si dijo EXPLÍCITAMENTE que no existe —un
+             revert, que `leerFactura` distingue de un fallo de red— se acepta
+             que ya se gastó, que es la regla que había antes de todo esto.
+             Negarse aquí dejaría el juego sin poder vender nada. */
+          if (sinEnumerar) {
+            console.warn('[PhaserRelay] el contrato no permite listar el inventario: ' +
+                         'se acepta que la factura ' + (Number(idx) || 0) + ' ya no está ' +
+                         'porque el contrato lo dijo. Si el objeto reaparece, es esto.');
+            return {
+              ok: true, ya: true, id: Number(idx) || 0,
+              motivo: 'el contrato dice que la factura no existe (sin poder listar el inventario)'
+            };
+          }
+
+          if (misDelTipo === null) {
+            return noSePudo({
+              ok: false, ya: false, id: Number(idx) || 0,
+              error: 'no se pudo leer el inventario en la cadena (¿el nodo está caído?); ' +
+                     'no se ha quitado nada'
+            });
+          }
+          if (misDelTipo.length) {
+            /* Le quedan facturas de ese tipo pero ninguna servía (cantidad a
+               cero, cerrada…). No se ha gastado: no se puede borrar en local. */
+            return noSePudo({
+              ok: false, ya: false, id: Number(idx) || 0,
+              error: 'la factura ' + (Number(idx) || 0) + ' no vale y en la cadena todavía ' +
+                     'quedan ' + misDelTipo.length + ' de ' + tipoPedido + ': no se quita nada'
+            });
+          }
+        }
+
+        // Aquí sí: no hay factura, o está cerrada. Eso es "ya se gastó".
+        const motivo = (f && !f.activa)
+          ? 'la factura ya estaba cerrada'
+          : 'la factura ya no existe en la cadena';
+        return { ok: true, ya: true, id: Number(idx) || 0, motivo: motivo };
+      }
+
+      // 4) Cuánto se quita de verdad.
+      let quitar = vaciarFactura ? f.cantidad : Number(cantidad || 0);
+      if (!Number.isFinite(quitar) || quitar <= 0) quitar = Number(cantidad || 0);
+      if (!Number.isFinite(quitar) || quitar <= 0) {
+        return { ok: true, ya: true, id: f.id, motivo: 'no había nada que quitar' };
+      }
+      if (quitar > f.cantidad) quitar = f.cantidad;
+
+      // 5) decrease primero — el contrato borra la factura solo al llegar a 0.
+      let res = null, error = null;
+      try {
+        res = await this.sendTransaction(contractAddress, 'decreaseInvoiceQuantity',
+                                         { 0: String(f.id), 1: String(quitar) });
+      } catch (e) {
+        error = e && (e.message || String(e));
+      }
+      if (res && res.success) {
+        // La cadena va a cambiar: la foto del inventario que teníamos guardada
+        // ya no sirve para la siguiente vuelta de esta misma venta.
+        this._olvidarFacturas();
+        return { ok: true, ya: false, funcion: 'decreaseInvoiceQuantity', id: f.id,
+                 cantidad: quitar, transactionId: res.transactionId, txHash: res.txHash };
+      }
+      if (!error) error = (res && (res.error || res.message)) || 'envío rechazado';
+
+      /* 6) Plan B: el borrado de toda la vida. Solo cuando se quería vaciar la
+            factura entera — si solo había que quitar una parte, borrarla sería
+            quemar de más, y eso es peor que fallar. */
+      const funcionAusente = /function.*not found|no matching fragment|not a function|funci[oó]n.*(?:no encontrada|no existe)/i.test(String(error));
+      if ((vaciarFactura || quitar >= f.cantidad) && funcionAusente && !(res && res.uncertain)) {
+        try {
+          const res2 = await this.sendTransaction(contractAddress, 'deleteInvoice',
+                                                  { 0: String(f.id) });
+          if (res2 && res2.success) {
+            this._olvidarFacturas();
+            return { ok: true, ya: false, funcion: 'deleteInvoice', id: f.id,
+                     cantidad: f.cantidad, transactionId: res2.transactionId,
+                     txHash: res2.txHash };
+          }
+          if (res2 && (res2.error || res2.message)) error = res2.error || res2.message;
+        } catch (e2) {
+          error = e2 && (e2.message || String(e2));
+        }
+      }
+
+      return noSePudo({ ok: false, ya: false, id: f.id, cantidad: quitar, error: error });
+    }
+
+    // ── NORMALIZADORES DE RESULTADOS ──────────────────────────────────────
+
+    /* UNA SOLA SALIDA QUE ES UNA TUPLA: NO SE PUEDE TIRAR EL RESTO.
+
+       FALLO QUE ESTO ARREGLA — "puedo comprar pero no vender".
+
+       `getInvoice` y `getInvoiceByManualId` devuelven UNA salida, y esa salida
+       es el struct Invoice entero. El backend lo serializa como una lista
+       plana —["1","zan#1","0xab…","zanahoria_buena","5",true,"…"]— porque el
+       Result de ethers v6 es un array y sus nombres no son propiedades
+       enumerables (ver convertBigIntToString en server2.js).
+
+       Lo que hacía este normalizador con eso era quedarse con `out0 = raw[0]`,
+       o sea SOLO EL ID, y tirar el manualId, el dueño, el tipo, la cantidad y
+       el `active`. `_leerCamposFactura` recibía `{ out0: "1" }`, no encontraba
+       ni `id` ni `owner`, y devolvía null: para `quitarDeFactura` eso es "el
+       contrato dice que esa factura no existe".
+
+       Consecuencia en el juego: los DOS primeros caminos de `quitarDeFactura`
+       (por id y por manualId) estaban MUERTOS. Toda venta dependía del tercero
+       —leer el inventario entero del jugador—, así que:
+         · si esa lectura fallaba un segundo, no se podía vender NADA aunque el
+           hueco llevara el id bueno;
+         · y en un contrato sin función para listar el inventario, la venta se
+           daba por hecha, se cobraba, y la factura seguía viva en la cadena.
+
+       Ahora, cuando hay UNA sola salida de tipo tupla y llega una lista plana,
+       se devuelven los campos CON SU NOMBRE, más los índices numéricos, más el
+       `out0` de siempre. Los tres a la vez, porque los tres se leen por ahí:
+       `_leerCamposFactura` usa los nombres y `_getInvoiceFieldsFromResponse`
+       (el de las compras) arma su lista desde los índices. Así nada de lo que
+       ya funcionaba cambia de forma. */
+    _tuplaConNombres(raw, functionAbi) {
+      if (!functionAbi || !Array.isArray(functionAbi.outputs)) return null;
+      if (functionAbi.outputs.length !== 1) return null;
+
+      const salida = functionAbi.outputs[0];
+      if (!salida || !String(salida.type || '').startsWith('tuple')) return null;
+      if (String(salida.type).endsWith('[]')) return null;   // tuple[]: se deja tal cual
+      const campos = Array.isArray(salida.components) ? salida.components : null;
+      if (!campos || !campos.length) return null;
+
+      /* La misma tupla llega de DOS formas según por dónde pase: una lista
+         plana (lo normal, ver arriba) o un objeto con los campos por nombre
+         (cuando el serializador del backend sí ve los nombres del Result).
+         Las dos tienen que salir de aquí igual, o el fallo vuelve por la
+         puerta de al lado. */
+      let leer;
+      if (Array.isArray(raw)) {
+        // Una lista de tuplas no es una tupla: si el primer elemento ya es un
+        // objeto o una lista, esto no es lo que buscamos.
+        if (raw.length && (Array.isArray(raw[0]) ||
+            (raw[0] && typeof raw[0] === 'object' && !raw[0]._isBigNumber))) return null;
+        leer = (c, i) => raw[i];
+      } else if (raw && typeof raw === 'object') {
+        /* Un objeto vale si trae los campos por su NOMBRE o por su POSICIÓN.
+           Las dos formas se han visto: depende de si el serializador del
+           backend llegó a ver los nombres del Result de ethers. Si no trae ni
+           una cosa ni la otra, no es esta tupla y se deja pasar. */
+        const conNombre  = campos.filter(c => c.name && Object.prototype.hasOwnProperty.call(raw, c.name));
+        const conIndice  = campos.filter((c, i) => Object.prototype.hasOwnProperty.call(raw, String(i)));
+        const mitad = Math.ceil(campos.length / 2);
+        if (conNombre.length < mitad && conIndice.length < mitad) return null;
+        leer = (c, i) => (c.name && raw[c.name] !== undefined) ? raw[c.name] : raw[i];
+      } else {
+        return null;
+      }
+
+      const out = {};
+      campos.forEach((c, i) => {
+        let val = leer(c, i);
+        if (val && val._isBigNumber) val = val.toString();
+        if (typeof val === 'bigint') val = val.toString();
+        out[i] = val;                                        // por índice
+        if (c.name && c.name.length) out[c.name] = val;      // y por nombre
+      });
+      // `out0` se conserva con el MISMO valor de siempre (el primer campo):
+      // las compras lo leen para sacar el id de la factura recién creada.
+      out.out0 = out[0];
+      return out;
+    }
+
+    _normalizeResult(raw, functionAbi = null) {
+      if (raw == null) return raw;
+      if (raw && raw._isBigNumber) return raw.toString();
+
+      if (!functionAbi || !functionAbi.outputs || !functionAbi.outputs.length) {
+        if (Array.isArray(raw) && raw.length === 1) {
+          const v = raw[0];
+          return (v && v._isBigNumber) ? v.toString() : v;
+        }
+        return this._convertBigInts(raw);
+      }
+
+      const tupla = this._tuplaConNombres(raw, functionAbi);
+      if (tupla) return tupla;
+
+      if (functionAbi.outputs.length === 1 && /\[\d*\]$/.test(functionAbi.outputs[0].type || '') && Array.isArray(raw)) {
+        const output = functionAbi.outputs[0];
+        return { [output.name || 'out0']: this._convertBigInts(raw) };
+      }
+
+      if (Array.isArray(raw)) {
+        const out = {};
+        functionAbi.outputs.forEach((o, i) => {
+          const k   = (o.name && o.name.length) ? o.name : `out${i}`;
+          let val   = raw[i];
+          if (val && val._isBigNumber) val = val.toString();
+          out[k] = this._convertBigInts(val);
+        });
+        return out;
+      }
+
+      if (typeof raw === 'object') {
+        const out = {};
+        functionAbi.outputs.forEach((o, i) => {
+          const k   = (o.name && o.name.length) ? o.name : `out${i}`;
+          let val   = Object.prototype.hasOwnProperty.call(raw, k) ? raw[k] : raw[i];
+          if (val && val._isBigNumber) val = val.toString();
+          out[k] = this._convertBigInts(val);
+        });
+        return out;
+      }
+
+      return this._convertBigInts(raw);
+    }
+
+    _convertBigInts(x) {
+      if (x == null)            return x;
+      if (typeof x === 'bigint')return x.toString();
+      if (Array.isArray(x))     return x.map(i => this._convertBigInts(i));
+      if (typeof x === 'object'){
+        const out = {};
+        for (const k in x) if (Object.prototype.hasOwnProperty.call(x, k)) out[k] = this._convertBigInts(x[k]);
+        return out;
+      }
+      return x;
+    }
+
+    // ── DETECCIÓN HEURÍSTICA DE FUNCIONES EN ABI ──────────────────────────
+
+    findLikelyCountFunction(abi) {
+      if (!abi) return null;
+      const cands = abi.filter(it =>
+        it.type === 'function' &&
+        (it.stateMutability === 'view' || it.stateMutability === 'pure') &&
+        it.outputs && it.outputs.length === 1
+      );
+      return (
+        cands.find(c => /count|total|length|size/i.test(c.name)) ||
+        cands.find(c => c.outputs && c.outputs[0] && /uint/i.test(c.outputs[0].type || '')) ||
+        cands[0] || null
+      );
+    }
+
+    findLikelyIndexer(abi) {
+      if (!abi) return null;
+      const cands = abi.filter(it =>
+        it.type === 'function' &&
+        (it.stateMutability === 'view' || it.stateMutability === 'pure')
+      );
+      return (
+        cands.find(fn => fn.inputs && fn.inputs.length === 1 && /uint|int/i.test(fn.inputs[0].type)) ||
+        cands.find(fn => fn.inputs && fn.inputs.length === 1) ||
+        cands.find(fn => fn.outputs && fn.outputs.length > 0) ||
+        null
+      );
+    }
+
+    findLikelyLogger(abi) {
+      if (!abi) return null;
+      const cands = abi.filter(it =>
+        it.type === 'function' &&
+        it.stateMutability !== 'view' &&
+        it.stateMutability !== 'pure'
+      );
+      return (
+        cands.find(c => /log|write|store|save|append|emit|publish/i.test(c.name)) ||
+        cands.find(c => c.inputs && c.inputs.length >= 1 && c.inputs.length <= 4 && c.inputs.some(i => /string|bytes/i.test(i.type))) ||
+        cands.find(c => c.inputs && c.inputs.some(i => /address/i.test(i.type)) && c.inputs.some(i => /string|bytes/i.test(i.type))) ||
+        cands[0] || null
+      );
+    }
+
+    // ── UTILIDADES ────────────────────────────────────────────────────────
+
+    async describeContract(contractAddress) {
+      const abi = await this.fetchABI(contractAddress);
+      return {
+        address:   contractAddress,
+        name:      (this.contractsCache.get(this._toKey(contractAddress)) || {}).name || null,
+        functions: abi.filter(f => f.type === 'function').map(f => ({
+          name:            f.name,
+          inputs:          f.inputs  || [],
+          outputs:         f.outputs || [],
+          stateMutability: f.stateMutability
+        }))
+      };
+    }
+
+    async detectCountFunction(contractAddress) {
+      return this.findLikelyCountFunction(await this.fetchABI(contractAddress));
+    }
+
+    async detectIndexerFunction(contractAddress) {
+      return this.findLikelyIndexer(await this.fetchABI(contractAddress));
+    }
+
+    async detectLoggerFunction(contractAddress) {
+      return this.findLikelyLogger(await this.fetchABI(contractAddress));
+    }
+
+    // FIX #10: verifyByPolling tiene límite de tiempo calculable:
+    //   tiempo_max = attempts * delayMs (por defecto 8 × 3000 = 24 s)
+    async verifyByPolling({
+      contractAddress,
+      readFunctionNameOrNull = null,
+      readParams = [],
+      verifyPredicate = null,
+      attempts = 8,
+      delayMs  = 3000
+    }) {
+      attempts = Number.isFinite(attempts) && attempts >= 0 ? Math.min(64, Math.floor(attempts)) : 8;
+      delayMs = Number.isFinite(delayMs) && delayMs >= 0 ? Math.min(30000, delayMs) : 3000;
+      let initial = null;
+      try { initial = await this.readView(contractAddress, readFunctionNameOrNull, readParams); } catch (e) {}
+
+      for (let i = 0; i < attempts; i++) {
+        await this._delay(delayMs);
+        if (this._destroyed) break;
+        try {
+          const current = await this.readView(contractAddress, readFunctionNameOrNull, readParams);
+          const verified = typeof verifyPredicate === 'function'
+            ? verifyPredicate(initial, current)
+            : JSON.stringify(current) !== JSON.stringify(initial);
+          if (verified) return { verified: true, initial, current, attempt: i + 1 };
+        } catch (e) { /* continuar al siguiente intento */ }
+      }
+
+      return { verified: false, initial };
+    }
+
+    async getTransactionStatus(transactionId, timeoutMs = 0) {
+      try {
+        const resp = await this._apiRequest(`/api/relay/transaction/${encodeURIComponent(String(transactionId))}`, 'GET', null, 0, timeoutMs);
+        if (resp && resp.success === true && resp.transaction) return resp.transaction;
+        return resp;
+      } catch (e) {
+        return { success: false, error: e.message || String(e) };
+      }
+    }
+
+    getPendingTransactions() {
+      this._purgeStaleTx();
+      return Array.from(this.pendingTransactions.values());
+    }
+
+    // ── DEBUG Y LIMPIEZA ──────────────────────────────────────────────────
+
+    async debugBackendConnection() {
+      // Solo disponible en modo debug para no exponer estado de auth
+      if (!this.config.debug) {
+        return { error: 'debug must be true to use debugBackendConnection' };
+      }
+
+      const results = { ping: false, csrfToken: false, auth: false, contracts: false };
+      try {
+        const pingRes = await this._fetch(
+          `${this.config.apiBase}/ping`,
+          { credentials: 'include' },
+          5000
+        );
+        results.ping     = pingRes.ok;
+        results.csrfToken= !!this._getCookie('csrf-token');
+        results.auth     = (await this.checkAuth()).success;
+        const cr         = await this._apiRequest('/api/relay/contracts', 'GET').catch(() => null);
+        results.contracts= !!cr;
+        console.log('[PhaserRelay] Debug backend:', results);
+        return results;
+      } catch (e) {
+        console.error('[PhaserRelay] Debug error:', e);
+        return results;
+      }
+    }
+
+    cleanup() {
+      if (this._destroyed) return;
+      this._destroyed = true;
+      this._abortController.abort();
+      this.stopAutoRefresh();
+      this.pendingTransactions.clear();
+      this.contractsCache.clear();
+      this._facturasCache = this._funcInvCache = null;
+      this.authToken = this.csrfToken = null;
+      this.auth = { authenticated: false, address: null, playerName: null };
+      if (this.readProvider && typeof this.readProvider.destroy === 'function') {
+        try { this.readProvider.destroy(); } catch (e) {}
+      }
+      this.readProvider = null;
+      if (this._notificationHub) {
+        try {
+          if (typeof this._notificationHub.destroy === 'function') this._notificationHub.destroy();
+          else if (typeof this._notificationHub.hideAllNotifications === 'function') this._notificationHub.hideAllNotifications();
+        } catch (e) {}
+      }
+      this._notificationHub = null;
+    }
+  }
+
+  return PhaserRelay;
+});

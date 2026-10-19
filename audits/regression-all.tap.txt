@@ -1,0 +1,1872 @@
+TAP version 13
+# Subtest: concurrent/manual/automatic starts create one game and never restart an already advanced scene
+ok 1 - concurrent/manual/automatic starts create one game and never restart an already advanced scene
+  ---
+  duration_ms: 19.8869
+  type: 'test'
+  ...
+# Subtest: scene registration waits for the SceneManager, not merely Game.isBooted
+ok 2 - scene registration waits for the SceneManager, not merely Game.isBooted
+  ---
+  duration_ms: 35.3811
+  type: 'test'
+  ...
+# Subtest: destroy releases app listeners/timers/global aliases and supports a clean restart
+ok 3 - destroy releases app listeners/timers/global aliases and supports a clean restart
+  ---
+  duration_ms: 9.3085
+  type: 'test'
+  ...
+# Subtest: destruction during optional perf wait settles boot and never revives delayed work
+ok 4 - destruction during optional perf wait settles boot and never revives delayed work
+  ---
+  duration_ms: 3.7168
+  type: 'test'
+  ...
+# Subtest: hung boot has a finite deadline and releases its partial game
+ok 5 - hung boot has a finite deadline and releases its partial game
+  ---
+  duration_ms: 103.0922
+  type: 'test'
+  ...
+# Subtest: a final resize inside the throttle interval is still applied
+ok 6 - a final resize inside the throttle interval is still applied
+  ---
+  duration_ms: 4.4554
+  type: 'test'
+  ...
+# Subtest: battery switching updates the running TimeStep callback and expires on destruction
+ok 7 - battery switching updates the running TimeStep callback and expires on destruction
+  ---
+  duration_ms: 9.8283
+  type: 'test'
+  ...
+# Subtest: scene registry rejects prototype names and does not mistake inherited scene keys for registrations
+ok 8 - scene registry rejects prototype names and does not mistake inherited scene keys for registrations
+  ---
+  duration_ms: 14.2638
+  type: 'test'
+  ...
+# Subtest: renderer size rejects invalid inputs and applies mobile DPR cap at initial allocation
+ok 9 - renderer size rejects invalid inputs and applies mobile DPR cap at initial allocation
+  ---
+  duration_ms: 6.4614
+  type: 'test'
+  ...
+# Subtest: cancelled navigation and BFCache do not tear down a running game; permanent pagehide does
+ok 10 - cancelled navigation and BFCache do not tear down a running game; permanent pagehide does
+  ---
+  duration_ms: 3.8988
+  type: 'test'
+  ...
+# Subtest: a failed WebGL constructor releases its captured partial instance before Canvas fallback
+ok 11 - a failed WebGL constructor releases its captured partial instance before Canvas fallback
+  ---
+  duration_ms: 3.1193
+  type: 'test'
+  ...
+# Subtest: footprints expire in creation order even with different random values and terrain changes
+ok 12 - footprints expire in creation order even with different random values and terrain changes
+  ---
+  duration_ms: 42.3952
+  type: 'test'
+  ...
+# Subtest: a full footprint pool recycles the oldest marks, including several born in the same frame
+ok 13 - a full footprint pool recycles the oldest marks, including several born in the same frame
+  ---
+  duration_ms: 6.5362
+  type: 'test'
+  ...
+# Subtest: footprints use the scene clock after returning from another scene and water rings start at the feet
+ok 14 - footprints use the scene clock after returning from another scene and water rings start at the feet
+  ---
+  duration_ms: 5.0846
+  type: 'test'
+  ...
+# Subtest: footprints release departed actors, partial allocations and every object when a destructor fails
+ok 15 - footprints release departed actors, partial allocations and every object when a destructor fails
+  ---
+  duration_ms: 3.2822
+  type: 'test'
+  ...
+# Subtest: audio teardown aborts fetches and late decodes cannot restore buffers or retain a departed scene
+ok 16 - audio teardown aborts fetches and late decodes cannot restore buffers or retain a departed scene
+  ---
+  duration_ms: 9.2253
+  type: 'test'
+  ...
+# Subtest: rain audio loads only when needed, fades out, releases its buffer and reloads on the next rain
+ok 17 - rain audio loads only when needed, fades out, releases its buffer and reloads on the next rain
+  ---
+  duration_ms: 38.7054
+  type: 'test'
+  ...
+# Subtest: audio cancellation during rain loading does not mark it missing or repopulate the cache
+ok 18 - audio cancellation during rain loading does not mark it missing or repopulate the cache
+  ---
+  duration_ms: 8.1721
+  type: 'test'
+  ...
+# Subtest: twenty audio scene transitions return sounds, buffers, timers and listeners to baseline
+ok 19 - twenty audio scene transitions return sounds, buffers, timers and listeners to baseline
+  ---
+  duration_ms: 13.7571
+  type: 'test'
+  ...
+# Subtest: unmounting one scene preserves shared audio still owned by another mounted scene
+ok 20 - unmounting one scene preserves shared audio still owned by another mounted scene
+  ---
+  duration_ms: 7.869
+  type: 'test'
+  ...
+# Subtest: sound pools discard externally destroyed sounds instead of returning dead voices
+ok 21 - sound pools discard externally destroyed sounds instead of returning dead voices
+  ---
+  duration_ms: 20.0951
+  type: 'test'
+  ...
+# ⏳ La arena no contestó; se repite la petición
+# ⏳ La arena no contestó; se repite la petición
+# Subtest: reconectar durante la búsqueda vuelve a pedir la cola
+ok 22 - reconectar durante la búsqueda vuelve a pedir la cola
+  ---
+  duration_ms: 38.3627
+  type: 'test'
+  ...
+# Subtest: el plazo de una solicitud anterior no cancela un reintento nuevo
+ok 23 - el plazo de una solicitud anterior no cancela un reintento nuevo
+  ---
+  duration_ms: 7.6814
+  type: 'test'
+  ...
+# Subtest: si realmente vence el plazo se cancela también la admisión pendiente
+ok 24 - si realmente vence el plazo se cancela también la admisión pendiente
+  ---
+  duration_ms: 7.488
+  type: 'test'
+  ...
+# Subtest: una cuenta atrás sin datos pide resincronización
+ok 25 - una cuenta atrás sin datos pide resincronización
+  ---
+  duration_ms: 3.6121
+  type: 'test'
+  ...
+# Subtest: las posiciones son volátiles y no se acumulan sin conexión
+ok 26 - las posiciones son volátiles y no se acumulan sin conexión
+  ---
+  duration_ms: 5.0803
+  type: 'test'
+  ...
+# Subtest: reintentar la búsqueda no acumula plazos PvP y practicar invalida el anterior
+ok 27 - reintentar la búsqueda no acumula plazos PvP y practicar invalida el anterior
+  ---
+  duration_ms: 3.6671
+  type: 'test'
+  ...
+# Subtest: twenty battles release every owned arena and effect texture
+ok 28 - twenty battles release every owned arena and effect texture
+  ---
+  duration_ms: 105.6042
+  type: 'test'
+  ...
+# Subtest: recreating a Phaser game keeps each texture manager independent
+ok 29 - recreating a Phaser game keeps each texture manager independent
+  ---
+  duration_ms: 6.9467
+  type: 'test'
+  ...
+# Subtest: one scene cannot release an arena or effects still used by another
+ok 30 - one scene cannot release an arena or effects still used by another
+  ---
+  duration_ms: 4.9517
+  type: 'test'
+  ...
+# Subtest: LRU evicts old ownership without destroying another scene background
+ok 31 - LRU evicts old ownership without destroying another scene background
+  ---
+  duration_ms: 44.3357
+  type: 'test'
+  ...
+# Subtest: unknown arena identifiers use the canonical meadow key
+ok 32 - unknown arena identifiers use the canonical meadow key
+  ---
+  duration_ms: 5.0442
+  type: 'test'
+  ...
+# Subtest: cleanup preserves pre-existing and externally replaced textures
+ok 33 - cleanup preserves pre-existing and externally replaced textures
+  ---
+  duration_ms: 7.6856
+  type: 'test'
+  ...
+# Subtest: a failed canvas render rolls back allocations and can retry
+ok 34 - a failed canvas render rolls back allocations and can retry
+  ---
+  duration_ms: 9.3805
+  type: 'test'
+  ...
+# Subtest: painter exception preserves an external texture replacement
+ok 35 - painter exception preserves an external texture replacement
+  ---
+  duration_ms: 3.085
+  type: 'test'
+  ...
+# Subtest: empty cleanup cannot erase another manager resource registry
+ok 36 - empty cleanup cannot erase another manager resource registry
+  ---
+  duration_ms: 4.5028
+  type: 'test'
+  ...
+# Subtest: lost texture manager fails gracefully without deleting foreign data
+ok 37 - lost texture manager fails gracefully without deleting foreign data
+  ---
+  duration_ms: 2.8943
+  type: 'test'
+  ...
+# Subtest: los cuatro poderes modifican el combate y expiran con el reloj del servidor
+ok 38 - los cuatro poderes modifican el combate y expiran con el reloj del servidor
+  ---
+  duration_ms: 10.3259
+  type: 'test'
+  ...
+# Subtest: el escudo absorbe daño real de proyectiles antes de reducir la vida
+ok 39 - el escudo absorbe daño real de proyectiles antes de reducir la vida
+  ---
+  duration_ms: 4.7657
+  type: 'test'
+  ...
+# Subtest: la niebla respeta el porcentaje por segundo incluso para mascotas de poca vida
+ok 40 - la niebla respeta el porcentaje por segundo incluso para mascotas de poca vida
+  ---
+  duration_ms: 47.1301
+  type: 'test'
+  ...
+# Subtest: las cinco arenas añaden suministros sin cajas sobre las apariciones
+ok 41 - las cinco arenas añaden suministros sin cajas sobre las apariciones
+  ---
+  duration_ms: 15.1277
+  type: 'test'
+  ...
+# Subtest: un bot puede romper una caja y no se atasca buscando un recurso que no necesita
+ok 42 - un bot puede romper una caja y no se atasca buscando un recurso que no necesita
+  ---
+  duration_ms: 12.6614
+  type: 'test'
+  ...
+# Subtest: el bot elige un flanco con duración y un destino distinto del rival
+ok 43 - el bot elige un flanco con duración y un destino distinto del rival
+  ---
+  duration_ms: 24.7356
+  type: 'test'
+  ...
+# Subtest: incluso el agresivo se retira sin disparar para cargar munición
+ok 44 - incluso el agresivo se retira sin disparar para cargar munición
+  ---
+  duration_ms: 2.5986
+  type: 'test'
+  ...
+# Subtest: perder un rival escondido conserva su última posición vista
+ok 45 - perder un rival escondido conserva su última posición vista
+  ---
+  duration_ms: 4.6456
+  type: 'test'
+  ...
+# Subtest: con poca vida guarda el plan de recuperación sin reiniciar su plazo
+ok 46 - con poca vida guarda el plan de recuperación sin reiniciar su plazo
+  ---
+  duration_ms: 1.5982
+  type: 'test'
+  ...
+# Subtest: la cámara respeta movimiento reducido y limita los impactos consecutivos
+ok 47 - la cámara respeta movimiento reducido y limita los impactos consecutivos
+  ---
+  duration_ms: 8.2792
+  type: 'test'
+  ...
+# Subtest: double tapping a player potion confirms once and refreshes authoritative inventory and vitals
+ok 48 - double tapping a player potion confirms once and refreshes authoritative inventory and vitals
+  ---
+  duration_ms: 20.9019
+  type: 'test'
+  ...
+# Subtest: a potion reply after leaving the scene cannot overwrite the next scene HUD
+ok 49 - a potion reply after leaving the scene cannot overwrite the next scene HUD
+  ---
+  duration_ms: 2.5768
+  type: 'test'
+  ...
+# Subtest: one point per character level; concurrent allocation cannot overspend or touch pets
+ok 50 - one point per character level; concurrent allocation cannot overspend or touch pets
+  ---
+  duration_ms: 17.5677
+  type: 'test'
+  ...
+# Subtest: unknown skills, missing auth and failing table creation never spend points
+ok 51 - unknown skills, missing auth and failing table creation never spend points
+  ---
+  duration_ms: 3.0037
+  type: 'test'
+  ...
+# Subtest: guard requires a sword and its cooldown is server owned
+ok 52 - guard requires a sword and its cooldown is server owned
+  ---
+  duration_ms: 5.7304
+  type: 'test'
+  ...
+# Subtest: full water/food heal gradually without offline credit, resurrection or poison healing
+ok 53 - full water/food heal gradually without offline credit, resurrection or poison healing
+  ---
+  duration_ms: 2.5195
+  type: 'test'
+  ...
+# Subtest: player potion burns a confirmed canonical invoice, then heals; failed burn has no effect
+ok 54 - player potion burns a confirmed canonical invoice, then heals; failed burn has no effect
+  ---
+  duration_ms: 3.6307
+  type: 'test'
+  ...
+# Subtest: antidote cancels poison only after consuming the owned invoice
+ok 55 - antidote cancels poison only after consuming the owned invoice
+  ---
+  duration_ms: 4.791
+  type: 'test'
+  ...
+# Subtest: alchemist serializes purchases; mint failure refunds silver without adding fake items
+ok 56 - alchemist serializes purchases; mint failure refunds silver without adding fake items
+  ---
+  duration_ms: 10.411
+  type: 'test'
+  ...
+# Subtest: backend Lands water matches the map and rejects interior land and invalid map coordinates
+ok 57 - backend Lands water matches the map and rejects interior land and invalid map coordinates
+  ---
+  duration_ms: 17.5082
+  type: 'test'
+  ...
+# Subtest: painted ground cancels every owned loader callback across thirty abandoned mounts
+ok 58 - painted ground cancels every owned loader callback across thirty abandoned mounts
+  ---
+  duration_ms: 7.8504
+  type: 'test'
+  ...
+# Subtest: ground restores only layers it hid and rolls back a failed scene clock allocation
+ok 59 - ground restores only layers it hid and rolls back a failed scene clock allocation
+  ---
+  duration_ms: 3.7492
+  type: 'test'
+  ...
+# Subtest: tileset extrusion frees a failed canvas, rejects invalid sizes and preserves a replacement
+ok 60 - tileset extrusion frees a failed canvas, rejects invalid sizes and preserves a replacement
+  ---
+  duration_ms: 3.3875
+  type: 'test'
+  ...
+# Subtest: frame diagnostics release texture hooks and keep wrappers installed by another owner usable
+ok 61 - frame diagnostics release texture hooks and keep wrappers installed by another owner usable
+  ---
+  duration_ms: 4.1583
+  type: 'test'
+  ...
+# Subtest: old requests cannot decrement a new diagnostics session and long sessions have bounded reports
+ok 62 - old requests cannot decrement a new diagnostics session and long sessions have bounded reports
+  ---
+  duration_ms: 37.364
+  type: 'test'
+  ...
+# Subtest: scarecrow teardown releases every island guard ring and scene alias
+ok 63 - scarecrow teardown releases every island guard ring and scene alias
+  ---
+  duration_ms: 3.887
+  type: 'test'
+  ...
+# Subtest: late bitmap after emergency cleanup cannot corrupt a new request with the same key
+ok 64 - late bitmap after emergency cleanup cannot corrupt a new request with the same key
+  ---
+  duration_ms: 27.0483
+  type: 'test'
+  ...
+# Subtest: LOD switches close decoded tiles awaiting upload and rebuild the metadata index
+ok 65 - LOD switches close decoded tiles awaiting upload and rebuild the metadata index
+  ---
+  duration_ms: 5.0699
+  type: 'test'
+  ...
+# Subtest: destroy aborts fetch, detaches native loader callbacks and prevents abandoned texture caching
+ok 66 - destroy aborts fetch, detaches native loader callbacks and prevents abandoned texture caching
+  ---
+  duration_ms: 7.8055
+  type: 'test'
+  ...
+# Subtest: cached textures borrowed from another owner survive manager destruction
+ok 67 - cached textures borrowed from another owner survive manager destruction
+  ---
+  duration_ms: 2.8705
+  type: 'test'
+  ...
+# Subtest: tile asset paths reject encoded traversal and URL normalization bypasses
+ok 68 - tile asset paths reject encoded traversal and URL normalization bypasses
+  ---
+  duration_ms: 2.7579
+  type: 'test'
+  ...
+# Subtest: memory cleanup preserves Phaser lifecycle hooks and destroys aliased resources once
+ok 69 - memory cleanup preserves Phaser lifecycle hooks and destroys aliased resources once
+  ---
+  duration_ms: 2.9581
+  type: 'test'
+  ...
+# Subtest: memory cleanup wakes a sleeping Phaser loop so deferred destruction can complete
+ok 70 - memory cleanup wakes a sleeping Phaser loop so deferred destruction can complete
+  ---
+  duration_ms: 7.3038
+  type: 'test'
+  ...
+# Subtest: CanvasScaler destroy before async initialization settles ready and never creates a game
+ok 71 - CanvasScaler destroy before async initialization settles ready and never creates a game
+  ---
+  duration_ms: 8.7172
+  type: 'test'
+  ...
+# Subtest: CanvasScaler releases timers, canvas listeners and DOM references on repeated destroy
+ok 72 - CanvasScaler releases timers, canvas listeners and DOM references on repeated destroy
+  ---
+  duration_ms: 5.5846
+  type: 'test'
+  ...
+# Subtest: EnhancedEventManager distinguishes object contexts, deduplicates and detaches old scenes
+ok 73 - EnhancedEventManager distinguishes object contexts, deduplicates and detaches old scenes
+  ---
+  duration_ms: 10.7797
+  type: 'test'
+  ...
+# Subtest: performance helpers release scene listeners on shutdown and destroy with their game
+ok 74 - performance helpers release scene listeners on shutdown and destroy with their game
+  ---
+  duration_ms: 10.249
+  type: 'test'
+  ...
+# Subtest: TileMonitor detaches only its own keyboard listeners and pending feedback on scene shutdown
+ok 75 - TileMonitor detaches only its own keyboard listeners and pending feedback on scene shutdown
+  ---
+  duration_ms: 8.5715
+  type: 'test'
+  ...
+# [fauna] no se pudo montar: Error: shadow allocation failed
+#     at scene.add.ellipse (C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\environment-lifecycle.test.cjs:129:89)
+#     at crearSombra (gf-animales.js:2303:26)
+#     at nuevo (gf-animales.js:1615:33)
+#     at poblar (gf-animales.js:4106:11)
+#     at Object.montar (gf-animales.js:4489:7)
+#     at TestContext.<anonymous> (C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\environment-lifecycle.test.cjs:130:36)
+#     at Test.runInAsyncScope (node:async_hooks:227:14)
+#     at Test.run (node:internal/test_runner/test:1325:25)
+#     at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+#     at Test.postRun (node:internal/test_runner/test:1465:19)
+# [fauna] especie desconocida: __proto__
+# Subtest: clock requests settle on timeout, abort and ignore late responses without clearing a newer request
+ok 76 - clock requests settle on timeout, abort and ignore late responses without clearing a newer request
+  ---
+  duration_ms: 10.1897
+  type: 'test'
+  ...
+# Subtest: clock rejects invalid cycle durations and preserves the last valid anchor
+ok 77 - clock rejects invalid cycle durations and preserves the last valid anchor
+  ---
+  duration_ms: 12.1901
+  type: 'test'
+  ...
+# Subtest: clock start/stop removes timers, retries, visibility hooks and pending fetches
+ok 78 - clock start/stop removes timers, retries, visibility hooks and pending fetches
+  ---
+  duration_ms: 4.5571
+  type: 'test'
+  ...
+# Subtest: phase listeners can unsubscribe during dispatch without skipping other listeners
+ok 79 - phase listeners can unsubscribe during dispatch without skipping other listeners
+  ---
+  duration_ms: 3.6372
+  type: 'test'
+  ...
+# Subtest: night layer partial construction releases its texture and scene references
+ok 80 - night layer partial construction releases its texture and scene references
+  ---
+  duration_ms: 3.8114
+  type: 'test'
+  ...
+# Subtest: night resize rolls back failed allocations and repeated teardown releases all owned objects
+ok 81 - night resize rolls back failed allocations and repeated teardown releases all owned objects
+  ---
+  duration_ms: 5.6733
+  type: 'test'
+  ...
+# Subtest: weather timeout cannot apply obsolete data or release a replacement request
+ok 82 - weather timeout cannot apply obsolete data or release a replacement request
+  ---
+  duration_ms: 14.9218
+  type: 'test'
+  ...
+# Subtest: weather validates HTTP status, clamps strength, preserves zero and rejects inherited seasons
+ok 83 - weather validates HTTP status, clamps strength, preserves zero and rejects inherited seasons
+  ---
+  duration_ms: 11.7353
+  type: 'test'
+  ...
+# Subtest: weather switches sockets, releases absent sockets and stops retry timers and pending work
+ok 84 - weather switches sockets, releases absent sockets and stops retry timers and pending work
+  ---
+  duration_ms: 6.3287
+  type: 'test'
+  ...
+# Subtest: thunder unsubscribe is idempotent and dispatch tolerates listeners leaving
+ok 85 - thunder unsubscribe is idempotent and dispatch tolerates listeners leaving
+  ---
+  duration_ms: 5.787
+  type: 'test'
+  ...
+# Subtest: weather teardown continues after one object destructor throws
+ok 86 - weather teardown continues after one object destructor throws
+  ---
+  duration_ms: 5.3107
+  type: 'test'
+  ...
+# Subtest: a partially constructed lightning fire releases its own images and preserves the tree
+ok 87 - a partially constructed lightning fire releases its own images and preserves the tree
+  ---
+  duration_ms: 9.2928
+  type: 'test'
+  ...
+# Subtest: animal partial construction rolls back already allocated sprites and thunder subscriptions
+ok 88 - animal partial construction rolls back already allocated sprites and thunder subscriptions
+  ---
+  duration_ms: 21.4107
+  type: 'test'
+  ...
+# Subtest: animal teardown clears references and remaining objects even after one destructor fails
+ok 89 - animal teardown clears references and remaining objects even after one destructor fails
+  ---
+  duration_ms: 4.1863
+  type: 'test'
+  ...
+# Subtest: animal counts, frame delta and damage reject values that freeze or corrupt the simulation
+ok 90 - animal counts, frame delta and damage reject values that freeze or corrupt the simulation
+  ---
+  duration_ms: 6.9755
+  type: 'test'
+  ...
+# Subtest: daybreak releases the night render target and each subsequent night recreates only one
+ok 91 - daybreak releases the night render target and each subsequent night recreates only one
+  ---
+  duration_ms: 13.7183
+  type: 'test'
+  ...
+# Subtest: snow stays allocation-free at strength zero, deduplicates candidates, releases after melting and returns
+ok 92 - snow stays allocation-free at strength zero, deduplicates candidates, releases after melting and returns
+  ---
+  duration_ms: 1126.3915
+  type: 'test'
+  ...
+# Subtest: snow textures are shared until the last scene exits and teardown survives a throwing destructor
+ok 93 - snow textures are shared until the last scene exits and teardown survives a throwing destructor
+  ---
+  duration_ms: 27.5413
+  type: 'test'
+  ...
+# Subtest: snow caps large generated canvases and frees the temporary pixel readback
+ok 94 - snow caps large generated canvases and frees the temporary pixel readback
+  ---
+  duration_ms: 14.4162
+  type: 'test'
+  ...
+# Subtest: weather does not spawn pending lightning or thunder while rain fades after disabling it
+ok 95 - weather does not spawn pending lightning or thunder while rain fades after disabling it
+  ---
+  duration_ms: 145.6193
+  type: 'test'
+  ...
+# Subtest: postprocessing registers for each renderer and cleanup preserves unrelated camera effects
+ok 96 - postprocessing registers for each renderer and cleanup preserves unrelated camera effects
+  ---
+  duration_ms: 16.2023
+  type: 'test'
+  ...
+# Subtest: el baño tiene descanso por ave, una plaza por fuente y dos plazas por mapa
+ok 97 - el baño tiene descanso por ave, una plaza por fuente y dos plazas por mapa
+  ---
+  duration_ms: 8.4996
+  type: 'test'
+  ...
+# Subtest: observar, acicalarse, explorar y saltar producen acciones sin nuevos temporizadores
+ok 98 - observar, acicalarse, explorar y saltar producen acciones sin nuevos temporizadores
+  ---
+  duration_ms: 2.8123
+  type: 'test'
+  ...
+# Subtest: las mariposas se apoyan sobre píxeles visibles, también con sprites espejados
+ok 99 - las mariposas se apoyan sobre píxeles visibles, también con sprites espejados
+  ---
+  duration_ms: 3.8012
+  type: 'test'
+  ...
+# Subtest: una casa que cubre la flor impide aterrizar; un soporte eliminado tampoco retiene a la mariposa
+ok 100 - una casa que cubre la flor impide aterrizar; un soporte eliminado tampoco retiene a la mariposa
+  ---
+  duration_ms: 9.9359
+  type: 'test'
+  ...
+# Subtest: la sombra del cuervo en Lands sigue sus patas en el mismo frame y refleja el giro
+ok 101 - la sombra del cuervo en Lands sigue sus patas en el mismo frame y refleja el giro
+  ---
+  duration_ms: 3.4451
+  type: 'test'
+  ...
+# Subtest: retry catches a rejected callback, keeps the log and permits an explicit later attempt
+ok 102 - retry catches a rejected callback, keeps the log and permits an explicit later attempt
+  ---
+  duration_ms: 14.4393
+  type: 'test'
+  ...
+# Subtest: retry catches synchronous callback errors and explicit cancellation
+ok 103 - retry catches synchronous callback errors and explicit cancellation
+  ---
+  duration_ms: 3.7955
+  type: 'test'
+  ...
+# Subtest: callback rejection re-enables the current button after a pending row was rerendered
+ok 104 - callback rejection re-enables the current button after a pending row was rerendered
+  ---
+  duration_ms: 4.8805
+  type: 'test'
+  ...
+# Subtest: retry runs once across repeated clicks and rerenders, then removes only its own record
+ok 105 - retry runs once across repeated clicks and rerenders, then removes only its own record
+  ---
+  duration_ms: 2.4585
+  type: 'test'
+  ...
+# Subtest: a failed history deletion after retry never re-enables transaction submission
+ok 106 - a failed history deletion after retry never re-enables transaction submission
+  ---
+  duration_ms: 3.0475
+  type: 'test'
+  ...
+# Subtest: account switch while retry is pending never deletes history under the new account
+ok 107 - account switch while retry is pending never deletes history under the new account
+  ---
+  duration_ms: 2.2847
+  type: 'test'
+  ...
+# Subtest: latest refresh wins and aborts its predecessor even if old transport ignores abort
+ok 108 - latest refresh wins and aborts its predecessor even if old transport ignores abort
+  ---
+  duration_ms: 2.708
+  type: 'test'
+  ...
+# Subtest: old account failures cannot overwrite a new account status
+ok 109 - old account failures cannot overwrite a new account status
+  ---
+  duration_ms: 2.5544
+  type: 'test'
+  ...
+# Subtest: an old refresh cannot overwrite a newly added optimistic transaction
+ok 110 - an old refresh cannot overwrite a newly added optimistic transaction
+  ---
+  duration_ms: 25.5119
+  type: 'test'
+  ...
+# Subtest: account switch during CSRF handshake prevents the pending write from being sent
+ok 111 - account switch during CSRF handshake prevents the pending write from being sent
+  ---
+  duration_ms: 5.3087
+  type: 'test'
+  ...
+# Subtest: destroy cancels request, drag handlers and feedback timers without disturbing unrelated listeners
+ok 112 - destroy cancels request, drag handlers and feedback timers without disturbing unrelated listeners
+  ---
+  duration_ms: 2.42
+  type: 'test'
+  ...
+# Subtest: timeout remains active until JSON body completes and clears its timer after abort
+ok 113 - timeout remains active until JSON body completes and clears its timer after abort
+  ---
+  duration_ms: 1.8769
+  type: 'test'
+  ...
+# Subtest: clipboard fallback removes its textarea on failure and schedules bounded feedback
+ok 114 - clipboard fallback removes its textarea on failure and schedules bounded feedback
+  ---
+  duration_ms: 2.5937
+  type: 'test'
+  ...
+# Subtest: GameScene carga objetos y la revisión del servidor sin depender del reloj local
+ok 115 - GameScene carga objetos y la revisión del servidor sin depender del reloj local
+  ---
+  duration_ms: 94.1391
+  type: 'test'
+  ...
+# Subtest: tiendajuego carga objetos y la revisión del servidor sin depender del reloj local
+ok 116 - tiendajuego carga objetos y la revisión del servidor sin depender del reloj local
+  ---
+  duration_ms: 26.7905
+  type: 'test'
+  ...
+# Subtest: MinaScene carga objetos y la revisión del servidor sin depender del reloj local
+ok 117 - MinaScene carga objetos y la revisión del servidor sin depender del reloj local
+  ---
+  duration_ms: 33.6564
+  type: 'test'
+  ...
+# Subtest: LandsScene carga objetos y la revisión del servidor sin depender del reloj local
+ok 118 - LandsScene carga objetos y la revisión del servidor sin depender del reloj local
+  ---
+  duration_ms: 32.8542
+  type: 'test'
+  ...
+# Subtest: InteriorScene carga objetos y la revisión del servidor sin depender del reloj local
+ok 119 - InteriorScene carga objetos y la revisión del servidor sin depender del reloj local
+  ---
+  duration_ms: 37.5782
+  type: 'test'
+  ...
+# Subtest: LoadingScenegame carga objetos y la revisión del servidor sin depender del reloj local
+ok 120 - LoadingScenegame carga objetos y la revisión del servidor sin depender del reloj local
+  ---
+  duration_ms: 41.503
+  type: 'test'
+  ...
+# Subtest: el cargador reconoce TODOS los tipos canónicos que el backend entrega
+ok 121 - el cargador reconoce TODOS los tipos canónicos que el backend entrega
+  ---
+  duration_ms: 121.8635
+  type: 'test'
+  ...
+# Subtest: compras anteriores y nuevas sobreviven tienda → cargador → mapa → tienda → mina → Lands
+ok 122 - compras anteriores y nuevas sobreviven tienda → cargador → mapa → tienda → mina → Lands
+  ---
+  duration_ms: 91.9555
+  type: 'test'
+  ...
+# Subtest: una respuesta ilegible de la cadena no vacía ni guarda la mochila
+ok 123 - una respuesta ilegible de la cadena no vacía ni guarda la mochila
+  ---
+  duration_ms: 40.2503
+  type: 'test'
+  ...
+# Subtest: las compras antiguas borradas de Mongo se recuperan desde la cadena sin comprar otra vez
+ok 124 - las compras antiguas borradas de Mongo se recuperan desde la cadena sin comprar otra vez
+  ---
+  duration_ms: 36.2374
+  type: 'test'
+  ...
+# Subtest: snapshot objetos conserva las casillas y cantidades confirmadas
+ok 125 - snapshot objetos conserva las casillas y cantidades confirmadas
+  ---
+  duration_ms: 29.0775
+  type: 'test'
+  ...
+# Subtest: snapshot tuplas conserva las casillas y cantidades confirmadas
+ok 126 - snapshot tuplas conserva las casillas y cantidades confirmadas
+  ---
+  duration_ms: 42.5791
+  type: 'test'
+  ...
+# Subtest: snapshot wrapper conserva las casillas y cantidades confirmadas
+ok 127 - snapshot wrapper conserva las casillas y cantidades confirmadas
+  ---
+  duration_ms: 46.2024
+  type: 'test'
+  ...
+# Subtest: snapshot facturaSuelta conserva las casillas y cantidades confirmadas
+ok 128 - snapshot facturaSuelta conserva las casillas y cantidades confirmadas
+  ---
+  duration_ms: 76.0788
+  type: 'test'
+  ...
+# Subtest: snapshot inválido se conserva sin guardado destructivo: null
+ok 129 - snapshot inválido se conserva sin guardado destructivo: null
+  ---
+  duration_ms: 47.1053
+  type: 'test'
+  ...
+# Subtest: snapshot inválido se conserva sin guardado destructivo: {}
+ok 130 - snapshot inválido se conserva sin guardado destructivo: {}
+  ---
+  duration_ms: 39.3765
+  type: 'test'
+  ...
+# Subtest: snapshot inválido se conserva sin guardado destructivo: [{"id":"10","manualId":"compra-10","owner":"0xaaa","tipo":"bolsa zanahorias","cantidad":"3","active":true},{}]
+ok 131 - snapshot inválido se conserva sin guardado destructivo: [{"id":"10","manualId":"compra-10","owner":"0xaaa","tipo":"bolsa zanahorias","cantidad":"3","active":true},{}]
+  ---
+  duration_ms: 29.2617
+  type: 'test'
+  ...
+# Subtest: snapshot inválido se conserva sin guardado destructivo: [{"id":"10","manualId":"compra-10","owner":"0xaaa","tipo":"bolsa zanahorias","cantidad":"NaN","active":true}]
+ok 132 - snapshot inválido se conserva sin guardado destructivo: [{"id":"10","manualId":"compra-10","owner":"0xaaa","tipo":"bolsa zanahorias","cantidad":"NaN","active":true}]
+  ---
+  duration_ms: 41.4739
+  type: 'test'
+  ...
+# Subtest: snapshot inválido se conserva sin guardado destructivo: [{"id":"10","manualId":"compra-10","owner":"0xotro","tipo":"bolsa zanahorias","cantidad":"3","active":true}]
+ok 133 - snapshot inválido se conserva sin guardado destructivo: [{"id":"10","manualId":"compra-10","owner":"0xotro","tipo":"bolsa zanahorias","cantidad":"3","active":true}]
+  ---
+  duration_ms: 44.747
+  type: 'test'
+  ...
+# Subtest: las semillas guardadas en cofres de Lands no se duplican en la mochila
+ok 134 - las semillas guardadas en cofres de Lands no se duplican en la mochila
+  ---
+  duration_ms: 41.9525
+  type: 'test'
+  ...
+# Subtest: si no se pueden leer los cofres no se reintroducen sus objetos ni se vacía la mochila
+ok 135 - si no se pueden leer los cofres no se reintroducen sus objetos ni se vacía la mochila
+  ---
+  duration_ms: 37.4101
+  type: 'test'
+  ...
+# Subtest: una sincronización pendiente no modifica otra entrada de la misma escena
+ok 136 - una sincronización pendiente no modifica otra entrada de la misma escena
+  ---
+  duration_ms: 91.2951
+  type: 'test'
+  ...
+# Subtest: GameScene: una carga anterior no sobrescribe una compra que acaba de confirmarse
+ok 137 - GameScene: una carga anterior no sobrescribe una compra que acaba de confirmarse
+  ---
+  duration_ms: 38.8309
+  type: 'test'
+  ...
+# Subtest: tiendajuego: una carga anterior no sobrescribe una compra que acaba de confirmarse
+ok 138 - tiendajuego: una carga anterior no sobrescribe una compra que acaba de confirmarse
+  ---
+  duration_ms: 42.8348
+  type: 'test'
+  ...
+# Subtest: MinaScene: una carga anterior no sobrescribe una compra que acaba de confirmarse
+ok 139 - MinaScene: una carga anterior no sobrescribe una compra que acaba de confirmarse
+  ---
+  duration_ms: 38.5337
+  type: 'test'
+  ...
+# Subtest: LandsScene: una carga anterior no sobrescribe una compra que acaba de confirmarse
+ok 140 - LandsScene: una carga anterior no sobrescribe una compra que acaba de confirmarse
+  ---
+  duration_ms: 63.6844
+  type: 'test'
+  ...
+# Subtest: InteriorScene: una carga anterior no sobrescribe una compra que acaba de confirmarse
+ok 141 - InteriorScene: una carga anterior no sobrescribe una compra que acaba de confirmarse
+  ---
+  duration_ms: 41.6156
+  type: 'test'
+  ...
+# Subtest: LoadingScenegame: una carga anterior no sobrescribe una compra que acaba de confirmarse
+ok 142 - LoadingScenegame: una carga anterior no sobrescribe una compra que acaba de confirmarse
+  ---
+  duration_ms: 35.9655
+  type: 'test'
+  ...
+# Subtest: GameScene: las semillas se pintan antes de recibir los usos de herramientas
+ok 143 - GameScene: las semillas se pintan antes de recibir los usos de herramientas
+  ---
+  duration_ms: 39.9063
+  type: 'test'
+  ...
+# Subtest: tiendajuego: las semillas se pintan antes de recibir los usos de herramientas
+ok 144 - tiendajuego: las semillas se pintan antes de recibir los usos de herramientas
+  ---
+  duration_ms: 40.7009
+  type: 'test'
+  ...
+# Subtest: MinaScene: las semillas se pintan antes de recibir los usos de herramientas
+ok 145 - MinaScene: las semillas se pintan antes de recibir los usos de herramientas
+  ---
+  duration_ms: 38.56
+  type: 'test'
+  ...
+# Subtest: LandsScene: las semillas se pintan antes de recibir los usos de herramientas
+ok 146 - LandsScene: las semillas se pintan antes de recibir los usos de herramientas
+  ---
+  duration_ms: 80.5989
+  type: 'test'
+  ...
+# Subtest: InteriorScene: las semillas se pintan antes de recibir los usos de herramientas
+ok 147 - InteriorScene: las semillas se pintan antes de recibir los usos de herramientas
+  ---
+  duration_ms: 72.4745
+  type: 'test'
+  ...
+# Subtest: al salir del mapa se cancela la lectura de usos y no se pinta la siguiente escena
+ok 148 - al salir del mapa se cancela la lectura de usos y no se pinta la siguiente escena
+  ---
+  duration_ms: 51.2786
+  type: 'test'
+  ...
+# Subtest: invitaciones: código único y estable, enlace y totales
+ok 149 - invitaciones: código único y estable, enlace y totales
+  ---
+  duration_ms: 38.8414
+  type: 'test'
+  ...
+# Subtest: invitaciones: reclamar con todas sus reglas
+ok 150 - invitaciones: reclamar con todas sus reglas
+  ---
+  duration_ms: 11.8965
+  type: 'test'
+  ...
+# Subtest: invitaciones: el usuario de Discord se valida y se puede borrar
+ok 151 - invitaciones: el usuario de Discord se valida y se puede borrar
+  ---
+  duration_ms: 5.4674
+  type: 'test'
+  ...
+# Subtest: actividad: el tiempo por sala lo cuenta el servidor; la pesca y el panel de la tienda
+ok 152 - actividad: el tiempo por sala lo cuenta el servidor; la pesca y el panel de la tienda
+  ---
+  duration_ms: 24.3655
+  type: 'test'
+  ...
+# Subtest: admin: actividad con sus pistas de bot
+ok 153 - admin: actividad con sus pistas de bot
+  ---
+  duration_ms: 10.5724
+  type: 'test'
+  ...
+# Subtest: BlockchainManager: el cierre aborta incluso un cuerpo HTTP pendiente y no recupera datos tardíos
+ok 154 - BlockchainManager: el cierre aborta incluso un cuerpo HTTP pendiente y no recupera datos tardíos
+  ---
+  duration_ms: 8.682
+  type: 'test'
+  ...
+# Subtest: BlockchainManager: una respuesta de otro token no cambia el usuario
+ok 155 - BlockchainManager: una respuesta de otro token no cambia el usuario
+  ---
+  duration_ms: 3.5025
+  type: 'test'
+  ...
+# Subtest: BlockchainManager: la configuración tardía no resucita el sistema destruido
+ok 156 - BlockchainManager: la configuración tardía no resucita el sistema destruido
+  ---
+  duration_ms: 5.785
+  type: 'test'
+  ...
+# Subtest: TransactionSystem: el cierre aborta incluso un cuerpo HTTP pendiente y no recupera datos tardíos
+ok 157 - TransactionSystem: el cierre aborta incluso un cuerpo HTTP pendiente y no recupera datos tardíos
+  ---
+  duration_ms: 4.8635
+  type: 'test'
+  ...
+# Subtest: TransactionSystem: una respuesta de otro token no cambia el usuario
+ok 158 - TransactionSystem: una respuesta de otro token no cambia el usuario
+  ---
+  duration_ms: 2.707
+  type: 'test'
+  ...
+# Subtest: TransactionSystem: la configuración tardía no resucita el sistema destruido
+ok 159 - TransactionSystem: la configuración tardía no resucita el sistema destruido
+  ---
+  duration_ms: 3.0564
+  type: 'test'
+  ...
+# Subtest: TransactionSystem: un 401 de una sesión anterior y los fallos de red conservan el token actual
+ok 160 - TransactionSystem: un 401 de una sesión anterior y los fallos de red conservan el token actual
+  ---
+  duration_ms: 37.9947
+  type: 'test'
+  ...
+# Subtest: TransactionSystem: un fallo al desconectar no impide liberar panel, escena y solicitudes
+ok 161 - TransactionSystem: un fallo al desconectar no impide liberar panel, escena y solicitudes
+  ---
+  duration_ms: 7.9974
+  type: 'test'
+  ...
+# Subtest: Crafting: 30 cambios de escena liberan referencias y los listeners de ciclo de vida
+ok 162 - Crafting: 30 cambios de escena liberan referencias y los listeners de ciclo de vida
+  ---
+  duration_ms: 15.7704
+  type: 'test'
+  ...
+# Subtest: Crafting: al destruir el panel se eliminan sus escuchas globales y DOM
+ok 163 - Crafting: al destruir el panel se eliminan sus escuchas globales y DOM
+  ---
+  duration_ms: 6.6012
+  type: 'test'
+  ...
+# Subtest: Crafting: cerrar sin DOM detiene vigilancia y reactivación del teclado
+ok 164 - Crafting: cerrar sin DOM detiene vigilancia y reactivación del teclado
+  ---
+  duration_ms: 5.1251
+  type: 'test'
+  ...
+# Subtest: Crafting: una operación pendiente termina sobre su escena antes del relevo
+ok 165 - Crafting: una operación pendiente termina sobre su escena antes del relevo
+  ---
+  duration_ms: 17.8015
+  type: 'test'
+  ...
+# Subtest: Crafting: una escena de relevo que ya cerró no se vuelve a retener
+ok 166 - Crafting: una escena de relevo que ya cerró no se vuelve a retener
+  ---
+  duration_ms: 5.5067
+  type: 'test'
+  ...
+# Subtest: LoadingSystem: cancelar o destruir una animación resuelve la espera y libera RAF
+ok 167 - LoadingSystem: cancelar o destruir una animación resuelve la espera y libera RAF
+  ---
+  duration_ms: 3.9217
+  type: 'test'
+  ...
+# Subtest: LoadingSystem: destruir una instancia anterior respeta el overlay de la nueva
+ok 168 - LoadingSystem: destruir una instancia anterior respeta el overlay de la nueva
+  ---
+  duration_ms: 3.627
+  type: 'test'
+  ...
+# Subtest: LoadingSystem: una animación antigua tampoco puede actualizar ni ocultar la carga nueva
+ok 169 - LoadingSystem: una animación antigua tampoco puede actualizar ni ocultar la carga nueva
+  ---
+  duration_ms: 3.502
+  type: 'test'
+  ...
+# Subtest: LoadingSystem y NotificationHub: el cierre antes de DOMContentLoaded impide reinicializar
+ok 170 - LoadingSystem y NotificationHub: el cierre antes de DOMContentLoaded impide reinicializar
+  ---
+  duration_ms: 7.1301
+  type: 'test'
+  ...
+# Subtest: NotificationHub: destruir elimina todas las animaciones pendientes
+ok 171 - NotificationHub: destruir elimina todas las animaciones pendientes
+  ---
+  duration_ms: 14.2489
+  type: 'test'
+  ...
+# Subtest: NotificationHub: los campos de duplicados personalizados se liberan al quitar la notificación
+ok 172 - NotificationHub: los campos de duplicados personalizados se liberan al quitar la notificación
+  ---
+  duration_ms: 13.1051
+  type: 'test'
+  ...
+# Subtest: NFT: refrescar cancela lecturas anteriores e ignora respuestas viejas
+ok 173 - NFT: refrescar cancela lecturas anteriores e ignora respuestas viejas
+  ---
+  duration_ms: 6.4376
+  type: 'test'
+  ...
+# Subtest: NFT: cambiar de cuenta inicia una lectura nueva aunque la anterior siga pendiente
+ok 174 - NFT: cambiar de cuenta inicia una lectura nueva aunque la anterior siga pendiente
+  ---
+  duration_ms: 3.2017
+  type: 'test'
+  ...
+# Subtest: NFT: los metadatos sin Content-Length se interrumpen al superar 200 KiB
+ok 175 - NFT: los metadatos sin Content-Length se interrumpen al superar 200 KiB
+  ---
+  duration_ms: 4.2914
+  type: 'test'
+  ...
+# Subtest: NFT: una URI nueva del mismo token actualiza la caché y esta conserva como máximo 500 entradas
+ok 176 - NFT: una URI nueva del mismo token actualiza la caché y esta conserva como máximo 500 entradas
+  ---
+  duration_ms: 510.5386
+  type: 'test'
+  ...
+# Subtest: Traductor: cien mensajes y lotes nuevos comparten un máximo de tres descargas
+ok 177 - Traductor: cien mensajes y lotes nuevos comparten un máximo de tres descargas
+  ---
+  duration_ms: 98.7218
+  type: 'test'
+  ...
+# Subtest: Traductor: registros y colas tienen límite incluso con mil nodos vivos
+ok 178 - Traductor: registros y colas tienen límite incluso con mil nodos vivos
+  ---
+  duration_ms: 94.2838
+  type: 'test'
+  ...
+# Subtest: Gráficos: un deslizador rápido conserva un único guardado y envía el último valor después
+ok 179 - Gráficos: un deslizador rápido conserva un único guardado y envía el último valor después
+  ---
+  duration_ms: 15.8917
+  type: 'test'
+  ...
+# Subtest: Gráficos: una carga lenta no pisa el ajuste que el jugador acaba de cambiar
+ok 180 - Gráficos: una carga lenta no pisa el ajuste que el jugador acaba de cambiar
+  ---
+  duration_ms: 15.3184
+  type: 'test'
+  ...
+# Subtest: Gráficos: los fallos de red usan espera progresiva y no reintentan cada 220 ms
+ok 181 - Gráficos: los fallos de red usan espera progresiva y no reintentan cada 220 ms
+  ---
+  duration_ms: 8.511
+  type: 'test'
+  ...
+# Subtest: Gráficos: cambiar de cuenta descarta la lectura anterior
+ok 182 - Gráficos: cambiar de cuenta descarta la lectura anterior
+  ---
+  duration_ms: 4.4239
+  type: 'test'
+  ...
+# Subtest: Gráficos: un guardado fallido del usuario anterior permite cargar los ajustes del nuevo
+ok 183 - Gráficos: un guardado fallido del usuario anterior permite cargar los ajustes del nuevo
+  ---
+  duration_ms: 4.0045
+  type: 'test'
+  ...
+# Subtest: Cookies: un CSRF mal codificado no rompe los paneles ni deja temporizadores
+ok 184 - Cookies: un CSRF mal codificado no rompe los paneles ni deja temporizadores
+  ---
+  duration_ms: 11.1069
+  type: 'test'
+  ...
+# Subtest: Soulbound: cancelar 20 cargas suelta los listeners, las esperas y las texturas tardías
+ok 185 - Soulbound: cancelar 20 cargas suelta los listeners, las esperas y las texturas tardías
+  ---
+  duration_ms: 24.5734
+  type: 'test'
+  ...
+# Subtest: Soulbound: el plazo de carga libera una operación aunque el loader nunca termine
+ok 186 - Soulbound: el plazo de carga libera una operación aunque el loader nunca termine
+  ---
+  duration_ms: 7.0447
+  type: 'test'
+  ...
+# Subtest: Soulbound: el cambio completo retira las texturas temporales y sus listeners
+ok 187 - Soulbound: el cambio completo retira las texturas temporales y sus listeners
+  ---
+  duration_ms: 6.1737
+  type: 'test'
+  ...
+# Subtest: Soulbound: una sincronización antigua no deshace una elección nueva
+ok 188 - Soulbound: una sincronización antigua no deshace una elección nueva
+  ---
+  duration_ms: 10.7324
+  type: 'test'
+  ...
+# Subtest: Mascota: el límite de petición cubre el cuerpo y no aplica respuestas de otra cuenta
+ok 189 - Mascota: el límite de petición cubre el cuerpo y no aplica respuestas de otra cuenta
+  ---
+  duration_ms: 14.6092
+  type: 'test'
+  ...
+# Subtest: Pesca: la carga abortada libera sus eventos sin dejar loaderror acumulados
+ok 190 - Pesca: la carga abortada libera sus eventos sin dejar loaderror acumulados
+  ---
+  duration_ms: 21.4045
+  type: 'test'
+  ...
+# Subtest: Dependencia i18next: mantiene traducciones válidas y rechaza rutas con esquema inyectado
+ok 191 - Dependencia i18next: mantiene traducciones válidas y rechaza rutas con esquema inyectado
+  ---
+  duration_ms: 14.3901
+  type: 'test'
+  ...
+# Subtest: twenty loading restarts release both lifecycle listeners, tips and activity timers
+ok 192 - twenty loading restarts release both lifecycle listeners, tips and activity timers
+  ---
+  duration_ms: 65.2499
+  type: 'test'
+  ...
+# Subtest: an older loading create cannot stop the new run timers
+ok 193 - an older loading create cannot stop the new run timers
+  ---
+  duration_ms: 31.9531
+  type: 'test'
+  ...
+# Subtest: stopping loading prevents a late refresh from replacing the shared CSRF token
+ok 194 - stopping loading prevents a late refresh from replacing the shared CSRF token
+  ---
+  duration_ms: 27.2217
+  type: 'test'
+  ...
+# Subtest: a stopped automatic refresh cannot open an expired-session panel later
+ok 195 - a stopped automatic refresh cannot open an expired-session panel later
+  ---
+  duration_ms: 47.2809
+  type: 'test'
+  ...
+# Subtest: map return exposes the save promise so callers can wait for durable state
+ok 196 - map return exposes the save promise so callers can wait for durable state
+  ---
+  duration_ms: 54.9054
+  type: 'test'
+  ...
+# Subtest: el refresco consulta la conexión actual, aunque la función naciera desconectada
+ok 197 - el refresco consulta la conexión actual, aunque la función naciera desconectada
+  ---
+  duration_ms: 5.7506
+  type: 'test'
+  ...
+# Subtest: un refresh pendiente no vuelve a crear temporizadores después de desmontar
+ok 198 - un refresh pendiente no vuelve a crear temporizadores después de desmontar
+  ---
+  duration_ms: 1.0781
+  type: 'test'
+  ...
+# Subtest: los oyentes se eliminan del proveedor original incluso si cambia window.ethereum
+ok 199 - los oyentes se eliminan del proveedor original incluso si cambia window.ethereum
+  ---
+  duration_ms: 2.0528
+  type: 'test'
+  ...
+# Subtest: cambiar cuenta invalida la autenticación y usa el estado actual del listener
+ok 200 - cambiar cuenta invalida la autenticación y usa el estado actual del listener
+  ---
+  duration_ms: 0.9053
+  type: 'test'
+  ...
+# Subtest: Memory diagnostics report buffers instead of silently estimating every node as zero
+ok 201 - Memory diagnostics report buffers instead of silently estimating every node as zero
+  ---
+  duration_ms: 24.4929
+  type: 'test'
+  ...
+# Subtest: Aggressive diagnostics require explicit targets and cannot automatically destroy live caches
+ok 202 - Aggressive diagnostics require explicit targets and cannot automatically destroy live caches
+  ---
+  duration_ms: 6.7204
+  type: 'test'
+  ...
+# Subtest: Property names are never executed and object inspection avoids getters
+ok 203 - Property names are never executed and object inspection avoids getters
+  ---
+  duration_ms: 21.9211
+  type: 'test'
+  ...
+# Subtest: Reporter drops completed timeout records, including callbacks that throw
+ok 204 - Reporter drops completed timeout records, including callbacks that throw
+  ---
+  duration_ms: 7.1809
+  type: 'test'
+  ...
+# Subtest: mine attacks anticipate coordinate based walking without anticipating teleports or motion into a wall
+ok 205 - mine attacks anticipate coordinate based walking without anticipating teleports or motion into a wall
+  ---
+  duration_ms: 8.0601
+  type: 'test'
+  ...
+# Subtest: servidor: el anfitrión que se duerme pasa el mando a uno despierto
+ok 206 - servidor: el anfitrión que se duerme pasa el mando a uno despierto
+  ---
+  duration_ms: 13.6379
+  type: 'test'
+  ...
+# Subtest: servidor: el que entra con la pestaña oculta no se queda el mando
+ok 207 - servidor: el que entra con la pestaña oculta no se queda el mando
+  ---
+  duration_ms: 36.3324
+  type: 'test'
+  ...
+# Subtest: cliente: sin foto del anfitrión en 3 s se piensa aquí, y sin mandar nada
+ok 208 - cliente: sin foto del anfitrión en 3 s se piensa aquí, y sin mandar nada
+  ---
+  duration_ms: 6.6725
+  type: 'test'
+  ...
+# Subtest: cliente: la pestaña oculta se avisa al servidor (y al saludar)
+ok 209 - cliente: la pestaña oculta se avisa al servidor (y al saludar)
+  ---
+  duration_ms: 6.9097
+  type: 'test'
+  ...
+# Subtest: solo reconoce enlaces nativos válidos; enlaces desktop dañados nunca redirigen como web
+ok 210 - solo reconoce enlaces nativos válidos; enlaces desktop dañados nunca redirigen como web
+  ---
+  duration_ms: 3.8315
+  type: 'test'
+  ...
+# Subtest: la autorización exige consentimiento y CSRF y nunca manda la cuenta elegida en el cliente
+ok 211 - la autorización exige consentimiento y CSRF y nunca manda la cuenta elegida en el cliente
+  ---
+  duration_ms: 1.2779
+  type: 'test'
+  ...
+# Subtest: la vinculación Android conserva el código aunque exista una sesión guardada
+ok 212 - la vinculación Android conserva el código aunque exista una sesión guardada
+  ---
+  duration_ms: 1.048
+  type: 'test'
+  ...
+# Subtest: sesión nueva solo tras aprobar y presentar PKCE; un uso incluso con polls simultáneos
+ok 213 - sesión nueva solo tras aprobar y presentar PKCE; un uso incluso con polls simultáneos
+  ---
+  duration_ms: 8.8974
+  type: 'test'
+  ...
+# Subtest: un tercero con el id público no recibe sesión, y no sustituye una aprobación
+ok 214 - un tercero con el id público no recibe sesión, y no sustituye una aprobación
+  ---
+  duration_ms: 0.9524
+  type: 'test'
+  ...
+# Subtest: caducidad, capacidad y datos inválidos mantienen memoria acotada
+ok 215 - caducidad, capacidad y datos inválidos mantienen memoria acotada
+  ---
+  duration_ms: 0.7806
+  type: 'test'
+  ...
+# Subtest: una cuenta baneada después de aprobar no obtiene cookies
+ok 216 - una cuenta baneada después de aprobar no obtiene cookies
+  ---
+  duration_ms: 0.8219
+  type: 'test'
+  ...
+# Subtest: Android muestra el mismo código y consume PKCE sin sacar la cookie del navegador TWA
+ok 217 - Android muestra el mismo código y consume PKCE sin sacar la cookie del navegador TWA
+  ---
+  duration_ms: 1.4018
+  type: 'test'
+  ...
+# Subtest: vault shares exactly one key initialization across concurrent callers and destroys late keys
+ok 218 - vault shares exactly one key initialization across concurrent callers and destroys late keys
+  ---
+  duration_ms: 13.3075
+  type: 'test'
+  ...
+# Subtest: encrypted writes fail closed without crypto while explicit preferences survive new instances
+ok 219 - encrypted writes fail closed without crypto while explicit preferences survive new instances
+  ---
+  duration_ms: 2.9936
+  type: 'test'
+  ...
+# Subtest: late encrypted writes cannot resurrect removed settings or overwrite a newer write
+ok 220 - late encrypted writes cannot resurrect removed settings or overwrite a newer write
+  ---
+  duration_ms: 3.7007
+  type: 'test'
+  ...
+# Subtest: texture cache borrows shared textures, preserves same-key reinsertion and rejects oversized entries
+ok 221 - texture cache borrows shared textures, preserves same-key reinsertion and rejects oversized entries
+  ---
+  duration_ms: 2.6246
+  type: 'test'
+  ...
+# Subtest: owned texture eviction never removes a replacement texture installed by another owner
+ok 222 - owned texture eviction never removes a replacement texture installed by another owner
+  ---
+  duration_ms: 7.5334
+  type: 'test'
+  ...
+# Subtest: shrinking a pool retains every active object and disables dormant physics bodies
+ok 223 - shrinking a pool retains every active object and disables dormant physics bodies
+  ---
+  duration_ms: 4.1928
+  type: 'test'
+  ...
+# Subtest: pools reject unbounded sizes and do not mutate foreign objects
+ok 224 - pools reject unbounded sizes and do not mutate foreign objects
+  ---
+  duration_ms: 2.5262
+  type: 'test'
+  ...
+# Subtest: culling restores original physics/visibility on remove, disable and destroy
+ok 225 - culling restores original physics/visibility on remove, disable and destroy
+  ---
+  duration_ms: 3.4034
+  type: 'test'
+  ...
+# Subtest: culling releases a destroyed target and does not enable initially hidden objects
+ok 226 - culling releases a destroyed target and does not enable initially hidden objects
+  ---
+  duration_ms: 3.1237
+  type: 'test'
+  ...
+# Subtest: layer refresh releases old GPU owners, preserves original hidden state and rolls back failed redraws
+ok 227 - layer refresh releases old GPU owners, preserves original hidden state and rolls back failed redraws
+  ---
+  duration_ms: 5.5622
+  type: 'test'
+  ...
+# Subtest: layer size validation prevents unbounded allocations and target destruction releases the cache
+ok 228 - layer size validation prevents unbounded allocations and target destruction releases the cache
+  ---
+  duration_ms: 5.4233
+  type: 'test'
+  ...
+# Subtest: late chunk failure after unload cannot remove a fresh chunk with the same coordinates
+ok 229 - late chunk failure after unload cannot remove a fresh chunk with the same coordinates
+  ---
+  duration_ms: 5.1859
+  type: 'test'
+  ...
+# Subtest: chunk destroy cancels retry delays and pending throttle work without creating another container
+ok 230 - chunk destroy cancels retry delays and pending throttle work without creating another container
+  ---
+  duration_ms: 4.811
+  type: 'test'
+  ...
+# Subtest: chunk radius and dimensions remain finite when configuration is invalid
+ok 231 - chunk radius and dimensions remain finite when configuration is invalid
+  ---
+  duration_ms: 5.578
+  type: 'test'
+  ...
+# Subtest: external emitter destruction releases maps and cleanup lets stopped particles drain
+ok 232 - external emitter destruction releases maps and cleanup lets stopped particles drain
+  ---
+  duration_ms: 5.7876
+  type: 'test'
+  ...
+# Subtest: retry disposal settles waits, circuit breaker stops retrying and metrics maps are bounded
+ok 233 - retry disposal settles waits, circuit breaker stops retrying and metrics maps are bounded
+  ---
+  duration_ms: 7.0485
+  type: 'test'
+  ...
+# Subtest: measurement averages use completed durations and prototype-like names are plain data
+ok 234 - measurement averages use completed durations and prototype-like names are plain data
+  ---
+  duration_ms: 2.3994
+  type: 'test'
+  ...
+# Subtest: scene registrar preserves shared classes, rejects prototype keys and cancels pending retries
+ok 235 - scene registrar preserves shared classes, rejects prototype keys and cancels pending retries
+  ---
+  duration_ms: 4.1416
+  type: 'test'
+  ...
+# Subtest: camera clamp is unique per scene, clamps zoom even without scrolling and detaches on shutdown
+ok 236 - camera clamp is unique per scene, clamps zoom even without scrolling and detaches on shutdown
+  ---
+  duration_ms: 9.9748
+  type: 'test'
+  ...
+# Subtest: options cannot replace prototypes or select inherited adaptive quality tiers
+ok 237 - options cannot replace prototypes or select inherited adaptive quality tiers
+  ---
+  duration_ms: 2.3373
+  type: 'test'
+  ...
+# Subtest: un hueco entre dos alas usa la columna sólida más cercana
+ok 238 - un hueco entre dos alas usa la columna sólida más cercana
+  ---
+  duration_ms: 6.329
+  type: 'test'
+  ...
+# Subtest: casa L real: la fachada derecha se ordena por encima de la izquierda
+ok 239 - casa L real: la fachada derecha se ordena por encima de la izquierda
+  ---
+  duration_ms: 129.083
+  type: 'test'
+  ...
+# Subtest: el enlace antiguo conserva la selección MetaMask y la cuenta
+ok 240 - el enlace antiguo conserva la selección MetaMask y la cuenta
+  ---
+  duration_ms: 3.4495
+  type: 'test'
+  ...
+# Subtest: la alternativa a replace conserva los mismos parámetros
+ok 241 - la alternativa a replace conserva los mismos parámetros
+  ---
+  duration_ms: 2.4533
+  type: 'test'
+  ...
+# Subtest: DOM groups, properties and paired teardown listeners stay bounded across twenty restarts
+ok 242 - DOM groups, properties and paired teardown listeners stay bounded across twenty restarts
+  ---
+  duration_ms: 105.1079
+  type: 'test'
+  ...
+# Subtest: late cleanup from a previous HUD owner does not remove the current click handler
+ok 243 - late cleanup from a previous HUD owner does not remove the current click handler
+  ---
+  duration_ms: 50.6518
+  type: 'test'
+  ...
+# Subtest: chat, send button and emoji grid bind to each new scene and detach on exit
+ok 244 - chat, send button and emoji grid bind to each new scene and detach on exit
+  ---
+  duration_ms: 44.6816
+  type: 'test'
+  ...
+# Subtest: the sound panel may reopen repeatedly without retaining input or Escape handlers
+ok 245 - the sound panel may reopen repeatedly without retaining input or Escape handlers
+  ---
+  duration_ms: 50.66
+  type: 'test'
+  ...
+# Subtest: completed, stopped and failed SFX are destroyed while another scene retains its sound
+ok 246 - completed, stopped and failed SFX are destroyed while another scene retains its sound
+  ---
+  duration_ms: 60.2489
+  type: 'test'
+  ...
+# Subtest: leaving GameScene, shop, mine or lands during create cannot revive that entry
+ok 247 - leaving GameScene, shop, mine or lands during create cannot revive that entry
+  ---
+  duration_ms: 64.5974
+  type: 'test'
+  ...
+# Subtest: late authentication and inventory responses do not mount stale systems or overwrite a restarted scene
+ok 248 - late authentication and inventory responses do not mount stale systems or overwrite a restarted scene
+  ---
+  duration_ms: 98.7212
+  type: 'test'
+  ...
+# Subtest: session refresh has one timer across scene instances and releases it with the game
+ok 249 - session refresh has one timer across scene instances and releases it with the game
+  ---
+  duration_ms: 73.9973
+  type: 'test'
+  ...
+# Subtest: map shutdown drops tile data, pending labels and collision indices even when one resource throws
+ok 250 - map shutdown drops tile data, pending labels and collision indices even when one resource throws
+  ---
+  duration_ms: 120.9782
+  type: 'test'
+  ...
+# Subtest: battle hub buttons belong to the current scene and release DOM/socket listeners over twenty transitions
+ok 251 - battle hub buttons belong to the current scene and release DOM/socket listeners over twenty transitions
+  ---
+  duration_ms: 104.9689
+  type: 'test'
+  ...
+# Subtest: leaderboard refresh aborts the previous read and late responses cannot overwrite new or closed panels
+ok 252 - leaderboard refresh aborts the previous read and late responses cannot overwrite new or closed panels
+  ---
+  duration_ms: 136.0948
+  type: 'test'
+  ...
+# Subtest: vital refresh requests do not overlap and a departing scene cannot write stats after entering battle
+ok 253 - vital refresh requests do not overlap and a departing scene cannot write stats after entering battle
+  ---
+  duration_ms: 344.8573
+  type: 'test'
+  ...
+# Subtest: a restarted scene accepts current vital stats and rejects JSON still pending from its previous visit
+ok 254 - a restarted scene accepts current vital stats and rejects JSON still pending from its previous visit
+  ---
+  duration_ms: 113.8868
+  type: 'test'
+  ...
+# Subtest: shop notification controls rebind after cleanup without retaining a previous shop
+ok 255 - shop notification controls rebind after cleanup without retaining a previous shop
+  ---
+  duration_ms: 28.8326
+  type: 'test'
+  ...
+# Subtest: concurrent 401 retries share renewal and retain POST bodies with rotated CSRF
+ok 256 - concurrent 401 retries share renewal and retain POST bodies with rotated CSRF
+  ---
+  duration_ms: 176.4342
+  type: 'test'
+  ...
+# Subtest: third party requests and explicit logout never renew; URL objects work and cleanup removes all listeners
+ok 257 - third party requests and explicit logout never renew; URL objects work and cleanup removes all listeners
+  ---
+  duration_ms: 5.6991
+  type: 'test'
+  ...
+# Subtest: active battles renew cookies and vital mutation revisions change through response completion
+ok 258 - active battles renew cookies and vital mutation revisions change through response completion
+  ---
+  duration_ms: 13.0207
+  type: 'test'
+  ...
+# Subtest: la tienda usa la API de producción y espera la inicialización compartida
+ok 259 - la tienda usa la API de producción y espera la inicialización compartida
+  ---
+  duration_ms: 24.716
+  type: 'test'
+  ...
+# Subtest: renovar desde dos relays y la escena de tienda a la vez rota la cookie una sola vez
+ok 260 - renovar desde dos relays y la escena de tienda a la vez rota la cookie una sola vez
+  ---
+  duration_ms: 119.3165
+  type: 'test'
+  ...
+# Subtest: un corte de red o servidor ocupado no pide volver a iniciar sesión
+ok 261 - un corte de red o servidor ocupado no pide volver a iniciar sesión
+  ---
+  duration_ms: 17.5703
+  type: 'test'
+  ...
+# Subtest: liberar un relay mientras otro renueva no restaura sus credenciales ni cancela al otro
+ok 262 - liberar un relay mientras otro renueva no restaura sus credenciales ni cancela al otro
+  ---
+  duration_ms: 9.6093
+  type: 'test'
+  ...
+# Subtest: 30 entradas y salidas liberan máscaras y gráficos sin borrar listeners ajenos
+ok 263 - 30 entradas y salidas liberan máscaras y gráficos sin borrar listeners ajenos
+  ---
+  duration_ms: 20.9106
+  type: 'test'
+  ...
+# Subtest: la compra usa el ítem original aunque cambie la selección y acota el texto/timer
+ok 264 - la compra usa el ítem original aunque cambie la selección y acota el texto/timer
+  ---
+  duration_ms: 6.397
+  type: 'test'
+  ...
+# Subtest: una respuesta de wallet de una entrada anterior no altera la nueva escena
+ok 265 - una respuesta de wallet de una entrada anterior no altera la nueva escena
+  ---
+  duration_ms: 7.4039
+  type: 'test'
+  ...
+# inventory/reconcile: purchase_not_visible_on_chain
+# ✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+# 🏪 Sistema de tienda inicializado v6.3
+# ✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+# 🏪 Sistema de tienda inicializado v6.3
+# [SIMULATE] Iteración 1, remaining=3
+# [SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+# [SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+# 💰 Compra de 3x Carrot Seed: saldo verificado (1000 → 970 SL)
+# 🛒 SHOP TRANSACTION (PURCHASE) {
+#   type: 'compra',
+#   itemId: 'Semillax',
+#   itemName: 'Carrot Seed',
+#   quantity: 3,
+#   unitPrice: 10,
+#   totalCost: 30,
+#   currency: 'silver',
+#   fee: 0,
+#   remainingGold: 0,
+#   remainingSilver: 970
+# }
+# ✅ Purchase recorded: 3x Carrot Seed for 30 SL
+# 🔑 Usuario autenticado: 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+# 📄 Contrato encontrado: 0x1111111111111111111111111111111111111111
+# [SIMULATE] Iteración 1, remaining=3
+# [SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+# [SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+# Reporte completo: {
+#   success: true,
+#   remaining: 0,
+#   operations: [
+#     { type: 'new', location: [Object], amountAdded: 3, finalCount: 3 }
+#   ],
+#   summary: {
+#     totalMerged: 0,
+#     totalNewStacks: 3,
+#     newStacksCount: 1,
+#     slotsUsed: { quick: 1, inv: 0 }
+#   }
+# }
+# Parsed invoice response: {
+#   invoiceId: 1,
+#   manualId: 'FZ3WCt3C0KmydSBzgdg',
+#   cantidadx: 3,
+#   raw: [
+#     '1',
+#     'FZ3WCt3C0KmydSBzgdg',
+#     '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+#     'bolsa zanahorias',
+#     '3',
+#     true,
+#     '1'
+#   ]
+# }
+# addItemWithCheck OK (new) para invoice 1 cantidad 3
+# Additemblockchains: procesamiento finalizado.
+# ✅ Compra on-chain confirmada: 3x Semillax
+# Subtest: el backend recupera compras huérfanas, conserva las facturas distintas y reutiliza huecos vacíos
+ok 266 - el backend recupera compras huérfanas, conserva las facturas distintas y reutiliza huecos vacíos
+  ---
+  duration_ms: 20.8021
+  type: 'test'
+  ...
+# Subtest: un guardado antiguo nunca borra una compra; la copia recién cargada sí puede guardarse
+ok 267 - un guardado antiguo nunca borra una compra; la copia recién cargada sí puede guardarse
+  ---
+  duration_ms: 4.7338
+  type: 'test'
+  ...
+# Subtest: una mochila llena conserva lo comprado en cadena y no confirma una entrega inexistente
+ok 268 - una mochila llena conserva lo comprado en cadena y no confirma una entrega inexistente
+  ---
+  duration_ms: 4.2594
+  type: 'test'
+  ...
+# Subtest: una lectura de cadena anterior a la compra no entrega, borra ni confirma objetos
+ok 269 - una lectura de cadena anterior a la compra no entrega, borra ni confirma objetos
+  ---
+  duration_ms: 6.3217
+  type: 'test'
+  ...
+# Subtest: la conciliación reintenta si otro guardado cambia las casillas mientras lee la cadena
+ok 270 - la conciliación reintenta si otro guardado cambia las casillas mientras lee la cadena
+  ---
+  duration_ms: 4.1183
+  type: 'test'
+  ...
+# Subtest: actualizar una compra conserva los usos de los objetos que ya tenía el jugador
+ok 271 - actualizar una compra conserva los usos de los objetos que ya tenía el jugador
+  ---
+  duration_ms: 36.2765
+  type: 'test'
+  ...
+# ✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+# 🏪 Sistema de tienda inicializado v6.3
+# ✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+# 🏪 Sistema de tienda inicializado v6.3
+# [SIMULATE] Iteración 1, remaining=3
+# [SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+# [SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+# 💰 Compra de 3x Carrot Seed: saldo verificado (1000 → 970 SL)
+# 🛒 SHOP TRANSACTION (PURCHASE) {
+#   type: 'compra',
+#   itemId: 'Semillax',
+#   itemName: 'Carrot Seed',
+#   quantity: 3,
+#   unitPrice: 10,
+#   totalCost: 30,
+#   currency: 'silver',
+#   fee: 0,
+#   remainingGold: 0,
+#   remainingSilver: 970
+# }
+# ✅ Purchase recorded: 3x Carrot Seed for 30 SL
+# ❌ Compra confirmada, sincronización pendiente: Error: network
+#     at f.tienda._persistConfirmedPurchase (C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\shop-persistence.test.cjs:177:60)
+#     at TiendaSistema._runOnchainPurchase (eval at cargarFuentes (C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\gf-banco-tienda.js:550:5), <anonymous>:2918:28)
+# ✅ TxGate cargado — las pantallas de carga esperan a las transacciones en vuelo
+# 🏪 Sistema de tienda inicializado v6.3
+# [SIMULATE] Iteración 1, remaining=3
+# [SIMULATE] Nuevo stack en quick slot 0: add=3, remaining=0
+# [SIMULATE] Resultado final: success=true, remaining=0, totalMerged=0, totalNewStacks=3, newStacksCount=1
+# 💰 Compra de 3x Carrot Seed: saldo verificado (1000 → 970 SL)
+# 🛒 SHOP TRANSACTION (PURCHASE) {
+#   type: 'compra',
+#   itemId: 'Semillax',
+#   itemName: 'Carrot Seed',
+#   quantity: 3,
+#   unitPrice: 10,
+#   totalCost: 30,
+#   currency: 'silver',
+#   fee: 0,
+#   remainingGold: 0,
+#   remainingSilver: 970
+# }
+# ✅ Purchase recorded: 3x Carrot Seed for 30 SL
+# 💰 Reembolso de 1x Carrot Seed: saldo verificado (970 → 980 SL)
+# ⚠️ Compra parcial: 2/3 Semillax confirmados — reembolso 10
+# Subtest: comprar y salir antes de confirmar entrega y guarda sin retener la escena de tienda
+ok 272 - comprar y salir antes de confirmar entrega y guarda sin retener la escena de tienda
+  ---
+  duration_ms: 155.3664
+  type: 'test'
+  ...
+# Subtest: el inventario local nunca agrega unidades de una factura a otra del mismo objeto
+ok 273 - el inventario local nunca agrega unidades de una factura a otra del mismo objeto
+  ---
+  duration_ms: 24.5159
+  type: 'test'
+  ...
+# Subtest: una compra acuñada no se reembolsa si falla la lectura posterior o el guardado
+ok 274 - una compra acuñada no se reembolsa si falla la lectura posterior o el guardado
+  ---
+  duration_ms: 12.5962
+  type: 'test'
+  ...
+# Subtest: una compra parcial registra lo entregado y devuelve solo el precio de lo que no confirmó
+ok 275 - una compra parcial registra lo entregado y devuelve solo el precio de lo que no confirmó
+  ---
+  duration_ms: 12.3919
+  type: 'test'
+  ...
+# Subtest: leaves remain hidden while old snowflakes fade after switching the weather
+ok 276 - leaves remain hidden while old snowflakes fade after switching the weather
+  ---
+  duration_ms: 5.0178
+  type: 'test'
+  ...
+# Subtest: first landscape resize releases the startup height without shrinking for a keyboard
+ok 277 - first landscape resize releases the startup height without shrinking for a keyboard
+  ---
+  duration_ms: 4.9681
+  type: 'test'
+  ...
+# Subtest: History hub attaches CSRF to mutations, encodes IDs and discards stale account history
+ok 278 - History hub attaches CSRF to mutations, encodes IDs and discards stale account history
+  ---
+  duration_ms: 18.2603
+  type: 'test'
+  ...
+# Subtest: TxGate removes timeout listeners and clears heartbeat after each timed-out wait
+ok 279 - TxGate removes timeout listeners and clears heartbeat after each timed-out wait
+  ---
+  duration_ms: 7.7829
+  type: 'test'
+  ...
+# Subtest: TransactionHub rejects active explorer URLs and malformed transaction hashes
+ok 280 - TransactionHub rejects active explorer URLs and malformed transaction hashes
+  ---
+  duration_ms: 12.3535
+  type: 'test'
+  ...
+# Subtest: TransactionHub does not hide a new notification from an older timer; destroy clears all jobs
+ok 281 - TransactionHub does not hide a new notification from an older timer; destroy clears all jobs
+  ---
+  duration_ms: 13.4502
+  type: 'test'
+  ...
+# Subtest: TransactionHub bounds style/timer inputs instead of accepting CSS strings or Infinity
+ok 282 - TransactionHub bounds style/timer inputs instead of accepting CSS strings or Infinity
+  ---
+  duration_ms: 3.2476
+  type: 'test'
+  ...
+# Subtest: BlockchainManager rolls a failed reservation back only once and rejects inherited functions
+ok 283 - BlockchainManager rolls a failed reservation back only once and rejects inherited functions
+  ---
+  duration_ms: 17.5871
+  type: 'test'
+  ...
+# Subtest: TransactionSystem serializes automatic nonces and rejects invalid payloads
+ok 284 - TransactionSystem serializes automatic nonces and rejects invalid payloads
+  ---
+  duration_ms: 7.3076
+  type: 'test'
+  ...
+# Subtest: Wallet validates transport endpoints, hex and exact recovery code length
+ok 285 - Wallet validates transport endpoints, hex and exact recovery code length
+  ---
+  duration_ms: 23.845
+  type: 'test'
+  ...
+# Subtest: Wallet provider supports prototype-like event names, preserves listeners on init and validates accounts
+ok 286 - Wallet provider supports prototype-like event names, preserves listeners on init and validates accounts
+  ---
+  duration_ms: 20.2243
+  type: 'test'
+  ...
+# Subtest: Wallet OAuth ignores matching origin/state from any window except its popup
+ok 287 - Wallet OAuth ignores matching origin/state from any window except its popup
+  ---
+  duration_ms: 11.3816
+  type: 'test'
+  ...
+# Subtest: Wallet clears previous key material and autolock timer on lock
+ok 288 - Wallet clears previous key material and autolock timer on lock
+  ---
+  duration_ms: 3.5309
+  type: 'test'
+  ...
+# Subtest: Wallet closes IndexedDB connections when creating a transaction throws or aborts
+ok 289 - Wallet closes IndexedDB connections when creating a transaction throws or aborts
+  ---
+  duration_ms: 31.2402
+  type: 'test'
+  ...
+# Subtest: Relay cleanup aborts pending requests, destroys providers and cannot restart refresh
+ok 290 - Relay cleanup aborts pending requests, destroys providers and cannot restart refresh
+  ---
+  duration_ms: 11.1314
+  type: 'test'
+  ...
+# Subtest: Relay timeout stays active until the response body finishes
+ok 291 - Relay timeout stays active until the response body finishes
+  ---
+  duration_ms: 15.1128
+  type: 'test'
+  ...
+1..291
+# tests 291
+# suites 0
+# pass 291
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9820.8597

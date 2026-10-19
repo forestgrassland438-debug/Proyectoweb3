@@ -1,0 +1,35 @@
+{
+  "private": true,
+  "scripts": {
+    "test:inventory": "node --test tools/inventory-load.test.cjs tools/inventory-transitions.test.cjs tools/shop-persistence.test.cjs",
+    "test:inventory:browser": "node tools/generar-prueba-offline.js && node tools/inventory-browser-verification.cjs",
+    "audit:libraries": "node tools/audit-libraries.cjs",
+    "test:libraries": "node --test tools/libraries-stability.test.cjs",
+    "test:libraries:browser": "node tools/libraries-browser-stability.cjs",
+    "build:vendor": "node tools/build-vendor.cjs",
+    "test:engine": "node --test tools/engine-lifecycle.test.cjs tools/memory-diagnostics.test.cjs tools/app-lifecycle.test.cjs tools/perf-subsystems.test.cjs",
+    "test:web3": "node --test tools/web3-seguridad-prueba.cjs tools/hub-lifecycle.test.cjs",
+    "build:mina": "python tools/generar-mina.py && python tools/generar-mina-mapa.py && python tools/generar-mina-tmx.py",
+    "test:mina": "node tools/mina-prueba.js",
+    "test:environment": "node --test tools/environment-lifecycle.test.cjs tools/environment-resources.test.cjs",
+    "test:memory": "node --test tools/scene-memory-lifecycle.test.cjs tools/audio-footprints-lifecycle.test.cjs tools/environment-resources.test.cjs"
+  },
+  "overrides": {
+    "socket.io-parser": "4.2.7",
+    "i18next-http-backend": "4.0.2",
+    "@metamask/utils": { "uuid": "11.1.1" }
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "eslint": "^9.28.0",
+    "eslint-plugin-no-unsanitized": "^4.1.2",
+    "eslint-plugin-security": "^3.0.1"
+  },
+  "dependencies": {
+    "@metamask/connect-evm": "2.1.1",
+    "ethers": "6.17.0",
+    "phaser": "3.90.0",
+    "phaser3-rex-plugins": "1.60.0",
+    "socket.io-client": "4.8.3"
+  }
+}

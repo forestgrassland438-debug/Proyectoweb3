@@ -1,0 +1,13873 @@
+/*!
+ * ============================================================================
+ * Crassland Forest © 2026 JEAN LARREAL - TODOS LOS DERECHOS RESERVADOS
+ * ============================================================================
+ * 
+ * GRASSLAND FOREST v13
+ * Desarrollado y Publicado por: Jean Larreal
+ * CONTACTO PARA PERMISOS:
+ * Jean Larreal
+ * Email: [killerhackcodeup@gmail.com]
+ * Sitio Web: [grasslandforest.xyz]
+ * 
+ * VERSIÓN: v13.0.0-release
+ * GENERADO: 22/03/2026
+ * ============================================================================
+ */
+
+
+class tiendajuego extends Phaser.Scene {
+    constructor() {
+      super({ key: "tiendajuego" });
+
+
+      this.playerName = null;
+      this.currentAccount = null;
+      this.statsSync = null; // StatsSync para sincronización con el contrato
+      this._statsReady = false;
+
+        this.address = null;
+        this.csrfToken = null;
+        this.isAuthenticated = false;
+
+      this.perf = null; // Instancia de PhaserRPGPerf
+      this.chunkObjectsMap = new Map();
+
+      
+      this._queue = [];
+      this._processing = false;
+      this._windowMs = 1000; // 1 segundo entre tandas
+      this.lenguaje = 0;
+
+      // Una escena registrada con autoStart:false no debe crear relojes DOM.
+      this.notifications = null;
+
+          // ====== EN EL CONSTRUCTOR ======
+    this.dog = {
+      sprite: null,
+      shadowContainer: null,
+      x: 0,
+      y: 0,
+      targetX: 0,
+      targetY: 0,
+      prevX: 0,
+      prevY: 0,
+      prevTargetX: 0,
+      prevTargetY: 0,
+      smoothOffsetX: 0,
+      smoothOffsetY: 20,
+      lastFacing: 'right',
+      desiredFacing: 'right',
+      facingLockUntil: 0,
+      isMoving: false
+    };
+
+              
+    }
+
+
+
+
+
+
+// Función para cargar SOLO los datos de misiones
+async loadMissionsData() {
+  try {
+    console.log('📥 Cargando datos específicos de misiones...');
+    
+    // Verificar autenticación
+    if (!this.playerName || !this.isAuthenticated) {
+      console.error('❌ No se pueden cargar datos de misiones: falta autenticación');
+      return null;
+    }
+    
+    // Asegurarnos de tener token CSRF
+    if (!this.csrfToken) {
+      await this.getCSRFToken();
+      if (!this.csrfToken) {
+        console.error('❌ No se pudo obtener token CSRF para cargar misiones');
+        return null;
+      }
+    }
+    
+    // RUTA REAL: GET /api/missions/:playerName
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+    
+    // Añadir token CSRF si está disponible (aunque GET normalmente no lo requiere)
+    if (this.csrfToken) {
+      headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
+    }
+    
+    const res = await fetch(`${this.serverBase}/api/missions/${encodeURIComponent(this.playerName)}`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: headers
+    });
+
+    console.log('📊 Status de carga de datos de misiones:', res.status);
+    
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => 'No se pudo leer el error');
+      console.error('❌ Error al cargar datos de misiones:', {
+        status: res.status,
+        error: errorText
+      });
+      
+      // Si es error de autenticación, mostrar error hub
+      if (res.status === 401 || res.status === 403) {
+        console.warn('⚠️ Token expirado al cargar datos de misiones');
+        this.showTokenErrorHub();
+        return null;
+      }
+      
+      throw new Error(`Error al cargar datos de misiones: ${res.status}`);
+    }
+
+    const missionsData = await res.json();
+    console.log('✅ Datos de misiones cargados exitosamente');
+    
+    // Cargar todas las variables de misiones con valores por defecto si no existen
+    this.misionesCompletadas = missionsData.misionesCompletadas || 0;
+    this.misionesEnProgreso = missionsData.misionesEnProgreso || 0;
+    this.misionesFallidas = missionsData.misionesFallidas || 0;
+    this.misiones_granjero = missionsData.misiones_granjero || 0;
+    this.estadomision = missionsData.estadomision || 0;
+    this.misiones_guardian = missionsData.misiones_guardian || 0;
+    this.estadomision1 = missionsData.estadomision1 || 0;
+    
+    // Actualizar la variable global misiones con la suma de completadas
+    this.misiones = this.misionesCompletadas;
+
+    // Mostrar todas las variables en console.log
+    console.log('🎯 DATOS DE MISIONES CARGADOS (RUTA ESPECÍFICA):');
+    console.log('📊 misionesCompletadas:', this.misionesCompletadas);
+    console.log('⏳ misionesEnProgreso:', this.misionesEnProgreso);
+    console.log('❌ misionesFallidas:', this.misionesFallidas);
+    console.log('🎁 misiones_granjero:', this.misiones_granjero);
+    console.log('⏰ misiones_guardian:', this.misiones_guardian);
+    console.log('-----------------------------------');
+    console.log('🎮 Variable global misiones actualizada:', this.misiones);
+
+    return missionsData;
+  } catch (error) {
+    console.error('Error cargando datos de misiones:', error);
+    return null;
+  }
+}
+
+
+// Función para actualizar SOLO las misiones
+async updateMissionsData(updateData) {
+  try {
+    console.log('🎯 Actualizando datos de misiones...');
+    
+    // Verificar autenticación
+    if (!this.playerName || !this.isAuthenticated) {
+      console.error('❌ No se puede actualizar misiones: falta autenticación');
+      return { success: false, error: 'No autenticado' };
+    }
+    
+    // Asegurarnos de tener token CSRF
+    if (!this.csrfToken) {
+      await this.getCSRFToken();
+      if (!this.csrfToken) {
+        console.error('❌ No se pudo obtener token CSRF para actualizar misiones');
+        return { success: false, error: 'Error CSRF' };
+      }
+    }
+    
+    // RUTA REAL: POST /api/missions/:playerName/update
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+    
+    // Añadir token CSRF si está disponible
+    if (this.csrfToken) {
+      headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
+    }
+    
+    const res = await fetch(`${this.serverBase}/api/missions/${encodeURIComponent(this.playerName)}/update`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: headers,
+      body: JSON.stringify(updateData)
+    });
+
+    console.log('📊 Status de actualización de misiones:', res.status);
+    
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => 'No se pudo leer el error');
+      console.error('❌ Error al actualizar misiones:', {
+        status: res.status,
+        error: errorText
+      });
+      
+      // Si es error CSRF, intentar obtener nuevo token y reintentar
+      if (res.status === 403 && errorText.includes('csrf')) {
+        console.log('🔄 Error CSRF, obteniendo nuevo token...');
+        await this.getCSRFToken();
+        if (this.csrfToken) {
+          headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
+          
+          // Reintentar
+          const retryRes = await fetch(`${this.serverBase}/api/missions/${encodeURIComponent(this.playerName)}/update`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: headers,
+            body: JSON.stringify(updateData)
+          });
+          
+          if (retryRes.ok) {
+            const result = await retryRes.json();
+            console.log('✅ Misiones actualizadas exitosamente después de reintento CSRF:', result.missionsData);
+            return result;
+          }
+        }
+      }
+      
+      // Verificar si es error de token expirado
+      if (res.status === 401 || res.status === 403) {
+        console.warn('⚠️ Token expirado o inválido para misiones');
+        return { 
+          success: false, 
+          error: 'token_expired',
+          message: 'Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.'
+        };
+      }
+      
+      throw new Error(`Error al actualizar misiones: ${errorText}`);
+    }
+
+    const result = await res.json();
+    console.log('✅ Misiones actualizadas exitosamente:', result.missionsData);
+    return result;
+  } catch (error) {
+    console.error('Error actualizando misiones:', error);
+    return { 
+      success: false, 
+      error: error.message || 'Error desconocido al actualizar misiones' 
+    };
+  }
+}
+
+
+
+
+
+
+
+// Método para mostrar notificaciones
+showNotification(message, type = 'info') {
+  // Puedes usar tu sistema de notificaciones existente
+  if (this.notifications) {
+    this.notifications.show(message, type);
+  } else {
+    console.log(`📢 ${type}: ${message}`);
+    
+    // Crear notificación temporal si no hay sistema
+    const notification = this.add.text(
+      this.cameras.main.centerX,
+      this.cameras.main.centerY - 100,
+      message,
+      {
+        fontFamily: '"PressStart2P"',
+        fontSize: '14px',
+        fill: type === 'error' ? '#ff5555' : type === 'success' ? '#55ff55' : '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 4,
+        align: 'center'
+      }
+    ).setOrigin(0.5).setDepth(1000);
+    
+    this.tweens.add({
+      targets: notification,
+      y: notification.y - 50,
+      alpha: 0,
+      duration: 2000,
+      ease: 'Power2',
+      onComplete: () => notification.destroy()
+    });
+  }
+}
+
+    
+
+    async loadx() {
+  const sceneRunId = this._sceneRunId;
+        console.log('🔍 Iniciando verificación de autenticación...');
+        
+        try {
+            // Primero obtener token CSRF
+            await this.getCSRFToken();
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+            
+            // Luego verificar autenticación
+            const response = await fetch(`${this.serverBase}/api/auth/me`, {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-Token': window.getCsrfToken(this.csrfToken)
+                }
+            });
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+
+            console.log('📊 Response status de /api/auth/me:', response.status);
+            
+            if (!response.ok) {
+                console.error('❌ Error de autenticación:', response.status);
+                this.showTokenErrorHub();
+                return false;
+            }
+
+            const data = await response.json();
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+            console.log('📥 Datos de autenticación:', data);
+
+            if (data.authenticated && data.address) {
+                this.isAuthenticated = true;
+                this.address = data.address;
+                this.playerName = data.playerName || data.address;
+                
+                console.log('✅ Usuario autenticado:', {
+                    address: this.address.substring(0, 10) + '...',
+                    playerName: this.playerName,
+                    hasPlayerName: !!data.playerName
+                });
+                
+                return true;
+            } else {
+                console.error('❌ Usuario no autenticado o sin address');
+                this.showTokenErrorHub();
+                return false;
+            }
+        } catch (error) {
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+            console.error('❌ Error en loadx:', error);
+            this.showTokenErrorHub();
+            return false;
+        }
+    }
+
+  
+    preload() {
+
+    this.game.renderer.autoPipeline = true;
+    this.game.renderer.config.pipeline = 'Mobile';
+    
+      
+    this.perf = window.PhaserRPGPerf.create(this.game, {
+      pixelArt: true,
+      roundPixels: true,
+      highPerformance: true,
+      chunkSizeTiles: 16,
+      chunkRadius: 1,
+      debug: false // Solo en desarrollo
+    });
+
+    this.perf.init(this);
+
+    this.perf.applyPixelPerfect({
+        pixelArt: true,
+        roundPixels: true,
+        crispScaling: true,
+        integerScaling: true
+    });
+    
+    this.perf.enableHighPerformance();
+    
+
+
+        
+      this.otherPlayers = {};
+      // La textura 'player' la registra GFSoulbound.precargar() más abajo,
+      // junto al resto de sprites del personaje equipado.
+      this.myId = null;  // o ""
+
+      // FIX: mismo bug que en LoadingScenegame.js/GameScene.js — "elipeticiones"
+      // se fijaba a 0 y se comprobaba "=== 0" en el mismo bloque, así que esta
+      // rama SIEMPRE se ejecutaba, también en producción.
+      const _host = window.location.hostname;
+      const _isLocal = _host === 'localhost' || _host === '127.0.0.1';
+
+      if (_isLocal) {
+        this.serverclient  = 'http://127.0.0.1:8080/api'; // ajusta el puerto si tu server2.js local usa otro
+        this.serverclient1 = 'http://127.0.0.1:8080';
+        this.serverBase    = 'http://127.0.0.1:8080';
+      } else {
+        this.serverclient  = 'https://api.grasslandforest.com/api';
+        this.serverclient1 = 'https://api.grasslandforest.com';
+        this.serverBase    = 'https://api.grasslandforest.com';
+      }
+
+      // Cierre de sesión COMPLETO disponible para el panel del dashboard.
+      // Función ESTÁTICA, no `() => this._doFullLogout()`: ese cierre dejaba
+      // la última tienda visitada retenida en memoria hasta la visita
+      // siguiente (medido con WeakRef). La estática busca la escena viva.
+      window.gfFullLogout = tiendajuego._cerrarSesionGlobal;
+
+      this.zoom = false;
+      this.definirhorax = 0;
+
+
+      // Cargar recursos
+      this.textures.remove('tiles');
+
+      if (this.textures.exists('tiles')) {
+        this.textures.remove('tiles');
+      }
+
+      // Con versión: el tileset se regenera (tools/mejorar-tiles-escenas.py).
+      this.load.image('tiles', './Game/MAPAS/tiles2.png?v=20261004');
+      this.load.image('tiles1', './Game/MAPAS/Tileset_Road.png');
+      this.load.tilemapTiledJSON('tilemapx', './Maps/tienda_nueva.json');
+  
+      // Cargar Perfil
+  
+      // ── SPRITES DEL JUGADOR (SOULBOUND) ────────────────────────────────────
+      // Mismo cambio que en GameScene.preload: las claves de textura son las
+      // de siempre, pero los PNG salen de Game/Sprites/Soulbound/<personaje>/.
+      // Así la tienda muestra el mismo personaje que el jugador lleva fuera.
+      if (window.GFSoulbound) {
+        window.GFSoulbound.precargar(this);
+      } else {
+        const _sbBase = './Game/Sprites/Soulbound/personaje1';
+        this.load.image('imagen_Perfil', _sbBase + '/Perfil/Perfil.png');
+        this.load.image('player', _sbBase + '/derecha/run_1.png');
+        [['derecha','player_right'],['izquierda','player_left'],
+         ['arriba','player_up'],['abajo','player_down']].forEach(([carpeta, pref]) => {
+          for (let i = 1; i <= 7; i++) {
+            this.load.image(pref + '_' + i, _sbBase + '/' + carpeta + '/run_' + i + '.png');
+          }
+        });
+      }
+      
+  
+      // Recurso
+  
+      this.load.image('regadoraImagen', './Game/Source/recurso2.png');
+      this.load.image('tijerasImagen', './Game/Source/tijeras.png');
+      
+      this.load.image('instrumento-pesca', './Game/Source/pesca-instrumento.png');
+
+  
+      // moneda
+
+      this.load.image('monedaimg', './Game/Source/moneda.png');
+
+      // chat
+      
+      this.load.image('chat', './Game/Source/chat.png');
+  
+      // mochila con letra I y con triangulo
+      
+      this.load.image('mochila', './Game/Source/Mochila.png');
+      this.load.image('letrai', './Game/Source/tecla_i.png');
+
+
+      // NPC
+
+      this.load.image('NPCtiendas', './Game/Objetos/NPC/NPCtienda.png');
+
+    
+      
+    //perro
+
+    
+    this.load.image('perro_derecha_1', './Game/Sprites/mascota/derecha/run_1.png');
+    this.load.image('perro_derecha_2', './Game/Sprites/mascota/derecha/run_2.png');
+    this.load.image('perro_derecha_3', './Game/Sprites/mascota/derecha/run_3.png');
+    this.load.image('perro_derecha_4', './Game/Sprites/mascota/derecha/run_4.png');
+
+    this.load.image('perro_izquierda_1', './Game/Sprites/mascota/izquierda/run_1.png');
+    this.load.image('perro_izquierda_2', './Game/Sprites/mascota/izquierda/run_2.png');
+    this.load.image('perro_izquierda_3', './Game/Sprites/mascota/izquierda/run_3.png');
+    this.load.image('perro_izquierda_4', './Game/Sprites/mascota/izquierda/run_4.png');
+
+
+
+
+
+
+      // nuevas texturas de mapa nuevo de la tienda
+
+
+      
+      this.load.image('planta_1', './Game/Objetos/planta_1.png');
+      this.load.image('planta_2', './Game/Objetos/planta_2.png');
+      this.load.image('planta_3', './Game/Objetos/planta_3.png');
+
+      this.load.image('silla_1', './Game/Objetos/silla2.png');
+      this.load.image('silla_2', './Game/Objetos/silla3.png');
+
+      this.load.image('horno', './Game/Objetos/horno.png');
+      this.load.image('bandera', './Game/Objetos/bandera1.png');
+      this.load.image('cofre', './Game/Objetos/cofre.png');
+      this.load.image('escoba', './Game/Objetos/escoba1.png');
+
+      this.load.image('alfombra1', './Game/Objetos/alfombra1.png');
+      this.load.image('alfombra2', './Game/Objetos/alfombra2.png');
+      this.load.image('alfombra3', './Game/Objetos/alfombra3.png');
+      this.load.image('alfombra4', './Game/Objetos/alfombra4.png');
+      this.load.image('alfombra5', './Game/Objetos/alfombra5.png');
+      this.load.image('alfombra6', './Game/Objetos/alfombra6.png');
+      
+
+      
+      this.load.image('mesatienda1', './Game/Objetos/mesatienda1.png');
+      this.load.image('mesatienda2', './Game/Objetos/mesatienda2.png');
+      this.load.image('mesatienda3', './Game/Objetos/mesatienda3.png');
+      this.load.image('mesatienda4', './Game/Objetos/mesatienda4.png');
+      this.load.image('mesatienda5', './Game/Objetos/mesatienda5.png');
+      this.load.image('mesatienda6', './Game/Objetos/mesatienda6.png');
+      this.load.image('mesatienda7', './Game/Objetos/mesatienda7.png');
+      this.load.image('mesatienda8', './Game/Objetos/mesatienda8.png');
+      this.load.image('mesatienda9', './Game/Objetos/mesatienda9.png');
+      this.load.image('mesatienda10', './Game/Objetos/mesatienda10.png');
+      this.load.image('mesatienda11', './Game/Objetos/sillla1.png');
+
+
+      this.load.image('estante1', './Game/Objetos/estante1bajo.png');
+      this.load.image('estante2', './Game/Objetos/estante2bajo.png');
+      this.load.image('estante3', './Game/Objetos/estante3bajo.png');
+      this.load.image('estante4', './Game/Objetos/estante4bajo.png');
+      this.load.image('estante5', './Game/Objetos/estantelado.png');
+
+
+      
+      this.load.image('barandilla1', './Game/Objetos/barandilla.png');
+      this.load.image('barandilla2', './Game/Objetos/barandilla2.png');
+      this.load.image('barandilla3', './Game/Objetos/barra1derecha.png');
+      this.load.image('barandilla4', './Game/Objetos/barra1izq.png');
+      this.load.image('barandilla5', './Game/Objetos/barra2derecha.png');
+      this.load.image('barandilla6', './Game/Objetos/barra2izq.png');
+
+      
+    // musica 
+
+    this.load.audio('main-theme1', './Game/MUSIC/tienda.ogg');
+
+    this.load.audio('level_up_sound', './Game/MUSIC/levelup.wav');
+
+    /* Sonido de la tienda: el tema nuevo de 8 bits, la tarima de madera bajo
+       los pies y la lluvia de fuera —apagada, como se oye desde dentro—.
+       Aquí se carga MUY POCO a propósito: los pájaros, los grillos, los
+       truenos y los suelos del campo no pintan nada bajo techo, y cargarlos
+       solo alargaría la entrada a la tienda. */
+    if (window.GFAudio) window.GFAudio.precargar(this, { tipo: 'tienda' });
+
+
+
+
+
+  
+      // si no existen los valores o argumentos del jugador se crean en la bd y si ya existen se leen automaticamente.
+  
+      this.player = this.physics.add.sprite(430, 432, 'playerTexture');
+      this.player.setVisible(false);
+      this.usuarioxx = "----";
+      // Inicialización de objetos de texto
+      this.textovida = this.add.text(20, 20, 'Vida 100%', {
+        fontSize: '16px',
+        fill: '#fff'
+      }).setVisible(false);  // Hace el texto invisible;
+  
+      this.textoagua = this.add.text(20, 40, 'Agua 100%', {
+        fontSize: '16px',
+        fill: '#fff'
+      }).setVisible(false);  // Hace el texto invisible;
+  
+      this.textocomida = this.add.text(20, 60, 'Comida 100%', {
+        fontSize: '16px',
+        fill: '#fff'
+      }).setVisible(false);  // Hace el texto invisible;
+  
+      this.cofreAbierto = false;
+      this.inventarioAbierto = false;
+
+
+    }
+  
+    async create() {
+    const sceneRunId = this._sceneRunId = (this._sceneRunId || 0) + 1;
+    this._sceneStopped = false;
+    this._shopCleanupDone = false;
+    // Sala del servidor al salir (ver _salaAlSalir). Se rearma en cada entrada.
+    this._salaDestino = null;
+    this.events.off('shutdown', this.performCleanup, this);
+    this.events.off('destroy', this.performCleanup, this);
+    this.events.once('shutdown', this.performCleanup, this);
+    this.events.once('destroy', this.performCleanup, this);
+    if (!this.notifications) {
+      this.notifications = new NotificationHub({
+        width: 350, animationDuration: 400, visibleDuration: 2000,
+        maxNotifications: 10, spacing: 15, debug: true, autoCleanup: true
+      });
+    }
+
+    // ── Candados de la puerta de salida ─────────────────────────────────────
+    // Phaser reutiliza la instancia de la escena: sin reiniciarlos, la puerta
+    // dejaría de funcionar tras la primera salida. _puertaArmada arranca en
+    // false porque apareces justo encima de la puerta al entrar a la tienda.
+    this._cambiandoEscena = false;
+    this._puertaArmada    = false;
+
+    /* DÓNDE SE APARECE (2026-10-10). "A veces entro de GameScene a la tienda
+       y mi personaje se lanza a lo oscuro del mapa y no sale en la puerta."
+
+       La posición salía de /api/load, o sea, de lo ÚLTIMO QUE SE GUARDÓ. Si
+       el guardado de la puerta aún no había llegado al servidor (o no se hizo:
+       savegg no guarda hasta tener el inventario cargado), la tienda recibía
+       una coordenada DEL MAPA DE FUERA, que mide 5008, y colocaba al jugador
+       ahí: recortada contra el borde, en el negro que rodea la sala. Y
+       mientras llegaba la carga, el sprite nacía donde lo dejó la visita
+       anterior (Phaser reutiliza la escena).
+
+       Ahora la puerta deja una NOTA DE VIAJE (GFViaje, gf-lands.js) con el
+       punto de llegada y la tienda la recoge aquí: manda sobre lo guardado.
+       Sin nota (recargar la página dentro de la tienda) vale lo guardado,
+       pero solo si cae DENTRO de la sala; si no, la puerta. */
+    this._anclaPropia = null;
+    this._posicionDeLaVisita = false;
+    {
+      const _viaje = window.GFViaje ? window.GFViaje.tomar(2) : null;
+      if (_viaje && Number.isFinite(_viaje.x) && Number.isFinite(_viaje.y)) {
+        this._anclaPropia = { x: _viaje.x, y: _viaje.y };
+      }
+    }
+
+    // ── Reloj del mundo ─────────────────────────────────────────────────────
+    // La tienda es interior, así que no se oscurece; pero el reloj del HUD
+    // sigue a la vista, y al entrar se aprovecha para refrescar la hora si la
+    // última sincronización ya tiene media hora.
+    try {
+      if (window.GFCiclo) window.GFCiclo.sincronizarSiHaceFalta('entrar en tiendajuego');
+    } catch (e) {
+      console.warn('⚠️ ciclo día/noche no disponible:', e);
+    }
+
+    // ── Aplicar stats del contrato INMEDIATAMENTE al inicio ──────────────────
+    if (window.playerStats) {
+      if (typeof window.playerStats.oro    === 'number') this.moneda           = window.playerStats.oro;
+      if (typeof window.playerStats.plata  === 'number') this.moneda_plata     = window.playerStats.plata;
+      if (typeof window.playerStats.vida   === 'number') this.vidaPorcentaje   = window.playerStats.vida;
+      if (typeof window.playerStats.agua   === 'number') this.aguaPorcentaje   = window.playerStats.agua;
+      if (typeof window.playerStats.comida === 'number') this.comidaPorcentaje = window.playerStats.comida;
+      console.log('💎 Stats aplicados al inicio de tiendajuego create():', {
+        moneda: this.moneda, plata: this.moneda_plata,
+        vida: this.vidaPorcentaje, agua: this.aguaPorcentaje, comida: this.comidaPorcentaje
+      });
+    }
+
+    const isAuthenticated = await this.loadx();
+    if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+        
+    
+
+    /* SE APILABAN LOS APAGADOS. Medido, no supuesto.
+     *
+     * Phaser NO borra los listeners de `this.events` al apagar una escena:
+     * `Systems.shutdown()` emite SHUTDOWN y punto. Como esto está en create(),
+     * cada vez que se vuelve a arrancar LA MISMA INSTANCIA se registra otro par
+     * de manejadores encima de los anteriores.
+     *
+     * Comprobado con Phaser 3.90 y una escena de mentira: arrancarla cinco
+     * veces deja los listeners de 'shutdown' en 13, 14, 15, 16 y 17, y el
+     * manejador acaba ejecutándose DIEZ veces en cuatro apagados. Aplicado a
+     * shutdown() eso son diez barridos del TextureManager, diez limpiezas de
+     * TileManagers y diez cierres de socket en la misma transición.
+     *
+     * Aquí, ADEMÁS, hay una red de seguridad que ya existía: al entrar en una
+     * escena se hace stop+remove+add de la otra, y con la instancia nueva el
+     * contador vuelve a 13 (también medido). O sea que por el camino normal
+     * juego↔tienda esto no llegaba a morder. Pero solo por ese camino: en
+     * cuanto alguien arranque la escena sin quitarla antes, se apila. El `off`
+     * de delante lo hace idempotente y no cuesta nada. */
+    this.events.off('shutdown', this.shutdown, this);
+    this.events.off('destroy', this.shutdown, this);
+    this.events.on('shutdown', this.shutdown, this);
+    this.events.on('destroy', this.shutdown, this);
+
+
+        if (!isAuthenticated) {
+            console.error('❌ No se pudo autenticar al usuario');
+            return;
+        }
+
+        // Verificar que tenemos playerName
+        if (!this.playerName) {
+            console.error('❌ No player name available');
+            this.showTokenErrorHub();
+            return;
+        }
+
+        this.currentAccount = this.playerName;
+    
+
+    /*
+this.errorReporter = new PhaserErrorReporter(
+    this, 
+    `${this.serverclient1}/api/report-error`,
+    [
+        "External tilesets unsupported. Use Embed Tileset and re-export",
+        "Image tile area not tile size multiple in: L:/descargas/arbusto.png",
+        "No texture found matching key: tiles2",
+        "Script error.",
+        "safe(): TypeError: Cannot read properties of null (reading 'disconnect')",
+    ]
+);
+    
+*/
+    
+    if (this.loadMissionsData) await this.loadMissionsData();
+    if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+
+    // ── Inicializar sincronización de stats con el contrato ──
+    this._initStatsSync();
+
+        
+      this.phaser_ancho = this.scale.width;
+      this.phaser_largo = this.scale.height;
+
+      this.map = null;
+      this.backgroundLayer = null;
+        
+      this.scene.stop('GameScene');
+      this.scene.remove('GameScene');
+      this.scene.add('GameScene', GameScene, false);
+        
+
+
+      // Cargar el tilemap y el conjunto de tiles
+      this.map = this.make.tilemap({ key: 'tilemapx' });
+      const tileset = this.map.addTilesetImage('Patron_tienda', 'tiles', 16, 16);
+      this.backgroundLayer = this.map.createLayer('mapa_tiendax', tileset, 0, 0);
+      /* EL SUELO PINTADO (gf-suelo.js, 2026-10-05): la tienda en trozos con
+         su pase de detalle (sombra de las paredes, yeso, tono de la madera:
+         tools/detallar-escena.py tienda). Al llegar, se esconde la capa. */
+      if (window.GFSuelo && this.backgroundLayer) {
+        window.GFSuelo.montar(this, { carpeta: 'recortadas_tienda', prefijo: 'tienda', capas: [this.backgroundLayer] });
+      }
+      this.textures.get('tiles').setFilter(Phaser.Textures.FilterMode.NEAREST);
+
+
+      // En el método create, inicializa this.graphics
+      this.graphics = this.add.graphics({ lineStyle: { width: 2, color: 0xff0000 }});
+      // Objeto nuevo: hay que volver a ocultarlo una vez desde update(). El flag
+      // sobrevive al cambio de escena porque Phaser reutiliza la instancia.
+      this._graphicsOcultado = false;
+
+
+      // Configurar los límites del mundo
+      this.physics.world.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
+  
+      // Crear el personaje (Inicialmente con la imagen de correr hacia abajo)
+      // Mientras llega /api/load: la nota de la puerta o, si lo que quedó de
+      // la visita anterior no es un sitio de la sala, la puerta.
+      {
+        const ini = this._anclaPropia || this._puntoDeLlegadaTienda(this.posicionplayerx, this.posicionplayery);
+        this.posicionplayerx = ini.x;
+        this.posicionplayery = ini.y;
+      }
+      this.player = this.physics.add.sprite(this.posicionplayerx, this.posicionplayery, 'player_right_1');
+      this.player.setScale(2);
+      this.player.setCollideWorldBounds(true); // Evita que el jugador salga del mundo
+  
+      // dando z-index personaje
+      this.player.setDepth(1);
+
+      /* SOMBRA DEL PERSONAJE, IGUAL QUE EN EL MAPA.
+
+         FALLO QUE ARREGLA: "en tiendajuego el personaje no tiene sombra". Y no
+         la tenía porque aquí nunca se creó: GameScene la monta en su create()
+         (el óvalo negro dentro de un contenedor) y esta escena solo copió la
+         del perro. Sin sombra el personaje no pisa el suelo, flota — y bajo
+         techo se nota más todavía, porque la tarima es plana y no hay hierba
+         que disimule.
+
+         El óvalo es un pelo más pequeño que el del campo (40×20 contra 45×22)
+         porque la luz de dentro es más cenital y la sombra se cierra. */
+      this.shadow = this.add.graphics();
+      this.shadow.fillStyle(0x000000, 0.22);
+      this.shadow.fillEllipse(0, 0, 40, 20);
+      this.shadow.setDepth(0);
+      this.shadowContainer = this.add.container(this.player.x, this.player.y + 16, [this.shadow]);
+
+      /* MASCOTA Y MUERTE TAMBIÉN AQUÍ DENTRO.
+
+         FALLO QUE ESTO ARREGLA — "muero, entro en la tienda y ya no soy
+         fantasma; y si salgo, tampoco":
+
+         gf-muerte.js solo se montaba en GameScene. En la tienda no había nadie
+         que pintara el fantasma ni que enseñara el botón de revivir, así que
+         entrar por la puerta te "resucitaba" de cara a la galería — el servidor
+         te seguía teniendo por muerto (GamePlayer.isGhost), pero el personaje
+         se veía normal, sin gris y sin forma de pagar el revivir. Y al volver
+         al mapa el aspecto tampoco se recuperaba, porque el vigilante solo
+         repinta cuando el estado CAMBIA y para él nunca había cambiado.
+
+         gf-mascota va primero: es quien habla con /api/pet/state y de donde
+         gf-muerte saca si estás muerto y cuánto cuesta volver. */
+      if (window.GFMascota) window.GFMascota.montar(this);
+      if (window.GFMuerte)  window.GFMuerte.montar(this);
+
+
+
+
+
+
+// En la función create(), después de crear el jugador (línea ~750)
+this.player.setInteractive({ useHandCursor: true });
+
+// Evento para clickear al jugador con ítem seleccionado
+this.player.on('pointerdown', (pointer) => {
+    // Verificar si el clic fue en el canvas (área del juego)
+    const canvas = this.sys.canvas;
+    const isCanvasClick = pointer.event.target === canvas || 
+                         pointer.event.target.tagName === 'container' ||
+                         canvas.contains(pointer.event.target);
+    
+    if (!isCanvasClick) {
+        console.log('Clic en DOM detectado - acción bloqueada');
+        return;
+    }
+
+    // Consumir el ítem seleccionado al hacer clic en el personaje (comida/agua).
+    // Descuenta el ítem con TRANSACCIÓN on-chain y persiste el buff vía statsSync.
+    if (this.STATE && this.STATE.selectedItem) {
+        const selectedId = String(this.STATE.selectedItem.id || '').toLowerCase();
+        this._consumeItemOnPlayer(selectedId);
+    }
+});
+
+
+
+
+
+
+
+
+
+      
+      // Pone la pantalla negra desde el principio
+      this.cameras.main.fadeOut(0, 0, 0, 0);
+
+      // Configurar cámara
+      
+      // Configurar cámara
+      this.cameras.main.setZoom(2);
+      this.cameras.main.zoomTo(1, 2000);
+      this.cameras.main.once('camerazoomcomplete', () => {
+
+        // mostrando botones de reputacion y estadisticas y mas
+        
+        console.log('Zoom terminado después de 3 segundos');
+
+        document.getElementById('game-hud').classList.remove('hud-hidden');
+        document.getElementById('game-hud').classList.add('hud-visible');
+
+        document.getElementById('info-text-left').textContent = `${this.moneda}`;
+        document.getElementById('info-text-right').textContent = `${this.moneda_plata}`;
+
+
+        document.getElementById('hub').classList.remove('hidden');
+        document.getElementById('quick-slots-bar').classList.remove('hidden');
+        document.getElementById('open-chat-btn').classList.remove('hidden');
+
+
+        // mostrando casillas
+
+        const slots = document.querySelectorAll('.quick-slot');
+        slots.forEach(slot => {
+          slot.style.display = 'block'; // o 'flex' si antes usabas flex
+        });
+
+        // mostrando bota y su contador
+        //document.getElementById('quest-button').style.display = 'block';
+
+
+        // mostrando hub de vida,agua y comida
+
+        
+        // mostrando hora y fecha
+
+
+
+        // Retrato del HUD: carpeta del personaje equipado.
+        this.actualizarImagenJugador(
+          window.GFSoulbound ? window.GFSoulbound.rutaPerfil()
+                             : './Game/Sprites/Soulbound/personaje1/Perfil/Perfil.png'
+        );
+
+        this.actualizarNombreUsuario(GameScene.nombreParaHud(this.currentAccount));
+        this.actualizarBarraVida(this.vidaPorcentaje);
+        this.actualizarBarraAgua(this.aguaPorcentaje);
+        this.actualizarBarraComida(this.comidaPorcentaje);
+
+        // mochila y letra i
+
+        
+
+        
+        
+
+        console.log('tienda create ejecutándose');
+
+
+
+        // FIX: usar onclick en lugar de addEventListener para que no se acumulen
+        // listeners al cambiar entre escenas (GameScene <-> tiendajuego)
+        document.getElementById('inv-shortcut-btn').onclick = () => this.toggleInventory();
+        // Actualizar la escena activa en tiendaSistema para que STATE apunte aquí
+        if (window.tiendaSistema) {
+          window.tiendaSistema.scene = this;
+        }
+
+
+
+
+
+
+        // coordenadas
+
+        document.getElementById('game-ui-text').style.display = 'block';
+
+
+
+      });
+      this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
+      this.cameras.main.setRoundPixels(true);
+
+      // Coloca al jugador en su posición deseada antes de seguirlo
+      this.player.setPosition(200, 300); // Cambiá por la posición inicial que quieras
+
+      // Inicia el follow, pero la cámara está aún en negro
+      // Mismo cambio que en GameScene (ver allí los números medidos): el lerp
+      // sube de 0.05 a 0.1, el mismo que usa Phaser-camera.js, para que la
+      // cámara no se quede 76 px por detrás del jugador. El redondeo se
+      // conserva (2º argumento en true) para no reintroducir las costuras
+      // entre tiles.
+      this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+
+      // Esperar a que la cámara termine de posicionarse (ajustá el delay si es muy rápido o lento)
+      this.time.delayedCall(800, () => {
+        // Ahora sí, mostrar el fade in
+        this.cameras.main.fadeIn(2000, 0, 0, 0);
+                
+      });
+      // Guarda referencias si las usás más tarde
+      this.cam = this.cameras.main;
+      this.cam_ancho = this.cam.width;
+      this.cam_alto = this.cam.height;
+
+      
+
+        // 🔧 TU CONFIGURACIÓN ESPECÍFICA
+        this.zoomConfig = {
+            level: 2,      // Zoom inicial: 2x
+            min: 1,      // Zoom mínimo: 0.5x
+            max: 2,        // Zoom máximo: 2x  
+            step: 1     // Paso de zoom: 0.25
+        };
+
+        // 🎯 VALORES EXACTOS PRE-DEFINIDOS (evita cálculos con decimales)
+        this.zoomValues = [1.0, 2.0];
+        // FIX (anterior): era 2.0 → índice FUERA de rango en [1.0, 2.0] (solo 0
+        // y 1) → this.zoomValues[2] === undefined → cámara.zoom = NaN →
+        // pantalla negra.
+        //
+        // FIX (ahora): el índice tiene que describir el zoom que la cámara
+        // TIENE de verdad, y la animación de entrada de arriba
+        // (`setZoom(2)` + `zoomTo(1, 2000)`) deja la cámara en 1.0x — el
+        // índice 0, no el 1. Con el índice mal, el zoom de la tienda quedaba
+        // inservible: la cámara estaba en 1.0x pero el juego creía estar en el
+        // máximo (2.0x), así que acercar no hacía nada ("límite máximo
+        // alcanzado") y alejar reaplicaba el 1.0x que ya había.
+        // Con el índice correcto, pellizcar y la rueda vuelven a funcionar y
+        // la vista de la tienda se ve exactamente igual que antes.
+        this.currentZoomIndex = 0; // 1.0x — el zoom en el que termina la entrada
+
+        
+
+
+        /*
+        // 🔧 TU CONFIGURACIÓN ESPECÍFICA
+        this.zoomConfig = {
+            level: 2,      // Zoom inicial: 2x
+            min: 0.5,      // Zoom mínimo: 0.5x
+            max: 2,        // Zoom máximo: 2x  
+            step: 0.5     // Paso de zoom: 0.25
+        };
+
+        // 🎯 VALORES EXACTOS PRE-DEFINIDOS (evita cálculos con decimales)
+        this.zoomValues = [0.5, 1.0, 1.5 , 2.0];
+        this.currentZoomIndex = 2.0; // Empieza en 2.0 (índice 6)
+        */
+
+
+
+
+        // NOTA: aquí NO se toca `cameras.main.zoom`.
+        // FIX: esta línea asignaba el zoom mientras la animación de entrada
+        // (`zoomTo(1, 2000)`) seguía corriendo. Esa animación reescribe
+        // `cam.zoom` en cada frame, así que la asignación se perdía en
+        // silencio. La cámara ya termina en el valor correcto por sí sola.
+
+        // 🎯 VERIFICACIÓN INICIAL
+        console.log("=== CONFIGURACIÓN DE ZOOM PRECISO ===");
+        console.log(`📊 Zoom configurado: ${this.zoomValues[this.currentZoomIndex]}x`);
+        console.log(`📊 Zoom real de cámara: ${this.cameras.main.zoom}x`);
+        console.log(`🎯 Valores disponibles: [${this.zoomValues.join(', ')}]`);
+
+        // Zoom con DOS DEDOS (móvil) sobre el mapa.
+        this._setupPinchZoom();
+
+        // Clic en las monedas del HUD → hub de compra/cambio de moneda.
+        this._setupCurrencyHub();
+
+        // 🖱️ CONTROL CON RUEDA DEL MOUSE - USANDO VALORES EXACTOS
+        this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY) => {
+            console.log("✅ Rueda - DeltaY:", deltaY);
+            
+            if (deltaY > 0) {
+                // Scroll HACIA ABAJO - Alejar (zoom out)
+                this.preciseZoomOut();
+            } else {
+                // Scroll HACIA ARRIBA - Acercar (zoom in)
+                this.preciseZoomIn();
+            }
+        });
+
+
+
+    // boton personaje
+    const boton3 = this.add.image(685, 1435, 'NPCtiendas')
+        .setInteractive()
+        .setDepth(0)
+        .setDisplaySize(38, 90);
+
+        // boton personaje
+    const boton4 = this.add.image(775, 650, 'NPCtiendas')
+        .setInteractive()
+        .setDepth(0)
+        .setDisplaySize(38, 90);
+    // Crear el panel, pero oculto al inicio
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      
+    const imageMapping = {
+      planta_1: {
+        spriteKey: 'planta_2',
+        targetProp: 'planta_1x'          
+      },      
+      planta_2: {
+        spriteKey: 'planta_2',
+        targetProp: 'planta_2x'          
+      },
+      planta_3: {
+        spriteKey: 'planta_2',
+        targetProp: 'planta_3x'          
+      },
+        planta_flor1: {
+        spriteKey: 'planta_3',
+        targetProp: 'planta_4x'          
+      },
+        planta_flor2: {
+        spriteKey: 'planta_3',
+        targetProp: 'planta_5x'          
+      },
+        planta_cactus: {
+        spriteKey: 'planta_1',
+        targetProp: 'planta_6x'          
+      },
+    };
+
+    this.createImagesFromObjectLayer(this, this.map, 'plantas', imageMapping);
+
+
+
+      
+    const imageMapping1 = {
+      silla1: {
+        spriteKey: 'silla_1',
+        targetProp: 'silla1x'          
+      },      
+      silla2: {
+        spriteKey: 'silla_1',
+        targetProp: 'silla2x'          
+      },
+      silla3: {
+        spriteKey: 'silla_1',
+        targetProp: 'silla3x'          
+      },
+      silla4: {
+        spriteKey: 'silla_1',
+        targetProp: 'silla4x'          
+      },
+        sillax1: {
+        spriteKey: 'silla_2',
+        targetProp: 'sillaxx1'          
+      },
+        sillax2: {
+        spriteKey: 'silla_2',
+        targetProp: 'sillexx2'          
+      },
+        sillax3: {
+        spriteKey: 'silla_2',
+        targetProp: 'sillaxx3'          
+      },
+        sillax4: {
+        spriteKey: 'silla_2',
+        targetProp: 'sillaxx4'          
+      },
+        horno: {
+        spriteKey: 'horno',
+        targetProp: 'hornox'          
+      },
+        horno2: {
+        spriteKey: 'horno',
+        targetProp: 'horno2x'          
+      },
+        bandera1: {
+        spriteKey: 'bandera',
+        targetProp: 'bandera1x'          
+      },
+        bandera2: {
+        spriteKey: 'bandera',
+        targetProp: 'bandera2x'          
+      },
+        bandera3: {
+        spriteKey: 'bandera',
+        targetProp: 'bandera3x'          
+      },
+        cofre: {
+        spriteKey: 'cofre',
+        targetProp: 'cofrex'          
+      },
+        escoba: {
+        spriteKey: 'escoba',
+        targetProp: 'escobax'          
+      },
+    };
+
+    this.createImagesFromObjectLayer(this, this.map, 'objetos_ect', imageMapping1);
+
+
+      
+    const imageMapping2 = {
+      alfombraxroja1: {
+        spriteKey: 'alfombra6',
+        targetProp: 'alfombraxroja1x'          
+      },      
+      alfombraxxroja1: {
+        spriteKey: 'alfombra5',
+        targetProp: 'alfombraxxroja1x'          
+      },
+      alfombramorada1: {
+        spriteKey: 'alfombra4',
+        targetProp: 'alfombramorada1x'          
+      },
+      alfombravip1: {
+        spriteKey: 'alfombra3',
+        targetProp: 'alfombravip1x'          
+      },
+        alfombraentrada1: {
+        spriteKey: 'alfombra2',
+        targetProp: 'alfombraentrada1x'          
+      },
+        alfombraverde1: {
+        spriteKey: 'alfombra1',
+        targetProp: 'alfombraverde1x'          
+      },
+    };
+
+    this.createImagesFromObjectLayer(this, this.map, 'alfombras', imageMapping2, 'floor');
+
+
+    
+    const imageMapping3 = {
+      mesapocion1: {
+        spriteKey: 'mesatienda2',
+        targetProp: 'mesaposion1x'          
+      },      
+      mesapocionx1: {
+        spriteKey: 'mesatienda3',
+        targetProp: 'mesaposionx1x'          
+      },
+      mesapocionx2: {
+        spriteKey: 'mesatienda3',
+        targetProp: 'mesaposionx2x'          
+      },
+      mesacomidax1: {
+        spriteKey: 'mesatienda6',
+        targetProp: 'mesacomidax1x'          
+      },
+        mesacomida1: {
+        spriteKey: 'mesatienda7',
+        targetProp: 'mesacomida1x'          
+      },
+        mesacomedor1: {
+        spriteKey: 'mesatienda8',
+        targetProp: 'mesacomedor1x'          
+      },
+        mesacomedor2: {
+        spriteKey: 'mesatienda8',
+        targetProp: 'mesacomedor2x'          
+      },
+        gabetaespada1: {
+        spriteKey: 'mesatienda10',
+        targetProp: 'gabetaespada1x'          
+      },
+        gabetalibro1: {
+        spriteKey: 'mesatienda9',
+        targetProp: 'gabetalibro1x'          
+      },
+        tiendamodara1: {
+        spriteKey: 'mesatienda5',
+        targetProp: 'tiendamorada1x'          
+      },
+        tiendavip1: {
+        spriteKey: 'mesatienda4',
+        targetProp: 'tiendavip1x'          
+      },
+        tiendaverde1: {
+        spriteKey: 'mesatienda1',
+        targetProp: 'tiendaverde1x'          
+      },
+        sillla1: {
+        spriteKey: 'mesatienda11',
+        targetProp: 'sillla1x'          
+      },
+        sillla2: {
+        spriteKey: 'mesatienda11',
+        targetProp: 'sillla2x'          
+      },
+        sillla3: {
+        spriteKey: 'mesatienda11',
+        targetProp: 'sillla3x'          
+      },
+        sillla4: {
+        spriteKey: 'mesatienda11',
+        targetProp: 'sillla4x'          
+      },
+    };
+
+    this.createImagesFromObjectLayer(this, this.map, 'mesas', imageMapping3);
+
+
+    
+    const imageMapping4 = {
+      estantelado1: {
+        spriteKey: 'estante5',
+        targetProp: 'estantelado1x'          
+      },      
+      estantelado2: {
+        spriteKey: 'estante5',
+        targetProp: 'estantelado2x'          
+      },
+      estantelado3: {
+        spriteKey: 'estante5',
+        targetProp: 'estantelado3x'          
+      },
+      estante_espada1: {
+        spriteKey: 'estante4',
+        targetProp: 'estante_espada1x'          
+      },
+        estante_planta1: {
+        spriteKey: 'estante3',
+        targetProp: 'estante_planta1x'          
+      },
+        estantebajo1: {
+        spriteKey: 'estante2',
+        targetProp: 'estantebajo1x'          
+      },
+        estantebajox1: {
+        spriteKey: 'estante1',
+        targetProp: 'estantebajox1x'          
+      },
+    };
+
+    this.createImagesFromObjectLayer(this, this.map, 'estante', imageMapping4);
+
+
+    
+    
+    const imageMapping5 = {
+      barraizqx1: {
+        spriteKey: 'barandilla6',
+        targetProp: 'barraizqx1x'          
+      },      
+      barraizq1: {
+        spriteKey: 'barandilla4',
+        targetProp: 'barraizq1x'          
+      },
+      barraizq2: {
+        spriteKey: 'barandilla4',
+        targetProp: 'barraizq2x'          
+      },
+      barraizq3: {
+        spriteKey: 'barandilla4',
+        targetProp: 'barraizq3x'          
+      },
+        barraizq4: {
+        spriteKey: 'barandilla4',
+        targetProp: 'barraizq4x'          
+      },
+        barraizq5: {
+        spriteKey: 'barandilla4',
+        targetProp: 'barraizq5x'          
+      },
+        barraizq6: {
+        spriteKey: 'barandilla4',
+        targetProp: 'barraizq6x'          
+      },
+        barraizq7: {
+        spriteKey: 'barandilla4',
+        targetProp: 'barraizq7x'          
+      },
+        barandillax1: {
+        spriteKey: 'barandilla1',
+        targetProp: 'barandillax1x'          
+      },
+        barandillax2: {
+        spriteKey: 'barandilla1',
+        targetProp: 'barandillax2x'          
+      },
+        barandilla1: {
+        spriteKey: 'barandilla2',
+        targetProp: 'barandilla1x'          
+      },
+        barraderecha1: {
+        spriteKey: 'barandilla3',
+        targetProp: 'barraderecha1x'          
+      },
+    };
+
+    this.createImagesFromObjectLayer(this, this.map, 'barandilla', imageMapping5);
+
+
+      // rectangulo de puerta de salida
+
+      const objectLayerf1 = this.map.getObjectLayer('puerta');
+      this.collisionRectangles1 = [];
+  
+      // Recorre cada objeto de la capa y lo convierte en un rectángulo para colisión.
+      objectLayerf1.objects.forEach(obj => {
+        let rect1 = new Phaser.Geom.Rectangle(obj.x, obj.y, obj.width, obj.height);
+        this.collisionRectangles1.push(rect1);
+  
+        // Opcional: dibuja los rectángulos de colisión (en verde semitransparente) para depuración.
+        /*
+        let debugGraphics = this.add.graphics();
+        debugGraphics.fillStyle(0x00ff00, 0.3);
+        debugGraphics.fillRectShape(rect);
+        */
+      });
+
+            // rectangulo de puerta de salida 
+
+      const objectLayerf2 = this.map.getObjectLayer('colisiones');
+      this.collisionRectangles2 = [];
+  
+      // Recorre cada objeto de la capa y lo convierte en un rectángulo para colisión.
+      objectLayerf2.objects.forEach(obj => {
+        let rect2 = new Phaser.Geom.Rectangle(obj.x, obj.y, obj.width, obj.height);
+        this.collisionRectangles2.push(rect2);
+  
+        // Opcional: dibuja los rectángulos de colisión (en verde semitransparente) para depuración.
+        /*
+        let debugGraphics = this.add.graphics();
+        debugGraphics.fillStyle(0x00ff00, 0.3);
+        debugGraphics.fillRectShape(rect);
+        */
+      });
+
+      
+
+
+
+    // nombre de usuario
+
+      // Crear texto en el centro de la pantalla
+      this.usuariox = this.add.text(400, 300, '---', {
+        fontFamily: '"PressStart2P"',
+        fontSize: '12px',
+        color: '#ffffff',
+        resolution: 4,
+        stroke: "#000",
+        strokeThickness: 3,
+      });
+      this.usuariox.setOrigin(0.5);          // Centrar el texto
+      //this.usuariox.setScrollFactor(0);      // Fijar a la cámara
+      this.usuariox.setDepth(1);
+
+      // creando nombre para npc 
+
+      const textStyle = {
+        fontFamily: '"PressStart2P"',
+        fontSize: '14px', // Ligeramente más grande para mejor legibilidad
+        color: '#ffffff',
+        resolution: 2, // Reducido para mejor rendimiento
+        stroke: "#000000ff",
+        strokeThickness: 4, // Borde más definido
+        shadow: {
+            offsetX: 2,
+            offsetY: 2,
+            color: '#000000ff',
+            blur: 2,
+            stroke: true,
+            fill: true
+        },
+        padding: {
+            x: 8,
+            y: 4
+        },
+        backgroundColor: '#130781a2', // Fondo semitransparente
+        align: 'center'
+    };
+
+        
+    this.npcx = this.add.text(685, 1370, 'Johnny Johnson', textStyle);
+    this.npcx.setOrigin(0.5);
+    // Igual que en GameScene: los carteles de los NPC van por encima del
+    // jugador y de su mascota (cuya profundidad es la línea de los pies, del
+    // orden de miles), para que el personaje pase por DETRÁS del cartel.
+    this.npcx.setDepth(90000);
+
+    this.npcx1 = this.add.text(770, 580, 'Franklin Vesh', textStyle);
+    this.npcx1.setOrigin(0.5);
+    this.npcx1.setDepth(90000);
+
+
+
+
+      // barra de energia
+
+      this.progress = 1;           // Valor actual de la barra (1 = 100%)
+      this.maxWidth = 300;       // Ancho total de la barra
+      this.barHeight = 10;       // Altura de la barra
+      this.barX = this.phaser_ancho / 2 - 145;           // Posición X de la barra
+      this.barY = this.phaser_largo - 75;            // Posición Y de la barra
+
+
+      //this.keyZ;                   // Referencia a la tecla "Z"
+
+
+      // Crear la referencia para la tecla "Z"
+      //this.keyZ = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
+
+      this.keys = this.input.keyboard.addKeys({
+        left: Phaser.Input.Keyboard.KeyCodes.A,
+        right: Phaser.Input.Keyboard.KeyCodes.D,
+        up: Phaser.Input.Keyboard.KeyCodes.W,
+        down: Phaser.Input.Keyboard.KeyCodes.S,
+        leftArrow: Phaser.Input.Keyboard.KeyCodes.LEFT,
+        rightArrow: Phaser.Input.Keyboard.KeyCodes.RIGHT,
+        upArrow: Phaser.Input.Keyboard.KeyCodes.UP,
+        downArrow: Phaser.Input.Keyboard.KeyCodes.DOWN
+      });
+
+  
+  this.anims.create({
+    key: 'perro_left',
+    frames: [
+        { key: 'perro_izquierda_1' },
+        { key: 'perro_izquierda_2' },
+        { key: 'perro_izquierda_3' },
+        { key: 'perro_izquierda_4' }
+    ],
+    frameRate: 6,
+    repeat: -1
+});
+
+this.anims.create({
+    key: 'perro_right',
+    frames: [
+        { key: 'perro_derecha_1' },
+        { key: 'perro_derecha_2' },
+        { key: 'perro_derecha_3' },
+        { key: 'perro_derecha_4' }
+    ],
+    frameRate: 6,
+    repeat: -1
+});
+
+  
+  
+      // Configurar animaciones
+
+      if (!this.anims.exists('right')) {
+        this.anims.create({
+          key: 'right',
+          frames: [
+            { key: 'player_right_1' },
+            { key: 'player_right_2' },
+            { key: 'player_right_3' },
+            { key: 'player_right_4' },
+            { key: 'player_right_5' },
+            { key: 'player_right_6' },
+            { key: 'player_right_7' }
+          ],
+          frameRate: 11,
+          repeat: -1
+        });
+      }
+      
+      if (!this.anims.exists('left')) {
+        this.anims.create({
+          key: 'left',
+          frames: [
+            { key: 'player_left_1' },
+            { key: 'player_left_2' },
+            { key: 'player_left_3' },
+            { key: 'player_left_4' },
+            { key: 'player_left_5' },
+            { key: 'player_left_6' },
+            { key: 'player_left_7' }
+          ],
+          frameRate: 11,
+          repeat: -1
+        });
+      }
+
+            
+      if (!this.anims.exists('up')) {
+        this.anims.create({
+          key: 'up',
+          frames: [
+            { key: 'player_up_1' },
+            { key: 'player_up_2' },
+            { key: 'player_up_3' },
+            { key: 'player_up_4' },
+            { key: 'player_up_5' },
+            { key: 'player_up_6' },
+            { key: 'player_up_7' },
+          ],
+          frameRate: 9,
+          repeat: -1
+        });
+      }
+
+            
+      if (!this.anims.exists('down')) {
+        this.anims.create({
+          key: 'down',
+          frames: [
+            { key: 'player_down_1' },
+            { key: 'player_down_2' },
+            { key: 'player_down_3' },
+            { key: 'player_down_4' },
+            { key: 'player_down_5' },
+            { key: 'player_down_6' },
+            { key: 'player_down_7' },
+          ],
+          frameRate: 9,
+          repeat: -1
+        });
+      }
+
+
+      
+
+(function initHubPanel(owner){
+  if (owner._sceneStopped) return;
+  const panel = document.getElementById('hub-panel_101');
+  const applyBtn = document.getElementById('apply-name');
+  const closePanelBtn = document.getElementById('close-panel');
+  const logoutBtn = document.getElementById('logout-btn');
+  const nameInput = document.getElementById('character-name');
+  const langSelect = document.getElementById('language-select');
+
+  // Si el DOM del dashboard todavía no está montado, ANTES esto reventaba en la
+  // línea siguiente (nameInput.setAttribute sobre null): el panel se quedaba
+  // sin cablear y el jugador nunca podía fijar su nombre. Ahora se reintenta.
+  if (!panel || !applyBtn || !closePanelBtn || !logoutBtn || !nameInput || !langSelect) {
+    window.__hubPanelTries = (window.__hubPanelTries || 0) + 1;
+    console.warn(`⚠️ Dashboard aún no disponible para hubPanel (intento ${window.__hubPanelTries})`);
+    if (window.__hubPanelTries <= 20) {
+      if (document.readyState === 'loading') {
+        owner._onDOM(document, 'DOMContentLoaded', () => initHubPanel(owner), { once: true });
+      } else {
+        owner._sceneTimeout(() => initHubPanel(owner), 500);
+      }
+    }
+    return;
+  }
+  window.__hubPanelTries = 0;
+
+  // Limitar por HTML (UX)
+  nameInput.setAttribute('maxlength', '15');
+
+  let phaserScene = null;
+  let options = {
+    pauseSceneOnOpen: false,
+    onApplyName: null,
+    onLogout: null,
+    onLanguageChange: null
+  };
+
+  function applyActtov(){
+    // Comprueba window._acttov; si no existe, lo inicializa a 0
+    if(typeof window._acttov === 'undefined') window._acttov = 0;
+    const v = Number(window._acttov) || 0;
+    if(v === 1){
+      nameInput.setAttribute('disabled','disabled');
+      applyBtn.setAttribute('disabled','disabled');
+      nameInput.classList.add('muted');
+    } else {
+      nameInput.removeAttribute('disabled');
+      applyBtn.removeAttribute('disabled');
+      nameInput.classList.remove('muted');
+    }
+  }
+
+  function showPanel(){
+    panel.classList.add('visible');
+    panel.setAttribute('aria-hidden','false');
+    if(phaserScene && options.pauseSceneOnOpen){
+      try{ phaserScene.scene.pause(phaserScene.scene.key); }catch(e){ /* no crítico si falla */ }
+    }
+  }
+  function hidePanel(){
+    panel.classList.remove('visible');
+    panel.setAttribute('aria-hidden','true');
+    if(phaserScene && options.pauseSceneOnOpen){
+      try{ phaserScene.scene.resume(phaserScene.scene.key); }catch(e){ /* no crítico si falla */ }
+    }
+  }
+  function togglePanel(){
+    if(panel.classList.contains('visible')) hidePanel();
+    else showPanel();
+  }
+
+  // Exponer API en window.hubPanel para que Phaser pueda interactuar
+  window.hubPanel = {
+    init(scene, opts){
+      phaserScene = scene || null;
+      options = Object.assign(options, opts || {});
+
+      // Aplicar estado inicial según window._acttov
+      applyActtov();
+
+      return window.hubPanel;
+    },
+    show: showPanel,
+    hide: hidePanel,
+    toggle: togglePanel,
+    setOption(k,v){ options[k]=v; },
+    getOptions(){ return Object.assign({}, options); },
+    setActtov(val){
+      // Guarda también en window._acttov para que otras partes del código puedan leerlo
+      window._acttov = Number(val) || 0;
+      applyActtov();
+    },
+    isVisible: ()=> panel.classList.contains('visible')
+  };
+
+  // Exponer referencias DOM por si el código externo (ej. tu escena Phaser) las necesita
+  // Recomendado: usa window.hubPanel.show()/hide() en vez de manipular botones directamente.
+  window.hubPanel.dom = {
+    closePanelBtn: null,
+    applyBtn: null,
+    logoutBtn: null,
+    nameInput: null,
+    langSelect: null
+  };
+
+  /* -----------------------
+     Sanitización y límites
+     ----------------------- */
+
+  // NOMBRES: LETRAS + NÚMEROS, HASTA 15 CARACTERES (2026-08-04).
+  // Antes solo admitía letras y 10 caracteres. El mismo criterio está en
+  // GameScene.js y en el servidor; si divergieran, el servidor recortaría el
+  // nombre y el jugador acabaría con uno distinto al que escribió.
+  const NAME_MAX = 15;
+  function sanitizeName(raw) {
+    if (!raw) return '';
+    // normalizar compuestos (ñ, acentos)
+    let s = String(raw).normalize('NFC').trim();
+
+    // eliminar etiquetas HTML (por si alguien intenta inyectar "<script>...")
+    s = s.replace(/<[^>]*>/g, '');
+
+    // mantener letras unicode Y dígitos; fuera espacios y símbolos
+    try {
+      s = s.replace(/[^\p{L}\p{Nd}]/gu, '');
+    } catch (e) {
+      // fallback para navegadores sin propiedades unicode en regex
+      s = s.replace(/[^A-Za-z0-9ÁÉÍÓÚáéíóúÑñÜü]/g, '');
+    }
+
+    return s.slice(0, NAME_MAX);
+  }
+
+  // Evitar que al escribir se inserten caracteres no permitidos y forzar maxlength
+  owner._onDOM(nameInput, 'input', (e) => {
+    const clean = sanitizeName(e.target.value);
+    if (e.target.value !== clean) {
+      // reemplaza el valor (esto evita caracteres inválidos en tiempo real)
+      e.target.value = clean;
+    }
+    // (maxlength ya lo impide, pero nos aseguramos)
+    if (e.target.value.length > NAME_MAX) e.target.value = e.target.value.slice(0, NAME_MAX);
+  });
+
+  // Sanitizar pegado (paste) para prevenir inyección por paste
+  owner._onDOM(nameInput, 'paste', (e) => {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text') || '';
+    const clean = sanitizeName(text);
+    // insertar manualmente en la posición del cursor
+    const start = nameInput.selectionStart || 0;
+    const end = nameInput.selectionEnd || 0;
+    const newVal = (nameInput.value.slice(0, start) + clean + nameInput.value.slice(end)).slice(0, NAME_MAX);
+    nameInput.value = newVal;
+    // colocar cursor justo después del texto pegado
+    const newPos = Math.min(10, start + clean.length);
+    nameInput.setSelectionRange(newPos, newPos);
+  });
+
+  /* -----------------------
+     Helpers Phaser
+     ----------------------- */
+
+  // Helper: intenta resolver la escena Phaser de forma segura
+  function resolvePhaserScene() {
+    // 1) usa phaserScene si ya fue inicializada
+    if (phaserScene) return phaserScene;
+
+    // 2) intentar resolver desde window.game (Phaser 3)
+    try {
+      const g = window.game || (window.Phaser && window.Phaser.GAMES ? window.Phaser.GAMES[0] : null);
+      if (g && g.scene) {
+        // getScenes(true) devuelve escenas activas; preferimos la primera activa
+        if (typeof g.scene.getScenes === 'function') {
+          const activeScenes = g.scene.getScenes(true);
+          if (activeScenes && activeScenes.length) {
+            phaserScene = activeScenes[0];
+            return phaserScene;
+          }
+        }
+        // fallback: si conoces la key, podrías usar g.scene.get('MySceneKey')
+      }
+    } catch (err) {
+      // no crítico
+    }
+
+    // 3) como último recurso, intenta buscar en window.game.scene.keys (objeto de escenas por key)
+    try {
+      const g2 = window.game;
+      if (g2 && g2.scene && g2.scene.keys) {
+        const keys = Object.keys(g2.scene.keys);
+        if (keys.length) {
+          phaserScene = g2.scene.keys[keys[0]]; // primera escena registrada
+          return phaserScene;
+        }
+      }
+    } catch (err) {}
+
+    // 4) no se encontró
+    return null;
+  }
+
+  
+  function clearNameInput() {
+    nameInput.value = '';
+    nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+    nameInput.blur();
+  }
+
+  /* -----------------------
+     Event handlers (botones)
+     ----------------------- */
+
+  // Botones
+  //
+  // FIX (en la tienda no se podía fijar el nombre): la condición estaba al
+  // revés. El código solo aplicaba el nombre si `name === "---"`, cosa
+  // IMPOSIBLE porque sanitizeName() borra todo lo que no sea letra (el '-' se
+  // va), así que SIEMPRE caía en el else: "usted no puede cambiar el nombre",
+  // bloqueaba el input con setActtov(1) y lo vaciaba. Además, cuando el nombre
+  // salía vacío del saneado, el único aviso era un console.log, así que el
+  // botón parecía roto. Ahora aplica de verdad, con la misma regla de "una
+  // sola vez" y con avisos visibles.
+  owner._onDOM(applyBtn, 'click', ()=>{
+    if(nameInput.hasAttribute('disabled') || nameInput.disabled) return;
+
+    const scene = phaserScene || resolvePhaserScene();
+    const notify = (msg, tipo) => {
+      try { scene && scene.notifications && scene.notifications.show(msg, tipo); } catch(e) {}
+      const hint = document.getElementById('character-name-hint');
+      if (hint && tipo === 'error') hint.textContent = `⚠️ ${msg}`;
+    };
+
+    // Regla de nombre único: si ya está fijado, no se admiten cambios
+    const actual = scene && typeof scene.Username === 'string' ? scene.Username : '';
+    if (actual.trim() !== '' && actual !== '---') {
+      window.hubPanel?.setActtov(1);
+      notify('Your character name is already set and cannot be changed.', 'error');
+      return;
+    }
+
+    const rawName = nameInput.value;             // valor tal cual del input
+    const name = sanitizeName(rawName);         // valor limpio y seguro
+
+    if (name === "" || name === "---") {
+      notify(
+        String(rawName || '').trim() === ''
+          ? 'Write a name first.'
+          : 'Only letters and numbers are allowed (no spaces or symbols).',
+        'error'
+      );
+      console.log("No has puesto un nombre válido:", rawName);
+      return;
+    }
+
+    // Confirmación: el cambio es definitivo (si el navegador tiene los
+    // diálogos bloqueados, confirm() devuelve false sin preguntar; en ese caso
+    // se continúa en vez de abandonar en silencio).
+    let ok = true;
+    if (typeof window.confirm === 'function') {
+      try {
+        ok = window.confirm(`¿Fijar el nombre de personaje como "${name}"?\n\nEsta decisión es DEFINITIVA: no podrás cambiarlo después.`);
+      } catch (e) { ok = true; }
+    }
+    if (!ok) return;
+
+    // Avisar al handler compartido del dashboard (el que cableó GameScene sobre
+    // el mismo botón) de que este clic ya está atendido, para no pedir DOS
+    // confirmaciones seguidas.
+    window.__nameApplyHandledAt = Date.now();
+
+    console.log('Nombre aplicado (definitivo):', name);
+
+    if (scene) {
+      try {
+        scene.Username = name;
+        if (typeof scene.actualizarNombreUsuario1 === 'function') scene.actualizarNombreUsuario1(name);
+        else if (typeof scene.queuedAction === 'function') scene.queuedAction({ type: 'forSpam2' });
+      } catch (err) {
+        console.warn('No se pudo asignar/guardar Username en la escena:', err);
+      }
+    } else {
+      console.warn('phaserScene no está inicializada; se usará onApplyName si existe.');
+    }
+
+    window.hubPanel?.setActtov(1); // queda bloqueado: ya está fijado
+    notify(`✅ Name set: ${name}`, 'success');
+
+    // también notificar callback (si aplica)
+    if(typeof options.onApplyName === 'function'){
+      try{ options.onApplyName(name); }catch(e){ console.warn('onApplyName callback error',e); }
+    }
+  });
+
+
+  owner._onDOM(closePanelBtn, 'click', ()=>{
+    hidePanel();
+  });
+
+  // Logout — antes solo llamaba a options.onLogout, que es null por defecto:
+  // el botón NO cerraba nada. Ahora hace el cierre COMPLETO: sesión del
+  // backend + wallet desconectada + limpieza + redirección al login.
+  owner._onDOM(logoutBtn, 'click', ()=>{
+    console.log('cerrando session');
+    if(typeof options.onLogout === 'function'){
+      try{ options.onLogout(); }catch(e){ console.warn('onLogout callback error',e); }
+    }
+    if (typeof window.gfFullLogout === 'function') window.gfFullLogout();
+  });
+
+  // Lenguaje: 1 => inglés, 2 => español
+  owner._onDOM(langSelect, 'change', ()=>{
+    const v = langSelect.value;
+    if(v === 'en'){
+      console.log(1);
+      if(typeof options.onLanguageChange === 'function') options.onLanguageChange(1);
+    }
+    else if(v === 'es'){
+      console.log(2);
+      if(typeof options.onLanguageChange === 'function') options.onLanguageChange(2);
+    }
+  });
+
+  // Evitar conflictos con la entrada de teclado de la escena Phaser cuando el input está enfocado
+  owner._onDOM(nameInput, 'focus', ()=>{
+    // Deshabilitar captura global del teclado en la escena (si existe)
+    if(phaserScene && phaserScene.input && phaserScene.input.keyboard){
+      try{ phaserScene.input.keyboard.enabled = false; }catch(e){ /* no crítico */ }
+    }
+  });
+  owner._onDOM(nameInput, 'blur', ()=>{
+    if(phaserScene && phaserScene.input && phaserScene.input.keyboard){
+      try{ phaserScene.input.keyboard.enabled = true; }catch(e){ /* no crítico */ }
+    }
+  });
+
+  // También detener propagación de eventos de teclado cuando se escribe dentro del input
+  ['keydown','keyup','keypress'].forEach(evtName=>{
+    owner._onDOM(nameInput, evtName, e=>{
+      e.stopPropagation();
+    });
+  });
+
+  // Para integración sencilla con Phaser: desde tu escena puedes llamar, por ejemplo:
+  // window.hubPanel.init(this, { pauseSceneOnOpen: false });
+  // window.hubPanel.setActtov(1); // desactiva input
+
+  // Si existe ya window._acttov cuando se carga este script, aplicarlo de inmediato
+  // Asignar referencias DOM externamente accesibles (para compatibilidad con código que esperaba variables globales)
+  try{
+    window.hubPanel.dom.closePanelBtn = closePanelBtn;
+    window.hubPanel.dom.applyBtn = applyBtn;
+    window.hubPanel.dom.logoutBtn = logoutBtn;
+    window.hubPanel.dom.nameInput = nameInput;
+    window.hubPanel.dom.langSelect = langSelect;
+  }catch(e){/* no crítico */}
+
+  if(typeof window._acttov !== 'undefined') applyActtov();
+
+  // Tecla Esc para cerrar (útil cuando el panel está sobre el juego)
+  owner._onDOM(window, 'keydown', (e)=>{
+    if(e.key === 'Escape') hidePanel();
+  });
+
+  owner._hubPanel = window.hubPanel;
+  owner._hubPanel.init(owner);
+})(this); // end IIFE
+
+// Nota: llama window.hubPanel.init(this) desde create() de tu escena Phaser:
+// ejemplo:
+// create(){
+//   window.hubPanel.init(this, { onApplyName: (name) => { this.Username = name; } });
+// }
+
+
+      if (window.hubPanel) { window.hubPanel.init(this); this._hubPanel = window.hubPanel; }
+
+      
+
+  if (this.Username !== "---") {
+    window.hubPanel.setActtov(1);
+    
+  }
+
+
+      
+  
+  
+      // Configurar controles de movimiento
+      //this.cursors = this.input.keyboard.createCursorKeys();
+  
+      // Crear colisiones en las esquinas del mapa
+      this.corners = this.physics.add.staticGroup();
+  
+      const cornerSize = 64; // Tamaño del área de colisión (ajustar según sea necesario)
+  
+      // Esquina superior izquierda
+      this.corners.create(cornerSize / 2, cornerSize / 2, null).setSize(cornerSize, cornerSize).setVisible(false);
+  
+      // Esquina superior derecha
+      this.corners.create(this.map.widthInPixels - cornerSize / 2, cornerSize / 2, null)
+        .setSize(cornerSize, cornerSize).setVisible(false);
+  
+      // Esquina inferior izquierda
+      this.corners.create(cornerSize / 2, this.map.heightInPixels - cornerSize / 2, null)
+        .setSize(cornerSize, cornerSize).setVisible(false);
+  
+      // Esquina inferior derecha
+      this.corners.create(this.map.widthInPixels - cornerSize / 2, this.map.heightInPixels - cornerSize / 2, null)
+        .setSize(cornerSize, cornerSize).setVisible(false);
+  
+      // Habilitar colisión entre el jugador y las esquinas
+      this.physics.add.collider(this.player, this.corners);
+  
+      this.izquierdaani = false;
+      this.derechaani = false;
+      this.abajoani = false;
+      this.arribaani = false;
+  
+
+
+  
+
+
+    this.onInnerBtnClick = (e) => {
+        console.log("clicked");
+
+        const roundButtons = document.querySelector('.round-buttons');
+        const hideBadge = document.querySelector('.inner-btn .quests-label');
+
+        if (roundButtons && hideBadge) {
+
+            const isHidden = roundButtons.classList.toggle('hidden');
+            hideBadge.textContent = isHidden ? 'Show' : 'Hide';
+
+            const innerBtn = document.querySelector('.inner-btn');
+            innerBtn.style.transform = 'scale(0.95)';
+
+            setTimeout(() => {
+                innerBtn.style.transform = '';
+            }, 150);
+
+            console.log("Round buttons are now:", isHidden ? "hidden" : "visible");
+
+            e.stopPropagation();
+        }
+    };
+
+    this.innerBtn = document.querySelector('.inner-btn');
+
+    if (this.innerBtn) {
+        this._onDOM(this.innerBtn, 'click', this.onInnerBtnClick);
+    }
+
+
+  // ===============================
+    // BOTONES REDONDOS (DOM)
+    // ===============================
+
+    this.roundButtons = document.querySelectorAll('.round-btn');
+
+    // ── NOTIFICATION SYSTEM ──────────────────────────────────────────────
+    this._notifBadge = document.getElementById('mail-notif-badge');
+    this._notifList  = [];
+    this._notifPanel = document.getElementById('notif-panel');
+    this._loadNotifications();
+
+    this._wireNotificationPanel();
+
+    // ---------- BOTÓN 0 (Dashboard)
+    this.onRoundBtnDashboard = () => {
+        console.log("dashboard clicked");
+
+        // Refrescar el estado de bloqueo de los nombres (regla "una sola vez")
+        // antes de abrir. El nombre de personaje lo bloquea el hubPanel vía
+        // window._acttov; aquí se refleja además el de la mascota.
+        const petVal = this.petName || window.globalPetName || '---';
+        const petLocked = typeof petVal === 'string' && petVal.trim() !== '' && petVal !== '---';
+        const petInput = document.getElementById('pet-name');
+        const petBtn = document.getElementById('apply-pet-name');
+        const petHint = document.getElementById('pet-name-hint');
+        if (petInput) { petInput.disabled = petLocked; petInput.value = petLocked ? petVal : ''; }
+        if (petBtn) petBtn.disabled = petLocked;
+        if (petHint) {
+            petHint.textContent = petLocked
+                ? `🔒 Nombre de mascota fijado: "${petVal}" — definitivo`
+                : '⚠️ Solo puedes elegirlo UNA vez — piénsalo bien.';
+            petHint.classList.toggle('dash-hint-locked_101', petLocked);
+        }
+        const nameInput = document.getElementById('character-name');
+        if (nameInput && window._acttov === 1) nameInput.value = this.Username || '';
+
+        window.hubPanel.show();
+    };
+
+    // ---------- BOTÓN 1 (Mail)
+    this.onRoundBtnMail = () => {
+        console.log("Mail clicked");
+        this._openNotifPanel();
+    };
+
+    // ---------- BOTÓN 2 (musica)
+    if (this.sound && typeof this.sound.add === 'function') {
+      this.initAudioSystem();
+      /* Ambiente de la tienda: el tema de 8 bits, las pisadas sobre la tarima
+         y la lluvia que se cuela de fuera. `suelo: 'madera'` le dice que aquí
+         no hace falta mirar el tileset — bajo techo se pisa madera y punto. */
+      if (window.GFAudio) window.GFAudio.montar(this, { tipo: 'tienda', suelo: 'madera' });
+
+      /* HUELLAS TAMBIÉN AQUÍ DENTRO.
+
+         FALLO QUE ARREGLA: "en tiendajuego el personaje no deja los pasos al
+         caminar". gf-pisadas solo se montaba en GameScene, así que al entrar
+         por la puerta el personaje volvía a deslizarse sobre un suelo intacto.
+
+         `suelo: 'madera'` le dice que no le pregunte al clima: bajo techo se
+         pisa tarima aunque fuera esté nevando, la marca es la de una pisada
+         húmeda de la calle y no levanta polvo. */
+      if (window.GFPisadas) window.GFPisadas.montar(this, { suelo: 'madera' });
+      if (!(window.GFAudio && window.GFAudio.llevaLaMusica(this))) {
+        this.playMusic('main-theme1');
+      } else if (window.GFAudio.soltarTemaDelJuego) {
+        /* SE SUELTA tienda.ogg: 38,4 MB QUE NO VAN A SONAR — el fichero más
+           gordo de todo el juego en memoria, y con diferencia.
+           Mismo motivo que en GameScene: se carga como respaldo y, si gf-audio
+           lleva la música, se queda descodificado en la caché global sin
+           reproducirse nunca. Ver el comentario largo allí. */
+        try { window.GFAudio.soltarTemaDelJuego(this, 'main-theme1'); } catch (e) {}
+      }
+    } else {
+      console.warn('⚠️ Sistema de sonido no disponible, omitiendo inicialización');
+    }
+
+    this.onRoundBtnStats = () => {
+      console.log("control clicked");
+
+        this.showSoundHub();
+
+    };
+
+    /*
+    // ---------- BOTÓN 3 (Reputación)
+    this.onRoundBtnReputation = () => {
+      console.log("reputacion clicked");
+    };
+
+    // ---------- BOTÓN 4 (HUD Estadísticas)
+    this.onRoundBtnHudStats = () => {
+      console.log("libro de estadisticas");
+    };
+
+    */
+
+    /* ── SOCIAL ──────────────────────────────────────────────────────────
+       Los mismos tres módulos que monta GameScene, y por el mismo motivo: el
+       HUD es DOM de la PÁGINA, así que el botón de amistades sigue ahí al
+       entrar en la tienda pero su manejador apunta a la escena del mapa, que
+       ya está apagada. `montar` es idempotente y lo reengancha a esta.
+
+       TODO CAMBIO VA EN LOS DOS SITIOS: si esto faltara aquí, el jugador
+       entraría en la tienda y el botón de amigos dejaría de responder. */
+    if (window.GFAmigos)      window.GFAmigos.montar(this);
+    if (window.GFChatSocial)  window.GFChatSocial.montar(this);
+    if (window.GFNombreColor) window.GFNombreColor.montar(this);
+    if (window.GFEspada)      window.GFEspada.montar(this);   // botón de la espada y ESPACIO
+    /* El botón redondo de Lands. Esta escena NO hereda de GameScene, así que
+       no tiene `_bindDomClick`; gf-lands.js lo detecta y cae a `.onclick`, que
+       también pisa el manejador anterior en vez de acumularlo. Con esta línea
+       el botón funciona igual aquí que en el mapa y en la mina. */
+    if (window.GFLands)       window.GFLands.montar(this);
+
+    // ASIGNAR LISTENERS
+    this._onDOM(this.roundButtons[0], 'click', this.onRoundBtnDashboard);
+    this._onDOM(this.roundButtons[1], 'click', this.onRoundBtnMail);
+    
+    this._onDOM(this.roundButtons[2], 'click', this.onRoundBtnStats);
+
+    // ---------- BOTÓN 3 (Transactions)
+    this.onRoundBtnTransactions = () => {
+      console.log('transactions clicked');
+      const panel = document.getElementById('tx-hub');
+      if (!panel) return;
+      const isHidden = panel.classList.contains('tx-hub-hidden');
+      if (isHidden) {
+        panel.classList.remove('tx-hub-hidden');
+        panel.classList.add('tx-hub-visible');
+        panel.style.display = 'flex';
+      } else {
+        panel.classList.remove('tx-hub-visible');
+        panel.classList.add('tx-hub-hidden');
+        panel.style.display = 'none';
+      }
+    };
+    this._onDOM(this.roundButtons[3], 'click', this.onRoundBtnTransactions);
+
+    // ---------- BOTÓN 4 (NFT)
+    this.onRoundBtnNFT = () => {
+      console.log('nft clicked');
+      const panel = document.getElementById('nft-panel');
+      if (!panel) return;
+      const isHidden = panel.classList.contains('nft-panel-hidden');
+      if (isHidden) {
+        panel.classList.remove('nft-panel-hidden');
+        panel.classList.add('nft-panel-visible');
+        panel.style.display = 'flex';
+
+        // BUG QUE ESTO ARREGLA — "los NFT funcionan en el mapa pero en la
+        // tienda no": este manejador solo cambiaba clases de CSS. El panel
+        // #nft-panel es DOM COMPARTIDO de la página, así que la sección de
+        // personajes Soulbound se quedaba con el texto de marcador
+        // "Loading characters…" para siempre y el retrato en blanco — nadie
+        // la rellenaba nunca desde aquí. Es el mismo fallo que ya tuvieron
+        // las habilidades. Ahora la tienda usa el MISMO camino que GameScene.
+        if (window.GFSoulbound) window.GFSoulbound.montarPanel(this);
+        // "My NFTs": la colección de admin.html, leída de la cartera.
+        if (window.GFNft) { window.GFNft.cablear(this); window.GFNft.montarPanel(this); }
+
+        // Setup close button
+        // En CADA apertura (sin la marca `_wired`): el mapa también pone su
+        // `onclick` aquí, y con la marca la tienda no recuperaba el suyo.
+        const closeBtn = document.getElementById('nft-close');
+        if (closeBtn) {
+          closeBtn.onclick = () => {
+            panel.classList.remove('nft-panel-visible');
+            panel.classList.add('nft-panel-hidden');
+            panel.style.display = 'none';
+          };
+        }
+      } else {
+        panel.classList.remove('nft-panel-visible');
+        panel.classList.add('nft-panel-hidden');
+        panel.style.display = 'none';
+      }
+    };
+    this._onDOM(this.roundButtons[4], 'click', this.onRoundBtnNFT);
+
+    // ---------- BOTÓN 5 (Skills)
+    //
+    // BUG QUE ESTO ARREGLA — "las skills funcionan en GameScene pero en la
+    // tienda no":
+    //
+    // Este manejador SOLO cambiaba clases de CSS para mostrar y ocultar el
+    // panel. No leía ni pintaba NADA. El panel #skills-panel es DOM compartido
+    // de la página, así que en la tienda enseñaba lo último que hubiera dejado
+    // GameScene o, si se entraba directo a la tienda, los valores en blanco del
+    // HTML: todo a 1 y 0 EXP. Parecía que en la tienda las habilidades se
+    // borraban.
+    //
+    // Ahora la tienda usa el MISMO camino de datos que el mapa
+    // (_cargarSkillsTienda → _pintarSkillsTienda), que ya funciona porque
+    // loadPlayerData carga las seis habilidades y sus _exp desde /api/load.
+    this.onRoundBtnSkills = () => {
+      console.log('skills clicked');
+      const panel = document.getElementById('skills-panel');
+      if (!panel) return;
+      const isHidden = panel.classList.contains('skills-panel-hidden');
+      if (isHidden) {
+        panel.classList.remove('skills-panel-hidden');
+        panel.classList.add('skills-panel-visible');
+        panel.style.display = 'flex';
+
+        // Pintar YA con lo que tiene la escena (respuesta instantánea) y
+        // refrescar después con lo que diga el servidor.
+        this._pintarSkillsTienda(this._skillsDeLaEscena());
+        this._cargarSkillsTienda();
+
+        // Wire close button
+        // En CADA apertura (ver el ✕ de NFT, arriba).
+        const closeBtn = document.getElementById('skills-close');
+        if (closeBtn) {
+          closeBtn.onclick = () => {
+            panel.classList.remove('skills-panel-visible');
+            panel.classList.add('skills-panel-hidden');
+            panel.style.display = 'none';
+          };
+        }
+        // No save button — badges are read-only from DB
+      } else {
+        panel.classList.remove('skills-panel-visible');
+        panel.classList.add('skills-panel-hidden');
+        panel.style.display = 'none';
+      }
+    };
+    // Se engancha por ID (#skills-btn), igual que GameScene, y no por el índice
+    // 5 de roundButtons: ese índice depende del orden del HTML y de que la
+    // NodeList siga apuntando a los nodos vivos. Y con `.onclick` en vez de
+    // addEventListener, para que volver a entrar a la tienda no acumule
+    // manejadores (dos manejadores = abrir y cerrar en el mismo clic).
+    {
+      const btnSkills = document.getElementById('skills-btn') || this.roundButtons[5];
+      if (btnSkills) btnSkills.onclick = this.onRoundBtnSkills;
+    }
+
+    // ---------- BOTÓN 6 (Store) — same as GameScene
+    // FIX: antes abría https://store.grasslandforest.com (dominio que no sirve
+    // el market). El Market vive junto a game.html en el dominio del juego, así
+    // que se resuelve relativo a la página actual: en producción →
+    // https://game.grasslandforest.com/market.html y en local el mismo host.
+    this.onRoundBtnStore = () => {
+      const marketUrl = new URL('market.html', window.location.href).href;
+      window.open(marketUrl, '_blank');
+    };
+    this._onDOM(this.roundButtons[6], 'click', this.onRoundBtnStore);
+
+    // Apply custom cursor image for tiendajuego + re-apply after scene settles
+    this.input.setDefaultCursor('url("./Game/Source/cursor.png") 8 8, pointer');
+    this.time.delayedCall(400, () => {
+      if (this.input && this.input.setDefaultCursor)
+        this.input.setDefaultCursor('url("./Game/Source/cursor.png") 8 8, pointer');
+    });
+    this.time.delayedCall(1200, () => {
+      if (this.input && this.input.setDefaultCursor)
+        this.input.setDefaultCursor('url("./Game/Source/cursor.png") 8 8, pointer');
+    });
+
+    // Llamar a la función de carga de datos del jugador al iniciar el juego
+
+    
+
+
+    this.saveTimer = 0;
+    this.sceneActive = true; // Asegúrate de que la escena esté activa
+
+
+    /*
+        // Ejemplo 1: Agregar 1 semilla (item_1)
+        const exito1 = this.addItemWithCheck("item_1", 1);
+        if (!exito1) {
+          console.warn("❗ No pude agregar item_1 porque no hay espacio.");
+        }
+
+        // Ejemplo 2: Agregar 12 unidades de tijeras (item_3)
+        const exito2 = this.addItemWithCheck("item_3", 12);
+        if (exito2) {
+          console.log("✔ 12 tijeras agregadas correctamente.");
+        } else {
+          console.warn("❗ No hay espacio suficiente para agregar 12 tijeras.");
+        }
+
+      */
+
+
+                // Carácter global de las definiciones de ítems
+        this.ItemDefinitions = {
+          Semillax: { src: "./Game/Objetos/Plantas/planta_zanahorias/item_saco.png", maxStack: 50, tipo: "bolsa zanahorias", usos: null },
+          Semillax1: { src: "./Game/Objetos/Plantas/planta_tomates/semillas_tomate.png", maxStack: 50 , tipo: "bolsa de tomates", usos: null},
+          Semillax4: { src: "./Game/Objetos/Plantas/planta_fresa/item_semilla_fresa.png", maxStack: 50 , tipo: "bolsa_de_fresas", usos: null},
+          
+          Semillax2: { src: "./Game/Objetos/Plantas/planta_trigo/item_semilla_trigo.png", maxStack: 50 , tipo: "bolsa de trigo", usos: null},
+          Semillax3: { src: "./Game/Objetos/Plantas/planta_calabaza/item_semilla_calabaza.png", maxStack: 50, tipo: "bolsa de calabazas", usos: null },
+
+          Regaderax: { src: "./Game/Source/recurso2.png", maxStack: 1 , tipo: "Regaderax", usos: 20 },
+          Tijerasx: { src: "./Game/Source/tijeras.png", maxStack: 1 , tipo: "Tijerasx", usos: 20 },
+
+          mineral_piedra: { src: "./Game/Source/piedra.png", maxStack: 20 , tipo: "mineral_piedra", usos: null },
+
+          /* LOS DOS LINGOTES. Ya no salen de picar: ahora se FUNDEN en el horno
+             a partir de la piedra en bruto (ver FURNACE_RECIPES más abajo). El
+             dibujo es una barra de 16x9, no una roca — siempre fueron lingotes
+             aunque el nombre dijera "mineral". */
+          mineral_cobre: { src: "./Game/Source/cobre.png", maxStack: 20 , tipo: "mineral_cobre", usos: null },
+          mineral_hierro: { src: "./Game/Source/hierro.png", maxStack: 20 , tipo: "mineral_hierro", usos: null },
+
+          /* PIEDRA EN BRUTO — lo que suelta la mina desde 2026-09-08.
+             Sus tablas on-chain son mineral_piedra_cobre / mineral_piedra_hierro
+             / mineral_carbon, y NO se pueden confundir con las de los lingotes
+             (mineral_cobre / mineral_hierro): son tablas distintas del contrato,
+             con su propio cupo y sus propias facturas. */
+          mineral_piedra_cobre:  { src: "./Game/Source/piedra_cobre.png",  maxStack: 20, tipo: "mineral_piedra_cobre",  usos: null },
+          mineral_piedra_hierro: { src: "./Game/Source/piedra_hierro.png", maxStack: 20, tipo: "mineral_piedra_hierro", usos: null },
+          mineral_carbon:        { src: "./Game/Source/piedra_carbon.png", maxStack: 20, tipo: "mineral_carbon",        usos: null },
+          /* FALTABAN AQUÍ, Y SOLO AQUÍ.
+             Este catálogo es una COPIA del de GameScene, y se había quedado
+             atrás: le faltaban el carbón y las tres pociones del alquimista,
+             que sí están en el mapa. No es un detalle estético — con la copia
+             coja, `renderSlot` reventaba al llegar a una de estas casillas y el
+             inventario de la tienda se quedaba a medio pintar (ver
+             `_crearIconoDeItem` más abajo). Lo comprueba
+             `tools/inventario-catalogos.js`. */
+          carbon: { src: "./Game/Objetos/carbon.png", maxStack: 20 , tipo: "carbon", usos: null },
+
+          palo: { src: "./Game/Source/palo.png", maxStack: 20 , tipo: "palo", usos: null},
+          tablon_de_madera: { src: "./Game/Source/madera.png", maxStack: 20 , tipo: "tablon_de_madera", usos: null},
+          madera_pinos: { src: "./Game/Source/madera_oscura.png", maxStack: 50 , tipo: "madera pinos", usos: null},
+          madera_con_hojas: { src: "./Game/Source/madera de hoja.png", maxStack: 50 , tipo: "madera con hojas", usos: null},
+          madera_seca: { src: "./Game/Source/madera seca.png", maxStack: 50 , tipo: "madera seca", usos: null},
+
+          balde_vacio: { src: "./Game/Source/item_pozo1.png", maxStack: 5 , tipo: "balde_vacio", usos: null },
+          balde_con_agua: { src: "./Game/Source/item_pozo2.png", maxStack: 5 , tipo: "balde_con_agua", usos: 1 },
+
+          
+          hacha_de_madera: { src: "./Game/Source/pico_y_hacha/hacha_de_madera.png", maxStack: 5, tipo: "hacha de madera", usos: 5  },
+          hacha_de_piedra: { src: "./Game/Source/pico_y_hacha/hacha_de_piedra.png", maxStack: 5, tipo: "hacha de piedra", usos: 10 },
+          hacha_de_cobre:  { src: "./Game/Source/pico_y_hacha/hacha_de_cobre.png",  maxStack: 5, tipo: "hacha de cobre", usos: 15 },
+          hacha_de_hierro: { src: "./Game/Source/pico_y_hacha/hacha_de_hierro.png", maxStack: 5, tipo: "hacha de hierro", usos: 20 },
+
+          pico_de_madera: { src: "./Game/Source/pico_y_hacha/pico_de_madera.png", maxStack: 5, tipo: "pico de madera", usos: 5  },
+          pico_de_piedra: { src: "./Game/Source/pico_y_hacha/pico_de_piedra.png", maxStack: 5, tipo: "pico de piedra", usos: 10 },
+          pico_de_cobre:  { src: "./Game/Source/pico_y_hacha/pico_de_cobre.png",  maxStack: 5, tipo: "pico de cobre", usos: 15 },
+          pico_de_hierro: { src: "./Game/Source/pico_y_hacha/pico_de_hierro.png", maxStack: 5, tipo: "pico de hierro", usos: 20 },
+          
+          zanahoria_buena: { src: "./Game/Objetos/Plantas/planta_zanahorias/item_zanahoria_buena.png", maxStack: 20 , tipo: "zanahoria_buena", usos: null },
+          zanahoria_corta: { src: "./Game/Objetos/Plantas/planta_zanahorias/planta_crecimiento_zanahoria.png", maxStack: 20 , tipo: "zanahoria_corta", usos: null},
+          zanahoria_mala: { src: "./Game/Objetos/Plantas/planta_zanahorias/item_zanahoria_podrida.png", maxStack: 20 , tipo: "zanahoria_mala", usos: null},
+
+          tomate_buena: { src: "./Game/Objetos/Plantas/planta_tomates/item_tomate_bueno.png", maxStack: 20, tipo: "tomate_buena", usos: null },
+          tomate_corta: { src: "./Game/Objetos/Plantas/planta_tomates/item_planta.png", maxStack: 20 , tipo: "tomate_corta", usos: null},
+          tomate_mala: { src: "./Game/Objetos/Plantas/planta_tomates/item_tomate_malo.png", maxStack: 20 , tipo: "tomate_mala", usos: null},
+          fresa_buena: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_buena.png", maxStack: 20, tipo: "fresa_buena", usos: null },
+
+          // Pociones del alquimista. Curan y reviven a la mascota; se usan
+          // desde su hub, no haciendo clic en el inventario. Faltaban en esta
+          // copia del catálogo: eran las que cortaban el pintado del
+          // inventario de la tienda.
+          pocion_mascota:        { src: "./Game/Objetos/pociones/pocion_mascota.png",        maxStack: 20, tipo: "pocion_mascota",        usos: null },
+          pocion_mascota_grande: { src: "./Game/Objetos/pociones/pocion_mascota_grande.png", maxStack: 10, tipo: "pocion_mascota_grande", usos: null },
+          pocion_vida: { src: "./Game/newpro/pociones/pocion_vida.png", maxStack: 20, tipo: "pocion_vida", usos: null },          pocion_antidoto: { src: "./Game/newpro/pociones/pocion_energia.png", maxStack: 20, tipo: "pocion_antidoto", usos: null },          elixir_revivir:        { src: "./Game/Objetos/pociones/elixir_revivir.png",        maxStack: 5,  tipo: "elixir_revivir",        usos: null },
+
+          // CONSTRUCCIÓN (2026-10-03). La parcela que se compra en la tienda
+          // (apartado Construction) y se coloca en la isla. 20 por casilla:
+          // es el perInvoiceLimit de su tabla `parcelas`, así una casilla es
+          // siempre UNA factura. Iconos: tools/generar-parcela.py.
+          parcela:               { src: "./Game/Objetos/construccion/parcela.png",           maxStack: 20, tipo: "parcelas",              usos: null },
+          // La pala de construcción (2026-10-04): con ella se recoge lo que se
+          // construyó en la isla. Herramienta que no se gasta; una por casilla
+          // (perInvoiceLimit 1 de su tabla `pala_contrucion`).
+          pala_construccion:     { src: "./Game/Objetos/construccion/pala_construccion.png", maxStack: 1,  tipo: "pala_contrucion",       usos: null },
+          // EL BOTE DE BASURA Y LOS COFRES DE LA ISLA (2026-10-05). Se colocan en
+          // Lands como la parcela. Tablas `basura` y `cofre1..4`; el cofre1 se
+          // compra, los otros tres solo se craftean. Arte: tools/generar-cofres.py.
+          basura:  { src: "./Game/Objetos/cofres/basura.png", maxStack: 10, tipo: "basura", usos: null },
+          cofre1:  { src: "./Game/Objetos/cofres/cofre1.png", maxStack: 5,  tipo: "cofre1", usos: null },
+          cofre2:  { src: "./Game/Objetos/cofres/cofre2.png", maxStack: 5,  tipo: "cofre2", usos: null },
+          cofre3:  { src: "./Game/Objetos/cofres/cofre3.png", maxStack: 5,  tipo: "cofre3", usos: null },
+          cofre4:  { src: "./Game/Objetos/cofres/cofre4.png", maxStack: 5,  tipo: "cofre4", usos: null },
+          // EQUIPO, GRANJA Y PESCA (2026-10-05). Arte de Game/newpro.
+          // Las espadas viven en las tablas `madera`, `cobre` y `hierro`; la
+          // caña en `caña_pescar` y el espantapájaros en `espantapajaros`.
+          // Los peces (`pes1..3`) SOLO los acuña el servidor al pescar (ver
+          // TABLAS_SOLO_ACUNA_SERVIDOR en server2.js): se comen o se venden.
+          espada_madera:  { src: "./Game/Objetos/armas/espada_madera.png",     maxStack: 1,  tipo: "madera",         usos: null, arma: { dano: 12, alcance: 46 } },
+          espada_cobre:   { src: "./Game/Objetos/armas/espada_cobre.png",      maxStack: 1,  tipo: "cobre",          usos: null, arma: { dano: 20, alcance: 50 } },
+          espada_hierro:  { src: "./Game/Objetos/armas/espada_hierro.png",     maxStack: 1,  tipo: "hierro",         usos: null, arma: { dano: 32, alcance: 54 } },
+          cana_pescar:    { src: "./Game/Objetos/pesca/cana_pescar.png",       maxStack: 1,  tipo: "caña_pescar",    usos: null },
+          espantapajaros: { src: "./Game/Objetos/granja/espantapajaros.png",   maxStack: 10, tipo: "espantapajaros", usos: null },
+          antorcha:       { src: "./Game/Objetos/antorcha/antorcha.png",       maxStack: 20, tipo: "antorcha",       usos: null },
+          pes1:           { src: "./Game/Objetos/pesca/pes1.png",              maxStack: 20, tipo: "pes1",           usos: null },
+          pes2:           { src: "./Game/Objetos/pesca/pes2.png",              maxStack: 20, tipo: "pes2",           usos: null },
+          pes3:           { src: "./Game/Objetos/pesca/pes3.png",              maxStack: 20, tipo: "pes3",           usos: null },
+          // Cinco peces más (2026-10-10). pes7 y pes8 son VENENOSOS: al sacarlos
+          // pican (el servidor quita vida poco a poco) y no se comen.
+          pes4:           { src: "./Game/Objetos/pesca/pes4.png",              maxStack: 20, tipo: "pes4",           usos: null },
+          pes5:           { src: "./Game/Objetos/pesca/pes5.png",              maxStack: 20, tipo: "pes5",           usos: null },
+          pes6:           { src: "./Game/Objetos/pesca/pes6.png",              maxStack: 20, tipo: "pes6",           usos: null },
+          pes7:           { src: "./Game/Objetos/pesca/pes7.png",              maxStack: 20, tipo: "pes7",           usos: null, veneno: true },
+          pes8:           { src: "./Game/Objetos/pesca/pes8.png",              maxStack: 20, tipo: "pes8",           usos: null, veneno: true },
+          // Seis peces más (2026-10-11). pes14, el pez globo, es VENENOSO.
+          pes9:           { src: "./Game/Objetos/pesca/pes9.png",              maxStack: 20, tipo: "pes9",           usos: null },
+          pes10:          { src: "./Game/Objetos/pesca/pes10.png",             maxStack: 20, tipo: "pes10",          usos: null },
+          pes11:          { src: "./Game/Objetos/pesca/pes11.png",             maxStack: 20, tipo: "pes11",          usos: null },
+          pes12:          { src: "./Game/Objetos/pesca/pes12.png",             maxStack: 20, tipo: "pes12",          usos: null },
+          pes13:          { src: "./Game/Objetos/pesca/pes13.png",             maxStack: 20, tipo: "pes13",          usos: null },
+          pes14:          { src: "./Game/Objetos/pesca/pes14.png",             maxStack: 20, tipo: "pes14",          usos: null, veneno: true },
+
+          fresa_corta: { src: "./Game/Objetos/Plantas/planta_fresa/item_planta.png", maxStack: 20 , tipo: "fresa_corta", usos: null},
+          fresa_mala: { src: "./Game/Objetos/Plantas/planta_fresa/item_fresa_podrida.png", maxStack: 20 , tipo: "fresa_mala", usos: null},
+
+          
+
+          trigo_buena: { src: "./Game/Objetos/Plantas/planta_trigo/item_trigo_bueno.png", maxStack: 20 , tipo: "trigo_buena", usos: null},
+          trigo_corta: { src: "./Game/Objetos/Plantas/planta_trigo/item_planta_trigo.png", maxStack: 20 , tipo: "trigo_corta", usos: null},
+          trigo_mala: { src: "./Game/Objetos/Plantas/planta_trigo/item_trigo_podrido.png", maxStack: 20 , tipo: "trigo_mala", usos: null},
+
+          calabaza_buena: { src: "./Game/Objetos/Plantas/planta_calabaza/item_calabaza_buena.png", maxStack: 20 , tipo: "calabaza_buena", usos: null},
+          calabaza_corta: { src: "./Game/Objetos/Plantas/planta_calabaza/item_planta_calabaza.png", maxStack: 20, tipo: "calabaza_corta", usos: null},
+          calabaza_mala: { src: "./Game/Objetos/Plantas/planta_calabaza/item_calabaza_podrida.png", maxStack: 20, tipo: "calabaza_mala", usos: null },
+
+
+        
+          // Agrega más definiciones según sea necesario
+        };
+        
+
+
+
+
+
+        
+        // ─────────────────────────────────────────────────────────
+
+        // this.authenticate(); pedimos otro token
+
+        
+        /* EL CERROJO DEL INVENTARIO. Ver `savegg()` más abajo.
+
+           Phaser REUTILIZA la instancia de la escena, así que al volver a
+           entrar en la tienda `_inventarioCargado` llegaría aquí valiendo true
+           de la visita anterior — y justo debajo se vacía `this.STATE`. Entre
+           ese vaciado y el final de `initialize()` (que es asíncrono y nadie
+           espera), cualquier guardado escribiría un inventario VACÍO encima del
+           bueno. */
+        this._inventarioCargado = false;
+
+        this.STATE = {
+          slots: Array(40).fill(null),
+          quickSlots: Array(7).fill(null),
+          selectedItem: null,
+          ghostSlots: {
+            inv: Array(40).fill(null),
+            quick: Array(7).fill(null)
+          }
+        };
+
+        // 1) Inicializar inventario y quick-slots
+        this.initInventory();
+
+        this.rebuildPlayerInventoryFromState();
+        this.initialize();
+
+        // 2) Escuchar tecla “I” para abrir/cerrar inventario
+        this.input.keyboard.on('keydown-I', () => {
+          this.toggleInventory();
+        });
+
+        /*
+
+        // 3) Ejemplo: agregar ítems al inventario (por ID solamente)
+        this.addItem("item_1");
+        this.addItem("item_1");
+        this.addItem("item_2");
+        this.addItem("item_3");
+
+        */
+
+        // 4) Botón de cerrar inventario (HTML Overlay)
+        this._onDOM(document.querySelector('#inventory-panel .cerrar-hud'), 'click', () => {
+            this.hideInventory();
+          });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+          /*
+ // 1) Crear un contenedor (“Container”) para el botón, con fondo y texto.
+    //    Así podemos ajustar posicionamiento y usar setInteractive().
+    const btnWidth = 40;
+    const btnHeight = 40;
+    const margin = 20;
+
+    // Crear un Graphics para el rectángulo de fondo:
+    const graphics = this.add
+      .graphics()
+      .fillStyle(0x2c3e50, 1)           // color #2c3e50
+      .fillRoundedRect(0, 0, btnWidth, btnHeight, 4);
+
+    // Crear texto “🛒” en el centro del rectángulo:
+    const iconText = this.add
+      .text(btnWidth / 2, btnHeight / 2, "🛒", {
+        fontSize: "20px",
+        color: "#ffffff",
+      })
+      .setOrigin(0.5);
+
+    // Meter ambos en un Container:
+    this.shopToggleBtn = this.add
+      .container(
+        this.scale.width - btnWidth / 2 - margin, // X:  (anchoPantalla - anchoBotón/2 - margen)
+        btnHeight / 2 + margin                      // Y:  (altoBotón/2 + margen)
+      )
+      .setDepth(2) // para que quede por encima de todo
+
+    this.shopToggleBtn.add([graphics, iconText]);
+
+    // Hacer interactivo el fondo del botón:
+    graphics.setInteractive(
+      new Phaser.Geom.Rectangle(0, 0, btnWidth, btnHeight),
+      Phaser.Geom.Rectangle.Contains
+    );
+    */
+// 2) Listener para el clic/tap en Phaser
+boton3.on("pointerdown", () => {
+    console.log("Abriendo tienda de Johnny Johnson...");
+
+    // FIX: llamar siempre a initTienda (ahora actualiza la escena si ya existe)
+    initTienda(this);
+
+    // Abrir tienda
+    if (window.tiendaSistema) {
+        window.tiendaSistema.open();
+    }
+    // NOTA: el tutorial NO se completa al abrir la tienda. La confirmación de
+    // compra (✓/✗) aparece al CERRAR la tienda, vía _onShopClosed().
+});
+
+
+
+
+    boton4.on("pointerdown", () => {
+
+    });
+
+
+  /*
+
+    // 3) (Opcional) Si quieres que el botón cambie de color al pasar el mouse:
+    graphics.on("pointerover", () => {
+      graphics.clear();
+      graphics.fillStyle(0x34495e, 1); // color un poco más claro
+      graphics.fillRoundedRect(0, 0, btnWidth, btnHeight, 4);
+    });
+    graphics.on("pointerout", () => {
+      graphics.clear();
+      graphics.fillStyle(0x2c3e50, 1);
+      graphics.fillRoundedRect(0, 0, btnWidth, btnHeight, 4);
+    });
+
+    
+
+    // 4) Si tu canvas de Phaser cambia de tamaño (responsive), 
+    //    puedes volver a posicionar el botón en `resize`:
+    this.scale.on("resize", (gameSize) => {
+      const { width, height } = gameSize;
+      this.shopToggleBtn.setPosition(
+        width - btnWidth / 2 - margin,
+        btnHeight / 2 + margin
+      );
+    });
+
+    */
+
+
+
+    // Por simplicidad, definimos un arreglo local. En tu juego, podrías traerlos desde
+    // un JSON, base de datos o lo que tengas.
+
+
+
+
+  this.rebuildPlayerInventoryFromState();
+
+
+
+
+
+  this.makeElementDraggable("inventory-panel");
+
+
+  
+
+
+
+
+    this.profileImage = document.getElementById("player-image");
+    this.hubInfo = document.getElementById("hub-info");
+
+    // Atamos el método para que funcione bien con add/removeEventListener
+    this.toggleHubInfo = this.toggleHubInfo.bind(this);
+
+    // Cargar estado guardado
+    this.loadState();
+
+    // Añadir listener
+    this._onDOM(this.profileImage, "click", this.toggleHubInfo);
+
+
+
+
+
+
+
+
+
+    // tiempos de siembra
+this.actualizarTemporizadoresDesdeStorage = () => {
+  for (let key in localStorage) {
+    if (key.startsWith('temporizador_')) {
+      try {
+        const data = JSON.parse(localStorage.getItem(key));
+        const tiempoTranscurrido = Math.floor((Date.now() - data.inicio) / 1000);
+        const tiempoRestante = data.duracion - tiempoTranscurrido;
+
+        if (tiempoRestante <= 0) {
+          console.log(`✅ Temporizador finalizado automáticamente: ${key}`);
+          localStorage.removeItem(key);
+        }
+      } catch (e) {
+        console.error('❌ Error leyendo temporizador:', key, e);
+        localStorage.removeItem(key);
+      }
+    }
+  }
+};
+
+this.actualizarTemporizadoresDesdeStorage();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      // control simple anti-spam cliente (ms)
+    /* POR ENCIMA DEL FRENO DEL SERVIDOR, que son 1000 ms.
+
+       Estaba en 800, o sea POR DEBAJO: había una ventana de 200 ms en la que
+       el cliente daba el mensaje por bueno, vaciaba el campo y lo enviaba… y el
+       servidor lo descartaba por rápido. Ese era el "a veces escribo y no
+       sale", y como el texto ya no estaba en el campo, el jugador lo
+       reescribía y acababa mandando el mismo dos veces.
+
+       Con 1100 el cliente siempre es el más lento de los dos, así que lo que
+       él acepta el servidor lo acepta. Y lo que llega antes de tiempo ya no se
+       tira: se encola (ver _encolarChat). */
+    this._chatRateLimitMs = 1100;
+    this._lastChatSent = 0;
+    
+
+    // Si obtienes account/playerName en otra parte, asignalo a this.currentAccount
+    // Ejemplo: this.currentAccount = data.playerName;
+    // Para compatibilidad con tu chat HTML:
+    window.playerName = window.playerName || this.currentAccount || '---';
+
+    // Inicializar UI del chat (elementos del DOM)
+    this._setupChatDom();
+
+    // Escuchadores de escena para limpiar socket al cerrar escena
+    // El `off` de delante evita que se apilen al volver a entrar en la escena:
+    // la explicación larga está donde se registra `shutdown` en create().
+    this.events.off('shutdown', this._onShutdown, this);
+    this.events.off('destroy', this._onShutdown, this);
+    this.events.on('shutdown', this._onShutdown, this);
+    this.events.on('destroy', this._onShutdown, this);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ─────────────────────────────────────────────────────────────────
+// SOCKET.IO CON SALA ESPECÍFICA PARA TIENDA
+// ─────────────────────────────────────────────────────────────────
+
+      /* EL SOCKET SE ADOPTA YA, NO SE PONE A NULL.
+
+         EL HUECO QUE ESTO CIERRA — "mi amigo se mueve pero el chat dice
+         'Reconnecting…' y no vuelve nunca":
+
+         unas lineas mas abajo se hace `window.activeScene = this` y el
+         initSocket() de verdad se programa con un delayedCall de 500 ms. En ese
+         medio segundo esta escena YA es la activa —o sea, ya le llegan los
+         avisos del socket y ya se puede escribir en el chat— pero `this.socket`
+         estaba a null, asi que todo lo que preguntara por el se creia sin
+         conexion. Y ese delayedCall va en el RELOJ DE LA ESCENA: si algo lo
+         barre (performCleanup hace `time.removeAllEvents()`) o la escena se
+         duerme antes de que salte, no se ejecuta nunca y el hueco deja de ser
+         medio segundo para ser el resto de la partida.
+
+         Adoptando aqui el socket de la pestaña, si ya lo hay, no hay hueco.
+         Los oyentes y el join siguen montandose en initSocket(). */
+      this.socket = window.globalSocket || null;
+      this.socketInitialized = false;
+      /* SOLTAR, NO VACIAR.
+
+         FUGA QUE ESTO ARREGLA (medida en el navegador: +34 oyentes en el
+         socket global por cada ida y vuelta a la tienda, sin límite): el chat
+         pregunta por el socket nada más montarse (`_socketVivo`), y eso
+         engancha ya los oyentes de la escena. Esta línea llegaba DESPUÉS y
+         hacía `socketListeners = []`: tiraba la lista SIN quitar esos oyentes
+         del socket, y luego initSocket() montaba otro juego entero. Cada visita
+         dejaba colgado un juego completo (currentPlayers, newPlayer,
+         playerMoved, chat…) cerrado sobre una escena ya muerta: la escena no se
+         podía recoger, y cada mensaje del servidor ejecutaba todos los viejos. */
+      this.removeSocketListeners();
+
+      // Para evitar múltiples joinRoom
+      this.currentRoom = null;
+      this.lastJoinTime = 0;
+      this.joinCooldown = 1000; // 1 segundo entre joins
+      
+      // Otros jugadores
+      this.otherPlayers = {};
+      this.myId = null;
+
+      console.log("🎮 Escena tienda creada");
+      
+      // Registrar esta escena como activa
+      window.activeScene = this;
+      
+      // Inicializar socket DESPUÉS de cargar todo lo básico
+      this.time.delayedCall(500, () => {
+        this.initSocket();
+      });
+      
+      // ... resto del código create() sin cambios
+      
+      // Configurar eventos de la escena
+      this.setupSceneEvents();
+
+      // Repintar los nombres cuando la fuente pixel esté cargada de verdad
+      // (mismo problema que en GameScene: Phaser cachea el texto ya dibujado)
+      this.refrescarTextosConFuente();
+
+
+
+    // Controles básicos
+    this.cursors = this.input.keyboard.createCursorKeys();
+    this.speed = 240;
+
+
+
+
+      /*
+    // --- Mapeo de teclas 1..7 y escucha de keydown ---
+    this.input.keyboard.on('keydown', (event) => {
+      // event.key viene como '1','2',... en la mayoría de navegadores
+      const n = parseInt(event.key, 10);
+      if (!isNaN(n) && n >= 1 && n <= 7) {
+        const idx = n - 1;
+        this.selectQuickSlot(idx);
+      }
+    });
+
+    */
+
+        // --- Mapeo de teclas 1..7 y escucha de keydown ---
+    this.input.keyboard.on('keydown', (event) => {
+      // Si el elemento activo es un input, textarea o select, ignorar.
+      const activeElement = document.activeElement;
+      const tagName = activeElement.tagName.toLowerCase();
+      if (['input', 'textarea', 'select'].includes(tagName)) {
+        return;
+      }
+      // event.key viene como '1','2',... en la mayoría de navegadores
+      const n = parseInt(event.key, 10);
+      if (!isNaN(n) && n >= 1 && n <= 7) {
+        const idx = n - 1;
+        this.selectQuickSlot(idx);
+      }
+    });
+
+
+
+    this._onDOM(window, 'beforeunload', () => {
+        this.handlePageUnload();
+    });
+
+
+
+
+
+
+    this.time.addEvent({
+      delay: 400,
+      loop: true,
+      callback: () => {
+        if (!this._elInfoLeft) this._elInfoLeft = document.getElementById('info-text-left');
+        if (!this._elInfoRight) this._elInfoRight = document.getElementById('info-text-right');
+        if (this._elInfoLeft) this._elInfoLeft.textContent = `${this.moneda}`;
+        if (this._elInfoRight) this._elInfoRight.textContent = `${this.moneda_plata}`;
+      }
+    });
+
+
+
+
+this.time.addEvent({
+  delay: 400,
+  loop: true,
+  callback: () => {
+
+    const uiText = document.getElementById('game-ui-text');
+    if (uiText) {
+      uiText.textContent =
+        `Zoom: ${this.cameras.main.zoom.toFixed(2)} Coordinates: ${this.player.x.toFixed(2)} Y: ${this.player.y.toFixed(2)} Soport: ${this.maxTextureSize}`;
+    }
+
+    // ======================
+    // SISTEMA DE NIVELES
+    // ======================
+    // MISMA regla que GameScene (_nivelDesdeExp): el nivel sale de la exp en
+    // las dos direcciones y el perro tiene ese mismo nivel.
+    this._nivelDesdeExp();
+
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+// En create(), modifica el objeto mouseMovement:
+this.mouseMovement = {
+    isHolding: false,           // Click físicamente presionado
+    holdStartTime: 0,
+    holdDuration: 300,
+    minHoldDistance: 15,
+    followCursorActive: false,  // Solo true mientras click esté presionado DESPUÉS de 1.5s
+    speed: 350,
+    directionX: 0,
+    directionY: 0,
+    
+    // NUEVO: Para detectar cuando el cursor está sobre UI/interactivos
+    cursorOverUI: false
+};
+
+// Configurar eventos del ratón - VERSIÓN CORREGIDA CON DETECCIÓN DE UI
+this.input.on('pointerdown', (pointer) => {
+    if (pointer.button === 0) {
+        const canvas = this.sys.canvas;
+        const isCanvasClick = pointer.event.target === canvas ||
+                             pointer.event.target.tagName === 'container' ||
+                             canvas.contains(pointer.event.target);
+
+        // Red de seguridad (sobre todo en MÓVIL): cursorOverUI se pone en true
+        // con 'gameobjectover' / 'mouseover', pero en pantallas táctiles esos
+        // eventos NO tienen su 'out' correspondiente al levantar el dedo, así
+        // que la bandera se quedaba pegada en true tras comprar o al cerrar la
+        // tienda y el movimiento por toque dejaba de responder. Aquí se
+        // recalcula con un hit-test REAL en el momento del toque, así que aunque
+        // la bandera estuviera mal, el movimiento no se bloquea. Es un solo test
+        // por toque, no por frame.
+        try {
+            const bajoElCursor = this.input.hitTestPointer(pointer) || [];
+            this.mouseMovement.cursorOverUI = bajoElCursor.length > 0;
+        } catch (e) { /* si el hit-test falla, se conserva la bandera anterior */ }
+
+        if (isCanvasClick && !this.mouseMovement.cursorOverUI) {
+            const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+            const distance = Phaser.Math.Distance.Between(
+                this.player.x, this.player.y,
+                worldPoint.x, worldPoint.y
+            );
+            
+            if (distance > this.mouseMovement.minHoldDistance) {
+                this.mouseMovement.isHolding = true;
+                this.mouseMovement.holdStartTime = this.time.now;
+                this.mouseMovement.followCursorActive = false; // Resetear
+                
+                console.log(`📌 Click iniciado - Esperando 1.5s...`);
+            }
+        }
+    }
+});
+
+// Evento para detectar cuando el cursor está sobre elementos UI/interactivos
+// Esto previene que se active el movimiento cuando estás sobre el herrero, crafting, etc.
+this.input.on('gameobjectover', (pointer, gameObject) => {
+    // Si el cursor está sobre cualquier objeto interactivo del juego
+    this.mouseMovement.cursorOverUI = true;
+});
+
+this.input.on('gameobjectout', (pointer, gameObject) => {
+    // Cuando el cursor sale del objeto interactivo
+    this.mouseMovement.cursorOverUI = false;
+});
+
+// También verificar si el cursor está sobre elementos DOM (como el panel de crafting)
+// FIX FUGA: mouseover/mouseout/mouseup globales que no se quitaban nunca.
+// Igual que en GameScene: el clic sobre el HUD no debe atravesar al mundo.
+this._bloquearClicsDeUIHaciaElJuego();
+
+// Restos de una batalla: `body.in-battle` oculta el HUD con
+// `display:none !important`. Si alguna vía de salida de BattleScene no pasó
+// por su shutdown, la clase se queda pegada y aquí los botones tampoco
+// abrirían. Ver el comentario largo en GameScene.
+try { document.body.classList.remove('in-battle'); } catch (e) {}
+
+this._onDOM(document, 'mouseover', (e) => {
+    const uiElements = ['mission-hub', 'crafting-hub', 'dialogHub', 'hub-panel_101'];
+    if (uiElements.some(id => e.target.closest(`#${id}`))) {
+        this.mouseMovement.cursorOverUI = true;
+    }
+});
+
+this._onDOM(document, 'mouseout', (e) => {
+    const uiElements = ['mission-hub', 'crafting-hub', 'dialogHub', 'hub-panel_101'];
+    if (uiElements.some(id => e.target.closest(`#${id}`))) {
+        // Solo resetear si el cursor no está sobre otro elemento UI
+        if (!uiElements.some(id => document.elementFromPoint(e.clientX, e.clientY)?.closest(`#${id}`))) {
+            this.mouseMovement.cursorOverUI = false;
+        }
+    }
+});
+
+// EL EVENTO pointerup MÁS ROBUSTO
+this.input.on('pointerup', (pointer) => {
+    if (pointer.button === 0) {
+        this.stopMouseMovement();
+    }
+});
+
+// Evento pointerup global (por si se suelta fuera del canvas)
+this._onDOM(window, 'mouseup', (e) => {
+    if (e.button === 0) {
+        this.stopMouseMovement();
+    }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ============ MASCOTA (PERRO) ============
+// Posición inicial: unos 40px a la derecha y debajo del jugador
+this.dog.x = this.player.x + 40;
+this.dog.y = this.player.y + 20;
+this.dog.targetX = this.dog.x;
+this.dog.targetY = this.dog.y;
+
+// Sprite del perro
+this.dog.sprite = this.add.sprite(this.dog.x, this.dog.y, 'perro_derecha_1')
+    .setScale(2)
+    .setDepth(this.player.y + 8); // Empieza con un depth similar
+
+// Sombra del perro (igual que la del jugador pero más pequeña)
+this.dog.shadow = this.add.graphics();
+this.dog.shadow.fillStyle(0x000000, 0.25);
+this.dog.shadow.fillEllipse(0, 0, 35, 18);
+this.dog.shadowContainer = this.add.container(this.dog.x, this.dog.y + 22, [this.dog.shadow]);
+
+// Reproducir animación inicial
+this.dog.sprite.play('perro_right');
+
+// ── Etiqueta con el NOMBRE de la mascota (regla de nombre único) ─────────
+if (!this.petName) this.petName = window.globalPetName || '---';
+// El nivel del perro viaja entre escenas por window.globalPetLevel: así la
+// etiqueta ya nace con el nivel correcto en vez de con un "Lv.1" que luego
+// había que corregir (y que antes no se corregía nunca).
+if (!this.petLevel || this.petLevel < 1) {
+  this.petLevel = Math.max(1, Number(window.globalPetLevel) || 1);
+}
+this.dogNameText = this.add.text(this.dog.x, this.dog.y - 30, '', {
+  fontFamily: '"PressStart2P"',
+  fontSize: '8px',
+  color: '#ffe9a8',
+  resolution: 4,
+  stroke: '#000000',
+  strokeThickness: 4
+}).setOrigin(0.5, 1).setDepth(this.player.y + 9).setVisible(false);
+if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
+
+/* ── Estado de la mascota que venia de la escena anterior ──────────────────
+
+   Se mira `equipped` (la retiraste a mano) y tambien `alive` (esta muerta).
+   Antes solo se miraba lo primero, asi que una mascota muerta reaparecia viva
+   al entrar en la tienda — no se le habia dicho a esta escena que estaba
+   caida. Lo escribe gf-mascota.js, que es quien lleva la cuenta. */
+const _petFuera = window.globalPetData &&
+                  (window.globalPetData.equipped === false ||
+                   window.globalPetData.alive === false);
+if (_petFuera) {
+  this.petData = window.globalPetData;
+  this.dog.sprite.setVisible(false);
+  this.dog.shadowContainer.setVisible(false);
+  if (this.dogNameText) this.dogNameText.setVisible(false);
+} else {
+  // Sync globalPetData from current state for future scene switches
+  if (!this.petData) this.petData = { type: 'perro', visible: true, equipped: true };
+  window.globalPetData = this.petData;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+}
+
+
+
+
+
+// Función para detener movimiento - LLAMARLA SIEMPRE QUE SE SUELTE EL CLICK
+stopMouseMovement() {
+    if (this.mouseMovement.isHolding || this.mouseMovement.followCursorActive) {
+        console.log('🔼 Click soltado - Movimiento detenido');
+        
+        this.mouseMovement.isHolding = false;
+        this.mouseMovement.followCursorActive = false;
+        this.mouseMovement.directionX = 0;
+        this.mouseMovement.directionY = 0;
+        
+        // También detener cualquier movimiento del teclado si el mouse tenía prioridad
+        
+        if (this.player && this.player.anims) {
+            this.player.anims.stop();
+        }
+        if (this.lastDirection === "left") {
+            this.player.setTexture('player_left_1');
+        } else if (this.lastDirection === "right") {
+            this.player.setTexture('player_right_1');
+        }
+        
+        // Opcional: resetear velocidad si usas física
+        if (this.player.body) {
+            this.player.setVelocity(0, 0);
+        }
+    }
+}
+
+
+// Función handleMouseMovement - REVISADA CON CHECKS CONSTANTES
+handleMouseMovement(delta) {
+    // ⚠️ Verificar si el click sigue presionado
+    if (!this.input.activePointer.isDown && this.mouseMovement.isHolding) {
+        console.log('⚠️ Click perdido - Forzando parada');
+        this.stopMouseMovement();
+        return;
+    }
+
+    if (!this.mouseMovement.isHolding) {
+        if (this.mouseMovement.followCursorActive) {
+            this.mouseMovement.followCursorActive = false;
+        }
+        return;
+    }
+
+    const currentTime = this.time.now;
+    const holdTime = currentTime - this.mouseMovement.holdStartTime;
+
+    if (holdTime < this.mouseMovement.holdDuration) {
+        return;
+    }
+
+    if (!this.mouseMovement.followCursorActive) {
+        console.log(`✅ Click sostenido 1.5s - Modo seguimiento activado`);
+        this.mouseMovement.followCursorActive = true;
+    }
+
+    if (this.mouseMovement.followCursorActive && this.mouseMovement.isHolding) {
+        const pointer = this.input.activePointer;
+        const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+
+        let dx = worldPoint.x - this.player.x;
+        let dy = worldPoint.y - this.player.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // Cerca del cursor → no hay desplazamiento este frame. La animación
+        // NO se toca aquí: la "Decisión ÚNICA de animación" (más abajo en
+        // update, tras resolver colisiones) pondrá el idle que corresponda.
+        if (distance < 2) {
+            return;
+        }
+
+        // Normalizar
+        if (distance > 0) {
+            dx /= distance;
+            dy /= distance;
+        }
+
+        this.mouseMovement.directionX = dx;
+        this.mouseMovement.directionY = dy;
+
+        // Normalizar diagonal
+        if (dx !== 0 && dy !== 0) {
+            dx *= 0.7071;
+            dy *= 0.7071;
+        }
+
+        const deltaInSeconds = delta / 1000;
+        this.player.x += dx * this.mouseMovement.speed * deltaInSeconds;
+        this.player.y += dy * this.mouseMovement.speed * deltaInSeconds;
+
+        // NOTA (paridad con GameScene): aquí ya NO se llama a anims.play().
+        // La dirección hacia el cursor queda en mouseMovement.directionX/Y y
+        // la "Decisión ÚNICA de animación" (tras resolver colisiones) aplica
+        // la regla de modo mouse: solo 'left'/'right' — 'right' cubre derecha,
+        // derecha+arriba y derecha+abajo; 'left' sus equivalentes. Así también
+        // se evita el congelamiento al colisionar en diagonal.
+
+        this.posicionplayerx = this.player.x;
+        this.posicionplayery = this.player.y;
+    }
+}
+
+
+
+
+    queuedAction(payload = undefined) {
+      let entry;
+      if (payload === undefined || payload === null) entry = true;
+      else if (typeof payload === 'object') {
+        try { entry = JSON.parse(JSON.stringify(payload)); }
+        catch(e) { entry = { ...payload }; }
+      } else entry = payload;
+
+      this._queue.push(entry);
+      // Hay algo que guardar. Se apunta aparte de la cola porque _processBatches
+      // la vacia antes de esperar, y en ese hueco la cola miente: parece que no
+      // queda nada pendiente cuando en realidad el guardado no ha salido aun.
+      this._guardadoPendiente = true;
+
+      if (!this._processing) {
+        this._processBatches().catch(err => console.error(err));
+      }
+    }
+
+    async _processBatches() {
+      this._processing = true;
+      const wait = this._windowMs;
+
+      while (true) {
+        if (this._queue.length === 0) {
+          this._processing = false;
+          return;
+        }
+
+        // Tomar toda la cola actual y limpiarla
+        const batch = this._queue.slice();
+        this._queue.length = 0;
+
+        /* EL RELOJ DE LA PAGINA, NO EL DE LA ESCENA.
+
+           FALLO QUE ESTO ARREGLA — "vendo y al salir del mapa lo sigo teniendo":
+           este temporizador es el que dispara el GUARDADO en el servidor, y
+           estaba en `this.time`, el reloj de la escena. Ese reloj se para
+           cuando la escena se duerme y lo borra entero `time.removeAllEvents()`
+           al cerrarla. O sea: si salias del mapa dentro del segundo siguiente a
+           cualquier cambio, la espera no terminaba nunca, `savegg()` no llegaba
+           a ejecutarse y el cambio se perdia. Con setTimeout el guardado sale
+           igual aunque la escena ya se este cerrando. */
+        await new Promise(resolve => setTimeout(resolve, wait));
+
+        console.log(`en cola hubieron ${batch.length} llamadas y fueron eliminadas y procesado este console log.`, batch);
+        try {
+          await this.savegg();
+        } catch (e) {
+          console.error('❌ savegg fallo en la cola de guardado:', e);
+        } finally {
+          this._guardadoPendiente = false;
+        }
+      }
+    }
+
+    /**
+     * Guarda YA lo que quede pendiente, sin esperar el segundo de la tanda.
+     * Se llama al cerrar la escena: es la ultima oportunidad de que lo que
+     * acaba de hacer el jugador llegue al servidor.
+     */
+    async flushGuardado(motivo) {
+      const hayCola = !!(this._queue && this._queue.length);
+      if (!this._guardadoPendiente && !hayCola) return false;
+      try {
+        if (this._queue) this._queue.length = 0;
+        this._guardadoPendiente = false;
+        console.log('💾 Guardando lo pendiente antes de ' + (motivo || 'salir'));
+        await this.savegg();
+        return true;
+      } catch (e) {
+        console.error('❌ No se pudo guardar lo pendiente al ' + (motivo || 'salir') + ':', e);
+        return false;
+      }
+    }
+
+
+
+
+
+
+    // ================================
+    // SOCKET MANAGEMENT
+    // ================================
+
+    initSocket() {
+      console.log("🔄 Inicializando socket para tienda...");
+      
+      /* SE REUTILIZA EL SOCKET. NO SE TIRA POR ESTAR DESCONECTADO UN INSTANTE.
+
+         FALLO QUE ESTO ARREGLA — "se desconecta y no vuelve; dejo de ver a mis
+         amigos aunque ellos se vean entre ellos":
+
+         la condición era `!window.globalSocket.connected`. Pero un socket que
+         está RECONECTANDO tiene connected=false durante varios segundos, y
+         justo entonces es cuando el juego cambia de escena. Así que se creaba
+         un socket NUEVO y se abandonaba el anterior… que NO estaba muerto:
+         seguía con sus reintentos infinitos y su vigilante resucitándolo.
+
+         Cada cambio de escena durante un corte dejaba otro zombi:
+           · todos conectados al servidor, ninguno en tu sala;
+           · el servidor cuenta sockets para repartir canales, así que tus
+             propios zombis llenaban el canal y a tus amigos les asignaba otro
+             distinto — por eso dejabais de veros;
+           · y gastaban red y batería el resto de la partida.
+
+         Ahora solo se crea uno si NO hay ninguno o el que hay está muerto de
+         verdad: ni conectado (`connected`) ni intentándolo (`active`). Y en ese
+         caso al viejo se le entierra bien, con su vigilante y sus oyentes. */
+      var _sockActual = window.globalSocket;
+      var _sirve = !!_sockActual && (_sockActual.connected === true || _sockActual.active === true);
+
+      if (!_sirve) {
+        if (_sockActual) this._enterrarSocket(_sockActual);
+        console.log("🌐 Creando nueva conexión socket global");
+        
+        const SERVER = this.serverclient1;
+        /* LAS MISMAS OPCIONES QUE EN GameScene, Y NO ES CASUALIDAD.
+
+           EL FALLO QUE ARREGLA: el socket es GLOBAL (window.globalSocket) y lo
+           crea la primera escena que arranca. Se habian puesto los reintentos
+           infinitos en GameScene, pero si el jugador pasaba por la tienda —o
+           entraba por ella— el socket lo creaba ESTE fichero, con los 10
+           intentos de antes, y el arreglo no servia de nada. Por eso seguia
+           quedandose desconectado para siempre.
+
+           Si se toca aqui, hay que tocar tambien GameScene.initSocket(). */
+        window.globalSocket = io(SERVER, {
+          path: '/socket.io',
+          transports: ['websocket', 'polling'],
+          tryAllTransports: true,
+          withCredentials: true,
+          reconnection: true,
+          reconnectionAttempts: Infinity,
+          reconnectionDelay: 800,
+          reconnectionDelayMax: 5000,   // varios intentos dentro de los 20 s que la arena guarda tu perro
+          randomizationFactor: 0.5,
+          timeout: 10000,               // un intento colgado no se come la espera entera
+          autoConnect: true,
+          forceNew: false,
+          /* EL CANAL VIAJA EN EL SALUDO PARA RECUPERARLO AL RECONECTAR.
+
+             El servidor reparte canal en cada conexión, y una reconexión es una
+             conexión nueva: al volver te podía meter en otro canal —otro mundo
+             paralelo— sin avisar, y ahí no está nadie de tu grupo. Mandándole
+             el que ya tenías, te devuelve ese mismo si queda sitio.
+
+             Es una FUNCIÓN a propósito: Socket.IO la llama antes de cada
+             intento, así que siempre manda el valor de ahora y no uno viejo
+             congelado en el momento de crear el socket. */
+          auth: function (cb) {
+            var c = 0;
+            try { c = Number(window.__gfCanalActual) || 0; } catch (e) {}
+            cb({ canal: c });
+          }
+        });
+        
+        // Configurar eventos globales del socket
+        this.setupGlobalSocketEvents(window.globalSocket);
+      } else {
+        console.log("🌐 Usando socket global existente");
+      }
+      
+      this.socket = window.globalSocket;
+      /* Si el socket se reconectó mientras esta escena no existía o estaba
+         pausada, aquí está la deuda de join pendiente. Se fuerza saltándose el
+         enfriamiento: si no, joinRoom() lo ignoraría por "ya estoy en esa
+         sala" y el socket se quedaría fuera. */
+      if (this.socket && this.socket._necesitaJoin) {
+        this.currentRoom = null;
+        this.lastJoinTime = 0;
+        this.socket._necesitaJoin = false;
+      }
+      this.setupSceneSocketListeners();
+      // IDENTIFICARSE A UNO MISMO.
+      //
+      // BUG QUE ESTO ARREGLA: `this.myId` se ponía a null en tres sitios y NO
+      // SE LE ASIGNABA NUNCA el id del socket, así que se quedaba en null toda
+      // la partida. Todas las comprobaciones del tipo
+      //     if (playerInfo.id === this.myId) return;   // "soy yo, ignorar"
+      // eran inútiles: nunca daban verdadero. De momento no se nota porque el
+      // servidor ya te excluye de currentPlayers y usa socket.to(room) para no
+      // devolverte tus propios movimientos, pero cualquier paquete que sí te
+      // llegue (o un reenvío con io.to) te haría crear un DOBLE de ti mismo
+      // como si fuera otro jugador — con SU personaje y sus datos encima del
+      // tuyo. Con el id puesto, esa red de seguridad vuelve a funcionar.
+      this.myId = this.socket.id;
+      
+      // Unirse a la sala de la tienda solo si no estamos ya en ella
+      if (this.currentRoom !== 'tienda') {
+        this.joinRoom('tienda');
+      }
+    }
+
+    setupGlobalSocketEvents(socket) {
+      /* "UNA SOLA VEZ" NO PUEDE SER UNA BANDERA A SECAS.
+
+         FALLO QUE ESTO ARREGLA: la comprobación era `if (socket._globalEventsSet)
+         return;`. Si algo borraba los oyentes del socket —y el cierre de escena
+         lo hacía con `socket.off()`— la bandera seguía en true y estos oyentes
+         no volvían a ponerse jamás. El socket quedaba sordo a 'connect' y por
+         tanto sin rejoin: conectado, pero fuera de la sala para siempre.
+
+         Ahora se comprueba lo que importa de verdad: si NUESTRO manejador de
+         'connect' sigue enganchado. Si no está, se vuelve a montar todo. */
+      if (socket._gfAlConectar &&
+          socket.listeners('connect').indexOf(socket._gfAlConectar) >= 0) return;
+
+      /* Restos de una instalacion anterior: se quitan UNO A UNO, por
+         referencia. Un `socket.off('connect')` a secas se llevaria por delante
+         el de gf-canales.js, que tambien escucha ahi para pedir su canal. */
+      if (socket._gfGlobales) {
+        socket._gfGlobales.forEach(function (par) {
+          try { socket.off(par[0], par[1]); } catch (e) {}
+        });
+      }
+      socket._gfGlobales = [];
+      var poner = function (ev, fn) {
+        socket.on(ev, fn);
+        socket._gfGlobales.push([ev, fn]);
+      };
+
+      socket._gfAlConectar = () => {
+        var esReconexion = socket._huboConexion === true;
+        socket._huboConexion = true;
+        console.log((esReconexion ? '🔁 Socket global RECONECTADO: '
+                                  : '✅ Socket global conectado: ') + socket.id);
+        /* LA DEUDA DE JOIN VIVE EN EL SOCKET, NO EN LA ESCENA.
+
+           FALLO QUE ESTO ARREGLA — "se me cae el chat, dice que no encuentra el
+           servidor y ya no vuelve ni al enviar ni al mirar los usuarios":
+
+           al reconectar, el socket trae un id NUEVO y el servidor no le conoce
+           ninguna sala hasta que el cliente rehace el joinRoom. Ese aviso se le
+           daba a `window.activeScene`… que puede ser null (justo en un cambio
+           de escena) o una escena PAUSADA (durante un combate, `isActive()` es
+           false). En cualquiera de los dos casos no se rehacía el join y el
+           socket se quedaba conectado pero fuera de la sala: mudo para siempre,
+           sin nadie a la vista, y sin nada que lo levantara salvo recargar.
+
+           Ahora la deuda se apunta EN EL SOCKET, que sobrevive a todo. Quien
+           pueda la salda; y si nadie puede ahora, la salda la siguiente escena
+           al montarse (initSocket la mira). */
+        socket._necesitaJoin = true;
+        /* El id cambia en cada conexión. Si `myId` se queda con el viejo, la
+           comprobación "este soy yo" deja de valer y te puedes ver a ti mismo
+           como si fueras otro jugador. */
+        var esc = window.activeScene;
+        try { if (esc) esc.myId = socket.id; } catch (e) {}
+        if (esc && esc.onSocketReconnect) esc.onSocketReconnect(esReconexion);
+      };
+      poner('connect', socket._gfAlConectar);
+
+      /* El servidor avisa de que este socket no está en ninguna sala. Lo manda
+         cuando llega un chat o un movimiento de alguien a quien no reconoce, que
+         es exactamente lo que pasa tras una reconexión mal saldada. */
+      poner('rejoinRequired', () => {
+        socket._necesitaJoin = true;
+        var esc = window.activeScene;
+        if (esc && esc.rehacerJoin) esc.rehacerJoin('el servidor lo pide');
+      });
+
+      poner('disconnect', (reason) => {
+        console.log('❌ Socket global desconectado:', reason);
+        var esc = window.activeScene;
+        if (esc && esc.onSocketDisconnect) esc.onSocketDisconnect(reason);
+        // Lo unico que Socket.IO no reintenta solo.
+        if (reason === 'io server disconnect') {
+          setTimeout(function () { try { socket.connect(); } catch (e) {} }, 2000);
+        }
+      });
+
+      poner('connect_error', (error) => {
+        console.warn('🔌 Error de conexion socket:', error && error.message);
+      });
+
+      // Vigilante: levanta el socket si se queda parado (volver de suspension,
+      // recuperar la red). Igual que en GameScene.
+      /* EL VIGILANTE ES DE LA PÁGINA, NO DE UN SOCKET CONCRETO.
+
+         FUGA QUE ESTO ARREGLA: se creaba un setInterval y DOS oyentes de
+         `document`/`window` por cada socket, y no se quitaban nunca. Con la
+         costumbre de tirar y recrear el socket en cada cambio de escena, cada
+         viaje al mapa o a la tienda dejaba otro vigilante vivo… resucitando su
+         socket zombi cada cinco segundos. Esos zombis seguían conectados al
+         servidor y ocupaban plaza en el canal (el servidor cuenta sockets), así
+         que tus propias conexiones muertas llenaban el canal 1 y a tus amigos
+         les tocaba otro: dejabais de veros sin motivo aparente.
+
+         Ahora hay UNO solo por pestaña y mira `window.globalSocket` en el
+         momento, así que siempre levanta el bueno y nunca a un difunto. */
+      if (!window.__gfVigilanciaSocket) {
+        window.__gfVigilanciaSocket = true;
+        var levantar = function () {
+          try {
+            var s = window.globalSocket;
+            if (s && s.disconnected && s.active !== true) {
+              console.log('🩺 socket parado: levantandolo a mano');
+              s.connect();
+            }
+          } catch (e) {}
+        };
+        window.__gfVigilanteTimer = setInterval(levantar, 5000);
+        document.addEventListener('visibilitychange', function () {
+          if (!document.hidden) levantar();
+        });
+        window.addEventListener('online', levantar);
+      }
+      
+      socket._globalEventsSet = true;
+    }
+
+    /**
+     * Entierra un socket que ya no sirve, de verdad.
+     *
+     * No basta con `disconnect()`: el vigilante viejo (uno por socket, antes de
+     * este arreglo) lo resucitaba a los cinco segundos, y sus oyentes seguían
+     * reteniendo la escena entera en memoria. Se apaga el vigilante, se le
+     * quitan los oyentes y se cierra sin reintentos.
+     */
+    _enterrarSocket(sock) {
+      if (!sock) return;
+      console.log('⚰️ Enterrando socket viejo:', sock.id || '(sin id)');
+      try { if (sock._vigilante) { clearInterval(sock._vigilante); sock._vigilante = null; } } catch (e) {}
+      try { sock.removeAllListeners(); } catch (e) {}
+      try { sock._gfAlConectar = null; sock._gfGlobales = null; sock._globalEventsSet = false; } catch (e) {}
+      try { sock.close(); } catch (e) { try { sock.disconnect(); } catch (e2) {} }
+    }
+
+    setupSceneSocketListeners() {
+      // Limpiar listeners anteriores
+      this.removeSocketListeners();
+      
+      const listeners = [
+        // currentPlayers - Recibir todos los jugadores en la sala
+        {
+          event: 'currentPlayers',
+          handler: (players) => {
+            console.log(`🎮 Recibidos ${players.length} jugadores en tienda`);
+            
+            // Limpiar jugadores anteriores
+            this.clearOtherPlayers();
+            
+            // Crear nuevos jugadores
+            players.forEach(player => {
+              if (player.id !== this.myId) {
+                this.createOtherPlayer(player);
+              }
+            });
+
+            /* Este evento es la señal de "ya estas dentro de la sala": el
+               servidor solo lo manda al terminar un joinRoom. Es el momento
+               exacto para soltar los mensajes que se escribieron durante un
+               corte — antes de esto los descartaria por no tener sala. */
+            if (typeof this._vaciarColaChat === 'function') this._vaciarColaChat();
+          }
+        },
+        
+        // newPlayer - Nuevo jugador se unió
+        {
+          event: 'newPlayer',
+          handler: (playerInfo) => {
+            if (playerInfo.id === this.myId) return;
+            console.log(`👤 Nuevo jugador en tienda: ${playerInfo.username || playerInfo.id}`);
+            this.createOtherPlayer(playerInfo);
+          }
+        },
+        
+        // playerMoved - Movimiento de otro jugador
+        {
+          event: 'playerMoved',
+          handler: (playerInfo) => {
+            if (playerInfo.id === this.myId) return;
+            this.updateOtherPlayer(playerInfo);
+          }
+        },
+        
+        // cambioSoulbound - Otro jugador se cambió de personaje estando quieto
+        // (si se mueve, el dato ya viaja dentro de playerMoved).
+        {
+          event: 'cambioSoulbound',
+          handler: (data) => {
+            if (!data || data.id === this.myId) return;
+            const p = this.otherPlayers[data.id];
+            const SB = window.GFSoulbound;
+            if (!p || !p.sprite || !SB || !SB.idValido(data.soulbound)) return;
+            p._soulbound = data.soulbound;
+            SB.asegurarPersonaje(this, data.soulbound).then((ok) => {
+              if (!ok || !p.sprite || !p.sprite.scene) return;
+              const mira = (p.lastDirection === 'left') ? 'left' : 'right';
+              p.sprite.setTexture(SB.texturaRemota(data.soulbound, mira));
+            });
+          }
+        },
+
+        // playerNameColor - Otro jugador cambió el color de su nombre estando
+        // QUIETO (si se mueve, el color ya viaja dentro de playerMoved).
+        {
+          event: 'playerNameColor',
+          handler: (data) => {
+            if (!data || !data.id) return;
+            const p = this.otherPlayers[data.id];
+            if (!p || !p.nameText || !window.GFNombreColor) return;
+            p._nameColor = data.nameColor || null;
+            const c = window.GFNombreColor.valido(data.nameColor);
+            p.nameText.setColor(c || window.GFNombreColor.POR_DEFECTO);
+          }
+        },
+
+        // playerPetNameColor - Cambió el color del nombre de SU mascota estando
+        // quieto (si se mueve, ya viaja dentro de playerMoved).
+        {
+          event: 'playerPetNameColor',
+          handler: (data) => {
+            if (!data || !data.id) return;
+            const p = this.otherPlayers[data.id];
+            if (!p || !window.GFNombreColor) return;
+            window.GFNombreColor.aplicarAMascotaRemota(p, data.petNameColor);
+          }
+        },
+
+        // playerLeft - Jugador abandonó la sala
+        {
+          event: 'playerLeft',
+          handler: (data) => {
+            this.removeOtherPlayer(data.id);
+          }
+        },
+
+        // playerDisconnected - Safety net for abrupt disconnections
+        {
+          event: 'playerDisconnected',
+          handler: (data) => {
+            const id = (typeof data === 'object') ? data.id : data;
+            if (id) this.removeOtherPlayer(id);
+          }
+        },
+        
+        // playerCount - Contador de jugadores
+        {
+          event: 'playerCount',
+          handler: (count) => {
+            if (this.playerCountText) {
+              this.playerCountText.setText(`Jugadores: ${count}`);
+            }
+          }
+        },
+        
+        // chatMessage - Mensaje de chat
+        {
+          event: 'chatMessage',
+          handler: (message) => {
+            this.appendMessage(message);
+            if (message && message.id && message.id !== (this.socket && this.socket.id)) {
+              this._showRemoteChatBubble(message.id, message.text || '');
+            }
+          }
+        },
+        { event: 'chatTyping', handler: (data) => {
+            if (data && data.id && data.id !== (this.socket && this.socket.id))
+              this._showRemoteTypingBubble(data.id, !!data.typing);
+        }},
+        
+        // chatError - Error en chat
+        {
+          event: 'chatError',
+          handler: (error) => {
+            this.appendSystemMessage(error.msg || 'Error en chat');
+          }
+        },
+
+        // El backend recalcula el nivel de la mascota al terminar cada batalla.
+        // Sin esto, el perro seguiría mostrando el nivel viejo en la tienda
+        // hasta recargar la página.
+        {
+          event: 'petLevelUpdate',
+          handler: (d) => {
+            const datos = d || {};
+            // La arena da EXP al personaje: si quien llega aquí se fue de la
+            // partida antes de acabar, su exp local va por detrás.
+            const total = Number(datos.expTotal);
+            if (Number.isFinite(total) && total > (Number(this.nivel_exp) || 0)) {
+              this.nivel_exp = total;
+              this._nivelDesdeExp();
+            }
+            // Y la mascota, su nivel y su barra (ver _aplicarNivelMascota).
+            this._aplicarNivelMascota(datos);
+          }
+        }
+      ];
+      
+      // Agregar todos los listeners
+      listeners.forEach(listener => {
+        this.socket.on(listener.event, listener.handler);
+        this.socketListeners.push({
+          event: listener.event,
+          handler: listener.handler,
+          // En QUE socket se puso. Sin esto, si el socket se sustituye, el
+          // oyente viejo se queda pegado al anterior y no hay forma de
+          // quitarlo: removeSocketListeners() se lo pedia al socket de ahora.
+          socket: this.socket
+        });
+      });
+      
+      this.socketInitialized = true;
+    }
+
+    removeSocketListeners() {
+      /* La lista se vacia SIEMPRE, aunque no se pueda quitar nada.
+
+         FALLO QUE ESTO ARREGLA: la guarda era `if (!this.socket || …) return;`,
+         asi que cuando la escena se habia quedado sin referencia al socket
+         (performCleanup lo pone a null) la funcion se iba sin tocar la lista.
+         Los apuntes se quedaban dentro, y al volver a montar los oyentes se
+         AÑADIAN encima de los que ya estaban: mensajes de chat duplicados y
+         jugadores creados dos veces. */
+      if (!this.socketListeners || !this.socketListeners.length) {
+        this.socketListeners = [];
+        return;
+      }
+
+      this.socketListeners.forEach(listener => {
+        // Del socket en el que se puso, no del que haya ahora.
+        const s = listener.socket || this.socket;
+        try { if (s) s.off(listener.event, listener.handler); } catch (e) {}
+      });
+
+      this.socketListeners = [];
+    }
+
+    /**
+     * El socket que DE VERDAD esta sirviendo ahora mismo.
+     *
+     * FALLO QUE ESTO ARREGLA — "mi amigo se mueve, yo escribo y siempre sale
+     * 'Reconnecting to the chat…', y no vuelve nunca":
+     *
+     * `this.socket` es la referencia de ESTA escena, y hay rutas que la ponen a
+     * null con la escena todavia viva (performCleanup, cleanupBeforeTransition).
+     * Los oyentes, en cambio, siguen enganchados al socket global — por eso se
+     * seguia viendo a los demas moverse mientras el chat juraba que no habia
+     * conexion. Quien pregunte por aqui recupera el bueno y, de paso, esta
+     * escena vuelve a adoptarlo con sus oyentes.
+     *
+     * Solo readopta si la escena sigue en pie: una escena ya cerrada no debe
+     * volver a engancharse a nada.
+     */
+    _socketVivo() {
+      const g = window.globalSocket;
+
+      let enPie = false;
+      try { enPie = (window.activeScene === this) || (this.scene && this.scene.isActive()); }
+      catch (e) { enPie = false; }
+
+      if (this.socket && this.socket === g) {
+        /* El socket es el bueno, pero sin oyentes. Pasa si el initSocket() que
+           los monta se quedo por el camino: va en un delayedCall del RELOJ DE
+           LA ESCENA, y ese reloj lo barre performCleanup y se para al dormir la
+           escena. Sintoma: chat mudo y ningun jugador a la vista, con la
+           conexion perfectamente viva. */
+        if (enPie && (!this.socketListeners || !this.socketListeners.length)) {
+          console.log('🔗 El socket estaba sin oyentes: montandolos');
+          try { this.setupSceneSocketListeners(); } catch (e) {}
+        }
+        return this.socket;
+      }
+
+      if (!g) return this.socket || null;
+      if (!enPie) return this.socket || g;
+
+      console.log('🔗 La escena habia perdido el socket: readoptando el global');
+      this.socket = g;
+      this.myId = g.id;
+      try { this.setupSceneSocketListeners(); } catch (e) {}
+      return g;
+    }
+
+    /**
+     * Suelta los mensajes que se escribieron mientras no habia linea.
+     *
+     * Se llama al recibir `currentPlayers`, que es la señal de que el servidor
+     * ya nos tiene dentro de la sala — antes de eso los tiraria.
+     */
+    _vaciarColaChat() {
+      if (!this._colaChat || !this._colaChat.length) return;
+      const pendientes = this._colaChat.slice();
+      this._colaChat.length = 0;
+
+      // De uno en uno y espaciados: el servidor descarta los que lleguen a
+      // menos de un segundo del anterior (freno antispam), asi que soltarlos
+      // de golpe perderia todos menos el primero.
+      pendientes.forEach((texto, i) => {
+        setTimeout(() => {
+          const v = this._socketVivo();
+          if (!v || !v.connected) return;
+          v.emit('chatMessage', { usernamex: this.Username || '---', text: texto });
+        }, i * 1100);
+      });
+    }
+
+    joinRoom(roomName) {
+      if (!this.socket) {
+        console.warn('⚠️ No hay socket, no se puede unir a sala');
+        return;
+      }
+
+      /* SIN CONEXIÓN TODAVÍA: SE APUNTA, NO SE TIRA.
+
+         FALLO QUE ESTO ARREGLA: initSocket() crea el socket y llama a joinRoom
+         en la línea siguiente, pero conectar tarda un momento — así que en el
+         arranque `connected` es false y el join se perdía en un console.warn.
+         Lo mismo cada vez que se pedía entrar durante un corte de red. Quedaba
+         apuntado en ningún sitio y el jugador se quedaba fuera de la sala hasta
+         que otra cosa, por casualidad, volviera a intentarlo.
+
+         Ahora la deuda se apunta en el socket, que es lo que sobrevive, y la
+         salda el manejador de 'connect' en cuanto haya línea. */
+      if (!this.socket.connected) {
+        console.log('⏸️ Socket aún sin conexión: join a "' + roomName + '" apuntado para cuando la haya');
+        this.socket._salaPendiente = roomName;
+        this.socket._necesitaJoin = true;
+        return;
+      }
+      
+      const now = Date.now();
+      if (now - this.lastJoinTime < this.joinCooldown && this.currentRoom === roomName) {
+        console.log('⏳ En cooldown de join, ignorando');
+        return;
+      }
+      
+      this.lastJoinTime = now;
+      this.currentRoom = roomName;
+      // Deuda saldada: el servidor ya sabe en qué sala está este socket.
+      this.socket._necesitaJoin = false;
+      // Y la sala apuntada tambien: si se quedara puesta, la OTRA escena la
+      // leeria al reconectar y te meteria en la sala equivocada — en el mapa
+      // estando en la tienda, o al reves.
+      this.socket._salaPendiente = null;
+      
+      console.log(`🚪 Uniéndose a sala: ${roomName}`);
+      
+      this.socket.emit("joinRoom", {
+        room: roomName,
+        username: this.Username || '---',
+        lastScene: 'tiendajuego', // IMPORTANTE: Identificar la escena actual
+        x: this.player ? this.player.x : 200,
+        y: this.player ? this.player.y : 300,
+        // Niveles ya en el JOIN, para que un jugador quieto se vea con nivel.
+        nivel:    Math.max(0, Number(this.nivel) || 0),
+        petLevel: Math.max(1, Number(this.petLevel) || 1),
+        dogName:  this._isNameSet && this._isNameSet(this.petName) ? this.petName : '',
+        // Mi personaje Soulbound (ver la nota en GameScene.joinRoom).
+        soulbound: window.GFSoulbound ? window.GFSoulbound.actual() : null
+      });
+    }
+
+// En la clase tiendajuego, reemplaza el método sendPlayerMovement:
+sendPlayerMovement() {
+  if (!this.socket || !this.socket.connected || !this.player) return;
+  
+  // Calcular si se está moviendo realmente (teclado O ratón)
+  const keyboardMoving = this.keys.left.isDown || this.keys.right.isDown || 
+                         this.keys.up.isDown || this.keys.down.isDown ||
+                         this.keys.leftArrow.isDown || this.keys.rightArrow.isDown ||
+                         this.keys.upArrow.isDown || this.keys.downArrow.isDown;
+
+  // Also consider mouse-driven movement (followCursor / isHolding)
+  const mouseMoving = !!(this.mouseMovement && (this.mouseMovement.followCursorActive || this.mouseMovement.isHolding));
+
+  const isMoving = keyboardMoving || mouseMoving;
+  
+  // Solo enviar si hay cambios significativos
+  if (this.lastSentPosition &&
+      Math.abs(this.player.x - this.lastSentPosition.x) < 0.5 &&
+      Math.abs(this.player.y - this.lastSentPosition.y) < 0.5 &&
+      this.lastMovingState === isMoving) {
+    return;
+  }
+
+  // LÍMITE DE FRECUENCIA (BATERÍA) — misma medida que en GameScene.
+  // Este método se llama desde update(), 60 veces por segundo, y caminando se
+  // avanzan ~4 px por frame: se emitía un paquete POR FRAME. Mantener la radio
+  // del teléfono despierta 60 veces por segundo es de lo que más batería gasta.
+  // A 30 envíos/s el movimiento se ve exactamente igual y el tráfico se parte
+  // por la mitad. Empezar a andar, pararse o cambiar de dirección siguen siendo
+  // instantáneos: solo se limita el goteo de posiciones intermedias.
+  const _ahoraEnvio = (this.time && this.time.now) ? this.time.now : Date.now();
+  const _cambioEstado = (this.lastMovingState !== isMoving);
+  if (!_cambioEstado && this._ultimoEnvioMov && (_ahoraEnvio - this._ultimoEnvioMov) < 33) {
+    return;
+  }
+  this._ultimoEnvioMov = _ahoraEnvio;
+
+  if (this.lastSentPosition) {
+    this.lastSentPosition.x = this.player.x;
+    this.lastSentPosition.y = this.player.y;
+  } else {
+    this.lastSentPosition = { x: this.player.x, y: this.player.y };
+  }
+  this.lastMovingState = isMoving;
+  
+  // Determinar dirección basada en movimiento real
+  let currentDirection = this.lastDirection;
+  let directionState = 'stop_right';
+  
+  if (isMoving) {
+    if (this.keys.left.isDown || this.keys.leftArrow.isDown) {
+      currentDirection = 'left';
+      directionState = 'left';
+    } else if (this.keys.right.isDown || this.keys.rightArrow.isDown) {
+      currentDirection = 'right';
+      directionState = 'right';
+    } else if (mouseMoving && this.mouseMovement) {
+      // Derive direction from mouse movement vector
+      const mdx = this.mouseMovement.directionX || 0;
+      if (mdx < -0.1) { currentDirection = 'left'; directionState = 'left'; }
+      else if (mdx > 0.1) { currentDirection = 'right'; directionState = 'right'; }
+      else { directionState = currentDirection || 'right'; }
+    } else {
+      // Movimiento vertical - mantener dirección anterior
+      directionState = currentDirection || 'right';
+    }
+    
+    // Actualizar lastDirection solo si hay movimiento horizontal
+    if (directionState === 'left' || directionState === 'right') {
+      this.lastDirection = directionState;
+    }
+  } else {
+    // No se está moviendo - determinar estado de detención
+    directionState = this.lastDirection === 'left' ? 'stop_left' : 'stop_right';
+  }
+  
+  this.socket.emit("playerMove", {
+    x: this.player.x,
+    y: this.player.y,
+    direction: isMoving ? directionState : 'stop',
+    directionx: directionState,
+    isMoving: isMoving,
+    usernamex: this.Username || '---',
+
+    // ========= DATOS DE LA MASCOTA =========
+    dogX: this.dog.x,
+    dogY: this.dog.y,
+    dogDirection: this.dog.direction,  // 'left' o 'right'
+    // Muerta cuenta igual que retirada: los demas no tienen que verla.
+    dogEquipped: !(this.petData && this.petData.equipped === false) &&
+                 !(window.globalPetData && window.globalPetData.alive === false),
+    // El nombre de la mascota no se enviaba nunca, por eso los demás jugadores
+    // veían tu perro sin etiqueta. El servidor reenvía el payload tal cual.
+    dogName: this._isNameSet && this._isNameSet(this.petName) ? this.petName : '',
+    // Nivel de la mascota y del personaje. En la tienda no se enviaba ninguno
+    // de los dos, así que los demás jugadores salían sin nivel.
+    petLevel: Math.max(1, Number(this.petLevel) || 1),
+    nivel: Math.max(0, Number(this.nivel) || 0)
+  });
+}
+
+    getDirectionState() {
+      if (!this.keys) return 'stop_right';
+      
+      const moving = this.keys.left.isDown || this.keys.right.isDown || 
+                     this.keys.up.isDown || this.keys.down.isDown;
+      
+      if (!moving) {
+        return this.lastDirection === 'left' ? 'stop_left' : 'stop_right';
+      }
+      return this.lastDirection || 'right';
+    }
+
+    // ================================
+    // GESTIÓN DE OTROS JUGADORES
+    // ================================
+
+
+/**
+ * SUELTA TODO LO QUE LLEVA UN JUGADOR REMOTO.
+ *
+ * UN SOLO SITIO, A PROPÓSITO. Antes esta lista estaba escrita DOS veces
+ * —en `clearOtherPlayers` y en `removeOtherPlayer`— y se desincronizaron: a la
+ * primera se le habían olvidado la etiqueta de la mascota y las burbujas de
+ * chat. Como `clearOtherPlayers` se ejecuta en cada `currentPlayers` (o sea en
+ * cada reconexión de cualquiera), el mapa se iba llenando de nombres de
+ * mascotas flotando sin dueño — los "clones" que se veían.
+ *
+ * Aquí NO se decide nada: se destruye todo lo que se haya podido crear. Cada
+ * cosa en su propio try, porque un objeto ya destruido por otro camino no puede
+ * impedir que se suelten los demás.
+ */
+_soltarJugadorRemoto(p) {
+  if (!p) return;
+  const fuera = (o) => { try { if (o && o.destroy) o.destroy(); } catch (_) {} };
+
+  fuera(p.sprite);
+  fuera(p.nameText);
+  fuera(p.shadowContainer);
+
+  // Burbujas de chat y los tres puntos de "está escribiendo".
+  fuera(p._chatContainer);
+  fuera(p._typingContainer);
+  fuera(p._chatText);
+  fuera(p._chatTypingText);
+
+  // Y sus temporizadores: si no, se disparan sobre objetos ya destruidos.
+  try { if (p._chatTimer) clearTimeout(p._chatTimer); } catch (_) {}
+  try { if (p._typingHideTimer) clearTimeout(p._typingHideTimer); } catch (_) {}
+  p._chatTimer = null;
+  p._typingHideTimer = null;
+
+  if (p.dog) {
+    fuera(p.dog.sprite);
+    fuera(p.dog.shadowContainer);
+    // ESTA era la que faltaba en clearOtherPlayers: el nombre de la mascota.
+    fuera(p.dog.nameText);
+  }
+}
+
+clearOtherPlayers() {
+  Object.values(this.otherPlayers || {}).forEach(p => this._soltarJugadorRemoto(p));
+  this.otherPlayers = {};
+}
+
+
+createOtherPlayer(playerInfo) {
+  if (this.otherPlayers[playerInfo.id]) return;
+
+  // Cada jugador con SU personaje (mismo arreglo que en GameScene): las claves
+  // globales 'player_*' son las que cambia mi propio panel Soulbound, así que
+  // usarlas aquí hacía que todos se vieran con mi personaje.
+  const _sbRemoto = (window.GFSoulbound && window.GFSoulbound.idValido(playerInfo.soulbound))
+    ? playerInfo.soulbound : null;
+
+  const _miraIzquierda =
+    (playerInfo.directionx === 'stop_left' ||
+      (playerInfo.direction === 'stop' &&
+        (playerInfo.lastDirection === 'left' || playerInfo.direction === 'left')));
+
+  const initialTexture = window.GFSoulbound
+    ? window.GFSoulbound.texturaRemota(_sbRemoto, _miraIzquierda ? 'left' : 'right')
+    : (_miraIzquierda ? 'player_left_1' : 'player_right_1');
+
+  const sprite = this.add.sprite(playerInfo.x, playerInfo.y, initialTexture);
+  sprite.setScale(2);
+  sprite.setDepth(playerInfo.y + sprite.displayHeight * 0.5);
+
+  /* LA SOMBRA DEL JUGADOR REMOTO. Faltaba aquí igual que en el mapa: se creaba
+     el sprite, el nombre, el perro y la sombra DEL PERRO, pero no la del
+     jugador — así que los demás se veían flotando sobre la tarima mientras el
+     personaje propio sí pisaba. Misma elipse y mismo alfa que la del jugador
+     local, para que dos personajes juntos proyecten la misma sombra. */
+  const sombraRemota = this.add.graphics();
+  sombraRemota.fillStyle(0x000000, 0.2);
+  sombraRemota.fillEllipse(0, 0, 45, 22.5);
+  const shadowContainer = this.add.container(
+    playerInfo.x,
+    playerInfo.y + sprite.displayHeight * 0.45,
+    [sombraRemota]
+  );
+  shadowContainer.setDepth(playerInfo.y + sprite.displayHeight * 0.5 - 1);
+
+  const nameText = this.add.text(
+    playerInfo.x,
+    playerInfo.y - sprite.height / 2 - 30,
+    playerInfo.username || 'Jugador',
+    {
+      fontFamily: '"PressStart2P"',
+      fontSize: '12px',
+      color: '#ffffff',
+      resolution: 4,
+      stroke: "#000",
+      strokeThickness: 3,
+    }
+  );
+  nameText.setOrigin(0.5, 1);
+  nameText.setDepth(playerInfo.y + sprite.displayHeight * 0.5 + 1);
+
+  // El color que ESE jugador se eligió. Lo pone el servidor en el paquete de
+  // la sala; aquí se vuelve a comprobar que sea '#rrggbb' antes de pintarlo.
+  if (window.GFNombreColor && playerInfo.nameColor) {
+    const _c = window.GFNombreColor.valido(playerInfo.nameColor);
+    if (_c) nameText.setColor(_c);
+  }
+
+  this.otherPlayers[playerInfo.id] = {
+    sprite,
+    nameText,
+    shadowContainer,
+    // Identidad que manda el SERVIDOR (no el cliente del otro jugador). Con
+    // ella el menú de amistad sabe a qué cuenta apunta.
+    _displayName: playerInfo.username || 'Player',
+    _playerName: playerInfo.playerName || null,
+    _address: playerInfo.address || null,
+    // Personaje Soulbound de ESTE jugador.
+    _soulbound: _sbRemoto,
+    lastUpdate: Date.now(),
+    lastDirection: playerInfo.direction || 'right',
+    dog: null
+  };
+
+  /* MENÚ DE JUGADOR EN LA TIENDA (clic derecho o doble toque).
+
+     GameScene ya tiene el suyo —perfil, verificador, reporte— y ahí solo se le
+     añadió la opción de amistad. Aquí no había ninguno, así que se usa el menú
+     mínimo de gf-amigos: agregar y escribir.
+
+     Se le pasa una FUNCIÓN y no el objeto del jugador porque esta escena
+     RECREA el registro al reconectar: guardándose el objeto, el menú acabaría
+     enseñando los datos de un jugador que ya no está en la sala. */
+  if (window.GFAmigos && window.GFAmigos.habilitarEnSprite) {
+    window.GFAmigos.habilitarEnSprite(this, sprite,
+      () => this.otherPlayers && this.otherPlayers[playerInfo.id]);
+  }
+
+  // Traer sus sprites en segundo plano; hasta que lleguen se le ve con el
+  // personaje por defecto en lugar de con el mío.
+  if (_sbRemoto && window.GFSoulbound) {
+    window.GFSoulbound.asegurarPersonaje(this, _sbRemoto).then((ok) => {
+      if (!ok) return;
+      const p = this.otherPlayers[playerInfo.id];
+      if (!p || !p.sprite || !p.sprite.scene) return;
+      const mira = (p.lastDirection === 'left') ? 'left' : 'right';
+      p.sprite.setTexture(window.GFSoulbound.texturaRemota(_sbRemoto, mira));
+    });
+  }
+
+  const remotePlayer = this.otherPlayers[playerInfo.id];
+
+  remotePlayer.dog = {
+    sprite: this.add.sprite(
+      playerInfo.dogX ?? playerInfo.x + 40,
+      playerInfo.dogY ?? playerInfo.y + 20,
+      'perro_derecha_1'
+    )
+      .setScale(2)
+      .setDepth(playerInfo.y + 10),
+    shadowContainer: null,
+    direction: playerInfo.dogDirection || 'right'
+  };
+
+  const dogShadowG = this.add.graphics();
+  dogShadowG.fillStyle(0x000000, 0.25);
+  dogShadowG.fillEllipse(0, 0, 35, 18);
+  remotePlayer.dog.shadowContainer = this.add.container(
+    playerInfo.dogX ?? playerInfo.x,
+    (playerInfo.dogY ?? playerInfo.y + 20) + 22,
+    [dogShadowG]
+  );
+
+  // Etiqueta con el nombre de la mascota remota (antes no existía: el perro
+  // propio sí tenía nombre, los de los demás salían sin nada).
+  remotePlayer.dog.nameText = this.add.text(
+    playerInfo.dogX ?? playerInfo.x + 40,
+    (playerInfo.dogY ?? playerInfo.y + 20) - 30,
+    this._dogLabelText(playerInfo.dogName, playerInfo.petLevel),
+    {
+      fontFamily: '"PressStart2P"',
+      fontSize: '8px',
+      color: '#ffffff',
+      resolution: 4,
+      stroke: '#000000',
+      strokeThickness: 5,
+    }
+  ).setOrigin(0.5, 1);
+  remotePlayer.dog._petLevel = playerInfo.petLevel;
+  remotePlayer.dog.nameText.setVisible(true);
+
+  // Si llevaba 5 minutos quieto, no se le ve (gf-reposo.js).
+  if (window.GFReposo) window.GFReposo.alCrear(remotePlayer, playerInfo);
+}
+
+
+// Reemplaza completamente el método updateOtherPlayer con este:
+// Reemplaza completamente el método updateOtherPlayer con este:
+updateOtherPlayer(playerInfo) {
+  const player = this.otherPlayers[playerInfo.id];
+
+  if (!player) {
+    console.log(`⚠️ Jugador ${playerInfo.id} no encontrado, creando...`);
+    this.createOtherPlayer(playerInfo);
+    return;
+  }
+  // Modo reposo (gf-reposo.js): si de verdad se movió, se despierta.
+  if (window.GFReposo) window.GFReposo.alRecibir(player, playerInfo);
+  if (player._chatContainer) {
+    const sprH = player.sprite.displayHeight || 64;
+    player._chatContainer.setPosition(playerInfo.x, playerInfo.y - sprH*0.5 - 50);
+    player._chatContainer.setDepth(99998);
+  }
+  if (player._typingContainer) {
+    const sprH = player.sprite.displayHeight || 64;
+    // Dots between name and message: just below name line
+    player._typingContainer.setPosition(playerInfo.x, playerInfo.y - sprH*0.5 - 26);
+    player._typingContainer.setDepth(99998);
+  }
+
+  const x = Number(playerInfo.x) || 0;
+  const y = Number(playerInfo.y) || 0;
+  const dogX = Number(playerInfo.dogX ?? (x + 40)) || (x + 40);
+  const dogY = Number(playerInfo.dogY ?? (y + 20)) || (y + 20);
+
+  const direction = playerInfo.direction || 'stop';
+  const directionx = playerInfo.directionx || '';
+
+  const isMoving = !!playerInfo.isMoving && direction !== 'stop';
+
+  const dogDirection =
+    playerInfo.dogDirection ||
+    (direction === 'left' || directionx === 'stop_left' ? 'left' :
+     direction === 'right' || directionx === 'stop_right' ? 'right' :
+     player.dog?.direction || 'right');
+
+  if (player.sprite) {
+    player.sprite.setPosition(x, y);
+
+    const remoteFeetY = y + player.sprite.displayHeight * 0.5;
+    player.sprite.setDepth(remoteFeetY);
+
+    // Personaje de ESTE jugador, no el mío (ver GameScene.updateOtherPlayer).
+    const _SB = window.GFSoulbound;
+    if (_SB && _SB.idValido(playerInfo.soulbound) && playerInfo.soulbound !== player._soulbound) {
+      player._soulbound = playerInfo.soulbound;
+      _SB.asegurarPersonaje(this, playerInfo.soulbound).then((ok) => {
+        if (!ok || !player.sprite || !player.sprite.scene) return;
+        const mira = (player.lastDirection === 'left') ? 'left' : 'right';
+        player.sprite.setTexture(_SB.texturaRemota(playerInfo.soulbound, mira));
+      });
+    }
+    const _sbId   = player._soulbound || null;
+    const _anim   = (dir) => _SB ? _SB.animRemota(_sbId, dir) : dir;
+    const _quieto = (dir) => _SB ? _SB.texturaRemota(_sbId, dir)
+                                 : (dir === 'left' ? 'player_left_1' : 'player_right_1');
+
+    if (isMoving) {
+      const claveAnim = _anim(direction);
+      if (this.anims.exists(claveAnim)) {
+        player.sprite.anims.play(claveAnim, true);
+      } else {
+        player.sprite.setTexture(_quieto(direction === 'left' ? 'left' : 'right'));
+      }
+    } else {
+      if (player.sprite.anims) player.sprite.anims.stop();
+
+      if (directionx === 'stop_left' || (direction === 'stop' && player.lastDirection === 'left')) {
+        player.sprite.setTexture(_quieto('left'));
+      } else {
+        player.sprite.setTexture(_quieto('right'));
+      }
+    }
+
+    if (direction === 'left' || direction === 'right') {
+      player.lastDirection = direction;
+    }
+
+    if (player.nameText) {
+      player.nameText.setPosition(x, y - 60);
+      player.nameText.setDepth(remoteFeetY + 1);
+      if (typeof playerInfo.nivel === 'number') player._nivel = playerInfo.nivel;
+      player.nameText.setText(
+        this._playerLabelText(playerInfo.usernamex || playerInfo.username || 'Jugador', player._nivel)
+      );
+    }
+
+    // La identidad puede llegar más tarde que el primer paquete.
+    if (playerInfo.username)   player._displayName = playerInfo.username;
+    if (playerInfo.playerName) player._playerName  = playerInfo.playerName;
+
+    /* La sombra sigue a los pies y se reordena con ellos. Si el jugador se creó
+       sin sombra (paquete de una versión anterior) se le pone ahora, sin
+       obligarle a salir y volver a entrar. */
+    if (!player.shadowContainer) {
+      const g = this.add.graphics();
+      g.fillStyle(0x000000, 0.2);
+      g.fillEllipse(0, 0, 45, 22.5);
+      player.shadowContainer = this.add.container(x, y + (player.sprite.displayHeight || 64) * 0.45, [g]);
+    }
+    player.shadowContainer.setPosition(x, y + (player.sprite.displayHeight || 64) * 0.45);
+    player.shadowContainer.setDepth(remoteFeetY - 1);
+
+    // El color del nombre puede cambiar en caliente.
+    if (playerInfo.nameColor !== undefined && player.nameText && window.GFNombreColor) {
+      if (player._nameColor !== playerInfo.nameColor) {
+        player._nameColor = playerInfo.nameColor;
+        const _cc = window.GFNombreColor.valido(playerInfo.nameColor);
+        player.nameText.setColor(_cc || window.GFNombreColor.POR_DEFECTO);
+      }
+    }
+
+    if (!player.dog) {
+      player.dog = {
+        sprite: null,
+        shadowContainer: null,
+        direction: 'right',
+        lastAnimState: 'idle'
+      };
+    }
+
+    const dogShouldWalk = isMoving;
+
+    if (!player.dog.sprite) {
+      const dogTexture = dogDirection === 'left' ? 'perro_izquierda_1' : 'perro_derecha_1';
+      player.dog.sprite = this.add.sprite(dogX, dogY, dogTexture).setScale(2);
+    } else {
+      player.dog.sprite.setPosition(dogX, dogY);
+    }
+
+    player.dog.direction = dogDirection;
+
+    if (dogShouldWalk) {
+      const animKey = dogDirection === 'left' ? 'perro_left' : 'perro_right';
+
+      // Solo reiniciar si cambió la dirección o venía detenido
+      if (player.dog.lastAnimState !== animKey) {
+        if (this.anims.exists(animKey)) {
+          player.dog.sprite.play(animKey, true);
+        } else {
+          player.dog.sprite.setTexture(dogDirection === 'left' ? 'perro_izquierda_1' : 'perro_derecha_1');
+        }
+        player.dog.lastAnimState = animKey;
+      }
+    } else {
+      // Si el personaje se detiene, el perro también queda quieto
+      if (player.dog.sprite.anims) {
+        player.dog.sprite.anims.stop();
+      }
+
+      player.dog.sprite.setTexture(dogDirection === 'left' ? 'perro_izquierda_1' : 'perro_derecha_1');
+      player.dog.lastAnimState = 'idle';
+    }
+
+    const remoteDogFeetY = dogY + player.dog.sprite.displayHeight * 0.5;
+    player.dog.sprite.setDepth(remoteDogFeetY);
+
+    if (!player.dog.shadowContainer) {
+      const dogShadowG = this.add.graphics();
+      dogShadowG.fillStyle(0x000000, 0.25);
+      dogShadowG.fillEllipse(0, 0, 35, 18);
+      player.dog.shadowContainer = this.add.container(dogX, dogY + 22, [dogShadowG]);
+    } else {
+      player.dog.shadowContainer.setPosition(dogX, dogY + 22);
+    }
+
+    if (player.dog.shadowContainer) {
+      player.dog.shadowContainer.setDepth(remoteDogFeetY - 1);
+    }
+
+    // Nombre de la mascota remota: se crea también aquí por si el jugador ya
+    // existía antes de este cambio, y se mantiene pegado sobre el perro.
+    const dogName = playerInfo.dogName || '';
+    if (!player.dog.nameText) {
+      player.dog.nameText = this.add.text(dogX, dogY - 30, dogName, {
+        fontFamily: '"PressStart2P"',
+        fontSize: '8px',
+        color: '#ffffff',
+        resolution: 4,
+        stroke: '#000000',
+        strokeThickness: 5,
+      }).setOrigin(0.5, 1);
+    }
+    // Nombre + NIVEL, y visible aunque el perro aún no tenga nombre.
+    if (typeof playerInfo.petLevel === 'number') player.dog._petLevel = playerInfo.petLevel;
+
+    /* El color que ese jugador eligió para el nombre de SU mascota. Lo pone el
+       servidor en el paquete de la sala, igual que el del personaje. */
+    if (window.GFNombreColor && playerInfo.petNameColor !== undefined) {
+      if (player._petNameColor !== playerInfo.petNameColor) {
+        window.GFNombreColor.aplicarAMascotaRemota(player, playerInfo.petNameColor);
+      }
+    }
+    player.dog.nameText.setText(this._dogLabelText(dogName, player.dog._petLevel));
+    player.dog.nameText.setPosition(dogX, dogY - player.dog.sprite.displayHeight * 0.5 - 4);
+    player.dog.nameText.setDepth(remoteDogFeetY + 1);
+    player.dog.nameText.setVisible(true);
+  }
+
+  player.lastUpdate = Date.now();
+  // Si el paquete no era movimiento (una re-sincronización), sigue oculto.
+  if (window.GFReposo) window.GFReposo.trasRecibir(player);
+}
+
+removeOtherPlayer(playerId) {
+  const player = this.otherPlayers[playerId];
+  if (!player) return;
+
+  // Una sola lista de cosas que soltar, la de _soltarJugadorRemoto.
+  this._soltarJugadorRemoto(player);
+
+  delete this.otherPlayers[playerId];
+  console.log(`🗑️ Jugador ${playerId} removido de game`);
+}
+
+    setupSceneEvents() {
+      /* FUGA QUE ESTO ARREGLA — SEIS MANEJADORES MÁS EN CADA VISITA.
+       *
+       * Aquí había seis `this.events.on(...)` con funciones ANÓNIMAS y nadie
+       * las quitaba nunca. Phaser reutiliza la instancia de la escena y no
+       * borra los listeners al apagarla, así que cada entrada a la tienda
+       * dejaba otros seis pegados encima de los anteriores.
+       *
+       * Y no es solo memoria: son manejadores que HACEN COSAS. A la quinta
+       * visita, un 'resume' llamaba a `initSocket()` cinco veces seguidas y un
+       * 'shutdown' a `performCleanup()` otras cinco. Salir de la tienda se iba
+       * volviendo más lento y el socket se rehacía de más.
+       *
+       * Se arregla igual que ya estaba hecho en GameScene: se apuntan en
+       * `_sceneEventHandlers` y se quitan UNO A UNO al volver a entrar.
+       *
+       * Se quitan AQUÍ, al montar, y no en el apagado, a propósito: quitar un
+       * manejador de 'shutdown' mientras se está emitiendo 'shutdown' es
+       * tocarle el array a la lista que el emisor está recorriendo, y eso se
+       * salta manejadores. Al entrar no hay ningún evento en vuelo. */
+      const anteriores = this._sceneEventHandlers || [];
+      for (let i = 0; i < anteriores.length; i++) {
+        try { this.events.off(anteriores[i][0], anteriores[i][1]); } catch (e) { /* ya no estaba */ }
+      }
+      this._sceneEventHandlers = [];
+
+      const registrar = (evento, fn) => {
+        this.events.on(evento, fn);
+        this._sceneEventHandlers.push([evento, fn]);
+      };
+
+      // Evento cuando la escena entra en pausa (al cambiar a otra escena)
+      registrar('pause', () => {
+        console.log('⏸️ Escena tienda pausada');
+        this.leaveRoom();
+      });
+
+      // Evento cuando la escena se reanuda
+      registrar('resume', () => {
+        console.log('▶️ Escena tienda reanudada');
+        this.time.delayedCall(300, () => {
+          this.initSocket();
+        });
+      });
+
+      // Evento cuando la escena se duerme (Scene Manager)
+      registrar('sleep', () => {
+        console.log('💤 Escena tienda dormida');
+        this.cleanupBeforeTransition();
+      });
+
+      // Evento cuando la escena se despierta
+      registrar('wake', () => {
+        console.log('🌅 Escena tienda despierta');
+        this.time.delayedCall(300, () => {
+          this.initSocket();
+        });
+      });
+
+      // Evento shutdown - se llama cuando la escena es detenida
+      registrar('shutdown', () => {
+        console.log('🔌 Escena tienda shutdown');
+        this.performCleanup();
+      });
+
+      // Evento destroy - se llama cuando la escena es destruida
+      registrar('destroy', () => {
+        console.log('💥 Escena tienda destroy');
+        this.performCleanup();
+      });
+    }
+
+    /**
+     * La sala del servidor en la que se entra al irse de la tienda. Lo normal
+     * es volver al mapa ('game'), pero desde el HUD de la tienda también se
+     * puede ir a la isla: con 'game' fijo, el jugador aparecía como un
+     * fantasma en el mapa mientras estaba en la isla. Ver el gemelo en
+     * GameScene._salaAlSalir.
+     */
+    _salaAlSalir() {
+      return this._salaDestino || 'game';
+    }
+
+    leaveRoom() {
+      console.log('🚪 Saliendo de sala tienda...');
+
+      if (this.socket && this.socket.connected) {
+        // Emitir que estamos cambiando a game
+        this.socket.emit("joinRoom", {
+          room: this._salaAlSalir(),
+          username: this.Username || '---',
+          lastScene: 'tiendajuego',
+          x: 0,
+          y: 0
+        });
+      }
+      
+      this.currentRoom = null;
+      this.clearOtherPlayers();
+    }
+
+    cleanupBeforeTransition() {
+      console.log('🧹 Limpiando antes de transición...');
+      
+      // Limpiar jugadores locales
+      this.clearOtherPlayers();
+      
+      // Remover listeners del socket específicos de esta escena
+      this.removeSocketListeners();
+      
+      // Resetear variables
+      this.socketInitialized = false;
+      this.myId = null;
+    }
+
+    performCleanup() {
+      if (this._shopCleanupDone) return;
+      this._shopCleanupDone = true;
+      this._sceneStopped = true;
+      this._stopVitalRegen?.();
+      this.events.off('shutdown', this.performCleanup, this);
+      this.events.off('destroy', this.performCleanup, this);
+      // ULTIMA OPORTUNIDAD DE GUARDAR: ver el comentario gemelo en GameScene.
+      // Sin esto, vender algo y salir enseguida de la tienda perdia la venta.
+      try { this.flushGuardado && this.flushGuardado('cerrar la tienda'); } catch (e) {}
+      console.log('🧼 Limpieza completa de escena tienda');
+      
+      // Tell the server we are leaving this room BEFORE clearing socket
+      if (this.socket && this.socket.connected) {
+        this.socket.emit("joinRoom", {
+          room: this._salaAlSalir(),
+          username: this.Username || '---',
+          lastScene: 'tiendajuego',
+          x: this.player ? this.player.x : 0,
+          y: this.player ? this.player.y : 0
+        });
+      }
+      
+      // Limpiar jugadores
+      this.clearOtherPlayers();
+      
+      // Remover listeners del socket
+      this.removeSocketListeners();
+      
+      // NO desconectar el socket global
+      // Solo dejar de hacer referencia a él
+      this.socket = null;
+
+      this._offDOM();
+      const callbacks = this._sceneCleanupCallbacks || [];
+      this._sceneCleanupCallbacks = [];
+      callbacks.forEach(fn => { try { fn(); } catch (e) {} });
+      for (const key of ['_typingTimer', '_localBubbleTimer', '_relojColaChat', '_regenVitalesTimer']) {
+        if (this[key] != null) { clearTimeout(this[key]); clearInterval(this[key]); }
+        this[key] = null;
+      }
+      this._colaEnvioChat = [];
+      if (this._sceneTimeouts) {
+        this._sceneTimeouts.forEach(timer => clearTimeout(timer));
+        this._sceneTimeouts.clear();
+      }
+      try { this._cleanupTutorial(); } catch (e) {}
+      try { this._cancelarArrastre(); } catch (e) {}
+      try { GameScene.prototype._disposeSceneAudio.call(this); } catch (e) {}
+      if (this.audioState && this.audioState.activeSFX) {
+        this.audioState.activeSFX.forEach(sound => { try { sound.destroy(); } catch (e) {} });
+        this.audioState.activeSFX.clear();
+      }
+      this.soundHubElements = null;
+      try { this.statsSync?.destroy?.(); } catch (e) {}
+      this.statsSync = null;
+      this._statsReady = false;
+      try { this.map?.destroy(); } catch (e) {}
+      this.map = null;
+      this.backgroundLayer = null;
+      this.chunkObjectsMap?.clear();
+      /* Aquí se ponía `window.tiendaSistema.scene = null` a mano, AUNQUE
+         quedaran compras en cola: la siguiente reventaba sin inventario
+         ("Cannot read properties of undefined (reading 'quickSlots')") y el
+         objeto no llegaba. Lo suelta `soltarEscena`, al final de este método,
+         y solo cuando la cola está vacía. */
+      if (this._hubPanel && window.hubPanel === this._hubPanel) {
+        this._hubPanel.init(null);
+        window.hubPanel = null;
+      }
+      this._hubPanel = null;
+      
+      /* EL HUB DE NOTIFICACIONES, QUE SE QUEDABA VIVO.
+       *
+       * FUGA QUE ESTO ARREGLA: en create() se hace `new NotificationHub(...)`
+       * bajo un `if (!this.notifications)`. Esa guarda no sirve de nada aquí,
+       * porque al entrar en la tienda GameScene hace stop+remove+add de esta
+       * escena: la instancia es NUEVA cada vez, y con ella `this.notifications`
+       * vuelve a estar sin definir.
+       *
+       * O sea, un NotificationHub por cada visita a la tienda. Y cada uno
+       * arranca su propio `setInterval` de un segundo (`_startAutoCleanup`) que
+       * nadie para nunca. A las veinte visitas hay veinte relojes latiendo cada
+       * segundo, cada uno reteniendo su hub, sus pools y sus nodos del DOM.
+       *
+       * GameScene ya hacía esto mismo en `cleanupScene`; aquí se había quedado
+       * sin hacer. `destroy()` para el reloj, borra el nodo del hub y vacía los
+       * mapas. */
+      if (this.notifications) {
+        try {
+          if (typeof this.notifications.destroy === 'function') this.notifications.destroy();
+        } catch (e) { /* al salir da igual */ }
+        this.notifications = null;
+      }
+
+      // Remover referencia de escena activa
+      if (window.activeScene === this) {
+        window.activeScene = null;
+      }
+      // La tienda (window.tiendaSistema) también la apuntaba: ver soltarEscena.
+      try { window.tiendaSistema?.soltarEscena?.(this); } catch (e) { /* al salir da igual */ }
+    }
+
+    // Método para manejar reconexión del socket
+    /** Aviso de que se ha caido la conexion: se lo dice al jugador. */
+    /**
+     * Vuelve a entrar en la sala, sin excusas.
+     *
+     * Es el único camino de vuelta cuando el socket se reconecta: el servidor
+     * conoce al socket por su id, y tras reconectar ese id es otro. Sin este
+     * join el socket está conectado pero no pertenece a ninguna sala — no
+     * recibe chat, no ve a nadie y lo que envía se descarta.
+     */
+    rehacerJoin(motivo) {
+      var s = window.globalSocket;
+      if (!s || !s.connected) return false;
+      if (!this.scene || !this.scene.isActive()) {
+        this._rejoinPendiente = true;
+        this._prepararRejoinAlDespertar();
+        return false;
+      }
+      console.log('🚪 rehaciendo join (' + (motivo || 'sin motivo') + ')');
+      this._socketCaido = false;
+      this.socket = s;
+      this.myId = s.id;
+      if (typeof this.clearOtherPlayers === 'function') this.clearOtherPlayers();
+      this.lastJoinTime = 0;                  // sin enfriamiento: hay que entrar YA
+      this.setupSceneSocketListeners();
+      // La sala apuntada mientras no había línea manda sobre la que recordara
+      // la escena: es la última que se pidió de verdad.
+      var _sala = s._salaPendiente || this.currentRoom || 'tienda';
+      s._salaPendiente = null;
+      this.joinRoom(_sala);
+      s._necesitaJoin = false;
+      this._rejoinPendiente = false;
+      return true;
+    }
+
+    /** Deja la reentrada preparada para cuando la escena vuelva a correr. */
+    _prepararRejoinAlDespertar() {
+      if (this._rejoinEnganchado || !this.events) return;
+      this._rejoinEnganchado = true;
+      var reintentar = () => {
+        this._rejoinEnganchado = false;
+        if (this._rejoinPendiente) this.rehacerJoin('la escena ha despertado');
+      };
+      this.events.once('resume', reintentar);
+      this.events.once('wake', reintentar);
+    }
+
+    onSocketDisconnect(reason) {
+      this._socketCaido = true;
+      if (typeof this.appendSystemMessage === 'function') {
+        this.appendSystemMessage('Connection lost. Reconnecting…');
+      }
+    }
+
+    onSocketReconnect(esReconexion) {
+      console.log('🔁 Reconexion detectada, reuniendose a sala...');
+
+      /* VOLVER A ENTRAR DE VERDAD. Lo mismo que en GameScene:
+
+         1. joinRoom() se salta el envio si la sala es la misma y no ha pasado
+            el cooldown — y tras reconectar ambas cosas son ciertas. Se pone
+            lastJoinTime a 0 para forzarlo.
+         2. El socket trae un id NUEVO; con el viejo, la comprobacion de "este
+            soy yo" deja de valer.
+         3. Los jugadores de antes son fantasmas con ids que ya no existen: se
+            borran para que el currentPlayers de la nueva entrada los recree.
+            Sin esto se quedan TIESOS en pantalla, que es justo lo que se veia. */
+      /* NADA DE `return` SI LA ESCENA NO ESTÁ ACTIVA.
+
+         Antes esto exigía `this.scene.isActive()`, y una escena PAUSADA (por
+         ejemplo mientras se juega un combate, o mientras se está cambiando de
+         escena) no lo está. En ese caso no se rehacía el join NUNCA: al volver
+         del combate seguías conectado, sin chat y sin ver a nadie. Ahora se
+         apunta la deuda y se salda en cuanto la escena despierta. */
+      if (esReconexion && !this.scene.isActive()) {
+        this._rejoinPendiente = true;
+        this._prepararRejoinAlDespertar();
+        return;
+      }
+
+      if (esReconexion && this.scene.isActive()) {
+        this._socketCaido = false;
+        this.socket = window.globalSocket;
+        this.myId = this.socket.id;
+        if (typeof this.clearOtherPlayers === 'function') this.clearOtherPlayers();
+        this.lastJoinTime = 0;
+        this.setupSceneSocketListeners();
+        this.joinRoom(this.currentRoom || 'tienda');
+        if (typeof this.appendSystemMessage === 'function') {
+          this.appendSystemMessage('Reconnected.');
+        }
+        return;
+      }
+
+      /* PRIMERA CONEXIÓN (no es reconexión).
+
+         Antes esto esperaba un segundo y volvía a llamar a initSocket() con la
+         esperanza de que allí saliera el join. Un segundo es mucho —y si la
+         escena se cerraba en ese rato, la llamada se perdía y el jugador se
+         quedaba conectado pero fuera de la sala. Ahora se entra en el momento,
+         y si la escena está dormida se deja apuntado como en los demás casos. */
+      if (this.scene.isActive()) {
+        this.rehacerJoin('primera conexion');
+      } else {
+        this._rejoinPendiente = true;
+        this._prepararRejoinAlDespertar();
+      }
+    }
+
+    /* MODO REPOSO (2026-10-05). Aquí se BORRABA a los 30 s sin paquetes a
+       cualquiera, y un jugador quieto no manda paquetes: a los 30 s de pararse
+       desaparecía con su perro y su mensaje hasta que diera un paso. Ahora es
+       igual que en el resto del juego: a los 5 minutos sin moverse se OCULTA
+       (sigue en la sala) y vuelve a verse en cuanto se mueve. Los que se van
+       de verdad los quita `playerLeft` / `playerDisconnected`. */
+    cleanInactivePlayers() {
+      if (window.GFReposo) window.GFReposo.revisar(this);
+    }
+
+    // ================================
+    // TRANSICIÓN A OTRA ESCENA
+    // ================================
+
+    // Modifica la sección donde detectas colisión con la puerta:
+    // Reemplaza la parte que hace this.scene.start("LoadingScenegame") con:
+
+    transitionToGameScene() {
+      console.log('🚪 Transicionando a GameScene desde tienda...');
+      
+      this.queuedAction({ type: 'forSpam2'});
+      
+      // 2. Limpiar socket y jugadores
+      this.cleanupBeforeTransition();
+      
+      // 3. Ocultar elementos del DOM
+      this.hideHudElements();
+      
+      // 4. Cambiar a LoadingScene con delay para asegurar limpieza
+      this.time.delayedCall(100, () => {
+        // Emitir joinRoom a game antes de cambiar (FIXED: was emitting "tienda" by mistake)
+        if (this.socket && this.socket.connected) {
+          this.socket.emit("joinRoom", {
+            room: "game",
+            username: this.Username || '---',
+            lastScene: 'tiendajuego',
+            x: 1552,
+            y: 1531
+          });
+        }
+        
+        // Cambiar escena (FIXED: targetScene was "tiendajuego" by mistake)
+        this.scene.start("LoadingScenegame", {
+          targetScene: "GameScene",
+          playerData: {
+            x: 1552,
+            y: 1531,
+            mundo: 1
+          }
+        });
+      });
+    }
+
+    hideHudElements() {
+      // Ocultar HUD
+      const gameHud = document.getElementById('game-hud');
+      if (gameHud) {
+        gameHud.classList.remove('hud-visible');
+        gameHud.classList.add('hud-hidden');
+      }
+      
+      // Limpiar texto de moneda
+      const infoText = document.getElementById('info-text-left');
+      if (infoText) infoText.textContent = '';
+      
+      // Ocultar slots rápidos
+      document.querySelectorAll('.quick-slot').forEach(slot => {
+        slot.style.display = 'none';
+      });
+      
+      // Ocultar hub de vida
+      const cajahub = document.getElementById('cajahub');
+      if (cajahub) cajahub.style.display = 'none';
+      
+      // Ocultar imagen del jugador
+      this.actualizarImagenJugador('');
+      this.actualizarNombreUsuario('');
+      
+      // Resetear barras visualmente (sin sync al contrato)
+      const _savedReady = this._statsReady;
+      this._statsReady = false;
+      this.actualizarBarraVida(0);
+      this.actualizarBarraAgua(0);
+      this.actualizarBarraComida(0);
+      this._statsReady = _savedReady;
+      
+      // Ocultar HUD extendido
+      const hudContainer = document.getElementById('hud-containerx2');
+      if (hudContainer) hudContainer.style.display = 'none';
+      
+      // Ocultar chat
+      const chatBtn = document.getElementById('open-chat-btn');
+      const chatPanel = document.getElementById('chat-panel');
+      if (chatBtn) chatBtn.style.display = 'none';
+      if (chatPanel) chatPanel.style.display = 'none';
+      
+      // Ocultar coordenadas
+      const uiText = document.getElementById('game-ui-text');
+      if (uiText) uiText.style.display = 'none';
+      
+      // Remover listeners del DOM
+      this.removeListener();
+    }
+
+
+
+
+
+
+
+
+
+  // -----------------------------
+  // DOM / Chat UI helpers
+  // -----------------------------
+  /**
+   * El chat por encima del teclado del móvil.
+   * COPIA de GameScene._seguirTecladoMovil — ahí está la explicación larga.
+   * En resumen: `position: fixed` se mide contra el viewport de maquetación,
+   * que no encoge con el teclado, así que el campo de escribir quedaba tapado.
+   * `visualViewport` sí da la zona realmente visible; la diferencia es el alto
+   * del teclado y se publica como la variable CSS `--gf-teclado`.
+   */
+  _seguirTecladoMovil() {
+    if (this._tecladoSeguidorPuesto) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    this._tecladoSeguidorPuesto = true;
+
+    const raiz = document.documentElement;
+
+    const medir = () => {
+      const tapado  = Math.max(0, Math.round(window.innerHeight - (vv.height + vv.offsetTop)));
+      const teclado = tapado > 80 ? tapado : 0;   // <80 px suele ser la barra del navegador
+      if (this._tecladoAlto === teclado) return;
+      this._tecladoAlto = teclado;
+      raiz.style.setProperty('--gf-teclado', teclado + 'px');
+      raiz.classList.toggle('gf-teclado-abierto', teclado > 0);
+      if (teclado > 0 && this.chatMessages) {
+        try { this.chatMessages.scrollTop = this.chatMessages.scrollHeight; } catch (_) {}
+      }
+    };
+
+    vv.addEventListener('resize', medir);
+    vv.addEventListener('scroll', medir);
+    medir();
+
+    const soltar = () => {
+      try {
+        vv.removeEventListener('resize', medir);
+        vv.removeEventListener('scroll', medir);
+      } catch (_) {}
+      raiz.style.setProperty('--gf-teclado', '0px');
+      raiz.classList.remove('gf-teclado-abierto');
+      this._tecladoSeguidorPuesto = false;
+      this._tecladoAlto = 0;
+    };
+    this.events.once('shutdown', soltar);
+    this.events.once('destroy',  soltar);
+  }
+
+  _setupChatDom() {
+  this._offDOM('chat');
+    this.openBtn = document.getElementById('open-chat-btn');
+    this.chatPanel = document.getElementById('chat-panel');
+    this.chatMessages = document.getElementById('chat-messages');
+    this.chatInput = document.getElementById('chat-input');
+
+    // Validar que existan
+    if (!this.openBtn || !this.chatPanel || !this.chatMessages || !this.chatInput) {
+      console.warn('Elementos de chat no encontrados en el DOM. Asegúrate de que el HTML esté presente.');
+      return;
+    }
+
+    this._seguirTecladoMovil();
+
+    // Asegurar botón visible (puede ser controlado por CSS).
+    // Igual que en GameScene: hideHudElements() deja `display:none` en línea y
+    // el `||` se quedaba con esa cadena, así que el botón no volvía nunca.
+    this.openBtn.style.removeProperty('display');
+    this.chatPanel.style.removeProperty('display');
+
+    // Toggle panel. El estado se LEE de la clase real del panel en vez de darlo
+    // por false: si el chat quedó abierto al cambiar de escena, el primer clic
+    // hacía justo lo contrario de lo esperado.
+    this._chatOpen = !this.chatPanel.classList.contains('chat-hidden');
+    const toggleChat = (force) => {
+      this._chatOpen = (typeof force === 'boolean') ? force : !this._chatOpen;
+      this.chatPanel.classList.toggle('chat-hidden', !this._chatOpen);
+      if (this._chatOpen) this.chatInput.focus();
+    };
+    this._toggleChat = toggleChat;
+
+    // `.onclick` en vez de addEventListener: el botón es DOM de la página y
+    // sobrevive al cambio de escena, así que con addEventListener se acumulaba
+    // un manejador por cada entrada a la tienda (dos manejadores = abrir y
+    // cerrar en el mismo clic, o sea "el chat no abre").
+    this._setDOMProperty(this.openBtn, 'onclick', () => toggleChat(), 'chat');
+    if (this.openBtn._gfChatKeyup) {
+      this.openBtn.removeEventListener('keyup', this.openBtn._gfChatKeyup);
+    }
+    this._setDOMProperty(this.openBtn, '_gfChatKeyup', (e) => { if (e.key === 'Enter') toggleChat(); }, 'chat');
+    this._onDOM(this.openBtn, 'keyup', this.openBtn._gfChatKeyup, undefined, 'chat');
+
+    const sendButton = document.getElementById('chat-send-btn');
+    if (sendButton) {
+      this._onDOM(sendButton, 'pointerdown', e => {
+        e.preventDefault(); e.stopPropagation();
+        this._sendChatFromInput(); this.chatInput.focus();
+      }, undefined, 'chat');
+      const refresh = () => { sendButton.disabled = !(this.chatInput.value || '').trim(); };
+      this._onDOM(this.chatInput, 'input', refresh, undefined, 'chat');
+      this._refrescarBotonEnviarChat = refresh;
+      refresh();
+    }
+    // Selector de emojis, igual que en GameScene.
+    this._montarSelectorEmojis();
+
+    this._onDOM(this.chatInput, 'keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this._sendChatFromInput();
+      } else if (e.key === 'Escape') {
+        toggleChat(false);
+      }
+    }, undefined, 'chat');
+
+    this._typingTimer = null;
+    this._isTyping = false;
+    this._onDOM(this.chatInput, 'input', () => {
+      if (this.chatInput.value.length > 0) {
+        if (!this._isTyping) {
+          this._isTyping = true;
+          if (this.socket && this.socket.connected)
+            this.socket.emit('chatTyping', { typing: true, usernamex: this.Username || '---' });
+        }
+        clearTimeout(this._typingTimer);
+        this._typingTimer = setTimeout(() => {
+          this._isTyping = false;
+          if (this.socket && this.socket.connected)
+            this.socket.emit('chatTyping', { typing: false, usernamex: this.Username || '---' });
+        }, 1500);
+      } else {
+        clearTimeout(this._typingTimer);
+        this._isTyping = false;
+        if (this.socket && this.socket.connected)
+          this.socket.emit('chatTyping', { typing: false, usernamex: this.Username || '---' });
+      }
+    }, undefined, 'chat');
+
+  }
+
+  // -----------------------------
+  // Envío de mensajes
+  // -----------------------------
+  /**
+   * GUARDA UN MENSAJE QUE LLEGA DEMASIADO PRONTO Y LO SUELTA A SU HORA.
+   *
+   * El servidor descarta lo que llegue a menos de un segundo del mensaje
+   * anterior. Antes el cliente se limitaba a avisar y a tirarlo — con el campo
+   * ya vacío, así que el jugador tenía que reescribirlo, y de ahí salía el
+   * mismo mensaje dos veces.
+   *
+   * Tope de cinco y sin repetidos: si alguien machaca la tecla de enviar, se
+   * queda con lo que escribió, no con veinte copias.
+   */
+  _encolarChat(texto, espera) {
+    this._colaEnvioChat = this._colaEnvioChat || [];
+    if (this._colaEnvioChat.indexOf(texto) < 0 && this._colaEnvioChat.length < 5) {
+      this._colaEnvioChat.push(texto);
+    }
+    if (this.chatInput) this.chatInput.value = '';
+    try { this._refrescarBotonEnviarChat && this._refrescarBotonEnviarChat(); } catch (_) {}
+    if (typeof this._cerrarSelectorEmojis === 'function') this._cerrarSelectorEmojis();
+
+    if (this._relojColaChat) return;         // ya hay uno en marcha
+    const soltar = () => {
+      this._relojColaChat = null;
+      if (!this._colaEnvioChat || !this._colaEnvioChat.length) return;
+      const siguiente = this._colaEnvioChat.shift();
+      const falta = this._chatRateLimitMs - (Date.now() - this._lastChatSent);
+      if (falta > 0) { this._relojColaChat = setTimeout(soltar, falta + 30); this._colaEnvioChat.unshift(siguiente); return; }
+      this._lastChatSent = Date.now();
+      this._enviarTextoAlChat(siguiente);
+      if (this._colaEnvioChat.length) {
+        this._relojColaChat = setTimeout(soltar, this._chatRateLimitMs + 30);
+      }
+    };
+    this._relojColaChat = setTimeout(soltar, Math.max(60, espera + 30));
+  }
+
+  /** Manda un texto por el socket. Lo usan el envío normal y la cola. */
+  _enviarTextoAlChat(texto) {
+    const s = this._socketVivo();
+    if (!s || !s.connected) {
+      this._colaChat = this._colaChat || [];
+      if (this._colaChat.length < 5) this._colaChat.push(texto);
+      if (s && s.disconnected) { try { s.connect(); } catch (e) {} }
+      this.appendSystemMessage('No connection. Your message will be sent as soon as it comes back.');
+      return;
+    }
+    if (s._necesitaJoin) this.rehacerJoin('antes de enviar un chat');
+    s.emit('chatMessage', { usernamex: this.Username || '---', text: texto });
+    this._showLocalChatBubble(texto);
+  }
+
+  _sendChatFromInput() {
+    if (!this.chatInput) return;
+    const text = this.chatInput.value.trim();
+    if (!text) return;
+
+    /* COMANDOS. `/add_friend "Fulano"` manda la solicitud y NO sale por el
+       chat. Va antes del freno antispam: un comando no es un mensaje y no debe
+       gastar el turno de escritura. (Igual que en GameScene.) */
+    try {
+      if (window.GFChatSocial && window.GFChatSocial.comando(this, text)) {
+        this.chatInput.value = '';
+        if (typeof this._cerrarSelectorEmojis === 'function') this._cerrarSelectorEmojis();
+        return;
+      }
+    } catch (e) { console.warn('comando de chat:', e); }
+
+    /* DEMASIADO PRONTO: SE GUARDA, NO SE TIRA. Ver `_encolarChat`. */
+    const now = Date.now();
+    const _espera = this._chatRateLimitMs - (now - this._lastChatSent);
+    if (_espera > 0) { this._encolarChat(text, _espera); return; }
+    this._lastChatSent = now;
+
+    /* El envío de verdad vive en UN solo sitio, `_enviarTextoAlChat`, que es el
+       mismo que usa la cola. */
+    this._enviarTextoAlChat(text);
+
+    if (typeof this._cerrarSelectorEmojis === 'function') this._cerrarSelectorEmojis();
+    this._isTyping = false;
+    clearTimeout(this._typingTimer);
+    const _s = this._socketVivo();
+    if (_s && _s.connected) {
+      _s.emit('chatTyping', { typing: false, usernamex: this.Username || '---' });
+    }
+    this.chatInput.value = '';
+  }
+
+  // -----------------------------
+  // Append messages (DOM safe)
+  // -----------------------------
+  // ─── Chat Bubble methods (same as GameScene) ────────────────────────────
+  _showLocalTyping(show) {
+    const bubble = document.getElementById('local-chat-bubble');
+    if (!bubble) return;
+    if (show) {
+      bubble.innerHTML = '<div class="chat-typing-dots"><span></span><span></span><span></span></div>';
+      bubble.style.display = 'flex';
+      this._positionLocalBubble(bubble);
+    } else { bubble.style.display = 'none'; bubble.innerHTML = ''; }
+  }
+  /**
+   * Convierte un punto del MUNDO a píxeles CSS del viewport.
+   *
+   * Se usa `cam.worldView` (el rectángulo de mundo que la cámara ve de verdad)
+   * en vez de reconstruirlo con scrollX/zoom y medias pantallas: worldView ya
+   * tiene en cuenta el zoom, los límites del mapa y el centrado.
+   *
+   * Después se pasa de unidades INTERNAS del juego a píxeles CSS con la
+   * proporción real del lienzo. En móvil el juego corre a 2× o 3× la
+   * resolución CSS y, sin esta conversión, las coordenadas salían dos o tres
+   * veces más grandes: la burbuja se iba fuera de la pantalla. El mensaje sí
+   * se mostraba — estaba colocado donde no se ve.
+   */
+  _mundoAPantalla(mundoX, mundoY) {
+    const cam = this.cameras && this.cameras.main;
+    const canvas = this.sys && this.sys.game && this.sys.game.canvas;
+    if (!cam || !canvas) return null;
+
+    const gx = (mundoX - cam.worldView.x) * cam.zoom;
+    const gy = (mundoY - cam.worldView.y) * cam.zoom;
+
+    const rect = canvas.getBoundingClientRect();
+    const escalaX = this.scale.width  ? rect.width  / this.scale.width  : 1;
+    const escalaY = this.scale.height ? rect.height / this.scale.height : 1;
+
+    return { x: rect.left + gx * escalaX, y: rect.top + gy * escalaY, escalaX, escalaY };
+  }
+
+  _positionLocalBubble(bubble) {
+    if (!this.player) return;
+    const p = this._mundoAPantalla(this.player.x, this.player.y);
+    if (!p) return;
+
+    const cam = this.cameras.main;
+    const sprH = (this.player.displayHeight || 64) * cam.zoom * p.escalaY;
+
+    // POSITION: FIXED, no absolute.
+    // El CSS de .player-chat-bubble la deja en `position:absolute` con
+    // `bottom:100%`, herencia de cuando colgaba del elemento del jugador.
+    // Absolute se resuelve contra el ancestro posicionado — y <body> lleva
+    // `transform: translateZ(0)` del CSS de rendimiento, lo que lo convierte en
+    // bloque contenedor. Como aquí se calculan coordenadas de VIEWPORT
+    // (getBoundingClientRect), lo correcto es fixed: así coinciden siempre,
+    // haya scroll o no. Y se anula `bottom` para que no compita con `top`.
+    bubble.style.position = 'fixed';
+    bubble.style.bottom = 'auto';
+    bubble.style.left = p.x + 'px';
+    bubble.style.top  = (p.y - sprH * 0.5 - 54) + 'px';
+    bubble.style.transform = 'translateX(-50%)';
+
+    // El mensaje dura lo que diga `_burbujaHasta`. Se reafirma la visibilidad
+    // en cada frame porque hay varios sitios que apagan el HUD en bloque
+    // (cambios de escena, entrar y salir de la batalla, paneles) y si alguno
+    // pilla la burbuja abierta la dejaba oculta antes de tiempo: ése era el
+    // "solo se ve un segundo". Mientras no venza su plazo, vuelve a salir.
+    if (this._burbujaHasta && Date.now() < this._burbujaHasta) {
+      if (bubble.style.display === 'none') bubble.style.display = 'flex';
+    }
+  }
+  _showLocalChatBubble(text) {
+    const bubble = document.getElementById('local-chat-bubble');
+    if (!bubble) return;
+    const lines = text.split('\n').slice(-3).join('\n');
+    bubble.innerHTML = `<div class="chat-bubble-msg own">${this._escHtml(lines)}</div>`;
+    bubble.style.display = 'flex';
+    // Plazo hasta el que la burbuja debe seguir viéndose. Lo consulta
+    // _positionLocalBubble para reafirmarla si algo la apagó antes de tiempo.
+    this._burbujaHasta = Date.now() + 4000;
+    this._positionLocalBubble(bubble);
+    clearTimeout(this._localBubbleTimer);
+    this._localBubbleTimer = setTimeout(() => {
+      this._burbujaHasta = 0;
+      bubble.style.display = 'none';
+      bubble.innerHTML = '';
+    }, 4000);
+  }
+  /* Aqui habia una `_escHtml` PISADA por otra del mismo nombre mas abajo (las
+     dos en la misma clase: gana la ultima). Se ha borrado la de aqui, que
+     ademas era la mala: no pasaba el valor por String() —asi que reventaba
+     con cualquier cosa que no fuera texto— y no escapaba las comillas
+     dobles. La que corre de verdad hace las dos cosas. */
+  _showRemoteChatBubble(playerId, text) {
+    const op = this.otherPlayers && this.otherPlayers[playerId];
+    if (!op || !op.sprite) return;
+    op._lastChatMsg = text;
+    // En reposo no se le ve: un bocadillo sin nadie debajo (gf-reposo.js).
+    if (window.GFReposo && !window.GFReposo.visible(op)) return;
+    if (op._chatContainer) { op._chatContainer.destroy(); op._chatContainer = null; }
+    if (op._typingContainer) { op._typingContainer.destroy(); op._typingContainer = null; }
+    clearTimeout(op._chatTimer);
+    clearTimeout(op._typingHideTimer);
+    const sprH = op.sprite.displayHeight || 64;
+    const clipped = text.length > 70 ? text.slice(0, 70) + '…' : text;
+    op._chatContainer = this.add.text(
+      op.sprite.x, op.sprite.y - sprH*0.5 - 50, clipped,
+      { fontFamily:'"PressStart2P"', fontSize:'7px', color:'#d0eaff',
+        backgroundColor:'rgba(8,18,45,0.90)', padding:{x:7,y:5},
+        wordWrap:{width:170}, stroke:'#001030', strokeThickness:2,
+        resolution:4, lineSpacing:4 }
+    ).setOrigin(0.5,1).setDepth(99998);
+    op._chatTimer = setTimeout(() => { if(op._chatContainer){op._chatContainer.destroy();op._chatContainer=null;} }, 5000);
+  }
+  _showRemoteTypingBubble(playerId, show) {
+    const op = this.otherPlayers && this.otherPlayers[playerId];
+    if (!op || !op.sprite) return;
+    if (op._typingContainer) { op._typingContainer.destroy(); op._typingContainer = null; }
+    clearTimeout(op._typingHideTimer);
+    if (!show || (window.GFReposo && !window.GFReposo.visible(op))) return;
+    const sprH = op.sprite.displayHeight || 64;
+    // Dots appear between name and message: just below name line (-14)
+    const dotsY = op.sprite.y - sprH*0.5 - 26;
+    op._typingContainer = this.add.text(
+      op.sprite.x, dotsY, '...',
+      { fontFamily:'"PressStart2P"', fontSize:'7px', color:'#80c8ff',
+        backgroundColor:'rgba(8,18,45,0.85)', padding:{x:7,y:4},
+        stroke:'#001030', strokeThickness:2, resolution:4 }
+    ).setOrigin(0.5,1).setDepth(99998);
+    op._typingHideTimer = setTimeout(() => { if(op._typingContainer){op._typingContainer.destroy();op._typingContainer=null;} }, 3500);
+  }
+
+
+  // =========================================================================
+  // MAIL PANEL — identical implementation used by both scenes
+  // =========================================================================
+  _openMailPanel() {
+    let panel = document.getElementById('_mail-panel-root');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = '_mail-panel-root';
+      panel.style.cssText = [
+        'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%)',
+        'width:400px;max-width:96vw;max-height:80vh',
+        'background:#0d1b2a;border:2px solid #1e3a5f;border-radius:10px',
+        'padding:18px;z-index:99999;color:#c8e8ff',
+        'font-family:"PressStart2P",cursive;display:flex;flex-direction:column;gap:10px',
+        'box-shadow:0 0 30px rgba(0,80,180,0.6)'
+      ].join(';');
+      panel.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:11px;color:#40a0ff;">📬 MAILBOX</span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button id="_mail-read-all" style="font-size:7px;padding:4px 8px;background:#1e3a5f;border:1px solid #40a0ff;border-radius:4px;color:#c8e8ff;cursor:pointer;font-family:inherit;">✔ Read All</button>
+            <button id="_mail-clear-all" style="font-size:7px;padding:4px 8px;background:#3a1e1e;border:1px solid #ff6060;border-radius:4px;color:#ffc8c8;cursor:pointer;font-family:inherit;">🗑 Clear All</button>
+            <button id="_mail-close" style="background:none;border:none;color:#c8e8ff;font-size:16px;cursor:pointer;line-height:1;">✕</button>
+          </div>
+        </div>
+        <div id="_mail-list" style="overflow-y:auto;max-height:55vh;display:flex;flex-direction:column;gap:8px;"></div>
+        <div id="_mail-empty" style="font-size:8px;text-align:center;color:#6080a0;padding:20px;display:none;">No messages</div>
+      `;
+      document.body.appendChild(panel);
+    }
+    panel.style.display = 'flex';
+    // En CADA apertura y con la escena viva (la marca `_wired` los dejaba
+    // atados a la primera escena que abrió el buzón).
+    const closeBtn = document.getElementById('_mail-close');
+    if (closeBtn) closeBtn.onclick = () => { panel.style.display = 'none'; };
+    const readAllBtn = document.getElementById('_mail-read-all');
+    if (readAllBtn) readAllBtn.onclick = () => this._markAllMailRead();
+    const clearAllBtn = document.getElementById('_mail-clear-all');
+    if (clearAllBtn) clearAllBtn.onclick = () => this._clearAllMail();
+    this._fetchMails();
+  }
+
+  async _fetchMails() {
+    if (!this.Username) return;
+    const list = document.getElementById('_mail-list');
+    const empty = document.getElementById('_mail-empty');
+    if (!list) return;
+    list.innerHTML = '<div style="font-size:7px;color:#6080a0;text-align:center;padding:12px;">Loading...</div>';
+    try {
+      const base = this.serverBase || this.serverclient1 || '';
+      const res = await fetch(`${base}/api/mail/${encodeURIComponent(this.Username)}`, { credentials:'include' });
+      const data = res.ok ? await res.json() : { mails: [] };
+      const mails = Array.isArray(data.mails) ? data.mails : [];
+      list.innerHTML = '';
+      if (mails.length === 0) { if (empty) empty.style.display = 'block'; return; }
+      if (empty) empty.style.display = 'none';
+      mails.forEach(mail => {
+        const item = document.createElement('div');
+        item.dataset.mailId = mail.id;
+        item.style.cssText = [
+          'display:flex;flex-direction:column;gap:4px',
+          `background:${mail.read ? '#0a1422' : '#112240'}`,
+          `border:1px solid ${mail.read ? '#1e3a5f' : '#2060a0'}`,
+          'border-radius:6px;padding:10px;position:relative'
+        ].join(';');
+        item.innerHTML = `
+          <button class="_mail-x" data-id="${mail.id}" style="position:absolute;top:6px;right:8px;background:none;border:none;color:#ff6060;font-size:13px;cursor:pointer;line-height:1;" title="Delete">✕</button>
+          <div style="font-size:8px;color:${mail.read ? '#6080a0' : '#40a0ff'};padding-right:20px;">${this._escHtml(mail.subject || '(no subject)')}</div>
+          <div style="font-size:7px;color:#c8e8ff;line-height:1.5;">${this._escHtml(mail.body || '')}</div>
+          <div style="font-size:6px;color:#405070;margin-top:2px;">${mail.from ? 'From: '+this._escHtml(mail.from) : ''} ${mail.date ? '· '+new Date(mail.date).toLocaleDateString() : ''}</div>
+        `;
+        list.appendChild(item);
+      });
+      list.querySelectorAll('._mail-x').forEach(btn => {
+        btn.onclick = () => this._deleteMail(btn.dataset.id);
+      });
+    } catch(e) {
+      if (list) list.innerHTML = '<div style="font-size:7px;color:#ff6060;text-align:center;padding:12px;">Error loading mail</div>';
+    }
+  }
+
+  async _markAllMailRead() {
+    const base = this.serverBase || this.serverclient1 || '';
+    try {
+      await fetch(`${base}/api/mail/${encodeURIComponent(this.Username)}/read-all`, {
+        method:'POST', credentials:'include',
+        headers:{'Content-Type':'application/json','X-CSRF-Token':window.getCsrfToken()}
+      });
+      this._fetchMails();
+    } catch(_) {}
+  }
+
+  async _clearAllMail() {
+    const base = this.serverBase || this.serverclient1 || '';
+    try {
+      await fetch(`${base}/api/mail/${encodeURIComponent(this.Username)}/clear`, {
+        method:'DELETE', credentials:'include',
+        headers:{'Content-Type':'application/json','X-CSRF-Token':window.getCsrfToken()}
+      });
+      this._fetchMails();
+    } catch(_) {}
+  }
+
+  async _deleteMail(mailId) {
+    if (!mailId) return;
+    const base = this.serverBase || this.serverclient1 || '';
+    try {
+      await fetch(`${base}/api/mail/${encodeURIComponent(this.Username)}/${encodeURIComponent(mailId)}`, {
+        method:'DELETE', credentials:'include',
+        headers:{'Content-Type':'application/json','X-CSRF-Token':window.getCsrfToken()}
+      });
+      this._fetchMails();
+    } catch(_) {}
+  }
+
+  /* Escapa tambien la comilla SIMPLE y trata null/undefined: si algun atributo
+     se escribe con comillas simples (`data-x='...'`), sin esto se sale de el.
+     Es el mismo escapado que usan GameScene, CraftingHub y missionspanel: que
+     los cuatro sean iguales evita justo el hueco que hubo aqui, donde convivian
+     dos versiones y la floja se comia a la buena. */
+  _escHtml(t) {
+    return String(t === null || t === undefined ? '' : t)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  /** Show a centered screen banner for 2.5 s (green by default, red if isError, blue if isInfo) */
+  _showCenterBanner(message, isError = false, isInfo = false) {
+    const old = document.getElementById('_save-success-banner');
+    if (old) old.remove();
+    const banner = document.createElement('div');
+    banner.id = '_save-success-banner';
+    banner.textContent = message;
+    Object.assign(banner.style, {
+      position:'fixed', top:'50%', left:'50%',
+      transform:'translate(-50%,-50%)',
+      background: isError ? 'rgba(180,30,30,0.93)' : isInfo ? 'rgba(20,40,80,0.93)' : 'rgba(20,80,40,0.93)',
+      color:'#ffffff',
+      border: isError ? '2px solid #ff6666' : isInfo ? '2px solid #4080ff' : '2px solid #66ff99',
+      borderRadius:'10px', padding:'18px 36px', fontSize:'14px',
+      fontFamily:'"PressStart2P",cursive,sans-serif', fontWeight:'bold',
+      zIndex:'99999', textAlign:'center',
+      boxShadow:'0 4px 32px rgba(0,0,0,0.7)', letterSpacing:'1px',
+      pointerEvents:'none', transition:'opacity 0.4s ease'
+    });
+    document.body.appendChild(banner);
+    setTimeout(() => { banner.style.opacity = '0'; }, 2100);
+    setTimeout(() => { if (banner.parentNode) banner.remove(); }, 2600);
+  }
+
+  /**
+   * Deshace el escapado HTML del servidor (ver la copia gemela de GameScene).
+   * Sin esto el chat mostraba literalmente "&#039;" en vez de un apóstrofo.
+   * Los emojis no se ven afectados: escapeHtml solo cambia & < > " '.
+   */
+  _montarSelectorEmojis() {
+    this._offDOM('emoji');
+    const boton = document.getElementById('chat-emoji-btn');
+    const panel = document.getElementById('chat-emoji-picker');
+    if (!boton || !panel || !this.chatInput) return;
+
+    /* EL CATÁLOGO SALE DE gf-chat-social, NO DE AQUÍ.
+
+       Dos motivos. El primero, que estaba escrito TRES veces (aquí, en la
+       tienda y en el selector de los privados) y tres copias de una lista
+       acaban distintas — el jugador ve emojis en un sitio que en otro no.
+
+       El segundo es el que lo rompía: varios de los que había son de Unicode 13
+       y 14, y la fuente de Windows 10 se quedó en el 12. Un emoji que la fuente
+       no tiene se pinta como un CUADRADO VACÍO y no hay forma de saberlo desde
+       CSS. El módulo los detecta dibujándolos en un lienzo y solo devuelve los
+       que este equipo sabe pintar. */
+    const CATEGORIAS = (window.GFChatSocial && window.GFChatSocial.categoriasEmojiUsables)
+      ? window.GFChatSocial.categoriasEmojiUsables()
+      : [{ nombre: 'Emojis', lista: ['😀','😄','😉','🙂','😢','😡','👍','👎','❤️','🔥','✅','❌'] }];
+
+    // Rejilla (se construye una sola vez)
+    if (!panel.dataset.gfListo) {
+      panel.dataset.gfListo = '1';
+      CATEGORIAS.forEach(cat => {
+        const titulo = document.createElement('div');
+        titulo.className = 'chat-emoji-cat';
+        titulo.textContent = cat.nombre;
+        panel.appendChild(titulo);
+
+        const rejilla = document.createElement('div');
+        rejilla.className = 'chat-emoji-grid';
+        cat.lista.forEach(emoji => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = emoji;
+          b.title = emoji;
+          // pointerdown + preventDefault: así el campo de texto NO pierde el
+          // foco y el cursor se queda donde estaba.
+          b.dataset.gfEmoji = emoji;
+          rejilla.appendChild(b);
+        });
+        panel.appendChild(rejilla);
+      });
+    }
+
+    const abrirCerrar = (forzar) => {
+      const abierto = (typeof forzar === 'boolean') ? forzar : panel.classList.contains('hidden');
+      panel.classList.toggle('hidden', !abierto);
+      boton.classList.toggle('open', abierto);
+      if (abierto) {
+        // En el móvil, abrir la rejilla con el teclado subido deja el chat sin
+        // sitio: se baja el teclado y se deja la rejilla a la vista.
+        try { this.chatInput.blur(); } catch (_) {}
+        panel.scrollTop = 0;
+      }
+    };
+
+    {
+      this._onDOM(boton, 'click', (e) => { e.preventDefault(); e.stopPropagation(); abrirCerrar(); }, undefined, 'emoji');
+      // Cerrar al tocar fuera del chat.
+      this._onDOM(document, 'pointerdown', (e) => {   // FIX FUGA: era anónimo
+        if (panel.classList.contains('hidden')) return;
+        if (panel.contains(e.target) || boton.contains(e.target)) return;
+        abrirCerrar(false);
+      }, undefined, 'emoji');
+    }
+
+    this._onDOM(panel, 'pointerdown', (e) => {
+      const button = e.target.closest?.('.chat-emoji-grid button');
+      if (!button || !panel.contains(button)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this._insertarEmojiEnChat(button.dataset.gfEmoji || button.textContent);
+    }, undefined, 'emoji');
+    this._cerrarSelectorEmojis = () => abrirCerrar(false);
+  }
+
+  /** Mete el emoji donde esté el cursor del campo de chat. */
+  _insertarEmojiEnChat(emoji) {
+    const input = this.chatInput;
+    if (!input) return;
+
+    const max = parseInt(input.getAttribute('maxlength'), 10) || 140;
+    const ini = (typeof input.selectionStart === 'number') ? input.selectionStart : input.value.length;
+    const fin = (typeof input.selectionEnd === 'number') ? input.selectionEnd : input.value.length;
+
+    const nuevo = (input.value.slice(0, ini) + emoji + input.value.slice(fin));
+    if (nuevo.length > max) {
+      this.notifications && this.notifications.show('Message is too long', 'warning');
+      return;
+    }
+    input.value = nuevo;
+
+    // Dejar el cursor detrás del emoji (los emojis ocupan 2 unidades o más).
+    const pos = ini + emoji.length;
+    try { input.focus(); input.setSelectionRange(pos, pos); } catch (_) {}
+  }
+
+  _desescaparChat(texto) {
+    return String(texto == null ? '' : texto)
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#0?39;/g, "'")
+      .replace(/&#x27;/gi, "'")
+      .replace(/&amp;/g, '&');
+  }
+
+  appendMessage(m , playerInfo) {
+    // Acepta undefined y lo maneja defensivamente
+    const msg = m || {};
+    // Si el servidor no escapó, aquí usamos textContent para evitar HTML inyectado.
+    const name = this._desescaparChat(msg.playerName || '---');
+    const text = this._desescaparChat(msg.text || '');
+    const ts = msg.ts ? new Date(msg.ts) : new Date();
+
+    // Crear elementos sin usar innerHTML
+    const line = document.createElement('div');
+    line.className = 'chat-line';
+
+    const strong = document.createElement('strong');
+    strong.textContent = name + ((this.socket && msg.id === this.socket.id) ? ' (you):' : ':');
+    strong.style.color = '#b3ffb3';
+
+    /* El texto en su propio <span> y no en un nodo suelto: un nodo de texto no
+       se puede localizar ni sustituir, y sin eso no hay forma de EDITAR un
+       mensaje ya pintado. Se sigue rellenando con textContent. (Mismo cambio
+       que en GameScene.appendMessage.) */
+    const textSpan = document.createElement('span');
+    textSpan.className = 'chat-text';
+    textSpan.textContent = ' ' + text;
+
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'chat-time';
+    timeSpan.textContent = ts.toLocaleTimeString();
+
+    line.appendChild(strong);
+    line.appendChild(textSpan);
+    line.appendChild(timeSpan);
+
+    if (!this.chatMessages) {
+      // Si no hay DOM (p. ej. game ejecutándose sin UI), imprimir por consola
+      console.log(`[CHAT] ${name}: ${text} (${timeSpan.textContent})`);
+      return;
+    }
+
+    // Reacciones, editar una vez y el color del nombre. Ver gf-chat-social.js.
+    try {
+      if (window.GFChatSocial) window.GFChatSocial.decorar(this, msg, line, strong, textSpan);
+    } catch (e) { console.warn('chat social:', e); }
+
+    this.chatMessages.appendChild(line);
+    this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+  }
+
+  appendSystemMessage(text) {
+    const line = document.createElement('div');
+    line.className = 'chat-line';
+    line.style.color = '#ffb3b3';
+    line.textContent = text;
+    if (this.chatMessages) {
+      this.chatMessages.appendChild(line);
+      this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+    } else {
+      console.warn('System message:', text);
+    }
+  }
+
+  // -----------------------------
+  // Cleanup
+  // -----------------------------
+  _onShutdown() {
+    /* EL SOCKET ES DE LA PÁGINA, NO DE ESTA ESCENA. NO SE TOCA.
+
+       ESTE ERA EL FALLO GORDO DE LA RECONEXIÓN — "se cae el chat y ya no
+       vuelve; mis amigos se ven moverse y yo no los veo".
+
+       Aquí había dos líneas demoledoras sobre `window.globalSocket`, que es
+       COMPARTIDO por el mapa, la tienda y el combate:
+
+         · `socket.off()`  — sin argumentos borra TODOS los oyentes del socket,
+           incluidos los globales ('connect', 'disconnect', 'rejoinRequired')
+           que pone setupGlobalSocketEvents. Y como la bandera
+           `_globalEventsSet` seguía en true, no se volvían a poner NUNCA. A
+           partir de ahí el socket se quedaba sordo: podía reconectarse mil
+           veces, pero ya nadie se enteraba, así que nadie rehacía el joinRoom.
+           Conectado y fuera de la sala = ni chat, ni jugadores, para siempre.
+
+         · `socket.disconnect()` — tiraba la conexión de todos, y encima el
+           vigilante de 5 s la resucitaba luego sin oyentes.
+
+       Y esto se disparaba en CADA 'shutdown' y 'destroy', o sea en cada viaje
+       al mapa, a la tienda o a un combate.
+
+       Lo correcto es quitar solo lo que puso ESTA escena. La conexión sigue
+       viva para la siguiente, con sus oyentes globales intactos. */
+    try { this.removeSocketListeners(); } catch (e) { /* ignore */ }
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+// ================================
+// SISTEMA DE SONIDO Y PANEL DE AUDIO - VERSIÓN CORREGIDA
+// ================================
+
+// Versión más segura con verificación
+stopMusicSafely() {
+  try {
+    if (!this.audioState) {
+      console.warn('⚠️ Sistema de audio no inicializado');
+      return false;
+    }
+    
+    if (!this.audioState.currentMusic) {
+      console.log('ℹ️ No hay música activa');
+      return false;
+    }
+    
+    // Verificar si la música está realmente reproduciéndose
+    if (this.audioState.currentMusic.isPlaying) {
+      this.audioState.currentMusic.stop();
+    }
+    
+    // Limpiar
+    this.audioState.currentMusic.destroy();
+    this.audioState.currentMusic = null;
+    this.audioState.currentMusicKey = null;
+    
+    console.log('⏹️ Música detenida correctamente');
+    return true;
+    
+  } catch (error) {
+    console.error('❌ Error al detener música:', error);
+    return false;
+  }
+}
+
+// Inicializar el sistema de audio
+initAudioSystem() {
+  GameScene.prototype._disposeSceneAudio.call(this);
+  console.log('🎵 Inicializando sistema de audio...');
+  
+  // Estado del audio — volúmenes REALES (lo que se guarda) separados de los APLICADOS (consideran mute)
+  this.audioState = {
+    _musicVolumeReal: 0.7,
+    _sfxVolumeReal: 0.7,
+    musicVolumeApplied: 0.7,
+    sfxVolumeApplied: 0.7,
+    musicMuted: false,
+    sfxMuted: false,
+    currentMusic: null,
+    currentMusicKey: null,
+    activeSFX: new Set()
+  };
+  
+  // Cargar configuración guardada
+  this.loadAudioSettings();
+  
+  // Recalcular aplicados tras cargar
+  this.audioState.musicVolumeApplied = this.audioState.musicMuted ? 0 : this.audioState._musicVolumeReal;
+  this.audioState.sfxVolumeApplied   = this.audioState.sfxMuted   ? 0 : this.audioState._sfxVolumeReal;
+  // NO usar this.sound.volume aquí porque afectaría también a la música
+  
+  // Inicializar panel de sonido
+  this.initSoundHub();
+  
+  this.sfxGroup = this.sound;
+  
+  console.log('✅ Sistema de audio inicializado');
+}
+
+// Cargar configuración de audio desde localStorage
+loadAudioSettings() {
+  try {
+    // Usar las mismas claves que GameScene para compartir configuración entre escenas
+    const musicVol  = localStorage.getItem('grassland_music_volume');
+    const sfxVol    = localStorage.getItem('grassland_sfx_volume');
+    const musicMute = localStorage.getItem('grassland_music_muted');
+    const sfxMute   = localStorage.getItem('grassland_sfx_muted');
+
+    if (musicVol  !== null) this.audioState._musicVolumeReal = Phaser.Math.Clamp(parseFloat(musicVol), 0, 1);
+    if (sfxVol    !== null) this.audioState._sfxVolumeReal   = Phaser.Math.Clamp(parseFloat(sfxVol),   0, 1);
+    if (musicMute !== null) this.audioState.musicMuted = musicMute === 'true';
+    if (sfxMute   !== null) this.audioState.sfxMuted   = sfxMute   === 'true';
+
+    console.log('🔊 Configuración de audio cargada');
+  } catch (error) {
+    console.warn('⚠️ Error cargando configuración de audio:', error);
+  }
+}
+
+// Guardar configuración de audio
+saveAudioSettings() {
+  try {
+    // Mismas claves que GameScene para compartir configuración entre escenas
+    localStorage.setItem('grassland_music_volume', this.audioState._musicVolumeReal.toString());
+    localStorage.setItem('grassland_sfx_volume',   this.audioState._sfxVolumeReal.toString());
+    localStorage.setItem('grassland_music_muted',  this.audioState.musicMuted.toString());
+    localStorage.setItem('grassland_sfx_muted',    this.audioState.sfxMuted.toString());
+    
+    console.log('💾 Configuración de audio guardada');
+    
+  } catch (error) {
+    console.error('❌ Error guardando configuración de audio:', error);
+    this.showNotification('Error saving settings', 'error');
+  }
+}
+
+// Inicializar el panel de sonido
+initSoundHub() {
+  const panel = document.getElementById('sound-hub-panel');
+  if (!panel) {
+    console.error('❌ No se encontró el panel de sonido en el DOM');
+    return;
+  }
+  
+  // Referencias a elementos DOM
+  this.soundHubElements = {
+    panel: panel,
+    closeBtn: document.getElementById('sound-hub-close'),
+    musicSlider: document.getElementById('music-slider'),
+    musicPercent: document.getElementById('music-percent'),
+    musicSliderFill: document.getElementById('music-slider-fill'),
+    musicTestBtn: document.getElementById('music-test-btn'),
+    musicMuteBtn: document.getElementById('music-mute-btn'),
+    sfxSlider: document.getElementById('sfx-slider'),
+    sfxPercent: document.getElementById('sfx-percent'),
+    sfxSliderFill: document.getElementById('sfx-slider-fill'),
+    sfxTestBtn: document.getElementById('sfx-test-btn'),
+    sfxMuteBtn: document.getElementById('sfx-mute-btn'),
+    musicSelect: document.getElementById('music-select'),
+    musicChangeBtn: document.getElementById('music-change-btn'),
+    saveBtn: document.getElementById('sound-save-btn')
+  };
+  
+  // Inicializar valores de los controles
+  this.updateSoundHubControls();
+  
+  // Configurar event listeners
+  this.setupSoundHubEvents();
+  
+  console.log('✅ Panel de sonido inicializado');
+}
+
+// Actualizar controles del panel con los valores actuales
+updateSoundHubControls() {
+  const el = this.soundHubElements;
+  
+  if (!el.musicSlider || !el.sfxSlider) return;
+  
+  // Valores de música
+  const musicValue = Math.round(this.audioState._musicVolumeReal * 100);
+  el.musicSlider.value = musicValue;
+  el.musicPercent.textContent = `${musicValue}%`;
+  el.musicSliderFill.style.width = `${musicValue}%`;
+  el.musicMuteBtn.textContent = this.audioState.musicMuted ? 'Activar' : 'Silenciar';
+  el.musicMuteBtn.classList.toggle('muted', this.audioState.musicMuted);
+  
+  // Valores de efectos
+  const sfxValue = Math.round(this.audioState._sfxVolumeReal * 100);
+  el.sfxSlider.value = sfxValue;
+  el.sfxPercent.textContent = `${sfxValue}%`;
+  el.sfxSliderFill.style.width = `${sfxValue}%`;
+  el.sfxMuteBtn.textContent = this.audioState.sfxMuted ? 'Activar' : 'Silenciar';
+  el.sfxMuteBtn.classList.toggle('muted', this.audioState.sfxMuted);
+  
+  // Actualizar música actual en el selector
+  if (this.audioState.currentMusicKey && el.musicSelect) {
+    el.musicSelect.value = this.audioState.currentMusicKey;
+  }
+}
+
+// Configurar eventos del panel de sonido
+setupSoundHubEvents() {
+  this._offDOM('sound-hub');
+  const el = this.soundHubElements;
+  
+  // Cerrar panel
+  if (el.closeBtn) {
+    this._onDOM(el.closeBtn, 'click', () => {
+      this.hideSoundHub();
+    }, undefined, 'sound-hub');
+  }
+  
+  // Control deslizante de música
+  if (el.musicSlider) {
+    this._onDOM(el.musicSlider, 'input', (e) => {
+      const value = parseInt(e.target.value);
+      el.musicPercent.textContent = `${value}%`;
+      el.musicSliderFill.style.width = `${value}%`;
+      
+      // Actualizar volumen real y aplicar a la música actual
+      this.audioState._musicVolumeReal = value / 100;
+      if (!this.audioState.musicMuted) {
+        this.audioState.musicVolumeApplied = value / 100;
+        if (this.audioState.currentMusic) {
+          this.audioState.currentMusic.setVolume(value / 100);
+        }
+      }
+      // Guardar automáticamente sin notificación
+      try {
+        localStorage.setItem('grassland_music_volume', this.audioState._musicVolumeReal.toString());
+        localStorage.setItem('grassland_music_muted',  this.audioState.musicMuted.toString());
+      } catch(err) { /* ignorar */ }
+    }, undefined, 'sound-hub');
+  }
+  
+  // Botón de prueba de música
+  if (el.musicTestBtn) {
+    this._onDOM(el.musicTestBtn, 'click', () => {
+      this.playTestMusic();
+    }, undefined, 'sound-hub');
+  }
+  
+  // Botón de silenciar música
+  if (el.musicMuteBtn) {
+    this._onDOM(el.musicMuteBtn, 'click', () => {
+      this.toggleMusicMute();
+      try {
+        localStorage.setItem('grassland_music_muted', this.audioState.musicMuted.toString());
+      } catch(err) { /* ignorar */ }
+    }, undefined, 'sound-hub');
+  }
+  
+  // Control deslizante de efectos
+  if (el.sfxSlider) {
+    this._onDOM(el.sfxSlider, 'input', (e) => {
+      const value = parseInt(e.target.value);
+      el.sfxPercent.textContent = `${value}%`;
+      el.sfxSliderFill.style.width = `${value}%`;
+      
+      // Actualizar volumen real — NO usar this.sound.volume porque afecta también la música
+      this.audioState._sfxVolumeReal = value / 100;
+      if (!this.audioState.sfxMuted) {
+        this.audioState.sfxVolumeApplied = value / 100;
+        if (this.audioState.activeSFX) {
+          this.audioState.activeSFX.forEach(s => { if (s.isPlaying) s.setVolume(value / 100); });
+        }
+      }
+      // Guardar automáticamente sin notificación
+      try {
+        localStorage.setItem('grassland_sfx_volume', this.audioState._sfxVolumeReal.toString());
+        localStorage.setItem('grassland_sfx_muted',  this.audioState.sfxMuted.toString());
+      } catch(err) { /* ignorar */ }
+    }, undefined, 'sound-hub');
+  }
+  
+  // Botón de prueba de efectos
+  if (el.sfxTestBtn) {
+    this._onDOM(el.sfxTestBtn, 'click', () => {
+      this.playTestSFX();
+    }, undefined, 'sound-hub');
+  }
+  
+  // Botón de silenciar efectos
+  if (el.sfxMuteBtn) {
+    this._onDOM(el.sfxMuteBtn, 'click', () => {
+      this.toggleSFXMute();
+      try {
+        localStorage.setItem('grassland_sfx_muted', this.audioState.sfxMuted.toString());
+      } catch(err) { /* ignorar */ }
+    }, undefined, 'sound-hub');
+  }
+  
+  // Botón para cambiar música
+  if (el.musicChangeBtn) {
+    this._onDOM(el.musicChangeBtn, 'click', () => {
+      const selectedMusic = el.musicSelect ? el.musicSelect.value : 'default';
+      this.changeMusic(selectedMusic);
+    }, undefined, 'sound-hub');
+  }
+  
+  // Botón de guardar
+  if (el.saveBtn) {
+    this._onDOM(el.saveBtn, 'click', () => {
+      this.saveAudioSettings();
+      this._showCenterBanner('Configuration Saved');
+      this.hideSoundHub();
+    }, undefined, 'sound-hub');
+  }
+  
+  // Cerrar al presionar Escape
+  this._onDOM(document, 'keydown', (e) => {   // FIX FUGA: era anónimo
+    if (e.key === 'Escape' && this.isSoundHubVisible()) {
+      this.hideSoundHub();
+    }
+  });
+  
+  // Cerrar al hacer clic fuera del panel
+  if (el.panel) {
+    this._onDOM(el.panel, 'click', (e) => {
+      if (e.target === el.panel) {
+        this.hideSoundHub();
+      }
+    }, undefined, 'sound-hub');
+  }
+}
+
+// Mostrar panel de sonido
+showSoundHub() {
+  const panel = this.soundHubElements.panel;
+  if (!panel) return;
+  
+  // Actualizar controles antes de mostrar
+  this.updateSoundHubControls();
+  
+  // Mostrar panel
+  panel.classList.remove('sound-hub-hidden');
+  panel.classList.add('sound-hub-visible');
+  panel.setAttribute('aria-hidden', 'false');
+  
+  // NOTE: Do NOT pause the scene — pausing causes the GameScene background
+  // to render visibly and then disappear when resumed, which is confusing.
+  
+  console.log('🔊 Panel de sonido mostrado');
+}
+
+// Ocultar panel de sonido
+hideSoundHub() {
+  const panel = this.soundHubElements.panel;
+  if (!panel) return;
+  
+  // Ocultar panel
+  panel.classList.remove('sound-hub-visible');
+  panel.classList.add('sound-hub-hidden');
+  panel.setAttribute('aria-hidden', 'true');
+  
+  // NOTE: scene was not paused, so no need to resume
+  
+  console.log('🔊 Panel de sonido ocultado');
+}
+
+// Verificar si el panel está visible
+isSoundHubVisible() {
+  const panel = this.soundHubElements.panel;
+  return panel && panel.classList.contains('sound-hub-visible');
+}
+
+// Cambiar texto del botón de guardar
+setSaveButtonText(text) {
+  const saveBtn = this.soundHubElements.saveBtn;
+  if (saveBtn) {
+    saveBtn.textContent = text;
+    console.log(`🔧 Texto del botón de guardar cambiado a: "${text}"`);
+  }
+}
+
+// ================================
+// FUNCIONES DE CONTROL DE AUDIO
+// ================================
+
+// Establecer volumen de música (0-1)
+setMusicVolume(volume) {
+  const clamped = Phaser.Math.Clamp(volume, 0, 1);
+  this.audioState._musicVolumeReal = clamped;
+  if (!this.audioState.musicMuted) {
+    this.audioState.musicVolumeApplied = clamped;
+    if (this.audioState.currentMusic) {
+      this.audioState.currentMusic.setVolume(clamped);
+    }
+  }
+  console.log(`🎵 Volumen de música: ${clamped}`);
+}
+
+// Establecer volumen de efectos (0-1) — NO usar this.sound.volume porque afecta la música
+setSFXVolume(volume) {
+  const clamped = Phaser.Math.Clamp(volume, 0, 1);
+  this.audioState._sfxVolumeReal = clamped;
+  if (!this.audioState.sfxMuted) {
+    this.audioState.sfxVolumeApplied = clamped;
+    if (this.audioState.activeSFX) {
+      this.audioState.activeSFX.forEach(s => { if (s.isPlaying) s.setVolume(clamped); });
+    }
+  }
+  console.log(`🔊 Volumen de efectos: ${clamped}`);
+}
+
+// Alternar silencio de música
+toggleMusicMute() {
+  this.audioState.musicMuted = !this.audioState.musicMuted;
+  
+  if (this.audioState.musicMuted) {
+    this.audioState.musicVolumeApplied = 0;
+    if (this.audioState.currentMusic) this.audioState.currentMusic.setVolume(0);
+  } else {
+    this.audioState.musicVolumeApplied = this.audioState._musicVolumeReal;
+    if (this.audioState.currentMusic) this.audioState.currentMusic.setVolume(this.audioState._musicVolumeReal);
+  }
+  
+  this.updateSoundHubControls();
+  console.log(`🎵 Música ${this.audioState.musicMuted ? 'silenciada' : 'activada'}`);
+}
+
+// Alternar silencio de efectos — NO usar this.sound.volume porque afecta la música
+toggleSFXMute() {
+  this.audioState.sfxMuted = !this.audioState.sfxMuted;
+  
+  if (this.audioState.sfxMuted) {
+    this.audioState.sfxVolumeApplied = 0;
+    if (this.audioState.activeSFX) {
+      this.audioState.activeSFX.forEach(s => { if (s.isPlaying) s.setVolume(0); });
+    }
+  } else {
+    this.audioState.sfxVolumeApplied = this.audioState._sfxVolumeReal;
+    if (this.audioState.activeSFX) {
+      this.audioState.activeSFX.forEach(s => { if (s.isPlaying) s.setVolume(this.audioState._sfxVolumeReal); });
+    }
+  }
+  
+  this.updateSoundHubControls();
+  console.log(`🔊 Efectos ${this.audioState.sfxMuted ? 'silenciados' : 'activados'}`);
+}
+
+// Reproducir música
+playMusic(...args) { return GameScene.prototype.playMusic.apply(this, args); }
+
+// Cambiar música
+changeMusic(...args) { return GameScene.prototype.changeMusic.apply(this, args); }
+
+// Reproducir efecto de sonido
+playSFX(...args) { return GameScene.prototype.playSFX.apply(this, args); }
+
+// Reproducir música de prueba
+playTestMusic(...args) { return GameScene.prototype.playTestMusic.apply(this, args); }
+
+// Reproducir efecto de prueba
+playTestSFX() {
+  try {
+    // Verificar si existe un sonido de prueba
+    const testSounds = ['click-sound', 'test-beep', 'test-sfx'];
+    
+    for (const soundKey of testSounds) {
+      if (this.cache.audio.exists(soundKey)) {
+        this.playSFX(soundKey, {
+          volume: this.audioState.sfxMuted ? 0 : this.audioState.sfxVolume
+        });
+        console.log(`🔊 Reproduciendo efecto de prueba: ${soundKey}`);
+        return;
+      }
+    }
+    
+    // Si no hay sonidos cargados, crear un tono simple
+    console.log('🔊 Sin efectos cargados, creando tono de prueba...');
+    this.createTestBeep();
+    
+  } catch (error) {
+    console.warn('⚠️ Error en prueba de efectos:', error);
+  }
+}
+
+// Crear un beep de prueba simple
+createTestBeep() {
+  try {
+    // Crear un contexto de audio web simple
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.frequency.value = 440; // 440 Hz (La)
+    oscillator.type = 'sine';
+    
+    gainNode.gain.value = this.audioState.sfxMuted ? 0 : this.audioState.sfxVolume * 0.1;
+    
+    oscillator.start();
+    setTimeout(() => {
+      oscillator.stop();
+      audioContext.close();
+    }, 200);
+    
+    console.log('🔊 Tono de prueba generado');
+  } catch (error) {
+    console.warn('⚠️ No se pudo crear tono de prueba:', error);
+  }
+}
+
+
+
+
+
+
+
+
+  resize(gameSize) {
+    const width = gameSize.width;
+    const height = gameSize.height;
+
+    console.log(width, height);
+
+    if (width <= 500) {
+      this.cameras.resize(width, height);
+      this.cameras.main.setZoom(0.01);
+    } else if (width <= 727) {
+      this.cameras.resize(width, height);
+      this.cameras.main.setZoom(0.2);
+    } else if (width <= 849) {
+      this.cameras.resize(width, height);
+      this.cameras.main.setZoom(0.5);
+    } else if (width <= 1272 && height <= 640) {
+      this.cameras.resize(width, height);
+      this.cameras.main.setZoom(1);
+    } else if (width >= 1590 && height >= 800) {
+      this.cameras.resize(width, height);
+      this.cameras.main.setZoom(1.5);
+    } else if (width >= 1920 && height >= 1080) {
+      this.cameras.resize(width, height);
+      this.cameras.main.setZoom(2);
+    } else if (width >= 2706 && height >= 1920) {
+      this.cameras.resize(width, height);
+      this.cameras.main.setZoom(3);
+    } else if (width >= 3608 && height >= 2560) {
+      this.cameras.resize(width, height);
+      this.cameras.main.setZoom(4);
+    }
+  }
+
+
+// Selecciona/activa la casilla rápida índice (0..6) — ahora con toggle
+selectQuickSlot(index) {
+  if (!this.STATE || !Array.isArray(this.STATE.quickSlots)) return;
+  const quickDiv = document.querySelector(`.quick-slot[data-slot-index="${index}"]`);
+  const rect = quickDiv ? quickDiv.getBoundingClientRect() : { left: 0, top: 0, width: 32, height: 32 };
+  const clickX = rect.left + rect.width / 2;
+  const clickY = rect.top  + rect.height / 2;
+
+  // Si ya estaba seleccionada, la volvemos a "clickear" para soltarla y deseleccionarla
+  if (this.selectedQuickIndex === index) {
+    try {
+      // Simula el segundo click (esto normalmente coloca el item de vuelta / suelta)
+      this.handleSlotClick('quick', index, clickX, clickY);
+    } catch (e) {
+      console.warn('selectQuickSlot toggle: handleSlotClick falló al intentar soltar.', e);
+    }
+    // Quitamos el resaltado y el índice seleccionado
+    this.highlightQuickSlot(null);
+    this.selectedQuickIndex = null;
+    return;
+  }
+
+  // Si se selecciona una casilla distinta: ejecutar click normal y resaltar
+  try {
+    this.handleSlotClick('quick', index, clickX, clickY);
+  } catch (e) {
+    console.warn('selectQuickSlot: handleSlotClick falló al intentar seleccionar.', e);
+  }
+  this.highlightQuickSlot(index);
+  this.selectedQuickIndex = index;
+}
+
+// Añade/remueve una clase CSS para mostrar qué quick slot está seleccionado
+// Acepta index o null (null = quitar todos)
+highlightQuickSlot(index) {
+  document.querySelectorAll('.quick-slot').forEach((el, i) => {
+    if (index !== null && i === index) {
+      el.classList.add('quick-selected');
+    } else {
+      el.classList.remove('quick-selected');
+    }
+  });
+}
+
+
+
+// En la clase tiendajuego:
+shutdown() {
+  this.performCleanup();
+}
+
+
+destroy() {
+  this.shutdown();
+}
+
+
+
+  toggleHubInfo() {
+    this.hubInfo.classList.toggle("collapsed");
+    const estado = this.hubInfo.classList.contains("collapsed");
+    localStorage.setItem("hubInfoCollapsed", estado.toString());
+    console.log("Estado guardado:", estado);
+  }
+
+  loadState() {
+    const estadoGuardado = localStorage.getItem("hubInfoCollapsed");
+    if (estadoGuardado === "true") {
+      this.hubInfo.classList.add("collapsed");
+    } else {
+      this.hubInfo.classList.remove("collapsed");
+    }
+  }
+
+  removeListener() {
+    this.profileImage.removeEventListener("click", this.toggleHubInfo);
+  }
+
+
+
+ makeElementDraggable(elementId) {
+  this._offDOM('drag:' + elementId);
+    const panel = document.getElementById(elementId);
+
+    if (!panel) {
+        console.warn(`Elemento con id ${elementId} no encontrado`);
+        return;
+    }
+
+    if (!window.activeDraggablePanel) window.activeDraggablePanel = null;
+
+    const originalDisplay = panel.style.display;
+    const originalVisibility = panel.style.visibility;
+
+    panel.style.position = "fixed";
+    panel.style.zIndex = "1000";
+
+    let isDragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
+    let startX = 0;
+    let startY = 0;
+
+    const bringToFront = () => {
+        if (window.activeDraggablePanel && window.activeDraggablePanel !== panel) {
+            window.activeDraggablePanel.style.zIndex = "1000";
+        }
+        panel.style.zIndex = "1001";
+        window.activeDraggablePanel = panel;
+    };
+
+    const centerPanel = () => {
+        const hasPosition = panel.style.left && panel.style.top;
+        if (!hasPosition) {
+            const currentDisplay = panel.style.display;
+            const currentVisibility = panel.style.visibility;
+
+            panel.style.display = 'block';
+            panel.style.visibility = 'hidden';
+            panel.style.opacity = '0';
+
+            const rect = panel.getBoundingClientRect();
+            const panelWidth = rect.width;
+            const panelHeight = rect.height;
+
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+
+            panel.style.left = `${Math.max(0, (viewportWidth - panelWidth) / 2)}px`;
+            panel.style.top = `${Math.max(0, (viewportHeight - panelHeight) / 3)}px`;
+            panel.style.transform = "none";
+
+            panel.style.display = currentDisplay;
+            panel.style.visibility = currentVisibility;
+            panel.style.opacity = '';
+
+            console.log(`Panel ${elementId} posicionado centrado (pero no visible):`, {
+                left: panel.style.left,
+                top: panel.style.top
+            });
+        }
+    };
+
+    const startDrag = (clientX, clientY) => {
+        bringToFront();
+        isDragging = true;
+        startX = clientX;
+        startY = clientY;
+
+        const rect = panel.getBoundingClientRect();
+        offsetX = clientX - rect.left;
+        offsetY = clientY - rect.top;
+
+        document.body.style.userSelect = "none";
+        panel.style.boxShadow = "0 0 15px rgba(0, 0, 0, 0.6)";
+        panel.style.opacity = "0.95";
+    };
+
+    const drag = (clientX, clientY) => {
+        if (!isDragging) return;
+
+        let newLeft = clientX - offsetX;
+        let newTop = clientY - offsetY;
+
+        const rect = panel.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        newLeft = Math.max(0, Math.min(newLeft, viewportWidth - rect.width));
+        newTop = Math.max(0, Math.min(newTop, viewportHeight - rect.height));
+
+        panel.style.left = `${newLeft}px`;
+        panel.style.top = `${newTop}px`;
+        panel.style.transform = "none";
+    };
+
+    const endDrag = () => {
+        if (!isDragging) return;
+        isDragging = false;
+
+        document.body.style.userSelect = "";
+        document.body.style.cursor = "";
+        // Restore custom game cursor after drag
+        if (this.input && this.input.setDefaultCursor) {
+          this.input.setDefaultCursor('url("./Game/Source/cursor.png") 8 8, pointer');
+        }
+
+        panel.style.boxShadow = "";
+        panel.style.opacity = "1";
+
+        console.log(`Panel ${elementId} liberado en posición:`, {
+            left: panel.style.left,
+            top: panel.style.top
+        });
+    };
+
+    // Guardar referencias de funciones para remover listeners luego
+    const panelDragHandlers = {
+        mousedown: (e) => { if (e.button === 0) { startDrag(e.clientX, e.clientY); e.stopPropagation(); } },
+        touchstart: (e) => { if (e.touches.length === 1) { const t = e.touches[0]; startDrag(t.clientX, t.clientY); e.stopPropagation(); } },
+        dragstart: (e) => { e.preventDefault(); }
+    };
+
+    const dragHandlers = {
+        mousemove: (e) => drag(e.clientX, e.clientY),
+        mouseup: (e) => { if (e.button === 0) endDrag(); },
+        touchmove: (e) => { if (isDragging && e.touches.length === 1) { const t = e.touches[0]; drag(t.clientX, t.clientY); e.preventDefault(); } },
+        touchend: endDrag,
+        touchcancel: endDrag,
+        keydown: (e) => { if (e.key === "Escape" && isDragging) endDrag(); }
+    };
+
+    // Asignar listeners
+    this._onDOM(panel, "mousedown", panelDragHandlers.mousedown, undefined, 'drag:' + elementId);
+    this._onDOM(panel, "touchstart", panelDragHandlers.touchstart, { passive: false }, 'drag:' + elementId);
+    this._onDOM(panel, "dragstart", panelDragHandlers.dragstart, undefined, 'drag:' + elementId);
+
+    this._onDOM(document, "mousemove", dragHandlers.mousemove, undefined, 'drag:' + elementId);
+    this._onDOM(document, "mouseup", dragHandlers.mouseup, undefined, 'drag:' + elementId);
+    this._onDOM(document, "touchmove", dragHandlers.touchmove, { passive: false }, 'drag:' + elementId);
+    this._onDOM(document, "touchend", dragHandlers.touchend, undefined, 'drag:' + elementId);
+    this._onDOM(document, "touchcancel", dragHandlers.touchcancel, undefined, 'drag:' + elementId);
+    this._onDOM(document, "keydown", dragHandlers.keydown, undefined, 'drag:' + elementId);
+
+    panel.setAttribute('data-draggable', 'true');
+    this._setDOMProperty(panel, 'centerPanel', centerPanel, 'drag:' + elementId);
+    panel.style.pointerEvents = "auto";
+
+    if (!(panel.style.left && panel.style.top)) centerPanel();
+
+    console.log(`Elemento ${elementId} hecho arrastrable correctamente.`);
+}
+
+
+
+/**
+ * Registra un listener de DOM que se suelta SOLO cuando la escena se apaga.
+ * Misma fuga y misma solución que en GameScene (ver el comentario largo allí):
+ * el DOM de la página sobrevive al cambio de escena, así que un
+ * addEventListener sin su removeEventListener deja la escena muerta viva para
+ * siempre y multiplica el trabajo por cada viaje entre mapa y tienda.
+ */
+_onDOM(target, type, handler, options, group = null) {
+  if (!target || !type || typeof handler !== 'function') return handler;
+  if (this._sceneStopped) return handler;
+  if (!this._domListeners) this._domListeners = [];
+  target.addEventListener(type, handler, options);
+  this._domListeners.push({ t: target, ty: type, h: handler, o: options, group });
+  return handler;
+}
+
+_setDOMProperty(target, property, handler, group) {
+  if (!target || this._sceneStopped) return;
+  target[property] = handler;
+  if (!this._domListeners) this._domListeners = [];
+  this._domListeners.push({ group, dispose() {
+    if (target[property] === handler) target[property] = null;
+  } });
+}
+
+refreshAuthToken() { return GameScene.prototype.refreshAuthToken.call(this); }
+
+_offDOM(group) {
+  const keep = [];
+  (this._domListeners || []).forEach(r => {
+    if (group !== undefined && r.group !== group) { keep.push(r); return; }
+    try { if (r.dispose) r.dispose(); else r.t.removeEventListener(r.ty, r.h, r.o); } catch (e) {}
+  });
+  this._domListeners = keep;
+}
+
+_onSceneCleanup(callback) {
+  if (!this._sceneCleanupCallbacks) this._sceneCleanupCallbacks = [];
+  this._sceneCleanupCallbacks.push(callback);
+}
+
+_sceneTimeout(callback, delay) {
+  if (this._sceneStopped) return null;
+  if (!this._sceneTimeouts) this._sceneTimeouts = new Set();
+  const sceneRunId = this._sceneRunId;
+  const timer = setTimeout(() => {
+    this._sceneTimeouts.delete(timer);
+    if (!this._sceneStopped && this._sceneRunId === sceneRunId) callback();
+  }, delay);
+  this._sceneTimeouts.add(timer);
+  return timer;
+}
+
+/**
+ * Teletransporta la mascota junto al jugador, sin animación de recorrido.
+ *
+ * FIX "EL PERRO VIENE DE LEJOS AL ENTRAR": el perro se coloca en create() a
+ * `player.x + 40`, pero en ese momento el jugador todavía está en su posición
+ * provisional. La posición REAL llega después, cuando responde el servidor con
+ * los datos guardados, y ahí el jugador se teletransporta… dejando al perro
+ * donde estaba. Como el perro persigue al jugador, se le veía cruzar medio
+ * mapa corriendo hasta alcanzarlo.
+ *
+ * Aquí se le pone en el sitio de golpe. Se ajustan TAMBIÉN las posiciones
+ * previas y el objetivo: si solo se moviera el sprite, la lógica de
+ * seguimiento seguiría interpolando desde las coordenadas viejas y volvería a
+ * verse el arrastre.
+ */
+/**
+ * Evita que un clic sobre la interfaz ATRAVIESE y llegue al mundo del juego.
+ *
+ * EL PROBLEMA
+ * -----------
+ * Al pulsar una casilla rápida encima de un árbol, una parcela o un NPC, se
+ * cogía el objeto de la casilla Y ADEMÁS se talaba el árbol / se tocaba la
+ * parcela / se hablaba con el NPC. El clic pasaba a través.
+ *
+ * POR QUÉ PASA
+ * ------------
+ * Phaser no escucha solo en el lienzo: también registra un manejador de
+ * `pointerdown` en `window` para poder seguir punteros que empiezan fuera del
+ * canvas. Un clic sobre un elemento del HUD (que es DOM encima del lienzo)
+ * burbujea hasta `window`, y ahí Phaser lo recoge, hace su prueba de impacto
+ * contra el mundo y dispara el `pointerdown` del árbol que hay debajo.
+ *
+ * POR QUÉ NO SE USA preventDefault()
+ * ----------------------------------
+ * Phaser ignora los eventos con `defaultPrevented`, así que llamar a
+ * preventDefault() lo arreglaría… y de paso ROMPERÍA el arrastre de ítems del
+ * inventario, que se apoya en los eventos `mousedown`/`touchstart` de
+ * compatibilidad que preventDefault suprime. No compensa.
+ *
+ * LA SOLUCIÓN
+ * -----------
+ * Se corta la propagación en `document`, en fase de burbuja. El recorrido de un
+ * evento es: objetivo → … → document → window. Los manejadores del PROPIO
+ * elemento (la casilla, el botón, el arrastre) ya se han ejecutado cuando
+ * llegamos aquí, así que siguen funcionando igual. Lo único que se queda sin
+ * recibirlo es `window`, que es exactamente donde escucha Phaser.
+ *
+ * Si el clic va al lienzo, no se toca nada: el juego funciona como siempre.
+ */
+_bloquearClicsDeUIHaciaElJuego() {
+  const canvas = this.sys && this.sys.game && this.sys.game.canvas;
+  if (!canvas || !this._onDOM) return;
+
+  const vieneDelJuego = (e) => {
+    const t = e.target;
+    if (!t) return true;
+    // El lienzo (o algo dentro de él) = clic legítimo en el mundo.
+    if (t === canvas || (canvas.contains && canvas.contains(t))) return true;
+    // El <body>/<html> aparecen cuando se pulsa una zona sin HUD encima.
+    if (t === document.body || t === document.documentElement) return true;
+    return false;
+  };
+
+  const cortar = (e) => {
+    if (vieneDelJuego(e)) return;
+    // Ver el comentario largo en GameScene: stopPropagation llegaba tarde
+    // porque Phaser escucha en window con { capture: true }. Lo que funciona
+    // es apagar la entrada de la escena, que Phaser comprueba al empezar el
+    // siguiente paso del bucle — el paso que habría procesado este clic.
+    try {
+      if (this.input) this.input.enabled = false;
+      if (this._reactivarInput) this._reactivarInput.remove();
+      this._reactivarInput = this.time.delayedCall(140, () => {
+        this._reactivarInput = null;
+        if (this.input) this.input.enabled = true;
+      });
+    } catch (err) { if (this.input) this.input.enabled = true; }
+  };
+
+  ['pointerdown', 'mousedown', 'touchstart'].forEach((tipo) => {
+    this._onDOM(document, tipo, cortar);
+  });
+}
+
+_pegarPerroAlJugador() {
+  const d = this.dog;
+  if (!d || !this.player) return;
+
+  const x = this.player.x + 40;   // mismo desfase que usa create()
+  const y = this.player.y + 20;
+
+  d.x = d.targetX = d.prevX = d.prevTargetX = x;
+  d.y = d.targetY = d.prevY = d.prevTargetY = y;
+  d.isMoving = false;
+
+  try {
+    if (d.sprite) d.sprite.setPosition(x, y);
+    if (d.shadowContainer) d.shadowContainer.setPosition(x, y + 22);
+    if (this.dogNameText) {
+      const alto = d.sprite ? d.sprite.displayHeight * 0.5 : 0;
+      this.dogNameText.setPosition(x, y - alto - 4);
+    }
+  } catch (e) { /* sprites aún sin crear: create() ya lo dejará bien */ }
+
+  // La referencia de movimiento del jugador también se reinicia: si no, el
+  // primer frame calcula un delta gigante (del punto viejo al nuevo) y el
+  // perro sale disparado en la dirección equivocada.
+  this.prevPlayerX = this.player.x;
+  this.prevPlayerY = this.player.y;
+}
+
+makeDraggable(element) {
+  let isDragging = false;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  element.style.position = 'absolute';  // Necesario para mover
+  element.style.cursor = 'default';     // Mantener siempre flecha normal
+
+  const startDrag = (clientX, clientY) => {
+    isDragging = true;
+    offsetX = clientX - element.offsetLeft;
+    offsetY = clientY - element.offsetTop;
+    document.body.style.userSelect = 'none'; // Previene seleccionar texto
+  };
+
+  const drag = (clientX, clientY) => {
+    if (isDragging) {
+      element.style.left = (clientX - offsetX) + 'px';
+      element.style.top = (clientY - offsetY) + 'px';
+    }
+  };
+
+  const endDrag = () => {
+    isDragging = false;
+    document.body.style.userSelect = '';
+  };
+
+  // Eventos mouse — FIX FUGA: iban con addEventListener directo y nunca se
+  // quitaban (mismo caso que en GameScene).
+  this._onDOM(element, 'mousedown', (e) => {
+    startDrag(e.clientX, e.clientY);
+  });
+
+  this._onDOM(document, 'mousemove', (e) => {
+    drag(e.clientX, e.clientY);
+  });
+
+  this._onDOM(document, 'mouseup', endDrag);
+
+  // Eventos touch
+  this._onDOM(element, 'touchstart', (e) => {
+    if (e.touches.length === 1) { // Solo un dedo
+      const touch = e.touches[0];
+      startDrag(touch.clientX, touch.clientY);
+      e.preventDefault(); // Evitar scroll mientras arrastra
+    }
+  }, { passive: false });
+
+  this._onDOM(document, 'touchmove', (e) => {
+    if (isDragging && e.touches.length === 1) {
+      const touch = e.touches[0];
+      drag(touch.clientX, touch.clientY);
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  this._onDOM(document, 'touchend', endDrag);
+  this._onDOM(document, 'touchcancel', endDrag);
+}
+
+
+
+
+
+
+  // ─────────────────────────────────────────────────────────
+  // BLOQUE B: Reconstruir window.playerInventory con inventario + cofre
+  rebuildPlayerInventoryFromState() {
+    const inventoryArray = [];
+
+    // 1) Recorrer INVENTARIO normal (this.STATE.slots)
+    this.STATE.slots.forEach((slotObj, idx) => {
+      // Verificar que no sea null ni undefined
+      if (slotObj !== null && slotObj !== undefined) {
+        const itemId    = slotObj.id;            
+        const cantidad  = slotObj.count;         
+        const tipo      = slotObj.tipo || "unknown";
+        const unitPrice = slotObj.unitPrice || 0;
+        const defs      = this.ItemDefinitions[itemId];
+        const imageUrl  = defs && defs.src ? defs.src : "";
+        const idx  = slotObj.idx;
+        const idm = slotObj.idm;
+
+
+        /*
+
+        console.log(
+          `[INV] Slot #${idx} → id="${itemId}", tipo="${tipo}", qty=${cantidad}, image="${imageUrl}"`
+        );
+
+        */
+
+        inventoryArray.push({
+          id:        idx.toString(),  // “0”, “1”, “2” … “39”
+          name:      itemId,
+          type:      tipo,
+          qty:       cantidad,
+          unitPrice: unitPrice,
+          imageUrl:  imageUrl,
+          origin:    "inventory",
+          idx: slotObj.idx ?? idx,
+          idm: slotObj.idm ?? idm
+        });
+      }
+    });
+
+    // 2) Recorrer COFRE (this.STATE.quickSlots)
+    this.STATE.quickSlots.forEach((slotObj, idx) => {
+      if (slotObj !== null && slotObj !== undefined) {
+        const itemId    = slotObj.id;            
+        const cantidad  = slotObj.count;         
+        const tipo      = slotObj.tipo || "unknown";
+        const unitPrice = slotObj.unitPrice || 0;
+        const defs      = this.ItemDefinitions[itemId];
+        const imageUrl  = defs && defs.src ? defs.src : "";
+        const idx  = slotObj.idx;
+        const idm = slotObj.idm;
+
+        /*
+
+        console.log(
+          `[CHEST] Slot #${idx} → id="${itemId}", tipo="${tipo}", qty=${cantidad}, image="${imageUrl}"`
+        );
+
+        */
+
+        inventoryArray.push({
+          id:        "chest-" + idx.toString(), // “chest-0”, “chest-1”, … “chest-6”
+          name:      itemId,
+          type:      tipo,
+          qty:       cantidad,
+          unitPrice: unitPrice,
+          imageUrl:  imageUrl,
+          origin:    "chest",
+          idx: slotObj.idx ?? idx,
+          idm: slotObj.idm ?? idm
+        });
+      }
+    });
+
+    // 3) Exponer al nivel global para que AuctionMarket lo use
+    window.playerInventory = inventoryArray;
+    /*
+    console.log("→ window.playerInventory reconstruido:", window.playerInventory);
+    */
+
+  }
+
+
+
+
+      // ─────────────────────────────────────────────────────────
+      //   BLOQUE A: TODA LA LÓGICA DE INVENTARIO / DRAG & DROP
+      // ─────────────────────────────────────────────────────────
+
+initInventory() {
+  // 1) Limpiar el HTML de los contenedores antes de recrear:
+  const containerQ = document.getElementById('quick-slots');
+  if (containerQ) containerQ.innerHTML = '';   // <— aquí borras todo <div class="quick-slot">...
+  this.STATE.quickSlots = [];                   // <— reinicias el array para que no acumule
+  this.STATE.ghostSlots = { inv: [], quick: [] }; // <— Inicializar arrays de fantasmas
+
+  for (let i = 0; i < 7; i++) {
+    const slotDiv = document.createElement('div');
+    slotDiv.classList.add('quick-slot');
+    slotDiv.dataset.slotIndex = i;
+    slotDiv.addEventListener('click', (e) => {
+      this.handleSlotClick('quick', i, e.clientX, e.clientY);
+    });
+    containerQ.appendChild(slotDiv);
+    this.STATE.quickSlots.push(null);
+  }
+
+  // 2) Lo mismo para la grilla de inventario:
+  const grid = document.getElementById('inventory-grid');
+  if (grid) grid.innerHTML = '';               // <— borras todos los <div class="inv-slot"> previos
+  this.STATE.slots = [];                        // <— reinicias el array
+
+  for (let i = 0; i < 40; i++) {
+    const slotDiv = document.createElement('div');
+    slotDiv.classList.add('inv-slot');
+    slotDiv.dataset.slotIndex = i;
+    slotDiv.addEventListener('click', (e) => {
+      this.handleSlotClick('inv', i, e.clientX, e.clientY);
+    });
+    grid.appendChild(slotDiv);
+    this.STATE.slots.push(null);
+  }
+
+  // Inicializar arrays de fantasmas
+  this.STATE.ghostSlots.inv = new Array(40).fill(null);
+  this.STATE.ghostSlots.quick = new Array(7).fill(null);
+}
+
+initQuickSlots() {
+  const container = document.getElementById('quick-slots');
+  for (let i = 0; i < 7; i++) {
+    const slotDiv = document.createElement('div');
+    slotDiv.classList.add('quick-slot');
+    slotDiv.dataset.slotIndex = i;
+    // Arrow function para capturar e.clientX / e.clientY:
+    slotDiv.addEventListener('click', (e) => {
+      const qsIdx = Number(slotDiv.dataset.slotIndex);
+      this.handleSlotClick('quick', qsIdx, e.clientX, e.clientY);
+    });
+    container.appendChild(slotDiv);
+    this.STATE.quickSlots.push(null);
+  }
+}
+
+initInventoryGrid() {
+  const grid = document.getElementById('inventory-grid');
+  for (let i = 0; i < 40; i++) {
+    const slotDiv = document.createElement('div');
+    slotDiv.classList.add('inv-slot');
+    slotDiv.dataset.slotIndex = i;
+    // Arrow function para capturar e.clientX / e.clientY:
+    slotDiv.addEventListener('click', (e) => {
+      const idx = Number(slotDiv.dataset.slotIndex);
+      this.handleSlotClick('inv', idx, e.clientX, e.clientY);
+    });
+    grid.appendChild(slotDiv);
+    this.STATE.slots.push(null);
+  }
+}
+
+showInventory() {
+  document.getElementById('inventory-panel').style.display = 'block';
+}
+
+hideInventory() {
+  document.getElementById('inventory-panel').style.display = 'none';
+  this.clearSelectedItem();
+}
+
+/* Mismo arreglo que en GameScene: el botón de la mochila abría con 'flex' y
+   aquí solo se miraba 'block'. */
+_inventarioAbierto() {
+  const panel = document.getElementById('inventory-panel');
+  return !!panel && (panel.style.display === 'block' || panel.style.display === 'flex');
+}
+
+toggleInventory() {
+  if (this._inventarioAbierto()) {
+    this.hideInventory();
+  } else {
+    this.showInventory();
+  }
+}
+
+
+
+
+
+
+
+
+// ------------------------------------------------------------------
+// FUNCIÓN EJECUTAR DIVISIÓN CORREGIDA
+// ------------------------------------------------------------------
+async ejecutarDivision(ruta_tabla, producto, limitacion, cantidad) {
+  // Validaciones rápidas
+  if (limitacion <= 0 || cantidad <= 0) return;
+
+  // FIX (varias compras seguidas y solo se hacía UNA transacción): antes, si
+  // ya había una transacción en curso, la petición se DESCARTABA. Ahora se
+  // ENCOLA, igual que en GameScene y en tienda_sistema: cada una espera a la
+  // anterior y se ejecuta en orden, sin perder ninguna.
+  this._addItemQueue = (this._addItemQueue || Promise.resolve())
+    .then(() => this.Additemblockchains(ruta_tabla, producto, cantidad))
+    .catch(err => console.error('❌ Error procesando ejecutarDivision en cola:', err));
+
+  return this._addItemQueue;
+}
+
+// ------------------------------------------------------------------
+// GENERADOR DE manualId (se mantiene igual)
+// ------------------------------------------------------------------
+generarCodigo(longitud = 19) {
+  const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let resultado = '';
+  for (let i = 0; i < longitud; i++) {
+    resultado += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+  }
+  return resultado;
+}
+
+// ------------------------------------------------------------------
+// BLOQUEO VISUAL DE SLOTS (se mantiene igual)
+// ------------------------------------------------------------------
+lockSlot(type, index) {
+  const selector = type === 'inv'
+    ? `.inv-slot[data-slot-index="${index}"]`
+    : `.quick-slot[data-slot-index="${index}"]`;
+  const slot = document.querySelector(selector);
+  if (slot) slot.classList.add('slot-locked');
+}
+
+unlockAllSlots() {
+  document.querySelectorAll('.inv-slot, .quick-slot').forEach(slot => {
+    slot.classList.remove('slot-locked');
+  });
+}
+
+// ------------------------------------------------------------------
+// FUNCIÓN PRINCIPAL ADDITEMBLOCKCHAINS (sin cambios, pero se incluye completa)
+// ------------------------------------------------------------------
+/* Additemblockchains (abajo) llamaba a `this.simulateAddItem`, que esta clase
+   no tenía: existe en GameScene y en TiendaSistema. Hoy esta ruta no la usa
+   nadie (la tienda compra por TiendaSistema), pero el día que se usara
+   reventaría con "simulateAddItem is not a function". La simulación solo lee
+   ItemDefinitions y STATE, que esta escena también tiene. */
+simulateAddItem(itemId, quantity = 1) {
+  return GameScene.prototype.simulateAddItem.call(this, itemId, quantity);
+}
+
+async Additemblockchains(ruta_tabla, producto, cantidad) {
+  // Bandera EXCLUSIVA de "agregar item por blockchain": _transactionInProgress
+  // también lo tocan el drag&drop del inventario y las ventas, y si alguno lo
+  // dejaba en true, TODAS las adiciones siguientes se descartaban en silencio.
+  if (this._addItemBlockchainBusy) {
+    console.warn('Transacción de agregar item ya en progreso. Ignorando nueva petición.');
+    return;
+  }
+  this._addItemBlockchainBusy = true;
+  this._transactionInProgress = true;
+
+  // Helpers locales (autocontenidos para no depender de funciones externas)
+  const self = this;
+
+  function generarCodigoLocal(longitud = 19) {
+    const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let resultado = '';
+    for (let i = 0; i < longitud; i++) {
+      resultado += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+    }
+    return resultado;
+  }
+
+  function lockSlotLocal(type, index) {
+    try {
+      const selector = type === 'inv'
+        ? `.inv-slot[data-slot-index="${index}"]`
+        : `.quick-slot[data-slot-index="${index}"]`;
+      const slot = document.querySelector(selector);
+      if (slot) slot.classList.add('slot-locked');
+    } catch (e) {
+      console.warn('lockSlotLocal fallo:', e);
+    }
+  }
+
+  function unlockAllSlotsLocal() {
+    try {
+      document.querySelectorAll('.inv-slot, .quick-slot').forEach(slot => {
+        slot.classList.remove('slot-locked');
+      });
+    } catch (e) {
+      console.warn('unlockAllSlotsLocal fallo:', e);
+    }
+  }
+
+  async function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+  }
+
+  // Reintentos: enviar acción y esperar confirmación
+  // FIX "reintentar pero la transacción SÍ fue exitosa": si el envío ya fue
+  // aceptado NUNCA se reenvía (antes se duplicaba la operación on-chain); solo
+  // se re-espera la MISMA transactionId con timeout de 120 s por intento.
+  async function _sendAndWaitWithRetries(relayClient, contractAddress, accionObj, maxAttempts = 3) {
+    let pendingTransactionId = null; // guardamos el id si ya se envió
+
+    const isTimeoutError = (val) => {
+      const msg = (typeof val === 'string' ? val : val?.error || val?.message || '').toLowerCase();
+      return msg.includes('timeout');
+    };
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        let transactionId = pendingTransactionId;
+
+        // Solo enviamos la tx si aún no tenemos un transactionId pendiente
+        if (!transactionId) {
+          const sendResult = await relayClient.accion(contractAddress, accionObj);
+          if (!sendResult || !sendResult.success) {
+            console.warn(`Attempt ${attempt}: sendResult no exitoso`, sendResult);
+            if (attempt === maxAttempts) return { success: false, error: sendResult?.error || 'sendFailed' };
+            await sleep(800 * attempt);
+            continue;
+          }
+          transactionId = sendResult.transactionId;
+          pendingTransactionId = transactionId; // guardar por si hay timeout
+        } else {
+          console.warn(`Attempt ${attempt}: re-esperando tx existente ${transactionId} (no se reenvía)`);
+        }
+
+        // Esperar confirmación con timeout explícito de 2 minutos
+        const final = await relayClient.waitForTransaction(transactionId, {
+          interval: 3000,
+          timeout: 120000
+        });
+
+        if (final && final.success) {
+          pendingTransactionId = null;
+          return { success: true, txHash: final.txHash, transactionId };
+        } else {
+          const timedOut = isTimeoutError(final);
+          console.warn(`Attempt ${attempt}: confirmación fallida (${timedOut ? 'timeout — reintentando misma tx' : 'error'})`, final);
+          if (attempt === maxAttempts) return { success: false, error: final?.error || 'confirmFailed' };
+          if (!timedOut) pendingTransactionId = null;
+          await sleep(timedOut ? 2000 : 800 * attempt);
+          continue;
+        }
+      } catch (err) {
+        const timedOut = isTimeoutError(err);
+        console.error(`Attempt ${attempt} error:`, err);
+        if (attempt === maxAttempts) return { success: false, error: err.message || String(err) };
+        if (!timedOut) pendingTransactionId = null;
+        await sleep(timedOut ? 2000 : 800 * attempt);
+      }
+    }
+    return { success: false, error: 'unknown' };
+  }
+
+  // Parser robusto para getInvoiceByManualId
+  function _getInvoiceFieldsFromResponse(lastMessage) {
+    try {
+      // Si es array -> mapeo por posiciones esperadas del struct de tu contrato
+      if (Array.isArray(lastMessage)) {
+        const invoiceId = Number(lastMessage[0]) || 0;
+        const manualId = lastMessage[1] || '';
+        const cantidadx = Number(lastMessage[4] ?? lastMessage[3] ?? 0) || 0;
+        return { invoiceId, manualId, cantidadx, raw: lastMessage };
+      }
+
+      // Si es objeto: intentar formar un array a partir de keys '0','1' o 'out0','out1'
+      if (lastMessage && typeof lastMessage === 'object') {
+        const indexed = [];
+        for (const k of Object.keys(lastMessage)) {
+          let m = null;
+          if (/^\d+$/.test(k)) {
+            m = Number(k);
+          } else {
+            const mo = k.match(/^out(\d+)$/i);
+            if (mo) m = Number(mo[1]);
+          }
+          if (m !== null) indexed[m] = lastMessage[k];
+        }
+        if (indexed.length > 0) {
+          const invoiceId = Number(indexed[0]) || 0;
+          const manualId = indexed[1] || '';
+          const cantidadx = Number(indexed[4] ?? indexed[3] ?? 0) || 0;
+          return { invoiceId, manualId, cantidadx, raw: indexed };
+        }
+
+        // Fallback: buscar por nombres de campo conocidos
+        const pick = (names) => {
+          for (const n of names) {
+            if (lastMessage[n] !== undefined) return lastMessage[n];
+            const lower = n.toLowerCase();
+            if (lastMessage[lower] !== undefined) return lastMessage[lower];
+          }
+          return undefined;
+        };
+
+        const invoiceIdRaw = pick(['invoiceId', 'id', 'InvoiceId', '_id']);
+        const manualIdRaw = pick(['manualId', '_manualId', 'manualID']);
+        const cantidadRaw = pick(['cantidad', 'quantity', '_cantidad', 'amount']);
+
+        const invoiceId = invoiceIdRaw !== undefined ? Number(invoiceIdRaw) : 0;
+        const manualId = manualIdRaw !== undefined ? String(manualIdRaw) : '';
+        const cantidadx = cantidadRaw !== undefined ? Number(cantidadRaw) : 0;
+
+        return { invoiceId: invoiceId || 0, manualId, cantidadx, raw: lastMessage };
+      }
+    } catch (err) {
+      console.error('_getInvoiceFieldsFromResponse error:', err, 'lastMessage:', lastMessage);
+    }
+    return { invoiceId: 0, manualId: '', cantidadx: 0, raw: lastMessage };
+  }
+
+  try {
+    // Inicializar relayClient si hace falta
+    if (!this.relayClient || this.relayClient._destroyed) {
+      this.relayClient = new PhaserRelay({
+        apiBase: this.serverBase,
+        debug: true,
+        forceLocalhostTo127: true
+      });
+      await this.relayClient.initialize();
+    }
+
+    // debugBackendConnection puede intentar /ping; capturamos errores pero seguimos
+    try {
+      const debugInfo = await this.relayClient.debugBackendConnection();
+      console.log('🔍 Debug info:', debugInfo);
+    } catch (dbgErr) {
+      // ignora 404 /ping u otros inconvenientes de debug, solo registra
+      console.warn('debugBackendConnection fallo (ignorable):', dbgErr && dbgErr.message ? dbgErr.message : dbgErr);
+    }
+
+    // Auth
+    const auth = await this.relayClient.checkAuth();
+    if (!auth || !auth.success) {
+      this.relayClient.showError(this.relayClient.authErrorMessage(auth), 5000);
+      return;
+    }
+    console.log('🔑 Usuario autenticado:', auth.address);
+
+    // Establecer usuario en el hub (si no se ha hecho antes)
+    if (window.hub && this.playerName) {
+      window.hub.setUser(this.playerName, auth.address);
+    }
+
+    // Encontrar contrato
+    let contract;
+    try {
+      contract = await this.relayClient.findContract('ItemContract');
+    } catch (error) {
+      this.relayClient.showError('❌ Error conectando al backend: ' + (error.message || error), 5000);
+      return;
+    }
+    if (!contract) {
+      this.relayClient.showError('❌ Contrato ItemContract no encontrado', 3000);
+      return;
+    }
+    console.log('📄 Contrato encontrado:', contract.address);
+
+    // ===== SIMULADOR =====
+    const reporte = this.simulateAddItem(producto, cantidad);
+    console.log('Reporte completo:', reporte);
+
+    // Bloquear slots implicados (si vienen)
+    if (Array.isArray(reporte.operations)) {
+      reporte.operations.forEach(op => {
+        try {
+          if (op && op.location && op.location.type && op.location.index !== undefined && op.location.index !== null) {
+            lockSlotLocal(op.location.type, op.location.index);
+          }
+        } catch (e) {
+          console.warn('Error lockSlotLocal por operación:', op, e);
+        }
+      });
+    }
+
+    // ===== MERGES: aumentar cantidad en facturas existentes =====
+    const merges = (reporte.operations || []).filter(op => op.type === 'merge');
+    for (const op of merges) {
+      const cantidadOp = Number(op.amountAdded) || 0;
+      const idx = Number(op.idx) || 0;
+      const manual = op.manualid || '';
+
+      // Seguridad: idx === 0 no es válido (contrato usa 0 como 'no existe')
+      if (idx === 0) {
+        console.error('Se detectó idx = 0 en merge; se ignora para evitar borrado/colisión:', op);
+        continue;
+      }
+
+      console.error(`Procesando MERGE para idx ${idx} con cantidad a añadir ${cantidadOp}`);
+
+      // Datos para posible reintento (categoría 'items', nombre = ruta_tabla)
+      const hiddenData = {
+        type: 'merge',
+        producto: producto,
+        cantidad: cantidadOp,
+        idx: idx,
+        manualid: manual,
+        ruta_tabla: ruta_tabla
+      };
+
+      // Hash temporal para la transacción pendiente
+      const tempHash = 'temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+
+      // Añadir transacción pendiente al hub (categoría 'items')
+      if (window.hub) {
+        window.hub.addTransaction('items', {
+          name: ruta_tabla,               // nombre = ruta_tabla
+          quantity: cantidadOp,
+          hash: tempHash,
+          status: 'pending',
+          hiddenData: hiddenData
+        });
+      }
+
+      const accionObj = {
+        funcion: 'increaseInvoiceQuantity',
+        _id: idx,
+        _increaseAmount: cantidadOp,
+        accion: 'enviar'
+      };
+
+      const res = await _sendAndWaitWithRetries(this.relayClient, contract.address, accionObj, 3);
+
+      if (!res.success) {
+        // Eliminar pendiente y añadir revertida
+        if (window.hub) {
+          window.hub.removeTransaction(tempHash);
+          window.hub.addTransaction('items', {
+            name: ruta_tabla,
+            quantity: cantidadOp,
+            hash: 'reverted-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+            status: 'reverted',
+            hiddenData: hiddenData
+          });
+        }
+        console.error('No se pudo confirmar increaseInvoiceQuantity para idx', idx, 'error:', res.error);
+        this.relayClient.showError && this.relayClient.showError(`❌ increaseInvoiceQuantity falló para id ${idx}`, 4000);
+        continue;
+      }
+
+      // Éxito: eliminar pendiente y añadir confirmada con el hash real
+      if (window.hub) {
+        window.hub.removeTransaction(tempHash);
+        window.hub.addTransaction('items', {
+          name: ruta_tabla,
+          quantity: cantidadOp,
+          hash: res.txHash,
+          status: 'confirmed',
+          hiddenData: hiddenData
+        });
+      }
+
+      // Actualizar frontend: addItemWithCheck(producto, cantidad, invoiceId, manualId)
+      try {
+        if (typeof this.addItemWithCheck === 'function') {
+          await this.addItemWithCheck(producto, cantidadOp, idx, manual);
+          console.error(`addItemWithCheck OK (merge) para invoice ${idx} cantidad ${cantidadOp}`);
+        } else {
+          console.error('addItemWithCheck no encontrada; omitiendo actualización local para merge idx', idx);
+        }
+      } catch (err) {
+        console.error('Error ejecutando addItemWithCheck tras increaseInvoiceQuantity:', err, 'idx:', idx);
+      }
+    }
+
+    // ===== NUEVOS STACKS: crear facturas y añadir items localmente =====
+    const nuevosStacks = (reporte.operations || []).filter(op => op.type === 'new');
+    for (const op of nuevosStacks) {
+      const amountAdded = Number(op.amountAdded) || 0;
+      const manualGenerado = generarCodigoLocal();
+
+      // Datos para posible reintento
+      const hiddenData = {
+        type: 'new',
+        producto: producto,
+        cantidad: amountAdded,
+        ruta_tabla: ruta_tabla
+        // idx y manualid se conocerán después de crear
+      };
+
+      const tempHash = 'temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+
+      // Añadir transacción pendiente (categoría 'items')
+      if (window.hub) {
+        window.hub.addTransaction('items', {
+          name: ruta_tabla,
+          quantity: amountAdded,
+          hash: tempHash,
+          status: 'pending',
+          hiddenData: hiddenData
+        });
+      }
+
+      /* EL DUEÑO DE LA FACTURA ES UNA DIRECCIÓN, NO UN NOMBRE.
+
+         `createInvoice(address _owner, …)` espera una dirección, y aquí iba
+         `this.playerName`, que es el APODO del jugador en cuanto se pone uno
+         (/api/auth/me devuelve `playerName: player.playerName || address`, y
+         el juego guarda `data.playerName || data.address`). Con un apodo, la
+         transacción ni sale: ethers no puede codificar "Kuro" como address.
+
+         Y si saliera sería peor: el relay comprueba que la factura sea del
+         jugador antes de firmar cualquier `decreaseInvoiceQuantity`
+         (verifyInvoiceOwnership en server2.js), así que una factura con otro
+         dueño NO SE PODRÍA VENDER NUNCA.
+
+         Se usa la dirección autenticada, que es la que compara el servidor. El
+         apodo queda de respaldo solo por si `checkAuth` no la trajo. */
+      const duenoFactura = (auth && auth.address) ? auth.address : this.playerName;
+
+      const accionCrear = {
+        funcion: 'createInvoice',
+        _owner: duenoFactura,
+        _tipo: ruta_tabla,
+        _cantidad: amountAdded,
+        _manualId: manualGenerado,
+        accion: 'enviar'
+      };
+
+      const resCrear = await _sendAndWaitWithRetries(this.relayClient, contract.address, accionCrear, 3);
+
+      if (!resCrear.success) {
+        if (window.hub) {
+          window.hub.removeTransaction(tempHash);
+          window.hub.addTransaction('items', {
+            name: ruta_tabla,
+            quantity: amountAdded,
+            hash: 'reverted-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+            status: 'reverted',
+            hiddenData: hiddenData
+          });
+        }
+        console.error('createInvoice falló para nuevo stack (cantidad):', amountAdded, 'error:', resCrear.error);
+        this.relayClient.showError && this.relayClient.showError(`❌ createInvoice falló para ${amountAdded}`, 4000);
+        continue;
+      }
+
+      // Éxito en createInvoice: actualizamos la transacción pendiente a confirmada con el hash real
+      if (window.hub) {
+        window.hub.removeTransaction(tempHash);
+        // Aún no tenemos idx/manualid, los añadiremos después de obtenerlos
+        // Por ahora guardamos la confirmada sin esos datos, pero luego la actualizaremos o añadiremos otra
+        window.hub.addTransaction('items', {
+          name: ruta_tabla,
+          quantity: amountAdded,
+          hash: resCrear.txHash,
+          status: 'confirmed',
+          hiddenData: hiddenData   // se completará más abajo con idx/manualid
+        });
+      }
+
+      // Obtener la factura por manualId (view)
+      let lastMessage;
+      try {
+        lastMessage = await this.relayClient.accion(contract.address, {
+          funcion: 'getInvoiceByManualId',
+          _manualId: manualGenerado,
+          accion: 'obtener'
+        });
+      } catch (err) {
+        console.error('Error llamando getInvoiceByManualId:', err);
+        continue;
+      }
+
+      if (!lastMessage) {
+        console.warn('getInvoiceByManualId devolvió vacío para manualId:', manualGenerado);
+        continue;
+      }
+
+      // Parsear robustamente
+      const parsed = _getInvoiceFieldsFromResponse(lastMessage);
+      console.log('Parsed invoice response:', parsed);
+
+      let { invoiceId, manualId, cantidadx } = parsed;
+
+      // Si invoiceId sigue 0, intentar extraer keys directas como out0 o '0'
+      if ((!invoiceId || Number(invoiceId) === 0) && lastMessage && typeof lastMessage === 'object') {
+        for (const k of Object.keys(lastMessage)) {
+          if (/^out?0$/i.test(k) || /^0$/.test(k)) {
+            invoiceId = Number(lastMessage[k]) || invoiceId;
+            break;
+          }
+        }
+      }
+
+      // Validar invoiceId
+      if (!invoiceId || Number(invoiceId) === 0) {
+        console.error('InvoiceId inválido o 0 tras todos los intentos — ignorando. lastMessage:', lastMessage, 'parsed:', parsed);
+        continue;
+      }
+
+      // Normalizar cantidad y manualId
+      invoiceId = Number(invoiceId);
+      cantidadx = Number(cantidadx) || amountAdded || 0;
+      manualId = manualId || manualGenerado;
+
+      // Ahora que tenemos idx y manualid, actualizamos hiddenData de la transacción confirmada
+      // Como no podemos modificar la transacción ya añadida, podríamos eliminarla y volver a añadir con los datos completos,
+      // o simplemente dejar la que ya está (la información principal ya está). Para mantener consistencia, la reemplazamos.
+      if (window.hub) {
+        // Buscar la transacción con ese hash y actualizar hiddenData (si el hub lo permitiera)
+        // Pero como no tenemos método de actualización, eliminamos y volvemos a añadir.
+        window.hub.removeTransaction(resCrear.txHash);
+        hiddenData.idx = invoiceId;
+        hiddenData.manualid = manualId;
+        window.hub.addTransaction('items', {
+          name: ruta_tabla,
+          quantity: cantidadx,
+          hash: resCrear.txHash,
+          status: 'confirmed',
+          hiddenData: hiddenData
+        });
+      }
+
+      // Finalmente actualizar frontend
+      try {
+        if (typeof this.addItemWithCheck === 'function') {
+          await this.addItemWithCheck(producto, cantidadx, invoiceId, manualId);
+          console.error(`addItemWithCheck OK (new) para invoice ${invoiceId} cantidad ${cantidadx}`);
+        } else {
+          console.error('addItemWithCheck no encontrada; omitiendo actualización local para invoiceId', invoiceId);
+        }
+      } catch (err) {
+        console.error('Error ejecutando addItemWithCheck tras createInvoice:', err, 'invoiceId:', invoiceId, 'manualId:', manualId);
+      }
+    }
+
+    console.log('Additemblockchains: procesamiento finalizado.');
+  } catch (error) {
+    console.error('❌ Error crítico en Additemblockchains:', error);
+    if (this.relayClient && typeof this.relayClient.showError === 'function') {
+      this.relayClient.showError(`❌ Error crítico: ${error.message}`, 5000);
+    }
+  } finally {
+    // Liberar bloqueo visual y bandera de transacción
+    try {
+      unlockAllSlotsLocal();
+    } catch (e) {
+      console.warn('unlockAllSlotsLocal fallo en finally:', e);
+    }
+    this._transactionInProgress = false;
+    this._addItemBlockchainBusy = false;
+  }
+}
+
+
+
+
+
+
+
+
+// ---------------------------
+// VERIFICAR ROMPIMIENTO DE HERRAMIENTA
+// ---------------------------
+/**
+ * Descuenta 1 uso a la herramienta con el invoiceId dado.
+ * Si los usos llegan a 0: notifica, console.log, y ejecuta ejecutarDivisionRemove para quitar 1 del stack.
+ * No toca el cursor ni bloquea nada.
+ *
+ * @param {Object} itemRef  — objeto de slot o selectedItem con .id e .idx
+ */
+async verificarRompimiento(itemRef) {
+  try {
+    if (!itemRef || !itemRef.idx) return;
+    const toolDef = this.ItemDefinitions[itemRef.id];
+    if (!toolDef || toolDef.usos == null) return;
+
+    // 1) Consultar usos actuales en backend
+    const usosRes = await this.fetchWithTokenRetry(
+      `${this.serverBase}/api/tool/uses/${itemRef.idx}`, { method: 'GET' }
+    );
+    const usosData = await usosRes.json();
+    const usosActuales = typeof usosData.usos === 'number' ? usosData.usos : toolDef.usos;
+    const usosNuevos = usosActuales - 1;
+
+    // 2) Registrar el descuento en backend
+    await this.fetchWithTokenRetry(`${this.serverBase}/api/tool/uses/decrease`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) },
+      body: JSON.stringify({ invoiceId: itemRef.idx, maxUsos: toolDef.usos })
+    });
+
+    if (usosNuevos <= 0) {
+      // ── Buscar casilla del item (solo para el log) ──
+      let slotRoto = null;
+      let slotTipo = null;
+      for (let i = 0; i < this.STATE.slots.length; i++) {
+        if (this.STATE.slots[i]?.idx === itemRef.idx) { slotRoto = i; slotTipo = 'inventario'; break; }
+      }
+      if (slotRoto === null) {
+        for (let i = 0; i < this.STATE.quickSlots.length; i++) {
+          if (this.STATE.quickSlots[i]?.idx === itemRef.idx) { slotRoto = i; slotTipo = 'quickslot'; break; }
+        }
+      }
+
+      console.log(`💀 Objeto "${itemRef.id}" en casilla ${slotTipo}[${slotRoto}] se rompió (idx=${itemRef.idx})`);
+      this.notifications.show(`Your ${itemRef.id} broke!`, 'error');
+
+      // ── Quitar 1 del stack en blockchain + local ──
+      /* EL TIPO ON-CHAIN, NO LA PALABRA 'slots'. Ese argumento acaba en
+         `quitarDeFactura({ tipo })`, que lo compara con el tipo de la factura
+         para no quemar la equivocada. Con 'slots' la comparacion fallaba
+         siempre y la respuesta era "esa factura ya no estaba": la herramienta
+         rota desaparecia de la pantalla pero seguia entera en la cadena.
+         Mismo fallo que tenia la venta de la tienda. */
+      const tipoOnchain = (toolDef && toolDef.tipo) || itemRef.id;
+      await this.ejecutarDivisionRemove.call(this, tipoOnchain, itemRef.id, toolDef.maxStack || 5, 1);
+
+      // ── Borrar registro de usos para que las unidades restantes empiecen frescos ──
+      try {
+        await this.fetchWithTokenRetry(`${this.serverBase}/api/tool/uses/${itemRef.idx}`, {
+          method: 'DELETE',
+          headers: { 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) }
+        });
+      } catch (delErr) {
+        console.warn('⚠️ No se pudo borrar registro de usos tras rompimiento:', delErr);
+      }
+
+    } else {
+      // Actualizar usos restantes en el estado local (para la barra visual)
+      for (const s of [...this.STATE.slots, ...this.STATE.quickSlots]) {
+        if (s?.idx === itemRef.idx) { s.usosRestantes = usosNuevos; break; }
+      }
+      console.log(`🪓 ${itemRef.id} usó 1 uso. Restantes: ${usosNuevos}/${toolDef.usos}`);
+    }
+
+    this.renderAllSlots();
+  } catch (err) {
+    console.warn('⚠️ Error en verificarRompimiento:', err);
+  }
+}
+
+// ---------------------------
+// EJECUTAR DIVISIÓN (ELIMINAR) - CORREGIDA
+// ---------------------------
+async ejecutarDivisionRemove(ruta_tabla, producto, limitacion, cantidad) {
+    if (limitacion <= 0 || cantidad <= 0) return;
+
+    // Mismo criterio que ejecutarDivision: se ENCOLA en vez de descartar, para
+    // no perder ninguna venta/consumo cuando se hacen varios seguidos.
+    this._removeItemQueue = (this._removeItemQueue || Promise.resolve())
+        .then(() => this._ejecutarDivisionRemoveInterno(ruta_tabla, producto, limitacion, cantidad))
+        .catch(err => console.error('❌ Error procesando ejecutarDivisionRemove en cola:', err));
+
+    return this._removeItemQueue;
+}
+
+async _ejecutarDivisionRemoveInterno(ruta_tabla, producto, limitacion, cantidad) {
+    if (limitacion <= 0 || cantidad <= 0) return;
+
+    if (this._removeItemBlockchainBusy) {
+        console.warn('Transacción de eliminar item ya en progreso. Ignorando nueva petición.');
+        return;
+    }
+    this._removeItemBlockchainBusy = true;
+
+    try {
+        // ── Si hay un item en el cursor, devolverlo a su casilla de origen antes de proceder ──
+        if (this.STATE?.selectedItem?.isGhost) {
+            const cursorItem = this.STATE.selectedItem;
+            const slotArr  = cursorItem.originType === 'inv' ? this.STATE.slots          : this.STATE.quickSlots;
+            const ghostArr = cursorItem.originType === 'inv' ? this.STATE.ghostSlots.inv : this.STATE.ghostSlots.quick;
+
+            slotArr[cursorItem.originIndex] = {
+                id:    cursorItem.id,
+                count: cursorItem.count,
+                idx:   cursorItem.idx  ?? null,
+                idm:   cursorItem.idm  ?? null
+            };
+            ghostArr[cursorItem.originIndex] = null;
+            this.STATE.selectedItem = null;
+            this.stopDrag && this.stopDrag();
+            this.renderSlot(cursorItem.originIndex);
+            console.log(`↩️ Item "${cursorItem.id}" devuelto a ${cursorItem.originType}[${cursorItem.originIndex}] antes de eliminar`);
+        }
+
+        await this.RemoveItemBlockchains(ruta_tabla, producto, cantidad);
+    } finally {
+        this._removeItemBlockchainBusy = false;
+    }
+}
+
+
+// ---------------------------------
+// SIMULADOR: eliminar items (mirror) - SIN CAMBIOS
+// ---------------------------------
+/**
+ * Simula la eliminación de 'quantity' unidades del ítem 'itemId' del inventario,
+ * sin modificar el estado real. Retorna un reporte con operaciones 'remove'.
+ *
+ * Cada operación incluye:
+ * - type: 'remove'
+ * - location: { type: 'inv'|'quick', index }
+ * - amountRemoved
+ * - previousCount
+ * - finalCount
+ * - idx (id de la factura / invoice id)  <-- importante para llamadas al contrato
+ * - manualid (manualId)                  <-- para mostrar / debug
+ */
+simulateRemoveItem(itemId, quantity = 1) {
+  const def = this.ItemDefinitions?.[itemId];
+  if (!def) {
+    console.warn(`Item "${itemId}" no definido en ItemDefinitions`);
+    return {
+      success: false,
+      remaining: quantity,
+      operations: [],
+      summary: { totalRemoved: 0, stacksAffected: 0, slotsFreed: 0 }
+    };
+  }
+
+  let remaining = quantity;
+
+  // Clonar slots para simular sin modificar el original
+  const simQuick = this.STATE.quickSlots.map(s => s ? { ...s } : null);
+  const simInv = this.STATE.slots.map(s => s ? { ...s } : null);
+
+  // Slots ocupados por el ítem seleccionado (fantasma)
+  const occupied = new Set();
+  if (this.STATE.selectedItem) {
+    const sel = this.STATE.selectedItem;
+    if (sel.originType === 'inv') occupied.add(`inv-${sel.originIndex}`);
+    else if (sel.originType === 'quick') occupied.add(`quick-${sel.originIndex}`);
+  }
+  const isOccupied = (type, idx) => occupied.has(`${type}-${idx}`);
+
+  const operations = [];
+
+  // 1) Quitar de quickSlots (cofre/inmediato) primero - preferencia puede cambiar
+  for (let i = 0; i < simQuick.length && remaining > 0; i++) {
+    if (isOccupied('quick', i)) continue;
+    const slot = simQuick[i];
+    if (slot && slot.id === itemId && slot.count > 0) {
+      const remove = Math.min(slot.count, remaining);
+      const prev = slot.count;
+      slot.count -= remove;
+      remaining -= remove;
+
+      const slotReal = this.STATE.quickSlots[i];
+
+      operations.push({
+        type: 'remove',
+        location: { type: 'quick', index: i },
+        amountRemoved: remove,
+        previousCount: prev,
+        finalCount: slot.count,
+        idx: slotReal ? slotReal.idx : null,
+        manualid: slotReal ? slotReal.idm : null
+      });
+    }
+  }
+
+  // 2) Quitar de inventario normal
+  for (let i = 0; i < simInv.length && remaining > 0; i++) {
+    if (isOccupied('inv', i)) continue;
+    const slot = simInv[i];
+    if (slot && slot.id === itemId && slot.count > 0) {
+      const remove = Math.min(slot.count, remaining);
+      const prev = slot.count;
+      slot.count -= remove;
+      remaining -= remove;
+
+      const slotReal = this.STATE.slots[i];
+
+      operations.push({
+        type: 'remove',
+        location: { type: 'inv', index: i },
+        amountRemoved: remove,
+        previousCount: prev,
+        finalCount: slot.count,
+        idx: slotReal ? slotReal.idx : null,
+        manualid: slotReal ? slotReal.idm : null
+      });
+    }
+  }
+
+  const success = remaining === 0;
+
+  // Resumen
+  let totalRemoved = 0;
+  let stacksAffected = operations.length;
+  let slotsFreed = operations.filter(op => op.finalCount === 0).length;
+  operations.forEach(op => totalRemoved += op.amountRemoved);
+
+  return {
+    success,
+    remaining,
+    operations,
+    summary: {
+      totalRemoved,
+      stacksAffected,
+      slotsFreed
+    }
+  };
+}
+
+// ---------------------------------
+// RemoveItemBlockchains - SIN CAMBIOS (se incluye completo)
+// ---------------------------------
+async RemoveItemBlockchains(ruta_tabla, producto, cantidad) {
+  // small helper sleep to avoid race conditions
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  // Funciones auxiliares para bloquear slots
+  const lockSlotLocal = (type, index) => {
+    try {
+      const selector = type === 'inv'
+        ? `.inv-slot[data-slot-index="${index}"]`
+        : `.quick-slot[data-slot-index="${index}"]`;
+      const slot = document.querySelector(selector);
+      if (slot) slot.classList.add('slot-locked');
+    } catch (e) {
+      console.warn('lockSlotLocal fallo:', e);
+    }
+  };
+
+  const unlockAllSlotsLocal = () => {
+    try {
+      document.querySelectorAll('.inv-slot, .quick-slot').forEach(slot => {
+        slot.classList.remove('slot-locked');
+      });
+    } catch (e) {
+      console.warn('unlockAllSlotsLocal fallo:', e);
+    }
+  };
+
+  // Helper para eliminar transacciones de items asociadas a una factura
+  const removeAssociatedAddTransactions = (idx, manualid) => {
+    if (!window.hub || !window.hub.transactions) return;
+    const items = window.hub.transactions.items || [];
+    items.forEach(tx => {
+      if (tx.hiddenData && tx.hiddenData.idx === idx && 
+          (tx.hiddenData.manualid === manualid || (!manualid && !tx.hiddenData.manualid))) {
+        window.hub.removeTransaction(tx.hash);
+      }
+    });
+  };
+
+  try {
+    // Inicializar relayClient si hace falta
+    if (!this.relayClient || this.relayClient._destroyed) {
+      this.relayClient = new PhaserRelay({
+        apiBase: this.serverBase,
+        debug: true,
+        forceLocalhostTo127: true
+      });
+      await this.relayClient.initialize();
+    }
+
+    // Debug backend
+    const debugInfo = await this.relayClient.debugBackendConnection();
+    console.log('🔍 Debug info:', debugInfo);
+
+    // Auth
+    const auth = await this.relayClient.checkAuth();
+    if (!auth || !auth.success) {
+      this.relayClient.showError(this.relayClient.authErrorMessage(auth), 5000);
+      return false;
+    }
+    console.log('🔑 Usuario autenticado:', auth.address);
+
+    // Establecer usuario en el hub
+    if (window.hub && this.playerName) {
+      window.hub.setUser(this.playerName, auth.address);
+    }
+
+    // Encontrar contrato
+    let contract;
+    try {
+      contract = await this.relayClient.findContract('ItemContract');
+    } catch (error) {
+      this.relayClient.showError('❌ Error conectando al backend: ' + (error.message || error), 5000);
+      return false;
+    }
+    if (!contract) {
+      this.relayClient.showError('❌ Contrato ItemContract no encontrado', 3000);
+      return false;
+    }
+    console.log('📄 Contrato encontrado:', contract.address);
+
+    // --- SIMULACIÓN: qué removemos ---
+    const reporte = this.simulateRemoveItem(producto, cantidad);
+    console.log('Reporte (simulateRemoveItem):', reporte);
+
+    if (!reporte || !Array.isArray(reporte.operations) || reporte.operations.length === 0) {
+      if (reporte && reporte.remaining > 0) {
+        this.relayClient.showWarning(`⚠️ No hay suficiente cantidad para eliminar. Falta: ${reporte.remaining}`, 4000);
+      } else {
+        this.relayClient.showInfo('ℹ️ No hay operaciones a ejecutar (nada que remover).', 3000);
+      }
+      return false;
+    }
+
+    // ===== BLOQUEAR SLOTS IMPLICADOS =====
+    reporte.operations.forEach(op => {
+      try {
+        if (op && op.location && op.location.type && op.location.index !== undefined && op.location.index !== null) {
+          lockSlotLocal(op.location.type, op.location.index);
+        }
+      } catch (e) {
+        console.warn('Error lockSlotLocal por operación:', op, e);
+      }
+    });
+
+    let anyProcessed = false;
+
+    // Procesar cada operación de forma secuencial
+    for (const originalOp of reporte.operations) {
+      // Clone safe copy of op to avoid accidental mutation
+      const op = { ...originalOp };
+      // Normalize numeric idx if it's a string
+      if (op.idx !== undefined && op.idx !== null && typeof op.idx === 'string' && op.idx.trim() !== '') {
+        const n = Number(op.idx);
+        if (!Number.isNaN(n)) op.idx = n;
+      }
+
+      // If no idx but manualid is present, try to resolve it via contract view
+      if ((op.idx === undefined || op.idx === null) && op.manualid) {
+        try {
+          const lookup = await this.relayClient.accion(contract.address, {
+            funcion: 'getInvoiceByManualId',
+            _manualId: op.manualid,
+            accion: 'obtener'
+          });
+          if (lookup) {
+            if (typeof lookup === 'object' && lookup.id !== undefined) {
+              op.idx = Number(lookup.id);
+            } else if (Array.isArray(lookup) && lookup.length > 0) {
+              op.idx = Number(lookup[0]);
+            } else {
+              const keys = Object.keys(lookup || {});
+              for (const k of keys) {
+                if (k.toLowerCase().includes('id')) {
+                  const candidate = Number(lookup[k]);
+                  if (!Number.isNaN(candidate)) {
+                    op.idx = candidate;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn(`⚠️ No se pudo resolver manualId ${op.manualid} a idx:`, err);
+        }
+      }
+
+      /* SIN idx NO SE ABANDONA: SE SIGUE POR EL TIPO.
+
+         FALLO QUE ESTO ARREGLA — "puedo comprar pero no vender".
+
+         Aquí había un `continue` que descartaba la operación entera cuando el
+         hueco no traía un id de factura utilizable. Y eso pasa a menudo:
+         `/api/load` manda `idx: s.IDX ?? s.id`, así que un objeto sin IDX en la
+         base de datos se queda con el NÚMERO DE HUECO — y el hueco 0 da
+         `idx = 0`, que en JavaScript es falso. Un objeto guardado en la primera
+         casilla del inventario NO SE PODÍA VENDER NUNCA. Tampoco los que
+         llegaron con `idx: null`.
+
+         Y no era un fallo ruidoso: al saltarse la operación no se enviaba nada,
+         no se apuntaba ningún motivo, y la venta terminaba con el cartel genérico
+         "la cadena no lo confirmó". Nada que mirar.
+
+         `quitarDeFactura` YA SABE resolver esto: si el id no vale, busca por
+         manualId y, si tampoco, mira las facturas vivas del jugador y coge una
+         del tipo que se está gastando. Lo único que hacía falta era dejarla
+         intentarlo. El id se manda como 0 —que es lo que ella entiende por "no
+         tengo id"— y el `tipo` hace el trabajo. */
+      if (!op.idx) {
+        console.warn('Operación sin id de factura utilizable: se buscará por tipo (' +
+                     ruta_tabla + ') en el inventario del jugador.', op);
+        op.idx = 0;
+      }
+
+      // normalize amountRemoved
+      const amount = Number(op.amountRemoved || op.amountRemoved === 0 ? op.amountRemoved : op.remove || 0);
+      if (!amount || amount <= 0) {
+        console.warn('Operación con amountRemoved inválido - ignorando:', op);
+        continue;
+      }
+
+      anyProcessed = true;
+
+      // Datos comunes para hiddenData
+      const hiddenDataBase = {
+        producto: producto,
+        cantidad: amount,
+        idx: op.idx,
+        manualid: op.manualid || '',
+        ruta_tabla: ruta_tabla
+      };
+
+      // Si finalCount === 0 => eliminar factura (deleteInvoice)
+      if (op.finalCount === 0) {
+        console.log(`🔻 Eliminando invoice id=${op.idx} manualId=${op.manualid} cantidad=${amount}`);
+
+        const hiddenData = { ...hiddenDataBase, type: 'delete' };
+        const tempHash = 'temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+
+        // Añadir transacción pendiente en categoría 'interaction' con nombre 'Remove Items'
+        if (window.hub) {
+          window.hub.addTransaction('interaction', {
+            name: 'Remove Items',
+            quantity: amount,
+            hash: tempHash,
+            status: 'pending',
+            hiddenData: hiddenData
+          });
+        }
+
+        /* SE QUITA POR EL CAMINO RESISTENTE (ver quitarDeFactura en
+           phaser-relay-library.js). Antes aqui se mandaba `deleteInvoice(idx)`
+           a pelo y cualquier tropiezo -- un id viejo, un hueco que nunca tuvo
+           factura, una cantidad que no cuadra -- acababa en el mismo cartel
+           rojo "Error borrando invoice N", que es justo lo que le salia al
+           jugador al craftear y al llenar el balde en la fuente.
+
+           Ahora primero se MIRA la factura, se busca por su manualId si el id
+           no vale, y se quita con decreaseInvoiceQuantity, que borra la factura
+           el solo al llegar a cero y nunca quema de mas. */
+        let sendResult;
+        let quitado;
+        try {
+          quitado = await this.relayClient.quitarDeFactura(contract.address, {
+            idx: op.idx,
+            manualid: op.manualid,
+            cantidad: amount,
+            tipo: ruta_tabla,
+            vaciarFactura: true
+          });
+        } catch (err) {
+          console.error('❌ Excepcion quitando de la factura:', err);
+          quitado = { ok: false, error: (err && (err.message || String(err))) || 'excepcion' };
+        }
+
+        /* YA NO ESTABA. No es un fallo: la factura ya se habia gastado por otro
+           camino y el inventario local iba retrasado. Se cuadra el hueco en
+           silencio y se sigue -- asustar al jugador con una cruz roja por algo
+           que ya estaba hecho era la mitad del problema. */
+        if (quitado && quitado.ok && quitado.ya) {
+          console.warn('La factura', op.idx, 'ya no estaba (' + quitado.motivo + '): se cuadra el inventario.');
+          if (window.hub) window.hub.removeTransaction(tempHash);
+          removeAssociatedAddTransactions(op.idx, op.manualid);
+          if (typeof this.EliitemWithCheck === 'function') {
+            try { await this.EliitemWithCheck(producto, amount, op.idx, op.manualid); }
+            catch (ex) { console.error('Error cuadrando el inventario:', ex); }
+          }
+          await sleep(200);
+          continue;
+        }
+
+        if (!quitado || !quitado.ok) {
+          const motivo = (quitado && quitado.error) || 'motivo desconocido';
+          console.error('❌ No se pudo quitar de la factura:', quitado);
+          // El motivo REAL, no "Error borrando invoice N".
+          this.relayClient.showError(`❌ No se pudo gastar ${producto}: ${motivo}`, 5000);
+          if (window.hub) {
+            window.hub.removeTransaction(tempHash);
+            window.hub.addTransaction('interaction', {
+              name: 'Remove Items',
+              quantity: amount,
+              hash: 'reverted-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+              status: 'reverted',
+              hiddenData: hiddenData
+            });
+          }
+          await sleep(500);
+          continue;
+        }
+
+        // A partir de aqui todo sigue igual que siempre.
+        sendResult = quitado;
+        op.idx = quitado.id || op.idx;
+        hiddenData.idx = op.idx;
+
+        this.relayClient.showSuccess(`Transacción ${quitado.funcion} enviada, esperando confirmación...`);
+
+        try {
+          const final = await this.relayClient.waitForTransaction(sendResult.transactionId, { interval: 3000 });
+          if (final && final.success) {
+            this.relayClient.showSuccess(`✅ Delete confirmada! TX: ${final.txHash?.substring(0,10) || '...'} `);
+
+            // Actualizar hub: eliminar pendiente y añadir confirmada
+            if (window.hub) {
+              window.hub.removeTransaction(tempHash);
+              window.hub.addTransaction('interaction', {
+                name: 'Remove Items',
+                quantity: amount,
+                hash: final.txHash,
+                status: 'confirmed',
+                hiddenData: hiddenData
+              });
+            }
+
+            // Eliminar las transacciones de items asociadas a esta factura
+            removeAssociatedAddTransactions(op.idx, op.manualid);
+
+            // Actualiza estado local con la eliminación
+            if (typeof this.EliitemWithCheck === 'function') {
+              try {
+                const ok = await this.EliitemWithCheck(producto, amount, op.idx, op.manualid);
+                if (!ok) {
+                  console.warn('EliitemWithCheck no pudo completar la eliminación local para', op);
+                }
+              } catch (ex) {
+                console.error('Error ejecutando EliitemWithCheck tras delete:', ex);
+              }
+            } else {
+              console.warn('EliitemWithCheck no definida, por favor implementa el handler local de eliminación.');
+            }
+          } else {
+            this.relayClient.showError(`❌ Delete falló: ${final?.error || 'unknown'}`);
+            if (window.hub) {
+              window.hub.removeTransaction(tempHash);
+              window.hub.addTransaction('interaction', {
+                name: 'Remove Items',
+                quantity: amount,
+                hash: 'reverted-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                status: 'reverted',
+                hiddenData: hiddenData
+              });
+            }
+          }
+        } catch (err) {
+          this.relayClient.showError(`⏰ Error esperando confirmación deleteInvoice: ${err.message || err}`);
+          if (window.hub) {
+            window.hub.removeTransaction(tempHash);
+            window.hub.addTransaction('interaction', {
+              name: 'Remove Items',
+              quantity: amount,
+              hash: 'reverted-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+              status: 'reverted',
+              hiddenData: hiddenData
+            });
+          }
+        }
+
+      } else {
+        // finalCount > 0 => decrease parcial
+        console.log(`🔻 Decreasing invoice id=${op.idx} manualId=${op.manualid} by ${amount}`);
+
+        const hiddenData = { ...hiddenDataBase, type: 'decrease' };
+        const tempHash = 'temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+
+        if (window.hub) {
+          window.hub.addTransaction('interaction', {
+            name: 'Remove Items',
+            quantity: amount,
+            hash: tempHash,
+            status: 'pending',
+            hiddenData: hiddenData
+          });
+        }
+
+        // Mismo camino resistente que el borrado, pero quitando solo una parte:
+        // aqui NUNCA se cae al plan B de borrar la factura entera.
+        let sendResult;
+        let quitado;
+        try {
+          quitado = await this.relayClient.quitarDeFactura(contract.address, {
+            idx: op.idx,
+            manualid: op.manualid,
+            cantidad: amount,
+            tipo: ruta_tabla,
+            vaciarFactura: false
+          });
+        } catch (err) {
+          console.error('❌ Excepcion disminuyendo la factura:', err);
+          quitado = { ok: false, error: (err && (err.message || String(err))) || 'excepcion' };
+        }
+
+        if (quitado && quitado.ok && quitado.ya) {
+          console.warn('La factura', op.idx, 'ya no estaba (' + quitado.motivo + '): se cuadra el inventario.');
+          if (window.hub) window.hub.removeTransaction(tempHash);
+          removeAssociatedAddTransactions(op.idx, op.manualid);
+          if (typeof this.EliitemWithCheck === 'function') {
+            try { await this.EliitemWithCheck(producto, amount, op.idx, op.manualid); }
+            catch (ex) { console.error('Error cuadrando el inventario:', ex); }
+          }
+          await sleep(200);
+          continue;
+        }
+
+        if (!quitado || !quitado.ok) {
+          const motivo = (quitado && quitado.error) || 'motivo desconocido';
+          console.error('❌ No se pudo disminuir la factura:', quitado);
+          this.relayClient.showError(`❌ No se pudo gastar ${producto}: ${motivo}`, 5000);
+          if (window.hub) {
+            window.hub.removeTransaction(tempHash);
+            window.hub.addTransaction('interaction', {
+              name: 'Remove Items',
+              quantity: amount,
+              hash: 'reverted-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+              status: 'reverted',
+              hiddenData: hiddenData
+            });
+          }
+          await sleep(500);
+          continue;
+        }
+
+        sendResult = quitado;
+        op.idx = quitado.id || op.idx;
+        hiddenData.idx = op.idx;
+
+        this.relayClient.showSuccess(`Transacción ${quitado.funcion} enviada, esperando confirmación...`);
+
+        try {
+          const final = await this.relayClient.waitForTransaction(sendResult.transactionId, { interval: 3000 });
+          if (final && final.success) {
+            this.relayClient.showSuccess(`✅ Decrease confirmada! TX: ${final.txHash?.substring(0,10) || '...'} `);
+
+            if (window.hub) {
+              window.hub.removeTransaction(tempHash);
+              window.hub.addTransaction('interaction', {
+                name: 'Remove Items',
+                quantity: amount,
+                hash: final.txHash,
+                status: 'confirmed',
+                hiddenData: hiddenData
+              });
+            }
+
+            // Eliminar las transacciones de items asociadas a esta factura
+            removeAssociatedAddTransactions(op.idx, op.manualid);
+
+            // Actualiza estado local con la disminución
+            if (typeof this.EliitemWithCheck === 'function') {
+              try {
+                const ok = await this.EliitemWithCheck(producto, amount, op.idx, op.manualid);
+                if (!ok) {
+                  console.warn('EliitemWithCheck no pudo completar la actualización local para', op);
+                }
+              } catch (ex) {
+                console.error('Error ejecutando EliitemWithCheck tras decrease:', ex);
+              }
+            } else {
+              console.warn('EliitemWithCheck no definida, por favor implementa el handler local de eliminación.');
+            }
+          } else {
+            this.relayClient.showError(`❌ Decrease falló: ${final?.error || 'unknown'}`);
+            if (window.hub) {
+              window.hub.removeTransaction(tempHash);
+              window.hub.addTransaction('interaction', {
+                name: 'Remove Items',
+                quantity: amount,
+                hash: 'reverted-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                status: 'reverted',
+                hiddenData: hiddenData
+              });
+            }
+          }
+        } catch (err) {
+          this.relayClient.showError(`⏰ Error esperando confirmación decreaseInvoiceQuantity: ${err.message || err}`);
+          if (window.hub) {
+            window.hub.removeTransaction(tempHash);
+            window.hub.addTransaction('interaction', {
+              name: 'Remove Items',
+              quantity: amount,
+              hash: 'reverted-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+              status: 'reverted',
+              hiddenData: hiddenData
+            });
+          }
+        }
+      }
+
+      // short delay to reduce chance of race conditions / nonce issues
+      await sleep(400);
+    } // end for
+
+    // Si quedó restante en el reporte, notificar
+    if (!reporte.success && reporte.remaining > 0) {
+      this.relayClient.showWarning(`⚠️ No se pudo remover toda la cantidad. Falta: ${reporte.remaining}`, 5000);
+    }
+
+    return anyProcessed;
+
+  } catch (error) {
+    console.error('❌ Error crítico en RemoveItemBlockchains:', error);
+    if (this.relayClient) {
+      this.relayClient.showError(`❌ Error crítico: ${error.message || error}`, 5000);
+    }
+    return false;
+  } finally {
+    // Liberar bloqueo visual de todos los slots
+    unlockAllSlotsLocal();
+  }
+}
+
+// ---------------------------------
+// EliitemWithCheck - SIN CAMBIOS
+// ---------------------------------
+/**
+ * EliitemWithCheck
+ * Elimina una cantidad del item identificado por invoiceId/manualId (si están),
+ * actualiza slots (quick/inv/chest), limpia idx/idm y persiste estado.
+ *
+ * @param {string} itemId
+ * @param {number} amountToRemove
+ * @param {number|null} invoiceIdx
+ * @param {string|null} manualId
+ * @returns {Promise<boolean>}
+ */
+async EliitemWithCheck(itemId, amountToRemove = 1, invoiceIdx = null, manualId = null) {
+  if (!itemId || !amountToRemove || amountToRemove <= 0) return false;
+
+  let remaining = Number(amountToRemove);
+
+  /* EL OBJETO MANDA; EL idx SOLO ELIGE QUÉ MONTÓN. Dos pasadas.
+
+     DOS FALLOS QUE ESTO ARREGLA:
+
+     1) SE PODÍA BORRAR OTRA COSA. La condición de antes aceptaba un hueco si
+        coincidía el `idx` O el `idm`, SIN mirar de qué objeto era. Y los `idx`
+        de los huecos son números de hueco muy a menudo (3, 7, 12…), repetidos
+        entre inventario y cofre rápido. Vender 5 zanahorias con `idx = 3`
+        podía vaciar el hueco 3 del cofre —donde estaba el hacha—. Ahora un
+        hueco solo entra si `slot.id === itemId`: nunca se toca otro objeto.
+
+     2) SE QUEMABA EN LA CADENA Y NO EN EL INVENTARIO. Si ningún hueco tenía
+        ese `idx` ni ese `idm` (lo normal cuando `quitarDeFactura` encuentra la
+        factura buena por el tipo y devuelve OTRO id), no se quitaba nada en
+        local: la factura desaparecía de la cadena y el objeto seguía en
+        pantalla. Ahora hay una segunda pasada: si con las pistas no se
+        completó, se quita de cualquier montón de ESE MISMO objeto.
+
+     `soloPreferidos = true`  → solo los huecos que casan con idx/manualId.
+     `soloPreferidos = false` → cualquier hueco de ese objeto. */
+  const processSlotsArray = (slotsArray, slotType, soloPreferidos) => {
+    // Un id 0 o un manualId vacío no son pistas: son "no tengo".
+    const hayPista = (invoiceIdx !== null && invoiceIdx !== undefined && Number(invoiceIdx) > 0) ||
+                     (manualId !== null && manualId !== undefined && String(manualId) !== '');
+
+    for (let i = 0; i < slotsArray.length && remaining > 0; i++) {
+      const slot = slotsArray[i];
+      if (!slot) continue;
+
+      // NUNCA otro objeto: esta es la condición que no se puede saltar.
+      if (slot.id !== itemId) continue;
+
+      const matchesIdx = invoiceIdx !== null && Number(invoiceIdx) > 0 &&
+                         (slot.idx === invoiceIdx || Number(slot.idx) === Number(invoiceIdx));
+      const matchesManual = manualId !== null && String(manualId) !== '' &&
+                            (slot.idm === manualId || String(slot.idm) === String(manualId));
+
+      // En la primera pasada solo valen los huecos señalados por las pistas.
+      if (soloPreferidos && hayPista && !(matchesIdx || matchesManual)) continue;
+
+      // Encontrado un slot válido para reducir
+      const slotCount = Number(slot.count || slot.quantity || 0);
+      if (slotCount <= 0) {
+        // slot vacío por seguridad
+        slotsArray[i] = null;
+        this.renderSlot(i);
+        continue;
+      }
+
+      if (slotCount > remaining) {
+        // Reducir parcialmente
+        const newCount = slotCount - remaining;
+        // Mantener formato consistente (algunos slots usan 'count' o 'quantity')
+        if ('count' in slot) slot.count = newCount;
+        else slot.quantity = newCount;
+
+        // Si el slot tenía idx/idm y ahora sigue >0, mantenemos idx/idm
+        remaining = 0;
+        this.renderSlot(i);
+      } else {
+        // Consumir todo el slot
+        remaining -= slotCount;
+        // limpiar completamente el slot y sus metadatos
+        slotsArray[i] = null;
+        this.renderSlot(i);
+      }
+    }
+  };
+
+  // Se recorre TODO con las pistas puestas y, si aún falta, se repite sin
+  // ellas. El orden entre montones no cambia: cofre rápido, inventario, cofre.
+  const recorrerTodo = (soloPreferidos) => {
+    // 1) Prioridad: quickSlots (hotbar / cofre rápido)
+    if (remaining > 0 && this.STATE && Array.isArray(this.STATE.quickSlots)) {
+      processSlotsArray(this.STATE.quickSlots, 'quick', soloPreferidos);
+    }
+
+    // 2) Inventario principal
+    if (remaining > 0 && this.STATE && Array.isArray(this.STATE.slots)) {
+      processSlotsArray(this.STATE.slots, 'inv', soloPreferidos);
+    }
+
+    // 3) Chest / cofre extra (si existe)
+    if (remaining > 0 && this.STATE && Array.isArray(this.STATE.chestSlots)) {
+      processSlotsArray(this.STATE.chestSlots, 'chest', soloPreferidos);
+    }
+
+    // 4) Como respaldo, si aún queda y existen otros arrays (casillas, casillasExtra)
+    if (remaining > 0 && Array.isArray(this.casillas)) {
+      processSlotsArray(this.casillas, 'casillas', soloPreferidos);
+    }
+    if (remaining > 0 && Array.isArray(this.casillasExtra)) {
+      processSlotsArray(this.casillasExtra, 'casillasExtra', soloPreferidos);
+    }
+  };
+
+  recorrerTodo(true);
+  if (remaining > 0) recorrerTodo(false);
+
+  // Persistir / UI
+  try {
+    this.queuedAction && this.queuedAction({ type: 'forSpam2' });
+    this.rebuildPlayerInventoryFromState && this.rebuildPlayerInventoryFromState();
+
+    // Guardar en backend si tienes función savegg (opcional pero recomendado)
+    if (typeof this.savegg === 'function') {
+      try {
+        await this.savegg();
+      } catch (e) {
+        console.warn('⚠️ savegg falló (no crítico):', e);
+      }
+    }
+  } catch (e) {
+    console.error('⚠️ Error actualizando UI/state tras EliitemWithCheck:', e);
+  }
+
+  if (remaining > 0) {
+    console.warn(`⚠️ No se pudo remover toda la cantidad. Falta: ${remaining}`);
+    return false;
+  }
+
+  return true;
+}
+
+
+
+
+
+
+
+/**
+ * Agrega 'quantity' unidades del ítem 'itemId' al inventario.
+ * Primero completa stacks parciales; luego abre nuevos stacks en slots vacíos.
+ * Si no hay espacio, retorna false.
+ *
+ * @param {string} itemId           - Clave del ítem en ItemDefinitions.
+ * @param {number} quantity        - Cantidad a agregar (por defecto 1).
+ * @param {number|null} [customIdx] - Índice fijo para TODOS los stacks creados (opcional).
+ * @param {string|null} [customIdm] - ID manual para TODOS los stacks creados (opcional).
+ * @returns {boolean}              - true si se agregó todo, false si faltó espacio.
+ */
+addItem(itemId, quantity = 1, customIdx = null, customIdm = null) {
+  const defs = this.ItemDefinitions[itemId];
+  if (!defs) {
+    console.warn(`Item "${itemId}" no definido en ItemDefinitions`);
+    return false;
+  }
+
+  const maxStack = defs.maxStack;
+  let remaining = quantity;
+
+  // 1) Completar stacks parciales existentes (sin modificar idx/idm)
+  for (let i = 0; i < this.STATE.slots.length && remaining > 0; i++) {
+    if (this.STATE.ghostSlots.inv[i]) continue;
+    const slot = this.STATE.slots[i];
+    if (slot && slot.id === itemId && slot.count < maxStack) {
+      const espacio = maxStack - slot.count;
+      const suma = Math.min(espacio, remaining);
+      slot.count += suma;
+      remaining -= suma;
+      this.renderSlot(i);
+    }
+  }
+  if (remaining === 0) return true;
+
+  // 2) Crear nuevos stacks en slots vacíos
+  for (let i = 0; i < this.STATE.slots.length && remaining > 0; i++) {
+    if (this.STATE.ghostSlots.inv[i]) continue;
+    if (this.STATE.slots[i] === null) {
+      const paraEste = Math.min(maxStack, remaining);
+      
+      // ✅ idx: si se pasó customIdx, se usa SIEMPRE; si no, el índice real del slot
+      const idx = (customIdx !== null) ? customIdx : i;
+      // ✅ idm: si se pasó customIdm, se usa SIEMPRE; si no, el itemId
+      const idm = (customIdm !== null) ? customIdm : itemId;
+
+      this.STATE.slots[i] = {
+        id: itemId,
+        count: paraEste,
+        idx: idx,
+        idm: idm
+      };
+      remaining -= paraEste;
+      this.renderSlot(i);
+    }
+  }
+
+  if (remaining > 0) {
+    console.warn(`No hubo espacio para ${remaining} unidades de "${itemId}".`);
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Icono de un ítem para las casillas.
+ *
+ * EL FALLO QUE ARREGLA — "en GameScene se ven todos los objetos y en la tienda
+ * no":
+ *
+ * Aquí se hacía `img.src = this.ItemDefinitions[itemObj.id].src` a pelo. Si el
+ * ítem no estaba en `ItemDefinitions`, eso no es un hueco: es un
+ * `TypeError: Cannot read properties of undefined (reading 'src')` que sale
+ * disparado de `renderSlot`, sube hasta el bucle de `renderAllSlots()` —que no
+ * tenía red— y LO CORTA. Todas las casillas que vinieran después se quedaban
+ * en blanco.
+ *
+ * Y este catálogo es una copia del de GameScene que se había quedado atrás: le
+ * faltaban el carbón y las tres pociones del alquimista. Con una poción en la
+ * casilla 12, el inventario de la tienda pintaba las doce primeras y dejaba las
+ * veintiocho restantes vacías, mientras que en el mapa se veía entero. Eso es
+ * exactamente lo que se veía en las capturas.
+ *
+ * Ahora una definición ausente cuesta SU casilla y nada más. Es la misma
+ * función que ya tiene GameScene (se le puso cuando le pasó con el carbón);
+ * esta escena se quedó sin ella.
+ */
+_crearIconoDeItem(itemId) {
+  const img = document.createElement('img');
+  img.alt = itemId;
+  img.decoding = 'async';
+
+  const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
+  if (!def || !def.src) {
+    console.warn(`⚠️ '${itemId}' no está en ItemDefinitions de la tienda: la casilla se pinta sin icono`);
+    img.style.visibility = 'hidden';
+    return img;
+  }
+
+  img.dataset.gfSrc = def.src;
+  img.onerror = () => {
+    // Un solo reintento con cache-buster; si tampoco, se deja el hueco en vez
+    // de quedarse con el icono roto del navegador.
+    if (img.dataset.gfRetry === '1') { img.onerror = null; img.style.visibility = 'hidden'; return; }
+    img.dataset.gfRetry = '1';
+    img.src = def.src + (def.src.indexOf('?') >= 0 ? '&' : '?') + 'r=' + Date.now();
+  };
+  img.src = def.src;
+  return img;
+}
+
+/** La ruta del icono de un ítem, o null si no se conoce. Para el arrastre. */
+_srcDeItem(itemId) {
+  const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
+  return (def && def.src) ? def.src : null;
+}
+
+renderSlot(index) {
+  // Helper: añade indicador de usos si el item es una herramienta con usos definidos
+  const _addUsosIndicator = (container, itemObj) => {
+    const def = this.ItemDefinitions[itemObj?.id];
+    if (!def || def.usos == null) return;
+    const maxU = def.usos;
+    const restantes = typeof itemObj.usosRestantes === 'number' ? itemObj.usosRestantes : maxU;
+    const rota = restantes <= 0;
+    const pct  = rota ? 0 : Math.round((restantes / maxU) * 100);
+    // barra de durabilidad
+    const bar = document.createElement('div');
+    bar.style.cssText = `
+      position:absolute; bottom:2px; left:2px; right:2px; height:3px;
+      background:#333; border-radius:2px; overflow:hidden; pointer-events:none;
+    `;
+    const fill = document.createElement('div');
+    fill.style.cssText = `
+      height:100%; width:${pct}%;
+      background:${pct > 50 ? '#4caf50' : pct > 20 ? '#ff9800' : '#f44336'};
+      border-radius:2px; transition:width .2s;
+    `;
+    bar.appendChild(fill);
+    container.style.position = 'relative';
+    container.appendChild(bar);
+    // badge "ROTA" si está rota
+    if (rota) {
+      const badge = document.createElement('span');
+      badge.textContent = '✗';
+      badge.style.cssText = `
+        position:absolute; top:1px; right:2px;
+        font-size:9px; color:#f44336; font-weight:bold;
+        text-shadow:0 0 2px #000; pointer-events:none;
+      `;
+      container.appendChild(badge);
+    }
+  };
+
+  // Render inventario
+  const invDiv = document.querySelector(`.inv-slot[data-slot-index="${index}"]`);
+  if (invDiv) {
+    invDiv.innerHTML = "";
+    if (this.STATE.ghostSlots.inv[index]) {
+      invDiv.classList.add("empty");
+      invDiv.classList.remove("highlight");
+    } else {
+      const itemObj = this.STATE.slots[index];
+      if (itemObj) {
+        const img = this._crearIconoDeItem(itemObj.id);
+        invDiv.appendChild(img);
+        if (itemObj.count > 1) {
+          const span = document.createElement("span");
+          span.classList.add("item-count");
+          span.textContent = "x" + itemObj.count;
+          invDiv.appendChild(span);
+        }
+        _addUsosIndicator(invDiv, itemObj);
+        invDiv.classList.remove("empty");
+      } else {
+        invDiv.classList.add("empty");
+      }
+      invDiv.classList.remove("highlight");
+    }
+  }
+
+  // Render quick-slot
+  const quickDiv = document.querySelector(`.quick-slot[data-slot-index="${index}"]`);
+  if (quickDiv) {
+    quickDiv.innerHTML = "";
+    if (this.STATE.ghostSlots.quick[index]) {
+      quickDiv.classList.add("empty");
+      quickDiv.classList.remove("highlight");
+    } else {
+      const itemObj = this.STATE.quickSlots[index];
+      if (itemObj) {
+        const img = this._crearIconoDeItem(itemObj.id);
+        quickDiv.appendChild(img);
+        if (itemObj.count > 1) {
+          const span = document.createElement("span");
+          span.classList.add("item-count");
+          span.textContent = "x" + itemObj.count;
+          quickDiv.appendChild(span);
+        }
+        _addUsosIndicator(quickDiv, itemObj);
+        quickDiv.classList.remove("empty");
+      } else {
+        quickDiv.classList.add("empty");
+      }
+      quickDiv.classList.remove("highlight");
+    }
+  }
+}
+
+
+// ============================================================================
+// handleSlotClick (versión completa y corregida)
+// ============================================================================
+async handleSlotClick(type, index, clickX, clickY) {
+  // Si hay una transacción en curso, ignorar clics
+  if (this._transactionInProgress) {
+    console.log('⏳ Transacción en curso, espera...');
+    return;
+  }
+
+  if (!this.STATE.selectedItem) {
+    // SIN ÍTEM EN MANO → Crear fantasma sin eliminar del backend
+    if (type === 'inv') {
+      const slotItem = this.STATE.slots[index];
+      if (!slotItem) return;
+      
+      this.STATE.selectedItem = {
+        id: slotItem.id,
+        count: slotItem.count,
+        originType: 'inv',
+        originIndex: index,
+        isGhost: true,
+        idx: slotItem.idx,        // ← AÑADIDO
+        idm: slotItem.idm         // ← AÑADIDO
+      };
+      
+      this.STATE.ghostSlots.inv[index] = {
+        id: slotItem.id,
+        count: slotItem.count,
+        idx: slotItem.idx,        // ← AÑADIDO
+        idm: slotItem.idm         // ← AÑADIDO
+      };
+      
+      const div = document.querySelector(`.inv-slot[data-slot-index="${index}"]`);
+      div.innerHTML = '';
+      div.classList.add('highlight');
+
+      // Sin `.src` a pelo: un ítem sin definición se arrastra sin dibujo, pero
+      // se arrastra. Antes reventaba aquí y el ítem se quedaba a medias — el
+      // slot vaciado y en la mano nada.
+      this.startDrag(
+        this._srcDeItem(this.STATE.selectedItem.id),
+        clickX,
+        clickY,
+        this.STATE.selectedItem.count
+      );
+        
+    } else {
+      const qSlot = this.STATE.quickSlots[index];
+      if (!qSlot) return;
+      
+      this.STATE.selectedItem = {
+        id: qSlot.id,
+        count: qSlot.count,
+        originType: 'quick',
+        originIndex: index,
+        invIndex: qSlot.invIndex,
+        isGhost: true,
+        idx: qSlot.idx,           // ← AÑADIDO
+        idm: qSlot.idm            // ← AÑADIDO
+      };
+      
+      this.STATE.ghostSlots.quick[index] = {
+        id: qSlot.id,
+        count: qSlot.count,
+        invIndex: qSlot.invIndex,
+        idx: qSlot.idx,           // ← AÑADIDO
+        idm: qSlot.idm            // ← AÑADIDO
+      };
+      
+      const div = document.querySelector(`.quick-slot[data-slot-index="${index}"]`);
+      div.innerHTML = '';
+      div.classList.add('highlight');
+
+      this.startDrag(
+        this._srcDeItem(this.STATE.selectedItem.id),
+        clickX,
+        clickY,
+        this.STATE.selectedItem.count
+      );
+    }
+  } else {
+    // YA HAY UN ÍTEM EN MANO
+    const origin = { ...this.STATE.selectedItem };
+    
+    // Si se hace clic en el MISMO slot de origen, cancelar
+    if (origin.originType === type && origin.originIndex === index && origin.isGhost) {
+      if (type === 'inv') {
+        this.STATE.ghostSlots.inv[index] = null;
+      } else {
+        this.STATE.ghostSlots.quick[index] = null;
+      }
+      this.STATE.selectedItem = null;
+      this.stopDrag();
+      this.renderSlot(index);
+      return;
+    }
+    
+    // Bloquear nuevos clics durante la transacción
+    this._transactionInProgress = true;
+    
+    try {
+      if (type === 'inv') {
+        await this.handleInventoryPlacement(origin, index, type);
+      } else {
+        await this.handleQuickSlotPlacement(origin, index, type);
+      }
+    } finally {
+      // Liberar bloqueo
+      this._transactionInProgress = false;
+    }
+  }
+}
+
+
+
+// ============================================================================
+// 2. FUNCIÓN AUXILIAR getItemTipo
+// ============================================================================
+getItemTipo(itemId) {
+  const def = this.ItemDefinitions[itemId];
+  return def?.tipo || "default";
+}
+
+// ============================================================================
+// mergeItemsBlockchain (versión robusta final)
+// ============================================================================
+async mergeItemsBlockchain(origin, destType, destIndex) {
+  console.log('========== MERGE BLOCKCHAIN ==========');
+  console.log('Origen:', origin);
+
+  // Obtener item destino actual (referencia)
+  let destItem;
+  if (destType === 'inv') {
+    destItem = this.STATE.slots[destIndex];
+  } else {
+    destItem = this.STATE.quickSlots[destIndex];
+  }
+  if (!destItem) {
+    console.error('❌ Destino no tiene item (merge llamado incorrectamente)');
+    return false;
+  }
+  console.log('Destino (antes de transacción):', destItem);
+
+  // Verificaciones
+  if (origin.id !== destItem.id) {
+    console.error('❌ Los items no son del mismo tipo');
+    return false;
+  }
+  if (!origin.idx || !destItem.idx) {
+    console.error('❌ Faltan idx en origen o destino. No se puede realizar merge blockchain.');
+    this.showNotification('Error: an item is missing its invoiceId', 'error');
+    return false;
+  }
+
+  const maxStack = this.ItemDefinitions[origin.id]?.maxStack;
+  if (!maxStack) {
+    console.error('❌ No se encontró maxStack para', origin.id);
+    return false;
+  }
+
+  const espacioDestino = maxStack - destItem.count;
+  if (espacioDestino <= 0) {
+    console.log('ℹ️ Destino ya está lleno, no se puede transferir');
+    this.showNotification('That slot is already full', 'warning');
+    return false;
+  }
+
+  const transferAmount = Math.min(origin.count, espacioDestino);
+  console.log(`📦 Transferir ${transferAmount} unidades de factura ${origin.idx} a factura ${destItem.idx}`);
+
+  if (transferAmount <= 0) {
+    console.log('ℹ️ No hay nada que transferir');
+    return false;
+  }
+
+  // ── COOLDOWN DE 7 MINUTOS POR BACKEND ──────────────────────────────────────
+  try {
+    const pairKey = [origin.idx, destItem.idx].sort().join('_');
+    const cdRes = await this.fetchWithTokenRetry(
+      `${this.serverBase}/api/merge/cooldown/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) },
+        body: JSON.stringify({ pairKey })
+      }
+    );
+    const cdData = await cdRes.json();
+    if (cdData.onCooldown) {
+      const segsRestantes = Math.ceil((new Date(cdData.cooldownUntil) - Date.now()) / 1000);
+      const mins = Math.floor(segsRestantes / 60);
+      const segs = segsRestantes % 60;
+      this.notifications?.show(
+        `Debes esperar ${mins}m ${segs}s antes de volver a unir estos ítems`,
+        'warning'
+      );
+      console.log(`⏳ Merge bloqueado por cooldown. Faltan ${mins}m ${segs}s`);
+      return false;
+    }
+  } catch (cdErr) {
+    console.warn('⚠️ No se pudo verificar cooldown de merge, continuando:', cdErr);
+  }
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // Inicializar relayClient si es necesario
+  if (!this.relayClient || this.relayClient._destroyed) {
+    this.relayClient = new PhaserRelay({
+      apiBase: this.serverBase,
+      debug: true,
+      forceLocalhostTo127: true
+    });
+    await this.relayClient.initialize();
+  }
+
+  const auth = await this.relayClient.checkAuth();
+  if (!auth.success) {
+    console.error('❌ No autenticado');
+    this.relayClient.showError('No autenticado', 5000);
+    return false;
+  }
+
+  const contract = await this.relayClient.findContract('ItemContract');
+  if (!contract) {
+    console.error('❌ Contrato ItemContract no encontrado');
+    this.relayClient.showError('Contrato no encontrado', 3000);
+    return false;
+  }
+
+  // Enviar transacción
+  console.log('⏳ Enviando transacción transferQuantityBetweenInvoices...');
+  const sendResult = await this.relayClient.accion(contract.address, {
+    funcion: 'transferQuantityBetweenInvoices',
+    fromId: origin.idx,
+    toId: destItem.idx,
+    amount: transferAmount,
+    accion: 'enviar'
+  });
+
+  if (!sendResult.success) {
+    console.error('❌ Error en transferQuantityBetweenInvoices:', sendResult);
+    this.relayClient.showError(`Error: ${sendResult.error || 'Desconocido'}`, 5000);
+    return false;
+  }
+
+  this.relayClient.showSuccess('Transacción enviada, esperando confirmación...');
+
+  try {
+    const final = await this.relayClient.waitForTransaction(sendResult.transactionId, { interval: 3000 });
+    if (final.success) {
+      console.log('✅ Transferencia confirmada:', final);
+      this.relayClient.showSuccess('Transferencia confirmada');
+      this.queuedAction({ type: 'forSpam2'}); 
+
+      // --- ACTUALIZACIÓN LOCAL ROBUSTA ---
+      const findSlotByIdx = (idx) => {
+        for (let i = 0; i < this.STATE.slots.length; i++) {
+          const slot = this.STATE.slots[i];
+          if (slot && slot.idx === idx) return { type: 'inv', index: i, slot };
+        }
+        for (let i = 0; i < this.STATE.quickSlots.length; i++) {
+          const slot = this.STATE.quickSlots[i];
+          if (slot && slot.idx === idx) return { type: 'quick', index: i, slot };
+        }
+        return null;
+      };
+
+      const originSlotInfo = findSlotByIdx(origin.idx);
+      const destSlotInfo   = findSlotByIdx(destItem.idx);
+
+      if (!originSlotInfo) {
+        console.warn('⚠️ No se encontró el slot origen con idx', origin.idx, 'en el inventario. Puede que ya haya sido eliminado.');
+      }
+      if (!destSlotInfo) {
+        console.error('❌ No se encontró el slot destino con idx', destItem.idx, 'en el inventario. ¡Inconsistencia!');
+        this.showNotification('Error: the target slot vanished, please reload the page', 'error');
+        return true;
+      }
+
+      // Actualizar origen
+      if (originSlotInfo) {
+        const newOriginCount = origin.count - transferAmount;
+        if (newOriginCount <= 0) {
+          if (originSlotInfo.type === 'inv') {
+            this.STATE.slots[originSlotInfo.index] = null;
+          } else {
+            this.STATE.quickSlots[originSlotInfo.index] = null;
+          }
+          console.log(`🗑️ Slot origen ${originSlotInfo.type}[${originSlotInfo.index}] eliminado`);
+        } else {
+          originSlotInfo.slot.count = newOriginCount;
+          console.log(`📉 Origen ahora tiene ${newOriginCount} unidades en ${originSlotInfo.type}[${originSlotInfo.index}]`);
+        }
+        this.renderSlot(originSlotInfo.index);
+      }
+
+      // Actualizar destino
+      if (destSlotInfo) {
+        destSlotInfo.slot.count += transferAmount;
+        console.log(`📈 Destino ahora tiene ${destSlotInfo.slot.count} unidades en ${destSlotInfo.type}[${destSlotInfo.index}]`);
+        this.renderSlot(destSlotInfo.index);
+      }
+
+      // Limpiar cursor si el origen era el que estaba en el cursor
+      if (this.STATE.selectedItem && this.STATE.selectedItem.isGhost && this.STATE.selectedItem.idx === origin.idx) {
+        this.cleanupGhosts(this.STATE.selectedItem);
+        this.STATE.selectedItem = null;
+        this.stopDrag();
+      }
+
+      // Registrar cooldown de 7 minutos en backend para este par de facturas
+      try {
+        const pairKey = [origin.idx, destItem.idx].sort().join('_');
+        await this.fetchWithTokenRetry(`${this.serverBase}/api/merge/cooldown/set`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken(this.csrfToken) },
+          body: JSON.stringify({ pairKey, cooldownMinutes: 7 })
+        });
+        console.log(`⏱️ Cooldown de merge registrado para par ${pairKey} (7 min)`);
+      } catch (cdSetErr) {
+        console.warn('⚠️ No se pudo registrar cooldown de merge:', cdSetErr);
+      }
+
+      console.log('========== MERGE COMPLETADO ==========');
+      this.renderAllSlots();
+      return true;
+    } else {
+      console.error('❌ Transacción falló:', final);
+      this.relayClient.showError(`Falló: ${final.error}`, 5000);
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Error esperando transacción:', error);
+    this.relayClient.showError(`Error: ${error.message}`, 5000);
+    return false;
+  }
+}
+
+/**
+ * Renderiza todos los slots del inventario y del cofre (quick slots)
+ * para reflejar el estado actual en la interfaz.
+ */
+renderAllSlots() {
+  /* CADA CASILLA EN SU PROPIO try.
+     Esta era la otra mitad del fallo: el bucle no tenía red, así que
+     CUALQUIER excepción dentro de `renderSlot` —una definición que falta, un
+     dato raro en un slot— dejaba sin pintar todas las casillas siguientes. Un
+     ítem con un problema puede costar SU casilla; no las otras treinta y
+     nueve. */
+  const pintar = (i) => {
+    try { this.renderSlot(i); }
+    catch (e) { console.error('❌ No se pudo pintar la casilla ' + i + ':', e); }
+  };
+
+  // Actualizar slots del inventario (40). `renderSlot(i)` pinta a la vez la
+  // casilla de inventario i y la rápida i, así que las 7 rápidas ya quedan
+  // hechas en las siete primeras vueltas de este mismo bucle.
+  for (let i = 0; i < this.STATE.slots.length; i++) pintar(i);
+
+  // Y por si el array de casillas rápidas fuera más largo que el de
+  // inventario (no lo es hoy: 7 contra 40), se completan las que faltasen.
+  for (let i = this.STATE.slots.length; i < this.STATE.quickSlots.length; i++) pintar(i);
+  // Si tienes chestSlots adicionales (por ejemplo, un cofre extendido), también puedes iterar sobre ellos
+  // if (this.STATE.chestSlots) {
+  //   for (let i = 0; i < this.STATE.chestSlots.length; i++) {
+  //     // Necesitarías un método específico o un contenedor diferente
+  //   }
+  // }
+}
+
+
+
+// ============================================================================
+// handleInventoryPlacement (versión completa)
+// ============================================================================
+async handleInventoryPlacement(origin, destIndex, destType) {
+  console.log('=== handleInventoryPlacement ===');
+  console.log('Origen:', {
+    id: origin.id,
+    count: origin.count,
+    idx: origin.idx,
+    idm: origin.idm,
+    originType: origin.originType,
+    originIndex: origin.originIndex
+  });
+  const destItem = this.STATE.slots[destIndex];
+  console.log('Destino:', destItem ? {
+    id: destItem.id,
+    count: destItem.count,
+    idx: destItem.idx,
+    idm: destItem.idm
+  } : 'vacío');
+
+  // ─────────────────────────────────────────────────────────
+  // 1) Merge: mismo itemId
+  // ─────────────────────────────────────────────────────────
+  if (destItem && destItem.id === origin.id) {
+    console.log('🔁 Merge: mismo itemId, intentando blockchain...');
+    const success = await this.mergeItemsBlockchain(origin, destType, destIndex);
+    if (!success) {
+      console.warn('⚠️ Merge blockchain falló, no se modifica inventario');
+    }
+    return; // Salir, no seguir con lógica local
+  }
+  // ─────────────────────────────────────────────────────────
+  // 2) Swap: objetos diferentes (solo local)
+  // ─────────────────────────────────────────────────────────
+  else if (destItem) {
+    console.log('🔄 Swap: objetos diferentes (solo local)');
+    // Origen recibe el objeto de destino
+    if (origin.originType === 'inv') {
+      this.STATE.slots[origin.originIndex] = {
+        ...destItem,
+        idx: origin.idx ?? null,          // ← null si no tiene invoiceId
+        idm: destItem.idm ?? null         // ← null si no tiene manualId
+      };
+    } else {
+      this.STATE.quickSlots[origin.originIndex] = {
+        id: destItem.id,
+        count: destItem.count,
+        invIndex: destIndex,
+        idx: origin.idx ?? null,          // ← null si no tiene invoiceId
+        idm: destItem.idm ?? null         // ← null si no tiene manualId
+      };
+    }
+
+    // Destino recibe el objeto de origen
+    this.STATE.slots[destIndex] = {
+      id: origin.id,
+      count: origin.count,
+      idx: origin.idx ?? null,            // ← null si no tiene invoiceId
+      idm: origin.idm ?? null             // ← null si no tiene manualId
+    };
+  }
+  // ─────────────────────────────────────────────────────────
+  // 3) Destino vacío → mover (solo local)
+  // ─────────────────────────────────────────────────────────
+  else {
+    console.log('➡️ Mover a slot vacío (solo local)');
+    this.STATE.slots[destIndex] = {
+      id: origin.id,
+      count: origin.count,
+      idx: origin.idx ?? null,            // ← null si no tiene invoiceId
+      idm: origin.idm ?? null             // ← null si no tiene manualId
+    };
+
+    if (origin.originType === 'inv') {
+      this.STATE.slots[origin.originIndex] = null;
+    } else {
+      this.STATE.quickSlots[origin.originIndex] = null;
+    }
+  }
+
+  // Limpiar fantasmas y cursor (solo para casos que no son merge blockchain)
+  this.cleanupGhosts(origin);
+  this.STATE.selectedItem = null;
+  this.stopDrag();
+  this.renderSlot(destIndex);
+  this.renderSlot(origin.originIndex);
+}
+
+
+// ============================================================================
+// handleQuickSlotPlacement (versión completa)
+// ============================================================================
+async handleQuickSlotPlacement(origin, destIndex, destType) {
+  console.log('=== handleQuickSlotPlacement ===');
+  console.log('Origen:', {
+    id: origin.id,
+    count: origin.count,
+    idx: origin.idx,
+    idm: origin.idm,
+    originType: origin.originType,
+    originIndex: origin.originIndex
+  });
+  const destQuick = this.STATE.quickSlots[destIndex];
+  console.log('Destino:', destQuick ? {
+    id: destQuick.id,
+    count: destQuick.count,
+    idx: destQuick.idx,
+    idm: destQuick.idm
+  } : 'vacío');
+
+  // ─────────────────────────────────────────────────────────
+  // 1) Merge: mismo itemId
+  // ─────────────────────────────────────────────────────────
+  if (destQuick && destQuick.id === origin.id) {
+    console.log('🔁 Merge: mismo itemId en quickSlot, intentando blockchain...');
+    const success = await this.mergeItemsBlockchain(origin, destType, destIndex);
+    if (!success) {
+      console.warn('⚠️ Merge blockchain falló, no se modifica inventario');
+    }
+    return;
+  }
+  // ─────────────────────────────────────────────────────────
+  // 2) Swap: objetos diferentes (solo local)
+  // ─────────────────────────────────────────────────────────
+  else if (destQuick) {
+    console.log('🔄 Swap: objetos diferentes en quickSlot (solo local)');
+    if (origin.originType === 'inv') {
+      this.STATE.slots[origin.originIndex] = {
+        id: destQuick.id,
+        count: destQuick.count,
+        idx: origin.idx ?? null,          // ← null si no tiene invoiceId
+        idm: destQuick.idm ?? null        // ← null si no tiene manualId
+      };
+    } else {
+      this.STATE.quickSlots[origin.originIndex] = {
+        id: destQuick.id,
+        count: destQuick.count,
+        invIndex: destQuick.invIndex,
+        idx: origin.idx ?? null,          // ← null si no tiene invoiceId
+        idm: destQuick.idm ?? null        // ← null si no tiene manualId
+      };
+    }
+
+    this.STATE.quickSlots[destIndex] = {
+      id: origin.id,
+      count: origin.count,
+      invIndex: origin.originType === 'inv' ? origin.originIndex : origin.invIndex,
+      idx: origin.idx ?? null,            // ← null si no tiene invoiceId
+      idm: origin.idm ?? null             // ← null si no tiene manualId
+    };
+  }
+  // ─────────────────────────────────────────────────────────
+  // 3) Destino vacío → mover (solo local)
+  // ─────────────────────────────────────────────────────────
+  else {
+    console.log('➡️ Mover a quickSlot vacío (solo local)');
+    this.STATE.quickSlots[destIndex] = {
+      id: origin.id,
+      count: origin.count,
+      invIndex: origin.originType === 'inv' ? origin.originIndex : origin.invIndex,
+      idx: origin.idx ?? null,            // ← null si no tiene invoiceId
+      idm: origin.idm ?? null             // ← null si no tiene manualId
+    };
+
+    if (origin.originType === 'inv') {
+      this.STATE.slots[origin.originIndex] = null;
+    } else {
+      this.STATE.quickSlots[origin.originIndex] = null;
+    }
+  }
+
+  // Limpiar fantasmas y cursor (solo para casos que no son merge blockchain)
+  this.cleanupGhosts(origin);
+  this.STATE.selectedItem = null;
+  this.stopDrag();
+  this.renderSlot(destIndex);
+  this.renderSlot(origin.originIndex);
+}
+
+
+
+cleanupGhosts(origin) {
+  // Limpiar todos los fantasmas
+  if (origin.originType === 'inv') {
+    this.STATE.ghostSlots.inv[origin.originIndex] = null;
+  } else {
+    this.STATE.ghostSlots.quick[origin.originIndex] = null;
+  }
+}
+
+startDrag(src, x, y, count = 1) {
+  const dragDiv = document.getElementById('drag-item');
+  const dragImg = dragDiv.querySelector('img');
+  const dragCount = document.getElementById('drag-count');
+
+  /* Un ítem sin icono se arrastra igual, pero SIN imagen.
+     Poniendo `src = null` a pelo, el navegador lo convierte en la cadena
+     "null", la pide como si fuera una ruta, se come un 404 y deja el icono de
+     imagen rota pegado al cursor. Mejor un hueco limpio. */
+  if (src) {
+    dragImg.src = src;
+    dragImg.style.visibility = '';
+  } else {
+    dragImg.removeAttribute('src');
+    dragImg.style.visibility = 'hidden';
+  }
+
+  if (count > 0) {
+    dragCount.textContent = count;
+    dragCount.style.display = 'block';
+  } else {
+    dragCount.style.display = 'none';
+  }
+  
+  dragDiv.style.display = 'block';
+
+  const halfW = dragDiv.offsetWidth / 2;
+  const halfH = dragDiv.offsetHeight / 2;
+  dragDiv.style.left = (x - halfW) + 'px';
+  dragDiv.style.top  = (y - halfH) + 'px';
+
+  // SOLO mover, NO agregar el evento de click.
+  // .bind() devuelve una función NUEVA cada vez, así que el removeEventListener
+  // de stopDrag nunca encontraba la registrada y cada arrastre dejaba un
+  // listener de mousemove de más en el documento. Se guarda UNA referencia.
+  if (!this._onMouseMoveBound) this._onMouseMoveBound = this.onMouseMove.bind(this);
+  document.removeEventListener('mousemove', this._onMouseMoveBound);
+  document.addEventListener('mousemove', this._onMouseMoveBound);
+}
+
+updateDragCount(count) {
+  const dragCount = document.getElementById('drag-count');
+  if (dragCount) {
+    if (count > 0) {
+      dragCount.textContent = count;
+      dragCount.style.display = 'block';
+    } else {
+      dragCount.textContent = '';
+      dragCount.style.display = 'none';
+    }
+  }
+}
+
+
+onMouseClick(e) {
+  const t = e.target;
+  if (t.closest('.inv-slot') || t.closest('.quick-slot')) {
+    return;
+  }
+  
+  if (this.STATE.selectedItem && this.STATE.selectedItem.isGhost) {
+    // Solo limpiar el fantasma sin tocar el backend
+    const origin = this.STATE.selectedItem;
+    
+    if (origin.originType === 'inv') {
+      this.STATE.ghostSlots.inv[origin.originIndex] = null;
+    } else {
+      this.STATE.ghostSlots.quick[origin.originIndex] = null;
+    }
+    
+    this.stopDrag();
+    this.STATE.selectedItem = null;
+    this.renderSlot(origin.originIndex);
+  }
+}
+
+stopDrag() {
+  const dragDiv = document.getElementById('drag-item');
+  const dragCount = document.getElementById('drag-count');
+  
+  if (dragDiv) {
+    dragDiv.style.display = 'none';
+    dragDiv.style.left = '-100px';
+    dragDiv.style.top = '-100px';
+  }
+  
+  if (dragCount) {
+    dragCount.textContent = '';
+    dragCount.style.display = 'none';
+  }
+  
+  // Solo remover el evento de mousemove (la MISMA referencia que se registró)
+  if (this._onMouseMoveBound) {
+    document.removeEventListener('mousemove', this._onMouseMoveBound);
+  }
+  
+  document.querySelectorAll('.inv-slot, .quick-slot').forEach(d => {
+    d.classList.remove('highlight');
+  });
+}
+
+onMouseMove(e) {
+  const dragDiv = document.getElementById('drag-item');
+  dragDiv.style.left = (e.clientX - dragDiv.offsetWidth / 2) + 'px';
+  dragDiv.style.top  = (e.clientY - dragDiv.offsetHeight / 2) + 'px';
+}
+
+clearSelectedItem() {
+  if (this.STATE.selectedItem && this.STATE.selectedItem.isGhost) {
+    const origin = this.STATE.selectedItem;
+    if (origin.originType === 'inv') {
+      this.STATE.ghostSlots.inv[origin.originIndex] = null;
+    } else {
+      this.STATE.ghostSlots.quick[origin.originIndex] = null;
+    }
+    this.stopDrag();
+    this.STATE.selectedItem = null;
+    this.renderSlot(origin.originIndex);
+  }
+}
+
+// ── Soltar lo que el jugador lleve "en la mano" ──────────────────────────────
+// Se llama ANTES de cambiar de escena. El div #drag-item vive en game.html y
+// sobrevive al cambio, así que si salías de la tienda con un ítem agarrado, el
+// ítem seguía pegado al cursor en la escena nueva —que no sabe nada de él— y su
+// casilla de origen quedaba vacía. Mismo método que en GameScene.
+_cancelarArrastre() {
+  try {
+    if (typeof this.clearSelectedItem === 'function') this.clearSelectedItem();
+  } catch (e) { console.warn('cancelarArrastre:', e.message || e); }
+
+  try {
+    if (typeof this.stopDrag === 'function') this.stopDrag();
+    const dragDiv = document.getElementById('drag-item');
+    if (dragDiv) {
+      dragDiv.style.display = 'none';
+      dragDiv.style.left = '-100px';
+      dragDiv.style.top  = '-100px';
+    }
+    const dragCount = document.getElementById('drag-count');
+    if (dragCount) { dragCount.textContent = ''; dragCount.style.display = 'none'; }
+    if (this.STATE) this.STATE.selectedItem = null;
+  } catch (_) {}
+}
+
+
+
+
+
+
+
+
+
+
+
+  /**
+   * 1) Cuenta cuántos del ítem `itemId` hay en quickSlots y en slots.
+   *    Si no hay ninguno, deja un console.log.
+   * @param {string} itemId
+   * @returns {{ quick: number, slots: number, total: number }}
+   */
+  countItem(itemId) {
+    const countIn = (arr, prop = 'count') =>
+      arr.reduce((sum, slot) => {
+        if (slot && slot.id === itemId) return sum + slot[prop];
+        return sum;
+      }, 0);
+
+    const quickCount = countIn(this.STATE.quickSlots);
+    const slotCount  = countIn(this.STATE.slots);
+    const total      = quickCount + slotCount;
+
+    if (total === 0) {
+      console.log(`No existe ningún "${itemId}" ni en quickSlots ni en slots.`);
+    }
+
+    return { quick: quickCount, slots: slotCount, total };
+  }
+
+
+
+/**
+ * Agrega 'quantity' unidades del ítem 'itemId' al inventario, priorizando el cofre.
+ * Primero completa stacks parciales; luego abre nuevos stacks en slots vacíos.
+ *
+ * @param {string} itemId           - Clave del ítem en ItemDefinitions.
+ * @param {number} quantity        - Cantidad a agregar (por defecto 1).
+ * @param {number|null} [customIdx] - Índice fijo para TODOS los stacks creados (opcional).
+ * @param {string|null} [customIdm] - ID manual para TODOS los stacks creados (opcional).
+ * @returns {boolean}              - true si se agregó todo, false si faltó espacio.
+ */
+addItemWithCheck(itemId, quantity = 1, customIdx = null, customIdm = null) {
+  const defs = this.ItemDefinitions[itemId];
+  if (!defs) {
+    console.warn(`Item "${itemId}" no definido en ItemDefinitions`);
+    return false;
+  }
+
+  const maxStack = defs.maxStack;
+  let remaining = quantity;
+
+  // Slots ocupados por fantasmas
+  const occupiedSlots = new Set();
+  if (this.STATE.selectedItem) {
+    if (this.STATE.selectedItem.originType === 'inv') {
+      occupiedSlots.add(`inv-${this.STATE.selectedItem.originIndex}`);
+    } else if (this.STATE.selectedItem.originType === 'quick') {
+      occupiedSlots.add(`quick-${this.STATE.selectedItem.originIndex}`);
+    }
+  }
+  const isOccupied = (type, index) => occupiedSlots.has(`${type}-${index}`);
+
+  // 1) COFRE – completar stacks parciales (sin modificar idx/idm)
+  for (let i = 0; i < this.STATE.quickSlots.length && remaining > 0; i++) {
+    if (isOccupied('quick', i)) continue;
+    const slot = this.STATE.quickSlots[i];
+    if (slot && slot.id === itemId && slot.count < maxStack) {
+      const espacio = maxStack - slot.count;
+      const suma = Math.min(espacio, remaining);
+      slot.count += suma;
+      remaining -= suma;
+      this.renderSlot(i);
+    }
+  }
+
+  // 2) INVENTARIO – completar stacks parciales
+  if (remaining > 0) {
+    for (let i = 0; i < this.STATE.slots.length && remaining > 0; i++) {
+      if (isOccupied('inv', i)) continue;
+      const slot = this.STATE.slots[i];
+      if (slot && slot.id === itemId && slot.count < maxStack) {
+        const espacio = maxStack - slot.count;
+        const suma = Math.min(espacio, remaining);
+        slot.count += suma;
+        remaining -= suma;
+        this.renderSlot(i);
+      }
+    }
+  }
+
+  // 3) COFRE VACÍO – crear nuevos stacks
+  if (remaining > 0) {
+    for (let i = 0; i < this.STATE.quickSlots.length && remaining > 0; i++) {
+      if (isOccupied('quick', i)) continue;
+      if (this.STATE.quickSlots[i] === null) {
+        const paraEste = Math.min(maxStack, remaining);
+        
+        const idx = (customIdx !== null) ? customIdx : i;
+        const idm = (customIdm !== null) ? customIdm : itemId;
+
+        this.STATE.quickSlots[i] = {
+          id: itemId,
+          count: paraEste,
+          invIndex: null,
+          idx: idx,
+          idm: idm
+        };
+        remaining -= paraEste;
+        this.renderSlot(i);
+      }
+    }
+  }
+
+  // 4) INVENTARIO VACÍO – crear nuevos stacks
+  if (remaining > 0) {
+    for (let i = 0; i < this.STATE.slots.length && remaining > 0; i++) {
+      if (isOccupied('inv', i)) continue;
+      if (this.STATE.slots[i] === null) {
+        const paraEste = Math.min(maxStack, remaining);
+        
+        const idx = (customIdx !== null) ? customIdx : i;
+        const idm = (customIdm !== null) ? customIdm : itemId;
+
+        this.STATE.slots[i] = {
+          id: itemId,
+          count: paraEste,
+          idx: idx,
+          idm: idm
+        };
+        remaining -= paraEste;
+        this.renderSlot(i);
+      }
+    }
+  }
+
+  if (remaining > 0) {
+    console.warn(`No hubo espacio para ${remaining} unidades de "${itemId}".`);
+    return false;
+  }
+
+  this.queuedAction({ type: 'forSpam2' });
+  this.rebuildPlayerInventoryFromState();
+  return true;
+}
+
+
+
+/**
+ * Obtiene los índices de todos los slots ocupados (con fantasmas)
+ * @returns {Set<number>} - Conjunto de índices de slots ocupados
+ */
+getOccupiedSlots() {
+  const occupiedSlots = new Set();
+  
+  // Slots de inventario con fantasmas
+  this.STATE.ghostSlots.inv.forEach((ghost, index) => {
+    if (ghost) occupiedSlots.add(index);
+  });
+  
+  // Slots de quick-slot con fantasmas
+  this.STATE.ghostSlots.quick.forEach((ghost, index) => {
+    if (ghost) occupiedSlots.add(index);
+  });
+  
+  // También considerar slots que tienen items seleccionados actualmente
+  if (this.STATE.selectedItem) {
+    if (this.STATE.selectedItem.originType === 'inv' && 
+        this.STATE.selectedItem.originIndex !== undefined) {
+      occupiedSlots.add(this.STATE.selectedItem.originIndex);
+    }
+    if (this.STATE.selectedItem.originType === 'quick' && 
+        this.STATE.selectedItem.originIndex !== undefined) {
+      occupiedSlots.add(this.STATE.selectedItem.originIndex);
+    }
+  }
+  
+  return occupiedSlots;
+}
+
+
+
+
+
+/**
+ * removeFromCursor: Elimina una cantidad específica del ítem que está en el cursor
+ * @param {string} itemId - ID del item a eliminar
+ * @param {number} quantity - Cantidad a eliminar (si es 0, elimina todo)
+ * @returns {boolean} - true si se eliminó correctamente, false si no
+ */
+removeFromCursor(itemId, quantity = 0) {
+  // Verificar si hay un item en el cursor
+  if (!this.STATE.selectedItem || !this.STATE.selectedItem.isGhost) {
+    console.warn('No hay ningún ítem en el cursor');
+    return false;
+  }
+  
+  const cursorItem = this.STATE.selectedItem;
+  
+  // Verificar si el item coincide
+  if (cursorItem.id !== itemId) {
+    console.warn(`El ítem en el cursor no es "${itemId}"`);
+    return false;
+  }
+  
+  // Si quantity es 0, eliminar todo
+  const quantityToRemove = quantity === 0 ? cursorItem.count : quantity;
+  
+  // Verificar si hay suficiente cantidad
+  if (cursorItem.count < quantityToRemove) {
+    console.warn(`No hay suficiente cantidad en el cursor. Tienes ${cursorItem.count}, necesitas eliminar ${quantityToRemove}`);
+    return false;
+  }
+  
+  // Reducir la cantidad
+  cursorItem.count -= quantityToRemove;
+  
+  // Actualizar visualización del cursor
+  this.updateDragCount(cursorItem.count);
+  
+  // Si se eliminó todo, limpiar el cursor
+  if (cursorItem.count === 0) {
+    // Limpiar el fantasma del slot de origen
+    if (cursorItem.originType === 'inv') {
+      this.STATE.ghostSlots.inv[cursorItem.originIndex] = null;
+      this.STATE.slots[cursorItem.originIndex] = null;
+    } else {
+      this.STATE.ghostSlots.quick[cursorItem.originIndex] = null;
+      this.STATE.quickSlots[cursorItem.originIndex] = null;
+    }
+    
+    // Limpiar el cursor
+    this.STATE.selectedItem = null;
+    this.stopDrag();
+    
+    // Renderizar el slot de origen
+    this.renderSlot(cursorItem.originIndex);
+  }
+  
+  console.log(`Se eliminaron ${quantityToRemove} de "${itemId}" del cursor`);
+  return true;
+}
+
+/**
+ * Función específica para eliminar TODO del cursor
+ * @param {string} itemId - ID del item a eliminar
+ * @returns {boolean} - true si se eliminó
+ */
+removeAllFromCursor(itemId) {
+  return this.removeFromCursor(itemId, 0);
+}
+
+/**
+ * reduceCursorQuantity: Reduce una cantidad específica del ítem en el cursor
+ * @param {number} amount - Cantidad a reducir
+ * @returns {number} - Cantidad restante en el cursor (o -1 si no hay ítem)
+ */
+reduceCursorQuantity(amount) {
+  if (!this.STATE.selectedItem || !this.STATE.selectedItem.isGhost) {
+    return -1;
+  }
+  
+  const cursorItem = this.STATE.selectedItem;
+  
+  if (cursorItem.count < amount) {
+    console.warn(`No hay suficiente cantidad para reducir. Tienes: ${cursorItem.count}, intentas reducir: ${amount}`);
+    return cursorItem.count;
+  }
+  
+  cursorItem.count -= amount;
+  
+  // Actualizar visualización
+  this.updateDragCount(cursorItem.count);
+  
+  // Si se eliminó todo, limpiar cursor
+  if (cursorItem.count === 0) {
+    // Limpiar el fantasma del slot de origen
+    if (cursorItem.originType === 'inv') {
+      this.STATE.ghostSlots.inv[cursorItem.originIndex] = null;
+      this.STATE.slots[cursorItem.originIndex] = null;
+    } else {
+      this.STATE.ghostSlots.quick[cursorItem.originIndex] = null;
+      this.STATE.quickSlots[cursorItem.originIndex] = null;
+    }
+    
+    // Limpiar cursor
+    this.STATE.selectedItem = null;
+    this.stopDrag();
+    
+    // Renderizar slot de origen
+    this.renderSlot(cursorItem.originIndex);
+  }
+  
+  return cursorItem.count;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * Remueve items de manera inteligente manteniendo sincronización cursor/backend
+ * @param {string} itemId - ID del item a remover
+ * @param {number} count - Cantidad a remover
+ * @returns {boolean} - True si se pudo remover todo, false si no
+ */
+removeItemWithCheck(itemId, count) {
+  console.log(`🗑️ Removiendo ${count} ${itemId} (con sincronización)...`);
+  
+  const targetCount = parseInt(count) || 0;
+  if (targetCount <= 0) {
+    console.error('❌ Cantidad inválida para remover:', count);
+    return false;
+  }
+  
+  let remaining = targetCount;
+  
+  // 1. PRIMERO: Remover del cursor (sincronizando con backend)
+  if (remaining > 0 && this.STATE.selectedItem && 
+      this.STATE.selectedItem.id === itemId && 
+      this.STATE.selectedItem.isGhost) {
+    
+    const cursorItem = this.STATE.selectedItem;
+    const cursorCount = cursorItem.count;
+    
+    if (cursorCount <= remaining) {
+      // Remover todo el cursor
+      console.log(`🖱️ Cursor: removido completamente (${cursorCount})`);
+      remaining -= cursorCount;
+      
+      // Limpiar cursor y backend
+      this.STATE.selectedItem = null;
+      this.stopDrag();
+      
+      if (cursorItem.originType === 'inv') {
+        this.STATE.ghostSlots.inv[cursorItem.originIndex] = null;
+        this.STATE.slots[cursorItem.originIndex] = null;
+        this.renderSlot(cursorItem.originIndex);
+      } else {
+        this.STATE.ghostSlots.quick[cursorItem.originIndex] = null;
+        this.STATE.quickSlots[cursorItem.originIndex] = null;
+        this.renderSlot(cursorItem.originIndex);
+      }
+    } else {
+      // Reducir parcialmente - ACTUALIZAR BACKEND también
+      const newCount = cursorCount - remaining;
+      cursorItem.count = newCount;
+      console.log(`🖱️ Cursor: reducido de ${cursorCount} a ${newCount}`);
+      
+      // Sincronizar con backend
+      if (cursorItem.originType === 'inv') {
+        this.STATE.slots[cursorItem.originIndex] = {
+          id: itemId,
+          count: newCount
+        };
+        this.STATE.ghostSlots.inv[cursorItem.originIndex] = {
+          id: itemId,
+          count: newCount
+        };
+        this.renderSlot(cursorItem.originIndex);
+      } else {
+        this.STATE.quickSlots[cursorItem.originIndex] = {
+          id: itemId,
+          count: newCount,
+          invIndex: cursorItem.invIndex
+        };
+        this.STATE.ghostSlots.quick[cursorItem.originIndex] = {
+          id: itemId,
+          count: newCount,
+          invIndex: cursorItem.invIndex
+        };
+        this.renderSlot(cursorItem.originIndex);
+      }
+      
+      this.updateDragCount(newCount);
+      remaining = 0;
+    }
+  }
+  
+  // Función para procesar un array de slots (sin fantasmas)
+  const processSlots = (slots, ghostSlots, slotType = 'unknown') => {
+    if (!Array.isArray(slots)) return remaining;
+    
+    for (let i = 0; i < slots.length && remaining > 0; i++) {
+      // Saltar slots que tienen fantasmas (items siendo arrastrados)
+      // Excepto si es el mismo slot que el cursor que ya procesamos
+      const isCurrentCursorSlot = this.STATE.selectedItem && 
+        this.STATE.selectedItem.isGhost && 
+        ((slotType === 'inv' && this.STATE.selectedItem.originType === 'inv' && this.STATE.selectedItem.originIndex === i) ||
+         (slotType === 'quick' && this.STATE.selectedItem.originType === 'quick' && this.STATE.selectedItem.originIndex === i));
+      
+      if (ghostSlots && ghostSlots[i] && !isCurrentCursorSlot) {
+        continue;
+      }
+      
+      const slot = slots[i];
+      
+      // Verificar que el slot tenga el item correcto
+      if (slot && slot.id === itemId) {
+        // Obtener cantidad del slot
+        const slotCount = slot.count;
+        
+        if (slotCount <= remaining) {
+          // Remover todo el slot
+          console.log(`📦 ${slotType}[${i}]: removido completamente (${slotCount})`);
+          remaining -= slotCount;
+          slots[i] = null; // Vaciar el slot
+          this.renderSlot(i);
+        } else {
+          // Reducir la cantidad en el slot
+          const newCount = slotCount - remaining;
+          slot.count = newCount;
+          console.log(`📦 ${slotType}[${i}]: reducido de ${slotCount} a ${newCount}`);
+          remaining = 0;
+          this.renderSlot(i);
+        }
+      }
+    }
+    
+    return remaining;
+  };
+  
+  // 2. SEGUNDO: Quick slots
+  if (remaining > 0) {
+    remaining = processSlots(this.STATE.quickSlots, this.STATE.ghostSlots.quick, 'quick');
+  }
+  
+  // 3. TERCERO: Slots normales
+  if (remaining > 0) {
+    remaining = processSlots(this.STATE.slots, this.STATE.ghostSlots.inv, 'inv');
+  }
+  
+  // 4. CUARTO: Chest slots (si existen)
+  if (remaining > 0 && this.STATE.chestSlots && Array.isArray(this.STATE.chestSlots)) {
+    // Si tienes un array de fantasmas para chest, pásalo aquí
+    remaining = processSlots(this.STATE.chestSlots, this.STATE.ghostSlots.chest || null, 'chest');
+  }
+  
+  // Verificar resultado
+  const removed = targetCount - remaining;
+  
+  if (remaining > 0) {
+    console.error(`❌ Solo se pudieron remover ${removed} de ${targetCount} ${itemId}`);
+    return false;
+  }
+
+  this.queuedAction({ type: 'forSpam2'});
+
+  console.log(`✅ Se removieron ${removed} ${itemId} correctamente`);
+  
+  return true;
+}
+
+
+
+    // Técnica 1: Detecta cambios en las dimensiones de la ventana
+    checkConsoleDimensions() {
+      const widthDiff = window.outerWidth - window.innerWidth;
+      const heightDiff = window.outerHeight - window.innerHeight;
+
+      if (widthDiff > 100 || heightDiff > 100) {
+          if (!this.isConsoleOpen) {
+              this.isConsoleOpen = true;
+              console.log('¡La consola está abierta! (detectado por dimensiones)');
+              // Aquí puedes agregar lógica adicional (pausar el juego, mostrar una alerta, etc.)
+          }
+      } else {
+          if (this.isConsoleOpen) {
+              this.isConsoleOpen = false;
+              console.log('--------La consola ha sido cerrada.--------------');
+          }
+      }
+  }
+
+  // Técnica 2: Usando un getter en un objeto
+  setupConsoleDetection() {
+      const element = new Image();
+      Object.defineProperty(element, 'id', {
+          get: () => {
+              if (!this.isConsoleOpen) {
+                  this.isConsoleOpen = true;
+                  console.log('¡La consola está abierta! (detectado por getter)');
+                  // Aquí también puedes agregar lógica adicional
+              }
+          }
+      });
+
+  }
+
+
+  
+    showTokenErrorHub() {
+        console.log('🔒 Mostrando hub de error de token...');
+        
+        // Detener el intervalo de transición
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+        }
+
+        // Pausar la escena
+        this.scene.pause();
+
+        // Eliminar hub existente si hay
+        const existingHub = document.getElementById('token-error-hub');
+        if (existingHub) {
+            existingHub.remove();
+        }
+
+        // Crear contenedor principal
+        const errorHub = document.createElement('div');
+        errorHub.id = 'token-error-hub';
+        errorHub.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            font-family: Arial, sans-serif;
+        `;
+
+        // Crear caja de contenido
+        const contentBox = document.createElement('div');
+        contentBox.style.cssText = `
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 3px solid #ff4d4d;
+            border-radius: 20px;
+            padding: 50px 40px;
+            max-width: 550px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 15px 40px rgba(255, 77, 77, 0.4);
+            animation: errorPulse 2s infinite;
+        `;
+
+        // Añadir animación
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes errorPulse {
+                0% { box-shadow: 0 15px 40px rgba(255, 77, 77, 0.4); }
+                50% { box-shadow: 0 20px 50px rgba(255, 77, 77, 0.7); }
+                100% { box-shadow: 0 15px 40px rgba(255, 77, 77, 0.4); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Título
+        const title = document.createElement('h2');
+        title.textContent = '⚠️ SESSION EXPIRED';
+        title.style.cssText = `
+            color: #ff4d4d;
+            margin-bottom: 25px;
+            font-size: 32px;
+            text-shadow: 0 3px 8px rgba(255, 77, 77, 0.6);
+            font-weight: bold;
+            letter-spacing: 1px;
+        `;
+
+        // Icono
+        const icon = document.createElement('div');
+        icon.innerHTML = '🔒';
+        icon.style.cssText = `
+            font-size: 60px;
+            margin-bottom: 20px;
+        `;
+
+        // Mensaje
+        const message = document.createElement('p');
+        message.textContent = 'Your access token has expired or is invalid. For security reasons, you need to log in again to continue playing.';
+        message.style.cssText = `
+            color: #ffffff;
+            font-size: 18px;
+            line-height: 1.6;
+            margin-bottom: 35px;
+            padding: 0 10px;
+        `;
+
+        // Sub-mensaje
+        const subMessage = document.createElement('p');
+        subMessage.textContent = 'All your game progress is saved and will be available after you log back in.';
+        subMessage.style.cssText = `
+            color: #cccccc;
+            font-size: 16px;
+            line-height: 1.4;
+            margin-bottom: 40px;
+            font-style: italic;
+        `;
+
+        // Botón
+        const button = document.createElement('button');
+        button.textContent = 'RETURN TO LOGIN';
+        button.style.cssText = `
+            background: linear-gradient(to right, #ff416c, #ff4b2b);
+            color: white;
+            border: none;
+            padding: 18px 50px;
+            font-size: 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            box-shadow: 0 5px 20px rgba(255, 65, 108, 0.5);
+        `;
+
+        // Efectos hover
+        button.onmouseover = () => {
+            button.style.background = 'linear-gradient(to right, #ff4b2b, #ff416c)';
+            button.style.transform = 'scale(1.08)';
+            button.style.boxShadow = '0 8px 25px rgba(255, 65, 108, 0.7)';
+        };
+
+        button.onmouseout = () => {
+            button.style.background = 'linear-gradient(to right, #ff416c, #ff4b2b)';
+            button.style.transform = 'scale(1)';
+            button.style.boxShadow = '0 5px 20px rgba(255, 65, 108, 0.5)';
+        };
+
+        // Acción del botón
+        button.onclick = async () => {
+            try {
+                // Hacer logout en el backend
+                await fetch(`${this.serverBase}/api/auth/logout`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+            } catch (e) {
+                console.error('Error durante logout:', e);
+            }
+            
+            // Redirigir al login REAL (app.grasslandforest.com). Antes apuntaba a
+            // '../Grassland_Forest_Game/index.html', una ruta relativa que en
+            // producción caía en game.grasslandforest.com/Grassland_Forest_Game/
+            // index.html — una página que no es el login. Se usa la misma
+            // constante que ya emplea el resto del código para salir.
+            window.location.href = window.GF_LOGIN_URL || 'https://app.grasslandforest.com/';
+        };
+
+        // Ensamblar todo
+        contentBox.appendChild(icon);
+        contentBox.appendChild(title);
+        contentBox.appendChild(message);
+        contentBox.appendChild(subMessage);
+        contentBox.appendChild(button);
+        errorHub.appendChild(contentBox);
+        document.body.appendChild(errorHub);
+
+        console.log('✅ Hub de error de token mostrado');
+    }
+
+  
+
+
+/**
+ * Crea imágenes a partir de los objetos definidos en una capa de Tiled y
+ * las asigna a propiedades de la escena según el mapeo indicado.
+ *
+ * @param {Phaser.Scene} scene - La escena de Phaser en la que se crearán las imágenes.
+ * @param {Phaser.Tilemaps.Tilemap} map - El mapa Tiled que contiene la capa de objetos.
+ * @param {string} objectLayerName - El nombre de la capa de objetos en Tiled.
+ * @param {Object} nameMapping - Un objeto de mapeo donde la clave es el nombre del objeto en Tiled.
+ * @param {number|'floor'} depthOffset - 0 = Y-sorting normal (plantas, objetos pequeños),
+ *   número positivo = offset extra para objetos altos como mesas/estantes (se suma a obj.y),
+ *   'floor' = depth fijo en 0 para objetos de suelo (alfombras) que el jugador pisa por encima.
+ */
+createImagesFromObjectLayer(scene, map, objectLayerName, nameMapping, depthOffset = 0) {
+  // Obtener la capa de objetos del mapa
+  const objectLayer = map.getObjectLayer(objectLayerName);
+  if (!objectLayer) {
+    console.warn(`⚠️ La capa de objetos '${objectLayerName}' no se encontró en el mapa.`);
+    return;
+  }
+
+  const isFloor = depthOffset === 'floor';
+
+  objectLayer.objects.forEach(obj => {
+    if (!obj.name) {
+      console.warn(`⚠️ Objeto en (${obj.x}, ${obj.y}) no tiene nombre en Tiled.`);
+      return;
+    }
+
+    const mapping = nameMapping[obj.name];
+    if (!mapping) {
+      console.warn(`⚠️ No hay mapeo para '${obj.name}' en nameMapping.`);
+      return;
+    }
+    const { spriteKey, targetProp } = mapping;
+    if (!spriteKey || !targetProp) {
+      console.warn(`⚠️ El mapping para '${obj.name}' debe definir 'spriteKey' y 'targetProp'.`);
+      return;
+    }
+
+    // Calcular depth según el tipo de objeto:
+    // - 'floor': depth=0 fijo para objetos de suelo (alfombras) que el jugador pisa encima
+    // - número: obj.y + depthOffset para Y-sorting (0 = normal, >0 = objetos altos)
+    const depth = isFloor ? 0 : (obj.y + (typeof depthOffset === 'number' ? depthOffset : 0));
+
+    // Crear la imagen; se ancla en (0,1) para que coincida con el eje Y de Tiled
+    const image = scene.add.image(obj.x, obj.y, spriteKey)
+                         .setOrigin(0, 1)
+                         .setDepth(depth);
+
+    // Escalar si Tiled definió width/height
+    if (obj.width && obj.height) {
+      image.setScale(obj.width / image.width, obj.height / image.height);
+    }
+
+    // ——— Aquí aplicamos la rotación de Tiled ———
+    // Tiled nos dá obj.rotation en grados, Phaser usa radianes:
+    if (obj.rotation) {
+      image.setRotation(Phaser.Math.DegToRad(obj.rotation));
+    }
+
+    // Si quieres también respetar flips (Mirror X/Y) definidos en Tiled:
+    if (obj.flippedHorizontal) {
+      image.flipX = true;
+    }
+    if (obj.flippedVertical) {
+      image.flipY = true;
+    }
+
+    // Y-SORT PROFESIONAL: los objetos con offset manual ≠ 0 (mesas, estantes,
+    // estructuras altas) se marcan para que calibrateBuildingDepths() ajuste
+    // su profundidad con la línea real de su colisión (ver ese método).
+    image.setData('isBuilding', typeof depthOffset === 'number' && depthOffset !== 0);
+
+    // Asignar la imagen a la propiedad de la escena
+    scene[targetProp] = image;
+  });
+}
+
+// ── Y-SORT PROFESIONAL (paridad con GameScene) ───────────────────────────
+// Reemplaza los offsets manuales de profundidad por la línea de oclusión
+// REAL de cada estructura: el borde inferior del rectángulo de colisión que
+// la representa. Pies del jugador por debajo de esa línea → jugador delante;
+// por encima → jugador detrás. Sin números mágicos por objeto.
+calibrateBuildingDepths() {
+  const arrays = [this.collisionRectangles, this.collisionRectangles1, this.collisionRectangles2]
+    .filter(a => Array.isArray(a) && a.length);
+  if (!arrays.length || !this.children) return 0;
+
+  let calibrated = 0;
+  this.children.each(child => {
+    try {
+      if (!child || typeof child.getData !== 'function' || !child.getData('isBuilding')) return;
+      if (!child.getBounds) return;
+      const b = child.getBounds();
+
+      let frontLine = null;
+      for (const arr of arrays) {
+        for (const r of arr) {
+          if (!r || typeof r.width !== 'number') continue;
+          const overlapW = Math.min(b.right, r.right) - Math.max(b.x, r.x);
+          if (overlapW < Math.min(r.width, b.width) * 0.5) continue;
+          const rBottom = r.y + r.height;
+          if (rBottom < b.y + b.height * 0.15) continue;
+          if (rBottom > b.y + b.height + 4) continue;
+          if (frontLine === null || rBottom > frontLine) frontLine = rBottom;
+        }
+      }
+
+      if (frontLine !== null) {
+        child.setDepth(frontLine - 1);
+        calibrated++;
+      }
+    } catch (e) { /* sin bounds válidos: conservar depth manual */ }
+  });
+
+  if (calibrated > 0) {
+    console.log(`🏠 Y-sort profesional (tienda): ${calibrated} estructuras calibradas`);
+  }
+  return calibrated;
+}
+
+
+
+
+  // Basic JWT format check
+  tokenValido(token) {
+    return typeof token === 'string' && token.split('.').length === 3;
+  }
+
+  // 1) Authenticate and load
+  async initialize() {
+      // Load data
+      await this.loadPlayerData();
+
+      const levelElement = document.getElementById('player-level');
+        
+      levelElement.textContent = `Lv. ${this.nivel}`;
+  }
+
+
+
+
+async loadAdminTimeOnly() {
+  const tokens = JSON.parse(sessionStorage.getItem('authTokens') || '{}');
+  const accessToken = tokens.accessToken || null;
+
+  try {
+    const res = await fetch(`${this.serverclient}/api/load/${encodeURIComponent(this.playerName)}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text();
+      console.error('Error al cargar hora/dia_noche:', errBody);
+      return;
+    }
+
+    const data = await res.json();
+
+    // Solo asignar hora y dia_noche
+    if (data.dia_noche !== undefined) this.dia_noche = data.dia_noche;
+    if (data.hora !== undefined) this.hora = data.hora;
+
+    //console.log('Hora y día/noche actualizados:', { hora: this.hora, dia_noche: this.dia_noche });
+  } catch (e) {
+    console.error('Error de red al cargar hora/dia_noche:', e);
+  }
+}
+
+
+// 2) Load player data (renamed to avoid conflict)
+// 2) Load player data (renamed to avoid conflict) - FUNCIÓN CORREGIDA
+async loadPlayerData() {
+  const sceneRunId = this._sceneRunId;
+  console.log('📥 Cargando datos del jugador...');
+  
+  try {
+    // Verificar autenticación
+    if (!this.playerName || !this.isAuthenticated) {
+      console.error('❌ No se puede cargar datos: jugador no autenticado');
+      return;
+    }
+    
+    // Usar fetchWithTokenRetry que ya maneja tokens CSRF
+    const response = await this.fetchWithTokenRetry(
+      `${this.serverBase}/api/load/${encodeURIComponent(this.playerName)}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      }
+    );
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+      console.error('❌ Error al cargar datos del jugador:', {
+        status: response.status,
+        error: errorText
+      });
+      return;
+    }
+    
+    const data = await response.json();
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+    // Una respuesta anterior a la compra no debe reemplazar sus casillas nuevas.
+    if (Date.parse(this._inventoryLoadedAt) > Date.parse(data.inventoryLoadedAt)) return;
+    console.log('✅ Datos del jugador recibidos');
+
+    /* CUÁNDO SE CARGÓ ESTA COPIA DEL INVENTARIO.
+
+       Viaja luego en cada /api/save. El servidor la compara con la última
+       escritura del market (`marketWriteAt`) para decidir si este guardado trae
+       datos anteriores a una compra.
+
+       LO QUE ARREGLA MANDARLA: sin ella el servidor no puede comparar nada y
+       aplica una red de seguridad a lo bruto — si el market tocó el inventario
+       en los últimos DIEZ MINUTOS, descarta el inventario del guardado ENTERO.
+       Eso convertía en humo cualquier venta hecha en ese rato: el objeto
+       desaparecía de la pantalla, se cobraba el dinero, y al volver al mapa
+       reaparecía porque en la base de datos nunca se había ido. GameScene la
+       manda desde hace tiempo; aquí faltaba.
+
+       Se usa la revisión que acompaña a la respuesta del servidor, incluso
+       cuando el reloj del navegador difiere del reloj del backend. */
+    this._inventoryLoadedAt = data.inventoryLoadedAt || new Date().toISOString();
+    
+    // INICIALIZAR STATE solo si no existe - ¡ESTO ES CLAVE!
+    if (!this.STATE) {
+      this.STATE = { 
+        slots: new Array(40).fill(null), 
+        quickSlots: new Array(7).fill(null), 
+        selectedItem: null 
+      };
+      console.log('🆕 STATE inicializado desde cero');
+    }
+    
+    // LIMPIAR arrays existentes antes de cargar nuevos datos
+    this.STATE.slots.fill(null);
+    this.STATE.quickSlots.fill(null);
+    
+    // Cargar inventario
+    if (data.inventory && Array.isArray(data.inventory)) {
+      console.log(`📦 Cargando ${data.inventory.length} items del inventario`);
+      
+      data.inventory.forEach(s => {
+        if (typeof s.id === 'number' && s.objeto && s.id < 40) {
+          this.STATE.slots[s.id] = { 
+            id: s.objeto, 
+            idx: s.IDX ?? s.id,           // FIX: el servidor envía IDX (mayúscula), igual que GameScene
+            idm: s.Manualid ?? s.objeto,  // FIX: el servidor envía Manualid (mayúscula), igual que GameScene
+            count: s.cantidad || 1,
+          };
+        }
+      });
+    }
+    
+    // Cargar cofre
+    if (data.chest && Array.isArray(data.chest)) {
+      console.log(`🎁 Cargando ${data.chest.length} items del cofre`);
+      
+      data.chest.forEach(s => {
+        if (typeof s.id === 'number' && s.objeto && s.id < 7) {
+          this.STATE.quickSlots[s.id] = { 
+            id: s.objeto, 
+            idx: s.IDX ?? s.id,           // FIX: el servidor envía IDX (mayúscula), igual que GameScene
+            idm: s.Manualid ?? s.objeto,  // FIX: el servidor envía Manualid (mayúscula), igual que GameScene
+            count: s.cantidad || 1 
+          };
+        }
+      });
+    }
+    
+    // Asignar propiedades del jugador - SIN SOBREESCRIBIR variables críticas
+    const playerProps = [
+      'posicionplayerx', 'posicionplayery',
+      'speed', 'mundo', 'nivel', 'nivel_exp',
+      // HABILIDADES: la tienda las MANDA en savegg() (mineria, pesca, cocina,
+      // deforestacion, fuerza, agricultura y sus _exp), así que también tiene
+      // que leerlas. Antes valían `undefined` aquí dentro y, aunque
+      // JSON.stringify las descartaba del cuerpo, cualquier lectura del panel
+      // dentro de la tienda mostraba 1. Leyéndolas, el jugador ve lo mismo en
+      // el mapa y en la tienda.
+      'agricultura', 'agricultura_exp', 'mineria', 'mineria_exp',
+      'deforestacion', 'deforestacion_exp',
+      'pesca', 'pesca_exp', 'cocina', 'cocina_exp', 'fuerza', 'fuerza_exp',
+      'misiones', 'Username', 'lenguaje', 'petName', 'petLevel',
+      // Color del nombre: lo lee gf-nombre-color.js al montarse.
+      'nameColor', 'petNameColor'
+    ];
+
+    playerProps.forEach(prop => {
+      if (data[prop] !== undefined && data[prop] !== null) {
+        this[prop] = data[prop];
+      }
+    });
+
+    // TUTORIAL: aparte del resto, porque NUNCA puede retroceder.
+    // (`tutorial` se sacó de playerProps a propósito: la asignación directa era
+    // justo lo que hacía que la tienda pisara el paso con un valor viejo.)
+    this._aplicarTutorialDeBD(data.tutorial);
+
+    // Nombre de mascota compartido entre escenas ('---' = aún sin fijar)
+    if (!this.petName) this.petName = window.globalPetName || '---';
+    window.globalPetName = this.petName;
+
+    // FIX NIVEL DEL PERRO EN LA TIENDA (2026-08-03)
+    // ---------------------------------------------------------------------
+    // En GameScene el perro salía en su nivel real (p. ej. Lv.4) pero al
+    // entrar a la tienda volvía a "Lv.1". Dos motivos, los dos aquí:
+    //   1. La etiqueta del perro se crea en el `create()` de la tienda, ANTES
+    //      de que llegue /api/load, y nadie la volvía a pintar después. Este
+    //      es el único sitio donde ya se tiene el petLevel de la base de
+    //      datos, así que se refresca aquí (GameScene ya lo hacía; a la
+    //      tienda se le había olvidado).
+    //   2. Si /api/load tarda o no trae petLevel, se usa el último nivel
+    //      conocido de la otra escena (window.globalPetLevel) en vez de dar
+    //      por hecho que es 1.
+    const nivelPerroCargado = Number(data.petLevel);
+    if (Number.isFinite(nivelPerroCargado) && nivelPerroCargado >= 1) {
+      this.petLevel = nivelPerroCargado;
+    } else if (!this.petLevel || this.petLevel < 1) {
+      this.petLevel = Math.max(1, Number(window.globalPetLevel) || 1);
+    }
+    window.globalPetLevel = this.petLevel;
+    if (typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
+    // Y la barra de experiencia de la mascota (nivel propio desde 2026-10-03).
+    this._aplicarNivelMascota({
+      petLevel: this.petLevel, petExp: data.petExp,
+      petExpBase: data.petExpBase, petExpSiguiente: data.petExpSiguiente
+    });
+    // Lock del panel de nombre (window._acttov) según la regla de nombre único
+    window._acttov = (typeof this.Username === 'string' && this.Username.trim() !== '' && this.Username !== '---') ? 1 : 0;
+
+    // Stats del contrato tienen prioridad sobre DB
+    if (window.playerStats) {
+      if (typeof window.playerStats.vida   === 'number') this.vidaPorcentaje   = window.playerStats.vida;
+      if (typeof window.playerStats.agua   === 'number') this.aguaPorcentaje   = window.playerStats.agua;
+      if (typeof window.playerStats.comida === 'number') this.comidaPorcentaje = window.playerStats.comida;
+      if (typeof window.playerStats.oro    === 'number') this.moneda           = window.playerStats.oro;
+      if (typeof window.playerStats.plata  === 'number') this.moneda_plata     = window.playerStats.plata;
+    } else {
+      if (data.moneda       != null) this.moneda           = data.moneda;
+      if (data.moneda_plata != null) this.moneda_plata     = data.moneda_plata;
+      if (data.vidaPorcentaje   > 0) this.vidaPorcentaje   = data.vidaPorcentaje;
+      if (data.aguaPorcentaje   > 0) this.aguaPorcentaje   = data.aguaPorcentaje;
+      if (data.comidaPorcentaje > 0) this.comidaPorcentaje = data.comidaPorcentaje;
+    }
+
+    /* DÓNDE SE APARECE (ver create): la nota de viaje —la de la puerta o la
+       del panel de amigos— manda; si no hay, lo guardado, pero solo si es un
+       sitio de la sala. Y solo en la PRIMERA carga de la visita: una recarga
+       posterior (p. ej. tras una compra del market) no mueve al jugador. */
+    const _mundoGuardado = Number(data.mundo);
+    // En la tienda la partida dice "tienda" (igual que GameScene.loadPlayerData):
+    // un guardado viejo con otro mundo no puede colarse en el siguiente. Salvo
+    // saliendo ya por la puerta: entonces manda lo que puso la salida.
+    if (this._cambiandoEscena) {
+      // nada: la salida ya dejó mundo y posición para el mapa
+    } else if (this._posicionDeLaVisita && this.player) {
+      this.mundo = 2;
+      this.posicionplayerx = this.player.x;
+      this.posicionplayery = this.player.y;
+    } else {
+      this.mundo = 2;
+      // Una nota que llegó después de create() también vale.
+      const _viaje = window.GFViaje ? window.GFViaje.tomar(2) : null;
+      if (_viaje && Number.isFinite(_viaje.x) && Number.isFinite(_viaje.y)) {
+        this._anclaPropia = { x: _viaje.x, y: _viaje.y };
+      }
+      let _p;
+      if (this._anclaPropia) _p = this._anclaPropia;
+      else if (_mundoGuardado && _mundoGuardado !== 2) _p = this._puntoDeLlegadaTienda(NaN, NaN); // coordenada de otro mapa
+      else _p = this._puntoDeLlegadaTienda(this.posicionplayerx, this.posicionplayery);
+      this.posicionplayerx = _p.x;
+      this.posicionplayery = _p.y;
+      this._anclaPropia = null;
+      this._posicionDeLaVisita = true;
+    }
+
+    // Posicionar al jugador si existe
+    if (this.player) {
+      this.player.setVisible(true);
+      this.player.setPosition(this.posicionplayerx, this.posicionplayery);
+      // Y el cuerpo físico con él, sin velocidad que arrastre de antes.
+      try { if (this.player.body && this.player.body.reset) this.player.body.reset(this.posicionplayerx, this.posicionplayery); } catch (_) {}
+      // El perro tiene que ir CON el jugador, no detrás de él.
+      this._pegarPerroAlJugador();
+    }
+    
+    // Re-aplicar window.playerStats — tiene prioridad sobre BD
+    if (window.playerStats) {
+        if (typeof window.playerStats.vida   === 'number') this.vidaPorcentaje   = window.playerStats.vida;
+        if (typeof window.playerStats.agua   === 'number') this.aguaPorcentaje   = window.playerStats.agua;
+        if (typeof window.playerStats.comida === 'number') this.comidaPorcentaje = window.playerStats.comida;
+        if (typeof window.playerStats.oro    === 'number') this.moneda           = window.playerStats.oro;
+        if (typeof window.playerStats.plata  === 'number') this.moneda_plata     = window.playerStats.plata;
+    }
+
+    // El nivel (y el del perro) salen de la exp recién cargada.
+    try { this._nivelDesdeExp(); } catch (e) { console.warn('nivel desde exp:', e); }
+
+    console.log('✅ Datos del jugador cargados exitosamente');
+
+    // A partir de aquí ya se puede guardar sin riesgo de escribir un inventario
+    // vacío sobre el bueno. Ver el cerrojo en savegg().
+    this._inventarioCargado = true;
+
+    // Renderizar slots inmediatamente
+    this.renderInventoryAfterLoad();
+
+    // Paso 2 del tutorial: si el jugador aún no lo completó (tutorial === 0),
+    // marcar el camino hasta el NPC de la tienda.
+    this.startShopTutorial();
+
+    return data;
+
+  } catch (error) {
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+    console.error('❌ Error de red al cargar datos del jugador:', error);
+    return null;
+  }
+}
+
+
+// Método auxiliar para renderizar inventario después de cargar
+async renderInventoryAfterLoad() {
+  const sceneRunId = this._sceneRunId;
+  if (typeof this.renderSlot !== 'function') return;
+  const pintar = () => {
+    if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+    this.renderAllSlots();
+  };
+  // Las semillas y demás objetos se dibujan sin esperar los usos de herramientas.
+  pintar();
+
+  // Recolectar todos los invoiceIds de herramientas presentes en el inventario
+  const toolIds = [];
+  [...this.STATE.slots, ...this.STATE.quickSlots].forEach(s => {
+    if (s?.idx && this.ItemDefinitions?.[s.id]?.usos != null)
+      toolIds.push(Number(s.idx));
+  });
+
+  // Pedir al backend los usos de todas las herramientas en una sola llamada
+  if (toolIds.length > 0) {
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), 15000);
+    const cancelar = () => controller.abort();
+    this.events?.once('shutdown', cancelar);
+    this.events?.once('destroy', cancelar);
+    try {
+      const r = await this.fetchWithTokenRetry(`${this.serverBase}/api/tool/uses/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoiceIds: toolIds }), signal: controller.signal
+      });
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+      const data = await r.json();
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+      const uses = data.uses || {};
+      [...this.STATE.slots, ...this.STATE.quickSlots].forEach(s => {
+        if (s?.idx && uses[s.idx] != null) {
+          s.usosRestantes = uses[s.idx].usos;
+          console.log(`🔧 Usos restaurados: ${s.id} (idx ${s.idx}) → ${s.usosRestantes} usos`);
+        }
+      });
+    } catch (e) {
+  if (this._sceneStopped || this._sceneRunId !== sceneRunId) return;
+      console.warn('⚠️ No se pudo cargar usos de herramientas al iniciar:', e);
+    } finally {
+      clearTimeout(deadline);
+      this.events?.off('shutdown', cancelar);
+      this.events?.off('destroy', cancelar);
+    }
+  }
+
+  console.log('🖼️ Renderizando slots del inventario...');
+  pintar();
+}
+
+// ============================================================================
+// TUTORIAL — pasos dentro de la tienda (ver máquina de estados en GameScene.js).
+//   tutorial === 0 → fase de COMPRA: mensaje + lista de compra, camino al NPC.
+//                    Al CERRAR la tienda se pregunta (✓/✗) si compró los ítems.
+//   tutorial === 1 → fase de SALIDA: guiar a la puerta para volver al mundo.
+// Todos los textos en inglés. Helpers de pathfinding/dibujo duplicados de
+// GameScene.js a propósito (cada escena es autónoma).
+// ============================================================================
+// ============================================================================
+// PANEL DE HABILIDADES EN LA TIENDA
+// ----------------------------------------------------------------------------
+// Copia del camino de datos de GameScene (_getSkillsFromScene /
+// _renderSkillsPanel / _loadSkillsData). Cada escena es autónoma, igual que el
+// resto de helpers compartidos del proyecto; si se cambia uno hay que cambiar
+// el otro o el jugador vería números distintos en el mapa y en la tienda.
+// ============================================================================
+
+/** Las seis habilidades REALES + el nivel, tal y como están en esta escena. */
+_skillsDeLaEscena() {
+  return {
+    level:       this.nivel          || 1,
+    farming:     this.agricultura    || 1,
+    mining:      this.mineria        || 1,
+    fishing:     this.pesca          || 1,
+    cooking:     this.cocina         || 1,
+    woodcutting: this.deforestacion  || 1,
+    strength:    this.fuerza         || 1,
+    exp: {
+      level:       this.nivel_exp          || 0,
+      farming:     this.agricultura_exp    || 0,
+      mining:      this.mineria_exp        || 0,
+      fishing:     this.pesca_exp          || 0,
+      cooking:     this.cocina_exp         || 0,
+      woodcutting: this.deforestacion_exp  || 0,
+      strength:    this.fuerza_exp         || 0
+    }
+  };
+}
+
+/** Vuelca los valores en el panel #skills-panel (mismos ids que GameScene). */
+_pintarSkillsTienda(skills) {
+  /* LOS PUNTOS DEL PERSONAJE TAMBIÉN AQUÍ (2026-10-11): "en todas las escenas,
+     en Skills, una opción de mejorar fuerza, defensa, sabiduría, paciencia,
+     farming, talar, pesca o combate por cada nivel". GameScene ya lo pintaba
+     (_renderSkillsPanel); la tienda no. Mismo módulo, misma tabla en la
+     cadena (player_<habilidad>, /api/player/skills). */
+  if (window.GFCharacterSkills) { try { window.GFCharacterSkills.render(this); } catch (e) { console.warn('skills:', e); } }
+  const mapaIds = {
+    level: 'sk-level', farming: 'sk-farming', mining: 'sk-mining',
+    fishing: 'sk-fishing', cooking: 'sk-cooking',
+    woodcutting: 'sk-woodcutting', strength: 'sk-strength'
+  };
+  const exp = (skills && skills.exp) || {};
+
+  Object.entries(mapaIds).forEach(([clave, elId]) => {
+    const el = document.getElementById(elId);
+    if (el) el.textContent = skills[clave] || 1;
+
+    const expEl = document.getElementById(elId + '-exp');
+    if (expEl) expEl.textContent = `${Math.floor(Number(exp[clave]) || 0)} EXP`;
+  });
+}
+
+/**
+ * Pide las habilidades al servidor y se queda con el valor MÁS ALTO entre lo
+ * que sabe la escena y lo que devuelve /api/skills.
+ *
+ * Las habilidades solo suben, así que quedarse con el mayor es lo correcto: si
+ * el espejo del servidor va por detrás (es una foto que solo se escribe cada
+ * cierto tiempo) no borra el progreso, y si va por delante (otro dispositivo)
+ * se adopta. Es la misma regla que aplica GameScene.
+ */
+async _cargarSkillsTienda() {
+  const local = this._skillsDeLaEscena();
+  if (!this.playerName) { this._pintarSkillsTienda(local); return; }
+
+  try {
+    const res = await fetch(
+      `${this.serverBase}/api/skills/${encodeURIComponent(this.playerName)}`,
+      { credentials: 'include' }
+    );
+    if (!res || !res.ok) { this._pintarSkillsTienda(local); return; }
+
+    const datos  = await res.json();
+    const remoto = (datos && datos.skills) || {};
+    const mayor  = (a, b) => Math.max(Number(a) || 0, Number(b) || 0);
+
+    const fusion = { exp: {} };
+    // `level` y su exp son los de la escena, nunca los del espejo (ver
+    // GameScene._adoptarSkills: por ahí entraba el "nivel 34" de la nada).
+    Object.keys(local).forEach(k => {
+      if (k === 'exp') return;
+      fusion[k] = k === 'level' ? local[k] : mayor(local[k], remoto[k]);
+    });
+    Object.keys(local.exp).forEach(k => {
+      fusion.exp[k] = k === 'level' ? local.exp[k] : mayor(local.exp[k], (remoto.exp || {})[k]);
+    });
+
+    // Si el servidor iba por delante se adopta en la escena, para que el
+    // siguiente /api/save de la tienda no vuelva a mandar el valor viejo.
+    const props = {
+      farming: 'agricultura', mining: 'mineria', fishing: 'pesca',
+      cooking: 'cocina', woodcutting: 'deforestacion', strength: 'fuerza'
+    };
+    Object.entries(props).forEach(([clave, prop]) => {
+      const nivel = Math.max(1, Math.round(Number(fusion[clave]) || 1));
+      const xp    = Math.max(0, Math.round(Number(fusion.exp[clave]) || 0));
+      if (nivel > (Number(this[prop]) || 1))          this[prop] = nivel;
+      if (xp    > (Number(this[prop + '_exp']) || 0)) this[prop + '_exp'] = xp;
+    });
+    this._pintarSkillsTienda(fusion);
+  } catch (_) {
+    this._pintarSkillsTienda(local);
+  }
+}
+
+/**
+ * ¿Choca la caja (x, y, w, h) con alguno de los rectángulos de `lista`?
+ *
+ * Sustituye a los `new Phaser.Geom.Rectangle(...)` que se creaban dentro del
+ * bucle de juego (uno por cada comprobación del jugador y hasta ~90 por frame
+ * en la lógica del perro). En un móvil esa basura obliga al recolector a
+ * trabajar constantemente, y cada pasada del recolector es un pico de CPU —o
+ * sea, batería— y un micro-tirón en la imagen.
+ *
+ * La regla de intersección es EXACTAMENTE la de
+ * Phaser.Geom.Intersects.RectangleToRectangle (los bordes que se tocan cuentan
+ * como colisión), así que el juego se comporta igual que antes.
+ */
+_chocaConLista(x, y, w, h, lista) {
+  if (!Array.isArray(lista) || w <= 0 || h <= 0) return false;
+  const derecha = x + w;
+  const abajo   = y + h;
+  for (let i = 0; i < lista.length; i++) {
+    const o = lista[i];
+    if (!o || o.width <= 0 || o.height <= 0) continue;
+    if (!(derecha < o.x || abajo < o.y ||
+          x > o.x + o.width || y > o.y + o.height)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Experiencia ACUMULADA necesaria para alcanzar el nivel `n`.
+ * COPIA EXACTA de GameScene._expTotalParaNivel — ahí está la explicación larga
+ * del porqué (la curva vieja doblaba en cada nivel y el jugador se atascaba en
+ * el 4). Si se toca una, hay que tocar la otra.
+ */
+_expTotalParaNivel(n) {
+  const L = Math.max(1, Math.round(Number(n) || 1));
+  const vieja = 200 * Math.pow(2, Math.min(L - 1, 40));
+  const nueva = 100 * L * L + 100 * L;
+  return Math.min(vieja, nueva);
+}
+
+/** Nivel que paga `exp`. COPIA de GameScene._nivelPorExp. */
+_nivelPorExp(exp) {
+  const e = Math.max(0, Math.round(Number(exp) || 0));
+  let n = 0;
+  while (n < 150 && e >= this._expTotalParaNivel(n + 1)) n++;
+  return n;
+}
+
+/**
+ * El nivel sale de la exp, en las dos direcciones, y el perro tiene el mismo.
+ * COPIA de GameScene._nivelDesdeExp — ahí está la explicación del fallo de
+ * "tengo nivel 5 o 6 y de pronto me dice 34 o 52".
+ */
+_nivelDesdeExp() {
+  if (this.nivel_exp == null && this.nivel == null) return;
+  const exp = Math.max(0, Math.round(Number(this.nivel_exp) || 0));
+  if (this.nivel_exp !== exp) this.nivel_exp = exp;
+  const objetivo = this._nivelPorExp(exp);
+  const actual = Number(this.nivel);
+  if (actual === objetivo) return;
+
+  const subio = Number.isFinite(actual) && objetivo > actual;
+  this.nivel = objetivo;
+  if (subio) this.playSFX('level_up_sound');
+  this.actualizarBarraVida(this.vidaPorcentaje);
+  // El perro ya no copia este nivel: tiene el suyo (ver _aplicarNivelMascota).
+}
+
+/**
+ * EL TUTORIAL NUNCA RETROCEDE (copia de GameScene._aplicarTutorialDeBD).
+ *
+ * Este es el lado de la TIENDA del fallo "entro a la tienda y el tutorial va
+ * para atrás": la tienda leía el paso de /api/load y, si el guardado del mapa
+ * todavía estaba en vuelo, se traía el paso anterior y lo volvía a guardar al
+ * salir. Quedándose con el más avanzado entre la BD y lo que ya sabía el
+ * navegador (window.__gfTutorial), eso no puede pasar.
+ */
+_aplicarTutorialDeBD(valorBD) {
+  const bd     = Number(valorBD);
+  const cache  = Number(window.__gfTutorial);
+  const actual = Number(this.tutorial);
+
+  const candidatos = [bd, cache, actual].filter(x => Number.isFinite(x) && x >= 0);
+  if (!candidatos.length) return;
+
+  this.tutorial = Math.max(...candidatos);
+  window.__gfTutorial = this.tutorial;
+}
+
+/** Fija el paso del tutorial y lo comparte con las demás escenas. */
+_setTutorialStep(n) {
+  const paso = Math.max(0, Math.round(Number(n) || 0));
+  if (paso < Number(this.tutorial || 0)) return;   // nunca hacia atrás
+  this.tutorial = paso;
+  window.__gfTutorial = paso;
+}
+
+startShopTutorial() {
+  const step = this.tutorial;
+  // 0 = compra inicial (semillas+herramientas), 1 = salir, 3 = comprar hacha.
+  if (step !== 0 && step !== 1 && step !== 3) return;
+  if (this._shopTutorialStartedFor === step) return;
+
+  if (!this.player || !Array.isArray(this.collisionRectangles2)) {
+    this.time.delayedCall(600, () => this.startShopTutorial());
+    return;
+  }
+
+  // (Mismo motivo que en GameScene: `_shopTutorialStartedFor` se reinicia al
+  //  apagar la escena — ver _cleanupTutorial — porque el cartel y el camino se
+  //  destruyen ahí y hay que volver a montarlos al regresar a la tienda.)
+  this._shopTutorialStartedFor = step;
+  // Esquivar mobiliario ('colisiones') + colisiones generales si existen.
+  this._tutorialObstacles = [
+    ...(Array.isArray(this.collisionRectangles) ? this.collisionRectangles : []),
+    ...(Array.isArray(this.collisionRectangles2) ? this.collisionRectangles2 : [])
+  ];
+
+  if (step === 0) {
+    // Fase de compra: mensaje + lista, camino al NPC (frente a boton3 685,1435).
+    this._showStoreBuyMessage();
+    this._setTutorialTarget(685, 1520);
+    this._ensureTutorialPathTimer();
+  } else if (step === 1) {
+    // Fase de salida (tras comprar semillas/herramientas).
+    this._guideToExit();
+  } else if (step === 3) {
+    // Fase de compra del hacha de madera: mensaje + camino al NPC.
+    this._showTutorialBanner('Now go and buy a wood axe. Click the NPC to open the shop.');
+    this._setTutorialTarget(685, 1520);
+    this._ensureTutorialPathTimer();
+  }
+}
+
+// Guía al jugador hasta la puerta de salida de la tienda.
+_guideToExit() {
+  this._showTutorialBanner('Great! Now leave the shop through the door to continue.');
+  const door = (Array.isArray(this.collisionRectangles1) && this.collisionRectangles1[0]) || null;
+  if (door) this._setTutorialTarget(door.x + door.width / 2, door.y + door.height / 2);
+  this._ensureTutorialPathTimer();
+}
+
+// Mensaje 1 de la tienda (con la lista de compra). Reutilizado si el jugador
+// responde ✗ en la confirmación.
+_showStoreBuyMessage() {
+  this._showTutorialBanner('We are in the main shop of Grassland Forest, likewise inside the shop. If you click the NPC you can open the shop, where you can buy and sell. Go and buy a watering can, some pruning shears and 4 bags of carrot seeds.');
+}
+
+// Llamado desde tienda_sistema.close(): al cerrar la tienda durante la fase de
+// compra, preguntar (✓/✗) si el jugador compró los ítems.
+_onShopClosed() {
+  if (this.tutorial === 0) {
+    // Confirmar la compra inicial (semillas + herramientas).
+    this._showTutorialConfirm(
+      'Did you buy the watering can, the pruning shears and the 4 bags of carrot seeds? So we can continue with the next part of the tutorial!',
+      () => { // ✓ Sí → salir de la tienda
+        this._setTutorialStep(1);
+        this._shopTutorialStartedFor = null;
+        try { if (typeof this.savegg === 'function') this.savegg(); } catch (e) {}
+        this._guideToExit();
+      },
+      () => { this._showStoreBuyMessage(); } // ✗ No → repetir el mensaje 1
+    );
+  } else if (this.tutorial === 3) {
+    // Compró el hacha de madera: pasar al paso 4 (cortar pinos) y guiar a la salida.
+    this._setTutorialStep(4);
+    this._shopTutorialStartedFor = null;
+    try { if (typeof this.savegg === 'function') this.savegg(); } catch (e) {}
+    this._guideToExit();
+  }
+}
+
+// Fija un nuevo objetivo del camino y fuerza el redibujo inmediato.
+_setTutorialTarget(x, y, depth) {
+  this._tutorialTargetX = x;
+  this._tutorialTargetY = y;
+  this._tutorialTargetDepth = (typeof depth === 'number') ? depth : null;
+  this._tutorialPath = null;        // fuerza recomputo del A* en el próximo dibujo
+  this._pathForTargetX = null;
+  this._drawTutorialPathToTarget();
+}
+
+// Crea (una vez) el timer que redibuja el camino y registra la limpieza.
+// El redibujo es BARATO (recorta el camino cacheado); el A* se recomputa muy de
+// vez en cuando (ver _drawTutorialPathToTarget), así que no traba el juego.
+_ensureTutorialPathTimer() {
+  if (this._tutorialPathTimer) return;
+  this._tutorialPathTimer = this.time.addEvent({
+    delay: 250, loop: true, callback: () => this._drawTutorialPathToTarget()
+  });
+  this.events.once('shutdown', () => this._cleanupTutorial());
+  this.events.once('destroy',  () => this._cleanupTutorial());
+}
+
+// Diálogo de confirmación (✓/✗) reutilizando la posición del banner.
+_showTutorialConfirm(text, onYes, onNo) {
+  this._hideTutorialBanner();
+  const el = document.createElement('div');
+  el.id = 'gf-tutorial-banner';
+  el.style.cssText = [
+    'position:fixed', 'left:50%', 'transform:translateX(-50%)',
+    'width:min(92vw,760px)', 'box-sizing:border-box',
+    'background:rgba(11,61,46,0.96)', 'border:3px solid #ffd23f', 'border-radius:14px',
+    'padding:14px 18px', 'z-index:99999', 'color:#fff',
+    'font-family:Arial,sans-serif', 'font-size:clamp(13px,3.6vw,18px)', 'line-height:1.35',
+    'text-align:center', 'box-shadow:0 6px 24px rgba(0,0,0,0.45)',
+    'max-height:46vh', 'overflow:auto', 'pointer-events:auto'
+  ].join(';');
+  const msg = document.createElement('div');
+  msg.textContent = text;
+  msg.style.marginBottom = '12px';
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:12px;justify-content:center;flex-wrap:wrap;';
+  const yes = document.createElement('button');
+  yes.textContent = '✓ Yes';
+  yes.style.cssText = 'background:#2e7d32;color:#fff;border:none;border-radius:8px;padding:8px 20px;font-size:clamp(13px,3.4vw,16px);font-weight:bold;cursor:pointer;';
+  const no = document.createElement('button');
+  no.textContent = '✗ No';
+  no.style.cssText = 'background:#b23b3b;color:#fff;border:none;border-radius:8px;padding:8px 20px;font-size:clamp(13px,3.4vw,16px);font-weight:bold;cursor:pointer;';
+  yes.addEventListener('click', () => { this._hideTutorialBanner(); if (onYes) onYes(); });
+  no.addEventListener('click',  () => { this._hideTutorialBanner(); if (onNo)  onNo();  });
+  row.appendChild(yes); row.appendChild(no);
+  el.appendChild(msg); el.appendChild(row);
+  document.body.appendChild(el);
+  this._tutorialBannerEl = el;
+  this._tutorialBannerReposition = () => this._positionTutorialBanner();
+  this._positionTutorialBanner();
+  window.addEventListener('resize', this._tutorialBannerReposition);
+  this._tutorialBannerRepoTimer = setInterval(this._tutorialBannerReposition, 700);
+}
+
+_drawTutorialPathToTarget() {
+  if (!this.player) return;
+  const px = this.player.x, py = this.player.y;
+  const tx = this._tutorialTargetX, ty = this._tutorialTargetY;
+  if (tx == null || ty == null) return;
+
+  if (Math.hypot(px - tx, py - ty) < 80) {
+    this._clearTutorialPath();
+    return;
+  }
+
+  // CLAVE ANTI-STUTTER: el A* NO se recomputa cada frame. Solo cuando hace
+  // falta (cambió el objetivo, no hay camino, el jugador se desvió, o venció el
+  // tiempo). Caminar por el camino solo REDIBUJA (barato), sin trabar el juego.
+  const now = (this.time && this.time.now) ? this.time.now : Date.now();
+  const targetMoved = this._pathForTargetX !== tx || this._pathForTargetY !== ty;
+  const strayed = !this._tutorialPath || this._distPointToPath(px, py, this._tutorialPath) > 140;
+  const stale = !this._lastPathComputeAt || (now - this._lastPathComputeAt) > 1500;
+
+  if (targetMoved || strayed || stale) {
+    const obstacles = this._tutorialObstacles || this.collisionRectangles2;
+    const path = this._computeTutorialPath(px, py, tx, ty, obstacles);
+    this._tutorialPath = (path && path.length >= 2) ? path : [{ x: px, y: py }, { x: tx, y: ty }];
+    this._pathForTargetX = tx; this._pathForTargetY = ty;
+    this._lastPathComputeAt = now;
+  }
+
+  this._renderTrimmedPath(px, py, this._tutorialPath);
+}
+
+// Distancia (punto→segmentos) del jugador al camino cacheado. Detecta desvío.
+_distPointToPath(px, py, path) {
+  let best = Infinity;
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i], b = path[i + 1];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 ? ((px - a.x) * dx + (py - a.y) * dy) / len2 : 0;
+    if (t < 0) t = 0; else if (t > 1) t = 1;
+    const cx = a.x + t * dx, cy = a.y + t * dy;
+    const d = Math.hypot(px - cx, py - cy);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+// Redibuja el camino recortado desde el jugador, REUSANDO un solo graphics.
+_renderTrimmedPath(px, py, path) {
+  if (!path || path.length < 2) { this._clearTutorialPath(); return; }
+  let bestI = 0, bestPt = path[0], bestD = Infinity;
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i], b = path[i + 1];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 ? ((px - a.x) * dx + (py - a.y) * dy) / len2 : 0;
+    if (t < 0) t = 0; else if (t > 1) t = 1;
+    const cx = a.x + t * dx, cy = a.y + t * dy;
+    const d = Math.hypot(px - cx, py - cy);
+    if (d < bestD) { bestD = d; bestI = i; bestPt = { x: cx, y: cy }; }
+  }
+  const pts = [{ x: px, y: py }, bestPt];
+  for (let i = bestI + 1; i < path.length; i++) pts.push(path[i]);
+
+  const g = this._ensureTutorialPathGfx();
+  g.setDepth(this._tutorialTargetDepth != null
+    ? this._tutorialTargetDepth + 1
+    : ((this.player && this.player.depth ? this.player.depth : 1) - 1));
+  g.clear();
+  g.lineStyle(6, 0xffd23f, 0.95);
+  for (let i = 0; i < pts.length - 1; i++) {
+    this._dashTutorialLine(g, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, 18, 12);
+  }
+  const end = pts[pts.length - 1];
+  g.fillStyle(0xffd23f, 0.95);
+  g.fillCircle(end.x, end.y, 11);
+  g.lineStyle(3, 0x7a4b00, 1);
+  g.strokeCircle(end.x, end.y, 11);
+}
+
+// Crea (una vez) el graphics del camino y su tween de pulso, y lo reutiliza.
+_ensureTutorialPathGfx() {
+  if (!this._tutorialPathGfx || !this._tutorialPathGfx.scene) {
+    this._tutorialPathGfx = this.add.graphics();
+    this._tutorialPathGfx.setDepth((this.player && this.player.depth ? this.player.depth : 1) - 1);
+    this._tutorialPathTween = this.tweens.add({
+      targets: this._tutorialPathGfx, alpha: { from: 0.5, to: 1 }, duration: 650, yoyo: true, repeat: -1
+    });
+  }
+  return this._tutorialPathGfx;
+}
+
+_computeTutorialPath(sx, sy, gx, gy, obstacles) {
+  const CELL = 32, PAD = 22;
+  const worldW = this.map ? this.map.widthInPixels  : 100000;
+  const worldH = this.map ? this.map.heightInPixels : 100000;
+
+  // Ventana FIJA centrada en el jugador → grilla pequeña y CONSTANTE, sin
+  // importar la distancia al objetivo (evita tirones al estar lejos).
+  const WIN = 640;
+  const minX = Math.max(0, sx - WIN);
+  const minY = Math.max(0, sy - WIN);
+  const maxX = Math.min(worldW, sx + WIN);
+  const maxY = Math.min(worldH, sy + WIN);
+
+  const cols = Math.ceil((maxX - minX) / CELL);
+  const rows = Math.ceil((maxY - minY) / CELL);
+  if (cols <= 1 || rows <= 1) return null;
+
+  // Si el objetivo está FUERA de la ventana (lejos), NO hacer A* → línea directa
+  // (evita rutas locales engañosas hacia el borde). A* preciso al acercarse.
+  if (gx < minX || gx > maxX || gy < minY || gy > maxY) return null;
+
+  // Solo las colisiones que tocan la ventana.
+  const allRects = Array.isArray(obstacles) ? obstacles : [];
+  const rects = allRects.filter(r =>
+    r.x <= maxX + PAD && r.x + r.width >= minX - PAD &&
+    r.y <= maxY + PAD && r.y + r.height >= minY - PAD);
+  const blocked = (cx, cy) => {
+    const wx = minX + cx * CELL + CELL / 2;
+    const wy = minY + cy * CELL + CELL / 2;
+    for (let i = 0; i < rects.length; i++) {
+      const r = rects[i];
+      if (wx >= r.x - PAD && wx <= r.x + r.width + PAD &&
+          wy >= r.y - PAD && wy <= r.y + r.height + PAD) return true;
+    }
+    return false;
+  };
+  const toCell = (wx, wy) => ({
+    cx: Math.max(0, Math.min(cols - 1, Math.floor((wx - minX) / CELL))),
+    cy: Math.max(0, Math.min(rows - 1, Math.floor((wy - minY) / CELL)))
+  });
+  const nearestFree = (c) => {
+    if (!blocked(c.cx, c.cy)) return c;
+    for (let rad = 1; rad < 14; rad++) {
+      for (let ox = -rad; ox <= rad; ox++) {
+        for (let oy = -rad; oy <= rad; oy++) {
+          const nx = c.cx + ox, ny = c.cy + oy;
+          if (nx >= 0 && ny >= 0 && nx < cols && ny < rows && !blocked(nx, ny)) return { cx: nx, cy: ny };
+        }
+      }
+    }
+    return c;
+  };
+
+  const start = nearestFree(toCell(sx, sy));
+  const goal  = nearestFree(toCell(gx, gy));
+  const idx = (cx, cy) => cy * cols + cx;
+  const N = cols * rows;
+  const gScore = new Float64Array(N).fill(Infinity);
+  const came   = new Int32Array(N).fill(-1);
+  const closed = new Uint8Array(N);
+  const h = (cx, cy) => Math.hypot(cx - goal.cx, cy - goal.cy);
+
+  // Min-heap binario (pares f/cellIndex) para O(log n) por extracción.
+  const heapF = [], heapI = [];
+  const hpush = (f, i) => {
+    heapF.push(f); heapI.push(i);
+    let c = heapF.length - 1;
+    while (c > 0) {
+      const p = (c - 1) >> 1;
+      if (heapF[p] <= heapF[c]) break;
+      const tf = heapF[p]; heapF[p] = heapF[c]; heapF[c] = tf;
+      const ti = heapI[p]; heapI[p] = heapI[c]; heapI[c] = ti;
+      c = p;
+    }
+  };
+  const hpop = () => {
+    const topI = heapI[0];
+    const lastF = heapF.pop(), lastI = heapI.pop();
+    if (heapF.length > 0) {
+      heapF[0] = lastF; heapI[0] = lastI;
+      let p = 0; const m = heapF.length;
+      for (;;) {
+        const l = 2 * p + 1, r = 2 * p + 2; let s = p;
+        if (l < m && heapF[l] < heapF[s]) s = l;
+        if (r < m && heapF[r] < heapF[s]) s = r;
+        if (s === p) break;
+        const tf = heapF[p]; heapF[p] = heapF[s]; heapF[s] = tf;
+        const ti = heapI[p]; heapI[p] = heapI[s]; heapI[s] = ti;
+        p = s;
+      }
+    }
+    return topI;
+  };
+
+  const startIdx = idx(start.cx, start.cy);
+  const goalIdx  = idx(goal.cx, goal.cy);
+  gScore[startIdx] = 0;
+  hpush(h(start.cx, start.cy), startIdx);
+
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  let found = false, guard = 0;
+  while (heapF.length && guard++ < 60000) {
+    const cur = hpop();
+    if (closed[cur]) continue;
+    closed[cur] = 1;
+    if (cur === goalIdx) { found = true; break; }
+    const ccx = cur % cols, ccy = (cur - ccx) / cols;
+    for (let d = 0; d < dirs.length; d++) {
+      const dx = dirs[d][0], dy = dirs[d][1];
+      const nx = ccx + dx, ny = ccy + dy;
+      if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+      if (blocked(nx, ny)) continue;
+      if (dx !== 0 && dy !== 0 && (blocked(ccx + dx, ccy) || blocked(ccx, ccy + dy))) continue;
+      const ni = ny * cols + nx;
+      if (closed[ni]) continue;
+      const step = (dx !== 0 && dy !== 0) ? 1.4142 : 1;
+      const tentative = gScore[cur] + step;
+      if (tentative < gScore[ni]) {
+        gScore[ni] = tentative;
+        came[ni] = cur;
+        hpush(tentative + h(nx, ny), ni);
+      }
+    }
+  }
+  if (!found) return null;
+
+  const cells = [];
+  let ci = goalIdx;
+  while (ci !== -1) { const cx = ci % cols, cy = (ci - cx) / cols; cells.push({ cx, cy }); ci = came[ci]; }
+  cells.reverse();
+
+  const pts = cells.map(c => ({ x: minX + c.cx * CELL + CELL / 2, y: minY + c.cy * CELL + CELL / 2 }));
+  if (pts.length) { pts[0] = { x: sx, y: sy }; pts[pts.length - 1] = { x: gx, y: gy }; }
+  return this._simplifyTutorialPath(pts, rects, PAD);
+}
+
+_simplifyTutorialPath(pts, rects, pad) {
+  if (!pts || pts.length <= 2) return pts;
+  const clear = (a, b) => {
+    const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 12));
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
+      for (const r of rects) {
+        if (x >= r.x - pad && x <= r.x + r.width + pad &&
+            y >= r.y - pad && y <= r.y + r.height + pad) return false;
+      }
+    }
+    return true;
+  };
+  const out = [pts[0]];
+  let i = 0;
+  while (i < pts.length - 1) {
+    let j = pts.length - 1;
+    while (j > i + 1 && !clear(pts[i], pts[j])) j--;
+    out.push(pts[j]);
+    i = j;
+  }
+  return out;
+}
+
+_dashTutorialLine(g, x1, y1, x2, y2, dash, gap) {
+  const dxt = x2 - x1, dyt = y2 - y1;
+  const len = Math.hypot(dxt, dyt);
+  if (len === 0) return;
+  const ux = dxt / len, uy = dyt / len;
+  let d = 0;
+  while (d < len) {
+    const s = d, e = Math.min(d + dash, len);
+    g.beginPath();
+    g.moveTo(x1 + ux * s, y1 + uy * s);
+    g.lineTo(x1 + ux * e, y1 + uy * e);
+    g.strokePath();
+    d += dash + gap;
+  }
+}
+
+_clearTutorialPath() {
+  if (this._tutorialPathTween) { this._tutorialPathTween.stop(); this._tutorialPathTween = null; }
+  if (this._tutorialPathGfx) { this._tutorialPathGfx.destroy(); this._tutorialPathGfx = null; }
+}
+
+// Banner de tutorial como overlay DOM (responsive a cualquier móvil) colocado
+// JUSTO ENCIMA de las 7 casillas rápidas (#quick-slots-bar). Usa unidades
+// relativas (vw + clamp) para adaptarse a todo tamaño de pantalla.
+_showTutorialBanner(text) {
+  this._hideTutorialBanner();
+  const el = document.createElement('div');
+  el.id = 'gf-tutorial-banner';
+  el.style.cssText = [
+    'position:fixed', 'left:50%', 'transform:translateX(-50%)',
+    'width:min(92vw,760px)', 'box-sizing:border-box',
+    'background:rgba(11,61,46,0.94)', 'border:3px solid #ffd23f', 'border-radius:14px',
+    'padding:14px 46px 14px 18px', 'z-index:99999', 'color:#fff',
+    'font-family:Arial,sans-serif', 'font-size:clamp(13px,3.6vw,18px)', 'line-height:1.35',
+    'text-align:center', 'box-shadow:0 6px 24px rgba(0,0,0,0.45)',
+    'max-height:40vh', 'overflow:auto', 'pointer-events:auto'
+  ].join(';');
+  const msg = document.createElement('span');
+  msg.textContent = text;
+  const close = document.createElement('button');
+  close.textContent = '✕';
+  close.setAttribute('aria-label', 'Close');
+  close.style.cssText = [
+    'position:absolute', 'top:6px', 'right:10px', 'background:transparent',
+    'border:none', 'color:#ffd23f', 'font-size:20px', 'line-height:1',
+    'cursor:pointer', 'padding:4px'
+  ].join(';');
+  close.addEventListener('click', () => this._hideTutorialBanner());
+  el.appendChild(msg);
+  el.appendChild(close);
+  document.body.appendChild(el);
+  this._tutorialBannerEl = el;
+
+  this._tutorialBannerReposition = () => this._positionTutorialBanner();
+  this._positionTutorialBanner();
+  window.addEventListener('resize', this._tutorialBannerReposition);
+  // Reposicionar periódicamente por si la barra de casillas aparece/cambia.
+  this._tutorialBannerRepoTimer = setInterval(this._tutorialBannerReposition, 700);
+}
+
+// Coloca el banner encima de #quick-slots-bar; si no está visible, cerca del pie.
+_positionTutorialBanner() {
+  const el = this._tutorialBannerEl;
+  if (!el) return;
+  const bar = document.getElementById('quick-slots-bar');
+  let bottom = 96;
+  if (bar && bar.offsetParent !== null && !bar.classList.contains('hidden')) {
+    const rect = bar.getBoundingClientRect();
+    if (rect.height > 0) bottom = Math.max(12, window.innerHeight - rect.top + 12);
+  }
+  el.style.bottom = bottom + 'px';
+}
+
+_hideTutorialBanner() {
+  if (this._tutorialBannerReposition) {
+    window.removeEventListener('resize', this._tutorialBannerReposition);
+    this._tutorialBannerReposition = null;
+  }
+  if (this._tutorialBannerRepoTimer) { clearInterval(this._tutorialBannerRepoTimer); this._tutorialBannerRepoTimer = null; }
+  if (this._tutorialBannerEl) { this._tutorialBannerEl.remove(); this._tutorialBannerEl = null; }
+  // Limpieza defensiva por si quedara un banner de la versión Phaser anterior.
+  if (this._tutorialBanner) { this._tutorialBanner.destroy(); this._tutorialBanner = null; }
+}
+
+_cleanupTutorial() {
+  this._clearTutorialPath();
+  if (this._tutorialPathTimer) { this._tutorialPathTimer.remove(false); this._tutorialPathTimer = null; }
+  this._hideTutorialBanner();
+  // El cartel y el camino ya no existen, así que la fase tiene que poder
+  // volver a montarse. Phaser reutiliza la instancia de la escena, y sin esto
+  // `_shopTutorialStartedFor` seguía diciendo "ya arrancó" en la siguiente
+  // visita a la tienda: el jugador entraba y no veía ni el mensaje ni el camino.
+  this._shopTutorialStartedFor = null;
+}
+
+// 4) Save game state
+    /**
+     * ¿(x, y) es un sitio DENTRO de la sala? Si no, la entrada (1041, 1778,
+     * justo encima de la puerta). Fuera de la sala todo es el tile 64 de
+     * 'mapa_tiendax', el negro que la rodea; se mira el punto y los pies.
+     */
+    _puntoDeLlegadaTienda(x, y) {
+      const ENTRADA = { x: 1041, y: 1778 };
+      const TILE_NEGRO = 64;
+      x = Number(x); y = Number(y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return ENTRADA;
+      const m = this.map;
+      if (!m || x < 0 || y < 0 || x >= m.widthInPixels || y >= m.heightInPixels) return ENTRADA;
+      try {
+        const capa = this.backgroundLayer;
+        if (!capa || typeof capa.getTileAtWorldXY !== 'function') return { x, y };
+        const pies = Math.min(m.heightInPixels - 1, y + 24);
+        const a = capa.getTileAtWorldXY(x, y, true);
+        const b = capa.getTileAtWorldXY(x, pies, true);
+        if (!a || !b || a.index < 0 || b.index < 0 || a.index === TILE_NEGRO || b.index === TILE_NEGRO) return ENTRADA;
+      } catch (_) { return ENTRADA; }
+      return { x, y };
+    }
+
+    async savegg() {
+        console.log('💾 Iniciando guardado del juego...');
+        
+        // Verificar que tenemos los datos necesarios
+        if (!this.playerName || !this.isAuthenticated) {
+            console.error('❌ No se puede guardar: falta playerName o autenticación');
+            return false;
+        }
+
+        /* CERROJO ANTI-BORRADO (el mismo que tiene GameScene.savegg).
+
+           No se guarda hasta haber cargado el inventario al menos una vez. Sin
+           esto, un guardado que caiga entre el `this.STATE = {…vacío…}` de
+           create() y la llegada de /api/load escribe en la base de datos
+           cuarenta huecos vacíos y el jugador se queda sin objetos.
+
+           No se pierde nada: se pospone. La cola de guardado vuelve a pasar en
+           cuanto los datos estén cargados. */
+        if (this._inventarioCargado !== true) {
+            console.warn('⏸️ Guardado pospuesto: el inventario de la tienda todavía ' +
+                         'no se ha cargado (esto evita escribir uno vacío sobre el bueno).');
+            return false;
+        }
+
+        // Asegurarnos de tener token CSRF
+        if (!this.csrfToken) {
+            await this.getCSRFToken();
+            if (!this.csrfToken) {
+                console.error('❌ No se pudo obtener token CSRF para guardar');
+                return false;
+            }
+        }
+
+        // Guardar solo los arrays principales (ignorar fantasmas)
+        const inventoryData = this.STATE.slots.map((s, i) => ({ 
+            id: i, 
+            IDX: s?.idx ?? null,
+            Manualid: s?.idm ?? null,
+            objeto: s?.id ?? null, 
+            cantidad: s?.count ?? 0, 
+            tipo: 'inventario' 
+        }));
+        
+        const chestData = this.STATE.quickSlots.map((s, i) => ({ 
+            id: i, 
+            IDX: s?.idx ?? null,
+            Manualid: s?.idm ?? null,
+            objeto: s?.id ?? null, 
+            cantidad: s?.count ?? 0, 
+            tipo: 'cofre' 
+        }));
+        
+        // Usar window.playerStats.oro si está disponible; solo usar monto_moneda si moneda es null/undefined (no si es 0)
+        const _canonicalMoneda = (window.playerStats && typeof window.playerStats.oro === 'number') ? window.playerStats.oro : this.moneda;
+        this.moneda = Math.floor(_canonicalMoneda != null ? _canonicalMoneda : this.monto_moneda);
+        
+        const payload = {
+            /* Cuándo se cargó esta copia del inventario. Sin esto el servidor
+               no puede distinguir un guardado con datos viejos de uno al día, y
+               descarta el inventario "por si acaso" durante los diez minutos
+               siguientes a cualquier compra en el market — que era justo el
+               motivo de que lo vendido en la tienda volviera al salir al mapa. */
+            inventoryLoadedAt: this._inventoryLoadedAt || null,
+            posicionplayerx: this.posicionplayerx, 
+            posicionplayery: this.posicionplayery,
+            vidaPorcentaje:   (window.playerStats && typeof window.playerStats.vida   === 'number') ? window.playerStats.vida   : this.vidaPorcentaje,
+            aguaPorcentaje:   (window.playerStats && typeof window.playerStats.agua   === 'number') ? window.playerStats.agua   : this.aguaPorcentaje,
+            comidaPorcentaje: (window.playerStats && typeof window.playerStats.comida === 'number') ? window.playerStats.comida : this.comidaPorcentaje,
+            lenguaje: this.lenguaje, 
+            nivel: this.nivel, 
+            nivel_exp: this.nivel_exp, 
+            mineria: this.mineria, 
+            mineria_exp: this.mineria_exp,
+            pesca: this.pesca, 
+            pesca_exp: this.pesca_exp, 
+            cocina: this.cocina, 
+            cocina_exp: this.cocina_exp, 
+            deforestacion: this.deforestacion, 
+            deforestacion_exp: this.deforestacion_exp,
+            fuerza: this.fuerza, 
+            fuerza_exp: this.fuerza_exp, 
+            agricultura: this.agricultura, 
+            agricultura_exp: this.agricultura_exp,
+            speed: this.speed, 
+            mundo: this.mundo, 
+            moneda: (window.playerStats && typeof window.playerStats.oro === 'number') ? window.playerStats.oro : this.moneda,
+            moneda_plata: (window.playerStats && typeof window.playerStats.plata === 'number') ? window.playerStats.plata : this.moneda_plata,
+            Username: this.Username,
+            petName: this.petName || window.globalPetName || '---',
+            misiones: this.misiones,
+            tutorial: this.tutorial,
+            inventory: inventoryData,
+            chest: chestData
+        };
+        
+        console.log('📤 Payload para guardar:', {
+            playerName: this.playerName,
+            moneda: this.moneda,
+            inventoryItems: inventoryData.filter(item => item.objeto).length,
+            chestItems: chestData.filter(item => item.objeto).length
+        });
+        
+        try {
+            // Usar fetchWithTokenRetry para manejar errores de token automáticamente
+            const resp = await this.fetchWithTokenRetry(
+                `${this.serverBase}/api/save/${encodeURIComponent(this.playerName)}`,
+                {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                },
+                2 // maxRetries
+            );
+            
+            console.log('📊 Status de guardado:', resp.status);
+            
+            if (!resp.ok) {
+                const errorText = await resp.text().catch(() => 'No se pudo leer el error');
+                console.error('❌ Error al guardar:', {
+                    status: resp.status,
+                    error: errorText
+                });
+                
+                // Si es error 401 o 403 después de todos los reintentos
+                if (resp.status === 401 || resp.status === 403) {
+                    console.warn('⚠️ Token expirado o inválido después de reintentos');
+                    this.showTokenErrorHub();
+                }
+                return false;
+            }
+            
+            const resData = await resp.json().catch(() => ({}));
+            console.log('✅ Datos guardados correctamente:', resData);
+
+            // Mismo aviso que en GameScene: el panel de configuraciones es DOM
+            // compartido, así que el nombre se puede fijar desde las dos escenas.
+            this._avisarNombresRechazados(resData);
+
+            /* EL SERVIDOR NO SE HA QUEDADO CON MI INVENTARIO.
+
+               Contesta `inventoryStale: true` cuando el market escribió después
+               de que este cliente cargara su copia: en ese caso NO pisa el
+               inventario, y manda esta bandera precisamente para que el cliente
+               se entere. Hasta ahora se ignoraba en silencio, así que la
+               pantalla y la base de datos se quedaban contando cosas distintas
+               y el jugador solo lo descubría al cambiar de mapa.
+
+               Se recarga la copia buena y se repinta: lo que hay en el servidor
+               manda, porque incluye lo que se compró en el market. */
+            if (resData && resData.inventoryStale) {
+                console.warn('🛡️ El servidor conservó SU inventario (el market escribió después). Recargando.');
+                try {
+                    this.showNotification?.('Your inventory changed elsewhere — reloading it.', 'info');
+                } catch (e) {}
+                try {
+                    await this.loadPlayerData();
+                    this.rebuildPlayerInventoryFromState && this.rebuildPlayerInventoryFromState();
+                } catch (e) {
+                    console.error('❌ No se pudo recargar el inventario:', e);
+                }
+                return false;
+            }
+
+            return true;
+        } catch (e) {
+            console.error('❌ Error de red al guardar:', e);
+        }
+    }
+
+    /** Ver el comentario equivalente en GameScene._avisarNombresRechazados. */
+    _avisarNombresRechazados(resData) {
+        const choques = resData && Array.isArray(resData.nameConflicts) ? resData.nameConflicts : null;
+        if (!choques || !choques.length) return;
+
+        choques.forEach(c => {
+            const texto = (c && c.message) || 'That name is already taken. Please choose a different one.';
+            try {
+                if (this.notifications && typeof this.notifications.show === 'function') {
+                    this.notifications.show(texto, 'error');
+                } else {
+                    console.warn('⚠️', texto);
+                }
+            } catch (e) { console.warn('⚠️', texto); }
+
+            const id = (c && c.field === 'petName') ? 'pet-name' : 'character-name';
+            const campo = document.getElementById(id);
+            if (campo) { campo.value = ''; campo.focus(); }
+        });
+    }
+
+
+
+
+
+        async fetchWithTokenRetry(url, options = {}, maxRetries = 2) {
+        const defaultOptions = {
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        };
+        
+        // Combinar opciones
+        const fetchOptions = {
+            ...defaultOptions,
+            ...options,
+            headers: {
+                ...defaultOptions.headers,
+                ...(options.headers || {})
+            }
+        };
+        
+        // Añadir token CSRF. La condición miraba this.csrfToken, así que si la
+        // copia guardada estaba vacía no se mandaba cabecera aunque la cookie
+        // sí existiera. Ahora decide el valor VIVO.
+        {
+            const _csrf = window.getCsrfToken(this.csrfToken);
+            if (_csrf && !fetchOptions.headers['X-CSRF-Token']) {
+                fetchOptions.headers['X-CSRF-Token'] = _csrf;
+            }
+        }
+        
+        let retries = 0;
+        let lastResponse = null;
+        
+        while (retries <= maxRetries) {
+            try {
+                console.log(`📤 Fetch ${url} (intento ${retries + 1}/${maxRetries + 1})`);
+                
+                const response = await fetch(url, fetchOptions);
+                lastResponse = response;
+
+                // Si es éxito, retornar la respuesta
+                if (response.ok) {
+                    return response;
+                }
+
+                // 403 de CONTROL DE ACCESO (baneado / fuera de whitelist).
+                if (response.status === 403) {
+                    let body = {};
+                    try { body = await response.clone().json(); } catch (e) {}
+                    if (body.error === 'banned' || body.error === 'not_whitelisted') {
+                        this._handleAccessDenied(body);
+                        return response;
+                    }
+                }
+
+                // Si es error 401 (no autorizado), intentar refresh
+                if (response.status === 401) {
+                    console.log(`🔐 Error 401 detectado, intentando refresh...`);
+                    
+                    // Intentar obtener el cuerpo del error para mejor diagnóstico
+                    let errorBody = {};
+                    try {
+                        errorBody = await response.json();
+                    } catch (e) {
+                        // No se pudo parsear el error como JSON
+                    }
+                    
+                    // Verificar si es un error de token expirado
+                    const isTokenError = errorBody.error && (
+                        errorBody.error.includes('token_expired') ||
+                        errorBody.error.includes('invalid_session') ||
+                        errorBody.error.includes('authentication_required') ||
+                        errorBody.canRefresh === true
+                    );
+                    
+                    if (isTokenError && retries < maxRetries) {
+                        console.log(`🔄 Token expirado, refrescando...`);
+                        
+                        // Intentar refresh
+                        const refreshSuccess = await this.refreshAuthToken();
+                        
+                        if (refreshSuccess) {
+                            // Actualizar headers con nuevo token CSRF
+                            fetchOptions.headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
+                            retries++;
+                            
+                            // Esperar antes de reintentar
+                            await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+                            continue; // Reintentar la petición
+                        } else {
+                            console.error('❌ No se pudo refrescar el token');
+                            break; // Salir del loop
+                        }
+                    } else {
+                        // No es error de token o ya se intentó demasiadas veces
+                        console.error(`❌ Error ${response.status} no manejable por refresh`);
+                        break;
+                    }
+                }
+                // Si es error 403 (prohibido), puede ser CSRF
+                else if (response.status === 403) {
+                    console.log(`🔐 Error 403 (CSRF posible), obteniendo nuevo token CSRF...`);
+                    
+                    if (retries < maxRetries) {
+                        // Obtener nuevo token CSRF
+                        await this.getCSRFToken();
+                        
+                        if (this.csrfToken) {
+                            fetchOptions.headers['X-CSRF-Token'] = window.getCsrfToken(this.csrfToken);
+                            retries++;
+                            
+                            // Esperar antes de reintentar
+                            await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+                            continue;
+                        } else {
+                            console.error('❌ No se pudo obtener nuevo token CSRF');
+                            break;
+                        }
+                    }
+                }
+                // Para otros errores, no reintentar
+                else {
+                    console.error(`❌ Error HTTP ${response.status}`);
+                    break;
+                }
+                
+            } catch (error) {
+                console.error(`❌ Error de red (intento ${retries + 1}):`, error);
+                retries++;
+                
+                if (retries > maxRetries) {
+                    throw error;
+                }
+                
+                // Esperar antes de reintentar
+                await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+            }
+        }
+        
+        // Si llegamos aquí, todos los intentos fallaron
+        return lastResponse;
+    }
+
+
+    
+    async getCSRFToken() {
+        try {
+            console.log('🛡️ Obteniendo token CSRF...');
+            const response = await fetch(`${this.serverBase}/api/auth/csrf-token`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                this.csrfToken = data.csrfToken;
+                    window.csrfToken = data.csrfToken; // Compartir con StatsSync
+                console.log('✅ Token CSRF obtenido');
+                return true;
+            } else {
+                console.warn('⚠️ No se pudo obtener token CSRF');
+                return false;
+            }
+        } catch (error) {
+            console.error('❌ Error obteniendo CSRF token:', error);
+            return false;
+        }
+    }
+  
+  
+
+    // 🔍 ZOOM IN PRECISO - Usando valores predefinidos
+preciseZoomIn(duration = 300) {
+        if (this.currentZoomIndex < this.zoomValues.length - 1) {
+            this.currentZoomIndex++;
+            const newZoom = this.zoomValues[this.currentZoomIndex];
+            this.tweens.add({
+                targets: this.cameras.main,
+                zoom: newZoom,
+                duration,
+                ease: 'Cubic.easeOut',
+                onUpdate: () => this.clampCameraToMap(),
+                onComplete: () => this.clampCameraToMap()
+            });
+        }
+    }
+
+    preciseZoomOut(duration = 300) {
+        if (this.currentZoomIndex > 0) {
+            this.currentZoomIndex--;
+            const newZoom = this.zoomValues[this.currentZoomIndex];
+            this.tweens.add({
+                targets: this.cameras.main,
+                zoom: newZoom,
+                duration,
+                ease: 'Cubic.easeOut',
+                onUpdate: () => this.clampCameraToMap(),
+                onComplete: () => this.clampCameraToMap()
+            });
+        }
+   }
+
+preciseZoomTo(targetZoom, duration = 400) {
+    const targetIndex = this.zoomValues.findIndex(z => z === targetZoom);
+    if (targetIndex === -1 || targetIndex === this.currentZoomIndex) return;
+    const oldZoom = this.zoomValues[this.currentZoomIndex];
+    this.currentZoomIndex = targetIndex;
+    const newZoom = this.zoomValues[this.currentZoomIndex];
+    console.log(`🎯 Zoom To: ${oldZoom} → ${newZoom}`);
+    this.tweens.add({
+        targets: this.cameras.main,
+        zoom: newZoom,
+        duration,
+        ease: 'Cubic.easeOut',
+        onUpdate: () => this.clampCameraToMap(),
+        onComplete: () => {
+            this.clampCameraToMap();
+            console.log(`✅ Zoom To: ${this.cameras.main.zoom}x`);
+        }
+    });
+}
+
+
+    // 🎮 MÉTODO PARA AGREGAR MÁS VALORES DE ZOOM (si los necesitas)
+    addZoomValue(newValue) {
+        if (!this.zoomValues.includes(newValue)) {
+            this.zoomValues.push(newValue);
+            this.zoomValues.sort((a, b) => a - b); // Ordenar
+            console.log(`🆕 Nuevo valor de zoom agregado: ${newValue}x`);
+            console.log(`🎯 Valores actualizados: [${this.zoomValues.join(', ')}]`);
+        }
+    }
+
+    // 🔧 MÉTODO PARA CAMBIAR EL ZOOM ACTUAL (útil para sincronizar)
+    setCurrentZoomIndex(index) {
+        if (index >= 0 && index < this.zoomValues.length) {
+            this.currentZoomIndex = index;
+            this.cameras.main.zoom = this.zoomValues[this.currentZoomIndex];
+            console.log(`🔧 Zoom actual establecido a: ${this.zoomValues[this.currentZoomIndex]}x`);
+        }
+    }
+
+
+    clampCameraToMap() {
+        const cam = this.cameras && this.cameras.main;
+        if (!cam || !this.map) return;
+
+        // Asegurar bounds del propio camera
+        cam.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
+
+       // Tamaño visible en coordenadas del mundo teniendo en cuenta el zoom
+        const visibleWidth = cam.width / Math.max(0.0001, cam.zoom);
+        const visibleHeight = cam.height / Math.max(0.0001, cam.zoom);
+
+        const maxScrollX = Math.max(0, this.map.widthInPixels - visibleWidth);
+        const maxScrollY = Math.max(0, this.map.heightInPixels - visibleHeight);
+
+        cam.scrollX = Phaser.Math.Clamp(cam.scrollX, 0, maxScrollX);
+        cam.scrollY = Phaser.Math.Clamp(cam.scrollY, 0, maxScrollY);
+    }
+
+
+
+
+
+// Métodos para pegar dentro de tu clase Phaser.Scene
+
+
+/* Métodos para pegar dentro de tu clase Phaser.Scene (ES6)
+   Ej: class GameScene extends Phaser.Scene { ... estos métodos ... }
+*/
+
+
+
+
+// Asegurar dimensiones del panel para centrado correcto
+_ensurePanelDimensions() {
+  if (!this.hudEl_1) return;
+  
+  // Estilos CSS esenciales para el centrado
+  const essentialStyles = {
+    position: 'fixed',
+    width: '600px', // Ancho fijo para centrado preciso
+    minHeight: '400px', // Altura mínima
+    maxWidth: '90vw', // Máximo ancho relativo a la ventana
+    maxHeight: '80vh', // Máximo alto relativo a la ventana
+    overflow: 'auto',
+    boxSizing: 'border-box'
+  };
+
+  // Aplicar estilos esenciales
+  Object.keys(essentialStyles).forEach(style => {
+    this.hudEl_1.style[style] = essentialStyles[style];
+  });
+}
+
+// Renderiza la lista a #listaEstadisticas_1 filtrando por texto
+_hud_renderListHudEstadisticas_1(filter = '') {
+  if (!this.listaEl_1) return;
+  const q = (filter || '').toString().trim().toLowerCase();
+  this.listaEl_1.innerHTML = '';
+  const filtered = this._hud_apartados_1.filter(a => a.nombre.toLowerCase().includes(q));
+  if (filtered.length === 0) {
+    const no = document.createElement('div'); 
+    no.style.padding = '10px'; 
+    no.style.color = '#aaa'; 
+    no.textContent = 'No se encontraron apartados';
+    this.listaEl_1.appendChild(no); 
+    return;
+  }
+  for (const item of filtered) {
+    const el = document.createElement('div');
+    el.className = 'est-item_1';
+    el.tabIndex = 0;
+    el.setAttribute('role','listitem');
+    // markup: imagen + nombre
+    const img = document.createElement('img'); 
+    img.src = item.img; 
+    img.alt = item.nombre;
+    img.style.width = '32px';
+    img.style.height = '32px';
+    img.style.objectFit = 'contain';
+    const span = document.createElement('span'); 
+    span.textContent = item.nombre;
+    span.style.marginLeft = '10px';
+    el.appendChild(img); 
+    el.appendChild(span);
+    // click/enter -> mostrar detalle
+    const onShow = (ev) => { 
+      ev.stopPropagation(); 
+      ev.preventDefault(); 
+      this._hud_showDetalleHudEstadisticas_1(item); 
+    };
+    el.addEventListener('click', onShow);
+    el.addEventListener('keydown', (ev) => { 
+      if (ev.key === 'Enter') onShow(ev); 
+    });
+    this.listaEl_1.appendChild(el);
+  }
+}
+
+// Mostrar detalle del item (muestra img, nombre y requisitos 2-3)
+_hud_showDetalleHudEstadisticas_1(item) {
+  if (!this.detalleEl_1) return;
+  if (this.detalleImgEl_1) { 
+    this.detalleImgEl_1.src = item.img || ''; 
+    this.detalleImgEl_1.alt = item.nombre || '';
+    this.detalleImgEl_1.style.width = '64px';
+    this.detalleImgEl_1.style.height = '64px';
+    this.detalleImgEl_1.style.objectFit = 'contain';
+  }
+  if (this.detalleNombreEl_1) this.detalleNombreEl_1.textContent = item.nombre || '';
+  if (this.detalleReqEl_1) {
+    this.detalleReqEl_1.innerHTML = '';
+    const reqs = Array.isArray(item.requisitos) ? item.requisitos.slice(0,3) : [];
+    if (reqs.length === 0) {
+      const li = document.createElement('li'); 
+      li.textContent = 'Sin requisitos.'; 
+      this.detalleReqEl_1.appendChild(li);
+    } else {
+      for (const r of reqs) { 
+        const li = document.createElement('li'); 
+        li.textContent = r; 
+        this.detalleReqEl_1.appendChild(li); 
+      }
+    }
+  }
+  this.detalleEl_1.classList.remove('hidden_1');
+  // focus al boton volver si existe
+  if (this.volverBtnEl_1) try { this.volverBtnEl_1.focus(); } catch(e) {}
+}
+
+_hud_hideDetalleHudEstadisticas_1() {
+  if (!this.detalleEl_1) return;
+  this.detalleEl_1.classList.add('hidden_1');
+}
+
+
+// Método de respaldo para centrado manual
+_manualCenterPanel() {
+  
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  
+  // Obtener dimensiones reales del panel
+  const panelRect = this.hudEl_1.getBoundingClientRect();
+  const panelWidth = panelRect.width;
+  const panelHeight = panelRect.height;
+  
+  // Calcular posición centrada
+  const centerX = (viewportWidth - panelWidth) / 2;
+  const centerY = (viewportHeight - panelHeight) / 2;
+  
+  // Aplicar posición centrada
+  this.hudEl_1.style.left = `${Math.max(0, centerX)}px`;
+  this.hudEl_1.style.top = `${Math.max(0, centerY)}px`;
+  this.hudEl_1.style.transform = 'none';
+  
+  console.log('Panel centrado manualmente:', {
+    left: this.hudEl_1.style.left,
+    top: this.hudEl_1.style.top,
+    width: panelWidth,
+    height: panelHeight
+  });
+}
+
+
+
+
+
+
+
+
+
+/*
+
+actualizarBarra(valorActual, valorMaximo) {
+  const barra = document.getElementById("yellow-bar-fill");
+  if (barra) {
+    const porcentaje = (valorActual / valorMaximo) * 100;
+    barra.style.width = porcentaje + "%";
+  }
+}
+
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+handlePageUnload() {
+    // 1. Si hay objeto en cursor, soltarlo automáticamente
+    if (this.STATE.selectedItem) {
+        this.returnCursorItemToInventory();
+    }
+    
+    // 2. Guardar inventario (sin objeto en cursor) en servidor
+    this.savegg();
+}
+
+returnCursorItemToInventory() {
+    if (!this.STATE.selectedItem) return;
+
+    const item = this.STATE.selectedItem;
+    console.log(`Soltando objeto automáticamente: ${item.id} x${item.count}`);
+    
+    // Intentar agregar el objeto de vuelta al inventario
+    const success = this.addItemToAnyEmptySlot(item.id, item.count, item.tipo, item.unitPrice);
+    
+    if (success) {
+        console.log('✅ Objeto devuelto al inventario');
+    } else {
+        console.warn('⚠️ No había espacio, objeto perdido');
+        // Aquí podrías dropear el objeto en el mundo si quieres
+    }
+    
+    // Limpiar el cursor
+    this.STATE.selectedItem = null;
+    this.hideCursor();
+}
+
+addItemToAnyEmptySlot(itemId, count, tipo = "unknown", unitPrice = 0) {
+    // Primero intentar en inventario normal
+    for (let i = 0; i < this.STATE.slots.length; i++) {
+        if (!this.STATE.slots[i]) {
+            this.STATE.slots[i] = { id: itemId, count, tipo, unitPrice };
+            return true;
+        }
+    }
+    
+    // Si no hay espacio, intentar en cofre
+    for (let i = 0; i < this.STATE.quickSlots.length; i++) {
+        if (!this.STATE.quickSlots[i]) {
+            this.STATE.quickSlots[i] = { id: itemId, count, tipo, unitPrice };
+            return true;
+        }
+    }
+    
+    return false; // No hay espacio en ningún lado
+}
+
+hideCursor() {
+    // Ocultar visualmente el cursor del inventario
+    const cursor = document.getElementById('inventory-cursor');
+    if (cursor) cursor.style.display = 'none';
+}
+
+
+
+
+
+
+
+
+
+
+
+actualizarImagenJugador(imgSrc) {
+  const img = document.getElementById('player-image');
+  if (!img) return;
+  /* Para VACIARLA se quita el atributo. `src = ''` hace que el navegador pida
+     la PROPIA PÁGINA como si fuera una imagen: una descarga entera del HTML
+     que falla, cada vez que se esconde el HUD (cambio de escena, muerte). */
+  if (!imgSrc) img.removeAttribute('src');
+  else img.src = imgSrc;
+}
+actualizarNombreUsuario(nombre) {
+  document.getElementById('username').textContent = nombre;
+}
+
+
+actualizarBarraVida(porcentaje) {
+  porcentaje = Math.round(porcentaje);
+  this.vidaPorcentaje = porcentaje;
+
+  // ── Sincronizar con contrato solo si listo Y valor es coherente ──
+  // No sincronizar 0 si window.playerStats.vida > 0 (reset visual sin datos reales)
+  const _shouldSyncVida = this._statsReady && 
+    !(porcentaje === 0 && window.playerStats && (window.playerStats.vida || 0) > 0);
+  if (_shouldSyncVida && this.statsSync) this.statsSync.set('vida', porcentaje);
+  if (_shouldSyncVida && window.playerStats) window.playerStats.vida = porcentaje;
+
+  const healthBar = document.getElementById('health-bar');
+  const fill = healthBar.querySelector('.status-fill');
+  const text = healthBar.querySelector('.status-text');
+  
+  fill.style.width = porcentaje + '%';
+  
+  if (this.lenguaje === 1) {
+    text.textContent = `Life ${porcentaje}%`;
+  } else if (this.lenguaje === 2) {
+    text.textContent = `Vida ${porcentaje}%`;
+  } else if (this.lenguaje === 3) {
+    text.textContent = `Vida ${porcentaje}%`;
+  } else if (this.lenguaje === 4) {
+    text.textContent = `Vida ${porcentaje}%`;
+  } else if (this.lenguaje === 5) {
+    text.textContent = `生命 ${porcentaje}%`;
+  } else if (this.lenguaje === 6) {
+    text.textContent = `생명 ${porcentaje}%`;
+  }
+  
+  this.queuedAction({ type: 'forSpam2'});
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HUB DE MONEDA (mismo que GameScene): compra de oro con USDT + cambio
+// 1000 plata ⇄ 1 oro. Se abre al hacer clic en las monedas del HUD.
+// ═══════════════════════════════════════════════════════════════════════════
+SILVER_PER_GOLD = 1000;
+GOLD_PACKAGES = [ { gold: 1, usdt: 1 }, { gold: 10, usdt: 9 }, { gold: 100, usdt: 90 } ];
+
+// Las monedas del HUD son DOM de game.html y sobreviven al cambio de escena.
+// GameScene engancha estas mismas dos cajas, así que el candado tiene que vivir
+// en el elemento y no en la escena: si no, ir y volver de la tienda acumulaba
+// listeners y un clic abría el panel varias veces. Mismo criterio que en
+// GameScene._setupCurrencyHub.
+_setupCurrencyHub() {
+  this._offDOM('currency');
+  try {
+    const bind = (el, tab) => {
+      if (!el) return;
+      el.style.cursor = 'pointer';
+      if (el._gfCurrencyHandler) el.removeEventListener('click', el._gfCurrencyHandler);
+      el._gfCurrencyHandler = () => this._openCurrencyHub(tab);
+      this._onDOM(el, 'click', el._gfCurrencyHandler, undefined, 'currency');
+    };
+    bind(document.querySelector('.corner-box .left-stack'),  'buy');
+    bind(document.querySelector('.corner-box .right-stack'), 'exchange');
+  } catch (e) { /* no crítico */ }
+}
+
+/**
+ * Qué cartera se enseña en el hub de moneda. Copia del criterio de GameScene:
+ * manda la dirección de la SESIÓN (la wallet embebida si el jugador entró con
+ * Google/Facebook/Apple), no la que tenga abierta la extensión del navegador.
+ * Enseñar la de MetaMask a alguien que entró con Google es enseñarle una
+ * cartera que no tiene nada de su partida.
+ */
+async _walletInfo() {
+  const NAMES = { 1: 'Ethereum Mainnet', 56: 'BNB Smart Chain', 137: 'Polygon', 4441: 'LitVM LiteForge' };
+  const esAddress = (v) => typeof v === 'string' && /^0x[0-9a-fA-F]{40}$/.test(v);
+
+  let embebida = null;
+  try {
+    if (window.gfWallet && typeof window.gfWallet.getAddress === 'function') {
+      embebida = window.gfWallet.getAddress();
+    }
+  } catch (e) {}
+
+  const deSesion = [this.address, this.playerName, window.currentAddress].find(esAddress) || null;
+
+  const out = {
+    address: embebida || deSesion || '—',
+    network: embebida ? 'LitVM LiteForge (id 4441)' : 'Unknown network',
+    embedded: !!embebida,
+    warning: null
+  };
+
+  try {
+    const p = window.ethereum;
+    if (p && p.request) {
+      const cid = await p.request({ method: 'eth_chainId' });
+      const id  = parseInt(cid, 16);
+      if (Number.isFinite(id)) out.network = `${NAMES[id] || 'Chain'} (id ${id})`;
+
+      const accs = await p.request({ method: 'eth_accounts' });
+      const inyectada = accs && accs[0];
+      if (!out.address || out.address === '—') {
+        if (esAddress(inyectada)) out.address = inyectada;
+      } else if (esAddress(inyectada) && inyectada.toLowerCase() !== String(out.address).toLowerCase()) {
+        out.warning = 'Your browser wallet has a different account open ' +
+                      `(${inyectada.slice(0, 6)}…${inyectada.slice(-4)}). ` +
+                      'Your game funds belong to the account shown above.';
+      }
+    }
+  } catch (e) {}
+
+  return out;
+}
+
+// Candado de reentrada: el método espera a _walletInfo() antes de crear el
+// modal, así que dos llamadas seguidas insertaban dos modales encima.
+async _openCurrencyHub(tab) {
+  if (this._currencyHubOpening) return;
+  this._currencyHubOpening = true;
+  try {
+    await this._buildCurrencyHub(tab);
+  } finally {
+    this._currencyHubOpening = false;
+  }
+}
+
+async _buildCurrencyHub(tab) {
+  const old = document.getElementById('gf-currency-modal');
+  if (old) old.remove();
+
+  const w = await this._walletInfo();
+  const oro   = Math.floor(Number(this.moneda) || 0);
+  const plata = Math.floor(Number(this.moneda_plata) || 0);
+  // El tope depende de la dirección del cambio y se recalcula en vivo
+  // (topeActual), para poder encadenar cambios sin cerrar el hub.
+
+  const ov = document.createElement('div');
+  ov.id = 'gf-currency-modal';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;';
+
+  const pkgs = this.GOLD_PACKAGES.map((p, i) =>
+    `<div class="gfc-pkg" data-i="${i}" style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#0b2b22;border:2px solid #2b5c4a;border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
+       <div style="display:flex;align-items:center;gap:8px;">
+         <img src="./Game/Source/moneda de oro.png" alt="" style="width:26px;height:26px;image-rendering:pixelated;">
+         <b style="font-size:clamp(14px,3.8vw,17px);">${p.gold} Gold</b>
+       </div>
+       <div style="text-align:right;">
+         <div style="color:#ffd23f;font-weight:bold;">${p.usdt} USDT</div>
+         ${p.gold > 1 ? `<div style="color:#8fd9b6;font-size:11px;">save ${p.gold - p.usdt} USDT</div>` : '<div style="color:#7f96b5;font-size:11px;">1 = 1$</div>'}
+       </div>
+     </div>`).join('');
+
+  const card = document.createElement('div');
+  card.style.cssText = 'width:min(94vw,420px);max-height:88vh;overflow:auto;box-sizing:border-box;background:rgba(11,61,46,.98);border:3px solid #ffd23f;border-radius:16px;color:#fff;font-family:Arial,sans-serif;padding:18px;box-shadow:0 10px 40px rgba(0,0,0,.6);';
+  card.innerHTML =
+    `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+       <b style="font-size:clamp(15px,4vw,19px);">💰 Currency</b>
+       <button id="gfc-x" style="background:transparent;border:none;color:#ffd23f;font-size:22px;cursor:pointer;">✕</button>
+     </div>
+     <div style="display:flex;gap:8px;margin-bottom:12px;">
+       <button id="gfc-tab-buy" style="flex:1;min-height:42px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;">Buy Gold</button>
+       <button id="gfc-tab-exc" style="flex:1;min-height:42px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;">Exchange</button>
+     </div>
+     <div id="gfc-buy">
+       <!-- REGALO SEMANAL (2026-08-05). Red de seguridad para que nadie se
+            quede sin dinero: 2000 de oro o 1000 de plata, uno cada 7 días y
+            contados por separado. El contador lo lleva el SERVIDOR. -->
+       <div style="background:#08211a;border:1px solid #24503f;border-radius:10px;padding:10px;margin-bottom:12px;">
+         <div style="color:#8fb8ff;font-size:12px;margin-bottom:8px;">Free every 7 days</div>
+         <div style="display:flex;gap:8px;">
+           <button id="gfc-gift-gold" style="flex:1;min-height:44px;border:none;border-radius:10px;background:#7a5c12;color:#fff;font-weight:bold;cursor:pointer;font-size:13px;">Get Gold</button>
+           <button id="gfc-gift-silver" style="flex:1;min-height:44px;border:none;border-radius:10px;background:#4a5563;color:#fff;font-weight:bold;cursor:pointer;font-size:13px;">Get Silver</button>
+         </div>
+         <div id="gfc-gift-msg" style="margin-top:8px;font-size:11.5px;color:#8fb8ff;line-height:1.5;"></div>
+       </div>
+       <div style="color:#bcd6c9;font-size:12px;margin-bottom:8px;">Pay with <b>USDT</b>. Choose a package:</div>
+       ${pkgs}
+       <div style="background:#08211a;border:1px solid #24503f;border-radius:10px;padding:10px;font-size:12px;line-height:1.5;">
+         <div style="color:#8fb8ff;">Your game wallet${w.embedded ? ' <span style="color:#6fcf97;">· built-in</span>' : ''}</div>
+         <div style="font-family:monospace;word-break:break-all;">${w.address}</div>
+         <div style="color:#8fb8ff;margin-top:6px;">Network</div>
+         <div>${w.network}</div>
+         ${w.warning ? `<div style="margin-top:8px;color:#ffb86b;line-height:1.5;">⚠️ ${w.warning}</div>` : ''}
+       </div>
+       <div id="gfc-buy-msg" style="margin-top:10px;font-size:12px;color:#ffd23f;"></div>
+     </div>
+     <div id="gfc-exc" style="display:none;">
+       <div style="text-align:center;margin-bottom:10px;font-size:clamp(13px,3.6vw,16px);"><b>${this.SILVER_PER_GOLD} Silver = 1 Gold</b></div>
+       <div style="display:flex;justify-content:space-around;background:#08211a;border:1px solid #24503f;border-radius:10px;padding:10px;margin-bottom:12px;font-size:13px;">
+         <div>🥇 Gold: <b id="gfc-e-oro">${oro}</b></div><div>🥈 Silver: <b id="gfc-e-plata">${plata}</b></div>
+       </div>
+       <div style="display:flex;gap:8px;margin-bottom:10px;">
+         <button id="gfc-dir-s2g" style="flex:1;min-height:40px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;font-size:12px;">🥈 → 🥇 Silver to Gold</button>
+         <button id="gfc-dir-g2s" style="flex:1;min-height:40px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;font-size:12px;">🥇 → 🥈 Gold to Silver</button>
+       </div>
+       <label id="gfc-e-label" style="font-size:12px;color:#bcd6c9;"></label>
+       <div style="display:flex;align-items:center;gap:10px;margin:8px 0 12px;">
+         <button id="gfc-e-minus" style="width:44px;height:44px;font-size:22px;border:none;border-radius:10px;background:#1b3d31;color:#fff;cursor:pointer;">−</button>
+         <input id="gfc-e-qty" type="number" inputmode="numeric" min="1" value="1"
+                style="flex:1;height:44px;text-align:center;font-size:18px;font-weight:bold;border-radius:10px;border:2px solid #ffd23f;background:#0b2b22;color:#fff;">
+         <button id="gfc-e-plus" style="width:44px;height:44px;font-size:22px;border:none;border-radius:10px;background:#1b3d31;color:#fff;cursor:pointer;">+</button>
+       </div>
+       <div id="gfc-e-cost" style="text-align:center;color:#ffd23f;margin-bottom:12px;font-size:13px;"></div>
+       <button id="gfc-e-go" style="width:100%;min-height:48px;border:none;border-radius:12px;background:#2e7d32;color:#fff;font-weight:bold;font-size:16px;cursor:pointer;">✓ Exchange</button>
+       <div id="gfc-e-msg" style="margin-top:10px;font-size:12px;text-align:center;"></div>
+     </div>`;
+
+  ov.appendChild(card);
+  document.body.appendChild(ov);
+
+  const $ = (id) => card.querySelector('#' + id);
+  const close = () => ov.remove();
+  $('gfc-x').onclick = close;
+  ov.onclick = (e) => { if (e.target === ov) close(); };
+
+  const paint = (which) => {
+    const on = 'background:#ffd23f;color:#20160a;', off = 'background:#1b3d31;color:#fff;';
+    $('gfc-tab-buy').style.cssText = 'flex:1;min-height:42px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;' + (which === 'buy' ? on : off);
+    $('gfc-tab-exc').style.cssText = 'flex:1;min-height:42px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;' + (which === 'exchange' ? on : off);
+    $('gfc-buy').style.display = which === 'buy' ? 'block' : 'none';
+    $('gfc-exc').style.display = which === 'exchange' ? 'block' : 'none';
+  };
+  $('gfc-tab-buy').onclick = () => paint('buy');
+  $('gfc-tab-exc').onclick = () => paint('exchange');
+  paint(tab === 'exchange' ? 'exchange' : 'buy');
+
+  card.querySelectorAll('.gfc-pkg').forEach(el => {
+    el.onclick = () => {
+      const p = this.GOLD_PACKAGES[Number(el.getAttribute('data-i'))];
+      const treasury = window.GF_TREASURY_ADDRESS;
+      const msg = $('gfc-buy-msg');
+      if (!treasury) {
+        msg.innerHTML = `⚠️ Purchases are not enabled yet: the treasury address is not configured.<br>Selected: <b>${p.gold} Gold for ${p.usdt} USDT</b>.`;
+        return;
+      }
+      msg.innerHTML = `Send <b>${p.usdt} USDT</b> to:<br><span style="font-family:monospace;word-break:break-all;">${treasury}</span><br>Your gold is credited after the payment is confirmed on-chain.`;
+    };
+  });
+
+  // ── Regalo semanal ───────────────────────────────────────────────────────
+  this._montarRegaloSemanal(card);
+
+  // Cambio en las DOS direcciones. La cantidad se cuenta siempre en ORO (la
+  // unidad grande): en plata→oro es lo que se recibe, en oro→plata lo que se
+  // entrega. Así el ± vale 1 en los dos sentidos.
+  const qtyEl = $('gfc-e-qty'), costEl = $('gfc-e-cost'), msgEl = $('gfc-e-msg');
+  const lblEl = $('gfc-e-label');
+  const oroEl = $('gfc-e-oro'), plataEl = $('gfc-e-plata');
+
+  let direccion = 'silverToGold';
+
+  const saldos = () => ({
+    oro:   Math.floor(Number(this.moneda) || 0),
+    plata: Math.floor(Number(this.moneda_plata) || 0)
+  });
+  const topeActual = () => {
+    const s = saldos();
+    return direccion === 'silverToGold' ? Math.floor(s.plata / this.SILVER_PER_GOLD) : s.oro;
+  };
+
+  const pintarDireccion = () => {
+    const on = 'background:#ffd23f;color:#20160a;', off = 'background:#1b3d31;color:#fff;';
+    const base = 'flex:1;min-height:40px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;font-size:12px;';
+    $('gfc-dir-s2g').style.cssText = base + (direccion === 'silverToGold' ? on : off);
+    $('gfc-dir-g2s').style.cssText = base + (direccion === 'goldToSilver' ? on : off);
+  };
+
+  const refresh = () => {
+    const tope = topeActual();
+    const s = saldos();
+    oroEl.textContent = s.oro;
+    plataEl.textContent = s.plata;
+    qtyEl.max = Math.max(1, tope);
+    let q = Math.max(1, Math.min(Math.max(1, tope), parseInt(qtyEl.value, 10) || 1));
+    qtyEl.value = q;
+
+    if (direccion === 'silverToGold') {
+      lblEl.textContent = `How much Gold do you want? (max ${tope})`;
+      costEl.textContent = `Cost: ${q * this.SILVER_PER_GOLD} Silver  →  you get ${q} Gold`;
+    } else {
+      lblEl.textContent = `How much Gold do you want to convert? (max ${tope})`;
+      costEl.textContent = `Cost: ${q} Gold  →  you get ${q * this.SILVER_PER_GOLD} Silver`;
+    }
+
+    $('gfc-e-go').disabled = tope < 1;
+    $('gfc-e-go').style.opacity = tope < 1 ? '.55' : '1';
+    if (tope < 1) {
+      msgEl.style.color = '#ff8a8a';
+      msgEl.textContent = direccion === 'silverToGold'
+        ? `You need at least ${this.SILVER_PER_GOLD} Silver.` : 'You need at least 1 Gold.';
+    } else if (msgEl.dataset.sticky !== '1') {
+      msgEl.textContent = '';
+    }
+  };
+
+  const cambiarDireccion = (d) => {
+    direccion = d;
+    msgEl.dataset.sticky = '0';
+    msgEl.textContent = '';
+    qtyEl.value = 1;
+    pintarDireccion();
+    refresh();
+  };
+  $('gfc-dir-s2g').onclick = () => cambiarDireccion('silverToGold');
+  $('gfc-dir-g2s').onclick = () => cambiarDireccion('goldToSilver');
+
+  $('gfc-e-minus').onclick = () => { qtyEl.value = (parseInt(qtyEl.value, 10) || 1) - 1; refresh(); };
+  $('gfc-e-plus').onclick  = () => { qtyEl.value = (parseInt(qtyEl.value, 10) || 1) + 1; refresh(); };
+  qtyEl.oninput = refresh;
+  pintarDireccion();
+  refresh();
+
+  $('gfc-e-go').onclick = async () => {
+    const tope = topeActual();
+    if (tope < 1) return;
+    const q = Math.max(1, Math.min(tope, parseInt(qtyEl.value, 10) || 1));
+
+    $('gfc-e-go').disabled = true; $('gfc-e-go').textContent = '⏳ Exchanging…';
+    msgEl.dataset.sticky = '1';
+    msgEl.style.color = '#ffd23f'; msgEl.textContent = 'Sending transaction…';
+
+    const ok = await this._exchangeCurrency(direccion, q);
+
+    if (ok) {
+      msgEl.style.color = '#6fcf97';
+      msgEl.textContent = direccion === 'silverToGold'
+        ? `Done! +${q} Gold` : `Done! +${q * this.SILVER_PER_GOLD} Silver`;
+      qtyEl.value = 1;
+      setTimeout(() => { msgEl.dataset.sticky = '0'; refresh(); }, 1500);
+      refresh();
+      msgEl.dataset.sticky = '1';
+    } else {
+      msgEl.style.color = '#ff8a8a'; msgEl.textContent = 'Exchange failed. Try again.';
+    }
+    $('gfc-e-go').disabled = false; $('gfc-e-go').textContent = '✓ Exchange';
+  };
+}
+
+/**
+ * Botones "Get Gold" / "Get Silver" del hub de moneda.
+ *
+ * Cada uno se puede reclamar una vez cada 7 días y van por separado. El
+ * contador lo lleva el SERVIDOR (colección weekly_gifts), así que recargar la
+ * página o cambiar la hora del teléfono no lo reinicia.
+ */
+async _montarRegaloSemanal(card) {
+  const $ = (id) => card.querySelector('#' + id);
+  const oroBtn   = $('gfc-gift-gold');
+  const plataBtn = $('gfc-gift-silver');
+  const msg      = $('gfc-gift-msg');
+  if (!oroBtn || !plataBtn) return;
+
+  const restante = (ms) => {
+    const h = Math.floor(ms / 3600000);
+    if (h >= 24) return Math.floor(h / 24) + 'd ' + (h % 24) + 'h';
+    if (h >= 1)  return h + 'h';
+    return Math.max(1, Math.floor(ms / 60000)) + 'm';
+  };
+
+  const pintar = (datos) => {
+    const g = (datos && datos.gifts) || {};
+    [['gold', oroBtn, 'Gold'], ['silver', plataBtn, 'Silver']].forEach(([k, btn, etiqueta]) => {
+      const d = g[k];
+      if (!d) { btn.disabled = true; btn.textContent = 'Get ' + etiqueta; return; }
+      if (d.available) {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.textContent = `Get ${d.amount} ${etiqueta}`;
+      } else {
+        btn.disabled = true;
+        btn.style.opacity = '.55';
+        btn.textContent = `${etiqueta} in ${restante(d.msLeft)}`;
+      }
+    });
+  };
+
+  try {
+    const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/currency/weekly`, { method: 'GET' }, 1);
+    if (res && res.ok) pintar(await res.json());
+    else { oroBtn.disabled = true; plataBtn.disabled = true; }
+  } catch (e) {
+    oroBtn.disabled = true; plataBtn.disabled = true;
+  }
+
+  const reclamar = async (kind, btn) => {
+    btn.disabled = true;
+    const textoAntes = btn.textContent;
+    btn.textContent = 'Claiming…';
+    msg.style.color = '#8fb8ff';
+    msg.textContent = '';
+    try {
+      const res = await this.fetchWithTokenRetry(
+        `${this.serverBase}/api/currency/weekly/claim`,
+        { method: 'POST', body: JSON.stringify({ kind }) },
+        1
+      );
+      const data = await res.json().catch(() => ({}));
+
+      if (!res || !res.ok) {
+        msg.style.color = '#ff8a8a';
+        msg.textContent = data.error === 'already_claimed'
+          ? `Already claimed — come back in ${restante(data.msLeft || 0)}.`
+          : 'Could not claim right now. Try again later.';
+        btn.textContent = textoAntes;
+        return;
+      }
+
+      // Se adoptan los saldos que devuelve el servidor (es la fuente buena).
+      if (data.stats) {
+        if (typeof data.stats.oro   === 'number') this.moneda       = data.stats.oro;
+        if (typeof data.stats.plata === 'number') this.moneda_plata = data.stats.plata;
+        if (window.playerStats) {
+          window.playerStats.oro   = this.moneda;
+          window.playerStats.plata = this.moneda_plata;
+        }
+        const l = document.getElementById('info-text-left');
+        const r = document.getElementById('info-text-right');
+        if (l) l.textContent = `${this.moneda}`;
+        if (r) r.textContent = `${this.moneda_plata}`;
+      }
+
+      msg.style.color = '#6fcf97';
+      msg.textContent = `+${data.amount} ${kind === 'gold' ? 'Gold' : 'Silver'} added.`;
+      this.notifications && this.notifications.show(
+        `+${data.amount} ${kind === 'gold' ? 'Gold' : 'Silver'} (weekly gift)`, 'success');
+
+      // Refrescar los dos contadores y los saldos del hub.
+      const res2 = await this.fetchWithTokenRetry(`${this.serverBase}/api/currency/weekly`, { method: 'GET' }, 1);
+      if (res2 && res2.ok) pintar(await res2.json());
+      const oroEl = card.querySelector('#gfc-e-oro'), plataEl = card.querySelector('#gfc-e-plata');
+      if (oroEl)   oroEl.textContent   = Math.floor(Number(this.moneda) || 0);
+      if (plataEl) plataEl.textContent = Math.floor(Number(this.moneda_plata) || 0);
+    } catch (e) {
+      msg.style.color = '#ff8a8a';
+      msg.textContent = 'Connection error. Try again.';
+      btn.textContent = textoAntes;
+      btn.disabled = false;
+    }
+  };
+
+  oroBtn.onclick   = () => reclamar('gold', oroBtn);
+  plataBtn.onclick = () => reclamar('silver', plataBtn);
+}
+
+async _exchangeCurrency(direction, amount) {
+  try {
+    const res = await this.fetchWithTokenRetry(`${this.serverBase}/api/currency/exchange`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ direction, amount })
+    });
+    if (!res || !res.ok) {
+      const e = res ? await res.json().catch(() => ({})) : {};
+      console.warn('❌ exchange falló:', e);
+      this.notifications && this.notifications.show(`Exchange failed: ${e.error || 'error'}`, 'error');
+      return false;
+    }
+    const data = await res.json();
+    if (data.stats) {
+      this.moneda       = data.stats.oro;
+      this.moneda_plata = data.stats.plata;
+      if (window.playerStats) { window.playerStats.oro = data.stats.oro; window.playerStats.plata = data.stats.plata; }
+      const l = document.getElementById('info-text-left');
+      const r = document.getElementById('info-text-right');
+      if (l) l.textContent = `${this.moneda}`;
+      if (r) r.textContent = `${this.moneda_plata}`;
+    }
+    // El aviso lee en el sentido REAL del cambio (antes decía siempre
+    // "Silver → Gold" aunque se estuviera fundiendo oro en plata).
+    const resumen = direction === 'goldToSilver'
+      ? `Exchanged ${amount} Gold → ${amount * this.SILVER_PER_GOLD} Silver`
+      : `Exchanged ${amount * this.SILVER_PER_GOLD} Silver → ${amount} Gold`;
+    this.notifications && this.notifications.show(resumen, 'success');
+    return true;
+  } catch (e) {
+    console.error('❌ exchange error:', e);
+    return false;
+  }
+}
+
+// Acceso denegado por el control de whitelist/baneos (puerta_login.html).
+// El backend valida el acceso en CADA petición, así que esto también salta si
+// el jugador entró directo con la sesión guardada o si lo banean jugando.
+_handleAccessDenied(body) {
+  if (this._accessDeniedShown) return;
+  this._accessDeniedShown = true;
+
+  let msg;
+  if (body && body.error === 'banned') {
+    const when = body.date ? new Date(body.date).toLocaleString('en-US') : 'unknown date';
+    const why  = body.reason && String(body.reason).trim() ? body.reason : 'No reason provided';
+    msg = `You are banned since ${when}.\nReason: ${why}`;
+  } else {
+    msg = 'You are not on the whitelist.\nAccess is currently restricted.';
+  }
+
+  try { this.notifications && this.notifications.show(msg, 'error', { duration: 6000 }); } catch (e) {}
+  console.warn('⛔ Acceso denegado:', msg);
+
+  setTimeout(() => {
+    try { this._doFullLogout(); }
+    catch (e) { window.location.href = window.GF_LOGIN_URL || 'https://app.grasslandforest.com/?logout=1'; }
+  }, 4000);
+}
+
+// Zoom con DOS DEDOS sobre el mapa (móvil). Los listeners van en el canvas, así
+// que los gestos que empiezan sobre el HUD (DOM) no hacen zoom. Se mueve entre
+// los niveles permitidos para no reintroducir zooms fraccionarios (costuras).
+_setupPinchZoom() {
+  const canvas = this.sys && this.sys.game && this.sys.game.canvas;
+  if (!canvas || this._pinchBound) return;
+  this._pinchBound = true;
+
+  const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  let startDist = 0;
+
+  const onStart = (e) => { if (e.touches && e.touches.length === 2) startDist = dist(e.touches); };
+  const onMove = (e) => {
+    if (!e.touches || e.touches.length !== 2 || !startDist) return;
+    e.preventDefault();
+    const ratio = dist(e.touches) / startDist;
+    if (ratio > 1.25)      { this.preciseZoomIn && this.preciseZoomIn();  startDist = dist(e.touches); }
+    else if (ratio < 0.80) { this.preciseZoomOut && this.preciseZoomOut(); startDist = dist(e.touches); }
+  };
+  const onEnd = (e) => { if (!e.touches || e.touches.length < 2) startDist = 0; };
+
+  canvas.addEventListener('touchstart', onStart, { passive: true });
+  canvas.addEventListener('touchmove',  onMove,  { passive: false });
+  canvas.addEventListener('touchend',   onEnd,   { passive: true });
+  canvas.addEventListener('touchcancel', onEnd,  { passive: true });
+
+  this.events.once('shutdown', () => {
+    try {
+      canvas.removeEventListener('touchstart', onStart);
+      canvas.removeEventListener('touchmove', onMove);
+      canvas.removeEventListener('touchend', onEnd);
+      canvas.removeEventListener('touchcancel', onEnd);
+    } catch (e) { /* no crítico */ }
+    this._pinchBound = false;
+  });
+}
+
+// Cierre de sesión COMPLETO: cierra la sesión en el backend, DESCONECTA la
+// wallet, corta el socket, limpia rastros locales y manda al login. Antes el
+// botón del dashboard no hacía nada en esta escena (onLogout era null) y en
+// GameScene solo recargaba la página (seguías logueado y con la wallet conectada).
+/** Logout del dashboard: lo hace la escena que esté viva ahora mismo. */
+static _cerrarSesionGlobal() {
+  const esc = window.activeScene;
+  if (esc && typeof esc._doFullLogout === 'function') return esc._doFullLogout();
+  // Sin escena viva (en plena transición): el mismo cierre, con lo mínimo
+  // que usa (serverBase y socket), para no saltarse el logout del backend.
+  const h = window.location.hostname;
+  const local = h === 'localhost' || h === '127.0.0.1';
+  return tiendajuego.prototype._doFullLogout.call({
+    serverBase: local ? 'http://127.0.0.1:8080' : 'https://api.grasslandforest.com',
+    socket: window.globalSocket || null
+  });
+}
+
+async _doFullLogout() {
+  console.log('🔐 Cerrando sesión completa…');
+
+  // 1) Sesión del backend (logout exige CSRF: se toma de la cookie viva).
+  try {
+    const m = document.cookie.match(/(?:^|;\s*)csrf-token=([^;]*)/);
+    const csrf = m ? decodeURIComponent(m[1]) : null;
+    await fetch(`${this.serverBase}/api/auth/logout`, {
+      method: 'POST', credentials: 'include', mode: 'cors',
+      headers: csrf ? { 'X-CSRF-Token': csrf } : {}
+    });
+  } catch (e) { console.warn('⚠️ logout backend falló:', e); }
+
+  // 2) Desconectar la WALLET (revocar el permiso de cuentas del sitio).
+  try {
+    const p = window.ethereum;
+    if (p && p.request) await p.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] });
+  } catch (e) { /* proveedor sin soporte: no es crítico */ }
+
+  // 3) Cortar socket y limpiar cualquier rastro local.
+  try { if (this.socket) this.socket.disconnect(); } catch (e) {}
+  try { sessionStorage.clear(); localStorage.removeItem('game_session_data'); } catch (e) {}
+
+  // 4) Al login (con ?logout=1: el permiso de MetaMask es POR ORIGEN, así que
+  //    el login debe revocarlo también en el suyo — ver GameScene).
+  const _login = window.GF_LOGIN_URL || 'https://app.grasslandforest.com/';
+  window.location.href = _login + (_login.indexOf('?') >= 0 ? '&' : '?') + 'logout=1';
+}
+
+// ─── CONSUMIBLES (comer/beber haciendo clic en el personaje) ─────────────────
+// Mismo comportamiento que en GameScene: panel de cantidad + UNA sola
+// transacción on-chain para todas las unidades elegidas.
+// Tope de las barras vitales: porcentajes ENTEROS de 0 a 100 (VITAL_MAX en
+// server2.js).
+VITAL_MAX_CLIENT = 100;
+
+CONSUMABLES_FOOD = {
+  zanahoria_buena: 2, tomate_buena: 5, trigo_buena: 5, calabaza_buena: 5,
+  fresa_buena: 5,
+  zanahoria_mala: 1, tomate_mala: 2, trigo_mala: 2, calabaza_mala: 2,
+  fresa_mala: 2,
+  // Los peces del río (2026-10-05): se pescan y se comen; cuanto más raro,
+  // más alimenta.
+  pes1: 6, pes2: 10, pes3: 18,
+  // Los de 2026-10-10. La anguila (pes7) y el pez león (pes8) NO: son venenosos.
+  pes4: 7, pes5: 9, pes6: 25,
+  // Los de 2026-10-11. El pez globo (pes14) NO: es venenoso.
+  pes9: 14, pes10: 12, pes11: 10, pes12: 30, pes13: 20
+};
+CONSUMABLES_WATER = { balde_con_agua: 20 };
+
+_consumableInfo(itemId) {
+  const isWater = this.CONSUMABLES_WATER[itemId] != null;
+  const gain = isWater ? this.CONSUMABLES_WATER[itemId] : (this.CONSUMABLES_FOOD[itemId] || 0);
+  return gain ? { isWater, gain } : null;
+}
+
+// Esta escena no tiene contarItemEnInventario: se cuenta desde STATE.
+_countItemLocal(id) {
+  let n = 0;
+  const all = [
+    ...(this.STATE && Array.isArray(this.STATE.slots) ? this.STATE.slots : []),
+    ...(this.STATE && Array.isArray(this.STATE.quickSlots) ? this.STATE.quickSlots : [])
+  ];
+  for (const s of all) if (s && s.id === id) n += (s.count || 0);
+  return n;
+}
+
+_consumeItemOnPlayer(itemId) {
+  if ((itemId === 'pocion_vida' || itemId === 'pocion_antidoto') && window.GFCharacterSkills) {
+    return window.GFCharacterSkills.usePotion(this, itemId);
+  }
+  const info = this._consumableInfo(itemId);
+  if (!info) return;
+  if (this._consumingItem) return;
+  const available = this._countItemLocal(itemId);
+  if (available <= 0) return;
+  this._openConsumePanel(itemId, info, available);
+}
+
+// Panel (DOM, responsive PC + móvil) para elegir CUÁNTAS unidades consumir.
+_openConsumePanel(itemId, info, available) {
+  const old = document.getElementById('gf-consume-modal');
+  if (old) old.remove();
+
+  const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
+  const name = (typeof this.getItemDisplayName === 'function' ? this.getItemDisplayName(itemId) : itemId) || itemId;
+  const img = def && def.src ? def.src : '';
+  const unit = info.isWater ? 'Water' : 'Food';
+
+  // Mismo tope real que en GameScene: agua y comida son porcentajes ENTEROS de
+  // 0 a 100, así que el máximo son las unidades que de verdad caben, no todo lo
+  // que haya en el inventario (lo que sobra se perdería).
+  const actual = Math.round(Number(info.isWater ? this.aguaPorcentaje : this.comidaPorcentaje) || 0);
+  const falta  = Math.max(0, this.VITAL_MAX_CLIENT - actual);
+  if (falta <= 0) {
+    if (this.notifications && this.notifications.show) {
+      this.notifications.show(
+        (info.isWater ? 'Water' : 'Food') + ' is already full (' + this.VITAL_MAX_CLIENT + '%)',
+        'warning'
+      );
+    }
+    return;
+  }
+  const maxUtiles = Math.ceil(falta / info.gain);
+  const max = Math.max(1, Math.min(available, maxUtiles));
+  let qty = 1;
+
+  const ov = document.createElement('div');
+  ov.id = 'gf-consume-modal';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;';
+
+  const card = document.createElement('div');
+  card.style.cssText = 'width:min(92vw,380px);box-sizing:border-box;background:rgba(11,61,46,.98);border:3px solid #ffd23f;border-radius:16px;color:#fff;font-family:Arial,sans-serif;padding:18px;box-shadow:0 10px 40px rgba(0,0,0,.6);text-align:center;';
+  card.innerHTML =
+    '<div style="font-size:clamp(15px,4vw,19px);font-weight:bold;margin-bottom:10px;">How many do you want to consume?</div>' +
+    (img ? '<img src="' + img + '" alt="" style="width:64px;height:64px;object-fit:contain;image-rendering:pixelated;margin-bottom:6px;">' : '') +
+    '<div style="font-size:clamp(13px,3.6vw,16px);margin-bottom:2px;">' + name + '</div>' +
+    '<div style="color:#bcd6c9;font-size:clamp(11px,3vw,13px);margin-bottom:12px;">+' + info.gain + ' ' + unit + ' each  ·  Available: ' + available + '</div>' +
+    '<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px;">' +
+      '<button id="gfc-minus" style="width:48px;height:48px;font-size:24px;border-radius:12px;border:none;background:#1b3d31;color:#fff;cursor:pointer;">−</button>' +
+      '<input id="gfc-qty" type="number" inputmode="numeric" min="1" max="' + max + '" value="1" style="width:84px;height:48px;text-align:center;font-size:20px;font-weight:bold;border-radius:12px;border:2px solid #ffd23f;background:#0b2b22;color:#fff;">' +
+      '<button id="gfc-plus" style="width:48px;height:48px;font-size:24px;border-radius:12px;border:none;background:#1b3d31;color:#fff;cursor:pointer;">+</button>' +
+      '<button id="gfc-max" style="height:48px;padding:0 14px;font-size:14px;border-radius:12px;border:none;background:#2b5c4a;color:#fff;cursor:pointer;">Max</button>' +
+    '</div>' +
+    '<div id="gfc-total" style="color:#ffd23f;font-size:clamp(12px,3.2vw,15px);margin-bottom:14px;"></div>' +
+    '<div style="display:flex;gap:12px;justify-content:center;">' +
+      '<button id="gfc-ok" style="flex:1;min-height:48px;font-size:16px;font-weight:bold;border:none;border-radius:12px;background:#2e7d32;color:#fff;cursor:pointer;">✓ Consume</button>' +
+      '<button id="gfc-no" style="flex:1;min-height:48px;font-size:16px;font-weight:bold;border:none;border-radius:12px;background:#b23b3b;color:#fff;cursor:pointer;">✗ Cancel</button>' +
+    '</div>';
+
+  ov.appendChild(card);
+  document.body.appendChild(ov);
+
+  const input = card.querySelector('#gfc-qty');
+  const totalEl = card.querySelector('#gfc-total');
+  const refresh = () => {
+    // Entero siempre: el teclado del móvil deja meter ',', '.' o '1e5' en un
+    // input type=number, y parseInt sobre eso daba cantidades absurdas.
+    const limpio = String(input.value).replace(/[^0-9]/g, '');
+    qty = Math.max(1, Math.min(max, parseInt(limpio, 10) || 1));
+    input.value = qty;
+    const ganado = Math.min(this.VITAL_MAX_CLIENT - actual, info.gain * qty);
+    totalEl.textContent = 'Total: +' + ganado + ' ' + unit +
+      '  →  ' + (actual + ganado) + '/' + this.VITAL_MAX_CLIENT + '%  (uses ' + qty + ')';
+  };
+  const close = () => { ov.remove(); };
+
+  card.querySelector('#gfc-minus').onclick = () => { input.value = qty - 1; refresh(); };
+  card.querySelector('#gfc-plus').onclick  = () => { input.value = qty + 1; refresh(); };
+  card.querySelector('#gfc-max').onclick   = () => { input.value = max; refresh(); };
+  input.oninput = refresh;
+  card.querySelector('#gfc-no').onclick = close;
+  ov.onclick = (e) => { if (e.target === ov) close(); };
+  card.querySelector('#gfc-ok').onclick = () => { close(); this._doConsume(itemId, qty, info); };
+  refresh();
+}
+
+// Consume `qty` unidades en UNA sola transacción on-chain y suma el buff total.
+async _doConsume(itemId, qty, info) {
+  if (this._consumingItem) return;
+  this._consumingItem = true;
+  try {
+    const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
+    let consumed = qty;
+
+    if (def && def.tipo) {
+      const antes = this._countItemLocal(itemId);
+      try {
+        await this.ejecutarDivisionRemove(def.tipo, itemId, def.maxStack || 50, qty);
+      } catch (e) {
+        console.error('❌ Error consumiendo on-chain:', e);
+        if (this.notifications) this.notifications.show('Error consuming the item', 'error');
+        return;
+      }
+      const despues = this._countItemLocal(itemId);
+      consumed = Math.max(0, antes - despues);
+      if (consumed < 1) {
+        if (this.notifications) this.notifications.show('Item consumption was not confirmed', 'error');
+        return;
+      }
+    } else {
+      const ok = await this.removeItemSmart(itemId, qty);
+      if (!ok) return;
+    }
+
+    const total = info.gain * consumed;
+    if (info.isWater) {
+      this.actualizarBarraAgua(Math.min(100, (this.aguaPorcentaje || 0) + total));
+    } else {
+      this.actualizarBarraComida(Math.min(100, (this.comidaPorcentaje || 0) + total));
+    }
+    if (this.notifications) this.notifications.show('Consumed ' + consumed + ' · +' + total + ' ' + (info.isWater ? 'Water' : 'Food'), 'success');
+    this.queuedAction && this.queuedAction({ type: 'forSpam2' });
+  } finally {
+    this._consumingItem = false;
+  }
+}
+
+actualizarBarraAgua(porcentaje) {
+  porcentaje = Math.round(porcentaje);
+  this.aguaPorcentaje = porcentaje;
+
+  const _shouldSyncAgua = this._statsReady && 
+    !(porcentaje === 0 && window.playerStats && (window.playerStats.agua || 0) > 0);
+  if (_shouldSyncAgua && this.statsSync) this.statsSync.set('agua', porcentaje);
+  if (_shouldSyncAgua && window.playerStats) window.playerStats.agua = porcentaje;
+
+  const waterBar = document.getElementById('water-bar');
+  const fill = waterBar.querySelector('.status-fill');
+  const text = waterBar.querySelector('.status-text');
+  
+  fill.style.width = porcentaje + '%';
+  
+  if (this.lenguaje === 1) {
+    text.textContent = `Water ${porcentaje}%`;
+  } else if (this.lenguaje === 2) {
+    text.textContent = `Agua ${porcentaje}%`;
+  } else if (this.lenguaje === 3) {
+    text.textContent = `Agua ${porcentaje}%`;
+  } else if (this.lenguaje === 4) {
+    text.textContent = `Água ${porcentaje}%`;
+  } else if (this.lenguaje === 5) {
+    text.textContent = `水 ${porcentaje}%`;
+  } else if (this.lenguaje === 6) {
+    text.textContent = `물 ${porcentaje}%`;
+  }
+  
+  this.queuedAction({ type: 'forSpam2'});
+}
+
+actualizarBarraComida(porcentaje) {
+  porcentaje = Math.round(porcentaje);
+  this.comidaPorcentaje = porcentaje;
+
+  const _shouldSyncComida = this._statsReady && 
+    !(porcentaje === 0 && window.playerStats && (window.playerStats.comida || 0) > 0);
+  if (_shouldSyncComida && this.statsSync) this.statsSync.set('comida', porcentaje);
+  if (_shouldSyncComida && window.playerStats) window.playerStats.comida = porcentaje;
+
+  const foodBar = document.getElementById('food-bar');
+  const fill = foodBar.querySelector('.status-fill');
+  const text = foodBar.querySelector('.status-text');
+  
+  fill.style.width = porcentaje + '%';
+  
+  if (this.lenguaje === 1) {
+    text.textContent = `Food ${porcentaje}%`;
+  } else if (this.lenguaje === 2) {
+    text.textContent = `Comida ${porcentaje}%`;
+  } else if (this.lenguaje === 3) {
+    text.textContent = `Comida ${porcentaje}%`;
+  } else if (this.lenguaje === 4) {
+    text.textContent = `Comida ${porcentaje}%`;
+  } else if (this.lenguaje === 5) {
+    text.textContent = `食物 ${porcentaje}%`;
+  } else if (this.lenguaje === 6) {
+    text.textContent = `음식 ${porcentaje}%`;
+  }
+  
+  this.queuedAction({ type: 'forSpam2'});
+}
+
+
+
+
+
+  
+  
+    update(time, delta) {
+      if (!this.keys) return;
+
+      // Reposicionar burbuja local sobre el sprite del jugador cada frame.
+      // Se entra también con la burbuja OCULTA si su plazo sigue vivo, para
+      // poder reafirmarla si algo apagó el HUD en bloque (ver GameScene).
+      {
+        const b = document.getElementById('local-chat-bubble');
+        const plazoVivo = this._burbujaHasta && Date.now() < this._burbujaHasta;
+        if (b && (plazoVivo || b.style.display !== 'none')) this._positionLocalBubble(b);
+      }
+
+
+
+        // corriendo guardado
+
+        /*
+
+        if (this.elipeticiones === 0) {
+            
+          if (this.sceneActive) {
+            // Acumula el tiempo transcurrido
+            this.saveTimer += delta;
+        
+            // Si han pasado 1000 ms (1 segundos)
+            if (this.saveTimer >= 1000) {
+                this.savegg();
+                this.loadMissionsData();
+                this.saveTimer = 0;
+              }
+
+
+            }
+          }
+            */
+
+
+          /*
+          
+
+      // acumulación de tiempo , y actualizacion de hora diaria
+      this._adminAccum += delta;
+
+      if (this._adminAccum >= this.adminReloadInterval) {
+        if (!this._loadingAdmin) {
+          this._loadingAdmin = true;
+          try {
+            this.loadAdminTimeOnly();
+            if (this.hora && typeof this.hora === 'string') {
+              const soloHoraYMinutos = this.hora.slice(0, 5);
+              document.getElementById('hubdia-text').textContent = `hour: ${soloHoraYMinutos} ${this.dia_noche}`;
+            }
+          } finally {
+            this._loadingAdmin = false;
+          }
+        }
+        // restar el intervalo (soporta que delta sea mayor que el intervalo)
+        this._adminAccum = this._adminAccum % this.adminReloadInterval;
+      }
+
+        
+      if (this.definirhorax === 0) {
+          
+        if (this.hora && typeof this.hora === 'string') {
+            const soloHoraYMinutos = this.hora.slice(0, 5);
+            document.getElementById('hubdia-text').textContent = `hour: ${soloHoraYMinutos} ${this.dia_noche}`;
+
+            this.definirhorax = 1;
+
+        }
+
+      }
+
+      */
+
+
+
+        
+
+
+        // cargando datos — only update DOM when value actually changed (prevents every-frame layout thrash)
+        if (this._cachedMoneda !== this.moneda) {
+          this._cachedMoneda = this.moneda;
+          if (!this._elInfoLeft) this._elInfoLeft = document.getElementById('info-text-left');
+          if (this._elInfoLeft) this._elInfoLeft.textContent = `${this.moneda}`;
+        }
+
+
+    
+  
+  
+        // guardando posicion
+        this.previousPosition = { x: this.player.x, y: this.player.y };
+
+
+
+    this.posicionplayerx = this.player.x;
+    this.posicionplayery = this.player.y;
+
+        // ⭐ PRIMERO: Verificar constantemente si el click sigue presionado
+    // Esto previene que el movimiento continue si el click se soltó en UI
+    if (this.mouseMovement.followCursorActive && !this.input.activePointer.isDown) {
+        console.log('🔄 Detectado: followCursorActive pero click no presionado - Limpiando');
+        this.stopMouseMovement();
+    }
+    
+    
+    // 1. PRIMERO manejar movimiento por mouse
+    this.handleMouseMovement(delta);
+    
+
+    // 2. Solo permitir teclado si NO estamos usando mouse
+    if (!this.mouseMovement.followCursorActive) {
+        // Tu código de teclado original aquí...
+        if (!this.keys) return;
+        
+        let dx = 0, dy = 0;
+        
+        if (this.keys.leftArrow.isDown || this.keys.left.isDown)  dx -= 1;
+        if (this.keys.rightArrow.isDown || this.keys.right.isDown) dx += 1;
+        if (this.keys.upArrow.isDown || this.keys.up.isDown)    dy -= 1;
+        if (this.keys.downArrow.isDown || this.keys.down.isDown)  dy += 1;
+        
+        // ... resto de tu código de teclado
+    
+        
+        // Normalizar velocidad diagonal
+        if (dx !== 0 && dy !== 0) {
+            dx /= Math.sqrt(2);
+            dy /= Math.sqrt(2);
+        }
+        
+        // Aplicar movimiento CON deltaTime
+        const deltaInSeconds = delta / 1000;
+        this.player.x += dx * this.speed * deltaInSeconds;
+        this.player.y += dy * this.speed * deltaInSeconds;
+
+        // NOTA (paridad con GameScene): la animación YA NO se decide aquí con
+        // el input crudo. Antes este bloque llamaba a anims.play() y, más
+        // abajo, la restauración por colisión volvía a tocar la animación en
+        // el mismo frame → conflictos y congelamientos. Ahora la animación se
+        // decide UNA sola vez, después de resolver colisiones por eje (ver
+        // "Decisión ÚNICA de animación" más abajo).
+    }
+    
+    // Enviar movimiento del jugador (si es que tienes multiplayer)
+    if (typeof this.sendPlayerMovement === 'function') {
+        this.sendPlayerMovement();
+    }
+
+    // Y-sorting: depth = pies del jugador local cada frame
+    // El jugador usa origin (0.5,0.5) → pies = y + displayHeight/2
+    // Así se compara correctamente contra objetos con origin (0,1) donde depth = obj.y
+    const playerFeetY = this.player.y + this.player.displayHeight * 0.5;
+    this.player.setDepth(playerFeetY);
+    if (this.usuariox) this.usuariox.setDepth(playerFeetY + 1);
+
+    /* La sombra va pegada a los pies y JUSTO DEBAJO del personaje en la
+       ordenación: si compartieran profundidad, Phaser las pintaría en orden de
+       creación y la sombra saldría encima de los zapatos. */
+    if (this.shadowContainer) {
+      this.shadowContainer.setPosition(this.player.x, this.player.y + 22);
+      this.shadowContainer.setDepth(playerFeetY - 1);
+    }
+
+    // Y-SORT PROFESIONAL (one-shot): calibrar estructuras cuando las
+    // colisiones del mapa de la tienda ya estén cargadas.
+    if (!this._buildingDepthsCalibrated &&
+        Array.isArray(this.collisionRectangles2) && this.collisionRectangles2.length) {
+      this._buildingDepthsCalibrated = true;
+      this.calibrateBuildingDepths();
+    }
+    
+    // Limpiar jugadores inactivos
+    if (typeof this.cleanInactivePlayers === 'function') {
+        this.cleanInactivePlayers();
+    }
+
+    // Obtener las coordenadas en el mapa
+    const mapX = Math.floor(this.player.x / this.map.tileWidth); // Coordenada X en tiles
+    const mapY = Math.floor(this.player.y / this.map.tileHeight); // Coordenada Y en tiles
+
+    // ============ MASCOTA (PERRO) – UPDATE COMPLETO, MIRADA CORREGIDA, ANIMACIÓN ESTABLE Y EVASIÓN DE COLISIONES ============
+const dog = this.dog;
+const player = this.player;
+
+if (!dog || !dog.sprite || !player) return;
+
+// If pet was removed, keep it hidden and skip dog logic entirely
+if (this.petData && this.petData.equipped === false) {
+  if (dog.sprite && dog.sprite.visible) dog.sprite.setVisible(false);
+  if (dog.shadowContainer && dog.shadowContainer.visible) dog.shadowContainer.setVisible(false);
+  if (this.dogNameText && this.dogNameText.visible) this.dogNameText.setVisible(false);
+} else {
+
+if (this.prevPlayerX === undefined) this.prevPlayerX = player.x;
+if (this.prevPlayerY === undefined) this.prevPlayerY = player.y;
+
+if (dog.prevX === undefined) dog.prevX = dog.x;
+if (dog.prevY === undefined) dog.prevY = dog.y;
+if (dog.prevTargetX === undefined) dog.prevTargetX = dog.targetX;
+if (dog.prevTargetY === undefined) dog.prevTargetY = dog.targetY;
+if (dog.lastFacing === undefined) dog.lastFacing = 'right';
+if (dog.desiredFacing === undefined) dog.desiredFacing = 'right';
+if (dog.smoothOffsetX === undefined) dog.smoothOffsetX = 0;
+if (dog.smoothOffsetY === undefined) dog.smoothOffsetY = 20;
+if (dog.lastAnimState === undefined) dog.lastAnimState = 'idle';
+if (dog.isMoving === undefined) dog.isMoving = false;
+// FIX: facingLockUntil nunca se inicializaba; "now >= undefined" siempre es
+// false, así que la mirada del perro jamás se actualizaba con las teclas
+// izquierda/derecha. Con 0 el primer cambio de mirada funciona de inmediato.
+if (dog.facingLockUntil === undefined) dog.facingLockUntil = 0;
+// Lado de esquive preferido por la evasión anticipada (+1 / -1 / 0 = ninguno)
+if (dog.avoidSide === undefined) dog.avoidSide = 0;
+
+const now = this.time.now;
+const FOLLOW_OFFSET = 70;
+
+// Teclas opcionales
+const leftPressed  = this.cursors?.left?.isDown  || this.keys?.A?.isDown || false;
+const rightPressed = this.cursors?.right?.isDown || this.keys?.D?.isDown || false;
+const upPressed    = this.cursors?.up?.isDown    || this.keys?.W?.isDown || false;
+const downPressed  = this.cursors?.down?.isDown  || this.keys?.S?.isDown || false;
+
+// Movimiento real del jugador
+/* EL DESPLAZAMIENTO SE MIDE CONTRA LA POSICION REAL DEL FRAME ANTERIOR.
+
+   FALLO QUE ESTO ARREGLA — "choco a proposito hacia abajo, suelto la tecla y el
+   personaje mira ARRIBA" (y al reves, y lo mismo con izquierda/derecha):
+
+   este bloque corre ANTES de que se resuelvan las colisiones, asi que
+   `player.y` de aqui es la posicion QUE SE INTENTA, no la que acaba teniendo.
+   Al guardarla en `prevPlayerY` para el frame siguiente, se guardaba una
+   posicion que un momento despues se deshacia por chocar contra la pared.
+
+   Contra un muro, apretando abajo:
+     · frame 1: intento P+d  ->  se guarda P+d  ->  la colision devuelve a P
+     · frame 2 (sueltas):     posicion P  ->  playerDy = P - (P+d) = -d
+   Un movimiento hacia ARRIBA que nunca ocurrio. Y unas lineas mas abajo eso
+   escribia `this.lastDirection = 'up'`, que es de donde saca su textura el
+   personaje quieto: mirabas al lado contrario del que estabas empujando.
+
+   `this.previousPosition` se toma al principio del update y ya viene con las
+   colisiones del frame anterior aplicadas: es la posicion de verdad. Con ella,
+   apretando contra el muro sale +d (la intencion, correcta) y al soltar sale 0
+   (no te has movido), que es justo lo que tiene que pasar. */
+const _refX = (this.previousPosition && typeof this.previousPosition.x === 'number')
+  ? this.previousPosition.x : this.prevPlayerX;
+const _refY = (this.previousPosition && typeof this.previousPosition.y === 'number')
+  ? this.previousPosition.y : this.prevPlayerY;
+
+const playerDx = player.x - _refX;
+const playerDy = player.y - _refY;
+const playerMoved = Math.hypot(playerDx, playerDy) > 0.06;
+
+this.prevPlayerX = player.x;
+this.prevPlayerY = player.y;
+
+// Dirección de intención del jugador
+let intentDir = null;
+if (downPressed && !upPressed) intentDir = 'down';
+else if (upPressed && !downPressed) intentDir = 'up';
+else if (rightPressed && !leftPressed) intentDir = 'right';
+else if (leftPressed && !rightPressed) intentDir = 'left';
+
+// Mirada del perro
+if (intentDir === 'left' || intentDir === 'right') {
+  if (now >= dog.facingLockUntil && dog.desiredFacing !== intentDir) {
+    dog.desiredFacing = intentDir;
+    dog.facingLockUntil = now + 90;
+  }
+} else if (playerMoved && Math.abs(playerDx) > 0.06) {
+  dog.desiredFacing = playerDx > 0 ? 'right' : 'left';
+}
+
+// Dirección de seguimiento
+let desiredDir = this.lastDirection || 'right';
+
+if (intentDir === 'down') {
+  desiredDir = 'down';
+  this.lastDirection = 'down';
+} else if (intentDir === 'up') {
+  desiredDir = 'up';
+  this.lastDirection = 'up';
+} else if (intentDir === 'left' || intentDir === 'right') {
+  desiredDir = intentDir;
+  this.lastDirection = intentDir;
+} else if (playerMoved) {
+  /* Sin teclas: el desplazamiento decide donde se pone el PERRO, y nada mas.
+     Aqui ya no se escribe `this.lastDirection`: la mirada del personaje la
+     lleva el bloque de animacion, mas abajo, con el desplazamiento ya corregido
+     por las colisiones. Que el codigo del perro tocara esa variable era la
+     segunda mitad del fallo de la mirada invertida. */
+  if (Math.abs(playerDx) > Math.abs(playerDy) && Math.abs(playerDx) > 0.06) {
+    desiredDir = playerDx > 0 ? 'right' : 'left';
+  } else if (Math.abs(playerDy) > 0.06) {
+    desiredDir = playerDy > 0 ? 'down' : 'up';
+  }
+}
+
+// Offset objetivo según dirección
+let targetOffsetX = 0;
+let targetOffsetY = 20;
+
+switch (desiredDir) {
+  case 'left':
+    targetOffsetX = FOLLOW_OFFSET;
+    targetOffsetY = 20;
+    break;
+  case 'right':
+    targetOffsetX = -FOLLOW_OFFSET;
+    targetOffsetY = 20;
+    break;
+  case 'up':
+    targetOffsetX = 0;
+    targetOffsetY = FOLLOW_OFFSET;
+    break;
+  case 'down':
+    targetOffsetX = 0;
+    targetOffsetY = -FOLLOW_OFFSET;
+    break;
+}
+
+// Suavizado del offset
+const OFFSET_LERP = 0.10;
+dog.smoothOffsetX += (targetOffsetX - dog.smoothOffsetX) * OFFSET_LERP;
+dog.smoothOffsetY += (targetOffsetY - dog.smoothOffsetY) * OFFSET_LERP;
+
+// Target final
+dog.targetX = player.x + dog.smoothOffsetX;
+dog.targetY = player.y + dog.smoothOffsetY;
+
+// Helper de colisiones del perro.
+//
+// La lógica de esquive llama a esto hasta ~90 veces en un frame malo. Antes,
+// cada una de esas llamadas recalculaba el tamaño de la caja del perro Y creaba
+// un `new Phaser.Geom.Rectangle`. Ahora el tamaño se calcula una vez por frame y
+// la comprobación usa la caja de trabajo compartida: mismas colisiones, sin
+// reservar memoria (era una de las mayores fuentes de basura del bucle).
+const _dogW = Math.max(18, (dog.sprite.displayWidth  || 32) * 0.55);
+const _dogH = Math.max(14, (dog.sprite.displayHeight || 32) * 0.50);
+const collidesAt = (x, y) =>
+  this._chocaConLista(x - _dogW * 0.5, y - _dogH * 0.5, _dogW, _dogH, this.collisionRectangles) ||
+  this._chocaConLista(x - _dogW * 0.5, y - _dogH * 0.5, _dogW, _dogH, this.collisionRectangles1);
+
+// Busca un punto alternativo para rodear la colisión
+const findEscapePoint = (fromX, fromY, toX, toY) => {
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+
+  const signX = dx >= 0 ? 1 : -1;
+  const signY = dy >= 0 ? 1 : -1;
+
+  const tests = [
+    [toX + signX * 18, toY],
+    [toX, toY + signY * 18],
+    [toX - signX * 18, toY],
+    [toX, toY - signY * 18],
+
+    [fromX + signX * 18, fromY],
+    [fromX, fromY + signY * 18],
+
+    [toX + signX * 12, toY + signY * 12],
+    [toX - signX * 12, toY + signY * 12],
+    [toX + signX * 12, toY - signY * 12],
+    [toX - signX * 12, toY - signY * 12],
+
+    [fromX + signX * 24, fromY + signY * 10],
+    [fromX + signX * 24, fromY - signY * 10],
+    [fromX - signX * 24, fromY + signY * 10],
+    [fromX - signX * 24, fromY - signY * 10]
+  ];
+
+  for (const [tx, ty] of tests) {
+    if (!collidesAt(tx, ty)) {
+      return { x: tx, y: ty };
+    }
+  }
+
+  return null;
+};
+
+// Resolver movimiento sin atravesar obstáculos
+const resolveDogMove = (fromX, fromY, toX, toY) => {
+  // 1) intento directo
+  if (!collidesAt(toX, toY)) {
+    return { x: toX, y: toY };
+  }
+
+  // 2) deslizamiento por ejes
+  if (!collidesAt(toX, fromY)) {
+    return { x: toX, y: fromY };
+  }
+
+  if (!collidesAt(fromX, toY)) {
+    return { x: fromX, y: toY };
+  }
+
+  // 3) rodeo inteligente
+  const escapePoint = findEscapePoint(fromX, fromY, toX, toY);
+  if (escapePoint) return escapePoint;
+
+  // 4) intento de empuje corto en varias direcciones
+  const steps = [6, 10, 14, 18, 24, 30, 36];
+  for (const s of steps) {
+    const tries = [
+      [toX + s, fromY],
+      [toX - s, fromY],
+      [fromX, toY + s],
+      [fromX, toY - s],
+      [toX + s, toY],
+      [toX - s, toY],
+      [toX, toY + s],
+      [toX, toY - s]
+    ];
+
+    for (const [cx, cy] of tries) {
+      if (!collidesAt(cx, cy)) {
+        return { x: cx, y: cy };
+      }
+    }
+  }
+
+  // 5) si todo falla, no avanza
+  return { x: fromX, y: fromY };
+};
+
+// ── EVASIÓN ANTICIPADA (perro "inteligente") ──────────────────────────────
+// Igual que en GameScene: el perro sondea el camino directo hacia su objetivo
+// y, si va a chocar en los próximos pasos, desvía el rumbo hacia un costado
+// ANTES de tocar el obstáculo (recordando el lado con dog.avoidSide para no
+// zigzaguear). resolveDogMove queda como red de seguridad final.
+const computeSteeredTarget = () => {
+  const dx = dog.targetX - dog.x;
+  const dy = dog.targetY - dog.y;
+  const dist = Math.hypot(dx, dy);
+
+  if (dist < 6) {
+    dog.avoidSide = 0;
+    return { x: dog.targetX, y: dog.targetY };
+  }
+
+  const nx = dx / dist;
+  const ny = dy / dist;
+
+  const LOOKAHEAD_STEPS = [14, 28, 42];
+  let blockedAt = -1;
+  for (const d of LOOKAHEAD_STEPS) {
+    if (d > dist + 8) break;
+    if (collidesAt(dog.x + nx * d, dog.y + ny * d)) { blockedAt = d; break; }
+  }
+
+  if (blockedAt < 0) {
+    dog.avoidSide = 0;
+    return { x: dog.targetX, y: dog.targetY };
+  }
+
+  const px = -ny;
+  const py = nx;
+  const sides = dog.avoidSide !== 0 ? [dog.avoidSide, -dog.avoidSide] : [1, -1];
+
+  for (const side of sides) {
+    for (const lateral of [26, 40, 54]) {
+      const cx = dog.x + nx * Math.min(blockedAt, 24) + px * lateral * side;
+      const cy = dog.y + ny * Math.min(blockedAt, 24) + py * lateral * side;
+
+      if (!collidesAt(cx, cy) &&
+          !collidesAt(dog.x + (cx - dog.x) * 0.5, dog.y + (cy - dog.y) * 0.5)) {
+        dog.avoidSide = side;
+        return { x: cx, y: cy };
+      }
+    }
+  }
+
+  dog.avoidSide = 0;
+  return { x: dog.targetX, y: dog.targetY };
+};
+
+const steerTarget = computeSteeredTarget();
+
+// Movimiento suave
+const DOG_LERP = 0.08;
+const isDetouring = (steerTarget.x !== dog.targetX || steerTarget.y !== dog.targetY);
+const effLerp = isDetouring ? Math.min(0.14, DOG_LERP * 1.75) : DOG_LERP;
+const proposedX = dog.x + (steerTarget.x - dog.x) * effLerp;
+const proposedY = dog.y + (steerTarget.y - dog.y) * effLerp;
+
+const moved = resolveDogMove(dog.x, dog.y, proposedX, proposedY);
+const prevDogX = dog.x;
+const prevDogY = dog.y;
+
+dog.x = moved.x;
+dog.y = moved.y;
+
+const dogDx = dog.x - prevDogX;
+const dogDy = dog.y - prevDogY;
+const dogMoved = Math.hypot(dogDx, dogDy) > 0.02;
+
+// Mirada final del perro
+if (dog.desiredFacing === 'left' || dog.desiredFacing === 'right') {
+  dog.lastFacing = dog.desiredFacing;
+} else if (Math.abs(dogDx) > 0.01) {
+  dog.lastFacing = dogDx > 0 ? 'right' : 'left';
+}
+// FIX MULTIJUGADOR: sendPlayerMovement emite this.dog.direction, pero nunca
+// se actualizaba — los demás jugadores no veían hacia dónde mira tu perro.
+dog.direction = dog.lastFacing;
+
+// Animación estable: solo se reproduce si realmente está caminando
+const shouldAnimate = playerMoved || dogMoved || intentDir !== null;
+
+// GUARD: si el sprite del perro se destruyó/no se creó (p.ej. tras mucho rato
+// o al recrear la escena), NO intentar animarlo/posicionarlo. Sin esto,
+// `dog.sprite.anims.isPlaying` lanzaba "Cannot read properties of undefined"
+// cada frame y CONGELABA la escena (síntoma: "no carga").
+if (dog.sprite && dog.sprite.anims) {
+
+if (shouldAnimate && (dogMoved || playerMoved || intentDir)) {
+  const animKey = (dog.lastFacing === 'left') ? 'perro_left' : 'perro_right';
+
+  // Solo reinicia si cambió la animación
+  if (!dog.sprite.anims.isPlaying || dog.sprite.anims.currentAnim?.key !== animKey) {
+    if (this.anims.exists(animKey)) {
+      dog.sprite.play(animKey, true);
+    } else {
+      dog.sprite.setTexture(
+        dog.lastFacing === 'left' ? 'perro_izquierda_1' : 'perro_derecha_1'
+      );
+    }
+  }
+
+  dog.isMoving = true;
+  dog.lastAnimState = animKey;
+} else {
+  if (dog.isMoving || dog.sprite.anims.isPlaying) {
+    dog.sprite.anims.stop();
+  }
+
+  dog.sprite.setTexture(
+    dog.lastFacing === 'left' ? 'perro_izquierda_1' : 'perro_derecha_1'
+  );
+
+  dog.isMoving = false;
+  dog.lastAnimState = 'idle';
+}
+
+// Posición y profundidad
+dog.sprite.setPosition(dog.x, dog.y);
+
+const dogFeetY = dog.y + dog.sprite.displayHeight * 0.5;
+dog.sprite.setDepth(dogFeetY);
+
+if (dog.shadowContainer) {
+  dog.shadowContainer.setPosition(dog.x, dog.y + 22);
+  dog.shadowContainer.setDepth(dogFeetY - 1);
+}
+
+// Etiqueta de la mascota (nombre y/o nivel): sigue al perro, sobre su cabeza.
+// Se muestra siempre que el perro esté visible: antes se exigía que la mascota
+// tuviera nombre, y sin nombre no se veía tampoco el nivel.
+if (this.dogNameText) {
+  if (dog.sprite.visible) {
+    this.dogNameText.setVisible(true);
+    this.dogNameText.setPosition(dog.x, dog.y - dog.sprite.displayHeight * 0.5 - 4);
+    this.dogNameText.setDepth(dogFeetY + 1);
+  } else {
+    this.dogNameText.setVisible(false);
+  }
+}
+
+} // cierre del GUARD if (dog.sprite && dog.sprite.anims)
+
+} // end petData.equipped else block
+
+
+
+      // rectangulo de player
+      //
+      // OPTIMIZACIÓN (igual que en GameScene): el rectángulo se creaba con
+      // `new` en CADA frame y se pisaba con setTo() en la línea siguiente. Y el
+      // `graphics` rojo, que es de depuración y está siempre oculto, se
+      // limpiaba y redibujaba 60 veces por segundo para nada. Ahora el
+      // rectángulo se reutiliza y el graphics se apaga una sola vez.
+      if (!this.playerRect) {
+        this.playerRect = new Phaser.Geom.Rectangle(0, 0, 30, 15);
+      }
+      this.playerRect.setTo(this.player.x - 15, this.player.y + 25, 30, 15);
+
+      if (this.graphics && !this._graphicsOcultado) {
+        this._graphicsOcultado = true;
+        this.graphics.clear();
+        this.graphics.setVisible(false);
+      }
+
+      // Comprueba la colisión entre el rectángulo del jugador y cada rectángulo de la capa de colisión.
+      // Asegúrate de que 'this.collisionRectangles' contiene cada rectángulo de la capa (por ejemplo, extraídos de Tiled)
+
+      /*
+      this.collisionRectangles.forEach(rect => {
+        if (Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, rect)) {
+          console.log("¡Colisión detectada!");
+          this.player.x = this.previousPosition.x;
+          this.player.y = this.previousPosition.y;
+          this.player.anims.stop();
+        }
+      });
+  
+      this.collisionRectangles1.forEach(rect1 => {
+        if (Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, rect1)) {
+          console.log("¡Colisión detectada!");
+          this.player.anims.stop();
+        }
+      });
+
+      */
+
+      // ── COLISIÓN POR EJE + DECISIÓN ÚNICA DE ANIMACIÓN (paridad GameScene) ──
+      // Antes: si el hitbox tocaba una pared se restauraba la posición COMPLETA
+      // (X e Y) y se hacía anims.stop() — el jugador quedaba clavado sin
+      // deslizarse y sin animación. Ahora se prueba cada eje por separado: si
+      // solo la X está bloqueada, la Y sigue avanzando (deslizamiento a lo
+      // largo de la pared) y viceversa — el mismo mecanismo que GameScene,
+      // válido para teclado y mouse.
+      {
+        // Sin `new` por frame: se usa la caja de trabajo compartida
+        // (_chocaConLista). Mismo resultado, cero basura para el recolector.
+        const prevX = this.previousPosition?.x ?? this.player.x;
+        const prevY = this.previousPosition?.y ?? this.player.y;
+
+        const nextX = this.player.x;
+        const nextY = this.player.y;
+
+        // Probar colisión solo en X
+        if (this._chocaConLista(nextX - 15, prevY + 25, 30, 15, this.collisionRectangles2)) {
+          this.player.x = prevX;
+        }
+
+        // Probar colisión solo en Y
+        if (this._chocaConLista(this.player.x - 15, nextY + 25, 30, 15, this.collisionRectangles2)) {
+          this.player.y = prevY;
+        }
+
+        // Sincronizar hitbox visual y posición persistida con la posición corregida
+        this.playerRect.setTo(this.player.x - 15, this.player.y + 25, 30, 15);
+        this.posicionplayerx = this.player.x;
+        this.posicionplayery = this.player.y;
+
+        // ===== Decisión ÚNICA de animación del jugador para este frame =====
+        // Igual que GameScene: se usa el desplazamiento REAL ya corregido.
+        const finalDx = this.player.x - prevX;
+        const finalDy = this.player.y - prevY;
+        const EPS = 0.05;
+        const movingX = Math.abs(finalDx) > EPS;
+        const movingY = Math.abs(finalDy) > EPS;
+
+        const mouseActive = !!(this.mouseMovement && this.mouseMovement.followCursorActive);
+
+        if (mouseActive) {
+          // MODO MOUSE: solo 'left'/'right'. 'right' cubre derecha,
+          // derecha+arriba y derecha+abajo; 'left' sus equivalentes. La mirada
+          // sale de la INTENCIÓN hacia el cursor, así la animación sigue viva
+          // aunque una colisión bloquee la horizontal (ej. derecha+arriba
+          // contra una pared a la derecha).
+          const mdx = this.mouseMovement.directionX || 0;
+          let facing;
+          if (mdx < -0.001) facing = 'left';
+          else if (mdx > 0.001) facing = 'right';
+          else facing = (this.lastDirection === 'left') ? 'left' : 'right';
+
+          if (movingX || movingY) {
+            this.lastDirection = facing;
+            const currentKey = this.player.anims.currentAnim?.key;
+            if (!this.player.anims.isPlaying || currentKey !== facing) {
+              this.player.anims.play(facing, true);
+            }
+          } else {
+            this.player.anims.stop();
+            this.lastDirection = facing;
+            this.player.setTexture(facing === 'left' ? 'player_left_1' : 'player_right_1');
+          }
+        } else if (!movingX && !movingY) {
+          // Sin movimiento real: idle según última dirección
+          this.player.anims.stop();
+          if (this.lastDirection === "left") {
+            this.player.setTexture('player_left_1');
+          } else if (this.lastDirection === "right") {
+            this.player.setTexture('player_right_1');
+          } else if (this.lastDirection === "up") {
+            this.player.setTexture('player_up_1');
+          } else if (this.lastDirection === "down") {
+            this.player.setTexture('player_down_1');
+          }
+        } else {
+          // TECLADO: prioridad horizontal usando el eje que REALMENTE se movió
+          const animKey = movingX ? (finalDx < 0 ? 'left' : 'right')
+                                   : (finalDy < 0 ? 'up' : 'down');
+          this.lastDirection = animKey;
+          const currentKey = this.player.anims.currentAnim?.key;
+          if (!this.player.anims.isPlaying || currentKey !== animKey) {
+            this.player.anims.play(animKey, true);
+          }
+        }
+      }
+
+        
+      // ── PUERTA DE SALIDA ───────────────────────────────────────────────────
+      // Mismos dos candados que en GameScene:
+      //  • _puertaArmada: no dispara hasta haber SALIDO del rectángulo de la
+      //    puerta. Al entrar a la tienda apareces en (1041,1778), encima de la
+      //    puerta, así que sin esto el primer frame te devolvía al mundo.
+      //  • _cambiandoEscena: scene.stop()/start() no surten efecto hasta el
+      //    final del paso, así que la transición podía lanzarse dos veces.
+      const _tocandoPuerta = this.collisionRectangles1.some(r =>
+        r && Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, r));
+      if (!_tocandoPuerta) this._puertaArmada = true;
+
+      this.collisionRectangles1.forEach(rect1 => {
+        if (_tocandoPuerta && this._puertaArmada && !this._cambiandoEscena &&
+            Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, rect1)) {
+          console.log("¡Colisión detectada!");
+          this._puertaArmada    = false;
+          this._cambiandoEscena = true;
+          // Soltar el ítem que se llevara en la mano ANTES de irse.
+          this._cancelarArrastre();
+          this.player.anims.stop();
+
+
+
+          this.inicio = 1;
+
+          // aparicion del personaje
+          if (this.inicio === 1) {
+            this.scene.stop();
+            //this.player.setPosition(708, 514);  // Usar setPosition en lugar de asignación directa
+            this.posicionplayerx = 1552;
+            this.posicionplayery = 1531;
+            this.inicio = 0;
+            this.mundo = 1;
+            // NOTA DE VIAJE (ver create): la pantalla de carga elige el mapa
+            // y GameScene aparece en esta puerta aunque el guardado llegue
+            // tarde o lo pise otro más viejo.
+            window.__gfViaje = { mundo: 1, x: 1552, y: 1531, islaDe: null, islaDeNombre: null, t: Date.now() };
+
+
+                // ✅ Token aún válido, usarlo directamente
+                this.savegg();
+                this.saveTimer = 0;
+
+
+            
+          // Ocultar el HUD principal
+          document.getElementById('game-hud').classList.remove('hud-visible');
+          document.getElementById('game-hud').classList.add('hud-hidden');
+
+          // Limpiar el texto de la moneda
+          document.getElementById('info-text-left').textContent = '';
+
+          // Ocultar casillas rápidas
+          const slots = document.querySelectorAll('.quick-slot');
+          slots.forEach(slot => {
+            slot.style.display = 'none';
+          });
+
+          // Ocultar el botón de misión
+          //document.getElementById('quest-button').style.display = 'none';
+
+          // Ocultar hub de vida, agua y comida
+          this.removeListener();
+
+          // Opcional: ocultar la imagen del jugador si quieres
+          this.actualizarImagenJugador(''); // o puedes ocultar el elemento directamente con `display: 'none'`
+
+          // Opcional: limpiar el nombre de usuario
+          this.actualizarNombreUsuario('');
+
+          // Opcional: resetear barras a 0 o algún estado oculto
+          const _sr2 = this._statsReady;
+          this._statsReady = false;
+          this.actualizarBarraVida(0);
+          this.actualizarBarraAgua(0);
+          this.actualizarBarraComida(0);
+          this._statsReady = _sr2;
+
+          // Ocultar chat y contenedor del HUD extendido
+          document.getElementById('hub').classList.add('hidden');
+          document.getElementById('quick-slots-bar').classList.add('hidden');
+          document.getElementById('open-chat-btn').classList.add('hidden');
+
+                    
+          document.getElementById('open-chat-btn').classList.add('hidden');
+
+          // ocultar coodenadas
+
+          document.getElementById('game-ui-text').style.display = 'none';
+
+          
+            // ocultando barra de correr
+            
+            //document.getElementById("yellow-bar-container").style.display = "none";
+
+
+
+            // cerrando listener de ocultar bontones
+
+            
+            if (this.innerBtn && this.onInnerBtnClick) {
+                this.innerBtn.removeEventListener('click', this.onInnerBtnClick);
+            }
+
+            // cerrando listener de mochila
+
+
+            if (!this.hudImages) {
+
+              console.log("mochila no interactuado modo normal")
+
+            } else {
+                
+              this.hudImages.forEach(img => {
+                  img.removeEventListener('click', this.onHudImageClick);
+                  img.removeEventListener('mouseenter', this.onHudImageEnter);
+                  img.removeEventListener('mouseleave', this.onHudImageLeave);
+              });
+
+              this.hudImages = null;
+
+            }
+
+
+            // cerrando listener de movimiento de menus de estadisticas, inventari , reputacion y otros .
+
+               // Recorremos todos los panels arrastrables
+                const panels = document.querySelectorAll('[data-draggable="true"]');
+
+                panels.forEach(panel => {
+                    if (!panel._dragHandlers) return;
+
+                    // Quitar listeners del panel
+                    panel.removeEventListener("mousedown", panel._dragHandlers.mousedown);
+                    panel.removeEventListener("touchstart", panel._dragHandlers.touchstart);
+                    panel.removeEventListener("dragstart", panel._dragHandlers.dragstart);
+
+                    // Limpiar referencia
+                    panel._dragHandlers = null;
+                });
+
+                // Quitar listeners globales de documento
+                if (document._dragHandlers) {
+                    document.removeEventListener("mousemove", document._dragHandlers.mousemove);
+                    document.removeEventListener("mouseup", document._dragHandlers.mouseup);
+                    document.removeEventListener("touchmove", document._dragHandlers.touchmove);
+                    document.removeEventListener("touchend", document._dragHandlers.touchend);
+                    document.removeEventListener("touchcancel", document._dragHandlers.touchcancel);
+                    document.removeEventListener("keydown", document._dragHandlers.keydown);
+
+                    document._dragHandlers = null;
+                }
+
+                // Resetear panel activo
+                window.activeDraggablePanel = null;
+
+                console.log("Todos los panels arrastrables han sido limpiados correctamente.");
+
+
+            
+
+
+
+                // Botones Redondos Cierres 
+              if (this.roundButtons) {
+                  this.roundButtons[0]?.removeEventListener('click', this.onRoundBtnDashboard);
+                  this.roundButtons[1]?.removeEventListener('click', this.onRoundBtnMail);
+                  this.roundButtons[2]?.removeEventListener('click', this.onRoundBtnStats);
+                  this.roundButtons[3]?.removeEventListener('click', this.onRoundBtnTransactions);
+                  this.roundButtons[4]?.removeEventListener('click', this.onRoundBtnNFT);
+                  this.roundButtons[6]?.removeEventListener('click', this.onRoundBtnStore);
+              }
+              // El de Skills ya no se engancha con addEventListener sino con
+              // `.onclick` sobre #skills-btn (ver arriba), así que se suelta
+              // poniéndolo a null. Un removeEventListener aquí no quitaría nada.
+              {
+                const btnSkills = document.getElementById('skills-btn') || (this.roundButtons && this.roundButtons[5]);
+                if (btnSkills && btnSkills.onclick === this.onRoundBtnSkills) btnSkills.onclick = null;
+              }
+
+              document.getElementById('cerrarReputacion')
+                  ?.removeEventListener('click', this.onCloseReputation);
+
+              document.getElementById('cerrarEstadisticas')
+                  ?.removeEventListener('click', this.onCloseStats);
+
+              this.input.keyboard.off('keydown-R', this.onKeyR);
+              this.input.keyboard.off('keydown-E', this.onKeyE);
+
+              console.log("UI + listeners limpiados correctamente");
+
+              this.stopMusicSafely();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+          }
+
+
+          delete this.mostrarObjetoEnCursor;
+
+          
+
+
+          this.scene.start("LoadingScenegame");
+
+        }
+      });
+
+
+
+  // Verificando Intrusos
+
+  /*
+
+      
+
+      // Bandera para saber si se detectó la consola abierta
+      this.isConsoleOpen = false;
+      // Técnica 1: Verificación por cambio de dimensiones de la ventana
+      this.time.addEvent({
+          delay: 1000,
+          loop: true,
+          callback: this.checkConsoleDimensions,
+          callbackScope: this
+      });
+      // Técnica 2: Usando un getter en un objeto que se imprime en la consola
+      this.setupConsoleDetection();
+
+      */
+
+
+
+
+
+
+      this.usuariox.setText(this.Username);
+      this.usuariox.setPosition(this.player.x, this.player.y - 60);
+  
+
+      
+    // barra de energia
+
+    /*
+
+    
+    this.deltaSeconds = delta / 1000; // Convertir delta a segundos
+
+    // Si se presiona la tecla "Z", la barra se gasta a razón de 5% por segundo
+    if (this.keys.run.isDown) {
+      this.progress -= 0.05 * this.deltaSeconds;
+    } else {
+        // De lo contrario, se recarga a 5% por segundo
+        this.progress += 0.05 * this.deltaSeconds;
+    }
+    // Asegurarse de que progress se mantenga entre 0 y 1
+    this.progress = Phaser.Math.Clamp(this.progress, 0, 1);
+
+    this.actualizarBarra(this.progress * 100, 100); // Actualiza al 30%
+
+    // Mostrar la barra solo cuando se presiona la tecla "Z"
+    if (this.keys.run.isDown) {
+      document.getElementById("yellow-bar-container").style.display = "block";
+
+
+      if (this.progress <= 0.0) {
+        this.speed = 2.7;
+        this.player.anims.msPerFrame = 111;
+      } else {
+        
+        this.speed = 4.5;
+        this.player.anims.msPerFrame = 65;
+
+      }
+
+    } else {
+      document.getElementById("yellow-bar-container").style.display = "none";
+      this.speed = 2.7;
+      this.player.anims.msPerFrame = 111;
+    }
+
+    document.querySelector('#quest-button .quest-text').textContent = Math.round(this.progress * 100) + '%';
+
+
+*/
+      this.speed = 240;
+      this.player.anims.msPerFrame = 100;
+      
+
+
+
+    //document.getElementById('game-ui-text').textContent = `Zoom : ${this.cameras.main.zoom.toFixed(2)}`;
+
+    }
+  
+  
+  // =========================================================================
+  // SISTEMA DE SINCRONIZACIÓN DE STATS CON EL SMART CONTRACT
+  // =========================================================================
+
+  _initStatsSync() {
+    if (typeof window.StatsSync !== 'undefined') {
+      this.statsSync = new window.StatsSync(this);
+      console.log('✅ StatsSync inicializado en tiendajuego');
+    } else {
+      console.warn('⚠️  StatsSync no disponible en tiendajuego');
+    }
+    if (window.playerStats) {
+      const ps = window.playerStats;
+      if (typeof ps.vida   === 'number') this.vidaPorcentaje   = ps.vida;
+      if (typeof ps.agua   === 'number') this.aguaPorcentaje   = ps.agua;
+      if (typeof ps.comida === 'number') this.comidaPorcentaje = ps.comida;
+      if (typeof ps.oro    === 'number') this.moneda           = ps.oro;
+      if (typeof ps.plata  === 'number') this.moneda_plata     = ps.plata;
+      // exp: su factura en el contrato manda, igual que oro y plata.
+      if (typeof ps.exp === 'number' && ps.invoiceIds && ps.invoiceIds.exp) {
+        this.nivel_exp = ps.exp;
+      }
+      console.log('📊 Stats cargados en tiendajuego:', {
+        vida: this.vidaPorcentaje, agua: this.aguaPorcentaje,
+        comida: this.comidaPorcentaje, oro: this.moneda, plata: this.moneda_plata,
+        exp: this.nivel_exp,
+      });
+    }
+    this._statsReady = true;
+
+    // Actualizar visualmente las barras con los valores cargados del contrato
+    this._refreshBarrasUI();
+
+    // Regeneración pasiva (+1/min): la lleva el servidor en modo fantasma, esto
+    // solo refresca las barras mientras se está dentro de la tienda.
+    this._iniciarRegeneracionVitales();
+  }
+
+  /**
+   * Copia de _iniciarRegeneracionVitales de GameScene: la tienda es una escena
+   * aparte con su propio HUD, así que también necesita su tick para que las
+   * barras suban mientras el jugador está dentro. Solo se ADOPTA lo que sube.
+   */
+  _iniciarRegeneracionVitales() {
+    return GameScene.prototype._iniciarRegeneracionVitales.call(this);
+  }
+
+  _refreshBarrasUI() {
+    const savedReady = this._statsReady;
+    this._statsReady = false;
+    try {
+      if (typeof this.actualizarBarraVida   === 'function') this.actualizarBarraVida(this.vidaPorcentaje);
+      if (typeof this.actualizarBarraAgua   === 'function') this.actualizarBarraAgua(this.aguaPorcentaje);
+      if (typeof this.actualizarBarraComida === 'function') this.actualizarBarraComida(this.comidaPorcentaje);
+    } finally {
+      this._statsReady = savedReady;
+    }
+  }
+
+  // ── Nombre único de la mascota (compartido con GameScene) ────────────────
+  // Repinta los textos cuando la fuente 'PressStart2P' ya está cargada.
+  // Phaser cachea la imagen del texto al crearlo: si la fuente aún no estaba
+  // lista, el nombre queda dibujado con la fuente de reemplazo hasta recargar.
+  refrescarTextosConFuente() {
+    if (!document.fonts || typeof document.fonts.load !== 'function') return;
+
+    const repintar = () => {
+      if (!this.children) return;
+      this.children.each(obj => {
+        if (obj && obj.type === 'Text' && typeof obj.updateText === 'function') {
+          try { obj.updateText(); } catch (e) { /* objeto destruido */ }
+        }
+      });
+    };
+
+    Promise.all([
+      document.fonts.load('8px "PressStart2P"'),
+      document.fonts.load('9px "PressStart2P"'),
+      document.fonts.load('12px "PressStart2P"'),
+      document.fonts.load('14px "PressStart2P"')
+    ])
+      .then(() => document.fonts.ready)
+      .then(() => {
+        repintar();
+        this.time && this.time.delayedCall(400, repintar);
+      })
+      .catch(err => console.warn('No se pudo esperar a la fuente pixel:', err));
+  }
+
+  _isNameSet(v) {
+    return typeof v === 'string' && v.trim() !== '' && v.trim() !== '---';
+  }
+
+  // Etiqueta del perro: nombre + NIVEL. En la tienda solo se mostraba el
+  // nombre — el nivel no aparecía por ningún lado, ni el propio ni el de los
+  // demás jugadores. Mismas reglas que en GameScene: si la mascota todavía no
+  // tiene nombre se muestra solo "Lv.N".
+  _dogLabelText(petName, petLevel) {
+    const lvl = Math.max(1, Number(petLevel) || 1);
+    return this._isNameSet(petName) ? `${petName} (Lv.${lvl})` : `Lv.${lvl}`;
+  }
+
+  // Etiqueta del jugador: nombre + nivel del personaje.
+  _playerLabelText(nombre, nivel) {
+    const n = Number(nivel);
+    const etiqueta = nombre || 'Jugador';
+    return Number.isFinite(n) ? `${etiqueta} (Lv.${Math.max(0, Math.floor(n))})` : etiqueta;
+  }
+
+  _updateDogNameLabel() {
+    if (!this.dogNameText) return;
+    this.dogNameText.setText(this._dogLabelText(this.petName, this.petLevel));
+    const dogVisible = !!(this.dog && this.dog.sprite && this.dog.sprite.visible);
+    this.dogNameText.setVisible(dogVisible);
+  }
+
+  // COPIA de GameScene._aplicarNivelMascota (allí está la explicación).
+  _aplicarNivelMascota(d) {
+    if (!d) return;
+    const n = Number(d.petLevel);
+    if (Number.isFinite(n) && n >= 1) {
+      const antes = Number(this.petLevel) || 1;
+      this.petLevel = n;
+      window.globalPetLevel = n;
+      if (n !== antes && typeof this._updateDogNameLabel === 'function') this._updateDogNameLabel();
+      if (n > antes && d.petExpGanada !== undefined) {
+        const quien = (this.petName && this.petName !== '---') ? this.petName : 'Your pet';
+        try { this.playSFX && this.playSFX('level_up_sound'); } catch (_) {}
+        try {
+          if (this.notifications && typeof this.notifications.show === 'function') {
+            this.notifications.show(`🐾 ${quien} reached level ${n}!`, 'success');
+          }
+        } catch (_) {}
+      }
+    }
+    if (d.petExp !== undefined && d.petExp !== null && Number.isFinite(Number(d.petExp))) {
+      this.petExp = Number(d.petExp);
+      this.petExpBase = Number(d.petExpBase) || 0;
+      this.petExpSiguiente = Number(d.petExpSiguiente) || this.petExp;
+      window.globalPetExp = { petExp: this.petExp, petExpBase: this.petExpBase, petExpSiguiente: this.petExpSiguiente };
+    }
+    try { if (window.GFMascota && window.GFMascota.repintar) window.GFMascota.repintar(); } catch (_) {}
+  }
+
+  _syncMonedas() {
+    if (!this.statsSync) return;
+    if (window.playerStats) {
+      window.playerStats.oro   = this.moneda;
+      window.playerStats.plata = this.moneda_plata;
+    }
+    this.statsSync.set('oro',   this.moneda   || 0);
+    this.statsSync.set('plata', this.moneda_plata || 0);
+  }
+
+  async _flushStatsBeforeExit() {
+    if (this.statsSync) {
+      await this.statsSync._flushUpdates();
+      console.log('✅ Stats flushed antes de salir de tiendajuego');
+    }
+  }
+
+  // =========================================================================
+  // NOTIFICATION SYSTEM (mirrors GameScene)
+  // =========================================================================
+  _openNotifPanel() {
+    // Hide the old mailbox panel if it leaked into view
+    const oldMailbox = document.getElementById('_mail-panel-root');
+    if (oldMailbox) oldMailbox.style.display = 'none';
+    if (this._notifPanel) {
+      this._notifPanel.classList.add('notif-panel-visible');
+      this._notifPanel.style.display = 'flex';
+      this._markAllNotifRead();
+    }
+  }
+
+  _wireNotificationPanel() {
+    this._offDOM('notifications');
+    for (const [id, action] of [
+      ['notif-close', () => this._closeNotifPanel()],
+      ['notif-mark-all-read', () => this._markAllNotifRead()],
+      ['notif-clear-all', () => this._clearAllNotif()]
+    ]) this._onDOM(document.getElementById(id), 'click', action, undefined, 'notifications');
+  }
+
+  _closeNotifPanel() {
+    if (this._notifPanel) {
+      this._notifPanel.classList.remove('notif-panel-visible');
+      this._notifPanel.style.display = 'none';
+    }
+  }
+
+  _addNotification(msg, icon = '🔔', save = true) {
+    if (!this._notifList) this._notifList = [];
+    const notif = { id: Date.now(), msg, icon, time: new Date().toISOString(), read: false };
+    this._notifList.unshift(notif);
+    if (this._notifList.length > 50) this._notifList.pop();
+    this._renderNotifList();
+    this._updateNotifBadge();
+    if (save) this._saveNotifications();
+  }
+
+  _markAllNotifRead() {
+    if (!this._notifList) return;
+    this._notifList.forEach(n => n.read = true);
+    this._renderNotifList();
+    this._updateNotifBadge();
+    this._saveNotifications();
+  }
+
+  _updateNotifBadge() {
+    if (!this._notifList) return;
+    const unread = this._notifList.filter(n => !n.read).length;
+    if (this._notifBadge) {
+      this._notifBadge.textContent = unread;
+      this._notifBadge.style.display = unread > 0 ? 'flex' : 'none';
+    }
+  }
+
+  _renderNotifList() {
+    const list = document.getElementById('notif-list');
+    if (!list || !this._notifList) return;
+    if (!this._notifList.length) {
+      list.innerHTML = '<div class="notif-empty">No notifications yet</div>';
+      return;
+    }
+    list.innerHTML = this._notifList.map(n => {
+      const t = new Date(n.time);
+      const timeStr = t.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+      return `<div class="notif-item ${n.read ? '' : 'unread'}" data-notif-id="${n.id}">
+        <div class="notif-icon">${n.icon}</div>
+        <div class="notif-body">
+          <div class="notif-msg">${n.msg}</div>
+          <div class="notif-time">${timeStr}</div>
+        </div>
+        <button class="notif-item-x" data-notif-id="${n.id}" title="Dismiss" style="background:none;border:none;color:#ff8080;font-size:13px;cursor:pointer;line-height:1;padding:2px 4px;flex-shrink:0;align-self:flex-start;">✕</button>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('.notif-item-x').forEach(btn => {
+      btn.onclick = (e) => { e.stopPropagation(); this._deleteNotif(Number(btn.dataset.notifId)); };
+    });
+  }
+
+  _deleteNotif(id) {
+    this._notifList = this._notifList.filter(n => n.id !== id);
+    this._renderNotifList();
+    this._updateNotifBadge();
+    this._saveNotifications();
+  }
+
+  _clearAllNotif() {
+    this._notifList = [];
+    this._renderNotifList();
+    this._updateNotifBadge();
+    this._saveNotifications();
+  }
+
+  async _loadNotifications() {
+    if (!this.Username) return;
+    try {
+      const base = this.serverclient1 || '';
+      const res = await fetch(`${base}/api/notifications/${encodeURIComponent(this.Username)}`, {
+        credentials: 'include'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        this._notifList = data.notifications || [];
+        this._renderNotifList();
+        this._updateNotifBadge();
+      }
+    } catch (_) {}
+  }
+
+  async _saveNotifications() {
+    if (!this.Username) return;
+    try {
+      const base = this.serverclient1 || '';
+      await fetch(`${base}/api/notifications/${encodeURIComponent(this.Username)}`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.getCsrfToken() },
+        body: JSON.stringify({ notifications: this._notifList.slice(0, 50) })
+      });
+    } catch (_) {}
+  }
+
+} // fin clase tiendajuego
+
+window.tiendajuego = tiendajuego;

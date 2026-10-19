@@ -1,0 +1,9 @@
+/* (2026-10-12) Los puntos del personaje: una sección más del panel de habilidades
+   (.skills-section con filas .skill-stat-row), no una caja suelta pegada al velo. */
+.gf-cp-title{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.gf-cp-msg{margin:0 0 8px;font-size:10px;opacity:.8}
+.gf-character-row .skill-stat-name small{display:block;font-size:9px;opacity:.72;margin-top:2px}
+.gf-cp-plus{flex-shrink:0;min-width:40px;min-height:36px;padding:4px 10px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;line-height:1;color:#2a1a08;background:linear-gradient(180deg,#ffe2a0,#c98a2c);border:1px solid rgba(255,226,160,.7);box-shadow:0 2px 0 rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.4)}
+.gf-cp-plus:disabled{opacity:.4;cursor:default;filter:grayscale(.5)}
+.gf-character-modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#0d1b2a;color:#d9e9ef;border:2px solid #46757d;border-radius:12px;padding:16px;width:min(340px,88vw);max-height:85vh;overflow:auto;z-index:99999;font:14px system-ui}
+.gf-character-battle-button{position:fixed;right:18px;top:110px;width:44px;height:44px;border-radius:50%;background:#19393f;color:#f1d584;border:2px solid #9ba98a;z-index:45000;font-size:24px;cursor:pointer}

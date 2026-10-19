@@ -1,0 +1,420 @@
+
+up to date, audited 1162 packages in 51s
+
+# npm audit report
+
+@fastify/busboy  <=3.2.1
+Severity: high
+@fastify/busboy vulnerable to Denial of Service via prototype-named multipart part header - https://github.com/advisories/GHSA-x8mw-p69m-v3mx
+@fastify/busboy vulnerable to CRLF injection via multipart Content-Disposition filename and name - https://github.com/advisories/GHSA-gxm5-99cw-xjw9
+fix available via `npm audit fix --force`
+Will install @nomicfoundation/hardhat-verify@3.1.3, which is a breaking change
+node_modules/@fastify/busboy
+  undici  <=6.28.0
+  Depends on vulnerable versions of @fastify/busboy
+  node_modules/undici
+    @nomicfoundation/hardhat-verify  <=3.1.1
+    Depends on vulnerable versions of @ethersproject/abi
+    Depends on vulnerable versions of hardhat
+    Depends on vulnerable versions of undici
+    node_modules/@nomicfoundation/hardhat-verify
+      @nomicfoundation/hardhat-toolbox  <=6.1.2
+      Depends on vulnerable versions of @nomicfoundation/hardhat-chai-matchers
+      Depends on vulnerable versions of @nomicfoundation/hardhat-ethers
+      Depends on vulnerable versions of @nomicfoundation/hardhat-network-helpers
+      Depends on vulnerable versions of @nomicfoundation/hardhat-verify
+      Depends on vulnerable versions of @typechain/hardhat
+      Depends on vulnerable versions of hardhat
+      Depends on vulnerable versions of hardhat-gas-reporter
+      Depends on vulnerable versions of solidity-coverage
+      node_modules/@nomicfoundation/hardhat-toolbox
+    hardhat  0.1.0-rc.0 - 3.11.1
+    Depends on vulnerable versions of @ethersproject/abi
+    Depends on vulnerable versions of @sentry/node
+    Depends on vulnerable versions of adm-zip
+    Depends on vulnerable versions of solc
+    Depends on vulnerable versions of undici
+    Depends on vulnerable versions of uuid
+    node_modules/hardhat
+      @nomicfoundation/hardhat-chai-matchers  <=2.1.2
+      Depends on vulnerable versions of @nomicfoundation/hardhat-ethers
+      Depends on vulnerable versions of hardhat
+      node_modules/@nomicfoundation/hardhat-chai-matchers
+      @nomicfoundation/hardhat-ethers  <=3.1.3
+      Depends on vulnerable versions of hardhat
+      node_modules/@nomicfoundation/hardhat-ethers
+      @nomicfoundation/hardhat-network-helpers  <=1.1.2
+      Depends on vulnerable versions of ethereumjs-util
+      Depends on vulnerable versions of hardhat
+      node_modules/@nomicfoundation/hardhat-network-helpers
+      @typechain/hardhat  *
+      Depends on vulnerable versions of hardhat
+      node_modules/@typechain/hardhat
+      hardhat-gas-reporter  *
+      Depends on vulnerable versions of hardhat
+      node_modules/hardhat-gas-reporter
+      solidity-coverage  >=0.7.0-beta.0
+      Depends on vulnerable versions of globby
+      Depends on vulnerable versions of hardhat
+      Depends on vulnerable versions of mocha
+      Depends on vulnerable versions of web3-utils
+      node_modules/solidity-coverage
+
+adm-zip  <=0.6.0
+Severity: high
+adm-zip: Crafted ZIP file triggers 4GB memory allocation - https://github.com/advisories/GHSA-xcpc-8h2w-3j85
+adm-zip: Uncontrolled memory allocation via the declared uncompressed size (DoS) - https://github.com/advisories/GHSA-7q85-xj36-vmfc
+adm-zip: Decompression-bomb protection (fix for CVE-2026-39244) can be bypassed by declaring uncompressed size as 0 - https://github.com/advisories/GHSA-rcw4-f5rp-g42v
+adm-zip extraction preserves SUID/SGID bits from untrusted ZIPs -> local privilege escalation - https://github.com/advisories/GHSA-j5f4-cc29-5x44
+adm-zip: Duplicate ZIP entry names: getEntry() and extractAllTo() resolve to different content - https://github.com/advisories/GHSA-p634-w6r4-rjp2
+adm-zip: getDataAsync() bypasses the maxOutputLength size guard enforced by the synchronous getData() path - https://github.com/advisories/GHSA-c6fg-446q-cg94
+adm-zip: Unhandled error event in async DEFLATE decompression crashes Node.js process (DoS) - https://github.com/advisories/GHSA-8238-w5pm-2374
+fix available via `npm audit fix --force`
+Will install hardhat@3.20.0, which is a breaking change
+node_modules/adm-zip
+
+bn.js  <4.12.3
+Severity: moderate
+bn.js affected by an infinite loop - https://github.com/advisories/GHSA-378v-28hj-76wf
+fix available via `npm audit fix --force`
+Will install @nomicfoundation/hardhat-toolbox@7.0.0, which is a breaking change
+node_modules/ethjs-unit/node_modules/bn.js
+node_modules/number-to-bn/node_modules/bn.js
+  ethjs-unit  >=0.1.3
+  Depends on vulnerable versions of bn.js
+  Depends on vulnerable versions of number-to-bn
+  node_modules/ethjs-unit
+    web3-utils  1.0.0-beta.8 - 3.0.0-rc.5
+    Depends on vulnerable versions of ethjs-unit
+    Depends on vulnerable versions of number-to-bn
+    node_modules/web3-utils
+  number-to-bn  *
+  Depends on vulnerable versions of bn.js
+  node_modules/number-to-bn
+
+braces  *
+Severity: high
+braces vulnerable to stack-exhaustion denial of service through deeply nested patterns - https://github.com/advisories/GHSA-vfj7-8cjw-p6xm
+fix available via `npm audit fix --force`
+Will install nodemon@1.14.10, which is a breaking change
+node_modules/braces
+  chokidar  2.0.0 - 3.6.0
+  Depends on vulnerable versions of braces
+  node_modules/chokidar
+    mocha  7.0.0-esm1 - 12.0.0-beta-3
+    Depends on vulnerable versions of chokidar
+    Depends on vulnerable versions of diff
+    Depends on vulnerable versions of serialize-javascript
+    node_modules/hardhat/node_modules/mocha
+    node_modules/mocha
+      eth-gas-reporter  >=0.2.26
+      Depends on vulnerable versions of mocha
+      node_modules/eth-gas-reporter
+    nodemon  0.0.0-development || >=1.14.11
+    Depends on vulnerable versions of chokidar
+    node_modules/nodemon
+  micromatch  >=0.2.0
+  Depends on vulnerable versions of braces
+  node_modules/micromatch
+    @jest/core  <=30.2.0
+    Depends on vulnerable versions of @jest/console
+    Depends on vulnerable versions of @jest/reporters
+    Depends on vulnerable versions of @jest/test-result
+    Depends on vulnerable versions of @jest/transform
+    Depends on vulnerable versions of jest-config
+    Depends on vulnerable versions of jest-haste-map
+    Depends on vulnerable versions of jest-message-util
+    Depends on vulnerable versions of jest-resolve
+    Depends on vulnerable versions of jest-resolve-dependencies
+    Depends on vulnerable versions of jest-runner
+    Depends on vulnerable versions of jest-runtime
+    Depends on vulnerable versions of jest-snapshot
+    Depends on vulnerable versions of jest-watcher
+    Depends on vulnerable versions of micromatch
+    node_modules/@jest/core
+      jest  23.5.0 - 30.2.0
+      Depends on vulnerable versions of @jest/core
+      Depends on vulnerable versions of jest-cli
+      node_modules/jest
+      jest-cli  23.5.0 - 30.2.0
+      Depends on vulnerable versions of @jest/core
+      Depends on vulnerable versions of @jest/test-result
+      Depends on vulnerable versions of create-jest
+      Depends on vulnerable versions of jest-config
+      node_modules/jest-cli
+    @jest/transform  *
+    Depends on vulnerable versions of babel-plugin-istanbul
+    Depends on vulnerable versions of jest-haste-map
+    Depends on vulnerable versions of micromatch
+    node_modules/@jest/transform
+      @jest/reporters  <=30.2.0
+      Depends on vulnerable versions of @jest/console
+      Depends on vulnerable versions of @jest/test-result
+      Depends on vulnerable versions of @jest/transform
+      Depends on vulnerable versions of jest-message-util
+      node_modules/@jest/reporters
+      babel-jest  >=24.2.0-alpha.0
+      Depends on vulnerable versions of @jest/transform
+      Depends on vulnerable versions of babel-plugin-istanbul
+      node_modules/babel-jest
+        jest-config  18.1.0 - 18.5.0-alpha.7da3df39 || 23.5.0 - 30.2.0
+        Depends on vulnerable versions of @jest/test-sequencer
+        Depends on vulnerable versions of babel-jest
+        Depends on vulnerable versions of jest-circus
+        Depends on vulnerable versions of jest-environment-node
+        Depends on vulnerable versions of jest-resolve
+        Depends on vulnerable versions of jest-runner
+        Depends on vulnerable versions of micromatch
+        node_modules/jest-config
+          create-jest  29.7.0 - 30.2.0
+          Depends on vulnerable versions of jest-config
+          node_modules/create-jest
+      jest-runner  21.0.0-alpha.1 - 30.2.0
+      Depends on vulnerable versions of @jest/console
+      Depends on vulnerable versions of @jest/environment
+      Depends on vulnerable versions of @jest/test-result
+      Depends on vulnerable versions of @jest/transform
+      Depends on vulnerable versions of jest-environment-node
+      Depends on vulnerable versions of jest-haste-map
+      Depends on vulnerable versions of jest-message-util
+      Depends on vulnerable versions of jest-resolve
+      Depends on vulnerable versions of jest-runtime
+      Depends on vulnerable versions of jest-watcher
+      node_modules/jest-runner
+      jest-runtime  18.1.0 - 30.2.0
+      Depends on vulnerable versions of @jest/environment
+      Depends on vulnerable versions of @jest/fake-timers
+      Depends on vulnerable versions of @jest/globals
+      Depends on vulnerable versions of @jest/test-result
+      Depends on vulnerable versions of @jest/transform
+      Depends on vulnerable versions of jest-haste-map
+      Depends on vulnerable versions of jest-message-util
+      Depends on vulnerable versions of jest-resolve
+      Depends on vulnerable versions of jest-snapshot
+      node_modules/jest-runtime
+        jest-circus  20.1.0-alpha.1 - 30.2.0
+        Depends on vulnerable versions of @jest/environment
+        Depends on vulnerable versions of @jest/expect
+        Depends on vulnerable versions of @jest/test-result
+        Depends on vulnerable versions of jest-message-util
+        Depends on vulnerable versions of jest-runtime
+        Depends on vulnerable versions of jest-snapshot
+        node_modules/jest-circus
+      jest-snapshot  23.3.0 - 30.2.0
+      Depends on vulnerable versions of @jest/transform
+      Depends on vulnerable versions of expect
+      Depends on vulnerable versions of jest-message-util
+      node_modules/jest-snapshot
+        @jest/expect  <=30.2.0
+        Depends on vulnerable versions of expect
+        Depends on vulnerable versions of jest-snapshot
+        node_modules/@jest/expect
+          @jest/globals  <=30.2.0
+          Depends on vulnerable versions of @jest/environment
+          Depends on vulnerable versions of @jest/expect
+          node_modules/@jest/globals
+        jest-resolve-dependencies  27.0.0-next.0 - 30.2.0
+        Depends on vulnerable versions of jest-snapshot
+        node_modules/jest-resolve-dependencies
+    fast-glob  *
+    Depends on vulnerable versions of micromatch
+    node_modules/fast-glob
+      globby  >=8.0.0
+      Depends on vulnerable versions of fast-glob
+      node_modules/globby
+    jest-haste-map  18.1.0 - 30.2.0
+    Depends on vulnerable versions of micromatch
+    node_modules/jest-haste-map
+      @jest/test-sequencer  <=30.2.0
+      Depends on vulnerable versions of @jest/test-result
+      Depends on vulnerable versions of jest-haste-map
+      node_modules/@jest/test-sequencer
+      jest-resolve  18.1.0 - 19.0.2 || 24.2.0-alpha.0 - 24.5.0 || 27.1.0 - 30.2.0
+      Depends on vulnerable versions of jest-haste-map
+      node_modules/jest-resolve
+    jest-message-util  18.5.0-alpha.7da3df39 - 30.2.0
+    Depends on vulnerable versions of micromatch
+    node_modules/jest-message-util
+      @jest/console  25.4.0 - 30.2.0
+      Depends on vulnerable versions of jest-message-util
+      node_modules/@jest/console
+        @jest/test-result  25.4.0 - 30.2.0
+        Depends on vulnerable versions of @jest/console
+        node_modules/@jest/test-result
+          jest-watcher  25.4.0 - 30.2.0
+          Depends on vulnerable versions of @jest/test-result
+          node_modules/jest-watcher
+      @jest/fake-timers  <=30.2.0
+      Depends on vulnerable versions of jest-message-util
+      node_modules/@jest/fake-timers
+        @jest/environment  <=30.2.0
+        Depends on vulnerable versions of @jest/fake-timers
+        node_modules/@jest/environment
+        jest-environment-node  24.2.0-alpha.0 - 30.2.0
+        Depends on vulnerable versions of @jest/environment
+        Depends on vulnerable versions of @jest/fake-timers
+        node_modules/jest-environment-node
+      expect  21.0.0-beta.1 - 30.2.0
+      Depends on vulnerable versions of jest-message-util
+      node_modules/expect
+
+cookie  <0.7.0
+cookie accepts cookie name, path, and domain with out of bounds characters - https://github.com/advisories/GHSA-pxg6-pf52-xh8x
+fix available via `npm audit fix --force`
+Will install hardhat@3.20.0, which is a breaking change
+node_modules/@sentry/node/node_modules/cookie
+  @sentry/node  4.0.0-beta.0 - 7.74.2-alpha.1
+  Depends on vulnerable versions of cookie
+  node_modules/@sentry/node
+
+diff  6.0.0 - 8.0.2
+jsdiff has a Denial of Service vulnerability in parsePatch and applyPatch - https://github.com/advisories/GHSA-73rr-hh4g-fpgx
+fix available via `npm audit fix --force`
+Will install mocha@12.0.3, which is a breaking change
+node_modules/hardhat/node_modules/diff
+
+elliptic  *
+Elliptic Uses a Cryptographic Primitive with a Risky Implementation - https://github.com/advisories/GHSA-848j-6mx2-7j84
+fix available via `npm audit fix --force`
+Will install hardhat@3.20.0, which is a breaking change
+node_modules/elliptic
+  @ethersproject/signing-key  <=5.8.0
+  Depends on vulnerable versions of elliptic
+  node_modules/@ethersproject/signing-key
+    @ethersproject/hdnode  *
+    Depends on vulnerable versions of @ethersproject/abstract-signer
+    Depends on vulnerable versions of @ethersproject/signing-key
+    Depends on vulnerable versions of @ethersproject/transactions
+    Depends on vulnerable versions of @ethersproject/wordlists
+    node_modules/@ethersproject/hdnode
+      @ethersproject/json-wallets  *
+      Depends on vulnerable versions of @ethersproject/abstract-signer
+      Depends on vulnerable versions of @ethersproject/hdnode
+      Depends on vulnerable versions of @ethersproject/transactions
+      node_modules/@ethersproject/json-wallets
+    @ethersproject/transactions  <=5.8.0
+    Depends on vulnerable versions of @ethersproject/signing-key
+    node_modules/@ethersproject/transactions
+      @ethersproject/abstract-provider  *
+      Depends on vulnerable versions of @ethersproject/transactions
+      node_modules/@ethersproject/abstract-provider
+        @ethersproject/abstract-signer  *
+        Depends on vulnerable versions of @ethersproject/abstract-provider
+        node_modules/@ethersproject/abstract-signer
+          @ethersproject/hash  5.0.6 - 5.8.0
+          Depends on vulnerable versions of @ethersproject/abstract-signer
+          node_modules/@ethersproject/hash
+            @ethersproject/abi  5.0.10 - 5.8.0
+            Depends on vulnerable versions of @ethersproject/hash
+            node_modules/@ethersproject/abi
+              @ethersproject/contracts  *
+              Depends on vulnerable versions of @ethersproject/abi
+              Depends on vulnerable versions of @ethersproject/abstract-provider
+              Depends on vulnerable versions of @ethersproject/abstract-signer
+              Depends on vulnerable versions of @ethersproject/transactions
+              node_modules/@ethersproject/contracts
+                ethers  5.0.0-beta.119 - 6.0.0-beta.9
+                Depends on vulnerable versions of @ethersproject/abi
+                Depends on vulnerable versions of @ethersproject/abstract-provider
+                Depends on vulnerable versions of @ethersproject/abstract-signer
+                Depends on vulnerable versions of @ethersproject/contracts
+                Depends on vulnerable versions of @ethersproject/hash
+                Depends on vulnerable versions of @ethersproject/hdnode
+                Depends on vulnerable versions of @ethersproject/json-wallets
+                Depends on vulnerable versions of @ethersproject/providers
+                Depends on vulnerable versions of @ethersproject/signing-key
+                Depends on vulnerable versions of @ethersproject/transactions
+                Depends on vulnerable versions of @ethersproject/wallet
+                Depends on vulnerable versions of @ethersproject/wordlists
+                node_modules/eth-gas-reporter/node_modules/ethers
+            @ethersproject/providers  *
+            Depends on vulnerable versions of @ethersproject/abstract-provider
+            Depends on vulnerable versions of @ethersproject/abstract-signer
+            Depends on vulnerable versions of @ethersproject/hash
+            Depends on vulnerable versions of @ethersproject/transactions
+            Depends on vulnerable versions of ws
+            node_modules/@ethersproject/providers
+            @ethersproject/wallet  <=5.8.0
+            Depends on vulnerable versions of @ethersproject/abstract-provider
+            Depends on vulnerable versions of @ethersproject/abstract-signer
+            Depends on vulnerable versions of @ethersproject/hash
+            Depends on vulnerable versions of @ethersproject/hdnode
+            Depends on vulnerable versions of @ethersproject/json-wallets
+            Depends on vulnerable versions of @ethersproject/signing-key
+            Depends on vulnerable versions of @ethersproject/transactions
+            Depends on vulnerable versions of @ethersproject/wordlists
+            node_modules/@ethersproject/wallet
+            @ethersproject/wordlists  5.0.8 - 5.8.0
+            Depends on vulnerable versions of @ethersproject/hash
+            node_modules/@ethersproject/wordlists
+  secp256k1  >=2.0.0
+  Depends on vulnerable versions of elliptic
+  node_modules/secp256k1
+    ethereum-cryptography  0.1.0 - 0.1.3
+    Depends on vulnerable versions of secp256k1
+    node_modules/ethereum-cryptography
+      ethereumjs-util  4.5.1 || 5.2.1 || 6.2.1 || >=7.0.3
+      Depends on vulnerable versions of ethereum-cryptography
+      node_modules/ethereumjs-util
+
+serialize-javascript  <=7.0.4
+Severity: high
+Serialize JavaScript is Vulnerable to RCE via RegExp.flags and Date.prototype.toISOString() - https://github.com/advisories/GHSA-5c6j-r48x-rmvq
+Serialize JavaScript has CPU Exhaustion Denial of Service via crafted array-like objects - https://github.com/advisories/GHSA-qj8w-gfj5-8c6v
+fix available via `npm audit fix --force`
+Will install mocha@12.0.3, which is a breaking change
+node_modules/serialize-javascript
+
+sprintf-js  *
+Severity: moderate
+sprintf-js vulnerable to denial of service through unbounded precision specifiers - https://github.com/advisories/GHSA-hp3w-g68c-fv3c
+fix available via `npm audit fix --force`
+Will install jest@30.5.2, which is a breaking change
+node_modules/sprintf-js
+  argparse  1.0.0 - 1.0.10
+  Depends on vulnerable versions of sprintf-js
+  node_modules/@istanbuljs/load-nyc-config/node_modules/argparse
+  node_modules/sc-istanbul/node_modules/argparse
+    js-yaml  3.2.7 - 3.15.2
+    Depends on vulnerable versions of argparse
+    node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml
+    node_modules/sc-istanbul/node_modules/js-yaml
+      @istanbuljs/load-nyc-config  *
+      Depends on vulnerable versions of js-yaml
+      node_modules/@istanbuljs/load-nyc-config
+        babel-plugin-istanbul  >=6.0.0-beta.0
+        Depends on vulnerable versions of @istanbuljs/load-nyc-config
+        node_modules/babel-plugin-istanbul
+
+tmp  <=0.2.5
+Severity: high
+tmp allows arbitrary temporary file / directory write via symbolic link `dir` parameter - https://github.com/advisories/GHSA-52f5-9888-hmc6
+tmp has Path Traversal via unsanitized prefix/postfix that enables directory escape - https://github.com/advisories/GHSA-ph9p-34f9-6g65
+fix available via `npm audit fix`
+node_modules/tmp
+  solc  0.5.1 - 0.8.36
+  Depends on vulnerable versions of tmp
+  node_modules/solc
+
+
+uuid  <11.1.1
+Severity: moderate
+uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided - https://github.com/advisories/GHSA-w5hq-g745-h8pq
+fix available via `npm audit fix --force`
+Will install hardhat@3.20.0, which is a breaking change
+node_modules/hardhat/node_modules/uuid
+
+ws  8.0.0 - 8.20.1
+Severity: high
+ws: Uninitialized memory disclosure - https://github.com/advisories/GHSA-58qx-3vcg-4xpx
+ws: Memory exhaustion DoS from tiny fragments and data chunks - https://github.com/advisories/GHSA-96hv-2xvq-fx4p
+fix available via `npm audit fix`
+node_modules/@ethersproject/providers/node_modules/ws
+
+80 vulnerabilities (19 low, 13 moderate, 48 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
