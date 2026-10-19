@@ -184,7 +184,10 @@
        negra y bastante más corta de vida que en tierra, porque la madera de
        dentro está seca y se la bebe. Y sin polvo, claro: bajo techo no hay
        tierra que levantar. */
-    madera: { polvo: 0xd8c49a, huella: 0x2a1d12, alfaPolvo: 0.40, alfaHuella: 0.26 }
+    madera: { polvo: 0xd8c49a, huella: 0x2a1d12, alfaPolvo: 0.40, alfaHuella: 0.26 },
+    /* (2026-10-18) La arena del desierto: la pisada hundida, un tono tostado,
+       y se queda como en la nieve. */
+    arena:  { polvo: 0xf0dcae, huella: 0x9a7444, alfaPolvo: 0.50, alfaHuella: 0.42 }
   };
 
   /* QUÉ TERRENOS SUELTAN NUBECILLA.
@@ -195,7 +198,7 @@
      charco, y quitarla dejaría pisar mojado igual que pisar seco.
 
      Para devolver el polvo, poner `seco: 1` aquí. Nada más. */
-  var POLVO = { seco: 0, nieve: 0, agua: 1, madera: 0 };
+  var POLVO = { seco: 0, nieve: 0, agua: 1, madera: 0, arena: 0 };
 
   // ── LOS DOS ALMACENES ───────────────────────────────────────────────────
 
@@ -249,7 +252,7 @@
       h.orden = ++st.orden;
       // La variación aleatoria borraba huellas recientes antes que antiguas.
       // Mantener la fecha de salida ordenada también al pasar de nieve a seco.
-      h.hasta = Math.max(ahora + (st.terreno === 'nieve' ? HUELLA_NIEVE : HUELLA_MS), st.ultimaHuellaHasta);
+      h.hasta = Math.max(ahora + (st.terreno === 'nieve' || st.terreno === 'arena' ? HUELLA_NIEVE : HUELLA_MS), st.ultimaHuellaHasta);
       h.dura = h.hasta - ahora;
       st.ultimaHuellaHasta = h.hasta;
       h.alfa = T.alfaHuella * fuerza;

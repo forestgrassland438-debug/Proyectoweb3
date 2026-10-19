@@ -40,6 +40,12 @@
  * suelta ahí (después de confirmar). Cualquiera lo recoge pasando por
  * encima; el servidor quema y acuña (/api/salvaje/soltar y /recoger).
  *
+ * LOS MAPAS NUEVOS (2026-10-18): el cementerio, el desierto y la tundra
+ * (Scenes/ZonasScenes.js) usan esto mismo: sus monstruos salen de la capa
+ * `monstruos` de su mapa y cada especie lleva su MOLDE de comportamiento
+ * ('golem', 'lobo', 'arana' o 'brujo': los cuatro de siempre), sus
+ * proyectiles (`tex`) y si flota o anda. El arte se pide según los que haya.
+ *
  * CÓMO SE ENGANCHA:  SalvajeScene.create():  GFSalvaje.montar(this)
  * ======================================================================== */
 (function () {
@@ -48,31 +54,122 @@
   var ESPECIES = {
     golem_salvaje: {
       // (2026-10-11) Arte en 3 vistas a la densidad del personaje: escala 2.
-      arte: 'golem', nombre: 'Stone Golem', vida: 200, escala: 2, sombra: 1.9,
+      arte: 'golem', molde: 'golem', nombre: 'Stone Golem', vida: 200, escala: 2, sombra: 1.9,
       vel: 40, velCaza: 66, vista: 380, olvida: 760, correa: 720,
       golpe: { alcance: 76, cada: 1900 }, poder: [5200, 7800], ancho: 56, alto: 20, cabeza: 128,
       vuelveMs: 6 * 60 * 1000, color: 0xffb84a
     },
     lobo_salvaje: {
-      arte: 'lobo', nombre: 'Shadow Wolf', vida: 90, escala: 2, sombra: 1.4,
+      arte: 'lobo', molde: 'lobo', nombre: 'Shadow Wolf', vida: 90, escala: 2, sombra: 1.4,
       vel: 58, velCaza: 150, vista: 440, olvida: 820, correa: 820,
       golpe: { alcance: 60, cada: 1300 }, poder: [3800, 5800], ancho: 40, alto: 14, cabeza: 76,
       vuelveMs: 4 * 60 * 1000, color: 0xffd23f
     },
     arana_salvaje: {
-      arte: 'arana', nombre: 'Thorn Spider', vida: 110, escala: 2, sombra: 1.5,
+      arte: 'arana', molde: 'arana', nombre: 'Thorn Spider', vida: 110, escala: 2, sombra: 1.5,
       vel: 52, velCaza: 96, vista: 420, olvida: 780, correa: 720, distancia: 210,
       golpe: { alcance: 56, cada: 1500 }, poder: [3300, 5000], ancho: 44, alto: 14, cabeza: 66,
       vuelveMs: 5 * 60 * 1000, color: 0xff6a3d
     },
     brujo_salvaje: {
       // (2026-10-12) A la escala del jugador (2), como los de la mina.
-      arte: 'brujo', nombre: 'Storm Wraith', vida: 170, escala: 2, sombra: 1.2, humanoide: true,
+      arte: 'brujo', molde: 'brujo', flota: true, nombre: 'Storm Wraith', vida: 170, escala: 2, sombra: 1.2, humanoide: true,
       vel: 42, velCaza: 80, vista: 500, olvida: 860, correa: 760, distancia: 240,
       golpe: null, poder: [3600, 5400], ancho: 34, alto: 14, cabeza: 152,
       vuelveMs: 12 * 60 * 1000, color: 0x8ce9ff
+    },
+
+    // ── EL CEMENTERIO DE LAS ALMAS (2026-10-18) ──
+    zombi_cementerio: {
+      arte: 'zombi_a', molde: 'lobo', humanoide: true, nombre: 'Grave Zombie', vida: 120, escala: 2, sombra: 1.2,
+      vel: 30, velCaza: 72, vista: 420, olvida: 800, correa: 760, grito: 'gemido',
+      golpe: { alcance: 58, cada: 1500 }, poder: [4400, 6600], ancho: 30, alto: 14, cabeza: 108,
+      vuelveMs: 5 * 60 * 1000, color: 0xb9d27a
+    },
+    zombi_podrido: {
+      arte: 'zombi_c', molde: 'lobo', humanoide: true, nombre: 'Rotting Ghoul', vida: 140, escala: 2, sombra: 1.2,
+      vel: 28, velCaza: 66, vista: 400, olvida: 780, correa: 740, grito: 'gemido',
+      golpe: { alcance: 58, cada: 1600 }, poder: [4800, 7000], ancho: 30, alto: 14, cabeza: 108,
+      vuelveMs: 6 * 60 * 1000, color: 0xa7c46a
+    },
+    esqueleto_cementerio: {
+      arte: 'esqueleto', molde: 'arana', humanoide: true, nombre: 'Bone Archer', vida: 100, escala: 2, sombra: 1.2,
+      vel: 40, velCaza: 86, vista: 460, olvida: 820, correa: 760, distancia: 220,
+      tex: { espina: 'gfm_hueso', savia: 'gfm_veneno' }, freno: 'Cursed ichor — you are slowed!',
+      golpe: { alcance: 54, cada: 1400 }, poder: [3200, 4800], ancho: 30, alto: 14, cabeza: 108,
+      vuelveMs: 5 * 60 * 1000, color: 0xd8ffb0
+    },
+    espectro_cementerio: {
+      arte: 'espectro', molde: 'brujo', humanoide: true, flota: true, nombre: 'Restless Spirit', vida: 130, escala: 2, sombra: 1.1,
+      vel: 44, velCaza: 82, vista: 480, olvida: 840, correa: 760, distancia: 230,
+      tex: { rayo: 'gfm_rayo_alma' }, golpe: null, poder: [3600, 5200], ancho: 30, alto: 14, cabeza: 120,
+      vuelveMs: 7 * 60 * 1000, color: 0x7dffb8
+    },
+    golem_cripta: {
+      arte: 'golem_cripta', molde: 'golem', nombre: 'Crypt Golem', vida: 240, escala: 2, sombra: 1.9,
+      vel: 38, velCaza: 62, vista: 380, olvida: 760, correa: 700,
+      golpe: { alcance: 76, cada: 2000 }, poder: [5200, 7600], ancho: 56, alto: 20, cabeza: 128,
+      vuelveMs: 8 * 60 * 1000, color: 0x7dffb8
+    },
+    nigromante_cementerio: {
+      arte: 'nigromante', molde: 'brujo', humanoide: true, flota: true, nombre: 'The Necromancer', vida: 380, escala: 2, sombra: 1.3,
+      vel: 40, velCaza: 78, vista: 540, olvida: 900, correa: 820, distancia: 250,
+      tex: { rayo: 'gfm_rayo_alma' }, golpe: null, poder: [2800, 4200], ancho: 34, alto: 14, cabeza: 140,
+      vuelveMs: 20 * 60 * 1000, color: 0x7dffb8
+    },
+
+    // ── EL DESIERTO ABRASADOR ──
+    escorpion_desierto: {
+      arte: 'escorpion', molde: 'arana', nombre: 'Dune Scorpion', vida: 120, escala: 2, sombra: 1.6,
+      vel: 56, velCaza: 104, vista: 420, olvida: 780, correa: 720, distancia: 190,
+      tex: { savia: 'gfm_veneno' }, freno: 'Scorpion venom — you are slowed!',
+      golpe: { alcance: 58, cada: 1400 }, poder: [3200, 4800], ancho: 46, alto: 14, cabeza: 70,
+      vuelveMs: 5 * 60 * 1000, color: 0xb6ff5a
+    },
+    momia_desierto: {
+      arte: 'momia', molde: 'lobo', humanoide: true, nombre: 'Wrapped Mummy', vida: 150, escala: 2, sombra: 1.2,
+      vel: 30, velCaza: 70, vista: 420, olvida: 800, correa: 760, grito: 'gemido',
+      golpe: { alcance: 58, cada: 1500 }, poder: [4400, 6400], ancho: 30, alto: 14, cabeza: 108,
+      vuelveMs: 6 * 60 * 1000, color: 0xffd04a
+    },
+    golem_arena: {
+      arte: 'golem_arena', molde: 'golem', nombre: 'Sandstone Golem', vida: 220, escala: 2, sombra: 1.9,
+      vel: 40, velCaza: 64, vista: 380, olvida: 760, correa: 720,
+      tex: { roca: 'gfm_roca_arena' },
+      golpe: { alcance: 76, cada: 1900 }, poder: [5200, 7800], ancho: 56, alto: 20, cabeza: 128,
+      vuelveMs: 7 * 60 * 1000, color: 0xff9a3a
+    },
+
+    // ── LA TUNDRA HELADA ──
+    lobo_escarcha: {
+      arte: 'lobo_escarcha', molde: 'lobo', nombre: 'Frost Wolf', vida: 100, escala: 2, sombra: 1.4,
+      vel: 60, velCaza: 154, vista: 440, olvida: 820, correa: 820,
+      golpe: { alcance: 60, cada: 1300 }, poder: [3800, 5800], ancho: 40, alto: 14, cabeza: 76,
+      vuelveMs: 4 * 60 * 1000, color: 0x8ce9ff
+    },
+    golem_hielo: {
+      arte: 'golem_hielo', molde: 'golem', nombre: 'Ice Golem', vida: 230, escala: 2, sombra: 1.9,
+      vel: 38, velCaza: 62, vista: 380, olvida: 760, correa: 720,
+      tex: { roca: 'gfm_roca_hielo' },
+      golpe: { alcance: 76, cada: 1900 }, poder: [5200, 7800], ancho: 56, alto: 20, cabeza: 128,
+      vuelveMs: 7 * 60 * 1000, color: 0xc6f6ff
+    },
+    bruja_ventisca: {
+      arte: 'brujo', molde: 'brujo', humanoide: true, flota: true, nombre: 'Blizzard Witch', vida: 190, escala: 2, sombra: 1.2,
+      vel: 42, velCaza: 80, vista: 500, olvida: 860, correa: 760, distancia: 240,
+      golpe: null, poder: [3400, 5200], ancho: 34, alto: 14, cabeza: 152,
+      vuelveMs: 12 * 60 * 1000, color: 0x8ce9ff
     }
   };
+  // Los proyectiles de siempre; cada especie puede cambiar los suyos (`tex`).
+  var TEX_BASE = { roca: 'gfm_roca', espina: 'gfm_espina', savia: 'gfm_savia', rayo: 'gfm_rayo' };
+  function tex(m, que) { return (m.def.tex && m.def.tex[que]) || TEX_BASE[que]; }
+  /** Hacia dónde mira (para el golpe de cerca): las bestias por su volteo; los
+      humanoides por su dirección. */
+  function frente(m) {
+    if (!m.def.humanoide) return { x: m.spr.flipX ? -1 : 1, y: 0 };
+    return { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, up: { x: 0, y: -0.6 }, down: { x: 0, y: 0.6 } }[m.dir] || { x: 1, y: 0 };
+  }
   var LEJOS = 1300;                 // más lejos que esto, ni piensa ni se dibuja
   var DIR_ES = { right: 'derecha', left: 'izquierda', up: 'arriba', down: 'abajo' };
   // Lo que se puede soltar en el suelo: la MISMA lista que el servidor
@@ -145,6 +242,11 @@
         dur = 0.5; o.type = 'sawtooth';
         o.frequency.setValueAtTime(2400, t0); o.frequency.exponentialRampToValueAtTime(900, t0 + dur);
         g.gain.exponentialRampToValueAtTime(0.05 * vol, t0 + 0.04); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      } else if (tipo === 'gemido') {
+        // (2026-10-18) El gemido de los zombis y las momias: grave y temblón.
+        dur = 1.4; o.type = 'sawtooth';
+        o.frequency.setValueAtTime(150, t0); o.frequency.linearRampToValueAtTime(118, t0 + 0.7); o.frequency.linearRampToValueAtTime(92, t0 + dur);
+        g.gain.exponentialRampToValueAtTime(0.09 * vol, t0 + 0.25); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
       } else if (tipo === 'tormenta') {
         dur = 1.1; o.type = 'triangle';
         o.frequency.setValueAtTime(880, t0); o.frequency.exponentialRampToValueAtTime(220, t0 + dur);
@@ -395,9 +497,10 @@
   }
 
   function colocar(st, m, t) {
-    var alzado = m.def.humanoide ? 8 + Math.sin(t / 420 + m.fase) * 5 : 0;
+    // Flotan los espectros y las brujas; los zombis, esqueletos y momias andan.
+    var alzado = m.def.flota ? 8 + Math.sin(t / 420 + m.fase) * 5 : 0;
     m.spr.setPosition(m.x, m.y - alzado).setDepth(m.y);
-    m.sombra.setPosition(m.x, m.y - 2).setDepth(m.y - 1).setScale(m.def.sombra * (m.def.humanoide ? 0.9 - alzado * 0.01 : 1));
+    m.sombra.setPosition(m.x, m.y - 2).setDepth(m.y - 1).setScale(m.def.sombra * (m.def.flota ? 0.9 - alzado * 0.01 : 1));
   }
 
   function pintarBarra(st, m) {
@@ -449,13 +552,13 @@
       if (dado || t < t0 + retraso) return;
       dado = true;
       var pj = pies(scene);
-      var frente = m.spr.flipX ? -1 : 1;
-      var ix = m.x + frente * m.def.golpe.alcance * 0.45, iy = m.y;
-      if (m.tipo === 'golem_salvaje') {
+      var fr = frente(m);
+      var ix = m.x + fr.x * m.def.golpe.alcance * 0.45, iy = m.y + fr.y * m.def.golpe.alcance * 0.45;
+      if (m.def.molde === 'golem') {
         onda(st, ix, iy, 0.6);
         if (cercaDeMi(st, ix, iy, 500)) { try { scene.cameras.main.shake(140, 0.005); } catch (e) {} }
       }
-      if (Math.hypot(pj.x - ix, pj.y - iy) < m.def.golpe.alcance * 0.85) golpearJugador(st, 'monstruo_golpe', m.x, m.y, m.tipo === 'golem_salvaje' ? 34 : 20);
+      if (Math.hypot(pj.x - ix, pj.y - iy) < m.def.golpe.alcance * 0.85) golpearJugador(st, 'monstruo_golpe', m.x, m.y, m.def.molde === 'golem' ? 34 : 20);
     } };
   }
 
@@ -470,7 +573,7 @@
       if (!st.vivo || !m.vivo) return;
       var x0 = m.x, y0 = m.y - 110;
       // (2026-10-12) Los proyectiles van al doble de resolución: la mitad de escala.
-      var roca = efimero(st, scene.add.image(x0, y0, 'gfm_roca').setScale(1.2).setDepth(9000));
+      var roca = efimero(st, scene.add.image(x0, y0, tex(m, 'roca')).setScale(1.2).setDepth(9000));
       scene.tweens.addCounter({ from: 0, to: 1, duration: 700, ease: 'Linear', onUpdate: function (tw) {
         if (!roca.scene) return;
         var t = tw.getValue();
@@ -524,12 +627,17 @@
   function loboAullido(st, m) {
     var scene = st.scene;
     if (cercaDeMi(st, m.x, m.y, 1100)) {
-      sonar(scene, 'aullido');
-      aviso(scene, '🐺 A Shadow Wolf howls — the pack is coming!', 'warning');
+      if (m.def.grito === 'gemido') {
+        sonar(scene, 'gemido');
+        aviso(scene, '🧟 A ' + m.def.nombre + ' groans — the dead are waking!', 'warning');
+      } else {
+        sonar(scene, 'aullido');
+        aviso(scene, '🐺 A ' + m.def.nombre + ' howls — the pack is coming!', 'warning');
+      }
     }
     if (st.red && !st.red.esHost()) return;
     st.bichos.forEach(function (o) {
-      if (o.tipo !== 'lobo_salvaje' || !o.vivo || Math.hypot(o.x - m.x, o.y - m.y) > 900) return;
+      if (o.tipo !== m.tipo || !o.vivo || Math.hypot(o.x - m.x, o.y - m.y) > 900) return;
       o.estado = 'caza';
       o.rugio = true;
       o.prisaHasta = scene.time.now + 8000;
@@ -547,7 +655,7 @@
       for (var i = -1; i <= 1; i++) {
         if (st.proyectiles.length >= 24) break;
         var a = base + i * 0.2;
-        var spr = scene.add.image(bx, by, 'gfm_espina').setScale(1.1).setRotation(a).setDepth(m.y + 1);
+        var spr = scene.add.image(bx, by, tex(m, 'espina')).setScale(1.1).setRotation(a).setDepth(m.y + 1);
         st.proyectiles.push({ spr: spr, x: bx, y: by, vx: Math.cos(a) * 380, vy: Math.sin(a) * 380, hasta: scene.time.now + 1600, alto: 30, motivo: 'monstruo_poder' });
       }
     });
@@ -560,7 +668,7 @@
     marca(st, tx, ty, 48, 18, 0xc99a3a, 800);
     m.accion = { hasta: t0 + 600, cada: function () {} };
     var x0 = m.x, y0 = m.y - 30;
-    var gota = efimero(st, scene.add.image(x0, y0, 'gfm_savia').setScale(0.3).setDepth(9000));
+    var gota = efimero(st, scene.add.image(x0, y0, tex(m, 'savia')).setScale(0.3).setDepth(9000));
     scene.tweens.addCounter({ from: 0, to: 1, duration: 800, onUpdate: function (tw) {
       if (!gota.scene) return;
       var t = tw.getValue();
@@ -569,8 +677,8 @@
       soltarEfimero(st, gota);
       if (!st.vivo) return;
       if (st.charcos.length >= 6) { var viejo = st.charcos.shift(); soltarEfimero(st, viejo.img); }
-      var img = efimero(st, scene.add.image(tx, ty, 'gfm_savia').setScale(1.2).setDepth(2.6).setAlpha(0.95));
-      st.charcos.push({ x: tx, y: ty, hasta: scene.time.now + 6000, img: img, picado: false });
+      var img = efimero(st, scene.add.image(tx, ty, tex(m, 'savia')).setScale(1.2).setDepth(2.6).setAlpha(0.95));
+      st.charcos.push({ x: tx, y: ty, hasta: scene.time.now + 6000, img: img, picado: false, aviso: m.def.freno || null });
     } });
   }
 
@@ -578,14 +686,14 @@
   function brujoRayos(st, m, puntos) {
     var scene = st.scene, t0 = scene.time.now;
     if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'tormenta');
-    puntos.forEach(function (pt) { marca(st, pt[0], pt[1], 32, 12, 0x8ce9ff, 900); });
+    puntos.forEach(function (pt) { marca(st, pt[0], pt[1], 32, 12, m.def.color || 0x8ce9ff, 900); });
     m.accion = { hasta: t0 + 700, cada: function () {} };
     scene.time.delayedCall(900, function () {
       if (!st.vivo || !m.vivo) return;
       if (cercaDeMi(st, puntos[0][0], puntos[0][1], 700)) { try { scene.cameras.main.flash(60, 200, 240, 255); } catch (e) {} }
       var dado = false;
       puntos.forEach(function (pt) {
-        var rayo = efimero(st, scene.add.image(pt[0], pt[1], 'gfm_rayo').setOrigin(0.5, 1).setScale(1).setDepth(9000).setAlpha(1));
+        var rayo = efimero(st, scene.add.image(pt[0], pt[1], tex(m, 'rayo')).setOrigin(0.5, 1).setScale(1).setDepth(9000).setAlpha(1));
         scene.tweens.add({ targets: rayo, alpha: 0, duration: 260, delay: 80, onComplete: function () { soltarEfimero(st, rayo); } });
         onda(st, pt[0], pt[1], 0.5);
         var p = pies(scene);
@@ -610,11 +718,11 @@
 
   /* LO QUE DECIDE EL ANFITRIÓN: el poder, sus números, y se anuncia. */
   function elegirPoder(st, m, dist, b) {
-    var tipo = m.tipo, scene = st.scene;
+    var tipo = m.def.molde, scene = st.scene;
     m.poderEn = scene.time.now + entre(m.def.poder[0], m.def.poder[1]) * ritmo(scene);
     var v = velDe(st, b);
     var anunciar = function (d) { d.id = m.id; if (st.red) st.red.evento(d); };
-    if (tipo === 'golem_salvaje') {
+    if (tipo === 'golem') {
       if (dist < 150) { golemPisoton(st, m); anunciar({ e: 'pisoton', x: Math.round(m.x), y: Math.round(m.y) }); }
       else if (dist < 480) {
         var tx = b.x + v.x * 0.5, ty = b.y + v.y * 0.5, d = Math.hypot(tx - m.x, ty - m.y);
@@ -622,27 +730,27 @@
         golemRoca(st, m, tx, ty);
         anunciar({ e: 'roca', tx: Math.round(tx), ty: Math.round(ty) });
       }
-    } else if (tipo === 'lobo_salvaje') {
+    } else if (tipo === 'lobo') {
       if (dist > 110 && dist < 340) {
         var ang = Math.atan2(b.y + v.y * 0.25 - m.y, b.x + v.x * 0.25 - m.x);
         loboEmbestida(st, m, ang);
         anunciar({ e: 'embestida', a: Number(ang.toFixed(3)) });
       }
-    } else if (tipo === 'arana_salvaje') {
+    } else if (tipo === 'arana') {
       if (m.ultimoPoder === 'espinas') {
         var sx = b.x + v.x * 0.6, sy = b.y + v.y * 0.6;
         aranaSavia(st, m, sx, sy);
         anunciar({ e: 'savia', tx: Math.round(sx), ty: Math.round(sy) });
         m.ultimoPoder = 'savia';
       } else {
-        var frente = m.spr.flipX ? -1 : 1;
-        var bx = m.x + frente * 34, by = m.y - 30;
+        var fr = frente(m);
+        var bx = m.x + fr.x * 34, by = m.y - 30 + fr.y * 20;
         var base = Math.atan2(b.y - 30 + v.y * 0.4 - by, b.x + v.x * 0.4 - bx);
         aranaEspinas(st, m, bx, by, base);
         anunciar({ e: 'espinas', bx: Math.round(bx), by: Math.round(by), a: Number(base.toFixed(3)) });
         m.ultimoPoder = 'espinas';
       }
-    } else if (tipo === 'brujo_salvaje') {
+    } else if (tipo === 'brujo') {
       var sitio = null;
       if (m.ultimoPoder !== 'salto' && dist > 300) {
         for (var k = 0; k < 14 && !sitio; k++) {
@@ -670,10 +778,10 @@
   /** El grito al empezar a cazar (sonido y temblor, solo si está cerca de mí). */
   function gritar(st, m) {
     var scene = st.scene;
-    if (m.tipo === 'lobo_salvaje') { loboAullido(st, m); return; }
+    if (m.def.molde === 'lobo') { loboAullido(st, m); return; }
     if (!cercaDeMi(st, m.x, m.y, 900)) return;
-    if (m.tipo === 'golem_salvaje') { sonar(scene, 'roca'); try { scene.cameras.main.shake(300, 0.004); } catch (e) {} }
-    else if (m.tipo === 'arana_salvaje') sonar(scene, 'siseo');
+    if (m.def.molde === 'golem') { sonar(scene, 'roca'); try { scene.cameras.main.shake(300, 0.004); } catch (e) {} }
+    else if (m.def.molde === 'arana') sonar(scene, 'siseo');
     else sonar(scene, 'tormenta');
   }
 
@@ -799,7 +907,7 @@
     var dist = b.d || 1, dx = b.x - m.x, dy = b.y - m.y;
     orientar(m, dx, dy);
     if (def.golpe && dist < def.golpe.alcance && t > m.golpeEn) {
-      var retraso = m.tipo === 'golem_salvaje' ? 420 : 260;
+      var retraso = m.def.molde === 'golem' ? 420 : 260;
       cuerpoACuerpo(st, m, retraso);
       if (st.red) st.red.evento({ e: 'golpe', id: m.id, r: retraso, f: m.spr.flipX ? 1 : 0 });
       return;
@@ -849,7 +957,7 @@
       if (dx * dx + dy * dy < 1) {
         // SalvajeScene.update frena al jugador mientras dure esto.
         scene._frenoHasta = t + 250;
-        if (!c.picado) { c.picado = true; aviso(scene, '🕸 Sticky sap — you are slowed!', 'warning'); }
+        if (!c.picado) { c.picado = true; aviso(scene, '🕸 ' + (c.aviso || 'Sticky sap — you are slowed!'), 'warning'); }
       }
     }
   }
@@ -888,7 +996,7 @@
     if (!m.vivo) return;
     if (d.e === 'herido') { destello(st, m); m.heridoEn = st.scene.time.now; return; }
     if (d.e === 'grita') { m.rugio = true; gritar(st, m); return; }
-    if (d.e === 'golpe') { if (m.def.golpe) { m.spr.setFlipX(!!d.f); cuerpoACuerpo(st, m, Number(d.r) || 260); } return; }
+    if (d.e === 'golpe') { if (m.def.golpe) { if (!m.def.humanoide) m.spr.setFlipX(!!d.f); cuerpoACuerpo(st, m, Number(d.r) || 260); } return; }
     if (d.e === 'pisoton') { m.x = Number(d.x) || m.x; m.y = Number(d.y) || m.y; golemPisoton(st, m); return; }
     if (d.e === 'roca') { golemRoca(st, m, Number(d.tx), Number(d.ty)); return; }
     if (d.e === 'embestida') { loboEmbestida(st, m, Number(d.a) || 0); return; }
@@ -927,8 +1035,8 @@
     var recibido = Math.min(m.vida, dano);
     m.vida -= recibido;
     m.heridoEn = scene.time.now;
-    m.aturdidoHasta = scene.time.now + (m.tipo === 'golem_salvaje' ? 90 : 240);
-    empujar(st, m, ux, uy, m.tipo === 'golem_salvaje' ? 4 : 18);
+    m.aturdidoHasta = scene.time.now + (m.def.molde === 'golem' ? 90 : 240);
+    empujar(st, m, ux, uy, m.def.molde === 'golem' ? 4 : 18);
     destello(st, m);
     if (st.red) st.red.evento({ e: 'herido', id: m.id });
     if (m.estado !== 'caza') empezarCaza(st, m);
@@ -1474,8 +1582,19 @@
 
     // ── Los monstruos (cuando lleguen sus dibujos) ──
     var A = window.GFMonstruosArte;
-    var arte = A ? A.cargar(scene, ['golem', 'lobo', 'arana', 'brujo'], ['gfm_roca', 'gfm_espina', 'gfm_savia', 'gfm_rayo', 'gfm_cartel'])
-                 : Promise.resolve(false);
+    // (2026-10-18) Solo el arte de las especies que tiene ESTE mapa (el
+    // salvaje pide lo de siempre) y sus proyectiles.
+    var capaM = scene.map.getObjectLayer('monstruos');
+    var artes = {}, texs = { gfm_cartel: true };
+    (capaM ? capaM.objects : []).forEach(function (o) {
+      var d = ESPECIES[o.name];
+      if (!d) return;
+      artes[d.arte] = true;
+      ({ golem: ['roca'], lobo: [], arana: ['espina', 'savia'], brujo: ['rayo'] }[d.molde] || []).forEach(function (q) {
+        texs[(d.tex && d.tex[q]) || TEX_BASE[q]] = true;
+      });
+    });
+    var arte = A ? A.cargar(scene, Object.keys(artes), Object.keys(texs)) : Promise.resolve(false);
     arte.then(function (ok) {
       if (!st.vivo || scene.__gfSalvaje !== st) return;
       if (!ok) console.warn('[salvaje] faltan dibujos de Game/Sprites/monstruos: algunos monstruos no saldrán');

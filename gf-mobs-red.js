@@ -52,7 +52,9 @@
 
   var ESTADO_MS = 160;              // cada cuánto manda la foto el anfitrión
   var HUERFANO_MS = 3000;           // sin foto del anfitrión en este tiempo: se piensa aquí
-  var SALAS = { MinaScene: true, SalvajeScene: true };
+  var SALAS = { MinaScene: true, SalvajeScene: true,
+                // (2026-10-18) Los mapas nuevos (el servidor: MOBS_SALAS).
+                CementerioScene: true, DesiertoScene: true, TundraScene: true };
   // Los compartidos vivos, para el aviso de "pestaña oculta" (un solo oyente
   // de document para todos: ninguno se queda atado a una escena muerta).
   var vivos = [];

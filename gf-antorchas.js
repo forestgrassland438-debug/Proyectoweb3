@@ -28,7 +28,9 @@
   'use strict';
 
   var V = '20261011a';
-  var ZONAS = { GameScene: 'game', MinaScene: 'mina', SalvajeScene: 'salvaje' };
+  var ZONAS = { GameScene: 'game', MinaScene: 'mina', SalvajeScene: 'salvaje',
+                // (2026-10-18) Los mapas nuevos: el servidor tiene la misma lista.
+                CementerioScene: 'cementerio', DesiertoScene: 'desierto', TundraScene: 'tundra' };
   var TEX = 'gfa_antorcha';
   var ANIM = 'gfa_antorcha_fuego';
   var BRILLO = 'gfa_antorcha_brillo';

@@ -168,6 +168,11 @@
     // El mapa salvaje del oeste, zona neutral y zona PvP (2026-10-11).
     // required:false por lo mismo que la mina.
     { name: 'SalvajeScene',     required: false },
+    // Los tres mapas nuevos (2026-10-18): cementerio, desierto y tundra.
+    // required:false por lo mismo que la mina.
+    { name: 'CementerioScene',  required: false },
+    { name: 'DesiertoScene',    required: false },
+    { name: 'TundraScene',      required: false },
     { name: 'tiendajuego',      required: true  },
     { name: 'LoadingSceneshop', required: true  },
     // Batallas P2P de mascotas. required:false para que, si el archivo no

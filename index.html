@@ -86,12 +86,12 @@
   <script src="./gf-relieve.js?v=22.5.3d466577f1b3" defer></script>
   <!-- "My NFTs" del panel NFT: la colección que se elige en admin.html. -->
   <script src="./gf-nft.js?v=22.1" defer></script>
-  <script src="./gf-lands.js?v=22.5.22c40db6147f" defer></script>
+  <script src="./gf-lands.js?v=22.5.464ef7fa34e7" defer></script>
 
   <!-- Canales (10 × 50 jugadores). El canal lo asigna el servidor al conectar
        el socket, UNA sola vez por pestaña; este módulo solo lo recuerda y
        pinta el panel del dashboard. -->
-  <script src="./gf-canales.js?v=audit20261016.2e1f1c8ab26e" defer></script>
+  <script src="./gf-canales.js?v=22.5.d9e89afbd3ae" defer></script>
   <script src="./gf-profundidad.js?v=22.4.ac6ad4766b40" defer></script>
   <script src="./gf-sombras.js?v=audit20261016.9c7d5050d6e8" defer></script>
   <script src="./gf-nieve.js?v=22.0" defer></script>
@@ -101,7 +101,7 @@
   <!-- Los demas a los 5 minutos quietos se ocultan (2026-10-05). -->
   <script src="./gf-reposo.js?v=21.4" defer></script>
   <script src="./gf-espantapajaros.js?v=21.41" defer></script>
-  <script src="./gf-antorchas.js?v=audit20261016.ccd89b711ea0" defer></script>
+  <script src="./gf-antorchas.js?v=22.5.52e63604db93" defer></script>
   <link rel="stylesheet" href="./gf-espada-poderes.css?v=22.5.6d2f33f797b7">
   <link rel="stylesheet" href="./gf-character-skills.css?v=22.5.282c5eb793ab">
   <link rel="stylesheet" href="./gf-invitaciones.css?v=22.5.2dce2eb76426">
@@ -115,15 +115,19 @@
   <script src="./gf-rutas.js?v=22.1" defer></script>
   <!-- El arte de TODOS los monstruos: carga sus PNG (Game/Sprites/monstruos,
        tools/generar-monstruos.py) y crea sus animaciones. Antes que ellos. -->
-  <script src="./gf-monstruos-arte.js?v=22.5.04fc0cec8f54" defer></script>
-  <script src="./gf-mobs-red.js?v=22.5.1f58e6d359d3" defer></script>
+  <script src="./gf-monstruos-arte.js?v=22.5.0330612445ce" defer></script>
+  <script src="./gf-mobs-red.js?v=22.5.43421ee03c4a" defer></script>
   <script src="./gf-mina-zombis.js?v=audit20261016.5f4a8b73e949" defer></script>
   <!-- La serpiente de magma de la mina (la monta MinaScene). -->
   <script src="./gf-mina-serpiente.js?v=audit20261016.547058bb8d34" defer></script>
   <script src="./gf-mina-espectros.js?v=22.5.6a8022f5c916" defer></script>
   <!-- El mapa salvaje: sus monstruos, la espada entre jugadores en la zona
        PvP y lo que se suelta en el suelo (lo monta SalvajeScene). -->
-  <script src="./gf-salvaje.js?v=22.5.64e816d30314" defer></script>
+  <script src="./gf-salvaje.js?v=22.5.8c8ca354c9dc" defer></script>
+  <!-- Los mapas nuevos (2026-10-18): viajes, niebla, tormenta de arena,
+       remolinos, nevada y luces de noche (lo montan las escenas de
+       Scenes/ZonasScenes.js). -->
+  <script src="./gf-zonas.js?v=22.5.52f2b75bcdb8" defer></script>
   <script src="./gf-agua.js?v=audit20261016.32f634fd1038" defer></script>
   <script src="./gf-suelo.js?v=21.1" defer></script>
   <script src="./gf-casas.js?v=audit20261016.43b5f4af6e5f" defer></script>
@@ -147,7 +151,7 @@
 
   <!-- Pisadas: polvo y huellas bajo quien anda. Lee el tiempo de gf-clima
        (polvo en seco, agua si llueve, nieve si nieva), asi que va despues. -->
-  <script src="./gf-pisadas.js?v=19.1" defer></script>
+  <script src="./gf-pisadas.js?v=22.5.dd5a45e04c1b" defer></script>
 
   <!-- Ambiente sonoro de 8 bits: lluvia, truenos, viento, hojas, grillos,
        bichos, pisadas segun el suelo y los dos temas nuevos. Va DESPUES del
@@ -176,26 +180,27 @@
        create(); con `defer` el orden de estas etiquetas es el de ejecución. -->
   <!-- El traductor del chat (2026-10-05): antes que el chat y los privados. -->
   <script src="./gf-traductor.js?v=audit20261016.0a04d6c20da2" defer></script>
-  <script src="./gf-amigos.js?v=audit20261016.ed8b1a045afa" defer></script>
+  <script src="./gf-amigos.js?v=22.5.e27731d03b4c" defer></script>
   <script src="./gf-chat-social.js?v=audit20261016.a95b426a909f" defer></script>
   <script src="./gf-nombre-color.js?v=19.1" defer></script>
 
   <script src="./Scenes/MenuScene.js?v=20.3" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=19.8" defer></script>
   <script src="./Scenes/tiendajuego.js?v=22.5.ba4ef7224b7e" defer></script>
-  <script src="./Scenes/LoadingScenegame.js?v=22.5.aa09133be027" defer></script>
-  <script src="./Scenes/GameScene.js?v=22.5.67a2a4fa5575" defer></script>
+  <script src="./Scenes/LoadingScenegame.js?v=22.5.af6d881244ef" defer></script>
+  <script src="./Scenes/GameScene.js?v=22.5.3619079fe891" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
        basta con dejarla en esta linea y no antes. -->
-  <script src="./Scenes/MinaScene.js?v=22.5.88a4cbe304d7" defer></script>
+  <script src="./Scenes/MinaScene.js?v=22.5.cef328614310" defer></script>
   <!-- La isla de las parcelas. Hereda de GameScene igual que la mina,
        asi que tambien tiene que ir DESPUES de ella. -->
-  <script src="./Scenes/LandsScene.js?v=22.4.38e9ee08feed" defer></script>
-  <script src="./Scenes/InteriorScene.js?v=22.1" defer></script>
+  <script src="./Scenes/LandsScene.js?v=22.5.bba16f321d84" defer></script>
+  <script src="./Scenes/InteriorScene.js?v=22.5.dd4c31914999" defer></script>
   <!-- El mapa salvaje del oeste. Hereda de GameScene: después de ella. -->
-  <script src="./Scenes/SalvajeScene.js?v=22.5.ee080f51cf10" defer></script>
+  <script src="./Scenes/SalvajeScene.js?v=22.5.1dfbfc0a97b3" defer></script>
+  <script src="./Scenes/ZonasScenes.js?v=22.5.1a6939dd9251" defer></script>
   <script src="./Scenes/BattleScene.js?v=22.5.55ade67ac35b" defer></script>
   <script src="./Scenes/sacar_mapa.js?v=19.1" defer></script>
 
@@ -228,7 +233,7 @@
   <script src="./hub.js?v=19.8" defer></script>
 
 
-  <script src="./register-scenes.js?v=22.5.cc710d3dd014" defer></script>
+  <script src="./register-scenes.js?v=22.5.c3e76c2fbf83" defer></script>
 
   <script src="./memory-fix.js?v=19.1" defer></script>
   <!-- CraftingHub.js ya se carga arriba como script clásico; la segunda carga
@@ -263,7 +268,7 @@
   <script src="./viewport-fix.js?v=22.4.a4e37828640e" defer></script>
 
   <!-- main app bootstrap -->
-  <script src="app.js?v=audit20261016.0ae7986abe72" defer></script>
+  <script src="app.js?v=22.5.0a5229839c8a" defer></script>
 
   <!-- Ajustes de gráficos: calidad y distancia de visión (chunks).
        Va DESPUÉS de app.js porque usa window.game y window.gfResizeGame,

@@ -28,15 +28,24 @@
 (function () {
   'use strict';
 
-  var V = '20261012g';   // (2026-10-12) la serpiente de la mina en 3D (16 direcciones) y la capa de las brujas, más estrecha
+  var V = '20261018a';   // (2026-10-18) los monstruos del cementerio, el desierto y la tundra
   var RUTA = './Game/Sprites/monstruos/';
   // Humanoides: tipo -> fotogramas por segundo al andar.
-  var HUMANOIDES = { zombi_a: 6, zombi_b: 6, zombi_c: 6, zombi_d: 6, zombi_jefe: 5, espectro: 6, mago: 6, brujo: 7 };
+  var HUMANOIDES = { zombi_a: 6, zombi_b: 6, zombi_c: 6, zombi_d: 6, zombi_jefe: 5, espectro: 6, mago: 6, brujo: 7,
+                     // (2026-10-18) Los de los mapas nuevos.
+                     esqueleto: 7, nigromante: 6, momia: 5 };
   // Bestias: tipo -> acción -> [fotogramas, por segundo, repetir].
   var BESTIAS = {
     lobo:  { camina: [4, 10, -1], ataque: [3, 12, 0], quieto: [2, 2, -1] },
     arana: { camina: [4, 12, -1], ataque: [3, 10, 0], quieto: [2, 2, -1] },
-    golem: { camina: [4, 6, -1],  ataque: [3, 7, 0],  quieto: [2, 1.5, -1] }
+    golem: { camina: [4, 6, -1],  ataque: [3, 7, 0],  quieto: [2, 1.5, -1] },
+    // (2026-10-18) Los de los mapas nuevos (los gólems y el lobo, el mismo
+    // modelo con otros materiales).
+    escorpion:     { camina: [4, 12, -1], ataque: [3, 10, 0], quieto: [2, 2, -1] },
+    golem_cripta:  { camina: [4, 6, -1],  ataque: [3, 7, 0],  quieto: [2, 1.5, -1] },
+    golem_arena:   { camina: [4, 6, -1],  ataque: [3, 7, 0],  quieto: [2, 1.5, -1] },
+    golem_hielo:   { camina: [4, 6, -1],  ataque: [3, 7, 0],  quieto: [2, 1.5, -1] },
+    lobo_escarcha: { camina: [4, 10, -1], ataque: [3, 12, 0], quieto: [2, 2, -1] }
   };
   // Atlas sin animaciones (fotogramas que el juego elige): la serpiente de la
   // mina, su cabeza y sus anillos en 16 direcciones ('cabeza_<i>',
@@ -53,7 +62,13 @@
     gfm_espina: 'efectos/espina.png',
     gfm_savia: 'efectos/savia.png',
     gfm_rayo: 'efectos/rayo.png',
-    gfm_cartel: 'efectos/cartel.png'
+    gfm_cartel: 'efectos/cartel.png',
+    // (2026-10-18) Los proyectiles de los mapas nuevos.
+    gfm_roca_arena: 'efectos/roca_arena.png',
+    gfm_roca_hielo: 'efectos/roca_hielo.png',
+    gfm_hueso: 'efectos/hueso.png',
+    gfm_veneno: 'efectos/veneno.png',
+    gfm_rayo_alma: 'efectos/rayo_alma.png'
   };
   var DIR_ES = { down: 'abajo', up: 'arriba', right: 'derecha', left: 'izquierda' };
   var FOTOS = 7;

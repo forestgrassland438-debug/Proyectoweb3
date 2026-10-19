@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="referrer" content="same-origin">
+  <title>Colecciones · Grassland Forest</title>
+  <link rel="icon" href="./favicon.png">
+  <link rel="stylesheet" href="./colecciones.css">
+  <script defer src="./vendor/ethers.umd.min.js"></script>
+  <script defer src="./colecciones.js"></script>
+</head>
+<body>
+  <div id="gate" class="gate">
+    <div class="gate-art" aria-hidden="true"><div class="orbit o1"></div><div class="orbit o2"></div><div class="art-mark">GF<span>COLLECTIONS</span></div><span class="art-caption">EL ARCHIVO DEL BOSQUE</span></div>
+    <main class="gate-content">
+      <a class="brand" href="./index.html"><span class="brand-icon">G<span>F</span></span><span>GRASSLAND<br><b>FOREST</b></span></a>
+      <div class="eyebrow">ESTUDIO DE COLECCIONES / ADMIN</div>
+      <h1>Tu universo.<br><em>Cada pieza, bajo control.</em></h1>
+      <p>Crea colecciones, prepara tus imágenes y administra cada envío desde una sola mesa de trabajo.</p>
+      <div class="access-note"><span class="live-dot"></span>Acceso exclusivo a owner y administradores del contrato.</div>
+      <button id="connect" class="button primary large" type="button">Conectar cartera administradora <span>↗</span></button>
+      <p id="gate-message" class="small" role="status" aria-live="polite">Firma el acceso con tu cartera. No se necesita tu clave privada.</p>
+      <details class="connection-settings"><summary>Conexión con el backend</summary><label>URL de la API<input id="api-origin" type="url" placeholder="https://api.grasslandforest.com"></label><button id="save-api" class="button" type="button">Guardar conexión</button><p class="small">Usa tu servidor de confianza. Este panel utiliza las sesiones de server2.js.</p></details>
+      <footer>GRASSLAND FOREST <span>COLLECTIONS STUDIO · 01</span></footer>
+    </main>
+  </div>
+
+  <div id="app" class="app" hidden>
+    <aside class="sidebar">
+      <a class="brand" href="./index.html"><span class="brand-icon">G<span>F</span></span><span>GRASSLAND<br><b>FOREST</b></span></a>
+      <div class="sidebar-caption">ESTUDIO / ADMINISTRACIÓN</div>
+      <nav id="navigation" aria-label="Panel de colecciones">
+        <button data-view="overview" class="nav-button active"><span>◫</span>Vista general</button>
+        <button data-view="collections" class="nav-button"><span>▦</span>Colecciones <b id="nav-count">0</b></button>
+        <button data-view="tokens" class="nav-button"><span>◇</span>Biblioteca NFT</button>
+        <button data-view="send" class="nav-button"><span>↗</span>Sendmulticuentas</button>
+        <div class="nav-divider"></div>
+        <button data-view="activity" class="nav-button"><span>⇄</span>Movimientos</button>
+        <button data-view="accounts" class="nav-button"><span>◎</span>Cuentas vinculadas</button>
+        <button data-view="royalties" class="nav-button"><span>%</span>Royalties</button>
+        <button data-view="operations" class="nav-button"><span>≡</span>Operaciones</button>
+        <button data-view="settings" class="nav-button"><span>⚙</span>Contrato y permisos</button>
+      </nav>
+      <div class="sidebar-bottom"><span class="live-dot"></span> Sesión verificada<div id="sidebar-role" class="small">Administrador</div><button id="disconnect" class="text-button">Cerrar panel</button></div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar"><span class="breadcrumb">WORKSPACE <span>/</span> <b id="current-view">Vista general</b></span><div class="topbar-right"><span id="network" class="network-chip"></span><span id="wallet" class="wallet-chip"></span><button id="refresh" class="icon-button" title="Actualizar datos" aria-label="Actualizar datos">↻</button></div></header>
+      <main class="main">
+        <div id="global-warning" class="notice warning" hidden></div>
+        <div id="catalog-pagination" class="toolbar" hidden aria-label="Cargar más registros del catálogo"></div>
+        <section id="view-overview" class="view">
+          <div class="page-heading"><div><div class="eyebrow">EL ARCHIVO DEL BOSQUE</div><h1>Cada pieza tiene una historia.</h1><p>El pulso de tus colecciones, en un solo lugar.</p></div><button class="button primary" data-action="new-collection">+ Crear colección</button></div>
+          <div id="metrics" class="metrics"></div>
+          <div class="section-title"><h2>Tus colecciones</h2><button class="text-button" data-go="collections">Ver todas ↗</button></div>
+          <div id="overview-collections" class="collection-grid"></div>
+          <div class="two-columns chart-row"><article class="panel"><div class="section-title"><div><h2>Movilización</h2><p class="small">Transferencias confirmadas · últimos 14 días</p></div><span class="badge">EN CADENA</span></div><div id="movement-chart" class="chart"></div></article><article class="panel"><div class="section-title"><h2>Actividad reciente</h2><span class="badge">REGISTRO REAL</span></div><div id="recent-activity"></div></article></div>
+          <div class="notice"><b>Compatible con InvoiceSystem.</b> Cada pieza emitida se vincula a una factura de cantidad 1. Sus imágenes, atributos y estados reversibles se guardan en el backend.</div>
+        </section>
+
+        <section id="view-collections" class="view" hidden>
+          <div class="page-heading"><div><div class="eyebrow">ORGANIZACIÓN</div><h1>Colecciones</h1><p>Define su identidad, sus reglas y quién las representa.</p></div><button class="button primary" data-action="new-collection">+ Crear colección</button></div>
+          <div class="toolbar"><label class="search-label">⌕<input id="collection-search" type="search" placeholder="Buscar colección…" aria-label="Buscar colección"></label><label>Estado<select id="collection-filter"><option value="all">Todos</option><option value="active">Activas</option><option value="suspended">Suspendidas</option><option value="blocked">Bloqueadas</option><option value="deleted">Papelera</option></select></label></div>
+          <div id="collection-list" class="collection-grid"></div>
+        </section>
+
+        <section id="view-tokens" class="view" hidden>
+          <div class="page-heading"><div><div class="eyebrow">CATÁLOGO</div><h1>Biblioteca NFT</h1><p>Una identidad para cada imagen. Un historial para cada pieza.</p></div><button id="upload-open" class="button primary">+ Agregar imágenes</button></div>
+          <div class="toolbar"><label>Colección<select id="token-collection"></select></label><label class="search-label">⌕<input id="token-search" type="search" placeholder="Nombre, #ID o dirección…" aria-label="Buscar NFT"></label><label>Estado<select id="token-filter"><option value="all">Todos</option><option value="draft">Borradores</option><option value="active">Activos</option><option value="suspended">Suspendidos</option><option value="blocked">Bloqueados</option><option value="deleted">Papelera</option></select></label><label>Orden<select id="token-sort"><option value="new">Más recientes</option><option value="old">ID ascendente</option><option value="name">Nombre</option></select></label></div>
+          <div class="selection-bar"><label class="check-label"><input id="select-all" type="checkbox">Seleccionar resultados</label><span id="selected-count">0 seleccionados</span><button class="button" id="queue-selected">Preparar envíos ↗</button><button class="button" id="bulk-status">Cambiar estado</button><button class="button" id="bulk-royalty">Asignar royalties</button></div>
+          <div id="token-list" class="token-grid"></div><p id="token-total" class="small"></p>
+        </section>
+
+        <section id="view-send" class="view" hidden>
+          <div class="page-heading"><div><div class="eyebrow">DISTRIBUCIÓN</div><h1>Sendmulticuentas</h1><p>Elige exactamente qué pieza recibe cada dirección.</p></div><button class="button" id="add-send-row">+ Agregar destino</button></div>
+          <div class="notice">Cada fila requiere una transacción y su firma. Las piezas en borrador se emiten al destinatario; las emitidas se transfieren. Si un envío falla, puedes reanudar los pendientes.</div>
+          <div class="panel"><div class="section-title"><h2>Plan de distribución</h2><span id="queue-count" class="badge">0 ENVÍOS</span></div><div class="table-scroll"><table><thead><tr><th>Pieza</th><th>Dirección de destino</th><th>Acción / resultado</th><th></th></tr></thead><tbody id="send-rows"></tbody></table></div><div class="toolbar bottom-toolbar"><button id="review-send" class="button primary">Revisar y enviar ↗</button><button id="stop-send" class="button" hidden>Pausar después de esta transacción</button><button id="clear-send" class="text-button">Limpiar completados</button><span id="send-progress" class="small" role="status" aria-live="polite"></span></div></div>
+          <details class="panel"><summary>Importar destinos desde CSV</summary><p class="small">Una pieza por fila: <code>id_catalogo,direccion</code>. Usa el identificador completo del catálogo, disponible en la ficha o exportación. No repitas piezas.</p><textarea id="send-csv" rows="5" placeholder="id_catalogo,direccion&#10;identificador,0x…"></textarea><button id="import-send" class="button">Cargar filas</button><button id="download-template" class="text-button">Descargar plantilla</button></details>
+        </section>
+
+        <section id="view-activity" class="view" hidden>
+          <div class="page-heading"><div><div class="eyebrow">TRAZABILIDAD</div><h1>Movimientos</h1><p>Quién envió, quién recibió y la evidencia de cada movimiento.</p></div><button class="button" id="export-history">Exportar CSV ↓</button></div>
+          <div class="toolbar"><label class="search-label">⌕<input id="history-search" type="search" placeholder="Dirección, pieza o transacción…" aria-label="Buscar movimiento"></label><label>Desde<input id="history-from" type="date"></label><label>Hasta<input id="history-to" type="date"></label></div>
+          <div class="panel table-scroll"><table><thead><tr><th>Fecha</th><th>Pieza / evento</th><th>Desde</th><th>Hacia</th><th>Transacción</th></tr></thead><tbody id="history-list"></tbody></table></div>
+        </section>
+
+        <section id="view-accounts" class="view" hidden>
+          <div class="page-heading"><div><div class="eyebrow">TENENCIA Y CONEXIONES</div><h1>Cuentas vinculadas</h1><p>Direcciones relacionadas por movimientos, con su tenencia observada.</p></div><button class="button" id="export-accounts">Exportar CSV ↓</button></div>
+          <div class="notice">Una conexión indica que hubo una transferencia entre direcciones. No demuestra que pertenezcan a la misma persona. La tenencia se basa en la última sincronización.</div>
+          <div id="account-metrics" class="metrics"></div><div class="panel table-scroll"><table><thead><tr><th>Dirección</th><th>Piezas activas</th><th>Recibidos</th><th>Enviados</th><th>Cuentas relacionadas</th><th>Direcciones conectadas</th></tr></thead><tbody id="account-list"></tbody></table></div>
+        </section>
+
+        <section id="view-royalties" class="view" hidden>
+          <div class="page-heading"><div><div class="eyebrow">CONFIGURACIÓN Y COBROS</div><h1>Royalties</h1><p>Una regla por colección, con excepciones por pieza.</p></div><div class="heading-actions"><button class="button" id="royalty-bulk-open">Asignar porcentajes</button><button class="button primary" id="royalty-payment-open">+ Registrar cobro</button></div></div>
+          <div class="notice warning">Este contrato no cobra royalties. Los porcentajes son políticas guardadas en el backend. El gráfico solo cuenta pagos verificados registrados; una transferencia no se contabiliza como venta ni comisión.</div>
+          <div id="royalty-metrics" class="metrics"></div><div class="panel"><div class="section-title"><h2>Comisiones cobradas</h2><span class="badge">PAGOS VERIFICADOS</span></div><div id="royalty-chart" class="chart"></div></div>
+          <div class="panel table-scroll"><h2>Cobros registrados</h2><p class="small">Pagos directos en moneda nativa. El precio de venta es declarado por el administrador; el importe recibido se verifica en cadena.</p><table><thead><tr><th>Fecha</th><th>Pieza</th><th>Pagador</th><th>Receptor</th><th>Importe nativo</th><th>Transacción</th></tr></thead><tbody id="royalty-payments"></tbody></table></div>
+          <div class="two-columns"><div class="panel"><h2>Reglas de las colecciones</h2><div id="royalty-rules"></div></div><div class="panel"><h2>Calculadora de referencia</h2><p class="small">Estimación informativa. No registra un cobro.</p><label>Precio de venta<input id="sale-price" type="number" min="0" step="any" value="1"></label><label>Royalty (%)<input id="sale-percent" type="number" min="0" max="100" step="0.01" value="5"></label><output id="sale-result" class="calculation">0.05</output><p class="small">En la misma moneda del precio introducido.</p></div></div>
+        </section>
+
+        <section id="view-operations" class="view" hidden><div class="page-heading"><div><div class="eyebrow">RECUPERACIÓN</div><h1>Operaciones</h1><p>Recupera una confirmación si cerraste el navegador o se interrumpió la conexión.</p></div></div><div class="notice">Si ya firmaste y tienes un hash, confirma esa transacción antes de intentar otro envío de la misma pieza.</div><div id="operation-list" class="panel"></div></section>
+
+        <section id="view-settings" class="view" hidden>
+          <div class="page-heading"><div><div class="eyebrow">SISTEMA</div><h1>Contrato y permisos</h1><p>La autoridad del sistema se comprueba en cadena.</p></div></div><div id="contract-details" class="panel"></div>
+          <div class="two-columns"><div class="panel"><h2>Sincronizar movimientos</h2><p class="small">Consulta eventos y propietarios desde el backend. Usa intervalos cortos si tu proveedor RPC limita las consultas.</p><label>Bloque inicial (opcional)<input id="sync-from" type="number" min="0" step="1" placeholder="Continuar desde el último bloque"></label><label>Bloque final (opcional)<input id="sync-to" type="number" min="0" step="1" placeholder="Último bloque confirmado"></label><button id="sync-chain" class="button primary">Sincronizar cadena</button><pre id="sync-result" class="small"></pre></div><div class="panel"><h2>Respaldo del catálogo</h2><p>Exporta metadatos, atributos, propietarios observados e historial en JSON.</p><button id="export-catalog" class="button">Exportar catálogo ↓</button><p class="small">La exportación incluye los registros cargados. No reemplaza un respaldo de MongoDB; las imágenes permanecen en el backend.</p><h3>Dueños de colección</h3><p class="small">El owner del sistema puede asignar o retirar un delegado por colección. Si ese delegado ya es administrador contractual, él y el owner del sistema podrán gestionar esa colección en el panel. Los demás administradores tendrán acceso de lectura. Una cartera sin el rol admin queda registrada como representante y no puede iniciar sesión. Esta asignación no concede poderes contractuales globales.</p></div></div>
+          <div class="panel"><h2>Alcance de la compatibilidad</h2><div class="capability-grid"><div><b>En cadena</b><p>Configurar el tipo de la colección, emitir facturas individuales, transferir, verificar tenencia y consultar eventos.</p></div><div><b>En el backend</b><p>Nombres, imágenes, atributos, royalties configurados, representantes y bloqueo, suspensión o papelera reversibles. Estas políticas rigen las operaciones de este panel.</p></div></div><p class="small">InvoiceSystem no expone tokenURI ni ERC-721/ERC-1155. Los controles del backend no impiden operaciones que otro administrador ejecute directamente contra el contrato. <a href="https://eips.ethereum.org/EIPS/eip-2981" target="_blank" rel="noopener noreferrer">Sobre el estándar de royalties ↗</a></p></div>
+        </section>
+      </main>
+      <footer class="workspace-footer"><span>GRASSLAND FOREST / COLLECTIONS STUDIO</span><span id="last-sync">Sincronización pendiente</span></footer>
+    </div>
+  </div>
+  <dialog id="editor" aria-labelledby="editor-title"><div class="dialog-top"><div><div id="editor-eyebrow" class="eyebrow">COLECCIÓN</div><h2 id="editor-title"></h2></div><button class="icon-button" id="close-editor" aria-label="Cerrar">×</button></div><form id="editor-form"><div id="editor-body"></div><div id="editor-error" class="form-error" role="alert"></div><div class="dialog-actions"><button type="button" class="button" id="cancel-editor">Cancelar</button><button type="submit" class="button primary" id="save-editor">Guardar</button></div></form></dialog>
+  <dialog id="review" aria-labelledby="review-title"><div class="dialog-top"><h2 id="review-title">Revisar operación</h2><button class="icon-button" id="close-review" aria-label="Cerrar">×</button></div><div id="review-body"></div><div class="dialog-actions"><button class="button" id="cancel-review">Cancelar</button><button class="button primary" id="confirm-review">Confirmar</button></div></dialog>
+  <div id="toasts" class="toasts" aria-live="polite" aria-atomic="false"></div>
+</body>
+</html>
