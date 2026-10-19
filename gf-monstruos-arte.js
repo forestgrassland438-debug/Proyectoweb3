@@ -28,12 +28,14 @@
 (function () {
   'use strict';
 
-  var V = '20261018a';   // (2026-10-18) los monstruos del cementerio, el desierto y la tundra
+  var V = '20261019a';   // (2026-10-19) el esqueleto de hueso de verdad y el guerrero
   var RUTA = './Game/Sprites/monstruos/';
   // Humanoides: tipo -> fotogramas por segundo al andar.
   var HUMANOIDES = { zombi_a: 6, zombi_b: 6, zombi_c: 6, zombi_d: 6, zombi_jefe: 5, espectro: 6, mago: 6, brujo: 7,
                      // (2026-10-18) Los de los mapas nuevos.
-                     esqueleto: 7, nigromante: 6, momia: 5 };
+                     esqueleto: 7, nigromante: 6, momia: 5,
+                     // (2026-10-19) El guerrero esqueleto, con su espada.
+                     esqueleto_guerrero: 7 };
   // Bestias: tipo -> acción -> [fotogramas, por segundo, repetir].
   var BESTIAS = {
     lobo:  { camina: [4, 10, -1], ataque: [3, 12, 0], quieto: [2, 2, -1] },

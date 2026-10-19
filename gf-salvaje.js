@@ -99,6 +99,14 @@
       golpe: { alcance: 54, cada: 1400 }, poder: [3200, 4800], ancho: 30, alto: 14, cabeza: 108,
       vuelveMs: 5 * 60 * 1000, color: 0xd8ffb0
     },
+    // (2026-10-19) "Quiero que en el cementerio existan esqueletos": el de
+    // arriba ya es hueso de verdad y este es el que va a por ti con la espada.
+    esqueleto_guerrero: {
+      arte: 'esqueleto_guerrero', molde: 'lobo', humanoide: true, nombre: 'Skeleton Warrior', vida: 130, escala: 2, sombra: 1.2,
+      vel: 34, velCaza: 82, vista: 440, olvida: 800, correa: 760,
+      golpe: { alcance: 62, cada: 1300 }, poder: [4200, 6200], ancho: 30, alto: 14, cabeza: 108,
+      vuelveMs: 5 * 60 * 1000, color: 0xe6dcc2
+    },
     espectro_cementerio: {
       arte: 'espectro', molde: 'brujo', humanoide: true, flota: true, nombre: 'Restless Spirit', vida: 130, escala: 2, sombra: 1.1,
       vel: 44, velCaza: 82, vista: 480, olvida: 840, correa: 760, distancia: 230,
@@ -1420,14 +1428,57 @@
     try { scene.queuedAction && scene.queuedAction({ type: 'forSpam2' }); } catch (e) {}
   }
 
+  /** Tenue mientras el servidor contesta (no se vuelve a pisar); normal si no se lo lleva. */
+  function atenuarMonton(reg, a) {
+    (reg.objs || []).forEach(function (o) { try { if (o && o.scene) o.setAlpha(a); } catch (e) {} });
+  }
+
+  // Un montón que la cadena devolvió no se vuelve a coger hasta pasado un rato
+  // (si sigues encima, no se reintenta en bucle).
+  var ESPERA_RECOGER = {};
   function recogerCercanos(st, pj) {
+    var ahora = Date.now();
     Object.keys(st.suelo).forEach(function (id) {
       var reg = st.suelo[id];
       if (reg.recogiendo || Math.hypot(pj.x - reg.x, pj.y - reg.y) > 40 || fantasma()) return;
+      if (ESPERA_RECOGER[id] && ahora < ESPERA_RECOGER[id]) return;
       reg.recogiendo = true;
-      api('/api/salvaje/recoger', { id: id }).then(function (r) {
+      atenuarMonton(reg, 0.45);
+      recogerUno(st, id, 0);
+    });
+  }
+
+  /* SE TOMA AL PISARLO (2026-10-19): "paso por encima y tarda mucho en
+     tomarlo; quiero que lo tome y que las transacciones se hagan en cola".
+     Con la cola (gf-cola-cadena.js) el servidor contesta en cuanto lo
+     reserva: el montón se va y sale el "+N" ya; el objeto entra en la bolsa
+     cuando la cadena lo acuña ('suelo:acunado'). Si la cadena falla, el
+     servidor devuelve el montón a la sala ('suelo:nuevo'). Si el servidor aún
+     te ve lejos (la red va con retraso), se reintenta solo un par de veces. */
+  function recogerUno(st, id, intento) {
+    var cola = window.GFColaCadena;
+    var t = cola ? cola.ticket() : null;
+    api('/api/salvaje/recoger', t ? { id: id, ticket: t } : { id: id }).then(function (r) {
         if (!st.vivo) return;
         var d = (r && r.datos) || {};
+        if (d.ok && d.pendiente && cola) {
+          aviso(st.scene, '+' + d.cantidad + ' ' + nombreDeItem(st.scene, d.itemId) + (d.deNombre ? ' (dropped by ' + d.deNombre + ')' : ''), 'success');
+          try { st.scene.playSFX && st.scene.playSFX('item_pickup'); } catch (e) {}
+          quitarMonton(st, id, true);
+          cola.esperar(d.ticket || t, {
+            alOk: function (dd, sc) { if (sc && dd.factura) meterFactura(sc, dd.itemId, dd.factura); },
+            alFallo: function (dd, sc) {
+              ESPERA_RECOGER[id] = Date.now() + 4000;
+              if (sc) aviso(sc, dd.message || 'Could not pick it up: it is back on the ground.', 'warning');
+            }
+          });
+          return;
+        }
+        if (d.motivo === 'lejos' && intento < 3 && st.suelo[id]) {
+          setTimeout(function () { if (st.vivo && st.suelo[id]) recogerUno(st, id, intento + 1); }, 450);
+          return;
+        }
+        if (st.suelo[id]) atenuarMonton(st.suelo[id], 1);
         if (d.ok && d.factura) {
           meterFactura(st.scene, d.itemId, d.factura);
           aviso(st.scene, '+' + d.cantidad + ' ' + nombreDeItem(st.scene, d.itemId) + (d.deNombre ? ' (dropped by ' + d.deNombre + ')' : ''), 'success');
@@ -1441,8 +1492,10 @@
           setTimeout(function () { if (st.suelo[id]) st.suelo[id].recogiendo = false; }, 1500);
           if (d.message) aviso(st.scene, d.message, 'warning');
         }
-      }).catch(function () { setTimeout(function () { if (st.suelo[id]) st.suelo[id].recogiendo = false; }, 1500); });
-    });
+      }).catch(function () {
+        if (st.suelo[id]) atenuarMonton(st.suelo[id], 1);
+        setTimeout(function () { if (st.suelo[id]) st.suelo[id].recogiendo = false; }, 1500);
+      });
   }
 
   function cerrarDialogo(st) {
@@ -1452,9 +1505,142 @@
   }
 
   /** "¿Soltar esto aquí?" — soltar quema lo soltado: se pregunta antes. */
+  /* SOLTAR VARIOS, EN COLA (2026-10-19): "cuando quiero soltar un objeto se
+     tarda mucho; quiero soltar varios y que las transacciones se hagan en
+     cola". El cuadro se cierra al pulsar Drop: el objeto sale de la bolsa ya,
+     en el suelo queda un montón provisional (tenue, con ⏳) y la quema va a la
+     cola del jugador en el servidor (gf-cola-cadena.js). Cuando la cadena
+     confirma ('suelo:soltado') pasa a ser el montón de verdad; si dice que no
+     ('suelo:soltar_fallido'), el objeto vuelve a la bolsa. Y "Don't ask again"
+     deja soltar sin cuadro durante la sesión. */
+  var SIN_PREGUNTAR = 'gf_soltar_sin_preguntar';
+  function sinPreguntar() { try { return sessionStorage.getItem(SIN_PREGUNTAR) === '1'; } catch (e) { return false; } }
+
+  /** Saca de la bolsa la casilla de esa factura; devuelve con qué volver a ponerla. */
+  function sacarDeBolsa(scene, idx) {
+    var S = scene.STATE;
+    if (!S) return null;
+    var listas = ['slots', 'quickSlots'];
+    for (var a = 0; a < listas.length; a++) {
+      var L = S[listas[a]];
+      if (!Array.isArray(L)) continue;
+      for (var i = 0; i < L.length; i++) {
+        if (L[i] && Number(L[i].idx) === Number(idx)) {
+          var copia = { lista: listas[a], i: i, obj: Object.assign({}, L[i]) };
+          L[i] = null;
+          try { scene.renderAllSlots(); } catch (e) {}
+          return copia;
+        }
+      }
+    }
+    return null;
+  }
+  /** La vuelve a poner (en su sitio si sigue libre). `cuenta` cambia lo que tenía. */
+  function devolverABolsa(scene, copia, cuenta) {
+    var S = scene && scene.STATE;
+    if (!S || !copia) return;
+    var obj = Object.assign({}, copia.obj);
+    if (cuenta !== undefined) obj.count = cuenta;
+    var listas = [S.slots || [], S.quickSlots || []];
+    for (var a = 0; a < listas.length; a++) {
+      for (var i = 0; i < listas[a].length; i++) {
+        if (listas[a][i] && Number(listas[a][i].idx) === Number(obj.idx)) {      // ya volvió (la cadena)
+          listas[a][i].count = obj.count;
+          try { scene.renderAllSlots(); } catch (e) {}
+          return;
+        }
+      }
+    }
+    var L = S[copia.lista];
+    if (Array.isArray(L) && L[copia.i] === null) L[copia.i] = obj;
+    else {
+      var k = (S.slots || []).indexOf(null);
+      if (k >= 0) S.slots[k] = obj;
+      else if ((k = (S.quickSlots || []).indexOf(null)) >= 0) S.quickSlots[k] = obj;
+    }
+    try { scene.renderAllSlots(); } catch (e) {}
+    try { scene.queuedAction && scene.queuedAction({ type: 'forSpam2' }); } catch (e) {}
+  }
+  /** El montón provisional: tenue y con ⏳, hasta que la cadena confirme. */
+  function ponerProvisional(st, itemId, cantidad, x, y) {
+    var scene = st.scene, clave = 'gfsp_item_' + itemId;
+    var prov = { objs: [] };
+    var dibujar = function () {
+      if (!st.vivo || prov.quitado || prov.objs.length) return;
+      var spr = scene.add.image(x, y - 2, scene.textures.exists(clave) ? clave : 'gfsv_polvo').setOrigin(0.5, 1).setScale(2).setDepth(y).setAlpha(0.55);
+      var txt = scene.add.text(x, y - spr.displayHeight - 6, '×' + cantidad + ' ⏳', {
+        fontFamily: '"PressStart2P"', fontSize: '7px', color: '#ffe9a8', resolution: 4, stroke: '#000000', strokeThickness: 3
+      }).setOrigin(0.5, 1).setDepth(y + 1);
+      prov.objs = [spr, txt];
+    };
+    if (scene.textures.exists(clave)) { dibujar(); return prov; }
+    var src = imagenDeItem(scene, itemId);
+    if (!src) { dibujar(); return prov; }
+    scene.load.image(clave, src);
+    var alCargar = function (k) { if (k === clave) { scene.load.off('filecomplete', alCargar); dibujar(); } };
+    scene.load.on('filecomplete', alCargar);
+    scene.load.once('complete', function () { scene.load.off('filecomplete', alCargar); dibujar(); });
+    scene.load.start();
+    return prov;
+  }
+  function quitarProvisional(prov) {
+    if (!prov) return;
+    prov.quitado = true;
+    prov.objs.forEach(function (o) { try { if (o && o.scene) o.destroy(); } catch (e) {} });
+    prov.objs = [];
+  }
+
+  function soltarEnCola(st, sel, x, y) {
+    var scene = st.scene, cola = window.GFColaCadena;
+    var nombre = nombreDeItem(scene, sel.id);
+    var t = cola ? cola.ticket() : null;
+    var copia = sacarDeBolsa(scene, sel.idx);
+    if (!copia) { aviso(scene, 'That item is not in your bag anymore.', 'info'); return; }
+    var prov = ponerProvisional(st, sel.id, sel.count, x, y);
+    var bien = function (d, sc) {
+      quitarProvisional(prov);
+      var g = d.gastado;
+      if (sc) {
+        if (g && Number(g.invoiceId) === Number(copia.obj.idx)) {
+          if (Number(g.cantidadRestante) > 0) devolverABolsa(sc, copia, Number(g.cantidadRestante));
+        } else {
+          devolverABolsa(sc, copia);                 // se quemó otra factura del mismo objeto: la nuestra sigue
+          if (g) sacarFactura(sc, g);
+        }
+        var stv = sc.__gfSalvaje;
+        if (stv && stv.vivo && d.monton) ponerMonton(stv, d.monton);
+        aviso(sc, 'You dropped ' + (d.monton ? d.monton.cantidad : sel.count) + ' × ' + nombre + '.', 'success');
+      }
+    };
+    var mal = function (d, sc) {
+      quitarProvisional(prov);
+      if (sc) {
+        devolverABolsa(sc, copia);
+        aviso(sc, (d && d.message) || 'Could not drop it: it is back in your bag.', 'warning');
+      }
+    };
+    if (cola) cola.esperar(t, { alOk: bien, alFallo: mal, alCaducar: function () { quitarProvisional(prov); } });
+    api('/api/salvaje/soltar', { itemId: sel.id, invoiceId: sel.idx, cantidad: sel.count, x: Math.round(x), y: Math.round(y), ticket: t || undefined })
+      .then(function (r) {
+        var d = (r && r.datos) || {};
+        if (r && r.ok && d.ok && d.pendiente) return;                 // en la cola: llega por el socket
+        // Un servidor de antes (contesta con todo) o un "no" de entrada.
+        var resolver = cola && cola._interno && cola._interno.resolver;
+        if (r && r.ok && d.ok && d.monton) {
+          if (resolver && t) resolver('suelo:soltado', Object.assign({ ticket: t }, d)); else bien(d, scene);
+        } else if (resolver && t) {
+          resolver('suelo:soltar_fallido', { ticket: t, message: d.message });
+        } else mal(d, scene);
+      }).catch(function () {
+        // Sin respuesta: no se sabe si se quemó. Que lo diga la cadena en unos segundos.
+        if (cola && t) cola.caducarEn(t, 8000); else mal({}, scene);
+      });
+  }
+
   function confirmarSoltar(st, sel, x, y) {
     var scene = st.scene;
     cerrarDialogo(st);
+    if (sinPreguntar()) { soltarEnCola(st, sel, x, y); return; }
     var nombre = nombreDeItem(scene, sel.id);
     var caja = document.createElement('div');
     caja.id = 'gf-soltar';
@@ -1469,6 +1655,12 @@
     var sub = document.createElement('div');
     sub.style.cssText = 'margin:6px 0 14px;font-weight:400;font-size:12px;opacity:.85';
     sub.textContent = 'Anyone can pick it up. Items left on the ground vanish after 10 minutes.';
+    var marca = document.createElement('label');
+    marca.style.cssText = 'display:flex;gap:8px;align-items:center;justify-content:center;margin:0 0 12px;font-weight:400;font-size:12px;cursor:pointer';
+    var caja2 = document.createElement('input');
+    caja2.type = 'checkbox';
+    marca.appendChild(caja2);
+    marca.appendChild(document.createTextNode("Don't ask again this session"));
     var fila = document.createElement('div');
     fila.style.cssText = 'display:flex;gap:10px;justify-content:center;flex-wrap:wrap';
     var si = document.createElement('button'), no = document.createElement('button');
@@ -1479,28 +1671,19 @@
         (i === 0 ? 'background:#6fa84a;color:#fff;border:1px solid #9fd27a' : 'background:transparent;color:#e6efe0;border:1px solid #6c7d63');
     });
     fila.appendChild(si); fila.appendChild(no);
-    caja.appendChild(t); caja.appendChild(sub); caja.appendChild(fila);
+    caja.appendChild(t); caja.appendChild(sub); caja.appendChild(marca); caja.appendChild(fila);
     document.body.appendChild(caja);
     st.dialogo = caja;
     no.addEventListener('click', function () { cerrarDialogo(st); });
-    st.onEscDialogo = function (e) { if (e.key === 'Escape') { e.stopPropagation(); cerrarDialogo(st); } };
+    st.onEscDialogo = function (e) {
+      if (e.key === 'Escape') { e.stopPropagation(); cerrarDialogo(st); }
+      else if (e.key === 'Enter' && document.activeElement !== no) { e.stopPropagation(); e.preventDefault(); si.click(); }
+    };
     document.addEventListener('keydown', st.onEscDialogo, true);
     si.addEventListener('click', function () {
-      si.disabled = no.disabled = true;
-      si.textContent = 'Dropping…';
-      api('/api/salvaje/soltar', { itemId: sel.id, invoiceId: sel.idx, cantidad: sel.count, x: Math.round(x), y: Math.round(y) })
-        .then(function (r) {
-          cerrarDialogo(st);
-          if (!st.vivo) return;
-          var d = (r && r.datos) || {};
-          if (r && r.ok && d.ok) {
-            sacarFactura(scene, d.gastado);
-            ponerMonton(st, d.monton);                         // por si el aviso de la sala llega tarde
-            aviso(scene, 'You dropped ' + d.monton.cantidad + ' × ' + nombre + '.', 'success');
-          } else {
-            aviso(scene, d.message || 'Could not drop it. Try again.', 'warning');
-          }
-        }).catch(function () { cerrarDialogo(st); aviso(scene, 'Could not drop it. Try again.', 'warning'); });
+      try { if (caja2.checked) sessionStorage.setItem(SIN_PREGUNTAR, '1'); } catch (e) {}
+      cerrarDialogo(st);
+      if (st.vivo) soltarEnCola(st, sel, x, y);
     });
     try { si.focus(); } catch (e) {}
   }

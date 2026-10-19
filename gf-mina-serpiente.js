@@ -1147,22 +1147,55 @@
       if (m.recogiendo || Math.hypot(pj.x - m.x, pj.y - m.y) > 38) continue;
       m.recogiendo = true;
       (function (mm) {
-        api('/api/monstruos/botin/recoger', { id: mm.id }).then(function (r) {
+        /* SE TOMA AL PISARLO (2026-10-19): "paso por encima y tarda mucho en
+           tomarlo; quiero que lo tome y que las transacciones se hagan en
+           cola". Con la cola (gf-cola-cadena.js) el servidor contesta en
+           cuanto lo reserva: el montón vuela al jugador y sale el "+N" ya; el
+           objeto entra en la bolsa cuando la cadena lo acuña. Mientras
+           contesta, el montón se ve tenue (no se vuelve a pisar). */
+        var cola = window.GFColaCadena;
+        var t = cola ? cola.ticket() : null;
+        var nombre = (scene._getFruitDisplayNameEN && scene._getFruitDisplayNameEN(mm.itemId)) || mm.itemId;
+        var copia = { id: mm.id, itemId: mm.itemId, cantidad: mm.cantidad }, cx = mm.x, cy = mm.y, hasta = mm.hasta;
+        var volar = function () {
+          if (!st.vivo || !mm.spr || !mm.spr.scene) { quitarMonton(st, mm); return; }
+          try { if (mm.flota) mm.flota.stop(); } catch (e) {}
+          scene.tweens.add({ targets: [mm.spr, mm.halo], y: '-=40', alpha: 0, duration: 300, onComplete: function () { quitarMonton(st, mm); } });
+        };
+        try { mm.spr.setAlpha(0.45); } catch (e) {}
+        api('/api/monstruos/botin/recoger', t ? { id: mm.id, ticket: t } : { id: mm.id }).then(function (r) {
           var d = (r && r.datos) || {};
-          if (d.ok && d.factura) {
+          if (d.ok && d.pendiente && cola) {
+            volar();
+            if (st.vivo) {
+              aviso(scene, '+' + d.cantidad + ' ' + nombre, 'success');
+              try { scene.playSFX && scene.playSFX('item_pickup'); } catch (e) {}
+            }
+            cola.esperar(d.ticket || t, {
+              alOk: function (dd, sc) { if (sc && dd.factura) meterFactura(sc, dd.itemId, dd.factura); },
+              alFallo: function (dd, sc) {
+                // El botín sigue siendo suyo en el servidor: vuelve al suelo para pisarlo otra vez.
+                if (st.vivo) soltarMonton(st, copia, cx, cy - 20, cx, cy, Math.max(5000, hasta - Date.now()));
+                if (sc) aviso(sc, dd.message || 'Could not pick it up: step on it again.', 'warning');
+              }
+            });
+          } else if (d.ok && d.factura) {
             if (!st.vivo) return;
             meterFactura(scene, d.itemId, d.factura);
-            var nombre = (scene._getFruitDisplayNameEN && scene._getFruitDisplayNameEN(d.itemId)) || d.itemId;
             aviso(scene, '+' + d.cantidad + ' ' + nombre, 'success');
             try { scene.playSFX && scene.playSFX('item_pickup'); } catch (e) {}
-            if (st.vivo) scene.tweens.add({ targets: mm.spr, y: mm.y - 40, alpha: 0, duration: 300, onComplete: function () { quitarMonton(st, mm); } });
+            volar();
           } else if (d.motivo === 'no_existe' || d.motivo === 'caducado') {
             quitarMonton(st, mm);
           } else {
+            try { if (mm.spr && mm.spr.scene) mm.spr.setAlpha(1); } catch (e) {}
             mm.recogiendo = false;                 // la cadena: se reintenta al volver a pisarlo
             if (d.message) aviso(scene, d.message, 'warning');
           }
-        }).catch(function () { mm.recogiendo = false; });
+        }).catch(function () {
+          try { if (mm.spr && mm.spr.scene) mm.spr.setAlpha(1); } catch (e) {}
+          mm.recogiendo = false;
+        });
       })(m);
     }
   }

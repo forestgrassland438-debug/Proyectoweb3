@@ -101,11 +101,11 @@
   <!-- Los demas a los 5 minutos quietos se ocultan (2026-10-05). -->
   <script src="./gf-reposo.js?v=21.4" defer></script>
   <script src="./gf-espantapajaros.js?v=21.41" defer></script>
-  <script src="./gf-antorchas.js?v=22.5.52e63604db93" defer></script>
+  <script src="./gf-antorchas.js?v=22.5.29da75103bb1" defer></script>
   <link rel="stylesheet" href="./gf-espada-poderes.css?v=22.5.6d2f33f797b7">
   <link rel="stylesheet" href="./gf-character-skills.css?v=22.5.282c5eb793ab">
   <link rel="stylesheet" href="./gf-invitaciones.css?v=22.5.2dce2eb76426">
-  <script src="./gf-character-skills.js?v=audit20261016.681a3bfdf7f5" defer></script>
+  <script src="./gf-character-skills.js?v=22.5.3450003e838f" defer></script>
   <script src="./gf-espada.js?v=22.5.2a68ff2d503e" defer></script>
   <!-- Que ningún botón del HUD quede encima de otro (columna redonda, V/B/N,
        tajo). Detrás de la espada: aparta sus botones si hace falta. -->
@@ -115,22 +115,26 @@
   <script src="./gf-rutas.js?v=22.1" defer></script>
   <!-- El arte de TODOS los monstruos: carga sus PNG (Game/Sprites/monstruos,
        tools/generar-monstruos.py) y crea sus animaciones. Antes que ellos. -->
-  <script src="./gf-monstruos-arte.js?v=22.5.0330612445ce" defer></script>
+  <script src="./gf-monstruos-arte.js?v=22.5.a502f309e7d0" defer></script>
   <script src="./gf-mobs-red.js?v=22.5.43421ee03c4a" defer></script>
   <script src="./gf-mina-zombis.js?v=audit20261016.5f4a8b73e949" defer></script>
   <!-- La serpiente de magma de la mina (la monta MinaScene). -->
-  <script src="./gf-mina-serpiente.js?v=audit20261016.547058bb8d34" defer></script>
+  <!-- Recoger y soltar sin esperar a la cadena: la cola y su contador (2026-10-19). -->
+  <script src="./gf-cola-cadena.js?v=22.5.db5a17900fae" defer></script>
+  <!-- Los NPC de los mapas y de las casas (2026-10-19). -->
+  <script src="./gf-npcs.js?v=22.5.43bcba3211f8" defer></script>
+  <script src="./gf-mina-serpiente.js?v=22.5.4cee3984c94e" defer></script>
   <script src="./gf-mina-espectros.js?v=22.5.6a8022f5c916" defer></script>
   <!-- El mapa salvaje: sus monstruos, la espada entre jugadores en la zona
        PvP y lo que se suelta en el suelo (lo monta SalvajeScene). -->
-  <script src="./gf-salvaje.js?v=22.5.8c8ca354c9dc" defer></script>
+  <script src="./gf-salvaje.js?v=22.5.8f8598dbd682" defer></script>
   <!-- Los mapas nuevos (2026-10-18): viajes, niebla, tormenta de arena,
        remolinos, nevada y luces de noche (lo montan las escenas de
        Scenes/ZonasScenes.js). -->
-  <script src="./gf-zonas.js?v=22.5.52f2b75bcdb8" defer></script>
+  <script src="./gf-zonas.js?v=22.5.a908fc8d3a73" defer></script>
   <script src="./gf-agua.js?v=audit20261016.32f634fd1038" defer></script>
   <script src="./gf-suelo.js?v=21.1" defer></script>
-  <script src="./gf-casas.js?v=audit20261016.43b5f4af6e5f" defer></script>
+  <script src="./gf-casas.js?v=22.5.00a13ef06118" defer></script>
   <script src="./gf-ciclo-dia.js?v=audit20261016.d83c0bf831ea" defer></script>
 
   <!-- Cazador de micro-parones. Inerte hasta que se le llama a mano desde la
@@ -141,7 +145,7 @@
   <script src="./gf-mascota.js?v=22.1" defer></script>
   <script src="./gf-muerte.js?v=22.5.2570e568316d" defer></script>
   <script src="./gf-alquimista.js?v=audit20261016.6fe7e70abdaf" defer></script>
-  <script src="./gf-viento.js?v=audit20261016.dec462b19c1a" defer></script>
+  <script src="./gf-viento.js?v=22.5.1833d87e966f" defer></script>
   <script src="./gf-clima.js?v=audit20261016.4ab981fc0772" defer></script>
 
   <!-- Post-procesado: viñeta, desenfoque de bordes y revelado de color sobre
@@ -158,7 +162,7 @@
        clima, del viento y del ciclo de dia porque les pregunta a los tres en
        cada vuelta que tiempo hace y cuanta noche queda. Los WAV los escribe
        tools/generar-sonidos.js y viven en Game/MUSIC. -->
-  <script src="./gf-audio.js?v=audit20261016.ff10b8a28f16" defer></script>
+  <script src="./gf-audio.js?v=22.5.40604202cf2a" defer></script>
 
   <!-- El buho de la noche: aparece al anochecer, se posa en un arbol y ulula;
        al amanecer se va. Necesita gf-audio para el ulular y gf-cuervo para el
@@ -188,19 +192,19 @@
   <script src="./Scenes/LoadingSceneshop.js?v=19.8" defer></script>
   <script src="./Scenes/tiendajuego.js?v=22.5.ba4ef7224b7e" defer></script>
   <script src="./Scenes/LoadingScenegame.js?v=22.5.af6d881244ef" defer></script>
-  <script src="./Scenes/GameScene.js?v=22.5.3619079fe891" defer></script>
+  <script src="./Scenes/GameScene.js?v=22.5.7c68cda76fdb" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
        basta con dejarla en esta linea y no antes. -->
-  <script src="./Scenes/MinaScene.js?v=22.5.cef328614310" defer></script>
+  <script src="./Scenes/MinaScene.js?v=22.5.aa49a2c504ad" defer></script>
   <!-- La isla de las parcelas. Hereda de GameScene igual que la mina,
        asi que tambien tiene que ir DESPUES de ella. -->
   <script src="./Scenes/LandsScene.js?v=22.5.bba16f321d84" defer></script>
-  <script src="./Scenes/InteriorScene.js?v=22.5.dd4c31914999" defer></script>
+  <script src="./Scenes/InteriorScene.js?v=22.5.b7bd5b756d2b" defer></script>
   <!-- El mapa salvaje del oeste. Hereda de GameScene: después de ella. -->
-  <script src="./Scenes/SalvajeScene.js?v=22.5.1dfbfc0a97b3" defer></script>
-  <script src="./Scenes/ZonasScenes.js?v=22.5.1a6939dd9251" defer></script>
+  <script src="./Scenes/SalvajeScene.js?v=22.5.b83419df3441" defer></script>
+  <script src="./Scenes/ZonasScenes.js?v=22.5.97847f32ac3e" defer></script>
   <script src="./Scenes/BattleScene.js?v=22.5.55ade67ac35b" defer></script>
   <script src="./Scenes/sacar_mapa.js?v=19.1" defer></script>
 

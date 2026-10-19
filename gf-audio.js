@@ -80,7 +80,9 @@
 
   // ── EL CATÁLOGO ─────────────────────────────────────────────────────────
 
-  var TEMAS = { pradera: 'gf_pradera', noche: 'gf_noche', tienda: 'gf_tienda' };
+  var TEMAS = { pradera: 'gf_pradera', noche: 'gf_noche', tienda: 'gf_tienda',
+                // (2026-10-19) Los mapas nuevos: cada uno con su tema, de día y de noche.
+                cementerio: 'gf_cementerio', desierto: 'gf_desierto', tundra: 'gf_tundra' };
 
   var AMBIENTES = {
     lluvia:  'amb_lluvia',
@@ -88,8 +90,22 @@
     arboles: 'amb_arboles',
     soleado: 'amb_soleado',
     noche:   'amb_noche',
-    nieve:   'amb_nieve'
+    nieve:   'amb_nieve',
+    // (2026-10-19) Los de los mapas nuevos. Solo se piden allí (EXCLUSIVOS).
+    cementerio: 'amb_cementerio',
+    desierto:   'amb_desierto',
+    tundra:     'amb_tundra',
+    tormenta:   'amb_tormenta_arena',
+    remolino:   'amb_remolino'
   };
+  /* Qué ambientes son de UN mapa: fuera de él ni se piden ni se guardan. El
+     desierto, además, tiene la tormenta y el remolino (los mueve gf-zonas.js
+     con `scene._tormentaArena` y `scene._remolinoCerca`). */
+  var EXCLUSIVOS = { cementerio: ['cementerio'], desierto: ['desierto', 'tormenta', 'remolino'], tundra: ['tundra'] };
+  function esExclusivo(k) {
+    for (var z in EXCLUSIVOS) if (EXCLUSIVOS[z].indexOf(k) >= 0) return true;
+    return false;
+  }
 
   /* LAS PISADAS YA NO SUENAN.
 
@@ -134,6 +150,9 @@
     soleado:  0.26,
     noche:    0.30,
     nieve:    0.28,
+    zona:     0.34,     // el ambiente propio de cada mapa nuevo
+    tormenta: 0.50,     // la tormenta de arena, con su fuerza
+    remolino: 0.45,     // el remolino, por lo cerca que esté
     bicho:    0.42,
     trueno:   0.85,
     chispa:   0.30,
@@ -213,7 +232,7 @@
   // ========================================================================
 
   /** Nombres de archivo que hacen falta según dónde estemos. */
-  function listaDe(tipo) {
+  function listaDe(tipo, zona) {
     var l = [], k, i;
 
     if (tipo === 'tienda') {
@@ -224,8 +243,14 @@
       return l;
     }
 
-    l.push(TEMAS.pradera, TEMAS.noche);
-    for (k in AMBIENTES) if (AMBIENTES.hasOwnProperty(k)) l.push(AMBIENTES[k]);
+    // (2026-10-19) En un mapa nuevo suena SU tema, no la pradera ni la noche.
+    if (zona && TEMAS[zona]) l.push(TEMAS[zona]);
+    else l.push(TEMAS.pradera, TEMAS.noche);
+    for (k in AMBIENTES) {
+      if (!AMBIENTES.hasOwnProperty(k)) continue;
+      if (esExclusivo(k) && !(zona && EXCLUSIVOS[zona] && EXCLUSIVOS[zona].indexOf(k) >= 0)) continue;
+      l.push(AMBIENTES[k]);
+    }
     for (k in VOCES) {
       if (!VOCES.hasOwnProperty(k)) continue;
       for (i = 1; i <= VOCES[k]; i++) l.push('an_' + k + '_' + i);
@@ -246,14 +271,15 @@
    * que nadie espere por ello: los grillos pueden tardar dos segundos en
    * aparecer, la música no.
    */
-  function esenciales(tipo) {
-    return tipo === 'tienda' ? [TEMAS.tienda] : [TEMAS.pradera, TEMAS.noche];
+  function esenciales(tipo, zona) {
+    if (tipo === 'tienda') return [TEMAS.tienda];
+    return zona && TEMAS[zona] ? [TEMAS[zona]] : [TEMAS.pradera, TEMAS.noche];
   }
 
   function precargar(scene, op) {
     op = op || {};
     if (!scene || !scene.load || !scene.load.audio) return 0;
-    var lista = esenciales(op.tipo || 'campo');
+    var lista = esenciales(op.tipo || 'campo', op.zona);
     var n = 0;
     for (var i = 0; i < lista.length; i++) {
       var clave = PREFIJO + lista[i];
@@ -871,6 +897,26 @@
        aparecer al atardecer. Con lluvia se callan. */
     o.noche = MEZCLA.noche * Math.pow(noche, 1.4) * despejado;
 
+    /* LOS MAPAS NUEVOS (2026-10-19): "haz sonidos nuevos para los mapas
+       nuevos". Cada uno con su ambiente siempre puesto (el viento que gime en
+       el cementerio, el aire seco del desierto, el silbido helado de la
+       tundra); en el desierto, la tormenta de arena con su fuerza y el
+       remolino por lo cerca que esté (los pone gf-zonas.js en la escena). Y
+       lo que allí no pega, más bajo: los pájaros y los grillos del prado. */
+    o.cementerio = o.desierto = o.tundra = o.tormenta = o.remolino = 0;
+    if (st.zona) {
+      o[st.zona] = MEZCLA.zona * (1 - 0.5 * tope(c.lluvia, 0, 1));
+      if (st.zona === 'desierto') {
+        o.tormenta = MEZCLA.tormenta * tope(Number(st.scene._tormentaArena) || 0, 0, 1);
+        o.remolino = MEZCLA.remolino * tope(Number(st.scene._remolinoCerca) || 0, 0, 1);
+        o.noche *= 0.25; o.arboles *= 0.35; o.soleado *= 0.3;
+      } else if (st.zona === 'tundra') {
+        o.noche = 0; o.soleado *= 0.2; o.arboles *= 0.4;
+      } else if (st.zona === 'cementerio') {
+        o.soleado *= 0.25;
+      }
+    }
+
     return o;
   }
 
@@ -985,6 +1031,7 @@
   /** Qué tema toca ahora, con histéresis para no oscilar al anochecer. */
   function temaQueToca(st) {
     if (st.tipo === 'tienda') return 'tienda';
+    if (st.zona && TEMAS[st.zona]) return st.zona;
     var n = oscuridad(st);
     if (st.temaActual === 'noche') return n < 0.40 ? 'pradera' : 'noche';
     return n > 0.62 ? 'noche' : 'pradera';
@@ -1339,16 +1386,18 @@
   }
 
   /** Todas las claves que puede llegar a tener este módulo, por tipo de escena. */
-  function clavesDe(tipo) {
-    var l = listaDe(tipo), out = [], i;
+  function clavesDe(tipo, zona) {
+    var l = listaDe(tipo, zona), out = [], i;
     for (i = 0; i < l.length; i++) out.push(PREFIJO + l[i]);
     return out;
   }
 
   function todasLasClaves() {
-    var vistas = {}, out = [], tipos = ['campo', 'tienda'], i, j, l;
+    var vistas = {}, out = [], i, j, l;
+    // Cada sitio con lo suyo: el campo, la tienda y los tres mapas nuevos.
+    var tipos = [['campo', null], ['tienda', null], ['campo', 'cementerio'], ['campo', 'desierto'], ['campo', 'tundra']];
     for (i = 0; i < tipos.length; i++) {
-      l = clavesDe(tipos[i]);
+      l = clavesDe(tipos[i][0], tipos[i][1]);
       for (j = 0; j < l.length; j++) {
         if (!vistas[l[j]]) { vistas[l[j]] = 1; out.push(l[j]); }
       }
@@ -1368,8 +1417,8 @@
    * antes de encolar, y el cargador de fondo también). En disco son ficheros
    * de entre 5 y 800 KB, así que la vuelta no se nota.
    */
-  function soltarLoQueNoHaceFalta(scene, tipo) {
-    var quedan = clavesDe(tipo), todas = todasLasClaves(), fuera = [], i;
+  function soltarLoQueNoHaceFalta(scene, tipo, zona) {
+    var quedan = clavesDe(tipo, zona), todas = todasLasClaves(), fuera = [], i;
     for (i = 0; i < todas.length; i++) {
       if (quedan.indexOf(todas[i]) < 0 && !usadasPorOtra(scene, todas[i])) fuera.push(todas[i]);
     }
@@ -1423,6 +1472,8 @@
          apaga TODO lo de fuera y deja solo el tema y las pisadas. */
       interior: op.interior === true,
       tipo: op.tipo || 'campo',
+      // (2026-10-19) El mapa nuevo en el que estamos (cementerio, desierto o tundra).
+      zona: op.zona && TEMAS[op.zona] ? op.zona : null,
       suelo: op.suelo || (op.tipo === 'tienda' ? 'madera' : null),
       // La textura del tileset del suelo, para adivinar lo que se pisa. El
       // pueblo usa 'tiles'; un mapa con su propio tileset (el salvaje) la
@@ -1449,11 +1500,11 @@
        sonidos que desde ahí dentro no se pueden oír. Se sueltan ANTES de
        encolar los de esta escena, para no tener los dos juegos a la vez ni un
        instante. */
-    soltarLoQueNoHaceFalta(scene, st.tipo);
+    soltarLoQueNoHaceFalta(scene, st.tipo, st.zona);
 
     /* Y ahora, por detrás, los otros cincuenta: ambientes, bichos, truenos y
        pisadas. El juego ya está en marcha; van llegando. */
-    var todo = listaDe(st.tipo), fuera = esenciales(st.tipo);
+    var todo = listaDe(st.tipo, st.zona), fuera = esenciales(st.tipo, st.zona);
     for (var i = 0; i < todo.length; i++) {
       if (fuera.indexOf(todo[i]) < 0 && !esAmbiente(todo[i])) st.porCargar.push(todo[i]);
     }
@@ -1612,7 +1663,7 @@
     llevaLaMusica: function (scene) {
       var st = (scene && scene.__gfAudio) || escenaViva();
       if (!st) return false;
-      var quiere = st.tipo === 'tienda' ? ['tienda'] : ['pradera', 'noche'];
+      var quiere = st.tipo === 'tienda' ? ['tienda'] : (st.zona && TEMAS[st.zona] ? [st.zona] : ['pradera', 'noche']);
       for (var i = 0; i < quiere.length; i++) {
         try {
           if (!st.scene.cache.audio.exists(PREFIJO + TEMAS[quiere[i]])) return false;
@@ -1651,7 +1702,7 @@
     /** Para mirar desde la consola por qué no se oye algo. */
     diagnostico: function () {
       var st = escenaViva();
-      var faltan = [], lista = listaDe(st ? st.tipo : 'campo'), i;
+      var faltan = [], lista = listaDe(st ? st.tipo : 'campo', st && st.zona), i;
       for (i = 0; i < lista.length; i++) {
         try {
           if (!st || !st.scene.cache.audio.exists(PREFIJO + lista[i])) faltan.push(lista[i] + '.wav');

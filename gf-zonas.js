@@ -107,8 +107,21 @@
     // El candado corta el update() (que reescribiría la posición).
     scene._cambiandoEscena = true;
     window.__gfViaje = { mundo: z.mundo, x: z.llegada.x, y: z.llegada.y, islaDe: null, islaDeNombre: null, t: Date.now() };
-    var guardar;
-    try { guardar = Promise.resolve(scene.savegg()); } catch (e) { guardar = Promise.reject(e); }
+    /* UN REINTENTO (2026-10-19). Un guardado que vuelve `false` una vez (el
+       inventario recargándose tras una compra en el mercado, un token que se
+       renueva) dejaba al jugador plantado en la salida. Antes de cada intento
+       se vuelve a poner el destino: esa recarga copia el `mundo` de la
+       partida (el de ANTES del viaje) encima del nuestro. */
+    var guardarUna = function () {
+      scene.mundo = z.mundo;
+      scene.posicionplayerx = z.llegada.x;
+      scene.posicionplayery = z.llegada.y;
+      try { return Promise.resolve(scene.savegg()); } catch (e) { return Promise.reject(e); }
+    };
+    var guardar = guardarUna().catch(function () { return false; }).then(function (ok) {
+      if (ok !== false || !scene.sys || !scene.sys.isActive()) return ok;
+      return new Promise(function (r) { setTimeout(r, 900); }).then(guardarUna);
+    });
     return guardar.then(function (ok) {
       if (ok === false) throw new Error('guardado no completado');
       console.log('🧭 de ' + clave + ' a ' + z.escena);
@@ -247,6 +260,10 @@
     // Suavizado: entra y sale poco a poco aunque la hora salte.
     st.tormentaVista += (f - st.tormentaVista) * Math.min(1, dt * 1.5);
     var a = st.tormentaVista;
+    // Las palmeras se doblan con la tormenta (gf-viento.js lee esta brisa)
+    // y se oye (gf-audio.js lee su fuerza).
+    scene._vientoExtra = 0.35 + 0.85 * a;
+    scene._tormentaArena = a;
     var ahora = a > 0.05;
     if (ahora !== st.enTormenta) {
       st.enTormenta = ahora;
@@ -325,6 +342,8 @@
       var d = Math.hypot(q.x - pie.x, q.y - pie.y);
       if (d < dmin) { dmin = d; cerca = r; }
     });
+    // El remolino se oye antes de que tire: hasta 520 px (gf-audio.js).
+    scene._remolinoCerca = cerca && dmin < 520 ? Math.pow(1 - dmin / 520, 1.3) : 0;
     if (!cerca || scene._cambiandoEscena || fantasma()) { st.atrapado = false; return; }
     if (dmin < ATRAE) {
       // Poco a poco: lejos apenas tira (unos 20 px/s); cerca, la mitad de lo

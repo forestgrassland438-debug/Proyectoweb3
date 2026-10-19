@@ -267,7 +267,10 @@
       if (!st.vivo) return;
       if (!r.ok || !d.ok) {
         var textos = { no_tienes: 'You have no torch.', fantasma: 'You are a ghost — revive first.',
-          fuera_de_zona: 'Walk a little first, then place the torch.' };
+          fuera_de_zona: 'Walk a little first, then place the torch.',
+          // (2026-10-19) Un servidor sin ANTORCHA_ZONAS al día (los mapas
+          // nuevos) contesta esto; sin texto propio se leía "could not be placed".
+          zona_invalida: 'Torches are not enabled on this map yet (server update pending).' };
         aviso(scene, textos[d.error] || d.message || 'The torch could not be placed.', 'warning');
         return;
       }

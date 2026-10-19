@@ -37,7 +37,12 @@
     casa_comida2: { sala: 'posada', puerta: { x: 2928, y: 3247 }, titulo: 'The Tavern' },
     casa_posiones: { sala: 'pociones', puerta: { x: 2452, y: 1492 }, titulo: 'Potion Shop' },
     casa_herreria: { sala: 'herreria', puerta: { x: 3137, y: 1975 }, titulo: 'Smithy' },
-    cabana:     { sala: 'cabana',   puerta: { x: 715, y: 463 },   titulo: 'Farm Cabin' }
+    cabana:     { sala: 'cabana',   puerta: { x: 715, y: 463 },   titulo: 'Farm Cabin' },
+    /* (2026-10-19) La cabaña del cazador, en el MAPA SALVAJE (mundo 6): su
+       puerta está en coordenadas de ese mapa (SalvajeScene.CABANA) y al salir
+       se vuelve allí (InteriorScene._volverAlMundo). Las casas sin `mundo`
+       son del pueblo (1). */
+    cabana_monte: { sala: 'cabana', puerta: { x: 2804, y: 1668 }, titulo: "Hunter's Lodge", mundo: 6 }
   };
   /* LA TIENDA: tiene su propia entrada (la zona `area_entrada_tienda` del
      mapa, que GameScene ya vigila), así que aquí SOLO se le pone el cartel,
@@ -111,7 +116,8 @@
     var sala = 'casa:' + id;
     scene._salaDestino = sala;
     if (scene.socket && scene.socket.connected) {
-      scene.socket.emit('joinRoom', { room: sala, username: scene.Username || '---', lastScene: 'GameScene' });
+      scene.socket.emit('joinRoom', { room: sala, username: scene.Username || '---',
+        lastScene: (scene.sys && scene.sys.settings && scene.sys.settings.key) || 'GameScene' });
     }
     try { scene.cleanupScene && scene.cleanupScene(); } catch (e) {}
     scene.scene.start('LoadingScenegame');
@@ -120,7 +126,15 @@
   // ─────────────────────────────────────────── LAS PUERTAS EN EL PUEBLO
   function montar(scene) {
     if (!scene || !scene.add || !scene.events || scene.__gfCasas) return;
-    var st = { scene: scene, carteles: {}, cerca: null, armada: {}, casasIds: Object.keys(CASAS), cartelIds: Object.keys(SOLO_CARTEL), proximaCueva: 0 };
+    // Solo las puertas de ESTE mundo (el pueblo es el 1; la cabaña del
+    // cazador, el 6). La tienda y la cueva, solo en el pueblo.
+    // El mundo sale de la ESCENA, no de `scene.mundo`: Phaser reutiliza la
+    // instancia del pueblo y ese valor puede seguir diciendo 6 al volver.
+    var clave = scene.sys && scene.sys.settings ? scene.sys.settings.key : '';
+    var mundo = { GameScene: 1, SalvajeScene: 6 }[clave] || 1;
+    var st = { scene: scene, carteles: {}, cerca: null, armada: {}, mundo: mundo,
+               casasIds: Object.keys(CASAS).filter(function (id) { return (CASAS[id].mundo || 1) === mundo; }),
+               cartelIds: mundo === 1 ? Object.keys(SOLO_CARTEL) : [], proximaCueva: 0 };
     scene.__gfCasas = st;
     st.casasIds.forEach(function (id) {
       var p = CASAS[id].puerta;
@@ -147,7 +161,7 @@
        GameScene saca del mapa en su create(). Se busca en el update por si
        este módulo se monta antes de que exista. */
     function buscarCueva(time) {
-      if (st.soloCartel.cueva || time < st.proximaCueva) return;
+      if (st.mundo !== 1 || st.soloCartel.cueva || time < st.proximaCueva) return;
       st.proximaCueva = time + 500;
       var r = Array.isArray(scene.collisionRectangles3) && scene.collisionRectangles3[0];
       if (!r || !(r.width > 0)) return;

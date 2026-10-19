@@ -655,6 +655,21 @@
         });
       }
     }
+    /* LOS ÁRBOLES DEL MAPA SALVAJE Y DE LOS MAPAS NUEVOS (2026-10-19): "no hay
+       viento en el mapa salvaje, los árboles no se mueven, ni en el
+       cementerio, ni en el desierto las palmeras". Esas escenas no guardan
+       sus árboles como `sprite_pinosN` sino en `scene._arboles` (SalvajeScene,
+       ZonasScenes), con origen (0,5, 1): también se inclinan desde el pie. Las
+       palmeras pesan poco y se mecen más; los árboles secos, menos. */
+    var propios = Array.isArray(scene._arboles) ? scene._arboles : [];
+    for (var k = 0; k < propios.length; k++) {
+      var s2 = propios[k] && propios[k].spr;
+      if (!s2 || s2.active === false || typeof s2.rotation !== 'number') continue;
+      var clave = String(s2.texture && s2.texture.key || '');
+      var pesa = /palmera/.test(clave) ? 1.5 : /seco|muerto|arbol_seco/.test(clave) ? 0.6 : 1.0;
+      out.push({ spr: s2, base: s2.rotation, fase: Math.random() * 6.28, ritmo: az(0.75, 1.45),
+                 peso: pesa * az(0.75, 1.3), fase2: Math.random() * 6.28 });
+    }
     return out;
   }
 
@@ -777,7 +792,13 @@
        En invierno también, pero menos y solo si NO está nevando: la nieve ya
        llena el aire ella sola y sumarle hojas es ruido.
        ══════════════════════════════════════════════════════════════════ */
-    var suelo = fondoDeEstacion();
+    var fondo = fondoDeEstacion();
+    /* LA BRISA DE LA ESCENA (2026-10-19). El mapa salvaje y los nuevos piden
+       una brisa propia (`scene._vientoExtra`, 0..1): flojita siempre, y en el
+       desierto sube con la tormenta de arena (gf-zonas.js). Mece los árboles
+       pero no trae hojas: en la tormenta ya vuelan las rayas de arena. */
+    var extra = Math.max(0, Math.min(1.2, Number(scene._vientoExtra) || 0));
+    var suelo = Math.max(fondo, extra);
     if (!st.soplando) {
       if (suelo <= 0) {
         /* Se acabó el otoño (o ha empezado a nevar) y ya no hay fondo. Hay que
@@ -795,7 +816,7 @@
       // Sin racha pero con otoño: se mece flojito y caen hojas.
       st.fuerza = suelo;
       if (!st.arboles.length) st.arboles = arboles(st.scene);
-      moverHojas(st, dt, w, h, ahora);
+      if (fondo > 0) moverHojas(st, dt, w, h, ahora);
       mecerArboles(st, ahora);
       return;
     }

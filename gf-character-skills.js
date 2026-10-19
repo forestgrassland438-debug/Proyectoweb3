@@ -19,10 +19,24 @@
       if (fn) fn.call(scene, value);
     });
   }
+  /* LO ÚLTIMO QUE SE LEYÓ, POR JUGADOR (2026-10-19). Cada escena monta su
+     propio estado y antes empezaba sin nada: al abrir el panel se veía
+     "Loading character points…" hasta que la cadena contestaba (lee TODAS
+     las facturas del jugador, segundos). Ahora el panel pinta al momento lo
+     último conocido y lo refresca por detrás. */
+  var CACHE = {};
+  function guardar(st, datos) {
+    st.data = datos;
+    if (st.name) CACHE[st.name] = { data: datos, t: Date.now() };
+  }
+  function adoptarCache(st) {
+    var c = st.name && CACHE[st.name];
+    if (c && !st.data) st.data = c.data;
+  }
   function load(st) {
     if (st.loading) return st.loading;
     st.loading = api('/api/player/skills').then(function (r) {
-      if (valid(st) && r.ok && r.datos && r.datos.ok) { st.data = r.datos; st.scene.skillAllocations = r.datos.allocations; draw(st); }
+      if (valid(st) && r.ok && r.datos && r.datos.ok) { guardar(st, r.datos); st.scene.skillAllocations = r.datos.allocations; draw(st); }
     }).catch(function () {}).finally(function () { st.loading = null; });
     return st.loading;
   }
@@ -82,7 +96,7 @@
         st.spending = true; st.message = 'Confirming in the chain…'; draw(st);
         api('/api/player/skills/allocate', { skill: key }).then(function (r) {
           if (!valid(st)) return;
-          if (r.ok && r.datos && r.datos.ok) { st.data = r.datos; st.scene.skillAllocations = r.datos.allocations; st.message = 'Upgrade saved.'; }
+          if (r.ok && r.datos && r.datos.ok) { guardar(st, r.datos); st.scene.skillAllocations = r.datos.allocations; st.message = 'Upgrade saved.'; }
           else st.message = 'Could not confirm the upgrade. Try again.';
         }).catch(function () { if (valid(st)) st.message = 'Connection problem. Try again.'; }).finally(function () { st.spending = false; if (valid(st)) draw(st); });
       };
@@ -103,14 +117,18 @@
     } else {
       (document.getElementById('skills-panel') || anchor.parentNode.parentNode).appendChild(st.panel);
     }
+    // Lo conocido, ya; la lectura de la cadena, por detrás.
+    if (!st.name && scene.playerName) st.name = scene.playerName;
+    adoptarCache(st);
     draw(st); load(st);
   }
   function montar(scene) {
     if (!scene || !scene.events) return null;
     if (scene.__gfCharacter) return scene.__gfCharacter;
     var st = { scene: scene, name: scene.playerName }; scene.__gfCharacter = st;
+    adoptarCache(st);
     st.poll = function () {
-      if (!st.name && scene.playerName) { st.name = scene.playerName; load(st); }
+      if (!st.name && scene.playerName) { st.name = scene.playerName; adoptarCache(st); load(st); }
       if (!valid(st) || document.visibilityState === 'hidden' || st.polling || !st.name) return;
       var rev = window.GFSessionAPI ? window.GFSessionAPI.vitalRevision() : 0;
       st.polling = true;

@@ -294,10 +294,21 @@
       estado.suelo = estado.suelo || {};
       var mt = { id: 's' + Date.now().toString(36), itemId: b.itemId, cantidad: Math.max(1, Number(b.cantidad) || 1),
                  x: Math.round(b.x), y: Math.round(b.y), deNombre: 'Tester', caducaEn: Date.now() + 600000 };
-      estado.suelo[mt.id] = mt;
       estado.soltados = (estado.soltados || []).concat([b]);
+      var gastadoS = { itemId: b.itemId, invoiceId: b.invoiceId, manualId: 'x', cantidadRestante: 0 };
+      // (2026-10-19) Con ticket, como el servidor nuevo: contesta ya y la
+      // "cadena" (1,2 s por trabajo, uno detrás de otro) avisa por el socket.
+      if (b.ticket) {
+        enColaFalsa(function () {
+          estado.suelo[mt.id] = mt;
+          try { window.globalSocket._fire('suelo:nuevo', mt); } catch (e) {}
+          try { window.globalSocket._fire('suelo:soltado', { ticket: b.ticket, ok: true, monton: mt, gastado: gastadoS }); } catch (e) {}
+        });
+        return { ok: true, pendiente: true, ticket: b.ticket };
+      }
+      estado.suelo[mt.id] = mt;
       setTimeout(function () { try { window.globalSocket._fire('suelo:nuevo', mt); } catch (e) {} }, 30);
-      return { ok: true, monton: mt, gastado: { itemId: b.itemId, invoiceId: b.invoiceId, manualId: 'x', cantidadRestante: 0 } };
+      return { ok: true, monton: mt, gastado: gastadoS };
     }
     if (ruta === '/api/salvaje/recoger' && metodo === 'POST') {
       b = cuerpo(init);
@@ -306,8 +317,14 @@
       delete estado.suelo[b.id];
       estado.recogidos = (estado.recogidos || 0) + 1;
       setTimeout(function () { try { window.globalSocket._fire('suelo:fuera', { id: b.id, por: 'Tester' }); } catch (e) {} }, 30);
-      return { ok: true, itemId: ms.itemId, cantidad: ms.cantidad, deNombre: ms.deNombre,
-               factura: { invoiceId: 950 + estado.recogidos, manualId: ms.itemId + '#s' + estado.recogidos, cantidad: ms.cantidad } };
+      var facturaS = { invoiceId: 950 + estado.recogidos, manualId: ms.itemId + '#s' + estado.recogidos, cantidad: ms.cantidad };
+      if (b.ticket) {
+        enColaFalsa(function () {
+          try { window.globalSocket._fire('suelo:acunado', { ticket: b.ticket, id: b.id, itemId: ms.itemId, cantidad: ms.cantidad, factura: facturaS }); } catch (e) {}
+        });
+        return { ok: true, pendiente: true, ticket: b.ticket, id: b.id, itemId: ms.itemId, cantidad: ms.cantidad, deNombre: ms.deNombre };
+      }
+      return { ok: true, itemId: ms.itemId, cantidad: ms.cantidad, deNombre: ms.deNombre, factura: facturaS };
     }
     if (ruta === '/api/monstruos/botin/recoger' && metodo === 'POST') {
       b = cuerpo(init);
@@ -315,8 +332,14 @@
       if (!bt) return { ok: false, motivo: 'no_existe' };
       delete estado.botin[b.id];
       estado.recogidos = (estado.recogidos || 0) + 1;
-      return { ok: true, itemId: bt.itemId, cantidad: bt.cantidad,
-               factura: { invoiceId: 900 + estado.recogidos, manualId: bt.itemId + '#b' + estado.recogidos, cantidad: bt.cantidad } };
+      var facturaB = { invoiceId: 900 + estado.recogidos, manualId: bt.itemId + '#b' + estado.recogidos, cantidad: bt.cantidad };
+      if (b.ticket) {
+        enColaFalsa(function () {
+          try { window.globalSocket._fire('botin:acunado', { ticket: b.ticket, id: b.id, itemId: bt.itemId, cantidad: bt.cantidad, factura: facturaB }); } catch (e) {}
+        });
+        return { ok: true, pendiente: true, ticket: b.ticket, id: b.id, itemId: bt.itemId, cantidad: bt.cantidad };
+      }
+      return { ok: true, itemId: bt.itemId, cantidad: bt.cantidad, factura: facturaB };
     }
     // El daño que pone el servidor (costesDeAccion en server2.js).
     if (/^\/api\/stats\/[^/]+\/consume$/.test(ruta)) {
@@ -665,6 +688,12 @@
      reenvían la foto, los anuncios, los golpes y los tajos. */
   var canalRed = (typeof BroadcastChannel === 'function') ? new BroadcastChannel('gf-mock-sala') : null;
   var redSala = { holas: {}, conocidos: {}, host: null, dormidos: {} };
+  // La "cadena" falsa del suelo y el botín: un trabajo detrás de otro.
+  var colaFalsaHasta = 0;
+  function enColaFalsa(fn) {
+    colaFalsaHasta = Math.max(Date.now(), colaFalsaHasta) + 1200;
+    setTimeout(fn, colaFalsaHasta - Date.now());
+  }
   function socketVivo() { var s = window.globalSocket; return s && s._fire ? s : null; }
   function baseDe(sala) { return String(sala || '').split('#')[0]; }
   function redHost(s) {
