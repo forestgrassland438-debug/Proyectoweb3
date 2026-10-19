@@ -1156,6 +1156,70 @@ RECETA_BRUJO = {
 }
 
 
+# ── LOS DE LOS MAPAS NUEVOS (2026-10-18) ──────────────────────────────────
+# El ESQUELETO del cementerio: hueso donde el zombi tiene piel, la calavera
+# rapada (sin pelo), harapos oscuros rasgados que dejan ver el hueso y los
+# ojos encendidos en rojo.
+def receta_esqueleto(semilla=31):
+    r = receta_zombi('#ddd4bb', '#3a322e', '#d6cdb3', estilo='rapado', semilla=semilla)
+    r['paletas']['ojo'] = ojos_brillantes(hex_rgb('#ff5a3a'), hex_rgb('#140806'))
+    r['paletas']['pies'] = tonos('#cfc6ad', 3, arriba=0.1, abajo=0.45)
+    return r
+
+
+# El NIGROMANTE: la bruja de la mina vuelta a teñir, con capucha negra (sin
+# sombrero), melena negra, capa con ribete verde de alma y báculo verde.
+RECETA_NIGROMANTE = {
+    'pelo_estilo': 'larga',
+    'pelo_tonos': tonos('#2a2a33', 4, arriba=0.3, abajo=0.5),
+    'ropa': _capa_de('#16161e', '#7dffb8', '#08090c'),
+    'contorno': hex_rgb('#08090c'),
+    'paletas': {
+        'piel': tonos('#a9b3a6', 3, arriba=0.15, abajo=0.4), 'mano': tonos('#a9b3a6', 3, arriba=0.15, abajo=0.4),
+        'pies': tonos('#22222a', 3),
+        'ojo': ojos_brillantes(hex_rgb('#9dffcf'), hex_rgb('#0e3a26')),
+        'pelo': tonos('#2a2a33', 4, arriba=0.28, abajo=0.5),
+        'camisa': tela_con_brillos('#26262f', '#7dffb8'),
+        'pantalon': tonos('#1f1f27', 3, abajo=0.5),
+    },
+    'tunica': tonos('#26262f', 3, arriba=0.25, abajo=0.45),
+    'ribete': hex_rgb('#5fd99a'),
+    'baculo': True, 'baculo_arriba': 24,
+    'madera': [hex_rgb('#4a4038'), hex_rgb('#332b25')],
+    'cristal': [hex_rgb('#e8fff2'), hex_rgb('#7dffb8'), hex_rgb('#2f9a66')],
+}
+
+
+def _vendas(li, partes, cuello, cintura, dir_, n):
+    """Las vendas de la momia: cada tres filas una raya más oscura (la vuelta
+    de la venda), desplazada en zigzag; rayas, nunca puntos."""
+    for (x, y), (p, c) in partes.items():
+        if p not in ('camisa', 'pantalon', 'piel', 'mano', 'pies'):
+            continue
+        if (y + (x // 6) % 2) % 3 == 0:
+            cc = li.get(x, y)
+            if cc[3] and lum(cc[:3]) > 0.2:
+                li.set(x, y, (int(cc[0] * 0.76), int(cc[1] * 0.74), int(cc[2] * 0.7), 255))
+    return li
+
+
+# La MOMIA del desierto: todo vendas color hueso viejo y los ojos de ascua.
+RECETA_MOMIA = {
+    'contorno': (34, 26, 18),
+    'paletas': {
+        'piel': tonos('#d6c8a0', 3, arriba=0.15, abajo=0.38), 'mano': tonos('#d6c8a0', 3, arriba=0.15, abajo=0.38),
+        'pies': tonos('#b9a97f', 3, arriba=0.1, abajo=0.45),
+        'ojo': ojos_brillantes(hex_rgb('#ffd04a'), hex_rgb('#2a1606')),
+        'pelo': tonos('#cbbd94', 4, arriba=0.2, abajo=0.45),
+        'camisa': tonos('#cfc199', 4, arriba=0.18, abajo=0.48),
+        'pantalon': tonos('#c4b58c', 4, arriba=0.12, abajo=0.5),
+    },
+    'pelo_estilo': 'rapado',
+    'pelo_tonos': tonos('#cfc199', 4, arriba=0.2, abajo=0.45),
+    'ropa': _vendas,
+}
+
+
 def frames_humanoide(per, receta, extra=None):
     out = {}
     for d in DIRS:

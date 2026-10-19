@@ -86,7 +86,7 @@ T = 16
 N = 314
 SEMILLA = 20261011
 ESCALA_ARBOL = 1.3
-VERSION = '20261011c'
+VERSION = '20261018b'
 
 TILESET = os.path.join(BIN, 'Game', 'MAPAS', 'tiles.png')
 TS_COLS = 90
@@ -578,21 +578,18 @@ def main():
     W = N * T
     cam_y, cam_h = CUERPO_Y0 * T, (CUERPO_Y1 - CUERPO_Y0 + 1) * T
     cruce_x, cruce_w = CRUCE_X0 * T, (CRUCE_X1 - CRUCE_X0 + 1) * T
+    # (2026-10-18) Las tres salidas llevan a los mapas nuevos
+    # (tools/generar-zonas.py): ya no hay valla, se sale por el borde.
     salidas = [
         {'name': 'pueblo', 'x': W - 20, 'y': CAM_Y0 * T, 'width': 20, 'height': (CAM_Y1 - CAM_Y0 + 1) * T},
-        {'name': 'futuro_oeste', 'x': 0, 'y': cam_y, 'width': 96, 'height': cam_h},
-        {'name': 'futuro_norte', 'x': cruce_x, 'y': 0, 'width': cruce_w, 'height': 96},
-        {'name': 'futuro_sur', 'x': cruce_x, 'y': W - 96, 'width': cruce_w, 'height': 96},
+        {'name': 'cementerio', 'x': 0, 'y': cam_y, 'width': 20, 'height': cam_h},
+        {'name': 'tundra', 'x': cruce_x, 'y': 0, 'width': cruce_w, 'height': 20},
+        {'name': 'desierto', 'x': cruce_x, 'y': W - 20, 'width': cruce_w, 'height': 20},
     ]
-    # La valla de cada salida futura frena (está más adentro que su
-    # rectángulo de aviso, así se llega a tocar el cartel).
-    colisiones.append({'x': 0, 'y': cam_y, 'width': 40, 'height': cam_h, 'name': 'valla'})
-    colisiones.append({'x': cruce_x, 'y': 0, 'width': cruce_w, 'height': 40, 'name': 'valla'})
-    colisiones.append({'x': cruce_x, 'y': W - 40, 'width': cruce_w, 'height': 40, 'name': 'valla'})
     carteles = [
-        {'name': 'futuro_oeste', 'x': 128, 'y': cam_y - 6, 'texto': 'West road — Coming soon'},
-        {'name': 'futuro_norte', 'x': (CRUCE_X1 + 1) * T + 10, 'y': 128, 'texto': 'North road — Coming soon'},
-        {'name': 'futuro_sur', 'x': (CRUCE_X1 + 1) * T + 10, 'y': W - 128, 'texto': 'South road — Coming soon'},
+        {'name': 'cementerio', 'x': 128, 'y': cam_y - 6, 'texto': 'West: Cemetery of Lost Souls (PvP)'},
+        {'name': 'tundra', 'x': (CRUCE_X1 + 1) * T + 10, 'y': 128, 'texto': 'North: Frostfang Tundra'},
+        {'name': 'desierto', 'x': (CRUCE_X1 + 1) * T + 10, 'y': W - 128, 'texto': 'South: Scorching Desert'},
         {'name': 'pvp', 'x': (RIO_X0 - 10) * T, 'y': cam_y - 6, 'texto': 'PvP zone — swords on!'},
         {'name': 'neutral', 'x': (PUENTE[2] + 4) * T, 'y': CAM_Y0 * T - 8, 'texto': 'Safe zone'},
         {'name': 'pueblo', 'x': W - 128, 'y': CAM_Y0 * T - 8, 'texto': 'To the village'},

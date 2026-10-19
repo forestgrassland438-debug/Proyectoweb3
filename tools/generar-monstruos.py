@@ -139,16 +139,17 @@ def efecto_orbe(base, borde):
     return li
 
 
-def efecto_roca():
-    """La roca del gólem: un peñasco facetado (los planos dan el volumen)."""
+def efecto_roca(piedra='#8f877a', musgo='#6f9640'):
+    """La roca del gólem: un peñasco facetado (los planos dan el volumen).
+    (2026-10-18) Con otros colores, la del gólem de arena y la de hielo."""
     from gf_bestias3d import roca, fotografiar, giro_z
-    mats = {'piedra': {'tonos': tonos('#8f877a', 5, arriba=0.32, abajo=0.58)},
-            'musgo': {'tonos': tonos('#6f9640', 5, arriba=0.3, abajo=0.55)}}
+    mats = {'piedra': {'tonos': tonos(piedra, 5, arriba=0.32, abajo=0.58)},
+            'musgo': {'tonos': tonos(musgo, 5, arriba=0.3, abajo=0.55)}}
     p = roca((0, 8, 0), (8.6, 7.6, 7.8), 'piedra', rot=giro_z(0.35), bisel=0.62, arista=0.74)
 
     def retoque(q, Pm, nm, nw):
         return 'musgo' if nw[1] > 0.7 else None
-    return fotografiar([p], 42, 38, 'frente', mats, retoque, contorno_de(hex_rgb('#8f877a')), k=2, suelo=3, salto=99)
+    return fotografiar([p], 42, 38, 'frente', mats, retoque, contorno_de(hex_rgb(piedra)), k=2, suelo=3, salto=99)
 
 
 def efecto_espina():
@@ -159,24 +160,26 @@ def efecto_espina():
     return fotografiar(prims, 34, 14, 'lado', mats, None, contorno_de(hex_rgb('#4f4630')), k=2, suelo=3, salto=99)
 
 
-def efecto_savia():
-    """Un charco de savia: liso y brillante (UN reflejo), sin burbujas."""
+def efecto_savia(color='#b9862c', reflejo='#ffe9a8'):
+    """Un charco de savia: liso y brillante (UN reflejo), sin burbujas.
+    (2026-10-18) En verde, el veneno del escorpión."""
     from gf_bestias3d import elip, fotografiar
-    mats = {'savia': {'tonos': tonos('#b9862c', 5, arriba=0.3, abajo=0.5), 'brillo': True}}
-    mats['reflejo'] = {'tonos': tonos('#ffe9a8', 5, arriba=0.1, abajo=0.2)}
+    mats = {'savia': {'tonos': tonos(color, 5, arriba=0.3, abajo=0.5), 'brillo': True}}
+    mats['reflejo'] = {'tonos': tonos(reflejo, 5, arriba=0.1, abajo=0.2)}
     prims = [elip((0, 0.4, 0), (19.5, 1.6, 9.0), 'savia'), elip((-9, 0.5, 2.5), (9, 1.4, 5.5), 'savia'),
              elip((10, 0.5, -1.5), (9.5, 1.4, 5.5), 'savia'),
              elip((-3, 1.75, -2.5), (7.0, 0.35, 1.0), 'reflejo')]
-    return fotografiar(prims, 88, 36, 'lado', mats, None, contorno_de(hex_rgb('#b9862c')), k=2, suelo=8, salto=99)
+    return fotografiar(prims, 88, 36, 'lado', mats, None, contorno_de(hex_rgb(color)), k=2, suelo=8, salto=99)
 
 
-def efecto_rayo():
-    """El rayo: un trazo quebrado con su halo en tres capas, vertical."""
+def efecto_rayo(colores=('#2f7ec8', '#5fc8ff', '#c8f4ff', '#ffffff')):
+    """El rayo: un trazo quebrado con su halo en tres capas, vertical.
+    (2026-10-18) En verde, el rayo de almas del nigromante."""
     W, H = 44, 192
     li = Lienzo(W, H)
     xs = [22, 16, 26, 18, 28, 20, 25, 17, 23, 19, 24, 21, 22]
     puntos = [(xs[k], int(k * (H - 1) / (len(xs) - 1))) for k in range(len(xs))]
-    capas = ((9, hex_rgb('#2f7ec8')), (6, hex_rgb('#5fc8ff')), (3, hex_rgb('#c8f4ff')), (1, hex_rgb('#ffffff')))
+    capas = tuple(zip((9, 6, 3, 1), (hex_rgb(c) for c in colores)))
     for grosor, color in capas:
         m = Mascara(W, H)
         for (x0, y0), (x1, y1) in zip(puntos, puntos[1:]):
@@ -188,6 +191,18 @@ def efecto_rayo():
         m.linea(puntos[5][0], puntos[5][1], 36, puntos[5][1] + 26, max(1, grosor - 2))
         li.pintar(m, color)
     return li
+
+
+def efecto_hueso():
+    """El hueso que tira el esqueleto: la caña con sus dos cabezas, a la
+    derecha (2026-10-18)."""
+    from gf_bestias3d import cono, elip, fotografiar
+    mats = {'hueso': {'tonos': tonos('#e6dcc2', 5, arriba=0.22, abajo=0.5)}}
+    prims = [cono((-6.0, 3.0, 0), (6.0, 3.0, 0), 1.3, 1.3, 'hueso')]
+    for x in (-7.0, 7.0):
+        prims.append(elip((x, 3.0, 1.2), (1.6, 1.5, 1.4), 'hueso'))
+        prims.append(elip((x, 3.0, -1.2), (1.6, 1.5, 1.4), 'hueso'))
+    return fotografiar(prims, 36, 14, 'lado', mats, None, contorno_de(hex_rgb('#8a7f62')), k=2, suelo=3, salto=99)
 
 
 def mezcla_hex(a, b, t):
@@ -314,6 +329,14 @@ def main():
     hojas.append(atlas('brujo', con_relieve(H2.frames_humanoide('personaje13', H2.RECETA_BRUJO))))
     for tipo in ('lobo', 'arana', 'golem'):
         hojas.append(atlas(tipo, bestia_frames(tipo), columnas=9, pivote_=pivote(tipo)))
+    # (2026-10-18) Los de los mapas nuevos: el cementerio (esqueleto,
+    # nigromante, gólem de la cripta), el desierto (escorpión, momia, gólem
+    # de arena) y la tundra (lobo de escarcha, gólem de hielo).
+    hojas.append(atlas('esqueleto', con_relieve(H2.frames_humanoide('personaje1', H2.receta_esqueleto()))))
+    hojas.append(atlas('nigromante', con_relieve(H2.frames_humanoide('personaje13', H2.RECETA_NIGROMANTE))))
+    hojas.append(atlas('momia', con_relieve(H2.frames_humanoide('personaje5', H2.RECETA_MOMIA))))
+    for tipo in ('escorpion', 'golem_cripta', 'golem_arena', 'golem_hielo', 'lobo_escarcha'):
+        hojas.append(atlas(tipo, bestia_frames(tipo), columnas=9, pivote_=pivote(tipo)))
     # La serpiente (2026-10-12): 3D en 16 direcciones, y su terreno.
     hojas.append(atlas('serpiente', serpiente_frames(), columnas=16))
     sueltas = [
@@ -327,6 +350,12 @@ def main():
         guardar(efecto_savia(), 'efectos', 'savia.png'),
         guardar(efecto_rayo(), 'efectos', 'rayo.png'),
         guardar(efecto_cartel(), 'efectos', 'cartel.png'),
+        # (2026-10-18) Los de los mapas nuevos.
+        guardar(efecto_roca('#c9a46c', '#e6d09c'), 'efectos', 'roca_arena.png'),
+        guardar(efecto_roca('#8fc6e6', '#f2f7fc'), 'efectos', 'roca_hielo.png'),
+        guardar(efecto_hueso(), 'efectos', 'hueso.png'),
+        guardar(efecto_savia('#5fae3a', '#d6ff9a'), 'efectos', 'veneno.png'),
+        guardar(efecto_rayo(('#1f8a5a', '#4fe39a', '#c8ffe2', '#ffffff')), 'efectos', 'rayo_alma.png'),
     ]
     print('  piezas sueltas:', len(sueltas))
     hoja = hoja_contacto(hojas + sueltas, columnas=4, escala=2)

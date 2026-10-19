@@ -559,11 +559,133 @@ def arana(accion, i):
     return pr, retoque
 
 
+# ===========================================================================
+# EL ESCORPIÓN DEL DESIERTO (2026-10-18): placas en bandas, la cola en arco
+# con su aguijón, dos pinzas y ocho patas. Las placas son rayas, no puntos.
+# ===========================================================================
+ESCORPION_MAT = {
+    'placa': {'tonos': rampa(hex_rgb('#8a5a32'), 5, arriba=0.32, abajo=0.6)},
+    'placa_osc': {'tonos': rampa(hex_rgb('#5e3a1e'), 5, arriba=0.28, abajo=0.55)},
+    'pata': {'tonos': rampa(hex_rgb('#6e4626'), 5, arriba=0.28, abajo=0.58)},
+    'aguijon': {'tonos': rampa(hex_rgb('#3a2414'), 5, arriba=0.3, abajo=0.45)},
+    'ojo': {'emite': hex_rgb('#ff8a3a')},
+    'veneno': {'emite': hex_rgb('#b6ff5a')},
+}
+
+
+def escorpion(accion, i):
+    f = (i - 1) / 4.0 * math.pi * 2
+    bob, golpe, pinza = 0.0, 0.0, 0.0
+    if accion == 'camina':
+        bob = 0.5 if i in (1, 3) else 0.0
+    elif accion == 'quieto':
+        bob = 0.4 if i == 2 else 0.0
+    else:
+        golpe = (0.2, 1.0, 0.5)[i - 1]
+        pinza = (1.0, 0.3, 0.6)[i - 1]
+    y0 = 7 + bob
+    pr = []
+    cuerpo = elip((4, y0, 0), (8.5, 4.2, 7.2), 'placa')
+    pr.append(cuerpo)
+    segs = []
+    for k in range(4):
+        segs.append(elip((-4 - k * 4.2, y0 + 0.2, 0), (3.2, 3.4 - k * 0.3, 5.6 - k * 0.6), 'placa'))
+    pr += segs
+    # La cola: cinco anillos en un arco limpio, de atrás hacia arriba y
+    # adelante, por encima del lomo; al atacar se lanza.
+    pts = []
+    for k in range(6):
+        t = k / 5.0
+        a = math.pi * (1.0 - 0.72 * t) - golpe * 0.5 * t
+        pts.append((-7 + math.cos(a) * (12 + golpe * 3), y0 + 1 + math.sin(a) * (17 + golpe * 2), 0))
+    for k in range(5):
+        pr.append(cono(pts[k], pts[k + 1], 2.8 - k * 0.28, 2.6 - k * 0.3, 'placa'))
+    punta = pts[-1]
+    pr.append(elip(punta, (2.2, 2.0, 2.0), 'placa_osc'))
+    pr.append(cono(punta, (punta[0] + 3.0 + golpe * 3, punta[1] - 4.5 - golpe * 2, 0), 1.3, 0.2, 'aguijon'))
+    pr.append(elip((punta[0] + 0.6, punta[1] + 0.4, 0), (0.7, 0.6, 0.6), 'veneno'))
+    # Ojos (dos) y pinzas.
+    for sg in (1, -1):
+        pr.append(elip((11.6, y0 + 2.2, 2.0 * sg), (0.8, 0.7, 0.7), 'ojo'))
+        hombro = (10, y0 - 0.5, 5.5 * sg)
+        codo = (16 + pinza * 3, y0 + 1, 10 * sg)
+        mano = (22 + pinza * 5, y0 + 0.5, 8 * sg)
+        pr.append(cono(hombro, codo, 1.8, 1.6, 'pata'))
+        pr.append(cono(codo, mano, 1.6, 2.4, 'pata'))
+        abre = 0.6 + pinza * 0.8
+        pr.append(elip((mano[0] + 2.5, mano[1] + abre, mano[2]), (3.4, 1.2, 1.6), 'placa_osc'))
+        pr.append(elip((mano[0] + 2.2, mano[1] - abre, mano[2]), (3.0, 1.0, 1.4), 'placa_osc'))
+    # Ocho patas en dos grupos que se alternan.
+    for k, ax in enumerate((6, 2, -2, -6)):
+        for sg in (1, -1):
+            grupo = (k + (0 if sg > 0 else 1)) % 2
+            fase = f + (0 if grupo else math.pi)
+            sw = math.sin(fase) * 2.4 if accion == 'camina' else 0.0
+            lift = max(0.0, math.cos(fase)) * 1.8 if accion == 'camina' else 0.0
+            raiz = (ax, y0 - 1, 5 * sg)
+            rod = (ax + sw * 0.5, y0 + 3, 10 * sg)
+            pie = (ax + sw - 1.5, 0.6 + lift, 14 * sg)
+            pr.append(cono(raiz, rod, 1.2, 1.0, 'pata'))
+            pr.append(cono(rod, pie, 1.0, 0.5, 'pata'))
+
+    def retoque(p, Pm, nm, nw):
+        # Las placas del lomo: una raya oscura entre placa y placa.
+        if p is cuerpo and nw[1] > 0.3 and abs(Pm[0] - 4) % 4.0 < 0.8:
+            return 'placa_osc'
+        for s_ in segs:
+            if p is s_ and nw[1] > 0.6:
+                return 'placa_osc' if abs(Pm[2]) < 1.2 else None
+        return None
+    return pr, retoque
+
+
+# Las variantes de los mapas nuevos (2026-10-18): el MISMO modelo con otros
+# materiales (las claves de material son las del modelo).
+GOLEM_CRIPTA_MAT = {
+    'piedra': {'tonos': rampa(hex_rgb('#6f7178'), 5, arriba=0.32, abajo=0.58)},
+    'piedra_o': {'tonos': rampa(hex_rgb('#55575f'), 5, arriba=0.28, abajo=0.6)},
+    'musgo': {'tonos': rampa(hex_rgb('#4f5e3c'), 5, arriba=0.3, abajo=0.55)},
+    'runa': {'emite': hex_rgb('#7dffb8')},
+    'runa2': {'emite': hex_rgb('#d8ffe8')},
+    'ojo': {'emite': hex_rgb('#9dffcf')},
+}
+GOLEM_ARENA_MAT = {
+    'piedra': {'tonos': rampa(hex_rgb('#c9a46c'), 5, arriba=0.3, abajo=0.58)},
+    'piedra_o': {'tonos': rampa(hex_rgb('#a57f4e'), 5, arriba=0.28, abajo=0.6)},
+    'musgo': {'tonos': rampa(hex_rgb('#e2c78c'), 5, arriba=0.25, abajo=0.5)},
+    'runa': {'emite': hex_rgb('#ff9a3a')},
+    'runa2': {'emite': hex_rgb('#ffe2a0')},
+    'ojo': {'emite': hex_rgb('#ffcf6a')},
+}
+GOLEM_HIELO_MAT = {
+    'piedra': {'tonos': rampa(hex_rgb('#8fc6e6'), 5, arriba=0.42, abajo=0.52)},
+    'piedra_o': {'tonos': rampa(hex_rgb('#5f97c4'), 5, arriba=0.35, abajo=0.55)},
+    'musgo': {'tonos': rampa(hex_rgb('#eef4fb'), 5, arriba=0.4, abajo=0.32)},
+    'runa': {'emite': hex_rgb('#c6f6ff')},
+    'runa2': {'emite': hex_rgb('#ffffff')},
+    'ojo': {'emite': hex_rgb('#e2fbff')},
+}
+LOBO_ESCARCHA_MAT = {
+    'pelo': {'tonos': rampa(hex_rgb('#c9d6e6'), 5, arriba=0.34, abajo=0.5)},
+    'claro': {'tonos': rampa(hex_rgb('#f2f6fb'), 5, arriba=0.25, abajo=0.36)},
+    'oscuro': {'tonos': rampa(hex_rgb('#7f93b0'), 5, arriba=0.25, abajo=0.5)},
+    'nariz': {'tonos': rampa(hex_rgb('#2a3044'), 5, arriba=0.25, abajo=0.3)},
+    'diente': {'tonos': rampa(hex_rgb('#f7f3e8'), 5, arriba=0.1, abajo=0.3)},
+    'boca': {'tonos': rampa(hex_rgb('#6a2a3a'), 5, arriba=0.2, abajo=0.4)},
+    'ojo': {'emite': hex_rgb('#8ce9ff')},
+}
+
 BESTIAS3D = {
     # tipo: (modelo, materiales, ancho, alto, contorno, tamaño)
     'golem': (golem, GOLEM_MAT, 84, 108, contorno_de(hex_rgb('#8f877a')), 1.0),
     'lobo': (lobo, LOBO_MAT, 68, 58, hex_rgb('#0d0f16'), 1.0),
     'arana': (arana, ARANA_MAT, 76, 64, contorno_de(hex_rgb('#574d34')), 1.15),
+    # (2026-10-18) Los de los mapas nuevos.
+    'escorpion': (escorpion, ESCORPION_MAT, 80, 60, contorno_de(hex_rgb('#5e3a1e')), 1.1),
+    'golem_cripta': (golem, GOLEM_CRIPTA_MAT, 84, 108, contorno_de(hex_rgb('#55575f')), 1.0),
+    'golem_arena': (golem, GOLEM_ARENA_MAT, 84, 108, contorno_de(hex_rgb('#a57f4e')), 1.0),
+    'golem_hielo': (golem, GOLEM_HIELO_MAT, 84, 108, contorno_de(hex_rgb('#3f6f9c')), 1.0),
+    'lobo_escarcha': (lobo, LOBO_ESCARCHA_MAT, 68, 58, hex_rgb('#1a2236'), 1.0),
 }
 VISTAS = (('lado', ''), ('frente', '_abajo'), ('espalda', '_arriba'))
 ACCIONES = (('camina', 4), ('ataque', 3), ('quieto', 2))
