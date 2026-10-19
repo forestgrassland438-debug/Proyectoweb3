@@ -1,0 +1,155 @@
+{
+ "pack": "newpro/mapas",
+ "version": 1,
+ "base_web": "/Game/newpro/mapas",
+ "tile": 16,
+ "ancho_tiles": 60,
+ "alto_tiles": 40,
+ "descripcion": "Un mapa COMPLETO de cada tema: relieve, rio, lago, meseta con acantilado, caminos, pueblo y bosque. PNG para mirarlo y JSON de Tiled para usarlo.",
+ "mapas": [
+  {
+   "tema": "bosque_oscuro",
+   "ancho": 960,
+   "alto": 640,
+   "tiles": [
+    60,
+    40
+   ],
+   "piezas": 104,
+   "png": "/Game/newpro/mapas/bosque_oscuro.png",
+   "tiled": "/Game/newpro/mapas/bosque_oscuro.json"
+  },
+  {
+   "tema": "cueva",
+   "ancho": 960,
+   "alto": 640,
+   "tiles": [
+    60,
+    40
+   ],
+   "piezas": 175,
+   "png": "/Game/newpro/mapas/cueva.png",
+   "tiled": "/Game/newpro/mapas/cueva.json"
+  },
+  {
+   "tema": "desierto",
+   "ancho": 960,
+   "alto": 640,
+   "tiles": [
+    60,
+    40
+   ],
+   "piezas": 145,
+   "png": "/Game/newpro/mapas/desierto.png",
+   "tiled": "/Game/newpro/mapas/desierto.json"
+  },
+  {
+   "tema": "fondo_marino",
+   "ancho": 960,
+   "alto": 640,
+   "tiles": [
+    60,
+    40
+   ],
+   "piezas": 170,
+   "png": "/Game/newpro/mapas/fondo_marino.png",
+   "tiled": "/Game/newpro/mapas/fondo_marino.json"
+  },
+  {
+   "tema": "isla",
+   "ancho": 960,
+   "alto": 640,
+   "tiles": [
+    60,
+    40
+   ],
+   "piezas": 122,
+   "png": "/Game/newpro/mapas/isla.png",
+   "tiled": "/Game/newpro/mapas/isla.json"
+  },
+  {
+   "tema": "jungla",
+   "ancho": 960,
+   "alto": 640,
+   "tiles": [
+    60,
+    40
+   ],
+   "piezas": 123,
+   "png": "/Game/newpro/mapas/jungla.png",
+   "tiled": "/Game/newpro/mapas/jungla.json"
+  },
+  {
+   "tema": "nieve",
+   "ancho": 960,
+   "alto": 640,
+   "tiles": [
+    60,
+    40
+   ],
+   "piezas": 107,
+   "png": "/Game/newpro/mapas/nieve.png",
+   "tiled": "/Game/newpro/mapas/nieve.json"
+  },
+  {
+   "tema": "otono",
+   "ancho": 960,
+   "alto": 640,
+   "tiles": [
+    60,
+    40
+   ],
+   "piezas": 124,
+   "png": "/Game/newpro/mapas/otono.png",
+   "tiled": "/Game/newpro/mapas/otono.json"
+  },
+  {
+   "tema": "pantano",
+   "ancho": 960,
+   "alto": 640,
+   "tiles": [
+    60,
+    40
+   ],
+   "piezas": 129,
+   "png": "/Game/newpro/mapas/pantano.png",
+   "tiled": "/Game/newpro/mapas/pantano.json"
+  },
+  {
+   "tema": "pradera",
+   "ancho": 960,
+   "alto": 640,
+   "tiles": [
+    60,
+    40
+   ],
+   "piezas": 119,
+   "png": "/Game/newpro/mapas/pradera.png",
+   "tiled": "/Game/newpro/mapas/pradera.json"
+  },
+  {
+   "tema": "ruinas",
+   "ancho": 960,
+   "alto": 640,
+   "tiles": [
+    60,
+    40
+   ],
+   "piezas": 100,
+   "png": "/Game/newpro/mapas/ruinas.png",
+   "tiled": "/Game/newpro/mapas/ruinas.json"
+  },
+  {
+   "tema": "volcan",
+   "ancho": 960,
+   "alto": 640,
+   "tiles": [
+    60,
+    40
+   ],
+   "piezas": 137,
+   "png": "/Game/newpro/mapas/volcan.png",
+   "tiled": "/Game/newpro/mapas/volcan.json"
+  }
+ ]
+}

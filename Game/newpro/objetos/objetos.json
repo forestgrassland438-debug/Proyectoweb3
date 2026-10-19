@@ -1,0 +1,463 @@
+{
+ "pack": "newpro/objetos",
+ "version": 1,
+ "base_web": "/Game/newpro/objetos",
+ "total": 36,
+ "origen": "todos apoyados abajo: setOrigin(0.5, 1)",
+ "animaciones": {
+  "fogata": [
+   "fogata_1",
+   "fogata_2"
+  ],
+  "hoguera": [
+   "hoguera_1",
+   "hoguera_2"
+  ],
+  "brasero": [
+   "brasero_1",
+   "brasero_2"
+  ],
+  "caldero_fuego": [
+   "caldero_fuego_1",
+   "caldero_fuego_2"
+  ],
+  "farol": [
+   "farol_1",
+   "farol_2"
+  ]
+ },
+ "objetos": [
+  {
+   "id": "fogata_apagada",
+   "nombre": "Fogata apagada",
+   "ancho": 35,
+   "alto": 16,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/fogata_apagada.png",
+   "clave_phaser": "fogata_apagada"
+  },
+  {
+   "id": "fogata_1",
+   "nombre": "Fogata",
+   "ancho": 35,
+   "alto": 27,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/fogata_1.png",
+   "clave_phaser": "fogata_1"
+  },
+  {
+   "id": "fogata_2",
+   "nombre": "Fogata",
+   "ancho": 35,
+   "alto": 23,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/fogata_2.png",
+   "clave_phaser": "fogata_2"
+  },
+  {
+   "id": "hoguera_apagada",
+   "nombre": "Hoguera apagada",
+   "ancho": 43,
+   "alto": 26,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/hoguera_apagada.png",
+   "clave_phaser": "hoguera_apagada"
+  },
+  {
+   "id": "hoguera_1",
+   "nombre": "Hoguera",
+   "ancho": 43,
+   "alto": 38,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/hoguera_1.png",
+   "clave_phaser": "hoguera_1"
+  },
+  {
+   "id": "hoguera_2",
+   "nombre": "Hoguera",
+   "ancho": 43,
+   "alto": 34,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/hoguera_2.png",
+   "clave_phaser": "hoguera_2"
+  },
+  {
+   "id": "brasero_apagado",
+   "nombre": "Brasero apagado",
+   "ancho": 25,
+   "alto": 20,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/brasero_apagado.png",
+   "clave_phaser": "brasero_apagado"
+  },
+  {
+   "id": "brasero_1",
+   "nombre": "Brasero",
+   "ancho": 25,
+   "alto": 32,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/brasero_1.png",
+   "clave_phaser": "brasero_1"
+  },
+  {
+   "id": "brasero_2",
+   "nombre": "Brasero",
+   "ancho": 25,
+   "alto": 29,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/brasero_2.png",
+   "clave_phaser": "brasero_2"
+  },
+  {
+   "id": "caldero",
+   "nombre": "Caldero",
+   "ancho": 27,
+   "alto": 25,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/caldero.png",
+   "clave_phaser": "caldero"
+  },
+  {
+   "id": "caldero_fuego_1",
+   "nombre": "Caldero al fuego",
+   "ancho": 37,
+   "alto": 25,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/caldero_fuego_1.png",
+   "clave_phaser": "caldero_fuego_1"
+  },
+  {
+   "id": "caldero_fuego_2",
+   "nombre": "Caldero al fuego",
+   "ancho": 38,
+   "alto": 25,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/caldero_fuego_2.png",
+   "clave_phaser": "caldero_fuego_2"
+  },
+  {
+   "id": "parrilla",
+   "nombre": "Parrilla",
+   "ancho": 37,
+   "alto": 23,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/parrilla.png",
+   "clave_phaser": "parrilla"
+  },
+  {
+   "id": "secadero",
+   "nombre": "Secadero de pescado",
+   "ancho": 43,
+   "alto": 38,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/secadero.png",
+   "clave_phaser": "secadero"
+  },
+  {
+   "id": "tienda",
+   "nombre": "Tienda de campana",
+   "ancho": 45,
+   "alto": 37,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/tienda.png",
+   "clave_phaser": "tienda"
+  },
+  {
+   "id": "saco_dormir",
+   "nombre": "Saco de dormir",
+   "ancho": 35,
+   "alto": 12,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/saco_dormir.png",
+   "clave_phaser": "saco_dormir"
+  },
+  {
+   "id": "banco",
+   "nombre": "Banco",
+   "ancho": 37,
+   "alto": 16,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/banco.png",
+   "clave_phaser": "banco"
+  },
+  {
+   "id": "mesa",
+   "nombre": "Mesa",
+   "ancho": 41,
+   "alto": 22,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/mesa.png",
+   "clave_phaser": "mesa"
+  },
+  {
+   "id": "taburete",
+   "nombre": "Taburete",
+   "ancho": 21,
+   "alto": 19,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/taburete.png",
+   "clave_phaser": "taburete"
+  },
+  {
+   "id": "silla_pescador",
+   "nombre": "Silla de pescador",
+   "ancho": 27,
+   "alto": 29,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/silla_pescador.png",
+   "clave_phaser": "silla_pescador"
+  },
+  {
+   "id": "barril",
+   "nombre": "Barril",
+   "ancho": 27,
+   "alto": 30,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/barril.png",
+   "clave_phaser": "barril"
+  },
+  {
+   "id": "barril_abierto",
+   "nombre": "Barril abierto",
+   "ancho": 27,
+   "alto": 30,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/barril_abierto.png",
+   "clave_phaser": "barril_abierto"
+  },
+  {
+   "id": "cajon",
+   "nombre": "Cajon",
+   "ancho": 29,
+   "alto": 24,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/cajon.png",
+   "clave_phaser": "cajon"
+  },
+  {
+   "id": "pila_lena",
+   "nombre": "Pila de lena",
+   "ancho": 43,
+   "alto": 26,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/pila_lena.png",
+   "clave_phaser": "pila_lena"
+  },
+  {
+   "id": "farol_apagado",
+   "nombre": "Farol apagado",
+   "ancho": 17,
+   "alto": 52,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/farol_apagado.png",
+   "clave_phaser": "farol_apagado"
+  },
+  {
+   "id": "farol_1",
+   "nombre": "Farol",
+   "ancho": 17,
+   "alto": 52,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/farol_1.png",
+   "clave_phaser": "farol_1"
+  },
+  {
+   "id": "farol_2",
+   "nombre": "Farol",
+   "ancho": 17,
+   "alto": 52,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/farol_2.png",
+   "clave_phaser": "farol_2"
+  },
+  {
+   "id": "tendedero_red",
+   "nombre": "Tendedero de red",
+   "ancho": 45,
+   "alto": 36,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/tendedero_red.png",
+   "clave_phaser": "tendedero_red"
+  },
+  {
+   "id": "poste_cartel",
+   "nombre": "Poste con cartel",
+   "ancho": 33,
+   "alto": 46,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/poste_cartel.png",
+   "clave_phaser": "poste_cartel"
+  },
+  {
+   "id": "cubo",
+   "nombre": "Cubo",
+   "ancho": 21,
+   "alto": 23,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/cubo.png",
+   "clave_phaser": "cubo"
+  },
+  {
+   "id": "sombrilla",
+   "nombre": "Sombrilla",
+   "ancho": 47,
+   "alto": 50,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/sombrilla.png",
+   "clave_phaser": "sombrilla"
+  },
+  {
+   "id": "ancla",
+   "nombre": "Ancla",
+   "ancho": 38,
+   "alto": 40,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/ancla.png",
+   "clave_phaser": "ancla"
+  },
+  {
+   "id": "boya_grande",
+   "nombre": "Boya grande",
+   "ancho": 27,
+   "alto": 42,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/boya_grande.png",
+   "clave_phaser": "boya_grande"
+  },
+  {
+   "id": "nasas_apiladas",
+   "nombre": "Nasas apiladas",
+   "ancho": 45,
+   "alto": 32,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/nasas_apiladas.png",
+   "clave_phaser": "nasas_apiladas"
+  },
+  {
+   "id": "hielera",
+   "nombre": "Hielera",
+   "ancho": 35,
+   "alto": 26,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/hielera.png",
+   "clave_phaser": "hielera"
+  },
+  {
+   "id": "caja_pescado",
+   "nombre": "Caja de pescado",
+   "ancho": 35,
+   "alto": 22,
+   "origen": [
+    0.5,
+    1.0
+   ],
+   "ruta": "/Game/newpro/objetos/caja_pescado.png",
+   "clave_phaser": "caja_pescado"
+  }
+ ]
+}

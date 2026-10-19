@@ -1,0 +1,1739 @@
+{
+  "pack": "newpro",
+  "version": "7.0.0",
+  "descripcion": "Arte nuevo para Grassland Forest: 12 cultivos completos (6 etapas -incluida la planta madura muerta- + bueno + podrido + brote + bolsa de semillas), items de recursos, naturaleza, granja, cocina y utiles, y un personaje jugable. Lote 3 (pesca): 409 peces de 10 biomas mas los malos, 56 pociones, 98 objetos de aparejo y recursos marinos y 6 personajes pescadores. Lote 4: la animacion de lanzar la cana para los 13 personajes, 8 tilesets de 16x16 con 8 hojas de referencia cada uno, 40 comidas, 36 objetos de campamento y 5 cultivos nuevos. Lote 5: 55 piezas de vegetacion (arboles, arbustos, flores y matas), 31 de construccion (casas, molino, torre, pozo, vallas y props), los tilesets ampliados a 12 temas con tres filas de arboles de 2x3 tiles, y 12 mapas completos con su JSON de Tiled.",
+  "base_web": "/Game/newpro",
+  "base_disco": "Game/newpro",
+  "estilo": {
+    "tipo": "pixel-art",
+    "fondo": "transparente (RGBA); las parcelas de cultivo son baldosas opacas 51x53 igual que las del juego",
+    "suelos": {
+      "seca": "#915c3e, la de 1.png en los cultivos del juego",
+      "mojada": "#6d462e, la de 2.png a 5.png en los cultivos del juego",
+      "reseca": "#8a6248 con grietas, propia de la etapa 6"
+    },
+    "contorno": "1 px oscuro, como los sprites existentes",
+    "bolsa_semillas": "silueta y paleta calcadas de item_semilla_trigo.png (16x20)"
+  },
+  "cultivos": [
+    {
+      "id": "algodon",
+      "nombre": "Algodon",
+      "tipo_hoja": "lobulada",
+      "carpeta": "plantas/planta_algodon",
+      "etapas": [
+        "plantas/planta_algodon/1.png",
+        "plantas/planta_algodon/2.png",
+        "plantas/planta_algodon/3.png",
+        "plantas/planta_algodon/4.png",
+        "plantas/planta_algodon/5.png",
+        "plantas/planta_algodon/6.png"
+      ],
+      "tam_etapa": [
+        51,
+        53
+      ],
+      "items": {
+        "bueno": {
+          "archivo": "plantas/planta_algodon/item_algodon_bueno.png",
+          "tam": [
+            17,
+            17
+          ]
+        },
+        "podrido": {
+          "archivo": "plantas/planta_algodon/item_algodon_podrido.png",
+          "tam": [
+            17,
+            17
+          ]
+        },
+        "corta": {
+          "archivo": "plantas/planta_algodon/item_planta_algodon.png",
+          "tam": [
+            22,
+            14
+          ]
+        },
+        "semilla": {
+          "archivo": "plantas/planta_algodon/item_semilla_algodon.png",
+          "tam": [
+            16,
+            20
+          ]
+        }
+      },
+      "claves_phaser_sugeridas": [
+        "tierra_seca_plant_algodon",
+        "tierra_mojada_plant_algodon",
+        "tierra_mojada_plant2_algodon",
+        "tierra_mojada_plant3_algodon",
+        "tierra_muerta_plant4_algodon",
+        "planta_seca_algodon"
+      ],
+      "suelo_por_etapa": [
+        "seca",
+        "mojada",
+        "mojada",
+        "mojada",
+        "mojada",
+        "reseca con grietas"
+      ]
+    },
+    {
+      "id": "berenjena",
+      "nombre": "Berenjena",
+      "tipo_hoja": "ancha con nervios",
+      "carpeta": "plantas/planta_berenjena",
+      "etapas": [
+        "plantas/planta_berenjena/1.png",
+        "plantas/planta_berenjena/2.png",
+        "plantas/planta_berenjena/3.png",
+        "plantas/planta_berenjena/4.png",
+        "plantas/planta_berenjena/5.png",
+        "plantas/planta_berenjena/6.png"
+      ],
+      "tam_etapa": [
+        51,
+        53
+      ],
+      "items": {
+        "bueno": {
+          "archivo": "plantas/planta_berenjena/item_berenjena_buena.png",
+          "tam": [
+            15,
+            26
+          ]
+        },
+        "podrido": {
+          "archivo": "plantas/planta_berenjena/item_berenjena_podrida.png",
+          "tam": [
+            15,
+            26
+          ]
+        },
+        "corta": {
+          "archivo": "plantas/planta_berenjena/item_planta_berenjena.png",
+          "tam": [
+            22,
+            16
+          ]
+        },
+        "semilla": {
+          "archivo": "plantas/planta_berenjena/item_semilla_berenjena.png",
+          "tam": [
+            16,
+            20
+          ]
+        }
+      },
+      "claves_phaser_sugeridas": [
+        "tierra_seca_plant_berenjena",
+        "tierra_mojada_plant_berenjena",
+        "tierra_mojada_plant2_berenjena",
+        "tierra_mojada_plant3_berenjena",
+        "tierra_muerta_plant4_berenjena",
+        "planta_seca_berenjena"
+      ],
+      "suelo_por_etapa": [
+        "seca",
+        "mojada",
+        "mojada",
+        "mojada",
+        "mojada",
+        "reseca con grietas"
+      ]
+    },
+    {
+      "id": "cana_azucar",
+      "nombre": "Cana de azucar",
+      "tipo_hoja": "cinta de graminea",
+      "carpeta": "plantas/planta_cana_azucar",
+      "etapas": [
+        "plantas/planta_cana_azucar/1.png",
+        "plantas/planta_cana_azucar/2.png",
+        "plantas/planta_cana_azucar/3.png",
+        "plantas/planta_cana_azucar/4.png",
+        "plantas/planta_cana_azucar/5.png",
+        "plantas/planta_cana_azucar/6.png"
+      ],
+      "tam_etapa": [
+        51,
+        53
+      ],
+      "items": {
+        "bueno": {
+          "archivo": "plantas/planta_cana_azucar/item_cana_azucar_buena.png",
+          "tam": [
+            13,
+            26
+          ]
+        },
+        "podrido": {
+          "archivo": "plantas/planta_cana_azucar/item_cana_azucar_podrida.png",
+          "tam": [
+            13,
+            26
+          ]
+        },
+        "corta": {
+          "archivo": "plantas/planta_cana_azucar/item_planta_cana_azucar.png",
+          "tam": [
+            15,
+            15
+          ]
+        },
+        "semilla": {
+          "archivo": "plantas/planta_cana_azucar/item_semilla_cana_azucar.png",
+          "tam": [
+            16,
+            20
+          ]
+        }
+      },
+      "claves_phaser_sugeridas": [
+        "tierra_seca_plant_cana_azucar",
+        "tierra_mojada_plant_cana_azucar",
+        "tierra_mojada_plant2_cana_azucar",
+        "tierra_mojada_plant3_cana_azucar",
+        "tierra_muerta_plant4_cana_azucar",
+        "planta_seca_cana_azucar"
+      ],
+      "suelo_por_etapa": [
+        "seca",
+        "mojada",
+        "mojada",
+        "mojada",
+        "mojada",
+        "reseca con grietas"
+      ]
+    },
+    {
+      "id": "cebolla",
+      "nombre": "Cebolla",
+      "tipo_hoja": "tubular",
+      "carpeta": "plantas/planta_cebolla",
+      "etapas": [
+        "plantas/planta_cebolla/1.png",
+        "plantas/planta_cebolla/2.png",
+        "plantas/planta_cebolla/3.png",
+        "plantas/planta_cebolla/4.png",
+        "plantas/planta_cebolla/5.png",
+        "plantas/planta_cebolla/6.png"
+      ],
+      "tam_etapa": [
+        51,
+        53
+      ],
+      "items": {
+        "bueno": {
+          "archivo": "plantas/planta_cebolla/item_cebolla_buena.png",
+          "tam": [
+            17,
+            23
+          ]
+        },
+        "podrido": {
+          "archivo": "plantas/planta_cebolla/item_cebolla_podrida.png",
+          "tam": [
+            17,
+            23
+          ]
+        },
+        "corta": {
+          "archivo": "plantas/planta_cebolla/item_planta_cebolla.png",
+          "tam": [
+            15,
+            13
+          ]
+        },
+        "semilla": {
+          "archivo": "plantas/planta_cebolla/item_semilla_cebolla.png",
+          "tam": [
+            16,
+            20
+          ]
+        }
+      },
+      "claves_phaser_sugeridas": [
+        "tierra_seca_plant_cebolla",
+        "tierra_mojada_plant_cebolla",
+        "tierra_mojada_plant2_cebolla",
+        "tierra_mojada_plant3_cebolla",
+        "tierra_muerta_plant4_cebolla",
+        "planta_seca_cebolla"
+      ],
+      "suelo_por_etapa": [
+        "seca",
+        "mojada",
+        "mojada",
+        "mojada",
+        "mojada",
+        "reseca con grietas"
+      ]
+    },
+    {
+      "id": "fresa",
+      "nombre": "Fresa",
+      "tipo_hoja": "trifoliada",
+      "carpeta": "plantas/planta_fresa",
+      "etapas": [
+        "plantas/planta_fresa/1.png",
+        "plantas/planta_fresa/2.png",
+        "plantas/planta_fresa/3.png",
+        "plantas/planta_fresa/4.png",
+        "plantas/planta_fresa/5.png",
+        "plantas/planta_fresa/6.png"
+      ],
+      "tam_etapa": [
+        51,
+        53
+      ],
+      "items": {
+        "bueno": {
+          "archivo": "plantas/planta_fresa/item_fresa_buena.png",
+          "tam": [
+            16,
+            21
+          ]
+        },
+        "podrido": {
+          "archivo": "plantas/planta_fresa/item_fresa_podrida.png",
+          "tam": [
+            16,
+            21
+          ]
+        },
+        "corta": {
+          "archivo": "plantas/planta_fresa/item_planta_fresa.png",
+          "tam": [
+            23,
+            17
+          ]
+        },
+        "semilla": {
+          "archivo": "plantas/planta_fresa/item_semilla_fresa.png",
+          "tam": [
+            16,
+            20
+          ]
+        }
+      },
+      "claves_phaser_sugeridas": [
+        "tierra_seca_plant_fresa",
+        "tierra_mojada_plant_fresa",
+        "tierra_mojada_plant2_fresa",
+        "tierra_mojada_plant3_fresa",
+        "tierra_muerta_plant4_fresa",
+        "planta_seca_fresa"
+      ],
+      "suelo_por_etapa": [
+        "seca",
+        "mojada",
+        "mojada",
+        "mojada",
+        "mojada",
+        "reseca con grietas"
+      ]
+    },
+    {
+      "id": "girasol",
+      "nombre": "Girasol",
+      "tipo_hoja": "oval",
+      "carpeta": "plantas/planta_girasol",
+      "etapas": [
+        "plantas/planta_girasol/1.png",
+        "plantas/planta_girasol/2.png",
+        "plantas/planta_girasol/3.png",
+        "plantas/planta_girasol/4.png",
+        "plantas/planta_girasol/5.png",
+        "plantas/planta_girasol/6.png"
+      ],
+      "tam_etapa": [
+        51,
+        53
+      ],
+      "items": {
+        "bueno": {
+          "archivo": "plantas/planta_girasol/item_girasol_bueno.png",
+          "tam": [
+            23,
+            35
+          ]
+        },
+        "podrido": {
+          "archivo": "plantas/planta_girasol/item_girasol_podrido.png",
+          "tam": [
+            23,
+            35
+          ]
+        },
+        "corta": {
+          "archivo": "plantas/planta_girasol/item_planta_girasol.png",
+          "tam": [
+            22,
+            17
+          ]
+        },
+        "semilla": {
+          "archivo": "plantas/planta_girasol/item_semilla_girasol.png",
+          "tam": [
+            16,
+            20
+          ]
+        }
+      },
+      "claves_phaser_sugeridas": [
+        "tierra_seca_plant_girasol",
+        "tierra_mojada_plant_girasol",
+        "tierra_mojada_plant2_girasol",
+        "tierra_mojada_plant3_girasol",
+        "tierra_muerta_plant4_girasol",
+        "planta_seca_girasol"
+      ],
+      "suelo_por_etapa": [
+        "seca",
+        "mojada",
+        "mojada",
+        "mojada",
+        "mojada",
+        "reseca con grietas"
+      ]
+    },
+    {
+      "id": "lechuga",
+      "nombre": "Lechuga",
+      "tipo_hoja": "rizada en cogollo",
+      "carpeta": "plantas/planta_lechuga",
+      "etapas": [
+        "plantas/planta_lechuga/1.png",
+        "plantas/planta_lechuga/2.png",
+        "plantas/planta_lechuga/3.png",
+        "plantas/planta_lechuga/4.png",
+        "plantas/planta_lechuga/5.png",
+        "plantas/planta_lechuga/6.png"
+      ],
+      "tam_etapa": [
+        51,
+        53
+      ],
+      "items": {
+        "bueno": {
+          "archivo": "plantas/planta_lechuga/item_lechuga_buena.png",
+          "tam": [
+            22,
+            20
+          ]
+        },
+        "podrido": {
+          "archivo": "plantas/planta_lechuga/item_lechuga_podrida.png",
+          "tam": [
+            22,
+            20
+          ]
+        },
+        "corta": {
+          "archivo": "plantas/planta_lechuga/item_planta_lechuga.png",
+          "tam": [
+            19,
+            13
+          ]
+        },
+        "semilla": {
+          "archivo": "plantas/planta_lechuga/item_semilla_lechuga.png",
+          "tam": [
+            16,
+            20
+          ]
+        }
+      },
+      "claves_phaser_sugeridas": [
+        "tierra_seca_plant_lechuga",
+        "tierra_mojada_plant_lechuga",
+        "tierra_mojada_plant2_lechuga",
+        "tierra_mojada_plant3_lechuga",
+        "tierra_muerta_plant4_lechuga",
+        "planta_seca_lechuga"
+      ],
+      "suelo_por_etapa": [
+        "seca",
+        "mojada",
+        "mojada",
+        "mojada",
+        "mojada",
+        "reseca con grietas"
+      ]
+    },
+    {
+      "id": "maiz",
+      "nombre": "Maiz",
+      "tipo_hoja": "cinta de graminea",
+      "carpeta": "plantas/planta_maiz",
+      "etapas": [
+        "plantas/planta_maiz/1.png",
+        "plantas/planta_maiz/2.png",
+        "plantas/planta_maiz/3.png",
+        "plantas/planta_maiz/4.png",
+        "plantas/planta_maiz/5.png",
+        "plantas/planta_maiz/6.png"
+      ],
+      "tam_etapa": [
+        51,
+        53
+      ],
+      "items": {
+        "bueno": {
+          "archivo": "plantas/planta_maiz/item_maiz_bueno.png",
+          "tam": [
+            13,
+            23
+          ]
+        },
+        "podrido": {
+          "archivo": "plantas/planta_maiz/item_maiz_podrido.png",
+          "tam": [
+            13,
+            23
+          ]
+        },
+        "corta": {
+          "archivo": "plantas/planta_maiz/item_planta_maiz.png",
+          "tam": [
+            15,
+            13
+          ]
+        },
+        "semilla": {
+          "archivo": "plantas/planta_maiz/item_semilla_maiz.png",
+          "tam": [
+            16,
+            20
+          ]
+        }
+      },
+      "claves_phaser_sugeridas": [
+        "tierra_seca_plant_maiz",
+        "tierra_mojada_plant_maiz",
+        "tierra_mojada_plant2_maiz",
+        "tierra_mojada_plant3_maiz",
+        "tierra_muerta_plant4_maiz",
+        "planta_seca_maiz"
+      ],
+      "suelo_por_etapa": [
+        "seca",
+        "mojada",
+        "mojada",
+        "mojada",
+        "mojada",
+        "reseca con grietas"
+      ]
+    },
+    {
+      "id": "patata",
+      "nombre": "Patata",
+      "tipo_hoja": "pinnada",
+      "carpeta": "plantas/planta_patata",
+      "etapas": [
+        "plantas/planta_patata/1.png",
+        "plantas/planta_patata/2.png",
+        "plantas/planta_patata/3.png",
+        "plantas/planta_patata/4.png",
+        "plantas/planta_patata/5.png",
+        "plantas/planta_patata/6.png"
+      ],
+      "tam_etapa": [
+        51,
+        53
+      ],
+      "items": {
+        "bueno": {
+          "archivo": "plantas/planta_patata/item_patata_buena.png",
+          "tam": [
+            19,
+            12
+          ]
+        },
+        "podrido": {
+          "archivo": "plantas/planta_patata/item_patata_podrida.png",
+          "tam": [
+            19,
+            12
+          ]
+        },
+        "corta": {
+          "archivo": "plantas/planta_patata/item_planta_patata.png",
+          "tam": [
+            23,
+            16
+          ]
+        },
+        "semilla": {
+          "archivo": "plantas/planta_patata/item_semilla_patata.png",
+          "tam": [
+            16,
+            20
+          ]
+        }
+      },
+      "claves_phaser_sugeridas": [
+        "tierra_seca_plant_patata",
+        "tierra_mojada_plant_patata",
+        "tierra_mojada_plant2_patata",
+        "tierra_mojada_plant3_patata",
+        "tierra_muerta_plant4_patata",
+        "planta_seca_patata"
+      ],
+      "suelo_por_etapa": [
+        "seca",
+        "mojada",
+        "mojada",
+        "mojada",
+        "mojada",
+        "reseca con grietas"
+      ]
+    },
+    {
+      "id": "pimiento",
+      "nombre": "Pimiento",
+      "tipo_hoja": "lanceolada",
+      "carpeta": "plantas/planta_pimiento",
+      "etapas": [
+        "plantas/planta_pimiento/1.png",
+        "plantas/planta_pimiento/2.png",
+        "plantas/planta_pimiento/3.png",
+        "plantas/planta_pimiento/4.png",
+        "plantas/planta_pimiento/5.png",
+        "plantas/planta_pimiento/6.png"
+      ],
+      "tam_etapa": [
+        51,
+        53
+      ],
+      "items": {
+        "bueno": {
+          "archivo": "plantas/planta_pimiento/item_pimiento_bueno.png",
+          "tam": [
+            20,
+            25
+          ]
+        },
+        "podrido": {
+          "archivo": "plantas/planta_pimiento/item_pimiento_podrido.png",
+          "tam": [
+            20,
+            25
+          ]
+        },
+        "corta": {
+          "archivo": "plantas/planta_pimiento/item_planta_pimiento.png",
+          "tam": [
+            20,
+            15
+          ]
+        },
+        "semilla": {
+          "archivo": "plantas/planta_pimiento/item_semilla_pimiento.png",
+          "tam": [
+            16,
+            20
+          ]
+        }
+      },
+      "claves_phaser_sugeridas": [
+        "tierra_seca_plant_pimiento",
+        "tierra_mojada_plant_pimiento",
+        "tierra_mojada_plant2_pimiento",
+        "tierra_mojada_plant3_pimiento",
+        "tierra_muerta_plant4_pimiento",
+        "planta_seca_pimiento"
+      ],
+      "suelo_por_etapa": [
+        "seca",
+        "mojada",
+        "mojada",
+        "mojada",
+        "mojada",
+        "reseca con grietas"
+      ]
+    },
+    {
+      "id": "remolacha",
+      "nombre": "Remolacha",
+      "tipo_hoja": "ancha con nervio rojo",
+      "carpeta": "plantas/planta_remolacha",
+      "etapas": [
+        "plantas/planta_remolacha/1.png",
+        "plantas/planta_remolacha/2.png",
+        "plantas/planta_remolacha/3.png",
+        "plantas/planta_remolacha/4.png",
+        "plantas/planta_remolacha/5.png",
+        "plantas/planta_remolacha/6.png"
+      ],
+      "tam_etapa": [
+        51,
+        53
+      ],
+      "items": {
+        "corta": {
+          "archivo": "plantas/planta_remolacha/item_planta_remolacha.png",
+          "tam": [
+            22,
+            14
+          ]
+        },
+        "bueno": {
+          "archivo": "plantas/planta_remolacha/item_remolacha_buena.png",
+          "tam": [
+            17,
+            26
+          ]
+        },
+        "podrido": {
+          "archivo": "plantas/planta_remolacha/item_remolacha_podrida.png",
+          "tam": [
+            17,
+            26
+          ]
+        },
+        "semilla": {
+          "archivo": "plantas/planta_remolacha/item_semilla_remolacha.png",
+          "tam": [
+            16,
+            20
+          ]
+        }
+      },
+      "claves_phaser_sugeridas": [
+        "tierra_seca_plant_remolacha",
+        "tierra_mojada_plant_remolacha",
+        "tierra_mojada_plant2_remolacha",
+        "tierra_mojada_plant3_remolacha",
+        "tierra_muerta_plant4_remolacha",
+        "planta_seca_remolacha"
+      ],
+      "suelo_por_etapa": [
+        "seca",
+        "mojada",
+        "mojada",
+        "mojada",
+        "mojada",
+        "reseca con grietas"
+      ]
+    },
+    {
+      "id": "sandia",
+      "nombre": "Sandia",
+      "tipo_hoja": "palmada de cinco lobulos",
+      "carpeta": "plantas/planta_sandia",
+      "etapas": [
+        "plantas/planta_sandia/1.png",
+        "plantas/planta_sandia/2.png",
+        "plantas/planta_sandia/3.png",
+        "plantas/planta_sandia/4.png",
+        "plantas/planta_sandia/5.png",
+        "plantas/planta_sandia/6.png"
+      ],
+      "tam_etapa": [
+        51,
+        53
+      ],
+      "items": {
+        "corta": {
+          "archivo": "plantas/planta_sandia/item_planta_sandia.png",
+          "tam": [
+            19,
+            16
+          ]
+        },
+        "bueno": {
+          "archivo": "plantas/planta_sandia/item_sandia_buena.png",
+          "tam": [
+            26,
+            21
+          ]
+        },
+        "podrido": {
+          "archivo": "plantas/planta_sandia/item_sandia_podrida.png",
+          "tam": [
+            26,
+            21
+          ]
+        },
+        "semilla": {
+          "archivo": "plantas/planta_sandia/item_semilla_sandia.png",
+          "tam": [
+            16,
+            20
+          ]
+        }
+      },
+      "claves_phaser_sugeridas": [
+        "tierra_seca_plant_sandia",
+        "tierra_mojada_plant_sandia",
+        "tierra_mojada_plant2_sandia",
+        "tierra_mojada_plant3_sandia",
+        "tierra_muerta_plant4_sandia",
+        "planta_seca_sandia"
+      ],
+      "suelo_por_etapa": [
+        "seca",
+        "mojada",
+        "mojada",
+        "mojada",
+        "mojada",
+        "reseca con grietas"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "azucar",
+      "nombre": "Azucar",
+      "categoria": "cocina",
+      "archivo": "cocina/azucar.png",
+      "tam": [
+        15,
+        12
+      ]
+    },
+    {
+      "id": "brocheta",
+      "nombre": "Brocheta",
+      "categoria": "cocina",
+      "archivo": "cocina/brocheta.png",
+      "tam": [
+        22,
+        11
+      ]
+    },
+    {
+      "id": "ensalada",
+      "nombre": "Ensalada",
+      "categoria": "cocina",
+      "archivo": "cocina/ensalada.png",
+      "tam": [
+        21,
+        14
+      ]
+    },
+    {
+      "id": "galleta",
+      "nombre": "Galleta",
+      "categoria": "cocina",
+      "archivo": "cocina/galleta.png",
+      "tam": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "harina",
+      "nombre": "Harina",
+      "categoria": "cocina",
+      "archivo": "cocina/harina.png",
+      "tam": [
+        19,
+        16
+      ]
+    },
+    {
+      "id": "mantequilla",
+      "nombre": "Mantequilla",
+      "categoria": "cocina",
+      "archivo": "cocina/mantequilla.png",
+      "tam": [
+        19,
+        10
+      ]
+    },
+    {
+      "id": "mermelada",
+      "nombre": "Mermelada",
+      "categoria": "cocina",
+      "archivo": "cocina/mermelada.png",
+      "tam": [
+        12,
+        19
+      ]
+    },
+    {
+      "id": "pan",
+      "nombre": "Pan",
+      "categoria": "cocina",
+      "archivo": "cocina/pan.png",
+      "tam": [
+        20,
+        11
+      ]
+    },
+    {
+      "id": "pastel",
+      "nombre": "Pastel",
+      "categoria": "cocina",
+      "archivo": "cocina/pastel.png",
+      "tam": [
+        16,
+        13
+      ]
+    },
+    {
+      "id": "pescado_ahumado",
+      "nombre": "Pescado ahumado",
+      "categoria": "cocina",
+      "archivo": "cocina/pescado_ahumado.png",
+      "tam": [
+        21,
+        11
+      ]
+    },
+    {
+      "id": "queso",
+      "nombre": "Queso",
+      "categoria": "cocina",
+      "archivo": "cocina/queso.png",
+      "tam": [
+        17,
+        12
+      ]
+    },
+    {
+      "id": "sopa",
+      "nombre": "Sopa",
+      "categoria": "cocina",
+      "archivo": "cocina/sopa.png",
+      "tam": [
+        19,
+        11
+      ]
+    },
+    {
+      "id": "zumo",
+      "nombre": "Zumo",
+      "categoria": "cocina",
+      "archivo": "cocina/zumo.png",
+      "tam": [
+        14,
+        21
+      ]
+    },
+    {
+      "id": "huevo",
+      "nombre": "Huevo",
+      "categoria": "granja",
+      "archivo": "granja/huevo.png",
+      "tam": [
+        12,
+        15
+      ]
+    },
+    {
+      "id": "jarra_leche",
+      "nombre": "Jarra de leche",
+      "categoria": "granja",
+      "archivo": "granja/jarra_leche.png",
+      "tam": [
+        14,
+        20
+      ]
+    },
+    {
+      "id": "lana",
+      "nombre": "Lana",
+      "categoria": "granja",
+      "archivo": "granja/lana.png",
+      "tam": [
+        19,
+        15
+      ]
+    },
+    {
+      "id": "saco_abono",
+      "nombre": "Saco de abono",
+      "categoria": "granja",
+      "archivo": "granja/saco_abono.png",
+      "tam": [
+        16,
+        20
+      ]
+    },
+    {
+      "id": "tarro_miel",
+      "nombre": "Tarro de miel",
+      "categoria": "granja",
+      "archivo": "granja/tarro_miel.png",
+      "tam": [
+        12,
+        19
+      ]
+    },
+    {
+      "id": "baya_silvestre",
+      "nombre": "Baya silvestre",
+      "categoria": "naturaleza",
+      "archivo": "naturaleza/baya_silvestre.png",
+      "tam": [
+        17,
+        17
+      ]
+    },
+    {
+      "id": "bellota",
+      "nombre": "Bellota",
+      "categoria": "naturaleza",
+      "archivo": "naturaleza/bellota.png",
+      "tam": [
+        11,
+        18
+      ]
+    },
+    {
+      "id": "flor_amarilla",
+      "nombre": "Flor amarilla",
+      "categoria": "naturaleza",
+      "archivo": "naturaleza/flor_amarilla.png",
+      "tam": [
+        15,
+        21
+      ]
+    },
+    {
+      "id": "flor_azul",
+      "nombre": "Flor azul",
+      "categoria": "naturaleza",
+      "archivo": "naturaleza/flor_azul.png",
+      "tam": [
+        15,
+        21
+      ]
+    },
+    {
+      "id": "flor_roja",
+      "nombre": "Flor roja",
+      "categoria": "naturaleza",
+      "archivo": "naturaleza/flor_roja.png",
+      "tam": [
+        15,
+        21
+      ]
+    },
+    {
+      "id": "hierba_medicinal",
+      "nombre": "Hierba medicinal",
+      "categoria": "naturaleza",
+      "archivo": "naturaleza/hierba_medicinal.png",
+      "tam": [
+        19,
+        15
+      ]
+    },
+    {
+      "id": "hongo_azul",
+      "nombre": "Hongo azul",
+      "categoria": "naturaleza",
+      "archivo": "naturaleza/hongo_azul.png",
+      "tam": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "hongo_marron",
+      "nombre": "Hongo marron",
+      "categoria": "naturaleza",
+      "archivo": "naturaleza/hongo_marron.png",
+      "tam": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "hongo_rojo",
+      "nombre": "Hongo rojo",
+      "categoria": "naturaleza",
+      "archivo": "naturaleza/hongo_rojo.png",
+      "tam": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "hueso",
+      "nombre": "Hueso",
+      "categoria": "naturaleza",
+      "archivo": "naturaleza/hueso.png",
+      "tam": [
+        18,
+        12
+      ]
+    },
+    {
+      "id": "panal_miel",
+      "nombre": "Panal de miel",
+      "categoria": "naturaleza",
+      "archivo": "naturaleza/panal_miel.png",
+      "tam": [
+        19,
+        18
+      ]
+    },
+    {
+      "id": "pina_pino",
+      "nombre": "Pina de pino",
+      "categoria": "naturaleza",
+      "archivo": "naturaleza/pina_pino.png",
+      "tam": [
+        12,
+        21
+      ]
+    },
+    {
+      "id": "pluma",
+      "nombre": "Pluma",
+      "categoria": "naturaleza",
+      "archivo": "naturaleza/pluma.png",
+      "tam": [
+        12,
+        19
+      ]
+    },
+    {
+      "id": "rama_seca",
+      "nombre": "Rama seca",
+      "categoria": "naturaleza",
+      "archivo": "naturaleza/rama_seca.png",
+      "tam": [
+        22,
+        12
+      ]
+    },
+    {
+      "id": "amatista",
+      "nombre": "Amatista",
+      "categoria": "recursos",
+      "archivo": "recursos/amatista.png",
+      "tam": [
+        13,
+        14
+      ]
+    },
+    {
+      "id": "arcilla",
+      "nombre": "Arcilla",
+      "categoria": "recursos",
+      "archivo": "recursos/arcilla.png",
+      "tam": [
+        18,
+        15
+      ]
+    },
+    {
+      "id": "arena",
+      "nombre": "Arena",
+      "categoria": "recursos",
+      "archivo": "recursos/arena.png",
+      "tam": [
+        20,
+        11
+      ]
+    },
+    {
+      "id": "carbon_vegetal",
+      "nombre": "Carbon vegetal",
+      "categoria": "recursos",
+      "archivo": "recursos/carbon_vegetal.png",
+      "tam": [
+        19,
+        14
+      ]
+    },
+    {
+      "id": "clavos",
+      "nombre": "Clavos",
+      "categoria": "recursos",
+      "archivo": "recursos/clavos.png",
+      "tam": [
+        18,
+        17
+      ]
+    },
+    {
+      "id": "cristal_puro",
+      "nombre": "Cristal puro",
+      "categoria": "recursos",
+      "archivo": "recursos/cristal_puro.png",
+      "tam": [
+        14,
+        17
+      ]
+    },
+    {
+      "id": "cuerda",
+      "nombre": "Cuerda",
+      "categoria": "recursos",
+      "archivo": "recursos/cuerda.png",
+      "tam": [
+        20,
+        16
+      ]
+    },
+    {
+      "id": "cuero",
+      "nombre": "Cuero",
+      "categoria": "recursos",
+      "archivo": "recursos/cuero.png",
+      "tam": [
+        20,
+        12
+      ]
+    },
+    {
+      "id": "fibra",
+      "nombre": "Fibra vegetal",
+      "categoria": "recursos",
+      "archivo": "recursos/fibra.png",
+      "tam": [
+        24,
+        16
+      ]
+    },
+    {
+      "id": "hilo",
+      "nombre": "Hilo",
+      "categoria": "recursos",
+      "archivo": "recursos/hilo.png",
+      "tam": [
+        14,
+        18
+      ]
+    },
+    {
+      "id": "ladrillo",
+      "nombre": "Ladrillo",
+      "categoria": "recursos",
+      "archivo": "recursos/ladrillo.png",
+      "tam": [
+        20,
+        11
+      ]
+    },
+    {
+      "id": "lingote_acero",
+      "nombre": "Lingote de acero",
+      "categoria": "recursos",
+      "archivo": "recursos/lingote_acero.png",
+      "tam": [
+        18,
+        9
+      ]
+    },
+    {
+      "id": "lingote_bronce",
+      "nombre": "Lingote de bronce",
+      "categoria": "recursos",
+      "archivo": "recursos/lingote_bronce.png",
+      "tam": [
+        18,
+        9
+      ]
+    },
+    {
+      "id": "lingote_plata",
+      "nombre": "Lingote de plata",
+      "categoria": "recursos",
+      "archivo": "recursos/lingote_plata.png",
+      "tam": [
+        18,
+        9
+      ]
+    },
+    {
+      "id": "mineral_estano",
+      "nombre": "Mineral de estano",
+      "categoria": "recursos",
+      "archivo": "recursos/mineral_estano.png",
+      "tam": [
+        17,
+        15
+      ]
+    },
+    {
+      "id": "mineral_plata",
+      "nombre": "Mineral de plata",
+      "categoria": "recursos",
+      "archivo": "recursos/mineral_plata.png",
+      "tam": [
+        17,
+        15
+      ]
+    },
+    {
+      "id": "papel",
+      "nombre": "Papel",
+      "categoria": "recursos",
+      "archivo": "recursos/papel.png",
+      "tam": [
+        15,
+        19
+      ]
+    },
+    {
+      "id": "piedra_carbon",
+      "nombre": "Piedra de carbon",
+      "categoria": "recursos",
+      "archivo": "recursos/piedra_carbon.png",
+      "tam": [
+        13,
+        13
+      ],
+      "silueta_de": "Game/Source/piedra.png",
+      "generador": "tools/generar-minerales.py"
+    },
+    {
+      "id": "piedra_cobre",
+      "nombre": "Piedra de cobre",
+      "categoria": "recursos",
+      "archivo": "recursos/piedra_cobre.png",
+      "tam": [
+        13,
+        13
+      ],
+      "silueta_de": "Game/Source/piedra.png",
+      "generador": "tools/generar-minerales.py"
+    },
+    {
+      "id": "piedra_hierro",
+      "nombre": "Piedra de hierro",
+      "categoria": "recursos",
+      "archivo": "recursos/piedra_hierro.png",
+      "tam": [
+        13,
+        13
+      ],
+      "silueta_de": "Game/Source/piedra.png",
+      "generador": "tools/generar-minerales.py"
+    },
+    {
+      "id": "resina",
+      "nombre": "Resina",
+      "categoria": "recursos",
+      "archivo": "recursos/resina.png",
+      "tam": [
+        13,
+        16
+      ]
+    },
+    {
+      "id": "tabla_madera",
+      "nombre": "Tabla de madera",
+      "categoria": "recursos",
+      "archivo": "recursos/tabla_madera.png",
+      "tam": [
+        22,
+        10
+      ]
+    },
+    {
+      "id": "tela",
+      "nombre": "Tela",
+      "categoria": "recursos",
+      "archivo": "recursos/tela.png",
+      "tam": [
+        18,
+        14
+      ]
+    },
+    {
+      "id": "vidrio",
+      "nombre": "Vidrio",
+      "categoria": "recursos",
+      "archivo": "recursos/vidrio.png",
+      "tam": [
+        15,
+        15
+      ]
+    },
+    {
+      "id": "zafiro",
+      "nombre": "Zafiro",
+      "categoria": "recursos",
+      "archivo": "recursos/zafiro.png",
+      "tam": [
+        13,
+        14
+      ]
+    },
+    {
+      "id": "antorcha",
+      "nombre": "Antorcha",
+      "categoria": "utiles",
+      "archivo": "utiles/antorcha.png",
+      "tam": [
+        10,
+        22
+      ]
+    },
+    {
+      "id": "cebo_pesca",
+      "nombre": "Cebo de pesca",
+      "categoria": "utiles",
+      "archivo": "utiles/cebo_pesca.png",
+      "tam": [
+        13,
+        12
+      ]
+    },
+    {
+      "id": "cubo_agua",
+      "nombre": "Cubo de agua",
+      "categoria": "utiles",
+      "archivo": "utiles/cubo_agua.png",
+      "tam": [
+        18,
+        16
+      ]
+    },
+    {
+      "id": "hoz",
+      "nombre": "Hoz",
+      "categoria": "utiles",
+      "archivo": "utiles/hoz.png",
+      "tam": [
+        15,
+        15
+      ]
+    },
+    {
+      "id": "llave",
+      "nombre": "Llave",
+      "categoria": "utiles",
+      "archivo": "utiles/llave.png",
+      "tam": [
+        19,
+        9
+      ]
+    },
+    {
+      "id": "martillo",
+      "nombre": "Martillo",
+      "categoria": "utiles",
+      "archivo": "utiles/martillo.png",
+      "tam": [
+        17,
+        18
+      ]
+    },
+    {
+      "id": "pala",
+      "nombre": "Pala",
+      "categoria": "utiles",
+      "archivo": "utiles/pala.png",
+      "tam": [
+        15,
+        23
+      ]
+    },
+    {
+      "id": "pocion_energia",
+      "nombre": "Pocion de energia",
+      "categoria": "utiles",
+      "archivo": "utiles/pocion_energia.png",
+      "tam": [
+        14,
+        21
+      ]
+    },
+    {
+      "id": "pocion_mana",
+      "nombre": "Pocion de mana",
+      "categoria": "utiles",
+      "archivo": "utiles/pocion_mana.png",
+      "tam": [
+        14,
+        21
+      ]
+    },
+    {
+      "id": "pocion_vida",
+      "nombre": "Pocion de vida",
+      "categoria": "utiles",
+      "archivo": "utiles/pocion_vida.png",
+      "tam": [
+        14,
+        21
+      ]
+    },
+    {
+      "id": "red_pesca",
+      "nombre": "Red de pesca",
+      "categoria": "utiles",
+      "archivo": "utiles/red_pesca.png",
+      "tam": [
+        21,
+        20
+      ]
+    }
+  ],
+  "personajes": [
+    {
+      "id": "personaje3",
+      "nombre": "Guardabosques",
+      "carpeta": "personaje3",
+      "tam_frame": [
+        24,
+        50
+      ],
+      "direcciones": [
+        "abajo",
+        "arriba",
+        "derecha",
+        "izquierda"
+      ],
+      "frames_por_direccion": 7,
+      "patron": "personaje3/<direccion>/run_<1..7>.png",
+      "perfil": {
+        "archivo": "personaje3/Perfil/Perfil.png",
+        "tam": [
+          51,
+          55
+        ]
+      },
+      "compatible_con": "Game/Sprites/Soulbound"
+    }
+  ],
+  "totales": {
+    "png_totales": 217,
+    "cultivos": 12,
+    "png_de_cultivos": 120,
+    "items_sueltos": 68,
+    "archivos_de_personaje": 29,
+    "png_en_disco": 1842,
+    "png_del_lote_de_pesca": 737,
+    "nota": "png_totales, cultivos, items_sueltos y archivos_de_personaje son del lote 1; png_en_disco es el recuento real de todo el pack",
+    "png_del_lote_4": 510,
+    "png_del_lote_5": 191
+  },
+  "pesca": {
+    "descripcion": "Lote 3: todo lo que hace falta para pescar y todo lo que se saca del agua.",
+    "catalogos": {
+      "peces": "peces/peces.json",
+      "pociones": "pociones/pociones.json",
+      "aparejo_y_recursos": "pesca/pesca.json",
+      "pescadores": "personajes/pescadores.json"
+    },
+    "peces": {
+      "total": 409,
+      "buenos": 347,
+      "malos": 62,
+      "por_bioma": {
+        "rio": 51,
+        "lago": 39,
+        "pantano": 46,
+        "costa": 43,
+        "mar": 71,
+        "arrecife": 47,
+        "abismo": 32,
+        "hielo": 26,
+        "caverna": 22,
+        "magico": 32
+      },
+      "nota": "una sola imagen por especie, sin animacion"
+    },
+    "pociones": {
+      "total": 56
+    },
+    "aparejo_y_recursos": {
+      "total": 98,
+      "por_categoria": {
+        "canas": 8,
+        "aparejo": 22,
+        "cebos": 12,
+        "despiece": 17,
+        "marinos": 18,
+        "tesoros": 13,
+        "basura": 8
+      }
+    },
+    "pescadores": {
+      "total": 6,
+      "carpetas": [
+        "personaje8",
+        "personaje9",
+        "personaje10",
+        "personaje11",
+        "personaje12",
+        "personaje13"
+      ],
+      "tam_frame": [
+        24,
+        50
+      ],
+      "compatible_con": "Game/Sprites/Soulbound",
+      "nota": "personaje8..personaje13; cada uno sale del cuerpo de personaje1 o personaje2, asi que la animacion es la del juego"
+    }
+  },
+  "lote4": {
+    "descripcion": "Pescar, cocinar, sembrar y construir.",
+    "catalogos": {
+      "animacion_de_pesca": "pesca_anim/pesca_anim.json",
+      "tilesets": "tilesets/tilesets.json",
+      "comidas": "comidas/comidas.json",
+      "objetos": "objetos/objetos.json",
+      "siembras": "plantas/siembras.json"
+    },
+    "animacion_de_pesca": {
+      "personajes": 13,
+      "fotogramas": 312,
+      "por_direccion": 6,
+      "margen": {
+        "x": 16,
+        "y": 4,
+        "nota": "el cuerpo va desplazado (16, 4) dentro de un lienzo 32x8 mas grande; con el origen 0.5/0.5 de Phaser el personaje NO se mueve al cambiar de animacion"
+      },
+      "bucle": {
+        "lanzamiento": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "espera": [
+          5,
+          6
+        ]
+      },
+      "nota": "el brazo se dobla por cinematica inversa: el hombro no se mueve, el codo se resuelve y la mano cae en el puno de la cana",
+      "brazo": {
+        "hombro_fijo": 3,
+        "nota": "el hombro no se mueve y el codo se resuelve para que la mano caiga en el puno de la cana"
+      }
+    },
+    "tilesets": {
+      "total": 12,
+      "tile": 16,
+      "columnas": 16,
+      "filas": 9,
+      "referencias_por_tema": 8,
+      "temas": [
+        "bosque_oscuro",
+        "cueva",
+        "desierto",
+        "fondo_marino",
+        "isla",
+        "jungla",
+        "nieve",
+        "otono",
+        "pantano",
+        "pradera",
+        "ruinas",
+        "volcan"
+      ],
+      "nota": "los 12 comparten plantilla: el mismo indice significa lo mismo en todos, asi que un mapa se repinta de tema cambiando la imagen. Las filas 6, 7 y 8 son ocho piezas de 2x3 tiles (arboles, arbustos, rocas) por tema."
+    },
+    "comidas": {
+      "total": 40
+    },
+    "objetos": {
+      "total": 36,
+      "origen": "todos apoyados abajo: setOrigin(0.5, 1)",
+      "animaciones": {
+        "fogata": [
+          "fogata_1",
+          "fogata_2"
+        ],
+        "hoguera": [
+          "hoguera_1",
+          "hoguera_2"
+        ],
+        "brasero": [
+          "brasero_1",
+          "brasero_2"
+        ],
+        "caldero_fuego": [
+          "caldero_fuego_1",
+          "caldero_fuego_2"
+        ],
+        "farol": [
+          "farol_1",
+          "farol_2"
+        ]
+      }
+    },
+    "siembras": {
+      "nuevos": 5,
+      "cultivos": [
+        "arroz",
+        "ajo",
+        "guisante",
+        "col",
+        "calabacin"
+      ],
+      "archivos_por_cultivo": 10
+    }
+  },
+  "lote5": {
+    "descripcion": "Bosque, pueblo y mapas enteros.",
+    "catalogos": {
+      "vegetacion": "vegetacion/vegetacion.json",
+      "construcciones": "construcciones/construcciones.json",
+      "mapas": "mapas/mapas.json"
+    },
+    "vegetacion": {
+      "piezas": 55,
+      "arboles": 25,
+      "arbustos": 30,
+      "nota": "cada pieza va dos veces: a su tamano en arboles/ o arbustos/ y encajada en la rejilla de 16 en tiles/. Sin sombra pegada."
+    },
+    "construcciones": {
+      "piezas": 31,
+      "casas": 16,
+      "props": 15,
+      "nota": "pizarra azul #3b4569 y viga granate #633946, las de Game/Objetos/casa de npc arreglado.png"
+    },
+    "mapas": {
+      "total": 12,
+      "tiles": [
+        60,
+        40
+      ],
+      "px": [
+        960,
+        640
+      ],
+      "nota": "un mapa COMPLETO por tema, en PNG para mirarlo y en JSON de Tiled para usarlo. No es un recorte: lleva relieve, rio, lago, acantilado, caminos, pueblo y bosque."
+    }
+  },
+  "stickers": {
+    "carpeta": "stickers",
+    "descripcion": "100 stickers animados para Discord montados con los sprites del juego SIN MODIFICAR: personajes con sus fotogramas de caminar y de pescar, animales con los suyos, cultivos que crecen recorriendo sus 6 etapas, fogatas y faroles alternando _1/_2, y particulas encima. Peana de terreno recortada de los mapas. Recortado, fondo transparente, contorno blanco.",
+    "total": 100,
+    "formato": "APNG 320x320, 12 fotogramas a 100 ms, bucle infinito, <512 KB",
+    "categorias": {
+      "granja": 30,
+      "animales": 14,
+      "comunidad": 26,
+      "emociones": 18,
+      "estaciones": 12
+    },
+    "usa": [
+      "personajes/personaje3..13 (run_1..7, 4 direcciones)",
+      "pesca_anim (6 fotogramas)",
+      "../Sprites/animales",
+      "../Sprites/Chiken",
+      "../Sprites/cuervo",
+      "../Sprites/mascota",
+      "plantas/planta_* (6 etapas)",
+      "utiles",
+      "granja",
+      "objetos",
+      "naturaleza",
+      "recursos",
+      "comidas",
+      "pociones",
+      "mapas (peanas)"
+    ],
+    "efectos": 22,
+    "generador": "tools/generar-stickers.py",
+    "estaticos": "stickers/estaticos (fotograma 1, sirve de emoji)",
+    "indice": "stickers/stickers.json"
+  }
+}

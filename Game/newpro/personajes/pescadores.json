@@ -1,0 +1,56 @@
+{
+ "pack": "newpro/personajes",
+ "version": 1,
+ "base_web": "/Game/newpro/personajes",
+ "total": 174,
+ "personajes": [
+  {
+   "carpeta": "personaje8",
+   "nombre": "Marea",
+   "base": "personaje1",
+   "sombrero": "paja",
+   "archivos": 29,
+   "ruta": "/Game/newpro/personajes/personaje8"
+  },
+  {
+   "carpeta": "personaje9",
+   "nombre": "Sueste",
+   "base": "personaje2",
+   "sombrero": "sueste",
+   "archivos": 29,
+   "ruta": "/Game/newpro/personajes/personaje9"
+  },
+  {
+   "carpeta": "personaje10",
+   "nombre": "Ancla",
+   "base": "personaje1",
+   "sombrero": "lana",
+   "archivos": 29,
+   "ruta": "/Game/newpro/personajes/personaje10"
+  },
+  {
+   "carpeta": "personaje11",
+   "nombre": "Cana",
+   "base": "personaje2",
+   "sombrero": "gorra",
+   "archivos": 29,
+   "ruta": "/Game/newpro/personajes/personaje11"
+  },
+  {
+   "carpeta": "personaje12",
+   "nombre": "Bruma",
+   "base": "personaje1",
+   "sombrero": "panuelo",
+   "archivos": 29,
+   "ruta": "/Game/newpro/personajes/personaje12"
+  },
+  {
+   "carpeta": "personaje13",
+   "nombre": "Abisal",
+   "base": "personaje2",
+   "sombrero": "capucha",
+   "archivos": 29,
+   "ruta": "/Game/newpro/personajes/personaje13"
+  }
+ ]
+}

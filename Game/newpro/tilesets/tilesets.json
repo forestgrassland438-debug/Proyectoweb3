@@ -1,0 +1,95 @@
+{
+ "pack": "newpro/tilesets",
+ "version": 1,
+ "base_web": "/Game/newpro/tilesets",
+ "tile": 16,
+ "columnas": 16,
+ "filas": 9,
+ "descripcion": "12 tilesets de 16x16 con la MISMA plantilla: el mismo indice significa lo mismo en los doce, asi que un mapa se repinta de tema cambiando solo la imagen. Las filas 6, 7 y 8 son ocho piezas de 2x3 tiles (arboles y arbustos) por tema.",
+ "tilesets": [
+  {
+   "tema": "bosque_oscuro",
+   "nombre": "Bosque oscuro",
+   "carpeta": "/Game/newpro/tilesets/bosque_oscuro",
+   "imagen": "/Game/newpro/tilesets/bosque_oscuro/bosque_oscuro.png",
+   "json": "/Game/newpro/tilesets/bosque_oscuro/bosque_oscuro.json"
+  },
+  {
+   "tema": "cueva",
+   "nombre": "Cueva",
+   "carpeta": "/Game/newpro/tilesets/cueva",
+   "imagen": "/Game/newpro/tilesets/cueva/cueva.png",
+   "json": "/Game/newpro/tilesets/cueva/cueva.json"
+  },
+  {
+   "tema": "desierto",
+   "nombre": "Desierto",
+   "carpeta": "/Game/newpro/tilesets/desierto",
+   "imagen": "/Game/newpro/tilesets/desierto/desierto.png",
+   "json": "/Game/newpro/tilesets/desierto/desierto.json"
+  },
+  {
+   "tema": "fondo_marino",
+   "nombre": "Fondo marino",
+   "carpeta": "/Game/newpro/tilesets/fondo_marino",
+   "imagen": "/Game/newpro/tilesets/fondo_marino/fondo_marino.png",
+   "json": "/Game/newpro/tilesets/fondo_marino/fondo_marino.json"
+  },
+  {
+   "tema": "isla",
+   "nombre": "Isla",
+   "carpeta": "/Game/newpro/tilesets/isla",
+   "imagen": "/Game/newpro/tilesets/isla/isla.png",
+   "json": "/Game/newpro/tilesets/isla/isla.json"
+  },
+  {
+   "tema": "jungla",
+   "nombre": "Jungla",
+   "carpeta": "/Game/newpro/tilesets/jungla",
+   "imagen": "/Game/newpro/tilesets/jungla/jungla.png",
+   "json": "/Game/newpro/tilesets/jungla/jungla.json"
+  },
+  {
+   "tema": "nieve",
+   "nombre": "Nieve",
+   "carpeta": "/Game/newpro/tilesets/nieve",
+   "imagen": "/Game/newpro/tilesets/nieve/nieve.png",
+   "json": "/Game/newpro/tilesets/nieve/nieve.json"
+  },
+  {
+   "tema": "otono",
+   "nombre": "Otono",
+   "carpeta": "/Game/newpro/tilesets/otono",
+   "imagen": "/Game/newpro/tilesets/otono/otono.png",
+   "json": "/Game/newpro/tilesets/otono/otono.json"
+  },
+  {
+   "tema": "pantano",
+   "nombre": "Pantano",
+   "carpeta": "/Game/newpro/tilesets/pantano",
+   "imagen": "/Game/newpro/tilesets/pantano/pantano.png",
+   "json": "/Game/newpro/tilesets/pantano/pantano.json"
+  },
+  {
+   "tema": "pradera",
+   "nombre": "Pradera",
+   "carpeta": "/Game/newpro/tilesets/pradera",
+   "imagen": "/Game/newpro/tilesets/pradera/pradera.png",
+   "json": "/Game/newpro/tilesets/pradera/pradera.json"
+  },
+  {
+   "tema": "ruinas",
+   "nombre": "Ruinas",
+   "carpeta": "/Game/newpro/tilesets/ruinas",
+   "imagen": "/Game/newpro/tilesets/ruinas/ruinas.png",
+   "json": "/Game/newpro/tilesets/ruinas/ruinas.json"
+  },
+  {
+   "tema": "volcan",
+   "nombre": "Volcan",
+   "carpeta": "/Game/newpro/tilesets/volcan",
+   "imagen": "/Game/newpro/tilesets/volcan/volcan.png",
+   "json": "/Game/newpro/tilesets/volcan/volcan.json"
+  }
+ ]
+}

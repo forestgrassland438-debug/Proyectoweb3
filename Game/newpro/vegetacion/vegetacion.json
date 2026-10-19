@@ -1,0 +1,755 @@
+{
+ "pack": "newpro/vegetacion",
+ "version": 1,
+ "base_web": "/Game/newpro/vegetacion",
+ "descripcion": "Arboles, arbustos y plantas con la paleta medida de Game/Objetos/arbol.png. Cada pieza va dos veces: a su tamano en arboles/ o arbustos/, y encajada en una rejilla de 16 en tiles/.",
+ "sombra": "los PNG salen SIN sombra pegada: el juego pone la suya con gf-sombras",
+ "total": 55,
+ "piezas": [
+  {
+   "id": "roble_chico",
+   "grupo": "arbol",
+   "ancho": 38,
+   "alto": 56,
+   "ruta": "/Game/newpro/vegetacion/arboles/roble_chico.png",
+   "tiles": [
+    3,
+    4
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/roble_chico_3x4.png",
+   "paleta": "frondosa",
+   "forma": "redonda"
+  },
+  {
+   "id": "roble",
+   "grupo": "arbol",
+   "ancho": 56,
+   "alto": 84,
+   "ruta": "/Game/newpro/vegetacion/arboles/roble.png",
+   "tiles": [
+    4,
+    6
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/roble_4x6.png",
+   "paleta": "frondosa",
+   "forma": "redonda"
+  },
+  {
+   "id": "roble_grande",
+   "grupo": "arbol",
+   "ancho": 74,
+   "alto": 106,
+   "ruta": "/Game/newpro/vegetacion/arboles/roble_grande.png",
+   "tiles": [
+    5,
+    7
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/roble_grande_5x7.png",
+   "paleta": "frondosa",
+   "forma": "redonda"
+  },
+  {
+   "id": "haya",
+   "grupo": "arbol",
+   "ancho": 62,
+   "alto": 92,
+   "ruta": "/Game/newpro/vegetacion/arboles/haya.png",
+   "tiles": [
+    4,
+    6
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/haya_4x6.png",
+   "paleta": "frondosa",
+   "forma": "redonda"
+  },
+  {
+   "id": "abedul",
+   "grupo": "arbol",
+   "ancho": 34,
+   "alto": 74,
+   "ruta": "/Game/newpro/vegetacion/arboles/abedul.png",
+   "tiles": [
+    3,
+    5
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/abedul_3x5.png",
+   "paleta": "frondosa",
+   "forma": "columna"
+  },
+  {
+   "id": "sauce",
+   "grupo": "arbol",
+   "ancho": 62,
+   "alto": 88,
+   "ruta": "/Game/newpro/vegetacion/arboles/sauce.png",
+   "tiles": [
+    4,
+    6
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/sauce_4x6.png",
+   "paleta": "frondosa",
+   "forma": "sauce"
+  },
+  {
+   "id": "manzano",
+   "grupo": "arbol",
+   "ancho": 56,
+   "alto": 82,
+   "ruta": "/Game/newpro/vegetacion/arboles/manzano.png",
+   "tiles": [
+    4,
+    6
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/manzano_4x6.png",
+   "paleta": "frondosa",
+   "forma": "redonda",
+   "frutas": "manzana"
+  },
+  {
+   "id": "naranjo",
+   "grupo": "arbol",
+   "ancho": 54,
+   "alto": 80,
+   "ruta": "/Game/newpro/vegetacion/arboles/naranjo.png",
+   "tiles": [
+    4,
+    5
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/naranjo_4x5.png",
+   "paleta": "frondosa",
+   "forma": "redonda",
+   "frutas": "naranja"
+  },
+  {
+   "id": "cerezo",
+   "grupo": "arbol",
+   "ancho": 58,
+   "alto": 86,
+   "ruta": "/Game/newpro/vegetacion/arboles/cerezo.png",
+   "tiles": [
+    4,
+    6
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/cerezo_4x6.png",
+   "paleta": "cerezo",
+   "forma": "redonda",
+   "flores": "rosa"
+  },
+  {
+   "id": "almendro",
+   "grupo": "arbol",
+   "ancho": 52,
+   "alto": 78,
+   "ruta": "/Game/newpro/vegetacion/arboles/almendro.png",
+   "tiles": [
+    4,
+    5
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/almendro_4x5.png",
+   "paleta": "cerezo",
+   "forma": "redonda",
+   "flores": "blanca"
+  },
+  {
+   "id": "pino_chico",
+   "grupo": "arbol",
+   "ancho": 36,
+   "alto": 72,
+   "ruta": "/Game/newpro/vegetacion/arboles/pino_chico.png",
+   "tiles": [
+    3,
+    5
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/pino_chico_3x5.png",
+   "paleta": "pino",
+   "forma": "pino"
+  },
+  {
+   "id": "pino",
+   "grupo": "arbol",
+   "ancho": 52,
+   "alto": 104,
+   "ruta": "/Game/newpro/vegetacion/arboles/pino.png",
+   "tiles": [
+    4,
+    7
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/pino_4x7.png",
+   "paleta": "pino",
+   "forma": "pino"
+  },
+  {
+   "id": "abeto",
+   "grupo": "arbol",
+   "ancho": 46,
+   "alto": 96,
+   "ruta": "/Game/newpro/vegetacion/arboles/abeto.png",
+   "tiles": [
+    3,
+    6
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/abeto_3x6.png",
+   "paleta": "pino",
+   "forma": "pino"
+  },
+  {
+   "id": "otono_rojo",
+   "grupo": "arbol",
+   "ancho": 56,
+   "alto": 82,
+   "ruta": "/Game/newpro/vegetacion/arboles/otono_rojo.png",
+   "tiles": [
+    4,
+    6
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/otono_rojo_4x6.png",
+   "paleta": "otono",
+   "forma": "redonda"
+  },
+  {
+   "id": "otono_dorado",
+   "grupo": "arbol",
+   "ancho": 58,
+   "alto": 84,
+   "ruta": "/Game/newpro/vegetacion/arboles/otono_dorado.png",
+   "tiles": [
+    4,
+    6
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/otono_dorado_4x6.png",
+   "paleta": "otono",
+   "forma": "redonda",
+   "frutas": "manzana"
+  },
+  {
+   "id": "arbol_nevado",
+   "grupo": "arbol",
+   "ancho": 54,
+   "alto": 82,
+   "ruta": "/Game/newpro/vegetacion/arboles/arbol_nevado.png",
+   "tiles": [
+    4,
+    6
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/arbol_nevado_4x6.png",
+   "paleta": "nieve",
+   "forma": "redonda"
+  },
+  {
+   "id": "pino_nevado",
+   "grupo": "arbol",
+   "ancho": 46,
+   "alto": 94,
+   "ruta": "/Game/newpro/vegetacion/arboles/pino_nevado.png",
+   "tiles": [
+    3,
+    6
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/pino_nevado_3x6.png",
+   "paleta": "nieve",
+   "forma": "pino"
+  },
+  {
+   "id": "ceiba",
+   "grupo": "arbol",
+   "ancho": 70,
+   "alto": 104,
+   "ruta": "/Game/newpro/vegetacion/arboles/ceiba.png",
+   "tiles": [
+    5,
+    7
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/ceiba_5x7.png",
+   "paleta": "jungla",
+   "forma": "redonda"
+  },
+  {
+   "id": "arbol_jungla",
+   "grupo": "arbol",
+   "ancho": 60,
+   "alto": 96,
+   "ruta": "/Game/newpro/vegetacion/arboles/arbol_jungla.png",
+   "tiles": [
+    4,
+    6
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/arbol_jungla_4x6.png",
+   "paleta": "jungla",
+   "forma": "redonda"
+  },
+  {
+   "id": "sauce_pantano",
+   "grupo": "arbol",
+   "ancho": 62,
+   "alto": 86,
+   "ruta": "/Game/newpro/vegetacion/arboles/sauce_pantano.png",
+   "tiles": [
+    4,
+    6
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/sauce_pantano_4x6.png",
+   "paleta": "pantano",
+   "forma": "sauce"
+  },
+  {
+   "id": "arbol_pantano",
+   "grupo": "arbol",
+   "ancho": 56,
+   "alto": 84,
+   "ruta": "/Game/newpro/vegetacion/arboles/arbol_pantano.png",
+   "tiles": [
+    4,
+    6
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/arbol_pantano_4x6.png",
+   "paleta": "pantano",
+   "forma": "redonda"
+  },
+  {
+   "id": "palmera",
+   "grupo": "arbol",
+   "ancho": 58,
+   "alto": 92,
+   "ruta": "/Game/newpro/vegetacion/arboles/palmera.png",
+   "tiles": [
+    4,
+    6
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/palmera_4x6.png",
+   "paleta": "palmera",
+   "forma": "palmera"
+  },
+  {
+   "id": "palmera_chica",
+   "grupo": "arbol",
+   "ancho": 42,
+   "alto": 68,
+   "ruta": "/Game/newpro/vegetacion/arboles/palmera_chica.png",
+   "tiles": [
+    3,
+    5
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/palmera_chica_3x5.png",
+   "paleta": "palmera",
+   "forma": "palmera"
+  },
+  {
+   "id": "arbol_seco",
+   "grupo": "arbol",
+   "ancho": 54,
+   "alto": 82,
+   "ruta": "/Game/newpro/vegetacion/arboles/arbol_seco.png",
+   "tiles": [
+    4,
+    6
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/arbol_seco_4x6.png",
+   "paleta": "seco",
+   "forma": "seco"
+  },
+  {
+   "id": "arbol_muerto",
+   "grupo": "arbol",
+   "ancho": 44,
+   "alto": 66,
+   "ruta": "/Game/newpro/vegetacion/arboles/arbol_muerto.png",
+   "tiles": [
+    3,
+    5
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/arbol_muerto_3x5.png",
+   "paleta": "muerto",
+   "forma": "seco"
+  },
+  {
+   "id": "arbusto",
+   "grupo": "arbusto",
+   "ancho": 28,
+   "alto": 22,
+   "ruta": "/Game/newpro/vegetacion/arbustos/arbusto.png",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/arbusto_2x2.png",
+   "pintor": "arbusto"
+  },
+  {
+   "id": "arbusto_grande",
+   "grupo": "arbusto",
+   "ancho": 40,
+   "alto": 30,
+   "ruta": "/Game/newpro/vegetacion/arbustos/arbusto_grande.png",
+   "tiles": [
+    3,
+    2
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/arbusto_grande_3x2.png",
+   "pintor": "arbusto"
+  },
+  {
+   "id": "arbusto_flor_rosa",
+   "grupo": "arbusto",
+   "ancho": 30,
+   "alto": 24,
+   "ruta": "/Game/newpro/vegetacion/arbustos/arbusto_flor_rosa.png",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/arbusto_flor_rosa_2x2.png",
+   "pintor": "arbusto"
+  },
+  {
+   "id": "arbusto_flor_blanca",
+   "grupo": "arbusto",
+   "ancho": 30,
+   "alto": 24,
+   "ruta": "/Game/newpro/vegetacion/arbustos/arbusto_flor_blanca.png",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/arbusto_flor_blanca_2x2.png",
+   "pintor": "arbusto"
+  },
+  {
+   "id": "arbusto_flor_lila",
+   "grupo": "arbusto",
+   "ancho": 30,
+   "alto": 24,
+   "ruta": "/Game/newpro/vegetacion/arbustos/arbusto_flor_lila.png",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/arbusto_flor_lila_2x2.png",
+   "pintor": "arbusto"
+  },
+  {
+   "id": "arbusto_bayas",
+   "grupo": "arbusto",
+   "ancho": 28,
+   "alto": 22,
+   "ruta": "/Game/newpro/vegetacion/arbustos/arbusto_bayas.png",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/arbusto_bayas_2x2.png",
+   "pintor": "arbusto"
+  },
+  {
+   "id": "arbusto_otono",
+   "grupo": "arbusto",
+   "ancho": 30,
+   "alto": 24,
+   "ruta": "/Game/newpro/vegetacion/arbustos/arbusto_otono.png",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/arbusto_otono_2x2.png",
+   "pintor": "arbusto"
+  },
+  {
+   "id": "arbusto_nevado",
+   "grupo": "arbusto",
+   "ancho": 30,
+   "alto": 24,
+   "ruta": "/Game/newpro/vegetacion/arbustos/arbusto_nevado.png",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/arbusto_nevado_2x2.png",
+   "pintor": "arbusto"
+  },
+  {
+   "id": "arbusto_jungla",
+   "grupo": "arbusto",
+   "ancho": 34,
+   "alto": 26,
+   "ruta": "/Game/newpro/vegetacion/arbustos/arbusto_jungla.png",
+   "tiles": [
+    3,
+    2
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/arbusto_jungla_3x2.png",
+   "pintor": "arbusto"
+  },
+  {
+   "id": "mata_hierba",
+   "grupo": "arbusto",
+   "ancho": 20,
+   "alto": 14,
+   "ruta": "/Game/newpro/vegetacion/arbustos/mata_hierba.png",
+   "tiles": [
+    2,
+    1
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/mata_hierba_2x1.png",
+   "pintor": "mata"
+  },
+  {
+   "id": "mata_alta",
+   "grupo": "arbusto",
+   "ancho": 22,
+   "alto": 22,
+   "ruta": "/Game/newpro/vegetacion/arbustos/mata_alta.png",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/mata_alta_2x2.png",
+   "pintor": "mata"
+  },
+  {
+   "id": "mata_seca",
+   "grupo": "arbusto",
+   "ancho": 20,
+   "alto": 16,
+   "ruta": "/Game/newpro/vegetacion/arbustos/mata_seca.png",
+   "tiles": [
+    2,
+    1
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/mata_seca_2x1.png",
+   "pintor": "mata"
+  },
+  {
+   "id": "helecho",
+   "grupo": "arbusto",
+   "ancho": 26,
+   "alto": 22,
+   "ruta": "/Game/newpro/vegetacion/arbustos/helecho.png",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/helecho_2x2.png",
+   "pintor": "helecho"
+  },
+  {
+   "id": "helecho_grande",
+   "grupo": "arbusto",
+   "ancho": 36,
+   "alto": 30,
+   "ruta": "/Game/newpro/vegetacion/arbustos/helecho_grande.png",
+   "tiles": [
+    3,
+    2
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/helecho_grande_3x2.png",
+   "pintor": "helecho"
+  },
+  {
+   "id": "flores_rosa",
+   "grupo": "arbusto",
+   "ancho": 22,
+   "alto": 16,
+   "ruta": "/Game/newpro/vegetacion/arbustos/flores_rosa.png",
+   "tiles": [
+    2,
+    1
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/flores_rosa_2x1.png",
+   "pintor": "flores_grupo"
+  },
+  {
+   "id": "flores_amarillas",
+   "grupo": "arbusto",
+   "ancho": 22,
+   "alto": 16,
+   "ruta": "/Game/newpro/vegetacion/arbustos/flores_amarillas.png",
+   "tiles": [
+    2,
+    1
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/flores_amarillas_2x1.png",
+   "pintor": "flores_grupo"
+  },
+  {
+   "id": "flores_blancas",
+   "grupo": "arbusto",
+   "ancho": 22,
+   "alto": 16,
+   "ruta": "/Game/newpro/vegetacion/arbustos/flores_blancas.png",
+   "tiles": [
+    2,
+    1
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/flores_blancas_2x1.png",
+   "pintor": "flores_grupo"
+  },
+  {
+   "id": "flores_lilas",
+   "grupo": "arbusto",
+   "ancho": 22,
+   "alto": 16,
+   "ruta": "/Game/newpro/vegetacion/arbustos/flores_lilas.png",
+   "tiles": [
+    2,
+    1
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/flores_lilas_2x1.png",
+   "pintor": "flores_grupo"
+  },
+  {
+   "id": "flores_rojas",
+   "grupo": "arbusto",
+   "ancho": 22,
+   "alto": 16,
+   "ruta": "/Game/newpro/vegetacion/arbustos/flores_rojas.png",
+   "tiles": [
+    2,
+    1
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/flores_rojas_2x1.png",
+   "pintor": "flores_grupo"
+  },
+  {
+   "id": "tocon",
+   "grupo": "arbusto",
+   "ancho": 22,
+   "alto": 18,
+   "ruta": "/Game/newpro/vegetacion/arbustos/tocon.png",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/tocon_2x2.png",
+   "pintor": "tocon"
+  },
+  {
+   "id": "tocon_setas",
+   "grupo": "arbusto",
+   "ancho": 24,
+   "alto": 20,
+   "ruta": "/Game/newpro/vegetacion/arbustos/tocon_setas.png",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/tocon_setas_2x2.png",
+   "pintor": "tocon"
+  },
+  {
+   "id": "tronco_partido",
+   "grupo": "arbusto",
+   "ancho": 26,
+   "alto": 34,
+   "ruta": "/Game/newpro/vegetacion/arbustos/tronco_partido.png",
+   "tiles": [
+    2,
+    3
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/tronco_partido_2x3.png",
+   "pintor": "tocon"
+  },
+  {
+   "id": "bambu",
+   "grupo": "arbusto",
+   "ancho": 30,
+   "alto": 56,
+   "ruta": "/Game/newpro/vegetacion/arbustos/bambu.png",
+   "tiles": [
+    2,
+    4
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/bambu_2x4.png",
+   "pintor": "bambu"
+  },
+  {
+   "id": "cana_pantano",
+   "grupo": "arbusto",
+   "ancho": 26,
+   "alto": 40,
+   "ruta": "/Game/newpro/vegetacion/arbustos/cana_pantano.png",
+   "tiles": [
+    2,
+    3
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/cana_pantano_2x3.png",
+   "pintor": "bambu"
+  },
+  {
+   "id": "cactus",
+   "grupo": "arbusto",
+   "ancho": 30,
+   "alto": 46,
+   "ruta": "/Game/newpro/vegetacion/arbustos/cactus.png",
+   "tiles": [
+    2,
+    3
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/cactus_2x3.png",
+   "pintor": "cactus"
+  },
+  {
+   "id": "cactus_chico",
+   "grupo": "arbusto",
+   "ancho": 20,
+   "alto": 30,
+   "ruta": "/Game/newpro/vegetacion/arbustos/cactus_chico.png",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/cactus_chico_2x2.png",
+   "pintor": "cactus"
+  },
+  {
+   "id": "seta_gigante_roja",
+   "grupo": "arbusto",
+   "ancho": 30,
+   "alto": 34,
+   "ruta": "/Game/newpro/vegetacion/arbustos/seta_gigante_roja.png",
+   "tiles": [
+    2,
+    3
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/seta_gigante_roja_2x3.png",
+   "pintor": "seta_gigante"
+  },
+  {
+   "id": "seta_gigante_lila",
+   "grupo": "arbusto",
+   "ancho": 30,
+   "alto": 34,
+   "ruta": "/Game/newpro/vegetacion/arbustos/seta_gigante_lila.png",
+   "tiles": [
+    2,
+    3
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/seta_gigante_lila_2x3.png",
+   "pintor": "seta_gigante"
+  },
+  {
+   "id": "roca_musgo",
+   "grupo": "arbusto",
+   "ancho": 28,
+   "alto": 22,
+   "ruta": "/Game/newpro/vegetacion/arbustos/roca_musgo.png",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/roca_musgo_2x2.png",
+   "pintor": "roca"
+  },
+  {
+   "id": "pedrusco",
+   "grupo": "arbusto",
+   "ancho": 24,
+   "alto": 18,
+   "ruta": "/Game/newpro/vegetacion/arbustos/pedrusco.png",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta_tiles": "/Game/newpro/vegetacion/tiles/pedrusco_2x2.png",
+   "pintor": "roca"
+  }
+ ]
+}

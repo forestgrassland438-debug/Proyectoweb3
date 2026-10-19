@@ -1,0 +1,163 @@
+{
+ "pack": "newpro/plantas",
+ "version": 2,
+ "base_web": "/Game/newpro/plantas",
+ "nuevos": 5,
+ "cultivos": [
+  {
+   "id": "arroz",
+   "nombre": "Arroz",
+   "carpeta": "/Game/newpro/plantas/planta_arroz",
+   "etapas": [
+    "/Game/newpro/plantas/planta_arroz/1.png",
+    "/Game/newpro/plantas/planta_arroz/2.png",
+    "/Game/newpro/plantas/planta_arroz/3.png",
+    "/Game/newpro/plantas/planta_arroz/4.png",
+    "/Game/newpro/plantas/planta_arroz/5.png",
+    "/Game/newpro/plantas/planta_arroz/6.png"
+   ],
+   "items": {
+    "item_arroz_bueno": "/Game/newpro/plantas/planta_arroz/item_arroz_bueno.png",
+    "item_arroz_podrido": "/Game/newpro/plantas/planta_arroz/item_arroz_podrido.png",
+    "item_planta_arroz": "/Game/newpro/plantas/planta_arroz/item_planta_arroz.png",
+    "item_semilla_arroz": "/Game/newpro/plantas/planta_arroz/item_semilla_arroz.png"
+   },
+   "claves_phaser": {
+    "tierra_seca_plant_arroz": "1.png",
+    "tierra_mojada_plant_arroz": "2.png",
+    "tierra_mojada_plant2_arroz": "3.png",
+    "tierra_mojada_plant3_arroz": "4.png",
+    "tierra_muerta_plant4_arroz": "5.png",
+    "planta_seca_arroz": "6.png"
+   },
+   "tam_baldosa": [
+    51,
+    53
+   ]
+  },
+  {
+   "id": "ajo",
+   "nombre": "Ajo",
+   "carpeta": "/Game/newpro/plantas/planta_ajo",
+   "etapas": [
+    "/Game/newpro/plantas/planta_ajo/1.png",
+    "/Game/newpro/plantas/planta_ajo/2.png",
+    "/Game/newpro/plantas/planta_ajo/3.png",
+    "/Game/newpro/plantas/planta_ajo/4.png",
+    "/Game/newpro/plantas/planta_ajo/5.png",
+    "/Game/newpro/plantas/planta_ajo/6.png"
+   ],
+   "items": {
+    "item_ajo_bueno": "/Game/newpro/plantas/planta_ajo/item_ajo_bueno.png",
+    "item_ajo_podrido": "/Game/newpro/plantas/planta_ajo/item_ajo_podrido.png",
+    "item_planta_ajo": "/Game/newpro/plantas/planta_ajo/item_planta_ajo.png",
+    "item_semilla_ajo": "/Game/newpro/plantas/planta_ajo/item_semilla_ajo.png"
+   },
+   "claves_phaser": {
+    "tierra_seca_plant_ajo": "1.png",
+    "tierra_mojada_plant_ajo": "2.png",
+    "tierra_mojada_plant2_ajo": "3.png",
+    "tierra_mojada_plant3_ajo": "4.png",
+    "tierra_muerta_plant4_ajo": "5.png",
+    "planta_seca_ajo": "6.png"
+   },
+   "tam_baldosa": [
+    51,
+    53
+   ]
+  },
+  {
+   "id": "guisante",
+   "nombre": "Guisante",
+   "carpeta": "/Game/newpro/plantas/planta_guisante",
+   "etapas": [
+    "/Game/newpro/plantas/planta_guisante/1.png",
+    "/Game/newpro/plantas/planta_guisante/2.png",
+    "/Game/newpro/plantas/planta_guisante/3.png",
+    "/Game/newpro/plantas/planta_guisante/4.png",
+    "/Game/newpro/plantas/planta_guisante/5.png",
+    "/Game/newpro/plantas/planta_guisante/6.png"
+   ],
+   "items": {
+    "item_guisante_bueno": "/Game/newpro/plantas/planta_guisante/item_guisante_bueno.png",
+    "item_guisante_podrido": "/Game/newpro/plantas/planta_guisante/item_guisante_podrido.png",
+    "item_planta_guisante": "/Game/newpro/plantas/planta_guisante/item_planta_guisante.png",
+    "item_semilla_guisante": "/Game/newpro/plantas/planta_guisante/item_semilla_guisante.png"
+   },
+   "claves_phaser": {
+    "tierra_seca_plant_guisante": "1.png",
+    "tierra_mojada_plant_guisante": "2.png",
+    "tierra_mojada_plant2_guisante": "3.png",
+    "tierra_mojada_plant3_guisante": "4.png",
+    "tierra_muerta_plant4_guisante": "5.png",
+    "planta_seca_guisante": "6.png"
+   },
+   "tam_baldosa": [
+    51,
+    53
+   ]
+  },
+  {
+   "id": "col",
+   "nombre": "Col",
+   "carpeta": "/Game/newpro/plantas/planta_col",
+   "etapas": [
+    "/Game/newpro/plantas/planta_col/1.png",
+    "/Game/newpro/plantas/planta_col/2.png",
+    "/Game/newpro/plantas/planta_col/3.png",
+    "/Game/newpro/plantas/planta_col/4.png",
+    "/Game/newpro/plantas/planta_col/5.png",
+    "/Game/newpro/plantas/planta_col/6.png"
+   ],
+   "items": {
+    "item_col_buena": "/Game/newpro/plantas/planta_col/item_col_buena.png",
+    "item_col_podrida": "/Game/newpro/plantas/planta_col/item_col_podrida.png",
+    "item_planta_col": "/Game/newpro/plantas/planta_col/item_planta_col.png",
+    "item_semilla_col": "/Game/newpro/plantas/planta_col/item_semilla_col.png"
+   },
+   "claves_phaser": {
+    "tierra_seca_plant_col": "1.png",
+    "tierra_mojada_plant_col": "2.png",
+    "tierra_mojada_plant2_col": "3.png",
+    "tierra_mojada_plant3_col": "4.png",
+    "tierra_muerta_plant4_col": "5.png",
+    "planta_seca_col": "6.png"
+   },
+   "tam_baldosa": [
+    51,
+    53
+   ]
+  },
+  {
+   "id": "calabacin",
+   "nombre": "Calabacin",
+   "carpeta": "/Game/newpro/plantas/planta_calabacin",
+   "etapas": [
+    "/Game/newpro/plantas/planta_calabacin/1.png",
+    "/Game/newpro/plantas/planta_calabacin/2.png",
+    "/Game/newpro/plantas/planta_calabacin/3.png",
+    "/Game/newpro/plantas/planta_calabacin/4.png",
+    "/Game/newpro/plantas/planta_calabacin/5.png",
+    "/Game/newpro/plantas/planta_calabacin/6.png"
+   ],
+   "items": {
+    "item_calabacin_bueno": "/Game/newpro/plantas/planta_calabacin/item_calabacin_bueno.png",
+    "item_calabacin_podrido": "/Game/newpro/plantas/planta_calabacin/item_calabacin_podrido.png",
+    "item_planta_calabacin": "/Game/newpro/plantas/planta_calabacin/item_planta_calabacin.png",
+    "item_semilla_calabacin": "/Game/newpro/plantas/planta_calabacin/item_semilla_calabacin.png"
+   },
+   "claves_phaser": {
+    "tierra_seca_plant_calabacin": "1.png",
+    "tierra_mojada_plant_calabacin": "2.png",
+    "tierra_mojada_plant2_calabacin": "3.png",
+    "tierra_mojada_plant3_calabacin": "4.png",
+    "tierra_muerta_plant4_calabacin": "5.png",
+    "planta_seca_calabacin": "6.png"
+   },
+   "tam_baldosa": [
+    51,
+    53
+   ]
+  }
+ ]
+}

@@ -1,0 +1,412 @@
+{
+ "pack": "newpro/construcciones",
+ "version": 1,
+ "base_web": "/Game/newpro/construcciones",
+ "descripcion": "Casas y objetos de pueblo con la paleta medida de Game/Objetos/casa de npc arreglado.png.",
+ "total": 31,
+ "piezas": [
+  {
+   "id": "casa_chica",
+   "grupo": "casa",
+   "ancho": 52,
+   "alto": 56,
+   "pintor": "casa",
+   "tiles": [
+    4,
+    4
+   ],
+   "ruta": "/Game/newpro/construcciones/casas/casa_chica.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/casa_chica_4x4.png"
+  },
+  {
+   "id": "casa_mediana",
+   "grupo": "casa",
+   "ancho": 64,
+   "alto": 66,
+   "pintor": "casa",
+   "tiles": [
+    4,
+    5
+   ],
+   "ruta": "/Game/newpro/construcciones/casas/casa_mediana.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/casa_mediana_4x5.png"
+  },
+  {
+   "id": "casa_grande",
+   "grupo": "casa",
+   "ancho": 78,
+   "alto": 76,
+   "pintor": "casa",
+   "tiles": [
+    5,
+    5
+   ],
+   "ruta": "/Game/newpro/construcciones/casas/casa_grande.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/casa_grande_5x5.png"
+  },
+  {
+   "id": "casa_dos_pisos",
+   "grupo": "casa",
+   "ancho": 70,
+   "alto": 92,
+   "pintor": "casa",
+   "tiles": [
+    5,
+    6
+   ],
+   "ruta": "/Game/newpro/construcciones/casas/casa_dos_pisos.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/casa_dos_pisos_5x6.png"
+  },
+  {
+   "id": "casa_labranza",
+   "grupo": "casa",
+   "ancho": 72,
+   "alto": 68,
+   "pintor": "casa",
+   "tiles": [
+    5,
+    5
+   ],
+   "ruta": "/Game/newpro/construcciones/casas/casa_labranza.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/casa_labranza_5x5.png"
+  },
+  {
+   "id": "tienda",
+   "grupo": "casa",
+   "ancho": 64,
+   "alto": 72,
+   "pintor": "casa",
+   "tiles": [
+    4,
+    5
+   ],
+   "ruta": "/Game/newpro/construcciones/casas/tienda.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/tienda_4x5.png"
+  },
+  {
+   "id": "herreria",
+   "grupo": "casa",
+   "ancho": 70,
+   "alto": 70,
+   "pintor": "casa",
+   "tiles": [
+    5,
+    5
+   ],
+   "ruta": "/Game/newpro/construcciones/casas/herreria.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/herreria_5x5.png"
+  },
+  {
+   "id": "posada",
+   "grupo": "casa",
+   "ancho": 80,
+   "alto": 94,
+   "pintor": "casa",
+   "tiles": [
+    5,
+    6
+   ],
+   "ruta": "/Game/newpro/construcciones/casas/posada.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/posada_5x6.png"
+  },
+  {
+   "id": "boticario",
+   "grupo": "casa",
+   "ancho": 58,
+   "alto": 70,
+   "pintor": "casa",
+   "tiles": [
+    4,
+    5
+   ],
+   "ruta": "/Game/newpro/construcciones/casas/boticario.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/boticario_4x5.png"
+  },
+  {
+   "id": "granero",
+   "grupo": "casa",
+   "ancho": 84,
+   "alto": 74,
+   "pintor": "casa",
+   "tiles": [
+    6,
+    5
+   ],
+   "ruta": "/Game/newpro/construcciones/casas/granero.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/granero_6x5.png"
+  },
+  {
+   "id": "cobertizo",
+   "grupo": "casa",
+   "ancho": 56,
+   "alto": 46,
+   "pintor": "casa",
+   "tiles": [
+    4,
+    3
+   ],
+   "ruta": "/Game/newpro/construcciones/casas/cobertizo.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/cobertizo_4x3.png"
+  },
+  {
+   "id": "cabana",
+   "grupo": "casa",
+   "ancho": 58,
+   "alto": 60,
+   "pintor": "cabana",
+   "tiles": [
+    4,
+    4
+   ],
+   "ruta": "/Game/newpro/construcciones/casas/cabana.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/cabana_4x4.png"
+  },
+  {
+   "id": "torre",
+   "grupo": "casa",
+   "ancho": 42,
+   "alto": 96,
+   "pintor": "torre",
+   "tiles": [
+    3,
+    6
+   ],
+   "ruta": "/Game/newpro/construcciones/casas/torre.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/torre_3x6.png"
+  },
+  {
+   "id": "molino",
+   "grupo": "casa",
+   "ancho": 68,
+   "alto": 100,
+   "pintor": "molino",
+   "tiles": [
+    5,
+    7
+   ],
+   "ruta": "/Game/newpro/construcciones/casas/molino.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/molino_5x7.png"
+  },
+  {
+   "id": "pozo",
+   "grupo": "casa",
+   "ancho": 36,
+   "alto": 40,
+   "pintor": "pozo",
+   "tiles": [
+    3,
+    3
+   ],
+   "ruta": "/Game/newpro/construcciones/casas/pozo.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/pozo_3x3.png"
+  },
+  {
+   "id": "tienda_campana",
+   "grupo": "casa",
+   "ancho": 42,
+   "alto": 36,
+   "pintor": "tienda_campana",
+   "tiles": [
+    3,
+    3
+   ],
+   "ruta": "/Game/newpro/construcciones/casas/tienda_campana.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/tienda_campana_3x3.png"
+  },
+  {
+   "id": "valla",
+   "grupo": "prop",
+   "ancho": 48,
+   "alto": 20,
+   "pintor": "valla",
+   "tiles": [
+    3,
+    2
+   ],
+   "ruta": "/Game/newpro/construcciones/props/valla.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/valla_3x2.png"
+  },
+  {
+   "id": "valla_esquina",
+   "grupo": "prop",
+   "ancho": 34,
+   "alto": 20,
+   "pintor": "valla",
+   "tiles": [
+    3,
+    2
+   ],
+   "ruta": "/Game/newpro/construcciones/props/valla_esquina.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/valla_esquina_3x2.png"
+  },
+  {
+   "id": "valla_puerta",
+   "grupo": "prop",
+   "ancho": 34,
+   "alto": 20,
+   "pintor": "valla",
+   "tiles": [
+    3,
+    2
+   ],
+   "ruta": "/Game/newpro/construcciones/props/valla_puerta.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/valla_puerta_3x2.png"
+  },
+  {
+   "id": "cartel",
+   "grupo": "prop",
+   "ancho": 24,
+   "alto": 32,
+   "pintor": "cartel",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta": "/Game/newpro/construcciones/props/cartel.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/cartel_2x2.png"
+  },
+  {
+   "id": "cartel_doble",
+   "grupo": "prop",
+   "ancho": 26,
+   "alto": 34,
+   "pintor": "cartel",
+   "tiles": [
+    2,
+    3
+   ],
+   "ruta": "/Game/newpro/construcciones/props/cartel_doble.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/cartel_doble_2x3.png"
+  },
+  {
+   "id": "farola",
+   "grupo": "prop",
+   "ancho": 18,
+   "alto": 44,
+   "pintor": "farola",
+   "tiles": [
+    2,
+    3
+   ],
+   "ruta": "/Game/newpro/construcciones/props/farola.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/farola_2x3.png"
+  },
+  {
+   "id": "banco",
+   "grupo": "prop",
+   "ancho": 28,
+   "alto": 20,
+   "pintor": "banco",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta": "/Game/newpro/construcciones/props/banco.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/banco_2x2.png"
+  },
+  {
+   "id": "barril",
+   "grupo": "prop",
+   "ancho": 16,
+   "alto": 20,
+   "pintor": "barril",
+   "tiles": [
+    1,
+    2
+   ],
+   "ruta": "/Game/newpro/construcciones/props/barril.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/barril_1x2.png"
+  },
+  {
+   "id": "caja",
+   "grupo": "prop",
+   "ancho": 16,
+   "alto": 16,
+   "pintor": "caja",
+   "tiles": [
+    1,
+    1
+   ],
+   "ruta": "/Game/newpro/construcciones/props/caja.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/caja_1x1.png"
+  },
+  {
+   "id": "caja_grande",
+   "grupo": "prop",
+   "ancho": 22,
+   "alto": 22,
+   "pintor": "caja",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta": "/Game/newpro/construcciones/props/caja_grande.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/caja_grande_2x2.png"
+  },
+  {
+   "id": "hoguera",
+   "grupo": "prop",
+   "ancho": 24,
+   "alto": 22,
+   "pintor": "hoguera",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta": "/Game/newpro/construcciones/props/hoguera.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/hoguera_2x2.png"
+  },
+  {
+   "id": "pila_lena",
+   "grupo": "prop",
+   "ancho": 28,
+   "alto": 22,
+   "pintor": "pila_lena",
+   "tiles": [
+    2,
+    2
+   ],
+   "ruta": "/Game/newpro/construcciones/props/pila_lena.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/pila_lena_2x2.png"
+  },
+  {
+   "id": "espantapajaros",
+   "grupo": "prop",
+   "ancho": 28,
+   "alto": 46,
+   "pintor": "espantapajaros",
+   "tiles": [
+    2,
+    3
+   ],
+   "ruta": "/Game/newpro/construcciones/props/espantapajaros.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/espantapajaros_2x3.png"
+  },
+  {
+   "id": "puente_h",
+   "grupo": "prop",
+   "ancho": 64,
+   "alto": 24,
+   "pintor": "puente",
+   "tiles": [
+    4,
+    2
+   ],
+   "ruta": "/Game/newpro/construcciones/props/puente_h.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/puente_h_4x2.png"
+  },
+  {
+   "id": "puente_v",
+   "grupo": "prop",
+   "ancho": 24,
+   "alto": 64,
+   "pintor": "puente",
+   "tiles": [
+    2,
+    4
+   ],
+   "ruta": "/Game/newpro/construcciones/props/puente_v.png",
+   "ruta_tiles": "/Game/newpro/construcciones/tiles/puente_v_2x4.png"
+  }
+ ]
+}

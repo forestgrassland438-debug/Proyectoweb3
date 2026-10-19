@@ -1,0 +1,835 @@
+{
+ "tema": "ruinas",
+ "nombre": "Ruinas",
+ "imagen": "/Game/newpro/tilesets/ruinas/ruinas.png",
+ "tile": 16,
+ "columnas": 16,
+ "filas": 9,
+ "tiles": 144,
+ "plantilla": {
+  "suelo_base": [
+   0,
+   1,
+   2,
+   3
+  ],
+  "suelo_base_deco": [
+   4,
+   5,
+   6,
+   7
+  ],
+  "suelo_secundario": [
+   8,
+   9,
+   10,
+   11
+  ],
+  "suelo_secundario_deco": [
+   12,
+   13,
+   14,
+   15
+  ],
+  "transicion_secundario": {
+   "desde": 16,
+   "orden": [
+    "NO",
+    "N",
+    "NE",
+    "O",
+    "C",
+    "E",
+    "SO",
+    "S",
+    "SE",
+    "iNO",
+    "iNE",
+    "iSO",
+    "iSE"
+   ]
+  },
+  "camino": {
+   "h": 29,
+   "v": 30,
+   "cruce": 31
+  },
+  "transicion_liquido": {
+   "desde": 32,
+   "orden": [
+    "NO",
+    "N",
+    "NE",
+    "O",
+    "C",
+    "E",
+    "SO",
+    "S",
+    "SE",
+    "iNO",
+    "iNE",
+    "iSO",
+    "iSE"
+   ]
+  },
+  "liquido": {
+   "hondo": 45,
+   "claro": 46,
+   "brillo": 47
+  },
+  "acantilado": {
+   "desde": 48,
+   "forma": "3x3 filo/pared/pie",
+   "escalera": [
+    59,
+    60
+   ]
+  },
+  "objetos": {
+   "desde": 64,
+   "cuantos": 32,
+   "nota": "fondo transparente, van en una capa por encima"
+  },
+  "objetos_grandes": {
+   "desde": 96,
+   "cuantas": 8,
+   "tiles": [
+    2,
+    3
+   ],
+   "nota": "ocho piezas de 2x3 tiles (arboles, arbustos, rocas). La pieza k ocupa las columnas 2k y 2k+1 de las filas 6, 7 y 8: sus indices son 96+2k, 97+2k, 112+2k, 113+2k, 128+2k y 129+2k."
+  }
+ },
+ "referencias": [
+  "/Game/newpro/tilesets/ruinas/ref_1_indice.png",
+  "/Game/newpro/tilesets/ruinas/ref_2_terrenos.png",
+  "/Game/newpro/tilesets/ruinas/ref_3_transicion.png",
+  "/Game/newpro/tilesets/ruinas/ref_4_agua.png",
+  "/Game/newpro/tilesets/ruinas/ref_5_acantilado.png",
+  "/Game/newpro/tilesets/ruinas/ref_6_camino.png",
+  "/Game/newpro/tilesets/ruinas/ref_7_objetos.png",
+  "/Game/newpro/tilesets/ruinas/ref_8_escena.png"
+ ],
+ "tiles_detalle": [
+  {
+   "i": 0,
+   "nombre": "base_1",
+   "papel": "suelo"
+  },
+  {
+   "i": 1,
+   "nombre": "base_2",
+   "papel": "suelo"
+  },
+  {
+   "i": 2,
+   "nombre": "base_3",
+   "papel": "suelo"
+  },
+  {
+   "i": 3,
+   "nombre": "base_4",
+   "papel": "suelo"
+  },
+  {
+   "i": 4,
+   "nombre": "base_deco_1",
+   "papel": "suelo"
+  },
+  {
+   "i": 5,
+   "nombre": "base_deco_2",
+   "papel": "suelo"
+  },
+  {
+   "i": 6,
+   "nombre": "base_deco_3",
+   "papel": "suelo"
+  },
+  {
+   "i": 7,
+   "nombre": "base_deco_4",
+   "papel": "suelo"
+  },
+  {
+   "i": 8,
+   "nombre": "secundario_1",
+   "papel": "suelo"
+  },
+  {
+   "i": 9,
+   "nombre": "secundario_2",
+   "papel": "suelo"
+  },
+  {
+   "i": 10,
+   "nombre": "secundario_3",
+   "papel": "suelo"
+  },
+  {
+   "i": 11,
+   "nombre": "secundario_4",
+   "papel": "suelo"
+  },
+  {
+   "i": 12,
+   "nombre": "secundario_deco_1",
+   "papel": "suelo"
+  },
+  {
+   "i": 13,
+   "nombre": "secundario_deco_2",
+   "papel": "suelo"
+  },
+  {
+   "i": 14,
+   "nombre": "secundario_deco_3",
+   "papel": "suelo"
+  },
+  {
+   "i": 15,
+   "nombre": "secundario_deco_4",
+   "papel": "suelo"
+  },
+  {
+   "i": 16,
+   "nombre": "sec_NO",
+   "papel": "transicion_secundario"
+  },
+  {
+   "i": 17,
+   "nombre": "sec_N",
+   "papel": "transicion_secundario"
+  },
+  {
+   "i": 18,
+   "nombre": "sec_NE",
+   "papel": "transicion_secundario"
+  },
+  {
+   "i": 19,
+   "nombre": "sec_O",
+   "papel": "transicion_secundario"
+  },
+  {
+   "i": 20,
+   "nombre": "sec_C",
+   "papel": "transicion_secundario"
+  },
+  {
+   "i": 21,
+   "nombre": "sec_E",
+   "papel": "transicion_secundario"
+  },
+  {
+   "i": 22,
+   "nombre": "sec_SO",
+   "papel": "transicion_secundario"
+  },
+  {
+   "i": 23,
+   "nombre": "sec_S",
+   "papel": "transicion_secundario"
+  },
+  {
+   "i": 24,
+   "nombre": "sec_SE",
+   "papel": "transicion_secundario"
+  },
+  {
+   "i": 25,
+   "nombre": "sec_iNO",
+   "papel": "transicion_secundario"
+  },
+  {
+   "i": 26,
+   "nombre": "sec_iNE",
+   "papel": "transicion_secundario"
+  },
+  {
+   "i": 27,
+   "nombre": "sec_iSO",
+   "papel": "transicion_secundario"
+  },
+  {
+   "i": 28,
+   "nombre": "sec_iSE",
+   "papel": "transicion_secundario"
+  },
+  {
+   "i": 29,
+   "nombre": "camino_h",
+   "papel": "camino"
+  },
+  {
+   "i": 30,
+   "nombre": "camino_v",
+   "papel": "camino"
+  },
+  {
+   "i": 31,
+   "nombre": "camino_cruce",
+   "papel": "camino"
+  },
+  {
+   "i": 32,
+   "nombre": "liquido_NO",
+   "papel": "transicion_liquido"
+  },
+  {
+   "i": 33,
+   "nombre": "liquido_N",
+   "papel": "transicion_liquido"
+  },
+  {
+   "i": 34,
+   "nombre": "liquido_NE",
+   "papel": "transicion_liquido"
+  },
+  {
+   "i": 35,
+   "nombre": "liquido_O",
+   "papel": "transicion_liquido"
+  },
+  {
+   "i": 36,
+   "nombre": "liquido_C",
+   "papel": "transicion_liquido"
+  },
+  {
+   "i": 37,
+   "nombre": "liquido_E",
+   "papel": "transicion_liquido"
+  },
+  {
+   "i": 38,
+   "nombre": "liquido_SO",
+   "papel": "transicion_liquido"
+  },
+  {
+   "i": 39,
+   "nombre": "liquido_S",
+   "papel": "transicion_liquido"
+  },
+  {
+   "i": 40,
+   "nombre": "liquido_SE",
+   "papel": "transicion_liquido"
+  },
+  {
+   "i": 41,
+   "nombre": "liquido_iNO",
+   "papel": "transicion_liquido"
+  },
+  {
+   "i": 42,
+   "nombre": "liquido_iNE",
+   "papel": "transicion_liquido"
+  },
+  {
+   "i": 43,
+   "nombre": "liquido_iSO",
+   "papel": "transicion_liquido"
+  },
+  {
+   "i": 44,
+   "nombre": "liquido_iSE",
+   "papel": "transicion_liquido"
+  },
+  {
+   "i": 45,
+   "nombre": "liquido_hondo",
+   "papel": "liquido"
+  },
+  {
+   "i": 46,
+   "nombre": "liquido_claro",
+   "papel": "liquido"
+  },
+  {
+   "i": 47,
+   "nombre": "liquido_brillo",
+   "papel": "liquido"
+  },
+  {
+   "i": 48,
+   "nombre": "acantilado_00",
+   "papel": "acantilado"
+  },
+  {
+   "i": 49,
+   "nombre": "acantilado_01",
+   "papel": "acantilado"
+  },
+  {
+   "i": 50,
+   "nombre": "acantilado_02",
+   "papel": "acantilado"
+  },
+  {
+   "i": 51,
+   "nombre": "acantilado_10",
+   "papel": "acantilado"
+  },
+  {
+   "i": 52,
+   "nombre": "acantilado_11",
+   "papel": "acantilado"
+  },
+  {
+   "i": 53,
+   "nombre": "acantilado_12",
+   "papel": "acantilado"
+  },
+  {
+   "i": 54,
+   "nombre": "acantilado_20",
+   "papel": "acantilado"
+  },
+  {
+   "i": 55,
+   "nombre": "acantilado_21",
+   "papel": "acantilado"
+  },
+  {
+   "i": 56,
+   "nombre": "acantilado_22",
+   "papel": "acantilado"
+  },
+  {
+   "i": 57,
+   "nombre": "acantilado_int_izq",
+   "papel": "acantilado"
+  },
+  {
+   "i": 58,
+   "nombre": "acantilado_int_der",
+   "papel": "acantilado"
+  },
+  {
+   "i": 59,
+   "nombre": "escalera_arriba",
+   "papel": "acantilado"
+  },
+  {
+   "i": 60,
+   "nombre": "escalera_cuerpo",
+   "papel": "acantilado"
+  },
+  {
+   "i": 61,
+   "nombre": "pared_deco_1",
+   "papel": "acantilado"
+  },
+  {
+   "i": 62,
+   "nombre": "pared_deco_2",
+   "papel": "acantilado"
+  },
+  {
+   "i": 63,
+   "nombre": "pared_deco_3",
+   "papel": "acantilado"
+  },
+  {
+   "i": 64,
+   "nombre": "columna_1",
+   "papel": "objeto"
+  },
+  {
+   "i": 65,
+   "nombre": "columna_2",
+   "papel": "objeto"
+  },
+  {
+   "i": 66,
+   "nombre": "losa_rota_3",
+   "papel": "objeto"
+  },
+  {
+   "i": 67,
+   "nombre": "losa_rota_4",
+   "papel": "objeto"
+  },
+  {
+   "i": 68,
+   "nombre": "escalon_5",
+   "papel": "objeto"
+  },
+  {
+   "i": 69,
+   "nombre": "vasija_6",
+   "papel": "objeto"
+  },
+  {
+   "i": 70,
+   "nombre": "vasija_7",
+   "papel": "objeto"
+  },
+  {
+   "i": 71,
+   "nombre": "antorcha_8",
+   "papel": "objeto"
+  },
+  {
+   "i": 72,
+   "nombre": "roca_9",
+   "papel": "objeto"
+  },
+  {
+   "i": 73,
+   "nombre": "roca_grande_10",
+   "papel": "objeto"
+  },
+  {
+   "i": 74,
+   "nombre": "guijarros_11",
+   "papel": "objeto"
+  },
+  {
+   "i": 75,
+   "nombre": "grieta_12",
+   "papel": "objeto"
+  },
+  {
+   "i": 76,
+   "nombre": "hierba_13",
+   "papel": "objeto"
+  },
+  {
+   "i": 77,
+   "nombre": "hierba_alta_14",
+   "papel": "objeto"
+  },
+  {
+   "i": 78,
+   "nombre": "arbusto_15",
+   "papel": "objeto"
+  },
+  {
+   "i": 79,
+   "nombre": "flor_16",
+   "papel": "objeto"
+  },
+  {
+   "i": 80,
+   "nombre": "flor_17",
+   "papel": "objeto"
+  },
+  {
+   "i": 81,
+   "nombre": "helecho_18",
+   "papel": "objeto"
+  },
+  {
+   "i": 82,
+   "nombre": "raiz_19",
+   "papel": "objeto"
+  },
+  {
+   "i": 83,
+   "nombre": "tronco_20",
+   "papel": "objeto"
+  },
+  {
+   "i": 84,
+   "nombre": "tocon_21",
+   "papel": "objeto"
+  },
+  {
+   "i": 85,
+   "nombre": "hueso_22",
+   "papel": "objeto"
+  },
+  {
+   "i": 86,
+   "nombre": "calavera_23",
+   "papel": "objeto"
+  },
+  {
+   "i": 87,
+   "nombre": "telarana_24",
+   "papel": "objeto"
+  },
+  {
+   "i": 88,
+   "nombre": "charco_25",
+   "papel": "objeto"
+  },
+  {
+   "i": 89,
+   "nombre": "seta_26",
+   "papel": "objeto"
+  },
+  {
+   "i": 90,
+   "nombre": "mineral_27",
+   "papel": "objeto"
+  },
+  {
+   "i": 91,
+   "nombre": "cristal_28",
+   "papel": "objeto"
+  },
+  {
+   "i": 92,
+   "nombre": "roca_29",
+   "papel": "objeto"
+  },
+  {
+   "i": 93,
+   "nombre": "concha_30",
+   "papel": "objeto"
+  },
+  {
+   "i": 94,
+   "nombre": "ceniza_31",
+   "papel": "objeto"
+  },
+  {
+   "i": 95,
+   "nombre": "burbujas_32",
+   "papel": "objeto"
+  },
+  {
+   "i": 96,
+   "nombre": "grande_0_00",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 97,
+   "nombre": "grande_0_01",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 98,
+   "nombre": "grande_1_00",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 99,
+   "nombre": "grande_1_01",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 100,
+   "nombre": "grande_2_00",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 101,
+   "nombre": "grande_2_01",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 102,
+   "nombre": "grande_3_00",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 103,
+   "nombre": "grande_3_01",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 104,
+   "nombre": "grande_4_00",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 105,
+   "nombre": "grande_4_01",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 106,
+   "nombre": "grande_5_00",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 107,
+   "nombre": "grande_5_01",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 108,
+   "nombre": "grande_6_00",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 109,
+   "nombre": "grande_6_01",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 110,
+   "nombre": "grande_7_00",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 111,
+   "nombre": "grande_7_01",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 112,
+   "nombre": "grande_0_10",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 113,
+   "nombre": "grande_0_11",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 114,
+   "nombre": "grande_1_10",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 115,
+   "nombre": "grande_1_11",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 116,
+   "nombre": "grande_2_10",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 117,
+   "nombre": "grande_2_11",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 118,
+   "nombre": "grande_3_10",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 119,
+   "nombre": "grande_3_11",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 120,
+   "nombre": "grande_4_10",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 121,
+   "nombre": "grande_4_11",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 122,
+   "nombre": "grande_5_10",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 123,
+   "nombre": "grande_5_11",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 124,
+   "nombre": "grande_6_10",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 125,
+   "nombre": "grande_6_11",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 126,
+   "nombre": "grande_7_10",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 127,
+   "nombre": "grande_7_11",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 128,
+   "nombre": "grande_0_20",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 129,
+   "nombre": "grande_0_21",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 130,
+   "nombre": "grande_1_20",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 131,
+   "nombre": "grande_1_21",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 132,
+   "nombre": "grande_2_20",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 133,
+   "nombre": "grande_2_21",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 134,
+   "nombre": "grande_3_20",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 135,
+   "nombre": "grande_3_21",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 136,
+   "nombre": "grande_4_20",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 137,
+   "nombre": "grande_4_21",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 138,
+   "nombre": "grande_5_20",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 139,
+   "nombre": "grande_5_21",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 140,
+   "nombre": "grande_6_20",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 141,
+   "nombre": "grande_6_21",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 142,
+   "nombre": "grande_7_20",
+   "papel": "objeto_grande"
+  },
+  {
+   "i": 143,
+   "nombre": "grande_7_21",
+   "papel": "objeto_grande"
+  }
+ ]
+}

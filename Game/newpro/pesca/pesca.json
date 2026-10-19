@@ -1,0 +1,988 @@
+{
+ "pack": "newpro/pesca",
+ "version": 1,
+ "base_web": "/Game/newpro/pesca",
+ "total": 98,
+ "items": [
+  {
+   "id": "cana_de_madera",
+   "nombre": "Cana de madera",
+   "categoria": "canas",
+   "ancho": 24,
+   "alto": 24,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/canas/cana_de_madera.png",
+   "clave_phaser": "cana_de_madera"
+  },
+  {
+   "id": "cana_de_bambu",
+   "nombre": "Cana de bambu",
+   "categoria": "canas",
+   "ancho": 26,
+   "alto": 25,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/canas/cana_de_bambu.png",
+   "clave_phaser": "cana_de_bambu"
+  },
+  {
+   "id": "cana_reforzada",
+   "nombre": "Cana reforzada",
+   "categoria": "canas",
+   "ancho": 26,
+   "alto": 25,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/canas/cana_reforzada.png",
+   "clave_phaser": "cana_reforzada"
+  },
+  {
+   "id": "cana_de_hierro",
+   "nombre": "Cana de hierro",
+   "categoria": "canas",
+   "ancho": 27,
+   "alto": 26,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/canas/cana_de_hierro.png",
+   "clave_phaser": "cana_de_hierro"
+  },
+  {
+   "id": "cana_de_plata",
+   "nombre": "Cana de plata",
+   "categoria": "canas",
+   "ancho": 27,
+   "alto": 26,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/canas/cana_de_plata.png",
+   "clave_phaser": "cana_de_plata"
+  },
+  {
+   "id": "cana_dorada",
+   "nombre": "Cana dorada",
+   "categoria": "canas",
+   "ancho": 27,
+   "alto": 27,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/canas/cana_dorada.png",
+   "clave_phaser": "cana_dorada"
+  },
+  {
+   "id": "cana_abisal",
+   "nombre": "Cana abisal",
+   "categoria": "canas",
+   "ancho": 27,
+   "alto": 27,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/canas/cana_abisal.png",
+   "clave_phaser": "cana_abisal"
+  },
+  {
+   "id": "cana_espectral",
+   "nombre": "Cana espectral",
+   "categoria": "canas",
+   "ancho": 27,
+   "alto": 27,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/canas/cana_espectral.png",
+   "clave_phaser": "cana_espectral"
+  },
+  {
+   "id": "anzuelo_de_hueso",
+   "nombre": "Anzuelo de hueso",
+   "categoria": "aparejo",
+   "ancho": 12,
+   "alto": 20,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/anzuelo_de_hueso.png",
+   "clave_phaser": "anzuelo_de_hueso"
+  },
+  {
+   "id": "anzuelo_de_cobre",
+   "nombre": "Anzuelo de cobre",
+   "categoria": "aparejo",
+   "ancho": 12,
+   "alto": 20,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/anzuelo_de_cobre.png",
+   "clave_phaser": "anzuelo_de_cobre"
+  },
+  {
+   "id": "anzuelo_de_hierro",
+   "nombre": "Anzuelo de hierro",
+   "categoria": "aparejo",
+   "ancho": 12,
+   "alto": 20,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/anzuelo_de_hierro.png",
+   "clave_phaser": "anzuelo_de_hierro"
+  },
+  {
+   "id": "anzuelo_de_acero",
+   "nombre": "Anzuelo de acero",
+   "categoria": "aparejo",
+   "ancho": 12,
+   "alto": 20,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/anzuelo_de_acero.png",
+   "clave_phaser": "anzuelo_de_acero"
+  },
+  {
+   "id": "anzuelo_de_plata",
+   "nombre": "Anzuelo de plata",
+   "categoria": "aparejo",
+   "ancho": 12,
+   "alto": 20,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/anzuelo_de_plata.png",
+   "clave_phaser": "anzuelo_de_plata"
+  },
+  {
+   "id": "anzuelo_dorado",
+   "nombre": "Anzuelo dorado",
+   "categoria": "aparejo",
+   "ancho": 12,
+   "alto": 20,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/anzuelo_dorado.png",
+   "clave_phaser": "anzuelo_dorado"
+  },
+  {
+   "id": "anzuelo_triple",
+   "nombre": "Anzuelo triple",
+   "categoria": "aparejo",
+   "ancho": 18,
+   "alto": 21,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/anzuelo_triple.png",
+   "clave_phaser": "anzuelo_triple"
+  },
+  {
+   "id": "sedal_de_fibra",
+   "nombre": "Sedal de fibra",
+   "categoria": "aparejo",
+   "ancho": 15,
+   "alto": 21,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/sedal_de_fibra.png",
+   "clave_phaser": "sedal_de_fibra"
+  },
+  {
+   "id": "sedal_trenzado",
+   "nombre": "Sedal trenzado",
+   "categoria": "aparejo",
+   "ancho": 15,
+   "alto": 21,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/sedal_trenzado.png",
+   "clave_phaser": "sedal_trenzado"
+  },
+  {
+   "id": "sedal_de_seda",
+   "nombre": "Sedal de seda",
+   "categoria": "aparejo",
+   "ancho": 15,
+   "alto": 21,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/sedal_de_seda.png",
+   "clave_phaser": "sedal_de_seda"
+  },
+  {
+   "id": "sedal_de_acero",
+   "nombre": "Sedal de acero",
+   "categoria": "aparejo",
+   "ancho": 15,
+   "alto": 21,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/sedal_de_acero.png",
+   "clave_phaser": "sedal_de_acero"
+  },
+  {
+   "id": "corcho_de_pesca",
+   "nombre": "Corcho de pesca",
+   "categoria": "aparejo",
+   "ancho": 13,
+   "alto": 18,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/corcho_de_pesca.png",
+   "clave_phaser": "corcho_de_pesca"
+  },
+  {
+   "id": "boya_roja",
+   "nombre": "Boya roja",
+   "categoria": "aparejo",
+   "ancho": 13,
+   "alto": 18,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/boya_roja.png",
+   "clave_phaser": "boya_roja"
+  },
+  {
+   "id": "boya_luminosa",
+   "nombre": "Boya luminosa",
+   "categoria": "aparejo",
+   "ancho": 13,
+   "alto": 18,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/boya_luminosa.png",
+   "clave_phaser": "boya_luminosa"
+  },
+  {
+   "id": "red_de_mano",
+   "nombre": "Red de mano",
+   "categoria": "aparejo",
+   "ancho": 22,
+   "alto": 21,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/red_de_mano.png",
+   "clave_phaser": "red_de_mano"
+  },
+  {
+   "id": "red_reforzada",
+   "nombre": "Red reforzada",
+   "categoria": "aparejo",
+   "ancho": 22,
+   "alto": 21,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/red_reforzada.png",
+   "clave_phaser": "red_reforzada"
+  },
+  {
+   "id": "nasa_de_mimbre",
+   "nombre": "Nasa de mimbre",
+   "categoria": "aparejo",
+   "ancho": 22,
+   "alto": 17,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/nasa_de_mimbre.png",
+   "clave_phaser": "nasa_de_mimbre"
+  },
+  {
+   "id": "nasa_de_hierro",
+   "nombre": "Nasa de hierro",
+   "categoria": "aparejo",
+   "ancho": 22,
+   "alto": 17,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/nasa_de_hierro.png",
+   "clave_phaser": "nasa_de_hierro"
+  },
+  {
+   "id": "trampa_de_cangrejos",
+   "nombre": "Trampa de cangrejos",
+   "categoria": "aparejo",
+   "ancho": 23,
+   "alto": 16,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/trampa_de_cangrejos.png",
+   "clave_phaser": "trampa_de_cangrejos"
+  },
+  {
+   "id": "arpon",
+   "nombre": "Arpon",
+   "categoria": "aparejo",
+   "ancho": 11,
+   "alto": 32,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/arpon.png",
+   "clave_phaser": "arpon"
+  },
+  {
+   "id": "tridente",
+   "nombre": "Tridente",
+   "categoria": "aparejo",
+   "ancho": 11,
+   "alto": 30,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/tridente.png",
+   "clave_phaser": "tridente"
+  },
+  {
+   "id": "tridente_dorado",
+   "nombre": "Tridente dorado",
+   "categoria": "aparejo",
+   "ancho": 11,
+   "alto": 30,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/aparejo/tridente_dorado.png",
+   "clave_phaser": "tridente_dorado"
+  },
+  {
+   "id": "cebo_gusano",
+   "nombre": "Gusano",
+   "categoria": "cebos",
+   "ancho": 20,
+   "alto": 11,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/cebos/cebo_gusano.png",
+   "clave_phaser": "cebo_gusano"
+  },
+  {
+   "id": "cebo_lombriz",
+   "nombre": "Lombriz de tierra",
+   "categoria": "cebos",
+   "ancho": 20,
+   "alto": 11,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/cebos/cebo_lombriz.png",
+   "clave_phaser": "cebo_lombriz"
+  },
+  {
+   "id": "cebo_larva",
+   "nombre": "Larva",
+   "categoria": "cebos",
+   "ancho": 18,
+   "alto": 11,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/cebos/cebo_larva.png",
+   "clave_phaser": "cebo_larva"
+  },
+  {
+   "id": "cebo_mosca",
+   "nombre": "Mosca artificial",
+   "categoria": "cebos",
+   "ancho": 17,
+   "alto": 13,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/cebos/cebo_mosca.png",
+   "clave_phaser": "cebo_mosca"
+  },
+  {
+   "id": "cebo_saltamontes",
+   "nombre": "Saltamontes",
+   "categoria": "cebos",
+   "ancho": 16,
+   "alto": 12,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/cebos/cebo_saltamontes.png",
+   "clave_phaser": "cebo_saltamontes"
+  },
+  {
+   "id": "cebo_camaron",
+   "nombre": "Camaron",
+   "categoria": "cebos",
+   "ancho": 12,
+   "alto": 10,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/cebos/cebo_camaron.png",
+   "clave_phaser": "cebo_camaron"
+  },
+  {
+   "id": "cebo_pan",
+   "nombre": "Bola de pan",
+   "categoria": "cebos",
+   "ancho": 11,
+   "alto": 15,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/cebos/cebo_pan.png",
+   "clave_phaser": "cebo_pan"
+  },
+  {
+   "id": "cebo_masa",
+   "nombre": "Masa de cebo",
+   "categoria": "cebos",
+   "ancho": 12,
+   "alto": 15,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/cebos/cebo_masa.png",
+   "clave_phaser": "cebo_masa"
+  },
+  {
+   "id": "cebo_hueva",
+   "nombre": "Huevas",
+   "categoria": "cebos",
+   "ancho": 12,
+   "alto": 12,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/cebos/cebo_hueva.png",
+   "clave_phaser": "cebo_hueva"
+  },
+  {
+   "id": "cebo_brillante",
+   "nombre": "Cebo brillante",
+   "categoria": "cebos",
+   "ancho": 15,
+   "alto": 15,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/cebos/cebo_brillante.png",
+   "clave_phaser": "cebo_brillante"
+  },
+  {
+   "id": "cebo_magico",
+   "nombre": "Cebo magico",
+   "categoria": "cebos",
+   "ancho": 15,
+   "alto": 15,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/cebos/cebo_magico.png",
+   "clave_phaser": "cebo_magico"
+  },
+  {
+   "id": "cebo_de_hueso",
+   "nombre": "Astilla de hueso",
+   "categoria": "cebos",
+   "ancho": 17,
+   "alto": 9,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/cebos/cebo_de_hueso.png",
+   "clave_phaser": "cebo_de_hueso"
+  },
+  {
+   "id": "escama_plateada",
+   "nombre": "Escama plateada",
+   "categoria": "despiece",
+   "ancho": 23,
+   "alto": 18,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/despiece/escama_plateada.png",
+   "clave_phaser": "escama_plateada"
+  },
+  {
+   "id": "escama_dorada",
+   "nombre": "Escama dorada",
+   "categoria": "despiece",
+   "ancho": 23,
+   "alto": 18,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/despiece/escama_dorada.png",
+   "clave_phaser": "escama_dorada"
+  },
+  {
+   "id": "escama_iridiscente",
+   "nombre": "Escama iridiscente",
+   "categoria": "despiece",
+   "ancho": 23,
+   "alto": 18,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/despiece/escama_iridiscente.png",
+   "clave_phaser": "escama_iridiscente"
+  },
+  {
+   "id": "escama_abisal",
+   "nombre": "Escama abisal",
+   "categoria": "despiece",
+   "ancho": 23,
+   "alto": 18,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/despiece/escama_abisal.png",
+   "clave_phaser": "escama_abisal"
+  },
+  {
+   "id": "aleta_de_pescado",
+   "nombre": "Aleta",
+   "categoria": "despiece",
+   "ancho": 18,
+   "alto": 16,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/despiece/aleta_de_pescado.png",
+   "clave_phaser": "aleta_de_pescado"
+  },
+  {
+   "id": "aleta_de_tiburon",
+   "nombre": "Aleta de tiburon",
+   "categoria": "despiece",
+   "ancho": 18,
+   "alto": 16,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/despiece/aleta_de_tiburon.png",
+   "clave_phaser": "aleta_de_tiburon"
+  },
+  {
+   "id": "filete_crudo",
+   "nombre": "Filete crudo",
+   "categoria": "despiece",
+   "ancho": 22,
+   "alto": 12,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/despiece/filete_crudo.png",
+   "clave_phaser": "filete_crudo"
+  },
+  {
+   "id": "filete_de_salmon",
+   "nombre": "Filete de salmon",
+   "categoria": "despiece",
+   "ancho": 22,
+   "alto": 12,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/despiece/filete_de_salmon.png",
+   "clave_phaser": "filete_de_salmon"
+  },
+  {
+   "id": "filete_blanco",
+   "nombre": "Filete blanco",
+   "categoria": "despiece",
+   "ancho": 22,
+   "alto": 12,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/despiece/filete_blanco.png",
+   "clave_phaser": "filete_blanco"
+  },
+  {
+   "id": "pescado_seco",
+   "nombre": "Pescado seco",
+   "categoria": "despiece",
+   "ancho": 24,
+   "alto": 18,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/despiece/pescado_seco.png",
+   "clave_phaser": "pescado_seco"
+  },
+  {
+   "id": "pescado_salado",
+   "nombre": "Pescado salado",
+   "categoria": "despiece",
+   "ancho": 24,
+   "alto": 18,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/despiece/pescado_salado.png",
+   "clave_phaser": "pescado_salado"
+  },
+  {
+   "id": "harina_de_pescado",
+   "nombre": "Harina de pescado",
+   "categoria": "despiece",
+   "ancho": 17,
+   "alto": 20,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/despiece/harina_de_pescado.png",
+   "clave_phaser": "harina_de_pescado"
+  },
+  {
+   "id": "aceite_de_pescado",
+   "nombre": "Aceite de pescado",
+   "categoria": "despiece",
+   "ancho": 12,
+   "alto": 20,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/despiece/aceite_de_pescado.png",
+   "clave_phaser": "aceite_de_pescado"
+  },
+  {
+   "id": "esencia_de_escama",
+   "nombre": "Esencia de escama",
+   "categoria": "despiece",
+   "ancho": 12,
+   "alto": 20,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/despiece/esencia_de_escama.png",
+   "clave_phaser": "esencia_de_escama"
+  },
+  {
+   "id": "espina_de_pez",
+   "nombre": "Espina de pez",
+   "categoria": "despiece",
+   "ancho": 25,
+   "alto": 11,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/despiece/espina_de_pez.png",
+   "clave_phaser": "espina_de_pez"
+  },
+  {
+   "id": "hueva_de_esturion",
+   "nombre": "Huevas de esturion",
+   "categoria": "despiece",
+   "ancho": 12,
+   "alto": 12,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/despiece/hueva_de_esturion.png",
+   "clave_phaser": "hueva_de_esturion"
+  },
+  {
+   "id": "vejiga_natatoria",
+   "nombre": "Vejiga natatoria",
+   "categoria": "despiece",
+   "ancho": 11,
+   "alto": 11,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/despiece/vejiga_natatoria.png",
+   "clave_phaser": "vejiga_natatoria"
+  },
+  {
+   "id": "perla",
+   "nombre": "Perla",
+   "categoria": "marinos",
+   "ancho": 13,
+   "alto": 13,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/marinos/perla.png",
+   "clave_phaser": "perla"
+  },
+  {
+   "id": "perla_negra",
+   "nombre": "Perla negra",
+   "categoria": "marinos",
+   "ancho": 13,
+   "alto": 13,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/marinos/perla_negra.png",
+   "clave_phaser": "perla_negra"
+  },
+  {
+   "id": "perla_rosa",
+   "nombre": "Perla rosa",
+   "categoria": "marinos",
+   "ancho": 13,
+   "alto": 13,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/marinos/perla_rosa.png",
+   "clave_phaser": "perla_rosa"
+  },
+  {
+   "id": "perla_gigante",
+   "nombre": "Perla gigante",
+   "categoria": "marinos",
+   "ancho": 17,
+   "alto": 17,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/marinos/perla_gigante.png",
+   "clave_phaser": "perla_gigante"
+  },
+  {
+   "id": "nacar",
+   "nombre": "Nacar",
+   "categoria": "marinos",
+   "ancho": 14,
+   "alto": 14,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/marinos/nacar.png",
+   "clave_phaser": "nacar"
+  },
+  {
+   "id": "ambar_marino",
+   "nombre": "Ambar marino",
+   "categoria": "marinos",
+   "ancho": 14,
+   "alto": 14,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/marinos/ambar_marino.png",
+   "clave_phaser": "ambar_marino"
+  },
+  {
+   "id": "cristal_de_sal",
+   "nombre": "Cristal de sal",
+   "categoria": "marinos",
+   "ancho": 14,
+   "alto": 14,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/marinos/cristal_de_sal.png",
+   "clave_phaser": "cristal_de_sal"
+  },
+  {
+   "id": "coral_rojo",
+   "nombre": "Coral rojo",
+   "categoria": "marinos",
+   "ancho": 15,
+   "alto": 22,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/marinos/coral_rojo.png",
+   "clave_phaser": "coral_rojo"
+  },
+  {
+   "id": "coral_blanco",
+   "nombre": "Coral blanco",
+   "categoria": "marinos",
+   "ancho": 15,
+   "alto": 22,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/marinos/coral_blanco.png",
+   "clave_phaser": "coral_blanco"
+  },
+  {
+   "id": "coral_negro",
+   "nombre": "Coral negro",
+   "categoria": "marinos",
+   "ancho": 15,
+   "alto": 22,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/marinos/coral_negro.png",
+   "clave_phaser": "coral_negro"
+  },
+  {
+   "id": "alga_verde",
+   "nombre": "Alga verde",
+   "categoria": "marinos",
+   "ancho": 20,
+   "alto": 24,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/marinos/alga_verde.png",
+   "clave_phaser": "alga_verde"
+  },
+  {
+   "id": "alga_parda",
+   "nombre": "Alga parda",
+   "categoria": "marinos",
+   "ancho": 17,
+   "alto": 24,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/marinos/alga_parda.png",
+   "clave_phaser": "alga_parda"
+  },
+  {
+   "id": "alga_roja",
+   "nombre": "Alga roja",
+   "categoria": "marinos",
+   "ancho": 21,
+   "alto": 25,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/marinos/alga_roja.png",
+   "clave_phaser": "alga_roja"
+  },
+  {
+   "id": "sal_marina",
+   "nombre": "Sal marina",
+   "categoria": "marinos",
+   "ancho": 21,
+   "alto": 11,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/marinos/sal_marina.png",
+   "clave_phaser": "sal_marina"
+  },
+  {
+   "id": "arena_fina",
+   "nombre": "Arena fina",
+   "categoria": "marinos",
+   "ancho": 21,
+   "alto": 11,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/marinos/arena_fina.png",
+   "clave_phaser": "arena_fina"
+  },
+  {
+   "id": "esponja_de_mar",
+   "nombre": "Esponja de mar",
+   "categoria": "marinos",
+   "ancho": 17,
+   "alto": 16,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/marinos/esponja_de_mar.png",
+   "clave_phaser": "esponja_de_mar"
+  },
+  {
+   "id": "concha_vacia",
+   "nombre": "Concha vacia",
+   "categoria": "marinos",
+   "ancho": 18,
+   "alto": 15,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/marinos/concha_vacia.png",
+   "clave_phaser": "concha_vacia"
+  },
+  {
+   "id": "concha_de_nacar",
+   "nombre": "Concha de nacar",
+   "categoria": "marinos",
+   "ancho": 18,
+   "alto": 15,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/marinos/concha_de_nacar.png",
+   "clave_phaser": "concha_de_nacar"
+  },
+  {
+   "id": "cofre_hundido",
+   "nombre": "Cofre hundido",
+   "categoria": "tesoros",
+   "ancho": 20,
+   "alto": 17,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/tesoros/cofre_hundido.png",
+   "clave_phaser": "cofre_hundido"
+  },
+  {
+   "id": "cofre_de_hierro",
+   "nombre": "Cofre de hierro",
+   "categoria": "tesoros",
+   "ancho": 20,
+   "alto": 17,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/tesoros/cofre_de_hierro.png",
+   "clave_phaser": "cofre_de_hierro"
+  },
+  {
+   "id": "doblon",
+   "nombre": "Doblon",
+   "categoria": "tesoros",
+   "ancho": 13,
+   "alto": 11,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/tesoros/doblon.png",
+   "clave_phaser": "doblon"
+  },
+  {
+   "id": "moneda_antigua",
+   "nombre": "Moneda antigua",
+   "categoria": "tesoros",
+   "ancho": 13,
+   "alto": 11,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/tesoros/moneda_antigua.png",
+   "clave_phaser": "moneda_antigua"
+  },
+  {
+   "id": "pila_de_doblones",
+   "nombre": "Pila de doblones",
+   "categoria": "tesoros",
+   "ancho": 13,
+   "alto": 15,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/tesoros/pila_de_doblones.png",
+   "clave_phaser": "pila_de_doblones"
+  },
+  {
+   "id": "anfora",
+   "nombre": "Anfora",
+   "categoria": "tesoros",
+   "ancho": 17,
+   "alto": 22,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/tesoros/anfora.png",
+   "clave_phaser": "anfora"
+  },
+  {
+   "id": "botella_con_mensaje",
+   "nombre": "Botella con mensaje",
+   "categoria": "tesoros",
+   "ancho": 14,
+   "alto": 22,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/tesoros/botella_con_mensaje.png",
+   "clave_phaser": "botella_con_mensaje"
+  },
+  {
+   "id": "brujula_oxidada",
+   "nombre": "Brujula oxidada",
+   "categoria": "tesoros",
+   "ancho": 17,
+   "alto": 19,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/tesoros/brujula_oxidada.png",
+   "clave_phaser": "brujula_oxidada"
+  },
+  {
+   "id": "mapa_nautico",
+   "nombre": "Mapa nautico",
+   "categoria": "tesoros",
+   "ancho": 21,
+   "alto": 17,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/tesoros/mapa_nautico.png",
+   "clave_phaser": "mapa_nautico"
+  },
+  {
+   "id": "llave_oxidada",
+   "nombre": "Llave oxidada",
+   "categoria": "tesoros",
+   "ancho": 12,
+   "alto": 21,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/tesoros/llave_oxidada.png",
+   "clave_phaser": "llave_oxidada"
+  },
+  {
+   "id": "llave_de_plata",
+   "nombre": "Llave de plata",
+   "categoria": "tesoros",
+   "ancho": 12,
+   "alto": 21,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/tesoros/llave_de_plata.png",
+   "clave_phaser": "llave_de_plata"
+  },
+  {
+   "id": "anillo_perdido",
+   "nombre": "Anillo perdido",
+   "categoria": "tesoros",
+   "ancho": 13,
+   "alto": 16,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/tesoros/anillo_perdido.png",
+   "clave_phaser": "anillo_perdido"
+  },
+  {
+   "id": "reliquia_hundida",
+   "nombre": "Reliquia hundida",
+   "categoria": "tesoros",
+   "ancho": 14,
+   "alto": 20,
+   "maxStack": 5,
+   "ruta": "/Game/newpro/pesca/tesoros/reliquia_hundida.png",
+   "clave_phaser": "reliquia_hundida"
+  },
+  {
+   "id": "bota_vieja",
+   "nombre": "Bota vieja",
+   "categoria": "basura",
+   "ancho": 15,
+   "alto": 17,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/basura/bota_vieja.png",
+   "clave_phaser": "bota_vieja"
+  },
+  {
+   "id": "lata_oxidada",
+   "nombre": "Lata oxidada",
+   "categoria": "basura",
+   "ancho": 11,
+   "alto": 19,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/basura/lata_oxidada.png",
+   "clave_phaser": "lata_oxidada"
+  },
+  {
+   "id": "rama_empapada",
+   "nombre": "Rama empapada",
+   "categoria": "basura",
+   "ancho": 26,
+   "alto": 12,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/basura/rama_empapada.png",
+   "clave_phaser": "rama_empapada"
+  },
+  {
+   "id": "alga_enredada",
+   "nombre": "Alga enredada",
+   "categoria": "basura",
+   "ancho": 17,
+   "alto": 19,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/basura/alga_enredada.png",
+   "clave_phaser": "alga_enredada"
+  },
+  {
+   "id": "red_rota",
+   "nombre": "Red rota",
+   "categoria": "basura",
+   "ancho": 19,
+   "alto": 12,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/basura/red_rota.png",
+   "clave_phaser": "red_rota"
+  },
+  {
+   "id": "trapo_mojado",
+   "nombre": "Trapo mojado",
+   "categoria": "basura",
+   "ancho": 18,
+   "alto": 15,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/basura/trapo_mojado.png",
+   "clave_phaser": "trapo_mojado"
+  },
+  {
+   "id": "cristal_roto",
+   "nombre": "Cristal roto",
+   "categoria": "basura",
+   "ancho": 17,
+   "alto": 12,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/basura/cristal_roto.png",
+   "clave_phaser": "cristal_roto"
+  },
+  {
+   "id": "esqueleto_de_pez",
+   "nombre": "Esqueleto de pez",
+   "categoria": "basura",
+   "ancho": 19,
+   "alto": 11,
+   "maxStack": 20,
+   "ruta": "/Game/newpro/pesca/basura/esqueleto_de_pez.png",
+   "clave_phaser": "esqueleto_de_pez"
+  }
+ ]
+}
