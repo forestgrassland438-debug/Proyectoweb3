@@ -564,6 +564,14 @@ def construir_muebles():
     m['nasas'] = M25.nasas()
     m['red_pesca'] = M25.red_pesca()
     m['alfombra_pasillo'] = recorta(png(os.path.join(OBJ, 'alfombra5.png')))
+    # (2026-10-19) "Las casas se ven vacías y hay cosas que no son 2.5D":
+    # las camas en 3/4 de verdad y los muebles nuevos (gf_muebles_25d.py).
+    m['cama_roja'] = M25.cama((176, 58, 56))
+    m['cama_verde'] = M25.cama((74, 128, 82))
+    m['cama_azul'] = M25.cama((64, 96, 168))
+    for n in ('aparador', 'mesa_redonda', 'banco', 'sacos', 'estante_pared', 'jarron', 'perchero',
+              'tonel', 'mesa_alquimia', 'banco_trabajo', 'astas', 'piel_suelo', 'lampara_pie'):
+        m[n] = getattr(M25, n)()
     # A su tamaño en el juego (ver ESCALA_MUEBLE): lo que se guarda y lo que
     # se coloca. Vecino más cercano: es pixel art.
     for n in list(m):
@@ -634,6 +642,28 @@ SALAS = {
             ('escoba', 724, 818, {}),
             ('planta_pequena', 84, 820, {}),
             ('planta_flores', 1136, 824, {}),
+            # (2026-10-19) Menos vacía: el aparador entre la estantería y la
+            # chimenea, un rincón de leer con su candelero, el perchero de la
+            # entrada, los sacos de la despensa y un banco en el comedor.
+            ('aparador', 404, 304, {'pie': 16}),
+            ('mesa_redonda', 268, 712, {'pie': 14}),
+            ('silla', 226, 718, {}), ('silla_b', 340, 718, {}),
+            ('lampara_pie', 360, 600, {'anim': 'vela', 'fx': 6, 'fy': 3}),
+            ('perchero', 392, 812, {'pie': 10}),
+            # La mesa de comer grande, con sus cuatro sillas, junto al pasillo.
+            ('mesa_larga', 440, 560, {'anim': 'vela', 'fx': 26, 'fy': 22}),
+            ('silla', 402, 480, {}), ('silla', 402, 546, {}), ('silla_b', 512, 480, {}), ('silla_b', 512, 546, {}),
+            # La alfombra bajo la mesa redonda y una estantería en la pared.
+            ('alfombra_verde', 226, 748, {'plano': True}),
+            ('estante_libros', 84, 680, {'pie': 20}),
+            # El cuarto de los niños: la cama azul y su baúl.
+            ('cama_azul', 980, 822, {'pie': 66}),
+            ('cofre', 1070, 822, {}),
+            ('barril', 1140, 700, {}),
+            ('sacos', 1180, 430, {'pie': 14}),
+            ('estante_pared', 940, 206, {'plano': True}),
+            ('banco', 900, 676, {'pie': 10}),
+            ('jarron', 836, 812, {}),
         ]},
     'posada': {
         # La barra al fondo a la izquierda (frascos y barriles detrás, tres
@@ -682,6 +712,27 @@ SALAS = {
             ('alfombra_pasillo', 742, 954, {'plano': True}),
             ('planta_flores', 84, 800, {}), ('planta_alta', 1420, 820, {}),
             ('planta_pequena', 1420, 520, {}),
+            # (2026-10-19) Los toneles de la barra, una mesa de té junto a la
+            # escalera, candeleros entre las mesas, la repisa y los sacos.
+            ('tonel', 404, 316, {'pie': 14}), ('tonel', 466, 316, {'pie': 14}),
+            ('mesa_redonda', 1180, 540, {'pie': 14}),
+            ('taburete', 1140, 556, {}), ('taburete', 1250, 556, {}),
+            ('lampara_pie', 440, 610, {'anim': 'vela', 'fx': 6, 'fy': 3}), ('lampara_pie', 1090, 610, {'anim': 'vela', 'fx': 6, 'fy': 3}),
+            ('estante_pared', 1060, 206, {'plano': True}),
+            ('sacos', 1100, 420, {'pie': 14}),
+            ('jarron', 84, 560, {}),
+            ('banco', 300, 520, {'pie': 10}),
+            # Dos mesas de té más, el aparador, un banco, otro tonel, un
+            # candelero junto a la barra y un cajón.
+            ('mesa_redonda', 520, 580, {'pie': 14}),
+            ('taburete', 480, 596, {}), ('taburete', 590, 596, {}),
+            ('mesa_redonda', 1000, 900, {'pie': 14}),
+            ('taburete', 960, 916, {}), ('taburete', 1070, 916, {}),
+            ('aparador', 1110, 304, {'pie': 16}),
+            ('banco', 120, 690, {'pie': 10}),
+            ('tonel', 1380, 700, {'pie': 14}),
+            ('lampara_pie', 360, 470, {'anim': 'vela', 'fx': 6, 'fy': 3}),
+            ('cajon', 1190, 430, {}),
         ]},
     'pociones': {
         # La biblioteca de la alquimista al fondo a la izquierda (frascos y
@@ -713,6 +764,21 @@ SALAS = {
             ('cajon', 900, 820, {}), ('barril', 960, 820, {}),
             ('planta_flores', 84, 820, {}), ('planta_cactus', 1170, 820, {}),
             ('escoba', 724, 818, {}),
+            # (2026-10-19) La mesa de alquimia, la repisa de tarros, los sacos
+            # de hierbas, un candelero y el jarrón.
+            ('mesa_alquimia', 276, 492, {'pie': 12}),
+            ('estante_pared', 700, 206, {'plano': True}),
+            ('sacos', 1120, 520, {'pie': 14}),
+            ('lampara_pie', 460, 700, {'anim': 'vela', 'fx': 6, 'fy': 3}),
+            ('jarron', 1180, 640, {}),
+            # La estantería grande de pociones, otra mesa de alquimia, el
+            # rincón de leer con mesa redonda, un banco y más libros.
+            ('estante_pociones', 380, 300, {'pie': 16}),
+            ('mesa_alquimia', 880, 430, {'pie': 12}),
+            ('mesa_redonda', 300, 800, {'pie': 14}),
+            ('silla', 262, 812, {}),
+            ('banco', 800, 720, {'pie': 10}),
+            ('estante_libros2', 84, 560, {'pie': 20}),
         ]},
     'herreria': {
         # La fragua con su carbón en la esquina, el yunque y el brasero
@@ -740,6 +806,22 @@ SALAS = {
             ('carbon', 300, 820, {}),
             ('cajon', 1250, 820, {}), ('barril', 1190, 820, {}),
             ('escoba', 790, 818, {}),
+            # (2026-10-19) El banco de trabajo, el tonel de agua para templar,
+            # los sacos de carbón y la repisa.
+            ('banco_trabajo', 900, 572, {'pie': 12}),
+            ('tonel', 1260, 572, {'pie': 14}),
+            ('sacos', 380, 700, {'pie': 14}),
+            ('estante_pared', 1040, 206, {'plano': True}),
+            # Más taller: otra estantería de herramientas, un segundo yunque
+            # con su tocón, un tonel junto a la fragua, cajones, un banco y
+            # el baúl de las piezas.
+            ('estante_herramientas', 700, 300, {'pie': 16}),
+            ('yunque', 420, 600, {'anim': 'yunque', 'fx': 25, 'fy': 8}),
+            ('tonel', 300, 410, {'pie': 14}),
+            ('cajon', 1300, 720, {}),
+            ('banco', 1000, 700, {'pie': 10}),
+            ('cofre', 1150, 820, {}),
+            ('sacos', 460, 820, {'pie': 14}),
         ]},
     'cabana': {
         # La cama, la mesilla y el baúl en un rincón, la chimenea con su leña,
@@ -766,6 +848,28 @@ SALAS = {
             ('planta_pequena', 84, 750, {}),
             ('cubo', 470, 760, {}),
             ('escoba', 664, 754, {}),
+            # (2026-10-19) "Se ve muy vacía": el trofeo de astas sobre la mesa,
+            # la piel tendida, la mesa redonda del rincón, el perchero, el
+            # banco de trabajo, los sacos y un candelero.
+            ('astas', 740, 204, {'plano': True}),
+            ('piel_suelo', 170, 760, {'plano': True}),
+            ('mesa_redonda', 140, 640, {'pie': 14}),
+            ('taburete', 104, 656, {}),
+            ('perchero', 262, 470, {'pie': 10}),
+            ('banco_trabajo', 880, 476, {'pie': 12}),
+            ('sacos', 1040, 630, {'pie': 14}),
+            ('lampara_pie', 470, 410, {'anim': 'vela', 'fx': 6, 'fy': 3}),
+            ('estante_pared', 560, 206, {'plano': True}),
+            # La estantería y el aparador en la pared, el tonel junto al
+            # banco de trabajo, las alfombras bajo las mesas, un barril y una
+            # cesta junto a la piel, y un banco frente a la chimenea.
+            ('estante_libros2', 234, 302, {'pie': 20}),
+            ('aparador', 604, 304, {'pie': 16}),
+            ('tonel', 1010, 520, {'pie': 14}),
+            ('alfombra_roja', 90, 690, {'plano': True}),
+            ('alfombra_azul', 650, 650, {'plano': True}),
+            ('barril', 300, 770, {}), ('cesta', 360, 770, {}),
+            ('banco', 390, 540, {'pie': 10}),
         ]},
 }
 

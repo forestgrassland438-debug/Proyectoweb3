@@ -79,7 +79,7 @@ import gf_arboles_zona  # noqa: E402
 
 T, N = GS.T, GS.N
 W = N * T
-VERSION = '20261018a'
+VERSION = '20261019c'   # (2026-10-19) la playa de los oasis del desierto
 ESCALA_ARBOL = 1.3
 TILESET = GS.TILESET
 # La entrada de cada mapa: el camino que sigue al de la salida del salvaje.
@@ -366,7 +366,9 @@ def disenar_cementerio(z, fotos):
     for tipo, n in (('nigromante_cementerio', 1),):
         z.monstruos.append({'tipo': tipo, 'x': round(cx + 40), 'y': round(py1 - 40)})
     for tipo, n, caja in (('golem_cripta', 2, (px0 - 400, py0 - 300, px1 + 400, py1 + 300)),
-                          ('esqueleto_cementerio', 5, (80, 80, W - 80, W - 80)),
+                          # (2026-10-19) Más esqueletos: arqueros y guerreros.
+                          ('esqueleto_cementerio', 8, (80, 80, W - 80, W - 80)),
+                          ('esqueleto_guerrero', 8, (80, 80, W - 80, W - 80)),
                           ('zombi_cementerio', 4, (80, 80, W - 80, W - 80)),
                           ('zombi_podrido', 3, (80, 80, W - 80, W - 80)),
                           ('espectro_cementerio', 3, (80, 80, W - 80, W - 80))):
@@ -385,8 +387,10 @@ def disenar_desierto(z, fotos):
     OASIS_S = (252, 252, 20, 13)
     OASIS_O = (42, 120, 14, 10)
     z.agua = elipse_set(*OASIS_N, semilla=801) | elipse_set(*OASIS_S, semilla=802) | elipse_set(*OASIS_O, semilla=803)
+    z.oasis = [OASIS_N, OASIS_S, OASIS_O]          # para la playa (pintar_playa)
     z.dist = distancias(z.agua)
-    z.tierra |= orilla(z.dist, 804, base=3, extra=4)
+    z.playa = orilla(z.dist, 804, base=3, extra=4)  # la banda que se pinta de playa
+    z.tierra |= z.playa
     # Caminos de arena prensada: el que baja del salvaje, el que cruza.
     z.tierra |= rect_set(CRUCE_X0, 0, CRUCE_X1, 200)
     z.tierra |= rect_set(30, 150, 290, 158)
@@ -649,6 +653,88 @@ def ondas_arena(arr, z, semilla):
     print('  ondas de arena:', hechas)
 
 
+def pintar_playa(arr, z):
+    """LA PLAYA DE LOS OASIS (2026-10-19). "Las orillas del agua del desierto
+    están malas en el tileset." Alrededor del agua el diseño pone una banda de
+    camino (`orilla`), que en el desierto se vuelve arena prensada rojiza con
+    los bordes festoneados de la hierba del pueblo: parecía barro. Encima se
+    pinta una playa de verdad, por la DISTANCIA al agua (los píxeles azules):
+    arena mojada junto al agua, húmeda, clara, y se funde con la arena del
+    desierto. Con las líneas de la marea paralelas a la orilla (líneas, nunca
+    puntos) y el ancho variando con un ruido grande, sin tramado. También se
+    pinta el terraplén que traen las casillas de agua del pueblo (lo que en
+    ellas no es azul), como en el lago helado de la tundra."""
+    H, Wd = arr.shape[:2]
+    R0, R1 = 150, 190                     # ancho de la playa, en px
+    MOJADA, HUMEDA, CLARA = (np.array([206, 172, 118]), np.array([224, 194, 140]), np.array([238, 214, 162]))
+    MAREA = np.array([228, 200, 146])
+    for (ocx, ocy, orx, ory) in getattr(z, 'oasis', []):
+        x0, x1 = int(max(0, (ocx - orx - 14) * T)), int(min(Wd, (ocx + orx + 14) * T))
+        y0, y1 = int(max(0, (ocy - ory - 14) * T)), int(min(H, (ocy + ory + 14) * T))
+        sub = arr[y0:y1, x0:x1]
+        a = sub[..., :3].astype(np.int16)
+        azul_real = (a[..., 2] > a[..., 0] + 30) & (a[..., 2] > a[..., 1] + 4)
+        # Dónde se puede pintar: la banda de la orilla, las casillas de agua
+        # (su terraplén) y la arena lisa. NUNCA la piedra (la plaza de las
+        # tiendas) ni los caminos.
+        se_pinta = np.zeros(azul_real.shape, bool)
+        for ty in range(y0 // T, (y1 + T - 1) // T):
+            for tx in range(x0 // T, (x1 + T - 1) // T):
+                c = (tx, ty)
+                if c in z.piedra:
+                    continue                      # la piedra, nunca (aunque caiga en la banda)
+                if c in z.playa or c in z.agua or c not in z.tierra:
+                    se_pinta[max(0, ty * T - y0):max(0, (ty + 1) * T - y0), max(0, tx * T - x0):max(0, (tx + 1) * T - x0)] = True
+        # La orilla REDONDEADA: el agua sale de casillas (escalones), así que
+        # la distancia se mide desde su silueta suavizada (media en una caja
+        # de 25 px, con la imagen integral), y las líneas de la marea salen
+        # en curva y no en escalera.
+        integ = np.pad(azul_real.astype(np.float32), ((1, 0), (1, 0))).cumsum(0).cumsum(1)
+        k = 12
+        hh, ww = azul_real.shape
+        ya, yb = np.clip(np.arange(hh) - k, 0, hh), np.clip(np.arange(hh) + k + 1, 0, hh)
+        xa, xb = np.clip(np.arange(ww) - k, 0, ww), np.clip(np.arange(ww) + k + 1, 0, ww)
+        suma = (integ[yb][:, xb] - integ[ya][:, xb] - integ[yb][:, xa] + integ[ya][:, xa])
+        area = ((yb - ya)[:, None] * (xb - xa)[None, :]).astype(np.float32)
+        azul = (suma / area) > 0.5
+        # La distancia al agua: se crece la máscara un píxel cada vez,
+        # alternando cruz y cuadrado (sale un octógono, casi un círculo).
+        dist = np.full(azul.shape, 32000, np.int32)
+        dist[azul] = 0
+        visto = azul.copy()
+        borde = azul.copy()
+        for d in range(1, R1 + 2):
+            g = borde.copy()
+            g[1:, :] |= borde[:-1, :]; g[:-1, :] |= borde[1:, :]
+            g[:, 1:] |= borde[:, :-1]; g[:, :-1] |= borde[:, 1:]
+            if d % 2 == 0:
+                g[1:, 1:] |= borde[:-1, :-1]; g[1:, :-1] |= borde[:-1, 1:]
+                g[:-1, 1:] |= borde[1:, :-1]; g[:-1, :-1] |= borde[1:, 1:]
+            nuevo = g & ~visto
+            if not nuevo.any():
+                break
+            dist[nuevo] = d
+            visto |= nuevo
+            borde = nuevo
+        yy, xx = np.mgrid[y0:y1, x0:x1]
+        ruido = (np.sin(xx / 83.0 + 0.7) + np.sin(yy / 57.0 + xx / 173.0)) * 0.5
+        R = (R0 + R1) / 2.0 + ruido * (R1 - R0) / 2.0
+        playa = (~azul_real) & (dist <= R) & se_pinta
+        col = np.where((dist < 8)[..., None], MOJADA, np.where((dist < 22)[..., None], HUMEDA, CLARA)).astype(np.float32)
+        # Las líneas de la marea: a tres distancias del agua, de 1 px.
+        for L in (40, 80):
+            linea = (np.abs(dist - L) < 1) & (dist < R - 30)
+            col = np.where(linea[..., None], MAREA, col)
+        # Y se funde con la arena del desierto en los últimos 30 px.
+        t = np.clip((R - dist) / 30.0, 0.0, 1.0)[..., None]
+        orig = a.astype(np.float32)
+        mezcla_ = col * t + orig * (1 - t)
+        out = sub.copy()
+        out[..., :3] = np.where(playa[..., None], np.clip(mezcla_, 0, 255).astype(np.uint8), out[..., :3])
+        arr[y0:y1, x0:x1] = out
+    print('  playas de los oasis:', len(getattr(z, 'oasis', [])))
+
+
 def pintar_hielo(arr, z, semilla):
     """El lago helado: hielo celeste en bandas lisas (sin tramado), con su
     orilla de nieve apretada y GRIETAS en raya. Solo donde no es agua."""
@@ -708,6 +794,7 @@ def suelo(z, datos, carpeta_tmp):
     arr = gf_biomas.recolorear(arr, z.nombre)
     if z.nombre == 'desierto':
         ondas_arena(arr, z, 8101)
+        pintar_playa(arr, z)
     if z.nombre == 'tundra':
         pintar_hielo(arr, z, 9101)
     Image.fromarray(arr).save(fin, optimize=True)

@@ -333,6 +333,9 @@ def main():
     # nigromante, gólem de la cripta), el desierto (escorpión, momia, gólem
     # de arena) y la tundra (lobo de escarcha, gólem de hielo).
     hojas.append(atlas('esqueleto', con_relieve(H2.frames_humanoide('personaje1', H2.receta_esqueleto()))))
+    # (2026-10-19) El esqueleto es hueso de verdad (no un zombi teñido), y
+    # tiene un compañero: el guerrero, con su espada oxidada.
+    hojas.append(atlas('esqueleto_guerrero', con_relieve(H2.frames_humanoide('personaje1', H2.receta_esqueleto(espada=True)))))
     hojas.append(atlas('nigromante', con_relieve(H2.frames_humanoide('personaje13', H2.RECETA_NIGROMANTE))))
     hojas.append(atlas('momia', con_relieve(H2.frames_humanoide('personaje5', H2.RECETA_MOMIA))))
     for tipo in ('escorpion', 'golem_cripta', 'golem_arena', 'golem_hielo', 'lobo_escarcha'):

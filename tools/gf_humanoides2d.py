@@ -1012,12 +1012,15 @@ def humanoide(per, dir_, n, receta):
     MX, MY = 5, 9
     li = pegar_centrado(li, li.w + MX * 2, li.h + MY, MX, MY)
     # (2026-10-11) La ropa (rasgada, kimono, capa) y luego la cabeza nueva.
-    if receta.get('ropa') or receta.get('pelo_estilo'):
+    if receta.get('ropa') or receta.get('pelo_estilo') or receta.get('despues'):
         desp = {(x + MX, y + MY): v for (x, y), v in partes.items()}
         if receta.get('ropa'):
             li = receta['ropa'](li, desp, cuello + MY, cintura + MY, dir_, n)
         if receta.get('pelo_estilo'):
             li = peinar(li, desp, cuello + MY, dir_, n, receta)
+        # (2026-10-19) Lo que va encima de todo (la calavera del esqueleto).
+        if receta.get('despues'):
+            li = receta['despues'](li, desp, cuello + MY, cintura + MY, dir_, n)
     if receta.get('baculo'):
         mano = mano_delantera(partes, dir_)
         if mano:
@@ -1160,11 +1163,270 @@ RECETA_BRUJO = {
 # El ESQUELETO del cementerio: hueso donde el zombi tiene piel, la calavera
 # rapada (sin pelo), harapos oscuros rasgados que dejan ver el hueso y los
 # ojos encendidos en rojo.
-def receta_esqueleto(semilla=31):
-    r = receta_zombi('#ddd4bb', '#3a322e', '#d6cdb3', estilo='rapado', semilla=semilla)
-    r['paletas']['ojo'] = ojos_brillantes(hex_rgb('#ff5a3a'), hex_rgb('#140806'))
-    r['paletas']['pies'] = tonos('#cfc6ad', 3, arriba=0.1, abajo=0.45)
-    return r
+# ===========================================================================
+# EL ESQUELETO DE VERDAD                                          (2026-10-19)
+# ===========================================================================
+# "Quiero que en el cementerio existan esqueletos." Había uno, pero era un
+# zombi teñido de color hueso con ropa oscura: de lejos, una persona gris.
+# Ahora es HUESO: sobre el mismo cuerpo del personaje (mismo tamaño, mismo
+# paso), la ropa y la piel se borran y en su sitio van la columna, las
+# costillas con el aire entre ellas, la pelvis, brazos y piernas de un hueso
+# (con la rodilla), las manos y los pies; y la cabeza es una calavera: bóveda,
+# mandíbula, cuencas negras con una brasa roja, la nariz y los dientes.
+#
+# SIN AGUJEROS EN RACIMO (tripofobia): las costillas son RAYAS con hueco
+# entre ellas, los dientes una fila, y en la cara solo las dos cuencas.
+
+HUESO = tonos('#ece4cc', 3, arriba=0.12, abajo=0.44)     # claro, medio, sombra
+C_HUESO = (34, 28, 24)
+CUENCA = (24, 18, 16)
+BRASA = (255, 92, 58)
+
+
+def _tono_luz(x, y, cx, cy, rx, ry, t):
+    nx, ny = (x - cx) / max(1.0, rx), (y - cy) / max(1.0, ry)
+    d = nx * LUZ[0] + ny * LUZ[1]
+    return t[0] if d > 0.3 else (t[1] if d > -0.45 else t[2])
+
+
+def _segmentos(xs):
+    xs = sorted(xs)
+    segs, cur = [], []
+    for x in xs:
+        if cur and x != cur[-1] + 1:
+            segs.append(cur)
+            cur = []
+        cur.append(x)
+    if cur:
+        segs.append(cur)
+    return segs
+
+
+def _huesos(li, partes, cuello, cintura, dir_, n):
+    """El cuerpo, de hueso: columna, costillas, pelvis, brazos, piernas."""
+    t = HUESO
+    vista = vista_de(dir_)
+    # 1. Fuera la ropa y la piel del cuerpo (la cabeza se rehace después).
+    filas_arriba, filas_abajo, manos, pies = {}, {}, [], []
+    for (x, y), (p, cc) in partes.items():
+        if y < cuello:
+            continue
+        li.set(x, y, (0, 0, 0, 0))
+        if p == 'mano':
+            manos.append((x, y))
+        elif p == 'pies':
+            pies.append((x, y))
+        if p in ('camisa', 'piel', 'mano') and y < cintura:
+            filas_arriba.setdefault(y, []).append(x)
+        elif p in ('pantalon', 'pies', 'piel') and y >= cintura:
+            filas_abajo.setdefault(y, []).append(x)
+    hueso = {}                                   # (x, y) -> tono
+
+    def pon(x, y, k):
+        hueso[(x, y)] = t[k]
+
+    # 2. El tronco: por fila, el segmento más ancho; el resto son brazos.
+    alto = max(1, cintura - cuello)
+    caja_y0 = cuello + 3
+    caja_y1 = cuello + 3 + int(alto * 0.56)
+    for y in range(cuello, cintura + 1):
+        xs = filas_arriba.get(y) or filas_arriba.get(y - 1)
+        if not xs:
+            continue
+        segs = _segmentos(xs)
+        torso = max(segs, key=len)
+        t0, t1 = torso[0], torso[-1]
+        if vista == 'lado':
+            sx = t0 + 2 if dir_ == 'derecha' else t1 - 2       # la columna, a la espalda
+            frente = t1 - 1 if dir_ == 'derecha' else t0 + 1
+        else:
+            sx = (t0 + t1) // 2
+        # La columna (y el cuello): dos píxeles, vértebra a vértebra.
+        for xx in ((sx, sx + 1) if vista != 'lado' else (sx,)):
+            pon(xx, y, 1 if (y - cuello) % 3 else 2)
+        if y == cuello + 1:
+            # Las clavículas, de hombro a hombro.
+            for xx in range(t0, t1 + 1):
+                pon(xx, y, 0 if xx < sx else 1)
+        elif caja_y0 <= y <= caja_y1 and (y - caja_y0) % 3 == 0:
+            # Una costilla: raya de lado a lado (de frente) o de la columna
+            # al pecho (de lado), un poco más corta cuanto más abajo.
+            enc = int(round((y - caja_y0) / float(max(1, caja_y1 - caja_y0)) * 2))
+            if vista == 'lado':
+                a, b = sorted((sx, frente))
+                rango = range(a, b + 1)
+            else:
+                rango = range(t0 + 1 + enc, t1 - enc)
+            for xx in rango:
+                pon(xx, y, 0 if (vista != 'lado' and xx < sx) else 1)
+            # La curva de la costilla hacia abajo en los extremos.
+            if vista != 'lado':
+                pon(t0 + 1 + enc, y + 1, 2)
+                pon(t1 - 1 - enc, y + 1, 2)
+        elif y == cintura - 1:
+            # La pelvis: la cresta de cadera a cadera...
+            for xx in range(t0 + 1, t1):
+                pon(xx, y, 0 if xx < sx else 1)
+        elif y == cintura:
+            # ...y debajo solo las dos caderas y el sacro (no un bloque).
+            for xx in (t0 + 1, t0 + 2, t1 - 2, t1 - 1):
+                pon(xx, y, 1)
+        # Los brazos: un hueso por el centro de cada segmento que no es tronco.
+        for sg in segs:
+            if sg is torso:
+                continue
+            m = (sg[0] + sg[-1]) // 2
+            pon(m, y, 1)
+            if len(sg) >= 4:
+                pon(m + 1, y, 2)
+    # 3. Las manos: la mano entera, de hueso.
+    for (x, y) in manos:
+        pon(x, y, 1 if (x + y) % 2 else 0)
+    # 4. Las piernas: un hueso por pierna, con la rodilla, y los pies.
+    ys = sorted(filas_abajo)
+    if ys:
+        rodilla = ys[0] + (ys[-1] - ys[0]) * 0.45
+        for y in ys:
+            if y < cintura + 1:
+                continue
+            for sg in _segmentos(filas_abajo[y]):
+                m = (sg[0] + sg[-1]) // 2
+                pon(m, y, 1)
+                if len(sg) >= 4:
+                    pon(m + 1, y, 2)
+                if abs(y - rodilla) < 1.0:
+                    pon(m - 1, y, 0)
+                    pon(m + 2, y, 2)
+    for (x, y) in pies:
+        pon(x, y, 1 if y % 2 else 2)
+    # 5. Pintar y contornear SOLO los huesos (la cabeza ya lleva su borde).
+    for (x, y), col in hueso.items():
+        li.set(x, y, col)
+    for (x, y) in list(hueso):
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            q = (x + dx, y + dy)
+            if q not in hueso and not li.get(q[0], q[1])[3]:
+                li.set(q[0], q[1], C_HUESO)
+    return li
+
+
+def _craneo_esqueleto(li, partes, cuello, cintura, dir_, n):
+    """La calavera: bóveda y mandíbula de hueso, cuencas con brasa, nariz, dientes."""
+    t = HUESO
+    g = geometria_cabeza(partes, cuello, dir_)
+    cx, cy, rx, ry, s, vista = g['cx'], g['cy'], g['rx'], g['ry'], g['s'], g['vista']
+    w, h = li.w, li.h
+    for y in range(0, cuello):
+        for x in range(w):
+            li.set(x, y, (0, 0, 0, 0))
+    boveda = Mascara(w, h).elipse(cx, cy - 0.2, rx - 1.1, ry - 1.6)
+    jx = cx + 1.6 * s
+    ancho = 4.6 if vista != 'lado' else 4.2
+    mandibula = Mascara(w, h).poligono([(jx - ancho - 0.6, cy + 2.5), (jx + ancho + 0.6, cy + 2.5),
+                                         (jx + ancho - 0.6, cuello - 1.2), (jx - ancho + 0.6, cuello - 1.2)])
+    cabeza = boveda.copia().unir(mandibula)
+    for x, y in cabeza.puntos():
+        li.set(x, y, _tono_luz(x, y, cx, cy, rx, ry, t))
+    # El pómulo bajo la bóveda: una raya de sombra, no un hueco.
+    for x, y in mandibula.puntos():
+        if not boveda.get(x, y) and y == int(round(cy + 2.5)):
+            li.set(x, y, t[2])
+    if vista == 'frente':
+        for ox in (-3.4, 2.4):
+            for dx in range(0, 3):
+                for dy in range(0, 3):
+                    if (dx, dy) in ((0, 0), (2, 0)):
+                        continue                      # cuenca redondeada arriba
+                    li.set(int(round(cx + ox)) + dx, int(round(cy + 0.4)) + dy, CUENCA)
+            li.set(int(round(cx + ox)) + 1, int(round(cy + 0.4)) + 1, BRASA)
+        li.set(int(round(cx)), int(round(cy + 4.0)), CUENCA)            # la nariz
+        li.set(int(round(cx)) - 1, int(round(cy + 4.6)), CUENCA)
+        li.set(int(round(cx)), int(round(cy + 4.6)), CUENCA)
+        yb = int(round(cy + 6.6))                                       # la boca y los dientes
+        for x in range(int(round(jx - 3)), int(round(jx + 3)) + 1):
+            li.set(x, yb, CUENCA)
+            li.set(x, yb - 1, t[0] if (x - int(round(jx))) % 2 == 0 else t[1])
+            li.set(x, yb + 1, t[1] if (x - int(round(jx))) % 2 == 0 else t[2])
+    elif vista == 'lado':
+        ox = int(round(cx + 3.0 * s))
+        for dx in range(0, 3):
+            for dy in range(0, 3):
+                if (dx, dy) in ((0, 0), (2, 0)):
+                    continue
+                li.set(ox + dx - 1, int(round(cy + 0.4)) + dy, CUENCA)
+        li.set(ox, int(round(cy + 0.4)) + 1, BRASA)
+        nz = int(round(cx + (rx - 1.2) * s))
+        li.set(nz, int(round(cy + 4.0)), CUENCA)                       # la nariz, en el perfil
+        yb = int(round(cy + 6.6))
+        for i in range(0, 4):
+            x = int(round(jx + s * (ancho - 0.6 - i)))
+            li.set(x, yb, CUENCA)
+            li.set(x, yb - 1, t[0] if i % 2 == 0 else t[1])
+    else:
+        # De espaldas: la bóveda lisa, con la línea de la nuca.
+        for x in range(int(round(cx - 4)), int(round(cx + 4)) + 1):
+            if cabeza.get(x, int(round(cy + 2.5))):
+                li.set(x, int(round(cy + 2.5)), t[2])
+    for x, y in cabeza.borde(diagonales=False).puntos():
+        if not li.get(x, y)[3] or y >= cuello - 1:
+            li.set(x, y, C_HUESO)
+    return li
+
+
+def _espada_oxidada(li, partes, cuello, cintura, dir_, n):
+    """El guerrero: los huesos, la calavera y una espada vieja en la mano."""
+    li = _craneo_esqueleto(li, partes, cuello, cintura, dir_, n)
+    manos = [(x, y) for (x, y), (p, cc) in partes.items() if p == 'mano']
+    if not manos:
+        return li
+    if dir_ == 'derecha':
+        mx = max(m[0] for m in manos)
+    elif dir_ == 'izquierda':
+        mx = min(m[0] for m in manos)
+    else:
+        mx = max(m[0] for m in manos) if dir_ == 'abajo' else min(m[0] for m in manos)
+    my = int(round(sum(m[1] for m in manos if abs(m[0] - mx) <= 1) / float(len([m for m in manos if abs(m[0] - mx) <= 1]))))
+    acero = [(214, 220, 228), (156, 164, 174), (104, 110, 120)]
+    oxido = (150, 92, 54)
+    capa = Lienzo(li.w, li.h)
+    hoja = Mascara(li.w, li.h).rect(mx, my - 17, mx + 1, my - 2)
+    punta = Mascara(li.w, li.h).poligono([(mx - 0.4, my - 17), (mx + 1.4, my - 17), (mx + 0.5, my - 19.5)])
+    hoja.unir(punta)
+    for x, y in hoja.puntos():
+        k = 0 if x == mx else 1
+        if (y + mx) % 6 == 0:
+            k = 2
+        col = acero[k]
+        if y > my - 6 and x == mx + 1:
+            col = oxido                                   # el óxido junto a la guarda
+        capa.set(x, y, col)
+    for x in range(mx - 2, mx + 4):
+        capa.set(x, my - 1, (120, 92, 60))                # la guarda
+    capa.set(mx, my + 1, (70, 50, 34))                    # el puño
+    capa.set(mx + 1, my + 1, (70, 50, 34))
+    capa.set(mx, my + 2, (190, 160, 90))                  # el pomo
+    m = capa.mascara_opaca()
+    for x, y in m.borde(diagonales=False).puntos():
+        capa.set(x, y, C_HUESO)
+    if dir_ == 'arriba':
+        capa.pegar(li)                                    # de espaldas, por detrás
+        return capa
+    li.pegar(capa)
+    return li
+
+
+def receta_esqueleto(semilla=31, espada=False):
+    """El esqueleto: huesos (`_huesos`) y calavera (`_craneo_esqueleto`)."""
+    return {
+        'contorno': C_HUESO,
+        'paletas': {
+            'piel': HUESO, 'mano': HUESO, 'pies': HUESO,
+            'ojo': ojos_brillantes(BRASA, CUENCA),
+            'pelo': HUESO, 'camisa': HUESO, 'pantalon': HUESO,
+        },
+        'ropa': _huesos,
+        'despues': _espada_oxidada if espada else _craneo_esqueleto,
+    }
 
 
 # El NIGROMANTE: la bruja de la mina vuelta a teñir, con capucha negra (sin

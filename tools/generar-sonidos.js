@@ -1278,6 +1278,214 @@ function arenaAlarma() {
 // 12. QUÉ SE GENERA
 // ===========================================================================
 
+// ===========================================================================
+// 12. LOS MAPAS NUEVOS: CEMENTERIO, DESIERTO Y TUNDRA            (2026-10-19)
+// ===========================================================================
+// "Haz sonidos nuevos para los mapas nuevos." Cada mapa con su tema (suena
+// de día y de noche: allí no hay pradera) y su bucle de ambiente; en el
+// desierto, además, la tormenta de arena y el remolino (los sube y baja
+// gf-zonas.js según la tormenta y lo cerca que esté el remolino).
+
+/**
+ * CEMENTERIO — re menor, 66 pulsos, doce compases: i–VI–V con la cuarta de
+ * por medio. La melodía en triángulo (suave, sin filo), un colchón de pulso
+ * fino y, cada cuatro compases, la campana de la capilla: un re agudo que se
+ * deja morir.
+ */
+function temaCementerio() {
+  const sr = SR_MUSICA, bpm = 66;
+  const compas = 16 * (60 / bpm / 4);
+  const buf = lienzo(sr, compas * 12);
+  const mel =
+    'D5 .  .  .  .  .  F5 .  E5 .  .  .  -  -  -  -  ' +
+    'A4 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ' +
+    'F5 .  .  .  E5 .  .  .  D5 .  .  .  -  -  -  -  ' +
+    'C#5 .  .  .  .  .  E5 .  A4 .  .  .  -  -  -  -  ' +
+    'G4 .  .  .  .  .  A#4 .  D5 .  .  .  -  -  -  -  ' +
+    'F5 .  .  .  E5 .  D5 .  A4 .  .  .  -  -  -  -  ' +
+    'D5 .  .  .  .  .  C5 .  A#4 .  .  .  -  -  -  -  ' +
+    'A4 .  .  .  C#5 .  .  .  E5 .  .  .  -  -  -  -  ' +
+    'D5 .  .  .  F5 .  .  .  A5 .  .  .  G5 .  .  .  ' +
+    'A#4 .  .  .  .  .  D5 .  G4 .  .  .  -  -  -  -  ' +
+    'E5 .  .  .  C#5 .  .  .  A4 .  .  .  -  -  -  -  ' +
+    'D5 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ';
+  const acordes = ['D3,F3,A3', 'D3,F3,A3', 'A#2,D3,F3', 'A2,C#3,E3', 'G2,A#2,D3', 'D3,F3,A3',
+                   'A#2,D3,F3', 'A2,C#3,E3', 'D3,F3,A3', 'G2,A#2,D3', 'A2,C#3,E3', 'D3,F3,A3'];
+  const pad = acordes.map(a => a + ' .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  ').join('');
+  const raices = ['D2', 'D2', 'A#1', 'A1', 'G1', 'D2', 'A#1', 'A1', 'D2', 'G1', 'A1', 'D2'];
+  const bajo = raices.map(r => r + ' .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  ').join('');
+  canal(buf, sr, bpm, mel, { onda: 'triangulo', vol: 0.34, a: 0.03, d: 0.25, s: 0.7, r: 0.45, vibrato: 0.004, vibratoHz: 4.5 });
+  canal(buf, sr, bpm, pad, { onda: 'pulso', ciclo: 0.25, vol: 0.05, a: 0.25, d: 0.2, s: 0.8, r: 0.3 });
+  canal(buf, sr, bpm, bajo, { onda: 'triangulo', vol: 0.30, a: 0.05, d: 0.2, s: 0.85, r: 0.25 });
+  // La campana: re agudo y su quinta debajo, larga, cada cuatro compases.
+  for (let c = 0; c < 12; c += 4) {
+    tocarNota(buf, sr, { onda: 'triangulo', f: nota('D6'), ini: c * compas, dur: 3.2, vol: 0.12, a: 0.002, d: 0.3, s: 0.35, r: 0.65 });
+    tocarNota(buf, sr, { onda: 'triangulo', f: nota('A5'), ini: c * compas, dur: 2.6, vol: 0.06, a: 0.002, d: 0.3, s: 0.3, r: 0.7 });
+  }
+  return { sr, buf, rms: NIVEL_MUSICA };
+}
+
+/**
+ * DESIERTO — mi frigio dominante (la escala hijaz: mi fa sol# la si do re),
+ * 100 pulsos, ocho compases: melodía de pulso fino con sus giros, un bordón
+ * de mi y si, y el darbuka (dum-tek) del bombo y la caja.
+ */
+function temaDesierto() {
+  const sr = SR_MUSICA, bpm = 100;
+  const compas = 16 * (60 / bpm / 4);
+  const buf = lienzo(sr, compas * 16);
+  const frase =
+    'E5 .  F5 .  G#5 .  .  .  A5 .  G#5 .  F5 .  E5 .  ' +
+    'F5 .  .  .  E5 .  .  .  -  -  B4 .  C5 .  .  .  ' +
+    'B4 .  C5 .  D5 .  .  .  C5 .  B4 .  A4 .  G#4 .  ' +
+    'A4 .  .  .  G#4 .  .  .  F4 .  .  .  E4 .  .  .  ' +
+    'E5 .  .  .  F5 .  G#5 .  B5 .  .  .  A5 .  G#5 .  ' +
+    'A5 .  G#5 .  F5 .  E5 .  F5 .  .  .  -  -  -  -  ' +
+    'C5 .  B4 .  A4 .  G#4 .  A4 .  B4 .  C5 .  D5 .  ' +
+    'C5 .  B4 .  G#4 .  F4 .  E4 .  .  .  -  -  -  -  ';
+  const mel = frase + frase;
+  const b1 = 'E2 .  .  .  .  .  .  .  B1 .  .  .  .  .  .  .  ';
+  const b2 = 'F2 .  .  .  .  .  .  .  E2 .  .  .  .  .  .  .  ';
+  const bajoFrase = b1 + b1 + b1 + b2 + b1 + b1 + b1 + b2;
+  const bajo = bajoFrase + bajoFrase;
+  const bordon = 'E3,B3 .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  '.repeat(16);
+  canal(buf, sr, bpm, mel, { onda: 'pulso', ciclo: 0.25, vol: 0.24, a: 0.004, d: 0.12, s: 0.7, r: 0.25, vibrato: 0.006, vibratoHz: 6 });
+  canal(buf, sr, bpm, bajo, { onda: 'triangulo', vol: 0.32, a: 0.004, d: 0.2, s: 0.8, r: 0.2 });
+  canal(buf, sr, bpm, bordon, { onda: 'pulso', ciclo: 0.125, vol: 0.035, a: 0.2, d: 0.2, s: 0.9, r: 0.2 });
+  const dumtek = 'B  -  c  -  -  c  B  -  c  -  c  -  B  -  c  c  ';
+  const remate = 'B  -  c  -  -  c  B  -  c  c  c  -  B  B  c  c  ';
+  for (let c = 0; c < 16; c++) {
+    const trozo = lienzo(sr, compas);
+    ritmo(trozo, sr, bpm, (c % 4 === 3) ? remate : dumtek, 0.42);
+    for (let i = 0; i < trozo.length; i++) sumar(buf, Math.round(c * compas * sr) + i, trozo[i]);
+  }
+  return { sr, buf, rms: NIVEL_MUSICA };
+}
+
+/**
+ * TUNDRA — la menor pentatónica, 72 pulsos, doce compases. Campanillas de
+ * hielo (triángulo agudo que se deja sonar), un colchón muy bajo y nada de
+ * percusión: en la nieve no retumba nada.
+ */
+function temaTundra() {
+  const sr = SR_MUSICA, bpm = 72;
+  const compas = 16 * (60 / bpm / 4);
+  const buf = lienzo(sr, compas * 12);
+  const mel =
+    'A5 .  .  .  .  .  E5 .  .  .  .  .  -  -  -  -  ' +
+    'G5 .  .  .  .  .  D5 .  .  .  .  .  -  -  -  -  ' +
+    'C5 .  .  .  D5 .  .  .  E5 .  .  .  .  .  .  .  ' +
+    'A4 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ' +
+    'E5 .  .  .  G5 .  .  .  A5 .  .  .  C6 .  .  .  ' +
+    'A5 .  .  .  .  .  .  .  G5 .  .  .  -  -  -  -  ' +
+    'E5 .  .  .  D5 .  .  .  C5 .  .  .  D5 .  .  .  ' +
+    'E5 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ' +
+    'C6 .  .  .  A5 .  .  .  G5 .  .  .  E5 .  .  .  ' +
+    'D5 .  .  .  .  .  E5 .  .  .  .  .  -  -  -  -  ' +
+    'G5 .  .  .  E5 .  .  .  D5 .  .  .  C5 .  .  .  ' +
+    'A4 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ';
+  const acordes = ['A3,C4,E4', 'G3,B3,D4', 'C4,E4,G4', 'A3,C4,E4', 'A3,C4,E4', 'F3,A3,C4',
+                   'C4,E4,G4', 'E3,G3,B3', 'A3,C4,E4', 'D3,F3,A3', 'G3,B3,D4', 'A3,C4,E4'];
+  const pad = acordes.map(a => a + ' .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  ').join('');
+  const raices = ['A1', 'G1', 'C2', 'A1', 'A1', 'F1', 'C2', 'E1', 'A1', 'D2', 'G1', 'A1'];
+  const bajo = raices.map(r => r + ' .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  ').join('');
+  canal(buf, sr, bpm, mel, { onda: 'triangulo', vol: 0.30, a: 0.002, d: 0.35, s: 0.35, r: 0.6 });
+  // Un eco de la melodía una octava abajo, flojito y un poco después.
+  canal(buf, sr, bpm, mel.replace(/([A-G]#?)(\d)/g, (m, n, o) => n + (parseInt(o, 10) - 1)),
+        { onda: 'triangulo', vol: 0.08, a: 0.01, d: 0.3, s: 0.3, r: 0.6, desfase: 0.18 });
+  canal(buf, sr, bpm, pad, { onda: 'pulso', ciclo: 0.125, vol: 0.04, a: 0.3, d: 0.2, s: 0.8, r: 0.3 });
+  canal(buf, sr, bpm, bajo, { onda: 'triangulo', vol: 0.24, a: 0.08, d: 0.2, s: 0.8, r: 0.3 });
+  return { sr, buf, rms: NIVEL_MUSICA };
+}
+
+/** CEMENTERIO (ambiente): un viento hondo que gime y la campana lejana dos veces por vuelta. */
+function ambienteCementerio() {
+  const sr = SR_AMBIENTE, seg = 12;
+  const buf = lienzo(sr, seg), n = buf.length;
+  const r = crearRuido(4);
+  let y = 0, y2 = 0;
+  dosVueltas(n, function (i) {
+    const gime = 0.35 + 0.4 * (0.5 + 0.5 * onda(i, n, 2, 0.1)) + 0.15 * (0.5 + 0.5 * onda(i, n, 5, 0.4));
+    const k = 0.012 + 0.05 * gime;
+    y += k * (r() - y); y2 += k * (y - y2);
+    return y2 * 4.2 * gime;
+  }, buf);
+  for (const t of [1.0, 7.0]) {
+    tocarNota(buf, sr, { onda: 'triangulo', f: nota('D4'), ini: t, dur: 3.8, vol: 0.13, a: 0.002, d: 0.2, s: 0.4, r: 0.75 });
+    tocarNota(buf, sr, { onda: 'triangulo', f: nota('A4'), ini: t, dur: 3.0, vol: 0.05, a: 0.002, d: 0.2, s: 0.3, r: 0.8 });
+  }
+  return { sr, buf, temblor: true };
+}
+
+/** DESIERTO (ambiente): aire seco y caliente, con siseos de arena que corre. */
+function ambienteDesierto() {
+  const sr = SR_AMBIENTE, seg = 10;
+  const buf = lienzo(sr, seg), n = buf.length;
+  const r = crearRuido(2), alto = pasoAlto(0.2);
+  let y = 0;
+  dosVueltas(n, function (i) {
+    const racha = 0.35 + 0.35 * (0.5 + 0.5 * onda(i, n, 2, 0.3)) + 0.2 * (0.5 + 0.5 * onda(i, n, 5, 0.7));
+    y += (0.05 + 0.08 * racha) * (r() - y);
+    return alto(y) * 2.6 * racha;
+  }, buf);
+  // La arena que corre por el suelo: granos muy cortos y agudos, sueltos.
+  for (let g = 0; g < 260; g++) {
+    tocarNota(buf, sr, { onda: 'ruido', ruidoP: 1, f: 1, ini: Math.random() * seg, dur: 0.01 + Math.random() * 0.02,
+                         vol: 0.02 + Math.random() * 0.04, a: 0.3, d: 0.3, s: 0.4, r: 0.4, filtroAlto: 0.55 });
+  }
+  return { sr, buf, temblor: true };
+}
+
+/** TORMENTA DE ARENA: el rugido grave y el siseo de la arena, a golpes de viento. */
+function ambienteTormentaArena() {
+  const sr = SR_AMBIENTE, seg = 8;
+  const buf = lienzo(sr, seg), n = buf.length;
+  const r1 = crearRuido(3), r2 = crearRuido(1), alto = pasoAlto(0.3);
+  let y = 0, y2 = 0, z = 0;
+  dosVueltas(n, function (i) {
+    const golpe = 0.55 + 0.3 * (0.5 + 0.5 * onda(i, n, 4, 0.2)) + 0.15 * (0.5 + 0.5 * onda(i, n, 11, 0.5));
+    y += 0.06 * (r1() - y); y2 += 0.06 * (y - y2);       // el rugido
+    z += 0.35 * (r2() - z);                               // la arena
+    return (y2 * 4.5 + alto(z) * 0.9) * golpe;
+  }, buf);
+  return { sr, buf, temblor: true };
+}
+
+/** TUNDRA (ambiente): viento helado que silba, con un silbido que sube y baja. */
+function ambienteTundra() {
+  const sr = SR_AMBIENTE, seg = 10;
+  const buf = lienzo(sr, seg), n = buf.length;
+  const r = crearRuido(2);
+  let y = 0, y2 = 0, fase = 0;
+  dosVueltas(n, function (i) {
+    const racha = 0.3 + 0.45 * (0.5 + 0.5 * onda(i, n, 3, 0.25)) + 0.15 * (0.5 + 0.5 * onda(i, n, 7, 0.6));
+    const k = 0.03 + 0.14 * racha;
+    y += k * (r() - y); y2 += k * (y - y2);
+    // El silbido: un tono que se desliza con la racha (ciclos enteros: empalma).
+    fase += (620 + 260 * racha) / sr;
+    // (A cero en el empalme: su fase no da vueltas enteras y chasquearía.)
+    const sobre = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / n);
+    const silbido = triangulo(fase) * 0.05 * Math.max(0, racha - 0.45) * 2 * sobre;
+    return y2 * 3.0 * racha + silbido;
+  }, buf);
+  return { sr, buf, temblor: true };
+}
+
+/** REMOLINO: el aire que gira — un soplo que va y viene tres veces por vuelta. */
+function ambienteRemolino() {
+  const sr = SR_AMBIENTE, seg = 4;
+  const buf = lienzo(sr, seg), n = buf.length;
+  const r = crearRuido(2), alto = pasoAlto(0.15);
+  let y = 0, y2 = 0;
+  dosVueltas(n, function (i) {
+    const giro = 0.5 + 0.5 * onda(i, n, 6, 0.0);
+    const k = 0.04 + 0.22 * giro;
+    y += k * (r() - y); y2 += k * (y - y2);
+    return alto(y2) * 3.6 * (0.35 + 0.65 * giro);
+  }, buf);
+  return { sr, buf, temblor: true };
+}
+
 const CATALOGO = [
   // --- música ---
   ['gf_pradera.wav',  temaPradera],
@@ -1291,6 +1499,16 @@ const CATALOGO = [
   ['amb_soleado.wav', ambienteSoleado],
   ['amb_noche.wav',   ambienteNoche],
   ['amb_nieve.wav',   ambienteNieve],
+
+  // --- los mapas nuevos (2026-10-19) ---
+  ['gf_cementerio.wav', temaCementerio],
+  ['gf_desierto.wav',   temaDesierto],
+  ['gf_tundra.wav',     temaTundra],
+  ['amb_cementerio.wav', ambienteCementerio],
+  ['amb_desierto.wav',  ambienteDesierto],
+  ['amb_tormenta_arena.wav', ambienteTormentaArena],
+  ['amb_tundra.wav',    ambienteTundra],
+  ['amb_remolino.wav',  ambienteRemolino],
 
   // --- rayos ---
   ['rayo_1.wav',      () => trueno(11, true)],

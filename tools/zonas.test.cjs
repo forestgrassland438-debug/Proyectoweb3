@@ -175,3 +175,31 @@ test('los remolinos siguen su vuelta (no persiguen) y la tormenta va por ciclos'
   assert.equal(f(11 * 60 * 3 + 6 * 60), 0, 'entre tormentas');
   assert.ok(f(11 * 60 * 3 + 10) > 0 && f(11 * 60 * 3 + 10) < 1, 'entra poco a poco');
 });
+
+/* (2026-10-19) "No puedo entrar ni salir de los mapas nuevos." El cuerpo de
+ * física del jugador (46 x 102, centrado en el sprite, setCollideWorldBounds)
+ * se para en el borde del mapa antes que los pies (caja de 30 x 26 a 25 px por
+ * debajo del centro). Por arriba los pies se quedaban a ~70 px del borde y la
+ * salida del norte (tiras de 20 px) no se tocaba nunca. Aquí se lleva al
+ * jugador contra el borde de cada salida, como lo deja Phaser, y se exige que
+ * la escena la toque: con los pies o con el cuerpo, si lo mira. */
+test('cada salida se toca con el jugador parado contra el borde del mapa', () => {
+  const BW = 46, BH = 102;
+  const corta = (a, b) => !(a.x + a.w < b.x || a.y + a.h < b.y || a.x > b.x + b.w || a.y > b.y + b.h);
+  const fuentes = ['SalvajeScene.js', 'ZonasScenes.js'].map(n => fs.readFileSync(path.join(BIN, 'Scenes', n), 'utf8'));
+  const miraCuerpo = fuentes.every(src => /_comprobarSalidas\(\) \{[\s\S]{0,1600}?player\.body[\s\S]{0,600}?RectangleToRectangle\(cuerpo, s\.rect\)/.test(src));
+  for (const n of ['salvaje', 'cementerio', 'desierto', 'tundra']) {
+    const m = mapa(n), W = m.width * m.tilewidth, H = m.height * m.tileheight;
+    for (const s of capa(m, 'salidas').objects) {
+      const r = { x: s.x, y: s.y, w: s.width, h: s.height };
+      // El sprite tan pegado al borde como le deja el cuerpo, en el centro de la salida.
+      let x = s.x + s.width / 2, y = s.y + s.height / 2;
+      if (s.x <= 0) x = BW / 2; else if (s.x + s.width >= W) x = W - BW / 2;
+      if (s.y <= 0) y = BH / 2; else if (s.y + s.height >= H) y = H - BH / 2;
+      const pies = { x: x - 15, y: y + 25, w: 30, h: 26 };
+      const cuerpo = { x: x - BW / 2, y: y - BH / 2, w: BW, h: BH };
+      assert.ok(corta(pies, r) || (miraCuerpo && corta(cuerpo, r)),
+        n + ': la salida "' + s.name + '" no se toca nunca (el cuerpo se para en el borde antes que los pies)');
+    }
+  }
+});

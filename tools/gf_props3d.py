@@ -210,15 +210,32 @@ def cripta():
         pr.append(cono((x, 4.2, 20), (x, 43, 20), 3.3, 3.0, 'piedra_clara'))          # columnas
         pr.append(caja((x, 5.0, 20), (4.6, 1.0, 4.6), 'piedra_osc'))                 # basa
         pr.append(caja((x, 42.6, 20), (4.4, 1.0, 4.4), 'piedra_osc'))                # capitel
-    # El frontón: dos bloques inclinados que se juntan en la cumbrera.
+    # (2026-10-19) "El techo está malo: la pared pasa el techo." Antes los
+    # faldones se apoyaban MÁS ABAJO que la cornisa (sus aleros quedaban a
+    # y 45 y la cornisa llega a 47,5), así que la cornisa asomaba por los
+    # dos lados, y el tímpano era un rectángulo en vez de un triángulo.
+    # Ahora: el frontón es un TRIÁNGULO de verdad (dos medios bloques
+    # recortados por la pendiente), los faldones se apoyan justo encima de
+    # él y de la cornisa, y los aleros salen por delante, por detrás y por
+    # los lados (x 45 > cornisa 39).
+    a = 0.42                                   # la pendiente del tejado
+    y_base = 4 + 41.5 + 2.0                    # lo alto de la cornisa
+    y_cumbre = y_base + 39 * math.tan(a)       # la punta del frontón
+    for sg in (1, -1):
+        mitad = caja((sg * 19.5, (y_base + y_cumbre) / 2 + 0.2, 18.5), (19.5, (y_cumbre - y_base) / 2 + 0.6, 1.8), 'piedra')
+        cortar(mitad, (0, y_cumbre, 18.5), (sg * math.sin(a), math.cos(a), 0))
+        pr.append(mitad)                                                             # el frontón
     tejas = []
     for sg in (1, -1):
-        t = caja((sg * 19, 54, -2), (22, 2.2, 25), 'tejado', rot=giro_z(-sg * 0.42))
+        bx, by = 22.5, y_cumbre - 22.5 * math.tan(a)
+        cxr, cyr = sg * (bx + 2.5 * math.sin(a)), by + 2.5 * math.cos(a)
+        t = caja((cxr, cyr, -4), (25, 2.2, 27.5), 'tejado', rot=giro_z(-sg * a))
         tejas.append(t)
         pr.append(t)
-    pr.append(caja((0, 50.5, 20.5), (36, 5.5, 1.5), 'piedra'))                       # tímpano (cara)
-    pr.append(caja((0, 66, 8), (1.4, 5, 1.4), 'hierro'))                             # la cruz
-    pr.append(caja((0, 67.5, 8), (4, 1.3, 1.4), 'hierro'))
+    y_tope = y_cumbre + 4.7 / math.cos(a)                                            # lo alto de la cumbrera
+    pr.append(caja((0, y_tope - 0.6, -4), (1.8, 1.6, 28), 'piedra_osc'))             # la cumbrera
+    pr.append(caja((0, y_tope + 4.4, 19), (1.4, 5, 1.4), 'hierro'))                  # la cruz, en la punta
+    pr.append(caja((0, y_tope + 5.9, 19), (4, 1.3, 1.4), 'hierro'))
     puerta = caja((0, 4 + 13, 16.6), (8.5, 13, 1.0), 'puerta')
     pr.append(puerta)
     pr.append(caja((0, 4 + 27.5, 16.4), (10.5, 1.6, 1.2), 'piedra_osc'))            # dintel
@@ -590,7 +607,7 @@ CATALOGO = {
         'lapida_rota': (lapida_rota, 40, 30, 8, C_PIEDRA, (30, 14), 34, 0.0),
         'lapida_angel': (lapida_angel, 30, 50, 6, C_PIEDRA, (30, 16), 34, 0.0),
         'obelisco': (obelisco, 30, 62, 8, C_PIEDRA, (30, 18), 36, 0.0),
-        'cripta': (cripta, 112, 112, 24, C_PIEDRA, (270, 104), 300, 0.0, 1.55),
+        'cripta': (cripta, 112, 124, 24, C_PIEDRA, (270, 104), 300, 0.0, 1.55),
         'verja': (verja, 40, 32, 4, C_HIERRO, (64, 10), 0, 0.0),
         'farola': (farola, 22, 50, 5, C_HIERRO, (14, 10), 16, 0.0),
         'ataud': (ataud, 36, 30, 10, contorno_de(hex_rgb('#4e3420')), (34, 20), 40, 0.0),
