@@ -101,6 +101,9 @@ class SalvajeScene extends GameScene {
       if (!this.textures.exists('sv_arbol_' + n)) this.load.image('sv_arbol_' + n, './Game/MAPAS/salvaje/arboles/' + n + '.png' + v);
     });
     this.load.audio('level_up_sound', './Game/MUSIC/levelup.wav');
+    // (2026-10-19) La cabaña del cazador: el dibujo de la cabaña del pueblo
+    // (casa_* → gf-relieve le pone su relieve de casa).
+    if (!this.textures.exists('casa_cabana_monte_png')) this.load.image('casa_cabana_monte_png', './Game/Objetos/casa de granja cabaña.png' + v);
     // El clima del pueblo: viento, lluvia y truenos.
     if (window.GFViento) window.GFViento.precargar(this);
     if (window.GFClima) window.GFClima.precargar(this);
@@ -140,6 +143,8 @@ class SalvajeScene extends GameScene {
     this._salaDestino = null;
     this._graphicsOcultado = false;
     this.speed = 240;
+    // La brisa del monte (gf-viento.js): los árboles se mecen siempre un poco.
+    this._vientoExtra = 0.35;
     this.socket = window.globalSocket || null;
     this._avisoSalidaEn = 0;
 
@@ -186,6 +191,7 @@ class SalvajeScene extends GameScene {
     this._salidas = (this.map.getObjectLayer('salidas') || { objects: [] }).objects.map((o) =>
       ({ nombre: o.name, rect: new Phaser.Geom.Rectangle(o.x, o.y, o.width, o.height) }));
     this._salidaArmada = false;
+    this._montarCabana();
 
     // ── Los árboles (2.5D) ────────────────────────────────────────────────
     this._montarArboles();
@@ -273,6 +279,10 @@ class SalvajeScene extends GameScene {
     try { if (window.GFSalvaje) window.GFSalvaje.montar(this); } catch (e) { console.warn('🌲 salvaje:', e); }
     // Las antorchas que pone la gente, con su luz de noche (gf-antorchas.js).
     try { if (window.GFAntorchas) window.GFAntorchas.montar(this); } catch (e) { console.warn('🌲 antorchas:', e); }
+    // (2026-10-19) Los NPC del mapa (gf-npcs.js).
+    try { if (window.GFNpcs) window.GFNpcs.montar(this); } catch (e) { console.warn('🌲 NPC:', e); }
+    // (2026-10-19) La puerta de la cabaña del cazador (gf-casas.js, `cabana_monte`).
+    try { if (window.GFCasas) window.GFCasas.montar(this); } catch (e) { console.warn('🌲 cabaña:', e); }
 
     if (window.tiendaSistema) window.tiendaSistema.scene = this;
     console.log('🌲 mapa salvaje listo');
@@ -456,15 +466,58 @@ class SalvajeScene extends GameScene {
   }
 
   // =========================================================================
+  // LA CABAÑA DEL CAZADOR                                          (2026-10-19)
+  // =========================================================================
+  /* "Pon una cabaña en el mapa salvaje, en la zona neutral; que se pueda
+     entrar y con un NPC con su nombre dentro." En el prado al este del río
+     (la zona neutral), junto al camino: el dibujo de la cabaña del pueblo al
+     doble, con SU choque y SU puerta medidos allí (mapa_principal.json: el
+     objeto en (471, 485), la puerta en (715, 463) y el choque
+     `area_colision_general` (515, 235, 424, 240)), movidos aquí. Dentro manda
+     InteriorScene (sala 'cabana'), y vive Brannoc (gf-npcs.js). */
+  _montarCabana() {
+    const C = SalvajeScene.CABANA;
+    if (!this.textures.exists('casa_cabana_monte_png')) return;
+    const casa = this.add.image(C.x, C.y, 'casa_cabana_monte_png').setOrigin(0, 1).setDisplaySize(511, 395);
+    // Su línea de suelo: el borde de abajo del choque.
+    casa.setDepth(C.choque.y + C.choque.h);
+    this._cabana = casa;
+    const r = new Phaser.Geom.Rectangle(C.choque.x, C.choque.y, C.choque.w, C.choque.h);
+    this.collisionRectangles.push(r);
+    this._reconstruirIndiceColisiones();
+    // Detrás de la casa, la casa se vuelve tenue (como en el pueblo).
+    const tenue = () => {
+      const p = this.player;
+      if (!p || !casa.scene) return;
+      const pies = p.y + 51;
+      const detras = p.x > C.x + 10 && p.x < C.x + 500 && pies < C.choque.y + C.choque.h && pies > C.y - 395 + 40;
+      const a = detras ? 0.5 : 1;
+      if (casa.alpha !== a) casa.setAlpha(a);
+    };
+    this.events.on('update', tenue);
+    this.events.once('shutdown', () => { this.events.off('update', tenue); this._cabana = null; });
+  }
+
+  // =========================================================================
   // LA SALA Y LAS SALIDAS
   // =========================================================================
   _salaDeEscena() { return 'salvaje'; }
 
   _comprobarSalidas() {
     if (!this.playerRect || !this._salidas) return;
+    /* LOS PIES O EL CUERPO (2026-10-19). "No puedo entrar ni salir de los
+       mapas nuevos." Las salidas son tiras de 20 px pegadas al borde del mapa
+       y el cuerpo de física (102 px de alto, con setCollideWorldBounds) se
+       para en el borde ANTES de que lleguen los pies: por arriba se quedaban
+       a unos 70 px, así que la salida del norte (la tundra) no se tocaba
+       nunca, y la del sur se tocaba con 1 px de margen. Con el cuerpo, la
+       salida se toca en cuanto se llega al borde. */
+    const b = this.player && this.player.body;
+    const cuerpo = b ? (this._rectCuerpo || (this._rectCuerpo = new Phaser.Geom.Rectangle())).setTo(b.x, b.y, b.width, b.height) : null;
     let tocando = null;
     for (const s of this._salidas) {
-      if (Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, s.rect)) { tocando = s; break; }
+      if (Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, s.rect) ||
+          (cuerpo && Phaser.Geom.Intersects.RectangleToRectangle(cuerpo, s.rect))) { tocando = s; break; }
     }
     if (!tocando) { this._salidaArmada = true; return; }
     if (!this._salidaArmada || this._cambiandoEscena) return;
@@ -551,5 +604,9 @@ class SalvajeScene extends GameScene {
     try { this._unbindAllDomClicks(); } catch (e) {}
   }
 }
+
+// La cabaña del cazador (ver _montarCabana): su esquina de abajo a la izquierda,
+// su puerta (la de gf-casas.js, `cabana_monte`) y su choque.
+SalvajeScene.CABANA = { x: 2560, y: 1690, puerta: { x: 2804, y: 1668 }, choque: { x: 2604, y: 1440, w: 424, h: 240 } };
 
 window.SalvajeScene = SalvajeScene;

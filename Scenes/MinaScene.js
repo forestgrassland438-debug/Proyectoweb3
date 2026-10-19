@@ -898,9 +898,16 @@ class MinaScene extends GameScene {
          hace el 2.5D de gf-profundidad. Frenar la silueta entera volveria
          solido el aire que hay sobre la base. */
       if (!SIN_COLISION.has(o.name)) {
+        /* (2026-10-19) "Puedo pasar por detrás de las piedras": con 16 px de
+           pie, el minero se metía DENTRO de un racimo de cristal o de una
+           peña (los pies 17 px detrás de la base y el cuerpo atravesándola).
+           El pie de lo que tiene bulto (peñas, racimos, estalagmitas,
+           vagonetas) es ahora un 30 % de su alto (entre 16 y 34 px): se
+           sigue pasando por detrás de la PUNTA, pero no por dentro. */
         const ancho = spr.displayWidth * 0.7;
+        const fondo = Math.max(16, Math.min(34, Math.round(spr.displayHeight * 0.3)));
         solidas.push(new Phaser.Geom.Rectangle(
-          spr.x - ancho / 2, spr.y - 16, ancho, 16));
+          spr.x - ancho / 2, spr.y - fondo, ancho, fondo));
       }
     });
 
@@ -940,7 +947,9 @@ class MinaScene extends GameScene {
           spr.setData('optimized', true);
           this._piezas.push(spr);
           const ancho = spr.displayWidth * 0.62;
-          solidas.push(new Phaser.Geom.Rectangle(px - ancho / 2, py - 14, ancho, 14));
+          // (2026-10-19) Y con fondo: el montón tiene bulto (ver arriba).
+          const fondo = Math.max(14, Math.min(26, Math.round(spr.displayHeight * 0.28)));
+          solidas.push(new Phaser.Geom.Rectangle(px - ancho / 2, py - fondo, ancho, fondo));
           planas++;
         });
       }
@@ -1573,15 +1582,23 @@ class MinaScene extends GameScene {
     this.playerRect.setTo(this.player.x - 15, this.player.y + 25, 30, 26);
 
     // ── Profundidad y adornos que siguen al jugador ────────────────────────
-    this.player.setDepth(this.player.y);
+    /* (2026-10-19) POR LOS PIES, no por el centro. "En la mina puedo pasar
+       por detrás de las piedras": las piezas (montones, peñas, cristales) y
+       los zombis se ordenan por la Y de su BASE, y el minero por la de su
+       CENTRO, 51 px más arriba. De pie justo delante de un montón (los pies
+       por debajo de su base), el montón seguía dibujándose ENCIMA de él,
+       como si estuviera detrás. Ahora como en el pueblo, el salvaje y los
+       demás jugadores (_refreshRemoteDepths): los pies. */
+    const pies = this.player.y + 51;
+    this.player.setDepth(pies);
     if (this.shadowContainer) {
       this.shadowContainer.setPosition(this.player.x, this.player.y + 45);
-      this.shadowContainer.setDepth(this.player.y - 1);
+      this.shadowContainer.setDepth(pies - 1);
     }
     if (this.usuariox) {
       this.usuariox.setText(this.Username || '');
       this.usuariox.setPosition(this.player.x, this.player.y - 60);
-      this.usuariox.setDepth(this.player.y + 1);
+      this.usuariox.setDepth(pies + 1);
     }
 
     // ── La mascota (metodo heredado) ───────────────────────────────────────

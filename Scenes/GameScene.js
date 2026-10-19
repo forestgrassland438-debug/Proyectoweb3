@@ -29977,6 +29977,13 @@ getPlayerIntentDirection() {
 
   async _loadSkillsData() {
     if (!this.playerName) return;
+    /* (2026-10-19) "Al abrir las skills, los puntos tardan mucho en aparecer
+       aunque el panel esté abierto." El panel esperaba a /api/skills y solo
+       DESPUÉS pedía los puntos del personaje, que se leen de la cadena: dos
+       esperas seguidas. Ahora se pinta ya con lo que tiene la escena (y los
+       puntos con lo último que se leyó, gf-character-skills), su lectura
+       arranca a la vez, y se repinta cuando llega lo del servidor. */
+    try { this._renderSkillsPanel(this._getSkillsFromScene()); } catch (_) {}
     // Ya NO se piden insignias: la sección se eliminó del panel.
     try {
       const skillsRes = await fetch(

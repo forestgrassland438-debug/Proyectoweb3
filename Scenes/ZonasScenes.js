@@ -38,7 +38,7 @@
 
 /* global GameScene, Phaser */
 
-const ZONAS_V = '20261018a';
+const ZONAS_V = '20261019a';   // (2026-10-19) más esqueletos y la cripta con su tejado bien
 
 // eslint-disable-next-line no-unused-vars
 class ZonaScene extends GameScene {
@@ -96,7 +96,8 @@ class ZonaScene extends GameScene {
     this.load.audio('level_up_sound', './Game/MUSIC/levelup.wav');
     if (window.GFViento) window.GFViento.precargar(this);
     if (c.clima && window.GFClima) window.GFClima.precargar(this);
-    if (window.GFAudio) window.GFAudio.precargar(this, { tipo: 'campo' });
+    // (2026-10-19) Con SU tema y SU ambiente (gf-audio.js, `zona`).
+    if (window.GFAudio) window.GFAudio.precargar(this, { tipo: 'campo', zona: c.zona });
   }
 
   // =========================================================================
@@ -133,6 +134,9 @@ class ZonaScene extends GameScene {
     this._salaDestino = null;
     this._graphicsOcultado = false;
     this.speed = 240;
+    // La brisa (gf-viento.js): los árboles se mecen siempre un poco; en el
+    // desierto, la tormenta de arena la sube (gf-zonas.js).
+    this._vientoExtra = 0.35;
     this.socket = window.globalSocket || null;
     this._avisoSalidaEn = 0;
 
@@ -243,7 +247,7 @@ class ZonaScene extends GameScene {
       if (window.GFNieve) window.GFNieve.montar(this);
     }
     if (window.GFPisadas)     window.GFPisadas.montar(this, { suelo: c.pisadas || null });
-    if (window.GFAudio)       window.GFAudio.montar(this, { tipo: 'campo', texturaSuelo: c.tileset });
+    if (window.GFAudio)       window.GFAudio.montar(this, { tipo: 'campo', zona: c.zona, texturaSuelo: c.tileset });
     if (window.GFAmigos)      window.GFAmigos.montar(this);
     if (window.GFChatSocial)  window.GFChatSocial.montar(this);
     if (window.GFNombreColor) window.GFNombreColor.montar(this);
@@ -258,6 +262,9 @@ class ZonaScene extends GameScene {
     // Monstruos, espada entre jugadores, lo que se suelta y los carteles.
     try { if (window.GFSalvaje) window.GFSalvaje.montar(this); } catch (e) { console.warn('🧭 monstruos:', e); }
     try { if (window.GFAntorchas) window.GFAntorchas.montar(this); } catch (e) { console.warn('🧭 antorchas:', e); }
+    // (2026-10-19) Los NPC de cada mapa (gf-npcs.js): el sepulturero, los
+    // guardias del desierto, el trampero y la pescadora.
+    try { if (window.GFNpcs) window.GFNpcs.montar(this); } catch (e) { console.warn('🧭 NPC:', e); }
     // Lo propio de cada mapa: niebla, tormenta y remolinos, nevada, luces.
     try { if (window.GFZonas) window.GFZonas.montar(this, c.zona); } catch (e) { console.warn('🧭 zona:', e); }
 
@@ -452,9 +459,15 @@ class ZonaScene extends GameScene {
 
   _comprobarSalidas() {
     if (!this.playerRect || !this._salidas) return;
+    // Los pies O el cuerpo de física (2026-10-19): el cuerpo se para en el
+    // borde del mapa antes que los pies, y la salida del desierto (arriba)
+    // no se tocaba nunca. Ver SalvajeScene._comprobarSalidas.
+    const b = this.player && this.player.body;
+    const cuerpo = b ? (this._rectCuerpo || (this._rectCuerpo = new Phaser.Geom.Rectangle())).setTo(b.x, b.y, b.width, b.height) : null;
     let tocando = null;
     for (const s of this._salidas) {
-      if (Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, s.rect)) { tocando = s; break; }
+      if (Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, s.rect) ||
+          (cuerpo && Phaser.Geom.Intersects.RectangleToRectangle(cuerpo, s.rect))) { tocando = s; break; }
     }
     if (!tocando) { this._salidaArmada = true; return; }
     if (!this._salidaArmada || this._cambiandoEscena) return;

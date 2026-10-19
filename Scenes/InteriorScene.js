@@ -163,13 +163,22 @@ class InteriorScene extends GameScene {
     // Con casa conocida, delante de su puerta. Sin ella no se guarda nada:
     // la posicion guardada YA es la de su puerta (gf-casas la guarda al entrar).
     const p = this._casa ? this._casa.puerta : null;
-    if (p) { try { this._dejarPartidaEnElMapa(p.x, p.y + 40); } catch (e) {} }
+    // (2026-10-19) Una casa de otro mundo (la cabaña del cazador, en el mapa
+    // salvaje): se vuelve a ESE mundo, delante de su puerta.
+    const fuera = (this._casa && this._casa.mundo) || 1;
+    if (p && fuera !== 1) {
+      this.mundo = fuera;
+      this.posicionplayerx = p.x;
+      this.posicionplayery = p.y + 40;
+      try { this.savegg(); } catch (e) {}
+      window.__gfViaje = { mundo: fuera, x: p.x, y: p.y + 40, islaDe: null, islaDeNombre: null, t: Date.now() };
+    } else if (p) { try { this._dejarPartidaEnElMapa(p.x, p.y + 40); } catch (e) {} }
     try { this._ocultarHUD(); } catch (e) {}
     try { this.removeListener(); } catch (e) {}
     try { this._unbindAllDomClicks(); } catch (e) {}
     try { this.stopMusicSafely(); } catch (e) {}
     try { this.cleanupScene(); } catch (e) {}
-    this.scene.start('LoadingScenegame', { targetScene: 'GameScene', playerData: p ? { x: p.x, y: p.y + 40, mundo: 1 } : { mundo: 1 } });
+    this.scene.start('LoadingScenegame', { targetScene: 'GameScene', playerData: p ? { x: p.x, y: p.y + 40, mundo: fuera } : { mundo: 1 } });
   }
 
   async _construirInterior(sceneRunId) {
@@ -247,6 +256,8 @@ class InteriorScene extends GameScene {
     this._salida = this._rectsDe('salida')[0] || null;
     const ap = (this.map.getObjectLayer('aparicion') || {}).objects || [];
     const inicio = ap[0] ? { x: ap[0].x, y: ap[0].y } : { x: this.map.widthInPixels / 2, y: this.map.heightInPixels - 120 };
+    // Los NPC de la casa se colocan respecto a este punto (gf-npcs.js).
+    this._puntoAparicion = { x: inicio.x, y: inicio.y };
 
     // ── Los muebles y sus animaciones ──────────────────────────────────────
     this._fase = 'muebles';
@@ -321,6 +332,8 @@ class InteriorScene extends GameScene {
     if (window.GFSoulbound)   window.GFSoulbound.sincronizar(this);
     if (window.GFEspada)      window.GFEspada.montar(this);
     if (window.GFPost)        window.GFPost.montar(this, { interior: true });
+    // (2026-10-19) "En las casas no hay nadie": quien vive en cada una (gf-npcs.js).
+    try { if (window.GFNpcs) window.GFNpcs.montar(this); } catch (e) { console.warn('🏠 NPC:', e); }
     if (window.tiendaSistema) window.tiendaSistema.scene = this;
     this._fase = 'lista';
     console.log('🏠 casa lista:', this._casaId);
@@ -460,17 +473,33 @@ class InteriorScene extends GameScene {
     const colores = { fuego: 0xff8a3a, fragua: 0xff6a2a, brasero: 0xff9a40, caldero: 0x8cff6a, vela: 0xffd890, farol: 0xffd070 };
     capa.objects.forEach((o) => {
       if (o.name === 'ventana') {
-        // El haz: un trapecio de luz que respira, y motas de polvo dentro.
-        const haz = this.add.image(o.x + o.width / 2 + 10, o.y, 'int_haz').setOrigin(0.5, 0)
-          .setDisplaySize(o.width, o.height * 0.9).setDepth(2).setAlpha(0.12)
-          .setBlendMode(Phaser.BlendModes.ADD);
-        haz.skewX = 0;
+        /* EL HAZ (2026-10-19): "la luz de las ventanas es más grande que las
+           ventanas". Era un rectángulo de 100 px estirado (la caja `luces`
+           lleva 18 de margen de diseño) y la ventana mide 64. Ahora es un
+           TRAPECIO que nace del cristal (la ventana sin su marco: 26 de
+           diseño) y cae inclinado abajo a la derecha, como la luz pintada en
+           el suelo (tools/generar-interiores.py, luz_y_sombra: corre 30 y
+           crece 12 en 120). */
+        const K = this._k || 1;
+        const ancho = 26 * K, largo = Math.round(o.height * 0.9), corre = 30 * K, crece = 12 * K;
+        const clave = 'int_haz_v_' + ancho + '_' + largo;
+        if (!this.textures.exists(clave)) {
+          const ct = this.textures.createCanvas(clave, Math.ceil(ancho + corre + crece), largo);
+          const x = ct.getContext();
+          const g = x.createLinearGradient(0, 0, 0, largo);
+          g.addColorStop(0, 'rgba(255,240,200,0.9)'); g.addColorStop(1, 'rgba(255,240,200,0)');
+          x.fillStyle = g;
+          x.beginPath(); x.moveTo(0, 0); x.lineTo(ancho, 0); x.lineTo(ancho + corre + crece, largo); x.lineTo(corre, largo); x.closePath(); x.fill();
+          ct.refresh();
+        }
+        const haz = this.add.image(o.x + 3 * K, o.y, clave).setOrigin(0, 0)
+          .setDepth(2).setAlpha(0.12).setBlendMode(Phaser.BlendModes.ADD);
         const motas = [];
         for (let i = 0; i < 7; i++) {
-          motas.push(this.add.image(o.x + Math.random() * o.width, o.y + Math.random() * o.height * 0.8, 'int_mota')
-            .setDepth(9000).setAlpha(0).setScale(this._k || 1).setBlendMode(Phaser.BlendModes.ADD));
+          motas.push(this.add.image(o.x + 3 * K + Math.random() * ancho, o.y + Math.random() * largo * 0.8, 'int_mota')
+            .setDepth(9000).setAlpha(0).setScale(K).setBlendMode(Phaser.BlendModes.ADD));
         }
-        this._luzObjs.push({ tipo: 'ventana', haz, motas, o, fase: Math.random() * 6 });
+        this._luzObjs.push({ tipo: 'ventana', haz, motas, o, fase: Math.random() * 6, ancho, largo, corre });
         return;
       }
       const color = colores[o.name] || 0xffd890;
@@ -557,7 +586,9 @@ class InteriorScene extends GameScene {
         L.haz.setAlpha((0.10 + 0.04 * Math.sin(t * 0.7 + L.fase)) * dia);
         L.motas.forEach((m, k) => {
           const u = (t * 0.05 + k / L.motas.length + L.fase) % 1;
-          m.setPosition(L.o.x + 8 * K + ((k * 37 * K) % (L.o.width - 16 * K)) + Math.sin(t * 0.6 + k) * 6 * K + u * 20 * K, L.o.y + 8 * K + u * L.o.height * 0.75);
+          // Dentro del haz: bajan con él, corridas como su pendiente.
+          m.setPosition(L.o.x + 3 * K + ((k * 11 * K) % Math.max(4, L.ancho - 6 * K)) + Math.sin(t * 0.6 + k) * 3 * K + u * L.corre,
+                        L.o.y + 8 * K + u * L.largo * 0.8);
           m.setAlpha(Math.sin(u * Math.PI) * 0.7 * dia);
         });
       } else {
@@ -695,6 +726,8 @@ class InteriorScene extends GameScene {
         try { this._cancelarArrastre(); } catch (e) {}
         try { this.player.anims.stop(); } catch (e) {}
         const p = this._casa.puerta;
+        // (2026-10-19) La cabaña del cazador está en el mapa salvaje.
+        if ((this._casa.mundo || 1) !== 1) { await this._volverAlMundo(this._casa.mundo); return; }
         // Delante de la puerta, mirando al pueblo (los pies, 90 px por debajo).
         const destino = { x: p.x, y: p.y + 40, mundo: 1 };
         if (!await this._confirmarSalidaAlMapa(destino.x, destino.y)) return;
@@ -711,6 +744,44 @@ class InteriorScene extends GameScene {
     } finally {
       if (this._salidaGuardando === salida) this._salidaGuardando = null;
     }
+  }
+
+  /* SALIR A OTRO MUNDO (2026-10-19): la cabaña del cazador está en el mapa
+     salvaje (mundo 6). Como el viaje entre mapas (gf-zonas.js): se guarda el
+     mundo y el punto ANTES (la pantalla de carga solo lee lo guardado), se
+     deja la nota de viaje por si el guardado llega tarde, la sala nueva y la
+     pantalla de carga. Si no se puede guardar, se queda dentro. */
+  async _volverAlMundo(mundo) {
+    const ESCENA = { 6: 'SalvajeScene' }, SALA = { 6: 'salvaje' };
+    const p = this._casa.puerta;
+    const destino = { x: p.x, y: p.y + 40 };
+    const previo = { mundo: this.mundo, x: this.posicionplayerx, y: this.posicionplayery };
+    this.mundo = mundo;
+    this.posicionplayerx = destino.x;
+    this.posicionplayery = destino.y;
+    this._cambiandoEscena = true;
+    let ok = false;
+    try { ok = (await this.savegg()) !== false; } catch (e) { ok = false; }
+    if (this._sceneStopped) return;
+    if (!ok) {
+      this.mundo = previo.mundo;
+      this.posicionplayerx = previo.x; this.posicionplayery = previo.y;
+      this._cambiandoEscena = false;
+      this._salidaArmada = false;
+      try { this.notifications && this.notifications.show('Unable to save your return. Try again.', 'error'); } catch (e) {}
+      return;
+    }
+    window.__gfViaje = { mundo, x: destino.x, y: destino.y, islaDe: null, islaDeNombre: null, t: Date.now() };
+    this._ocultarHUD();
+    try { this.removeListener(); } catch (e) {}
+    try { this._unbindAllDomClicks(); } catch (e) {}
+    try { this.stopMusicSafely(); } catch (e) {}
+    this._salaDestino = SALA[mundo] || 'game';
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('joinRoom', { room: this._salaDestino, username: this.Username || '---', lastScene: 'InteriorScene', x: destino.x, y: destino.y });
+    }
+    try { this.cleanupScene(); } catch (e) { console.warn('limpieza:', e); }
+    this.scene.start('LoadingScenegame', { targetScene: ESCENA[mundo] || 'GameScene', playerData: { x: destino.x, y: destino.y, mundo } });
   }
 
   // =========================================================================
