@@ -1,0 +1,374 @@
+{
+ "frames": {
+  "arco_ruinas": {
+   "frame": {
+    "h": 42,
+    "w": 49,
+    "x": 175,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4694,
+    "y": 0.8095
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 42,
+    "w": 49
+   },
+   "spriteSourceSize": {
+    "h": 42,
+    "w": 49,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "cactus_barril": {
+   "frame": {
+    "h": 21,
+    "w": 20,
+    "x": 451,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8571
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 21,
+    "w": 20
+   },
+   "spriteSourceSize": {
+    "h": 21,
+    "w": 20,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "cactus_pequeno": {
+   "frame": {
+    "h": 23,
+    "w": 14,
+    "x": 435,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.3571,
+    "y": 0.7826
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 23,
+    "w": 14
+   },
+   "spriteSourceSize": {
+    "h": 23,
+    "w": 14,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "columna_rota": {
+   "frame": {
+    "h": 33,
+    "w": 26,
+    "x": 321,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.3462,
+    "y": 0.7576
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 33,
+    "w": 26
+   },
+   "spriteSourceSize": {
+    "h": 33,
+    "w": 26,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "costillas": {
+   "frame": {
+    "h": 35,
+    "w": 50,
+    "x": 269,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.52,
+    "y": 0.6286
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 35,
+    "w": 50
+   },
+   "spriteSourceSize": {
+    "h": 35,
+    "w": 50,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "craneo": {
+   "frame": {
+    "h": 17,
+    "w": 20,
+    "x": 490,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.45,
+    "y": 0.8235
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 17,
+    "w": 20
+   },
+   "spriteSourceSize": {
+    "h": 17,
+    "w": 20,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "mesa_roca": {
+   "frame": {
+    "h": 57,
+    "w": 76,
+    "x": 67,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4737,
+    "y": 0.7544
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 57,
+    "w": 76
+   },
+   "spriteSourceSize": {
+    "h": 57,
+    "w": 76,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "nopal": {
+   "frame": {
+    "h": 28,
+    "w": 24,
+    "x": 349,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8929
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 28,
+    "w": 24
+   },
+   "spriteSourceSize": {
+    "h": 28,
+    "w": 24,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "obelisco_desierto": {
+   "frame": {
+    "h": 40,
+    "w": 18,
+    "x": 226,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.85
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 40,
+    "w": 18
+   },
+   "spriteSourceSize": {
+    "h": 40,
+    "w": 18,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "roca_arenisca": {
+   "frame": {
+    "h": 25,
+    "w": 30,
+    "x": 403,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4667,
+    "y": 0.72
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 25,
+    "w": 30
+   },
+   "spriteSourceSize": {
+    "h": 25,
+    "w": 30,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "roca_arenisca2": {
+   "frame": {
+    "h": 27,
+    "w": 26,
+    "x": 375,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5769,
+    "y": 0.7778
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 27,
+    "w": 26
+   },
+   "spriteSourceSize": {
+    "h": 27,
+    "w": 26,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "saguaro": {
+   "frame": {
+    "h": 46,
+    "w": 28,
+    "x": 145,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8696
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 46,
+    "w": 28
+   },
+   "spriteSourceSize": {
+    "h": 46,
+    "w": 28,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "saguaro_bajo": {
+   "frame": {
+    "h": 38,
+    "w": 21,
+    "x": 246,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.3333,
+    "y": 0.8421
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 38,
+    "w": 21
+   },
+   "spriteSourceSize": {
+    "h": 38,
+    "w": 21,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "tienda": {
+   "frame": {
+    "h": 75,
+    "w": 65,
+    "x": 0,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.728
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 75,
+    "w": 65
+   },
+   "spriteSourceSize": {
+    "h": 75,
+    "w": 65,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "vasija": {
+   "frame": {
+    "h": 18,
+    "w": 15,
+    "x": 473,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5333,
+    "y": 0.8333
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 18,
+    "w": 15
+   },
+   "spriteSourceSize": {
+    "h": 18,
+    "w": 15,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  }
+ },
+ "meta": {
+  "app": "tools/generar-zonas.py",
+  "format": "RGBA8888",
+  "image": "objetos.png",
+  "scale": "1",
+  "size": {
+   "h": 75,
+   "w": 1024
+  }
+ }
+}

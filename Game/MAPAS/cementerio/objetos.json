@@ -1,0 +1,302 @@
+{
+ "frames": {
+  "ataud": {
+   "frame": {
+    "h": 22,
+    "w": 22,
+    "x": 397,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.6364
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 22,
+    "w": 22
+   },
+   "spriteSourceSize": {
+    "h": 22,
+    "w": 22,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "cripta": {
+   "frame": {
+    "h": 141,
+    "w": 146,
+    "x": 0,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.7716
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 141,
+    "w": 146
+   },
+   "spriteSourceSize": {
+    "h": 141,
+    "w": 146,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "estatua": {
+   "frame": {
+    "h": 35,
+    "w": 20,
+    "x": 209,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8286
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 35,
+    "w": 20
+   },
+   "spriteSourceSize": {
+    "h": 35,
+    "w": 20,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "farola": {
+   "frame": {
+    "h": 38,
+    "w": 15,
+    "x": 170,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.3333,
+    "y": 0.8947
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 38,
+    "w": 15
+   },
+   "spriteSourceSize": {
+    "h": 38,
+    "w": 15,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "lapida_alta": {
+   "frame": {
+    "h": 29,
+    "w": 22,
+    "x": 265,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8621
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 29,
+    "w": 22
+   },
+   "spriteSourceSize": {
+    "h": 29,
+    "w": 22,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "lapida_angel": {
+   "frame": {
+    "h": 36,
+    "w": 20,
+    "x": 187,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8889
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 36,
+    "w": 20
+   },
+   "spriteSourceSize": {
+    "h": 36,
+    "w": 20,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "lapida_cruz": {
+   "frame": {
+    "h": 27,
+    "w": 16,
+    "x": 289,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8519
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 27,
+    "w": 16
+   },
+   "spriteSourceSize": {
+    "h": 27,
+    "w": 16,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "lapida_redonda": {
+   "frame": {
+    "h": 25,
+    "w": 22,
+    "x": 331,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.84
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 25,
+    "w": 22
+   },
+   "spriteSourceSize": {
+    "h": 25,
+    "w": 22,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "lapida_rota": {
+   "frame": {
+    "h": 26,
+    "w": 22,
+    "x": 307,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.6923
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 26,
+    "w": 22
+   },
+   "spriteSourceSize": {
+    "h": 26,
+    "w": 22,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "obelisco": {
+   "frame": {
+    "h": 47,
+    "w": 20,
+    "x": 148,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8723
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 47,
+    "w": 20
+   },
+   "spriteSourceSize": {
+    "h": 47,
+    "w": 20,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "tumba_abierta": {
+   "frame": {
+    "h": 32,
+    "w": 32,
+    "x": 231,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5938,
+    "y": 0.7188
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 32,
+    "w": 32
+   },
+   "spriteSourceSize": {
+    "h": 32,
+    "w": 32,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "verja": {
+   "frame": {
+    "h": 24,
+    "w": 40,
+    "x": 355,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.875
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 24,
+    "w": 40
+   },
+   "spriteSourceSize": {
+    "h": 24,
+    "w": 40,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  }
+ },
+ "meta": {
+  "app": "tools/generar-zonas.py",
+  "format": "RGBA8888",
+  "image": "objetos.png",
+  "scale": "1",
+  "size": {
+   "h": 141,
+   "w": 1024
+  }
+ }
+}

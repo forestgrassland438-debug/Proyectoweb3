@@ -1,0 +1,206 @@
+{
+ "frames": {
+  "cristal_grande": {
+   "frame": {
+    "h": 53,
+    "w": 42,
+    "x": 0,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5238,
+    "y": 0.8302
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 53,
+    "w": 42
+   },
+   "spriteSourceSize": {
+    "h": 53,
+    "w": 42,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "cristal_hielo": {
+   "frame": {
+    "h": 31,
+    "w": 25,
+    "x": 131,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.52,
+    "y": 0.8065
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 31,
+    "w": 25
+   },
+   "spriteSourceSize": {
+    "h": 31,
+    "w": 25,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "hoguera": {
+   "frame": {
+    "h": 17,
+    "w": 23,
+    "x": 215,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4783,
+    "y": 0.6471
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 17,
+    "w": 23
+   },
+   "spriteSourceSize": {
+    "h": 17,
+    "w": 23,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "iglu": {
+   "frame": {
+    "h": 41,
+    "w": 58,
+    "x": 44,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5902
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 41,
+    "w": 58
+   },
+   "spriteSourceSize": {
+    "h": 41,
+    "w": 58,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "muneco_nieve": {
+   "frame": {
+    "h": 35,
+    "w": 25,
+    "x": 104,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.48,
+    "y": 0.8857
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 35,
+    "w": 25
+   },
+   "spriteSourceSize": {
+    "h": 35,
+    "w": 25,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "roca_nevada": {
+   "frame": {
+    "h": 24,
+    "w": 28,
+    "x": 158,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 24,
+    "w": 28
+   },
+   "spriteSourceSize": {
+    "h": 24,
+    "w": 28,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "roca_nevada2": {
+   "frame": {
+    "h": 20,
+    "w": 25,
+    "x": 188,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.44,
+    "y": 0.7
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 20,
+    "w": 25
+   },
+   "spriteSourceSize": {
+    "h": 20,
+    "w": 25,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "tronco_nevado": {
+   "frame": {
+    "h": 12,
+    "w": 38,
+    "x": 240,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 12,
+    "w": 38
+   },
+   "spriteSourceSize": {
+    "h": 12,
+    "w": 38,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  }
+ },
+ "meta": {
+  "app": "tools/generar-zonas.py",
+  "format": "RGBA8888",
+  "image": "objetos.png",
+  "scale": "1",
+  "size": {
+   "h": 53,
+   "w": 1024
+  }
+ }
+}
