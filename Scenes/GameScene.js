@@ -23582,7 +23582,8 @@ async loadPlayerData() {
     // (Saliendo ya por una puerta no: manda lo que dejó la salida.)
     if (!this._cambiandoEscena) {
       const _clave = this.sys && this.sys.settings ? this.sys.settings.key : '';
-      const _mundoDeEscena = { GameScene: 1, MinaScene: 3, LandsScene: 4, InteriorScene: 5, SalvajeScene: 6 }[_clave];
+      const _mundoDeEscena = { GameScene: 1, MinaScene: 3, LandsScene: 4, InteriorScene: 5, SalvajeScene: 6,
+                               CementerioScene: 7, DesiertoScene: 8, TundraScene: 9 }[_clave];
       const _mundoGuardado = Number(data.mundo);
       if (_mundoDeEscena) this.mundo = _mundoDeEscena;
       // En el mapa con coordenadas DE DENTRO de la tienda: a su puerta de fuera.
@@ -23592,7 +23593,8 @@ async loadPlayerData() {
       }
       // Con coordenadas del mapa salvaje (157 casillas de 32, otro mapa): al
       // camino del oeste, por donde se vuelve de allí.
-      if (_mundoDeEscena === 1 && _mundoGuardado === 6 && !this._anclaPropia) {
+      // (Y con las de los mapas que salen del salvaje: 7, 8 y 9.)
+      if (_mundoDeEscena === 1 && (_mundoGuardado === 6 || _mundoGuardado === 7 || _mundoGuardado === 8 || _mundoGuardado === 9) && !this._anclaPropia) {
         this.posicionplayerx = 90;
         this.posicionplayery = 2224;
       }

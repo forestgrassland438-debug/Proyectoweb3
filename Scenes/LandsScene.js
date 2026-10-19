@@ -2171,6 +2171,10 @@ class LandsScene extends GameScene {
       }
       const largo = Math.hypot(dx, dy);
       if (largo > 1) { dx /= largo; dy /= largo; }
+      // La velocidad, en cada fotograma (2026-10-18): `loadPlayerData()` copia
+      // el `speed` guardado (2,7 en muchas cuentas, de cuando era por
+      // fotograma) y se andaba a 3 px/s sin animación. Ver ZonasScenes.js.
+      this.speed = 240;
       const seg = delta / 1000;
       this.player.x += dx * this.speed * seg;
       this.player.y += dy * this.speed * seg;

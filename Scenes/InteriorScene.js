@@ -614,6 +614,10 @@ class InteriorScene extends GameScene {
       }
       const largo = Math.hypot(dx, dy);
       if (largo > 1) { dx /= largo; dy /= largo; }
+      // La velocidad, en cada fotograma (2026-10-18): `loadPlayerData()` copia
+      // el `speed` guardado (2,7 en muchas cuentas, de cuando era por
+      // fotograma). Dentro de casa se anda a 220, como fija create().
+      this.speed = 220;
       const seg = delta / 1000;
       this.player.x += dx * this.speed * seg;
       this.player.y += dy * this.speed * seg;

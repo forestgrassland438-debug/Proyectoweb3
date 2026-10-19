@@ -103,7 +103,10 @@ class LoadingScenegame extends Phaser.Scene {
         this.vidaPorcentaje   = 10000;
         this.aguaPorcentaje   = 10000;
         this.comidaPorcentaje = 10000;
-        this.speed    = 2.7;
+        // 240 píxeles por SEGUNDO (2026-10-18). Antes 2,7, de cuando era por
+        // fotograma: si /api/load no traía `speed`, se guardaba ese 2,7 y las
+        // escenas que no la reponen andaban a 3 px/s.
+        this.speed    = 240;
         this.mundo    = 1;
         this.moneda   = 10000;
         this.nivel    = 0;
@@ -2342,7 +2345,11 @@ class LoadingScenegame extends Phaser.Scene {
             // Dentro de una casa del pueblo (gf-casas.js, 2026-10-05).
             5: 'InteriorScene',
             // El mapa salvaje del oeste (2026-10-11).
-            6: 'SalvajeScene'
+            6: 'SalvajeScene',
+            // Los tres que salen de él (2026-10-18): cementerio, desierto, tundra.
+            7: 'CementerioScene',
+            8: 'DesiertoScene',
+            9: 'TundraScene'
         };
 
         let nextScene = ESCENA_DE_MUNDO[this.mundo];
@@ -2402,7 +2409,8 @@ class LoadingScenegame extends Phaser.Scene {
            esto se autenticarian de cero y saldria el cartel de SESSION
            EXPIRED, que es justo el fallo que ya costo una vuelta. */
         if (nextScene === 'MinaScene' || nextScene === 'LandsScene' || nextScene === 'InteriorScene' ||
-            nextScene === 'SalvajeScene') {
+            nextScene === 'SalvajeScene' || nextScene === 'CementerioScene' || nextScene === 'DesiertoScene' ||
+            nextScene === 'TundraScene') {
             this.scene.start(nextScene, {
                 sesion: {
                     playerName:      this.playerName,

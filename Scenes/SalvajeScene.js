@@ -16,7 +16,8 @@
  * mismas reglas de orillas, caminos y bordillos. El ESTE es zona neutral (se
  * llega del pueblo por su borde este, por el camino de ladrillo que sigue al
  * suyo); un río con un puente lo separa del OESTE, la zona PvP (ver
- * gf-salvaje.js). Salidas cerradas al norte, sur y oeste ("Coming soon").
+ * gf-salvaje.js). Sus tres salidas llevan (2026-10-18) al cementerio (oeste),
+ * al desierto (sur) y a la tundra (norte): Scenes/ZonasScenes.js.
  *
  * EL SUELO COMO EL DEL PUEBLO (2026-10-11): "el mapa nuevo debe ir también
  * recortado como la mina y los demás mapas; el agua debe ser como la de
@@ -44,7 +45,8 @@
 
 /* global GameScene, Phaser */
 
-const SALVAJE_V = '20261011c';
+// (2026-10-18) 'b': las tres salidas abiertas a los mapas nuevos (Maps/salvaje.json).
+const SALVAJE_V = '20261018b';
 const SALVAJE_ARBOLES = ['abedul', 'abeto', 'arbol_ancestral', 'arbol_seco', 'cerezo', 'pino',
   'roble_ancho', 'roble_curvado', 'roble_otono', 'roble_redondo'];
 // Al volver al pueblo: en su camino del borde oeste, un poco hacia dentro.
@@ -417,6 +419,10 @@ class SalvajeScene extends GameScene {
       }
       const largo = Math.hypot(dx, dy);
       if (largo > 1) { dx /= largo; dy /= largo; }
+      // La velocidad, en cada fotograma (2026-10-18): `loadPlayerData()` copia
+      // el `speed` guardado (2,7 en muchas cuentas, de cuando era por
+      // fotograma) y se andaba a 3 px/s sin animación. Ver ZonasScenes.js.
+      this.speed = 240;
       const seg = delta / 1000;
       // Lo que frena a quien pisa la savia de una araña (gf-salvaje.js).
       const freno = this._frenoHasta && time < this._frenoHasta ? 0.55 : 1;
@@ -467,7 +473,15 @@ class SalvajeScene extends GameScene {
       this._volverAlPueblo();
       return;
     }
-    // Las tres salidas a futuros mapas: todavía cerradas.
+    /* (2026-10-18) LAS TRES SALIDAS YA LLEVAN A ALGÚN SITIO: al oeste el
+       cementerio, al sur el desierto y al norte la tundra (gf-zonas.js,
+       Scenes/ZonasScenes.js). */
+    if ((tocando.nombre === 'cementerio' || tocando.nombre === 'desierto' || tocando.nombre === 'tundra') && window.GFZonas) {
+      this._salidaArmada = false;
+      window.GFZonas.viajar(this, tocando.nombre);
+      return;
+    }
+    // Una salida que no se conoce: cerrada.
     const ahora = Date.now();
     if (ahora - this._avisoSalidaEn > 3500) {
       this._avisoSalidaEn = ahora;
