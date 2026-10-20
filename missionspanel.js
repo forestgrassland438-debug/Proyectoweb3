@@ -245,6 +245,8 @@ class missionspanel {
   /** Título de reserva cuando el administrador no escribió ninguno. */
   _tituloPorDefecto(mission, nombreItem, esEspanol) {
     const n = mission.requiredAmount || 1;
+    // (2026-10-19) Las de cazar: "Defeat 5 Shadow Wolf".
+    if (mission.tipo === 'cazar') return esEspanol ? `Derrota ${n} ${nombreItem}` : `Defeat ${n} ${nombreItem}`;
     return esEspanol ? `Entrega ${n}x ${nombreItem}` : `Deliver ${n}x ${nombreItem}`;
   }
 
@@ -375,6 +377,13 @@ class missionspanel {
 
   /** Cuántas unidades del ítem pedido lleva ya el jugador. */
   _cuantoTiene(mission) {
+    // (2026-10-19) Las de CAZAR: lo que lleva vencido hoy (y sin gastar en
+    // otra misión), que manda el servidor con las misiones (`kills`).
+    if (mission && mission.tipo === 'cazar') {
+      const k = (this.gameScene && this.gameScene.dailyMissionsData && this.gameScene.dailyMissionsData.kills) || {};
+      const clave = mission.monstruo && mission.monstruo !== '*' ? mission.monstruo : '*';
+      return Math.max(0, Number(k[clave]) || 0);
+    }
     try {
       if (typeof this.gameScene.getMissionItemCount === 'function') {
         return Math.max(0, Number(this.gameScene.getMissionItemCount(mission.itemId)) || 0);
@@ -472,7 +481,17 @@ class missionspanel {
 
     const reqItem = document.createElement('div');
     reqItem.className = 'requirement-item';
-    reqItem.appendChild(this._imagenItem(mission.itemId, nombreItem, 'item-icon'));
+    // (2026-10-19) Las de cazar llevan las espadas cruzadas en vez del ítem.
+    if (mission.tipo === 'cazar') {
+      const ico = document.createElement('span');
+      ico.className = 'item-icon mission-hunt-icon';
+      ico.setAttribute('aria-hidden', 'true');
+      ico.textContent = '⚔️';
+      ico.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;font-size:22px;';
+      reqItem.appendChild(ico);
+    } else {
+      reqItem.appendChild(this._imagenItem(mission.itemId, nombreItem, 'item-icon'));
+    }
 
     const reqTexto = document.createElement('div');
     reqTexto.className = 'requirement-text';
@@ -577,9 +596,11 @@ class missionspanel {
       const falta = document.createElement('div');
       falta.className = 'mission-hint';
       const restan = Math.max(0, pedido - tiene);
-      falta.textContent = esEspanol
-        ? `Te faltan ${restan}x ${nombreItem}`
-        : `${restan}x ${nombreItem} still needed`;
+      falta.textContent = mission.tipo === 'cazar'
+        ? (esEspanol ? `Te faltan ${restan} (${nombreItem})` : `Defeat ${restan} more (${nombreItem})`)
+        : (esEspanol
+          ? `Te faltan ${restan}x ${nombreItem}`
+          : `${restan}x ${nombreItem} still needed`);
       acciones.appendChild(falta);
     }
 
@@ -604,9 +625,11 @@ class missionspanel {
             if (!this.destroyed && this.gameScene) this.render(); // Actualizar panel después de completar
           } else if (this.gameScene) {
             this.gameScene.showNotification(
-              esEspanol
-                ? `No tienes los items requeridos (${nombreItem})`
-                : `You don't have the required items (${nombreItem})`,
+              mission.tipo === 'cazar'
+                ? (esEspanol ? `Aún no has vencido suficientes (${nombreItem})` : `You haven't defeated enough yet (${nombreItem})`)
+                : (esEspanol
+                  ? `No tienes los items requeridos (${nombreItem})`
+                  : `You don't have the required items (${nombreItem})`),
               'error'
             );
             boton.disabled = false;

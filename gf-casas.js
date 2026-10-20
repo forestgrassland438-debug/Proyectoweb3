@@ -117,7 +117,7 @@
     scene._salaDestino = sala;
     if (scene.socket && scene.socket.connected) {
       scene.socket.emit('joinRoom', { room: sala, username: scene.Username || '---',
-        lastScene: (scene.sys && scene.sys.settings && scene.sys.settings.key) || 'GameScene' });
+        soulbound: window.GFSoulbound ? window.GFSoulbound.actual() : null, lastScene: (scene.sys && scene.sys.settings && scene.sys.settings.key) || 'GameScene' });
     }
     try { scene.cleanupScene && scene.cleanupScene(); } catch (e) {}
     scene.scene.start('LoadingScenegame');

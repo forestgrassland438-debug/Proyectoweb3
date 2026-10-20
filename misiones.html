@@ -166,6 +166,32 @@
   .his-tabla td:nth-child(6) { font-weight:700; }   /* acumulado */
   .his-tabla button { padding:4px 10px; font-size:12px; }
   #historial { overflow-x:auto; }
+
+  /* (2026-10-19) Reglas automáticas, listas editables y entregas del día */
+  .switch { display:flex; align-items:center; gap:10px; font-weight:600; }
+  .switch input { width:auto; transform:scale(1.25); }
+  .lista-ed { border:1px solid var(--line); border-radius:10px; padding:10px; margin:8px 0 12px; background:var(--panel-2); }
+  .lista-ed h3 { margin:0 0 8px; font-size:13px; color:#cfe0ff; display:flex; align-items:center; gap:8px; }
+  .lista-ed h3 .sp { flex:1; }
+  .lista-ed .fila { display:grid; gap:8px; margin-bottom:6px; align-items:center; }
+  .lista-ed .fila input, .lista-ed .fila select { padding:6px 8px; }
+  .lista-ed .fila button { padding:5px 9px; }
+  .lista-ed .cab { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+  .prev-m { border-left:3px solid var(--accent); padding:6px 10px; margin:6px 0; background:rgba(79,157,255,.07); border-radius:0 8px 8px 0; font-size:13.5px; }
+  .prev-m.caza { border-left-color:#e4655f; background:rgba(228,101,95,.07); }
+  .prev-m small { color:var(--muted); }
+  .ent-tabla td.si { color:var(--ok); font-weight:700; }
+  .ent-tabla td.no { color:var(--muted); }
+  .ent-tabla td.mid { color:var(--warn); }
+  #entregas { overflow-x:auto; }
+  .pill { display:inline-block; border-radius:999px; padding:2px 9px; font-size:12px; border:1px solid var(--line); margin-left:6px; }
+  .pill.auto { border-color:var(--accent); color:#b9d6ff; }
+  .pill.manual { border-color:var(--warn); color:var(--warn); }
+  @media (max-width: 620px) {
+    /* En el teléfono, cada fila de las listas en dos columnas. */
+    .lista-ed .fila { grid-template-columns: 1fr 1fr !important; }
+    .lista-ed .fila.cab { display:none; }
+  }
 </style>
 </head>
 <body>
@@ -261,6 +287,65 @@
         <button class="danger" id="btnBorrar" type="button">Borrar el día mostrado</button>
       </div>
     </div>
+  </section>
+
+  <!-- ===================== REGLAS AUTOMÁTICAS (2026-10-19) ===================== -->
+  <section class="card">
+    <h2>⚙️ Automatic missions <span class="hint" id="autoNpcLabel"></span></h2>
+    <p class="hint">
+      When a day has <b>no manual missions</b>, the game builds that NPC's missions from
+      these rules: how many per day, the mix of <b>deliver</b> / <b>hunt</b> missions, which
+      items or monsters can be asked for, and which rewards can come out (random, by weight).
+      Manual missions for a day always win. Uses the NPC chosen in section 2.
+    </p>
+    <div class="row">
+      <label class="switch"><input type="checkbox" id="autoActivo"> Automatic missions ON</label>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="field"><label for="autoCuantas">Missions per day (1-10)</label><input id="autoCuantas" type="number" min="1" max="10" value="3"></div>
+      <div class="field"><label for="autoPesoE">Weight: deliver items</label><input id="autoPesoE" type="number" min="0" max="100" value="60"></div>
+      <div class="field"><label for="autoPesoC">Weight: hunt monsters</label><input id="autoPesoC" type="number" min="0" max="100" value="40"></div>
+      <div class="field"><label for="autoHora">Reset hour (UTC)</label><input id="autoHora" type="number" min="0" max="23" value="0"></div>
+    </div>
+    <div id="autoPedidos"></div>
+    <div id="autoPresas"></div>
+    <div id="autoPremios"></div>
+    <div class="row">
+      <div class="field"><label for="autoProb">Chance of an item reward (%)</label><input id="autoProb" type="number" min="0" max="100" value="75"></div>
+      <div class="field"><label for="autoExpMin">EXP min</label><input id="autoExpMin" type="number" min="0" max="100000" value="40"></div>
+      <div class="field"><label for="autoExpMax">EXP max</label><input id="autoExpMax" type="number" min="0" max="100000" value="140"></div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div class="field"><label for="autoOroMin">Gold min</label><input id="autoOroMin" type="number" min="0" max="1000" value="0"></div>
+      <div class="field"><label for="autoOroMax">Gold max</label><input id="autoOroMax" type="number" min="0" max="1000" value="0"></div>
+      <div class="field"><label for="autoPlataMin">Silver min</label><input id="autoPlataMin" type="number" min="0" max="100000" value="10"></div>
+      <div class="field"><label for="autoPlataMax">Silver max</label><input id="autoPlataMax" type="number" min="0" max="100000" value="60"></div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="ok" id="btnAutoGuardar" type="button">💾 Save rules</button>
+      <button class="ghost" id="btnAutoPrevia" type="button">👁 Preview the chosen day</button>
+      <button class="ghost" id="btnAutoAlEditor" type="button">✏️ Send preview to the manual editor</button>
+      <button class="danger" id="btnAutoReroll" type="button">🎲 New roll for TODAY</button>
+    </div>
+    <p class="hint">Gold is real money (1 gold = 1 USD): the server caps it at 1000 per mission.
+      Only items that can be minted on-chain are accepted as rewards.</p>
+    <div id="autoPrevia"></div>
+  </section>
+
+  <!-- ===================== ENTREGAS DEL DÍA (2026-10-19) ===================== -->
+  <section class="card">
+    <h2>📋 Who completed what <span id="entInfo" class="hint"></span></h2>
+    <p class="hint">
+      For the NPC and day chosen in section 2: every player who did something that day
+      (handed in a mission or hunted), which missions they completed or not, and what
+      they received — with their wallet, name and level.
+    </p>
+    <div class="row">
+      <div class="field"><label for="entBuscar">Search (player, username or wallet)</label><input id="entBuscar" type="text" placeholder="leave empty to see everyone"></div>
+      <div class="field" style="flex:0 0 auto"><label>&nbsp;</label><button class="ghost" id="btnEntregas" type="button">🔄 Load</button></div>
+      <div class="field" style="flex:0 0 auto"><label>&nbsp;</label><button class="ghost" id="btnEntregasCsv" type="button">⬇️ Export CSV</button></div>
+    </div>
+    <div id="entregas" style="margin-top:14px"></div>
   </section>
 
   <!-- ===================== HISTORIAL ===================== -->
@@ -363,10 +448,20 @@
     var idBloque = 'm' + contador;
 
     var inId     = crear('input', { type: 'text',   value: datos.missionId || ('mision_' + contador), maxLength: 60 });
-    var inItem   = crear('input', { type: 'text',   value: datos.itemId || '', placeholder: 'ej. madera_pinos', maxLength: 60 });
+    // (2026-10-19) De entregar ítems o de cazar monstruos.
+    var selTipo  = crear('select');
+    [['entregar', '📦 Deliver items'], ['cazar', '⚔️ Hunt monsters / enemies']].forEach(function (o) {
+      selTipo.appendChild(crear('option', { value: o[0], text: o[1] }));
+    });
+    selTipo.value = datos.tipo === 'cazar' ? 'cazar' : 'entregar';
+    var selPresa = crear('select');
+    llenarPresas(selPresa, datos.monstruo || '*');
+    var inItem   = crear('input', { type: 'text',   value: datos.tipo === 'cazar' ? '' : (datos.itemId || ''), placeholder: 'ej. madera_pinos', maxLength: 60 });
+    inItem.setAttribute('list', 'gf-items');
     var inCant   = crear('input', { type: 'number', value: datos.requiredAmount || 5, min: 1, max: 9999 });
     var inExp    = crear('input', { type: 'number', value: datos.expReward || 50, min: 0, max: 100000 });
     var inPremio = crear('input', { type: 'text',   value: datos.rewardItemId || '', placeholder: 'opcional, ej. mineral_piedra', maxLength: 60 });
+    inPremio.setAttribute('list', 'gf-items');
     var inPremioC= crear('input', { type: 'number', value: datos.rewardAmount || 1, min: 1, max: 9999 });
 
     // ── RECOMPENSA EN MONEDAS ────────────────────────────────────────────────
@@ -424,6 +519,7 @@
       [crear('summary', { text: '🌍 Textos por idioma (despliega para editar)' })].concat(bloquesIdioma));
 
     var btnBorrar = crear('button', { class: 'danger', type: 'button', text: '✕ Quitar' });
+    var campoItem = null, campoPresa = null;
 
     var bloque = crear('div', { class: 'mission', id: idBloque }, [
       crear('div', { class: 'mission-head' }, [
@@ -433,7 +529,9 @@
       ]),
       crear('div', { class: 'row' }, [
         campo('ID interno', inId),
-        campo('Ítem que debe entregar', inItem),
+        campo('Mission type', selTipo),
+        (campoItem = campo('Ítem que debe entregar', inItem)),
+        (campoPresa = campo('Monster to defeat', selPresa)),
         campo('Cantidad', inCant),
         campo('EXP', inExp)
       ]),
@@ -449,6 +547,13 @@
     ]);
 
     btnBorrar.addEventListener('click', function () { bloque.remove(); });
+    function verTipo() {
+      var caza = selTipo.value === 'cazar';
+      campoItem.style.display = caza ? 'none' : '';
+      campoPresa.style.display = caza ? '' : 'none';
+    }
+    selTipo.addEventListener('change', verTipo);
+    verTipo();
 
     bloque._leer = function () {
       var textos = {};
@@ -463,7 +568,9 @@
       });
       var salida = {
         missionId: inId.value.trim(),
-        itemId: inItem.value.trim(),
+        tipo: selTipo.value,
+        monstruo: selTipo.value === 'cazar' ? selPresa.value : '',
+        itemId: selTipo.value === 'cazar' ? '' : inItem.value.trim(),
         requiredAmount: parseInt(inCant.value, 10) || 1,
         expReward: parseInt(inExp.value, 10) || 0,
         // Monedas: siempre se mandan (0 incluido) para poder QUITAR una
@@ -610,6 +717,292 @@
     $('misiones').appendChild(bloqueMision(datos));
   }
 
+  // ===========================================================================
+  // (2026-10-19) CATÁLOGO, REGLAS AUTOMÁTICAS Y ENTREGAS DEL DÍA
+  // ===========================================================================
+  var catalogo = { monstruos: [{ tipo: '*', nombre: 'Any monster' }], items: [] };
+
+  function cargarCatalogo() {
+    return pedir('/api/admin/missions/catalogo').then(function (d) {
+      catalogo = { monstruos: d.monstruos || catalogo.monstruos, items: d.items || [] };
+      // La lista desplegable de ítems (la usan todos los campos de ítem).
+      var dl = $('gf-items');
+      if (!dl) { dl = crear('datalist', { id: 'gf-items' }); document.body.appendChild(dl); }
+      dl.textContent = '';
+      catalogo.items.forEach(function (it) { dl.appendChild(crear('option', { value: it })); });
+      // Los desplegables de monstruo que ya estaban pintados.
+      Array.prototype.forEach.call(document.querySelectorAll('select[data-presas]'), function (sel) {
+        llenarPresas(sel, sel.value);
+      });
+    }).catch(function (e) { aviso('Could not load the catalog: ' + e.message, 'err'); });
+  }
+
+  function llenarPresas(sel, valor) {
+    sel.setAttribute('data-presas', '1');
+    sel.textContent = '';
+    var lista = catalogo.monstruos.slice();
+    if (valor && !lista.some(function (m) { return m.tipo === valor; })) lista.push({ tipo: valor, nombre: valor });
+    lista.forEach(function (m) {
+      var donde = m.salas && m.salas.length ? ' — ' + m.salas.join(', ') : '';
+      sel.appendChild(crear('option', { value: m.tipo, text: m.nombre + (m.tipo === '*' || m.tipo === 'jugador' ? '' : ' (' + m.tipo + ')') + donde }));
+    });
+    sel.value = valor || '*';
+  }
+
+  /* Una lista editable: filas con sus columnas, añadir y quitar. */
+  function listaEditable(cont, titulo, columnas, filas) {
+    cont.textContent = '';
+    var caja = crear('div', { class: 'lista-ed' });
+    var btnMas = crear('button', { class: 'ghost', type: 'button', text: '＋ Add' });
+    caja.appendChild(crear('h3', {}, [crear('span', { text: titulo }), crear('span', { class: 'sp' }), btnMas]));
+    var plantilla = columnas.map(function (c) { return c.ancho || '1fr'; }).concat(['auto']).join(' ');
+    var cab = crear('div', { class: 'fila cab' });
+    cab.style.gridTemplateColumns = plantilla;
+    columnas.forEach(function (c) { cab.appendChild(crear('span', { text: c.etiqueta })); });
+    cab.appendChild(crear('span', { text: '' }));
+    caja.appendChild(cab);
+    var cuerpo = crear('div');
+    caja.appendChild(cuerpo);
+    function fila(d) {
+      d = d || {};
+      var f = crear('div', { class: 'fila' });
+      f.style.gridTemplateColumns = plantilla;
+      var campos = columnas.map(function (c) {
+        var el;
+        if (c.presa) { el = crear('select'); llenarPresas(el, d[c.k] || '*'); }
+        else {
+          el = crear('input', { type: c.num ? 'number' : 'text', value: d[c.k] != null ? d[c.k] : (c.def != null ? c.def : '') });
+          if (c.num) { el.min = c.min != null ? c.min : 0; el.max = c.max != null ? c.max : 9999; }
+          if (c.lista) el.setAttribute('list', 'gf-items');
+          if (c.ph) el.placeholder = c.ph;
+        }
+        f.appendChild(el);
+        return el;
+      });
+      var quitar = crear('button', { class: 'danger', type: 'button', text: '✕' });
+      quitar.addEventListener('click', function () { f.remove(); });
+      f.appendChild(quitar);
+      f._leer = function () {
+        var o = {};
+        columnas.forEach(function (c, i) { o[c.k] = c.num ? (parseInt(campos[i].value, 10) || 0) : campos[i].value.trim(); });
+        return o;
+      };
+      cuerpo.appendChild(f);
+    }
+    (filas || []).forEach(fila);
+    btnMas.addEventListener('click', function () { fila(); });
+    caja._leer = function () {
+      return Array.prototype.map.call(cuerpo.children, function (f) { return f._leer(); });
+    };
+    cont.appendChild(caja);
+    return caja;
+  }
+
+  var edPedidos = null, edPresas = null, edPremios = null;
+  var COLS_PEDIDOS = [
+    { k: 'itemId', etiqueta: 'Item to deliver', lista: true, ancho: '2fr', ph: 'ej. madera_pinos' },
+    { k: 'nombre', etiqueta: 'Name shown to players', ancho: '2fr', ph: 'Pine Wood' },
+    { k: 'min', etiqueta: 'Min', num: true, min: 1, def: 1 }, { k: 'max', etiqueta: 'Max', num: true, min: 1, def: 5 }];
+  var COLS_PRESAS = [
+    { k: 'tipo', etiqueta: 'Monster / enemy', presa: true, ancho: '2.4fr' },
+    { k: 'nombre', etiqueta: 'Name shown to players', ancho: '2fr', ph: 'Shadow Wolves' },
+    { k: 'min', etiqueta: 'Min', num: true, min: 1, def: 2 }, { k: 'max', etiqueta: 'Max', num: true, min: 1, def: 5 }];
+  var COLS_PREMIOS = [
+    { k: 'itemId', etiqueta: 'Reward item', lista: true, ancho: '2fr', ph: 'ej. Semillax' },
+    { k: 'nombre', etiqueta: 'Name shown to players', ancho: '2fr', ph: 'Carrot Seeds' },
+    { k: 'min', etiqueta: 'Min', num: true, min: 1, def: 1 }, { k: 'max', etiqueta: 'Max', num: true, min: 1, def: 3 },
+    { k: 'peso', etiqueta: 'Weight', num: true, min: 1, max: 100, def: 1 }];
+
+  function pintarReglas(r) {
+    r = r || {};
+    $('autoNpcLabel').textContent = '— ' + $('npc').value + (r.porDefecto ? ' (default rules, not saved yet)' : '');
+    $('autoActivo').checked = !!r.activo;
+    $('autoCuantas').value = r.cuantas || 3;
+    $('autoPesoE').value = r.pesoEntregar != null ? r.pesoEntregar : 60;
+    $('autoPesoC').value = r.pesoCazar != null ? r.pesoCazar : 40;
+    $('autoHora').value = r.horaReinicio || 0;
+    $('autoProb').value = r.probPremio != null ? r.probPremio : 75;
+    ['ExpMin', 'ExpMax', 'OroMin', 'OroMax', 'PlataMin', 'PlataMax'].forEach(function (k) {
+      var clave = k.charAt(0).toLowerCase() + k.slice(1);
+      $('auto' + k).value = r[clave] != null ? r[clave] : 0;
+    });
+    edPedidos = listaEditable($('autoPedidos'), '📦 Items that can be requested (deliver missions)', COLS_PEDIDOS, r.pedidos);
+    edPresas = listaEditable($('autoPresas'), '⚔️ Monsters / enemies that can be requested (hunt missions)', COLS_PRESAS, r.presas);
+    edPremios = listaEditable($('autoPremios'), '🎁 Reward items (one is picked at random by weight)', COLS_PREMIOS, r.premios);
+  }
+
+  function leerReglas() {
+    var n = function (id) { return parseInt($(id).value, 10) || 0; };
+    return {
+      activo: $('autoActivo').checked, cuantas: n('autoCuantas'),
+      pesoEntregar: n('autoPesoE'), pesoCazar: n('autoPesoC'), horaReinicio: n('autoHora'),
+      pedidos: edPedidos ? edPedidos._leer() : [], presas: edPresas ? edPresas._leer() : [],
+      premios: edPremios ? edPremios._leer() : [], probPremio: n('autoProb'),
+      expMin: n('autoExpMin'), expMax: n('autoExpMax'), oroMin: n('autoOroMin'), oroMax: n('autoOroMax'),
+      plataMin: n('autoPlataMin'), plataMax: n('autoPlataMax')
+    };
+  }
+
+  function cargarReglas() {
+    if (!adminOk) return;
+    pedir('/api/admin/missions/auto/' + $('npc').value)
+      .then(function (d) { pintarReglas(d.reglas); })
+      .catch(function (e) { aviso('Could not load the automatic rules: ' + e.message, 'err'); });
+  }
+
+  function guardarReglas() {
+    if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
+    pedir('/api/admin/missions/auto/' + $('npc').value, { method: 'PUT', body: JSON.stringify(leerReglas()) })
+      .then(function (d) { pintarReglas(d.reglas); aviso('✅ Automatic rules saved for ' + d.npcId + '.', 'ok'); })
+      .catch(function (e) { aviso('Could not save the rules: ' + e.message, 'err'); });
+  }
+
+  var ultimaPrevia = [];
+  function textoPremios(m) {
+    var p = ['+' + (m.expReward || 0) + ' EXP'];
+    if (m.goldReward) p.push('+' + m.goldReward + ' gold');
+    if (m.silverReward) p.push('+' + m.silverReward + ' silver');
+    if (m.rewardItemId) p.push('+' + (m.rewardAmount || 1) + ' ' + ((m.texts && m.texts['en-US'] && m.texts['en-US'].rewardName) || m.rewardItemId));
+    return p.join(' · ');
+  }
+  function verPrevia() {
+    if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
+    var dia = $('dia').value;
+    pedir('/api/admin/missions/auto/' + $('npc').value + '/preview', { method: 'POST', body: JSON.stringify({ day: dia, reglas: leerReglas() }) })
+      .then(function (d) {
+        ultimaPrevia = d.missions || [];
+        var cont = $('autoPrevia');
+        cont.textContent = '';
+        cont.appendChild(crear('p', { class: 'hint', text: 'Preview for ' + d.day + ' (' + ultimaPrevia.length + ' missions):' }));
+        ultimaPrevia.forEach(function (m) {
+          var t = (m.texts && m.texts['en-US']) || {};
+          cont.appendChild(crear('div', { class: 'prev-m' + (m.tipo === 'cazar' ? ' caza' : '') }, [
+            crear('div', { text: (m.tipo === 'cazar' ? '⚔️ ' : '📦 ') + (t.title || m.missionId) }),
+            crear('small', { text: textoPremios(m) + (t.description ? ' — ' + t.description : '') })
+          ]));
+        });
+        if (!ultimaPrevia.length) cont.appendChild(crear('p', { class: 'hint', text: 'Nothing comes out: add items or monsters and give their type some weight.' }));
+      })
+      .catch(function (e) { aviso('Could not build the preview: ' + e.message, 'err'); });
+  }
+  function previaAlEditor() {
+    if (!ultimaPrevia.length) return aviso('Make a preview first (👁).', 'err');
+    limpiarMisiones();
+    ultimaPrevia.forEach(function (m) {
+      var copia = JSON.parse(JSON.stringify(m));
+      copia.missionId = copia.missionId.replace(/^auto/, 'm');
+      agregarMision(copia);
+    });
+    aviso('Preview copied to the manual editor (section 3): edit it and press "Guardar en el juego".', 'ok');
+  }
+  function rerollHoy() {
+    if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
+    if (!confirm('Make a NEW random roll of today\'s automatic missions for ' + $('npc').value + '?\n\n' +
+                 'Players who already handed in today keep what they got.')) return;
+    pedir('/api/admin/missions/auto/' + $('npc').value + '/reroll', { method: 'POST', body: '{}' })
+      .then(function (d) { aviso('🎲 New roll for ' + d.day + ': ' + (d.missions || []).length + ' missions.', 'ok'); cargarDias(); cargarReglas(); })
+      .catch(function (e) { aviso('Could not reroll: ' + e.message, 'err'); });
+  }
+
+  // ── Quién cumplió qué ──────────────────────────────────────────────────────
+  var ultimasEntregas = null;
+  function cargarEntregas() {
+    if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
+    var q = '?npcId=' + encodeURIComponent($('npc').value) + '&day=' + encodeURIComponent($('dia').value || '');
+    var b = ($('entBuscar').value || '').trim();
+    if (b) q += '&search=' + encodeURIComponent(b);
+    aviso('Loading the deliveries…');
+    pedir('/api/admin/missions/entregas' + q)
+      .then(function (d) { ultimasEntregas = d; pintarEntregas(d); aviso('Deliveries loaded: ' + d.total + ' players.', 'ok'); })
+      .catch(function (e) { aviso('Could not load the deliveries: ' + e.message, 'err'); });
+  }
+  function recibidoTexto(r) {
+    var p = [];
+    if (r.exp) p.push(r.exp + ' EXP');
+    if (r.oro) p.push(r.oro + ' gold');
+    if (r.plata) p.push(r.plata + ' silver');
+    Object.keys(r.items || {}).forEach(function (k) { p.push(r.items[k] + '× ' + k); });
+    return p.join(', ') || '—';
+  }
+  function pintarEntregas(d) {
+    var cont = $('entregas');
+    cont.textContent = '';
+    $('entInfo').textContent = '';
+    $('entInfo').appendChild(crear('span', { class: 'pill ' + (d.auto ? 'auto' : 'manual'), text: d.day + ' · ' + d.npcId + ' · ' + (d.auto ? 'automatic' : 'manual') }));
+    if (!d.misiones.length) { cont.appendChild(crear('p', { class: 'hint', text: 'That day has no missions for this NPC.' })); return; }
+    if (!d.rows.length) { cont.appendChild(crear('p', { class: 'hint', text: 'Nobody has handed in or hunted anything that day yet.' })); return; }
+    var tabla = crear('table', { class: 'his-tabla ent-tabla' });
+    var trh = crear('tr');
+    ['#', 'Player', 'Username', 'Wallet', 'Level'].forEach(function (t) { trh.appendChild(crear('th', { text: t })); });
+    d.misiones.forEach(function (m) {
+      var th = crear('th', { text: (m.tipo === 'cazar' ? '⚔️ ' : '📦 ') + m.titulo });
+      th.title = m.missionId + ' — ' + textoPremios(m);
+      trh.appendChild(th);
+    });
+    ['Received', 'Last hand-in'].forEach(function (t) { trh.appendChild(crear('th', { text: t })); });
+    tabla.appendChild(crear('thead', {}, [trh]));
+    var tbody = crear('tbody');
+    d.rows.forEach(function (f, i) {
+      var tr = crear('tr');
+      tr.appendChild(crear('td', { text: String(i + 1) }));
+      tr.appendChild(crear('td', { text: f.playerName }));
+      tr.appendChild(crear('td', { text: f.username || '— (no name)' }));
+      var tdDir = crear('td');
+      if (f.address) {
+        var sp = crear('span', { text: f.address.slice(0, 6) + '…' + f.address.slice(-4) });
+        sp.title = f.address + ' (click to copy)';
+        sp.style.cursor = 'copy';
+        sp.addEventListener('click', function () { try { navigator.clipboard.writeText(f.address); aviso('Wallet copied.', 'ok'); } catch (e) {} });
+        tdDir.appendChild(sp);
+      } else { tdDir.textContent = '—'; }
+      tr.appendChild(tdDir);
+      tr.appendChild(crear('td', { text: String(f.nivel) }));
+      d.misiones.forEach(function (m) {
+        var hecha = (f.completadas || []).filter(function (c) { return c.missionId === m.missionId; })[0];
+        if (hecha) {
+          var td = crear('td', { class: 'si', text: '✓' });
+          var det = [];
+          if (hecha.exp != null) det.push(hecha.exp + ' EXP');
+          if (hecha.oro) det.push(hecha.oro + ' gold');
+          if (hecha.plata) det.push(hecha.plata + ' silver');
+          if (hecha.itemId) det.push((hecha.itemCantidad || 0) + '× ' + hecha.itemId);
+          td.title = fechaCorta(hecha.completedAt) + (det.length ? ' — ' + det.join(', ') : '');
+          tr.appendChild(td);
+        } else if (m.tipo === 'cazar' && f.cazas) {
+          var llevo = m.monstruo && m.monstruo !== '*' ? Number((f.cazas.porTipo || {})[m.monstruo]) || 0 : Number(f.cazas.total) || 0;
+          tr.appendChild(crear('td', { class: llevo ? 'mid' : 'no', text: '✗ ' + Math.min(llevo, m.requiredAmount) + '/' + m.requiredAmount }));
+        } else {
+          tr.appendChild(crear('td', { class: 'no', text: '✗' }));
+        }
+      });
+      tr.appendChild(crear('td', { text: recibidoTexto(f.recibido || {}) }));
+      tr.appendChild(crear('td', { text: fechaCorta(f.ultima) }));
+      tbody.appendChild(tr);
+    });
+    tabla.appendChild(tbody);
+    cont.appendChild(tabla);
+  }
+  function exportarCsv() {
+    var d = ultimasEntregas;
+    if (!d || !d.rows || !d.rows.length) return aviso('Load the deliveries first.', 'err');
+    var q = function (v) { v = v == null ? '' : String(v); return '"' + v.replace(/"/g, '""') + '"'; };
+    var cab = ['day', 'npc', 'player', 'username', 'wallet', 'level'].concat(d.misiones.map(function (m) { return m.missionId; }))
+      .concat(['exp_received', 'gold_received', 'silver_received', 'items_received', 'last_hand_in']);
+    var lineas = [cab.map(q).join(',')];
+    d.rows.forEach(function (f) {
+      var r = f.recibido || {};
+      lineas.push([d.day, d.npcId, f.playerName, f.username || '', f.address || '', f.nivel]
+        .concat(d.misiones.map(function (m) { return (f.completadas || []).some(function (c) { return c.missionId === m.missionId; }) ? 'yes' : 'no'; }))
+        .concat([r.exp || 0, r.oro || 0, r.plata || 0,
+                 Object.keys(r.items || {}).map(function (k) { return r.items[k] + 'x ' + k; }).join(' | '),
+                 f.ultima || ''])
+        .map(q).join(','));
+    });
+    var blob = new Blob(['\ufeff' + lineas.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    var a = crear('a', { href: URL.createObjectURL(blob), download: 'missions_' + d.npcId + '_' + d.day + '.csv' });
+    document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+
   function limpiarMisiones() {
     $('misiones').textContent = '';
   }
@@ -739,6 +1132,7 @@
           (d.address ? d.address.slice(0, 6) + '…' + d.address.slice(-4) : 'sesión válida');
         aviso('Acceso correcto.', 'ok');
         cargarDias();
+        cargarCatalogo().then(cargarReglas);
       })
       .catch(function (e) {
         adminOk = false;
@@ -810,7 +1204,7 @@
 
     var misiones = bloques.map(function (b) { return b._leer(); });
 
-    var sinItem = misiones.filter(function (m) { return !m.itemId; });
+    var sinItem = misiones.filter(function (m) { return m.tipo !== 'cazar' && !m.itemId; });
     if (sinItem.length) return aviso('Hay ' + sinItem.length + ' misión(es) sin ítem.', 'err');
 
     pedir('/api/admin/missions/daily', {
@@ -838,8 +1232,17 @@
   $('btnAgregar').addEventListener('click', function () { agregarMision(); });
   $('btnGuardar').addEventListener('click', guardar);
   $('npc').addEventListener('change', cargarDias);
+  $('npc').addEventListener('change', function () { cargarReglas(); $('entregas').textContent = ''; });
 
   $('btnHistorial').addEventListener('click', cargarHistorial);
+  // (2026-10-19) Reglas automáticas y entregas del día.
+  $('btnAutoGuardar').addEventListener('click', guardarReglas);
+  $('btnAutoPrevia').addEventListener('click', verPrevia);
+  $('btnAutoAlEditor').addEventListener('click', previaAlEditor);
+  $('btnAutoReroll').addEventListener('click', rerollHoy);
+  $('btnEntregas').addEventListener('click', cargarEntregas);
+  $('btnEntregasCsv').addEventListener('click', exportarCsv);
+  $('entBuscar').addEventListener('keydown', function (e) { if (e.key === 'Enter') cargarEntregas(); });
   $('btnHistorialTodo').addEventListener('click', limpiarTodoElHistorial);
   // Enter en el buscador = cargar
   $('hisBuscar').addEventListener('keydown', function (e) {

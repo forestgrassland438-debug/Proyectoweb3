@@ -182,6 +182,15 @@
       return scene.__gfPescaAgua;
     }
     var capa = mapa && mapa.getLayer ? mapa.getLayer('mapa_principal') : null;
+    /* (2026-10-19) EL MAPA SALVAJE Y LOS TRES NUEVOS: no tienen la capa del
+       pueblo, pero gf-agua.js ya clasificó sus casillas al animar el agua
+       (0 seco, 1 orilla, 2 agua llena), que es justo lo que se usa aquí. El
+       servidor comprueba lo mismo con GF_PESCA_ZONAS. */
+    var ga = scene.__gfAgua;
+    if (!capa && ga && ga.clase && ga.W && ga.H && ga.T) {
+      scene.__gfPescaAgua = { w: ga.W, h: ga.H, m: ga.clase, tileSize: ga.T };
+      return scene.__gfPescaAgua;
+    }
     var ratio = clasificarTileset(scene);
     if (!capa || !capa.data || !ratio) return null;
     var w = capa.width, h = capa.height, m = new Uint8Array(w * h);
@@ -476,6 +485,8 @@
   function lanzar(st, fuerza) {
     var scene = st.scene, p = scene.player;
     if (!p || !st.puede || scene._accionPersonaje) return;
+    // (2026-10-19) Sin nombre no se pesca (gf-sin-nombre.js).
+    if (window.GFSinNombre && !window.GFSinNombre.exigir(scene, 'fish')) return;
     var f = typeof fuerza === 'number' ? Math.max(0, Math.min(1, fuerza)) : 0.5;
     st.fase = 'lanzando';
     pintarBoton(st);

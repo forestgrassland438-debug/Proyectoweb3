@@ -131,7 +131,7 @@
       try { scene.stopMusicSafely(); } catch (e) {}
       scene._salaDestino = z.sala;
       if (scene.socket && scene.socket.connected) {
-        scene.socket.emit('joinRoom', { room: z.sala, username: scene.Username || '---', lastScene: clave, x: z.llegada.x, y: z.llegada.y });
+        scene.socket.emit('joinRoom', { room: z.sala, username: scene.Username || '---', soulbound: window.GFSoulbound ? window.GFSoulbound.actual() : null, lastScene: clave, x: z.llegada.x, y: z.llegada.y });
       }
       try { scene.cleanupScene(); } catch (e) { console.warn('limpieza:', e); }
       scene._viajeZona = false;
@@ -197,6 +197,154 @@
       var g = x.createRadialGradient(w / 2, cy, 2, w / 2, cy, w / 2);
       g.addColorStop(0, 'rgba(90,60,30,0.45)'); g.addColorStop(0.7, 'rgba(90,60,30,0.2)'); g.addColorStop(1, 'rgba(90,60,30,0)');
       x.fillStyle = g; x.beginPath(); x.arc(w / 2, cy, w / 2, 0, Math.PI * 2); x.fill(); x.restore();
+    });
+  }
+
+  /* (2026-10-19) El fuego de la hoguera y el polvo de arena. Las llamas,
+     tres formas de gota en capas (rojo, naranja, amarillo) que se alternan;
+     el resplandor, un óvalo blando; la chispa, una RAYA corta (nada de
+     puntos); el polvo, una mancha alargada y blanda del color de la arena. */
+  function texturasFuego(scene) {
+    for (var f = 0; f < 3; f++) {
+      (function (f) {
+        lienzo(scene, 'zn_llama_' + f, 22, 30, function (x, w, h) {
+          [['#ff5a1a', 1.0], ['#ffb02e', 0.72], ['#fff3b0', 0.42]].forEach(function (capa) {
+            var k = capa[1], cx = w / 2 + (f - 1) * 1.5, base = h - 1;
+            x.fillStyle = capa[0];
+            x.beginPath();
+            x.moveTo(cx - 9 * k, base);
+            x.quadraticCurveTo(cx - 10 * k, base - 13 * k, cx + (f - 1) * 2, base - (h - 3) * k);
+            x.quadraticCurveTo(cx + 10 * k, base - 13 * k, cx + 9 * k, base);
+            x.closePath();
+            x.fill();
+          });
+        });
+      })(f);
+    }
+    lienzo(scene, 'zn_brillo', 96, 56, function (x, w, h) {
+      x.save(); x.scale(1, h / w);
+      var cy = (h / 2) * (w / h);
+      var g = x.createRadialGradient(w / 2, cy, 2, w / 2, cy, w / 2);
+      g.addColorStop(0, 'rgba(255,190,90,0.85)'); g.addColorStop(0.5, 'rgba(255,140,50,0.35)'); g.addColorStop(1, 'rgba(255,120,40,0)');
+      x.fillStyle = g; x.beginPath(); x.arc(w / 2, cy, w / 2, 0, Math.PI * 2); x.fill(); x.restore();
+    });
+    lienzo(scene, 'zn_chispa', 2, 7, function (x, w, h) {
+      var g = x.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, 'rgba(255,240,170,1)'); g.addColorStop(1, 'rgba(255,120,40,0)');
+      x.fillStyle = g; x.fillRect(0, 0, w, h);
+    });
+    // El velo de polvo: tres óvalos blandos y alargados, más claros que la
+    // arena (si fueran del mismo color no se verían sobre ella).
+    lienzo(scene, 'zn_polvo', 160, 26, function (x, w, h) {
+      [[0.5, 0.55, 0.5, 0.8], [0.3, 0.45, 0.3, 0.55], [0.72, 0.6, 0.28, 0.5]].forEach(function (o) {
+        var cx = w * o[0], cy = h * o[1], rx = w * o[2], ry = h * 0.42;
+        x.save(); x.translate(cx, cy); x.scale(1, ry / rx);
+        var g = x.createRadialGradient(0, 0, 1, 0, 0, rx);
+        g.addColorStop(0, 'rgba(255,246,222,' + o[3] + ')'); g.addColorStop(0.55, 'rgba(250,236,200,' + (o[3] * 0.4) + ')'); g.addColorStop(1, 'rgba(250,236,200,0)');
+        x.fillStyle = g; x.beginPath(); x.arc(0, 0, rx, 0, Math.PI * 2); x.fill(); x.restore();
+      });
+    });
+    // El hilo de arena: una raya larga y fina que se desvanece por los dos
+    // extremos; corre deprisa a ras de suelo, como la arena que arrastra el aire.
+    lienzo(scene, 'zn_hilo', 96, 3, function (x, w, h) {
+      var g = x.createLinearGradient(0, 0, w, 0);
+      g.addColorStop(0, 'rgba(255,244,214,0)'); g.addColorStop(0.35, 'rgba(255,244,214,0.85)');
+      g.addColorStop(0.7, 'rgba(255,244,214,0.6)'); g.addColorStop(1, 'rgba(255,244,214,0)');
+      x.fillStyle = g; x.fillRect(0, 0, w, h);
+    });
+  }
+
+  // ─────────────────────────────────────────────────────── LA HOGUERA (fuego de verdad)
+  /* "Las fogatas del mapa de nieve se ven falsas, no hay fuego real." El
+     dibujo de la hoguera trae una llama quieta; encima va un fuego vivo: tres
+     llamas que cambian de forma y se estiran, el resplandor que tiembla en el
+     suelo y unas chispas que suben (rayas cortas). */
+  function montarHogueras(st) {
+    var scene = st.scene, capa = scene.map && scene.map.getObjectLayer('objetos');
+    st.hogueras = [];
+    (capa ? capa.objects : []).forEach(function (o) {
+      if (o.name !== 'hoguera') return;
+      var ADD = window.Phaser && Phaser.BlendModes ? Phaser.BlendModes.ADD : 1;
+      var brillo = scene.add.image(o.x, o.y - 8, 'zn_brillo').setDepth(o.y - 1).setAlpha(0.55).setBlendMode(ADD);
+      var llamas = [-4, 0, 4].map(function (dx, k) {
+        return { spr: scene.add.image(o.x + dx, o.y - 10, 'zn_llama_' + k).setOrigin(0.5, 1).setDepth(o.y + 1 + k * 0.01),
+                 dx: dx, fase: Math.random() * 6, k: k === 1 ? 1.0 : 0.68 };
+      });
+      var chispas = [];
+      for (var i = 0; i < 6; i++) {
+        chispas.push({ spr: scene.add.image(o.x, o.y, 'zn_chispa').setDepth(o.y + 2).setBlendMode(ADD).setVisible(false), vida: 0 });
+      }
+      st.hogueras.push({ x: o.x, y: o.y, brillo: brillo, llamas: llamas, chispas: chispas, prox: 0 });
+    });
+  }
+  function hoguerasTic(st, t, dt) {
+    var v = vista(st.scene);
+    for (var i = 0; i < st.hogueras.length; i++) {
+      var h = st.hogueras[i];
+      var ve = !v || (h.x > v.x - 100 && h.x < v.right + 100 && h.y > v.y - 100 && h.y < v.bottom + 140);
+      h.brillo.setVisible(ve);
+      if (!ve) { h.llamas.forEach(function (l) { l.spr.setVisible(false); }); continue; }
+      var cambia = t > h.prox;
+      if (cambia) h.prox = t + 90 + Math.random() * 80;
+      h.llamas.forEach(function (l, k) {
+        var w = Math.sin(t / 1000 * (7 + k * 1.3) + l.fase) * 0.5 + Math.sin(t / 1000 * (13 + k) + k * 2) * 0.5;
+        l.spr.setVisible(true).setScale(l.k * 1.15 * (1 + w * 0.1), l.k * 1.15 * (1 + w * 0.24));
+        l.spr.x = h.x + l.dx + Math.sin(t / 260 + k) * 1.2;
+        if (cambia) l.spr.setTexture('zn_llama_' + Math.floor(Math.random() * 3));
+      });
+      h.brillo.setAlpha(0.45 + 0.12 * Math.sin(t / 90) + 0.06 * Math.sin(t / 37));
+      for (var k = 0; k < h.chispas.length; k++) {
+        var ch = h.chispas[k];
+        if (ch.vida <= 0) {
+          if (Math.random() < dt * 1.6) {
+            ch.vida = 0.7 + Math.random() * 0.6; ch.max = ch.vida;
+            ch.x = h.x + (Math.random() - 0.5) * 10; ch.y = h.y - 30; ch.vx = (Math.random() - 0.5) * 18;
+          } else { ch.spr.setVisible(false); continue; }
+        }
+        ch.vida -= dt;
+        ch.y -= 46 * dt; ch.x += ch.vx * dt;
+        ch.spr.setVisible(true).setPosition(ch.x, ch.y).setAlpha(Math.max(0, ch.vida / ch.max)).setScale(1.5);
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────────────── DESIERTO: EL POLVO DE ARENA
+  /* "En el desierto debe haber polvo de arena": aunque no haya tormenta,
+     corren a ras de suelo velos de polvo alargados (manchas blandas, sin
+     motas), despacio, y se apagan cuando llega la tormenta (ella ya lo llena
+     todo de arena). */
+  /* El polvo vive en el MUNDO (no pegado a la pantalla: al andar, el suelo y
+     su polvo se quedan atrás) y va pegado al suelo, por debajo de personas y
+     objetos. El que se sale por sotavento vuelve a nacer por barlovento,
+     dentro de lo que ve la cámara. */
+  function montarPolvo(st) {
+    var scene = st.scene, v = vista(scene);
+    st.polvo = [];
+    for (var i = 0; i < 22; i++) {
+      var hilo = i >= 12;
+      var p = { spr: scene.add.image(0, 0, hilo ? 'zn_hilo' : 'zn_polvo').setDepth(PROF_NIEBLA + 0.02).setAlpha(0),
+                hilo: hilo, v: hilo ? 110 + Math.random() * 90 : 26 + Math.random() * 30,
+                k: hilo ? 0.8 + Math.random() * 0.9 : 1.3 + Math.random() * 1.7, fase: Math.random() * 6.3 };
+      nacerPolvo(p, v, true);
+      st.polvo.push(p);
+    }
+  }
+  function nacerPolvo(p, v, dentro) {
+    if (!v) { p.x = 0; p.y = 0; return; }
+    p.x = dentro ? v.x + Math.random() * v.width : v.x - 140 - Math.random() * 120;
+    p.y = v.y + 20 + Math.random() * Math.max(40, v.height - 40);
+  }
+  function polvoTic(st, tSrv, dt) {
+    var v = vista(st.scene);
+    if (!v) return;
+    var calma = 1 - Math.min(1, (st.tormentaVista || 0) * 1.6);
+    st.polvo.forEach(function (p) {
+      p.x += p.v * dt;
+      if (p.x > v.right + 160 || p.x < v.x - 300 || p.y < v.y - 120 || p.y > v.bottom + 120) nacerPolvo(p, v, false);
+      var a = p.hilo ? (0.18 + 0.22 * Math.max(0, Math.sin(tSrv * 0.9 + p.fase))) * calma
+                     : (0.34 + 0.16 * Math.sin(tSrv * 0.7 + p.fase)) * calma;
+      p.spr.setPosition(p.x, p.y + Math.sin(tSrv * 1.3 + p.fase) * 3)
+        .setScale(p.k, p.hilo ? 1 : p.k * 0.7).setAlpha(Math.max(0, a)).setVisible(a > 0.01);
     });
   }
 
@@ -424,7 +572,11 @@
     var st = { scene: scene, zona: zona, vivo: true, atrapado: false, danoEn: 0, remolinos: [], niebla: [], copos: [], rafagas: [], velos: [] };
     scene.__gfZonas = st;
     texturas(scene);
+    texturasFuego(scene);
     try { montarLuces(st); } catch (e) { console.warn('[zonas] luces:', e); }
+    try { montarHogueras(st); } catch (e) { console.warn('[zonas] hogueras:', e); st.hogueras = []; }
+    st.polvo = [];
+    if (zona === 'desierto') { try { montarPolvo(st); } catch (e) { console.warn('[zonas] polvo:', e); } }
     if (zona === 'cementerio') montarNiebla(st);
     if (zona === 'desierto') { montarTormenta(st); montarRemolinos(st); }
     if (zona === 'tundra') montarNevada(st);
@@ -437,6 +589,8 @@
         if (st.velos.length) tormentaTic(st, tSrv, dt);
         if (st.remolinos.length) remolinosTic(st, tSrv, dt);
         if (st.copos.length) nevadaTic(st, tSrv, dt);
+        if (st.hogueras.length) hoguerasTic(st, t, dt);
+        if (st.polvo.length) polvoTic(st, tSrv, dt);
       } catch (e) { console.warn('[zonas]', e); }
     };
     st.onApagar = function () { desmontar(scene); };
@@ -460,7 +614,13 @@
     }
     var todos = [].concat(st.niebla.map(function (n) { return n.spr; }), st.velos.map(function (n) { return n.spr; }),
       st.rafagas.map(function (r) { return r.spr; }), st.copos.map(function (c) { return c.spr; }),
-      st.remolinos.map(function (r) { return r.spr; }), st.remolinos.map(function (r) { return r.sombra; }), [st.tinte]);
+      st.remolinos.map(function (r) { return r.spr; }), st.remolinos.map(function (r) { return r.sombra; }), [st.tinte],
+      (st.polvo || []).map(function (p) { return p.spr; }));
+    (st.hogueras || []).forEach(function (h) {
+      todos.push(h.brillo);
+      h.llamas.forEach(function (l) { todos.push(l.spr); });
+      h.chispas.forEach(function (ch) { todos.push(ch.spr); });
+    });
     todos.forEach(function (o) { try { if (o && o.scene) o.destroy(); } catch (e) {} });
     scene.__gfZonas = null;
   }

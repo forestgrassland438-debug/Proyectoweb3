@@ -30,7 +30,7 @@
 (function () {
   'use strict';
 
-  var V = '20261019a';
+  var V = '20261019b';   // b: cada NPC con su peinado y su color de ojos
   var RUTA = './Game/Sprites/npcs/';
   var ESCALA = 2;
   var CERCA = 110;            // a esta distancia se gira a mirarte

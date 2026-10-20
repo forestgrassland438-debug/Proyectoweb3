@@ -530,6 +530,14 @@
   }
 
   function moverHojas(st, dt, w, h, ahora) {
+    /* (2026-10-19) "En el mapa de hielo no puede haber hojas al viento, ni en
+       el desierto": allí no hay árboles de hoja. La escena lo pide con
+       `scene._sinHojas` (ZonasScenes): el viento mece lo que haya y sopla las
+       rachas, pero hojas, ninguna. */
+    if (st.scene && st.scene._sinHojas) {
+      for (var q = 0; q < st.hojas.length; q++) if (st.hojas[q].spr.alpha !== 0) st.hojas[q].spr.setAlpha(0);
+      return;
+    }
     /* LA RACHA, aparte de la fuerza media. `st.fuerza` ya sube y baja despacio;
        esto es el golpe corto de viento que va por encima, con dos ritmos que
        tampoco cuadran entre sí. Es lo que hace que las hojas salgan disparadas

@@ -48,7 +48,11 @@
   // va la banda de sombra, y personajes y perro llevan menos fuerza.
   // En la arena, solo el perro: los demás luchadores son animales, ya en 3D.
   var PATRONES = [
-    [/^player(_|$)/, 0.55, 0, true], [/^sb_[^_].*_player_/, 0.55, 0, true], [/^gfp_/, 0.55, 0, true],
+    /* (2026-10-19) `gfp_` son las poses de pescar, pero gf-pisadas usa el mismo
+       prefijo (gfp_huella, gfp_polvo, gfp_anillo) y gf-pesca el corcho, la onda y
+       la gota: el relieve los dejaba EN BLANCO. Por eso no se veía ni una
+       pisada del jugador ni de la mascota en ninguna escena. Esos, fuera. */
+    [/^player(_|$)/, 0.55, 0, true], [/^sb_[^_].*_player_/, 0.55, 0, true], [/^gfp_(?!(huella|polvo|anillo|corcho|onda|gota)$)/, 0.55, 0, true],
     [/^perro_/, 0.4, 0, true], [/^NPC/, 0.55, 0, true], [/^bz_esp_perro_/, 0.4, 0, true],
     // Árboles, arbustos, tocones y troncos del pueblo, del mapa salvaje y los
     // dos pinos del menú (`arbolxd`).

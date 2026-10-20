@@ -177,17 +177,19 @@
      En la NIEVE es al revés: ahí la huella es lo importante —se queda hundida
      y dura diez veces más— y el polvo es solo el copo que levantas al pisar. */
   var TONOS = {
-    seco:   { polvo: 0xe8dcbc, huella: 0x3f3220, alfaPolvo: 0.62, alfaHuella: 0.34 },
-    nieve:  { polvo: 0xffffff, huella: 0x8fa9c6, alfaPolvo: 0.85, alfaHuella: 0.58 },
-    agua:   { polvo: 0xdcecf7, huella: 0x27384b, alfaPolvo: 0.70, alfaHuella: 0.40 },
+    // (2026-10-19) Un poco más marcadas: ahora que vuelven a verse (ver
+    // gf-relieve.js, que las dejaba en blanco) tienen que leerse a la primera.
+    seco:   { polvo: 0xe8dcbc, huella: 0x3f3220, alfaPolvo: 0.62, alfaHuella: 0.50 },
+    nieve:  { polvo: 0xffffff, huella: 0x8fa9c6, alfaPolvo: 0.85, alfaHuella: 0.66 },
+    agua:   { polvo: 0xdcecf7, huella: 0x27384b, alfaPolvo: 0.70, alfaHuella: 0.52 },
     /* La tienda. Sobre tarima la marca es una pisada húmeda de la calle: casi
        negra y bastante más corta de vida que en tierra, porque la madera de
        dentro está seca y se la bebe. Y sin polvo, claro: bajo techo no hay
        tierra que levantar. */
-    madera: { polvo: 0xd8c49a, huella: 0x2a1d12, alfaPolvo: 0.40, alfaHuella: 0.26 },
+    madera: { polvo: 0xd8c49a, huella: 0x2a1d12, alfaPolvo: 0.40, alfaHuella: 0.40 },
     /* (2026-10-18) La arena del desierto: la pisada hundida, un tono tostado,
        y se queda como en la nieve. */
-    arena:  { polvo: 0xf0dcae, huella: 0x9a7444, alfaPolvo: 0.50, alfaHuella: 0.42 }
+    arena:  { polvo: 0xf0dcae, huella: 0x9a7444, alfaPolvo: 0.50, alfaHuella: 0.55 }
   };
 
   /* QUÉ TERRENOS SUELTAN NUBECILLA.
@@ -243,8 +245,12 @@
     if (st.huellas.length) {
       var h = libre(st.huellas, ahora);
       h.spr.setTexture(st.claveHuella);
-      h.spr.setPosition(x + az(-1.5, 1.5), y + az(-1, 1));
-      h.spr.setScale(az(0.34, 0.46) * fuerza, az(0.28, 0.38) * fuerza);
+      /* Pie izquierdo, pie derecho: cada marca se aparta un poco hacia un
+         lado de la marcha, y así la fila se lee como pasos y no como una raya. */
+      st.lado = st.lado === 1 ? -1 : 1;
+      var perp = (op.rumbo || 0) + Math.PI / 2, aparte = 3.5 * st.lado * fuerza;
+      h.spr.setPosition(x + Math.cos(perp) * aparte + az(-1, 1), y + Math.sin(perp) * aparte + az(-0.8, 0.8));
+      h.spr.setScale(az(0.52, 0.62) * fuerza, az(0.42, 0.5) * fuerza);
       h.spr.setRotation((op.rumbo || 0) + az(-0.18, 0.18));
       h.spr.setTint(T.huella);
       h.spr.setVisible(true);

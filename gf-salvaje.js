@@ -1266,6 +1266,7 @@
       'pvp:rechazado': function (d) {
         if (!st.vivo || !d) return;
         if (d.motivo === 'sin_espada') { aviso(scene, 'You need a sword in your bag to fight other players.', 'info'); return; }
+        if (d.motivo === 'sin_nombre') { if (window.GFSinNombre) window.GFSinNombre.avisar(scene, 'pvp'); return; }
         var ahora = Date.now();
         if (d.motivo === 'zona' && ahora - st.avisoZonaEn > 4000) {
           st.avisoZonaEn = ahora;
@@ -1442,6 +1443,9 @@
       var reg = st.suelo[id];
       if (reg.recogiendo || Math.hypot(pj.x - reg.x, pj.y - reg.y) > 40 || fantasma()) return;
       if (ESPERA_RECOGER[id] && ahora < ESPERA_RECOGER[id]) return;
+      // (2026-10-19) Sin nombre no se recoge nada (gf-sin-nombre.js): se avisa
+      // y el montón se queda donde está (sin reintentar a cada paso).
+      if (window.GFSinNombre && !window.GFSinNombre.exigir(st.scene, 'loot')) { ESPERA_RECOGER[id] = ahora + 5000; return; }
       reg.recogiendo = true;
       atenuarMonton(reg, 0.45);
       recogerUno(st, id, 0);

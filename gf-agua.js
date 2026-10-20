@@ -587,11 +587,15 @@
       out.push({ tipo: 'piedra', spr: p, anillo: anillo, fase: rnd() * 6.28, base: anillo.scaleX });
     });
     if (!mar) {
-      // Nenúfares en grupitos, en el agua mansa: cada hoja entera en el agua.
-      poner(medias, 8, 220, 'nenufar', function (px, py) {
+      /* Nenúfares en el agua mansa, cada hoja entera en el agua. (2026-10-19)
+         "En el agua hay unas cosas verdes duplicadas" (en el desierto, el
+         pueblo, el mapa salvaje y el cementerio): iban en grupitos de 2 o 3
+         copias del MISMO dibujo, juntas, y se leían como la misma hoja
+         repetida. Como los juncos: UNA por sitio, y algunas más sitios. */
+      poner(medias, 11, 220, 'nenufar', function (px, py) {
         return enAgua(px, py, 30, 14, 3) && !enEsquina(px, py);
       }, function (px, py) {
-        var cuantos = 2 + Math.floor(rnd() * 2);
+        var cuantos = 1;
         for (var q = 0; q < cuantos; q++) {
           var qx = px + (rnd() - 0.5) * 40, qy = py + (rnd() - 0.5) * 18;
           if (!enAgua(qx, qy, 10, 6, 3) || enEsquina(qx, qy)) continue;
@@ -643,7 +647,8 @@
       var s = scene.add.image(0, 0, 'gfa_pez_sombra').setDepth(PROF_PLANO - 0.05).setAlpha(0).setScale(st.T >= 32 ? 1.4 : 1.1);
       st.peces.push({ spr: s, vx: 0, vy: 0, destino: null, pausa: 0, salta: false, colocado: false });
     }
-    if (st.vida !== 'mar') {
+    // Sin hojas flotando donde no hay árboles de hoja (el desierto, la tundra: scene._sinHojas).
+    if (st.vida !== 'mar' && !scene._sinHojas) {
       for (i = 0; i < 7; i++) {
         st.hojas.push({ spr: scene.add.image(0, 0, i % 3 === 2 ? 'gfa_hoja2' : 'gfa_hoja').setDepth(PROF_PLANO + 0.01).setScale(1.6).setVisible(false), vivo: false, fase: Math.random() * 6 });
       }
