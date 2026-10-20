@@ -283,6 +283,9 @@ class MinaScene extends GameScene {
    */
   async create() {
     const sceneRunId = this._sceneRunId = (this._sceneRunId || 0) + 1;
+    // (2026-10-19) La pantalla de carga sigue hasta que el mapa tenga TODO
+    // (monstruos, NPC, efectos, suelo): gf-carga-mapa.js. Mientras, quieto.
+    if (window.GFCargaMapa) window.GFCargaMapa.montar(this);
     this._sceneStopped = false;
     this._cleanupSceneDone = false;
     this._shutdownDone = false;
@@ -1486,6 +1489,8 @@ class MinaScene extends GameScene {
   // movimiento por raton y el seguimiento de la mascota son los heredados.
 
   update(time, delta) {
+    // (2026-10-19) Aún cargando el mapa (gf-carga-mapa.js): no se mueve nada.
+    if (this._gfCargando) return;
     /* Ya nos vamos: ni un fotograma mas. Sin esto, el update seguiria
        escribiendo `posicionplayerx` con las coordenadas de la cueva encima de
        las que `_dejarPartidaEnElMapa()` acaba de guardar. */
@@ -1707,6 +1712,7 @@ class MinaScene extends GameScene {
           this.socket.emit('joinRoom', {
             room: 'game',
             username: this.Username || '---',
+            soulbound: window.GFSoulbound ? window.GFSoulbound.actual() : null,
             lastScene: 'MinaScene',
             x: destino.x,
             y: destino.y

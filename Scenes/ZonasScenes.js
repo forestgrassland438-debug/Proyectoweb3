@@ -38,7 +38,7 @@
 
 /* global GameScene, Phaser */
 
-const ZONAS_V = '20261019a';   // (2026-10-19) más esqueletos y la cripta con su tejado bien
+const ZONAS_V = '20261019b';   // (2026-10-19) más esqueletos y la cripta con su tejado bien
 
 // eslint-disable-next-line no-unused-vars
 class ZonaScene extends GameScene {
@@ -93,6 +93,8 @@ class ZonaScene extends GameScene {
     if (c.zona === 'desierto' && !this.textures.exists('zn_remolino')) {
       this.load.spritesheet('zn_remolino', ruta + 'remolino.png' + v, { frameWidth: 64, frameHeight: 114 });
     }
+    // (2026-10-19) Los camellos del desierto (gf-camellos.js).
+    if (c.zona === 'desierto' && window.GFCamellos) window.GFCamellos.precargar(this);
     this.load.audio('level_up_sound', './Game/MUSIC/levelup.wav');
     if (window.GFViento) window.GFViento.precargar(this);
     if (c.clima && window.GFClima) window.GFClima.precargar(this);
@@ -105,6 +107,10 @@ class ZonaScene extends GameScene {
   // =========================================================================
   async create() {
     const c = this.cfg;
+    // (2026-10-19) La pantalla de carga sigue hasta que el mapa tenga TODO
+    // (monstruos, NPC, efectos, suelo): gf-carga-mapa.js. Mientras, quieto.
+    if (window.GFCargaMapa) window.GFCargaMapa.montar(this);
+    this._accionPersonaje = null;   // (2026-10-19) la escena se reutiliza: ni pesca ni espadazo a medias
     const sceneRunId = this._sceneRunId = (this._sceneRunId || 0) + 1;
     this._sceneStopped = false;
     this._cleanupSceneDone = false;
@@ -137,6 +143,8 @@ class ZonaScene extends GameScene {
     // La brisa (gf-viento.js): los árboles se mecen siempre un poco; en el
     // desierto, la tormenta de arena la sube (gf-zonas.js).
     this._vientoExtra = 0.35;
+    // Sin hojas al viento en la nieve ni en la arena (allí no hay árboles de hoja).
+    this._sinHojas = c.zona === 'desierto' || c.zona === 'tundra';
     this.socket = window.globalSocket || null;
     this._avisoSalidaEn = 0;
 
@@ -267,10 +275,20 @@ class ZonaScene extends GameScene {
     try { if (window.GFNpcs) window.GFNpcs.montar(this); } catch (e) { console.warn('🧭 NPC:', e); }
     // Lo propio de cada mapa: niebla, tormenta y remolinos, nevada, luces.
     try { if (window.GFZonas) window.GFZonas.montar(this, c.zona); } catch (e) { console.warn('🧭 zona:', e); }
+    try { if (c.zona === 'desierto' && window.GFCamellos) window.GFCamellos.montar(this); } catch (e) { console.warn('🧭 camellos:', e); }
 
     if (window.tiendaSistema) window.tiendaSistema.scene = this;
     try { this.notifications && this.notifications.show('🧭 ' + c.titulo, 'info'); } catch (e) {}
+    // (2026-10-19) Se pesca en el agua de este mapa (gf-pesca.js). El agua
+    // animada (gf-agua) puede tardar un momento en clasificarse: si aún no
+    // está, se vuelve a probar.
+    const montarPesca = (intento) => {
+      if (!this.sys || !this.sys.isActive() || !window.GFPesca) return;
+      if (!window.GFPesca.montar(this) && intento < 6) this.time.delayedCall(800, () => montarPesca(intento + 1));
+    };
+    montarPesca(0);
     console.log('🧭 ' + c.zona + ' listo');
+    if (window.GFCargaMapa) window.GFCargaMapa.listo(this);
   }
 
   // =========================================================================
@@ -377,6 +395,8 @@ class ZonaScene extends GameScene {
   // CADA FOTOGRAMA (el del mapa salvaje)
   // =========================================================================
   update(time, delta) {
+    // (2026-10-19) Aún cargando el mapa (gf-carga-mapa.js): no se mueve nada.
+    if (this._gfCargando) return;
     if (this._cambiandoEscena) return;
     {
       let b = this._elBurbujaLocal;
@@ -430,7 +450,7 @@ class ZonaScene extends GameScene {
     }
     const prevX = this.previousPosition.x, prevY = this.previousPosition.y;
     this._resolverChoqueJugador(prevX, prevY, 26);
-    this._animarJugador(prevX, prevY);
+    if (!this._accionPersonaje) this._animarJugador(prevX, prevY);
 
     if (!this.playerRect) this.playerRect = new Phaser.Geom.Rectangle(0, 0, 30, 26);
     this.playerRect.setTo(this.player.x - 15, this.player.y + 25, 30, 26);

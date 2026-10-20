@@ -223,6 +223,9 @@ class LandsScene extends GameScene {
 
   async create() {
     const sceneRunId = this._sceneRunId = (this._sceneRunId || 0) + 1;
+    // (2026-10-19) La pantalla de carga sigue hasta que el mapa tenga TODO
+    // (monstruos, NPC, efectos, suelo): gf-carga-mapa.js. Mientras, quieto.
+    if (window.GFCargaMapa) window.GFCargaMapa.montar(this);
     this._sceneStopped = false;
     this._cleanupSceneDone = false;
     this._shutdownDone = false;
@@ -2124,6 +2127,8 @@ class LandsScene extends GameScene {
   // recorre arboles, rocas y NPC del mapa de fuera, que aqui no existen.
 
   update(time, delta) {
+    // (2026-10-19) Aún cargando el mapa (gf-carga-mapa.js): no se mueve nada.
+    if (this._gfCargando) return;
     /* Ya nos vamos: ni un fotograma mas. Sin esto, el update seguiria
        escribiendo `posicionplayerx` con las coordenadas de la isla encima de
        las que `_dejarPartidaEnElMapa()` acaba de guardar. */

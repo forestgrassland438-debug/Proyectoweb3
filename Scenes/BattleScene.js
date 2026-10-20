@@ -1333,6 +1333,8 @@ class BattleScene extends Phaser.Scene {
       this._respuestaCola = true;
       let msg = 'Could not start the battle.';
       if (d.error === 'not_authenticated') msg = 'You must be logged in to battle.';
+      // (2026-10-19) El servidor no deja batallar sin nombre (gfSocketConNombre).
+      if (d.error === 'name_required') msg = 'Choose your character name first to battle.';
       else if (d.error === 'already_in_battle') msg = 'You are already in a battle (maybe in another tab).';
       else if (d.error === 'daily_limit') msg = 'You already played your ' + ((d.daily && d.daily.max) || 5) + ' daily battles. Come back tomorrow!';
       if (this.estado === 'buscando') this.estadoBusqueda('Oops', msg + ' Back to the map…');

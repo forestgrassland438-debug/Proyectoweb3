@@ -2157,7 +2157,10 @@ class LoadingScenegame extends Phaser.Scene {
 
         await new Promise(resolve => setTimeout(resolve, 700));
         if (!vigente()) return;
-        this.loadingSystem.hide(600);
+        // (2026-10-19) No se quita aquí: la quita el mapa cuando tiene TODO
+        // cargado (gf-carga-mapa.js). Sin ese módulo, como antes.
+        if (window.GFCargaMapa) window.GFCargaMapa.retener(this.loadingSystem, 'Preparing the map…');
+        else this.loadingSystem.hide(600);
     }
 
     /**

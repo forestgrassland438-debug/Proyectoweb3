@@ -46,7 +46,7 @@
 /* global GameScene, Phaser */
 
 // (2026-10-18) 'b': las tres salidas abiertas a los mapas nuevos (Maps/salvaje.json).
-const SALVAJE_V = '20261018b';
+const SALVAJE_V = '20261019a';   // (2026-10-19) el agua ya no deja pisar la orilla
 const SALVAJE_ARBOLES = ['abedul', 'abeto', 'arbol_ancestral', 'arbol_seco', 'cerezo', 'pino',
   'roble_ancho', 'roble_curvado', 'roble_otono', 'roble_redondo'];
 // Al volver al pueblo: en su camino del borde oeste, un poco hacia dentro.
@@ -115,6 +115,10 @@ class SalvajeScene extends GameScene {
   // =========================================================================
   async create() {
     const sceneRunId = this._sceneRunId = (this._sceneRunId || 0) + 1;
+    // (2026-10-19) La pantalla de carga sigue hasta que el mapa tenga TODO
+    // (monstruos, NPC, efectos, suelo): gf-carga-mapa.js. Mientras, quieto.
+    if (window.GFCargaMapa) window.GFCargaMapa.montar(this);
+    this._accionPersonaje = null;   // (2026-10-19) la escena se reutiliza: ni pesca ni espadazo a medias
     this._sceneStopped = false;
     this._cleanupSceneDone = false;
     this._shutdownDone = false;
@@ -285,7 +289,16 @@ class SalvajeScene extends GameScene {
     try { if (window.GFCasas) window.GFCasas.montar(this); } catch (e) { console.warn('🌲 cabaña:', e); }
 
     if (window.tiendaSistema) window.tiendaSistema.scene = this;
+    // (2026-10-19) Se pesca en el agua de este mapa (gf-pesca.js). El agua
+    // animada (gf-agua) puede tardar un momento en clasificarse: si aún no
+    // está, se vuelve a probar.
+    const montarPesca = (intento) => {
+      if (!this.sys || !this.sys.isActive() || !window.GFPesca) return;
+      if (!window.GFPesca.montar(this) && intento < 6) this.time.delayedCall(800, () => montarPesca(intento + 1));
+    };
+    montarPesca(0);
     console.log('🌲 mapa salvaje listo');
+    if (window.GFCargaMapa) window.GFCargaMapa.listo(this);
   }
 
   // =========================================================================
@@ -397,6 +410,8 @@ class SalvajeScene extends GameScene {
   // CADA FOTOGRAMA
   // =========================================================================
   update(time, delta) {
+    // (2026-10-19) Aún cargando el mapa (gf-carga-mapa.js): no se mueve nada.
+    if (this._gfCargando) return;
     if (this._cambiandoEscena) return;
     {
       let b = this._elBurbujaLocal;
@@ -443,7 +458,7 @@ class SalvajeScene extends GameScene {
     }
     const prevX = this.previousPosition.x, prevY = this.previousPosition.y;
     this._resolverChoqueJugador(prevX, prevY, 26);
-    this._animarJugador(prevX, prevY);
+    if (!this._accionPersonaje) this._animarJugador(prevX, prevY);
 
     if (!this.playerRect) this.playerRect = new Phaser.Geom.Rectangle(0, 0, 30, 26);
     this.playerRect.setTo(this.player.x - 15, this.player.y + 25, 30, 26);
@@ -560,7 +575,7 @@ class SalvajeScene extends GameScene {
         try { this.stopMusicSafely(); } catch (e) {}
         this._salaDestino = 'game';
         if (this.socket && this.socket.connected) {
-          this.socket.emit('joinRoom', { room: 'game', username: this.Username || '---', lastScene: 'SalvajeScene', x: destino.x, y: destino.y });
+          this.socket.emit('joinRoom', { room: 'game', username: this.Username || '---', soulbound: window.GFSoulbound ? window.GFSoulbound.actual() : null, lastScene: 'SalvajeScene', x: destino.x, y: destino.y });
         }
         try { this.cleanupScene(); } catch (e) { console.warn('limpieza:', e); }
         this.scene.start('LoadingScenegame', { targetScene: 'GameScene', playerData: destino });

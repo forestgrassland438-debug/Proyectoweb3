@@ -1287,6 +1287,14 @@ async checkMissionRequirements(missionId) {
     }
     
     console.log(`📝 Misión encontrada: ${mission.itemId}, cantidad requerida: ${mission.requiredAmount}`);
+
+    // (2026-10-19) Las de CAZAR no miran la bolsa: miran lo vencido hoy, que
+    // manda el servidor con las misiones (`kills`). Él lo vuelve a comprobar.
+    if (mission.tipo === 'cazar') {
+      const k = this.dailyMissionsData.kills || {};
+      const clave = mission.monstruo && mission.monstruo !== '*' ? mission.monstruo : '*';
+      return (Number(k[clave]) || 0) >= (Number(mission.requiredAmount) || 1);
+    }
     
     // CONTEO ÚNICO (2026-08-05). Antes esta función tenía su PROPIO mapa de
     // nombres y su propia búsqueda "flexible", distintos de los que usa el
@@ -2811,6 +2819,9 @@ liberarMemoriaPesada() {
 
   async create() {
     const sceneRunId = this._sceneRunId = (this._sceneRunId || 0) + 1;
+    // (2026-10-19) La pantalla de carga sigue hasta que el mapa tenga TODO
+    // (monstruos, NPC, efectos, suelo): gf-carga-mapa.js. Mientras, quieto.
+    if (window.GFCargaMapa) window.GFCargaMapa.montar(this);
     this._sceneStopped = false;
     // A qué sala del servidor se va al salir (ver _salaAlSalir). Se rearma en
     // cada entrada: Phaser reutiliza la instancia de la escena.
@@ -5656,26 +5667,17 @@ this._onclickCompartido(document.getElementById('notif-clear-all'), () => this._
 
 
         // Configuración profesional para textos de NPCs
+/* (2026-10-19) "Que todos los NPC del pueblo tengan el nombre arriba como los
+   nuevos": el mismo estilo que los de los mapas nuevos y las casas
+   (gf-npcs.js): el nombre en dorado con su borde oscuro, sin caja. Antes era
+   un rótulo de 14 px con fondo azul, que no se parecía a los demás. */
 const textStyle = {
-    fontFamily: '"PressStart2P"',
-    fontSize: '14px', // Ligeramente más grande para mejor legibilidad
-    color: '#ffffff',
-    resolution: 2, // Reducido para mejor rendimiento
-    stroke: "#000000ff",
-    strokeThickness: 4, // Borde más definido
-    shadow: {
-        offsetX: 2,
-        offsetY: 2,
-        color: '#000000ff',
-        blur: 2,
-        stroke: true,
-        fill: true
-    },
-    padding: {
-        x: 8,
-        y: 4
-    },
-    backgroundColor: '#130781a2', // Fondo semitransparente
+    fontFamily: '"PressStart2P", monospace',
+    fontSize: '7px',
+    color: '#ffe08a',
+    resolution: 4,
+    stroke: '#1a1208',
+    strokeThickness: 3,
     align: 'center'
 };
 
@@ -5928,6 +5930,8 @@ window.hub.onRetry = (hiddenData) => {
     // =.grasslandforest.com en el backend.)
     this._bindDomClick(document.getElementById('store-btn'), 'store', (e) => {
       e.stopPropagation();
+      // (2026-10-19) Sin nombre, el Market tampoco (gf-sin-nombre.js).
+      if (window.GFSinNombre && !window.GFSinNombre.exigir(this, 'market')) return;
       const marketUrl = new URL('market.html', window.location.href).href;
       window.open(marketUrl, '_blank');
     });
@@ -26717,6 +26721,9 @@ closeBattleHub() {
 // modo: 'pvp' (arena contra otros jugadores), 'bot' (una de las 5 batallas
 // diarias) o 'practica' (tú contra 3 bots, sin puntos)
 startPvpBattle(modo = 'pvp') {
+  // (2026-10-19) Sin nombre no se batalla (gf-sin-nombre.js; el servidor
+  // también lo rechaza en brawl:*).
+  if (window.GFSinNombre && !window.GFSinNombre.exigir(this, 'battle')) return;
   try {
     this.savegg && this.savegg();
   } catch (e) { /* el guardado no debe impedir la batalla */ }
@@ -28592,6 +28599,8 @@ getPlayerIntentDirection() {
 
 
   update(time, delta) {
+    // (2026-10-19) Aún cargando el mapa (gf-carga-mapa.js): no se mueve nada.
+    if (this._gfCargando) return;
     // Reposicionar burbuja local sobre el sprite del jugador
     // Se entra también cuando la burbuja está OCULTA pero su plazo sigue vivo:
     // es lo que permite reafirmarla si algo apagó el HUD en bloque mientras
@@ -29042,6 +29051,9 @@ getPlayerIntentDirection() {
     this.collisionRectangles1.forEach(rect1 => {
       if (_tocandoPuerta && this._puertaArmada && !this._cambiandoEscena &&
           Phaser.Geom.Intersects.RectangleToRectangle(this.playerRect, rect1)) {
+        // (2026-10-19) Sin nombre no se entra en la tienda (gf-sin-nombre.js).
+        // La puerta se desarma: no vuelve a avisar hasta salir y volver a pisarla.
+        if (window.GFSinNombre && !window.GFSinNombre.exigir(this, 'shop')) { this._puertaArmada = false; return; }
         console.log("¡Colisión detectada!");
         this._puertaArmada   = false;
         this._cambiandoEscena = true;
@@ -30856,6 +30868,7 @@ getPlayerIntentDirection() {
         });
         this._bindDomClick(document.getElementById('store-btn'), 'store', (e) => {
           e.stopPropagation();
+          if (window.GFSinNombre && !window.GFSinNombre.exigir(this, 'market')) return;
           window.open(new URL('market.html', window.location.href).href, '_blank');
         });
 

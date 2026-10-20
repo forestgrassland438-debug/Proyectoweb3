@@ -595,6 +595,9 @@ showNotification(message, type = 'info') {
   
     async create() {
     const sceneRunId = this._sceneRunId = (this._sceneRunId || 0) + 1;
+    // (2026-10-19) La pantalla de carga sigue hasta que el mapa tenga TODO
+    // (monstruos, NPC, efectos, suelo): gf-carga-mapa.js. Mientras, quieto.
+    if (window.GFCargaMapa) window.GFCargaMapa.montar(this);
     this._sceneStopped = false;
     this._shopCleanupDone = false;
     // Sala del servidor al salir (ver _salaAlSalir). Se rearma en cada entrada.
@@ -2292,6 +2295,7 @@ this.anims.create({
     // que se resuelve relativo a la página actual: en producción →
     // https://game.grasslandforest.com/market.html y en local el mismo host.
     this.onRoundBtnStore = () => {
+      if (window.GFSinNombre && !window.GFSinNombre.exigir(this, 'market')) return;
       const marketUrl = new URL('market.html', window.location.href).href;
       window.open(marketUrl, '_blank');
     };
@@ -12568,6 +12572,8 @@ actualizarBarraComida(porcentaje) {
   
   
     update(time, delta) {
+    // (2026-10-19) Aún cargando el mapa (gf-carga-mapa.js): no se mueve nada.
+    if (this._gfCargando) return;
       if (!this.keys) return;
 
       // Reposicionar burbuja local sobre el sprite del jugador cada frame.

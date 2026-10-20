@@ -49,7 +49,7 @@
 
 /* global GameScene, Phaser */
 
-const INTERIOR_V = '20261011a';  // 2026-10-11: muebles planos redibujados en 2.5D
+const INTERIOR_V = '20261019a';  // 2026-10-19: muebles nuevos, camas en 3/4 y mesas con su huella entera
 
 /* Los PNG de muebles que puede pedir cualquier sala. Se cargan todos (son
    pequenos: el mayor, la estanteria de pociones, mide 126x141) para no tener
@@ -62,7 +62,12 @@ const MUEBLES_INTERIOR = [
   'estante_herramientas2', 'estante_libros', 'estante_libros2', 'estante_pociones', 'expositor_fruta',
   'expositor_pociones', 'expositor_verdura', 'farol_1', 'farol_2', 'farol_pared', 'fragua', 'mesa_comida',
   'mesa_espada', 'mesa_larga', 'mesa_vela', 'mostrador', 'nasas', 'pila_lena', 'planta_alta', 'planta_cactus',
-  'planta_flores', 'planta_pequena', 'red_pesca', 'silla', 'silla_b', 'taburete', 'taburete_bar', 'yunque'
+  'planta_flores', 'planta_pequena', 'red_pesca', 'silla', 'silla_b', 'taburete', 'taburete_bar', 'yunque',
+  /* (2026-10-19) Los muebles nuevos (tools/gf_muebles_25d.py). OJO: un mueble
+     del mapa que no esté en esta lista NO se dibuja (_montarMuebles se lo
+     salta) pero su choque SÍ está: una mesa invisible que te para. */
+  'aparador', 'mesa_redonda', 'banco', 'sacos', 'estante_pared', 'jarron', 'perchero', 'tonel',
+  'mesa_alquimia', 'banco_trabajo', 'astas', 'piel_suelo', 'lampara_pie'
 ];
 
 // eslint-disable-next-line no-unused-vars
@@ -126,6 +131,9 @@ class InteriorScene extends GameScene {
   // =========================================================================
   async create() {
     const sceneRunId = this._sceneRunId = (this._sceneRunId || 0) + 1;
+    // (2026-10-19) La pantalla de carga sigue hasta que el mapa tenga TODO
+    // (monstruos, NPC, efectos, suelo): gf-carga-mapa.js. Mientras, quieto.
+    if (window.GFCargaMapa) window.GFCargaMapa.montar(this);
     this._sceneStopped = false;
     this._cleanupSceneDone = false;
     this._shutdownDone = false;
@@ -614,6 +622,8 @@ class InteriorScene extends GameScene {
   // UPDATE (el de la mina: movimiento, choques, animacion, mascota)
   // =========================================================================
   update(time, delta) {
+    // (2026-10-19) Aún cargando el mapa (gf-carga-mapa.js): no se mueve nada.
+    if (this._gfCargando) return;
     if (this._cambiandoEscena) return;
     {
       let b = this._elBurbujaLocal;
@@ -737,7 +747,7 @@ class InteriorScene extends GameScene {
         try { this.stopMusicSafely(); } catch (e) {}
         this._salaDestino = 'game';
         if (this.socket && this.socket.connected) {
-          this.socket.emit('joinRoom', { room: 'game', username: this.Username || '---', lastScene: 'InteriorScene', x: destino.x, y: destino.y });
+          this.socket.emit('joinRoom', { room: 'game', username: this.Username || '---', soulbound: window.GFSoulbound ? window.GFSoulbound.actual() : null, lastScene: 'InteriorScene', x: destino.x, y: destino.y });
         }
         try { this.cleanupScene(); } catch (e) { console.warn('limpieza:', e); }
         this.scene.start('LoadingScenegame', { targetScene: 'GameScene', playerData: destino });
@@ -778,7 +788,7 @@ class InteriorScene extends GameScene {
     try { this.stopMusicSafely(); } catch (e) {}
     this._salaDestino = SALA[mundo] || 'game';
     if (this.socket && this.socket.connected) {
-      this.socket.emit('joinRoom', { room: this._salaDestino, username: this.Username || '---', lastScene: 'InteriorScene', x: destino.x, y: destino.y });
+      this.socket.emit('joinRoom', { room: this._salaDestino, username: this.Username || '---', soulbound: window.GFSoulbound ? window.GFSoulbound.actual() : null, lastScene: 'InteriorScene', x: destino.x, y: destino.y });
     }
     try { this.cleanupScene(); } catch (e) { console.warn('limpieza:', e); }
     this.scene.start('LoadingScenegame', { targetScene: ESCENA[mundo] || 'GameScene', playerData: { x: destino.x, y: destino.y, mundo } });
