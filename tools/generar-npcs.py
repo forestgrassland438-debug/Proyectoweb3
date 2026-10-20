@@ -54,7 +54,8 @@ PAD_X, PAD_Y = 14, 16             # más sitio para la pala y la espada
 # ===========================================================================
 # LAS RECETAS: colores por parte (como los zombis) y los añadidos
 # ===========================================================================
-def receta(piel, pelo, camisa, pantalon, pies='#3b2c22', ojo='#3a2a20', contorno=(22, 18, 16), **extra):
+def receta(piel, pelo, camisa, pantalon, pies='#3b2c22', ojo='#3a2a20', contorno=(22, 18, 16), peinado=None,
+           **extra):
     r = {
         'contorno': contorno,
         'paletas': {
@@ -66,6 +67,12 @@ def receta(piel, pelo, camisa, pantalon, pies='#3b2c22', ojo='#3a2a20', contorno
             'pantalon': tonos(pantalon, 4, arriba=0.14, abajo=0.55),
         },
     }
+    # (2026-10-19) "Los NPC deben tener diferentes cabellos y ojos": cada uno
+    # su peinado (gf_humanoides2d.peinado, a la medida de la cabeza del juego)
+    # y su color de ojos. Los del turbante no: el turbante ES su pelo.
+    if peinado:
+        r['pelo_estilo'] = peinado
+        r['pelo_tonos'] = tonos(pelo, 4, arriba=0.3, abajo=0.5)
     r.update(extra)
     return r
 
@@ -76,30 +83,38 @@ PIEL_CLARA, PIEL_MEDIA, PIEL_MORENA = '#e8c3a0', '#d2a07a', '#a8714e'
 NPCS = {
     # ── los mapas ──
     'sepulturero': ('personaje8', receta(PIEL_CLARA, '#2e2a2c', '#3c3633', '#2b2724', pies='#241c18',
-                                         barba='#6d6660'), 'cavar'),
+                                         barba='#6d6660', ojo='#56606c', peinado='corto'), 'cavar'),
     'guardia_desierto': ('personaje10', receta(PIEL_MORENA, '#efe6d0', '#d8c49a', '#8a6a44', pies='#5a3e28',
-                                              turbante=True, faja='#a8343a', barba='#2b2018'), 'tajo'),
+                                              turbante=True, faja='#a8343a', barba='#2b2018', ojo='#8a5a1e'), 'tajo'),
     'centinela_desierto': ('personaje11', receta(PIEL_MEDIA, '#f2ead8', '#c7b18a', '#6f5235', pies='#4a3322',
-                                                 turbante=True, faja='#2f6f8f'), 'tajo'),
-    'trampero': ('personaje10', receta(PIEL_CLARA, '#d9d2c6', '#8a6440', '#5a4632', pies='#3a2a1e',
-                                       barba='#b9a58a', cuello_piel='#e9e2d6'), None),
-    'pescadora_hielo': ('personaje11', receta(PIEL_CLARA, '#8fb8d8', '#e6edf3', '#5a6f86', pies='#40506a',
-                                              cuello_piel='#ffffff'), None),
-    'guardabosques': ('personaje11', receta(PIEL_MEDIA, '#3f5a32', '#4d6b3a', '#5a4632', pies='#3a2a1e'), None),
+                                                 turbante=True, faja='#2f6f8f', ojo='#3e7a4c'), 'tajo'),
+    'trampero': ('personaje10', receta(PIEL_CLARA, '#cfc6b8', '#8a6440', '#5a4632', pies='#3a2a1e',
+                                       barba='#b9a58a', cuello_piel='#e9e2d6', ojo='#3d6fa8', peinado='cola',
+                                       cinta='#6a4a2a'), None),
+    'pescadora_hielo': ('personaje11', receta(PIEL_CLARA, '#eadfb4', '#e6edf3', '#5a6f86', pies='#40506a',
+                                              cuello_piel='#ffffff', ojo='#4f93c4', peinado='trenzas',
+                                              cinta='#3f6fa0'), None),
+    'guardabosques': ('personaje11', receta(PIEL_MEDIA, '#5a3a22', '#4d6b3a', '#5a4632', pies='#3a2a1e',
+                                            ojo='#3e7a4c', peinado='flequillo'), None),
     'cazador': ('personaje8', receta(PIEL_MEDIA, '#5a3e28', '#556b3a', '#4a3a2a', pies='#3a2a1e',
-                                     barba='#8a8078'), None),
+                                     barba='#8a8078', ojo='#7a5a2a', peinado='pincho'), None),
     # ── las casas del pueblo ──
-    'panadera': ('personaje10', receta(PIEL_CLARA, '#f2eee6', '#c98a6a', '#6a4a3a', delantal='#f2eee6'), None),
-    'tallista': ('personaje3', receta(PIEL_CLARA, '#a85a2a', '#7a5a3a', '#4a3a2a', delantal='#a07a50'), None),
-    'tejedora': ('personaje2', receta(PIEL_CLARA, '#6a4a3a', '#8a4a7a', '#4a3a5a'), None),
+    'panadera': ('personaje10', receta(PIEL_CLARA, '#d9a441', '#c98a6a', '#6a4a3a', delantal='#f2eee6',
+                                       ojo='#3d6fa8', peinado='mono'), None),
+    'tallista': ('personaje3', receta(PIEL_CLARA, '#a85a2a', '#7a5a3a', '#4a3a2a', delantal='#a07a50',
+                                      ojo='#4a7a3a', peinado='corto'), None),
+    'tejedora': ('personaje2', receta(PIEL_CLARA, '#6a4a3a', '#8a4a7a', '#4a3a5a', ojo='#6a5a8a',
+                                      peinado='trenzas', cinta='#8a4a7a'), None),
     'posadero': ('personaje3', receta(PIEL_MEDIA, '#7a4a2a', '#e6dccb', '#4a3a2a', delantal='#f2eee6',
-                                      barba='#7a4a2a'), None),
+                                      barba='#7a4a2a', ojo='#5a3a1e', peinado='flequillo'), None),
     'tabernero': ('personaje1', receta(PIEL_MEDIA, '#3a2a22', '#7a2f2a', '#3a3030', delantal='#d9cdb8',
-                                       barba='#3a2a22'), None),
-    'herbolaria': ('personaje6', receta(PIEL_CLARA, '#8a6a3a', '#4f7a4a', '#5a4a3a', delantal='#cfe0b8'), None),
+                                       barba='#3a2a22', ojo='#2f5a3a', peinado='cola', cinta='#2a2220'), None),
+    'herbolaria': ('personaje6', receta(PIEL_CLARA, '#8a3f22', '#4f7a4a', '#5a4a3a', delantal='#cfe0b8',
+                                        ojo='#4f8a3a', peinado='cola', cinta='#4f7a4a'), None),
     'herrero': ('personaje4', receta(PIEL_MORENA, '#2a2220', '#6a3a2a', '#3a3030', delantal='#4a3a30',
-                                    barba='#2a2220'), None),
-    'granjero': ('personaje9', receta(PIEL_MEDIA, '#e3c46a', '#5a7aa8', '#4a3a2a', barba='#c8c0b0'), None),
+                                    barba='#2a2220', ojo='#8a5a1e', peinado='pincho'), None),
+    'granjero': ('personaje9', receta(PIEL_MEDIA, '#e3c46a', '#5a7aa8', '#4a3a2a', barba='#c8c0b0',
+                                      ojo='#3d6fa8', peinado='corto'), None),
 }
 
 

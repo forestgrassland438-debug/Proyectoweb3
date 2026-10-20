@@ -675,5 +675,9 @@ def fotos(zona):
         pr, ret, mt = fn()
         li = fotografiar(pr, W, H, vista, mt, ret, cont, k=k, suelo=suelo, salto=2.5)
         li, ax, ay = recortar(li, W / 2.0, H - suelo)
-        out[nombre] = {'foto': li, 'apoyo': (ax, ay), 'huella': huella, 'sombra': sombra}
+        # (2026-10-19) Lo que el dibujo baja por DEBAJO de su apoyo (el frente
+        # de la base en perspectiva), en px del juego: la colisión lo cubre
+        # (generar-zonas.py, poner_objeto) o el jugador se mete en la tienda.
+        bajo = max(0, (li.h - ay)) * ESCALA
+        out[nombre] = {'foto': li, 'apoyo': (ax, ay), 'huella': huella, 'sombra': sombra, 'bajo': bajo}
     return out

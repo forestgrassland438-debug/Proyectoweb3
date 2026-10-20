@@ -573,6 +573,97 @@ def peinado(estilo, g, w, h):
         for tri in gr:
             pelo.poligono(tri)
 
+    elif estilo in ('corto', 'cola', 'mono', 'trenzas', 'pincho', 'flequillo'):
+        # (2026-10-19) LOS PEINADOS DE LOS NPC: pelo sano, sin cicatrices ni
+        # greñas. Un casquete que sigue al cráneo (con un pelo de volumen, a
+        # la medida de la cabeza del juego) y la línea de la frente propia de
+        # cada peinado; encima, lo de cada uno: la coleta, el moño, las dos
+        # trenzas, las puntas o el flequillo recto.
+        vol = Mascara(w, h).elipse(cx, cy - 0.4, rx + 0.9, ry + 0.7)
+        if vista == 'frente':
+            lim = M()
+            for x in range(w):
+                lim.columna(x, 0, cy + 3.5 if abs(x - cx) > rx - 2.5 else cy + 1)
+            pelo.unir(vol.intersecar(lim))
+            linea = {'corto':     [0, -1, -1, -2, -2, -3, -3, -3, -3, -3, -2, -2, -1, -1, 0],
+                     'cola':      [-1, -2, -2, -3, -3, -3, -3, -3, -3, -3, -3, -2, -2, -1, -1],
+                     'mono':      [-1, -2, -3, -3, -3, -4, -4, -4, -4, -4, -3, -3, -3, -2, -1],
+                     'trenzas':   [1, 0, -1, -2, -2, -3, -3, -4, -3, -3, -2, -2, -1, 0, 1],
+                     'pincho':    [0, -1, -2, -2, -2, -3, -2, -3, -2, -3, -2, -2, -1, -1, 0],
+                     'flequillo': [2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2]}[estilo]
+            fleq = flequillo_de(g, cx - 7, linea, cy - 1)
+        elif vista == 'espalda':
+            pelo.unir(vol.intersecar(M().rect(0, 0, w - 1, cy + 6.5)))
+        else:
+            lim = M()
+            for x in range(w):
+                atras = (x - cx) * lado <= -1
+                lim.columna(x, 0, cy + 6.5 if atras else (cy + 3 if (x - cx) * lado <= 2 else cy + 1))
+            pelo.unir(vol.intersecar(lim))
+            linea = {'corto':     [-1, -1, -2, -2, -3, -3, -3, -2, -2, -1],
+                     'cola':      [-2, -2, -3, -3, -3, -3, -3, -3, -2, -2],
+                     'mono':      [-2, -3, -3, -4, -4, -4, -4, -3, -3, -2],
+                     'trenzas':   [-1, -2, -2, -3, -3, -3, -3, -2, -2, -1],
+                     'pincho':    [-1, -2, -2, -3, -2, -3, -2, -2, -1, -1],
+                     'flequillo': [1, 1, 1, 1, 1, 1, 2, 2, 2, 2]}[estilo]
+            if lado < 0:
+                fleq = flequillo_de(g, cx - len(linea), linea[::-1], cy - 1)
+            else:
+                fleq = flequillo_de(g, cx, linea, cy - 1)
+        if estilo == 'corto' and vista == 'frente':
+            # La raya al lado.
+            extras.append((M().linea(cx - 3, cy - ry + 1.5, cx - 2, cy - 3.5), 'raya_pelo'))
+        elif estilo == 'cola':
+            # La coleta: atada en la nuca con una cinta, cae hasta los hombros.
+            if vista == 'espalda':
+                pelo.poligono([(cx - 2.5, cy + 1), (cx + 2.5, cy + 1), (cx + 2, cuello + 5),
+                               (cx + 0.5, cuello + 9), (cx - 1, cuello + 8), (cx - 2, cuello + 4)])
+                extras.append((M().rect(cx - 2.5, cy + 1, cx + 2.5, cy + 2), 'cinta'))
+            elif vista == 'lado':
+                tx = cx - lado * (rx - 0.5)
+                pelo.poligono([(tx, cy - 2), (tx - lado * 3, cy), (tx - lado * 4, cuello + 3),
+                               (tx - lado * 2.5, cuello + 7), (tx - lado * 0.5, cuello + 2), (tx + lado * 0.5, cy + 2)])
+                extras.append((M().linea(tx - lado * 0.5, cy - 1.5, tx - lado * 2.5, cy + 1.5, 2), 'cinta'))
+        elif estilo == 'mono':
+            # El moño: un ovillo arriba y atrás, con su vuelta marcada.
+            if vista == 'frente':
+                by = cy - ry - 0.5
+                bun = M().elipse(cx, by, 3.8, 2.8)
+            elif vista == 'espalda':
+                by = cy - ry + 2.5
+                bun = M().elipse(cx, by, 4.2, 3.6)
+            else:
+                by = cy - ry + 1
+                bun = M().elipse(cx - lado * (rx - 3), by, 3.8, 3.6)
+            pelo.unir(bun)
+            extras.append((M().fila(int(round(by)), 0, w - 1).intersecar(bun), 'raya_pelo'))
+        elif estilo == 'trenzas':
+            # Dos trenzas por delante de los hombros (de lado se ve la de este
+            # lado; de espaldas, no se ven). Cada vuelta de la trenza es una
+            # raya, y abajo, la cinta y la punta.
+            if vista == 'frente':
+                xs = [cx - (rx - 0.5), cx + (rx - 0.5)]
+                extras.append((M().columna(int(round(cx)), cy - ry + 2, cy - 3.5), 'raya_pelo'))
+            elif vista == 'lado':
+                xs = [cx - lado * 1.5]
+            else:
+                xs = []
+                extras.append((M().columna(int(round(cx)), cy - ry + 2, cy + 6), 'raya_pelo'))
+            for bx in xs:
+                fin = cuello + 9
+                pelo.poligono([(bx - 1.5, cy + 1), (bx + 1.5, cy + 1), (bx + 1.5, fin), (bx - 1.5, fin)])
+                pelo.poligono([(bx - 2, fin + 1), (bx + 2, fin + 1), (bx, fin + 3)])
+                for y in range(int(cy + 3), int(fin), 3):
+                    extras.append((M().fila(y, bx - 1.5, bx + 1.5), 'raya_pelo'))
+                extras.append((M().rect(bx - 1.5, fin, bx + 1.5, fin), 'cinta'))
+        elif estilo == 'pincho':
+            # Puntas cortas hacia arriba (de lado, peinadas hacia atrás).
+            for k in (-6, -3, 0, 3, 6):
+                bx = cx + k
+                by = cy - math.sqrt(max(0.0, 1 - (k / (rx + 1.0)) ** 2)) * (ry + 0.6) + 1.5
+                inclina = (-lado * 2.5) if vista == 'lado' else k * 0.35
+                pelo.poligono([(bx - 2, by), (bx + 2, by), (bx + inclina, by - 4.5)])
+
     # La diadema del guardián: una banda de metal con una piedra en medio.
     if estilo == 'melena':
         banda = pelo.copia().unir(cr).intersecar(M().rect(0, cy - 2.5, w - 1, cy - 1.5))
@@ -728,6 +819,9 @@ def peinar(li, partes, cuello, dir_, n, receta):
                 li.set(x, y, hex_rgb('#e0483a'))
             elif que == 'cordon':
                 li.set(x, y, hex_rgb('#e8f4f2'))
+            elif que == 'cinta':
+                # (2026-10-19) La cinta de la coleta y de las trenzas.
+                li.set(x, y, hex_rgb(receta.get('cinta') or '#b8403a'))
     for m, que in pz['extras']:
         if que == 'triangulo':
             for x, y in m.puntos():

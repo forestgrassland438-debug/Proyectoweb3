@@ -1000,8 +1000,23 @@ def colisiones(cfg, muebles):
     for nombre, x, y, props, w, hh in muebles:
         if props.get('plano'): continue
         pie = props.get('pie', min(24 * E, max(10 * E, int(hh * 0.32))))
+        # (2026-10-19) "Me traspaso la mesa por la mitad": una mesa vista en
+        # 3/4 ocupa en el suelo casi todo su alto (la tapa ES su fondo), y la
+        # huella era la franja de abajo. Las mesas, mostradores, bancos y
+        # camas pisan lo que de verdad ocupan.
+        if nombre in PROFUNDIDAD:
+            pie = max(pie, int(hh * PROFUNDIDAD[nombre]))
         out.append((x + 3 * E, y - pie, max(6 * E, w - 6 * E), pie))
     return out
+
+
+# Qué parte de su alto ocupa en el suelo cada mueble con tapa (ver colisiones).
+PROFUNDIDAD = {
+    'mesa_larga': 0.84, 'mesa_comida': 0.66, 'mesa_redonda': 0.58, 'mesa_alquimia': 0.5,
+    'banco_trabajo': 0.55, 'mesa_espada': 0.45, 'mesa_vela': 0.4, 'banco': 0.55,
+    'barra': 0.55, 'barra2': 0.55, 'mostrador': 0.55,
+    'cama_roja': 0.86, 'cama_verde': 0.86, 'cama_azul': 0.86,
+}
 
 
 def json_mapa(nombre, cfg, rej, ncols, ntiles, hoja_wh, muebles_sala, catalogo):

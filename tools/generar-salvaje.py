@@ -550,17 +550,18 @@ def main():
     colisiones = []
     agua_dura = agua - puente
     for (x0, y0, x1, y1) in rectangulos(agua_dura):
-        # Se deja pisar la orilla (10 px) por el lado que da a tierra.
         def tierra_al(lado):
             if lado == 'N': cs = [(x, y0 - 1) for x in range(x0, x1 + 1)]
             elif lado == 'S': cs = [(x, y1 + 1) for x in range(x0, x1 + 1)]
             elif lado == 'O': cs = [(x0 - 1, y) for y in range(y0, y1 + 1)]
             else: cs = [(x1 + 1, y) for y in range(y0, y1 + 1)]
             return any(0 <= cx < N and 0 <= cy < N and (cx, cy) not in agua for cx, cy in cs)
-        mn = 12 if tierra_al('N') else 0
-        ms = 10 if tierra_al('S') else 0
-        mo = 10 if tierra_al('O') else 0
-        me = 10 if tierra_al('E') else 0
+        # (2026-10-19) Ya no se pisa la orilla (ver generar-zonas.py): el
+        # choque llega al borde de la casilla, salvo 4 px por abajo.
+        mn = 0
+        ms = 4 if tierra_al('S') else 0
+        mo = 0
+        me = 0
         colisiones.append({'x': x0 * T + mo, 'y': y0 * T + mn,
                            'width': (x1 - x0 + 1) * T - mo - me, 'height': (y1 - y0 + 1) * T - mn - ms, 'name': 'agua'})
     # Las barandas del puente (solo sobre el agua y la orilla: los extremos,

@@ -79,7 +79,7 @@ import gf_arboles_zona  # noqa: E402
 
 T, N = GS.T, GS.N
 W = N * T
-VERSION = '20261019c'   # (2026-10-19) la playa de los oasis del desierto
+VERSION = '20261019d'   # (2026-10-19) la playa de los oasis del desierto
 ESCALA_ARBOL = 1.3
 TILESET = GS.TILESET
 # La entrada de cada mapa: el camino que sigue al de la salida del salvaje.
@@ -213,7 +213,12 @@ class Zona(object):
         hw, hh = f['huella']
         self.objetos.append({'nombre': nombre, 'x': round(px), 'y': round(py), 'sombra': f['sombra']})
         if choca and hw and hh:
-            self.colisiones.append({'x': round(px - hw / 2), 'y': round(py - hh), 'width': round(hw), 'height': round(hh), 'name': nombre})
+            # (2026-10-19) "En el desierto hay una colisión mal puesta": la
+            # huella iba entera POR ENCIMA del apoyo, y el frente de la base
+            # (41 px en la tienda) quedaba libre: se entraba por delante. Ahora
+            # baja también el 75 % de lo que el dibujo baja bajo su apoyo.
+            bajo = round(f.get('bajo', 0) * 0.75)
+            self.colisiones.append({'x': round(px - hw / 2), 'y': round(py - hh), 'width': round(hw), 'height': round(hh + bajo), 'name': nombre})
         self.ocupado.append((px, py, radio if radio is not None else max(hw, hh) * 0.6 + 6))
 
     def poner_arbol(self, nombre, px, py):
@@ -755,7 +760,22 @@ def pintar_hielo(arr, z, semilla):
     # Sin pisar el agua (que pinta gf-agua) ni su espuma: los píxeles azules.
     a = arr[sub][..., :3].astype(np.int16)
     azul = (a[..., 2] > a[..., 0] + 30) & (a[..., 2] > a[..., 1] + 4)
-    m = tile_hielo & ~azul
+    # (2026-10-19) "Las orillas del agua en el mapa de nieve están mal": el
+    # hielo seguía la ESCALERA de las casillas, con la línea parda del borde
+    # de camino del pueblo por fuera. Ahora la silueta del lago se suaviza
+    # (media en una caja de 49 px con la imagen integral): sale redonda y tapa
+    # ese escalón, con una franja de nieve apretada alrededor.
+    def media_caja(mask, k):
+        integ = np.pad(mask.astype(np.float32), ((1, 0), (1, 0))).cumsum(0).cumsum(1)
+        hh, ww = mask.shape
+        ya, yb = np.clip(np.arange(hh) - k, 0, hh), np.clip(np.arange(hh) + k + 1, 0, hh)
+        xa, xb = np.clip(np.arange(ww) - k, 0, ww), np.clip(np.arange(ww) + k + 1, 0, ww)
+        suma = integ[yb][:, xb] - integ[ya][:, xb] - integ[yb][:, xa] + integ[ya][:, xa]
+        return suma / ((yb - ya)[:, None] * (xb - xa)[None, :]).astype(np.float32)
+    lago_suave = media_caja(tile_hielo, 24)
+    dentro = lago_suave > 0.32
+    franja_nieve = (lago_suave > 0.16) & ~dentro
+    m = dentro & ~azul
     d = np.sqrt(((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2)
     # Bandas lisas: tres tonos por la distancia al centro y un ruido grande.
     ruido = (np.sin(xx / 97.0 + 1.3) + np.sin(yy / 61.0 + xx / 211.0)) * 0.06
@@ -766,6 +786,21 @@ def pintar_hielo(arr, z, semilla):
     col = np.where(orilla_nieve[..., None], np.array([232, 242, 250]), col)
     out = arr[sub].copy()
     out[..., :3] = np.where(m[..., None], col, out[..., :3])
+    out[..., :3] = np.where(franja_nieve[..., None], np.array([236, 244, 250]), out[..., :3])
+    # El borde del agua abierta: una raya de hielo mojado pegada al agua y
+    # luego hielo claro, por la distancia al agua (crece de píxel en píxel).
+    dist = np.full(azul.shape, 99, np.int16)
+    dist[azul] = 0
+    borde = azul.copy(); visto = azul.copy()
+    for d in range(1, 15):
+        g = borde.copy()
+        g[1:, :] |= borde[:-1, :]; g[:-1, :] |= borde[1:, :]
+        g[:, 1:] |= borde[:, :-1]; g[:, :-1] |= borde[:, 1:]
+        nuevo = g & ~visto
+        dist[nuevo] = d; visto |= nuevo; borde = nuevo
+    aro = m & (dist < 15)
+    out[..., :3] = np.where((aro & (dist < 4))[..., None], np.array([120, 170, 206]), out[..., :3])
+    out[..., :3] = np.where((aro & (dist >= 4) & (dist < 15))[..., None], np.array([226, 242, 252]), out[..., :3])
     # Grietas: caminos de 1 px que avanzan en zigzag suave.
     r = random.Random(semilla)
     for _ in range(46):
@@ -830,10 +865,14 @@ def generar(nombre, con_suelo, carpeta_tmp):
             elif lado == 'O': cs = [(x0 - 1, y) for y in range(y0, y1 + 1)]
             else: cs = [(x1 + 1, y) for y in range(y0, y1 + 1)]
             return any(0 <= cx < N and 0 <= cy < N and (cx, cy) not in z.agua for cx, cy in cs)
-        mn = 12 if tierra_al('N') else 0
-        ms = 10 if tierra_al('S') else 0
-        mo = 10 if tierra_al('O') else 0
-        me = 10 if tierra_al('E') else 0
+        # (2026-10-19) "Puedo pasar la orilla del agua, es un bug": se dejaba
+        # pisar 10-12 px de la casilla de orilla y los pies quedaban en el
+        # agua. Ahora el choque llega al borde de la casilla (solo por abajo
+        # quedan 4 px: de frente al agua el cuerpo la tapa, es la perspectiva).
+        mn = 0
+        ms = 4 if tierra_al('S') else 0
+        mo = 0
+        me = 0
         z.colisiones.append({'x': x0 * T + mo, 'y': y0 * T + mn, 'width': (x1 - x0 + 1) * T - mo - me,
                              'height': (y1 - y0 + 1) * T - mn - ms, 'name': 'agua'})
     print('  árboles %d, objetos %d, colisiones %d, monstruos %d' % (
