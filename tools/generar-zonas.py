@@ -79,7 +79,7 @@ import gf_arboles_zona  # noqa: E402
 
 T, N = GS.T, GS.N
 W = N * T
-VERSION = '20261019d'   # (2026-10-19) la playa de los oasis del desierto
+VERSION = '20261020a'   # (2026-10-20) la orilla de nieve del estanque de la tundra
 ESCALA_ARBOL = 1.3
 TILESET = GS.TILESET
 # La entrada de cada mapa: el camino que sigue al de la salida del salvaje.
@@ -509,7 +509,13 @@ def disenar_tundra(z, fotos):
     z.agua = elipse_set(*LAGO_ABIERTO, semilla=901, rugoso=0.22) | elipse_set(258, 210, 12, 8, semilla=902)
     z.dist = distancias(z.agua)
     hielo = elipse_set(*LAGO_HELADO, semilla=903, rugoso=0.14)
-    z.tierra |= orilla(z.dist, 904, base=2, extra=3)
+    # (2026-10-20) "Hay un bug en las orillas del agua del mapa de nieve": el
+    # estanque pequeño llevaba la banda de camino del pueblo (parda, con
+    # escalones). Esa banda se guarda y se pinta de NIEVE (pintar_playa con
+    # nieve=True): hielo mojado junto al agua y nieve apretada que se funde.
+    z.playa = orilla(z.dist, 904, base=2, extra=3)
+    z.tierra |= z.playa
+    z.oasis = [(258, 210, 12, 8)]
     z.hielo = (hielo - z.agua)
     z.tierra |= z.hielo                            # en la capa de casillas, suelo firme
     z.tierra |= rect_set(CRUCE_X0, 60, CRUCE_X1, N - 1)
@@ -658,7 +664,7 @@ def ondas_arena(arr, z, semilla):
     print('  ondas de arena:', hechas)
 
 
-def pintar_playa(arr, z):
+def pintar_playa(arr, z, nieve=False):
     """LA PLAYA DE LOS OASIS (2026-10-19). "Las orillas del agua del desierto
     están malas en el tileset." Alrededor del agua el diseño pone una banda de
     camino (`orilla`), que en el desierto se vuelve arena prensada rojiza con
@@ -673,6 +679,12 @@ def pintar_playa(arr, z):
     R0, R1 = 150, 190                     # ancho de la playa, en px
     MOJADA, HUMEDA, CLARA = (np.array([206, 172, 118]), np.array([224, 194, 140]), np.array([238, 214, 162]))
     MAREA = np.array([228, 200, 146])
+    if nieve:
+        # (2026-10-20) La orilla nevada de la tundra: hielo mojado pegado al
+        # agua, hielo claro y nieve apretada; la "marea" es una cresta de hielo.
+        R0, R1 = 96, 124
+        MOJADA, HUMEDA, CLARA = (np.array([150, 188, 216]), np.array([206, 228, 242]), np.array([236, 244, 250]))
+        MAREA = np.array([218, 236, 248])
     for (ocx, ocy, orx, ory) in getattr(z, 'oasis', []):
         x0, x1 = int(max(0, (ocx - orx - 14) * T)), int(min(Wd, (ocx + orx + 14) * T))
         y0, y1 = int(max(0, (ocy - ory - 14) * T)), int(min(H, (ocy + ory + 14) * T))
@@ -683,12 +695,19 @@ def pintar_playa(arr, z):
         # (su terraplén) y la arena lisa. NUNCA la piedra (la plaza de las
         # tiendas) ni los caminos.
         se_pinta = np.zeros(azul_real.shape, bool)
+        banda = np.zeros(azul_real.shape, bool)
         for ty in range(y0 // T, (y1 + T - 1) // T):
             for tx in range(x0 // T, (x1 + T - 1) // T):
                 c = (tx, ty)
                 if c in z.piedra:
                     continue                      # la piedra, nunca (aunque caiga en la banda)
                 if c in z.playa or c in z.agua or c not in z.tierra:
+                    se_pinta[max(0, ty * T - y0):max(0, (ty + 1) * T - y0), max(0, tx * T - x0):max(0, (tx + 1) * T - x0)] = True
+                # En la nieve, también la tierra suelta de alrededor (las
+                # manchas que la orilla dejaba cortadas en recto).
+                cerca_t = nieve and c in z.tierra and c not in z.hielo and z.dist.get(c, 99) <= 11                     if isinstance(getattr(z, 'dist', None), dict) else False
+                if c in z.playa or cerca_t:
+                    banda[max(0, ty * T - y0):max(0, (ty + 1) * T - y0), max(0, tx * T - x0):max(0, (tx + 1) * T - x0)] = True
                     se_pinta[max(0, ty * T - y0):max(0, (ty + 1) * T - y0), max(0, tx * T - x0):max(0, (tx + 1) * T - x0)] = True
         # La orilla REDONDEADA: el agua sale de casillas (escalones), así que
         # la distancia se mide desde su silueta suavizada (media en una caja
@@ -724,20 +743,47 @@ def pintar_playa(arr, z):
         yy, xx = np.mgrid[y0:y1, x0:x1]
         ruido = (np.sin(xx / 83.0 + 0.7) + np.sin(yy / 57.0 + xx / 173.0)) * 0.5
         R = (R0 + R1) / 2.0 + ruido * (R1 - R0) / 2.0
+        if nieve:
+            # Y una casilla más alrededor: el borde dentado que el detallado
+            # dibuja en la nieve junto a la tierra se queda como una raya parda.
+            ib = np.pad(banda.astype(np.float32), ((1, 0), (1, 0))).cumsum(0).cumsum(1)
+            hb, wb = banda.shape
+            ya_, yb_ = np.clip(np.arange(hb) - T, 0, hb), np.clip(np.arange(hb) + T + 1, 0, hb)
+            xa_, xb_ = np.clip(np.arange(wb) - T, 0, wb), np.clip(np.arange(wb) + T + 1, 0, wb)
+            banda = (ib[yb_][:, xb_] - ib[ya_][:, xb_] - ib[yb_][:, xa_] + ib[ya_][:, xa_]) > 0
+            se_pinta |= banda
         playa = (~azul_real) & (dist <= R) & se_pinta
+        if nieve:
+            # (2026-10-20) En la nieve, TODA la banda de camino se cubre (en las
+            # esquinas quedaba más lejos que el ancho de la orilla y asomaba parda).
+            playa |= banda & ~azul_real
         col = np.where((dist < 8)[..., None], MOJADA, np.where((dist < 22)[..., None], HUMEDA, CLARA)).astype(np.float32)
         # Las líneas de la marea: a tres distancias del agua, de 1 px.
         for L in (40, 80):
             linea = (np.abs(dist - L) < 1) & (dist < R - 30)
             col = np.where(linea[..., None], MAREA, col)
         # Y se funde con la arena del desierto en los últimos 30 px.
-        t = np.clip((R - dist) / 30.0, 0.0, 1.0)[..., None]
+        t = np.clip((R - dist) / 30.0, 0.0, 1.0)
+        if nieve:
+            # La banda, nieve entera hasta R; más allá se funde poco a poco
+            # (90 px) con lo que hubiera, sin cortes rectos.
+            # El borde de la banda va en escalera de casillas: se suaviza
+            # (media en 41 px) para que la nieve nueva no dibuje escalones.
+            ib2 = np.pad(banda.astype(np.float32), ((1, 0), (1, 0))).cumsum(0).cumsum(1)
+            hb2, wb2 = banda.shape
+            k2 = 20
+            ya2, yb2 = np.clip(np.arange(hb2) - k2, 0, hb2), np.clip(np.arange(hb2) + k2 + 1, 0, hb2)
+            xa2, xb2 = np.clip(np.arange(wb2) - k2, 0, wb2), np.clip(np.arange(wb2) + k2 + 1, 0, wb2)
+            suave = (ib2[yb2][:, xb2] - ib2[ya2][:, xb2] - ib2[yb2][:, xa2] + ib2[ya2][:, xa2]) /                 ((yb2 - ya2)[:, None] * (xb2 - xa2)[None, :]).astype(np.float32)
+            suave = np.clip((suave - 0.15) / 0.6, 0.0, 1.0)
+            t = np.where(banda & (dist > R - 30), np.clip((R + 90 - dist) / 90.0, 0.0, 1.0) * suave, t)
+        t = t[..., None]
         orig = a.astype(np.float32)
         mezcla_ = col * t + orig * (1 - t)
         out = sub.copy()
         out[..., :3] = np.where(playa[..., None], np.clip(mezcla_, 0, 255).astype(np.uint8), out[..., :3])
         arr[y0:y1, x0:x1] = out
-    print('  playas de los oasis:', len(getattr(z, 'oasis', [])))
+    print('  %s:' % ('orillas de nieve' if nieve else 'playas de los oasis'), len(getattr(z, 'oasis', [])))
 
 
 def pintar_hielo(arr, z, semilla):
@@ -831,6 +877,7 @@ def suelo(z, datos, carpeta_tmp):
         ondas_arena(arr, z, 8101)
         pintar_playa(arr, z)
     if z.nombre == 'tundra':
+        pintar_playa(arr, z, nieve=True)
         pintar_hielo(arr, z, 9101)
     Image.fromarray(arr).save(fin, optimize=True)
     destino = os.path.join(BIN, 'recortadas_' + z.nombre)
@@ -858,7 +905,10 @@ def generar(nombre, con_suelo, carpeta_tmp):
     datos = GS.componer(random.Random(semilla), z.agua, set(), z.tierra, z.piedra, V)
 
     # ── colisiones del agua (se deja pisar la orilla, como en el salvaje) ──
-    for (x0, y0, x1, y1) in GS.rectangulos(z.agua):
+    # (2026-10-20) Sin las casillas que tapa la piedra: la plaza del campamento
+    # del desierto se pinta encima del oasis norte y su agua "escondida"
+    # seguía chocando (no se llegaba a la orilla para pescar).
+    for (x0, y0, x1, y1) in GS.rectangulos(z.agua - set(z.piedra)):
         def tierra_al(lado):
             if lado == 'N': cs = [(x, y0 - 1) for x in range(x0, x1 + 1)]
             elif lado == 'S': cs = [(x, y1 + 1) for x in range(x0, x1 + 1)]

@@ -231,6 +231,66 @@ def ojos_brillantes(claro, oscuro):
     return lambda c: claro if lum(c) > 0.42 else oscuro
 
 
+# ── (2026-10-20) LOS OJOS POR PAPEL ─────────────────────────────────────────
+# "Hay errores en los gráficos del ojo o la cara... que ningún NPC tenga el
+# error de ojos." ojos_brillantes() solo separa claro de oscuro, y el ojo del
+# juego tiene SEIS papeles: el brillo de arriba se volvía blanco, el párpado
+# pardo de abajo se volvía iris... y salían bizcos o entornados.
+# Los 13 personajes comparten la plantilla del ojo, así que el papel de cada
+# píxel se lee del personaje 1 en el MISMO sitio (alineado por las piernas,
+# como etiquetar), y se vota por color en todos los fotogramas.
+P1_PAPEL_OJO = {hex_rgb('#8491a1'): 'brillo', hex_rgb('#213467'): 'pupila', hex_rgb('#704e3d'): 'parpado',
+                hex_rgb('#eceae4'): 'blanco', hex_rgb('#3f62be'): 'iris_claro', hex_rgb('#2e488d'): 'iris'}
+_PAPELES_OJO = {}
+
+
+def papeles_ojo(per):
+    """{color del personaje `per`: papel} de los píxeles de sus ojos."""
+    if per in _PAPELES_OJO:
+        return _PAPELES_OJO[per]
+    votos = {}
+    for d in DIRS:
+        for n in range(1, FOTOS + 1):
+            et1, _, cuello, cintura = esqueleto(d, n)
+            p1 = cargar(os.path.join(SOULBOUND, 'personaje1', d, 'run_%d.png' % n)).load()
+            im = cargar(os.path.join(SOULBOUND, per, d, 'run_%d.png' % n))
+            dx, dy = alinear(et1, im, cintura)
+            px = im.load()
+            w, h = im.size
+            for (x, y), v in et1.items():
+                if v != 'ojo':
+                    continue
+                rol = P1_PAPEL_OJO.get(p1[x, y][:3])
+                xx, yy = x + dx, y + dy
+                if not rol or not (0 <= xx < w and 0 <= yy < h) or px[xx, yy][3] < 128:
+                    continue
+                c = px[xx, yy][:3]
+                votos.setdefault(c, {})
+                votos[c][rol] = votos[c].get(rol, 0) + 1
+    _PAPELES_OJO[per] = {c: max(v, key=v.get) for c, v in votos.items()}
+    return _PAPELES_OJO[per]
+
+
+def colores_ojo(iris, piel=None):
+    """Los seis colores del ojo a partir del iris (y la piel, para el párpado)."""
+    blanco = (244, 240, 232)
+    return {'blanco': blanco, 'iris': iris, 'iris_claro': mezcla(iris, (255, 255, 255), 0.3),
+            'pupila': mezcla(iris, (14, 10, 18), 0.6), 'brillo': mezcla(iris, (255, 255, 255), 0.62),
+            'parpado': mezcla(piel or (176, 120, 96), (52, 30, 26), 0.6)}
+
+
+def ojos_por_papel(per, colores):
+    """Paleta 'ojo' (una función color -> color) con cada papel en su sitio."""
+    papeles = papeles_ojo(per)
+
+    def f(c):
+        rol = papeles.get(c)
+        if rol is None:
+            rol = 'blanco' if lum(c) > 0.7 else ('iris_claro' if lum(c) > 0.42 else 'iris')
+        return colores[rol]
+    return f
+
+
 def pegar_centrado(li, ancho, alto, ox, oy):
     """Lienzo nuevo de ancho x alto con `li` pegado en (ox, oy)."""
     n = Lienzo(ancho, alto)
@@ -664,6 +724,121 @@ def peinado(estilo, g, w, h):
                 inclina = (-lado * 2.5) if vista == 'lado' else k * 0.35
                 pelo.poligono([(bx - 2, by), (bx + 2, by), (bx + inclina, by - 4.5)])
 
+    elif estilo in ('buzz', 'cresta'):
+        # (2026-10-20) MÁS PEINADOS para los Soulbound ("quiero más cabellos").
+        # El RAPADO LIMPIO: pelo al cero pegado al cráneo, sin cicatriz. La
+        # CRESTA: los lados rapados (un tono más oscuro) y una cresta de tres
+        # o cuatro píxeles de alto de la frente a la nuca.
+        if vista == 'frente':
+            lim = M()
+            for x in range(w):
+                lim.columna(x, 0, cy - 2.5 if abs(x - cx) <= rx - 3 else cy + 3)
+            rap = cr.copia().intersecar(lim)
+        elif vista == 'espalda':
+            rap = cr.copia().intersecar(M().rect(0, 0, w - 1, cy + 6.5))
+        else:
+            lim = M()
+            for x in range(w):
+                atras = (x - cx) * lado <= 0
+                lim.columna(x, 0, cy + 6.5 if atras else (cy + 3 if (x - cx) * lado <= 2 else cy - 2.5))
+            rap = cr.copia().intersecar(lim)
+        pelo.unir(rap)
+        if estilo == 'cresta':
+            if vista == 'lado':
+                cresta = M().elipse(cx, cy - 0.6, rx + 1.4, ry + 3.4).intersecar(M().rect(0, 0, w - 1, cy - 3.5))
+                cresta.restar(M().elipse(cx, cy + 0.8, rx - 0.6, ry - 0.2))
+            else:
+                cresta = M().rect(cx - 2, cy - ry - 3.5, cx + 2, cy - (2 if vista == 'frente' else -6)).intersecar(
+                    M().elipse(cx, cy - 1, rx + 1, ry + 3.6))
+            pelo.unir(cresta)
+            extras.append((rap.copia().restar(cresta), 'rapado_tono'))
+
+    elif estilo == 'afro':
+        # Una nube redonda y grande que enmarca la cara hasta la mandíbula,
+        # con la frente redonda. Sin rayas de mechones (parecía un casco).
+        g['sin_mechones'] = True
+        pelo.unir(M().elipse(cx, cy - 0.8, rx + 4.2, ry + 3.6).intersecar(M().rect(0, 0, w - 1, cuello - 3)))
+        if vista == 'frente':
+            fleq = flequillo_de(g, cx - 7, [2, 1, 0, -1, -2, -2, -3, -3, -3, -2, -2, -1, 0, 1, 2], cy - 1)
+        elif vista == 'lado':
+            linea = [-1, -2, -2, -3, -3, -3, -2, -2, -1, 0]
+            fleq = flequillo_de(g, cx - len(linea), linea[::-1], cy - 1) if lado < 0 else flequillo_de(g, cx, linea, cy - 1)
+
+    elif estilo in ('bob', 'ondas'):
+        # BOB: melena corta hasta la barbilla, recta, con flequillo recto.
+        # ONDAS: melena larga ondulada (cada fila se corre un píxel a un lado y
+        # a otro: ondas lisas, sin puntos), con raya al lado.
+        vol = Mascara(w, h).elipse(cx, cy - 0.4, rx + 1.0, ry + 0.8)
+        fin = cuello - 1 if estilo == 'bob' else cuello + 10
+        ancho = 4 if estilo == 'bob' else 4
+
+        def onda(y):
+            return 0 if estilo == 'bob' else int(round(0.9 * math.sin((y - cy) / 2.1)))
+
+        def bajar(x0, x1, y0, y1):
+            m = M()
+            for y in range(int(math.floor(y0)), int(math.ceil(y1)) + 1):
+                o = onda(y)
+                m.fila(y, x0 + o, x1 + o)
+            return m
+        pelo.unir(vol.copia().intersecar(M().rect(0, 0, w - 1, cy + 2)))
+        if vista == 'frente':
+            pelo.unir(bajar(cx - rx - 1, cx - rx - 1 + ancho, cy - 2, fin))
+            pelo.unir(bajar(cx + rx + 1 - ancho, cx + rx + 1, cy - 2, fin))
+            linea = ([1] * 15) if estilo == 'bob' else [2, 2, 1, 1, 0, -1, -2, -2, -1, 0, 1, 2, 3, 3, 3]
+            fleq = flequillo_de(g, cx - 7, linea, cy - 1)
+            if estilo == 'ondas':
+                extras.append((M().linea(cx - 2, cy - ry + 1.5, cx - 1, cy - 3), 'raya_pelo'))
+        elif vista == 'espalda':
+            pelo.unir(bajar(cx - rx - 1, cx + rx + 1, cy, fin))
+        else:
+            atras0, atras1 = cx - lado * (rx + 1), cx - lado * 1
+            pelo.unir(bajar(min(atras0, atras1), max(atras0, atras1), cy - 2, fin))
+            linea = [1, 1, 1, 1, 1, 1, 1, 2, 2, 2] if estilo == 'bob' else [0, 1, 1, 2, 2, 1, 1, 0, 0, 0]
+            fleq = flequillo_de(g, cx - len(linea), linea[::-1], cy - 1) if lado < 0 else flequillo_de(g, cx, linea, cy - 1)
+
+    elif estilo in ('coletas', 'alta'):
+        # COLETAS: dos colas altas a los lados, atadas con su cinta. ALTA: una
+        # cola atada en la coronilla que cae por detrás.
+        vol = Mascara(w, h).elipse(cx, cy - 0.4, rx + 0.9, ry + 0.7)
+        if vista == 'frente':
+            lim = M()
+            for x in range(w):
+                lim.columna(x, 0, cy + 3.5 if abs(x - cx) > rx - 2.5 else cy + 1)
+            pelo.unir(vol.intersecar(lim))
+            fleq = flequillo_de(g, cx - 7, [-1, -2, -2, -3, -3, -3, -3, -3, -3, -3, -3, -2, -2, -1, -1], cy - 1)
+        elif vista == 'espalda':
+            pelo.unir(vol.intersecar(M().rect(0, 0, w - 1, cy + 6.5)))
+        else:
+            lim = M()
+            for x in range(w):
+                atras = (x - cx) * lado <= -1
+                lim.columna(x, 0, cy + 6.5 if atras else (cy + 3 if (x - cx) * lado <= 2 else cy + 1))
+            pelo.unir(vol.intersecar(lim))
+            linea = [-2, -2, -3, -3, -3, -3, -3, -3, -2, -2]
+            fleq = flequillo_de(g, cx - len(linea), linea[::-1], cy - 1) if lado < 0 else flequillo_de(g, cx, linea, cy - 1)
+        if estilo == 'coletas':
+            lados = [-1, 1] if vista != 'lado' else [-lado]
+            for sg in lados:
+                ax = cx + sg * (rx - 0.5)                  # donde se ata
+                pelo.poligono([(ax, cy - 4), (ax + sg * 3.5, cy - 2.5), (ax + sg * 4.5, cy + 2),
+                               (ax + sg * 4, cuello + 3), (ax + sg * 2.5, cuello + 6), (ax + sg * 1.5, cuello + 2),
+                               (ax + sg * 1, cy + 1)])
+                extras.append((M().rect(min(ax, ax + sg * 2), cy - 3.5, max(ax, ax + sg * 2), cy - 2.5), 'cinta'))
+        else:
+            if vista == 'frente':
+                pelo.unir(M().elipse(cx, cy - ry - 1, 2.6, 1.8))
+            elif vista == 'espalda':
+                pelo.poligono([(cx - 2, cy - ry + 1), (cx + 2, cy - ry + 1), (cx + 2.5, cuello + 2),
+                               (cx + 0.5, cuello + 5), (cx - 1.5, cuello + 3)])
+                extras.append((M().rect(cx - 2, cy - ry + 1, cx + 2, cy - ry + 2), 'cinta'))
+            else:
+                tx, ty = cx - lado * (rx - 2.5), cy - ry + 0.5
+                pelo.poligono([(tx, ty - 1), (tx - lado * 3, ty - 1.5), (tx - lado * 5.5, ty + 3),
+                               (tx - lado * 6, cy + 5), (tx - lado * 4.5, cuello + 2), (tx - lado * 3, cy + 4),
+                               (tx - lado * 2.5, ty + 3), (tx + lado * 0.5, ty + 1.5)])
+                extras.append((M().linea(tx - lado * 0.5, ty - 1, tx - lado * 1.5, ty + 1.5, 2), 'cinta'))
+
     # La diadema del guardián: una banda de metal con una piedra en medio.
     if estilo == 'melena':
         banda = pelo.copia().unir(cr).intersecar(M().rect(0, cy - 2.5, w - 1, cy - 1.5))
@@ -727,7 +902,8 @@ def pintar_pelo(li, m, t4, g):
             t = 0.45 + 0.32 * min(1.0, abs(x - cx) / (rx + 3.0)) + 0.12 * min(1.0, (y - cy) / 22.0)
         k = int(max(0, min(n - 1, math.floor(t * n))))
         # Los mechones empiezan en la coronilla (si no, arriba parecía un casco).
-        if y > cy - 6 and x % 3 == 0:
+        # (2026-10-20) El afro no lleva mechones rectos (g['sin_mechones']).
+        if y > cy - 6 and x % 3 == 0 and not g.get('sin_mechones'):
             k = min(n - 1, k + 1)
         li.set(x, y, t4[k])
     for x, y in m.puntos():
@@ -779,6 +955,17 @@ def peinar(li, partes, cuello, dir_, n, receta):
             tope = pz['flequillo'].get(x)
             if tope is None or y > tope:
                 pelo.set(x, y, 0)
+    # (2026-10-20) FRENTE LIBRE (NPC y Soulbound personalizados): el flequillo
+    # pegado a las pestañas dejaba los ojos entornados ("errores en los ojos").
+    # Sobre los ojos el pelo acaba DOS filas por encima de las pestañas: queda
+    # una fila de frente y los ojos se ven enteros. Solo si la receta lo pide.
+    if receta.get('frente_libre') and g['vista'] != 'espalda':
+        ojos = [(x, y) for (x, y), (p, c) in partes.items() if p == 'ojo' and y < cuello]
+        if ojos:
+            lim = min(y for x, y in ojos) - 3
+            for x in range(min(x for x, y in ojos) - 2, max(x for x, y in ojos) + 3):
+                for y in range(lim + 1, cuello - 1):
+                    pelo.set(x, y, 0)
     if sombrero:
         ala, copa, banda, gema = sombrero_bruja(g, w, h)
         # Por encima del ala no asoma pelo: lo tapa la copa.
@@ -813,6 +1000,10 @@ def peinar(li, partes, cuello, dir_, n, receta):
             elif que == 'raya_pelo':
                 if tipo.get((x, y)) == 'pelo':
                     li.set(x, y, t_pelo[-1])
+            elif que == 'rapado_tono':
+                # (2026-10-20) Los lados rapados de la cresta: un tono más oscuro.
+                if tipo.get((x, y)) == 'pelo':
+                    li.set(x, y, t_pelo[min(len(t_pelo) - 1, 2)])
             elif que == 'diadema':
                 li.set(x, y, hex_rgb('#c9b37a') if y < g['cy'] - 2 else hex_rgb('#8a7448'))
             elif que == 'gema':

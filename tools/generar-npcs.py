@@ -41,6 +41,7 @@ from PIL import Image
 AQUI = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, AQUI)
 import gf_humanoides2d as H2  # noqa: E402
+import gf_cabezas as CB  # noqa: E402
 from gf_arte import Mascara, Lienzo, hex_rgb, mezcla  # noqa: E402
 from gf_relieve import relieve_lienzo  # noqa: E402
 
@@ -54,67 +55,93 @@ PAD_X, PAD_Y = 14, 16             # más sitio para la pala y la espada
 # ===========================================================================
 # LAS RECETAS: colores por parte (como los zombis) y los añadidos
 # ===========================================================================
-def receta(piel, pelo, camisa, pantalon, pies='#3b2c22', ojo='#3a2a20', contorno=(22, 18, 16), peinado=None,
-           **extra):
+def receta(piel, pelo, camisa, pantalon, pies='#3b2c22', ojo='#3a2a20', contorno=(22, 18, 16),
+           cabeza=None, gorro=None, **extra):
+    """(2026-10-21) Sin peinados dibujados ni barbas: el NPC es un CUERPO del
+    arte original con una de sus 8 CABEZAS (tools/gf_cabezas.py), y cada parte
+    con su color. `cabeza`: el personaje del que sale la cabeza (por defecto,
+    la del propio cuerpo). `gorro`: el color de su sombrero/gorro/capucha (si
+    no, el del original)."""
     r = {
         'contorno': contorno,
         'paletas': {
-            'piel': tonos(piel, 3, arriba=0.16, abajo=0.34), 'mano': tonos(piel, 3, arriba=0.16, abajo=0.34),
+            # (2026-10-20) La piel con poco contraste: con 0.34 la nariz y la
+            # mandíbula salían como manchas pardas en la cara.
+            'piel': tonos(piel, 3, arriba=0.12, abajo=0.2), 'mano': tonos(piel, 3, arriba=0.12, abajo=0.2),
             'pies': tonos(pies, 3, arriba=0.18, abajo=0.5),
-            'ojo': H2.ojos_brillantes(hex_rgb('#f4f0e6'), hex_rgb(ojo)),
             'pelo': tonos(pelo, 4, arriba=0.24, abajo=0.5),
             'camisa': tonos(camisa, 4, arriba=0.2, abajo=0.5),
             'pantalon': tonos(pantalon, 4, arriba=0.14, abajo=0.55),
         },
+        'cabeza': cabeza, 'gorro': tonos(gorro, 4, arriba=0.2, abajo=0.5) if gorro else None,
     }
-    # (2026-10-19) "Los NPC deben tener diferentes cabellos y ojos": cada uno
-    # su peinado (gf_humanoides2d.peinado, a la medida de la cabeza del juego)
-    # y su color de ojos. Los del turbante no: el turbante ES su pelo.
-    if peinado:
-        r['pelo_estilo'] = peinado
-        r['pelo_tonos'] = tonos(pelo, 4, arriba=0.3, abajo=0.5)
+    r['_ojo'], r['_piel'] = ojo, piel
     r.update(extra)
     return r
 
 
 PIEL_CLARA, PIEL_MEDIA, PIEL_MORENA = '#e8c3a0', '#d2a07a', '#a8714e'
 
-# nombre: (personaje base, receta, acción)
+# nombre: (CUERPO del original, receta, acción). Cuerpos de hombre: 1 3 5 7 8
+# 10 12; de mujer: 2 4 6 9 11 13. Cabezas (gf_cabezas.CABEZAS): 1 de punta,
+# 2 rizada, 8 sombrero de paja, 9 sombrero de ala, 10 y 11 gorros, 12 pañuelo,
+# 13 capucha.
 NPCS = {
     # ── los mapas ──
     'sepulturero': ('personaje8', receta(PIEL_CLARA, '#2e2a2c', '#3c3633', '#2b2724', pies='#241c18',
-                                         barba='#6d6660', ojo='#56606c', peinado='corto'), 'cavar'),
+                                         ojo='#56606c', cabeza='personaje10', gorro='#4a4652'), 'cavar'),
     'guardia_desierto': ('personaje10', receta(PIEL_MORENA, '#efe6d0', '#d8c49a', '#8a6a44', pies='#5a3e28',
-                                              turbante=True, faja='#a8343a', barba='#2b2018', ojo='#8a5a1e'), 'tajo'),
+                                              turbante=True, faja='#a8343a', ojo='#8a5a1e'), 'tajo'),
     'centinela_desierto': ('personaje11', receta(PIEL_MEDIA, '#f2ead8', '#c7b18a', '#6f5235', pies='#4a3322',
                                                  turbante=True, faja='#2f6f8f', ojo='#3e7a4c'), 'tajo'),
     'trampero': ('personaje10', receta(PIEL_CLARA, '#cfc6b8', '#8a6440', '#5a4632', pies='#3a2a1e',
-                                       barba='#b9a58a', cuello_piel='#e9e2d6', ojo='#3d6fa8', peinado='cola',
-                                       cinta='#6a4a2a'), None),
+                                       cuello_piel='#e9e2d6', ojo='#3d6fa8', gorro='#7a5a3a'), None),
     'pescadora_hielo': ('personaje11', receta(PIEL_CLARA, '#eadfb4', '#e6edf3', '#5a6f86', pies='#40506a',
-                                              cuello_piel='#ffffff', ojo='#4f93c4', peinado='trenzas',
-                                              cinta='#3f6fa0'), None),
+                                              cuello_piel='#ffffff', ojo='#4f93c4', gorro='#5f8fbf'), None),
     'guardabosques': ('personaje11', receta(PIEL_MEDIA, '#5a3a22', '#4d6b3a', '#5a4632', pies='#3a2a1e',
-                                            ojo='#3e7a4c', peinado='flequillo'), None),
-    'cazador': ('personaje8', receta(PIEL_MEDIA, '#5a3e28', '#556b3a', '#4a3a2a', pies='#3a2a1e',
-                                     barba='#8a8078', ojo='#7a5a2a', peinado='pincho'), None),
+                                            ojo='#3e7a4c', cabeza='personaje9', gorro='#6b7a3a'), None),
+    'cazador': ('personaje8', receta(PIEL_MEDIA, '#8a8078', '#556b3a', '#4a3a2a', pies='#3a2a1e',
+                                     ojo='#7a5a2a', gorro='#6a4a2c'), None),
     # ── las casas del pueblo ──
-    'panadera': ('personaje10', receta(PIEL_CLARA, '#d9a441', '#c98a6a', '#6a4a3a', delantal='#f2eee6',
-                                       ojo='#3d6fa8', peinado='mono'), None),
+    'panadera': ('personaje6', receta(PIEL_CLARA, '#d9a441', '#c98a6a', '#6a4a3a', delantal='#f2eee6',
+                                      ojo='#3d6fa8', cabeza='personaje2'), None),
     'tallista': ('personaje3', receta(PIEL_CLARA, '#a85a2a', '#7a5a3a', '#4a3a2a', delantal='#a07a50',
-                                      ojo='#4a7a3a', peinado='corto'), None),
-    'tejedora': ('personaje2', receta(PIEL_CLARA, '#6a4a3a', '#8a4a7a', '#4a3a5a', ojo='#6a5a8a',
-                                      peinado='trenzas', cinta='#8a4a7a'), None),
+                                      ojo='#4a7a3a', cabeza='personaje1'), None),
+    'tejedora': ('personaje2', receta(PIEL_CLARA, '#6a4a3a', '#8a4a7a', '#4a3a5a', ojo='#6a5a8a'), None),
     'posadero': ('personaje3', receta(PIEL_MEDIA, '#7a4a2a', '#e6dccb', '#4a3a2a', delantal='#f2eee6',
-                                      barba='#7a4a2a', ojo='#5a3a1e', peinado='flequillo'), None),
+                                      ojo='#5a3a1e', cabeza='personaje12', gorro='#e8e2d4'), None),
     'tabernero': ('personaje1', receta(PIEL_MEDIA, '#3a2a22', '#7a2f2a', '#3a3030', delantal='#d9cdb8',
-                                       barba='#3a2a22', ojo='#2f5a3a', peinado='cola', cinta='#2a2220'), None),
+                                       ojo='#2f5a3a'), None),
     'herbolaria': ('personaje6', receta(PIEL_CLARA, '#8a3f22', '#4f7a4a', '#5a4a3a', delantal='#cfe0b8',
-                                        ojo='#4f8a3a', peinado='cola', cinta='#4f7a4a'), None),
-    'herrero': ('personaje4', receta(PIEL_MORENA, '#2a2220', '#6a3a2a', '#3a3030', delantal='#4a3a30',
-                                    barba='#2a2220', ojo='#8a5a1e', peinado='pincho'), None),
-    'granjero': ('personaje9', receta(PIEL_MEDIA, '#e3c46a', '#5a7aa8', '#4a3a2a', barba='#c8c0b0',
-                                      ojo='#3d6fa8', peinado='corto'), None),
+                                        ojo='#4f8a3a', cabeza='personaje11', gorro='#7a9a4a'), None),
+    'herrero': ('personaje3', receta(PIEL_MORENA, '#2a2220', '#6a3a2a', '#3a3030', delantal='#4a3a30',
+                                     ojo='#8a5a1e', cabeza='personaje12', gorro='#4a4048'), None),
+    'granjero': ('personaje8', receta(PIEL_MEDIA, '#c8c0b0', '#5a7aa8', '#4a3a2a', ojo='#3d6fa8',
+                                      gorro='#b89a52'), None),
+    # ── los del pueblo y la tienda: cada uno conserva lo que lo reconoce: el
+    #    sombrero de paja de Joe, la capucha de Colin, el yelmo de Rurik, la
+    #    capucha y el bastón de llama verde de Digby. ──
+    'joe': ('personaje8', receta(PIEL_MEDIA, '#d9b25a', '#b8423a', '#3c5a8a', pies='#4a3424',
+                                 ojo='#4f7a3a', delantal='#3c5a8a'), None),
+    'jack': ('personaje3', receta(PIEL_CLARA, '#c0662a', '#5f6670', '#3a3a40', pies='#3a2a1e',
+                                  delantal='#7a5432', ojo='#8a5a1e', cabeza='personaje1'), None),
+    'colin': ('personaje10', receta(PIEL_CLARA, '#4a3020', '#3a5aa8', '#2a3a6a', pies='#2a2a3a',
+                                    faja='#d9a441', ojo='#3e8a7a', gorro='#2e4a8a'), None),
+    'rurik': ('personaje12', receta(PIEL_MEDIA, '#7a4a2a', '#9aa6b4', '#5a6474', pies='#3a4048',
+                                    faja='#a8343a', ojo='#5a7a9a', gorro='#b8c0cc'), None),
+    'digby': ('personaje13', receta('#c9b8a8', '#2a2030', '#3a2a48', '#2a2034', pies='#1e1824', ojo='#7dff9a',
+                                    gorro='#2a2030',
+                                    tunica=tonos('#3a2a48', 3, arriba=0.25, abajo=0.45), ribete=hex_rgb('#7dcf6a'),
+                                    baculo=True, baculo_arriba=22,
+                                    madera=[hex_rgb('#7a4f2c'), hex_rgb('#5c3a1f')],
+                                    cristal=[hex_rgb('#e6ffd0'), hex_rgb('#7dff6a'), hex_rgb('#2f9a3a')]), None),
+    'johnny': ('personaje1', receta(PIEL_MEDIA, '#9a9590', '#a87a4a', '#4a3a2a', pies='#3a2a1e',
+                                    delantal='#e6dcc8', ojo='#6a5a2a'), None),
+    # (2026-10-20) "En tiendajuego los dos NPC son iguales": Franklin Vesh, el
+    # otro de la tienda, con su propio aspecto (moreno, pañuelo dorado,
+    # camisa verde azulada y faja dorada).
+    'franklin': ('personaje3', receta(PIEL_MORENA, '#231c1a', '#2f6f8f', '#3a3030', pies='#2a1e16',
+                                      faja='#d9a441', ojo='#5a3a1e', cabeza='personaje12', gorro='#d9a441'), None),
 }
 
 
@@ -292,11 +319,64 @@ def encima_la_mano(li, base, partes, mx, my):
             li.set(x + MX + PAD_X, y + MY + PAD_Y, base.get(x + MX + PAD_X, y + MY + PAD_Y))
 
 
+def colorear(li, partes, per, r):
+    """(2026-10-21) Los CÓDIGOS de gf_cabezas.componer a los colores del NPC
+    (lo mismo que hace gf-soulbound-custom.js con los del jugador). El
+    sombrero, con `gorro` si lo lleva la receta; si no, el del original."""
+    pal = {CB.PIEL: r['paletas']['piel'], CB.MANO: r['paletas']['mano'], CB.BARBA: r['paletas']['piel'],
+           CB.PIES: r['paletas']['pies'], CB.PELO: r['paletas']['pelo'], CB.CAMISA: r['paletas']['camisa'],
+           CB.PANTALON: r['paletas']['pantalon'], CB.CINTA: [hex_rgb(r.get('cinta') or '#b8403a')],
+           CB.CONTORNO: [r['contorno']]}
+    ojos = H2.colores_ojo(hex_rgb(r['_ojo']), r['paletas']['piel'][1])
+    for rol, k in CB.OJO.items():
+        pal[k] = [ojos[rol]]
+    cabeza = r.get('cabeza') or per
+    t_gorro = dict(CB.info(per)['t_gorro'])
+    t_gorro.update(CB.info(cabeza)['t_gorro'])
+    out = Lienzo(li.w, li.h)
+    for (x, y), (q, c) in partes.items():
+        px = li.get(x, y)
+        if not px[3]:
+            continue
+        col = px[:3]
+        if 200 <= px[2] <= 202 and px[0] in pal:
+            t = pal[px[0]]
+            col = t[min(len(t) - 1, int(round(px[1] / 40.0)))]
+        elif q == 'gorro' and r.get('gorro'):
+            col = r['gorro'][min(3, t_gorro.get(c, 1))]
+        out.set(x, y, col)
+    return out
+
+
 def figura(per, r, dir_, n):
-    li = H2.humanoide(per, dir_, n, r)
-    _, partes, cuello, cintura = H2.etiquetar(per, dir_, n)
-    desp = {(x + MX, y + MY): v for (x, y), v in partes.items()}
-    li = anadidos(li, desp, cuello + MY, cintura + MY, dir_, r)
+    """(2026-10-21) El cuerpo `per` con su cabeza (o la de r['cabeza']), del
+    ARTE ORIGINAL, sin redibujar nada; y encima lo de su oficio."""
+    li, partes, cuello, cintura = CB.componer(per, r.get('cabeza') or per, dir_, n)
+    li = colorear(li, partes, per, r)
+    if r.get('tunica'):
+        li = H2.tunica(li, partes, cintura, r['tunica'], r['ribete'], r['contorno'])
+    # Para lo de encima, los nombres de siempre: el turbante envuelve también
+    # el gorro y los adornos de la cabeza.
+    desp = {k: (('pelo' if q in ('gorro', 'adorno') else q), c) for k, (q, c) in partes.items()}
+    li = anadidos(li, desp, cuello, cintura, dir_, r)
+    if r.get('baculo'):
+        mano = H2.mano_delantera(partes, dir_)
+        if mano:
+            mx, my = mano[0] + (1 if dir_ in ('derecha', 'abajo') else -1), mano[1]
+            capa = Lienzo(li.w, li.h)
+            H2.baculo(capa, mx, my, r['baculo_arriba'], 10, r['madera'], r['cristal'], r['contorno'])
+            if dir_ in ('derecha', 'izquierda', 'abajo'):
+                # Delante del cuerpo, pero la mano que lo agarra va encima.
+                base = Lienzo(li.w, li.h)
+                base.pegar(li)
+                li.pegar(capa)
+                for (x, y), (q, c) in partes.items():
+                    if q == 'mano' and abs(x - mx) <= 1 and abs(y - my) <= 1:
+                        li.set(x, y, base.get(x, y))
+            else:
+                # De espaldas: el báculo asoma por detrás del cuerpo.
+                capa.pegar(li)
+                li = capa
     return li
 
 
@@ -345,6 +425,8 @@ def accion_tajo(per, r, i):
 
 def frames_npc(nombre):
     per, r, accion = NPCS[nombre]
+    # (2026-10-21) Los ojos por papel van en los códigos (gf_cabezas) y se
+    # colorean en colorear(): ya no hace falta montar una paleta aquí.
     out = {}
     for d in H2.DIRS:
         for n in range(1, H2.FOTOS + 1):

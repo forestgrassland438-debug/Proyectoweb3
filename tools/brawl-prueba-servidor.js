@@ -52,7 +52,11 @@ const PIEZAS = [
   sacar('const BRAWL_EXP_MASCOTA = {', '\n};'),
   sacar('function expMascotaDeArena(match, fila) {', '\n}'),
   sacar('async function sembrarExpMascota(playerName) {', '\n}'),
-  sacar('function progresoMascota(petExp) {', '\n}')
+  sacar('function progresoMascota(petExp) {', '\n}'),
+  // (2026-10-20) Sin nombre de personaje no se entra en la arena: los
+  // ayudantes de verdad (gfSocketConNombre y compañía). Con el PlayerAuth de
+  // mentira (devuelve null) todos cuentan como "con nombre".
+  sacar('const GF_SIN_NOMBRE = {', 'async function jugadorDeLaSesion(req) {').replace('async function jugadorDeLaSesion(req) {', '')
 ].join('\n\n');
 
 // ── reloj de mentira ────────────────────────────────────────────────────────

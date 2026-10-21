@@ -11,7 +11,12 @@ const backendPath = process.env.GF_BACKEND_SOURCE || path.join(require('node:os'
 const source = fs.readFileSync(backendPath, 'utf8');
 const bundle = source.slice(source.indexOf(generator.BEGIN), source.indexOf(generator.END) + generator.END.length);
 const mountStart = source.indexOf('// --- AUDITORIA LITVM: ledger aditivo');
-const mount = source.slice(mountStart, source.indexOf('// --- MANEJO DE ERRORES ---', mountStart));
+// Other self-contained modules now follow analytics. Do not execute their
+// bootstrap using the deliberately minimal analytics-only fixture.
+const mountEnd = Math.min(...['// <COLLECTIONS_BACKEND_BUNDLE>', '// --- MANEJO DE ERRORES ---']
+  .map(marker => source.indexOf(marker, mountStart)).filter(index => index >= 0));
+assert.ok(mountStart >= 0 && Number.isFinite(mountEnd) && mountEnd > mountStart);
+const mount = source.slice(mountStart, mountEnd);
 
 test('deployed server loads both analytics factories with sidecar and npm access denied', () => {
   const imports = [];
