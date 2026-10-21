@@ -2857,6 +2857,25 @@ class TiendaSistema {
         else { this.updatePcModalTotalPrice?.(); this.updatePcModalActionButton?.(); }
     }
 
+    /**
+     * (2026-10-21) ¿El servidor ya tiene lo del 21-10 (bote, arco, bastón)?
+     * Se pregunta a /api/botes, que solo existe en él: 404 = el de antes. Ante
+     * cualquier otra cosa (sin red, 401, 500) no se bloquea: decide la compra.
+     * El "no" se recuerda un minuto; el "sí", para siempre.
+     */
+    async _servidorAlDia() {
+        if (this._servidorNuevo === true) return true;
+        if (this._servidorNuevoEn && Date.now() - this._servidorNuevoEn < 60000) return this._servidorNuevo !== false;
+        try {
+            const r = await fetch(`${this._resolveApiBase()}/api/botes?zona=game`, { credentials: 'include' });
+            this._servidorNuevo = r.status === 404 ? false : true;
+        } catch (_) {
+            this._servidorNuevo = null;
+        }
+        this._servidorNuevoEn = Date.now();
+        return this._servidorNuevo !== false;
+    }
+
     async processPurchase(item, quantity) {
         quantity = Number(quantity);
         if (!item || !Number.isSafeInteger(quantity) || quantity <= 0 ||
@@ -2875,6 +2894,12 @@ class TiendaSistema {
         }
         if (this._construccionBloqueada(item)) {
             throw new Error('Construction is not available yet. Try again later.');
+        }
+        // (2026-10-21) El bote, el arco y el bastón: sus tablas las crea el
+        // servidor NUEVO. Con el de antes la compra acababa en "createInvoice
+        // falló para 1"; ahora se dice antes de cobrar nada.
+        if (['bote', 'arco', 'baston_mago'].includes(item.id) && !(await this._servidorAlDia())) {
+            throw new Error('This item arrives with the next game server update. Try again later.');
         }
         // (2026-10-21) La moneda con la que se PAGA (la del objeto, o bronce) y
         // su precio unitario. El reembolso usa los mismos (transactionInfo).

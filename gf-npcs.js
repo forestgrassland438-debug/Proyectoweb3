@@ -178,6 +178,12 @@
               descansoEn: scene.time.now + 5000 + Math.random() * 4000, descansando: false, bocadillo: null };
     spr.setInteractive({ useHandCursor: true });
     spr.on('pointerdown', function (ptr, lx, ly, ev) {
+      /* (2026-10-21) "Le doy a la X del panel VIP y lo que hace es
+         actualizarse." Phaser también procesa los clics hechos FUERA del
+         lienzo (onMouseDownWindow) y se los da al objeto que haya debajo: la X
+         cae encima de Rosalind, así que cerrar el panel lo volvía a abrir.
+         Solo cuenta el clic que empieza en el propio juego. */
+      if (ptr && ptr.downElement && scene.sys && scene.sys.canvas && ptr.downElement !== scene.sys.canvas) return;
       if (ev && ev.stopPropagation) ev.stopPropagation();
       hablar(st, n);
       // (2026-10-20) Los que venden algo abren su tienda.

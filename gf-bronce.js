@@ -105,6 +105,13 @@
     if (m) m.textContent = valor.toLocaleString('en-US');
   }
 
+  var AVISO_SERVIDOR = 'Bronze arrives with the next game server update.';
+  function sinBronceEnServidor() {
+    enganchar();
+    var el = document.getElementById('info-text-bronce');
+    if (el && valor === null) { el.textContent = '0'; el.title = AVISO_SERVIDOR; }
+  }
+
   /** Lo que diga el servidor de las otras dos monedas (al cambiar). */
   function adoptarStats(st, dueno) {
     asegurarCuenta();
@@ -137,6 +144,10 @@
     var trabajo = api('/api/stats/' + encodeURIComponent(sc.playerName)).then(function (r) {
       var d = r && r.datos;
       if (!vigente(id) || version !== revision || !r.ok || !d || !d.stats) return false;
+      /* (2026-10-21) "El dinero me sale en ---": un servidor sin bronce (aún
+         sin actualizar) no lo trae en los stats y el HUD se quedaba en "…"
+         para siempre. Sin bronce en el servidor, el saldo es 0 y se dice por qué. */
+      if (typeof d.stats.bronce !== 'number') { sinBronceEnServidor(); return false; }
       adoptarStats({ bronce: d.stats.bronce }, id);
       return true;
     }).catch(function () { return false; }).finally(function () { if (pidiendo === trabajo) pidiendo = null; });
@@ -205,7 +216,18 @@
       b.style.opacity = g.available ? '1' : '.55';
       b.textContent = g.available ? 'Get ' + g.amount + ' Bronze' : 'Bronze in ' + restante(g.msLeft);
     };
-    api('/api/currency/weekly').then(function (r) { pintarBoton(r && r.datos && r.datos.gifts && r.datos.gifts.bronze); }).catch(function () { pintarBoton(null); });
+    api('/api/currency/weekly').then(function (r) {
+      var regalos = r && r.ok && r.datos && r.datos.gifts;
+      // (2026-10-21) El servidor contesta pero sin el regalo de bronce: aún no
+      // está actualizado. Antes el botón se quedaba apagado sin decir nada.
+      if (regalos && !regalos.bronze) {
+        if (!actual()) return;
+        b.disabled = true; b.style.opacity = '.55'; b.textContent = 'Bronze: soon';
+        b.title = AVISO_SERVIDOR;
+        return;
+      }
+      pintarBoton(regalos && regalos.bronze);
+    }).catch(function () { pintarBoton(null); });
     b.onclick = function () {
       if (reclamando || b.disabled || !actual()) return;
       reclamando = true;
