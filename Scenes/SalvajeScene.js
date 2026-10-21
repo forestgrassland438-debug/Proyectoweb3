@@ -278,6 +278,10 @@ class SalvajeScene extends GameScene {
         window.GFCiclo.montarEscena(this, { jugador: this.player });
       }
     } catch (e) { console.warn('🌲 ciclo día/noche:', e); }
+    // (2026-10-21) "Los efectos de la noche no están en el mapa salvaje": el
+    // revelado de la cámara del pueblo (gf-postproceso.js: la viñeta azul, el
+    // color y el grano de la noche, y el look de la lluvia y el sol).
+    try { if (window.GFPost) window.GFPost.montar(this); } catch (e) { console.warn('🌲 post-procesado:', e); }
     // Los monstruos, la espada contra jugadores en la zona PvP, los objetos
     // en el suelo y los carteles (gf-salvaje.js).
     try { if (window.GFSalvaje) window.GFSalvaje.montar(this); } catch (e) { console.warn('🌲 salvaje:', e); }

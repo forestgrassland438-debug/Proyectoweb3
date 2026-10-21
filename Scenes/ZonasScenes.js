@@ -38,7 +38,7 @@
 
 /* global GameScene, Phaser */
 
-const ZONAS_V = '20261019b';   // (2026-10-19) más esqueletos y la cripta con su tejado bien
+const ZONAS_V = '20261020b';   // (2026-10-20) el agua bajo la plaza del campamento del desierto ya no choca
 
 // eslint-disable-next-line no-unused-vars
 class ZonaScene extends GameScene {
@@ -267,6 +267,11 @@ class ZonaScene extends GameScene {
         window.GFCiclo.montarEscena(this, { jugador: this.player });
       }
     } catch (e) { console.warn('🧭 ciclo día/noche:', e); }
+    // (2026-10-21) "Los efectos de la noche no están en el cementerio, la
+    // nieve ni el desierto": el revelado de la cámara del pueblo
+    // (gf-postproceso.js). El desierto y la tundra, sin el tiempo del pueblo
+    // (llevan el suyo): solo la noche.
+    try { if (window.GFPost) window.GFPost.montar(this, { sinClima: !c.clima }); } catch (e) { console.warn('🧭 post-procesado:', e); }
     // Monstruos, espada entre jugadores, lo que se suelta y los carteles.
     try { if (window.GFSalvaje) window.GFSalvaje.montar(this); } catch (e) { console.warn('🧭 monstruos:', e); }
     try { if (window.GFAntorchas) window.GFAntorchas.montar(this); } catch (e) { console.warn('🧭 antorchas:', e); }

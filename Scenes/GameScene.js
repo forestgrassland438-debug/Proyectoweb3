@@ -4809,6 +4809,9 @@ this.createImagesFromObjectLayer(this, this.map, 'Lamparas', imageMappingpostes,
 
     // NPC sprites created with Y-based depth so player Y-sorting works correctly
     this.createImagesFromObjectLayer(this, this.map, 'NPC', imageMapppc, 0);
+    // (2026-10-20) Los NPC con su aspecto nuevo encima (gf-npcs-pueblo.js): el
+    // original sigue debajo con todos sus clics, el tutorial y su nombre.
+    try { if (window.GFNpcsPueblo) window.GFNpcsPueblo.montar(this); } catch (e) { console.warn('NPC del pueblo:', e); }
 
 
 
@@ -5932,6 +5935,8 @@ window.hub.onRetry = (hiddenData) => {
       e.stopPropagation();
       // (2026-10-19) Sin nombre, el Market tampoco (gf-sin-nombre.js).
       if (window.GFSinNombre && !window.GFSinNombre.exigir(this, 'market')) return;
+      // (2026-10-20) El mercado P2P pide VIP (la tienda del juego, no).
+      if (window.GFVip && !window.GFVip.exigir(this, 'market')) return;
       const marketUrl = new URL('market.html', window.location.href).href;
       window.open(marketUrl, '_blank');
     });
@@ -14302,6 +14307,7 @@ _getFruitDisplayNameEN(itemId) {
     cofre3: 'Magic Chest', cofre4: 'Legendary Chest',
     espada_madera: 'Wooden Sword', espada_cobre: 'Copper Sword', espada_hierro: 'Iron Sword',
     cana_pescar: 'Fishing Rod', espantapajaros: 'Scarecrow', antorcha: 'Torch',
+    bote: 'Boat', arco: 'Bow', baston_mago: 'Wizard Staff',
     pes1: 'Brown Trout', pes2: 'Common Carp', pes3: 'Golden Trout',
     pes4: 'River Perch', pes5: 'Bream', pes6: 'Sturgeon', pes7: 'Poison Eel', pes8: 'Lionfish',
     pes9: 'Silver Pike', pes10: 'Zander', pes11: 'Ice Trout', pes12: 'Rainbow Fish', pes13: 'King Salmon', pes14: 'Pufferfish',
@@ -30869,6 +30875,7 @@ getPlayerIntentDirection() {
         this._bindDomClick(document.getElementById('store-btn'), 'store', (e) => {
           e.stopPropagation();
           if (window.GFSinNombre && !window.GFSinNombre.exigir(this, 'market')) return;
+          if (window.GFVip && !window.GFVip.exigir(this, 'market')) return;
           window.open(new URL('market.html', window.location.href).href, '_blank');
         });
 
@@ -31749,6 +31756,13 @@ if (window.globalPetData) {
           cana_pescar:    { src: "./Game/Objetos/pesca/cana_pescar.png",       maxStack: 1,  tipo: "caña_pescar",    usos: null },
           espantapajaros: { src: "./Game/Objetos/granja/espantapajaros.png",   maxStack: 10, tipo: "espantapajaros", usos: null },
           antorcha:       { src: "./Game/Objetos/antorcha/antorcha.png",       maxStack: 20, tipo: "antorcha",       usos: null },
+          // (2026-10-21) El bote (gf-botes.js: se pone en el agua, se rema, se
+          // pesca desde él y se recoge con la pala) y las armas a distancia
+          // (gf-espada.js). Tablas `bote`, `arco` y `baston_mago`, que se dan de
+          // alta solas en el servidor.
+          bote:           { src: "./Game/Objetos/bote/bote.png",               maxStack: 1,  tipo: "bote",           usos: null },
+          arco:           { src: "./Game/Objetos/armas/arco.png",              maxStack: 1,  tipo: "arco",           usos: null, arma: { dano: 14, alcance: 300 } },
+          baston_mago:    { src: "./Game/Objetos/armas/baston_mago.png",       maxStack: 1,  tipo: "baston_mago",    usos: null, arma: { dano: 18, alcance: 260 } },
           pes1:           { src: "./Game/Objetos/pesca/pes1.png",              maxStack: 20, tipo: "pes1",           usos: null },
           pes2:           { src: "./Game/Objetos/pesca/pes2.png",              maxStack: 20, tipo: "pes2",           usos: null },
           pes3:           { src: "./Game/Objetos/pesca/pes3.png",              maxStack: 20, tipo: "pes3",           usos: null },

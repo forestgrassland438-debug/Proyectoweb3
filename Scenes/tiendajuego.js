@@ -1059,6 +1059,8 @@ this.player.on('pointerdown', (pointer) => {
         .setInteractive()
         .setDepth(0)
         .setDisplaySize(38, 90);
+    // (2026-10-20) El tendero con su aspecto nuevo encima (gf-npcs-pueblo.js).
+    try { if (window.GFNpcsPueblo) window.GFNpcsPueblo.montar(this); } catch (e) { console.warn('tendero:', e); }
     // Crear el panel, pero oculto al inicio
 
 
@@ -1428,28 +1430,19 @@ this.player.on('pointerdown', (pointer) => {
       //this.usuariox.setScrollFactor(0);      // Fijar a la cámara
       this.usuariox.setDepth(1);
 
-      // creando nombre para npc 
+      // creando nombre para npc
 
+      /* (2026-10-21) "Sus nombres no son como en GameScene: a su estilo, sin
+         fondo morado". El mismo estilo que los NPC del pueblo (GameScene) y de
+         los mapas nuevos (gf-npcs.js): dorado con su borde oscuro, sin caja.
+         Antes: 14 px blanco con sombra y fondo morado (#130781a2). */
       const textStyle = {
-        fontFamily: '"PressStart2P"',
-        fontSize: '14px', // Ligeramente más grande para mejor legibilidad
-        color: '#ffffff',
-        resolution: 2, // Reducido para mejor rendimiento
-        stroke: "#000000ff",
-        strokeThickness: 4, // Borde más definido
-        shadow: {
-            offsetX: 2,
-            offsetY: 2,
-            color: '#000000ff',
-            blur: 2,
-            stroke: true,
-            fill: true
-        },
-        padding: {
-            x: 8,
-            y: 4
-        },
-        backgroundColor: '#130781a2', // Fondo semitransparente
+        fontFamily: '"PressStart2P", monospace',
+        fontSize: '7px',
+        color: '#ffe08a',
+        resolution: 4,
+        stroke: '#1a1208',
+        strokeThickness: 3,
         align: 'center'
     };
 
@@ -2296,6 +2289,7 @@ this.anims.create({
     // https://game.grasslandforest.com/market.html y en local el mismo host.
     this.onRoundBtnStore = () => {
       if (window.GFSinNombre && !window.GFSinNombre.exigir(this, 'market')) return;
+      if (window.GFVip && !window.GFVip.exigir(this, 'market')) return;
       const marketUrl = new URL('market.html', window.location.href).href;
       window.open(marketUrl, '_blank');
     };
@@ -2443,6 +2437,13 @@ this.anims.create({
           cana_pescar:    { src: "./Game/Objetos/pesca/cana_pescar.png",       maxStack: 1,  tipo: "caña_pescar",    usos: null },
           espantapajaros: { src: "./Game/Objetos/granja/espantapajaros.png",   maxStack: 10, tipo: "espantapajaros", usos: null },
           antorcha:       { src: "./Game/Objetos/antorcha/antorcha.png",       maxStack: 20, tipo: "antorcha",       usos: null },
+          // (2026-10-21) El bote (gf-botes.js: se pone en el agua, se rema, se
+          // pesca desde él y se recoge con la pala) y las armas a distancia
+          // (gf-espada.js). Tablas `bote`, `arco` y `baston_mago`, que se dan de
+          // alta solas en el servidor.
+          bote:           { src: "./Game/Objetos/bote/bote.png",               maxStack: 1,  tipo: "bote",           usos: null },
+          arco:           { src: "./Game/Objetos/armas/arco.png",              maxStack: 1,  tipo: "arco",           usos: null, arma: { dano: 14, alcance: 300 } },
+          baston_mago:    { src: "./Game/Objetos/armas/baston_mago.png",       maxStack: 1,  tipo: "baston_mago",    usos: null, arma: { dano: 18, alcance: 260 } },
           pes1:           { src: "./Game/Objetos/pesca/pes1.png",              maxStack: 20, tipo: "pes1",           usos: null },
           pes2:           { src: "./Game/Objetos/pesca/pes2.png",              maxStack: 20, tipo: "pes2",           usos: null },
           pes3:           { src: "./Game/Objetos/pesca/pes3.png",              maxStack: 20, tipo: "pes3",           usos: null },

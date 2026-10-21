@@ -187,6 +187,10 @@ class LoadingScenegame extends Phaser.Scene {
             cana_pescar:    { src: './Game/Objetos/pesca/cana_pescar.png',      maxStack: 1,  tipo: 'caña_pescar' },
             espantapajaros: { src: './Game/Objetos/granja/espantapajaros.png',  maxStack: 10, tipo: 'espantapajaros' },
             antorcha:       { src: './Game/Objetos/antorcha/antorcha.png',      maxStack: 20, tipo: 'antorcha' },
+            // (2026-10-21) El bote y las armas a distancia.
+            bote:           { src: './Game/Objetos/bote/bote.png',              maxStack: 1,  tipo: 'bote' },
+            arco:           { src: './Game/Objetos/armas/arco.png',             maxStack: 1,  tipo: 'arco' },
+            baston_mago:    { src: './Game/Objetos/armas/baston_mago.png',      maxStack: 1,  tipo: 'baston_mago' },
             pes1:           { src: './Game/Objetos/pesca/pes1.png',             maxStack: 20, tipo: 'pes1' },
             pes2:           { src: './Game/Objetos/pesca/pes2.png',             maxStack: 20, tipo: 'pes2' },
             pes3:           { src: './Game/Objetos/pesca/pes3.png',             maxStack: 20, tipo: 'pes3' },
@@ -2644,7 +2648,7 @@ class StatsSync {
         // La escala de las vitales es 0..100 (las barras pintan `${valor}%` sin
         // dividir). El 100000 de antes era el default viejo y, si se usaba,
         // mandaba al backend un valor imposible.
-        const DEFAULTS = { vida: 100, agua: 100, comida: 100, oro: 0, plata: 0, exp: 0 };
+        const DEFAULTS = { vida: 100, agua: 100, comida: 100, oro: 0, plata: 0, bronce: 0, exp: 0 };
         return (window.playerStats && window.playerStats[stat] !== undefined)
             ? window.playerStats[stat]
             : (DEFAULTS[stat] ?? 0);
@@ -2652,12 +2656,14 @@ class StatsSync {
 
     /**
      * Establece el valor de un stat localmente y encola actualización al backend.
-     * @param {string}  stat      - 'vida'|'agua'|'comida'|'oro'|'plata'|'exp'
+     * @param {string}  stat      - 'vida'|'agua'|'comida'|'oro'|'plata'|'bronce'|'exp'
      * @param {number}  value     - nuevo valor
      * @param {boolean} immediate - si true, envía sin esperar debounce
      */
     set(stat, value, immediate = false) {
-        const VALID = ['vida', 'agua', 'comida', 'oro', 'plata', 'exp'];
+        // (2026-10-21) 'bronce': la tienda también cobra en bronce. El servidor
+        // ya lo acepta (STAT_TYPES_LIST); sin esto el cobro se tiraba en silencio.
+        const VALID = ['vida', 'agua', 'comida', 'oro', 'plata', 'bronce', 'exp'];
         if (!VALID.includes(stat)) return;
 
         const VITALES = ['vida', 'agua', 'comida'];
@@ -2665,7 +2671,7 @@ class StatsSync {
         // Las vitales son un porcentaje: nunca más de 100.
         if (VITALES.includes(stat)) rounded = Math.min(100, rounded);
 
-        if (!window.playerStats) window.playerStats = { vida: 100, agua: 100, comida: 100, oro: 0, plata: 0, exp: 0, invoiceIds: {} };
+        if (!window.playerStats) window.playerStats = { vida: 100, agua: 100, comida: 100, oro: 0, plata: 0, bronce: 0, exp: 0, invoiceIds: {} };
         window.playerStats[stat] = rounded;
         this._pending[stat] = rounded;
 
@@ -2823,6 +2829,7 @@ class StatsSync {
             comida: 'comidaPorcentaje',
             oro:    'moneda',
             plata:  'moneda_plata',
+            bronce: 'moneda_bronce',
             exp:    'nivel_exp',
         };
         let corregido = false;
@@ -2856,7 +2863,7 @@ class StatsSync {
             if (res.ok) {
                 const data = await res.json();
                 if (data.stats && window.playerStats) {
-                    ['vida','agua','comida','oro','plata','exp'].forEach(s => {
+                    ['vida','agua','comida','oro','plata','bronce','exp'].forEach(s => {
                         if (data.stats[s] !== undefined) window.playerStats[s] = Number(data.stats[s]);
                     });
                     if (data.stats.invoiceIds) window.playerStats.invoiceIds = data.stats.invoiceIds;
