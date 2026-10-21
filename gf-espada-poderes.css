@@ -13,7 +13,9 @@
   position: fixed;
   right: var(--gfe-right, max(90px, calc(env(safe-area-inset-right) + 90px)));
   bottom: var(--gfe-bottom, max(18px, calc(env(safe-area-inset-bottom) + 18px)));
-  z-index: 2000;
+  /* (2026-10-21) 1000, como el resto del HUD (botones redondos, chat): con
+     2000 quedaba ENCIMA de la tienda (1001-1002) y tapaba el botón de comprar. */
+  z-index: 1000;
   display: flex; align-items: center; gap: 8px;
   padding: 6px 8px;
   border-radius: 14px;

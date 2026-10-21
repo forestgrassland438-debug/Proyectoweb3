@@ -13567,7 +13567,9 @@ html.gf-teclado-abierto #chat-panel {
   left: 50%;
   bottom: calc(104px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
-  z-index: 1200;
+  /* (2026-10-21) 1000, como el resto del HUD: con 1200 quedaba encima de la
+     tienda (1001-1002). También es el del botón "Land" del bote. */
+  z-index: 1000;
   display: inline-flex;
   align-items: center;
   gap: 8px;
