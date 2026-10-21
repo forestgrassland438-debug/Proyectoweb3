@@ -275,6 +275,8 @@ class ZonaScene extends GameScene {
     // Monstruos, espada entre jugadores, lo que se suelta y los carteles.
     try { if (window.GFSalvaje) window.GFSalvaje.montar(this); } catch (e) { console.warn('🧭 monstruos:', e); }
     try { if (window.GFAntorchas) window.GFAntorchas.montar(this); } catch (e) { console.warn('🧭 antorchas:', e); }
+    // (2026-10-21) El bote en el agua del mapa (gf-botes.js).
+    try { if (window.GFBotes) window.GFBotes.montar(this); } catch (e) { console.warn('🧭 bote:', e); }
     // (2026-10-19) Los NPC de cada mapa (gf-npcs.js): el sepulturero, los
     // guardias del desierto, el trampero y la pescadora.
     try { if (window.GFNpcs) window.GFNpcs.montar(this); } catch (e) { console.warn('🧭 NPC:', e); }

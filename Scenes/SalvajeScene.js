@@ -287,6 +287,8 @@ class SalvajeScene extends GameScene {
     try { if (window.GFSalvaje) window.GFSalvaje.montar(this); } catch (e) { console.warn('🌲 salvaje:', e); }
     // Las antorchas que pone la gente, con su luz de noche (gf-antorchas.js).
     try { if (window.GFAntorchas) window.GFAntorchas.montar(this); } catch (e) { console.warn('🌲 antorchas:', e); }
+    // (2026-10-21) El bote en el río y en los lagos (gf-botes.js).
+    try { if (window.GFBotes) window.GFBotes.montar(this); } catch (e) { console.warn('🌲 bote:', e); }
     // (2026-10-19) Los NPC del mapa (gf-npcs.js).
     try { if (window.GFNpcs) window.GFNpcs.montar(this); } catch (e) { console.warn('🌲 NPC:', e); }
     // (2026-10-19) La puerta de la cabaña del cazador (gf-casas.js, `cabana_monte`).

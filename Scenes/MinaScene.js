@@ -684,6 +684,14 @@ class MinaScene extends GameScene {
     // de vaciar `_lucesExtras`, que su luz también abre la oscuridad.
     try { if (window.GFAntorchas) window.GFAntorchas.montar(this); }
     catch (e) { console.warn('⛏️ antorchas:', e); }
+    // (2026-10-21) "Que pueda pescar y poner el bote en cualquier agua, también
+    // en la mina": las charcas como mapa de agua (_mapaDeAguaMina) para la pesca
+    // (gf-pesca.js) y el bote (gf-botes.js). El servidor mira lo mismo
+    // (GF_PESCA_ZONAS.mina, sacado de la misma capa).
+    try { this._mapaDeAguaMina(); if (window.GFPesca) window.GFPesca.montar(this); }
+    catch (e) { console.warn('⛏️ pesca:', e); }
+    try { if (window.GFBotes) window.GFBotes.montar(this); }
+    catch (e) { console.warn('⛏️ bote:', e); }
 
     // ── Que se VEA por donde se sale ─────────────────────────────
     this._faseMina = 'salida visible';
@@ -802,6 +810,25 @@ class MinaScene extends GameScene {
   // =========================================================================
 
   /** Convierte una capa de objetos del mapa en rectangulos de Phaser. */
+  /**
+   * (2026-10-21) Las charcas de `area_agua` como el mapa de agua que usan la
+   * pesca y el bote: casillas de 16 px, 2 = agua. Los rectángulos van
+   * alineados a 16, así que sale casilla a casilla lo mismo que
+   * GF_PESCA_ZONAS.mina en el servidor (712 casillas).
+   */
+  _mapaDeAguaMina() {
+    const T = 16;
+    const w = Math.ceil(this.map.widthInPixels / T), h = Math.ceil(this.map.heightInPixels / T);
+    const m = new Uint8Array(w * h);
+    this._rectsDeCapa('area_agua').forEach((r) => {
+      const y1 = Math.min(h, Math.ceil((r.y + r.height) / T)), x1 = Math.min(w, Math.ceil((r.x + r.width) / T));
+      for (let y = Math.max(0, Math.floor(r.y / T)); y < y1; y++) {
+        for (let x = Math.max(0, Math.floor(r.x / T)); x < x1; x++) m[y * w + x] = 2;
+      }
+    });
+    this.__gfPescaAgua = { w, h, m, tileSize: T };
+  }
+
   _rectsDeCapa(nombre) {
     const capa = this.map.getObjectLayer(nombre);
     if (!capa || !Array.isArray(capa.objects)) {

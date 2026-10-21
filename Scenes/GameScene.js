@@ -617,11 +617,13 @@ this.prevPlayerY = undefined;
         
         try {
           // Preparar headers con autenticación
+          /* (2026-10-21) Sin cabeceras propias (X-Error-Report, X-Client-Version,
+             X-Game-Build): el CORS del servidor no las admite y el navegador
+             cortaba el envío en la consulta previa, así que nunca llegaba ni el
+             404 que apaga el informe y se reintentaba cada 2 s toda la partida.
+             La versión ya va en el cuerpo (`version`). */
           const headers = {
-            'Content-Type': 'application/json',
-            'X-Error-Report': '1.0',
-            'X-Client-Version': this.version,
-            'X-Game-Build': 'phaser-game'
+            'Content-Type': 'application/json'
           };
           
           // Agregar token de autorización si está disponible
@@ -646,7 +648,8 @@ this.prevPlayerY = undefined;
           });
           
           clearTimeout(timeoutId);
-          
+          this.fallosRed = 0;     // llegó al servidor: la red va
+
           if (response.ok) {
             const result = await response.json();
             
@@ -685,13 +688,20 @@ this.prevPlayerY = undefined;
             this.queueReport(errorData);
           }
         } catch (error) {
-          // Silenciar errores de red para no generar más errores
-          if (error.name !== 'AbortError') {
-            console.warn('⚠️ No se pudo reportar error (posible problema de red)');
+          /* (2026-10-21) Tres fallos de red seguidos (CORS, sin conexión) y se
+             deja de informar en esta partida. Antes se reintentaba cada 2 s
+             para siempre, y el aviso de consola volvía a entrar al informe. */
+          this.fallosRed = (this.fallosRed || 0) + 1;
+          if (error.name !== 'AbortError' && this.fallosRed === 1) {
+            (this.originalConsoleWarn || console.warn).apply(console, ['⚠️ No se pudo reportar error (posible problema de red)']);
           }
-          
-          // Reintentar más tarde
-          this.queueReport(errorData);
+          if (this.fallosRed >= 3) {
+            this.enabled = false;
+            this.pendingReports = [];
+          } else {
+            // Reintentar más tarde
+            this.queueReport(errorData);
+          }
         } finally {
           this.isReporting = false;
         }
@@ -914,6 +924,14 @@ async loadMissionsData() {
 
     console.log('📊 Status de carga de datos de misiones:', res.status);
     
+    /* (2026-10-21) El servidor no tiene GET /api/missions/:jugador (las
+       misiones diarias van por /api/missions/daily): un 404 es "sin datos
+       aparte", no un error. Antes salían dos console.error en cada escena. */
+    if (res.status === 404) {
+      console.log('ℹ️ Misiones: el servidor no tiene esa ruta; se quedan los valores que ya hay');
+      return null;
+    }
+
     if (!res.ok) {
       const errorText = await res.text().catch(() => 'No se pudo leer el error');
       console.error('❌ Error al cargar datos de misiones:', {
@@ -28850,6 +28868,12 @@ getPlayerIntentDirection() {
          salvaje: el módulo descarta las demás escenas por su clave. */
       if (window.GFAntorchas && window.GFAntorchas.montar) {
         window.GFAntorchas.montar(this);
+      }
+      /* EL BOTE (2026-10-21): ponerlo en el río, subir, remar, pescar desde
+         él y recogerlo con la pala (gf-botes.js). Pueblo, mina, mapa salvaje
+         y las tres zonas: el módulo descarta las demás escenas por su clave. */
+      if (window.GFBotes && window.GFBotes.montar) {
+        window.GFBotes.montar(this);
       }
       /* Los espantapájaros que tenga puestos (gf-espantapajaros.js). */
       if (window.GFEspantapajaros && window.GFEspantapajaros.montar) {
