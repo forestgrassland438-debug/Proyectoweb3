@@ -1,0 +1,19 @@
+Local: http://127.0.0.1:53802/control-center.html
+{
+  "checks": [
+    "Wallet sign-in, backend role verification, private gate and real snapshot",
+    "Discard cancellation and language switching preserve manual input",
+    "Zero-EXP preservation, scoped dirty tracking, reviewed save and fresh CSRF",
+    "Stale daily responses cannot overwrite the selected day",
+    "Automatic preview keeps the saved reroll seed",
+    "A preview with different rules cannot replace the manual editor",
+    "Delivery graphs, safe user text, CSV spreadsheet formula protection",
+    "Session expiry recovers without another signature",
+    "All eight tools open independently; one iframe; provider listener cleanup",
+    "Responsive 390 px layout without horizontal page overflow",
+    "Changing wallet locks the workspace and removes the active tool",
+    "Non-admin and unavailable role verification remain gated without extra signatures"
+  ],
+  "errors": [],
+  "evidence": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\audits\\library-review-20261021T051408Z\\admin-browser"
+}

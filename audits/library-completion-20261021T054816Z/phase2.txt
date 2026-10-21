@@ -1,0 +1,60 @@
+✔ bronze ignores third-party API-shaped responses and late responses from a different account (58.1786ms)
+✔ bronze coalesces refreshes and cannot apply an older account response (2.9757ms)
+✔ bronze teardown releases observers and clocks, and retained fetch wrappers keep delegating (4.378ms)
+✔ VIP refreshes belong to one account and a stale finally cannot release a newer request (3.9292ms)
+✔ VIP status never carries from one account to another (2.417ms)
+✔ name gate does not inherit a previous player permanent-name flag (4.849ms)
+✔ gf-npcs.js: abandoned loads release both lifecycle hooks and pending loader callbacks (5.6578ms)
+✔ gf-npcs-pueblo.js: abandoned loads release both lifecycle hooks and pending loader callbacks (4.6857ms)
+✔ NPC decoration rollback preserves original alpha and frees partially allocated sprites (3.9523ms)
+✔ camel partial construction rolls back every object and its scene state (4.4713ms)
+✖ an interrupted zone journey cannot launch a scene or overwrite a newer journey note (5.8215ms)
+✖ boss teardown cancels delayed powers and immediately removes orb update callbacks (4.2798ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 10
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 333.5049
+
+✖ failing tests:
+
+test at tools\remaining-libraries.test.cjs:91:1
+✖ an interrupted zone journey cannot launch a scene or overwrite a newer journey note (5.8215ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\remaining-libraries.test.cjs:94:159)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tools\remaining-libraries.test.cjs:96:1
+✖ boss teardown cancels delayed powers and immediately removes orb update callbacks (4.2798ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\remaining-libraries.test.cjs:100:93)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

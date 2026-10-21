@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Grassland Forest — Misiones diarias</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #121c2f;
+    --panel-2: #17233a;
+    --line: #26344f;
+    --text: #e8f0ff;
+    --muted: #93a7c6;
+    --accent: #4f9dff;
+    --ok: #3fbf72;
+    --warn: #f0b429;
+    --err: #e4655f;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: linear-gradient(180deg, #0e1729, #0b1220);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  header h1 { margin: 0; font-size: 18px; letter-spacing: .3px; }
+  header .sp { flex: 1; }
+
+  main { padding: 18px; max-width: 1180px; margin: 0 auto; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 18px;
+  }
+
+  .card h2 { margin: 0 0 12px; font-size: 15px; color: #cfe0ff; }
+
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 5px; min-width: 150px; flex: 1; }
+  .field label { font-size: 12px; color: var(--muted); }
+
+  input, select, textarea, button {
+    font: inherit;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 9px 11px;
+    width: 100%;
+  }
+
+  textarea { resize: vertical; min-height: 62px; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  button {
+    cursor: pointer;
+    width: auto;
+    white-space: nowrap;
+    transition: filter .15s ease;
+  }
+  button:hover { filter: brightness(1.18); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #04101f; font-weight: 600; }
+  button.ok      { background: var(--ok);     border-color: var(--ok);     color: #04160c; font-weight: 600; }
+  button.danger  { background: transparent;   border-color: var(--err);    color: var(--err); }
+  button.ghost   { background: transparent; }
+
+  .mission {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 14px;
+    background: var(--panel-2);
+  }
+
+  .mission-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+
+  .mission-head .tag {
+    background: rgba(79, 157, 255, .16);
+    border: 1px solid rgba(79, 157, 255, .35);
+    color: #b9d6ff;
+    border-radius: 999px;
+    padding: 3px 11px;
+    font-size: 12px;
+  }
+
+  .langs { margin-top: 10px; }
+  .langs summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 4px 0; }
+  .lang-block { border-top: 1px dashed var(--line); padding-top: 10px; margin-top: 8px; }
+  .lang-block h4 { margin: 0 0 8px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+
+  .days { display: flex; gap: 8px; flex-wrap: wrap; }
+  .day-chip {
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .day-chip:hover { border-color: var(--accent); }
+
+  #estado {
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 14px;
+    display: none;
+    margin-bottom: 14px;
+  }
+  #estado.show { display: block; }
+  #estado.ok   { background: rgba(63,191,114,.14); border: 1px solid var(--ok); }
+  #estado.err  { background: rgba(228,101,95,.14); border: 1px solid var(--err); }
+  #estado.info { background: rgba(79,157,255,.14); border: 1px solid var(--accent); }
+
+  .hint { color: var(--muted); font-size: 12.5px; margin: 6px 0 0; }
+
+  .token-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .token-row input { flex: 1; min-width: 220px; }
+
+  @media (max-width: 620px) {
+    main { padding: 12px; }
+    .card { padding: 12px; border-radius: 11px; }
+    .field { min-width: 100%; }
+    header h1 { font-size: 16px; }
+  }
+
+  /* Historial de misiones */
+  .his-tabla { width:100%; border-collapse:collapse; font-size:13px; margin-top:6px; }
+  .his-tabla th, .his-tabla td {
+    text-align:left; padding:7px 9px; border-bottom:1px solid rgba(255,255,255,.08);
+    white-space:nowrap;
+  }
+  .his-tabla th {
+    font-size:11px; text-transform:uppercase; letter-spacing:.06em;
+    opacity:.65; font-weight:600;
+  }
+  .his-tabla tbody tr:hover { background:rgba(255,255,255,.04); }
+  .his-tabla td:nth-child(6) { font-weight:700; }   /* acumulado */
+  .his-tabla button { padding:4px 10px; font-size:12px; }
+  #historial { overflow-x:auto; }
+
+  /* (2026-10-19) Reglas automáticas, listas editables y entregas del día */
+  .switch { display:flex; align-items:center; gap:10px; font-weight:600; }
+  .switch input { width:auto; transform:scale(1.25); }
+  .lista-ed { border:1px solid var(--line); border-radius:10px; padding:10px; margin:8px 0 12px; background:var(--panel-2); }
+  .lista-ed h3 { margin:0 0 8px; font-size:13px; color:#cfe0ff; display:flex; align-items:center; gap:8px; }
+  .lista-ed h3 .sp { flex:1; }
+  .lista-ed .fila { display:grid; gap:8px; margin-bottom:6px; align-items:center; }
+  .lista-ed .fila input, .lista-ed .fila select { padding:6px 8px; }
+  .lista-ed .fila button { padding:5px 9px; }
+  .lista-ed .cab { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+  .prev-m { border-left:3px solid var(--accent); padding:6px 10px; margin:6px 0; background:rgba(79,157,255,.07); border-radius:0 8px 8px 0; font-size:13.5px; }
+  .prev-m.caza { border-left-color:#e4655f; background:rgba(228,101,95,.07); }
+  .prev-m small { color:var(--muted); }
+  .ent-tabla td.si { color:var(--ok); font-weight:700; }
+  .ent-tabla td.no { color:var(--muted); }
+  .ent-tabla td.mid { color:var(--warn); }
+  #entregas { overflow-x:auto; }
+  .pill { display:inline-block; border-radius:999px; padding:2px 9px; font-size:12px; border:1px solid var(--line); margin-left:6px; }
+  .pill.auto { border-color:var(--accent); color:#b9d6ff; }
+  .pill.manual { border-color:var(--warn); color:var(--warn); }
+  @media (max-width: 620px) {
+    /* En el teléfono, cada fila de las listas en dos columnas. */
+    .lista-ed .fila { grid-template-columns: 1fr 1fr !important; }
+    .lista-ed .fila.cab { display:none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📜 Misiones diarias</h1>
+  <span class="sp"></span>
+  <span id="apiLabel" class="hint"></span>
+</header>
+
+<main>
+  <div id="estado"></div>
+
+  <!-- ===================== ACCESO ===================== -->
+  <section class="card">
+    <h2>1 · Acceso de administrador</h2>
+    <div class="token-row">
+      <button class="primary" id="btnConectar" type="button">Conectar cartera de administrador</button>
+      <span id="adminInfo" class="hint"></span>
+    </div>
+    <p class="hint">
+      Ya no hace falta pegar ningún token: se entra firmando un mensaje con la
+      cartera de administrador, igual que en el panel de jugadores. La firma no
+      autoriza ninguna transacción, solo demuestra que la cartera es tuya.
+    </p>
+  </section>
+
+  <!-- ===================== DÍA ===================== -->
+  <section class="card">
+    <h2>2 · NPC y día</h2>
+    <div class="row">
+      <div class="field">
+        <label for="npc">NPC</label>
+        <select id="npc">
+          <option value="granjero">granjero</option>
+          <option value="guardian">guardian</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="dia">Día (UTC)</label>
+        <input id="dia" type="date">
+      </div>
+      <div class="field">
+        <label for="reset">Hora de reinicio (UTC, 0-23)</label>
+        <input id="reset" type="number" min="0" max="23" value="0">
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <label>&nbsp;</label>
+        <button class="ghost" id="btnCargar" type="button">Cargar ese día</button>
+      </div>
+    </div>
+    <p class="hint">Los días ya cargados de este NPC aparecen abajo; púlsalos para editarlos.</p>
+    <div class="days" id="diasCargados"></div>
+  </section>
+
+  <!-- ===================== MISIONES ===================== -->
+  <section class="card">
+    <h2>3 · Misiones del día</h2>
+    <div id="misiones"></div>
+    <div class="row" style="margin-top:6px">
+      <button class="ghost" id="btnAgregar" type="button">＋ Añadir misión</button>
+      <span class="sp" style="flex:1"></span>
+      <button class="ok" id="btnGuardar" type="button">💾 Guardar en el juego</button>
+    </div>
+    <p class="hint">
+      Se reemplazan TODAS las misiones de ese NPC y día. El juego las lee al abrir
+      el panel de misiones, así que se reflejan sin tocar nada más.
+    </p>
+  </section>
+
+  <!-- ===================== COPIAR / BORRAR ===================== -->
+  <section class="card">
+    <h2>4 · Repetir o borrar</h2>
+    <div class="row">
+      <div class="field">
+        <label for="copiaDesde">Copiar desde el día</label>
+        <input id="copiaDesde" type="date">
+      </div>
+      <div class="field">
+        <label for="copiaHasta">Pegar a partir del día</label>
+        <input id="copiaHasta" type="date">
+      </div>
+      <div class="field">
+        <label for="copiaDias">Cuántos días seguidos</label>
+        <input id="copiaDias" type="number" min="1" max="30" value="7">
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <label>&nbsp;</label>
+        <button class="ghost" id="btnCopiar" type="button">Copiar</button>
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <label>&nbsp;</label>
+        <button class="danger" id="btnBorrar" type="button">Borrar el día mostrado</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== REGLAS AUTOMÁTICAS (2026-10-19) ===================== -->
+  <section class="card">
+    <h2>⚙️ Automatic missions <span class="hint" id="autoNpcLabel"></span></h2>
+    <p class="hint">
+      When a day has <b>no manual missions</b>, the game builds that NPC's missions from
+      these rules: how many per day, the mix of <b>deliver</b> / <b>hunt</b> missions, which
+      items or monsters can be asked for, and which rewards can come out (random, by weight).
+      Manual missions for a day always win. Uses the NPC chosen in section 2.
+    </p>
+    <div class="row">
+      <label class="switch"><input type="checkbox" id="autoActivo"> Automatic missions ON</label>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="field"><label for="autoCuantas">Missions per day (1-10)</label><input id="autoCuantas" type="number" min="1" max="10" value="3"></div>
+      <div class="field"><label for="autoPesoE">Weight: deliver items</label><input id="autoPesoE" type="number" min="0" max="100" value="60"></div>
+      <div class="field"><label for="autoPesoC">Weight: hunt monsters</label><input id="autoPesoC" type="number" min="0" max="100" value="40"></div>
+      <div class="field"><label for="autoHora">Reset hour (UTC)</label><input id="autoHora" type="number" min="0" max="23" value="0"></div>
+    </div>
+    <div id="autoPedidos"></div>
+    <div id="autoPresas"></div>
+    <div id="autoPremios"></div>
+    <div class="row">
+      <div class="field"><label for="autoProb">Chance of an item reward (%)</label><input id="autoProb" type="number" min="0" max="100" value="75"></div>
+      <div class="field"><label for="autoExpMin">EXP min</label><input id="autoExpMin" type="number" min="0" max="100000" value="40"></div>
+      <div class="field"><label for="autoExpMax">EXP max</label><input id="autoExpMax" type="number" min="0" max="100000" value="140"></div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div class="field"><label for="autoOroMin">Gold min</label><input id="autoOroMin" type="number" min="0" max="1000" value="0"></div>
+      <div class="field"><label for="autoOroMax">Gold max</label><input id="autoOroMax" type="number" min="0" max="1000" value="0"></div>
+      <div class="field"><label for="autoPlataMin">Silver min</label><input id="autoPlataMin" type="number" min="0" max="100000" value="10"></div>
+      <div class="field"><label for="autoPlataMax">Silver max</label><input id="autoPlataMax" type="number" min="0" max="100000" value="60"></div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="ok" id="btnAutoGuardar" type="button">💾 Save rules</button>
+      <button class="ghost" id="btnAutoPrevia" type="button">👁 Preview the chosen day</button>
+      <button class="ghost" id="btnAutoAlEditor" type="button">✏️ Send preview to the manual editor</button>
+      <button class="danger" id="btnAutoReroll" type="button">🎲 New roll for TODAY</button>
+    </div>
+    <p class="hint">Gold is real money (1 gold = 1 USD): the server caps it at 1000 per mission.
+      Only items that can be minted on-chain are accepted as rewards.</p>
+    <div id="autoPrevia"></div>
+  </section>
+
+  <!-- ===================== ENTREGAS DEL DÍA (2026-10-19) ===================== -->
+  <section class="card">
+    <h2>📋 Who completed what <span id="entInfo" class="hint"></span></h2>
+    <p class="hint">
+      For the NPC and day chosen in section 2: every player who did something that day
+      (handed in a mission or hunted), which missions they completed or not, and what
+      they received — with their wallet, name and level.
+    </p>
+    <div class="row">
+      <div class="field"><label for="entBuscar">Search (player, username or wallet)</label><input id="entBuscar" type="text" placeholder="leave empty to see everyone"></div>
+      <div class="field" style="flex:0 0 auto"><label>&nbsp;</label><button class="ghost" id="btnEntregas" type="button">🔄 Load</button></div>
+      <div class="field" style="flex:0 0 auto"><label>&nbsp;</label><button class="ghost" id="btnEntregasCsv" type="button">⬇️ Export CSV</button></div>
+    </div>
+    <div id="entregas" style="margin-top:14px"></div>
+  </section>
+
+  <!-- ===================== HISTORIAL ===================== -->
+  <section class="card">
+    <h2>5 · Historial de misiones</h2>
+    <p class="hint">
+      Quién ha entregado más misiones. El <b>acumulado</b> es el contador de
+      toda la vida de la cuenta; los <b>registros</b> son las entregas guardadas
+      día a día, que son las que se borran al limpiar.
+    </p>
+    <div class="row">
+      <div class="field">
+        <label for="hisBuscar">Buscar (nombre, usuario o dirección)</label>
+        <input id="hisBuscar" type="text" placeholder="deja vacío para ver todos">
+      </div>
+      <div class="field">
+        <label for="hisLimite">Cuántos mostrar</label>
+        <input id="hisLimite" type="number" min="1" max="500" value="100">
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <label>&nbsp;</label>
+        <button class="ghost" id="btnHistorial" type="button">🔄 Cargar historial</button>
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <label>&nbsp;</label>
+        <button class="danger" id="btnHistorialTodo" type="button">🧹 Borrar TODO el historial</button>
+      </div>
+    </div>
+    <div id="historial" style="margin-top:14px"></div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------------------------------------------------------------------------
+  // Configuración
+  // ---------------------------------------------------------------------------
+  // Mismo criterio que el juego: en local se habla con el backend local, en
+  // producción con la API pública.
+  var API = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? 'http://127.0.0.1:8080'
+    : 'https://api.grasslandforest.com';
+
+  var IDIOMAS = [
+    { code: 'en-US',  nombre: 'Inglés (obligatorio)' },
+    { code: 'es-419', nombre: 'Español' },
+    { code: 'en-PH',  nombre: 'Inglés filipino' },
+    { code: 'pt-BR',  nombre: 'Portugués' },
+    { code: 'zh-CN',  nombre: 'Chino' },
+    { code: 'ko-KR',  nombre: 'Coreano' }
+  ];
+
+  var APP_NAME = 'Grassland Forest';
+  // Antes esto era un JWT de admin que había que pegar a mano. Ahora el acceso
+  // va por CARTERA: se firma un mensaje, el backend deja la cookie de sesión y
+  // adminAuth comprueba que esa dirección sea administradora.
+  var adminOk = false;      // ¿la cartera conectada es admin?
+  var csrf = null;
+  var contador = 0;
+
+  var $ = function (id) { return document.getElementById(id); };
+  document.getElementById('apiLabel').textContent = API;
+
+  function aviso(msg, tipo) {
+    var el = $('estado');
+    el.textContent = msg;
+    el.className = 'show ' + (tipo || 'info');
+    if (tipo === 'ok') setTimeout(function () { el.className = ''; }, 4000);
+  }
+
+  // Toda inserción de texto se hace con textContent / value: nada de innerHTML
+  // con datos del servidor, así un texto de misión no puede inyectar HTML.
+  function crear(tag, props, hijos) {
+    var el = document.createElement(tag);
+    Object.keys(props || {}).forEach(function (k) {
+      if (k === 'class') el.className = props[k];
+      else if (k === 'text') el.textContent = props[k];
+      else if (k in el) el[k] = props[k];
+      else el.setAttribute(k, props[k]);
+    });
+    (hijos || []).forEach(function (h) { if (h) el.appendChild(h); });
+    return el;
+  }
+
+  function campo(etiqueta, input) {
+    return crear('div', { class: 'field' }, [
+      crear('label', { text: etiqueta }),
+      input
+    ]);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Bloque de una misión
+  // ---------------------------------------------------------------------------
+  function bloqueMision(datos) {
+    datos = datos || {};
+    contador++;
+    var idBloque = 'm' + contador;
+
+    var inId     = crear('input', { type: 'text',   value: datos.missionId || ('mision_' + contador), maxLength: 60 });
+    // (2026-10-19) De entregar ítems o de cazar monstruos.
+    var selTipo  = crear('select');
+    [['entregar', '📦 Deliver items'], ['cazar', '⚔️ Hunt monsters / enemies']].forEach(function (o) {
+      selTipo.appendChild(crear('option', { value: o[0], text: o[1] }));
+    });
+    selTipo.value = datos.tipo === 'cazar' ? 'cazar' : 'entregar';
+    var selPresa = crear('select');
+    llenarPresas(selPresa, datos.monstruo || '*');
+    var inItem   = crear('input', { type: 'text',   value: datos.tipo === 'cazar' ? '' : (datos.itemId || ''), placeholder: 'ej. madera_pinos', maxLength: 60 });
+    inItem.setAttribute('list', 'gf-items');
+    var inCant   = crear('input', { type: 'number', value: datos.requiredAmount || 5, min: 1, max: 9999 });
+    var inExp    = crear('input', { type: 'number', value: datos.expReward || 50, min: 0, max: 100000 });
+    var inPremio = crear('input', { type: 'text',   value: datos.rewardItemId || '', placeholder: 'opcional, ej. mineral_piedra', maxLength: 60 });
+    inPremio.setAttribute('list', 'gf-items');
+    var inPremioC= crear('input', { type: 'number', value: datos.rewardAmount || 1, min: 1, max: 9999 });
+
+    // ── RECOMPENSA EN MONEDAS ────────────────────────────────────────────────
+    // FALTABA: el servidor lleva desde el 11-08 aceptando goldReward y
+    // silverReward, pero este editor no tenía dónde escribirlos, así que era
+    // imposible crear una misión que pagara en monedas.
+    //
+    // Sin estos campos, la única casilla con pinta de "recompensa" era la de
+    // ÍTEM, y escribir ahí "plata" no daba plata: hacía que el juego buscara un
+    // objeto de inventario llamado "plata", que no existe. El panel enseñaba
+    // "+100 Plata" (es solo el texto del premio) pero al entregar la misión no
+    // se recibía nada. De ahí el "le puse plata y me dio algo que ya no es".
+    var inOro   = crear('input', { type: 'number', value: datos.goldReward   || 0, min: 0, max: 1000 });
+    var inPlata = crear('input', { type: 'number', value: datos.silverReward || 0, min: 0, max: 100000 });
+
+    var bloquesIdioma = IDIOMAS.map(function (l) {
+      var t = (datos.texts && datos.texts[l.code]) || {};
+      var titulo = crear('input',    { type: 'text', value: t.title || '', maxLength: 80 });
+      var desc   = crear('textarea', { maxLength: 300 });
+      desc.value = t.description || '';
+      var itemN  = crear('input',    { type: 'text', value: t.itemName || '', maxLength: 80 });
+      var premioN= crear('input',    { type: 'text', value: t.rewardName || '', maxLength: 80 });
+
+      // Los dos campos de nombre son los que ve el JUGADOR en el panel del
+      // juego. Si se dejan vacíos, el servidor genera uno legible a partir
+      // del identificador ("madera_tronco" → "Madera Tronco"), así que en el
+      // panel NUNCA aparece el id crudo. Aquí se muestra ese mismo texto como
+      // sugerencia para que se vea de antemano cómo va a quedar.
+      itemN.placeholder   = 'Se verá así en el panel (ej. Madera Tronco)';
+      premioN.placeholder = 'Se verá así en el panel (ej. Mineral de Hierro)';
+
+      var div = crear('div', { class: 'lang-block' }, [
+        crear('h4', { text: l.nombre + ' — ' + l.code }),
+        crear('div', { class: 'row' }, [
+          campo('Título', titulo),
+          campo('Nombre visible del ítem pedido', itemN),
+          campo('Nombre visible de la recompensa', premioN)
+        ]),
+        crear('div', { class: 'row' }, [campo('Descripción', desc)])
+      ]);
+
+      div._leer = function () {
+        return {
+          code: l.code,
+          title: titulo.value,
+          description: desc.value,
+          itemName: itemN.value,
+          rewardName: premioN.value
+        };
+      };
+      return div;
+    });
+
+    var detalles = crear('details', { class: 'langs' },
+      [crear('summary', { text: '🌍 Textos por idioma (despliega para editar)' })].concat(bloquesIdioma));
+
+    var btnBorrar = crear('button', { class: 'danger', type: 'button', text: '✕ Quitar' });
+    var campoItem = null, campoPresa = null;
+
+    var bloque = crear('div', { class: 'mission', id: idBloque }, [
+      crear('div', { class: 'mission-head' }, [
+        crear('span', { class: 'tag', text: 'Misión' }),
+        crear('span', { class: 'sp', style: 'flex:1' }),
+        btnBorrar
+      ]),
+      crear('div', { class: 'row' }, [
+        campo('ID interno', inId),
+        campo('Mission type', selTipo),
+        (campoItem = campo('Ítem que debe entregar', inItem)),
+        (campoPresa = campo('Monster to defeat', selPresa)),
+        campo('Cantidad', inCant),
+        campo('EXP', inExp)
+      ]),
+      crear('div', { class: 'row' }, [
+        campo('Ítem de recompensa (opcional)', inPremio),
+        campo('Cantidad de recompensa', inPremioC)
+      ]),
+      crear('div', { class: 'row' }, [
+        campo('Oro de recompensa (0 = nada)', inOro),
+        campo('Plata de recompensa (0 = nada)', inPlata)
+      ]),
+      detalles
+    ]);
+
+    btnBorrar.addEventListener('click', function () { bloque.remove(); });
+    function verTipo() {
+      var caza = selTipo.value === 'cazar';
+      campoItem.style.display = caza ? 'none' : '';
+      campoPresa.style.display = caza ? '' : 'none';
+    }
+    selTipo.addEventListener('change', verTipo);
+    verTipo();
+
+    bloque._leer = function () {
+      var textos = {};
+      bloquesIdioma.forEach(function (b) {
+        var t = b._leer();
+        textos[t.code] = {
+          title: t.title,
+          description: t.description,
+          itemName: t.itemName,
+          rewardName: t.rewardName
+        };
+      });
+      var salida = {
+        missionId: inId.value.trim(),
+        tipo: selTipo.value,
+        monstruo: selTipo.value === 'cazar' ? selPresa.value : '',
+        itemId: selTipo.value === 'cazar' ? '' : inItem.value.trim(),
+        requiredAmount: parseInt(inCant.value, 10) || 1,
+        expReward: parseInt(inExp.value, 10) || 0,
+        // Monedas: siempre se mandan (0 incluido) para poder QUITAR una
+        // recompensa que se puso antes. Si solo se enviaran cuando son > 0, al
+        // bajar una a 0 el servidor conservaría el valor viejo.
+        goldReward:   Math.max(0, parseInt(inOro.value,   10) || 0),
+        silverReward: Math.max(0, parseInt(inPlata.value, 10) || 0),
+        texts: textos
+      };
+      if (inPremio.value.trim()) {
+        salida.rewardItemId = inPremio.value.trim();
+        salida.rewardAmount = parseInt(inPremioC.value, 10) || 1;
+      }
+      return salida;
+    };
+
+    return bloque;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Historial de misiones
+  // ---------------------------------------------------------------------------
+  function fechaCorta(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso);
+    if (isNaN(d)) return '—';
+    // Se piden horas y minutos a la API de formato en vez de recortar la cadena
+    // a 5 caracteres: con horas de un solo dígito ("5:00:00") el recorte dejaba
+    // un "5:00:" con dos puntos colgando.
+    return d.toLocaleDateString() + ' ' +
+           d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function pintarHistorial(filas) {
+    var cont = $('historial');
+    cont.textContent = '';
+
+    if (!filas.length) {
+      cont.appendChild(crear('p', { class: 'hint', text: 'No hay jugadores que coincidan.' }));
+      return;
+    }
+
+    var tabla = crear('table', { class: 'his-tabla' });
+    var thead = crear('thead');
+    var trh = crear('tr');
+    ['#', 'Jugador', 'Usuario', 'Dirección', 'Nivel', 'Acumulado', 'Registros', 'Días', 'Última entrega', '']
+      .forEach(function (t) { trh.appendChild(crear('th', { text: t })); });
+    thead.appendChild(trh);
+    tabla.appendChild(thead);
+
+    var tbody = crear('tbody');
+    filas.forEach(function (f, i) {
+      var tr = crear('tr');
+      tr.appendChild(crear('td', { text: String(i + 1) }));
+      tr.appendChild(crear('td', { text: f.playerName }));
+      tr.appendChild(crear('td', { text: f.username || '—' }));
+
+      // La dirección entera no cabe: se muestra recortada y completa al pasar
+      // el ratón, para poder copiarla sin romper la tabla.
+      var tdDir = crear('td');
+      if (f.address) {
+        var sp = crear('span', { text: f.address.slice(0, 6) + '…' + f.address.slice(-4) });
+        sp.title = f.address;
+        tdDir.appendChild(sp);
+      } else { tdDir.textContent = '—'; }
+      tr.appendChild(tdDir);
+
+      tr.appendChild(crear('td', { text: String(f.nivel) }));
+      tr.appendChild(crear('td', { text: String(f.misiones) }));
+      tr.appendChild(crear('td', { text: String(f.entregasRegistradas) }));
+      tr.appendChild(crear('td', { text: String(f.diasConActividad) }));
+      tr.appendChild(crear('td', { text: fechaCorta(f.ultimaEntrega) }));
+
+      var tdBtn = crear('td');
+      var btn = crear('button', { class: 'danger', type: 'button', text: 'Limpiar' });
+      btn.addEventListener('click', function () { limpiarJugador(f.playerName, btn); });
+      tdBtn.appendChild(btn);
+      tr.appendChild(tdBtn);
+
+      tbody.appendChild(tr);
+    });
+    tabla.appendChild(tbody);
+    cont.appendChild(tabla);
+  }
+
+  function cargarHistorial() {
+    var q = '?limit=' + encodeURIComponent($('hisLimite').value || 100);
+    var b = ($('hisBuscar').value || '').trim();
+    if (b) q += '&search=' + encodeURIComponent(b);
+
+    aviso('Cargando historial…');
+    pedir('/api/admin/missions/history' + q)
+      .then(function (d) {
+        pintarHistorial(d.rows || []);
+        aviso('Historial cargado: ' + (d.total || 0) + ' jugadores.', 'ok');
+      })
+      .catch(function (e) { aviso('No se pudo cargar el historial: ' + e.message, 'error'); });
+  }
+
+  function limpiarJugador(playerName, btn) {
+    // Se avisa del efecto real: borrar el progreso de HOY le permite volver a
+    // entregar las misiones de hoy y cobrarlas otra vez.
+    if (!confirm(
+      'Vas a borrar el historial de misiones de "' + playerName + '".' + '\\n\\n' +
+      'Se pone su contador acumulado a 0 y se borran sus registros diarios.' + '\n' +
+      'OJO: al borrar el progreso de HOY, podrá volver a entregar las misiones ' +
+      'de hoy y cobrar la recompensa otra vez.' + '\n\n' + '¿Continuar?')) return;
+
+    if (btn) btn.disabled = true;
+    pedir('/api/admin/missions/history/' + encodeURIComponent(playerName), { method: 'DELETE' })
+      .then(function (d) {
+        aviso('Historial de ' + playerName + ' borrado (' + d.registrosBorrados + ' registros).', 'ok');
+        cargarHistorial();
+      })
+      .catch(function (e) {
+        aviso('No se pudo borrar: ' + e.message, 'error');
+        if (btn) btn.disabled = false;
+      });
+  }
+
+  function limpiarTodoElHistorial() {
+    if (!confirm(
+      'Vas a borrar el historial de misiones de TODOS los jugadores.' + '\n\n' +
+      'Se ponen a 0 todos los contadores y se borran todos los registros diarios.' + '\n' +
+      'OJO: todo el mundo podrá volver a entregar las misiones de hoy y cobrarlas ' +
+      'otra vez.' + '\n\n' + 'Esto no se puede deshacer. ¿Continuar?')) return;
+    if (prompt('Escribe BORRAR para confirmar:') !== 'BORRAR') {
+      aviso('Cancelado.', 'ok');
+      return;
+    }
+    pedir('/api/admin/missions/history', {
+      method: 'DELETE',
+      body: JSON.stringify({ confirm: 'BORRAR' })
+    })
+      .then(function (d) {
+        aviso('Historial completo borrado: ' + d.registrosBorrados + ' registros, ' +
+               d.contadoresReiniciados + ' contadores.', 'ok');
+        cargarHistorial();
+      })
+      .catch(function (e) { aviso('No se pudo borrar: ' + e.message, 'error'); });
+  }
+
+  function agregarMision(datos) {
+    $('misiones').appendChild(bloqueMision(datos));
+  }
+
+  // ===========================================================================
+  // (2026-10-19) CATÁLOGO, REGLAS AUTOMÁTICAS Y ENTREGAS DEL DÍA
+  // ===========================================================================
+  var catalogo = { monstruos: [{ tipo: '*', nombre: 'Any monster' }], items: [] };
+
+  function cargarCatalogo() {
+    return pedir('/api/admin/missions/catalogo').then(function (d) {
+      catalogo = { monstruos: d.monstruos || catalogo.monstruos, items: d.items || [] };
+      // La lista desplegable de ítems (la usan todos los campos de ítem).
+      var dl = $('gf-items');
+      if (!dl) { dl = crear('datalist', { id: 'gf-items' }); document.body.appendChild(dl); }
+      dl.textContent = '';
+      catalogo.items.forEach(function (it) { dl.appendChild(crear('option', { value: it })); });
+      // Los desplegables de monstruo que ya estaban pintados.
+      Array.prototype.forEach.call(document.querySelectorAll('select[data-presas]'), function (sel) {
+        llenarPresas(sel, sel.value);
+      });
+    }).catch(function (e) { aviso('Could not load the catalog: ' + e.message, 'err'); });
+  }
+
+  function llenarPresas(sel, valor) {
+    sel.setAttribute('data-presas', '1');
+    sel.textContent = '';
+    var lista = catalogo.monstruos.slice();
+    if (valor && !lista.some(function (m) { return m.tipo === valor; })) lista.push({ tipo: valor, nombre: valor });
+    lista.forEach(function (m) {
+      var donde = m.salas && m.salas.length ? ' — ' + m.salas.join(', ') : '';
+      sel.appendChild(crear('option', { value: m.tipo, text: m.nombre + (m.tipo === '*' || m.tipo === 'jugador' ? '' : ' (' + m.tipo + ')') + donde }));
+    });
+    sel.value = valor || '*';
+  }
+
+  /* Una lista editable: filas con sus columnas, añadir y quitar. */
+  function listaEditable(cont, titulo, columnas, filas) {
+    cont.textContent = '';
+    var caja = crear('div', { class: 'lista-ed' });
+    var btnMas = crear('button', { class: 'ghost', type: 'button', text: '＋ Add' });
+    caja.appendChild(crear('h3', {}, [crear('span', { text: titulo }), crear('span', { class: 'sp' }), btnMas]));
+    var plantilla = columnas.map(function (c) { return c.ancho || '1fr'; }).concat(['auto']).join(' ');
+    var cab = crear('div', { class: 'fila cab' });
+    cab.style.gridTemplateColumns = plantilla;
+    columnas.forEach(function (c) { cab.appendChild(crear('span', { text: c.etiqueta })); });
+    cab.appendChild(crear('span', { text: '' }));
+    caja.appendChild(cab);
+    var cuerpo = crear('div');
+    caja.appendChild(cuerpo);
+    function fila(d) {
+      d = d || {};
+      var f = crear('div', { class: 'fila' });
+      f.style.gridTemplateColumns = plantilla;
+      var campos = columnas.map(function (c) {
+        var el;
+        if (c.presa) { el = crear('select'); llenarPresas(el, d[c.k] || '*'); }
+        else {
+          el = crear('input', { type: c.num ? 'number' : 'text', value: d[c.k] != null ? d[c.k] : (c.def != null ? c.def : '') });
+          if (c.num) { el.min = c.min != null ? c.min : 0; el.max = c.max != null ? c.max : 9999; }
+          if (c.lista) el.setAttribute('list', 'gf-items');
+          if (c.ph) el.placeholder = c.ph;
+        }
+        f.appendChild(el);
+        return el;
+      });
+      var quitar = crear('button', { class: 'danger', type: 'button', text: '✕' });
+      quitar.addEventListener('click', function () { f.remove(); });
+      f.appendChild(quitar);
+      f._leer = function () {
+        var o = {};
+        columnas.forEach(function (c, i) { o[c.k] = c.num ? (parseInt(campos[i].value, 10) || 0) : campos[i].value.trim(); });
+        return o;
+      };
+      cuerpo.appendChild(f);
+    }
+    (filas || []).forEach(fila);
+    btnMas.addEventListener('click', function () { fila(); });
+    caja._leer = function () {
+      return Array.prototype.map.call(cuerpo.children, function (f) { return f._leer(); });
+    };
+    cont.appendChild(caja);
+    return caja;
+  }
+
+  var edPedidos = null, edPresas = null, edPremios = null;
+  var COLS_PEDIDOS = [
+    { k: 'itemId', etiqueta: 'Item to deliver', lista: true, ancho: '2fr', ph: 'ej. madera_pinos' },
+    { k: 'nombre', etiqueta: 'Name shown to players', ancho: '2fr', ph: 'Pine Wood' },
+    { k: 'min', etiqueta: 'Min', num: true, min: 1, def: 1 }, { k: 'max', etiqueta: 'Max', num: true, min: 1, def: 5 }];
+  var COLS_PRESAS = [
+    { k: 'tipo', etiqueta: 'Monster / enemy', presa: true, ancho: '2.4fr' },
+    { k: 'nombre', etiqueta: 'Name shown to players', ancho: '2fr', ph: 'Shadow Wolves' },
+    { k: 'min', etiqueta: 'Min', num: true, min: 1, def: 2 }, { k: 'max', etiqueta: 'Max', num: true, min: 1, def: 5 }];
+  var COLS_PREMIOS = [
+    { k: 'itemId', etiqueta: 'Reward item', lista: true, ancho: '2fr', ph: 'ej. Semillax' },
+    { k: 'nombre', etiqueta: 'Name shown to players', ancho: '2fr', ph: 'Carrot Seeds' },
+    { k: 'min', etiqueta: 'Min', num: true, min: 1, def: 1 }, { k: 'max', etiqueta: 'Max', num: true, min: 1, def: 3 },
+    { k: 'peso', etiqueta: 'Weight', num: true, min: 1, max: 100, def: 1 }];
+
+  function pintarReglas(r) {
+    r = r || {};
+    $('autoNpcLabel').textContent = '— ' + $('npc').value + (r.porDefecto ? ' (default rules, not saved yet)' : '');
+    $('autoActivo').checked = !!r.activo;
+    $('autoCuantas').value = r.cuantas || 3;
+    $('autoPesoE').value = r.pesoEntregar != null ? r.pesoEntregar : 60;
+    $('autoPesoC').value = r.pesoCazar != null ? r.pesoCazar : 40;
+    $('autoHora').value = r.horaReinicio || 0;
+    $('autoProb').value = r.probPremio != null ? r.probPremio : 75;
+    ['ExpMin', 'ExpMax', 'OroMin', 'OroMax', 'PlataMin', 'PlataMax'].forEach(function (k) {
+      var clave = k.charAt(0).toLowerCase() + k.slice(1);
+      $('auto' + k).value = r[clave] != null ? r[clave] : 0;
+    });
+    edPedidos = listaEditable($('autoPedidos'), '📦 Items that can be requested (deliver missions)', COLS_PEDIDOS, r.pedidos);
+    edPresas = listaEditable($('autoPresas'), '⚔️ Monsters / enemies that can be requested (hunt missions)', COLS_PRESAS, r.presas);
+    edPremios = listaEditable($('autoPremios'), '🎁 Reward items (one is picked at random by weight)', COLS_PREMIOS, r.premios);
+  }
+
+  function leerReglas() {
+    var n = function (id) { return parseInt($(id).value, 10) || 0; };
+    return {
+      activo: $('autoActivo').checked, cuantas: n('autoCuantas'),
+      pesoEntregar: n('autoPesoE'), pesoCazar: n('autoPesoC'), horaReinicio: n('autoHora'),
+      pedidos: edPedidos ? edPedidos._leer() : [], presas: edPresas ? edPresas._leer() : [],
+      premios: edPremios ? edPremios._leer() : [], probPremio: n('autoProb'),
+      expMin: n('autoExpMin'), expMax: n('autoExpMax'), oroMin: n('autoOroMin'), oroMax: n('autoOroMax'),
+      plataMin: n('autoPlataMin'), plataMax: n('autoPlataMax')
+    };
+  }
+
+  function cargarReglas() {
+    if (!adminOk) return;
+    pedir('/api/admin/missions/auto/' + $('npc').value)
+      .then(function (d) { pintarReglas(d.reglas); })
+      .catch(function (e) { aviso('Could not load the automatic rules: ' + e.message, 'err'); });
+  }
+
+  function guardarReglas() {
+    if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
+    pedir('/api/admin/missions/auto/' + $('npc').value, { method: 'PUT', body: JSON.stringify(leerReglas()) })
+      .then(function (d) { pintarReglas(d.reglas); aviso('✅ Automatic rules saved for ' + d.npcId + '.', 'ok'); })
+      .catch(function (e) { aviso('Could not save the rules: ' + e.message, 'err'); });
+  }
+
+  var ultimaPrevia = [];
+  function textoPremios(m) {
+    var p = ['+' + (m.expReward || 0) + ' EXP'];
+    if (m.goldReward) p.push('+' + m.goldReward + ' gold');
+    if (m.silverReward) p.push('+' + m.silverReward + ' silver');
+    if (m.rewardItemId) p.push('+' + (m.rewardAmount || 1) + ' ' + ((m.texts && m.texts['en-US'] && m.texts['en-US'].rewardName) || m.rewardItemId));
+    return p.join(' · ');
+  }
+  function verPrevia() {
+    if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
+    var dia = $('dia').value;
+    pedir('/api/admin/missions/auto/' + $('npc').value + '/preview', { method: 'POST', body: JSON.stringify({ day: dia, reglas: leerReglas() }) })
+      .then(function (d) {
+        ultimaPrevia = d.missions || [];
+        var cont = $('autoPrevia');
+        cont.textContent = '';
+        cont.appendChild(crear('p', { class: 'hint', text: 'Preview for ' + d.day + ' (' + ultimaPrevia.length + ' missions):' }));
+        ultimaPrevia.forEach(function (m) {
+          var t = (m.texts && m.texts['en-US']) || {};
+          cont.appendChild(crear('div', { class: 'prev-m' + (m.tipo === 'cazar' ? ' caza' : '') }, [
+            crear('div', { text: (m.tipo === 'cazar' ? '⚔️ ' : '📦 ') + (t.title || m.missionId) }),
+            crear('small', { text: textoPremios(m) + (t.description ? ' — ' + t.description : '') })
+          ]));
+        });
+        if (!ultimaPrevia.length) cont.appendChild(crear('p', { class: 'hint', text: 'Nothing comes out: add items or monsters and give their type some weight.' }));
+      })
+      .catch(function (e) { aviso('Could not build the preview: ' + e.message, 'err'); });
+  }
+  function previaAlEditor() {
+    if (!ultimaPrevia.length) return aviso('Make a preview first (👁).', 'err');
+    limpiarMisiones();
+    ultimaPrevia.forEach(function (m) {
+      var copia = JSON.parse(JSON.stringify(m));
+      copia.missionId = copia.missionId.replace(/^auto/, 'm');
+      agregarMision(copia);
+    });
+    aviso('Preview copied to the manual editor (section 3): edit it and press "Guardar en el juego".', 'ok');
+  }
+  function rerollHoy() {
+    if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
+    if (!confirm('Make a NEW random roll of today\'s automatic missions for ' + $('npc').value + '?\n\n' +
+                 'Players who already handed in today keep what they got.')) return;
+    pedir('/api/admin/missions/auto/' + $('npc').value + '/reroll', { method: 'POST', body: '{}' })
+      .then(function (d) { aviso('🎲 New roll for ' + d.day + ': ' + (d.missions || []).length + ' missions.', 'ok'); cargarDias(); cargarReglas(); })
+      .catch(function (e) { aviso('Could not reroll: ' + e.message, 'err'); });
+  }
+
+  // ── Quién cumplió qué ──────────────────────────────────────────────────────
+  var ultimasEntregas = null;
+  function cargarEntregas() {
+    if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
+    var q = '?npcId=' + encodeURIComponent($('npc').value) + '&day=' + encodeURIComponent($('dia').value || '');
+    var b = ($('entBuscar').value || '').trim();
+    if (b) q += '&search=' + encodeURIComponent(b);
+    aviso('Loading the deliveries…');
+    pedir('/api/admin/missions/entregas' + q)
+      .then(function (d) { ultimasEntregas = d; pintarEntregas(d); aviso('Deliveries loaded: ' + d.total + ' players.', 'ok'); })
+      .catch(function (e) { aviso('Could not load the deliveries: ' + e.message, 'err'); });
+  }
+  function recibidoTexto(r) {
+    var p = [];
+    if (r.exp) p.push(r.exp + ' EXP');
+    if (r.oro) p.push(r.oro + ' gold');
+    if (r.plata) p.push(r.plata + ' silver');
+    Object.keys(r.items || {}).forEach(function (k) { p.push(r.items[k] + '× ' + k); });
+    return p.join(', ') || '—';
+  }
+  function pintarEntregas(d) {
+    var cont = $('entregas');
+    cont.textContent = '';
+    $('entInfo').textContent = '';
+    $('entInfo').appendChild(crear('span', { class: 'pill ' + (d.auto ? 'auto' : 'manual'), text: d.day + ' · ' + d.npcId + ' · ' + (d.auto ? 'automatic' : 'manual') }));
+    if (!d.misiones.length) { cont.appendChild(crear('p', { class: 'hint', text: 'That day has no missions for this NPC.' })); return; }
+    if (!d.rows.length) { cont.appendChild(crear('p', { class: 'hint', text: 'Nobody has handed in or hunted anything that day yet.' })); return; }
+    var tabla = crear('table', { class: 'his-tabla ent-tabla' });
+    var trh = crear('tr');
+    ['#', 'Player', 'Username', 'Wallet', 'Level'].forEach(function (t) { trh.appendChild(crear('th', { text: t })); });
+    d.misiones.forEach(function (m) {
+      var th = crear('th', { text: (m.tipo === 'cazar' ? '⚔️ ' : '📦 ') + m.titulo });
+      th.title = m.missionId + ' — ' + textoPremios(m);
+      trh.appendChild(th);
+    });
+    ['Received', 'Last hand-in'].forEach(function (t) { trh.appendChild(crear('th', { text: t })); });
+    tabla.appendChild(crear('thead', {}, [trh]));
+    var tbody = crear('tbody');
+    d.rows.forEach(function (f, i) {
+      var tr = crear('tr');
+      tr.appendChild(crear('td', { text: String(i + 1) }));
+      tr.appendChild(crear('td', { text: f.playerName }));
+      tr.appendChild(crear('td', { text: f.username || '— (no name)' }));
+      var tdDir = crear('td');
+      if (f.address) {
+        var sp = crear('span', { text: f.address.slice(0, 6) + '…' + f.address.slice(-4) });
+        sp.title = f.address + ' (click to copy)';
+        sp.style.cursor = 'copy';
+        sp.addEventListener('click', function () { try { navigator.clipboard.writeText(f.address); aviso('Wallet copied.', 'ok'); } catch (e) {} });
+        tdDir.appendChild(sp);
+      } else { tdDir.textContent = '—'; }
+      tr.appendChild(tdDir);
+      tr.appendChild(crear('td', { text: String(f.nivel) }));
+      d.misiones.forEach(function (m) {
+        var hecha = (f.completadas || []).filter(function (c) { return c.missionId === m.missionId; })[0];
+        if (hecha) {
+          var td = crear('td', { class: 'si', text: '✓' });
+          var det = [];
+          if (hecha.exp != null) det.push(hecha.exp + ' EXP');
+          if (hecha.oro) det.push(hecha.oro + ' gold');
+          if (hecha.plata) det.push(hecha.plata + ' silver');
+          if (hecha.itemId) det.push((hecha.itemCantidad || 0) + '× ' + hecha.itemId);
+          td.title = fechaCorta(hecha.completedAt) + (det.length ? ' — ' + det.join(', ') : '');
+          tr.appendChild(td);
+        } else if (m.tipo === 'cazar' && f.cazas) {
+          var llevo = m.monstruo && m.monstruo !== '*' ? Number((f.cazas.porTipo || {})[m.monstruo]) || 0 : Number(f.cazas.total) || 0;
+          tr.appendChild(crear('td', { class: llevo ? 'mid' : 'no', text: '✗ ' + Math.min(llevo, m.requiredAmount) + '/' + m.requiredAmount }));
+        } else {
+          tr.appendChild(crear('td', { class: 'no', text: '✗' }));
+        }
+      });
+      tr.appendChild(crear('td', { text: recibidoTexto(f.recibido || {}) }));
+      tr.appendChild(crear('td', { text: fechaCorta(f.ultima) }));
+      tbody.appendChild(tr);
+    });
+    tabla.appendChild(tbody);
+    cont.appendChild(tabla);
+  }
+  function exportarCsv() {
+    var d = ultimasEntregas;
+    if (!d || !d.rows || !d.rows.length) return aviso('Load the deliveries first.', 'err');
+    var q = function (v) { v = v == null ? '' : String(v); return '"' + v.replace(/"/g, '""') + '"'; };
+    var cab = ['day', 'npc', 'player', 'username', 'wallet', 'level'].concat(d.misiones.map(function (m) { return m.missionId; }))
+      .concat(['exp_received', 'gold_received', 'silver_received', 'items_received', 'last_hand_in']);
+    var lineas = [cab.map(q).join(',')];
+    d.rows.forEach(function (f) {
+      var r = f.recibido || {};
+      lineas.push([d.day, d.npcId, f.playerName, f.username || '', f.address || '', f.nivel]
+        .concat(d.misiones.map(function (m) { return (f.completadas || []).some(function (c) { return c.missionId === m.missionId; }) ? 'yes' : 'no'; }))
+        .concat([r.exp || 0, r.oro || 0, r.plata || 0,
+                 Object.keys(r.items || {}).map(function (k) { return r.items[k] + 'x ' + k; }).join(' | '),
+                 f.ultima || ''])
+        .map(q).join(','));
+    });
+    var blob = new Blob(['\ufeff' + lineas.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    var a = crear('a', { href: URL.createObjectURL(blob), download: 'missions_' + d.npcId + '_' + d.day + '.csv' });
+    document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+
+  function limpiarMisiones() {
+    $('misiones').textContent = '';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Llamadas al backend
+  // ---------------------------------------------------------------------------
+  function leerCookie(nombre) {
+    var m = document.cookie.match(new RegExp('(?:^|;\\s*)' +
+      nombre.replace(/[.$?*|{}()[\]\\/+^]/g, '\\$&') + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+  function b64(s) { try { return btoa(unescape(encodeURIComponent(s))); } catch (e) { return btoa(String(s)); } }
+
+  // Las llamadas van con la COOKIE de sesión (credentials: 'include') y el
+  // token CSRF leído en el momento, no con una cabecera Authorization.
+  function pedir(ruta, opciones) {
+    opciones = opciones || {};
+    opciones.credentials = 'include';
+    opciones.mode = 'cors';
+    var t = leerCookie('csrf-token') || csrf;
+    opciones.headers = Object.assign(
+      { 'Content-Type': 'application/json' },
+      t ? { 'X-CSRF-Token': t } : {},
+      opciones.headers || {}
+    );
+    return fetch(API + ruta, opciones).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (data) {
+        if (!r.ok) {
+          var e = new Error(data.message || data.error || ('HTTP ' + r.status));
+          e.code = data.error; e.status = r.status;
+          throw e;
+        }
+        return data;
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Entrada con cartera de administrador
+  // ---------------------------------------------------------------------------
+  function getProvider() {
+    if (window.ethereum && window.ethereum.providers) {
+      var mm = window.ethereum.providers.find(function (p) { return p.isMetaMask; });
+      if (mm) return mm;
+    }
+    return window.ethereum || null;
+  }
+
+  // Un ciclo completo: pedir nonce → firmar → login. Devuelve {ok, cuerpo}.
+  function cicloDeEntrada(provider, cuenta) {
+    aviso('Pidiendo nonce…', 'info');
+    return fetch(API + '/api/auth/nonce?address=' + encodeURIComponent(cuenta.toLowerCase()),
+                 { credentials: 'include', mode: 'cors' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('No se pudo obtener el nonce');
+        return r.json();
+      })
+      .then(function (d) {
+        var tk = d.nonce + ':' + Math.floor(Date.now() / 1000);
+        var mensaje = 'Signing in to ' + APP_NAME + ': ' + b64(tk);
+        aviso('Firma el mensaje en tu cartera…', 'info');
+        return provider.request({ method: 'personal_sign', params: [mensaje, cuenta] })
+          .then(function (firma) {
+            var cab = { 'Content-Type': 'application/json' };
+            var t = leerCookie('csrf-token') || csrf;
+            if (t) cab['X-CSRF-Token'] = t;
+            return fetch(API + '/api/auth/login', {
+              method: 'POST', credentials: 'include', mode: 'cors', headers: cab,
+              body: JSON.stringify({
+                address: cuenta.toLowerCase(), signature: firma, token: tk, message: mensaje
+              })
+            });
+          });
+      })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; })
+          .then(function (d) { return { ok: r.ok, status: r.status, cuerpo: d }; });
+      });
+  }
+
+  function conectarAdmin() {
+    var provider = getProvider();
+    if (!provider) { aviso('No se detectó MetaMask. Instálalo para continuar.', 'err'); return; }
+
+    var cuenta = null;
+    aviso('Conectando cartera…', 'info');
+
+    provider.request({ method: 'eth_requestAccounts' })
+      .then(function (cuentas) {
+        cuenta = cuentas && cuentas[0];
+        if (!cuenta) throw new Error('No elegiste ninguna cuenta');
+        return fetch(API + '/api/auth/csrf-token', { credentials: 'include', mode: 'cors' });
+      })
+      .then(function (r) { return r.json().catch(function () { return {}; }); })
+      .then(function (d) {
+        csrf = leerCookie('csrf-token') || d.csrfToken || null;
+        return cicloDeEntrada(provider, cuenta);
+      })
+      .then(function (r) {
+        // El servidor guarda UN nonce por dirección, lo reutiliza 10 minutos y
+        // lo BORRA al usarlo. Con esta página y admin.html abiertas a la vez,
+        // las dos piden el mismo y la segunda se encuentra con que ya no
+        // existe ("nonce no encontrado"). Se repite el ciclo una vez.
+        var txt = String((r.cuerpo && (r.cuerpo.message || r.cuerpo.error)) || '');
+        if (!r.ok && /nonce/i.test(txt)) {
+          aviso('El nonce ya se había usado; pidiendo uno nuevo…', 'info');
+          return cicloDeEntrada(provider, cuenta);
+        }
+        return r;
+      })
+      .then(function (r) {
+        if (!r.ok) throw new Error((r.cuerpo && (r.cuerpo.message || r.cuerpo.error)) || ('HTTP ' + r.status));
+        if (r.cuerpo && r.cuerpo.csrfToken) csrf = r.cuerpo.csrfToken;
+        return r.cuerpo;
+      })
+      .then(comprobarAdmin)
+      .catch(function (e) { aviso('No se pudo entrar: ' + e.message, 'err'); });
+  }
+
+  // `silencioso` = sondeo del arranque: si aún no hay sesión, no es un error.
+  function comprobarAdmin(silencioso) {
+    return pedir('/api/admin/whoami')
+      .then(function (d) {
+        adminOk = true;
+        $('adminInfo').textContent = '✅ Admin: ' +
+          (d.address ? d.address.slice(0, 6) + '…' + d.address.slice(-4) : 'sesión válida');
+        aviso('Acceso correcto.', 'ok');
+        cargarDias();
+        cargarCatalogo().then(cargarReglas);
+      })
+      .catch(function (e) {
+        adminOk = false;
+        $('adminInfo').textContent = '';
+        if (silencioso) throw e;
+        if (e.code === 'not_admin') {
+          aviso('Esa cartera no es administradora. Añádela a ADMIN_ADDRESSES o dale admin en el contrato.', 'err');
+        } else if (e.status === 401) {
+          aviso('Conecta la cartera de administrador para empezar.', 'info');
+        } else {
+          aviso('No se pudo comprobar el acceso: ' + e.message, 'err');
+        }
+        throw e;
+      });
+  }
+
+  function cargarDias() {
+    var cont = $('diasCargados');
+    cont.textContent = '';
+    if (!adminOk) return;
+
+    pedir('/api/admin/missions/days/' + $('npc').value)
+      .then(function (d) {
+        (d.days || []).forEach(function (x) {
+          var chip = crear('button', {
+            class: 'day-chip', type: 'button',
+            text: x.day + ' · ' + x.count + ' misión(es)'
+          });
+          chip.addEventListener('click', function () {
+            $('dia').value = x.day;
+            cargarDia();
+          });
+          cont.appendChild(chip);
+        });
+        if (!(d.days || []).length) {
+          cont.appendChild(crear('span', { class: 'hint', text: 'Todavía no hay días cargados para este NPC.' }));
+        }
+      })
+      .catch(function (e) { aviso('No se pudieron leer los días: ' + e.message, 'err'); });
+  }
+
+  function cargarDia() {
+    if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
+    var npc = $('npc').value, dia = $('dia').value;
+    if (!dia) return aviso('Elige un día.', 'err');
+
+    pedir('/api/admin/missions/daily/' + npc + '/' + dia)
+      .then(function (d) {
+        limpiarMisiones();
+        if (d.found && d.mission) {
+          $('reset').value = d.mission.dailyResetHour || 0;
+          (d.mission.missions || []).forEach(agregarMision);
+          aviso('Cargadas ' + (d.mission.missions || []).length + ' misión(es) de ' + dia + '.', 'ok');
+        } else {
+          agregarMision();
+          aviso('Ese día no tiene misiones todavía: empieza una nueva.', 'info');
+        }
+      })
+      .catch(function (e) { aviso('Error cargando: ' + e.message, 'err'); });
+  }
+
+  function guardar() {
+    if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
+    var dia = $('dia').value;
+    if (!dia) return aviso('Elige un día.', 'err');
+
+    var bloques = Array.prototype.slice.call(document.querySelectorAll('#misiones .mission'));
+    if (!bloques.length) return aviso('Añade al menos una misión.', 'err');
+
+    var misiones = bloques.map(function (b) { return b._leer(); });
+
+    var sinItem = misiones.filter(function (m) { return m.tipo !== 'cazar' && !m.itemId; });
+    if (sinItem.length) return aviso('Hay ' + sinItem.length + ' misión(es) sin ítem.', 'err');
+
+    pedir('/api/admin/missions/daily', {
+      method: 'PUT',
+      body: JSON.stringify({
+        npcId: $('npc').value,
+        day: dia,
+        dailyResetHour: parseInt($('reset').value, 10) || 0,
+        missions: misiones
+      })
+    })
+      .then(function (d) {
+        aviso('✅ Guardado: ' + d.count + ' misión(es) para ' + d.npcId + ' el ' + d.day + '.', 'ok');
+        cargarDias();
+      })
+      .catch(function (e) { aviso('No se pudo guardar: ' + e.message, 'err'); });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Eventos
+  // ---------------------------------------------------------------------------
+  $('btnConectar').addEventListener('click', conectarAdmin);
+
+  $('btnCargar').addEventListener('click', cargarDia);
+  $('btnAgregar').addEventListener('click', function () { agregarMision(); });
+  $('btnGuardar').addEventListener('click', guardar);
+  $('npc').addEventListener('change', cargarDias);
+  $('npc').addEventListener('change', function () { cargarReglas(); $('entregas').textContent = ''; });
+
+  $('btnHistorial').addEventListener('click', cargarHistorial);
+  // (2026-10-19) Reglas automáticas y entregas del día.
+  $('btnAutoGuardar').addEventListener('click', guardarReglas);
+  $('btnAutoPrevia').addEventListener('click', verPrevia);
+  $('btnAutoAlEditor').addEventListener('click', previaAlEditor);
+  $('btnAutoReroll').addEventListener('click', rerollHoy);
+  $('btnEntregas').addEventListener('click', cargarEntregas);
+  $('btnEntregasCsv').addEventListener('click', exportarCsv);
+  $('entBuscar').addEventListener('keydown', function (e) { if (e.key === 'Enter') cargarEntregas(); });
+  $('btnHistorialTodo').addEventListener('click', limpiarTodoElHistorial);
+  // Enter en el buscador = cargar
+  $('hisBuscar').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') cargarHistorial();
+  });
+
+  $('btnCopiar').addEventListener('click', function () {
+    if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
+    pedir('/api/admin/missions/copy', {
+      method: 'POST',
+      body: JSON.stringify({
+        npcId: $('npc').value,
+        fromDay: $('copiaDesde').value,
+        toDay: $('copiaHasta').value,
+        repeatDays: parseInt($('copiaDias').value, 10) || 1
+      })
+    })
+      .then(function (d) { aviso('Copiado a: ' + d.days.join(', '), 'ok'); cargarDias(); })
+      .catch(function (e) { aviso('No se pudo copiar: ' + e.message, 'err'); });
+  });
+
+  $('btnBorrar').addEventListener('click', function () {
+    if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
+    var dia = $('dia').value;
+    if (!dia) return aviso('Elige el día a borrar.', 'err');
+    if (!confirm('¿Borrar las misiones de ' + $('npc').value + ' del ' + dia + '?')) return;
+
+    pedir('/api/admin/missions/daily/' + $('npc').value + '/' + dia, { method: 'DELETE' })
+      .then(function () { limpiarMisiones(); aviso('Día borrado.', 'ok'); cargarDias(); })
+      .catch(function (e) { aviso('No se pudo borrar: ' + e.message, 'err'); });
+  });
+
+  // Arranque: hoy por defecto y una misión en blanco
+  var hoy = new Date().toISOString().slice(0, 10);
+  $('dia').value = hoy;
+  $('copiaDesde').value = hoy;
+  $('copiaHasta').value = hoy;
+  agregarMision();
+
+  // Si ya había una sesión de admin abierta (por ejemplo se venía de admin.html),
+  // se entra directo sin volver a firmar.
+  comprobarAdmin(true).catch(function () {});
+})();
+</script>
+</body>
+</html>

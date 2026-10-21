@@ -1,0 +1,13 @@
+✔ Hardhat keeps UUID v4 CommonJS support with bounded v3 output buffers (56.2881ms)
+✔ Sentry cookie replacement retains parsing and rejects unsafe serialized names (9.4231ms)
+✔ Hardhat Mocha reporter keeps its diff API and TypeScript runtime still transpiles (639.6553ms)
+✔ patched compiler ZIP dependency preserves a valid offline compiler archive (55.8989ms)
+✔ Undici multipart consumer parses text and files and safely handles prototype-named headers (384.542ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1657.3052

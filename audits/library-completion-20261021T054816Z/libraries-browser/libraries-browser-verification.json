@@ -1,0 +1,438 @@
+{
+  "panelCycles": 60,
+  "environmentCycles": 20,
+  "errors": [],
+  "samples": [
+    {
+      "mobile": false,
+      "cycles": [
+        {
+          "cycle": 0,
+          "docListeners": 4,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 1,
+          "docListeners": 4,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 2,
+          "docListeners": 4,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 3,
+          "docListeners": 4,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 4,
+          "docListeners": 4,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 5,
+          "docListeners": 4,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 6,
+          "docListeners": 4,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 7,
+          "docListeners": 4,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 8,
+          "docListeners": 4,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 9,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 10,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 11,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 12,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 13,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 14,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 15,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 16,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 17,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 18,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 19,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 20,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 21,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 22,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 23,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 24,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 25,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 26,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 27,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 28,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 29,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        }
+      ]
+    },
+    {
+      "mobile": true,
+      "cycles": [
+        {
+          "cycle": 0,
+          "docListeners": 4,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 1,
+          "docListeners": 4,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 2,
+          "docListeners": 4,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 3,
+          "docListeners": 4,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 4,
+          "docListeners": 4,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 5,
+          "docListeners": 4,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 6,
+          "docListeners": 4,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 7,
+          "docListeners": 4,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 8,
+          "docListeners": 4,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 9,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 10,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 11,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 12,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 13,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 14,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 15,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 16,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 17,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 18,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 19,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 20,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 21,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 22,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 23,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 24,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 25,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 26,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 27,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 28,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        },
+        {
+          "cycle": 29,
+          "docListeners": 3,
+          "menus": 0,
+          "notificationHubs": 0,
+          "loadingOverlays": 0
+        }
+      ]
+    }
+  ],
+  "environmentResult": "Ciclo 1: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 2: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 3: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 4: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 5: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 6: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 7: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 8: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 9: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 10: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 11: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 12: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 13: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 14: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 15: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 16: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 17: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 18: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 19: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCiclo 20: 0 objetos; 27 texturas compartidas; 24 listeners de motor.\nCORRECTO: 20 ciclos sin crecimiento de recursos retenidos.\n"
+}

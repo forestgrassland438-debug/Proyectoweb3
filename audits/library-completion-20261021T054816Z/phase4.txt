@@ -1,0 +1,22 @@
+✔ bronze ignores third-party API-shaped responses and late responses from a different account (46.3432ms)
+✔ bronze coalesces refreshes and cannot apply an older account response (2.9548ms)
+✔ bronze teardown releases observers and clocks, and retained fetch wrappers keep delegating (3.12ms)
+✔ VIP refreshes belong to one account and a stale finally cannot release a newer request (3.5446ms)
+✔ VIP status never carries from one account to another (2.3849ms)
+✔ name gate does not inherit a previous player permanent-name flag (4.5887ms)
+✔ gf-npcs.js: abandoned loads release both lifecycle hooks and pending loader callbacks (4.4468ms)
+✔ gf-npcs-pueblo.js: abandoned loads release both lifecycle hooks and pending loader callbacks (4.0703ms)
+✔ NPC decoration rollback preserves original alpha and frees partially allocated sprites (3.3324ms)
+✔ camel partial construction rolls back every object and its scene state (4.1221ms)
+✔ an interrupted zone journey cannot launch a scene or overwrite a newer journey note (4.3321ms)
+✔ boss teardown cancels delayed powers and immediately removes orb update callbacks (4.2321ms)
+✔ customization bounds appearance caches, reuses atlas downloads and frees intermediate canvases (19.7827ms)
+✔ customization rejects path traversal and terminates hung images and queued work on teardown (5.2399ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 283.4854

@@ -1,0 +1,637 @@
+diff --git "a/C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-bronce.js" "b/C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-bronce.js"
+index db383ba..c01ce8c 100644
+--- "a/C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-bronce.js"
++++ "b/C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-bronce.js"	
+@@ -23,9 +23,25 @@
+  * ======================================================================== */
+ (function () {
+   'use strict';
++  if (window.GFBronce) return;
+ 
+   var POR_PLATA = 1000;
+   var valor = null;
++  var propietario = '', revision = 0, pidiendo = null, destruido = false;
++  var observador = null, relojes = [], demoras = new Set();
++
++  function cuenta() { var sc = escena(); return sc ? String(sc.playerName || sc.address || '') : ''; }
++  function asegurarCuenta() {
++    var id = cuenta();
++    if (id && id !== propietario) {
++      propietario = id; revision++; valor = null; pidiendo = null;
++      var el = document.getElementById('info-text-bronce');
++      if (el) { el.textContent = '…'; el.title = 'Bronze'; }
++    }
++    return id;
++  }
++  function vigente(id) { return !destruido && id && cuenta() === id; }
++  function demorar(fn, ms) { var id = setTimeout(function () { demoras.delete(id); if (!destruido) fn(); }, ms); demoras.add(id); }
+ 
+   function api(ruta, cuerpo) {
+     if (window.GFMascota && typeof window.GFMascota.api === 'function') return window.GFMascota.api(ruta, cuerpo);
+@@ -75,7 +91,8 @@
+   }
+ 
+   function pintar(n) {
+-    if (n === null || n === undefined || !Number.isFinite(Number(n))) return;
++    asegurarCuenta();
++    if (destruido || n === null || n === undefined || !Number.isFinite(Number(n))) return;
+     valor = Math.max(0, Math.floor(Number(n)));
+     if (!window.playerStats) window.playerStats = {};
+     window.playerStats.bronce = valor;
+@@ -89,8 +106,10 @@
+   }
+ 
+   /** Lo que diga el servidor de las otras dos monedas (al cambiar). */
+-  function adoptarStats(st) {
+-    if (!st) return;
++  function adoptarStats(st, dueno) {
++    asegurarCuenta();
++    if (!st || destruido || (dueno && !vigente(dueno))) return;
++    revision++;
+     if (typeof st.bronce === 'number') pintar(st.bronce);
+     var sc = escena();
+     if (sc) {
+@@ -111,34 +130,49 @@
+   }
+ 
+   function refrescar() {
++    var id = asegurarCuenta(), version = revision;
+     var sc = escena();
+-    if (!sc || !sc.playerName) return Promise.resolve(false);
+-    return api('/api/stats/' + encodeURIComponent(sc.playerName)).then(function (r) {
++    if (destruido || !id || !sc || !sc.playerName) return Promise.resolve(false);
++    if (pidiendo) return pidiendo;
++    var trabajo = api('/api/stats/' + encodeURIComponent(sc.playerName)).then(function (r) {
+       var d = r && r.datos;
+-      if (d && d.stats) adoptarStats({ bronce: d.stats.bronce });
++      if (!vigente(id) || version !== revision || !r.ok || !d || !d.stats) return false;
++      adoptarStats({ bronce: d.stats.bronce }, id);
+       return true;
+-    }).catch(function () { return false; });
++    }).catch(function () { return false; }).finally(function () { if (pidiendo === trabajo) pidiendo = null; });
++    pidiendo = trabajo;
++    return trabajo;
+   }
+ 
+   // ── TODA RESPUESTA QUE TRAIGA `stats.bronce` PONE EL SALDO AL DÍA ─────────
+   if (typeof window.fetch === 'function' && !window.fetch.__gfBronce) {
+     var f0 = window.fetch;
+     var envuelto = function (input, init) {
+-      var p = f0.apply(this, arguments);
+-      var url = '';
+-      try { url = typeof input === 'string' ? input : (input && input.url) || ''; } catch (e) {}
+-      if (!/\/api\/(stats|currency|vip|load)\b/.test(url)) return p;
++      var id = asegurarCuenta(), url, write = false;
++      try {
++        url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url, window.location.href);
++        var sc = escena(), base = sc && typeof sc.serverBase === 'string' ? sc.serverBase
++          : typeof window.serverBase === 'string' ? window.serverBase : typeof window.GF_API_BASE === 'string' ? window.GF_API_BASE
++          : /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname) ? 'http://127.0.0.1:8080' : 'https://api.grasslandforest.com';
++        if (url.origin !== new URL(base || '/', window.location.href).origin || !/^\/api\/(stats|currency|vip|load)\b/.test(url.pathname)) url = null;
++        if (url && url.pathname.indexOf('/api/stats/') === 0 && decodeURIComponent(url.pathname.split('/')[3]) !== id) url = null;
++        write = !!url && !/^(GET|HEAD|OPTIONS)$/.test(String((init && init.method) || (input && input.method) || 'GET').toUpperCase());
++      } catch (e) { url = null; }
++      if (write) revision++;
++      var version = revision, p = f0.apply(this, arguments);
++      if (destruido || !url || !id) return p;
++      function fin() { if (write && vigente(id)) revision++; }
+       return p.then(function (res) {
+         try {
+           if (res && res.ok) {
+             res.clone().json().then(function (j) {
+               var st = j && (j.stats || (j.datos && j.datos.stats));
+-              if (st && typeof st.bronce === 'number') pintar(st.bronce);
+-            }).catch(function () {});
+-          }
+-        } catch (e) {}
++              if (vigente(id) && version === revision && st && typeof st.bronce === 'number') pintar(st.bronce);
++            }).catch(function () {}).finally(fin);
++          } else fin();
++        } catch (e) { fin(); }
+         return res;
+-      });
++      }, function (error) { fin(); throw error; });
+     };
+     envuelto.__gfBronce = true;
+     window.fetch = envuelto;
+@@ -161,25 +195,30 @@
+     b.style.cssText = 'flex:1;min-height:44px;border:none;border-radius:10px;background:#8a4f2a;color:#fff;font-weight:bold;cursor:pointer;font-size:13px;';
+     plata.parentNode.appendChild(b);
+     var msg = card.querySelector('#gfc-gift-msg');
++    var dueno = asegurarCuenta();
++    function actual() { return vigente(dueno) && card.isConnected; }
+     var pintarBoton = function (g) {
++      if (!actual()) return;
+       if (!g) { b.disabled = true; return; }
+       b.disabled = !g.available;
+       b.style.opacity = g.available ? '1' : '.55';
+       b.textContent = g.available ? 'Get ' + g.amount + ' Bronze' : 'Bronze in ' + restante(g.msLeft);
+     };
+-    api('/api/currency/weekly').then(function (r) { pintarBoton(r && r.datos && r.datos.gifts && r.datos.gifts.bronze); });
++    api('/api/currency/weekly').then(function (r) { pintarBoton(r && r.datos && r.datos.gifts && r.datos.gifts.bronze); }).catch(function () { pintarBoton(null); });
+     b.onclick = function () {
++      if (b.disabled || !actual()) return;
+       b.disabled = true;
+       var antes = b.textContent;
+       b.textContent = 'Claiming…';
+       api('/api/currency/weekly/claim', { kind: 'bronze' }).then(function (r) {
++        if (!actual()) return;
+         var d = (r && r.datos) || {};
+         if (r && r.ok && d.ok) {
+-          adoptarStats(d.stats);
++          adoptarStats(d.stats, dueno);
+           if (msg) { msg.style.color = '#6fcf97'; msg.textContent = '+' + d.amount + ' Bronze added.'; }
+           var sc = escena();
+           if (sc && sc.notifications) sc.notifications.show('+' + d.amount + ' Bronze (weekly gift)', 'success');
+-          api('/api/currency/weekly').then(function (r2) { pintarBoton(r2 && r2.datos && r2.datos.gifts && r2.datos.gifts.bronze); });
++          api('/api/currency/weekly').then(function (r2) { pintarBoton(r2 && r2.datos && r2.datos.gifts && r2.datos.gifts.bronze); }).catch(function () { pintarBoton(null); });
+         } else {
+           if (msg) {
+             msg.style.color = '#ff8a8a';
+@@ -187,13 +226,15 @@
+           }
+           b.textContent = antes; b.disabled = false;
+         }
+-      }).catch(function () { b.textContent = antes; b.disabled = false; });
++      }).catch(function () { if (actual()) { b.textContent = antes; b.disabled = false; } });
+     };
+   }
+ 
+   function cambioBronce(card) {
+     var exc = card.querySelector('#gfc-exc');
+     if (!exc || card.querySelector('#gfb-exc')) return;
++    var dueno = asegurarCuenta(), ocupado = false;
++    function actual() { return vigente(dueno) && card.isConnected; }
+     var sc = escena();
+     var plataIni = Math.floor(Number(sc && sc.moneda_plata) || 0);
+     var caja_ = document.createElement('div');
+@@ -234,6 +275,7 @@
+       $('gfb-dir-b2s').style.cssText = base + (dir === 'bronzeToSilver' ? on : off);
+     };
+     var refresh = function () {
++      if (!actual()) return;
+       var t = tope(), s = saldo();
+       $('gfb-e-plata').textContent = s.plata;
+       var q = Math.max(1, Math.min(Math.max(1, t), parseInt($('gfb-qty').value, 10) || 1));
+@@ -245,7 +287,7 @@
+         $('gfb-label').textContent = 'How much Silver do you want? (max ' + t + ')';
+         $('gfb-cost').textContent = 'Cost: ' + (q * POR_PLATA).toLocaleString('en-US') + ' Bronze  →  you get ' + q + ' Silver';
+       }
+-      $('gfb-go').disabled = t < 1;
++      $('gfb-go').disabled = ocupado || t < 1;
+       $('gfb-go').style.opacity = t < 1 ? '.55' : '1';
+       if (t < 1 && $('gfb-msg').dataset.sticky !== '1') {
+         $('gfb-msg').style.color = '#ff8a8a';
+@@ -258,30 +300,36 @@
+     $('gfb-plus').onclick = function () { $('gfb-qty').value = (parseInt($('gfb-qty').value, 10) || 1) + 1; refresh(); };
+     $('gfb-qty').oninput = refresh;
+     $('gfb-go').onclick = function () {
++      if (ocupado || !actual()) return;
+       var t = tope();
+       if (t < 1) return;
+       var q = Math.max(1, Math.min(t, parseInt($('gfb-qty').value, 10) || 1));
+       var go = $('gfb-go'), msg = $('gfb-msg');
++      var direccion = dir;
++      ocupado = true;
+       go.disabled = true; go.textContent = '⏳ Exchanging…';
+       msg.dataset.sticky = '1'; msg.style.color = '#ffc48a'; msg.textContent = 'Sending transaction…';
+-      api('/api/currency/exchange', { direction: dir, amount: q }).then(function (r) {
++      api('/api/currency/exchange', { direction: direccion, amount: q }).then(function (r) {
++        if (!actual()) return;
+         var d = (r && r.datos) || {};
+         if (r && r.ok && d.ok) {
+-          adoptarStats(d.stats);
++          adoptarStats(d.stats, dueno);
+           msg.style.color = '#6fcf97';
+-          msg.textContent = dir === 'silverToBronze' ? 'Done! +' + (q * POR_PLATA).toLocaleString('en-US') + ' Bronze' : 'Done! +' + q + ' Silver';
++          msg.textContent = direccion === 'silverToBronze' ? 'Done! +' + (q * POR_PLATA).toLocaleString('en-US') + ' Bronze' : 'Done! +' + q + ' Silver';
+           var sc2 = escena();
+-          if (sc2 && sc2.notifications) sc2.notifications.show(dir === 'silverToBronze'
++          if (sc2 && sc2.notifications) sc2.notifications.show(direccion === 'silverToBronze'
+             ? 'Exchanged ' + q + ' Silver → ' + (q * POR_PLATA).toLocaleString('en-US') + ' Bronze'
+             : 'Exchanged ' + (q * POR_PLATA).toLocaleString('en-US') + ' Bronze → ' + q + ' Silver', 'success');
+         } else {
+           msg.style.color = '#ff8a8a';
+           msg.textContent = d.error === 'insufficient_bronze' ? 'Not enough Bronze.' : d.error === 'insufficient_silver' ? 'Not enough Silver.' : 'Exchange failed. Try again.';
+         }
+-      }).catch(function () { msg.style.color = '#ff8a8a'; msg.textContent = 'Connection error. Try again.'; })
++      }).catch(function () { if (actual()) { msg.style.color = '#ff8a8a'; msg.textContent = 'Connection error. Try again.'; } })
+         .finally(function () {
++          ocupado = false;
++          if (!actual()) return;
+           go.disabled = false; go.textContent = '✓ Exchange Bronze';
+-          setTimeout(function () { msg.dataset.sticky = '0'; refresh(); }, 1600);
++          demorar(function () { if (actual()) { msg.dataset.sticky = '0'; refresh(); } }, 1600);
+         });
+     };
+     pintarDir();
+@@ -297,9 +345,10 @@
+   }
+ 
+   function vigilar() {
++    if (destruido) return;
+     if (!document.body) { document.addEventListener('DOMContentLoaded', vigilar); return; }
+     enganchar();
+-    new MutationObserver(function (cambios) {
++    observador = new MutationObserver(function (cambios) {
+       for (var i = 0; i < cambios.length; i++) {
+         var n = cambios[i].addedNodes;
+         for (var k = 0; k < n.length; k++) {
+@@ -307,15 +356,27 @@
+         }
+       }
+       enganchar();
+-    }).observe(document.body, { childList: true });
++    });
++    observador.observe(document.body, { childList: true });
+     // El saldo al empezar (y cada 2 min, por si algo lo cambió sin avisar).
+     var primero = setInterval(function () {
+       var sc = escena();
+       if (sc && sc.playerName) { clearInterval(primero); refrescar(); }
+     }, 1500);
+-    setInterval(function () { if (document.visibilityState !== 'hidden') refrescar(); }, 120000);
++    relojes.push(primero, setInterval(function () { if (document.visibilityState !== 'hidden') refrescar(); }, 120000));
++  }
++  function destruir(e) {
++    if (destruido || (e && e.persisted)) return;
++    destruido = true; revision++; pidiendo = null;
++    relojes.forEach(clearInterval); relojes = [];
++    demoras.forEach(clearTimeout); demoras.clear();
++    if (observador) observador.disconnect(); observador = null;
++    document.removeEventListener('DOMContentLoaded', vigilar);
++    window.removeEventListener('pagehide', destruir);
++    if (window.fetch === envuelto) window.fetch = f0;
+   }
++  window.addEventListener('pagehide', destruir);
+   vigilar();
+ 
+-  window.GFBronce = { valor: function () { return valor; }, pintar: pintar, adoptarStats: adoptarStats, refrescar: refrescar, corto: corto };
++  window.GFBronce = { valor: function () { asegurarCuenta(); return valor; }, pintar: pintar, adoptarStats: adoptarStats, refrescar: refrescar, corto: corto, destruir: destruir };
+ })();
+
+diff --git "a/C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-vip.js" "b/C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-vip.js"
+index d6b6cf1..5930a35 100644
+--- "a/C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-vip.js"
++++ "b/C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-vip.js"	
+@@ -22,6 +22,7 @@
+  * ======================================================================== */
+ (function () {
+   'use strict';
++  if (window.GFVip) return;
+ 
+   var TICKETS = { '1m': './Game/Source/vip/ticket_1m.png', '3m': './Game/Source/vip/ticket_3m.png', '6m': './Game/Source/vip/ticket_6m.png' };
+   var MONEDAS = [
+@@ -31,7 +32,20 @@
+   ];
+   var QUE = { drop: 'drop items for other players', market: 'use the P2P Market', lands: 'enter your island' };
+   var estado = { cargado: false, activo: false, inicio: null, fin: null, facturas: [], planes: null };
+-  var pidiendo = null, avisadoEn = {};
++  var pidiendo = null, avisadoEn = Object.create(null), propietario = '', destruido = false;
++  var relojes = [], modales = Object.create(null), guardas = new Set();
++
++  function cuenta() { var sc = escena(); return sc ? String(sc.playerName || sc.address || '') : ''; }
++  function asegurarCuenta() {
++    var id = cuenta();
++    if (id && id !== propietario) {
++      propietario = id; pidiendo = null; avisadoEn = Object.create(null);
++      estado = { cargado: false, activo: false, inicio: null, fin: null, facturas: [], planes: null };
++      Object.keys(modales).forEach(function (key) { modales[key].cerrar(); });
++    }
++    return id;
++  }
++  function vigente(id) { return !destruido && !!id && cuenta() === id; }
+ 
+   function api(ruta, cuerpo) {
+     if (window.GFMascota && typeof window.GFMascota.api === 'function') return window.GFMascota.api(ruta, cuerpo);
+@@ -72,14 +86,17 @@
+     pintarMarca();
+   }
+   function refrescar() {
++    var dueno = asegurarCuenta();
++    if (destruido || !dueno) return Promise.resolve(estado);
+     if (pidiendo) return pidiendo;
+-    pidiendo = api('/api/vip/estado').then(function (r) {
+-      if (r && r.ok && r.datos && r.datos.ok) adoptar(r.datos);
++    var trabajo = api('/api/vip/estado').then(function (r) {
++      if (vigente(dueno) && r && r.ok && r.datos && r.datos.ok) adoptar(r.datos);
+       return estado;
+-    }).catch(function () { return estado; }).finally(function () { pidiendo = null; });
++    }).catch(function () { return estado; }).finally(function () { if (pidiendo === trabajo) pidiendo = null; });
++    pidiendo = trabajo;
+     return pidiendo;
+   }
+-  function tiene() { return !!(estado.activo && Number(estado.fin) > Date.now()); }
++  function tiene() { asegurarCuenta(); return !!(!destruido && estado.activo && Number(estado.fin) > Date.now()); }
+ 
+   /** Antes de hacer algo que pide VIP. false (y avisa) si no lo tiene. */
+   function exigir(scene, accion) {
+@@ -112,9 +129,9 @@
+     reloj.parentNode.insertBefore(el, reloj.nextSibling);
+     el.addEventListener('click', function (e) { e.stopPropagation(); abrirInfo(); });
+     ajustarHueco(el);
+-    window.addEventListener('resize', function () { ajustarHueco(el); });
+     return el;
+   }
++  function alResize() { var el = document.getElementById('hud-vip'); if (el) ajustarHueco(el); }
+   /* (2026-10-20) "Donde dice VIP hay un espacio a su izquierda inutilizable":
+      el hueco de la caja (su `gap`) quedaba entre la raya del reloj y la
+      corona sin hacer nada. La marca se mete en ese hueco (margen negativo del
+@@ -147,6 +164,8 @@
+ 
+   // ── LOS PANELES (teléfono y PC) ─────────────────────────────────────────────
+   function modal(id, titulo) {
++    var dueno = asegurarCuenta(), cerrado = false;
++    if (modales[id]) modales[id].cerrar();
+     var viejo = document.getElementById(id);
+     if (viejo) viejo.remove();
+     var ov = document.createElement('div');
+@@ -161,12 +180,15 @@
+       '<div class="gfv-cuerpo"></div>';
+     ov.appendChild(card);
+     document.body.appendChild(ov);
+-    var cerrar = function () { ov.remove(); document.removeEventListener('keydown', alTecla); };
++    var cerrar = function () { if (cerrado) return; cerrado = true; ov.remove(); document.removeEventListener('keydown', alTecla); if (modales[id] === m) delete modales[id]; };
+     var alTecla = function (e) { if (e.key === 'Escape') cerrar(); };
+     document.addEventListener('keydown', alTecla);
+     card.querySelector('.gfv-x').onclick = cerrar;
+     ov.onclick = function (e) { if (e.target === ov) cerrar(); };
+-    return { ov: ov, cuerpo: card.querySelector('.gfv-cuerpo'), cerrar: cerrar };
++    var m = { ov: ov, cuerpo: card.querySelector('.gfv-cuerpo'), cerrar: cerrar,
++      valido: function () { return !cerrado && vigente(dueno) && ov.isConnected; } };
++    modales[id] = m;
++    return m;
+   }
+ 
+   function bloqueEstado() {
+@@ -184,6 +206,7 @@
+   function abrirInfo() {
+     var m = modal('gf-vip-info', '👑 VIP');
+     var pintarCuerpo = function (cargando) {
++      if (!m.valido()) return;
+       var filas = (estado.facturas || []).map(function (f) {
+         var plan = estado.planes && estado.planes[f.plan] ? estado.planes[f.plan].nombre : (f.dias + ' days');
+         var mon = MONEDAS.filter(function (x) { return x.k === f.moneda; })[0];
+@@ -219,6 +242,7 @@
+     if (window.GFSinNombre && !window.GFSinNombre.exigir(scene, 'shop')) return;
+     var m = modal('gf-vip-tienda', '🧵 Rosalind the Weaver — VIP Tickets');
+     var pintar = function (msg, color) {
++      if (!m.valido()) return;
+       var planes = estado.planes || {};
+       var s = saldos();
+       var tarjetas = ['1m', '3m', '6m'].map(function (k) {
+@@ -244,7 +268,7 @@
+         '<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;background:#140f1e;border-radius:10px;padding:8px;margin-bottom:10px;font-size:12px;">' +
+         MONEDAS.map(function (mo) { return '<span><img src="' + mo.img + '" alt="" style="width:14px;height:14px;vertical-align:-2px;image-rendering:pixelated"> ' + mo.nombre + ': <b>' + s[mo.k].toLocaleString('en-US') + '</b></span>'; }).join('') +
+         '</div>' + (tarjetas || '<p style="font-size:13px;">Loading the tickets…</p>') +
+-        '<div class="gfv-msg" style="min-height:18px;font-size:13px;text-align:center;color:' + (color || '#ffd76a') + '">' + (msg || '') + '</div>' +
++        '<div class="gfv-msg" style="min-height:18px;font-size:13px;text-align:center;color:' + (color || '#ffd76a') + '">' + esc(msg || '') + '</div>' +
+         '<p style="font-size:11px;color:#8f86a8;margin:6px 0 0;">Each purchase is saved on the blockchain (table "vip") with its start and expiry dates. Without VIP you cannot drop items for others, use the P2P Market or enter your island.</p>';
+       Array.prototype.forEach.call(m.cuerpo.querySelectorAll('.gfv-comprar'), function (b) {
+         b.onclick = function () { comprar(b.getAttribute('data-plan'), b.getAttribute('data-moneda')); };
+@@ -252,15 +276,17 @@
+     };
+     var ocupado = false;
+     var comprar = function (plan, moneda) {
+-      if (ocupado) return;
++      if (ocupado || !m.valido()) return;
+       var p = estado.planes && estado.planes[plan], mo = MONEDAS.filter(function (x) { return x.k === moneda; })[0];
+       if (!p || !mo) return;
+       var precio = p.precio[moneda];
+       if (saldos()[moneda] < precio) { pintar('You do not have enough ' + mo.nombre + ' (' + Number(precio).toLocaleString('en-US') + ').', '#ff8a8a'); return; }
+       if (!window.confirm('Buy ' + p.nombre + ' for ' + Number(precio).toLocaleString('en-US') + ' ' + mo.nombre + '?')) return;
++      if (!m.valido()) return;
+       ocupado = true;
+       pintar('⏳ Saving your VIP on the blockchain…', '#ffd76a');
+       api('/api/vip/comprar', { plan: plan, moneda: moneda }).then(function (r) {
++        if (!m.valido()) return;
+         var d = (r && r.datos) || {};
+         if (r && r.ok && d.ok) {
+           adoptar(d);
+@@ -283,43 +309,70 @@
+   /** Dentro de una isla: si no se puede estar (sin VIP), de vuelta al pueblo. */
+   function vigilarIsla(scene) {
+     if (!scene || !scene.sys) return;
++    if (scene.__gfVipGuard) scene.__gfVipGuard.cerrar();
++    var dueno = asegurarCuenta(), espera = null, cerrado = false;
++    var guarda = { cerrar: function () {
++      if (cerrado) return; cerrado = true; clearTimeout(espera); guardas.delete(guarda);
++      if (scene.events) { scene.events.off('shutdown', guarda.cerrar); scene.events.off('destroy', guarda.cerrar); }
++      if (scene.__gfVipGuard === guarda) scene.__gfVipGuard = null;
++    } };
++    scene.__gfVipGuard = guarda; guardas.add(guarda);
++    if (scene.events) { scene.events.once('shutdown', guarda.cerrar); scene.events.once('destroy', guarda.cerrar); }
++    function actual() { return !cerrado && vigente(dueno) && scene.__gfVipGuard === guarda && scene.sys && scene.sys.isActive(); }
+     var ajena = scene._islaDe && scene._islaDe !== scene.playerName;
+     var fuera = function (texto) {
++      if (!actual()) return;
+       avisar(scene, texto, 'warning');
+-      setTimeout(function () {
+-        if (scene.sys && scene.sys.isActive() && window.GFViaje) window.GFViaje.viajar({ mundo: 1 });
++      espera = setTimeout(function () {
++        if (actual() && window.GFViaje) window.GFViaje.viajar({ mundo: 1 });
++        guarda.cerrar();
+       }, 1600);
+     };
+     if (ajena) {
+       api('/api/vip/de/' + encodeURIComponent(scene._islaDe)).then(function (r) {
++        if (!actual()) return;
+         if (r && r.ok && r.datos && r.datos.ok && !r.datos.vip) fuera('🏝 This island is closed: its owner has no VIP.');
+-      });
++        else guarda.cerrar();
++      }).catch(guarda.cerrar);
+       return;
+     }
+     refrescar().then(function () {
++      if (!actual()) return;
+       if (estado.cargado && !tiene()) fuera('👑 You need VIP to enter your island. Get it from Rosalind the Weaver in Farmer Joe\'s house.');
+-    });
++      else guarda.cerrar();
++    }).catch(guarda.cerrar);
+   }
+ 
+   /** Antes de visitar la isla de otro: ¿su dueño tiene VIP? → Promise<boolean>. */
+   function islaAbierta(playerName) {
++    var dueno = asegurarCuenta();
+     return api('/api/vip/de/' + encodeURIComponent(playerName)).then(function (r) {
+-      return !!(r && r.ok && r.datos && r.datos.vip);
++      return !!(vigente(dueno) && r && r.ok && r.datos && r.datos.vip);
+     }).catch(function () { return false; });
+   }
+ 
+   function arrancar() {
++    if (destruido) return;
+     if (!document.body) { document.addEventListener('DOMContentLoaded', arrancar); return; }
+     var t = setInterval(function () {
+       marca();
+       var sc = escena();
+       if (sc && sc.playerName) { clearInterval(t); refrescar(); }
+     }, 1500);
+-    setInterval(function () { if (document.visibilityState !== 'hidden') refrescar(); }, 5 * 60 * 1000);
+-    setInterval(pintarMarca, 60 * 1000);
++    relojes.push(t, setInterval(function () { if (document.visibilityState !== 'hidden') refrescar(); }, 5 * 60 * 1000), setInterval(pintarMarca, 60 * 1000));
++  }
++  function destruir(e) {
++    if (destruido || (e && e.persisted)) return;
++    destruido = true; pidiendo = null;
++    relojes.forEach(clearInterval); relojes = [];
++    Object.keys(modales).forEach(function (id) { modales[id].cerrar(); });
++    Array.from(guardas).forEach(function (g) { g.cerrar(); });
++    document.removeEventListener('DOMContentLoaded', arrancar);
++    window.removeEventListener('resize', alResize); window.removeEventListener('pagehide', destruir);
+   }
++  window.addEventListener('resize', alResize); window.addEventListener('pagehide', destruir);
+   arrancar();
+ 
+-  window.GFVip = { estado: function () { return estado; }, tiene: tiene, exigir: exigir, refrescar: refrescar,
+-                   abrirTienda: abrirTienda, abrirInfo: abrirInfo, vigilarIsla: vigilarIsla, islaAbierta: islaAbierta };
++  window.GFVip = { estado: function () { asegurarCuenta(); return estado; }, tiene: tiene, exigir: exigir, refrescar: refrescar,
++                   abrirTienda: abrirTienda, abrirInfo: abrirInfo, vigilarIsla: vigilarIsla, islaAbierta: islaAbierta, destruir: destruir };
+ })();
+
+diff --git "a/C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-sin-nombre.js" "b/C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-sin-nombre.js"
+index 169568b..4a12ecb 100644
+--- "a/C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-sin-nombre.js"
++++ "b/C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-sin-nombre.js"	
+@@ -28,6 +28,7 @@
+  * ======================================================================== */
+ (function () {
+   'use strict';
++  if (window.GFSinNombre) return;
+ 
+   var QUE = {
+     shop: 'enter the shop', market: 'use the Market', battle: 'battle', pvp: 'fight other players',
+@@ -35,7 +36,7 @@
+   };
+   // Las acciones que GFMuerte.bloquear ya vigila y que también piden nombre.
+   var POR_MUERTE = { plant: 'plant', mission: 'mission' };
+-  var avisadoEn = {};
++  var avisadoEn = Object.create(null), propietario = null;
+ 
+   function valido(u) { u = String(u == null ? '' : u).trim(); return !!u && u !== '---'; }
+ 
+@@ -52,13 +53,20 @@
+   }
+ 
+   function tiene() {
++    var escenas = [];
++    try { if (window.game && window.game.scene && window.game.scene.getScenes) escenas = window.game.scene.getScenes(true) || []; } catch (e) {}
++    var sc = escenas.find(function (s) { return s && s.playerName; });
++    var id = sc ? String(sc.playerName) : null;
++    if (id && id !== propietario) {
++      if (propietario !== null) { window._gfNombreFijado = false; window._acttov = 0; avisadoEn = Object.create(null); }
++      propietario = id;
++    }
++    // Un nombre explícitamente pendiente manda sobre un flag de otra escena.
++    var u = nombreActual();
++    if (u !== null) { var ok = valido(u); window._gfNombreFijado = ok; return ok; }
+     if (window._gfNombreFijado === true) return true;       // fijado una vez, para siempre
+     if (Number(window._acttov) === 1) return true;          // el panel del jugador ya lo vio fijado
+-    var u = nombreActual();
+-    if (u == null) return true;                              // aún no se sabe: decide el servidor
+-    var ok = valido(u);
+-    if (ok) window._gfNombreFijado = true;
+-    return ok;
++    return true;                                            // aún no se sabe: decide el servidor
+   }
+ 
+   function escenaActiva() {
+
+diff --git "a/C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-character-skills.js" "b/C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-character-skills.js"
+index a3719ee..1bca6ef 100644
+--- "a/C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-character-skills.js"
++++ "b/C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-character-skills.js"	
+@@ -41,19 +41,20 @@
+      "Loading character points…" hasta que la cadena contestaba (lee TODAS
+      las facturas del jugador, segundos). Ahora el panel pinta al momento lo
+      último conocido y lo refresca por detrás. */
+-  var CACHE = {};
++  var CACHE = new Map();
+   function guardar(st, datos) {
+     st.data = datos;
+-    if (st.name) CACHE[st.name] = { data: datos, t: Date.now() };
++    if (st.name) { CACHE.delete(st.name); CACHE.set(st.name, { data: datos, t: Date.now() }); while (CACHE.size > 64) CACHE.delete(CACHE.keys().next().value); }
+   }
+   function adoptarCache(st) {
+-    var c = st.name && CACHE[st.name];
++    var c = st.name && CACHE.get(st.name);
+     if (c && !st.data) st.data = c.data;
+   }
+   function load(st) {
+     if (st.loading) return st.loading;
++    var revision = st.revision || 0;
+     st.loading = api('/api/player/skills').then(function (r) {
+-      if (valid(st) && r.ok && r.datos && r.datos.ok) { guardar(st, r.datos); st.scene.skillAllocations = r.datos.allocations; draw(st); }
++      if (valid(st) && !st.spending && revision === (st.revision || 0) && r.ok && r.datos && r.datos.ok) { guardar(st, r.datos); st.scene.skillAllocations = r.datos.allocations; draw(st); }
+     }).catch(function () {}).finally(function () { st.loading = null; });
+     return st.loading;
+   }
+@@ -104,6 +105,7 @@
+     reset.onclick = function () {
+       if (st.spending || !valid(st)) return;
+       if (!window.confirm('Reset your character points?' + String.fromCharCode(10, 10) + 'All ' + gastados + ' points come back so you can spend them again.')) return;
++      st.revision = (st.revision || 0) + 1;
+       st.spending = true; st.message = 'Resetting your points in the chain…'; draw(st);
+       api('/api/player/skills/reset', {}).then(function (r) {
+         if (!valid(st)) return;
+@@ -148,6 +150,7 @@
+       b.disabled = !st.data || !st.data.available || !!st.spending;
+       b.onclick = function () {
+         if (st.spending || !valid(st)) return;
++        st.revision = (st.revision || 0) + 1;
+         st.spending = true; st.message = 'Confirming in the chain…'; draw(st);
+         var antes = st.data && st.data.allocations[key] || 0;
+         api('/api/player/skills/allocate', { skill: key }).then(function (r) {
+
+diff --git "a/C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-rutas.js" "b/C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-rutas.js"
+index 341daee..bbdb79c 100644
+--- "a/C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-rutas.js"
++++ "b/C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-rutas.js"	
+@@ -57,6 +57,7 @@
+   }
+ 
+   function siguiente(scene, desde, hasta, op) {
++    if (!scene || !desde || !hasta || ![desde.x, desde.y, hasta.x, hasta.y].every(Number.isFinite)) return null;
+     op = op || {};
+     if (typeof op.libre !== 'function') return { x: hasta.x, y: hasta.y };
+     var mapa = cache(scene, op.clave || 'normal');
+@@ -85,8 +86,17 @@
+     // BFS dentro de la ventana.
+     var W = RADIO * 2 + 1;
+     var ox0 = sx - RADIO, oy0 = sy - RADIO;
+-    var previo = new Int32Array(W * W).fill(-1);
+-    var cola = new Int32Array(W * W);
++    // Una búsqueda es síncrona. Reutilizar sus buffers evita crear dos arrays
++    // por monstruo/ruta; una llamada reentrante conserva su espacio propio.
++    var trabajo = mapa.__gfBfs;
++    if (!trabajo || trabajo.activo) {
++      trabajo = { previo: new Int32Array(W * W), cola: new Int32Array(W * W), activo: false };
++      if (!mapa.__gfBfs) mapa.__gfBfs = trabajo;
++    }
++    trabajo.activo = true;
++    try {
++    var previo = trabajo.previo.fill(-1);
++    var cola = trabajo.cola;
+     var ini = (sy - oy0) * W + (sx - ox0);
+     var fin = (ty - oy0) * W + (tx - ox0);
+     previo[ini] = ini;
+@@ -122,6 +132,7 @@
+     while (previo[paso] !== ini && previo[paso] !== paso) paso = previo[paso];
+     var px = paso % W, py = (paso - px) / W;
+     return { x: (px + ox0) * CELDA + CELDA / 2, y: (py + oy0) * CELDA + CELDA / 2 };
++    } finally { trabajo.activo = false; }
+   }
+ 
+   window.GFRutas = { siguiente: siguiente, CELDA: CELDA };
+
+diff --git "a/C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-reposo.js" "b/C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-reposo.js"
+index 8ad5c1d..57cd9bd 100644
+--- "a/C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-reposo.js"
++++ "b/C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-reposo.js"	
+@@ -61,6 +61,7 @@
+   function dormir(p) {
+     if (!p) return;
+     if (!p._afk) { p._afk = true; p._afkVisibles = []; }
++    else p._afkVisibles = (p._afkVisibles || []).filter(function (o) { return o && o.scene; });
+     var l = piezas(p);
+     for (var i = 0; i < l.length; i++) {
+       if (l[i].visible) {

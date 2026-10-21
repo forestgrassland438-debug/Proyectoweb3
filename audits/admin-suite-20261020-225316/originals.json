@@ -1,0 +1,77 @@
+[
+  {
+    "file": "admin.html",
+    "sha256": "68FE5DF59C4650EAF9BC0CD97495E392C9954CB849FF367057C51A0ED382949B",
+    "length": 92663
+  },
+  {
+    "file": "admin-impact.js",
+    "sha256": "35C06104C64A3C8420A75CA57EBF449C8C5D9059BDC05FC7F1FF123171316976",
+    "length": 46015
+  },
+  {
+    "file": "admin-impact.css",
+    "sha256": "5123E76C901875CE770E65834F7126680475FE452F52D9A3AE0B9AA8BCA8DAFB",
+    "length": 3980
+  },
+  {
+    "file": "colecciones.html",
+    "sha256": "FE9983EA3BCD0DE0759D5ADD71E1804350DBB384EBF5143BB208287CC0933451",
+    "length": 17378
+  },
+  {
+    "file": "colecciones.js",
+    "sha256": "3F48B2209434505BE46DB21E41ABFE2FB301E58FF04C9CB83039A6B134B0BF5F",
+    "length": 69904
+  },
+  {
+    "file": "colecciones.css",
+    "sha256": "FE7E38D6E445104CF3EA63C24DAE479CE7E438026D052D86118146D27EB21F9F",
+    "length": 20607
+  },
+  {
+    "file": "climas.html",
+    "sha256": "B8F07FED60E413E4002CF8E7273F5F9E12479307D2BB0FFAB67749B490682B68",
+    "length": 33074
+  },
+  {
+    "file": "consola-reportes.html",
+    "sha256": "613526E393EA5726AB569347BCBF7C699C934444CE97797863EB0E9CF8E58060",
+    "length": 44459
+  },
+  {
+    "file": "contrato-stats.html",
+    "sha256": "1F18568DCAF2D4AFCB64429A5173FBF3F34C0B33F65EB4B419388C180E99F348",
+    "length": 59867
+  },
+  {
+    "file": "misiones.html",
+    "sha256": "770411151D47DA014FDD4A881890BF901FA513A3C27EF08CE31821D153A31134",
+    "length": 58195
+  },
+  {
+    "file": "puerta_login.html",
+    "sha256": "A55E40E41051D247C929656ED8AEF6A080CE726A06769B631C3ED9750BF1799B",
+    "length": 14704
+  },
+  {
+    "file": "reporter.html",
+    "sha256": "953A9999B66B190F883D0A08DAB8352F75ABA6EF06DA9704CFC47EC6E76FF05C",
+    "length": 11838
+  },
+  {
+    "file": "reporter.js",
+    "sha256": "5852079A4EF1CE696A6D502580A4341D2004D18C50DB1A8C3A9BA2B9A48D8A4F",
+    "length": 17297
+  },
+  {
+    "file": "gf-session-api.js",
+    "sha256": "123F8EFBFB96C17366810BFA1FDF29DE78FE88B0E1AEDC8459FA84CAD92C7189",
+    "length": 4313
+  },
+  {
+    "file": "C:\\Users\\pc\\Desktop\\server2.js",
+    "sha256": "EB53630ABFA0DDE0034BFAEE6CC996920D21C818B849B363CA5F60E22EDF2D0E",
+    "length": 1432941
+  }
+]

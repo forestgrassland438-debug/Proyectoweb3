@@ -1,0 +1,63 @@
+change diff 4.0.4 => 8.0.3
+remove uuid 8.3.2
+change diff 7.0.0 => 8.0.3
+change adm-zip 0.4.16 => 0.6.1
+remove cookie 0.4.2
+{
+  "add": [],
+  "added": 0,
+  "audited": 0,
+  "change": [
+    {
+      "from": {
+        "name": "diff",
+        "version": "4.0.4",
+        "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\repositories\\backend\\node_modules\\ts-node\\node_modules\\diff"
+      },
+      "to": {
+        "name": "diff",
+        "version": "8.0.3",
+        "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\repositories\\backend\\node_modules\\ts-node\\node_modules\\diff"
+      }
+    },
+    {
+      "from": {
+        "name": "diff",
+        "version": "7.0.0",
+        "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\repositories\\backend\\node_modules\\hardhat\\node_modules\\diff"
+      },
+      "to": {
+        "name": "diff",
+        "version": "8.0.3",
+        "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\repositories\\backend\\node_modules\\hardhat\\node_modules\\diff"
+      }
+    },
+    {
+      "from": {
+        "name": "adm-zip",
+        "version": "0.4.16",
+        "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\repositories\\backend\\node_modules\\adm-zip"
+      },
+      "to": {
+        "name": "adm-zip",
+        "version": "0.6.1",
+        "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\repositories\\backend\\node_modules\\adm-zip"
+      }
+    }
+  ],
+  "changed": 3,
+  "funding": 0,
+  "remove": [
+    {
+      "name": "uuid",
+      "version": "8.3.2",
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\repositories\\backend\\node_modules\\hardhat\\node_modules\\uuid"
+    },
+    {
+      "name": "cookie",
+      "version": "0.4.2",
+      "path": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\repositories\\backend\\node_modules\\@sentry\\node\\node_modules\\cookie"
+    }
+  ],
+  "removed": 2
+}

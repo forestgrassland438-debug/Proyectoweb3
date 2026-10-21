@@ -1,0 +1,31 @@
+✔ Hardhat keeps UUID v4 CommonJS support with bounded v3 output buffers (83.5116ms)
+✔ Sentry cookie replacement retains parsing and rejects unsafe serialized names (10.1249ms)
+✔ Hardhat Mocha reporter keeps its diff API and TypeScript runtime still transpiles (2214.1638ms)
+✔ patched compiler ZIP dependency preserves a valid offline compiler archive (58.9517ms)
+✔ bronze ignores third-party API-shaped responses and late responses from a different account (68.2161ms)
+✔ bronze coalesces refreshes and cannot apply an older account response (3.7826ms)
+✔ bronze teardown releases observers and clocks, and retained fetch wrappers keep delegating (5.1784ms)
+✔ VIP refreshes belong to one account and a stale finally cannot release a newer request (5.8916ms)
+✔ VIP status never carries from one account to another (5.4997ms)
+✔ name gate does not inherit a previous player permanent-name flag (8.0831ms)
+✔ gf-npcs.js: abandoned loads release both lifecycle hooks and pending loader callbacks (6.2114ms)
+✔ gf-npcs-pueblo.js: abandoned loads release both lifecycle hooks and pending loader callbacks (14.4314ms)
+✔ NPC decoration rollback preserves original alpha and frees partially allocated sprites (6.2554ms)
+✔ camel partial construction rolls back every object and its scene state (10.018ms)
+✔ an interrupted zone journey cannot launch a scene or overwrite a newer journey note (10.4254ms)
+✔ boss teardown cancels delayed powers and immediately removes orb update callbacks (9.3611ms)
+✔ customization bounds appearance caches, reuses atlas downloads and frees intermediate canvases (23.8434ms)
+✔ customization rejects path traversal and terminates hung images and queued work on teardown (7.2092ms)
+✔ pathfinding reuses its typed buffers without sharing an in-progress reentrant search (10.1325ms)
+✔ AFK visibility cache forgets destroyed remote actor parts while remaining asleep (3.6458ms)
+✔ sword damage effects are disposed at shutdown without cancelling foreign scene updates (4.6736ms)
+✔ a slow skills snapshot cannot undo points that were just allocated (4.4797ms)
+✔ character point caches are bounded across many account changes (21.5597ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2591.3029

@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<!--
+  PANEL DEL CLIMA — Grassland Forest
+
+  Enciende, apaga y configura el tiempo del mundo: viento y lluvia con truenos.
+
+  ENTRA CON CARTERA DE ADMINISTRADOR, igual que admin.html: se pide un nonce al
+  servidor, se firma con la cartera y se comprueba contra /api/admin/whoami. Sin
+  eso no se ve el panel.
+
+  El clima es del MUNDO, no de cada navegador: lo que se guarda aquí lo leen
+  todos los jugadores en /api/world/weather.
+-->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clima — Grassland Forest</title>
+<style>
+  :root{
+    --fondo:#0f1219; --panel:#171b25; --panel2:#1d2230; --borde:#2b3342;
+    --texto:#e6e9f2; --tenue:#8e97ad; --verde:#5ec26a; --ambar:#e0b64a;
+    --rojo:#c7503f; --azul:#5f86d6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--fondo);color:var(--texto);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px}
+  header{display:flex;align-items:center;gap:12px;padding:16px 22px;
+    border-bottom:1px solid var(--borde);background:var(--panel);position:sticky;top:0;z-index:5}
+  header h1{margin:0;font-size:18px;letter-spacing:.4px}
+  header .sep{flex:1}
+  .chip{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;
+    border:1px solid var(--borde);border-radius:20px;font-size:13px;color:var(--tenue)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--verde)}
+  main{max-width:900px;margin:0 auto;padding:22px}
+  .card{background:var(--panel);border:1px solid var(--borde);border-radius:14px;
+    padding:20px 22px;margin-bottom:18px}
+  .card h2{margin:0 0 4px;font-size:16px}
+  .card p.sub{margin:0 0 16px;color:var(--tenue);font-size:13px;line-height:1.5}
+  .fila{display:flex;align-items:center;gap:14px;padding:11px 0;
+    border-bottom:1px solid rgba(255,255,255,.05);flex-wrap:wrap}
+  .fila:last-child{border-bottom:0}
+  .fila label{flex:1;min-width:190px}
+  .fila label small{display:block;color:var(--tenue);font-size:12px;margin-top:2px}
+  input[type=range]{width:190px;accent-color:var(--azul)}
+  .cola-fila{display:flex;align-items:center;gap:10px;padding:9px 11px;
+    border:1px solid var(--borde);border-radius:9px;margin-bottom:7px;
+    background:var(--panel2)}
+  .cola-fila b{min-width:96px}
+  .cola-fila .dur{color:var(--tenue);flex:1}
+  .cola-fila .num{width:24px;height:24px;border-radius:50%;background:var(--borde);
+    display:flex;align-items:center;justify-content:center;font-size:12px}
+  .cola-fila button{padding:4px 10px;font-size:12px}
+  .cola-vacia{color:var(--tenue);padding:8px 2px}
+  .acciones button.on{background:var(--azul);border-color:var(--azul);color:#fff}
+  input[type=number]{width:88px;background:var(--panel2);border:1px solid var(--borde);
+    color:var(--texto);border-radius:8px;padding:7px 9px;font-size:14px}
+  .valor{min-width:52px;text-align:right;color:var(--ambar);font-variant-numeric:tabular-nums}
+  /* interruptor */
+  .sw{position:relative;width:50px;height:28px;flex:0 0 auto}
+  .sw input{opacity:0;width:0;height:0}
+  .sw span{position:absolute;inset:0;background:#39404f;border-radius:16px;
+    cursor:pointer;transition:background .18s}
+  .sw span:before{content:'';position:absolute;width:22px;height:22px;left:3px;top:3px;
+    background:#cfd6e6;border-radius:50%;transition:transform .18s}
+  .sw input:checked + span{background:var(--verde)}
+  .sw input:checked + span:before{transform:translateX(22px)}
+  .modos{display:flex;gap:8px}
+  .modos button{flex:1;padding:11px;border-radius:10px;border:2px solid var(--borde);
+    background:var(--panel2);color:var(--texto);cursor:pointer;font-size:14px}
+  .modos button.on{border-color:var(--verde);background:#223a29}
+  .acciones{display:flex;gap:9px;flex-wrap:wrap;margin-top:6px}
+  .acciones button{padding:10px 16px;border-radius:10px;border:1px solid var(--borde);
+    background:var(--panel2);color:var(--texto);cursor:pointer;font-size:14px}
+  .acciones button:hover{background:#262c3b}
+  .primario{background:var(--verde)!important;border-color:var(--verde)!important;
+    color:#0e1a11!important;font-weight:600}
+  .estado{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+  .pastilla{padding:6px 13px;border-radius:16px;font-size:13px;border:1px solid var(--borde);
+    color:var(--tenue)}
+  .pastilla.on{border-color:var(--azul);color:#cfe0ff;background:#1b2436}
+  .hidden{display:none!important}
+  #gate{max-width:460px;margin:70px auto;text-align:center}
+  #gate button{margin-top:16px;padding:13px 26px;border-radius:12px;border:0;
+    background:var(--verde);color:#0e1a11;font-size:16px;font-weight:600;cursor:pointer}
+  #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
+    background:#222a38;border:1px solid var(--borde);padding:11px 18px;border-radius:10px;
+    font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
+  #toast.ver{opacity:1}
+  #toast.err{border-color:var(--rojo);color:#ffd7d1}
+  #toast.ok{border-color:var(--verde)}
+  @media (max-width:600px){
+    main{padding:14px} .card{padding:16px} input[type=range]{width:130px}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🌦️ Clima del mundo</h1>
+  <div class="sep"></div>
+  <span class="chip" id="walletChip"><span class="dot"></span><span>sin conectar</span></span>
+  <button id="reloadBtn" class="hidden" style="padding:7px 13px;border-radius:9px;
+    border:1px solid var(--borde);background:var(--panel2);color:var(--texto);cursor:pointer">
+    Recargar</button>
+</header>
+
+<div id="gate">
+  <div class="card">
+    <h2>Panel de administración</h2>
+    <p class="sub">Conecta la cartera de administrador para configurar el tiempo
+      que hace en el mundo. Es la misma cartera que abre <b>admin.html</b>.</p>
+    <button id="connectBtn">Conectar cartera</button>
+  </div>
+</div>
+
+<main id="panel" class="hidden">
+
+  <div class="card">
+    <h2>Ahora mismo</h2>
+    <p class="sub">Lo que están viendo los jugadores en este momento.</p>
+    <div class="estado" id="ahora"></div>
+  </div>
+
+  <div class="card">
+    <h2>🕒 Hora del juego</h2>
+    <p class="sub">Día o noche para todo el mundo. En <b>automático</b> el reloj
+      corre solo: «Poner de día / de noche» lo <b>adelanta</b> hasta las 08:00 o
+      las 21:00 y desde ahí sigue corriendo. En <b>manual</b> la hora se queda
+      <b>quieta</b> donde la pongas. Los jugadores lo ven al momento.</p>
+    <div class="estado" id="horaAhora"></div>
+    <div class="acciones" style="margin-top:12px">
+      <button data-hora="dia">☀️ Poner de día</button>
+      <button data-hora="noche">🌙 Poner de noche</button>
+      <button data-hora="adelantar" data-horas="1">⏩ +1 h</button>
+      <button data-hora="adelantar" data-horas="3">⏩ +3 h</button>
+    </div>
+    <div class="fila">
+      <label>Modo del reloj<small><b>Automático</b>: corre solo. <b>Manual</b>: la
+        hora se queda fija en la que escribas.</small></label>
+      <div class="modos">
+        <button id="relojAuto">Automático</button>
+        <button id="relojManual">Manual</button>
+      </div>
+    </div>
+    <div class="fila">
+      <label>Fijar la hora (manual)<small>De 00:00 a 23:59. Amanece a las 06:00 y
+        anochece a las 18:00.</small></label>
+      <input type="time" id="horaFija" value="21:00" style="background:var(--panel2);border:1px solid var(--borde);color:var(--texto);border-radius:8px;padding:7px 9px">
+      <div class="acciones" style="margin-top:0"><button id="fijarHora">Fijar</button></div>
+    </div>
+    <div class="acciones">
+      <button id="horaNormal">Volver a la hora normal</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Interruptor general</h2>
+    <p class="sub">Apagado no hay clima de ninguna clase: ni viento ni lluvia.
+      Los jugadores ven el mundo despejado.</p>
+    <div class="fila">
+      <label>Clima encendido<small>Si lo apagas, se acaba lo que hubiera en curso.</small></label>
+      <div class="sw"><input type="checkbox" id="activo"><span></span></div>
+    </div>
+    <div class="fila">
+      <label>Modo<small><b>Automático</b>: el servidor lo sortea cada tantos minutos.
+        <b>Manual</b>: manda exactamente lo que pongas aquí abajo y no cambia solo.</small></label>
+      <div class="modos">
+        <button data-modo="auto"   id="modoAuto">Automático</button>
+        <button data-modo="manual" id="modoManual">Manual</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Manual</h2>
+    <p class="sub">Lo que se ve cuando el modo es <b>Manual</b>. En automático
+      estos interruptores muestran lo que hay en curso, pero los cambia el sorteo.</p>
+    <div class="fila">
+      <label>Viento<small>Cruzan hojas y los árboles se mecen.</small></label>
+      <div class="sw"><input type="checkbox" id="viento"><span></span></div>
+    </div>
+    <div class="fila">
+      <label>Fuerza del viento</label>
+      <input type="range" id="vientoFuerza" min="0.2" max="2" step="0.1">
+      <span class="valor" id="vVientoFuerza">1.0</span>
+    </div>
+    <div class="fila">
+      <label>Lluvia<small>Gotas, salpicaduras y el mundo más apagado.</small></label>
+      <div class="sw"><input type="checkbox" id="lluvia"><span></span></div>
+    </div>
+    <div class="fila">
+      <label>Fuerza de la lluvia</label>
+      <input type="range" id="lluviaFuerza" min="0.2" max="2" step="0.1">
+      <span class="valor" id="vLluviaFuerza">1.0</span>
+    </div>
+    <div class="fila">
+      <label>Truenos<small>Rayos y centellas que iluminan la pantalla y sacuden la
+        cámara. Solo se ven si está lloviendo.</small></label>
+      <div class="sw"><input type="checkbox" id="truenos"><span></span></div>
+    </div>
+    <div class="fila">
+      <label>Nieve<small>Copos que caen despacio y se posan en el suelo.</small></label>
+      <div class="sw"><input type="checkbox" id="nieve"><span></span></div>
+    </div>
+    <div class="fila">
+      <label>Fuerza de la nieve</label>
+      <input type="range" id="nieveFuerza" min="0.2" max="2" step="0.1">
+      <span class="valor" id="vNieveFuerza">1.0</span>
+    </div>
+    <div class="fila">
+      <label>Soleado<small>Entran rayos de sol por la esquina de arriba a la
+        izquierda, de donde viene la luz del juego. Quita la lluvia y la nieve:
+        no puede hacer sol y llover a la vez.</small></label>
+      <div class="sw"><input type="checkbox" id="soleado"><span></span></div>
+    </div>
+    <div class="fila">
+      <label>Fuerza del sol</label>
+      <input type="range" id="soleadoFuerza" min="0.2" max="2" step="0.1">
+      <span class="valor" id="vSoleadoFuerza">1.0</span>
+    </div>
+    <div class="fila">
+      <label>Nublado<small>No cae nada del cielo: lo que se ve son las
+        SOMBRAS DE LAS NUBES cruzando el suelo del mundo. Van pegadas al mapa,
+        no a la cámara, así que al caminar se atraviesan como una sombra de
+        verdad. Quita el sol: no puede haber rayos y cielo cubierto a la vez.</small></label>
+      <div class="sw"><input type="checkbox" id="nublado"><span></span></div>
+    </div>
+    <div class="fila">
+      <label>Cuánto tapan<small>0.2 son cuatro nubes altas que apenas se notan;
+        2 es un cielo cubierto con sombras marcadas.</small></label>
+      <input type="range" id="nubladoFuerza" min="0.2" max="2" step="0.1">
+      <span class="valor" id="vNubladoFuerza">1.0</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Estación del año</h2>
+    <p class="sub">Cambia el color de <b>todo</b> el mundo. En <b>automático</b>
+      sale del mes de verdad. El cambio no es de golpe: cruza en un par de
+      segundos.</p>
+    <div class="acciones" id="estaciones">
+      <button data-estacion="auto">Automático</button>
+      <button data-estacion="primavera">Primavera</button>
+      <button data-estacion="verano">Verano</button>
+      <button data-estacion="otono">Otoño</button>
+      <button data-estacion="invierno">Invierno</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Automático</h2>
+    <p class="sub">Con qué frecuencia y con qué probabilidad sortea el servidor.</p>
+    <div class="fila">
+      <label>Probabilidad de viento<small>En cada sorteo.</small></label>
+      <input type="range" id="probViento" min="0" max="1" step="0.05">
+      <span class="valor" id="vProbViento">25%</span>
+    </div>
+    <div class="fila">
+      <label>Probabilidad de lluvia<small>En cada sorteo. Si llueve, casi siempre
+        viene con viento.</small></label>
+      <input type="range" id="probLluvia" min="0" max="1" step="0.05">
+      <span class="valor" id="vProbLluvia">15%</span>
+    </div>
+    <div class="fila">
+      <label>Probabilidad de nieve<small>En cada sorteo.</small></label>
+      <input type="range" id="probNieve" min="0" max="1" step="0.05">
+      <span class="valor" id="vProbNieve">5%</span>
+    </div>
+    <div class="fila">
+      <label>Cada cuánto se sortea<small>Minutos, de 1 a 1440 (un día).</small></label>
+      <input type="number" id="minutosSorteo" min="1" max="1440">
+    </div>
+    <div class="fila">
+      <label>Duración<small>Minutos: de cuánto a cuánto dura una racha.
+        Hasta 1440, que es un día entero.</small></label>
+      <input type="number" id="duracionMin" min="1" max="1440">
+      <span style="color:var(--tenue)">a</span>
+      <input type="number" id="duracionMax" min="1" max="1440">
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Lanzar y programar</h2>
+    <p class="sub">Elige <b>qué</b> y <b>cuánto</b>. <b>Lanzar</b> lo pone ya
+      mismo; <b>Añadir a la cola</b> lo deja apuntado para cuando acabe lo que
+      haya en curso. Los minutos los pones tú: de 1 a 1440.</p>
+    <div class="fila">
+      <label>Qué</label>
+      <div class="acciones" id="tipos">
+        <button data-que="viento">Viento</button>
+        <button data-que="lluvia">Lluvia</button>
+        <button data-que="tormenta">Tormenta</button>
+        <button data-que="nieve">Nieve</button>
+        <button data-que="soleado">Soleado</button>
+        <button data-que="nublado">Nublado</button>
+        <button data-que="despejado">Despejar</button>
+      </div>
+    </div>
+    <div class="fila">
+      <label>Durante<small>Minutos.</small></label>
+      <input type="number" id="testMinutos" min="1" max="1440" value="20">
+      <span style="color:var(--tenue)">min</span>
+    </div>
+    <div class="acciones">
+      <button class="primario" id="lanzar">Lanzar ahora</button>
+      <button id="encolar">Añadir a la cola</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Cola de climas</h2>
+    <p class="sub">Se van poniendo <b>uno detrás de otro</b> conforme acaba el
+      anterior. La cola manda sobre el sorteo automático: mientras haya algo
+      apuntado, el azar no pinta nada.</p>
+    <div id="cola"></div>
+    <div class="acciones">
+      <button id="saltar">Saltar al siguiente</button>
+      <button id="vaciar">Vaciar la cola</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="acciones">
+      <button class="primario" id="guardar">Guardar configuración</button>
+      <button id="recargar">Descartar cambios</button>
+    </div>
+  </div>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── Configuración ────────────────────────────────────────────────────────
+  // Mismo criterio que admin.html.
+  var API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? 'http://127.0.0.1:8080'
+    : 'https://api.grasslandforest.com';
+  var APP_NAME = 'Grassland Forest';
+
+  function api(p) { return API_BASE.replace(/\/$/, '') + p; }
+  function $(id) { return document.getElementById(id); }
+  function readCookie(name) {
+    var m = document.cookie.match(new RegExp('(?:^|;\\s*)' +
+      name.replace(/[.$?*|{}()[\]\\/+^]/g, '\\$&') + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+  function b64(s) {
+    try { return btoa(unescape(encodeURIComponent(s))); }
+    catch (e) { return btoa(String(s)); }
+  }
+  function corto(a) { return a ? a.slice(0, 6) + '…' + a.slice(-4) : '—'; }
+
+  // `que` es el tipo elegido en "Lanzar y programar".
+  var state = { csrf: null, address: null, config: null, que: 'lluvia' };
+
+  var toastTimer = null;
+  function aviso(msg, tipo) {
+    var t = $('toast');
+    t.textContent = msg;
+    t.className = 'ver' + (tipo ? ' ' + tipo : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.className = ''; }, 3200);
+  }
+
+  function pedir(ruta, opciones) {
+    opciones = opciones || {};
+    opciones.credentials = 'include';
+    opciones.mode = 'cors';
+    var csrf = readCookie('csrf-token') || state.csrf;
+    opciones.headers = Object.assign(
+      { 'Content-Type': 'application/json' },
+      csrf ? { 'X-CSRF-Token': csrf } : {},
+      opciones.headers || {}
+    );
+    return fetch(api(ruta), opciones).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (d) {
+        if (!r.ok) {
+          var e = new Error(d.message || d.error || ('HTTP ' + r.status));
+          e.status = r.status; e.code = d.error;
+          throw e;
+        }
+        return d;
+      });
+    });
+  }
+
+  // ── Entrada con cartera admin (mismo flujo que admin.html) ───────────────
+  function getProvider() {
+    if (window.ethereum && window.ethereum.providers) {
+      var mm = window.ethereum.providers.find(function (p) { return p.isMetaMask; });
+      if (mm) return mm;
+    }
+    return window.ethereum || null;
+  }
+
+  async function getCsrf() {
+    try {
+      var r = await fetch(api('/api/auth/csrf-token'), { credentials: 'include', mode: 'cors' });
+      var d = await r.json();
+      state.csrf = readCookie('csrf-token') || d.csrfToken || null;
+    } catch (e) { /* se intenta igual */ }
+    return state.csrf;
+  }
+
+  async function cicloDeEntrada(provider, cuenta) {
+    aviso('Pidiendo nonce…');
+    var nr = await fetch(api('/api/auth/nonce?address=' + encodeURIComponent(cuenta.toLowerCase())),
+                         { credentials: 'include', mode: 'cors' });
+    if (!nr.ok) throw new Error('No se pudo obtener el nonce');
+    var nonce = (await nr.json()).nonce;
+
+    var token = nonce + ':' + Math.floor(Date.now() / 1000);
+    var mensaje = 'Signing in to ' + APP_NAME + ': ' + b64(token);
+
+    aviso('Firma el mensaje en tu cartera…');
+    var firma = await provider.request({ method: 'personal_sign', params: [mensaje, cuenta] });
+
+    var cabeceras = { 'Content-Type': 'application/json' };
+    var csrf = readCookie('csrf-token') || state.csrf;
+    if (csrf) cabeceras['X-CSRF-Token'] = csrf;
+
+    var lr = await fetch(api('/api/auth/login'), {
+      method: 'POST', credentials: 'include', mode: 'cors', headers: cabeceras,
+      body: JSON.stringify({ address: cuenta.toLowerCase(), signature: firma,
+                             token: token, message: mensaje })
+    });
+    var cuerpo = {}; try { cuerpo = await lr.json(); } catch (e) {}
+    return { ok: lr.ok, status: lr.status, cuerpo: cuerpo };
+  }
+
+  async function conectar() {
+    var provider = getProvider();
+    if (!provider) { aviso('No se detectó MetaMask. Instálalo para continuar.', 'err'); return; }
+    $('connectBtn').disabled = true;
+    try {
+      aviso('Conectando cartera…');
+      var cuentas = await provider.request({ method: 'eth_requestAccounts' });
+      var cuenta = cuentas && cuentas[0];
+      if (!cuenta) { aviso('No elegiste ninguna cuenta.', 'err'); return; }
+      await getCsrf();
+
+      var r = await cicloDeEntrada(provider, cuenta);
+      /* El servidor guarda UN nonce por dirección y lo borra al usarlo. Con
+         admin.html abierto a la vez, las dos páginas piden el mismo y la
+         segunda se lo encuentra gastado. Se repite el ciclo una vez. */
+      var txt = String((r.cuerpo && (r.cuerpo.message || r.cuerpo.error)) || '');
+      if (!r.ok && /nonce/i.test(txt)) {
+        aviso('El nonce ya se había usado; pidiendo uno nuevo…');
+        r = await cicloDeEntrada(provider, cuenta);
+      }
+      if (!r.ok) {
+        aviso('Entrada rechazada: ' + (txt || r.status), 'err');
+        return;
+      }
+      if (r.cuerpo && r.cuerpo.csrfToken) state.csrf = r.cuerpo.csrfToken;
+      state.address = cuenta.toLowerCase();
+      await comprobarAdmin();
+    } catch (e) {
+      aviso('No se pudo entrar: ' + (e.message || e), 'err');
+    } finally {
+      $('connectBtn').disabled = false;
+    }
+  }
+
+  async function comprobarAdmin(silencioso) {
+    try {
+      var d = await pedir('/api/admin/whoami');
+      state.address = d.address || state.address;
+      $('walletChip').innerHTML = '<span class="dot"></span><span>' + corto(state.address) + '</span>';
+      $('gate').classList.add('hidden');
+      $('panel').classList.remove('hidden');
+      $('reloadBtn').classList.remove('hidden');
+      await cargar();
+    } catch (e) {
+      if (!silencioso) {
+        aviso(e.code === 'not_admin' || e.status === 403
+          ? 'Esa cartera no es de administrador.'
+          : ('No se pudo comprobar la sesión: ' + (e.message || e)), 'err');
+      }
+    }
+  }
+
+  // ── Configuración del clima ──────────────────────────────────────────────
+  var CAMPOS_BOOL = ['activo', 'viento', 'lluvia', 'truenos', 'nieve', 'soleado', 'nublado'];
+  var CAMPOS_NUM  = ['vientoFuerza', 'lluviaFuerza', 'nieveFuerza', 'soleadoFuerza',
+                     'nubladoFuerza',
+                     'probViento', 'probLluvia', 'probNieve',
+                     'minutosSorteo', 'duracionMin', 'duracionMax'];
+  var NOMBRES = { viento: 'Viento', lluvia: 'Lluvia', tormenta: 'Tormenta',
+                  nieve: 'Nieve', soleado: 'Soleado', nublado: 'Nublado',
+                  despejado: 'Despejado' };
+
+  async function cargar() {
+    var d = await pedir('/api/admin/weather');
+    state.config = d.config;
+    pintar(d.config, d.publico);
+    await cargarReloj();
+  }
+
+  // ── La hora del juego ────────────────────────────────────────────────────
+  function pintarReloj(d) {
+    var r = d.reloj || {}, e = d.estado || {};
+    $('horaAhora').innerHTML =
+      pastilla(true, (e.esDia ? '☀️ ' : '🌙 ') + (e.horaTexto || '--:--')) +
+      pastilla(false, e.esDia ? 'Es de día' : 'Es de noche') +
+      pastilla(r.modo === 'manual', r.modo === 'manual' ? 'Reloj QUIETO (manual)' : 'Reloj en marcha (automático)') +
+      (r.modo !== 'manual' && Number(r.desfaseMs) ? pastilla(false, 'Adelantado ' +
+        Math.round(Number(r.desfaseMs) / 60000) + ' min reales') : '');
+    $('relojAuto').classList.toggle('on', r.modo !== 'manual');
+    $('relojManual').classList.toggle('on', r.modo === 'manual');
+  }
+
+  async function cargarReloj() {
+    try { pintarReloj(await pedir('/api/admin/world-time')); }
+    catch (e) { $('horaAhora').innerHTML = pastilla(false, 'No se pudo leer la hora'); }
+  }
+
+  async function moverReloj(cuerpo, texto) {
+    try {
+      var d = await pedir('/api/admin/world-time', { method: 'POST', body: JSON.stringify(cuerpo) });
+      pintarReloj(d);
+      aviso(texto + ' Ahora son las ' + ((d.estado && d.estado.horaTexto) || '?') + '.', 'ok');
+    } catch (e) {
+      aviso('No se pudo cambiar la hora: ' + (e.message || e), 'err');
+    }
+  }
+
+  function pintar(c, pub) {
+    CAMPOS_BOOL.forEach(function (k) { if ($(k)) $(k).checked = !!c[k]; });
+    CAMPOS_NUM.forEach(function (k) { if ($(k)) $(k).value = c[k]; });
+    $('modoAuto').classList.toggle('on', c.modo === 'auto');
+    $('modoManual').classList.toggle('on', c.modo === 'manual');
+    state.modo = c.modo;
+    state.estacion = c.estacion || 'auto';
+    marcar('estaciones', 'estacion', state.estacion);
+    marcar('tipos', 'que', state.que);
+    pintarCola(c.cola || []);
+    refrescarValores();
+
+    var p = pub || {};
+    $('ahora').innerHTML =
+      pastilla(p.activo, p.activo ? 'Clima encendido' : 'Clima APAGADO') +
+      pastilla(p.viento, p.viento ? 'Viento ×' + (p.vientoFuerza || 1) : 'Sin viento') +
+      pastilla(p.lluvia, p.lluvia ? 'Lluvia ×' + (p.lluviaFuerza || 1) : 'Sin lluvia') +
+      pastilla(p.nieve, p.nieve ? 'Nieve ×' + (p.nieveFuerza || 1) : 'Sin nieve') +
+      pastilla(p.soleado, p.soleado ? 'Soleado ×' + (p.soleadoFuerza || 1) : 'Sin sol') +
+      pastilla(p.nublado, p.nublado ? 'Nublado ×' + (p.nubladoFuerza || 1) : 'Sin nubes') +
+      pastilla(p.truenos && p.lluvia, 'Truenos') +
+      pastilla(false, 'Modo: ' + (c.modo === 'auto' ? 'automático' : 'manual')) +
+      (p.hasta ? pastilla(false, 'Hasta las ' +
+        new Date(p.hasta).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) : '');
+  }
+
+  /** Marca cuál de un grupo de botones está elegido. */
+  function marcar(grupo, attr, valor) {
+    var g = $(grupo);
+    if (!g) return;
+    Array.prototype.forEach.call(g.querySelectorAll('button'), function (b) {
+      b.classList.toggle('on', b.getAttribute('data-' + attr) === valor);
+    });
+  }
+
+  /**
+   * La cola, con el orden en que van a entrar.
+   *
+   * Se pinta el número de orden a propósito: sin él, una lista de "Lluvia 20
+   * min / Lluvia 20 min" no dice cuál va antes, y el orden es justo lo que se
+   * está programando.
+   */
+  function pintarCola(cola) {
+    var c = $('cola');
+    if (!c) return;
+    if (!cola.length) {
+      c.innerHTML = '<div class="cola-vacia">Nada programado. ' +
+        'Lo que haya en curso seguirá su camino y luego manda el sorteo.</div>';
+      return;
+    }
+    c.innerHTML = cola.map(function (e, i) {
+      return '<div class="cola-fila">' +
+        '<span class="num">' + (i + 1) + '</span>' +
+        '<b>' + (NOMBRES[e.que] || e.que) + '</b>' +
+        '<span class="dur">' + e.minutos + ' min</span>' +
+        '<button data-quitar="' + e._id + '">Quitar</button>' +
+        '</div>';
+    }).join('');
+    Array.prototype.forEach.call(c.querySelectorAll('[data-quitar]'), function (b) {
+      b.addEventListener('click', function () { quitarDeCola(b.getAttribute('data-quitar')); });
+    });
+  }
+
+  function pastilla(on, txt) {
+    return '<span class="pastilla' + (on ? ' on' : '') + '">' + txt + '</span>';
+  }
+
+  function refrescarValores() {
+    $('vVientoFuerza').textContent = Number($('vientoFuerza').value).toFixed(1);
+    $('vLluviaFuerza').textContent = Number($('lluviaFuerza').value).toFixed(1);
+    $('vProbViento').textContent = Math.round($('probViento').value * 100) + '%';
+    $('vProbLluvia').textContent = Math.round($('probLluvia').value * 100) + '%';
+    $('vNieveFuerza').textContent = Number($('nieveFuerza').value).toFixed(1);
+    $('vSoleadoFuerza').textContent = Number($('soleadoFuerza').value).toFixed(1);
+    $('vNubladoFuerza').textContent = Number($('nubladoFuerza').value).toFixed(1);
+    $('vProbNieve').textContent = Math.round($('probNieve').value * 100) + '%';
+  }
+
+  function leerFormulario() {
+    var body = { modo: state.modo, estacion: state.estacion || 'auto' };
+    CAMPOS_BOOL.forEach(function (k) { body[k] = !!$(k).checked; });
+    CAMPOS_NUM.forEach(function (k) { body[k] = Number($(k).value); });
+    return body;
+  }
+
+  async function guardar() {
+    var b = leerFormulario();
+    if (b.duracionMax < b.duracionMin) {
+      aviso('La duración máxima no puede ser menor que la mínima.', 'err');
+      return;
+    }
+    try {
+      var d = await pedir('/api/admin/weather',
+                          { method: 'POST', body: JSON.stringify(b) });
+      state.config = d.config;
+      pintar(d.config, d.publico);
+      // El servidor lo empuja por socket: no hay que esperar a nada.
+      aviso('Guardado. Los jugadores ya lo están viendo.', 'ok');
+    } catch (e) {
+      aviso('No se pudo guardar: ' + (e.message || e), 'err');
+    }
+  }
+
+  /** Los minutos que ha escrito el administrador, sin recortarlos a escondidas. */
+  function minutosPedidos() {
+    var n = parseInt(String($('testMinutos').value).replace(/[^0-9]/g, ''), 10);
+    if (!isFinite(n) || n < 1) return null;
+    if (n > 1440) return null;
+    return n;
+  }
+
+  async function lanzar() {
+    var min = minutosPedidos();
+    if (min === null) { aviso('Pon los minutos: de 1 a 1440.', 'err'); return; }
+    try {
+      await pedir('/api/admin/weather/test',
+                  { method: 'POST', body: JSON.stringify({ que: state.que, minutos: min }) });
+      await cargar();
+      aviso('Lanzado: ' + (NOMBRES[state.que] || state.que) +
+            ' durante ' + min + ' min.', 'ok');
+    } catch (e) {
+      aviso('No se pudo lanzar: ' + (e.message || e), 'err');
+    }
+  }
+
+  async function encolar() {
+    var min = minutosPedidos();
+    if (min === null) { aviso('Pon los minutos: de 1 a 1440.', 'err'); return; }
+    try {
+      var d = await pedir('/api/admin/weather/queue',
+                          { method: 'POST', body: JSON.stringify({ que: state.que, minutos: min }) });
+      await cargar();
+      aviso('En cola: ' + (NOMBRES[state.que] || state.que) + ' ' + min + ' min. ' +
+            'Hay ' + (d.cola || []).length + ' esperando.', 'ok');
+    } catch (e) {
+      if (e.code === 'cola_llena') aviso('La cola está llena (40 como mucho).', 'err');
+      else aviso('No se pudo encolar: ' + (e.message || e), 'err');
+    }
+  }
+
+  async function quitarDeCola(id) {
+    try {
+      await pedir('/api/admin/weather/queue/' + encodeURIComponent(id), { method: 'DELETE' });
+      await cargar();
+      aviso('Quitado de la cola.', 'ok');
+    } catch (e) {
+      aviso('No se pudo quitar: ' + (e.message || e), 'err');
+    }
+  }
+
+  async function saltar() {
+    try {
+      await pedir('/api/admin/weather/queue/next', { method: 'POST' });
+      await cargar();
+      aviso('Se corta lo de ahora y entra el siguiente.', 'ok');
+    } catch (e) {
+      aviso('No se pudo saltar: ' + (e.message || e), 'err');
+    }
+  }
+
+  // ── Enganches ────────────────────────────────────────────────────────────
+  $('connectBtn').addEventListener('click', conectar);
+  $('reloadBtn').addEventListener('click', function () { cargar().catch(function () {}); });
+  $('recargar').addEventListener('click', function () { cargar().catch(function () {}); });
+  $('guardar').addEventListener('click', guardar);
+  ['vientoFuerza', 'lluviaFuerza', 'nieveFuerza', 'soleadoFuerza', 'nubladoFuerza',
+   'probViento', 'probLluvia', 'probNieve'].forEach(function (k) {
+    $(k).addEventListener('input', refrescarValores);
+  });
+  ['modoAuto', 'modoManual'].forEach(function (id) {
+    $(id).addEventListener('click', function () {
+      state.modo = this.getAttribute('data-modo');
+      $('modoAuto').classList.toggle('on', state.modo === 'auto');
+      $('modoManual').classList.toggle('on', state.modo === 'manual');
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-que]'), function (b) {
+    b.addEventListener('click', function () {
+      state.que = b.getAttribute('data-que');
+      marcar('tipos', 'que', state.que);
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-estacion]'), function (b) {
+    b.addEventListener('click', function () {
+      state.estacion = b.getAttribute('data-estacion');
+      marcar('estaciones', 'estacion', state.estacion);
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-hora]'), function (b) {
+    b.addEventListener('click', function () {
+      var accion = b.getAttribute('data-hora');
+      var horas = Number(b.getAttribute('data-horas')) || undefined;
+      moverReloj({ accion: accion, horas: horas },
+        accion === 'dia' ? 'Ya es de día.' : accion === 'noche' ? 'Ya es de noche.' : 'Hora adelantada.');
+    });
+  });
+  $('relojAuto').addEventListener('click', function () {
+    moverReloj({ accion: 'reanudar' }, 'El reloj vuelve a correr desde aquí.');
+  });
+  $('relojManual').addEventListener('click', function () { $('fijarHora').click(); });
+  $('fijarHora').addEventListener('click', function () {
+    var v = String($('horaFija').value || '').split(':');
+    if (v.length < 2) { aviso('Escribe una hora, por ejemplo 21:00.', 'err'); return; }
+    moverReloj({ accion: 'fijar', hora: Number(v[0]), minuto: Number(v[1]) }, 'Hora fijada.');
+  });
+  $('horaNormal').addEventListener('click', function () {
+    moverReloj({ accion: 'normal' }, 'Hora normal otra vez.');
+  });
+  $('lanzar').addEventListener('click', lanzar);
+  $('encolar').addEventListener('click', encolar);
+  $('saltar').addEventListener('click', saltar);
+  $('vaciar').addEventListener('click', function () {
+    if (!confirm('¿Vaciar la cola entera?')) return;
+    quitarDeCola('all');
+  });
+  marcar('tipos', 'que', state.que);
+
+  // Al abrir, se mira si ya hay sesión: en silencio, que no haberla es lo normal.
+  comprobarAdmin(true);
+})();
+</script>
+</body>
+</html>

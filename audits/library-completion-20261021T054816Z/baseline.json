@@ -1,0 +1,2240 @@
+{
+  "root": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin",
+  "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z",
+  "createdAt": "2026-10-21T05:48:20.862Z",
+  "files": [
+    {
+      "relative": "admin-impact.css",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\admin-impact.css",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\admin-impact.css",
+      "bytes": 3980,
+      "sha256": "5123e76c901875ce770e65834f7126680475fe452f52d9a3ae0b9aa8bca8dafb"
+    },
+    {
+      "relative": "admin-impact.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\admin-impact.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\admin-impact.js",
+      "bytes": 46015,
+      "sha256": "35c06104c64a3c8420a75ca57ebf449c8c5d9059bdc05fc7f1ff123171316976"
+    },
+    {
+      "relative": "admin-session.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\admin-session.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\admin-session.js",
+      "bytes": 9659,
+      "sha256": "684224864ce2bc440efb2af543b80ff6fc35e9a3dc3e1a338bf20da976093de5"
+    },
+    {
+      "relative": "admin-suite-i18n.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\admin-suite-i18n.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\admin-suite-i18n.js",
+      "bytes": 84788,
+      "sha256": "6023bf526c1014e1dd2b6baed9cb9b12d4cb2f267c4bc500f3df3a618e9fe747"
+    },
+    {
+      "relative": "admin-suite.css",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\admin-suite.css",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\admin-suite.css",
+      "bytes": 10585,
+      "sha256": "a8bc4c50ee2501a2917b913a17fa0ba37a90bbb19e319eaf5bca13536c4aa234"
+    },
+    {
+      "relative": "admin-suite.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\admin-suite.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\admin-suite.js",
+      "bytes": 12778,
+      "sha256": "df764ea3143f835dc9871334bc3e534596790bfdbb72f93d2a435bb45d0d157f"
+    },
+    {
+      "relative": "admin.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\admin.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\admin.html",
+      "bytes": 95487,
+      "sha256": "0c6658d7927fbd577863e9c81bf997a4fcb6e14a1fc83e873c04ef8dd6b1082a"
+    },
+    {
+      "relative": "app.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\app.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\app.js",
+      "bytes": 77200,
+      "sha256": "0a5229839c8a6a95da79769db562f25922b7e81bb969db9bd9c7801dfcc2cec7"
+    },
+    {
+      "relative": "BlockchainManager.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\BlockchainManager.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\BlockchainManager.js",
+      "bytes": 17198,
+      "sha256": "d02f83458d19350afc170e769e371048d312aa789b4fdfd0c41f750de998103e"
+    },
+    {
+      "relative": "climas.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\climas.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\climas.html",
+      "bytes": 34665,
+      "sha256": "763fd0decbf8f276eeaa8d8b5a79fef81e3edf72543ea14f7510dc537301d5a3"
+    },
+    {
+      "relative": "colecciones.css",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\colecciones.css",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\colecciones.css",
+      "bytes": 20607,
+      "sha256": "fe7e38d6e445104cf3ea63c24dae479ce7e438026d052d86118146d27eb21f9f"
+    },
+    {
+      "relative": "colecciones.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\colecciones.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\colecciones.html",
+      "bytes": 17607,
+      "sha256": "28be38a2a18284f246ae6f588bd65cdec363db96eb79a7b54368853314cc8df9"
+    },
+    {
+      "relative": "colecciones.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\colecciones.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\colecciones.js",
+      "bytes": 70597,
+      "sha256": "a7766c44bf480db15604857611ac5ab51d8e73c9138ae3bea56c1e95ad4800ae"
+    },
+    {
+      "relative": "consola-reportes.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\consola-reportes.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\consola-reportes.html",
+      "bytes": 45020,
+      "sha256": "dab5dbf8eb0fc6e22a53dd3406e660c627b94eb4b43f1f4a59313597be2d01d0"
+    },
+    {
+      "relative": "contrato-stats.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\contrato-stats.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\contrato-stats.html",
+      "bytes": 60723,
+      "sha256": "1174039b5b982eb048abb7aa377870133f7a425294888389e895beb11076cc27"
+    },
+    {
+      "relative": "control-center.css",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\control-center.css",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\control-center.css",
+      "bytes": 18514,
+      "sha256": "f5a2346b0e7bbdbb2adb3c3aa20154afc2e97cf9522bcedba4b6adcf1f50c3a8"
+    },
+    {
+      "relative": "control-center.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\control-center.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\control-center.html",
+      "bytes": 7719,
+      "sha256": "f144599e51fb72625bd74e6ea9908caac10d291a0e4b411996500aec254c5bcc"
+    },
+    {
+      "relative": "control-center.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\control-center.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\control-center.js",
+      "bytes": 18622,
+      "sha256": "bcd30d5d4ba7aa763fc8a81ebb04a70c3b163a1919c9a6ae546a08411ede7137"
+    },
+    {
+      "relative": "CraftingHub.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\CraftingHub.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\CraftingHub.js",
+      "bytes": 79376,
+      "sha256": "b3910d3aaee5bb6c26f66534d01f3a48b680183def0781ed73d0808390eeec31"
+    },
+    {
+      "relative": "game.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\game.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\game.html",
+      "bytes": 1663,
+      "sha256": "f057d6c69c508d0b755a31bee9410f1fd9be2782cda63c07de9660fc18f69e41"
+    },
+    {
+      "relative": "gf-agua.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-agua.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-agua.js",
+      "bytes": 46946,
+      "sha256": "783d5f911ef3eb7c064c2f5cfebbe334c02e0c899f1e787d7370d656238ab1b7"
+    },
+    {
+      "relative": "gf-alquimista.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-alquimista.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-alquimista.js",
+      "bytes": 16489,
+      "sha256": "6fe7e70abdaf9295443422aa9c413ebf0239c2d8e21869da40e954e8ac56960f"
+    },
+    {
+      "relative": "gf-amigos.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-amigos.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-amigos.js",
+      "bytes": 92632,
+      "sha256": "59a7da7a742f4ed8ad4bff02cfbae54db2670c5eacd4ea283df8ef07659f7923"
+    },
+    {
+      "relative": "gf-animales.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-animales.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-animales.js",
+      "bytes": 218788,
+      "sha256": "0fe8732d2d25150f48c82f98433ac46e5ea9c1fd7b051e01778bdc2dc6d3b82b"
+    },
+    {
+      "relative": "gf-antorchas.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-antorchas.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-antorchas.js",
+      "bytes": 17533,
+      "sha256": "29da75103bb11db781c6e686939fbec19a1ab77cb9733951b4483530c2ac911b"
+    },
+    {
+      "relative": "gf-audio.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-audio.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-audio.js",
+      "bytes": 74775,
+      "sha256": "c2cbfa9189f35ef60674ff5c29377372d74d4aa56217844604fc05a2b55fe65a"
+    },
+    {
+      "relative": "gf-batalla-arte.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-batalla-arte.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-batalla-arte.js",
+      "bytes": 47916,
+      "sha256": "d1934b134ee56d4a499ab209c4a85475de59ea969ccd32edf227dd0b2439512d"
+    },
+    {
+      "relative": "gf-brawl-motor.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-brawl-motor.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-brawl-motor.js",
+      "bytes": 101518,
+      "sha256": "8cb3bac3c4b051f31de1e3fdfb52c3830f897891a153ed06496414f73bf4a274"
+    },
+    {
+      "relative": "gf-bronce.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-bronce.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-bronce.js",
+      "bytes": 17187,
+      "sha256": "39640e35daaa052fdc4a1dacfe6a03e429cdb683a3546125bf648e7d53c97cf5"
+    },
+    {
+      "relative": "gf-buho.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-buho.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-buho.js",
+      "bytes": 28451,
+      "sha256": "8b7ee87197d9ecaa10bf8a3e10d906086db6063aa65bf0f15f1cc8479b3049d1"
+    },
+    {
+      "relative": "gf-camellos.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-camellos.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-camellos.js",
+      "bytes": 12467,
+      "sha256": "af2d20650c10afacf76fd8f1b1b2d12f45b9153b27861ba3bbe5fe857fe85f0f"
+    },
+    {
+      "relative": "gf-canales.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-canales.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-canales.js",
+      "bytes": 14156,
+      "sha256": "d9e89afbd3ae1465bddc570045d80d3b2758a632fabef3739b1ea556181e17a3"
+    },
+    {
+      "relative": "gf-carga-mapa.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-carga-mapa.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-carga-mapa.js",
+      "bytes": 6281,
+      "sha256": "362b9702ef8ea4504726602680dc2a6d961ec700b7e023cab551de5b4bbc3689"
+    },
+    {
+      "relative": "gf-casas.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-casas.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-casas.js",
+      "bytes": 12071,
+      "sha256": "c1d7d5dc58ff55f1f21205ea2084bbac4960ca0a59e2a6a66e34c8f66797f6ca"
+    },
+    {
+      "relative": "gf-character-skills.css",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-character-skills.css",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-character-skills.css",
+      "bytes": 1288,
+      "sha256": "282c5eb793ab4aa5b127d0c9e8b8d5a0b1f9c93dc4a0f8eb15d646fa4dc402de"
+    },
+    {
+      "relative": "gf-character-skills.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-character-skills.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-character-skills.js",
+      "bytes": 14238,
+      "sha256": "f5e9136d974cdf05f5a1b4bcd48252feba53b5287585e02f9e37055635d21957"
+    },
+    {
+      "relative": "gf-chat-social.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-chat-social.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-chat-social.js",
+      "bytes": 42385,
+      "sha256": "a95b426a909f5c8b73fa2039cc7cafeaa93dd36bf1e68ae481611dce07ae86e5"
+    },
+    {
+      "relative": "gf-ciclo-dia.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-ciclo-dia.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-ciclo-dia.js",
+      "bytes": 34096,
+      "sha256": "d83c0bf831ea425380a4cd5dd8d8e9093a22753b5e56441169f5f8ce83328195"
+    },
+    {
+      "relative": "gf-clima.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-clima.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-clima.js",
+      "bytes": 194259,
+      "sha256": "4ab981fc077214bcf8ededf85016cd305944bc1ab44600a6b32cad620f923ec8"
+    },
+    {
+      "relative": "gf-cola-cadena.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-cola-cadena.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-cola-cadena.js",
+      "bytes": 9328,
+      "sha256": "ae046151620c2cd8079daded0d24371d8903926aee1d08968cd65e8606947bbc"
+    },
+    {
+      "relative": "gf-cuervo.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-cuervo.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-cuervo.js",
+      "bytes": 44633,
+      "sha256": "fdb07ddc57ee998d90faa46ae903fc5e43f21faa699bf59d689e713a781a636c"
+    },
+    {
+      "relative": "gf-espada-poderes.css",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-espada-poderes.css",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-espada-poderes.css",
+      "bytes": 6388,
+      "sha256": "6d2f33f797b7a8b00dc2d501eb5dd9cf9c8b04825a3dad98bd1bdeebb2166707"
+    },
+    {
+      "relative": "gf-espada.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-espada.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-espada.js",
+      "bytes": 30757,
+      "sha256": "2a68ff2d503e4b0b9ef37d44030eecb8d51d9ce278f6bbe86b8047bad544b188"
+    },
+    {
+      "relative": "gf-espantapajaros.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-espantapajaros.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-espantapajaros.js",
+      "bytes": 16575,
+      "sha256": "588f0d5cf9b5ff5b512de3a3c455141ad607bfa9d407b2b9469f4b0230b5e8f7"
+    },
+    {
+      "relative": "gf-graphics-settings.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-graphics-settings.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-graphics-settings.js",
+      "bytes": 30358,
+      "sha256": "fe0448e24cc13985b07047c2eac55a2e9576ceb709f59387f5ebc3a328d98951"
+    },
+    {
+      "relative": "gf-hud-ajuste.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-hud-ajuste.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-hud-ajuste.js",
+      "bytes": 8729,
+      "sha256": "5449686877a3231588a504aad1192b91e905e4f0539b5aed0ad236441dfff8fc"
+    },
+    {
+      "relative": "gf-hud.css",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-hud.css",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-hud.css",
+      "bytes": 46204,
+      "sha256": "e34cb288157878a7ddb1afb456388ae8952e62ee16ad08381686f531a010eb7e"
+    },
+    {
+      "relative": "gf-invitaciones.css",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-invitaciones.css",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-invitaciones.css",
+      "bytes": 4240,
+      "sha256": "2dce2eb76426c87c10d0700a927295682abd44238cef8800de82f318d20ea798"
+    },
+    {
+      "relative": "gf-invitaciones.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-invitaciones.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-invitaciones.js",
+      "bytes": 15227,
+      "sha256": "13cf4b40b0974ee134f22bd37dea571ace20b8afc2b9d842eec319c2b1a74b7f"
+    },
+    {
+      "relative": "gf-jefes.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-jefes.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-jefes.js",
+      "bytes": 22411,
+      "sha256": "76868e513c4ba458c6c2c7697d8d51c545398d9ddc1aaf4a97da4e77ee3e7b96"
+    },
+    {
+      "relative": "gf-lands.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-lands.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-lands.js",
+      "bytes": 23053,
+      "sha256": "e629a2fdf59d4fcd78528d6393aa29a103973b993238a69a182ee4a8b150ee46"
+    },
+    {
+      "relative": "gf-mascota.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-mascota.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-mascota.js",
+      "bytes": 33673,
+      "sha256": "59c0fd5494e8099367a20082acaefdbb2591a6f402b7a4f729c4cf155dc882fc"
+    },
+    {
+      "relative": "gf-mina-espectros.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-mina-espectros.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-mina-espectros.js",
+      "bytes": 24164,
+      "sha256": "6a8022f5c916b382edd02c3cda85009b415cd29ecdf34741542fe9a72d2c0095"
+    },
+    {
+      "relative": "gf-mina-serpiente.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-mina-serpiente.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-mina-serpiente.js",
+      "bytes": 93024,
+      "sha256": "64c7dcd28843db4c3bcae84aea9fb910b91db75b9f597712ab06fc5825c2f623"
+    },
+    {
+      "relative": "gf-mina-zombis.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-mina-zombis.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-mina-zombis.js",
+      "bytes": 41338,
+      "sha256": "5f4a8b73e949d35b00be371c8e028faffe94f8ffada3c09196cd4c5569148424"
+    },
+    {
+      "relative": "gf-mobs-red.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-mobs-red.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-mobs-red.js",
+      "bytes": 16404,
+      "sha256": "43421ee03c4af29bafab5aadc896dc7daa7cc652b0453a06e6fba17d301d5786"
+    },
+    {
+      "relative": "gf-monstruos-arte.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-monstruos-arte.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-monstruos-arte.js",
+      "bytes": 9453,
+      "sha256": "6b2d7b3c29447d7eb8966a699824524a472d9ddecc15aeb9f79c5ed3d67770b5"
+    },
+    {
+      "relative": "gf-monte.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-monte.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-monte.js",
+      "bytes": 14573,
+      "sha256": "077d85a03e35d5c2aa80caaab132867f715dd0a3081a088ca9a0b96ff9b0c092"
+    },
+    {
+      "relative": "gf-muerte.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-muerte.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-muerte.js",
+      "bytes": 16394,
+      "sha256": "672e4a2b8da7cc2d90b4e22fe6062cc87afd87b1597db894ddb486fd25face94"
+    },
+    {
+      "relative": "gf-nft.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-nft.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-nft.js",
+      "bytes": 11564,
+      "sha256": "b846103481f9d6e8c062dc35f5f9ec1494dd24690a30200f2d9f2d83de84e0ec"
+    },
+    {
+      "relative": "gf-nieve.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-nieve.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-nieve.js",
+      "bytes": 39052,
+      "sha256": "e7df07e16c1c3a045e15ec31436d2bb71e4fcbadb2b300397de82aff1a32b2bd"
+    },
+    {
+      "relative": "gf-nombre-color.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-nombre-color.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-nombre-color.js",
+      "bytes": 16094,
+      "sha256": "50ff68e2019d4e95fb316d30958ebf0768d4eb513d8c5c542e7edb42e6ba90a2"
+    },
+    {
+      "relative": "gf-npcs-pueblo.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-npcs-pueblo.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-npcs-pueblo.js",
+      "bytes": 10925,
+      "sha256": "2d23343e55b76eb5ccb79b6eb170e3935a184d4dd1203103c675d425ff5dcbba"
+    },
+    {
+      "relative": "gf-npcs.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-npcs.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-npcs.js",
+      "bytes": 17933,
+      "sha256": "0789f8ed2ba91ad98afa5d7be1c652d0dac105781056e220d0c7231a1f8966e6"
+    },
+    {
+      "relative": "gf-pesca.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-pesca.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-pesca.js",
+      "bytes": 66538,
+      "sha256": "e8ac54d101e54255c1162207be8e4d7f938ade2207dd00a2dd5db6ea5f27aad4"
+    },
+    {
+      "relative": "gf-pisadas.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-pisadas.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-pisadas.js",
+      "bytes": 23146,
+      "sha256": "a2f98c2f4c6acb6190962f8739c410396ad46405f95f657e9357e9e5489cede6"
+    },
+    {
+      "relative": "gf-postproceso.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-postproceso.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-postproceso.js",
+      "bytes": 34018,
+      "sha256": "1eeda233c8e0a075a3389324a553cc7302bdcdbcea2e328c504b52c722ec95ca"
+    },
+    {
+      "relative": "gf-profundidad.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-profundidad.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-profundidad.js",
+      "bytes": 55718,
+      "sha256": "ac6ad4766b40461197abbd0fcf4dbc7537936f7e03f630aa774ca46990f3d6a2"
+    },
+    {
+      "relative": "gf-redirect.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-redirect.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-redirect.js",
+      "bytes": 568,
+      "sha256": "28a72baf56454b5c9504823a0c8f34d511d7f324b9fe2b2c39d4b8c68fbaebe9"
+    },
+    {
+      "relative": "gf-relieve.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-relieve.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-relieve.js",
+      "bytes": 20787,
+      "sha256": "770a46e6b095b83c7056469e19d3def342c58b39787a4a05be4cdf983a518afd"
+    },
+    {
+      "relative": "gf-reposo.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-reposo.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-reposo.js",
+      "bytes": 6001,
+      "sha256": "e8822b0982ae08d2b96f233d1c1f7ae18be68534bc92b4a9f026cf18ba21b682"
+    },
+    {
+      "relative": "gf-rutas.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-rutas.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-rutas.js",
+      "bytes": 5558,
+      "sha256": "c237fef560c7d511970c1caaa64a4800724df9435c15fe136b7bf6bd87d4db31"
+    },
+    {
+      "relative": "gf-salvaje.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-salvaje.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-salvaje.js",
+      "bytes": 98485,
+      "sha256": "b62345e2d19a621a32ab8b9cbdb009ee59591531a8daf14a9f0d00eb4b5f9f17"
+    },
+    {
+      "relative": "gf-sesion-unica.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-sesion-unica.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-sesion-unica.js",
+      "bytes": 10556,
+      "sha256": "d2dc7115673bddb47dfec4acf1e90bc2f91a3580d5f300ad58664dfd9b910069"
+    },
+    {
+      "relative": "gf-session-api.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-session-api.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-session-api.js",
+      "bytes": 4648,
+      "sha256": "12349825508f65698e52c5eaea461849474cf8d610321b304f45a6dccb5fb3e4"
+    },
+    {
+      "relative": "gf-sin-nombre.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-sin-nombre.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-sin-nombre.js",
+      "bytes": 7328,
+      "sha256": "b673c80811739dcb8a8de1947228eaefa480e9db4e58fac92bd4aed59baf4551"
+    },
+    {
+      "relative": "gf-sombras.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-sombras.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-sombras.js",
+      "bytes": 29704,
+      "sha256": "9c7d5050d6e83b0dcf817568dcf3b0693f62ad56e2c363b18c4cad24e097198f"
+    },
+    {
+      "relative": "gf-soulbound-custom.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-soulbound-custom.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-soulbound-custom.js",
+      "bytes": 18856,
+      "sha256": "bac83a9d7200df458a9e1d7c319326d075f9efb30e019c7bc90d5c445653878d"
+    },
+    {
+      "relative": "gf-soulbound.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-soulbound.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-soulbound.js",
+      "bytes": 39040,
+      "sha256": "7f8c39d8e3df9c9b092abd46806381fdaf5a2138b7a8e4147e49661baf68494a"
+    },
+    {
+      "relative": "gf-suelo.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-suelo.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-suelo.js",
+      "bytes": 9102,
+      "sha256": "1769043b2030521a43afa73a4ef15e16e49bb47e46651526a1248f7df81af76b"
+    },
+    {
+      "relative": "gf-tirones.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-tirones.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-tirones.js",
+      "bytes": 9167,
+      "sha256": "ccdc78818f1b680a44d46ccd47b168d867d6caab2d9cae07de0c5dda415dfeb7"
+    },
+    {
+      "relative": "gf-traductor.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-traductor.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-traductor.js",
+      "bytes": 17388,
+      "sha256": "0a04d6c20da20a4388a45137e4a0f1a51522fbfc1839ad72c117e7f6166591ee"
+    },
+    {
+      "relative": "gf-viento.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-viento.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-viento.js",
+      "bytes": 48482,
+      "sha256": "89ba49f83cf13c2fafe26bffc2713ee0c7ec4a6f340236eeac99e31d7ab8a1f0"
+    },
+    {
+      "relative": "gf-vip.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-vip.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-vip.js",
+      "bytes": 19856,
+      "sha256": "fa358d4cf222d5fcbfe51089d4c3b9f5229f45f02d8e540dbceb33d4ba081239"
+    },
+    {
+      "relative": "gf-wallet-boot.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-wallet-boot.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-wallet-boot.js",
+      "bytes": 4772,
+      "sha256": "3e44e0fa00c6c92ffec52d9a3e61f2b6c3bbb2d847fac219c6ee7ab03c240c20"
+    },
+    {
+      "relative": "gf-wallet-dashboard.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-wallet-dashboard.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-wallet-dashboard.js",
+      "bytes": 21808,
+      "sha256": "f6c303d71a2c7afb48e7c6ba5875c73b5bdaf1685277fb6a97a362a501c02e79"
+    },
+    {
+      "relative": "gf-zonas.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-zonas.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-zonas.js",
+      "bytes": 34221,
+      "sha256": "ff249c67bd106aa97df300bbe35b003d8b49e6ab768ebc6a4825e66cb3d1d4e9"
+    },
+    {
+      "relative": "hub.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\hub.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\hub.js",
+      "bytes": 20472,
+      "sha256": "aace3a86dd0ad735ffab104293e704225a038872a4ae3a10bab87e5725cc0b2a"
+    },
+    {
+      "relative": "index.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\index.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\index.html",
+      "bytes": 91541,
+      "sha256": "1e13c23f56357dfee76f8c6575d5fbeb56f6705b7ce4c08132c49813b411f60e"
+    },
+    {
+      "relative": "LoadingSystem.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\LoadingSystem.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\LoadingSystem.js",
+      "bytes": 17618,
+      "sha256": "fc3dd5e31c1400accacc1753029829aee46324c9a9241e119e7a4fbb04a1a38b"
+    },
+    {
+      "relative": "market.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\market.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\market.html",
+      "bytes": 115076,
+      "sha256": "61cdbc286e719dafa830c4584351e757d56a9d649f999ee5427af0106ff61267"
+    },
+    {
+      "relative": "marketplace-routes.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\marketplace-routes.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\marketplace-routes.js",
+      "bytes": 75342,
+      "sha256": "0c53439e903688f40c3d7471de5253f599df725fd5538b8109ba2475c8b0ad52"
+    },
+    {
+      "relative": "memory-fix.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\memory-fix.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\memory-fix.js",
+      "bytes": 4784,
+      "sha256": "fee9136a55a98a6d9eb400a8eb65a3fff8f07321253e33477429d17ed424fab9"
+    },
+    {
+      "relative": "misiones.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\misiones.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\misiones.html",
+      "bytes": 65054,
+      "sha256": "efa7a034bf2dba979f0e88648b92e601c6232ec1d6a604246e56584e018beb1c"
+    },
+    {
+      "relative": "mission-studio.css",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\mission-studio.css",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\mission-studio.css",
+      "bytes": 11789,
+      "sha256": "25aa3a813bd89e9f83b62147f9baaaaf54ff85e95c5a0e92b81cd8037449e731"
+    },
+    {
+      "relative": "mission-studio.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\mission-studio.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\mission-studio.js",
+      "bytes": 19844,
+      "sha256": "725c2c876a69fbe3ca6ce515a94a5d5b35e9ab0b0cfe1be5ec1c75a1b508452b"
+    },
+    {
+      "relative": "missionspanel.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\missionspanel.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\missionspanel.js",
+      "bytes": 27304,
+      "sha256": "fd4be8b2b8170329388390f700236d785ee4f3c78490a4827a490b22f928d973"
+    },
+    {
+      "relative": "NotificationHub.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\NotificationHub.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\NotificationHub.js",
+      "bytes": 65143,
+      "sha256": "1f744425ec12e2ed9fc745fa16070faed0dd87b579e8b913f5150a9a2773aeac"
+    },
+    {
+      "relative": "package-lock.json",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\package-lock.json",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\package-lock.json",
+      "bytes": 100055,
+      "sha256": "53580a028415a1daa203fc2cedd6e5f8d3d47f7ea351f9f4033f11a0f749a0ef"
+    },
+    {
+      "relative": "package.json",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\package.json",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\package.json",
+      "bytes": 2095,
+      "sha256": "9acfecb7ed097c1143a01ed66ba3cf7a26b474e108d111de4138fee348b33bd3"
+    },
+    {
+      "relative": "Phaser-camera.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\Phaser-camera.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\Phaser-camera.js",
+      "bytes": 20161,
+      "sha256": "85fe422bf49448dab723464a5e7df617c0194b1fa199f66df03c9d853aa5907a"
+    },
+    {
+      "relative": "phaser-canvas-scaler.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\phaser-canvas-scaler.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\phaser-canvas-scaler.js",
+      "bytes": 29251,
+      "sha256": "9ab20330a3d458e6fd0840b29831cb52fe7217550b87bfb1143a28f93389bc20"
+    },
+    {
+      "relative": "phaser-memory-cleaner.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\phaser-memory-cleaner.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\phaser-memory-cleaner.js",
+      "bytes": 18649,
+      "sha256": "1d68e3ae9a2d47dd2332cd3994ce9b81c1135eb0516669d9bf69d18cef6ee0c6"
+    },
+    {
+      "relative": "phaser-memory-reporter.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\phaser-memory-reporter.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\phaser-memory-reporter.js",
+      "bytes": 57956,
+      "sha256": "cf84e51b172a8aae7eac0b7720f5ce33cdf73e991beba66157bad4daa60d43ff"
+    },
+    {
+      "relative": "phaser-relay-library.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\phaser-relay-library.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\phaser-relay-library.js",
+      "bytes": 90942,
+      "sha256": "5b6e9fc21821d6d0e3607c1de7820ec0af4d55a93400bd54e81656dc9d8addd5"
+    },
+    {
+      "relative": "phaser-rpg-perf.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\phaser-rpg-perf.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\phaser-rpg-perf.js",
+      "bytes": 136470,
+      "sha256": "2ab933167846d3dd06157c57143e8e8614129784e6cd3bfb93a33b44060ef4d0"
+    },
+    {
+      "relative": "puerta-login.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\puerta-login.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\puerta-login.html",
+      "bytes": 420,
+      "sha256": "5deb46910cb05ddc5055f7af734636e00b05742b8e47a22587c803ba34bb245d"
+    },
+    {
+      "relative": "puerta_login.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\puerta_login.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\puerta_login.html",
+      "bytes": 17619,
+      "sha256": "25abfca0857e8d9bbe5d343bd19499dd5bb94fafde4d5a5bbe14080e24f6822b"
+    },
+    {
+      "relative": "register-scenes.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\register-scenes.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\register-scenes.js",
+      "bytes": 20097,
+      "sha256": "c3e76c2fbf83c7dc4bdd1755c5657f752271cbe5ea0dd69d670a1a7135d0b15e"
+    },
+    {
+      "relative": "reporter.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\reporter.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\reporter.html",
+      "bytes": 12071,
+      "sha256": "9aacf4b4cd1f7f1993d8da43aa66f803734c9c60a989115112437281a6dac9cf"
+    },
+    {
+      "relative": "reporter.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\reporter.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\reporter.js",
+      "bytes": 17382,
+      "sha256": "fd3a31878770490c29c35657eb64db73d78ae28e4ea7ef246cfea011c757473c"
+    },
+    {
+      "relative": "styless.css",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\styless.css",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\styless.css",
+      "bytes": 393047,
+      "sha256": "bc4a712f73442052c5482a81e131b0edc353185560db3a8a616fbd5d42d5a16a"
+    },
+    {
+      "relative": "SystemaTransaccion.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\SystemaTransaccion.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\SystemaTransaccion.js",
+      "bytes": 20664,
+      "sha256": "862adc1707cfcddb1c9fab4d4204b60d59088eb21cfdf7eeb6015d7f293311b9"
+    },
+    {
+      "relative": "tienda_sistema.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tienda_sistema.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tienda_sistema.js",
+      "bytes": 245456,
+      "sha256": "7eae07da39e32ac3946f98674d1bb674d28e8dfa9879399de8915c812aa81a53"
+    },
+    {
+      "relative": "TransactionHub.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\TransactionHub.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\TransactionHub.js",
+      "bytes": 20437,
+      "sha256": "1eb4c8a9f5c6c68e95fb02a9a0266e60ba223249ff26c12ce96ffb3b51d29a18"
+    },
+    {
+      "relative": "tx-gate.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tx-gate.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tx-gate.js",
+      "bytes": 6620,
+      "sha256": "6d14fc1716c7dffa275a3d00329b197d808db445355bf30d888ad1ed0522bd97"
+    },
+    {
+      "relative": "ui-image-fallbacks.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\ui-image-fallbacks.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\ui-image-fallbacks.js",
+      "bytes": 482,
+      "sha256": "a4b8188cfde42f888c7f0520f4248e249610c93eddf8d406159e3bb25c02a0f4"
+    },
+    {
+      "relative": "viewport-fix.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\viewport-fix.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\viewport-fix.js",
+      "bytes": 14598,
+      "sha256": "a4e37828640e4ddbf50c7887790de55c8aa81df172c59f62beafa1e8c0b855d9"
+    },
+    {
+      "relative": "_prueba_audio_memoria.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_audio_memoria.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_audio_memoria.html",
+      "bytes": 5482,
+      "sha256": "4485b09f639fc7b1a2e0089efb64a26412c96aae9e7091c665d6f35943bae836"
+    },
+    {
+      "relative": "_prueba_batalla.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_batalla.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_batalla.html",
+      "bytes": 3465,
+      "sha256": "15340ebf26ade12d7d3e9dee4033189cdaf45db52304814bd7ca638081fed74e"
+    },
+    {
+      "relative": "_prueba_chunks.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_chunks.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_chunks.html",
+      "bytes": 2955,
+      "sha256": "cbd0bbf56c58e3b2c05f0e9c5b37f2c3bb904ff3fa8a6be81b6079516d94cc1d"
+    },
+    {
+      "relative": "_prueba_clima2.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_clima2.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_clima2.html",
+      "bytes": 5676,
+      "sha256": "85d8d2f4b47120e92acf11f71c19bf5aa1e78a9c90b13da128c0182d864b85d9"
+    },
+    {
+      "relative": "_prueba_combate.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_combate.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_combate.html",
+      "bytes": 11142,
+      "sha256": "8673c77cdca0b95b7c542387bb44cfe4604cebd4c17ffcdee1efc0013cb81620"
+    },
+    {
+      "relative": "_prueba_fauna_clima.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_fauna_clima.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_fauna_clima.html",
+      "bytes": 12064,
+      "sha256": "11078d98114a0bfeb08ecd512b65f2cc50e1e02fa9c9dae13c7fb6c54cbcc331"
+    },
+    {
+      "relative": "_prueba_franjas.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_franjas.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_franjas.html",
+      "bytes": 10867,
+      "sha256": "33638408589c60b28deaeea330e96f573ace32aa1b108c176bf63825ec63c6b4"
+    },
+    {
+      "relative": "_prueba_horno.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_horno.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_horno.html",
+      "bytes": 14681,
+      "sha256": "7c65e0423c649f9eab435cc6e127766a717bf8d54d637861843606323f4325a1"
+    },
+    {
+      "relative": "_prueba_memoria_ciclos.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_memoria_ciclos.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_memoria_ciclos.html",
+      "bytes": 5416,
+      "sha256": "97a409ca278d43200250d73e4f559f344611796f7c325f93f9844a2452ba8fd6"
+    },
+    {
+      "relative": "_prueba_mina.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_mina.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_mina.html",
+      "bytes": 12679,
+      "sha256": "e42d7b2c66519b6ef212e00e079d2023aea747597385e223120b9c924b85138c"
+    },
+    {
+      "relative": "_prueba_nublado.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_nublado.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_nublado.html",
+      "bytes": 3163,
+      "sha256": "19f7399ac5a300917ab3606a35339c6e81a1875250af691615113ddb3c373a3e"
+    },
+    {
+      "relative": "_prueba_nublado.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_nublado.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_nublado.js",
+      "bytes": 7661,
+      "sha256": "8dd1ebe0ca7637d24d7b828acb44401fd0841b87138815360bf8bae90c7354b0"
+    },
+    {
+      "relative": "_prueba_offline.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_offline.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_offline.html",
+      "bytes": 92881,
+      "sha256": "75245759012ce64d8f463ea23f1af120a6f06af263625b66a5c1baf5346cdfd7"
+    },
+    {
+      "relative": "_prueba_offline_mock.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_offline_mock.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_offline_mock.js",
+      "bytes": 70617,
+      "sha256": "9385cde8cdb70e160e68f7da3ab89b1499929738cafedef77c2a8bbf704c5d4f"
+    },
+    {
+      "relative": "_prueba_pisadas.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_pisadas.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_pisadas.html",
+      "bytes": 3974,
+      "sha256": "cb6459f84fa0c5c4e41ef740fba7f812b13c189c7361366c1a01ea4a5727214f"
+    },
+    {
+      "relative": "_prueba_post.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_post.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_post.html",
+      "bytes": 5878,
+      "sha256": "26764ff4cc8e3f6114d3cbddb8df02f2dd52144e4497c3845d4eb54da2aebb9f"
+    },
+    {
+      "relative": "_prueba_relay.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_relay.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_relay.js",
+      "bytes": 20571,
+      "sha256": "beefc25d29d2280f446369d4602416e32b54086e3864b9a330e8924f723afb4e"
+    },
+    {
+      "relative": "_prueba_rendirse.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_rendirse.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_rendirse.html",
+      "bytes": 509,
+      "sha256": "cf06523c3bb70e09e92580673d50c7131ea1e8f065f6a4e2ad3fcb4cf276dfff"
+    },
+    {
+      "relative": "_prueba_social.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_social.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_social.html",
+      "bytes": 8139,
+      "sha256": "04b9fdd3e335bd663c0cb23d17c460270d51c72f069ba55464356811d390bdb3"
+    },
+    {
+      "relative": "_prueba_social.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_social.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_social.js",
+      "bytes": 18871,
+      "sha256": "130eb58a38b788b0185f47f71395e728bf8a56eb6117c8f3460e9e81e3072dc1"
+    },
+    {
+      "relative": "_prueba_sol_nieve.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_sol_nieve.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_sol_nieve.html",
+      "bytes": 3601,
+      "sha256": "3605151472d999a7fec68540db145faa8d8910bbb3a09cb9d361c6ec2aac0bba"
+    },
+    {
+      "relative": "_prueba_sombras.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_sombras.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_sombras.html",
+      "bytes": 5589,
+      "sha256": "a32c4324bc54d3596a8e026f98286754b05c4501b3b4c22781bbe9fbe2a5d47b"
+    },
+    {
+      "relative": "_prueba_sonido.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_sonido.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_sonido.html",
+      "bytes": 13550,
+      "sha256": "2b3a31ebb9ee13056fe2606e9ecca0f1bb20cd03dbc41214fba25a90bb1f1707"
+    },
+    {
+      "relative": "_prueba_viento.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_viento.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_viento.html",
+      "bytes": 8962,
+      "sha256": "78b11acb68225cf0e5bd3bda78917385579fbf9e041cc34d58a10692742d9285"
+    },
+    {
+      "relative": "_prueba_vram_pantalla.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\_prueba_vram_pantalla.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\_prueba_vram_pantalla.html",
+      "bytes": 6387,
+      "sha256": "cb913ea12c0d967b74f5fe19963af518495ca4d038aa767a5abda28850ea1194"
+    },
+    {
+      "relative": "Scenes\\.eslintrc.json",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\Scenes\\.eslintrc.json",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\Scenes\\.eslintrc.json",
+      "bytes": 423,
+      "sha256": "785a1239baa0ca019652d0b85fe21df8c4d50ef4cf1be34a2758cfe6a377663b"
+    },
+    {
+      "relative": "Scenes\\BattleScene.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\Scenes\\BattleScene.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\Scenes\\BattleScene.js",
+      "bytes": 135018,
+      "sha256": "2e6332d5f7ef999bfea153be12b891a1d61377e96af8170ca20384ffe1be8c21"
+    },
+    {
+      "relative": "Scenes\\GameScene.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\Scenes\\GameScene.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\Scenes\\GameScene.js",
+      "bytes": 1294460,
+      "sha256": "b017d91187470b693bcd601322ac9c38af8c1352c79b6d728374a46279c59e2c"
+    },
+    {
+      "relative": "Scenes\\InteriorScene.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\Scenes\\InteriorScene.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\Scenes\\InteriorScene.js",
+      "bytes": 42621,
+      "sha256": "3b0a21ea6bbcd241518e9488c7905ed62e314510c6cbf8682b0ab53b6feddeb0"
+    },
+    {
+      "relative": "Scenes\\LandsScene.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\Scenes\\LandsScene.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\Scenes\\LandsScene.js",
+      "bytes": 109471,
+      "sha256": "d3bf5d95efbbd62faf12a98277cf56f3a6b4291715e2d1b0d96a2634d34014d3"
+    },
+    {
+      "relative": "Scenes\\LoadingScenegame.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\Scenes\\LoadingScenegame.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\Scenes\\LoadingScenegame.js",
+      "bytes": 137360,
+      "sha256": "f077a58823136ab9d8b71ef64b867c1f97f005844200135cabe1868212108d0c"
+    },
+    {
+      "relative": "Scenes\\LoadingSceneshop.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\Scenes\\LoadingSceneshop.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\Scenes\\LoadingSceneshop.js",
+      "bytes": 7273,
+      "sha256": "26db4cc6b1678c03188df5ae88b3c671a1a18b2edfcd6c1a9dc95bbf264c751a"
+    },
+    {
+      "relative": "Scenes\\MenuScene.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\Scenes\\MenuScene.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\Scenes\\MenuScene.js",
+      "bytes": 28513,
+      "sha256": "2b55dfe3a54eb578377a81faf93b09dbdeb37de76ba83476f0226a99b30c6770"
+    },
+    {
+      "relative": "Scenes\\MinaScene.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\Scenes\\MinaScene.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\Scenes\\MinaScene.js",
+      "bytes": 88257,
+      "sha256": "55be2f6287af039a6714ae5bc975c4bbf03df5ae401e8cd5bb854e761db909e8"
+    },
+    {
+      "relative": "Scenes\\sacar_mapa.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\Scenes\\sacar_mapa.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\Scenes\\sacar_mapa.js",
+      "bytes": 1491,
+      "sha256": "625b3eb513faac66f2b4cd8d54dd42453809c97ec70a7582152fd31641cab801"
+    },
+    {
+      "relative": "Scenes\\SalvajeScene.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\Scenes\\SalvajeScene.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\Scenes\\SalvajeScene.js",
+      "bytes": 31680,
+      "sha256": "f2c6758cde85d14149016a2f105e8f065a2eb069f7d7dbdfbe0c3e21e609605f"
+    },
+    {
+      "relative": "Scenes\\ShopScene.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\Scenes\\ShopScene.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\Scenes\\ShopScene.js",
+      "bytes": 14878,
+      "sha256": "4385704c3485c3c8664bffd53cfbd469c6fec4212095118eb7556aa654c90af9"
+    },
+    {
+      "relative": "Scenes\\tiendajuego.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\Scenes\\tiendajuego.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\Scenes\\tiendajuego.js",
+      "bytes": 536257,
+      "sha256": "cdd39c2b94d9f89952a0782923c90d0ad86a392fe1d26e3549395ee16d1ed0d1"
+    },
+    {
+      "relative": "Scenes\\ZonasScenes.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\Scenes\\ZonasScenes.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\Scenes\\ZonasScenes.js",
+      "bytes": 28422,
+      "sha256": "ededde59fd589f152f9517b783d7fc95ef2d1e1d0b7bf75ac982b7691696826f"
+    },
+    {
+      "relative": "lib\\tileManager.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\lib\\tileManager.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\lib\\tileManager.js",
+      "bytes": 60068,
+      "sha256": "33838a0319ae07317dcb9b07e8694776845d57ccc13c25caae65606bdc1e790e"
+    },
+    {
+      "relative": "lib\\tileMonitor.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\lib\\tileMonitor.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\lib\\tileMonitor.js",
+      "bytes": 11386,
+      "sha256": "2f0b59a8508246809c37507f1d1131a3abf78315823c196879965a8f7fc8ac74"
+    },
+    {
+      "relative": "gf-wallet-sdk\\gf-wallet.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-wallet-sdk\\gf-wallet.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\gf-wallet-sdk\\gf-wallet.js",
+      "bytes": 64967,
+      "sha256": "e95770c6377b7aa8bbdf5fb2a5ee42ca3cd8b31091147a7efe2aaad351f6356f"
+    },
+    {
+      "relative": "tools\\add-player-potions.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\add-player-potions.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\add-player-potions.cjs",
+      "bytes": 580,
+      "sha256": "4270c30801348a3bbcb53dc4097122fd2cf575a8a45a345e08a7cda5ca565971"
+    },
+    {
+      "relative": "tools\\admin-auth-rpc.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\admin-auth-rpc.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\admin-auth-rpc.test.cjs",
+      "bytes": 12514,
+      "sha256": "f982f9e1ddbbbb26187276270eaa56a7aa876bb9201958db5e7344b48c40076b"
+    },
+    {
+      "relative": "tools\\admin-impact-browser.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\admin-impact-browser.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\admin-impact-browser.test.cjs",
+      "bytes": 38710,
+      "sha256": "60b4fde765b25becbd620fb61ec041f4023d4c80de997aee276a2a3c0c792673"
+    },
+    {
+      "relative": "tools\\admin-session.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\admin-session.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\admin-session.test.cjs",
+      "bytes": 4700,
+      "sha256": "bd70e1c1b0b04c83f8ea14ec51876f902c8f33d02d1afbb9f4c026eb10abfb39"
+    },
+    {
+      "relative": "tools\\admin-suite-backend.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\admin-suite-backend.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\admin-suite-backend.test.cjs",
+      "bytes": 6692,
+      "sha256": "82202374607c7144dd1d2a66e257a38c8b867e4997a2c1ce8b513ae696b97671"
+    },
+    {
+      "relative": "tools\\admin-suite-browser.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\admin-suite-browser.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\admin-suite-browser.cjs",
+      "bytes": 16661,
+      "sha256": "81153364f0f6f0d677ae9e686550efb7be6f65a3b154591e42b0e352b6088350"
+    },
+    {
+      "relative": "tools\\admin-suite-inventory.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\admin-suite-inventory.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\admin-suite-inventory.cjs",
+      "bytes": 1447,
+      "sha256": "1f4feafaf8b72fc8a8c55d61384811eef363b6ab64f46e7bbdbfa4e42e659272"
+    },
+    {
+      "relative": "tools\\admin-suite-preview.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\admin-suite-preview.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\admin-suite-preview.cjs",
+      "bytes": 1825,
+      "sha256": "825241ef27ec4f7e3d7270f8988beb280abf3fe255fe726ad93d1ca7dd739b2a"
+    },
+    {
+      "relative": "tools\\agua-pesca-zonas.json",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\agua-pesca-zonas.json",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\agua-pesca-zonas.json",
+      "bytes": 5227,
+      "sha256": "8b3b577a19f8454374d23833b4415841cd8bf880e70cc08d64353ba563a93f39"
+    },
+    {
+      "relative": "tools\\app-lifecycle.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\app-lifecycle.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\app-lifecycle.test.cjs",
+      "bytes": 10735,
+      "sha256": "71ab63dc5ccfaa7c612c34e9daabcc41af971311def989f077b78a717b4ff209"
+    },
+    {
+      "relative": "tools\\audio-footprints-lifecycle.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\audio-footprints-lifecycle.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\audio-footprints-lifecycle.test.cjs",
+      "bytes": 10474,
+      "sha256": "32dd2a9aa0bc8a669d8d95d5b67f101ca82f6aabdfa8b596ed28e3255bba8159"
+    },
+    {
+      "relative": "tools\\audio-prueba-rango-memoria.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\audio-prueba-rango-memoria.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\audio-prueba-rango-memoria.js",
+      "bytes": 12408,
+      "sha256": "08e0dba7e1ee9afd61005547996f83833217d53c009a1e5293136543f9515a88"
+    },
+    {
+      "relative": "tools\\audit-libraries.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\audit-libraries.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\audit-libraries.cjs",
+      "bytes": 3974,
+      "sha256": "860f3c17e96aca4be4188d83de5c2d65aba5b7b5a03631e7e35c61a1412013cf"
+    },
+    {
+      "relative": "tools\\audit-project-deep.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\audit-project-deep.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\audit-project-deep.cjs",
+      "bytes": 4294,
+      "sha256": "d605536129bc15e8e63fc48d995420da07ae0825fc14984ac7c791fbdb2cbd4d"
+    },
+    {
+      "relative": "tools\\auth-concurrency-review.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\auth-concurrency-review.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\auth-concurrency-review.test.cjs",
+      "bytes": 10602,
+      "sha256": "092318a04f9e1c0072449c6786f8e1670a06f0d5c59d62f6ee58e33a7fd46936"
+    },
+    {
+      "relative": "tools\\backend-deep-stability.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\backend-deep-stability.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\backend-deep-stability.test.cjs",
+      "bytes": 18548,
+      "sha256": "2c8c610ee46f26e36b902dde26069a11fa8ca04e66ab8881404aa06456e626ff"
+    },
+    {
+      "relative": "tools\\backend-http-regression.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\backend-http-regression.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\backend-http-regression.cjs",
+      "bytes": 3111,
+      "sha256": "fdce6f1cca5a2599cab7e59836380bc6a7f133105d6a56444ae435611b448b14"
+    },
+    {
+      "relative": "tools\\backend-inventory-sync.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\backend-inventory-sync.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\backend-inventory-sync.js",
+      "bytes": 5282,
+      "sha256": "bb57128700e669bf111ef031b850b04b3e78ab0599276d32960a46849b803f7a"
+    },
+    {
+      "relative": "tools\\batalla-conexion.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\batalla-conexion.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\batalla-conexion.test.cjs",
+      "bytes": 3430,
+      "sha256": "67374caacbb1e91f0b2e5f9b6b71a00e3ceaf7d35645a5ba8b302b8d19abe8f8"
+    },
+    {
+      "relative": "tools\\batalla-prueba-arenas.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\batalla-prueba-arenas.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\batalla-prueba-arenas.js",
+      "bytes": 4363,
+      "sha256": "fa393cd5f6a694e82e319ecdab6a9d70dde11d956c0cca9c55023ecf15a0cfe3"
+    },
+    {
+      "relative": "tools\\batalla-prueba-especies.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\batalla-prueba-especies.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\batalla-prueba-especies.js",
+      "bytes": 7639,
+      "sha256": "6ae9a5c59c4d7842354ecc29828c1ee7c9623d8a1d52f045639a76742b811f81"
+    },
+    {
+      "relative": "tools\\batalla-prueba-niveles.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\batalla-prueba-niveles.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\batalla-prueba-niveles.js",
+      "bytes": 8268,
+      "sha256": "97ec06f68403d575bc1e0af2db74883bdb61735b25b7d91c1997e275f0f1630a"
+    },
+    {
+      "relative": "tools\\batalla-prueba-salida.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\batalla-prueba-salida.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\batalla-prueba-salida.js",
+      "bytes": 10226,
+      "sha256": "e9a92b4ee58966b245e3003095c5f18b4abe590ee527d6ccf14ab5d7e649ffce"
+    },
+    {
+      "relative": "tools\\battle-art-lifecycle.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\battle-art-lifecycle.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\battle-art-lifecycle.test.cjs",
+      "bytes": 6179,
+      "sha256": "f239e779f22c382483f6decd1e283efba8bad663564dfbcb721e75f4d7038736"
+    },
+    {
+      "relative": "tools\\battle-supplies.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\battle-supplies.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\battle-supplies.test.cjs",
+      "bytes": 3659,
+      "sha256": "0a3d8a960f48b9f418217efe380efae59617da9e4e222d7b11508fec126c5521"
+    },
+    {
+      "relative": "tools\\battle-upgrade-visual.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\battle-upgrade-visual.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\battle-upgrade-visual.cjs",
+      "bytes": 5422,
+      "sha256": "96eb75894a7066512f823cb8889bc210240ea218c51d98609cbc542d5799a258"
+    },
+    {
+      "relative": "tools\\battle-upgrade.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\battle-upgrade.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\battle-upgrade.test.cjs",
+      "bytes": 3568,
+      "sha256": "06304771da4ed2ea6b1500fa5953e3b35ae189acb2efcc602e2b26650c5c4bf0"
+    },
+    {
+      "relative": "tools\\brawl-a-servidor.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\brawl-a-servidor.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\brawl-a-servidor.js",
+      "bytes": 5449,
+      "sha256": "5fbb625b78e2ada104f7d3fc163100c1afb0da7f21529df8bec460cf0540b4b0"
+    },
+    {
+      "relative": "tools\\brawl-prueba-motor.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\brawl-prueba-motor.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\brawl-prueba-motor.js",
+      "bytes": 30585,
+      "sha256": "715678436360061eecb348844094aae96b346bbd9ebe9e01d110f8fce8d5a41d"
+    },
+    {
+      "relative": "tools\\brawl-prueba-navegador.mjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\brawl-prueba-navegador.mjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\brawl-prueba-navegador.mjs",
+      "bytes": 16149,
+      "sha256": "e2dff9eac8743015422a6fcc24ab4dbc27e4727e3d0b100c5c6f8e33bd06b279"
+    },
+    {
+      "relative": "tools\\brawl-prueba-servidor.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\brawl-prueba-servidor.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\brawl-prueba-servidor.js",
+      "bytes": 35869,
+      "sha256": "da770ac239f0991c18c96df22dcece57dc59f66276a134e063e4b32defabef75"
+    },
+    {
+      "relative": "tools\\build-collections-backend.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\build-collections-backend.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\build-collections-backend.cjs",
+      "bytes": 3332,
+      "sha256": "6ed66838dc53336883f520008bd7505f7c3f4d137a3b9315ff31900036ee950c"
+    },
+    {
+      "relative": "tools\\build-impact-backend.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\build-impact-backend.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\build-impact-backend.cjs",
+      "bytes": 3304,
+      "sha256": "2744b0179bed5856ab37410de3bd5497b08f3871eaf476d8c46034393e8bcfda"
+    },
+    {
+      "relative": "tools\\build-metamask.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\build-metamask.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\build-metamask.cjs",
+      "bytes": 1021,
+      "sha256": "923c6051acae0e6f67569579ce2730c69f54f6d9a90d5d7422911642237187d9"
+    },
+    {
+      "relative": "tools\\build-vendor.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\build-vendor.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\build-vendor.cjs",
+      "bytes": 3815,
+      "sha256": "ff42b7f4a2edf52f2ee94896d38c9643211fd707d34f060fdb7e69234e3ec440"
+    },
+    {
+      "relative": "tools\\captura-escena.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\captura-escena.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\captura-escena.html",
+      "bytes": 4359,
+      "sha256": "d7dc2f7a8d8361bad99da4e6cf892e4811b2f2dffbec94d9574d2a22af4b81bf"
+    },
+    {
+      "relative": "tools\\captura-mapa.html",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\captura-mapa.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\captura-mapa.html",
+      "bytes": 2812,
+      "sha256": "570056e6da9344c7f8123a3bfc7caa6ff1932938f6f1daa32de21a3bfd1caeef"
+    },
+    {
+      "relative": "tools\\captura-mapa.mjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\captura-mapa.mjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\captura-mapa.mjs",
+      "bytes": 5697,
+      "sha256": "dd7bbe0b16f8d5ec65fdc43a9f46bf775775698074ba2ede0eff2a9daadfa42c"
+    },
+    {
+      "relative": "tools\\casa-l-perfil.json",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\casa-l-perfil.json",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\casa-l-perfil.json",
+      "bytes": 1428,
+      "sha256": "f079251150895ce34d5957e439455ca41400fd52db7bb9fe1f959528a3369fba"
+    },
+    {
+      "relative": "tools\\character-potions-client.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\character-potions-client.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\character-potions-client.test.cjs",
+      "bytes": 2058,
+      "sha256": "70643528155974b1e1a27704207baa00d64a62f634b638a56eb895ef7fcf63d0"
+    },
+    {
+      "relative": "tools\\character-world-server.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\character-world-server.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\character-world-server.js",
+      "bytes": 11580,
+      "sha256": "aa127604cb4f80d75fff47aa176507e369032774e8c1864cacfba296c55a7f11"
+    },
+    {
+      "relative": "tools\\character-world.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\character-world.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\character-world.test.cjs",
+      "bytes": 8076,
+      "sha256": "5eebca832c6b6072730ab7b5821f47314860aed911b8e8dd176b4ed1d527dd8b"
+    },
+    {
+      "relative": "tools\\collections-backend.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\collections-backend.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\collections-backend.test.cjs",
+      "bytes": 32678,
+      "sha256": "4308475075f6216756f9820c1689c77af64ee9f4098e45ec61de54aba8e1e976"
+    },
+    {
+      "relative": "tools\\collections-frontend.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\collections-frontend.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\collections-frontend.test.cjs",
+      "bytes": 34455,
+      "sha256": "cf754072f4f65ce2b276cbff452ddb40083048d3b59f9a7d4beca4fe83c11591"
+    },
+    {
+      "relative": "tools\\contexto-retenido.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\contexto-retenido.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\contexto-retenido.js",
+      "bytes": 13266,
+      "sha256": "8fb58c306c49c604dfccdf38e0ad4b7550a66bcc420b762d77ee405a8c788514"
+    },
+    {
+      "relative": "tools\\contratos-entre-modulos.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\contratos-entre-modulos.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\contratos-entre-modulos.js",
+      "bytes": 6853,
+      "sha256": "22cb6db9f67ffa6cabf3e3c615cced6bcc574174db4248bf2c1faffc01d1e7b3"
+    },
+    {
+      "relative": "tools\\diagnostico-consola-verificacion.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\diagnostico-consola-verificacion.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\diagnostico-consola-verificacion.cjs",
+      "bytes": 14779,
+      "sha256": "14890d43b263b844a2d2b6cd11d8502f7de236e7041992d1117c0914c9e7964f"
+    },
+    {
+      "relative": "tools\\diagnostico-consola.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\diagnostico-consola.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\diagnostico-consola.js",
+      "bytes": 19331,
+      "sha256": "171227a904a361bf81391ba62786d133fc394dbb09424389a06801056d929a8e"
+    },
+    {
+      "relative": "tools\\dom-ids-fantasma.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\dom-ids-fantasma.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\dom-ids-fantasma.js",
+      "bytes": 5939,
+      "sha256": "ed81a47353238902bb793a457456180197cd0ac28734569726a776e3409b7e92"
+    },
+    {
+      "relative": "tools\\embed-native-pairing.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\embed-native-pairing.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\embed-native-pairing.cjs",
+      "bytes": 3998,
+      "sha256": "315691b022bdc3e9cb8d260093c1c5f0bf581ed8a7c92dfaaa71949d024442cd"
+    },
+    {
+      "relative": "tools\\engine-deep-stability.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\engine-deep-stability.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\engine-deep-stability.test.cjs",
+      "bytes": 27811,
+      "sha256": "83be50d40f2c3206011349217fe509963a834388d51424c071afde85e56c0155"
+    },
+    {
+      "relative": "tools\\engine-lifecycle.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\engine-lifecycle.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\engine-lifecycle.test.cjs",
+      "bytes": 13366,
+      "sha256": "df2a596a032310981de338b7ecf7ba98b59a87bdfc5aaac33b7e282366e58d13"
+    },
+    {
+      "relative": "tools\\environment-lifecycle.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\environment-lifecycle.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\environment-lifecycle.test.cjs",
+      "bytes": 12323,
+      "sha256": "c71d062e5813719f86f538439c5b0a6b353873f3ed5e383a1c5b059c895cd1c3"
+    },
+    {
+      "relative": "tools\\environment-resources.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\environment-resources.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\environment-resources.test.cjs",
+      "bytes": 11341,
+      "sha256": "cff84608d40492e6e0179479b0aa6e5130cfdf5aedcf62a796d480f312e06491"
+    },
+    {
+      "relative": "tools\\escapado-prueba.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\escapado-prueba.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\escapado-prueba.js",
+      "bytes": 4607,
+      "sha256": "b9698996eeec13a1cd1aed83379e45c0a7975bad9fa3fdc3c8bd4c4bcb76c171"
+    },
+    {
+      "relative": "tools\\fantasma-prueba.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\fantasma-prueba.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\fantasma-prueba.js",
+      "bytes": 11557,
+      "sha256": "cc17ee9157237178517156bbf6bf701b1108a7957f0cdd88b4104f9e088598d8"
+    },
+    {
+      "relative": "tools\\fauna-banco.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\fauna-banco.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\fauna-banco.js",
+      "bytes": 9384,
+      "sha256": "11e5e1ebd62a7d93e1f1fe9caea6e40bb8736ba5a6db09615284fa1798626a6c"
+    },
+    {
+      "relative": "tools\\fauna-landing-actions.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\fauna-landing-actions.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\fauna-landing-actions.test.cjs",
+      "bytes": 6204,
+      "sha256": "d40fe1c3ca465b70fa081461b83dfa195d046e834a3323762fb7bc2ef2c306c6"
+    },
+    {
+      "relative": "tools\\fauna-medir-cava.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\fauna-medir-cava.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\fauna-medir-cava.js",
+      "bytes": 2097,
+      "sha256": "f4c3786bb4a7604a8b6ef030067af29e4b908310aa85d2d94900eb6b60894cb0"
+    },
+    {
+      "relative": "tools\\fauna-medir-sol.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\fauna-medir-sol.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\fauna-medir-sol.js",
+      "bytes": 2687,
+      "sha256": "b4c09476758cad84e3bc2c33bc00127ae1516790e93f0d89a60cefb089e54e2f"
+    },
+    {
+      "relative": "tools\\fauna-prueba-aves.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\fauna-prueba-aves.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\fauna-prueba-aves.js",
+      "bytes": 9778,
+      "sha256": "7aa7dcc3920539daa924e838396efd6e59c751143274b9ea7662f55c7c5f61c3"
+    },
+    {
+      "relative": "tools\\fauna-prueba-clima.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\fauna-prueba-clima.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\fauna-prueba-clima.js",
+      "bytes": 19358,
+      "sha256": "b60becff09760967012f10589cd08a3233be4a3e7e9e373c25dd498b7541de6d"
+    },
+    {
+      "relative": "tools\\generar-lods.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\generar-lods.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\generar-lods.js",
+      "bytes": 14634,
+      "sha256": "6dc63d5fa1389975001992123beb936ee51d89d9e37417299bd5feb80f7d2fc9"
+    },
+    {
+      "relative": "tools\\generar-prueba-offline.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\generar-prueba-offline.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\generar-prueba-offline.js",
+      "bytes": 1509,
+      "sha256": "104ed7f48949e0e904e000ed5166bd6e22cdb172698aedcef362b97033703e71"
+    },
+    {
+      "relative": "tools\\generar-sonidos.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\generar-sonidos.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\generar-sonidos.js",
+      "bytes": 73349,
+      "sha256": "58f1010e218d0abcef31ebef2f248fa2cadcfe419e88c18216a95d0c439c341d"
+    },
+    {
+      "relative": "tools\\gf-banco-tienda.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\gf-banco-tienda.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\gf-banco-tienda.js",
+      "bytes": 25652,
+      "sha256": "fc5fe9540c624a76e2ccbb06a84b1adab1a08bd918c2534533194d4c282d09b5"
+    },
+    {
+      "relative": "tools\\handlers-inline-huerfanos.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\handlers-inline-huerfanos.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\handlers-inline-huerfanos.js",
+      "bytes": 3911,
+      "sha256": "ee477253a1dc01471d0b9819c7a9ee8e19b28caa4db09d270bf5cfd6cbe789e8"
+    },
+    {
+      "relative": "tools\\heap-escenas.mjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\heap-escenas.mjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\heap-escenas.mjs",
+      "bytes": 7994,
+      "sha256": "c20b3346fed07331ee82663f7d7731a39290167f6a61fabeebd6c8ccfcb8cdf8"
+    },
+    {
+      "relative": "tools\\horno-prueba.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\horno-prueba.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\horno-prueba.js",
+      "bytes": 23577,
+      "sha256": "e987a9f82d9c7184fcdc8a1be70955b0a635613e213e0cfdecc8f6b838f40716"
+    },
+    {
+      "relative": "tools\\hub-lifecycle.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\hub-lifecycle.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\hub-lifecycle.test.cjs",
+      "bytes": 11623,
+      "sha256": "c4d6ce9ddbef2e30336e5c700db1e41ffe29f6d3ae709908cf4c0a9c14bd5339"
+    },
+    {
+      "relative": "tools\\hud-prueba.mjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\hud-prueba.mjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\hud-prueba.mjs",
+      "bytes": 43115,
+      "sha256": "e9975d4b74a611fd70fbaf36f168775841938f00f18f6ff948a8cc048982ac49"
+    },
+    {
+      "relative": "tools\\hud-solapes.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\hud-solapes.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\hud-solapes.js",
+      "bytes": 3938,
+      "sha256": "678111df327269e9aa02482b0f3043ea18b07f8c1b4f1cb8dd6133d8ad446498"
+    },
+    {
+      "relative": "tools\\impact-backend-bundle.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\impact-backend-bundle.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\impact-backend-bundle.test.cjs",
+      "bytes": 5636,
+      "sha256": "e282abea198455f7fe3e7abb05f54685a936286dd09f596265161a2b28bd945d"
+    },
+    {
+      "relative": "tools\\impact-real-dependency-boot-check.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\impact-real-dependency-boot-check.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\impact-real-dependency-boot-check.cjs",
+      "bytes": 7548,
+      "sha256": "0074201d9d088530998f896acdcfc6a70aee090dac08980352b84369a448ed51"
+    },
+    {
+      "relative": "tools\\impact-rpc-transport.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\impact-rpc-transport.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\impact-rpc-transport.test.cjs",
+      "bytes": 2183,
+      "sha256": "e79a5cb37720bd1a160a831c8072337421bec9ebb468217dcdecbd7409b936da"
+    },
+    {
+      "relative": "tools\\inventario-catalogos.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\inventario-catalogos.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\inventario-catalogos.js",
+      "bytes": 7629,
+      "sha256": "d144efde7d34e2a761f1ddda8fc7ee4cc0b2f619236b4e6ee70a8ce441e99ee2"
+    },
+    {
+      "relative": "tools\\inventario-prueba-orden.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\inventario-prueba-orden.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\inventario-prueba-orden.js",
+      "bytes": 7996,
+      "sha256": "76bda3416242db62f5063aa909541c0ae0e4bae2abef4ca6f28acad3f73609c1"
+    },
+    {
+      "relative": "tools\\inventario-prueba-pintado.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\inventario-prueba-pintado.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\inventario-prueba-pintado.js",
+      "bytes": 7347,
+      "sha256": "c5562051e609686a60f163116271530aae129654d7d16e6ac67f6ba5326b72b0"
+    },
+    {
+      "relative": "tools\\inventory-browser-verification.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\inventory-browser-verification.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\inventory-browser-verification.cjs",
+      "bytes": 21070,
+      "sha256": "41250f5c50efa3b3eee1fc985fdc73133af88975c9299c2b493d574deb806ea6"
+    },
+    {
+      "relative": "tools\\inventory-load.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\inventory-load.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\inventory-load.test.cjs",
+      "bytes": 2349,
+      "sha256": "b3ff26fd05d94a94e4c37458cf31b9a0d0b36dd7e0872c5e1d6cfefb1e7e7141"
+    },
+    {
+      "relative": "tools\\inventory-transitions.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\inventory-transitions.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\inventory-transitions.test.cjs",
+      "bytes": 11980,
+      "sha256": "0b6c2518dc768c40afbc44168d2b7a0c473b034f4f1bcea18d8722509fee8192"
+    },
+    {
+      "relative": "tools\\invitaciones.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\invitaciones.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\invitaciones.test.cjs",
+      "bytes": 13335,
+      "sha256": "749ab71b216129497234748089c1a2b79cc242292c01e2e6b4fd385cd68afa5a"
+    },
+    {
+      "relative": "tools\\libraries-browser-stability.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\libraries-browser-stability.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\libraries-browser-stability.cjs",
+      "bytes": 7715,
+      "sha256": "8e89a9ec0da1da3c961a521aacdecefa956284a70569b298c7bf5145a119c453"
+    },
+    {
+      "relative": "tools\\libraries-stability.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\libraries-stability.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\libraries-stability.test.cjs",
+      "bytes": 25041,
+      "sha256": "e71b530246993a2d8f6e92cb2016a2d958aa1521d0bd0abd6cee9f4b4fb023e3"
+    },
+    {
+      "relative": "tools\\litvm-impact-analytics.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\litvm-impact-analytics.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\litvm-impact-analytics.test.cjs",
+      "bytes": 28238,
+      "sha256": "4890f505288110ea8e91f56346163925d7433aebb08a01d5db71e517aed025f7"
+    },
+    {
+      "relative": "tools\\loading-deep-stability.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\loading-deep-stability.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\loading-deep-stability.test.cjs",
+      "bytes": 10182,
+      "sha256": "f7012f38c4fe94215a602780b6e18d3f9edc0da7420174fee39620b3c9ca33dc"
+    },
+    {
+      "relative": "tools\\login-lifecycle.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\login-lifecycle.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\login-lifecycle.test.cjs",
+      "bytes": 4191,
+      "sha256": "d25c3eb6ce8b0d1435497981d6770376ebf0c381aeb468c0cfc001e6c19f78d6"
+    },
+    {
+      "relative": "tools\\mapa-prueba-colisiones.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\mapa-prueba-colisiones.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\mapa-prueba-colisiones.js",
+      "bytes": 5850,
+      "sha256": "eeedadbaad5f8268d8239f098a972a5406c127199a95d2313bb828e7573fc6f9"
+    },
+    {
+      "relative": "tools\\MEMORIA-CICLOS.md",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\MEMORIA-CICLOS.md",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\MEMORIA-CICLOS.md",
+      "bytes": 3161,
+      "sha256": "b8c66affeae5dd31178e9d3341c8bb75150a49bb2cd810f001faa5a00627bcce"
+    },
+    {
+      "relative": "tools\\memory-diagnostics.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\memory-diagnostics.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\memory-diagnostics.test.cjs",
+      "bytes": 3275,
+      "sha256": "63cdb616bddc44b1288506e078c021bb35d0e682c945d584c136d449d1abfd5d"
+    },
+    {
+      "relative": "tools\\menu-stability.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\menu-stability.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\menu-stability.test.cjs",
+      "bytes": 1186,
+      "sha256": "d3e9e267855535d31f25b25e2173cc99c79792e5052c3715a992b200fe35cd1b"
+    },
+    {
+      "relative": "tools\\metamask-adapter.mjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\metamask-adapter.mjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\metamask-adapter.mjs",
+      "bytes": 2206,
+      "sha256": "4c56f533fa4565639b0d6edb092d757338e2744d0f4efd5f92bb59f727e54303"
+    },
+    {
+      "relative": "tools\\metamask-adapter.test.mjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\metamask-adapter.test.mjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\metamask-adapter.test.mjs",
+      "bytes": 3223,
+      "sha256": "c4b0aac5158ac726c94cf803f6a53d707fa2083bd67aabf985b32bf7bb7bfe61"
+    },
+    {
+      "relative": "tools\\metamask-entry.mjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\metamask-entry.mjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\metamask-entry.mjs",
+      "bytes": 359,
+      "sha256": "a562255de859c9179d172e626e7f9025abee35142c8886998d2ea473cc86691a"
+    },
+    {
+      "relative": "tools\\metodos-inexistentes.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\metodos-inexistentes.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\metodos-inexistentes.js",
+      "bytes": 7516,
+      "sha256": "caa3911ef4163731b5244f6a87124cfec7700186803de4c8a9818c1c664b66f4"
+    },
+    {
+      "relative": "tools\\mina-prueba.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\mina-prueba.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\mina-prueba.js",
+      "bytes": 49532,
+      "sha256": "f99c37bf4ce2bf8762596fd4bec8a2d414ab48df6d473bf5eb6fbcb043a12e2c"
+    },
+    {
+      "relative": "tools\\mine-prediction.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\mine-prediction.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\mine-prediction.test.cjs",
+      "bytes": 772,
+      "sha256": "b56563c6efe7f5ad4a50a1f6e1fb0bcbd1aef40a6b5b5d6df2b8fe2af1a4a670"
+    },
+    {
+      "relative": "tools\\minerales-prueba.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\minerales-prueba.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\minerales-prueba.js",
+      "bytes": 11113,
+      "sha256": "2fb0db5d7b784d0942f80e79c413ade747fc075d8726530ca4eaa363424dd054"
+    },
+    {
+      "relative": "tools\\mirar-memoria.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\mirar-memoria.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\mirar-memoria.js",
+      "bytes": 11117,
+      "sha256": "9050dbd620104a737f4facc1fb2c8c3d9c29ebc58498aea31ba2c9fb3d677d90"
+    },
+    {
+      "relative": "tools\\misiones-auto.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\misiones-auto.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\misiones-auto.test.cjs",
+      "bytes": 6468,
+      "sha256": "4907336eb9699366fbfed7afa0695e9e9a195c01e6c84b4810f9d3f711d51fe4"
+    },
+    {
+      "relative": "tools\\mobs-red.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\mobs-red.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\mobs-red.test.cjs",
+      "bytes": 9397,
+      "sha256": "f52c17f3f26b6eecf7c86542cdf85b01ed212642969eb71c372e5d0a32c8e8d0"
+    },
+    {
+      "relative": "tools\\native-login.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\native-login.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\native-login.test.cjs",
+      "bytes": 2132,
+      "sha256": "e880d2cd89255b7eea6ce4ef6aaaf80fbb6f21215397d3b55a5b349e8f309269"
+    },
+    {
+      "relative": "tools\\native-pairing-server.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\native-pairing-server.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\native-pairing-server.cjs",
+      "bytes": 3493,
+      "sha256": "e935da0110ee0a8f69c139447c87dbaa35b50eed23502b01f7ed70a1c547b3e1"
+    },
+    {
+      "relative": "tools\\native-pairing.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\native-pairing.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\native-pairing.test.cjs",
+      "bytes": 3822,
+      "sha256": "80804983e913f66aab4735a742d15c298478123ef7b90de540d978d08bcf8213"
+    },
+    {
+      "relative": "tools\\network-deep-stability.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\network-deep-stability.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\network-deep-stability.test.cjs",
+      "bytes": 25098,
+      "sha256": "a8d44b1d14500790e07cea2e87274583b0ebfc0dccdd780a2033133f5857c0a4"
+    },
+    {
+      "relative": "tools\\nivel-prueba.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\nivel-prueba.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\nivel-prueba.js",
+      "bytes": 7156,
+      "sha256": "19ae3af3b9461a5d7cadd0732e6c9505b00b4061e92b21bbb4bf733a426cf6b6"
+    },
+    {
+      "relative": "tools\\patch-character-world.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\patch-character-world.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\patch-character-world.cjs",
+      "bytes": 7251,
+      "sha256": "c076851f8ed043b7b9c535032abe803253f3897a457f87dc03fa5e0427be7d3c"
+    },
+    {
+      "relative": "tools\\perf-subsystems.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\perf-subsystems.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\perf-subsystems.test.cjs",
+      "bytes": 15391,
+      "sha256": "d1c96c2832e68725e56fa42b4a8ca327f2fce3e40cec77c3b0fe6d624fe819ed"
+    },
+    {
+      "relative": "tools\\profundidad-casas.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\profundidad-casas.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\profundidad-casas.test.cjs",
+      "bytes": 2787,
+      "sha256": "c59122fe48751153f1ca69c93a6ac1314da1e3405170c51a8d8250034ff54fd6"
+    },
+    {
+      "relative": "tools\\profundidad-prueba-suelo.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\profundidad-prueba-suelo.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\profundidad-prueba-suelo.js",
+      "bytes": 5717,
+      "sha256": "44cca466a81b89af665cc8a123bc4c3042cc1d5fc8541ee8b1282a20902d9bd4"
+    },
+    {
+      "relative": "tools\\prueba-franjas.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\prueba-franjas.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\prueba-franjas.js",
+      "bytes": 2403,
+      "sha256": "ef25d74df24008ef571db08524ca29835f888207e9dae8d2bb34835be831c379"
+    },
+    {
+      "relative": "tools\\redirect-security-review.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\redirect-security-review.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\redirect-security-review.test.cjs",
+      "bytes": 3534,
+      "sha256": "e24a334bed7afd3630e9fb950e3d5c247e1930053e50c8a9171e678f0397acf3"
+    },
+    {
+      "relative": "tools\\redirect-wallet.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\redirect-wallet.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\redirect-wallet.test.cjs",
+      "bytes": 1235,
+      "sha256": "591a7fd1dc986e71c6857d7883b1c7cd73941e44f9f2bd931c8c2444e9901955"
+    },
+    {
+      "relative": "tools\\relieve.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\relieve.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\relieve.test.cjs",
+      "bytes": 7393,
+      "sha256": "44c937c2bd9c6e2909f85144812f27847377314bf30253258a86b66208b1f36c"
+    },
+    {
+      "relative": "tools\\repair-native-auth.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\repair-native-auth.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\repair-native-auth.cjs",
+      "bytes": 2577,
+      "sha256": "4028a62d3cff4e63da7609c4bf4a43693ef98818db99396404a5a99505a990ad"
+    },
+    {
+      "relative": "tools\\repair-shop-pvp.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\repair-shop-pvp.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\repair-shop-pvp.cjs",
+      "bytes": 6176,
+      "sha256": "815fb68bffc8df6b686326f68c2de46930c7039c9b65b230f8e0252a1b4636df"
+    },
+    {
+      "relative": "tools\\reparar-backend-batallas.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\reparar-backend-batallas.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\reparar-backend-batallas.cjs",
+      "bytes": 3656,
+      "sha256": "a77eb67d3b9459830991a5df14f3faca69ea8b143ea2a7452f8e11f3c92ce512"
+    },
+    {
+      "relative": "tools\\retenedores-heap.mjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\retenedores-heap.mjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\retenedores-heap.mjs",
+      "bytes": 4583,
+      "sha256": "bfa66156439d1f35024acaec1dd963eb20e7f6cdb0d5a16cf98a0da2c27f558f"
+    },
+    {
+      "relative": "tools\\runtime-review-browser.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\runtime-review-browser.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\runtime-review-browser.cjs",
+      "bytes": 5658,
+      "sha256": "59cb944115b743cd6392195a2c67f48e9100814a0b859269d3d2a77ce3e37fd1"
+    },
+    {
+      "relative": "tools\\runtime-review.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\runtime-review.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\runtime-review.test.cjs",
+      "bytes": 9841,
+      "sha256": "31a833a28a577bf22fb9e18ced8c46959492f0f03fb102c92e3e74a57c5a5ddd"
+    },
+    {
+      "relative": "tools\\scene-memory-lifecycle.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\scene-memory-lifecycle.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\scene-memory-lifecycle.test.cjs",
+      "bytes": 10987,
+      "sha256": "88de9523ce0ae4c1138ac7bd57079f8bd17896280bd07576e3dbd4aa09d443ae"
+    },
+    {
+      "relative": "tools\\scene-transition-panels.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\scene-transition-panels.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\scene-transition-panels.test.cjs",
+      "bytes": 7657,
+      "sha256": "805415b8de5e7f939254c22703dc9436b83ba42f5c449bb3284e4cab61c03d46"
+    },
+    {
+      "relative": "tools\\session-api.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\session-api.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\session-api.test.cjs",
+      "bytes": 2950,
+      "sha256": "bb14ccd588f664542e8b1ed83f5744bf11c3f0c274cedca7255391a8027ca52c"
+    },
+    {
+      "relative": "tools\\shop-auth-session.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\shop-auth-session.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\shop-auth-session.test.cjs",
+      "bytes": 4421,
+      "sha256": "ddd2d6733d584eb752828a992c8b367ff052b987a23cbebbcf82ec36a0ea6458"
+    },
+    {
+      "relative": "tools\\shop-lifecycle.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\shop-lifecycle.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\shop-lifecycle.test.cjs",
+      "bytes": 4399,
+      "sha256": "17878722a76a5f127417306c7f45a025e3dca1041edb40dc075c8483dbb7b73a"
+    },
+    {
+      "relative": "tools\\shop-persistence.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\shop-persistence.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\shop-persistence.test.cjs",
+      "bytes": 10802,
+      "sha256": "34858a7e2aaaa47e8faecaeca96a6dcae2ffad9033ff00d56546c3667c72c325"
+    },
+    {
+      "relative": "tools\\snow-leaf-transition.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\snow-leaf-transition.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\snow-leaf-transition.test.cjs",
+      "bytes": 923,
+      "sha256": "8372cc486e5e78f0f4290a36228770b756d9cbfb2f6bfc720f8dc720b15c0480"
+    },
+    {
+      "relative": "tools\\social-prueba.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\social-prueba.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\social-prueba.js",
+      "bytes": 34794,
+      "sha256": "077769066db6f7030dc920800174b35c4d91e38a37cd36811e0892cd2f57e2a3"
+    },
+    {
+      "relative": "tools\\socket-prueba-escena.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\socket-prueba-escena.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\socket-prueba-escena.js",
+      "bytes": 17356,
+      "sha256": "d85a3fd61f81868f8c3b9ef39724249bbea4b4adf642bc41193aa60ba3f7514f"
+    },
+    {
+      "relative": "tools\\socket-prueba-salas.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\socket-prueba-salas.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\socket-prueba-salas.js",
+      "bytes": 10175,
+      "sha256": "7f751de6593cfc0586ca9208db172cedd547e9b767e9948021a2e90e3c414f5f"
+    },
+    {
+      "relative": "tools\\sombras-prueba-suelo.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\sombras-prueba-suelo.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\sombras-prueba-suelo.js",
+      "bytes": 8523,
+      "sha256": "8a9aae06b126a46f61115e22b388e54144fd5e6f43950974349fcae3620101ab"
+    },
+    {
+      "relative": "tools\\sonidos-prueba-catalogo.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\sonidos-prueba-catalogo.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\sonidos-prueba-catalogo.js",
+      "bytes": 4277,
+      "sha256": "10b7c93218fc27bc1048ebb440717425c3136e74da8ae8a07a6bd7fd7d775c6c"
+    },
+    {
+      "relative": "tools\\tienda-prueba-cola.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\tienda-prueba-cola.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\tienda-prueba-cola.js",
+      "bytes": 27417,
+      "sha256": "eb76b7cceff25d9561d5e1bd862021f8324a6a0862e9a1c41f71efd5c483b2ea"
+    },
+    {
+      "relative": "tools\\tienda-prueba-venta.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\tienda-prueba-venta.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\tienda-prueba-venta.js",
+      "bytes": 13931,
+      "sha256": "1927ed140e58b0c1fe8940d01480444ccaff495eaf0a23a8c8f04010684b60d1"
+    },
+    {
+      "relative": "tools\\tiles-prueba-limpieza.mjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\tiles-prueba-limpieza.mjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\tiles-prueba-limpieza.mjs",
+      "bytes": 5763,
+      "sha256": "3b0027f815f4de3011a73031c72fb4cde91fc154c4499566b616459a83887ccf"
+    },
+    {
+      "relative": "tools\\txt-change-manifest.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\txt-change-manifest.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\txt-change-manifest.cjs",
+      "bytes": 1775,
+      "sha256": "ac164b0dcfa66a1ed137027c5d1eccb9c3f2f2b52be08586abf02c6bd5cb6db7"
+    },
+    {
+      "relative": "tools\\txt-core-audit.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\txt-core-audit.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\txt-core-audit.test.cjs",
+      "bytes": 11541,
+      "sha256": "ebb365fbd759ab4f1abb8c66e2bec5ba13ebb117403053c37b98d2084dd63a58"
+    },
+    {
+      "relative": "tools\\txt-dependency-audit.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\txt-dependency-audit.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\txt-dependency-audit.test.cjs",
+      "bytes": 4054,
+      "sha256": "0891d1247de0afd91016742deab1ff95c5182b79b425f620db7c0cc158482a00"
+    },
+    {
+      "relative": "tools\\txt-environment-audit.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\txt-environment-audit.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\txt-environment-audit.test.cjs",
+      "bytes": 21304,
+      "sha256": "132e01613fe55a1fdabd2901f23e8e4b04b0f046efd776f8b57a72c7f389ea01"
+    },
+    {
+      "relative": "tools\\txt-marketplace-atomic.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\txt-marketplace-atomic.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\txt-marketplace-atomic.test.cjs",
+      "bytes": 11189,
+      "sha256": "bea8ba8ed8f3a65a2f73ae0edeb154e8c1787fbfbba53f4f46a038881e37518e"
+    },
+    {
+      "relative": "tools\\txt-project-audit.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\txt-project-audit.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\txt-project-audit.cjs",
+      "bytes": 4817,
+      "sha256": "155a53b426afe7a55a626b729c5924092fc0bcc99b715b89d670e0460cc36c88"
+    },
+    {
+      "relative": "tools\\txt-refresh-assets.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\txt-refresh-assets.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\txt-refresh-assets.cjs",
+      "bytes": 1400,
+      "sha256": "2a28dec655554d54694cc0688923dd4b6aaab6f8341f4ade5c628ae2f2e45c41"
+    },
+    {
+      "relative": "tools\\txt-security-audit.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\txt-security-audit.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\txt-security-audit.test.cjs",
+      "bytes": 7823,
+      "sha256": "291dd91cd8dff9050c39c195713c422061d289b5a278a4204afbd6a3f0bff95b"
+    },
+    {
+      "relative": "tools\\txt-social-audit.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\txt-social-audit.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\txt-social-audit.test.cjs",
+      "bytes": 27136,
+      "sha256": "363d6927273120925486902d7716701e09d0b0009bcfca6b2c2c8ce2acfc4e97"
+    },
+    {
+      "relative": "tools\\update-character-world.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\update-character-world.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\update-character-world.cjs",
+      "bytes": 1986,
+      "sha256": "c329d83995878576283c5276b3b770b0577db6674708ad4087c9e30e82d60d8d"
+    },
+    {
+      "relative": "tools\\update-release-docs.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\update-release-docs.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\update-release-docs.cjs",
+      "bytes": 7990,
+      "sha256": "de38f6b8a4c43df4b131771442a3e9c306d03b30bbcb65e1bc823bfd024fdb9d"
+    },
+    {
+      "relative": "tools\\update-release-entry.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\update-release-entry.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\update-release-entry.cjs",
+      "bytes": 1545,
+      "sha256": "6674e3d7694b7cfc1a74205c9fbf79379e4639eab7db0dd4ae9df5265f8cf8a5"
+    },
+    {
+      "relative": "tools\\velocidad-a-pie.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\velocidad-a-pie.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\velocidad-a-pie.test.cjs",
+      "bytes": 3719,
+      "sha256": "957bee2f09095fb7eba726b095c3aa1de83fb661971e1d7a9319389a5904f986"
+    },
+    {
+      "relative": "tools\\viewport-first-resize.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\viewport-first-resize.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\viewport-first-resize.test.cjs",
+      "bytes": 1328,
+      "sha256": "2166a3c48a8ab32e27f0a330610f8c89b8171d368b0fad8c852d14faf59206e9"
+    },
+    {
+      "relative": "tools\\vram-prefx.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\vram-prefx.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\vram-prefx.js",
+      "bytes": 5798,
+      "sha256": "6e70c5c29d399d2b668936c7c8910fba857c59b382e484a7fadc428817b19436"
+    },
+    {
+      "relative": "tools\\web3-seguridad-prueba.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\web3-seguridad-prueba.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\web3-seguridad-prueba.cjs",
+      "bytes": 14394,
+      "sha256": "d6c93ec125729e50775780b70bf42c6909750684a97dc0520c7512deb1a35389"
+    },
+    {
+      "relative": "tools\\zonas.test.cjs",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\zonas.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\zonas.test.cjs",
+      "bytes": 11782,
+      "sha256": "1280f0bb9f7c50af58053ffd3dcb0cc1b063ebbc6820fca64eeba0fc762b0aeb"
+    },
+    {
+      "relative": "tools\\_sin-comentarios.js",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\_sin-comentarios.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\tools\\_sin-comentarios.js",
+      "bytes": 3384,
+      "sha256": "1d62169d6a38334982b0e3634a0f084e26f82ea468e8b0921aa5c7361206f0cd"
+    },
+    {
+      "relative": "GrasslandBuild\\package.json",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\package.json",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\GrasslandBuild\\package.json",
+      "bytes": 1900,
+      "sha256": "e3b2ea6d84264e7798498673779ba0f1d5601f8e65c12edcd70a02e708d48b43"
+    },
+    {
+      "relative": "GrasslandBuild\\package-lock.json",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\package-lock.json",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\GrasslandBuild\\package-lock.json",
+      "bytes": 128971,
+      "sha256": "6e09df87637d70eed600b344da77b4522dfa49b7bac364764e705c8a29973b8d"
+    },
+    {
+      "relative": "GrasslandBuild\\repositories\\backend\\package.json",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\repositories\\backend\\package.json",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\GrasslandBuild\\repositories\\backend\\package.json",
+      "bytes": 2819,
+      "sha256": "29c472697a3da8a1b06fff60c0d80310f08d827e936996b2886cbfb5563468fb"
+    },
+    {
+      "relative": "GrasslandBuild\\repositories\\backend\\package-lock.json",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\repositories\\backend\\package-lock.json",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\GrasslandBuild\\repositories\\backend\\package-lock.json",
+      "bytes": 579548,
+      "sha256": "712613bd6f90f40b29baf5923aca70b198463633a70bd2b9854ec61828cec605"
+    },
+    {
+      "relative": "vendor/manifest.json",
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\vendor\\manifest.json",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\vendor\\manifest.json",
+      "bytes": 1046,
+      "sha256": "ffab3c71fcfde73fed1c259868d854864d0e1011067fc44d64cab85e9b57f43c"
+    },
+    {
+      "relative": "desktop-backend/server2.js",
+      "source": "C:/Users/pc/Desktop/server2.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-completion-20261021T054816Z\\desktop-backend\\server2.js",
+      "bytes": 1435975,
+      "sha256": "7c00b0326eb89678e403fb51f8194bde3dbf662fb6238aa91f9e5c687e77ff70"
+    }
+  ]
+}

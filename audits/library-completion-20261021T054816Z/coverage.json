@@ -1,0 +1,1432 @@
+{
+  "libraries": 96,
+  "meaning": "La mención de un archivo en una prueba no acredita todas sus ramas. La lectura manual focal y el análisis estático completo son coberturas distintas.",
+  "coverage": [
+    {
+      "file": "admin-impact.js",
+      "bytes": 46015,
+      "sha256": "35c06104c64a3c8420a75ca57ebf449c8c5d9059bdc05fc7f1ff123171316976",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "35c06104c64a3c8420a75ca57ebf449c8c5d9059bdc05fc7f1ff123171316976",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/admin-impact-browser.test.cjs",
+        "tools/txt-core-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "admin-session.js",
+      "bytes": 9659,
+      "sha256": "684224864ce2bc440efb2af543b80ff6fc35e9a3dc3e1a338bf20da976093de5",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "684224864ce2bc440efb2af543b80ff6fc35e9a3dc3e1a338bf20da976093de5",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/admin-session.test.cjs"
+      ]
+    },
+    {
+      "file": "admin-suite-i18n.js",
+      "bytes": 84788,
+      "sha256": "6023bf526c1014e1dd2b6baed9cb9b12d4cb2f267c4bc500f3df3a618e9fe747",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "6023bf526c1014e1dd2b6baed9cb9b12d4cb2f267c4bc500f3df3a618e9fe747",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": []
+    },
+    {
+      "file": "admin-suite.js",
+      "bytes": 12778,
+      "sha256": "df764ea3143f835dc9871334bc3e534596790bfdbb72f93d2a435bb45d0d157f",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "df764ea3143f835dc9871334bc3e534596790bfdbb72f93d2a435bb45d0d157f",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/admin-suite-backend.test.cjs"
+      ]
+    },
+    {
+      "file": "app.js",
+      "bytes": 77200,
+      "sha256": "0a5229839c8a6a95da79769db562f25922b7e81bb969db9bd9c7801dfcc2cec7",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "0a5229839c8a6a95da79769db562f25922b7e81bb969db9bd9c7801dfcc2cec7",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/admin-impact-browser.test.cjs",
+        "tools/admin-session.test.cjs",
+        "tools/admin-suite-backend.test.cjs",
+        "tools/app-lifecycle.test.cjs",
+        "tools/audio-footprints-lifecycle.test.cjs",
+        "tools/auth-concurrency-review.test.cjs",
+        "tools/backend-deep-stability.test.cjs",
+        "tools/character-potions-client.test.cjs",
+        "tools/character-world.test.cjs",
+        "tools/collections-backend.test.cjs",
+        "tools/collections-frontend.test.cjs",
+        "tools/engine-deep-stability.test.cjs",
+        "tools/engine-lifecycle.test.cjs",
+        "tools/environment-lifecycle.test.cjs",
+        "tools/hub-lifecycle.test.cjs",
+        "tools/impact-backend-bundle.test.cjs",
+        "tools/impact-rpc-transport.test.cjs",
+        "tools/inventory-transitions.test.cjs",
+        "tools/invitaciones.test.cjs",
+        "tools/libraries-stability.test.cjs",
+        "tools/litvm-impact-analytics.test.cjs",
+        "tools/menu-stability.test.cjs",
+        "tools/metamask-adapter.test.mjs",
+        "tools/misiones-auto.test.cjs",
+        "tools/native-login.test.cjs",
+        "tools/native-pairing.test.cjs",
+        "tools/network-deep-stability.test.cjs",
+        "tools/redirect-security-review.test.cjs",
+        "tools/remaining-dependencies.test.cjs",
+        "tools/remaining-libraries.test.cjs",
+        "tools/runtime-review.test.cjs",
+        "tools/scene-memory-lifecycle.test.cjs",
+        "tools/shop-persistence.test.cjs",
+        "tools/txt-core-audit.test.cjs",
+        "tools/txt-dependency-audit.test.cjs",
+        "tools/txt-marketplace-atomic.test.cjs",
+        "tools/txt-social-audit.test.cjs",
+        "tools/viewport-first-resize.test.cjs"
+      ]
+    },
+    {
+      "file": "BlockchainManager.js",
+      "bytes": 17198,
+      "sha256": "d02f83458d19350afc170e769e371048d312aa789b4fdfd0c41f750de998103e",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "d02f83458d19350afc170e769e371048d312aa789b4fdfd0c41f750de998103e",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/libraries-stability.test.cjs",
+        "tools/txt-security-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "colecciones.js",
+      "bytes": 70597,
+      "sha256": "a7766c44bf480db15604857611ac5ab51d8e73c9138ae3bea56c1e95ad4800ae",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "a7766c44bf480db15604857611ac5ab51d8e73c9138ae3bea56c1e95ad4800ae",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/admin-suite-backend.test.cjs",
+        "tools/collections-frontend.test.cjs"
+      ]
+    },
+    {
+      "file": "control-center.js",
+      "bytes": 18622,
+      "sha256": "bcd30d5d4ba7aa763fc8a81ebb04a70c3b163a1919c9a6ae546a08411ede7137",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "bcd30d5d4ba7aa763fc8a81ebb04a70c3b163a1919c9a6ae546a08411ede7137",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": []
+    },
+    {
+      "file": "CraftingHub.js",
+      "bytes": 79376,
+      "sha256": "b3910d3aaee5bb6c26f66534d01f3a48b680183def0781ed73d0808390eeec31",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "b3910d3aaee5bb6c26f66534d01f3a48b680183def0781ed73d0808390eeec31",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/libraries-stability.test.cjs",
+        "tools/txt-security-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-agua.js",
+      "bytes": 46946,
+      "sha256": "783d5f911ef3eb7c064c2f5cfebbe334c02e0c899f1e787d7370d656238ab1b7",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "783d5f911ef3eb7c064c2f5cfebbe334c02e0c899f1e787d7370d656238ab1b7",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-deep-stability.test.cjs",
+        "tools/txt-environment-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-alquimista.js",
+      "bytes": 16489,
+      "sha256": "6fe7e70abdaf9295443422aa9c413ebf0239c2d8e21869da40e954e8ac56960f",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "6fe7e70abdaf9295443422aa9c413ebf0239c2d8e21869da40e954e8ac56960f",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-deep-stability.test.cjs",
+        "tools/txt-social-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-amigos.js",
+      "bytes": 92632,
+      "sha256": "59a7da7a742f4ed8ad4bff02cfbae54db2670c5eacd4ea283df8ef07659f7923",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "59a7da7a742f4ed8ad4bff02cfbae54db2670c5eacd4ea283df8ef07659f7923",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/txt-social-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-animales.js",
+      "bytes": 218788,
+      "sha256": "0fe8732d2d25150f48c82f98433ac46e5ea9c1fd7b051e01778bdc2dc6d3b82b",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "0fe8732d2d25150f48c82f98433ac46e5ea9c1fd7b051e01778bdc2dc6d3b82b",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/relieve.test.cjs",
+        "tools/txt-environment-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-antorchas.js",
+      "bytes": 17533,
+      "sha256": "29da75103bb11db781c6e686939fbec19a1ab77cb9733951b4483530c2ac911b",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "29da75103bb11db781c6e686939fbec19a1ab77cb9733951b4483530c2ac911b",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-deep-stability.test.cjs",
+        "tools/txt-social-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-audio.js",
+      "bytes": 74775,
+      "sha256": "c2cbfa9189f35ef60674ff5c29377372d74d4aa56217844604fc05a2b55fe65a",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "c2cbfa9189f35ef60674ff5c29377372d74d4aa56217844604fc05a2b55fe65a",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/audio-footprints-lifecycle.test.cjs",
+        "tools/txt-social-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-batalla-arte.js",
+      "bytes": 47916,
+      "sha256": "d1934b134ee56d4a499ab209c4a85475de59ea969ccd32edf227dd0b2439512d",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "d1934b134ee56d4a499ab209c4a85475de59ea969ccd32edf227dd0b2439512d",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/battle-art-lifecycle.test.cjs",
+        "tools/txt-security-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-brawl-motor.js",
+      "bytes": 101518,
+      "sha256": "8cb3bac3c4b051f31de1e3fdfb52c3830f897891a153ed06496414f73bf4a274",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "8cb3bac3c4b051f31de1e3fdfb52c3830f897891a153ed06496414f73bf4a274",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/battle-supplies.test.cjs",
+        "tools/battle-upgrade.test.cjs",
+        "tools/engine-deep-stability.test.cjs",
+        "tools/txt-security-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-bronce.js",
+      "bytes": 20959,
+      "sha256": "855f9a8e08ae488f19bfb1e5ebe15484d80cdce680ea62f0ccb10c7cb2edebe5",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": true,
+      "manualScopeThisPass": "Saldo por cuenta, interceptación fetch, respuestas tardías, regalos/cambio de moneda y destrucción.",
+      "previousReviewSha256": "39640e35daaa052fdc4a1dacfe6a03e429cdb683a3546125bf648e7d53c97cf5",
+      "identicalToPreviousReview": false,
+      "testsMentioningFile": [
+        "tools/remaining-libraries.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-buho.js",
+      "bytes": 28451,
+      "sha256": "8b7ee87197d9ecaa10bf8a3e10d906086db6063aa65bf0f15f1cc8479b3049d1",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "8b7ee87197d9ecaa10bf8a3e10d906086db6063aa65bf0f15f1cc8479b3049d1",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/txt-environment-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-camellos.js",
+      "bytes": 12764,
+      "sha256": "9812a80489cc90d14206d5caad3e338109e07bded43f582046f3fcd7acd58bef",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": true,
+      "manualScopeThisPass": "Carga, creación parcial, movimiento, listeners y desmontaje de la manada.",
+      "previousReviewSha256": "af2d20650c10afacf76fd8f1b1b2d12f45b9153b27861ba3bbe5fe857fe85f0f",
+      "identicalToPreviousReview": false,
+      "testsMentioningFile": [
+        "tools/remaining-libraries.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-canales.js",
+      "bytes": 14156,
+      "sha256": "d9e89afbd3ae1465bddc570045d80d3b2758a632fabef3739b1ea556181e17a3",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "d9e89afbd3ae1465bddc570045d80d3b2758a632fabef3739b1ea556181e17a3",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/txt-social-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-carga-mapa.js",
+      "bytes": 6281,
+      "sha256": "362b9702ef8ea4504726602680dc2a6d961ec700b7e023cab551de5b4bbc3689",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "362b9702ef8ea4504726602680dc2a6d961ec700b7e023cab551de5b4bbc3689",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/runtime-review.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-casas.js",
+      "bytes": 12071,
+      "sha256": "c1d7d5dc58ff55f1f21205ea2084bbac4960ca0a59e2a6a66e34c8f66797f6ca",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "c1d7d5dc58ff55f1f21205ea2084bbac4960ca0a59e2a6a66e34c8f66797f6ca",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/txt-social-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-character-skills.js",
+      "bytes": 14522,
+      "sha256": "326129bec8a6db414ff54e0dbb91a2b784bba744ba883d20e10a34264fb2246b",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": true,
+      "manualScopeThisPass": "Carga/asignación/reset de puntos, revisiones de peticiones y caché por cuenta.",
+      "previousReviewSha256": "f5e9136d974cdf05f5a1b4bcd48252feba53b5287585e02f9e37055635d21957",
+      "identicalToPreviousReview": false,
+      "testsMentioningFile": [
+        "tools/character-potions-client.test.cjs",
+        "tools/remaining-libraries.test.cjs",
+        "tools/txt-social-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-chat-social.js",
+      "bytes": 42385,
+      "sha256": "a95b426a909f5c8b73fa2039cc7cafeaa93dd36bf1e68ae481611dce07ae86e5",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "a95b426a909f5c8b73fa2039cc7cafeaa93dd36bf1e68ae481611dce07ae86e5",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/network-deep-stability.test.cjs",
+        "tools/txt-social-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-ciclo-dia.js",
+      "bytes": 34096,
+      "sha256": "d83c0bf831ea425380a4cd5dd8d8e9093a22753b5e56441169f5f8ce83328195",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "d83c0bf831ea425380a4cd5dd8d8e9093a22753b5e56441169f5f8ce83328195",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/environment-lifecycle.test.cjs",
+        "tools/environment-resources.test.cjs",
+        "tools/txt-environment-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-clima.js",
+      "bytes": 194259,
+      "sha256": "4ab981fc077214bcf8ededf85016cd305944bc1ab44600a6b32cad620f923ec8",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "4ab981fc077214bcf8ededf85016cd305944bc1ab44600a6b32cad620f923ec8",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/environment-lifecycle.test.cjs",
+        "tools/environment-resources.test.cjs",
+        "tools/txt-environment-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-cola-cadena.js",
+      "bytes": 9328,
+      "sha256": "ae046151620c2cd8079daded0d24371d8903926aee1d08968cd65e8606947bbc",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "ae046151620c2cd8079daded0d24371d8903926aee1d08968cd65e8606947bbc",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/runtime-review.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-cuervo.js",
+      "bytes": 44633,
+      "sha256": "fdb07ddc57ee998d90faa46ae903fc5e43f21faa699bf59d689e713a781a636c",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "fdb07ddc57ee998d90faa46ae903fc5e43f21faa699bf59d689e713a781a636c",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-deep-stability.test.cjs",
+        "tools/fauna-landing-actions.test.cjs",
+        "tools/txt-environment-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-espada.js",
+      "bytes": 32368,
+      "sha256": "b24ee7b4fe122ce3fe7b24b52e79039eb7b06e9da4a367ea2a9d4660abc80158",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": true,
+      "manualScopeThisPass": "Armas, daño, habilidades, efectos/counter tweens, menú y ciclo de escenas.",
+      "previousReviewSha256": "2a68ff2d503e4b0b9ef37d44030eecb8d51d9ce278f6bbe86b8047bad544b188",
+      "identicalToPreviousReview": false,
+      "testsMentioningFile": [
+        "tools/remaining-libraries.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-espantapajaros.js",
+      "bytes": 16575,
+      "sha256": "588f0d5cf9b5ff5b512de3a3c455141ad607bfa9d407b2b9469f4b0230b5e8f7",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "588f0d5cf9b5ff5b512de3a3c455141ad607bfa9d407b2b9469f4b0230b5e8f7",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-deep-stability.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-graphics-settings.js",
+      "bytes": 30358,
+      "sha256": "fe0448e24cc13985b07047c2eac55a2e9576ceb709f59387f5ebc3a328d98951",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "fe0448e24cc13985b07047c2eac55a2e9576ceb709f59387f5ebc3a328d98951",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-deep-stability.test.cjs",
+        "tools/libraries-stability.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-hud-ajuste.js",
+      "bytes": 8729,
+      "sha256": "5449686877a3231588a504aad1192b91e905e4f0539b5aed0ad236441dfff8fc",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Relectura de ajustes y enlace del HUD; sin cambio nuevo.",
+      "previousReviewSha256": "5449686877a3231588a504aad1192b91e905e4f0539b5aed0ad236441dfff8fc",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/txt-core-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-invitaciones.js",
+      "bytes": 15227,
+      "sha256": "13cf4b40b0974ee134f22bd37dea571ace20b8afc2b9d842eec319c2b1a74b7f",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "13cf4b40b0974ee134f22bd37dea571ace20b8afc2b9d842eec319c2b1a74b7f",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/network-deep-stability.test.cjs",
+        "tools/txt-social-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-jefes.js",
+      "bytes": 24090,
+      "sha256": "21692a1837dacf70a515502879fc1849485521e041dd51214b194087011617b0",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": true,
+      "manualScopeThisPass": "Decoración, patrones de ataques, orbes, llamadas diferidas, audio y desmontaje.",
+      "previousReviewSha256": "76868e513c4ba458c6c2c7697d8d51c545398d9ddc1aaf4a97da4e77ee3e7b96",
+      "identicalToPreviousReview": false,
+      "testsMentioningFile": [
+        "tools/remaining-libraries.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-lands.js",
+      "bytes": 23053,
+      "sha256": "e629a2fdf59d4fcd78528d6393aa29a103973b993238a69a182ee4a8b150ee46",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "e629a2fdf59d4fcd78528d6393aa29a103973b993238a69a182ee4a8b150ee46",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/network-deep-stability.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-mascota.js",
+      "bytes": 33673,
+      "sha256": "59c0fd5494e8099367a20082acaefdbb2591a6f402b7a4f729c4cf155dc882fc",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Contrato de API, timeout y filtrado de identidad para los consumidores reparados.",
+      "previousReviewSha256": "59c0fd5494e8099367a20082acaefdbb2591a6f402b7a4f729c4cf155dc882fc",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-deep-stability.test.cjs",
+        "tools/libraries-stability.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-mina-espectros.js",
+      "bytes": 24164,
+      "sha256": "6a8022f5c916b382edd02c3cda85009b415cd29ecdf34741542fe9a72d2c0095",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "6a8022f5c916b382edd02c3cda85009b415cd29ecdf34741542fe9a72d2c0095",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-deep-stability.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-mina-serpiente.js",
+      "bytes": 93024,
+      "sha256": "64c7dcd28843db4c3bcae84aea9fb910b91db75b9f597712ab06fc5825c2f623",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "64c7dcd28843db4c3bcae84aea9fb910b91db75b9f597712ab06fc5825c2f623",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/mine-prediction.test.cjs",
+        "tools/txt-environment-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-mina-zombis.js",
+      "bytes": 41338,
+      "sha256": "5f4a8b73e949d35b00be371c8e028faffe94f8ffada3c09196cd4c5569148424",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "5f4a8b73e949d35b00be371c8e028faffe94f8ffada3c09196cd4c5569148424",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/txt-environment-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-mobs-red.js",
+      "bytes": 16404,
+      "sha256": "43421ee03c4af29bafab5aadc896dc7daa7cc652b0453a06e6fba17d301d5786",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "43421ee03c4af29bafab5aadc896dc7daa7cc652b0453a06e6fba17d301d5786",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/mobs-red.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-monstruos-arte.js",
+      "bytes": 9453,
+      "sha256": "6b2d7b3c29447d7eb8966a699824524a472d9ddecc15aeb9f79c5ed3d67770b5",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "6b2d7b3c29447d7eb8966a699824524a472d9ddecc15aeb9f79c5ed3d67770b5",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/zonas.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-monte.js",
+      "bytes": 14573,
+      "sha256": "077d85a03e35d5c2aa80caaab132867f715dd0a3081a088ca9a0b96ff9b0c092",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "077d85a03e35d5c2aa80caaab132867f715dd0a3081a088ca9a0b96ff9b0c092",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": []
+    },
+    {
+      "file": "gf-muerte.js",
+      "bytes": 16394,
+      "sha256": "672e4a2b8da7cc2d90b4e22fe6062cc87afd87b1597db894ddb486fd25face94",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "672e4a2b8da7cc2d90b4e22fe6062cc87afd87b1597db894ddb486fd25face94",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-deep-stability.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-nft.js",
+      "bytes": 11564,
+      "sha256": "b846103481f9d6e8c062dc35f5f9ec1494dd24690a30200f2d9f2d83de84e0ec",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "b846103481f9d6e8c062dc35f5f9ec1494dd24690a30200f2d9f2d83de84e0ec",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/libraries-stability.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-nieve.js",
+      "bytes": 39052,
+      "sha256": "e7df07e16c1c3a045e15ec31436d2bb71e4fcbadb2b300397de82aff1a32b2bd",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "e7df07e16c1c3a045e15ec31436d2bb71e4fcbadb2b300397de82aff1a32b2bd",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/environment-resources.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-nombre-color.js",
+      "bytes": 16094,
+      "sha256": "50ff68e2019d4e95fb316d30958ebf0768d4eb513d8c5c542e7edb42e6ba90a2",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "50ff68e2019d4e95fb316d30958ebf0768d4eb513d8c5c542e7edb42e6ba90a2",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-deep-stability.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-npcs-pueblo.js",
+      "bytes": 12269,
+      "sha256": "89a586bf494f22a941ac8987e1c6b419f3be10e1d900060accaba18c624bff12",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": true,
+      "manualScopeThisPass": "Carga, reintentos, decoración, alpha original, diálogo y desmontaje.",
+      "previousReviewSha256": "2d23343e55b76eb5ccb79b6eb170e3935a184d4dd1203103c675d425ff5dcbba",
+      "identicalToPreviousReview": false,
+      "testsMentioningFile": [
+        "tools/remaining-libraries.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-npcs.js",
+      "bytes": 19116,
+      "sha256": "96eecb9b1ad931c4609f6af62ea74ffde966ec62ceb2eea508a93c4fa60c43c7",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": true,
+      "manualScopeThisPass": "Datos de NPC, carga, construcción parcial, diálogos y ciclo de escenas.",
+      "previousReviewSha256": "0789f8ed2ba91ad98afa5d7be1c652d0dac105781056e220d0c7231a1f8966e6",
+      "identicalToPreviousReview": false,
+      "testsMentioningFile": [
+        "tools/remaining-libraries.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-pesca.js",
+      "bytes": 66538,
+      "sha256": "e8ac54d101e54255c1162207be8e4d7f938ade2207dd00a2dd5db6ea5f27aad4",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "e8ac54d101e54255c1162207be8e4d7f938ade2207dd00a2dd5db6ea5f27aad4",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-deep-stability.test.cjs",
+        "tools/libraries-stability.test.cjs",
+        "tools/txt-core-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-pisadas.js",
+      "bytes": 23146,
+      "sha256": "a2f98c2f4c6acb6190962f8739c410396ad46405f95f657e9357e9e5489cede6",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "a2f98c2f4c6acb6190962f8739c410396ad46405f95f657e9357e9e5489cede6",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/audio-footprints-lifecycle.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-postproceso.js",
+      "bytes": 34018,
+      "sha256": "1eeda233c8e0a075a3389324a553cc7302bdcdbcea2e328c504b52c722ec95ca",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "1eeda233c8e0a075a3389324a553cc7302bdcdbcea2e328c504b52c722ec95ca",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/environment-resources.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-profundidad.js",
+      "bytes": 55718,
+      "sha256": "ac6ad4766b40461197abbd0fcf4dbc7537936f7e03f630aa774ca46990f3d6a2",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "ac6ad4766b40461197abbd0fcf4dbc7537936f7e03f630aa774ca46990f3d6a2",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/profundidad-casas.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-redirect.js",
+      "bytes": 568,
+      "sha256": "28a72baf56454b5c9504823a0c8f34d511d7f324b9fe2b2c39d4b8c68fbaebe9",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Relectura del helper completo; sin cambio nuevo.",
+      "previousReviewSha256": "28a72baf56454b5c9504823a0c8f34d511d7f324b9fe2b2c39d4b8c68fbaebe9",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/redirect-wallet.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-relieve.js",
+      "bytes": 20787,
+      "sha256": "770a46e6b095b83c7056469e19d3def342c58b39787a4a05be4cdf983a518afd",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "770a46e6b095b83c7056469e19d3def342c58b39787a4a05be4cdf983a518afd",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/relieve.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-reposo.js",
+      "bytes": 6097,
+      "sha256": "d131cf64dcf9b26a2b8097907745a3a93827ec159bc9e4e88d1141332777261e",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": true,
+      "manualScopeThisPass": "Detección AFK, ocultación/restauración y referencias de piezas destruidas.",
+      "previousReviewSha256": "e8822b0982ae08d2b96f233d1c1f7ae18be68534bc92b4a9f026cf18ba21b682",
+      "identicalToPreviousReview": false,
+      "testsMentioningFile": [
+        "tools/remaining-libraries.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-rutas.js",
+      "bytes": 6112,
+      "sha256": "c909be131777013d1acce7601c8f752152bb57431c072253dd66ae231839ad57",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": true,
+      "manualScopeThisPass": "BFS íntegro, colisiones, reconstrucción, entradas inválidas y reentrada.",
+      "previousReviewSha256": "c237fef560c7d511970c1caaa64a4800724df9435c15fe136b7bf6bd87d4db31",
+      "identicalToPreviousReview": false,
+      "testsMentioningFile": [
+        "tools/network-deep-stability.test.cjs",
+        "tools/remaining-libraries.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-salvaje.js",
+      "bytes": 98485,
+      "sha256": "b62345e2d19a621a32ab8b9cbdb009ee59591531a8daf14a9f0d00eb4b5f9f17",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Contrato de efectos efímeros, jefes y desmontaje, como integración del módulo reparado.",
+      "previousReviewSha256": "b62345e2d19a621a32ab8b9cbdb009ee59591531a8daf14a9f0d00eb4b5f9f17",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/zonas.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-sesion-unica.js",
+      "bytes": 10556,
+      "sha256": "d2dc7115673bddb47dfec4acf1e90bc2f91a3580d5f300ad58664dfd9b910069",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "d2dc7115673bddb47dfec4acf1e90bc2f91a3580d5f300ad58664dfd9b910069",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/network-deep-stability.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-session-api.js",
+      "bytes": 4648,
+      "sha256": "12349825508f65698e52c5eaea461849474cf8d610321b304f45a6dccb5fb3e4",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "12349825508f65698e52c5eaea461849474cf8d610321b304f45a6dccb5fb3e4",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/network-deep-stability.test.cjs",
+        "tools/runtime-review.test.cjs",
+        "tools/session-api.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-sin-nombre.js",
+      "bytes": 7952,
+      "sha256": "91b6a57ea9ff53a292b8675b21e05c057e2dd188711344de9decea325c68ebea",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": true,
+      "manualScopeThisPass": "Identidad/nombre, flags heredados, guardas y fetch interceptor.",
+      "previousReviewSha256": "b673c80811739dcb8a8de1947228eaefa480e9db4e58fac92bd4aed59baf4551",
+      "identicalToPreviousReview": false,
+      "testsMentioningFile": [
+        "tools/remaining-libraries.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-sombras.js",
+      "bytes": 29704,
+      "sha256": "9c7d5050d6e83b0dcf817568dcf3b0693f62ad56e2c363b18c4cad24e097198f",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "9c7d5050d6e83b0dcf817568dcf3b0693f62ad56e2c363b18c4cad24e097198f",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/txt-environment-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-soulbound-custom.js",
+      "bytes": 25037,
+      "sha256": "b53a8512e882f3181b496a08b3c23ecd2b9f7de83ae178a575246e3b35fcdf1a",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": true,
+      "manualScopeThisPass": "Codificación, atlas, composición/canvas, cola/caché, previsualización y guardado.",
+      "previousReviewSha256": "bac83a9d7200df458a9e1d7c319326d075f9efb30e019c7bc90d5c445653878d",
+      "identicalToPreviousReview": false,
+      "testsMentioningFile": [
+        "tools/remaining-libraries.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-soulbound.js",
+      "bytes": 39040,
+      "sha256": "7f8c39d8e3df9c9b092abd46806381fdaf5a2138b7a8e4147e49661baf68494a",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Consumidores del ID personalizado, elección y descriptor, como integración del compositor.",
+      "previousReviewSha256": "7f8c39d8e3df9c9b092abd46806381fdaf5a2138b7a8e4147e49661baf68494a",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/libraries-stability.test.cjs",
+        "tools/network-deep-stability.test.cjs",
+        "tools/remaining-libraries.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-suelo.js",
+      "bytes": 9102,
+      "sha256": "1769043b2030521a43afa73a4ef15e16e49bb47e46651526a1248f7df81af76b",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "1769043b2030521a43afa73a4ef15e16e49bb47e46651526a1248f7df81af76b",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-deep-stability.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-tirones.js",
+      "bytes": 9167,
+      "sha256": "ccdc78818f1b680a44d46ccd47b168d867d6caab2d9cae07de0c5dda415dfeb7",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "ccdc78818f1b680a44d46ccd47b168d867d6caab2d9cae07de0c5dda415dfeb7",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-deep-stability.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-traductor.js",
+      "bytes": 17388,
+      "sha256": "0a04d6c20da20a4388a45137e4a0f1a51522fbfc1839ad72c117e7f6166591ee",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "0a04d6c20da20a4388a45137e4a0f1a51522fbfc1839ad72c117e7f6166591ee",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/libraries-stability.test.cjs",
+        "tools/txt-social-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-viento.js",
+      "bytes": 48482,
+      "sha256": "89ba49f83cf13c2fafe26bffc2713ee0c7ec4a6f340236eeac99e31d7ab8a1f0",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "89ba49f83cf13c2fafe26bffc2713ee0c7ec4a6f340236eeac99e31d7ab8a1f0",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-deep-stability.test.cjs",
+        "tools/snow-leaf-transition.test.cjs",
+        "tools/txt-environment-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-vip.js",
+      "bytes": 22858,
+      "sha256": "801c0e1ea06b34714f3ecfe8c962d02655c632219288e0474499a5e890a74df5",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": true,
+      "manualScopeThisPass": "Estado por cuenta, API, facturas/compra, modales, marca HUD e islas.",
+      "previousReviewSha256": "fa358d4cf222d5fcbfe51089d4c3b9f5229f45f02d8e540dbceb33d4ba081239",
+      "identicalToPreviousReview": false,
+      "testsMentioningFile": [
+        "tools/remaining-libraries.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-wallet-boot.js",
+      "bytes": 4772,
+      "sha256": "3e44e0fa00c6c92ffec52d9a3e61f2b6c3bbb2d847fac219c6ee7ab03c240c20",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Relectura del arranque de la cartera; sin cambio nuevo.",
+      "previousReviewSha256": "3e44e0fa00c6c92ffec52d9a3e61f2b6c3bbb2d847fac219c6ee7ab03c240c20",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": []
+    },
+    {
+      "file": "gf-wallet-dashboard.js",
+      "bytes": 21808,
+      "sha256": "f6c303d71a2c7afb48e7c6ba5875c73b5bdaf1685277fb6a97a362a501c02e79",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Relectura de flujos de sesión, refresco y panel; sin cambio nuevo.",
+      "previousReviewSha256": "f6c303d71a2c7afb48e7c6ba5875c73b5bdaf1685277fb6a97a362a501c02e79",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/network-deep-stability.test.cjs",
+        "tools/txt-social-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-zonas.js",
+      "bytes": 36870,
+      "sha256": "2e414d68ae367b805bb17eeec046742bfb79390958b8ec54765f7e59f4fb0fe4",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": true,
+      "manualScopeThisPass": "Viaje/guardado/reintento, decoración, clima, remolinos, luces y desmontaje.",
+      "previousReviewSha256": "ff249c67bd106aa97df300bbe35b003d8b49e6ab768ebc6a4825e66cb3d1d4e9",
+      "identicalToPreviousReview": false,
+      "testsMentioningFile": [
+        "tools/remaining-libraries.test.cjs",
+        "tools/velocidad-a-pie.test.cjs",
+        "tools/zonas.test.cjs"
+      ]
+    },
+    {
+      "file": "hub.js",
+      "bytes": 20472,
+      "sha256": "aace3a86dd0ad735ffab104293e704225a038872a4ae3a10bab87e5725cc0b2a",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "aace3a86dd0ad735ffab104293e704225a038872a4ae3a10bab87e5725cc0b2a",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/hub-lifecycle.test.cjs",
+        "tools/libraries-stability.test.cjs",
+        "tools/network-deep-stability.test.cjs",
+        "tools/scene-transition-panels.test.cjs",
+        "tools/txt-social-audit.test.cjs"
+      ]
+    },
+    {
+      "file": "LoadingSystem.js",
+      "bytes": 17618,
+      "sha256": "fc3dd5e31c1400accacc1753029829aee46324c9a9241e119e7a4fbb04a1a38b",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "fc3dd5e31c1400accacc1753029829aee46324c9a9241e119e7a4fbb04a1a38b",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/inventory-transitions.test.cjs",
+        "tools/libraries-stability.test.cjs",
+        "tools/loading-deep-stability.test.cjs",
+        "tools/network-deep-stability.test.cjs"
+      ]
+    },
+    {
+      "file": "marketplace-routes.js",
+      "bytes": 75342,
+      "sha256": "0c53439e903688f40c3d7471de5253f599df725fd5538b8109ba2475c8b0ad52",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "0c53439e903688f40c3d7471de5253f599df725fd5538b8109ba2475c8b0ad52",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/backend-deep-stability.test.cjs",
+        "tools/txt-marketplace-atomic.test.cjs"
+      ]
+    },
+    {
+      "file": "memory-fix.js",
+      "bytes": 4784,
+      "sha256": "fee9136a55a98a6d9eb400a8eb65a3fff8f07321253e33477429d17ed424fab9",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "fee9136a55a98a6d9eb400a8eb65a3fff8f07321253e33477429d17ed424fab9",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-lifecycle.test.cjs"
+      ]
+    },
+    {
+      "file": "mission-studio.js",
+      "bytes": 19844,
+      "sha256": "725c2c876a69fbe3ca6ce515a94a5d5b35e9ab0b0cfe1be5ec1c75a1b508452b",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "725c2c876a69fbe3ca6ce515a94a5d5b35e9ab0b0cfe1be5ec1c75a1b508452b",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": []
+    },
+    {
+      "file": "missionspanel.js",
+      "bytes": 27304,
+      "sha256": "fd4be8b2b8170329388390f700236d785ee4f3c78490a4827a490b22f928d973",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "fd4be8b2b8170329388390f700236d785ee4f3c78490a4827a490b22f928d973",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/network-deep-stability.test.cjs"
+      ]
+    },
+    {
+      "file": "NotificationHub.js",
+      "bytes": 65143,
+      "sha256": "1f744425ec12e2ed9fc745fa16070faed0dd87b579e8b913f5150a9a2773aeac",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "1f744425ec12e2ed9fc745fa16070faed0dd87b579e8b913f5150a9a2773aeac",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/libraries-stability.test.cjs",
+        "tools/network-deep-stability.test.cjs",
+        "tools/scene-memory-lifecycle.test.cjs",
+        "tools/shop-auth-session.test.cjs"
+      ]
+    },
+    {
+      "file": "Phaser-camera.js",
+      "bytes": 20161,
+      "sha256": "85fe422bf49448dab723464a5e7df617c0194b1fa199f66df03c9d853aa5907a",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "85fe422bf49448dab723464a5e7df617c0194b1fa199f66df03c9d853aa5907a",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": []
+    },
+    {
+      "file": "phaser-canvas-scaler.js",
+      "bytes": 29251,
+      "sha256": "9ab20330a3d458e6fd0840b29831cb52fe7217550b87bfb1143a28f93389bc20",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "9ab20330a3d458e6fd0840b29831cb52fe7217550b87bfb1143a28f93389bc20",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-lifecycle.test.cjs"
+      ]
+    },
+    {
+      "file": "phaser-memory-cleaner.js",
+      "bytes": 18649,
+      "sha256": "1d68e3ae9a2d47dd2332cd3994ce9b81c1135eb0516669d9bf69d18cef6ee0c6",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "1d68e3ae9a2d47dd2332cd3994ce9b81c1135eb0516669d9bf69d18cef6ee0c6",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/memory-diagnostics.test.cjs"
+      ]
+    },
+    {
+      "file": "phaser-memory-reporter.js",
+      "bytes": 57956,
+      "sha256": "cf84e51b172a8aae7eac0b7720f5ce33cdf73e991beba66157bad4daa60d43ff",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "cf84e51b172a8aae7eac0b7720f5ce33cdf73e991beba66157bad4daa60d43ff",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-deep-stability.test.cjs",
+        "tools/memory-diagnostics.test.cjs"
+      ]
+    },
+    {
+      "file": "phaser-relay-library.js",
+      "bytes": 90942,
+      "sha256": "5b6e9fc21821d6d0e3607c1de7820ec0af4d55a93400bd54e81656dc9d8addd5",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "5b6e9fc21821d6d0e3607c1de7820ec0af4d55a93400bd54e81656dc9d8addd5",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/network-deep-stability.test.cjs",
+        "tools/shop-auth-session.test.cjs"
+      ]
+    },
+    {
+      "file": "phaser-rpg-perf.js",
+      "bytes": 136470,
+      "sha256": "2ab933167846d3dd06157c57143e8e8614129784e6cd3bfb93a33b44060ef4d0",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "2ab933167846d3dd06157c57143e8e8614129784e6cd3bfb93a33b44060ef4d0",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-lifecycle.test.cjs",
+        "tools/perf-subsystems.test.cjs"
+      ]
+    },
+    {
+      "file": "register-scenes.js",
+      "bytes": 20097,
+      "sha256": "c3e76c2fbf83c7dc4bdd1755c5657f752271cbe5ea0dd69d670a1a7135d0b15e",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "c3e76c2fbf83c7dc4bdd1755c5657f752271cbe5ea0dd69d670a1a7135d0b15e",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": []
+    },
+    {
+      "file": "reporter.js",
+      "bytes": 17382,
+      "sha256": "fd3a31878770490c29c35657eb64db73d78ae28e4ea7ef246cfea011c757473c",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "fd3a31878770490c29c35657eb64db73d78ae28e4ea7ef246cfea011c757473c",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/admin-suite-backend.test.cjs",
+        "tools/engine-deep-stability.test.cjs",
+        "tools/memory-diagnostics.test.cjs",
+        "tools/network-deep-stability.test.cjs",
+        "tools/remaining-dependencies.test.cjs"
+      ]
+    },
+    {
+      "file": "SystemaTransaccion.js",
+      "bytes": 20664,
+      "sha256": "862adc1707cfcddb1c9fab4d4204b60d59088eb21cfdf7eeb6015d7f293311b9",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "862adc1707cfcddb1c9fab4d4204b60d59088eb21cfdf7eeb6015d7f293311b9",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/libraries-stability.test.cjs"
+      ]
+    },
+    {
+      "file": "tienda_sistema.js",
+      "bytes": 245456,
+      "sha256": "7eae07da39e32ac3946f98674d1bb674d28e8dfa9879399de8915c812aa81a53",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "7eae07da39e32ac3946f98674d1bb674d28e8dfa9879399de8915c812aa81a53",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/network-deep-stability.test.cjs"
+      ]
+    },
+    {
+      "file": "TransactionHub.js",
+      "bytes": 20437,
+      "sha256": "1eb4c8a9f5c6c68e95fb02a9a0266e60ba223249ff26c12ce96ffb3b51d29a18",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "1eb4c8a9f5c6c68e95fb02a9a0266e60ba223249ff26c12ce96ffb3b51d29a18",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/network-deep-stability.test.cjs"
+      ]
+    },
+    {
+      "file": "tx-gate.js",
+      "bytes": 6620,
+      "sha256": "6d14fc1716c7dffa275a3d00329b197d808db445355bf30d888ad1ed0522bd97",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "6d14fc1716c7dffa275a3d00329b197d808db445355bf30d888ad1ed0522bd97",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/loading-deep-stability.test.cjs",
+        "tools/network-deep-stability.test.cjs"
+      ]
+    },
+    {
+      "file": "ui-image-fallbacks.js",
+      "bytes": 482,
+      "sha256": "a4b8188cfde42f888c7f0520f4248e249610c93eddf8d406159e3bb25c02a0f4",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Relectura del helper completo; sin cambio nuevo.",
+      "previousReviewSha256": "a4b8188cfde42f888c7f0520f4248e249610c93eddf8d406159e3bb25c02a0f4",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": []
+    },
+    {
+      "file": "viewport-fix.js",
+      "bytes": 14598,
+      "sha256": "a4e37828640e4ddbf50c7887790de55c8aa81df172c59f62beafa1e8c0b855d9",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Relectura focal de medición, temporizadores y ciclo de vida; sin cambio nuevo.",
+      "previousReviewSha256": "a4e37828640e4ddbf50c7887790de55c8aa81df172c59f62beafa1e8c0b855d9",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/viewport-first-resize.test.cjs"
+      ]
+    },
+    {
+      "file": "lib/tileManager.js",
+      "bytes": 60068,
+      "sha256": "33838a0319ae07317dcb9b07e8694776845d57ccc13c25caae65606bdc1e790e",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "33838a0319ae07317dcb9b07e8694776845d57ccc13c25caae65606bdc1e790e",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-deep-stability.test.cjs",
+        "tools/engine-lifecycle.test.cjs",
+        "tools/scene-memory-lifecycle.test.cjs"
+      ]
+    },
+    {
+      "file": "lib/tileMonitor.js",
+      "bytes": 11386,
+      "sha256": "2f0b59a8508246809c37507f1d1131a3abf78315823c196879965a8f7fc8ac74",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "2f0b59a8508246809c37507f1d1131a3abf78315823c196879965a8f7fc8ac74",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/engine-lifecycle.test.cjs"
+      ]
+    },
+    {
+      "file": "gf-wallet-sdk/gf-wallet.js",
+      "bytes": 64967,
+      "sha256": "e95770c6377b7aa8bbdf5fb2a5ee42ca3cd8b31091147a7efe2aaad351f6356f",
+      "fullStaticAnalysis": true,
+      "staticErrors": [],
+      "changedThisPass": false,
+      "manualScopeThisPass": "Sin nueva relectura manual en esta ampliación; AST íntegro y regresiones actualizados.",
+      "previousReviewSha256": "e95770c6377b7aa8bbdf5fb2a5ee42ca3cd8b31091147a7efe2aaad351f6356f",
+      "identicalToPreviousReview": true,
+      "testsMentioningFile": [
+        "tools/network-deep-stability.test.cjs",
+        "tools/txt-social-audit.test.cjs"
+      ]
+    }
+  ]
+}

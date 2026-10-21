@@ -1,0 +1,29 @@
+✔ Hardhat keeps UUID v4 CommonJS support with bounded v3 output buffers (41.4873ms)
+✔ Sentry cookie replacement retains parsing and rejects unsafe serialized names (6.631ms)
+✔ Hardhat Mocha reporter keeps its diff API and TypeScript runtime still transpiles (676.7048ms)
+✔ patched compiler ZIP dependency preserves a valid offline compiler archive (51.7662ms)
+✖ Undici multipart consumer parses text and files and safely handles prototype-named headers (3338.6302ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 4
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4302.4767
+
+✖ failing tests:
+
+test at tools\remaining-dependencies.test.cjs:29:1
+✖ Undici multipart consumer parses text and files and safely handles prototype-named headers (3338.6302ms)
+  TypeError: this.header[h].push is not a function
+      at HeaderParser._parseHeader (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\GrasslandBuild\repositories\backend\node_modules\@fastify\busboy\deps\dicer\lib\HeaderParser.js:95:20)
+      at HeaderParser._finish (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\GrasslandBuild\repositories\backend\node_modules\@fastify\busboy\deps\dicer\lib\HeaderParser.js:55:27)
+      at SBMH.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\GrasslandBuild\repositories\backend\node_modules\@fastify\busboy\deps\dicer\lib\HeaderParser.js:37:25)
+      at SBMH.emit (node:events:509:28)
+      at SBMH.emit (node:domain:489:12)
+      at SBMH._sbmh_feed (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\GrasslandBuild\repositories\backend\node_modules\@fastify\busboy\deps\streamsearch\sbmh.js:176:25)
+      at SBMH.push (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\GrasslandBuild\repositories\backend\node_modules\@fastify\busboy\deps\streamsearch\sbmh.js:83:68)
+      at HeaderParser.push (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\GrasslandBuild\repositories\backend\node_modules\@fastify\busboy\deps\dicer\lib\HeaderParser.js:43:21)
+      at Dicer._oninfo (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\GrasslandBuild\repositories\backend\node_modules\@fastify\busboy\deps\dicer\lib\Dicer.js:172:25)
+      at SBMH.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\GrasslandBuild\repositories\backend\node_modules\@fastify\busboy\deps\dicer\lib\Dicer.js:108:10)

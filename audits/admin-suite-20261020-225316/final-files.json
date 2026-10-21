@@ -1,0 +1,107 @@
+[
+  {
+    "file": "control-center.html",
+    "bytes": 7719,
+    "sha256": "f144599e51fb72625bd74e6ea9908caac10d291a0e4b411996500aec254c5bcc"
+  },
+  {
+    "file": "control-center.css",
+    "bytes": 18514,
+    "sha256": "f5a2346b0e7bbdbb2adb3c3aa20154afc2e97cf9522bcedba4b6adcf1f50c3a8"
+  },
+  {
+    "file": "control-center.js",
+    "bytes": 18622,
+    "sha256": "bcd30d5d4ba7aa763fc8a81ebb04a70c3b163a1919c9a6ae546a08411ede7137"
+  },
+  {
+    "file": "admin-session.js",
+    "bytes": 9659,
+    "sha256": "684224864ce2bc440efb2af543b80ff6fc35e9a3dc3e1a338bf20da976093de5"
+  },
+  {
+    "file": "admin-suite.css",
+    "bytes": 10585,
+    "sha256": "a8bc4c50ee2501a2917b913a17fa0ba37a90bbb19e319eaf5bca13536c4aa234"
+  },
+  {
+    "file": "admin-suite.js",
+    "bytes": 12778,
+    "sha256": "df764ea3143f835dc9871334bc3e534596790bfdbb72f93d2a435bb45d0d157f"
+  },
+  {
+    "file": "admin-suite-i18n.js",
+    "bytes": 84788,
+    "sha256": "6023bf526c1014e1dd2b6baed9cb9b12d4cb2f267c4bc500f3df3a618e9fe747"
+  },
+  {
+    "file": "mission-studio.css",
+    "bytes": 11789,
+    "sha256": "25aa3a813bd89e9f83b62147f9baaaaf54ff85e95c5a0e92b81cd8037449e731"
+  },
+  {
+    "file": "mission-studio.js",
+    "bytes": 19844,
+    "sha256": "725c2c876a69fbe3ca6ce515a94a5d5b35e9ab0b0cfe1be5ec1c75a1b508452b"
+  },
+  {
+    "file": "puerta-login.html",
+    "bytes": 420,
+    "sha256": "5deb46910cb05ddc5055f7af734636e00b05742b8e47a22587c803ba34bb245d"
+  },
+  {
+    "file": "admin.html",
+    "bytes": 95487,
+    "sha256": "0c6658d7927fbd577863e9c81bf997a4fcb6e14a1fc83e873c04ef8dd6b1082a"
+  },
+  {
+    "file": "colecciones.html",
+    "bytes": 17607,
+    "sha256": "28be38a2a18284f246ae6f588bd65cdec363db96eb79a7b54368853314cc8df9"
+  },
+  {
+    "file": "colecciones.js",
+    "bytes": 70597,
+    "sha256": "a7766c44bf480db15604857611ac5ab51d8e73c9138ae3bea56c1e95ad4800ae"
+  },
+  {
+    "file": "climas.html",
+    "bytes": 34665,
+    "sha256": "763fd0decbf8f276eeaa8d8b5a79fef81e3edf72543ea14f7510dc537301d5a3"
+  },
+  {
+    "file": "consola-reportes.html",
+    "bytes": 45020,
+    "sha256": "dab5dbf8eb0fc6e22a53dd3406e660c627b94eb4b43f1f4a59313597be2d01d0"
+  },
+  {
+    "file": "contrato-stats.html",
+    "bytes": 60723,
+    "sha256": "1174039b5b982eb048abb7aa377870133f7a425294888389e895beb11076cc27"
+  },
+  {
+    "file": "misiones.html",
+    "bytes": 65054,
+    "sha256": "efa7a034bf2dba979f0e88648b92e601c6232ec1d6a604246e56584e018beb1c"
+  },
+  {
+    "file": "puerta_login.html",
+    "bytes": 17619,
+    "sha256": "25abfca0857e8d9bbe5d343bd19499dd5bb94fafde4d5a5bbe14080e24f6822b"
+  },
+  {
+    "file": "reporter.html",
+    "bytes": 12071,
+    "sha256": "9aacf4b4cd1f7f1993d8da43aa66f803734c9c60a989115112437281a6dac9cf"
+  },
+  {
+    "file": "reporter.js",
+    "bytes": 17382,
+    "sha256": "fd3a31878770490c29c35657eb64db73d78ae28e4ea7ef246cfea011c757473c"
+  },
+  {
+    "file": "C:/Users/pc/Desktop/server2.js",
+    "bytes": 1433724,
+    "sha256": "44416f4ed57f4b1f96b4f3234cb03504a7edc21a5dec97c00f21ebb664574b05"
+  }
+]

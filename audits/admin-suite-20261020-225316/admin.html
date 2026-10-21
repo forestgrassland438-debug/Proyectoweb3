@@ -1,0 +1,1803 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Registro de guardabosques · Grassland Forest</title>
+<style>
+/* ===========================================================================
+   REGISTRO DE GUARDABOSQUES — panel de administración de jugadores
+   ---------------------------------------------------------------------------
+   Concepto: el libro de registro de un puesto forestal. Fondo de noche en el
+   bosque, acento de musgo, ámbar de farol para lo que exige atención y arcilla
+   para lo irreversible. Las cifras y las direcciones van en monoespaciada
+   porque aquí se comparan en columna, no se leen en prosa.
+   =========================================================================== */
+:root {
+  --ink:        #0E1512;   /* negro con sesgo verde, no negro puro */
+  --surface:    #16211C;
+  --surface-2:  #1C2A23;
+  --line:       #26382E;
+  --text:       #E6EDE7;
+  --text-dim:   #8A9C90;
+  --moss:       #7FB069;   /* acento: musgo, desaturado */
+  --moss-soft:  rgba(127,176,105,.14);
+  --lantern:    #E0A458;   /* atención */
+  --lantern-soft: rgba(224,164,88,.14);
+  --clay:       #C05746;   /* destructivo */
+  --clay-soft:  rgba(192,87,70,.14);
+  --radius: 10px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="light"], html:not([data-theme="dark"]) {
+  /* por defecto oscuro; el claro se activa abajo */
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --ink: #F1EFE4; --surface: #FBFAF4; --surface-2: #F4F2E7;
+    --line: #DCD8C6; --text: #1B2620; --text-dim: #5F6E64;
+    --moss: #4E7A3C; --moss-soft: rgba(78,122,60,.12);
+    --lantern: #9A6516; --lantern-soft: rgba(154,101,22,.12);
+    --clay: #97392A; --clay-soft: rgba(151,57,42,.10);
+  }
+}
+:root[data-theme="light"] {
+  --ink: #F1EFE4; --surface: #FBFAF4; --surface-2: #F4F2E7;
+  --line: #DCD8C6; --text: #1B2620; --text-dim: #5F6E64;
+  --moss: #4E7A3C; --moss-soft: rgba(78,122,60,.12);
+  --lantern: #9A6516; --lantern-soft: rgba(154,101,22,.12);
+  --clay: #97392A; --clay-soft: rgba(151,57,42,.10);
+}
+:root[data-theme="dark"] {
+  --ink: #0E1512; --surface: #16211C; --surface-2: #1C2A23;
+  --line: #26382E; --text: #E6EDE7; --text-dim: #8A9C90;
+  --moss: #7FB069; --moss-soft: rgba(127,176,105,.14);
+  --lantern: #E0A458; --lantern-soft: rgba(224,164,88,.14);
+  --clay: #C05746; --clay-soft: rgba(192,87,70,.14);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--ink); color: var(--text);
+  font-family: var(--sans); font-size: 15px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { margin: 0; text-wrap: balance; font-weight: 650; letter-spacing: -.01em; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--moss); outline-offset: 2px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.dim  { color: var(--text-dim); }
+
+/* ── Cabecera ────────────────────────────────────────────────────────────── */
+header.top {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 14px 22px; border-bottom: 1px solid var(--line);
+  background: var(--surface); position: sticky; top: 0; z-index: 20;
+}
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+.brand h1 { font-size: 16px; }
+.brand .sub {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--text-dim);
+}
+.wallet-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 11px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface-2); font-family: var(--mono); font-size: 12.5px;
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--moss); flex: none; }
+.dot.off { background: var(--text-dim); }
+
+.btn {
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--text);
+  padding: 8px 14px; border-radius: var(--radius); font-size: 14px;
+  transition: border-color .15s, background .15s;
+}
+.btn:hover { border-color: var(--moss); }
+.btn-primary { background: var(--moss); color: var(--ink); border-color: var(--moss); font-weight: 600; }
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-danger { background: var(--clay-soft); border-color: var(--clay); color: var(--clay); font-weight: 600; }
+.btn-danger:hover { background: var(--clay); color: #fff; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-sm { padding: 5px 10px; font-size: 13px; }
+
+/* ── Puerta de entrada ───────────────────────────────────────────────────── */
+.gate {
+  min-height: 72vh; display: grid; place-items: center; padding: 40px 20px;
+}
+.gate-card {
+  width: min(100%, 460px); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 14px; padding: 34px 30px; text-align: center;
+}
+.gate-card h2 { font-size: 21px; margin-bottom: 8px; }
+.gate-card p { color: var(--text-dim); font-size: 14px; margin: 0 0 22px; }
+.gate-mark { font-size: 40px; line-height: 1; margin-bottom: 16px; }
+
+/* ── Contenido ───────────────────────────────────────────────────────────── */
+main { padding: 22px; max-width: 1400px; margin: 0 auto; }
+section { margin-bottom: 26px; }
+.section-head {
+  display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;
+}
+.section-head h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .11em; color: var(--text-dim); }
+
+/* KPIs */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr)); gap: 12px; }
+.kpi {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.kpi .label {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim);
+  display: block; margin-bottom: 6px;
+}
+.kpi .value { font-family: var(--mono); font-size: 25px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.kpi .value.accent { color: var(--moss); }
+
+/* Buscador */
+.search-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.search-bar input[type="search"] {
+  flex: 1; min-width: 240px; padding: 10px 13px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.search-bar input[type="search"]::placeholder { color: var(--text-dim); }
+
+/* Tabla */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 940px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim);
+  font-weight: 600; background: var(--surface-2); position: sticky; top: 0;
+}
+tbody tr { transition: background .12s; }
+tbody tr:hover { background: var(--moss-soft); cursor: pointer; }
+tbody tr:last-child td { border-bottom: none; }
+td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
+.name-cell { display: flex; flex-direction: column; gap: 1px; }
+.name-cell .primary { font-weight: 600; }
+.name-cell .secondary { font-size: 12px; color: var(--text-dim); }
+
+.pill {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: .02em;
+  background: var(--moss-soft); color: var(--moss); border: 1px solid transparent;
+}
+.pill.warn { background: var(--lantern-soft); color: var(--lantern); }
+.pill.mute { background: transparent; color: var(--text-dim); border-color: var(--line); }
+
+.pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 12px; }
+
+/* ── Ficha del jugador (panel lateral) ───────────────────────────────────── */
+.drawer-bg {
+  position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 40;
+  opacity: 0; pointer-events: none; transition: opacity .18s;
+}
+.drawer-bg.open { opacity: 1; pointer-events: auto; }
+.drawer {
+  position: fixed; top: 0; right: 0; height: 100%; width: min(560px, 100%);
+  background: var(--surface); border-left: 1px solid var(--line); z-index: 41;
+  transform: translateX(100%); transition: transform .22s ease;
+  display: flex; flex-direction: column;
+}
+.drawer.open { transform: none; }
+.drawer-head {
+  padding: 18px 22px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: flex-start; gap: 12px;
+}
+.drawer-head h2 { font-size: 18px; }
+.drawer-body { padding: 20px 22px; overflow-y: auto; flex: 1; }
+.drawer-body h3 {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .11em; color: var(--text-dim);
+  margin: 22px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line);
+}
+.drawer-body h3:first-child { margin-top: 0; }
+
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+.fact .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; color: var(--text-dim); }
+.fact .v { font-family: var(--mono); font-size: 15px; font-variant-numeric: tabular-nums; }
+
+.field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.field label {
+  display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 4px;
+  text-transform: uppercase; letter-spacing: .07em;
+}
+.field input, .field select {
+  width: 100%; padding: 8px 10px; background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 8px;
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+}
+.field input:focus { border-color: var(--moss); }
+.field.changed input { border-color: var(--lantern); background: var(--lantern-soft); }
+
+.note {
+  border-left: 3px solid var(--lantern); background: var(--lantern-soft);
+  padding: 10px 13px; border-radius: 0 8px 8px 0; font-size: 13px; margin-bottom: 14px;
+}
+.note.danger { border-left-color: var(--clay); background: var(--clay-soft); }
+
+.danger-zone {
+  border: 1px solid var(--clay); border-radius: var(--radius);
+  padding: 16px; margin-top: 26px; background: var(--clay-soft);
+}
+.danger-zone h3 { color: var(--clay); border-bottom-color: var(--clay); margin-top: 0; }
+.danger-zone input {
+  width: 100%; padding: 8px 10px; margin: 8px 0 10px; font-family: var(--mono);
+  background: var(--surface); border: 1px solid var(--clay); border-radius: 8px;
+}
+
+.drawer-foot {
+  padding: 14px 22px; border-top: 1px solid var(--line);
+  display: flex; gap: 10px; justify-content: flex-end; background: var(--surface-2);
+}
+
+/* Avisos */
+#toast {
+  position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(20px);
+  background: var(--surface-2); border: 1px solid var(--line); border-left: 3px solid var(--moss);
+  color: var(--text); padding: 11px 18px; border-radius: 8px; z-index: 60;
+  opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+  max-width: min(90vw, 520px); font-size: 14px;
+}
+#toast.show { opacity: 1; transform: translateX(-50%); }
+#toast.err { border-left-color: var(--clay); }
+#toast.warn { border-left-color: var(--lantern); }
+
+.empty { padding: 40px 20px; text-align: center; color: var(--text-dim); }
+.hidden { display: none !important; }
+
+/* ── Formularios de configuración (siembra y clasificación) ──────────────── */
+.cfg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+  margin-top: 4px;
+}
+.cfg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  font-size: 13px;
+}
+.cfg-field > span { color: var(--text); font-weight: 600; }
+.cfg-field input[type="number"],
+.cfg-field input[type="text"] {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--mono, inherit);
+  font-size: 14px;
+  padding: 9px 11px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+.cfg-field input:focus { border-color: var(--moss); }
+/* El desplegable de orden de "Player activity" (2026-10-11), igual que los campos. */
+.cfg-field select {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; color: var(--text);
+  font-size: 14px; padding: 9px 11px; outline: none; width: 100%; box-sizing: border-box;
+}
+.cfg-field select:focus { border-color: var(--moss); }
+.act-pistas { display: flex; gap: 4px; flex-wrap: wrap; white-space: normal; min-width: 160px; }
+.cfg-field small { font-size: 11.5px; line-height: 1.5; }
+.cfg-field.cfg-check {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+}
+.cfg-field.cfg-check input[type="checkbox"] {
+  width: 18px; height: 18px; accent-color: var(--moss); cursor: pointer; flex: 0 0 auto;
+}
+.cfg-field.cfg-check > span { flex: 1; }
+.cfg-field.cfg-check small { flex-basis: 100%; }
+.cfg-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+
+@media (max-width: 640px) {
+  main { padding: 14px; }
+  header.top { padding: 12px 14px; }
+  .kpi .value { font-size: 21px; }
+  .cfg-grid { grid-template-columns: 1fr; }
+  .cfg-actions .btn { flex: 1; min-width: 140px; }
+}
+</style>
+<link rel="stylesheet" href="./admin-impact.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <h1>Registro de guardabosques</h1>
+    <span class="sub">Grassland Forest</span>
+  </div>
+  <a class="btn btn-sm" href="./contrato-stats.html" title="Estadísticas del contrato en la cadena" style="text-decoration:none">📜 Contrato</a>
+  <span class="wallet-chip" id="walletChip"><span class="dot off"></span><span id="walletText">Sin conectar</span></span>
+  <button class="btn btn-sm" id="themeBtn" title="Cambiar tema">Tema</button>
+  <button class="btn btn-sm hidden" id="reloadBtn">Actualizar</button>
+</header>
+
+<!-- Puerta: conectar cartera admin -->
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <div class="gate-mark">🌲</div>
+    <h2>Solo guardabosques</h2>
+    <p>Conecta la cartera de administrador para abrir el registro de jugadores.
+       Se te pedirá firmar un mensaje; no autoriza ninguna transacción.</p>
+    <button class="btn btn-primary" id="connectBtn">Conectar cartera</button>
+    <p id="adminAccessStatus" class="hidden" role="status" aria-live="polite"></p>
+  </div>
+</div>
+
+<!-- Panel -->
+<main id="panel" class="hidden">
+  <section id="impactPanel" aria-labelledby="impactTitle">
+    <div class="section-head impact-heading">
+      <div><h2 id="impactTitle">Impacto del juego · LitVM</h2><p class="dim impact-subtitle">Jugadores del backend y actividad verificable del contrato único.</p></div>
+      <span class="dim" id="impactUpdated" role="status">Esperando datos…</span>
+      <button class="btn btn-sm" id="impactRefresh">Actualizar métricas</button>
+    </div>
+    <div class="kpis impact-kpis" id="impactKpis"><div class="kpi"><span class="label">Métricas verificables</span><div class="value">—</div></div></div>
+    <div class="impact-network">
+      <div class="impact-network-item"><span class="dim">Contrato único</span><span class="mono impact-address" id="impactContract">—</span></div>
+      <div class="impact-network-item"><span class="dim">Wallet Relayer</span><span class="mono impact-address" id="impactRelayer">—</span></div>
+      <div class="impact-network-item"><span class="dim">Gas disponible (zkLTC)</span><span class="mono" id="impactGas">—</span></div>
+      <div class="impact-network-item"><span class="dim">Nonce minado / pendiente</span><span class="mono" id="impactNonce">—</span></div>
+      <div class="impact-network-item"><span class="dim">Firmas del Relayer · ledger observado</span><span class="mono" id="impactSigned">—</span></div>
+      <div class="impact-network-item"><span class="dim">Tx patrocinadas · wallet actual</span><span class="mono" id="impactSponsored">—</span></div>
+      <div class="impact-network-item"><span class="dim">Estado Relayer · red</span><span id="impactRelayerStatus">—</span></div>
+    </div>
+    <p class="dim impact-footnote" id="impactNonceNote">El nonce corresponde a toda la actividad de la wallet; el volumen del contrato se cuenta por hashes únicos.</p>
+    <details class="impact-quality"><summary>Cobertura y metodología de las métricas</summary><div id="impactQuality">Esperando datos del backend.</div></details>
+    <div class="impact-scan">
+      <div class="impact-scan-head"><div><h3>Recuperación histórica del contrato</h3><p class="dim">El backend conserva el progreso para continuar el análisis al cerrar esta página.</p></div><button class="btn btn-primary" id="analizarCC">analizarCC</button></div>
+      <div id="impactScanStatus" role="status" aria-live="polite">Esperando estado…</div>
+      <progress id="impactScanProgress" max="100" value="0" aria-label="Progreso de recuperación histórica" hidden></progress>
+      <p class="dim impact-footnote" id="impactScanDetail"></p>
+    </div>
+    <div class="cfg-actions impact-export-actions">
+      <button class="btn" id="impactExportCsv">Exportar Auditoría de Usuarios (CSV)</button>
+      <button class="btn" id="impactExportJson">Exportar Resumen On-Chain (JSON)</button>
+      <button class="btn btn-primary" id="impactGenerate">Generar Reporte de Impacto (LitVM Grant &amp; Airdrop)</button>
+    </div>
+    <p class="dim impact-footnote">Las exportaciones incluyen todos los registros autorizados, aunque la tabla tenga filtros o varias páginas. No incluyen contraseñas ni claves privadas.</p>
+  </section>
+
+  <section aria-labelledby="impactAuditTitle">
+    <div class="section-head"><h2 id="impactAuditTitle">Auditoría · Relayer → jugador real</h2><span class="dim" id="impactUserInfo" role="status">—</span></div>
+    <div class="search-bar impact-search">
+      <label class="impact-search-field"><span class="impact-sr-only">Buscar jugador por ID, nombre o billetera</span><input type="search" id="impactQ" placeholder="Buscar por ID, nombre o billetera…" autocomplete="off"></label>
+      <label class="impact-sort"><span class="dim">Ordenar por</span><select id="impactSort"><option value="txCount">Más transacciones</option><option value="playtime">Más tiempo jugado</option></select></label>
+      <button class="btn" id="impactSearch">Buscar</button><button class="btn" id="impactClear">Limpiar</button>
+    </div>
+    <div class="table-wrap" style="margin-top:12px">
+      <table class="impact-audit"><caption class="impact-sr-only">Auditoría de jugadores con hashes y operaciones del contrato atribuidas por el backend.</caption><thead><tr><th>ID / Jugador / Billetera</th><th>Registro / última conexión</th><th>Tiempo total</th><th>Tx del actor / asociadas</th><th>Acciones del actor</th><th>Tx / hora · actividad</th><th>Último Tx Hash</th></tr></thead><tbody id="impactUserRows"><tr><td colspan="7" class="empty">Esperando autenticación…</td></tr></tbody></table>
+    </div>
+    <div class="pager"><button class="btn btn-sm" id="impactPrev" disabled>‹ Anterior</button><span class="dim mono" id="impactPage">—</span><button class="btn btn-sm" id="impactNext" disabled>Siguiente ›</button></div>
+    <p class="dim impact-footnote">“Actividad Orgánica Humana” es un indicio de comportamiento, no demuestra que una cuenta sea humana. El actor requiere un caller autenticado o un emisor registrado; las asociaciones históricas al inventario no prueban quién originó la operación y se muestran aparte. Un hash se cuenta una vez por actor; una transacción puede contener varias operaciones. Los usuarios del backend no equivalen a wallets únicas on-chain.</p>
+  </section>
+
+  <section id="impactReportPanel" class="hidden" aria-labelledby="impactReportTitle">
+    <div class="section-head"><h2 id="impactReportTitle">LitVM Impact Report</h2><span class="dim" id="impactReportSnapshot"></span></div>
+    <div class="cfg-grid">
+      <label class="cfg-field"><span>Idioma del informe</span><select id="impactReportLanguage"><option value="en">English</option><option value="es">Español</option></select></label>
+      <label class="cfg-field"><span>Discord · miembros actuales</span><input type="text" id="impactDiscord" maxlength="120" placeholder="Añadir cifra y fecha de medición" autocomplete="off"><small class="dim">Dato aportado por el administrador.</small></label>
+      <label class="cfg-field"><span>X / Twitter · seguidores actuales</span><input type="text" id="impactTwitter" maxlength="120" placeholder="Añadir cifra y fecha de medición" autocomplete="off"><small class="dim">Dato aportado por el administrador.</small></label>
+      <label class="cfg-field"><span>Crecimiento · fuentes y contexto</span><input type="text" id="impactCommunity" maxlength="1000" placeholder="Enlaces, periodo de crecimiento, publicaciones…" autocomplete="off"></label>
+    </div>
+    <label class="impact-report-label" for="impactReportText">Informe editable listo para copiar</label>
+    <textarea id="impactReportText" class="impact-report-text" spellcheck="false" rows="24"></textarea>
+    <div class="cfg-actions"><button class="btn" id="impactRegenerate">Regenerar con datos actuales</button><button class="btn btn-primary" id="impactCopy">Copiar reporte</button><button class="btn" id="impactPrint">Imprimir / Guardar PDF</button></div>
+    <p class="dim impact-footnote">El informe conserva la fecha de la instantánea. Al regenerarlo se reemplaza el texto editado. Para crear el PDF, elige “Guardar como PDF” en el diálogo de impresión.</p>
+  </section>
+
+  <section>
+    <div class="section-head"><h2>Resumen</h2></div>
+    <div class="kpis" id="kpis"></div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       TABLAS DEL CONTRATO
+       Las tablas que el servidor necesita. Desde 2026-10-05 SE CREAN SOLAS:
+       si falta una, el servidor la crea con sus límites al arrancar, cada 15
+       minutos, cuando algo la necesita y al abrir esta tabla. Para eso el
+       relayer tiene que ser admin del contrato. Las que ya existen no se
+       cambian: aquí se ve si sus límites son los recomendados.
+       ══════════════════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="section-head">
+      <h2>⛓️ Tablas del contrato</h2>
+      <span class="dim" id="tablasInfo"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Tabla</th><th>Para qué</th><th>Estado</th>
+            <th style="text-align:right">Límite total</th><th style="text-align:right">Por factura</th>
+            <th style="text-align:right">En uso</th><th style="text-align:right">Facturas</th><th>Avisos</th>
+          </tr>
+        </thead>
+        <tbody id="tablasBody">
+          <tr><td colspan="8" class="empty">Cargando…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="cfg-actions">
+      <button class="btn" id="tablasBtn">Volver a mirar</button>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Jugadores</h2>
+      <span class="dim" id="resultInfo"></span>
+    </div>
+    <div class="search-bar">
+      <input type="search" id="q" placeholder="Buscar por dirección de cartera o nombre del personaje…" autocomplete="off">
+      <button class="btn" id="searchBtn">Buscar</button>
+      <button class="btn" id="clearBtn">Limpiar</button>
+    </div>
+    <div class="table-wrap" style="margin-top:12px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Jugador</th><th>Cartera</th><th style="text-align:right">Nivel</th>
+            <th style="text-align:right">Oro</th><th style="text-align:right">Plata</th>
+            <th>Antigüedad</th><th>Tiempo jugado</th><th>Última vez</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div class="pager">
+      <button class="btn btn-sm" id="prevBtn">‹ Anterior</button>
+      <span class="dim mono" id="pageInfo">—</span>
+      <button class="btn btn-sm" id="nextBtn">Siguiente ›</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       LA COLECCIÓN NFT DEL PANEL "MY NFTs"
+       El botón redondo NFT del juego enseña los NFT que la cartera del
+       jugador tiene de ESTA colección. El nombre es el que se ve (el de
+       MetaMask); el contrato hace falta para leerla en la cadena, porque un
+       nombre no es único.
+       ══════════════════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="section-head">
+      <h2>🖼️ Colección NFT del juego</h2>
+      <span class="dim" id="nftInfo"></span>
+    </div>
+    <div class="cfg-grid">
+      <label class="cfg-field">
+        <span>Nombre de la colección</span>
+        <input type="text" id="nftNombre" maxlength="80" placeholder="ej. Forest Spirits" autocomplete="off">
+        <small class="dim">El que verán los jugadores en el panel My NFTs (el mismo que sale en MetaMask).</small>
+      </label>
+      <label class="cfg-field">
+        <span>Contrato de la colección (ERC-721)</span>
+        <input type="text" id="nftContrato" maxlength="42" placeholder="0x…" autocomplete="off" spellcheck="false">
+        <small class="dim">En MetaMask: el NFT → detalles → “Contract address”.</small>
+      </label>
+      <label class="cfg-field">
+        <span>Red (chain id)</span>
+        <input type="number" id="nftChain" min="1" step="1">
+        <small class="dim">Vacío = la red del juego.</small>
+      </label>
+      <label class="cfg-field">
+        <span>RPC de esa red (solo si no es la del juego)</span>
+        <input type="text" id="nftRpc" maxlength="200" placeholder="https://…" autocomplete="off" spellcheck="false">
+      </label>
+    </div>
+    <div class="cfg-actions">
+      <button class="btn btn-primary" id="nftSaveBtn">Guardar colección</button>
+      <button class="btn" id="nftReloadBtn">Recargar</button>
+      <button class="btn btn-danger" id="nftClearBtn">Quitar la colección</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       CONFIGURACIÓN DE LA SIEMBRA
+       Antes la dificultad no existía: el cliente mandaba siempre 100 % y el
+       servidor lo recortaba a 95 %. Ahora manda esto, y el cliente ni pinta.
+       ══════════════════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="section-head">
+      <h2>🌱 Siembra</h2>
+      <span class="dim" id="farmInfo"></span>
+    </div>
+
+    <div class="cfg-grid">
+      <label class="cfg-field">
+        <span>Probabilidad de éxito global (%)</span>
+        <input type="number" id="farmSuccess" min="1" max="100" step="1">
+        <small class="dim">Con 20 %, 8 de cada 10 cultivos se echan a perder al madurar.</small>
+      </label>
+
+      <label class="cfg-field">
+        <span>Multiplicador del tiempo de crecimiento</span>
+        <input type="number" id="farmGrowth" min="0.1" max="10" step="0.1">
+        <small class="dim">1 = normal · 2 = tarda el doble · 0.5 = la mitad.</small>
+      </label>
+
+      <label class="cfg-field">
+        <span>Multiplicador del coste de agua</span>
+        <input type="number" id="farmWater" min="0" max="10" step="0.1">
+      </label>
+
+      <label class="cfg-field">
+        <span>Multiplicador del coste de comida</span>
+        <input type="number" id="farmFood" min="0" max="10" step="0.1">
+      </label>
+
+      <label class="cfg-field cfg-check">
+        <input type="checkbox" id="farmDeath">
+        <span>Los cultivos pueden morir</span>
+        <small class="dim">Si se desactiva, todo madura bien pase lo que pase.</small>
+      </label>
+    </div>
+
+    <div class="section-head" style="margin-top:18px;">
+      <h3 style="margin:0;font-size:15px;">Dificultad por semilla</h3>
+      <span class="dim">Vacío = usa la probabilidad global</span>
+    </div>
+    <div class="cfg-grid" id="farmPerSeed"></div>
+
+    <div class="cfg-actions">
+      <button class="btn btn-primary" id="farmSaveBtn">Guardar siembra</button>
+      <button class="btn" id="farmReloadBtn">Recargar</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       LOS QUE MÁS HAN JUGADO
+       ══════════════════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="section-head">
+      <h2>⏱️ Los que más han jugado</h2>
+      <span class="dim" id="topInfo"></span>
+    </div>
+
+    <div class="cfg-grid">
+      <label class="cfg-field">
+        <span>¿Cuántos quieres ver?</span>
+        <input type="number" id="topN" min="1" max="500" step="1" value="20">
+        <small class="dim">De 1 a 500, ordenados de más tiempo a menos.</small>
+      </label>
+    </div>
+
+    <div class="cfg-actions">
+      <button class="btn btn-primary" id="topBtn">Ver clasificación</button>
+    </div>
+
+    <div class="table-wrap" style="margin-top:14px;">
+    <table class="tabla">
+      <thead>
+        <tr>
+          <th>#</th><th>Jugador</th><th>Tiempo jugado</th>
+          <th>Entradas</th><th>Última vez</th><th>Estado</th>
+        </tr>
+      </thead>
+      <tbody id="topBody">
+        <tr><td colspan="6" class="empty">Pon un número y pulsa «Ver clasificación».</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       LA ACTIVIDAD DE CADA JUGADOR (2026-10-11)
+       Para ver bots: tiempo jugado, wallet, nombre, primera y última partida,
+       tiempo pescando, minando y con la tienda abierta, quién le invitó y a
+       cuántos invitó. Lo cuenta el servidor (GET /api/admin/actividad).
+       ══════════════════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="section-head">
+      <h2>🕵️ Player activity (bot check)</h2>
+      <span class="dim" id="actInfo"></span>
+    </div>
+
+    <div class="cfg-grid">
+      <label class="cfg-field">
+        <span>Search</span>
+        <input type="text" id="actQ" placeholder="name, username, wallet or Discord" autocomplete="off">
+      </label>
+      <label class="cfg-field">
+        <span>Sort by</span>
+        <select id="actOrden">
+          <option value="tiempo">Time played</option>
+          <option value="ultima">Last played</option>
+          <option value="primera">First played</option>
+          <option value="pesca">Fishing time</option>
+          <option value="mina">Mining time</option>
+          <option value="tienda">Shop time</option>
+          <option value="salvaje">Wild lands time</option>
+          <option value="capturas">Fish caught</option>
+          <option value="monstruos">Monsters defeated</option>
+        </select>
+        <small class="dim">Shop time = inside the shop + with the shop panel open. Flags are hints, not proof.</small>
+      </label>
+    </div>
+
+    <div class="cfg-actions">
+      <button class="btn btn-primary" id="actBtn">Load</button>
+      <button class="btn" id="actPrev" aria-label="Previous page">◀</button>
+      <span class="dim" id="actPagina">Page 1</span>
+      <button class="btn" id="actNext" aria-label="Next page">▶</button>
+      <button class="btn" id="actCsv">Export CSV</button>
+    </div>
+
+    <div class="table-wrap" style="margin-top:12px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Player</th><th>Wallet</th><th>Discord</th><th>Time played</th>
+            <th>First played</th><th>Last played</th><th>Fishing</th><th>Mining</th>
+            <th>Shop</th><th>Wild lands</th><th>Invited by</th><th>Invites</th><th>Flags</th>
+          </tr>
+        </thead>
+        <tbody id="actBody">
+          <tr><td colspan="13" class="empty">Press «Load».</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       CONFIGURACIÓN DE LA TABLA DE CLASIFICACIÓN
+       ══════════════════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="section-head">
+      <h2>🏆 Tabla de clasificación</h2>
+      <span class="dim" id="lbInfo"></span>
+    </div>
+
+    <div class="cfg-grid">
+      <label class="cfg-field cfg-check">
+        <input type="checkbox" id="lbEnabled">
+        <span>Tabla activa</span>
+        <small class="dim">Desactivada, el juego muestra un aviso en vez del ranking.</small>
+      </label>
+
+      <label class="cfg-field">
+        <span>Jugadores en la tabla</span>
+        <input type="number" id="lbTopSize" min="3" max="100" step="1">
+      </label>
+
+      <label class="cfg-field">
+        <span>Batallas mínimas para aparecer</span>
+        <input type="number" id="lbMinBattles" min="0" max="1000" step="1">
+      </label>
+
+      <label class="cfg-field">
+        <span>Nombre de la temporada (opcional)</span>
+        <input type="text" id="lbSeasonLabel" maxlength="60" placeholder="ej. Temporada del Bosque">
+      </label>
+
+      <label class="cfg-field cfg-check">
+        <input type="checkbox" id="lbHideBanned">
+        <span>Ocultar cuentas baneadas</span>
+      </label>
+
+      <label class="cfg-field cfg-check">
+        <input type="checkbox" id="lbHideSuspended">
+        <span>Ocultar cuentas suspendidas</span>
+      </label>
+
+      <label class="cfg-field cfg-check">
+        <input type="checkbox" id="lbHideBots">
+        <span>Ocultar bots de entrenamiento</span>
+      </label>
+    </div>
+
+    <div class="cfg-actions">
+      <button class="btn btn-primary" id="lbSaveBtn">Guardar clasificación</button>
+      <button class="btn" id="lbReloadBtn">Recargar</button>
+    </div>
+  </section>
+</main>
+
+<div class="drawer-bg" id="drawerBg"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <div style="flex:1">
+      <h2 id="dName">—</h2>
+      <div class="mono dim" id="dAddr" style="font-size:12.5px"></div>
+    </div>
+    <button class="btn btn-sm" id="closeDrawer">Cerrar</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+  <div class="drawer-foot">
+    <button class="btn" id="revertBtn">Descartar</button>
+    <button class="btn btn-primary" id="saveBtn">Guardar cambios</button>
+  </div>
+</aside>
+
+<div id="toast"></div>
+
+<script src="./admin-impact.js?v=audit20261016.35c06104c64a"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ── Configuración ────────────────────────────────────────────────────────
+  var API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? 'http://127.0.0.1:8080'
+    : 'https://api.grasslandforest.com';
+  var APP_NAME = 'Grassland Forest';
+
+  function api(p) { return API_BASE.replace(/\/$/, '') + p; }
+  function $(id) { return document.getElementById(id); }
+  function esc(v) {
+    return String(v === null || v === undefined ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  }
+  function readCookie(name) {
+    var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + name.replace(/[.$?*|{}()[\]\\/+^]/g, '\\$&') + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+  function b64(s) { try { return btoa(unescape(encodeURIComponent(s))); } catch (e) { return btoa(String(s)); } }
+  function corto(a) { return a ? a.slice(0, 6) + '…' + a.slice(-4) : '—'; }
+  function fecha(v) {
+    if (!v) return '—';
+    var d = new Date(v);
+    return isNaN(d) ? '—' : d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  var state = { csrf: null, address: null, page: 1, q: '', actual: null, cambios: {}, adminVerified: false, connectionWarningShown: false };
+  var authEpoch = 0, authGeneration = 0, renewalWork = null, csrfWork = null, renewalTimer = null;
+  var renewalRetryAt = 0, renewalError = null;
+  var verificationTimer = null, verificationWork = null, verificationController = null;
+  var verificationGeneration = 0, verificationAttempts = 0, verificationPending = false, verificationRetryAt = 0;
+  var observedCsrfCookie = null;
+  function csrfActual() {
+    var cookie = readCookie('csrf-token');
+    // Another tab can rotate a shared cookie. Host-only API cookies may instead only be readable through the JSON response.
+    if (cookie && cookie !== observedCsrfCookie) { observedCsrfCookie = cookie; state.csrf = cookie; }
+    return state.csrf || cookie;
+  }
+  function guardarCsrf(value) {
+    observedCsrfCookie = readCookie('csrf-token');
+    state.csrf = value || observedCsrfCookie || null;
+    return state.csrf;
+  }
+
+  // ── Avisos ───────────────────────────────────────────────────────────────
+  var toastTimer = null;
+  function aviso(msg, tipo) {
+    var t = $('toast');
+    t.textContent = msg;
+    t.className = 'show' + (tipo ? ' ' + tipo : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.className = ''; }, 4200);
+  }
+
+  // ── Tema ─────────────────────────────────────────────────────────────────
+  $('themeBtn').addEventListener('click', function () {
+    var root = document.documentElement;
+    var actual = root.getAttribute('data-theme');
+    if (!actual) {
+      actual = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    root.setAttribute('data-theme', actual === 'dark' ? 'light' : 'dark');
+  });
+
+  // ── Peticiones ───────────────────────────────────────────────────────────
+  function solicitarApi(ruta, opciones) {
+    return fetch(api(ruta), opciones).catch(function (causa) {
+      if (causa && causa.name === 'AbortError') throw causa;
+      var e = new Error('No se pudo conectar con la API. Comprueba que el backend publicado esté activo y permita el acceso desde este dominio.');
+      e.code = 'api_unreachable';
+      throw e;
+    });
+  }
+
+  function apiError(r, d) {
+    var e = new Error(d.message || d.error || ('La API respondió HTTP ' + r.status));
+    e.status = r.status; e.code = d.error;
+    var retryAfter = r.headers && r.headers.get('Retry-After');
+    var retryMs = retryAfter && (/^\d+(\.\d+)?$/.test(retryAfter) ? Number(retryAfter) * 1000 : Date.parse(retryAfter) - Date.now());
+    e.retryAfterMs = Number.isFinite(retryMs) && retryMs > 0 ? retryMs : Number(d.retryAfterMs || (d.retryAfterSeconds || d.retryAfter) * 1000) || 10000;
+    e.diagnostic = d.diagnostic || { code: d.code, codeName: d.details && d.details.codeName, stage: d.stage, message: d.message };
+    return e;
+  }
+  function requestOptions(opciones) {
+    var result = Object.assign({}, opciones || {}, { credentials: 'include', mode: 'cors' });
+    var csrf = csrfActual();
+    result.headers = Object.assign(result.body != null ? { 'Content-Type': 'application/json' } : {}, result.headers || {});
+    Object.keys(result.headers).forEach(function (name) { if (name.toLowerCase() === 'x-csrf-token') delete result.headers[name]; });
+    if (csrf) result.headers['X-CSRF-Token'] = csrf;
+    return result;
+  }
+  function abortIfChanged(expectedEpoch, opciones) {
+    if (expectedEpoch !== authEpoch || (opciones && opciones.signal && opciones.signal.aborted)) {
+      var e = new Error('La solicitud pertenece a una sesión anterior.'); e.name = 'AbortError'; throw e;
+    }
+  }
+  function programarRenovacion(delay) {
+    clearTimeout(renewalTimer);
+    if (!state.adminVerified) return;
+    renewalTimer = setTimeout(function () {
+      renovarSesion().catch(function (e) {
+        if (state.adminVerified && e.name !== 'AbortError') {
+          aviso('La sesión no se pudo renovar por un fallo temporal; volveré a intentarlo.', 'warn');
+          programarRenovacion(30000);
+        }
+      });
+    }, delay || 240000);
+  }
+  function renovarSesion() {
+    if (renewalWork) return renewalWork;
+    if (renewalError && Date.now() < renewalRetryAt) return Promise.reject(renewalError);
+    var expectedEpoch = authEpoch;
+    renewalWork = solicitarApi('/api/auth/refresh', requestOptions({ method: 'POST', body: '{}' })).then(async function (r) {
+      var d = await r.json().catch(function () { return {}; });
+      abortIfChanged(expectedEpoch);
+      if (!r.ok) {
+        if (r.status === 401 || d.error === 'not_admin') cerrarAcceso();
+        throw apiError(r, d);
+      }
+      // Refresh rotates both credential cookies and the CSRF token. Never reuse the old header.
+      guardarCsrf(d.csrfToken);
+      renewalError = null; renewalRetryAt = 0;
+      authGeneration++;
+      programarRenovacion();
+    }).catch(function (e) {
+      if (e.status !== 401 && e.code !== 'not_admin' && e.name !== 'AbortError') {
+        renewalError = e; renewalRetryAt = Date.now() + 30000;
+      }
+      throw e;
+    }).finally(function () { renewalWork = null; });
+    return renewalWork;
+  }
+  function renovarCsrf() {
+    if (csrfWork) return csrfWork;
+    var expectedEpoch = authEpoch;
+    csrfWork = solicitarApi('/api/auth/csrf-token', requestOptions()).then(async function (r) {
+      var d = await r.json().catch(function () { return {}; });
+      abortIfChanged(expectedEpoch);
+      if (!r.ok) throw apiError(r, d);
+      guardarCsrf(d.csrfToken);
+      if (!state.csrf) throw new Error('La API no devolvió un token CSRF válido.');
+    }).finally(function () { csrfWork = null; });
+    return csrfWork;
+  }
+  async function pedirRespuesta(ruta, opciones) {
+    var expectedEpoch = authEpoch, generation = authGeneration;
+    var isAdmin = ruta.indexOf('/api/admin/') === 0, renewed = false, csrfRetried = false;
+    if (isAdmin && renewalWork) { await renewalWork; generation = authGeneration; }
+    while (true) {
+      abortIfChanged(expectedEpoch, opciones);
+      var r = await solicitarApi(ruta, requestOptions(opciones));
+      if (r.ok) return r;
+      var d = await r.json().catch(function () { return {}; });
+      abortIfChanged(expectedEpoch, opciones);
+      if (d.error === 'not_admin') { cerrarAcceso(); throw apiError(r, d); }
+      if (isAdmin && r.status === 401 && !renewed) {
+        renewed = true;
+        // Concurrent requests may finish with old 401s after another request already renewed.
+        if (authGeneration === generation) await renovarSesion();
+        continue;
+      }
+      if (isAdmin && r.status === 403 && d.error === 'csrf_token_invalid' && !csrfRetried) {
+        csrfRetried = true; await renovarCsrf(); continue;
+      }
+      if (isAdmin && r.status === 401) cerrarAcceso();
+      throw apiError(r, d);
+    }
+  }
+  function pedir(ruta, opciones) {
+    return pedirRespuesta(ruta, opciones).then(function (r) {
+      return r.json().catch(function () { return {}; });
+    });
+  }
+
+  var impact = window.AdminImpactPanel.create({
+    request: pedir, requestResponse: pedirRespuesta, api: api, notice: aviso,
+    onRefresh: function () { return cargarResumen(); },
+    csrf: csrfActual,
+    onUnauthorized: function () { cerrarAcceso(); }
+  });
+  function cerrarAcceso() {
+    authEpoch++; clearTimeout(renewalTimer);
+    cancelarVerificacion();
+    state.adminVerified = false;
+    impact.stop();
+    cerrarFicha();
+    $('gate').classList.remove('hidden');
+    $('panel').classList.add('hidden');
+    $('reloadBtn').classList.add('hidden');
+    $('walletChip').innerHTML = '<span class="dot off"></span><span>Vuelve a conectar</span>';
+  }
+
+  // ── Entrada con cartera admin ────────────────────────────────────────────
+  function getProvider() {
+    if (window.ethereum && window.ethereum.providers) {
+      var mm = window.ethereum.providers.find(function (p) { return p.isMetaMask; });
+      if (mm) return mm;
+    }
+    return window.ethereum || null;
+  }
+
+  async function getCsrf() {
+    var d = await pedir('/api/auth/csrf-token');
+    guardarCsrf(d.csrfToken);
+    if (!state.csrf) throw new Error('La API no devolvió un token CSRF válido. Comprueba el backend publicado antes de volver a conectar.');
+    return state.csrf;
+  }
+
+  // Un ciclo completo: pedir nonce → firmar → login. Devuelve la respuesta.
+  async function cicloDeEntrada(provider, cuenta) {
+    aviso('Pidiendo nonce…');
+    var nr = await solicitarApi('/api/auth/nonce?address=' + encodeURIComponent(cuenta.toLowerCase()),
+                         { credentials: 'include', mode: 'cors' });
+    if (!nr.ok) throw new Error('No se pudo obtener el nonce');
+    var nonce = (await nr.json()).nonce;
+
+    var token = nonce + ':' + Math.floor(Date.now() / 1000);
+    var mensaje = 'Signing in to ' + APP_NAME + ': ' + b64(token);
+
+    aviso('Firma el mensaje en tu cartera…');
+    var firma = await provider.request({ method: 'personal_sign', params: [mensaje, cuenta] });
+
+    var cabeceras = { 'Content-Type': 'application/json' };
+    var csrf = csrfActual();
+    if (csrf) cabeceras['X-CSRF-Token'] = csrf;
+
+    var lr = await solicitarApi('/api/auth/login', {
+      method: 'POST', credentials: 'include', mode: 'cors', headers: cabeceras,
+      body: JSON.stringify({ address: cuenta.toLowerCase(), signature: firma, token: token, message: mensaje })
+    });
+    var cuerpo = {}; try { cuerpo = await lr.json(); } catch (e) {}
+    return { ok: lr.ok, status: lr.status, cuerpo: cuerpo };
+  }
+
+  async function conectar() {
+    if (verificationPending) {
+      if (Date.now() < verificationRetryAt) return;
+      verificationAttempts = 0;
+      return comprobarAdmin();
+    }
+    var provider = getProvider();
+    if (!provider) { aviso('No se detectó MetaMask. Instálalo para continuar.', 'err'); return; }
+
+    cancelarVerificacion();
+    $('connectBtn').disabled = true;
+    try {
+      aviso('Conectando cartera…');
+      var cuentas = await provider.request({ method: 'eth_requestAccounts' });
+      var cuenta = cuentas && cuentas[0];
+      if (!cuenta) { aviso('No elegiste ninguna cuenta.', 'err'); return; }
+
+      await getCsrf();
+
+      var r = await cicloDeEntrada(provider, cuenta);
+
+      // El servidor GUARDA un solo nonce por dirección y lo BORRA al usarlo,
+      // pero lo reutiliza durante 10 minutos mientras no se gaste. Con esta
+      // página y misiones.html abiertas a la vez, las dos piden el mismo nonce
+      // y la que entra segunda se encuentra con que ya no existe
+      // ("nonce no encontrado"). Se repite el ciclo UNA vez: la segunda
+      // petición ya recibe un nonce nuevo.
+      var textoError = String((r.cuerpo && (r.cuerpo.message || r.cuerpo.error)) || '');
+      if (!r.ok && /nonce/i.test(textoError)) {
+        aviso('El nonce ya se había usado; pidiendo uno nuevo…', 'warn');
+        r = await cicloDeEntrada(provider, cuenta);
+      }
+
+      if (!r.ok) {
+        aviso('Entrada rechazada: ' + ((r.cuerpo && (r.cuerpo.message || r.cuerpo.error)) || r.status), 'err');
+        return;
+      }
+      if (r.cuerpo && r.cuerpo.csrfToken) guardarCsrf(r.cuerpo.csrfToken);
+
+      state.address = cuenta.toLowerCase();
+      renewalError = null; renewalRetryAt = 0;
+      await comprobarAdmin();
+    } catch (e) {
+      aviso('No se pudo entrar: ' + (e.message || e), 'err');
+    } finally {
+      $('connectBtn').disabled = verificationPending && Date.now() < verificationRetryAt;
+    }
+  }
+
+  function cancelarVerificacion() {
+    clearTimeout(verificationTimer); verificationTimer = null;
+    if (verificationController) verificationController.abort();
+    verificationController = null; verificationWork = null;
+    verificationGeneration++; verificationPending = false; verificationAttempts = 0; verificationRetryAt = 0;
+    $('adminAccessStatus').classList.add('hidden');
+    $('connectBtn').textContent = 'Conectar cartera';
+    $('connectBtn').disabled = false;
+  }
+  function accesoTemporal(e) {
+    return e.code === 'admin_verification_unavailable' || e.code === 'admin_rpc_unavailable' || e.status === 429 || e.status === 503;
+  }
+  function reintentarVerificacion(e) {
+    verificationPending = true;
+    var delay = Math.min(30000, Math.max(10000, e.retryAfterMs || 10000));
+    var autoRetry = verificationAttempts < 6;
+    verificationRetryAt = autoRetry ? Date.now() + delay : 0;
+    $('walletChip').innerHTML = '<span class="dot off"></span><span>Verificando acceso</span>';
+    $('connectBtn').textContent = autoRetry ? 'Verificando acceso…' : 'Reintentar verificación';
+    $('connectBtn').disabled = autoRetry;
+    $('adminAccessStatus').classList.remove('hidden');
+    $('adminAccessStatus').textContent = autoRetry
+      ? 'Tu sesión sigue activa. El RPC no pudo verificar el permiso de administrador; reintentaré en ' + Math.ceil(delay / 1000) + ' segundos. No necesitas volver a firmar.'
+      : 'El RPC todavía no permite verificar el acceso. Tu sesión sigue activa; pulsa Reintentar verificación para comprobarla sin volver a firmar.';
+    clearTimeout(verificationTimer);
+    if (autoRetry) verificationTimer = setTimeout(function () {
+      verificationTimer = null; comprobarAdmin().catch(function () {});
+    }, delay);
+  }
+
+  // La verificación reusa la sesión y tiene un solo vuelo; un fallo RPC nunca inicia otra firma.
+  // `silencioso` es el sondeo de arranque: no tener sesión ahí es normal.
+  function comprobarAdmin(silencioso) {
+    if (verificationWork) return verificationWork;
+    clearTimeout(verificationTimer); verificationTimer = null;
+    var expectedEpoch = authEpoch, generation = verificationGeneration;
+    var controller = new AbortController(); verificationController = controller;
+    var work = (async function () {
+      try {
+        verificationAttempts++;
+        var d = await pedir('/api/admin/whoami', { signal: controller.signal });
+        abortIfChanged(expectedEpoch, { signal: controller.signal });
+        if (generation !== verificationGeneration) return;
+        await getCsrf();
+        abortIfChanged(expectedEpoch, { signal: controller.signal });
+        if (generation !== verificationGeneration) return;
+        verificationPending = false; verificationAttempts = 0; verificationRetryAt = 0;
+        $('adminAccessStatus').classList.add('hidden');
+        $('connectBtn').textContent = 'Conectar cartera';
+        state.address = String(d.address || state.address || '').toLowerCase();
+        $('walletChip').innerHTML = '<span class="dot"></span><span>' + esc(corto(state.address)) + '</span>';
+        $('gate').classList.add('hidden');
+        $('panel').classList.remove('hidden');
+        $('reloadBtn').classList.remove('hidden');
+        state.adminVerified = true;
+        programarRenovacion();
+        impact.start();
+        await Promise.all([
+          cargarTablas(),
+          cargarColeccionNft(),
+          cargarJugadores(),
+          cargarConfigSiembra(),
+          cargarConfigClasificacion()
+        ]);
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        // Terminal auth errors already canceled verification through cerrarAcceso; retain their original notice.
+        if (generation !== verificationGeneration && e.code !== 'not_admin' && e.status !== 401) return;
+        if (accesoTemporal(e)) { reintentarVerificacion(e); return; }
+        verificationPending = false; verificationAttempts = 0; verificationRetryAt = 0;
+        $('adminAccessStatus').classList.add('hidden');
+        $('connectBtn').textContent = 'Conectar cartera';
+        if (silencioso) {
+          if (e.code === 'api_unreachable' && !state.connectionWarningShown) {
+            state.connectionWarningShown = true;
+            aviso(e.message, 'err');
+          }
+          return;
+        }
+        if (e.code === 'not_admin') {
+          aviso('Esa cartera no es administradora. Añádela a ADMIN_ADDRESSES o dale admin en el contrato.', 'err');
+        } else if (e.status === 401) {
+          aviso('Conecta la cartera de administrador para entrar.', 'warn');
+        } else {
+          aviso('No se pudo comprobar el acceso: ' + (e.message || e), 'err');
+        }
+      } finally {
+        if (generation === verificationGeneration) {
+          verificationController = null;
+          $('connectBtn').disabled = verificationPending && Date.now() < verificationRetryAt;
+        }
+      }
+    })();
+    verificationWork = work;
+    work.finally(function () { if (verificationWork === work) verificationWork = null; });
+    return work;
+  }
+
+  // ── Resumen ──────────────────────────────────────────────────────────────
+  async function cargarResumen() {
+    try {
+      var d = await pedir('/api/admin/overview');
+      var kpis = [
+        { label: 'Cuentas totales', value: d.totalCuentas, accent: true },
+        { label: 'Nuevas (24 h)',   value: d.nuevas24h },
+        { label: 'Nuevas (7 días)', value: d.nuevas7d },
+        { label: 'Activos (24 h)',  value: d.activos24h },
+        { label: 'Conectados ahora',value: d.conectados },
+        { label: 'Tiempo jugado total', value: d.tiempoTotal, texto: true }
+      ];
+      $('kpis').innerHTML = kpis.map(function (k) {
+        return '<div class="kpi"><span class="label">' + esc(k.label) + '</span>' +
+               '<div class="value' + (k.accent ? ' accent' : '') + '"' +
+               (k.texto ? ' style="font-size:19px"' : '') + '>' + esc(k.value) + '</div></div>';
+      }).join('');
+    } catch (e) {
+      $('kpis').innerHTML = '<div class="empty">No se pudo cargar el resumen: ' + esc(e.message) + '</div>';
+    }
+  }
+
+  // ── Tablas del contrato ──────────────────────────────────────────────────
+  function numero(v) {
+    var n = Number(v);
+    return isFinite(n) ? n.toLocaleString() : '—';
+  }
+
+  async function cargarTablas() {
+    var cuerpo = $('tablasBody');
+    cuerpo.innerHTML = '<tr><td colspan="8" class="empty">Cargando…</td></tr>';
+    try {
+      var d = await pedir('/api/admin/tablas');
+      var filas = (d && d.tablas) || [];
+      cuerpo.innerHTML = filas.map(function (t) {
+        var c = t.cadena;
+        var estado = !c ? '<span class="pill warn">sin leer</span>'
+          : (t.existe ? (t.creadaAhora ? '<span class="pill">creada ahora</span>' : '<span class="pill">creada</span>')
+                      : '<span class="pill warn">no se pudo crear · ' + esc(t.motivo || 'se reintenta sola') + '</span>');
+        var limite = c && t.existe ? numero(c.limit) : '<span class="dim">' + numero(t.limit) + ' (recom.)</span>';
+        var porFactura = c && t.existe ? numero(c.perInvoiceLimit) : '<span class="dim">' + numero(t.perInvoiceLimit) + ' (recom.)</span>';
+        var avisos = (t.avisos || []).map(function (a) { return '<span class="pill warn">' + esc(a) + '</span>'; }).join(' ');
+        return '<tr>' +
+          '<td class="mono">' + esc(t.tipo) + '</td>' +
+          '<td style="white-space:normal;min-width:220px">' + esc(t.para || '') + '</td>' +
+          '<td>' + estado + '</td>' +
+          '<td class="num">' + limite + '</td>' +
+          '<td class="num">' + porFactura + '</td>' +
+          '<td class="num">' + (c && t.existe ? numero(c.totalQuantity) : '—') + '</td>' +
+          '<td class="num">' + (c && t.existe ? numero(c.invoiceCount) : '—') + '</td>' +
+          '<td style="white-space:normal">' + (avisos || '<span class="dim">—</span>') + '</td>' +
+        '</tr>';
+      }).join('') || '<tr><td colspan="8" class="empty">El servidor no devolvió ninguna tabla.</td></tr>';
+      var faltan = filas.filter(function (t) { return t.cadena && !t.existe; }).length;
+      $('tablasInfo').textContent = 'Contrato ' + corto(d.contrato || '') + ' · v' + (d.version || '?') +
+        (d.casillasEnCadena ? ' · guarda las casillas del inventario' : ' · sin casillas (v2)') +
+        (faltan ? ' · ' + faltan + ' sin crear (se reintenta sola cada pocos minutos)' : '') +
+        (d.relayerEsAdmin === false ? ' · ⚠️ EL RELAYER NO ES ADMIN DEL CONTRATO: el dueño tiene que llamar addAdmin(relayer)' : '');
+    } catch (e) {
+      cuerpo.innerHTML = '<tr><td colspan="8" class="empty">No se pudo leer: ' + esc(e.message) + '</td></tr>';
+      $('tablasInfo').textContent = '';
+    }
+  }
+
+  // ── Lista de jugadores ───────────────────────────────────────────────────
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     LOS QUE MÁS HAN JUGADO
+
+     El número lo pone el administrador y el servidor devuelve esa cantidad,
+     ordenada de más tiempo a menos (GET /api/admin/top-jugadores?n=N).
+
+     OJO CON LO QUE MIDE: el tiempo se empezó a contar cuando se añadió el
+     campo `tiempoJugadoMs`, así que las partidas anteriores NO están. No hay
+     forma de reconstruirlas: antes no se guardaba en ninguna parte.
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  /** Milisegundos a algo que se lea: "3 d 04 h", "2 h 15 min", "48 min". */
+  function tiempoLargo(ms) {
+    var seg = Math.floor((ms || 0) / 1000);
+    var dias = Math.floor(seg / 86400);
+    var horas = Math.floor((seg % 86400) / 3600);
+    var mins = Math.floor((seg % 3600) / 60);
+    if (dias) return dias + ' d ' + (horas < 10 ? '0' : '') + horas + ' h';
+    if (horas) return horas + ' h ' + (mins < 10 ? '0' : '') + mins + ' min';
+    if (mins) return mins + ' min';
+    return seg + ' s';
+  }
+
+  async function cargarTopJugadores() {
+    var campo = $('topN');
+    var n = Math.min(500, Math.max(1, parseInt(campo && campo.value, 10) || 20));
+    if (campo) campo.value = n;
+
+    var cuerpo = $('topBody');
+    cuerpo.innerHTML = '<tr><td colspan="6" class="empty">Cargando\u2026</td></tr>';
+    try {
+      var d = await pedir('/api/admin/top-jugadores?n=' + n);
+      var lista = (d && d.jugadores) || [];
+      if (!lista.length) {
+        cuerpo.innerHTML = '<tr><td colspan="6" class="empty">' +
+          'Todav\u00eda no hay tiempo registrado de nadie.</td></tr>';
+        $('topInfo').textContent = '';
+        return;
+      }
+      cuerpo.innerHTML = lista.map(function (j) {
+        var cuando = j.lastLogin ? new Date(j.lastLogin).toLocaleString() : '\u2014';
+        return '<tr>' +
+          '<td>' + j.puesto + '</td>' +
+          '<td>' + esc(j.playerName || '\u2014') + '</td>' +
+          '<td>' + esc(tiempoLargo(j.ms)) + '</td>' +
+          '<td>' + (j.loginCount || 0) + '</td>' +
+          '<td>' + esc(cuando) + '</td>' +
+          '<td>' + (j.conectado ? 'jugando ahora' : '\u2014') + '</td>' +
+          '</tr>';
+      }).join('');
+      $('topInfo').textContent = lista.length + ' de los ' + n + ' pedidos';
+    } catch (e) {
+      cuerpo.innerHTML = '<tr><td colspan="6" class="empty">No se pudo cargar: ' +
+        esc(e.message) + '</td></tr>';
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     LA ACTIVIDAD DE CADA JUGADOR (2026-10-11)
+
+     GET /api/admin/actividad?page=N&q=texto&orden=campo — 50 por página. Las
+     "pistas" las calcula el servidor (muchas horas al día, casi todo el tiempo
+     pescando o minando, capturas demasiado rápidas, misma IP que su
+     invitador). Todo lo que viene de jugadores se escapa con esc().
+     ══════════════════════════════════════════════════════════════════════════ */
+  var act = { page: 1, filas: [], total: 0, porPagina: 50 };
+
+  async function cargarActividad() {
+    var cuerpo = $('actBody');
+    cuerpo.innerHTML = '<tr><td colspan="13" class="empty">Loading\u2026</td></tr>';
+    try {
+      var d = await pedir('/api/admin/actividad?page=' + act.page +
+        '&orden=' + encodeURIComponent($('actOrden').value) +
+        '&q=' + encodeURIComponent(($('actQ').value || '').trim()));
+      act.filas = (d && d.jugadores) || [];
+      act.total = d.total || 0;
+      act.porPagina = d.porPagina || 50;
+      var paginas = Math.max(1, Math.ceil(act.total / act.porPagina));
+      $('actPagina').textContent = 'Page ' + act.page + ' / ' + paginas;
+      $('actInfo').textContent = act.total + ' players';
+      if (!act.filas.length) {
+        cuerpo.innerHTML = '<tr><td colspan="13" class="empty">No players match.</td></tr>';
+        return;
+      }
+      cuerpo.innerHTML = act.filas.map(function (j) {
+        var nombre = j.username && j.username !== '---' ? j.username : j.playerName;
+        var pistas = (j.pistas || []).map(function (p) { return '<span class="pill warn">' + esc(p) + '</span>'; }).join('');
+        return '<tr>' +
+          '<td><div class="name-cell"><span class="primary">' + esc(nombre) + (j.conectado ? ' \u{1F7E2}' : '') + '</span>' +
+            '<span class="secondary">' + esc(j.playerName) + ' \u00b7 Lv. ' + esc(j.nivel) + '</span></div></td>' +
+          '<td class="addr" title="' + esc(j.wallet) + '">' + esc(corto(j.wallet)) + '</td>' +
+          '<td>' + esc(j.discord || '\u2014') + '</td>' +
+          '<td class="num">' + esc(tiempoLargo(j.tiempoJugadoMs)) + '</td>' +
+          '<td>' + esc(fecha(j.primeraPartida)) + '</td>' +
+          '<td>' + esc(fecha(j.ultimaPartida)) + '</td>' +
+          '<td class="num">' + esc(tiempoLargo(j.tiempoPescaMs)) + ' \u00b7 ' + esc(j.capturas) + ' fish</td>' +
+          '<td class="num">' + esc(tiempoLargo(j.tiempoMinaMs)) + '</td>' +
+          '<td class="num">' + esc(tiempoLargo(j.tiempoTiendaMs)) + '</td>' +
+          '<td class="num">' + esc(tiempoLargo(j.tiempoSalvajeMs)) + ' \u00b7 ' + esc(j.monstruos) + ' mobs</td>' +
+          '<td>' + esc(j.invitadoPor || '\u2014') + '</td>' +
+          '<td class="num">' + esc(j.invitados) + '</td>' +
+          '<td><div class="act-pistas">' + (pistas || '\u2014') + '</div></td>' +
+          '</tr>';
+      }).join('');
+    } catch (e) {
+      cuerpo.innerHTML = '<tr><td colspan="13" class="empty">Could not load: ' + esc(e.message) + '</td></tr>';
+    }
+  }
+
+  /** La página que se ve, en CSV (se genera aquí: no sale nada del navegador). */
+  function csvActividad() {
+    if (!act.filas.length) { aviso('Load the table first.', 'warn'); return; }
+    var cab = ['playerName', 'username', 'wallet', 'discord', 'nivel', 'tiempoJugadoMin', 'primeraPartida', 'ultimaPartida',
+               'pescaMin', 'capturas', 'minaMin', 'tiendaMin', 'salvajeMin', 'monstruos', 'invitadoPor', 'invitados', 'pistas'];
+    var min = function (ms) { return Math.round((ms || 0) / 60000); };
+    var celda = function (v) { v = String(v === null || v === undefined ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var lineas = [cab.join(',')].concat(act.filas.map(function (j) {
+      return [j.playerName, j.username, j.wallet, j.discord, j.nivel, min(j.tiempoJugadoMs), j.primeraPartida || '', j.ultimaPartida || '',
+              min(j.tiempoPescaMs), j.capturas, min(j.tiempoMinaMs), min(j.tiempoTiendaMs), min(j.tiempoSalvajeMs), j.monstruos,
+              j.invitadoPor, j.invitados, (j.pistas || []).join(' | ')].map(celda).join(',');
+    }));
+    var blob = new Blob([lineas.join('\n')], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'player-activity-page' + act.page + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+
+  (function engancharActividad() {
+    $('actBtn').onclick = function () { act.page = 1; cargarActividad(); };
+    $('actPrev').onclick = function () { if (act.page > 1) { act.page--; cargarActividad(); } };
+    $('actNext').onclick = function () {
+      if (act.page * act.porPagina < act.total) { act.page++; cargarActividad(); }
+    };
+    $('actCsv').onclick = csvActividad;
+    $('actOrden').onchange = function () { act.page = 1; cargarActividad(); };
+    $('actQ').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); act.page = 1; cargarActividad(); }
+    });
+  })();
+
+  (function engancharTop() {
+    var b = $('topBtn');
+    if (b) b.onclick = cargarTopJugadores;
+    var campo = $('topN');
+    // Enter en el campo hace lo mismo que el bot\u00f3n.
+    if (campo) campo.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); cargarTopJugadores(); }
+    });
+  })();
+
+  async function cargarJugadores() {
+    var tbody = $('rows');
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">Cargando…</td></tr>';
+    try {
+      var d = await pedir('/api/admin/players?page=' + state.page +
+                          '&limit=25&q=' + encodeURIComponent(state.q));
+      if (!d.players.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty">' +
+          (state.q ? 'Ningún jugador coincide con «' + esc(state.q) + '».' : 'Todavía no hay jugadores.') +
+          '</td></tr>';
+      } else {
+        tbody.innerHTML = d.players.map(function (p) {
+          return '<tr data-player="' + esc(p.playerName) + '">' +
+            '<td><div class="name-cell">' +
+              '<span class="primary">' + esc(p.username && p.username !== '---' ? p.username : p.playerName) + '</span>' +
+              '<span class="secondary">🐶 ' + esc(p.petName) + ' · Lv.' + esc(p.petLevel) + '</span>' +
+            '</div></td>' +
+            '<td class="addr">' + esc(corto(p.address)) + '</td>' +
+            '<td class="num">' + esc(p.nivel) + '</td>' +
+            '<td class="num">' + esc(p.oro) + '</td>' +
+            '<td class="num">' + esc(p.plata) + '</td>' +
+            '<td class="mono dim" style="font-size:13px">' + esc(p.antiguedad) + '</td>' +
+            '<td class="mono" style="font-size:13px">' +
+              (p.jugadoSegundos > 0 ? esc(p.jugado) : '<span class="pill mute">sin datos</span>') + '</td>' +
+            '<td class="mono dim" style="font-size:12.5px">' + esc(fecha(p.ultimaVez)) + '</td>' +
+          '</tr>';
+        }).join('');
+        Array.prototype.forEach.call(tbody.querySelectorAll('tr[data-player]'), function (tr) {
+          tr.addEventListener('click', function () { abrirFicha(tr.getAttribute('data-player')); });
+        });
+      }
+      $('resultInfo').textContent = state.q
+        ? d.total + ' de ' + d.totalGlobal + ' cuentas coinciden'
+        : d.totalGlobal + ' cuentas en total';
+      $('pageInfo').textContent = 'Página ' + d.page + ' de ' + Math.max(1, d.pages);
+      $('prevBtn').disabled = d.page <= 1;
+      $('nextBtn').disabled = d.page >= d.pages;
+    } catch (e) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">Error: ' + esc(e.message) + '</td></tr>';
+    }
+  }
+
+  // ── Ficha del jugador ────────────────────────────────────────────────────
+  var CAMPOS_SEGUROS = [
+    ['Username', 'Nombre'], ['petName', 'Mascota'], ['nivel', 'Nivel'], ['nivel_exp', 'Exp'],
+    ['petLevel', 'Nivel mascota'], ['mundo', 'Mundo'], ['lenguaje', 'Idioma'], ['tutorial', 'Tutorial'],
+    ['posicionplayerx', 'Pos X'], ['posicionplayery', 'Pos Y'], ['speed', 'Velocidad'], ['misiones', 'Misiones'],
+    ['mineria', 'Minería'], ['mineria_exp', 'Minería exp'], ['pesca', 'Pesca'], ['pesca_exp', 'Pesca exp'],
+    ['cocina', 'Cocina'], ['cocina_exp', 'Cocina exp'], ['deforestacion', 'Tala'], ['deforestacion_exp', 'Tala exp'],
+    ['fuerza', 'Fuerza'], ['fuerza_exp', 'Fuerza exp'], ['agricultura', 'Agricultura'], ['agricultura_exp', 'Agricultura exp']
+  ];
+  var CAMPOS_ONCHAIN = [
+    ['vida', 'Vida %'], ['agua', 'Agua %'], ['comida', 'Comida %'],
+    ['oro', 'Oro'], ['plata', 'Plata'], ['exp', 'Exp on-chain']
+  ];
+
+  async function abrirFicha(playerName) {
+    state.cambios = {};
+    $('drawer').classList.add('open');
+    $('drawerBg').classList.add('open');
+    $('drawer').setAttribute('aria-hidden', 'false');
+    $('drawerBody').innerHTML = '<div class="empty">Cargando ficha…</div>';
+    try {
+      var d = await pedir('/api/admin/players/' + encodeURIComponent(playerName));
+      state.actual = d;
+      pintarFicha(d);
+    } catch (e) {
+      $('drawerBody').innerHTML = '<div class="empty">No se pudo abrir: ' + esc(e.message) + '</div>';
+    }
+  }
+
+  function pintarFicha(d) {
+    var p = d.player, r = d.resumen, s = d.stats || {};
+    $('dName').textContent = (p.Username && p.Username !== '---') ? p.Username : p.playerName;
+    $('dAddr').textContent = p.address || 'sin cartera';
+
+    function campo(clave, etiqueta, valor, grupo) {
+      return '<div class="field" data-campo="' + esc(clave) + '"><label>' + esc(etiqueta) + '</label>' +
+             '<input data-k="' + esc(clave) + '" data-grupo="' + grupo + '" value="' + esc(valor) + '"></div>';
+    }
+
+    var html = '';
+
+    html += '<h3>Cuenta</h3><div class="facts">' +
+      '<div class="fact"><div class="k">Alta</div><div class="v">' + esc(fecha(r.creadoEn)) + '</div></div>' +
+      '<div class="fact"><div class="k">Antigüedad</div><div class="v">' + esc(r.antiguedad) + '</div></div>' +
+      '<div class="fact"><div class="k">Tiempo jugado</div><div class="v">' +
+        (r.jugadoSegundos > 0 ? esc(r.jugado) : '<span class="pill mute">sin datos</span>') + '</div></div>' +
+      '<div class="fact"><div class="k">Sesiones</div><div class="v">' + esc(r.sesiones) + '</div></div>' +
+      '<div class="fact"><div class="k">Inicios de sesión</div><div class="v">' + esc(r.loginCount) + '</div></div>' +
+      '<div class="fact"><div class="k">Última vez</div><div class="v" style="font-size:13px">' + esc(fecha(r.ultimaVez)) + '</div></div>' +
+      '<div class="fact"><div class="k">Inventario</div><div class="v">' + esc(d.inventarioCount) + '</div></div>' +
+      '<div class="fact"><div class="k">Cofre</div><div class="v">' + esc(d.cofreCount) + '</div></div>' +
+      '</div>';
+
+    if (!r.jugadoSegundos) {
+      html += '<div class="note" style="margin-top:14px">El tiempo jugado se empezó a medir con esta versión. ' +
+              'Las partidas anteriores no quedaron registradas y no se pueden recuperar.</div>';
+    }
+
+    html += '<h3>Datos del personaje</h3><div class="field-grid">';
+    CAMPOS_SEGUROS.forEach(function (c) { html += campo(c[0], c[1], p[c[0]] !== undefined ? p[c[0]] : '', 'seguro'); });
+    html += '</div>';
+
+    html += '<h3>Facturas del contrato <span class="pill warn">on-chain</span></h3>';
+    html += '<div class="note">Estos valores son facturas del contrato. Al guardarlos se envía una ' +
+            'transacción real a la blockchain: la factura se mueve de verdad, no solo la base de datos.</div>';
+    if (!d.stats) {
+      html += '<div class="note danger">Este jugador todavía no tiene facturas. Tiene que entrar al juego una ' +
+              'vez para que se creen antes de poder editarlas.</div>';
+    } else {
+      html += '<div class="field-grid">';
+      CAMPOS_ONCHAIN.forEach(function (c) { html += campo(c[0], c[1], s[c[0]] !== undefined ? s[c[0]] : 0, 'onchain'); });
+      html += '</div>';
+    }
+
+    // Lo que hay en la cadena (tablas nivel, nombre, parcelas y cons_parcelas).
+    // Se rellena aparte: leer el contrato tarda y la ficha no tiene que esperar.
+    html += '<h3>En la cadena <span class="pill">nivel · nombre · parcelas</span></h3>' +
+      '<div id="cadenaJugador"><div class="dim">Leyendo el contrato…</div></div>' +
+      '<div class="cfg-actions" style="margin-top:10px"><button class="btn btn-sm" id="cadenaSyncBtn">' +
+      'Escribir en la cadena ahora</button></div>';
+
+    html += '<div class="danger-zone"><h3>Eliminar la cuenta</h3>' +
+      '<p style="margin:0 0 4px;font-size:13.5px">Borra al jugador de la base de datos: personaje, inventario, ' +
+      'estadísticas, habilidades, misiones y acceso. <strong>No se puede deshacer.</strong></p>' +
+      '<p class="dim" style="margin:0;font-size:12.5px">Las facturas del contrato NO se borran: siguen en la ' +
+      'blockchain a nombre de esa dirección.</p>' +
+      '<input id="confirmDelete" placeholder="Escribe «' + esc(p.playerName) + '» para confirmar" autocomplete="off">' +
+      '<button class="btn btn-danger" id="deleteBtn" disabled>Eliminar definitivamente</button></div>';
+
+    $('drawerBody').innerHTML = html;
+
+    Array.prototype.forEach.call($('drawerBody').querySelectorAll('input[data-k]'), function (inp) {
+      var original = inp.value;
+      inp.addEventListener('input', function () {
+        var cambiado = inp.value !== original;
+        inp.closest('.field').classList.toggle('changed', cambiado);
+        if (cambiado) state.cambios[inp.getAttribute('data-k')] = inp.value;
+        else delete state.cambios[inp.getAttribute('data-k')];
+      });
+    });
+
+    var conf = $('confirmDelete'), del = $('deleteBtn');
+    conf.addEventListener('input', function () { del.disabled = conf.value !== p.playerName; });
+    del.addEventListener('click', function () { eliminar(p.playerName, conf.value); });
+
+    $('cadenaSyncBtn').addEventListener('click', function () { forzarCadena(p.playerName); });
+    cargarCadenaJugador(p.playerName);
+  }
+
+  async function cargarCadenaJugador(playerName) {
+    var caja = $('cadenaJugador');
+    if (!caja) return;
+    try {
+      var d = await pedir('/api/admin/players/' + encodeURIComponent(playerName) + '/cadena');
+      // La ficha pudo cerrarse o cambiar de jugador mientras se leía.
+      if (!state.actual || state.actual.player.playerName !== playerName || !$('cadenaJugador')) return;
+      var c = d.cadena || {};
+      function dato(x) { return x ? esc(x.valor) + ' <span class="dim">#' + esc(x.factura) + '</span>' : '<span class="pill mute">no está</span>'; }
+      var m = d.mascota || {};
+      $('cadenaJugador').innerHTML = '<div class="facts">' +
+        '<div class="fact"><div class="k">Nivel personaje</div><div class="v">' + dato(c.nivelPj) +
+          '<div class="dim" style="font-size:12px">en el juego: ' + esc(d.nivelPj) + '</div></div></div>' +
+        '<div class="fact"><div class="k">Nivel mascota</div><div class="v">' + dato(c.nivelPet) +
+          '<div class="dim" style="font-size:12px">en el juego: ' + esc(m.petLevel) + ' · ' + esc(m.petExp) + ' exp</div></div></div>' +
+        '<div class="fact"><div class="k">Nombre personaje</div><div class="v" style="font-size:13px">' + dato(c.nombrePj) + '</div></div>' +
+        '<div class="fact"><div class="k">Nombre mascota</div><div class="v" style="font-size:13px">' + dato(c.nombrePet) + '</div></div>' +
+        '<div class="fact"><div class="k">Parcelas (inventario)</div><div class="v">' + esc(c.parcelasEnInventario || 0) + '</div></div>' +
+        '<div class="fact"><div class="k">Parcelas colocadas</div><div class="v">' + esc(c.parcelasColocadas || 0) +
+          '<div class="dim" style="font-size:12px">en la base de datos: ' + esc(d.construcciones) + '</div></div></div>' +
+        '</div>';
+    } catch (e) {
+      if ($('cadenaJugador')) {
+        $('cadenaJugador').innerHTML = '<div class="note">No se pudo leer el contrato: ' + esc(e.message) + '</div>';
+      }
+    }
+  }
+
+  async function forzarCadena(playerName) {
+    var b = $('cadenaSyncBtn');
+    if (!confirm('Se enviarán a la blockchain las transacciones que falten (nivel, nombre y casillas del inventario) para «' +
+                 playerName + '».\n\n¿Continuar?')) return;
+    if (b) b.disabled = true;
+    try {
+      var d = await pedir('/api/admin/players/' + encodeURIComponent(playerName) + '/cadena', { method: 'POST', body: '{}' });
+      var id = d.identidad || {};
+      aviso(id.ok ? 'Cadena al día.' : 'Hecho a medias: ' + (id.motivo || 'revisa el registro del servidor'), id.ok ? '' : 'warn');
+      await cargarCadenaJugador(playerName);
+    } catch (e) {
+      aviso('No se pudo escribir en la cadena: ' + e.message, 'err');
+    } finally {
+      if ($('cadenaSyncBtn')) $('cadenaSyncBtn').disabled = false;
+    }
+  }
+
+  async function guardar() {
+    if (!state.actual) return;
+    var claves = Object.keys(state.cambios);
+    if (!claves.length) { aviso('No hay nada que guardar.', 'warn'); return; }
+
+    var tocaOnchain = claves.some(function (k) {
+      return CAMPOS_ONCHAIN.some(function (c) { return c[0] === k; });
+    });
+    if (tocaOnchain && !confirm('Algunos campos son facturas del contrato. Guardar enviará transacciones reales a la blockchain.\n\n¿Continuar?')) return;
+
+    $('saveBtn').disabled = true;
+    try {
+      var d = await pedir('/api/admin/players/' + encodeURIComponent(state.actual.player.playerName), {
+        method: 'PATCH',
+        body: JSON.stringify({ cambios: state.cambios })
+      });
+      if (d.errores && d.errores.length) {
+        aviso('Guardado parcial. Fallaron: ' + d.errores.map(function (x) { return x.campo; }).join(', '), 'warn');
+      } else {
+        aviso('Guardado: ' + d.aplicados.map(function (a) { return a.campo; }).join(', '));
+      }
+      await abrirFicha(state.actual.player.playerName);
+      cargarJugadores();
+    } catch (e) {
+      aviso('No se pudo guardar: ' + e.message, 'err');
+    } finally {
+      $('saveBtn').disabled = false;
+    }
+  }
+
+  async function eliminar(playerName, confirmar) {
+    if (!confirm('Vas a ELIMINAR la cuenta «' + playerName + '». Esto no se puede deshacer.\n\n¿Seguro?')) return;
+    try {
+      var d = await pedir('/api/admin/players/' + encodeURIComponent(playerName), {
+        method: 'DELETE',
+        body: JSON.stringify({ confirmar: confirmar })
+      });
+      aviso('Cuenta «' + playerName + '» eliminada.');
+      cerrarFicha();
+      cargarJugadores();
+      cargarResumen();
+    } catch (e) {
+      aviso('No se pudo eliminar: ' + e.message, 'err');
+    }
+  }
+
+  function cerrarFicha() {
+    $('drawer').classList.remove('open');
+    $('drawerBg').classList.remove('open');
+    $('drawer').setAttribute('aria-hidden', 'true');
+    state.actual = null; state.cambios = {};
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // CONFIGURACIÓN DE LA SIEMBRA
+  // -----------------------------------------------------------------------
+  // Hasta ahora la dificultad de la siembra no se podía tocar: el cliente
+  // mandaba siempre 100 % y el servidor lo recortaba a 95 %. Con esto la
+  // decide el backend (FarmingConfig) y se edita desde aquí.
+  // ═══════════════════════════════════════════════════════════════════════
+  var semillasConocidas = [];
+
+  // Nombres legibles de las semillas del juego (el backend devuelve los ids).
+  var NOMBRE_SEMILLA = {
+    Semillax:  'Zanahoria',
+    Semillax1: 'Tomate',
+    Semillax4: 'Strawberry Seed',
+    Semillax2: 'Trigo',
+    Semillax3: 'Calabaza'
+  };
+
+  async function cargarConfigSiembra() {
+    try {
+      var d = await pedir('/api/admin/farming-config');
+      var c = d.config || {};
+      semillasConocidas = d.seeds || [];
+
+      $('farmSuccess').value = c.successChance != null ? c.successChance : 95;
+      $('farmGrowth').value  = c.growthMultiplier != null ? c.growthMultiplier : 1;
+      $('farmWater').value   = c.waterCostMultiplier != null ? c.waterCostMultiplier : 1;
+      $('farmFood').value    = c.foodCostMultiplier != null ? c.foodCostMultiplier : 1;
+      $('farmDeath').checked = c.deathEnabled !== false;
+
+      var perSeed = c.perSeed || {};
+      $('farmPerSeed').innerHTML = semillasConocidas.map(function (id) {
+        var etiqueta = NOMBRE_SEMILLA[id] ? (NOMBRE_SEMILLA[id] + ' (' + id + ')') : id;
+        var valor = perSeed[id] != null ? perSeed[id] : '';
+        return '<label class="cfg-field">' +
+                 '<span>' + esc(etiqueta) + '</span>' +
+                 '<input type="number" min="1" max="100" step="1" data-seed="' + esc(id) + '" ' +
+                        'value="' + esc(valor) + '" placeholder="global">' +
+               '</label>';
+      }).join('') || '<div class="empty">El servidor no informó de ninguna semilla.</div>';
+
+      $('farmInfo').textContent = c.updatedAt
+        ? 'Última edición: ' + fecha(c.updatedAt) + (c.updatedBy ? ' · ' + corto(c.updatedBy) : '')
+        : 'Valores por defecto';
+    } catch (e) {
+      $('farmInfo').textContent = 'No se pudo cargar: ' + (e.message || e);
+    }
+  }
+
+  async function guardarConfigSiembra() {
+    var perSeed = {};
+    Array.prototype.forEach.call($('farmPerSeed').querySelectorAll('input[data-seed]'), function (inp) {
+      var v = inp.value.trim();
+      if (v !== '') perSeed[inp.getAttribute('data-seed')] = Number(v);
+    });
+
+    $('farmSaveBtn').disabled = true;
+    try {
+      await pedir('/api/admin/farming-config', {
+        method: 'PUT',
+        body: JSON.stringify({
+          successChance: Number($('farmSuccess').value),
+          growthMultiplier: Number($('farmGrowth').value),
+          waterCostMultiplier: Number($('farmWater').value),
+          foodCostMultiplier: Number($('farmFood').value),
+          deathEnabled: $('farmDeath').checked,
+          perSeed: perSeed
+        })
+      });
+      aviso('Configuración de siembra guardada', 'ok');
+      await cargarConfigSiembra();
+    } catch (e) {
+      aviso('No se pudo guardar: ' + (e.message || e), 'err');
+    } finally {
+      $('farmSaveBtn').disabled = false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // LA COLECCIÓN NFT DEL PANEL "MY NFTs"
+  // ═══════════════════════════════════════════════════════════════════════
+  var chainIdJuego = null;
+
+  async function cargarColeccionNft() {
+    try {
+      var d = await pedir('/api/admin/nft-coleccion');
+      var c = d.config || {};
+      chainIdJuego = d.chainIdJuego || null;
+      $('nftNombre').value = c.nombre || '';
+      $('nftContrato').value = c.contrato || '';
+      $('nftChain').value = c.chainId || d.chainIdJuego || '';
+      $('nftRpc').value = c.rpc || '';
+      var info;
+      if (!c.contrato) info = 'Sin colección: el panel My NFTs dice que no hay ninguna.';
+      else if (d.errorCadena) info = 'El contrato no contesta: ' + d.errorCadena;
+      else info = 'En la cadena se llama «' + (d.nombreEnCadena || '?') + '»' +
+                  (c.updatedAt ? ' · última edición ' + fecha(c.updatedAt) : '');
+      $('nftInfo').textContent = info;
+    } catch (e) {
+      $('nftInfo').textContent = 'No se pudo cargar: ' + (e.message || e);
+    }
+  }
+
+  async function guardarColeccionNft(vaciar) {
+    var cuerpo = vaciar ? { nombre: '', contrato: '', chainId: chainIdJuego, rpc: '' } : {
+      nombre: $('nftNombre').value.trim(),
+      contrato: $('nftContrato').value.trim(),
+      chainId: Number($('nftChain').value) || chainIdJuego,
+      rpc: $('nftRpc').value.trim()
+    };
+    if (vaciar && !confirm('El panel My NFTs dejará de enseñar la colección. ¿Seguro?')) return;
+    $('nftSaveBtn').disabled = true;
+    $('nftClearBtn').disabled = true;
+    try {
+      var d = await pedir('/api/admin/nft-coleccion', { method: 'PUT', body: JSON.stringify(cuerpo) });
+      aviso(vaciar ? 'Colección quitada.' : (d.aviso ? 'Guardada. Ojo: ' + d.aviso : 'Colección guardada.'), d.aviso ? 'warn' : '');
+      await cargarColeccionNft();
+    } catch (e) {
+      aviso('No se pudo guardar: ' + (e.message || e), 'err');
+    } finally {
+      $('nftSaveBtn').disabled = false;
+      $('nftClearBtn').disabled = false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // CONFIGURACIÓN DE LA TABLA DE CLASIFICACIÓN
+  // ═══════════════════════════════════════════════════════════════════════
+  async function cargarConfigClasificacion() {
+    try {
+      var d = await pedir('/api/admin/leaderboard-config');
+      var c = d.config || {};
+      $('lbEnabled').checked       = c.enabled !== false;
+      $('lbTopSize').value         = c.topSize != null ? c.topSize : 20;
+      $('lbMinBattles').value      = c.minBattles != null ? c.minBattles : 0;
+      $('lbSeasonLabel').value     = c.seasonLabel || '';
+      $('lbHideBanned').checked    = c.hideBanned !== false;
+      $('lbHideSuspended').checked = c.hideSuspended !== false;
+      $('lbHideBots').checked      = c.hideBots !== false;
+
+      $('lbInfo').textContent = (d.excludedCount || 0) + ' cuenta(s) excluida(s) ahora mismo' +
+        (c.updatedAt ? ' · última edición ' + fecha(c.updatedAt) : '');
+    } catch (e) {
+      $('lbInfo').textContent = 'No se pudo cargar: ' + (e.message || e);
+    }
+  }
+
+  async function guardarConfigClasificacion() {
+    $('lbSaveBtn').disabled = true;
+    try {
+      await pedir('/api/admin/leaderboard-config', {
+        method: 'PUT',
+        body: JSON.stringify({
+          enabled: $('lbEnabled').checked,
+          topSize: Number($('lbTopSize').value),
+          minBattles: Number($('lbMinBattles').value),
+          seasonLabel: $('lbSeasonLabel').value,
+          hideBanned: $('lbHideBanned').checked,
+          hideSuspended: $('lbHideSuspended').checked,
+          hideBots: $('lbHideBots').checked
+        })
+      });
+      aviso('Configuración de clasificación guardada', 'ok');
+      await cargarConfigClasificacion();
+    } catch (e) {
+      aviso('No se pudo guardar: ' + (e.message || e), 'err');
+    } finally {
+      $('lbSaveBtn').disabled = false;
+    }
+  }
+
+  // ── Eventos ──────────────────────────────────────────────────────────────
+  $('farmSaveBtn').addEventListener('click', guardarConfigSiembra);
+  $('farmReloadBtn').addEventListener('click', cargarConfigSiembra);
+  $('lbSaveBtn').addEventListener('click', guardarConfigClasificacion);
+  $('lbReloadBtn').addEventListener('click', cargarConfigClasificacion);
+  $('connectBtn').addEventListener('click', conectar);
+  $('closeDrawer').addEventListener('click', cerrarFicha);
+  $('drawerBg').addEventListener('click', cerrarFicha);
+  $('revertBtn').addEventListener('click', function () {
+    if (state.actual) abrirFicha(state.actual.player.playerName);
+  });
+  $('saveBtn').addEventListener('click', guardar);
+  $('reloadBtn').addEventListener('click', function () {
+    impact.refresh();
+    cargarTablas(); cargarColeccionNft(); cargarJugadores();
+    cargarConfigSiembra(); cargarConfigClasificacion();
+  });
+  $('tablasBtn').addEventListener('click', cargarTablas);
+  $('nftSaveBtn').addEventListener('click', function () { guardarColeccionNft(false); });
+  $('nftReloadBtn').addEventListener('click', cargarColeccionNft);
+  $('nftClearBtn').addEventListener('click', function () { guardarColeccionNft(true); });
+  $('searchBtn').addEventListener('click', function () { state.q = $('q').value.trim(); state.page = 1; cargarJugadores(); });
+  $('clearBtn').addEventListener('click', function () { $('q').value = ''; state.q = ''; state.page = 1; cargarJugadores(); });
+  $('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('searchBtn').click(); });
+  $('prevBtn').addEventListener('click', function () { if (state.page > 1) { state.page--; cargarJugadores(); } });
+  $('nextBtn').addEventListener('click', function () { state.page++; cargarJugadores(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrarFicha(); });
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) comprobarAdmin(true).catch(function () {});
+  });
+  window.addEventListener('pagehide', function () { clearTimeout(renewalTimer); cancelarVerificacion(); });
+  var adminProvider = getProvider();
+  if (adminProvider && adminProvider.on) {
+    adminProvider.on('accountsChanged', function (accounts) {
+      if ((state.adminVerified || verificationPending || verificationWork) && (!accounts[0] || accounts[0].toLowerCase() !== state.address)) {
+        cerrarAcceso();
+        aviso('La cartera cambió. Conecta la cuenta administradora para volver a entrar.', 'warn');
+      }
+    });
+    adminProvider.on('disconnect', function () {
+      if (state.adminVerified) aviso('La cartera perdió conexión con su RPC. Tu sesión administrativa sigue activa.', 'warn');
+    });
+  }
+
+  // Si ya había sesión de admin abierta, se entra directo sin volver a firmar.
+  comprobarAdmin(true).catch(function () {});
+})();
+</script>
+</body>
+</html>

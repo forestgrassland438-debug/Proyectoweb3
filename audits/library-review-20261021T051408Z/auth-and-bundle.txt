@@ -1,0 +1,23 @@
+✔ the same valid signature can claim its nonce once under concurrent login (91.8615ms)
+✔ a newly issued nonce survives completion of an earlier successful login (12.5751ms)
+✔ a blocked account cannot log in with its previously valid signature (3.9784ms)
+✔ nonce requests validate types and reuse one read for an existing unblocked challenge (3.7986ms)
+✔ refresh rotation atomically replaces the old token and has one winner (15.3843ms)
+✔ a failed replacement leaves the previous refresh token usable (5.8448ms)
+✔ a noncritical PlayerAuth metadata failure after rotation does not strand the new token (3.9268ms)
+✔ access-check failure cannot issue login cookies or pass protected middleware (10.409ms)
+✔ a failed suspension lookup never becomes permission to enter an open game (3.0038ms)
+✔ expired nonce cleanup cannot erase a newer challenge issued concurrently (3.8775ms)
+✔ deployed server loads both analytics factories with sidecar and npm access denied (12.376ms)
+✔ embedded module source is current, reproducible and valid ES2022 for Node 18 (198.71ms)
+✔ analytics initializes normally and maintenance starts once (3.8587ms)
+✔ analytics constructor failure cannot prevent core startup or bypass admin authorization (3.0435ms)
+✔ failed analytics mount disposes the partial worker and keeps connection secrets out of diagnostics (2.7807ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1550.5901

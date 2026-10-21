@@ -1,0 +1,16 @@
+✔ the same valid signature can claim its nonce once under concurrent login (104.6558ms)
+✔ a newly issued nonce survives completion of an earlier successful login (15.1824ms)
+✔ a blocked account cannot log in with its previously valid signature (4.798ms)
+✔ nonce requests validate types and reuse one read for an existing unblocked challenge (3.6761ms)
+✔ refresh rotation atomically replaces the old token and has one winner (14.0354ms)
+✔ a failed replacement leaves the previous refresh token usable (5.7702ms)
+✔ a noncritical PlayerAuth metadata failure after rotation does not strand the new token (3.7844ms)
+✔ access-check failure cannot issue login cookies or pass protected middleware (12.0923ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1270.8837

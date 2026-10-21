@@ -1,0 +1,42 @@
+{
+  "at": "2026-10-21T06:34:54.151Z",
+  "testFiles": 64,
+  "results": [
+    {
+      "name": "regression-final",
+      "exitCode": 0
+    },
+    {
+      "name": "desktop-regression",
+      "exitCode": 0
+    },
+    {
+      "name": "npm-client",
+      "exitCode": 0
+    },
+    {
+      "name": "npm-desktop",
+      "exitCode": 0
+    },
+    {
+      "name": "npm-backend-production",
+      "exitCode": 0
+    },
+    {
+      "name": "npm-backend-all",
+      "exitCode": 1
+    },
+    {
+      "name": "audit-libraries",
+      "exitCode": 0
+    },
+    {
+      "name": "audit-project-deep",
+      "exitCode": 0
+    },
+    {
+      "name": "txt-project-audit",
+      "exitCode": 0
+    }
+  ]
+}

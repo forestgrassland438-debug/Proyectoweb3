@@ -1,0 +1,14 @@
+[
+  {
+    "name": "libraries-browser-stability",
+    "exitCode": 0
+  },
+  {
+    "name": "admin-suite-browser",
+    "exitCode": 0
+  },
+  {
+    "name": "admin-impact-browser.test",
+    "exitCode": 0
+  }
+]

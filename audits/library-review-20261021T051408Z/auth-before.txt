@@ -1,0 +1,165 @@
+✖ the same valid signature can claim its nonce once under concurrent login (96.5344ms)
+✖ a newly issued nonce survives completion of an earlier successful login (12.31ms)
+✖ a blocked account cannot log in with its previously valid signature (10.1703ms)
+✖ nonce requests validate types and reuse one read for an existing unblocked challenge (3.1809ms)
+✖ refresh rotation atomically replaces the old token and has one winner (11.2905ms)
+✖ a failed replacement leaves the previous refresh token usable (5.6808ms)
+✖ a noncritical PlayerAuth metadata failure after rotation does not strand the new token (3.9074ms)
+✖ access-check failure cannot issue login cookies or pass protected middleware (11.8013ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 0
+ℹ fail 8
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3544.4268
+
+✖ failing tests:
+
+test at tools\auth-concurrency-review.test.cjs:59:1
+✖ the same valid signature can claim its nonce once under concurrent login (96.5344ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  10 !== 1
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\auth-concurrency-review.test.cjs:61:10)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 10,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tools\auth-concurrency-review.test.cjs:64:1
+✖ a newly issued nonce survives completion of an earlier successful login (12.31ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + null
+  - 'new-nonce'
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\auth-concurrency-review.test.cjs:66:116)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: null,
+    expected: 'new-nonce',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tools\auth-concurrency-review.test.cjs:68:1
+✖ a blocked account cannot log in with its previously valid signature (10.1703ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 429
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\auth-concurrency-review.test.cjs:70:62)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 429,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tools\auth-concurrency-review.test.cjs:72:1
+✖ nonce requests validate types and reuse one read for an existing unblocked challenge (3.1809ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  500 !== 400
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\auth-concurrency-review.test.cjs:75:10)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 500,
+    expected: 400,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tools\auth-concurrency-review.test.cjs:79:1
+✖ refresh rotation atomically replaces the old token and has one winner (11.2905ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  8 !== 1
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\auth-concurrency-review.test.cjs:81:10)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 8,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tools\auth-concurrency-review.test.cjs:86:1
+✖ a failed replacement leaves the previous refresh token usable (5.6808ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + []
+  - [
+  -   {
+  -     _id: '5e1fd298-e5cd-4222-b2e2-bfa5f791729d',
+  -     address: '0x0f698f956aea461b7b3599760720ef1a1dba183a',
+  -     expiresAt: 2026-10-22T05:23:26.586Z,
+  -     token: '4447dd806e2dd2eea9ed9149f39e371af1ae87647fbe5e28b5e80b5a65d92220'
+  -   }
+  - ]
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\auth-concurrency-review.test.cjs:88:118)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ { _id: '5e1fd298-e5cd-4222-b2e2-bfa5f791729d', token: '4447dd806e2dd2eea9ed9149f39e371af1ae87647fbe5e28b5e80b5a65d92220', address: '0x0f698f956aea461b7b3599760720ef1a1dba183a', expiresAt: 2026-10-22T05:23:26.586Z } ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at tools\auth-concurrency-review.test.cjs:90:1
+✖ a noncritical PlayerAuth metadata failure after rotation does not strand the new token (3.9074ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  500 !== 200
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\auth-concurrency-review.test.cjs:92:85)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 500,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tools\auth-concurrency-review.test.cjs:94:1
+✖ access-check failure cannot issue login cookies or pass protected middleware (11.8013ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 503
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\auth-concurrency-review.test.cjs:96:83)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 503,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

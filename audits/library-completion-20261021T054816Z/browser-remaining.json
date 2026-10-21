@@ -1,0 +1,418 @@
+{
+  "cycles": 50,
+  "samples": [
+    {
+      "cycle": 0,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 1,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 2,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 3,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 4,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 5,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 6,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 7,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 8,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 9,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 10,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 11,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 12,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 13,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 14,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 15,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 16,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 17,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 18,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 19,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 20,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 21,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 22,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 23,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 24,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 25,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 26,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 27,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 28,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 29,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 30,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 31,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 32,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 33,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 34,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 35,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 36,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 37,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 38,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 39,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 40,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 41,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 42,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 43,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 44,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 45,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 46,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 47,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 48,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    },
+    {
+      "cycle": 49,
+      "children": 1,
+      "shutdown": 12,
+      "destroy": 12,
+      "textures": 75,
+      "audioNodes": 0
+    }
+  ],
+  "cache": {
+    "apariencias": 24,
+    "atlas": 1,
+    "activos": 0,
+    "pendientes": 0,
+    "fallidos": 0
+  },
+  "modalReplacements": 60,
+  "currencyChecks": 2,
+  "remainingIntervals": 0,
+  "atlasReads": 2,
+  "errors": [],
+  "fixtureOnly": true
+}

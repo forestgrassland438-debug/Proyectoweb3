@@ -1,0 +1,34 @@
+{
+  "checks": [
+    "Wallet sign-in, backend role verification, private gate and real snapshot",
+    "Discard cancellation and language switching preserve manual input",
+    "Zero-EXP preservation, scoped dirty tracking, reviewed save and fresh CSRF",
+    "Stale daily responses cannot overwrite the selected day",
+    "Automatic preview keeps the saved reroll seed",
+    "A preview with different rules cannot replace the manual editor",
+    "Delivery graphs, safe user text, CSV spreadsheet formula protection",
+    "Session expiry recovers without another signature",
+    "All eight tools open independently; one iframe; provider listener cleanup",
+    "Responsive 390 px layout without horizontal page overflow",
+    "Changing wallet locks the workspace and removes the active tool",
+    "Non-admin and unavailable role verification remain gated without extra signatures"
+  ],
+  "errors": [],
+  "writes": [
+    {
+      "path": "/api/admin/missions/daily",
+      "method": "PUT"
+    },
+    {
+      "path": "/api/admin/missions/daily",
+      "method": "PUT"
+    },
+    {
+      "path": "/api/admin/missions/auto/granjero/preview",
+      "method": "POST"
+    }
+  ],
+  "signatures": 1,
+  "refreshes": 3,
+  "walletCount": 3
+}

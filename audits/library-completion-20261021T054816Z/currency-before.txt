@@ -1,0 +1,5 @@
+page.evaluate: Error: gift enabled before availability check
+    at check (eval at evaluate (:311:30), <anonymous>:2:64)
+    at eval (eval at evaluate (:311:30), <anonymous>:29:139)
+    at async <anonymous>:337:30
+    at main (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\remaining-libraries-browser.cjs:34:27)

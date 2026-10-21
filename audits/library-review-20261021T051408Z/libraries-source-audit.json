@@ -1,0 +1,1190 @@
+{
+  "libraries": 96,
+  "results": [
+    {
+      "file": "admin-impact.js",
+      "bytes": 46015,
+      "resources": {
+        "addEventListener": 1,
+        "createObjectURL": 1,
+        "setTimeout": 3
+      },
+      "cleanup": [
+        "destroy"
+      ],
+      "errors": []
+    },
+    {
+      "file": "admin-session.js",
+      "bytes": 9659,
+      "resources": {
+        "addEventListener": 4,
+        "setTimeout": 1,
+        "fetch": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "admin-suite-i18n.js",
+      "bytes": 84788,
+      "resources": {},
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "admin-suite.js",
+      "bytes": 12778,
+      "resources": {
+        "requestAnimationFrame": 1,
+        "createObjectURL": 1,
+        "setTimeout": 1,
+        "addEventListener": 12,
+        "on": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "app.js",
+      "bytes": 77200,
+      "resources": {
+        "setTimeout": 5,
+        "addEventListener": 3,
+        "requestAnimationFrame": 1,
+        "once": 1
+      },
+      "cleanup": [
+        "destroyGame"
+      ],
+      "errors": []
+    },
+    {
+      "file": "BlockchainManager.js",
+      "bytes": 17198,
+      "resources": {
+        "once": 2,
+        "setTimeout": 1,
+        "fetch": 1
+      },
+      "cleanup": [
+        "destroy"
+      ],
+      "errors": []
+    },
+    {
+      "file": "colecciones.js",
+      "bytes": 70597,
+      "resources": {
+        "setTimeout": 2,
+        "fetch": 1,
+        "on": 1,
+        "createObjectURL": 1,
+        "addEventListener": 37
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "control-center.js",
+      "bytes": 18622,
+      "resources": {
+        "setTimeout": 3,
+        "on": 1,
+        "addEventListener": 19
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "CraftingHub.js",
+      "bytes": 79376,
+      "resources": {
+        "once": 4,
+        "addEventListener": 12,
+        "setTimeout": 2,
+        "setInterval": 1
+      },
+      "cleanup": [
+        "destroy",
+        "_stopLevelWatch"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-agua.js",
+      "bytes": 46946,
+      "resources": {
+        "createCanvas": 1,
+        "once": 5,
+        "setTimeout": 1,
+        "on": 1
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-alquimista.js",
+      "bytes": 16489,
+      "resources": {
+        "addEventListener": 4,
+        "on": 4,
+        "once": 2
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-amigos.js",
+      "bytes": 92632,
+      "resources": {
+        "setTimeout": 5,
+        "addEventListener": 39,
+        "on": 2,
+        "once": 5,
+        "setInterval": 1
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-animales.js",
+      "bytes": 218788,
+      "resources": {
+        "createCanvas": 2,
+        "addCanvas": 1,
+        "on": 1,
+        "once": 2
+      },
+      "cleanup": [
+        "desmontarHormigas",
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-antorchas.js",
+      "bytes": 17533,
+      "resources": {
+        "createCanvas": 1,
+        "once": 5,
+        "setTimeout": 1,
+        "on": 3
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-audio.js",
+      "bytes": 74775,
+      "resources": {
+        "setTimeout": 1,
+        "fetch": 1,
+        "on": 1,
+        "once": 3
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-batalla-arte.js",
+      "bytes": 47916,
+      "resources": {
+        "createCanvas": 1,
+        "once": 2
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-brawl-motor.js",
+      "bytes": 101518,
+      "resources": {},
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-bronce.js",
+      "bytes": 17187,
+      "resources": {
+        "addEventListener": 2,
+        "setTimeout": 1,
+        "setInterval": 2
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-buho.js",
+      "bytes": 28451,
+      "resources": {
+        "createCanvas": 1,
+        "on": 1,
+        "once": 2
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-camellos.js",
+      "bytes": 12467,
+      "resources": {
+        "createCanvas": 1,
+        "on": 1,
+        "once": 2
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-canales.js",
+      "bytes": 14156,
+      "resources": {
+        "on": 1,
+        "setInterval": 2,
+        "setTimeout": 1,
+        "addEventListener": 2
+      },
+      "cleanup": [
+        "detener"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-carga-mapa.js",
+      "bytes": 6281,
+      "resources": {
+        "setTimeout": 1,
+        "on": 1,
+        "setInterval": 1,
+        "once": 2
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-casas.js",
+      "bytes": 12071,
+      "resources": {
+        "on": 2,
+        "once": 2
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-character-skills.js",
+      "bytes": 14238,
+      "resources": {
+        "setInterval": 1,
+        "once": 2
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-chat-social.js",
+      "bytes": 42385,
+      "resources": {
+        "on": 1,
+        "setTimeout": 3,
+        "addEventListener": 5,
+        "once": 2
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-ciclo-dia.js",
+      "bytes": 34096,
+      "resources": {
+        "createCanvas": 1,
+        "setTimeout": 2,
+        "fetch": 1,
+        "on": 3,
+        "once": 2,
+        "setInterval": 3,
+        "addEventListener": 3
+      },
+      "cleanup": [
+        "desmontarEscena",
+        "detener"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-clima.js",
+      "bytes": 194259,
+      "resources": {
+        "createCanvas": 1,
+        "setTimeout": 2,
+        "fetch": 1,
+        "on": 3,
+        "setInterval": 3,
+        "once": 2,
+        "addEventListener": 1
+      },
+      "cleanup": [
+        "desmontar",
+        "detener"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-cola-cadena.js",
+      "bytes": 9328,
+      "resources": {
+        "on": 1,
+        "setInterval": 1,
+        "addEventListener": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-cuervo.js",
+      "bytes": 44633,
+      "resources": {
+        "on": 1,
+        "once": 2
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-espada.js",
+      "bytes": 30757,
+      "resources": {
+        "createCanvas": 2,
+        "addEventListener": 9,
+        "setTimeout": 1,
+        "on": 3,
+        "once": 2
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-espantapajaros.js",
+      "bytes": 16575,
+      "resources": {
+        "once": 5,
+        "setTimeout": 1,
+        "on": 1
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-graphics-settings.js",
+      "bytes": 30358,
+      "resources": {
+        "setTimeout": 2,
+        "fetch": 1,
+        "setInterval": 3,
+        "addEventListener": 4
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-hud-ajuste.js",
+      "bytes": 8729,
+      "resources": {
+        "requestAnimationFrame": 1,
+        "addEventListener": 6
+      },
+      "cleanup": [
+        "destroy"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-invitaciones.js",
+      "bytes": 15227,
+      "resources": {
+        "setTimeout": 2,
+        "setInterval": 3,
+        "addEventListener": 4
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-jefes.js",
+      "bytes": 22411,
+      "resources": {
+        "createCanvas": 1,
+        "setTimeout": 1,
+        "on": 1
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-lands.js",
+      "bytes": 23053,
+      "resources": {
+        "setTimeout": 1,
+        "once": 2
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-mascota.js",
+      "bytes": 33673,
+      "resources": {
+        "setTimeout": 3,
+        "fetch": 1,
+        "addEventListener": 4,
+        "on": 2,
+        "once": 2,
+        "setInterval": 1
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-mina-espectros.js",
+      "bytes": 24164,
+      "resources": {
+        "once": 2,
+        "on": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-mina-serpiente.js",
+      "bytes": 93024,
+      "resources": {
+        "createCanvas": 2,
+        "once": 4,
+        "on": 2
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-mina-zombis.js",
+      "bytes": 41338,
+      "resources": {
+        "createCanvas": 3,
+        "once": 2,
+        "on": 1
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-mobs-red.js",
+      "bytes": 16404,
+      "resources": {
+        "addEventListener": 1,
+        "on": 2,
+        "once": 2
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-monstruos-arte.js",
+      "bytes": 9453,
+      "resources": {
+        "once": 3,
+        "setTimeout": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-monte.js",
+      "bytes": 14573,
+      "resources": {
+        "createCanvas": 2,
+        "fetch": 1,
+        "once": 2,
+        "on": 1
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-muerte.js",
+      "bytes": 16394,
+      "resources": {
+        "addEventListener": 1,
+        "setInterval": 1,
+        "once": 2
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-nft.js",
+      "bytes": 11564,
+      "resources": {
+        "setTimeout": 1,
+        "fetch": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-nieve.js",
+      "bytes": 39052,
+      "resources": {
+        "addCanvas": 3,
+        "once": 2,
+        "on": 1
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-nombre-color.js",
+      "bytes": 16094,
+      "resources": {
+        "addEventListener": 3,
+        "on": 1,
+        "once": 2,
+        "setTimeout": 1
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-npcs-pueblo.js",
+      "bytes": 10925,
+      "resources": {
+        "once": 3,
+        "setTimeout": 1,
+        "createCanvas": 1,
+        "on": 3
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-npcs.js",
+      "bytes": 17933,
+      "resources": {
+        "on": 2,
+        "once": 3
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-pesca.js",
+      "bytes": 66538,
+      "resources": {
+        "fetch": 1,
+        "createCanvas": 3,
+        "once": 7,
+        "setTimeout": 4,
+        "addEventListener": 10,
+        "requestAnimationFrame": 2,
+        "on": 5,
+        "setInterval": 1
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-pisadas.js",
+      "bytes": 23146,
+      "resources": {
+        "createCanvas": 3,
+        "on": 1,
+        "once": 2
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-postproceso.js",
+      "bytes": 34018,
+      "resources": {
+        "on": 1,
+        "once": 2
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-profundidad.js",
+      "bytes": 55718,
+      "resources": {
+        "on": 2,
+        "once": 2
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-redirect.js",
+      "bytes": 568,
+      "resources": {},
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-relieve.js",
+      "bytes": 20787,
+      "resources": {
+        "on": 1,
+        "once": 1,
+        "setInterval": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-reposo.js",
+      "bytes": 6001,
+      "resources": {},
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-rutas.js",
+      "bytes": 5558,
+      "resources": {
+        "once": 2
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-salvaje.js",
+      "bytes": 98485,
+      "resources": {
+        "createCanvas": 3,
+        "setTimeout": 5,
+        "on": 5,
+        "once": 4,
+        "addEventListener": 3
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-sesion-unica.js",
+      "bytes": 10556,
+      "resources": {
+        "addEventListener": 4,
+        "on": 2
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-session-api.js",
+      "bytes": 4648,
+      "resources": {
+        "setInterval": 1,
+        "addEventListener": 2
+      },
+      "cleanup": [
+        "destroy"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-sin-nombre.js",
+      "bytes": 7328,
+      "resources": {
+        "setTimeout": 1,
+        "addEventListener": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-sombras.js",
+      "bytes": 29704,
+      "resources": {
+        "addCanvas": 1,
+        "on": 1,
+        "once": 2
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-soulbound-custom.js",
+      "bytes": 18856,
+      "resources": {
+        "fetch": 1,
+        "setInterval": 2,
+        "addEventListener": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-soulbound.js",
+      "bytes": 39040,
+      "resources": {
+        "setTimeout": 6,
+        "once": 8,
+        "fetch": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-suelo.js",
+      "bytes": 9102,
+      "resources": {
+        "on": 2,
+        "once": 3,
+        "createCanvas": 1
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-tirones.js",
+      "bytes": 9167,
+      "resources": {
+        "on": 1,
+        "requestAnimationFrame": 2
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-traductor.js",
+      "bytes": 17388,
+      "resources": {
+        "setTimeout": 3,
+        "fetch": 1,
+        "addEventListener": 3
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-viento.js",
+      "bytes": 48482,
+      "resources": {
+        "createCanvas": 1,
+        "on": 1,
+        "once": 2
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-vip.js",
+      "bytes": 19856,
+      "resources": {
+        "addEventListener": 4,
+        "setTimeout": 1,
+        "setInterval": 3
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-wallet-boot.js",
+      "bytes": 4772,
+      "resources": {
+        "setTimeout": 1,
+        "addEventListener": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-wallet-dashboard.js",
+      "bytes": 21808,
+      "resources": {
+        "setTimeout": 1,
+        "addEventListener": 5,
+        "setInterval": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "gf-zonas.js",
+      "bytes": 34221,
+      "resources": {
+        "setTimeout": 1,
+        "createCanvas": 1,
+        "on": 1,
+        "once": 2
+      },
+      "cleanup": [
+        "desmontar"
+      ],
+      "errors": []
+    },
+    {
+      "file": "hub.js",
+      "bytes": 20472,
+      "resources": {
+        "addEventListener": 5,
+        "setTimeout": 2,
+        "fetch": 1
+      },
+      "cleanup": [
+        "destroy"
+      ],
+      "errors": []
+    },
+    {
+      "file": "LoadingSystem.js",
+      "bytes": 17618,
+      "resources": {
+        "addEventListener": 2,
+        "setTimeout": 2,
+        "requestAnimationFrame": 2
+      },
+      "cleanup": [
+        "destroy"
+      ],
+      "errors": []
+    },
+    {
+      "file": "marketplace-routes.js",
+      "bytes": 75342,
+      "resources": {
+        "setTimeout": 1,
+        "setInterval": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "memory-fix.js",
+      "bytes": 4784,
+      "resources": {
+        "addEventListener": 1
+      },
+      "cleanup": [
+        "destroyOnce",
+        "cleanupGame",
+        "forceFullCleanup"
+      ],
+      "errors": []
+    },
+    {
+      "file": "mission-studio.js",
+      "bytes": 19844,
+      "resources": {
+        "addEventListener": 20,
+        "requestAnimationFrame": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "missionspanel.js",
+      "bytes": 27304,
+      "resources": {
+        "addEventListener": 5
+      },
+      "cleanup": [
+        "destroyEvents",
+        "destroy"
+      ],
+      "errors": []
+    },
+    {
+      "file": "NotificationHub.js",
+      "bytes": 65143,
+      "resources": {
+        "setTimeout": 6,
+        "setInterval": 1,
+        "addEventListener": 6,
+        "requestAnimationFrame": 1
+      },
+      "cleanup": [
+        "_startAutoCleanup",
+        "_stopAutoCleanup",
+        "_cleanupExpiredNotifications",
+        "destroy",
+        "destroyInstance"
+      ],
+      "errors": []
+    },
+    {
+      "file": "Phaser-camera.js",
+      "bytes": 20161,
+      "resources": {
+        "once": 2,
+        "on": 2
+      },
+      "cleanup": [
+        "destroy"
+      ],
+      "errors": []
+    },
+    {
+      "file": "phaser-canvas-scaler.js",
+      "bytes": 29251,
+      "resources": {
+        "setTimeout": 2,
+        "addEventListener": 11
+      },
+      "cleanup": [
+        "destroy"
+      ],
+      "errors": []
+    },
+    {
+      "file": "phaser-memory-cleaner.js",
+      "bytes": 18649,
+      "resources": {
+        "createObjectURL": 1
+      },
+      "cleanup": [
+        "safeCleanupByPath"
+      ],
+      "errors": []
+    },
+    {
+      "file": "phaser-memory-reporter.js",
+      "bytes": 57956,
+      "resources": {
+        "addEventListener": 3,
+        "once": 1,
+        "setInterval": 1,
+        "createObjectURL": 1,
+        "setTimeout": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "phaser-relay-library.js",
+      "bytes": 90942,
+      "resources": {
+        "addEventListener": 2,
+        "setTimeout": 2,
+        "fetch": 1,
+        "setInterval": 1
+      },
+      "cleanup": [
+        "stopAutoRefresh",
+        "cleanup"
+      ],
+      "errors": []
+    },
+    {
+      "file": "phaser-rpg-perf.js",
+      "bytes": 136470,
+      "resources": {
+        "setTimeout": 3,
+        "on": 4,
+        "addEventListener": 4,
+        "once": 8,
+        "setInterval": 2
+      },
+      "cleanup": [
+        "destroy",
+        "cleanupPool",
+        "destroyPool",
+        "cleanup",
+        "stopEmitter",
+        "stopAllEmitters",
+        "destroyEmitter",
+        "cleanupInactiveEmitters",
+        "cleanupParticles"
+      ],
+      "errors": []
+    },
+    {
+      "file": "register-scenes.js",
+      "bytes": 20097,
+      "resources": {
+        "setTimeout": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "reporter.js",
+      "bytes": 17382,
+      "resources": {
+        "setTimeout": 2,
+        "fetch": 1,
+        "addEventListener": 14
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "SystemaTransaccion.js",
+      "bytes": 20664,
+      "resources": {
+        "once": 2,
+        "setTimeout": 1,
+        "fetch": 1,
+        "on": 6
+      },
+      "cleanup": [
+        "destroy"
+      ],
+      "errors": []
+    },
+    {
+      "file": "tienda_sistema.js",
+      "bytes": 245456,
+      "resources": {
+        "addEventListener": 39,
+        "setTimeout": 19,
+        "fetch": 3
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "TransactionHub.js",
+      "bytes": 20437,
+      "resources": {
+        "requestAnimationFrame": 1,
+        "setTimeout": 2,
+        "addEventListener": 1,
+        "setInterval": 1
+      },
+      "cleanup": [
+        "destroy"
+      ],
+      "errors": []
+    },
+    {
+      "file": "tx-gate.js",
+      "bytes": 6620,
+      "resources": {
+        "setTimeout": 2,
+        "addEventListener": 1,
+        "setInterval": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "ui-image-fallbacks.js",
+      "bytes": 482,
+      "resources": {
+        "addEventListener": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "viewport-fix.js",
+      "bytes": 14598,
+      "resources": {
+        "setTimeout": 7,
+        "addEventListener": 13,
+        "setInterval": 1
+      },
+      "cleanup": [],
+      "errors": []
+    },
+    {
+      "file": "lib/tileManager.js",
+      "bytes": 60068,
+      "resources": {
+        "on": 2,
+        "fetch": 1
+      },
+      "cleanup": [
+        "emergencyCleanup",
+        "destroy"
+      ],
+      "errors": []
+    },
+    {
+      "file": "lib/tileMonitor.js",
+      "bytes": 11386,
+      "resources": {
+        "once": 2,
+        "on": 1,
+        "setTimeout": 1
+      },
+      "cleanup": [
+        "_managerDestroyed",
+        "destroy"
+      ],
+      "errors": []
+    },
+    {
+      "file": "gf-wallet-sdk/gf-wallet.js",
+      "bytes": 64967,
+      "resources": {
+        "setTimeout": 3,
+        "fetch": 1,
+        "addEventListener": 1,
+        "setInterval": 1
+      },
+      "cleanup": [],
+      "errors": []
+    }
+  ]
+}

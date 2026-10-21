@@ -1,0 +1,36 @@
+✔ deployed server loads both analytics factories with sidecar and npm access denied (10.8685ms)
+✔ embedded module source is current, reproducible and valid ES2022 for Node 18 (122.8351ms)
+✖ analytics initializes normally and maintenance starts once (7.2078ms)
+✔ analytics constructor failure cannot prevent core startup or bypass admin authorization (2.7131ms)
+✔ failed analytics mount disposes the partial worker and keeps connection secrets out of diagnostics (2.4357ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 4
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 347.711
+
+✖ failing tests:
+
+test at tools\impact-backend-bundle.test.cjs:55:1
+✖ analytics initializes normally and maintenance starts once (7.2078ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\impact-backend-bundle.test.cjs:61:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

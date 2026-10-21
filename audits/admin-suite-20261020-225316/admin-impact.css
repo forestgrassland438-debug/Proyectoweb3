@@ -1,0 +1,52 @@
+/* Executive and evidence views inherit the admin page's dark/light palette. */
+.impact-heading { align-items: center; }
+.impact-heading > div { margin-right: auto; }
+.impact-subtitle { margin: 5px 0 0; font-size: 13px; }
+.impact-kpis { grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); }
+.impact-kpis .kpi .value { font-size: 24px; }
+.impact-kpis .detail { display: block; color: var(--text-dim); font-size: 11.5px; margin-top: 7px; line-height: 1.45; }
+.impact-network { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 12px; margin-top: 14px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.impact-network-item { display: flex; flex-direction: column; gap: 5px; min-width: 0; font-size: 13px; }
+.impact-address { font-size: 12px; overflow-wrap: anywhere; user-select: all; }
+.impact-footnote { font-size: 12px; line-height: 1.6; margin: 9px 0; }
+.impact-quality { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 11px 14px; font-size: 13px; margin: 14px 0; }
+.impact-quality summary { cursor: pointer; color: var(--lantern); }
+.impact-quality ul { padding-left: 20px; margin: 12px 0 0; }
+.impact-quality li + li { margin-top: 6px; }
+.impact-scan { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); padding: 16px; }
+.impact-scan-head { display: flex; gap: 14px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.impact-scan-head h3 { font-size: 14px; }
+.impact-scan-head p { font-size: 12px; margin: 4px 0; }
+#impactScanStatus { font-size: 13px; }
+#impactScanProgress { width: 100%; margin-top: 12px; accent-color: var(--moss); height: 12px; }
+.impact-search-field { flex: 1; display: flex; min-width: 180px; }
+.impact-search-field input[type="search"] { min-width: 0; width: 100%; }
+.impact-sort { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.impact-sort select { background: var(--surface); border: 1px solid var(--line); padding: 10px; border-radius: var(--radius); }
+.impact-audit { min-width: 1170px; }
+.impact-audit tbody tr:hover { cursor: default; }
+.impact-audit td { white-space: normal; vertical-align: top; }
+.impact-audit td:first-child { min-width: 210px; max-width: 290px; overflow-wrap: anywhere; }
+.impact-audit td:nth-child(2) { min-width: 175px; }
+.impact-audit td:nth-child(5) { min-width: 175px; max-width: 290px; }
+.impact-audit td:nth-child(6) { min-width: 220px; }
+.impact-audit .impact-action { display: inline-block; margin: 0 4px 4px 0; padding: 2px 6px; border: 1px solid var(--line); border-radius: 5px; font-size: 11px; }
+.impact-audit .impact-secondary { display: block; color: var(--text-dim); font-size: 11.5px; margin-top: 4px; }
+.impact-audit .impact-secondary.mono { font-size: 11px; }
+.impact-audit .pill { white-space: normal; }
+.impact-audit a { color: var(--moss); text-underline-offset: 3px; }
+.impact-report-label { display: block; font-size: 13px; color: var(--text-dim); margin: 18px 0 7px; }
+.impact-report-text { width: 100%; resize: vertical; padding: 18px; font: 13px/1.65 var(--mono); color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); tab-size: 2; }
+.impact-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+@media (max-width: 640px) {
+  .impact-heading > div { flex-basis: 100%; }
+  .impact-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .impact-kpis .kpi { padding: 12px; }
+  .impact-kpis .kpi .value { font-size: 20px; }
+  .impact-kpis .kpi .label { font-size: 9.5px; letter-spacing: .05em; }
+  .impact-network { grid-template-columns: 1fr; }
+  .impact-scan-head { align-items: flex-start; flex-wrap: wrap; }
+  .impact-sort { flex: 1; }
+  .impact-sort select { flex: 1; min-width: 150px; }
+  .impact-export-actions .btn { flex-basis: 100%; }
+}

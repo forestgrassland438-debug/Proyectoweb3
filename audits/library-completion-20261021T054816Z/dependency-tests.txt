@@ -1,0 +1,25 @@
+✔ Hardhat keeps UUID v4 CommonJS support with bounded v3 output buffers (705.0586ms)
+✔ Sentry cookie replacement retains parsing and rejects unsafe serialized names (82.8365ms)
+✖ Hardhat Mocha reporter keeps its diff API and TypeScript runtime still transpiles (114.406ms)
+✔ patched compiler ZIP dependency preserves a valid offline compiler archive (50.0326ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 3
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1216.7532
+
+✖ failing tests:
+
+test at tools\remaining-dependencies.test.cjs:14:1
+✖ Hardhat Mocha reporter keeps its diff API and TypeScript runtime still transpiles (114.406ms)
+  TypeError: backend(...).transpileModule is not a function
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\remaining-dependencies.test.cjs:17:37)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7)

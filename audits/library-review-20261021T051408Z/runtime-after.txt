@@ -1,0 +1,47 @@
+✔ pathfinding releases both lifecycle listeners over 100 scene restarts and supports prototype-like cache names (74.8035ms)
+✔ a slow invite claim keeps its retry interval alive, does not overlap, and retries a network failure (19.1955ms)
+✔ TxGate abort removes all wait timers and listeners without cancelling the actual transaction (3.6797ms)
+✔ single-session fetch handles URL and Request inputs and never sends its identifier to third-party APIs (9.8368ms)
+✔ session renewal respects an aborted Request signal and the explicit API base (5.3142ms)
+✔ destroying an uninitialized TransactionHub preserves the existing hub and cannot recreate its DOM later (3.5338ms)
+✔ relay converts multidimensional ABI arrays and tuple arrays without flattening them (17.4133ms)
+✔ relay normalizes all elements and nested bigint values in a single array output (5.8118ms)
+✔ authentication and malformed ABI errors never mean an invoice is absent; a definite revert does (6.3681ms)
+✔ inventory cache is scoped to the authenticated owner and cleared on relay cleanup (4.6957ms)
+✔ an ambiguous decrease never falls back to a second delete transaction (5.2248ms)
+✔ relay cleanup immediately releases polling delays even with a long interval (15.8452ms)
+✔ returning from an island waits for persistence and saves only once before loading (7.7729ms)
+✔ a late private key reveal cannot repopulate the dashboard after a tab switch (7.8752ms)
+✔ notification destruction cancels the delayed settings button and releases named instances (5.4742ms)
+✔ remote character cancellation settles its promise, removes all listeners and permits a fresh load (8.0169ms)
+✔ closing a mission panel prevents a slow show from reopening it; refresh network rejection is handled (13.3227ms)
+✔ a requirement check completed after scene destruction cannot submit a mission (5.53ms)
+✔ chat reaction controls from a previous scene use the current scene and do not reattach a closed palette listener (5.5781ms)
+✔ relay polling bounds invalid attempts and delay values instead of polling forever (4.365ms)
+✔ reporter load ignores an older query and keeps the timeout active through the response body (10.2913ms)
+✔ an island return whose save fails keeps the scene playable and restores its world and position (11.6021ms)
+✔ the shop retry helper preserves one idempotency key through an ambiguous submission failure (13.2663ms)
+✔ loading rejects invalid progress and uses a finite duration when given Infinity (19.9523ms)
+✔ map loading releases both lifecycle hooks and timers over 100 completed/abandoned mounts (20.9641ms)
+✔ remounting map loading cannot let an old shutdown hook clear the new mount (4.681ms)
+✔ an old map cannot hide or update the overlay retained by the next transition (2.5109ms)
+✔ map preparation avoids writing unchanged progress to the DOM every frame (3.5991ms)
+✔ chain queue is a singleton and releases an unavailable socket (3.9931ms)
+✔ chain queue handles early replies once, including prototype-like ticket names (3.3407ms)
+✔ chain queue bounds unsolicited replies and their retained payloads (111.8431ms)
+✔ a response from the previous account cannot alter the new account inventory (2.7287ms)
+✔ an acknowledgement during a scene transition waits for the same player next map (3.0476ms)
+✔ queue expiry accepts zero delay and page close clears timers, callbacks and listeners (4.201ms)
+✔ game session renewal resumes after signing in again on the same page (74.422ms)
+✔ a delayed 401 from the previous login is never replayed under the next account (5.7763ms)
+✔ concurrent 401 retries share renewal and retain POST bodies with rotated CSRF (67.4909ms)
+✔ third party requests and explicit logout never renew; URL objects work and cleanup removes all listeners (11.2706ms)
+✔ active battles renew cookies and vital mutation revisions change through response completion (4.3015ms)
+ℹ tests 39
+ℹ suites 0
+ℹ pass 39
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 534.2472

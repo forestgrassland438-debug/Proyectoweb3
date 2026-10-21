@@ -1,0 +1,152 @@
+✔ bronze ignores third-party API-shaped responses and late responses from a different account (49.451ms)
+✔ bronze coalesces refreshes and cannot apply an older account response (3.4269ms)
+✔ bronze teardown releases observers and clocks, and retained fetch wrappers keep delegating (3.6051ms)
+✔ VIP refreshes belong to one account and a stale finally cannot release a newer request (5.1509ms)
+✔ VIP status never carries from one account to another (2.6071ms)
+✔ name gate does not inherit a previous player permanent-name flag (5.4513ms)
+✖ gf-npcs.js: abandoned loads release both lifecycle hooks and pending loader callbacks (6.6137ms)
+✖ gf-npcs-pueblo.js: abandoned loads release both lifecycle hooks and pending loader callbacks (3.6361ms)
+✖ NPC decoration rollback preserves original alpha and frees partially allocated sprites (3.545ms)
+✖ camel partial construction rolls back every object and its scene state (4.6413ms)
+✖ an interrupted zone journey cannot launch a scene or overwrite a newer journey note (6.9603ms)
+✖ boss teardown cancels delayed powers and immediately removes orb update callbacks (5.5718ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 6
+ℹ fail 6
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 275.8407
+
+✖ failing tests:
+
+test at tools\remaining-libraries.test.cjs:77:54
+✖ gf-npcs.js: abandoned loads release both lifecycle hooks and pending loader callbacks (6.6137ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\remaining-libraries.test.cjs:80:140)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tools\remaining-libraries.test.cjs:77:54
+✖ gf-npcs-pueblo.js: abandoned loads release both lifecycle hooks and pending loader callbacks (3.6361ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\remaining-libraries.test.cjs:80:92)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tools\remaining-libraries.test.cjs:82:1
+✖ NPC decoration rollback preserves original alpha and frees partially allocated sprites (3.545ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\remaining-libraries.test.cjs:85:114)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tools\remaining-libraries.test.cjs:87:1
+✖ camel partial construction rolls back every object and its scene state (4.6413ms)
+  AssertionError [ERR_ASSERTION]: Got unwanted exception.
+  Actual message: "shadow allocation failed"
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\remaining-libraries.test.cjs:89:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: Error: shadow allocation failed
+        at p.sc.add.image (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\remaining-libraries.test.cjs:88:124)
+        at crear (gf-camellos.js:135:25)
+        at gf-camellos.js:206:30
+        at Array.forEach (<anonymous>)
+        at Object.montar (gf-camellos.js:194:60)
+        at C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\remaining-libraries.test.cjs:89:47
+        at getActual (node:assert:611:5)
+        at strict.doesNotThrow (node:assert:779:32)
+        at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\remaining-libraries.test.cjs:89:10)
+        at Test.runInAsyncScope (node:async_hooks:227:14),
+    expected: undefined,
+    operator: 'doesNotThrow',
+    diff: 'simple'
+  }
+
+test at tools\remaining-libraries.test.cjs:91:1
+✖ an interrupted zone journey cannot launch a scene or overwrite a newer journey note (6.9603ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\remaining-libraries.test.cjs:94:159)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tools\remaining-libraries.test.cjs:96:1
+✖ boss teardown cancels delayed powers and immediately removes orb update callbacks (5.5718ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (C:\Users\pc\Desktop\Proyecto\GrasslandForest 0.1\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\miweb_Developer\bin\tools\remaining-libraries.test.cjs:100:93)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

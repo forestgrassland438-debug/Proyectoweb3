@@ -1,0 +1,128 @@
+{
+  "originals": 167,
+  "unchanged": 158,
+  "changes": [
+    {
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-carga-mapa.js",
+      "relative": "gf-carga-mapa.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-review-20261021T051408Z\\gf-carga-mapa.js",
+      "bytes": 5650,
+      "sha256": "d88d8be130d37fc786b39c6ee2acdc4a22889584447449e20686295369f0619a",
+      "after": "362b9702ef8ea4504726602680dc2a6d961ec700b7e023cab551de5b4bbc3689",
+      "changed": true,
+      "bytesAfter": 6281
+    },
+    {
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-cola-cadena.js",
+      "relative": "gf-cola-cadena.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-review-20261021T051408Z\\gf-cola-cadena.js",
+      "bytes": 6431,
+      "sha256": "db5a17900fae6db45fe3413c161d8c3a97667fd519fd941c623fae2de3cc9af0",
+      "after": "ae046151620c2cd8079daded0d24371d8903926aee1d08968cd65e8606947bbc",
+      "changed": true,
+      "bytesAfter": 9328
+    },
+    {
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-mina-serpiente.js",
+      "relative": "gf-mina-serpiente.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-review-20261021T051408Z\\gf-mina-serpiente.js",
+      "bytes": 93017,
+      "sha256": "a941bbe282f02e4cc0c99b7894f73b49f132d68fdcb46c49abc8b42166d6845d",
+      "after": "64c7dcd28843db4c3bcae84aea9fb910b91db75b9f597712ab06fc5825c2f623",
+      "changed": true,
+      "bytesAfter": 93024
+    },
+    {
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-salvaje.js",
+      "relative": "gf-salvaje.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-review-20261021T051408Z\\gf-salvaje.js",
+      "bytes": 98431,
+      "sha256": "0ac6d4c24d462bd9b041fe259301cf2e150bee6925162deb78c0650a32b29e74",
+      "after": "b62345e2d19a621a32ab8b9cbdb009ee59591531a8daf14a9f0d00eb4b5f9f17",
+      "changed": true,
+      "bytesAfter": 98485
+    },
+    {
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\gf-session-api.js",
+      "relative": "gf-session-api.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-review-20261021T051408Z\\gf-session-api.js",
+      "bytes": 4313,
+      "sha256": "123f8efbfb96c17366810bfa1fdf29de78fe88b0e1aedc8459fa84cad92c7189",
+      "after": "12349825508f65698e52c5eaea461849474cf8d610321b304f45a6dccb5fb3e4",
+      "changed": true,
+      "bytesAfter": 4648
+    },
+    {
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\index.html",
+      "relative": "index.html",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-review-20261021T051408Z\\index.html",
+      "bytes": 91541,
+      "sha256": "5ee453f53f87e7a4bb959613b1d8321fc35fa0a8a461eb8ba2e0c4f09d0714cc",
+      "after": "1e13c23f56357dfee76f8c6575d5fbeb56f6705b7ce4c08132c49813b411f60e",
+      "changed": true,
+      "bytesAfter": 91541
+    },
+    {
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\GrasslandBuild\\repositories\\backend\\package-lock.json",
+      "relative": "GrasslandBuild/repositories/backend/package-lock.json",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-review-20261021T051408Z\\GrasslandBuild\\repositories\\backend\\package-lock.json",
+      "bytes": 579548,
+      "sha256": "e49b1ff1f01e6a81f0313c79b5a3d9f8dd8b81837c8390ff45570a054af126e0",
+      "after": "712613bd6f90f40b29baf5923aca70b198463633a70bd2b9854ec61828cec605",
+      "changed": true,
+      "bytesAfter": 579548
+    },
+    {
+      "source": "C:/Users/pc/Desktop/server2.js",
+      "relative": "desktop-backend/server2.js",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-review-20261021T051408Z\\desktop-backend\\server2.js",
+      "bytes": 1433724,
+      "sha256": "44416f4ed57f4b1f96b4f3234cb03504a7edc21a5dec97c00f21ebb664574b05",
+      "after": "7c00b0326eb89678e403fb51f8194bde3dbf662fb6238aa91f9e5c687e77ff70",
+      "changed": true,
+      "bytesAfter": 1435975
+    },
+    {
+      "source": "C:\\Users\\pc\\Desktop\\Proyecto\\GrasslandForest 0.1\\Grassland Forest V16.8 Completo (en trabajo de agregar comandos a fully onchains)\\miweb_Developer\\bin\\tools\\impact-backend-bundle.test.cjs",
+      "relative": "tools/impact-backend-bundle.test.cjs",
+      "backup": "C:\\Users\\pc\\.codex\\backups\\library-review-20261021T051408Z\\tools\\impact-backend-bundle.test.cjs",
+      "bytes": 5281,
+      "sha256": "07ee118b8f33549dc66c0de7cd273fd8ddfce6006c1c03992b3e89dc3349c0f2",
+      "after": "e282abea198455f7fe3e7abb05f54685a936286dd09f596265161a2b28bd945d",
+      "changed": true,
+      "bytesAfter": 5636
+    }
+  ],
+  "newFiles": [
+    {
+      "file": "tools/runtime-review.test.cjs",
+      "bytes": 9841,
+      "sha256": "31a833a28a577bf22fb9e18ced8c46959492f0f03fb102c92e3e74a57c5a5ddd"
+    },
+    {
+      "file": "tools/auth-concurrency-review.test.cjs",
+      "bytes": 10602,
+      "sha256": "092318a04f9e1c0072449c6786f8e1670a06f0d5c59d62f6ee58e33a7fd46936"
+    },
+    {
+      "file": "tools/redirect-security-review.test.cjs",
+      "bytes": 3534,
+      "sha256": "e24a334bed7afd3630e9fb950e3d5c247e1930053e50c8a9171e678f0397acf3"
+    },
+    {
+      "file": "tools/runtime-review-browser.cjs",
+      "bytes": 5658,
+      "sha256": "59cb944115b743cd6392195a2c67f48e9100814a0b859269d3d2a77ce3e37fd1"
+    }
+  ],
+  "backend": {
+    "topLevelNodes": 1149,
+    "changed": [
+      "checkGameAccess",
+      "enforceGameAccess",
+      "/api/auth/nonce",
+      "/api/auth/login",
+      "/api/auth/refresh"
+    ]
+  }
+}

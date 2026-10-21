@@ -1,0 +1,28 @@
+✔ bronze ignores third-party API-shaped responses and late responses from a different account (62.5511ms)
+✔ bronze coalesces refreshes and cannot apply an older account response (3.1893ms)
+✔ bronze teardown releases observers and clocks, and retained fetch wrappers keep delegating (3.553ms)
+✔ VIP refreshes belong to one account and a stale finally cannot release a newer request (4.1472ms)
+✔ VIP status never carries from one account to another (2.5207ms)
+✔ name gate does not inherit a previous player permanent-name flag (4.9539ms)
+✔ gf-npcs.js: abandoned loads release both lifecycle hooks and pending loader callbacks (5.6654ms)
+✔ gf-npcs-pueblo.js: abandoned loads release both lifecycle hooks and pending loader callbacks (5.4538ms)
+✔ NPC decoration rollback preserves original alpha and frees partially allocated sprites (6.3992ms)
+✔ camel partial construction rolls back every object and its scene state (7.3871ms)
+✔ an interrupted zone journey cannot launch a scene or overwrite a newer journey note (5.9735ms)
+✔ boss teardown cancels delayed powers and immediately removes orb update callbacks (6.8561ms)
+✔ los tres mapas: tamaño del salvaje, sus capas, su suelo en trozos y su tileset (80.6506ms)
+✔ las salidas: el salvaje lleva a los tres y cada uno vuelve; nadie llega encima de una salida (49.4658ms)
+✔ cada monstruo del mapa: especie con molde, su arte y sus proyectiles cargables (52.7059ms)
+✔ el botín en el servidor: cada especie, en su sala y con instancias para todos (64.7236ms)
+✔ la zona PvP: la misma en el mapa y en el servidor; el cementerio, entero (38.2307ms)
+✔ los objetos y los árboles del mapa existen (fotograma del atlas y PNG) (40.2948ms)
+✔ los remolinos siguen su vuelta (no persiguen) y la tormenta va por ciclos (21.0213ms)
+✔ cada salida se toca con el jugador parado contra el borde del mapa (46.5142ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 668.0873
