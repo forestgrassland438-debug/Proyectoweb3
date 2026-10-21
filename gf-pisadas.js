@@ -366,6 +366,9 @@
       if (!sigue || !spr || spr.active === false || spr.visible === false || !spr.scene) {
         delete st.vigilados[k]; continue;
       }
+      /* (2026-10-21) Remando en el bote (gf-botes.js pone `__gfABordo`): no
+         se anda, así que ni pisadas ni polvo en el agua. */
+      if (spr.__gfABordo) { v.x = spr.x; v.y = spr.y; v.recorrido = 0; continue; }
 
       var dx = spr.x - v.x, dy = spr.y - v.y;
       v.x = spr.x; v.y = spr.y;

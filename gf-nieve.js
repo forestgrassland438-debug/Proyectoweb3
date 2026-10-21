@@ -645,7 +645,8 @@
     /* HUELLAS: una pisada cada HUELLA_PASO px andados, alternando pie, a
        los dos lados de la línea de marcha. Un salto grande (teletransporte,
        cambio de mapa) no deja un rastro de pisadas en el aire. */
-    if (p && st.manto > 0.25 && !scene._cambiandoEscena && D.huellas.length) {
+    // (2026-10-21) Remando en el bote (gf-botes.js, `__gfABordo`) no se pisa nieve.
+    if (p && !p.__gfABordo && st.manto > 0.25 && !scene._cambiandoEscena && D.huellas.length) {
       var pie = { x: p.x, y: p.y + 45 };
       if (!D.ultimaHuella) D.ultimaHuella = pie;
       var dx = pie.x - D.ultimaHuella.x, dy = pie.y - D.ultimaHuella.y;

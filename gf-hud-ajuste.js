@@ -25,9 +25,14 @@
   if (window.GFHudAjuste && window.GFHudAjuste.destroy) window.GFHudAjuste.destroy();
 
   // Lo que se aparta (en este orden) y de lo que hay que apartarse.
-  var MOVIBLES = ['#gf-espada-poderes', '#gf-tajo-btn'];
+  // (2026-10-21) Primero los botones de pescar y de bajar del bote (centrados
+  // encima de la barra: solo suben), luego los poderes, que ya los esquivan.
+  var MOVIBLES = ['#gf-pesca-btn', '#gf-bote-btn', '#gf-espada-poderes', '#gf-tajo-btn'];
+  var CENTRADOS = ['#gf-pesca-btn', '#gf-bote-btn'];
+  // (2026-10-21) + los botones de pescar y de bajar del bote: en pantallas
+  // estrechas el panel de poderes caía encima de ellos.
   var OBSTACULOS = '#round-buttons-container .round-btn, #quick-slots-bar, #open-chat-btn, #gf-espada-btn, ' +
-    '#inv-shortcut-btn, .corner-box, #toggle-hud-btn, #gf-jefe-mina, #gf-serpiente-barra';
+    '#inv-shortcut-btn, .corner-box, #toggle-hud-btn, #gf-jefe-mina, #gf-serpiente-barra, #gf-pesca-btn, #gf-bote-btn';
 
   function visible(el) {
     if (!el || !el.isConnected || el.hidden || el.closest('[hidden]')) return false;
@@ -97,11 +102,27 @@
         return;
       }
     }
+    // Los centrados (left: 50%) no se mueven con `right` (se estirarían): solo suben.
+    if (CENTRADOS.indexOf(sel) >= 0) return;
     for (var dx = 8; dx <= window.innerWidth * 0.6; dx += 8) {
       if (!choca(dx, 0)) {
         el.style.setProperty('right', (right + dx) + 'px');
         yaColocados.push(el.getBoundingClientRect());
         return;
+      }
+    }
+    /* (2026-10-21) Arriba Y a la izquierda a la vez. En una ventana estrecha
+       los poderes tienen encima la columna de botones redondos y a la
+       izquierda los botones de pescar y del bote: ni subir solo ni ir a la
+       izquierda solo los sacaba, y se quedaban encima. */
+    for (var dy2 = 8; dy2 <= window.innerHeight * 0.6; dy2 += 8) {
+      for (var dx2 = 8; dx2 <= window.innerWidth * 0.6; dx2 += 8) {
+        if (!choca(dx2, dy2)) {
+          el.style.setProperty('bottom', (bottom + dy2) + 'px');
+          el.style.setProperty('right', (right + dx2) + 'px');
+          yaColocados.push(el.getBoundingClientRect());
+          return;
+        }
       }
     }
   }
@@ -137,7 +158,7 @@
   function vigilar() {
     // El HUD y los botones de la espada nacen tarde (los crea cada escena):
     // se mira de vez en cuando si hay alguno nuevo que vigilar.
-    ['round-buttons-container', 'gf-espada-poderes', 'gf-tajo-btn', 'quick-slots-bar', 'game-hud'].forEach(function (id) {
+    ['round-buttons-container', 'gf-espada-poderes', 'gf-tajo-btn', 'quick-slots-bar', 'game-hud', 'gf-pesca-btn', 'gf-bote-btn'].forEach(function (id) {
       var el = document.getElementById(id);
       if (!el || vigilados.has(el)) return;
       vigilados.add(el);

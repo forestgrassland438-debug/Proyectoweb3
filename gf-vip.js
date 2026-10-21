@@ -90,7 +90,15 @@
     if (destruido || !dueno) return Promise.resolve(estado);
     if (pidiendo) return pidiendo;
     var trabajo = api('/api/vip/estado').then(function (r) {
-      if (vigente(dueno) && r && r.ok && r.datos && r.datos.ok) adoptar(r.datos);
+      if (vigente(dueno) && r && r.ok && r.datos && r.datos.ok) { estado.sinServicio = false; estado.fallo = 0; adoptar(r.datos); }
+      /* (2026-10-21) Un servidor sin /api/vip (aún sin actualizar) contesta
+         404: el panel se quedaba en "Loading the tickets…" para siempre y
+         exigir() bloqueaba soltar, el P2P y la isla con "Checking your VIP…"
+         aunque ese servidor no pida VIP para nada. Se apunta y se dice. */
+      else if (vigente(dueno) && r) {
+        estado.fallo = Number(r.status) || -1;
+        if (r.status === 404) { estado.sinServicio = true; estado.cargado = true; pintarMarca(); }
+      }
       return estado;
     }).catch(function () { return estado; }).finally(function () { if (pidiendo === trabajo) pidiendo = null; });
     pidiendo = trabajo;
@@ -101,6 +109,8 @@
   /** Antes de hacer algo que pide VIP. false (y avisa) si no lo tiene. */
   function exigir(scene, accion) {
     if (tiene()) return true;
+    // El servidor no tiene VIP (404): tampoco lo exige; no se bloquea nada.
+    if (estado.sinServicio) return true;
     var ahora = Date.now();
     if (!estado.cargado) { refrescar(); avisar(scene, 'Checking your VIP… try again in a moment.', 'info'); return false; }
     if (ahora - (avisadoEn[accion] || 0) > 3000) {
@@ -267,12 +277,29 @@
         bloqueEstado() +
         '<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;background:#140f1e;border-radius:10px;padding:8px;margin-bottom:10px;font-size:12px;">' +
         MONEDAS.map(function (mo) { return '<span><img src="' + mo.img + '" alt="" style="width:14px;height:14px;vertical-align:-2px;image-rendering:pixelated"> ' + mo.nombre + ': <b>' + s[mo.k].toLocaleString('en-US') + '</b></span>'; }).join('') +
-        '</div>' + (tarjetas || '<p style="font-size:13px;">Loading the tickets…</p>') +
+        '</div>' + (tarjetas || sinTarjetas()) +
         '<div class="gfv-msg" style="min-height:18px;font-size:13px;text-align:center;color:' + (color || '#ffd76a') + '">' + esc(msg || '') + '</div>' +
         '<p style="font-size:11px;color:#8f86a8;margin:6px 0 0;">Each purchase is saved on the blockchain (table "vip") with its start and expiry dates. Without VIP you cannot drop items for others, use the P2P Market or enter your island.</p>';
       Array.prototype.forEach.call(m.cuerpo.querySelectorAll('.gfv-comprar'), function (b) {
         b.onclick = function () { comprar(b.getAttribute('data-plan'), b.getAttribute('data-moneda')); };
       });
+      var otra = m.cuerpo.querySelector('.gfv-otra');
+      if (otra) otra.onclick = function () {
+        cargando = true; pintar();
+        refrescar().then(function () { cargando = false; if (document.body.contains(m.ov) && !ocupado) pintar(); });
+      };
+    };
+    /* (2026-10-21) Sin planes: o aún se están pidiendo, o el servidor no los
+       tiene (404: falta actualizarlo) o no contestó. Antes era siempre
+       "Loading the tickets…", también cuando ya había fallado. */
+    var cargando = true;
+    var sinTarjetas = function () {
+      if (cargando) return '<p style="font-size:13px;">Loading the tickets…</p>';
+      var texto = estado.sinServicio
+        ? 'The VIP tickets are not on sale yet: the game server is being updated. Come back later, dear.'
+        : 'The tickets could not be loaded right now.';
+      return '<p style="font-size:13px;color:#ffb86b;">' + texto + '</p>' +
+        '<button type="button" class="gfv-otra" style="border:none;border-radius:8px;padding:8px 12px;min-height:40px;background:#4a3d6a;color:#fff;cursor:pointer;">↻ Try again</button>';
     };
     var ocupado = false;
     var comprar = function (plan, moneda) {
@@ -302,7 +329,7 @@
         .finally(function () { ocupado = false; });
     };
     pintar();
-    refrescar().then(function () { if (document.body.contains(m.ov) && !ocupado) pintar(); });
+    refrescar().then(function () { cargando = false; if (document.body.contains(m.ov) && !ocupado) pintar(); });
   }
 
   // ── LA ISLA ────────────────────────────────────────────────────────────────
@@ -338,7 +365,7 @@
     }
     refrescar().then(function () {
       if (!actual()) return;
-      if (estado.cargado && !tiene()) fuera('👑 You need VIP to enter your island. Get it from Rosalind the Weaver in Farmer Joe\'s house.');
+      if (estado.cargado && !estado.sinServicio && !tiene()) fuera('👑 You need VIP to enter your island. Get it from Rosalind the Weaver in Farmer Joe\'s house.');
       else guarda.cerrar();
     }).catch(guarda.cerrar);
   }
@@ -347,6 +374,8 @@
   function islaAbierta(playerName) {
     var dueno = asegurarCuenta();
     return api('/api/vip/de/' + encodeURIComponent(playerName)).then(function (r) {
+      // Un servidor sin VIP (404) no cierra ninguna isla.
+      if (vigente(dueno) && r && r.status === 404) return true;
       return !!(vigente(dueno) && r && r.ok && r.datos && r.datos.vip);
     }).catch(function () { return false; });
   }

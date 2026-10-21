@@ -18,7 +18,8 @@
   var CSRF = new Array(65).join('a');
   try { document.cookie = 'csrf-token=' + CSRF + '; path=/'; } catch (e) {}
 
-  var JUGADOR = 'Tester';
+  // ?jugador=Otro (2026-10-21): la segunda pestaña es OTRO jugador (para ver su bote).
+  var JUGADOR = (/[?&]jugador=([A-Za-z0-9_]{1,20})/.exec(location.search) || [0, 'Tester'])[1];
   var DIRECCION = '0x1111111111111111111111111111111111111111';
   // ?mundo=3 arranca en la mina, ?mundo=4 en la isla (el mundo guardado manda).
   var MUNDO = (function () {
@@ -50,6 +51,9 @@
     // Las antorchas (2026-10-11): las de la mochila (factura 117) y las puestas.
     antorchas: 4,
     antorchasPuestas: [],
+    // El bote (2026-10-21): en la mochila (factura 118) y los que están en el agua.
+    botes: 1,
+    botesPuestos: [],
     pesca: null,
     guardado: null,
     log: [],
@@ -202,6 +206,9 @@
        .concat([hueco(9, 'cana_pescar', 1, 111), hueco(10, 'espada_madera', 1, 112),
                 hueco(11, 'espantapajaros', estado.espantapajaros, 113)])
        .concat(estado.antorchas > 0 ? [hueco(15, 'antorcha', estado.antorchas, 117)] : [])
+       // (2026-10-21) El bote, el arco y el bastón de mago.
+       .concat(estado.botes > 0 ? [hueco(16, 'bote', estado.botes, 118)] : [])
+       .concat([hueco(17, 'arco', 1, 119), hueco(18, 'baston_mago', 1, 120)])
        .concat(['basura', 'cofre1', 'cofre3'].map(function (t, k) {
          return estado.colocables[t] > 0 ? hueco(12 + k, t, estado.colocables[t], estado.facturaDe[t]) : null;
        }).filter(Boolean)),
@@ -593,6 +600,34 @@
       return { ok: true, antorcha: nueva, duracionMs: 1800000,
                gastado: { itemId: 'antorcha', invoiceId: 117, manualId: 'antorcha#117', cantidadRestante: estado.antorchas } };
     }
+    // ── El bote (ver "EL BOTE" en server2.js) ──────────────────────────────
+    if (ruta === '/api/botes' && metodo === 'GET') {
+      var zonaB = consulta && consulta.get ? consulta.get('zona') : '';
+      return { ok: true, yo: JUGADOR, lista: estado.botesPuestos.filter(function (x) { return x.zona === zonaB; }) };
+    }
+    if (ruta === '/api/botes/poner' && metodo === 'POST') {
+      b = cuerpo(init);
+      if (estado.botes <= 0) return { error: 'no_tienes', message: 'You have no boat.' };
+      if (estado.botesPuestos.some(function (x) { return x.dueno === JUGADOR; })) return { error: 'ya_tienes' };
+      estado.botes--;
+      var bote = { id: 'b' + Date.now().toString(16), zona: b.zona, x: Math.round(b.x), y: Math.round(b.y),
+                   dueno: JUGADOR, deNombre: 'Tester', aBordo: null };
+      estado.botesPuestos.push(bote);
+      // Como _avisarZona: las otras pestañas de la sala lo ven aparecer.
+      redEnviar({ t: 'bote:nuevo', id: 'api', sala: (socketVivo() || {})._sala, d: bote });
+      return { ok: true, bote: bote, gastado: { itemId: 'bote', invoiceId: 118, manualId: 'bote#118', cantidadRestante: estado.botes } };
+    }
+    if (ruta === '/api/botes/recoger' && metodo === 'POST') {
+      b = cuerpo(init);
+      var iB = estado.botesPuestos.findIndex(function (x) { return x.id === b.id; });
+      if (iB < 0) return { error: 'no_existe' };
+      if (estado.botesPuestos[iB].aBordo) return { error: 'a_bordo', message: 'Get off the boat first.' };
+      if (estado.palas <= 0) return { error: 'sin_pala' };
+      var quitadoB = estado.botesPuestos.splice(iB, 1)[0];
+      redEnviar({ t: 'bote:quitado', id: 'api', sala: (socketVivo() || {})._sala, d: { id: quitadoB.id, x: quitadoB.x, y: quitadoB.y } });
+      estado.botes++;
+      return { ok: true, itemId: 'bote', factura: { invoiceId: 118, manualId: 'bote#118', cantidad: estado.botes } };
+    }
     // ── El espantapájaros (ver /api/espantapajaros en server2.js) ────────
     // ── El traductor del chat (ver /api/chat/traducir en server2.js) ──────
     if (ruta === '/api/chat/traducir' && metodo === 'POST') {
@@ -827,6 +862,14 @@
       if (m.t === 'mobs:estado' || m.t === 'mobs:evento') { if (m.id === redSala.host) s._fire(m.t, Object.assign({}, m.d, { de: m.id })); return; }
       if (m.t === 'mobs:golpe') { if (redSala.host === s.id) s._fire('mobs:golpe', Object.assign({}, m.d, { de: m.id })); return; }
       if (m.t === 'combate:tajo') s._fire('combate:tajo', Object.assign({}, m.d, { id: m.id }));
+      // El bote de otra pestaña (2026-10-21): se apunta aquí también y se avisa.
+      if (/^bote:/.test(m.t) && m.d && m.d.id) {
+        var iR = estado.botesPuestos.findIndex(function (x) { return x.id === m.d.id; });
+        if (m.t === 'bote:quitado') { if (iR >= 0) estado.botesPuestos.splice(iR, 1); }
+        else if (iR >= 0) estado.botesPuestos[iR] = Object.assign({}, m.d);
+        else estado.botesPuestos.push(Object.assign({}, m.d));
+        s._fire(m.t, Object.assign({}, m.d));
+      }
       if (m.t === 'pvp:herido' && m.victima === s.id) {
         estado.stats.vida = Math.max(0, Number(m.vida) || 0);
         s._fire('pvp:herido', { de: m.id, deNombre: 'Otro', dano: 4, muerto: estado.stats.vida <= 0,
@@ -896,6 +939,18 @@
       }, 20);
     }
     if (evento === 'pvp:tajo') estado.tajos = (estado.tajos || 0) + 1;
+    // El bote (2026-10-21): subir, bajar y dónde va (como 'bote:*' en server2.js).
+    if (/^bote:/.test(evento) && datos) {
+      var bt = estado.botesPuestos.filter(function (x) { return x.id === datos.id; })[0];
+      if (bt && evento === 'bote:subir') bt.aBordo = self.id;
+      if (bt && evento === 'bote:bajar') { bt.aBordo = null; if (isFinite(datos.x)) { bt.x = datos.x; bt.y = datos.y; } }
+      if (bt && evento === 'bote:pos') { bt.x = datos.x; bt.y = datos.y; }
+      estado.boteLog = (estado.boteLog || []).concat([evento]).slice(-50);
+      if (bt && evento !== 'bote:pos') {
+        setTimeout(function () { self._fire('bote:estado', Object.assign({}, bt)); }, 30);
+        redEnviar({ t: 'bote:estado', id: self.id, sala: self._sala, d: Object.assign({}, bt) });
+      }
+    }
     huertoFalso(self, evento, datos);
     amigosFalsos(self, evento, datos);
     redSalida(self, evento, datos);

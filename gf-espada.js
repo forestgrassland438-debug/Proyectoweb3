@@ -195,9 +195,14 @@
     var k = 'gfs_' + arma;
     // En la ráfaga (varias flechas a la vez) el arco se dibuja una sola vez.
     if (!desvio && scene.textures.exists(k)) {
-      // El arma en la mano, apuntando (el dibujo apunta a 45°: se compensa).
-      var mano = efecto(scene, scene.add.image(x, y, k)).setOrigin(0.15, 0.85).setScale(2.2).setDepth(capa)
-        .setRotation(ang + Math.PI / 4);
+      /* El arma en la mano. El bastón, cogido por abajo y con el cristal
+         hacia el disparo (el dibujo apunta a 45°: se compensa). El arco, cogido
+         por el CENTRO, con las puntas de través y la panza hacia el disparo
+         (en el dibujo la panza mira arriba a la izquierda: 135°). */
+      var esArco = def.distancia === 'flecha';
+      var mano = efecto(scene, scene.add.image(x + (esArco ? vx * 6 : 0), y + (esArco ? vy * 6 : 0), k))
+        .setOrigin(esArco ? 0.5 : 0.15, esArco ? 0.5 : 0.85).setScale(2.2).setDepth(capa)
+        .setRotation(ang + (esArco ? Math.PI * 3 / 4 : Math.PI / 4));
       scene.tweens.add({ targets: mano, alpha: 0, delay: 160, duration: 160, onComplete: function () { if (mano.scene) mano.destroy(); } });
     }
     var bala;

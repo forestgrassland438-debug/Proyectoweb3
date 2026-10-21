@@ -1745,6 +1745,8 @@
     if (!S || !S.selectedItem || !S.selectedItem.isGhost || pointer.button !== 0) return;
     // La antorcha no se suelta: se CLAVA (gf-antorchas.js se encarga).
     if (S.selectedItem.id === 'antorcha') return;
+    // (2026-10-21) El bote se pone en el agua y la pala lo recoge (gf-botes.js).
+    if (S.selectedItem.id === 'bote' || S.selectedItem.id === 'pala_construccion') return;
     var canvas = scene.sys.canvas, ev = pointer.event;
     if (!ev || !(ev.target === canvas || canvas.contains(ev.target))) return;
     try { if ((scene.input.hitTestPointer(pointer) || []).length) return; } catch (e) {}   // sobre el personaje o un botón

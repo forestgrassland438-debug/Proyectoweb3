@@ -376,8 +376,9 @@
 
     async _pingBackend() {
       try {
+        // (2026-10-21) /api/health: el servidor no tiene /ping (daba 404 en cada carga).
         const res = await this._fetch(
-          `${this.config.apiBase}/ping`,
+          `${this.config.apiBase}/api/health`,
           { method: 'GET', credentials: 'include', mode: 'cors' },
           5000 // 5 s para ping, independiente del timeout general
         );

@@ -32,7 +32,8 @@
 
   var QUE = {
     shop: 'enter the shop', market: 'use the Market', battle: 'battle', pvp: 'fight other players',
-    fish: 'fish', plant: 'plant seeds', mission: 'do missions', loot: 'pick up loot or receive drops'
+    fish: 'fish', plant: 'plant seeds', mission: 'do missions', loot: 'pick up loot or receive drops',
+    boat: 'put a boat on the water'
   };
   // Las acciones que GFMuerte.bloquear ya vigila y que también piden nombre.
   var POR_MUERTE = { plant: 'plant', mission: 'mission' };
