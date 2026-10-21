@@ -43,15 +43,39 @@
   var ESPADAS = {
     espada_madera: { nombre: 'Wooden Sword', dano: 12, alcance: 46, enfria: 480, color: 0xd9b27a },
     espada_cobre:  { nombre: 'Copper Sword', dano: 20, alcance: 50, enfria: 420, color: 0xf0a56b },
-    espada_hierro: { nombre: 'Iron Sword',   dano: 32, alcance: 54, enfria: 380, color: 0xdfe8f0 }
+    espada_hierro: { nombre: 'Iron Sword',   dano: 32, alcance: 54, enfria: 380, color: 0xdfe8f0 },
+    /* (2026-10-21) "Mete un arco y un bastón de mago en la tienda." Se equipan
+       igual (mismo botón y mismo ESPACIO) pero no barren: DISPARAN hacia donde
+       mira el personaje (una flecha o un rayo violeta) y, al llegar, dan a lo
+       que haya en un cono estrecho y largo (`distancia`). */
+    arco:          { nombre: 'Bow',          dano: 14, alcance: 300, enfria: 650, color: 0xf2e6c8, distancia: 'flecha' },
+    baston_mago:   { nombre: 'Wizard Staff', dano: 18, alcance: 260, enfria: 800, color: 0xb88cff, distancia: 'orbe' }
   };
-  var ORDEN = ['espada_hierro', 'espada_cobre', 'espada_madera'];
+  var ORDEN = ['espada_hierro', 'espada_cobre', 'espada_madera', 'baston_mago', 'arco'];
+  var CONO_DISTANCIA = 0.2;        // medio ángulo del disparo (rad): estrecho
+  var VEL_DISPARO = 950;           // px/s de la flecha y del rayo
   var PODERES = {
     v: { nombre: 'Whirlwind', espera: 6500, alcance: 1.35, dano: 0.9, arco: Math.PI },
     b: { nombre: 'Piercing thrust', espera: 4500, alcance: 2.1, dano: 1.5, arco: 0.55 },
     n: { nombre: 'Guard', espera: 12000, guardia: true }
   };
   var CLAVE_LS = 'gf_espada';
+  var menuReloj = null;
+  function efectos(scene) {
+    if (scene.__gfEspadaFx) return scene.__gfEspadaFx;
+    var fx = { objetos: new Set(), counters: new Set() };
+    scene.__gfEspadaFx = fx;
+    fx.cerrar = function () {
+      if (scene.__gfEspadaFx !== fx) return;
+      scene.__gfEspadaFx = null;
+      scene.events.off('shutdown', fx.cerrar); scene.events.off('destroy', fx.cerrar);
+      fx.counters.forEach(function (tw) { try { tw.stop(); tw.remove(); } catch (e) {} }); fx.counters.clear();
+      Array.from(fx.objetos).forEach(function (o) { try { scene.tweens.killTweensOf(o); if (o.scene) o.destroy(); } catch (e) {} }); fx.objetos.clear();
+    };
+    scene.events.once('shutdown', fx.cerrar); scene.events.once('destroy', fx.cerrar);
+    return fx;
+  }
+  function efecto(scene, o) { var fx = efectos(scene); fx.objetos.add(o); if (o.once) o.once('destroy', function () { fx.objetos.delete(o); }); return o; }
   // Los dibujos de los botones: trazos, sin puntos.
   var SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
   var ICONOS = {
@@ -63,7 +87,7 @@
 
   var equipada = null;
   var objetivos = [];               // otros a los que da el tajo (ver golpe)
-  try { var g = localStorage.getItem(CLAVE_LS); if (ESPADAS[g]) equipada = g; } catch (e) {}
+  try { var g = localStorage.getItem(CLAVE_LS); if (Object.prototype.hasOwnProperty.call(ESPADAS, g)) equipada = g; } catch (e) {}
 
   function guardar() { try { if (equipada) localStorage.setItem(CLAVE_LS, equipada); else localStorage.removeItem(CLAVE_LS); } catch (e) {} }
 
@@ -129,6 +153,68 @@
       y.fillStyle = 'rgba(255,255,255,1)'; y.fillRect(7, 1, 2, 14); y.fillRect(1, 7, 14, 2);
       c2.refresh();
     }
+    // (2026-10-21) La flecha (apunta a la derecha: se gira) y el rayo del bastón.
+    if (!scene.textures.exists('gfs_flecha')) {
+      var c3 = scene.textures.createCanvas('gfs_flecha', 30, 8);
+      var f = c3.getContext();
+      f.fillStyle = '#3a2614'; f.fillRect(4, 3, 20, 3);                  // el contorno del astil
+      f.fillStyle = '#d9b27a'; f.fillRect(5, 4, 18, 1);                  // el astil
+      f.fillStyle = '#e8e4da'; f.beginPath(); f.moveTo(0, 1); f.lineTo(6, 4); f.lineTo(0, 7); f.closePath(); f.fill();   // las plumas
+      f.fillStyle = '#2a2a30'; f.beginPath(); f.moveTo(23, 0); f.lineTo(30, 4); f.lineTo(23, 8); f.closePath(); f.fill(); // la punta
+      f.fillStyle = '#c9ced6'; f.beginPath(); f.moveTo(24, 2); f.lineTo(28, 4); f.lineTo(24, 6); f.closePath(); f.fill();
+      c3.refresh();
+    }
+    if (!scene.textures.exists('gfs_orbe')) {
+      var c4 = scene.textures.createCanvas('gfs_orbe', 28, 28);
+      var o = c4.getContext();
+      var go = o.createRadialGradient(14, 14, 0, 14, 14, 14);
+      go.addColorStop(0, 'rgba(255,250,255,1)'); go.addColorStop(0.3, 'rgba(206,168,255,0.95)');
+      go.addColorStop(0.65, 'rgba(140,80,230,0.45)'); go.addColorStop(1, 'rgba(110,50,200,0)');
+      o.fillStyle = go; o.fillRect(0, 0, 28, 28);
+      c4.refresh();
+    }
+  }
+
+  function esDistancia(arma) { return !!(Object.prototype.hasOwnProperty.call(ESPADAS, arma) && ESPADAS[arma].distancia); }
+
+  /**
+   * (2026-10-21) El disparo del arco o del bastón, VISTO: el arma en la mano
+   * apuntando y la flecha (o el rayo) volando `largo` px hacia `dir`. Lo usan
+   * el disparo propio y el de los demás (gf-mobs-red / gf-salvaje). Devuelve
+   * lo que tarda en llegar (ms).
+   */
+  function dibujarDisparo(scene, x, y, dir, arma, largo, prof, desvio) {
+    if (!scene || !scene.add || !esDistancia(arma) || ![x, y].every(Number.isFinite)) return 0;
+    var def = ESPADAS[arma];
+    largo = Number.isFinite(largo) && largo > 0 ? largo : def.alcance;
+    texturas(scene);
+    var ang = ({ right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 }[dir] || 0) + (Number(desvio) || 0);
+    var vx = Math.cos(ang), vy = Math.sin(ang);
+    var capa = Number.isFinite(prof) ? prof : y + 1;
+    var dur = Math.max(120, Math.round(largo / VEL_DISPARO * 1000));
+    var k = 'gfs_' + arma;
+    // En la ráfaga (varias flechas a la vez) el arco se dibuja una sola vez.
+    if (!desvio && scene.textures.exists(k)) {
+      // El arma en la mano, apuntando (el dibujo apunta a 45°: se compensa).
+      var mano = efecto(scene, scene.add.image(x, y, k)).setOrigin(0.15, 0.85).setScale(2.2).setDepth(capa)
+        .setRotation(ang + Math.PI / 4);
+      scene.tweens.add({ targets: mano, alpha: 0, delay: 160, duration: 160, onComplete: function () { if (mano.scene) mano.destroy(); } });
+    }
+    var bala;
+    if (def.distancia === 'flecha') {
+      bala = efecto(scene, scene.add.image(x + vx * 14, y + vy * 14, 'gfs_flecha')).setRotation(ang).setScale(1.6).setDepth(capa + 0.5);
+    } else {
+      bala = efecto(scene, scene.add.image(x + vx * 16, y + vy * 16, 'gfs_orbe')).setScale(1.25).setDepth(capa + 0.5);
+      if (bala.setBlendMode && window.Phaser && Phaser.BlendModes) bala.setBlendMode(Phaser.BlendModes.ADD);
+    }
+    scene.tweens.add({ targets: bala, x: x + vx * largo, y: y + vy * largo, duration: dur, ease: 'Linear',
+      onComplete: function () {
+        if (!bala.scene) return;
+        // Al llegar: la flecha se queda un instante y se apaga; el rayo estalla en un destello.
+        scene.tweens.add({ targets: bala, alpha: 0, scale: def.distancia === 'orbe' ? 2.4 : bala.scale, duration: def.distancia === 'orbe' ? 220 : 140,
+          onComplete: function () { if (bala.scene) bala.destroy(); } });
+      } });
+    return dur;
   }
 
   // ───────────────────────────────────────────────────────── EL BOTÓN
@@ -262,8 +348,8 @@
     var url = './Game/Objetos/armas/' + equipada + '.png';
     if (lista) { if (img.getAttribute('src') !== url) img.src = url; img.hidden = false; }
     else { img.removeAttribute('src'); img.hidden = true; }
-    b.title = lista ? ESPADAS[equipada].nombre + ' equipped (SPACE to swing) — click to change'
-                       : 'Equip a sword';
+    b.title = lista ? ESPADAS[equipada].nombre + ' equipped (SPACE to ' + (esDistancia(equipada) ? 'shoot' : 'swing') + ') — click to change'
+                       : 'Equip a weapon';
     var tactil = esTactil();
     if (st.botonTajo) st.botonTajo.hidden = !(lista && tactil);
     var muerto = fantasma(st.scene);
@@ -297,6 +383,7 @@
   }
 
   function cerrarMenu() {
+    clearTimeout(menuReloj); menuReloj = null;
     var m = document.getElementById('gf-espada-menu');
     if (m) m.remove();
     document.removeEventListener('pointerdown', cerrarMenuFuera, true);
@@ -338,7 +425,7 @@
         o.addEventListener('click', function (e) {
           e.stopPropagation();
           equipada = id; guardar(); pintar(st); cerrarMenu();
-          aviso(st.scene, '⚔ ' + ESPADAS[id].nombre + ' equipped — press SPACE to swing', 'info');
+          aviso(st.scene, '⚔ ' + ESPADAS[id].nombre + ' equipped — press SPACE to ' + (esDistancia(id) ? 'shoot' : 'swing'), 'info');
         });
       }
       m.appendChild(o);
@@ -353,20 +440,20 @@
     var r = st.boton.getBoundingClientRect();
     m.style.left = Math.max(8, Math.min(window.innerWidth - m.offsetWidth - 8, r.left + r.width / 2 - m.offsetWidth / 2)) + 'px';
     m.style.top = Math.max(8, r.top - m.offsetHeight - 10) + 'px';
-    setTimeout(function () { document.addEventListener('pointerdown', cerrarMenuFuera, true); }, 0);
+    menuReloj = setTimeout(function () { menuReloj = null; if (m.isConnected && document.getElementById('gf-espada-menu') === m) document.addEventListener('pointerdown', cerrarMenuFuera, true); }, 0);
   }
 
   // ───────────────────────────────────────────────────────── EL GOLPE
   function mostrarDano(scene, x, y, valor) {
-    if (!scene || !scene.add || !scene.add.text || !(valor > 0)) return;
-    var texto = scene.add.text(x, y - 14, String(Math.round(valor * 10) / 10), {
+    if (!scene || !scene.add || !scene.add.text || !(valor > 0) || ![x, y, valor].every(Number.isFinite)) return;
+    var texto = efecto(scene, scene.add.text(x, y - 14, String(Math.round(valor * 10) / 10), {
       fontFamily: 'monospace', fontSize: '18px', fontStyle: 'bold', color: '#fff3bd', stroke: '#231723', strokeThickness: 3
-    }).setOrigin(0.5).setDepth(9600);
+    })).setOrigin(0.5).setDepth(9600);
     scene.tweens.add({ targets: texto, y: y - 62, alpha: 0, duration: 720, onComplete: function () { if (texto.scene) texto.destroy(); } });
   }
 
   function usarPoder(st, tecla) {
-    var poder = PODERES[tecla], scene = st.scene;
+    var poder = Object.prototype.hasOwnProperty.call(PODERES, tecla) ? PODERES[tecla] : null, scene = st.scene;
     if (!poder || !scene || !equipada || cuantas(scene, equipada) <= 0 || scene._cambiandoEscena || scene._accionPersonaje === 'pesca') return false;
     if (fantasma(scene)) { window.GFMuerte.bloquear(scene, 'attack'); return false; }
     st.poderEn = st.poderEn || {};
@@ -397,10 +484,12 @@
     // Siendo fantasma no se pelea (y se dice por qué).
     if (fantasma(scene)) { window.GFMuerte.bloquear(scene, 'attack'); return; }
     var def = Object.assign({}, ESPADAS[equipada]);
+    var lejos = !!def.distancia;
     var mejoras = scene.skillAllocations || {};
     def.dano *= 1 + Math.min(1, (Number(mejoras.strength) || 0) * 0.04);
     def.alcance *= 1 + Math.min(0.35, (Number(mejoras.combat) || 0) * 0.015);
-    if (poder) { def.alcance *= poder.alcance; def.dano *= poder.dano; }
+    // A distancia los poderes casi no alargan (300 px ya es mucho): pegan más.
+    if (poder) { def.alcance *= lejos ? Math.min(1.3, poder.alcance) : poder.alcance; def.dano *= poder.dano; }
     var ahora = scene.time.now;
     if (ahora < st.listoEn) return;
     st.listoEn = ahora + def.enfria;
@@ -413,11 +502,12 @@
     var ang = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 }[dir];
     var mano = { right: [14, 7], left: [-14, 7], up: [-8, 0], down: [10, 12] }[dir];
     var cx = p.x + mano[0], cy = p.y + mano[1];
+    var prof = dir === 'up' ? (p.depth || p.y) - 1 : (p.depth || p.y) + 1;
+    if (lejos) { disparo(st, def, dir, cx, cy, prof, poder); return; }
 
     // La espada barre el arco desde la mano.
     var k = 'gfs_' + equipada;
-    var arma = scene.textures.exists(k) ? scene.add.image(cx, cy, k).setOrigin(0.15, 0.85).setScale(2.2) : null;
-    var prof = dir === 'up' ? (p.depth || p.y) - 1 : (p.depth || p.y) + 1;
+    var arma = scene.textures.exists(k) ? efecto(scene, scene.add.image(cx, cy, k)).setOrigin(0.15, 0.85).setScale(2.2) : null;
     if (arma) arma.setDepth(prof);
     var barrido = poder ? poder.arco : 1.3;
     var desde = ang - barrido, hasta = ang + barrido;
@@ -425,36 +515,49 @@
     // El dibujo de la espada apunta arriba a la derecha (45°): se compensa.
     var BASE = -Math.PI / 4;
     if (arma) arma.rotation = desde - BASE;
-    scene.tweens.addCounter({ from: 0, to: 1, duration: 170, ease: 'Cubic.easeOut', onUpdate: function (tw) {
+    var fx = efectos(scene), counter;
+    counter = scene.tweens.addCounter({ from: 0, to: 1, duration: 170, ease: 'Cubic.easeOut', onUpdate: function (tw) {
       if (!arma || !arma.scene) return;
       var t = tw.getValue();
       var estocada = poder && poder.arco < 1 ? Math.sin(t * Math.PI) * 30 : 0;
       arma.setPosition(p.x + mano[0] + Math.cos(ang) * estocada, p.y + mano[1] + Math.sin(ang) * estocada);
       arma.rotation = estocada ? ang - BASE : desde + (hasta - desde) * t - BASE;
     }, onComplete: function () {
+      fx.counters.delete(counter);
       if (arma && arma.scene) scene.tweens.add({ targets: arma, alpha: 0, duration: 90, onComplete: function () { arma.destroy(); } });
     } });
+    fx.counters.add(counter);
 
     // La estela.
-    var tajo = scene.add.image(cx + Math.cos(ang) * 18, cy + Math.sin(ang) * 18, 'gfs_tajo')
+    var tajo = efecto(scene, scene.add.image(cx + Math.cos(ang) * 18, cy + Math.sin(ang) * 18, 'gfs_tajo'))
       .setRotation(ang).setDepth(prof + 0.5).setScale(def.alcance / 44).setAlpha(0.95).setTint(def.color);
     if (tajo.setBlendMode && window.Phaser && Phaser.BlendModes) tajo.setBlendMode(Phaser.BlendModes.ADD);
     scene.tweens.add({ targets: tajo, alpha: 0, scale: tajo.scale * 1.15, duration: 230, ease: 'Quad.easeOut', onComplete: function () { tajo.destroy(); } });
     if (poder && poder.arco >= Math.PI) {
-      var rueda = scene.add.circle(cx, cy, def.alcance, def.color, 0.08).setStrokeStyle(2, def.color, 0.8).setDepth(prof + 0.5);
+      var rueda = efecto(scene, scene.add.circle(cx, cy, def.alcance, def.color, 0.08)).setStrokeStyle(2, def.color, 0.8).setDepth(prof + 0.5);
       scene.tweens.add({ targets: rueda, alpha: 0, scale: 1.15, duration: 260, onComplete: function () { rueda.destroy(); } });
     }
 
-    // El daño.
+    danar(st, cx, cy, dir, def.alcance + 18, def.dano, poder, 0);
+  }
+
+  /**
+   * El daño (2026-10-21: sacado de `golpe` para que lo compartan el tajo y el
+   * disparo). Da a los animales y a todo lo apuntado con agregarObjetivo y
+   * devuelve los puntos tocados. `vuela` > 0: los destellos y los números
+   * salen cuando el proyectil LLEGA a cada uno (px/s del disparo).
+   */
+  function danar(st, cx, cy, dir, alcance, dano, poder, vuela) {
+    var scene = st.scene;
     var res = window.GFAnimales && window.GFAnimales.golpear
-      ? window.GFAnimales.golpear(scene, cx, cy, dir, def.alcance + 18, def.dano, poder)
+      ? window.GFAnimales.golpear(scene, cx, cy, dir, alcance, dano, poder)
       : { tocados: 0, muertos: 0, puntos: [] };
     /* Y los demás que se hayan apuntado (2026-10-10): los zombis de la mina
        (gf-mina-zombis.js), los monstruos y los jugadores de la zona PVP. Cada
        uno devuelve lo mismo que GFAnimales.golpear y se suma. */
     objetivos.slice().forEach(function (fn) {
       try {
-        var r2 = fn(scene, cx, cy, dir, def.alcance + 18, def.dano, poder);
+        var r2 = fn(scene, cx, cy, dir, alcance, dano, poder);
         if (!r2) return;
         res.tocados += r2.tocados || 0;
         res.muertos += r2.muertos || 0;
@@ -462,10 +565,15 @@
       } catch (e) {}
     });
     res.puntos.forEach(function (pt) {
-      if (pt.dano > 0) mostrarDano(scene, pt.x, pt.y, pt.dano);
-      var ch = scene.add.image(pt.x, pt.y, 'gfs_chispa').setDepth(9000).setScale(1.6);
-      if (ch.setBlendMode && window.Phaser && Phaser.BlendModes) ch.setBlendMode(Phaser.BlendModes.ADD);
-      scene.tweens.add({ targets: ch, scale: 0.2, alpha: 0, rotation: 1, duration: 260, onComplete: function () { ch.destroy(); } });
+      var verlo = function () {
+        if (!scene.sys || !scene.sys.isActive()) return;
+        if (pt.dano > 0) mostrarDano(scene, pt.x, pt.y, pt.dano);
+        var ch = efecto(scene, scene.add.image(pt.x, pt.y, 'gfs_chispa')).setDepth(9000).setScale(1.6);
+        if (ch.setBlendMode && window.Phaser && Phaser.BlendModes) ch.setBlendMode(Phaser.BlendModes.ADD);
+        scene.tweens.add({ targets: ch, scale: 0.2, alpha: 0, rotation: 1, duration: 260, onComplete: function () { ch.destroy(); } });
+      };
+      var tarda = vuela > 0 ? Math.round(Math.hypot(pt.x - cx, pt.y - cy) / vuela * 1000) : 0;
+      if (tarda > 16) scene.time.delayedCall(tarda, verlo); else verlo();
     });
     if (res.tocados) {
       try { scene.cameras.main.shake(80, 0.0025); } catch (e) {}
@@ -478,6 +586,21 @@
         scene.playSFX('cortando_sound', { volume: vol * 0.7, rate: 1.35 });
       }
     } catch (e) {}
+    return res;
+  }
+
+  /**
+   * (2026-10-21) El arco y el bastón. El daño va por un cono ESTRECHO y largo
+   * (CONO_DISTANCIA) y se ve volar la flecha o el rayo, que atraviesan. Con el
+   * remolino (V) es una ráfaga de tres en abanico; con la estocada (B), un
+   * tiro más fuerte y algo más largo.
+   */
+  function disparo(st, def, dir, cx, cy, prof, poder) {
+    var scene = st.scene;
+    var rafaga = !!(poder && poder.arco >= Math.PI);
+    danar(st, cx, cy, dir, def.alcance, def.dano, { arco: rafaga ? 0.5 : CONO_DISTANCIA }, VEL_DISPARO);
+    dibujarDisparo(scene, cx, cy, dir, equipada, def.alcance, prof);
+    if (rafaga) [-0.4, 0.4].forEach(function (a) { dibujarDisparo(scene, cx, cy, dir, equipada, def.alcance, prof, a); });
   }
 
   // ───────────────────────────────────────────────────────── MONTAJE
@@ -486,9 +609,13 @@
     if (scene.__gfEspada) return scene.__gfEspada;
     var st = { scene: scene, listoEn: 0, ultimo: 0 };
     scene.__gfEspada = st;
+    st.onApagar = function () { desmontar(scene); };
+    scene.events.once('shutdown', st.onApagar); scene.events.once('destroy', st.onApagar);
+    try {
     botones(st);
     pintar(st);
     if (window.GFCharacterSkills) window.GFCharacterSkills.montar(scene);
+    } catch (e) { desmontar(scene); console.warn('[espada]', e); return null; }
     try { texturas(scene); } catch (e) {}
     st.onTecla = function (ev) {
       var el = document.activeElement;
@@ -518,9 +645,6 @@
     st.onVentana = function () { colocarPanel(st); };
     window.addEventListener('resize', st.onVentana);
     window.addEventListener('orientationchange', st.onVentana);
-    st.onApagar = function () { desmontar(scene); };
-    scene.events.once('shutdown', st.onApagar);
-    scene.events.once('destroy', st.onApagar);
     return st;
   }
 
@@ -528,11 +652,12 @@
     var st = scene && scene.__gfEspada;
     if (!st) return;
     scene.__gfEspada = null;
+    if (scene.__gfEspadaFx) scene.__gfEspadaFx.cerrar();
     if (st.onVentana) {
       window.removeEventListener('resize', st.onVentana);
       window.removeEventListener('orientationchange', st.onVentana);
     }
-    if (scene.input && scene.input.keyboard) scene.input.keyboard.off('keydown-SPACE', st.onTecla);
+    if (scene.input && scene.input.keyboard && st.onTecla) scene.input.keyboard.off('keydown-SPACE', st.onTecla);
     if (scene.input && scene.input.keyboard) Object.keys(st.teclasPoder || {}).forEach(function (tecla) { scene.input.keyboard.off('keydown-' + tecla.toUpperCase(), st.teclasPoder[tecla]); });
     (st.botonesPoder || []).forEach(function (p) { p.boton.removeEventListener('pointerdown', p.activar); });
     if (st.botonTajo && st.panelPoderes && st.botonTajo.parentNode === st.panelPoderes) document.body.appendChild(st.botonTajo);
@@ -540,7 +665,7 @@
     if (st.escudo) st.escudo.destroy();
     if (st.boton && st.boton._gfe === st.onEquipo) { st.boton.removeEventListener('click', st.onEquipo); st.boton._gfe = null; }
     if (st.botonTajo && st.botonTajo._gfe === st.onTajo) { st.botonTajo.removeEventListener('pointerdown', st.onTajo); st.botonTajo._gfe = null; }
-    scene.events.off('update', st.onUpdate);
+    if (st.onUpdate) scene.events.off('update', st.onUpdate);
     scene.events.off('shutdown', st.onApagar);
     scene.events.off('destroy', st.onApagar);
     cerrarMenu();
@@ -552,12 +677,15 @@
     montar: montar,
     desmontar: desmontar,
     equipada: function () { return equipada; },
-    equipar: function (id) { if (id === null || ESPADAS[id]) { equipada = id; guardar(); } return equipada; },
+    equipar: function (id) { if (id === null || Object.prototype.hasOwnProperty.call(ESPADAS, id)) { equipada = id; guardar(); } return equipada; },
     golpear: function (scene) { var st = scene && scene.__gfEspada; if (st) golpe(st); },
     /** fn(scene, cx, cy, dir, alcance, dano) -> { tocados, muertos, puntos } */
     agregarObjetivo: function (fn) { if (typeof fn === 'function' && objetivos.indexOf(fn) < 0) objetivos.push(fn); },
     quitarObjetivo: function (fn) { var i = objetivos.indexOf(fn); if (i >= 0) objetivos.splice(i, 1); },
-    ESPADAS: ESPADAS
+    ESPADAS: ESPADAS,
+    /** (2026-10-21) ¿Es el arco o el bastón? Y su disparo visto (para los demás jugadores). */
+    esDistancia: esDistancia,
+    dibujarDisparo: dibujarDisparo
     , mostrarDano: mostrarDano, usarPoder: function (scene, tecla) { var st = scene && scene.__gfEspada; return st ? usarPoder(st, tecla) : false; }, PODERES: PODERES
   };
 })();

@@ -697,15 +697,32 @@
       if (!d) return;
       var n = desescapar(d.nombre || d.playerName || 'That player');
       if (!d.ok) {
+        /* (2026-10-20) EL VIAJE CUESTA BRONCE, según la distancia: el servidor
+           dice el precio y aquí se pregunta; si se acepta, se vuelve a pedir
+           pagando. */
+        if (d.motivo === 'precio') {
+          var precio = Math.floor(Number(d.precio) || 0), saldo = Math.floor(Number(d.saldo) || 0);
+          if (saldo < precio) {
+            aviso('Travelling to ' + n + ' costs ' + precio.toLocaleString('en-US') + ' Bronze. You have ' + saldo.toLocaleString('en-US') + '.', 'error');
+            return;
+          }
+          if (global.confirm('Travel to ' + n + ' for ' + precio.toLocaleString('en-US') + ' Bronze?\n(The farther away, the more it costs.)')) {
+            socket.emit('friends:ir', { playerName: d.playerName, pagar: true, precio: precio });
+          }
+          return;
+        }
         var porque = {
           no_conectado: n + ' is not online right now.',
           otro_canal:   n + ' is playing in channel ' + d.canal + '. Switch to that channel to join them.',
           ocupado:      d.zona === 'battle' ? n + ' is in a battle right now.'
-                                            : n + ' is on the move. Try again in a moment.'
+                                            : n + ' is on the move. Try again in a moment.',
+          sin_bronce:   'Not enough Bronze to travel (' + Math.floor(Number(d.precio) || 0).toLocaleString('en-US') + ' needed).',
+          isla_sin_vip: n + ' is on an island that is closed: its owner has no VIP.'
         };
         aviso(porque[d.motivo] || 'Could not find ' + n + '.', 'error');
         return;
       }
+      if (d.stats && global.GFBronce) global.GFBronce.adoptarStats(d.stats);
       var V = global.GFViaje;
       var mundo = V && V.MUNDO_DE_ZONA[d.zona];
       if (!mundo) { aviso('You cannot travel there.', 'error'); return; }
@@ -937,6 +954,14 @@
     var V = global.GFViaje;
     if (!V) { aviso('Travelling is not available here.', 'error'); return; }
     var n = desescapar(j.username || j.playerName);
+    // (2026-10-20) Una isla sin VIP está cerrada (también para las visitas).
+    if (global.GFVip && !j.__vipVisto) {
+      global.GFVip.islaAbierta(j.playerName).then(function (abierta) {
+        if (!abierta) { aviso(n + "'s island is closed: its owner has no VIP.", 'error'); return; }
+        j.__vipVisto = true; visitarIsla(j); j.__vipVisto = false;
+      });
+      return;
+    }
     cerrarPanel();
     aviso('Visiting ' + n + "'s island…", 'info');
     if (!V.viajar({ mundo: 4, islaDe: j.playerName, islaDeNombre: n })) {

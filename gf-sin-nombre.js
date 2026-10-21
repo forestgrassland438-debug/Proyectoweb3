@@ -28,6 +28,7 @@
  * ======================================================================== */
 (function () {
   'use strict';
+  if (window.GFSinNombre) return;
 
   var QUE = {
     shop: 'enter the shop', market: 'use the Market', battle: 'battle', pvp: 'fight other players',
@@ -35,7 +36,7 @@
   };
   // Las acciones que GFMuerte.bloquear ya vigila y que también piden nombre.
   var POR_MUERTE = { plant: 'plant', mission: 'mission' };
-  var avisadoEn = {};
+  var avisadoEn = Object.create(null), propietario = null;
 
   function valido(u) { u = String(u == null ? '' : u).trim(); return !!u && u !== '---'; }
 
@@ -52,13 +53,20 @@
   }
 
   function tiene() {
+    var escenas = [];
+    try { if (window.game && window.game.scene && window.game.scene.getScenes) escenas = window.game.scene.getScenes(true) || []; } catch (e) {}
+    var sc = escenas.find(function (s) { return s && s.playerName; });
+    var id = sc ? String(sc.playerName) : null;
+    if (id && id !== propietario) {
+      if (propietario !== null) { window._gfNombreFijado = false; window._acttov = 0; avisadoEn = Object.create(null); }
+      propietario = id;
+    }
+    // Un nombre explícitamente pendiente manda sobre un flag de otra escena.
+    var u = nombreActual();
+    if (u !== null) { var ok = valido(u); window._gfNombreFijado = ok; return ok; }
     if (window._gfNombreFijado === true) return true;       // fijado una vez, para siempre
     if (Number(window._acttov) === 1) return true;          // el panel del jugador ya lo vio fijado
-    var u = nombreActual();
-    if (u == null) return true;                              // aún no se sabe: decide el servidor
-    var ok = valido(u);
-    if (ok) window._gfNombreFijado = true;
-    return ok;
+    return true;                                            // aún no se sabe: decide el servidor
   }
 
   function escenaActiva() {

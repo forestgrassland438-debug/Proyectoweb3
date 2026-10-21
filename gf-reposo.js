@@ -61,6 +61,7 @@
   function dormir(p) {
     if (!p) return;
     if (!p._afk) { p._afk = true; p._afkVisibles = []; }
+    else p._afkVisibles = (p._afkVisibles || []).filter(function (o) { return o && o.scene; });
     var l = piezas(p);
     for (var i = 0; i < l.length; i++) {
       if (l[i].visible) {

@@ -3,7 +3,7 @@
 (function () {
   'use strict';
   if (window.GFSessionAPI || typeof window.fetch !== 'function') return;
-  var original = window.fetch.bind(window), suspended = false, destroyed = false, timer = null, vitalRevision = 0;
+  var original = window.fetch.bind(window), suspended = false, destroyed = false, timer = null, vitalRevision = 0, epoch = 0;
   var base = typeof window.GF_API_BASE === 'string' ? window.GF_API_BASE
     : typeof window.serverBase === 'string' ? window.serverBase
     : /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? 'http://127.0.0.1:8080' : 'https://api.grasslandforest.com';
@@ -28,15 +28,20 @@
   async function wrapped(input, init) {
     var url = owned(input);
     if (!url || !window.PhaserRelay || /\/auth\/(?:refresh|login|nonce|logout)$/.test(url.pathname)) {
-      if (url && /\/auth\/logout$/.test(url.pathname)) {
+      var login = url && /\/auth\/login$/.test(url.pathname);
+      if (url && /\/auth\/(?:login|logout)$/.test(url.pathname)) {
+        var authEpoch = ++epoch;
         suspended = true;
         // Esperar la renovación anterior evita recibir una cookie nueva
         // después de haber cerrado sesión explícitamente.
         var pending = window.PhaserRelay && window.PhaserRelay._sessionRefreshes && window.PhaserRelay._sessionRefreshes.get(base);
         if (pending) { try { var completed = await pending; var data = await completed.json(); init = optionsWithCSRF(input, init, data.csrfToken); } catch (e) {} }
       }
-      return original(input, init);
+      var authResponse = await original(input, init);
+      if (login && authResponse.ok && authEpoch === epoch && !destroyed) suspended = false;
+      return authResponse;
     }
+    var requestEpoch = epoch;
     var mutation = /\/stats\/.*\/(consume|update|refill)$|\/alchemist\/(buy|use)$/.test(url.pathname);
     if (mutation) vitalRevision++;
     var signal = init && init.signal || input && input.signal;
@@ -44,10 +49,10 @@
     var copy = typeof input === 'string' || input instanceof URL ? input : input.clone();
     var response;
     try { response = await original(input, init); } finally { if (mutation) vitalRevision++; }
-    if (response.status !== 401 || suspended || destroyed || (signal && signal.aborted)) return response;
+    if (response.status !== 401 || requestEpoch !== epoch || suspended || destroyed || (signal && signal.aborted)) return response;
     try {
       var result = await refresh();
-      if (!result.ok || suspended || destroyed || (signal && signal.aborted)) return response;
+      if (!result.ok || requestEpoch !== epoch || suspended || destroyed || (signal && signal.aborted)) return response;
       var body = await result.json();
       try { return await original(copy, optionsWithCSRF(copy, init, body.csrfToken)); } finally { if (mutation) vitalRevision++; }
     } catch (e) { return response; }

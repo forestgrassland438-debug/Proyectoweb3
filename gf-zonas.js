@@ -89,7 +89,7 @@
    * la sala nueva y la pantalla de carga.
    */
   function viajar(scene, cual) {
-    var z = ZONAS[cual];
+    var z = Object.prototype.hasOwnProperty.call(ZONAS, cual) ? ZONAS[cual] : null;
     if (!scene || !z || scene._cambiandoEscena || scene._viajeZona) return Promise.resolve(false);
     if (!scene.scene.get(z.escena)) {
       console.warn('[zonas] ' + z.escena + ' no está registrada: no se puede viajar');
@@ -97,6 +97,22 @@
       return Promise.resolve(false);
     }
     scene._viajeZona = true;
+    var contexto = { cancelado: false, reloj: null, resolver: null }, nota = null;
+    scene.__gfViajeZona = contexto;
+    function vigente() { return !contexto.cancelado && scene.__gfViajeZona === contexto && (!scene.sys || scene.sys.isActive()); }
+    function soltar() {
+      if (contexto.reloj !== null) clearTimeout(contexto.reloj);
+      if (scene.events) { scene.events.off('shutdown', cancelar); scene.events.off('destroy', cancelar); }
+      if (scene.__gfViajeZona === contexto) scene.__gfViajeZona = null;
+    }
+    function cancelar() {
+      contexto.cancelado = true;
+      if (window.__gfViaje === nota) window.__gfViaje = null;
+      if (scene.__gfViajeZona === contexto) { scene._viajeZona = false; scene._cambiandoEscena = false; }
+      if (contexto.resolver) contexto.resolver(false);
+      soltar();
+    }
+    if (scene.events) { scene.events.once('shutdown', cancelar); scene.events.once('destroy', cancelar); }
     var previo = { mundo: scene.mundo, x: scene.posicionplayerx, y: scene.posicionplayery };
     var clave = scene.sys && scene.sys.settings ? scene.sys.settings.key : '';
     try { scene._cancelarArrastre(); } catch (e) {}
@@ -106,23 +122,25 @@
     scene.posicionplayery = z.llegada.y;
     // El candado corta el update() (que reescribiría la posición).
     scene._cambiandoEscena = true;
-    window.__gfViaje = { mundo: z.mundo, x: z.llegada.x, y: z.llegada.y, islaDe: null, islaDeNombre: null, t: Date.now() };
+    nota = window.__gfViaje = { mundo: z.mundo, x: z.llegada.x, y: z.llegada.y, islaDe: null, islaDeNombre: null, t: Date.now() };
     /* UN REINTENTO (2026-10-19). Un guardado que vuelve `false` una vez (el
        inventario recargándose tras una compra en el mercado, un token que se
        renueva) dejaba al jugador plantado en la salida. Antes de cada intento
        se vuelve a poner el destino: esa recarga copia el `mundo` de la
        partida (el de ANTES del viaje) encima del nuestro. */
     var guardarUna = function () {
+      if (!vigente()) return Promise.resolve(false);
       scene.mundo = z.mundo;
       scene.posicionplayerx = z.llegada.x;
       scene.posicionplayery = z.llegada.y;
       try { return Promise.resolve(scene.savegg()); } catch (e) { return Promise.reject(e); }
     };
     var guardar = guardarUna().catch(function () { return false; }).then(function (ok) {
-      if (ok !== false || !scene.sys || !scene.sys.isActive()) return ok;
-      return new Promise(function (r) { setTimeout(r, 900); }).then(guardarUna);
+      if (ok !== false || !vigente()) return ok;
+      return new Promise(function (r) { contexto.resolver = r; contexto.reloj = setTimeout(function () { contexto.reloj = null; contexto.resolver = null; r(); }, 900); }).then(guardarUna);
     });
     return guardar.then(function (ok) {
+      if (!vigente()) return false;
       if (ok === false) throw new Error('guardado no completado');
       console.log('🧭 de ' + clave + ' a ' + z.escena);
       try { scene._ocultarHUD(); } catch (e) {}
@@ -133,13 +151,16 @@
       if (scene.socket && scene.socket.connected) {
         scene.socket.emit('joinRoom', { room: z.sala, username: scene.Username || '---', soulbound: window.GFSoulbound ? window.GFSoulbound.actual() : null, lastScene: clave, x: z.llegada.x, y: z.llegada.y });
       }
+      // La limpieza intencional del viaje no es una cancelación.
+      if (scene.events) { scene.events.off('shutdown', cancelar); scene.events.off('destroy', cancelar); }
       try { scene.cleanupScene(); } catch (e) { console.warn('limpieza:', e); }
       scene._viajeZona = false;
       scene.scene.start('LoadingScenegame', { targetScene: z.escena, playerData: { x: z.llegada.x, y: z.llegada.y, mundo: z.mundo } });
       return true;
     }).catch(function (err) {
+      if (!vigente()) return false;
       console.warn('[zonas] guardado antes del viaje:', err);
-      window.__gfViaje = null;
+      if (window.__gfViaje === nota) window.__gfViaje = null;
       scene.mundo = previo.mundo;
       scene.posicionplayerx = previo.x; scene.posicionplayery = previo.y;
       scene._cambiandoEscena = false;
@@ -147,16 +168,18 @@
       scene._viajeZona = false;
       aviso(scene, 'Unable to save your trip. Try again.', 'error');
       return false;
-    });
+    }).finally(soltar);
   }
 
   // ─────────────────────────────────────────────────────── TEXTURAS (canvas)
   function lienzo(scene, clave, w, h, pinta) {
     if (scene.textures.exists(clave)) return;
     var c = scene.textures.createCanvas(clave, w, h);
-    pinta(c.getContext(), w, h);
-    c.refresh();
+    try { pinta(c.getContext(), w, h); c.refresh(); }
+    catch (e) { if (scene.textures.exists(clave) && scene.textures.get(clave) === c) scene.textures.remove(clave); throw e; }
   }
+  function propio(st, o) { st.objetos.push(o); return o; }
+  function dato(st, key, value) { st.escritos[key] = value; st.scene[key] = value; }
   /** Manchas suaves que se repiten sin costura (cada una se pinta 9 veces). */
   function manchasCiclicas(x, w, h, manchas) {
     manchas.forEach(function (m) {
@@ -265,14 +288,14 @@
     (capa ? capa.objects : []).forEach(function (o) {
       if (o.name !== 'hoguera') return;
       var ADD = window.Phaser && Phaser.BlendModes ? Phaser.BlendModes.ADD : 1;
-      var brillo = scene.add.image(o.x, o.y - 8, 'zn_brillo').setDepth(o.y - 1).setAlpha(0.55).setBlendMode(ADD);
+      var brillo = propio(st, scene.add.image(o.x, o.y - 8, 'zn_brillo')).setDepth(o.y - 1).setAlpha(0.55).setBlendMode(ADD);
       var llamas = [-4, 0, 4].map(function (dx, k) {
-        return { spr: scene.add.image(o.x + dx, o.y - 10, 'zn_llama_' + k).setOrigin(0.5, 1).setDepth(o.y + 1 + k * 0.01),
+        return { spr: propio(st, scene.add.image(o.x + dx, o.y - 10, 'zn_llama_' + k)).setOrigin(0.5, 1).setDepth(o.y + 1 + k * 0.01),
                  dx: dx, fase: Math.random() * 6, k: k === 1 ? 1.0 : 0.68 };
       });
       var chispas = [];
       for (var i = 0; i < 6; i++) {
-        chispas.push({ spr: scene.add.image(o.x, o.y, 'zn_chispa').setDepth(o.y + 2).setBlendMode(ADD).setVisible(false), vida: 0 });
+        chispas.push({ spr: propio(st, scene.add.image(o.x, o.y, 'zn_chispa')).setDepth(o.y + 2).setBlendMode(ADD).setVisible(false), vida: 0 });
       }
       st.hogueras.push({ x: o.x, y: o.y, brillo: brillo, llamas: llamas, chispas: chispas, prox: 0 });
     });
@@ -322,7 +345,7 @@
     st.polvo = [];
     for (var i = 0; i < 22; i++) {
       var hilo = i >= 12;
-      var p = { spr: scene.add.image(0, 0, hilo ? 'zn_hilo' : 'zn_polvo').setDepth(PROF_NIEBLA + 0.02).setAlpha(0),
+      var p = { spr: propio(st, scene.add.image(0, 0, hilo ? 'zn_hilo' : 'zn_polvo')).setDepth(PROF_NIEBLA + 0.02).setAlpha(0),
                 hilo: hilo, v: hilo ? 110 + Math.random() * 90 : 26 + Math.random() * 30,
                 k: hilo ? 0.8 + Math.random() * 0.9 : 1.3 + Math.random() * 1.7, fase: Math.random() * 6.3 };
       nacerPolvo(p, v, true);
@@ -362,7 +385,7 @@
   function montarNiebla(st) {
     var scene = st.scene;
     st.niebla = [0, 1, 2].map(function (i) {
-      var t = scene.add.tileSprite(0, 0, 64, 64, 'zn_niebla').setOrigin(0, 0).setDepth(PROF_NIEBLA + i * 0.01);
+      var t = propio(st, scene.add.tileSprite(0, 0, 64, 64, 'zn_niebla')).setOrigin(0, 0).setDepth(PROF_NIEBLA + i * 0.01);
       t.setTileScale(2 + i * 0.6, 2 + i * 0.4);
       return { spr: t, vx: [14, -9, 6][i], vy: [2, -1, 1.5][i], ox: i * 170, oy: i * 90 };
     });
@@ -388,14 +411,14 @@
   }
   function montarTormenta(st) {
     var scene = st.scene;
-    st.tinte = scene.add.rectangle(0, 0, 16, 16, 0xd9b67a, 1).setOrigin(0, 0).setDepth(PROF_AIRE).setAlpha(0);
+    st.tinte = propio(st, scene.add.rectangle(0, 0, 16, 16, 0xd9b67a, 1)).setOrigin(0, 0).setDepth(PROF_AIRE).setAlpha(0);
     st.velos = [0, 1].map(function (i) {
-      return { spr: scene.add.tileSprite(0, 0, 64, 64, 'zn_velo').setOrigin(0, 0).setDepth(PROF_AIRE + 0.1 + i * 0.1).setAlpha(0).setTileScale(2.4 + i, 2.4 + i),
+      return { spr: propio(st, scene.add.tileSprite(0, 0, 64, 64, 'zn_velo')).setOrigin(0, 0).setDepth(PROF_AIRE + 0.1 + i * 0.1).setAlpha(0).setTileScale(2.4 + i, 2.4 + i),
                ox: i * 300, vx: [150, 220][i], vy: [10, -14][i] };
     });
     st.rafagas = [];
     for (var i = 0; i < 34; i++) {
-      st.rafagas.push({ spr: scene.add.image(0, 0, 'zn_rafaga').setDepth(PROF_AIRE + 0.3).setAlpha(0).setVisible(false),
+      st.rafagas.push({ spr: propio(st, scene.add.image(0, 0, 'zn_rafaga')).setDepth(PROF_AIRE + 0.3).setAlpha(0).setVisible(false),
                         x: Math.random(), y: Math.random(), v: 0.55 + Math.random() * 0.5, k: 0.6 + Math.random() * 1.3 });
     }
     st.tormentaVista = 0;
@@ -410,8 +433,8 @@
     var a = st.tormentaVista;
     // Las palmeras se doblan con la tormenta (gf-viento.js lee esta brisa)
     // y se oye (gf-audio.js lee su fuerza).
-    scene._vientoExtra = 0.35 + 0.85 * a;
-    scene._tormentaArena = a;
+    dato(st, '_vientoExtra', 0.35 + 0.85 * a);
+    dato(st, '_tormentaArena', a);
     var ahora = a > 0.05;
     if (ahora !== st.enTormenta) {
       st.enTormenta = ahora;
@@ -445,9 +468,9 @@
       var p = {};
       (o.properties || []).forEach(function (q) { p[q.name] = Number(q.value); });
       if (!scene.textures.exists('zn_remolino')) return;
-      var spr = scene.add.sprite(o.x, o.y, 'zn_remolino', 0).setOrigin(0.5, 0.94).setScale(2);
+      var spr = propio(st, scene.add.sprite(o.x, o.y, 'zn_remolino', 0)).setOrigin(0.5, 0.94).setScale(2);
       if (scene.anims.exists('zn_remolino')) spr.play({ key: 'zn_remolino', startFrame: Math.floor(Math.random() * 8) });
-      var sombra = scene.add.image(o.x, o.y, 'zn_sombra_remolino').setDepth(2.6).setScale(1.3);
+      var sombra = propio(st, scene.add.image(o.x, o.y, 'zn_sombra_remolino')).setDepth(2.6).setScale(1.3);
       st.remolinos.push({ x: o.x, y: o.y, rx: p.rx || 300, ry: p.ry || 200, periodo: p.periodo || 45, fase: p.fase || 0,
                           vaiven: p.vaiven || 60, spr: spr, sombra: sombra, px: o.x, py: o.y });
     });
@@ -491,7 +514,7 @@
       if (d < dmin) { dmin = d; cerca = r; }
     });
     // El remolino se oye antes de que tire: hasta 520 px (gf-audio.js).
-    scene._remolinoCerca = cerca && dmin < 520 ? Math.pow(1 - dmin / 520, 1.3) : 0;
+    dato(st, '_remolinoCerca', cerca && dmin < 520 ? Math.pow(1 - dmin / 520, 1.3) : 0);
     if (!cerca || scene._cambiandoEscena || fantasma()) { st.atrapado = false; return; }
     if (dmin < ATRAE) {
       // Poco a poco: lejos apenas tira (unos 20 px/s); cerca, la mitad de lo
@@ -533,7 +556,7 @@
     st.copos = [];
     // Pocos y suaves: que se lea nevada, no puntos sueltos.
     for (var i = 0; i < 44; i++) {
-      st.copos.push({ spr: scene.add.image(0, 0, 'zn_copo').setDepth(PROF_AIRE + 0.2).setScale(1.0 + Math.random() * 0.8).setAlpha(0.6 + Math.random() * 0.2),
+      st.copos.push({ spr: propio(st, scene.add.image(0, 0, 'zn_copo')).setDepth(PROF_AIRE + 0.2).setScale(1.0 + Math.random() * 0.8).setAlpha(0.6 + Math.random() * 0.2),
                       x: Math.random(), y: Math.random(), v: 0.05 + Math.random() * 0.07, fase: Math.random() * 6.3, mece: 0.008 + Math.random() * 0.012 });
     }
   }
@@ -557,7 +580,7 @@
     var scene = st.scene, capa = scene.map && scene.map.getObjectLayer('objetos');
     st.luces = [];
     (capa ? capa.objects : []).forEach(function (o) {
-      var l = LUCES[o.name];
+      var l = Object.prototype.hasOwnProperty.call(LUCES, o.name) ? LUCES[o.name] : null;
       if (l) st.luces.push({ x: o.x, y: o.y + l[0], r: l[1], a: l[2] });
     });
     if (!st.luces.length) return;
@@ -569,8 +592,13 @@
   // ─────────────────────────────────────────────────────── MONTAJE
   function montar(scene, zona) {
     if (!scene || !scene.add || scene.__gfZonas) return null;
-    var st = { scene: scene, zona: zona, vivo: true, atrapado: false, danoEn: 0, remolinos: [], niebla: [], copos: [], rafagas: [], velos: [] };
+    var st = { scene: scene, zona: zona, vivo: true, objetos: [], atrapado: false, danoEn: 0, remolinos: [], niebla: [], copos: [], rafagas: [], velos: [] };
     scene.__gfZonas = st;
+    st.anteriores = Object.create(null); st.escritos = Object.create(null);
+    ['_vientoExtra', '_tormentaArena', '_remolinoCerca'].forEach(function (key) { st.anteriores[key] = { propio: Object.prototype.hasOwnProperty.call(scene, key), valor: scene[key] }; });
+    st.onApagar = function () { desmontar(scene); };
+    scene.events.once('shutdown', st.onApagar); scene.events.once('destroy', st.onApagar);
+    try {
     texturas(scene);
     texturasFuego(scene);
     try { montarLuces(st); } catch (e) { console.warn('[zonas] luces:', e); }
@@ -580,6 +608,7 @@
     if (zona === 'cementerio') montarNiebla(st);
     if (zona === 'desierto') { montarTormenta(st); montarRemolinos(st); }
     if (zona === 'tundra') montarNevada(st);
+    } catch (e) { desmontar(scene); console.warn('[zonas]', e); return null; }
     st.onUpdate = function (t, delta) {
       if (!st.vivo) return;
       var dt = Math.min(0.1, (delta || 16) / 1000);
@@ -593,10 +622,7 @@
         if (st.polvo.length) polvoTic(st, tSrv, dt);
       } catch (e) { console.warn('[zonas]', e); }
     };
-    st.onApagar = function () { desmontar(scene); };
     scene.events.on('update', st.onUpdate);
-    scene.events.once('shutdown', st.onApagar);
-    scene.events.once('destroy', st.onApagar);
     console.log('🧭 zona ' + zona + ': ' + st.remolinos.length + ' remolinos, ' + (st.luces ? st.luces.length : 0) + ' luces');
     return st;
   }
@@ -605,7 +631,7 @@
     var st = scene && scene.__gfZonas;
     if (!st) return;
     st.vivo = false;
-    scene.events.off('update', st.onUpdate);
+    if (st.onUpdate) scene.events.off('update', st.onUpdate);
     scene.events.off('shutdown', st.onApagar);
     scene.events.off('destroy', st.onApagar);
     if (st.alumbrar && Array.isArray(scene._lucesNoche)) {
@@ -622,6 +648,9 @@
       h.chispas.forEach(function (ch) { todos.push(ch.spr); });
     });
     todos.forEach(function (o) { try { if (o && o.scene) o.destroy(); } catch (e) {} });
+    st.objetos.forEach(function (o) { try { if (o && o.scene) { scene.tweens.killTweensOf(o); o.destroy(); } } catch (e) {} });
+    st.objetos.length = 0;
+    Object.keys(st.escritos).forEach(function (key) { if (scene[key] !== st.escritos[key]) return; var antes = st.anteriores[key]; if (antes.propio) scene[key] = antes.valor; else delete scene[key]; });
     scene.__gfZonas = null;
   }
 

@@ -111,8 +111,20 @@
     personaje13: { nombre: 'Abyss',   genero: 'female' }
   };
 
+  /* (2026-10-20) PERSONAJES PERSONALIZADOS (gf-soulbound-custom.js): el id
+     'personaje3--m2a4c1b7f0' es el personaje 3 con el aspecto que eligió el
+     jugador. Sus imágenes las compone ese módulo; aquí solo se mira la
+     carpeta del personaje base y se piden las compuestas cuando están. */
+  function custom() { return global.GFSoulboundCustom || null; }
+  function esCustom(id) { return typeof id === 'string' && id.indexOf('--') > 0; }
+  function baseReal(id) { return esCustom(id) ? id.slice(0, id.indexOf('--')) : id; }
+
   /** Nombre y genero de un personaje: { nombre, genero } (genero puede ser ''). */
   function ficha(id) {
+    if (esCustom(id)) {
+      var fb = ficha(baseReal(id)), dc = custom() && custom().decodificar(id);
+      return { nombre: fb.nombre, genero: dc ? (dc.genero === 'f' ? 'female' : 'male') : fb.genero, custom: true };
+    }
     if (Object.prototype.hasOwnProperty.call(FICHAS, id)) return FICHAS[id];
     var n = /(\d+)$/.exec(String(id || ''));
     return { nombre: 'Wanderer' + (n ? ' ' + n[1] : ''), genero: '' };
@@ -143,14 +155,20 @@
   }
 
   // ── Rutas ─────────────────────────────────────────────────────────────────
-  function baseDe(id) { return BASE + '/' + (idValido(id) ? id : POR_DEFECTO); }
+  function baseDe(id) { return BASE + '/' + (idValido(id) ? baseReal(id) : POR_DEFECTO); }
 
   /** Ruta del retrato (el que se ve en el HUD y en los botones del panel NFT). */
-  function rutaPerfil(id) { return baseDe(id || actual()) + '/Perfil/Perfil.png'; }
+  function rutaPerfil(id) {
+    var quien = id || actual(), C = custom();
+    if (esCustom(quien) && C && C.listo(quien)) return C.perfil(quien);
+    return baseDe(quien) + '/Perfil/Perfil.png';
+  }
 
   /** Ruta de un fotograma de carrera. ruta('derecha', 1) -> …/derecha/run_1.png */
   function ruta(carpeta, n, id) {
-    return baseDe(id || actual()) + '/' + carpeta + '/run_' + n + '.png';
+    var quien = id || actual(), C = custom();
+    if (esCustom(quien) && C && C.listo(quien)) { var u = C.url(quien, carpeta, n); if (u) return u; }
+    return baseDe(quien) + '/' + carpeta + '/run_' + n + '.png';
   }
 
   // ── Personaje activo ──────────────────────────────────────────────────────
@@ -273,6 +291,21 @@
    */
   function precargar(scene, id) {
     var quien = id || actual();
+    // (2026-10-20) Personalizado y aún sin componer: se carga el base y, en
+    // cuanto esté compuesto y la escena viva, se aplica el bueno.
+    var C = custom();
+    if (esCustom(quien) && C && !C.listo(quien)) {
+      C.preparar(quien).then(function (ok) {
+        if (!ok) return;
+        var intentos = 0;
+        var mirar = function () {
+          if (actual() !== quien) return;
+          if (scene.sys && scene.sys.isActive() && scene.player) { aplicarEnEscena(scene, quien); return; }
+          if (intentos++ < 60) setTimeout(mirar, 500);
+        };
+        mirar();
+      });
+    }
     try {
       scene.load.image('imagen_Perfil', rutaPerfil(quien));
       // 'player' es la textura suelta que se carga al principio de preload.
@@ -315,6 +348,10 @@
    * invisible.
    */
   function aplicarEnEscena(scene, id) {
+    var C = custom();
+    if (esCustom(id) && C && !C.listo(id)) {
+      return C.preparar(id).then(function () { return aplicarEnEscena(scene, id); });
+    }
     return new Promise(function (resolve) {
       if (!scene || !scene.load || !scene.textures || !scene.anims) return resolve(false);
       var quien = idValido(id) ? id : actual();
@@ -621,6 +658,10 @@
    */
   function asegurarPersonaje(scene, id) {
     if (!scene || !idValido(id)) return Promise.resolve(false);
+    var C = custom();
+    if (esCustom(id) && C && !C.listo(id)) {
+      return C.preparar(id).then(function () { return asegurarPersonaje(scene, id); });
+    }
     if (cargados[id] && scene.textures.exists(texturaDe(id, 'derecha', 1))) return Promise.resolve(true);
     delete cargados[id];
     if (cargandose[id]) return cargandose[id];
@@ -775,7 +816,7 @@
     var cont = doc.getElementById('sb-list');
     if (cont) {
       Array.prototype.forEach.call(cont.querySelectorAll('.sb-card'), function (b) {
-        var activo = b.getAttribute('data-id') === quien;
+        var activo = b.getAttribute('data-id') === baseReal(quien);   // (2026-10-20) personalizado: su base
         b.classList.toggle('sb-active', activo);
         b.setAttribute('aria-pressed', activo ? 'true' : 'false');
       });

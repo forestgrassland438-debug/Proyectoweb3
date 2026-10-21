@@ -1,0 +1,599 @@
+body[data-suite-page=misiones] main {
+  max-width: 1520px;
+  padding: 30px 30px 60px;
+}
+body[data-suite-page=misiones] > header {
+  display: none;
+}
+body[data-suite-page=misiones] .card {
+  padding: 24px;
+  border-radius: 11px;
+  margin-bottom: 20px;
+}
+body[data-suite-page=misiones] .mission {
+  padding: 20px;
+  background: var(--s-bg);
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+body[data-suite-page=misiones] .mission .row {
+  gap: 14px;
+  margin-bottom: 14px;
+}
+body[data-suite-page=misiones] .field {
+  min-width: 145px;
+}
+body[data-suite-page=misiones] .field label {
+  font-size: 11px;
+  line-height: 1.5;
+  margin-bottom: 2px;
+}
+body[data-suite-page=misiones] button {
+  min-height: 36px;
+  font-size: 12px;
+  padding: 8px 12px;
+}
+body[data-suite-page=misiones] .hint {
+  font-size: 11px;
+  line-height: 1.85;
+}
+body[data-suite-page=misiones] :is(.row, .field, .token-row) {
+  min-width: 0;
+}
+body[data-suite-page=misiones] input[type=number] {
+  font-family: Consolas, monospace;
+}
+body[data-suite-page=misiones] .mission-head .tag {
+  border-radius: 5px;
+  letter-spacing: .6px;
+  font-size: 10px;
+  color: var(--s-accent);
+  background: var(--s-raised);
+  border-color: var(--s-line);
+}
+body[data-suite-page=misiones] .langs {
+  border-top: 1px solid var(--s-line);
+  padding-top: 12px;
+}
+body[data-suite-page=misiones] .langs summary {
+  font-size: 11px;
+  color: var(--s-muted);
+}
+body[data-suite-page=misiones] .lang-block h4 {
+  color: var(--s-accent);
+  font-size: 10px;
+}
+body[data-suite-page=misiones] .lista-ed {
+  padding: 16px;
+  margin: 16px 0 20px;
+  background: var(--s-bg);
+  overflow-x: auto;
+}
+body[data-suite-page=misiones] .lista-ed h3 {
+  font-size: 12px;
+}
+body[data-suite-page=misiones] .lista-ed .fila {
+  gap: 10px;
+  margin-bottom: 9px;
+}
+body[data-suite-page=misiones] .lista-ed .fila input {
+  min-width: 0;
+}
+body[data-suite-page=misiones] .lista-ed .cab {
+  font-size: 9px;
+  letter-spacing: .4px;
+}
+body[data-suite-page=misiones] #estado {
+  position: sticky;
+  top: 10px;
+  z-index: 12;
+  box-shadow: var(--s-shadow);
+  background: var(--s-surface);
+  font-size: 12px;
+}
+body[data-suite-page=misiones] .his-tabla {
+  font-size: 12px;
+}
+body[data-suite-page=misiones] .his-tabla td {
+  padding: 12px 10px;
+}
+.ms-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 26px;
+}
+.ms-eyebrow {
+  display: block;
+  color: var(--s-muted);
+  text-transform: uppercase;
+  letter-spacing: 1.8px;
+  font-size: 9px;
+}
+.ms-heading h1 {
+  font-size: 34px;
+  font-weight: 550;
+  letter-spacing: -1.4px;
+  margin: 10px 0;
+  line-height: 1.2;
+}
+.ms-heading p {
+  color: var(--s-muted);
+  font-size: 12px;
+  margin: 0;
+}
+.ms-heading-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ms-heading-tools button {
+  border: 1px solid var(--s-line);
+  background: var(--s-raised);
+  color: var(--s-text);
+  border-radius: 7px;
+  font-size: 11px;
+}
+.ms-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--s-line);
+  overflow: auto;
+  scrollbar-width: thin;
+}
+.ms-tabs button {
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--s-muted) !important;
+  padding: 12px 16px !important;
+  border-radius: 0 !important;
+  border-bottom: 2px solid transparent !important;
+  white-space: nowrap;
+  font-size: 12px !important;
+}
+.ms-tabs button[aria-selected=true] {
+  color: var(--s-accent) !important;
+  border-bottom-color: var(--s-accent) !important;
+}
+.ms-context-warning {
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--s-warn);
+  color: var(--s-warn);
+  border-radius: 8px;
+  font-size: 12px;
+  background: var(--s-surface);
+}
+.ms-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 22px;
+}
+.ms-stat {
+  border: 1px solid var(--s-line);
+  padding: 16px 18px;
+  border-radius: 8px;
+  background: var(--s-surface);
+  min-width: 0;
+}
+.ms-stat span {
+  display: block;
+  font-size: 10px;
+  color: var(--s-muted);
+}
+.ms-stat strong {
+  display: block;
+  font: 25px Consolas, monospace;
+  color: var(--s-text);
+  margin: 9px 0 2px;
+  overflow-wrap: anywhere;
+}
+.ms-preview-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 18px;
+  margin: 22px 0 0;
+}
+.ms-preview-panel {
+  background: var(--s-bg);
+  border: 1px solid var(--s-line);
+  border-radius: 10px;
+  padding: 20px;
+  min-width: 0;
+}
+.ms-preview-panel h3 {
+  margin: 0 0 7px;
+  font-size: 13px;
+}
+.ms-preview-panel > p {
+  font-size: 10px;
+  color: var(--s-muted);
+  margin: 0 0 18px;
+  line-height: 1.7;
+}
+.ms-preview-options {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+.ms-preview-options select {
+  min-height: 34px !important;
+  padding: 6px 10px;
+  width: auto;
+  font-size: 11px !important;
+}
+.mission-preview-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ms-preview-mission {
+  border: 1px solid var(--s-line);
+  border-radius: 7px;
+  padding: 14px;
+  background: var(--s-surface);
+  position: relative;
+  overflow: hidden;
+}
+.ms-preview-mission:before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--s-accent);
+}
+.ms-preview-mission.ms-hunt:before {
+  background: var(--s-warn);
+}
+.ms-preview-mission h4 {
+  font-size: 12px;
+  margin: 0 0 5px;
+  color: var(--s-text);
+  overflow-wrap: anywhere;
+}
+.ms-preview-mission p {
+  font-size: 11px;
+  color: var(--s-muted);
+  margin: 3px 0 9px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.ms-preview-mission small {
+  font: 10px/1.8 Consolas, monospace;
+  color: var(--s-accent);
+  display: block;
+  overflow-wrap: anywhere;
+}
+.ms-mix-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  color: var(--s-muted);
+  font-size: 11px;
+  margin: 15px 0;
+}
+.ms-mix-row strong {
+  font-family: Consolas, monospace;
+  color: var(--s-text);
+  font-weight: 400;
+}
+.ms-stack {
+  height: 12px;
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  background: var(--s-raised);
+  margin: 17px 0 20px;
+}
+.ms-stack span {
+  height: 100%;
+  background: var(--s-accent);
+}
+.ms-stack span + span {
+  background: var(--s-warn);
+}
+.ms-action-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.ms-action-row button {
+  min-height: 28px !important;
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+  background: var(--s-raised);
+  color: var(--s-muted);
+  border: 1px solid var(--s-line);
+  border-radius: 5px;
+}
+.ms-header-id {
+  font: 10px Consolas, monospace;
+  color: var(--s-muted);
+  margin-left: 5px;
+}
+.ms-access {
+  padding: 14px 20px !important;
+}
+.ms-access > h2 {
+  font-size: 12px !important;
+  margin-bottom: 10px !important;
+}
+.ms-access > p {
+  display: none;
+}
+.ms-access .token-row button {
+  font-size: 11px;
+}
+.ms-access.ms-verified .token-row button {
+  background: var(--s-raised);
+  border-color: var(--s-line);
+  color: var(--s-muted);
+}
+.ms-access.ms-verified {
+  border-left: 2px solid var(--s-accent);
+}
+.ms-selection .row {
+  gap: 16px;
+}
+.ms-selection h2 {
+  font-size: 14px !important;
+}
+.ms-selection .days {
+  margin-top: 14px;
+}
+.ms-selection .day-chip {
+  font: 10px Consolas, monospace;
+  padding: 5px 9px;
+  min-height: 28px;
+  border-radius: 5px;
+}
+.ms-selection .day-chip[aria-current=true] {
+  border-color: var(--s-accent);
+  color: var(--s-accent);
+}
+.ms-results-summary {
+  margin: 18px 0;
+}
+.ms-results-chart {
+  padding: 20px;
+  border: 1px solid var(--s-line);
+  border-radius: 8px;
+  background: var(--s-bg);
+}
+.ms-results-chart h3 {
+  font-size: 13px;
+  margin: 0 0 18px;
+}
+.ms-result-bar {
+  display: grid;
+  grid-template-columns: 145px 1fr 50px;
+  gap: 14px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--s-muted);
+  margin: 12px 0;
+}
+.ms-result-bar > span:first-child {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ms-result-track {
+  height: 8px;
+  border-radius: 3px;
+  background: var(--s-raised);
+  overflow: hidden;
+}
+.ms-result-fill {
+  height: 100%;
+  background: var(--s-accent);
+}
+.ms-result-bar > strong {
+  font: 11px Consolas, monospace;
+  color: var(--s-text);
+  text-align: right;
+}
+.ms-autograph {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin: 18px 0 24px;
+}
+.ms-budget {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  font: 11px Consolas, monospace;
+  color: var(--s-text);
+}
+.ms-budget > div {
+  flex: 1;
+  min-width: 90px;
+}
+.ms-budget span {
+  font: 10px "Segoe UI", sans-serif;
+  color: var(--s-muted);
+  display: block;
+  margin-bottom: 8px;
+}
+.ms-budget b {
+  font-size: 20px;
+  font-weight: 400;
+}
+.ms-inline-status {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  color: var(--s-muted);
+  font-size: 10px;
+}
+.ms-inline-status[data-dirty=true] {
+  color: var(--s-warn);
+}
+.ms-inline-status:before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  display: block;
+  background: currentColor;
+  border-radius: 50%;
+}
+.ms-file-input {
+  display: none;
+}
+.ms-import-note {
+  font-size: 10px;
+  color: var(--s-muted);
+  margin-top: 12px;
+}
+.ms-history-help {
+  color: var(--s-muted);
+  font-size: 10px;
+  margin-top: 15px;
+}
+.suite-embedded .ms-access.ms-verified {
+  display: none;
+}
+@media (max-width: 1100px) {
+  body[data-suite-page=misiones] main {
+    padding: 24px;
+  }
+  .ms-preview-grid {
+    grid-template-columns: 1fr;
+  }
+  .ms-autograph {
+    grid-template-columns: 1fr 1fr;
+  }
+  .ms-heading h1 {
+    font-size: 30px;
+  }
+  .ms-heading-tools {
+    max-width: 260px;
+  }
+}
+@media (max-width: 700px) {
+  body[data-suite-page=misiones] main {
+    padding: 22px 15px 40px;
+  }
+  body[data-suite-page=misiones] .card {
+    padding: 18px;
+  }
+  body[data-suite-page=misiones] .mission {
+    padding: 15px;
+  }
+  body[data-suite-page=misiones] .field {
+    min-width: calc(50% - 12px);
+  }
+  .ms-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin-bottom: 20px;
+  }
+  .ms-heading h1 {
+    font-size: 30px;
+  }
+  .ms-heading-tools {
+    max-width: none;
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .ms-heading-tools .ms-inline-status {
+    margin-left: auto;
+  }
+  .ms-tabs {
+    margin-bottom: 18px;
+  }
+  .ms-tabs button {
+    font-size: 11px !important;
+    padding: 11px 12px !important;
+  }
+  .ms-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .ms-stat {
+    padding: 14px;
+  }
+  .ms-stat strong {
+    font-size: 23px;
+  }
+  .ms-preview-panel {
+    padding: 16px;
+  }
+  .ms-autograph {
+    grid-template-columns: 1fr;
+  }
+  .ms-results-chart {
+    padding: 16px;
+  }
+  .ms-result-bar {
+    grid-template-columns: 100px 1fr 40px;
+    gap: 9px;
+    font-size: 10px;
+  }
+  .ms-selection .field {
+    min-width: calc(50% - 10px);
+  }
+  .ms-selection .field:nth-child(3) {
+    min-width: 55%;
+  }
+  .ms-selection .field:last-child {
+    min-width: 30%;
+  }
+  .ms-action-row {
+    margin-left: auto;
+    flex-wrap: wrap;
+  }
+  .ms-action-row button {
+    font-size: 10px !important;
+  }
+  .ms-header-id {
+    max-width: 95px;
+    text-overflow: ellipsis;
+    overflow: hidden;
+  }
+  .ms-preview-options {
+    gap: 7px;
+  }
+  .ms-preview-options h3 {
+    font-size: 12px;
+  }
+  .ms-preview-options select {
+    max-width: 140px;
+  }
+}
+@media (max-width: 420px) {
+  body[data-suite-page=misiones] .mission .field {
+    min-width: 100%;
+  }
+  .ms-selection .field {
+    min-width: 100%;
+  }
+  .ms-heading h1 {
+    font-size: 28px;
+  }
+  .ms-action-row {
+    gap: 4px;
+  }
+  .ms-header-id {
+    display: none;
+  }
+  .ms-tabs button {
+    padding: 10px !important;
+  }
+  .ms-heading-tools .ms-inline-status {
+    width: 100%;
+    margin: 0;
+  }
+}

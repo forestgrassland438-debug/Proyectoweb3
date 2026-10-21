@@ -30,11 +30,12 @@
 (function () {
   'use strict';
 
-  var V = '20261019b';   // b: cada NPC con su peinado y su color de ojos
+  var V = '20261021a';   // (2026-10-21) ojos por papel y frente libre (antes 20261019b: peinados y ojos)
   var RUTA = './Game/Sprites/npcs/';
   var ESCALA = 2;
   var CERCA = 110;            // a esta distancia se gira a mirarte
   var VEL = 46;               // px/s paseando
+  var LEJOS_TIENDA = 320;     // (2026-10-21) más lejos que esto, su tienda abierta se cierra
 
   // ── QUIÉN VA EN CADA MAPA (x, y: los pies; se busca el hueco libre más cercano) ──
   var MAPAS = {
@@ -81,8 +82,10 @@
                      frases: ['Fresh bread every morning! Well... almost every morning.', 'Wipe your boots, dear, I just swept.'] },
     casa_npc2:     { arte: 'tallista', nombre: 'Elias the Woodcarver', dx: -200, dy: -180,
                      frases: ['Pine is soft, oak is honest. I carve both.', 'Bring me good logs and I will make you something fine.'] },
-    casa_L:        { arte: 'tejedora', nombre: 'Rosalind the Weaver', dx: 180, dy: -200,
-                     frases: ['Every thread tells a story.', 'Wool from the farm, dye from the herbalist. That is my secret.'] },
+    // (2026-10-20) Rosalind vende los tickets del VIP (gf-vip.js): al hablarle, su tienda.
+    casa_L:        { arte: 'tejedora', nombre: 'Rosalind the Weaver', dx: 180, dy: -200, tienda: 'vip',
+                     frases: ['Every thread tells a story.', 'Looking for VIP, dear? I weave the finest tickets in town.',
+                              'Wool from the farm, dye from the herbalist. That is my secret.'] },
     casa_comida:   { arte: 'posadero', nombre: 'Tobias the Innkeeper', dx: 220, dy: -200,
                      frases: ['Welcome to the Inn! Rooms are warm and the stew is hot.', 'Travellers from the desert pay in strange coins.'] },
     casa_comida2:  { arte: 'tabernero', nombre: 'Bram the Barkeep', dx: -220, dy: -200,
@@ -101,13 +104,13 @@
   function lista(scene) {
     var clave = scene.sys && scene.sys.settings ? scene.sys.settings.key : '';
     if (clave === 'InteriorScene') {
-      var c = CASAS[scene._casaId];
+      var c = Object.prototype.hasOwnProperty.call(CASAS, scene._casaId) ? CASAS[scene._casaId] : null;
       if (!c) return [];
       var ap = scene._puntoAparicion || { x: (scene.map ? scene.map.widthInPixels / 2 : 600), y: (scene.map ? scene.map.heightInPixels * 0.78 : 640) };
       return [{ id: scene._casaId, arte: c.arte, nombre: c.nombre, x: ap.x + c.dx, y: ap.y + c.dy,
-                accion: 'pasear', radio: 90, frases: c.frases }];
+                accion: 'pasear', radio: 90, frases: c.frases, tienda: c.tienda || null }];
     }
-    return MAPAS[clave] || [];
+    return Object.prototype.hasOwnProperty.call(MAPAS, clave) ? MAPAS[clave] : [];
   }
 
   // ─────────────────────────────────────────────────────── UTILIDADES
@@ -159,16 +162,17 @@
   }
 
   // ─────────────────────────────────────────────────────── UN NPC
+  function propio(st, o) { st.objetos.push(o); if (o.once) o.once('destroy', function () { var i = st.objetos.indexOf(o); if (i >= 0) st.objetos.splice(i, 1); }); return o; }
   function crear(st, d) {
     var scene = st.scene, tex = 'gfn_' + d.arte;
     if (!scene.textures.exists(tex)) return null;
     var p = hueco(scene, d.x, d.y);
-    var spr = scene.add.sprite(p.x, p.y, tex, (d.mira || 'abajo') + '_1').setOrigin(0.5, 1).setScale(ESCALA);
-    var sombra = scene.add.image(p.x, p.y - 2, 'gfn_sombra').setDepth(2.5);
-    var nombre = scene.add.text(p.x, p.y - 112, d.nombre, {
+    var spr = propio(st, scene.add.sprite(p.x, p.y, tex, (d.mira || 'abajo') + '_1')).setOrigin(0.5, 1).setScale(ESCALA);
+    var sombra = propio(st, scene.add.image(p.x, p.y - 2, 'gfn_sombra')).setDepth(2.5);
+    var nombre = propio(st, scene.add.text(p.x, p.y - 112, d.nombre, {
       fontFamily: '"PressStart2P", monospace', fontSize: '7px', color: '#ffe08a', resolution: 4,
       stroke: '#1a1208', strokeThickness: 3
-    }).setOrigin(0.5, 1);
+    })).setOrigin(0.5, 1);
     var n = { d: d, spr: spr, sombra: sombra, nombre: nombre, casa: { x: p.x, y: p.y }, x: p.x, y: p.y,
               mira: d.mira || 'abajo', destino: null, esperaHasta: scene.time.now + 800 + Math.random() * 2000,
               descansoEn: scene.time.now + 5000 + Math.random() * 4000, descansando: false, bocadillo: null };
@@ -176,6 +180,12 @@
     spr.on('pointerdown', function (ptr, lx, ly, ev) {
       if (ev && ev.stopPropagation) ev.stopPropagation();
       hablar(st, n);
+      // (2026-10-20) Los que venden algo abren su tienda.
+      if (d.tienda === 'vip' && window.GFVip) {
+        var pj = scene.player;
+        n.tiendaDist = pj ? Math.hypot(pj.x - n.x, pj.y + 45 - n.y) : 0;
+        window.GFVip.abrirTienda(scene);
+      }
     });
     if (d.accion === 'accion' && scene.anims.exists(tex + '_accion')) {
       spr.play(tex + '_accion');
@@ -195,28 +205,29 @@
   function hablar(st, n) {
     var scene = st.scene, fr = n.d.frases || [];
     if (!fr.length) return;
+    if (n.reloj) { n.reloj.remove(false); n.reloj = null; }
     n.frase = ((n.frase === undefined ? Math.floor(Math.random() * fr.length) : n.frase + 1)) % fr.length;
     if (n.bocadillo) { try { n.bocadillo.destroy(); } catch (e) {} }
-    var texto = scene.add.text(0, 0, fr[n.frase], {
+    var texto = propio(st, scene.add.text(0, 0, fr[n.frase], {
       fontFamily: 'system-ui, sans-serif', fontSize: '13px', color: '#2a2016', resolution: 3,
       wordWrap: { width: 210 }, align: 'center'
-    }).setOrigin(0.5, 1);
+    })).setOrigin(0.5, 1);
     var w = texto.width + 18, h = texto.height + 12;
-    var fondo = scene.add.graphics();
+    var fondo = propio(st, scene.add.graphics());
     fondo.fillStyle(0xfffaf0, 0.96);
     fondo.lineStyle(2, 0x5a4630, 1);
     fondo.fillRoundedRect(-w / 2, -h - 6, w, h, 8);
     fondo.strokeRoundedRect(-w / 2, -h - 6, w, h, 8);
     fondo.fillTriangle(-6, -7, 6, -7, 0, 2);
     texto.setPosition(0, -12);
-    n.bocadillo = scene.add.container(n.x, n.y - 124, [fondo, texto]).setDepth(9400);
+    n.bocadillo = propio(st, scene.add.container(n.x, n.y - 124, [fondo, texto])).setDepth(9400);
     // Se gira a mirarte y deja lo que hacía un momento.
     var p = scene.player;
     if (p) mirarA(n, p.x, p.y + 45);
     n.esperaHasta = scene.time.now + 3500;
     n.destino = null;
     var b = n.bocadillo;
-    scene.time.delayedCall(4500, function () { if (n.bocadillo === b) { try { b.destroy(); } catch (e) {} n.bocadillo = null; } });
+    n.reloj = scene.time.delayedCall(4500, function () { n.reloj = null; if (st.vivo && n.bocadillo === b) { try { b.destroy(); } catch (e) {} n.bocadillo = null; } });
   }
 
   function mirarA(n, x, y) {
@@ -252,6 +263,20 @@
           }
         }
         return;
+      }
+      // (2026-10-21) "Si Rosalind sabe que ando comprando VIP no se debería
+      // mover: si se va lejos el panel no se cierra." Con su tienda abierta se
+      // queda quieta mirándote; y si TÚ te alejas mucho, la tienda se cierra.
+      if (n.d.tienda === 'vip' && window.GFVip && window.GFVip.tiendaAbierta && window.GFVip.tiendaAbierta()) {
+        var lejos = pie ? Math.hypot(pie.x - n.x, pie.y - n.y) : 0;
+        if (lejos > Math.max(LEJOS_TIENDA, (n.tiendaDist || 0) + 160)) {
+          if (window.GFVip.cerrarTienda) window.GFVip.cerrarTienda();
+        } else {
+          if (n.destino) { n.destino = null; n.spr.anims.stop(); n.spr.setFrame(n.mira + '_1'); }
+          if (pie) mirarA(n, pie.x, pie.y);
+          n.esperaHasta = t + 1500;
+          return;
+        }
       }
       if (cerca) {
         if (n.destino) { n.destino = null; n.spr.anims.stop(); }
@@ -296,33 +321,35 @@
     if (!scene || !scene.add || !scene.events || scene.__gfNpcs) return null;
     var datos = lista(scene);
     if (!datos.length) return null;
-    var st = { scene: scene, npcs: [], vivo: true };
+    var st = { scene: scene, npcs: [], objetos: [], vivo: true };
     scene.__gfNpcs = st;
-    texturaSombra(scene);
+    st.onApagar = function () { desmontar(scene); };
+    scene.events.once('shutdown', st.onApagar); scene.events.once('destroy', st.onApagar);
+    try { texturaSombra(scene); } catch (e) { desmontar(scene); console.warn('[npcs]', e); return null; }
     var faltan = [];
     datos.forEach(function (d) {
       var tex = 'gfn_' + d.arte;
       if (!scene.textures.exists(tex) && faltan.indexOf(d.arte) < 0) faltan.push(d.arte);
     });
     var nacer = function () {
+      scene.load.off('complete', nacer); clearTimeout(st.limite);
       if (!st.vivo) return;
-      datos.forEach(function (d) {
+      try { datos.forEach(function (d) {
         if (!animaciones(scene, d.arte)) return;
         var n = crear(st, d);
         if (n) st.npcs.push(n);
-      });
+      }); } catch (e) { desmontar(scene); console.warn('[npcs]', e); return; }
       console.log('🧑 NPC:', st.npcs.map(function (n) { return n.d.nombre; }).join(', '));
     };
-    if (faltan.length) {
+    try { if (faltan.length) {
       faltan.forEach(function (a) { scene.load.atlas('gfn_' + a, RUTA + a + '.png?v=' + V, RUTA + a + '.json?v=' + V); });
       scene.load.once('complete', nacer);
+      st.alCargar = nacer; st.limite = setTimeout(nacer, 15000);
       scene.load.start();
-    } else nacer();
+    } else nacer(); } catch (e) { desmontar(scene); console.warn('[npcs]', e); return null; }
+    if (!st.vivo) return null;
     st.onUpdate = function (t, delta) { if (st.vivo) tic(st, t, Math.min(0.1, (delta || 16) / 1000)); };
     scene.events.on('update', st.onUpdate);
-    st.onApagar = function () { desmontar(scene); };
-    scene.events.once('shutdown', st.onApagar);
-    scene.events.once('destroy', st.onApagar);
     return st;
   }
 
@@ -331,12 +358,17 @@
     if (!st) return;
     st.vivo = false;
     scene.__gfNpcs = null;
-    scene.events.off('update', st.onUpdate);
+    if (st.onUpdate) scene.events.off('update', st.onUpdate);
     scene.events.off('shutdown', st.onApagar);
     scene.events.off('destroy', st.onApagar);
+    if (st.alCargar) scene.load.off('complete', st.alCargar);
+    clearTimeout(st.limite);
     st.npcs.forEach(function (n) {
+      if (n.reloj) n.reloj.remove(false);
       [n.spr, n.sombra, n.nombre, n.bocadillo].forEach(function (o) { try { if (o && o.scene) o.destroy(); } catch (e) {} });
     });
+    st.objetos.slice().forEach(function (o) { try { if (o && o.scene) { scene.tweens.killTweensOf(o); o.destroy(); } } catch (e) {} });
+    st.objetos.length = 0;
     st.npcs.length = 0;
   }
 

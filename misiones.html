@@ -193,6 +193,12 @@
     .lista-ed .fila.cab { display:none; }
   }
 </style>
+<link rel="stylesheet" href="./admin-suite.css?v=20261020">
+<link rel="stylesheet" href="./mission-studio.css?v=20261020">
+<script src="./admin-session.js?v=20261020"></script>
+<script src="./admin-suite-i18n.js?v=20261020"></script>
+<script defer src="./admin-suite.js?v=20261020"></script>
+<script defer src="./mission-studio.js?v=20261020"></script>
 </head>
 <body>
 
@@ -226,8 +232,8 @@
       <div class="field">
         <label for="npc">NPC</label>
         <select id="npc">
-          <option value="granjero">granjero</option>
-          <option value="guardian">guardian</option>
+          <option value="granjero">Farmer Joe</option>
+          <option value="guardian">Guardian</option>
         </select>
       </div>
       <div class="field">
@@ -406,16 +412,24 @@
   // adminAuth comprueba que esa dirección sea administradora.
   var adminOk = false;      // ¿la cartera conectada es admin?
   var csrf = null;
-  var contador = 0;
+  var contador = 0, fieldCounter = 0;
+  var editorTarget = null, dayReadVersion = 0, rulesReadVersion = 0, daysReadVersion = 0, historyReadVersion = 0;
+  var loadedRulesNpc = null, loadedSeed = 0, previewFingerprint = '';
+  function studioEvent(type, detail) { window.dispatchEvent(new CustomEvent('gf-missions-' + type, { detail: detail || {} })); }
+  function selectedKey() { return $('npc').value + '/' + $('dia').value; }
+  function rulesFingerprint() { return selectedKey() + '/' + JSON.stringify(leerReglas()); }
+  function uiText(text) { return window.GFAdminUI ? window.GFAdminUI.t(text) : text; }
 
   var $ = function (id) { return document.getElementById(id); };
   document.getElementById('apiLabel').textContent = API;
 
   function aviso(msg, tipo) {
+    if (tipo === 'error') tipo = 'err';
     var el = $('estado');
     el.textContent = msg;
     el.className = 'show ' + (tipo || 'info');
-    if (tipo === 'ok') setTimeout(function () { el.className = ''; }, 4000);
+    clearTimeout(aviso.timer);
+    if (tipo === 'ok') aviso.timer = setTimeout(function () { el.className = ''; }, 4000);
   }
 
   // Toda inserción de texto se hace con textContent / value: nada de innerHTML
@@ -433,8 +447,9 @@
   }
 
   function campo(etiqueta, input) {
+    if (!input.id) input.id = 'mission-field-' + (++fieldCounter);
     return crear('div', { class: 'field' }, [
-      crear('label', { text: etiqueta }),
+      crear('label', { text: etiqueta, htmlFor: input.id }),
       input
     ]);
   }
@@ -459,7 +474,7 @@
     var inItem   = crear('input', { type: 'text',   value: datos.tipo === 'cazar' ? '' : (datos.itemId || ''), placeholder: 'ej. madera_pinos', maxLength: 60 });
     inItem.setAttribute('list', 'gf-items');
     var inCant   = crear('input', { type: 'number', value: datos.requiredAmount || 5, min: 1, max: 9999 });
-    var inExp    = crear('input', { type: 'number', value: datos.expReward || 50, min: 0, max: 100000 });
+    var inExp    = crear('input', { type: 'number', value: datos.expReward != null ? datos.expReward : 50, min: 0, max: 100000 });
     var inPremio = crear('input', { type: 'text',   value: datos.rewardItemId || '', placeholder: 'opcional, ej. mineral_piedra', maxLength: 60 });
     inPremio.setAttribute('list', 'gf-items');
     var inPremioC= crear('input', { type: 'number', value: datos.rewardAmount || 1, min: 1, max: 9999 });
@@ -546,7 +561,7 @@
       detalles
     ]);
 
-    btnBorrar.addEventListener('click', function () { bloque.remove(); });
+    btnBorrar.addEventListener('click', function () { bloque.remove(); studioEvent('edited', { scope: 'manual' }); });
     function verTipo() {
       var caza = selTipo.value === 'cazar';
       campoItem.style.display = caza ? 'none' : '';
@@ -657,6 +672,7 @@
   }
 
   function cargarHistorial() {
+    var revision = ++historyReadVersion;
     var q = '?limit=' + encodeURIComponent($('hisLimite').value || 100);
     var b = ($('hisBuscar').value || '').trim();
     if (b) q += '&search=' + encodeURIComponent(b);
@@ -664,6 +680,7 @@
     aviso('Cargando historial…');
     pedir('/api/admin/missions/history' + q)
       .then(function (d) {
+        if (revision !== historyReadVersion) return;
         pintarHistorial(d.rows || []);
         aviso('Historial cargado: ' + (d.total || 0) + ' jugadores.', 'ok');
       })
@@ -714,7 +731,15 @@
   }
 
   function agregarMision(datos) {
+    if (document.querySelectorAll('#misiones .mission').length >= 10) { aviso(uiText('At most 10 missions per NPC and day.'), 'err'); return; }
+    if (!datos) {
+      var used = new Set(Array.prototype.map.call(document.querySelectorAll('#misiones .mission'), function (b) { return b._leer().missionId; }));
+      var number = contador + 1;
+      while (used.has('mision_' + number)) number++;
+      datos = { missionId: 'mision_' + number };
+    }
     $('misiones').appendChild(bloqueMision(datos));
+    studioEvent('render');
   }
 
   // ===========================================================================
@@ -777,10 +802,11 @@
           if (c.ph) el.placeholder = c.ph;
         }
         f.appendChild(el);
+        el.setAttribute('aria-label', c.etiqueta);
         return el;
       });
       var quitar = crear('button', { class: 'danger', type: 'button', text: '✕' });
-      quitar.addEventListener('click', function () { f.remove(); });
+      quitar.addEventListener('click', function () { f.remove(); studioEvent('edited', { scope: 'auto' }); });
       f.appendChild(quitar);
       f._leer = function () {
         var o = {};
@@ -790,7 +816,7 @@
       cuerpo.appendChild(f);
     }
     (filas || []).forEach(fila);
-    btnMas.addEventListener('click', function () { fila(); });
+    btnMas.addEventListener('click', function () { if (cuerpo.children.length >= 40) return; fila(); studioEvent('edited', { scope: 'auto' }); });
     caja._leer = function () {
       return Array.prototype.map.call(cuerpo.children, function (f) { return f._leer(); });
     };
@@ -815,6 +841,8 @@
 
   function pintarReglas(r) {
     r = r || {};
+    loadedSeed = Number(r.semilla) || 0;
+    loadedRulesNpc = $('npc').value;
     $('autoNpcLabel').textContent = '— ' + $('npc').value + (r.porDefecto ? ' (default rules, not saved yet)' : '');
     $('autoActivo').checked = !!r.activo;
     $('autoCuantas').value = r.cuantas || 3;
@@ -829,12 +857,13 @@
     edPedidos = listaEditable($('autoPedidos'), '📦 Items that can be requested (deliver missions)', COLS_PEDIDOS, r.pedidos);
     edPresas = listaEditable($('autoPresas'), '⚔️ Monsters / enemies that can be requested (hunt missions)', COLS_PRESAS, r.presas);
     edPremios = listaEditable($('autoPremios'), '🎁 Reward items (one is picked at random by weight)', COLS_PREMIOS, r.premios);
+    studioEvent('loaded', { scope: 'auto' });
   }
 
   function leerReglas() {
     var n = function (id) { return parseInt($(id).value, 10) || 0; };
     return {
-      activo: $('autoActivo').checked, cuantas: n('autoCuantas'),
+      activo: $('autoActivo').checked, cuantas: n('autoCuantas'), semilla: loadedSeed,
       pesoEntregar: n('autoPesoE'), pesoCazar: n('autoPesoC'), horaReinicio: n('autoHora'),
       pedidos: edPedidos ? edPedidos._leer() : [], presas: edPresas ? edPresas._leer() : [],
       premios: edPremios ? edPremios._leer() : [], probPremio: n('autoProb'),
@@ -845,16 +874,26 @@
 
   function cargarReglas() {
     if (!adminOk) return;
-    pedir('/api/admin/missions/auto/' + $('npc').value)
-      .then(function (d) { pintarReglas(d.reglas); })
-      .catch(function (e) { aviso('Could not load the automatic rules: ' + e.message, 'err'); });
+    var npc = $('npc').value, revision = ++rulesReadVersion;
+    loadedRulesNpc = null;
+    studioEvent('rules-loading', { loading: true });
+    pedir('/api/admin/missions/auto/' + npc)
+      .then(function (d) { if (revision === rulesReadVersion && npc === $('npc').value) pintarReglas(d.reglas); })
+      .catch(function (e) { if (revision === rulesReadVersion) aviso('Could not load the automatic rules: ' + e.message, 'err'); })
+      .finally(function () { if (revision === rulesReadVersion) studioEvent('rules-loading', { loading: false }); });
   }
 
   function guardarReglas() {
     if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
-    pedir('/api/admin/missions/auto/' + $('npc').value, { method: 'PUT', body: JSON.stringify(leerReglas()) })
-      .then(function (d) { pintarReglas(d.reglas); aviso('✅ Automatic rules saved for ' + d.npcId + '.', 'ok'); })
-      .catch(function (e) { aviso('Could not save the rules: ' + e.message, 'err'); });
+    if (loadedRulesNpc !== $('npc').value) return aviso(uiText('Load the rules before saving.'), 'err');
+    if (window.GFMissionStudio && !window.GFMissionStudio.validateRules()) return;
+    var npc = $('npc').value;
+    $('btnAutoGuardar').disabled = true;
+    studioEvent('busy', { busy: true });
+    pedir('/api/admin/missions/auto/' + npc, { method: 'PUT', body: JSON.stringify(leerReglas()) })
+      .then(function (d) { if (npc === $('npc').value) pintarReglas(d.reglas); aviso(uiText('Rules saved.'), 'ok'); })
+      .catch(function (e) { aviso('Could not save the rules: ' + e.message, 'err'); })
+      .finally(function () { $('btnAutoGuardar').disabled = false; studioEvent('busy', { busy: false }); });
   }
 
   var ultimaPrevia = [];
@@ -867,9 +906,14 @@
   }
   function verPrevia() {
     if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
+    if (loadedRulesNpc !== $('npc').value) return aviso(uiText('Load the rules before saving.'), 'err');
+    if (window.GFMissionStudio && !window.GFMissionStudio.validateRules()) return;
     var dia = $('dia').value;
+    var fingerprint = rulesFingerprint();
     pedir('/api/admin/missions/auto/' + $('npc').value + '/preview', { method: 'POST', body: JSON.stringify({ day: dia, reglas: leerReglas() }) })
       .then(function (d) {
+        if (fingerprint !== rulesFingerprint()) return;
+        previewFingerprint = fingerprint;
         ultimaPrevia = d.missions || [];
         var cont = $('autoPrevia');
         cont.textContent = '';
@@ -882,17 +926,22 @@
           ]));
         });
         if (!ultimaPrevia.length) cont.appendChild(crear('p', { class: 'hint', text: 'Nothing comes out: add items or monsters and give their type some weight.' }));
+        studioEvent('preview', { missions: ultimaPrevia });
       })
       .catch(function (e) { aviso('Could not build the preview: ' + e.message, 'err'); });
   }
   function previaAlEditor() {
     if (!ultimaPrevia.length) return aviso('Make a preview first (👁).', 'err');
+    if (previewFingerprint !== rulesFingerprint()) return aviso(uiText('Preview is out of date. Generate a new preview.'), 'err');
+    if (window.GFMissionStudio && !window.GFMissionStudio.confirmReplace()) return;
     limpiarMisiones();
     ultimaPrevia.forEach(function (m) {
       var copia = JSON.parse(JSON.stringify(m));
       copia.missionId = copia.missionId.replace(/^auto/, 'm');
       agregarMision(copia);
     });
+    editorTarget = selectedKey();
+    studioEvent('edited', { scope: 'manual', fromPreview: true });
     aviso('Preview copied to the manual editor (section 3): edit it and press "Guardar en el juego".', 'ok');
   }
   function rerollHoy() {
@@ -912,8 +961,9 @@
     var b = ($('entBuscar').value || '').trim();
     if (b) q += '&search=' + encodeURIComponent(b);
     aviso('Loading the deliveries…');
+    var key = selectedKey(), query = b;
     pedir('/api/admin/missions/entregas' + q)
-      .then(function (d) { ultimasEntregas = d; pintarEntregas(d); aviso('Deliveries loaded: ' + d.total + ' players.', 'ok'); })
+      .then(function (d) { if (key !== selectedKey() || query !== ($('entBuscar').value || '').trim()) return; ultimasEntregas = d; pintarEntregas(d); studioEvent('deliveries', d); aviso(uiText('Deliveries loaded.'), 'ok'); })
       .catch(function (e) { aviso('Could not load the deliveries: ' + e.message, 'err'); });
   }
   function recibidoTexto(r) {
@@ -936,6 +986,7 @@
     ['#', 'Player', 'Username', 'Wallet', 'Level'].forEach(function (t) { trh.appendChild(crear('th', { text: t })); });
     d.misiones.forEach(function (m) {
       var th = crear('th', { text: (m.tipo === 'cazar' ? '⚔️ ' : '📦 ') + m.titulo });
+      th.setAttribute('data-no-translate', '');
       th.title = m.missionId + ' — ' + textoPremios(m);
       trh.appendChild(th);
     });
@@ -952,7 +1003,7 @@
         var sp = crear('span', { text: f.address.slice(0, 6) + '…' + f.address.slice(-4) });
         sp.title = f.address + ' (click to copy)';
         sp.style.cursor = 'copy';
-        sp.addEventListener('click', function () { try { navigator.clipboard.writeText(f.address); aviso('Wallet copied.', 'ok'); } catch (e) {} });
+        sp.addEventListener('click', function () { Promise.resolve().then(function () { return navigator.clipboard.writeText(f.address); }).then(function () { aviso(uiText('Wallet copied.'), 'ok'); }).catch(function () { aviso(uiText('Could not copy wallet.'), 'err'); }); });
         tdDir.appendChild(sp);
       } else { tdDir.textContent = '—'; }
       tr.appendChild(tdDir);
@@ -985,7 +1036,7 @@
   function exportarCsv() {
     var d = ultimasEntregas;
     if (!d || !d.rows || !d.rows.length) return aviso('Load the deliveries first.', 'err');
-    var q = function (v) { v = v == null ? '' : String(v); return '"' + v.replace(/"/g, '""') + '"'; };
+    var q = function (v) { v = v == null ? '' : String(v); if (/^[\s\u0000-\u0020]*[=+@-]/.test(v)) v = "'" + v; return '"' + v.replace(/"/g, '""') + '"'; };
     var cab = ['day', 'npc', 'player', 'username', 'wallet', 'level'].concat(d.misiones.map(function (m) { return m.missionId; }))
       .concat(['exp_received', 'gold_received', 'silver_received', 'items_received', 'last_hand_in']);
     var lineas = [cab.map(q).join(',')];
@@ -1020,6 +1071,7 @@
   // Las llamadas van con la COOKIE de sesión (credentials: 'include') y el
   // token CSRF leído en el momento, no con una cabecera Authorization.
   function pedir(ruta, opciones) {
+    if (window.GFAdminSession) return window.GFAdminSession.request(ruta, opciones);
     opciones = opciones || {};
     opciones.credentials = 'include';
     opciones.mode = 'cors';
@@ -1085,6 +1137,13 @@
   }
 
   function conectarAdmin() {
+    if (window.GFAdminSession) {
+      $('btnConectar').disabled = true;
+      return window.GFAdminSession.signIn(function (msg) { aviso(uiText(msg), 'info'); })
+        .then(function () { return comprobarAdmin(false); })
+        .catch(function (e) { aviso(uiText(e.message), 'err'); })
+        .finally(function () { $('btnConectar').disabled = false; });
+    }
     var provider = getProvider();
     if (!provider) { aviso('No se detectó MetaMask. Instálalo para continuar.', 'err'); return; }
 
@@ -1133,6 +1192,8 @@
         aviso('Acceso correcto.', 'ok');
         cargarDias();
         cargarCatalogo().then(cargarReglas);
+        if (!editorTarget) cargarDia();
+        studioEvent('authenticated', { address: d.address });
       })
       .catch(function (e) {
         adminOk = false;
@@ -1154,8 +1215,10 @@
     cont.textContent = '';
     if (!adminOk) return;
 
-    pedir('/api/admin/missions/days/' + $('npc').value)
+    var npc = $('npc').value, revision = ++daysReadVersion;
+    pedir('/api/admin/missions/days/' + npc)
       .then(function (d) {
+        if (npc !== $('npc').value || revision !== daysReadVersion) return;
         (d.days || []).forEach(function (x) {
           var chip = crear('button', {
             class: 'day-chip', type: 'button',
@@ -1178,9 +1241,13 @@
     if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
     var npc = $('npc').value, dia = $('dia').value;
     if (!dia) return aviso('Elige un día.', 'err');
+    if (window.GFMissionStudio && !window.GFMissionStudio.confirmReplace()) return;
+    var revision = ++dayReadVersion;
+    studioEvent('day-loading', { loading: true });
 
     pedir('/api/admin/missions/daily/' + npc + '/' + dia)
       .then(function (d) {
+        if (revision !== dayReadVersion || npc !== $('npc').value || dia !== $('dia').value) return;
         limpiarMisiones();
         if (d.found && d.mission) {
           $('reset').value = d.mission.dailyResetHour || 0;
@@ -1190,14 +1257,19 @@
           agregarMision();
           aviso('Ese día no tiene misiones todavía: empieza una nueva.', 'info');
         }
+        editorTarget = npc + '/' + dia;
+        studioEvent('loaded', { scope: 'manual', auto: !!(d.mission && d.mission.auto) });
       })
-      .catch(function (e) { aviso('Error cargando: ' + e.message, 'err'); });
+      .catch(function (e) { if (revision === dayReadVersion) aviso('Error cargando: ' + e.message, 'err'); })
+      .finally(function () { if (revision === dayReadVersion) studioEvent('day-loading', { loading: false }); });
   }
 
   function guardar() {
     if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
     var dia = $('dia').value;
     if (!dia) return aviso('Elige un día.', 'err');
+    if (editorTarget !== selectedKey()) return aviso(uiText('The selection changed. Load this NPC and day before saving.'), 'err');
+    if (window.GFMissionStudio && !window.GFMissionStudio.validateManual()) return;
 
     var bloques = Array.prototype.slice.call(document.querySelectorAll('#misiones .mission'));
     if (!bloques.length) return aviso('Añade al menos una misión.', 'err');
@@ -1206,6 +1278,10 @@
 
     var sinItem = misiones.filter(function (m) { return m.tipo !== 'cazar' && !m.itemId; });
     if (sinItem.length) return aviso('Hay ' + sinItem.length + ' misión(es) sin ítem.', 'err');
+    if (!confirm(uiText('Save replaces every mission for this NPC and day. Continue?'))) return;
+    var target = selectedKey();
+    $('btnGuardar').disabled = true;
+    studioEvent('busy', { busy: true });
 
     pedir('/api/admin/missions/daily', {
       method: 'PUT',
@@ -1219,8 +1295,10 @@
       .then(function (d) {
         aviso('✅ Guardado: ' + d.count + ' misión(es) para ' + d.npcId + ' el ' + d.day + '.', 'ok');
         cargarDias();
+        if (target === selectedKey()) studioEvent('loaded', { scope: 'manual', auto: false });
       })
-      .catch(function (e) { aviso('No se pudo guardar: ' + e.message, 'err'); });
+      .catch(function (e) { aviso('No se pudo guardar: ' + e.message, 'err'); })
+      .finally(function () { $('btnGuardar').disabled = false; studioEvent('busy', { busy: false }); });
   }
 
   // ---------------------------------------------------------------------------
@@ -1229,7 +1307,7 @@
   $('btnConectar').addEventListener('click', conectarAdmin);
 
   $('btnCargar').addEventListener('click', cargarDia);
-  $('btnAgregar').addEventListener('click', function () { agregarMision(); });
+  $('btnAgregar').addEventListener('click', function () { agregarMision(); studioEvent('edited', { scope: 'manual' }); });
   $('btnGuardar').addEventListener('click', guardar);
   $('npc').addEventListener('change', cargarDias);
   $('npc').addEventListener('change', function () { cargarReglas(); $('entregas').textContent = ''; });
@@ -1251,6 +1329,8 @@
 
   $('btnCopiar').addEventListener('click', function () {
     if (!adminOk) return aviso('Primero conecta la cartera de administrador.', 'err');
+    if (!$('copiaDesde').value || !$('copiaHasta').value || !$('copiaDias').reportValidity()) return aviso(uiText('Choose a day.'), 'err');
+    if (!confirm(uiText('This will replace missions on the destination days. Continue?'))) return;
     pedir('/api/admin/missions/copy', {
       method: 'POST',
       body: JSON.stringify({
@@ -1271,7 +1351,7 @@
     if (!confirm('¿Borrar las misiones de ' + $('npc').value + ' del ' + dia + '?')) return;
 
     pedir('/api/admin/missions/daily/' + $('npc').value + '/' + dia, { method: 'DELETE' })
-      .then(function () { limpiarMisiones(); aviso('Día borrado.', 'ok'); cargarDias(); })
+      .then(function () { limpiarMisiones(); editorTarget = selectedKey(); studioEvent('loaded', { scope: 'manual' }); aviso('Día borrado.', 'ok'); cargarDias(); })
       .catch(function (e) { aviso('No se pudo borrar: ' + e.message, 'err'); });
   });
 
@@ -1281,6 +1361,14 @@
   $('copiaDesde').value = hoy;
   $('copiaHasta').value = hoy;
   agregarMision();
+  window.GFMissionEditor = {
+    read: function () { return Array.prototype.map.call(document.querySelectorAll('#misiones .mission'), function (b) { return b._leer(); }); },
+    rules: leerReglas, add: agregarMision, notice: aviso,
+    replace: function (missions, reset) { limpiarMisiones(); (missions || []).forEach(agregarMision); if (reset != null) $('reset').value = reset; editorTarget = selectedKey(); studioEvent('edited', { scope: 'manual' }); },
+    context: function () { return { selected: selectedKey(), loaded: editorTarget, rulesNpc: loadedRulesNpc, authenticated: adminOk }; },
+    load: cargarDia, loadRules: cargarReglas
+  };
+  window.addEventListener('pagehide', function () { clearTimeout(aviso.timer); dayReadVersion++; rulesReadVersion++; });
 
   // Si ya había una sesión de admin abierta (por ejemplo se venía de admin.html),
   // se entra directo sin volver a firmar.

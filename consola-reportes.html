@@ -235,6 +235,10 @@ button{font-family:inherit;font-size:14px;cursor:pointer;}
   .kv .v{text-align:left;}
 }
 </style>
+<link rel="stylesheet" href="./admin-suite.css?v=20261020">
+<script src="./admin-session.js?v=20261020"></script>
+<script src="./admin-suite-i18n.js?v=20261020"></script>
+<script defer src="./admin-suite.js?v=20261020"></script>
 </head>
 <body>
 
@@ -372,6 +376,7 @@ button{font-family:inherit;font-size:14px;cursor:pointer;}
   var ESTADOS = { pending:'Pendiente', warned:'Advertido', banned:'Baneado', dismissed:'Descartado' };
 
   var state = { csrf:null, address:null, status:'', q:'', page:1, pages:1, reports:[], sel:null };
+  var listRevision = 0, caseRevision = 0;
 
   // ── Aviso flotante ───────────────────────────────────────────────────────
   var toastTimer = null;
@@ -385,6 +390,7 @@ button{font-family:inherit;font-size:14px;cursor:pointer;}
 
   // ── Peticiones ───────────────────────────────────────────────────────────
   function pedir(ruta, opciones){
+    if (window.GFAdminSession) return window.GFAdminSession.request(ruta, opciones);
     opciones = opciones || {};
     opciones.credentials = 'include';
     opciones.mode = 'cors';
@@ -567,6 +573,7 @@ button{font-family:inherit;font-size:14px;cursor:pointer;}
 
   // ── Carga y pintado de la lista ──────────────────────────────────────────
   async function cargar(){
+    var revision = ++listRevision;
     cargarSuspensiones();
     var params = new URLSearchParams();
     if(state.status) params.set('status', state.status);
@@ -576,6 +583,7 @@ button{font-family:inherit;font-size:14px;cursor:pointer;}
 
     try{
       var d = await pedir('/api/admin/reports?' + params.toString());
+      if (revision !== listRevision) return;
       state.reports = d.reports || [];
       state.pages = d.pages || 1;
       pintarResumen(d.resumen || {}, d.total || 0);
@@ -648,6 +656,7 @@ button{font-family:inherit;font-size:14px;cursor:pointer;}
 
   // ── Expediente del acusado ───────────────────────────────────────────────
   async function abrirExpediente(id){
+    var revision = ++caseRevision;
     var cuerpo = $('file-body');
     cuerpo.textContent = '';
     cuerpo.appendChild(el('div', {class:'empty', text:'Cargando expediente…'}));
@@ -655,10 +664,12 @@ button{font-family:inherit;font-size:14px;cursor:pointer;}
 
     try{
       var d = await pedir('/api/admin/reports/' + encodeURIComponent(id));
+      if (revision !== caseRevision) return;
       state.sel = d.report;
       pintarLista();          // resalta el elegido en la lista
       pintarExpediente(d);
     }catch(e){
+      if (revision !== caseRevision) return;
       cuerpo.textContent = '';
       cuerpo.appendChild(el('div', {class:'empty', text:'No se pudo cargar: ' + (e.message || e)}));
     }

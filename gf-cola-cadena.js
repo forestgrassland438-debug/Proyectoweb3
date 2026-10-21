@@ -32,6 +32,7 @@
  * ======================================================================== */
 (function () {
   'use strict';
+  if (window.GFColaCadena) return;
 
   var EVENTOS = {
     'suelo:acunado': true, 'suelo:fallido': false,
@@ -39,9 +40,28 @@
     'botin:acunado': true, 'botin:fallido': false
   };
   var ESPERA_MAX_MS = 120000;
-  var PEND = {};
-  var HUERFANOS = {};              // un aviso que llegó antes que la respuesta
+  var PEND = Object.create(null);
+  var HUERFANOS = Object.create(null); // un aviso que llegó antes que la respuesta
+  var TERMINADOS = new Map();
+  var MAX_AVISOS = 256;
   var socketAtado = null, oyentes = null;
+  var destruida = false, intervalo = null;
+
+  function valido(t) { return typeof t === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(t); }
+  function cuenta(sc) {
+    if (!sc) return null;
+    var addr = sc.address || sc.currentAccount || (sc.datosJugador && sc.datosJugador.address);
+    return { address: typeof addr === 'string' ? addr.toLowerCase() : '', nombre: String(sc.playerName || '') };
+  }
+  function mismaCuenta(a, b) {
+    if (!a || !b) return false;
+    if (a.address && b.address) return a.address === b.address;
+    return !!a.nombre && a.nombre === b.nombre;
+  }
+  function terminado(t) {
+    TERMINADOS.delete(t); TERMINADOS.set(t, Date.now());
+    if (TERMINADOS.size > MAX_AVISOS) TERMINADOS.delete(TERMINADOS.keys().next().value);
+  }
 
   function ticket() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
@@ -80,24 +100,38 @@
   }
 
   function resolver(evento, d) {
-    if (!d || !d.ticket) return;
+    if (destruida || !Object.prototype.hasOwnProperty.call(EVENTOS, evento) || !d || !valido(d.ticket) || TERMINADOS.has(d.ticket)) return;
     var p = PEND[d.ticket];
-    if (!p) { HUERFANOS[d.ticket] = { evento: evento, d: d, t: Date.now() }; return; }
-    delete PEND[d.ticket];
-    pintar();
+    if (!p) {
+      if (!HUERFANOS[d.ticket] && Object.keys(HUERFANOS).length >= MAX_AVISOS) delete HUERFANOS[Object.keys(HUERFANOS)[0]];
+      HUERFANOS[d.ticket] = { evento: evento, d: d, t: Date.now() }; return;
+    }
     var sc = escena();
+    // Un ACK durante el cambio de mapa se aplica al siguiente mapa de su
+    // dueño. Nunca se entrega una factura a la cuenta que lo sustituyó.
+    if (!sc) { p.respuesta = { evento: evento, d: d }; return; }
+    delete PEND[d.ticket];
+    terminado(d.ticket);
+    pintar();
+    if (!mismaCuenta(p.cuenta, cuenta(sc))) {
+      try { if (p.alCaducar) p.alCaducar(null); } catch (e) {}
+      return;
+    }
     try { (EVENTOS[evento] ? p.alOk : p.alFallo)(d, sc); }
     catch (e) { console.warn('[cola] ' + evento + ':', e); }
   }
 
   function atar() {
     var sock = window.globalSocket || null;
-    if (!sock || !sock.on || sock === socketAtado) return;
+    if (sock === socketAtado) return;
     if (socketAtado && oyentes) {
       Object.keys(oyentes).forEach(function (ev) { try { socketAtado.off(ev, oyentes[ev]); } catch (e) {} });
     }
+    socketAtado = null;
+    oyentes = null;
+    if (destruida || !sock || typeof sock.on !== 'function') return;
     socketAtado = sock;
-    oyentes = {};
+    oyentes = Object.create(null);
     Object.keys(EVENTOS).forEach(function (ev) {
       oyentes[ev] = function (d) { resolver(ev, d); };
       sock.on(ev, oyentes[ev]);
@@ -105,11 +139,13 @@
   }
 
   /** Apunta una transacción en cola. `p.alOk` y `p.alFallo` reciben (datos, escena). */
-  function esperar(t, p) {
+  function esperar(t, p, origen) {
+    if (destruida || !valido(t) || TERMINADOS.has(t) || PEND[t]) return;
     atar();
     p = p || {};
-    p.alOk = p.alOk || function () {};
-    p.alFallo = p.alFallo || function () {};
+    p = { alOk: typeof p.alOk === 'function' ? p.alOk : function () {},
+      alFallo: typeof p.alFallo === 'function' ? p.alFallo : function () {},
+      alCaducar: p.alCaducar, esperaMs: ESPERA_MAX_MS, cuenta: cuenta(origen || escena()) };
     p.t = Date.now();
     PEND[t] = p;
     pintar();
@@ -119,30 +155,48 @@
 
   /** Lo que pasó de la espera sin noticias: que lo arregle quien lo apuntó, y la bolsa, con la cadena. */
   function vigilar() {
+    if (destruida) return;
     atar();
-    var ahora = Date.now(), alguno = false;
+    var ahora = Date.now(), alguno = false, sc = escena();
     Object.keys(PEND).forEach(function (t) {
       var p = PEND[t];
-      if (ahora - p.t < (p.esperaMs || ESPERA_MAX_MS)) return;
+      if (p.respuesta && sc) { resolver(p.respuesta.evento, p.respuesta.d); return; }
+      if (ahora - p.t < p.esperaMs) return;
       delete PEND[t];
-      alguno = true;
-      try { if (p.alCaducar) p.alCaducar(escena()); } catch (e) {}
+      terminado(t);
+      var propia = mismaCuenta(p.cuenta, cuenta(sc));
+      if (propia) alguno = true;
+      try { if (p.alCaducar) p.alCaducar(propia ? sc : null); } catch (e) {}
+      pintar();
     });
     Object.keys(HUERFANOS).forEach(function (t) { if (ahora - HUERFANOS[t].t > 30000) delete HUERFANOS[t]; });
+    TERMINADOS.forEach(function (at, t) { if (ahora - at > ESPERA_MAX_MS) TERMINADOS.delete(t); });
     if (alguno) {
       pintar();
-      var sc = escena();
-      try { if (sc && typeof sc._sincronizarInventarioConLaCadena === 'function') sc._sincronizarInventarioConLaCadena(); } catch (e) {}
+      try { if (sc && typeof sc._sincronizarInventarioConLaCadena === 'function') Promise.resolve(sc._sincronizarInventarioConLaCadena()).catch(function () {}); } catch (e) {}
     }
   }
-  setInterval(vigilar, 1000);
+  intervalo = setInterval(vigilar, 1000);
 
   /** Acorta la espera de una transacción (p. ej. si la petición se cortó). */
   function caducarEn(t, ms) {
     var p = PEND[t];
-    if (p) { p.esperaMs = Math.max(0, Date.now() - p.t) + ms; }
+    if (p) { p.esperaMs = Math.max(0, Date.now() - p.t) + (Number.isFinite(ms) ? Math.max(0, Math.min(ESPERA_MAX_MS, ms)) : ESPERA_MAX_MS); }
   }
 
-  window.GFColaCadena = { ticket: ticket, esperar: esperar, escena: escena, cuantas: cuantas, caducarEn: caducarEn,
-                          _interno: { PEND: PEND, resolver: resolver, pintar: pintar } };
+  function destruir(evento) {
+    if (destruida || (evento && evento.persisted)) return;
+    destruida = true;
+    clearInterval(intervalo); intervalo = null;
+    if (socketAtado && oyentes) Object.keys(oyentes).forEach(function (ev) { try { socketAtado.off(ev, oyentes[ev]); } catch (e) {} });
+    socketAtado = oyentes = null;
+    Object.keys(PEND).forEach(function (t) { delete PEND[t]; });
+    Object.keys(HUERFANOS).forEach(function (t) { delete HUERFANOS[t]; });
+    TERMINADOS.clear(); pintar();
+    window.removeEventListener('pagehide', destruir);
+  }
+  window.addEventListener('pagehide', destruir);
+
+  window.GFColaCadena = { ticket: ticket, esperar: esperar, escena: escena, cuantas: cuantas, caducarEn: caducarEn, destruir: destruir,
+                          _interno: { PEND: PEND, HUERFANOS: HUERFANOS, resolver: resolver, pintar: pintar } };
 })();

@@ -167,8 +167,42 @@
       vel: 42, velCaza: 80, vista: 500, olvida: 860, correa: 760, distancia: 240,
       golpe: null, poder: [3400, 5200], ancho: 34, alto: 14, cabeza: 152,
       vuelveMs: 12 * 60 * 1000, color: 0x8ce9ff
+    },
+
+    // ── LOS JEFES (2026-10-20): uno por mapa (gf-jefes.js pone su guarida,
+    //    su aura, su barra y sus poderes; el arte, tools/generar-jefes.py). ──
+    jefe_golem: {
+      arte: 'jefe_golem', molde: 'golem', jefe: true, nombre: 'The Mossback Titan', vida: 2600, escala: 2, sombra: 3.4,
+      vel: 30, velCaza: 56, vista: 520, olvida: 1000, correa: 1100,
+      golpe: { alcance: 120, cada: 1800 }, poder: [2600, 4000], ancho: 90, alto: 28, cabeza: 300,
+      vuelveMs: 30 * 60 * 1000, color: 0x5fe0a0
+    },
+    jefe_arana: {
+      arte: 'jefe_arana', molde: 'arana', jefe: true, nombre: 'The Bone Widow', vida: 2400, escala: 2, sombra: 3.2,
+      vel: 44, velCaza: 86, vista: 520, olvida: 1000, correa: 1100, distancia: 200,
+      tex: { espina: 'gfm_hueso', savia: 'gfm_veneno' }, freno: 'Soul venom — you are slowed!',
+      golpe: { alcance: 96, cada: 1500 }, poder: [2400, 3800], ancho: 80, alto: 24, cabeza: 200,
+      vuelveMs: 30 * 60 * 1000, color: 0x7dffb0
+    },
+    jefe_escorpion: {
+      arte: 'jefe_escorpion', molde: 'arana', jefe: true, nombre: 'The Sand Emperor', vida: 2500, escala: 2, sombra: 3.2,
+      vel: 46, velCaza: 90, vista: 520, olvida: 1000, correa: 1100, distancia: 190,
+      tex: { savia: 'gfm_veneno' }, freno: 'Imperial venom — you are slowed!',
+      golpe: { alcance: 100, cada: 1400 }, poder: [2400, 3800], ancho: 84, alto: 24, cabeza: 190,
+      vuelveMs: 30 * 60 * 1000, color: 0xe6b85a
+    },
+    jefe_lobo: {
+      arte: 'jefe_lobo', molde: 'lobo', jefe: true, nombre: 'Frostfang, the Pack King', vida: 2400, escala: 2, sombra: 3.0,
+      vel: 60, velCaza: 160, vista: 560, olvida: 1050, correa: 1150,
+      golpe: { alcance: 96, cada: 1200 }, poder: [2600, 4000], ancho: 76, alto: 22, cabeza: 190,
+      vuelveMs: 30 * 60 * 1000, color: 0x8ce9ff
     }
   };
+  /* (2026-10-20) Lo que gf-jefes.js necesita de aquí para sus poderes. */
+  function apiJefe() {
+    return { golpearJugador: golpearJugador, efimero: efimero, soltarEfimero: soltarEfimero, animar: animar,
+             orientar: orientar, cercaDeMi: cercaDeMi, libre: libre };
+  }
   // Los proyectiles de siempre; cada especie puede cambiar los suyos (`tex`).
   var TEX_BASE = { roca: 'gfm_roca', espina: 'gfm_espina', savia: 'gfm_savia', rayo: 'gfm_rayo' };
   function tex(m, que) { return (m.def.tex && m.def.tex[que]) || TEX_BASE[que]; }
@@ -525,10 +559,11 @@
         fontFamily: '"PressStart2P"', fontSize: '7px', color: '#ffe9c9', resolution: 4, stroke: '#000000', strokeThickness: 3
       }).setOrigin(0.5, 1);
     }
-    var w = 46, x = m.x - w / 2, y = m.y - m.def.cabeza - 8;
+    var w = m.def.jefe ? 120 : 46, x = m.x - w / 2, y = m.y - m.def.cabeza - 8;
     m.barra.clear().setVisible(true).setDepth(m.y + 2);
-    m.barra.fillStyle(0x000000, 0.65).fillRect(x - 1, y - 1, w + 2, 6);
-    m.barra.fillStyle(0xe2574c, 1).fillRect(x, y, w * Math.max(0, m.vida / m.max), 4);
+    m.barra.fillStyle(0x000000, 0.65).fillRect(x - 1, y - 1, w + 2, m.def.jefe ? 8 : 6);
+    m.barra.fillStyle(m.def.jefe ? 0xffc84a : 0xe2574c, 1).fillRect(x, y, w * Math.max(0, m.vida / m.max), m.def.jefe ? 6 : 4);
+    if (m.def.jefe && m.nombre.style && m.nombre.style.color !== '#ffd76a') m.nombre.setColor('#ffd76a');
     m.nombre.setVisible(true).setPosition(m.x, y - 3).setDepth(m.y + 2);
   }
 
@@ -566,7 +601,7 @@
         onda(st, ix, iy, 0.6);
         if (cercaDeMi(st, ix, iy, 500)) { try { scene.cameras.main.shake(140, 0.005); } catch (e) {} }
       }
-      if (Math.hypot(pj.x - ix, pj.y - iy) < m.def.golpe.alcance * 0.85) golpearJugador(st, 'monstruo_golpe', m.x, m.y, m.def.molde === 'golem' ? 34 : 20);
+      if (Math.hypot(pj.x - ix, pj.y - iy) < m.def.golpe.alcance * 0.85) golpearJugador(st, m.def.jefe ? 'jefe_golpe' : 'monstruo_golpe', m.x, m.y, m.def.molde === 'golem' ? 34 : 20);
     } };
   }
 
@@ -730,6 +765,8 @@
     m.poderEn = scene.time.now + entre(m.def.poder[0], m.def.poder[1]) * ritmo(scene);
     var v = velDe(st, b);
     var anunciar = function (d) { d.id = m.id; if (st.red) st.red.evento(d); };
+    // (2026-10-20) Un jefe usa a menudo los SUYOS (gf-jefes.js).
+    if (m.def.jefe && window.GFJefes && window.GFJefes.poder(st, m, dist, b, anunciar, apiJefe())) return;
     if (tipo === 'golem') {
       if (dist < 150) { golemPisoton(st, m); anunciar({ e: 'pisoton', x: Math.round(m.x), y: Math.round(m.y) }); }
       else if (dist < 480) {
@@ -1011,7 +1048,9 @@
     if (d.e === 'espinas') { aranaEspinas(st, m, Number(d.bx), Number(d.by), Number(d.a) || 0); return; }
     if (d.e === 'savia') { aranaSavia(st, m, Number(d.tx), Number(d.ty)); return; }
     if (d.e === 'rayos' && Array.isArray(d.p) && d.p.length) { brujoRayos(st, m, d.p.slice(0, 3)); return; }
-    if (d.e === 'salto') { brujoSalto(st, m, Number(d.x), Number(d.y)); }
+    if (d.e === 'salto') { brujoSalto(st, m, Number(d.x), Number(d.y)); return; }
+    // (2026-10-20) Los poderes de los jefes.
+    if (d.e === 'jefe' && window.GFJefes) window.GFJefes.ejecutar(st, m, d, apiJefe());
   }
 
   function alCambiarHost(st, soyYo) {
@@ -1185,6 +1224,12 @@
     var ang = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 }[dir];
     var mano = { right: [14, 7], left: [-14, 7], up: [-8, 0], down: [10, 12] }[dir];
     var prof = dir === 'up' ? s.depth - 1 : s.depth + 1;
+    // (2026-10-21) El arco y el bastón no barren: se ve volar la flecha o el rayo.
+    var E = window.GFEspada;
+    if (E && E.esDistancia && E.esDistancia(d.arma)) {
+      E.dibujarDisparo(scene, s.x + mano[0], s.y + mano[1], dir, d.arma, E.ESPADAS[d.arma].alcance, prof);
+      return;
+    }
     var desde = ang - 1.3, hasta = ang + 1.3;
     if (dir === 'left') { desde = ang + 1.3; hasta = ang - 1.3; }
     var BASE = -Math.PI / 4;
@@ -1463,21 +1508,23 @@
     var cola = window.GFColaCadena;
     var t = cola ? cola.ticket() : null;
     api('/api/salvaje/recoger', t ? { id: id, ticket: t } : { id: id }).then(function (r) {
-        if (!st.vivo) return;
         var d = (r && r.datos) || {};
         if (d.ok && d.pendiente && cola) {
+          if (st.vivo) {
           aviso(st.scene, '+' + d.cantidad + ' ' + nombreDeItem(st.scene, d.itemId) + (d.deNombre ? ' (dropped by ' + d.deNombre + ')' : ''), 'success');
           try { st.scene.playSFX && st.scene.playSFX('item_pickup'); } catch (e) {}
           quitarMonton(st, id, true);
+          }
           cola.esperar(d.ticket || t, {
             alOk: function (dd, sc) { if (sc && dd.factura) meterFactura(sc, dd.itemId, dd.factura); },
             alFallo: function (dd, sc) {
               ESPERA_RECOGER[id] = Date.now() + 4000;
               if (sc) aviso(sc, dd.message || 'Could not pick it up: it is back on the ground.', 'warning');
             }
-          });
+          }, st.scene);
           return;
         }
+        if (!st.vivo) return;
         if (d.motivo === 'lejos' && intento < 3 && st.suelo[id]) {
           setTimeout(function () { if (st.vivo && st.suelo[id]) recogerUno(st, id, intento + 1); }, 450);
           return;
@@ -1623,7 +1670,7 @@
         aviso(sc, (d && d.message) || 'Could not drop it: it is back in your bag.', 'warning');
       }
     };
-    if (cola) cola.esperar(t, { alOk: bien, alFallo: mal, alCaducar: function () { quitarProvisional(prov); } });
+    if (cola) cola.esperar(t, { alOk: bien, alFallo: mal, alCaducar: function () { quitarProvisional(prov); } }, scene);
     api('/api/salvaje/soltar', { itemId: sel.id, invoiceId: sel.idx, cantidad: sel.count, x: Math.round(x), y: Math.round(y), ticket: t || undefined })
       .then(function (r) {
         var d = (r && r.datos) || {};
@@ -1706,6 +1753,8 @@
     // El objeto vuelve a su casilla (la bolsa no cambia hasta que el servidor confirme).
     try { scene.clearSelectedItem(); } catch (e) {}
     if (!SOLTABLES[sel.id]) { aviso(scene, 'Only resources can be dropped on the ground.', 'info'); return; }
+    // (2026-10-20) Soltar cosas para que otros las cojan pide VIP (gf-vip.js).
+    if (window.GFVip && !window.GFVip.exigir(scene, 'drop')) return;
     if (sel.idx === undefined || sel.idx === null) { aviso(scene, 'That item is still being saved. Try again in a moment.', 'info'); return; }
     if (fantasma()) return;
     var p = scene.player;
@@ -1773,7 +1822,10 @@
     // salvaje pide lo de siempre) y sus proyectiles.
     var capaM = scene.map.getObjectLayer('monstruos');
     var artes = {}, texs = { gfm_cartel: true };
-    (capaM ? capaM.objects : []).forEach(function (o) {
+    // (2026-10-20) El jefe de este mapa (gf-jefes.js): su guarida, igual en todos.
+    var jefe = null;
+    try { jefe = window.GFJefes ? window.GFJefes.puesto(scene) : null; } catch (e) { jefe = null; }
+    ((capaM ? capaM.objects : []).concat(jefe ? [{ name: jefe.tipo }] : [])).forEach(function (o) {
       var d = ESPECIES[o.name];
       if (!d) return;
       artes[d.arte] = true;
@@ -1797,6 +1849,13 @@
         var m = crear(st, { x: o.x, y: o.y }, tipo, n, id);
         if (m) { st.bichos.push(m); st.porId[id] = m; }
       });
+      if (jefe && ESPECIES[jefe.tipo]) {
+        var mj = crear(st, { x: jefe.x, y: jefe.y }, jefe.tipo, 0, jefe.id);
+        if (mj) {
+          st.bichos.push(mj); st.porId[jefe.id] = mj;
+          try { window.GFJefes.decorar(st, mj, apiJefe()); } catch (e) { console.warn('[salvaje] jefe:', e); }
+        }
+      }
       // Compartidos con los demás de la sala (gf-mobs-red.js).
       if (window.GFMobsRed) {
         st.red = window.GFMobsRed.crear(scene, 'salvaje', {
@@ -1816,6 +1875,7 @@
     st.onUpdate = function (t, d) {
       if (!st.vivo) return;
       actualizar(st, t, d);
+      if (st.jefe && window.GFJefes) { try { window.GFJefes.tic(st, t, Math.min(0.05, (d || 16) / 1000)); } catch (e) {} }
       if (scene.player) recogerCercanos(st, pies(scene));
       vigilarZona(st);
       if (t - st.socketMiradoEn > 1000) { st.socketMiradoEn = t; atarSocket(st); }
@@ -1828,6 +1888,7 @@
     var st = scene && scene.__gfSalvaje;
     if (!st) return;
     st.vivo = false;
+    try { if (window.GFJefes) window.GFJefes.desmontar(st); } catch (e) {}
     clearTimeout(st.relojSuelo);
     scene.events.off('update', st.onUpdate);
     scene.events.off('shutdown', st.onApagar);

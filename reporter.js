@@ -80,6 +80,7 @@
 
   // ── Peticiones ─────────────────────────────────────────────────────────────
   async function pedir(ruta, opciones) {
+    if (window.GFAdminSession) return window.GFAdminSession.request(ruta, opciones);
     if (cerrado) throw new Error('Reporter closed');
     opciones = Object.assign({}, opciones || {});
     opciones.credentials = 'include';

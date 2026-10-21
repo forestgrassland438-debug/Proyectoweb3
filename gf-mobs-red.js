@@ -301,6 +301,14 @@
     var ang = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 }[dir];
     var mano = { right: [14, 7], left: [-14, 7], up: [-8, 0], down: [10, 12] }[dir];
     var prof = dir === 'up' ? s.depth - 1 : s.depth + 1;
+    // (2026-10-21) El arco y el bastón no barren: se ve volar la flecha o el rayo.
+    var E = window.GFEspada;
+    if (E && E.esDistancia && E.esDistancia(d.arma)) {
+      var largo = E.ESPADAS[d.arma].alcance * (d.poder === 'b' ? 1.3 : 1);
+      E.dibujarDisparo(scene, s.x + mano[0], s.y + mano[1], dir, d.arma, largo, prof);
+      if (d.poder === 'v') [-0.4, 0.4].forEach(function (a) { E.dibujarDisparo(scene, s.x + mano[0], s.y + mano[1], dir, d.arma, largo, prof, a); });
+      return;
+    }
     var arco = d.poder === 'v' ? Math.PI : d.poder === 'b' ? 0.55 : 1.3;
     var desde = ang - arco, hasta = ang + arco;
     if (dir === 'left') { desde = ang + arco; hasta = ang - arco; }

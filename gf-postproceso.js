@@ -482,7 +482,9 @@
     /* En interiores tampoco entra el TIEMPO: bajo tierra no se ve la
        tormenta, asi que no hay motivo para virar la imagen a gris de lluvia
        ni a naranja de atardecer. Se deja el look normal y ya. */
-    var e = (st && st.interior) ? { activo: false, estacion: null } : climaAhora();
+    /* (2026-10-21) `sinClima`: la noche sí, el tiempo del pueblo no (el
+       desierto y la tundra llevan el suyo en gf-zonas: arena y nevada). */
+    var e = (st && (st.interior || st.sinClima)) ? { activo: false, estacion: null } : climaAhora();
     var base = LOOKS.normal;
     var look = base, peso = 0;
 
@@ -649,7 +651,8 @@
       quieto: false, px: 0, py: 0, ultimoMovimiento: 0,
       forzado: null, manual: null,
       // Ni noche ni clima: lo piden las escenas bajo techo (ver `oscuridad`).
-      interior: opciones.interior === true
+      interior: opciones.interior === true,
+      sinClima: opciones.sinClima === true
     };
     scene.__gfPost = st;
     montado = st;

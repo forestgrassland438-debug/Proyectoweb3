@@ -216,6 +216,8 @@
    */
   function ir(escena) {
     if (escena._cambiandoEscena) return;
+    // (2026-10-20) Sin VIP no se entra en la isla (gf-vip.js).
+    if (root.GFVip && !root.GFVip.exigir(escena, 'lands')) return;
     if (!escena.scene.get(CLAVE_ISLA)) {
       log('LandsScene no esta registrada: no se puede ir a la isla');
       return;
@@ -346,6 +348,11 @@
     pintarIcono(enLaIsla);
     escenaBoton = escena;
     enLaIslaBoton = enLaIsla;
+    // (2026-10-20) Dentro de una isla sin VIP (la tuya o la de otro), de vuelta.
+    if (enLaIsla && root.GFVip && !escena.__gfVipVigilada) {
+      escena.__gfVipVigilada = true;
+      setTimeout(function () { escena.__gfVipVigilada = false; if (escena.sys && escena.sys.isActive()) root.GFVip.vigilarIsla(escena); }, 2500);
+    }
     if (escena.events && escena.events.once && !ciclosEscena.has(escena)) {
       var soltar = function () {
         escena.events.off('shutdown', soltar); escena.events.off('destroy', soltar);

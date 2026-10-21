@@ -1638,7 +1638,7 @@
                 if (st.vivo) soltarMonton(st, copia, cx, cy - 20, cx, cy, Math.max(5000, hasta - Date.now()));
                 if (sc) aviso(sc, dd.message || 'Could not pick it up: step on it again.', 'warning');
               }
-            });
+            }, scene);
           } else if (d.ok && d.factura) {
             if (!st.vivo) return;
             meterFactura(scene, d.itemId, d.factura);

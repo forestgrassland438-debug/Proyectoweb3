@@ -39,6 +39,10 @@
   .muted { color:var(--muted); font-size:12px; }
   code { background:#0a1424; padding:1px 6px; border-radius:5px; }
 </style>
+<link rel="stylesheet" href="./admin-suite.css?v=20261020">
+<script src="./admin-session.js?v=20261020"></script>
+<script src="./admin-suite-i18n.js?v=20261020"></script>
+<script defer src="./admin-suite.js?v=20261020"></script>
 </head>
 <body>
 <div class="wrap">
@@ -113,10 +117,14 @@
 <script>
 (function () {
   // Ajusta si tu API vive en otro host.
-  var API_BASE = "https://api.grasslandforest.com";
+  var API_BASE = window.GFAdminSession.base;
   var APP_NAME = "Grassland Forest";
 
   var state = { account: null, csrf: null, mode: 'all', whitelist: [], banned: [] };
+  var accessBaseline = '';
+  function accessSnapshot() { return JSON.stringify({mode:state.mode,whitelist:state.whitelist,banned:state.banned}); }
+  function rememberAccess() { accessBaseline = accessSnapshot(); }
+  window.GFAccessLifecycle = { status: function () { return $('btnSave').disabled ? 'busy' : accessBaseline && accessBaseline !== accessSnapshot() ? 'dirty' : ''; } };
 
   var $ = function (id) { return document.getElementById(id); };
   function showStatus(msg, kind) {
@@ -151,6 +159,11 @@
   }
 
   async function signInFlow() {
+    if (window.GFAdminSession) {
+      var verified = await window.GFAdminSession.signIn(function (msg) { showStatus(msg, 'info'); });
+      state.account = verified.address;
+      return true;
+    }
     var provider = getProvider();
     if (!provider) { showStatus('MetaMask not detected. Install it to continue.', 'err'); return false; }
     showStatus('Connecting wallet…', 'info');
@@ -193,6 +206,14 @@
   }
 
   async function loadAccess() {
+    if (window.GFAdminSession) {
+      try {
+        var access = await window.GFAdminSession.request('/api/access');
+        state.mode = access.mode || 'all'; state.whitelist = Array.isArray(access.whitelist) ? access.whitelist.slice() : [];
+        state.banned = Array.isArray(access.banned) ? access.banned.slice() : [];
+        renderAll(); rememberAccess(); window.dispatchEvent(new CustomEvent('gf-admin-form-loaded')); return true;
+      } catch (e) { showStatus(e.message, 'err'); return false; }
+    }
     var r = await fetch(api('/api/access'), { credentials: 'include', mode: 'cors' });
     if (r.status === 403) { showStatus('This wallet is not an admin. Access denied.', 'err'); return false; }
     if (!r.ok) { showStatus('Could not load access config (' + r.status + ').', 'err'); return false; }
@@ -205,6 +226,17 @@
   }
 
   async function saveAccess() {
+    if (window.GFAdminSession) {
+      $('btnSave').disabled = true;
+      $('panel').inert = true;
+      try {
+        var saved = await window.GFAdminSession.request('/api/access', { method:'POST', body:JSON.stringify({mode:state.mode,whitelist:state.whitelist,banned:state.banned}) });
+        state.mode = saved.mode; state.whitelist = saved.whitelist || []; state.banned = saved.banned || [];
+        renderAll(); rememberAccess(); window.dispatchEvent(new CustomEvent('gf-admin-form-loaded')); showStatus('Saved.', 'ok');
+      } catch (e) { showStatus(e.message, 'err'); }
+      finally { $('btnSave').disabled = false; $('panel').inert = false; }
+      return;
+    }
     await getCsrf();
     var headers = { 'Content-Type': 'application/json' };
     if (state.csrf) headers['X-CSRF-Token'] = state.csrf;
@@ -273,6 +305,15 @@
     } finally { $('btnConnect').disabled = false; }
   };
   $('btnLogout').onclick = async function () {
+    if (window.GFAdminSession) {
+      try {
+        await window.GFAdminSession.logout();
+        state = { account: null, csrf: null, mode: 'all', whitelist: [], banned: [] }; accessBaseline = '';
+        $('panel').classList.add('hidden'); $('btnLogout').classList.add('hidden'); $('btnConnect').classList.remove('hidden'); $('whoami').textContent = 'Not connected.';
+        window.dispatchEvent(new CustomEvent('gf-admin-form-loaded')); showStatus('Signed out.','info');
+      } catch (e) { showStatus(e.message,'err'); }
+      return;
+    }
     try {
       var headers = {}; if (state.csrf) headers['X-CSRF-Token'] = state.csrf;
       await fetch(api('/api/auth/logout'), { method: 'POST', credentials: 'include', mode: 'cors', headers: headers });
@@ -305,6 +346,13 @@
   };
   $('btnSave').onclick = saveAccess;
   $('btnReload').onclick = loadAccess;
+  window.GFAdminSession.request('/api/admin/whoami').then(async function (admin) {
+    state.account = admin.address;
+    if (await loadAccess()) {
+      $('whoami').textContent = 'Signed in as ' + state.account;
+      $('btnConnect').classList.add('hidden'); $('btnLogout').classList.remove('hidden'); $('panel').classList.remove('hidden');
+    }
+  }).catch(function () {});
 })();
 </script>
 </body>

@@ -31,7 +31,7 @@
   })();
 
   var estado = {
-    stats: { vida: 100, agua: 80, comida: 70, oro: 50, plata: 500, exp: 4500, invoiceIds: {} },
+    stats: { vida: 100, agua: 80, comida: 70, oro: 50, plata: 500, bronce: 25000, exp: 4500, invoiceIds: {} },
     // Construcción en la isla: lo colocado y las parcelas que quedan.
     construcciones: [],
     parcelas: 5,
@@ -246,6 +246,55 @@
       b = cuerpo(init); estado.guardado = b; return { success: true };
     }
     if (/^\/api\/stats\/[^/]+\/sync$/.test(ruta)) return { success: true, stats: estado.stats, source: 'mock' };
+    // (2026-10-20) El bronce y el VIP (ver /api/currency/*, /api/vip/* en server2.js).
+    if (/^\/api\/stats\/[^/]+$/.test(ruta) && metodo === 'GET') return { stats: estado.stats };
+    var PLANES_VIP = { '1m': { dias: 30, nombre: 'VIP · 1 month', precio: { oro: 5, plata: 5000, bronce: 5000000 } },
+                       '3m': { dias: 90, nombre: 'VIP · 3 months', precio: { oro: 12, plata: 12000, bronce: 12000000 } },
+                       '6m': { dias: 180, nombre: 'VIP · 6 months', precio: { oro: 20, plata: 20000, bronce: 20000000 } } };
+    estado.vip = estado.vip || { facturas: [] };
+    var resumenVip = function () {
+      var fin = 0, ini = null;
+      estado.vip.facturas.forEach(function (f) { if (f.fin > fin) fin = f.fin; if (ini === null || f.inicio < ini) ini = f.inicio; });
+      return { ok: true, activo: fin > Date.now(), inicio: ini, fin: fin || null, diasRestantes: Math.max(0, Math.ceil((fin - Date.now()) / 86400000)),
+               facturas: estado.vip.facturas.slice().reverse(), planes: PLANES_VIP };
+    };
+    if (ruta === '/api/vip/estado') return resumenVip();
+    if (/^\/api\/vip\/de\//.test(ruta)) return { ok: true, vip: true };
+    if (ruta === '/api/vip/comprar' && metodo === 'POST') {
+      b = cuerpo(init);
+      var pl = PLANES_VIP[b.plan], precioV = pl && pl.precio[b.moneda];
+      if (!pl || !precioV) return { error: 'plan_invalido' };
+      if ((estado.stats[b.moneda] || 0) < precioV) return { error: 'insufficient_funds', moneda: b.moneda };
+      estado.stats[b.moneda] -= precioV;
+      var r0 = resumenVip(), iniV = Math.max(Date.now(), r0.activo ? r0.fin : 0), finV = iniV + pl.dias * 86400000;
+      estado.vip.facturas.push({ id: 900 + estado.vip.facturas.length, dias: pl.dias, inicio: iniV, fin: finV, plan: b.plan, moneda: b.moneda, precio: precioV,
+                                 manualId: ['vip', 'abcd1234', Math.floor(iniV / 1000), Math.floor(finV / 1000), b.plan, b.moneda, precioV].join(':') });
+      var rv = resumenVip(); rv.stats = estado.stats; return rv;
+    }
+    if (ruta === '/api/currency/weekly') {
+      estado.semanal = estado.semanal || {};
+      var g = {};
+      [['gold', 2000], ['silver', 1000], ['bronze', 1000]].forEach(function (k) { g[k[0]] = { amount: k[1], available: !estado.semanal[k[0]], msLeft: estado.semanal[k[0]] ? 6 * 86400000 : 0 }; });
+      return { gifts: g, periodMs: 7 * 86400000 };
+    }
+    if (ruta === '/api/currency/weekly/claim' && metodo === 'POST') {
+      b = cuerpo(init);
+      estado.semanal = estado.semanal || {};
+      if (estado.semanal[b.kind]) return { error: 'already_claimed', msLeft: 6 * 86400000 };
+      estado.semanal[b.kind] = true;
+      var statK = { gold: 'oro', silver: 'plata', bronze: 'bronce' }[b.kind], amt = { gold: 2000, silver: 1000, bronze: 1000 }[b.kind];
+      estado.stats[statK] += amt;
+      return { ok: true, kind: b.kind, amount: amt, stats: estado.stats };
+    }
+    if (ruta === '/api/currency/exchange' && metodo === 'POST') {
+      b = cuerpo(init);
+      var q = Math.floor(Number(b.amount) || 0);
+      if (b.direction === 'silverToBronze') { if (estado.stats.plata < q) return { error: 'insufficient_silver' }; estado.stats.plata -= q; estado.stats.bronce += q * 1000; }
+      else if (b.direction === 'bronzeToSilver') { if (estado.stats.bronce < q * 1000) return { error: 'insufficient_bronze' }; estado.stats.bronce -= q * 1000; estado.stats.plata += q; }
+      else if (b.direction === 'silverToGold') { if (estado.stats.plata < q * 1000) return { error: 'insufficient_silver' }; estado.stats.plata -= q * 1000; estado.stats.oro += q; }
+      else { if (estado.stats.oro < q) return { error: 'insufficient_gold' }; estado.stats.oro -= q; estado.stats.plata += q * 1000; }
+      return { ok: true, stats: estado.stats };
+    }
     // El botín de los monstruos (ver /api/monstruos/* en server2.js).
     if (ruta === '/api/monstruos/derrotado' && metodo === 'POST') {
       b = cuerpo(init);

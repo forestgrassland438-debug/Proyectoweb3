@@ -803,6 +803,18 @@
       }
     } catch (x) {}
 
+    /* (2026-10-20) "Cuando llueve en el pueblo, en el mapa de nieve o en el
+       desierto se escucha la lluvia." El tiempo del servidor es el del
+       pueblo; el desierto y la tundra tienen el SUYO (tormenta de arena,
+       nevada: gf-zonas.js) y no montan gf-clima (cfg.clima === false). Ahí
+       no llueve ni nieva lo del pueblo: en la tundra suena su propia nevada. */
+    var cfgZona = st.scene && st.scene.cfg;
+    if (cfgZona && cfgZona.clima === false) {
+      c.lluvia = 0; c.sol = 0; c.hayClima = false;
+      var zn = st.scene.__gfZonas;
+      c.nieve = (zn && zn.copos && zn.copos.length) ? 0.7 : 0;
+    }
+
     /* El viento se pregunta aparte y SIN crear objetos: `vector()` existe
        justo para eso, porque la lluvia ya se lo pide en cada frame. */
     try {

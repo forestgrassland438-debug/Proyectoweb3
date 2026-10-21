@@ -179,6 +179,10 @@ a { color: var(--sky); }
   th, td { padding: 7px 9px; }
 }
 </style>
+<link rel="stylesheet" href="./admin-suite.css?v=20261020">
+<script src="./admin-session.js?v=20261020"></script>
+<script src="./admin-suite-i18n.js?v=20261020"></script>
+<script defer src="./admin-suite.js?v=20261020"></script>
 </head>
 <body>
 <header class="top">
@@ -383,6 +387,7 @@ a { color: var(--sky); }
   var iface = new E.Interface(ABI);
   var ultimaGrafica = null;
   var lector = null;      // proveedor de lectura (RPC público, o MetaMask si aquel falla)
+  var disposed = false;
   var contrato = null;
   var direccion = '';
   var cuenta = '';
@@ -455,7 +460,7 @@ a { color: var(--sky); }
   async function enTandas(lista, n, fn) {
     var out = new Array(lista.length), i = 0;
     async function obrero() {
-      while (i < lista.length) { var k = i++; try { out[k] = await fn(lista[k], k); } catch (e) { out[k] = { error: e }; } }
+      while (i < lista.length && !disposed) { var k = i++; try { out[k] = await fn(lista[k], k); } catch (e) { out[k] = { error: e }; } }
     }
     var obreros = [];
     for (var j = 0; j < Math.min(n, lista.length); j++) obreros.push(obrero());
@@ -492,6 +497,7 @@ a { color: var(--sky); }
     try { await rpc.getBlockNumber(); return rpc; }
     catch (e) {
       // El RPC público no contesta (CORS, caída): se lee a través de MetaMask.
+      rpc.destroy();
       var mm = new E.BrowserProvider(window.ethereum);
       var red = await mm.getNetwork();
       if (Number(red.chainId) !== RED.chainId) throw new Error('El RPC público no responde y MetaMask no está en la red ' + RED.nombre + '.');
@@ -515,6 +521,7 @@ a { color: var(--sky); }
       chip('chipCartera', 'txtCartera', corta(cuenta), 'warn');
       var enRed = await asegurarRed();
       chip('chipRed', 'txtRed', enRed ? RED.nombre : 'Otra red (solo lectura por RPC)', enRed ? 'ok' : 'warn');
+      if (lector && lector.destroy) lector.destroy();
       lector = await prepararLector();
       if ((await lector.getCode(direccion)) === '0x') throw new Error('En esa dirección no hay ningún contrato en ' + RED.nombre + '.');
       contrato = new E.Contract(direccion, ABI, lector);
@@ -687,7 +694,7 @@ a { color: var(--sky); }
     var salida = [];
     var paso = 20000;
     var b = desde;
-    while (b <= hasta) {
+    while (b <= hasta && !disposed) {
       var fin = Math.min(hasta, b + paso - 1);
       try {
         var logs = await lector.getLogs({ address: direccion, fromBlock: b, toBlock: fin, topics: topics || undefined });
@@ -1084,14 +1091,22 @@ a { color: var(--sky); }
       pintarTablas();
     });
   });
+  function walletChanged() { if (contrato) location.reload(); }
   if (window.ethereum && window.ethereum.on) {
-    window.ethereum.on('accountsChanged', function () { if (contrato) location.reload(); });
-    window.ethereum.on('chainChanged', function () { if (contrato) location.reload(); });
+    window.ethereum.on('accountsChanged', walletChanged);
+    window.ethereum.on('chainChanged', walletChanged);
   }
   var relojTam = null;
   window.addEventListener('resize', function () {
     clearTimeout(relojTam);
     relojTam = setTimeout(function () { if (ultimaGrafica) dibujar.apply(null, ultimaGrafica); }, 150);
+  });
+  window.addEventListener('gf-admin-preferences', function () { if (ultimaGrafica) dibujar.apply(null, ultimaGrafica); });
+  window.addEventListener('pagehide', function (event) {
+    if (event.persisted) return;
+    disposed = true; clearTimeout(relojTam);
+    if (lector && lector.destroy) lector.destroy();
+    if (window.ethereum && window.ethereum.removeListener) { window.ethereum.removeListener('accountsChanged', walletChanged); window.ethereum.removeListener('chainChanged', walletChanged); }
   });
 })();
 </script>

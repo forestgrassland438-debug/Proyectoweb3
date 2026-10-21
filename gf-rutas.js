@@ -57,6 +57,7 @@
   }
 
   function siguiente(scene, desde, hasta, op) {
+    if (!scene || !desde || !hasta || ![desde.x, desde.y, hasta.x, hasta.y].every(Number.isFinite)) return null;
     op = op || {};
     if (typeof op.libre !== 'function') return { x: hasta.x, y: hasta.y };
     var mapa = cache(scene, op.clave || 'normal');
@@ -85,8 +86,17 @@
     // BFS dentro de la ventana.
     var W = RADIO * 2 + 1;
     var ox0 = sx - RADIO, oy0 = sy - RADIO;
-    var previo = new Int32Array(W * W).fill(-1);
-    var cola = new Int32Array(W * W);
+    // Una búsqueda es síncrona. Reutilizar sus buffers evita crear dos arrays
+    // por monstruo/ruta; una llamada reentrante conserva su espacio propio.
+    var trabajo = mapa.__gfBfs;
+    if (!trabajo || trabajo.activo) {
+      trabajo = { previo: new Int32Array(W * W), cola: new Int32Array(W * W), activo: false };
+      if (!mapa.__gfBfs) mapa.__gfBfs = trabajo;
+    }
+    trabajo.activo = true;
+    try {
+    var previo = trabajo.previo.fill(-1);
+    var cola = trabajo.cola;
     var ini = (sy - oy0) * W + (sx - ox0);
     var fin = (ty - oy0) * W + (tx - ox0);
     previo[ini] = ini;
@@ -122,6 +132,7 @@
     while (previo[paso] !== ini && previo[paso] !== paso) paso = previo[paso];
     var px = paso % W, py = (paso - px) / W;
     return { x: (px + ox0) * CELDA + CELDA / 2, y: (py + oy0) * CELDA + CELDA / 2 };
+    } finally { trabajo.activo = false; }
   }
 
   window.GFRutas = { siguiente: siguiente, CELDA: CELDA };

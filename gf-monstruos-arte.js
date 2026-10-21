@@ -28,7 +28,7 @@
 (function () {
   'use strict';
 
-  var V = '20261019a';   // (2026-10-19) el esqueleto de hueso de verdad y el guerrero
+  var V = '20261020a';   // (2026-10-20) los jefes de cada mapa (antes: el esqueleto de hueso y el guerrero)
   var RUTA = './Game/Sprites/monstruos/';
   // Humanoides: tipo -> fotogramas por segundo al andar.
   var HUMANOIDES = { zombi_a: 6, zombi_b: 6, zombi_c: 6, zombi_d: 6, zombi_jefe: 5, espectro: 6, mago: 6, brujo: 7,
@@ -47,7 +47,12 @@
     golem_cripta:  { camina: [4, 6, -1],  ataque: [3, 7, 0],  quieto: [2, 1.5, -1] },
     golem_arena:   { camina: [4, 6, -1],  ataque: [3, 7, 0],  quieto: [2, 1.5, -1] },
     golem_hielo:   { camina: [4, 6, -1],  ataque: [3, 7, 0],  quieto: [2, 1.5, -1] },
-    lobo_escarcha: { camina: [4, 10, -1], ataque: [3, 12, 0], quieto: [2, 2, -1] }
+    lobo_escarcha: { camina: [4, 10, -1], ataque: [3, 12, 0], quieto: [2, 2, -1] },
+    // (2026-10-20) Los jefes (tools/generar-jefes.py).
+    jefe_golem:     { camina: [4, 5, -1],  ataque: [3, 6, 0],  quieto: [2, 1.4, -1] },
+    jefe_arana:     { camina: [4, 10, -1], ataque: [3, 9, 0],  quieto: [2, 2, -1] },
+    jefe_escorpion: { camina: [4, 10, -1], ataque: [3, 9, 0],  quieto: [2, 2, -1] },
+    jefe_lobo:      { camina: [4, 9, -1],  ataque: [3, 11, 0], quieto: [2, 2, -1] }
   };
   // Atlas sin animaciones (fotogramas que el juego elige): la serpiente de la
   // mina, su cabeza y sus anillos en 16 direcciones ('cabeza_<i>',

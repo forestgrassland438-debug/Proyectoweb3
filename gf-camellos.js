@@ -128,17 +128,20 @@
 
   /* ───────────────────────────────────────────────────────── un camello */
   function crear(scene, esp, x, y) {
+    var spr = null, sombra = null;
+    try {
     var c = {
       esp: esp, x: x, y: y, casa: { x: x, y: y },
       vista: null, flip: Math.random() < 0.5, pose: 'quieto',
-      spr: scene.add.sprite(x, y, clave(esp, 'quieto', 1, null)),
-      sombra: scene.add.image(x, y, 'gfc_sombra'),
+      spr: spr = scene.add.sprite(x, y, clave(esp, 'quieto', 1, null)),
+      sombra: sombra = scene.add.image(x, y, 'gfc_sombra'),
       hasta: 0, meta: null, atasco: 0
     };
     c.spr.setOrigin(0.5, (CUADRO.h - CUADRO.suelo) / CUADRO.h).setScale(ESCALA);
     c.sombra.setScale(1.05, 1).setAlpha(0.9);
     poner(c, 'quieto', null);
     return c;
+    } catch (e) { [spr, sombra].forEach(function (o) { try { if (o && o.scene) o.destroy(); } catch (error) {} }); throw e; }
   }
   function poner(c, pose, vista) {
     if (vista && !CUATRO_LADOS[pose]) vista = null;
@@ -191,7 +194,7 @@
     scene.__gfCamellos = st;
     var W = scene.map.widthInPixels, H = scene.map.heightInPixels;
     // Dos manadas salvajes de 3 y una caravana de 2, en sitios distintos.
-    [['camello', 3], ['camello', 3], ['camello_manta', 2]].forEach(function (g) {
+    try { [['camello', 3], ['camello', 3], ['camello_manta', 2]].forEach(function (g) {
       var centro = null;
       for (var k = 0; k < 60 && !centro; k++) {
         var p = sitioLibre(scene, W * 0.15 + Math.random() * W * 0.7, H * 0.15 + Math.random() * H * 0.7, 10, 1);
@@ -208,7 +211,7 @@
           }
         }
       }
-    });
+    }); } catch (e) { desmontar(scene); console.warn('[camellos]', e); return; }
     st.onUpdate = function (t, delta) {
       if (!st.vivo) return;
       var dt = Math.min(0.1, (delta || 16) / 1000);
@@ -244,9 +247,8 @@
     if (!st) return;
     st.vivo = false;
     try {
-      scene.events.off('update', st.onUpdate);
-      scene.events.off('shutdown', st.onApagar);
-      scene.events.off('destroy', st.onApagar);
+      if (st.onUpdate) scene.events.off('update', st.onUpdate);
+      if (st.onApagar) { scene.events.off('shutdown', st.onApagar); scene.events.off('destroy', st.onApagar); }
     } catch (e) {}
     st.camellos.forEach(function (c) {
       try { if (c.spr && c.spr.scene) c.spr.destroy(); } catch (e) {}

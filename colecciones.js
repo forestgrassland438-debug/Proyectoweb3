@@ -106,7 +106,7 @@
       throw Object.assign(new Error(data.message||data.error||('Error HTTP '+response.status)),{status:response.status,body:data});
     }
   }
-  async function renewSession() {if(renewalWork)return renewalWork;const epoch=state.generation;const work=(async()=>{await request('/api/auth/refresh',{method:'POST',body:'{}'},true);await csrf();assertSession(epoch);authVersion++;})();renewalWork=work;try{return await work;}finally{if(renewalWork===work)renewalWork=null;}}
+  async function renewSession() {if(renewalWork)return renewalWork;const epoch=state.generation;const work=(async()=>{if(root.GFAdminSession?.shared&&root.GFAdminSession.base===apiOrigin)await root.GFAdminSession.refresh();else await request('/api/auth/refresh',{method:'POST',body:'{}'},true);await csrf();assertSession(epoch);authVersion++;})();renewalWork=work;try{return await work;}finally{if(renewalWork===work)renewalWork=null;}}
   async function csrf() {const result=await request('/api/auth/csrf-token',{},true);state.csrf=result.csrfToken||'';if(!state.csrf)throw new Error('El backend no devolvió el token CSRF.');}
   function lock(message='Conecta tu cartera administradora para continuar.') {
     state.generation++;controller.abort();controller=new AbortController();renewalWork=null;authVersion++;state.stop=true;state.verified=false;state.busy=false;state.running=false;state.account='';state.data=EMPTY();state.selection.clear();state.queue=[];state.uploads=[];state.editing=null;state.csrf='';state.paging={};state.more={};
@@ -117,7 +117,13 @@
     ['token-collection'].forEach(id=>$(id).replaceChildren());$('toasts').replaceChildren();$('app').hidden=true;$('gate').hidden=false;$('gate-message').textContent=message;$('connect').disabled=false;
   }
   function getWallet() {if(root.ethereum && root.ethereum.providers)return root.ethereum.providers.find(p=>p.isMetaMask)||root.ethereum.providers[0];return root.ethereum||null;}
-  function watchWallet(wallet) {if(state.wallet===wallet)return;state.wallet=wallet;if(wallet && wallet.on){wallet.on('accountsChanged',()=>lock('Cambió la cuenta conectada. Verifica el acceso de nuevo.'));wallet.on('chainChanged',()=>lock('Cambió la red de la cartera. Verifica el acceso de nuevo.'));wallet.on('disconnect',()=>lock('La cartera se desconectó.'));}}
+  const walletEvents = {
+    accountsChanged:()=>lock('Cambió la cuenta conectada. Verifica el acceso de nuevo.'),
+    chainChanged:()=>lock('Cambió la red de la cartera. Verifica el acceso de nuevo.'),
+    disconnect:()=>lock('La cartera se desconectó.')
+  };
+  function unwatchWallet() {if(state.wallet?.removeListener)for(const [event,handler]of Object.entries(walletEvents))state.wallet.removeListener(event,handler);}
+  function watchWallet(wallet) {if(state.wallet===wallet)return;unwatchWallet();state.wallet=wallet;if(wallet?.on)for(const [event,handler]of Object.entries(walletEvents))wallet.on(event,handler);}
   async function loadData() {
     const result=await request(BASE+'/bootstrap');
     if(lower(result.address)!==lower(state.account)) {lock('La sesión del backend corresponde a otra cartera. Conecta la administradora.');throw new Error('La sesión y la cartera no coinciden.');}
@@ -403,6 +409,8 @@
   $('editor').addEventListener('cancel',event=>{if(state.busy)event.preventDefault();});
   $('confirm-review').addEventListener('click',()=>closeReview(true));$('cancel-review').addEventListener('click',()=>closeReview(false));$('close-review').addEventListener('click',()=>closeReview(false));$('review').addEventListener('cancel',event=>{event.preventDefault();closeReview(false);});
   root.addEventListener('unhandledrejection',event=>{if(event.reason?.name==='AbortError'){event.preventDefault();}});
+  root.GFCollectionsLifecycle = { status:()=>state.running||(state.busy&&state.verified)?'busy':$('editor').open?'dirty':'' };
+  root.addEventListener('pagehide',event=>{if(event.persisted)return;unwatchWallet();controller.abort();state.generation++;state.stop=true;if(reviewResolve){reviewResolve(false);reviewResolve=null;}});
   watchWallet(getWallet());
   if(state.wallet)connect(true);
 })(typeof window === 'undefined' ? null : window);

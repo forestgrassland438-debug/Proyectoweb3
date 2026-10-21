@@ -1,0 +1,398 @@
+html[data-admin-suite][data-theme] {
+  --s-bg:#0e1514;
+  --s-surface:#16201e;
+  --s-raised:#1c2925;
+  --s-line:#2c3b35;
+  --s-text:#edf2ec;
+  --s-muted:#a1b2a7;
+  --s-accent:#bbdb98;
+  --s-accent-ink:#1a2c1c;
+  --s-warn:#e7ba78;
+  --s-danger:#eea39b;
+  --s-shadow:0 8px 28px #00000012;
+  color-scheme: dark;
+  --bg:var(--s-bg);
+  --ink:var(--s-bg);
+  --panel:var(--s-surface);
+  --card:var(--s-surface);
+  --surface:var(--s-surface);
+  --surface-2:var(--s-raised);
+  --surface-3:var(--s-raised);
+  --steel:var(--s-accent);
+  --steel-soft:color-mix(in srgb,var(--s-accent) 12%,transparent);
+  --amber:var(--s-warn);
+  --garnet:var(--s-danger);
+  --panel-2:var(--s-raised);
+  --panel2:var(--s-raised);
+  --line:var(--s-line);
+  --border:var(--s-line);
+  --borde:var(--s-line);
+  --text:var(--s-text);
+  --texto:var(--s-text);
+  --muted:var(--s-muted);
+  --text-dim:var(--s-muted);
+  --tenue:var(--s-muted);
+  --fondo:var(--s-bg);
+  --verde:var(--s-accent);
+  --ambar:var(--s-warn);
+  --rojo:var(--s-danger);
+  --azul:var(--s-accent);
+  --accent:var(--s-accent);
+  --moss:var(--s-accent);
+  --ok:#92cfa5;
+  --green:#609270;
+  --warn:var(--s-warn);
+  --lantern:var(--s-warn);
+  --gold:var(--s-warn);
+  --err:var(--s-danger);
+  --clay:var(--s-danger);
+  --danger:var(--s-danger);
+}
+html[data-admin-suite][data-theme=light] {
+  --s-bg:#f3f4ef;
+  --s-surface:#fffefa;
+  --s-raised:#ebf0e7;
+  --s-line:#d7dfd3;
+  --s-text:#203029;
+  --s-muted:#5d6d61;
+  --s-accent:#426733;
+  --s-accent-ink:#fff;
+  --s-warn:#8b5a1b;
+  --s-danger:#a03e34;
+  --s-shadow:0 8px 26px #24352a06;
+  --ok:#36764a;
+  --green:#36764a;
+  color-scheme: light;
+}
+html[data-admin-suite] body {
+  background: var(--s-bg);
+  color: var(--s-text);
+  font-family:
+    Inter,
+    "Segoe UI",
+    Arial,
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+html[data-admin-suite] * {
+  box-sizing: border-box;
+}
+html[data-admin-suite] :is(h1, h2, h3, h4) {
+  color: var(--s-text);
+  letter-spacing: -.025em;
+}
+html[data-admin-suite] h1 {
+  text-wrap: balance;
+}
+html[data-admin-suite] a {
+  color: var(--s-accent);
+}
+html[data-admin-suite] :focus-visible {
+  outline: 2px solid var(--s-accent);
+  outline-offset: 3px;
+}
+html[data-admin-suite] :is(button, input, select, textarea) {
+  font-family: inherit;
+}
+html[data-admin-suite] :is(input, select, textarea) {
+  background: var(--s-bg);
+  color: var(--s-text);
+  border-color: var(--s-line);
+  min-height: 40px;
+  max-width: 100%;
+}
+html[data-admin-suite] :is(input[type=checkbox], input[type=range]) {
+  min-height: initial;
+  accent-color: var(--s-accent);
+}
+html[data-admin-suite] :is(input, textarea)::placeholder {
+  color: var(--s-muted);
+  opacity: .8;
+}
+html[data-admin-suite] button {
+  transition: background .15s, border-color .15s;
+}
+html[data-admin-suite] button:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+html[data-admin-suite] :is(button, .btn, .button):hover {
+  filter: none;
+}
+html[data-admin-suite] :is(.card, .panel, .mission, .metric, .collection-card, .token-card, .gate-card, .file, .rep, .susp-box) {
+  background: var(--s-surface);
+  border-color: var(--s-line);
+  box-shadow: var(--s-shadow);
+}
+html[data-admin-suite] :is(.mission, .lista-ed, .item, .selection-bar, .notice, .search-label, .resultado, .fact, .kpi) {
+  background: var(--s-raised);
+  border-color: var(--s-line);
+}
+html[data-admin-suite] :is(.btn, .button, button.ghost, .icon-button, .btn-ghost, .pill, .seg button, .mode-pills .pill) {
+  background: var(--s-raised);
+  border-color: var(--s-line);
+  color: var(--s-text);
+}
+html[data-admin-suite] :is(.btn-primary, .button.primary, button.primary, button.ok, button.primario, .btn.primary, .mode-pills .pill.active) {
+  background: var(--s-accent);
+  border-color: var(--s-accent);
+  color: var(--s-accent-ink);
+  font-weight: 650;
+}
+html[data-admin-suite] :is(.btn-danger, button.danger, .button.danger, .btn.danger, button.red) {
+  background: color-mix(in srgb, var(--s-danger) 8%, var(--s-surface));
+  color: var(--s-danger);
+  border-color: color-mix(in srgb, var(--s-danger) 45%, var(--s-line));
+}
+html[data-admin-suite] :is(.hint, .dim, .small, .note, .muted, .sub, .metric-label, .metric-caption, .card-stats > span, .breadcrumb, .notice, .workspace-footer, .chart-empty) {
+  color: var(--s-muted);
+}
+html[data-admin-suite] :is(.metric-value, .card-stats b, .gate-content h1, .gate-content h1 em, .collection-info h3, .token-info h3, .token-info .token-meta, .empty h3, .detail-grid dd) {
+  color: var(--s-text);
+}
+html[data-admin-suite] :is(th, .his-tabla th) {
+  color: var(--s-muted);
+  border-color: var(--s-line);
+}
+html[data-admin-suite] td {
+  border-color: var(--s-line);
+}
+html[data-admin-suite] :is(header, header.top, .topbar) {
+  background: var(--s-surface);
+  border-color: var(--s-line);
+}
+html[data-admin-suite] :is(.card h2, .lista-ed h3) {
+  color: var(--s-text);
+  font-size: 17px;
+  font-weight: 650;
+}
+html[data-admin-suite] :is(.gate-content, .sidebar) {
+  background: var(--s-surface);
+}
+html[data-admin-suite] .gate-content p {
+  color: var(--s-muted);
+}
+html[data-admin-suite] .sidebar {
+  border-color: var(--s-line);
+}
+html[data-admin-suite] .nav-button {
+  color: var(--s-muted);
+}
+html[data-admin-suite] .nav-button.active {
+  background: var(--s-raised);
+  border-color: var(--s-line);
+  color: var(--s-accent);
+}
+html[data-admin-suite] :is(.nav-button > span, .brand, .network-chip, .wallet-chip, .sidebar-bottom, .sidebar-caption) {
+  color: var(--s-muted);
+}
+html[data-admin-suite] .gate {
+  background: var(--s-bg);
+}
+html[data-admin-suite] dialog {
+  background: var(--s-surface);
+  color: var(--s-text);
+  border-color: var(--s-line);
+}
+html[data-admin-suite] .chart text {
+  fill: var(--s-muted);
+}
+html[data-admin-suite] .chart line {
+  stroke: var(--s-line);
+}
+html[data-admin-suite] .chart rect {
+  fill: var(--s-accent);
+}
+html[data-admin-suite] .tag,
+html[data-admin-suite] .badge {
+  color: var(--s-accent);
+  background: var(--s-raised);
+  border-color: var(--s-line);
+}
+html[data-admin-suite] .badge:is(.blocked, .deleted, .error),
+html[data-admin-suite] .tag.banned {
+  color: var(--s-danger);
+}
+html[data-admin-suite] :is(.badge.suspended, .badge.draft, .tag.warned) {
+  color: var(--s-warn);
+}
+html[data-admin-suite] :is(.pastilla.on, .modos button.on, .acciones button.on) {
+  background: var(--s-raised);
+  color: var(--s-accent);
+  border-color: var(--s-accent);
+}
+html[data-admin-suite] .sw input:focus-visible + span {
+  outline: 2px solid var(--s-accent);
+  outline-offset: 4px;
+}
+html[data-admin-suite] code {
+  background: var(--s-raised);
+  color: var(--s-text);
+}
+html[data-admin-suite] th,
+html[data-admin-suite] details.stack pre,
+html[data-admin-suite] .upload-drop,
+html[data-admin-suite] .activity-symbol,
+html[data-admin-suite] .token-art .piece-id {
+  background:var(--s-raised);
+  color:var(--s-text);
+  border-color:var(--s-line);
+}
+html[data-admin-suite] :is(.stat.w .n,.rep-det,.access-note) { color:var(--s-muted); }
+html[data-admin-suite] .btn.warn { color:var(--s-warn); }
+html[data-admin-suite] .tab.active { background:var(--s-accent); color:var(--s-accent-ink); border-color:var(--s-accent); }
+html[data-admin-suite] #toast,
+html[data-admin-suite] .toast { background:var(--s-surface); color:var(--s-text); border-color:var(--s-line); }
+html[data-admin-suite] #toast:is(.err,.bad),
+html[data-admin-suite] .toast.error { color:var(--s-danger); border-color:var(--s-danger); }
+html[data-admin-suite] #toast:is(.ok,.good) { color:var(--ok); border-color:var(--ok); }
+html[data-admin-suite] #toast.warn { color:var(--s-warn); border-color:var(--s-warn); }
+html[data-admin-suite] body[data-suite-page=climas] :is(button.primario,#gate button) {
+  background:var(--s-accent)!important;
+  color:var(--s-accent-ink)!important;
+  border-color:var(--s-accent)!important;
+}
+.suite-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-height: 58px;
+  padding: 10px 24px;
+  background: var(--s-surface);
+  border-bottom: 1px solid var(--s-line);
+}
+.suite-bar .suite-home {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: auto;
+  color: var(--s-text);
+  font-weight: 650;
+  text-decoration: none;
+  font-size: 13px;
+}
+.suite-mark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--s-line);
+  border-radius: 9px;
+  color: var(--s-accent);
+  flex: none;
+}
+.suite-mark svg {
+  width: 19px;
+  height: 19px;
+}
+.suite-preferences {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.suite-preferences :is(select, button) {
+  min-height: 34px;
+  width: auto;
+  padding: 5px 10px;
+  font-size: 12px;
+  border: 1px solid var(--s-line);
+  border-radius: 7px;
+  background: var(--s-raised);
+  color: var(--s-text);
+}
+.suite-status {
+  font-size: 11px;
+  color: var(--s-muted);
+}
+.suite-status[data-dirty=true] {
+  color: var(--s-warn);
+}
+.suite-embedded .suite-bar {
+  display: none;
+}
+.suite-embedded body > header {
+  position: static;
+  padding: 12px 28px;
+  background: transparent;
+}
+.suite-embedded body > header h1 {
+  font-size: 14px;
+}
+.suite-embedded body > header #themeBtn {
+  display: none;
+}
+.suite-embedded :is(main, .wrap) {
+  max-width: 1600px;
+}
+.suite-embedded body[data-suite-page=colecciones] .sidebar {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+}
+.suite-embedded body[data-suite-page=colecciones] .workspace {
+  margin-left: 0;
+}
+.suite-lock {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--s-bg);
+}
+.suite-lock > div {
+  max-width: 470px;
+  padding: 30px;
+  border: 1px solid var(--s-line);
+  border-radius: 18px;
+  background: var(--s-surface);
+}
+.suite-lock button {
+  margin-top: 18px;
+  padding: 10px 18px;
+}
+.suite-sr {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  clip: rect(0, 0, 0, 0);
+  overflow: hidden;
+  white-space: nowrap;
+}
+@media (max-width: 650px) {
+  .suite-bar {
+    padding: 10px 14px;
+    gap: 8px;
+  }
+  .suite-home .suite-name {
+    display: none;
+  }
+  .suite-embedded body > header {
+    padding: 12px 16px;
+  }
+}
+@media (min-width: 531px) {
+  html:not(.suite-embedded) body[data-suite-page=colecciones] .sidebar {
+    top: 58px;
+    height: calc(100dvh - 58px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-admin-suite] * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media print {
+  .suite-bar,
+  .suite-preferences {
+    display: none !important;
+  }
+}

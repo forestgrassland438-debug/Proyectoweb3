@@ -26,6 +26,7 @@
  * ======================================================================== */
 (function () {
   'use strict';
+  if (window.GFCargaMapa) return;
 
   var MAX_MS = 20000;          // lo más que se espera dentro del mapa
   var MIN_MS = 700;            // lo menos (que no parpadee)
@@ -35,7 +36,7 @@
   var seguro = null;
 
   function texto(sis, t) {
-    try { if (sis && sis.textElement) sis.textElement.textContent = t; } catch (e) {}
+    try { if (sis && sis.textElement && sis.textElement.textContent !== t) sis.textElement.textContent = t; } catch (e) {}
   }
 
   /** LoadingScenegame: no quites la pantalla, que la quita el mapa. */
@@ -70,8 +71,12 @@
   function limpiar(scene) {
     var st = scene && scene.__gfCarga;
     if (!st) return;
+    st.hecho = true;
     try { scene.events.off('update', st.tic); } catch (e) {}
+    try { scene.events.off('shutdown', st.cerrar); scene.events.off('destroy', st.cerrar); } catch (e) {}
     clearInterval(st.intervalo);
+    st.intervalo = null;
+    scene.__gfCarga = null;
     scene._gfCargando = false;
   }
 
@@ -82,14 +87,14 @@
     limpiar(scene);
     console.log('🗺️ mapa listo (' + (scene.sys && scene.sys.settings ? scene.sys.settings.key : '?') + ') en ' +
                 (Date.now() - st.t0) + ' ms');
-    soltar();
+    if (retenida === st.retencion) soltar();
   }
 
   /** Al empezar el create() del mapa. */
   function montar(scene) {
     if (!scene || !scene.sys || !scene.events) return;
     limpiar(scene);
-    var st = { t0: Date.now(), quietoDesde: 0, creado: false, hecho: false };
+    var st = { t0: Date.now(), ultimo: -Infinity, quietoDesde: 0, creado: false, hecho: false };
     scene.__gfCarga = st;
     scene._gfCargando = true;
     // Se llegó sin pasar por la pantalla de carga: se enseña la misma.
@@ -102,14 +107,19 @@
     }
     clearTimeout(seguro);
     seguro = null;
+    st.retencion = retenida;
     st.tic = function () {
       if (st.hecho) return;
       var ahora = Date.now();
+      // El intervalo ya cubre escenas sin frames; el update solo adelanta
+      // la comprobación. No es necesario consultar el loader 60 veces/s.
+      if (ahora - st.ultimo < 100) return;
+      st.ultimo = ahora;
       var ocupado = cargando(scene);
       if (ocupado) st.quietoDesde = 0;
       else if (!st.quietoDesde) st.quietoDesde = ahora;
       var pct = ocupado ? Math.round(Math.max(0, Math.min(1, scene.load.progress || 0)) * 100) : 100;
-      texto(retenida && retenida.sistema, 'Preparing the map… ' + pct + '%');
+      if (retenida === st.retencion) texto(st.retencion && st.retencion.sistema, 'Preparing the map… ' + pct + '%');
       var creado = st.creado || (!!scene.player && ahora - st.t0 > 2500);
       if ((creado && ahora - st.t0 >= MIN_MS && st.quietoDesde && ahora - st.quietoDesde >= QUIETO_MS) ||
           ahora - st.t0 > MAX_MS) {
@@ -119,8 +129,13 @@
     scene.events.on('update', st.tic);
     // Por si la escena aún no da fotogramas (preload largo, create esperando).
     st.intervalo = setInterval(st.tic, 250);
-    scene.events.once('shutdown', function () { if (!st.hecho) { st.hecho = true; limpiar(scene); } });
-    scene.events.once('destroy', function () { if (!st.hecho) { st.hecho = true; limpiar(scene); } });
+    st.cerrar = function () {
+      if (st.hecho || scene.__gfCarga !== st) return;
+      limpiar(scene);
+      if (retenida === st.retencion) soltar();
+    };
+    scene.events.once('shutdown', st.cerrar);
+    scene.events.once('destroy', st.cerrar);
   }
 
   /** Al final del create() del mapa: ya está todo montado (falta lo que cargue). */

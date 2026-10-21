@@ -93,6 +93,10 @@
     main{padding:14px} .card{padding:16px} input[type=range]{width:130px}
   }
 </style>
+<link rel="stylesheet" href="./admin-suite.css?v=20261020">
+<script src="./admin-session.js?v=20261020"></script>
+<script src="./admin-suite-i18n.js?v=20261020"></script>
+<script defer src="./admin-suite.js?v=20261020"></script>
 </head>
 <body>
 
@@ -354,9 +358,13 @@
     catch (e) { return btoa(String(s)); }
   }
   function corto(a) { return a ? a.slice(0, 6) + '…' + a.slice(-4) : '—'; }
+  function escapeText(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; }); }
 
   // `que` es el tipo elegido en "Lanzar y programar".
   var state = { csrf: null, address: null, config: null, que: 'lluvia' };
+  var weatherBaseline = '', weatherSaving = false, weatherReadVersion = 0;
+  window.GFWeatherLifecycle = { status: function () { return weatherSaving ? 'busy' : weatherBaseline && weatherBaseline !== JSON.stringify(leerFormulario()) ? 'dirty' : ''; } };
+  function confirmWeatherDiscard() { return window.GFWeatherLifecycle.status() !== 'dirty' || confirm(window.GFAdminUI ? window.GFAdminUI.t('Discard unsaved changes?') : '¿Descartar los cambios pendientes?'); }
 
   var toastTimer = null;
   function aviso(msg, tipo) {
@@ -368,6 +376,7 @@
   }
 
   function pedir(ruta, opciones) {
+    if (window.GFAdminSession) return window.GFAdminSession.request(ruta, opciones);
     opciones = opciones || {};
     opciones.credentials = 'include';
     opciones.mode = 'cors';
@@ -496,7 +505,9 @@
                   despejado: 'Despejado' };
 
   async function cargar() {
+    var revision = ++weatherReadVersion;
     var d = await pedir('/api/admin/weather');
+    if (revision !== weatherReadVersion) return;
     state.config = d.config;
     pintar(d.config, d.publico);
     await cargarReloj();
@@ -541,6 +552,8 @@
     marcar('tipos', 'que', state.que);
     pintarCola(c.cola || []);
     refrescarValores();
+    weatherBaseline = JSON.stringify(leerFormulario());
+    window.dispatchEvent(new CustomEvent('gf-admin-form-loaded'));
 
     var p = pub || {};
     $('ahora').innerHTML =
@@ -583,9 +596,9 @@
     c.innerHTML = cola.map(function (e, i) {
       return '<div class="cola-fila">' +
         '<span class="num">' + (i + 1) + '</span>' +
-        '<b>' + (NOMBRES[e.que] || e.que) + '</b>' +
-        '<span class="dur">' + e.minutos + ' min</span>' +
-        '<button data-quitar="' + e._id + '">Quitar</button>' +
+        '<b>' + escapeText(NOMBRES[e.que] || e.que) + '</b>' +
+        '<span class="dur">' + escapeText(e.minutos) + ' min</span>' +
+        '<button data-quitar="' + escapeText(e._id) + '">Quitar</button>' +
         '</div>';
     }).join('');
     Array.prototype.forEach.call(c.querySelectorAll('[data-quitar]'), function (b) {
@@ -594,7 +607,7 @@
   }
 
   function pastilla(on, txt) {
-    return '<span class="pastilla' + (on ? ' on' : '') + '">' + txt + '</span>';
+    return '<span class="pastilla' + (on ? ' on' : '') + '">' + escapeText(txt) + '</span>';
   }
 
   function refrescarValores() {
@@ -616,11 +629,13 @@
   }
 
   async function guardar() {
+    if (weatherSaving) return;
     var b = leerFormulario();
     if (b.duracionMax < b.duracionMin) {
       aviso('La duración máxima no puede ser menor que la mínima.', 'err');
       return;
     }
+    weatherSaving = true; $('guardar').disabled = true; $('panel').inert = true;
     try {
       var d = await pedir('/api/admin/weather',
                           { method: 'POST', body: JSON.stringify(b) });
@@ -630,7 +645,7 @@
       aviso('Guardado. Los jugadores ya lo están viendo.', 'ok');
     } catch (e) {
       aviso('No se pudo guardar: ' + (e.message || e), 'err');
-    }
+    } finally { weatherSaving = false; $('guardar').disabled = false; $('panel').inert = false; }
   }
 
   /** Los minutos que ha escrito el administrador, sin recortarlos a escondidas. */
@@ -642,6 +657,7 @@
   }
 
   async function lanzar() {
+    if (!confirmWeatherDiscard()) return;
     var min = minutosPedidos();
     if (min === null) { aviso('Pon los minutos: de 1 a 1440.', 'err'); return; }
     try {
@@ -656,6 +672,7 @@
   }
 
   async function encolar() {
+    if (!confirmWeatherDiscard()) return;
     var min = minutosPedidos();
     if (min === null) { aviso('Pon los minutos: de 1 a 1440.', 'err'); return; }
     try {
@@ -671,6 +688,7 @@
   }
 
   async function quitarDeCola(id) {
+    if (!confirmWeatherDiscard()) return;
     try {
       await pedir('/api/admin/weather/queue/' + encodeURIComponent(id), { method: 'DELETE' });
       await cargar();
@@ -681,6 +699,7 @@
   }
 
   async function saltar() {
+    if (!confirmWeatherDiscard()) return;
     try {
       await pedir('/api/admin/weather/queue/next', { method: 'POST' });
       await cargar();

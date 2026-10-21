@@ -187,14 +187,32 @@ class TiendaSistema {
         };
 
         // Helpers de moneda
+        // (2026-10-21) "Quiero que la tienda acepte también monedas de bronce":
+        // 'bronze' es una tercera moneda de PAGO (los objetos siguen teniendo
+        // su precio en oro o plata; ver _monedaDePago / _precioCompra). El
+        // saldo es el de gf-bronce.js y el cobro va por StatsSync ('bronce'),
+        // igual que el oro y la plata.
         this.getItemCurrency = (item) => (item?.currency === 'silver' ? 'silver' : 'gold');
-        this.getCurrencyLabel = (currency) => (currency === 'silver' ? 'SL' : 'GL');
+        this.getCurrencyLabel = (currency) => (currency === 'silver' ? 'SL' : currency === 'bronze' ? 'BR' : 'GL');
         this.getCurrencyIconPath = (currency) => (currency === 'silver'
             ? './Game/Source/moneda de plata.png'
+            : currency === 'bronze' ? './Game/Source/moneda de bronce.png'
             : './Game/Source/moneda de oro.png');
-        this.getBalanceByCurrency = (currency) => (currency === 'silver' ? this.playerMonedaPlata : this.playerMoneda);
+        this.getBalanceByCurrency = (currency) => (currency === 'silver' ? this.playerMonedaPlata
+            : currency === 'bronze' ? this._saldoBronce() : this.playerMoneda);
         this.setBalanceByCurrency = (currency, value) => {
             const normalized = Math.max(0, Math.floor(Number(value) || 0));
+            if (currency === 'bronze') {
+                if (window.playerStats) window.playerStats.bronce = normalized;
+                const escB = this._escena();
+                if (escB) escB.moneda_bronce = normalized;
+                // El HUD y GFBronce.valor() (de donde lee getBalanceByCurrency).
+                if (window.GFBronce && typeof window.GFBronce.pintar === 'function') window.GFBronce.pintar(normalized);
+                // La transacción real de la factura de bronce, en el acto.
+                const ssB = this._statsSync();
+                if (ssB) ssB.set('bronce', normalized, true);
+                return;
+            }
             if (currency === 'silver') {
                 this.playerMonedaPlata = normalized;
                 const escP = this._escena();
@@ -291,6 +309,10 @@ class TiendaSistema {
           cana_pescar:    { src: "./Game/Objetos/pesca/cana_pescar.png",     maxStack: 1,  tipo: "caña_pescar",    usos: null },
           espantapajaros: { src: "./Game/Objetos/granja/espantapajaros.png", maxStack: 10, tipo: "espantapajaros", usos: null },
           antorcha:       { src: "./Game/Objetos/antorcha/antorcha.png",     maxStack: 20, tipo: "antorcha",       usos: null },
+          // (2026-10-21) El bote y las armas a distancia.
+          bote:           { src: "./Game/Objetos/bote/bote.png",             maxStack: 1,  tipo: "bote",           usos: null },
+          arco:           { src: "./Game/Objetos/armas/arco.png",            maxStack: 1,  tipo: "arco",           usos: null },
+          baston_mago:    { src: "./Game/Objetos/armas/baston_mago.png",     maxStack: 1,  tipo: "baston_mago",    usos: null },
           pes1: { src: "./Game/Objetos/pesca/pes1.png", maxStack: 20, tipo: "pes1", usos: null },
           pes2: { src: "./Game/Objetos/pesca/pes2.png", maxStack: 20, tipo: "pes2", usos: null },
           pes3: { src: "./Game/Objetos/pesca/pes3.png", maxStack: 20, tipo: "pes3", usos: null },
@@ -884,12 +906,15 @@ class TiendaSistema {
                     descripcion: 'A trash can for your island. Place it in Lands and click it to throw away what you no longer want, just like the one in the village.'
                 },
                 {
+                    /* (2026-10-21) "El cofre en la tienda debe valer 2 de oro".
+                     * Antes 150/75 de plata. Se vende por la mitad (1 de oro):
+                     * no se craftea, así que comprar y vender solo pierde. */
                     id: 'cofre1',
                     name: 'Wooden Chest',
                     image: './Game/Objetos/cofres/cofre1.png',
-                    buyPrice: 150,
-                    sellPrice: 75,
-                    currency: 'silver',
+                    buyPrice: 2,
+                    sellPrice: 1,
+                    currency: 'gold',
                     categoria: 'construccion',
                     tabla: 'cofre1',
                     tablaSola: true,
@@ -994,6 +1019,54 @@ class TiendaSistema {
                     comision: 10,
                     limiteDiario: 0,
                     descripcion: 'Walk to the village river with it in your bag and fish: trout, carp and, with luck, a golden trout. It never breaks.'
+                },
+                /* (2026-10-21) "Mete un arco y un bastón de mago en la tienda, con
+                 * su tabla de creación automática" y "un bote 2.5D que pueda
+                 * poner en cualquier agua". Sus tablas (`arco`, `baston_mago`,
+                 * `bote`) se dan de alta solas (`tablaSola`). El arco y el
+                 * bastón se equipan como las espadas (gf-espada.js) y dan de
+                 * lejos; el bote es gf-botes.js. */
+                {
+                    id: 'arco',
+                    name: 'Bow',
+                    image: './Game/Objetos/armas/arco.png',
+                    buyPrice: 300,
+                    sellPrice: 150,
+                    currency: 'silver',
+                    categoria: 'equipo',
+                    tabla: 'arco',
+                    tablaSola: true,
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'A hunting bow. Equip it next to your bag and press SPACE to shoot an arrow where you face: it hits from far away. Damage 14.'
+                },
+                {
+                    id: 'baston_mago',
+                    name: 'Wizard Staff',
+                    image: './Game/Objetos/armas/baston_mago.png',
+                    buyPrice: 450,
+                    sellPrice: 225,
+                    currency: 'silver',
+                    categoria: 'equipo',
+                    tabla: 'baston_mago',
+                    tablaSola: true,
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'A staff with a violet crystal. Equip it and press SPACE to cast a magic bolt where you face. Damage 18.'
+                },
+                {
+                    id: 'bote',
+                    name: 'Boat',
+                    image: './Game/Objetos/bote/bote.png',
+                    buyPrice: 500,
+                    sellPrice: 250,
+                    currency: 'silver',
+                    categoria: 'equipo',
+                    tabla: 'bote',
+                    tablaSola: true,
+                    comision: 10,
+                    limiteDiario: 0,
+                    descripcion: 'A rowing boat. Pick it from your bag and click the water near you (village, wild lands, desert, snow, cemetery or mine). Click it to get in, row with the arrows or by clicking the water, and fish from it. Pick it up again with the Construction Shovel.'
                 }
             ],
             /*
@@ -1637,18 +1710,20 @@ class TiendaSistema {
         
         const item = this.selectedItem;
         const quantity = parseInt(document.getElementById('pc-quantity-input')?.value) || 1;
-        
-        const currency = this.getItemCurrency(item);
+
+        // (2026-10-21) Al comprar, en la moneda elegida (puede ser bronce).
+        const currency = this.transactionType === 'compra' ? this._monedaDePago(item) : this.getItemCurrency(item);
         let total;
         if (this.transactionType === 'compra') {
-            total = item.buyPrice * quantity;
+            total = this._precioCompra(item, currency) * quantity;
         } else {
             total = item.sellPrice * quantity;
         }
-        
+
         const totalEl = document.getElementById('pc-action-total');
         if (totalEl) {
             totalEl.innerHTML = `Total: ${this.formatCurrencyAmount(total, currency)}`;
+            this._selectorPago(totalEl);
         }
     }
     
@@ -1668,17 +1743,18 @@ class TiendaSistema {
         
         if (this.transactionType === 'compra') {
             text = 'Buy';
-            const totalCost = item.buyPrice * quantity;
-            if (totalCost > this.getBalanceByCurrency(this.getItemCurrency(item))) {
+            const monedaPago = this._monedaDePago(item);
+            const totalCost = this._precioCompra(item, monedaPago) * quantity;
+            if (totalCost > this.getBalanceByCurrency(monedaPago)) {
                 enabled = false;
                 text = 'Insufficient funds';
             }
-            
+
             if (item.limiteDiario > 0 && (purchasedToday + quantity) > item.limiteDiario) {
                 enabled = false;
                 text = 'Limit exceeded';
             }
-            
+
             if (item.limiteDiario > 0 && purchasedToday >= item.limiteDiario) {
                 enabled = false;
                 text = 'Sold out today';
@@ -1798,7 +1874,7 @@ class TiendaSistema {
     }
     
     // Agregar al historial
-    addToHistorial(type, item, quantity, totalPrice) {
+    addToHistorial(type, item, quantity, totalPrice, currency) {
         const transaction = {
             type: type,
             itemId: item.id,
@@ -1806,7 +1882,8 @@ class TiendaSistema {
             itemImage: item.image,
             quantity: quantity,
             price: totalPrice,
-            currency: this.getItemCurrency(item),
+            // (2026-10-21) La moneda con la que se pagó de verdad (puede ser bronce).
+            currency: currency || this.getItemCurrency(item),
             timestamp: new Date().toLocaleString('en-US', {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -2516,8 +2593,10 @@ class TiendaSistema {
         const item = this.selectedItem;
         
         if (this.transactionType === 'compra') {
-            const balance = this.getBalanceByCurrency(this.getItemCurrency(item));
-            const price = this.transactionType === 'compra' ? item.buyPrice : item.sellPrice;
+            // (2026-10-21) Con el saldo y el precio de la moneda elegida.
+            const monedaPago = this._monedaDePago(item);
+            const balance = this.getBalanceByCurrency(monedaPago);
+            const price = this._precioCompra(item, monedaPago);
             const maxByMoney = price > 0 ? Math.floor(balance / price) : 99;
             const purchasedToday = this.dailyLimits[item.id] || 0;
             const maxByLimit = item.limiteDiario > 0 ? (item.limiteDiario - purchasedToday) : 99;
@@ -2534,18 +2613,20 @@ class TiendaSistema {
         
         const item = this.selectedItem;
         const quantity = parseInt(document.getElementById('mobile-quantity-input')?.value) || 1;
-        
-        const currency = this.getItemCurrency(item);
+
+        // (2026-10-21) Al comprar, en la moneda elegida (puede ser bronce).
+        const currency = this.transactionType === 'compra' ? this._monedaDePago(item) : this.getItemCurrency(item);
         let total;
         if (this.transactionType === 'compra') {
-            total = item.buyPrice * quantity;
+            total = this._precioCompra(item, currency) * quantity;
         } else {
             total = item.sellPrice * quantity;
         }
-        
+
         const totalEl = document.getElementById('mobile-action-total');
         if (totalEl) {
             totalEl.innerHTML = `Total: ${this.formatCurrencyAmount(total, currency)}`;
+            this._selectorPago(totalEl);
         }
     }
     
@@ -2564,8 +2645,9 @@ class TiendaSistema {
         
         if (this.transactionType === 'compra') {
             text = 'Buy';
-            const totalCost = item.buyPrice * quantity;
-            if (totalCost > this.getBalanceByCurrency(this.getItemCurrency(item))) {
+            const monedaPago = this._monedaDePago(item);
+            const totalCost = this._precioCompra(item, monedaPago) * quantity;
+            if (totalCost > this.getBalanceByCurrency(monedaPago)) {
                 enabled = false;
                 text = 'Insufficient funds';
             }
@@ -2693,6 +2775,88 @@ class TiendaSistema {
         });
     }
 
+    /* ═══════════════════════════════════════════════════════════════════════
+       PAGAR EN BRONCE (2026-10-21)
+       ───────────────────────────────────────────────────────────────────────
+       "Quiero que la tienda acepte también monedas de bronce." Al COMPRAR, un
+       selector "Pay with" deja pagar en la moneda del objeto o en bronce, al
+       cambio del panel de monedas (server2.js): 1 de plata = 1000 de bronce y
+       1 de oro = 1000 de plata. Vender sigue pagando en la moneda del objeto.
+       El cobro, la verificación y el reembolso son los de siempre: solo
+       cambian la moneda y el precio unitario (transactionInfo los lleva).
+       ═══════════════════════════════════════════════════════════════════════ */
+    _bronceDisponible() {
+        return !!(window.GFBronce && typeof window.GFBronce.valor === 'function');
+    }
+
+    _saldoBronce() {
+        if (!this._bronceDisponible()) return 0;
+        return Math.max(0, Math.floor(Number(window.GFBronce.valor()) || 0));
+    }
+
+    _monedaDePago(item) {
+        if (this.transactionType === 'compra' && this.pagarConBronce && this._bronceDisponible()) return 'bronze';
+        return this.getItemCurrency(item);
+    }
+
+    _precioCompra(item, moneda) {
+        const precio = Number(item?.buyPrice) || 0;
+        if (moneda !== 'bronze') return precio;
+        const BRONCE_POR_PLATA = 1000, PLATA_POR_ORO = 1000;
+        return precio * (this.getItemCurrency(item) === 'silver' ? BRONCE_POR_PLATA : BRONCE_POR_PLATA * PLATA_POR_ORO);
+    }
+
+    /** El selector "Pay with" encima del total (PC y móvil). */
+    _selectorPago(totalEl) {
+        if (!totalEl || !totalEl.parentNode) return;
+        const id = totalEl.id + '-pago';
+        let sel = document.getElementById(id);
+        const ver = this.transactionType === 'compra' && !!this.selectedItem && this._bronceDisponible();
+        if (!ver) { if (sel) sel.style.display = 'none'; return; }
+        if (!sel) {
+            sel = document.createElement('div');
+            sel.id = id;
+            sel.className = 'gf-pago-moneda';
+            sel.style.cssText = 'display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap;margin:6px 0;font-size:12px;';
+            totalEl.parentNode.insertBefore(sel, totalEl);
+            sel.addEventListener('click', (e) => {
+                const b = e.target && e.target.closest ? e.target.closest('button[data-pago]') : null;
+                if (!b) return;
+                e.stopPropagation();
+                this.pagarConBronce = b.dataset.pago === 'bronze';
+                this._refrescarPago();
+            });
+        }
+        sel.style.display = 'flex';
+        const nativa = this.getItemCurrency(this.selectedItem);
+        const boton = (k, txt) => {
+            const on = (k === 'bronze') === !!this.pagarConBronce;
+            return `<button type="button" data-pago="${k}" style="min-height:32px;padding:4px 10px;border-radius:999px;cursor:pointer;font-weight:700;font-size:12px;` +
+                `display:inline-flex;align-items:center;gap:4px;border:2px solid ${on ? '#ffd23f' : 'rgba(255,255,255,.25)'};` +
+                `background:${on ? '#ffd23f' : 'rgba(0,0,0,.25)'};color:${on ? '#20160a' : '#fff'};">` +
+                `<img src="${this.getCurrencyIconPath(k)}" alt="" style="width:14px;height:14px;image-rendering:pixelated">${txt}</button>`;
+        };
+        sel.innerHTML = '<span style="opacity:.8">Pay with:</span>' +
+            boton(nativa, nativa === 'silver' ? 'Silver' : 'Gold') + boton('bronze', 'Bronze');
+    }
+
+    /** Al cambiar la moneda de pago: total, botón y máximo según ese saldo. */
+    _refrescarPago() {
+        const max = this.getMaxQuantity();
+        for (const [inputId, maxId] of [['pc-quantity-input', 'pc-max-value'], ['mobile-quantity-input', 'mobile-max-value']]) {
+            const input = document.getElementById(inputId);
+            if (input) {
+                input.max = max;
+                const v = parseInt(input.value) || 1;
+                input.value = Math.max(1, Math.min(v, Math.max(1, max)));
+            }
+            const maxEl = document.getElementById(maxId);
+            if (maxEl) maxEl.textContent = max;
+        }
+        if (this.isMobile) { this.updateMobileTotalPrice?.(); this.updateMobileActionButton?.(); }
+        else { this.updatePcModalTotalPrice?.(); this.updatePcModalActionButton?.(); }
+    }
+
     async processPurchase(item, quantity) {
         quantity = Number(quantity);
         if (!item || !Number.isSafeInteger(quantity) || quantity <= 0 ||
@@ -2712,10 +2876,13 @@ class TiendaSistema {
         if (this._construccionBloqueada(item)) {
             throw new Error('Construction is not available yet. Try again later.');
         }
-        const currency = this.getItemCurrency(item);
-        const totalCost = item.buyPrice * quantity;
+        // (2026-10-21) La moneda con la que se PAGA (la del objeto, o bronce) y
+        // su precio unitario. El reembolso usa los mismos (transactionInfo).
+        const currency = this._monedaDePago(item);
+        const unitPrice = this._precioCompra(item, currency);
+        const totalCost = unitPrice * quantity;
         const balance = this.getBalanceByCurrency(currency);
-        
+
         if (totalCost > balance) {
             throw new Error('Insufficient funds for this purchase');
         }
@@ -2742,12 +2909,13 @@ class TiendaSistema {
             itemId: item.id,
             itemName: item.name,
             quantity,
-            unitPrice: item.buyPrice,
+            unitPrice,
             totalCost,
             currency,
             fee: 0,
             remainingGold: this.playerMoneda,
-            remainingSilver: this.playerMonedaPlata
+            remainingSilver: this.playerMonedaPlata,
+            remainingBronze: this._saldoBronce()
         };
 
         // FIX UI NO BLOQUEANTE: antes se hacía `await ejecutarDivision(...)`
@@ -2954,7 +3122,7 @@ class TiendaSistema {
 
         if (persisted) {
             try {
-                this.addToHistorial('compra', item, added, added * transactionInfo.unitPrice);
+                this.addToHistorial('compra', item, added, added * transactionInfo.unitPrice, transactionInfo.currency);
                 this.showTransactionAnimation('compra', item, added, added * transactionInfo.unitPrice);
             } catch (err) { console.warn('Purchase saved; shop display could not refresh:', err); }
         }
