@@ -15,7 +15,13 @@ const BIN = path.resolve(__dirname, '..');
 const SERVIDOR = process.env.SERVIDOR || 'C:/Users/pc/Desktop/server2.js';
 const HAY_SERVIDOR = fs.existsSync(SERVIDOR);
 const SRV = HAY_SERVIDOR ? fs.readFileSync(SERVIDOR, 'utf8').replace(/\r\n/g, '\n') : '';
-const MAPAS = { cementerio: 'cementerio', desierto: 'desierto', tundra: 'tundra' };
+const MAPAS = { cementerio: 'cementerio', desierto: 'desierto', tundra: 'tundra',
+                // (2026-10-25) Los de nivel 8, 9 y 10.
+                glaciar: 'glaciar', caverna: 'caverna', pradera: 'pradera' };
+// Las salidas de cada mapa (la de la casa de la bruja del cementerio no va en
+// el mapa: la pone la escena, ver el test de la casa).
+const SALIDAS = { cementerio: ['salvaje'], desierto: ['salvaje', 'pradera'], tundra: ['salvaje', 'glaciar'],
+                  glaciar: ['tundra'], caverna: ['cementerio'], pradera: ['desierto'] };
 
 function mapa(n) { return JSON.parse(fs.readFileSync(path.join(BIN, 'Maps', n + '.json'), 'utf8')); }
 function capa(m, n) { return m.layers.find(l => l.name === n); }
@@ -68,7 +74,7 @@ test('las salidas: el salvaje lleva a los tres y cada uno vuelve; nadie llega en
   for (const n of Object.keys(MAPAS)) rects[n] = capa(mapa(n), 'salidas').objects;
   const pisa = (p, r) => p.x - 15 < r.x + r.width && p.x + 15 > r.x && p.y + 25 < r.y + r.height && p.y + 51 > r.y;
   for (const [clave, z] of Object.entries(Z.ZONAS)) {
-    const destino = clave.startsWith('salvaje') ? 'salvaje' : clave;
+    const destino = clave.split('_desde_')[0];
     for (const r of rects[destino]) {
       assert.ok(!pisa(z.llegada, r), clave + ': se llega encima de la salida ' + r.name);
       // Lo que separa los pies (el rectángulo con el que se choca) de la
@@ -79,11 +85,18 @@ test('las salidas: el salvaje lleva a los tres y cada uno vuelve; nadie llega en
       assert.ok(Math.hypot(dx, dy) >= 150, clave + ' a ' + Math.round(Math.hypot(dx, dy)) + ' px de la salida ' + r.name);
     }
   }
-  // Cada mapa nuevo sale al salvaje por su borde.
-  for (const n of Object.keys(MAPAS)) assert.deepEqual(rects[n].map(o => o.name), ['salvaje']);
+  // Cada mapa sale por donde se entró (y la tundra y el desierto, además, a los de nivel 8 y 10).
+  for (const n of Object.keys(MAPAS)) assert.deepEqual(rects[n].map(o => o.name).sort(), SALIDAS[n].slice().sort(), n);
+  // Y cada salida tiene su viaje: la vuelta "<destino>_desde_<mapa>" o el mapa sin más.
+  for (const n of Object.keys(MAPAS)) {
+    for (const s of SALIDAS[n]) assert.ok(Z.ZONAS[s + '_desde_' + n] || Z.ZONAS[s], n + ': la salida ' + s + ' no lleva a ningún sitio');
+  }
   assert.equal(Z.ZONAS.cementerio.mundo, 7);
   assert.equal(Z.ZONAS.desierto.mundo, 8);
   assert.equal(Z.ZONAS.tundra.mundo, 9);
+  assert.equal(Z.ZONAS.glaciar.mundo, 10);
+  assert.equal(Z.ZONAS.caverna.mundo, 11);
+  assert.equal(Z.ZONAS.pradera.mundo, 12);
 });
 
 test('cada monstruo del mapa: especie con molde, su arte y sus proyectiles cargables', () => {
@@ -125,10 +138,11 @@ test('la zona PvP: la misma en el mapa y en el servidor; el cementerio, entero',
     assert.deepEqual([z.x, z.y, z.x + z.width, z.y + z.height], [s.x0, s.y0, s.x1, s.y1], n);
   }
   assert.deepEqual([ZONAS.cementerio.x0, ZONAS.cementerio.y0, ZONAS.cementerio.x1, ZONAS.cementerio.y1], [0, 0, 5024, 5024]);
-  for (const sala of ['cementerio', 'desierto', 'tundra']) {
-    assert.ok(SRV.includes("'" + sala + "'") && /SALAS_SALVAJES = new Set\(\[SALVAJE_SALA, 'cementerio', 'desierto', 'tundra'\]\)/.test(SRV));
+  for (const sala of Object.keys(MAPAS)) {
+    assert.match(SRV, new RegExp("const SALAS_SALVAJES = new Set\\(\\[SALVAJE_SALA,[^\\]]*'" + sala + "'"), sala + ' en SALAS_SALVAJES');
     assert.match(SRV, new RegExp("const MOBS_SALAS = new Set\\(\\[[^\\]]*'" + sala + "'"));
     assert.match(SRV, new RegExp("const ANTORCHA_ZONAS = new Set\\(\\[[^\\]]*'" + sala + "'"));
+    assert.match(SRV, new RegExp("const BOTE_ZONAS = new Set\\(\\[[^\\]]*'" + sala + "'"));
   }
   assert.match(SRV, /remolino_arena: 4/, 'el daño del remolino');
 });
@@ -188,7 +202,7 @@ test('cada salida se toca con el jugador parado contra el borde del mapa', () =>
   const corta = (a, b) => !(a.x + a.w < b.x || a.y + a.h < b.y || a.x > b.x + b.w || a.y > b.y + b.h);
   const fuentes = ['SalvajeScene.js', 'ZonasScenes.js'].map(n => fs.readFileSync(path.join(BIN, 'Scenes', n), 'utf8'));
   const miraCuerpo = fuentes.every(src => /_comprobarSalidas\(\) \{[\s\S]{0,1600}?player\.body[\s\S]{0,600}?RectangleToRectangle\(cuerpo, s\.rect\)/.test(src));
-  for (const n of ['salvaje', 'cementerio', 'desierto', 'tundra']) {
+  for (const n of ['salvaje', 'cementerio', 'desierto', 'tundra', 'glaciar', 'caverna', 'pradera']) {
     const m = mapa(n), W = m.width * m.tilewidth, H = m.height * m.tileheight;
     for (const s of capa(m, 'salidas').objects) {
       const r = { x: s.x, y: s.y, w: s.width, h: s.height };
@@ -200,6 +214,51 @@ test('cada salida se toca con el jugador parado contra el borde del mapa', () =>
       const cuerpo = { x: x - BW / 2, y: y - BH / 2, w: BW, h: BH };
       assert.ok(corta(pies, r) || (miraCuerpo && corta(cuerpo, r)),
         n + ': la salida "' + s.name + '" no se toca nunca (el cuerpo se para en el borde antes que los pies)');
+    }
+  }
+});
+
+/* (2026-10-25) LA CASA DE LA BRUJA: la pone la escena del cementerio (no el
+ * mapa). Su puerta lleva a la caverna y, al volver, se llega delante de ella
+ * pero lejos de la puerta (un empujón no te mete otra vez). */
+test('la casa de la bruja: su atlas, su puerta a la caverna y la llegada de vuelta', () => {
+  const src = fs.readFileSync(path.join(BIN, 'Scenes', 'ZonasScenes.js'), 'utf8');
+  const m = /const CASA_BRUJA = \{ x: (\d+), y: (\d+) \};/.exec(src);
+  assert.ok(m, 'CASA_BRUJA en ZonasScenes.js');
+  const casa = { x: Number(m[1]), y: Number(m[2]) };
+  const atlas = JSON.parse(fs.readFileSync(path.join(BIN, 'Game', 'MAPAS', 'cementerio', 'casa_bruja.json'), 'utf8'));
+  assert.ok(atlas.frames.casa_bruja && atlas.frames.casa_bruja.pivot, 'el fotograma con su apoyo');
+  const puerta = /salida: \{ nombre: 'caverna', rect: \[(-?\d+), (-?\d+), (\d+), (\d+)\] \}/.exec(src);
+  assert.ok(puerta, 'la puerta lleva a la caverna');
+  const r = { x: casa.x + Number(puerta[1]), y: casa.y + Number(puerta[2]), width: Number(puerta[3]), height: Number(puerta[4]) };
+  assert.ok(Z.ZONAS.caverna && Z.ZONAS.cementerio_desde_caverna, 'los dos viajes');
+  const p = Z.ZONAS.cementerio_desde_caverna.llegada;
+  const dy = Math.max(r.y - (p.y + 51), 0, (p.y + 25) - (r.y + r.height));
+  const dx = Math.max(r.x - (p.x + 15), 0, (p.x - 15) - (r.x + r.width));
+  assert.ok(Math.hypot(dx, dy) >= 150, 'se llega a ' + Math.round(Math.hypot(dx, dy)) + ' px de la puerta');
+});
+
+test('los mapas de nivel 8, 9 y 10: niveles en el cliente y en el servidor', { skip: !HAY_SERVIDOR }, () => {
+  const ctx = cargar('gf-niveles-mapas.js', { addEventListener: () => {} });
+  const N = ctx.GFNivelMapa;
+  assert.equal(N.minimo(10), 8);
+  assert.equal(N.minimo(11), 9);
+  assert.equal(N.minimo(12), 10);
+  assert.match(SRV, /glaciar: 8, caverna: 9, pradera: 10/);
+  for (const z of ['glaciar', 'caverna', 'pradera']) assert.match(SRV, new RegExp('GF_PESCA_ZONAS\\.' + z + ' = \\{'), 'el agua de ' + z);
+});
+
+/* (2026-10-25) Los carteles se plantan en suelo firme: el de PvP de la caverna
+ * caía en medio del lago. Su poste (unos 24 px de ancho en el suelo) no puede
+ * pisar el agua, la roca de la cueva ni una grieta del glaciar. */
+test('ningún cartel en el agua, en la roca ni en una grieta', () => {
+  for (const n of ['salvaje', ...Object.keys(MAPAS)]) {
+    const m = mapa(n), cs = capa(m, 'carteles'), col = capa(m, 'colisiones');
+    if (!cs) continue;
+    const malas = col.objects.filter(r => /^(agua|roca|grieta)$/.test(r.name));
+    for (const o of cs.objects) {
+      const r = malas.find(q => o.x - 12 < q.x + q.width && o.x + 12 > q.x && o.y - 6 < q.y + q.height && o.y > q.y);
+      assert.ok(!r, n + ': el cartel "' + o.name + '" está en ' + (r && r.name) + ' (' + Math.round(o.x) + ', ' + Math.round(o.y) + ')');
     }
   }
 });

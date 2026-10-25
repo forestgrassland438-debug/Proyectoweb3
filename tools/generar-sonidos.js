@@ -1486,6 +1486,204 @@ function ambienteRemolino() {
   return { sr, buf, temblor: true };
 }
 
+// ===========================================================================
+// 12b. LOS MAPAS DE NIVEL 8, 9 Y 10: GLACIAR, CAVERNA Y PRADERA   (2026-10-25)
+// ===========================================================================
+// "En el de nieve debe haber su clima de nieve normal; no deben escucharse
+// sonidos de lluvia, ni en la caverna ni en la pradera." Cada mapa con su
+// tema y su ambiente propios (ninguno lleva lluvia); el glaciar, además, la
+// ventisca (la sube gf-zonas.js con la fuerza de la tormenta).
+
+/** Azar con semilla: el mismo archivo en cada ejecución. */
+function azarDe(semilla) {
+  let s = semilla >>> 0;
+  return function () { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+}
+
+/**
+ * GLACIAR — si menor (dórico), 60 pulsos, doce compases. Más hondo y más
+ * lento que la tundra: campanas de hielo largas, un colchón que respira y,
+ * cada cuatro compases, un crujido grave del hielo.
+ */
+function temaGlaciar() {
+  const sr = SR_MUSICA, bpm = 60;
+  const compas = 16 * (60 / bpm / 4);
+  const buf = lienzo(sr, compas * 12);
+  const mel =
+    'B5 .  .  .  .  .  .  .  F#5 .  .  .  .  .  .  .  ' +
+    'A5 .  .  .  .  .  E5 .  .  .  .  .  -  -  -  -  ' +
+    'D5 .  .  .  E5 .  .  .  F#5 .  .  .  .  .  .  .  ' +
+    'B4 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ' +
+    'F#5 .  .  .  A5 .  .  .  B5 .  .  .  D6 .  .  .  ' +
+    'C#6 .  .  .  .  .  .  .  A5 .  .  .  -  -  -  -  ' +
+    'G5 .  .  .  F#5 .  .  .  E5 .  .  .  D5 .  .  .  ' +
+    'E5 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ' +
+    'D6 .  .  .  B5 .  .  .  A5 .  .  .  F#5 .  .  .  ' +
+    'E5 .  .  .  .  .  F#5 .  .  .  .  .  -  -  -  -  ' +
+    'A5 .  .  .  F#5 .  .  .  E5 .  .  .  C#5 .  .  .  ' +
+    'B4 .  .  .  .  .  .  .  .  .  .  .  -  -  -  -  ';
+  const acordes = ['B3,D4,F#4', 'A3,C#4,E4', 'G3,B3,D4', 'B3,D4,F#4', 'D4,F#4,A4', 'A3,C#4,E4',
+                   'G3,B3,E4', 'E3,G3,B3', 'B3,D4,F#4', 'E3,G3,B3', 'A3,C#4,E4', 'B3,D4,F#4'];
+  const pad = acordes.map(a => a + ' .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  ').join('');
+  const raices = ['B1', 'A1', 'G1', 'B1', 'D2', 'A1', 'G1', 'E1', 'B1', 'E1', 'A1', 'B1'];
+  const bajo = raices.map(r => r + ' .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  ').join('');
+  canal(buf, sr, bpm, mel, { onda: 'triangulo', vol: 0.28, a: 0.002, d: 0.4, s: 0.32, r: 0.7 });
+  canal(buf, sr, bpm, mel.replace(/([A-G]#?)(\d)/g, (m, n, o) => n + (parseInt(o, 10) + 1)),
+        { onda: 'triangulo', vol: 0.05, a: 0.01, d: 0.3, s: 0.25, r: 0.7, desfase: 0.24 });
+  canal(buf, sr, bpm, pad, { onda: 'pulso', ciclo: 0.125, vol: 0.045, a: 0.5, d: 0.2, s: 0.85, r: 0.4 });
+  canal(buf, sr, bpm, bajo, { onda: 'triangulo', vol: 0.22, a: 0.1, d: 0.2, s: 0.8, r: 0.35 });
+  for (let c = 2; c < 12; c += 4) {
+    tocarNota(buf, sr, { onda: 'ruido', ruidoP: 4, f: 1, ini: c * compas + 0.3, dur: 0.6, vol: 0.10,
+                         a: 0.002, d: 0.4, s: 0.2, r: 0.5, filtro: 0.12 });
+  }
+  return { sr, buf, rms: NIVEL_MUSICA };
+}
+
+/**
+ * CAVERNA — re menor, 54 pulsos, ocho compases y medio vacíos: notas
+ * sueltas que se repiten en eco (la cueva las devuelve), un bordón muy hondo
+ * y ninguna percusión.
+ */
+function temaCaverna() {
+  const sr = SR_MUSICA, bpm = 54;
+  const compas = 16 * (60 / bpm / 4);
+  const buf = lienzo(sr, compas * 8);
+  const mel =
+    'D5 .  .  .  -  -  -  -  A4 .  .  .  -  -  -  -  ' +
+    'F5 .  .  .  -  -  E5 .  .  .  -  -  -  -  -  -  ' +
+    'D5 .  .  .  -  -  -  -  C5 .  .  .  -  -  -  -  ' +
+    'A4 .  .  .  .  .  .  .  -  -  -  -  -  -  -  -  ' +
+    'G4 .  .  .  -  -  A#4 .  .  .  -  -  D5 .  .  .  ' +
+    'C5 .  .  .  -  -  -  -  A4 .  .  .  -  -  -  -  ' +
+    'F4 .  .  .  -  -  G4 .  .  .  -  -  A4 .  .  .  ' +
+    'D4 .  .  .  .  .  .  .  -  -  -  -  -  -  -  -  ';
+  canal(buf, sr, bpm, mel, { onda: 'triangulo', vol: 0.26, a: 0.002, d: 0.5, s: 0.2, r: 0.7 });
+  // El eco: la misma frase, más floja, dos veces y cada vez más lejos.
+  canal(buf, sr, bpm, mel, { onda: 'triangulo', vol: 0.10, a: 0.002, d: 0.5, s: 0.2, r: 0.7, desfase: 0.42 });
+  canal(buf, sr, bpm, mel, { onda: 'triangulo', vol: 0.04, a: 0.002, d: 0.5, s: 0.2, r: 0.7, desfase: 0.84 });
+  const bordon = 'D2,A2 .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  '.repeat(8);
+  canal(buf, sr, bpm, bordon, { onda: 'pulso', ciclo: 0.125, vol: 0.05, a: 0.6, d: 0.2, s: 0.9, r: 0.4 });
+  return { sr, buf, rms: NIVEL_MUSICA * 0.9 };
+}
+
+/**
+ * PRADERA EN FLOR — sol mayor, 96 pulsos, ocho compases (dos vueltas). Una
+ * melodía saltarina en pulso fino, el bajo en triángulo que camina y una
+ * percusión suave (bombo y caja flojos), alegre sin cansar.
+ */
+function temaPrado() {
+  const sr = SR_MUSICA, bpm = 96;
+  const compas = 16 * (60 / bpm / 4);
+  const buf = lienzo(sr, compas * 16);
+  const frase =
+    'G5 .  .  .  B5 .  D6 .  .  .  B5 .  A5 .  G5 .  ' +
+    'E5 .  .  .  G5 .  .  .  -  -  D5 .  E5 .  G5 .  ' +
+    'A5 .  .  .  B5 .  A5 .  G5 .  .  .  E5 .  D5 .  ' +
+    'D5 .  .  .  .  .  .  .  -  -  -  -  -  -  -  -  ' +
+    'B5 .  .  .  D6 .  E6 .  .  .  D6 .  B5 .  A5 .  ' +
+    'G5 .  .  .  E5 .  .  .  -  -  G5 .  A5 .  B5 .  ' +
+    'C6 .  .  .  B5 .  A5 .  G5 .  .  .  A5 .  F#5 .  ' +
+    'G5 .  .  .  .  .  .  .  -  -  -  -  -  -  -  -  ';
+  const mel = frase + frase;
+  const raiz = ['G2', 'E2', 'C2', 'D2', 'G2', 'E2', 'C2', 'G2'];
+  const bajoFrase = raiz.map(r => r + ' .  .  .  -  -  ' + r + ' .  -  -  ' + r + ' .  .  .  -  -  ').join('');
+  const bajo = bajoFrase + bajoFrase;
+  const acordes = ['G3,B3,D4', 'E3,G3,B3', 'C4,E4,G4', 'D4,F#4,A4', 'G3,B3,D4', 'E3,G3,B3', 'C4,E4,G4', 'G3,B3,D4'];
+  const pad = (acordes.map(a => a + ' .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  ').join('')).repeat(2);
+  canal(buf, sr, bpm, mel, { onda: 'pulso', ciclo: 0.25, vol: 0.22, a: 0.004, d: 0.15, s: 0.6, r: 0.25 });
+  canal(buf, sr, bpm, bajo, { onda: 'triangulo', vol: 0.30, a: 0.004, d: 0.2, s: 0.75, r: 0.2 });
+  canal(buf, sr, bpm, pad, { onda: 'triangulo', vol: 0.05, a: 0.2, d: 0.2, s: 0.8, r: 0.3 });
+  const golpe = 'B  -  -  -  c  -  -  -  B  -  B  -  c  -  -  -  ';
+  for (let c = 0; c < 16; c++) {
+    const trozo = lienzo(sr, compas);
+    ritmo(trozo, sr, bpm, golpe, 0.22);
+    for (let i = 0; i < trozo.length; i++) sumar(buf, Math.round(c * compas * sr) + i, trozo[i]);
+  }
+  return { sr, buf, rms: NIVEL_MUSICA };
+}
+
+/** GLACIAR (ambiente): viento helado más grave que el de la tundra y el hielo que cruje a lo lejos. */
+function ambienteGlaciar() {
+  const sr = SR_AMBIENTE, seg = 12;
+  const buf = lienzo(sr, seg), n = buf.length;
+  const r = crearRuido(3);
+  let y = 0, y2 = 0;
+  dosVueltas(n, function (i) {
+    const racha = 0.3 + 0.4 * (0.5 + 0.5 * onda(i, n, 2, 0.35)) + 0.2 * (0.5 + 0.5 * onda(i, n, 5, 0.8));
+    const k = 0.02 + 0.09 * racha;
+    y += k * (r() - y); y2 += k * (y - y2);
+    return y2 * 3.4 * racha;
+  }, buf);
+  for (const t of [2.5, 8.2]) {
+    tocarNota(buf, sr, { onda: 'ruido', ruidoP: 6, f: 1, ini: t, dur: 0.45, vol: 0.12, a: 0.002, d: 0.4, s: 0.25, r: 0.5, filtro: 0.1 });
+    tocarNota(buf, sr, { onda: 'triangulo', f: 70, ini: t, dur: 0.5, vol: 0.10, a: 0.002, d: 0.3, s: 0.3, r: 0.6, caida: 5 });
+  }
+  return { sr, buf, temblor: true };
+}
+
+/** VENTISCA: el viento que aúlla y la nieve que golpea, a rachas. */
+function ambienteVentisca() {
+  const sr = SR_AMBIENTE, seg = 8;
+  const buf = lienzo(sr, seg), n = buf.length;
+  const r1 = crearRuido(2), r2 = crearRuido(1), alto = pasoAlto(0.25);
+  let y = 0, y2 = 0, z = 0, fase = 0;
+  dosVueltas(n, function (i) {
+    const golpe = 0.55 + 0.3 * (0.5 + 0.5 * onda(i, n, 4, 0.1)) + 0.15 * (0.5 + 0.5 * onda(i, n, 9, 0.6));
+    y += 0.08 * (r1() - y); y2 += 0.08 * (y - y2);
+    z += 0.4 * (r2() - z);
+    fase += (480 + 220 * golpe) / sr;
+    const sobre = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / n);
+    return (y2 * 3.8 + alto(z) * 0.6) * golpe + triangulo(fase) * 0.04 * sobre * golpe;
+  }, buf);
+  return { sr, buf, temblor: true };
+}
+
+/** CAVERNA (ambiente): el zumbido hondo de la roca y gotas que caen, cada una con su eco. */
+function ambienteCaverna() {
+  const sr = SR_AMBIENTE, seg = 12;
+  const buf = lienzo(sr, seg), n = buf.length;
+  const r = crearRuido(5);
+  let y = 0, y2 = 0;
+  dosVueltas(n, function (i) {
+    const k = 0.006 + 0.004 * (0.5 + 0.5 * onda(i, n, 2, 0.2));
+    y += k * (r() - y); y2 += k * (y - y2);
+    return y2 * 6.0;
+  }, buf);
+  const az = azarDe(1111);
+  for (let g = 0; g < 9; g++) {
+    const t = 0.4 + az() * (seg - 1.6), f = 900 + az() * 700;
+    for (let e = 0; e < 3; e++) {
+      tocarNota(buf, sr, { onda: 'triangulo', f, ini: t + e * 0.22, dur: 0.18, vol: 0.10 / (1 + e * 1.6),
+                           a: 0.001, d: 0.3, s: 0.2, r: 0.6, caida: -3 });
+    }
+  }
+  return { sr, buf, temblor: true };
+}
+
+/** PRADERA (ambiente): la brisa entre la hierba y los pájaros que cantan sueltos. */
+function ambientePrado() {
+  const sr = SR_AMBIENTE, seg = 12;
+  const buf = lienzo(sr, seg), n = buf.length;
+  const r = crearRuido(2), alto = pasoAlto(0.08);
+  let y = 0;
+  dosVueltas(n, function (i) {
+    const brisa = 0.25 + 0.25 * (0.5 + 0.5 * onda(i, n, 3, 0.4));
+    y += (0.03 + 0.05 * brisa) * (r() - y);
+    return alto(y) * 1.6 * brisa;
+  }, buf);
+  const az = azarDe(1212);
+  for (let p = 0; p < 7; p++) {
+    let t = 0.5 + az() * (seg - 2);
+    const base = 2200 + az() * 1400, notas = 2 + Math.floor(az() * 3);
+    for (let k = 0; k < notas; k++) {
+      tocarNota(buf, sr, { onda: 'triangulo', f: base * (1 + 0.12 * k), ini: t, dur: 0.07, vol: 0.06,
+                           a: 0.002, d: 0.3, s: 0.4, r: 0.4, caida: -5 });
+      t += 0.09;
+    }
+  }
+  return { sr, buf, temblor: true };
+}
+
 const CATALOGO = [
   // --- música ---
   ['gf_pradera.wav',  temaPradera],
@@ -1509,6 +1707,15 @@ const CATALOGO = [
   ['amb_tormenta_arena.wav', ambienteTormentaArena],
   ['amb_tundra.wav',    ambienteTundra],
   ['amb_remolino.wav',  ambienteRemolino],
+
+  // --- los de nivel 8, 9 y 10 (2026-10-25) ---
+  ['gf_glaciar.wav',    temaGlaciar],
+  ['gf_caverna.wav',    temaCaverna],
+  ['gf_prado.wav',      temaPrado],
+  ['amb_glaciar.wav',   ambienteGlaciar],
+  ['amb_ventisca.wav',  ambienteVentisca],
+  ['amb_caverna.wav',   ambienteCaverna],
+  ['amb_prado.wav',     ambientePrado],
 
   // --- rayos ---
   ['rayo_1.wav',      () => trueno(11, true)],

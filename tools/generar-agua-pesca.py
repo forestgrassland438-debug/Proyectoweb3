@@ -27,7 +27,9 @@ from PIL import Image
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.dirname(AQUI)
-MAPAS = ['salvaje', 'cementerio', 'desierto', 'tundra']
+MAPAS = ['salvaje', 'cementerio', 'desierto', 'tundra',
+         # (2026-10-25) Los de nivel 8, 9 y 10.
+         'glaciar', 'caverna', 'pradera']
 
 
 def es_azul(r, g, b, a):

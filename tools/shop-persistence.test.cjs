@@ -176,7 +176,10 @@ test('una compra acuñada no se reembolsa si falla la lectura posterior o el gua
   f.tienda.ejecutarDivision = async () => { f.tienda._confirmedPurchaseQuantity = 3; };
   f.tienda._persistConfirmedPurchase = async () => { throw new Error('network'); };
   await f.tienda.processPurchase(item, 3); await f.tienda._colaTienda;
-  assert.equal(f.tienda.playerMonedaPlata, silver - item.buyPrice * 3);
+  // (2026-10-22) La compra paga además el 1,5 % del tesoro en bronce (rompiendo
+  // una plata si no hay bronce): se mira todo lo que tiene, en bronce.
+  const valor = f.tienda.playerMonedaPlata * 1000 + f.tienda.getBalanceByCurrency('bronze');
+  assert.equal(valor, silver * 1000 - (item.buyPrice * 3 * 1000 + bank.comisionTesoro(item.buyPrice, 'silver', 3)));
   assert.ok(f.tienda.avisos.some(s => s.includes('sync is pending')));
 });
 
@@ -189,7 +192,9 @@ test('una compra parcial registra lo entregado y devuelve solo el precio de lo q
   f.tienda._persistConfirmedPurchase = async () => ({ success: true });
   f.tienda.addToHistorial = (_type, _item, qty, cost) => history.push({ qty, cost });
   await f.tienda.processPurchase(item, 3); await f.tienda._colaTienda;
-  assert.equal(f.tienda.playerMonedaPlata, 1000 - item.buyPrice * 2);
+  // Se devuelve el precio Y la comisión de lo que no se confirmó.
+  const valor = f.tienda.playerMonedaPlata * 1000 + f.tienda.getBalanceByCurrency('bronze');
+  assert.equal(valor, 1000 * 1000 - (item.buyPrice * 2 * 1000 + bank.comisionTesoro(item.buyPrice, 'silver', 2)));
   assert.deepEqual(history, [{ qty: 2, cost: item.buyPrice * 2 }]);
   assert.ok(f.tienda.avisos.some(s => s.includes('1x') && s.includes('refunded')));
 });

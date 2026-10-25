@@ -79,7 +79,7 @@ import gf_arboles_zona  # noqa: E402
 
 T, N = GS.T, GS.N
 W = N * T
-VERSION = '20261020a'   # (2026-10-20) la orilla de nieve del estanque de la tundra
+VERSION = '20261025a'   # (2026-10-25) los mapas de nivel 8, 9 y 10 y los caminos nuevos (antes 20261020a)
 ESCALA_ARBOL = 1.3
 TILESET = GS.TILESET
 # La entrada de cada mapa: el camino que sigue al de la salida del salvaje.
@@ -169,6 +169,9 @@ class Zona(object):
         self.arboles, self.objetos, self.colisiones = [], [], []
         self.monstruos, self.carteles, self.salidas, self.zonas = [], [], [], []
         self.aparicion, self.remolinos = [], []
+        # (2026-10-25) La roca de la caverna (no se pisa) y las grietas del glaciar.
+        self.muro, self.grieta, self.grieta_zona = set(), set(), set()
+        self.grietas = []          # polilíneas (en casillas) que se pintan
         self.ocupado = []          # (x, y, radio) en px
         self.reservado = []        # rectángulos (px) donde no va nada suelto
 
@@ -181,6 +184,10 @@ class Zona(object):
 
     def suelo_de(self, px, py):
         c = (int(px // T), int(py // T))
+        if c in self.muro:
+            return 'muro'
+        if c in self.grieta or c in self.grieta_zona:
+            return 'grieta'
         if c in self.agua:
             return 'agua'
         if c in self.piedra:
@@ -251,7 +258,9 @@ class Zona(object):
             if puestos >= n:
                 break
             px, py = self.rnd.uniform(x0, x1), self.rnd.uniform(y0, y1)
-            if self.suelo_de(px, py) == 'agua' or self.cerca_agua(px, py, 3):
+            if self.suelo_de(px, py) in ('agua', 'muro', 'grieta') or self.cerca_agua(px, py, 3):
+                continue
+            if any(self.suelo_de(px + dx, py + dy) == 'muro' for dx, dy in ((-60, 0), (60, 0), (0, -60), (0, 30))):
                 continue
             if any((ox - px) ** 2 + (oy - py) ** 2 < 70 ** 2 for ox, oy, _r in self.ocupado):
                 continue
@@ -495,6 +504,13 @@ def disenar_desierto(z, fotos):
                           ('golem_arena', 2, (100, PVP_DESIERTO_Y + 100, W - 100, W - 100))):
         z.monstruos_en(tipo, n, caja, entrada)
 
+    # (2026-10-25) EL CAMINO NUEVO A LA PRADERA (nivel 10): el camino que
+    # cruza el desierto sigue hasta el borde del este. Al final del diseño
+    # (ver disenar_tundra): lo de antes sale igual, solo se quita lo de encima.
+    camino_nuevo(z, (290, 150, N - 1, 158))
+    z.salidas.append({'name': 'pradera', 'x': W - 20, 'y': 150 * T, 'width': 20, 'height': 9 * T})
+    z.carteles.append({'name': 'pradera', 'x': W - 300, 'y': 150 * T - 10, 'texto': 'To Blossom Meadow (Lv. 10)'})
+
 
 # ===========================================================================
 # LA TUNDRA HELADA (mundo 9, el inventado; PvP al norte de y = 2400)
@@ -590,9 +606,426 @@ def disenar_tundra(z, fotos):
                           ('bruja_ventisca', 2, (sx0 - 600, sy0 - 200, sx1 + 600, sy1 + 600))):
         z.monstruos_en(tipo, n, caja, entrada)
 
+    # (2026-10-25) EL CAMINO NUEVO AL GLACIAR (nivel 8): sigue al norte del
+    # santuario hasta el borde. Se pone AL FINAL a propósito: todo lo de antes
+    # sale exactamente igual (el azar va en el mismo orden) y solo se quita
+    # lo que caía en el camino.
+    camino_nuevo(z, (CRUCE_X0, 0, CRUCE_X1, SANTUARIO[1] - 1))
+    z.salidas.append({'name': 'glaciar', 'x': (CRUCE_X0 - 1) * T, 'y': 0, 'width': (CRUCE_X1 - CRUCE_X0 + 3) * T, 'height': 20})
+    z.carteles.append({'name': 'glaciar', 'x': (CRUCE_X1 + 1) * T + 44, 'y': 150, 'texto': 'To the Shattered Glacier (Lv. 8)'})
 
-DISENOS = {'cementerio': (disenar_cementerio, 707), 'desierto': (disenar_desierto, 808), 'tundra': (disenar_tundra, 909)}
-VIDA_AGUA = {'cementerio': 'rio', 'desierto': 'rio', 'tundra': None}
+
+def camino_nuevo(z, caja):
+    """Un camino de tierra en `caja` (casillas) puesto al final del diseño:
+    se quita lo que caía encima (árboles, objetos, sus choques) y se reserva."""
+    x0, y0, x1, y1 = caja
+    z.tierra |= rect_set(x0, y0, x1, y1)
+    despejar(z, (x0 - 3) * T, (y0 - 2) * T, (x1 + 4) * T, (y1 + 3) * T)
+
+
+def despejar(z, x0, y0, x1, y1):
+    """Quita lo que haya en el rectángulo (px): árboles, objetos y sus choques
+    (el agua no se toca)."""
+    def dentro(px, py, m=0):
+        return x0 - m <= px <= x1 + m and y0 - m <= py <= y1 + m
+    z.arboles = [a for a in z.arboles if not dentro(a['x'], a['y'], 30)]
+    z.objetos = [o for o in z.objetos if not dentro(o['x'], o['y'], 30)]
+    z.colisiones = [c for c in z.colisiones if c.get('name') == 'agua' or not (
+        c['x'] < x1 + 30 and c['x'] + c['width'] > x0 - 30 and c['y'] < y1 + 30 and c['y'] + c['height'] > y0 - 30)]
+    z.ocupado = [o for o in z.ocupado if not dentro(o[0], o[1], 30)]
+    z.reservado.append((x0, y0, x1, y1))
+
+
+def tubo(puntos, radio, semilla, rugoso=0.25):
+    """Las casillas a menos de `radio` de una polilínea (casillas), con el
+    borde irregular (un ruido suave): túneles, caminos y grietas."""
+    borde = GS.ruido_valor(semilla, 7)
+    out = set()
+    for (ax, ay), (bx, by) in zip(puntos, puntos[1:]):
+        dx, dy = bx - ax, by - ay
+        L2 = float(dx * dx + dy * dy) or 1.0
+        for y in range(int(min(ay, by) - radio - 3), int(max(ay, by) + radio + 4)):
+            for x in range(int(min(ax, bx) - radio - 3), int(max(ax, bx) + radio + 4)):
+                if not (0 <= x < N and 0 <= y < N):
+                    continue
+                u = max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / L2))
+                d = math.hypot(x - (ax + u * dx), y - (ay + u * dy))
+                if d <= radio * (1 - rugoso + borde(x, y) * rugoso * 2):
+                    out.add((x, y))
+    return out
+
+
+# ===========================================================================
+# EL GLACIAR ROTO (mundo 10, nivel 8; al norte de la tundra; PvP al norte de y = 2000)
+# ===========================================================================
+PVP_GLACIAR_Y = 2000
+LAGO_GLACIAR = (90, 200, 58, 40)            # el hielo
+LAGO_GLACIAR_ABIERTO = (90, 200, 27, 16)    # el agua abierta en medio
+# Las grietas (casillas): polilíneas que cortan el hielo del este. Dejan
+# huecos para pasar entre ellas.
+GRIETAS_GLACIAR = [
+    [(150, 170), (162, 176), (176, 172), (190, 180), (204, 176)],
+    [(238, 168), (252, 176), (266, 172), (282, 182), (300, 178)],
+    [(160, 212), (174, 206), (188, 214), (200, 208)],
+    [(236, 214), (250, 220), (262, 214), (276, 224), (292, 220)],
+    [(170, 246), (184, 240), (196, 248), (206, 244)],
+    [(120, 120), (132, 112), (146, 118), (160, 110)],
+    [(250, 60), (262, 70), (276, 64), (290, 74)],
+]
+
+
+def disenar_glaciar(z, fotos):
+    rnd = z.rnd
+    z.lago_helado = LAGO_GLACIAR
+    z.agua = elipse_set(*LAGO_GLACIAR_ABIERTO, semilla=1001, rugoso=0.22) | elipse_set(262, 112, 12, 8, semilla=1002)
+    z.dist = distancias(z.agua)
+    hielo = elipse_set(*LAGO_GLACIAR, semilla=1003, rugoso=0.14)
+    z.playa = orilla(z.dist, 1004, base=2, extra=3)
+    z.tierra |= z.playa
+    z.oasis = [(262, 112, 12, 8)]
+    z.hielo = hielo - z.agua
+    z.tierra |= z.hielo
+    # Las grietas: no se pisan (chocan) y se pintan (pintar_grietas).
+    for k, g in enumerate(GRIETAS_GLACIAR):
+        z.grietas.append(g)
+        z.grieta |= tubo(g, 1.2, 1010 + k, rugoso=0.0)
+        z.grieta_zona |= tubo(g, 2.6, 1010 + k, rugoso=0.0)
+    # Los caminos de hielo prensado: el que sube de la tundra hasta las ruinas,
+    # el que va al lago y el del estanque.
+    z.tierra |= rect_set(CRUCE_X0, 44, CRUCE_X1, N - 1)
+    z.tierra |= rect_set(150, 150, CRUCE_X0, 157)
+    z.tierra |= rect_set(CRUCE_X1, 120, 248, 127)
+    z.tierra -= z.grieta
+    CAMPAMENTO = (228, 256, 258, 274)
+    RUINAS = (186, 18, 256, 44)
+    plaza(z.piedra, *CAMPAMENTO)
+    plaza(z.piedra, *RUINAS)
+    # (2026-10-25) Sin las manchas de camino sueltas por la nieve (las de la
+    # tundra): en el glaciar parecían losas con su bordillo de puntitos.
+    z.tierra -= z.agua
+    for c in list(z.piedra):
+        z.tierra.discard(c)
+        z.hielo.discard(c)
+        z.grieta.discard(c)
+
+    entrada = (ENTRADA_X, W - 284)
+    z.aparicion.append({'name': 'desde_tundra', 'x': entrada[0], 'y': entrada[1]})
+    z.salidas.append({'name': 'tundra', 'x': (CRUCE_X0 - 1) * T, 'y': W - 20, 'width': (CRUCE_X1 - CRUCE_X0 + 3) * T, 'height': 20})
+    z.zonas.append({'name': 'pvp', 'x': 0, 'y': 0, 'width': W, 'height': PVP_GLACIAR_Y})
+    z.zonas.append({'name': 'neutral', 'x': 0, 'y': PVP_GLACIAR_Y, 'width': W, 'height': W - PVP_GLACIAR_Y})
+    z.carteles += [
+        {'name': 'bienvenida', 'x': (CRUCE_X1 + 1) * T + 40, 'y': W - 220, 'texto': 'The Shattered Glacier — mind the crevasses'},
+        {'name': 'tundra', 'x': (CRUCE_X0 - 1) * T - 40, 'y': W - 110, 'texto': 'To Frostfang Tundra'},
+        {'name': 'pvp', 'x': (CRUCE_X1 + 1) * T + 40, 'y': PVP_GLACIAR_Y + 60, 'texto': 'PvP zone — swords on!'},
+        {'name': 'ruinas', 'x': (RUINAS[0] + 2) * T, 'y': (RUINAS[3] + 3) * T, 'texto': 'Ruins of the Frost Keep'},
+        {'name': 'lago', 'x': (LAGO_GLACIAR[0] + LAGO_GLACIAR[2] + 3) * T, 'y': (LAGO_GLACIAR[1] + 4) * T, 'texto': 'Mirror Lake'},
+    ]
+    z.reservado.append((ENTRADA_X - 220, W - 320, ENTRADA_X + 220, W))
+
+    # ── el campamento de la expedición ──
+    cx0, cy0, cx1, cy1 = CAMPAMENTO[0] * T, CAMPAMENTO[1] * T, (CAMPAMENTO[2] + 1) * T, (CAMPAMENTO[3] + 1) * T
+    z.poner_objeto('hoguera', (cx0 + cx1) / 2, (cy0 + cy1) / 2 + 20, fotos, radio=30)
+    for (tx, ty) in ((cx0 + 90, cy0 + 70), (cx1 - 90, cy0 + 70)):
+        z.poner_objeto('tienda_pieles', tx, ty, fotos, radio=60)
+    z.poner_objeto('trineo', cx1 - 120, cy1 - 40, fotos, radio=30)
+    z.poner_objeto('trineo', cx0 + 120, cy1 - 30, fotos, radio=30)
+    z.reservado.append((cx0 - 140, cy0 - 160, cx1 + 140, cy1 + 120))
+    # ── las ruinas de la fortaleza helada ──
+    rx0, ry0, rx1, ry1 = RUINAS[0] * T, RUINAS[1] * T, (RUINAS[2] + 1) * T, (RUINAS[3] + 1) * T
+    rcx = (rx0 + rx1) / 2
+    z.poner_objeto('cristal_grande', rcx, (ry0 + ry1) / 2 + 20, fotos, radio=50)
+    for sx in (-1, 1):
+        for k in range(3):
+            z.poner_objeto('estatua_hielo', rcx + sx * (180 + k * 150), ry0 + 90 + k * 40, fotos, radio=26)
+        z.poner_objeto('poste_runas', rcx + sx * 120, ry1 - 50, fotos, radio=20)
+        z.poner_objeto('arco_hielo', rcx + sx * 470, ry1 - 70, fotos, radio=60)
+    # ── el hielo: agujas, bloques y arcos; huesos de mamut ──
+    z.esparcir(['seraque', 'seraque_bajo'], 70, (3600, 900, W - 80, 2900), 34, fotos=fotos, sep=150)
+    z.esparcir(['seraque', 'seraque_bajo', 'bloque_hielo'], 40, (80, 80, W - 80, PVP_GLACIAR_Y), 34, fotos=fotos, sep=200)
+    z.esparcir(['bloque_hielo'], 30, (80, 80, W - 80, W - 80), 36, fotos=fotos, sep=260)
+    z.esparcir(['arco_hielo'], 5, (300, 300, W - 300, W - 600), 70, fotos=fotos, sep=900)
+    z.esparcir(['esqueleto_mamut'], 6, (300, 300, W - 300, W - 500), 70, fotos=fotos, sep=900)
+    z.esparcir(['roca_nevada', 'roca_nevada2'], 60, (60, 60, W - 60, W - 60), 30, fotos=fotos, sep=110)
+    z.esparcir(['tronco_nevado'], 18, (60, 60, W - 60, W - 60), 36, fotos=fotos, sep=260)
+    z.esparcir(['cristal_hielo'], 30, (60, 60, W - 60, PVP_GLACIAR_Y), 26, fotos=fotos, sep=240)
+    z.esparcir(['poste_runas'], 8, (300, 300, W - 300, W - 300), 20, fotos=fotos, sep=700)
+    # ── los bosques helados: densos en los bordes, sueltos dentro ──
+    nombres, pa = ['abeto_glaciar', 'pino_glaciar', 'abedul_helado', 'seco_helado'], [40, 34, 14, 12]
+    bosque = GS.ruido_valor(1006, 24)
+    puestos = 0
+    for _ in range(30000):
+        if puestos >= 560:
+            break
+        px, py = rnd.uniform(60, W - 60), rnd.uniform(60, W - 60)
+        denso = px < 520 or px > W - 420 or py < 260 or bosque(px / T, py / T) > 0.66
+        if not denso and rnd.random() < 0.86:
+            continue
+        if not z.libre(px, py, 44, margen_agua=4):
+            continue
+        z.poner_arbol(rnd.choices(nombres, weights=pa)[0], px, py)
+        puestos += 1
+
+    # ── los monstruos ──
+    for tipo, n, caja in (('oso_polar', 2, (100, PVP_GLACIAR_Y + 100, W - 100, W - 700)),
+                          ('oso_polar', 3, (100, 100, W - 100, PVP_GLACIAR_Y - 100)),
+                          ('yeti_glaciar', 1, (100, PVP_GLACIAR_Y + 100, W - 100, W - 700)),
+                          ('yeti_glaciar', 3, (100, 100, W - 100, PVP_GLACIAR_Y - 100)),
+                          ('espectro_hielo', 1, (100, PVP_GLACIAR_Y + 100, W - 100, W - 700)),
+                          ('espectro_hielo', 3, (rx0 - 700, ry0 - 100, rx1 + 700, ry1 + 900))):
+        z.monstruos_en(tipo, n, caja, entrada)
+
+
+# ===========================================================================
+# LAS CAVERNAS DE CRISTAL (mundo 11, nivel 9; se entra por la casa de la
+# bruja del cementerio; PvP al oeste de x = 2300)
+# ===========================================================================
+PVP_CAVERNA_X = 2300
+SALAS_CUEVA = {
+    'entrada': (252, 152, 32, 22), 'cristales': (168, 74, 44, 30), 'lago': (150, 210, 62, 40),
+    'mina': (62, 92, 40, 30), 'guarida': (66, 238, 46, 38), 'hongos': (256, 256, 36, 30),
+}
+TUNELES_CUEVA = [
+    [(252, 152), (216, 112), (168, 74)], [(252, 152), (204, 182), (150, 210)], [(168, 74), (112, 86), (62, 92)],
+    [(168, 74), (160, 142), (150, 210)], [(150, 210), (102, 230), (66, 238)], [(62, 92), (54, 164), (66, 238)],
+    [(150, 210), (208, 244), (256, 256)], [(252, 152), (268, 204), (256, 256)],
+]
+SALIDA_CUEVA = (252 * T + 8, 132 * T + 8)   # la boca de la subida al cementerio (su apoyo)
+
+
+def disenar_caverna(z, fotos):
+    rnd = z.rnd
+    suelo_ = set()
+    for i, (n, (cx, cy, rx, ry)) in enumerate(sorted(SALAS_CUEVA.items())):
+        suelo_ |= elipse_set(cx, cy, rx, ry, semilla=1100 + i, rugoso=0.16)
+    for i, t in enumerate(TUNELES_CUEVA):
+        suelo_ |= tubo(t, 6.5, 1120 + i, rugoso=0.22)
+    suelo_ = {c for c in suelo_ if 3 <= c[0] < N - 3 and 3 <= c[1] < N - 3}
+    z.muro = {(x, y) for y in range(N) for x in range(N)} - suelo_
+    # El lago, solo donde hay suelo de sobra alrededor (que no toque la roca).
+    lejos_muro = {c for c in suelo_ if all((c[0] + dx, c[1] + dy) in suelo_ for dx in (-4, 0, 4) for dy in (-4, 0, 4))}
+    z.agua = elipse_set(150, 216, 30, 17, semilla=1130, rugoso=0.2) & lejos_muro
+    z.dist = distancias(z.agua)
+    z.playa = orilla(z.dist, 1131, base=2, extra=3) & suelo_
+    z.tierra |= z.playa
+    z.oasis = [(150, 216, 30, 17)]
+    # Las sendas de tierra apisonada por el medio de los túneles.
+    for i, t in enumerate(TUNELES_CUEVA):
+        z.tierra |= tubo(t, 2.2, 1140 + i, rugoso=0.15) & suelo_
+    z.tierra -= z.agua
+    # Las losas talladas al pie de la subida y en la vieja mina.
+    plaza(z.piedra, 244, 136, 261, 143)
+    plaza(z.piedra, 50, 86, 72, 98)
+    for c in list(z.piedra):
+        z.tierra.discard(c)
+
+    sx, sy = SALIDA_CUEVA
+    entrada = (sx, sy + 110)
+    z.aparicion.append({'name': 'desde_cementerio', 'x': entrada[0], 'y': entrada[1]})
+    # La subida: el dibujo no choca (huella 0); la roca de los lados y del
+    # fondo sí, y la boca es la salida (se entra subiendo los escalones).
+    z.poner_objeto('salida_cueva', sx, sy, fotos, radio=120)
+    for (x0, y0, w, h) in ((sx - 106, sy - 70, 74, 70), (sx + 32, sy - 70, 74, 70), (sx - 32, sy - 70, 64, 30)):
+        z.colisiones.append({'x': round(x0), 'y': round(y0), 'width': w, 'height': h, 'name': 'salida_roca'})
+    z.salidas.append({'name': 'cementerio', 'x': round(sx - 28), 'y': round(sy - 40), 'width': 56, 'height': 26})
+    z.zonas.append({'name': 'pvp', 'x': 0, 'y': 0, 'width': PVP_CAVERNA_X, 'height': W})
+    z.zonas.append({'name': 'neutral', 'x': PVP_CAVERNA_X, 'y': 0, 'width': W - PVP_CAVERNA_X, 'height': W})
+    z.carteles += [
+        {'name': 'bienvenida', 'x': sx + 150, 'y': sy + 60, 'texto': 'Crystal Caverns — stay near the light'},
+        {'name': 'cementerio', 'x': sx - 150, 'y': sy + 40, 'texto': 'Up to the Cemetery'},
+        # (2026-10-25) En la senda del norte, donde cruza la raya: a la altura
+        # del lago (y = 210) caía dentro del agua.
+        {'name': 'pvp', 'x': PVP_CAVERNA_X + 60, 'y': 1330, 'texto': 'PvP zone — swords on!'},
+        {'name': 'mina', 'x': 72 * T, 'y': 104 * T, 'texto': 'The Old Dwarven Mine'},
+        {'name': 'lago', 'x': 186 * T, 'y': 236 * T, 'texto': 'The Sunless Lake'},
+    ]
+    z.reservado.append((sx - 200, sy - 120, sx + 200, sy + 220))
+
+    def caja_sala(n, m=0.75):
+        cx, cy, rx, ry = SALAS_CUEVA[n]
+        return ((cx - rx * m) * T, (cy - ry * m) * T, (cx + rx * m) * T, (cy + ry * m) * T)
+    # ── la sala de los cristales: hongos gigantes y cristales que brillan ──
+    z.esparcir(['hongo_turquesa', 'hongo_violeta', 'hongo_ambar'], 14, caja_sala('cristales'), 60, pesos=[5, 5, 3], sep=150, arbol=True)
+    z.esparcir(['cristal_grande_cueva'], 3, caja_sala('cristales', 0.6), 46, fotos=fotos, sep=300)
+    z.esparcir(['cristal_cueva', 'cristal_cueva_t'], 26, caja_sala('cristales'), 26, fotos=fotos, sep=110)
+    # ── la hondonada de los hongos ──
+    z.esparcir(['hongo_turquesa', 'hongo_violeta', 'hongo_ambar'], 12, caja_sala('hongos'), 60, pesos=[4, 4, 4], sep=150, arbol=True)
+    z.esparcir(['seta_brillante'], 30, caja_sala('hongos', 0.9), 14, fotos=fotos, sep=70)
+    # ── la mina vieja ──
+    mx0, my0, mx1, my1 = caja_sala('mina', 0.8)
+    for k in range(4):
+        z.esparcir(['vagoneta'], 1, (mx0, my0, mx1, my1), 30, fotos=fotos, sep=160)
+    z.esparcir(['cofre_viejo'], 3, (mx0, my0, mx1, my1), 20, fotos=fotos, sep=200)
+    z.esparcir(['brasero'], 5, (mx0, my0, mx1, my1), 18, fotos=fotos, sep=260)
+    # ── la guarida (el jefe anda por aquí): huesos y estalagmitas ──
+    z.esparcir(['huesos'], 16, caja_sala('guarida', 0.85), 18, fotos=fotos, sep=120)
+    # ── por todas partes: estalagmitas, columnas, rocas, setas y braseros ──
+    z.esparcir(['columna_cueva'], 18, (80, 80, W - 80, W - 80), 32, fotos=fotos, sep=420)
+    z.esparcir(['estalagmita', 'estalagmita_baja', 'estalagmitas'], 150, (80, 80, W - 80, W - 80), 22, pesos=[4, 4, 3], fotos=fotos, sep=110)
+    z.esparcir(['roca_cueva', 'roca_cueva2'], 60, (80, 80, W - 80, W - 80), 30, fotos=fotos, sep=140)
+    z.esparcir(['seta_brillante'], 40, (80, 80, W - 80, W - 80), 14, fotos=fotos, sep=200)
+    z.esparcir(['cristal_cueva', 'cristal_cueva_t'], 26, (80, 80, W - 80, W - 80), 26, fotos=fotos, sep=320)
+    # Los braseros por las sendas, para no perderse.
+    for i, t in enumerate(TUNELES_CUEVA):
+        for (ax, ay), (bx, by) in zip(t, t[1:]):
+            for u in (0.33, 0.66):
+                px, py = (ax + (bx - ax) * u) * T + 70, (ay + (by - ay) * u) * T + 40
+                if z.libre(px, py, 16, ('campo', 'tierra'), margen_agua=2):
+                    z.poner_objeto('brasero', px, py, fotos, radio=40)
+
+    # ── los monstruos ──
+    for tipo, n, caja in (('murcielago_gigante', 2, caja_sala('entrada', 1.0)),
+                          ('murcielago_gigante', 4, (80, 80, W - 80, W - 80)),
+                          ('troll_cueva', 1, caja_sala('lago', 1.0)),
+                          ('troll_cueva', 3, (80, 80, PVP_CAVERNA_X, W - 80)),
+                          ('golem_cristal', 2, caja_sala('cristales', 1.0)),
+                          ('golem_cristal', 2, (80, 80, W - 80, W - 80))):
+        z.monstruos_en(tipo, n, caja, entrada)
+
+
+# ===========================================================================
+# LA PRADERA EN FLOR (mundo 12, nivel 10; al este del desierto; PvP al
+# norte de y = 1500)
+# ===========================================================================
+PVP_PRADERA_Y = 1500
+CAMINO_P_Y0, CAMINO_P_Y1 = 150, 158          # el camino que sigue al del desierto
+ENTRADA_P_Y = (CAMINO_P_Y0 + CAMINO_P_Y1 + 1) * T // 2   # 2472
+PLAZA_P = (196, 136, 234, 172)
+CIRCULO_P = (96, 60)                         # el círculo de piedras (casillas)
+
+
+def disenar_pradera(z, fotos):
+    rnd = z.rnd
+    LAGO = (262, 70, 30, 19)
+    ESTANQUE = (64, 246, 18, 12)
+    z.agua = elipse_set(*LAGO, semilla=1201) | elipse_set(*ESTANQUE, semilla=1202)
+    z.oasis = [LAGO, ESTANQUE]
+    z.dist = distancias(z.agua)
+    z.playa = orilla(z.dist, 1203, base=2, extra=3)
+    z.tierra |= z.playa
+    # Los caminos: el del desierto hasta la plaza, el norte-sur, el del lago.
+    z.tierra |= rect_set(0, CAMINO_P_Y0, PLAZA_P[0], CAMINO_P_Y1)
+    z.tierra |= rect_set(212, 24, 219, PLAZA_P[1])
+    z.tierra |= rect_set(212, PLAZA_P[3], 219, 296)
+    z.tierra |= rect_set(PLAZA_P[2], 150, 300, 157)
+    z.tierra |= rect_set(256, 90, 263, 150)
+    z.tierra |= tubo([(212, 40), (170, 52), (CIRCULO_P[0] + 14, CIRCULO_P[1])], 3.6, 1204, rugoso=0.1)
+    plaza(z.piedra, *PLAZA_P)
+    def fuera(x, y):
+        return PLAZA_P[0] - 6 <= x <= PLAZA_P[2] + 6 and PLAZA_P[1] - 6 <= y <= PLAZA_P[3] + 6
+    z.tierra |= manchas(1205, 0.9, fuera)
+    z.tierra -= z.agua
+    for c in list(z.piedra):
+        z.tierra.discard(c)
+
+    entrada = (234, ENTRADA_P_Y)
+    z.aparicion.append({'name': 'desde_desierto', 'x': entrada[0], 'y': entrada[1] - 16})
+    z.salidas.append({'name': 'desierto', 'x': 0, 'y': CAMINO_P_Y0 * T, 'width': 20, 'height': (CAMINO_P_Y1 - CAMINO_P_Y0 + 1) * T})
+    z.zonas.append({'name': 'pvp', 'x': 0, 'y': 0, 'width': W, 'height': PVP_PRADERA_Y})
+    z.zonas.append({'name': 'neutral', 'x': 0, 'y': PVP_PRADERA_Y, 'width': W, 'height': W - PVP_PRADERA_Y})
+    z.carteles += [
+        {'name': 'bienvenida', 'x': 300, 'y': CAMINO_P_Y0 * T - 10, 'texto': 'Blossom Meadow'},
+        {'name': 'desierto', 'x': 120, 'y': (CAMINO_P_Y1 + 1) * T + 70, 'texto': 'To the Scorching Desert'},
+        {'name': 'pvp', 'x': 220 * T + 40, 'y': PVP_PRADERA_Y + 60, 'texto': 'PvP zone — swords on!'},
+        {'name': 'circulo', 'x': (CIRCULO_P[0] + 16) * T, 'y': (CIRCULO_P[1] + 6) * T, 'texto': 'The Elder Stones'},
+        {'name': 'granja', 'x': 238 * T, 'y': 186 * T, 'texto': 'Windmill Farm'},
+    ]
+    z.reservado.append((0, CAMINO_P_Y0 * T - 140, 420, (CAMINO_P_Y1 + 1) * T + 140))
+
+    # ── la plaza del pueblo: la fuente, bancos y faroles ──
+    px0, py0, px1, py1 = PLAZA_P[0] * T, PLAZA_P[1] * T, (PLAZA_P[2] + 1) * T, (PLAZA_P[3] + 1) * T
+    pcx, pcy = (px0 + px1) / 2, (py0 + py1) / 2
+    z.poner_objeto('fuente', pcx, pcy + 30, fotos, radio=80)
+    for sx in (-1, 1):
+        z.poner_objeto('banco', pcx + sx * 170, pcy + 30, fotos, radio=30)
+        for sy in (-1, 1):
+            z.poner_objeto('farol_jardin', pcx + sx * 240, pcy + sy * 200 + 30, fotos, radio=20)
+            z.poner_objeto('hortensia_rosa' if sy < 0 else 'hortensia_azul', pcx + sx * 120, pcy + sy * 170 + 30, fotos, radio=30)
+    # ── el jardín del cenador (al suroeste de la plaza) ──
+    jx, jy = 120 * T, 196 * T
+    z.poner_objeto('cenador', jx, jy, fotos, radio=120)
+    for k in range(10):
+        a = k / 10.0 * math.tau
+        n = ('hortensia_rosa', 'hortensia_azul', 'hortensia_lila')[k % 3]
+        x, y = jx + math.cos(a) * 250, jy + math.sin(a) * 150
+        if z.libre(x, y, 26, ('campo', 'tierra')):
+            z.poner_objeto(n, x, y, fotos, radio=30)
+    for k in range(4):
+        a = k / 4.0 * math.tau + 0.4
+        x, y = jx + math.cos(a) * 330, jy + math.sin(a) * 210
+        if z.libre(x, y, 14, ('campo', 'tierra')):
+            z.poner_objeto('farol_jardin', x, y, fotos, radio=20)
+    # ── la granja del molino (sureste): vallas, campos de lavanda y tulipanes ──
+    gx0, gy0, gx1, gy1 = 232 * T, 194 * T, 296 * T, 262 * T
+    z.poner_objeto('molino', 262 * T, 214 * T, fotos, radio=140)
+    for (x, y) in ((244 * T, 226 * T), (284 * T, 230 * T), (250 * T, 206 * T)):
+        z.poner_objeto('pajar', x, y, fotos, radio=40)
+    z.poner_objeto('carreta', 276 * T, 210 * T, fotos, radio=50)
+    z.poner_objeto('pozo', 240 * T, 214 * T, fotos, radio=40)
+    for x in range(gx0 + 32, gx1 - 32, 64):
+        for y in (gy0, gy1):
+            if z.libre(x, y, 10, ('campo', 'tierra'), margen_agua=1):
+                z.poner_objeto('valla', x, y, fotos, radio=0)
+    for fila in range(6):
+        y = 240 * T + fila * 56
+        for x in range(gx0 + 60, gx0 + 600, 96):
+            if z.libre(x, y, 14, ('campo', 'tierra'), margen_agua=1):
+                z.poner_objeto('lavanda', x, y, fotos, radio=20, choca=False)
+    for fila in range(5):
+        y = 186 * T + fila * 48
+        for x in range(150 * T, 196 * T, 84):
+            if z.libre(x, y, 14, ('campo', 'tierra'), margen_agua=1):
+                z.poner_objeto('tulipanes' if (fila + x // 84) % 2 else 'tulipanes2', x, y, fotos, radio=20, choca=False)
+    z.reservado += [(px0 - 60, py0 - 60, px1 + 60, py1 + 60), (jx - 380, jy - 260, jx + 380, jy + 240),
+                    (gx0 - 60, gy0 - 80, gx1 + 60, gy1 + 60), (150 * T - 60, 186 * T - 60, 196 * T + 60, 186 * T + 300)]
+    # ── el círculo de piedras (en la zona PvP; el viejo roble en medio) ──
+    ccx, ccy = CIRCULO_P[0] * T, CIRCULO_P[1] * T
+    z.poner_arbol('arbol_ancestral', ccx, ccy + 20)
+    for k in range(9):
+        a = k / 9.0 * math.tau
+        z.poner_objeto('menhir' if k % 3 else 'menhir_bajo', ccx + math.cos(a) * 260, ccy + math.sin(a) * 170 + 20, fotos, radio=24)
+    z.reservado.append((ccx - 330, ccy - 230, ccx + 330, ccy + 260))
+    # ── por todo el prado: flores, rocas con musgo, troncos, menhires sueltos ──
+    z.esparcir(['hortensia_rosa', 'hortensia_azul', 'hortensia_lila'], 90, (60, 60, W - 60, W - 60), 24, fotos=fotos, sep=150)
+    z.esparcir(['tulipanes', 'tulipanes2'], 70, (60, 60, W - 60, W - 60), 18, fotos=fotos, sep=170)
+    z.esparcir(['roca_musgo'], 30, (60, 60, W - 60, W - 60), 30, fotos=fotos, sep=260)
+    z.esparcir(['tronco_musgo'], 16, (60, 60, W - 60, W - 60), 36, fotos=fotos, sep=380)
+    z.esparcir(['menhir', 'menhir_bajo'], 8, (60, 60, W - 60, PVP_PRADERA_Y), 22, fotos=fotos, sep=700)
+    z.esparcir(['banco'], 4, (60, 60, W - 60, W - 60), 30, fotos=fotos, sep=900)
+    # ── los árboles: cerezos en bosquecillos, abedules al norte, robles sueltos ──
+    flor = GS.ruido_valor(1206, 20)
+    puestos = 0
+    for _ in range(30000):
+        if puestos >= 430:
+            break
+        px, py = rnd.uniform(60, W - 60), rnd.uniform(60, W - 60)
+        norte = py < 900
+        cerezal = flor(px / T, py / T) > 0.64
+        if not (norte or cerezal) and rnd.random() < 0.9:
+            continue
+        if not z.libre(px, py, 44, margen_agua=4):
+            continue
+        if norte:
+            n = rnd.choices(['abedul', 'roble_redondo', 'roble_curvado'], weights=[5, 3, 2])[0]
+        elif cerezal:
+            n = rnd.choices(['cerezo', 'roble_redondo'], weights=[8, 2])[0]
+        else:
+            n = rnd.choices(['roble_redondo', 'roble_ancho', 'cerezo', 'abedul'], weights=[4, 3, 3, 2])[0]
+        z.poner_arbol(n, px, py)
+        puestos += 1
+
+    # ── los monstruos ──
+    for tipo, n, caja in (('jabali_espinoso', 2, (600, PVP_PRADERA_Y + 100, W - 100, W - 100)),
+                          ('jabali_espinoso', 4, (100, 100, W - 100, PVP_PRADERA_Y - 100)),
+                          ('driada_salvaje', 1, (600, PVP_PRADERA_Y + 100, W - 100, W - 100)),
+                          ('driada_salvaje', 3, (100, 100, W - 100, PVP_PRADERA_Y - 100)),
+                          ('golem_musgo', 1, (600, PVP_PRADERA_Y + 100, W - 100, W - 100)),
+                          ('golem_musgo', 3, (100, 100, W - 100, PVP_PRADERA_Y - 100))):
+        z.monstruos_en(tipo, n, caja, entrada)
+
+
+DISENOS = {'cementerio': (disenar_cementerio, 707), 'desierto': (disenar_desierto, 808), 'tundra': (disenar_tundra, 909),
+           'glaciar': (disenar_glaciar, 1010), 'caverna': (disenar_caverna, 1111), 'pradera': (disenar_pradera, 1212)}
+VIDA_AGUA = {'cementerio': 'rio', 'desierto': 'rio', 'tundra': None, 'glaciar': None, 'caverna': None, 'pradera': 'rio'}
 
 
 # ===========================================================================
@@ -664,7 +1097,7 @@ def ondas_arena(arr, z, semilla):
     print('  ondas de arena:', hechas)
 
 
-def pintar_playa(arr, z, nieve=False):
+def pintar_playa(arr, z, nieve=False, estilo=None):
     """LA PLAYA DE LOS OASIS (2026-10-19). "Las orillas del agua del desierto
     están malas en el tileset." Alrededor del agua el diseño pone una banda de
     camino (`orilla`), que en el desierto se vuelve arena prensada rojiza con
@@ -685,6 +1118,17 @@ def pintar_playa(arr, z, nieve=False):
         R0, R1 = 96, 124
         MOJADA, HUMEDA, CLARA = (np.array([150, 188, 216]), np.array([206, 228, 242]), np.array([236, 244, 250]))
         MAREA = np.array([218, 236, 248])
+    if estilo == 'pradera':
+        # (2026-10-25) La orilla de la pradera: tierra mojada junto al agua,
+        # una franja de arena fina y luego hierba clara que se funde.
+        R0, R1 = 64, 92
+        MOJADA, HUMEDA, CLARA = (np.array([104, 92, 64]), np.array([178, 160, 112]), np.array([150, 186, 96]))
+        MAREA = np.array([196, 178, 128])
+    elif estilo == 'cueva':
+        # La orilla del lago de la caverna: roca mojada, casi negra, y roca fría.
+        R0, R1 = 56, 80
+        MOJADA, HUMEDA, CLARA = (np.array([34, 42, 54]), np.array([56, 58, 70]), np.array([74, 70, 84]))
+        MAREA = np.array([70, 92, 104])
     for (ocx, ocy, orx, ory) in getattr(z, 'oasis', []):
         x0, x1 = int(max(0, (ocx - orx - 14) * T)), int(min(Wd, (ocx + orx + 14) * T))
         y0, y1 = int(max(0, (ocy - ory - 14) * T)), int(min(H, (ocy + ory + 14) * T))
@@ -783,14 +1227,15 @@ def pintar_playa(arr, z, nieve=False):
         out = sub.copy()
         out[..., :3] = np.where(playa[..., None], np.clip(mezcla_, 0, 255).astype(np.uint8), out[..., :3])
         arr[y0:y1, x0:x1] = out
-    print('  %s:' % ('orillas de nieve' if nieve else 'playas de los oasis'), len(getattr(z, 'oasis', [])))
+    print('  %s:' % (estilo or ('orillas de nieve' if nieve else 'playas de los oasis')), len(getattr(z, 'oasis', [])))
 
 
 def pintar_hielo(arr, z, semilla):
     """El lago helado: hielo celeste en bandas lisas (sin tramado), con su
     orilla de nieve apretada y GRIETAS en raya. Solo donde no es agua."""
     H, Wd = arr.shape[:2]
-    cx, cy, rx, ry = [v * T for v in LAGO_HELADO]
+    lago = getattr(z, 'lago_helado', None) or LAGO_HELADO       # (2026-10-25) el del glaciar es otro
+    cx, cy, rx, ry = [v * T for v in lago]
     caja_x0, caja_x1 = int(max(0, cx - rx - 2 * T)), int(min(Wd, cx + rx + 2 * T))
     caja_y0, caja_y1 = int(max(0, cy - ry - 2 * T)), int(min(H, cy + ry + 2 * T))
     sub = (slice(caja_y0, caja_y1), slice(caja_x0, caja_x1))
@@ -799,7 +1244,7 @@ def pintar_hielo(arr, z, semilla):
     # El hielo y el agua de dentro del lago: en las casillas de agua, lo que
     # no es azul (el terraplén de la orilla) también se vuelve hielo; así el
     # hielo llega hasta el agua sin escalón de tierra.
-    for (tx, ty) in z.hielo | {c for c in z.agua if ((c[0] - LAGO_HELADO[0]) / LAGO_HELADO[2]) ** 2 + ((c[1] - LAGO_HELADO[1]) / LAGO_HELADO[3]) ** 2 < 1.2}:
+    for (tx, ty) in z.hielo | {c for c in z.agua if ((c[0] - lago[0]) / lago[2]) ** 2 + ((c[1] - lago[1]) / lago[3]) ** 2 < 1.2}:
         y0, x0 = ty * T - caja_y0, tx * T - caja_x0
         if 0 <= y0 < tile_hielo.shape[0] and 0 <= x0 < tile_hielo.shape[1]:
             tile_hielo[y0:y0 + T, x0:x0 + T] = True
@@ -864,13 +1309,162 @@ def pintar_hielo(arr, z, semilla):
     arr[sub] = out
 
 
+def _caja_media(mask, k):
+    """Media de `mask` en una caja de (2k+1)² px (imagen integral, enteros)."""
+    integ = np.pad(mask.astype(np.int32), ((1, 0), (1, 0))).cumsum(0).cumsum(1)
+    hh, ww = mask.shape
+    ya, yb = np.clip(np.arange(hh) - k, 0, hh), np.clip(np.arange(hh) + k + 1, 0, hh)
+    xa, xb = np.clip(np.arange(ww) - k, 0, ww), np.clip(np.arange(ww) + k + 1, 0, ww)
+    suma = integ[yb][:, xb] - integ[ya][:, xb] - integ[yb][:, xa] + integ[ya][:, xa]
+    return suma / ((yb - ya)[:, None] * (xb - xa)[None, :]).astype(np.float32)
+
+
+def _suavizar_polilinea(pts, vueltas=2):
+    """Chaikin: la polilínea con las esquinas redondeadas (curvas, no escalones)."""
+    for _ in range(vueltas):
+        out = [pts[0]]
+        for (ax, ay), (bx, by) in zip(pts, pts[1:]):
+            out.append((ax * 0.75 + bx * 0.25, ay * 0.75 + by * 0.25))
+            out.append((ax * 0.25 + bx * 0.75, ay * 0.25 + by * 0.75))
+        out.append(pts[-1])
+        pts = out
+    return pts
+
+
+def pintar_grietas(arr, z):
+    """(2026-10-25) Las grietas del glaciar: un labio de nieve en sombra, la
+    grieta azul y su fondo casi negro; la luz en el borde de abajo y la sombra
+    en el de arriba. Todo LÍNEAS (ni un punto)."""
+    H, Wd = arr.shape[:2]
+    capas = {}
+    for nombre, ancho, dy in (('labio', 56, 0), ('grieta', 26, 0), ('fondo', 12, 2), ('pared', 8, -7), ('luz', 4, 14), ('sombra', 4, -14)):
+        m = Image.new('L', (Wd, H), 0)
+        d = ImageDraw.Draw(m)
+        for g in z.grietas:
+            pts = _suavizar_polilinea([(x * T + 8, y * T + 8 + dy) for (x, y) in g])
+            d.line(pts, fill=255, width=ancho, joint='curve')
+        capas[nombre] = np.array(m) > 0
+    a = arr[..., :3].astype(np.float32)
+    a = np.where(capas['labio'][..., None], a * 0.84 + np.array([196, 218, 238]) * 0.16, a)
+    a = np.where((capas['sombra'] & ~capas['grieta'])[..., None], np.array([150, 182, 212], np.float32), a)
+    a = np.where((capas['luz'] & ~capas['grieta'])[..., None], np.array([236, 246, 255], np.float32), a)
+    a = np.where(capas['grieta'][..., None], np.array([72, 112, 152], np.float32), a)
+    # La pared de hielo que se ve dentro (la del norte, iluminada) y el fondo.
+    a = np.where((capas['pared'] & capas['grieta'])[..., None], np.array([132, 178, 214], np.float32), a)
+    a = np.where(capas['fondo'][..., None], np.array([22, 36, 58], np.float32), a)
+    arr[..., :3] = np.clip(a, 0, 255).astype(np.uint8)
+    print('  grietas:', len(z.grietas))
+
+
+def pintar_cueva(arr, z):
+    """(2026-10-25) LA ROCA DE LA CAVERNA, vista desde arriba en 2.5D.
+
+    Lo que no es suelo (z.muro) es roca: arriba, el techo de la roca casi
+    negro en dos tonos lisos; en el borde que mira al sur (el que se ve), la
+    PARED: una franja de roca de 30 a 48 px con sus estratos (rayas), más
+    clara abajo; en el borde de arriba, un filo claro. Y el suelo junto a la
+    roca, en penumbra (se oscurece cerca de la pared). El borde va redondeado
+    (media de 15 px), no en escalera de casillas. Por franjas de 512 filas
+    para no llenar la memoria."""
+    H, Wd = arr.shape[:2]
+    M = np.zeros((N, N), bool)
+    for (x, y) in z.muro:
+        M[y, x] = True
+    PAD, FRANJA, CARA, AO = 64, 512, 48, 26
+    xs = np.arange(Wd)
+    alto_cara = (39 + 9 * np.sin(xs / 61.0 + 0.4) * np.cos(xs / 143.0)).astype(np.int32)       # 30..48 px
+    desfase = (3 * np.sin(xs / 37.0)).astype(np.int32)
+    for y0 in range(0, H, FRANJA):
+        y1 = min(H, y0 + FRANJA)
+        ya, yb = max(0, y0 - PAD), min(H, y1 + PAD)
+        filas = np.arange(ya, yb) // T
+        Mt = np.repeat(M[filas], T, axis=1)[:, :Wd]
+        W_ = _caja_media(Mt, 12) > 0.5
+        F = ~W_
+        h = yb - ya
+        # La pared: cuántos px hay hasta el suelo, mirando hacia ABAJO.
+        dS = np.zeros((h, Wd), np.int16)
+        for d in range(1, CARA + 1):
+            Fs = np.zeros_like(F)
+            Fs[:-d] = F[d:]
+            nuevo = W_ & Fs & (dS == 0)
+            dS[nuevo] = d
+        cara = (dS > 0) & (dS <= alto_cara[None, :])
+        # El filo de arriba: la roca con suelo justo encima (a 3 px).
+        filo = np.zeros_like(F)
+        for d in range(1, 4):
+            Fs = np.zeros_like(F)
+            Fs[d:] = F[:-d]
+            filo |= W_ & Fs
+        # La penumbra del suelo: la distancia a la roca (crece de px en px).
+        dW = np.full((h, Wd), AO + 1, np.int16)
+        borde = W_.copy(); visto = W_.copy()
+        for d in range(1, AO + 1):
+            g = borde.copy()
+            g[1:, :] |= borde[:-1, :]; g[:-1, :] |= borde[1:, :]
+            g[:, 1:] |= borde[:, :-1]; g[:, :-1] |= borde[:, 1:]
+            nuevo = g & ~visto
+            dW[nuevo] = d; visto |= nuevo; borde = nuevo
+        yy = np.arange(ya, yb)[:, None]
+        a = arr[ya:yb, :, :3].astype(np.float32)
+        # El suelo, en penumbra junto a la roca.
+        k = np.clip(dW.astype(np.float32) / AO, 0, 1)
+        a = np.where((F & (dW <= AO))[..., None], a * (0.62 + 0.38 * k)[..., None], a)
+        # El techo de la roca: dos tonos que se funden (bandas grandes, sin ruido).
+        onda = (np.sin(xs[None, :] / 173.0 + yy / 97.0) + np.sin(xs[None, :] / 311.0 - yy / 229.0)) * 0.25 + 0.5
+        techo = np.array([28, 24, 36], np.float32) + onda[..., None] * np.array([10, 8, 12], np.float32)
+        a = np.where((W_ & ~cara)[..., None], techo, a)
+        # La pared: de la base (más clara) a lo alto, con sus estratos.
+        t = np.clip(dS.astype(np.float32) / np.maximum(1, alto_cara[None, :]), 0, 1)
+        pared = np.array([116, 108, 128], np.float32) * (1 - t[..., None]) + np.array([80, 74, 94], np.float32) * t[..., None]
+        estrato = ((yy + desfase[None, :]) % 9) == 0
+        pared = np.where(estrato[..., None], pared - 18, pared)
+        # El canto de arriba (donde la pared se dobla en techo), claro; y el
+        # pie, oscuro: así la roca se lee de pie.
+        canto = cara & (dS > alto_cara[None, :] - 4)
+        pared = np.where(canto[..., None], np.array([132, 124, 146], np.float32), pared)
+        pared = np.where((dS <= 2)[..., None], np.array([30, 26, 36], np.float32), pared)
+        a = np.where(cara[..., None], pared, a)
+        a = np.where((filo & ~cara)[..., None], np.array([82, 76, 94], np.float32), a)
+        arr[y0:y1, :, :3] = np.clip(a[y0 - ya:y0 - ya + (y1 - y0)], 0, 255).astype(np.uint8)
+    print('  roca de la caverna: %d casillas' % len(z.muro))
+
+
+def pintar_pradera(arr, z):
+    """(2026-10-25) La hierba de la pradera con VIDA: grandes manchas que se
+    funden (más cálida y dorada donde da el sol, más fresca en las hondonadas)
+    y algunos claros de ranúnculos, todo en degradados de cientos de píxeles:
+    ni un punto, ni una flor pintada en el suelo."""
+    H, Wd = arr.shape[:2]
+    hierba = np.ones((N, N), bool)
+    for c in list(z.tierra) + list(z.agua) + list(z.piedra):
+        hierba[c[1], c[0]] = False
+    xs = np.arange(Wd, dtype=np.float32)
+    for y0 in range(0, H, 512):
+        y1 = min(H, y0 + 512)
+        yy = np.arange(y0, y1, dtype=np.float32)[:, None]
+        filas = np.arange(y0, y1) // T
+        Ht = np.repeat(hierba[filas], T, axis=1)[:, :Wd]
+        s = (np.sin(xs[None, :] / 211.0 + yy / 157.0) + np.sin(xs[None, :] / 389.0 - yy / 271.0 + 1.3)) * 0.5
+        claro = np.clip((np.sin(xs[None, :] / 263.0 + 2.1) * np.sin(yy / 197.0 + 0.7) - 0.45) / 0.4, 0, 1)
+        a = arr[y0:y1, :, :3].astype(np.float32)
+        b = a + (s * 0.09)[..., None] * np.array([34, 20, -24], np.float32)
+        b = b * (1 - 0.16 * claro[..., None]) + np.array([214, 214, 128], np.float32) * (0.16 * claro[..., None])
+        a = np.where(Ht[..., None], b, a)
+        arr[y0:y1, :, :3] = np.clip(a, 0, 255).astype(np.uint8)
+    print('  pradera: manchas de sol y claros')
+
+
 def suelo(z, datos, carpeta_tmp):
     """Pinta el suelo del pueblo, le pasa su detalle, lo recolorea y lo trocea."""
     cap = os.path.join(carpeta_tmp, z.nombre + '.png')
     det = os.path.join(carpeta_tmp, z.nombre + '_det.png')
     fin = os.path.join(carpeta_tmp, z.nombre + '_bioma.png')
     GS.pintar(datos, cap)
-    subprocess.run([sys.executable, os.path.join(AQUI, 'detallar-captura-mapa.py'), cap, det], check=True)
+    # Sin matas en la roca de la caverna ni en la nieve del glaciar: allí
+    # parecían huellas de pata.
+    extra = ['--sin-matas'] if z.nombre in ('caverna', 'glaciar') else []
+    subprocess.run([sys.executable, os.path.join(AQUI, 'detallar-captura-mapa.py'), cap, det] + extra, check=True)
     arr = np.array(Image.open(det).convert('RGBA'))
     arr = gf_biomas.recolorear(arr, z.nombre)
     if z.nombre == 'desierto':
@@ -879,6 +1473,17 @@ def suelo(z, datos, carpeta_tmp):
     if z.nombre == 'tundra':
         pintar_playa(arr, z, nieve=True)
         pintar_hielo(arr, z, 9101)
+    # (2026-10-25) Los tres mapas de nivel 8, 9 y 10.
+    if z.nombre == 'glaciar':
+        pintar_playa(arr, z, nieve=True)
+        pintar_hielo(arr, z, 10101)
+        pintar_grietas(arr, z)
+    if z.nombre == 'caverna':
+        pintar_playa(arr, z, estilo='cueva')
+        pintar_cueva(arr, z)
+    if z.nombre == 'pradera':
+        pintar_pradera(arr, z)
+        pintar_playa(arr, z, estilo='pradera')
     Image.fromarray(arr).save(fin, optimize=True)
     destino = os.path.join(BIN, 'recortadas_' + z.nombre)
     subprocess.run([sys.executable, os.path.join(AQUI, 'trocear-escena.py'), fin, destino, VERSION], check=True)
@@ -903,6 +1508,11 @@ def generar(nombre, con_suelo, carpeta_tmp):
     disenar(z, fotos)
     V = GS.vertices(z.tierra)
     datos = GS.componer(random.Random(semilla), z.agua, set(), z.tierra, z.piedra, V)
+    if nombre in ('caverna', 'glaciar'):
+        # (2026-10-25) Sin las matas de hierba del pueblo: en la roca de la
+        # caverna y en la nieve del glaciar parecían huellas de pata.
+        matas = {g for m in GS.MATAS_2X2 for g in m}
+        datos = [86 if g in matas else g for g in datos]
 
     # ── colisiones del agua (se deja pisar la orilla, como en el salvaje) ──
     # (2026-10-20) Sin las casillas que tapa la piedra: la plaza del campamento
@@ -925,6 +1535,10 @@ def generar(nombre, con_suelo, carpeta_tmp):
         me = 0
         z.colisiones.append({'x': x0 * T + mo, 'y': y0 * T + mn, 'width': (x1 - x0 + 1) * T - mo - me,
                              'height': (y1 - y0 + 1) * T - mn - ms, 'name': 'agua'})
+    # (2026-10-25) La roca de la caverna y las grietas del glaciar: no se pisan.
+    for nombre_c, celdas in (('roca', z.muro), ('grieta', z.grieta)):
+        for (x0, y0, x1, y1) in GS.rectangulos(celdas):
+            z.colisiones.append({'x': x0 * T, 'y': y0 * T, 'width': (x1 - x0 + 1) * T, 'height': (y1 - y0 + 1) * T, 'name': nombre_c})
     print('  árboles %d, objetos %d, colisiones %d, monstruos %d' % (
         len(z.arboles), len(z.objetos), len(z.colisiones), len(z.monstruos)))
     cuenta = {}
@@ -988,8 +1602,23 @@ def generar(nombre, con_suelo, carpeta_tmp):
     return z
 
 
+def casa_bruja():
+    """(2026-10-25) La casa de la bruja del cementerio, en su propio atlas:
+    Game/MAPAS/cementerio/casa_bruja.png + .json (el del cementerio no se toca)."""
+    destino = os.path.join(BIN, 'Game', 'MAPAS', 'cementerio')
+    fotos = gf_props3d.fotos('cementerio_bruja')
+    atlas_objetos(fotos, os.path.join(destino, 'casa_bruja.png'), os.path.join(destino, 'casa_bruja.json'))
+    f = fotos['casa_bruja']
+    print('  casa_bruja: foto %dx%d, apoyo %s, baja %d px bajo el apoyo' % (f['foto'].w, f['foto'].h, f['apoyo'], f['bajo']))
+
+
 def main():
-    nombres = [a for a in sys.argv[1:] if not a.startswith('--')] or list(DISENOS)
+    if 'casa_bruja' in sys.argv[1:]:
+        casa_bruja()
+    nombres = [a for a in sys.argv[1:] if not a.startswith('--') and a != 'casa_bruja']
+    if not nombres and 'casa_bruja' in sys.argv[1:]:
+        return
+    nombres = nombres or list(DISENOS)
     con_suelo = '--suelo' in sys.argv
     tmp = tempfile.mkdtemp(prefix='gf_zonas_')
     for n in nombres:

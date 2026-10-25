@@ -73,7 +73,7 @@ def mayoria(nivel, valores, lado):
     return np.array(valores, np.int8)[np.argmax(cuentas, axis=0)]
 
 
-def main(entrada, salida):
+def main(entrada, salida, matas=True):
     rng = np.random.default_rng(SEMILLA)
     im = np.array(Image.open(entrada).convert('RGBA')).astype(np.int16)
     h, w = im.shape[:2]
@@ -135,7 +135,9 @@ def main(entrada, salida):
 
     n_hierba, n_tierra, n_agua = int(hierba.sum()), int(tierra.sum()), int(agua.sum())
     total = 0
-    n_matas = n_hierba // 9000
+    # (2026-10-25) `--sin-matas`: en el suelo de roca de la caverna las briznas
+    # recoloreadas parecían huellas de pata (grupitos de manchas): fuera.
+    n_matas = n_hierba // 9000 if matas else 0
     SEP = 34                                   # px entre mata y mata, como poco
     rejilla = {}
     def lejos_de_otras(y, x):
@@ -172,6 +174,7 @@ def main(entrada, salida):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 3:
+    args = [a for a in sys.argv[1:] if a != '--sin-matas']
+    if len(args) != 2:
         raise SystemExit(__doc__)
-    main(sys.argv[1], sys.argv[2])
+    main(args[0], args[1], matas='--sin-matas' not in sys.argv)

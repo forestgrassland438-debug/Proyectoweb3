@@ -58,9 +58,18 @@ async function esperarCola(tienda, tope = 30000) {
   return tienda.trabajosPendientes() === 0;
 }
 
-function precioNeto(item, unidades) {
-  const bruto = (Number(item.sellPrice) || 0) * unidades;
-  return bruto - Math.ceil(bruto * ((Number(item.comision) || 0) / 100));
+/* LA COMISIÓN DEL TESORO (2026-10-22): el 1,5 % se cobra en BRONCE (la misma
+   cuenta que el servidor, gfComisionTesoroBronce). De una venta en plata se
+   paga la plata entera que queda y el resto en bronce; antes se quitaba la
+   `comision` de cada objeto (2-10 %) de la plata y se perdía. */
+function cobroDeVenta(item, unidades) {
+  const neto = (Number(item.sellPrice) || 0) * unidades * 1000 - banco.comisionTesoro(item.sellPrice, 'silver', unidades);
+  return { plata: Math.floor(neto / 1000), bronce: neto % 1000 };
+}
+function precioNeto(item, unidades) { return cobroDeVenta(item, unidades).plata; }
+/** Todo lo que tiene el jugador, en bronce (1 plata = 1.000). */
+function valorEnBronce(tienda) {
+  return tienda.getBalanceByCurrency('silver') * 1000 + tienda.getBalanceByCurrency('bronze');
 }
 
 (async () => {
@@ -97,6 +106,14 @@ function precioNeto(item, unidades) {
     ok(b.tienda.getBalanceByCurrency('silver') === precioNeto(item, 5),
        'y se paga el precio exacto menos comisión',
        b.tienda.getBalanceByCurrency('silver') + ' (tocaba ' + precioNeto(item, 5) + ')');
+    const bruto = item.sellPrice * 5 * 1000;
+    ok(b.tienda.getBalanceByCurrency('bronze') === (bruto - Math.round(bruto * 0.015)) % 1000,
+       'el cambio de la comisión del 1,5 % llega en bronce',
+       b.tienda.getBalanceByCurrency('bronze') + ' (tocaba ' + ((bruto - Math.round(bruto * 0.015)) % 1000) + ')');
+    const aviso = b.servidor.comisiones[0] || {};
+    ok(b.servidor.comisiones.length === 1 && aviso.operacion === 'venta' && aviso.itemId === 'zanahoria_buena' &&
+       aviso.cantidad === 5 && /^[A-Za-z0-9_-]{8,64}$/.test(String(aviso.ref || '')),
+       'y se avisa al tesoro UNA vez, con su ref', JSON.stringify(b.servidor.comisiones));
     ok(b.escena.guardados > 0, 'queda guardado en el servidor', String(b.escena.guardados));
   }
 
@@ -239,7 +256,7 @@ function precioNeto(item, unidades) {
 
     const zanahoria = banco.itemTienda(b.tienda, 'zanahoria_buena');
     const semilla   = banco.itemTienda(b.tienda, 'Semillax');
-    const plata0    = b.tienda.getBalanceByCurrency('silver');
+    const valor0    = valorEnBronce(b.tienda);
 
     await enSilencio(async () => {
       await b.tienda.processPurchase(semilla, 3);   // compra encolada
@@ -254,9 +271,14 @@ function precioNeto(item, unidades) {
     ok(b.escena.contar('zanahoria_buena') === 0, 'la venta también sale',
        String(b.escena.contar('zanahoria_buena')));
 
-    const esperado = plata0 - semilla.buyPrice * 3 + precioNeto(zanahoria, 5);
-    ok(b.tienda.getBalanceByCurrency('silver') === esperado, 'y las cuentas cuadran',
-       b.tienda.getBalanceByCurrency('silver') + ' (tocaba ' + esperado + ')');
+    // La compra paga su 1,5 % en bronce (rompiendo una plata si no hay bronce) y
+    // la venta cobra el suyo: se mira el total, en bronce.
+    const esperado = valor0 - (semilla.buyPrice * 3 * 1000 + banco.comisionTesoro(semilla.buyPrice, 'silver', 3))
+                            + (zanahoria.sellPrice * 5 * 1000 - banco.comisionTesoro(zanahoria.sellPrice, 'silver', 5));
+    ok(valorEnBronce(b.tienda) === esperado, 'y las cuentas cuadran',
+       valorEnBronce(b.tienda) + ' BR (tocaba ' + esperado + ')');
+    ok(b.servidor.comisiones.length === 2, 'y el tesoro recibe las dos comisiones',
+       JSON.stringify(b.servidor.comisiones.map(c => c.operacion)));
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -474,6 +496,28 @@ function precioNeto(item, unidades) {
     ok(b.tienda.getBalanceByCurrency('silver') === precioNeto(item, 4) + precioNeto(item, 5),
        'y el total pagado es la suma de las dos',
        String(b.tienda.getBalanceByCurrency('silver')));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log('\n16) Con el servidor de antes (sin tesoro) no se cobra comisión');
+  {
+    const b = banco.montar(BIN, { servidorViejo: true });
+    b.tienda.playerMonedaPlata = 1000;
+    const id = b.cadena.crear(JUGADOR, 'zanahoria_buena', 5, 'z1');
+    b.escena.poner(3, 'zanahoria_buena', 5, id, 'z1');
+    const zanahoria = banco.itemTienda(b.tienda, 'zanahoria_buena');
+    const semilla   = banco.itemTienda(b.tienda, 'Semillax');
+
+    await enSilencio(async () => {
+      await b.tienda.processPurchase(semilla, 3);
+      await b.tienda.processSale(zanahoria, 5);
+      await esperarCola(b.tienda, 60000);
+    });
+    const esperado = 1000 - semilla.buyPrice * 3 + zanahoria.sellPrice * 5;
+    ok(b.tienda.getBalanceByCurrency('silver') === esperado, 'se paga y se cobra el precio justo, sin el 1,5 %',
+       b.tienda.getBalanceByCurrency('silver') + ' (tocaba ' + esperado + ')');
+    ok(b.tienda.getBalanceByCurrency('bronze') === 0, 'no se toca el bronce', String(b.tienda.getBalanceByCurrency('bronze')));
+    ok(b.servidor.comisiones.length === 0, 'y no se avisa a un tesoro que no existe', String(b.servidor.comisiones.length));
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

@@ -63,6 +63,38 @@ BIOMAS = {
         'agua':   (0.585, 0.62, 0.70, 0.50),
         'otro_sat': 0.30, 'otro_val': 1.05,
     },
+    # (2026-10-25) LOS TRES MAPAS NUEVOS.
+    # El glaciar: nieve vieja más azulada que la de la tundra, caminos de
+    # hielo prensado, roca de pizarra azul y agua de deshielo, honda y fría.
+    'glaciar': {
+        'hierba': (0.565, 0.13, 0.91, 0.32),
+        # (2026-10-25) Poco saturados: con más azul, gf-agua (y la pesca del
+        # servidor) tomaban los caminos de hielo por agua. Y claros, de nieve
+        # prensada: en gris oscuro las manchas parecían losas sueltas.
+        # Comprobado contra el tileset: b - r no pasa de 26 (agua > 35).
+        'tierra': (0.575, 0.12, 0.84, 0.50),
+        'piedra': (0.600, 0.12, 0.56, 0.95),
+        'agua':   (0.560, 0.70, 0.66, 0.50),
+        'otro_sat': 0.28, 'otro_val': 1.05,
+    },
+    # La caverna: suelo de roca fría y oscura (pizarra violácea), caminos de
+    # tierra apisonada, losas talladas y el lago subterráneo, turquesa.
+    'caverna': {
+        'hierba': (0.690, 0.13, 0.34, 0.70),
+        'tierra': (0.070, 0.30, 0.38, 0.80),
+        'piedra': (0.640, 0.10, 0.40, 0.95),
+        'agua':   (0.540, 0.68, 0.60, 0.50),
+        'otro_sat': 0.35, 'otro_val': 0.60,
+    },
+    # La pradera: hierba de primavera, viva y clara; caminos de tierra
+    # cálida, piedra clara y agua limpia. Las flores del dibujo se quedan.
+    'pradera': {
+        'hierba': (0.255, 0.50, 0.63, 0.85),
+        'tierra': (0.085, 0.38, 0.72, 0.75),
+        'piedra': (0.100, 0.10, 0.70, 0.90),
+        'agua':   (0.570, 0.60, 0.80, 0.45),
+        'otro_sat': 1.0, 'otro_val': 1.0,
+    },
 }
 
 

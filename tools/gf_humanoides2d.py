@@ -1776,3 +1776,61 @@ def frames_humanoide(per, receta, extra=None):
                 li = extra(li, per, d, n)
             out['%s_%d' % (d, n)] = li
     return out
+
+
+# ── LOS DE LOS MAPAS DE NIVEL 8, 9 Y 10 (2026-10-25) ───────────────────────
+# El ESPECTRO DE HIELO del glaciar: el fantasma de siempre en blanco y azul
+# (kimono de escarcha, melena blanca y ojos celestes que brillan).
+def _kimono_hielo(li, partes, cuello, cintura, dir_, n):
+    return kimono(li, partes, cuello, cintura, dir_, tonos('#e8f4fc', 4, arriba=0.3, abajo=0.4),
+                  tonos('#5aa8d6', 2, arriba=0.2), hex_rgb('#1a3a5a'))
+
+
+RECETA_ESPECTRO_HIELO = {
+    'contorno': hex_rgb('#1a3a5a'),
+    'paletas': {
+        'piel': tonos('#cfeaf8', 3, arriba=0.3), 'mano': tonos('#cfeaf8', 3, arriba=0.3),
+        'ojo': ojos_brillantes(hex_rgb('#8ce9ff'), hex_rgb('#1a4a6a')),
+        'pelo': tonos('#e8f6ff', 4, arriba=0.4, abajo=0.4),
+        'camisa': tonos('#e8f4fc', 4, arriba=0.3, abajo=0.4),
+        'pantalon': tonos('#d8ecf8', 3),
+    },
+    'cola': tonos('#d8ecf8', 3, arriba=0.3, abajo=0.4),
+    'pelo_estilo': 'yurei',
+    'pelo_tonos': tonos('#eef6ff', 4, arriba=0.45, abajo=0.45),
+    'ropa': _kimono_hielo,
+}
+
+
+def receta_troll():
+    """El TROL DE LA CUEVA: piel gris verdosa, harapos de cuero, la mata
+    enmarañada y una maza de piedra (el báculo, con la cabeza de roca)."""
+    r = receta_zombi('#8a9a76', '#5a4632', '#3a3428', estilo='salvaje', semilla=77)
+    r['paletas']['ojo'] = ojos_brillantes(hex_rgb('#ffb04a'), hex_rgb('#3a1a08'))
+    r.update({'baculo': True, 'baculo_arriba': 14,
+              'madera': [hex_rgb('#7a5a3a'), hex_rgb('#5a4028')],
+              'cristal': [hex_rgb('#a8a2b0'), hex_rgb('#7d7787'), hex_rgb('#4a4552')],
+              'contorno': (20, 18, 16)})
+    return r
+
+
+# La DRÍADE SALVAJE de la pradera: piel de corteza clara, melena de hojas,
+# vestido verde hasta los pies con el ribete de flor y un báculo con una flor.
+RECETA_DRIADA = {
+    'pelo_estilo': 'larga',
+    'pelo_tonos': tonos('#5f9a3a', 4, arriba=0.35, abajo=0.5),
+    'contorno': hex_rgb('#1a2410'),
+    'paletas': {
+        'piel': tonos('#bccb94', 3, arriba=0.18, abajo=0.38), 'mano': tonos('#bccb94', 3, arriba=0.18, abajo=0.38),
+        'pies': tonos('#5a4028', 3),
+        'ojo': ojos_brillantes(hex_rgb('#e8ff9a'), hex_rgb('#2a4010')),
+        'pelo': tonos('#4f8a32', 4, arriba=0.3, abajo=0.5),
+        'camisa': tonos('#4f7a32', 4, arriba=0.25, abajo=0.5),
+        'pantalon': tonos('#3e6428', 3),
+    },
+    'tunica': tonos('#4f7a32', 3, arriba=0.25, abajo=0.45),
+    'ribete': hex_rgb('#e88ab0'),
+    'baculo': True, 'baculo_arriba': 22,
+    'madera': [hex_rgb('#7a5a3a'), hex_rgb('#5a4028')],
+    'cristal': [hex_rgb('#ffe0ec'), hex_rgb('#e88ab0'), hex_rgb('#a8406a')],
+}

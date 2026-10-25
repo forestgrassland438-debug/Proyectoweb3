@@ -687,8 +687,303 @@ BESTIAS3D = {
     'golem_hielo': (golem, GOLEM_HIELO_MAT, 84, 108, contorno_de(hex_rgb('#3f6f9c')), 1.0),
     'lobo_escarcha': (lobo, LOBO_ESCARCHA_MAT, 68, 58, hex_rgb('#1a2236'), 1.0),
 }
+# ===========================================================================
+# LAS BESTIAS DE LOS MAPAS DE NIVEL 8, 9 Y 10                     (2026-10-25)
+# ===========================================================================
+# El glaciar: el YETI (pelo blanco en bandas, cara azul y ojos encendidos) y
+# el OSO POLAR. La caverna: el MURCIÉLAGO GIGANTE (alas que baten) y el GÓLEM
+# DE CRISTAL. La pradera: el JABALÍ ESPINOSO (crin en raya y púas en fila) y
+# el GÓLEM DE MUSGO (corteza, musgo y flores). Mismas reglas: bandas lisas,
+# contorno del juego, nada de motas; las púas y los cristales, en fila.
+
+YETI_MAT = {
+    'pelo': {'tonos': rampa(hex_rgb('#e8eef6'), 5, arriba=0.45, abajo=0.36)},
+    'pelo_o': {'tonos': rampa(hex_rgb('#b8c6d8'), 5, arriba=0.35, abajo=0.45)},
+    'cara': {'tonos': rampa(hex_rgb('#6f8fb0'), 5, arriba=0.3, abajo=0.5)},
+    'boca': {'tonos': rampa(hex_rgb('#3a2a40'), 5, arriba=0.2, abajo=0.4)},
+    'diente': {'tonos': rampa(hex_rgb('#f2ede0'), 5, arriba=0.1, abajo=0.3)},
+    'cuerno': {'tonos': rampa(hex_rgb('#9fd9f0'), 5, arriba=0.45, abajo=0.5)},
+    'ojo': {'emite': hex_rgb('#8ce9ff')},
+}
+
+
+def yeti(accion, i):
+    """Un yeti erguido: patas cortas y fuertes, el tronco ancho inclinado, los
+    brazos largos que casi tocan el suelo, la cara azul con dos cuernos de hielo."""
+    bob, paso, lean, alza = 0.0, 0.0, 0.15, 0.0
+    if accion == 'camina':
+        f = (i - 1) / 4.0 * math.pi * 2
+        paso = math.sin(f)
+        bob = 1.0 if i in (2, 4) else 0.0
+    elif accion == 'quieto':
+        bob = 0.8 if i == 2 else 0.0
+    else:
+        lean = (0.0, -0.15, 0.4)[i - 1]
+        alza = (6.0, 12.0, -4.0)[i - 1]
+    pr = []
+    for sg in (1, -1):
+        av = paso * 6 * sg
+        pr.append(cono((0, 22 + bob, 7 * sg), (av, 5, 7.5 * sg), 6.0, 5.2, 'pelo_o'))
+        pr.append(elip((av + 2, 2.6, 7.5 * sg), (6.4, 2.8, 4.6), 'cara'))
+    tor = (2, 36 + bob, 0)
+    torso = elip(tor, (13, 15, 14), 'pelo', rot=giro_z(-lean))
+    pr.append(torso)
+    pr.append(elip((tor[0] + 7, tor[1] - 2, 0), (7, 9, 9.5), 'pelo_o'))           # el pecho
+    cab = (tor[0] + 9, tor[1] + 15, 0)
+    pr.append(elip(cab, (7.5, 7.0, 7.2), 'pelo'))
+    pr.append(elip((cab[0] + 4.6, cab[1] - 1.2, 0), (4.2, 4.4, 5.2), 'cara'))
+    pr.append(elip((cab[0] + 7.6, cab[1] - 3.4, 0), (1.6, 1.4 + (1.5 if accion == 'ataque' else 0), 3.0), 'boca'))
+    for sg in (1, -1):
+        pr.append(elip((cab[0] + 7.2, cab[1] + 0.6, 2.2 * sg), (0.9, 0.9, 0.9), 'ojo'))
+        pr.append(cono((cab[0] - 1, cab[1] + 5, 4.5 * sg), (cab[0] - 5, cab[1] + 12, 7.5 * sg), 1.8, 0.3, 'cuerno'))
+        hombro = (tor[0] + 2, tor[1] + 8, 13.5 * sg)
+        if accion == 'ataque':
+            puno = {1: (8, 58, 12), 2: (2, 66, 10), 3: (24, 8, 10)}[i]
+            codo = {1: (8, 48, 18), 2: (2, 54, 17), 3: (18, 24, 17)}[i]
+        elif accion == 'camina':
+            puno = (6 - paso * 9 * sg, 10, 17)
+            codo = (4 - paso * 4 * sg, 26, 18)
+        else:
+            puno = (7, 10 + bob, 17)
+            codo = (4, 26, 18)
+        codo = (codo[0], codo[1], codo[2] * sg)
+        puno = (puno[0], puno[1], puno[2] * sg)
+        pr.append(cono(hombro, codo, 5.0, 4.6, 'pelo'))
+        pr.append(cono(codo, puno, 4.6, 4.2, 'pelo'))
+        pr.append(elip(puno, (5.2, 4.6, 4.6), 'cara'))
+
+    def retoque(p, Pm, nm, nw):
+        # El pelo en mechones: bandas que bajan (rayas), más oscuras a ratos.
+        if p['mat'] == 'pelo' and abs(nw[1]) < 0.55 and ((Pm[1] + Pm[0] * 0.3) % 5.0) < 0.9:
+            return 'pelo_o'
+        return None
+    return pr, retoque
+
+
+OSO_MAT = {
+    'pelo': {'tonos': rampa(hex_rgb('#eef2f4'), 5, arriba=0.4, abajo=0.38)},
+    'claro': {'tonos': rampa(hex_rgb('#f8f6ee'), 5, arriba=0.25, abajo=0.32)},
+    'oscuro': {'tonos': rampa(hex_rgb('#b9c3cc'), 5, arriba=0.3, abajo=0.45)},
+    'nariz': {'tonos': rampa(hex_rgb('#1d2030'), 5, arriba=0.25, abajo=0.3)},
+    'diente': {'tonos': rampa(hex_rgb('#efe8d6'), 5, arriba=0.1, abajo=0.3)},
+    'boca': {'tonos': rampa(hex_rgb('#6a2a3a'), 5, arriba=0.2, abajo=0.4)},
+    'ojo': {'emite': hex_rgb('#5fc8ff')},
+}
+
+
+def oso(accion, i):
+    """El oso polar: el lobo con más cuerpo, patas cortas y gruesas, orejas
+    redondas, el hocico largo y la cola corta."""
+    f = (i - 1) / 4.0 * math.pi * 2
+    agacha, avanza, abre, alza = 0.0, 0.0, 0.0, 0.0
+    if accion == 'camina':
+        bob = 0.8 if i in (2, 4) else 0.0
+    elif accion == 'quieto':
+        bob = 0.6 if i == 2 else 0.0
+    else:
+        bob = 0.0
+        alza = (4.0, 9.0, 0.0)[i - 1]
+        avanza = (-1.0, 3.0, 7.0)[i - 1]
+        abre = (1.0, 3.0, 0.6)[i - 1]
+    y0 = bob
+    pr = [elip((avanza * 0.4, 21 + y0 + alza * 0.3, 0), (17, 10, 11), 'pelo'),
+          elip((-11 + avanza * 0.2, 20 + y0, 0), (9, 9.5, 10), 'pelo'),
+          elip((10 + avanza * 0.7, 22 + y0 + alza * 0.6, 0), (9, 10, 10.5), 'pelo')]
+    hx, hy = 21 + avanza, 26 + y0 + alza
+    pr.append(cono((12 + avanza * 0.7, 24 + y0 + alza * 0.6, 0), (hx - 3, hy, 0), 6.5, 5.5, 'pelo'))
+    pr.append(elip((hx, hy, 0), (6.2, 5.6, 6.0), 'pelo'))
+    pr.append(cono((hx + 3, hy - 1, 0), (hx + 9, hy - 2.5, 0), 3.6, 2.8, 'claro'))
+    pr.append(elip((hx + 9.4, hy - 2.0, 0), (1.5, 1.3, 1.6), 'nariz'))
+    pr.append(cono((hx + 3, hy - 3.6, 0), (hx + 8, hy - 4.6 - abre, 0), 2.4, 1.6, 'claro'))
+    if abre > 1.5:
+        pr.append(cono((hx + 3.4, hy - 3.6, 0), (hx + 7.6, hy - 3.8 - abre * 0.5, 0), 1.4, 1.0, 'boca'))
+        for sg in (1, -1):
+            pr.append(cono((hx + 7.4, hy - 2.8, 1.1 * sg), (hx + 7.4, hy - 4.0, 1.1 * sg), 0.6, 0.2, 'diente'))
+    for sg in (1, -1):
+        pr.append(elip((hx - 2, hy + 4.6, 3.8 * sg), (1.8, 1.8, 1.2), 'oscuro'))
+        pr.append(elip((hx + 3.6, hy + 1.4, 3.6 * sg), (0.9, 0.7, 0.8), 'ojo'))
+    for delante, base_x in ((True, 10), (False, -11)):
+        for sg in (1, -1):
+            fase = f + (0 if (sg > 0) == delante else math.pi)
+            sw = math.sin(fase) * 4.0 if accion == 'camina' else 0.0
+            lift = max(0.0, math.cos(fase)) * 2.0 if accion == 'camina' else 0.0
+            if accion == 'ataque' and delante:
+                lift = (2.0, 10.0, 0.0)[i - 1]
+                sw = (1.0, 6.0, 9.0)[i - 1]
+            hx0, hy0, z = base_x + avanza * (0.7 if delante else 0.2), 17 + y0, 7.0 * sg
+            pata = (hx0 + sw, 2.0 + lift, z * 1.05)
+            pr.append(cono((hx0, hy0, z), pata, 4.4, 3.6, 'pelo'))
+            pr.append(elip((pata[0] + 1.2, pata[1], pata[2]), (3.8, 2.0, 3.0), 'oscuro'))
+    pr.append(elip((-21 + avanza * 0.2, 23 + y0, 0), (2.4, 2.2, 2.4), 'pelo'))
+
+    def retoque(p, Pm, nm, nw):
+        if p['mat'] == 'pelo' and nm[1] < -0.4:
+            return 'oscuro'                       # la tripa, en sombra fría
+        return None
+    return pr, retoque
+
+
+MURCIELAGO_MAT = {
+    'pelo': {'tonos': rampa(hex_rgb('#4a3e58'), 5, arriba=0.32, abajo=0.55)},
+    'ala': {'tonos': rampa(hex_rgb('#6a4a7a'), 5, arriba=0.3, abajo=0.5)},
+    'hueso': {'tonos': rampa(hex_rgb('#2e2638'), 5, arriba=0.25, abajo=0.45)},
+    'oreja': {'tonos': rampa(hex_rgb('#8a6a96'), 5, arriba=0.3, abajo=0.5)},
+    'diente': {'tonos': rampa(hex_rgb('#f2ede0'), 5, arriba=0.1, abajo=0.3)},
+    'ojo': {'emite': hex_rgb('#ff6a8a')},
+}
+
+
+def murcielago(accion, i):
+    """El murciélago gigante: cuerpo peludo, orejas grandes, colmillos y las
+    alas, que BATEN (arriba, en medio, abajo) con sus varillas de hueso."""
+    if accion == 'camina':
+        batir = (0.9, 0.2, -0.6, 0.2)[i - 1]
+        y0 = (2.0, 0.0, -1.5, 0.0)[i - 1]
+    elif accion == 'quieto':
+        batir = (0.5, 0.1)[i - 1]
+        y0 = (1.0, 0.0)[i - 1]
+    else:
+        batir = (1.1, -0.4, -0.9)[i - 1]
+        y0 = (3.0, -2.0, -4.0)[i - 1]
+    alto = 26 + y0
+    pr = [elip((0, alto, 0), (8, 9, 7.5), 'pelo'),
+          elip((7, alto + 6, 0), (5.6, 5.2, 5.6), 'pelo')]
+    for sg in (1, -1):
+        pr.append(cono((6, alto + 10, 2.8 * sg), (4, alto + 18, 4.2 * sg), 2.6, 0.5, 'oreja'))
+        pr.append(elip((11.4, alto + 7, 2.0 * sg), (0.9, 0.9, 0.9), 'ojo'))
+        pr.append(cono((11.6, alto + 3.6, 1.0 * sg), (11.8, alto + 1.4, 1.0 * sg), 0.6, 0.15, 'diente'))
+        # El ala: varillas desde el hombro (hueso) y la membrana entre ellas.
+        hombro = (2, alto + 4, 6 * sg)
+        codo = (6, alto + 4 + batir * 10, 18 * sg)
+        punta = (0, alto + 2 + batir * 18, 30 * sg)
+        pr.append(cono(hombro, codo, 1.4, 1.1, 'hueso'))
+        pr.append(cono(codo, punta, 1.1, 0.5, 'hueso'))
+        mem = elip(((hombro[0] + punta[0]) / 2 - 2, (hombro[1] + punta[1]) / 2 - 3, (hombro[2] + punta[2]) / 2),
+                   (8.5, 1.2, 13), 'ala')
+        pr.append(mem)
+        pr.append(cono((-4, alto - 6, 3 * sg), (-2, alto - 14, 3.5 * sg), 1.3, 0.8, 'hueso'))  # las patas colgando
+
+    def retoque(p, Pm, nm, nw):
+        if p['mat'] == 'ala' and (abs(Pm[2]) % 6.0) < 0.8:
+            return 'hueso'                        # las varillas de la membrana: rayas
+        return None
+    return pr, retoque
+
+
+JABALI_MAT = {
+    'pelo': {'tonos': rampa(hex_rgb('#6e4a32'), 5, arriba=0.3, abajo=0.55)},
+    'crin': {'tonos': rampa(hex_rgb('#3a2618'), 5, arriba=0.25, abajo=0.5)},
+    'hocico': {'tonos': rampa(hex_rgb('#c08878'), 5, arriba=0.25, abajo=0.45)},
+    'colmillo': {'tonos': rampa(hex_rgb('#f2ead6'), 5, arriba=0.12, abajo=0.32)},
+    'espina': {'tonos': rampa(hex_rgb('#7a9a4a'), 5, arriba=0.3, abajo=0.5)},
+    'pezuna': {'tonos': rampa(hex_rgb('#2a2018'), 5, arriba=0.2, abajo=0.4)},
+    'ojo': {'emite': hex_rgb('#ff9a3a')},
+}
+
+
+def jabali(accion, i):
+    """El jabalí espinoso: lomo alto con la crin en raya y una fila de púas
+    verdes (espinos), colmillos curvos y el hocico plano."""
+    f = (i - 1) / 4.0 * math.pi * 2
+    agacha, avanza = 0.0, 0.0
+    if accion == 'camina':
+        bob = 0.6 if i in (2, 4) else 0.0
+    elif accion == 'quieto':
+        bob = 0.4 if i == 2 else 0.0
+    else:
+        bob = 0.0
+        agacha = (2.5, 0.5, 1.5)[i - 1]
+        avanza = (-1.5, 6.0, 3.0)[i - 1]
+    y0 = bob - agacha
+    cuerpo = elip((avanza * 0.4, 17 + y0, 0), (15, 8.5, 8.5), 'pelo')
+    pr = [cuerpo, elip((8 + avanza * 0.7, 18 + y0, 0), (8, 9.5, 8.6), 'pelo')]
+    hx, hy = 17 + avanza, 15 + y0
+    pr.append(elip((hx, hy, 0), (6.6, 5.6, 5.6), 'pelo'))
+    pr.append(cono((hx + 3, hy - 1, 0), (hx + 9, hy - 2.4, 0), 3.4, 3.0, 'pelo'))
+    pr.append(elip((hx + 9.6, hy - 2.4, 0), (1.2, 2.6, 2.8), 'hocico'))
+    for sg in (1, -1):
+        pr.append(cono((hx + 6, hy - 3.4, 2.4 * sg), (hx + 9.5, hy + 0.5, 3.4 * sg), 0.9, 0.3, 'colmillo'))
+        pr.append(elip((hx + 2.6, hy + 2.0, 3.6 * sg), (0.8, 0.7, 0.7), 'ojo'))
+        pr.append(cono((hx - 2, hy + 4, 3.2 * sg), (hx - 4, hy + 8, 4.2 * sg), 1.8, 0.4, 'crin'))
+    for k, x in enumerate((-10, -6, -2, 2, 6)):
+        base = (x + avanza * 0.4, 17 + y0 + 8.3 * math.sqrt(max(0.0, 1 - (x / 15.0) ** 2)) - 1.0, 0)
+        pr.append(cono(base, (base[0] - 2.5, base[1] + 5.5 + (1.5 if k in (1, 2, 3) else 0), 0), 1.6, 0.15, 'espina'))
+    for delante, base_x in ((True, 8), (False, -9)):
+        for sg in (1, -1):
+            fase = f + (0 if (sg > 0) == delante else math.pi)
+            sw = math.sin(fase) * 3.6 if accion == 'camina' else 0.0
+            lift = max(0.0, math.cos(fase)) * 1.8 if accion == 'camina' else 0.0
+            if accion == 'ataque':
+                sw = (-2.0, 6.0, 2.0)[i - 1] if delante else (2.0, -5.0, -2.0)[i - 1]
+            hx0, z = base_x + avanza * (0.8 if delante else 0.2), 5.0 * sg
+            pata = (hx0 + sw, 1.6 + lift, z * 1.05)
+            pr.append(cono((hx0, 12 + y0, z), pata, 2.6, 1.8, 'pelo'))
+            pr.append(elip((pata[0] + 0.6, pata[1], pata[2]), (1.8, 1.4, 1.6), 'pezuna'))
+    pr.append(cono((-15 + avanza * 0.3, 19 + y0, 0), (-19, 15 + y0, 0), 1.0, 0.6, 'crin'))
+
+    def retoque(p, Pm, nm, nw):
+        # La crin: UNA raya oscura por el lomo.
+        if p is cuerpo and abs(Pm[2]) < 1.6 and nw[1] > 0.5:
+            return 'crin'
+        return None
+    return pr, retoque
+
+
+GOLEM_CRISTAL_MAT = {
+    'piedra': {'tonos': rampa(hex_rgb('#5e5866'), 5, arriba=0.32, abajo=0.58)},
+    'piedra_o': {'tonos': rampa(hex_rgb('#45404d'), 5, arriba=0.28, abajo=0.6)},
+    'musgo': {'tonos': rampa(hex_rgb('#a77ae6'), 5, arriba=0.45, abajo=0.5)},
+    'runa': {'emite': hex_rgb('#c79cff')},
+    'runa2': {'emite': hex_rgb('#f2e2ff')},
+    'ojo': {'emite': hex_rgb('#e6c8ff')},
+    'cristal': {'tonos': rampa(hex_rgb('#b48cff'), 5, arriba=0.45, abajo=0.5), 'brillo': True},
+}
+GOLEM_MUSGO_MAT = {
+    'piedra': {'tonos': rampa(hex_rgb('#6e5236'), 5, arriba=0.3, abajo=0.58)},
+    'piedra_o': {'tonos': rampa(hex_rgb('#54402a'), 5, arriba=0.28, abajo=0.6)},
+    'musgo': {'tonos': rampa(hex_rgb('#5f9a3a'), 5, arriba=0.32, abajo=0.55)},
+    'runa': {'emite': hex_rgb('#ffb8d0')},
+    'runa2': {'emite': hex_rgb('#fff0f4')},
+    'ojo': {'emite': hex_rgb('#d8ff8a')},
+    'cristal': {'tonos': rampa(hex_rgb('#e88ab0'), 5, arriba=0.35, abajo=0.45)},
+}
+
+
+def golem_con_puas(accion, i):
+    """El gólem de siempre con una fila de cristales (o de flores) por el lomo
+    y los hombros: el de cristal de la caverna y el de musgo de la pradera."""
+    pr, ret = golem(accion, i)
+    torso = pr[5]
+    c = torso['c']
+    for dx, dy, dz, alto, ra in ((-8, 9, 6, 13, 3.0), (-9, 8, -6, 11, 2.8), (-4, 12, 0, 15, 3.4),
+                                 (-1, 7, 15, 9, 2.4), (-1, 7, -15, 9, 2.4)):
+        base = c + np.array((dx, dy, dz), float)
+        punta = base + np.array((-alto * 0.3, alto, dz * 0.12))
+        pr.append(cono(base, punta, ra, 0.35, 'cristal'))
+    return pr, ret
+
+
+def giro_x(a):
+    c, s = math.cos(a), math.sin(a)
+    return np.array([[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]])
+
+
+BESTIAS3D.update({
+    # (2026-10-25) Los de nivel 8, 9 y 10.
+    'yeti': (yeti, YETI_MAT, 84, 104, contorno_de(hex_rgb('#7f93b0')), 1.0),
+    'oso_polar': (oso, OSO_MAT, 80, 64, contorno_de(hex_rgb('#8a9aaa')), 1.0),
+    'murcielago': (murcielago, MURCIELAGO_MAT, 84, 74, hex_rgb('#16101c'), 1.0),
+    'jabali': (jabali, JABALI_MAT, 72, 52, contorno_de(hex_rgb('#3a2618')), 1.0),
+    'golem_cristal': (golem_con_puas, GOLEM_CRISTAL_MAT, 84, 112, contorno_de(hex_rgb('#45404d')), 1.0),
+    'golem_musgo': (golem_con_puas, GOLEM_MUSGO_MAT, 84, 112, contorno_de(hex_rgb('#54402a')), 1.0),
+})
+
 VISTAS = (('lado', ''), ('frente', '_abajo'), ('espalda', '_arriba'))
 ACCIONES = (('camina', 4), ('ataque', 3), ('quieto', 2))
+# (2026-10-25) El murciélago de perfil puro enseña las alas de canto (una
+# bola con dos rayas): su "perfil" se fotografía girado hacia quien mira, con
+# las alas abiertas en escorzo. 0 = derecha, pi/2 = de frente.
+ANGULO_LADO = {'murcielago': 0.85, 'jefe_murcielago': 0.85}
 
 
 def pivote(tipo):
@@ -707,5 +1002,6 @@ def bestia_frames(tipo):
         for acc, n in ACCIONES:
             for i in range(1, n + 1):
                 prims, retoque = modelo(acc, i)
-                out['%s%s_%d' % (acc, suf, i)] = fotografiar(prims, W, H, vista, mats, retoque, cont, k)
+                v = ANGULO_LADO.get(tipo, vista) if vista == 'lado' else vista
+                out['%s%s_%d' % (acc, suf, i)] = fotografiar(prims, W, H, v, mats, retoque, cont, k)
     return out

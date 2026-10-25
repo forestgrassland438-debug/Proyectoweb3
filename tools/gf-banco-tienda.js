@@ -280,6 +280,7 @@ class ServidorFalso {
     this.transacciones = new Map();   // transactionId → {status, txHash}
     this.peticiones = [];             // traza
     this.contadorTx = 0;
+    this.comisiones = [];             // los avisos al tesoro (POST /api/tesoro/comision)
   }
 
   get abi() {
@@ -375,6 +376,19 @@ class ServidorFalso {
         t._servida = true;
       }
       return json(200, { success: true, transaction: t });
+    }
+
+    /* EL TESORO (2026-10-22). La tienda pregunta por /api/botes para saber si
+       el servidor ya tiene el tesoro (si da 404 no cobra el 1,5 %), y avisa
+       de cada comisión cobrada. `servidorViejo` imita el servidor de antes. */
+    if (ruta.split('?')[0] === '/api/botes') {
+      if (this.opciones.servidorViejo) return json(404, { error: 'Not found' });
+      return json(200, { ok: true, botes: [] });
+    }
+    if (ruta === '/api/tesoro/comision' && metodo === 'POST') {
+      if (this.opciones.servidorViejo) return json(404, { error: 'Not found' });
+      this.comisiones.push(cuerpo);
+      return json(200, { ok: true });
     }
 
     return json(404, { success: false, error: 'ruta no imitada: ' + ruta });
@@ -548,7 +562,8 @@ function cargarFuentes(BIN) {
     eval(fs.readFileSync(path.join(BIN, 'phaser-relay-library.js'), 'utf8'));
     _PhaserRelay = global.PhaserRelay;
     eval(fs.readFileSync(path.join(BIN, 'tienda_sistema.js'), 'utf8') +
-         '\n;global.__TiendaSistema = TiendaSistema;');
+         '\n;global.__TiendaSistema = TiendaSistema;' +
+         '\n;global.__gfComisionTesoroBronce = typeof gfComisionTesoroBronce === "function" ? gfComisionTesoroBronce : null;');
     _TiendaSistema = global.__TiendaSistema;
   } finally {
     console.log = hablar; console.error = gritar; console.warn = avisar;
@@ -575,6 +590,11 @@ function montar(BIN, opciones = {}) {
   const cadena = new CadenaFalsa();
   const servidor = new ServidorFalso(cadena, JUGADOR, opciones);
   global.fetch = (url, opts) => servidor.fetch(url, opts);
+
+  /* El bronce vive en gf-bronce.js (GFBronce): la comisión del tesoro se cobra
+     y el cambio se devuelve en bronce. Sin esto el saldo de bronce sería 0. */
+  let bronce = Math.max(0, Math.floor(Number(opciones.bronce) || 0));
+  global.GFBronce = { valor: () => bronce, pintar: (n) => { bronce = Math.max(0, Math.floor(Number(n) || 0)); } };
 
   const escena = new EscenaFalsa(BIN);
   const tienda = new _TiendaSistema(escena);
@@ -605,7 +625,13 @@ function itemTienda(tienda, id) {
   return null;
 }
 
+/** La comisión del tesoro en bronce: la de tienda_sistema.js (se carga en `montar`). */
+function comisionTesoro(precioUnidad, moneda, cantidad) {
+  if (typeof global.__gfComisionTesoroBronce !== 'function') throw new Error('tienda_sistema.js sin gfComisionTesoroBronce');
+  return global.__gfComisionTesoroBronce(precioUnidad, moneda, cantidad);
+}
+
 module.exports = {
-  montar, itemTienda, CadenaFalsa, ServidorFalso, EscenaFalsa,
+  montar, itemTienda, comisionTesoro, CadenaFalsa, ServidorFalso, EscenaFalsa,
   DIRECCION_CONTRATO, ABI_ITEM, montarNavegador, nodoFalso
 };

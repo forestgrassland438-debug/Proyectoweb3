@@ -102,6 +102,17 @@ NPCS = {
                                             ojo='#3e7a4c', cabeza='personaje9', gorro='#6b7a3a'), None),
     'cazador': ('personaje8', receta(PIEL_MEDIA, '#8a8078', '#556b3a', '#4a3a2a', pies='#3a2a1e',
                                      ojo='#7a5a2a', gorro='#6a4a2c'), None),
+    # ── (2026-10-25) los mapas de nivel 8, 9 y 10 ──
+    'guia_glaciar': ('personaje11', receta(PIEL_CLARA, '#efe6cf', '#3a6a9c', '#3a4048', pies='#2a2a30',
+                                           cuello_piel='#f4f0e8', ojo='#4f93c4', cabeza='personaje13', gorro='#3a6a9c'), None),
+    'minero': ('personaje8', receta(PIEL_MEDIA, '#4a3a2a', '#7a5a3a', '#3a3a40', pies='#2a1e16',
+                                    delantal='#5a4632', ojo='#5a3a1e', cabeza='personaje12', gorro='#d9a441'), None),
+    'exploradora': ('personaje9', receta(PIEL_MORENA, '#2a1e18', '#6a7a3a', '#5a4632', pies='#3a2a1e',
+                                         faja='#a8343a', ojo='#3e7a4c', cabeza='personaje8', gorro='#8a6a44'), None),
+    'florista': ('personaje6', receta(PIEL_CLARA, '#c86a3a', '#e8a8bc', '#5a6a8a', delantal='#f4efe6',
+                                      ojo='#4f8a3a', cabeza='personaje9', gorro='#e8d48a'), None),
+    'pastor': ('personaje1', receta(PIEL_MEDIA, '#8a6a3a', '#e6dcc8', '#5a4632', pies='#3a2a1e',
+                                    faja='#3a6a2c', ojo='#3d6fa8', cabeza='personaje8', gorro='#c8a85a'), None),
     # ── las casas del pueblo ──
     'panadera': ('personaje6', receta(PIEL_CLARA, '#d9a441', '#c98a6a', '#6a4a3a', delantal='#f2eee6',
                                       ojo='#3d6fa8', cabeza='personaje2'), None),
@@ -189,6 +200,41 @@ def anadidos(li, partes, cuello, cintura, dir_, r):
             if x1 - x0 >= 2:
                 li.set(x0 - 1, y, cont)
                 li.set(x1 + 1, y, cont)
+    # (2026-10-24) "Crafter Jack tiene algo en el pecho y cuando mira de lado
+    # no lo tiene": el delantal solo se pintaba de frente. De LADO se ve su
+    # canto: una franja delante del torso (y del muslo de delante), del pecho
+    # a las rodillas, con su línea por dentro. De ESPALDAS, la cinta que lo ata
+    # a la cintura. Así ningún NPC con delantal lo pierde al girarse.
+    if r.get('delantal') and vista == 'lado':
+        t = tonos(r['delantal'], 3, arriba=0.12, abajo=0.4)
+        filas = {}
+        for (x, y), (p, c) in partes.items():
+            if p in ('camisa', 'pantalon') and y >= cuello + 4:
+                filas.setdefault(y, []).append(x)
+        alto_falda = cintura + (max(filas) - cintura) * 0.55 if filas else cintura
+        delante = dir_ == 'derecha'
+        for y, xs in filas.items():
+            if y > alto_falda:
+                continue
+            segs = _segs(xs)
+            seg = max(segs, key=lambda s: s[-1]) if delante else min(segs, key=lambda s: s[0])
+            if len(seg) < 4:
+                continue
+            if delante:
+                x0, x1, borde, canto = seg[-1] - 2, seg[-1], seg[-1] - 3, seg[-1]
+            else:
+                x0, x1, borde, canto = seg[0], seg[0] + 2, seg[0] + 3, seg[0]
+            for x in range(x0, x1 + 1):
+                li.set(x, y, t[1] if x == canto else t[0])
+            li.set(borde, y, cont)
+    if r.get('delantal') and vista == 'espalda':
+        t = tonos(r['delantal'], 3, arriba=0.12, abajo=0.4)
+        y = cintura - 2
+        xs = [x for (x, yy), (p, c) in partes.items() if p == 'camisa' and yy == y]
+        if xs:
+            torso = max(_segs(xs), key=len)
+            for x in torso[1:-1]:
+                li.set(x, y, t[1])
     # El CUELLO DE PIEL (trampero, pescadora): una franja clara bajo la barbilla.
     if r.get('cuello_piel'):
         t = tonos(r['cuello_piel'], 3, arriba=0.1, abajo=0.32)

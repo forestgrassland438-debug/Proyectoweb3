@@ -118,6 +118,126 @@ def nevar(im, grueso=3):
     return im
 
 
+def escarcha(im, k=0.35):
+    """(2026-10-25) El glaciar: lo que no es nieve, más frío y pálido (la
+    escarcha), sin tocar las bandas de nieve que puso nevar()."""
+    im = im.convert('RGBA')
+    px = im.load()
+    for y in range(im.height):
+        for x in range(im.width):
+            r, g, b, a = px[x, y]
+            if not a or (r, g, b) in NIEVE:
+                continue
+            h, s, v = _hsv((r, g, b))
+            h2 = h + (0.58 - h) * k if 0.12 < h < 0.5 else h
+            px[x, y] = _rgb(h2, s * (1 - k * 0.6), min(1.0, v * (1 + k * 0.25))) + (a,)
+    return im
+
+
+def _limpiar_halo(im):
+    """Los bordes del paquete traen píxeles magenta sueltos (el fondo de
+    recorte, mal quitado): se vuelven del color del contorno."""
+    px = im.load()
+    w, h = im.size
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a and r > 150 and b > 150 and g < 110:
+                px[x, y] = (34, 22, 30, a)
+    return im
+
+
+def quitar_morados(im, todos=False):
+    """Los acentos morados del paquete (sombras de las hojas) se veían como
+    puntitos rosas entre lo verde: pasan a sombra de hoja, verde oscuro."""
+    im = im.convert('RGBA')
+    px = im.load()
+    for y in range(im.height):
+        for x in range(im.width):
+            r, g, b, a = px[x, y]
+            if not a:
+                continue
+            hh, s, v = _hsv((r, g, b))
+            rosa = (hh > 0.72 or hh < 0.02) and s > 0.25 and v > 0.18
+            if (todos and rosa) or (0.72 < hh < 0.985 and s > 0.45 and 0.18 < v < 0.6):
+                px[x, y] = _rgb(0.27, 0.55, v * 0.9) + (a,)
+    return im
+
+
+def alisar_sombreros(im, banda=(0.40, 0.92)):
+    """(2026-10-25) LOS SOMBREROS DE LOS HONGOS GIGANTES, LISOS.
+
+    El paquete los trae con un moteado de escamas (manchitas claras y
+    oscuras): para la tripofobia, nada de motas. Se toma la luz de cada
+    píxel del sombrero, se suaviza (media en 7x7, solo entre píxeles del
+    sombrero) y se reparte en cuatro BANDAS del mismo tono: queda el volumen
+    (claro arriba a la izquierda) sin una sola mancha. El tronco y el
+    contorno no se tocan."""
+    im = _limpiar_halo(im.convert('RGBA'))
+    px = im.load()
+    w, h = im.size
+    gorro = {}
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a < 128:
+                continue
+            hh, s, v = _hsv((r, g, b))
+            if banda[0] < hh < banda[1] and s > 0.22 and v > 0.22:
+                gorro[(x, y)] = (hh, s, v)
+    if not gorro:
+        return im
+    # Las motas OSCURAS de las escamas no entran por color (poca luz): se
+    # recogen por estar rodeadas de sombrero (dos pasadas, como un cierre).
+    for _ in range(4):
+        nuevos = {}
+        for y in range(h):
+            for x in range(w):
+                if (x, y) in gorro or px[x, y][3] < 128:
+                    continue
+                vec = [gorro[(x + dx, y + dy)] for dx in (-1, 0, 1) for dy in (-1, 0, 1)
+                       if (dx or dy) and (x + dx, y + dy) in gorro]
+                if len(vec) >= 4:
+                    nuevos[(x, y)] = (vec[0][0], vec[0][1], sum(c[2] for c in vec) / len(vec))
+        if not nuevos:
+            break
+        gorro.update(nuevos)
+    hs = sorted(c[0] for c in gorro.values())
+    ss = sorted(c[1] for c in gorro.values())
+    tono, sat = hs[len(hs) // 2], ss[len(ss) // 2]
+    lisa = {}
+    for (x, y) in gorro:
+        suma = n = 0
+        for dy in range(-3, 4):
+            for dx in range(-3, 4):
+                c = gorro.get((x + dx, y + dy))
+                if c:
+                    suma += c[2]; n += 1
+        lisa[(x, y)] = suma / n
+    vs = sorted(lisa.values())
+    cortes = [vs[int(len(vs) * q)] for q in (0.25, 0.5, 0.78)]
+    tonos_v = [0.42, 0.56, 0.70, 0.84]
+    for (x, y), v in lisa.items():
+        k = sum(1 for c in cortes if v > c)
+        px[x, y] = _rgb(tono, sat * (1.05 - k * 0.07), tonos_v[k]) + (px[x, y][3],)
+    return im
+
+
+def recolor_hongo(im, tono):
+    """Un hongo gigante de otro color (el ámbar): mismo dibujo, otro tono."""
+    im = im.convert('RGBA')
+    px = im.load()
+    for y in range(im.height):
+        for x in range(im.width):
+            r, g, b, a = px[x, y]
+            if not a:
+                continue
+            hh, s, v = _hsv((r, g, b))
+            if 0.40 < hh < 0.92 and s > 0.22:
+                px[x, y] = _rgb(tono, s, v) + (a,)
+    return im
+
+
 def arboles(zona, paquete, destino):
     """Escribe los árboles de `zona` en `destino` y devuelve sus nombres."""
     os.makedirs(destino, exist_ok=True)
@@ -134,6 +254,25 @@ def arboles(zona, paquete, destino):
         hechos['abeto_nevado'] = nevar(abre('abeto'))
         hechos['pino_nevado'] = nevar(abre('pino'))
         hechos['seco_nevado'] = nevar(abre('arbol_seco'), grueso=2)
+    elif zona == 'glaciar':
+        # (2026-10-25) Más nieve que en la tundra (bandas de 4) y escarcha.
+        hechos['abeto_glaciar'] = escarcha(nevar(abre('abeto'), grueso=4))
+        hechos['pino_glaciar'] = escarcha(nevar(abre('pino'), grueso=4))
+        hechos['abedul_helado'] = escarcha(nevar(abre('abedul'), grueso=3), k=0.45)
+        hechos['seco_helado'] = escarcha(nevar(abre('arbol_seco'), grueso=2), k=0.5)
+    elif zona == 'caverna':
+        # Los hongos gigantes, con el sombrero liso; y uno ámbar.
+        hechos['hongo_turquesa'] = alisar_sombreros(abre('hongo_turquesa'))
+        hechos['hongo_violeta'] = alisar_sombreros(abre('hongo_violeta'))
+        hechos['hongo_ambar'] = alisar_sombreros(recolor_hongo(abre('hongo_turquesa'), 0.10), banda=(0.02, 0.18))
+    elif zona == 'pradera':
+        for n in ('cerezo', 'abedul', 'roble_redondo', 'roble_ancho', 'roble_curvado', 'arbol_ancestral'):
+            hechos[n] = abre(n)
+    # (2026-10-25) Fuera los píxeles magenta del recorte (en el abedul se veían
+    # como puntitos rosas entre las hojas).
+    if zona in ('glaciar', 'pradera'):
+        # En el cerezo el rosa ES la flor: ahí solo las sombras moradas.
+        hechos = {n: quitar_morados(_limpiar_halo(im), todos=(n != 'cerezo')) for n, im in hechos.items()}
     for n, im in hechos.items():
         im.save(os.path.join(destino, n + '.png'))
     return sorted(hechos)

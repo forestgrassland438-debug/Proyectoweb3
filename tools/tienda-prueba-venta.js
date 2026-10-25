@@ -57,8 +57,20 @@ global.localStorage = { _d: {}, getItem(k) { return this._d[k] ?? null; },
 // `navigator` en Node moderno solo tiene getter: se redefine.
 try { Object.defineProperty(global, 'navigator', { value: { userAgent: 'node' }, configurable: true }); }
 catch (e) { /* si no se deja, el userAgent de Node ya sirve */ }
-global.fetch = () => Promise.reject(new Error('sin red'));
+/* EL TESORO (2026-10-22): la tienda pregunta por /api/botes para saber si el
+   servidor ya cobra el 1,5 % y avisa de cada comisión; el resto, sin red. */
+const comisiones = [];
+global.fetch = (url, o) => {
+  const ruta = String(url).replace(/^https?:\/\/[^/]+/, '');
+  const resp = (status, obj) => Promise.resolve({ ok: status < 300, status, json: async () => obj, text: async () => JSON.stringify(obj) });
+  if (ruta.split('?')[0] === '/api/botes') return resp(200, { ok: true, botes: [] });
+  if (ruta === '/api/tesoro/comision') { comisiones.push(JSON.parse((o && o.body) || '{}')); return resp(200, { ok: true }); }
+  return Promise.reject(new Error('sin red'));
+};
 global.getCsrfToken = () => 'x';
+// El bronce (gf-bronce.js): ahí llega el cambio de la comisión.
+let bronceDePrueba = 0;
+global.GFBronce = { valor: () => bronceDePrueba, pintar: (n) => { bronceDePrueba = Math.max(0, Math.floor(Number(n) || 0)); } };
 
 // ── Escena de mentira ───────────────────────────────────────────────────────
 function catalogoDeLaEscena() {
@@ -134,7 +146,8 @@ console.log = () => {};                       // la tienda habla muchisimo al ca
 // El `class` de un eval queda en el ambito del eval, no en global: se expone
 // desde dentro del propio eval.
 try {
-  eval(fs.readFileSync(ruta, 'utf8') + '\n;global.TiendaSistema = TiendaSistema;');
+  eval(fs.readFileSync(ruta, 'utf8') + '\n;global.TiendaSistema = TiendaSistema;' +
+       '\n;global.gfComisionTesoroBronce = gfComisionTesoroBronce;');
 } finally { console.log = hablar; }
 
 const TiendaSistema = global.TiendaSistema;
@@ -151,6 +164,12 @@ function tienda(escena, facturas) {
   t.updateMonedaDisplay = () => {};
   t.actualizarLimitesDiarios = () => {};
   return t;
+}
+
+/** Lo que se cobra de una venta en plata: la plata entera tras el 1,5 % en bronce, y el cambio en bronce. */
+function cobroDeVenta(item, unidades) {
+  const neto = item.sellPrice * unidades * 1000 - global.gfComisionTesoroBronce(item.sellPrice, 'silver', unidades);
+  return { plata: Math.floor(neto / 1000), bronce: neto % 1000 };
 }
 
 const callar = () => { console.log = () => {}; };
@@ -212,8 +231,8 @@ console.log('\n2) Trigo, fresa y calabaza estan a la venta');
   // El saldo se lee por donde lo lee la tienda, no por un campo suelto de la
   // escena: setBalanceByCurrency escribe en varios sitios a la vez.
   const plataAntes = Math.floor(Number(t.getBalanceByCurrency('silver')) || 0);
-  const bruto = item.sellPrice * 5;
-  const esperado = plataAntes + bruto - Math.ceil(bruto * (item.comision / 100));
+  const bronceAntes = t.getBalanceByCurrency('bronze');
+  const esperado = plataAntes + cobroDeVenta(item, 5).plata;
 
   callar(); await vender(t, item, 5); volver();
 
@@ -229,6 +248,13 @@ console.log('\n2) Trigo, fresa y calabaza estan a la venta');
   const plataDespues = Math.floor(Number(t.getBalanceByCurrency('silver')) || 0);
   ok(plataDespues === esperado, 'se paga el precio exacto menos comision',
      plataAntes + ' -> ' + plataDespues + ' (tocaba ' + esperado + ')');
+  const brutoBr = item.sellPrice * 5 * 1000, comisionBr = Math.round(brutoBr * 15 / 1000);
+  ok(global.gfComisionTesoroBronce(item.sellPrice, 'silver', 5) === comisionBr, 'la comisión es el 1,5 % en bronce',
+     global.gfComisionTesoroBronce(item.sellPrice, 'silver', 5) + ' (tocaba ' + comisionBr + ')');
+  ok(t.getBalanceByCurrency('bronze') - bronceAntes === (brutoBr - comisionBr) % 1000, 'y el cambio llega en bronce',
+     (t.getBalanceByCurrency('bronze') - bronceAntes) + ' (tocaba ' + ((brutoBr - comisionBr) % 1000) + ')');
+  ok(comisiones.length === 1 && comisiones[0].operacion === 'venta' && comisiones[0].cantidad === 5,
+     'y se avisa al tesoro una vez', JSON.stringify(comisiones));
 
   // ── 4. Si la cadena no confirma, NO se paga ni se quita ──────────────────
   console.log('\n4) Si la factura no cuadra, no se cobra ni se quita');
@@ -257,8 +283,7 @@ console.log('\n2) Trigo, fresa y calabaza estan a la venta');
   const t3 = tienda(e3, facturas3);
   const fresa = Object.values(t3.itemsTienda).flat().find(x => x.id === 'fresa_buena');
   const plataAntes3 = Math.floor(Number(t3.getBalanceByCurrency('silver')) || 0);
-  const bruto3 = fresa.sellPrice * 3;
-  const esperado3 = plataAntes3 + bruto3 - Math.ceil(bruto3 * (fresa.comision / 100));
+  const esperado3 = plataAntes3 + cobroDeVenta(fresa, 3).plata;
 
   callar(); await vender(t3, fresa, 3); volver();
 

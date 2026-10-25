@@ -310,7 +310,50 @@ def guardar(li, *partes):
 # MAIN
 # ===========================================================================
 
+def nivel8a10():
+    """(2026-10-25) Solo los de los mapas de nivel 8, 9 y 10 (lo de antes no
+    se vuelve a escribir):  python tools/generar-monstruos.py nivel8a10
+
+      glaciar   yeti (3D), oso polar (3D), espectro de hielo (2D)
+      caverna   murciélago gigante (3D), gólem de cristal (3D), trol (2D)
+      pradera   jabalí espinoso (3D), gólem de musgo (3D), dríade (2D)
+    y sus proyectiles: la bola de nieve, la roca de la cueva, la de musgo, la
+    esquirla y el charco de cristal, el espino y los rayos de hielo y de hoja."""
+    print('Monstruos de nivel 8-10 ->', SALIDA)
+    hojas = []
+
+    def con_relieve(frames):
+        return {k: relieve_lienzo(li, 0.6) for k, li in frames.items()}
+    hojas.append(atlas('espectro_hielo', con_relieve(H2.frames_humanoide('personaje5', H2.RECETA_ESPECTRO_HIELO))))
+    hojas.append(atlas('troll_cueva', con_relieve(H2.frames_humanoide('personaje8', H2.receta_troll()))))
+    hojas.append(atlas('driada', con_relieve(H2.frames_humanoide('personaje6', H2.RECETA_DRIADA))))
+    for tipo in ('yeti', 'oso_polar', 'murcielago', 'jabali', 'golem_cristal', 'golem_musgo'):
+        hojas.append(atlas(tipo, bestia_frames(tipo), columnas=9, pivote_=pivote(tipo)))
+    sueltas = [
+        guardar(efecto_roca('#eef4fb', '#ffffff'), 'efectos', 'bola_nieve.png'),
+        guardar(efecto_roca('#5e5866', '#7d7787'), 'efectos', 'roca_cueva.png'),
+        guardar(efecto_roca('#6e5236', '#5f9a3a'), 'efectos', 'roca_musgo.png'),
+        guardar(efecto_savia('#a77ae6', '#f2e2ff'), 'efectos', 'charco_cristal.png'),
+        guardar(efecto_rayo(('#2f6fa8', '#8ce9ff', '#e6fbff', '#ffffff')), 'efectos', 'rayo_hielo.png'),
+        guardar(efecto_rayo(('#2a6a22', '#8fd45a', '#eaffd0', '#ffffff')), 'efectos', 'rayo_hoja.png'),
+    ]
+    from gf_bestias3d import cono, fotografiar
+    for nombre, base, borde in (('esquirla', '#b48cff', '#3a2a5a'), ('espino', '#7a9a4a', '#2a3a18')):
+        mats = {'p': {'tonos': tonos(base, 5, arriba=0.3, abajo=0.5)}}
+        li = fotografiar([cono((-7.0, 3.0, 0), (7.6, 3.0, 0), 1.9, 0.15, 'p')], 34, 14, 'lado', mats, None,
+                         contorno_de(hex_rgb(borde)), k=2, suelo=3, salto=99)
+        sueltas.append(guardar(li, 'efectos', nombre + '.png'))
+    print('  piezas sueltas:', len(sueltas))
+    hoja = hoja_contacto(hojas + sueltas, columnas=4, escala=2)
+    if hoja:
+        hoja.save(os.path.join(SALIDA, '_hoja_nivel8a10.png'))
+    print('listo')
+
+
 def main():
+    if 'nivel8a10' in sys.argv[1:]:
+        nivel8a10()
+        return
     print('Monstruos ->', SALIDA)
     hojas = []
     # Los humanoides (2026-10-12): sobre el cuerpo de los personajes del juego
