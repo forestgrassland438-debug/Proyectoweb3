@@ -1,0 +1,38 @@
+{
+ "frames": {
+  "casa_bruja": {
+   "frame": {
+    "h": 108,
+    "w": 86,
+    "x": 0,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4826,
+    "y": 0.7963
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 108,
+    "w": 86
+   },
+   "spriteSourceSize": {
+    "h": 108,
+    "w": 86,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  }
+ },
+ "meta": {
+  "app": "tools/generar-zonas.py",
+  "format": "RGBA8888",
+  "image": "casa_bruja.png",
+  "scale": "1",
+  "size": {
+   "h": 108,
+   "w": 1024
+  }
+ }
+}

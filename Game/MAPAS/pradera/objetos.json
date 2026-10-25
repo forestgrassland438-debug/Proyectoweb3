@@ -1,0 +1,470 @@
+{
+ "frames": {
+  "banco": {
+   "frame": {
+    "h": 15,
+    "w": 28,
+    "x": 571,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 15,
+    "w": 28
+   },
+   "spriteSourceSize": {
+    "h": 15,
+    "w": 28,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "carreta": {
+   "frame": {
+    "h": 21,
+    "w": 38,
+    "x": 330,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.3684,
+    "y": 0.7143
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 21,
+    "w": 38
+   },
+   "spriteSourceSize": {
+    "h": 21,
+    "w": 38,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "cenador": {
+   "frame": {
+    "h": 66,
+    "w": 61,
+    "x": 64,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.7879
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 66,
+    "w": 61
+   },
+   "spriteSourceSize": {
+    "h": 66,
+    "w": 61,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "farol_jardin": {
+   "frame": {
+    "h": 33,
+    "w": 10,
+    "x": 209,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8788
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 33,
+    "w": 10
+   },
+   "spriteSourceSize": {
+    "h": 33,
+    "w": 10,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "fuente": {
+   "frame": {
+    "h": 41,
+    "w": 58,
+    "x": 127,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.6878
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 41,
+    "w": 58
+   },
+   "spriteSourceSize": {
+    "h": 41,
+    "w": 58,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "hortensia_azul": {
+   "frame": {
+    "h": 19,
+    "w": 29,
+    "x": 370,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4828,
+    "y": 0.7895
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 19,
+    "w": 29
+   },
+   "spriteSourceSize": {
+    "h": 19,
+    "w": 29,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "hortensia_lila": {
+   "frame": {
+    "h": 19,
+    "w": 29,
+    "x": 401,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4828,
+    "y": 0.7895
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 19,
+    "w": 29
+   },
+   "spriteSourceSize": {
+    "h": 19,
+    "w": 29,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "hortensia_rosa": {
+   "frame": {
+    "h": 19,
+    "w": 29,
+    "x": 432,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4828,
+    "y": 0.7895
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 19,
+    "w": 29
+   },
+   "spriteSourceSize": {
+    "h": 19,
+    "w": 29,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "lavanda": {
+   "frame": {
+    "h": 14,
+    "w": 38,
+    "x": 601,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.7857
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 14,
+    "w": 38
+   },
+   "spriteSourceSize": {
+    "h": 14,
+    "w": 38,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "menhir": {
+   "frame": {
+    "h": 35,
+    "w": 20,
+    "x": 187,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8571
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 35,
+    "w": 20
+   },
+   "spriteSourceSize": {
+    "h": 35,
+    "w": 20,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "menhir_bajo": {
+   "frame": {
+    "h": 28,
+    "w": 20,
+    "x": 243,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8214
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 28,
+    "w": 20
+   },
+   "spriteSourceSize": {
+    "h": 28,
+    "w": 20,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "molino": {
+   "frame": {
+    "h": 101,
+    "w": 62,
+    "x": 0,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8099
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 101,
+    "w": 62
+   },
+   "spriteSourceSize": {
+    "h": 101,
+    "w": 62,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "pajar": {
+   "frame": {
+    "h": 25,
+    "w": 30,
+    "x": 265,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.76
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 25,
+    "w": 30
+   },
+   "spriteSourceSize": {
+    "h": 25,
+    "w": 30,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "pozo": {
+   "frame": {
+    "h": 30,
+    "w": 20,
+    "x": 221,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 30,
+    "w": 20
+   },
+   "spriteSourceSize": {
+    "h": 30,
+    "w": 20,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "roca_musgo": {
+   "frame": {
+    "h": 23,
+    "w": 31,
+    "x": 297,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4839,
+    "y": 0.6957
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 23,
+    "w": 31
+   },
+   "spriteSourceSize": {
+    "h": 23,
+    "w": 31,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "tronco_musgo": {
+   "frame": {
+    "h": 13,
+    "w": 39,
+    "x": 641,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5128,
+    "y": 0.7692
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 13,
+    "w": 39
+   },
+   "spriteSourceSize": {
+    "h": 13,
+    "w": 39,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "tulipanes": {
+   "frame": {
+    "h": 17,
+    "w": 33,
+    "x": 463,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5152,
+    "y": 0.8235
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 17,
+    "w": 33
+   },
+   "spriteSourceSize": {
+    "h": 17,
+    "w": 33,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "tulipanes2": {
+   "frame": {
+    "h": 17,
+    "w": 33,
+    "x": 498,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5152,
+    "y": 0.8235
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 17,
+    "w": 33
+   },
+   "spriteSourceSize": {
+    "h": 17,
+    "w": 33,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "valla": {
+   "frame": {
+    "h": 17,
+    "w": 36,
+    "x": 533,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8235
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 17,
+    "w": 36
+   },
+   "spriteSourceSize": {
+    "h": 17,
+    "w": 36,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  }
+ },
+ "meta": {
+  "app": "tools/generar-zonas.py",
+  "format": "RGBA8888",
+  "image": "objetos.png",
+  "scale": "1",
+  "size": {
+   "h": 101,
+   "w": 1024
+  }
+ }
+}

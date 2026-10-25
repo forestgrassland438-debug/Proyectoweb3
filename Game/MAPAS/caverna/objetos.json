@@ -1,0 +1,374 @@
+{
+ "frames": {
+  "brasero": {
+   "frame": {
+    "h": 27,
+    "w": 16,
+    "x": 324,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8519
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 27,
+    "w": 16
+   },
+   "spriteSourceSize": {
+    "h": 27,
+    "w": 16,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "cofre_viejo": {
+   "frame": {
+    "h": 19,
+    "w": 22,
+    "x": 425,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.6842
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 19,
+    "w": 22
+   },
+   "spriteSourceSize": {
+    "h": 19,
+    "w": 22,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "columna_cueva": {
+   "frame": {
+    "h": 57,
+    "w": 32,
+    "x": 108,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8596
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 57,
+    "w": 32
+   },
+   "spriteSourceSize": {
+    "h": 57,
+    "w": 32,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "cristal_cueva": {
+   "frame": {
+    "h": 29,
+    "w": 23,
+    "x": 245,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5217,
+    "y": 0.7931
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 29,
+    "w": 23
+   },
+   "spriteSourceSize": {
+    "h": 29,
+    "w": 23,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "cristal_cueva_t": {
+   "frame": {
+    "h": 29,
+    "w": 23,
+    "x": 270,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5217,
+    "y": 0.7931
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 29,
+    "w": 23
+   },
+   "spriteSourceSize": {
+    "h": 29,
+    "w": 23,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "cristal_grande_cueva": {
+   "frame": {
+    "h": 46,
+    "w": 37,
+    "x": 142,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5135,
+    "y": 0.8261
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 46,
+    "w": 37
+   },
+   "spriteSourceSize": {
+    "h": 46,
+    "w": 37,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "estalagmita": {
+   "frame": {
+    "h": 37,
+    "w": 22,
+    "x": 181,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8378
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 37,
+    "w": 22
+   },
+   "spriteSourceSize": {
+    "h": 37,
+    "w": 22,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "estalagmita_baja": {
+   "frame": {
+    "h": 27,
+    "w": 20,
+    "x": 342,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.7778
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 27,
+    "w": 20
+   },
+   "spriteSourceSize": {
+    "h": 27,
+    "w": 20,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "estalagmitas": {
+   "frame": {
+    "h": 35,
+    "w": 38,
+    "x": 205,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 35,
+    "w": 38
+   },
+   "spriteSourceSize": {
+    "h": 35,
+    "w": 38,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "huesos": {
+   "frame": {
+    "h": 14,
+    "w": 27,
+    "x": 469,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4444,
+    "y": 0.6429
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 14,
+    "w": 27
+   },
+   "spriteSourceSize": {
+    "h": 14,
+    "w": 27,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "roca_cueva": {
+   "frame": {
+    "h": 27,
+    "w": 33,
+    "x": 364,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.4848,
+    "y": 0.7407
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 27,
+    "w": 33
+   },
+   "spriteSourceSize": {
+    "h": 27,
+    "w": 33,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "roca_cueva2": {
+   "frame": {
+    "h": 28,
+    "w": 27,
+    "x": 295,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5926,
+    "y": 0.7857
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 28,
+    "w": 27
+   },
+   "spriteSourceSize": {
+    "h": 28,
+    "w": 27,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "salida_cueva": {
+   "frame": {
+    "h": 66,
+    "w": 106,
+    "x": 0,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8091
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 66,
+    "w": 106
+   },
+   "spriteSourceSize": {
+    "h": 66,
+    "w": 106,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "seta_brillante": {
+   "frame": {
+    "h": 17,
+    "w": 18,
+    "x": 449,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.7647
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 17,
+    "w": 18
+   },
+   "spriteSourceSize": {
+    "h": 17,
+    "w": 18,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  },
+  "vagoneta": {
+   "frame": {
+    "h": 24,
+    "w": 24,
+    "x": 399,
+    "y": 0
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.7083
+   },
+   "rotated": false,
+   "sourceSize": {
+    "h": 24,
+    "w": 24
+   },
+   "spriteSourceSize": {
+    "h": 24,
+    "w": 24,
+    "x": 0,
+    "y": 0
+   },
+   "trimmed": false
+  }
+ },
+ "meta": {
+  "app": "tools/generar-zonas.py",
+  "format": "RGBA8888",
+  "image": "objetos.png",
+  "scale": "1",
+  "size": {
+   "h": 66,
+   "w": 1024
+  }
+ }
+}
