@@ -9,6 +9,9 @@
  *   cementerio     jefe_arana      The Bone Widow           (alma)
  *   desierto       jefe_escorpion  The Sand Emperor         (arena)
  *   tundra         jefe_lobo       Frostfang, the Pack King (hielo)
+ *   glaciar        jefe_yeti       The Glacier King         (glaciar)   (2026-10-25)
+ *   caverna        jefe_murcielago Nightwing, the Cave Matriarch (cueva)
+ *   pradera        jefe_ent        Oakheart, the Elder Grove (bosque)
  *   (la mina ya tiene el suyo: la Serpiente de Magma, gf-mina-serpiente.js)
  *
  * Son monstruos de gf-salvaje.js (especies con `jefe`): andan, cazan, pegan,
@@ -33,13 +36,23 @@
     SalvajeScene:    { tipo: 'jefe_golem',     tema: 'cristal', caja: [2700, 400, 4500, 2000], poderes: ['nova', 'pinchos', 'lluvia'] },
     CementerioScene: { tipo: 'jefe_arana',     tema: 'alma',    caja: [1300, 1300, 3700, 3700], poderes: ['orbes', 'pinchos', 'nova'] },
     DesiertoScene:   { tipo: 'jefe_escorpion', tema: 'arena',   caja: [800, 2700, 4200, 4500], poderes: ['lluvia', 'nova', 'pinchos'] },
-    TundraScene:     { tipo: 'jefe_lobo',      tema: 'hielo',   caja: [800, 600, 4200, 2200], poderes: ['pinchos', 'nova', 'orbes'] }
+    TundraScene:     { tipo: 'jefe_lobo',      tema: 'hielo',   caja: [800, 600, 4200, 2200], poderes: ['pinchos', 'nova', 'orbes'] },
+    // (2026-10-25) Los de nivel 8, 9 y 10: el rey del glaciar entre las ruinas
+    // del norte, la matriarca de los murciélagos en la guarida del oeste de la
+    // caverna (la lluvia son estalactitas que caen) y el viejo roble andante
+    // junto al círculo de piedras de la pradera.
+    GlaciarScene:    { tipo: 'jefe_yeti',       tema: 'glaciar', caja: [1600, 300, 3600, 1500], poderes: ['lluvia', 'nova', 'pinchos'] },
+    CavernaScene:    { tipo: 'jefe_murcielago', tema: 'cueva',   caja: [500, 3300, 1700, 4300], poderes: ['lluvia', 'orbes', 'nova'] },
+    PraderaScene:    { tipo: 'jefe_ent',        tema: 'bosque',  caja: [900, 400, 2500, 1300], poderes: ['pinchos', 'orbes', 'nova'] }
   };
   var TEMAS = {
     cristal: { luz: '#b6ffd8', medio: '#5fe0a0', oscuro: '#1f7a4a', hex: 0x5fe0a0 },
     alma:    { luz: '#d8ffe8', medio: '#7dffb0', oscuro: '#2a6a4a', hex: 0x7dffb0 },
     arena:   { luz: '#fff0c0', medio: '#e6b85a', oscuro: '#8a5a1e', hex: 0xe6b85a },
-    hielo:   { luz: '#f0fbff', medio: '#8ce9ff', oscuro: '#2f6fa8', hex: 0x8ce9ff }
+    hielo:   { luz: '#f0fbff', medio: '#8ce9ff', oscuro: '#2f6fa8', hex: 0x8ce9ff },
+    glaciar: { luz: '#ffffff', medio: '#b8e4ff', oscuro: '#3a6a9c', hex: 0xb8e4ff },
+    cueva:   { luz: '#f2e2ff', medio: '#b48cff', oscuro: '#4a2a7a', hex: 0xb48cff },
+    bosque:  { luz: '#f0ffd8', medio: '#8fd45a', oscuro: '#3a6a22', hex: 0x8fd45a }
   };
   var ID_JEFE = 900;
   var sonidos = new WeakMap();

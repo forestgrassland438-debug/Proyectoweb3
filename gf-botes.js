@@ -50,7 +50,9 @@
 
   var V = '20261021a';
   var ZONAS = { GameScene: 'game', MinaScene: 'mina', SalvajeScene: 'salvaje',
-                CementerioScene: 'cementerio', DesiertoScene: 'desierto', TundraScene: 'tundra' };
+                CementerioScene: 'cementerio', DesiertoScene: 'desierto', TundraScene: 'tundra',
+                // (2026-10-25) Los de nivel 8, 9 y 10 (el servidor: BOTE_ZONAS).
+                GlaciarScene: 'glaciar', CavernaScene: 'caverna', PraderaScene: 'pradera' };
   var TEX = 'gfbo_bote';
   var ESCALA = 2;                 // 72 px de largo × 2: el remero (102 px) cabe sentado
   var QUILLA = 40;                // los pies = p.y + 40 (lo mismo que la pesca y el servidor)
@@ -445,6 +447,18 @@
     bajarLocal(st, orilla);
   }
 
+  /* (2026-10-22) MORIR A BORDO: antes se llamaba a pedirBajar() en CADA
+     fotograma; lejos de la orilla (o con la caña echada) eso no bajaba y
+     sacaba un aviso por fotograma, sin fin. Ahora se baja una sola vez y sin
+     avisos: a la orilla más cercana si la hay, y si no, donde está. */
+  function bajarPorFantasma(st) {
+    var scene = st.scene, e = st.botes[st.aBordo];
+    if (!st.aBordo) return;
+    var s = socketDe(scene);
+    if (s && s.connected && e) s.emit('bote:bajar', { id: e.id, x: Math.round(e.x), y: Math.round(e.y) });
+    bajarLocal(st, orillaCercana(st));
+  }
+
   // ─────────────────────────────────────────────────────── EL BOTÓN "LAND"
   function boton(st) {
     if (st.boton && st.boton.isConnected) return st.boton;
@@ -592,7 +606,7 @@
         if (s && s.connected) { s.emit('bote:pos', { id: mio.id, x: Math.round(mio.x), y: Math.round(mio.y) }); st.posMandada = { x: mio.x, y: mio.y }; }
         st.posEn = t;
       }
-      if (fantasma(scene)) pedirBajar(st);
+      if (fantasma(scene)) bajarPorFantasma(st);
     }
     if (st.subiendo && t > (st.subiendoHasta || 0)) {
       st.subiendo = null;

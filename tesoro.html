@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="es" data-admin-suite data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="referrer" content="same-origin">
+  <!-- La CSP no permite scripts en línea: toda la lógica va en tesoro.js -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.grasslandforest.com http://127.0.0.1:8080; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <title>Grassland Forest · Treasury &amp; incentives</title>
+  <link rel="icon" href="./favicon.png">
+  <link rel="stylesheet" href="./admin-suite.css?v=20261020">
+  <link rel="stylesheet" href="./tesoro.css?v=20261022">
+  <script src="./admin-session.js?v=20261020"></script>
+  <script src="./admin-suite-i18n.js?v=20261022"></script>
+  <script defer src="./admin-suite.js?v=20261022"></script>
+  <script defer src="./tesoro.js?v=20261022"></script>
+</head>
+<body>
+<div class="tz-wrap">
+
+  <!-- ══ PUERTA: cartera de administrador ══ -->
+  <section id="tz-gate" class="tz-gate">
+    <div class="tz-gate-card">
+      <span class="tz-eyebrow">Administrator only</span>
+      <h1>Treasury &amp; incentives</h1>
+      <p>Connect the wallet registered as an administrator.</p>
+      <button id="tz-connect" class="tz-btn tz-primary" type="button">Connect administrator wallet</button>
+      <div id="tz-gate-msg" class="tz-gate-msg" role="status" aria-live="polite">Checking your session…</div>
+    </div>
+  </section>
+
+  <!-- ══ EL PANEL ══ -->
+  <main id="tz-app" hidden>
+    <div class="tz-head">
+      <div>
+        <span class="tz-eyebrow">Economy</span>
+        <h1>Treasury &amp; incentives</h1>
+        <p class="tz-sub">Every purchase and sale in the game shop and the P2P market pays a 1.5% fee into the treasury. The treasury pays it back as coins dropped by defeated monsters.</p>
+      </div>
+      <div class="tz-head-side">
+        <span id="tz-updated" class="tz-status">No data loaded</span>
+        <button id="tz-refresh" class="tz-btn" type="button"><span aria-hidden="true">↻</span> Refresh data</button>
+      </div>
+    </div>
+    <div id="tz-notice" class="tz-notice" role="status" aria-live="polite" hidden></div>
+
+    <div id="tz-body">
+      <!-- El saldo -->
+      <section class="tz-hero" aria-label="Treasury balance">
+        <div class="tz-card tz-hero-main">
+          <span class="tz-eyebrow">Treasury balance</span>
+          <div><span id="tz-saldo" class="tz-hero-value" data-no-translate>—</span><span class="tz-hero-unit">bronze</span></div>
+          <div id="tz-monedas" class="tz-coins" data-no-translate></div>
+          <div class="tz-chips">
+            <span id="tz-chip-activo" class="tz-chip" data-on="false"><i aria-hidden="true"></i><span>Incentives off</span></span>
+            <span id="tz-chip-modo" class="tz-chip"><span>Automatic mode</span></span>
+            <span class="tz-chip"><span>Fee</span>&nbsp;<b data-no-translate>1.5%</b></span>
+          </div>
+        </div>
+        <div id="tz-tiles" class="tz-tiles"></div>
+      </section>
+
+      <!-- Entra y sale -->
+      <section class="tz-card" aria-labelledby="tz-flujo-title" style="margin-bottom:14px">
+        <div class="tz-card-head">
+          <div>
+            <h2 id="tz-flujo-title">Money in and out, last 30 days</h2>
+            <p class="tz-card-sub">Fees go up from the line, incentives paid to players go down. Amounts in bronze, days in UTC.</p>
+          </div>
+          <div class="tz-actions">
+            <button id="tz-ver-tabla" class="tz-btn" type="button" aria-pressed="false">Show table</button>
+            <button id="tz-csv" class="tz-btn" type="button">Download CSV</button>
+          </div>
+        </div>
+        <ul class="tz-legend">
+          <li><span class="tz-sw s1"></span><span>Game shop fees</span></li>
+          <li><span class="tz-sw s2"></span><span>P2P market fees</span></li>
+          <li><span class="tz-sw s3"></span><span>Paid to free players</span></li>
+          <li><span class="tz-sw s4"></span><span>Paid to VIP players</span></li>
+        </ul>
+        <div id="tz-flujo" class="tz-chart"></div>
+        <div id="tz-flujo-tabla" class="tz-table-wrap" hidden></div>
+      </section>
+
+      <div class="tz-grid">
+        <!-- Free y VIP -->
+        <section class="tz-card" aria-labelledby="tz-gente-title">
+          <h2 id="tz-gente-title">Free and VIP players</h2>
+          <p class="tz-card-sub">Players without a name never receive treasury coins.</p>
+          <ul class="tz-legend">
+            <li><span class="tz-sw s3"></span><span>Free</span></li>
+            <li><span class="tz-sw s4"></span><span>VIP</span></li>
+          </ul>
+          <span class="tz-eyebrow">Accounts</span>
+          <div id="tz-split-cuentas" class="tz-split" role="img"></div>
+          <div id="tz-filas-cuentas" class="tz-split-rows"></div>
+          <div style="height:16px"></div>
+          <span class="tz-eyebrow">Paid out, all time</span>
+          <div id="tz-split-pagos" class="tz-split" role="img"></div>
+          <div id="tz-filas-pagos" class="tz-split-rows"></div>
+        </section>
+
+        <!-- Mapas -->
+        <section class="tz-card" aria-labelledby="tz-mapas-title">
+          <h2 id="tz-mapas-title">Who can enter each map</h2>
+          <p class="tz-card-sub">Players whose character level opens the map, out of all accounts.</p>
+          <div id="tz-mapas" class="tz-bars"></div>
+          <div style="height:18px"></div>
+          <span class="tz-eyebrow">Players by level</span>
+          <div id="tz-niveles" class="tz-bars" style="margin-top:10px"></div>
+        </section>
+
+        <!-- El control -->
+        <section id="tz-control" class="tz-card tz-span" aria-labelledby="tz-control-title">
+          <div class="tz-card-head">
+            <div>
+              <h2 id="tz-control-title">Incentive control</h2>
+              <p class="tz-card-sub">Automatic mode adjusts the chance by VIP status, level and luck. Manual mode lets you set it yourself for free and VIP players.</p>
+            </div>
+            <label class="tz-switch"><input id="tz-activo" type="checkbox"><span aria-hidden="true"></span><b>Incentives active</b></label>
+          </div>
+          <form id="tz-form" class="tz-form" novalidate>
+            <fieldset class="tz-modes" style="border:0;padding:0;margin:0">
+              <legend class="suite-sr">Mode</legend>
+              <label class="tz-mode"><input type="radio" name="tz-modo" value="auto"><strong>Automatic</strong><span>Base chance for free or VIP, plus level and a luck streak that grows with every monster without a prize.</span></label>
+              <label class="tz-mode"><input type="radio" name="tz-modo" value="manual"><strong>Manual</strong><span>You decide the chance per monster for free and for VIP players.</span></label>
+            </fieldset>
+
+            <div id="tz-campos-manual" class="tz-fields">
+              <label class="tz-field"><span>Free players · chance per monster (%)</span>
+                <span class="tz-range"><input id="tz-m-free-r" type="range" min="0" max="75" step="0.5" aria-label="Free players · chance per monster (%)"><input id="tz-m-free" class="tz-input" type="number" min="0" max="75" step="0.5" inputmode="decimal"></span></label>
+              <label class="tz-field"><span>VIP players · chance per monster (%)</span>
+                <span class="tz-range"><input id="tz-m-vip-r" type="range" min="0" max="75" step="0.5" aria-label="VIP players · chance per monster (%)"><input id="tz-m-vip" class="tz-input" type="number" min="0" max="75" step="0.5" inputmode="decimal"></span></label>
+              <label class="tz-switch"><input id="tz-m-bonos" type="checkbox"><span aria-hidden="true"></span>Also add the level and luck bonuses</label>
+            </div>
+
+            <div id="tz-campos-auto" class="tz-fields">
+              <label class="tz-field" data-tz-solo="auto"><span>Base chance · free (%)</span><input id="tz-a-basefree" class="tz-input" type="number" min="0" max="50" step="0.5" inputmode="decimal"></label>
+              <label class="tz-field" data-tz-solo="auto"><span>Base chance · VIP (%)</span><input id="tz-a-basevip" class="tz-input" type="number" min="0" max="50" step="0.5" inputmode="decimal"></label>
+              <label class="tz-field" data-tz-solo="bonos"><span>Bonus per character level (%)</span><input id="tz-a-pornivel" class="tz-input" type="number" min="0" max="2" step="0.05" inputmode="decimal"></label>
+              <label class="tz-field" data-tz-solo="bonos"><span>Level where the bonus stops</span><input id="tz-a-niveltope" class="tz-input" type="number" min="1" max="150" step="1" inputmode="numeric"></label>
+              <label class="tz-field" data-tz-solo="bonos"><span>Luck · bonus per monster without a prize (%)</span><input id="tz-a-rachapaso" class="tz-input" type="number" min="0" max="5" step="0.1" inputmode="decimal"></label>
+              <label class="tz-field" data-tz-solo="bonos"><span>Luck · maximum bonus (%)</span><input id="tz-a-rachatope" class="tz-input" type="number" min="0" max="30" step="0.5" inputmode="decimal"></label>
+            </div>
+
+            <details class="tz-details" open>
+              <summary>Payout size</summary>
+              <div class="tz-fields" style="margin-top:12px">
+                <label class="tz-field"><span>Share of the treasury per payout (%)</span><input id="tz-p-parte" class="tz-input" type="number" min="0.01" max="5" step="0.01" inputmode="decimal"><small>Before the toughness, VIP, level and boss multipliers.</small></label>
+                <label class="tz-field"><span>VIP payout multiplier (×)</span><input id="tz-p-vip" class="tz-input" type="number" min="1" max="5" step="0.1" inputmode="decimal"></label>
+                <label class="tz-field"><span>Minimum payout (bronze)</span><input id="tz-p-min" class="tz-input" type="number" min="1" max="1000000" step="1" inputmode="numeric"><small>Smaller prizes are not dropped.</small></label>
+                <label class="tz-field"><span>Maximum payout (bronze)</span><input id="tz-p-max" class="tz-input" type="number" min="1" step="1" inputmode="numeric"></label>
+                <label class="tz-field"><span>Prizes per player per day</span><input id="tz-p-dia" class="tz-input" type="number" min="1" max="500" step="1" inputmode="numeric"></label>
+              </div>
+            </details>
+
+            <div>
+              <div class="tz-card-head" style="margin-bottom:8px">
+                <span class="tz-eyebrow">What a player gets per monster</span>
+                <span id="tz-preview-tag" class="tz-preview" hidden>Preview of unsaved changes</span>
+              </div>
+              <div id="tz-ejemplos" class="tz-table-wrap"></div>
+              <p class="tz-formula" style="margin-top:8px">Bosses double the chance and pay 2.5×. The chance per monster never goes above 75%.</p>
+              <p class="tz-formula">Payouts shown for a monster of average toughness and average luck.</p>
+            </div>
+
+            <div class="tz-actions">
+              <button id="tz-guardar" class="tz-btn tz-primary" type="submit" disabled>Save changes</button>
+              <button id="tz-descartar" class="tz-btn" type="button" disabled>Discard</button>
+              <button id="tz-base" class="tz-btn" type="button">Restore defaults</button>
+              <span id="tz-form-estado" class="tz-status" role="status" aria-live="polite"></span>
+            </div>
+          </form>
+        </section>
+
+        <!-- Ajuste manual del saldo -->
+        <section class="tz-card" aria-labelledby="tz-ajuste-title">
+          <h2 id="tz-ajuste-title">Deposit or withdraw</h2>
+          <p class="tz-card-sub">Adds coins to the treasury or takes them out. Every adjustment is recorded with its reason and your wallet.</p>
+          <form id="tz-ajuste" class="tz-form" novalidate>
+            <div class="tz-fields">
+              <label class="tz-field"><span>Operation</span>
+                <select id="tz-aj-tipo" class="tz-input"><option value="ingreso">Deposit into the treasury</option><option value="retiro">Withdraw from the treasury</option></select></label>
+              <label class="tz-field"><span>Coin</span>
+                <select id="tz-aj-moneda" class="tz-input"><option value="bronce">Bronze</option><option value="plata">Silver</option><option value="oro">Gold</option></select></label>
+              <label class="tz-field"><span>Amount</span><input id="tz-aj-cantidad" class="tz-input" type="number" min="1" step="1" inputmode="numeric"></label>
+              <label class="tz-field"><span>Reason</span><input id="tz-aj-motivo" class="tz-input" type="text" maxlength="120" autocomplete="off" placeholder="At least 3 characters"></label>
+            </div>
+            <div class="tz-actions">
+              <button id="tz-aj-aplicar" class="tz-btn" type="submit">Apply adjustment</button>
+              <span id="tz-aj-estado" class="tz-status" role="status" aria-live="polite"></span>
+            </div>
+          </form>
+        </section>
+
+        <!-- Quién más cobra -->
+        <section class="tz-card" aria-labelledby="tz-top-title">
+          <h2 id="tz-top-title">Top receivers, last 30 days</h2>
+          <p class="tz-card-sub">Players who picked up the most treasury coins.</p>
+          <div id="tz-top" class="tz-table-wrap"></div>
+        </section>
+
+        <!-- Los últimos movimientos -->
+        <section class="tz-card tz-span" aria-labelledby="tz-movs-title">
+          <h2 id="tz-movs-title">Latest movements</h2>
+          <p class="tz-card-sub">The last 30 entries: fees in, prizes out and admin adjustments.</p>
+          <div id="tz-movs" class="tz-table-wrap"></div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+<div id="tz-tip" class="tz-tip" role="tooltip" data-no-translate hidden></div>
+<noscript>This administration page requires JavaScript. / Esta página requiere JavaScript.</noscript>
+</body>
+</html>

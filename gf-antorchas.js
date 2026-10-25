@@ -30,7 +30,9 @@
   var V = '20261011a';
   var ZONAS = { GameScene: 'game', MinaScene: 'mina', SalvajeScene: 'salvaje',
                 // (2026-10-18) Los mapas nuevos: el servidor tiene la misma lista.
-                CementerioScene: 'cementerio', DesiertoScene: 'desierto', TundraScene: 'tundra' };
+                CementerioScene: 'cementerio', DesiertoScene: 'desierto', TundraScene: 'tundra',
+                // (2026-10-25) Los de nivel 8, 9 y 10 (el servidor: ANTORCHA_ZONAS).
+                GlaciarScene: 'glaciar', CavernaScene: 'caverna', PraderaScene: 'pradera' };
   var TEX = 'gfa_antorcha';
   var ANIM = 'gfa_antorcha_fuego';
   var BRILLO = 'gfa_antorcha_brillo';

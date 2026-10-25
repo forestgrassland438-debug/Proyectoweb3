@@ -1544,6 +1544,9 @@
   }
 
   function imagenDe(scene, itemId) {
+    // (2026-10-22) Las monedas del tesoro ("EL TESORO" en server2.js): no son
+    // un objeto del inventario, se suman a las monedas al pisarlas.
+    if (itemId === 'moneda_bronce') return './Game/Source/moneda de bronce.png';
     var def = scene.ItemDefinitions && scene.ItemDefinitions[itemId];
     return def && def.src ? def.src : null;
   }
@@ -1556,13 +1559,14 @@
       if (!st.vivo) return;
       var halo = scene.add.image(x, y, 'gfsp_brillo').setDepth(y - 1).setScale(1.3).setAlpha(0.8);
       halo.setBlendMode(Phaser.BlendModes.ADD);
-      var spr = scene.add.image(x0, y0, scene.textures.exists(clave) ? clave : 'gfsp_brillo').setOrigin(0.5, 1).setScale(2).setDepth(y);
+      // La moneda (30 px) a menos escala que los objetos (16 px a ×2).
+      var spr = scene.add.image(x0, y0, scene.textures.exists(clave) ? clave : 'gfsp_brillo').setOrigin(0.5, 1).setScale(b.incentivo ? 1.15 : 2).setDepth(y);
       var salto = scene.tweens.addCounter({ from: 0, to: 1, duration: 600, ease: 'Quad.easeOut', onUpdate: function (tw) {
         if (!st.vivo || !spr.scene) return;
         var t = tw.getValue();
         spr.x = x0 + (x - x0) * t; spr.y = y0 + (y - y0) * t - Math.sin(t * Math.PI) * 50;
       } });
-      var m = { id: b.id, itemId: b.itemId, cantidad: b.cantidad, x: x, y: y, spr: spr, halo: halo, salto: salto, hasta: Date.now() + caducaMs, recogiendo: false };
+      var m = { id: b.id, itemId: b.itemId, cantidad: b.cantidad, incentivo: !!b.incentivo, x: x, y: y, spr: spr, halo: halo, salto: salto, hasta: Date.now() + caducaMs, recogiendo: false };
       m.flota = scene.tweens.add({ targets: halo, alpha: 0.35, duration: 700, yoyo: true, repeat: -1 });
       st.botin.push(m);
     };
@@ -1616,7 +1620,7 @@
         var cola = window.GFColaCadena;
         var t = cola ? cola.ticket() : null;
         var nombre = (scene._getFruitDisplayNameEN && scene._getFruitDisplayNameEN(mm.itemId)) || mm.itemId;
-        var copia = { id: mm.id, itemId: mm.itemId, cantidad: mm.cantidad }, cx = mm.x, cy = mm.y, hasta = mm.hasta;
+        var copia = { id: mm.id, itemId: mm.itemId, cantidad: mm.cantidad, incentivo: mm.incentivo }, cx = mm.x, cy = mm.y, hasta = mm.hasta;
         var volar = function () {
           if (!st.vivo || !mm.spr || !mm.spr.scene) { quitarMonton(st, mm); return; }
           try { if (mm.flota) mm.flota.stop(); } catch (e) {}
@@ -1625,6 +1629,16 @@
         try { mm.spr.setAlpha(0.45); } catch (e) {}
         api('/api/monstruos/botin/recoger', t ? { id: mm.id, ticket: t } : { id: mm.id }).then(function (r) {
           var d = (r && r.datos) || {};
+          /* (2026-10-22) MONEDAS DEL TESORO: el servidor ya las sumó a las del
+             jugador (no hay factura ni cola): se ponen al día el HUD y el saldo. */
+          if (d.ok && d.incentivo) {
+            if (!st.vivo) return;
+            try { if (d.stats && window.GFBronce && window.GFBronce.adoptarStats) window.GFBronce.adoptarStats(d.stats); } catch (e) {}
+            aviso(scene, '💰 +' + (Math.floor(Number(d.cantidad)) || 0).toLocaleString('en-US') + ' Bronze from the treasury!', 'success');
+            try { scene.playSFX && scene.playSFX('item_pickup'); } catch (e) {}
+            volar();
+            return;
+          }
           if (d.ok && d.pendiente && cola) {
             volar();
             if (st.vivo) {

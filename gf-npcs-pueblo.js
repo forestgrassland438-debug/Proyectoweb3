@@ -27,7 +27,7 @@
   'use strict';
 
   var RUTA = './Game/Sprites/npcs/';
-  var V = '20261021a';   // (2026-10-21) ojos por papel, frente libre y Franklin
+  var V = '20261024a';   // (2026-10-24) el delantal también de lado (antes 20261021a: ojos por papel, Franklin)
   var ESCALA = 2;
   var CERCA = 170;             // a esta distancia se gira a mirarte
   var SALUDA = 130;            // a esta, te saluda

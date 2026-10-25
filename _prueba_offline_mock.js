@@ -12,6 +12,29 @@
  *
  * Todo lo que el juego pide queda apuntado en window.__mock.log.
  */
+/* (2026-10-22) LOS ERRORES, APARTE: el juego escribe miles de console.log al
+   cargar y la consola del navegador solo guarda los últimos, así que un error
+   del arranque se perdía. Aquí se apuntan todos (excepciones sin capturar,
+   promesas rechazadas, console.error y console.warn) en window.__gfErrores. */
+(function () {
+  'use strict';
+  var lista = window.__gfErrores = [];
+  var apuntar = function (tipo, args) {
+    if (lista.length >= 500) return;
+    var txt = Array.prototype.map.call(args, function (a) {
+      try { return a && a.stack ? String(a.stack).slice(0, 400) : (typeof a === 'object' ? JSON.stringify(a).slice(0, 300) : String(a)); }
+      catch (e) { return String(a); }
+    }).join(' ');
+    lista.push({ t: Math.round(performance.now()), tipo: tipo, txt: txt.slice(0, 600) });
+  };
+  ['error', 'warn'].forEach(function (k) {
+    var orig = console[k];
+    console[k] = function () { apuntar(k, arguments); return orig.apply(console, arguments); };
+  });
+  window.addEventListener('error', function (e) { apuntar('excepcion', [e.error || e.message]); });
+  window.addEventListener('unhandledrejection', function (e) { apuntar('promesa', [e.reason]); });
+})();
+
 (function () {
   'use strict';
 
@@ -30,9 +53,19 @@
     var m = /[?&]tut=(\d+)/.exec(location.search);
     return m ? Number(m[1]) : 1;
   })();
+  // ?exp=N (2026-10-22): la experiencia guardada; el nivel sale de ella (los mapas se abren por nivel).
+  var EXP = (function () {
+    var m = /[?&]exp=(\d+)/.exec(location.search);
+    return m ? Number(m[1]) : 4500;
+  })();
+  function nivelDeExp(e) {
+    var n = 0;
+    while (n < 150 && e >= Math.min(200 * Math.pow(2, Math.min(n, 40)), 100 * (n + 1) * (n + 1) + 100 * (n + 1))) n++;
+    return n;
+  }
 
   var estado = {
-    stats: { vida: 100, agua: 80, comida: 70, oro: 50, plata: 500, bronce: 25000, exp: 4500, invoiceIds: {} },
+    stats: { vida: 100, agua: 80, comida: 70, oro: 50, plata: 500, bronce: 25000, exp: EXP, invoiceIds: {} },
     // Construcción en la isla: lo colocado y las parcelas que quedan.
     construcciones: [],
     parcelas: 5,
@@ -84,8 +117,10 @@
   var remNativo = EventTarget.prototype.removeEventListener;
   function esCaptura(o) { return typeof o === 'boolean' ? o : !!(o && o.capture); }
   // Con WeakRef: el rastreo no debe mantener vivo nada de lo que rastrea.
+  var esObjeto = function (v) { return !!v && (typeof v === 'object' || typeof v === 'function'); };
   if (rastrear) EventTarget.prototype.addEventListener = function (tipo, fn, opts) {
-    if (fn && !(opts && opts.once)) {
+    // WeakRef solo admite objetos: sin esto, un `this` raro reventaba la página.
+    if (esObjeto(fn) && esObjeto(this) && !(opts && opts.once)) {
       oyentesDom.add({ t: new WeakRef(this), tipo: tipo, fn: new WeakRef(fn), cap: esCaptura(opts),
                        cuando: performance.now(),
                        pila: (new Error().stack || '').split('\n').slice(2, 6).join(' | ') });
@@ -183,7 +218,7 @@
       vidaPorcentaje: estado.stats.vida, aguaPorcentaje: estado.stats.agua,
       comidaPorcentaje: estado.stats.comida,
       speed: 2.7, mundo: MUNDO, moneda: estado.stats.oro, moneda_plata: estado.stats.plata,
-      nivel: 6, nivel_exp: 4500, misiones: 0, Username: JUGADOR, lenguaje: 1,
+      nivel: nivelDeExp(EXP), nivel_exp: EXP, misiones: 0, Username: JUGADOR, lenguaje: 1,
       agricultura: 1, agricultura_exp: 0, mineria: 1, mineria_exp: 0,
       deforestacion: 1, deforestacion_exp: 0, pesca: 0, pesca_exp: 0,
       cocina: 0, cocina_exp: 0, fuerza: 0, fuerza_exp: 0,
@@ -314,6 +349,13 @@
         return { id: id, itemId: x[0], cantidad: x[1] };
       });
       estado.derrotados = (estado.derrotados || []).concat([b.tipo]);
+      /* (2026-10-22) Las monedas del tesoro ("EL TESORO" en server2.js): en el
+         mock caen siempre (?tesoro=0 las quita), 1.250 de bronce. */
+      if (!/[?&]tesoro=0/.test(location.search)) {
+        var idT = 't' + Date.now().toString(36);
+        estado.botin[idT] = { itemId: 'moneda_bronce', cantidad: 1250, incentivo: true };
+        lista.push({ id: idT, itemId: 'moneda_bronce', cantidad: 1250, moneda: 'bronce', incentivo: true });
+      }
       return { ok: true, tipo: b.tipo, exp: 450, expTotal: 4500 + 450 * estado.derrotados.length, botin: lista, caducaMs: 600000 };
     }
     // Las invitaciones (ver /api/invitaciones/* en server2.js).
@@ -387,6 +429,12 @@
       var bt = estado.botin && estado.botin[b.id];
       if (!bt) return { ok: false, motivo: 'no_existe' };
       delete estado.botin[b.id];
+      if (bt.incentivo) {
+        // Las monedas del tesoro se SUMAN al bronce (no van al inventario).
+        estado.stats.bronce = (Number(estado.stats.bronce) || 0) + bt.cantidad;
+        estado.tesoroPagado = (estado.tesoroPagado || 0) + bt.cantidad;
+        return { ok: true, incentivo: true, itemId: bt.itemId, moneda: 'bronce', cantidad: bt.cantidad, stats: estado.stats };
+      }
       estado.recogidos = (estado.recogidos || 0) + 1;
       var facturaB = { invoiceId: 900 + estado.recogidos, manualId: bt.itemId + '#b' + estado.recogidos, cantidad: bt.cantidad };
       if (b.ticket) {
@@ -599,6 +647,12 @@
       estado.antorchasPuestas.push(nueva);
       return { ok: true, antorcha: nueva, duracionMs: 1800000,
                gastado: { itemId: 'antorcha', invoiceId: 117, manualId: 'antorcha#117', cantidadRestante: estado.antorchas } };
+    }
+    // ── El tesoro (ver "EL TESORO Y SUS INCENTIVOS" en server2.js) ─────────
+    if (ruta === '/api/tesoro/comision' && metodo === 'POST') {
+      b = cuerpo(init);
+      estado.comisiones = (estado.comisiones || []).concat([b]).slice(-100);
+      return { ok: true, bronce: 1 };
     }
     // ── El bote (ver "EL BOTE" en server2.js) ──────────────────────────────
     if (ruta === '/api/botes' && metodo === 'GET') {

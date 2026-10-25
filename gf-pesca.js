@@ -138,6 +138,7 @@
 
   // ─────────────────────────────────────────────────────────────── EL AGUA
   function clasificarTileset(scene) {
+    if (typeof scene.textures.exists === 'function' && !scene.textures.exists('tiles')) return null;   // get() de una que no hay avisa en consola
     var tex = scene.textures.get('tiles');
     var img = tex && tex.getSourceImage ? tex.getSourceImage() : null;
     if (!img || !img.width) return null;
@@ -212,6 +213,52 @@
     return agua.m[y * agua.w + x];
   }
 
+  /* EL CORCHO NO CAE EN EL PUENTE                                (2026-10-24)
+
+     "Le doy a pescar de lado y lo hace": en el puente del mapa salvaje el río
+     sigue DEBAJO de las tablas (esas casillas son agua) y un lance de lado
+     dejaba el corcho encima del tablero, junto a la baranda.
+
+     El corcho solo cae en agua ABIERTA, la que se ve: ni bajo el dibujo de un
+     puente (con su baranda y un margen) ni donde se puede andar (el tablero,
+     un muelle). Esto último sirve en cualquier mapa sin nombrar nada: el agua
+     de verdad nunca se pisa. La orilla (enLaOrilla) sigue mirando el agua
+     entera: desde un puente se pesca, pero hacia el agua que se ve. */
+  var PUENTE = /puente|bridge|muelle|dock|pasarela/i;
+  function tapadoDe(scene) {
+    var rects = null, cache = null;
+    function puentes() {
+      if (rects) return rects;
+      rects = [];
+      try {
+        scene.children.list.forEach(function (o) {
+          if (!o || !o.visible || !o.texture || !PUENTE.test(o.texture.key || '') || typeof o.getBounds !== 'function') return;
+          var b = o.getBounds();
+          rects.push({ x0: b.x - 6, y0: b.y - 6, x1: b.right + 6, y1: b.bottom + 6 });
+        });
+      } catch (e) {}
+      return rects;
+    }
+    return function (agua, x, y) {
+      var r = puentes();
+      for (var i = 0; i < r.length; i++) {
+        if (x >= r[i].x0 && x <= r[i].x1 && y >= r[i].y0 && y <= r[i].y1) return true;
+      }
+      if (typeof scene._chocaConEscenario !== 'function' || !scene._idxColision) return false;
+      var tam = agua.tileSize || CASILLA, cx = Math.floor(x / tam), cy = Math.floor(y / tam);
+      if (cx < 0 || cy < 0 || cx >= agua.w || cy >= agua.h) return false;
+      if (!cache) cache = new Uint8Array(agua.w * agua.h);    // 0 sin mirar, 1 se pisa, 2 no se pisa
+      var k = cy * agua.w + cx;
+      if (!cache[k]) cache[k] = scene._chocaConEscenario(cx * tam + tam / 2 - 3, cy * tam + tam / 2 - 3, 6, 6) ? 2 : 1;
+      return cache[k] === 1;
+    };
+  }
+
+  /** Agua llena y a la vista: donde puede caer el corcho. */
+  function abierta(agua, px, py) {
+    return celda(agua, px, py) === 2 && !(agua.tapado && agua.tapado(agua, px, py));
+  }
+
   function enLaOrilla(agua, px, py) {
     for (var dy = -RADIO_ORILLA; dy <= RADIO_ORILLA; dy += 8) {
       for (var dx = -RADIO_ORILLA; dx <= RADIO_ORILLA; dx += 8) {
@@ -233,7 +280,7 @@
       var v = DIRV[dd] || DIRV.right, mejor = null, masLejos = false;
       for (var k = 24; k <= LANCE_MAX + 24; k += 6) {
         var x = px + v[0] * k, y = py + v[1] * k;
-        if (celda(agua, x, y) !== 2) continue;
+        if (!abierta(agua, x, y)) continue;
         if (k <= d + 12) mejor = { x: x, y: y };
         else if (!mejor) masLejos = true;
       }
@@ -253,13 +300,13 @@
     var v = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[dir] || [1, 0];
     for (var d = 24; d <= ALCANCE; d += 6) {
       var x = px + v[0] * d, y = py + v[1] * d;
-      if (celda(agua, x, y) === 2 && celda(agua, x + v[0] * 10, y + v[1] * 10) >= 1) return { x: x + v[0] * 8, y: y + v[1] * 8 };
+      if (abierta(agua, x, y) && abierta(agua, x + v[0] * 8, y + v[1] * 8)) return { x: x + v[0] * 8, y: y + v[1] * 8 };
     }
     var mejor = null, mejorD = 1e9;
     for (var yy = -ALCANCE; yy <= ALCANCE; yy += 8) {
       for (var xx = -ALCANCE; xx <= ALCANCE; xx += 8) {
         var dd = xx * xx + yy * yy;
-        if (dd < mejorD && dd > 400 && celda(agua, px + xx, py + yy) === 2) { mejorD = dd; mejor = { x: px + xx, y: py + yy }; }
+        if (dd < mejorD && dd > 400 && abierta(agua, px + xx, py + yy)) { mejorD = dd; mejor = { x: px + xx, y: py + yy }; }
       }
     }
     return mejor;
@@ -299,21 +346,99 @@
 
   function clave(per, dir, n) { return 'gfp_' + per + '_' + dir + '_' + n; }
 
-  /** Carga los fotogramas de pescar del personaje (y los peces). Nunca falla.
-      `quien` es otro personaje (el de un jugador remoto); sin él, el mío. */
+  /* (2026-10-22) EL PERSONALIZADO TAMBIÉN PESCA. Su id ('personaje3--m1231…')
+     no es una carpeta: se pedían Soulbound/personaje3--…/abajo/pescar_1.png,
+     no existían y salía "Fishing images could not load". Sus fotogramas los
+     compone gf-soulbound-custom.js (prepararPesca) con SU aspecto; si no
+     pudiera, se pesca con los del personaje base. */
+  function rutaFoto(per, carpeta, n) { return './Game/Sprites/Soulbound/' + per + '/' + carpeta + '/pescar_' + n + '.png' + V_FOTOS; }
+  function baseDe(per) { var i = String(per).indexOf('--'); return i > 0 ? per.slice(0, i) : per; }
+  /** El cuerpo del dibujo (la fila de PUNTAS): el del aspecto elegido, o el del personaje. */
+  function cuerpoDe(per) {
+    var C = window.GFSoulboundCustom;
+    var c = per !== baseDe(per) && C && C.cuerpo ? C.cuerpo(per) : null;
+    return c || baseDe(per);
+  }
+
+  /** Carga los fotogramas de pescar del personaje (y los peces). Nunca falla:
+      devuelve el personaje cuyos fotogramas quedaron cargados (la clave de sus
+      texturas) o false. `quien` es otro personaje (el de un jugador remoto);
+      sin él, el mío. */
   function cargarFotogramas(scene, quien, sinPeces) {
     var per = quien || personaje();
-    var faltan = [];
+    if (per === baseDe(per)) return cargarLista(scene, per, rutaFoto, sinPeces);
+    var C = window.GFSoulboundCustom, base = baseDe(per);
+    var conBase = function () { return cargarLista(scene, base, rutaFoto, sinPeces); };
+    if (!C || !C.prepararPesca || !C.urlPesca) return conBase();
+    var viva = true, apagar = function () { viva = false; };
+    scene.events.once('shutdown', apagar); scene.events.once('destroy', apagar);
+    var soltar = function (v) { scene.events.off('shutdown', apagar); scene.events.off('destroy', apagar); return v; };
+    return Promise.resolve(C.prepararPesca(per, rutaFoto)).catch(function () { return false; }).then(function (ok) {
+      if (!viva) return false;
+      if (!ok) return conBase();
+      return cargarLista(scene, per, function (p, carpeta, n) { return C.urlPesca(per, carpeta, n); }, sinPeces)
+        .then(function (r) {
+          if (r) { anotarCustom(scene, per); return r; }
+          return viva ? conBase() : false;
+        });
+    }).then(soltar, function () { return soltar(false); });
+  }
+
+  /* Las texturas de pescar de los aspectos personalizados (24 por aspecto) no
+     se quedan para siempre: se guardan las de los últimos MAX_PESCA_CUSTOM y
+     se sueltan las demás si ningún sprite de ninguna escena las está usando. */
+  var MAX_PESCA_CUSTOM = 6, usadosCustom = [];
+  function enUso(scene, per) {
+    if (per === personaje()) return true;
+    var pre = 'gfp_' + per + '_';
+    var usa = function (spr) { try { return !!(spr && spr.texture && String(spr.texture.key).indexOf(pre) === 0); } catch (e) { return false; } };
+    var escenas = [scene];
+    try { escenas = scene.sys.game.scene.getScenes(false); } catch (e) {}
+    for (var s = 0; s < escenas.length; s++) {
+      var sc = escenas[s];
+      if (!sc) continue;
+      if (usa(sc.player)) return true;
+      var ps = sc.otherPlayers || {};
+      for (var id in ps) {
+        if (!Object.prototype.hasOwnProperty.call(ps, id)) continue;
+        var o = ps[id];
+        if (o && (usa(o.sprite) || (o._pesca && (o._pesca.fotos === per || o._pesca.per === per)))) return true;
+      }
+    }
+    return false;
+  }
+  function anotarCustom(scene, per) {
+    var i = usadosCustom.indexOf(per);
+    if (i >= 0) usadosCustom.splice(i, 1);
+    usadosCustom.push(per);
+    while (usadosCustom.length > MAX_PESCA_CUSTOM) {
+      var viejo = null;
+      for (var k = 0; k < usadosCustom.length - 1; k++) { if (!enUso(scene, usadosCustom[k])) { viejo = usadosCustom[k]; break; } }
+      if (!viejo) break;
+      usadosCustom.splice(usadosCustom.indexOf(viejo), 1);
+      Object.keys(DIRS).forEach(function (d) {
+        for (var n = 1; n <= 6; n++) {
+          try { if (scene.textures.exists(clave(viejo, d, n))) scene.textures.remove(clave(viejo, d, n)); } catch (e) {}
+        }
+      });
+    }
+  }
+
+  function cargarLista(scene, per, url, sinPeces) {
+    var faltan = [], sinUrl = false;
     Object.keys(DIRS).forEach(function (d) {
       for (var n = 1; n <= 6; n++) {
         var k = clave(per, d, n);
-        if (!scene.textures.exists(k)) faltan.push([k, './Game/Sprites/Soulbound/' + per + '/' + DIRS[d] + '/pescar_' + n + '.png' + V_FOTOS]);
+        if (scene.textures.exists(k)) continue;
+        var u = url(per, DIRS[d], n);
+        if (u) faltan.push([k, u]); else sinUrl = true;
       }
     });
+    if (sinUrl) return Promise.resolve(false);
     if (!sinPeces) PECES.forEach(function (p) {
       if (!scene.textures.exists('gfp_' + p)) faltan.push(['gfp_' + p, './Game/Objetos/pesca/' + p + '.png']);
     });
-    if (!faltan.length) return Promise.resolve(true);
+    if (!faltan.length) return Promise.resolve(per);
     return new Promise(function (ok) {
       var listo = false;
       var reloj = null;
@@ -322,7 +447,7 @@
         listo = true; clearTimeout(reloj);
         scene.load.off('complete', completo);
         scene.events.off('shutdown', cancelar); scene.events.off('destroy', cancelar);
-        ok(exito);
+        ok(exito ? per : false);
       };
       var completo = function () { fin(faltan.every(function (f) { return scene.textures.exists(f[0]); })); };
       var cancelar = function () { fin(false); };
@@ -512,6 +637,7 @@
       var r = res[0];
       if (run !== st.runId || !st.scene) return;
       if (!res[1]) { terminar(st); aviso(scene, 'Fishing images could not load. Try again.', 'warning'); return; }
+      st.per = res[1];                          // el personaje cuyos fotogramas se cargaron
       if (!r.ok || !r.datos || !r.datos.ok) {
         var e = r.datos && r.datos.error;
         var textos = {
@@ -555,7 +681,7 @@
   }
 
   function fotograma(st, n) {
-    var scene = st.scene, k = clave(personaje(), st.dir, n);
+    var scene = st.scene, k = clave(st.per || personaje(), st.dir, n);
     st.foto = n;
     if (scene.textures.exists(k)) {
       try { scene.player.anims.stop(); scene.player.setTexture(k); } catch (e) {}
@@ -592,7 +718,7 @@
 
   function puntaDeLaCana(st) {
     var p = st.scene.player;
-    var tabla = PUNTAS[personaje()] || PUNTAS.personaje1;
+    var tabla = PUNTAS[cuerpoDe(st.per || personaje())] || PUNTAS.personaje1;
     var fila = tabla[DIRS[st.dir] || 'derecha'] || tabla.derecha;
     var v = fila[Math.max(0, Math.min(5, (st.foto || 5) - 1))];
     var esc = Math.abs(p.scaleX) || 2;
@@ -1145,8 +1271,17 @@
     return personaje();
   }
 
+  /** Carga los fotogramas del remoto y apunta cuáles quedaron (los suyos o, si no, los de su base). */
+  function cargarRemoto(scene, p, r) {
+    var per = r.per;
+    r.fotos = null;
+    cargarFotogramas(scene, per, true).then(function (f) {
+      if (f && p._pesca === r && r.per === per) r.fotos = f;
+    });
+  }
+
   function puntaRemota(p, r) {
-    var tabla = PUNTAS[r.per] || PUNTAS.personaje1;
+    var tabla = PUNTAS[cuerpoDe(r.fotos || r.per)] || PUNTAS.personaje1;
     var fila = tabla[DIRS[r.dir] || 'derecha'] || tabla.derecha;
     var v = fila[Math.max(0, Math.min(5, (r.foto || 5) - 1))];
     var esc = Math.abs(p.sprite.scaleX) || 2;
@@ -1164,11 +1299,11 @@
   function pasoRemoto(scene, p, r, ahora) {
     if (!p.sprite || !p.sprite.scene) { soltarRemoto(p); return; }
     var per = perDe(p);
-    if (per !== r.per) { r.per = per; cargarFotogramas(scene, per, true); }
+    if (per !== r.per) { r.per = per; cargarRemoto(scene, p, r); }
     var dt = ahora - r.t0;
     var n = dt < 500 ? Math.min(4, 1 + Math.floor(dt / 125)) : 5 + (Math.floor((dt - 500) / 330) % 2);
     r.foto = n;
-    var k = clave(r.per, r.dir, n);
+    var k = clave(r.fotos || r.per, r.dir, n);
     if (scene.textures.exists(k) && p.sprite.texture && p.sprite.texture.key !== k) {
       try { if (p.sprite.anims) p.sprite.anims.stop(); p.sprite.setTexture(k); } catch (e) {}
     }
@@ -1258,7 +1393,7 @@
         cx: cx, cy: cy, hayCorcho: hayCorcho, corcho: null, linea: null, foto: 1
       };
       texturas(scene);
-      cargarFotogramas(scene, per, true);
+      cargarRemoto(scene, p, r);
       bucleRemoto(scene);
     } else {
       r.fase = info.fase;
@@ -1274,7 +1409,8 @@
     if (!scene || !scene.add || !scene.events || scene.__gfPesca) return scene && scene.__gfPesca;
     var agua = mapaDeAgua(scene);
     if (!agua) { log('sin capa de casillas: no hay pesca en esta escena'); return null; }
-    var st = { scene: scene, agua: agua, fase: 'nada', puede: false, ultimaMirada: 0, efectos: [], runId: 0 };
+    agua.tapado = tapadoDe(scene);
+    var st ={ scene: scene, agua: agua, fase: 'nada', puede: false, ultimaMirada: 0, efectos: [], runId: 0 };
     scene.__gfPesca = st;
     st.boton = boton(st);
     pintarBoton(st);
@@ -1337,7 +1473,7 @@
       var st = scene && scene.__gfPesca;
       return st ? { fase: st.fase, puede: st.puede, dir: st.dir || null } : null;
     },
-    _interno: { bucleRemoto: bucleRemoto, finLucha: finLucha, cerrarLucha: cerrarLucha, cargarFotogramas: cargarFotogramas, mapaDeAgua: mapaDeAgua, enLaOrilla: enLaOrilla, puntoDelCorcho: puntoDelCorcho,
+    _interno: { bucleRemoto: bucleRemoto, finLucha: finLucha, cerrarLucha: cerrarLucha, cargarFotogramas: cargarFotogramas, mapaDeAgua: mapaDeAgua, enLaOrilla: enLaOrilla, puntoDelCorcho: puntoDelCorcho, abierta: abierta,
                 destinoDelLance: destinoDelLance, LANCE_MIN: LANCE_MIN, LANCE_MAX: LANCE_MAX, RADIO_MOVERSE: RADIO_MOVERSE,
                 clasificarTileset: clasificarTileset, meterFactura: meterFactura, NOMBRES: NOMBRES }
   };

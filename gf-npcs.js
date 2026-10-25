@@ -30,7 +30,7 @@
 (function () {
   'use strict';
 
-  var V = '20261021a';   // (2026-10-21) ojos por papel y frente libre (antes 20261019b: peinados y ojos)
+  var V = '20261024a';   // (2026-10-24) el delantal también de lado y de espaldas (antes 20261021a: ojos por papel)
   var RUTA = './Game/Sprites/npcs/';
   var ESCALA = 2;
   var CERCA = 110;            // a esta distancia se gira a mirarte
@@ -63,6 +63,33 @@
         frases: ['Faster, Captain! My grandmother swings harder than that.',
                  'The mummies guard the old ruins. Their curse slows you down.',
                  'Water is worth more than gold out here.'] }
+    ],
+    // (2026-10-25) Los de nivel 8, 9 y 10.
+    GlaciarScene: [
+      { id: 'astrid', arte: 'guia_glaciar', nombre: 'Astrid the Glacier Guide', x: 3780, y: 4300, accion: 'pasear', radio: 150,
+        frases: ['The crevasses never forgive a careless step.',
+                 'When the blizzard comes, find the fire and wait it out.',
+                 'They say a king of ice sleeps in the northern ruins.'] }
+    ],
+    CavernaScene: [
+      { id: 'dorin', arte: 'minero', nombre: 'Dorin the Old Miner', x: 1000, y: 1520, accion: 'pasear', radio: 130,
+        frases: ['These tunnels were dug by my grandfather\'s grandfather.',
+                 'Keep to the braziers. The dark has teeth down here.',
+                 'The crystals hum at night. I swear they do.'] },
+      { id: 'mira', arte: 'exploradora', nombre: 'Mira the Cave Explorer', x: 3900, y: 2380, accion: 'quieto', mira: 'abajo',
+        frases: ['The stairs behind me lead back to the cemetery.',
+                 'Bats the size of wagons live in the western hollows.',
+                 'Fish in the Sunless Lake are pale but tasty.'] }
+    ],
+    PraderaScene: [
+      { id: 'lily', arte: 'florista', nombre: 'Lily the Florist', x: 3340, y: 2700, accion: 'pasear', radio: 160,
+        frases: ['Tulips, hydrangeas, lavender... the meadow is my shop!',
+                 'Mind the boars. They hate when you step on the flowers.',
+                 'The Elder Stones glow when the moon is up.'] },
+      { id: 'tom', arte: 'pastor', nombre: 'Tom the Shepherd', x: 3920, y: 3700, accion: 'pasear', radio: 180,
+        frases: ['The windmill grinds wheat all summer long.',
+                 'Something old walks among the stones to the north.',
+                 'Rest on the bench, friend. The meadow is kind.'] }
     ],
     TundraScene: [
       { id: 'bjorn', arte: 'trampero', nombre: 'Bjorn the Trapper', x: 3488, y: 3902, accion: 'quieto', mira: 'derecha',

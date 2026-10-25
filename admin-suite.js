@@ -66,7 +66,7 @@
     language = next.language === 'en' ? 'en' : next.language === 'es' ? 'es' : language;
     theme = next.theme === 'light' ? 'light' : next.theme === 'dark' ? 'dark' : theme;
     html.lang = language; html.dataset.theme = theme; html.dataset.adminSuite = '';
-    const titles = {'control-center':'Control center',admin:'Players & economy',colecciones:'Collections',climas:'World & weather','consola-reportes':'Player reports','contrato-stats':'Contract analytics',misiones:'Missions',puerta_login:'Access & permissions',reporter:'Error monitoring'};
+    const titles = {'control-center':'Control center',admin:'Players & economy',colecciones:'Collections',climas:'World & weather','consola-reportes':'Player reports','contrato-stats':'Contract analytics',misiones:'Missions',puerta_login:'Access & permissions',reporter:'Error monitoring',tesoro:'Treasury & incentives'};
     if (titles[page]) document.title = 'Grassland Forest · '+translate(titles[page]);
     const select = document.getElementById('suite-language'); if (select) select.value = language;
     const button = document.getElementById('suite-theme'); if (button) button.textContent = theme === 'dark' ? '☼' : '☾';
@@ -82,7 +82,7 @@
     if (embedded) root.parent.dispatchEvent(new CustomEvent('gf-admin-tool-dirty', { detail:{ dirty } }));
   }
   function lifecycleStatus() {
-    return root.GFCollectionsLifecycle?.status() || root.GFAdminPlayerLifecycle?.status() || root.GFAccessLifecycle?.status() || root.GFWeatherLifecycle?.status() || '';
+    return root.GFCollectionsLifecycle?.status() || root.GFAdminPlayerLifecycle?.status() || root.GFAccessLifecycle?.status() || root.GFWeatherLifecycle?.status() || root.GFTreasuryLifecycle?.status() || '';
   }
   function formSnapshot(prefix) {
     return JSON.stringify([...document.querySelectorAll('input[id^="'+prefix+'"],select[id^="'+prefix+'"],textarea[id^="'+prefix+'"]'+(prefix === 'farm' ? ',input[data-seed]':''))].map(el => [el.id,el.type === 'checkbox' ? el.checked : el.value]));
@@ -141,7 +141,7 @@
       });
       card.append(title,note,button); overlay.append(card); document.body.append(overlay); button.focus();
     });
-    if (['misiones','climas','consola-reportes','puerta_login','reporter'].includes(page)) {
+    if (['misiones','climas','consola-reportes','puerta_login','reporter','tesoro'].includes(page)) {
       watchedWallet = root.GFAdminSession.provider(); watchedWallet?.on?.('accountsChanged',walletChanged);
     }
   }

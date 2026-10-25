@@ -189,7 +189,11 @@
     madera: { polvo: 0xd8c49a, huella: 0x2a1d12, alfaPolvo: 0.40, alfaHuella: 0.40 },
     /* (2026-10-18) La arena del desierto: la pisada hundida, un tono tostado,
        y se queda como en la nieve. */
-    arena:  { polvo: 0xf0dcae, huella: 0x9a7444, alfaPolvo: 0.50, alfaHuella: 0.55 }
+    arena:  { polvo: 0xf0dcae, huella: 0x9a7444, alfaPolvo: 0.50, alfaHuella: 0.55 },
+    /* (2026-10-25) La roca de la caverna (la pisada polvorienta, oscura) y la
+       hierba de la pradera (la hierba aplastada, verde oscura). */
+    roca:   { polvo: 0x8a8296, huella: 0x1e1a24, alfaPolvo: 0.40, alfaHuella: 0.46 },
+    hierba: { polvo: 0xcfe0a0, huella: 0x2f4a22, alfaPolvo: 0.30, alfaHuella: 0.44 }
   };
 
   /* QUÉ TERRENOS SUELTAN NUBECILLA.
@@ -200,7 +204,7 @@
      charco, y quitarla dejaría pisar mojado igual que pisar seco.
 
      Para devolver el polvo, poner `seco: 1` aquí. Nada más. */
-  var POLVO = { seco: 0, nieve: 0, agua: 1, madera: 0, arena: 0 };
+  var POLVO = { seco: 0, nieve: 0, agua: 1, madera: 0, arena: 0, roca: 0, hierba: 0 };
 
   // ── LOS DOS ALMACENES ───────────────────────────────────────────────────
 

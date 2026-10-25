@@ -840,7 +840,8 @@
     if (!game || !game.scene || game.pendingDestroy) return false;
     var scenes = new Map();
     var knownNames = ['LoadingScenegame', 'GameScene', 'MinaScene', 'LandsScene', 'InteriorScene', 'SalvajeScene',
-                      'CementerioScene', 'DesiertoScene', 'TundraScene', 'tiendajuego', 'LoadingSceneshop', 'BattleScene'];
+                      'CementerioScene', 'DesiertoScene', 'TundraScene', 'GlaciarScene', 'CavernaScene', 'PraderaScene',
+                      'tiendajuego', 'LoadingSceneshop', 'BattleScene'];
     if (root.__secureSceneRegistry instanceof root.Map) {
       root.__secureSceneRegistry.forEach(function (cls, key) {
         if (validSceneName(key) && Utils.isFunction(cls)) scenes.set(key, cls);
@@ -918,7 +919,10 @@
       '}',
       // El lienzo llena su CONTENEDOR, no el viewport: con 100vw/100vh el
       // lienzo se desbordaba del contenedor en móvil (barra del navegador).
-      'canvas{',
+      // (2026-10-22) Solo el del JUEGO (#container): con `canvas{...}` a secas
+      // se estiraba también cualquier lienzo de los paneles (la vista previa
+      // del personaje personalizado salía deformada al 100% de su caja).
+      '#container canvas,.phaser-canvas-scaled-root canvas{',
         'display:block;width:100%!important;height:100%!important;',
         'image-rendering:pixelated;outline:none;touch-action:none;',
       '}',
@@ -927,7 +931,7 @@
       // que es justo lo que se quiere evitar. 100% lo bloquea de verdad.
       '*{-webkit-text-size-adjust:100%;text-size-adjust:100%;box-sizing:border-box;}',
       '@media(max-width:768px){',
-        'canvas{cursor:none;}',
+        '#container canvas{cursor:none;}',
         '.gf-joystick-area{',
           'position:fixed;left:0;bottom:0;width:50vw;height:40vh;',
           'z-index:1000;touch-action:none;',

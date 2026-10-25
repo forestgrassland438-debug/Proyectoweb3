@@ -10,13 +10,15 @@
     reports:'<path d="m12 3 8 3v6c0 5-8 10-8 10S4 17 4 12V6l8-3Z"/><path d="M12 8v5m0 3h.01"/>',
     contract:'<path d="M4 21V3h14v18H4ZM8 7h6M8 11h6M8 15h2m3 0h1M8 18h6"/>',
     access:'<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/>',
-    errors:'<path d="m12 3 10 18H2L12 3ZM12 9v5m0 3h.01"/>'
+    errors:'<path d="m12 3 10 18H2L12 3ZM12 9v5m0 3h.01"/>',
+    treasury:'<path d="M3 10h18L12 4 3 10ZM5 10v8m4.67-8v8m4.66-8v8M19 10v8M3 21h18"/>'
   };
   const svg = name => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+icons[name]+'</svg>';
   const tools = [
     { id:'misiones', file:'misiones.html', name:'Missions', icon:'missions', group:'Game control', text:'Build daily quests and balance their rewards.' },
     { id:'admin', file:'admin.html', name:'Players & economy', icon:'players', group:'Game control', text:'Manage players, farming, economy and rankings.' },
     { id:'climas', file:'climas.html', name:'World & weather', icon:'weather', group:'Game control', text:'Control weather, seasons and the world clock.' },
+    { id:'tesoro', file:'tesoro.html', name:'Treasury & incentives', icon:'treasury', group:'Game control', text:'See the 1.5% fee treasury and tune the coin drops for free and VIP players.' },
     { id:'colecciones', file:'colecciones.html', name:'Collections', icon:'collections', group:'Assets', text:'Create collections and manage NFT distribution.' },
     { id:'consola-reportes', file:'consola-reportes.html', name:'Player reports', icon:'reports', group:'Moderation', text:'Review player reports and moderation cases.' },
     { id:'puerta-login', file:'puerta_login.html', name:'Access & permissions', icon:'access', group:'Moderation', text:'Manage the whitelist and game entry rules.' },

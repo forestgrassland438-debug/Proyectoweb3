@@ -200,13 +200,20 @@
 
   /* Un sitio de tierra firme donde ponerse sin árboles (la isla): se prueba
      alrededor del centro y se comprueba con la escena si es tierra, para no
-     nacer en el mar. */
-  function sueloLibre(scene) {
+     nacer en el mar.
+     (2026-10-22) Se llamaba también `sueloLibre`, como la de más abajo (la
+     que dice si un punto está libre): la segunda pisaba a esta y el cuervo
+     sin árboles ni parcelas nacía en `false.x` (NaN, invisible y roto). */
+  function sueloDondeNacer(scene) {
+    // Sin isla ni jugador, el centro del MAPA (antes (0, 0): la esquina, donde
+    // casi nada es suelo libre y el cuervo ya no se movía de allí).
+    var mapa = scene.map, ancho = mapa && mapa.widthInPixels, alto = mapa && mapa.heightInPixels;
     var c = (typeof scene._centroDeLaIsla === 'function') ? scene._centroDeLaIsla()
-          : { x: scene.player ? scene.player.x : 0, y: scene.player ? scene.player.y : 0 };
+          : scene.player ? { x: scene.player.x, y: scene.player.y }
+          : { x: ancho > 0 ? ancho / 2 : 0, y: alto > 0 ? alto / 2 : 0 };
     for (var i = 0; i < 20; i++) {
       var p = { x: c.x + az(-260, 260), y: c.y + az(-200, 200) };
-      if (!esAgua(scene, p.x, p.y)) return p;
+      if (sueloLibre(scene, p.x, p.y)) return p;      // dentro del mapa, seco y sin chocar
     }
     return c;
   }
@@ -314,7 +321,7 @@
     var sueloIni = pars0.length ? elegir(pars0) : null;
     var inicio = arbolIni ? posadero(arbolIni.spr)
                           : sueloIni ? { x: sueloIni.x + az(-60, 60), y: sueloIni.y + az(20, 50) }
-                          : sueloLibre(scene);
+                          : sueloDondeNacer(scene);
 
     /* Sombra en el suelo. Volando se queda abajo, pequeña y tenue: es lo que
        hace que se note que el pájaro está en alto y no pegado al césped.

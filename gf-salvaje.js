@@ -169,6 +169,76 @@
       vuelveMs: 12 * 60 * 1000, color: 0x8ce9ff
     },
 
+
+    // ── EL GLACIAR ROTO (2026-10-25, nivel 8) ──
+    yeti_glaciar: {
+      arte: 'yeti', molde: 'golem', nombre: 'Glacier Yeti', vida: 260, escala: 2, sombra: 1.9,
+      vel: 40, velCaza: 70, vista: 400, olvida: 780, correa: 740,
+      tex: { roca: 'gfm_bola_nieve' }, poderes: ['bola_nieve'],
+      golpe: { alcance: 76, cada: 1800 }, poder: [4600, 7000], ancho: 56, alto: 20, cabeza: 128,
+      vuelveMs: 7 * 60 * 1000, color: 0xc6f6ff
+    },
+    oso_polar: {
+      arte: 'oso_polar', molde: 'lobo', nombre: 'Frost Bear', vida: 170, escala: 2, sombra: 1.7,
+      vel: 46, velCaza: 120, vista: 400, olvida: 800, correa: 780, poderes: ['rugido_helado'],
+      freno: 'Frozen roar — you are slowed!',
+      golpe: { alcance: 68, cada: 1500 }, poder: [4200, 6400], ancho: 52, alto: 16, cabeza: 90,
+      vuelveMs: 5 * 60 * 1000, color: 0xe6f6ff
+    },
+    espectro_hielo: {
+      arte: 'espectro_hielo', molde: 'brujo', humanoide: true, flota: true, nombre: 'Frost Wraith', vida: 200, escala: 2, sombra: 1.1,
+      vel: 44, velCaza: 82, vista: 500, olvida: 860, correa: 780, distancia: 240,
+      tex: { rayo: 'gfm_rayo_hielo' }, poderes: ['prision'], freno: 'Frozen in ice — you are slowed!',
+      golpe: null, poder: [3400, 5200], ancho: 30, alto: 14, cabeza: 120,
+      vuelveMs: 9 * 60 * 1000, color: 0x8ce9ff
+    },
+
+    // ── LAS CAVERNAS DE CRISTAL (nivel 9) ──
+    murcielago_gigante: {
+      arte: 'murcielago', molde: 'lobo', flota: true, nombre: 'Giant Cave Bat', vida: 150, escala: 2, sombra: 1.3,
+      vel: 64, velCaza: 150, vista: 460, olvida: 840, correa: 820, grito: 'chillido', poderes: ['chillido'],
+      freno: 'Deafening screech — you are slowed!',
+      golpe: { alcance: 60, cada: 1200 }, poder: [3600, 5400], ancho: 40, alto: 14, cabeza: 100,
+      vuelveMs: 5 * 60 * 1000, color: 0xff6a8a
+    },
+    troll_cueva: {
+      arte: 'troll_cueva', molde: 'golem', humanoide: true, nombre: 'Cave Troll', vida: 280, escala: 2, sombra: 1.3,
+      vel: 36, velCaza: 72, vista: 400, olvida: 780, correa: 740,
+      tex: { roca: 'gfm_roca_cueva' }, poderes: ['derrumbe'],
+      golpe: { alcance: 64, cada: 1700 }, poder: [4600, 7000], ancho: 32, alto: 14, cabeza: 116,
+      vuelveMs: 8 * 60 * 1000, color: 0xffb04a
+    },
+    golem_cristal: {
+      arte: 'golem_cristal', molde: 'arana', nombre: 'Crystal Golem', vida: 300, escala: 2, sombra: 1.9,
+      vel: 34, velCaza: 60, vista: 420, olvida: 800, correa: 760, distancia: 220,
+      tex: { espina: 'gfm_esquirla', savia: 'gfm_charco_cristal' }, poderes: ['emerger'], freno: 'Crystal shards — you are slowed!',
+      golpe: { alcance: 76, cada: 2000 }, poder: [4200, 6400], ancho: 56, alto: 20, cabeza: 132,
+      vuelveMs: 9 * 60 * 1000, color: 0xc79cff
+    },
+
+    // ── LA PRADERA EN FLOR (nivel 10) ──
+    jabali_espinoso: {
+      arte: 'jabali', molde: 'lobo', nombre: 'Thornback Boar', vida: 190, escala: 2, sombra: 1.5,
+      vel: 56, velCaza: 150, vista: 440, olvida: 820, correa: 820, poderes: ['espinos'],
+      tex: { espina: 'gfm_espino' },
+      golpe: { alcance: 62, cada: 1300 }, poder: [3600, 5600], ancho: 44, alto: 14, cabeza: 80,
+      vuelveMs: 5 * 60 * 1000, color: 0x9ad45a
+    },
+    driada_salvaje: {
+      arte: 'driada', molde: 'brujo', humanoide: true, nombre: 'Wild Dryad', vida: 230, escala: 2, sombra: 1.2,
+      vel: 44, velCaza: 82, vista: 500, olvida: 860, correa: 780, distancia: 240,
+      tex: { rayo: 'gfm_rayo_hoja' }, poderes: ['raices', 'petalos'], freno: 'Tangled in roots — you are slowed!',
+      golpe: null, poder: [3200, 5000], ancho: 30, alto: 14, cabeza: 116,
+      vuelveMs: 9 * 60 * 1000, color: 0x8fd45a
+    },
+    golem_musgo: {
+      arte: 'golem_musgo', molde: 'golem', nombre: 'Bramble Golem', vida: 320, escala: 2, sombra: 1.9,
+      vel: 36, velCaza: 62, vista: 400, olvida: 780, correa: 740,
+      tex: { roca: 'gfm_roca_musgo' }, poderes: ['raices'], freno: 'Tangled in brambles — you are slowed!',
+      golpe: { alcance: 76, cada: 1900 }, poder: [4600, 7000], ancho: 56, alto: 20, cabeza: 128,
+      vuelveMs: 9 * 60 * 1000, color: 0x8fd45a
+    },
+
     // ── LOS JEFES (2026-10-20): uno por mapa (gf-jefes.js pone su guarida,
     //    su aura, su barra y sus poderes; el arte, tools/generar-jefes.py). ──
     jefe_golem: {
@@ -196,6 +266,29 @@
       vel: 60, velCaza: 160, vista: 560, olvida: 1050, correa: 1150,
       golpe: { alcance: 96, cada: 1200 }, poder: [2600, 4000], ancho: 76, alto: 22, cabeza: 190,
       vuelveMs: 30 * 60 * 1000, color: 0x8ce9ff
+    },
+    // (2026-10-25) Los de nivel 8, 9 y 10 (gf-jefes.js: GlaciarScene,
+    // CavernaScene, PraderaScene). Usan sus poderes de jefe y, a ratos, los
+    // nuevos de su mapa (`poderes`).
+    jefe_yeti: {
+      arte: 'jefe_yeti', molde: 'golem', jefe: true, nombre: 'The Glacier King', vida: 3000, escala: 2, sombra: 3.4,
+      vel: 34, velCaza: 60, vista: 540, olvida: 1000, correa: 1100, tex: { roca: 'gfm_bola_nieve' }, poderes: ['bola_nieve'],
+      golpe: { alcance: 120, cada: 1700 }, poder: [2400, 3800], ancho: 90, alto: 28, cabeza: 300,
+      vuelveMs: 30 * 60 * 1000, color: 0xb8e4ff
+    },
+    jefe_murcielago: {
+      arte: 'jefe_murcielago', molde: 'lobo', jefe: true, flota: true, nombre: 'Nightwing, the Cave Matriarch', vida: 2800, escala: 2, sombra: 3.0,
+      vel: 60, velCaza: 150, vista: 560, olvida: 1050, correa: 1150, grito: 'chillido', poderes: ['chillido'],
+      freno: 'Deafening screech — you are slowed!',
+      golpe: { alcance: 96, cada: 1200 }, poder: [2400, 3800], ancho: 80, alto: 24, cabeza: 220,
+      vuelveMs: 30 * 60 * 1000, color: 0xb48cff
+    },
+    jefe_ent: {
+      arte: 'jefe_ent', molde: 'golem', jefe: true, nombre: 'Oakheart, the Elder Grove', vida: 3200, escala: 2, sombra: 3.4,
+      vel: 28, velCaza: 52, vista: 540, olvida: 1000, correa: 1100, tex: { roca: 'gfm_roca_musgo' }, poderes: ['raices', 'petalos'],
+      freno: 'Tangled in roots — you are slowed!',
+      golpe: { alcance: 120, cada: 1800 }, poder: [2400, 3800], ancho: 90, alto: 28, cabeza: 320,
+      vuelveMs: 30 * 60 * 1000, color: 0x8fd45a
     }
   };
   /* (2026-10-20) Lo que gf-jefes.js necesita de aquí para sus poderes. */
@@ -289,6 +382,11 @@
         dur = 1.4; o.type = 'sawtooth';
         o.frequency.setValueAtTime(150, t0); o.frequency.linearRampToValueAtTime(118, t0 + 0.7); o.frequency.linearRampToValueAtTime(92, t0 + dur);
         g.gain.exponentialRampToValueAtTime(0.09 * vol, t0 + 0.25); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      } else if (tipo === 'chillido') {
+        // (2026-10-25) El chillido del murciélago: agudo, que sube y baja.
+        dur = 0.7; o.type = 'sawtooth';
+        o.frequency.setValueAtTime(1800, t0); o.frequency.linearRampToValueAtTime(3200, t0 + 0.2); o.frequency.linearRampToValueAtTime(1400, t0 + dur);
+        g.gain.exponentialRampToValueAtTime(0.06 * vol, t0 + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
       } else if (tipo === 'tormenta') {
         dur = 1.1; o.type = 'triangle';
         o.frequency.setValueAtTime(880, t0); o.frequency.exponentialRampToValueAtTime(220, t0 + dur);
@@ -298,7 +396,7 @@
         o.frequency.setValueAtTime(110, t0); o.frequency.exponentialRampToValueAtTime(48, t0 + dur);
         g.gain.exponentialRampToValueAtTime(0.14 * vol, t0 + 0.06); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
       }
-      var lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = tipo === 'siseo' ? 3200 : 1400;
+      var lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = tipo === 'siseo' || tipo === 'chillido' ? 3600 : 1400;
       o.connect(lp); lp.connect(g); g.connect(ctx.destination);
       o.start(t0); o.stop(t0 + dur + 0.05);
       o.onended = function () { try { o.disconnect(); lp.disconnect(); g.disconnect(); } catch (e) {} };
@@ -673,6 +771,9 @@
       if (m.def.grito === 'gemido') {
         sonar(scene, 'gemido');
         aviso(scene, '🧟 A ' + m.def.nombre + ' groans — the dead are waking!', 'warning');
+      } else if (m.def.grito === 'chillido') {
+        sonar(scene, 'chillido');
+        aviso(scene, '🦇 A ' + m.def.nombre + ' shrieks — the colony wakes!', 'warning');
       } else {
         sonar(scene, 'aullido');
         aviso(scene, '🐺 A ' + m.def.nombre + ' howls — the pack is coming!', 'warning');
@@ -759,6 +860,311 @@
     } });
   }
 
+
+  // ── LOS PODERES NUEVOS (2026-10-25) ──────────────────────────────────────
+  /* "Haz monstruos y enemigos según esos mapas, todos en 2.5D, con nuevos
+     poderes y efectos." Los de los mapas de nivel 8, 9 y 10. Cada especie
+     lleva los suyos en `poderes` (además de los de su molde). Igual que los
+     demás: el anfitrión decide y anuncia {e:'px', q:<poder>, ...}; todos lo
+     dibujan y cada uno mira si le alcanza a SU jugador. Sin motas: rayas,
+     púas, anillos, pétalos alargados.
+       bola_nieve     una bola de nieve que rueda y crece (el yeti)
+       rugido_helado  una onda de escarcha alrededor que frena (el oso)
+       prision        seis púas de hielo cierran un círculo (el espectro)
+       chillido       un cono de ondas que aturde (el murciélago)
+       derrumbe       caen rocas del techo donde marcó (el trol)
+       emerger        se hunde y sale debajo de ti (el gólem de cristal)
+       raices         una fila de raíces que brotan y atrapan (dríade, gólem de musgo)
+       petalos        un torbellino de pétalos que gira y corta (la dríade)
+       espinos        una ráfaga de espinas (el jabalí) */
+  var PODER_TEX = { bola_nieve: ['roca'], derrumbe: ['roca'], espinos: ['espina'] };
+
+  function frenar(st, ms, texto) {
+    var scene = st.scene;
+    scene._frenoHasta = Math.max(scene._frenoHasta || 0, scene.time.now + ms);
+    var ahora = Date.now();
+    if (texto && ahora - (st.avisoFrenoEn || 0) > 2500) { st.avisoFrenoEn = ahora; aviso(scene, '❄ ' + texto, 'warning'); }
+  }
+
+  function texturasPoderes(scene) {
+    var lienzo = function (clave, w, h, pinta) {
+      if (scene.textures.exists(clave)) return;
+      var t = scene.textures.createCanvas(clave, w, h);
+      try { pinta(t.getContext(), w, h); t.refresh(); }
+      catch (e) { if (scene.textures.exists(clave) && scene.textures.get(clave) === t) scene.textures.remove(clave); }
+    };
+    // La púa de hielo: tres caras (luz, medio, sombra) y su contorno.
+    lienzo('gfsv_pua_hielo', 26, 56, function (x, w, h) {
+      var cx = w / 2, b = h - 2;
+      x.fillStyle = '#8ce9ff'; x.beginPath(); x.moveTo(cx - 10, b); x.lineTo(cx, 2); x.lineTo(cx + 10, b); x.closePath(); x.fill();
+      x.fillStyle = '#eafcff'; x.beginPath(); x.moveTo(cx - 10, b); x.lineTo(cx, 2); x.lineTo(cx - 1.5, b); x.closePath(); x.fill();
+      x.fillStyle = '#3a7ab8'; x.beginPath(); x.moveTo(cx + 2, b); x.lineTo(cx, 2); x.lineTo(cx + 10, b); x.closePath(); x.fill();
+      x.strokeStyle = 'rgba(16,30,50,0.9)'; x.lineWidth = 1.4;
+      x.beginPath(); x.moveTo(cx - 10, b); x.lineTo(cx, 2); x.lineTo(cx + 10, b); x.closePath(); x.stroke();
+    });
+    // La raíz: una cuña de corteza que se curva, con su hoja.
+    lienzo('gfsv_raiz', 26, 50, function (x, w, h) {
+      var b = h - 2;
+      x.fillStyle = '#6e5236'; x.beginPath(); x.moveTo(4, b); x.quadraticCurveTo(6, 18, 15, 3); x.quadraticCurveTo(14, 22, 22, b); x.closePath(); x.fill();
+      x.fillStyle = '#9a7650'; x.beginPath(); x.moveTo(4, b); x.quadraticCurveTo(6, 18, 15, 3); x.quadraticCurveTo(9, 22, 11, b); x.closePath(); x.fill();
+      x.strokeStyle = 'rgba(30,20,10,0.9)'; x.lineWidth = 1.3;
+      x.beginPath(); x.moveTo(4, b); x.quadraticCurveTo(6, 18, 15, 3); x.quadraticCurveTo(14, 22, 22, b); x.stroke();
+      x.fillStyle = '#5f9a3a'; x.beginPath(); x.ellipse(18, 18, 5, 2.6, -0.6, 0, Math.PI * 2); x.fill();
+    });
+    // El pétalo: una lágrima alargada, rosa (nunca un punto).
+    lienzo('gfsv_petalo', 14, 7, function (x, w, h) {
+      x.fillStyle = 'rgba(244,160,188,0.98)'; x.beginPath(); x.ellipse(w / 2, h / 2, w / 2 - 0.5, h / 2 - 0.8, 0, 0, Math.PI * 2); x.fill();
+      x.fillStyle = 'rgba(255,222,232,0.98)'; x.beginPath(); x.ellipse(w / 2 - 2, h / 2 - 0.6, w / 4, h / 5, 0, 0, Math.PI * 2); x.fill();
+    });
+    // El arco del chillido: media luna que se abre hacia delante.
+    lienzo('gfsv_arco', 40, 80, function (x, w, h) {
+      var g = x.createLinearGradient(0, 0, w, 0);
+      g.addColorStop(0, 'rgba(255,170,210,0)'); g.addColorStop(0.6, 'rgba(255,190,230,0.9)'); g.addColorStop(1, 'rgba(255,240,250,0.95)');
+      x.strokeStyle = g; x.lineWidth = 4;
+      x.beginPath(); x.ellipse(4, h / 2, w - 8, h / 2 - 4, 0, -Math.PI / 2, Math.PI / 2); x.stroke();
+    });
+  }
+
+  function pxBolaNieve(st, m, d) {
+    var scene = st.scene, ang = d.a, t0 = scene.time.now;
+    animar(m, 'ataque');
+    orientar(m, Math.cos(ang), Math.sin(ang));
+    m.accion = { hasta: t0 + 600, cada: function () {} };
+    if (cercaDeMi(st, m.x, m.y)) sonar(scene, 'roca');
+    var x0 = m.x + Math.cos(ang) * 40, y0 = m.y + Math.sin(ang) * 30, dado = false, fin = false;
+    var bola = efimero(st, scene.add.image(x0, y0 - 12, tex(m, 'roca')).setScale(0.5).setDepth(y0 + 1));
+    var sombra = efimero(st, scene.add.image(x0, y0, 'gfsv_sombra').setScale(0.8).setAlpha(0.7).setDepth(2.5));
+    var LARGO = 760;
+    scene.tweens.addCounter({ from: 0, to: 1, duration: 2500, ease: 'Linear', onUpdate: function (tw) {
+      if (fin || !bola.scene) return;
+      var u = tw.getValue(), rec = u * LARGO, k = 0.5 + u * 1.1;
+      var x = x0 + Math.cos(ang) * rec, y = y0 + Math.sin(ang) * rec * 0.85;
+      bola.setPosition(x, y - 10 * k).setScale(k).setRotation(rec / 22).setDepth(y + 1);
+      sombra.setPosition(x, y).setScale(0.8 * k);
+      var p = pies(scene);
+      if (!dado && Math.hypot(p.x - x, p.y - y) < 22 + 16 * k) { dado = true; golpearJugador(st, 'monstruo_poder', x - Math.cos(ang) * 10, y - Math.sin(ang) * 10, 46); }
+      if (u > 0.05 && !libre(scene, x, y, 18, 8)) { fin = true; tw.stop(); }
+    }, onComplete: function () { acaba(); }, onStop: function () { acaba(); } });
+    function acaba() {
+      if (!st.vivo || !bola.scene) return;
+      onda(st, bola.x, bola.y + 10, 0.8);
+      if (cercaDeMi(st, bola.x, bola.y, 500)) { try { scene.cameras.main.shake(140, 0.005); } catch (e) {} }
+      soltarEfimero(st, bola); soltarEfimero(st, sombra);
+    }
+  }
+
+  function pxRugido(st, m, d) {
+    var scene = st.scene, t0 = scene.time.now;
+    animar(m, 'ataque');
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'aullido');
+    marca(st, m.x, m.y, 190, 74, 0xbfefff, 500);
+    m.accion = { hasta: t0 + 900, cada: function () {} };
+    var ox = m.x, oy = m.y;
+    scene.time.delayedCall(500, function () {
+      if (!st.vivo || !m.vivo) return;
+      var o = efimero(st, scene.add.image(ox, oy, 'gfsv_onda').setDepth(oy + 1).setScale(0.3).setTint(0xcff4ff).setAlpha(0.95));
+      scene.tweens.add({ targets: o, scale: 3.6, alpha: 0, duration: 620, ease: 'Quad.easeOut', onComplete: function () { soltarEfimero(st, o); } });
+      var p = pies(scene), dx = (p.x - ox) / 190, dy = (p.y - oy) / 74;
+      if (dx * dx + dy * dy < 1) { golpearJugador(st, 'monstruo_poder', ox, oy, 30); frenar(st, 1400, m.def.freno); }
+    });
+  }
+
+  function pxPrision(st, m, d) {
+    var scene = st.scene, t0 = scene.time.now, cx = d.x, cy = d.y;
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'tormenta');
+    m.accion = { hasta: t0 + 800, cada: function () {} };
+    var puntos = [];
+    for (var k = 0; k < 6; k++) { var a = k / 6 * Math.PI * 2; puntos.push([cx + Math.cos(a) * 74, cy + Math.sin(a) * 44]); }
+    puntos.forEach(function (pt) { marca(st, pt[0], pt[1], 14, 6, m.def.color || 0x8ce9ff, 900); });
+    marca(st, cx, cy, 74, 44, m.def.color || 0x8ce9ff, 900);
+    scene.time.delayedCall(900, function () {
+      if (!st.vivo || !m.vivo) return;
+      puntos.forEach(function (pt, i) {
+        var pua = efimero(st, scene.add.image(pt[0], pt[1] + 2, 'gfsv_pua_hielo').setOrigin(0.5, 1).setDepth(pt[1] + 1).setScale(1.2, 0.1));
+        scene.tweens.add({ targets: pua, scaleY: 1.3, duration: 120, delay: i * 30, ease: 'Back.easeOut' });
+        scene.tweens.add({ targets: pua, alpha: 0, scaleY: 0.2, delay: 1300, duration: 300, onComplete: function () { soltarEfimero(st, pua); } });
+      });
+      var p = pies(scene), dx = (p.x - cx) / 74, dy = (p.y - cy) / 44;
+      if (dx * dx + dy * dy < 1.1) { golpearJugador(st, 'monstruo_poder', cx, cy, 10); frenar(st, 1800, m.def.freno); }
+    });
+  }
+
+  function pxChillido(st, m, d) {
+    var scene = st.scene, t0 = scene.time.now, ang = d.a;
+    animar(m, 'ataque');
+    orientar(m, Math.cos(ang), Math.sin(ang));
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'chillido');
+    m.accion = { hasta: t0 + 700, cada: function () {} };
+    var ox = m.x, oy = m.y - (m.def.flota ? 30 : 20);
+    [0, 140, 280].forEach(function (retraso) {
+      scene.time.delayedCall(retraso, function () {
+        if (!st.vivo) return;
+        var arco = efimero(st, scene.add.image(ox, oy, 'gfsv_arco').setOrigin(0, 0.5).setRotation(ang).setDepth(9000).setScale(0.5).setAlpha(0.95));
+        scene.tweens.add({ targets: arco, x: ox + Math.cos(ang) * 260, y: oy + Math.sin(ang) * 260, scale: 2.2, alpha: 0, duration: 520, onComplete: function () { soltarEfimero(st, arco); } });
+      });
+    });
+    scene.time.delayedCall(260, function () {
+      if (!st.vivo) return;
+      var p = pies(scene), dx = p.x - ox, dy = (p.y - 30) - oy, dist = Math.hypot(dx, dy);
+      var da = Math.atan2(dy, dx) - ang;
+      while (da > Math.PI) da -= Math.PI * 2;
+      while (da < -Math.PI) da += Math.PI * 2;
+      if (dist < 290 && Math.abs(da) < 0.6) { golpearJugador(st, 'monstruo_poder', ox, oy, 16); frenar(st, 1500, m.def.freno); }
+    });
+  }
+
+  function pxDerrumbe(st, m, d) {
+    var scene = st.scene, t0 = scene.time.now;
+    animar(m, 'ataque');
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'roca');
+    try { if (cercaDeMi(st, m.x, m.y, 700)) scene.cameras.main.shake(300, 0.004); } catch (e) {}
+    m.accion = { hasta: t0 + 700, cada: function () {} };
+    d.pts.forEach(function (pt, k) {
+      marca(st, pt[0], pt[1], 36, 14, 0xffb04a, 950 + k * 120);
+      scene.time.delayedCall(450 + k * 120, function () {
+        if (!st.vivo) return;
+        var roca = efimero(st, scene.add.image(pt[0], pt[1] - 420, tex(m, 'roca')).setScale(1.1).setDepth(9000));
+        scene.tweens.add({ targets: roca, y: pt[1] - 10, rotation: 2.4, duration: 500, ease: 'Quad.easeIn', onComplete: function () {
+          soltarEfimero(st, roca);
+          if (!st.vivo) return;
+          onda(st, pt[0], pt[1], 0.6);
+          if (cercaDeMi(st, pt[0], pt[1], 500)) { try { scene.cameras.main.shake(120, 0.005); } catch (e) {} }
+          var p = pies(scene);
+          if (Math.hypot(p.x - pt[0], p.y - pt[1]) < 46) golpearJugador(st, 'monstruo_poder', pt[0], pt[1], 26);
+        } });
+      });
+    });
+  }
+
+  function pxEmerger(st, m, d) {
+    var scene = st.scene, t0 = scene.time.now, x = d.x, y = d.y;
+    m.accion = { hasta: t0 + 1300, cada: function () {} };
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'roca');
+    onda(st, m.x, m.y, 0.7);
+    scene.tweens.add({ targets: m.spr, alpha: 0, duration: 300 });
+    m.sombra.setAlpha(0.2);
+    marca(st, x, y, 50, 20, m.def.color || 0xc79cff, 900);
+    scene.time.delayedCall(600, function () {
+      if (!st.vivo || !m.vivo) return;
+      m.x = x; m.y = y; m.objX = x; m.objY = y;
+      colocar(st, m, scene.time.now);
+    });
+    scene.time.delayedCall(900, function () {
+      if (!st.vivo || !m.vivo) return;
+      onda(st, x, y, 1.2);
+      if (cercaDeMi(st, x, y, 600)) { try { scene.cameras.main.shake(260, 0.008); } catch (e) {} sonar(scene, 'roca'); }
+      animar(m, 'ataque');
+      scene.tweens.add({ targets: m.spr, alpha: 1, duration: 200 });
+      m.sombra.setAlpha(0.85);
+      var p = pies(scene);
+      if (Math.hypot(p.x - x, p.y - y) < 58) golpearJugador(st, 'monstruo_poder', x, y, 40);
+    });
+  }
+
+  function pxRaices(st, m, d) {
+    var scene = st.scene, ang = d.a;
+    animar(m, 'ataque');
+    orientar(m, Math.cos(ang), Math.sin(ang));
+    m.accion = { hasta: scene.time.now + 900, cada: function () {} };
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'siseo');
+    var dado = false;
+    for (var k = 0; k < 8; k++) {
+      (function (k) {
+        var x = m.x + Math.cos(ang) * (54 + k * 40), y = m.y + Math.sin(ang) * (54 + k * 40) * 0.85;
+        if (!libre(scene, x, y, 10, 6)) return;
+        scene.time.delayedCall(k * 90, function () {
+          if (!st.vivo) return;
+          marca(st, x, y, 16, 7, m.def.color || 0x8fd45a, 320);
+          scene.time.delayedCall(320, function () {
+            if (!st.vivo) return;
+            var r = efimero(st, scene.add.image(x, y + 2, 'gfsv_raiz').setOrigin(0.5, 1).setDepth(y + 1).setScale(1.2, 0.1).setFlipX(k % 2 === 1));
+            scene.tweens.add({ targets: r, scaleY: 1.3, duration: 130, ease: 'Back.easeOut' });
+            scene.tweens.add({ targets: r, alpha: 0, scaleY: 0.2, delay: 900, duration: 260, onComplete: function () { soltarEfimero(st, r); } });
+            var p = pies(scene);
+            if (!dado && Math.hypot(p.x - x, p.y - y) < 34) { dado = true; golpearJugador(st, 'monstruo_poder', x, y, 12); frenar(st, 1700, m.def.freno); }
+          });
+        });
+      })(k);
+    }
+  }
+
+  function pxPetalos(st, m, d) {
+    var scene = st.scene, cx = d.x, cy = d.y;
+    animar(m, 'ataque');
+    m.accion = { hasta: scene.time.now + 600, cada: function () {} };
+    if (cercaDeMi(st, m.x, m.y, 900)) sonar(scene, 'tormenta');
+    marca(st, cx, cy, 80, 34, 0xf4a0bc, 900);
+    var petalos = [], dado = false;
+    for (var i = 0; i < 12; i++) {
+      petalos.push({ spr: efimero(st, scene.add.image(cx, cy, 'gfsv_petalo').setDepth(cy + 2).setAlpha(0)), a: i / 12 * Math.PI * 2, r: 90 + (i % 3) * 10 });
+    }
+    scene.tweens.addCounter({ from: 0, to: 1, duration: 2200, onUpdate: function (tw) {
+      var u = tw.getValue();
+      petalos.forEach(function (p, k) {
+        if (!p.spr.scene) return;
+        var a = p.a + u * 9, r = p.r * (1 - u * 0.55);
+        p.spr.setPosition(cx + Math.cos(a) * r, cy - 24 + Math.sin(a) * r * 0.45).setRotation(a + Math.PI / 2)
+          .setAlpha(Math.min(1, u * 5) * (1 - Math.max(0, (u - 0.8) * 5)));
+      });
+      if (!dado && u > 0.45) {
+        var p = pies(scene), dx = (p.x - cx) / 80, dy = (p.y - cy) / 40;
+        if (dx * dx + dy * dy < 1) { dado = true; golpearJugador(st, 'monstruo_poder', cx, cy, 14); frenar(st, 1200, m.def.freno); }
+      }
+    }, onComplete: function () { petalos.forEach(function (p) { soltarEfimero(st, p.spr); }); } });
+  }
+
+  /** El anfitrión: ¿usa ahora uno de los poderes de su especie? */
+  function poderExtra(st, m, dist, b, v, anunciar) {
+    var lista = m.def.poderes, scene = st.scene;
+    if (!lista || !lista.length || Math.random() > 0.55) return false;
+    var cual = lista[Math.floor(Math.random() * lista.length)];
+    if (cual === m.ultimoExtra && lista.length > 1) cual = lista[(lista.indexOf(cual) + 1) % lista.length];
+    var tx = b.x + v.x * 0.5, ty = b.y + v.y * 0.5;
+    var ang = Number(Math.atan2(ty - m.y, tx - m.x).toFixed(3)), d = null;
+    if (cual === 'bola_nieve' && dist > 80 && dist < 620) d = { a: ang };
+    else if (cual === 'rugido_helado' && dist < 200) d = {};
+    else if (cual === 'prision' && dist < 520) d = { x: Math.round(tx), y: Math.round(ty) };
+    else if (cual === 'chillido' && dist < 290) d = { a: ang };
+    else if (cual === 'derrumbe' && dist < 520) {
+      d = { pts: [[Math.round(tx), Math.round(ty)],
+                  [Math.round(tx + entre(-90, -50)), Math.round(ty + entre(-40, 40))],
+                  [Math.round(tx + entre(50, 90)), Math.round(ty + entre(-40, 40))]] };
+    } else if (cual === 'emerger' && dist > 120 && dist < 560) {
+      for (var k = 0; k < 12 && !d; k++) {
+        var x = tx + entre(-30, 30), y = ty + entre(-20, 20);
+        if (libreM(scene, m, x, y) && Math.hypot(x - m.casa.x, y - m.casa.y) < m.def.correa) d = { x: Math.round(x), y: Math.round(y) };
+      }
+    } else if (cual === 'raices' && dist < 380) d = { a: ang };
+    else if (cual === 'petalos' && dist < 480) d = { x: Math.round(tx), y: Math.round(ty) };
+    else if (cual === 'espinos' && dist < 360) {
+      var fr = frente(m);
+      var bx = m.x + fr.x * 34, by = m.y - 24 + fr.y * 20;
+      d = { bx: Math.round(bx), by: Math.round(by), a: Number(Math.atan2(b.y - 30 + v.y * 0.4 - by, b.x + v.x * 0.4 - bx).toFixed(3)) };
+    }
+    if (!d) return false;
+    d.e = 'px'; d.q = cual;
+    m.ultimoExtra = cual;
+    ejecutarExtra(st, m, d);
+    anunciar(d);
+    return true;
+  }
+
+  /** En todos los navegadores: el poder anunciado (con sus números comprobados). */
+  function ejecutarExtra(st, m, d) {
+    var num = function (v) { return Number.isFinite(Number(v)); };
+    if (!d || !m || !m.vivo || !m.def.poderes || m.def.poderes.indexOf(d.q) < 0) return;
+    if (d.q === 'bola_nieve' && num(d.a)) pxBolaNieve(st, m, { a: Number(d.a) });
+    else if (d.q === 'rugido_helado') pxRugido(st, m, d);
+    else if (d.q === 'prision' && num(d.x) && num(d.y)) pxPrision(st, m, { x: Number(d.x), y: Number(d.y) });
+    else if (d.q === 'chillido' && num(d.a)) pxChillido(st, m, { a: Number(d.a) });
+    else if (d.q === 'derrumbe' && Array.isArray(d.pts) && d.pts.length && d.pts.every(function (q) { return Array.isArray(q) && num(q[0]) && num(q[1]); })) {
+      pxDerrumbe(st, m, { pts: d.pts.slice(0, 3).map(function (q) { return [Number(q[0]), Number(q[1])]; }) });
+    } else if (d.q === 'emerger' && num(d.x) && num(d.y)) pxEmerger(st, m, { x: Number(d.x), y: Number(d.y) });
+    else if (d.q === 'raices' && num(d.a)) pxRaices(st, m, { a: Number(d.a) });
+    else if (d.q === 'petalos' && num(d.x) && num(d.y)) pxPetalos(st, m, { x: Number(d.x), y: Number(d.y) });
+    else if (d.q === 'espinos' && num(d.bx) && num(d.by) && num(d.a)) aranaEspinas(st, m, Number(d.bx), Number(d.by), Number(d.a));
+  }
+
   /* LO QUE DECIDE EL ANFITRIÓN: el poder, sus números, y se anuncia. */
   function elegirPoder(st, m, dist, b) {
     var tipo = m.def.molde, scene = st.scene;
@@ -767,6 +1173,8 @@
     var anunciar = function (d) { d.id = m.id; if (st.red) st.red.evento(d); };
     // (2026-10-20) Un jefe usa a menudo los SUYOS (gf-jefes.js).
     if (m.def.jefe && window.GFJefes && window.GFJefes.poder(st, m, dist, b, anunciar, apiJefe())) return;
+    // (2026-10-25) Los poderes propios de la especie (los de nivel 8-10).
+    if (m.def.poderes && poderExtra(st, m, dist, b, v, anunciar)) return;
     if (tipo === 'golem') {
       if (dist < 150) { golemPisoton(st, m); anunciar({ e: 'pisoton', x: Math.round(m.x), y: Math.round(m.y) }); }
       else if (dist < 480) {
@@ -1051,6 +1459,7 @@
     if (d.e === 'salto') { brujoSalto(st, m, Number(d.x), Number(d.y)); return; }
     // (2026-10-20) Los poderes de los jefes.
     if (d.e === 'jefe' && window.GFJefes) window.GFJefes.ejecutar(st, m, d, apiJefe());
+    if (d.e === 'px') ejecutarExtra(st, m, d);
   }
 
   function alCambiarHost(st, soyYo) {
@@ -1806,6 +2215,7 @@
     scene.events.once('shutdown', st.onApagar);
     scene.events.once('destroy', st.onApagar);
     texturasSueltas(scene);
+    texturasPoderes(scene);
     // Los montones del botín y su brillo (la serpiente los presta).
     if (window.GFMinaSerpiente && window.GFMinaSerpiente._botin) window.GFMinaSerpiente._botin.texturas(scene);
 
@@ -1833,6 +2243,10 @@
       artes[d.arte] = true;
       ({ golem: ['roca'], lobo: [], arana: ['espina', 'savia'], brujo: ['rayo'] }[d.molde] || []).forEach(function (q) {
         texs[(d.tex && d.tex[q]) || TEX_BASE[q]] = true;
+      });
+      // (2026-10-25) Y lo que piden sus poderes propios.
+      (d.poderes || []).forEach(function (pd) {
+        (PODER_TEX[pd] || []).forEach(function (q) { texs[(d.tex && d.tex[q]) || TEX_BASE[q]] = true; });
       });
     });
     var arte = A ? A.cargar(scene, Object.keys(artes), Object.keys(texs)) : Promise.resolve(false);

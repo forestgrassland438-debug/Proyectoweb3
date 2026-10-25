@@ -1,0 +1,198 @@
+/* =============================================================================
+ * EL TESORO — panel del centro de control                          (2026-10-22)
+ * Los colores de la suite (admin-suite.css, --s-*) y los de los gráficos: los
+ * cuatro primeros de la paleta de referencia, validados contra las dos
+ * superficies de la suite (#16201e oscura, #fffefa clara). Tienda, P2P, free
+ * y VIP llevan SIEMPRE el mismo color en todos los gráficos.
+ * ========================================================================== */
+html[data-admin-suite] {
+  --tz-s1: #3987e5;   /* tienda */
+  --tz-s2: #d95926;   /* P2P */
+  --tz-s3: #199e70;   /* free */
+  --tz-s4: #c98500;   /* VIP */
+  --tz-grid: #24332d;
+  --tz-axis: #3a4c44;
+  --tz-hover: rgba(255, 255, 255, .05);
+}
+html[data-admin-suite][data-theme=light] {
+  --tz-s1: #2a78d6;
+  --tz-s2: #eb6834;
+  --tz-s3: #1baf7a;
+  --tz-s4: #eda100;
+  --tz-grid: #e6eae2;
+  --tz-axis: #c9d1c4;
+  --tz-hover: rgba(0, 0, 0, .04);
+}
+
+/* `hidden` tiene que ganar a los display de las clases de abajo. */
+.tz-wrap [hidden], .tz-tip[hidden] { display: none !important; }
+.tz-wrap { max-width: 1240px; margin: 0 auto; padding: 22px 16px 64px; }
+.tz-muted { color: var(--s-muted); }
+.tz-eyebrow { display: inline-block; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--s-muted); font-weight: 700; }
+.tz-btn {
+  font: inherit; font-weight: 700; font-size: 13px; cursor: pointer; min-height: 40px; padding: 8px 14px;
+  border-radius: 10px; border: 1px solid var(--s-line); background: var(--s-raised); color: var(--s-text);
+}
+.tz-btn:hover:not(:disabled) { border-color: var(--s-accent); }
+.tz-btn:disabled { opacity: .5; cursor: not-allowed; }
+.tz-btn.tz-primary { background: var(--s-accent); color: var(--s-accent-ink); border-color: transparent; }
+.tz-btn.tz-danger { border-color: color-mix(in srgb, var(--s-danger) 60%, transparent); color: var(--s-danger); }
+.tz-btn:focus-visible, .tz-input:focus-visible, .tz-switch input:focus-visible + span { outline: 2px solid var(--s-accent); outline-offset: 2px; }
+
+/* ── La puerta ── */
+.tz-gate { min-height: 70vh; display: grid; place-items: center; }
+.tz-gate-card { max-width: 460px; text-align: center; padding: 30px 26px; border: 1px solid var(--s-line); border-radius: 18px; background: var(--s-surface); }
+.tz-gate-card h1 { margin: 6px 0 8px; font-size: 24px; }
+.tz-gate-card p { color: var(--s-muted); margin: 0 0 20px; }
+.tz-gate-msg { margin-top: 14px; min-height: 20px; font-size: 13px; }
+.tz-gate-msg[data-error=true] { color: var(--s-danger); }
+
+/* ── Cabecera y avisos ── */
+.tz-head { display: flex; gap: 16px; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; margin-bottom: 18px; }
+.tz-head h1 { margin: 4px 0 4px; font-size: clamp(24px, 3.4vw, 34px); line-height: 1.1; }
+.tz-sub { margin: 0; color: var(--s-muted); max-width: 640px; }
+.tz-head-side { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.tz-notice { border: 1px solid color-mix(in srgb, var(--s-warn) 55%, transparent); color: var(--s-warn); border-radius: 12px; padding: 10px 14px; margin-bottom: 14px; }
+.tz-loading { opacity: .55; transition: opacity .2s; }
+
+/* ── Las tarjetas ── */
+.tz-card { background: var(--s-surface); border: 1px solid var(--s-line); border-radius: 16px; padding: 18px; min-width: 0; }
+.tz-card h2 { margin: 0 0 4px; font-size: 16px; }
+.tz-card .tz-card-sub { margin: 0 0 14px; color: var(--s-muted); font-size: 12.5px; }
+.tz-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+
+/* El héroe: el saldo del tesoro. */
+.tz-hero { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 2fr); gap: 14px; margin-bottom: 14px; }
+.tz-hero-main { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.tz-hero-value { font-size: clamp(40px, 6vw, 56px); font-weight: 700; line-height: 1; letter-spacing: -.02em; }
+.tz-hero-unit { font-size: 16px; color: var(--s-muted); font-weight: 600; margin-left: 6px; }
+.tz-coins { display: flex; gap: 12px; flex-wrap: wrap; color: var(--s-muted); font-size: 13px; }
+.tz-coins img { width: 16px; height: 16px; image-rendering: pixelated; vertical-align: -3px; margin-right: 4px; }
+.tz-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.tz-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--s-line); }
+.tz-chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--s-muted); }
+.tz-chip[data-on=true] i { background: var(--ok); }
+.tz-chip[data-on=false] i { background: var(--s-danger); }
+
+.tz-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.tz-tile { border: 1px solid var(--s-line); border-radius: 12px; padding: 12px 14px; background: var(--s-raised); min-width: 0; }
+.tz-tile-label { font-size: 12px; color: var(--s-muted); }
+.tz-tile-value { font-size: 22px; font-weight: 700; margin-top: 2px; overflow-wrap: anywhere; }
+.tz-tile-foot { font-size: 11.5px; color: var(--s-muted); margin-top: 2px; }
+
+.tz-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-bottom: 14px; }
+.tz-grid .tz-span { grid-column: 1 / -1; }
+
+/* ── Gráficos ── */
+.tz-legend { display: flex; gap: 6px 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--s-muted); margin: 0 0 8px; padding: 0; list-style: none; }
+.tz-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.tz-sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; flex: 0 0 auto; }
+.tz-sw.s1 { background: var(--tz-s1); } .tz-sw.s2 { background: var(--tz-s2); }
+.tz-sw.s3 { background: var(--tz-s3); } .tz-sw.s4 { background: var(--tz-s4); }
+.tz-chart { width: 100%; overflow: hidden; }
+.tz-chart svg { display: block; width: 100%; height: auto; }
+.tz-chart .grid { stroke: var(--tz-grid); stroke-width: 1; }
+.tz-chart .base { stroke: var(--tz-axis); stroke-width: 1; }
+.tz-chart text { fill: var(--s-muted); font: 11px Inter, "Segoe UI", Arial, sans-serif; font-variant-numeric: tabular-nums; }
+.tz-chart .f1 { fill: var(--tz-s1); } .tz-chart .f2 { fill: var(--tz-s2); }
+.tz-chart .f3 { fill: var(--tz-s3); } .tz-chart .f4 { fill: var(--tz-s4); }
+.tz-chart .hit { fill: transparent; cursor: default; }
+.tz-chart .hit:hover, .tz-chart .hit:focus { fill: var(--tz-hover); outline: none; }
+.tz-chart .hit:focus-visible { stroke: var(--s-accent); stroke-width: 2; }
+.tz-empty { padding: 26px 10px; text-align: center; color: var(--s-muted); font-size: 13px; }
+
+/* La barra free / VIP. */
+.tz-split { display: flex; height: 22px; border-radius: 6px; overflow: hidden; gap: 2px; background: var(--s-surface); }
+.tz-split span { display: block; min-width: 2px; }
+.tz-split .s3 { background: var(--tz-s3); } .tz-split .s4 { background: var(--tz-s4); }
+.tz-split-rows { margin-top: 12px; display: grid; gap: 6px; font-size: 13px; }
+.tz-split-rows div { display: flex; justify-content: space-between; gap: 10px; }
+.tz-split-rows b { font-variant-numeric: tabular-nums; }
+
+/* Las barras de los mapas. */
+.tz-bars { display: grid; gap: 10px; }
+.tz-bar-row { display: grid; grid-template-columns: minmax(120px, 34%) minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13px; }
+.tz-bar-track { height: 14px; border-radius: 0 4px 4px 0; position: relative; }
+/* Una sola serie y no es ninguna de las cuatro de arriba: el acento de la suite, no un color de serie. */
+.tz-bar-fill { height: 100%; background: var(--s-accent); border-radius: 0 4px 4px 0; min-width: 2px; }
+.tz-bar-row b { font-variant-numeric: tabular-nums; min-width: 3ch; text-align: right; }
+.tz-bar-row small { color: var(--s-muted); display: block; font-size: 11px; }
+
+/* ── El tooltip ── */
+.tz-tip {
+  position: fixed; z-index: 50; pointer-events: none; min-width: 170px; max-width: min(300px, 90vw);
+  background: var(--s-surface); color: var(--s-text); border: 1px solid var(--s-line); border-radius: 10px;
+  padding: 9px 11px; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); font-size: 12px;
+}
+.tz-tip h4 { margin: 0 0 6px; font-size: 12px; color: var(--s-muted); font-weight: 600; }
+.tz-tip .row { display: flex; align-items: center; gap: 8px; justify-content: space-between; margin: 2px 0; }
+.tz-tip .row span { display: inline-flex; align-items: center; gap: 6px; color: var(--s-muted); }
+.tz-tip .row b { font-variant-numeric: tabular-nums; }
+.tz-tip .key { width: 12px; height: 2px; border-radius: 1px; display: inline-block; }
+
+/* ── Tablas ── */
+.tz-table-wrap { overflow-x: auto; border: 1px solid var(--s-line); border-radius: 12px; }
+.tz-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 520px; }
+.tz-table th, .tz-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--s-line); white-space: nowrap; }
+.tz-table th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--s-muted); font-weight: 700; background: var(--s-raised); }
+.tz-table td.num, .tz-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tz-table tr:last-child td { border-bottom: none; }
+.tz-table tfoot td { font-weight: 700; background: var(--s-raised); border-top: 1px solid var(--s-line); }
+.tz-table .tz-tag { font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--s-line); }
+.tz-preview { color: var(--s-warn); font-size: 11.5px; font-weight: 700; }
+
+/* ── El control ── */
+.tz-form { display: grid; gap: 16px; }
+/* Sin esto, la tabla de ejemplos (min-width 520px) y el fieldset (min-content)
+   ensanchan la columna de la rejilla y la página entera se sale en el móvil. */
+.tz-form > *, .tz-form fieldset { min-width: 0; }
+.tz-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tz-mode { position: relative; border: 1px solid var(--s-line); border-radius: 12px; padding: 12px 14px; cursor: pointer; background: var(--s-raised); }
+.tz-mode input { position: absolute; opacity: 0; pointer-events: none; }
+.tz-mode strong { display: block; font-size: 14px; }
+.tz-mode span { display: block; font-size: 12px; color: var(--s-muted); margin-top: 2px; }
+.tz-mode:has(input:checked) { border-color: var(--s-accent); box-shadow: 0 0 0 1px var(--s-accent) inset; }
+.tz-mode:has(input:focus-visible) { outline: 2px solid var(--s-accent); outline-offset: 2px; }
+.tz-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.tz-field { display: grid; gap: 4px; font-size: 12.5px; min-width: 0; }
+.tz-field > span { color: var(--s-muted); }
+.tz-field small { color: var(--s-muted); font-size: 11px; }
+.tz-range { display: grid; grid-template-columns: minmax(0, 1fr) 84px; gap: 8px; align-items: center; }
+.tz-range input[type=range] { width: 100%; accent-color: var(--s-accent); }
+.tz-input {
+  font: inherit; width: 100%; min-height: 38px; padding: 7px 10px; border-radius: 9px;
+  border: 1px solid var(--s-line); background: var(--s-bg); color: var(--s-text); font-variant-numeric: tabular-nums;
+}
+.tz-switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-size: 13px; }
+.tz-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.tz-switch span { width: 40px; height: 22px; border-radius: 999px; background: var(--s-line); position: relative; transition: background .15s; flex: 0 0 auto; }
+.tz-switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--s-text); transition: transform .15s; }
+.tz-switch input:checked + span { background: var(--s-accent); }
+.tz-switch input:checked + span::after { transform: translateX(18px); background: var(--s-accent-ink); }
+.tz-details { border-top: 1px solid var(--s-line); padding-top: 12px; }
+.tz-details summary { cursor: pointer; font-weight: 700; font-size: 13px; }
+.tz-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.tz-status { font-size: 12.5px; color: var(--s-muted); }
+.tz-status[data-error=true] { color: var(--s-danger); }
+.tz-status[data-ok=true] { color: var(--ok); }
+.tz-formula { font-size: 12px; color: var(--s-muted); margin: 0; }
+.tz-formula code { color: var(--s-text); font-size: 11.5px; }
+
+@media (max-width: 900px) {
+  .tz-hero, .tz-grid { grid-template-columns: minmax(0, 1fr); }
+  .tz-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .tz-fields, .tz-modes { grid-template-columns: minmax(0, 1fr); }
+  .tz-tile { padding: 10px 12px; }
+  .tz-tile-value { font-size: 19px; }
+  .tz-bar-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .tz-bar-row .tz-bar-track { grid-column: 1 / -1; grid-row: 2; }
+  .tz-card { padding: 14px; }
+}
+@media (max-width: 380px) {
+  .tz-tiles { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tz-switch span, .tz-switch span::after, .tz-loading { transition: none; }
+}

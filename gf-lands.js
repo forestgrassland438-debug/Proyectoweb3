@@ -398,14 +398,19 @@
    */
   // 6 = el mapa salvaje del oeste (Scenes/SalvajeScene.js, 2026-10-11).
   // 7, 8 y 9 = el cementerio, el desierto y la tundra (Scenes/ZonasScenes.js, 2026-10-18).
+  // 10, 11 y 12 = el glaciar, la caverna y la pradera (2026-10-25).
   var ESCENA_DE_MUNDO = { 1: 'GameScene', 2: 'tiendajuego', 3: 'MinaScene', 4: CLAVE_ISLA, 6: 'SalvajeScene',
-                          7: 'CementerioScene', 8: 'DesiertoScene', 9: 'TundraScene' };
-  var SALA_DE_MUNDO   = { 1: 'game', 2: 'tienda', 3: 'mina', 4: 'isla', 6: 'salvaje', 7: 'cementerio', 8: 'desierto', 9: 'tundra' };
-  var MUNDO_DE_ZONA   = { world: 1, shop: 2, mine: 3, island: 4, wild: 6, cemetery: 7, desert: 8, tundra: 9 };
+                          7: 'CementerioScene', 8: 'DesiertoScene', 9: 'TundraScene',
+                          10: 'GlaciarScene', 11: 'CavernaScene', 12: 'PraderaScene' };
+  var SALA_DE_MUNDO   = { 1: 'game', 2: 'tienda', 3: 'mina', 4: 'isla', 6: 'salvaje', 7: 'cementerio', 8: 'desierto', 9: 'tundra',
+                          10: 'glaciar', 11: 'caverna', 12: 'pradera' };
+  var MUNDO_DE_ZONA   = { world: 1, shop: 2, mine: 3, island: 4, wild: 6, cemetery: 7, desert: 8, tundra: 9,
+                          glacier: 10, caverns: 11, meadow: 12 };
   // Sin punto conocido (alguien que acaba de entrar y no se ha movido), la
   // entrada de siempre de cada sitio. La mina y la isla ya tienen la suya.
   var ENTRADA_DE_MUNDO = { 1: { x: PLAZA_X, y: PLAZA_Y }, 2: { x: 1041, y: 1778 }, 6: { x: 4896, y: 2208 },
-                           7: { x: 4790, y: 2208 }, 8: { x: 3552, y: 230 }, 9: { x: 3552, y: 4740 } };
+                           7: { x: 4790, y: 2208 }, 8: { x: 3552, y: 230 }, 9: { x: 3552, y: 4740 },
+                           10: { x: 3552, y: 4740 }, 11: { x: 4040, y: 2230 }, 12: { x: 234, y: 2456 } };
   var CADUCIDAD_VIAJE = 90 * 1000;
 
   function numero(v) {
@@ -468,6 +473,8 @@
     var mundo = Number(destino.mundo);
     var clave = ESCENA_DE_MUNDO[mundo];
     if (!clave || !escena.scene.get(clave)) { log('viaje: mundo sin escena', mundo); return false; }
+    // (2026-10-22) Los mapas tienen nivel mínimo (gf-niveles-mapas.js): ni con el botón de amigos.
+    if (root.GFNivelMapa && !root.GFNivelMapa.exigir(escena, mundo)) return false;
 
     var x = numero(destino.x), y = numero(destino.y);
     var conSitio = x !== null && y !== null && (x > 0 || y > 0);

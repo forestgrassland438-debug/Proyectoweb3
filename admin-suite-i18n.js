@@ -675,7 +675,7 @@ Read invoices, contract activity and gas usage.|Consulta facturas, actividad del
 Manage the whitelist and game entry rules.|Administra la lista de acceso y las reglas de entrada al juego.
 Investigate client errors and relay failures.|Investiga errores del cliente y fallos del relayer.
 Build daily quests and balance their rewards.|Crea misiones diarias y equilibra sus recompensas.
-One connected wallet. Eight tools.|Una cartera conectada. Ocho herramientas.
+One connected wallet. Nine tools.|Una cartera conectada. Nueve herramientas.
 Check your API connection|Comprueba tu conexión con la API
 Your tools are ready.|Tus herramientas están listas.
 Select a tool from the navigation to begin.|Selecciona una herramienta del menú para empezar.
@@ -705,7 +705,7 @@ The tool is still loading.|La herramienta sigue cargando.
 Signed in as|Sesión iniciada como
 Choose a mission section|Elige una sección de misiones
 More controls|Más controles
-All eight existing tools are available below.|Las ocho herramientas existentes están disponibles abajo.
+All nine tools are available below.|Las nueve herramientas están disponibles abajo.
 No live data is stored in the browser.|No se guardan datos de sesión en el navegador.
 This page works through your existing backend session.|Esta página utiliza la sesión de tu backend existente.
 English|Inglés
@@ -1352,6 +1352,132 @@ Your account was reported for|Tu cuenta fue reportada por
 automatic|automática
 Farmer Joe|Granjero Joe
 Guardian|Guardián
+Treasury (2026-10-22)|Tesoro (2026-10-22)
+Treasury & incentives|Tesoro e incentivos
+See the 1.5% fee treasury and tune the coin drops for free and VIP players.|Mira el tesoro de la comisión del 1,5 % y ajusta las monedas que sueltan los monstruos a los jugadores free y VIP.
+Connect the wallet registered as an administrator.|Conecta la cartera registrada como administradora.
+Economy|Economía
+Every purchase and sale in the game shop and the P2P market pays a 1.5% fee into the treasury. The treasury pays it back as coins dropped by defeated monsters.|Cada compra y venta en la tienda del juego y en el mercado P2P paga una comisión del 1,5 % al tesoro. El tesoro la devuelve en monedas que sueltan los monstruos vencidos.
+Treasury balance|Saldo del tesoro
+bronze|bronce
+gold|oro
+silver|plata
+Bronze|Bronce
+Incentives on|Incentivos encendidos
+Incentives off|Incentivos apagados
+Incentives active|Incentivos activos
+Automatic mode|Modo automático
+Manual mode|Modo manual
+Fee|Comisión
+Money in and out, last 30 days|Entradas y salidas, últimos 30 días
+Fees go up from the line, incentives paid to players go down. Amounts in bronze, days in UTC.|Las comisiones suben desde la línea y los incentivos pagados a los jugadores bajan. Importes en bronce, días en UTC.
+Show table|Ver tabla
+Show chart|Ver gráfico
+Download CSV|Descargar CSV
+Game shop fees|Comisiones de la tienda
+P2P market fees|Comisiones del mercado P2P
+Paid to free players|Pagado a jugadores free
+Paid to VIP players|Pagado a jugadores VIP
+Free and VIP players|Jugadores free y VIP
+Players without a name never receive treasury coins.|Los jugadores sin nombre nunca reciben monedas del tesoro.
+Paid out, all time|Pagado desde el inicio
+Who can enter each map|Quién puede entrar a cada mapa
+Players whose character level opens the map, out of all accounts.|Jugadores cuyo nivel de personaje abre el mapa, sobre el total de cuentas.
+Players by level|Jugadores por nivel
+Incentive control|Control de incentivos
+Automatic mode adjusts the chance by VIP status, level and luck. Manual mode lets you set it yourself for free and VIP players.|El modo automático ajusta la probabilidad según VIP, nivel y suerte. El modo manual te deja fijarla tú para los jugadores free y VIP.
+Base chance for free or VIP, plus level and a luck streak that grows with every monster without a prize.|Probabilidad base para free o VIP, más el nivel y una racha de suerte que crece con cada monstruo sin premio.
+You decide the chance per monster for free and for VIP players.|Tú decides la probabilidad por monstruo para los jugadores free y para los VIP.
+Free players · chance per monster (%)|Jugadores free · probabilidad por monstruo (%)
+VIP players · chance per monster (%)|Jugadores VIP · probabilidad por monstruo (%)
+Also add the level and luck bonuses|Sumar también los bonos de nivel y de suerte
+Base chance · free (%)|Probabilidad base · free (%)
+Base chance · VIP (%)|Probabilidad base · VIP (%)
+Bonus per character level (%)|Bono por nivel del personaje (%)
+Level where the bonus stops|Nivel en el que el bono deja de crecer
+Luck · bonus per monster without a prize (%)|Suerte · bono por cada monstruo sin premio (%)
+Luck · maximum bonus (%)|Suerte · bono máximo (%)
+Payout size|Tamaño del pago
+Share of the treasury per payout (%)|Parte del tesoro por pago (%)
+Before the toughness, VIP, level and boss multipliers.|Antes de los multiplicadores de dureza, VIP, nivel y jefe.
+VIP payout multiplier (×)|Multiplicador del pago VIP (×)
+Minimum payout (bronze)|Pago mínimo (bronce)
+Smaller prizes are not dropped.|Los premios menores no se sueltan.
+Maximum payout (bronze)|Pago máximo (bronce)
+Prizes per player per day|Premios por jugador y día
+What a player gets per monster|Lo que gana un jugador por monstruo
+Preview of unsaved changes|Vista previa de cambios sin guardar
+Bosses double the chance and pay 2.5×. The chance per monster never goes above 75%.|Los jefes duplican la probabilidad y pagan 2,5×. La probabilidad por monstruo nunca pasa del 75 %.
+Payouts shown for a monster of average toughness and average luck.|Pagos calculados para un monstruo de dureza media y suerte media.
+Restore defaults|Restaurar valores por defecto
+Deposit or withdraw|Ingresar o retirar
+Adds coins to the treasury or takes them out. Every adjustment is recorded with its reason and your wallet.|Mete monedas en el tesoro o las saca. Cada ajuste queda registrado con su motivo y tu cartera.
+Deposit into the treasury|Ingresar al tesoro
+Withdraw from the treasury|Retirar del tesoro
+Coin|Moneda
+Apply adjustment|Aplicar ajuste
+Top receivers, last 30 days|Quién más cobró, últimos 30 días
+Players who picked up the most treasury coins.|Jugadores que más monedas del tesoro recogieron.
+Latest movements|Últimos movimientos
+The last 30 entries: fees in, prizes out and admin adjustments.|Las últimas 30 entradas: comisiones que entran, premios que salen y ajustes de administración.
+At least 3 characters|Al menos 3 caracteres
+The server answered without treasury data.|El servidor respondió sin datos del tesoro.
+This game server does not have the treasury yet. Deploy the latest backend and refresh.|Este servidor del juego aún no tiene el tesoro. Despliega el backend más reciente y actualiza.
+Fees · 30 days|Comisiones · 30 días
+Paid out · 30 days|Pagado · 30 días
+Prizes|Premios
+prizes|premios
+Reserved in drops|Reservado en montones
+Dropped but not picked up yet|Soltado pero aún sin recoger
+Income, all time|Ingresos desde el inicio
+Admin deposits|Ingresos de administración
+Withdrawn by admins|Retirado por administración
+Expired drops returned|Montones caducados devueltos
+No fees or prizes in the last 30 days yet.|Aún no hay comisiones ni premios en los últimos 30 días.
+Fees|Comisiones
+Paid out|Pagado
+Day|Día
+Net|Neto
+no data yet|aún sin datos
+Free accounts|Cuentas free
+VIP accounts|Cuentas VIP
+With a name|Con nombre
+Without a name (no incentives)|Sin nombre (sin incentivos)
+VIP active in 24 hours|VIP activos en 24 horas
+The Mine|La Mina
+The Wild Lands|Las Tierras Salvajes
+The Desert|El Desierto
+The Cemetery|El Cementerio
+The Frost Tundra|La Tundra Helada
+Opens at level|Se abre en el nivel
+Group|Grupo
+Nobody has picked up treasury coins in the last 30 days.|Nadie ha recogido monedas del tesoro en los últimos 30 días.
+P2P fee|Comisión P2P
+Shop fee|Comisión de tienda
+Prize|Premio
+Admin deposit|Ingreso de administración
+Admin withdrawal|Retiro de administración
+Purchase|Compra
+Sale|Venta
+P2P sale|Venta P2P
+Monster|Monstruo
+No movements yet.|Aún no hay movimientos.
+Check the highlighted fields.|Revisa los campos marcados.
+Treasury too low|Tesoro insuficiente
+Free · full luck|Free · suerte al máximo
+VIP · full luck|VIP · suerte al máximo
+Free payout|Pago free
+VIP payout|Pago VIP
+Incentives are off: monsters drop no treasury coins until you turn them on and save.|Los incentivos están apagados: los monstruos no sueltan monedas del tesoro hasta que los enciendas y guardes.
+Turn off treasury incentives? Monsters will stop dropping treasury coins.|¿Apagar los incentivos del tesoro? Los monstruos dejarán de soltar monedas del tesoro.
+Saving…|Guardando…
+Could not save.|No se pudo guardar.
+Write a whole amount of at least 1.|Escribe una cantidad entera de al menos 1.
+That amount is too large.|Esa cantidad es demasiado grande.
+Write a reason of at least 3 characters.|Escribe un motivo de al menos 3 caracteres.
+The treasury does not have that much.|El tesoro no tiene tanto.
+Adjustment saved.|Ajuste guardado.
+Defaults loaded. Save to apply them.|Valores por defecto cargados. Guarda para aplicarlos.
 `;
   const normalize = value => String(value).replace(/\s+/g, ' ').trim();
   const en = new Map(), es = new Map();

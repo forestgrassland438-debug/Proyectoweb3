@@ -576,9 +576,12 @@
 
   function dibujarNoche(st) {
     var est = estado();
-    var o = oscuridad(est);
     var scene = st.scene;
     if (!scene || !scene.cameras) return;
+    /* (2026-10-25) Bajo tierra (la caverna, Scenes/ZonasScenes.js) nunca es
+       de día del todo: la escena pide un mínimo de oscuridad y sus luces
+       (cristales, braseros, setas) la recortan siempre. De noche, más. */
+    var o = Math.max(oscuridad(est), Number(scene._oscuridadMinima) || 0);
     var cam = scene.cameras.main;
     if (!cam) return;
 

@@ -13,6 +13,18 @@
  * - Modal de confirmación personalizado para limpiar historial
  */
 
+/* LA COMISIÓN DEL TESORO (2026-10-22): "si alguien vende o compra en la
+   tiendajuego se le cobra una comisión del 1,5 %" y va al tesoro del juego.
+   En BRONCE (1 plata = 1.000, 1 oro = 1.000.000): el 1,5 % de 2 de oro no
+   cabe en oro entero. Es la MISMA cuenta que `tesoroComisionTienda` de
+   server2.js, que la vuelve a hacer con su tabla de precios (no se fía de la
+   del navegador); tools/tesoro.test.cjs comprueba que las dos coinciden. */
+const GF_COMISION_TESORO_BPS = 150;
+function gfComisionTesoroBronce(precioUnidad, moneda, cantidad) {
+    const bruto = (Number(precioUnidad) || 0) * (moneda === 'silver' ? 1000 : 1000000) * (Math.floor(Number(cantidad)) || 0);
+    return bruto > 0 ? Math.max(1, Math.round(bruto * GF_COMISION_TESORO_BPS / 10000)) : 0;
+}
+
 class TiendaSistema {
     // FIX: getter STATE para que this.STATE apunte siempre a this.scene.STATE.
     // Antes this.STATE era undefined porque nunca se asignó en el constructor,
@@ -1672,8 +1684,8 @@ class TiendaSistema {
             item.limiteDiario ? `${item.limiteDiario - purchasedToday} remaining` : '∞';
         document.getElementById('pc-item-disponible').textContent = 
             this.transactionType === 'compra' ? `${disponible} available` : `${disponible} in inventory`;
-        document.getElementById('pc-item-comision').textContent = 
-            this.transactionType === 'venta' ? `${item.comision}%` : '0%';
+        // (2026-10-22) La comisión es la del tesoro: el 1,5 %, al comprar y al vender (en bronce).
+        document.getElementById('pc-item-comision').textContent = this._conComision() ? '1.5% (BR)' : '0%';
         
         const maxQuantity = this.getMaxQuantity();
         document.getElementById('pc-max-value').textContent = maxQuantity;
@@ -1722,7 +1734,8 @@ class TiendaSistema {
 
         const totalEl = document.getElementById('pc-action-total');
         if (totalEl) {
-            totalEl.innerHTML = `Total: ${this.formatCurrencyAmount(total, currency)}`;
+            totalEl.innerHTML = `Total: ${this.formatCurrencyAmount(total, currency)}` +
+                this._textoComision(item, quantity, this.transactionType === 'compra' ? 'compra' : 'venta');
             this._selectorPago(totalEl);
         }
     }
@@ -1748,6 +1761,10 @@ class TiendaSistema {
             if (totalCost > this.getBalanceByCurrency(monedaPago)) {
                 enabled = false;
                 text = 'Insufficient funds';
+            } else if (!this._alcanzaCompra(item, quantity, monedaPago)) {
+                // (2026-10-22) Llega para el precio pero no para la comisión del tesoro.
+                enabled = false;
+                text = 'Not enough for the fee';
             }
 
             if (item.limiteDiario > 0 && (purchasedToday + quantity) > item.limiteDiario) {
@@ -2011,7 +2028,10 @@ class TiendaSistema {
     // Abrir la tienda
     async open() {
         if (this.isOpen) return;
-        
+        // (2026-10-22) ¿Servidor con tesoro y bronce? Se pregunta ya (una vez) para
+        // que la comisión que se enseña sea la que se va a cobrar.
+        this._servidorAlDia().catch(() => {});
+
         // Pausar escena de Phaser de forma segura
         if (this.scene && this.scene.scene && typeof this.scene.scene.pause === 'function') {
             try {
@@ -2188,8 +2208,8 @@ class TiendaSistema {
             item.limiteDiario ? `${item.limiteDiario - purchasedToday} remaining` : '∞';
         document.getElementById('mobile-item-disponible').textContent = 
             this.transactionType === 'compra' ? `${disponible} available` : `${disponible} in inventory`;
-        document.getElementById('mobile-item-comision').textContent = 
-            this.transactionType === 'venta' ? `${item.comision}%` : '0%';
+        // (2026-10-22) La comisión es la del tesoro: el 1,5 %, al comprar y al vender (en bronce).
+        document.getElementById('mobile-item-comision').textContent = this._conComision() ? '1.5% (BR)' : '0%';
         
         const actionText = document.getElementById('mobile-action-text');
         actionText && (actionText.textContent = this.transactionType === 'compra' ? 'Buy' : 'Sell');
@@ -2597,9 +2617,12 @@ class TiendaSistema {
             const monedaPago = this._monedaDePago(item);
             const balance = this.getBalanceByCurrency(monedaPago);
             const price = this._precioCompra(item, monedaPago);
-            const maxByMoney = price > 0 ? Math.floor(balance / price) : 99;
+            let maxByMoney = price > 0 ? Math.floor(balance / price) : 99;
             const purchasedToday = this.dailyLimits[item.id] || 0;
             const maxByLimit = item.limiteDiario > 0 ? (item.limiteDiario - purchasedToday) : 99;
+            // (2026-10-22) Que también llegue para la comisión del tesoro.
+            maxByMoney = Math.min(maxByMoney, 99);
+            while (maxByMoney > 0 && !this._alcanzaCompra(item, maxByMoney, monedaPago)) maxByMoney--;
             
             return Math.max(0, Math.min(maxByMoney, maxByLimit, 99));
         } else {
@@ -2625,7 +2648,8 @@ class TiendaSistema {
 
         const totalEl = document.getElementById('mobile-action-total');
         if (totalEl) {
-            totalEl.innerHTML = `Total: ${this.formatCurrencyAmount(total, currency)}`;
+            totalEl.innerHTML = `Total: ${this.formatCurrencyAmount(total, currency)}` +
+                this._textoComision(item, quantity, this.transactionType === 'compra' ? 'compra' : 'venta');
             this._selectorPago(totalEl);
         }
     }
@@ -2650,6 +2674,10 @@ class TiendaSistema {
             if (totalCost > this.getBalanceByCurrency(monedaPago)) {
                 enabled = false;
                 text = 'Insufficient funds';
+            } else if (!this._alcanzaCompra(item, quantity, monedaPago)) {
+                // (2026-10-22) Llega para el precio pero no para la comisión del tesoro.
+                enabled = false;
+                text = 'Not enough for the fee';
             }
             
             if (item.limiteDiario > 0 && (purchasedToday + quantity) > item.limiteDiario) {
@@ -2806,6 +2834,119 @@ class TiendaSistema {
         return precio * (this.getItemCurrency(item) === 'silver' ? BRONCE_POR_PLATA : BRONCE_POR_PLATA * PLATA_POR_ORO);
     }
 
+    /* ═══════════════════════════════════════════════════════════════════════
+       LA COMISIÓN DEL TESORO (2026-10-22)
+       ───────────────────────────────────────────────────────────────────────
+       El 1,5 % de cada compra y de cada venta, en BRONCE (gfComisionTesoroBronce,
+       arriba del todo). Comprar: se cobra con el precio y, de lo que la cadena
+       no confirme, se devuelve su parte. Vender: se descuenta de lo que se
+       cobra; lo que no llega a una moneda entera de la del objeto se paga en
+       plata y bronce. Con el bronce justo no hace falta tenerlo: si no llega,
+       se "cambia" plata (y después oro) y la vuelta queda en bronce.
+
+       Solo con el servidor nuevo (_servidorAlDia): el de antes no conoce el
+       bronce ni el tesoro, y cobrar en bronce allí dejaría a StatsSync
+       reintentando para siempre. Cada operación se avisa al tesoro
+       (_informarComision); el servidor recalcula el importe con SU tabla.
+       ═══════════════════════════════════════════════════════════════════════ */
+    _conComision() { return this._servidorNuevo !== false; }
+
+    _comisionBronce(item, cantidad, operacion) {
+        const precio = operacion === 'compra' ? item?.buyPrice : item?.sellPrice;
+        return gfComisionTesoroBronce(precio, this.getItemCurrency(item), cantidad);
+    }
+
+    _saldosTres() {
+        const leer = (m) => Math.max(0, Math.floor(Number(this.getBalanceByCurrency(m)) || 0));
+        return { oro: leer('gold'), plata: leer('silver'), bronce: leer('bronze') };
+    }
+
+    /** Cómo se pagan `fee` de bronce con los saldos `s`; null si no alcanza. */
+    _planComision(fee, s) {
+        let { oro, plata, bronce } = s;
+        let falta = Math.max(0, Math.floor(Number(fee) || 0));
+        const deBronce = Math.min(bronce, falta);
+        bronce -= deBronce; falta -= deBronce;
+        if (falta > 0 && plata > 0) {
+            const n = Math.min(plata, Math.ceil(falta / 1000));
+            plata -= n;
+            const pagado = n * 1000;
+            if (pagado >= falta) { bronce += pagado - falta; falta = 0; } else falta -= pagado;
+        }
+        if (falta > 0 && oro > 0) {
+            const n = Math.min(oro, Math.ceil(falta / 1000000));
+            oro -= n;
+            const pagado = n * 1000000;
+            if (pagado >= falta) {
+                const vuelta = pagado - falta;
+                plata += Math.floor(vuelta / 1000); bronce += vuelta % 1000; falta = 0;
+            } else falta -= pagado;
+        }
+        return falta > 0 ? null : { oro, plata, bronce };
+    }
+
+    /** Los saldos tras cobrar el precio de una compra (en su moneda de pago). */
+    _saldosTrasPrecio(item, quantity, moneda) {
+        const s = this._saldosTres();
+        const k = moneda === 'silver' ? 'plata' : moneda === 'bronze' ? 'bronce' : 'oro';
+        s[k] -= this._precioCompra(item, moneda) * quantity;
+        return s;
+    }
+
+    /** ¿Llega para el precio y para la comisión? */
+    _alcanzaCompra(item, quantity, moneda) {
+        const s = this._saldosTrasPrecio(item, quantity, moneda);
+        if (s.oro < 0 || s.plata < 0 || s.bronce < 0) return false;
+        const fee = this._conComision() ? this._comisionBronce(item, quantity, 'compra') : 0;
+        return fee <= 0 || !!this._planComision(fee, s);
+    }
+
+    /** Deja las tres monedas en `despues` (solo las que cambian) y lo verifica. */
+    _aplicarSaldos(despues, etiqueta) {
+        for (const [moneda, k] of [['gold', 'oro'], ['silver', 'plata'], ['bronze', 'bronce']]) {
+            const antes = Math.max(0, Math.floor(Number(this.getBalanceByCurrency(moneda)) || 0));
+            if (despues[k] === antes) continue;
+            this.setBalanceByCurrency(moneda, despues[k]);
+            this._verificarMovimientoMonedas(moneda, antes, despues[k] - antes, etiqueta);
+        }
+    }
+
+    /** Suma `n` de una moneda (la vuelta de una venta, la devolución de la comisión). */
+    _sumarMoneda(moneda, n, etiqueta) {
+        const cantidad = Math.max(0, Math.floor(Number(n) || 0));
+        if (!cantidad) return;
+        const antes = Math.max(0, Math.floor(Number(this.getBalanceByCurrency(moneda)) || 0));
+        this.setBalanceByCurrency(moneda, antes + cantidad);
+        this._verificarMovimientoMonedas(moneda, antes, cantidad, etiqueta);
+    }
+
+    /** Texto de la comisión para el total de compra y venta. */
+    _textoComision(item, quantity, operacion) {
+        if (!this._conComision()) return '';
+        const fee = this._comisionBronce(item, quantity, operacion);
+        if (!(fee > 0)) return '';
+        return ` <small class="gf-comision-tesoro" style="display:block;opacity:.85;font-size:11px;margin-top:2px">` +
+               `${operacion === 'compra' ? '+' : '−'} 1.5% treasury fee: ${this.formatCurrencyAmount(fee.toLocaleString('en-US'), 'bronze')}</small>`;
+    }
+
+    /** Avisa al tesoro de una comisión cobrada. El servidor la recalcula y solo la cuenta una vez (`ref`). */
+    _informarComision(operacion, item, cantidad) {
+        const e = this._escena();
+        const ref = (window.crypto && typeof window.crypto.randomUUID === 'function')
+            ? window.crypto.randomUUID()
+            : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+        const cuerpo = JSON.stringify({ operacion, itemId: item.id, cantidad, ref });
+        const url = `${this._resolveApiBase()}/api/tesoro/comision`;
+        const enviar = (intento) => {
+            const csrf = typeof window.getCsrfToken === 'function' ? window.getCsrfToken(e?.csrfToken || '') : (e?.csrfToken || '');
+            const otraVez = () => { if (intento < 3) setTimeout(() => enviar(intento + 1), 3000 * (intento + 1)); };
+            fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: cuerpo })
+                .then((r) => { if (r.status >= 500 || r.status === 429 || r.status === 403) otraVez(); })
+                .catch(otraVez);
+        };
+        enviar(0);
+    }
+
     /** El selector "Pay with" encima del total (PC y móvil). */
     _selectorPago(totalEl) {
         if (!totalEl || !totalEl.parentNode) return;
@@ -2898,7 +3039,8 @@ class TiendaSistema {
         // (2026-10-21) El bote, el arco y el bastón: sus tablas las crea el
         // servidor NUEVO. Con el de antes la compra acababa en "createInvoice
         // falló para 1"; ahora se dice antes de cobrar nada.
-        if (['bote', 'arco', 'baston_mago'].includes(item.id) && !(await this._servidorAlDia())) {
+        const servidorNuevo = await this._servidorAlDia();
+        if (['bote', 'arco', 'baston_mago'].includes(item.id) && !servidorNuevo) {
             throw new Error('This item arrives with the next game server update. Try again later.');
         }
         // (2026-10-21) La moneda con la que se PAGA (la del objeto, o bronce) y
@@ -2911,7 +3053,15 @@ class TiendaSistema {
         if (totalCost > balance) {
             throw new Error('Insufficient funds for this purchase');
         }
-        
+
+        // (2026-10-22) La comisión del tesoro (1,5 %, en bronce): se mira ANTES
+        // de cobrar nada si también llega para ella.
+        const fee = servidorNuevo ? this._comisionBronce(item, quantity, 'compra') : 0;
+        const saldosConComision = fee > 0 ? this._planComision(fee, this._saldosTrasPrecio(item, quantity, currency)) : null;
+        if (fee > 0 && !saldosConComision) {
+            throw new Error(`Not enough coins for the 1.5% treasury fee (${fee.toLocaleString('en-US')} Bronze)`);
+        }
+
         const purchasedToday = this.dailyLimits[item.id] || 0;
         if (item.limiteDiario > 0 && (purchasedToday + quantity) > item.limiteDiario) {
             throw new Error('Daily purchase limit exceeded');
@@ -2923,6 +3073,7 @@ class TiendaSistema {
         // eslabón de setBalanceByCurrency no llegó a aplicarse), se corrige
         // aquí mismo antes de seguir con la compra.
         this._verificarMovimientoMonedas(currency, balance, -totalCost, `Compra de ${quantity}x ${item.name}`);
+        if (fee > 0 && saldosConComision) this._aplicarSaldos(saldosConComision, `Comisión del tesoro: ${quantity}x ${item.name}`);
 
         if (item.limiteDiario > 0) {
             this.dailyLimits[item.id] = (this.dailyLimits[item.id] || 0) + quantity;
@@ -2937,7 +3088,7 @@ class TiendaSistema {
             unitPrice,
             totalCost,
             currency,
-            fee: 0,
+            fee,                       // (2026-10-22) comisión del tesoro, en bronce
             remainingGold: this.playerMoneda,
             remainingSilver: this.playerMonedaPlata,
             remainingBronze: this._saldoBronce()
@@ -3135,8 +3286,14 @@ class TiendaSistema {
                 this.dailyLimits[item.id] = Math.max(0, (this.dailyLimits[item.id] || 0) - missing);
                 this.saveDailyLimits();
             }
+            // (2026-10-22) Y la comisión de lo que no salió: lo cobrado menos lo
+            // que corresponde a lo confirmado (la misma cuenta que el servidor).
+            const feeCobrado = Number(transactionInfo.fee) || 0;
+            const feeDevuelto = feeCobrado > 0 ? Math.max(0, feeCobrado - this._comisionBronce(item, added, 'compra')) : 0;
+            if (feeDevuelto > 0) this._sumarMoneda('bronze', feeDevuelto, `Devolución de la comisión: ${missing}x ${item.name}`);
             this.showNotification?.(
-                `⚠️ ${missing}x ${item.name} could not be confirmed on-chain. ${refund} ${this.getCurrencyLabel(currency)} refunded`,
+                `⚠️ ${missing}x ${item.name} could not be confirmed on-chain. ${refund} ${this.getCurrencyLabel(currency)} refunded` +
+                (feeDevuelto > 0 ? ` (+${feeDevuelto.toLocaleString('en-US')} BR of the fee)` : ''),
                 'error'
             );
             console.warn(`⚠️ Compra parcial: ${added}/${quantity} ${item.id} confirmados — reembolso ${refund}`);
@@ -3145,10 +3302,14 @@ class TiendaSistema {
             console.log(`✅ Compra on-chain confirmada: ${quantity}x ${item.id}`);
         }
 
+        // (2026-10-22) Lo confirmado paga su comisión: se avisa al tesoro.
+        const feeConfirmado = added > 0 && (Number(transactionInfo.fee) || 0) > 0 ? this._comisionBronce(item, added, 'compra') : 0;
+        if (feeConfirmado > 0) this._informarComision('compra', item, added);
+
         if (persisted) {
             try {
                 this.addToHistorial('compra', item, added, added * transactionInfo.unitPrice, transactionInfo.currency);
-                this.showTransactionAnimation('compra', item, added, added * transactionInfo.unitPrice);
+                this.showTransactionAnimation('compra', item, added, added * transactionInfo.unitPrice, feeConfirmado);
             } catch (err) { console.warn('Purchase saved; shop display could not refresh:', err); }
         }
         this.updateMonedaDisplay?.();
@@ -5384,7 +5545,6 @@ renderSlot(index) {
     async _ventaEnCadena(item, cantidad, tabla, soltar) {
         const currency    = this.getItemCurrency(item);
         const unitGross   = Number(item.sellPrice) || 0;
-        const comisionPct = Number(item.comision) || 0;
         const [tipoOnchain, limite] = tabla;
 
         let recuento = null;
@@ -5454,13 +5614,25 @@ renderSlot(index) {
         }
 
         const grossPrice = unitGross * vendidas;
-        const commission = Math.max(0, Math.ceil(grossPrice * (comisionPct / 100)));
-        const finalPrice = Math.max(0, grossPrice - commission);
+        /* (2026-10-22) LA COMISIÓN ES LA DEL TESORO: el 1,5 %, en bronce (antes
+           era la `comision` de cada objeto, del 2 al 10 %, y se perdía). Lo que
+           no llega a una moneda entera de la del objeto se paga en plata y
+           bronce. Con el servidor de antes (sin bronce ni tesoro), sin comisión. */
+        const factor = currency === 'silver' ? 1000 : 1000000;
+        const commission = (await this._servidorAlDia()) ? this._comisionBronce(item, vendidas, 'venta') : 0;
+        const netoBronce = Math.max(0, grossPrice * factor - commission);
+        const finalPrice = Math.floor(netoBronce / factor);
+        const resto = netoBronce - finalPrice * factor;
+        const restoPlata = currency === 'silver' ? 0 : Math.floor(resto / 1000);
+        const restoBronce = resto - restoPlata * 1000;
 
         const saldoAntes = Math.floor(Number(this.getBalanceByCurrency(currency)) || 0);
         this.setBalanceByCurrency(currency, saldoAntes + finalPrice);
         // VERIFICACIÓN: el dinero tiene que haberse abonado exactamente.
         this._verificarMovimientoMonedas(currency, saldoAntes, finalPrice, `Venta de ${vendidas}x ${item.name}`);
+        this._sumarMoneda('silver', restoPlata, `Venta de ${vendidas}x ${item.name} (cambio)`);
+        this._sumarMoneda('bronze', restoBronce, `Venta de ${vendidas}x ${item.name} (cambio)`);
+        if (commission > 0) this._informarComision('venta', item, vendidas);
 
         const transactionInfo = {
             type: 'venta',
@@ -5497,7 +5669,7 @@ renderSlot(index) {
 
         // Por el delegador: con la tienda ya cerrada no hace nada (ver _escenaViva).
         try { this.queuedAction({ type: 'forSpam2' }); } catch (err) { /* ignorar */ }
-        console.log(`✅ Sale recorded: ${vendidas}x ${item.name} for ${finalPrice} ${this.getCurrencyLabel(currency)} (fee: ${commission} ${this.getCurrencyLabel(currency)})`);
+        console.log(`✅ Sale recorded: ${vendidas}x ${item.name} for ${finalPrice} ${this.getCurrencyLabel(currency)} + ${restoPlata} SL + ${restoBronce} BR (treasury fee: ${commission} BR)`);
     }
     
     // Mostrar animación de transacción
@@ -5517,7 +5689,7 @@ renderSlot(index) {
                     <img src="${this.getCurrencyIconPath(currency)}" alt="${this.getCurrencyLabel(currency)}" class="moneda-icon">
                     ${total} ${this.getCurrencyLabel(currency)}
                 </div>
-                ${commission > 0 ? `<div class="transaction-commission">Fee: ${commission} ${this.getCurrencyLabel(currency)}</div>` : ''}
+                ${commission > 0 ? `<div class="transaction-commission">Treasury fee (1.5%): ${Number(commission).toLocaleString('en-US')} BR</div>` : ''}
             </div>
         `;
         

@@ -21,8 +21,9 @@
  *   (ruta()/rutaPerfil() devuelven estas). Mismo tamaño y mismo centro que
  *   los PNG originales: los pies y las colisiones no se mueven.
  *
- *   Limitación conocida: las poses de pescar y de la espada son las del
- *   personaje base (salen de otros PNG).
+ *   Las poses de PESCAR (2026-10-22) salen de las del cuerpo base con este
+ *   aspecto encima (prepararPesca, más abajo). La espada no tiene poses
+ *   propias: es un dibujo aparte (gf-espada.js).
  *
  * SEGUNDA VUELTA (2026-10-21): "errores en el ojo o la cara, el perfil no se
  * ajusta ni se ve como los de antes, más cabellos, y no se diferencia el
@@ -260,19 +261,10 @@
         });
       }
       var datos = cx.getImageData(0, 0, cv.width, cv.height), d = datos.data, pal = paletas(o), fem = o.genero === 'f';
-      for (var i = 0; i < d.length; i += 4) {
-        // B 200: píxel con parte; 201: pestaña (mujer: contorno); 202: labios (mujer).
-        var bb = d[i + 2], c;
-        if (!d[i + 3] || bb < 200 || bb > 202) continue;
-        if (bb === 201 && fem) c = CONTORNO;
-        else if (bb === 202 && fem) c = d[i + 1] >= 80 ? pal.labio[1] : pal.labio[0];
-        else {
-          var tonos = pal[d[i]];
-          if (!tonos) continue;
-          c = tonos[Math.min(tonos.length - 1, Math.round(d[i + 1] / 40))];
-        }
-        d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2];
-      }
+      // (2026-10-22) Los quietos (`<dir>_1`) EN CÓDIGOS, antes de colorear: de
+      // ellos salen los fotogramas de pescar con este aspecto (prepararPesca).
+      var codigos = recortarCodigos(d, cv.width, meta);
+      colorear(d, pal, fem);
       cx.putImageData(datos, 0, 0);
       var urls = {};
       Object.keys(meta).forEach(function (k) {
@@ -306,7 +298,7 @@
       var gx = rg.getContext('2d');
       gx.imageSmoothingEnabled = false;
       gx.drawImage(rp, 0, 0, 204, 220);
-      cache[id] = { urls: urls, perfil: rg.toDataURL('image/png') };
+      cache[id] = { urls: urls, perfil: rg.toDataURL('image/png'), codigos: codigos, pesca: null };
       tocar(id); delete fallidos[id]; podar();
       return true;
       } finally { cv.width = cv.height = 0; if (rp) rp.width = rp.height = 0; if (rg) rg.width = rg.height = 0; }
@@ -317,12 +309,280 @@
     }).finally(function () { delete enCurso[id]; });
     return enCurso[id];
   }
+  /** Colorea EN EL SITIO los píxeles con código (B 200-202) con las paletas de un aspecto. */
+  function colorear(d, pal, fem) {
+    for (var i = 0; i < d.length; i += 4) {
+      // B 200: píxel con parte; 201: pestaña (mujer: contorno); 202: labios (mujer).
+      var bb = d[i + 2], c;
+      if (!d[i + 3] || bb < 200 || bb > 202) continue;
+      if (bb === 201 && fem) c = CONTORNO;
+      else if (bb === 202 && fem) c = d[i + 1] >= 80 ? pal.labio[1] : pal.labio[0];
+      else {
+        var tonos = pal[d[i]];
+        if (!tonos) continue;
+        c = tonos[Math.min(tonos.length - 1, Math.round(d[i + 1] / 40))];
+      }
+      d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2];
+    }
+  }
+  /** Copia, en códigos, los cuatro fotogramas quietos (`<dir>_1`) del atlas. */
+  function recortarCodigos(d, ancho, meta) {
+    var out = {};
+    Object.keys(DIRS).forEach(function (dir) {
+      var f = meta[dir + '_1'];
+      if (!f) return;
+      var px = new Uint8ClampedArray(f.w * f.h * 4);
+      for (var y = 0; y < f.h; y++) {
+        var ini = ((f.y + y) * ancho + f.x) * 4;
+        px.set(d.subarray(ini, Math.min(d.length, ini + f.w * 4)), y * f.w * 4);
+      }
+      out[dir] = { w: f.w, h: f.h, px: px };
+    });
+    return out;
+  }
+
+  /* ── (2026-10-22) LA PESCA CON EL ASPECTO ELEGIDO ─────────────────────────
+     "El personaje personalizado no puede pescar": su id no es una carpeta y
+     gf-pesca.js pedía Soulbound/personaje3--…/abajo/pescar_1.png, que no
+     existe. Los fotogramas de pescar del cuerpo base (tools/generar-pesca-anim.py)
+     son su run_1 desplazado (16, 4) en un lienzo mayor, con los brazos
+     doblados y la caña; el 80-94 % del cuerpo queda igual píxel a píxel. Así
+     que aquí: lo que coincide con el run_1 se toma del quieto ELEGIDO (su
+     cabeza, su falda, sus colores); lo que cambió (brazos, contorno nuevo) se
+     traduce a código por su color, con lo que vale ese color en el run_1; y
+     la caña se queda como está. Lo que la cabeza elegida asoma por fuera de
+     la silueta de siempre (un sombrero) se pinta si no tapa la caña. Mismo
+     centro que los demás fotogramas: las PUNTAS de la caña no cambian. */
+  var CANA = new Set(['#c08f52', '#a3763f', '#8a5f30', '#6b4724', '#4e3319', '#d8c496', '#bca170', '#99845b', '#75643f',
+                      '#e4ecef', '#c8352f', '#efe9e0'].map(function (h) { return parseInt(h.slice(1), 16); }));
+  var enCursoPesca = Object.create(null);
+  function rgbNum(px, i) { return (px[i] << 16) | (px[i + 1] << 8) | px[i + 2]; }
+  /** Color del run_1 -> código del quieto elegido en el mismo sitio (el más votado). */
+  function diccionario(R, K, kox, koy) {
+    var votos = new Map();
+    for (var y = 0; y < R.h; y++) for (var x = 0; x < R.w; x++) {
+      var i = (y * R.w + x) * 4, kx = x + kox, ky = y + koy;
+      if (R.px[i + 3] < 128 || kx < 0 || ky < 0 || kx >= K.w || ky >= K.h) continue;
+      var j = (ky * K.w + kx) * 4, b = K.px[j + 2];
+      if (!K.px[j + 3] || b < 200 || b > 202) continue;
+      var col = rgbNum(R.px, i);
+      if (CANA.has(col)) continue;
+      var cod = rgbNum(K.px, j), m = votos.get(col);
+      if (!m) votos.set(col, m = new Map());
+      m.set(cod, (m.get(cod) || 0) + 1);
+    }
+    var dic = new Map();
+    votos.forEach(function (m, col) {
+      var mejor = 0, n = 0;
+      m.forEach(function (v, k) { if (v > n) { n = v; mejor = k; } });
+      dic.set(col, mejor);
+    });
+    return dic;
+  }
+  /** Un fotograma de pescar (P) con el aspecto del quieto elegido (K), en códigos. */
+  function pescaFotograma(K, R, P, kox, koy, dic) {
+    var pox = Math.round((P.w - R.w) / 2), poy = Math.round((P.h - R.h) / 2);
+    var W = K.w + P.w - R.w, H = K.h + P.h - R.h, out = new Uint8ClampedArray(W * H * 4);
+    var copiar = function (j, o) { out[o] = K.px[j]; out[o + 1] = K.px[j + 1]; out[o + 2] = K.px[j + 2]; out[o + 3] = K.px[j + 3]; };
+    for (var py = 0; py < P.h; py++) for (var px = 0; px < P.w; px++) {
+      var i = (py * P.w + px) * 4;
+      if (!P.px[i + 3]) continue;
+      var o = ((py + koy) * W + px + kox) * 4, rx = px - pox, ry = py - poy;
+      if (rx >= 0 && ry >= 0 && rx < R.w && ry < R.h) {
+        var r = (ry * R.w + rx) * 4;
+        if (R.px[r + 3] && R.px[r] === P.px[i] && R.px[r + 1] === P.px[i + 1] && R.px[r + 2] === P.px[i + 2]) {
+          var j = ((ry + koy) * K.w + rx + kox) * 4;
+          if (K.px[j + 3]) copiar(j, o);       // el aspecto elegido (o nada: su cabeza es más pequeña)
+          continue;
+        }
+      }
+      var col = rgbNum(P.px, i), cod = CANA.has(col) ? undefined : dic.get(col);
+      if (cod !== undefined) {
+        out[o] = (cod >> 16) & 255; out[o + 1] = (cod >> 8) & 255; out[o + 2] = cod & 255; out[o + 3] = 255;
+      } else {
+        // Color de verdad (la caña): que no se confunda con un código (B 200-209).
+        var b = P.px[i + 2];
+        out[o] = P.px[i]; out[o + 1] = P.px[i + 1]; out[o + 2] = (b >= 200 && b <= 209) ? (b < 205 ? 199 : 210) : b; out[o + 3] = P.px[i + 3];
+      }
+    }
+    for (var ky = 0; ky < K.h; ky++) for (var kx = 0; kx < K.w; kx++) {
+      var jj = (ky * K.w + kx) * 4;
+      if (!K.px[jj + 3]) continue;
+      var rx2 = kx - kox, ry2 = ky - koy;
+      if (rx2 >= 0 && ry2 >= 0 && rx2 < R.w && ry2 < R.h && R.px[(ry2 * R.w + rx2) * 4 + 3]) continue;
+      var o2 = ((ky + poy) * W + kx + pox) * 4;
+      if (!out[o2 + 3]) copiar(jj, o2);
+    }
+    return { w: W, h: H, px: out };
+  }
+  function componerPesca(id, o, rutaFoto) {
+    var entrada = cache[id];
+    if (!entrada || !entrada.codigos || destruido) return Promise.resolve(false);
+    var cuerpo = cuerpoDe(o), dirs = Object.keys(DIRS);
+    var cargas = dirs.map(function (dir) {
+      var lista = [cargarImagen('./Game/Sprites/Soulbound/' + cuerpo + '/' + dir + '/run_1.png')];
+      for (var n = 1; n <= 6; n++) lista.push(cargarImagen(rutaFoto(cuerpo, dir, n)));
+      return Promise.all(lista);
+    });
+    return Promise.all(cargas).then(function (porDir) {
+      if (destruido || cache[id] !== entrada) return false;          // podado mientras tanto
+      var lec = document.createElement('canvas'), sal = document.createElement('canvas');
+      try {
+        var lx = lec.getContext('2d', { willReadFrequently: true }), sx = sal.getContext('2d');
+        var leer = function (im) {
+          lec.width = im.width; lec.height = im.height;
+          lx.clearRect(0, 0, im.width, im.height); lx.drawImage(im, 0, 0);
+          return { w: im.width, h: im.height, px: lx.getImageData(0, 0, im.width, im.height).data };
+        };
+        var pal = paletas(o), fem = o.genero === 'f', urls = {};
+        dirs.forEach(function (dir, k) {
+          var K = entrada.codigos[dir], R = leer(porDir[k][0]);
+          if (!K || K.px.length !== K.w * K.h * 4) throw new Error('sin quieto ' + dir);
+          var kox = Math.round((K.w - R.w) / 2), koy = Math.round((K.h - R.h) / 2), dic = diccionario(R, K, kox, koy);
+          for (var n = 1; n <= 6; n++) {
+            var F = pescaFotograma(K, R, leer(porDir[k][n]), kox, koy, dic);
+            colorear(F.px, pal, fem);
+            sal.width = F.w; sal.height = F.h;
+            sx.putImageData(new ImageData(F.px, F.w, F.h), 0, 0);
+            urls[dir + '_' + n] = sal.toDataURL('image/png');
+          }
+        });
+        entrada.pesca = urls;
+        tocar(id);
+        return true;
+      } finally { lec.width = lec.height = 0; sal.width = sal.height = 0; }
+    });
+  }
+  /** Compone los 24 fotogramas de pescar de un id. `rutaFoto(cuerpo, carpeta, n)` da la URL del pescar_n base. */
+  function prepararPesca(id, rutaFoto) {
+    var o = decodificar(id);
+    if (!o || destruido || typeof rutaFoto !== 'function') return Promise.resolve(false);
+    id = codificar(o);
+    var c = cache[id];
+    if (c && c.pesca) { tocar(id); return Promise.resolve(true); }
+    var clave = 'pesca:' + id;
+    if (fallidos[clave] && Date.now() - fallidos[clave] < 30000) return Promise.resolve(false);
+    if (enCursoPesca[id]) return enCursoPesca[id];
+    enCursoPesca[id] = preparar(id).then(function (ok) {
+      if (!ok || destruido) return false;
+      return programar(function () { return componerPesca(id, o, rutaFoto); });
+    }).catch(function (e) {
+      console.warn('[Soulbound custom] no se pudo componer la pesca de ' + id, e);
+      if (!destruido) { fallidos[clave] = Date.now(); podar(); }
+      return false;
+    }).finally(function () { delete enCursoPesca[id]; });
+    return enCursoPesca[id];
+  }
+  function urlPesca(id, carpeta, n) {
+    id = claveCache(id);
+    var c = cache[id];
+    if (!c || !c.pesca) return null;
+    tocar(id);
+    return c.pesca[(Object.prototype.hasOwnProperty.call(DIRS, carpeta) ? DIRS[carpeta] : 'abajo') + '_' + n] || null;
+  }
+  /** El cuerpo con el que se pinta un id (el de la tabla de puntas de la caña). */
+  function cuerpo(id) { var o = decodificar(id); return o ? cuerpoDe(o) : null; }
+
   function claveCache(id) { var o = decodificar(id); return o ? codificar(o) : ''; }
   function listo(id) { return !!cache[claveCache(id)]; }
   function url(id, carpeta, n) { id = claveCache(id); var c = cache[id]; if (c) tocar(id); return c ? c.urls[(Object.prototype.hasOwnProperty.call(DIRS, carpeta) ? DIRS[carpeta] : 'abajo') + '_' + n] || null : null; }
   function perfil(id) { id = claveCache(id); var c = cache[id]; if (c) tocar(id); return c ? c.perfil : null; }
 
   // ── EL PANEL ────────────────────────────────────────────────────────────
+  /* (2026-10-22) CUARTA VUELTA: "el panel de personalización está todo mal".
+     · Empezaba con colores genéricos (camisa negra, pantalón marino) aunque
+       llevaras a Ember, pelirrojo de chaqueta roja: no te veías a ti. Ahora
+       parte de TU aspecto: el personalizado que llevas o, si llevas el de
+       siempre, sus colores en estas paletas (ORIGINALES, medidos de sus PNG
+       con el tono base de cada rampa).
+     · Cada clic rehacía el panel entero: la vista previa parpadeaba y volvía a
+       empezar y se perdía el foco. Ahora solo cambia lo marcado y la vista
+       previa se recompone una vez por ráfaga de clics.
+     · La vista previa se quedaba fuera de la pantalla al bajar y "Guardar"
+       solo aparecía al final: la vista previa va fija (a la izquierda; arriba
+       en el móvil) y los botones, abajo y siempre a la vista. "Guardar" solo
+       se enciende si hay cambios, y cerrar pinchando fuera con cambios avisa.
+     · Se puede girar (las cuatro vistas) y cada color dice su nombre. */
+  var NOMBRES_COLOR = {
+    pelo: ['Black', 'Dark brown', 'Brown', 'Chestnut', 'Copper', 'Golden', 'Blond', 'Silver', 'White', 'Blue', 'Purple', 'Pink'],
+    piel: ['Porcelain', 'Light', 'Tan', 'Medium', 'Brown', 'Deep'],
+    ojos: ['Dark brown', 'Brown', 'Hazel', 'Blue', 'Sky blue', 'Green', 'Leaf green', 'Grey', 'Violet', 'Amber'],
+    ropa: ['Charcoal', 'White', 'Red', 'Orange', 'Mustard', 'Green', 'Teal', 'Blue', 'Purple', 'Plum', 'Brown', 'Slate',
+           'Silver', 'Navy', 'Dark brown', 'Peach']
+  };
+  // El color de cada Soulbound en estas paletas (índices de PELO, PIEL, OJOS y ROPA).
+  var ORIGINALES = {
+    personaje1: { pelo: 2, piel: 0, ojos: 3, camisa: 0, pantalon: 8, zapatos: 15 },
+    personaje2: { pelo: 2, piel: 0, ojos: 6, camisa: 5, pantalon: 0, zapatos: 15 },
+    personaje3: { pelo: 4, piel: 1, ojos: 9, camisa: 2, pantalon: 2, zapatos: 15 },
+    personaje4: { pelo: 0, piel: 3, ojos: 6, camisa: 4, pantalon: 10, zapatos: 15 },
+    personaje5: { pelo: 8, piel: 0, ojos: 4, camisa: 7, pantalon: 13, zapatos: 15 },
+    personaje6: { pelo: 3, piel: 1, ojos: 6, camisa: 5, pantalon: 14, zapatos: 15 },
+    personaje7: { pelo: 0, piel: 0, ojos: 8, camisa: 13, pantalon: 0, zapatos: 12 },
+    personaje8: { pelo: 1, piel: 1, ojos: 5, camisa: 10, pantalon: 10, zapatos: 15 },
+    personaje9: { pelo: 2, piel: 0, ojos: 2, camisa: 4, pantalon: 13, zapatos: 15 },
+    personaje10: { pelo: 0, piel: 2, ojos: 2, camisa: 10, pantalon: 14, zapatos: 15 },
+    personaje11: { pelo: 3, piel: 0, ojos: 5, camisa: 5, pantalon: 10, zapatos: 15 },
+    personaje12: { pelo: 0, piel: 1, ojos: 1, camisa: 11, pantalon: 13, zapatos: 15 },
+    personaje13: { pelo: 2, piel: 0, ojos: 5, camisa: 13, pantalon: 0, zapatos: 12 }
+  };
+  /** El aspecto con el que se abre el panel: el personalizado que se lleva o el del personaje. */
+  function aspectoInicial(id) {
+    var o = decodificar(id);
+    if (o) { o.barba = 0; return o; }
+    var b = base(id), c = Object.prototype.hasOwnProperty.call(ORIGINALES, b) ? ORIGINALES[b]
+      : { pelo: 2, piel: 1, ojos: 3, camisa: 0, pantalon: 13, zapatos: 14 };
+    return { base: b, genero: generoDe(b), estilo: 0, pelo: c.pelo, piel: c.piel, ojos: c.ojos,
+             camisa: c.camisa, pantalon: c.pantalon, zapatos: c.zapatos, barba: 0, falda: 0 };
+  }
+
+  var CSS_PANEL = [
+    '#gf-sb-custom{position:fixed;inset:0;z-index:100001;background:rgba(6,10,20,.66);display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}',
+    '#gf-sb-custom *{box-sizing:border-box}',
+    '#gf-sb-custom .sbc-card{width:min(780px,100%);max-height:min(94vh,740px);display:flex;flex-direction:column;background:linear-gradient(160deg,#17233b,#0e1626);border:2px solid #ffd23f;border-radius:16px;color:#fff;box-shadow:0 18px 50px rgba(0,0,0,.55);overflow:hidden}',
+    '#gf-sb-custom .sbc-head{display:flex;align-items:flex-start;gap:10px;padding:12px 14px 10px;border-bottom:1px solid rgba(255,255,255,.08)}',
+    '#gf-sb-custom .sbc-head h2{margin:0;font-size:clamp(16px,4vw,19px);line-height:1.2}',
+    '#gf-sb-custom .sbc-head p{margin:3px 0 0;font-size:12px;color:#9fb6d8}',
+    '#gf-sb-custom .sbc-x{margin-left:auto;flex:none;width:40px;height:40px;border-radius:10px;border:none;background:transparent;color:#ffd23f;font-size:22px;cursor:pointer}',
+    '#gf-sb-custom .sbc-x:hover{background:rgba(255,255,255,.08)}',
+    '#gf-sb-custom .sbc-body{flex:1;min-height:0;display:grid;grid-template-columns:210px minmax(0,1fr)}',
+    '#gf-sb-custom .sbc-prev{padding:14px 12px;display:flex;flex-direction:column;align-items:center;gap:10px;border-right:1px solid rgba(255,255,255,.08)}',
+    '#gf-sb-custom canvas.sbc-lienzo{width:180px!important;height:240px!important;flex:none;border-radius:14px;background:radial-gradient(circle at 50% 78%,#33507a,#121b2e 70%);image-rendering:pixelated;cursor:pointer}',
+    '#gf-sb-custom .sbc-giro{display:flex;gap:8px;align-items:center;font-size:12px;color:#9fb6d8}',
+    '#gf-sb-custom .sbc-giro button{width:36px;height:36px;border-radius:10px;border:2px solid #34507a;background:#1b2a44;color:#fff;font-size:16px;cursor:pointer}',
+    '#gf-sb-custom .sbc-vista{min-width:52px;text-align:center}',
+    '#gf-sb-custom .sbc-estado{font-size:11px;color:#9fb6d8;text-align:center;min-height:14px}',
+    '#gf-sb-custom .sbc-opts{overflow:auto;padding:4px 16px 14px;overscroll-behavior:contain}',
+    '#gf-sb-custom .sbc-sec{margin:12px 0 0}',
+    '#gf-sb-custom .sbc-sec h3{margin:0 0 7px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#cfe0ff;font-weight:800}',
+    '#gf-sb-custom .sbc-sec h3 span{margin-left:6px;letter-spacing:0;text-transform:none;font-weight:600;color:#ffd23f}',
+    '#gf-sb-custom .sbc-chips{display:flex;flex-wrap:wrap;gap:6px}',
+    '#gf-sb-custom .sbc-chip{min-height:34px;padding:5px 12px;border-radius:999px;border:2px solid #34507a;background:#1b2a44;color:#fff;font-weight:700;font-size:12px;cursor:pointer}',
+    '#gf-sb-custom .sbc-chip[aria-pressed=true]{background:#ffd23f;border-color:#ffd23f;color:#20160a}',
+    '#gf-sb-custom .sbc-sw{display:flex;flex-wrap:wrap;gap:7px}',
+    '#gf-sb-custom .sbc-color{position:relative;width:30px;height:30px;padding:0;border-radius:50%;border:2px solid rgba(255,255,255,.35);cursor:pointer}',
+    '#gf-sb-custom .sbc-color[aria-pressed=true]{border:3px solid #ffd23f;transform:scale(1.08)}',
+    '#gf-sb-custom .sbc-color[aria-pressed=true]::after{content:"\\2713";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#fff;text-shadow:0 0 3px #000,0 0 2px #000}',
+    '#gf-sb-custom button:focus-visible{outline:3px solid #8fd3ff;outline-offset:2px}',
+    '#gf-sb-custom .sbc-foot{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-top:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.2)}',
+    '#gf-sb-custom .sbc-btn{min-height:42px;padding:8px 14px;border-radius:12px;border:2px solid #34507a;background:#1b2a44;color:#fff;font-weight:700;font-size:13px;cursor:pointer}',
+    '#gf-sb-custom .sbc-ok{margin-left:auto;min-width:150px;background:#2e7d32;border-color:#2e7d32;font-weight:800;font-size:15px}',
+    '#gf-sb-custom .sbc-btn:disabled{opacity:.45;cursor:not-allowed}',
+    '#gf-sb-custom .sbc-msg{flex-basis:100%;order:9;min-height:16px;font-size:12px;text-align:center;color:#ffd23f}',
+    '#gf-sb-custom .sbc-msg[data-tipo=ok]{color:#6fcf97}#gf-sb-custom .sbc-msg[data-tipo=error]{color:#ff8a80}',
+    '@media (max-width:640px){#gf-sb-custom{padding:6px}#gf-sb-custom .sbc-body{display:block;overflow:auto}' +
+      '#gf-sb-custom .sbc-prev{position:sticky;top:0;z-index:1;flex-direction:row;justify-content:center;gap:14px;padding:8px;border-right:none;border-bottom:1px solid rgba(255,255,255,.08);background:#131d31}' +
+      '#gf-sb-custom canvas.sbc-lienzo{width:105px!important;height:140px!important}#gf-sb-custom .sbc-giro{flex-direction:column}#gf-sb-custom .sbc-opts{overflow:visible}' +
+      '#gf-sb-custom .sbc-foot .sbc-btn{flex:1 1 0;min-width:0;padding:8px 6px;font-size:12px;white-space:nowrap}#gf-sb-custom .sbc-ok{flex:1.3 1 0;font-size:14px}}',
+    '@media (prefers-reduced-motion:reduce){#gf-sb-custom .sbc-color[aria-pressed=true]{transform:none}}'
+  ].join('\n');
+  function estilosPanel() {
+    if (document.getElementById('gf-sbc-css')) return;
+    var st = document.createElement('style');
+    st.id = 'gf-sbc-css';
+    st.textContent = CSS_PANEL;
+    (document.head || document.body).appendChild(st);
+  }
   function escena() {
     try {
       var g = global.game, l = g && g.scene ? g.scene.getScenes(true) : [];
@@ -330,187 +590,289 @@
     } catch (e) {}
     return null;
   }
-  function filaColores(titulo, lista, valor, alElegir) {
-    var fila = document.createElement('div');
-    fila.style.cssText = 'margin:8px 0;';
-    var t = document.createElement('div');
-    t.textContent = titulo;
-    t.style.cssText = 'font-size:12px;color:#cfe0ff;margin-bottom:5px;font-weight:700;';
-    var cont = document.createElement('div');
-    cont.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
-    lista.forEach(function (hex, i) {
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.title = titulo + ' ' + (i + 1);
-      b.setAttribute('aria-label', titulo + ' ' + (i + 1));
-      b.style.cssText = 'width:30px;height:30px;border-radius:50%;cursor:pointer;background:' + hex + ';' +
-        'border:' + (i === valor ? '3px solid #ffd23f' : '2px solid rgba(255,255,255,.35)') + ';';
-      b.onclick = function () { alElegir(i); };
-      cont.appendChild(b);
-    });
-    fila.append(t, cont);
-    return fila;
+  function nodo(tag, clase, texto) {
+    var e = document.createElement(tag);
+    if (clase) e.className = clase;
+    if (texto != null) e.textContent = texto;
+    return e;
   }
-  function filaChips(titulo, opciones, valor, alElegir) {
-    var fila = document.createElement('div');
-    fila.style.cssText = 'margin:8px 0;';
-    var t = document.createElement('div');
-    t.textContent = titulo;
-    t.style.cssText = 'font-size:12px;color:#cfe0ff;margin-bottom:5px;font-weight:700;';
-    var cont = document.createElement('div');
-    cont.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
-    opciones.forEach(function (op) {
-      var b = document.createElement('button');
+  /** Una fila de opciones: chips (texto) o círculos de color. Devuelve { fila, marcar(valor) }. */
+  function filaOpciones(titulo, opciones, valor, alElegir, colores) {
+    var fila = nodo('div', 'sbc-sec'), h = nodo('h3', null, titulo), nombre = nodo('span');
+    if (colores) h.appendChild(nombre);
+    var cont = nodo('div', colores ? 'sbc-sw' : 'sbc-chips');
+    cont.setAttribute('role', 'group');
+    cont.setAttribute('aria-label', titulo);
+    var botones = opciones.map(function (op) {
+      var b = nodo('button', colores ? 'sbc-color' : 'sbc-chip', colores ? null : op.txt);
       b.type = 'button';
-      b.textContent = op.txt;
-      b.style.cssText = 'min-height:34px;padding:4px 12px;border-radius:999px;cursor:pointer;font-weight:700;font-size:12px;' +
-        (op.v === valor ? 'background:#ffd23f;color:#20160a;border:2px solid #ffd23f;' : 'background:#1b2a44;color:#fff;border:2px solid #34507a;');
+      if (colores) {
+        b.style.background = op.color;
+        b.title = op.txt;
+        b.setAttribute('aria-label', titulo + ': ' + op.txt);
+      }
       b.onclick = function () { alElegir(op.v); };
       cont.appendChild(b);
+      return b;
     });
-    fila.append(t, cont);
-    return fila;
+    var marcar = function (v) {
+      opciones.forEach(function (op, i) {
+        var si = op.v === v;
+        botones[i].setAttribute('aria-pressed', si ? 'true' : 'false');
+        if (si && colores) nombre.textContent = op.txt;
+      });
+    };
+    marcar(valor);
+    fila.append(h, cont);
+    return { fila: fila, marcar: marcar };
+  }
+  function opcionesColor(lista, nombres) {
+    return lista.map(function (hex, i) { return { v: i, color: hex, txt: nombres[i] || ('#' + (i + 1)) }; });
   }
 
   function abrir(sceneArg) {
     var SB = global.GFSoulbound;
-    if (!SB) return;
+    if (!SB || destruido) return;
     if (panelActual) panelActual();
-    var actualId = SB.actual();
-    var o = decodificar(actualId) || {
-      base: base(actualId), genero: generoDe(base(actualId)),
-      estilo: 0, pelo: 2, piel: 1, ojos: 3, camisa: 0, pantalon: 13, zapatos: 14, barba: 0, falda: 0
-    };
-    o.barba = 0;                                   // (2026-10-21) sin barba
+    estilosPanel();
+    var o = aspectoInicial(SB.actual());
+    var puesto = codificar(o);                 // lo que se compara para saber si hay cambios
+    var llevaOriginal = !esCustom(SB.actual());
+    var volverA = document.activeElement;
     var viejo = document.getElementById('gf-sb-custom');
     if (viejo) viejo.remove();
-    var ov = document.createElement('div');
+
+    var ov = nodo('div');
     ov.id = 'gf-sb-custom';
-    ov.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:10px;';
-    var card = document.createElement('div');
-    card.style.cssText = 'width:min(96vw,560px);max-height:92vh;overflow:auto;box-sizing:border-box;background:linear-gradient(160deg,#16223a,#0e1626);' +
-      'border:3px solid #ffd23f;border-radius:16px;color:#fff;font-family:Arial,sans-serif;padding:14px;';
+    var card = nodo('div', 'sbc-card');
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+    card.setAttribute('aria-labelledby', 'sbc-titulo');
     ov.appendChild(card);
     document.body.appendChild(ov);
-    var cerrado = false, vistaRevision = 0, origen = sceneArg || escena(), dueno = origen && origen.playerName;
-    function actual() { var sc = escena(); return !destruido && !cerrado && ov.isConnected && (!dueno || (sc && sc.playerName === dueno)); }
-    var cerrar = function () { if (cerrado) return; cerrado = true; vistaRevision++; ov.remove(); clearInterval(anim); anim = null; document.removeEventListener('keydown', alTecla); if (origen && origen.events) { origen.events.off('shutdown', cerrar); origen.events.off('destroy', cerrar); } if (panelActual === cerrar) panelActual = null; };
+
+    var cerrado = false, origen = sceneArg || escena(), dueno = origen && origen.playerName;
+    var anim = null, relojVista = null, vistaRevision = 0, dirI = 0, paso = 1, imgs = {}, guardando = false;
+    var DIRS4 = ['abajo', 'derecha', 'arriba', 'izquierda'], NOMBRE_VISTA = ['Front', 'Right', 'Back', 'Left'];
+    function vivo() { var sc = escena(); return !destruido && !cerrado && ov.isConnected && (!dueno || (sc && sc.playerName === dueno)); }
+    var cerrar = function () {
+      if (cerrado) return;
+      cerrado = true; vistaRevision++;
+      ov.remove();
+      clearInterval(anim); anim = null;
+      clearTimeout(relojVista); relojVista = null;
+      imgs = {};
+      document.removeEventListener('keydown', alTecla);
+      if (origen && origen.events) { origen.events.off('shutdown', cerrar); origen.events.off('destroy', cerrar); }
+      if (panelActual === cerrar) panelActual = null;
+      try { if (volverA && volverA.isConnected && volverA.focus) volverA.focus(); } catch (e) {}
+    };
     function alTecla(e) { if (e.key === 'Escape') cerrar(); }
     document.addEventListener('keydown', alTecla);
     if (origen && origen.events) { origen.events.once('shutdown', cerrar); origen.events.once('destroy', cerrar); }
     panelActual = cerrar;
-    ov.onclick = function (e) { if (e.target === ov) cerrar(); };
-    var anim = null, paso = 1, dirs = ['abajo', 'derecha', 'arriba', 'izquierda'], dirI = 0, vistaId = null;
 
-    var pintar = function () {
-      if (!actual()) return;
-      var run = ++vistaRevision;
-      card.innerHTML = '';
-      var cab = document.createElement('div');
-      cab.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;';
-      cab.innerHTML = '<b style="font-size:clamp(15px,4vw,19px);">✂️ Customize ' + SB.ficha(o.base).nombre + '</b>';
-      var x = document.createElement('button');
-      x.type = 'button'; x.textContent = '✕';
-      x.style.cssText = 'background:transparent;border:none;color:#ffd23f;font-size:24px;cursor:pointer;min-width:40px;min-height:40px;';
-      x.onclick = cerrar;
-      cab.appendChild(x);
-      card.appendChild(cab);
-      var cuerpo = document.createElement('div');
-      cuerpo.style.cssText = 'display:flex;gap:14px;flex-wrap:wrap;';
-      var izq = document.createElement('div');
-      izq.style.cssText = 'flex:0 0 140px;display:flex;flex-direction:column;align-items:center;gap:6px;margin:auto;';
-      var lienzo = document.createElement('canvas');
-      lienzo.width = 140; lienzo.height = 170;
-      lienzo.style.cssText = 'background:radial-gradient(circle at 50% 70%,#2f4a72,#121b2e);border-radius:14px;image-rendering:pixelated;';
-      var nota = document.createElement('div');
-      nota.style.cssText = 'font-size:11px;color:#9fb6d8;text-align:center;';
-      nota.textContent = 'Preview';
-      izq.append(lienzo, nota);
-      var der = document.createElement('div');
-      der.style.cssText = 'flex:1;min-width:240px;';
-      der.appendChild(filaChips('Body', [{ v: 'm', txt: '♂ Male' }, { v: 'f', txt: '♀ Female' }], o.genero, function (v) {
-        // (2026-10-21) "No se diferencia el masculino del femenino": al pasar
-        // de cuerpo, un peinado de ese cuerpo y (mujer) la falda; además la
-        // mujer lleva pestañas y labios (banderas del mapa de partes).
-        // (2026-10-21) El peinado NO cambia al cambiar de cuerpo: todos son
-        // cabezas del arte original y valen para los dos cuerpos.
-        var cambia = o.genero !== v;
+    // ── La cabecera ──
+    var cab = nodo('div', 'sbc-head'), titulos = nodo('div');
+    var h2 = nodo('h2', null, '✂️ Customize ' + SB.ficha(o.base).nombre);
+    h2.id = 'sbc-titulo';
+    titulos.append(h2, nodo('p', null, 'Your look is saved to your account and everyone sees it.'));
+    var x = nodo('button', 'sbc-x', '✕');
+    x.type = 'button';
+    x.setAttribute('aria-label', 'Close');
+    x.onclick = cerrar;
+    cab.append(titulos, x);
+
+    // ── La vista previa ──
+    var prev = nodo('div', 'sbc-prev'), lienzo = nodo('canvas', 'sbc-lienzo');
+    lienzo.width = 60; lienzo.height = 80;
+    lienzo.title = 'Click to turn';
+    var giro = nodo('div', 'sbc-giro'), izq = nodo('button', null, '◀'), der = nodo('button', null, '▶'), vista = nodo('span', 'sbc-vista', 'Front');
+    izq.type = der.type = 'button';
+    izq.setAttribute('aria-label', 'Turn left'); der.setAttribute('aria-label', 'Turn right');
+    var girar = function (d) { dirI = (dirI + d + 4) % 4; vista.textContent = NOMBRE_VISTA[dirI]; pintarPaso(true); };
+    izq.onclick = function () { girar(-1); };
+    der.onclick = function () { girar(1); };
+    lienzo.onclick = function () { girar(1); };
+    giro.append(izq, vista, der);
+    var estado = nodo('div', 'sbc-estado', 'Preview');
+    prev.append(lienzo, giro, estado);
+    var cx = lienzo.getContext('2d');
+    if (cx) cx.imageSmoothingEnabled = false;
+
+    // ── Las opciones ──
+    var opts = nodo('div', 'sbc-opts'), filas = {};
+    function montarOpciones() {
+      var arriba = opts.scrollTop;
+      opts.textContent = '';
+      var elegir = function (campo) { return function (v) { o[campo] = v; cambiado(); }; };
+      filas.genero = filaOpciones('Body', [{ v: 'm', txt: 'Male' }, { v: 'f', txt: 'Female' }], o.genero, function (v) {
+        if (v === o.genero) return;
         o.genero = v;
-        if (v === 'f') { if (cambia) o.falda = 1; } else o.falda = 0;
-        pintar();
-      }));
-      der.appendChild(filaChips('Hairstyle', POR_GENERO[o.genero].map(function (e) { return { v: ESTILOS.indexOf(e), txt: NOMBRE_ESTILO[e] }; }),
-        o.estilo, function (v) { o.estilo = v; pintar(); }));
-      der.appendChild(filaColores('Hair color', PELO, o.pelo, function (i) { o.pelo = i; pintar(); }));
-      der.appendChild(filaColores('Skin', PIEL, o.piel, function (i) { o.piel = i; pintar(); }));
-      der.appendChild(filaColores('Eyes', OJOS, o.ojos, function (i) { o.ojos = i; pintar(); }));
-      der.appendChild(filaColores('Shirt', ROPA, o.camisa, function (i) { o.camisa = i; pintar(); }));
-      if (o.genero === 'f') der.appendChild(filaChips('Bottom', [{ v: 0, txt: '👖 Pants' }, { v: 1, txt: '👗 Skirt' }], o.falda, function (v) { o.falda = v; pintar(); }));
-      der.appendChild(filaColores(o.falda ? 'Skirt' : 'Pants', ROPA, o.pantalon, function (i) { o.pantalon = i; pintar(); }));
-      der.appendChild(filaColores('Shoes', ROPA, o.zapatos, function (i) { o.zapatos = i; pintar(); }));
-      cuerpo.append(izq, der);
-      card.appendChild(cuerpo);
-      var pie = document.createElement('div');
-      pie.style.cssText = 'display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;';
-      var orig = document.createElement('button');
-      orig.type = 'button'; orig.textContent = '↺ Original look';
-      orig.style.cssText = 'flex:1;min-height:44px;border-radius:12px;border:2px solid #34507a;background:#1b2a44;color:#fff;font-weight:700;cursor:pointer;';
-      var ok = document.createElement('button');
-      ok.type = 'button'; ok.textContent = '✓ Save look';
-      ok.style.cssText = 'flex:2;min-height:44px;border-radius:12px;border:none;background:#2e7d32;color:#fff;font-weight:800;font-size:15px;cursor:pointer;';
-      var msg = document.createElement('div');
-      msg.style.cssText = 'width:100%;font-size:12px;text-align:center;color:#ffd23f;min-height:16px;';
-      pie.append(orig, ok, msg);
-      card.appendChild(pie);
-      orig.onclick = function () {
-        if (!actual()) return;
-        msg.textContent = 'Restoring…';
-        SB.elegir(o.base, escena() || sceneArg).then(function (ok) { if (!actual() || run !== vistaRevision) return; msg.textContent = ok ? 'Back to the original look.' : 'Could not apply that look.'; if (ok && SB.refrescarPanel) SB.refrescarPanel(); }).catch(function () { if (actual()) msg.textContent = 'Could not apply that look.'; });
-      };
-      ok.onclick = function () {
-        if (ok.disabled || !actual()) return;
-        var id = codificar(o);
-        msg.textContent = 'Saving your look…';
-        ok.disabled = true;
-        preparar(id).then(function (bien) {
-          if (!actual() || run !== vistaRevision) return;
-          if (!bien) { msg.textContent = 'Could not build that look. Try again.'; ok.disabled = false; return; }
-          return SB.elegir(id, escena() || sceneArg).then(function (aplicado) {
-            if (!actual() || run !== vistaRevision) return;
-            if (!aplicado) { msg.textContent = 'Could not apply that look.'; ok.disabled = false; return; }
-            msg.style.color = '#6fcf97';
-            msg.textContent = 'Saved! Everyone sees your new look.';
-            ok.disabled = false;
-            if (SB.refrescarPanel) SB.refrescarPanel();
-          });
-        }).catch(function () { if (actual() && run === vistaRevision) { msg.textContent = 'Could not save that look. Try again.'; ok.disabled = false; } });
-      };
-      // La vista previa: se compone y anda (las cuatro direcciones).
-      var id = codificar(o);
-      vistaId = id;
-      clearInterval(anim);
-      var cx = lienzo.getContext('2d');
-      cx.imageSmoothingEnabled = false;
-      var imgs = {};
-      preparar(id).then(function (bien) {
-        if (!bien || !actual() || run !== vistaRevision || vistaId !== id) return;
-        dirs.forEach(function (d) {
-          for (var n = 1; n <= 7; n++) { var im = new Image(); im.src = url(id, d, n); imgs[d + n] = im; }
-        });
-        var propio = setInterval(function () {
-          if (!actual() || run !== vistaRevision || !document.body.contains(lienzo)) { clearInterval(propio); if (anim === propio) anim = null; return; }
-          paso = paso % 7 + 1;
-          if (paso === 1 && Math.random() < 0.5) dirI = (dirI + 1) % 4;
-          var im = imgs[dirs[dirI] + paso];
-          if (!im || !im.complete) return;
-          cx.clearRect(0, 0, 140, 170);
-          var k = 2.4, w = im.width * k, h = im.height * k;
-          cx.drawImage(im, (140 - w) / 2, 170 - h - 8, w, h);
-        }, 120);
-        anim = propio;
+        o.falda = v === 'f' ? 1 : 0;           // la mujer, con falda por defecto (se puede quitar)
+        montarOpciones();
+        cambiado();
       });
+      filas.estilo = filaOpciones('Hairstyle / hat', POR_GENERO[o.genero].map(function (e) { return { v: ESTILOS.indexOf(e), txt: NOMBRE_ESTILO[e] }; }),
+        o.estilo, elegir('estilo'));
+      filas.pelo = filaOpciones('Hair color', opcionesColor(PELO, NOMBRES_COLOR.pelo), o.pelo, elegir('pelo'), true);
+      filas.piel = filaOpciones('Skin', opcionesColor(PIEL, NOMBRES_COLOR.piel), o.piel, elegir('piel'), true);
+      filas.ojos = filaOpciones('Eyes', opcionesColor(OJOS, NOMBRES_COLOR.ojos), o.ojos, elegir('ojos'), true);
+      filas.camisa = filaOpciones('Shirt', opcionesColor(ROPA, NOMBRES_COLOR.ropa), o.camisa, elegir('camisa'), true);
+      filas.falda = o.genero === 'f'
+        ? filaOpciones('Bottom', [{ v: 0, txt: '👖 Pants' }, { v: 1, txt: '👗 Skirt' }], o.falda, function (v) {
+          o.falda = v;
+          filas.pantalon.fila.querySelector('h3').firstChild.nodeValue = v ? 'Skirt color' : 'Pants color';
+          cambiado();
+        })
+        : null;
+      filas.pantalon = filaOpciones(o.falda ? 'Skirt color' : 'Pants color', opcionesColor(ROPA, NOMBRES_COLOR.ropa), o.pantalon, elegir('pantalon'), true);
+      filas.zapatos = filaOpciones('Shoes', opcionesColor(ROPA, NOMBRES_COLOR.ropa), o.zapatos, elegir('zapatos'), true);
+      ['genero', 'estilo', 'pelo', 'piel', 'ojos', 'camisa', 'falda', 'pantalon', 'zapatos'].forEach(function (k) {
+        if (filas[k]) opts.appendChild(filas[k].fila);
+      });
+      opts.scrollTop = arriba;
+    }
+    function marcarTodo() {
+      ['genero', 'estilo', 'pelo', 'piel', 'ojos', 'camisa', 'falda', 'pantalon', 'zapatos'].forEach(function (k) {
+        if (filas[k]) filas[k].marcar(o[k]);
+      });
+    }
+
+    // ── El pie ──
+    var pie = nodo('div', 'sbc-foot');
+    var orig = nodo('button', 'sbc-btn', '↺ Original look'), azar = nodo('button', 'sbc-btn', '🎲 Random');
+    var ok = nodo('button', 'sbc-btn sbc-ok', '✓ Save look'), msg = nodo('div', 'sbc-msg');
+    orig.type = azar.type = ok.type = 'button';
+    msg.setAttribute('role', 'status');
+    msg.setAttribute('aria-live', 'polite');
+    pie.append(orig, azar, ok, msg);
+
+    var cuerpo = nodo('div', 'sbc-body');
+    cuerpo.append(prev, opts);
+    card.append(cab, cuerpo, pie);
+
+    function aviso(texto, tipo) { msg.textContent = texto || ''; if (tipo) msg.setAttribute('data-tipo', tipo); else msg.removeAttribute('data-tipo'); }
+    function sucio() { return codificar(o) !== puesto; }
+    function botones() {
+      ok.disabled = guardando || !sucio();
+      orig.disabled = guardando || (llevaOriginal && !sucio());
+      azar.disabled = guardando;
+    }
+    function cambiado() {
+      marcarTodo();
+      aviso('');
+      botones();
+      programarVista();
+    }
+
+    azar.onclick = function () {
+      var lista = POR_GENERO[o.genero], r = function (n) { return Math.floor(Math.random() * n); };
+      o.estilo = ESTILOS.indexOf(lista[r(lista.length)]);
+      o.pelo = r(PELO.length); o.piel = r(PIEL.length); o.ojos = r(OJOS.length);
+      o.camisa = r(ROPA.length); o.pantalon = r(ROPA.length); o.zapatos = r(ROPA.length);
+      if (o.genero === 'f') o.falda = r(2);
+      montarOpciones();
+      cambiado();
     };
-    pintar();
+    orig.onclick = function () {
+      if (!vivo() || guardando) return;
+      if (llevaOriginal) {
+        // Aún no se guardó nada: se deshacen los cambios del panel.
+        o = aspectoInicial(o.base);
+        montarOpciones(); cambiado();
+        aviso('Back to the original look.', 'ok');
+        return;
+      }
+      guardando = true; botones();
+      aviso('Restoring…');
+      SB.elegir(o.base, escena() || sceneArg).then(function (bien) {
+        guardando = false;
+        if (!vivo()) return;
+        if (!bien) { botones(); aviso('Could not apply that look.', 'error'); return; }
+        llevaOriginal = true;
+        o = aspectoInicial(o.base);
+        puesto = codificar(o);
+        montarOpciones(); cambiado();
+        aviso('Back to the original look.', 'ok');
+        if (SB.refrescarPanel) SB.refrescarPanel();
+      }).catch(function () { guardando = false; if (vivo()) { botones(); aviso('Could not apply that look.', 'error'); } });
+    };
+    ok.onclick = function () {
+      if (ok.disabled || !vivo()) return;
+      var id = codificar(o);
+      guardando = true; botones();
+      aviso('Saving your look…');
+      preparar(id).then(function (bien) {
+        if (!vivo()) { guardando = false; return; }
+        if (!bien) { guardando = false; botones(); aviso('Could not build that look. Try again.', 'error'); return; }
+        return SB.elegir(id, escena() || sceneArg).then(function (aplicado) {
+          guardando = false;
+          if (!vivo()) return;
+          if (!aplicado) { botones(); aviso('Could not apply that look.', 'error'); return; }
+          puesto = id; llevaOriginal = false;
+          botones();
+          aviso('Saved! Everyone sees your new look.', 'ok');
+          if (SB.refrescarPanel) SB.refrescarPanel();
+        });
+      }).catch(function () { guardando = false; if (vivo()) { botones(); aviso('Could not save that look. Try again.', 'error'); } });
+    };
+    ov.onclick = function (e) {
+      if (e.target !== ov) return;
+      if (sucio() && !guardando) { aviso('You have unsaved changes: save them, or close with ✕.', 'error'); ok.focus(); return; }
+      cerrar();
+    };
+
+    // ── La vista previa: se compone una vez por ráfaga de clics ──
+    function pintarPaso(quieto) {
+      if (!cx) return;
+      var im = imgs[DIRS4[dirI] + (quieto ? 1 : paso)];
+      if (!im || !im.complete || !im.naturalWidth) return;
+      cx.clearRect(0, 0, 60, 80);
+      cx.drawImage(im, Math.round((60 - im.naturalWidth) / 2), 80 - im.naturalHeight - 4);
+    }
+    function programarVista() {
+      clearTimeout(relojVista);
+      relojVista = setTimeout(componerVista, 90);
+    }
+    function componerVista() {
+      relojVista = null;
+      if (!vivo()) return;
+      var run = ++vistaRevision, id = codificar(o);
+      estado.textContent = 'Updating…';
+      preparar(id).then(function (bien) {
+        if (!vivo() || run !== vistaRevision) return;
+        if (!bien) { estado.textContent = 'Preview unavailable'; return; }
+        var nuevas = {}, faltan = 0, listo = function () {
+          if (--faltan > 0 || !vivo() || run !== vistaRevision) return;
+          imgs = nuevas;
+          estado.textContent = 'Preview';
+          pintarPaso(false);
+        };
+        DIRS4.forEach(function (d) {
+          for (var n = 1; n <= 7; n++) {
+            var u = url(id, d, n);
+            if (!u) continue;
+            var im = new Image();
+            faltan++;
+            im.onload = im.onerror = function () { this.onload = this.onerror = null; listo(); };
+            im.src = u;
+            nuevas[d + n] = im;
+          }
+        });
+        if (!faltan) estado.textContent = 'Preview unavailable';
+      });
+    }
+    anim = setInterval(function () {
+      if (!vivo()) { cerrar(); return; }
+      paso = paso % 7 + 1;
+      pintarPaso(false);
+    }, 120);
+
+    montarOpciones();
+    botones();
+    componerVista();
+    try { x.focus(); } catch (e) {}
   }
 
   /** El botón "Customize" en el panel de los Soulbound (sb-current). */
@@ -550,5 +912,6 @@
 
   global.GFSoulboundCustom = { esCustom: esCustom, base: base, decodificar: decodificar, codificar: codificar,
                                preparar: preparar, listo: listo, url: url, perfil: perfil, abrir: abrir, destruir: destruir,
+                               prepararPesca: prepararPesca, urlPesca: urlPesca, cuerpo: cuerpo,
     diagnostico: function () { return { apariencias: orden.size, atlas: atlas.size, activos: activos, pendientes: cola.length, fallidos: Object.keys(fallidos).length }; } };
 })(window);

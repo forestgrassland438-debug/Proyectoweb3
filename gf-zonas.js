@@ -46,7 +46,17 @@
     // Volver al mapa salvaje: al lado de la salida por la que se fue.
     salvaje_desde_cementerio: { mundo: 6, escena: 'SalvajeScene', sala: 'salvaje', nombre: 'Wild Lands', llegada: { x: 250, y: 2208 } },
     salvaje_desde_desierto:   { mundo: 6, escena: 'SalvajeScene', sala: 'salvaje', nombre: 'Wild Lands', llegada: { x: 3552, y: 4740 } },
-    salvaje_desde_tundra:     { mundo: 6, escena: 'SalvajeScene', sala: 'salvaje', nombre: 'Wild Lands', llegada: { x: 3552, y: 230 } }
+    salvaje_desde_tundra:     { mundo: 6, escena: 'SalvajeScene', sala: 'salvaje', nombre: 'Wild Lands', llegada: { x: 3552, y: 230 } },
+    // (2026-10-25) Los tres de nivel 8, 9 y 10: el glaciar (por el camino
+    // nuevo del norte de la tundra), la caverna (por la puerta de la casa de
+    // la bruja del cementerio) y la pradera (por el camino del este del
+    // desierto). Y las vueltas, al lado de por donde se salió.
+    glaciar: { mundo: 10, escena: 'GlaciarScene', sala: 'glaciar', nombre: 'The Shattered Glacier', llegada: { x: 3552, y: 4740 } },
+    caverna: { mundo: 11, escena: 'CavernaScene', sala: 'caverna', nombre: 'Crystal Caverns', llegada: { x: 4040, y: 2250 } },
+    pradera: { mundo: 12, escena: 'PraderaScene', sala: 'pradera', nombre: 'Blossom Meadow', llegada: { x: 234, y: 2456 } },
+    tundra_desde_glaciar:     { mundo: 9, escena: 'TundraScene',     sala: 'tundra',     nombre: 'Frostfang Tundra',       llegada: { x: 3552, y: 234 } },
+    cementerio_desde_caverna: { mundo: 7, escena: 'CementerioScene', sala: 'cementerio', nombre: 'Cemetery of Lost Souls', llegada: { x: 250, y: 2250 } },
+    desierto_desde_pradera:   { mundo: 8, escena: 'DesiertoScene',   sala: 'desierto',   nombre: 'Scorching Desert',       llegada: { x: 4790, y: 2456 } }
   };
 
   var ATRAE = 280, DANO = 54;                 // px: arrastra / hace daño
@@ -96,6 +106,8 @@
       aviso(scene, 'This road is closed for now. Try again later.', 'info');
       return Promise.resolve(false);
     }
+    // (2026-10-22) Cada mapa tiene su nivel mínimo (gf-niveles-mapas.js).
+    if (window.GFNivelMapa && !window.GFNivelMapa.exigir(scene, z.mundo)) return Promise.resolve(false);
     scene._viajeZona = true;
     var contexto = { cancelado: false, reloj: null, resolver: null }, nota = null;
     scene.__gfViajeZona = contexto;
@@ -214,6 +226,34 @@
       g.addColorStop(0, 'rgba(255,255,255,0.95)'); g.addColorStop(0.6, 'rgba(238,246,255,0.6)'); g.addColorStop(1, 'rgba(238,246,255,0)');
       x.fillStyle = g; x.fillRect(0, 0, 8, 8);
     });
+    // (2026-10-25) La ventisca del glaciar: el velo blanco y sus ráfagas.
+    lienzo(scene, 'zn_velo_nieve', 256, 256, function (x, w, h) {
+      manchasCiclicas(x, w, h, [[60, 70, 120, 0.55, 'rgba(236,244,252,0.6)'], [190, 150, 130, 0.5, 'rgba(226,238,250,0.55)'],
+                                [120, 220, 100, 0.45, 'rgba(244,248,255,0.5)'], [230, 40, 90, 0.5, 'rgba(220,234,248,0.45)']]);
+    });
+    lienzo(scene, 'zn_rafaga_nieve', 220, 5, function (x, w, h) {
+      var g = x.createLinearGradient(0, 0, w, 0);
+      g.addColorStop(0, 'rgba(240,248,255,0)'); g.addColorStop(0.5, 'rgba(250,252,255,0.9)'); g.addColorStop(1, 'rgba(240,248,255,0)');
+      x.fillStyle = g; x.fillRect(0, 1, w, 3);
+      x.globalAlpha = 0.4; x.fillRect(0, 0, w, 1); x.fillRect(0, 4, w, 1);
+    });
+    // El pétalo de la pradera: una lágrima alargada (no un punto), rosa.
+    lienzo(scene, 'zn_petalo', 12, 6, function (x, w, h) {
+      x.fillStyle = 'rgba(248,176,196,0.95)';
+      x.beginPath(); x.ellipse(w / 2, h / 2, w / 2 - 0.5, h / 2 - 0.8, 0, 0, Math.PI * 2); x.fill();
+      x.fillStyle = 'rgba(255,224,232,0.95)';
+      x.beginPath(); x.ellipse(w / 2 - 1.5, h / 2 - 0.6, w / 4, h / 5, 0, 0, Math.PI * 2); x.fill();
+    });
+    // La gota de la caverna: una raya que cae y el anillo que deja en el suelo.
+    lienzo(scene, 'zn_gota', 2, 12, function (x, w, h) {
+      var g = x.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, 'rgba(180,230,255,0)'); g.addColorStop(1, 'rgba(210,244,255,0.95)');
+      x.fillStyle = g; x.fillRect(0, 0, w, h);
+    });
+    lienzo(scene, 'zn_anillo_gota', 24, 10, function (x, w, h) {
+      x.strokeStyle = 'rgba(200,240,255,0.9)'; x.lineWidth = 1.2;
+      x.beginPath(); x.ellipse(w / 2, h / 2, w / 2 - 1, h / 2 - 1, 0, 0, Math.PI * 2); x.stroke();
+    });
     lienzo(scene, 'zn_sombra_remolino', 128, 40, function (x, w, h) {
       x.save(); x.scale(1, h / w);
       var cy = (h / 2) * (w / h);
@@ -286,25 +326,26 @@
     var scene = st.scene, capa = scene.map && scene.map.getObjectLayer('objetos');
     st.hogueras = [];
     (capa ? capa.objects : []).forEach(function (o) {
-      if (o.name !== 'hoguera') return;
+      if (o.name !== 'hoguera' && o.name !== 'brasero') return;
+      var alto = o.name === 'brasero' ? 30 : 0;      // el fuego del brasero, en su cuenco
       var ADD = window.Phaser && Phaser.BlendModes ? Phaser.BlendModes.ADD : 1;
-      var brillo = propio(st, scene.add.image(o.x, o.y - 8, 'zn_brillo')).setDepth(o.y - 1).setAlpha(0.55).setBlendMode(ADD);
+      var brillo = propio(st, scene.add.image(o.x, o.y - 8 - alto * 0.3, 'zn_brillo')).setDepth(o.y - 1).setAlpha(0.55).setBlendMode(ADD);
       var llamas = [-4, 0, 4].map(function (dx, k) {
-        return { spr: propio(st, scene.add.image(o.x + dx, o.y - 10, 'zn_llama_' + k)).setOrigin(0.5, 1).setDepth(o.y + 1 + k * 0.01),
-                 dx: dx, fase: Math.random() * 6, k: k === 1 ? 1.0 : 0.68 };
+        return { spr: propio(st, scene.add.image(o.x + dx, o.y - 10 - alto, 'zn_llama_' + k)).setOrigin(0.5, 1).setDepth(o.y + 1 + k * 0.01),
+                 dx: dx, fase: Math.random() * 6, k: (k === 1 ? 1.0 : 0.68) * (alto ? 0.7 : 1) };
       });
       var chispas = [];
       for (var i = 0; i < 6; i++) {
         chispas.push({ spr: propio(st, scene.add.image(o.x, o.y, 'zn_chispa')).setDepth(o.y + 2).setBlendMode(ADD).setVisible(false), vida: 0 });
       }
-      st.hogueras.push({ x: o.x, y: o.y, brillo: brillo, llamas: llamas, chispas: chispas, prox: 0 });
+      st.hogueras.push({ x: o.x, y: o.y - alto, base: o.y, brillo: brillo, llamas: llamas, chispas: chispas, prox: 0 });
     });
   }
   function hoguerasTic(st, t, dt) {
     var v = vista(st.scene);
     for (var i = 0; i < st.hogueras.length; i++) {
       var h = st.hogueras[i];
-      var ve = !v || (h.x > v.x - 100 && h.x < v.right + 100 && h.y > v.y - 100 && h.y < v.bottom + 140);
+      var ve = !v || (h.x > v.x - 100 && h.x < v.right + 100 && h.base > v.y - 100 && h.base < v.bottom + 140);
       h.brillo.setVisible(ve);
       if (!ve) { h.llamas.forEach(function (l) { l.spr.setVisible(false); }); continue; }
       var cambia = t > h.prox;
@@ -404,21 +445,31 @@
   }
 
   // ─────────────────────────────────────────────────────── DESIERTO: TORMENTA
-  function fuerzaTormenta(t) {
-    var k = ((t % CICLO_TORMENTA) + CICLO_TORMENTA) % CICLO_TORMENTA;
-    if (k > DURA_TORMENTA) return 0;
-    return Math.max(0, Math.min(1, k / RAMPA_TORMENTA, (DURA_TORMENTA - k) / RAMPA_TORMENTA));
+  function fuerzaTormenta(t, ciclo, dura) {
+    ciclo = ciclo || CICLO_TORMENTA; dura = dura || DURA_TORMENTA;
+    var k = ((t % ciclo) + ciclo) % ciclo;
+    if (k > dura) return 0;
+    return Math.max(0, Math.min(1, k / RAMPA_TORMENTA, (dura - k) / RAMPA_TORMENTA));
   }
+  /* (2026-10-25) La misma tormenta sirve de VENTISCA en el glaciar: velo y
+     ráfagas blancos, otro ciclo y otros avisos (`TORMENTAS`). */
+  var TORMENTAS = {
+    desierto: { tinte: 0xd9b67a, velo: 'zn_velo', rafaga: 'zn_rafaga', ciclo: CICLO_TORMENTA, dura: DURA_TORMENTA, desfase: 0,
+                entra: '🌪 A sandstorm is rolling in — you can barely see!', sale: '☀ The sandstorm has passed.' },
+    glaciar:  { tinte: 0xe8f2ff, velo: 'zn_velo_nieve', rafaga: 'zn_rafaga_nieve', ciclo: 9 * 60, dura: 3 * 60, desfase: 200,
+                entra: '❄ A blizzard sweeps over the glacier — stay close to the fire!', sale: '🌨 The blizzard eases off.' }
+  };
   function montarTormenta(st) {
-    var scene = st.scene;
-    st.tinte = propio(st, scene.add.rectangle(0, 0, 16, 16, 0xd9b67a, 1)).setOrigin(0, 0).setDepth(PROF_AIRE).setAlpha(0);
+    var scene = st.scene, T = TORMENTAS[st.zona] || TORMENTAS.desierto;
+    st.tormenta = T;
+    st.tinte = propio(st, scene.add.rectangle(0, 0, 16, 16, T.tinte, 1)).setOrigin(0, 0).setDepth(PROF_AIRE).setAlpha(0);
     st.velos = [0, 1].map(function (i) {
-      return { spr: propio(st, scene.add.tileSprite(0, 0, 64, 64, 'zn_velo')).setOrigin(0, 0).setDepth(PROF_AIRE + 0.1 + i * 0.1).setAlpha(0).setTileScale(2.4 + i, 2.4 + i),
+      return { spr: propio(st, scene.add.tileSprite(0, 0, 64, 64, T.velo)).setOrigin(0, 0).setDepth(PROF_AIRE + 0.1 + i * 0.1).setAlpha(0).setTileScale(2.4 + i, 2.4 + i),
                ox: i * 300, vx: [150, 220][i], vy: [10, -14][i] };
     });
     st.rafagas = [];
     for (var i = 0; i < 34; i++) {
-      st.rafagas.push({ spr: propio(st, scene.add.image(0, 0, 'zn_rafaga')).setDepth(PROF_AIRE + 0.3).setAlpha(0).setVisible(false),
+      st.rafagas.push({ spr: propio(st, scene.add.image(0, 0, T.rafaga)).setDepth(PROF_AIRE + 0.3).setAlpha(0).setVisible(false),
                         x: Math.random(), y: Math.random(), v: 0.55 + Math.random() * 0.5, k: 0.6 + Math.random() * 1.3 });
     }
     st.tormentaVista = 0;
@@ -427,7 +478,8 @@
   function tormentaTic(st, tSrv, dt) {
     var scene = st.scene, v = vista(scene);
     if (!v) return;
-    var f = fuerzaTormenta(tSrv);
+    var T = st.tormenta || TORMENTAS.desierto;
+    var f = fuerzaTormenta(tSrv + T.desfase, T.ciclo, T.dura);
     // Suavizado: entra y sale poco a poco aunque la hora salte.
     st.tormentaVista += (f - st.tormentaVista) * Math.min(1, dt * 1.5);
     var a = st.tormentaVista;
@@ -438,7 +490,7 @@
     var ahora = a > 0.05;
     if (ahora !== st.enTormenta) {
       st.enTormenta = ahora;
-      aviso(scene, ahora ? '🌪 A sandstorm is rolling in — you can barely see!' : '☀ The sandstorm has passed.', ahora ? 'warning' : 'info');
+      aviso(scene, ahora ? T.entra : T.sale, ahora ? 'warning' : 'info');
     }
     cubrir(st.tinte, v).setAlpha(0.3 * a).setVisible(a > 0.01);
     st.velos.forEach(function (n) {
@@ -571,10 +623,75 @@
     });
   }
 
+  // ─────────────────────────────────────────────────────── CAVERNA: LAS GOTAS
+  /* (2026-10-25) Del techo de la caverna cae de vez en cuando una gota cerca
+     del jugador: una raya que baja y un anillo que se abre en el suelo y se
+     apaga. Pocas y sueltas, y nunca puntos. */
+  function montarGotas(st) {
+    var scene = st.scene;
+    st.gotas = [];
+    for (var i = 0; i < 6; i++) {
+      st.gotas.push({ spr: propio(st, scene.add.image(0, 0, 'zn_gota')).setDepth(PROF_AIRE + 0.2).setVisible(false),
+                      anillo: propio(st, scene.add.image(0, 0, 'zn_anillo_gota')).setDepth(PROF_NIEBLA).setVisible(false),
+                      fase: 'nada', t: 0 });
+    }
+  }
+  function gotasTic(st, dt) {
+    var scene = st.scene, v = vista(scene);
+    if (!v) return;
+    st.gotas.forEach(function (g) {
+      if (g.fase === 'nada') {
+        if (Math.random() > dt * 0.35) return;
+        g.x = v.x + 60 + Math.random() * Math.max(10, v.width - 120);
+        g.suelo = v.y + 80 + Math.random() * Math.max(10, v.height - 120);
+        if (typeof scene._chocaConEscenario === 'function' && scene._chocaConEscenario(g.x - 4, g.suelo - 4, 8, 8)) return;
+        g.y = g.suelo - 260; g.fase = 'cae';
+        g.spr.setVisible(true).setAlpha(0.85);
+      } else if (g.fase === 'cae') {
+        g.y += 620 * dt;
+        g.spr.setPosition(g.x, g.y);
+        if (g.y >= g.suelo) { g.fase = 'anillo'; g.t = 0; g.spr.setVisible(false); g.anillo.setVisible(true).setPosition(g.x, g.suelo); }
+      } else {
+        g.t += dt;
+        var k = g.t / 0.7;
+        g.anillo.setScale(0.4 + k * 1.2).setAlpha(Math.max(0, 0.8 * (1 - k)));
+        if (k >= 1) { g.fase = 'nada'; g.anillo.setVisible(false); }
+      }
+    });
+  }
+
+  // ─────────────────────────────────────────────────────── PRADERA: LOS PÉTALOS
+  /* (2026-10-25) Los pétalos de los cerezos que lleva la brisa: pocos (18),
+     alargados, que cruzan la pantalla meciéndose y girando. */
+  function montarPetalos(st) {
+    var scene = st.scene;
+    st.petalos = [];
+    for (var i = 0; i < 18; i++) {
+      st.petalos.push({ spr: propio(st, scene.add.image(0, 0, 'zn_petalo')).setDepth(PROF_AIRE + 0.2).setAlpha(0.85).setScale(0.9 + Math.random() * 0.6),
+                        x: Math.random(), y: Math.random(), vx: 0.03 + Math.random() * 0.03, vy: 0.025 + Math.random() * 0.03,
+                        fase: Math.random() * 6.3, giro: (Math.random() - 0.5) * 3 });
+    }
+  }
+  function petalosTic(st, tSrv, dt) {
+    var v = vista(st.scene);
+    if (!v) return;
+    st.petalos.forEach(function (p) {
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.x > 1.05 || p.y > 1.05) { p.x = Math.random() * 0.8 - 0.1; p.y = -0.05; }
+      var x = p.x + Math.sin(tSrv * 1.1 + p.fase) * 0.012;
+      p.spr.setPosition(v.x + x * v.width, v.y + p.y * v.height).setRotation(p.fase + tSrv * p.giro);
+    });
+  }
+
   // ─────────────────────────────────────────────────────── LUCES DE NOCHE
   var LUCES = {
     farola: [-88, 300, 1], cripta: [-70, 260, 0.75], hoguera: [-16, 340, 1],
-    cristal_grande: [-60, 230, 0.7], cristal_hielo: [-30, 130, 0.45]
+    cristal_grande: [-60, 230, 0.7], cristal_hielo: [-30, 130, 0.45],
+    // (2026-10-25) Las de los mapas nuevos: en la caverna alumbran siempre
+    // (allí la noche no se va del todo, gf-ciclo-dia `_oscuridadMinima`).
+    poste_runas: [-50, 170, 0.6], farol_jardin: [-64, 220, 0.9], brasero: [-40, 300, 1],
+    cristal_cueva: [-26, 150, 0.6], cristal_cueva_t: [-26, 150, 0.6], cristal_grande_cueva: [-50, 260, 0.85],
+    seta_brillante: [-12, 90, 0.5], salida_cueva: [-60, 320, 0.9], casa_bruja: [-70, 260, 0.8]
   };
   function montarLuces(st) {
     var scene = st.scene, capa = scene.map && scene.map.getObjectLayer('objetos');
@@ -582,6 +699,11 @@
     (capa ? capa.objects : []).forEach(function (o) {
       var l = Object.prototype.hasOwnProperty.call(LUCES, o.name) ? LUCES[o.name] : null;
       if (l) st.luces.push({ x: o.x, y: o.y + l[0], r: l[1], a: l[2] });
+    });
+    // Y lo que la escena pone a mano (la casa de la bruja).
+    ((scene.cfg && scene.cfg.extras) || []).forEach(function (e) {
+      var l = Object.prototype.hasOwnProperty.call(LUCES, e.fotograma) ? LUCES[e.fotograma] : null;
+      if (l) st.luces.push({ x: e.x, y: e.y + l[0], r: l[1], a: l[2] });
     });
     if (!st.luces.length) return;
     st.alumbrar = function (luz) { for (var i = 0; i < st.luces.length; i++) { var q = st.luces[i]; luz(q.x, q.y, q.r, q.a); } };
@@ -608,6 +730,10 @@
     if (zona === 'cementerio') montarNiebla(st);
     if (zona === 'desierto') { montarTormenta(st); montarRemolinos(st); }
     if (zona === 'tundra') montarNevada(st);
+    // (2026-10-25) El glaciar: su nevada de siempre y, a ratos, la ventisca.
+    if (zona === 'glaciar') { montarNevada(st); montarTormenta(st); }
+    if (zona === 'caverna') montarGotas(st);
+    if (zona === 'pradera') montarPetalos(st);
     } catch (e) { desmontar(scene); console.warn('[zonas]', e); return null; }
     st.onUpdate = function (t, delta) {
       if (!st.vivo) return;
@@ -620,6 +746,8 @@
         if (st.copos.length) nevadaTic(st, tSrv, dt);
         if (st.hogueras.length) hoguerasTic(st, t, dt);
         if (st.polvo.length) polvoTic(st, tSrv, dt);
+        if (st.gotas && st.gotas.length) gotasTic(st, dt);
+        if (st.petalos && st.petalos.length) petalosTic(st, tSrv, dt);
       } catch (e) { console.warn('[zonas]', e); }
     };
     scene.events.on('update', st.onUpdate);
@@ -641,7 +769,9 @@
     var todos = [].concat(st.niebla.map(function (n) { return n.spr; }), st.velos.map(function (n) { return n.spr; }),
       st.rafagas.map(function (r) { return r.spr; }), st.copos.map(function (c) { return c.spr; }),
       st.remolinos.map(function (r) { return r.spr; }), st.remolinos.map(function (r) { return r.sombra; }), [st.tinte],
-      (st.polvo || []).map(function (p) { return p.spr; }));
+      (st.polvo || []).map(function (p) { return p.spr; }),
+      (st.gotas || []).map(function (g) { return g.spr; }), (st.gotas || []).map(function (g) { return g.anillo; }),
+      (st.petalos || []).map(function (p) { return p.spr; }));
     (st.hogueras || []).forEach(function (h) {
       todos.push(h.brillo);
       h.llamas.forEach(function (l) { todos.push(l.spr); });

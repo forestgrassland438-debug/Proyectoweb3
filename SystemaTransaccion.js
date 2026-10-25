@@ -69,9 +69,14 @@ class TransactionSystem {
         }
     }
 
+    /** (2026-10-22) Los tokens guardados, sin reventar si el dato está corrupto o el almacenamiento bloqueado. */
+    _tokensGuardados() {
+        try { return JSON.parse(sessionStorage.getItem('authTokens') || '{}') || {}; } catch (_) { return {}; }
+    }
+
     _tokenActual(token) {
         return !this._destroyed && this.accessToken === token &&
-            (typeof sessionStorage === 'undefined' || JSON.parse(sessionStorage.getItem('authTokens') || '{}').accessToken === token);
+            (typeof sessionStorage === 'undefined' || this._tokensGuardados().accessToken === token);
     }
 
     /**
@@ -141,7 +146,7 @@ class TransactionSystem {
 
     async setupAuthentication() {
         if (this._destroyed) return;
-        const tokens = JSON.parse(sessionStorage.getItem('authTokens') || '{}');
+        const tokens = this._tokensGuardados();
         this.accessToken = tokens.accessToken || null;
         const token = this.accessToken;
         

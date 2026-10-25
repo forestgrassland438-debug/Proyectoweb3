@@ -717,7 +717,10 @@
           ocupado:      d.zona === 'battle' ? n + ' is in a battle right now.'
                                             : n + ' is on the move. Try again in a moment.',
           sin_bronce:   'Not enough Bronze to travel (' + Math.floor(Number(d.precio) || 0).toLocaleString('en-US') + ' needed).',
-          isla_sin_vip: n + ' is on an island that is closed: its owner has no VIP.'
+          isla_sin_vip: n + ' is on an island that is closed: its owner has no VIP.',
+          // (2026-10-22) Los mapas tienen nivel mínimo (gf-niveles-mapas.js); el viaje no se cobra.
+          nivel:        '🔒 ' + n + ' is in a place that opens at level ' + Math.floor(Number(d.nivelMinimo) || 0) +
+                        ' — you are level ' + Math.floor(Number(d.nivel) || 0) + '.'
         };
         aviso(porque[d.motivo] || 'Could not find ' + n + '.', 'error');
         return;
@@ -1411,6 +1414,9 @@
     if (j.zona === 'cemetery') partes.push('in the cemetery');
     if (j.zona === 'desert') partes.push('in the desert');
     if (j.zona === 'tundra') partes.push('in the tundra');
+    if (j.zona === 'glacier') partes.push('on the glacier');
+    if (j.zona === 'caverns') partes.push('in the caverns');
+    if (j.zona === 'meadow') partes.push('in the meadow');
     if (j.zona === 'battle') partes.push('in a battle');
     if (j.zona === 'island') {
       partes.push(!j.islaDe || j.islaDe === j.playerName ? 'on their island'

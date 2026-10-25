@@ -28,14 +28,16 @@
 (function () {
   'use strict';
 
-  var V = '20261020a';   // (2026-10-20) los jefes de cada mapa (antes: el esqueleto de hueso y el guerrero)
+  var V = '20261025a';   // (2026-10-25) los de nivel 8, 9 y 10 (antes 20261020a: los jefes de cada mapa)
   var RUTA = './Game/Sprites/monstruos/';
   // Humanoides: tipo -> fotogramas por segundo al andar.
   var HUMANOIDES = { zombi_a: 6, zombi_b: 6, zombi_c: 6, zombi_d: 6, zombi_jefe: 5, espectro: 6, mago: 6, brujo: 7,
                      // (2026-10-18) Los de los mapas nuevos.
                      esqueleto: 7, nigromante: 6, momia: 5,
                      // (2026-10-19) El guerrero esqueleto, con su espada.
-                     esqueleto_guerrero: 7 };
+                     esqueleto_guerrero: 7,
+                     // (2026-10-25) El espectro de hielo, el trol de la cueva y la dríade.
+                     espectro_hielo: 6, troll_cueva: 5, driada: 6 };
   // Bestias: tipo -> acción -> [fotogramas, por segundo, repetir].
   var BESTIAS = {
     lobo:  { camina: [4, 10, -1], ataque: [3, 12, 0], quieto: [2, 2, -1] },
@@ -52,7 +54,17 @@
     jefe_golem:     { camina: [4, 5, -1],  ataque: [3, 6, 0],  quieto: [2, 1.4, -1] },
     jefe_arana:     { camina: [4, 10, -1], ataque: [3, 9, 0],  quieto: [2, 2, -1] },
     jefe_escorpion: { camina: [4, 10, -1], ataque: [3, 9, 0],  quieto: [2, 2, -1] },
-    jefe_lobo:      { camina: [4, 9, -1],  ataque: [3, 11, 0], quieto: [2, 2, -1] }
+    jefe_lobo:      { camina: [4, 9, -1],  ataque: [3, 11, 0], quieto: [2, 2, -1] },
+    // (2026-10-25) Los de nivel 8, 9 y 10 (el murciélago bate las alas deprisa).
+    yeti:           { camina: [4, 6, -1],  ataque: [3, 7, 0],  quieto: [2, 1.5, -1] },
+    oso_polar:      { camina: [4, 8, -1],  ataque: [3, 10, 0], quieto: [2, 1.6, -1] },
+    murcielago:     { camina: [4, 12, -1], ataque: [3, 12, 0], quieto: [2, 8, -1] },
+    jabali:         { camina: [4, 11, -1], ataque: [3, 12, 0], quieto: [2, 2, -1] },
+    golem_cristal:  { camina: [4, 6, -1],  ataque: [3, 7, 0],  quieto: [2, 1.5, -1] },
+    golem_musgo:    { camina: [4, 6, -1],  ataque: [3, 7, 0],  quieto: [2, 1.5, -1] },
+    jefe_yeti:       { camina: [4, 5, -1],  ataque: [3, 6, 0],  quieto: [2, 1.4, -1] },
+    jefe_murcielago: { camina: [4, 11, -1], ataque: [3, 11, 0], quieto: [2, 7, -1] },
+    jefe_ent:        { camina: [4, 4, -1],  ataque: [3, 5, 0],  quieto: [2, 1.2, -1] }
   };
   // Atlas sin animaciones (fotogramas que el juego elige): la serpiente de la
   // mina, su cabeza y sus anillos en 16 direcciones ('cabeza_<i>',
@@ -75,7 +87,16 @@
     gfm_roca_hielo: 'efectos/roca_hielo.png',
     gfm_hueso: 'efectos/hueso.png',
     gfm_veneno: 'efectos/veneno.png',
-    gfm_rayo_alma: 'efectos/rayo_alma.png'
+    gfm_rayo_alma: 'efectos/rayo_alma.png',
+    // (2026-10-25) Los de nivel 8, 9 y 10.
+    gfm_bola_nieve: 'efectos/bola_nieve.png',
+    gfm_roca_cueva: 'efectos/roca_cueva.png',
+    gfm_roca_musgo: 'efectos/roca_musgo.png',
+    gfm_charco_cristal: 'efectos/charco_cristal.png',
+    gfm_rayo_hielo: 'efectos/rayo_hielo.png',
+    gfm_rayo_hoja: 'efectos/rayo_hoja.png',
+    gfm_esquirla: 'efectos/esquirla.png',
+    gfm_espino: 'efectos/espino.png'
   };
   var DIR_ES = { down: 'abajo', up: 'arriba', right: 'derecha', left: 'izquierda' };
   var FOTOS = 7;

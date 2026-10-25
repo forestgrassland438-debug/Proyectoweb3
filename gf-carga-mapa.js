@@ -20,7 +20,8 @@
  *      se puede andar.
  *   3. Se da por lista cuando su create() terminó (listo, o en su defecto ya
  *      hay jugador y han pasado 2,5 s) Y el cargador de la escena lleva un rato
- *      sin nada pendiente. Entonces se quita la pantalla y se juega.
+ *      sin nada pendiente Y (2026-10-24) el suelo que cae en la cámara ya está
+ *      pintado (sueloListo). Entonces se quita la pantalla y se juega.
  *   4. Nunca se queda colgada: a los 20 s se entra igual, y si ninguna escena
  *      recoge la pantalla retenida, se quita sola a los 45 s.
  * ======================================================================== */
@@ -66,6 +67,31 @@
       if (ld.inflight && ld.inflight.size > 0) return true;
     } catch (e) {}
     return false;
+  }
+
+  /* EL SUELO TAMBIÉN                                             (2026-10-24)
+
+     "Cuando entro al mapa salvaje u otros me muevo y nada ha cargado aún."
+     Los trozos del suelo (recortadas_*) los baja lib/tileManager.js con fetch,
+     no con scene.load: `cargando` no los veía y la pantalla se quitaba con el
+     suelo en negro. Ahora también se espera a que lo que cae en la cámara esté
+     pintado. Y mientras se espera se BOMBEA aquí: en el pueblo los trozos los
+     crea GameScene.update, que con el mapa cargando no corre. */
+  function sueloListo(scene) {
+    var cam = scene.cameras && scene.cameras.main;
+    if (!cam) return true;
+    var gs = scene.__gfSuelo;
+    if (gs && gs.vivo && !gs.tm && gs.loader) return false;      // aún baja su mapa.json
+    var lista = Array.isArray(scene._tileManagers) ? scene._tileManagers : [];
+    var listo = true;
+    for (var i = 0; i < lista.length; i++) {
+      var tm = lista[i];
+      if (!tm || typeof tm.listoEnVista !== 'function') continue;
+      if (tm.listoEnVista(cam)) continue;
+      listo = false;
+      try { tm.updateVisible(cam); tm.bombear(); } catch (e) {}
+    }
+    return listo;
   }
 
   function limpiar(scene) {
@@ -121,7 +147,7 @@
       var pct = ocupado ? Math.round(Math.max(0, Math.min(1, scene.load.progress || 0)) * 100) : 100;
       if (retenida === st.retencion) texto(st.retencion && st.retencion.sistema, 'Preparing the map… ' + pct + '%');
       var creado = st.creado || (!!scene.player && ahora - st.t0 > 2500);
-      if ((creado && ahora - st.t0 >= MIN_MS && st.quietoDesde && ahora - st.quietoDesde >= QUIETO_MS) ||
+      if ((creado && ahora - st.t0 >= MIN_MS && st.quietoDesde && ahora - st.quietoDesde >= QUIETO_MS && sueloListo(scene)) ||
           ahora - st.t0 > MAX_MS) {
         terminar(scene);
       }

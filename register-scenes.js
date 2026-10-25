@@ -173,6 +173,10 @@
     { name: 'CementerioScene',  required: false },
     { name: 'DesiertoScene',    required: false },
     { name: 'TundraScene',      required: false },
+    // (2026-10-25) Los de nivel 8, 9 y 10: el glaciar, la caverna y la pradera.
+    { name: 'GlaciarScene',     required: false },
+    { name: 'CavernaScene',     required: false },
+    { name: 'PraderaScene',     required: false },
     { name: 'tiendajuego',      required: true  },
     { name: 'LoadingSceneshop', required: true  },
     // Batallas P2P de mascotas. required:false para que, si el archivo no

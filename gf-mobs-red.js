@@ -54,7 +54,9 @@
   var HUERFANO_MS = 3000;           // sin foto del anfitrión en este tiempo: se piensa aquí
   var SALAS = { MinaScene: true, SalvajeScene: true,
                 // (2026-10-18) Los mapas nuevos (el servidor: MOBS_SALAS).
-                CementerioScene: true, DesiertoScene: true, TundraScene: true };
+                CementerioScene: true, DesiertoScene: true, TundraScene: true,
+                // (2026-10-25) Los de nivel 8, 9 y 10.
+                GlaciarScene: true, CavernaScene: true, PraderaScene: true };
   // Los compartidos vivos, para el aviso de "pestaña oculta" (un solo oyente
   // de document para todos: ninguno se queda atado a una escena muerta).
   var vivos = [];

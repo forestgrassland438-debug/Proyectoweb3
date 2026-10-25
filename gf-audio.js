@@ -82,7 +82,10 @@
 
   var TEMAS = { pradera: 'gf_pradera', noche: 'gf_noche', tienda: 'gf_tienda',
                 // (2026-10-19) Los mapas nuevos: cada uno con su tema, de día y de noche.
-                cementerio: 'gf_cementerio', desierto: 'gf_desierto', tundra: 'gf_tundra' };
+                cementerio: 'gf_cementerio', desierto: 'gf_desierto', tundra: 'gf_tundra',
+                // (2026-10-25) Los de nivel 8, 9 y 10. La pradera en flor se
+                // llama 'prado' aquí: 'pradera' ya es el tema de día del pueblo.
+                glaciar: 'gf_glaciar', caverna: 'gf_caverna', prado: 'gf_prado' };
 
   var AMBIENTES = {
     lluvia:  'amb_lluvia',
@@ -96,12 +99,20 @@
     desierto:   'amb_desierto',
     tundra:     'amb_tundra',
     tormenta:   'amb_tormenta_arena',
-    remolino:   'amb_remolino'
+    remolino:   'amb_remolino',
+    // (2026-10-25) Los de nivel 8, 9 y 10: el viento del glaciar (y su
+    // ventisca), el goteo y el eco hondo de la caverna, y la brisa con
+    // pájaros de la pradera.
+    glaciar:    'amb_glaciar',
+    ventisca:   'amb_ventisca',
+    caverna:    'amb_caverna',
+    prado:      'amb_prado'
   };
   /* Qué ambientes son de UN mapa: fuera de él ni se piden ni se guardan. El
      desierto, además, tiene la tormenta y el remolino (los mueve gf-zonas.js
      con `scene._tormentaArena` y `scene._remolinoCerca`). */
-  var EXCLUSIVOS = { cementerio: ['cementerio'], desierto: ['desierto', 'tormenta', 'remolino'], tundra: ['tundra'] };
+  var EXCLUSIVOS = { cementerio: ['cementerio'], desierto: ['desierto', 'tormenta', 'remolino'], tundra: ['tundra'],
+                     glaciar: ['glaciar', 'ventisca'], caverna: ['caverna'], prado: ['prado'] };
   function esExclusivo(k) {
     for (var z in EXCLUSIVOS) if (EXCLUSIVOS[z].indexOf(k) >= 0) return true;
     return false;
@@ -916,6 +927,7 @@
        remolino por lo cerca que esté (los pone gf-zonas.js en la escena). Y
        lo que allí no pega, más bajo: los pájaros y los grillos del prado. */
     o.cementerio = o.desierto = o.tundra = o.tormenta = o.remolino = 0;
+    o.glaciar = o.ventisca = o.caverna = o.prado = 0;
     if (st.zona) {
       o[st.zona] = MEZCLA.zona * (1 - 0.5 * tope(c.lluvia, 0, 1));
       if (st.zona === 'desierto') {
@@ -924,6 +936,17 @@
         o.noche *= 0.25; o.arboles *= 0.35; o.soleado *= 0.3;
       } else if (st.zona === 'tundra') {
         o.noche = 0; o.soleado *= 0.2; o.arboles *= 0.4;
+      } else if (st.zona === 'glaciar') {
+        // (2026-10-25) La ventisca del glaciar (gf-zonas la deja en la escena).
+        o.ventisca = MEZCLA.tormenta * tope(Number(st.scene._tormentaArena) || 0, 0, 1);
+        o.noche = 0; o.soleado = 0; o.arboles *= 0.3;
+      } else if (st.zona === 'caverna') {
+        // Bajo tierra: ni viento, ni hojas, ni pájaros, ni grillos, ni nieve.
+        o.viento = o.arboles = o.soleado = o.noche = o.nieve = o.lluvia = 0;
+      } else if (st.zona === 'prado') {
+        // La pradera: más pájaros de día y más grillos de noche.
+        o.soleado = Math.min(MEZCLA.soleado * 1.3, o.soleado * 1.4);
+        o.noche = Math.min(MEZCLA.noche * 1.2, o.noche * 1.2);
       } else if (st.zona === 'cementerio') {
         o.soleado *= 0.25;
       }
@@ -1407,7 +1430,8 @@
   function todasLasClaves() {
     var vistas = {}, out = [], i, j, l;
     // Cada sitio con lo suyo: el campo, la tienda y los tres mapas nuevos.
-    var tipos = [['campo', null], ['tienda', null], ['campo', 'cementerio'], ['campo', 'desierto'], ['campo', 'tundra']];
+    var tipos = [['campo', null], ['tienda', null], ['campo', 'cementerio'], ['campo', 'desierto'], ['campo', 'tundra'],
+                 ['campo', 'glaciar'], ['campo', 'caverna'], ['campo', 'prado']];
     for (i = 0; i < tipos.length; i++) {
       l = clavesDe(tipos[i][0], tipos[i][1]);
       for (j = 0; j < l.length; j++) {
