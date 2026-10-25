@@ -2356,7 +2356,11 @@ class LoadingScenegame extends Phaser.Scene {
             // Los tres que salen de él (2026-10-18): cementerio, desierto, tundra.
             7: 'CementerioScene',
             8: 'DesiertoScene',
-            9: 'TundraScene'
+            9: 'TundraScene',
+            // (2026-10-25) Los de nivel 8, 9 y 10: el glaciar, la caverna y la pradera.
+            10: 'GlaciarScene',
+            11: 'CavernaScene',
+            12: 'PraderaScene'
         };
 
         let nextScene = ESCENA_DE_MUNDO[this.mundo];
@@ -2403,6 +2407,19 @@ class LoadingScenegame extends Phaser.Scene {
             this.mundo = 1;
         }
 
+        /* (2026-10-22) LOS MAPAS POR NIVEL (gf-niveles-mapas.js). Una partida
+           guardada DENTRO de un mapa al que su nivel ya no llega (la regla es
+           nueva) aparece en la plaza del pueblo, con el aviso de qué nivel
+           pide. La plaza va en la nota de viaje: si no, GameScene pondría al
+           jugador en las coordenadas del otro mapa. */
+        if (nextScene !== 'GameScene' && window.GFNivelMapa &&
+            !window.GFNivelMapa.revisarAlCargar(this, this.mundo)) {
+            console.warn('🌍 el mundo ' + this.mundo + ' pide nivel ' + window.GFNivelMapa.minimo(this.mundo) + ': se va al pueblo');
+            nextScene = 'GameScene';
+            this.mundo = 1;
+            window.__gfViaje = { mundo: 1, x: 2097, y: 2359, islaDe: null, islaDeNombre: null, t: Date.now() };
+        }
+
         console.log(`🚀 Transicionando a: ${nextScene}`);
 
         if (window.perf && typeof window.perf.init === 'function' && !this.sys.settings.__perfInitialized) {
@@ -2417,7 +2434,8 @@ class LoadingScenegame extends Phaser.Scene {
            EXPIRED, que es justo el fallo que ya costo una vuelta. */
         if (nextScene === 'MinaScene' || nextScene === 'LandsScene' || nextScene === 'InteriorScene' ||
             nextScene === 'SalvajeScene' || nextScene === 'CementerioScene' || nextScene === 'DesiertoScene' ||
-            nextScene === 'TundraScene') {
+            nextScene === 'TundraScene' || nextScene === 'GlaciarScene' || nextScene === 'CavernaScene' ||
+            nextScene === 'PraderaScene') {
             this.scene.start(nextScene, {
                 sesion: {
                     playerName:      this.playerName,

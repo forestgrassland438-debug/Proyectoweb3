@@ -416,8 +416,8 @@ showNotification(message, type = 'info') {
 
 
       // Cargar recursos
-      this.textures.remove('tiles');
-
+      // (2026-10-22) Solo si existe: el remove() suelto de antes avisaba
+      // "No texture found matching key: tiles" cada vez que no estaba.
       if (this.textures.exists('tiles')) {
         this.textures.remove('tiles');
       }
@@ -9973,7 +9973,9 @@ calibrateBuildingDepths() {
 
 
 async loadAdminTimeOnly() {
-  const tokens = JSON.parse(sessionStorage.getItem('authTokens') || '{}');
+  // (2026-10-22) Un authTokens corrupto (o el almacenamiento bloqueado) ya no tumba la carga.
+  let tokens = {};
+  try { tokens = JSON.parse(sessionStorage.getItem('authTokens') || '{}') || {}; } catch (_) { tokens = {}; }
   const accessToken = tokens.accessToken || null;
 
   try {

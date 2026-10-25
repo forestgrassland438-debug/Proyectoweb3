@@ -5031,7 +5031,9 @@ this.enableAutoCullingForLayer(this, 'centro_ect');
       // Después de cargar perro izquierda/derecha
 
 // --- Animaciones del perro ---
-this.anims.create({
+// (2026-10-22) Las animaciones son del JUEGO, no de la escena: al volver al
+// pueblo ya existían y Phaser avisaba "key already exists". Igual que 'right'.
+if (!this.anims.exists('perro_left')) this.anims.create({
     key: 'perro_left',
     frames: [
         { key: 'perro_izquierda_1' },
@@ -5043,7 +5045,7 @@ this.anims.create({
     repeat: -1
 });
 
-this.anims.create({
+if (!this.anims.exists('perro_right')) this.anims.create({
     key: 'perro_right',
     frames: [
         { key: 'perro_derecha_1' },
@@ -23453,7 +23455,9 @@ async initialize() {
 }
 
 async loadAdminTimeOnly() {
-  const tokens = JSON.parse(sessionStorage.getItem('authTokens') || '{}');
+  // (2026-10-22) Un authTokens corrupto (o el almacenamiento bloqueado) ya no tumba la carga.
+  let tokens = {};
+  try { tokens = JSON.parse(sessionStorage.getItem('authTokens') || '{}') || {}; } catch (_) { tokens = {}; }
   const accessToken = tokens.accessToken || null;
 
   try {
@@ -23611,7 +23615,8 @@ async loadPlayerData() {
     if (!this._cambiandoEscena) {
       const _clave = this.sys && this.sys.settings ? this.sys.settings.key : '';
       const _mundoDeEscena = { GameScene: 1, MinaScene: 3, LandsScene: 4, InteriorScene: 5, SalvajeScene: 6,
-                               CementerioScene: 7, DesiertoScene: 8, TundraScene: 9 }[_clave];
+                               CementerioScene: 7, DesiertoScene: 8, TundraScene: 9,
+                               GlaciarScene: 10, CavernaScene: 11, PraderaScene: 12 }[_clave];
       const _mundoGuardado = Number(data.mundo);
       if (_mundoDeEscena) this.mundo = _mundoDeEscena;
       // En el mapa con coordenadas DE DENTRO de la tienda: a su puerta de fuera.
@@ -24985,7 +24990,8 @@ _montarSueloPintado(carpeta, prefijo, capas, alListo) {
 }
 
 createImagesFromObjectLayer1(scene, map, objectLayerName, nameMapping) {
-  if (typeof TileManager === 'undefined') {
+  // (2026-10-22) Por su espacio de nombres: leer window.TileManager (deprecado) avisa en consola.
+  if (!(window.GrasslandForest && window.GrasslandForest.TileManager) && typeof TileManager === 'undefined') {
     console.error('❌ TileManager no está disponible.');
     return;
   }
@@ -25084,7 +25090,10 @@ createImagesFromObjectLayer1(scene, map, objectLayerName, nameMapping) {
         }
 
         // ⚡ MEJORA: Configuración optimizada para memoria
-        const tileManager = new TileManager(scene, meta, {
+        // (2026-10-22) Por su espacio de nombres: el alias window.TileManager
+        // está deprecado y avisaba en consola en cada carga.
+        const ClaseTiles = (window.GrasslandForest && window.GrasslandForest.TileManager) || TileManager;
+        const tileManager = new ClaseTiles(scene, meta, {
           basePath: carpeta,
           supportsWebP: scene.game.device.features.webP,
           preferredLOD: 'hd',
@@ -31561,6 +31570,8 @@ if (window.globalPetData) {
    */
   async entrarEnLaMina() {
     if (this._cambiandoEscena) return;
+    // (2026-10-22) La mina se abre en el nivel 2 (gf-niveles-mapas.js).
+    if (window.GFNivelMapa && !window.GFNivelMapa.exigir(this, 3)) return;
 
     /* SE PREGUNTA AL GESTOR DE ESCENAS, NO A `window`.
      *
@@ -31638,6 +31649,8 @@ if (window.globalPetData) {
    */
   async entrarEnSalvaje() {
     if (this._cambiandoEscena) return;
+    // (2026-10-22) El mapa salvaje se abre en el nivel 4 (gf-niveles-mapas.js).
+    if (window.GFNivelMapa && !window.GFNivelMapa.exigir(this, 6)) return;
     if (!this.scene.get('SalvajeScene')) {
       console.warn('SalvajeScene no esta registrada: no se puede ir al mapa salvaje');
       return;

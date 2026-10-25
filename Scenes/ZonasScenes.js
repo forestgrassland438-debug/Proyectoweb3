@@ -38,7 +38,7 @@
 
 /* global GameScene, Phaser */
 
-const ZONAS_V = '20261020b';   // (2026-10-20) el agua bajo la plaza del campamento del desierto ya no choca
+const ZONAS_V = '20261025a';   // (2026-10-25) los mapas de nivel 8, 9 y 10 y los caminos nuevos (antes 20261020b)
 
 // eslint-disable-next-line no-unused-vars
 class ZonaScene extends GameScene {
@@ -90,16 +90,23 @@ class ZonaScene extends GameScene {
     c.arboles.forEach((n) => {
       if (!this.textures.exists(c.prefijo + n)) this.load.image(c.prefijo + n, ruta + 'arboles/' + n + '.png' + v);
     });
+    // (2026-10-25) Lo que la escena pone a mano además de su mapa (la casa de
+    // la bruja del cementerio): su atlas.
+    (c.extras || []).forEach((e) => {
+      if (!this.textures.exists(e.atlas)) this.load.atlas(e.atlas, ruta + e.archivo + '.png' + v, ruta + e.archivo + '.json' + v);
+    });
     if (c.zona === 'desierto' && !this.textures.exists('zn_remolino')) {
       this.load.spritesheet('zn_remolino', ruta + 'remolino.png' + v, { frameWidth: 64, frameHeight: 114 });
     }
     // (2026-10-19) Los camellos del desierto (gf-camellos.js).
     if (c.zona === 'desierto' && window.GFCamellos) window.GFCamellos.precargar(this);
+    // (2026-10-25) Los animales del glaciar, la caverna y la pradera (gf-fauna-zonas.js).
+    if (window.GFFaunaZonas) window.GFFaunaZonas.precargar(this);
     this.load.audio('level_up_sound', './Game/MUSIC/levelup.wav');
     if (window.GFViento) window.GFViento.precargar(this);
     if (c.clima && window.GFClima) window.GFClima.precargar(this);
     // (2026-10-19) Con SU tema y SU ambiente (gf-audio.js, `zona`).
-    if (window.GFAudio) window.GFAudio.precargar(this, { tipo: 'campo', zona: c.zona });
+    if (window.GFAudio) window.GFAudio.precargar(this, { tipo: 'campo', zona: c.audio || c.zona });
   }
 
   // =========================================================================
@@ -144,7 +151,11 @@ class ZonaScene extends GameScene {
     // desierto, la tormenta de arena la sube (gf-zonas.js).
     this._vientoExtra = 0.35;
     // Sin hojas al viento en la nieve ni en la arena (allí no hay árboles de hoja).
-    this._sinHojas = c.zona === 'desierto' || c.zona === 'tundra';
+    // (2026-10-25) Ni en el glaciar ni bajo tierra.
+    this._sinHojas = c.zona === 'desierto' || c.zona === 'tundra' || c.zona === 'glaciar' || c.zona === 'caverna';
+    // (2026-10-25) Bajo tierra nunca es de día del todo (gf-ciclo-dia.js): la
+    // noche se queda siempre a medias y las luces la recortan.
+    this._oscuridadMinima = c.oscuridad || 0;
     this.socket = window.globalSocket || null;
     this._avisoSalidaEn = 0;
 
@@ -178,7 +189,8 @@ class ZonaScene extends GameScene {
     this._montarSueloPintado('recortadas_' + c.zona, c.zona, [this.backgroundLayer]);
 
     // ── Colisiones y salidas ───────────────────────────────────────────────
-    this.collisionRectangles = this._rectsDeCapa('colisiones');
+    // (2026-10-25) Sin lo que había donde la escena pone algo suyo (`despejar`).
+    this.collisionRectangles = this._rectsDeCapa('colisiones').filter((r) => !this._despejado(r.centerX, r.centerY, r));
     this.collisionRectangles1 = [];
     this.collisionRectangles2 = [];
     this._reconstruirIndiceColisiones();
@@ -189,6 +201,7 @@ class ZonaScene extends GameScene {
     // ── Los árboles y los objetos (2.5D) ──────────────────────────────────
     this._montarArboles();
     this._montarObjetos();
+    this._montarExtras();
 
     // ── El jugador ─────────────────────────────────────────────────────────
     let inicio = this._puntoDeAparicion();
@@ -255,7 +268,7 @@ class ZonaScene extends GameScene {
       if (window.GFNieve) window.GFNieve.montar(this);
     }
     if (window.GFPisadas)     window.GFPisadas.montar(this, { suelo: c.pisadas || null });
-    if (window.GFAudio)       window.GFAudio.montar(this, { tipo: 'campo', zona: c.zona, texturaSuelo: c.tileset });
+    if (window.GFAudio)       window.GFAudio.montar(this, { tipo: 'campo', zona: c.audio || c.zona, texturaSuelo: c.tileset });
     if (window.GFAmigos)      window.GFAmigos.montar(this);
     if (window.GFChatSocial)  window.GFChatSocial.montar(this);
     if (window.GFNombreColor) window.GFNombreColor.montar(this);
@@ -283,6 +296,7 @@ class ZonaScene extends GameScene {
     // Lo propio de cada mapa: niebla, tormenta y remolinos, nevada, luces.
     try { if (window.GFZonas) window.GFZonas.montar(this, c.zona); } catch (e) { console.warn('🧭 zona:', e); }
     try { if (c.zona === 'desierto' && window.GFCamellos) window.GFCamellos.montar(this); } catch (e) { console.warn('🧭 camellos:', e); }
+    try { if (window.GFFaunaZonas) window.GFFaunaZonas.montar(this); } catch (e) { console.warn('🧭 fauna:', e); }
 
     if (window.tiendaSistema) window.tiendaSistema.scene = this;
     try { this.notifications && this.notifications.show('🧭 ' + c.titulo, 'info'); } catch (e) {}
@@ -337,7 +351,7 @@ class ZonaScene extends GameScene {
     if (!capa) return;
     capa.objects.forEach((o) => {
       const clave = c.prefijo + o.name;
-      if (!this.textures.exists(clave)) return;
+      if (!this.textures.exists(clave) || this._despejado(o.x, o.y)) return;
       const spr = this.add.image(o.x, o.y, clave).setOrigin(0.5, 1).setScale(1.3).setDepth(o.y);
       spr.setData('optimized', true);
       const sombra = this.add.image(o.x + 6, o.y - 4, 'zn_sombra_pie').setScale(1.25).setDepth(2).setAlpha(0.9);
@@ -356,7 +370,7 @@ class ZonaScene extends GameScene {
     const tex = this.textures.get(c.objetos);
     tex.setFilter(Phaser.Textures.FilterMode.NEAREST);
     capa.objects.forEach((o) => {
-      if (!tex.has(o.name)) return;
+      if (!tex.has(o.name) || this._despejado(o.x, o.y)) return;
       const spr = this.add.image(o.x, o.y, c.objetos, o.name).setOriginFromFrame().setScale(2).setDepth(o.y);
       spr.setData('optimized', true);
       const prop = (o.properties || []).find((p) => p.name === 'sombra');
@@ -365,6 +379,51 @@ class ZonaScene extends GameScene {
       this._objetosZona.push({ spr, sombra, x: o.x, y: o.y, visible: true });
     });
     console.log('🧭 ' + c.zona + ': ' + this._arboles.length + ' árboles, ' + this._objetosZona.length + ' objetos');
+  }
+
+  /** (2026-10-25) ¿Cae en un sitio que la escena despeja para lo suyo? Un
+      punto (árboles, objetos) o un rectángulo (sus choques; el agua, nunca). */
+  _despejado(x, y, rect) {
+    const zonas = this.cfg.despejar;
+    if (!zonas || !zonas.length) return false;
+    for (const d of zonas) {
+      if (rect) {
+        if (rect.right > d[0] && rect.x < d[2] && rect.bottom > d[1] && rect.y < d[3] && !this._esAguaRect(rect)) return true;
+      } else if (x > d[0] - 30 && x < d[2] + 30 && y > d[1] && y < d[3] + 60) return true;
+    }
+    return false;
+  }
+
+  _esAguaRect(rect) {
+    const capa = this.map && this.map.getObjectLayer('colisiones');
+    if (!capa) return false;
+    return capa.objects.some((o) => o.name === 'agua' && o.x === rect.x && o.y === rect.y && o.width === rect.width && o.height === rect.height);
+  }
+
+  /**
+   * (2026-10-25) LO QUE LA ESCENA PONE ADEMÁS DE SU MAPA: la casa de la bruja
+   * del cementerio (la entrada a la caverna). Su dibujo (atlas propio, con su
+   * apoyo), su sombra, sus choques —los lados y el fondo: la puerta queda
+   * libre para entrar— y su salida en la puerta.
+   */
+  _montarExtras() {
+    const c = this.cfg;
+    (c.extras || []).forEach((e) => {
+      if (!this.textures.exists(e.atlas)) return;
+      const tex = this.textures.get(e.atlas);
+      tex.setFilter(Phaser.Textures.FilterMode.NEAREST);
+      if (!tex.has(e.fotograma)) return;
+      const spr = this.add.image(e.x, e.y, e.atlas, e.fotograma).setOriginFromFrame().setScale(2).setDepth(e.y);
+      spr.setData('optimized', true);
+      const sombra = e.sombra ? this.add.image(e.x + 4, e.y - 3, 'zn_sombra_pie').setScale(e.sombra / 96 * 1.15, e.sombra / 96).setDepth(2).setAlpha(0.85) : null;
+      this._objetosZona.push({ spr, sombra, x: e.x, y: e.y, visible: true });
+      (e.choques || []).forEach((r) => this.collisionRectangles.push(new Phaser.Geom.Rectangle(e.x + r[0], e.y + r[1], r[2], r[3])));
+      if (e.salida) {
+        const r = e.salida.rect;
+        this._salidas.push({ nombre: e.salida.nombre, rect: new Phaser.Geom.Rectangle(e.x + r[0], e.y + r[1], r[2], r[3]) });
+      }
+    });
+    if ((c.extras || []).length) this._reconstruirIndiceColisiones();
   }
 
   /** Solo se muestra lo que cae cerca de la cámara (son cientos). */
@@ -497,11 +556,18 @@ class ZonaScene extends GameScene {
           (cuerpo && Phaser.Geom.Intersects.RectangleToRectangle(cuerpo, s.rect))) { tocando = s; break; }
     }
     if (!tocando) { this._salidaArmada = true; return; }
-    if (!this._salidaArmada || this._cambiandoEscena) return;
-    if (tocando.nombre === 'salvaje' && window.GFZonas) {
-      this._salidaArmada = false;
-      window.GFZonas.viajar(this, 'salvaje_desde_' + this.cfg.zona);
-    }
+    if (!this._salidaArmada || this._cambiandoEscena || !window.GFZonas) return;
+    /* (2026-10-25) Cada salida lleva el nombre del mapa al que va: se vuelve
+       "al lado de la salida por la que se fue" si gf-zonas tiene ese viaje
+       (`salvaje_desde_tundra`, `tundra_desde_glaciar`...) y, si no, al mapa
+       sin más (`glaciar`, `caverna`, `pradera`). */
+    const Z = window.GFZonas.ZONAS || {};
+    const vuelta = tocando.nombre + '_desde_' + this.cfg.zona;
+    const destino = Object.prototype.hasOwnProperty.call(Z, vuelta) ? vuelta
+      : (Object.prototype.hasOwnProperty.call(Z, tocando.nombre) ? tocando.nombre : null);
+    if (!destino) return;
+    this._salidaArmada = false;
+    window.GFZonas.viajar(this, destino);
   }
 
   // =========================================================================
@@ -534,7 +600,7 @@ class ZonaScene extends GameScene {
     // Las texturas de este mapa: fuera de aquí no pintan nada en la memoria de
     // vídeo (y los fotogramas del agua animada que gf-agua dejó hechos).
     const delAgua = this.textures.getTextureKeys().filter((k) => k.indexOf('gfa_' + c.tileset + '_') === 0);
-    [c.tileset, c.objetos].concat(c.arboles.map((n) => c.prefijo + n), delAgua).forEach((k) => {
+    [c.tileset, c.objetos].concat(c.arboles.map((n) => c.prefijo + n), delAgua, (c.extras || []).map((e) => e.atlas)).forEach((k) => {
       try { if (this.textures.exists(k)) this.textures.remove(k); } catch (e) {}
     });
     try { if (this.cache.tilemap.exists(c.mapa)) this.cache.tilemap.remove(c.mapa); } catch (e) {}
@@ -553,12 +619,25 @@ function cfgZona(zona, extra) {
   }, extra);
 }
 
+/* (2026-10-25) LA CASA DE LA BRUJA: al final del camino del oeste del
+   cementerio (tools/generar-zonas.py casa_bruja; su apoyo es la base de la
+   pared de delante). Su puerta lleva a la caverna (nivel 9). Lo que había en
+   ese sitio (una verja y tres árboles secos) no se pone. */
+const CASA_BRUJA = { x: 250, y: 2104 };
+
 // eslint-disable-next-line no-unused-vars
 class CementerioScene extends ZonaScene {
   static get CFG() {
     return CementerioScene._cfg || (CementerioScene._cfg = cfgZona('cementerio', {
       escena: 'CementerioScene', mundo: 7, sala: 'cementerio', titulo: 'Cemetery of Lost Souls — PvP everywhere!',
-      arboles: ['seco', 'seco_ceniza'], vidaAgua: 'rio', pisadas: null, clima: true
+      arboles: ['seco', 'seco_ceniza'], vidaAgua: 'rio', pisadas: null, clima: true,
+      despejar: [[CASA_BRUJA.x - 180, CASA_BRUJA.y - 250, CASA_BRUJA.x + 180, CASA_BRUJA.y + 30]],
+      extras: [{
+        atlas: 'cementerio_casa_bruja', archivo: 'casa_bruja', fotograma: 'casa_bruja', x: CASA_BRUJA.x, y: CASA_BRUJA.y, sombra: 170,
+        // Los lados y el fondo chocan; el hueco de la puerta (52 px) no.
+        choques: [[-80, -64, 54, 104], [26, -64, 54, 104], [-26, -64, 52, 26]],
+        salida: { nombre: 'caverna', rect: [-24, -38, 48, 40] }
+      }]
     }));
   }
   constructor() { super('CementerioScene'); }
@@ -586,7 +665,47 @@ class TundraScene extends ZonaScene {
   constructor() { super('TundraScene'); }
 }
 
+// ── LOS TRES DE NIVEL 8, 9 Y 10 (2026-10-25) ─────────────────────────────────
+// eslint-disable-next-line no-unused-vars
+class GlaciarScene extends ZonaScene {
+  static get CFG() {
+    return GlaciarScene._cfg || (GlaciarScene._cfg = cfgZona('glaciar', {
+      escena: 'GlaciarScene', mundo: 10, sala: 'glaciar', titulo: 'The Shattered Glacier',
+      arboles: ['abeto_glaciar', 'pino_glaciar', 'abedul_helado', 'seco_helado'], vidaAgua: null, pisadas: 'nieve', clima: false
+    }));
+  }
+  constructor() { super('GlaciarScene'); }
+}
+
+// eslint-disable-next-line no-unused-vars
+class CavernaScene extends ZonaScene {
+  static get CFG() {
+    return CavernaScene._cfg || (CavernaScene._cfg = cfgZona('caverna', {
+      escena: 'CavernaScene', mundo: 11, sala: 'caverna', titulo: 'Crystal Caverns',
+      arboles: ['hongo_turquesa', 'hongo_violeta', 'hongo_ambar'], vidaAgua: null, pisadas: 'roca', clima: false,
+      oscuridad: 0.62
+    }));
+  }
+  constructor() { super('CavernaScene'); }
+}
+
+// eslint-disable-next-line no-unused-vars
+class PraderaScene extends ZonaScene {
+  static get CFG() {
+    return PraderaScene._cfg || (PraderaScene._cfg = cfgZona('pradera', {
+      escena: 'PraderaScene', mundo: 12, sala: 'pradera', titulo: 'Blossom Meadow',
+      arboles: ['cerezo', 'abedul', 'roble_redondo', 'roble_ancho', 'roble_curvado', 'arbol_ancestral'],
+      vidaAgua: 'rio', pisadas: 'hierba', clima: false,
+      audio: 'prado'          // gf-audio: 'pradera' es el tema de día del pueblo
+    }));
+  }
+  constructor() { super('PraderaScene'); }
+}
+
 window.ZonaScene = ZonaScene;
 window.CementerioScene = CementerioScene;
 window.DesiertoScene = DesiertoScene;
 window.TundraScene = TundraScene;
+window.GlaciarScene = GlaciarScene;
+window.CavernaScene = CavernaScene;
+window.PraderaScene = PraderaScene;
