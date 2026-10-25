@@ -977,6 +977,7 @@ Pet name|Nombre mascota
 Inventory plots|Parcelas (inventario)
 Placed plots|Parcelas colocadas
 Write to chain now|Escribir en la cadena ahora
+Level, Exp and Pet level are also written to the chain: the experience invoice and the level table. Changing one of them is enough.|Nivel, Exp y Nivel mascota también se escriben en la cadena: la factura de experiencia y la tabla de nivel. Basta con cambiar uno de ellos.
 Delete account|Eliminar la cuenta
 Delete permanently|Eliminar definitivamente
 Farming configuration saved|Configuración de siembra guardada

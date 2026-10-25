@@ -317,8 +317,8 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
 <link rel="stylesheet" href="./admin-impact.css">
 <link rel="stylesheet" href="./admin-suite.css?v=20261020">
 <script src="./admin-session.js?v=20261020"></script>
-<script src="./admin-suite-i18n.js?v=20261020"></script>
-<script defer src="./admin-suite.js?v=20261020"></script>
+<script src="./admin-suite-i18n.js?v=20261025"></script>
+<script defer src="./admin-suite.js?v=20261025"></script>
 </head>
 <body>
 
@@ -1402,8 +1402,13 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
   ];
   var CAMPOS_ONCHAIN = [
     ['vida', 'Vida %'], ['agua', 'Agua %'], ['comida', 'Comida %'],
-    ['oro', 'Oro'], ['plata', 'Plata'], ['exp', 'Exp on-chain']
+    ['oro', 'Oro'], ['plata', 'Plata'], ['bronce', 'Bronce'], ['exp', 'Exp on-chain']
   ];
+  // (2026-10-25) Estos tres son de "Datos del personaje", pero el servidor los
+  // lleva TAMBIÉN a la cadena: la experiencia a su factura `exp` y el nivel
+  // (del personaje y de la mascota) a la tabla `nivel`, exacto. Antes solo se
+  // cambiaba la base de datos y la cadena se quedaba como estaba.
+  var CAMPOS_A_CADENA = ['nivel', 'nivel_exp', 'petLevel'];
 
   async function abrirFicha(playerName) {
     var revision = ++drawerRevision;
@@ -1451,7 +1456,10 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
               'Las partidas anteriores no quedaron registradas y no se pueden recuperar.</div>';
     }
 
-    html += '<h3>Datos del personaje</h3><div class="field-grid">';
+    html += '<h3>Datos del personaje</h3>';
+    html += '<div class="note">Nivel, Exp y Nivel mascota también se escriben en la cadena: la factura de ' +
+            'experiencia y la tabla de nivel. Basta con cambiar uno de ellos.</div>';
+    html += '<div class="field-grid">';
     CAMPOS_SEGUROS.forEach(function (c) { html += campo(c[0], c[1], p[c[0]] !== undefined ? p[c[0]] : '', 'seguro'); });
     html += '</div>';
 
@@ -1553,7 +1561,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
     if (!claves.length) { aviso('No hay nada que guardar.', 'warn'); return; }
 
     var tocaOnchain = claves.some(function (k) {
-      return CAMPOS_ONCHAIN.some(function (c) { return c[0] === k; });
+      return CAMPOS_ONCHAIN.some(function (c) { return c[0] === k; }) || CAMPOS_A_CADENA.indexOf(k) >= 0;
     });
     if (tocaOnchain && !confirm('Algunos campos son facturas del contrato. Guardar enviará transacciones reales a la blockchain.\n\n¿Continuar?')) return;
 
