@@ -1,0 +1,686 @@
+{
+ "version": "20261026a",
+ "tam": [
+  2240,
+  1888
+ ],
+ "celda": 448,
+ "regiones": [
+  {
+   "id": "glaciar",
+   "sala": "glaciar",
+   "mundo": 10,
+   "nombre": "The Shattered Glacier",
+   "mapa": [
+    5024,
+    5024
+   ],
+   "rect": [
+    672,
+    48,
+    448,
+    448
+   ],
+   "recuadro": null
+  },
+  {
+   "id": "tundra",
+   "sala": "tundra",
+   "mundo": 9,
+   "nombre": "Frostfang Tundra",
+   "mapa": [
+    5024,
+    5024
+   ],
+   "rect": [
+    672,
+    496,
+    448,
+    448
+   ],
+   "recuadro": null
+  },
+  {
+   "id": "cementerio",
+   "sala": "cementerio",
+   "mundo": 7,
+   "nombre": "Cemetery of Lost Souls",
+   "mapa": [
+    5024,
+    5024
+   ],
+   "rect": [
+    224,
+    944,
+    448,
+    448
+   ],
+   "recuadro": null
+  },
+  {
+   "id": "salvaje",
+   "sala": "salvaje",
+   "mundo": 6,
+   "nombre": "The Wild Lands",
+   "mapa": [
+    5024,
+    5024
+   ],
+   "rect": [
+    672,
+    944,
+    448,
+    448
+   ],
+   "recuadro": null
+  },
+  {
+   "id": "pueblo",
+   "sala": "game",
+   "mundo": 1,
+   "nombre": "Grassland Village",
+   "mapa": [
+    5008,
+    5008
+   ],
+   "rect": [
+    1120,
+    944,
+    448,
+    448
+   ],
+   "recuadro": null
+  },
+  {
+   "id": "desierto",
+   "sala": "desierto",
+   "mundo": 8,
+   "nombre": "Scorching Desert",
+   "mapa": [
+    5024,
+    5024
+   ],
+   "rect": [
+    672,
+    1392,
+    448,
+    448
+   ],
+   "recuadro": null
+  },
+  {
+   "id": "pradera",
+   "sala": "pradera",
+   "mundo": 12,
+   "nombre": "Blossom Meadow",
+   "mapa": [
+    5024,
+    5024
+   ],
+   "rect": [
+    1120,
+    1392,
+    448,
+    448
+   ],
+   "recuadro": null
+  },
+  {
+   "id": "mina",
+   "sala": "mina",
+   "mundo": 3,
+   "nombre": "The Mine",
+   "mapa": [
+    5008,
+    5008
+   ],
+   "rect": [
+    1194,
+    570,
+    300,
+    300
+   ],
+   "recuadro": "piedra"
+  },
+  {
+   "id": "caverna",
+   "sala": "caverna",
+   "mundo": 11,
+   "nombre": "The Crystal Caverns",
+   "mapa": [
+    5024,
+    5024
+   ],
+   "rect": [
+    298,
+    1466,
+    300,
+    300
+   ],
+   "recuadro": "piedra"
+  },
+  {
+   "id": "isla",
+   "sala": "isla",
+   "mundo": 4,
+   "nombre": "Your Island",
+   "mapa": [
+    4096,
+    3072
+   ],
+   "rect": [
+    1622,
+    1040,
+    340,
+    255
+   ],
+   "recuadro": "arena"
+  }
+ ],
+ "destinos": [
+  {
+   "id": "pueblo",
+   "tipo": "mapa",
+   "nombre": "Grassland Village",
+   "region": "pueblo",
+   "mundo": 1,
+   "sala": "game",
+   "destino": [
+    2097,
+    2359
+   ],
+   "px": [
+    1308,
+    1155
+   ]
+  },
+  {
+   "id": "salvaje",
+   "tipo": "mapa",
+   "nombre": "The Wild Lands",
+   "region": "salvaje",
+   "mundo": 6,
+   "sala": "salvaje",
+   "destino": [
+    4896,
+    2208
+   ],
+   "px": [
+    1109,
+    1141
+   ]
+  },
+  {
+   "id": "cementerio",
+   "tipo": "mapa",
+   "nombre": "Cemetery of Lost Souls",
+   "region": "cementerio",
+   "mundo": 7,
+   "sala": "cementerio",
+   "destino": [
+    4790,
+    2208
+   ],
+   "px": [
+    651,
+    1141
+   ]
+  },
+  {
+   "id": "desierto",
+   "tipo": "mapa",
+   "nombre": "Scorching Desert",
+   "region": "desierto",
+   "mundo": 8,
+   "sala": "desierto",
+   "destino": [
+    3552,
+    230
+   ],
+   "px": [
+    989,
+    1413
+   ]
+  },
+  {
+   "id": "tundra",
+   "tipo": "mapa",
+   "nombre": "Frostfang Tundra",
+   "region": "tundra",
+   "mundo": 9,
+   "sala": "tundra",
+   "destino": [
+    3552,
+    4740
+   ],
+   "px": [
+    989,
+    919
+   ]
+  },
+  {
+   "id": "glaciar",
+   "tipo": "mapa",
+   "nombre": "The Shattered Glacier",
+   "region": "glaciar",
+   "mundo": 10,
+   "sala": "glaciar",
+   "destino": [
+    3552,
+    4740
+   ],
+   "px": [
+    989,
+    471
+   ]
+  },
+  {
+   "id": "caverna",
+   "tipo": "mapa",
+   "nombre": "The Crystal Caverns",
+   "region": "caverna",
+   "mundo": 11,
+   "sala": "caverna",
+   "destino": [
+    4040,
+    2250
+   ],
+   "px": [
+    539,
+    1600
+   ]
+  },
+  {
+   "id": "pradera",
+   "tipo": "mapa",
+   "nombre": "Blossom Meadow",
+   "region": "pradera",
+   "mundo": 12,
+   "sala": "pradera",
+   "destino": [
+    234,
+    2456
+   ],
+   "px": [
+    1141,
+    1611
+   ]
+  },
+  {
+   "id": "pueblo_tienda",
+   "tipo": "tienda",
+   "nombre": "General Store",
+   "region": "pueblo",
+   "mundo": 2,
+   "sala": "tienda",
+   "destino": null,
+   "px": [
+    1259,
+    1073
+   ]
+  },
+  {
+   "id": "pueblo_mina",
+   "tipo": "mina",
+   "nombre": "Mine Entrance",
+   "region": "mina",
+   "mundo": 3,
+   "sala": "mina",
+   "destino": null,
+   "px": [
+    1344,
+    720
+   ]
+  },
+  {
+   "id": "pueblo_casa_L",
+   "tipo": "casa",
+   "nombre": "Farmer Joe's House",
+   "region": "pueblo",
+   "mundo": 1,
+   "sala": "game",
+   "destino": [
+    1488,
+    3313
+   ],
+   "px": [
+    1253,
+    1235
+   ]
+  },
+  {
+   "id": "pueblo_casa_comida",
+   "tipo": "casa",
+   "nombre": "The Inn",
+   "region": "pueblo",
+   "mundo": 1,
+   "sala": "game",
+   "destino": [
+    2444,
+    3290
+   ],
+   "px": [
+    1339,
+    1233
+   ]
+  },
+  {
+   "id": "pueblo_casa_comida2",
+   "tipo": "casa",
+   "nombre": "The Tavern",
+   "region": "pueblo",
+   "mundo": 1,
+   "sala": "game",
+   "destino": [
+    2928,
+    3307
+   ],
+   "px": [
+    1382,
+    1234
+   ]
+  },
+  {
+   "id": "pueblo_casa_posiones",
+   "tipo": "casa",
+   "nombre": "Potion Shop",
+   "region": "pueblo",
+   "mundo": 1,
+   "sala": "game",
+   "destino": [
+    2452,
+    1552
+   ],
+   "px": [
+    1339,
+    1077
+   ]
+  },
+  {
+   "id": "pueblo_casa_herreria",
+   "tipo": "casa",
+   "nombre": "Smithy",
+   "region": "pueblo",
+   "mundo": 1,
+   "sala": "game",
+   "destino": [
+    3137,
+    2035
+   ],
+   "px": [
+    1401,
+    1121
+   ]
+  },
+  {
+   "id": "pueblo_casa_npc1",
+   "tipo": "casa",
+   "nombre": "Martha's Bakery",
+   "region": "pueblo",
+   "mundo": 1,
+   "sala": "game",
+   "destino": [
+    1472,
+    672
+   ],
+   "px": [
+    1252,
+    999
+   ]
+  },
+  {
+   "id": "pueblo_casa_npc2",
+   "tipo": "casa",
+   "nombre": "Elias' Workshop",
+   "region": "pueblo",
+   "mundo": 1,
+   "sala": "game",
+   "destino": [
+    1962,
+    667
+   ],
+   "px": [
+    1296,
+    998
+   ]
+  },
+  {
+   "id": "pueblo_cabana",
+   "tipo": "casa",
+   "nombre": "Farm Cabin",
+   "region": "pueblo",
+   "mundo": 1,
+   "sala": "game",
+   "destino": [
+    715,
+    523
+   ],
+   "px": [
+    1184,
+    985
+   ]
+  },
+  {
+   "id": "pueblo_arena",
+   "tipo": "arena",
+   "nombre": "Arena Gate",
+   "region": "pueblo",
+   "mundo": 1,
+   "sala": "game",
+   "destino": [
+    2832,
+    170
+   ],
+   "px": [
+    1373,
+    955
+   ]
+  },
+  {
+   "id": "salvaje_cabana",
+   "tipo": "casa",
+   "nombre": "Hunter's Lodge",
+   "region": "salvaje",
+   "mundo": 6,
+   "sala": "salvaje",
+   "destino": [
+    2804,
+    1728
+   ],
+   "px": [
+    922,
+    1093
+   ]
+  },
+  {
+   "id": "cementerio_bruja",
+   "tipo": "lugar",
+   "nombre": "The Witch's Hut",
+   "region": "cementerio",
+   "mundo": 7,
+   "sala": "cementerio",
+   "destino": [
+    250,
+    2250
+   ],
+   "px": [
+    246,
+    1132
+   ]
+  },
+  {
+   "id": "cementerio_cripta",
+   "tipo": "lugar",
+   "nombre": "The Old Crypt",
+   "region": "cementerio",
+   "mundo": 7,
+   "sala": "cementerio",
+   "destino": [
+    2064,
+    2190
+   ],
+   "px": [
+    408,
+    1137
+   ]
+  },
+  {
+   "id": "desierto_ruinas",
+   "tipo": "lugar",
+   "nombre": "Sunken Ruins",
+   "region": "desierto",
+   "mundo": 8,
+   "sala": "desierto",
+   "destino": [
+    1152,
+    3390
+   ],
+   "px": [
+    775,
+    1692
+   ]
+  },
+  {
+   "id": "tundra_santuario",
+   "tipo": "lugar",
+   "nombre": "Frozen Shrine",
+   "region": "tundra",
+   "mundo": 9,
+   "sala": "tundra",
+   "destino": [
+    3168,
+    1006
+   ],
+   "px": [
+    954,
+    583
+   ]
+  },
+  {
+   "id": "tundra_lago",
+   "tipo": "lugar",
+   "nombre": "Frozen Lake",
+   "region": "tundra",
+   "mundo": 9,
+   "sala": "tundra",
+   "destino": [
+    2896,
+    2494
+   ],
+   "px": [
+    930,
+    716
+   ]
+  },
+  {
+   "id": "glaciar_ruinas",
+   "tipo": "lugar",
+   "nombre": "Ruins of the Frost Keep",
+   "region": "glaciar",
+   "mundo": 10,
+   "sala": "glaciar",
+   "destino": [
+    3008,
+    782
+   ],
+   "px": [
+    940,
+    115
+   ]
+  },
+  {
+   "id": "glaciar_lago",
+   "tipo": "lugar",
+   "nombre": "Mirror Lake",
+   "region": "glaciar",
+   "mundo": 10,
+   "sala": "glaciar",
+   "destino": [
+    2416,
+    3294
+   ],
+   "px": [
+    887,
+    339
+   ]
+  },
+  {
+   "id": "caverna_mina",
+   "tipo": "lugar",
+   "nombre": "The Old Dwarven Mine",
+   "region": "caverna",
+   "mundo": 11,
+   "sala": "caverna",
+   "destino": [
+    1152,
+    1694
+   ],
+   "px": [
+    367,
+    1565
+   ]
+  },
+  {
+   "id": "caverna_lago",
+   "tipo": "lugar",
+   "nombre": "The Sunless Lake",
+   "region": "caverna",
+   "mundo": 11,
+   "sala": "caverna",
+   "destino": [
+    2976,
+    3806
+   ],
+   "px": [
+    476,
+    1691
+   ]
+  },
+  {
+   "id": "pradera_circulo",
+   "tipo": "lugar",
+   "nombre": "The Elder Stones",
+   "region": "pradera",
+   "mundo": 12,
+   "sala": "pradera",
+   "destino": [
+    1792,
+    1086
+   ],
+   "px": [
+    1280,
+    1486
+   ]
+  },
+  {
+   "id": "pradera_granja",
+   "tipo": "lugar",
+   "nombre": "Windmill Farm",
+   "region": "pradera",
+   "mundo": 12,
+   "sala": "pradera",
+   "destino": [
+    3808,
+    3006
+   ],
+   "px": [
+    1460,
+    1657
+   ]
+  },
+  {
+   "id": "isla",
+   "tipo": "isla",
+   "nombre": "Your Island",
+   "region": "isla",
+   "mundo": 4,
+   "sala": "isla",
+   "destino": null,
+   "px": [
+    1792,
+    1167
+   ],
+   "vip": true
+  }
+ ]
+}
