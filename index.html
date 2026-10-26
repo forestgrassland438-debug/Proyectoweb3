@@ -200,6 +200,8 @@
   <!-- (2026-10-25) Lo que cambia el administrador (nivel, exp, monedas) lo
        adopta al momento el jugador conectado: aviso 'admin:ajuste'. -->
   <script src="./gf-admin-ajuste.js?v=22.5.85f84998105f" defer></script>
+  <!-- (2026-10-26) El mapa del mundo: tecla M o el botón "Map"; viajar pagando en bronce. -->
+  <script src="./gf-mapa-mundo.js?v=22.5.0dbd402e13fd" defer></script>
   <script src="./gf-chat-social.js?v=audit20261016.a95b426a909f" defer></script>
   <script src="./gf-nombre-color.js?v=22.5.50ff68e2019d" defer></script>
 
@@ -1552,6 +1554,14 @@
               aria-label="Ir a mis parcelas">
         <img src="./Game/Source/hud/lands.png" alt="Lands" />
         <span class="label-badge">Lands</span>
+      </button>
+      <!-- (2026-10-26) EL MAPA DEL MUNDO (gf-mapa-mundo.js; también la tecla M).
+           El último del HTML por lo mismo que Lands (los índices de la
+           NodeList); en pantalla sale justo debajo de Lands (`order: 0`). -->
+      <button class="round-btn round-btn--mapa" tabindex="-1" id="map-btn"
+              aria-label="World map (M)">
+        <img src="./Game/Source/hud/mapa.png" alt="Map" />
+        <span class="label-badge">Map</span>
       </button>
     </div>
   </div>

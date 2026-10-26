@@ -313,6 +313,65 @@
                                  manualId: ['vip', 'abcd1234', Math.floor(iniV / 1000), Math.floor(finV / 1000), b.plan, b.moneda, precioV].join(':') });
       var rv = resumenVip(); rv.stats = estado.stats; return rv;
     }
+    // (2026-10-26) El mapa del mundo (/api/viaje/mapa en server2.js), con la
+    // misma cuenta: dónde estás, nivel, VIP y precio por distancia en el dibujo.
+    // window.__gfMockMapa404 = true simula un servidor sin estas rutas.
+    if (/^\/api\/viaje\/mapa/.test(ruta)) {
+      if (window.__gfMockMapa404) return { __status: 404, error: 'not_found' };
+      var MM = estado.mapaMundo;
+      if (!MM) return { error: 'internal_server_error', __status: 500 };
+      var dondeMM = function () {
+        var l = []; try { l = window.game.scene.getScenes(true); } catch (e) {}
+        var sc = l.filter(function (s) { return s && s.player; })[0];
+        if (!sc) return null;
+        var sala = typeof sc._salaDeEscena === 'function' ? String(sc._salaDeEscena()) : (sc.sys.settings.key === 'tiendajuego' ? 'tienda' : 'game');
+        var pt = function (id) { return (MM.destinos.filter(function (d) { return d.id === id; })[0] || MM.destinos[0]).px; };
+        if (sala === 'tienda') return pt('pueblo_tienda');
+        if (sala.indexOf('casa:') === 0) return pt(sala === 'casa:cabana_monte' ? 'salvaje_cabana' : 'pueblo_' + sala.slice(5));
+        if (sala.indexOf('isla') === 0) return pt('isla');
+        var r = MM.regiones.filter(function (x) { return x.sala === sala; })[0];
+        if (!r) return pt('pueblo');
+        return [Math.round(r.rect[0] + Math.max(0, Math.min(1, sc.player.x / r.mapa[0])) * r.rect[2]),
+                Math.round(r.rect[1] + Math.max(0, Math.min(1, sc.player.y / r.mapa[1])) * r.rect[3])];
+      };
+      var NIVEL_MM = { mina: 2, salvaje: 4, desierto: 5, cementerio: 6, tundra: 7, glaciar: 8, caverna: 9, pradera: 10 };
+      var estadoMM = function () {
+        var yo = dondeMM(), nivel = nivelDeExp(estado.stats.exp || EXP), vip = resumenVip().activo, ds = {};
+        MM.destinos.forEach(function (d) {
+          var dist = yo ? Math.hypot(d.px[0] - yo[0], d.px[1] - yo[1]) : 0, nm = NIVEL_MM[d.sala] || 0;
+          ds[d.id] = { precio: yo ? Math.max(100, Math.min(6000, Math.round((100 + dist * 2.5) / 10) * 10)) : null, nivelMin: nm,
+                       bloqueo: nivel < nm ? 'nivel' : (d.vip && !vip ? 'vip' : null), aqui: !!yo && dist < 14 };
+        });
+        return { ok: true, aqui: yo, nivel: nivel, vip: vip, destinos: ds, bronce: estado.stats.bronce };
+      };
+      if (ruta === '/api/viaje/mapa' && metodo === 'GET') return estadoMM();
+      if (ruta === '/api/viaje/mapa' && metodo === 'POST') {
+        b = cuerpo(init);
+        var dMM = MM.destinos.filter(function (d) { return d.id === b.destino; })[0];
+        if (!dMM) return { error: 'destino_desconocido', __status: 400 };
+        var eMM = estadoMM(), iMM = eMM.destinos[dMM.id];
+        if (!eMM.aqui) return { error: 'sin_posicion', __status: 409 };
+        if (iMM.aqui) return { error: 'ya_estas_aqui', __status: 409 };
+        if (iMM.bloqueo === 'nivel') return { error: 'nivel_bajo', nivelMinimo: iMM.nivelMin, nivel: eMM.nivel, __status: 403 };
+        if (iMM.bloqueo === 'vip') return { error: 'vip_required', __status: 403 };
+        if (Number.isFinite(Number(b.precio)) && iMM.precio > Number(b.precio)) return { error: 'precio_cambio', precio: iMM.precio, __status: 409 };
+        if (estado.stats.bronce < iMM.precio) return { error: 'insufficient_funds', need: iMM.precio, have: estado.stats.bronce, __status: 400 };
+        estado.stats.bronce -= iMM.precio;
+        var billete = 'b' + Date.now();
+        estado.billetesMM = estado.billetesMM || {};
+        estado.billetesMM[billete] = iMM.precio;
+        return { ok: true, precio: iMM.precio, billete: billete, stats: estado.stats,
+                 destino: { id: dMM.id, mundo: dMM.mundo, x: dMM.destino ? dMM.destino[0] : null, y: dMM.destino ? dMM.destino[1] : null } };
+      }
+      if (ruta === '/api/viaje/mapa/devolver' && metodo === 'POST') {
+        b = cuerpo(init);
+        var pMM = estado.billetesMM && estado.billetesMM[b.billete];
+        if (!pMM) return { error: 'billete_no_valido', __status: 404 };
+        delete estado.billetesMM[b.billete];
+        estado.stats.bronce += pMM;
+        return { ok: true, devuelto: pMM, stats: estado.stats };
+      }
+    }
     if (ruta === '/api/currency/weekly') {
       estado.semanal = estado.semanal || {};
       var g = {};
@@ -783,12 +842,18 @@
     estado.log.push(metodo + ' ' + u.pathname);
     if (estado.log.length > 2000) estado.log.splice(0, 500);
     var datos = responder(u.pathname, metodo, init, u.searchParams);
+    // (2026-10-26) `__status` en la respuesta = otro código HTTP (404, 409…).
+    var codigo = 200;
+    if (datos && typeof datos === 'object' && datos.__status) { codigo = datos.__status; delete datos.__status; }
     return new Promise(function (resolve) {
       setTimeout(function () {
-        resolve(new Response(JSON.stringify(datos), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+        resolve(new Response(JSON.stringify(datos), { status: codigo, headers: { 'Content-Type': 'application/json' } }));
       }, 15);
     });
   };
+  // El dibujo del mapa del mundo, para las rutas /api/viaje/mapa de arriba.
+  fetchNativo('./Game/MAPAS/mundo/mapa_mundo.json', { cache: 'no-cache' }).then(function (r) { return r.json(); })
+    .then(function (d) { estado.mapaMundo = d; }).catch(function () {});
 
   // ── SOCKET.IO DE MENTIRA ───────────────────────────────────────────────────
   function Emisor() { this._h = Object.create(null); }
