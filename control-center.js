@@ -208,6 +208,47 @@
       text($('cc-data-notice'),t(snapshot.overview ? 'Refresh failed. The previous snapshot is still displayed.' : 'Data could not be loaded.'));
       renderMetrics(); text($('cc-updated'),t('Last updated')+' · '+new Date().toLocaleTimeString(ui.language,{hour:'2-digit',minute:'2-digit'}));
     } finally { dataLoading = false; $('cc-refresh').disabled = false; }
+    loadRpc();
+  }
+  /* (2026-10-26) PAUSAR / REANUDAR LA LECTURA DE LA CADENA. El escaneo
+     histórico gasta el mismo cupo de RPC que el juego. Va aparte de las
+     métricas: un servidor sin la ruta (404) no debe dar "Refresh failed". */
+  let rpcBusy = false, rpcState = null;
+  function renderRpc(message) {
+    const s = rpcState, label = !s ? 'Unknown' : s.activo ? 'Running' : 'Paused';
+    text($('cc-rpc-state'),t(label)+(s && s.scan && s.scan.status ? ' · '+s.scan.status : ''));
+    $('cc-rpc-pause').disabled = rpcBusy || !s || !s.activo;
+    $('cc-rpc-resume').disabled = rpcBusy || !s || !!s.activo;
+    if (message) text($('cc-rpc-note'),t(message));
+  }
+  async function loadRpc() {
+    if (!verified) return;
+    const revision = requestRevision;
+    try {
+      const data = await session.request('/api/admin/impact/historico');
+      if (destroyed || !verified || revision !== requestRevision) return;
+      rpcState = data && typeof data.activo === 'boolean' ? data : null;
+      renderRpc();
+    } catch (e) {
+      if (e?.name === 'AbortError' || destroyed || !verified) return;
+      rpcState = null;
+      renderRpc(e.status === 404 ? 'The game server does not have this control yet: upload the new server2.js.' : 'The state could not be read.');
+    }
+  }
+  async function setRpc(active) {
+    if (!verified || rpcBusy) return;
+    rpcBusy = true; renderRpc();
+    try {
+      const data = await session.request('/api/admin/impact/historico',{ method:'POST', body:JSON.stringify({ activo:active }) });
+      if (destroyed || !verified) return;
+      rpcState = data && typeof data.activo === 'boolean' ? data : rpcState;
+      rpcBusy = false;
+      renderRpc(active ? 'Chain reading resumed. It uses the same RPC quota as the game.' : 'Chain reading paused: the RPC is left for the game.');
+    } catch (e) {
+      rpcBusy = false;
+      if (e?.name === 'AbortError' || destroyed || !verified) return;
+      renderRpc(e.status === 404 ? 'The game server does not have this control yet: upload the new server2.js.' : 'The change could not be saved.');
+    }
   }
   function closeNav() { $('cc-navigation').classList.remove('open'); $('cc-nav-shade').hidden = true; $('cc-menu').setAttribute('aria-expanded','false'); }
   function renderPreferences() {
@@ -223,6 +264,7 @@
   }
   $('cc-connect').addEventListener('click',() => verify(true)); $('cc-retry').addEventListener('click',() => verify());
   $('cc-refresh').addEventListener('click',refreshData); $('cc-tool-close').addEventListener('click',() => activate('overview'));
+  $('cc-rpc-pause').addEventListener('click',() => setRpc(false)); $('cc-rpc-resume').addEventListener('click',() => setRpc(true));
   $('cc-logout').addEventListener('click',async () => {
     if (!canLeave()) return; $('cc-logout').disabled = true;
     try { await session.logout(); gate('Signed out.'); }

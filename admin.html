@@ -317,7 +317,7 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
 <link rel="stylesheet" href="./admin-impact.css">
 <link rel="stylesheet" href="./admin-suite.css?v=20261020">
 <script src="./admin-session.js?v=20261020"></script>
-<script src="./admin-suite-i18n.js?v=20261025"></script>
+<script src="./admin-suite-i18n.js?v=20261026"></script>
 <script defer src="./admin-suite.js?v=20261025"></script>
 </head>
 <body>
@@ -367,6 +367,13 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
     <details class="impact-quality"><summary>Cobertura y metodología de las métricas</summary><div id="impactQuality">Esperando datos del backend.</div></details>
     <div class="impact-scan">
       <div class="impact-scan-head"><div><h3>Recuperación histórica del contrato</h3><p class="dim">El backend conserva el progreso para continuar el análisis al cerrar esta página.</p></div><button class="btn btn-primary" id="analizarCC">analizarCC</button></div>
+      <!-- (2026-10-26) Pausar / reanudar la lectura de la cadena: gasta el mismo
+           cupo de RPC que el juego ("Bandwidth limit exceeded"). -->
+      <div class="cfg-actions" id="escaneoRpcCaja" style="margin:8px 0 10px;align-items:center;flex-wrap:wrap">
+        <button class="btn" id="escaneoRpcPausar" type="button">⏸ Pausar la lectura de la cadena</button>
+        <button class="btn" id="escaneoRpcReanudar" type="button">▶ Reanudar la lectura</button>
+        <span class="dim" id="escaneoRpcInfo" style="font-size:12.5px">Usa el mismo cupo de RPC que el juego. Si el juego muestra «Bandwidth limit exceeded», páusala.</span>
+      </div>
       <div id="impactScanStatus" role="status" aria-live="polite">Esperando estado…</div>
       <progress id="impactScanProgress" max="100" value="0" aria-label="Progreso de recuperación histórica" hidden></progress>
       <p class="dim impact-footnote" id="impactScanDetail"></p>
@@ -926,6 +933,36 @@ td.addr { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
     csrf: csrfActual,
     onUnauthorized: function () { cerrarAcceso(); }
   });
+
+  // ── (2026-10-26) PAUSAR / REANUDAR LA LECTURA DE LA CADENA ──────────────
+  // El escaneo histórico lee la cadena bloque a bloque con el mismo cupo de RPC
+  // que el juego. Solo se pide algo al pulsar: el estado lo pinta el panel de
+  // arriba ("Análisis pausado"), que se refresca después.
+  var escaneoRpcOcupado = false;
+  async function cambiarEscaneoRpc(activo) {
+    if (escaneoRpcOcupado || !state.adminVerified) return;
+    escaneoRpcOcupado = true;
+    $('escaneoRpcPausar').disabled = true; $('escaneoRpcReanudar').disabled = true;
+    try {
+      var d = await pedir('/api/admin/impact/historico', { method: 'POST', body: JSON.stringify({ activo: activo }) });
+      if (d && d.ok) {
+        $('escaneoRpcInfo').textContent = d.activo
+          ? 'Lectura de la cadena en marcha. Gasta el mismo cupo de RPC que el juego.'
+          : 'Lectura de la cadena en pausa: el RPC queda para el juego.';
+        aviso(d.activo ? 'Lectura de la cadena reanudada.' : 'Lectura de la cadena en pausa.');
+      } else {
+        aviso('El servidor todavía no tiene este botón: sube el server2.js nuevo.', 'warn');
+      }
+      try { impact.refresh(); } catch (e) {}
+    } catch (e) {
+      if (e.name !== 'AbortError') aviso('No se pudo cambiar: ' + (e.message || e), 'err');
+    } finally {
+      escaneoRpcOcupado = false;
+      $('escaneoRpcPausar').disabled = false; $('escaneoRpcReanudar').disabled = false;
+    }
+  }
+  $('escaneoRpcPausar').addEventListener('click', function () { cambiarEscaneoRpc(false); });
+  $('escaneoRpcReanudar').addEventListener('click', function () { cambiarEscaneoRpc(true); });
   function cerrarAcceso() {
     authEpoch++; clearTimeout(renewalTimer);
     cancelarVerificacion();

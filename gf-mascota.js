@@ -317,6 +317,18 @@
     ultimaMuerte = ahora;
     return api('/api/player/death', {}).then(function (r) {
       if (r.ok) aplicar(r.datos);
+      /* (2026-10-26) "Llego a 0 % de vida y no muero." El servidor dice que
+         sigue vivo (su vida no está a 0): la barra local se había quedado en
+         un 0 que el servidor no tiene. Se pinta la vida de verdad en vez de
+         quedarse en 0 para siempre preguntando cada 5 s. */
+      else if (r.status === 409 && r.datos && r.datos.error === 'sigue_vivo' && typeof r.datos.vida === 'number') {
+        var sc = escenaDelJuego(), st = { vida: r.datos.vida };
+        try {
+          if (sc && window.GFCharacterSkills && window.GFCharacterSkills.applyStats) window.GFCharacterSkills.applyStats(sc, st);
+          else if (sc && typeof sc._adoptarVitalesDelServidor === 'function') sc._adoptarVitalesDelServidor(st);
+          else if (window.playerStats) window.playerStats.vida = r.datos.vida;
+        } catch (e) {}
+      }
       return estado;
     }).catch(function () { return estado; });
   }

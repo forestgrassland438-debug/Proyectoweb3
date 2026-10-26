@@ -978,6 +978,22 @@ Inventory plots|Parcelas (inventario)
 Placed plots|Parcelas colocadas
 Write to chain now|Escribir en la cadena ahora
 Level, Exp and Pet level are also written to the chain: the experience invoice and the level table. Changing one of them is enough.|Nivel, Exp y Nivel mascota también se escriben en la cadena: la factura de experiencia y la tabla de nivel. Basta con cambiar uno de ellos.
+Chain reading|Lectura de la cadena
+Pause chain reading|Pausar la lectura de la cadena
+Resume chain reading|Reanudar la lectura de la cadena
+Resume reading|Reanudar la lectura
+Running|En marcha
+The historical chain scan reads the chain block by block with the same RPC quota as the game. If the game shows “Bandwidth limit exceeded”, pause it.|El escaneo histórico lee la cadena bloque a bloque con el mismo cupo de RPC que el juego. Si el juego muestra «Bandwidth limit exceeded», páusalo.
+Uses the same RPC quota as the game. If the game shows «Bandwidth limit exceeded», pause it.|Usa el mismo cupo de RPC que el juego. Si el juego muestra «Bandwidth limit exceeded», páusala.
+Chain reading running. It uses the same RPC quota as the game.|Lectura de la cadena en marcha. Gasta el mismo cupo de RPC que el juego.
+Chain reading resumed. It uses the same RPC quota as the game.|Lectura de la cadena reanudada. Gasta el mismo cupo de RPC que el juego.
+Chain reading paused: the RPC is left for the game.|Lectura de la cadena en pausa: el RPC queda para el juego.
+Chain reading resumed.|Lectura de la cadena reanudada.
+Chain reading paused.|Lectura de la cadena en pausa.
+The server does not have this button yet: upload the new server2.js.|El servidor todavía no tiene este botón: sube el server2.js nuevo.
+The game server does not have this control yet: upload the new server2.js.|El servidor del juego todavía no tiene este control: sube el server2.js nuevo.
+The state could not be read.|No se pudo leer el estado.
+The change could not be saved.|No se pudo guardar el cambio.
 Delete account|Eliminar la cuenta
 Delete permanently|Eliminar definitivamente
 Farming configuration saved|Configuración de siembra guardada
@@ -1532,7 +1548,8 @@ Defaults loaded. Save to apply them.|Valores por defecto cargados. Guarda para a
     ['Entrada rechazada: ','Sign-in rejected: '],['Error cargando: ','Load error: '],['Cargando historial…','Loading history…'],
     ['No se pudo cargar el catálogo: ','Could not load the catalog: '],['No se pudieron cargar las reglas automáticas: ','Could not load the automatic rules: '],
     ['No se pudieron guardar las reglas: ','Could not save the rules: '],['No se pudo generar la vista previa: ','Could not build the preview: '],
-    ['No se pudieron cargar las entregas: ','Could not load the deliveries: ']
+    ['No se pudieron cargar las entregas: ','Could not load the deliveries: '],
+    ['No se pudo cambiar: ','Could not change: ']
   ];
   function translate(value, language) {
     const original = String(value), text = normalize(original), dict = language === 'en' ? en : es;

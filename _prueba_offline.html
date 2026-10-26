@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <!-- PRUEBA SIN SERVIDOR: generado por tools/generar-prueba-offline.js. NO subir. -->
-  <script src="./_prueba_offline_mock.js?nc=mvo5ks6o"></script>
+  <script src="./_prueba_offline_mock.js?nc=mvovyf7p"></script>
   <meta charset="UTF-8" />
   <!-- interactive-widget=overlays-content: al abrirse el teclado del móvil, éste
        se dibuja ENCIMA en vez de reducir el viewport. Sin esto el navegador
@@ -54,179 +54,179 @@
        Versions, hashes and licenses are recorded in vendor/manifest.json and LICENSES.txt. -->
 
   <!-- Phaser (pinned) -->
-  <script src="./vendor/phaser.min.js?v=e92ddef111ba&nc=mvo5ks6o" defer integrity="sha384-AvQiDMZAVLda3VtAoU5MCfBz8pzXhteb2CiUJeKBmPlWzpXj1uJ96Km11+YuFNu/"></script>
+  <script src="./vendor/phaser.min.js?v=e92ddef111ba&nc=mvovyf7p" defer integrity="sha384-AvQiDMZAVLda3VtAoU5MCfBz8pzXhteb2CiUJeKBmPlWzpXj1uJ96Km11+YuFNu/"></script>
 
   <!-- Socket.IO client rebuilt with the patched parser from package-lock.json -->
-  <script src="./vendor/socket.io.min.js?v=870d83168a0e&nc=mvo5ks6o" defer integrity="sha384-YcYLaFXXR/8FhGSjB8IL//yNuj3jIcW9XDTrHLppVdjuPbsYm9l2B4+bsInmrSOO"></script>
+  <script src="./vendor/socket.io.min.js?v=870d83168a0e&nc=mvovyf7p" defer integrity="sha384-YcYLaFXXR/8FhGSjB8IL//yNuj3jIcW9XDTrHLppVdjuPbsYm9l2B4+bsInmrSOO"></script>
   <!-- Una sola partida por cuenta: envuelve io() y fetch. Va JUSTO después del cliente de Socket.IO. -->
-  <script src="./gf-sesion-unica.js?v=22.5.d2dc7115673b&nc=mvo5ks6o" defer></script>
+  <script src="./gf-sesion-unica.js?v=22.5.d2dc7115673b&nc=mvovyf7p" defer></script>
   <!-- Las invitaciones: pronto a propósito, para guardar el ?ref= del enlace
        antes de que el login se lleve al jugador. Pinta la pestaña "Invites". -->
-  <script src="./gf-invitaciones.js?v=audit20261016.13cf4b40b097&nc=mvo5ks6o" defer></script>
+  <script src="./gf-invitaciones.js?v=audit20261016.13cf4b40b097&nc=mvovyf7p" defer></script>
 
   <!-- Ethers -->
-  <script src="./vendor/ethers.umd.min.js?v=532950515fd2&nc=mvo5ks6o" defer integrity="sha384-lApM4ELRuFNT7NgNqnXB2zFWgSDdhVvmnOHov2DPJz/2zuNpZImXBeklFr18ilvi"></script>
+  <script src="./vendor/ethers.umd.min.js?v=532950515fd2&nc=mvovyf7p" defer integrity="sha384-lApM4ELRuFNT7NgNqnXB2zFWgSDdhVvmnOHov2DPJz/2zuNpZImXBeklFr18ilvi"></script>
 
   <!-- rex virtual joystick -->
-  <script src="./vendor/rexvirtualjoystickplugin.min.js?v=4fcbfc1931be&nc=mvo5ks6o" defer integrity="sha384-iYVSUJQjlQbXL4+IRTt+0+SAss7Ag1anmdEBZDw7aOjkxm0C5YfPkaOHI63tU6Ur"></script>
+  <script src="./vendor/rexvirtualjoystickplugin.min.js?v=4fcbfc1931be&nc=mvovyf7p" defer integrity="sha384-iYVSUJQjlQbXL4+IRTt+0+SAss7Ag1anmdEBZDw7aOjkxm0C5YfPkaOHI63tU6Ur"></script>
 
   <!-- ============================
        Local scripts (all external, defer). No inline <script> blocks remain.
        Ensure your server serves these files over HTTPS in production.
        ============================ -->
 
-  <script src="./ui-image-fallbacks.js?nc=mvo5ks6o" defer></script>
+  <script src="./ui-image-fallbacks.js?nc=mvovyf7p" defer></script>
 
   <!-- missionspanel.js -->
-  <script src="./missionspanel.js?v=22.5.fd4be8b2b817&nc=mvo5ks6o" defer></script>
+  <script src="./missionspanel.js?v=22.5.fd4be8b2b817&nc=mvovyf7p" defer></script>
 
   <!-- Personajes Soulbound. Va ANTES de las escenas porque sus preload()
        le piden las rutas de los sprites del jugador. -->
-  <script src="./gf-soulbound.js?v=22.5.7f8c39d8e3df&nc=mvo5ks6o" defer></script>
-  <script src="./gf-soulbound-custom.js?v=22.5.66fd94b89d04&nc=mvo5ks6o" defer></script>
+  <script src="./gf-soulbound.js?v=22.5.7f8c39d8e3df&nc=mvovyf7p" defer></script>
+  <script src="./gf-soulbound-custom.js?v=22.5.66fd94b89d04&nc=mvovyf7p" defer></script>
   <!-- Relieve 2.5D de personajes, NPC y mascota (2026-10-12): se aplica al
        cargar cada textura; los PNG no se tocan. -->
-  <script src="./gf-relieve.js?v=22.5.770a46e6b095&nc=mvo5ks6o" defer></script>
+  <script src="./gf-relieve.js?v=22.5.770a46e6b095&nc=mvovyf7p" defer></script>
   <!-- "My NFTs" del panel NFT: la colección que se elige en admin.html. -->
-  <script src="./gf-nft.js?v=22.5.b846103481f9&nc=mvo5ks6o" defer></script>
-  <script src="./gf-niveles-mapas.js?v=22.5.53193a023d39&nc=mvo5ks6o" defer></script>
-  <script src="./gf-lands.js?v=22.5.118ac060b63f&nc=mvo5ks6o" defer></script>
+  <script src="./gf-nft.js?v=22.5.b846103481f9&nc=mvovyf7p" defer></script>
+  <script src="./gf-niveles-mapas.js?v=22.5.53193a023d39&nc=mvovyf7p" defer></script>
+  <script src="./gf-lands.js?v=22.5.118ac060b63f&nc=mvovyf7p" defer></script>
 
   <!-- Canales (10 × 50 jugadores). El canal lo asigna el servidor al conectar
        el socket, UNA sola vez por pestaña; este módulo solo lo recuerda y
        pinta el panel del dashboard. -->
-  <script src="./gf-canales.js?v=22.5.525534d76810&nc=mvo5ks6o" defer></script>
-  <script src="./gf-profundidad.js?v=22.4.ac6ad4766b40&nc=mvo5ks6o" defer></script>
-  <script src="./gf-sombras.js?v=audit20261016.9c7d5050d6e8&nc=mvo5ks6o" defer></script>
-  <script src="./gf-nieve.js?v=22.5.435bca8e424f&nc=mvo5ks6o" defer></script>
-  <script src="./gf-pesca.js?v=22.5.df5d5c38f56a&nc=mvo5ks6o" defer></script>
+  <script src="./gf-canales.js?v=22.5.525534d76810&nc=mvovyf7p" defer></script>
+  <script src="./gf-profundidad.js?v=22.4.ac6ad4766b40&nc=mvovyf7p" defer></script>
+  <script src="./gf-sombras.js?v=audit20261016.9c7d5050d6e8&nc=mvovyf7p" defer></script>
+  <script src="./gf-nieve.js?v=22.5.435bca8e424f&nc=mvovyf7p" defer></script>
+  <script src="./gf-pesca.js?v=22.5.df5d5c38f56a&nc=mvovyf7p" defer></script>
   <!-- El monte del pueblo: hierba alta que se abre al pasar (Maps/monte.json). -->
-  <script src="./gf-monte.js?v=22.5.077d85a03e35&nc=mvo5ks6o" defer></script>
+  <script src="./gf-monte.js?v=22.5.077d85a03e35&nc=mvovyf7p" defer></script>
   <!-- Los demas a los 5 minutos quietos se ocultan (2026-10-05). -->
-  <script src="./gf-reposo.js?v=21.4.d131cf64dcf9&nc=mvo5ks6o" defer></script>
-  <script src="./gf-espantapajaros.js?v=22.5.588f0d5cf9b5&nc=mvo5ks6o" defer></script>
-  <script src="./gf-antorchas.js?v=22.5.f602d6102aee&nc=mvo5ks6o" defer></script>
-  <script src="./gf-botes.js?v=22.5.d2ecef6288ce&nc=mvo5ks6o" defer></script>
+  <script src="./gf-reposo.js?v=21.4.d131cf64dcf9&nc=mvovyf7p" defer></script>
+  <script src="./gf-espantapajaros.js?v=22.5.588f0d5cf9b5&nc=mvovyf7p" defer></script>
+  <script src="./gf-antorchas.js?v=22.5.f602d6102aee&nc=mvovyf7p" defer></script>
+  <script src="./gf-botes.js?v=22.5.d2ecef6288ce&nc=mvovyf7p" defer></script>
   <link rel="stylesheet" href="./gf-espada-poderes.css?v=22.5.f4e63c49731d">
   <link rel="stylesheet" href="./gf-character-skills.css?v=22.5.282c5eb793ab">
   <link rel="stylesheet" href="./gf-invitaciones.css?v=22.5.2dce2eb76426">
-  <script src="./gf-character-skills.js?v=22.5.326129bec8a6&nc=mvo5ks6o" defer></script>
-  <script src="./gf-espada.js?v=22.5.9beb5cd8efb3&nc=mvo5ks6o" defer></script>
+  <script src="./gf-character-skills.js?v=22.5.b87ce67311d6&nc=mvovyf7p" defer></script>
+  <script src="./gf-espada.js?v=22.5.9beb5cd8efb3&nc=mvovyf7p" defer></script>
   <!-- Que ningún botón del HUD quede encima de otro (columna redonda, V/B/N,
        tajo). Detrás de la espada: aparta sus botones si hace falta. -->
-  <script src="./gf-hud-ajuste.js?v=22.5.56ccd6a7df4d&nc=mvo5ks6o" defer></script>
+  <script src="./gf-hud-ajuste.js?v=22.5.56ccd6a7df4d&nc=mvovyf7p" defer></script>
   <!-- Los zombis de la mina y su guardián (los monta MinaScene). -->
   <!-- Caminos para los monstruos (rodean las paredes). Antes que los que lo usan. -->
-  <script src="./gf-rutas.js?v=22.1.c909be131777&nc=mvo5ks6o" defer></script>
+  <script src="./gf-rutas.js?v=22.1.c909be131777&nc=mvovyf7p" defer></script>
   <!-- El arte de TODOS los monstruos: carga sus PNG (Game/Sprites/monstruos,
        tools/generar-monstruos.py) y crea sus animaciones. Antes que ellos. -->
-  <script src="./gf-monstruos-arte.js?v=22.5.30e4acec4fd9&nc=mvo5ks6o" defer></script>
-  <script src="./gf-mobs-red.js?v=22.5.437264456c3c&nc=mvo5ks6o" defer></script>
-  <script src="./gf-mina-zombis.js?v=audit20261016.5f4a8b73e949&nc=mvo5ks6o" defer></script>
+  <script src="./gf-monstruos-arte.js?v=22.5.30e4acec4fd9&nc=mvovyf7p" defer></script>
+  <script src="./gf-mobs-red.js?v=22.5.437264456c3c&nc=mvovyf7p" defer></script>
+  <script src="./gf-mina-zombis.js?v=audit20261016.5f4a8b73e949&nc=mvovyf7p" defer></script>
   <!-- La serpiente de magma de la mina (la monta MinaScene). -->
   <!-- Recoger y soltar sin esperar a la cadena: la cola y su contador (2026-10-19). -->
-  <script src="./gf-cola-cadena.js?v=22.5.ae046151620c&nc=mvo5ks6o" defer></script>
+  <script src="./gf-cola-cadena.js?v=22.5.ae046151620c&nc=mvovyf7p" defer></script>
   <!-- Los NPC de los mapas y de las casas (2026-10-19). -->
-  <script src="./gf-npcs.js?v=22.5.df341c48646a&nc=mvo5ks6o" defer></script>
-  <script src="./gf-npcs-pueblo.js?v=22.5.50892a7d86d6&nc=mvo5ks6o" defer></script>
-  <script src="./gf-etiquetas.js?v=22.5.14ce0da57eac&nc=mvo5ks6o" defer></script>
-  <script src="./gf-mina-serpiente.js?v=22.5.8e99281e341e&nc=mvo5ks6o" defer></script>
-  <script src="./gf-mina-espectros.js?v=22.5.6a8022f5c916&nc=mvo5ks6o" defer></script>
+  <script src="./gf-npcs.js?v=22.5.df341c48646a&nc=mvovyf7p" defer></script>
+  <script src="./gf-npcs-pueblo.js?v=22.5.50892a7d86d6&nc=mvovyf7p" defer></script>
+  <script src="./gf-etiquetas.js?v=22.5.14ce0da57eac&nc=mvovyf7p" defer></script>
+  <script src="./gf-mina-serpiente.js?v=22.5.8e99281e341e&nc=mvovyf7p" defer></script>
+  <script src="./gf-mina-espectros.js?v=22.5.6a8022f5c916&nc=mvovyf7p" defer></script>
   <!-- El mapa salvaje: sus monstruos, la espada entre jugadores en la zona
        PvP y lo que se suelta en el suelo (lo monta SalvajeScene). -->
-  <script src="./gf-salvaje.js?v=22.5.de6bd9df26f0&nc=mvo5ks6o" defer></script>
-  <script src="./gf-jefes.js?v=22.5.e24ed531dd1c&nc=mvo5ks6o" defer></script>
+  <script src="./gf-salvaje.js?v=22.5.de6bd9df26f0&nc=mvovyf7p" defer></script>
+  <script src="./gf-jefes.js?v=22.5.e24ed531dd1c&nc=mvovyf7p" defer></script>
   <!-- Los mapas nuevos (2026-10-18): viajes, niebla, tormenta de arena,
        remolinos, nevada y luces de noche (lo montan las escenas de
        Scenes/ZonasScenes.js). -->
-  <script src="./gf-camellos.js?v=22.5.9812a80489cc&nc=mvo5ks6o" defer></script>
-  <script src="./gf-fauna-zonas.js?v=22.5.9bb8a1d14a15&nc=mvo5ks6o" defer></script>
-  <script src="./gf-zonas.js?v=22.5.86e48976ef3e&nc=mvo5ks6o" defer></script>
-  <script src="./gf-agua.js?v=22.5.783d5f911ef3&nc=mvo5ks6o" defer></script>
-  <script src="./gf-suelo.js?v=22.5.1769043b2030&nc=mvo5ks6o" defer></script>
-  <script src="./gf-casas.js?v=22.5.c1d7d5dc58ff&nc=mvo5ks6o" defer></script>
-  <script src="./gf-ciclo-dia.js?v=22.5.ea3d9f4921e6&nc=mvo5ks6o" defer></script>
+  <script src="./gf-camellos.js?v=22.5.9812a80489cc&nc=mvovyf7p" defer></script>
+  <script src="./gf-fauna-zonas.js?v=22.5.9bb8a1d14a15&nc=mvovyf7p" defer></script>
+  <script src="./gf-zonas.js?v=22.5.86e48976ef3e&nc=mvovyf7p" defer></script>
+  <script src="./gf-agua.js?v=22.5.783d5f911ef3&nc=mvovyf7p" defer></script>
+  <script src="./gf-suelo.js?v=22.5.1769043b2030&nc=mvovyf7p" defer></script>
+  <script src="./gf-casas.js?v=22.5.c1d7d5dc58ff&nc=mvovyf7p" defer></script>
+  <script src="./gf-ciclo-dia.js?v=22.5.ea3d9f4921e6&nc=mvovyf7p" defer></script>
 
   <!-- Cazador de micro-parones. Inerte hasta que se le llama a mano desde la
        consola con GFTirones.empezar(). No vigila nada por su cuenta. -->
-  <script src="./gf-tirones.js?v=22.5.ccdc78818f1b&nc=mvo5ks6o" defer></script>
-  <script src="./gf-cuervo.js?v=22.5.748929ecf3f5&nc=mvo5ks6o" defer></script>
-  <script src="./gf-animales.js?v=audit20261016.0fe8732d2d25&nc=mvo5ks6o" defer></script>
-  <script src="./gf-mascota.js?v=22.5.59c0fd5494e8&nc=mvo5ks6o" defer></script>
-  <script src="./gf-muerte.js?v=22.5.672e4a2b8da7&nc=mvo5ks6o" defer></script>
-  <script src="./gf-sin-nombre.js?v=22.5.e308cf426dfb&nc=mvo5ks6o" defer></script>
-  <script src="./gf-carga-mapa.js?v=22.5.d30b86f497f3&nc=mvo5ks6o" defer></script>
-  <script src="./gf-bronce.js?v=22.5.2a30abbb77cd&nc=mvo5ks6o" defer></script>
-  <script src="./gf-vip.js?v=22.5.ad372698833b&nc=mvo5ks6o" defer></script>
-  <script src="./gf-alquimista.js?v=audit20261016.6fe7e70abdaf&nc=mvo5ks6o" defer></script>
-  <script src="./gf-viento.js?v=22.5.89ba49f83cf1&nc=mvo5ks6o" defer></script>
-  <script src="./gf-clima.js?v=audit20261016.4ab981fc0772&nc=mvo5ks6o" defer></script>
+  <script src="./gf-tirones.js?v=22.5.ccdc78818f1b&nc=mvovyf7p" defer></script>
+  <script src="./gf-cuervo.js?v=22.5.748929ecf3f5&nc=mvovyf7p" defer></script>
+  <script src="./gf-animales.js?v=audit20261016.0fe8732d2d25&nc=mvovyf7p" defer></script>
+  <script src="./gf-mascota.js?v=22.5.71f68ed8fe99&nc=mvovyf7p" defer></script>
+  <script src="./gf-muerte.js?v=22.5.672e4a2b8da7&nc=mvovyf7p" defer></script>
+  <script src="./gf-sin-nombre.js?v=22.5.e308cf426dfb&nc=mvovyf7p" defer></script>
+  <script src="./gf-carga-mapa.js?v=22.5.d30b86f497f3&nc=mvovyf7p" defer></script>
+  <script src="./gf-bronce.js?v=22.5.2a30abbb77cd&nc=mvovyf7p" defer></script>
+  <script src="./gf-vip.js?v=22.5.71035e784a92&nc=mvovyf7p" defer></script>
+  <script src="./gf-alquimista.js?v=audit20261016.6fe7e70abdaf&nc=mvovyf7p" defer></script>
+  <script src="./gf-viento.js?v=22.5.89ba49f83cf1&nc=mvovyf7p" defer></script>
+  <script src="./gf-clima.js?v=audit20261016.4ab981fc0772&nc=mvovyf7p" defer></script>
 
   <!-- Post-procesado: viñeta, desenfoque de bordes y revelado de color sobre
        el fotograma ya pintado. Va DESPUÉS del clima porque lee de él qué
        tiempo hace. Si no hay WebGL o la calidad está en baja, no hace nada. -->
-  <script src="./gf-postproceso.js?v=22.5.b2be1ebab6e5&nc=mvo5ks6o" defer></script>
+  <script src="./gf-postproceso.js?v=22.5.b2be1ebab6e5&nc=mvovyf7p" defer></script>
 
   <!-- Pisadas: polvo y huellas bajo quien anda. Lee el tiempo de gf-clima
        (polvo en seco, agua si llueve, nieve si nieva), asi que va despues. -->
-  <script src="./gf-pisadas.js?v=22.5.aaa96d6e798c&nc=mvo5ks6o" defer></script>
+  <script src="./gf-pisadas.js?v=22.5.aaa96d6e798c&nc=mvovyf7p" defer></script>
 
   <!-- Ambiente sonoro de 8 bits: lluvia, truenos, viento, hojas, grillos,
        bichos, pisadas segun el suelo y los dos temas nuevos. Va DESPUES del
        clima, del viento y del ciclo de dia porque les pregunta a los tres en
        cada vuelta que tiempo hace y cuanta noche queda. Los WAV los escribe
        tools/generar-sonidos.js y viven en Game/MUSIC. -->
-  <script src="./gf-audio.js?v=22.5.7b8b409d783a&nc=mvo5ks6o" defer></script>
+  <script src="./gf-audio.js?v=22.5.7b8b409d783a&nc=mvovyf7p" defer></script>
 
   <!-- El buho de la noche: aparece al anochecer, se posa en un arbol y ulula;
        al amanecer se va. Necesita gf-audio para el ulular y gf-cuervo para el
        censo de copas, asi que va detras de los dos. -->
-  <script src="./gf-buho.js?v=audit20261016.8b7ee87197d9&nc=mvo5ks6o" defer></script>
+  <script src="./gf-buho.js?v=audit20261016.8b7ee87197d9&nc=mvovyf7p" defer></script>
 
   <!-- Arte de las batallas: dibuja con canvas los escenarios y TODOS los
        efectos del combate. Va antes de las escenas porque BattleScene lo usa
        en su preload. -->
-  <script src="./gf-batalla-arte.js?v=audit20261016.d1934b134ee5&nc=mvo5ks6o" defer></script>
+  <script src="./gf-batalla-arte.js?v=audit20261016.d1934b134ee5&nc=mvovyf7p" defer></script>
   <!-- El motor de la arena: las MISMAS colisiones, balas y reglas que usa el
        servidor (server2.js lleva una copia incrustada). BattleScene lo usa para
        mover a tu perro sin esperar a la red. -->
-  <script src="./gf-brawl-motor.js?v=audit20261016.8cb3bac3c4b0&nc=mvo5ks6o" defer></script>
+  <script src="./gf-brawl-motor.js?v=audit20261016.8cb3bac3c4b0&nc=mvovyf7p" defer></script>
 
   <!-- Scenes -->
   <!-- SOCIAL: amistades, reacciones del chat y color del nombre.
        Van ANTES de las escenas porque GameScene y tiendajuego los montan en su
        create(); con `defer` el orden de estas etiquetas es el de ejecución. -->
   <!-- El traductor del chat (2026-10-05): antes que el chat y los privados. -->
-  <script src="./gf-traductor.js?v=audit20261016.0a04d6c20da2&nc=mvo5ks6o" defer></script>
-  <script src="./gf-amigos.js?v=22.5.aad9d1c1f261&nc=mvo5ks6o" defer></script>
+  <script src="./gf-traductor.js?v=audit20261016.0a04d6c20da2&nc=mvovyf7p" defer></script>
+  <script src="./gf-amigos.js?v=22.5.aad9d1c1f261&nc=mvovyf7p" defer></script>
   <!-- (2026-10-25) Lo que cambia el administrador (nivel, exp, monedas) lo
        adopta al momento el jugador conectado: aviso 'admin:ajuste'. -->
-  <script src="./gf-admin-ajuste.js?v=22.5.85f84998105f&nc=mvo5ks6o" defer></script>
-  <script src="./gf-chat-social.js?v=audit20261016.a95b426a909f&nc=mvo5ks6o" defer></script>
-  <script src="./gf-nombre-color.js?v=22.5.50ff68e2019d&nc=mvo5ks6o" defer></script>
+  <script src="./gf-admin-ajuste.js?v=22.5.85f84998105f&nc=mvovyf7p" defer></script>
+  <script src="./gf-chat-social.js?v=audit20261016.a95b426a909f&nc=mvovyf7p" defer></script>
+  <script src="./gf-nombre-color.js?v=22.5.50ff68e2019d&nc=mvovyf7p" defer></script>
 
-  <script src="./Scenes/MenuScene.js?v=22.5.2b55dfe3a54e&nc=mvo5ks6o" defer></script>
-  <script src="./Scenes/LoadingSceneshop.js?v=22.5.26db4cc6b167&nc=mvo5ks6o" defer></script>
-  <script src="./Scenes/tiendajuego.js?v=22.5.ce497df95fdb&nc=mvo5ks6o" defer></script>
-  <script src="./Scenes/LoadingScenegame.js?v=22.5.c371aa960422&nc=mvo5ks6o" defer></script>
-  <script src="./Scenes/GameScene.js?v=22.5.cd5bedf6a296&nc=mvo5ks6o" defer></script>
+  <script src="./Scenes/MenuScene.js?v=22.5.2b55dfe3a54e&nc=mvovyf7p" defer></script>
+  <script src="./Scenes/LoadingSceneshop.js?v=22.5.26db4cc6b167&nc=mvovyf7p" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=22.5.ce497df95fdb&nc=mvovyf7p" defer></script>
+  <script src="./Scenes/LoadingScenegame.js?v=22.5.c371aa960422&nc=mvovyf7p" defer></script>
+  <script src="./Scenes/GameScene.js?v=22.5.cd5bedf6a296&nc=mvovyf7p" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
        basta con dejarla en esta linea y no antes. -->
-  <script src="./Scenes/MinaScene.js?v=22.5.412c8253e5c4&nc=mvo5ks6o" defer></script>
+  <script src="./Scenes/MinaScene.js?v=22.5.412c8253e5c4&nc=mvovyf7p" defer></script>
   <!-- La isla de las parcelas. Hereda de GameScene igual que la mina,
        asi que tambien tiene que ir DESPUES de ella. -->
-  <script src="./Scenes/LandsScene.js?v=22.5.d3bf5d95efbb&nc=mvo5ks6o" defer></script>
-  <script src="./Scenes/InteriorScene.js?v=22.5.3b0a21ea6bbc&nc=mvo5ks6o" defer></script>
+  <script src="./Scenes/LandsScene.js?v=22.5.d3bf5d95efbb&nc=mvovyf7p" defer></script>
+  <script src="./Scenes/InteriorScene.js?v=22.5.3b0a21ea6bbc&nc=mvovyf7p" defer></script>
   <!-- El mapa salvaje del oeste. Hereda de GameScene: después de ella. -->
-  <script src="./Scenes/SalvajeScene.js?v=22.5.7012ee9dead2&nc=mvo5ks6o" defer></script>
-  <script src="./Scenes/ZonasScenes.js?v=22.5.378805b738fd&nc=mvo5ks6o" defer></script>
-  <script src="./Scenes/BattleScene.js?v=22.5.2e6332d5f7ef&nc=mvo5ks6o" defer></script>
-  <script src="./Scenes/sacar_mapa.js?v=22.5.625b3eb513fa&nc=mvo5ks6o" defer></script>
+  <script src="./Scenes/SalvajeScene.js?v=22.5.7012ee9dead2&nc=mvovyf7p" defer></script>
+  <script src="./Scenes/ZonasScenes.js?v=22.5.378805b738fd&nc=mvovyf7p" defer></script>
+  <script src="./Scenes/BattleScene.js?v=22.5.2e6332d5f7ef&nc=mvovyf7p" defer></script>
+  <script src="./Scenes/sacar_mapa.js?v=22.5.625b3eb513fa&nc=mvovyf7p" defer></script>
 
   <!-- tienda marketplace p2p -->
-  <script src="./Scenes/ShopScene.js?v=22.4.4385704c3485&nc=mvo5ks6o" defer></script>
+  <script src="./Scenes/ShopScene.js?v=22.4.4385704c3485&nc=mvovyf7p" defer></script>
 
   <!-- utilities -->
 
@@ -239,29 +239,29 @@
        antes y sigue sin existir. El archivo se queda en el repositorio por si
        algún día se usa; solo se dejó de cargar.
        El tamaño del lienzo lo gestiona el gestor de resize de app.js. -->
-  <script src="./phaser-rpg-perf.js?v=22.5.2ab933167846&nc=mvo5ks6o" defer></script>
-  <script src="./Phaser-camera.js?v=22.5.85fe422bf494&nc=mvo5ks6o" defer></script>
-  <script src="./LoadingSystem.js?v=22.5.fc3dd5e31c14&nc=mvo5ks6o" defer></script>
+  <script src="./phaser-rpg-perf.js?v=22.5.2ab933167846&nc=mvovyf7p" defer></script>
+  <script src="./Phaser-camera.js?v=22.5.85fe422bf494&nc=mvovyf7p" defer></script>
+  <script src="./LoadingSystem.js?v=22.5.fc3dd5e31c14&nc=mvovyf7p" defer></script>
 
   <!-- blockchain / transaction -->
-  <script src="./BlockchainManager.js?v=audit20261016.d02f83458d19&nc=mvo5ks6o" defer></script>
-  <script src="./TransactionHub.js?v=22.5.1eb4c8a9f5c6&nc=mvo5ks6o" defer></script>
-  <script src="./SystemaTransaccion.js?v=22.5.dcd4dee7f522&nc=mvo5ks6o" defer></script>
-  <script src="./CraftingHub.js?v=audit20261016.b3910d3aaee5&nc=mvo5ks6o" defer></script>
-  <script src="./tienda_sistema.js?v=22.5.e02aa7e1847c&nc=mvo5ks6o" defer></script>
-  <script src="./phaser-relay-library.js?v=22.5.e35073fb2732&nc=mvo5ks6o" defer></script>
-  <script src="./gf-session-api.js?v=22.4.12349825508f&nc=mvo5ks6o" defer></script>
-  <script src="./hub.js?v=22.5.aace3a86dd0a&nc=mvo5ks6o" defer></script>
+  <script src="./BlockchainManager.js?v=audit20261016.d02f83458d19&nc=mvovyf7p" defer></script>
+  <script src="./TransactionHub.js?v=22.5.1eb4c8a9f5c6&nc=mvovyf7p" defer></script>
+  <script src="./SystemaTransaccion.js?v=22.5.dcd4dee7f522&nc=mvovyf7p" defer></script>
+  <script src="./CraftingHub.js?v=audit20261016.b3910d3aaee5&nc=mvovyf7p" defer></script>
+  <script src="./tienda_sistema.js?v=22.5.e02aa7e1847c&nc=mvovyf7p" defer></script>
+  <script src="./phaser-relay-library.js?v=22.5.e35073fb2732&nc=mvovyf7p" defer></script>
+  <script src="./gf-session-api.js?v=22.4.12349825508f&nc=mvovyf7p" defer></script>
+  <script src="./hub.js?v=22.5.aace3a86dd0a&nc=mvovyf7p" defer></script>
 
 
-  <script src="./register-scenes.js?v=22.5.4a66c40ab27f&nc=mvo5ks6o" defer></script>
+  <script src="./register-scenes.js?v=22.5.4a66c40ab27f&nc=mvovyf7p" defer></script>
 
-  <script src="./memory-fix.js?v=22.5.fee9136a55a9&nc=mvo5ks6o" defer></script>
+  <script src="./memory-fix.js?v=22.5.fee9136a55a9&nc=mvovyf7p" defer></script>
   <!-- CraftingHub.js ya se carga arriba como script clásico; la segunda carga
        como type="module" ejecutaba el archivo completo dos veces (doble parse
        y doble descarga). Eliminada. -->
 
-  <script src="./NotificationHub.js?v=22.5.1f744425ec12&nc=mvo5ks6o" defer></script>
+  <script src="./NotificationHub.js?v=22.5.1f744425ec12&nc=mvovyf7p" defer></script>
 
   <!-- tileManager: if it uses import/export, keep module -->
   <script type="module" src="lib/tileManager.js?v=22.5.02e7e78c3861" defer></script>
@@ -271,30 +271,30 @@
 
   <!-- Contador global de transacciones on-chain en vuelo. Debe cargarse ANTES
        que las escenas para que ninguna transacción se quede sin registrar. -->
-  <script src="./tx-gate.js?v=22.5.6d14fc1716c7&nc=mvo5ks6o" defer></script>
+  <script src="./tx-gate.js?v=22.5.6d14fc1716c7&nc=mvovyf7p" defer></script>
 
   <!-- GF Wallet SDK — wallet embebida para quien entró con Google/Facebook/Apple.
        Va después de ethers (lo necesita para firmar) y su arranque solo instala
        window.ethereum si NO hay MetaMask: con extensión instalada, manda ella. -->
-  <script src="./gf-wallet-sdk/gf-wallet.js?v=22.5.e95770c6377b&nc=mvo5ks6o" defer></script>
-  <script src="./vendor/gf-metamask-connect.js?v=22.5.3f29aa6dea44&nc=mvo5ks6o" defer></script>
-  <script src="./gf-wallet-boot.js?v=22.5.3e44e0fa00c6&nc=mvo5ks6o" defer></script>
+  <script src="./gf-wallet-sdk/gf-wallet.js?v=22.5.e95770c6377b&nc=mvovyf7p" defer></script>
+  <script src="./vendor/gf-metamask-connect.js?v=22.5.3f29aa6dea44&nc=mvovyf7p" defer></script>
+  <script src="./gf-wallet-boot.js?v=22.5.3e44e0fa00c6&nc=mvovyf7p" defer></script>
   <!-- Panel de cartera del dashboard. Va aparte de las escenas porque el
        dashboard es DOM de la pagina, compartido por GameScene y tiendajuego. -->
-  <script src="./gf-wallet-dashboard.js?v=audit20261016.f6c303d71a2c&nc=mvo5ks6o" defer></script>
+  <script src="./gf-wallet-dashboard.js?v=audit20261016.f6c303d71a2c&nc=mvovyf7p" defer></script>
 
   <!-- Altura real del viewport en móvil (el juego salía en una franja arriba y
        el resto negro). Debe ir ANTES de app.js para publicar --app-height
        antes de que se cree el lienzo. No toca el zoom de la cámara. -->
-  <script src="./viewport-fix.js?v=22.4.a4e37828640e&nc=mvo5ks6o" defer></script>
+  <script src="./viewport-fix.js?v=22.4.a4e37828640e&nc=mvovyf7p" defer></script>
 
   <!-- main app bootstrap -->
-  <script src="app.js?v=22.5.987eaaff7a00&nc=mvo5ks6o" defer></script>
+  <script src="app.js?v=22.5.987eaaff7a00&nc=mvovyf7p" defer></script>
 
   <!-- Ajustes de gráficos: calidad y distancia de visión (chunks).
        Va DESPUÉS de app.js porque usa window.game y window.gfResizeGame,
        que app.js publica al crear el juego. -->
-  <script src="./gf-graphics-settings.js?v=22.5.fe0448e24cc1&nc=mvo5ks6o" defer></script>
+  <script src="./gf-graphics-settings.js?v=22.5.fe0448e24cc1&nc=mvovyf7p" defer></script>
 
   <!-- ============================
        END HEAD

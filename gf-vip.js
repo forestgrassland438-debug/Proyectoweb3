@@ -33,6 +33,12 @@
   var QUE = { drop: 'drop items for other players', market: 'use the P2P Market', lands: 'enter your island' };
   var estado = { cargado: false, activo: false, inicio: null, fin: null, facturas: [], planes: null };
   var pidiendo = null, avisadoEn = Object.create(null), propietario = '', destruido = false;
+  /* (2026-10-26) LA HORA DEL SERVIDOR. Los días que quedan y si el VIP sigue
+     activo se contaban con el reloj del PC: en la captura iba 3,5 h atrasado y
+     salían "361 days left" (son 360) y un inicio "en el futuro". `desfase` es
+     lo que va el servidor por delante del PC (llega con cada respuesta). */
+  var desfase = 0;
+  function ahora() { return Date.now() + desfase; }
   var relojes = [], modales = Object.create(null), guardas = new Set();
 
   function cuenta() { var sc = escena(); return sc ? String(sc.playerName || sc.address || '') : ''; }
@@ -77,7 +83,10 @@
   function adoptar(d) {
     if (!d) return;
     estado.cargado = true;
-    estado.activo = !!d.activo && Number(d.fin) > Date.now();
+    var srv = Number(d.ahora);
+    if (Number.isFinite(srv) && srv > 0) desfase = srv - Date.now();
+    else if (Number(d.msRestantes) > 0 && Number(d.fin) > 0) desfase = (Number(d.fin) - Number(d.msRestantes)) - Date.now();
+    estado.activo = !!d.activo && Number(d.fin) > ahora();
     estado.inicio = d.inicio || null;
     estado.fin = d.fin || null;
     if (Array.isArray(d.facturas)) estado.facturas = d.facturas;
@@ -104,17 +113,17 @@
     pidiendo = trabajo;
     return pidiendo;
   }
-  function tiene() { asegurarCuenta(); return !!(!destruido && estado.activo && Number(estado.fin) > Date.now()); }
+  function tiene() { asegurarCuenta(); return !!(!destruido && estado.activo && Number(estado.fin) > ahora()); }
 
   /** Antes de hacer algo que pide VIP. false (y avisa) si no lo tiene. */
   function exigir(scene, accion) {
     if (tiene()) return true;
     // El servidor no tiene VIP (404): tampoco lo exige; no se bloquea nada.
     if (estado.sinServicio) return true;
-    var ahora = Date.now();
+    var ya = Date.now();   // (solo el freno de avisos: vale el reloj del PC)
     if (!estado.cargado) { refrescar(); avisar(scene, 'Checking your VIP… try again in a moment.', 'info'); return false; }
-    if (ahora - (avisadoEn[accion] || 0) > 3000) {
-      avisadoEn[accion] = ahora;
+    if (ya - (avisadoEn[accion] || 0) > 3000) {
+      avisadoEn[accion] = ya;
       avisar(scene, '👑 You need VIP to ' + (QUE[accion] || 'do that') + '. Get it from Rosalind the Weaver in Farmer Joe\'s house.', 'warning');
     }
     return false;
@@ -159,7 +168,7 @@
     if (!el) return;
     var txt = el.querySelector('.hud-vip-txt'), img = el.querySelector('img');
     if (tiene()) {
-      var dias = Math.max(0, Math.ceil((estado.fin - Date.now()) / 86400000));
+      var dias = Math.max(0, Math.ceil((estado.fin - ahora()) / 86400000));
       txt.textContent = 'VIP ' + dias + 'd';
       txt.style.color = '#ffd76a';
       img.style.filter = 'drop-shadow(0 0 4px rgba(255,210,90,.8))';
@@ -204,7 +213,7 @@
   function bloqueEstado() {
     if (tiene()) {
       return '<div style="background:#3a2a10;border:1px solid #c9a24a;border-radius:12px;padding:10px 12px;margin-bottom:12px;line-height:1.6;font-size:13px;">' +
-        '<div style="font-size:15px;"><b>👑 VIP active</b> · ' + Math.ceil((estado.fin - Date.now()) / 86400000) + ' days left</div>' +
+        '<div style="font-size:15px;"><b>👑 VIP active</b> · ' + Math.max(0, Math.ceil((estado.fin - ahora()) / 86400000)) + ' days left</div>' +
         '<div>Started: <b>' + fecha(estado.inicio) + '</b></div>' +
         '<div>Expires: <b>' + fecha(estado.fin) + '</b></div></div>';
     }

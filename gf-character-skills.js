@@ -25,16 +25,32 @@
     return window.GFMascota.api(route, body);
   }
   function valid(st) { return st.scene && st.scene.__gfCharacter === st && st.name === st.scene.playerName; }
+  /* (2026-10-26) PINTA LO DEL SERVIDOR SIN DEVOLVÉRSELO. "La vida baja sola y
+     se sube sola" y "llego a 0 % y no muero": actualizarBarraX() también MANDA
+     el valor al servidor (statsSync, 1,5 s después, en absoluto). Lo que llega
+     aquí ya ES del servidor (la lectura de cada 6 s, el golpe de un monstruo,
+     la poción), así que reenviarlo solo servía para pisar con un valor viejo
+     lo que el servidor hizo entretanto: la curación de cada 5 s (−1, +1, −1…)
+     o el golpe que te dejaba en 0 (el reenvío de antes llegaba después, el
+     servidor volvía a 8 y la muerte respondía "sigue vivo"). Se pinta con el
+     reenvío cortado, igual que _refreshBarrasUI. */
   function applyStats(scene, stats) {
     if (!stats) return;
-    ['vida', 'agua', 'comida'].forEach(function (k) {
-      var value = Number(stats[k]); if (!Number.isFinite(value)) return;
-      value = Math.max(0, Math.min(100, value));
-      if (!window.playerStats) window.playerStats = {};
-      window.playerStats[k] = value; scene[k + 'Porcentaje'] = value;
-      var fn = scene['actualizarBarra' + ({vida:'Vida',agua:'Agua',comida:'Comida'})[k]];
-      if (fn) fn.call(scene, value);
-    });
+    var listo = scene._statsReady;
+    scene._statsReady = false;
+    try {
+      ['vida', 'agua', 'comida'].forEach(function (k) {
+        var value = Number(stats[k]); if (!Number.isFinite(value)) return;
+        value = Math.max(0, Math.min(100, value));
+        // Un cambio de esta barra que aún no ha salido (comer, beber) es más
+        // nuevo que esta lectura: se queda el suyo y sale como siempre.
+        if (scene.statsSync && scene.statsSync._pending && scene.statsSync._pending[k] !== undefined) return;
+        if (!window.playerStats) window.playerStats = {};
+        window.playerStats[k] = value; scene[k + 'Porcentaje'] = value;
+        var fn = scene['actualizarBarra' + ({vida:'Vida',agua:'Agua',comida:'Comida'})[k]];
+        if (fn) fn.call(scene, value);
+      });
+    } finally { scene._statsReady = listo; }
   }
   /* LO ÚLTIMO QUE SE LEYÓ, POR JUGADOR (2026-10-19). Cada escena monta su
      propio estado y antes empezaba sin nada: al abrir el panel se veía
