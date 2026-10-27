@@ -3,3 +3,22 @@
 .activity-item>div{min-width:0;flex:1;overflow-wrap:anywhere}.collection-info h3{overflow-wrap:anywhere}.heading-actions{display:flex;gap:10px;flex-wrap:wrap}.metric{min-width:0}.metric-label,.metric-caption{overflow-wrap:anywhere}.toolbar>*,.section-title>*{min-width:0}.receipt-preview{font:12px var(--mono);color:var(--accent);padding:14px 0;overflow-wrap:anywhere}
 @media(max-width:530px){.activity-item{flex-wrap:wrap}.activity-item time{margin-left:40px}.heading-actions{width:100%}.heading-actions .button{flex:1}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+/* (2026-10-26) Público/privado, perfil y portada, zona de peligro y propietarios. */
+.collection-art{position:relative}
+.collection-avatar{position:absolute;left:14px;bottom:-22px;width:54px!important;height:54px!important;border-radius:50%;object-fit:cover;border:3px solid var(--panel);box-shadow:0 4px 14px rgba(0,0,0,.45);z-index:2}
+.badge.visibility{position:absolute;top:12px;right:12px;left:auto;z-index:2}
+.badge.visibility.public{background:rgba(199,229,155,.16);color:var(--accent);border-color:rgba(199,229,155,.45)}
+.badge.visibility.private{background:rgba(147,163,151,.14);color:var(--muted);border-color:rgba(147,163,151,.35)}
+.image-pickers{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:14px}
+.image-picker{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--line);border-radius:var(--radius);background:#121a16}
+.picker-label{font-size:12px;color:#b9c8ba;font-weight:600}
+.picker-preview{width:100%;max-height:120px;object-fit:cover;border-radius:9px;border:1px solid var(--line)}
+.picker-preview.avatar{width:84px;height:84px;border-radius:50%}
+.picker-empty{font-size:12px;color:var(--muted);padding:18px 0;text-align:center;border:1px dashed var(--line);border-radius:9px}
+.danger-zone{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-top:18px;padding:14px;border:1px solid rgba(237,156,139,.45);border-radius:var(--radius);background:rgba(237,156,139,.06)}
+.danger-zone b{color:var(--danger)}
+.button.danger{color:#2a110c;background:var(--danger);border-color:var(--danger)}
+.button.danger:hover{filter:brightness(1.08)}
+.owner-thumb{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--line);image-rendering:pixelated;display:block}
+#view-owners .metrics{margin-bottom:18px}

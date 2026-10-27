@@ -19,7 +19,9 @@
    cabe en oro entero. Es la MISMA cuenta que `tesoroComisionTienda` de
    server2.js, que la vuelve a hacer con su tabla de precios (no se fía de la
    del navegador); tools/tesoro.test.cjs comprueba que las dos coinciden. */
-const GF_COMISION_TESORO_BPS = 150;
+// (2026-10-26) 5 %: el 1,5 % al tesoro de la economía circular y el 3,5 % al tesoro del juego
+// (el servidor lo reparte en POST /api/tesoro/comision).
+const GF_COMISION_TESORO_BPS = 500;
 function gfComisionTesoroBronce(precioUnidad, moneda, cantidad) {
     const bruto = (Number(precioUnidad) || 0) * (moneda === 'silver' ? 1000 : 1000000) * (Math.floor(Number(cantidad)) || 0);
     return bruto > 0 ? Math.max(1, Math.round(bruto * GF_COMISION_TESORO_BPS / 10000)) : 0;
@@ -1685,7 +1687,7 @@ class TiendaSistema {
         document.getElementById('pc-item-disponible').textContent = 
             this.transactionType === 'compra' ? `${disponible} available` : `${disponible} in inventory`;
         // (2026-10-22) La comisión es la del tesoro: el 1,5 %, al comprar y al vender (en bronce).
-        document.getElementById('pc-item-comision').textContent = this._conComision() ? '1.5% (BR)' : '0%';
+        document.getElementById('pc-item-comision').textContent = this._conComision() ? '5% (BR)' : '0%';
         
         const maxQuantity = this.getMaxQuantity();
         document.getElementById('pc-max-value').textContent = maxQuantity;
@@ -2209,7 +2211,7 @@ class TiendaSistema {
         document.getElementById('mobile-item-disponible').textContent = 
             this.transactionType === 'compra' ? `${disponible} available` : `${disponible} in inventory`;
         // (2026-10-22) La comisión es la del tesoro: el 1,5 %, al comprar y al vender (en bronce).
-        document.getElementById('mobile-item-comision').textContent = this._conComision() ? '1.5% (BR)' : '0%';
+        document.getElementById('mobile-item-comision').textContent = this._conComision() ? '5% (BR)' : '0%';
         
         const actionText = document.getElementById('mobile-action-text');
         actionText && (actionText.textContent = this.transactionType === 'compra' ? 'Buy' : 'Sell');
@@ -2926,7 +2928,7 @@ class TiendaSistema {
         const fee = this._comisionBronce(item, quantity, operacion);
         if (!(fee > 0)) return '';
         return ` <small class="gf-comision-tesoro" style="display:block;opacity:.85;font-size:11px;margin-top:2px">` +
-               `${operacion === 'compra' ? '+' : '−'} 1.5% treasury fee: ${this.formatCurrencyAmount(fee.toLocaleString('en-US'), 'bronze')}</small>`;
+               `${operacion === 'compra' ? '+' : '−'} 5% treasury fee: ${this.formatCurrencyAmount(fee.toLocaleString('en-US'), 'bronze')}</small>`;
     }
 
     /** Avisa al tesoro de una comisión cobrada. El servidor la recalcula y solo la cuenta una vez (`ref`). */
@@ -3059,7 +3061,7 @@ class TiendaSistema {
         const fee = servidorNuevo ? this._comisionBronce(item, quantity, 'compra') : 0;
         const saldosConComision = fee > 0 ? this._planComision(fee, this._saldosTrasPrecio(item, quantity, currency)) : null;
         if (fee > 0 && !saldosConComision) {
-            throw new Error(`Not enough coins for the 1.5% treasury fee (${fee.toLocaleString('en-US')} Bronze)`);
+            throw new Error(`Not enough coins for the 5% treasury fee (${fee.toLocaleString('en-US')} Bronze)`);
         }
 
         const purchasedToday = this.dailyLimits[item.id] || 0;

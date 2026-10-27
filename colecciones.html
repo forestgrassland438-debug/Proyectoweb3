@@ -7,12 +7,12 @@
   <meta name="referrer" content="same-origin">
   <title>Colecciones · Grassland Forest</title>
   <link rel="icon" href="./favicon.png">
-  <link rel="stylesheet" href="./colecciones.css">
+  <link rel="stylesheet" href="./colecciones.css?v=20261026">
   <script defer src="./vendor/ethers.umd.min.js"></script>
-  <script defer src="./colecciones.js"></script>
+  <script defer src="./colecciones.js?v=20261026"></script>
 <link rel="stylesheet" href="./admin-suite.css?v=20261020">
 <script src="./admin-session.js?v=20261020"></script>
-<script src="./admin-suite-i18n.js?v=20261026"></script>
+<script src="./admin-suite-i18n.js?v=20261026c"></script>
 <script defer src="./admin-suite.js?v=20261025"></script>
 </head>
 <body>
@@ -39,6 +39,7 @@
         <button data-view="overview" class="nav-button active"><span>◫</span>Vista general</button>
         <button data-view="collections" class="nav-button"><span>▦</span>Colecciones <b id="nav-count">0</b></button>
         <button data-view="tokens" class="nav-button"><span>◇</span>Biblioteca NFT</button>
+        <button data-view="owners" class="nav-button"><span>◎</span>Propietarios</button>
         <button data-view="send" class="nav-button"><span>↗</span>Sendmulticuentas</button>
         <div class="nav-divider"></div>
         <button data-view="activity" class="nav-button"><span>⇄</span>Movimientos</button>
@@ -72,8 +73,16 @@
         <section id="view-tokens" class="view" hidden>
           <div class="page-heading"><div><div class="eyebrow">CATÁLOGO</div><h1>Biblioteca NFT</h1><p>Una identidad para cada imagen. Un historial para cada pieza.</p></div><button id="upload-open" class="button primary">+ Agregar imágenes</button></div>
           <div class="toolbar"><label>Colección<select id="token-collection"></select></label><label class="search-label">⌕<input id="token-search" type="search" placeholder="Nombre, #ID o dirección…" aria-label="Buscar NFT"></label><label>Estado<select id="token-filter"><option value="all">Todos</option><option value="draft">Borradores</option><option value="active">Activos</option><option value="suspended">Suspendidos</option><option value="blocked">Bloqueados</option><option value="deleted">Papelera</option></select></label><label>Orden<select id="token-sort"><option value="new">Más recientes</option><option value="old">ID ascendente</option><option value="name">Nombre</option></select></label></div>
-          <div class="selection-bar"><label class="check-label"><input id="select-all" type="checkbox">Seleccionar resultados</label><span id="selected-count">0 seleccionados</span><button class="button" id="queue-selected">Preparar envíos ↗</button><button class="button" id="bulk-status">Cambiar estado</button><button class="button" id="bulk-royalty">Asignar royalties</button></div>
+          <div class="selection-bar"><label class="check-label"><input id="select-all" type="checkbox">Seleccionar resultados</label><span id="selected-count">0 seleccionados</span><button class="button" id="queue-selected">Preparar envíos ↗</button><button class="button" id="bulk-status">Cambiar estado</button><button class="button" id="bulk-royalty">Asignar royalties</button><button class="button" id="bulk-images">Cambiar imágenes por #</button></div>
           <div id="token-list" class="token-grid"></div><p id="token-total" class="small"></p>
+        </section>
+
+        <!-- (2026-10-26) Quién tiene cada pieza: su nombre en el juego, su cartera, el #ID y la imagen. -->
+        <section id="view-owners" class="view" hidden>
+          <div class="page-heading"><div><div class="eyebrow">TENENCIA</div><h1>Propietarios</h1><p>Cada pieza de una colección, con el nombre en el juego y la cartera de quien la tiene.</p></div></div>
+          <div class="toolbar"><label>Colección<select id="owners-collection"></select></label><label class="search-label">⌕<input id="owners-search" type="search" placeholder="Nombre, usuario, cartera o #ID…" aria-label="Buscar propietario"></label></div>
+          <div id="owners-summary" class="metrics"></div>
+          <div class="panel table-scroll"><table><thead><tr><th>Imagen</th><th>#ID</th><th>Pieza</th><th>Nombre en el juego</th><th>Usuario</th><th>Cartera</th><th>Factura</th><th>Estado</th></tr></thead><tbody id="owners-list"></tbody></table></div>
         </section>
 
         <section id="view-send" class="view" hidden>

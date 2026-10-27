@@ -372,6 +372,48 @@
         return { ok: true, devuelto: pMM, stats: estado.stats };
       }
     }
+    // (2026-10-26) La economía (/api/economia/estado) y la compra de oro con zkLTC
+    // (/api/currency/oro/*), como server2.js. ?economia=0 = servidor viejo (404).
+    if (ruta === '/api/economia/estado' || /^\/api\/currency\/oro\//.test(ruta)) {
+      if (/[?&]economia=0/.test(location.search)) return { __status: 404, error: 'not_found' };
+      if (!estado.economia) {
+        var serieE = [], masa0 = 9e9;
+        for (var iE = 29; iE >= 0; iE--) {
+          var infE = Math.sin(iE / 4) * 0.012 + (iE < 6 ? 0.018 : 0.004);
+          masa0 = masa0 * (1 + infE);
+          serieE.push({ dia: new Date(Date.now() - iE * 86400000).toISOString().slice(0, 10), precio: 0.001 * (1 + (29 - iE) * 0.004),
+                        inflacion1: iE === 29 ? null : infE, oro: Math.round(4000 + (29 - iE) * 35), plata: Math.round(2.1e6 * (1 + (29 - iE) * 0.006)),
+                        bronce: Math.round(6.5e8 * (1 + (29 - iE) * 0.011)), masa: Math.round(masa0), jugadores: 120 + (29 - iE) });
+        }
+        estado.economia = { serie: serieE, compras: {}, comprado: 0 };
+      }
+      var E = estado.economia, ultE = E.serie[E.serie.length - 1];
+      var pub = { ok: true, dia: ultE.dia, moneda: 'zkLTC', chainId: 4441, precioOro: { zkltc: ultE.precio, gwei: Math.round(ultE.precio * 1e9), base: 0.001 },
+                  salud: 'caliente', inflacion1: ultE.inflacion1, inflacion7: 0.11,
+                  masa: { oro: ultE.oro, plata: ultE.plata, bronce: ultE.bronce, total: ultE.masa, jugadores: ultE.jugadores },
+                  tope: 163, compra: { activa: true, destino: '0x' + 'c'.repeat(40), minimo: 1 },
+                  comisiones: { mercadoBps: 500, circularBps: 150, juegoBps: 350, cambioBps: { oro: 100, plata: 200, bronce: 300 } },
+                  tesoros: { circular: 1834560, juego: 4275000 }, serie: E.serie };
+      if (ruta === '/api/economia/estado') return pub;
+      if (ruta === '/api/currency/oro/estado') return { ok: true, comprado: E.comprado, tope: 163, quedan: 163 - E.comprado, precioOro: pub.precioOro, compra: pub.compra, pendientes: [] };
+      if (ruta === '/api/currency/oro/cotizar' && metodo === 'POST') {
+        b = cuerpo(init);
+        var oroQ = Math.floor(Number(b.oro) || 0);
+        if (!(oroQ >= 1)) return { __status: 400, error: 'cantidad_invalida', minimo: 1 };
+        if (E.comprado + oroQ > 163) return { __status: 429, error: 'tope_diario', tope: 163, comprado: E.comprado, quedan: 163 - E.comprado };
+        var idQ = Math.random().toString(16).slice(2, 14).padEnd(24, '0');
+        E.compras[idQ] = oroQ;
+        return { ok: true, id: idQ, oro: oroQ, wei: String(BigInt(Math.round(ultE.precio * 1e9)) * 1000000000n * BigInt(oroQ)), zkltc: ultE.precio * oroQ,
+                 precioOro: ultE.precio, destino: pub.compra.destino, chainId: 4441, caduca: new Date(Date.now() + 900000).toISOString() };
+      }
+      if (ruta === '/api/currency/oro/confirmar' && metodo === 'POST') {
+        b = cuerpo(init);
+        var oroC = E.compras[b.id];
+        if (!oroC) return { __status: 404, error: 'cotizacion_no_encontrada' };
+        delete E.compras[b.id]; E.comprado += oroC; estado.stats.oro += oroC;
+        return { ok: true, oro: oroC, pagado: ultE.precio * oroC, tarde: false, stats: estado.stats };
+      }
+    }
     if (ruta === '/api/currency/weekly') {
       estado.semanal = estado.semanal || {};
       var g = {};
@@ -390,11 +432,15 @@
     if (ruta === '/api/currency/exchange' && metodo === 'POST') {
       b = cuerpo(init);
       var q = Math.floor(Number(b.amount) || 0);
-      if (b.direction === 'silverToBronze') { if (estado.stats.plata < q) return { error: 'insufficient_silver' }; estado.stats.plata -= q; estado.stats.bronce += q * 1000; }
-      else if (b.direction === 'bronzeToSilver') { if (estado.stats.bronce < q * 1000) return { error: 'insufficient_bronze' }; estado.stats.bronce -= q * 1000; estado.stats.plata += q; }
-      else if (b.direction === 'silverToGold') { if (estado.stats.plata < q * 1000) return { error: 'insufficient_silver' }; estado.stats.plata -= q * 1000; estado.stats.oro += q; }
-      else { if (estado.stats.oro < q) return { error: 'insufficient_gold' }; estado.stats.oro -= q; estado.stats.plata += q * 1000; }
-      return { ok: true, stats: estado.stats };
+      // (2026-10-26) La comisión, como gfComisionCambio: 1 % al dar oro, 2 % plata, 3 % bronce,
+      // cobrada en la moneda pequeña del par.
+      var bpsX = { goldToSilver: 100, silverToGold: 200, silverToBronze: 200, bronzeToSilver: 300 }[b.direction] || 0;
+      var feeX = q ? Math.max(1, Math.ceil(q * 1000 * bpsX / 10000)) : 0;
+      if (b.direction === 'silverToBronze') { if (estado.stats.plata < q) return { error: 'insufficient_silver' }; estado.stats.plata -= q; estado.stats.bronce += q * 1000 - feeX; }
+      else if (b.direction === 'bronzeToSilver') { if (estado.stats.bronce < q * 1000 + feeX) return { error: 'insufficient_bronze' }; estado.stats.bronce -= q * 1000 + feeX; estado.stats.plata += q; }
+      else if (b.direction === 'silverToGold') { if (estado.stats.plata < q * 1000 + feeX) return { error: 'insufficient_silver' }; estado.stats.plata -= q * 1000 + feeX; estado.stats.oro += q; }
+      else { if (estado.stats.oro < q) return { error: 'insufficient_gold' }; estado.stats.oro -= q; estado.stats.plata += q * 1000 - feeX; }
+      return { ok: true, stats: estado.stats, fee: { moneda: /Bronze|bronze/.test(b.direction) ? 'bronce' : 'plata', cantidad: feeX, bps: bpsX } };
     }
     // El botín de los monstruos (ver /api/monstruos/* en server2.js).
     if (ruta === '/api/monstruos/derrotado' && metodo === 'POST') {
@@ -808,7 +854,14 @@
       return { ok: true, configurada: true, address: DIRECCION, total: 4, truncado: false,
                coleccion: { nombre: 'Forest Spirits', contrato: '0x9999999999999999999999999999999999999999', chainId: 4441 },
                tokens: [nft(7, 'Moss Spirit', '#3f8f5a'), nft(12, 'Ember Fox', '#c0582a'),
-                        nft(31, 'Night Owl', '#3a3f8f'), { id: '44', uri: 'https://example.invalid/44.json' }] };
+                        nft(31, 'Night Owl', '#3a3f8f'), { id: '44', uri: 'https://example.invalid/44.json' }],
+               // (2026-10-26) Las colecciones PÚBLICAS del estudio, con las piezas de esta cartera.
+               colecciones: [
+                 { id: 'col-guardianes', nombre: 'Guardians of the Grove', simbolo: 'GRV', descripcion: '', avatarUrl: '/api/collections/images/avatar1', portadaUrl: '',
+                   total: 2, tokens: [{ id: 't1', numero: 3, nombre: 'Oak Guardian', imagenUrl: '/api/collections/images/img3' },
+                                      { id: 't2', numero: 8, nombre: '', imagenUrl: '/api/collections/images/img8' }] },
+                 { id: 'col-reliquias', nombre: 'Ancient Relics', simbolo: 'REL', descripcion: '', avatarUrl: '', portadaUrl: '', total: 0, tokens: [] }
+               ] };
     }
     if (/^\/api\/graphics\//.test(ruta)) return { ok: true, calidad: 'alta', chunks: 12 };
     if (ruta === '/api/wallet/config') return { providers: {} };

@@ -156,6 +156,95 @@
 
   function corto(a) { a = String(a || ''); return a.length > 12 ? a.slice(0, 6) + '…' + a.slice(-4) : a; }
 
+  /* ═══ LAS COLECCIONES DEL ESTUDIO                              (2026-10-26)
+     "El juego no lee automáticamente la colección que creé, y en el panel no
+     sale ni la imagen del NFT ni el nombre de la colección."
+     El servidor manda en `colecciones` las PÚBLICAS de colecciones.html, cada
+     una con las piezas de esta cartera. Sus imágenes las sirve el propio
+     backend (/api/collections/images/<id>): solo se aceptan esas rutas, en el
+     origen del servidor del juego. */
+  function imagenDelEstudio(base, ruta) {
+    var r = String(ruta || '');
+    if (!/^\/api\/collections\/images\/[A-Za-z0-9_-]{1,80}$/.test(r)) return '';
+    return String(base || '').replace(/\/$/, '') + r;
+  }
+
+  function estiloColecciones() {
+    if ($('gf-nft-col-estilo')) return;
+    var s = doc.createElement('style');
+    s.id = 'gf-nft-col-estilo';
+    s.textContent =
+      '.nft-col{grid-column:1/-1;border:1.5px solid rgba(64,160,255,.22);border-radius:12px;overflow:hidden;background:rgba(0,16,40,.45);margin-bottom:6px}' +
+      '.nft-col-portada{height:64px;background:linear-gradient(135deg,rgba(40,90,160,.55),rgba(20,40,80,.8));background-size:cover;background-position:center}' +
+      '.nft-col-cab{display:flex;align-items:center;gap:10px;padding:0 10px 8px;margin-top:-22px}' +
+      '.nft-col-avatar{width:46px;height:46px;border-radius:50%;flex:0 0 auto;border:2px solid rgba(126,200,255,.7);background:rgba(0,20,50,.9);overflow:hidden;display:flex;align-items:center;justify-content:center;color:#d8ecff;font-weight:800;font-size:15px}' +
+      '.nft-col-avatar img{width:100%;height:100%;object-fit:cover;image-rendering:pixelated}' +
+      '.nft-col-txt{min-width:0;padding-top:20px}' +
+      '.nft-col-nombre{font-size:13px;font-weight:800;color:#e8f4ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+      '.nft-col-sub{font-size:10px;color:rgba(126,200,255,.7)}' +
+      '.nft-col .nft-grid{padding:0 10px 10px}' +
+      '.nft-col-externa{grid-column:1/-1;font-size:11px;font-weight:700;color:#bfe0ff;margin:6px 2px 0}';
+    doc.head.appendChild(s);
+  }
+
+  function seccionColeccion(base, c) {
+    estiloColecciones();
+    var sec = doc.createElement('section');
+    sec.className = 'nft-col';
+    var portada = doc.createElement('div');
+    portada.className = 'nft-col-portada';
+    var urlPortada = imagenDelEstudio(base, c.portadaUrl);
+    if (urlPortada) portada.style.backgroundImage = 'url("' + urlPortada.replace(/"/g, '%22') + '")';
+    sec.appendChild(portada);
+    var cab = doc.createElement('div');
+    cab.className = 'nft-col-cab';
+    var av = doc.createElement('div');
+    av.className = 'nft-col-avatar';
+    var urlAvatar = imagenDelEstudio(base, c.avatarUrl);
+    if (urlAvatar) {
+      var ia = doc.createElement('img');
+      ia.alt = ''; ia.decoding = 'async'; ia.referrerPolicy = 'no-referrer'; ia.src = urlAvatar;
+      av.appendChild(ia);
+    } else {
+      av.textContent = String(c.simbolo || c.nombre || 'NFT').slice(0, 2).toUpperCase();
+    }
+    var txt = doc.createElement('div');
+    txt.className = 'nft-col-txt';
+    var nom = doc.createElement('div');
+    nom.className = 'nft-col-nombre';
+    nom.textContent = String(c.nombre || 'Collection');
+    var sub = doc.createElement('div');
+    sub.className = 'nft-col-sub';
+    var n = Array.isArray(c.tokens) ? c.tokens.length : 0;
+    sub.textContent = n ? 'You own ' + n + ' NFT' + (n === 1 ? '' : 's') + ' of this collection' : 'You don’t own any NFT of this collection yet';
+    txt.appendChild(nom); txt.appendChild(sub);
+    cab.appendChild(av); cab.appendChild(txt);
+    sec.appendChild(cab);
+    if (n) {
+      var rejilla = doc.createElement('div');
+      rejilla.className = 'nft-grid';
+      c.tokens.slice(0, 500).forEach(function (t) {
+        var tarjetaT = tarjeta({ id: t.numero });
+        var p = tarjetaT.__partes;
+        var nombre = String(t.nombre || (c.nombre + ' #' + t.numero)).slice(0, 80);
+        p.nombre.textContent = nombre;
+        tarjetaT.title = nombre + ' · ' + (c.nombre || '') + ' (#' + t.numero + ')';
+        var url = imagenDelEstudio(base, t.imagenUrl);
+        if (url) {
+          p.img.onerror = function () { p.marco.classList.add('nft-sin-imagen'); tarjetaT.classList.remove('nft-card--cargando'); };
+          p.img.onload = function () { tarjetaT.classList.remove('nft-card--cargando'); };
+          p.img.src = url;
+        } else {
+          p.marco.classList.add('nft-sin-imagen');
+          tarjetaT.classList.remove('nft-card--cargando');
+        }
+        rejilla.appendChild(tarjetaT);
+      });
+      sec.appendChild(rejilla);
+    }
+    return sec;
+  }
+
   function estado(texto, clase) {
     var lista = $('nft-list');
     if (!lista) return;
@@ -215,15 +304,39 @@
       .then(function (d) {
         if (run !== revision) return false;
         var col = d.coleccion || {};
-        if (cab) cab.textContent = col.nombre || '—';
+        // (2026-10-26) Las colecciones públicas del estudio, delante de la externa.
+        var registro = Array.isArray(d.colecciones) ? d.colecciones.slice(0, 30) : [];
+        var propias = registro.reduce(function (n, c) { return n + (Array.isArray(c.tokens) ? c.tokens.length : 0); }, 0);
+        if (cab) cab.textContent = d.configurada ? (col.nombre || '—') : (registro.length ? 'Collections' : '—');
         if (dir) dir.textContent = d.address ? corto(d.address) : '';
-        if (!d.configurada) { estado('No NFT collection has been set up yet.'); return true; }
-        var tokens = Array.isArray(d.tokens) ? d.tokens.slice(0, 500) : [];
-        if (!tokens.length) { estado('You don’t own any “' + (col.nombre || 'collection') + '” NFT in this wallet yet.'); return true; }
+        if (!d.configurada && !registro.length) { estado('No NFT collection has been set up yet.'); return true; }
+        var tokens = d.configurada && Array.isArray(d.tokens) ? d.tokens.slice(0, 500) : [];
 
         lista.textContent = '';
         var cuenta = $('nft-count');
-        if (cuenta) cuenta.textContent = String(d.total || tokens.length);
+        if (cuenta) cuenta.textContent = String((d.configurada ? (d.total || tokens.length) : 0) + propias);
+        registro.forEach(function (c) { lista.appendChild(seccionColeccion(esc.serverBase, c)); });
+        if (!d.configurada) return true;
+        if (registro.length) {
+          var titulo = doc.createElement('div');
+          titulo.className = 'nft-col-externa';
+          titulo.textContent = col.nombre || 'Collection';
+          lista.appendChild(titulo);
+        }
+        if (d.errorCadena) {
+          var aviso = doc.createElement('div');
+          aviso.className = 'nft-empty-state nft-error';
+          aviso.textContent = 'Could not read “' + (col.nombre || 'collection') + '” on-chain right now.';
+          lista.appendChild(aviso);
+          return true;
+        }
+        if (!tokens.length) {
+          var nada = doc.createElement('div');
+          nada.className = 'nft-empty-state';
+          nada.textContent = 'You don’t own any “' + (col.nombre || 'collection') + '” NFT in this wallet yet.';
+          lista.appendChild(nada);
+          return true;
+        }
         var tarjetas = tokens.map(function (t) {
           var c = tarjeta(t);
           lista.appendChild(c);

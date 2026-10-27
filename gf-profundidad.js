@@ -990,8 +990,72 @@
     return !!nom && SIN_ALAS.test(nom);
   }
 
+  /* ══════════════════════════════════════════════════════════════════════
+     LOS ÁRBOLES: LA LÍNEA A MITAD DE SU TRONCO                  (2026-10-26)
+     ──────────────────────────────────────────────────────────────────────
+     "Si me pongo detrás de cualquier árbol y aprieto siempre hacia abajo, el
+     personaje sale delante del árbol."
+
+     La sonda pone la línea en el borde de ABAJO del choque. Para una casa vale
+     (la fachada es gruesa). Un árbol tiene un choque fino —el del arbusto
+     redondo mide 16 px— y los pies del personaje (su profundidad) quedan por
+     DEBAJO de su caja de choque: 11 px en el pueblo. Parado detrás, apretando
+     contra el tronco, su profundidad quedaba a 3 px de la del árbol; el paso
+     de un fotograma lo daba la vuelta y salía delante.
+
+     Ahora la línea de un árbol se pone justo a mitad entre las dos maneras de
+     estar pegado a su tronco: parado DETRÁS (la caja de los pies tocando el
+     borde de arriba del choque) y parado DELANTE (tocando el de abajo). Con la
+     geometría de los pies de la propia escena. Queda un margen de unos 15 px
+     a cada lado, que no lo da la vuelta ni un tirón. */
+  function troncoDe(scene, spr, caja) {
+    if (typeof scene._chocaConEscenario !== 'function' || !scene._idxColision) return null;
+    var m = null;
+    try { m = medir(scene, spr.texture.key); } catch (e) { return null; }
+    if (!m || !m.leida || !m.ancho) return null;
+    var f = m.pieX / m.ancho;
+    if (spr.flipX) f = 1 - f;
+    var x = caja.x + f * caja.ancho;
+    var fondo = caja.abajo - sobranteAbajo(scene, spr);
+    // De abajo arriba por la columna del tronco: el primer tramo sólido.
+    var y, abajo = null, arriba = null;
+    for (y = fondo + 14; y >= fondo - Math.min(caja.alto * 0.6, 120); y--) {
+      var hay = scene._chocaConEscenario(x - 3, y, 6, 1);
+      if (hay && abajo === null) abajo = y + 1;
+      if (!hay && abajo !== null) { arriba = y + 1; break; }
+    }
+    if (abajo === null || arriba === null) return null;
+    // Un tramo larguísimo no es un tronco, es una zona (un vallado, un huerto).
+    if (abajo - arriba > 60) return null;
+    return { arriba: arriba, abajo: abajo };
+  }
+
+  /** La caja de los pies del personaje de esta escena: { arriba, alto, prof } respecto a su Y. */
+  function geometriaPies(scene) {
+    var key = scene.sys && scene.sys.settings ? scene.sys.settings.key : '';
+    var alto = scene._altoCajaPies || (key === 'GameScene' ? 15 : 26);
+    var prof = 51;
+    try { if (scene.player) prof = piesDe(scene, scene.player) - scene.player.y; } catch (e) {}
+    if (!isFinite(prof) || prof <= 0) prof = 51;
+    return { arriba: 25, alto: alto, prof: prof };
+  }
+
+  function lineaDeArbol(scene, spr) {
+    var t = troncoDe(scene, spr, cajaMundo(spr));
+    if (!t) return null;
+    var g = geometriaPies(scene);
+    var detras = t.arriba - g.arriba - g.alto + g.prof;   // pegado por arriba
+    var delante = t.abajo - g.arriba + g.prof;             // pegado por abajo
+    return (detras + delante) / 2;
+  }
+
   function calibrar(scene, spr, colisiones) {
     var r = lineaDeSuelo(scene, spr, colisiones);
+    if (esVegetacion(spr)) {
+      var lt = null;
+      try { lt = lineaDeArbol(scene, spr); } catch (e) {}
+      if (lt !== null && isFinite(lt)) { r.y = lt; r.fuente = 'tronco'; }
+    }
     spr.setDepth(r.y);
     spr.__gfProf = r.fuente;
     spr.setData && spr.setData('lineaSuelo', r.y);
@@ -1031,7 +1095,7 @@
       scene: scene,
       pendientes: candidatos(scene),
       hechos: 0,
-      porFuente: { sonda: 0, pared: 0, pixeles: 0, sprite: 0, franjas: 0 },
+      porFuente: { sonda: 0, pared: 0, pixeles: 0, sprite: 0, franjas: 0, tronco: 0 },
       partidos: [],
       porFrame: opciones.porFrame || POR_FRAME
     };
@@ -1197,6 +1261,7 @@
                 sondearSuelo: sondearSuelo, SONDA_PCT: SONDA_PCT,
                 SONDA_PASO_X: SONDA_PASO_X, SONDA_DESDE: SONDA_DESDE,
                 calibrar: calibrar, SOLAPE_MIN: SOLAPE_MIN,
+                troncoDe: troncoDe, lineaDeArbol: lineaDeArbol, geometriaPies: geometriaPies,
                 DESBORDE_MAX: DESBORDE_MAX, ALFA_MIN: ALFA_MIN,
                 limpiarCache: function () { cacheMedidas = {}; } }
   };

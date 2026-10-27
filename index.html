@@ -35,7 +35,7 @@
                  object-src 'none';
                  script-src 'self';
                  connect-src 'self' https: http://127.0.0.1:8080 http://localhost:8080 http://127.0.0.1:3001 ws://127.0.0.1:8080 ws://127.0.0.1:3001 ws: wss:;
-                 img-src 'self' data: blob:;
+                 img-src 'self' data: blob: https: http://127.0.0.1:8080 http://localhost:8080;
                  style-src 'self' 'unsafe-inline';
                  font-src 'self' data:;
                  media-src 'self' blob:;
@@ -86,7 +86,7 @@
        cargar cada textura; los PNG no se tocan. -->
   <script src="./gf-relieve.js?v=22.5.770a46e6b095" defer></script>
   <!-- "My NFTs" del panel NFT: la colección que se elige en admin.html. -->
-  <script src="./gf-nft.js?v=22.5.b846103481f9" defer></script>
+  <script src="./gf-nft.js?v=22.5.67f2c6bd03ca" defer></script>
   <script src="./gf-niveles-mapas.js?v=22.5.53193a023d39" defer></script>
   <script src="./gf-lands.js?v=22.5.118ac060b63f" defer></script>
 
@@ -94,7 +94,9 @@
        el socket, UNA sola vez por pestaña; este módulo solo lo recuerda y
        pinta el panel del dashboard. -->
   <script src="./gf-canales.js?v=22.5.525534d76810" defer></script>
-  <script src="./gf-profundidad.js?v=22.4.ac6ad4766b40" defer></script>
+  <script src="./gf-profundidad.js?v=22.5.e460c0daf42f" defer></script>
+  <!-- (2026-10-26) El tronco de cada árbol encima de su choque (salvaje y zonas). -->
+  <script src="./gf-troncos.js?v=22.5.9c7b9955523d" defer></script>
   <script src="./gf-sombras.js?v=audit20261016.9c7d5050d6e8" defer></script>
   <script src="./gf-nieve.js?v=22.5.435bca8e424f" defer></script>
   <script src="./gf-pesca.js?v=22.5.df5d5c38f56a" defer></script>
@@ -154,7 +156,9 @@
   <script src="./gf-muerte.js?v=22.5.672e4a2b8da7" defer></script>
   <script src="./gf-sin-nombre.js?v=22.5.e308cf426dfb" defer></script>
   <script src="./gf-carga-mapa.js?v=22.5.d30b86f497f3" defer></script>
-  <script src="./gf-bronce.js?v=22.5.2a30abbb77cd" defer></script>
+  <script src="./gf-bronce.js?v=22.5.cdc05c82e8dd" defer></script>
+  <!-- (2026-10-26) La economía en el panel de monedas: precio del oro en zkLTC, inflación, gráficos y compra. -->
+  <script src="./gf-economia.js?v=22.5.d82dc4d63a49" defer></script>
   <script src="./gf-vip.js?v=22.5.71035e784a92" defer></script>
   <script src="./gf-alquimista.js?v=audit20261016.6fe7e70abdaf" defer></script>
   <script src="./gf-viento.js?v=22.5.89ba49f83cf1" defer></script>
@@ -207,9 +211,9 @@
 
   <script src="./Scenes/MenuScene.js?v=22.5.2b55dfe3a54e" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=22.5.26db4cc6b167" defer></script>
-  <script src="./Scenes/tiendajuego.js?v=22.5.ce497df95fdb" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=22.5.cf779efa926e" defer></script>
   <script src="./Scenes/LoadingScenegame.js?v=22.5.c371aa960422" defer></script>
-  <script src="./Scenes/GameScene.js?v=22.5.cd5bedf6a296" defer></script>
+  <script src="./Scenes/GameScene.js?v=22.5.d7af210cfc6d" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
@@ -220,8 +224,8 @@
   <script src="./Scenes/LandsScene.js?v=22.5.d3bf5d95efbb" defer></script>
   <script src="./Scenes/InteriorScene.js?v=22.5.3b0a21ea6bbc" defer></script>
   <!-- El mapa salvaje del oeste. Hereda de GameScene: después de ella. -->
-  <script src="./Scenes/SalvajeScene.js?v=22.5.7012ee9dead2" defer></script>
-  <script src="./Scenes/ZonasScenes.js?v=22.5.378805b738fd" defer></script>
+  <script src="./Scenes/SalvajeScene.js?v=22.5.6e6d2234209f" defer></script>
+  <script src="./Scenes/ZonasScenes.js?v=22.5.5bc3a1b4cd85" defer></script>
   <script src="./Scenes/BattleScene.js?v=22.5.2e6332d5f7ef" defer></script>
   <script src="./Scenes/sacar_mapa.js?v=22.5.625b3eb513fa" defer></script>
 
@@ -248,7 +252,7 @@
   <script src="./TransactionHub.js?v=22.5.1eb4c8a9f5c6" defer></script>
   <script src="./SystemaTransaccion.js?v=22.5.dcd4dee7f522" defer></script>
   <script src="./CraftingHub.js?v=audit20261016.b3910d3aaee5" defer></script>
-  <script src="./tienda_sistema.js?v=22.5.e02aa7e1847c" defer></script>
+  <script src="./tienda_sistema.js?v=22.5.6f78151ec7a8" defer></script>
   <script src="./phaser-relay-library.js?v=22.5.e35073fb2732" defer></script>
   <script src="./gf-session-api.js?v=22.4.12349825508f" defer></script>
   <script src="./hub.js?v=22.5.aace3a86dd0a" defer></script>

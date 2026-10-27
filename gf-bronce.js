@@ -292,7 +292,15 @@
       var s = escena();
       return { plata: Math.floor(Number(s && s.moneda_plata) || 0), bronce: Math.floor(Number(valor) || 0) };
     };
-    var tope = function () { var s = saldo(); return dir === 'silverToBronze' ? s.plata : Math.floor(s.bronce / POR_PLATA); };
+    /* (2026-10-26) La comisión del cambio (2 % plata→bronce, 3 % bronce→plata), en
+       bronce, al tesoro de la economía circular. La misma cuenta que el servidor. */
+    var comision = function (d, q) {
+      return window.GFEconomia && window.GFEconomia.comisionCambio ? window.GFEconomia.comisionCambio(d, q) : { cantidad: 0, bps: 0 };
+    };
+    var tope = function () {
+      var s = saldo();
+      return dir === 'silverToBronze' ? s.plata : Math.floor(s.bronce / (POR_PLATA * (1 + comision('bronzeToSilver', 1).bps / 10000)));
+    };
     var pintarDir = function () {
       var on = 'background:#c98a52;color:#20160a;', off = 'background:#1b3d31;color:#fff;';
       var base = 'flex:1;min-height:40px;border-radius:10px;border:none;font-weight:bold;cursor:pointer;font-size:12px;';
@@ -305,18 +313,21 @@
       $('gfb-e-plata').textContent = s.plata;
       var q = Math.max(1, Math.min(Math.max(1, t), parseInt($('gfb-qty').value, 10) || 1));
       $('gfb-qty').value = q;
+      var fee = comision(dir, q), pct = (fee.bps / 100).toLocaleString('en-US');
+      var nota = fee.cantidad ? '  ·  fee ' + pct + '% = ' + fee.cantidad.toLocaleString('en-US') + ' Bronze' : '';
       if (dir === 'silverToBronze') {
         $('gfb-label').textContent = 'How much Silver do you want to convert? (max ' + t + ')';
-        $('gfb-cost').textContent = 'Cost: ' + q + ' Silver  →  you get ' + (q * POR_PLATA).toLocaleString('en-US') + ' Bronze';
+        $('gfb-cost').textContent = 'Cost: ' + q + ' Silver  →  you get ' + (q * POR_PLATA - fee.cantidad).toLocaleString('en-US') + ' Bronze' + nota;
       } else {
         $('gfb-label').textContent = 'How much Silver do you want? (max ' + t + ')';
-        $('gfb-cost').textContent = 'Cost: ' + (q * POR_PLATA).toLocaleString('en-US') + ' Bronze  →  you get ' + q + ' Silver';
+        $('gfb-cost').textContent = 'Cost: ' + (q * POR_PLATA + fee.cantidad).toLocaleString('en-US') + ' Bronze  →  you get ' + q + ' Silver' + nota;
       }
       $('gfb-go').disabled = ocupado || t < 1;
       $('gfb-go').style.opacity = t < 1 ? '.55' : '1';
       if (t < 1 && $('gfb-msg').dataset.sticky !== '1') {
         $('gfb-msg').style.color = '#ff8a8a';
-        $('gfb-msg').textContent = dir === 'silverToBronze' ? 'You need at least 1 Silver.' : 'You need at least ' + POR_PLATA + ' Bronze.';
+        // Con la comisión de 1 de plata (1.000 + 3 % = 1.030 de bronce).
+        $('gfb-msg').textContent = dir === 'silverToBronze' ? 'You need at least 1 Silver.' : 'You need at least ' + (POR_PLATA + comision('bronzeToSilver', 1).cantidad).toLocaleString('en-US') + ' Bronze.';
       } else if ($('gfb-msg').dataset.sticky !== '1') $('gfb-msg').textContent = '';
     };
     $('gfb-dir-s2b').onclick = function () { dir = 'silverToBronze'; $('gfb-qty').value = 1; pintarDir(); refresh(); };
@@ -339,12 +350,15 @@
         var d = (r && r.datos) || {};
         if (r && r.ok && d.ok) {
           adoptarStats(d.stats, dueno);
+          // Lo que dice el servidor de la comisión manda (si no la manda, servidor viejo: sin comisión).
+          var feeR = d.fee && Number(d.fee.cantidad) > 0 ? Number(d.fee.cantidad) : 0;
+          var bronceS2B = q * POR_PLATA - feeR, bronceB2S = q * POR_PLATA + feeR;
           msg.style.color = '#6fcf97';
-          msg.textContent = direccion === 'silverToBronze' ? 'Done! +' + (q * POR_PLATA).toLocaleString('en-US') + ' Bronze' : 'Done! +' + q + ' Silver';
+          msg.textContent = direccion === 'silverToBronze' ? 'Done! +' + bronceS2B.toLocaleString('en-US') + ' Bronze' : 'Done! +' + q + ' Silver';
           var sc2 = escena();
           if (sc2 && sc2.notifications) sc2.notifications.show(direccion === 'silverToBronze'
-            ? 'Exchanged ' + q + ' Silver → ' + (q * POR_PLATA).toLocaleString('en-US') + ' Bronze'
-            : 'Exchanged ' + (q * POR_PLATA).toLocaleString('en-US') + ' Bronze → ' + q + ' Silver', 'success');
+            ? 'Exchanged ' + q + ' Silver → ' + bronceS2B.toLocaleString('en-US') + ' Bronze'
+            : 'Exchanged ' + bronceB2S.toLocaleString('en-US') + ' Bronze → ' + q + ' Silver', 'success');
         } else {
           msg.style.color = '#ff8a8a';
           msg.textContent = d.error === 'insufficient_bronze' ? 'Not enough Bronze.' : d.error === 'insufficient_silver' ? 'Not enough Silver.' : 'Exchange failed. Try again.';
@@ -365,7 +379,7 @@
   function alAbrirPanel(ov) {
     var card = ov && ov.firstElementChild;
     if (!card) return;
-    try { regaloBronce(card); } catch (e) { console.warn('[bronce] regalo:', e); }
+    // (2026-10-26) "Quita los tres botones de dar oro, plata y bronce": ya no se pone el regalo de bronce.
     try { cambioBronce(card); } catch (e) { console.warn('[bronce] cambio:', e); }
   }
 

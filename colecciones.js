@@ -57,7 +57,7 @@
   const $ = id => document.getElementById(id), esc = escapeHTML;
   const BASE = '/api/admin/collections';
   const STATUS = {active:'Activo',suspended:'Suspendido',blocked:'Bloqueado',deleted:'Papelera',draft:'Borrador'};
-  const VIEWS = {overview:'Vista general',collections:'Colecciones',tokens:'Biblioteca NFT',send:'Sendmulticuentas',activity:'Movimientos',accounts:'Cuentas vinculadas',royalties:'Royalties',operations:'Operaciones',settings:'Contrato y permisos'};
+  const VIEWS = {overview:'Vista general',collections:'Colecciones',tokens:'Biblioteca NFT',owners:'Propietarios',send:'Sendmulticuentas',activity:'Movimientos',accounts:'Cuentas vinculadas',royalties:'Royalties',operations:'Operaciones',settings:'Contrato y permisos'};
   const EMPTY = () => ({collections:[],tokens:[],history:[],royaltyPayments:[],operations:[]});
   let state = {data:EMPTY(),account:'',wallet:null,csrf:'',generation:0,verified:false,view:'overview',selection:new Set(),queue:[],running:false,stop:false,editing:null,uploads:[],busy:false,paging:{},more:{}};
   let controller = new AbortController(), reviewResolve = null, renewalWork=null, authVersion=0;
@@ -87,6 +87,11 @@
   function badge(status) {return '<span class="badge '+esc(status)+'">'+esc(STATUS[status]||status)+'</span>';}
   function royalty(t) {const c=collection(t.collectionId)||{};return {bps:t.royaltyBps==null?Number(c.royaltyBps||0):Number(t.royaltyBps),receiver:t.royaltyReceiver||c.royaltyReceiver};}
   function imageURL(t) {if(!t || !t.imageUrl) return '';try{const url=new URL(t.imageUrl,apiOrigin);if(url.origin!==apiOrigin || !/^\/api\/collections\/images\/[a-z0-9-]+$/i.test(url.pathname)) return '';return url.href;}catch(_){return '';}}
+  // (2026-10-26) El perfil y la portada de una colección: misma regla que las piezas.
+  function collectionImageURL(c,kind) {return imageURL({imageUrl:c&&(kind==='cover'?c.coverUrl:c.avatarUrl)});}
+  function isPublic(c) {return !!c&&c.visibility==='public';}
+  // Lo que el servidor anuncia que sabe hacer (un server2.js viejo no tiene esto).
+  function can(feature) {return !!(state.data.capabilities&&state.data.capabilities[feature]);}
   function explorer(hash) {const candidate=state.data.explorerUrl || 'https://liteforge.explorer.caldera.xyz';try{const u=new URL(candidate);if(u.protocol!=='https:')return '';return u.origin+'/tx/'+encodeURIComponent(hash);}catch(_){return '';}}
   function hashLink(hash) {if(!/^0x[0-9a-f]{64}$/i.test(hash||''))return '—';const link=explorer(hash);return link?'<a class="mono" href="'+esc(link)+'" target="_blank" rel="noopener noreferrer" title="'+esc(hash)+'">'+esc(short(hash))+' ↗</a>':esc(hash);}
   function empty(title,text,action='') {return '<div class="empty"><div class="empty-symbol">◇</div><h3>'+esc(title)+'</h3><p>'+esc(text)+'</p>'+action+'</div>';}
@@ -109,9 +114,9 @@
   async function renewSession() {if(renewalWork)return renewalWork;const epoch=state.generation;const work=(async()=>{if(root.GFAdminSession?.shared&&root.GFAdminSession.base===apiOrigin)await root.GFAdminSession.refresh();else await request('/api/auth/refresh',{method:'POST',body:'{}'},true);await csrf();assertSession(epoch);authVersion++;})();renewalWork=work;try{return await work;}finally{if(renewalWork===work)renewalWork=null;}}
   async function csrf() {const result=await request('/api/auth/csrf-token',{},true);state.csrf=result.csrfToken||'';if(!state.csrf)throw new Error('El backend no devolvió el token CSRF.');}
   function lock(message='Conecta tu cartera administradora para continuar.') {
-    state.generation++;controller.abort();controller=new AbortController();renewalWork=null;authVersion++;state.stop=true;state.verified=false;state.busy=false;state.running=false;state.account='';state.data=EMPTY();state.selection.clear();state.queue=[];state.uploads=[];state.editing=null;state.csrf='';state.paging={};state.more={};
+    state.generation++;controller.abort();controller=new AbortController();renewalWork=null;authVersion++;state.stop=true;state.verified=false;state.busy=false;state.running=false;state.account='';state.data=EMPTY();state.selection.clear();state.queue=[];state.uploads=[];state.editing=null;state.csrf='';state.paging={};state.more={};state.owners={};
     if($('editor').open)$('editor').close();if($('review').open)$('review').close();if(reviewResolve){reviewResolve(false);reviewResolve=null;}
-    document.querySelectorAll('#app .collection-grid,#token-list,#metrics,#history-list,#account-list,#account-metrics,#royalty-metrics,#royalty-rules,#royalty-payments,#operation-list,#contract-details,#recent-activity,#movement-chart,#royalty-chart,#send-rows').forEach(el=>el.replaceChildren());
+    document.querySelectorAll('#app .collection-grid,#token-list,#metrics,#history-list,#account-list,#account-metrics,#royalty-metrics,#royalty-rules,#royalty-payments,#operation-list,#contract-details,#recent-activity,#movement-chart,#royalty-chart,#send-rows,#owners-list,#owners-summary').forEach(el=>el.replaceChildren());
     ['editor-body','review-body','editor-error','sync-result','wallet','network','catalog-pagination'].forEach(id=>$(id).replaceChildren());
     document.querySelectorAll('#app input,#app textarea').forEach(el=>{if(el.type==='checkbox')el.checked=false;else el.value='';});
     ['token-collection'].forEach(id=>$(id).replaceChildren());$('toasts').replaceChildren();$('app').hidden=true;$('gate').hidden=false;$('gate-message').textContent=message;$('connect').disabled=false;
@@ -174,11 +179,15 @@
     const labels={collections:'colecciones',tokens:'piezas',history:'movimientos',royaltyPayments:'cobros'};
     $('catalog-pagination').innerHTML=Object.keys(labels).filter(k=>Number(d.totals?.[k])>d[k].length&&state.more[k]!==false).map(k=>'<button class="button" data-more-catalog="'+k+'">Cargar más '+labels[k]+' ('+d[k].length+'/'+Number(d.totals[k])+')</button>').join('');$('catalog-pagination').hidden=!$('catalog-pagination').children.length;
     const previous=$('token-collection').value;$('token-collection').innerHTML='<option value="all">Todas las colecciones</option>'+d.collections.map(c=>'<option value="'+esc(idOf(c))+'">'+esc(c.name)+'</option>').join('');if(d.collections.some(c=>idOf(c)===previous))$('token-collection').value=previous;
+    // (2026-10-26) Con un server2.js viejo, sin lo que todavía no sabe hacer.
+    $('bulk-images').hidden=!can('bulkImages');
     renderView(state.view);renderOperations();
   }
   function collectionCard(c) {
     const tokens=state.data.tokens.filter(t=>t.collectionId===idOf(c)),held=tokens.filter(t=>t.invoiceId&&t.chainActive!==false),owners=new Set(held.map(t=>lower(t.owner)).filter(Boolean)),art=tokens.find(t=>imageURL(t));
-    return '<article class="collection-card"><div class="collection-art">'+(art?'<img loading="lazy" src="'+esc(imageURL(art))+'" alt="'+esc(c.name)+'">':'<span class="collection-monogram" aria-hidden="true">'+esc((c.symbol||c.name||'GF').slice(0,2).toUpperCase())+'</span>')+badge(c.status||'active')+'</div><div class="collection-info"><h3>'+esc(c.name)+'</h3><p>'+esc(c.description||'Tu próxima historia empieza aquí.')+'</p><div class="card-stats"><span><b>'+tokens.length+'</b>PIEZAS</span><span><b>'+owners.size+'</b>TENEDORES</span><span><b>'+Number(c.royaltyBps||0)/100+'%</b>ROYALTY</span></div><div class="card-actions"><button class="button" data-open-collection="'+esc(idOf(c))+'">Abrir biblioteca ↗</button><button class="text-button" data-edit-collection="'+esc(idOf(c))+'">Configurar</button></div></div></article>';
+    // (2026-10-26) La portada manda sobre la primera pieza; el perfil va en un círculo encima.
+    const cover=collectionImageURL(c,'cover'),avatar=collectionImageURL(c,'avatar'),pub=isPublic(c);
+    return '<article class="collection-card"><div class="collection-art">'+(cover?'<img loading="lazy" src="'+esc(cover)+'" alt="'+esc(c.name)+'">':art?'<img loading="lazy" src="'+esc(imageURL(art))+'" alt="'+esc(c.name)+'">':'<span class="collection-monogram" aria-hidden="true">'+esc((c.symbol||c.name||'GF').slice(0,2).toUpperCase())+'</span>')+(avatar?'<img class="collection-avatar" loading="lazy" src="'+esc(avatar)+'" alt="">':'')+badge(c.status||'active')+'<span class="badge visibility '+(pub?'public':'private')+'">'+(pub?'Pública':'Privada')+'</span></div><div class="collection-info"><h3>'+esc(c.name)+'</h3><p>'+esc(c.description||'Tu próxima historia empieza aquí.')+'</p><div class="card-stats"><span><b>'+tokens.length+'</b>PIEZAS</span><span><b>'+owners.size+'</b>TENEDORES</span><span><b>'+Number(c.royaltyBps||0)/100+'%</b>ROYALTY</span></div><div class="card-actions"><button class="button" data-open-collection="'+esc(idOf(c))+'">Abrir biblioteca ↗</button><button class="text-button" data-edit-collection="'+esc(idOf(c))+'">Configurar</button>'+(canManage(c)&&can('visibility')?'<button class="text-button" data-toggle-visibility="'+esc(idOf(c))+'">'+(pub?'Hacer privada':'Hacer pública')+'</button>':'')+(can('owners')?'<button class="text-button" data-owners-collection="'+esc(idOf(c))+'">Propietarios</button>':'')+'</div></div></article>';
   }
   function renderOverview() {
     const d=state.data,issued=d.tokens.filter(t=>t.invoiceId&&t.chainActive!==false),accounts=new Set(issued.map(t=>lower(t.owner)).filter(Boolean)),transfers=d.history.filter(h=>addressValid(h.from)&&addressValid(h.to));
@@ -205,7 +214,7 @@
   function calculate() {const price=Number($('sale-price').value),pct=Number($('sale-percent').value);$('sale-result').textContent=Number.isFinite(price)&&price>=0&&Number.isFinite(pct)&&pct>=0&&pct<=100?(price*pct/100).toLocaleString('es-EC',{maximumFractionDigits:12}):'—';}
   function renderSettings() {const d=state.data;$('contract-details').innerHTML='<h2>Conexión activa</h2><dl class="detail-grid"><dt>Contrato</dt><dd class="mono">'+esc(d.contractAddress)+'</dd><dt>Chain ID</dt><dd>'+esc(d.chainId)+'</dd><dt>Owner del sistema</dt><dd class="mono">'+esc(d.systemOwner)+'</dd><dt>Tu cuenta</dt><dd class="mono">'+esc(state.account)+'</dd><dt>Permiso</dt><dd>'+esc(d.isSystemOwner?'Owner del sistema':'Administrador verificado en el contrato')+'</dd><dt>Backend</dt><dd class="mono">'+esc(apiOrigin)+'</dd><dt>Sincronización</dt><dd><pre>'+esc(JSON.stringify(d.scan||{},null,2))+'</pre></dd></dl>';}
   function renderOperations() {const ops=(state.data.operations||[]).filter(op=>op.status!=='superseded'),hashes=hashStore();$('operation-list').innerHTML=ops.length?ops.map(op=>'<div class="operation-row"><div><b>'+esc(op.action||op.method||'Operación')+'</b> '+badge(op.status||'prepared')+'<p class="mono">'+esc(idOf(op))+'</p><p class="small">'+esc(date(op.createdAt))+'</p></div>'+(op.txHash?hashLink(op.txHash):'<input data-operation-hash="'+esc(idOf(op))+'" value="'+esc(hashes[idOf(op)]||'')+'" placeholder="0x… hash de la transacción firmada" aria-label="Hash de la operación '+esc(idOf(op))+'">')+(op.status!=='confirmed'?'<button class="button" data-confirm-operation="'+esc(idOf(op))+'">Confirmar hash</button>':'')+'</div>').join(''):empty('Sin operaciones todavía','Las operaciones preparadas en el backend aparecerán aquí.');}
-  function renderView(view) {({overview:renderOverview,collections:renderCollections,tokens:renderTokens,send:renderQueue,activity:renderHistory,accounts:renderAccounts,royalties:renderRoyalties,operations:renderOperations,settings:renderSettings}[view]||(()=>{}))();}
+  function renderView(view) {({overview:renderOverview,collections:renderCollections,tokens:renderTokens,owners:()=>renderOwners().catch(showError),send:renderQueue,activity:renderHistory,accounts:renderAccounts,royalties:renderRoyalties,operations:renderOperations,settings:renderSettings}[view]||(()=>{}))();}
   async function loadMoreCatalog(kind,button) {
     if(!['collections','tokens','history','royaltyPayments'].includes(kind))return;const epoch=state.generation;button.disabled=true;
     try{const result=await request(BASE+'/catalog?kind='+kind+'&offset='+(state.paging[kind]??state.data[kind].length)+'&limit=500');assertSession(epoch);if(!Array.isArray(result.items)||result.kind!==kind)throw new Error('Respuesta de paginación inválida.');const known=new Map(state.data[kind].map(item=>[idOf(item),item]));result.items.forEach(item=>known.set(idOf(item),item));state.data[kind]=[...known.values()];state.data.totals={...state.data.totals,[kind]:result.total};state.paging[kind]=result.nextOffset;state.more[kind]=result.hasMore;render();notify(result.items.length+' registros adicionales cargados.');}finally{button.disabled=false;}
@@ -220,25 +229,48 @@
   function attributesHTML(attributes=[]) {return '<div class="attributes-section"><div class="section-title"><h3>Atributos <span class="small">· opcionales</span></h3><button class="text-button" type="button" id="add-attribute">+ Agregar atributo</button></div><div id="attribute-rows">'+attributes.map(attributeRow).join('')+'</div><p class="small">Hasta 200 atributos por pieza. Puedes agregar y quitar filas.</p></div>';}
   function attributeRow(a={trait_type:'',value:''}) {return '<div class="attribute-row"><input class="trait-name" aria-label="Nombre del atributo" placeholder="Rasgo, por ejemplo: rareza" maxlength="100" value="'+esc(a.trait_type)+'"><input class="trait-value" aria-label="Valor del atributo" placeholder="Valor" maxlength="500" value="'+esc(a.value)+'"><button class="icon-button" type="button" data-remove-attribute aria-label="Quitar atributo">×</button></div>';}
   function readAttributes() {return parseAttributes([...document.querySelectorAll('#attribute-rows .attribute-row')].map(row=>({trait_type:row.querySelector('.trait-name').value,value:row.querySelector('.trait-value').value})).filter(a=>a.trait_type||a.value));}
+  /* (2026-10-26) Sube un archivo de imagen (perfil, portada o pieza) y devuelve su id. */
+  async function uploadImageFile(file) {
+    const max=Number(state.data.capabilities?.imageMaxBytes)||600000;
+    if(!file)return '';
+    if(!['image/png','image/jpeg','image/webp','image/gif'].includes(file.type)||file.size>max||file.size<1)throw new Error(file.name+': usa PNG, JPEG, WebP o GIF de hasta '+max.toLocaleString('es-EC')+' bytes.');
+    const dataUrl=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('No se pudo leer '+file.name));reader.readAsDataURL(file);});
+    const result=await request(BASE+'/images',{method:'POST',body:JSON.stringify({dataUrl})});
+    return result.id||result.imageId;
+  }
+  function imagePicker(kind,label,current,required=false) {
+    return '<div class="image-picker"><span class="picker-label">'+esc(label)+'</span>'+(current?'<img class="picker-preview '+kind+'" src="'+esc(current)+'" alt="">':'<span class="picker-empty">Sin imagen</span>')+'<input id="edit-'+kind+'" type="file" accept="image/png,image/jpeg,image/webp,image/gif" aria-label="'+esc(label)+'">'+(current&&!required?'<label class="check-label"><input type="checkbox" id="remove-'+kind+'"> Quitar</label>':'')+'</div>';
+  }
+  async function pickedImage(kind) {
+    const input=$('edit-'+kind),remove=$('remove-'+kind);
+    if(input&&input.files&&input.files[0])return uploadImageFile(input.files[0]);
+    if(remove&&remove.checked)return '';
+    return undefined;
+  }
   function openCollection(id) {
-    const c=collection(id)||{name:'',description:'',symbol:'',delegate:'',royaltyBps:0,royaltyReceiver:state.account,status:'active',limit:'10000'};
-    openEditor(id?'Configurar colección':'Crear colección','IDENTIDAD Y REGLAS','<div class="form-grid"><label>Nombre *<input id="edit-name" required maxlength="100" value="'+esc(c.name)+'" placeholder="Guardianes del bosque"></label><label>Símbolo (opcional)<input id="edit-symbol" maxlength="20" value="'+esc(c.symbol)+'" placeholder="BOSQUE"></label><label class="full">Descripción<textarea id="edit-description" rows="3" maxlength="5000">'+esc(c.description)+'</textarea></label><label>Límite de piezas en cadena<input id="edit-limit" required inputmode="numeric" pattern="[0-9]+" maxlength="78" value="'+esc(c.limit)+'"></label><label>Estado reversible<select id="edit-status">'+statusOptions(c.status)+'</select></label><label>Royalty de referencia (%)<input id="edit-percent" required type="number" min="0" max="100" step="0.01" value="'+Number(c.royaltyBps||0)/100+'"></label><label>Receptor de royalties<input id="edit-receiver" maxlength="42" value="'+esc(c.royaltyReceiver)+'" placeholder="0x…"></label><label class="full">Representante / dueño de la colección (opcional)<input id="edit-delegate" maxlength="42" value="'+esc(c.delegate)+'" '+(!state.data.isSystemOwner?'disabled':'')+' placeholder="Sin asignar"><span class="small">Solo el owner del sistema asigna este representante. No concede administración global ni acceso a este panel.</span></label></div><div class="notice">Los royalties y estados son políticas del backend. Enviar una colección a la papelera conserva sus piezas e historial; restaurarla no cambia los estados individuales.</div>'+(id?'<div class="section-title"><span class="small">'+(c.configured?'Tipo configurado en cadena.':'Pendiente de configurar en cadena.')+'<br><code>'+esc(c.typeKey)+'</code></span><button class="button" type="button" data-configure="'+esc(id)+'">Configurar límite en cadena ↗</button></div>':''),async()=>{
+    const c=collection(id)||{name:'',description:'',symbol:'',delegate:'',royaltyBps:0,royaltyReceiver:state.account,status:'active',limit:'10000',visibility:'private'};
+    openEditor(id?'Configurar colección':'Crear colección','IDENTIDAD Y REGLAS','<div class="form-grid"><label>Nombre *<input id="edit-name" required maxlength="100" value="'+esc(c.name)+'" placeholder="Guardianes del bosque"></label><label>Símbolo (opcional)<input id="edit-symbol" maxlength="20" value="'+esc(c.symbol)+'" placeholder="BOSQUE"></label><label class="full">Descripción<textarea id="edit-description" rows="3" maxlength="5000">'+esc(c.description)+'</textarea></label><label>Límite de piezas en cadena<input id="edit-limit" required inputmode="numeric" pattern="[0-9]+" maxlength="78" value="'+esc(c.limit)+'"></label><label>Estado reversible<select id="edit-status">'+statusOptions(c.status)+'</select></label>'+(can('visibility')?'<label>Visibilidad en el juego<select id="edit-visibility"><option value="private" '+(isPublic(c)?'':'selected')+'>Privada · solo en este panel</option><option value="public" '+(isPublic(c)?'selected':'')+'>Pública · se ve en el panel NFT del juego</option></select></label><div class="full image-pickers">'+imagePicker('avatar','Imagen de perfil',collectionImageURL(c,'avatar'))+imagePicker('cover','Portada',collectionImageURL(c,'cover'))+'</div>':'')+'<label>Royalty de referencia (%)<input id="edit-percent" required type="number" min="0" max="100" step="0.01" value="'+Number(c.royaltyBps||0)/100+'"></label><label>Receptor de royalties<input id="edit-receiver" maxlength="42" value="'+esc(c.royaltyReceiver)+'" placeholder="0x…"></label><label class="full">Representante / dueño de la colección (opcional)<input id="edit-delegate" maxlength="42" value="'+esc(c.delegate)+'" '+(!state.data.isSystemOwner?'disabled':'')+' placeholder="Sin asignar"><span class="small">Solo el owner del sistema asigna este representante. No concede administración global ni acceso a este panel.</span></label></div><div class="notice">Los royalties y estados son políticas del backend. Enviar una colección a la papelera conserva sus piezas e historial; restaurarla no cambia los estados individuales.</div>'+(id?'<div class="section-title"><span class="small">'+(c.configured?'Tipo configurado en cadena.':'Pendiente de configurar en cadena.')+'<br><code>'+esc(c.typeKey)+'</code></span><button class="button" type="button" data-configure="'+esc(id)+'">Configurar límite en cadena ↗</button></div>':'')+(id&&canManage(c)&&can('deletes')?'<div class="danger-zone"><div><b>Zona de peligro</b><p class="small">Borra la colección y todas sus piezas del registro. Las piezas ya emitidas puedes quemarlas antes en la cadena.</p></div><button class="button danger" type="button" data-delete-collection="'+esc(id)+'">Eliminar colección…</button></div>':''),async()=>{
       const bps=percentToBps($('edit-percent').value),receiver=$('edit-receiver').value.trim(),delegate=$('edit-delegate').value.trim();
       if(receiver&&!addressValid(receiver))throw new Error('Receptor de royalties inválido.');if(bps>0&&!addressValid(receiver))throw new Error('Indica el receptor del royalty.');if(delegate&&!addressValid(delegate))throw new Error('Dirección del representante inválida.');
-      const payload={name:$('edit-name').value.trim(),symbol:$('edit-symbol').value.trim(),description:$('edit-description').value,limit:$('edit-limit').value,royaltyBps:bps,royaltyReceiver:receiver,status:$('edit-status').value};if(state.data.isSystemOwner)payload.delegate=delegate;
+      const payload={name:$('edit-name').value.trim(),symbol:$('edit-symbol').value.trim(),description:$('edit-description').value,limit:$('edit-limit').value,royaltyBps:bps,royaltyReceiver:receiver,status:$('edit-status').value};if($('edit-visibility'))payload.visibility=$('edit-visibility').value;if(state.data.isSystemOwner)payload.delegate=delegate;
       if(!payload.name)throw new Error('Escribe el nombre de la colección.');
       if(!/^\d+$/.test(payload.limit)||BigInt(payload.limit)<1n)throw new Error('El límite debe ser un entero positivo.');
       if(id&&payload.status!==c.status&&payload.status!=='active'){const ok=await review('Cambiar estado de la colección','<p>La colección <b>'+esc(payload.name)+'</b> y todas sus piezas quedarán restringidas en este panel por su estado <b>'+esc(STATUS[payload.status])+'</b>.</p><p class="small">Podrás restaurarla. Las facturas en cadena se conservan.</p>','Aplicar estado');if(!ok)return false;}
+      // (2026-10-26) El perfil y la portada: se suben justo antes de guardar la colección.
+      for(const [kind,key]of[['avatar','avatarImageId'],['cover','coverImageId']]){const value=await pickedImage(kind);if(value!==undefined)payload[key]=value;}
       await request(id?BASE+'/'+encodeURIComponent(id):BASE,{method:id?'PATCH':'POST',body:JSON.stringify(payload)});notify(id?'Colección actualizada.':'Colección creada. Configura su tipo en cadena antes de emitir piezas.');return true;
     },id?'Guardar cambios':'Crear colección');if(id&&!canManage(c))readOnlyEditor();
   }
   function openToken(id) {
     const t=token(id);if(!t)return;const r=royalty(t),image=imageURL(t);
-    openEditor(pieceName(t),'PIEZA #'+t.number+' / '+colName(t.collectionId),(image?'<img class="editor-preview" src="'+esc(image)+'" alt="'+esc(pieceName(t))+'">':'')+'<dl class="detail-grid"><dt>ID catálogo</dt><dd class="mono">'+esc(id)+'</dd><dt>ID factura actual</dt><dd class="mono">'+esc(t.invoiceId||'Sin emitir')+'</dd><dt>Propietario en cadena</dt><dd class="mono">'+esc(t.owner||'Sin emitir')+'</dd></dl>'+(t.chainWarning?'<div class="notice warning">'+esc(t.chainWarning)+'</div>':'')+'<div class="form-grid"><label class="full">Nombre (opcional)<input id="edit-name" maxlength="160" value="'+esc(t.name)+'" placeholder="Pieza #'+esc(t.number)+'"></label><label class="full">Descripción<textarea id="edit-description" rows="3" maxlength="5000">'+esc(t.description)+'</textarea></label><label>Estado reversible<select id="edit-status">'+statusOptions(t.status)+'</select></label><label>Royalty<select id="edit-royalty-mode"><option value="inherit" '+(t.royaltyBps==null?'selected':'')+'>Heredar de la colección</option><option value="custom" '+(t.royaltyBps!=null?'selected':'')+'>Personalizado para esta pieza</option></select></label><label>Royalty individual (%)<input id="edit-percent" type="number" min="0" max="100" step="0.01" value="'+r.bps/100+'"></label><label>Receptor individual<input id="edit-receiver" maxlength="42" value="'+esc(r.receiver)+'" placeholder="0x…"></label></div>'+attributesHTML(t.attributes)+'<div class="notice">El #'+esc(t.number)+' es estable dentro de su colección. El contrato creará otro ID de factura al transferir. Los estados de la colección también se aplican a esta pieza.</div><button type="button" class="button" data-queue-token="'+esc(id)+'">'+(t.invoiceId?'Preparar transferencia':'Preparar emisión')+' ↗</button>',async()=>{
+    openEditor(pieceName(t),'PIEZA #'+t.number+' / '+colName(t.collectionId),(image?'<img class="editor-preview" src="'+esc(image)+'" alt="'+esc(pieceName(t))+'">':'')+'<dl class="detail-grid"><dt>ID catálogo</dt><dd class="mono">'+esc(id)+'</dd><dt>ID factura actual</dt><dd class="mono">'+esc(t.invoiceId||'Sin emitir')+'</dd><dt>Propietario en cadena</dt><dd class="mono">'+esc(t.owner||'Sin emitir')+'</dd></dl>'+(t.chainWarning?'<div class="notice warning">'+esc(t.chainWarning)+'</div>':'')+'<div class="form-grid"><label class="full">Nombre (opcional)<input id="edit-name" maxlength="160" value="'+esc(t.name)+'" placeholder="Pieza #'+esc(t.number)+'"></label><label class="full">Descripción<textarea id="edit-description" rows="3" maxlength="5000">'+esc(t.description)+'</textarea></label><label>Estado reversible<select id="edit-status">'+statusOptions(t.status)+'</select></label><label>Royalty<select id="edit-royalty-mode"><option value="inherit" '+(t.royaltyBps==null?'selected':'')+'>Heredar de la colección</option><option value="custom" '+(t.royaltyBps!=null?'selected':'')+'>Personalizado para esta pieza</option></select></label><label>Royalty individual (%)<input id="edit-percent" type="number" min="0" max="100" step="0.01" value="'+r.bps/100+'"></label><label>Receptor individual<input id="edit-receiver" maxlength="42" value="'+esc(r.receiver)+'" placeholder="0x…"></label></div>'+attributesHTML(t.attributes)+'<div class="notice">El #'+esc(t.number)+' es estable dentro de su colección. El contrato creará otro ID de factura al transferir. Los estados de la colección también se aplican a esta pieza.</div><button type="button" class="button" data-queue-token="'+esc(id)+'">'+(t.invoiceId?'Preparar transferencia':'Preparar emisión')+' ↗</button><div class="image-pickers">'+imagePicker('piece','Cambiar imagen de esta pieza',image,true)+'</div>'+(can('deletes')&&canManage(collection(t.collectionId))?'<div class="danger-zone"><div><b>Zona de peligro</b><p class="small">'+(t.invoiceId&&t.chainActive!==false?'Esta pieza está emitida en la cartera '+esc(short(t.owner))+'. Puedes quemarla en la cadena (una firma) y después borrarla del registro.':'Borra esta pieza del registro. Su número no se reutiliza.')+'</p></div>'+(t.invoiceId&&t.chainActive!==false&&can('burn')?'<button class="button danger" type="button" data-burn-token="'+esc(id)+'">Quemar en cadena…</button>':'')+'<button class="button danger" type="button" data-delete-token="'+esc(id)+'">Eliminar pieza…</button></div>':''),async()=>{
       const custom=$('edit-royalty-mode').value==='custom',bps=custom?percentToBps($('edit-percent').value):null,receiver=custom?$('edit-receiver').value.trim():'';
       if(receiver&&!addressValid(receiver))throw new Error('Receptor inválido.');
       if(bps>0&&!addressValid(receiver)&&!addressValid(collection(t.collectionId)?.royaltyReceiver))throw new Error('Indica un receptor de royalties.');
-      await request(BASE+'/tokens/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({name:$('edit-name').value.trim(),description:$('edit-description').value,status:$('edit-status').value,attributes:readAttributes(),royaltyBps:bps,royaltyReceiver:receiver})});notify('Pieza actualizada.');return true;
+      const body={name:$('edit-name').value.trim(),description:$('edit-description').value,status:$('edit-status').value,attributes:readAttributes(),royaltyBps:bps,royaltyReceiver:receiver};
+      // (2026-10-26) La imagen nueva de la pieza, si se eligió una.
+      const nueva=await pickedImage('piece');if(nueva)body.imageId=nueva;
+      await request(BASE+'/tokens/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify(body)});notify(nueva?'Pieza e imagen actualizadas.':'Pieza actualizada.');return true;
     });if(!canManage(collection(t.collectionId)))readOnlyEditor();
   }
   function openUpload() {
@@ -267,6 +299,89 @@
       assertSession(epoch);let result;try{result=await request(BASE+'/'+encodeURIComponent(collectionId)+'/tokens',{method:'POST',body:JSON.stringify({items:[{...metadata[i],imageId:u.imageId}]})});}catch(error){if(!error.status||error.status>=500){u.uncertain=true;throw new Error('No se pudo confirmar el guardado de '+u.fileName+'. Cierra esta ventana y actualiza el catálogo antes de volver a cargarla. Las piezas confirmadas se conservan.');}throw error;}u.saved=true;u.tokenId=idOf(result.tokens?.[0]);$('upload-state-'+i).textContent='Guardado ✓';
     }
     notify(state.uploads.length+' piezas guardadas. Los #ID fueron asignados por el backend.');return true;
+  }
+  /* ═══ (2026-10-26) PÚBLICA/PRIVADA, QUEMAR, BORRAR E IMÁGENES POR NÚMERO ═══
+     "No puedo eliminar la colección y todos sus NFT, ni un NFT de una
+     colección, ni cambiarle la imagen, ni cambiar las de todos según su id; y
+     quiero un botón para hacerla pública o privada." */
+  async function toggleVisibility(id) {
+    const c=collection(id);if(!c||!canManage(c))return;const next=isPublic(c)?'private':'public';
+    const ok=await review(next==='public'?'Hacer pública la colección':'Hacer privada la colección',next==='public'?'<p><b>'+esc(c.name)+'</b> aparecerá en el panel NFT del juego. Cada jugador verá las piezas de esta colección que tenga en su cartera.</p>':'<p><b>'+esc(c.name)+'</b> dejará de verse en el juego. Solo aparecerá en este panel.</p>',next==='public'?'Hacer pública':'Hacer privada');
+    if(!ok)return;
+    await request(BASE+'/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({visibility:next})});
+    notify(next==='public'?'La colección ya es pública en el juego.':'La colección ahora es privada.');await loadData();
+  }
+  /** Quema una pieza emitida (deleteInvoice, una firma). `sinPreguntar` cuando ya se confirmó en otro diálogo. */
+  async function burnToken(id,sinPreguntar=false) {
+    const t=token(id);if(!t)return false;
+    if(!sinPreguntar){const ok=await review('Quemar pieza en cadena','<p><b>'+esc(pieceName(t))+'</b> · #'+esc(t.number)+' de '+esc(colName(t.collectionId))+'</p><dl class="detail-grid"><dt>Factura</dt><dd class="mono">'+esc(t.invoiceId)+'</dd><dt>Cartera</dt><dd class="mono">'+esc(t.owner)+'</dd></dl><p class="notice warning">La factura se elimina del contrato y el jugador deja de tenerla. No se puede deshacer. Requiere gas y una firma.</p>','Firmar quema');if(!ok)return false;}
+    await executeOperation({action:'burn',tokenId:id});return true;
+  }
+  function openDeleteToken(id) {
+    const t=token(id);if(!t)return;const enCadena=!!(t.invoiceId&&t.chainActive!==false);
+    openEditor('Eliminar pieza','#'+t.number+' / '+colName(t.collectionId),(enCadena?'<div class="notice warning">Esta pieza está emitida en la cartera <span class="mono">'+esc(t.owner)+'</span> (factura '+esc(t.invoiceId)+').</div>'+(can('burn')?'<label class="check-label"><input type="radio" name="del-mode" value="burn" checked> Quemarla en la cadena (una firma) y borrarla del registro</label>':'')+'<label class="check-label"><input type="radio" name="del-mode" value="registry" '+(can('burn')?'':'checked')+'> Borrarla solo del registro: la factura sigue en su cartera, pero el juego deja de enseñarla</label>':'<p>Se borrará <b>'+esc(pieceName(t))+'</b> del registro. Su número no se reutiliza.</p>'),async()=>{
+      const mode=enCadena?(document.querySelector('input[name="del-mode"]:checked')||{}).value:'registry';
+      if(mode==='burn')await burnToken(id,true);
+      await request(BASE+'/tokens/'+encodeURIComponent(id)+'/delete',{method:'POST',body:JSON.stringify(enCadena&&mode==='registry'?{force:true}:{})});
+      state.selection.delete(id);notify('Pieza #'+t.number+' eliminada.');return true;
+    },'Eliminar pieza');
+  }
+  function openDeleteCollection(id) {
+    const c=collection(id);if(!c)return;const ts=state.data.tokens.filter(t=>t.collectionId===id),emitidas=ts.filter(t=>t.invoiceId&&t.chainActive!==false);
+    openEditor('Eliminar colección','ZONA DE PELIGRO','<p>Se borrarán <b>'+esc(c.name)+'</b> y sus <b>'+ts.length+'</b> piezas del registro, junto con las imágenes que ya no use nadie.</p>'+(emitidas.length?'<div class="notice warning">'+emitidas.length+' piezas están emitidas en carteras de jugadores.</div>'+(can('burn')?'<label class="check-label"><input type="radio" name="del-mode" value="burn" checked> Quemar antes en la cadena las '+emitidas.length+' piezas emitidas (una firma por pieza)</label>':'')+'<label class="check-label"><input type="radio" name="del-mode" value="registry" '+(can('burn')?'':'checked')+'> Borrar solo del registro: las facturas siguen en las carteras, pero el juego deja de enseñarlas</label>':'')+'<label>Escribe el nombre de la colección para confirmar<input id="delete-confirm" autocomplete="off" placeholder="'+esc(c.name)+'"></label><p id="delete-progress" class="small" role="status" aria-live="polite"></p>',async()=>{
+      const confirm=$('delete-confirm').value.trim();if(confirm!==String(c.name||'').trim())throw new Error('Escribe exactamente el nombre de la colección.');
+      const mode=emitidas.length?(document.querySelector('input[name="del-mode"]:checked')||{}).value:'registry';
+      if(mode==='burn'){let i=0;for(const t of emitidas){$('delete-progress').textContent='Quemando '+(++i)+' de '+emitidas.length+'…';await burnToken(idOf(t),true);}}
+      const r=await request(BASE+'/'+encodeURIComponent(id)+'/delete',{method:'POST',body:JSON.stringify({confirm,force:mode==='registry'})});
+      notify('Colección eliminada · '+Number(r.tokens||0)+' piezas borradas.');return true;
+    },'Eliminar definitivamente');
+  }
+  /** El número de pieza que lleva el nombre de un archivo: «12.png», «pieza-12.png», «#12.webp». */
+  function numberFromName(name) {const m=/(\d{1,9})(?!.*\d)/.exec(String(name||'').replace(/\.[a-z0-9]+$/i,''));return m?Number(m[1]):0;}
+  function openBulkImages() {
+    const available=state.data.collections.filter(c=>canManage(c));if(!available.length)throw new Error('No tienes colecciones que puedas modificar.');
+    const selected=$('token-collection').value;
+    openEditor('Cambiar imágenes por número','IMÁGENES DE LAS PIEZAS','<label>Colección<select id="bulk-img-collection">'+available.map(c=>'<option value="'+esc(idOf(c))+'" '+(idOf(c)===selected?'selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></label><label>Modo<select id="bulk-img-mode"><option value="numbers">Una imagen por pieza, según el número del archivo</option><option value="all">La misma imagen para todas las piezas de la colección</option></select></label><div class="upload-drop"><b>Selecciona las imágenes</b><p class="small">El número de la pieza sale del nombre del archivo: «12.png», «pieza-12.png» o «#12.webp» van a la pieza #12. PNG, JPEG, WebP o GIF de hasta 600 000 bytes.</p><input id="bulk-img-files" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple aria-label="Imágenes por número"></div><div id="bulk-img-preview" class="upload-items"></div><p id="bulk-img-progress" class="small" role="status" aria-live="polite"></p>',async()=>{
+      const cid=$('bulk-img-collection').value,mode=$('bulk-img-mode').value,files=[...($('bulk-img-files').files||[])];
+      if(!files.length)throw new Error('Selecciona al menos una imagen.');
+      if(mode==='all'){
+        if(files.length!==1)throw new Error('Para todas las piezas elige una sola imagen.');
+        if(!await review('Misma imagen para toda la colección','<p>Todas las piezas de <b>'+esc(colName(cid))+'</b> tendrán la imagen <b>'+esc(files[0].name)+'</b>.</p>','Aplicar a todas'))return false;
+        const imageId=await uploadImageFile(files[0]);const r=await request(BASE+'/'+encodeURIComponent(cid)+'/token-images',{method:'POST',body:JSON.stringify({imageId})});
+        notify(Number(r.updated||0)+' piezas con la imagen nueva.');return true;
+      }
+      const rows=files.map(f=>({f,n:numberFromName(f.name)}));
+      const sinNumero=rows.filter(r=>!r.n).map(r=>r.f.name);if(sinNumero.length)throw new Error('Sin número de pieza en el nombre: '+sinNumero.join(', '));
+      const vistos=new Set();for(const r of rows){if(vistos.has(r.n))throw new Error('Dos archivos para la pieza #'+r.n+'.');vistos.add(r.n);}
+      const items=[];let i=0;for(const r of rows){$('bulk-img-progress').textContent='Subiendo '+(++i)+' de '+rows.length+'…';items.push({number:r.n,imageId:await uploadImageFile(r.f)});}
+      const res=await request(BASE+'/'+encodeURIComponent(cid)+'/token-images',{method:'POST',body:JSON.stringify({items})});
+      notify(Number(res.updated||0)+' piezas actualizadas'+(res.missing&&res.missing.length?' · no existen: #'+res.missing.join(', #'):'')+'.');return true;
+    },'Subir y aplicar');
+  }
+  function previewBulkImages() {
+    const cid=$('bulk-img-collection')?.value,files=[...($('bulk-img-files')?.files||[])],mode=$('bulk-img-mode')?.value;
+    const numeros=new Set(state.data.tokens.filter(t=>t.collectionId===cid).map(t=>Number(t.number)));
+    $('bulk-img-preview').innerHTML=mode==='all'?(files[0]?'<div class="upload-item"><span class="small">'+esc(files[0].name)+' → todas las piezas</span></div>':''):files.map(f=>{const n=numberFromName(f.name);return '<div class="upload-item"><span class="small">'+esc(f.name)+'</span><b>'+(n?'#'+n:'¿sin número?')+'</b><span class="small">'+(!n?'No se aplicará':numeros.has(n)?'Pieza encontrada ✓':'No hay pieza #'+n+' cargada')+'</span></div>';}).join('');
+  }
+  // ── Propietarios: quién tiene cada pieza, con su nombre en el juego ──────────
+  async function renderOwners() {
+    const sel=$('owners-collection');if(!sel)return;
+    const prev=sel.value;sel.innerHTML=state.data.collections.map(c=>'<option value="'+esc(idOf(c))+'">'+esc(c.name)+'</option>').join('');
+    if(state.data.collections.some(c=>idOf(c)===prev))sel.value=prev;
+    if(!can('owners')){$('owners-list').innerHTML='<tr><td colspan="8">Actualiza server2.js para ver los propietarios.</td></tr>';return;}
+    const cid=sel.value;if(!cid){$('owners-summary').innerHTML='';$('owners-list').innerHTML='<tr><td colspan="8">Crea una colección primero.</td></tr>';return;}
+    const epoch=state.generation;state.owners=state.owners||{};
+    if(!state.owners[cid]||Date.now()-state.owners[cid].at>60000){
+      $('owners-list').innerHTML='<tr><td colspan="8">Cargando propietarios…</td></tr>';
+      const r=await request(BASE+'/'+encodeURIComponent(cid)+'/owners');assertSession(epoch);state.owners[cid]={at:Date.now(),data:r};
+    }
+    paintOwners();
+  }
+  function paintOwners() {
+    const cid=$('owners-collection').value,entry=state.owners&&state.owners[cid];if(!entry)return;const d=entry.data,q=lower($('owners-search').value);
+    const rows=(d.tokens||[]).filter(t=>lower(['#'+t.number,t.name,t.playerName,t.username,t.owner,t.invoiceId,t.id].join(' ')).includes(q));
+    $('owners-summary').innerHTML=metric('Piezas',Number(d.total||0),(d.tokens||[]).filter(t=>t.chainActive).length+' emitidas en carteras','◇')+metric('Propietarios',(d.owners||[]).length,'Carteras distintas','◎')+metric('Visibilidad',isPublic(d.collection)?'Pública':'Privada',isPublic(d.collection)?'Se ve en el juego':'Solo en este panel','◫')+((d.owners||[])[0]?metric('Mayor tenedor',d.owners[0].count,d.owners[0].playerName||d.owners[0].username||short(d.owners[0].address),'▦'):'');
+    $('owners-list').innerHTML=rows.map(t=>{const img=imageURL(t);return '<tr><td>'+(img?'<img class="owner-thumb" loading="lazy" src="'+esc(img)+'" alt="">':'—')+'</td><td class="nowrap">#'+esc(t.number)+'</td><td>'+esc(t.name||'Pieza #'+t.number)+'<div class="small mono" title="'+esc(t.id)+'">'+esc(short(t.id))+'</div></td><td>'+esc(t.playerName||'—')+'</td><td>'+esc(t.username||'—')+'</td><td class="address" title="'+esc(t.owner)+'">'+esc(t.owner||(t.invoiceId?'—':'Sin emitir'))+'</td><td class="mono">'+esc(t.invoiceId||'—')+'</td><td>'+badge(t.chainActive?(t.status||'active'):(t.invoiceId?'deleted':'draft'))+'</td></tr>';}).join('')||'<tr><td colspan="8">No hay piezas que coincidan.</td></tr>';
   }
   function selectedTokens() {return [...state.selection].map(token).filter(Boolean);}
   function requireSelection() {const selected=selectedTokens();if(!selected.length)throw new Error('Selecciona primero las piezas en la biblioteca.');if(selected.some(t=>!canManage(collection(t.collectionId))))throw new Error('La selección incluye una colección delegada que solo puedes consultar.');return selected;}
@@ -312,7 +427,7 @@
     let hash=row?.txHash||operation.txHash||hashStore()[operation.operationId];
     if(!hash){
       const signer=await walletSigner(epoch);assertSession(epoch);
-      if(lower(operation.to)!==lower(state.data.contractAddress)||Number(operation.chainId)!==Number(state.data.chainId)||!['setLimit','createInvoice','transferInvoice'].includes(operation.method))throw new Error('La operación devuelta por el backend no corresponde al contrato esperado.');
+      if(lower(operation.to)!==lower(state.data.contractAddress)||Number(operation.chainId)!==Number(state.data.chainId)||!['setLimit','createInvoice','transferInvoice','deleteInvoice'].includes(operation.method))throw new Error('La operación devuelta por el backend no corresponde al contrato esperado.');
       const contract=new root.ethers.Contract(state.data.contractAddress,state.data.abi,signer),method=contract.getFunction(operation.method);
       await method.staticCall(...operation.args);assertSession(epoch);
       const tx=await method(...operation.args);hash=tx.hash;
@@ -363,6 +478,12 @@
       else if(d.moreCatalog)await loadMoreCatalog(d.moreCatalog,button);
       else if(d.configure)await configureCollection(d.configure);
       else if(d.queueToken)addQueue([token(d.queueToken)].filter(Boolean));
+      // (2026-10-26) Público/privado, propietarios, borrar y quemar.
+      else if(d.toggleVisibility)await toggleVisibility(d.toggleVisibility);
+      else if(d.ownersCollection){changeView('owners');$('owners-collection').value=d.ownersCollection;await renderOwners();}
+      else if(d.deleteCollection)openDeleteCollection(d.deleteCollection);
+      else if(d.deleteToken)openDeleteToken(d.deleteToken);
+      else if(d.burnToken){if(await burnToken(d.burnToken)){notify('Pieza quemada en la cadena.');if($('editor').open)$('editor').close();await loadData();}}
       else if(button.hasAttribute('data-remove-attribute'))button.closest('.attribute-row').remove();
       else if(d.removeQueue!==undefined&&!state.running){state.queue.splice(Number(d.removeQueue),1);saveQueue();renderQueue();}
       else if(d.confirmOperation){const op=state.data.operations.find(op=>idOf(op)===d.confirmOperation),input=document.querySelector('[data-operation-hash="'+CSS.escape(d.confirmOperation)+'"]'),hash=op?.txHash||input?.value.trim()||hashStore()[d.confirmOperation];await confirmOperation(d.confirmOperation,hash);notify('Operación confirmada.');await loadData();}
@@ -374,12 +495,16 @@
     if(el.dataset.selectToken){if(el.checked)state.selection.add(el.dataset.selectToken);else state.selection.delete(el.dataset.selectToken);renderTokens();}
     else if(el.id==='select-all'){visibleTokens().forEach(t=>el.checked?state.selection.add(idOf(t)):state.selection.delete(idOf(t)));renderTokens();}
     else if(el.id==='upload-files')await chooseFiles(el.files);
+    else if(['bulk-img-files','bulk-img-mode','bulk-img-collection'].includes(el.id))previewBulkImages();
+    else if(el.id==='owners-collection')await renderOwners();
     else if(el.dataset.queueTokenIndex!==undefined&&!state.running){const r=state.queue[Number(el.dataset.queueTokenIndex)];r.tokenId=el.value;r.status='ready';r.error='';saveQueue();renderQueue();}
     else if(el.dataset.queueTo!==undefined&&!state.running){const r=state.queue[Number(el.dataset.queueTo)];r.to=lower(el.value.trim());r.status='ready';r.error='';saveQueue();}
   }));
   document.addEventListener('input',event=>{if(['payment-sale','payment-token'].includes(event.target.id))royaltyPaymentPreview();});
   ['collection-search','collection-filter'].forEach(id=>$(id).addEventListener('input',renderCollections));
   ['token-collection','token-search','token-filter','token-sort'].forEach(id=>$(id).addEventListener('input',renderTokens));
+  $('owners-search').addEventListener('input',paintOwners);
+  $('bulk-images').addEventListener('click',()=>runHandler(openBulkImages));
   ['history-search','history-from','history-to'].forEach(id=>$(id).addEventListener('input',renderHistory));
   ['sale-price','sale-percent'].forEach(id=>$(id).addEventListener('input',calculate));
   $('upload-open').addEventListener('click',()=>runHandler(openUpload));

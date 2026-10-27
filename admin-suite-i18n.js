@@ -675,7 +675,7 @@ Read invoices, contract activity and gas usage.|Consulta facturas, actividad del
 Manage the whitelist and game entry rules.|Administra la lista de acceso y las reglas de entrada al juego.
 Investigate client errors and relay failures.|Investiga errores del cliente y fallos del relayer.
 Build daily quests and balance their rewards.|Crea misiones diarias y equilibra sus recompensas.
-One connected wallet. Nine tools.|Una cartera conectada. Nueve herramientas.
+One connected wallet. Ten tools.|Una cartera conectada. Diez herramientas.
 Check your API connection|Comprueba tu conexión con la API
 Your tools are ready.|Tus herramientas están listas.
 Select a tool from the navigation to begin.|Selecciona una herramienta del menú para empezar.
@@ -705,7 +705,7 @@ The tool is still loading.|La herramienta sigue cargando.
 Signed in as|Sesión iniciada como
 Choose a mission section|Elige una sección de misiones
 More controls|Más controles
-All nine tools are available below.|Las nueve herramientas están disponibles abajo.
+All ten tools are available below.|Las diez herramientas están disponibles abajo.
 No live data is stored in the browser.|No se guardan datos de sesión en el navegador.
 This page works through your existing backend session.|Esta página utiliza la sesión de tu backend existente.
 English|Inglés
@@ -1113,6 +1113,118 @@ Choose files|Elegir archivos
 Add attribute|Añadir atributo
 Attribute|Atributo
 Value|Valor
+Owners|Propietarios
+OWNERSHIP|TENENCIA
+Every piece of a collection, with the in-game name and wallet of whoever holds it.|Cada pieza de una colección, con el nombre en el juego y la cartera de quien la tiene.
+Name, user, wallet or #ID…|Nombre, usuario, cartera o #ID…
+In-game name|Nombre en el juego
+Public|Pública
+Private|Privada
+Make public|Hacer pública
+Make private|Hacer privada
+Change images by #|Cambiar imágenes por #
+Danger zone|Zona de peligro
+Delete collection…|Eliminar colección…
+Delete piece…|Eliminar pieza…
+Burn on-chain…|Quemar en cadena…
+Profile image|Imagen de perfil
+Cover|Portada
+No image|Sin imagen
+Visibility in the game|Visibilidad en el juego
+Private · only in this panel|Privada · solo en este panel
+Public · shown in the game NFT panel|Pública · se ve en el panel NFT del juego
+Change the image of this piece|Cambiar imagen de esta pieza
+Delete piece|Eliminar pieza
+Upload and apply|Subir y aplicar
+Apply to all|Aplicar a todas
+Sign burn|Firmar quema
+Loading owners…|Cargando propietarios…
+Economy & treasuries|Economía y tesoros
+Both treasuries, the Gold price index, inflation, the three coins and Gold purchases with zkLTC.|Los dos tesoros, el índice del precio del oro, la inflación, las tres monedas y las compras de oro con zkLTC.
+The circular-economy treasury (1.5% of every market fee and the exchange fees) and the coin drops for free and VIP players.|El tesoro de la economía circular (el 1,5 % de cada comisión de mercado y las comisiones de cambio) y las monedas que sueltan los monstruos a jugadores free y VIP.
+Circular-economy treasury|Tesoro de la economía circular
+Game treasury|Tesoro del juego
+Player rewards|Recompensas de jugadores
+Game income|Ingresos del juego
+Game treasury income, last 30 days|Ingresos del tesoro del juego, últimos 30 días
+Economy health|Salud de la economía
+Gold price (zkLTC)|Precio del oro (zkLTC)
+Daily inflation|Inflación diaria
+Coins in circulation · index (day 1 = 100)|Monedas en circulación · índice (día 1 = 100)
+Gold purchases with zkLTC|Compras de oro con zkLTC
+Gold price & purchase rules|Precio del oro y reglas de compra
+Gold purchases open|Compras de oro abiertas
+Base price (zkLTC per 1 Gold)|Precio base (zkLTC por 1 de oro)
+Sensitivity to 7-day inflation (×)|Sensibilidad a la inflación de 7 días (×)
+Maximum price change per day (%)|Cambio máximo del precio por día (%)
+Daily Gold limit per player (stable)|Límite diario de oro por jugador (estable)
+Daily Gold limit when overheated|Límite diario de oro si se recalienta
+Minimum purchase (Gold)|Compra mínima (oro)
+Treasury wallet that receives zkLTC (empty = the server wallet)|Cartera del tesoro que recibe el zkLTC (vacía = la del servidor)
+Take a snapshot now|Tomar la foto ahora
+Game treasury: deposit or withdraw|Tesoro del juego: ingresar o retirar
+Deposit into the game treasury|Ingresar al tesoro del juego
+Withdraw from the game treasury|Retirar del tesoro del juego
+Game treasury movements|Movimientos del tesoro del juego
+Map travel|Viajes del mapa
+Revive potions|Pociones de revivir
+Game shop|Tienda del juego
+Price of 1 Gold today|Precio de 1 oro hoy
+Inflation, 1 day|Inflación, 1 día
+Inflation, 7 days|Inflación, 7 días
+Daily Gold limit per player|Límite diario de oro por jugador
+Gold in circulation|Oro en circulación
+Silver in circulation|Plata en circulación
+Bronze in circulation|Bronce en circulación
+Total money (in bronze)|Dinero total (en bronce)
+Collecting data|Reuniendo datos
+Deflation|Deflación
+Stable|Estable
+Warming up|Calentándose
+Overheated|Recalentada
+Quoted|Cotizada
+Paid · waiting|Pagada · esperando
+Credited|Acreditada
+Failed|Fallida
+Gold purchase|Compra de oro
+No Gold purchases yet.|Aún no hay compras de oro.
+From exchange fees|De las comisiones de cambio
+zkLTC received for Gold|zkLTC recibido por oro
+Gold sold|Oro vendido
+Two treasuries. The circular-economy treasury pays the coins monsters drop; the game treasury keeps the game's income. Shop and P2P fees are 5%: 1.5% circular and 3.5% game. Exchange fees go to the circular treasury; map travel, VIP and revive potions go to the game treasury.|Dos tesoros. El de la economía circular paga las monedas que sueltan los monstruos; el del juego guarda los ingresos del juego. Las comisiones de la tienda y del P2P son del 5 %: 1,5 % al circular y 3,5 % al del juego. Las comisiones de cambio van al tesoro circular; los viajes del mapa, el VIP y las pociones de revivir van al tesoro del juego.
+From the game shop (1.5%)|De la tienda del juego (1,5 %)
+From the P2P market (1.5%)|Del mercado P2P (1,5 %)
+P2P market|Mercado P2P
+Its incentive settings live in the Treasury & incentives tool.|Sus incentivos se ajustan en la herramienta Tesoro e incentivos.
+Bronze per day by source. Hover a day for its numbers.|Bronce por día y por origen. Pasa el ratón por un día para ver sus cifras.
+What every player sees in the Currency panel. Snapshot every hour.|Lo que ve cada jugador en el panel de monedas. Se toma una foto cada hora.
+Each purchase is checked on-chain: from the player's wallet, to the treasury wallet, at least the quoted amount, one time per transaction.|Cada compra se comprueba en la cadena: sale de la cartera del jugador, llega a la cartera del tesoro, por al menos lo cotizado y una sola vez por transacción.
+Amount (bronze)|Cantidad (bronce)
+The last 40 entries: fees, travel, VIP, revive potions, Gold purchases and adjustments.|Los últimos 40 movimientos: comisiones, viajes, VIP, pociones de revivir, compras de oro y ajustes.
+Last updated ·|Última actualización ·
+purchases|compras
+Game treasury income by day and source|Ingresos del tesoro del juego por día y origen
+Gold purchases|Compras de oro
+Inflation appears after the second day of data.|La inflación aparece a partir del segundo día de datos.
+no data|sin datos
+Payments go to|Los pagos van a
+(server wallet)|(cartera del servidor)
+No treasury wallet: purchases cannot open until one is set.|Sin cartera del tesoro: las compras no se abren hasta que pongas una.
+Taking a snapshot…|Tomando la foto…
+Snapshot taken.|Foto tomada.
+Could not take the snapshot.|No se pudo tomar la foto.
+Type an amount.|Escribe una cantidad.
+Write a reason (3 characters or more).|Escribe un motivo (3 caracteres o más).
+Applying…|Aplicando…
+Done.|Hecho.
+The game treasury does not have that much.|El tesoro del juego no tiene tanto.
+Could not apply.|No se pudo aplicar.
+Quoted zkLTC|zkLTC cotizado
+Paid zkLTC|zkLTC pagado
+State|Estado
+Gold price|Precio del oro
+No price history yet.|Aún no hay historial de precios.
+No coins in circulation yet.|Aún no hay monedas en circulación.
 `;
   const supplements = `
 Use a percentage from 0 to 100, with up to two decimal places.|Usa un porcentaje entre 0 y 100, con hasta dos decimales.
