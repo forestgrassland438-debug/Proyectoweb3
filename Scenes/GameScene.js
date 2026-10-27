@@ -25704,9 +25704,10 @@ async _buildCurrencyHub(tab) {
   ov.id = 'gf-currency-modal';
   ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;';
 
-  // Cada paquete muestra su propio contador diario ("2/3 left today"), que se
-  // rellena en cuanto responde el servidor (ver _refrescarLimitesDeCompra).
-  const pkgs = this.GOLD_PACKAGES.map((p, i) =>
+  /* (2026-10-26) Los paquetes en dólares ya no se enseñan: el oro se compra en
+     zkLTC con un precio propio de la economía (gf-economia.js, en #gfc-economia).
+     La plantilla de abajo se queda por si alguien la necesita de referencia. */
+  const pkgs = [].map((p, i) =>
     `<div class="gfc-pkg" data-i="${i}" data-pack="${p.pack}" style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#0b2b22;border:2px solid #2b5c4a;border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
        <div style="display:flex;align-items:center;gap:8px;">
          <img src="./Game/Source/moneda de oro.png" alt="" style="width:26px;height:26px;image-rendering:pixelated;">
@@ -25734,21 +25735,11 @@ async _buildCurrencyHub(tab) {
      </div>
 
      <div id="gfc-buy">
-       <!-- REGALO SEMANAL (2026-08-05). Red de seguridad para que nadie se
-            quede sin dinero: 2000 de oro o 1000 de plata, uno cada 7 días y
-            contados por separado. El contador lo lleva el SERVIDOR. -->
-       <div style="background:#08211a;border:1px solid #24503f;border-radius:10px;padding:10px;margin-bottom:12px;">
-         <div style="color:#8fb8ff;font-size:12px;margin-bottom:8px;">Free every 7 days</div>
-         <div style="display:flex;gap:8px;">
-           <button id="gfc-gift-gold" style="flex:1;min-height:44px;border:none;border-radius:10px;background:#7a5c12;color:#fff;font-weight:bold;cursor:pointer;font-size:13px;">Get Gold</button>
-           <button id="gfc-gift-silver" style="flex:1;min-height:44px;border:none;border-radius:10px;background:#4a5563;color:#fff;font-weight:bold;cursor:pointer;font-size:13px;">Get Silver</button>
-         </div>
-         <div id="gfc-gift-msg" style="margin-top:8px;font-size:11.5px;color:#8fb8ff;line-height:1.5;"></div>
-       </div>
-       <div style="color:#bcd6c9;font-size:12px;margin-bottom:8px;line-height:1.5;">
-         Choose a package — <b>1 Gold = $1</b>.<br>
-         <span style="color:#8fb8ff;">Each package can be bought up to ${this.CURRENCY_PACK_DAILY_LIMIT} times per day, counted separately.</span>
-       </div>
+       <!-- (2026-10-26) "Quita los tres botones de dar oro, plata y bronce" (el
+            regalo semanal metía monedas de la nada) y el precio en dólares. La
+            compra de oro en zkLTC, el precio, la salud de la economía y sus
+            gráficos los pinta gf-economia.js aquí dentro. -->
+       <div id="gfc-economia"><div style="color:#8fb8ff;font-size:12px;padding:10px 0;">Loading the economy…</div></div>
        ${pkgs}
        <div style="background:#08211a;border:1px solid #24503f;border-radius:10px;padding:10px;font-size:12px;line-height:1.5;">
          <div style="color:#8fb8ff;">Your game wallet${w.embedded ? ' <span style="color:#6fcf97;">· built-in</span>' : ''}</div>
@@ -25813,13 +25804,10 @@ async _buildCurrencyHub(tab) {
   // El tope de 3 compras al día POR PAQUETE lo lleva el servidor. Aquí solo se
   // enseña cuántas quedan y se manda la petición; si el servidor dice que no
   // quedan, se avisa con la hora a la que se reinicia el contador.
-  card.querySelectorAll('.gfc-pkg').forEach(el => {
-    el.onclick = () => this._comprarPaqueteDeDinero(Number(el.getAttribute('data-i')), card);
-  });
-  this._refrescarLimitesDeCompra(card);
-
-  // ── Regalo semanal ───────────────────────────────────────────────────────
-  this._montarRegaloSemanal(card);
+  // (2026-10-26) La compra de oro en zkLTC, el precio y los gráficos: gf-economia.js.
+  if (window.GFEconomia && typeof window.GFEconomia.montarCompra === 'function') {
+    try { window.GFEconomia.montarCompra(card.querySelector('#gfc-economia'), this, w); } catch (e) { console.warn('economía:', e); }
+  }
 
   // ── Cambio de moneda, en las DOS direcciones ─────────────────────────────
   // `cantidad` siempre se cuenta en ORO (es la unidad grande): en plata→oro es
@@ -25838,8 +25826,10 @@ async _buildCurrencyHub(tab) {
   });
   const topeActual = () => {
     const s = saldos();
+    // (2026-10-26) Con la comisión de plata→oro (2 %): 1 de oro cuesta 1.020 de plata.
+    const bpsS2G = (window.GFEconomia && window.GFEconomia.comisionCambio) ? window.GFEconomia.comisionCambio('silverToGold', 1).bps : 0;
     return direccion === 'silverToGold'
-      ? Math.floor(s.plata / this.SILVER_PER_GOLD)   // cuánto oro puedo comprar
+      ? Math.floor(s.plata / (this.SILVER_PER_GOLD * (1 + bpsS2G / 10000)))   // cuánto oro puedo comprar
       : s.oro;                                       // cuánto oro puedo fundir
   };
 
@@ -25861,20 +25851,28 @@ async _buildCurrencyHub(tab) {
     let q = Math.max(1, Math.min(Math.max(1, tope), parseInt(qtyEl.value, 10) || 1));
     qtyEl.value = q;
 
+    // (2026-10-26) La comisión del cambio (1 % oro→plata, 2 % plata→oro) va al
+    // tesoro de la economía circular: se enseña antes de cambiar.
+    const fee = (window.GFEconomia && window.GFEconomia.comisionCambio) ? window.GFEconomia.comisionCambio(direccion, q) : { cantidad: 0, bps: 0 };
+    const pct = (fee.bps / 100).toLocaleString('en-US');
     if (direccion === 'silverToGold') {
       lblEl.textContent = `How much Gold do you want? (max ${tope})`;
-      costEl.textContent = `Cost: ${q * this.SILVER_PER_GOLD} Silver  →  you get ${q} Gold`;
+      costEl.textContent = `Cost: ${q * this.SILVER_PER_GOLD + fee.cantidad} Silver  →  you get ${q} Gold` +
+        (fee.cantidad ? `  ·  fee ${pct}% = ${fee.cantidad} Silver` : '');
     } else {
       lblEl.textContent = `How much Gold do you want to convert? (max ${tope})`;
-      costEl.textContent = `Cost: ${q} Gold  →  you get ${q * this.SILVER_PER_GOLD} Silver`;
+      costEl.textContent = `Cost: ${q} Gold  →  you get ${q * this.SILVER_PER_GOLD - fee.cantidad} Silver` +
+        (fee.cantidad ? `  ·  fee ${pct}% = ${fee.cantidad} Silver` : '');
     }
     // Si no alcanza para nada, el botón se apaga en vez de dejar pulsar y fallar.
     $('gfc-e-go').disabled = tope < 1;
     $('gfc-e-go').style.opacity = tope < 1 ? '.55' : '1';
     if (tope < 1) {
       msgEl.style.color = '#ff8a8a';
+      // Lo mínimo ya con la comisión de 1 de oro (1.000 + 2 % = 1.020 de plata).
+      const fee1 = (window.GFEconomia && window.GFEconomia.comisionCambio) ? window.GFEconomia.comisionCambio('silverToGold', 1).cantidad : 0;
       msgEl.textContent = direccion === 'silverToGold'
-        ? `You need at least ${this.SILVER_PER_GOLD} Silver.`
+        ? `You need at least ${this.SILVER_PER_GOLD + fee1} Silver.`
         : 'You need at least 1 Gold.';
     } else if (msgEl.dataset.sticky !== '1') {
       msgEl.textContent = '';
@@ -25912,10 +25910,11 @@ async _buildCurrencyHub(tab) {
     const ok = await this._exchangeCurrency(direccion, q);
 
     if (ok) {
+      const feeHecho = (window.GFEconomia && window.GFEconomia.comisionCambio) ? window.GFEconomia.comisionCambio(direccion, q) : { cantidad: 0 };
       msgEl.style.color = '#6fcf97';
       msgEl.textContent = direccion === 'silverToGold'
         ? `Done! +${q} Gold`
-        : `Done! +${q * this.SILVER_PER_GOLD} Silver`;
+        : `Done! +${q * this.SILVER_PER_GOLD - feeHecho.cantidad} Silver`;
       // El hub se queda abierto: se refrescan saldos y topes para poder
       // encadenar otro cambio sin volver a abrirlo.
       qtyEl.value = 1;
@@ -28966,6 +28965,20 @@ getPlayerIntentDirection() {
 
     // Eje a eje, y si estaba atrapado, fuera (ver _resolverChoqueJugador).
     this._resolverChoqueJugador(prevX, prevY, 15);
+
+    /* (2026-10-26) LA PROFUNDIDAD, OTRA VEZ, CON LA POSICIÓN YA CORREGIDA.
+       Más arriba se pone con la posición de ANTES de resolver el choque: la
+       del paso que se ha metido en el tronco. Apretando hacia abajo detrás de
+       un árbol, cada fotograma el personaje se ordenaba unos píxeles por
+       delante de donde de verdad se queda (4 a 60 fps, 8 a 30) y salía
+       dibujado delante del árbol. */
+    {
+      const pies = (window.GFProfundidad && window.GFProfundidad.piesDe)
+        ? window.GFProfundidad.piesDe(this, this.player)
+        : this.player.y + this.player.displayHeight * 0.5;
+      this.player.setDepth(pies);
+      if (this.usuariox) this.usuariox.setDepth(pies + 1);
+    }
 
     // ===== Decisión ÚNICA de animación del jugador para este frame =====
     // Se calcula acá, después de resolver colisiones por eje (blockedX/blockedY),

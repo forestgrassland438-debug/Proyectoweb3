@@ -200,6 +200,9 @@ class ZonaScene extends GameScene {
 
     // ── Los árboles y los objetos (2.5D) ──────────────────────────────────
     this._montarArboles();
+    // (2026-10-26) El tronco dibujado encima de su choque (gf-troncos.js): la
+    // palmera cocotera y el roble curvado lo tienen a un lado y se atravesaban.
+    if (window.GFTroncos) window.GFTroncos.ajustar(this, this._arboles);
     this._montarObjetos();
     this._montarExtras();
 

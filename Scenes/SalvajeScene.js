@@ -199,6 +199,9 @@ class SalvajeScene extends GameScene {
 
     // ── Los árboles (2.5D) ────────────────────────────────────────────────
     this._montarArboles();
+    // (2026-10-26) El tronco dibujado encima de su choque (gf-troncos.js):
+    // el roble curvado lo tiene 31 px a un lado y se atravesaba.
+    if (window.GFTroncos) window.GFTroncos.ajustar(this, this._arboles);
 
     // ── El jugador ─────────────────────────────────────────────────────────
     let inicio = this._puntoDeAparicion();
