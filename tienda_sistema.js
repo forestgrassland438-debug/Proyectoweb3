@@ -1159,6 +1159,9 @@ class TiendaSistema {
                 */
         };
 
+        // (2026-10-27) Cada objeto que se compra tiene su nivel (gf-niveles-objetos.js, la MISMA tabla que el servidor).
+        this._aplicarNiveles();
+
         // Inicializar desde localStorage
         this.loadDailyLimits();
         this.loadHistorial();
@@ -1826,13 +1829,15 @@ class TiendaSistema {
             this.updatePcSimpleDetail();
             
             this.closePcModal();
-            
+
             this.updateHistorialDisplay();
             this.updateMobileHistorialDisplay();
-            
+
         } catch (error) {
             console.error('Error in transaction:', error);
             this.showNotification(`Error: ${error.message}`, 'error');
+            // (2026-10-27) También al historial del centro de control (no se cobró nada).
+            this._registrarFallo(this.transactionType, item, quantity, error, false);
         } finally {
             setTimeout(() => {
                 this._transactionLock = false;
@@ -2387,8 +2392,69 @@ class TiendaSistema {
     
     // Nivel actual del jugador (desde la escena). 0 si no está disponible.
     _playerLevel() {
+        // (2026-10-27) El de la experiencia (gf-niveles-mapas.js), el mismo que mira el servidor.
+        if (window.GFNivelesObjetos) {
+            const nx = window.GFNivelesObjetos.nivelDeEscena(this._escena() || this.scene);
+            if (nx > 0) return nx;
+        }
         const n = this.scene && this.scene.nivel;
         return (typeof n === 'number' && !isNaN(n)) ? n : 0;
+    }
+
+    /* (2026-10-27) "Todos los objetos de la tienda que se pueden comprar tienen un nivel específico, justo".
+       El nivel sale de gf-niveles-objetos.js; si un objeto ya traía uno mayor a mano, se queda el mayor. */
+    _aplicarNiveles() {
+        const N = window.GFNivelesObjetos;
+        if (!N) return;
+        for (const lista of Object.values(this.itemsTienda || {})) {
+            if (!Array.isArray(lista)) continue;
+            for (const item of lista) {
+                const n = N.nivel(item.id);
+                if (n > 1 && !(Number(item.nivelRequerido) >= n)) item.nivelRequerido = n;
+            }
+        }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       EL REGISTRO DE LA TIENDA (2026-10-27)
+       ───────────────────────────────────────────────────────────────────────
+       "Quiero ver quién compró, cuánto gastó y si pagó o no; si el gasto al
+       comprar y al vender es el correcto; y que cualquier error de compra o
+       venta salga en el historial del centro de control para solucionarlo."
+       Cada operación se cuenta al servidor (/api/tienda/registro) al empezar,
+       al terminar y al fallar. El servidor la compara con SU tabla de precios
+       y con lo que vio cambiar en los saldos. Nunca bloquea ni rompe la compra
+       (un servidor viejo contesta 404 y no se insiste).
+       ═══════════════════════════════════════════════════════════════════════ */
+    _nuevaRef() {
+        return (window.crypto && typeof window.crypto.randomUUID === 'function')
+            ? window.crypto.randomUUID()
+            : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+    }
+
+    _registrarTienda(datos) {
+        try {
+            if (!datos || !datos.ref) return;
+            const e = this._escena();
+            const url = `${this._resolveApiBase()}/api/tienda/registro`;
+            const cuerpo = JSON.stringify(datos);
+            const enviar = (intento) => {
+                const csrf = typeof window.getCsrfToken === 'function' ? window.getCsrfToken(e?.csrfToken || '') : (e?.csrfToken || '');
+                const otraVez = () => { if (intento < 3) setTimeout(() => enviar(intento + 1), 3000 * (intento + 1)); };
+                fetch(url, { method: 'POST', credentials: 'include', keepalive: true,
+                             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: cuerpo })
+                    .then((r) => { if (r.status >= 500 || r.status === 429 || r.status === 403) otraVez(); })
+                    .catch(otraVez);
+            };
+            enviar(0);
+        } catch (_) { /* el registro nunca rompe la tienda */ }
+    }
+
+    /** Un fallo de la tienda que corta la operación antes de cobrar o pagar nada. */
+    _registrarFallo(op, item, cantidad, error, grave) {
+        this._registrarTienda({ ref: this._nuevaRef(), fase: 'error', op: op === 'venta' ? 'venta' : 'compra',
+                                itemId: item && item.id, cantidad: Number(cantidad) || 0,
+                                error: String((error && error.message) || error || '').slice(0, 280), grave: !!grave });
     }
 
     // Un ítem está bloqueado por nivel solo al COMPRAR, si define nivelRequerido
@@ -2742,10 +2808,12 @@ class TiendaSistema {
             
             this.updateHistorialDisplay();
             this.updateMobileHistorialDisplay();
-            
+
         } catch (error) {
             console.error('Error in transaction:', error);
             this.showNotification(`Error: ${error.message}`, 'error');
+            // (2026-10-27) También al historial del centro de control (no se cobró nada).
+            this._registrarFallo(this.transactionType, item, quantity, error, false);
         } finally {
             setTimeout(() => {
                 this._transactionLock = false;
@@ -3038,6 +3106,10 @@ class TiendaSistema {
         if (this._construccionBloqueada(item)) {
             throw new Error('Construction is not available yet. Try again later.');
         }
+        // (2026-10-27) El nivel del objeto: antes de cobrar nada (la tarjeta ya sale con candado).
+        if (this._isLockedByLevel(item)) {
+            throw new Error(`Requires level ${item.nivelRequerido} to buy ${item.name} (you are level ${this._playerLevel()}).`);
+        }
         // (2026-10-21) El bote, el arco y el bastón: sus tablas las crea el
         // servidor NUEVO. Con el de antes la compra acababa en "createInvoice
         // falló para 1"; ahora se dice antes de cobrar nada.
@@ -3081,7 +3153,7 @@ class TiendaSistema {
             this.dailyLimits[item.id] = (this.dailyLimits[item.id] || 0) + quantity;
             this.saveDailyLimits();
         }
-        
+
         const transactionInfo = {
             type: 'compra',
             itemId: item.id,
@@ -3091,10 +3163,14 @@ class TiendaSistema {
             totalCost,
             currency,
             fee,                       // (2026-10-22) comisión del tesoro, en bronce
+            ref: this._nuevaRef(),     // (2026-10-27) la operación en el registro de la tienda
             remainingGold: this.playerMoneda,
             remainingSilver: this.playerMonedaPlata,
             remainingBronze: this._saldoBronce()
         };
+        this._registrarTienda({ ref: transactionInfo.ref, fase: 'inicio', op: 'compra', itemId: item.id, cantidad: quantity,
+                                moneda: currency, precioUnidad: unitPrice, total: totalCost, fee,
+                                saldoAntes: balance, saldoDespues: this.getBalanceByCurrency(currency) });
 
         // FIX UI NO BLOQUEANTE: antes se hacía `await ejecutarDivision(...)`
         // aquí mismo, así que el modal quedaba trancado hasta que la
@@ -3246,11 +3322,14 @@ class TiendaSistema {
         const before = this.getItemCountInInventory(item.id);
         this._confirmedPurchaseQuantity = null;
         this._confirmedPurchaseInvoices = [];
+        // (2026-10-27) Para el registro de la tienda: lo devuelto y por qué falló.
+        let reembolsado = 0, feeDevueltoReg = 0, falloCadena = '';
 
         try {
             await this.ejecutarDivision(rutaTabla, item.id, limite, quantity);
         } catch (err) {
             console.error(`❌ ejecutarDivision falló para ${item.id}:`, err);
+            falloCadena = String((err && err.message) || err || '').slice(0, 200);
         }
 
         // Verificar cuántas unidades se confirmaron realmente (mismo patrón
@@ -3293,6 +3372,8 @@ class TiendaSistema {
             const feeCobrado = Number(transactionInfo.fee) || 0;
             const feeDevuelto = feeCobrado > 0 ? Math.max(0, feeCobrado - this._comisionBronce(item, added, 'compra')) : 0;
             if (feeDevuelto > 0) this._sumarMoneda('bronze', feeDevuelto, `Devolución de la comisión: ${missing}x ${item.name}`);
+            reembolsado = refund; feeDevueltoReg = feeDevuelto;
+            if (!falloCadena) falloCadena = this._ultimoMotivoFallo ? String(this._ultimoMotivoFallo).slice(0, 200) : 'not confirmed on-chain';
             this.showNotification?.(
                 `⚠️ ${missing}x ${item.name} could not be confirmed on-chain. ${refund} ${this.getCurrencyLabel(currency)} refunded` +
                 (feeDevuelto > 0 ? ` (+${feeDevuelto.toLocaleString('en-US')} BR of the fee)` : ''),
@@ -3307,6 +3388,12 @@ class TiendaSistema {
         // (2026-10-22) Lo confirmado paga su comisión: se avisa al tesoro.
         const feeConfirmado = added > 0 && (Number(transactionInfo.fee) || 0) > 0 ? this._comisionBronce(item, added, 'compra') : 0;
         if (feeConfirmado > 0) this._informarComision('compra', item, added);
+
+        // (2026-10-27) Cómo acabó, al registro de la tienda (el servidor lo cuadra con los saldos).
+        this._registrarTienda({ ref: transactionInfo.ref, fase: 'fin', op: 'compra', itemId: item.id, cantidad: quantity,
+                                moneda: transactionInfo.currency, precioUnidad: transactionInfo.unitPrice, fee: Number(transactionInfo.fee) || 0,
+                                confirmadas: added, reembolso: reembolsado, feeDevuelto: feeDevueltoReg,
+                                guardada: added > 0 ? persisted : undefined, error: added < quantity ? falloCadena : '' });
 
         if (persisted) {
             try {
@@ -5403,6 +5490,9 @@ renderSlot(index) {
                 `⚠️ Your ${this.getCurrencyLabel(currency)} balance could not be verified. Reopen the shop before trading again.`,
                 'error'
             );
+            // (2026-10-27) Un saldo que no cuadra es un fallo de la tienda: al centro de control.
+            this._registrarFallo(/^venta/i.test(String(etiqueta)) ? 'venta' : 'compra', null, 0,
+                `balance mismatch (${etiqueta}): expected ${esperado}, found ${reintento} ${this.getCurrencyLabel(currency)}`, true);
             return false;
         }
         this.updateMonedaDisplay?.();
@@ -5449,6 +5539,7 @@ renderSlot(index) {
                 'error'
             );
             console.error(`❌ Venta cancelada: ${item.id} no tiene tipo on-chain (ItemDefinitions).`);
+            this._registrarFallo('venta', item, cantidad, 'no on-chain record (ItemDefinitions)', true);
             return;
         }
 
@@ -5462,6 +5553,7 @@ renderSlot(index) {
                 'error'
             );
             console.error(`❌ Venta cancelada: ${item.id} no tiene sellPrice (${item.sellPrice}).`);
+            this._registrarFallo('venta', item, cantidad, 'no sale price', true);
             return;
         }
 
@@ -5478,10 +5570,16 @@ renderSlot(index) {
                     : `⚠️ You do not have ${cantidad} ${item.name}.`,
                 'error'
             );
+            this._registrarFallo('venta', item, cantidad, `not enough free units (${disponible} free, ${enCola} queued)`, false);
             return;
         }
 
         this._comprometer(item.id, cantidad);
+        // (2026-10-27) La venta en el registro de la tienda, desde que se encola.
+        const ref = this._nuevaRef();
+        const comisionPrevista = this._conComision() ? this._comisionBronce(item, cantidad, 'venta') : 0;
+        this._registrarTienda({ ref, fase: 'inicio', op: 'venta', itemId: item.id, cantidad, moneda: this.getItemCurrency(item),
+                                precioUnidad: Number(item.sellPrice) || 0, total: (Number(item.sellPrice) || 0) * cantidad, fee: comisionPrevista });
 
         // La tienda ya puede seguir: se refresca lo que depende del disponible.
         this.showNotification?.(`⏳ Selling ${cantidad}x ${item.name}…`, 'info');
@@ -5489,7 +5587,7 @@ renderSlot(index) {
 
         this._encolarTrabajoTienda(
             `Shop sale: ${cantidad}x ${item.id}`,
-            () => this._ejecutarVenta(item, cantidad, tabla)
+            () => this._ejecutarVenta(item, cantidad, tabla, ref)
         );
 
         console.log(`🧾 Venta encolada: ${cantidad}x ${item.id} (en cola: ${this.trabajosPendientes()})`);
@@ -5520,7 +5618,7 @@ renderSlot(index) {
 
     /* El trabajo de verdad de una venta. Corre dentro de la cola de la tienda,
        nunca desde el botón: aquí sí se puede esperar a la cadena. */
-    async _ejecutarVenta(item, cantidad, tabla) {
+    async _ejecutarVenta(item, cantidad, tabla, ref) {
         /* LAS UNIDADES COMPROMETIDAS SE SUELTAN SIEMPRE, PASE LO QUE PASE.
 
            Si una excepción se colara antes del `finally` de abajo, esas
@@ -5538,13 +5636,18 @@ renderSlot(index) {
         };
 
         try {
-            return await this._ventaEnCadena(item, cantidad, tabla, soltar);
+            return await this._ventaEnCadena(item, cantidad, tabla, soltar, ref);
+        } catch (err) {
+            // (2026-10-27) Una excepción a mitad de la venta también sale en el registro.
+            if (ref) this._registrarTienda({ ref, fase: 'error', op: 'venta', itemId: item.id, cantidad,
+                                             error: String((err && err.message) || err || '').slice(0, 280), grave: true });
+            throw err;
         } finally {
             soltar();
         }
     }
 
-    async _ventaEnCadena(item, cantidad, tabla, soltar) {
+    async _ventaEnCadena(item, cantidad, tabla, soltar, ref) {
         const currency    = this.getItemCurrency(item);
         const unitGross   = Number(item.sellPrice) || 0;
         const [tipoOnchain, limite] = tabla;
@@ -5611,6 +5714,9 @@ renderSlot(index) {
             }
             console.warn(`⚠️ Venta no confirmada: 0/${cantidad} ${item.id}`,
                          motivo || '(sin motivo apuntado)');
+            if (ref) this._registrarTienda({ ref, fase: 'fin', op: 'venta', itemId: item.id, cantidad, moneda: currency,
+                                             precioUnidad: unitGross, confirmadas: 0, yaGastadas, pagadoBronce: 0,
+                                             error: String(motivo || 'not confirmed on-chain').slice(0, 200) });
             this._refrescarDisponibles();
             return;
         }
@@ -5635,6 +5741,11 @@ renderSlot(index) {
         this._sumarMoneda('silver', restoPlata, `Venta de ${vendidas}x ${item.name} (cambio)`);
         this._sumarMoneda('bronze', restoBronce, `Venta de ${vendidas}x ${item.name} (cambio)`);
         if (commission > 0) this._informarComision('venta', item, vendidas);
+        // (2026-10-27) Lo pagado, en bronce (precio menos la comisión), al registro de la tienda.
+        if (ref) this._registrarTienda({ ref, fase: 'fin', op: 'venta', itemId: item.id, cantidad, moneda: currency,
+                                         precioUnidad: unitGross, fee: commission, confirmadas: vendidas, yaGastadas,
+                                         pagadoBronce: netoBronce, saldoAntes: saldoAntes, saldoDespues: this.getBalanceByCurrency(currency),
+                                         error: vendidas < cantidad ? `only ${vendidas} of ${cantidad} confirmed` : '' });
 
         const transactionInfo = {
             type: 'venta',

@@ -131,7 +131,7 @@
     ]));
     pintarIngresos(d.serieJuego || []);
     pintarEconomia(e);
-    pintarCompras(d.compras || []);
+    cargarCompras().catch(() => pintarCompras());
     $('ec-movs').replaceChildren(tabla([{ t: 'When' }, { t: 'Source' }, { t: 'Bronze', num: true }, { t: 'Player' }, { t: 'Detail' }],
       (d.ultimos || []).map(m => [fecha(m.t), t((ORIGENES.find(o => o[0] === m.origen) || [0, m.origen === 'compra_oro' ? 'Gold purchase' : m.origen])[1]),
         m.bronce ? (m.bronce > 0 ? '+' : '') + fmt(m.bronce) : '—', m.playerName || '—', m.detalle || '']), 'No movements yet.'));
@@ -257,14 +257,69 @@
     $('ec-g-masa').replaceChildren(linea(serie, null, 'Coins in circulation, index', { lineas: monedas, incluir: 100, vacio: 'No coins in circulation yet.', eje: v => fmt(v), dato: v => (v === null ? '—' : fmt(v, 1)) }));
     $('ec-g-masa-leyenda').replaceChildren(...monedas.map(m => { const s = el('span'); const i = el('i'); i.style.background = m.color; s.append(i, el('span', '', t(m.nombre))); return s; }));
   }
-  function pintarCompras(compras) {
+  /* LAS RECARGAS (2026-10-27): "el registro de entrada de dinero y toda la información de recarga en el centro de control".
+     Con el servidor nuevo, de /api/admin/economia/compras (búsqueda, estado, totales y "revisar en la cadena");
+     con el de antes, las 40 de /api/admin/economia. */
+  const compras = { q: '', estado: '', filas: null, resumen: null, recibido: 0, destino: '', nuevo: true };
+  async function cargarCompras() {
+    if (!compras.nuevo) { pintarCompras(); return; }
+    const qs = new URLSearchParams();
+    if (compras.q) qs.set('q', compras.q);
+    if (compras.estado) qs.set('estado', compras.estado);
+    try {
+      const r = await session.request('/api/admin/economia/compras' + (qs.toString() ? '?' + qs : ''));
+      compras.filas = r.compras || []; compras.resumen = r.resumen || []; compras.recibido = r.recibidoZk || 0; compras.destino = r.destino || '';
+    } catch (e) {
+      if (e && e.status === 404) { compras.nuevo = false; compras.filas = null; } else throw e;
+    }
+    pintarCompras();
+  }
+  function pintarCompras() {
     const explorer = 'https://liteforge.explorer.caldera.xyz/tx/';
-    $('ec-compras').replaceChildren(tabla([{ t: 'When' }, { t: 'Player' }, { t: 'Gold', num: true }, { t: 'Quoted zkLTC', num: true }, { t: 'Paid zkLTC', num: true }, { t: 'State' }, { t: 'Transaction' }],
-      compras.map(c => {
+    const lista = compras.filas || (datos && datos.compras) || [];
+    const res = compras.resumen || [];
+    const de = k => res.find(x => x.estado === k) || { n: 0, oro: 0, reclamadas: 0 };
+    const kpi = (v, k) => { const d = el('div', 'ec-kpi'); d.append(el('b', '', v), el('span', '', t(k))); return d; };
+    $('ec-c-kpis').hidden = !compras.filas;
+    if (compras.filas) {
+      $('ec-c-kpis').replaceChildren(kpi(zk(compras.recibido) + ' zkLTC', 'zkLTC received'), kpi(fmt(de('acreditada').n), 'Credited top-ups'),
+        kpi(fmt(de('acreditada').oro), 'Gold credited'), kpi(fmt(de('pagada').n), 'Paid, waiting'), kpi(fmt(de('fallida').n), 'Failed'),
+        kpi(fmt(res.reduce((s, x) => s + (x.reclamadas || 0), 0)), 'Claimed with a hash'));
+      $('ec-c-destino').textContent = compras.destino ? t('Payments go to ') + compras.destino : '';
+    }
+    $('ec-compras').replaceChildren(tabla([{ t: 'When' }, { t: 'Player' }, { t: 'Gold', num: true }, { t: 'Quoted zkLTC', num: true }, { t: 'Paid zkLTC', num: true }, { t: 'State' }, { t: 'Transaction' }, { t: 'Action' }],
+      lista.map(c => {
         let tx = '—';
-        if (c.txHash && /^0x[0-9a-f]{64}$/.test(c.txHash)) { tx = el('a', 'ec-mono', c.txHash.slice(0, 10) + '…'); tx.href = explorer + c.txHash; tx.target = '_blank'; tx.rel = 'noopener noreferrer'; }
+        if (c.txHash && /^0x[0-9a-f]{64}$/.test(c.txHash)) {
+          tx = el('span', 'ec-tx');
+          const a = el('a', 'ec-mono', c.txHash.slice(0, 10) + '…'); a.href = explorer + c.txHash; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.title = c.txHash;
+          const cp = el('button', 'ec-mini', t('Copy')); cp.type = 'button';
+          cp.addEventListener('click', () => { try { navigator.clipboard.writeText(c.txHash).then(() => { cp.textContent = '✓'; setTimeout(() => { cp.textContent = t('Copy'); }, 1500); }); } catch (_) {} });
+          tx.append(a, cp);
+        }
         const estado = el('span', c.estado === 'acreditada' ? 'ec-estado-ok' : c.estado === 'fallida' ? 'ec-estado-mal' : '', t(ESTADOS[c.estado] || c.estado) + (c.motivo ? ' · ' + c.motivo : ''));
-        return [fecha(c.t), c.playerName || '—', fmt(c.oroDado || c.oro), zk(c.zkltc), c.pagado ? zk(c.pagado) : '—', estado, tx];
+        const est = el('span', 'ec-celda'); est.append(estado);
+        if (c.reclamada) est.append(el('small', '', t('claimed by the player with the hash')));
+        if (c.revisadaPor) est.append(el('small', '', t('re-checked by') + ' ' + c.revisadaPor.slice(0, 6) + '…' + c.revisadaPor.slice(-4)));
+        const quien = el('span', 'ec-celda');
+        quien.append(el('b', '', c.username || c.playerName || '—'));
+        if (c.address) quien.append(el('small', 'ec-mono', c.address.slice(0, 6) + '…' + c.address.slice(-4)));
+        let accion = '—';
+        if (compras.nuevo && c.estado !== 'acreditada' && c.txHash) {
+          accion = el('button', 'ec-mini', t('Re-check on-chain')); accion.type = 'button';
+          accion.addEventListener('click', async () => {
+            if (ocupado) return;
+            ocupado = true; accion.disabled = true; $('ec-c-estado').textContent = t('Checking the transaction…');
+            try {
+              const r = await session.request('/api/admin/economia/compras/' + encodeURIComponent(c.id) + '/revisar', { method: 'POST', body: '{}' });
+              $('ec-c-estado').textContent = r && r.ok ? t('Credited: ') + fmt(r.oro) + ' ' + t('Gold') : t('Not credited.');
+              ocupado = false; await cargarCompras();
+            } catch (e) {
+              $('ec-c-estado').textContent = e && e.status === 202 ? t('The transaction is not confirmed yet.') : ((e && (e.code || e.message)) || t('Could not check it.'));
+            } finally { ocupado = false; if (accion.isConnected) accion.disabled = false; }
+          });
+        }
+        return [fecha(c.t), quien, fmt(c.oroDado || c.oro), zk(c.zkltc), c.pagado ? zk(c.pagado) : '—', est, tx, accion];
       }), 'No Gold purchases yet.'));
   }
 
@@ -334,6 +389,12 @@
       }, 150);
     }).observe($('ec-body'));
   }
+  // (2026-10-27) Buscar y filtrar las recargas.
+  $('ec-c-form').addEventListener('submit', ev => {
+    ev.preventDefault();
+    compras.q = $('ec-c-q').value.trim(); compras.estado = $('ec-c-est').value;
+    cargarCompras().catch(e => { $('ec-c-estado').textContent = (e && e.message) || t('Could not load the top-ups.'); });
+  });
   $('ec-connect').addEventListener('click', () => verificar(true));
   $('ec-refresh').addEventListener('click', () => cargar());
   root.addEventListener('pagehide', ev => { if (ev.persisted) return; cerrado = true; clearInterval(reloj); if (peticion) peticion.abort(); });

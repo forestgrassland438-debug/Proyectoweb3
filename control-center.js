@@ -13,7 +13,9 @@
     errors:'<path d="m12 3 10 18H2L12 3ZM12 9v5m0 3h.01"/>',
     treasury:'<path d="M3 10h18L12 4 3 10ZM5 10v8m4.67-8v8m4.66-8v8M19 10v8M3 21h18"/>',
     // (2026-10-26) La economía: una línea que sube sobre sus ejes.
-    economy:'<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>'
+    economy:'<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>',
+    // (2026-10-27) La auditoría: una lista y una lupa.
+    audit:'<path d="M4 6h9M4 10h6M4 14h4"/><circle cx="15.5" cy="14.5" r="4"/><path d="m18.5 17.5 3 3"/>'
   };
   const svg = name => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+icons[name]+'</svg>';
   const tools = [
@@ -25,6 +27,8 @@
     { id:'economia', file:'economia.html', name:'Economy & treasuries', icon:'economy', group:'Game control', text:'Both treasuries, the Gold price index, inflation, the three coins and Gold purchases with zkLTC.' },
     { id:'colecciones', file:'colecciones.html', name:'Collections', icon:'collections', group:'Assets', text:'Create collections and manage NFT distribution.' },
     { id:'consola-reportes', file:'consola-reportes.html', name:'Player reports', icon:'reports', group:'Moderation', text:'Review player reports and moderation cases.' },
+    // (2026-10-27) Quién compró y vendió y si pagó, los fallos de la tienda y del P2P, el explorador del suelo y los intentos.
+    { id:'auditoria', file:'auditoria.html', name:'Shop & drop audit', icon:'audit', group:'Moderation', text:'Who bought and sold, what it cost and if it was paid; shop and P2P errors; who picked up each drop and from whom; drop bans and level attempts.' },
     { id:'puerta-login', file:'puerta_login.html', name:'Access & permissions', icon:'access', group:'Moderation', text:'Manage the whitelist and game entry rules.' },
     { id:'contrato-stats', file:'contrato-stats.html', name:'Contract analytics', icon:'contract', group:'System', text:'Read invoices, contract activity and gas usage.' },
     { id:'reporter', file:'reporter.html', name:'Error monitoring', icon:'errors', group:'System', text:'Investigate client errors and relay failures.' }

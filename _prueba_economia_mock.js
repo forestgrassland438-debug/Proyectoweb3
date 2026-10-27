@@ -101,6 +101,27 @@
       return { ok: true, config: estado.config };
     }
     if (path === '/api/admin/economia/foto' && metodo === 'POST') return { ok: true, dia: ult ? ult.dia : null };
+    // (2026-10-27) Las recargas: búsqueda, estado, totales y revisar en la cadena.
+    if (path.startsWith('/api/admin/economia/compras') && metodo === 'GET') {
+      const qs = new URLSearchParams(path.split('?')[1] || '');
+      const q = String(qs.get('q') || '').toLowerCase(), est = qs.get('estado') || '';
+      let filas = estado.compras.map((c, i) => Object.assign({ address: '0x' + String((i % 9) + 1).repeat(40), username: c.playerName + (i % 2 ? '' : '_GF'),
+        reclamada: i === 3, revisadaPor: i === 5 ? '0x' + 'ab'.repeat(20) : '' }, c));
+      if (est) filas = filas.filter(c => c.estado === est);
+      else filas = filas.filter(c => c.estado !== 'cotizada' || c.txHash);
+      if (q) filas = filas.filter(c => [c.playerName, c.username, c.address, c.txHash].some(x => String(x || '').toLowerCase().includes(q)));
+      const porEstado = {};
+      estado.compras.forEach((c, i) => { const p = porEstado[c.estado] = porEstado[c.estado] || { estado: c.estado, n: 0, oro: 0, reclamadas: 0 }; p.n++; p.oro += c.oroDado || 0; if (i === 3) p.reclamadas++; });
+      return { ok: true, destino: estado.config.cartera || '0x' + 'cd'.repeat(20), recibidoZk: estado.juego.zkltc.recibido, resumen: Object.values(porEstado), compras: filas };
+    }
+    if (/^\/api\/admin\/economia\/compras\/[^/]+\/revisar$/.test(path) && metodo === 'POST') {
+      const id = path.split('/')[5];
+      const c = estado.compras.find(x => x.id === id);
+      if (!c) throw error(404, 'no_encontrada');
+      if (c.estado === 'fallida') throw error(409, 'otro_destino');
+      c.estado = 'acreditada'; c.oroDado = c.oro; c.motivo = '';
+      return { ok: true, oro: c.oro };
+    }
     if (path === '/api/admin/tesoro-juego/ajuste' && metodo === 'POST') {
       const tipo = String(cuerpo.tipo || ''), bronceA = Math.floor(Number(cuerpo.bronce) || 0), motivo = String(cuerpo.motivo || '').trim();
       if (tipo !== 'ingreso' && tipo !== 'retiro') throw error(400, 'tipo_invalido');

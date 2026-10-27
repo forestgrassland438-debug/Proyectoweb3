@@ -88,6 +88,8 @@
   <!-- "My NFTs" del panel NFT: la colección que se elige en admin.html. -->
   <script src="./gf-nft.js?v=22.5.67f2c6bd03ca" defer></script>
   <script src="./gf-niveles-mapas.js?v=22.5.53193a023d39" defer></script>
+  <!-- (2026-10-27) El nivel de cada objeto: la tienda, el suelo y el mercado (la MISMA tabla que GF_NIVEL_OBJETO de server2.js). -->
+  <script src="./gf-niveles-objetos.js?v=22.5.eed4a459e168" defer></script>
   <script src="./gf-lands.js?v=22.5.118ac060b63f" defer></script>
 
   <!-- Canales (10 × 50 jugadores). El canal lo asigna el servidor al conectar
@@ -134,7 +136,7 @@
   <script src="./gf-mina-espectros.js?v=22.5.6a8022f5c916" defer></script>
   <!-- El mapa salvaje: sus monstruos, la espada entre jugadores en la zona
        PvP y lo que se suelta en el suelo (lo monta SalvajeScene). -->
-  <script src="./gf-salvaje.js?v=22.5.de6bd9df26f0" defer></script>
+  <script src="./gf-salvaje.js?v=22.5.fac44b366439" defer></script>
   <script src="./gf-jefes.js?v=22.5.e24ed531dd1c" defer></script>
   <!-- Los mapas nuevos (2026-10-18): viajes, niebla, tormenta de arena,
        remolinos, nevada y luces de noche (lo montan las escenas de
@@ -158,7 +160,7 @@
   <script src="./gf-carga-mapa.js?v=22.5.d30b86f497f3" defer></script>
   <script src="./gf-bronce.js?v=22.5.cdc05c82e8dd" defer></script>
   <!-- (2026-10-26) La economía en el panel de monedas: precio del oro en zkLTC, inflación, gráficos y compra. -->
-  <script src="./gf-economia.js?v=22.5.d82dc4d63a49" defer></script>
+  <script src="./gf-economia.js?v=22.5.71080866cb7c" defer></script>
   <script src="./gf-vip.js?v=22.5.71035e784a92" defer></script>
   <script src="./gf-alquimista.js?v=audit20261016.6fe7e70abdaf" defer></script>
   <script src="./gf-viento.js?v=22.5.89ba49f83cf1" defer></script>
@@ -211,9 +213,9 @@
 
   <script src="./Scenes/MenuScene.js?v=22.5.2b55dfe3a54e" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=22.5.26db4cc6b167" defer></script>
-  <script src="./Scenes/tiendajuego.js?v=22.5.cf779efa926e" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=22.5.f7197e5e0cd8" defer></script>
   <script src="./Scenes/LoadingScenegame.js?v=22.5.c371aa960422" defer></script>
-  <script src="./Scenes/GameScene.js?v=22.5.d7af210cfc6d" defer></script>
+  <script src="./Scenes/GameScene.js?v=22.5.7794cad791ff" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
@@ -252,7 +254,7 @@
   <script src="./TransactionHub.js?v=22.5.1eb4c8a9f5c6" defer></script>
   <script src="./SystemaTransaccion.js?v=22.5.dcd4dee7f522" defer></script>
   <script src="./CraftingHub.js?v=audit20261016.b3910d3aaee5" defer></script>
-  <script src="./tienda_sistema.js?v=22.5.6f78151ec7a8" defer></script>
+  <script src="./tienda_sistema.js?v=22.5.7196c8209b13" defer></script>
   <script src="./phaser-relay-library.js?v=22.5.e35073fb2732" defer></script>
   <script src="./gf-session-api.js?v=22.4.12349825508f" defer></script>
   <script src="./hub.js?v=22.5.aace3a86dd0a" defer></script>
@@ -280,7 +282,7 @@
   <!-- GF Wallet SDK — wallet embebida para quien entró con Google/Facebook/Apple.
        Va después de ethers (lo necesita para firmar) y su arranque solo instala
        window.ethereum si NO hay MetaMask: con extensión instalada, manda ella. -->
-  <script src="./gf-wallet-sdk/gf-wallet.js?v=22.5.e95770c6377b" defer></script>
+  <script src="./gf-wallet-sdk/gf-wallet.js?v=22.5.4e833af8d370" defer></script>
   <script src="./vendor/gf-metamask-connect.js?v=22.5.3f29aa6dea44" defer></script>
   <script src="./gf-wallet-boot.js?v=22.5.3e44e0fa00c6" defer></script>
   <!-- Panel de cartera del dashboard. Va aparte de las escenas porque el

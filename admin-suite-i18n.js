@@ -1225,6 +1225,173 @@ State|Estado
 Gold price|Precio del oro
 No price history yet.|Aún no hay historial de precios.
 No coins in circulation yet.|Aún no hay monedas en circulación.
+Shop & drop audit|Auditoría de tienda y suelo
+Grassland Forest · Shop & drop audit|Grassland Forest · Auditoría de tienda y suelo
+Who bought and sold, what it cost and whether it was paid. Every shop and P2P error, every drop and who picked it up, and every attempt to get around the level rules.|Quién compró y vendió, cuánto costó y si se pagó. Cada fallo de la tienda y del P2P, cada objeto soltado y quién lo recogió, y cada intento de saltarse los niveles.
+Who bought and sold, what it cost and if it was paid; shop and P2P errors; who picked up each drop and from whom; drop bans and level attempts.|Quién compró y vendió, cuánto costó y si se pagó; fallos de la tienda y del P2P; quién recogió cada objeto soltado y de quién; castigos para soltar e intentos por nivel.
+Shop audit|Auditoría de la tienda
+Drop explorer|Explorador del suelo
+Attempts & alerts|Intentos y alertas
+Sections|Secciones
+Show|Mostrar
+Problems|Problemas
+Errors|Errores
+Wallet, username or item|Cartera, usuario u objeto
+Search the shop audit|Buscar en la auditoría de la tienda
+Charged = what the player's game counted. Expected = the server's price table. Paid = what the server saw change in the player's balance (checked 90 seconds after the operation ends).|Cobrado = lo que contó el juego del jugador. Esperado = la tabla de precios del servidor. Pagado = lo que el servidor vio cambiar en el saldo del jugador (se mira 90 segundos después de terminar).
+Load older|Cargar anteriores
+Balance increases with no shop operation|Saldos que subieron sin operación de tienda
+Gold, Silver or Bronze that went up through the game client with no purchase, sale or refund around it. Worth a look: it can be a bug or a cheat.|Oro, plata o bronce que subió desde el cliente del juego sin ninguna compra, venta o reembolso alrededor. Merece una mirada: puede ser un fallo o una trampa.
+24 h|24 h
+30 days|30 días
+Search a wallet (0x…) or a username|Busca una cartera (0x…) o un nombre de usuario
+Search a player in the drop explorer|Buscar un jugador en el explorador del suelo
+Latest drops|Últimos objetos soltados
+Every pile a player dropped on the ground. Click a row to follow it: who dropped it, who picked it up and who it went to next. Monster drops are not here.|Cada montón que un jugador soltó en el suelo. Pulsa una fila para seguirlo: quién lo soltó, quién lo recogió y a quién pasó después. Lo que sueltan los monstruos no está aquí.
+Picked up|Recogido
+Alert type|Tipo de alerta
+Not reviewed|Sin revisar
+Wallet or username|Cartera o usuario
+Search alerts|Buscar alertas
+Repeated attempts are grouped: “Times” counts them. Marking one as reviewed hides it until the player tries again.|Los intentos repetidos se agrupan: “Veces” los cuenta. Marcar uno como revisado lo oculta hasta que el jugador lo intente otra vez.
+All alert types|Todos los tipos de alerta
+Shop operations, 24 h|Operaciones de tienda, 24 h
+Open problems|Problemas abiertos
+Never finished|Sin terminar
+P2P errors, 24 h|Fallos del P2P, 24 h
+Drops, 24 h|Soltados, 24 h
+Picked up, 24 h|Recogidos, 24 h
+Banned from dropping|Castigados para soltar
+Alerts not reviewed|Alertas sin revisar
+Price differs from the table|El precio no es el de la tabla
+Total differs|El total no cuadra
+Wrong currency|Moneda equivocada
+Fee differs|La comisión no cuadra
+Below the item level|Por debajo del nivel del objeto
+Bought a sell-only item|Compró un objeto que solo se vende
+Unknown item|Objeto desconocido
+Refund differs|El reembolso no cuadra
+Confirmed, not saved|Confirmado, sin guardar
+Payout differs|El pago no cuadra
+Charge not seen by the server|El servidor no vio el cobro
+Charge differs from the server|El cobro no es el que vio el servidor
+In progress|En curso
+Partial|Parcial
+Refunded|Reembolsada
+Rejected|Rechazada
+Not sold|No vendida
+Already spent|Ya gastada
+Pick-up below the item level|Recoger por debajo del nivel del objeto
+Drop while suspended or blocked|Soltar estando suspendido o bloqueado
+Shop purchase below the item level|Compra en la tienda por debajo del nivel
+P2P purchase below the item level|Compra P2P por debajo del nivel
+Shop price mismatch|Precio de tienda que no cuadra
+Shop charge not matching|Cobro de tienda que no cuadra
+Shop error|Fallo de la tienda
+P2P server error|Fallo del servidor en el P2P
+Top-up claim with another player’s transaction|Reclamo de recarga con la transacción de otro jugador
+Top-up claim paid from another wallet|Reclamo de recarga pagada desde otra cartera
+On the ground|En el suelo
+Vanished|Desaparecido
+Buy|Compra
+Sell|Venta
+with|con
+units confirmed|unidades confirmadas
+unit|unidad
+fee|comisión
+paid|pagado
+seller gets|recibe el vendedor
+refund|reembolso
+Not in the price table|No está en la tabla de precios
+Atomic on the server ✓|Atómica en el servidor ✓
+Waiting|Esperando
+Nothing charged|No se cobró nada
+Checking…|Comprobando…
+Overlaps another operation|Se solapa con otra operación
+seen|visto
+✗ Not seen|✗ No visto
+expected|esperado
+≠ Different|≠ Distinto
+✓ Matches|✓ Cuadra
+None|Ninguno
+Reviewed ✓|Revisada ✓
+Mark reviewed|Marcar revisada
+Note for this review (optional):|Nota de esta revisión (opcional):
+came from another drop|venía de otro soltado
+passed on|pasó a otro
+No player matches that search.|Ningún jugador coincide con la búsqueda.
+Several players match:|Varios jugadores coinciden:
+Dropping|Soltar objetos
+Dropped / picked up|Soltados / recogidos
+Active until|Activo hasta
+Can drop items|Puede soltar objetos
+Blocked from dropping|Bloqueado para soltar
+Suspended until|Suspendido hasta
+Latest attempts|Últimos intentos
+Drop permission|Permiso para soltar
+Only affects items this player drops on the ground. Monster drops are never affected.|Solo afecta a lo que este jugador suelta en el suelo. Lo que sueltan los monstruos nunca se toca.
+Days must be between 1 and 3650.|Los días van de 1 a 3650.
+Suspend|Suspender
+Block for good|Bloquear para siempre
+Allow again|Volver a permitir
+Dropped by this player|Soltado por este jugador
+This player has not dropped anything.|Este jugador no ha soltado nada.
+This player has not picked anything up.|Este jugador no ha recogido nada.
+This drop|Este soltado
+Before|Antes
+After|Después
+Drop trail|Rastro del objeto
+Who dropped it, who picked it up and who they passed it to. A drop is linked to an earlier one when the player had picked up that same item before dropping it.|Quién lo soltó, quién lo recogió y a quién se lo pasó. Un soltado se enlaza con uno anterior cuando el jugador había recogido ese mismo objeto antes de soltarlo.
+Could not load the trail.|No se pudo cargar el rastro.
+needs Lv.|necesita Nv.
+has Lv.|tiene Nv.
+dropped by|soltado por
+blocked|bloqueado
+suspended until|suspendido hasta
+first|primera
+Charged / paid|Cobrado / pagado
+Expected|Esperado
+Server check|Comprobación del servidor
+Warnings|Avisos
+Review|Revisión
+Before → after|Antes → después
+Change|Cambio
+In bronze|En bronce
+Dropped|Soltado
+Dropped by|Soltado por
+Picked up by|Recogido por
+Map|Mapa
+Chain|Cadena de manos
+Last time|Última vez
+Times|Veces
+No operations yet.|Aún no hay operaciones.
+Nothing to review here.|Nada que revisar aquí.
+No unexplained balance increases in this period.|No hay subidas de saldo sin explicar en este periodo.
+No drops yet.|Aún no se ha soltado nada.
+No alerts yet.|Aún no hay alertas.
+No alerts left to review.|No quedan alertas por revisar.
+Could not load the audit.|No se pudo cargar la auditoría.
+This backend does not have the audit routes yet. Update server2.js.|Este backend aún no tiene las rutas de la auditoría. Actualiza server2.js.
+All paid or credited|Todas las pagadas o acreditadas
+Quoted, not paid|Cotizada, sin pagar
+Wallet that receives zkLTC (empty = your administrator wallet)|Cartera que recibe el zkLTC (vacía = tu cartera de administrador)
+Wallet, username or transaction hash|Cartera, usuario o hash de la transacción
+Search top-ups|Buscar recargas
+zkLTC received|zkLTC recibido
+Credited top-ups|Recargas acreditadas
+Gold credited|Oro acreditado
+Paid, waiting|Pagadas, esperando
+Claimed with a hash|Reclamadas con el hash
+claimed by the player with the hash|reclamada por el jugador con el hash
+re-checked by|revisada por
+Re-check on-chain|Revisar en la cadena
+Checking the transaction…|Comprobando la transacción…
+Credited:|Acreditado:
+Not credited.|No se acreditó.
+The transaction is not confirmed yet.|La transacción aún no está confirmada.
+Could not check it.|No se pudo comprobar.
+Could not load the top-ups.|No se pudieron cargar las recargas.
+Action|Acción
 `;
   const supplements = `
 Use a percentage from 0 to 100, with up to two decimal places.|Usa un porcentaje entre 0 y 100, con hasta dos decimales.

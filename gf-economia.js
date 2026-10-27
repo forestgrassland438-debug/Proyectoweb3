@@ -19,6 +19,11 @@
  *     cadena y da el oro. Si aún no está confirmado (202), se vuelve a mirar.
  *   El hash se guarda en el navegador NADA MÁS firmarlo: si se cierra la página
  *   a medias, el panel lo ofrece como pendiente ("Check again").
+ *   · (2026-10-27) "My top-ups": el historial con el tx de cada recarga, y
+ *     POST /api/currency/oro/reclamar {txHash} para el que pagó y no recibió
+ *     (se le fue la luz): el servidor busca el pago en la cadena y da el oro.
+ *   · Las tarifas del pago van ya calculadas (tarifasRed / tarifasSeguras del
+ *     SDK): la cartera estimaba un tope por debajo de la base del bloque.
  *
  * También: GFEconomia.comisionCambio(direccion, cantidad) — la comisión de los
  * cambios de moneda, la MISMA cuenta que gfComisionCambio del servidor (para
@@ -206,8 +211,16 @@
       '.gfe-comprar{width:100%;min-height:48px;border:none;border-radius:12px;background:#2e7d32;color:#fff;font-weight:bold;font-size:16px;cursor:pointer}',
       '.gfe-comprar[disabled]{opacity:.55;cursor:default}',
       '.gfe-msg{margin-top:8px;font-size:12px;text-align:center;min-height:16px}',
-      '.gfe-pend{display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:1px dashed #24503f;padding-top:6px;margin-top:6px}',
-      '.gfe-pend button{border:none;border-radius:8px;background:#4a3d6a;color:#fff;padding:6px 10px;cursor:pointer;min-height:34px}',
+      // (2026-10-27) El historial de recargas. Separadores LISOS (nada de trazos ni puntos).
+      '.gfe-rec{border-top:1px solid #24503f;padding:6px 0 4px;display:flex;flex-direction:column;gap:3px}',
+      '.gfe-rec:first-child{border-top:none}',
+      '.gfe-rec .gfe-fila{align-items:center}',
+      '.gfe-mono{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:#9fd0ff;word-break:break-all}',
+      '.gfe-mini{border:none;border-radius:8px;background:#1b3d31;color:#fff;padding:4px 10px;cursor:pointer;min-height:30px;font-size:11px;font-weight:bold}',
+      '.gfe-reclamar{border-top:1px solid #24503f;margin-top:6px;padding-top:6px}',
+      '.gfe-reclamar .gfe-fila{flex-wrap:nowrap;margin-top:4px}',
+      '.gfe-tx{flex:1;min-width:0;height:34px;border-radius:8px;border:1px solid #2b5c4a;background:#0b2b22;color:#fff;padding:0 8px;font:11px ui-monospace,Consolas,monospace}',
+      '.gfe-msg-reclamo{margin-top:6px;font-size:11px;min-height:14px}',
       '.gfe-tabs{display:flex;gap:6px;margin:6px 0}',
       '.gfe-tabs button{flex:1;min-height:32px;border:none;border-radius:8px;background:#1b3d31;color:#cfe3da;font-size:11px;font-weight:bold;cursor:pointer}',
       '.gfe-tabs button[aria-pressed="true"]{background:#ffd23f;color:#20160a}'
@@ -234,6 +247,27 @@
     if (p && p.request && !p.isGFWallet) return 'metamask';
     return null;
   }
+  /* LAS TARIFAS (2026-10-27): "max fee per gas less than block base fee". La
+     cartera del navegador estimaba un tope por debajo de la base del bloque
+     (en LitVM sube a saltos con los bloques llenos). Se le pasan ya hechas: la
+     base más alta de los últimos 20 bloques ×4 (o el gasPrice ×3), con margen.
+     Solo se paga la base real; el tope solo evita el rechazo. */
+  function rpc(metodo, params) {
+    return fetch(RED.rpcUrls[0], { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'omit',
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: metodo, params: params || [] }) })
+      .then(function (r) { return r.json(); }).then(function (j) { return j && j.result; });
+  }
+  async function tarifasRed() {
+    var base = 0n, gas = 0n, propina = 0n;
+    try { var h = await rpc('eth_feeHistory', ['0x14', 'latest', []]); ((h && h.baseFeePerGas) || []).forEach(function (v) { var b = BigInt(v); if (b > base) base = b; }); } catch (e) {}
+    try { gas = BigInt(await rpc('eth_gasPrice')); } catch (e) {}
+    try { propina = BigInt(await rpc('eth_maxPriorityFeePerGas')); } catch (e) {}
+    var tope = base * 4n;
+    if (gas * 3n > tope) tope = gas * 3n;
+    if (tope < 50000000n) tope = 50000000n;          // 0,05 gwei
+    tope = tope * 2n + propina;                       // una firma: mejor de sobra que otra ventana
+    return { maxFeePerGas: '0x' + tope.toString(16), maxPriorityFeePerGas: '0x' + propina.toString(16) };
+  }
   async function pagarConMetamask(cot, direccion) {
     var p = window.ethereum;
     var cuentas = await p.request({ method: 'eth_requestAccounts' });
@@ -247,7 +281,9 @@
         else throw new Error('Switch your wallet to LitVM LiteForge to pay.');
       }
     }
-    return p.request({ method: 'eth_sendTransaction', params: [{ from: cuenta, to: cot.destino, value: '0x' + BigInt(cot.wei).toString(16) }] });
+    var tx = { from: cuenta, to: cot.destino, value: '0x' + BigInt(cot.wei).toString(16) };
+    try { var t = await tarifasRed(); tx.maxFeePerGas = t.maxFeePerGas; tx.maxPriorityFeePerGas = t.maxPriorityFeePerGas; tx.type = '0x2'; } catch (e) {}
+    return p.request({ method: 'eth_sendTransaction', params: [tx] });
   }
   async function pagarConCartera(cot, secreto) {
     var r = await window.gfWallet.sendNative(cot.destino, aEther(cot.wei), secreto);
@@ -274,7 +310,6 @@
       var serie = Array.isArray(d.serie) ? d.serie : [];
       var ayer = serie.length > 1 ? Number(serie[serie.length - 2].precio) || 0 : 0;
       var cambio = ayer ? (d.precioOro.zkltc - ayer) / ayer : null;
-      var com = d.comisiones || {}, cb = com.cambioBps || {};
       var metodo = metodoDePago(direccion);
       var quedan = mio ? mio.quedan : d.tope;
       cont.innerHTML =
@@ -297,22 +332,42 @@
           (metodo ? '' : '<div class="gfe-sub" style="color:#ffb86b">No wallet that can pay was found. Sign in with your game wallet or open the game with MetaMask.</div>') +
           '<button type="button" class="gfe-comprar"' + (metodo && quedan > 0 ? '' : ' disabled') + '>Buy Gold</button>' +
           '<div class="gfe-msg" role="status" aria-live="polite"></div>' +
-          '<div class="gfe-sub">You pay from your game wallet to the game treasury (' + esc(String(d.compra.destino).slice(0, 6) + '…' + String(d.compra.destino).slice(-4)) + '). Gold is credited when the payment is confirmed on-chain.</div>' +
-          '<div class="gfe-pendientes"></div>'
+          '<div class="gfe-sub">Paid to the game wallet <span class="gfe-mono">' + esc(corta(d.compra.destino)) + '</span>. Gold arrives when the payment confirms.</div>'
           ) : '<div class="gfe-sub" style="color:#ffb86b">Gold purchases are paused right now.</div>') + '</div>' +
-        '<div class="gfe-caja"><div class="gfe-tit"><span>Where the fees go</span></div>' +
-          '<div class="gfe-fila"><span>Shop &amp; P2P market</span><b>' + num(com.mercadoBps / 100, 2) + '%</b></div>' +
-          '<div class="gfe-sub">' + num(com.circularBps / 100, 2) + '% to the circular-economy treasury (monster coin drops) · ' + num(com.juegoBps / 100, 2) + '% to the game treasury</div>' +
-          '<div class="gfe-fila" style="margin-top:4px"><span>Exchange fees → circular treasury</span><b>Gold ' + num(cb.oro / 100, 2) + '% · Silver ' + num(cb.plata / 100, 2) + '% · Bronze ' + num(cb.bronce / 100, 2) + '%</b></div>' +
-          '<div class="gfe-fila" style="margin-top:4px"><span>Treasuries now</span><span>Circular <b>' + num(d.tesoros.circular) + '</b> · Game <b>' + num(d.tesoros.juego) + '</b> Bronze</span></div>' +
-          '<div class="gfe-sub">Map travel, VIP and revive potions go to the game treasury.</div></div>';
+        /* (2026-10-27) "Muestra el tx de su historial de recargas: si se le va la
+           luz y no le caen las monedas, que pueda reclamar con el tx". Y nada de
+           información que no le sirve al jugador (la caja de comisiones se fue). */
+        '<div class="gfe-caja"><div class="gfe-tit"><span>My top-ups</span><button type="button" class="gfe-mini" data-recargar>↻</button></div>' +
+          '<div class="gfe-historial"><div class="gfe-sub">Loading…</div></div>' +
+          '<div class="gfe-reclamar"><div class="gfe-sub">Paid but no Gold? Paste the transaction hash:</div>' +
+          '<div class="gfe-fila"><input type="text" class="gfe-tx" maxlength="66" spellcheck="false" autocomplete="off" placeholder="0x…" aria-label="Transaction hash">' +
+          '<button type="button" class="gfe-mini" data-reclamar>Claim</button></div>' +
+          '<div class="gfe-msg-reclamo" role="status" aria-live="polite"></div></div></div>';
       cablear(d);
     }
+
+    function corta(a) { a = String(a || ''); return a.length > 14 ? a.slice(0, 6) + '…' + a.slice(-4) : a; }
+    var ESTADO_TXT = { acreditada: ['Credited', '#6fcf97'], pagada: ['Waiting for the chain', '#f2c94c'], cotizada: ['Not paid', '#9fb3c8'], fallida: ['Failed', '#ff8a7a'] };
+    var ERR_TXT = {
+      otra_cartera: 'That payment came from another wallet. It must come from your game wallet.',
+      otro_destino: 'That payment went to another address, not to the game wallet.',
+      hash_ya_usado: 'That transaction was already used for another top-up.',
+      revertida: 'That transaction failed on-chain: no zkLTC was sent.',
+      red_incorrecta: 'That transaction is not on LitVM LiteForge.',
+      no_encontrada: 'That transaction was not found on LitVM LiteForge.',
+      pago_insuficiente: 'The payment is too small for 1 Gold.',
+      misma_cartera: 'This wallet is the game wallet itself: it cannot buy Gold from itself.',
+      hash_invalido: 'That is not a transaction hash (0x + 64 characters).'
+    };
 
     function cablear(d) {
       Array.prototype.forEach.call(cont.querySelectorAll('[data-g]'), function (b) {
         b.onclick = function () { grafico = b.getAttribute('data-g'); pintar(d); };
       });
+      var rec = cont.querySelector('[data-recargar]');
+      if (rec) rec.onclick = function () { refrescarMio().then(pintarPendientes); };
+      var recl = cont.querySelector('[data-reclamar]');
+      if (recl) recl.onclick = function () { reclamar(); };
       var inp = cont.querySelector('.gfe-oro');
       if (!inp) { pintarPendientes(); return; }
       var total = cont.querySelector('.gfe-total');
@@ -336,21 +391,73 @@
       if (m) { m.style.color = color || '#ffd23f'; m.textContent = txt; }
     }
 
+    /** El historial de recargas: cada una con su tx (enlace al explorador y copiar). */
     function pintarPendientes() {
-      var caja = cont.querySelector('.gfe-pendientes');
-      if (!caja || !mio) return;
-      var lista = (mio.pendientes || []).filter(function (p) { return p.txHash || leer(p.id); });
+      var caja = cont.querySelector('.gfe-historial');
+      if (!caja) return;
+      if (!mio) { caja.innerHTML = '<div class="gfe-sub">Your top-ups could not be loaded.</div>'; return; }
+      // El servidor de antes solo manda `pendientes`; el nuevo, `historial` (todas).
+      var lista = (mio.historial || mio.pendientes || []).filter(function (p) {
+        return p.txHash || p.estado === 'acreditada' || p.estado === 'pagada' || leer(p.id);
+      });
+      if (!lista.length) { caja.innerHTML = '<div class="gfe-sub">No top-ups yet.</div>'; return; }
+      var explorador = RED.blockExplorerUrls[0] + '/tx/';
       caja.innerHTML = lista.map(function (p) {
-        return '<div class="gfe-pend"><span>' + num(p.oro) + ' Gold · ' + esc(zk(p.zkltc)) + ' zkLTC <span class="gfe-sub">(waiting for the chain)</span></span>' +
-          '<button type="button" data-revisar="' + esc(p.id) + '">Check again</button></div>';
+        var hash = p.txHash || (leer(p.id) || {}).hash || '';
+        var st = ESTADO_TXT[p.estado] || ESTADO_TXT.cotizada;
+        if (!p.txHash && hash && p.estado === 'cotizada') st = ESTADO_TXT.pagada;
+        var fecha = p.creada ? new Date(p.creada).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+        var oro = p.estado === 'acreditada' ? (p.oroDado || p.oro) : p.oro;
+        var tx = /^0x[0-9a-f]{64}$/i.test(hash)
+          ? '<a class="gfe-mono" href="' + esc(explorador + hash) + '" target="_blank" rel="noopener noreferrer" title="' + esc(hash) + '">' + esc(corta(hash)) + ' ↗</a>' +
+            '<button type="button" class="gfe-mini" data-copiar="' + esc(hash) + '" aria-label="Copy transaction hash">Copy</button>'
+          : '<span class="gfe-sub">no transaction</span>';
+        var accion = p.estado !== 'acreditada' && hash ? '<button type="button" class="gfe-mini" data-revisar="' + esc(p.id) + '" data-hash="' + esc(hash) + '">Check again</button>' : '';
+        return '<div class="gfe-rec"><div class="gfe-fila"><b>+' + num(oro) + ' Gold</b><span style="color:' + st[1] + '">' + esc(st[0]) + '</span></div>' +
+          '<div class="gfe-fila gfe-sub"><span>' + esc(zk(p.pagado || p.zkltc)) + ' zkLTC · ' + esc(fecha) + '</span></div>' +
+          (p.motivo && p.estado !== 'acreditada' ? '<div class="gfe-sub" style="color:#ffb86b">' + esc(ERR_TXT[p.motivo] || p.motivo) + '</div>' : '') +
+          '<div class="gfe-fila">' + tx + accion + '</div></div>';
       }).join('');
       Array.prototype.forEach.call(caja.querySelectorAll('[data-revisar]'), function (b) {
+        b.onclick = function () { confirmar(b.getAttribute('data-revisar'), b.getAttribute('data-hash'), 0); };
+      });
+      Array.prototype.forEach.call(caja.querySelectorAll('[data-copiar]'), function (b) {
         b.onclick = function () {
-          var id = b.getAttribute('data-revisar'), p = (mio.pendientes || []).filter(function (x) { return x.id === id; })[0];
-          var hash = (p && p.txHash) || (leer(id) || {}).hash;
-          if (hash) confirmar(id, hash, 0);
+          var h = b.getAttribute('data-copiar');
+          var hecho = function () { b.textContent = '✓'; setTimeout(function () { b.textContent = 'Copy'; }, 1500); };
+          try { navigator.clipboard.writeText(h).then(hecho, function () { window.prompt('Transaction hash:', h); }); }
+          catch (e) { window.prompt('Transaction hash:', h); }
         };
       });
+    }
+
+    /** "Pagué y no me llegó": se reclama con el hash; el servidor lo comprueba en la cadena. */
+    async function reclamar() {
+      var inp = cont.querySelector('.gfe-tx'), m = cont.querySelector('.gfe-msg-reclamo');
+      var decir = function (t, c) { if (m) { m.style.color = c || '#ffd23f'; m.textContent = t; } };
+      var hash = String(inp && inp.value || '').trim().toLowerCase();
+      if (!/^0x[0-9a-f]{64}$/.test(hash)) { decir(ERR_TXT.hash_invalido, '#ff8a8a'); return; }
+      if (ocupado) return;
+      ocupado = true;
+      decir('⏳ Checking the transaction on-chain…');
+      try {
+        var r = await api('/api/currency/oro/reclamar', { txHash: hash });
+        var d = (r && r.datos) || {};
+        if (r && r.ok && d.ok) {
+          if (window.GFBronce && d.stats) window.GFBronce.adoptarStats(d.stats);
+          try { if (scene && d.stats && typeof d.stats.oro === 'number') scene.moneda = d.stats.oro; } catch (e) {}
+          decir(d.repetida ? '✓ That top-up was already credited (+' + num(d.oro) + ' Gold).' : '✓ +' + num(d.oro) + ' Gold credited.', '#6fcf97');
+          if (inp) inp.value = '';
+          await refrescarMio(); pintarPendientes();
+        } else if (r && r.status === 202) {
+          decir('The transaction is not confirmed yet. Try again in a minute.', '#ffb86b');
+        } else if (r && r.status === 404 && !d.error) {
+          decir('Claims open with the next game server update.', '#ffb86b');
+        } else {
+          decir(d.message || ERR_TXT[d.error] || 'Could not check that transaction. Try again later.', '#ff8a8a');
+        }
+      } catch (e) { decir('Could not check that transaction. Try again later.', '#ff8a8a'); }
+      finally { ocupado = false; }
     }
 
     function refrescarMio() {
@@ -381,10 +488,11 @@
           var e = cot && cot.error;
           mensaje(e === 'tope_diario' ? 'Daily limit reached: you can buy ' + num(cot.quedan) + ' more today.' :
                   e === 'compra_cerrada' ? 'Gold purchases are paused right now.' :
+                  e === 'misma_cartera' ? ERR_TXT.misma_cartera :
                   e === 'cantidad_invalida' ? 'The minimum is ' + num(cot.minimo) + ' Gold.' : 'Could not prepare the purchase. Try again.', '#ff8a8a');
           return;
         }
-        if (!window.confirm('Buy ' + num(cot.oro) + ' Gold for ' + zk(cot.zkltc) + ' zkLTC?\nIt will be paid from your game wallet to the game treasury.')) { mensaje(''); return; }
+        if (!window.confirm('Buy ' + num(cot.oro) + ' Gold for ' + zk(cot.zkltc) + ' zkLTC?\nPaid to the game wallet ' + corta(cot.destino) + '.')) { mensaje(''); return; }
         if (boton) boton.textContent = '⏳ Sign the payment…';
         mensaje('Confirm the payment in your wallet…');
         var hash = metodo === 'juego' ? await pagarConCartera(cot, secreto) : await pagarConMetamask(cot, direccion);
@@ -423,8 +531,8 @@
         return;
       }
       if (r && r.status === 202) { mensaje('The payment is still pending. Use “Check again” in a minute.', '#ffb86b'); refrescarMio().then(pintarPendientes); return; }
-      mensaje(d.message || ({ otra_cartera: 'The payment came from another wallet.', otro_destino: 'The payment went to another address.',
-        hash_ya_usado: 'That payment was already used.', revertida: 'The payment transaction failed on-chain.' }[d.error]) || 'Could not confirm the payment. Try “Check again”.', '#ff8a8a');
+      mensaje(d.message || ERR_TXT[d.error] || 'Could not confirm the payment. Try “Check again”.', '#ff8a8a');
+      refrescarMio().then(pintarPendientes);
     }
 
     Promise.all([cargar(false), refrescarMio()]).then(function (x) {

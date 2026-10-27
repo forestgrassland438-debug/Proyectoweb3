@@ -308,7 +308,9 @@
   var LEJOS = 1300;                 // más lejos que esto, ni piensa ni se dibuja
   var DIR_ES = { right: 'derecha', left: 'izquierda', up: 'arriba', down: 'abajo' };
   // Lo que se puede soltar en el suelo: la MISMA lista que el servidor
-  // (SUELO_SOLTABLES). Herramientas, espadas, parcelas y cofres, no.
+  // (SUELO_SOLTABLES). (2026-10-27) Ya también lo crafteado y lo de construcción
+  // (cofres, espadas, parcelas…), con su nivel para recogerlo; las herramientas
+  // que se gastan (hachas, picos, regadera, tijeras), no.
   var SOLTABLES = {};
   ['Semillax', 'Semillax1', 'Semillax2', 'Semillax3', 'Semillax4',
    'mineral_piedra', 'mineral_cobre', 'mineral_hierro', 'carbon',
@@ -319,7 +321,10 @@
    'fresa_buena', 'fresa_corta', 'fresa_mala',
    'pes1', 'pes2', 'pes3', 'pes4', 'pes5', 'pes6', 'pes7', 'pes8',
    'pes9', 'pes10', 'pes11', 'pes12', 'pes13', 'pes14',
-   'pocion_mascota', 'pocion_mascota_grande', 'elixir_revivir'].forEach(function (k) { SOLTABLES[k] = true; });
+   'pocion_mascota', 'pocion_mascota_grande', 'elixir_revivir',
+   'cofre1', 'cofre2', 'cofre3', 'cofre4', 'basura', 'espantapajaros', 'parcela',
+   'espada_madera', 'espada_cobre', 'espada_hierro', 'arco', 'baston_mago', 'cana_pescar',
+   'pocion_vida', 'pocion_antidoto', 'balde_vacio'].forEach(function (k) { SOLTABLES[k] = true; });
 
   // ─────────────────────────────────────────────────────── UTILIDADES
   function aviso(scene, texto, tipo) {
@@ -1794,12 +1799,18 @@
     var clave = 'gfsp_item_' + d.itemId;
     var reg = { id: d.id, itemId: d.itemId, cantidad: d.cantidad, x: d.x, y: d.y, recogiendo: false, objs: [] };
     st.suelo[d.id] = reg;
+    /* (2026-10-27) EL NIVEL DEL OBJETO: lo que soltó otro y es de un nivel mayor
+       que el tuyo sale con su nivel en rojo; el servidor no deja recogerlo. */
+    var requerido = Number(d.nivel) || 1;
+    var mio = !!d.de && d.de === scene.playerName;
+    var miNivel = window.GFNivelesObjetos ? window.GFNivelesObjetos.nivelDeEscena(scene) : 0;
+    var conCandado = !mio && requerido > 1 && miNivel > 0 && miNivel < requerido;
     var dibujar = function () {
       if (!st.vivo || st.suelo[d.id] !== reg || reg.objs.length) return;
       var sombra = scene.add.image(d.x, d.y, 'gfsv_sombra').setScale(0.7).setDepth(2.5);
       var spr = scene.add.image(d.x, d.y - 2, scene.textures.exists(clave) ? clave : 'gfsv_polvo').setOrigin(0.5, 1).setScale(2).setDepth(d.y);
-      var txt = scene.add.text(d.x, d.y - spr.displayHeight - 6, '×' + d.cantidad, {
-        fontFamily: '"PressStart2P"', fontSize: '7px', color: '#ffffff', resolution: 4, stroke: '#000000', strokeThickness: 3
+      var txt = scene.add.text(d.x, d.y - spr.displayHeight - 6, '×' + d.cantidad + (conCandado ? '  Lv' + requerido : ''), {
+        fontFamily: '"PressStart2P"', fontSize: '7px', color: conCandado ? '#ffb0a0' : '#ffffff', resolution: 4, stroke: '#000000', strokeThickness: 3
       }).setOrigin(0.5, 1).setDepth(d.y + 1);
       reg.flota = scene.tweens.add({ targets: spr, y: d.y - 6, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
       reg.objs = [sombra, spr, txt];
@@ -1946,6 +1957,11 @@
           quitarMonton(st, id, true);
         } else if (d.motivo === 'no_existe' || d.motivo === 'otra_sala') {
           quitarMonton(st, id, false);
+        } else if (d.motivo === 'nivel') {
+          // (2026-10-27) Por debajo del nivel del objeto: se avisa y no se insiste (30 s) aunque sigas encima.
+          ESPERA_RECOGER[id] = Date.now() + 30000;
+          if (st.suelo[id]) st.suelo[id].recogiendo = false;
+          aviso(st.scene, d.message || ('You need level ' + d.nivelRequerido + ' to pick this up.'), 'warning');
         } else {
           // Lejos para el servidor (la red va con retraso) o la cadena ocupada:
           // se vuelve a intentar al volver a pisarlo, sin insistir en bucle.
@@ -2163,7 +2179,7 @@
     var w = scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
     // El objeto vuelve a su casilla (la bolsa no cambia hasta que el servidor confirme).
     try { scene.clearSelectedItem(); } catch (e) {}
-    if (!SOLTABLES[sel.id]) { aviso(scene, 'Only resources can be dropped on the ground.', 'info'); return; }
+    if (!SOLTABLES[sel.id]) { aviso(scene, 'This item can’t be dropped on the ground (tools that wear out stay in your bag).', 'info'); return; }
     // (2026-10-20) Soltar cosas para que otros las cojan pide VIP (gf-vip.js).
     if (window.GFVip && !window.GFVip.exigir(scene, 'drop')) return;
     if (sel.idx === undefined || sel.idx === null) { aviso(scene, 'That item is still being saved. Try again in a moment.', 'info'); return; }

@@ -416,6 +416,20 @@
     return pending;
   }
   async function walletSigner(epoch) {assertSession(epoch);if(!root.ethers)throw new Error('No se pudo cargar vendor/ethers.umd.min.js.');const accounts=await state.wallet.request({method:'eth_accounts'});assertSession(epoch);if(lower(accounts[0])!==state.account){lock('Cambió la cartera.');throw new Error('La cartera cambió.');}const network=await state.wallet.request({method:'eth_chainId'});assertSession(epoch);if(BigInt(network)!==BigInt(state.data.chainId))throw new Error('Selecciona la red '+state.data.chainId+' (0x'+Number(state.data.chainId).toString(16)+') en tu cartera y vuelve a conectar el panel.');const browser=new root.ethers.BrowserProvider(state.wallet);return browser.getSigner(state.account);}
+  /* LAS TARIFAS DE LITVM (2026-10-27). La base sube a saltos con los bloques llenos y la cartera (MetaMask, Brave) ponía un tope
+     por debajo: el nodo rechazaba la transacción. Se usa la base más alta de los últimos 20 bloques ×4 (o el gasPrice ×3) y el doble
+     de margen. Solo se paga la base real del bloque; el tope solo evita el rechazo. Si el nodo no contesta, decide la cartera. */
+  async function feeOverrides(provider) {
+    try {
+      let base=0n,gas=0n,tip=0n;
+      try{const h=await provider.send('eth_feeHistory',['0x14','latest',[]]);for(const v of (h&&h.baseFeePerGas)||[]){const b=BigInt(v);if(b>base)base=b;}}catch(_){}
+      try{gas=BigInt(await provider.send('eth_gasPrice',[]));}catch(_){}
+      try{tip=BigInt(await provider.send('eth_maxPriorityFeePerGas',[]));}catch(_){}
+      if(!base&&!gas)return {};
+      let max=base*4n;if(gas*3n>max)max=gas*3n;if(max<50000000n)max=50000000n;
+      return {maxFeePerGas:max*2n+tip,maxPriorityFeePerGas:tip};
+    } catch(_) { return {}; }
+  }
   function hashStore() {try{return JSON.parse(storedGet(queueKey()+':hashes')||'{}');}catch(_){return {};}}
   function rememberHash(operationId,hash,key=queueKey()) {let known;try{known=JSON.parse(storedGet(key+':hashes')||'{}');}catch(_){known={};}known[operationId]=hash;storedSet(key+':hashes',JSON.stringify(known));}
   async function confirmOperation(operationId,hash) {if(!/^0x[0-9a-f]{64}$/i.test(hash||''))throw new Error('Indica un hash de transacción válido de 32 bytes.');return request(BASE+'/operations/'+encodeURIComponent(operationId)+'/confirm',{method:'POST',body:JSON.stringify({txHash:hash})});}
@@ -430,7 +444,8 @@
       if(lower(operation.to)!==lower(state.data.contractAddress)||Number(operation.chainId)!==Number(state.data.chainId)||!['setLimit','createInvoice','transferInvoice','deleteInvoice'].includes(operation.method))throw new Error('La operación devuelta por el backend no corresponde al contrato esperado.');
       const contract=new root.ethers.Contract(state.data.contractAddress,state.data.abi,signer),method=contract.getFunction(operation.method);
       await method.staticCall(...operation.args);assertSession(epoch);
-      const tx=await method(...operation.args);hash=tx.hash;
+      // (2026-10-27) "max fee per gas less than block base fee" al quemar o borrar: la cartera estimaba corto. Tarifas ya hechas.
+      const tx=await method(...operation.args,await feeOverrides(signer.provider));hash=tx.hash;
       // Save immediately, before any wait or HTTP call: a submitted tx must never be sent twice after a connection failure.
       rememberHash(operation.operationId,hash,storageKey);assertSession(epoch);if(row){row.txHash=hash;row.status='sending';saveQueue();renderQueue();}
       notify('Transacción enviada: '+short(hash)+'. Esperando confirmaciones.');

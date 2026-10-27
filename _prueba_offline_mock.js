@@ -395,7 +395,29 @@
                   comisiones: { mercadoBps: 500, circularBps: 150, juegoBps: 350, cambioBps: { oro: 100, plata: 200, bronce: 300 } },
                   tesoros: { circular: 1834560, juego: 4275000 }, serie: E.serie };
       if (ruta === '/api/economia/estado') return pub;
-      if (ruta === '/api/currency/oro/estado') return { ok: true, comprado: E.comprado, tope: 163, quedan: 163 - E.comprado, precioOro: pub.precioOro, compra: pub.compra, pendientes: [] };
+      // (2026-10-27) El historial de recargas con su tx, y reclamar con el hash (como server2.js).
+      if (!E.historial) {
+        var hEj = function (n) { return '0x' + String(n).repeat(64).slice(0, 64); };
+        E.historial = [
+          { id: 'h3', oro: 40, oroDado: 0, zkltc: 0.0446, pagado: 0.0446, estado: 'pagada', txHash: hEj('3c'), motivo: '', creada: new Date(Date.now() - 3600000).toISOString() },
+          { id: 'h2', oro: 10, oroDado: 0, zkltc: 0.0111, pagado: 0, estado: 'fallida', txHash: hEj('2b'), motivo: 'otro_destino', creada: new Date(Date.now() - 2 * 86400000).toISOString() },
+          { id: 'h1', oro: 25, oroDado: 25, zkltc: 0.0279, pagado: 0.0279, estado: 'acreditada', txHash: hEj('1a'), motivo: '', creada: new Date(Date.now() - 5 * 86400000).toISOString() }
+        ];
+      }
+      if (ruta === '/api/currency/oro/estado') return { ok: true, comprado: E.comprado, tope: 163, quedan: 163 - E.comprado, precioOro: pub.precioOro, compra: pub.compra, pendientes: [], historial: E.historial };
+      if (ruta === '/api/currency/oro/reclamar' && metodo === 'POST') {
+        b = cuerpo(init);
+        var hR = String(b.txHash || '').toLowerCase();
+        if (!/^0x[0-9a-f]{64}$/.test(hR)) return { __status: 400, error: 'hash_invalido' };
+        var yaR = E.historial.filter(function (x) { return x.txHash === hR; })[0];
+        if (yaR && yaR.estado === 'acreditada') return { ok: true, repetida: true, oro: yaR.oroDado, stats: estado.stats };
+        if (/f$/.test(hR)) return { __status: 409, error: 'otra_cartera', message: 'That payment came from another wallet.' };
+        var oroR = yaR ? yaR.oro : 5;
+        if (yaR) { yaR.estado = 'acreditada'; yaR.oroDado = oroR; yaR.motivo = ''; yaR.reclamada = true; }
+        else E.historial.unshift({ id: 'r' + Date.now(), oro: oroR, oroDado: oroR, zkltc: oroR * ultE.precio, pagado: oroR * ultE.precio, estado: 'acreditada', txHash: hR, motivo: '', creada: new Date().toISOString(), reclamada: true });
+        estado.stats.oro += oroR;
+        return { ok: true, oro: oroR, pagado: oroR * ultE.precio, stats: estado.stats };
+      }
       if (ruta === '/api/currency/oro/cotizar' && metodo === 'POST') {
         b = cuerpo(init);
         var oroQ = Math.floor(Number(b.oro) || 0);
@@ -411,6 +433,8 @@
         var oroC = E.compras[b.id];
         if (!oroC) return { __status: 404, error: 'cotizacion_no_encontrada' };
         delete E.compras[b.id]; E.comprado += oroC; estado.stats.oro += oroC;
+        E.historial.unshift({ id: b.id, oro: oroC, oroDado: oroC, zkltc: ultE.precio * oroC, pagado: ultE.precio * oroC, estado: 'acreditada',
+                              txHash: String(b.txHash || '').toLowerCase(), motivo: '', creada: new Date().toISOString() });
         return { ok: true, oro: oroC, pagado: ultE.precio * oroC, tarde: false, stats: estado.stats };
       }
     }
@@ -486,6 +510,18 @@
       if (b.discord && !/^[a-z0-9_.]{2,32}$/i.test(b.discord)) return { error: 'discord_invalido', message: 'Use your Discord username: 2-32 letters, numbers, dots or underscores.' };
       estado.inv.discord = b.discord;
       return { ok: true, discord: b.discord };
+    }
+    // (2026-10-27) El registro de la tienda (/api/tienda/registro) y el perfil de otro jugador.
+    if (ruta === '/api/tienda/registro' && metodo === 'POST') {
+      estado.registroTienda = (estado.registroTienda || []).concat([cuerpo(init)]);
+      return { ok: true };
+    }
+    if (/^\/api\/player\/profile\//.test(ruta)) {
+      return { ok: true, profile: { playerName: 'Rosa', username: 'Rosalind', address: '0x' + '7'.repeat(40), nivel: 11, exp: 15000, online: true,
+        vip: { activo: true, fin: new Date(Date.now() + 12 * 86400000).toISOString(), diasRestantes: 12 },
+        skillLevels: { strength: 3, defense: 2, wisdom: 0, patience: 1, farming: 4, woodcutting: 0, fishing: 2, combat: 1 },
+        petName: 'Mochi', petLevel: 4, jugado: '12h 3m', sesiones: 30, creadoEn: new Date(Date.now() - 40 * 86400000).toISOString(),
+        antiguedad: '40 days', ultimaVez: new Date().toISOString(), oro: 3, plata: 120 } };
     }
     // El suelo del mapa salvaje (ver /api/salvaje/* en server2.js).
     if (ruta === '/api/salvaje/suelo') {

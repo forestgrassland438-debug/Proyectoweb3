@@ -11,11 +11,11 @@
   <link rel="icon" href="./favicon.png">
   <link rel="stylesheet" href="./admin-suite.css?v=20261020">
   <link rel="stylesheet" href="./tesoro.css?v=20261022">
-  <link rel="stylesheet" href="./economia.css?v=20261026">
+  <link rel="stylesheet" href="./economia.css?v=20261027">
   <script src="./admin-session.js?v=20261020"></script>
-  <script src="./admin-suite-i18n.js?v=20261026c"></script>
+  <script src="./admin-suite-i18n.js?v=20261027"></script>
   <script defer src="./admin-suite.js?v=20261025"></script>
-  <script defer src="./economia.js?v=20261026d"></script>
+  <script defer src="./economia.js?v=20261027"></script>
 </head>
 <body>
 <div class="tz-wrap">
@@ -84,6 +84,18 @@
         <section class="tz-card tz-span" aria-labelledby="ec-compras-title">
           <h2 id="ec-compras-title">Gold purchases with zkLTC</h2>
           <p class="tz-card-sub">Each purchase is checked on-chain: from the player's wallet, to the treasury wallet, at least the quoted amount, one time per transaction.</p>
+          <!-- (2026-10-27) Todas las recargas: totales, búsqueda, estado, su tx y "revisar en la cadena". -->
+          <div id="ec-c-kpis" class="ec-kpis" hidden></div>
+          <form id="ec-c-form" class="ec-c-filtros" role="search">
+            <input id="ec-c-q" class="tz-input" type="search" maxlength="80" autocomplete="off" placeholder="Wallet, username or transaction hash" aria-label="Search top-ups">
+            <select id="ec-c-est" class="tz-input" aria-label="State">
+              <option value="">All paid or credited</option><option value="acreditada">Credited</option><option value="pagada">Paid · waiting</option>
+              <option value="fallida">Failed</option><option value="cotizada">Quoted, not paid</option>
+            </select>
+            <button class="tz-btn" type="submit">Search</button>
+          </form>
+          <p id="ec-c-destino" class="tz-card-sub" data-no-translate></p>
+          <span id="ec-c-estado" class="tz-status" role="status" aria-live="polite"></span>
           <div id="ec-compras" class="tz-table-wrap"></div>
         </section>
 
@@ -98,7 +110,7 @@
               <label class="tz-field"><span>Daily Gold limit per player (stable)</span><input id="ec-tope" class="tz-input" type="number" min="1" step="1" inputmode="numeric"></label>
               <label class="tz-field"><span>Daily Gold limit when overheated</span><input id="ec-topemin" class="tz-input" type="number" min="1" step="1" inputmode="numeric"></label>
               <label class="tz-field"><span>Minimum purchase (Gold)</span><input id="ec-min" class="tz-input" type="number" min="1" step="1" inputmode="numeric"></label>
-              <label class="tz-field ec-span"><span>Treasury wallet that receives zkLTC (empty = the server wallet)</span><input id="ec-cartera" class="tz-input" maxlength="42" placeholder="0x…" autocomplete="off" data-no-translate></label>
+              <label class="tz-field ec-span"><span>Wallet that receives zkLTC (empty = your administrator wallet)</span><input id="ec-cartera" class="tz-input" maxlength="42" placeholder="0x…" autocomplete="off" data-no-translate></label>
             </div>
             <p id="ec-destino" class="tz-card-sub" data-no-translate></p>
             <div class="tz-actions">
