@@ -27446,10 +27446,15 @@ _procesarToqueJugador(playerId, pointer) {
  * jugador remoto y llama al mismo método. Un solo cálculo por toque.
  */
 _activarDeteccionToqueJugadores() {
-  if (this._pmDeteccionEscenaLista) return;
-  this._pmDeteccionEscenaLista = true;
+  /* (2026-10-27) SE MIRA SI SIGUE ENGANCHADO, no una bandera. Phaser BORRA los
+     oyentes de `this.input` al apagar la escena (InputPlugin.shutdown →
+     removeAllListeners) y reutiliza la instancia: con "ya está puesto" el
+     detector no volvía al entrar otra vez en el mapa, y el doble toque solo
+     funcionaba la primera visita. */
+  if (!this.input) return;
+  if (this._pmDetector && this.input.listeners('pointerdown').indexOf(this._pmDetector) >= 0) return;
 
-  this.input.on('pointerdown', (pointer) => {
+  this._pmDetector = (pointer) => {
     if (!this.otherPlayers) return;
     // Si el menú ya está abierto, este toque es para el menú, no para abrirlo.
     if (document.getElementById('gf-player-menu')) return;
@@ -27476,7 +27481,59 @@ _activarDeteccionToqueJugadores() {
     }
 
     if (elegido) this._procesarToqueJugador(elegido, pointer);
-  });
+  };
+  this.input.on('pointerdown', this._pmDetector);
+}
+
+/**
+ * EL MENÚ DE JUGADOR EN TODOS LOS MAPAS                          (2026-10-27)
+ *
+ * "Cuando veo un jugador y le doy doble clic (o doble toque en el teléfono)
+ * quiero el menú de GameScene en todos los mapas, minas, cavernas o casas."
+ *
+ * La mina, el mapa salvaje, las zonas (caverna, desierto, cementerio, tundra,
+ * glaciar, pradera), la isla y las casas HEREDAN de esta clase y ya
+ * enganchaban el toque en el sprite de cada jugador (createOtherPlayer). Pero
+ * el detector de respaldo de la escena y los avisos del verificador solo se
+ * montaban en setupResourceLockSocket, que lo llama el create() de GameScene,
+ * por el que esas escenas no pasan. Sin el detector, el toque se perdía en
+ * cuanto algo interactivo quedaba encima del personaje; y sin los avisos, un
+ * verificador recibido allí no se podía contestar (y contaba como fallo).
+ *
+ * Lo llama _arrancarSistemas (el arranque común de esas escenas) y tiendajuego,
+ * que lo toma prestado (ver su _prestarMenuJugador). El pueblo lo sigue
+ * montando por setupResourceLockSocket, con su propia limpieza.
+ */
+_montarMenuJugadores() {
+  this._activarDeteccionToqueJugadores();
+  const turno = this._pmTurnoMenu = {};
+  let intentos = 0;
+  const conSocket = () => {
+    if (this._pmTurnoMenu !== turno || this._sceneStopped) return;
+    if (this._resourceLockSocketBound || this._eventosModeracionListos) return;
+    if (!this.socket || !this.socket.connected) {
+      if (++intentos <= 40 && this.time) this.time.delayedCall(500, conSocket);
+      return;
+    }
+    const s = this.socket;
+    this._registrarEventosModeracion();
+    // Al salir del mapa se quitan del socket (que es UNO por pestaña): si no,
+    // al volver al pueblo habría dos ventanas por cada verificador.
+    const soltar = () => {
+      this.events.off('shutdown', soltar);
+      this.events.off('destroy', soltar);
+      try {
+        ['verifierChallenge', 'verifierResult', 'verifierTimeout', 'moderationWarning', 'accountBanned', 'accountSuspended']
+          .forEach((ev) => s.off(ev));
+      } catch (_) {}
+      this._eventosModeracionListos = false;
+      if (this._pmTurnoMenu === turno) this._pmTurnoMenu = null;
+      try { this._cerrarMenuJugador(); } catch (_) {}
+    };
+    this.events.once('shutdown', soltar);
+    this.events.once('destroy', soltar);
+  };
+  conSocket();
 }
 
 _abrirMenuJugador(playerId, pointer) {
@@ -27690,6 +27747,11 @@ async _mostrarPerfilJugador(playerId) {
     contenedor.appendChild(this._filaPerfil('Account',       p.playerName));
     contenedor.appendChild(this._filaPerfil('Wallet',        p.address || '—'));
     contenedor.appendChild(this._filaPerfil('Status',        p.online ? '🟢 Online' : '⚪ Offline'));
+    // (2026-10-27) "Su perfil no me sale si tiene VIP": el espejo vip_estado del servidor.
+    const vip = p.vip && typeof p.vip === 'object' ? p.vip : null;
+    contenedor.appendChild(this._filaPerfil('VIP', vip
+      ? (vip.activo ? `👑 Active — ${vip.diasRestantes || 0} day${vip.diasRestantes === 1 ? '' : 's'} left` : 'No')
+      : '—'));
     contenedor.appendChild(this._filaPerfil('Level',         `Lv. ${p.nivel || 0} (${p.exp || 0} exp)`));
     contenedor.appendChild(this._filaPerfil('Pet',           `${p.petName || '---'} — Lv. ${p.petLevel || 1}`));
     contenedor.appendChild(this._filaPerfil('Play time',     p.jugado || '—'));
@@ -27699,8 +27761,17 @@ async _mostrarPerfilJugador(playerId) {
     contenedor.appendChild(this._filaPerfil('Last seen',     p.ultimaVez ? new Date(p.ultimaVez).toLocaleString() : '—'));
     contenedor.appendChild(this._filaPerfil('Gold / Silver', `${p.oro || 0} GL · ${p.plata || 0} SL`));
 
-    const skills = p.skills && typeof p.skills === 'object' ? p.skills : {};
-    const clavesSkill = Object.keys(skills).filter(k => typeof skills[k] === 'number');
+    /* (2026-10-27) "Su perfil no me sale sus niveles de skills". Las skills de
+       verdad son los puntos repartidos (`skillLevels`, las 8 del panel de
+       personaje); el servidor de antes las mandaba dentro de skills.allocations
+       y aquí solo se miraban los números sueltos, así que salía vacío. */
+    const NOMBRES_SKILL = { strength: 'Strength', defense: 'Defense', wisdom: 'Wisdom', patience: 'Patience',
+                            farming: 'Farming', woodcutting: 'Woodcutting', fishing: 'Fishing', combat: 'Combat' };
+    const crudas = p.skills && typeof p.skills === 'object' ? p.skills : {};
+    const skills = (p.skillLevels && typeof p.skillLevels === 'object') ? p.skillLevels
+      : (crudas.allocations && typeof crudas.allocations === 'object') ? crudas.allocations : crudas;
+    const clavesSkill = Object.keys(NOMBRES_SKILL).filter(k => typeof skills[k] === 'number')
+      .concat(Object.keys(skills).filter(k => !NOMBRES_SKILL[k] && typeof skills[k] === 'number' && k !== 'skillPoints'));
     const tituloSkills = document.createElement('div');
     tituloSkills.className = 'gf-note';
     tituloSkills.style.marginTop = '6px';
@@ -27713,8 +27784,8 @@ async _mostrarPerfilJugador(playerId) {
       clavesSkill.forEach(k => {
         const c = document.createElement('span');
         c.className = 'gf-chip';
-        const bonito = k.replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase());
-        c.textContent = `${bonito}: ${skills[k]}`;
+        const bonito = NOMBRES_SKILL[k] || k.replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase());
+        c.textContent = `${bonito}: Lv. ${skills[k]}`;
         chips.appendChild(c);
       });
       contenedor.appendChild(chips);
@@ -27831,7 +27902,8 @@ _abrirReporteJugador(playerId) {
                 target: clave,
                 reason: select.value,
                 details: textarea.value,
-                scene: 'GameScene',
+                // (2026-10-27) El mapa de verdad (la mina, la caverna, una casa…), no siempre 'GameScene'.
+                scene: (this.scene && this.scene.key) || 'GameScene',
                 x: Math.round(this.player ? this.player.x : 0),
                 y: Math.round(this.player ? this.player.y : 0)
               })
@@ -32019,6 +32091,9 @@ if (window.globalPetData) {
     this.time.delayedCall(500, () => {
       try { this.initSocket(); } catch (e) { console.warn('⛏️ socket:', e); }
     });
+    // 7b. (2026-10-27) El menú de jugador (doble clic / doble toque) y los
+    //     avisos del verificador, como en el pueblo: ver _montarMenuJugadores.
+    try { this._montarMenuJugadores(); } catch (e) { console.warn('⛏️ menú de jugador:', e); }
 
     // 8. Eventos de la escena y misiones.
     try { this.setupSceneEvents(); } catch (e) { console.warn('⛏️ eventos:', e); }

@@ -612,6 +612,9 @@ showNotification(message, type = 'info') {
         maxNotifications: 10, spacing: 15, debug: true, autoCleanup: true
       });
     }
+    // (2026-10-27) El menú de jugador de GameScene (doble clic / doble toque) y
+    // los avisos del verificador también en la tienda: ver _prestarMenuJugador.
+    try { if (this._prestarMenuJugador()) this._montarMenuJugadores(); } catch (e) { console.warn('🏪 menú de jugador:', e); }
 
     // ── Candados de la puerta de salida ─────────────────────────────────────
     // Phaser reutiliza la instancia de la escena: sin reiniciarlos, la puerta
@@ -4059,6 +4062,27 @@ clearOtherPlayers() {
   this.otherPlayers = {};
 }
 
+/* EL MENÚ DE JUGADOR DE GameScene, PRESTADO                      (2026-10-27)
+   "Cuando le doy doble clic o doble toque a un jugador quiero el menú de
+   GameScene en todos los mapas, minas, cavernas o casas." La tienda no hereda
+   de GameScene (las demás escenas sí), así que aquí solo había el menú mínimo
+   de gf-amigos. En vez de copiar el menú —y tener dos que arreglar— se toman
+   sus métodos de GameScene: usan lo que esta escena también tiene
+   (otherPlayers con _displayName/_playerName/_address, notifications,
+   fetchWithTokenRetry, serverBase, socket, input y cameras). */
+_prestarMenuJugador() {
+  if (typeof this._abrirMenuJugador === 'function' && typeof this._montarMenuJugadores === 'function') return true;
+  const G = (typeof GameScene === 'function') ? GameScene
+    : (window.__secureSceneRegistry && typeof window.__secureSceneRegistry.get === 'function' ? window.__secureSceneRegistry.get('GameScene') : null);
+  const P = G && G.prototype;
+  const nombres = ['_asegurarEstilosMenuJugador', '_claveJugadorRemoto', '_habilitarMenuJugador', '_procesarToqueJugador',
+    '_activarDeteccionToqueJugadores', '_montarMenuJugadores', '_abrirMenuJugador', '_cerrarMenuJugador', '_crearModal',
+    '_filaPerfil', '_mostrarPerfilJugador', '_enviarVerificador', '_abrirReporteJugador', '_registrarEventosModeracion'];
+  if (!P || !nombres.every(n => typeof P[n] === 'function')) return false;
+  nombres.forEach(n => { if (typeof tiendajuego.prototype[n] !== 'function') tiendajuego.prototype[n] = P[n]; });
+  return true;
+}
+
 
 createOtherPlayer(playerInfo) {
   if (this.otherPlayers[playerInfo.id]) return;
@@ -4145,7 +4169,13 @@ createOtherPlayer(playerInfo) {
      Se le pasa una FUNCIÓN y no el objeto del jugador porque esta escena
      RECREA el registro al reconectar: guardándose el objeto, el menú acabaría
      enseñando los datos de un jugador que ya no está en la sala. */
-  if (window.GFAmigos && window.GFAmigos.habilitarEnSprite) {
+  /* (2026-10-27) "El menú de GameScene en todos los mapas": el mismo (perfil,
+     amistad o mensaje, verificador y reporte), tomado prestado de GameScene
+     (ver _prestarMenuJugador). Si no se pudiera, el mínimo de antes. */
+  if (this._prestarMenuJugador()) {
+    this._habilitarMenuJugador(playerInfo.id, sprite);
+    this._montarMenuJugadores();
+  } else if (window.GFAmigos && window.GFAmigos.habilitarEnSprite) {
     window.GFAmigos.habilitarEnSprite(this, sprite,
       () => this.otherPlayers && this.otherPlayers[playerInfo.id]);
   }
