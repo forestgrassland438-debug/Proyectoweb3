@@ -2096,10 +2096,13 @@ this.anims.create({
     // ---------- BOTÓN 2 (musica)
     if (this.sound && typeof this.sound.add === 'function') {
       this.initAudioSystem();
-      /* Ambiente de la tienda: el tema de 8 bits, las pisadas sobre la tarima
-         y la lluvia que se cuela de fuera. `suelo: 'madera'` le dice que aquí
-         no hace falta mirar el tileset — bajo techo se pisa madera y punto. */
-      if (window.GFAudio) window.GFAudio.montar(this, { tipo: 'tienda', suelo: 'madera' });
+      /* Ambiente de la tienda: el tema de 8 bits y las pisadas sobre la tarima.
+         `suelo: 'madera'` le dice que aquí no hace falta mirar el tileset —
+         bajo techo se pisa madera y punto.
+         (2026-10-28) "En la tienda se escucha la lluvia y otros climas; no
+         debería ser así": `interior: true`, como la mina, las casas y la isla.
+         Antes se dejaba pasar la lluvia apagada y los truenos. */
+      if (window.GFAudio) window.GFAudio.montar(this, { tipo: 'tienda', suelo: 'madera', interior: true });
 
       /* HUELLAS TAMBIÉN AQUÍ DENTRO.
 

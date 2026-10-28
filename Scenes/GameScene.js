@@ -1720,12 +1720,15 @@ handleMissionCompletionSuccess(result, missionId) {
   // REALMENTE entregado por el servidor (ver la ruta de entrega).
   const oro   = Number(premios.gold   || 0);
   const plata = Number(premios.silver || 0);
+  // (2026-10-28) Las misiones solo dan monedas: también bronce.
+  const bronce = Number(premios.bronze || 0);
   const esEs  = (this.lenguaje === 3);
 
   const partes = [];
   if (exp > 0)   partes.push(`+${exp} EXP`);
   if (oro > 0)   partes.push(`+${oro} ${esEs ? 'Oro' : 'Gold'}`);
   if (plata > 0) partes.push(`+${plata} ${esEs ? 'Plata' : 'Silver'}`);
+  if (bronce > 0) partes.push(`+${bronce.toLocaleString('en-US')} ${esEs ? 'Bronce' : 'Bronze'}`);
   if (premioItm) {
     partes.push(`+${premioItm.amount} ${this.getItemName(premioItm.id, esEs ? 'es-419' : 'en-US')}`);
   }
@@ -1744,9 +1747,10 @@ handleMissionCompletionSuccess(result, missionId) {
   const avisos = Array.isArray(result.warnings) ? result.warnings : [];
   const faltaOro   = Number(premios.goldPrometido   || 0) - oro;
   const faltaPlata = Number(premios.silverPrometido || 0) - plata;
+  const faltaBronce = Number(premios.bronzePrometido || 0) - bronce;
   const faltaItem  = !!(result.rewards && result.rewards.item === null && avisos.includes('reward_mint_failed'));
 
-  if (faltaOro > 0 || faltaPlata > 0 || faltaItem || avisos.includes('inventory_full')) {
+  if (faltaOro > 0 || faltaPlata > 0 || faltaBronce > 0 || faltaItem || avisos.includes('inventory_full')) {
     let motivo;
     if (avisos.includes('inventory_full')) {
       motivo = esEs ? 'tu inventario estaba lleno'
@@ -11282,6 +11286,10 @@ async confirmTrashItems() {
   for (const item of itemsToDelete) {
     totalesPorItem.set(item.id, (totalesPorItem.get(item.id) || 0) + item.quantity);
   }
+  // (2026-10-28) "Lo que se bota a la basura tiene un precio en el mercado: es una
+  // quema de tokens y eso baja la inflación." Lo que se quemó de verdad en la
+  // cadena se cuenta al servidor, que lo valora (tienda, referencia o P2P).
+  const quemadosEnCadena = [];
 
   for (const [itemId, cantidad] of totalesPorItem.entries()) {
     const def = this.ItemDefinitions ? this.ItemDefinitions[itemId] : null;
@@ -11298,6 +11306,7 @@ async confirmTrashItems() {
         await this.ejecutarDivisionRemove(def.tipo, itemId, def.maxStack || 50, cantidad);
         const cantidadDespues = this.contarItemEnInventario(itemId);
         const eliminadas = Math.max(0, cantidadAntes - cantidadDespues);
+        if (eliminadas > 0) quemadosEnCadena.push({ itemId, cantidad: Math.min(eliminadas, cantidad) });
 
         if (eliminadas >= cantidad) {
           successCount += cantidad;
@@ -11333,7 +11342,14 @@ async confirmTrashItems() {
       }
     }
   }
-  
+
+  // (2026-10-28) La quema, a la economía (sin esperar; un servidor viejo contesta 404 y no pasa nada).
+  if (quemadosEnCadena.length && window.GFMascota && typeof window.GFMascota.api === 'function') {
+    const refQuema = (window.crypto && typeof window.crypto.randomUUID === 'function')
+      ? window.crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+    window.GFMascota.api('/api/economia/quema/basura', { items: quemadosEnCadena, ref: refQuema }).catch(() => {});
+  }
+
   // Mostrar resultado
   let message;
   if (this.lenguaje === 3) {
@@ -30412,7 +30428,21 @@ getPlayerIntentDirection() {
     panel.classList.add('furnace-visible');
     panel.style.display = 'flex';
     this._setupFurnacePanel();
+    this._pintarTarifaHorno();
     console.log('🔥 Furnace panel opened');
+  }
+
+  /** (2026-10-28) Lo que cuesta fundir hoy (lo pone el servidor y sigue la economía). */
+  _pintarTarifaHorno() {
+    const caja = document.getElementById('furnace-fee');
+    if (!caja || !window.GFServicios) return;
+    Promise.all(Object.values(this.FURNACE_RECIPES).map(r => window.GFServicios.precio('fundir', r.resultado, 1)))
+      .then(([cobre, hierro]) => {
+        if (cobre == null && hierro == null) { caja.textContent = ''; return; }
+        const f = (n) => (n == null ? '—' : Number(n).toLocaleString('en-US'));
+        caja.textContent = `💰 Smelting fee: Copper ${f(cobre)} · Iron ${f(hierro)} Bronze (follows the economy)`;
+      })
+      .catch(() => {});
   }
 
   closeFurnacePanel() {
@@ -30731,6 +30761,25 @@ getPlayerIntentDirection() {
       }
     }
 
+    /* (2026-10-28) "AL FUNDIR SE DEBERÍA COBRAR UN PRECIO JUSTO", que corre con
+       la economía: lo calcula y lo cobra el servidor (un % de lo que vale el
+       lingote, con el índice de precios; ver gf-servicios.js). Si el horno no
+       llega a encenderse, se devuelve. */
+    let cobroHorno = null;
+    if (window.GFServicios) {
+      this._avisoHorno('⏳ Paying the smelting fee…');
+      cobroHorno = await window.GFServicios.cobrar('fundir', receta.resultado, 1);
+      if (cobroHorno && !cobroHorno.ok) {
+        this._avisoHorno('❌ ' + cobroHorno.message + ' Nothing was used.');
+        this._hornoOcupado = false;
+        this._pintarHorno();
+        return;
+      }
+    }
+    const devolverCobroHorno = () => {
+      if (cobroHorno && cobroHorno.ref && cobroHorno.bronce > 0 && window.GFServicios) window.GFServicios.devolver(cobroHorno.ref);
+    };
+
     this._avisoHorno('⏳ Burning ore and coal on-chain…');
 
     const fin = (window.GFTxGate && window.GFTxGate.begin)
@@ -30745,6 +30794,7 @@ getPlayerIntentDirection() {
       await this.ejecutarDivisionRemove(defOre.tipo, ore.id, defOre.maxStack || 20, 1);
       if (oreAntes - this._contarParaFundir(ore.id) < 1) {
         this._avisoHorno('❌ The ore could not be burned on-chain. Nothing was used.');
+        devolverCobroHorno();
         return;
       }
 
@@ -30761,6 +30811,7 @@ getPlayerIntentDirection() {
           console.error('❌ No se pudo devolver el mineral tras fallar el carbón:', err);
           this._avisoHorno('❌ The coal failed AND the ore could not be returned. Reopen the furnace.');
         }
+        devolverCobroHorno();
         return;
       }
 
@@ -30782,6 +30833,7 @@ getPlayerIntentDirection() {
     } catch (err) {
       console.error('❌ Error arrancando el horno:', err);
       this._avisoHorno('❌ Something went wrong. Nothing was charged.');
+      if (!this._hornoEstado || this._hornoEstado.fase !== 'fundiendo') devolverCobroHorno();
     } finally {
       if (fin) fin();
       this._hornoOcupado = false;
