@@ -30766,6 +30766,10 @@ getPlayerIntentDirection() {
        lingote, con el índice de precios; ver gf-servicios.js). Si el horno no
        llega a encenderse, se devuelve. */
     let cobroHorno = null;
+    if (!window.GFServicios) {
+      this._avisoHorno('The payment service is unavailable. Reopen the game before smelting.');
+      this._hornoOcupado = false; this._pintarHorno(); return;
+    }
     if (window.GFServicios) {
       this._avisoHorno('⏳ Paying the smelting fee…');
       cobroHorno = await window.GFServicios.cobrar('fundir', receta.resultado, 1);
@@ -30826,6 +30830,7 @@ getPlayerIntentDirection() {
         finAt: ahora + receta.segundos * 1000
       };
       await this._guardarHorno(this._hornoEstado);
+      if (cobroHorno && window.GFServicios.confirmar) await window.GFServicios.confirmar(cobroHorno.ref);
       console.log(`🔥 Horno: ${ore.id} + ${coal.id} → ${receta.resultado} en ${receta.segundos}s`);
       try { this.notifications && this.notifications.show(
         `Smelting ${ore.name}… ready in ${Math.round(receta.segundos / 60) || 1} min`,
