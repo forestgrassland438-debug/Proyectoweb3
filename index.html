@@ -13,7 +13,7 @@
   <title>GRASSLAND FOREST</title>
   <link rel="icon" href="favicon.png" type="image/png" />
   <!-- v17: rediseño del panel de misiones + altura real del viewport en móvil -->
-  <link rel="stylesheet" href="styless.css?v=22.5.e16ab4c62ca3" />
+  <link rel="stylesheet" href="styless.css?v=22.5.593cc1b7ffea" />
   <!-- El HUD nuevo (2026-10-05): viste lo de arriba sin cambiar ni un id. -->
   <link rel="stylesheet" href="gf-hud.css?v=22.5.e34cb2881578" />
 
@@ -76,7 +76,7 @@
   <script src="./ui-image-fallbacks.js" defer></script>
 
   <!-- missionspanel.js -->
-  <script src="./missionspanel.js?v=22.5.fd4be8b2b817" defer></script>
+  <script src="./missionspanel.js?v=22.5.cbe639b9d7b9" defer></script>
 
   <!-- Personajes Soulbound. Va ANTES de las escenas porque sus preload()
        le piden las rutas de los sprites del jugador. -->
@@ -96,7 +96,7 @@
        el socket, UNA sola vez por pestaña; este módulo solo lo recuerda y
        pinta el panel del dashboard. -->
   <script src="./gf-canales.js?v=22.5.525534d76810" defer></script>
-  <script src="./gf-profundidad.js?v=22.5.e460c0daf42f" defer></script>
+  <script src="./gf-profundidad.js?v=22.5.b8cee6e7c889" defer></script>
   <!-- (2026-10-26) El tronco de cada árbol encima de su choque (salvaje y zonas). -->
   <script src="./gf-troncos.js?v=22.5.9c7b9955523d" defer></script>
   <script src="./gf-sombras.js?v=audit20261016.9c7d5050d6e8" defer></script>
@@ -155,12 +155,16 @@
   <script src="./gf-cuervo.js?v=22.5.748929ecf3f5" defer></script>
   <script src="./gf-animales.js?v=audit20261016.0fe8732d2d25" defer></script>
   <script src="./gf-mascota.js?v=22.5.71f68ed8fe99" defer></script>
+  <!-- (2026-10-28) Lo que cuestan fundir y craftear (lo pone el servidor y sigue la economía). -->
+  <script src="./gf-servicios.js?v=22.5.114206c91bfd" defer></script>
   <script src="./gf-muerte.js?v=22.5.672e4a2b8da7" defer></script>
   <script src="./gf-sin-nombre.js?v=22.5.e308cf426dfb" defer></script>
   <script src="./gf-carga-mapa.js?v=22.5.d30b86f497f3" defer></script>
   <script src="./gf-bronce.js?v=22.5.cdc05c82e8dd" defer></script>
   <!-- (2026-10-26) La economía en el panel de monedas: precio del oro en zkLTC, inflación, gráficos y compra. -->
-  <script src="./gf-economia.js?v=22.5.71080866cb7c" defer></script>
+  <!-- (2026-10-28) Gráficos interactivos (hora del servidor, UTC): el panel de recarga, la tienda y el P2P. -->
+  <script src="./gf-graficos.js?v=22.5.5233e592e1b7" defer></script>
+  <script src="./gf-economia.js?v=22.5.6229e3954f8a" defer></script>
   <script src="./gf-vip.js?v=22.5.71035e784a92" defer></script>
   <script src="./gf-alquimista.js?v=audit20261016.6fe7e70abdaf" defer></script>
   <script src="./gf-viento.js?v=22.5.89ba49f83cf1" defer></script>
@@ -213,9 +217,9 @@
 
   <script src="./Scenes/MenuScene.js?v=22.5.2b55dfe3a54e" defer></script>
   <script src="./Scenes/LoadingSceneshop.js?v=22.5.26db4cc6b167" defer></script>
-  <script src="./Scenes/tiendajuego.js?v=22.5.f7197e5e0cd8" defer></script>
+  <script src="./Scenes/tiendajuego.js?v=22.5.d24030e5f25b" defer></script>
   <script src="./Scenes/LoadingScenegame.js?v=22.5.c371aa960422" defer></script>
-  <script src="./Scenes/GameScene.js?v=22.5.7794cad791ff" defer></script>
+  <script src="./Scenes/GameScene.js?v=22.5.baab8f92879a" defer></script>
   <!-- La mina HEREDA de GameScene, asi que tiene que cargarse DESPUES que
        ella o `class MinaScene extends GameScene` no encuentra la clase base.
        Con `defer` los scripts se ejecutan en el orden del documento, asi que
@@ -253,8 +257,10 @@
   <script src="./BlockchainManager.js?v=audit20261016.d02f83458d19" defer></script>
   <script src="./TransactionHub.js?v=22.5.1eb4c8a9f5c6" defer></script>
   <script src="./SystemaTransaccion.js?v=22.5.dcd4dee7f522" defer></script>
-  <script src="./CraftingHub.js?v=audit20261016.b3910d3aaee5" defer></script>
-  <script src="./tienda_sistema.js?v=22.5.7196c8209b13" defer></script>
+  <script src="./CraftingHub.js?v=22.5.a13d6a66e4f3" defer></script>
+  <!-- (2026-10-28) El panel "Price history" de un objeto (tienda del juego). -->
+  <script src="./gf-precio-panel.js?v=22.5.768f244d2efc" defer></script>
+  <script src="./tienda_sistema.js?v=22.5.e190a7011229" defer></script>
   <script src="./phaser-relay-library.js?v=22.5.e35073fb2732" defer></script>
   <script src="./gf-session-api.js?v=22.4.12349825508f" defer></script>
   <script src="./hub.js?v=22.5.aace3a86dd0a" defer></script>
@@ -563,6 +569,10 @@
                 </div>
                 
                 <div class="detail-actions-simple">
+                  <!-- (2026-10-28) Historial y estadísticas de precio del objeto (gf-precio-panel.js). -->
+                  <button id="price-history-button-pc" class="interact-btn-pc gf-precio-btn" type="button" disabled>
+                    <span class="action-icon">📈</span> Price history
+                  </button>
                   <button id="interact-button-pc" class="interact-btn-pc" disabled>
                     <span class="action-icon">🔍</span> Interact
                   </button>
@@ -648,6 +658,10 @@
             <div class="mobile-action-total" id="mobile-action-total">
               Total: <img src="./Game/Source/moneda de oro.png" alt="Coin" class="moneda-icon"> 0 GL
             </div>
+            <!-- (2026-10-28) Historial y estadísticas de precio del objeto. -->
+            <button id="mobile-price-history-btn" class="mobile-historial-btn gf-precio-btn" type="button">
+              <span class="mobile-action-icon">📈</span> Price history
+            </button>
             <button id="mobile-action-button" class="mobile-action-btn" disabled>
               <span class="mobile-action-icon">💰</span> <span id="mobile-action-text">Buy</span>
             </button>
@@ -1153,6 +1167,8 @@
             <span>⚫ Iron Ore</span><span>+</span><span>⬛ Coal x1</span><span>→</span><span>⚪ Iron Ingot · 5 min</span>
           </div>
         </div>
+        <!-- (2026-10-28) Lo que cuesta fundir hoy: lo pone el servidor y sigue la economía (GameScene._pintarTarifaHorno). -->
+        <div id="furnace-fee" class="furnace-recipes-title" style="margin-top:8px;font-weight:600;opacity:.9"></div>
       </div>
       <div class="furnace-footer">
         <button id="furnace-smelt-btn" class="furnace-btn-smelt" disabled>🔥 Smelt</button>

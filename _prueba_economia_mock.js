@@ -80,6 +80,53 @@
              tesoros: { circular: estado.circular.saldo, juego: estado.juego.saldo }, serie: JSON.parse(JSON.stringify(serieEco)) };
   }
 
+  /* (2026-10-28) LA ECONOMÍA, 2.ª PARTE: fondo de reserva, quemas, índice e inflaciones, y los precios. */
+  estado.reserva = { saldo: vacio ? 0 : 960000, retirado: 0, quemado: 0, ingresado: { muerte: vacio ? 0 : 900000, admin: vacio ? 0 : 60000 }, ingresos: { muerte: 30, admin: 1 } };
+  estado.cfg2 = { indiceActivo: true, sensibilidad: 0.6, pasoMax: 0.03, demanda: 0.1, pesoObjetos: 1, muerteBase: 30, muerteMultiplicador: 2, muerteTope: 480,
+                  fundirTasa: 0.05, fundirMin: 50, craftearTasa: 0.04, craftearMin: 50 };
+  estado.quemas = vacio ? [] : [
+    { t: new Date(ahora - 3600000).toISOString(), tipo: 'objetos', origen: 'basura', cantidad: 6, bronce: 120000, itemId: 'tomate_buena', playerName: 'Kito', detalle: 'trash bin' },
+    { t: new Date(ahora - 7200000).toISOString(), tipo: 'monedas', origen: 'monedas_caducadas', tesoro: 'circular', moneda: 'bronce', cantidad: 300, bronce: 300, playerName: 'Nox', detalle: 'lobo_salvaje' },
+    { t: new Date(ahora - 9600000).toISOString(), tipo: 'objetos', origen: 'suelo_caducado', cantidad: 3, bronce: 9000, itemId: 'mineral_piedra', playerName: 'Pip', detalle: 'salvaje' }];
+  function v2() {
+    const sc = serieEco.map((d, i) => Object.assign({}, d, { indice: 1 + i * 0.001, inflacionActiva7: i > 6 ? (serieEco[i].masa / serieEco[i - 7].masa - 1) : null,
+      inflacionNeta7: i > 6 ? (serieEco[i].masa / serieEco[i - 7].masa - 1) - 0.0004 : null, inflacionTotal7: i > 6 ? (serieEco[i].masa / serieEco[i - 7].masa - 1) * 0.98 : null,
+      quemadoMonedas: (i * 7919) % 30000, quemadoObjetos: (i * 3571) % 90000, muerteBronce: (i * 9173) % 240000, serviciosBronce: (i * 4441) % 50000,
+      tesoroCircular: 1500000 + i * 11000, tesoroJuego: 3900000 + i * 13000, tesoroReserva: 600000 + i * 12000, masaActiva: d.masa + 1500000, masaTotal: d.masa + 6000000 }));
+    const u = sc[sc.length - 1] || {};
+    const precioM = (n) => Math.max(1, Math.round(Math.min(estado.cfg2.muerteBase * 1.031 * Math.pow(estado.cfg2.muerteMultiplicador, n), estado.cfg2.muerteTope * 1.031)));
+    return { ok: true, ahora: Date.now(), config: Object.assign({}, estado.cfg2), base: {},
+      tesoros: { circular: { saldo: estado.circular.saldo, reservado: estado.circular.reservado, quemado: estado.circular.quemado || 0 },
+                 juego: { saldo: estado.juego.saldo, quemado: estado.juego.quemado || 0 }, reserva: JSON.parse(JSON.stringify(estado.reserva)) },
+      indice: 1.031, indiceAyer: 1.03,
+      hoy: { dia: u.dia, masa: u.masa, masaActiva: u.masaActiva, masaTotal: u.masaTotal, inflacionActiva7: u.inflacionActiva7, inflacionTotal7: u.inflacionTotal7,
+             inflacionNeta7: u.inflacionNeta7, quemadoObjetos7: 220000, precioOro: u.precio, precioGwei: Math.round((u.precio || 0.001) * 1e9), salud: 'caliente' },
+      proyeccion: { cfgOro: { precioBase: estado.config.precioBase, sensibilidad: estado.config.sensibilidad, pasoMax: estado.config.pasoMax } },
+      muerte: { tabla: [0, 1, 2, 3, 4, 5, 6].map(n => ({ muertes: n, plata: precioM(n) })), cobrado30: 2840000, cobros30: 61 },
+      servicios: { fundir: { bronce: 61250, n: 49 }, craftear: { bronce: 238000, n: 31 } },
+      ejemplosServicio: [{ tipo: 'fundir', itemId: 'mineral_cobre', bronce: 1289 }, { tipo: 'fundir', itemId: 'mineral_hierro', bronce: 2320 }, { tipo: 'craftear', itemId: 'hacha_de_piedra', bronce: 8248 }],
+      serie: sc, quemas: { porOrigen: [{ tipo: 'objetos', origen: 'basura', bronce: 1250000, n: 88 }, { tipo: 'monedas', origen: 'monedas_caducadas', bronce: 41000, n: 77 }],
+                           ultimas: estado.quemas.slice(0, 60) } };
+  }
+  estado.puntos = {};
+  estado.precios = [['Semillax', 10, 5, 'plata', 1], ['Semillax2', 8, 3, 'plata', 1], ['tomate_buena', 28, 20, 'plata', 1.05], ['cofre1', 2, 1, 'oro', 1],
+                    ['espada_hierro', 600, 300, 'plata', 0.97], ['pes12', 0, 160, 'plata', 1], ['mineral_cobre', 0, 25000, 'bronce', 1], ['palo', 0, 1000, 'bronce', 1]]
+    .map(([id, c, v, m, dem]) => ({ itemId: id, nivel: 1, tienda: !/^(mineral_cobre|palo)$/.test(id), compra: c ? Math.round(c * 1.031 * dem) : 0, venta: Math.round(v * 1.031 * dem), moneda: m,
+      base: { compra: c, venta: v, moneda: m }, defecto: { compra: c, venta: v, moneda: m }, cambiado: false, sigueIndice: true, demanda: dem,
+      cambio1: 0.001, cambio7: (dem - 1) + 0.012, cambio30: (dem - 1) + 0.031, valorBronce: v * (m === 'oro' ? 1e6 : m === 'plata' ? 1000 : 1),
+      spark: Array.from({ length: 30 }, (_, i) => ({ t: new Date(ahora - (29 - i) * DIA).toISOString(), v: Math.round((c || v) * (1 + i * 0.001) * (1 + Math.sin(i / 4) * 0.02)) })),
+      p2p: id === 'espada_hierro' ? { n: 9, mediana: 330000, min: 290000, max: 410000, media: 340000, volumen: 14 } : null, tienda7: { compras: (c * 7) % 40, ventas: (v * 3) % 25 } }));
+  function preciosAdmin() { return { ok: true, ahora: Date.now(), version: Date.now(), dia: new Date().toISOString().slice(0, 10), indice: 1.031, items: JSON.parse(JSON.stringify(estado.precios)) }; }
+  function historialItem(id) {
+    const it = estado.precios.find(x => x.itemId === id) || estado.precios[0];
+    const hist = [];
+    for (let i = 89; i >= 0; i--) { const f = 1 + (89 - i) * 0.0004 + Math.sin(i / 7) * 0.02; hist.push({ t: new Date(ahora - i * DIA - 5 * 3600000).toISOString(), compra: it.base.compra ? Math.round(it.base.compra * f) : 0, venta: Math.round(it.base.venta * f), moneda: it.base.moneda, indice: f, motivo: 'diario' }); }
+    hist.push(...(estado.puntos[id] || []));
+    const ventas = it.p2p ? Array.from({ length: 12 }, (_, i) => ({ t: new Date(ahora - i * 5 * DIA).toISOString(), precio: 300 + (i * 17) % 90, cantidad: 1 + i % 3, moneda: 'plata' })) : [];
+    return { ok: true, itemId: id, ahora: Date.now(), indice: 1.031, actual: it, valorBronce: it.valorBronce, historial: hist, p2p: { resumen: it.p2p, ventas },
+             tienda: Array.from({ length: 30 }, (_, i) => ({ dia: new Date(ahora - (29 - i) * DIA).toISOString().slice(0, 10), compras: (i * 7) % 9, ventas: (i * 5) % 6 })) };
+  }
+
   function error(status, code) { const e = new Error(code || ('HTTP ' + status)); e.status = status; e.code = code; return e; }
   const espera = ms => new Promise(r => setTimeout(r, ms));
   async function request(path, options = {}) {
@@ -132,6 +179,42 @@
       else { estado.juego.saldo -= bronceA; estado.juego.retirado += bronceA; }
       estado.movs.unshift({ t: new Date(), tipo: 'ajuste', origen: 'admin', bronce: tipo === 'ingreso' ? bronceA : -bronceA, playerName: null, detalle: motivo + ' — 0xabab…' });
       return { ok: true, juego: JSON.parse(JSON.stringify(estado.juego)) };
+    }
+    // (2026-10-28) LA ECONOMÍA, 2.ª PARTE (economia2.js) y los precios (precios.js), como server2.js.
+    if (viejo && (path.startsWith('/api/admin/economia/v2') || path.startsWith('/api/admin/precios') || path.startsWith('/api/economia/precio'))) throw error(404, 'not_found');
+    if (path === '/api/admin/economia/v2' && metodo === 'GET') return v2();
+    if (path === '/api/admin/economia/v2/config' && metodo === 'POST') { estado.cfg2 = Object.assign({}, estado.cfg2, cuerpo.config || {}); return { ok: true, config: estado.cfg2 }; }
+    if (path === '/api/admin/economia/v2/recalcular' && metodo === 'POST') return { ok: true, indice: 1.031, version: Date.now() };
+    if (path === '/api/admin/economia/quemar' && metodo === 'POST') {
+      const POR = { oro: 1e6, plata: 1000, bronce: 1 }, t2 = cuerpo.tesoro, cant = Math.floor(Number(cuerpo.cantidad) || 0);
+      if (!['circular', 'juego', 'reserva'].includes(t2) || !POR[cuerpo.moneda]) throw error(400, 'datos_invalidos');
+      if (String(cuerpo.motivo || '').trim().length < 3) throw error(400, 'motivo_requerido');
+      const br = cant * POR[cuerpo.moneda], tes = t2 === 'circular' ? estado.circular : t2 === 'juego' ? estado.juego : estado.reserva;
+      if (!(cant >= 1) || tes.saldo < br) throw error(409, 'saldo_insuficiente');
+      tes.saldo -= br; tes.quemado = (tes.quemado || 0) + br;
+      estado.quemas.unshift({ t: new Date().toISOString(), tipo: 'monedas', origen: 'admin', tesoro: t2, moneda: cuerpo.moneda, cantidad: cant, bronce: br, detalle: cuerpo.motivo });
+      return { ok: true, tesoro: t2, bronce: br, saldo: tes.saldo };
+    }
+    if (path === '/api/admin/tesoro-reserva/ajuste' && metodo === 'POST') {
+      const br = Math.floor(Number(cuerpo.bronce) || 0);
+      if (cuerpo.tipo === 'retiro' && estado.reserva.saldo < br) throw error(409, 'saldo_insuficiente');
+      if (cuerpo.tipo === 'ingreso') { estado.reserva.saldo += br; estado.reserva.ingresado.admin += br; } else { estado.reserva.saldo -= br; estado.reserva.retirado += br; }
+      return { ok: true, reserva: JSON.parse(JSON.stringify(estado.reserva)) };
+    }
+    if (path === '/api/admin/precios' && metodo === 'GET') return preciosAdmin();
+    if (path.startsWith('/api/economia/precio/') && metodo === 'GET') return historialItem(decodeURIComponent(path.split('/')[4].split('?')[0]));
+    if (path === '/api/admin/precios/item' && metodo === 'POST') {
+      const it = estado.precios.find(x => x.itemId === cuerpo.itemId);
+      if (!it) throw error(400, 'objeto_desconocido');
+      if (cuerpo.quitar) { it.base = Object.assign({}, it.defecto); it.cambiado = false; }
+      else {
+        if (cuerpo.compra > 0 && cuerpo.venta >= cuerpo.compra) throw error(400, 'venta_mayor');
+        it.base = { compra: it.tienda ? cuerpo.compra : 0, venta: cuerpo.venta, moneda: cuerpo.moneda }; it.cambiado = true; it.sigueIndice = cuerpo.sigueIndice !== false;
+      }
+      const f = it.sigueIndice ? 1.031 * it.demanda : 1;
+      it.compra = it.base.compra ? Math.max(1, Math.round(it.base.compra * f)) : 0; it.venta = Math.max(1, Math.round(it.base.venta * f)); it.moneda = it.base.moneda;
+      (estado.puntos[it.itemId] = estado.puntos[it.itemId] || []).push({ t: new Date().toISOString(), compra: it.compra, venta: it.venta, moneda: it.moneda, indice: 1.031, motivo: 'admin' });
+      return { ok: true, version: Date.now(), item: it };
     }
     throw error(404, 'not_found');
   }

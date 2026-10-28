@@ -80,7 +80,9 @@
       const rewards = [mission.expReward+' EXP'];
       if (mission.goldReward) rewards.push(mission.goldReward+' '+t('Gold'));
       if (mission.silverReward) rewards.push(mission.silverReward+' '+t('Silver'));
-      if (mission.rewardItemId) rewards.push(mission.rewardAmount+' × '+(translated.rewardName || fallback.rewardName || mission.rewardItemId));
+      // (2026-10-28) Las misiones solo dan monedas: también bronce; un objeto viejo se paga en bronce.
+      if (mission.bronzeReward) rewards.push(mission.bronzeReward+' '+t('Bronze'));
+      if (mission.rewardItemId) rewards.push(mission.rewardAmount+' × '+(translated.rewardName || fallback.rewardName || mission.rewardItemId)+' ('+t('paid in Bronze')+')');
       card.append(el('small','',t('Rewards')+': '+rewards.join(' · '))); preview.append(card);
     });
     if (!missions.length) preview.append(el('p','',t('Add a mission to see its preview.')));
@@ -88,7 +90,7 @@
     const rules = editor.rules();
     mix($('ms-auto-mix'),rules.pedidos.length ? Number(rules.pesoEntregar)||0 : 0,rules.presas.length ? Number(rules.pesoCazar)||0 : 0);
     $('ms-auto-budget').replaceChildren();
-    [['Total EXP','expMax'],['Gold','oroMax'],['Silver','plataMax']].forEach(([label,key]) => { const column = el('div'); column.append(el('span','',t(label)),el('b','',amount((Number(rules.cuantas)||0)*(Number(rules[key])||0)))); $('ms-auto-budget').append(column); });
+    [['Total EXP','expMax'],['Gold','oroMax'],['Silver','plataMax'],['Bronze','bronceMax']].forEach(([label,key]) => { const column = el('div'); column.append(el('span','',t(label)),el('b','',amount((Number(rules.cuantas)||0)*(Number(rules[key])||0)))); $('ms-auto-budget').append(column); });
     const context = editor.context(); contextWarning.hidden = !context.loaded || context.loaded === context.selected;
     access.classList.toggle('ms-verified',context.authenticated);
     document.querySelectorAll('.day-chip').forEach(chip => chip.setAttribute('aria-current',String(chip.textContent.startsWith($('dia').value))));
@@ -125,7 +127,7 @@
   function validateRules() {
     if (!validateNumbers(automatic)) return false;
     const r = editor.rules();
-    const ranges = [['expMin','expMax'],['oroMin','oroMax'],['plataMin','plataMax']];
+    const ranges = [['expMin','expMax'],['oroMin','oroMax'],['plataMin','plataMax'],['bronceMin','bronceMax']];
     if (ranges.some(([min,max]) => r[min]>r[max]) || [...r.pedidos,...r.presas,...r.premios].some(row => row.min>row.max)) { info('Minimum values must not exceed maximum values.'); return false; }
     if (r.activo && !(r.pedidos.some(p=>p.itemId) && r.pesoEntregar>0 || r.presas.some(p=>p.tipo) && r.pesoCazar>0)) { info('Add items or monsters with a positive mission weight.'); return false; }
     return true;

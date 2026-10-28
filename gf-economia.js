@@ -321,8 +321,11 @@
         '<div class="gfe-caja"><div class="gfe-tabs" role="group" aria-label="Economy charts">' +
           '<button type="button" data-g="precio" aria-pressed="' + (grafico === 'precio') + '">Gold price</button>' +
           '<button type="button" data-g="inflacion" aria-pressed="' + (grafico === 'inflacion') + '">Inflation</button>' +
-          '<button type="button" data-g="masa" aria-pressed="' + (grafico === 'masa') + '">3 coins</button></div>' +
-          '<div class="gfe-grafico">' + (grafico === 'inflacion' ? graficoInflacion(serie) : grafico === 'masa' ? graficoMasa(serie) : graficoPrecio(serie)) + '</div></div>' +
+          '<button type="button" data-g="masa" aria-pressed="' + (grafico === 'masa') + '">3 coins</button>' +
+          (window.GFGraficos ? '<button type="button" data-g="quemas" aria-pressed="' + (grafico === 'quemas') + '">Burns</button>' : '') + '</div>' +
+          // (2026-10-28) Con gf-graficos.js el gráfico se monta después (montarGrafico); sin él, los de antes.
+          '<div class="gfe-grafico">' + (window.GFGraficos ? '' : grafico === 'inflacion' ? graficoInflacion(serie) : grafico === 'masa' ? graficoMasa(serie) : graficoPrecio(serie)) + '</div>' +
+          (d.ahora ? '<div class="gfe-sub" style="margin-top:4px">Server time ' + esc(window.GFGraficos ? window.GFGraficos.fechaHora(d.ahora, 'en') : new Date(d.ahora).toUTCString()) + '</div>' : '') + '</div>' +
         '<div class="gfe-caja"><div class="gfe-tit"><span>Buy Gold with zkLTC</span><span class="gfe-sub">LitVM testnet</span></div>' +
           (d.compra && d.compra.activa ? (
           '<div class="gfe-sub">You can buy <b>' + num(quedan) + '</b> more Gold today (daily limit ' + num(d.tope) + ', lower when inflation is high).</div>' +
@@ -344,6 +347,56 @@
           '<button type="button" class="gfe-mini" data-reclamar>Claim</button></div>' +
           '<div class="gfe-msg-reclamo" role="status" aria-live="polite"></div></div></div>';
       cablear(d);
+      montarGrafico(d);
+    }
+
+    /* (2026-10-28) "En el panel de recarga, los gráficos de la economía más
+       profesionales, mejores y más movibles, con fechas y hora exactas de
+       internet, no locales": gf-graficos.js — la hora del SERVIDOR en UTC
+       (cada foto lleva la suya), acercar con la rueda o pellizcando, arrastrar
+       para moverse, rangos, ficha al pasar o tocar y tabla de datos. */
+    var vivoGrafico = null;
+    function montarGrafico(d) {
+      if (vivoGrafico) { try { vivoGrafico.destruir(); } catch (e) {} vivoGrafico = null; }
+      var G = window.GFGraficos, caja = cont.querySelector('.gfe-grafico');
+      if (!G || !caja) return;
+      if (d.ahora) G.reloj.ajustar(d.ahora);
+      var serie = Array.isArray(d.serie) ? d.serie : [];
+      var cuando = function (f) { var a = f.actualizado ? G.aMs(f.actualizado) : NaN; return isFinite(a) ? a : G.aMs(f.dia); };
+      var de = function (campo, por) {
+        return serie.filter(function (f) { return f[campo] !== null && f[campo] !== undefined && isFinite(Number(f[campo])); })
+          .map(function (f) { return [cuando(f), Number(f[campo]) * (por || 1)]; });
+      };
+      var op = { idioma: 'en', tema: 'oscuro', alto: 190, izquierda: 56, rango: '30d', rangos: ['7d', '30d', '90d', 'todo'] };
+      if (grafico === 'inflacion') {
+        vivoGrafico = G.crear(caja, Object.assign(op, {
+          etiqueta: 'Inflation', referencia: { valor: 0, nombre: '0%' },
+          series: [{ id: 'neta', nombre: 'Net, 7 days', color: '#d95926' }, { id: 'dia', nombre: 'Daily', color: '#3987e5' }],
+          datos: { neta: de('inflacionNeta7', 100), dia: de('inflacion1', 100) },
+          formato: function (v) { return (v > 0 ? '+' : '') + Number(v).toFixed(2) + '%'; },
+          vacio: 'Inflation appears after the second day of data.' }));
+      } else if (grafico === 'masa') {
+        var base = function (k) { for (var i = 0; i < serie.length; i++) if (Number(serie[i][k]) > 0) return Number(serie[i][k]); return 0; };
+        var indice = function (k) { var b = base(k); return b ? serie.map(function (f) { return [cuando(f), (Number(f[k]) || 0) / b * 100]; }) : []; };
+        vivoGrafico = G.crear(caja, Object.assign(op, {
+          etiqueta: 'Coins in circulation, index (first day = 100)', referencia: { valor: 100, nombre: '100' },
+          series: [{ id: 'oro', nombre: 'Gold', color: '#c98500' }, { id: 'plata', nombre: 'Silver', color: '#3987e5' }, { id: 'bronce', nombre: 'Bronze', color: '#d95926' }],
+          datos: { oro: indice('oro'), plata: indice('plata'), bronce: indice('bronce') },
+          formato: function (v) { return num(v, 1); }, vacio: 'No coins in circulation yet.' }));
+      } else if (grafico === 'quemas') {
+        vivoGrafico = G.crear(caja, Object.assign(op, {
+          tipo: 'barras', etiqueta: 'Burned per day (bronze value)',
+          series: [{ id: 'monedas', nombre: 'Coins burned', color: '#d95926' }, { id: 'objetos', nombre: 'Items destroyed', color: '#9085e9' }],
+          datos: { monedas: serie.map(function (f) { return [f.dia, Number(f.quemadoMonedas) || 0]; }),
+                   objetos: serie.map(function (f) { return [f.dia, Number(f.quemadoObjetos) || 0]; }) },
+          formato: function (v) { return num(v) + ' BR'; }, vacio: 'Nothing burned yet.' }));
+      } else {
+        vivoGrafico = G.crear(caja, Object.assign(op, {
+          etiqueta: 'Gold price in zkLTC',
+          series: [{ id: 'precio', nombre: 'Gold price', color: '#c98500', area: true, escalon: true }],
+          datos: { precio: de('precio') }, hastaAhora: true,
+          formato: function (v) { return zk(v) + ' zkLTC'; }, vacio: 'No price history yet.' }));
+      }
     }
 
     function corta(a) { a = String(a || ''); return a.length > 14 ? a.slice(0, 6) + '…' + a.slice(-4) : a; }

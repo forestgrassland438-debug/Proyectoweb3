@@ -1,0 +1,24 @@
+/* (2026-10-28) La economía de la tienda y del P2P (precios.html). El resto del aspecto sale de tesoro.css y economia.css. */
+.pr-item { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.pr-item img { width: 26px; height: 26px; image-rendering: pixelated; object-fit: contain; flex: 0 0 auto; }
+.pr-item b { font-weight: 650; }
+.pr-item small { display: block; color: var(--s-muted); font-size: 11px; }
+.pr-sube { color: #f2a07b; font-variant-numeric: tabular-nums; }
+.pr-baja { color: #7fb4f0; font-variant-numeric: tabular-nums; }
+.pr-igual { color: var(--s-muted); font-variant-numeric: tabular-nums; }
+.pr-spark { display: block; width: 110px; height: 28px; }
+.pr-insignia { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--s-line); color: var(--s-muted); margin-left: 6px; vertical-align: 1px; }
+.pr-fila { cursor: pointer; }
+.pr-fila:hover td, .pr-fila[aria-selected="true"] td { background: var(--tz-hover, rgba(127, 127, 127, .08)); }
+.pr-d-cab { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.pr-d-cab > div { flex: 1; min-width: 0; }
+.pr-d-cab h2 { margin: 2px 0; }
+.pr-d-img { width: 48px; height: 48px; image-rendering: pixelated; object-fit: contain; border-radius: 10px; background: rgba(127, 127, 127, .12); padding: 4px; }
+.pr-d-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+@media (max-width: 900px) { .pr-d-cuerpo { grid-template-columns: 1fr; } }
+.pr-d-graficos h3 { font-size: 13px; margin: 14px 0 6px; }
+.pr-d-graficos h3:first-child { margin-top: 0; }
+.pr-editor { border: 1px solid var(--s-line); border-radius: 12px; padding: 14px; position: sticky; top: 12px; }
+.pr-editor h3 { margin: 0 0 4px; font-size: 14px; }
+.pr-e-vista { font-size: 12.5px; border-radius: 10px; padding: 8px 10px; background: rgba(127, 127, 127, .08); line-height: 1.5; }
+.pr-e-vista b { font-variant-numeric: tabular-nums; }

@@ -358,6 +358,14 @@
     white-space:nowrap;
   }
   .ticket .buy-btn:hover{ background:#1c4568; }
+  /* (2026-10-28) Estadísticas de precio del objeto, junto a "Comprar" (gf-precio-panel.js). */
+  .ticket .stats-btn{
+    background:transparent; color:var(--ink);
+    border:1.5px solid var(--ink); padding:6px 9px; border-radius:999px;
+    font-size:12px; font-weight:800; cursor:pointer; line-height:1;
+  }
+  .ticket .stats-btn:hover{ background:rgba(18,48,73,.08); }
+  .ticket .buy-group{ display:inline-flex; align-items:center; gap:6px; }
   .ticket .mine-badge{
     background:var(--accent); color:var(--accent-ink);
     font-size:10.5px; font-weight:800;
@@ -953,6 +961,9 @@
 
   <div class="toast-stack" id="toast-stack"></div>
 
+<!-- (2026-10-28) Gráficos interactivos y el panel de estadísticas de precio (los mismos que en la tienda del juego). -->
+<script src="./gf-graficos.js?v=22.5.5233e592e1b7"></script>
+<script src="./gf-precio-panel.js?v=22.5.768f244d2efc"></script>
 <script>
 (function(){
   "use strict";
@@ -1024,7 +1035,7 @@
       mine_empty_t:'No tienes publicaciones activas', mine_empty_p:'Publica objetos desde la pestaña "Mi inventario".',
       hist_empty_t:'Sin movimientos todavía', hist_empty_p:'Aquí verás lo que compres y vendas en el mercado.',
       available:'Disponibles: {n}', available_lc:'disponibles',
-      seller:'Vende: {name}', buy:'Comprar', mine_badge:'Tuya',
+      seller:'Vende: {name}', buy:'Comprar', mine_badge:'Tuya', price_stats:'Estadísticas de precio',
       you_have:'Tienes: {n}', you_have_lc:'tienes', sell:'Vender', cancel:'Cancelar', publish:'Publicar',
       each_total:'{price} c/u · Total {total}',
       src_inv:'Inv', src_chest:'Rápido',
@@ -1095,7 +1106,7 @@
       mine_empty_t:'You have no active listings', mine_empty_p:'List items from the "My inventory" tab.',
       hist_empty_t:'No activity yet', hist_empty_p:'Here you\'ll see what you buy and sell on the market.',
       available:'Available: {n}', available_lc:'available',
-      seller:'Seller: {name}', buy:'Buy', mine_badge:'Yours',
+      seller:'Seller: {name}', buy:'Buy', mine_badge:'Yours', price_stats:'Price stats',
       you_have:'You have: {n}', you_have_lc:'you have', sell:'Sell', cancel:'Cancel', publish:'List',
       each_total:'{price} ea · Total {total}',
       src_inv:'Inv', src_chest:'Hotbar',
@@ -1505,6 +1516,14 @@
     });
   }
 
+  /* (2026-10-28) EL PANEL DE ESTADÍSTICAS DE PRECIO de un objeto: lo mismo que en
+     la tienda del juego (gf-precio-panel.js): precio de la tienda, mediana del
+     P2P, unidades vendidas, con la hora del servidor en UTC. */
+  function openPriceStats(itemId, nombre, icono){
+    if (!window.GFPrecioPanel) { toast(LANG === 'en' ? 'Price stats are not available right now.' : 'Las estadísticas de precio no están disponibles ahora.', true); return; }
+    window.GFPrecioPanel.abrir({ itemId, nombre, imagen: icono, apiBase: CONFIG.API_BASE, idioma: LANG === 'en' ? 'en' : 'es', origen: 'p2p' });
+  }
+
   function renderMarket(){
     const grid = document.getElementById('market-grid');
     grid.innerHTML = '';
@@ -1526,9 +1545,10 @@
         <div class="seller-line">${t('seller',{name:`<button class="seller-link" data-owner="${escapeHtml(l.owner || l.ownerName)}">${escapeHtml(nombreVisible(l.ownerName, l.owner))}</button>`})}</div>
         <div class="price-row">
           <div class="price"><span class="coin-icon ${l.currency}">${coinLetter(l.currency)}</span>${fmt(l.pricePerUnit)}</div>
-          ${l.mine ? `<span class="mine-badge">${t('mine_badge')}</span>` : `<button class="buy-btn" data-id="${l.id}">${t('buy')}</button>`}
+          <span class="buy-group"><button class="stats-btn" type="button" title="${escapeHtml(t('price_stats'))}" aria-label="${escapeHtml(t('price_stats'))}">📈</button>${l.mine ? `<span class="mine-badge">${t('mine_badge')}</span>` : `<button class="buy-btn" data-id="${l.id}">${t('buy')}</button>`}</span>
         </div>
         ${l.mine ? '' : `<button class="offer-link-btn chip-btn" style="width:100%;margin-top:8px;" data-id="${l.id}">${t('offer')}</button>`}`;
+      card.querySelector('.stats-btn').addEventListener('click', () => openPriceStats(l.itemId, nm, iconUrl(l.icon)));
       if(!l.mine){
         card.querySelector('.buy-btn').addEventListener('click', () => openBuyModal(l));
         card.querySelector('.offer-link-btn').addEventListener('click', () => openOfferModal(l));
@@ -2220,8 +2240,8 @@
         ${d.note ? `<div class="qty-line" style="font-style:italic;">${escapeHtml(d.note)}</div>` : ''}
         <div class="price-row">
           <div class="price"><span class="coin-icon ${d.currency}">${coinLetter(d.currency)}</span>${fmt(d.pricePerUnit)}</div>
-          ${d.live ? `<button class="buy-btn" data-id="${d.id}">${t('buy')}</button>`
-                   : `<span class="mine-badge">${d.soldOut ? t('lim_soldout') : t('lim_ended')}</span>`}
+          <span class="buy-group"><button class="stats-btn" type="button" title="${escapeHtml(t('price_stats'))}" aria-label="${escapeHtml(t('price_stats'))}">📈</button>${d.live ? `<button class="buy-btn" data-id="${d.id}">${t('buy')}</button>`
+                   : `<span class="mine-badge">${d.soldOut ? t('lim_soldout') : t('lim_ended')}</span>`}</span>
         </div>
         ${state.isAdmin ? `<div class="offer-actions" style="margin-top:10px;">
              <button class="chip-btn" data-adm="toggle" data-id="${d.id}">${d.active ? t('adm_off') : t('adm_on')}</button>
@@ -2230,6 +2250,7 @@
 
       const comprar = card.querySelector('.buy-btn');
       if(comprar) comprar.addEventListener('click', () => comprarLimitado(d, comprar));
+      card.querySelector('.stats-btn').addEventListener('click', () => openPriceStats(d.itemId, nm, iconUrl(d.icon)));
 
       card.querySelectorAll('[data-adm]').forEach(b => {
         b.addEventListener('click', () => accionAdmin(b.dataset.adm, b.dataset.id, d));

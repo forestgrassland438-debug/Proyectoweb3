@@ -1392,6 +1392,203 @@ The transaction is not confirmed yet.|La transacción aún no está confirmada.
 Could not check it.|No se pudo comprobar.
 Could not load the top-ups.|No se pudieron cargar las recargas.
 Action|Acción
+Shop & P2P economy|Economía de la tienda y del P2P
+Grassland Forest · Shop & P2P economy|Grassland Forest · Economía de la tienda y del P2P
+How every shop price moved with inflation and demand, what players pay on P2P, and the default price of each item in Gold, Silver or Bronze.|Cómo se movió cada precio de la tienda con la inflación y la demanda, lo que pagan los jugadores en el P2P y el precio por defecto de cada objeto en oro, plata o bronce.
+Three treasuries, burns, the price index, inflation, death and crafting prices, the three coins and Gold purchases with zkLTC.|Tres tesoros, quemas, el índice de precios, la inflación, los precios de la muerte y del crafteo, las tres monedas y las compras de oro con zkLTC.
+One connected wallet. Twelve tools.|Una cartera conectada. Doce herramientas.
+All twelve tools are available below.|Las doce herramientas están disponibles abajo.
+Out of circulation|Fuera de circulación
+Reserve fund|Fondo de reserva
+Burn coins|Quemar monedas
+Destroy coins from a treasury. The projection updates while you type: inflation, the top-up Gold price and the shop price index. A burn cannot be undone.|Destruye monedas de un tesoro. La proyección se actualiza mientras escribes: la inflación, el precio del oro de recarga y el índice de precios de la tienda. Una quema no se puede deshacer.
+Treasury|Tesoro
+Use the whole balance|Usar todo el saldo
+Supply, burns and the price index|Oferta, quemas e índice de precios
+Active money = players + circular treasury. Total supply = every coin, treasuries included. Net inflation subtracts the value of destroyed items (trash, expired drops): they can no longer be sold to the shop for new coins. Shop, death, smelting and crafting prices follow the price index.|Dinero activo = jugadores + tesoro circular. Oferta total = todas las monedas, tesoros incluidos. La inflación neta resta el valor de los objetos destruidos (basura, objetos caducados en el suelo): ya no se pueden vender a la tienda por monedas nuevas. Los precios de la tienda, de la muerte, de fundir y de craftear siguen el índice de precios.
+Price index (1 = default prices)|Índice de precios (1 = precios por defecto)
+Treasury balances|Saldos de los tesoros
+Burns and sinks per day (bronze)|Quemas y sumideros por día (bronce)
+Price index, death and service prices|Índice de precios, muerte y servicios
+Prices follow the economy (price index)|Los precios siguen la economía (índice de precios)
+Sensitivity to net inflation (×)|Sensibilidad a la inflación neta (×)
+Maximum index change per day (%)|Cambio máximo del índice por día (%)
+Item demand effect, ± (%)|Efecto de la demanda del objeto, ± (%)
+Weight of destroyed items (%)|Peso de los objetos destruidos (%)
+Death (paid to the reserve fund)|Muerte (se paga al fondo de reserva)
+First revive (silver, default price)|Primer revivir (plata, precio por defecto)
+Each death in 24 h multiplies by|Cada muerte en 24 h multiplica por
+Maximum (silver, default price)|Máximo (plata, precio por defecto)
+Smelting and crafting (paid to the game treasury)|Fundir y craftear (se paga al tesoro del juego)
+Smelting fee (% of the ingot value)|Tarifa de fundir (% del valor del lingote)
+Minimum smelting fee (bronze)|Tarifa mínima de fundir (bronce)
+Crafting fee (% of the item value)|Tarifa de craftear (% del valor del objeto)
+Minimum crafting fee (bronze)|Tarifa mínima de craftear (bronce)
+Recalculate prices now|Recalcular los precios ahora
+Reserve fund: deposit or withdraw|Fondo de reserva: meter o sacar
+Deposit into the reserve fund|Meter en el fondo de reserva
+Withdraw from the reserve fund|Sacar del fondo de reserva
+Burn history|Historial de quemas
+Coins burned from treasuries, monster coins nobody picked up in 5 minutes, items thrown in the trash bin and dropped items nobody picked up in 5 minutes. Last 30 days by source:|Monedas quemadas de los tesoros, monedas de monstruos que nadie recogió en 5 minutos, objetos tirados al bote de basura y objetos soltados que nadie recogió en 5 minutos. Últimos 30 días por origen:
+yesterday ×|ayer ×
+drives prices|mueve los precios
+players + circular treasury|jugadores + tesoro circular
+every coin that exists|todas las monedas que existen
+Smelt|Fundir
+Craft|Craftear
+Nothing burned yet.|Todavía no se ha quemado nada.
+change|cambio
+of the treasury balance|del saldo del tesoro
+the treasury is empty|el tesoro está vacío
+Game and reserve funds are already out of circulation: burning them lowers the total supply, not the money players hold.|El tesoro del juego y el fondo de reserva ya están fuera de circulación: quemarlos baja la oferta total, no el dinero que tienen los jugadores.
+target|objetivo
+target ×|objetivo ×
+Balance:|Saldo:
+Burn|Quemar
+from the|del
+This cannot be undone: the coins are destroyed.|No se puede deshacer: las monedas se destruyen.
+Burning…|Quemando…
+Burned:|Quemado:
+Could not burn.|No se pudo quemar.
+Death in 24 h|Muerte en 24 h
+Revive cost (silver)|Precio de revivir (plata)
+Saved. Death, smelting and crafting prices use it now; shop prices follow at the next daily snapshot or when you recalculate.|Guardado. Los precios de la muerte, de fundir y de craftear lo usan ya; los de la tienda, con la próxima foto del día o al recalcular.
+Recalculate today's price index and every shop price now? Players see the new prices the next time they open the shop.|¿Recalcular ahora el índice de precios de hoy y todos los precios de la tienda? Los jugadores los verán la próxima vez que abran la tienda.
+Recalculating…|Recalculando…
+Done. Price index ×|Hecho. Índice de precios ×
+Could not recalculate.|No se pudo recalcular.
+The reserve fund does not have that much.|El fondo de reserva no tiene tanto.
+Price index|Índice de precios
+default prices|precios por defecto
+The index starts with the first daily snapshot.|El índice empieza con la primera foto del día.
+Active money|Dinero activo
+Net|Neta
+Circular|Circular
+Game|Juego
+Reserve|Reserva
+No treasury history yet.|Todavía no hay historial de los tesoros.
+Burns and sinks per day|Quemas y sumideros por día
+Coins burned|Monedas quemadas
+Items destroyed|Objetos destruidos
+Deaths → reserve|Muertes → reserva
+Smelting & crafting|Fundir y craftear
+Nothing burned or collected yet.|Todavía no se ha quemado ni cobrado nada.
+Price index today|Índice de precios hoy
+Net inflation, 7 days|Inflación neta, 7 días
+Active money inflation, 7 days|Inflación del dinero activo, 7 días
+Total supply inflation, 7 days|Inflación de la oferta total, 7 días
+Active money (bronze)|Dinero activo (bronce)
+Total supply (bronze)|Oferta total (bronce)
+Items destroyed, 7 days (bronze value)|Objetos destruidos, 7 días (valor en bronce)
+Coins burned from treasuries|Monedas quemadas de los tesoros
+From deaths (revives)|De muertes (revivir)
+Death payments, 30 days|Pagos por muerte, 30 días
+Smelting fees, 30 days|Tarifas de fundir, 30 días
+Crafting fees, 30 days|Tarifas de craftear, 30 días
+Net inflation, 7 days (drives prices)|Inflación neta, 7 días (mueve los precios)
+Top-up Gold price, tomorrow (zkLTC)|Precio del oro de recarga, mañana (zkLTC)
+Shop price index, tomorrow|Índice de precios de la tienda, mañana
+Burned from a treasury|Quemado de un tesoro
+Monster coins nobody picked up|Monedas de monstruos que nadie recogió
+Trash bin|Bote de basura
+Dropped item nobody picked up|Objeto soltado que nadie recogió
+When (UTC)|Cuándo (UTC)
+Treasury / item|Tesoro / objeto
+Bronze value|Valor en bronce
+Player / detail|Jugador / detalle
+Inflation|Inflación
+Daily|Diaria
+Net, 7 days|Neta, 7 días
+Coins in circulation, index|Monedas en circulación, índice
+Every game shop price is its default price × the price index (net inflation) × the item's demand. Change the default price of any shop item in Gold, Silver or Bronze; items the shop does not sell have a reference value (used for burns, smelting, crafting and P2P stats). The P2P market sets its own prices: here you see what players pay.|Cada precio de la tienda del juego es su precio por defecto × el índice de precios (inflación neta) × la demanda del objeto. Cambia el precio por defecto de cualquier objeto de la tienda en oro, plata o bronce; lo que la tienda no vende tiene un valor de referencia (para quemas, fundir, craftear y las estadísticas del P2P). El mercado P2P pone sus propios precios: aquí ves lo que pagan los jugadores.
+Items and prices|Objetos y precios
+Changes are measured on the buy price (or the sell price when the shop only buys the item). Select an item to see its charts and to change its default price.|Los cambios se miden sobre el precio de compra (o el de venta cuando la tienda solo lo compra). Elige un objeto para ver sus gráficos y cambiar su precio por defecto.
+All items|Todos los objetos
+Sold in the game shop|Se venden en la tienda del juego
+Reference values only|Solo valores de referencia
+Changed by an admin|Cambiados por un administrador
+Moved more than 5% in 30 days|Se movieron más de un 5 % en 30 días
+Traded on P2P|Con ventas en el P2P
+Sort by name|Ordenar por nombre
+Biggest rise (30 days)|Mayor subida (30 días)
+Biggest fall (30 days)|Mayor bajada (30 días)
+Most P2P volume|Más volumen en el P2P
+Most bought in the shop (7 days)|Más comprados en la tienda (7 días)
+Price history (game shop)|Historial de precio (tienda del juego)
+P2P: daily median price|P2P: precio mediano del día
+Game shop: units bought and sold per day|Tienda del juego: unidades compradas y vendidas por día
+Default price|Precio por defecto
+Currency|Moneda
+Buy price (what players pay)|Precio de compra (lo que pagan los jugadores)
+Sell price (what the shop pays)|Precio de venta (lo que paga la tienda)
+Follows the economy (price index and demand)|Sigue la economía (índice de precios y demanda)
+Save default price|Guardar el precio por defecto
+Restore the original price|Volver al precio original
+Search an item|Buscar un objeto
+Filter|Filtro
+Sort|Orden
+No items match.|Ningún objeto coincide.
+custom|a medida
+fixed|fijo
+reference value|valor de referencia
+Game shop item|Objeto de la tienda del juego
+Not sold in the shop · reference value|No se vende en la tienda · valor de referencia
+level|nivel
+demand ×|demanda ×
+price index ×|índice de precios ×
+Price history|Historial de precio
+default|por defecto
+No price history yet: the first point is written with the next daily snapshot.|Todavía no hay historial: el primer punto se escribe con la próxima foto del día.
+P2P daily median|Mediana diaria del P2P
+P2P median|Mediana del P2P
+No P2P sales in the last 90 days.|Sin ventas en el P2P en los últimos 90 días.
+Shop units per day|Unidades de la tienda por día
+Bought|Compradas
+Sold|Vendidas
+Nobody bought or sold it in the shop in the last 30 days.|Nadie lo compró ni lo vendió en la tienda en los últimos 30 días.
+Reference value (per unit)|Valor de referencia (por unidad)
+The price players see today = default price × price index × demand (unless it does not follow the economy). Players see a change the next time they open the shop.|El precio que ven hoy los jugadores = precio por defecto × índice de precios × demanda (salvo que no siga la economía). Los jugadores ven el cambio la próxima vez que abren la tienda.
+The shop does not sell this item. Its reference value is what it is worth when it is burned, smelted or crafted.|La tienda no vende este objeto. Su valor de referencia es lo que vale cuando se quema, se funde o se craftea.
+The sell price must be lower than the buy price.|El precio de venta tiene que ser menor que el de compra.
+Saved. The chart shows the new point.|Guardado. El gráfico enseña el punto nuevo.
+Go back to the original default price of this item?|¿Volver al precio por defecto original de este objeto?
+Restoring…|Volviendo…
+Restored.|Restaurado.
+Could not restore.|No se pudo restaurar.
+Items in the game shop|Objetos en la tienda del juego
+Default prices changed by admins|Precios por defecto cambiados por administradores
+Average change, 30 days|Cambio medio, 30 días
+Units bought in the shop, 7 days|Unidades compradas en la tienda, 7 días
+P2P sales, 14 days|Ventas en el P2P, 14 días
+Buy today|Compra hoy
+Sell / value today|Venta / valor hoy
+Trend (60 days)|Tendencia (60 días)
+P2P median (14 d)|Mediana P2P (14 d)
+Shop 7 d: bought / sold|Tienda 7 d: compradas / vendidas
+Buy price today|Precio de compra hoy
+Sell price today|Precio de venta hoy
+Reference value today|Valor de referencia hoy
+Change, 30 days|Cambio, 30 días
+Market value (burns, services)|Valor de mercado (quemas, servicios)
+P2P median, 14 days|Mediana P2P, 14 días
+Players will pay today:|Los jugadores pagarán hoy:
+The shop will pay today:|La tienda pagará hoy:
+Worth today:|Vale hoy:
+Factor (index × demand):|Factor (índice × demanda):
+What missions pay|Lo que pagan las misiones
+Coins paid per day (bronze value)|Monedas pagadas por día (valor en bronce)
+Missions completed and players per day|Misiones completadas y jugadores por día
+Missions completed, 7 days|Misiones completadas, 7 días
+Gold paid, 7 days|Oro pagado, 7 días
+Silver paid, 7 days|Plata pagada, 7 días
+Bronze paid, 7 days|Bronce pagado, 7 días
+Total, 7 days (bronze value)|Total, 7 días (valor en bronce)
+Player (30 days)|Jugador (30 días)
+the server does not have this chart yet|el servidor todavía no tiene este gráfico
+Bronze min|Bronce mínimo
+Bronze max|Bronce máximo
+paid in Bronze|se paga en bronce
+Bronze|Bronce
 `;
   const supplements = `
 Use a percentage from 0 to 100, with up to two decimal places.|Usa un porcentaje entre 0 y 100, con hasta dos decimales.

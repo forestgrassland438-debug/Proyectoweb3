@@ -9776,12 +9776,17 @@ button:focus {
 
 #furnace-panel {
   position: fixed; top:0; left:0; width:100vw; height:100vh;
-  background: rgba(0,10,30,0.78);
+  /* (2026-10-28) "Al abrir el panel se pone un fondo atrás; ese fondo no
+     debería estar, solo el panel": sin velo, y lo que queda fuera de la caja
+     no se come los clics (el inventario y el mapa siguen a mano). */
+  background: transparent;
+  pointer-events: none;
   display: none;
   justify-content: center;
   align-items: center;
   z-index: 10001;
 }
+#furnace-panel .furnace-container { pointer-events: auto; }
 #furnace-panel.furnace-visible { display: flex; }
 
 .furnace-container {

@@ -1022,7 +1022,19 @@
     for (y = fondo + 14; y >= fondo - Math.min(caja.alto * 0.6, 120); y--) {
       var hay = scene._chocaConEscenario(x - 3, y, 6, 1);
       if (hay && abajo === null) abajo = y + 1;
-      if (!hay && abajo !== null) { arriba = y + 1; break; }
+      if (!hay && abajo !== null) {
+        arriba = y + 1;
+        /* (2026-10-28) LO QUE EMPIEZA POR DEBAJO DEL DIBUJO NO ES SU TRONCO.
+           "Hay bugs con los árboles y arbustos": los dos cipreses del seto del
+           pueblo tienen un bote de basura justo debajo. La búsqueda empieza
+           14 px por debajo del dibujo (hay troncos cuyo choque asoma por abajo)
+           y daba con el choque del BOTE: la línea del ciprés quedaba 30 px por
+           debajo de su pie y tapaba al jugador que pasaba por delante del seto.
+           Un tramo que empieza más abajo que el dibujo es de otra cosa: se sigue
+           subiendo hasta el choque del propio árbol. */
+        if (arriba > fondo + 2) { abajo = null; arriba = null; continue; }
+        break;
+      }
     }
     if (abajo === null || arriba === null) return null;
     // Un tramo larguísimo no es un tronco, es una zona (un vallado, un huerto).

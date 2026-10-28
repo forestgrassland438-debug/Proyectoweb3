@@ -547,7 +547,10 @@ class missionspanel {
       { cantidad: mission.goldReward,   icono: './Game/Source/moneda de oro.png',
         nombre: esEspanol ? 'Oro'   : 'Gold' },
       { cantidad: mission.silverReward, icono: './Game/Source/moneda de plata.png',
-        nombre: esEspanol ? 'Plata' : 'Silver' }
+        nombre: esEspanol ? 'Plata' : 'Silver' },
+      // (2026-10-28) "En misiones no podemos dar ítems, solo monedas de los tres tipos": también bronce.
+      { cantidad: mission.bronzeReward, icono: './Game/Source/moneda de bronce.png',
+        nombre: esEspanol ? 'Bronce' : 'Bronze' }
     ];
     monedas.forEach((m) => {
       const cantidad = Math.max(0, parseInt(m.cantidad, 10) || 0);
@@ -567,12 +570,21 @@ class missionspanel {
     });
 
     if (mission.rewardItemId) {
+      /* (2026-10-28) Las misiones ya no dan objetos: una misión de antes que
+         prometía uno paga lo que vale, en bronce (lo calcula el servidor al
+         entregarla). Se enseña así, con la moneda de bronce. */
       const premioItem = document.createElement('div');
-      premioItem.className = 'reward-item item-reward-item';
-      premioItem.appendChild(this._imagenItem(mission.rewardItemId, nombrePremio, 'item-icon'));
+      premioItem.className = 'reward-item coin-reward-item';
+      const imgB = document.createElement('img');
+      imgB.className = 'item-icon';
+      imgB.src = './Game/Source/moneda de bronce.png';
+      imgB.alt = esEspanol ? 'Bronce' : 'Bronze';
       const spanItem = document.createElement('span');
       spanItem.className = 'item-reward';
-      spanItem.textContent = `+${mission.rewardAmount || 1} ${nombrePremio}`;
+      spanItem.textContent = esEspanol
+        ? `+ valor de ${mission.rewardAmount || 1} ${nombrePremio} en bronce`
+        : `+ value of ${mission.rewardAmount || 1} ${nombrePremio} in Bronze`;
+      premioItem.appendChild(imgB);
       premioItem.appendChild(spanItem);
       premios.appendChild(premioItem);
     }

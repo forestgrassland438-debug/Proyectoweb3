@@ -372,6 +372,71 @@
         return { ok: true, devuelto: pMM, stats: estado.stats };
       }
     }
+    /* (2026-10-28) LA ECONOMÍA, 2.ª PARTE (server2.js): la hora del servidor, los
+       precios de hoy de la tienda, el historial de un objeto (panel "Price
+       history"), lo que cuesta fundir y craftear y la quema de la basura.
+       ?precios=0 = servidor viejo (404). El trigo (Semillax2) va en BRONCE para
+       probar un objeto con precio en bronce. */
+    if (ruta === '/api/tiempo') return { ok: true, ahora: Date.now() };
+    if (/^\/api\/economia\/(precios|precio\/|servicio|quema\/)/.test(ruta)) {
+      if (/[?&]precios=0/.test(location.search)) return { __status: 404, error: 'not_found' };
+      var PRECIOS_HOY = {
+        Semillax: { compra: 11, venta: 6, moneda: 'plata', base: { compra: 10, venta: 5, moneda: 'plata' }, demanda: 1.02, cambiado: false },
+        Semillax1: { compra: 16, venta: 8, moneda: 'plata', base: { compra: 15, venta: 7, moneda: 'plata' }, demanda: 1, cambiado: false },
+        Semillax2: { compra: 9000, venta: 4000, moneda: 'bronce', base: { compra: 9000, venta: 4000, moneda: 'bronce' }, demanda: 1, cambiado: true },
+        tomate_buena: { compra: 30, venta: 21, moneda: 'plata', base: { compra: 28, venta: 20, moneda: 'plata' }, demanda: 1.05, cambiado: false },
+        cofre1: { compra: 2, venta: 1, moneda: 'oro', base: { compra: 2, venta: 1, moneda: 'oro' }, demanda: 1, cambiado: false }
+      };
+      if (ruta === '/api/economia/precios') return { ok: true, version: 1700000000000, dia: new Date().toISOString().slice(0, 10), indice: 1.031, ahora: Date.now(), items: PRECIOS_HOY };
+      var mP = ruta.match(/^\/api\/economia\/precio\/([A-Za-z0-9_]+)$/);
+      if (mP) {
+        var idP = mP[1], hoyP = PRECIOS_HOY[idP] || { compra: 0, venta: 5000, moneda: 'bronce', base: { compra: 0, venta: 5000, moneda: 'bronce' }, demanda: 1, cambiado: false };
+        var histP = [], tiendaP = [], ventasP = [], semP = 0;
+        for (var c = 0; c < idP.length; c++) semP += idP.charCodeAt(c);
+        for (var dP = 89; dP >= 0; dP--) {
+          var tP = Date.now() - dP * 86400000 - 3600000 * 3;
+          var fP = 1 + Math.sin((dP + semP) / 9) * 0.04 - dP * 0.0004;
+          histP.push({ t: new Date(tP).toISOString(), compra: hoyP.compra ? Math.max(1, Math.round(hoyP.base.compra * fP)) : 0,
+                       venta: Math.max(1, Math.round(hoyP.base.venta * fP)), moneda: hoyP.moneda, indice: fP, demanda: 1, motivo: 'diario' });
+          if (dP < 30) tiendaP.push({ dia: new Date(tP).toISOString().slice(0, 10), compras: (dP * 7 + semP) % 9, ventas: (dP * 5 + semP) % 6 });
+          if (dP % 3 === 0) ventasP.push({ t: new Date(tP + 7200000).toISOString(), precio: Math.max(1, Math.round((hoyP.moneda === 'oro' ? 1 : hoyP.moneda === 'bronce' ? 0.001 : 1) * hoyP.base.venta * (fP + 0.1))), cantidad: 1 + dP % 4, moneda: hoyP.moneda === 'oro' ? 'oro' : 'plata' });
+        }
+        return { ok: true, itemId: idP, ahora: Date.now(), indice: 1.031, version: 1700000000000, actual: Object.assign({ tienda: !!PRECIOS_HOY[idP], sigueIndice: true }, hoyP),
+                 valorBronce: (hoyP.venta || 5) * (hoyP.moneda === 'oro' ? 1e6 : hoyP.moneda === 'plata' ? 1000 : 1), historial: histP,
+                 p2p: { resumen: { n: ventasP.length, mediana: hoyP.venta * 1100, min: hoyP.venta * 900, max: hoyP.venta * 1400, volumen: 40 }, ventas: ventasP }, tienda: tiendaP };
+      }
+      var tarifaP = function (tipo, itemId, q) { return Math.max(50, Math.round((itemId === 'mineral_hierro' ? 45000 : itemId === 'mineral_cobre' ? 25000 : 6000) * (tipo === 'fundir' ? 0.05 : 0.04) * (q || 1))); };
+      if (ruta === '/api/economia/servicio/precio') {
+        var qs = new URLSearchParams(consulta || '');
+        return { ok: true, tipo: qs.get('tipo'), itemId: qs.get('itemId'), cantidad: Number(qs.get('cantidad')) || 1, bronce: tarifaP(qs.get('tipo'), qs.get('itemId'), Number(qs.get('cantidad')) || 1), indice: 1.031 };
+      }
+      if (ruta === '/api/economia/servicio' && metodo === 'POST') {
+        b = cuerpo(init);
+        var costeP = tarifaP(b.tipo, b.itemId, b.cantidad);
+        estado.cobrosServicio = estado.cobrosServicio || {};
+        if (estado.cobrosServicio[b.ref]) return { ok: true, repetido: true, bronce: costeP, stats: estado.stats };
+        var tieneP = (estado.stats.oro || 0) * 1e6 + (estado.stats.plata || 0) * 1000 + (estado.stats.bronce || 0);
+        if (tieneP < costeP || /[?&]sinbronce=1/.test(location.search)) return { __status: 409, error: 'saldo_insuficiente', bronce: costeP, message: 'You need ' + costeP + ' Bronze for this.' };
+        var deB = Math.min(estado.stats.bronce || 0, costeP), faltaP = costeP - deB;
+        estado.stats.bronce = (estado.stats.bronce || 0) - deB;
+        if (faltaP > 0) { var rotas = Math.ceil(faltaP / 1000); estado.stats.plata -= rotas; estado.stats.bronce += rotas * 1000 - faltaP; }
+        estado.cobrosServicio[b.ref] = costeP;
+        return { ok: true, bronce: costeP, stats: estado.stats };
+      }
+      if (ruta === '/api/economia/servicio/devolver' && metodo === 'POST') {
+        b = cuerpo(init);
+        var devP = estado.cobrosServicio && estado.cobrosServicio[b.ref];
+        if (!devP) return { ok: false, motivo: 'nada_que_devolver' };
+        delete estado.cobrosServicio[b.ref];
+        estado.stats.bronce = (estado.stats.bronce || 0) + devP;
+        return { ok: true, bronce: devP, stats: estado.stats };
+      }
+      if (ruta === '/api/economia/quema/basura' && metodo === 'POST') {
+        b = cuerpo(init);
+        estado.quemas = (estado.quemas || []).concat(b.items || []);
+        return { ok: true, bronce: (b.items || []).reduce(function (s, x) { return s + (x.cantidad || 0) * 3000; }, 0) };
+      }
+    }
     // (2026-10-26) La economía (/api/economia/estado) y la compra de oro con zkLTC
     // (/api/currency/oro/*), como server2.js. ?economia=0 = servidor viejo (404).
     if (ruta === '/api/economia/estado' || /^\/api\/currency\/oro\//.test(ruta)) {
@@ -383,7 +448,11 @@
           masa0 = masa0 * (1 + infE);
           serieE.push({ dia: new Date(Date.now() - iE * 86400000).toISOString().slice(0, 10), precio: 0.001 * (1 + (29 - iE) * 0.004),
                         inflacion1: iE === 29 ? null : infE, oro: Math.round(4000 + (29 - iE) * 35), plata: Math.round(2.1e6 * (1 + (29 - iE) * 0.006)),
-                        bronce: Math.round(6.5e8 * (1 + (29 - iE) * 0.011)), masa: Math.round(masa0), jugadores: 120 + (29 - iE) });
+                        bronce: Math.round(6.5e8 * (1 + (29 - iE) * 0.011)), masa: Math.round(masa0), jugadores: 120 + (29 - iE),
+                        // (2026-10-28) La 2.ª parte: la hora exacta de la foto, la inflación neta, el índice y lo quemado.
+                        actualizado: new Date(Date.now() - iE * 86400000 - (iE % 5) * 3600000).toISOString(),
+                        inflacionNeta7: iE > 25 ? null : infE * 4.2 - 0.004, indice: 1 + (29 - iE) * 0.001,
+                        quemadoMonedas: (iE * 7919) % 30000, quemadoObjetos: (iE * 3571) % 90000 });
         }
         estado.economia = { serie: serieE, compras: {}, comprado: 0 };
       }
@@ -393,7 +462,8 @@
                   masa: { oro: ultE.oro, plata: ultE.plata, bronce: ultE.bronce, total: ultE.masa, jugadores: ultE.jugadores },
                   tope: 163, compra: { activa: true, destino: '0x' + 'c'.repeat(40), minimo: 1 },
                   comisiones: { mercadoBps: 500, circularBps: 150, juegoBps: 350, cambioBps: { oro: 100, plata: 200, bronce: 300 } },
-                  tesoros: { circular: 1834560, juego: 4275000 }, serie: E.serie };
+                  tesoros: { circular: 1834560, juego: 4275000, reserva: 960000 }, serie: E.serie, ahora: Date.now(), indice: 1.031,
+                  inflacionNeta7: ultE.inflacionNeta7 };
       if (ruta === '/api/economia/estado') return pub;
       // (2026-10-27) El historial de recargas con su tx, y reclamar con el hash (como server2.js).
       if (!E.historial) {

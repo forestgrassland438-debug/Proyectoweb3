@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="es" data-admin-suite data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="referrer" content="same-origin">
+  <!-- (2026-10-28) La economía de la tienda del juego y del P2P. La CSP no permite scripts en línea: todo va en precios.js -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.grasslandforest.com http://127.0.0.1:8080; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <title>Grassland Forest · Shop &amp; P2P economy</title>
+  <link rel="icon" href="./favicon.png">
+  <link rel="stylesheet" href="./admin-suite.css?v=20261020">
+  <link rel="stylesheet" href="./tesoro.css?v=20261022">
+  <link rel="stylesheet" href="./economia.css?v=20261028">
+  <link rel="stylesheet" href="./precios.css?v=20261028">
+  <script src="./admin-session.js?v=20261020"></script>
+  <script src="./admin-suite-i18n.js?v=20261028"></script>
+  <script defer src="./admin-suite.js?v=20261025"></script>
+  <script defer src="./gf-graficos.js?v=20261028"></script>
+  <script defer src="./precios.js?v=20261028"></script>
+</head>
+<body>
+<div class="tz-wrap">
+
+  <section id="pr-gate" class="tz-gate">
+    <div class="tz-gate-card">
+      <span class="tz-eyebrow">Administrator only</span>
+      <h1>Shop &amp; P2P economy</h1>
+      <p>Connect the wallet registered as an administrator.</p>
+      <button id="pr-connect" class="tz-btn tz-primary" type="button">Connect administrator wallet</button>
+      <div id="pr-gate-msg" class="tz-gate-msg" role="status" aria-live="polite">Checking your session…</div>
+    </div>
+  </section>
+
+  <main id="pr-app" hidden>
+    <div class="tz-head">
+      <div>
+        <span class="tz-eyebrow">Economy</span>
+        <h1>Shop &amp; P2P economy</h1>
+        <p class="tz-sub">Every game shop price is its default price × the price index (net inflation) × the item's demand. Change the default price of any shop item in Gold, Silver or Bronze; items the shop does not sell have a reference value (used for burns, smelting, crafting and P2P stats). The P2P market sets its own prices: here you see what players pay.</p>
+      </div>
+      <div class="tz-head-side">
+        <span id="pr-updated" class="tz-status">No data loaded</span>
+        <button id="pr-refresh" class="tz-btn" type="button"><span aria-hidden="true">↻</span> Refresh data</button>
+      </div>
+    </div>
+    <div id="pr-notice" class="tz-notice" role="status" aria-live="polite" hidden></div>
+
+    <div id="pr-kpis" class="ec-kpis"></div>
+
+    <section class="tz-card" aria-labelledby="pr-lista-title" style="margin-bottom:14px">
+      <div class="ec-titulo"><div><h2 id="pr-lista-title">Items and prices</h2>
+        <p class="tz-card-sub">Changes are measured on the buy price (or the sell price when the shop only buys the item). Select an item to see its charts and to change its default price.</p></div></div>
+      <form id="pr-filtros" class="ec-c-filtros" role="search">
+        <input id="pr-q" class="tz-input" type="search" maxlength="60" autocomplete="off" placeholder="Search an item" aria-label="Search an item">
+        <select id="pr-f" class="tz-input" aria-label="Filter">
+          <option value="">All items</option><option value="tienda">Sold in the game shop</option><option value="ref">Reference values only</option>
+          <option value="cambiado">Changed by an admin</option><option value="mueve">Moved more than 5% in 30 days</option><option value="p2p">Traded on P2P</option>
+        </select>
+        <select id="pr-o" class="tz-input" aria-label="Sort">
+          <option value="nombre">Sort by name</option><option value="sube">Biggest rise (30 days)</option><option value="baja">Biggest fall (30 days)</option><option value="p2p">Most P2P volume</option><option value="demanda">Most bought in the shop (7 days)</option>
+        </select>
+      </form>
+      <div id="pr-tabla" class="tz-table-wrap"></div>
+    </section>
+
+    <section id="pr-detalle" class="tz-card" aria-labelledby="pr-d-title" hidden>
+      <div class="pr-d-cab">
+        <img id="pr-d-img" alt="" class="pr-d-img">
+        <div><span class="tz-eyebrow" id="pr-d-tipo"></span><h2 id="pr-d-title" data-no-translate></h2><p id="pr-d-sub" class="tz-card-sub"></p></div>
+        <button id="pr-d-cerrar" class="tz-btn" type="button">Close</button>
+      </div>
+      <div id="pr-d-kpis" class="ec-kpis"></div>
+      <div class="pr-d-cuerpo">
+        <div class="pr-d-graficos">
+          <h3>Price history (game shop)</h3>
+          <div id="pr-g-precio" class="tz-chart"></div>
+          <h3>P2P: daily median price</h3>
+          <div id="pr-g-p2p" class="tz-chart"></div>
+          <h3>Game shop: units bought and sold per day</h3>
+          <div id="pr-g-tienda" class="tz-chart"></div>
+        </div>
+        <form id="pr-editor" class="tz-form pr-editor" novalidate>
+          <h3>Default price</h3>
+          <p class="tz-card-sub" id="pr-e-nota"></p>
+          <label class="tz-field"><span>Currency</span><select id="pr-e-moneda" class="tz-input">
+            <option value="oro">Gold</option><option value="plata">Silver</option><option value="bronce">Bronze</option></select></label>
+          <label class="tz-field" id="pr-e-compra-l"><span>Buy price (what players pay)</span><input id="pr-e-compra" class="tz-input" type="number" min="0" step="1" inputmode="numeric"></label>
+          <label class="tz-field"><span id="pr-e-venta-t">Sell price (what the shop pays)</span><input id="pr-e-venta" class="tz-input" type="number" min="0" step="1" inputmode="numeric"></label>
+          <label class="tz-switch"><input id="pr-e-indice" type="checkbox"><span aria-hidden="true"></span><b>Follows the economy (price index and demand)</b></label>
+          <div id="pr-e-vista" class="pr-e-vista" aria-live="polite"></div>
+          <div class="tz-actions">
+            <button id="pr-e-guardar" class="tz-btn tz-primary" type="submit">Save default price</button>
+            <button id="pr-e-quitar" class="tz-btn" type="button">Restore the original price</button>
+          </div>
+          <span id="pr-e-estado" class="tz-status" role="status" aria-live="polite"></span>
+        </form>
+      </div>
+    </section>
+  </main>
+</div>
+<noscript>This administration page requires JavaScript. / Esta página requiere JavaScript.</noscript>
+</body>
+</html>

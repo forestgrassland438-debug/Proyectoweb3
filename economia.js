@@ -27,14 +27,18 @@
   // Los seis orígenes del tesoro del juego, con los seis primeros colores de la paleta (orden fijo).
   const ORIGENES = [
     ['tienda', 'Game shop', '#3987e5'], ['p2p', 'P2P market', '#d95926'], ['viajes', 'Map travel', '#199e70'],
-    ['vip', 'VIP', '#c98500'], ['revivir', 'Revive potions', '#d55181'], ['admin', 'Admin', '#008300']
+    ['vip', 'VIP', '#c98500'], ['revivir', 'Revive potions', '#d55181'], ['admin', 'Admin', '#008300'],
+    // (2026-10-28) Lo que se cobra por fundir y craftear (economia2.js lo configura).
+    ['servicios', 'Smelting & crafting', '#9085e9']
   ];
   const SALUD = { sin_datos: ['Collecting data', '◌'], deflacion: ['Deflation', '▼'], estable: ['Stable', '✓'], caliente: ['Warming up', '!'], recalentada: ['Overheated', '▲'] };
   const ESTADOS = { cotizada: 'Quoted', pagada: 'Paid · waiting', acreditada: 'Credited', fallida: 'Failed' };
 
   let verificado = false, cerrado = false, cargando = false, ocupado = false, sucio = false;
   let datos = null, peticion = null, reloj = 0, ultimaCarga = 0;
-  root.GFTreasuryLifecycle = Object.freeze({ status: () => (ocupado ? 'busy' : sucio ? 'dirty' : '') });
+  // (2026-10-28) Con la 2.ª parte (economia2.js): sus formularios también cuentan como "cambios sin guardar".
+  root.GFTreasuryLifecycle = Object.freeze({ status: () => (ocupado ? 'busy' : sucio ? 'dirty'
+    : (root.GFEconomia2 && typeof root.GFEconomia2.status === 'function' && root.GFEconomia2.status()) || '') });
 
   const loc = () => (ui.language === 'es' ? 'es-EC' : 'en-US');
   const fmt = (n, d = 0) => new Intl.NumberFormat(loc(), { maximumFractionDigits: d }).format(Number(n) || 0);
@@ -109,6 +113,8 @@
       if (!d || !d.juego || !d.economia) throw new Error('The server answered without economy data.');
       datos = d; ultimaCarga = Date.now(); aviso('');
       pintar();
+      // (2026-10-28) La 2.ª parte (economia2.js: quemar, fondo de reserva, índice, muerte, servicios) carga lo suyo.
+      try { document.dispatchEvent(new CustomEvent('gf-economia:cargada', { detail: d })); } catch (_) {}
       $('ec-updated').textContent = t('Last updated · ') + new Intl.DateTimeFormat(loc(), { hour: '2-digit', minute: '2-digit' }).format(new Date(ultimaCarga));
     } catch (e) {
       if (cerrado || (e && e.name === 'AbortError')) return;
@@ -143,7 +149,31 @@
   let ANCHO = 600;
   const ALTO = 190, IZQ = 64, DER = 10, ARR = 12, ABA = 24;
   const medir = id => { const caja = $(id); ANCHO = Math.max(300, Math.round((caja && caja.clientWidth) || 600)); };
+
+  /* (2026-10-28) "Gráficos más profesionales, mejores y más movibles, con
+     fechas y hora exactas de internet": gf-graficos.js (hora del servidor en
+     UTC, rueda o pellizco para acercar, arrastrar, rangos, ficha y tabla). Si
+     no cargara, se pintan los de antes. Un gráfico vivo por caja. */
+  const G = root.GFGraficos || null;
+  const vivos = {};
+  function grafico(id, op) {
+    const caja = $(id);
+    if (!caja) return;
+    const idioma = ui.language === 'es' ? 'es' : 'en';
+    const datosG = { series: op.series, datos: op.datos };
+    if (vivos[id]) { vivos[id].actualizar(datosG); return; }
+    vivos[id] = G.crear(caja, Object.assign({ idioma, alto: 230, rango: '30d', rangos: ['7d', '30d', '90d', 'todo'] }, op));
+  }
+  const cuandoFoto = f => { const a = f && f.actualizado ? Date.parse(f.actualizado) : NaN; return isFinite(a) ? a : Date.parse(f.dia + 'T00:00:00Z'); };
   function pintarIngresos(serie) {
+    if (G) {
+      grafico('ec-ingresos', { tipo: 'barras', etiqueta: t('Game treasury income by day and source'), rango: '30d', rangos: ['7d', '30d', 'todo'],
+        series: ORIGENES.map(([k, n, col]) => ({ id: k, nombre: t(n), color: col })),
+        datos: Object.fromEntries(ORIGENES.map(([k]) => [k, serie.map(f => [f.dia, Math.max(0, f[k] || 0)])])),
+        formato: v => fmt(v) + ' ' + t('bronze'), vacio: t('No movements yet.') });
+      $('ec-ingresos-leyenda').replaceChildren();
+      return;
+    }
     medir('ec-ingresos');
     $('ec-ingresos-leyenda').replaceChildren(...ORIGENES.map(([k, n, col]) => { const s = el('span'); const i = el('i'); i.style.background = col; s.append(i, el('span', '', t(n))); return s; }));
     const svg = sv('svg', { viewBox: `0 0 ${ANCHO} ${ALTO}`, class: 'ec-svg', role: 'img', 'aria-label': t('Game treasury income by day and source') });
@@ -243,6 +273,26 @@
       kpi(fmt(e.tope), 'Daily Gold limit per player'), kpi(fmt(e.masa.oro), 'Gold in circulation'), kpi(fmt(e.masa.plata), 'Silver in circulation'),
       kpi(fmt(e.masa.bronce), 'Bronze in circulation'), kpi(fmt(e.masa.total), 'Total money (in bronze)'), kpi(fmt(e.masa.jugadores), 'Accounts'));
     const serie = e.serie || [];
+    if (G) {
+      if (e.ahora) G.reloj.ajustar(e.ahora);
+      grafico('ec-g-precio', { etiqueta: t('Gold price in zkLTC'), hastaAhora: true, alto: 210,
+        series: [{ id: 'precio', nombre: t('Gold price'), color: '#c98500', area: true, escalon: true }],
+        datos: { precio: serie.filter(f => Number(f.precio) > 0).map(f => [cuandoFoto(f), Number(f.precio)]) },
+        formato: v => zk(v) + ' zkLTC', vacio: t('No price history yet.') });
+      grafico('ec-g-inflacion', { etiqueta: t('Inflation'), alto: 210, referencia: { valor: 0, nombre: '0%' },
+        series: [{ id: 'dia', nombre: t('Daily'), color: '#3987e5' }, { id: 'neta', nombre: t('Net, 7 days'), color: '#d95926' }],
+        datos: { dia: serie.filter(f => f.inflacion1 != null).map(f => [cuandoFoto(f), f.inflacion1 * 100]),
+                 neta: serie.filter(f => f.inflacionNeta7 != null).map(f => [cuandoFoto(f), f.inflacionNeta7 * 100]) },
+        formato: v => (v > 0 ? '+' : '') + Number(v).toFixed(3) + '%', vacio: t('Inflation appears after the second day of data.') });
+      const base0 = k => { for (const f of serie) if (Number(f[k]) > 0) return Number(f[k]); return 0; };
+      const indice = k => { const b = base0(k); return b ? serie.map(f => [cuandoFoto(f), (Number(f[k]) || 0) / b * 100]) : []; };
+      grafico('ec-g-masa', { etiqueta: t('Coins in circulation, index'), alto: 210, referencia: { valor: 100, nombre: '100' },
+        series: [{ id: 'oro', nombre: t('Gold'), color: '#c98500' }, { id: 'plata', nombre: t('Silver'), color: '#3987e5' }, { id: 'bronce', nombre: t('Bronze'), color: '#d95926' }],
+        datos: { oro: indice('oro'), plata: indice('plata'), bronce: indice('bronce') },
+        formato: v => fmt(v, 1), vacio: t('No coins in circulation yet.') });
+      $('ec-g-masa-leyenda').replaceChildren();
+      return;
+    }
     medir('ec-g-precio');
     $('ec-g-precio').replaceChildren(linea(serie, null, 'Gold price in zkLTC', {
       lineas: [{ nombre: 'Gold price', color: '#c98500', valor: f => Number(f.precio) || null }], vacio: 'No price history yet.', eje: v => String(Number(v.toPrecision(3))), dato: v => zk(v) + ' zkLTC' }));

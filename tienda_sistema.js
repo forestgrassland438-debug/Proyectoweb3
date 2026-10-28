@@ -23,7 +23,8 @@
 // (el servidor lo reparte en POST /api/tesoro/comision).
 const GF_COMISION_TESORO_BPS = 500;
 function gfComisionTesoroBronce(precioUnidad, moneda, cantidad) {
-    const bruto = (Number(precioUnidad) || 0) * (moneda === 'silver' ? 1000 : 1000000) * (Math.floor(Number(cantidad)) || 0);
+    // (2026-10-28) Un objeto puede costar también en bronce (lo decide el centro de control).
+    const bruto = (Number(precioUnidad) || 0) * (moneda === 'silver' ? 1000 : moneda === 'bronze' ? 1 : 1000000) * (Math.floor(Number(cantidad)) || 0);
     return bruto > 0 ? Math.max(1, Math.round(bruto * GF_COMISION_TESORO_BPS / 10000)) : 0;
 }
 
@@ -206,7 +207,8 @@ class TiendaSistema {
         // su precio en oro o plata; ver _monedaDePago / _precioCompra). El
         // saldo es el de gf-bronce.js y el cobro va por StatsSync ('bronce'),
         // igual que el oro y la plata.
-        this.getItemCurrency = (item) => (item?.currency === 'silver' ? 'silver' : 'gold');
+        // (2026-10-28) Y el bronce como moneda del objeto: el centro de control puede poner el precio por defecto en bronce.
+        this.getItemCurrency = (item) => (item?.currency === 'silver' ? 'silver' : item?.currency === 'bronze' ? 'bronze' : 'gold');
         this.getCurrencyLabel = (currency) => (currency === 'silver' ? 'SL' : currency === 'bronze' ? 'BR' : 'GL');
         this.getCurrencyIconPath = (currency) => (currency === 'silver'
             ? './Game/Source/moneda de plata.png'
@@ -1246,6 +1248,9 @@ class TiendaSistema {
         document.getElementById('interact-button-pc')?.addEventListener('click', () => {
             this.openPcModal();
         });
+        // (2026-10-28) "Price history": el historial y las estadísticas de precio del objeto (PC y móvil).
+        document.getElementById('price-history-button-pc')?.addEventListener('click', () => this._abrirHistorialPrecio(this.selectedItem));
+        document.getElementById('mobile-price-history-btn')?.addEventListener('click', () => this._abrirHistorialPrecio(this.selectedItem));
         
         // Controles de cantidad (PC Modal) — con repetición al mantener pulsado.
         this._botonDeCantidad('pc-quantity-up',   () => this.changePcModalQuantity(1));
@@ -2038,6 +2043,9 @@ class TiendaSistema {
         // (2026-10-22) ¿Servidor con tesoro y bronce? Se pregunta ya (una vez) para
         // que la comisión que se enseña sea la que se va a cobrar.
         this._servidorAlDia().catch(() => {});
+        // (2026-10-28) Los precios de HOY (ver _cargarPreciosServidor). Se piden ya y se esperan un
+        // momento antes de pintar; si tardan más, la tienda se repinta sola al llegar.
+        const precios = this._cargarPreciosServidor();
 
         // Pausar escena de Phaser de forma segura
         if (this.scene && this.scene.scene && typeof this.scene.scene.pause === 'function') {
@@ -2068,6 +2076,7 @@ class TiendaSistema {
         }
         
         await this.loadPlayerMoneda();
+        await Promise.race([precios, new Promise((ok) => setTimeout(ok, 1200))]).catch(() => {});
         // Sin esperar: la tienda se abre ya y el apartado se repinta solo
         // cuando llegue la respuesta.
         this._comprobarConstruccion();
@@ -2557,6 +2566,8 @@ class TiendaSistema {
     
     // Seleccionar un item
     selectItem(itemId) {
+        // (2026-10-28) Con la tienda abierta mucho rato, los precios se refrescan (sin esperar).
+        if (!this._preciosServidor || Date.now() - this._preciosServidor.en > 5 * 60 * 1000) this._cargarPreciosServidor().catch(() => {});
         document.querySelectorAll('.item-card.selected').forEach(card => {
             card.classList.remove('selected');
         });
@@ -2609,6 +2620,8 @@ class TiendaSistema {
             if (detailName) detailName.textContent = 'Select an item';
             if (priceContainer) priceContainer.innerHTML = `<img src="./Game/Source/moneda de oro.png" alt="GL" class="moneda-icon"> 0 GL`;
             if (interactBtn) interactBtn.disabled = true;
+            const precioBtn0 = document.getElementById('price-history-button-pc');
+            if (precioBtn0) precioBtn0.disabled = true;
             return;
         }
         
@@ -2625,6 +2638,8 @@ class TiendaSistema {
         }
         
         if (interactBtn) interactBtn.disabled = false;
+        const precioBtn = document.getElementById('price-history-button-pc');
+        if (precioBtn) precioBtn.disabled = false;
         
         const tabDetalles = document.getElementById('tab-detalles');
         if (tabDetalles && !tabDetalles.classList.contains('active')) {
@@ -2883,6 +2898,77 @@ class TiendaSistema {
        El cobro, la verificación y el reembolso son los de siempre: solo
        cambian la moneda y el precio unitario (transactionInfo los lleva).
        ═══════════════════════════════════════════════════════════════════════ */
+    /* ═══════════════════════════════════════════════════════════════════════
+       LOS PRECIOS DE HOY (2026-10-28)
+       ───────────────────────────────────────────────────────────────────────
+       "Los precios suben y bajan según la inflación, el objeto y el sistema
+       económico, y yo puedo cambiar el precio por defecto de un objeto de la
+       tienda en cualquiera de las tres monedas." El precio POR DEFECTO sigue
+       escrito en el catálogo (itemsTienda); el de HOY lo da el servidor
+       (/api/economia/precios: índice de precios × demanda, o lo que fije el
+       centro de control). Si el servidor no contesta (o es uno de antes), se
+       queda el de siempre, que es con el que cobra ese servidor.
+       ═══════════════════════════════════════════════════════════════════════ */
+    async _cargarPreciosServidor() {
+        if (this._cargandoPrecios) return this._cargandoPrecios;
+        const url = `${this._resolveApiBase()}/api/economia/precios`;
+        this._cargandoPrecios = (async () => {
+            try {
+                const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+                const corte = ctl ? setTimeout(() => ctl.abort(), 8000) : null;
+                const r = await fetch(url, { credentials: 'include', cache: 'no-store', signal: ctl ? ctl.signal : undefined });
+                if (corte) clearTimeout(corte);
+                if (!r.ok) return false;
+                const d = await r.json();
+                if (!d || !d.items) return false;
+                if (window.GFGraficos && d.ahora) window.GFGraficos.reloj.ajustar(d.ahora);
+                const cambio = this._aplicarPreciosServidor(d);
+                if (cambio && this.isOpen) {
+                    this.filterItems?.();
+                    if (this.selectedItem) this.updatePcSimpleDetail?.();
+                }
+                return true;
+            } catch (e) {
+                return false;
+            } finally {
+                this._cargandoPrecios = null;
+            }
+        })();
+        return this._cargandoPrecios;
+    }
+
+    /** Pone en el catálogo los precios de hoy. Devuelve si cambió alguno. */
+    _aplicarPreciosServidor(d) {
+        const MONEDA = { oro: 'gold', plata: 'silver', bronce: 'bronze' };
+        let cambio = false;
+        for (const lista of Object.values(this.itemsTienda || {})) {
+            if (!Array.isArray(lista)) continue;
+            for (const item of lista) {
+                if (!item || !item.id) continue;
+                if (!item._precioDefecto) item._precioDefecto = { buyPrice: item.buyPrice, sellPrice: item.sellPrice, currency: item.currency };
+                const p = Object.prototype.hasOwnProperty.call(d.items, item.id) ? d.items[item.id] : null;
+                const moneda = p && MONEDA[p.moneda];
+                if (!p || !moneda) continue;
+                // Lo que la tienda no vende sigue sin venderse (los peces solo se le venden a ella).
+                const compra = item._precioDefecto.buyPrice > 0 ? Math.max(0, Math.floor(Number(p.compra) || 0)) : 0;
+                const venta = Math.max(0, Math.floor(Number(p.venta) || 0));
+                if (item.buyPrice !== compra || item.sellPrice !== venta || item.currency !== moneda) cambio = true;
+                item.buyPrice = compra;
+                item.sellPrice = venta;
+                item.currency = moneda;
+            }
+        }
+        this._preciosServidor = { version: d.version, indice: d.indice, en: Date.now() };
+        return cambio;
+    }
+
+    /** El panel "Price history" del objeto (gf-precio-panel.js). */
+    _abrirHistorialPrecio(item) {
+        if (!item || !item.id) { this.showNotification?.('Select an item first.', 'info'); return; }
+        if (!window.GFPrecioPanel) { this.showNotification?.('Price history is not available right now.', 'error'); return; }
+        window.GFPrecioPanel.abrir({ itemId: item.id, nombre: item.name, imagen: item.image, apiBase: this._resolveApiBase(), idioma: 'en', origen: 'tienda' });
+    }
+
     _bronceDisponible() {
         return !!(window.GFBronce && typeof window.GFBronce.valor === 'function');
     }
@@ -2899,7 +2985,7 @@ class TiendaSistema {
 
     _precioCompra(item, moneda) {
         const precio = Number(item?.buyPrice) || 0;
-        if (moneda !== 'bronze') return precio;
+        if (moneda !== 'bronze' || this.getItemCurrency(item) === 'bronze') return precio;
         const BRONCE_POR_PLATA = 1000, PLATA_POR_ORO = 1000;
         return precio * (this.getItemCurrency(item) === 'silver' ? BRONCE_POR_PLATA : BRONCE_POR_PLATA * PLATA_POR_ORO);
     }
@@ -3022,7 +3108,8 @@ class TiendaSistema {
         if (!totalEl || !totalEl.parentNode) return;
         const id = totalEl.id + '-pago';
         let sel = document.getElementById(id);
-        const ver = this.transactionType === 'compra' && !!this.selectedItem && this._bronceDisponible();
+        // (2026-10-28) Un objeto que ya cuesta bronce no tiene nada que elegir.
+        const ver = this.transactionType === 'compra' && !!this.selectedItem && this._bronceDisponible() && this.getItemCurrency(this.selectedItem) !== 'bronze';
         if (!ver) { if (sel) sel.style.display = 'none'; return; }
         if (!sel) {
             sel = document.createElement('div');
@@ -5726,12 +5813,12 @@ renderSlot(index) {
            era la `comision` de cada objeto, del 2 al 10 %, y se perdía). Lo que
            no llega a una moneda entera de la del objeto se paga en plata y
            bronce. Con el servidor de antes (sin bronce ni tesoro), sin comisión. */
-        const factor = currency === 'silver' ? 1000 : 1000000;
+        const factor = currency === 'silver' ? 1000 : currency === 'bronze' ? 1 : 1000000;
         const commission = (await this._servidorAlDia()) ? this._comisionBronce(item, vendidas, 'venta') : 0;
         const netoBronce = Math.max(0, grossPrice * factor - commission);
         const finalPrice = Math.floor(netoBronce / factor);
         const resto = netoBronce - finalPrice * factor;
-        const restoPlata = currency === 'silver' ? 0 : Math.floor(resto / 1000);
+        const restoPlata = currency === 'silver' || currency === 'bronze' ? 0 : Math.floor(resto / 1000);
         const restoBronce = resto - restoPlata * 1000;
 
         const saldoAntes = Math.floor(Number(this.getBalanceByCurrency(currency)) || 0);

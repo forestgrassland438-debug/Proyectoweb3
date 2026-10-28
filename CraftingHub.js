@@ -768,6 +768,15 @@ class CraftingSystem {
     if(!this.canAddItemToInventory(recipe.resultItem,resultQty)){
       this.showFeedback('❌ Not enough space in inventory','error');return;
     }
+    /* (2026-10-28) "AL CRAFTEAR TAMBIÉN DEBERÍA HABER UN PRECIO JUSTO" que corre
+       con la economía: lo calcula y lo cobra el servidor (un % de lo que vale
+       lo que sale, con el índice de precios; ver gf-servicios.js). Si al final
+       no se entrega nada, vuelve (ver el finally de abajo). */
+    let cobroCrafteo=null, entregadoCrafteo=false;
+    if(window.GFServicios){
+      cobroCrafteo=await window.GFServicios.cobrar('craftear',recipe.resultItem,resultQty);
+      if(cobroCrafteo&&!cobroCrafteo.ok){this.showFeedback('❌ '+cobroCrafteo.message,'error');return;}
+    }
     this._crafting=true;
     // Aviso (en inglés) de que el crafteo empezó: la parte on-chain (consumir
     // materiales / agregar el resultado) es asíncrona y puede tardar, así que
@@ -873,6 +882,7 @@ class CraftingSystem {
         // resultados junto con todos los materiales de origen.
         const parciales = Math.max(0, contarReal(recipe.resultItem) - antesResultado);
         if (parciales > 0) {
+          entregadoCrafteo = true;
           this.showFeedback(`Only ${parciales} of ${resultQty} ${recipe.name} were confirmed. Recheck your inventory.`, 'warning');
           return false;
         }
@@ -884,6 +894,7 @@ class CraftingSystem {
 
       // ── VERIFICACIÓN 2: ¿llegó de verdad el objeto crafteado? ──────────
       const recibidas = contarReal(recipe.resultItem) - antesResultado;
+      if (recibidas > 0) entregadoCrafteo = true;
       if (recibidas < resultQty) {
         console.error(`❌ Crafteo sin entregar: ${recibidas}/${resultQty} ${recipe.resultItem}`);
         if (recibidas <= 0) {
@@ -919,6 +930,10 @@ class CraftingSystem {
       this.savePlayerData();
       console.log('✅ Crafteo completado');
     } finally {
+      // (2026-10-28) No se entregó nada: lo cobrado por craftear vuelve (una vez; el servidor lo comprueba).
+      if(!entregadoCrafteo&&cobroCrafteo&&cobroCrafteo.ref&&cobroCrafteo.bronce>0&&window.GFServicios){
+        window.GFServicios.devolver(cobroCrafteo.ref);
+      }
       this._crafting=false;
       // El estado del botón depende de si QUEDA cola, no de este crafteo.
       this._setCraftButtonBusy((this._craftPending||0) > 1);
@@ -1423,6 +1438,7 @@ class CraftingSystem {
         </div>
       </div>
       <div class="crafting-actions">
+        <div class="crafting-fee" id="overlay-craft-fee" style="font-size:12px;opacity:.85;margin:0 0 8px"></div>
         <button id="overlay-craft-button" class="craft-btn" ${maxCraftable===0?'disabled':''} type="button">
           <span class="craft-icon">⚒️</span> Craft
         </button>
@@ -1463,8 +1479,19 @@ class CraftingSystem {
 
     // FIX 2: sincrónico
     this._setupOverlayEvents(content,recipe);
+    this._pintarTarifaCrafteo(recipe);
     overlay.classList.remove('hidden'); overlay.classList.add('visible');
     this.disablePhaserInput();
+  }
+
+  /** (2026-10-28) Lo que cuesta craftear hoy (lo pone el servidor y sigue la economía). */
+  _pintarTarifaCrafteo(recipe){
+    const caja=document.getElementById('overlay-craft-fee');
+    if(!caja||!recipe||!window.GFServicios) return;
+    window.GFServicios.precio('craftear',recipe.resultItem,recipe.resultQuantity||1).then(b=>{
+      if(!caja.isConnected) return;
+      caja.textContent=b==null?'':`💰 Crafting fee: ${Number(b).toLocaleString('en-US')} Bronze each (follows the economy)`;
+    }).catch(()=>{});
   }
 
   _setupOverlayEvents(content,recipe) {

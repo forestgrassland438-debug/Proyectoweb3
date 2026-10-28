@@ -15,7 +15,9 @@
     // (2026-10-26) La economía: una línea que sube sobre sus ejes.
     economy:'<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>',
     // (2026-10-27) La auditoría: una lista y una lupa.
-    audit:'<path d="M4 6h9M4 10h6M4 14h4"/><circle cx="15.5" cy="14.5" r="4"/><path d="m18.5 17.5 3 3"/>'
+    audit:'<path d="M4 6h9M4 10h6M4 14h4"/><circle cx="15.5" cy="14.5" r="4"/><path d="m18.5 17.5 3 3"/>',
+    // (2026-10-28) Los precios: una etiqueta de precio.
+    prices:'<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9Z"/><circle cx="8" cy="8" r="1.6"/>'
   };
   const svg = name => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+icons[name]+'</svg>';
   const tools = [
@@ -24,7 +26,9 @@
     { id:'climas', file:'climas.html', name:'World & weather', icon:'weather', group:'Game control', text:'Control weather, seasons and the world clock.' },
     { id:'tesoro', file:'tesoro.html', name:'Treasury & incentives', icon:'treasury', group:'Game control', text:'The circular-economy treasury (1.5% of every market fee and the exchange fees) and the coin drops for free and VIP players.' },
     // (2026-10-26) Los dos tesoros, el precio del oro, la inflación y las compras con zkLTC.
-    { id:'economia', file:'economia.html', name:'Economy & treasuries', icon:'economy', group:'Game control', text:'Both treasuries, the Gold price index, inflation, the three coins and Gold purchases with zkLTC.' },
+    { id:'economia', file:'economia.html', name:'Economy & treasuries', icon:'economy', group:'Game control', text:'Three treasuries, burns, the price index, inflation, death and crafting prices, the three coins and Gold purchases with zkLTC.' },
+    // (2026-10-28) La economía de la tienda del juego y del P2P: precios, gráficos y el precio por defecto de cada objeto.
+    { id:'precios', file:'precios.html', name:'Shop & P2P economy', icon:'prices', group:'Game control', text:'How every shop price moved with inflation and demand, what players pay on P2P, and the default price of each item in Gold, Silver or Bronze.' },
     { id:'colecciones', file:'colecciones.html', name:'Collections', icon:'collections', group:'Assets', text:'Create collections and manage NFT distribution.' },
     { id:'consola-reportes', file:'consola-reportes.html', name:'Player reports', icon:'reports', group:'Moderation', text:'Review player reports and moderation cases.' },
     // (2026-10-27) Quién compró y vendió y si pagó, los fallos de la tienda y del P2P, el explorador del suelo y los intentos.

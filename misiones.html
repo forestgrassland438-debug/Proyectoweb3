@@ -6,6 +6,16 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Grassland Forest — Misiones diarias</title>
 <style>
+  /* (2026-10-28) Lo que pagan las misiones. */
+  .meco-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 10px 0; }
+  .meco-kpi { border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 10px 12px; }
+  .meco-kpi b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .meco-kpi span { font-size: 12px; opacity: .75; }
+  .meco-graficos { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+  .meco-graficos h3 { font-size: 13px; margin: 6px 0; }
+  .meco-tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .meco-tabla th, .meco-tabla td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.08); text-align: right; }
+  .meco-tabla th:first-child, .meco-tabla td:first-child { text-align: left; }
   :root {
     --bg: #0b1220;
     --panel: #121c2f;
@@ -196,9 +206,11 @@
 <link rel="stylesheet" href="./admin-suite.css?v=20261020">
 <link rel="stylesheet" href="./mission-studio.css?v=20261020">
 <script src="./admin-session.js?v=20261020"></script>
-<script src="./admin-suite-i18n.js?v=20261027"></script>
+<script src="./admin-suite-i18n.js?v=20261028"></script>
 <script defer src="./admin-suite.js?v=20261025"></script>
 <script defer src="./mission-studio.js?v=20261020"></script>
+<!-- (2026-10-28) Gráficos interactivos (hora del servidor, UTC). -->
+<script defer src="./gf-graficos.js?v=20261028"></script>
 </head>
 <body>
 
@@ -315,9 +327,10 @@
     </div>
     <div id="autoPedidos"></div>
     <div id="autoPresas"></div>
-    <div id="autoPremios"></div>
+    <!-- (2026-10-28) Las misiones solo dan monedas: ya no hay premios en objetos. -->
+    <div id="autoPremios" hidden></div>
     <div class="row">
-      <div class="field"><label for="autoProb">Chance of an item reward (%)</label><input id="autoProb" type="number" min="0" max="100" value="75"></div>
+      <div class="field" hidden><label for="autoProb">Chance of an item reward (%)</label><input id="autoProb" type="number" min="0" max="100" value="0"></div>
       <div class="field"><label for="autoExpMin">EXP min</label><input id="autoExpMin" type="number" min="0" max="100000" value="40"></div>
       <div class="field"><label for="autoExpMax">EXP max</label><input id="autoExpMax" type="number" min="0" max="100000" value="140"></div>
     </div>
@@ -326,6 +339,8 @@
       <div class="field"><label for="autoOroMax">Gold max</label><input id="autoOroMax" type="number" min="0" max="1000" value="0"></div>
       <div class="field"><label for="autoPlataMin">Silver min</label><input id="autoPlataMin" type="number" min="0" max="100000" value="10"></div>
       <div class="field"><label for="autoPlataMax">Silver max</label><input id="autoPlataMax" type="number" min="0" max="100000" value="60"></div>
+      <div class="field"><label for="autoBronceMin">Bronze min</label><input id="autoBronceMin" type="number" min="0" max="10000000" value="0"></div>
+      <div class="field"><label for="autoBronceMax">Bronze max</label><input id="autoBronceMax" type="number" min="0" max="10000000" value="0"></div>
     </div>
     <div class="row" style="margin-top:12px">
       <button class="ok" id="btnAutoGuardar" type="button">💾 Save rules</button>
@@ -333,8 +348,8 @@
       <button class="ghost" id="btnAutoAlEditor" type="button">✏️ Send preview to the manual editor</button>
       <button class="danger" id="btnAutoReroll" type="button">🎲 New roll for TODAY</button>
     </div>
-    <p class="hint">Gold is real money (1 gold = 1 USD): the server caps it at 1000 per mission.
-      Only items that can be minted on-chain are accepted as rewards.</p>
+    <p class="hint">Missions only pay coins: Gold, Silver and Bronze (1 Silver = 1,000 Bronze), plus EXP. Items are never given as rewards.
+      Gold is real money (1 gold = 1 USD): the server caps it at 1000 per mission.</p>
     <div id="autoPrevia"></div>
   </section>
 
@@ -352,6 +367,22 @@
       <div class="field" style="flex:0 0 auto"><label>&nbsp;</label><button class="ghost" id="btnEntregasCsv" type="button">⬇️ Export CSV</button></div>
     </div>
     <div id="entregas" style="margin-top:14px"></div>
+  </section>
+
+  <!-- ===================== LO QUE PAGAN LAS MISIONES (2026-10-28) ===================== -->
+  <section class="card">
+    <h2>💰 What missions pay <span id="mecoInfo" class="hint"></span></h2>
+    <p class="hint">
+      Missions only pay coins — Gold, Silver and Bronze — plus EXP. These charts show what all missions
+      paid each day (every NPC), so you can see whether rewards are adding too many coins to the economy.
+      Times are UTC (server clock). Wheel or pinch to zoom, drag to move.
+    </p>
+    <div class="meco-kpis" id="mecoKpis"></div>
+    <div class="meco-graficos">
+      <div><h3>Coins paid per day (bronze value)</h3><div id="mecoMonedas"></div></div>
+      <div><h3>Missions completed and players per day</h3><div id="mecoMisiones"></div></div>
+    </div>
+    <div id="mecoTop" style="margin-top:12px"></div>
   </section>
 
   <!-- ===================== HISTORIAL ===================== -->
@@ -491,6 +522,9 @@
     // se recibía nada. De ahí el "le puse plata y me dio algo que ya no es".
     var inOro   = crear('input', { type: 'number', value: datos.goldReward   || 0, min: 0, max: 1000 });
     var inPlata = crear('input', { type: 'number', value: datos.silverReward || 0, min: 0, max: 100000 });
+    // (2026-10-28) "En misiones no podemos dar ítems, solo monedas de los tres tipos": también bronce
+    // (1 plata = 1.000 de bronce). El ítem de recompensa ya no se ofrece (el servidor tampoco lo daría).
+    var inBronce = crear('input', { type: 'number', value: datos.bronzeReward || 0, min: 0, max: 10000000 });
 
     var bloquesIdioma = IDIOMAS.map(function (l) {
       var t = (datos.texts && datos.texts[l.code]) || {};
@@ -551,12 +585,9 @@
         campo('EXP', inExp)
       ]),
       crear('div', { class: 'row' }, [
-        campo('Ítem de recompensa (opcional)', inPremio),
-        campo('Cantidad de recompensa', inPremioC)
-      ]),
-      crear('div', { class: 'row' }, [
         campo('Oro de recompensa (0 = nada)', inOro),
-        campo('Plata de recompensa (0 = nada)', inPlata)
+        campo('Plata de recompensa (0 = nada)', inPlata),
+        campo('Bronce de recompensa (0 = nada)', inBronce)
       ]),
       detalles
     ]);
@@ -593,12 +624,9 @@
         // bajar una a 0 el servidor conservaría el valor viejo.
         goldReward:   Math.max(0, parseInt(inOro.value,   10) || 0),
         silverReward: Math.max(0, parseInt(inPlata.value, 10) || 0),
+        bronzeReward: Math.max(0, parseInt(inBronce.value, 10) || 0),
         texts: textos
       };
-      if (inPremio.value.trim()) {
-        salida.rewardItemId = inPremio.value.trim();
-        salida.rewardAmount = parseInt(inPremioC.value, 10) || 1;
-      }
       return salida;
     };
 
@@ -850,7 +878,7 @@
     $('autoPesoC').value = r.pesoCazar != null ? r.pesoCazar : 40;
     $('autoHora').value = r.horaReinicio || 0;
     $('autoProb').value = r.probPremio != null ? r.probPremio : 75;
-    ['ExpMin', 'ExpMax', 'OroMin', 'OroMax', 'PlataMin', 'PlataMax'].forEach(function (k) {
+    ['ExpMin', 'ExpMax', 'OroMin', 'OroMax', 'PlataMin', 'PlataMax', 'BronceMin', 'BronceMax'].forEach(function (k) {
       var clave = k.charAt(0).toLowerCase() + k.slice(1);
       $('auto' + k).value = r[clave] != null ? r[clave] : 0;
     });
@@ -866,9 +894,9 @@
       activo: $('autoActivo').checked, cuantas: n('autoCuantas'), semilla: loadedSeed,
       pesoEntregar: n('autoPesoE'), pesoCazar: n('autoPesoC'), horaReinicio: n('autoHora'),
       pedidos: edPedidos ? edPedidos._leer() : [], presas: edPresas ? edPresas._leer() : [],
-      premios: edPremios ? edPremios._leer() : [], probPremio: n('autoProb'),
+      premios: [], probPremio: 0,
       expMin: n('autoExpMin'), expMax: n('autoExpMax'), oroMin: n('autoOroMin'), oroMax: n('autoOroMax'),
-      plataMin: n('autoPlataMin'), plataMax: n('autoPlataMax')
+      plataMin: n('autoPlataMin'), plataMax: n('autoPlataMax'), bronceMin: n('autoBronceMin'), bronceMax: n('autoBronceMax')
     };
   }
 
@@ -901,7 +929,8 @@
     var p = ['+' + (m.expReward || 0) + ' EXP'];
     if (m.goldReward) p.push('+' + m.goldReward + ' gold');
     if (m.silverReward) p.push('+' + m.silverReward + ' silver');
-    if (m.rewardItemId) p.push('+' + (m.rewardAmount || 1) + ' ' + ((m.texts && m.texts['en-US'] && m.texts['en-US'].rewardName) || m.rewardItemId));
+    if (m.bronzeReward) p.push('+' + m.bronzeReward + ' bronze');
+    if (m.rewardItemId) p.push('+ ' + (m.rewardAmount || 1) + ' ' + ((m.texts && m.texts['en-US'] && m.texts['en-US'].rewardName) || m.rewardItemId) + ' (paid in Bronze)');
     return p.join(' · ');
   }
   function verPrevia() {
@@ -1070,6 +1099,61 @@
 
   // Las llamadas van con la COOKIE de sesión (credentials: 'include') y el
   // token CSRF leído en el momento, no con una cabecera Authorization.
+  /* (2026-10-28) LO QUE PAGAN LAS MISIONES: monedas por día (en valor de bronce), misiones y jugadores. */
+  var mecoGraficos = {};
+  function cargarEconomiaMisiones() {
+    if (!adminOk) return;
+    pedir('/api/admin/misiones/economia').then(function (d) {
+      var G = window.GFGraficos;
+      if (!d || !d.ok) return;
+      if (G && d.ahora) G.reloj.ajustar(d.ahora);
+      var serie = d.serie || [];
+      var suma = function (k, n) { return serie.slice(-n).reduce(function (s, f) { return s + (Number(f[k]) || 0); }, 0); };
+      var fmtN = function (v) { return Number(v || 0).toLocaleString('en-US'); };
+      var kpis = [[suma('misiones', 7), 'Missions completed, 7 days'], [suma('oro', 7), 'Gold paid, 7 days'],
+                  [suma('plata', 7), 'Silver paid, 7 days'], [suma('bronce', 7), 'Bronze paid, 7 days'],
+                  [suma('oro', 7) * 1000000 + suma('plata', 7) * 1000 + suma('bronce', 7), 'Total, 7 days (bronze value)']];
+      $('mecoKpis').replaceChildren.apply($('mecoKpis'), kpis.map(function (k) {
+        var dv = document.createElement('div'); dv.className = 'meco-kpi';
+        var b = document.createElement('b'); b.textContent = fmtN(k[0]);
+        var s = document.createElement('span'); s.textContent = uiText(k[1]);
+        dv.appendChild(b); dv.appendChild(s); return dv;
+      }));
+      $('mecoInfo').textContent = '— ' + (G ? G.fechaHora(d.ahora || Date.now(), 'en') : new Date().toUTCString());
+      if (G) {
+        var op = { idioma: (window.GFAdminUI && window.GFAdminUI.language === 'es') ? 'es' : 'en', tema: 'oscuro', alto: 230, rango: '30d', rangos: ['7d', '30d', '90d', 'todo'] };
+        if (mecoGraficos.m) mecoGraficos.m.destruir();
+        if (mecoGraficos.n) mecoGraficos.n.destruir();
+        mecoGraficos.m = G.crear($('mecoMonedas'), Object.assign({}, op, { tipo: 'barras', etiqueta: 'Coins paid by missions',
+          series: [{ id: 'oro', nombre: 'Gold', color: '#c98500' }, { id: 'plata', nombre: 'Silver', color: '#3987e5' }, { id: 'bronce', nombre: 'Bronze', color: '#d95926' }],
+          datos: { oro: serie.map(function (f) { return [f.dia, (f.oro || 0) * 1000000]; }), plata: serie.map(function (f) { return [f.dia, (f.plata || 0) * 1000]; }),
+                   bronce: serie.map(function (f) { return [f.dia, f.bronce || 0]; }) },
+          formato: function (v) { return fmtN(Math.round(v)) + ' BR'; }, vacio: 'No missions completed yet.' }));
+        mecoGraficos.n = G.crear($('mecoMisiones'), Object.assign({}, op, { etiqueta: 'Missions and players',
+          series: [{ id: 'm', nombre: 'Missions', color: '#199e70' }, { id: 'j', nombre: 'Players', color: '#9085e9' }],
+          datos: { m: serie.map(function (f) { return [f.dia, f.misiones || 0]; }), j: serie.map(function (f) { return [f.dia, f.jugadores || 0]; }) },
+          incluirCero: true, formato: function (v) { return fmtN(Math.round(v)); }, vacio: 'No missions completed yet.' }));
+      }
+      var top = d.top || [];
+      var caja = $('mecoTop');
+      caja.replaceChildren();
+      if (top.length) {
+        var tb = document.createElement('table'); tb.className = 'meco-tabla';
+        var cab = document.createElement('tr');
+        ['Player (30 days)', 'Missions', 'Gold', 'Silver', 'Bronze'].forEach(function (c) { var th = document.createElement('th'); th.textContent = uiText(c); cab.appendChild(th); });
+        tb.appendChild(cab);
+        top.forEach(function (r) {
+          var tr = document.createElement('tr');
+          [r.playerName, fmtN(r.misiones), fmtN(r.oro), fmtN(r.plata), fmtN(r.bronce)].forEach(function (v) { var td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
+          tb.appendChild(tr);
+        });
+        caja.appendChild(tb);
+      }
+    }).catch(function (e) {
+      $('mecoInfo').textContent = e && e.status === 404 ? '— ' + uiText('the server does not have this chart yet') : '';
+    });
+  }
+
   function pedir(ruta, opciones) {
     if (window.GFAdminSession) return window.GFAdminSession.request(ruta, opciones);
     opciones = opciones || {};
@@ -1193,6 +1277,7 @@
         cargarDias();
         cargarCatalogo().then(cargarReglas);
         if (!editorTarget) cargarDia();
+        cargarEconomiaMisiones();
         studioEvent('authenticated', { address: d.address });
       })
       .catch(function (e) {
